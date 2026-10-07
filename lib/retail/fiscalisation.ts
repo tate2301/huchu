@@ -1033,7 +1033,7 @@ export type TillFiscalStatus = {
  * void — and answer in the till's terms.
  *
  * The online routes used to skip fiscalisation entirely; only the offline
- * queue drained onto the chain (`pos/sync`). Never throws: the money has been
+ * queue drained onto the chain. Never throws: the money has been
  * taken, and a sale that did not reach ZIMRA is a row the replay picks up.
  */
 export async function fiscaliseAfterPosting(input: {

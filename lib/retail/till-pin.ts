@@ -1,36 +1,26 @@
 /**
- * The till's PIN: a fast unlock of a device that is already signed in.
- *
- * S-7.5. `docs/design-system/portals/pos.html` signs a cashier in on four digits
- * and shows the digits next to their name. That is a demo. What this implements is
- * the part of it that is right — typing a password on a tablet between customers
- * is not a thing a queue tolerates — without the part that is not.
+ * The till's PIN: who is selling, on a device a manager has paired to a till.
  *
  * ── What a PIN is here, and what it is not ─────────────────────────────────
  *
- * A cashier signs in **once**, with their password, through the existing flow at
- * `app/portal/pos/login`. That is the only credential path into the system and
- * this module does not add another. What the PIN does is lock and unlock a
- * terminal whose session is already open: same session, same user, no new way in.
- * Sign the session out and the password is the only way back.
+ * Four digits sign a person in, and only on a paired device. The device's key
+ * (`lib/retail/till-device.ts`, an httpOnly cookie a manager's pairing code
+ * issued) says which till and which workspace; the PIN says who, out of the
+ * people that workspace lets sell. A PIN typed anywhere else is refused before
+ * a user is looked up (`till-pin` in `lib/auth.ts`). The same four digits also
+ * unlock a till that locked itself while its session stayed open.
  *
  * Four digits is 10,000 possibilities. Against an offline attack on the hash that
  * is nothing, which is why the threat this defends against is stated narrowly:
+ * someone standing at a paired till, being watched, tries to sell or read the
+ * takings under another person's name. They get five guesses before that PIN
+ * stops for fifteen minutes, and the device itself was a manager's decision.
  *
- *   The cashier steps away from an unattended, already-signed-in till and the
- *   next person along rings a sale up — or reads the day's takings — under
- *   their name.
- *
- * That attacker is standing at the counter, is being watched, and gets five
- * guesses before the terminal makes them fetch a password. It is a convenience
- * factor on an authenticated session, not a password, and nothing in the product
- * may treat it as one.
- *
- * **A PIN never authorises a manager override.** `pos/sales/route.ts` compares a
- * manager's bcrypt password before a price or discount override is accepted, and
- * that gate exists precisely so the person approving is not the person ringing up.
- * A four-digit code shared across a shift would collapse the two. The prototype's
- * "Supervisor PIN 4321" is the thing we are deliberately not building.
+ * **A PIN is issued by a password, never by another PIN** (`pos/pin`,
+ * `pos/pin/first`), and **a PIN never authorises a manager override.**
+ * `pos/sales/route.ts` compares a manager's bcrypt password before a price or
+ * discount override is accepted, so the person approving is not the person
+ * ringing up. A four-digit code shared across a shift would collapse the two.
  *
  * ── Storage ────────────────────────────────────────────────────────────────
  *

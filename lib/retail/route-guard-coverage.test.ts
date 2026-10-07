@@ -82,6 +82,18 @@ const GUARD_MARKERS = [
    * instead of it.
    */
   "canAccessPosPortal",
+  /**
+   * Pairing a device, before anyone is signed in on it. The authority is the
+   * manager's six-digit code, spent once and judged here; there is no session
+   * to ask, by design.
+   */
+  "judgePairingCode",
+  /**
+   * The device asking about itself, with no session: its own httpOnly key is the
+   * authority, and all it can do is read what it is or forget a key the server
+   * has already stopped honouring.
+   */
+  "readTillDevice",
 ];
 
 /**

@@ -10,6 +10,7 @@ import {
   FactList,
   HeaderAction,
   RecordHeader,
+  SectionAction,
   SectionHeading,
   StatusBadge,
 } from "@/components/management/ui";
@@ -20,17 +21,18 @@ import {
   type RetailProduct,
 } from "@/components/retail/product-dialogs";
 import { RetailShell } from "@/components/retail/retail-shell";
+import { SellingRulesDialog, type SellingRules } from "@/components/retail/selling-rules-dialog";
 import { retailMoney } from "@/components/retail/sale-detail";
 import { DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { dsConfirm } from "@/components/ui/ds-confirm";
 import { useToast } from "@/components/ui/use-toast";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
-import { Coins, TableRows } from "@/lib/icons";
+import { Coins, Pencil, TableRows } from "@/lib/icons";
 import { enumLabel, formatQuantity, formatRetailDate } from "@/lib/retail/words";
 
-type ProductDetail = RetailProduct & {
+type ProductDetail = RetailProduct & Omit<SellingRules, "id" | "name"> & {
   productId: string;
-  ageRestricted: boolean;
+  openableCase: { productId: string; name: string; unitsPerCase: number } | null;
   taxInclusive: boolean;
   priceSource: string;
   pricedAt: string | null;
@@ -60,6 +62,7 @@ export default function RetailProductPage() {
   const productId = params?.id ?? "";
   const [editing, setEditing] = useState(false);
   const [pricing, setPricing] = useState(false);
+  const [rules, setRules] = useState(false);
   const router = useRouter();
   const { toast } = useToast();
   const invalidate = useInvalidateProducts();
@@ -207,8 +210,41 @@ export default function RetailProductPage() {
                   tone: product.barcode ? "default" : "muted",
                 },
                 { label: "Category", value: product.category ? enumLabel(product.category) : "None" },
-                { label: "Check ID", value: product.ageRestricted ? "Yes" : "No" },
                 ...(product.description ? [{ label: "Description", value: product.description }] : []),
+              ]}
+            />
+
+            <SectionHeading
+              maxWidth={WIDTH}
+              action={
+                <SectionAction icon={Pencil} onClick={() => setRules(true)}>
+                  Change
+                </SectionAction>
+              }
+            >
+              Selling rules
+            </SectionHeading>
+            <FactList
+              maxWidth={WIDTH}
+              items={[
+                { label: "Check ID", value: product.ageRestricted ? "Yes, 18+" : "No" },
+                {
+                  label: "Deposit",
+                  value: product.returnable && product.depositAmount !== null ? retailMoney(product.depositAmount) : "None",
+                  mono: product.returnable,
+                  tone: product.returnable ? "default" : "muted",
+                },
+                {
+                  label: "Most off",
+                  value: product.maxDiscountPercent === null ? "No limit" : `${product.maxDiscountPercent}%`,
+                  mono: product.maxDiscountPercent !== null,
+                  tone: product.maxDiscountPercent === null ? "muted" : "default",
+                },
+                ...(product.caseOf
+                  ? [{ label: "A case of", value: `${product.caseOf.unitsPerCase} × ${product.caseOf.name}` }]
+                  : product.openableCase
+                    ? [{ label: "Comes in", value: `${product.openableCase.name}, ${product.openableCase.unitsPerCase} a case` }]
+                    : []),
               ]}
             />
           </div>
@@ -235,6 +271,7 @@ export default function RetailProductPage() {
 
       <ProductDialog open={editing} onOpenChange={setEditing} product={editable} />
       <ChangePriceDialog product={pricing ? editable : null} onOpenChange={(open) => !open && setPricing(false)} />
+      <SellingRulesDialog product={rules && product ? product : null} onOpenChange={(open) => !open && setRules(false)} />
     </RetailShell>
   );
 }

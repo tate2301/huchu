@@ -65,6 +65,15 @@ export type ShelfListing = {
   imageUrl: string | null;
   /** A liquor licence is not optional. Carried so the counter can be told to ask. */
   ageRestricted: boolean;
+  /** A returnable bottle or crate, and the deposit it carries outside VAT. */
+  returnable: boolean;
+  depositAmount: number | null;
+  /** The most a line of this may be discounted, managers included. */
+  maxDiscountPercent: number | null;
+  /** The case this single comes in, so the till can open one when the shelf runs out. */
+  openableCase: { productId: string; name: string; unitsPerCase: number; casesOnHand: number } | null;
+  /** When this product is a case: the single it holds, and how many. */
+  caseOf: { productId: string; name: string; unitsPerCase: number } | null;
   status: ShelfListingStatus;
   unitPrice: number;
   compareAtPrice: number | null;
@@ -96,6 +105,17 @@ const listingSelect = {
   barcode: true,
   imageUrl: true,
   ageRestricted: true,
+  returnable: true,
+  depositAmount: true,
+  maxDiscountPercent: true,
+  cases: {
+    where: { isActive: true, archivedAt: null, unitsPerCase: { gt: 0 } },
+    select: { id: true, name: true, unitsPerCase: true },
+    orderBy: { unitsPerCase: "asc" },
+    take: 1,
+  },
+  unitsPerCase: true,
+  caseOf: { select: { id: true, name: true } },
   isActive: true,
   standardPrice: true,
   compareAtPrice: true,
@@ -195,6 +215,20 @@ export async function loadShelfListings(
     stockByProduct.set(row.productId, row);
   }
 
+  // The cases on hand behind a single, at the same branch, so the till can say how many it could open.
+  const caseIds = products.flatMap((product) => product.cases.map((entry) => entry.id));
+  const caseStock = new Map<string, number>();
+  if (caseIds.length) {
+    const caseRows = await prisma.inventoryItem.findMany({
+      where: { site: { companyId }, ...(siteId ? { siteId } : {}), productId: { in: caseIds } },
+      orderBy: { itemCode: "asc" },
+      select: { productId: true, currentStock: true },
+    });
+    for (const row of caseRows) {
+      if (row.productId && !caseStock.has(row.productId)) caseStock.set(row.productId, toNumberOrZero(row.currentStock));
+    }
+  }
+
   const priced = await resolveShelfPrices(
     companyId,
     products.map((product) => ({
@@ -223,6 +257,21 @@ export async function loadShelfListings(
       description: product.description,
       imageUrl: product.imageUrl,
       ageRestricted: product.ageRestricted,
+      returnable: product.returnable,
+      depositAmount: product.depositAmount === null ? null : toNumberOrZero(product.depositAmount),
+      maxDiscountPercent: product.maxDiscountPercent === null ? null : toNumberOrZero(product.maxDiscountPercent),
+      openableCase: product.cases[0]
+        ? {
+            productId: product.cases[0].id,
+            name: product.cases[0].name,
+            unitsPerCase: product.cases[0].unitsPerCase ?? 0,
+            casesOnHand: caseStock.get(product.cases[0].id) ?? 0,
+          }
+        : null,
+      caseOf:
+        product.caseOf && product.unitsPerCase
+          ? { productId: product.caseOf.id, name: product.caseOf.name, unitsPerCase: product.unitsPerCase }
+          : null,
       status: product.isActive ? "ACTIVE" : "INACTIVE",
       unitPrice: shelf?.unitPrice ?? toNumberOrZero(product.standardPrice),
       compareAtPrice:
@@ -307,6 +356,9 @@ export async function loadSellableProducts(input: {
           standardPrice: true,
           defaultTaxRate: true,
           ageRestricted: true,
+          returnable: true,
+          depositAmount: true,
+          maxDiscountPercent: true,
         },
       },
     },
@@ -322,6 +374,9 @@ export async function loadSellableProducts(input: {
       standardPrice: row.product.standardPrice,
       defaultTaxRate: row.product.defaultTaxRate,
       ageRestricted: row.product.ageRestricted,
+      returnable: row.product.returnable,
+      depositAmount: row.product.depositAmount,
+      maxDiscountPercent: row.product.maxDiscountPercent,
       siteId: row.siteId,
       inventoryItem: {
         id: row.id,
@@ -515,6 +570,9 @@ export type SellableProduct = {
   standardPrice: Prisma.Decimal;
   defaultTaxRate: Prisma.Decimal;
   ageRestricted: boolean;
+  returnable: boolean;
+  depositAmount: Prisma.Decimal | null;
+  maxDiscountPercent: Prisma.Decimal | null;
   siteId: string;
   inventoryItem: {
     id: string;

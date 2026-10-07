@@ -21,7 +21,7 @@ describe("what an unsent sale is called", () => {
     // The server allocates the number when the sale lands. Until then there
     // isn't one, and showing the raw key would be worse than the old form.
     const label = queuedSaleLabel(payload({ clientRef: "3f2a1b9c-77d4-4e21-9a10-8c5b2e4f0d6a" }));
-    expect(label).toBe("Unsent · 4F0D6A");
+    expect(label).toBe("Unsent 4F0D6A");
     expect(label).not.toContain("3f2a1b9c");
   });
 

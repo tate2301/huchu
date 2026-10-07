@@ -63,6 +63,20 @@ function buildStrategyRegistry(): AuthStrategyDescriptor[] {
       kind: "handoff",
       supportsRememberMe: false,
     },
+    {
+      // Only on a paired till: the device's key says which till, the PIN says
+      // who. The till's own "Who is selling?" screen asks for it, so it appears
+      // on no sign-in surface.
+      id: "till-pin",
+      providerId: "till-pin",
+      label: "Till PIN",
+      description: "Four digits on a device a manager has paired to a till.",
+      surfaces: [],
+      enabled: true,
+      live: true,
+      kind: "pin",
+      supportsRememberMe: false,
+    },
   ];
 }
 

@@ -189,6 +189,8 @@ const BASE_CHART_OF_ACCOUNTS: DefaultAccount[] = [
   { code: "2000", name: "Accounts Payable", type: "LIABILITY", category: "Payables", systemManaged: true },
   { code: "2200", name: "VAT Output", type: "LIABILITY", category: "Tax", systemManaged: true },
   { code: "2210", name: "VAT Input", type: "ASSET", category: "Tax", systemManaged: true },
+  // A bottle store's deposits: owed back to whoever returns the bottle, so never revenue.
+  { code: "2250", name: "Container Deposits Held", type: "LIABILITY", category: "Payables", systemManaged: true },
   { code: "2300", name: "Goods Received Not Invoiced", type: "LIABILITY", category: "Inventory", systemManaged: true },
   ...PAYROLL_CHART_OF_ACCOUNTS,
   { code: "3000", name: "Retained Earnings", type: "EQUITY", category: "Equity", systemManaged: true },
@@ -832,6 +834,22 @@ export const RETAIL_POSTING_RULES: DefaultPostingRule[] = [
         memoTemplate: "{description} / inventory",
         sortOrder: 50,
       },
+      // Deposits on returnable products ride on the tenders and are owed back;
+      // empties brought in come off the tenders and settle what was owed.
+      {
+        accountCode: "2250",
+        direction: "CREDIT",
+        valuePath: "deposits.charged",
+        memoTemplate: "{description} / deposits charged",
+        sortOrder: 60,
+      },
+      {
+        accountCode: "2250",
+        direction: "DEBIT",
+        valuePath: "deposits.returned",
+        memoTemplate: "{description} / empties returned",
+        sortOrder: 70,
+      },
     ],
   },
   {
@@ -925,6 +943,21 @@ export const RETAIL_POSTING_RULES: DefaultPostingRule[] = [
         valuePath: "inventory.totalCost",
         memoTemplate: "{description} / inventory",
         sortOrder: 50,
+      },
+      // The voided sale's deposits and empties, reversed with everything else.
+      {
+        accountCode: "2250",
+        direction: "CREDIT",
+        valuePath: "deposits.charged",
+        memoTemplate: "{description} / deposits charged",
+        sortOrder: 60,
+      },
+      {
+        accountCode: "2250",
+        direction: "DEBIT",
+        valuePath: "deposits.returned",
+        memoTemplate: "{description} / empties returned",
+        sortOrder: 70,
       },
     ],
   },

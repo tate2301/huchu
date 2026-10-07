@@ -73,6 +73,9 @@ const MONEY_COLUMNS: Array<[table: string, column: string, precision: number, sc
   ["RetailCashMovement", "amount", 14, 2],
   ["RetailCashMovement", "exchangeRate", 12, 4],
   ["RetailCashMovement", "baseAmount", 14, 2],
+  // The liquor store: deposits charged and empties taken back, outside VAT.
+  ["RetailSale", "depositAmount", 14, 2],
+  ["RetailSale", "emptiesCredit", 14, 2],
 ];
 
 /** Every retail enum column, with the type it must carry. */
@@ -88,6 +91,9 @@ const ENUM_COLUMNS: Array<[table: string, column: string, type: string]> = [
   ["RetailSalePayment", "tenderType", "RetailTenderType"],
   ["RetailCashMovement", "type", "RetailCashMovementType"],
   ["RetailCashMovement", "reasonCode", "RetailCashMovementReason"],
+  // The till, paired.
+  ["RetailTillDevice", "kind", "RetailTillDeviceKind"],
+  ["RetailTillDevice", "revokedReason", "RetailTillDeviceEndReason"],
 ];
 
 /**
@@ -110,6 +116,8 @@ const ENUM_LABELS: Record<string, readonly string[]> = {
   RetailPromotionStatus: ["ACTIVE", "SCHEDULED", "INACTIVE"],
   RetailTenderType: ["CASH", "CARD", "MOBILE_MONEY", "TRANSFER", "VOUCHER"],
   RetailCashMovementType: ["DROP_TO_SAFE", "FLOAT_TOP_UP", "PAYOUT"],
+  RetailTillDeviceKind: ["COUNTERMINI", "KORA", "BROWSER"],
+  RetailTillDeviceEndReason: ["REPLACED", "UNPAIRED"],
   RetailCashMovementReason: [
     "CASH_LEVEL_TOO_HIGH",
     "BANK_DEPOSIT",
@@ -144,8 +152,9 @@ describe("retail status columns are enums in the database", () => {
   it("has a column to check for every entry", () => {
     // A silent zero here would make every assertion below vacuously true.
     // 13 until S-4 dropped `RetailCatalogItem` and its two enums with it.
-    expect(ENUM_COLUMNS.length).toBe(11);
-    expect(Object.keys(ENUM_LABELS).length).toBe(11);
+    // 11 until the till was paired: a device's kind and why it stopped being one.
+    expect(ENUM_COLUMNS.length).toBe(13);
+    expect(Object.keys(ENUM_LABELS).length).toBe(13);
   });
 
   it.each(ENUM_COLUMNS)('"%s"."%s" is %s', async (table, column, type) => {
@@ -209,7 +218,8 @@ describe("the database refuses what the String column used to accept", () => {
 describe("retail money columns are numeric at the right scale", () => {
   it("has a column to check for every entry", () => {
     // 32 until S-4 dropped `RetailCatalogItem`, which carried three of them.
-    expect(MONEY_COLUMNS.length).toBe(29);
+    // 29 until the liquor store: deposits and the empties credit on a sale.
+    expect(MONEY_COLUMNS.length).toBe(31);
   });
 
   it.each(MONEY_COLUMNS)(

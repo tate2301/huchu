@@ -6,7 +6,7 @@ import { normalizeFeatureKey } from "@/lib/platform/gating/catalog-utils";
 import { filterNavSectionsByEnabledFeatures } from "@/lib/platform/gating/nav-filter";
 import type { PersonaCode } from "@/lib/platform/personas";
 import { getPrimaryQuickActions } from "@/lib/primary-actions";
-import { canAccessPosPortal } from "@/lib/retail/pos-host";
+import { canAccessPosPortal, isCashierRole } from "@/lib/retail/pos-host";
 import { schoolAccess } from "@/lib/schools/access";
 import {
   inferWorkspaceProfileFromEnabledFeatures,
@@ -358,7 +358,9 @@ const WORKSPACE_MODULES: Record<WorkspaceModuleId, WorkspaceModuleDefinition> = 
      * somewhere to transfer to.
      */
     getItems(context) {
-      const posCapable = canAccessPosPortal(context.role);
+      // The cashier's back office is the till. A manager can also run a till but
+      // keeps the back-office shifts and sales.
+      const posCapable = isCashierRole(context.role);
       const canTransfer = canReclassifyStockBetweenLocations(context.activeStockLocationSiteIds);
       const items: NavItem[] = [];
 
@@ -372,7 +374,7 @@ const WORKSPACE_MODULES: Record<WorkspaceModuleId, WorkspaceModuleDefinition> = 
         if (item.href === "/retail/stock/transfers" && !canTransfer) continue;
         // `/portal/pos` and `/retail/sales` are both gated on `retail.pos`, so
         // offering the till alongside the sales list keeps them in step.
-        if (item.href === "/retail/sales" && posCapable) {
+        if (item.href === "/retail/sales" && canAccessPosPortal(context.role)) {
           items.push({ href: "/portal/pos", label: "Open POS", icon: Payments });
         }
         items.push(item);

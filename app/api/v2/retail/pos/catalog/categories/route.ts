@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { z } from "zod";
-import { successResponse } from "@/lib/api-response";
+import { errorResponse, successResponse } from "@/lib/api-response";
 import { prisma } from "@/lib/prisma";
 import { requireRetailPermission } from "@/lib/retail/permissions";
-import { parseRetailQuery } from "@/lib/retail/request";
+import { requireLiveTillDevice } from "@/lib/retail/till-device-server";
 import { requireRetailSession } from "../../../_helpers";
 
 /**
@@ -14,9 +13,6 @@ import { requireRetailSession } from "../../../_helpers";
  * `RetailCatalogItem` to collect inventory ids and a second read to get their
  * categories.
  */
-/** R-3.1. One optional branch. */
-const categoriesQuery = z.object({ siteId: z.string().uuid().optional() });
-
 export async function GET(request: NextRequest) {
   const { response, session } = await requireRetailSession(request);
   if (response || !session) {
@@ -27,26 +23,33 @@ export async function GET(request: NextRequest) {
   const gate = requireRetailPermission(session, "retail.catalog", "view");
   if (gate) return gate;
 
-  const query = parseRetailQuery(request, categoriesQuery);
-  if (query.response) return query.response;
+  // The shop this till stands in.
+  const device = await requireLiveTillDevice();
+  if (!device || device.companyId !== session.user.companyId) {
+    return errorResponse("This device is not a till. Pair it first.", 403);
+  }
 
   const rows = await prisma.inventoryItem.findMany({
     where: {
       site: { companyId: session.user.companyId },
-      ...(query.data.siteId ? { siteId: query.data.siteId } : {}),
+      siteId: device.register.siteId,
       product: { companyId: session.user.companyId, isActive: true, archivedAt: null },
     },
-    select: { category: true },
-    distinct: ["category"],
+    select: { category: true, product: { select: { ageRestricted: true } } },
   });
 
+  // A group whose every product is 18+ stops with the licence hours; the till says what still sells.
+  const groups = new Map<string, boolean>();
+  for (const row of rows) {
+    const name = row.category?.trim();
+    if (!name) continue;
+    const allAgeRestricted = (groups.get(name) ?? true) && Boolean(row.product?.ageRestricted);
+    groups.set(name, allAgeRestricted);
+  }
+
   return successResponse({
-    data: [
-      ...new Set(
-        rows
-          .map((row) => row.category?.trim())
-          .filter((category): category is string => Boolean(category)),
-      ),
-    ].sort((left, right) => left.localeCompare(right)),
+    data: [...groups.entries()]
+      .map(([name, allAgeRestricted]) => ({ name, allAgeRestricted }))
+      .sort((left, right) => left.name.localeCompare(right.name)),
   });
 }

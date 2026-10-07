@@ -96,7 +96,8 @@ export type QueuedSaleVerdict = {
  * which says so honestly rather than guessing.
  */
 const SHIFT_PHRASES = ["open shift not found", "shift is closed", "shift not found"];
-const STOCK_PHRASES = ["insufficient stock", "catalog items invalid", "inventory item missing"];
+const SHORT_STOCK_PHRASES = ["insufficient stock"];
+const ITEM_GONE_PHRASES = ["catalog items invalid", "inventory item missing"];
 const APPROVAL_PHRASES = [
   "manager approval is required",
   "manager approval is invalid",
@@ -179,13 +180,24 @@ export function classifyQueuedSale(facts: QueuedSaleFacts): QueuedSaleVerdict {
     };
   }
 
-  if (matches(message, STOCK_PHRASES)) {
+  if (matches(message, SHORT_STOCK_PHRASES)) {
+    return {
+      kind: "STOCK",
+      tone: "danger",
+      label: "Not enough stock",
+      detail: "The system does not have enough of one of the items to sell.",
+      action: "The stock has to be corrected before this can post.",
+      retryable: true,
+    };
+  }
+
+  if (matches(message, ITEM_GONE_PHRASES)) {
     return {
       kind: "STOCK",
       tone: "danger",
       label: "Item problem",
-      detail: "One of the items is out of stock on the system, or is no longer on the shelf list.",
-      action: "The stock has to be corrected before this can post.",
+      detail: "One of the items is no longer on the shelf list.",
+      action: "The item has to be put back on the shelf list before this can post.",
       retryable: true,
     };
   }

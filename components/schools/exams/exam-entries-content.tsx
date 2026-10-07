@@ -27,7 +27,8 @@ import {
   fetchSeries,
   invoiceEntries,
 } from "@/lib/schools/exams-v2";
-import { formatSchoolDayTime, formatSchoolMoney, spellCount } from "@/lib/schools/format";
+import { formatSchoolDayTime, formatSchoolMoney } from "@/lib/schools/format";
+import { spellCount } from "@/lib/spell-count";
 import { EnterSubjectsDialog } from "@/components/schools/exams/enter-subjects-dialog";
 import { ExamSeriesTabs } from "@/components/schools/exams/exam-series-tabs";
 

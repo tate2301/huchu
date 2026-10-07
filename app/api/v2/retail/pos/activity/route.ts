@@ -100,6 +100,10 @@ export async function GET(request: NextRequest) {
           postedAt: true,
           createdAt: true,
           shiftId: true,
+          // For the sentence: the sale a reversal undid, and the lines an override took money off.
+          exchangeRate: true,
+          sourceSale: { select: { id: true, saleNo: true, customerName: true, baseAmount: true } },
+          lines: { where: { discountAmount: { gt: 0 } }, select: { itemName: true, discountAmount: true } },
         },
       }),
       shiftIds.length === 0
@@ -122,8 +126,9 @@ export async function GET(request: NextRequest) {
 
     const entries = buildTillActivity({
       sales: sales.map(
-        ({ shiftId, ...sale }): TillActivitySaleRow => ({
+        ({ shiftId, lines, ...sale }): TillActivitySaleRow => ({
           ...sale,
+          discountLines: lines,
           shiftNo: shiftId ? shiftNoById.get(shiftId) ?? null : null,
         }),
       ),

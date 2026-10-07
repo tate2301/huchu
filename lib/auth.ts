@@ -21,6 +21,8 @@ import { verifyEmailCode } from "@/lib/auth-core/email-code";
 import { consumeSessionHandoff } from "@/lib/auth-core/session-handoff";
 import { resolveSignInScope } from "@/lib/auth-core/sign-in-scope";
 import { canAccessPosPortal } from "@/lib/retail/pos-host";
+import { evaluateTillPinAttempt } from "@/lib/retail/till-pin";
+import { deviceKeyFromCookieHeader, findDeviceByKey, isLiveDevice } from "@/lib/retail/till-device-server";
 import { getSubscriptionHealth } from "@/lib/platform/subscription";
 import {
   validateAuthConfiguration,
@@ -707,6 +709,108 @@ export const authOptions: NextAuthOptions = {
 
         await assertAccountUsable(user, ctx);
         return completeSignIn(user, ctx, true);
+      },
+    }),
+    CredentialsProvider({
+      // A PIN on a paired till. The device's key, from its httpOnly cookie,
+      // says which till and which workspace; the four digits say who. Without
+      // a live paired device there is nothing to check a PIN against, so a PIN
+      // typed anywhere else is refused before any user is looked up.
+      id: "till-pin",
+      name: "till-pin",
+      credentials: {
+        userId: { label: "Person", type: "text" },
+        pin: { label: "PIN", type: "password" },
+        // Their account password instead, when their PIN is locked for fifteen minutes.
+        password: { label: "Password", type: "password" },
+      },
+      async authorize(credentials, req) {
+        assertStrategyEnabled("till-pin");
+
+        const device = await findDeviceByKey(deviceKeyFromCookieHeader(req?.headers?.cookie));
+        if (!isLiveDevice(device)) {
+          throw new Error("TILL_NOT_PAIRED");
+        }
+
+        const userId = credentials?.userId ?? "";
+        const pin = credentials?.pin ?? "";
+        const person = await prisma.user.findFirst({
+          where: { id: userId, companyId: device.companyId },
+          select: {
+            id: true,
+            email: true,
+            name: true,
+            password: true,
+            role: true,
+            companyId: true,
+            isActive: true,
+            image: true,
+            retailTillPin: { select: { id: true, pinHash: true, failedAttempts: true, lockedUntil: true } },
+          },
+        });
+
+        const ctx = buildSignInContext(person?.email ?? `till-device:${device.id}`, "till-pin", req?.headers);
+        await enforceSignInRateLimit(ctx);
+        const scopedCompanyId = await resolveSignInCompanyScope(ctx);
+        if (scopedCompanyId && scopedCompanyId !== device.companyId) {
+          return failSignIn(ctx, "TENANT_HOST_MISMATCH");
+        }
+        if (!person || !canAccessPosPortal(person.role)) {
+          return failSignIn(ctx, "TILL_PIN_INVALID", { companyId: device.companyId });
+        }
+        const { retailTillPin: record, ...user } = person;
+
+        const password = credentials?.password ?? "";
+        if (password) {
+          // The PIN's counter is left alone: the password is the way round a locked PIN, not a guess at it.
+          if (!user.password || !(await bcrypt.compare(password, user.password))) {
+            return failSignIn(ctx, "TILL_PASSWORD_WRONG", { companyId: user.companyId });
+          }
+          await assertAccountUsable(user, ctx);
+          return completeSignIn(user, ctx, false);
+        }
+
+        if (!record) {
+          return failSignIn(ctx, "TILL_PIN_INVALID", { companyId: device.companyId });
+        }
+        await assertAccountUsable(user, ctx);
+
+        // The lock is checked before bcrypt, as in `pos/pin/unlock`: a locked PIN costs nothing to refuse.
+        const now = new Date();
+        const state = { failedAttempts: record.failedAttempts, lockedUntil: record.lockedUntil };
+        const lockCheck = evaluateTillPinAttempt({ state, verified: null, now });
+        if (lockCheck.decision === "LOCKED") {
+          return failSignIn(ctx, "TILL_PIN_LOCKED", {
+            companyId: user.companyId,
+            message: `TILL_PIN_LOCKED:${now.getTime() + lockCheck.retryAfterMs}`,
+          });
+        }
+
+        const outcome = evaluateTillPinAttempt({ state, verified: await bcrypt.compare(pin, record.pinHash), now });
+        await prisma.retailTillPin.update({
+          where: { id: record.id },
+          data: {
+            failedAttempts: outcome.next.failedAttempts,
+            lockedUntil: outcome.next.lockedUntil,
+            ...(outcome.decision === "ACCEPTED" ? { lastUnlockedAt: now } : {}),
+          },
+          select: { id: true },
+        });
+
+        if (outcome.decision === "REJECTED_NOW_LOCKED") {
+          return failSignIn(ctx, "TILL_PIN_LOCKED", {
+            companyId: user.companyId,
+            message: `TILL_PIN_LOCKED:${now.getTime() + outcome.retryAfterMs}`,
+          });
+        }
+        if (outcome.decision !== "ACCEPTED") {
+          return failSignIn(ctx, "TILL_PIN_WRONG", {
+            companyId: user.companyId,
+            message: `TILL_PIN_WRONG:${outcome.attemptsRemaining}`,
+          });
+        }
+
+        return completeSignIn(user, ctx, false);
       },
     }),
   ],

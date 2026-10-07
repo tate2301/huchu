@@ -26,6 +26,8 @@ export type RetailPostingPayload = {
     lines: RetailPostingInventoryLine[];
     totalCost: number;
   };
+  /** Bottle deposits charged on the sale and empties credited against it. */
+  deposits?: { charged: number; returned: number };
 };
 
 function toMoney(value: number | null | undefined) {
@@ -90,6 +92,12 @@ export function buildRetailPostingPayload(input: RetailPostingPayload): RetailPo
         inventory.totalCost > 0
           ? inventory.totalCost
           : toMoney(input.inventory?.totalCost ?? inventory.totalCost),
+    },
+    // Always numbers, zero included: a rule line whose path finds nothing falls
+    // back to the whole amount, and a sale with no deposits must post none.
+    deposits: {
+      charged: toMoney(Math.abs(input.deposits?.charged ?? 0)),
+      returned: toMoney(Math.abs(input.deposits?.returned ?? 0)),
     },
   };
 }

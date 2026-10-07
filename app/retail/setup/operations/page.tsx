@@ -15,6 +15,7 @@ import {
   type ListColumnState,
 } from "@/components/management/ui";
 import { SHOP_SETUP_KEY, ShopSettingsShell, useShopSetup } from "@/components/retail/shop-settings";
+import { TillDevicePanel } from "@/components/retail/till-device-panel";
 import { Input } from "@/components/ui/input";
 import { SelectItem } from "@/components/ui/select";
 import { useToast } from "@/components/ui/use-toast";
@@ -37,7 +38,7 @@ type SaveTill = {
 };
 
 /**
- * Tills — the machines a shift is opened on, and the one a cashier lands on.
+ * Tills — where money is taken, and the device each one runs on.
  *
  * Settings → Shop. This was "Operations setup": three tiles, a coverage chart,
  * a donut, a provisioning card and a list of links onward, to do two things —
@@ -175,7 +176,7 @@ export default function RetailTillsPage() {
                 { label: "Site", value: selectedSite?.name ?? "No site" },
                 {
                   label: "Default",
-                  value: selected.id === defaultId ? "Cashiers land on this till" : "No",
+                  value: selected.id === defaultId ? "Back-office shifts open here" : "No",
                   tone: selected.id === defaultId ? "default" : "muted",
                 },
                 {
@@ -185,6 +186,8 @@ export default function RetailTillsPage() {
                 },
               ]}
             />
+
+            <TillDevicePanel tillId={selected.id} tillName={selected.name} />
           </>
         ) : (
           <NoRecord

@@ -45,6 +45,7 @@ import { canRetailRoleDo } from "@/lib/retail/permissions";
 import {
   ensureRetailRegisterAccess,
   ensureSiteAccess,
+  normalizeRetailPostingPayments,
   postRetailJournal,
   type RetailAccountingResult,
   upsertRetailRegister,
@@ -144,6 +145,8 @@ async function ensureRetailSaleAccountingPosted(input: {
     taxAmount: MoneyLike;
     totalAmount: MoneyLike;
     changeAmount: MoneyLike;
+    depositAmount?: MoneyLike;
+    emptiesCredit?: MoneyLike;
     lines: Array<{
       inventoryItemId: string;
       itemName: string;
@@ -210,15 +213,26 @@ async function ensureRetailSaleAccountingPosted(input: {
     taxAmount: toNumberOrZero(money(input.sale.taxAmount).abs()),
     grossAmount: toNumberOrZero(money(input.sale.totalAmount).abs()),
     invertDirection: input.sale.saleType === "REFUND" || input.sale.saleType === "VOID",
-    payments: input.sale.payments.map((payment) => ({
-      tenderType: payment.tenderType,
-      amount: toNumberOrZero(money(payment.amount).abs()),
-      reference: payment.reference,
-      currency: payment.currency ?? null,
-    })),
+    // What stayed in the drawer, not what was handed over: the change goes back
+    // out of the cash tender, or the entry is unbalanced by exactly the change.
+    payments: normalizeRetailPostingPayments({
+      payments: input.sale.payments.map((payment) => ({
+        tenderType: payment.tenderType,
+        amount: toNumberOrZero(money(payment.amount).abs()),
+        reference: payment.reference,
+        currency: payment.currency ?? null,
+      })),
+      changeAmount: toNumberOrZero(money(input.sale.changeAmount ?? 0).abs()),
+    }),
     inventory: {
       lines: postingLines,
       totalCost: postingLines.reduce((total, line) => total + line.totalCost, 0),
+    },
+    payload: {
+      deposits: {
+        charged: toNumberOrZero(money(input.sale.depositAmount ?? 0).abs()),
+        returned: toNumberOrZero(money(input.sale.emptiesCredit ?? 0).abs()),
+      },
     },
   });
 }
@@ -234,6 +248,8 @@ export async function openRetailShiftTransaction(input: {
   notes?: string | null;
   periodOverrideReason?: string | null;
   openedAt?: Date;
+  /** The paired device the shift opens on; null for a shift opened from the back office. */
+  deviceId?: string | null;
 }) {
   const site = await ensureSiteAccess(input.actor.companyId, input.siteId);
   if (!site) {
@@ -300,6 +316,7 @@ export async function openRetailShiftTransaction(input: {
           notes: input.notes?.trim() || null,
           status: "OPEN",
           expectedCash: input.openingFloat ?? 0,
+          deviceId: input.deviceId ?? null,
           ...(input.openedAt ? { openedAt: input.openedAt } : {}),
         },
         });
@@ -651,6 +668,16 @@ export async function createRetailSaleTransaction(input: {
   notes?: string | null;
   periodOverrideReason?: string | null;
   postedAt?: Date;
+  /** The paired device the sale was rung on. */
+  deviceId?: string | null;
+  /** Who checked the customer's ID, and when, for a sale with an 18+ product. */
+  ageCheckedById?: string | null;
+  ageCheckedAt?: Date | null;
+  /** Bottle deposits charged, outside VAT. Added to what the customer pays. */
+  depositAmount?: number;
+  /** Empties brought back, and what they take off what the customer pays. */
+  emptiesReturned?: number;
+  emptiesCredit?: number;
 }) {
   const site = await ensureSiteAccess(input.actor.companyId, input.siteId);
   if (!site) {
@@ -699,14 +726,21 @@ export async function createRetailSaleTransaction(input: {
       .reduce((total, payment) => total + payment.amount, 0),
   );
 
-  if (nonCashTotal > input.totalAmount) {
+  // What the customer pays: the goods, plus deposits, less empties brought back.
+  const depositAmount = round(input.depositAmount ?? 0);
+  const emptiesCredit = round(input.emptiesCredit ?? 0);
+  const amountDue = round(input.totalAmount + depositAmount - emptiesCredit);
+  if (amountDue < 0) {
+    throw new Error("The empties come to more than the sale. Pay the difference out from Move cash.");
+  }
+  if (nonCashTotal > amountDue) {
     throw new Error("Non-cash tenders cannot exceed the sale total");
   }
-  if (tenderedAmount < input.totalAmount) {
+  if (tenderedAmount < amountDue) {
     throw new Error("Tendered amount is below the sale total");
   }
 
-  const cashDue = round(Math.max(input.totalAmount - nonCashTotal, 0));
+  const cashDue = round(Math.max(amountDue - nonCashTotal, 0));
   const changeAmount = round(Math.max(cashTotal - cashDue, 0));
   const providedCode = input.saleNo
     ? normalizeProvidedId(input.saleNo, "RETAIL_SALE")
@@ -803,6 +837,12 @@ export async function createRetailSaleTransaction(input: {
             totalAmount: input.totalAmount,
             tenderedAmount,
             changeAmount,
+            depositAmount,
+            emptiesReturned: input.emptiesReturned ?? 0,
+            emptiesCredit,
+            deviceId: input.deviceId ?? null,
+            ageCheckedById: input.ageCheckedById ?? null,
+            ageCheckedAt: input.ageCheckedAt ?? null,
             // R-1.5. Defaulting these at the column would put `baseAmount` at zero
             // on every sale the till takes, and a day's takings would read as
             // nothing. A sale priced in the base currency is rate 1 and its own
@@ -967,6 +1007,8 @@ export async function refundRetailSaleTransaction(input: {
   lines: Array<{ saleLineId: string; quantity: number }>;
   payments: RetailPaymentInput[];
   notes?: string | null;
+  /** The paired device it was rung on. */
+  deviceId?: string | null;
   periodOverrideReason?: string | null;
   postedAt?: Date;
   /**
@@ -1139,6 +1181,7 @@ export async function refundRetailSaleTransaction(input: {
 
     const created = await tx.retailSale.create({
       data: {
+        deviceId: input.deviceId ?? null,
         companyId: input.actor.companyId,
         saleNo: refundNo,
         shiftId: shift.id,
@@ -1294,6 +1337,8 @@ export async function voidRetailSaleTransaction(input: {
   shiftId: string;
   reason: string;
   notes?: string | null;
+  /** The paired device it was rung on. */
+  deviceId?: string | null;
   periodOverrideReason?: string | null;
   postedAt?: Date;
   /** A manager who approved this at the counter. See the refund above. */
@@ -1358,10 +1403,19 @@ export async function voidRetailSaleTransaction(input: {
       throw new Error("Sales with refunds or existing reversals cannot be voided");
     }
 
-    const negativePayments = currentSourceSale.payments.map((payment) => ({
+    // What the sale left in the drawer, reversed: the tenders net of the change
+    // given back. Reversing what was handed over took the change out twice.
+    const negativePayments = normalizeRetailPostingPayments({
+      payments: currentSourceSale.payments.map((payment) => ({
+        tenderType: payment.tenderType,
+        amount: toNumberOrZero(money(payment.amount).abs()),
+        reference: payment.reference?.trim() || null,
+      })),
+      changeAmount: toNumberOrZero(money(currentSourceSale.changeAmount ?? 0).abs()),
+    }).map((payment) => ({
       tenderType: payment.tenderType,
-      amount: toNumberOrZero(money(payment.amount).abs().negated()),
-      reference: payment.reference?.trim() || null,
+      amount: -payment.amount,
+      reference: payment.reference ?? null,
       currency: null,
     }));
 
@@ -1375,6 +1429,7 @@ export async function voidRetailSaleTransaction(input: {
 
     const created = await tx.retailSale.create({
       data: {
+        deviceId: input.deviceId ?? null,
         companyId: input.actor.companyId,
         saleNo: voidNo,
         shiftId: shift.id,
@@ -1394,6 +1449,9 @@ export async function voidRetailSaleTransaction(input: {
           .abs()
           .negated(),
         changeAmount: 0,
+        depositAmount: money(currentSourceSale.depositAmount).abs().negated(),
+        emptiesReturned: -currentSourceSale.emptiesReturned,
+        emptiesCredit: money(currentSourceSale.emptiesCredit).abs().negated(),
         // R-1.5 — same reasoning as the refund above: a void is denominated by
         // the sale it cancels. Defaulting these made a void of a ZWG sale post
         // as USD with a zero base amount, so the two never cancelled out.

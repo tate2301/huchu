@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { successResponse } from "@/lib/api-response";
+import { errorResponse, successResponse } from "@/lib/api-response";
 import { loadShelfListings } from "@/lib/retail/shelf-listing";
 import { requireRetailPermission } from "@/lib/retail/permissions";
 import { parseRetailQuery } from "@/lib/retail/request";
+import { requireLiveTillDevice } from "@/lib/retail/till-device-server";
 import { requireRetailSession } from "../../_helpers";
 
 /**
@@ -28,7 +29,6 @@ import { requireRetailSession } from "../../_helpers";
  */
 const tillCatalogQuery = z.object({
   search: z.string().trim().max(200).optional(),
-  siteId: z.string().uuid().optional(),
   category: z.string().trim().max(120).optional(),
 });
 
@@ -47,8 +47,14 @@ export async function GET(request: NextRequest) {
   const query = parseRetailQuery(request, tillCatalogQuery);
   if (query.response) return query.response;
 
+  // The shelf is the one at the shop this till stands in.
+  const device = await requireLiveTillDevice();
+  if (!device || device.companyId !== session.user.companyId) {
+    return errorResponse("This device is not a till. Pair it first.", 403);
+  }
+
   const listings = await loadShelfListings(session.user.companyId, {
-    siteId: query.data.siteId ?? null,
+    siteId: device.register.siteId,
     search: query.data.search || null,
     category: query.data.category || null,
     activeOnly: true,
@@ -56,6 +62,7 @@ export async function GET(request: NextRequest) {
   });
 
   return successResponse({
-    data: listings.filter((item) => (item.inventoryItem?.currentStock ?? 0) > 0),
+    // A single with an empty shelf still shows when a case can be opened for it.
+    data: listings.filter((item) => (item.inventoryItem?.currentStock ?? 0) > 0 || item.openableCase !== null),
   });
 }

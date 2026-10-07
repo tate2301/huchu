@@ -8,6 +8,7 @@ import {
   verifyManagerOverride,
   withApprover,
 } from "@/lib/retail/manager-override";
+import { requireLiveTillDevice } from "@/lib/retail/till-device-server";
 import { requireRetailSession } from "../../../../_helpers";
 import { voidRetailSaleTransaction } from "../../../../_services";
 
@@ -27,6 +28,10 @@ export async function POST(
   const { response, session } = await requireRetailSession(request);
   if (response || !session) {
     return response as NextResponse;
+  }
+  const device = await requireLiveTillDevice();
+  if (!device || device.companyId !== session.user.companyId) {
+    return errorResponse("This device is not a till. Pair it first.", 403);
   }
 
   /*
@@ -86,6 +91,7 @@ export async function POST(
       approvedBy,
       notes: input.notes ?? null,
       periodOverrideReason: input.periodOverrideReason ?? null,
+      deviceId: device.id,
     });
 
     return successResponse({

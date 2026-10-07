@@ -5,13 +5,8 @@ import { z } from "zod";
 import { errorResponse, successResponse } from "@/lib/api-response";
 import { atLeast, money, sumMoney, toNumber, toNumberOrZero } from "@/lib/money";
 import { prisma } from "@/lib/prisma";
-import {
-  getCustomerLoyaltyBalance,
-  getLoyaltyTier,
-  LOYALTY_MAX_REDEEM_SHARE,
-  LOYALTY_REDEEM_POINTS_PER_USD,
-  parseLoyaltyRedeemPoints,
-} from "@/lib/retail/loyalty";
+import { getCustomerLoyaltyBalance, parseLoyaltyRedeemPoints } from "@/lib/retail/loyalty";
+import { getLoyaltyTier, LOYALTY_MAX_REDEEM_SHARE, LOYALTY_REDEEM_POINTS_PER_USD } from "@/lib/retail/loyalty-rules";
 import { canRetailRoleDo, canSeeRetailCostPrice, requireRetailPermission } from "@/lib/retail/permissions";
 import { getRetailTenderPolicy, validateTenderReferences } from "@/lib/retail/tender-policy";
 import { calculateRetailCheckout } from "@/lib/retail/checkout";
@@ -27,6 +22,8 @@ import {
 } from "../../_helpers";
 import { createRetailSaleTransaction } from "../../_services";
 import { fiscaliseAfterPosting } from "@/lib/retail/fiscalisation";
+import { judgeLiquorSale } from "@/lib/retail/liquor";
+import { requireLiveTillDevice } from "@/lib/retail/till-device-server";
 
 const saleLineSchema = z.object({
   /**
@@ -93,6 +90,13 @@ const saleSchema = z.object({
   offlineCreatedAt: z.string().datetime().optional(),
   /** S-3. When the device's price snapshot was resolved, if it carries a stamp. */
   pricedAt: z.string().datetime().optional(),
+  /** When the cashier checked the customer's ID. Required once a sale has an 18+ product. */
+  ageCheckedAt: z.string().datetime().optional(),
+  /** Empties brought back, grouped by the deposit each carries. */
+  emptiesBack: z
+    .array(z.object({ depositAmount: z.number().positive(), quantity: z.number().int().positive() }))
+    .max(20)
+    .optional(),
 });
 
 type SaleListItem = Prisma.RetailSaleGetPayload<{
@@ -406,6 +410,12 @@ export async function POST(request: NextRequest) {
   const gate = requireRetailPermission(session, "retail.sell", "create");
   if (gate) return gate;
 
+  // A sale is rung on a till: the paired device's, and the shift open on it.
+  const device = await requireLiveTillDevice();
+  if (!device || device.companyId !== session.user.companyId) {
+    return errorResponse("This device is not a till. Pair it first.", 403);
+  }
+
   try {
     const body = await request.json();
     const input = saleSchema.parse(body);
@@ -431,6 +441,9 @@ export async function POST(request: NextRequest) {
     }
     if (shift.siteId !== site.id) {
       return errorResponse("Shift site does not match the selected site", 409);
+    }
+    if (shift.registerCode !== device.register.code) {
+      return errorResponse(`Shift ${shift.shiftNo} is open on ${shift.registerName}, not ${device.register.name}.`, 409);
     }
 
     const promotion = input.promotionId
@@ -549,6 +562,48 @@ export async function POST(request: NextRequest) {
         throw new Error(`Insufficient stock for ${line.listing.name}.`);
       }
     }
+    // The liquor rules: licence hours, the ID check, discount ceilings, deposits
+    // and empties. A general shop's sale passes through untouched.
+    const soldAt = input.offlineCreatedAt ? new Date(input.offlineCreatedAt) : new Date();
+    const emptiesBack = input.emptiesBack ?? [];
+    const [licenceWindows, chargedDeposits] = await Promise.all([
+      preNormalizedLines.some((line) => line.listing.ageRestricted)
+        ? prisma.retailLicenceHours.findMany({
+            where: { companyId: session.user.companyId, siteId: site.id },
+            select: { weekday: true, alcoholFrom: true, alcoholUntil: true },
+          })
+        : Promise.resolve([]),
+      emptiesBack.length
+        ? prisma.product.findMany({
+            where: { companyId: session.user.companyId, returnable: true, depositAmount: { not: null } },
+            select: { depositAmount: true },
+            distinct: ["depositAmount"],
+          })
+        : Promise.resolve([]),
+    ]);
+    const liquor = judgeLiquorSale({
+      lines: preNormalizedLines.map((line) => ({
+        name: line.listing.name,
+        quantity: line.quantity,
+        unitPrice: line.unitPrice,
+        shelfUnitPrice: line.shelf.unitPrice,
+        lineDiscount: line.baseDiscountAmount,
+        ageRestricted: line.listing.ageRestricted,
+        returnable: line.listing.returnable,
+        depositAmount: line.listing.depositAmount,
+        maxDiscountPercent: line.listing.maxDiscountPercent,
+      })),
+      windows: licenceWindows,
+      at: soldAt,
+      ageChecked: Boolean(input.ageCheckedAt),
+      emptiesBack,
+      chargedDepositValues: chargedDeposits.flatMap((row) => (row.depositAmount ? [row.depositAmount] : [])),
+    });
+    if (!liquor.ok) {
+      return errorResponse(liquor.message, liquor.status);
+    }
+    const ageChecked = preNormalizedLines.some((line) => line.listing.ageRestricted) && input.ageCheckedAt;
+
     const orderDiscountAmount = round(input.discountAmount ?? 0);
     const requestedRedeemPoints = Math.max(input.loyaltyRedemptionPoints ?? 0, 0);
     const loyaltyDiscountAmount = round(requestedRedeemPoints / LOYALTY_REDEEM_POINTS_PER_USD);
@@ -727,11 +782,15 @@ export async function POST(request: NextRequest) {
         .filter((payment) => payment.tenderType !== "CASH")
         .reduce((total, payment) => total + payment.amount, 0),
     );
-    if (nonCashTotal > totalAmount) {
+    const amountDue = round(totalAmount + toNumberOrZero(liquor.deposit) - toNumberOrZero(liquor.emptiesCredit));
+    if (amountDue < 0) {
+      return errorResponse("The empties come to more than the sale. Pay the difference out from Move cash.", 400);
+    }
+    if (nonCashTotal > amountDue) {
       return errorResponse("Non-cash tenders cannot exceed the sale total", 400);
     }
 
-    if (tenderedAmount < totalAmount) {
+    if (tenderedAmount < amountDue) {
       return errorResponse("Tendered amount is below the sale total", 400);
     }
     const customerPhone = normalizePhone(input.customerPhone);
@@ -893,6 +952,12 @@ export async function POST(request: NextRequest) {
       overrideReason: overrideReason ?? null,
       notes: normalizedNotes || null,
       periodOverrideReason: input.periodOverrideReason ?? null,
+      deviceId: device.id,
+      ageCheckedById: ageChecked ? session.user.id : null,
+      ageCheckedAt: ageChecked ? new Date(input.ageCheckedAt as string) : null,
+      depositAmount: toNumberOrZero(liquor.deposit),
+      emptiesReturned: liquor.emptiesReturned,
+      emptiesCredit: toNumberOrZero(liquor.emptiesCredit),
     });
 
     const customerNetSpend =
@@ -938,6 +1003,10 @@ export async function POST(request: NextRequest) {
       totalAmount: sale.totalAmount,
       tenderedAmount: sale.tenderedAmount,
       changeAmount: sale.changeAmount,
+      depositAmount: sale.depositAmount,
+      emptiesReturned: sale.emptiesReturned,
+      emptiesCredit: sale.emptiesCredit,
+      ageCheckedAt: sale.ageCheckedAt,
       payments: sale.payments,
       lines: sale.lines,
       promotionCode: sale.promotionCode,

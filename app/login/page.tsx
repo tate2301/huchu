@@ -6,13 +6,27 @@ import { normalizeCallbackUrl } from "@/lib/auth-core/redirects";
 import { getAuthStrategiesForSurface } from "@/lib/auth-core/strategy-registry";
 import { getEffectiveBrandingForHost } from "@/lib/platform/branding";
 import { prisma } from "@/lib/prisma";
-import { getHostHeaderFromRequestHeaders, resolveTenantFromHost } from "@/lib/platform/tenant";
+import { getHostHeaderFromRequestHeaders, getPlatformHostContext, resolveTenantFromHost } from "@/lib/platform/tenant";
+import { TillDoor } from "@/components/retail/till/door";
+import { tillMono, tillSans } from "@/components/retail/till/fonts";
+import { TillRoot } from "@/components/retail/till/till-root";
 
 export default async function LoginPage({
   searchParams,
 }: {
   searchParams: Promise<{ callbackUrl?: string }>;
 }) {
+  // On a till's address this is the till's door, not the workspace sign-in.
+  const requestHeaders = await headers();
+  const hostHeader = getHostHeaderFromRequestHeaders(requestHeaders);
+  if (getPlatformHostContext(hostHeader).portalCanonicalPrefix === "pos") {
+    return (
+      <TillRoot fontClass={`${tillSans.variable} ${tillMono.variable}`}>
+        <TillDoor />
+      </TillRoot>
+    );
+  }
+
   const { callbackUrl } = await searchParams;
   const resolvedCallbackUrl = normalizeCallbackUrl(callbackUrl, "/");
   const session = await getCurrentAuthSession();
@@ -20,8 +34,6 @@ export default async function LoginPage({
     redirect(resolvedCallbackUrl);
   }
 
-  const requestHeaders = await headers();
-  const hostHeader = getHostHeaderFromRequestHeaders(requestHeaders);
   const branding = await getEffectiveBrandingForHost(hostHeader);
   const strategies = getAuthStrategiesForSurface("primary-login");
   const credentialsStrategy = strategies.find((strategy) => strategy.id === "credentials");

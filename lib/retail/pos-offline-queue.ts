@@ -26,20 +26,15 @@ export type PosSaleQueuePayload = {
   discountAmount?: number;
   overrideReason?: string;
   promotionId?: string;
-  /**
-   * `productId`, matching what `pos/sales` and `pos/sync` both require.
-   *
-   * S-4b moved the item master to `Product` and both endpoints moved with it;
-   * this payload did not. A queued sale replayed through `pos/sync` came back
-   * "One or more catalog items invalid" — so the offline till took money all
-   * day and then could not put a single sale up when the line returned, which
-   * is the worst shape this bug could have taken.
-   *
-   * See the comment on `buildSalePayload` in `pos-portal-state.tsx` for how the
-   * online half of the same mistake went unnoticed.
-   */
+  /** When the cashier checked the customer's ID, for a sale with an 18+ product. */
+  ageCheckedAt?: string;
+  /** Empties brought back, grouped by the deposit each carries. */
+  emptiesBack?: Array<{ depositAmount: number; quantity: number }>;
+  /** `productId`, as `pos/sales` requires. */
   items: Array<{
     productId: string;
+    /** The item's name when it was rung, for the Waiting screen. The server ignores it. */
+    name?: string;
     quantity: number;
     unitPrice?: number;
     discountAmount?: number;
@@ -64,5 +59,5 @@ export function queuedSaleLabel(payload: PosSaleQueuePayload): string {
   if (legacy) return legacy;
   const ref = payload.clientRef ?? "";
   const tag = ref.replace(/[^a-zA-Z0-9]/g, "").slice(-6).toUpperCase();
-  return tag ? `Unsent · ${tag}` : "Unsent sale";
+  return tag ? `Unsent ${tag}` : "Unsent sale";
 }

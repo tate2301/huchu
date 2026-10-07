@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getLoyaltyTier } from "@/lib/retail/loyalty-rules";
 import { Prisma } from "@prisma/client";
 import { z } from "zod";
 import { errorResponse, successResponse } from "@/lib/api-response";
@@ -21,12 +22,6 @@ const customerListQuery = retailOffsetQuery.extend({
   search: z.string().trim().max(120).optional(),
   scanLimit: z.coerce.number().int().min(100).max(20_000).optional(),
 });
-
-function getLoyaltyTier(points: number) {
-  if (points >= 2_000) return "GOLD";
-  if (points >= 500) return "SILVER";
-  return "BRONZE";
-}
 
 export async function GET(request: NextRequest) {
   const { response, session } = await requireRetailSession(request);

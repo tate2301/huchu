@@ -1,14 +1,21 @@
+/**
+ * Opening a shift on this till.
+ *
+ * The till is the paired device's, so there is nothing to pick: the shift opens
+ * on that till, at its site, and carries the device. One drawer, one person: a
+ * till with someone else's shift open says whose, and stays theirs until it closes.
+ */
+
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { errorResponse, successResponse } from "@/lib/api-response";
-import { requireRetailSession, resolveRetailSite } from "../../_helpers";
+import { prisma } from "@/lib/prisma";
+import { requireRetailSession } from "../../_helpers";
 import { canAccessPosPortal } from "@/lib/retail/pos-host";
+import { requireLiveTillDevice } from "@/lib/retail/till-device-server";
 import { openRetailShiftTransaction } from "../../_services";
 
 const openPosShiftSchema = z.object({
-  shiftNo: z.string().min(1).max(50).optional(),
-  siteId: z.string().uuid().optional(),
-  registerId: z.string().uuid(),
   openingFloat: z.number().min(0).optional(),
   periodOverrideReason: z.string().max(500).optional().nullable(),
   notes: z.string().max(500).optional().nullable(),
@@ -23,14 +30,29 @@ export async function POST(request: NextRequest) {
     return errorResponse("POS access denied", 403);
   }
 
+  const device = await requireLiveTillDevice();
+  if (!device || device.companyId !== session.user.companyId) {
+    return errorResponse("This device is not a till. Pair it first.", 403);
+  }
+
   try {
-    const body = await request.json();
-    const input = openPosShiftSchema.parse(body);
-    const { site, response: siteResponse } = await resolveRetailSite(
-      session.user.companyId,
-      input.siteId,
-    );
-    if (siteResponse || !site) return siteResponse ?? errorResponse("Invalid site", 400);
+    const input = openPosShiftSchema.parse(await request.json());
+
+    const taken = await prisma.retailShift.findFirst({
+      where: {
+        companyId: device.companyId,
+        status: "OPEN",
+        registerCode: device.register.code,
+        NOT: { cashierId: session.user.id },
+      },
+      select: { shiftNo: true, cashierName: true },
+    });
+    if (taken) {
+      return errorResponse(
+        `${taken.cashierName}’s shift ${taken.shiftNo} is open on ${device.register.name}. It closes before another opens.`,
+        409,
+      );
+    }
 
     const { shift, accounting } = await openRetailShiftTransaction({
       actor: {
@@ -40,9 +62,9 @@ export async function POST(request: NextRequest) {
         userName: session.user.name,
         userEmail: session.user.email,
       },
-      shiftNo: input.shiftNo ?? null,
-      siteId: site.id,
-      registerId: input.registerId,
+      siteId: device.register.siteId,
+      registerId: device.register.id,
+      deviceId: device.id,
       openingFloat: input.openingFloat ?? 0,
       notes: input.notes ?? null,
       periodOverrideReason: input.periodOverrideReason ?? null,

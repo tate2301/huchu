@@ -671,7 +671,7 @@ type CompanyDomainClaimRow = {
   hostname: string | null;
 };
 
-function getRootDomain(): string | null {
+export function getRootDomain(): string | null {
   const rootDomain = normalizeHostValue(process.env.PLATFORM_ROOT_DOMAIN);
   return rootDomain || null;
 }

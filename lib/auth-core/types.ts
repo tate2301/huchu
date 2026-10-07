@@ -1,7 +1,7 @@
 import type { Session } from "next-auth";
 import type { JWT } from "next-auth/jwt";
 
-export type AuthStrategyId = "credentials" | "admin-email-link" | "email-link" | "email-code" | "handoff";
+export type AuthStrategyId = "credentials" | "admin-email-link" | "email-link" | "email-code" | "handoff" | "till-pin";
 export type AuthSurface = "primary-login" | "portal-login" | "admin-login";
 export type SessionPolicy = "standard" | "remember" | "admin";
 
@@ -51,7 +51,7 @@ export type AuthStrategyDescriptor = {
   surfaces: AuthSurface[];
   enabled: boolean;
   live: boolean;
-  kind: "password" | "magic-link" | "email-code" | "handoff";
+  kind: "password" | "magic-link" | "email-code" | "handoff" | "pin";
   supportsRememberMe: boolean;
 };
 

@@ -99,13 +99,16 @@ describe("classifyQueuedSale", () => {
       classifyQueuedSale({ status: "FAILED_BLOCKING", lastError: "Open shift not found", retryCount: 0 })
         .kind,
     ).toBe("SHIFT_CLOSED");
-    expect(
-      classifyQueuedSale({
-        status: "FAILED_BLOCKING",
-        lastError: "Insufficient stock for Castle Lager 375ml.",
-        retryCount: 0,
-      }).kind,
-    ).toBe("STOCK");
+    const short = classifyQueuedSale({
+      status: "FAILED_BLOCKING",
+      lastError: "Insufficient stock for Castle Lager 375ml.",
+      retryCount: 0,
+    });
+    expect(short.kind).toBe("STOCK");
+    expect(short.label).toBe("Not enough stock");
+    const gone = classifyQueuedSale({ status: "FAILED_BLOCKING", lastError: "Inventory item missing", retryCount: 0 });
+    expect(gone.kind).toBe("STOCK");
+    expect(gone.label).toBe("Item problem");
   });
 
   it("counts the tries on a connection failure and leaves it alone", () => {

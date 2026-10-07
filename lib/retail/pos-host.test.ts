@@ -38,7 +38,6 @@ const NAV_KEYS: PosPortalNavKey[] = [
   "history",
   "reports",
   "shift",
-  "overview",
   "customers",
   "price-check",
   "offline",
@@ -63,8 +62,10 @@ describe("every POS nav destination resolves on the POS host", () => {
 describe("every POS nav destination has a page behind it", () => {
   it.each(NAV_KEYS)("%s points at a route that exists", (key) => {
     const { internalHref } = getPosPortalHrefPair(key);
-    // `/portal/pos/held` → `app/portal/pos/held/page.tsx`; the root is `app/portal/pos/page.tsx`.
-    const pagePath = join(REPO_ROOT, "app", `${internalHref.replace(/^\//, "")}`, "page.tsx");
+    // The signed-in screens sit in the `(till)` route group, which is not in the URL:
+    // `/portal/pos/held` → `app/portal/pos/(till)/held/page.tsx`.
+    const rest = internalHref.replace(/^\/portal\/pos\/?/, "");
+    const pagePath = join(REPO_ROOT, "app", "portal", "pos", "(till)", rest, "page.tsx");
     expect(existsSync(pagePath), `${internalHref} has no page at ${pagePath}`).toBe(true);
   });
 });
@@ -76,9 +77,10 @@ describe("the public path list has nothing dangling in it", () => {
         (href): href is string => href !== null,
       ),
     );
-    // `/login` is reachable without a nav entry, by definition.
+    // `/login` is reachable without a nav entry, by definition, and so is a
+    // sale's `/receipt`, which the till prints from a hidden frame.
     const orphans = (POS_ALL_PUBLIC_PATHS as readonly string[]).filter(
-      (path) => path !== "/login" && !claimed.has(path),
+      (path) => path !== "/login" && path !== "/receipt" && !claimed.has(path),
     );
     expect(
       orphans,

@@ -323,6 +323,9 @@ model Company {
   retailCashMovements           RetailCashMovement[]
   retailZReports                RetailZReport[]
   retailTillPins                RetailTillPin[]
+  retailTillDevices             RetailTillDevice[]
+  retailTillPairingCodes        RetailTillPairingCode[]
+  retailLicenceHours            RetailLicenceHours[]
 
   @@index([tenantStatus])
   @@index([isProvisioned])
@@ -1110,6 +1113,7 @@ model Site {
   goldLedgerImports     GoldLedgerImport[]
   goldPeriodCloses      GoldPeriodClose[]
   retailRegisters       RetailRegister[]
+  retailLicenceHours    RetailLicenceHours[]
   retailPurchaseOrders  RetailPurchaseOrder[]
   retailGoodsReceipts   RetailGoodsReceipt[]
   retailShifts          RetailShift[]
@@ -1367,6 +1371,11 @@ model User {
   retailCashMovements               RetailCashMovement[]           @relation("RetailCashMovementRecordedBy")
   retailZReports                    RetailZReport[]                @relation("RetailZReportGeneratedBy")
   retailTillPin                     RetailTillPin?                 @relation("RetailTillPinUser")
+  retailTillDevicesPaired           RetailTillDevice[]             @relation("RetailTillDevicePairedBy")
+  retailTillDevicesRevoked          RetailTillDevice[]             @relation("RetailTillDeviceRevokedBy")
+  retailTillPairingCodes            RetailTillPairingCode[]        @relation("RetailTillPairingCodeCreatedBy")
+  retailSalesAgeChecked             RetailSale[]                   @relation("RetailSaleAgeCheckedBy")
+  retailHeldCartsReleased           RetailHeldCart[]               @relation("RetailHeldCartReleasedBy")
   sessionHandoffs                   SessionHandoff[]
 
   @@index([companyId])
@@ -4401,9 +4410,108 @@ model RetailRegister {
 
   company Company @relation(fields: [companyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   site    Site    @relation(fields: [siteId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  devices      RetailTillDevice[]
+  pairingCodes RetailTillPairingCode[]
 
   @@unique([companyId, code])
   @@index([companyId, siteId, isActive])
+}
+
+enum RetailTillDeviceKind {
+  COUNTERMINI
+  KORA
+  BROWSER
+}
+
+enum RetailTillDeviceEndReason {
+  /// A manager paired another device to the same till.
+  REPLACED
+  /// A manager unpaired it, from the till or the back office.
+  UNPAIRED
+}
+
+/// A device a manager has made into a till.
+///
+/// A till (`RetailRegister`) is a place money is taken: a drawer, its float, its
+/// shifts and its end-of-day report. A device is what runs the till at the
+/// counter. Pairing ties one device to one till, so the device always knows
+/// where it is and the cashier only has to say who they are, with a PIN.
+///
+/// The device holds a long random key in an httpOnly cookie scoped to the POS
+/// host. Only its SHA-256 lives here. One live device per till: pairing a
+/// replacement revokes the old one in the same transaction.
+model RetailTillDevice {
+  id            String                     @id @default(uuid())
+  companyId     String
+  registerId    String
+  kind          RetailTillDeviceKind       @default(BROWSER)
+  keyHash       String                     @unique
+  pairedById    String
+  pairedAt      DateTime                   @default(now())
+  lastSeenAt    DateTime?
+  revokedAt     DateTime?
+  revokedById   String?
+  revokedReason RetailTillDeviceEndReason?
+  createdAt     DateTime                   @default(now())
+  updatedAt     DateTime                   @updatedAt
+
+  company   Company        @relation(fields: [companyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  register  RetailRegister @relation(fields: [registerId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  pairedBy  User           @relation("RetailTillDevicePairedBy", fields: [pairedById], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  revokedBy User?          @relation("RetailTillDeviceRevokedBy", fields: [revokedById], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  shifts    RetailShift[]
+  sales     RetailSale[]
+  codesUsed RetailTillPairingCode[]
+
+  @@index([companyId, registerId, revokedAt])
+}
+
+/// Six digits a manager makes for one till, good once and for ten minutes.
+///
+/// Stored as a SHA-256 of the company and the digits, never the digits. The code
+/// is the manager's yes: nobody types a manager password on a shop-floor device
+/// to pair it.
+model RetailTillPairingCode {
+  id             String    @id @default(uuid())
+  companyId      String
+  registerId     String
+  codeHash       String
+  createdById    String
+  expiresAt      DateTime
+  usedAt         DateTime?
+  usedByDeviceId String?
+  createdAt      DateTime  @default(now())
+
+  company      Company           @relation(fields: [companyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  register     RetailRegister    @relation(fields: [registerId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  createdBy    User              @relation("RetailTillPairingCodeCreatedBy", fields: [createdById], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  usedByDevice RetailTillDevice? @relation(fields: [usedByDeviceId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+
+  @@index([companyId, codeHash])
+  @@index([registerId])
+}
+
+/// The hours a liquor licence lets a site sell age-restricted products, per weekday.
+///
+/// Times are minutes after midnight, Africa/Harare. A weekday with no row sells
+/// age-restricted products all day; a row whose window is empty (from = until)
+/// sells none. Nobody overrides it at the till, managers included.
+model RetailLicenceHours {
+  id           String   @id @default(uuid())
+  companyId    String
+  siteId       String
+  /// 0 is Sunday, as `Date.getDay()`.
+  weekday      Int
+  alcoholFrom  Int
+  alcoholUntil Int
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  site    Site    @relation(fields: [siteId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  @@unique([siteId, weekday])
+  @@index([companyId])
 }
 
 model RetailPromotion {
@@ -4545,6 +4653,9 @@ model RetailShift {
   heldCarts     RetailHeldCart[]
   sales         RetailSale[]
   cashMovements RetailCashMovement[]
+  /// The paired device the shift was opened on. Null for shifts from before pairing.
+  deviceId String?
+  device   RetailTillDevice? @relation(fields: [deviceId], references: [id], onDelete: SetNull, onUpdate: Cascade)
 
   @@unique([companyId, shiftNo])
   @@index([companyId, siteId, status])
@@ -4809,12 +4920,16 @@ model RetailHeldCart {
   label        String?
   cartSnapshot Json
   status       RetailHeldCartStatus @default(HELD)
+  /// Set when the cashier discards it (`RELEASED`). Nothing was paid and no stock moved.
+  releasedAt   DateTime?
+  releasedById String?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  company Company     @relation(fields: [companyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  shift   RetailShift @relation(fields: [shiftId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  cashier User        @relation("RetailHeldCartCashier", fields: [cashierId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  company    Company     @relation(fields: [companyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  shift      RetailShift @relation(fields: [shiftId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  cashier    User        @relation("RetailHeldCartCashier", fields: [cashierId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  releasedBy User?       @relation("RetailHeldCartReleasedBy", fields: [releasedById], references: [id], onDelete: SetNull, onUpdate: Cascade)
 
   @@unique([companyId, holdNo])
   @@index([companyId, shiftId, status])
@@ -4876,6 +4991,16 @@ model RetailSale {
   status         RetailSaleStatus @default(POSTED)
   notes          String?
   postedAt       DateTime?
+  /// The paired device that took the sale, offline ones included.
+  deviceId       String?
+  /// Who looked at the customer's ID, and when, for a sale with age-restricted products.
+  ageCheckedById String?
+  ageCheckedAt   DateTime?
+  /// Deposits charged on returnable products, outside VAT.
+  depositAmount   Decimal @default(0) @db.Decimal(14, 2)
+  /// Empties brought back against this sale, and what they took off it.
+  emptiesReturned Int     @default(0)
+  emptiesCredit   Decimal @default(0) @db.Decimal(14, 2)
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 
@@ -4889,6 +5014,8 @@ model RetailSale {
   shift      RetailShift? @relation(fields: [shiftId], references: [id], onDelete: SetNull, onUpdate: Cascade)
   sourceSale RetailSale?  @relation("RetailSaleSource", fields: [sourceSaleId], references: [id], onDelete: SetNull, onUpdate: Cascade)
   reversals  RetailSale[] @relation("RetailSaleSource")
+  device     RetailTillDevice? @relation(fields: [deviceId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  ageCheckedBy User?        @relation("RetailSaleAgeCheckedBy", fields: [ageCheckedById], references: [id], onDelete: SetNull, onUpdate: Cascade)
 
   @@unique([companyId, saleNo])
   @@unique([companyId, clientRef])
@@ -12984,6 +13111,11 @@ model Product {
   returnable         Boolean       @default(false)
   depositAmount      Decimal?      @db.Decimal(14, 2)
   imageUrl           String?
+  /// A case is its own product linked to its single, so the till can open one
+  /// when the singles run out. Stock is moved, never computed: one case off,
+  /// `unitsPerCase` singles on.
+  caseOfProductId    String?
+  unitsPerCase       Int?
   notes              String?
   isActive           Boolean       @default(true)
   archivedAt         DateTime?
@@ -12999,6 +13131,8 @@ model Product {
   prices         ProductPrice[]
   inventoryItems InventoryItem[]
   retailSaleLines RetailSaleLine[]
+  caseOf          Product?  @relation("ProductCase", fields: [caseOfProductId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  cases           Product[] @relation("ProductCase")
   crmQuestionSets      CrmQuestionSet[]
   crmSiteVisitSections CrmSiteVisitSection[]
 

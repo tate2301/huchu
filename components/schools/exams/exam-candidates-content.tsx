@@ -35,7 +35,8 @@ import {
   registerCohort,
   type CandidateRow,
 } from "@/lib/schools/exams-v2";
-import { formatSchoolDate, formatSchoolMoney, spellCount } from "@/lib/schools/format";
+import { formatSchoolDate, formatSchoolMoney } from "@/lib/schools/format";
+import { spellCount } from "@/lib/spell-count";
 import { ExamSeriesTabs } from "@/components/schools/exams/exam-series-tabs";
 import { FixCandidateDialog } from "@/components/schools/exams/fix-candidate-dialog";
 

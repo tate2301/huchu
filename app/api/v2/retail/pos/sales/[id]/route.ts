@@ -63,6 +63,11 @@ export async function GET(
         status: true,
         totalAmount: true,
         postedAt: true,
+        // What the sale's record says about each refund or void: who, why, what came back, how it was paid.
+        cashierName: true,
+        overrideReason: true,
+        lines: { select: { id: true, itemName: true, quantity: true, lineTotal: true } },
+        payments: { select: { tenderType: true } },
       },
       orderBy: { postedAt: "desc" },
     }),
@@ -85,6 +90,13 @@ export async function GET(
       select: { id: true, name: true, code: true },
     }),
   ]);
+  // The promotion by its name, as the shop wrote it; the sale keeps only the code.
+  const promotion = sale.promotionCode
+    ? await prisma.retailPromotion.findFirst({
+        where: { companyId: session.user.companyId, promoCode: sale.promotionCode },
+        select: { name: true },
+      })
+    : null;
   const reversalLineRows = relatedSales.length
     ? await prisma.retailSaleLine.findMany({
         where: {
@@ -109,6 +121,7 @@ export async function GET(
       shift,
       site,
       sourceSale,
+      promotion,
       reversals: relatedSales,
       lines: sale.lines.map((line) => {
         const refundedQuantity = refundedBySourceLine.get(line.id) ?? 0;

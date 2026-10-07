@@ -511,6 +511,14 @@ export const settingsNavEntries: SettingsNavEntry[] = [
     gate: { kind: "feature" },
   },
   {
+    id: "retail-licence-hours",
+    group: "shop",
+    label: "Licence hours",
+    href: "/retail/setup/licence-hours",
+    icon: Clock,
+    gate: { kind: "feature" },
+  },
+  {
     id: "retail-posting",
     group: "shop",
     label: "Posting",

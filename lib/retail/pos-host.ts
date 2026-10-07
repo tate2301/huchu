@@ -1,9 +1,9 @@
 import { buildPortalHost } from "@/lib/platform/portal-hosts";
+import { canRetailRoleDo } from "@/lib/retail/permission-matrix";
 
 export const POS_PUBLIC_PATHS = [
   "/",
   "/login",
-  "/overview",
   "/held",
   "/history",
   "/reports",
@@ -22,6 +22,8 @@ export const POS_PUBLIC_PATHS = [
   "/settings",
   "/activity",
   "/help",
+  /** A sale's printable receipt, loaded in a hidden frame by the till. */
+  "/receipt",
 ] as const;
 export const POS_OPTIONAL_PUBLIC_PATHS = ["/customers", "/price-check"] as const;
 export const POS_ALL_PUBLIC_PATHS = [...POS_PUBLIC_PATHS, ...POS_OPTIONAL_PUBLIC_PATHS] as const;
@@ -33,7 +35,6 @@ export type PosPortalNavKey =
   | "history"
   | "reports"
   | "shift"
-  | "overview"
   | "customers"
   | "price-check"
   | "offline"
@@ -47,10 +48,6 @@ const POS_PORTAL_HREFS: Record<PosPortalNavKey, { publicHref: string | null; int
   history: { publicHref: "/history", internalHref: "/portal/pos/history" },
   reports: { publicHref: "/reports", internalHref: "/portal/pos/reports" },
   shift: { publicHref: "/shift", internalHref: "/portal/pos/shift" },
-  // `/overview` is in `POS_PUBLIC_PATHS` and the rail links to it, so a null
-  // public href here would have sent anyone using `getPosPortalHref` to the
-  // internal path on the POS host. Nothing does today; it was a trap regardless.
-  overview: { publicHref: "/overview", internalHref: "/portal/pos/overview" },
   customers: { publicHref: "/customers", internalHref: "/portal/pos/customers" },
   "price-check": { publicHref: "/price-check", internalHref: "/portal/pos/price-check" },
   offline: { publicHref: "/offline", internalHref: "/portal/pos/offline" },
@@ -59,20 +56,20 @@ const POS_PORTAL_HREFS: Record<PosPortalNavKey, { publicHref: string | null; int
   help: { publicHref: "/help", internalHref: "/portal/pos/help" },
 };
 
-const POS_PORTAL_ALLOWED_ROLES = new Set(["CASHIER", "POS_CASHIER"]);
-
 export function isCashierRole(role: string | null | undefined): boolean {
-  const normalizedRole = role?.trim().toUpperCase();
-  return normalizedRole === "CASHIER" || normalizedRole === "POS_CASHIER";
+  return role?.trim().toUpperCase() === "CASHIER";
 }
 
+/**
+ * Who may be signed in at a till: anyone the retail matrix lets open a shift.
+ *
+ * It used to be a list of two cashier roles, one of which (`POS_CASHIER`) was in
+ * neither `UserRole` nor the matrix. That kept managers out of the till, so the
+ * end-of-day report and an approval on the spot had nowhere to happen. The
+ * matrix already answers who runs a till; the door asks it.
+ */
 export function canAccessPosPortal(role: string | null | undefined): boolean {
-  const normalizedRole = role?.trim().toUpperCase();
-  if (!normalizedRole) {
-    return false;
-  }
-
-  return POS_PORTAL_ALLOWED_ROLES.has(normalizedRole);
+  return canRetailRoleDo(role, "retail.sell", "open-shift");
 }
 
 export function isPublicPosPath(pathname: string | null | undefined): boolean {
