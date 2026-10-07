@@ -2,6 +2,7 @@ import { z } from "zod";
 
 import { measureSchema, naturalGrouping, type LayoutBlock } from "@/lib/reports/layout";
 import { sqlName } from "@/lib/reports/sql/schema";
+import { TEMPLATE_AUDIENCES } from "@/lib/reports/template-access";
 import type { ReportMeta, ReportParam } from "@/lib/reports/types";
 
 /**
@@ -89,15 +90,17 @@ export type CustomDocument = z.infer<typeof customDocumentSchema>;
 export const customReportInputSchema = z.object({
   title: z.string().trim().min(1, "Give the report a title").max(120),
   description: z.string().trim().max(500).nullable().optional(),
-  /** Everybody in the workspace can open it. Otherwise only whoever made it. */
-  shared: z.boolean(),
+  /** Who sees it besides whoever made it: just them, the managers, or everyone — as a report template says it. */
+  audience: z.enum(TEMPLATE_AUDIENCES).default("JUST_ME"),
   document: customDocumentSchema,
 });
-export type CustomReportInput = z.infer<typeof customReportInputSchema>;
+export type CustomReportInput = z.output<typeof customReportInputSchema>;
 
 /** A custom report as the browser is told it. */
 export type CustomReport = CustomReportInput & {
   id: string;
+  /** This person may let the managers or everyone see it. */
+  canShare: boolean;
   /** This person made it. */
   mine: boolean;
   /** This person can change it. */
@@ -105,7 +108,12 @@ export type CustomReport = CustomReportInput & {
   updatedAt: string;
 };
 
-export type CustomReportSummary = Pick<CustomReport, "id" | "title" | "description" | "shared" | "mine" | "editable" | "updatedAt">;
+export type CustomReportSummary = Pick<CustomReport, "id" | "title" | "description" | "audience" | "mine" | "editable" | "updatedAt"> & {
+  /** The tables its queries read, for the area it lists under. */
+  areaSources: string[];
+  /** Whoever made it, by name. */
+  madeBy: string | null;
+};
 
 /** The dates as the params a dated source takes. */
 export function periodParams(period: CustomDocument["period"]): ReportParam[] {

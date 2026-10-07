@@ -170,7 +170,10 @@ function bucketOf(node: unknown): { column: string; by: Bucket } | null {
 
 function totalOf(node: unknown, as: unknown): StepTotal | null {
   const expr = node as Node | null;
-  if (expr?.type !== "aggr_func" || expr.over) return null;
+  // A FILTER, a window or an ORDER BY inside the total says more than a step
+  // can: read as a plain total, editing the steps would silently drop it.
+  if (expr?.type !== "aggr_func" || expr.over || expr.filter) return null;
+  if ((expr.args as { orderby?: unknown } | undefined)?.orderby) return null;
   const fn = String(expr.name).toLowerCase() as TotalFn;
   if (!(fn in TOTAL_FNS)) return null;
   const args = expr.args as { expr?: Node; distinct?: unknown } | undefined;

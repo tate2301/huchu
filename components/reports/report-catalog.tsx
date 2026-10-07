@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 
 import { EmptyState, Skeleton } from "@corelithzw/react";
@@ -11,10 +12,12 @@ import { Input } from "@/components/ui/input";
 import { SectionTab, SectionTabs } from "@/components/ui/section-tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { useToast } from "@/components/ui/use-toast";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { ChevronRight, MagnifyingGlass, Plus } from "@/lib/icons";
 import type { CatalogArea } from "@/lib/reports/catalog";
+import type { CustomReport, CustomReportSummary } from "@/lib/reports/custom/document";
 import { AUDIENCE_LABELS, type ReportTemplateRecord } from "@/lib/reports/template-access";
 
 import { TemplateSheet } from "./template-sheet";
@@ -26,7 +29,17 @@ import { TemplateSheet } from "./template-sheet";
  * from one is a template beside it, under the same area. One list, so the
  * question is only which one, never where: tabs say whose, the area filter says
  * about what. Opening one is where the work happens.
+ *
+ * Reports built here (custom reports, SQL over these same reports) are in the
+ * same list: the product's own under "Built in", the workspace's by whose they
+ * are, each under the area of the first report it reads.
  */
+
+type CustomEntry = CustomReportSummary & { area: string | null };
+type BuiltCustom = { key: string; title: string; description: string; audience: "EVERYONE" | "MANAGERS"; area: string | null };
+
+/** A report built here that reads nothing listable yet still has a home. */
+const BUILT_HERE = "Built here";
 
 type Tab = "all" | "built-in" | "team" | "mine";
 
@@ -51,7 +64,7 @@ const TABS: Array<{ id: Tab; label: string }> = [
   { id: "mine", label: "Just yours" },
 ];
 
-function entries(areas: CatalogArea[], templates: ReportTemplateRecord[]): Entry[] {
+function entries(areas: CatalogArea[], templates: ReportTemplateRecord[], custom: CustomEntry[] = [], builtCustom: BuiltCustom[] = []): Entry[] {
   const order = new Map(areas.map((area, index) => [area.area, index]));
   const built: Entry[] = areas.flatMap((area) =>
     area.reports.map((report) => ({
@@ -75,8 +88,28 @@ function entries(areas: CatalogArea[], templates: ReportTemplateRecord[]): Entry
     seenBy: AUDIENCE_LABELS[template.audience],
     tab: template.audience === "JUST_ME" ? "mine" : "team",
   }));
+  const builtReports: Entry[] = builtCustom.map((report) => ({
+    id: `built-${report.key}`,
+    href: `/reports/built/${report.key}`,
+    name: report.title,
+    summary: report.description,
+    area: report.area ?? BUILT_HERE,
+    madeBy: null,
+    seenBy: report.audience === "MANAGERS" ? AUDIENCE_LABELS.MANAGERS : "Everyone who opens it",
+    tab: "built-in" as const,
+  }));
+  const ours: Entry[] = custom.map((report) => ({
+    id: report.id,
+    href: `/reports/custom/${report.id}`,
+    name: report.title,
+    summary: report.description ?? null,
+    area: report.area ?? BUILT_HERE,
+    madeBy: report.mine ? "You" : report.madeBy,
+    seenBy: AUDIENCE_LABELS[report.audience],
+    tab: report.audience === "JUST_ME" ? "mine" : "team",
+  }));
   // The industry's areas first, as the catalogue orders them; by name inside each.
-  return [...built, ...saved].sort(
+  return [...built, ...saved, ...builtReports, ...ours].sort(
     (left, right) =>
       (order.get(left.area) ?? 99) - (order.get(right.area) ?? 99) || left.name.localeCompare(right.name),
   );
@@ -91,7 +124,7 @@ export function ReportCatalog() {
 
   const catalog = useQuery({
     queryKey: ["reports", "catalog"],
-    queryFn: () => fetchJson<{ areas: CatalogArea[] }>("/api/v2/reports"),
+    queryFn: () => fetchJson<{ areas: CatalogArea[]; custom: CustomEntry[]; builtCustom: BuiltCustom[] }>("/api/v2/reports"),
   });
   const templates = useQuery({
     queryKey: ["reports", "templates"],
@@ -99,7 +132,10 @@ export function ReportCatalog() {
   });
 
   const areas = useMemo(() => catalog.data?.areas ?? [], [catalog.data]);
-  const all = useMemo(() => entries(areas, templates.data?.templates ?? []), [areas, templates.data]);
+  const all = useMemo(
+    () => entries(areas, templates.data?.templates ?? [], catalog.data?.custom ?? [], catalog.data?.builtCustom ?? []),
+    [areas, templates.data, catalog.data],
+  );
   const needle = search.trim().toLowerCase();
   const shown = all.filter(
     (entry) =>
@@ -108,13 +144,33 @@ export function ReportCatalog() {
       (!needle || `${entry.name} ${entry.summary ?? ""}`.toLowerCase().includes(needle)),
   );
 
+  const router = useRouter();
+  const { toast } = useToast();
+  const [building, setBuilding] = useState(false);
+  /** A report of several blocks, SQL over these reports, starting on the workspace's first. */
+  const build = async () => {
+    setBuilding(true);
+    try {
+      const made = await fetchJson<{ report: CustomReport }>("/api/v2/reports/custom", { method: "POST", body: JSON.stringify({}) });
+      router.push(`/reports/custom/${made.report.id}/edit`);
+    } catch (error) {
+      toast({ title: "Report not created", description: getApiErrorMessage(error), variant: "destructive" });
+      setBuilding(false);
+    }
+  };
+
   const chrome = (
     <PageChrome title="Reports">
       {areas.length ? (
-        <Button size="sm" onClick={() => setCreating(true)}>
-          <Plus className="size-4" aria-hidden="true" />
-          New template
-        </Button>
+        <>
+          <Button variant="secondary" size="sm" onClick={() => void build()} disabled={building}>
+            Build a report
+          </Button>
+          <Button size="sm" onClick={() => setCreating(true)}>
+            <Plus className="size-4" aria-hidden="true" />
+            New template
+          </Button>
+        </>
       ) : null}
     </PageChrome>
   );

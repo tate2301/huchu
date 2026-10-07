@@ -7538,8 +7538,9 @@ model CustomReport {
   /// and the queries behind them. Rows are never stored — they are fetched
   /// through the report sources each time, under the reader's own access.
   document    Json
-  /// Everybody in the workspace can open it; otherwise only its maker.
-  shared      Boolean  @default(false)
+  /// Who sees it besides its maker, the way a report template says it: just
+  /// them, the managers, or everyone (`lib/reports/template-access.ts`).
+  audience    ReportTemplateAudience @default(JUST_ME)
   createdById String
   updatedById String?
   createdAt   DateTime @default(now())

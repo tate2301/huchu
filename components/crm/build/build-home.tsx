@@ -37,7 +37,9 @@ type Template = {
 };
 
 type IntakeForm = { id: string; name: string; isActive: boolean; submissionCount: number; fields: unknown[] | null };
-type CustomReport = { id: string; title: string; description: string | null; shared: boolean; editable: boolean };
+type CustomReport = { id: string; title: string; description: string | null; audience: "JUST_ME" | "MANAGERS" | "EVERYONE"; editable: boolean };
+
+const SEEN_BY = { JUST_ME: "Just you", MANAGERS: "Managers", EVERYONE: "Everyone" } as const;
 
 const WHERE: Record<SetSummary["kind"], string> = {
   PRODUCT: "When quoting",
@@ -246,11 +248,11 @@ export function BuildHome() {
                 <Link key={report.id} href={report.editable ? `/reports/custom/${report.id}/edit` : `/reports/custom/${report.id}`} className={styles.item}>
                   <BarChart3 aria-hidden />
                   <span className={styles.itemName}>{report.title}</span>
-                  <span className={styles.itemWhere}>{report.description ?? (report.shared ? "Shared" : "Only you")}</span>
+                  <span className={styles.itemWhere}>{report.description ?? `Seen by ${SEEN_BY[report.audience].toLowerCase()}`}</span>
                   <span className={styles.itemCount} />
                   <span className={styles.status}>
-                    <span className={styles.dot} data-off={!report.shared} aria-hidden />
-                    {report.shared ? "Shared" : "Private"}
+                    <span className={styles.dot} data-off={report.audience === "JUST_ME"} aria-hidden />
+                    {SEEN_BY[report.audience]}
                   </span>
                   <ChevronRight aria-hidden />
                 </Link>

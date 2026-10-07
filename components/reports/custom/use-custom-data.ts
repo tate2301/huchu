@@ -75,7 +75,9 @@ export function useCustomData(blocks: readonly CustomBlock[], sources: readonly 
     [deferred],
   );
   const loadedRows = rows.data?.sources;
-  const ready = Boolean(sources) && (keys.length === 0 || keys.every((key) => loadedRows?.[key]));
+  const refused = useMemo(() => new Set((rows.data?.missing ?? []).map((key) => sqlName(key))), [rows.data]);
+  // A source refused is an answer too: its blocks say so rather than wait for rows that will not come.
+  const ready = Boolean(sources) && (keys.length === 0 || keys.every((key) => loadedRows?.[key] || refused.has(sqlName(key))));
 
   const run = useQuery({
     queryKey: ["reports", "custom-run", signature, rows.dataUpdatedAt, params],
@@ -86,6 +88,7 @@ export function useCustomData(blocks: readonly CustomBlock[], sources: readonly 
         rows: (table) => loadedRows?.[keyOf.get(table) ?? ""]?.rows,
         version: (table) => `${table}:${rows.dataUpdatedAt}`,
         period: { from: params.from || undefined, to: params.to || undefined },
+        refused: (table) => refused.has(table),
       }),
     enabled: ready,
     placeholderData: (previous) => previous,

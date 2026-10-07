@@ -67,6 +67,13 @@ describe("a custom report's blocks", () => {
     expect(check?.ok === false && check.problem.message).toMatch(/no table payroll_pay you can read/);
   });
 
+  it("say a source was refused rather than show it as empty", async () => {
+    const blocks = [query("a", "a", "select count(*) as deals from crm_deals")];
+    const results = await runBlocks(blocks, checkBlocks(blocks, sources), { ...inputs(), rows: () => undefined, refused: () => true });
+    const result = results.get("a");
+    expect(result?.ok === false && result.problem.message).toMatch(/Deals could not be read here/);
+  });
+
   it("say what went wrong when Postgres refuses the query", async () => {
     const blocks = [query("a", "a", "select owner from crm_deals group by stage")];
     const results = await runBlocks(blocks, checkBlocks(blocks, sources), inputs());

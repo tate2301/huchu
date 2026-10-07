@@ -11,7 +11,7 @@ const patchSchema = customReportInputSchema
   .partial()
   .refine((patch) => Object.keys(patch).length > 0, { message: "Nothing to change" });
 
-const NOT_YOURS = "Only whoever made this report, or a manager once it is shared, can change it";
+const NOT_YOURS = "Only whoever made this report, or the owner once it is shared, can change it, and only managers share it";
 
 export async function GET(request: NextRequest, { params }: Params) {
   try {

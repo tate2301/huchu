@@ -103,6 +103,8 @@ export async function runBlocks(
     rows: (table: string) => readonly ReportRow[] | undefined;
     version: (table: string) => string;
     period: { from?: string; to?: string };
+    /** Sources whose rows were refused this person: a block reading one says so, rather than showing nothing as if it were empty. */
+    refused?: (table: string) => boolean;
   },
 ): Promise<Map<string, BlockResult>> {
   const own = queryBlocks(blocks);
@@ -125,6 +127,11 @@ export async function runBlocks(
     const used: SqlTable[] = [];
     for (const name of check.checked.tables) {
       const source = sourceByName.get(name);
+      if (source && inputs.refused?.(name)) {
+        const result: BlockResult = { ok: false, problem: { message: `${source.title} could not be read here: you may not open it, or it is switched off`, from: 0, to: 0 }, running: true };
+        results.set(block.id, result);
+        return result;
+      }
       if (source) {
         await inputs.runner.load(source, inputs.rows(name) ?? [], inputs.version(name));
         used.push(source);

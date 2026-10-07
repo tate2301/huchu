@@ -9,10 +9,34 @@ breakdown, drawn by the same components a report's own page uses.
 
 | Where | What |
 | --- | --- |
-| `/reports` | "New report" creates one; "Built here" lists the ones you can open |
+| `/reports` | The catalogue: every report and template, one list by area. **Build a report** starts one |
 | `/reports/<key>` → More → *Build a report from this one* | The report's page, rebuilt as a custom report you can change |
+| `/reports/built/<key>` | A built-in custom report, read on your own rows. **Make it yours** copies it |
 | `/reports/custom/<id>` | The report, read |
 | `/reports/custom/<id>/edit` | The block editor |
+
+## In the catalogue, beside the templates
+
+Custom reports follow the report templates' model (`lib/reports/templates.ts`,
+`lib/reports/template-access.ts`), so a workspace has one idea of a report it
+can start from and share:
+
+- **Built in.** The product ships custom reports for every business
+  (`lib/reports/custom/templates.ts`). A mine gets production and downtime, a
+  school gets fees and attendance, and a shop gets takings and reorders. A
+  sales desk gets its pipeline and measured-to-won, and a bureau gets pay and
+  leave. Each is offered by audience, like a built-in template. It is also
+  offered only to someone who can read every report it reads, and the
+  workspace's own business comes first.
+- **Made by your team** and **Just yours.** A custom report says who sees it
+  the way a template does: just its maker, the managers, or everyone. Each
+  lists under the area of the first report it reads.
+
+Who sees, changes and shares one is the templates' rule. Anybody keeps one
+for themselves, and a business's managers share. Those are the owner,
+managers, shop managers and the bookkeeper, plus in a school the
+administrator and the bursar. The maker changes it, and so does the owner
+once it is shared. A shop's own rule for retail templates is unchanged.
 
 ## Steps, or SQL
 
@@ -157,7 +181,7 @@ types is pasted into SQL.
 ```
 CustomReport (one row per report)
   title, description
-  shared        false: only its maker can open it. true: everyone in the workspace can.
+  audience      JUST_ME | MANAGERS | EVERYONE: who sees it besides its maker (ReportTemplateAudience)
   document      CustomDocument (lib/reports/custom/document.ts)
     period      the dates it opens on: { from, to }, each a date default or null
     blocks[]
@@ -170,10 +194,11 @@ CustomReport (one row per report)
 Only the document is stored. **Rows are never stored.** They are fetched each
 time the report is opened.
 
-| | Maker | Manager | Anyone else |
-| --- | --- | --- | --- |
-| Private report | open, change, delete, share | — | — |
-| Shared report | open, change, delete, unshare | open, change, delete | open, copy |
+| Seen by | Maker | Owner | Managers | Anyone else |
+| --- | --- | --- | --- | --- |
+| Just me | open, change, delete; share if a manager | — | — | — |
+| Managers | open, change, delete, re-share | open, change, delete | open, copy | — |
+| Everyone | open, change, delete, re-share | open, change, delete | open, copy | open, copy |
 
 ## Flow
 

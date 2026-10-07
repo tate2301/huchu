@@ -53,7 +53,12 @@ function pageRows(blocks: readonly CustomBlock[]): CustomBlock[][] {
   return rows;
 }
 
-export function CustomReportScreen({ id }: { id: string }) {
+/**
+ * A custom report, read. `builtIn` draws one the product ships
+ * (`lib/reports/custom/templates.ts`) the same way: on the reader's own rows,
+ * nobody's to change, with "Make it yours" to copy it into the workspace.
+ */
+export function CustomReportScreen({ id, builtIn }: { id: string; builtIn?: string }) {
   const { toast } = useToast();
   const router = useRouter();
   const pathname = usePathname();
@@ -64,8 +69,11 @@ export function CustomReportScreen({ id }: { id: string }) {
   const isPhone = useIsMobile();
 
   const report = useQuery({
-    queryKey: ["reports", "custom", id],
-    queryFn: () => fetchJson<{ report: CustomReport }>(`/api/v2/reports/custom/${encodeURIComponent(id)}`),
+    queryKey: builtIn ? ["reports", "built", builtIn] : ["reports", "custom", id],
+    queryFn: () =>
+      fetchJson<{ report: CustomReport }>(
+        builtIn ? `/api/v2/reports/built/${encodeURIComponent(builtIn)}` : `/api/v2/reports/custom/${encodeURIComponent(id)}`,
+      ),
   });
   const sources = useReportSources();
   const document = report.data?.report.document;
@@ -100,7 +108,7 @@ export function CustomReportScreen({ id }: { id: string }) {
     try {
       const made = await fetchJson<{ report: CustomReport }>("/api/v2/reports/custom", {
         method: "POST",
-        body: JSON.stringify({ title: `${current.title} (copy)`, description: current.description, shared: false, document: current.document }),
+        body: JSON.stringify(builtIn ? { fromTemplate: builtIn } : { copyOf: current.id }),
       });
       await queryClient.invalidateQueries({ queryKey: ["reports", "catalog"] });
       router.push(`/reports/custom/${made.report.id}/edit`);
@@ -115,8 +123,8 @@ export function CustomReportScreen({ id }: { id: string }) {
     if (!current) return;
     const confirmed = await dsConfirm({
       title: `Delete ${current.title}`,
-      description: current.shared
-        ? "Everyone in the workspace loses it. The reports it reads are not touched."
+      description: current.audience !== "JUST_ME"
+        ? `${current.audience === "EVERYONE" ? "Everyone in the workspace" : "The managers"} lose it. The reports it reads are not touched.`
         : "The reports it reads are not touched.",
       confirmLabel: "Delete the report",
       variant: "danger",
@@ -137,7 +145,11 @@ export function CustomReportScreen({ id }: { id: string }) {
   const current = report.data?.report;
   const chrome = (
     <PageChrome title={current?.title ?? "Report"} backHref="/reports" backLabel="Reports">
-      {current ? (
+      {current && builtIn ? (
+        <Button size="sm" onClick={() => void copy()} disabled={busy}>
+          Make it yours
+        </Button>
+      ) : current ? (
         <>
           {current.editable ? (
             <Button variant="secondary" size="sm" asChild>

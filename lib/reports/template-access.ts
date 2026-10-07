@@ -21,9 +21,11 @@ export const AUDIENCE_LABELS: Record<TemplateAudience, string> = {
 
 /**
  * "Managers", as an audience: the owner, managers, shop managers and the
- * bookkeeper (70-insights-reports 3.3), in both products.
+ * bookkeeper (70-insights-reports 3.3), in both products — and in a school,
+ * the school's administrator and its bursar, who run it the way a manager and
+ * a bookkeeper run a shop. Reports are every vertical's, so their managers are.
  */
-export const TEMPLATE_MANAGER_ROLES = ["SUPERADMIN", "MANAGER", "SHOP_MANAGER", "FINANCE_OFFICER"] as const;
+export const TEMPLATE_MANAGER_ROLES = ["SUPERADMIN", "MANAGER", "SHOP_MANAGER", "FINANCE_OFFICER", "SCHOOL_ADMIN", "BURSAR"] as const;
 
 /** A template as its reader is told about it. */
 export type ReportTemplateRecord = {
@@ -82,9 +84,15 @@ export function canSaveTemplates(role: string): boolean {
   return canRetailRoleDo(role, "retail.reports", "create");
 }
 
-/** Anyone keeps a template for themselves; sharing it follows saving: the owner and the managers (retail.reports:create). */
-export function canShareWith(audience: TemplateAudience, role: string): boolean {
-  return audience === "JUST_ME" || canSaveTemplates(role);
+/**
+ * Anyone keeps a template for themselves. Sharing one on a retail source
+ * follows saving there: the owner and the managers (retail.reports:create).
+ * On any other business's report, its managers share: whoever "Managers"
+ * names, so a school's administrator shares with the school.
+ */
+export function canShareWith(audience: TemplateAudience, role: string, source: { retail: boolean } = { retail: true }): boolean {
+  if (audience === "JUST_ME") return true;
+  return source.retail ? canSaveTemplates(role) : isTemplateManager(role);
 }
 
 /**

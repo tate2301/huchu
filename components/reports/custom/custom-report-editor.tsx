@@ -34,6 +34,8 @@ import type { SqlProblem } from "@/lib/reports/sql/guard";
 import { blockTable, sqlName, type SqlTable } from "@/lib/reports/sql/schema";
 import { stepsFromSql } from "@/lib/reports/sql/steps";
 import { SegmentedControl } from "@/components/ui/segmented-control";
+import { TEMPLATE_AUDIENCES } from "@/lib/reports/template-access";
+import { SEEN_BY_WORDS } from "@/lib/reports/template-words";
 import { AGGREGATES, type Aggregate, type ReportColumn } from "@/lib/reports/types";
 import { AGGREGATE_LABELS } from "@/lib/reports/view";
 
@@ -386,7 +388,7 @@ const FULL = 960;
 const HALF = 460;
 
 function inputOf(report: CustomReport): CustomReportInput {
-  return { title: report.title, description: report.description ?? null, shared: report.shared, document: report.document };
+  return { title: report.title, description: report.description ?? null, audience: report.audience, document: report.document };
 }
 
 type QueryView = "steps" | "sql";
@@ -576,7 +578,7 @@ export function CustomReportEditor({ id }: { id: string }) {
         {chrome}
         <EmptyState
           title="You can open this report, not change it"
-          body="Only whoever made it, or a manager once it is shared, can change it. Make a copy to build on it."
+          body="Only whoever made it, or the owner once it is shared, can change it. Make a copy to build on it."
           action={
             <Button variant="secondary" size="sm" onClick={() => router.push(`/reports/custom/${id}`)}>
               Open the report
@@ -642,15 +644,23 @@ export function CustomReportEditor({ id }: { id: string }) {
             </SelectContent>
           </Select>
         </span>
-        {report.data.report.mine ? (
-          <label className={arranger.toggle}>
-            Everyone in the workspace can open it
-            <Switch
-              checked={current.shared}
-              onChange={(event) => change({ shared: event.target.checked })}
-              aria-label="Everyone in the workspace can open it"
-            />
-          </label>
+        {report.data.report.editable ? (
+          <span className="flex items-center gap-2">
+            Seen by
+            <Select value={current.audience} onValueChange={(audience) => change({ audience: audience as CustomReportInput["audience"] })}>
+              <SelectTrigger size="sm" className="w-auto" aria-label="Who sees it">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {TEMPLATE_AUDIENCES.map((audience) => (
+                  // Sharing wider is a manager's call, as it is for a template.
+                  <SelectItem key={audience} value={audience} disabled={audience !== "JUST_ME" && !report.data.report.canShare && current.audience !== audience}>
+                    {SEEN_BY_WORDS[audience]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </span>
         ) : null}
         <span className="ml-auto font-mono text-[11px]">
           {params.from && params.to ? `${params.from} – ${params.to}` : params.from ? `${params.from} onwards` : params.to ? `Up to ${params.to}` : "Any time"} · period_start() and period_end() in a query
