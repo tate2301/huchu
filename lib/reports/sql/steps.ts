@@ -1,4 +1,4 @@
-import { Parser } from "node-sql-parser";
+import { Parser } from "node-sql-parser/build/postgresql";
 
 import type { SqlTable } from "@/lib/reports/sql/schema";
 

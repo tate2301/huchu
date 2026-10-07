@@ -1,4 +1,4 @@
-import { Parser } from "node-sql-parser";
+import { Parser } from "node-sql-parser/build/postgresql";
 
 /**
  * What a report query may be, checked before it runs.
