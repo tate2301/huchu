@@ -107,6 +107,10 @@ describe("printers (PRD-06)", () => {
         { id: "here", label: "Print here", sub: "This computer, any printer" },
       ]);
       expect(await options("printer", "", { pick: "default" })).toEqual([{ id: front.id, label: "Front till printer", sub: "Harare Main Branch" }]);
+      // Only roles that print read it: the cashier and the bookkeeper are refused.
+      for (const role of ["CASHIER", "FINANCE_OFFICER"]) {
+        expect((await searchLookup(as(role), "printer", { q: "", context: {} })).status).toBe(403);
+      }
       // A stock clerk reads it too; with nothing paired the default is Print here.
       await prisma.retailDevice.deleteMany({ where: { companyId: shop.companyId } });
       expect(await options("printer", "", { pick: "default" }, "STOCK_CLERK")).toEqual([{ id: "here", label: "Print here", sub: "This computer, any printer" }]);

@@ -236,7 +236,7 @@ const pack: LookupNoun = {
 const printer: LookupNoun = {
   noun: "printer",
   read: [
-    ["retail.catalog", "view"],
+    ["retail.catalog", "update"],
     ["retail.adjustments", "create"],
   ],
   quick: [],

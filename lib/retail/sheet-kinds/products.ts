@@ -10,7 +10,7 @@ import type { ProductNewContext } from "@/lib/retail/products/context";
 import { AGE_CHECK_SEG, ageCheckOfSeg, segOfAgeCheck } from "@/lib/retail/products/age-check";
 import { BARCODE_MESSAGE, normalizeBarcode } from "@/lib/retail/products/input";
 import type { ProductView } from "@/lib/retail/products/view";
-import { COPIES_MESSAGE, labelCount, labelsDoneSentence, PRINT_HERE } from "@/lib/retail/labels/words";
+import { COPIES_MESSAGE, labelCount, labelsDoneSentence, MAX_LABELS, PRINT_HERE, SHOW_MESSAGE, TOO_MANY_MESSAGE } from "@/lib/retail/labels/words";
 import { formatCount } from "@/lib/workspace/format";
 import type { FieldSpec, PickedOption, SheetCtx, SheetKind, SheetValues } from "@/lib/workspace/sheet-kind";
 
@@ -842,6 +842,14 @@ function labelCopies(value: unknown): number | null {
   return copies >= 1 && copies <= 50 ? copies : null;
 }
 
+/** The server's two refusals, said before the print: nothing to show, or too many labels. */
+function labelsRefusal(values: SheetValues): string | null {
+  if (values.price !== true && values.barcode !== true) return SHOW_MESSAGE;
+  const copies = labelCopies(values.copies);
+  if (copies !== null && copies * Number(values._products ?? 0) > MAX_LABELS) return TOO_MANY_MESSAGE;
+  return null;
+}
+
 const labels: SheetKind = {
   title: "Print shelf labels",
   sub: (ctx) => {
@@ -889,12 +897,11 @@ const labels: SheetKind = {
     );
     return { printer: page.options[0] ?? PRINT_HERE, _products: labelIds(ctx).length };
   },
-  note: "Prices changing tonight print with tomorrow’s price.",
+  note: (values) =>
+    labelsRefusal(values) ?? "Prices changing tonight print with tomorrow’s price.",
+  primaryDisabled: (values) => labelsRefusal(values) !== null,
   primary: (values) => `Print ${labelCount((labelCopies(values.copies) ?? 1) * Number(values._products ?? 0))}`,
-  done: (result) => {
-    const printed = result as { count: number; printer: string };
-    return labelsDoneSentence(printed.count, printed.printer);
-  },
+  done: (result) => labelsDoneSentence(result as { count: number; printer: string; unpriced: string[]; notFound: number }),
   newTab: {
     when: (values) => (values.printer as PickedOption | null)?.id === PRINT_HERE.id,
     href: (result) => (result as { pdfUrl?: string }).pdfUrl ?? null,

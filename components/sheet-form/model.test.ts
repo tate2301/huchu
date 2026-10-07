@@ -166,6 +166,24 @@ describe("sheets that load what they draw (PRD-02)", () => {
   });
 });
 
+describe("the labels sheet (PRD-06)", () => {
+  const labels = PRODUCT_SHEETS.labels!;
+  const on = { price: true, was: true, barcode: true, copies: "1", _products: 4 };
+
+  it("cannot print with neither a price nor a barcode, or more than 2,000 labels", () => {
+    expect(labels.primaryDisabled?.(on)).toBe(false);
+    expect(labels.primaryDisabled?.({ ...on, price: false, was: true, barcode: false })).toBe(true);
+    expect(labels.note).toBeTypeOf("function");
+    const note = labels.note as (values: typeof on) => string;
+    expect(note({ ...on, price: false, barcode: false })).toBe("Show at least a price or a barcode.");
+    expect(labels.primaryDisabled?.({ ...on, price: false })).toBe(false);
+    expect(labels.primaryDisabled?.({ ...on, _products: 41, copies: "50" })).toBe(true);
+    expect(note({ ...on, _products: 41, copies: "50" })).toBe("Print at most 2,000 labels at a time: tick fewer products or lower the copies.");
+    expect(labels.primaryDisabled?.({ ...on, _products: 40, copies: "50" })).toBe(false);
+    expect(note(on)).toBe("Prices changing tonight print with tomorrow’s price.");
+  });
+});
+
 describe("the category sheets (PRD-02)", () => {
   const owner = ctxFor("SUPERADMIN");
   const loaded = { name: "Wine", vat: "15%", margin: "", ageCheck: true, returnable: false, moveTo: null, _name: "Wine", _children: 0 };

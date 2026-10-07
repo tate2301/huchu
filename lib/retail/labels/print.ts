@@ -5,7 +5,7 @@ import { RETAIL_AUDIT_EVENTS, writeRetailAuditEvent, type RetailAuditActor } fro
 import type { PosDevice } from "@/lib/retail/devices";
 
 import { labelData, type Label, type LabelShow, type LabelSize } from "./data";
-import { A4_ON_TILL_MESSAGE, COPIES_MESSAGE, printerName } from "./words";
+import { A4_ON_TILL_MESSAGE, COPIES_MESSAGE, MAX_LABELS, printerName, SHOW_MESSAGE, TOO_MANY_MESSAGE } from "./words";
 
 /**
  * Print shelf labels (PRD-06, W-20): to a till's printer as a job the till
@@ -29,16 +29,20 @@ export type LabelsInput = {
   printer: LabelPrinter;
 };
 
-export const labelsInputSchema = z.object({
-  productIds: z
-    .array(z.string().uuid("Tick the products again."), { message: "Tick at least one product." })
-    .min(1, "Tick at least one product.")
-    .max(MAX_LABEL_PRODUCTS, `Print at most ${MAX_LABEL_PRODUCTS} products at a time.`),
-  size: z.enum(["STRIP", "TAG", "A4"], { message: "Pick a label size." }),
-  show: z.object({ price: z.boolean(), was: z.boolean(), barcode: z.boolean() }, { message: "Say what the labels show." }),
-  copies: z.number({ message: COPIES_MESSAGE }).int(COPIES_MESSAGE).min(1, COPIES_MESSAGE).max(50, COPIES_MESSAGE),
-  printer: z.union([z.literal("here"), z.string().uuid()], { message: "Pick a printer." }),
-});
+export const labelsInputSchema = z
+  .object({
+    productIds: z
+      .array(z.string().uuid("Tick the products again."), { message: "Tick at least one product." })
+      .min(1, "Tick at least one product.")
+      .max(MAX_LABEL_PRODUCTS, `Print at most ${MAX_LABEL_PRODUCTS} products at a time.`),
+    size: z.enum(["STRIP", "TAG", "A4"], { message: "Pick a label size." }),
+    show: z
+      .object({ price: z.boolean(), was: z.boolean(), barcode: z.boolean() }, { message: "Say what the labels show." })
+      .refine((show) => show.price || show.barcode, SHOW_MESSAGE),
+    copies: z.number({ message: COPIES_MESSAGE }).int(COPIES_MESSAGE).min(1, COPIES_MESSAGE).max(50, COPIES_MESSAGE),
+    printer: z.union([z.literal("here"), z.string().uuid()], { message: "Pick a printer." }),
+  })
+  .refine((input) => input.productIds.length * input.copies <= MAX_LABELS, { message: TOO_MANY_MESSAGE, path: ["copies"] });
 
 /** A print refused: the sentence, its status, and the field it is about. */
 export class LabelRefusal extends Error {
@@ -58,6 +62,10 @@ export type PrintedLabels = {
   count: number;
   /** "Front till printer", or "here". */
   printer: string;
+  /** Names of the products that printed with no price: none on the default list. Empty with Price off. */
+  unpriced: string[];
+  /** Products asked for that are not the company's, left out. */
+  notFound: number;
 };
 
 /** The till printer labels go to: the company's live till with a printer and a paired device. */
@@ -114,7 +122,8 @@ export async function printLabels(actor: RetailAuditActor, input: LabelsInput, n
     }
     return created;
   });
-  return { jobId: job.id, count: labels.length * input.copies, printer };
+  const unpriced = input.show.price ? labels.filter((label) => label.price === null).map((label) => label.name) : [];
+  return { jobId: job.id, count: labels.length * input.copies, printer, unpriced, notFound: new Set(input.productIds).size - labels.length };
 }
 
 /**
@@ -144,6 +153,18 @@ export async function hereLabels(
   return { size: payload.size, labels: payload.labels };
 }
 
+/** A till job nobody picked up in a day (an unpaired till never will) is failed, not left waiting. */
+export const STALE_JOB_HOURS = 24;
+
+/** Fails the QUEUED jobs older than a day; the count. */
+export async function failStalePrintJobs(now: Date = new Date()): Promise<number> {
+  const stale = await prisma.retailPrintJob.updateMany({
+    where: { status: "QUEUED", createdAt: { lt: new Date(now.getTime() - STALE_JOB_HOURS * 3_600_000) } },
+    data: { status: "FAILED", error: "The till did not print it within a day." },
+  });
+  return stale.count;
+}
+
 /** What a till pulls: its own register's waiting jobs, oldest first, ten at a time. */
 export async function tillPrintJobs(device: PosDevice) {
   return prisma.retailPrintJob.findMany({
@@ -154,7 +175,7 @@ export async function tillPrintJobs(device: PosDevice) {
   });
 }
 
-/** The till says how a job went; false when the job is not its own register's. */
+/** The till says how a job went; false when the job is not its own register's, or is already finished. */
 export async function finishPrintJob(
   device: PosDevice,
   jobId: string,
@@ -162,7 +183,7 @@ export async function finishPrintJob(
   now: Date = new Date(),
 ): Promise<boolean> {
   const done = await prisma.retailPrintJob.updateMany({
-    where: { id: jobId, companyId: device.companyId, registerId: device.registerId },
+    where: { id: jobId, companyId: device.companyId, registerId: device.registerId, status: "QUEUED" },
     data: outcome.ok
       ? { status: "PRINTED", printedAt: now, error: null }
       : { status: "FAILED", printedAt: null, error: outcome.error?.trim() || "The printer did not print it." },

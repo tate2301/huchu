@@ -8,6 +8,10 @@ import type { LabelSize } from "./data";
  */
 
 export const COPIES_MESSAGE = "Copies is 1 to 50.";
+export const SHOW_MESSAGE = "Show at least a price or a barcode.";
+/** One print holds at most this many labels, products times copies. */
+export const MAX_LABELS = 2000;
+export const TOO_MANY_MESSAGE = `Print at most ${formatCount(MAX_LABELS)} labels at a time: tick fewer products or lower the copies.`;
 export const A4_ON_TILL_MESSAGE = "A4 sheets print here, not on a till printer.";
 
 /** "Print here": this computer's own printer, through a PDF. */
@@ -34,9 +38,24 @@ export function printedWhere(printer: string): string {
   return printer === "here" ? "here" : `on ${thePrinter(printer)}`;
 }
 
-/** The toast: "4 labels sent to the front till printer." / "4 labels ready to print.". */
-export function labelsDoneSentence(count: number, printer: string): string {
-  return printer === "here" ? `${labelCount(count)} ready to print.` : `${labelCount(count)} sent to ${thePrinter(printer)}.`;
+/** What the toast adds about products that did not print as asked: "Not printed: 1 product not found. No price: Rice 2kg." */
+export function labelsLeftOut(printed: { unpriced?: string[]; notFound?: number }): string {
+  const unpriced = printed.unpriced ?? [];
+  const notFound = printed.notFound ?? 0;
+  const parts: string[] = [];
+  if (notFound > 0) parts.push(`${formatCount(notFound)} ${notFound === 1 ? "product was" : "products were"} not found and left out.`);
+  if (unpriced.length > 0) {
+    const shown = unpriced.slice(0, 3).join(", ");
+    parts.push(`No price on the default list: ${shown}${unpriced.length > 3 ? ` and ${formatCount(unpriced.length - 3)} more` : ""}.`);
+  }
+  return parts.join(" ");
+}
+
+/** The toast: "4 labels sent to the front till printer." / "4 labels ready to print.", then what was left out. */
+export function labelsDoneSentence(printed: { count: number; printer: string; unpriced?: string[]; notFound?: number }): string {
+  const { count, printer } = printed;
+  const sentence = printer === "here" ? `${labelCount(count)} ready to print.` : `${labelCount(count)} sent to ${thePrinter(printer)}.`;
+  return [sentence, labelsLeftOut(printed)].filter(Boolean).join(" ");
 }
 
 /** Activity, one product: "Printed 1 shelf strip on the front till printer", "Printed 2 price tags here". */

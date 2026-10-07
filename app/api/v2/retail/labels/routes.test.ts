@@ -23,6 +23,8 @@ vi.mock("@/lib/api-utils", async (importOriginal) => ({
 
 vi.stubEnv("PLATFORM_ROOT_DOMAIN", "apps.localtest.me");
 
+const { failStalePrintJobs } = await import("@/lib/retail/labels/print");
+const { labelsDoneSentence } = await import("@/lib/retail/labels/words");
 const { POST: print } = await import("./route");
 const { GET: pdf } = await import("./[file]/route");
 const { GET: pull } = await import("../devices/me/print-jobs/route");
@@ -149,6 +151,33 @@ describe("bad input", () => {
     }
   });
 
+  it("refuses a print that shows neither a price nor a barcode", async () => {
+    as("owner");
+    for (const show of [
+      { price: false, was: false, barcode: false },
+      { price: false, was: true, barcode: false },
+    ]) {
+      expect(await post(body({ show }))).toEqual({
+        status: 400,
+        body: expect.objectContaining({ fieldErrors: expect.objectContaining({ show: "Show at least a price or a barcode." }) }),
+      });
+    }
+    expect((await post(body({ show: { price: false, was: false, barcode: true }, productIds: [products[0]] }))).status).toBe(202);
+    await prisma.retailPrintJob.deleteMany({ where: { companyId } });
+  });
+
+  it("refuses more than 2,000 labels in one print, on copies", async () => {
+    as("owner");
+    const ids = Array.from({ length: 41 }, () => crypto.randomUUID());
+    expect(await post(body({ productIds: ids, copies: 50 }))).toEqual({
+      status: 400,
+      body: expect.objectContaining({
+        fieldErrors: { copies: "Print at most 2,000 labels at a time: tick fewer products or lower the copies." },
+      }),
+    });
+    expect(await prisma.retailPrintJob.count({ where: { companyId } })).toBe(0);
+  });
+
   it("prints an A4 sheet here, not on a till printer", async () => {
     as("owner");
     expect(await post(body({ size: "A4" }))).toEqual({
@@ -214,6 +243,13 @@ describe("a till's printer", () => {
     expect(((await after.json()) as { jobs: unknown[] }).jobs).toEqual([]);
   });
 
+  it("cannot be finished twice: a printed job stays printed", async () => {
+    const context = { params: Promise.resolve({ id: jobId }) };
+    const again = await onTill(done, `print-jobs/${jobId}/done`, frontKey, { method: "POST", body: JSON.stringify({ ok: false, error: "late" }) }, context);
+    expect(again.status).toBe(404);
+    expect(await prisma.retailPrintJob.findUniqueOrThrow({ where: { id: jobId } })).toMatchObject({ status: "PRINTED", error: null });
+  });
+
   it("is marked failed with what the till says", async () => {
     as("manager");
     const answer = await post(body({ productIds: [products[2]], copies: 2 }));
@@ -228,6 +264,41 @@ describe("a till's printer", () => {
     );
     expect(response.status).toBe(204);
     expect(await prisma.retailPrintJob.findUniqueOrThrow({ where: { id } })).toMatchObject({ status: "FAILED", error: "Out of labels" });
+    const flip = await onTill(done, `print-jobs/${id}/done`, frontKey, { method: "POST", body: JSON.stringify({ ok: true }) }, { params: Promise.resolve({ id }) });
+    expect(flip.status).toBe(404);
+    expect(await prisma.retailPrintJob.findUniqueOrThrow({ where: { id } })).toMatchObject({ status: "FAILED" });
+  });
+
+  it("fails what no till picked up in a day, and leaves a fresh job waiting", async () => {
+    const queued = (createdAt: Date) =>
+      prisma.retailPrintJob.create({
+        data: { companyId, registerId: tills.back!, kind: "LABELS", payload: { size: "STRIP", labels: [] }, createdAt },
+        select: { id: true },
+      });
+    const now = new Date();
+    const old = await queued(new Date(now.getTime() - 25 * 3_600_000));
+    const fresh = await queued(new Date(now.getTime() - 2 * 3_600_000));
+    expect(await failStalePrintJobs(now)).toBeGreaterThanOrEqual(1);
+    expect(await prisma.retailPrintJob.findUniqueOrThrow({ where: { id: old.id } })).toMatchObject({
+      status: "FAILED",
+      error: "The till did not print it within a day.",
+    });
+    expect((await prisma.retailPrintJob.findUniqueOrThrow({ where: { id: fresh.id } })).status).toBe("QUEUED");
+    await prisma.retailPrintJob.deleteMany({ where: { id: { in: [old.id, fresh.id] } } });
+  });
+
+  it("says which products had no price and which were not found", async () => {
+    as("owner");
+    const bare = (await prisma.product.create({ data: { companyId, code: "NOPRICE-1", name: "Bare Shelf Item", standardPrice: new Prisma.Decimal("0") }, select: { id: true } })).id;
+    const missing = crypto.randomUUID();
+    const answer = await post(body({ productIds: [products[0], bare, missing], printer: "here" }));
+    expect(answer).toMatchObject({ status: 200, body: { data: { count: 2, unpriced: ["Bare Shelf Item"], notFound: 1 } } });
+    expect(
+      labelsDoneSentence(answer.body.data),
+    ).toBe("2 labels ready to print. 1 product was not found and left out. No price on the default list: Bare Shelf Item.");
+    const quiet = await post(body({ productIds: [products[0], bare], printer: "here", show: { price: false, was: false, barcode: true } }));
+    expect(quiet.body.data.unpriced).toEqual([]);
+    await prisma.retailPrintJob.deleteMany({ where: { companyId } });
   });
 });
 
