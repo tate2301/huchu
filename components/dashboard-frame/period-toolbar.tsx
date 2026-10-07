@@ -95,6 +95,7 @@ export function PeriodToolbar<P extends string>({
   updatedAt,
   range = null,
   ground = false,
+  wrap = false,
 }: {
   periods: ReadonlyArray<SegmentedItem<P>>;
   /** Null while a range of days is chosen instead. */
@@ -111,11 +112,13 @@ export function PeriodToolbar<P extends string>({
   range?: RangeChoice | null;
   /** The insight variant's toolbar sits on `--ground`. */
   ground?: boolean;
+  /** On a phone the controls wrap: the period full width, the site under it (Overview). */
+  wrap?: boolean;
 }) {
   const updated = updatedAt ? `Updated ${shopTime(updatedAt)}` : null;
   return (
     <>
-      <div role="toolbar" aria-label="Period" className={cn("cx-df-toolbar", ground && "cx-df-toolbar--ground")}>
+      <div role="toolbar" aria-label="Period" className={cn("cx-df-toolbar", ground && "cx-df-toolbar--ground", wrap && "cx-df-toolbar--wrap")}>
         <Segmented aria-label="Period" items={periods} value={period} onValueChange={onPeriodChange} />
         {range ? <RangeControl range={range} /> : null}
         {site ? (

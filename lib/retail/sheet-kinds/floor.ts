@@ -87,7 +87,7 @@ const shiftOpen: SheetKind = {
       ...(values._takesZig === true && String(values.zig ?? "").trim() ? { openingFloatZig: String(values.zig).trim() } : {}),
     },
   }),
-  invalidate: [["list", "retail-shifts"], ["retail-current-shift"], ["nav-badges"], ["lookup", "till"]],
+  invalidate: [["list", "retail-shifts"], ["retail-current-shift"], ["nav-badges"], ["lookup", "till"], ["retail-overview"]],
   requires: [["retail.sell", "open-shift"]],
 };
 

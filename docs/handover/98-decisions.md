@@ -268,6 +268,22 @@ Recorded unit choices:
   - **The till keeps its taken reports, read only.** `GET /api/v2/retail/z-reports` answers the trading day and the
     reports taken; the till's End of day finds its own for today there and otherwise says it is taken when a
     manager closes the day.
+- **FLR-08 departs from packet 62 where it reads as follows.**
+  - **Tills now lists Open, then Open 52h, then Offline, then Closed, each by name**, as `Floor.png` draws them (the
+    packet's "open first … by name" put the Back till above the Front till). A drawer open more than 12 hours reads
+    "Open 52h" even when its device is silent: the drawer that needs closing is the thing to say.
+  - **Needs action's `order-due` row has no provider yet.** The dev and test databases already carry BUY-02's purchase
+    orders (vendor, sent, chased), which the code on `main` does not, so a read of `supplierName` fails there. BUY-02
+    adds `lib/retail/floor/needs-action/order-due.ts` with its orders; `laybys-overdue` waits for FLR-06 the same way.
+  - **The flagged-sales row links to `/retail/sales?tab=all&flagged=only`**, the value the Sales list's Flagged filter
+    reads (the packet's `flagged=1` selects nothing). The promotion row links to Promotions, which has no record page.
+  - **Top products counts a product sold each as "4 sold"**, not "4 each".
+  - **Cashiers this week reads "1 shift · not counted yet"** for someone whose only shifts are still open, rather than
+    "balanced".
+  - **The response carries `can.openShift` and the sparkline's point `labels`** beside 50-floor §4.1's fields: the page
+    draws "+ Open shift" from the first, and the chart's tooltips name each hour or day from the second.
+  - The setup checklist does not lead the grid: SET-13's endpoint does not exist yet.
+
 - **A list's Export stops at 5,000 rows and says so.** The file holds the engine's first 5,000 rows in the list's order
   with the list's totals over every row; the toast reads "The file has the first 5,000 of 5,858 rows. Narrow the
   filters for the rest."

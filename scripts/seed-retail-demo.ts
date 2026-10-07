@@ -1832,6 +1832,7 @@ async function main() {
   await seedPosting(companyId)
   await seedReceipts(companyId)
   await seedFiscal(companyId)
+  await seedOverview(companyId)
   await seedApprovals(companyId)
   await seedShiftFloor(companyId)
   await seedShiftCounts(companyId)
@@ -4856,6 +4857,32 @@ async function seedFiscal(companyId: string) {
     },
   })
   console.log(`  fiscal: device 0441-2209 registered 14 March, days 210–213 closed, day 214 open with ${sales.length} receipt(s)`)
+}
+
+/**
+ * FLR-08. The Overview's "Two receipts not yet fiscalised": Handheld 1's two
+ * latest sales today were signed into day 214 but ZIMRA has not taken them,
+ * so their receipts wait (PENDING) for the till to come back. Everything
+ * else this morning `seedFiscal` has already signed. Purchase orders due,
+ * promotions ending and low stock come from their own seeds.
+ */
+async function seedOverview(companyId: string) {
+  const handheld = await prisma.retailRegister.findFirst({ where: { companyId, name: "Handheld 1" }, select: { id: true } })
+  if (!handheld) {
+    console.log("  overview: no Handheld 1, skipped")
+    return
+  }
+  const sales = await prisma.retailSale.findMany({
+    where: { companyId, registerId: handheld.id, saleType: "SALE", status: "POSTED", postedAt: { gte: harareTime(0, 0, 0) }, fiscalReceipt: { isNot: null } },
+    orderBy: [{ postedAt: "desc" }, { id: "desc" }],
+    take: 2,
+    select: { id: true, saleNo: true },
+  })
+  await prisma.fiscalReceipt.updateMany({
+    where: { companyId, retailSaleId: { in: sales.map((sale) => sale.id) } },
+    data: { status: "PENDING", issuedAt: null, lastSyncedAt: null, attemptCount: 1, lastError: "ZIMRA did not answer: the till is offline." },
+  })
+  console.log(`  overview: ${sales.map((sale) => sale.saleNo).join(", ")} wait for ZIMRA`)
 }
 
 /** A demo device's key and a self-signed certificate for it, in the bundle shape registration writes. */
