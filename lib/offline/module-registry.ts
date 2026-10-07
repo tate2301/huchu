@@ -37,21 +37,6 @@ function asErrorMessage(error: unknown) {
   return "Offline sync failed";
 }
 
-function normalizeLegacyDocumentNumber(
-  prefix: "RSL",
-  rawValue: unknown,
-) {
-  if (typeof rawValue !== "string") return undefined;
-  const trimmed = rawValue.trim().toUpperCase();
-  if (!trimmed) return undefined;
-  if (new RegExp(`^${prefix}-\\d+$`, "i").test(trimmed)) {
-    return trimmed;
-  }
-  const digits = trimmed.replace(/\D/g, "");
-  if (!digits) return undefined;
-  return `${prefix}-${digits.slice(-12)}`;
-}
-
 async function syncRetailCustomer(payload: Record<string, unknown>): Promise<OfflineSyncOutcome> {
   try {
     const created = await fetchJson<{ data: { id: string } }>("/api/v2/retail/customers", {
@@ -76,7 +61,6 @@ async function syncRetailSale(
   payload: Record<string, unknown>,
 ): Promise<OfflineSyncOutcome> {
   try {
-    const saleNo = normalizeLegacyDocumentNumber("RSL", payload.saleNo);
     /**
      * S-7.3. When the till actually rang this sale.
      *
@@ -97,7 +81,6 @@ async function syncRetailSale(
       method: "POST",
       body: JSON.stringify({
         ...payload,
-        saleNo,
         offlineCreatedAt,
       }),
     });

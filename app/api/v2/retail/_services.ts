@@ -933,7 +933,6 @@ export async function createRetailSaleTransaction(input: {
       (await reserveIdentifier(prisma, {
         companyId: input.actor.companyId,
         entity: "RETAIL_SALE",
-        siteId: site.id,
       }));
 
     // Cash into the drawer, in base currency on both sides. Declared here and
@@ -1276,8 +1275,7 @@ export async function refundRetailSaleTransaction(input: {
 
   const refundNo = await reserveIdentifier(prisma, {
     companyId: input.actor.companyId,
-    entity: "RETAIL_SALE",
-    siteId: sourceSale.siteId,
+    entity: "RETAIL_REFUND",
   });
   const requestedByLine = input.lines.reduce<Map<string, number>>((accumulator, line) => {
     accumulator.set(line.saleLineId, round((accumulator.get(line.saleLineId) ?? 0) + line.quantity));
@@ -1679,8 +1677,7 @@ export async function voidRetailSaleTransaction(input: {
 
   const voidNo = await reserveIdentifier(prisma, {
     companyId: input.actor.companyId,
-    entity: "RETAIL_SALE",
-    siteId: sourceSale.siteId,
+    entity: "RETAIL_VOID",
   });
 
   const { fiscal, ...reversal } = await reversalTransaction(async (tx) => {
