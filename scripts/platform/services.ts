@@ -1969,7 +1969,7 @@ async function applyClientTemplate(input: ApplySubscriptionTemplateInput): Promi
     R-5.1. The same hole, on the retail side, and a worse one.
 
     A retail template left the tenant with no site and no register, and
-    `openRetailShiftTransaction` needs both — so the first thing a cashier does
+    `openShift` (lib/retail/floor/shifts.ts) needs both — so the first thing a cashier does
     on their first morning failed with *Invalid site*. A school at least renders
     its empty screens; a till that cannot open a drawer cannot do anything at
     all.

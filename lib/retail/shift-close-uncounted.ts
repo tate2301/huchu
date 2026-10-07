@@ -7,8 +7,9 @@ import { auditAmount, RETAIL_AUDIT_EVENTS, writeRetailAuditEvent, type RetailAud
  * drawer was not counted, so there is no counted cash, no variance and no
  * variance journal; the Shifts list reads it "Not counted" for a manager to
  * sign off. Inside the caller's transaction, with its `RETAIL_SHIFT.CLOSED`
- * event (`uncounted`, and why). The floor's close-uncounted (FLR-04) is this
- * same act from the shift's own menu.
+ * event (`uncounted`, and why); the why is the shift's `closeNote` and the
+ * closer its `closedById`. The floor's `closeUncounted` (FLR-04) is this same
+ * act from the shift's own menu.
  */
 export async function closeShiftUncounted(
   tx: Prisma.TransactionClient,
@@ -16,19 +17,21 @@ export async function closeShiftUncounted(
 ): Promise<{ shiftNo: string; registerName: string } | null> {
   const shift = await tx.retailShift.findFirst({
     where: { id: input.shiftId, companyId: input.actor.companyId, status: "OPEN" },
-    select: { id: true, shiftNo: true, registerName: true, cashierId: true, expectedCash: true, notes: true },
+    select: { id: true, shiftNo: true, registerName: true, cashierId: true, expectedCash: true },
   });
   if (!shift) return null;
-  await tx.retailShift.update({
-    where: { id: shift.id },
+  const updated = await tx.retailShift.updateMany({
+    where: { id: shift.id, status: "OPEN" },
     data: {
       status: "CLOSED",
       closedAt: input.now ?? new Date(),
+      closedById: input.actor.userId,
       countedCash: null,
       variance: null,
-      notes: shift.notes ? `${shift.notes}\n${input.reason}` : input.reason,
+      closeNote: input.reason,
     },
   });
+  if (updated.count !== 1) return null;
   await writeRetailAuditEvent(tx, {
     actor: input.actor,
     eventType: RETAIL_AUDIT_EVENTS.shiftClosed,
@@ -42,6 +45,7 @@ export async function closeShiftUncounted(
       countedCash: null,
       variance: null,
       uncounted: true,
+      reason: input.reason,
       closedByOwner: input.actor.userId === shift.cashierId,
     },
   });

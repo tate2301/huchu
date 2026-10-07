@@ -13,7 +13,7 @@ import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { prisma } from "@/lib/prisma";
-import { closeRetailShiftTransaction } from "@/app/api/v2/retail/_services";
+import { closeShift } from "@/lib/retail/floor/shifts";
 import { readSettings, saveSettings } from "@/lib/retail/settings";
 import { checkSettingsChanges } from "@/lib/retail/settings-pages";
 import { fiscalPage } from "@/lib/retail/settings-pages/fiscal";
@@ -100,6 +100,7 @@ describe("the fiscal device on real rows, against the FDMS test connector", () =
   const savedUrl = process.env.ZIMRA_FDMS_API_BASE_URL;
 
   const owner = () => ({ companyId, userId: ownerId, userName: "Tendai Mhlanga", userRole: "SUPERADMIN" });
+  const ownerSession = () => ({ user: { id: ownerId, companyId, name: "Tendai Mhlanga", role: "SUPERADMIN" } });
 
   beforeAll(async () => {
     const port = await freePort();
@@ -379,7 +380,7 @@ describe("the fiscal device on real rows, against the FDMS test connector", () =
       });
     const first = await shift(1);
     const second = await shift(2);
-    await closeRetailShiftTransaction({ actor: owner(), shiftId: first.id, countedCash: 0 });
+    await closeShift({ session: ownerSession(), shiftId: first.id, body: { counts: { USD: [] }, floatLeft: "0" } });
     expect(await prisma.fiscalDay.findFirst({ where: { companyId, fiscalDayNo: 2 }, select: { status: true } })).toEqual({ status: "OPENED" });
 
     // By hand: the last shift closing leaves the day open.
@@ -387,7 +388,7 @@ describe("the fiscal device on real rows, against the FDMS test connector", () =
     expect(await closeFiscalDayIfLastShift(owner())).toEqual({ closed: null });
     await prisma.retailFiscalSettings.update({ where: { companyId }, data: { dayClose: "WITH_LAST_SHIFT" } });
 
-    await closeRetailShiftTransaction({ actor: owner(), shiftId: second.id, countedCash: 0 });
+    await closeShift({ session: ownerSession(), shiftId: second.id, body: { counts: { USD: [] }, floatLeft: "0" } });
     expect(await prisma.fiscalDay.findFirst({ where: { companyId, fiscalDayNo: 2 }, select: { status: true } })).toEqual({ status: "CLOSED" });
     const event = await prisma.platformAuditEvent.findFirst({
       where: { companyId, eventType: "RETAIL_FISCAL.DAY_CLOSED" },
@@ -478,7 +479,7 @@ describe("the fiscal device on real rows, against the FDMS test connector", () =
     expect(await closeWaitingFiscalDays(companyId)).toBe("nothing waiting");
     // The last shift closes while ZIMRA has just been silent: the close is left to the worker, which sends it.
     await prisma.fiscalisationProviderConfig.update({ where: { id: device.id }, data: { lastFailedAt: new Date(), lastOkAt: new Date(Date.now() - 60_000) } });
-    await closeRetailShiftTransaction({ actor: owner(), shiftId: shift.id, countedCash: 0 });
+    await closeShift({ session: ownerSession(), shiftId: shift.id, body: { counts: { USD: [] }, floatLeft: "0" } });
     expect((await prisma.fiscalDay.findUniqueOrThrow({ where: { id: stale.id } })).status).toBe("OPENED");
     expect(await closeWaitingFiscalDays(companyId)).toBe(`day ${stale.fiscalDayNo} closed`);
     expect(await prisma.fiscalDay.findUniqueOrThrow({ where: { id: stale.id } })).toMatchObject({ status: "CLOSED" });
@@ -616,7 +617,7 @@ describe("the fiscal device on real rows, against the FDMS test connector", () =
       data: { companyId, shiftNo: `SH-${stamp}-unanswered`, registerCode: `T-${stamp}`, registerName: "Front till", registerId, siteId, cashierId: ownerId, cashierName: "Tendai Mhlanga" },
     });
     await prisma.fiscalisationProviderConfig.update({ where: { id: device.id }, data: { lastFailedAt: new Date(), lastOkAt: new Date(Date.now() - 60_000) } });
-    await closeRetailShiftTransaction({ actor: owner(), shiftId: last.id, countedCash: 0 });
+    await closeShift({ session: ownerSession(), shiftId: last.id, body: { counts: { USD: [] }, floatLeft: "0" } });
     await prisma.fiscalDay.update({ where: { id: day.id }, data: { status: "CLOSING", closingSince: null } });
     await prisma.fiscalisationProviderConfig.update({ where: { id: device.id }, data: { lastFailedAt: null, lastOkAt: new Date() } });
     const waiting = await ringSale();

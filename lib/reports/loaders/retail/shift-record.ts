@@ -3,6 +3,7 @@ import { num, result } from "@/lib/reports/loaders/shared";
 import type { ReportContext, ReportLoader, ReportParams, ReportRow } from "@/lib/reports/types";
 import { formatPercent } from "@/lib/workspace/format";
 import { tenderLabel } from "@/lib/retail/words";
+import { cashMovementWhy } from "@/lib/retail/cash-movements";
 
 /**
  * The shift record's tab sources, read for one shift (the `shift` parent).
@@ -72,19 +73,13 @@ async function loadSales(ctx: ReportContext, params: ReportParams) {
   );
 }
 
-const MOVEMENT_WHAT: Record<string, string> = {
-  DROP_TO_SAFE: "Drop to the safe",
-  FLOAT_TOP_UP: "Float top-up",
-  PAYOUT: "Paid out",
-};
-
 async function loadCash(ctx: ReportContext, params: ReportParams) {
   const shift = await shiftFor(ctx, params);
   if (!shift) return result([]);
   const movements = await prisma.retailCashMovement.findMany({
     where: { companyId: ctx.companyId, shiftId: shift.id },
     orderBy: { createdAt: "desc" },
-    select: { id: true, type: true, reason: true, baseAmount: true, recordedByName: true, createdAt: true },
+    select: { id: true, type: true, reasonCode: true, reason: true, baseAmount: true, approvedByName: true, createdAt: true },
   });
   return result(
     movements.map((movement): ReportRow => {
@@ -94,9 +89,9 @@ async function loadCash(ctx: ReportContext, params: ReportParams) {
         shiftId: shift.id,
         cashierId: shift.cashierId,
         at: movement.createdAt.toISOString(),
-        what: MOVEMENT_WHAT[movement.type] ?? movement.type,
+        what: cashMovementWhy(movement.type, movement.reasonCode),
         note: movement.reason,
-        by: movement.recordedByName,
+        approvedBy: movement.approvedByName,
         // Out of the drawer is negative: what the drawer should hold goes down.
         amount: cents(movement.type === "FLOAT_TOP_UP" ? size : -size),
       };

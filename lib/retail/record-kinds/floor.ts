@@ -1,4 +1,5 @@
 import { fetchJson } from "@/lib/api-client";
+import { closeUncountedAsk } from "@/lib/retail/asks";
 import type { SaleView } from "@/lib/retail/floor/sale-view";
 import { fiscalChip, paidKpi, saleStateChip } from "@/lib/retail/floor/sale-words";
 import type { ShiftRecordView } from "@/lib/retail/shift-record";
@@ -10,12 +11,15 @@ import type { RailGroup, RecordAction, RecordChip, RecordKind, RecordKpi, Record
 /**
  * The shift record kind (00-foundations 5.6.10, ShiftRecord board): the
  * reference record. FND wires "Export as PDF", "Print X-report" (open) or
- * "Print Z-report" (closed) and the existing count and close; the floor spec
- * adds the cash move, staff message, sign-off and close without counting.
+ * "Print Z-report" (closed); the floor spec adds the cash move, staff
+ * message, Count and close (its own page, FLR-04), close without counting
+ * and sign-off.
  */
 
 const CASH_CONTROL = ["retail.cash-control", "view"] as const;
 const OWN_TILL = ["retail.sell", "open-shift"] as const;
+/** Printing an X-report mid-shift: someone who runs drawers, not the bookkeeper who reads them. */
+const X_REPORT = ["retail.cash-control", "update"] as const;
 
 /** A drawer open longer than this is left over from another day. */
 const STALE_MINUTES = 12 * 60;
@@ -83,10 +87,22 @@ export const shiftKind: RecordKind<ShiftRecordView> = {
   actions: (shift) =>
     shift.status === "OPEN"
       ? [
+          // FLR-03: on a drawer the viewer may move (own `retail.sell`, anybody's with cash control).
+          ...(shift.can.move
+            ? [
+                {
+                  key: "cash-move",
+                  label: "Record cash in or out",
+                  requires: [["retail.sell", "create"], ["retail.cash-control", "update"]],
+                  do: { sheet: "cash-move", id: shift.id },
+                } satisfies RecordAction,
+              ]
+            : []),
           {
             key: "x-report",
             label: "Print X-report",
-            requires: [[...CASH_CONTROL], [...OWN_TILL]],
+            // A till action: whoever runs drawers (cash control) or sells at one; the bookkeeper only reads.
+            requires: [[...X_REPORT], [...OWN_TILL]],
             do: { open: `/api/v2/retail/records/RetailShift/${shift.id}/pdf?as=x-report` },
           },
         ]
@@ -99,12 +115,42 @@ export const shiftKind: RecordKind<ShiftRecordView> = {
           },
         ],
   more: (shift) => [
+    // C-06: ADM-02's message sheet, to this shift's cashier.
+    ...(shift.status === "OPEN" && shift.can.message
+      ? [
+          {
+            key: "message",
+            label: "Message the cashier",
+            requires: [["retail.people", "update"]],
+            do: { sheet: "people-message", params: { ids: shift.cashierId } },
+          } satisfies RecordAction,
+        ]
+      : []),
     {
       key: "pdf",
       label: "Export as PDF",
       requires: [[...CASH_CONTROL], [...OWN_TILL]],
       do: { download: `/api/v2/retail/records/RetailShift/${shift.id}/pdf` },
     },
+    // FLR-04: a drawer nobody can count (a lost handheld) closes Not counted, for a manager to sign off.
+    // Cash control's only, who always read what should be in the drawer.
+    ...(shift.status === "OPEN" && shift.expectedCash !== null
+      ? [
+          {
+            key: "close-uncounted",
+            label: "Close without counting",
+            tone: "bad",
+            requires: [["retail.cash-control", "close-shift"]],
+            do: {
+              post: {
+                url: `/api/v2/retail/shifts/${shift.id}/close-uncounted`,
+                ask: closeUncountedAsk({ shiftNo: shift.shiftNo, expectedCash: shift.expectedCash }),
+                done: `${shift.shiftNo} closed without a count.`,
+              },
+            },
+          } satisfies RecordAction,
+        ]
+      : []),
   ],
   primary: (shift) =>
     shift.status === "OPEN"
@@ -115,24 +161,35 @@ export const shiftKind: RecordKind<ShiftRecordView> = {
             ["retail.cash-control", "close-shift"],
             ["retail.sell", "close-shift"],
           ],
-          do: { event: "count-and-close" },
+          do: { href: `/retail/shifts/${shift.id}/close` },
         }
       : null,
   steps,
   chips: (shift) => [{ label: shift.cashierName, tone: "plain" }, stateChip(shift)],
+  // A cashier counting her own drawer blind (FLR-04) reads no expected figure: the server sends none.
   figure: (shift) =>
     shift.status === "OPEN"
-      ? { label: "Should be in the drawer", value: formatMoney(shift.expectedCash) }
+      ? shift.expectedCash === null
+        ? { label: "Takings", value: formatMoney(shift.takings) }
+        : { label: "Should be in the drawer", value: formatMoney(shift.expectedCash) }
       : shift.countedCash === null
-        ? { label: "Expected", value: formatMoney(shift.expectedCash) }
+        ? { label: "Expected", value: formatMoney(shift.expectedCash ?? 0) }
         : { label: "Counted", value: formatMoney(shift.countedCash) },
   kpis: (shift) => {
     const moves = cashInOutNote(shift);
     return [
       { label: "Takings", value: formatMoney(shift.takings), lead: formatCount(shift.saleCount), leadTone: "plain", note: salesWords(shift).replace(/^[\d,]+ /, "") },
-      { label: "Opening float", value: formatMoney(shift.openingFloat), lead: formatTime(shift.openedAt), leadTone: "plain", note: "counted in" },
+      {
+        label: "Opening float",
+        value: formatMoney(shift.openingFloat),
+        lead: formatTime(shift.openedAt),
+        leadTone: "plain",
+        note: shift.openingFloatZig > 0 ? `counted in, and ${formatMoney(shift.openingFloatZig, "ZWG")}` : "counted in",
+      },
       { label: "Cash in and out", value: formatMoney(shift.cashMovementNet), lead: moves.lead, leadTone: "plain", note: moves.note },
-      { label: "Should be in the drawer", value: formatMoney(shift.expectedCash), lead: formatMoney(shift.cashSales), leadTone: "plain", note: "in cash sales" },
+      ...(shift.expectedCash === null
+        ? []
+        : [{ label: "Should be in the drawer", value: formatMoney(shift.expectedCash), lead: formatMoney(shift.cashSales), leadTone: "plain" as const, note: "in cash sales" }]),
       countedKpi(shift),
     ];
   },
@@ -174,7 +231,7 @@ export const shiftKind: RecordKind<ShiftRecordView> = {
         { key: "float", label: "Opening float", value: formatMoney(shift.openingFloat), mono: true },
         { key: "cash-sales", label: "Cash sales", value: formatMoney(shift.cashSales), mono: true },
         { key: "safe", label: "To the safe", value: toTheSafe(shift), mono: shift.movements.drops > 0, muted: shift.movements.drops === 0 },
-        { key: "expected", label: "Expected", value: formatMoney(shift.expectedCash), mono: true },
+        ...(shift.expectedCash === null ? [] : [{ key: "expected", label: "Expected", value: formatMoney(shift.expectedCash), mono: true }]),
         {
           key: "counted",
           label: "Counted",
@@ -185,7 +242,6 @@ export const shiftKind: RecordKind<ShiftRecordView> = {
     },
     {
       title: "Drawer",
-      // The board's "No-sale opens" row waits until the till records them (98-decisions honest version).
       rows: [
         {
           key: "last-opened",
@@ -193,6 +249,7 @@ export const shiftKind: RecordKind<ShiftRecordView> = {
           value: shift.lastCashSale ? `${formatTime(shift.lastCashSale.at)}, for ${shift.lastCashSale.saleNo}` : "Not yet",
           muted: !shift.lastCashSale,
         },
+        { key: "no-sale", label: "No-sale opens", value: formatCount(shift.noSaleOpens), mono: true },
       ],
     },
     ...(shift.closedAt
@@ -201,7 +258,20 @@ export const shiftKind: RecordKind<ShiftRecordView> = {
             title: "Close",
             rows: [
               { key: "closed", label: "Closed", value: `${formatDay(shift.closedAt)}, ${formatTime(shift.closedAt)}`, mono: true },
-              ...(shift.notes ? [{ key: "note", label: "What happened", value: shift.notes }] : []),
+              { key: "by", label: "By", value: shift.close?.byName ?? "—", muted: !shift.close?.byName },
+              { key: "note", label: "What happened", value: shift.close?.note ?? "Nothing to explain", muted: !shift.close?.note },
+              {
+                key: "float-left",
+                label: "Float left",
+                value: shift.close?.floatLeft === null || shift.close?.floatLeft === undefined ? "—" : formatMoney(shift.close.floatLeft),
+                mono: shift.close?.floatLeft !== null && shift.close?.floatLeft !== undefined,
+              },
+              {
+                key: "to-safe",
+                label: "To the safe",
+                value: shift.close?.toSafe === null || shift.close?.toSafe === undefined ? "—" : formatMoney(shift.close.toSafe),
+                mono: shift.close?.toSafe !== null && shift.close?.toSafe !== undefined,
+              },
             ],
           },
         ]

@@ -123,7 +123,6 @@ import type {
   RetailCashMovementTypeName,
 } from "./cash-movements";
 import {
-  cashVariance,
   expectedCashForShift,
   getCashNetFromPayments,
   sumCashMovementDeltas,
@@ -276,8 +275,12 @@ export type ZReportShiftInput = {
   openedAt: Date;
   closedAt: Date | null;
   openingFloat: MoneyLike;
+  /** The ZiG float's dollar value at the rate it was counted in; zero for a dollars-only drawer. */
+  openingFloatZigBase: MoneyLike;
   /** What the cashier actually counted at close. Null on a shift never counted. */
   countedCash: MoneyLike | null;
+  /** The difference the close recorded (FLR-04: none under the ZiG count's US$0.05 tolerance). Null on a shift never counted. */
+  variance: MoneyLike | null;
   movements: ZReportMovementInput[];
   sales: ZReportSaleInput[];
 };
@@ -449,6 +452,7 @@ export function buildRetailZReportFigures(
   let cashTakings = ZERO;
   let expectedCash = ZERO;
   let countedCash = ZERO;
+  let cashVariance = ZERO;
 
   const tenderAmounts = new Map<RetailTenderType, Prisma.Decimal>();
   const tenderCounts = new Map<RetailTenderType, number>();
@@ -556,15 +560,21 @@ export function buildRetailZReportFigures(
     // implementation of it standing beside the first.
     const shiftExpected = expectedCashForShift({
       openingFloat: shift.openingFloat,
+      openingFloatZigBase: shift.openingFloatZigBase,
       cashTakings: shiftCashTakings,
       movements: shift.movements,
     });
     const shiftCounted = shift.countedCash == null ? null : money(shift.countedCash);
+    // The float in the base currency, both drawers, so the report's cash lines add up to expected.
+    const shiftFloat = money(shift.openingFloat).plus(money(shift.openingFloatZigBase));
 
-    openingFloat = openingFloat.plus(money(shift.openingFloat));
+    openingFloat = openingFloat.plus(shiftFloat);
     cashTakings = cashTakings.plus(shiftCashTakings);
     expectedCash = expectedCash.plus(shiftExpected);
     countedCash = countedCash.plus(shiftCounted ?? ZERO);
+    // The shift's own difference, as its close recorded it and the Shifts list reads it, not counted less expected again.
+    const shiftVariance = shiftCounted && shift.variance != null ? money(shift.variance) : null;
+    cashVariance = cashVariance.plus(shiftVariance ?? ZERO);
 
     shiftLines.push({
       shiftId: shift.id,
@@ -572,12 +582,12 @@ export function buildRetailZReportFigures(
       cashierName: shift.cashierName,
       openedAt: shift.openedAt.toISOString(),
       closedAt: shift.closedAt?.toISOString() ?? null,
-      openingFloat: money(shift.openingFloat).toFixed(2),
+      openingFloat: shiftFloat.toFixed(2),
       cashTakings: shiftCashTakings.toFixed(2),
       movementNet: shiftMovementNet.toFixed(2),
       expectedCash: shiftExpected.toFixed(2),
       countedCash: shiftCounted?.toFixed(2) ?? null,
-      variance: shiftCounted ? shiftCounted.minus(shiftExpected).toFixed(2) : null,
+      variance: shiftVariance?.toFixed(2) ?? null,
     });
   }
 
@@ -664,12 +674,8 @@ export function buildRetailZReportFigures(
     cashMovementNet,
     expectedCash: money(expectedCash),
     countedCash: money(countedCash),
-    // The same subtraction cash-up performs, from the same function, so a Z-report
-    // and the closeout screen can never disagree about which way a drawer is out.
-    cashVariance: cashVariance({
-      countedCash: money(countedCash),
-      expectedCash: money(expectedCash),
-    }),
+    // The counted drawers' recorded differences, so the Z-report and the Shifts list never disagree about a drawer.
+    cashVariance: money(cashVariance),
 
     tenderBreakdown: tenderRows.map((row, index) => ({
       tenderType: row.tenderType,

@@ -12,4 +12,10 @@ export type Ask = {
   /** Empty when there is nothing to go ahead with (a refusal known before asking): only `keep` is offered. */
   go: string;
   fill: "bad" | "action";
+  /**
+   * A required note the go needs ("Why", 3–300 characters): drawn as a
+   * textarea under the body; its text goes with the request under `key`.
+   * `needed` is the error while it is shorter than `min`.
+   */
+  field?: { key: string; label: string; placeholder?: string; min: number; max: number; needed: string };
 };

@@ -342,8 +342,9 @@ export function RecordFrame<R>({
           onOpenChange={(open) => {
             if (!open) setPosting(null);
           }}
-          onConfirm={async () => {
-            await post(posting);
+          onConfirm={async (value) => {
+            const field = posting.ask.field;
+            await post(field ? { ...posting, body: { ...((posting.body as object | undefined) ?? {}), [field.key]: value } } : posting);
             setPosting(null);
           }}
         />

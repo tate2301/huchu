@@ -49,7 +49,7 @@ import { join } from "node:path"
 import { Prisma, WorkspaceProfile, type NotificationType, type RetailTenderType } from "@prisma/client"
 import { ID_ENTITY_CONFIG, reserveIdentifier } from "@/lib/id-generator"
 import { money, multiplyMoney, quantity, rate, sumMoney, ZERO } from "@/lib/money"
-import { runAccountingSeedPack } from "@/lib/accounting/bootstrap"
+import { ensureAccountingDefaults, runAccountingSeedPack } from "@/lib/accounting/bootstrap"
 import { RETAIL_ROLE_ACCOUNT_CODES } from "@/lib/accounting/defaults"
 import { postIntegrationEvent } from "@/lib/accounting/integration"
 import { RETAIL_SOURCE_TYPES } from "@/lib/retail/posting-settings"
@@ -761,6 +761,8 @@ async function main() {
   type PaymentRow = Prisma.RetailSalePaymentCreateManyInput
 
   const shiftRows: ShiftRow[] = []
+  const movementRows: Prisma.RetailCashMovementCreateManyInput[] = []
+  const dropApprover = staff.find((person) => person.name === "Tafara Nyathi") ?? null
   const saleRows: SaleRow[] = []
   const lineRows: LineRow[] = []
   const paymentRows: PaymentRow[] = []
@@ -806,6 +808,8 @@ async function main() {
     /** A short shift that closed at this time, with sales at exactly these times. */
     closesAt?: Date
     saleTimes?: Date[]
+    /** Its sales may run up to here rather than the boards' first sale (FLR-03: Handheld 1 before SALE-31858). */
+    until?: Date
   }
   const slots: Slot[] = []
   for (let dayOffset = days; dayOffset >= 0; dayOffset -= 1) {
@@ -825,7 +829,36 @@ async function main() {
       slots.push({ register: backRegister, openedAt: back, open: false, cashier: pick(tills), float: "100.00" })
     }
   }
-  slots.push({ register: backRegister, openedAt: staleOpenedAt, open: true, cashier: staffNamed("Farai Moyo"), float: "100.00" })
+  /*
+    FLR-03 (C-41): three drawers open at the run. The stale Back till, Farai
+    Moyo, with its ten sales of that afternoon (the boards' Farai Chikore sale
+    makes eleven); and Handheld 1, Tendai Mhlanga, opened at 10:05 with no
+    float and forty sales before the boards' SALE-31858, so the boards'
+    numbers still land.
+  */
+  slots.push({
+    register: backRegister,
+    openedAt: staleOpenedAt,
+    open: true,
+    cashier: staffNamed("Farai Moyo"),
+    float: "100.00",
+    saleTimes: Array.from({ length: 10 }, (_, index) => new Date(staleOpenedAt.getTime() + (12 + index * 31) * 60 * 1000)),
+  })
+  const ownerUser = await prisma.user.findFirst({ where: { companyId, email: "owner@bottlestore.test" }, select: { id: true, name: true } })
+  const handheldOpens = floorAt([10, 5])
+  const handheldUntil = floorAt([10, 57])
+  if (ownerUser && handheldOpens.getTime() > frontToday.getTime()) {
+    const span = handheldUntil.getTime() - handheldOpens.getTime() - 2 * 60 * 1000
+    slots.push({
+      register: handheld,
+      openedAt: handheldOpens,
+      open: true,
+      cashier: { id: ownerUser.id, name: ownerUser.name ?? "Tendai Mhlanga", cashier: true },
+      float: "0.00",
+      until: handheldUntil,
+      saleTimes: Array.from({ length: 40 }, (_, index) => new Date(handheldOpens.getTime() + 60 * 1000 + Math.floor((span * index) / 40))),
+    })
+  }
   /*
     SET-03 (10-setup 3.7): Handheld 1's evening shift yesterday, its last sale
     at 21:50, and the Borrowdale till's early shift today, its last sale at
@@ -857,6 +890,11 @@ async function main() {
     })
   }
   slots.sort((a, b) => a.openedAt.getTime() - b.openedAt.getTime())
+  // Shift numbers are company-wide (FLR-03) and the Front till's open shift has the highest.
+  {
+    const frontOpen = slots.findIndex((slot) => slot.open && slot.register.id === register.id)
+    slots.push(...slots.splice(frontOpen, 1))
+  }
 
   // Three closed without a count (about a week, a month and three months ago).
   const closedSlots = slots.filter((slot) => !slot.open)
@@ -894,7 +932,10 @@ async function main() {
   const windowCounts = windowOpens + 6 * HOUR_MS
   const salePlans = slots.map((slot) => {
     // Nothing after the boards' first sale but the boards' morning itself (FLR-01, below).
-    if (slot.saleTimes) return slot.saleTimes.filter((postedAt) => postedAt.getTime() < floorFirst.getTime() && !(postedAt.getTime() >= windowOpens && postedAt.getTime() < windowCounts))
+    if (slot.saleTimes) {
+      const before = (slot.until ?? floorFirst).getTime()
+      return slot.saleTimes.filter((postedAt) => postedAt.getTime() < before && !(postedAt.getTime() >= windowOpens && postedAt.getTime() < windowCounts))
+    }
     const count = Math.max(3, Math.round(between(9, 17) * dayBusyness(slot.openedAt)))
     return Array.from(
       { length: count },
@@ -1295,7 +1336,35 @@ async function main() {
         }
       }
 
-      const expectedCash = openingFloat.plus(cashTaken)
+      /*
+        FLR-03: about one closed drawer in four sent US$100–US$300 to the
+        safe a few hours in, approved by Tafara Nyathi, never more than the
+        drawer held; the drawer's expected cash and its count follow.
+      */
+      let dropped = money(0)
+      const inDrawer = openingFloat.plus(cashTaken).minus(20)
+      if (closedAt && dropApprover && Math.random() < 0.25 && inDrawer.greaterThanOrEqualTo(100)) {
+        dropped = money(String(Math.min(between(100, 300), Math.floor(inDrawer.toNumber()))))
+        const at = new Date(Math.min(openedAt.getTime() + between(150, 300) * 60 * 1000, closedAt.getTime() - 10 * 60 * 1000))
+        movementRows.push({
+          id: randomUUID(),
+          companyId,
+          shiftId,
+          type: "DROP_TO_SAFE",
+          reasonCode: "CASH_LEVEL_TOO_HIGH",
+          amount: dropped,
+          currency: "USD",
+          exchangeRate: rate("1"),
+          baseAmount: dropped,
+          recordedById: cashier.id,
+          recordedByName: cashier.name,
+          approvedById: dropApprover.id,
+          approvedByName: dropApprover.name,
+          createdAt: at,
+        })
+      }
+
+      const expectedCash = openingFloat.plus(cashTaken).minus(dropped)
       const varianceAmount = differences.get(slot) ?? money(0)
       const wasCounted = Boolean(closedAt) && !uncounted.has(slot)
 
@@ -1314,6 +1383,8 @@ async function main() {
         countedCash: wasCounted ? expectedCash.plus(varianceAmount) : null,
         variance: wasCounted ? varianceAmount : null,
         status: closedAt ? "CLOSED" : "OPEN",
+        // The float each close left for the next opening's default (FLR-03; packet 54 counts it).
+        floatLeft: closedAt ? money("100.00") : null,
         openedAt,
         closedAt,
         createdAt: openedAt,
@@ -1512,6 +1583,9 @@ async function main() {
   await insert("shifts", shiftRows, (batch) =>
     prisma.retailShift.createMany({ data: batch, skipDuplicates: true }),
   )
+  await insert("drops to the safe on closed drawers", movementRows, (batch) =>
+    prisma.retailCashMovement.createMany({ data: batch, skipDuplicates: true }),
+  )
   await insert("sales", saleRows, (batch) =>
     prisma.retailSale.createMany({ data: batch, skipDuplicates: true }),
   )
@@ -1676,6 +1750,8 @@ async function main() {
   await seedReceipts(companyId)
   await seedFiscal(companyId)
   await seedApprovals(companyId)
+  await seedShiftFloor(companyId)
+  await seedShiftCounts(companyId)
   await seedImportDemo({ companyId, mainSiteId: site.id, softDrinksId: categoryIds.get("Soft drinks") ?? null })
   await seedReportTemplates(companyId)
 
@@ -1683,10 +1759,104 @@ async function main() {
   console.log(
     `\n  ${refunds} refund(s), ${voids} void(s) flagged, ${zwgSales} sale(s) settled in ZWG` +
       `\n  takings across the period: $${takings.toFixed(2)}` +
-      `\n  two shifts left OPEN: the Front till this morning, the Back till 52 hours ago` +
+      `\n  three shifts left OPEN: the Front till this morning, the Back till 52 hours ago, Handheld 1 since 10:05` +
       `\n\nSign in as any of:\n${STAFF.map((s) => `  ${s.role.padEnd(12)} ${s.email}`).join("\n")}` +
       `\n  password: ${STAFF_PASSWORD}`,
   )
+}
+
+/**
+ * FLR-03 `seedShiftFloor()`: the shift floor's books. `ensureAccountingDefaults`
+ * gives an existing tenant 5110 Petty cash, the shift-open rule's two till
+ * debits and the cash-movement and petty-cash rules. The three open drawers
+ * and the drops are written with the history above.
+ */
+async function seedShiftFloor(companyId: string) {
+  await ensureAccountingDefaults(companyId)
+  const open = await prisma.retailShift.findMany({
+    where: { companyId, status: "OPEN" },
+    orderBy: { shiftNo: "asc" },
+    select: { shiftNo: true, registerName: true, cashierName: true, expectedCash: true, _count: { select: { sales: { where: { saleType: "SALE", status: "POSTED" } } } } },
+  })
+  const drops = await prisma.retailCashMovement.count({ where: { companyId, type: "DROP_TO_SAFE" } })
+  console.log(
+    `  shift floor: ${open.map((shift) => `${shift.shiftNo} ${shift.registerName} (${shift.cashierName}, ${shift._count.sales} sales, US$${shift.expectedCash.toFixed(2)} in the drawer)`).join("; ")}; ${drops} drops to the safe`,
+  )
+}
+
+/**
+ * FLR-04 `seedShiftCounts()`: every closed drawer in the history as Count and
+ * close leaves it. A counted one has its count by note adding up to what was
+ * counted (US$ notes, largest first, the last few dollars as US$1; cents are
+ * not notes, so they stay off the lines and in countedCash), the day's ZiG rate, no ZiG, the float
+ * left for tomorrow (US$100.00, or all of it when less was counted) and the
+ * rest to the safe, closed by its cashier. The three closed without a count
+ * say why: "Device lost, counted next morning".
+ */
+async function seedShiftCounts(companyId: string) {
+  const [shifts, rates] = await Promise.all([
+    prisma.retailShift.findMany({
+      where: { companyId, status: "CLOSED" },
+      select: { id: true, cashierId: true, closedAt: true, countedCash: true },
+    }),
+    prisma.currencyRate.findMany({
+      where: { companyId, baseCurrency: "USD", quoteCurrency: "ZWG" },
+      orderBy: { effectiveDate: "asc" },
+      select: { rate: true, effectiveDate: true },
+    }),
+  ])
+  const NOTES = [100, 50, 20, 10, 5]
+  const rows = shifts.map((shift) => {
+    if (shift.countedCash === null) {
+      return { id: shift.id, closedById: shift.cashierId, closeNote: "Device lost, counted next morning", countedUsd: null, countRate: null, lines: null, floatLeft: null, toSafe: null }
+    }
+    const counted = money(shift.countedCash)
+    let left = Math.floor(counted.toNumber())
+    const lines = NOTES.flatMap((note) => {
+      const count = Math.floor(left / note)
+      left -= count * note
+      return count > 0 ? [{ denomination: String(note), count }] : []
+    })
+    if (left > 0) lines.push({ denomination: "1", count: left })
+    const at = shift.closedAt ?? new Date()
+    const dayRate = [...rates].reverse().find((row) => row.effectiveDate <= at)?.rate ?? null
+    const floatLeft = counted.lessThan(100) ? counted : money("100.00")
+    return {
+      id: shift.id,
+      closedById: shift.cashierId,
+      closeNote: null,
+      countedUsd: counted.toFixed(2),
+      countRate: dayRate ? money(dayRate).toFixed(4) : "1.0000",
+      lines: JSON.stringify({ USD: lines, ZWG: [] }),
+      floatLeft: floatLeft.toFixed(2),
+      toSafe: counted.minus(floatLeft).toFixed(2),
+    }
+  })
+  await prisma.$executeRaw`
+    UPDATE "RetailShift" AS s SET
+      "closedById" = v."closedById",
+      "closeNote" = COALESCE(v."closeNote", s."closeNote"),
+      "countedUsd" = v."countedUsd"::numeric,
+      "countedZig" = CASE WHEN v."countedUsd" IS NULL THEN NULL ELSE 0 END,
+      "countRate" = v."countRate"::numeric,
+      "countLines" = v."lines"::jsonb,
+      "floatLeft" = v."floatLeft"::numeric,
+      "toSafe" = v."toSafe"::numeric
+    FROM (
+      SELECT * FROM unnest(
+        ${rows.map((row) => row.id)}::text[],
+        ${rows.map((row) => row.closedById)}::text[],
+        ${rows.map((row) => row.closeNote)}::text[],
+        ${rows.map((row) => row.countedUsd)}::text[],
+        ${rows.map((row) => row.countRate)}::text[],
+        ${rows.map((row) => row.lines)}::text[],
+        ${rows.map((row) => row.floatLeft)}::text[],
+        ${rows.map((row) => row.toSafe)}::text[]
+      ) AS t("id", "closedById", "closeNote", "countedUsd", "countRate", "lines", "floatLeft", "toSafe")
+    ) AS v
+    WHERE s."id" = v."id"`
+  const uncounted = rows.filter((row) => row.countedUsd === null).length
+  console.log(`  shift counts: ${rows.length - uncounted} closed drawers counted by note, ${uncounted} closed without a count`)
 }
 
 /**
@@ -1772,8 +1942,8 @@ async function seedSites(input: { companyId: string; mainSiteId: string; borrowd
 /**
  * SET-03 (10-setup 3.7). The devices on the TillsList board: Front till's
  * CounterMini (seen now, 4.12.0), Back till's browser on a Windows PC (seen a
- * few minutes ago), Handheld 1's Kora (last seen yesterday 21:55, no shift:
- * Closed), the Borrowdale till's CounterMini (silent for two hours: Offline 2
+ * few minutes ago), Handheld 1's Kora (last seen 44 minutes ago with a shift
+ * open: Offline), the Borrowdale till's CounterMini (silent for two hours: Offline 2
  * hours) and the Cold room till with no device (Not paired). All paired on 2
  * August 2026 by Tafara Nyathi. Their keys are random hashes nobody holds.
  * Every run starts again from these: devices, codes and messages an
@@ -1822,7 +1992,8 @@ async function seedTills(companyId: string) {
   const devices: Array<{ code: string; kind: "COUNTER_MINI" | "KORA" | "BROWSER"; label?: string; lastSeenAt: Date }> = [
     { code: "TILL-1", kind: "COUNTER_MINI", lastSeenAt: new Date(now) },
     { code: "TILL-2", kind: "BROWSER", label: "Windows PC", lastSeenAt: new Date(now) },
-    { code: "TILL-3", kind: "KORA", lastSeenAt: harareTime(1, 21, 55) },
+    // FLR-03: Handheld 1 has Tendai Mhlanga's shift open and last called in 44 minutes ago (Offline).
+    { code: "TILL-3", kind: "KORA", lastSeenAt: minutesAgo(44) },
     { code: "TILL-4", kind: "COUNTER_MINI", lastSeenAt: minutesAgo(2 * 60 + 3) },
   ]
   for (const device of devices) {
@@ -2537,7 +2708,19 @@ async function seedRecordActivity(input: {
 
   const front = shiftRows.find((row) => row.status === "OPEN" && row.registerCode === "TILL-1" && written.has(row.id as string))
   if (front) {
-    const dropAt = harareTime(0, 10, 4)
+    // At 10:04, moved back with the boards' morning when the run is before 12:13 (FLR-01). The
+    // opening barely moves then, so the drop is kept after the morning's cash it sends to the safe:
+    // two minutes after the drawer's second cash sale (its first, when it has one only).
+    const morningShift = Math.min(0, now.getTime() - 3 * 60 * 1000 - harareTime(0, 12, 10).getTime())
+    const cashSales = await prisma.retailSale.findMany({
+      where: { companyId, shiftId: front.id as string, saleType: "SALE", payments: { some: { tenderType: "CASH" } } },
+      orderBy: { postedAt: "asc" },
+      take: 2,
+      select: { postedAt: true },
+    })
+    const afterCash = cashSales.at(-1)?.postedAt
+    const boardDrop = harareTime(0, 10, 4).getTime() + morningShift
+    const dropAt = new Date(afterCash ? Math.max(boardDrop, afterCash.getTime() + 2 * 60 * 1000) : boardDrop)
     if (dropAt.getTime() > (front.openedAt as Date).getTime() && dropAt.getTime() < now.getTime()) {
       const movement = await prisma.retailCashMovement.create({
         data: {
@@ -2551,6 +2734,8 @@ async function seedRecordActivity(input: {
           baseAmount: money("20.00"),
           recordedById: manager.id,
           recordedByName: manager.name,
+          approvedById: manager.id,
+          approvedByName: manager.name,
           createdAt: dropAt,
         },
         select: { id: true },
@@ -2568,6 +2753,8 @@ async function seedRecordActivity(input: {
         amount: money("20.00"),
         currency: "USD",
         baseAmount: money("20.00"),
+        why: "DROP",
+        approvedBy: { id: manager.id, name: manager.name },
       })
       await at("RETAIL_CASH.MOVED", movement.id, dropAt)
       events += 1

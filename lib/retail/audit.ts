@@ -410,6 +410,9 @@ export async function auditShiftOpened(
     registerCode: string | null;
     cashierId: string;
     openingFloat: MoneyLike;
+    /** The ZiG counted in, and the rate it was valued at (FLR-03); none for a dollars-only drawer. */
+    openingFloatZig?: MoneyLike;
+    rate?: MoneyLike | null;
   },
 ): Promise<void> {
   await writeRetailAuditEvent(client, {
@@ -423,6 +426,8 @@ export async function auditShiftOpened(
       registerCode: input.registerCode,
       cashierId: input.cashierId,
       openingFloat: auditAmount(input.openingFloat),
+      openingFloatZig: auditAmount(input.openingFloatZig ?? 0),
+      rate: input.rate === undefined || input.rate === null ? null : String(input.rate),
     },
   });
 }
@@ -438,6 +443,8 @@ export async function auditShiftClosed(
     countedCash: MoneyLike;
     variance: MoneyLike;
     notes?: string | null;
+    /** The count by note (FLR-04): each currency, the rate that added them, the float left and what went to the safe. */
+    count?: { countedUsd: string; countedZig: string; rate: string | null; floatLeft: string; toSafe: string };
   },
 ): Promise<void> {
   await writeRetailAuditEvent(client, {
@@ -452,6 +459,7 @@ export async function auditShiftClosed(
       expectedCash: auditAmount(input.expectedCash),
       countedCash: auditAmount(input.countedCash),
       variance: auditAmount(input.variance),
+      ...(input.count ?? {}),
       // Whether the drawer was cashed up by the person who worked it. A manager
       // closing somebody else's till is legitimate and routine; it is also the
       // shape of a drawer being closed before its cashier can count it.
@@ -472,6 +480,9 @@ export async function auditCashMoved(
     currency: string;
     baseAmount: MoneyLike;
     note?: string | null;
+    /** The sheet's why (`DROP`, `PETTY`, `TOP_UP`) and who approved it (FLR-03). */
+    why?: string | null;
+    approvedBy?: { id: string; name: string } | null;
   },
 ): Promise<void> {
   await writeRetailAuditEvent(client, {
@@ -487,6 +498,8 @@ export async function auditCashMoved(
       amount: auditAmount(input.amount),
       currency: input.currency,
       baseAmount: auditAmount(input.baseAmount),
+      why: input.why ?? null,
+      approvedBy: input.approvedBy ?? null,
     },
   });
 }

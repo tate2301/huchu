@@ -205,6 +205,28 @@ Recorded unit choices:
   Front till's others (SALE-31859 to -31868 between them, so every number runs in the order it was rung), and the tab
   counts are the tenant's real ones, not `SalesList.png`'s 212 · 3 · 1 · 31,870. Before 12:13 the morning is moved back
   whole so SALE-31870 is three minutes old. Back till still reads Farai Moyo (C-41).
+- **FLR-04 books a closed drawer's whole count to the vault.** The packet's close journal moved only "To the safe"
+  (counted less the float left) and FLR-03's opening moves the whole float from the vault, so the float left was booked
+  twice: every close-and-open cycle overstated 1000 and understated 1005 by it. The close journal now debits 1005 with
+  everything counted, and the next opening takes its float back out of 1005 as every opening does; between the two the
+  books hold the float under the vault while it sits in the closed drawer. "To the safe" stays the physical figure on the
+  page, the record and the shift (`toSafe`); the journal's amount is the count. Open, close and open again leave the till
+  accounts holding exactly the drawer.
+- **FLR-04 leaves both till accounts at zero after every close.** The variance journal books counted less expected to the
+  cent, so a drawer the US$0.05 ZiG tolerance calls balanced (Difference "None", variance 0.00) still books its stray cent
+  to over/short (5420). The close journal then credits 1001 with what the shift booked to it (the ZiG float at its rate,
+  each sale's ZiG cash less its ZiG change as its journal debited it, ZiG movements) and 1000 with the rest of the count;
+  when the variance took more off a till account than it held, that account takes the excess back (`usdBack`,
+  `zigBack`). ZiG swapped for dollars in the drawer, or a ZiG rate that moved, leaves nothing behind in 1001. The
+  Z-report reads each shift's recorded variance, so it says "Balanced" where the Shifts list does.
+- **FLR-04 hides what should be in the drawer from a blind cashier everywhere, not only on the close page.** While a cashier
+  without cash control has her own drawer open, the close page offers no X-report, the shift record's API sends no
+  expected figure (no "Should be in the drawer" figure or KPI, no "Expected" in Cash up) and the X-report prints "Shows
+  when you close" in its place. The rule is `countsBlind` in `lib/retail/shift-record.ts`, shared by all three.
+- **FLR-04's seeded history counts the cents off the notes.** The history's counted cash is what should have been there
+  plus the seeded difference, and the sales are priced to the cent, so 314 of the 317 counted drawers hold cents. Notes
+  cannot make cents, so their count lines carry the whole dollars and a closed shift's read-only page shows "Comes to"
+  short of Counted by those cents. The seed is not bent to whole dollars: that would turn the Balanced history Short.
 - **A list's Export stops at 5,000 rows and says so.** The file holds the engine's first 5,000 rows in the list's order
   with the list's totals over every row; the toast reads "The file has the first 5,000 of 5,858 rows. Narrow the
   filters for the rest."

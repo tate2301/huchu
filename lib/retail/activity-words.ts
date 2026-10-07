@@ -115,7 +115,8 @@ function caseBrokenWords(payload: Payload): ActivityWords {
 function shiftClosedWords(payload: Payload): ActivityWords {
   const variance = amount(payload.variance);
   if (variance === null || amount(payload.countedCash) === null) {
-    return { what: "Closed without a count", tone: "warn" };
+    const reason = text(payload.reason);
+    return { what: reason ? `Closed without a count: ${reason}` : "Closed without a count", tone: "warn" };
   }
   if (variance < 0) return { what: `Counted and closed, short by ${formatMoney(-variance)}`, tone: "bad" };
   if (variance > 0) return { what: `Counted and closed, over by ${formatMoney(variance)}`, tone: "warn" };
@@ -128,9 +129,9 @@ function cashMovedWords(payload: Payload): ActivityWords {
     case "DROP_TO_SAFE":
       return { what: `Dropped ${figure} to the safe`, tone: "hollow" };
     case "FLOAT_TOP_UP":
-      return { what: `Put ${figure} in`, tone: "hollow" };
+      return { what: `Put ${figure} in for change`, tone: "hollow" };
     default:
-      return { what: `Paid out ${figure}`, tone: "hollow" };
+      return { what: payload.reasonCode === "PETTY_CASH" ? `Paid out ${figure} for petty cash` : `Paid out ${figure}`, tone: "hollow" };
   }
 }
 

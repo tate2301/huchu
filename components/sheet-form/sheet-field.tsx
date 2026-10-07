@@ -190,7 +190,7 @@ export function SheetField({
             return (
               <MoneyInput
                 {...control}
-                currency={field.cur ?? currency}
+                currency={(typeof field.cur === "function" ? field.cur(values) : field.cur) ?? currency}
                 maxDecimals={field.decimals}
                 disabled={disabled}
                 value={typeof value === "string" ? value : ""}
@@ -330,7 +330,7 @@ export function SheetField({
                 id={control.id}
                 label={field.l}
                 noun={field.noun ?? "product"}
-                currency={field.cur ?? currency}
+                currency={(typeof field.cur === "function" ? field.cur(values) : field.cur) ?? currency}
                 quantityLabel={field.ql}
                 costLabel={field.cl}
                 placeholder={field.p}

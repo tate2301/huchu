@@ -5,6 +5,8 @@ import { AlertDialog } from "radix-ui";
 
 import type { Ask } from "@/lib/workspace/ask";
 import { Button } from "./button";
+import { Field } from "./fields/field";
+import { TextArea } from "./fields/text-area";
 
 /**
  * ConfirmDialog — the confirmation before anything hard to undo (5.8).
@@ -14,13 +16,15 @@ import { Button } from "./button";
  * phone). Focus starts on keep and Esc keeps. Go runs `onConfirm`: while it
  * runs go shows a spinner and the dialog cannot be dismissed; when it throws,
  * the message shows under the body in `--bad` and the dialog stays; when it
- * resolves, the dialog closes.
+ * resolves, the dialog closes. An ask with a `field` draws a required
+ * textarea under the body; go refuses it shorter than `min` with `needed`,
+ * and `onConfirm` receives the trimmed text.
  */
 export type ConfirmDialogProps = {
   ask: Ask;
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onConfirm: () => Promise<void> | void;
+  onConfirm: (value?: string) => Promise<void> | void;
 };
 
 const FALLBACK_ERROR = "That did not work. Nothing was changed; try again.";
@@ -28,18 +32,31 @@ const FALLBACK_ERROR = "That did not work. Nothing was changed; try again.";
 export function ConfirmDialog({ ask, open, onOpenChange, onConfirm }: ConfirmDialogProps) {
   const [busy, setBusy] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
+  const [value, setValue] = React.useState("");
+  const [fieldError, setFieldError] = React.useState<string | null>(null);
+  const field = ask.field;
 
   const change = (next: boolean) => {
     if (busy) return;
-    if (!next) setError(null);
+    if (!next) {
+      setError(null);
+      setFieldError(null);
+      setValue("");
+    }
     onOpenChange(next);
   };
 
   const go = async () => {
+    const typed = value.trim();
+    if (field && typed.length < field.min) {
+      setFieldError(field.needed);
+      return;
+    }
     setBusy(true);
     setError(null);
+    setFieldError(null);
     try {
-      await onConfirm();
+      await onConfirm(field ? typed : undefined);
       setBusy(false);
       onOpenChange(false);
     } catch (caught) {
@@ -65,6 +82,25 @@ export function ConfirmDialog({ ask, open, onOpenChange, onConfirm }: ConfirmDia
             <AlertDialog.Description className="cx-confirm__body">
               {ask.body}
             </AlertDialog.Description>
+            {field ? (
+              <Field label={field.label} error={fieldError}>
+                {(control) => (
+                  <TextArea
+                    {...control}
+                    rows={2}
+                    required
+                    maxLength={field.max}
+                    placeholder={field.placeholder}
+                    value={value}
+                    disabled={busy}
+                    onChange={(event) => {
+                      setValue(event.target.value);
+                      if (fieldError) setFieldError(null);
+                    }}
+                  />
+                )}
+              </Field>
+            ) : null}
             {error ? (
               <p role="alert" className="cx-confirm__error">
                 {error}

@@ -59,6 +59,8 @@ const RECORD_PDF: Record<string, RecordPdfType> = {
     render: async (caller, id, variant) => {
       const shift = await loadShiftRecord(caller.companyId, id, {
         cashierId: caller.seesEveryDrawer ? undefined : caller.userId,
+        // A cashier counting her own drawer blind reads no expected figure here either (FLR-04).
+        viewer: { user: { id: caller.userId, role: caller.role } },
       });
       if (!shift) return null;
       const xReport = variant === "x-report";
@@ -67,7 +69,7 @@ const RECORD_PDF: Record<string, RecordPdfType> = {
         ["Opening float", formatMoney(shift.openingFloat)],
         ["Cash sales", formatMoney(shift.cashSales)],
         ["Cash in and out", formatSigned(shift.cashMovementNet)],
-        ["Should be in the drawer", formatMoney(shift.expectedCash)],
+        ["Should be in the drawer", shift.expectedCash === null ? "Shows when you close" : formatMoney(shift.expectedCash)],
         ["Counted", shift.countedCash === null ? "Not counted yet" : formatMoney(shift.countedCash)],
         ["Difference", shift.variance === null ? "—" : formatSigned(shift.variance)],
       ]);
