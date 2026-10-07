@@ -329,6 +329,7 @@ export const RETAIL_SOURCE_TYPES: AccountingSourceType[] = [
   "RETAIL_CASH_MOVEMENT",
   "RETAIL_PETTY_CASH",
   "RETAIL_SHIFT_CLOSE",
+  "RETAIL_SHIFT_RECOVERY",
 ];
 
 type RunKind = "sales" | "refunds" | "deliveries" | "counts" | "other";

@@ -189,6 +189,8 @@ const BASE_CHART_OF_ACCOUNTS: DefaultAccount[] = [
   { code: "1017", name: "Transfer Clearing", type: "ASSET", category: "Cash", systemManaged: true },
   { code: "1020", name: "Bank Clearing", type: "ASSET", category: "Cash", systemManaged: true },
   { code: "1100", name: "Accounts Receivable", type: "ASSET", category: "Receivables", systemManaged: true },
+  // FLR-05: a short drawer recovered from its cashier is owed to the shop.
+  { code: "1150", name: "Staff owe the shop", type: "ASSET", category: "Receivables", systemManaged: true },
   { code: "1200", name: "Inventory", type: "ASSET", category: "Inventory", systemManaged: true },
   { code: "2000", name: "Accounts Payable", type: "LIABILITY", category: "Payables", systemManaged: true },
   { code: "2200", name: "VAT Output", type: "LIABILITY", category: "Tax", systemManaged: true },
@@ -1090,6 +1092,19 @@ export const RETAIL_POSTING_RULES: DefaultPostingRule[] = [
     isFallback: true,
     lines: [
       { accountCode: "1000", direction: "DEBIT", basis: "AMOUNT", memoTemplate: "{description} / till cash", sortOrder: 10 },
+      { accountCode: "5420", direction: "CREDIT", basis: "AMOUNT", memoTemplate: "{description} / cash over short", sortOrder: 20 },
+    ],
+  },
+  {
+    name: "Retail shift recovery",
+    sourceType: "RETAIL_SHIFT_RECOVERY",
+    description: "A short drawer recovered from its cashier: the shortage booked to cash over short at the close becomes what the cashier owes.",
+    priority: 10,
+    scopeType: "COMPANY",
+    ruleMode: "GUIDED",
+    isFallback: true,
+    lines: [
+      { accountCode: "1150", direction: "DEBIT", basis: "AMOUNT", memoTemplate: "{description} / staff owe the shop", sortOrder: 10 },
       { accountCode: "5420", direction: "CREDIT", basis: "AMOUNT", memoTemplate: "{description} / cash over short", sortOrder: 20 },
     ],
   },

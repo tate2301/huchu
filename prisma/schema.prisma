@@ -1430,6 +1430,7 @@ model User {
   retailSalesRung                   RetailSale[]                   @relation("RetailSaleCashier")
   retailShifts                      RetailShift[]                  @relation("RetailShiftCashier")
   retailShiftsClosed                RetailShift[]                  @relation("RetailShiftClosedBy")
+  retailShiftsSignedOff             RetailShift[]                  @relation("RetailShiftSignedOffBy")
   retailHeldCarts                   RetailHeldCart[]               @relation("RetailHeldCartCashier")
   retailHeldCartsReleased           RetailHeldCart[]               @relation("RetailHeldCartReleasedBy")
   retailCashMovements               RetailCashMovement[]           @relation("RetailCashMovementRecordedBy")
@@ -3170,6 +3171,8 @@ enum NotificationType {
   RETAIL_STAFF_MESSAGE
   /// A drawer closed out (short or over) or without a count, for a manager to sign off (FLR-04).
   RETAIL_SHIFT_DIFFERENCE
+  /// A manager signed off the cashier's drawer: accepted, to recover, or being looked into (FLR-05).
+  RETAIL_SHIFT_SIGNED_OFF
 }
 
 enum NotificationSeverity {
@@ -4494,6 +4497,13 @@ enum RetailShiftStatus {
   CLOSED
 }
 
+/// What a manager decided about a drawer that closed out (FLR-05).
+enum RetailShiftSignOff {
+  ACCEPT
+  RECOVER
+  LOOK_INTO
+}
+
 /// S-7.1 — why cash left or entered the drawer between opening and cash-up.
 ///
 /// Three values, and the direction is in the name on purpose. "Pickup" is the
@@ -5129,6 +5139,13 @@ model RetailShift {
   closeNote    String?
   /// Counted cash less the float left in the drawer: what went to the safe.
   toSafe       Decimal? @db.Decimal(14, 2)
+  /// A manager's decision on a drawer that closed short, over or uncounted (FLR-05); LOOK_INTO is not final.
+  signOffOutcome RetailShiftSignOff?
+  signedOffAt    DateTime?
+  signedOffById  String?
+  signOffNote    String?
+  /// RECOVER: the shortage the cashier owes the shop.
+  recoverAmount  Decimal? @db.Decimal(14, 2)
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 
@@ -5136,6 +5153,7 @@ model RetailShift {
   site      Site    @relation(fields: [siteId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   cashier   User    @relation("RetailShiftCashier", fields: [cashierId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   closedBy  User?   @relation("RetailShiftClosedBy", fields: [closedById], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  signedOffBy User? @relation("RetailShiftSignedOffBy", fields: [signedOffById], references: [id], onDelete: SetNull, onUpdate: Cascade)
   register  RetailRegister @relation(fields: [registerId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   device    RetailDevice?  @relation(fields: [deviceId], references: [id], onDelete: SetNull)
   heldCarts     RetailHeldCart[]
@@ -5146,6 +5164,7 @@ model RetailShift {
   @@index([companyId, siteId, status])
   @@index([cashierId, status])
   @@index([registerId, status])
+  @@index([companyId, status, signOffOutcome])
 }
 
 /// S-7.1 — cash that left or entered the drawer between opening and cash-up.
@@ -6013,6 +6032,7 @@ enum AccountingSourceType {
   RETAIL_CASH_MOVEMENT
   RETAIL_PETTY_CASH
   RETAIL_SHIFT_CLOSE
+  RETAIL_SHIFT_RECOVERY
   GOLD_SHIFT_ALLOCATION_COMPANY
   GOLD_SHIFT_ALLOCATION_WORKER
   GOLD_SHIFT_EXPENSE
