@@ -7,13 +7,14 @@ import { closeDay } from "@/lib/retail/floor/day-close";
 import { makeTestShop, type TestShop } from "@/lib/retail/products/test-fixtures";
 import { tradingDayKey } from "@/lib/retail/z-report";
 
-import { dayWords } from "./floor-days";
+import { FLOOR_DAY_LOADERS, dayWords } from "./floor-days";
 
 /**
  * Past days (FLR-07) as the list reads them: a closed day from its frozen
  * close, "Signed off short" when it closed with a shortage, a day not closed
- * yet added up live, the Date search, the site and state filters, and the
- * totals over the filtered set. Against the test database.
+ * yet added up live, the Date search, the site and state filters, the
+ * totals over the filtered set, a short day's difference in warn, and only
+ * the sites the viewer works at. Against the test database.
  */
 
 const { validateSessionMock } = vi.hoisted(() => ({ validateSessionMock: vi.fn() }));
@@ -124,6 +125,22 @@ describe("Past days", () => {
       [days.closed, "Closed", 300, 0, 0],
     ]);
     expect(rows[2]).toMatchObject({ site: "Harare Main Branch", siteId: shop.mainId, id: `${shop.mainId}_${days.closed}` });
+    // Cash difference is plain money; only a short day takes the warn ink.
+    expect(rows.map((row) => row.differenceTone)).toEqual([null, "warn", null]);
+  });
+
+  it("lists only the sites the viewer works at, and offers only those", async () => {
+    const elsewhere = await prisma.user.create({
+      data: { companyId: shop.companyId, name: "Borrowdale manager", role: "MANAGER", email: `borr-${shop.companyId}@days.test`, allSites: false },
+      select: { id: true },
+    });
+    await prisma.userSiteAccess.create({ data: { userId: elsewhere.id, siteId: shop.secondId!, companyId: shop.companyId } });
+    const ctx = { companyId: shop.companyId, userId: elsewhere.id, role: "MANAGER" };
+    const loader = FLOOR_DAY_LOADERS["retail-days"]!;
+    expect((await loader.load(ctx, {} as never)).rows).toEqual([]);
+    expect((await loader.options!(ctx)).site!.map((option) => option.value)).toEqual([shop.secondId]);
+    // Every site for whoever works at all of them.
+    expect((await loader.load({ ...ctx, userId: shop.managerId }, {} as never)).rows).toHaveLength(3);
   });
 
   it("totals the filtered set and narrows by state and by the Date search", async () => {

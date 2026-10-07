@@ -70,6 +70,7 @@ describe("a closed day, as stored", () => {
       cashUsd: "2610.00",
       cashZig: "4288.00",
       tenders: [],
+      tills: [],
       banked: "2610.00",
       closedById: userId,
       closedByName: "Tafara Nyathi",

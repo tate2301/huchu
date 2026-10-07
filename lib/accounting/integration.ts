@@ -295,6 +295,41 @@ export function recoveryBackfillTask(
   };
 }
 
+/**
+ * The cash a day close banked (FLR-07) whose vault-to-bank journal was lost
+ * after the close committed: Dr 1010 Operating bank, Cr 1005 Cash vault.
+ */
+export function dayBankedBackfillTask(
+  close: Pick<Prisma.RetailDayCloseGetPayload<object>, "id" | "siteId" | "businessDate" | "banked" | "closedAt" | "closedById">,
+  site: string,
+  input: { companyId: string; actorRole?: string | null; periodOverrideReason?: string | null },
+): BackfillTask | null {
+  const banked = money(close.banked);
+  if (!isPositive(banked)) return null;
+  const amount = toNumberOrZero(banked);
+  const date = close.businessDate.toISOString().slice(0, 10);
+  return {
+    key: `RETAIL_DAY_BANKED:${close.id}`,
+    label: `RETAIL_DAY_BANKED ${site} ${date}`,
+    entryDate: close.closedAt,
+    context: {
+      companyId: input.companyId,
+      sourceType: "RETAIL_DAY_BANKED",
+      sourceId: close.id,
+      siteId: close.siteId,
+      entryDate: close.closedAt,
+      description: `Retail day banked ${site} ${date}`,
+      createdById: close.closedById,
+      amount,
+      netAmount: amount,
+      taxAmount: 0,
+      grossAmount: amount,
+      actorRole: input.actorRole ?? undefined,
+      periodOverrideReason: input.periodOverrideReason ?? undefined,
+    },
+  };
+}
+
 export async function backfillRetailAccounting(input: {
   companyId: string;
   actorId?: string | null;
@@ -309,7 +344,7 @@ export async function backfillRetailAccounting(input: {
     throw new Error("No active actor is available for retail accounting backfill");
   }
 
-  const [sales, receipts, shifts, journalEntries, inventoryItems] = await Promise.all([
+  const [sales, receipts, shifts, journalEntries, inventoryItems, dayCloses] = await Promise.all([
     prisma.retailSale.findMany({
       where: { companyId: input.companyId, status: "POSTED" },
       include: { lines: true, payments: true },
@@ -339,6 +374,7 @@ export async function backfillRetailAccounting(input: {
             "RETAIL_GOODS_RECEIPT",
             "RETAIL_SHIFT_VARIANCE",
             "RETAIL_SHIFT_RECOVERY",
+            "RETAIL_DAY_BANKED",
           ],
         },
       },
@@ -347,6 +383,12 @@ export async function backfillRetailAccounting(input: {
     prisma.inventoryItem.findMany({
       where: { site: { companyId: input.companyId } },
       select: { id: true, unitCost: true },
+    }),
+    prisma.retailDayClose.findMany({
+      where: { companyId: input.companyId, banked: { gt: 0 } },
+      select: { id: true, siteId: true, businessDate: true, banked: true, closedAt: true, closedById: true, site: { select: { name: true } } },
+      orderBy: [{ closedAt: "asc" }],
+      take: limit,
     }),
   ]);
 
@@ -536,6 +578,12 @@ export async function backfillRetailAccounting(input: {
     // A shortage recovered from the cashier (FLR-05) whose journal was lost after the sign-off committed.
     const recovery = recoveryBackfillTask(shift, { ...input, actorId });
     if (recovery && !journalKeySet.has(recovery.key)) tasks.push(recovery);
+  }
+
+  // Cash a day close banked whose journal was lost after the close committed (FLR-07).
+  for (const close of dayCloses) {
+    const banked = dayBankedBackfillTask(close, close.site.name, input);
+    if (banked && !journalKeySet.has(banked.key)) tasks.push(banked);
   }
 
   const ordered = tasks.sort((a, b) => a.entryDate.getTime() - b.entryDate.getTime()).slice(0, limit);

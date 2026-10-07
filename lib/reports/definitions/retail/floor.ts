@@ -596,7 +596,8 @@ const days: ListSpec = {
     { key: "fiscalDayNo", label: "Fiscal day", kind: "text", cell: "mono", width: "90px", align: "end", priority: 3 },
     money("takings", "Takings", { width: "130px", sortable: true }),
     money("refunds", "Refunds", { width: "120px", priority: 3 }),
-    money("cashDifference", "Cash difference", { cell: "diff", diff: "variance", width: "130px" }),
+    // Plain signed money, as the board draws it; a short day in `--warn`.
+    money("cashDifference", "Cash difference", { toneKey: "differenceTone", width: "130px" }),
     money("banked", "Banked", { width: "130px", priority: 2 }),
     {
       key: "state",

@@ -249,7 +249,7 @@ Recorded unit choices:
   (14 cases of Castle Lager and 5 bags of ice, US$378.50, its units taken out of the 30-day quotas) and a drop to the
   safe bring its expected cash to the board's US$432.50. Every seeded difference over US$1.00 has a close note, and
   every seeded sign-off has its `RETAIL_SHIFT.SIGNED_OFF` line on the shift's Activity.
-- **FLR-07 departs from packet 59 in five places.**
+- **FLR-07 departs from packet 59 in six places.**
   - **A trading day is the Z-report's day.** The day's shifts are those opened in `tradingDayWindow` (the window
     every Z-report already keys on), so End of day, Past days and the Z-reports a close takes never disagree about
     which day a drawer belongs to.
@@ -261,6 +261,10 @@ Recorded unit choices:
     place. The seeded closes' banked journals are posted as each night's run posted them (Dr 1010, Cr 1005).
   - **A day with nothing sold and no drawer opened cannot be closed** ("Nothing was sold at … on …."); the page
     shows the empty-day sentence and no "Close the day".
+  - **A closed day opens no drawer at its site.** A drawer belongs to the trading day it opens on, so once that
+    day is closed at the site opening one is refused ("Wednesday 7 October is closed at Harare Main Branch. Open the
+    till tomorrow."): no takings land outside a close and no till goes without its Z-report. The close keeps its
+    tills table as it stood (`RetailDayClose.tills`), so a later void moves no row under the frozen totals.
   - **The till keeps its taken reports, read only.** `GET /api/v2/retail/z-reports` answers the trading day and the
     reports taken; the till's End of day finds its own for today there and otherwise says it is taken when a
     manager closes the day.

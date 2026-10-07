@@ -15,7 +15,7 @@ import { Button } from "@/components/workspace/button";
 import { MoneyInput } from "@/components/workspace/fields/money-input";
 import { PhotoField } from "@/components/workspace/fields/photo-field";
 import { ApiError, fetchJson, getApiErrorMessage } from "@/lib/api-client";
-import type { CheckItem, EndOfDayView, PaidTile, TillRow } from "@/lib/retail/floor/day-close";
+import type { CheckItem, CloseDayResult, EndOfDayView, PaidTile, TillRow } from "@/lib/retail/floor/day-close";
 import { formatMoney, formatSigned, formatTime } from "@/lib/workspace/format";
 
 /**
@@ -27,6 +27,8 @@ import { formatMoney, formatSigned, formatTime } from "@/lib/workspace/format";
  */
 
 const money = (value: string | number) => formatMoney(Number(value));
+/** The amount as typed, read as the server reads it: "1,000.00" is a thousand. */
+const typedAmount = (value: string) => Number(value.replace(/,/g, "").trim() || 0);
 
 /** "ZiG 4,288", with cents only when there are any. */
 function tileAmount(tile: PaidTile): string {
@@ -104,11 +106,12 @@ function EndOfDay({ view }: { view: EndOfDayView }) {
     setProblem(null);
     setErrors({});
     try {
-      await fetchJson(`/api/v2/retail/end-of-day/close`, {
+      const { data } = await fetchJson<{ data: CloseDayResult }>(`/api/v2/retail/end-of-day/close`, {
         method: "POST",
         body: JSON.stringify({ siteId: view.site.id, date: view.date, banked: banked.trim() || "0", ...(slip ? { slipUrl: slip } : {}) }),
       });
-      const amount = Number(banked || 0);
+      // The amount the close banked, as the server read it.
+      const amount = Number(data.banked);
       toast({
         title: amount > 0 ? `${view.dateLabel} closed. ${money(amount)} banked to ${bank ?? "the bank"}.` : `${view.dateLabel} closed.`,
         variant: "success",
@@ -148,7 +151,7 @@ function EndOfDay({ view }: { view: EndOfDayView }) {
   // The banked check reads what is typed, until the day closes.
   const checklist: CheckItem[] = view.checklist.map((item) => {
     if (item.key !== "banked" || closed || !bank) return item;
-    const amount = Number(banked || 0);
+    const amount = typedAmount(banked);
     return {
       ...item,
       detail: amount > 0 ? `${money(amount)} to ${bank}${slip ? ", slip photo." : ". No slip yet."}` : "Nothing to bank.",
@@ -301,7 +304,7 @@ function TillsTable({ view, reportFor }: { view: EndOfDayView; reportFor: (row: 
     if (report) return { label: "Z-report", href: `/api/v2/retail/z-reports/${report.id}?format=pdf`, external: true };
     return { label: "Z-report", href: xReport(row), external: true };
   };
-  const totalDiff = Number(view.totals.difference);
+  const totalDiff = view.totals.difference === null ? null : Number(view.totals.difference);
 
   return (
     <div className="cx-eod-table" role="table" aria-label="The tills">
@@ -359,14 +362,15 @@ function TillsTable({ view, reportFor }: { view: EndOfDayView; reportFor: (row: 
           Σ {view.totals.tills} {view.totals.tills === 1 ? "till" : "tills"}
         </span>
         <span role="cell" />
-        <span role="cell" className="cx-eod-end cx-eod-mono">
+        <span role="cell" className="cx-eod-end cx-eod-mono" data-label="Takings">
           {money(view.totals.takings)}
         </span>
-        <span role="cell" className="cx-eod-end cx-eod-mono">
+        <span role="cell" className="cx-eod-end cx-eod-mono" data-label="Refunds">
           {money(view.totals.refunds)}
         </span>
-        <span role="cell" className={`cx-eod-end cx-eod-mono${totalDiff < 0 ? " cx-eod-warn" : ""}`}>
-          {totalDiff === 0 ? "None" : formatSigned(totalDiff)}
+        {/* "–" while any till's difference is not known yet: open, or not counted. */}
+        <span role="cell" className={`cx-eod-end cx-eod-mono${totalDiff !== null && totalDiff < 0 ? " cx-eod-warn" : ""}`} data-label="Difference">
+          {totalDiff === null ? "–" : totalDiff === 0 ? "None" : formatSigned(totalDiff)}
         </span>
         <span role="cell" />
       </div>

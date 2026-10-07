@@ -23,6 +23,7 @@ import { postedChange } from "@/lib/retail/sale-totals";
 import { countsBlind } from "@/lib/retail/shift-record";
 import { normalizeRetailPostingPayments, postRetailJournal, type RetailAccountingResult } from "@/app/api/v2/retail/_helpers";
 
+import { closedDayRefusal } from "./day-close";
 import { countDrawer, DENOMINATIONS, floatLeftProblem, needsExplaining, type CountCurrency, type CountRow, type DrawerState } from "./count";
 
 /**
@@ -163,6 +164,11 @@ export async function openShift(input: OpenShiftInput): Promise<{
   };
 
   const shift = await prisma.$transaction(async (tx) => {
+    // The drawer belongs to the trading day it opens on; a site whose day is closed opens none until tomorrow.
+    // Taken first, as closing the day takes it, so the two queue rather than pass each other.
+    const openedAt = new Date();
+    const dayClosed = await closedDayRefusal(tx, companyId, till.siteId, openedAt);
+    if (dayClosed) throw new ShiftRefused(409, dayClosed);
     // Two openings of one till queue on its row, and two openings for one
     // cashier (on two tills) on the cashier's lock; the second sees the first's shift.
     await tx.$queryRaw`SELECT "id" FROM "RetailRegister" WHERE "id" = ${till.id} FOR UPDATE`;
@@ -186,6 +192,7 @@ export async function openShift(input: OpenShiftInput): Promise<{
         expectedCash,
         notes: input.notes?.trim() || null,
         status: "OPEN",
+        openedAt,
       },
     });
     await auditShiftOpened(tx, {

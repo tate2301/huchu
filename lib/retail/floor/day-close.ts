@@ -73,7 +73,7 @@ export const closedAlready = (date: string) => `${dayLabel(date)} is closed alre
 
 /* ── The day's rows ────────────────────────────────────────────────────── */
 
-const shiftSelect = {
+export const dayShiftSelect = {
   id: true,
   shiftNo: true,
   registerId: true,
@@ -88,7 +88,7 @@ const shiftSelect = {
   signOffOutcome: true,
 } satisfies Prisma.RetailShiftSelect;
 
-const saleSelect = {
+export const daySaleSelect = {
   id: true,
   shiftId: true,
   saleType: true,
@@ -101,21 +101,46 @@ const saleSelect = {
   payments: { select: { tenderType: true, amount: true, baseAmount: true, currency: true } },
 } satisfies Prisma.RetailSaleSelect;
 
-export type DayShift = Prisma.RetailShiftGetPayload<{ select: typeof shiftSelect }>;
-export type DaySale = Prisma.RetailSaleGetPayload<{ select: typeof saleSelect }>;
+export type DayShift = Prisma.RetailShiftGetPayload<{ select: typeof dayShiftSelect }>;
+export type DaySale = Prisma.RetailSaleGetPayload<{ select: typeof daySaleSelect }>;
 
 export async function loadDayRows(companyId: string, siteId: string, date: string, db: Db = prisma) {
   const { start, end } = tradingDayWindow(date);
   const shifts = await db.retailShift.findMany({
     where: { companyId, siteId, openedAt: { gte: start, lt: end } },
-    select: shiftSelect,
+    select: dayShiftSelect,
     orderBy: [{ openedAt: "asc" }, { id: "asc" }],
   });
   const [onShifts, backOffice] = await Promise.all([
-    shifts.length ? db.retailSale.findMany({ where: takingsWhere({ companyId, shiftIds: shifts.map((shift) => shift.id) }), select: saleSelect }) : [],
-    db.retailSale.findMany({ where: { ...takingsWhere({ companyId, siteId, from: start, to: end }), shiftId: null }, select: saleSelect }),
+    shifts.length ? db.retailSale.findMany({ where: takingsWhere({ companyId, shiftIds: shifts.map((shift) => shift.id) }), select: daySaleSelect }) : [],
+    db.retailSale.findMany({ where: { ...takingsWhere({ companyId, siteId, from: start, to: end }), shiftId: null }, select: daySaleSelect }),
   ]);
   return { shifts, sales: [...onShifts, ...backOffice] };
+}
+
+/**
+ * Holds one site's trading day for the rest of the transaction. Closing the
+ * day and opening a drawer both take it first, so a drawer can never open
+ * into a day that is closing, nor the day close past a drawer opening.
+ */
+async function holdSiteDay(tx: Prisma.TransactionClient, companyId: string, siteId: string, date: string) {
+  await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${`retail-day:${companyId}:${siteId}:${date}`}))::text`;
+}
+
+/**
+ * A drawer opened now belongs to today's trading day (`tradingDayKey`). Once
+ * that day is closed at the site no drawer opens there until tomorrow: its
+ * takings would go into no close and its till would get no Z-report. Holds the
+ * day; answers the refusal in the open sheet's words, or null.
+ */
+export async function closedDayRefusal(tx: Prisma.TransactionClient, companyId: string, siteId: string, now: Date): Promise<string | null> {
+  const date = tradingDayKey(now);
+  await holdSiteDay(tx, companyId, siteId, date);
+  const closed = await tx.retailDayClose.findUnique({
+    where: { companyId_siteId_businessDate: { companyId, siteId, businessDate: tradingDayAsDate(date) } },
+    select: { site: { select: { name: true } } },
+  });
+  return closed ? `${dayLabel(date)} is closed at ${closed.site.name}. Open the till tomorrow.` : null;
 }
 
 /* ── The figures ───────────────────────────────────────────────────────── */
@@ -368,7 +393,8 @@ export type EndOfDayView = {
   traded: boolean;
   takings: string;
   tills: TillRow[];
-  totals: { tills: number; takings: string; refunds: string; difference: string };
+  /** `difference` is null while any till's is (a drawer open, or not counted). */
+  totals: { tills: number; takings: string; refunds: string; difference: string | null };
   paid: PaidTile[];
   checklist: CheckItem[];
   thingsLeft: number;
@@ -445,6 +471,8 @@ export async function endOfDayView(actor: ShiftSession, input: { siteId?: string
     loadFiscalSettings(companyId),
   ]);
   const live = dayFigures(shifts, sales);
+  // A closed day reads every figure from its close: the tills as they stood too, whatever was rung since.
+  const tills = frozen ? (frozen.tills as unknown as TillRow[]) : live.tills;
   const zReports = frozen?.zReportIds.length
     ? await prisma.retailZReport.findMany({
         where: { companyId, id: { in: frozen.zReportIds } },
@@ -475,7 +503,8 @@ export async function endOfDayView(actor: ShiftSession, input: { siteId?: string
     action: null,
   });
 
-  const traded = shifts.length > 0 || live.tills.length > 0;
+  const traded = shifts.length > 0 || tills.length > 0;
+  const uncounted = tills.some((row) => row.state !== "none" && row.difference === null);
   const thingsLeft = frozen ? 0 : checklist.filter((item) => item.blocking && !item.done).length;
   return {
     site,
@@ -494,12 +523,12 @@ export async function endOfDayView(actor: ShiftSession, input: { siteId?: string
       : null,
     traded,
     takings: frozen ? money(frozen.takings).toFixed(2) : live.takings,
-    tills: live.tills,
+    tills,
     totals: {
-      tills: live.tills.filter((row) => row.state !== "none").length,
+      tills: tills.filter((row) => row.state !== "none").length,
       takings: frozen ? money(frozen.takings).toFixed(2) : live.takings,
       refunds: frozen ? money(frozen.refunds).toFixed(2) : live.refunds,
-      difference: frozen ? money(frozen.cashDifference).toFixed(2) : live.cashDifference,
+      difference: uncounted ? null : frozen ? money(frozen.cashDifference).toFixed(2) : live.cashDifference,
     },
     paid: tenders,
     checklist,
@@ -520,7 +549,7 @@ export const closeDayInput = z.object({
 
 export type CloseDayInput = z.infer<typeof closeDayInput>;
 
-export type CloseDayResult = { closedAt: string; zReports: Array<{ id: string; reportNo: string; registerName: string }> };
+export type CloseDayResult = { closedAt: string; banked: string; zReports: Array<{ id: string; reportNo: string; registerName: string }> };
 
 const isUnique = (error: unknown) => error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002";
 
@@ -532,7 +561,8 @@ export async function closeDay(actor: ShiftSession, input: CloseDayInput, option
   const date = checkDay(input.date, tradingDayKey(closedAt));
   const { site } = await siteFor(actor, input.siteId);
   const typed = input.banked.trim().replace(/,/g, "");
-  if (!/^\d+(\.\d{1,2})?$/.test(typed)) throw new DayRefused(400, BANKED_WORDS, "banked");
+  // Up to 12 whole digits: the column is Decimal(14, 2).
+  if (!/^\d{1,12}(\.\d{1,2})?$/.test(typed)) throw new DayRefused(400, BANKED_WORDS, "banked");
   const banked = money(typed);
   const account = banked.isZero() ? null : await defaultBank(companyId);
   if (!banked.isZero() && !account) throw new DayRefused(400, NO_BANK);
@@ -546,6 +576,7 @@ export async function closeDay(actor: ShiftSession, input: CloseDayInput, option
     result = await prisma.$transaction(
       async (tx) => {
         const businessDate = tradingDayAsDate(date);
+        await holdSiteDay(tx, companyId, site.id, date);
         const already = await tx.retailDayClose.findUnique({ where: { companyId_siteId_businessDate: { companyId, siteId: site.id, businessDate } }, select: { id: true } });
         if (already) throw new DayRefused(409, closedAlready(date));
         const { shifts, sales } = await loadDayRows(companyId, site.id, date, tx);
@@ -580,6 +611,7 @@ export async function closeDay(actor: ShiftSession, input: CloseDayInput, option
             cashUsd: figures.cashUsd,
             cashZig: figures.cashZig,
             tenders: figures.paid,
+            tills: figures.tills,
             banked,
             bankAccountId: account?.id ?? null,
             slipUrl: input.slipUrl ?? null,
@@ -660,7 +692,7 @@ export async function closeDay(actor: ShiftSession, input: CloseDayInput, option
     }
   }
 
-  return { closedAt: closedAt.toISOString(), zReports: result.zReports };
+  return { closedAt: closedAt.toISOString(), banked: banked.toFixed(2), zReports: result.zReports };
 }
 
 /* ── Answers ───────────────────────────────────────────────────────────── */

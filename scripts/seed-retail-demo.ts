@@ -2111,7 +2111,7 @@ async function seedSignOffs(companyId: string) {
  */
 /**
  * FLR-07 `seedDayCloses()`: every past trading day of the history closed at
- * 22:00 by Tafara Nyathi through Close the day itself — each till's Z-report,
+ * 22:00 (or a few minutes after its last drawer closed, when later) by Tafara Nyathi through Close the day itself — each till's Z-report,
  * the figures frozen, the day's "Cash, US$" banked to CBZ (the default bank
  * account, made when the tenant has none of its own: the books' placeholder
  * does not count). Only where a day can close: the
@@ -2155,8 +2155,11 @@ async function seedDayCloses(companyId: string) {
     const [siteId, date] = key.split("|") as [string, string]
     const { shifts: own, sales } = await loadDayRows(companyId, siteId, date)
     const cash = money(dayFigures(own, sales).cashUsd)
+    // 22:00, or a few minutes after the last drawer closed when that was later: a day never closes before its drawers.
+    const lastDrawer = Math.max(0, ...own.map((shift) => shift.closedAt?.getTime() ?? 0))
+    const closedAt = new Date(Math.max(new Date(`${date}T20:00:00.000Z`).getTime(), lastDrawer + 4 * 60_000))
     try {
-      await closeDay(actor, { siteId, date, banked: (cash.isNegative() ? ZERO : cash).toFixed(2) }, { now: new Date(`${date}T20:00:00.000Z`) })
+      await closeDay(actor, { siteId, date, banked: (cash.isNegative() ? ZERO : cash).toFixed(2) }, { now: closedAt })
       closed += 1
     } catch (error) {
       if (!(error instanceof DayRefused) || error.status !== 409) throw error

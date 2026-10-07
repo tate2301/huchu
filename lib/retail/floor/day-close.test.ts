@@ -1,11 +1,15 @@
+import { Prisma } from "@prisma/client";
 import { NextRequest } from "next/server";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { runAccountingSeedPack } from "@/lib/accounting/bootstrap";
+import { dayBankedBackfillTask } from "@/lib/accounting/integration";
+import { createJournalEntryFromSource } from "@/lib/accounting/posting";
 import { destroyProvisionedTenant } from "@/lib/platform/tenant-teardown";
 import { prisma } from "@/lib/prisma";
 import { RETAIL_AUDIT_EVENTS } from "@/lib/retail/audit";
 import { FISCAL_PROVIDER_KEY } from "@/lib/retail/fiscalisation";
+import { openShift, ShiftRefused } from "@/lib/retail/floor/shifts";
 import { runRetailPosting } from "@/lib/retail/posting-settings";
 import { makeTestShop, type TestShop } from "@/lib/retail/products/test-fixtures";
 import { tradingDayKey } from "@/lib/retail/z-report";
@@ -206,6 +210,8 @@ describe("what stops a day closing", () => {
     expect(await view(daysAgo(-1))).toMatchObject({ status: 400, body: { error: "Pick a day up to today." } });
     expect(await close(daysAgo(19), "26,10.005")).toMatchObject({ status: 400, body: { fieldErrors: { banked: "Write the amount banked, like 2610.00." } } });
     expect(await close(daysAgo(19), "-5")).toMatchObject({ status: 400, body: { fieldErrors: { banked: "Write the amount banked, like 2610.00." } } });
+    // More than Decimal(14, 2) holds is the same field error, not a 500 from the database.
+    expect(await close(daysAgo(19), "123456789012345.00")).toMatchObject({ status: 400, body: { fieldErrors: { banked: "Write the amount banked, like 2610.00." } } });
   });
 
   it("refuses while a drawer is open, naming the till; the checklist says so and links Count and close", async () => {
@@ -218,6 +224,8 @@ describe("what stops a day closing", () => {
     const shifts = body.data.checklist.find((item: { key: string }) => item.key === "shifts");
     expect(shifts).toMatchObject({ done: false, detail: "1 of 2. Back till is still open.", action: { label: "Close it", href: `/retail/shifts/${open.id}/close` } });
     expect(body.data.thingsLeft).toBe(1);
+    // Σ's difference is not known while a till's is not.
+    expect(body.data.totals.difference).toBeNull();
     expect(body.data.tills.find((row: { name: string }) => row.name === "Back till")).toMatchObject({ state: "open", difference: null, openShiftId: open.id });
     expect(await prisma.retailDayClose.count({ where: { companyId: shop.companyId } })).toBe(0);
   });
@@ -269,6 +277,7 @@ describe("closing the day", () => {
 
     const answer = await close(date, "90.00");
     expect(answer.status).toBe(200);
+    expect(answer.body.data.banked).toBe("90.00");
     expect(answer.body.data.zReports.map((report: { registerName: string }) => report.registerName).sort()).toEqual(["Back till", "Front till"]);
 
     const frozen = await prisma.retailDayClose.findUniqueOrThrow({ where: { companyId_siteId_businessDate: { companyId: shop.companyId, siteId: shop.mainId, businessDate: new Date(`${date}T00:00:00.000Z`) } } });
@@ -307,13 +316,21 @@ describe("closing the day", () => {
 
     const after = await view(date);
     expect(after.body.data).toMatchObject({ closed: { by: "Tafara Nyathi", banked: "90.00" }, can: { close: false }, thingsLeft: 0 });
+    const rows = (data: { tills: Array<{ name: string; takings: string; refunds: string; difference: string | null }> }) =>
+      data.tills.map((row) => [row.name, row.takings, row.refunds, row.difference]).sort((a, b) => String(a[0]).localeCompare(String(b[0])));
+    expect(rows(after.body.data)).toEqual([
+      ["Back till", "30.00", "10.00", "-4.50"],
+      ["Front till", "150.00", "0.00", "0.00"],
+    ]);
     expect(after.body.data.checklist.find((item: { key: string }) => item.key === "banked")).toMatchObject({ done: true, detail: "US$90.00 to CBZ." });
 
     // Frozen: a void rung later on the day's drawer moves nothing the close wrote.
     await sale(front, "-50.00", [{ tender: "ECOCASH", amount: "-50.00" }], "VOID");
     const later = await view(date);
     expect(later.body.data.takings).toBe("180.00");
-    expect(later.body.data.totals.takings).toBe("180.00");
+    expect(later.body.data.totals).toEqual(after.body.data.totals);
+    // The tills as they stood at the close, still adding up to the frozen Σ.
+    expect(later.body.data.tills).toEqual(after.body.data.tills);
     expect((await prisma.retailDayClose.findUniqueOrThrow({ where: { id: frozen.id } })).takings.toFixed(2)).toBe("180.00");
     expect((await prisma.retailZReport.findUniqueOrThrow({ where: { id: frontReport.id } })).grossTakings.toFixed(2)).toBe("150.00");
 
@@ -371,6 +388,33 @@ describe("closing the day", () => {
     expect(closeFiscalMock.mock.calls[0]!.slice(1)).toEqual([fiscalDay.id, "HAND"]);
   });
 
+  it("finds a banked journal lost after the close committed, and posts it once", async () => {
+    const date = daysAgo(11);
+    const front = await drawer(date, "front");
+    await sale(front, "25.00", [{ tender: "CASH", amount: "25.00" }]);
+    as("manager");
+    expect((await close(date, "25.00")).status).toBe(200);
+    const frozen = await prisma.retailDayClose.findFirstOrThrow({ where: { companyId: shop.companyId, businessDate: new Date(`${date}T00:00:00.000Z`) } });
+    // The process died between the commit and the journal: no entry, no integration event.
+    await prisma.journalLine.deleteMany({ where: { entry: { companyId: shop.companyId, sourceType: "RETAIL_DAY_BANKED", sourceId: frozen.id } } });
+    await prisma.journalEntry.deleteMany({ where: { companyId: shop.companyId, sourceType: "RETAIL_DAY_BANKED", sourceId: frozen.id } });
+    await prisma.accountingIntegrationEvent.deleteMany({ where: { companyId: shop.companyId, sourceType: "RETAIL_DAY_BANKED", sourceId: frozen.id } });
+
+    // The backfill finds it as a RETAIL_DAY_BANKED task and posts Dr 1010 / Cr 1005 for the amount banked.
+    const row = await prisma.retailDayClose.findUniqueOrThrow({ where: { id: frozen.id }, include: { site: { select: { name: true } } } });
+    const task = dayBankedBackfillTask(row, row.site.name, { companyId: shop.companyId });
+    expect(task).toMatchObject({ key: `RETAIL_DAY_BANKED:${frozen.id}`, context: { sourceType: "RETAIL_DAY_BANKED", sourceId: frozen.id, amount: 25, createdById: people.manager!.id } });
+    expect((await createJournalEntryFromSource(task!.context, prisma, { postNow: true })).entryId).toBeTruthy();
+    expect(await bankedJournal(frozen.id)).toEqual([
+      [
+        { code: "1005", debit: 0, credit: 25 },
+        { code: "1010", debit: 25, credit: 0 },
+      ],
+    ]);
+    // Nothing banked, nothing to find.
+    expect(dayBankedBackfillTask({ ...row, banked: new Prisma.Decimal(0) }, row.site.name, { companyId: shop.companyId })).toBeNull();
+  });
+
   it("needs a bank account to bank cash, and banks nothing without one when nothing is banked", async () => {
     const date = daysAgo(12);
     const front = await drawer(date, "front");
@@ -386,5 +430,31 @@ describe("closing the day", () => {
     } finally {
       await prisma.accountingSettings.update({ where: { companyId: shop.companyId }, data: { defaultBankAccountId: bankId } });
     }
+  });
+});
+
+describe("after the day closes", () => {
+  it("opens no drawer at the site until tomorrow, so nothing is taken outside a close; another site still opens", async () => {
+    const today = daysAgo(0);
+    const front = await drawer(today, "front");
+    await sale(front, "30.00", [{ tender: "CASH", amount: "30.00" }]);
+    as("manager");
+    expect((await close(today, "30.00")).status).toBe(200);
+
+    const manager = { user: { id: people.manager!.id, companyId: shop.companyId, role: people.manager!.role, name: people.manager!.name, email: "manager@day-close.test", enabledFeatures: ["retail.core", "retail.shifts"] } };
+    const site = await prisma.site.findUniqueOrThrow({ where: { id: shop.mainId }, select: { name: true } });
+    const refused = await openShift({ session: manager, registerId: tills.back.id, cashierId: people.chipo!.id, openingFloat: "50.00" }).catch((error: unknown) => error);
+    expect(refused).toBeInstanceOf(ShiftRefused);
+    expect(refused).toMatchObject({ status: 409, message: expect.stringMatching(new RegExp(`^[A-Z][a-z]+ \\d{1,2} [A-Z][a-z]+ is closed at ${site.name}\\. Open the till tomorrow\\.$`)) });
+    expect(await prisma.retailShift.count({ where: { companyId: shop.companyId, registerId: tills.back.id, openedAt: { gte: new Date(`${today}T00:00:00.000Z`) } } })).toBe(0);
+
+    // The closed day's view still adds up to its close.
+    const { body } = await view(today);
+    expect(body.data.tills.map((row: { name: string }) => row.name)).toEqual(["Front till"]);
+    expect(body.data.totals.takings).toBe("30.00");
+
+    // Borrowdale's day is its own.
+    const { shift } = await openShift({ session: manager, registerId: tills.borr.id, cashierId: people.chipo!.id, openingFloat: "50.00" });
+    expect(shift.siteId).toBe(shop.secondId);
   });
 });
