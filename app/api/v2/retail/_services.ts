@@ -292,11 +292,20 @@ export async function closeRetailShiftTransaction(input: {
     }
   }
 
-  // In `Decimal`, not `round(a - b)`: a cash-up variance is the number a manager is
-  // asked to explain, and the float subtraction it replaces could put a cent on it
-  // that nobody counted.
-  const variance = money(input.countedCash).minus(money(existing.expectedCash));
-  const updated = await prisma.$transaction(async (tx) => {
+  const { closed: updated, variance } = await prisma.$transaction(async (tx) => {
+    // The drawer's expected cash as it stands once nothing else can move it: a
+    // sale or a cash movement committing between the read above and this close
+    // would otherwise leave a variance worked out from a stale figure.
+    const [locked] = await tx.$queryRaw<Array<{ status: string; expectedCash: Prisma.Decimal }>>`
+      SELECT "status", "expectedCash" FROM "RetailShift" WHERE "id" = ${existing.id} FOR UPDATE`;
+    if (!locked || locked.status !== "OPEN") {
+      throw new Error("Only open shifts can be closed");
+    }
+    const expectedCash = money(locked.expectedCash);
+    // In `Decimal`, not `round(a - b)`: a cash-up variance is the number a manager is
+    // asked to explain, and the float subtraction it replaces could put a cent on it
+    // that nobody counted.
+    const variance = money(input.countedCash).minus(expectedCash);
     const closed = await tx.retailShift.update({
       where: { id: existing.id },
       data: {
@@ -320,7 +329,7 @@ export async function closeRetailShiftTransaction(input: {
       shiftId: closed.id,
       shiftNo: closed.shiftNo,
       cashierId: closed.cashierId,
-      expectedCash: existing.expectedCash,
+      expectedCash,
       countedCash: closed.countedCash ?? 0,
       variance,
       notes: input.notes,
@@ -348,12 +357,10 @@ export async function closeRetailShiftTransaction(input: {
       actedById: input.actor.userId,
       fromStatus: "OPEN",
       toStatus: "CLOSED",
-      note: `Counted ${money(input.countedCash).toFixed(2)} against ${money(
-        existing.expectedCash,
-      ).toFixed(2)} expected; variance ${variance.toFixed(2)}`,
+      note: `Counted ${money(input.countedCash).toFixed(2)} against ${expectedCash.toFixed(2)} expected; variance ${variance.toFixed(2)}`,
     });
 
-    return closed;
+    return { closed, variance };
   });
 
   const accounting =
@@ -1737,6 +1744,7 @@ export async function generateRetailZReportTransaction(input: {
       openedAt: shift.openedAt,
       closedAt: shift.closedAt,
       openingFloat: shift.openingFloat,
+      openingFloatZigBase: shift.openingFloatZigBase,
       countedCash: shift.countedCash,
       movements: (movementsByShift.get(shift.id) ?? []).map((movement) => ({
         type: movement.type,

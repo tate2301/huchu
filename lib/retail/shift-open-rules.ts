@@ -7,8 +7,12 @@ import { z } from "zod";
  * opening itself is `lib/retail/floor/shifts.ts`.
  */
 
-/** Two decimals or fewer, zero or more: "100", "100.5", "100.00". */
-export const FLOAT_PATTERN = /^\d+(\.\d{1,2})?$/;
+/**
+ * Two decimals or fewer, zero or more: "100", "100.5", "100.00". Nine whole
+ * digits at most, so the drawer's figures stay inside their numeric(14,2)
+ * columns and a mistyped float is refused under its field, not by the database.
+ */
+export const FLOAT_PATTERN = /^\d{1,9}(\.\d{1,2})?$/;
 
 export const FLOAT_MESSAGE = "Give the float as an amount, like 100.00.";
 

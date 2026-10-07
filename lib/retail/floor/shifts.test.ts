@@ -7,7 +7,7 @@ import { runRetailPosting } from "@/lib/retail/posting-settings";
 import { makeTestShop, type TestShop } from "@/lib/retail/products/test-fixtures";
 import { shiftOpenedSentence, tillWords } from "@/lib/retail/shift-open-rules";
 
-import { openingDefaults, openShift, ShiftRefused } from "./shifts";
+import { openingDefaults, openShift, ShiftRefused, shiftRefusal } from "./shifts";
 
 /**
  * Opening a shift (50-floor W-37, FLR-03): who may open one for whom, the
@@ -125,6 +125,25 @@ describe("who may open a shift for whom", () => {
       await refusal(openShift({ session: sessionOf("manager"), registerId: "00000000-0000-4000-8000-000000000000", cashierId: people.kuda!.id, openingFloat: "0" })),
     ).toEqual({ status: 404, error: "Till not found", field: "till" });
   });
+
+  it("answers a missing till under Till, and a float too large for the drawer under its field", async () => {
+    const missing = shiftRefusal(new ShiftRefused(404, "Till not found", "till"));
+    expect(missing.status).toBe(404);
+    expect(await missing.json()).toEqual({ error: "Till not found", fieldErrors: { till: "Till not found" } });
+    for (const [field, typed] of [["float", "999999999999.99"], ["zig", "1234567890"]] as const) {
+      expect(
+        await refusal(
+          openShift({
+            session: sessionOf("manager"),
+            registerId: front,
+            cashierId: people.kuda!.id,
+            openingFloat: field === "float" ? typed : "0",
+            openingFloatZig: field === "zig" ? typed : undefined,
+          }),
+        ),
+      ).toEqual({ status: 400, error: "Give the float as an amount, like 100.00.", field });
+    }
+  });
 });
 
 describe("the floats and the books", () => {
@@ -138,6 +157,8 @@ describe("the floats and the books", () => {
     });
     expect(zigBase.toFixed(2)).toBe("18.66");
     expect(Number(shift.openingFloatZig)).toBe(500);
+    // The dollar value is kept on the shift, so the Z-report and a backfill add the same US$18.66.
+    expect(Number(shift.openingFloatZigBase)).toBe(18.66);
     expect(Number(shift.expectedCash)).toBe(118.66);
 
     await runRetailPosting(shop.companyId, "BY_HAND", null);
@@ -187,6 +208,26 @@ describe("the floats and the books", () => {
     expect(refused[0]!.reason).toBeInstanceOf(ShiftRefused);
     expect((refused[0]!.reason as ShiftRefused).message).toBe("Handheld 1 already has an open shift.");
     expect(await prisma.retailShift.count({ where: { companyId: shop.companyId, registerId: handheld, status: "OPEN" } })).toBe(1);
+  });
+
+  it("opens one of two openings for one cashier on two tills at once and refuses the other", async () => {
+    const till = async (code: string, name: string) =>
+      (await prisma.retailRegister.create({ data: { companyId: shop.companyId, siteId: shop.mainId, code: `${code}-${shop.companyId.slice(0, 6)}`, name }, select: { id: true } })).id;
+    const tills = [await till("COLD", "Cold room till"), await till("SIDE", "Side till")];
+    for (let round = 0; round < 3; round += 1) {
+      const results = await Promise.allSettled(
+        tills.map((registerId) => openShift({ session: sessionOf("manager"), registerId, cashierId: people.chipo!.id, openingFloat: "0" })),
+      );
+      const opened = results.filter((result) => result.status === "fulfilled");
+      const refused = results.filter((result): result is PromiseRejectedResult => result.status === "rejected");
+      expect(opened).toHaveLength(1);
+      expect(refused).toHaveLength(1);
+      expect(refused[0]!.reason).toBeInstanceOf(ShiftRefused);
+      expect((refused[0]!.reason as ShiftRefused).message).toMatch(/^Chipo Dube already has a shift open on (Cold room till|the side till)\.$/);
+      const open = await prisma.retailShift.findMany({ where: { companyId: shop.companyId, cashierId: people.chipo!.id, status: "OPEN" }, select: { id: true } });
+      expect(open).toHaveLength(1);
+      await close(open[0]!.id);
+    }
   });
 });
 

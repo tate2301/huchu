@@ -5103,6 +5103,8 @@ model RetailShift {
   openingFloat Decimal @default(0) @db.Decimal(14, 2)
   /// The ZiG counted into the drawer at opening; expectedCash includes it at the day's rate (FLR-03).
   openingFloatZig Decimal @default(0) @db.Decimal(14, 2)
+  /// The ZiG float's dollar value at the rate it was counted in; expectedCash, the Z-report and the open journal add it.
+  openingFloatZigBase Decimal @default(0) @db.Decimal(14, 2)
   /// "Float left for tomorrow", written by the close; read by the next opening's default (FLR-03).
   floatLeft    Decimal? @db.Decimal(14, 2)
   status       RetailShiftStatus @default(OPEN)

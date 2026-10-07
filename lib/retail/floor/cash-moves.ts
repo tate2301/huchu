@@ -30,7 +30,9 @@ import type { ShiftSession } from "./shifts";
  * account, never from a drawer.
  */
 
-const AMOUNT = /^\d+(\.\d{1,2})?$/;
+/** Two decimals or fewer; nine whole digits at most, so the drawer's numeric(14,2) figures cannot overflow. */
+const AMOUNT = /^\d{1,9}(\.\d{1,2})?$/;
+const NOTE_MESSAGE = "Keep it to 200 characters.";
 const AMOUNT_MESSAGE = "Give the amount, like 200.00.";
 
 export const cashMoveInput = z.object({
@@ -252,7 +254,15 @@ export async function answerCashMove(input: {
     // A malformed approval lands under the manager's PIN, or the manager.
     const field = top === "approver" ? (issue?.path[1] === "pin" ? "pin" : "approver") : FIELD_OF[top];
     const message =
-      field === "amt" ? AMOUNT_MESSAGE : field === "why" ? "Pick why the cash moved." : field === "cur" ? "Pick US$ or ZiG." : (issue?.message ?? "Validation failed");
+      field === "amt"
+        ? AMOUNT_MESSAGE
+        : field === "why"
+          ? "Pick why the cash moved."
+          : field === "cur"
+            ? "Pick US$ or ZiG."
+            : field === "note"
+              ? NOTE_MESSAGE
+              : (issue?.message ?? "Validation failed");
     return field ? fieldErrorResponse(message, { [field]: message }) : errorResponse(message, 400);
   }
   try {

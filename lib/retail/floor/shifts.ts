@@ -6,6 +6,7 @@ import { reserveIdentifier } from "@/lib/id-generator";
 import { exceeds, money, toNumberOrZero } from "@/lib/money";
 import { prisma } from "@/lib/prisma";
 import { auditShiftOpened } from "@/lib/retail/audit";
+import { shiftOpenPosting } from "@/lib/retail/cash-up";
 import { openFiscalDayIfNone } from "@/lib/retail/fiscal-settings";
 import { canRetailRoleDo, canRetailSessionDo, retailPermissionDenial, type SessionLike } from "@/lib/retail/permission-matrix";
 import { latestZigRate, loadPaymentSettings, NoZigRate } from "@/lib/retail/payment-settings";
@@ -22,7 +23,9 @@ import { postRetailJournal, type RetailAccountingResult } from "@/app/api/v2/ret
  * The money: the US$ float plus the ZiG float at today's rate (ZiG per US$1,
  * stamped here, never the client's) is what the drawer should hold. The open
  * journal moves that from the vault to each drawer's till account: Dr 1000
- * the dollars, Dr 1001 the ZiG part, Cr 1005 the whole.
+ * the dollars, Dr 1001 the ZiG part, Cr 1005 the whole. The ZiG part's
+ * dollar value is kept on the shift (`openingFloatZigBase`), so the Z-report
+ * and a backfill read the float at the rate it was counted in.
  */
 
 export type ShiftSession = SessionLike & {
@@ -144,8 +147,10 @@ export async function openShift(input: OpenShiftInput): Promise<{
   };
 
   const shift = await prisma.$transaction(async (tx) => {
-    // Two openings of one till queue on its row; the second sees the first's shift.
+    // Two openings of one till queue on its row, and two openings for one
+    // cashier (on two tills) on the cashier's lock; the second sees the first's shift.
     await tx.$queryRaw`SELECT "id" FROM "RetailRegister" WHERE "id" = ${till.id} FOR UPDATE`;
+    await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${`retail-shift-cashier:${companyId}:${cashier.id}`}))::text`;
     await refuseBusy(tx, companyId, till, cashier);
     const shiftNo = await reserveIdentifier(tx, { companyId, entity: "RETAIL_SHIFT" });
     const created = await tx.retailShift.create({
@@ -161,6 +166,7 @@ export async function openShift(input: OpenShiftInput): Promise<{
         cashierName: cashier.name,
         openingFloat,
         openingFloatZig,
+        openingFloatZigBase: zigBase,
         expectedCash,
         notes: input.notes?.trim() || null,
         status: "OPEN",
@@ -180,7 +186,8 @@ export async function openShift(input: OpenShiftInput): Promise<{
     return created;
   });
 
-  const accounting: RetailAccountingResult = exceeds(expectedCash, 0)
+  const opened = shiftOpenPosting(shift);
+  const accounting: RetailAccountingResult = exceeds(opened.amount, 0)
     ? await postRetailJournal({
         companyId,
         sourceType: "RETAIL_SHIFT_OPEN",
@@ -192,11 +199,11 @@ export async function openShift(input: OpenShiftInput): Promise<{
         createdById: session.user.id,
         actorRole: session.user.role ?? undefined,
         periodOverrideReason: input.periodOverrideReason ?? undefined,
-        amount: toNumberOrZero(expectedCash),
-        netAmount: toNumberOrZero(expectedCash),
+        amount: toNumberOrZero(opened.amount),
+        netAmount: toNumberOrZero(opened.amount),
         taxAmount: 0,
-        grossAmount: toNumberOrZero(expectedCash),
-        payload: { usd: toNumberOrZero(openingFloat), zig: toNumberOrZero(zigBase) },
+        grossAmount: toNumberOrZero(opened.amount),
+        payload: opened.payload,
       })
     : { accountingStatus: "POSTED", accountingError: null, accountingCode: null, journalEntryId: null };
 
@@ -232,8 +239,8 @@ export async function openingDefaults(
 /** A refusal of `openShift` as the routes answer it, in the sheet's words; anything else is thrown on. */
 export function shiftRefusal(error: unknown): NextResponse {
   if (error instanceof ShiftRefused) {
-    return error.field && error.status === 400
-      ? fieldErrorResponse(error.message, { [error.field]: error.message })
+    return error.field
+      ? fieldErrorResponse(error.message, { [error.field]: error.message }, error.status)
       : errorResponse(error.message, error.status);
   }
   if (error instanceof NoZigRate) return errorResponse(error.message, 409);

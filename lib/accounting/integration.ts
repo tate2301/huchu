@@ -8,6 +8,7 @@ import {
 import { buildAccountingEventKey } from "@/lib/accounting/integration-keys";
 import { buildRetailPostingPayload } from "@/lib/accounting/retail-posting";
 import { isPositive, money, sumMoney, toNumber, toNumberOrZero, type MoneyLike } from "@/lib/money";
+import { shiftOpenPosting } from "@/lib/retail/cash-up";
 
 type Db = PrismaClient | Prisma.TransactionClient;
 
@@ -438,10 +439,11 @@ export async function backfillRetailAccounting(input: {
     // go through `lib/money.ts` rather than JavaScript's operators — `>` on a
     // `Decimal` is a type error, and `!== 0` would have been true for every shift
     // because an object is never equal to a number.
-    const openingFloat = money(shift.openingFloat);
+    // The dollars and the ZiG float at the rate it was counted in, each drawer's part (FLR-03).
+    const opened = shiftOpenPosting(shift);
     const variance = money(shift.variance ?? 0);
 
-    if (isPositive(openingFloat) && !journalKeySet.has(`RETAIL_SHIFT_OPEN:${shift.id}`)) {
+    if (isPositive(opened.amount) && !journalKeySet.has(`RETAIL_SHIFT_OPEN:${shift.id}`)) {
       tasks.push({
         key: `RETAIL_SHIFT_OPEN:${shift.id}`,
         label: `RETAIL_SHIFT_OPEN ${shift.shiftNo}`,
@@ -455,13 +457,11 @@ export async function backfillRetailAccounting(input: {
           entryDate: shift.openedAt,
           description: `Retail shift open ${shift.shiftNo}`,
           createdById: actorId,
-          amount: toNumberOrZero(openingFloat.abs()),
-          netAmount: toNumberOrZero(openingFloat.abs()),
+          amount: toNumberOrZero(opened.amount),
+          netAmount: toNumberOrZero(opened.amount),
           taxAmount: 0,
-          grossAmount: toNumberOrZero(openingFloat.abs()),
-          // The rule debits each drawer by its part (FLR-03). A backfill posts the
-          // dollar float; a ZiG float's rate was stamped at opening and posted then.
-          payload: { usd: toNumberOrZero(openingFloat.abs()), zig: 0 },
+          grossAmount: toNumberOrZero(opened.amount),
+          payload: opened.payload,
           actorRole: input.actorRole ?? undefined,
           periodOverrideReason: input.periodOverrideReason ?? undefined,
         },

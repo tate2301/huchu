@@ -2632,9 +2632,19 @@ async function seedRecordActivity(input: {
 
   const front = shiftRows.find((row) => row.status === "OPEN" && row.registerCode === "TILL-1" && written.has(row.id as string))
   if (front) {
-    // At 10:04, moved back with the boards' morning when the run is before 12:13 (FLR-01).
+    // At 10:04, moved back with the boards' morning when the run is before 12:13 (FLR-01). The
+    // opening barely moves then, so the drop is kept after the morning's cash it sends to the safe:
+    // two minutes after the drawer's second cash sale (its first, when it has one only).
     const morningShift = Math.min(0, now.getTime() - 3 * 60 * 1000 - harareTime(0, 12, 10).getTime())
-    const dropAt = new Date(harareTime(0, 10, 4).getTime() + morningShift)
+    const cashSales = await prisma.retailSale.findMany({
+      where: { companyId, shiftId: front.id as string, saleType: "SALE", payments: { some: { tenderType: "CASH" } } },
+      orderBy: { postedAt: "asc" },
+      take: 2,
+      select: { postedAt: true },
+    })
+    const afterCash = cashSales.at(-1)?.postedAt
+    const boardDrop = harareTime(0, 10, 4).getTime() + morningShift
+    const dropAt = new Date(afterCash ? Math.max(boardDrop, afterCash.getTime() + 2 * 60 * 1000) : boardDrop)
     if (dropAt.getTime() > (front.openedAt as Date).getTime() && dropAt.getTime() < now.getTime()) {
       const movement = await prisma.retailCashMovement.create({
         data: {

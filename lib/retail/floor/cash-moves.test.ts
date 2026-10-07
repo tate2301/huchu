@@ -10,6 +10,8 @@ import { cashMovementWhy } from "@/lib/retail/cash-movements";
 import { runRetailPosting } from "@/lib/retail/posting-settings";
 import { makeTestShop, type TestShop } from "@/lib/retail/products/test-fixtures";
 
+import { closeRetailShiftTransaction } from "@/app/api/v2/retail/_services";
+
 import { answerCashMove } from "./cash-moves";
 
 /**
@@ -97,6 +99,7 @@ afterAll(async () => {
   await prisma.journalEntry.deleteMany({ where: { companyId } });
   await prisma.accountingIntegrationEvent.deleteMany({ where: { companyId } });
   await prisma.retailCashMovement.deleteMany({ where: { companyId } });
+  await prisma.approvalAction.deleteMany({ where: { companyId } });
   await prisma.retailShift.deleteMany({ where: { companyId } });
   await destroyProvisionedTenant(companyId);
 });
@@ -209,6 +212,19 @@ describe("refusals", () => {
     expect(await expected()).toBe(left);
   });
 
+  it("refuses an amount too large for the drawer's figures, and a note over 200 characters, in the sheet's words", async () => {
+    const left = await expected();
+    expect(await move(tafara(), { direction: "IN", why: "TOP_UP", amount: "999999999999.99" })).toEqual({
+      status: 400,
+      body: { error: "Give the amount, like 200.00.", fieldErrors: { amt: "Give the amount, like 200.00." } },
+    });
+    expect(await move(tafara(), { why: "PETTY", amount: "5.00", note: "x".repeat(201) })).toEqual({
+      status: 400,
+      body: { error: "Keep it to 200 characters.", fieldErrors: { note: "Keep it to 200 characters." } },
+    });
+    expect(await expected()).toBe(left);
+  });
+
   it("refuses ZiG where the shop takes none, and a closed shift", async () => {
     await prisma.retailPaymentSettings.update({ where: { companyId: shop.companyId }, data: { takeCashZig: false } });
     expect(await move(tafara(), { amount: "5.00", currency: "ZWG" })).toMatchObject({ status: 400, body: { fieldErrors: { cur: "This shop does not take ZiG cash." } } });
@@ -218,4 +234,37 @@ describe("refusals", () => {
     expect(await move(tafara(), { amount: "5.00" })).toEqual({ status: 409, body: { error: `${SHIFT_NO} is closed.` } });
     await prisma.retailShift.update({ where: { id: shiftId }, data: { status: "OPEN", closedAt: null } });
   });
+});
+
+describe("a close racing a cash movement", () => {
+  it("works the variance out from what the drawer held when it closed, whichever lands first", async () => {
+    const till = await prisma.retailRegister.findFirstOrThrow({ where: { companyId: shop.companyId }, select: { id: true, code: true } });
+    const owner = { companyId: shop.companyId, userId: shop.ownerId, userName: "Tendai Mhlanga", userRole: "SUPERADMIN" };
+    for (let round = 0; round < 6; round += 1) {
+      const shift = await prisma.retailShift.create({
+        data: {
+          companyId: shop.companyId,
+          shiftNo: `SH-RACE-${round}`,
+          registerId: till.id,
+          registerCode: till.code,
+          registerName: "Front till",
+          siteId: shop.mainId,
+          cashierId: chipoId,
+          cashierName: "Chipo Dube",
+          openingFloat: "100.00",
+          expectedCash: "100.00",
+        },
+        select: { id: true },
+      });
+      const [moved] = await Promise.allSettled([
+        move(tafara(), { amount: "30.00" }, shift.id),
+        closeRetailShiftTransaction({ actor: owner, shiftId: shift.id, countedCash: 100 }),
+      ]);
+      const after = await prisma.retailShift.findUniqueOrThrow({ where: { id: shift.id } });
+      expect(after.status).toBe("CLOSED");
+      // The drop either landed before the close (the variance counts it) or was refused as closed.
+      expect(Number(after.variance)).toBe(100 - Number(after.expectedCash));
+      expect(moved.status === "fulfilled" && [201, 409].includes(moved.value.status)).toBe(true);
+    }
+  }, 60_000);
 });

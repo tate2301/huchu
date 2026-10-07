@@ -9,6 +9,7 @@ import { resolveTemplate } from "@/lib/documents/template-resolver";
 import { prisma } from "@/lib/prisma";
 import { auditExportDownloaded } from "@/lib/retail/audit";
 import { readsEveryCashier } from "@/lib/retail/own-rows";
+import { canRetailSessionDo } from "@/lib/retail/permission-matrix";
 import { requireRetailPermission, retailRoleKey } from "@/lib/retail/permissions";
 import { RECORD_DOCUMENT_CSS, recordPdfType } from "@/lib/retail/record-pdf";
 import { requireRetailSession } from "../../../../_helpers";
@@ -37,8 +38,14 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     : requireRetailPermission(session, spec.read[0], spec.read[1]);
   if (gate) return gate;
 
-  const companyId = session.user.companyId;
   const variant = request.nextUrl.searchParams.get("as");
+  // The X-report is a till action: cash control, or the cashier selling at the till; the bookkeeper reads the record only.
+  if (variant === "x-report" && !canRetailSessionDo(session, "retail.sell", "open-shift")) {
+    const xGate = requireRetailPermission(session, "retail.cash-control", "update");
+    if (xGate) return xGate;
+  }
+
+  const companyId = session.user.companyId;
   try {
     const document = await spec.render(
       { companyId, userId: session.user.id, role: retailRoleKey(session), seesEveryDrawer },

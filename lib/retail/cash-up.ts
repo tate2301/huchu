@@ -153,14 +153,32 @@ export function sumCashMovementDeltas(
  */
 export function expectedCashForShift(input: {
   openingFloat: MoneyLike;
+  /** The ZiG float's dollar value at the rate it was counted in (`RetailShift.openingFloatZigBase`). */
+  openingFloatZigBase: MoneyLike;
   cashTakings: MoneyLike;
   movements: Iterable<CashMovementLike>;
 }): Prisma.Decimal {
   return sumMoney([
     money(input.openingFloat),
+    money(input.openingFloatZigBase),
     money(input.cashTakings),
     sumCashMovementDeltas(input.movements),
   ]);
+}
+
+/**
+ * What a shift's opening posts (RETAIL_SHIFT_OPEN, FLR-03): the whole float in
+ * the base currency, and each drawer's part — the dollars to 1000, the ZiG
+ * float's dollar value (at the rate it was counted in) to 1001. The opening
+ * and a backfill both post from the shift's row through this.
+ */
+export function shiftOpenPosting(shift: { openingFloat: MoneyLike; openingFloatZigBase: MoneyLike }): {
+  amount: Prisma.Decimal;
+  payload: { usd: number; zig: number };
+} {
+  const usd = money(shift.openingFloat);
+  const zig = money(shift.openingFloatZigBase);
+  return { amount: usd.plus(zig), payload: { usd: usd.toNumber(), zig: zig.toNumber() } };
 }
 
 /**

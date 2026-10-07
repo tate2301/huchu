@@ -184,8 +184,9 @@ const shifts: ListSpec = {
     {
       key: "x-report",
       label: "Print X-report",
+      // A till action: cash control or selling at a till; the bookkeeper only reads (acceptance 6).
       requires: [
-        ["retail.cash-control", "view"],
+        ["retail.cash-control", "update"],
         ["retail.sell", "open-shift"],
       ],
       when: [{ column: "state", op: "is", value: ["Open"] }],

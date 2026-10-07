@@ -26,6 +26,7 @@ import {
   cashVariance,
   expectedCashForShift,
   getCashNetFromPayments,
+  shiftOpenPosting,
   sumCashMovementDeltas,
   totalFromDenominations,
 } from "./cash-up";
@@ -90,6 +91,7 @@ describe("the Friday drop — the defect S-7.1 fixes", () => {
   it("comes out at exactly zero once the drop is recorded", () => {
     const expected = expectedCashForShift({
       openingFloat: OPENING_FLOAT,
+      openingFloatZigBase: 0,
       cashTakings: CASH_TAKINGS,
       movements: [{ type: "DROP_TO_SAFE", baseAmount: DROP_TO_SAFE }],
     });
@@ -114,6 +116,7 @@ describe("the Friday drop — the defect S-7.1 fixes", () => {
   it("does not subtract the cash refund a second time", () => {
     const doubleCounted = expectedCashForShift({
       openingFloat: OPENING_FLOAT,
+      openingFloatZigBase: 0,
       cashTakings: CASH_TAKINGS,
       movements: [
         { type: "DROP_TO_SAFE", baseAmount: DROP_TO_SAFE },
@@ -170,6 +173,7 @@ describe("a fuller day — a top-up and a payout as well", () => {
   it("expects 1,374.35 in the drawer", () => {
     const expected = expectedCashForShift({
       openingFloat: OPENING_FLOAT,
+      openingFloatZigBase: 0,
       cashTakings: CASH_TAKINGS,
       movements,
     });
@@ -179,6 +183,7 @@ describe("a fuller day — a top-up and a payout as well", () => {
   it("reads a two-dollar over as +2.00, not as a rounding artefact", () => {
     const expected = expectedCashForShift({
       openingFloat: OPENING_FLOAT,
+      openingFloatZigBase: 0,
       cashTakings: CASH_TAKINGS,
       movements,
     });
@@ -239,6 +244,7 @@ describe("a ZWG drop out of a USD-priced drawer", () => {
   it("takes the converted value off, not the face value", () => {
     const expected = expectedCashForShift({
       openingFloat: OPENING_FLOAT,
+      openingFloatZigBase: 0,
       cashTakings: CASH_TAKINGS,
       // 5500 ZWG ÷ 27.5 = 200.00 USD, as `buildCashMovementAmounts` computes it.
       movements: [{ type: "DROP_TO_SAFE", baseAmount: "200.00" }],
@@ -248,6 +254,7 @@ describe("a ZWG drop out of a USD-priced drawer", () => {
     // The face value would have wiped the drawer out several times over.
     const wrong = expectedCashForShift({
       openingFloat: OPENING_FLOAT,
+      openingFloatZigBase: 0,
       cashTakings: CASH_TAKINGS,
       movements: [{ type: "DROP_TO_SAFE", baseAmount: "5500.00" }],
     });
@@ -367,5 +374,21 @@ describe("the denominations a drawer is counted in", () => {
       count: 1,
     }));
     expect(totalFromDenominations(oneOfEach).toFixed(2)).toBe("188.60");
+  });
+});
+
+describe("what an opening posts (FLR-03)", () => {
+  it("debits each drawer by its part: the dollars to 1000, ZiG 500.00 at 26.80 as US$18.66 to 1001", () => {
+    const posting = shiftOpenPosting({ openingFloat: "100.00", openingFloatZigBase: "18.66" });
+    expect(posting.amount.toFixed(2)).toBe("118.66");
+    expect(posting.payload).toEqual({ usd: 100, zig: 18.66 });
+    // Expected cash at opening is the same two parts, so the open journal and the drawer agree.
+    expect(
+      expectedCashForShift({ openingFloat: "100.00", openingFloatZigBase: "18.66", cashTakings: 0, movements: [] }).toFixed(2),
+    ).toBe(posting.amount.toFixed(2));
+  });
+
+  it("posts a dollars-only drawer to 1000 alone", () => {
+    expect(shiftOpenPosting({ openingFloat: "200.00", openingFloatZigBase: 0 }).payload).toEqual({ usd: 200, zig: 0 });
   });
 });

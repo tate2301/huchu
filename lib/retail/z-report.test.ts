@@ -191,6 +191,7 @@ const report = buildRetailZReportFigures({
       openedAt: new Date("2026-08-14T07:30:00.000Z"),
       closedAt: new Date("2026-08-14T14:00:00.000Z"),
       openingFloat: "150.00",
+      openingFloatZigBase: 0,
       countedCash: "394.00",
       movements: [
         { type: "FLOAT_TOP_UP", reasonCode: "CHANGE_REQUIRED", baseAmount: "40.00" },
@@ -210,6 +211,7 @@ const report = buildRetailZReportFigures({
       openedAt: new Date("2026-08-14T14:00:00.000Z"),
       closedAt: new Date("2026-08-14T20:15:00.000Z"),
       openingFloat: "100.00",
+      openingFloatZigBase: 0,
       countedCash: "38.70",
       movements: [
         { type: "DROP_TO_SAFE", reasonCode: "BANK_DEPOSIT", baseAmount: "200.00" },
@@ -468,6 +470,7 @@ describe("the cash story, which is the half S-7.1 exists for", () => {
     expect(
       expectedCashForShift({
         openingFloat: "100.00",
+        openingFloatZigBase: 0,
         cashTakings: "163.20",
         movements: [
           { type: "DROP_TO_SAFE", baseAmount: "200.00" },
@@ -476,6 +479,38 @@ describe("the cash story, which is the half S-7.1 exists for", () => {
       }).toFixed(2),
     ).toBe("39.20");
     expect(report.shifts[1].expectedCash).toBe("39.20");
+  });
+});
+
+describe("a drawer opened with a ZiG float", () => {
+  // ZiG 500.00 counted in at 26.80 is US$18.66, as the opening stamped it on the shift.
+  const zig = buildRetailZReportFigures({
+    businessDate: FRIDAY,
+    registerCode: "TILL03",
+    registerName: "Back till",
+    siteId: "site-harare",
+    currency: "USD",
+    shifts: [
+      {
+        id: "shift-z",
+        shiftNo: "SH-00243",
+        cashierName: "Kuda Banda",
+        openedAt: new Date("2026-08-14T07:30:00.000Z"),
+        closedAt: new Date("2026-08-14T14:00:00.000Z"),
+        openingFloat: "100.00",
+        openingFloatZigBase: "18.66",
+        countedCash: "138.66",
+        movements: [],
+        sales: [sale(ringUp([{ product: COKE, quantity: 25 }]), [{ tenderType: "CASH", baseAmount: 20 }])],
+      },
+    ],
+  });
+
+  it("expects the ZiG float's dollar value in the drawer, as the shift does", () => {
+    expect(zig.openingFloat.toFixed(2)).toBe("118.66");
+    expect(zig.expectedCash.toFixed(2)).toBe("138.66");
+    expect(zig.cashVariance.toFixed(2)).toBe("0.00");
+    expect(zig.shifts[0]).toMatchObject({ openingFloat: "118.66", expectedCash: "138.66", variance: "0.00" });
   });
 });
 
@@ -624,6 +659,7 @@ describe("bottle deposits", () => {
         openedAt: new Date("2026-08-14T07:30:00.000Z"),
         closedAt: new Date("2026-08-14T14:00:00.000Z"),
         openingFloat: "50.00",
+        openingFloatZigBase: 0,
         countedCash: "81.80",
         movements: [],
         sales: [withDeposit, crateBack],

@@ -105,8 +105,19 @@ const PETTY = "Petty cash";
 
 const whyOf = (values: SheetValues) => WHYS.find(([label]) => label === values.why)?.[2] ?? "DROP";
 
-/** The approval section: for someone who cannot approve it themselves, or once the server asked. */
-const asksManager = (values: SheetValues) => values._canApprove !== true || values._needsApprover === true;
+/**
+ * The approval section: for someone who cannot approve it themselves, or once
+ * the server asked. Until the load answers, who may approve is not known
+ * (`_canApprove` unset), so neither the warning nor the section shows.
+ */
+const asksManager = (values: SheetValues) => values._canApprove === false || values._needsApprover === true;
+
+/** The Manager PIN line: the viewer's own approval, who to ask, or nothing while the load runs. */
+function managerLine(values: SheetValues): string {
+  if (values._canApprove === true) return `${String(values._me ?? "")}, ${formatTime(new Date())}`;
+  if (values._canApprove === false) return approvalWarn((values._approvers as string[] | undefined) ?? []);
+  return "";
+}
 
 type Moved = { id: string; type: string; amount: number; currency: string; delta: number };
 
@@ -164,9 +175,8 @@ const cashMove: SheetKind = {
           t: "read",
           l: "Manager PIN",
           h: "Every movement needs one.",
-          derive: (values) =>
-            values._canApprove === true ? `${String(values._me ?? "")}, ${formatTime(new Date())}` : approvalWarn((values._approvers as string[] | undefined) ?? []),
-          tone: (values) => (values._canApprove === true ? "ok" : "warn"),
+          derive: managerLine,
+          tone: (values) => (values._canApprove === true ? "ok" : values._canApprove === false ? "warn" : undefined),
         },
       ],
     },
@@ -223,7 +233,7 @@ const cashMove: SheetKind = {
       },
     };
   },
-  invalidate: [["retail-shift"], ["list", "retail-shifts"], ["list", "retail-shift-cash"], ["record-activity"]],
+  invalidate: [["retail-shift"], ["list", "retail-shifts"], ["reports", "retail-shift-cash"], ["record-activity"]],
   requires: [["retail.sell", "create"]],
 };
 

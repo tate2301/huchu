@@ -16,6 +16,8 @@ import type { RailGroup, RecordAction, RecordChip, RecordKind, RecordKpi, Record
 
 const CASH_CONTROL = ["retail.cash-control", "view"] as const;
 const OWN_TILL = ["retail.sell", "open-shift"] as const;
+/** Printing an X-report mid-shift: someone who runs drawers, not the bookkeeper who reads them. */
+const X_REPORT = ["retail.cash-control", "update"] as const;
 
 /** A drawer open longer than this is left over from another day. */
 const STALE_MINUTES = 12 * 60;
@@ -97,7 +99,8 @@ export const shiftKind: RecordKind<ShiftRecordView> = {
           {
             key: "x-report",
             label: "Print X-report",
-            requires: [[...CASH_CONTROL], [...OWN_TILL]],
+            // A till action: whoever runs drawers (cash control) or sells at one; the bookkeeper only reads.
+            requires: [[...X_REPORT], [...OWN_TILL]],
             do: { open: `/api/v2/retail/records/RetailShift/${shift.id}/pdf?as=x-report` },
           },
         ]

@@ -276,6 +276,8 @@ export type ZReportShiftInput = {
   openedAt: Date;
   closedAt: Date | null;
   openingFloat: MoneyLike;
+  /** The ZiG float's dollar value at the rate it was counted in; zero for a dollars-only drawer. */
+  openingFloatZigBase: MoneyLike;
   /** What the cashier actually counted at close. Null on a shift never counted. */
   countedCash: MoneyLike | null;
   movements: ZReportMovementInput[];
@@ -556,12 +558,15 @@ export function buildRetailZReportFigures(
     // implementation of it standing beside the first.
     const shiftExpected = expectedCashForShift({
       openingFloat: shift.openingFloat,
+      openingFloatZigBase: shift.openingFloatZigBase,
       cashTakings: shiftCashTakings,
       movements: shift.movements,
     });
     const shiftCounted = shift.countedCash == null ? null : money(shift.countedCash);
+    // The float in the base currency, both drawers, so the report's cash lines add up to expected.
+    const shiftFloat = money(shift.openingFloat).plus(money(shift.openingFloatZigBase));
 
-    openingFloat = openingFloat.plus(money(shift.openingFloat));
+    openingFloat = openingFloat.plus(shiftFloat);
     cashTakings = cashTakings.plus(shiftCashTakings);
     expectedCash = expectedCash.plus(shiftExpected);
     countedCash = countedCash.plus(shiftCounted ?? ZERO);
@@ -572,7 +577,7 @@ export function buildRetailZReportFigures(
       cashierName: shift.cashierName,
       openedAt: shift.openedAt.toISOString(),
       closedAt: shift.closedAt?.toISOString() ?? null,
-      openingFloat: money(shift.openingFloat).toFixed(2),
+      openingFloat: shiftFloat.toFixed(2),
       cashTakings: shiftCashTakings.toFixed(2),
       movementNet: shiftMovementNet.toFixed(2),
       expectedCash: shiftExpected.toFixed(2),
