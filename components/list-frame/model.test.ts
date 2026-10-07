@@ -106,6 +106,7 @@ describe("cells (5.4.7)", () => {
     expect(cellText(margin, row({ marginNow: 22.4 }))).toBe("22.4%");
     expect(cellText(margin, row({ marginNow: 29 }))).toBe("29.0%");
     expect(totalText(margin, 24.6)).toBe("24.6%");
+    expect(totalText({ ...margin, totalSuffix: "average" }, 24.4)).toBe("24.4% average");
   });
 
   it("prints a count with its unit word when the column names one (13 bottles)", () => {

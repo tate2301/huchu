@@ -139,6 +139,8 @@ export async function loadShelfListings(
   options: {
     /** Restrict to one branch. The till always passes this; the back office may not. */
     siteId?: string | null;
+    /** The till asking: its own price list replaces the default (as `pos/sales` prices it). */
+    registerId?: string | null;
     search?: string | null;
     /** Only what the till may ring up. The back office lists inactive lines too. */
     activeOnly?: boolean;
@@ -152,7 +154,7 @@ export async function loadShelfListings(
     includeBinned?: boolean;
   } = {},
 ): Promise<ShelfListing[]> {
-  const { siteId, search, activeOnly, status, category, productIds, take, includeBinned } = options;
+  const { siteId, registerId, search, activeOnly, status, category, productIds, take, includeBinned } = options;
 
   const stockWhere: Prisma.InventoryItemWhereInput = {
     site: { companyId },
@@ -229,8 +231,8 @@ export async function loadShelfListings(
       unitPrice: product.standardPrice,
       taxPercent: product.defaultTaxRate,
     })),
-    // The engine at this site now, one of each, no customer: what the till grid shows.
-    { siteId: siteId ?? null },
+    // The engine at this site and till now, one of each, no customer: what the till grid shows.
+    { siteId: siteId ?? null, registerId: registerId ?? null },
   );
 
   const listings: ShelfListing[] = [];

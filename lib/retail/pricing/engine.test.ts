@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { priceBasket, type PricingSnapshot, type SnapshotList } from "./engine";
+import { priceAtQuantity, priceBasket, type PricingSnapshot, type SnapshotList } from "./engine";
 
 /**
  * The till's price engine (PRD-05) over the demo shop's lists: Retail the
@@ -148,5 +148,19 @@ describe("priceBasket", () => {
 
   it("prices off the base list alone when asked", () => {
     expect(priceBasket(snapshot(), castle(), { at: FRIDAY_1730, baseOnly: true }).lines[0]?.priceListId).toBe("retail");
+  });
+});
+
+describe("priceAtQuantity", () => {
+  it("steps a till line through its volume breaks as the quantity changes", () => {
+    const breaks = [
+      { minQuantity: 6, unitPrice: 1.1 },
+      { minQuantity: 12, unitPrice: 1.0 },
+    ];
+    expect(priceAtQuantity(1.2, breaks, 1)).toBe(1.2);
+    expect(priceAtQuantity(1.2, breaks, 6)).toBe(1.1);
+    expect(priceAtQuantity(1.2, breaks, 11)).toBe(1.1);
+    expect(priceAtQuantity(1.2, breaks, 12)).toBe(1.0);
+    expect(priceAtQuantity(1.2, [], 24)).toBe(1.2);
   });
 });

@@ -53,6 +53,7 @@ import {
 } from "@/lib/retail/offline-runtime";
 import { splitChange } from "@/lib/retail/payment-words";
 import { canRetailRoleDo } from "@/lib/retail/permission-matrix";
+import { priceAtQuantity } from "@/lib/retail/pricing/engine";
 import type { PosSaleQueuePayload } from "@/lib/retail/pos-offline-queue";
 import { getPosPortalHref } from "@/lib/retail/pos-host";
 import { shopFeatures } from "@/lib/retail/shop-profile-rules";
@@ -113,6 +114,8 @@ function lineFromItem(item: PosCatalogItem, depositsOn: boolean): CartItem {
     quantity: 1,
     unitPrice: item.unitPrice,
     shelfPrice: item.unitPrice,
+    priceOfOne: item.unitPrice,
+    priceBreaks: item.priceBreaks ?? [],
     taxPercent: item.taxPercent,
     taxInclusive: item.taxInclusive,
     lineDiscountAmount: 0,
@@ -125,6 +128,17 @@ function lineFromItem(item: PosCatalogItem, depositsOn: boolean): CartItem {
     maxDiscountPercent: item.maxDiscountPercent,
     openableCase: item.openableCase,
   };
+}
+
+/**
+ * A line at a new quantity: the shelf price steps through the volume breaks
+ * (12 at the 12-break), and a line still at the shelf price moves with it; a
+ * price the cashier changed stays theirs.
+ */
+function atQuantity(item: CartItem, quantity: number): CartItem {
+  const shelfPrice = priceAtQuantity(item.priceOfOne ?? item.shelfPrice, item.priceBreaks, quantity);
+  const atShelf = Math.abs(item.unitPrice - item.shelfPrice) <= 0.009;
+  return { ...item, quantity, shelfPrice, unitPrice: atShelf ? shelfPrice : item.unitPrice };
 }
 
 /** Whether a line's price or discount differs from the shelf: the sale then keeps a reason. */
@@ -531,7 +545,7 @@ function useTillStateValue({ isPosHost, paired }: { isPosHost: boolean; paired: 
       const existing = current.find((entry) => entry.catalogItemId === item.id);
       if (existing) {
         return current.map((entry) =>
-          entry.catalogItemId === item.id ? { ...entry, quantity: entry.quantity + 1, stock: item.inventoryItem?.currentStock } : entry,
+          entry.catalogItemId === item.id ? { ...atQuantity(entry, entry.quantity + 1), stock: item.inventoryItem?.currentStock } : entry,
         );
       }
       return [...current, lineFromItem(item, Boolean(features?.emptiesAndDeposits))];
@@ -671,7 +685,7 @@ function useTillStateValue({ isPosHost, paired }: { isPosHost: boolean; paired: 
         quantity <= 0
           ? current.filter((entry) => entry.catalogItemId !== catalogItemId)
           : current.map((entry) =>
-              entry.catalogItemId === catalogItemId ? { ...entry, quantity, emptiesBack: Math.min(entry.emptiesBack, Math.floor(quantity)) } : entry,
+              entry.catalogItemId === catalogItemId ? { ...atQuantity(entry, quantity), emptiesBack: Math.min(entry.emptiesBack, Math.floor(quantity)) } : entry,
             ),
       ),
     updateLine: (catalogItemId: string, patch: Partial<Pick<CartItem, "unitPrice" | "lineDiscountAmount" | "stock">>) =>

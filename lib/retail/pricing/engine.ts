@@ -232,3 +232,19 @@ export function priceBasket(snapshot: PricingSnapshot, basket: BasketLine[], con
 
   return { lines, subtotal: units(subtotalCents), discount: 0, total: units(subtotalCents) };
 }
+
+/** One step of a product's price by quantity at the till: from this many, this price. */
+export type PriceBreak = { minQuantity: number; unitPrice: number };
+
+/** The till's price for a line of this many: the highest step at or under it, else the price of one. */
+export function priceAtQuantity(priceOfOne: number, breaks: readonly PriceBreak[] | null | undefined, quantity: number): number {
+  let price = priceOfOne;
+  let at = 1;
+  for (const entry of breaks ?? []) {
+    if (entry.minQuantity <= quantity && entry.minQuantity > at) {
+      price = entry.unitPrice;
+      at = entry.minQuantity;
+    }
+  }
+  return price;
+}

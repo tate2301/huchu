@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { num, result } from "@/lib/reports/loaders/shared";
 import type { ReportContext, ReportLoader, ReportOption, ReportParams, ReportRow } from "@/lib/reports/types";
+import { canSeeRetailCostPrice } from "@/lib/retail/permission-matrix";
 import { listSub } from "@/lib/retail/price-lists/describe";
 import { loadPriceListViews, type PriceListView } from "@/lib/retail/price-lists/service";
 import { harareMoment } from "@/lib/retail/pricing/engine";
@@ -126,10 +127,13 @@ async function loadPrices(ctx: ReportContext, params: ReportParams) {
     }
   }
 
+  // Nothing worked out from the cost leaves here for a role that may not see
+  // it: a margin or a profit beside the price gives the cost away.
+  const seeCost = canSeeRetailCostPrice(ctx.role);
   return result(
     rows.map((row): ReportRow => {
       const price = num(row.unitPrice) ?? 0;
-      const cost = num(row.product.costPrice);
+      const cost = seeCost ? num(row.product.costPrice) : null;
       const margin = cost !== null && price > 0 ? round1(((price - cost) / price) * 100) : null;
       const belowCost = cost !== null && price < cost;
       const target = num(row.product.retailCategory?.targetMarginPercent ?? null);
@@ -143,12 +147,16 @@ async function loadPrices(ctx: ReportContext, params: ReportParams) {
         name: row.product.name,
         code: row.product.code,
         barcode: row.product.barcode,
-        cost,
-        margin,
-        marginTone: marginTone(margin, target, belowCost),
-        underCost: belowCost ? "Yes" : "No",
-        profit: cost !== null ? round2(price - cost) : 0,
-        pricedCost: cost !== null ? price : 0,
+        ...(seeCost
+          ? {
+              cost,
+              margin,
+              marginTone: marginTone(margin, target, belowCost),
+              underCost: belowCost ? "Yes" : "No",
+              profit: cost !== null ? round2(price - cost) : 0,
+              pricedCost: cost !== null ? price : 0,
+            }
+          : {}),
         price,
         was: last?.fromPrice ? num(last.fromPrice) : null,
         changed: next ? scheduledWords(next) : last?.appliedAt ? LONG_DAY.format(last.appliedAt) : null,

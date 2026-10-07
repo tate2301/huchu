@@ -612,6 +612,35 @@ export async function POST(request: NextRequest) {
       };
     });
     /*
+      PRD-05. A line of many rung at the price of one, where the engine has a
+      volume break below it (12 at the 12-break): the till priced it off a
+      shelf without the break, not off an old price. The customer gets the
+      break and the line records its row. Not on a replay: that money is taken.
+    */
+    if (!replaySoldAt) {
+      const many = preNormalizedLines.filter(
+        (line) => line.quantity > 1 && line.shelf.unitPrice < line.unitPrice - 0.01,
+      );
+      const ones = many.length
+        ? await resolveShelfPrices(
+            session.user.companyId,
+            many.map((line) => ({
+              id: line.lineKey,
+              productId: line.listing.productId,
+              unitPrice: line.listing.standardPrice ?? 0,
+              taxPercent: line.listing.defaultTaxRate ?? 0,
+              quantity: 1,
+            })),
+            { siteId: site.id, registerId: device.registerId, at: soldAt },
+          )
+        : new Map<string, { unitPrice: number }>();
+      for (const line of many) {
+        const one = ones.get(line.lineKey);
+        if (one && Math.abs(line.unitPrice - one.unitPrice) <= 0.01) line.unitPrice = line.shelf.unitPrice;
+      }
+    }
+
+    /*
       PRD-05. A price the till sent that is not the engine's, with no reason
       given, is a till selling off an old snapshot: refused, so it rings the
       line again at the new price. With a reason it is an override, judged

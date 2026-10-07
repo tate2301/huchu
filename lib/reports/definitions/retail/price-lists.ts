@@ -134,6 +134,7 @@ const prices: ListSpec = {
       type: "choice",
       any: "Any",
       primary: true,
+      requires: "view-cost",
       options: [
         { value: "under-target", label: "Under target", where: [{ column: "marginTone", op: "is", value: ["warn", "bad"] }] },
         { value: "under-cost", label: "Under cost", where: [{ column: "underCost", op: "is", value: ["Yes"] }] },
@@ -145,6 +146,7 @@ const prices: ListSpec = {
     {
       key: "margin",
       label: "Margin, lowest first",
+      requires: "view-cost",
       rules: [
         { column: "margin", dir: "asc" },
         { column: "name", dir: "asc" },
@@ -189,6 +191,7 @@ const prices: ListSpec = {
       percent: true,
       pillKey: "marginTone",
       total: "avg",
+      totalSuffix: "average",
       ratio: { num: "profit", den: "pricedCost" },
       requires: "view-cost",
       width: "120px",

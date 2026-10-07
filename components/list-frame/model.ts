@@ -185,7 +185,10 @@ export function totalText(column: ListColumn, value: ReportValue | undefined): s
   const currency = column.currency ?? "USD";
   if (column.cell === "diff") return formatSigned(Number(value), currency);
   if (column.cell === "num" && column.sign) return formatSignedCount(Number(value));
-  if (column.cell === "num") return column.percent ? formatPercent(Number(value)) : formatCount(Number(value));
+  if (column.cell === "num") {
+    const figure = column.percent ? formatPercent(Number(value)) : formatCount(Number(value));
+    return column.totalSuffix ? `${figure} ${column.totalSuffix}` : figure;
+  }
   if (column.cell === "owed" && column.kind === "number") return formatCount(Number(value));
   if (isFigure(column)) return formatMoney(Number(value), currency);
   return String(value);

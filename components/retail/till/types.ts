@@ -10,6 +10,7 @@ import type { RetailTenderType } from "@prisma/client";
 
 import type { CaseOf, OpenableCase } from "@/app/api/v2/retail/pos/_cases";
 import type { TillFiscalStatus } from "@/lib/retail/fiscalisation";
+import type { PriceBreak } from "@/lib/retail/pricing/engine";
 import type { ChangeSplit, TenderCurrency } from "@/lib/retail/payment-words";
 import type { ShelfListing } from "@/lib/retail/shelf-listing";
 
@@ -39,6 +40,8 @@ export type PosCatalogItem = ShelfListing & {
   caseOf: CaseOf | null;
   /** The price before a cut on the default list in the last 60 days; struck through on the tile. */
   wasPrice: number | null;
+  /** From this many, this price (volume breaks), lowest quantity first; `unitPrice` is the price of one. */
+  priceBreaks: PriceBreak[];
 };
 
 /** A line on the sale. `catalogItemId` is the product's id. */
@@ -48,8 +51,11 @@ export type CartItem = {
   catalogItemId: string;
   quantity: number;
   unitPrice: number;
-  /** What the shelf says; a different `unitPrice` is a change the till rules may send to a manager. */
+  /** What the shelf says at this quantity; a different `unitPrice` is a change the till rules may send to a manager. */
   shelfPrice: number;
+  /** The shelf price of one, and its volume breaks: `shelfPrice` follows the quantity through them. */
+  priceOfOne: number;
+  priceBreaks: PriceBreak[];
   taxPercent: number;
   taxInclusive: boolean;
   lineDiscountAmount: number;

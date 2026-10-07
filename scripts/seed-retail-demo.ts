@@ -4281,6 +4281,22 @@ async function seedImportDemo(input: { companyId: string; mainSiteId: string; so
     })
   }
   console.log(`  ${COKE_2L.name} on the shelf for the import demo (public/demo/price-list-oct.xlsx)`)
+  await dateRetailAdds(companyId, [SPRITE.code, COKE_2L.code])
+}
+
+/**
+ * Sprite 500ml and Coca-Cola 2l go on the shelf through New product, which
+ * dates their Retail price today. The board's Retail list was last changed on
+ * 3 October: their ADDED rows on it are dated that morning, 09:00 Harare,
+ * before the 10:00 typed changes.
+ */
+async function dateRetailAdds(companyId: string, codes: string[]) {
+  const at = new Date("2026-10-03T07:00:00Z")
+  const retail = await prisma.priceList.findFirstOrThrow({ where: { companyId, isDefault: true }, select: { id: true } })
+  await prisma.productPriceChange.updateMany({
+    where: { companyId, priceListId: retail.id, source: "ADDED", product: { code: { in: codes } } },
+    data: { effectiveAt: at, appliedAt: at, createdAt: at },
+  })
 }
 
 /**

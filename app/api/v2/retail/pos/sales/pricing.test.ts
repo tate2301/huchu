@@ -25,6 +25,7 @@ vi.mock("@/lib/api-utils", async (importOriginal) => ({
   validateSession: validateSessionMock,
 }));
 
+import { GET as CATALOG } from "../catalog/route";
 import { POST as SELL } from "./route";
 
 const stamp = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -34,6 +35,7 @@ let shiftId = "";
 let castleId = "";
 let retailId = "";
 let beerId = "";
+let tillId = "";
 
 beforeAll(async () => {
   shop = await makeTestShop("Sale pricing");
@@ -52,6 +54,7 @@ beforeAll(async () => {
     data: { companyId: shop.companyId, siteId: shop.mainId, code: "FRONT", name: "Front till" },
     select: { id: true, code: true, name: true },
   });
+  tillId = till.id;
   const device = await prisma.retailDevice.create({
     data: { companyId: shop.companyId, registerId: till.id, kind: "BROWSER", label: "Windows PC", keyHash: hashDeviceKey(key), pairedById: shop.ownerId },
     select: { id: true },
@@ -109,6 +112,17 @@ function sell(ref: string, unitPrice: number, extra: Record<string, unknown> = {
   ).then(async (response) => ({ status: response.status, body: (await response.json()) as Record<string, unknown> & { id?: string } }));
 }
 
+type CatalogRow = { productId: string; unitPrice: number; priceListId: string | null; priceBreaks: Array<{ minQuantity: number; unitPrice: number }> };
+
+async function catalogRow(): Promise<CatalogRow> {
+  const response = await CATALOG(
+    new NextRequest("http://pos.test.localtest.me/api/v2/retail/pos/catalog", { headers: { cookie: `${DEVICE_COOKIE}=${key}` } }),
+  );
+  expect(response.status).toBe(200);
+  const body = (await response.json()) as { data: CatalogRow[] };
+  return body.data.find((row) => row.productId === castleId)!;
+}
+
 const lineOf = (saleId: string | undefined) =>
   prisma.retailSaleLine.findFirstOrThrow({ where: { saleId: saleId! }, select: { unitPrice: true, priceListId: true } });
 
@@ -151,6 +165,59 @@ describe("a sale on the price engine", () => {
     const above = await sell("override", 1.3, { overrideReason: "Price check" });
     expect(above).toMatchObject({ status: 409, body: { needsApprover: true } });
     expect(await prisma.retailSale.count({ where: { companyId: shop.companyId, clientRef: `override-${stamp}` } })).toBe(0);
+  });
+
+  it("prices the grid off the till's own list, so the grid's price sells", async () => {
+    const own = await createPriceList(shop.owner(), {
+      name: `Front till ${stamp}`,
+      startFrom: { listId: retailId },
+      prices: "ON",
+      by: "5%",
+      audience: "EVERYONE",
+      when: "ALWAYS",
+      siteId: null,
+      categoryIds: [],
+      switchOn: true,
+    });
+    await prisma.retailRegister.update({ where: { id: tillId }, data: { priceListId: own.data.id } });
+    try {
+      const row = await catalogRow();
+      expect([row.unitPrice, row.priceListId]).toEqual([1.26, own.data.id]);
+      const sold = await sell("own-list", row.unitPrice);
+      expect(sold.status).toBe(201);
+      const line = await lineOf(sold.body.id);
+      expect([line.unitPrice.toFixed(2), line.priceListId]).toEqual(["1.26", own.data.id]);
+    } finally {
+      await prisma.retailRegister.update({ where: { id: tillId }, data: { priceListId: null } });
+      await setPriceListsState(shop.owner(), [own.data.id], "PAUSED");
+    }
+  });
+
+  it("sells 12 across a volume break: the grid carries the break, and 12 rung at the price of one gets it", async () => {
+    await prisma.$transaction((tx) =>
+      changePrices(tx, {
+        companyId: shop.companyId,
+        actor: shop.owner(),
+        listId: retailId,
+        rows: [{ productId: castleId, price: "1.00", minQuantity: 12 }],
+        source: "TYPED",
+        limits: { priceChanges: "MANAGERS", belowCostNeedsOwner: true },
+      }),
+    );
+    const row = await catalogRow();
+    expect([row.unitPrice, row.priceBreaks]).toEqual([1.2, [{ minQuantity: 12, unitPrice: 1 }]]);
+
+    const atBreak = await sell("break", 1.0, { items: [{ productId: castleId, quantity: 12, unitPrice: 1.0 }], payments: [{ tenderType: "CASH", currency: "USD", amount: 20 }] });
+    expect(atBreak.status).toBe(201);
+
+    const atOne = await sell("break-one", 1.2, { items: [{ productId: castleId, quantity: 12, unitPrice: 1.2 }], payments: [{ tenderType: "CASH", currency: "USD", amount: 20 }] });
+    expect(atOne.status).toBe(201);
+    const line = await lineOf(atOne.body.id);
+    expect([line.unitPrice.toFixed(2), line.priceListId]).toEqual(["1.00", retailId]);
+
+    // Still refused: a price that is neither the break nor the price of one.
+    const stale = await sell("break-stale", 1.1, { items: [{ productId: castleId, quantity: 12, unitPrice: 1.1 }], payments: [{ tenderType: "CASH", currency: "USD", amount: 20 }] });
+    expect(stale.status).toBe(409);
   });
 
   it("takes a replay rung before the price changed, as before", async () => {

@@ -157,6 +157,16 @@ async function forSites<T extends ListSpec>(spec: T, companyId: string): Promise
   };
 }
 
+/** The source as this caller may see it: no cost-gated filter or sort for a role that may not see cost. */
+function forCost<T extends ListSpec>(spec: T, seeCost: boolean): T {
+  if (seeCost) return spec;
+  return {
+    ...spec,
+    filters: spec.filters.filter((filter) => filter.type !== "choice" || filter.requires !== "view-cost"),
+    sorts: spec.sorts.filter((sort) => sort.requires !== "view-cost"),
+  };
+}
+
 async function openList(session: AuthenticatedSession, key: string, query: ListQuery): Promise<OpenList | ListRefusal> {
   const report = getReport(key);
   if (!report) return { status: 404, error: "Report not found" };
@@ -181,8 +191,9 @@ async function openList(session: AuthenticatedSession, key: string, query: ListQ
   const facing = face === "report" ? declared.report : declared.list;
   if (!facing) return { status: 404, error: "Report not found" };
   const reportCtx = contextFor(session);
-  const spec = await forSites<ListSpec>(facing, reportCtx.companyId);
-  if (refused(spec)) return spec;
+  const sited = await forSites<ListSpec>(facing, reportCtx.companyId);
+  if (refused(sited)) return sited;
+  const spec = forCost(sited, ctx.seeCost);
   // The list's own check first, so a role it refuses is told so in words
   // ("Your role cannot view shifts") rather than that the list does not exist.
   if (!canReadList(spec, ctx)) return { status: 403, error: spec.refusal ?? `Your role cannot view ${spec.noun}` };

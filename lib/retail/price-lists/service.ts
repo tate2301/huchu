@@ -3,8 +3,10 @@ import { z } from "zod";
 
 import { money } from "@/lib/money";
 import { prisma } from "@/lib/prisma";
+import { getApprovalLimits } from "@/lib/retail/approvals/limits";
 import { auditRecordEdited, RETAIL_AUDIT_EVENTS, writeRetailAuditEvent, type RetailAuditActor } from "@/lib/retail/audit";
-import { followPrice } from "@/lib/retail/prices/change";
+import { canRetailRoleDo } from "@/lib/retail/permission-matrix";
+import { followPrice, priceChangeNeedsOwner } from "@/lib/retail/prices/change";
 import { harareMoment } from "@/lib/retail/pricing/engine";
 
 import { createdSentence, listSub, pricesRule, usedWhen, type DescribedList } from "./describe";
@@ -157,7 +159,7 @@ export async function loadPriceListViews(companyId: string, ids?: string[]): Pro
       GROUP BY pp."priceListId"`,
     prisma.productPriceChange.groupBy({
       by: ["priceListId"],
-      where: { companyId, priceListId: { in: listIds }, appliedAt: { not: null } },
+      where: { companyId, priceListId: { in: listIds }, appliedAt: { not: null }, product: { archivedAt: null } },
       _max: { appliedAt: true },
     }),
   ]);
@@ -221,6 +223,65 @@ async function openSite(tx: Tx, companyId: string, siteId: string) {
 }
 
 type ListActor = RetailAuditActor;
+
+/**
+ * "Below cost needs the owner" (ADM-04) for a whole list: a list that tills
+ * charge — switched on, or the default — may not carry a price under its
+ * product's cost unless the owner puts it there. The first such row's
+ * sentence, or null. A draft may hold them; switching it on asks again.
+ */
+async function belowCostRefusal(
+  tx: Tx,
+  actor: ListActor,
+  rows: Array<{ productId: string; unitPrice: Prisma.Decimal }>,
+): Promise<string | null> {
+  if (rows.length === 0 || canRetailRoleDo(actor.userRole, "retail.prices", "approve")) return null;
+  const limits = await getApprovalLimits(actor.companyId, tx);
+  if (!limits.belowCostNeedsOwner) return null;
+  const costs = new Map(
+    (
+      await tx.product.findMany({
+        where: { companyId: actor.companyId, id: { in: [...new Set(rows.map((row) => row.productId))] }, archivedAt: null, costPrice: { not: null } },
+        select: { id: true, costPrice: true },
+      })
+    ).map((product) => [product.id, product.costPrice!]),
+  );
+  for (const row of rows) {
+    const cost = costs.get(row.productId);
+    if (!cost) continue;
+    const sentence = priceChangeNeedsOwner({ priceChanges: "MANAGERS", belowCostNeedsOwner: true }, actor, { price: row.unitPrice, cost });
+    if (sentence) return sentence;
+  }
+  return null;
+}
+
+/** The live rows of a list, lowest price under cost first, for `belowCostRefusal`. */
+async function rowsBelowCost(tx: Tx, actor: ListActor, listId: string): Promise<string | null> {
+  const rows = await tx.productPrice.findMany({
+    where: { priceListId: listId, product: { archivedAt: null, costPrice: { not: null } } },
+    select: { productId: true, unitPrice: true },
+    orderBy: [{ product: { name: "asc" } }, { minQuantity: "asc" }],
+  });
+  return belowCostRefusal(tx, actor, rows);
+}
+
+const DEFAULT_RULE = "Only a list for everyone, always, everywhere can be the default.";
+
+/** Two requests raced past the checks into a unique index: the name, or the one default. */
+function raced(error: unknown, name: string): never {
+  if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+    const detail = JSON.stringify(error.meta ?? {});
+    if (detail.includes("PriceList_one_default")) {
+      throw new PriceListRefusal(409, "Another list just became the default. Open it again.", {
+        isDefault: "Another list just became the default. Open it again.",
+      });
+    }
+    if (detail.includes("PriceList_companyId_name_key")) {
+      throw new PriceListRefusal(400, `There is already a price list called ${name}.`, { name: `There is already a price list called ${name}.` });
+    }
+  }
+  throw error;
+}
 
 /** W-16: one list, its categories and one ADDED price per product it takes, in one transaction. */
 export async function createPriceList(actor: ListActor, input: PriceListInput): Promise<{ data: PriceListView; message: string }> {
@@ -319,6 +380,10 @@ export async function createPriceList(actor: ListActor, input: PriceListInput): 
             select: { productId: true, minQuantity: true, unitPrice: true },
           })
         ).map((row) => ({ productId: row.productId, minQuantity: row.minQuantity, unitPrice: followPrice(row.unitPrice, adjust) }));
+    if (input.switchOn) {
+      const below = await belowCostRefusal(tx, actor, rows);
+      if (below) throw new PriceListRefusal(400, below, { switchOn: below });
+    }
     await addRows(tx, { companyId, actor, listId: list.id, rows: rows.map((row) => ({ ...row, followsBase: true })), at: now });
 
     const view: DescribedList = {
@@ -346,7 +411,7 @@ export async function createPriceList(actor: ListActor, input: PriceListInput): 
       payload: { name, products: new Set(rows.map((row) => row.productId)).size, rule },
     });
     return { id: list.id, message: createdSentence(view, fromCost ? null : base!.name, categoryNames, site?.name ?? null, today) };
-  });
+  }).catch((error: unknown) => raced(error, name));
 
   return { data: (await priceListView(companyId, created.id))!, message: created.message };
 }
@@ -415,7 +480,20 @@ export async function updatePriceList(
   const changed = await prisma.$transaction(async (tx) => {
     const list = await tx.priceList.findFirst({
       where: { id, companyId, archivedAt: null },
-      select: { id: true, name: true, isDefault: true, taxInclusive: true, currency: true, audience: true, siteId: true, state: true, site: { select: { name: true } } },
+      select: {
+        id: true,
+        name: true,
+        isDefault: true,
+        taxInclusive: true,
+        currency: true,
+        audience: true,
+        siteId: true,
+        state: true,
+        whenKind: true,
+        minQuantity: true,
+        site: { select: { name: true } },
+        _count: { select: { categories: true } },
+      },
     });
     if (!list) throw new PriceListRefusal(404, "Price list not found");
     const errors: Record<string, string> = {};
@@ -439,11 +517,27 @@ export async function updatePriceList(
       if (!patch.isDefault) {
         errors.isDefault = "One list has to be the default. Make another the default first.";
       } else {
-        // The old default keeps its prices and stays on; this one takes over.
-        await tx.priceList.updateMany({ where: { companyId, isDefault: true, id: { not: id } }, data: { isDefault: false, state: "ON" } });
-        data.isDefault = true;
-        data.state = "ON";
-        note("isDefault", "No", "Yes");
+        const below = await rowsBelowCost(tx, actor, id);
+        if (below) {
+          errors.isDefault = below;
+        } else {
+          // The old default keeps its prices and stays on; this one takes over.
+          await tx.priceList.updateMany({ where: { companyId, isDefault: true, id: { not: id } }, data: { isDefault: false, state: "ON" } });
+          data.isDefault = true;
+          data.state = "ON";
+          note("isDefault", "No", "Yes");
+        }
+      }
+    }
+    // The engine never asks the default list's rules: it is the price for
+    // everyone, always, everywhere, so it carries none.
+    const rulesTouched = patch.isDefault === true || patch.audience !== undefined || patch.siteId !== undefined;
+    if ((patch.isDefault ?? list.isDefault) && rulesTouched && !errors.isDefault) {
+      const audience = patch.audience ?? list.audience;
+      const siteId = patch.siteId !== undefined ? patch.siteId : list.siteId;
+      if (audience !== "EVERYONE" || siteId !== null || list.whenKind !== "ALWAYS" || list._count.categories > 0 || list.minQuantity > 1) {
+        const field = patch.isDefault && !list.isDefault ? "isDefault" : audience !== "EVERYONE" ? "audience" : "siteId";
+        errors[field] = DEFAULT_RULE;
       }
     }
     if (patch.taxInclusive !== undefined && patch.taxInclusive !== list.taxInclusive) {
@@ -487,7 +581,7 @@ export async function updatePriceList(
       await auditRecordEdited(tx, { actor, entityType: "PriceList", entityId: id, field: change.field, label: change.label, from: change.from, to: change.to });
     }
     return changes.length;
-  });
+  }).catch((error: unknown) => raced(error, patch.name?.trim() ?? ""));
   return { data: (await priceListView(companyId, id))!, changed };
 }
 
@@ -576,6 +670,10 @@ export async function setPriceListsState(actor: ListActor, ids: string[], to: "P
     let changed = 0;
     for (const list of lists) {
       if (list.state === to) continue;
+      if (to === "ON") {
+        const below = await rowsBelowCost(tx, actor, list.id);
+        if (below) throw new PriceListRefusal(400, `${list.name}: ${below}`);
+      }
       await tx.priceList.update({ where: { id: list.id }, data: { state: to, updatedById: actor.userId } });
       await writeRetailAuditEvent(tx, {
         actor,

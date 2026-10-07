@@ -148,15 +148,18 @@ async function applyPrice(
     productId: input.productId,
     payload: { list: input.list.name, from: auditAmount(from), to: auditAmount(input.to), how: input.source },
   });
-  if (input.to !== null && input.minQuantity.equals(ONE)) {
+  if (input.to !== null) {
     await moveFollowers(tx, { ...input, to: input.to, visited: new Set([...(input.visited ?? []), input.list.id]) });
   }
   return true;
 }
 
 /**
- * The rows that follow this list's price for this product, moved to it: every
- * row still following, on a live list whose basis is this list. One hop each,
+ * The rows that mirror the base row that just moved, moved with it: on a live
+ * list whose basis is this list, still following, the row at the same minimum
+ * quantity — and, when the single price moved, the follower's own list-minimum
+ * row (Wholesale from 6) unless the base has a break of its own there. A
+ * follower's other volume breaks keep their prices. One hop each,
  * recursively, and never back into a list already moved in the chain.
  */
 async function moveFollowers(
@@ -166,6 +169,7 @@ async function moveFollowers(
     actor: RetailAuditActor | null;
     list: { id: string };
     productId: string;
+    minQuantity: Prisma.Decimal;
     to: Prisma.Decimal;
     at: Date;
     batchId?: string | null;
@@ -181,11 +185,25 @@ async function moveFollowers(
     },
     select: {
       minQuantity: true,
-      priceList: { select: { id: true, name: true, isDefault: true, adjustPercent: true } },
+      priceList: { select: { id: true, name: true, isDefault: true, adjustPercent: true, minQuantity: true } },
     },
   });
+  if (rows.length === 0) return;
+  const baseBreaks = input.minQuantity.equals(ONE)
+    ? (
+        await tx.productPrice.findMany({
+          where: { priceListId: input.list.id, productId: input.productId },
+          select: { minQuantity: true },
+        })
+      ).map((row) => row.minQuantity)
+    : [];
+  const mirrors = (row: (typeof rows)[number]) => {
+    if (row.minQuantity.equals(input.minQuantity)) return true;
+    if (!input.minQuantity.equals(ONE) || row.priceList.minQuantity <= 1) return false;
+    return row.minQuantity.equals(row.priceList.minQuantity) && !baseBreaks.some((at) => at.equals(row.minQuantity));
+  };
   for (const row of rows) {
-    if (input.visited.has(row.priceList.id)) continue;
+    if (input.visited.has(row.priceList.id) || !mirrors(row)) continue;
     await applyPrice(tx, {
       companyId: input.companyId,
       actor: input.actor,

@@ -3,6 +3,7 @@ import { z } from "zod";
 import { successResponse } from "@/lib/api-response";
 import { wasPrices } from "@/lib/retail/prices/was";
 import { loadShelfListings } from "@/lib/retail/shelf-listing";
+import { shelfPriceBreaks } from "@/lib/retail/shelf-pricing";
 import { requirePosDevice, shopSiteId } from "@/lib/retail/devices";
 import { requireRetailPermission } from "@/lib/retail/permissions";
 import { parseRetailQuery } from "@/lib/retail/request";
@@ -60,9 +61,12 @@ export async function GET(request: NextRequest) {
   const { device, response: deviceResponse } = await requirePosDevice(request, session);
   const siteId = device ? device.register.site.id : await shopSiteId(companyId);
   if (!siteId) return deviceResponse as NextResponse;
+  // Priced as `pos/sales` prices this till's sale: its own list, its site's, else the default.
+  const registerId = device?.registerId ?? null;
   const [listings, profile] = await Promise.all([
     loadShelfListings(companyId, {
       siteId,
+      registerId,
       search: query.data.search || null,
       category: query.data.category || null,
       activeOnly: true,
@@ -83,8 +87,12 @@ export async function GET(request: NextRequest) {
     }))
     .filter((item) => (item.inventoryItem?.currentStock ?? 0) > 0 || (item.openableCase?.casesOnHand ?? 0) > 0);
   // The till strikes through a recent cut: the price before it, from the history.
-  const was = await wasPrices(companyId, new Map(selling.map((item) => [item.id, item.unitPrice])));
+  const [was, breaks] = await Promise.all([
+    wasPrices(companyId, new Map(selling.map((item) => [item.id, item.unitPrice]))),
+    // A line of 12 rings at the 12-break: the till prices each line off these.
+    shelfPriceBreaks(companyId, selling.map((item) => item.productId), { siteId, registerId }),
+  ]);
   return successResponse({
-    data: selling.map((item) => ({ ...item, wasPrice: was.get(item.id) ?? null })),
+    data: selling.map((item) => ({ ...item, wasPrice: was.get(item.id) ?? null, priceBreaks: breaks.get(item.productId) ?? [] })),
   });
 }

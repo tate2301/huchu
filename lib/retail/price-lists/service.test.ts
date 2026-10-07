@@ -120,12 +120,40 @@ describe("the rules and the default", () => {
   it("refuses switching the default off, and moves it to another list", async () => {
     const off = await refusal(updatePriceList(shop.owner(), retailId, { isDefault: false }));
     expect([off.status, off.message]).toEqual([400, "One list has to be the default. Make another the default first."]);
-    const happy = await prisma.priceList.findFirstOrThrow({ where: { companyId: shop.companyId, name: "Happy hour" } });
-    const moved = await updatePriceList(shop.owner(), happy.id, { isDefault: true });
+    const shelf = await createPriceList(shop.owner(), input({ name: "Shelf two", prices: "SAME", when: "ALWAYS", categoryIds: [], switchOn: false }));
+    const moved = await updatePriceList(shop.owner(), shelf.data.id, { isDefault: true });
     expect(moved).toMatchObject({ changed: 1, data: { isDefault: true, state: "ON" } });
     expect(await prisma.priceList.findUniqueOrThrow({ where: { id: retailId } })).toMatchObject({ isDefault: false, state: "ON" });
     await updatePriceList(shop.owner(), retailId, { isDefault: true });
     expect(await prisma.priceList.count({ where: { companyId: shop.companyId, isDefault: true } })).toBe(1);
+  });
+
+  it("makes only a list for everyone, always, everywhere the default, and keeps the default's rules plain", async () => {
+    const happy = await prisma.priceList.findFirstOrThrow({ where: { companyId: shop.companyId, name: "Happy hour" } });
+    const ruled = await refusal(updatePriceList(shop.owner(), happy.id, { isDefault: true }));
+    expect(ruled.fieldErrors).toEqual({ isDefault: "Only a list for everyone, always, everywhere can be the default." });
+    const site = await refusal(updatePriceList(shop.owner(), retailId, { siteId: shop.mainId }));
+    expect(site.fieldErrors).toEqual({ siteId: "Only a list for everyone, always, everywhere can be the default." });
+    expect(await prisma.priceList.findUniqueOrThrow({ where: { id: retailId } })).toMatchObject({ isDefault: true, siteId: null });
+  });
+
+  it("answers a race for the default and for a name with their sentences, not a failure", async () => {
+    const plain = (name: string) => createPriceList(shop.owner(), input({ name, prices: "SAME", when: "ALWAYS", categoryIds: [], switchOn: false }));
+    const [a, b] = [await plain("Race one"), await plain("Race two")];
+    const both = await Promise.allSettled([
+      updatePriceList(shop.owner(), a.data.id, { isDefault: true }),
+      updatePriceList(shop.owner(), b.data.id, { isDefault: true }),
+    ]);
+    for (const result of both.filter((entry) => entry.status === "rejected")) {
+      expect((result as PromiseRejectedResult).reason).toMatchObject({ status: 409, message: "Another list just became the default. Open it again." });
+    }
+    expect(await prisma.priceList.count({ where: { companyId: shop.companyId, isDefault: true } })).toBe(1);
+    const named = await Promise.allSettled([plain("Race three"), plain("Race three")]);
+    expect(named.filter((entry) => entry.status === "fulfilled")).toHaveLength(1);
+    expect((named.find((entry) => entry.status === "rejected") as PromiseRejectedResult).reason).toMatchObject({
+      fieldErrors: { name: "There is already a price list called Race three." },
+    });
+    await updatePriceList(shop.owner(), retailId, { isDefault: true });
   });
 
   it("keeps a priced list's currency", async () => {
@@ -148,6 +176,32 @@ describe("the rules and the default", () => {
     const happy = await prisma.priceList.findFirstOrThrow({ where: { companyId: shop.companyId, name: "Happy hour" } });
     expect(await setPriceListsState(shop.owner(), [happy.id], "PAUSED")).toBe(1);
     expect(await setPriceListsState(shop.owner(), [happy.id], "ON")).toBe(1);
+  });
+});
+
+describe("below cost needs the owner", () => {
+  const cheap = (name: string, switchOn: boolean) => input({ name, prices: "OFF", by: "90%", when: "ALWAYS", categoryIds: [], switchOn });
+
+  it("refuses a manager a list that tills charge below cost — switched on, switched on later, or made the default — and saves the draft", async () => {
+    const on = await refusal(createPriceList(shop.manager(), cheap("Clearance", true)));
+    expect(on.fieldErrors.switchOn).toMatch(/^Below cost needs the owner\. It costs US\$(0\.86|13\.03)\.$/);
+    expect(await prisma.priceList.count({ where: { companyId: shop.companyId, name: "Clearance" } })).toBe(0);
+
+    const draft = await createPriceList(shop.manager(), cheap("Clearance", false));
+    expect(draft.data).toMatchObject({ state: "DRAFT", belowCost: 2 });
+    const switched = await refusal(setPriceListsState(shop.manager(), [draft.data.id], "ON"));
+    expect(switched.message).toBe("Clearance: Below cost needs the owner. It costs US$13.03.");
+    const made = await refusal(updatePriceList(shop.manager(), draft.data.id, { isDefault: true }));
+    expect(made.fieldErrors).toEqual({ isDefault: "Below cost needs the owner. It costs US$13.03." });
+    expect(await prisma.priceList.findUniqueOrThrow({ where: { id: draft.data.id } })).toMatchObject({ state: "DRAFT", isDefault: false });
+  });
+
+  it("lets the owner", async () => {
+    const draft = await prisma.priceList.findFirstOrThrow({ where: { companyId: shop.companyId, name: "Clearance" } });
+    expect(await setPriceListsState(shop.owner(), [draft.id], "ON")).toBe(1);
+    const owned = await createPriceList(shop.owner(), cheap("Clearance two", true));
+    expect(owned.data).toMatchObject({ state: "ON", belowCost: 2 });
+    await setPriceListsState(shop.owner(), [draft.id, owned.data.id], "PAUSED");
   });
 });
 

@@ -17,7 +17,7 @@
  */
 import { money, percent, toNumberOrZero, type MoneyLike } from "@/lib/money";
 import { prisma } from "@/lib/prisma";
-import { priceBasket, type PricingContext, type PricingSnapshot } from "@/lib/retail/pricing/engine";
+import { priceBasket, type PriceBreak, type PricingContext, type PricingSnapshot } from "@/lib/retail/pricing/engine";
 import { loadPricingSnapshot } from "@/lib/retail/pricing/snapshot";
 
 /** Where the number the till will charge actually came from. */
@@ -176,4 +176,47 @@ export async function resolveShelfPrices(
   }
 
   return resolved;
+}
+
+/**
+ * The volume breaks the till charges at this site and till now, no customer:
+ * for each product, the engine's price at every quantity where it steps away
+ * from the step before (a row's break or a list's minimum). The till prices a
+ * line off the highest step at or under its quantity (`priceAtQuantity`), so
+ * what it sends is what `pos/sales` charges.
+ */
+export async function shelfPriceBreaks(
+  companyId: string,
+  productIds: string[],
+  options: { siteId?: string | null; registerId?: string | null; at?: Date } = {},
+): Promise<Map<string, PriceBreak[]>> {
+  const breaks = new Map<string, PriceBreak[]>();
+  if (productIds.length === 0) return breaks;
+  const snapshot = await loadPricingSnapshot(companyId, { siteId: options.siteId, registerId: options.registerId, productIds });
+  const listMinimum = new Map(snapshot.lists.map((list) => [list.id, list.minQuantity]));
+  const quantities = new Map<string, Set<number>>();
+  for (const row of snapshot.prices) {
+    for (const at of [row.minQuantity, listMinimum.get(row.priceListId) ?? 1]) {
+      if (at > 1) quantities.set(row.productId, (quantities.get(row.productId) ?? new Set()).add(at));
+    }
+  }
+  if (quantities.size === 0) return breaks;
+  const basket = [...quantities].flatMap(([productId, set]) =>
+    [1, ...set].map((quantity) => ({ key: `${productId}:${quantity}`, productId, quantity })),
+  );
+  const priced = priceBasket(snapshot, basket, { at: options.at ?? new Date(), siteId: snapshot.siteId, customer: null });
+  const priceOf = new Map(priced.lines.map((line) => [line.key, line.unitPrice]));
+  for (const [productId, set] of quantities) {
+    let last = priceOf.get(`${productId}:1`);
+    if (last === null || last === undefined) continue;
+    const steps: PriceBreak[] = [];
+    for (const quantity of [...set].sort((a, b) => a - b)) {
+      const price = priceOf.get(`${productId}:${quantity}`);
+      if (price === null || price === undefined || price === last) continue;
+      steps.push({ minQuantity: quantity, unitPrice: price });
+      last = price;
+    }
+    if (steps.length) breaks.set(productId, steps);
+  }
+  return breaks;
 }

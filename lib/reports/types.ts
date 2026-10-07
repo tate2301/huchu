@@ -271,6 +271,8 @@ export type ListColumn = ReportColumn & {
   unitKey?: string;
   /** num: the figure is a percentage, printed "22.4%". */
   percent?: boolean;
+  /** The totals band's word after the figure: "average" prints "24.4% average". */
+  totalSuffix?: string;
   /** num: the row key holding a tone; when set the figure sits in that tone's pill ("22.4%" under target). */
   pillKey?: string;
   /** num: always signed ("+40", "−1"); `gain` also colours a rise `--ok`, without a pill. */
@@ -344,8 +346,8 @@ export type ListFilter =
       defaultFrom?: "default-site";
       /** Not offered while the company has fewer options than this (Site, with one site). */
       hideBelow?: number;
-      /** Dropped while the company has one open site. */
-      requires?: "multi-site";
+      /** `multi-site`: dropped while the company has one open site. `view-cost`: dropped for a role that may not see cost. */
+      requires?: "multi-site" | "view-cost";
     }
   | {
       key: string;
@@ -458,7 +460,8 @@ export type EmptyGuidePublic = Omit<EmptyGuideSpec, "primary" | "secondary"> & {
   secondary?: Omit<NonNullable<EmptyGuideSpec["secondary"]>, "requires">;
 };
 
-export type ListSort = { key: string; label: string; rules: SortRule[] };
+/** `requires: "view-cost"`: offered only to a role that may see cost (a margin sort gives the cost's order away). */
+export type ListSort = { key: string; label: string; rules: SortRule[]; requires?: "view-cost" };
 
 export type ListSpec = {
   /** "shifts" — in Export's caption, empty states, refusals ("Your role cannot view shifts"). */

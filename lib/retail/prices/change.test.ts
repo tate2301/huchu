@@ -181,6 +181,75 @@ describe("followers (PRD-05)", () => {
     expect((await rowOn(wholesaleId, castleId)).unitPrice.toFixed(2)).toBe("1.15");
   });
 
+  it("moves a follower's single price with the base's, and its break only with the base's break", async () => {
+    const lagerId = (await addTestProduct(shop.companyId, { name: "Zambezi Lager 340ml", price: "1.20", cost: "0.86" })).productId;
+    await prisma.$transaction((tx) =>
+      changePrices(tx, {
+        companyId: shop.companyId,
+        actor: shop.owner(),
+        listId,
+        rows: [{ productId: lagerId, price: "1.00", minQuantity: 12 }],
+        source: "TYPED",
+        limits: LIMITS,
+      }),
+    );
+    const sameId = (
+      await createPriceList(shop.owner(), {
+        name: "Same as Retail",
+        startFrom: { listId },
+        prices: "SAME",
+        by: "",
+        audience: "EVERYONE",
+        when: "ALWAYS",
+        siteId: null,
+        categoryIds: [],
+        switchOn: false,
+      })
+    ).data.id;
+    const rows = () =>
+      prisma.productPrice
+        .findMany({ where: { priceListId: sameId, productId: lagerId }, orderBy: { minQuantity: "asc" }, select: { minQuantity: true, unitPrice: true } })
+        .then((found) => found.map((row) => `${row.minQuantity.toString()} @ ${row.unitPrice.toFixed(2)}`));
+    expect(await rows()).toEqual(["1 @ 1.20", "12 @ 1.00"]);
+
+    await changeOn(listId, lagerId, "1.30");
+    expect(await rows()).toEqual(["1 @ 1.30", "12 @ 1.00"]);
+
+    await prisma.$transaction((tx) =>
+      changePrices(tx, {
+        companyId: shop.companyId,
+        actor: shop.owner(),
+        listId,
+        rows: [{ productId: lagerId, price: "1.05", minQuantity: 12 }],
+        source: "TYPED",
+        limits: LIMITS,
+      }),
+    );
+    expect(await rows()).toEqual(["1 @ 1.30", "12 @ 1.05"]);
+  });
+
+  it("moves a follower's list-minimum row (Wholesale from 6) with the base's single price", async () => {
+    const ciderId = (await addTestProduct(shop.companyId, { name: "Savanna Dry 330ml", price: "1.80", cost: "1.20" })).productId;
+    const fromSix = (
+      await createPriceList(shop.owner(), {
+        name: "From six",
+        startFrom: { listId },
+        prices: "OFF",
+        by: "10%",
+        audience: "EVERYONE",
+        when: "ALWAYS",
+        siteId: null,
+        categoryIds: [],
+        switchOn: false,
+      })
+    ).data.id;
+    await prisma.priceList.update({ where: { id: fromSix }, data: { minQuantity: 6 } });
+    await prisma.productPrice.updateMany({ where: { priceListId: fromSix, productId: ciderId }, data: { minQuantity: 6 } });
+    await changeOn(listId, ciderId, "2.00");
+    const row = await prisma.productPrice.findFirstOrThrow({ where: { priceListId: fromSix, productId: ciderId }, select: { minQuantity: true, unitPrice: true } });
+    expect([row.minQuantity.toString(), row.unitPrice.toFixed(2)]).toEqual(["6", "1.80"]);
+  });
+
   it("prices Staff's rows again when the cost changes", async () => {
     expect((await rowOn(staffId, castleId)).unitPrice.toFixed(2)).toBe("0.90");
     await prisma.$transaction((tx) => updateProduct(tx, { actor: shop.owner(), id: castleId, input: { cost: "1.00" }, limits: LIMITS }));

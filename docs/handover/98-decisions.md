@@ -318,15 +318,26 @@ Recorded unit choices:
   - **The order-by day is a weekday name up to six days ahead and a date from a week on** ("Order 24 by 14
     October" on a Wednesday 7 October), so the sentence never names today's own weekday for a day a week off.
 
-- **PRD-05 departs from packet 18 in six places.**
+- **PRD-05 departs from packet 18 in nine places.**
   - **The till's grid shows the engine's price at that site now.** `pos/catalog`'s `unitPrice` is what
     `priceBasket` charges for one at the till's site at this moment (a live Happy hour included), not the base
     list's own price, so the price the till sends is the one `pos/sales` checks it against. The Products page's
     Price stays the default list's own (`baseOnly`).
   - **A till's own list replaces the default as a candidate too.** When the site's or the till's list is on,
     the default list is not also offered beside it; every other live list still is, the lower price winning.
-  - **A follower moves only with its base's single price.** A change on the base at a minimum above one (a
-    volume break) moves no follower; the follower's row sits at its own list's minimum (Wholesale from 6).
+  - **A follower moves only the row that mirrors the base row that changed.** The base's single price moves the
+    follower's single price, or its list-minimum row (Wholesale from 6) when the base has no break there; a base
+    break moves only the follower's break at the same quantity. A follower's other breaks keep their prices.
+  - **The till's grid and its breaks come from the till's own list.** `pos/catalog` prices for the till asking
+    (its list, its site's, else the default), as `pos/sales` does, and sends each product's volume breaks
+    (`priceBreaks`); the till steps a line's price through them as its quantity changes. A line of many sent at
+    the price of one gets the engine's break, not a 409.
+  - **Below cost on a list needs the owner too.** Creating a list switched on, switching one on, or making one
+    the default is refused to a manager while a live row on it sits under its product's cost ("Below cost needs
+    the owner. It costs US$0.86."), as a typed price is; a draft may hold such rows.
+  - **Only a list for everyone, always, everywhere can be the default** (no categories, from one). The engine
+    asks no rule of the default, so a list with rules is refused the default, and the default's who and where
+    stay Everyone and All sites.
   - **Cashier and bookkeeper keep Print price sheet and Export.** Both read; neither has New price list,
     Duplicate, Pause or Switch on, nor a row menu.
   - **The worksheet's VAT column is 72px**, not 60px: 60 cuts "15.5%" (SET-08 prices the shelf at 15.5%).
