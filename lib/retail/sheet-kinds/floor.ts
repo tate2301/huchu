@@ -110,12 +110,16 @@ const asksManager = (values: SheetValues) => values._canApprove !== true || valu
 
 type Moved = { id: string; type: string; amount: number; currency: string; delta: number };
 
-/** "US$200.00 dropped to the safe. Drawer should hold US$1.50 plus sales." */
-export function cashMovedSentence(moved: Moved, expectedCash: number, cashSales: number): string {
+/**
+ * "US$200.00 dropped to the safe. Drawer should hold US$1.50 plus sales.":
+ * what the drawer should hold now (the answer's `expectedCash`, as the
+ * board's three sentences read), plus whatever is sold from here.
+ */
+export function cashMovedSentence(moved: Moved, expectedCash: number): string {
   const figure = formatMoney(moved.amount, moved.currency);
   const did =
     moved.type === "DROP_TO_SAFE" ? `${figure} dropped to the safe.` : moved.type === "FLOAT_TOP_UP" ? `${figure} put in for change.` : `${figure} paid out for petty cash.`;
-  return `${did} Drawer should hold ${formatMoney(expectedCash - cashSales)} plus sales.`;
+  return `${did} Drawer should hold ${formatMoney(expectedCash)} plus sales.`;
 }
 
 const cashMove: SheetKind = {
@@ -194,7 +198,6 @@ const cashMove: SheetKind = {
     if (shift.status !== "OPEN") throw new Error(`${shift.shiftNo} is closed.`);
     return {
       _sub: `${shift.registerName} · ${shift.shiftNo} · ${shift.cashierName}`,
-      _cashSales: shift.cashSales,
       _takesZig: shift.takesZig,
       _canApprove: ctx.can("retail.cash-control", "approve"),
       _me: ctx.user.name,
@@ -202,8 +205,7 @@ const cashMove: SheetKind = {
     };
   },
   onRefused: (payload) => ((payload as { needsApprover?: boolean } | null)?.needsApprover ? { _needsApprover: true } : null),
-  done: (result, values, payload) =>
-    cashMovedSentence(result as Moved, (payload as { shift?: { expectedCash: number } }).shift?.expectedCash ?? 0, Number(values._cashSales ?? 0)),
+  done: (result, _values, payload) => cashMovedSentence(result as Moved, (payload as { shift?: { expectedCash: number } }).shift?.expectedCash ?? 0),
   submit: (values, ctx) => {
     const why = whyOf(values);
     const approver = (values.approver as PickedOption | null) ?? null;
