@@ -2,6 +2,7 @@ import https from "node:https";
 import http from "node:http";
 import { URL } from "node:url";
 import type { FiscalisationProviderConfig } from "@prisma/client";
+import { fdmsDeviceId } from "@/lib/accounting/fdms-receipt-signing";
 
 type ConnectorPayload = {
   idempotencyKey: string;
@@ -273,7 +274,7 @@ export function submitReceiptPath(provider: FiscalisationProviderConfig): string
   const metadata = tryParseJson(provider.metadataJson ?? "") ?? {};
   if (typeof metadata.issuePath === "string" && metadata.issuePath) return metadata.issuePath;
 
-  const deviceId = String(provider.deviceId ?? "").trim();
+  const deviceId = fdmsDeviceId(provider.deviceId ?? "");
   if (!deviceId) {
     throw new Error("Fiscalisation provider has no deviceId; register the device first.");
   }

@@ -31,19 +31,19 @@ const ROUTES: readonly Route[] = [
   { path: "/retail/sales", name: "Sales" },
   { path: "/retail/shifts", name: "Shifts" },
   { path: "/retail/customers", name: "Customers" },
-  { path: "/retail/catalog", name: "Products", expect: /Castle|Lager|340ml|ml\b/i },
-  { path: "/retail/merchandising/pricing", name: "Prices" },
-  { path: "/retail/merchandising/promotions", name: "Promotions" },
+  { path: "/retail/products", name: "Products", expect: /Castle|Lager|340ml|ml\b/i },
+  { path: "/retail/products/price-lists", name: "Prices" },
+  { path: "/retail/products/promotions", name: "Promotions" },
   { path: "/retail/stock", name: "Stock" },
-  { path: "/retail/stock/count", name: "Stock counts" },
+  { path: "/retail/stock/counts", name: "Stock counts" },
   { path: "/retail/stock/transfers", name: "Transfers" },
-  { path: "/retail/purchasing/orders", name: "Orders" },
-  { path: "/retail/purchasing/receipts", name: "Deliveries" },
+  { path: "/retail/buying/orders", name: "Orders" },
+  { path: "/retail/buying/deliveries", name: "Deliveries" },
   { path: "/retail/reports", name: "Insights" },
-  { path: "/retail/setup/operations", name: "Settings — tills" },
-  { path: "/retail/setup/pos-policy", name: "Settings — till rules" },
-  { path: "/retail/setup/accounting", name: "Settings — posting" },
-  { path: "/retail/setup/fiscal", name: "Settings — fiscal device" },
+  { path: "/retail/manage/tills", name: "Settings — tills" },
+  { path: "/retail/manage/till-rules", name: "Settings — till rules" },
+  { path: "/retail/manage/posting", name: "Settings — posting" },
+  { path: "/retail/manage/fiscal", name: "Settings — fiscal device" },
 ];
 
 /*
@@ -122,6 +122,6 @@ test("the deliberate exceptions are visible to a shopkeeper", async ({ page, con
   expect(refunded, "there should be refunds against posted sales").toBeGreaterThan(0);
   expect(voided, "there should be a voided sale").toBeGreaterThan(0);
 
-  await visitSettled(page, "/retail/purchasing/orders");
+  await visitSettled(page, "/retail/buying/orders");
   await expectHealthyPage(page, console_);
 });

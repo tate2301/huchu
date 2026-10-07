@@ -96,6 +96,7 @@ export async function requireApiAuth(options: ApiAuthOptions): Promise<{ session
   const result = await resolveAccessContext({
     session,
     pathname,
+    method: request.method,
     hostHeader,
     requireAdmin,
     requireTenantContext,

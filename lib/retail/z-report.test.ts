@@ -109,6 +109,7 @@ function sale(
     discountAmount: rung.checkout.discountAmount,
     taxAmount: rung.checkout.taxAmount,
     totalAmount: rung.checkout.total,
+    depositAmount: 0,
     changeAmount,
     exchangeRate: 1,
     payments,
@@ -156,6 +157,7 @@ const REFUND: ZReportSaleInput = {
   discountAmount: 0,
   taxAmount: -3.76,
   totalAmount: -28.8,
+  depositAmount: 0,
   changeAmount: 0,
   exchangeRate: 1,
   payments: [{ tenderType: "CASH", baseAmount: -28.8 }],
@@ -196,7 +198,7 @@ const report = buildRetailZReportFigures({
       sales: [
         sale(A1, [{ tenderType: "CASH", baseAmount: 100 }], 13.6),
         sale(A2, [{ tenderType: "CARD", baseAmount: 16.8 }]),
-        sale(A3, [{ tenderType: "MOBILE_MONEY", baseAmount: 36 }]),
+        sale(A3, [{ tenderType: "ECOCASH", baseAmount: 36 }]),
         sale(A4, [{ tenderType: "CASH", baseAmount: 57.6 }]),
         sale(A5, [{ tenderType: "CASH", baseAmount: 60 }]),
       ],
@@ -215,7 +217,7 @@ const report = buildRetailZReportFigures({
       ],
       sales: [
         sale(B1, [{ tenderType: "CASH", baseAmount: 172.8 }]),
-        sale(B2, [{ tenderType: "MOBILE_MONEY", baseAmount: 30 }]),
+        sale(B2, [{ tenderType: "ECOCASH", baseAmount: 30 }]),
         sale(B3, [{ tenderType: "CARD", baseAmount: 120 }]),
         sale(B4, [{ tenderType: "CASH", baseAmount: 20 }], 0.8),
         REFUND,
@@ -326,7 +328,7 @@ describe("how customers paid", () => {
     expect(report.tenderBreakdown.map((row) => row.tenderType)).toEqual([
       "CASH",
       "CARD",
-      "MOBILE_MONEY",
+      "ECOCASH",
     ]);
     expect(report.tenderBreakdown.map((row) => row.amount)).toEqual([
       "367.20",
@@ -585,5 +587,68 @@ describe("why RetailSale.subtotal is not summed", () => {
     expect(money("-3.76").abs().toFixed(2)).toBe("3.76");
     expect(summedSubtotals.minus(report.discountTotal).toFixed(2)).toBe("491.89");
     expect(report.netSales.toFixed(2)).toBe("495.65");
+  });
+});
+
+describe("bottle deposits", () => {
+  // Two crates of Castle with 24 returnable bottles each at 0.25 a bottle: six
+  // dollars of deposit on top of the goods. One crate comes back the same day,
+  // and its three dollars of deposit go back with it.
+  const crates = ringUp([{ product: CASTLE, quantity: 48 }]);
+  const withDeposit: ZReportSaleInput = {
+    ...sale(crates, [{ tenderType: "CASH", baseAmount: 57.6 + 6 }]),
+    depositAmount: 6,
+  };
+  const crateBack: ZReportSaleInput = {
+    saleType: "REFUND",
+    discountAmount: 0,
+    taxAmount: -3.76,
+    totalAmount: -28.8,
+    depositAmount: -3,
+    changeAmount: 0,
+    exchangeRate: 1,
+    payments: [{ tenderType: "CASH", baseAmount: -31.8 }],
+    lines: [{ itemKey: CASTLE.key, itemName: CASTLE.name, sku: CASTLE.sku, quantity: 24, lineTotal: -28.8 }],
+  };
+  const day = buildRetailZReportFigures({
+    businessDate: FRIDAY,
+    registerCode: "TILL02",
+    registerName: "Till 02",
+    siteId: "site-borrowdale",
+    currency: "USD",
+    shifts: [
+      {
+        id: "shift-d",
+        shiftNo: "S-2850",
+        cashierName: "Faith Moyo",
+        openedAt: new Date("2026-08-14T07:30:00.000Z"),
+        closedAt: new Date("2026-08-14T14:00:00.000Z"),
+        openingFloat: "50.00",
+        countedCash: "81.80",
+        movements: [],
+        sales: [withDeposit, crateBack],
+      },
+    ],
+  });
+
+  it("holds what is still owed on empties, net of what went back", () => {
+    expect(day.depositTotal.toFixed(2)).toBe("3.00");
+  });
+
+  it("keeps deposits out of takings, sales and VAT", () => {
+    expect(day.grossTakings.toFixed(2)).toBe("28.80");
+    expect(day.netSales.plus(day.taxTotal).equals(day.grossTakings)).toBe(true);
+  });
+
+  it("counts the deposit cash in the drawer, so the tenders add to takings plus deposits", () => {
+    expect(sumMoney(day.tenderBreakdown.map((row) => row.amount)).toFixed(2)).toBe(
+      day.grossTakings.plus(day.depositTotal).toFixed(2),
+    );
+    expect(day.expectedCash.toFixed(2)).toBe("81.80");
+    expect(day.cashVariance.toFixed(2)).toBe("0.00");
+  });
+
+  it("is nothing on a day without returnable bottles", () => {
+    expect(report.depositTotal.toFixed(2)).toBe("0.00");
   });
 });

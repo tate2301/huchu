@@ -17,13 +17,12 @@ import {
   MedusaHandTruckIcon,
   Money,
   Package,
-  Storefront,
   Sun,
   Tag,
-  TrayArrowDown,
   UsersThree,
 } from "@/lib/icons";
 import type { NavItem, NavRank } from "@/lib/navigation";
+import { RETAIL_NAV_MODULES } from "@/lib/retail/nav";
 import type { WorkspaceNavSection } from "@/lib/workspaces";
 
 import { orderRows } from "./order";
@@ -92,12 +91,9 @@ const AREA_ICONS: Record<string, LucideIcon> = {
   staff: IdentificationCard,
   school: MedusaCogSixToothIcon,
   // Retail and stock
-  "retail-floor": Storefront,
-  "retail-range": Tag,
+  // The retail modules (00-foundations 5.3.4).
   selling: Tag,
   stock: Package,
-  "retail-buy": TrayArrowDown,
-  "retail-control": ChartLineUp,
   pos: CashRegister,
   // CRM
   pipeline: Funnel,
@@ -146,20 +142,19 @@ const AREA_LABELS: Record<string, string> = {
   teaching: "Learning",
   staff: "Staff and families",
   school: "The school",
-  "retail-floor": "The floor",
-  "retail-range": "Products",
   selling: "Products",
   stock: "Stock",
-  "retail-buy": "Buying",
-  "retail-control": "Insights",
   learn: "Insights",
   "gold-operations": "Production",
   "gold-chain": "Movement",
   "gold-control": "Insights",
 };
 
+/** Retail's module marks are declared with their modules (`lib/retail/nav/`). */
+const RETAIL_MODULE_ICONS = new Map(RETAIL_NAV_MODULES.map((module) => [module.id as string, module.icon]));
+
 function iconFor(id: string, items: NavItem[]): LucideIcon {
-  return AREA_ICONS[id] ?? items[0]?.icon ?? MedusaCogSixToothIcon;
+  return AREA_ICONS[id] ?? RETAIL_MODULE_ICONS.get(id) ?? items[0]?.icon ?? MedusaCogSixToothIcon;
 }
 
 /**
@@ -175,7 +170,7 @@ function iconFor(id: string, items: NavItem[]): LucideIcon {
  * any new section gets for free.
  */
 function keyFor(id: string, items: NavItem[]): string {
-  if (id in AREA_LABELS || id in AREA_ICONS || id in AREA_MERGES) return id;
+  if (id in AREA_LABELS || id in AREA_ICONS || id in AREA_MERGES || RETAIL_MODULE_ICONS.has(id)) return id;
   const withoutPrefix = id.includes("-") ? id.slice(id.indexOf("-") + 1) : id;
   if (
     withoutPrefix in AREA_LABELS ||
@@ -293,29 +288,6 @@ export function areasFromSections(
   }
 
   return areas;
-}
-
-/**
- * An area of one is a row, not a mark.
- *
- * A single destination does not earn a slot in a column of eight — it is one
- * row in the map and nothing else. Campus arrives with two of them (Overview
- * and School reports), which is the difference between ten areas and twelve.
- */
-export function splitLooseAreas(areas: RailArea[]): {
-  areas: RailArea[];
-  loose: NavItem[];
-} {
-  const kept: RailArea[] = [];
-  const loose: NavItem[] = [];
-  for (const area of areas) {
-    if (area.items.length <= 1) {
-      loose.push(...area.items);
-      continue;
-    }
-    kept.push(area);
-  }
-  return { areas: kept, loose };
 }
 
 /** The destinations an area shows as rows of its own, outside its folders. */

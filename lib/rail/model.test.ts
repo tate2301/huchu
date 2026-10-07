@@ -1,28 +1,153 @@
 import { describe, expect, it } from "vitest";
 
-import { Funnel } from "@/lib/icons";
+import { ChartBar, FileText, Funnel, Stack, Storefront, Tag, TrayArrowDown, Wrench } from "@/lib/icons";
 import type { NavItem } from "@/lib/navigation";
+import { getClientTemplateFeatureKeys, getClientTemplateWorkspaceProfile } from "@/lib/platform/client-templates";
 import type { WorkspaceNavSection } from "@/lib/workspaces";
+import { getWorkspaceSidebarModel } from "@/lib/workspaces";
 
-import { getRailModel } from "./model";
+import { areaForHref, getRailModel } from "./model";
 
-const rows = (prefix: string, count: number, group?: string): NavItem[] =>
-  Array.from({ length: count }, (_, index) => ({
-    href: `/${prefix}/${index}`,
-    label: `${prefix} ${index}`,
-    icon: Funnel,
-    ...(group ? { group } : {}),
-  }));
-
-describe("getRailModel", () => {
-  it("keeps a destination of its own as a loose row, not a mark", () => {
-    const model = getRailModel([
-      { id: "home", title: "Home", items: rows("home", 1) },
-      { id: "work", title: "Work", items: rows("work", 3) },
-    ]);
-    expect(model.loose.map((item) => item.href)).toEqual(["/home/0"]);
-    expect(model.areas.map((area) => area.id)).toEqual(["work"]);
+function retailRail(role: string) {
+  const model = getWorkspaceSidebarModel({
+    role,
+    enabledFeatures: getClientTemplateFeatureKeys("TEMPLATE_RETAIL"),
+    workspaceProfile: "RETAIL",
   });
+  return getRailModel(model.sections);
+}
+
+describe("the retail rail (00-foundations 5.3.2, 98-decisions 5 October)", () => {
+  it("draws a mark per module for the owner, Setup last and no Management module", () => {
+    const rail = retailRail("SUPERADMIN");
+    expect(rail.shape).toBe("areas");
+    expect(rail.areas.map((area) => area.label)).toEqual([
+      "The floor",
+      "Products",
+      "Stock",
+      "Buying",
+      "Insights",
+      "Reports",
+      "Setup",
+    ]);
+    expect(rail.areas.find((area) => area.id === "retail-setup")?.items.map((item) => item.label)).toEqual([
+      "Shop",
+      "Sites",
+      "Tills and devices",
+      "Payments",
+      "Till rules",
+      "Receipts",
+      "Fiscal device",
+      "Posting to the books",
+      "Staff and PINs",
+      "Approvals",
+      "Bin",
+    ]);
+  });
+
+  it("opens Reports on Every template, then one item per area (INS-07)", () => {
+    const reports = retailRail("SUPERADMIN").areas.find((area) => area.id === "retail-reports");
+    expect(reports?.items.map((item) => item.href)).toEqual([
+      "/retail/reports",
+      "/retail/reports?area=selling",
+      "/retail/reports?area=stock",
+      "/retail/reports?area=buying",
+      "/retail/reports?area=customers",
+      "/retail/reports?area=money",
+      "/retail/reports?area=floor",
+    ]);
+  });
+
+  it("gives the cashier no Setup, no Stock and no Insights", () => {
+    const rail = retailRail("CASHIER");
+    expect(rail.areas.map((area) => area.label)).toEqual(["The floor", "Products", "Buying"]);
+  });
+
+  it("leaves Posting to the books out of the manager's Setup (5.3.4: M column blank)", () => {
+    const setup = retailRail("MANAGER").areas.find((area) => area.id === "retail-setup");
+    expect(setup?.items.map((item) => item.label)).toEqual([
+      "Shop",
+      "Sites",
+      "Tills and devices",
+      "Payments",
+      "Till rules",
+      "Receipts",
+      "Fiscal device",
+      "Staff and PINs",
+      "Approvals",
+      "Bin",
+    ]);
+  });
+
+  it("draws each module's mark from its registry file", () => {
+    expect(retailRail("SUPERADMIN").areas.map((area) => area.icon)).toEqual([
+      Storefront,
+      Tag,
+      Stack,
+      TrayArrowDown,
+      ChartBar,
+      FileText,
+      Wrench,
+    ]);
+  });
+
+  it("finds the module a page belongs to", () => {
+    const { areas } = retailRail("SUPERADMIN");
+    expect(areaForHref(areas, "/retail/shifts")?.label).toBe("The floor");
+    expect(areaForHref(areas, "/retail/manage/tills")?.label).toBe("Setup");
+    expect(areaForHref(areas, null)).toBeNull();
+  });
+
+  it("leaves room for pins beside the marks", () => {
+    expect(retailRail("SUPERADMIN").pinCapacity).toBeGreaterThan(0);
+  });
+});
+
+describe("the rail's shape", () => {
+  const section = (id: string, count: number): WorkspaceNavSection => ({
+    id,
+    title: id,
+    items: Array.from({ length: count }, (_, index) => ({
+      href: `/${id}/${index}`,
+      label: `${id} ${index}`,
+      icon: Tag,
+    })),
+  });
+
+  it("draws a small workspace flat, with every pin slot free", () => {
+    const rail = getRailModel([section("alpha", 3), section("beta", 2)]);
+    expect(rail.shape).toBe("flat");
+    expect(rail.pinCapacity).toBe(6);
+  });
+
+  it("draws a big one as a module list and one module at a time", () => {
+    const rail = getRailModel([section("alpha", 8), section("beta", 8), section("gamma", 8)]);
+    expect(rail.shape).toBe("areas");
+    expect(rail.cost).toBeGreaterThan(rail.budget);
+  });
+
+  it("draws the gold, schools and CRM workspaces with their modules", () => {
+    for (const template of ["TEMPLATE_GOLD_MINE", "TEMPLATE_SCHOOLS", "TEMPLATE_CRM"]) {
+      const model = getWorkspaceSidebarModel({
+        role: "SUPERADMIN",
+        enabledFeatures: getClientTemplateFeatureKeys(template),
+        workspaceProfile: getClientTemplateWorkspaceProfile(template),
+      });
+      const rail = getRailModel(model.sections);
+      expect(rail.areas.length, template).toBeGreaterThan(0);
+      expect(model.supportItems.map((item) => item.href), template).toContain("/help");
+    }
+  });
+});
+
+describe("a module read whole", () => {
+  const rows = (prefix: string, count: number, group?: string): NavItem[] =>
+    Array.from({ length: count }, (_, index) => ({
+      href: `/${prefix}/${index}`,
+      label: `${prefix} ${index}`,
+      icon: Funnel,
+      ...(group ? { group } : {}),
+    }));
 
   it("reads modules whole past ten areas, with their groups as folders that fit", () => {
     const groups = Array.from({ length: 7 }, (_, index) => ({ id: `g${index}`, label: `Group ${index}` }));

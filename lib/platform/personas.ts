@@ -1,4 +1,4 @@
-export type PersonaDomain = "schools" | "retail" | "portal";
+export type PersonaDomain = "schools" | "portal";
 
 export type PersonaCode =
   | "SCHOOL_ADMIN"
@@ -8,10 +8,7 @@ export type PersonaCode =
   | "TEACHER"
   | "WARDEN"
   | "PARENT"
-  | "STUDENT"
-  | "CASHIER"
-  | "STOCK_CLERK"
-  | "RETAIL_MANAGER";
+  | "STUDENT";
 
 export interface PersonaDefinition {
   code: PersonaCode;
@@ -34,9 +31,6 @@ export const PERSONAS: PersonaDefinition[] = [
   { code: "WARDEN", domain: "schools", label: "Warden", description: "Boarding operations, bed allocations, and leave workflows." },
   { code: "PARENT", domain: "portal", label: "Parent", description: "Portal access for linked child records and fees." },
   { code: "STUDENT", domain: "portal", label: "Student", description: "Portal access for own timetable, attendance, and results." },
-  { code: "CASHIER", domain: "retail", label: "Cashier", description: "POS selling, shift open/close, and tender capture." },
-  { code: "STOCK_CLERK", domain: "retail", label: "Stock Clerk", description: "Catalog upkeep, receiving coordination, and stock movement support." },
-  { code: "RETAIL_MANAGER", domain: "retail", label: "Retail Manager", description: "Pricing, promotions, cash-up approvals, and retail governance." },
 ];
 
 /** Everything a school resource can be asked to do. */
@@ -254,19 +248,6 @@ const PERMISSIONS_BY_PERSONA: Record<PersonaCode, PersonaPermission[]> = {
   STUDENT: [
     { resource: "schools.portal.student", actions: ["view-own-profile", "view-own-attendance", "view-own-results"] },
   ],
-  CASHIER: [
-    { resource: "retail.pos", actions: ["view", "sell", "close-shift"] },
-    { resource: "retail.refunds", actions: ["request"] },
-  ],
-  STOCK_CLERK: [
-    { resource: "retail.purchasing", actions: ["view", "create", "receive"] },
-    { resource: "retail.catalog", actions: ["view", "edit"] },
-  ],
-  RETAIL_MANAGER: [
-    { resource: "retail.pos", actions: ["view", "sell", "override"] },
-    { resource: "retail.shifts", actions: ["view", "run", "approve"] },
-    { resource: "retail.promotions", actions: ["view", "edit", "apply"] },
-  ],
 };
 
 export function getPersonaDefinitions(): PersonaDefinition[] {
@@ -308,6 +289,9 @@ export function hasPersonaPermission(
  * deny — which is the right answer for both: the deals and leads they described
  * no longer exist, and a `SALES_EXEC` kept on for CRM has no persona grants to
  * spend anywhere else.
+ *
+ * Retail roles map to nothing either: retail answers from its own matrix in
+ * `lib/retail/permission-matrix.ts` (the Roles board).
  */
 const ROLE_TO_PERSONA: Record<string, PersonaCode> = {
   SCHOOL_ADMIN: "SCHOOL_ADMIN",
@@ -318,9 +302,6 @@ const ROLE_TO_PERSONA: Record<string, PersonaCode> = {
   TEACHER: "TEACHER",
   PARENT: "PARENT",
   STUDENT: "STUDENT",
-  SHOP_MANAGER: "RETAIL_MANAGER",
-  CASHIER: "CASHIER",
-  STOCK_CLERK: "STOCK_CLERK",
 };
 
 export function personaForRole(role?: string | null): PersonaCode | null {

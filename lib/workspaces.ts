@@ -6,7 +6,8 @@ import { normalizeFeatureKey } from "@/lib/platform/gating/catalog-utils";
 import { filterNavSectionsByEnabledFeatures } from "@/lib/platform/gating/nav-filter";
 import type { PersonaCode } from "@/lib/platform/personas";
 import { getPrimaryQuickActions } from "@/lib/primary-actions";
-import { canAccessPosPortal } from "@/lib/retail/pos-host";
+import { RETAIL_NAV_MODULES, roleMeetsRetailRequires } from "@/lib/retail/nav";
+import type { RetailAction, RetailResource } from "@/lib/retail/permission-matrix";
 import { schoolAccess } from "@/lib/schools/access";
 import {
   inferWorkspaceProfileFromEnabledFeatures,
@@ -49,6 +50,7 @@ export type WorkspaceSidebarModel = {
   workspaceIcon: LucideIcon;
   quickActions: NavItem[];
   sections: WorkspaceNavSection[];
+  /** Help: the shelf at the foot of the panel, above Management. */
   supportItems: NavItem[];
   /** Every workspace this person can switch to. One entry means no switcher. */
   workspaces: WorkspaceOption[];
@@ -60,16 +62,6 @@ type WorkspaceModelArgs = {
   role: string | null | undefined;
   enabledFeatures: string[] | undefined;
   workspaceProfile: string | null | undefined;
-  /**
-   * The site each *active* stock location belongs to, one entry per location.
-   *
-   * Only the shape of this list matters, not the ids: a transfer reclassifies a
-   * stock line from one location to another **within one site**, so it can only
-   * be performed where some site has two of them. Left undefined the answer is
-   * "not known", and a surface whose only action may well be impossible is not
-   * offered. See `canReclassifyStockBetweenLocations`.
-   */
-  activeStockLocationSiteIds?: string[];
   /**
    * Which of a multi-workspace tenant's workspaces is being looked at.
    *
@@ -115,6 +107,11 @@ type WorkspaceProfileSectionSpec = {
     href: string;
     /** The band this destination sits in. Must name one of `groups`. */
     group?: string;
+    /**
+     * Retail grants this arrangement asks of a destination another module
+     * owns (any of), on top of the item's own `requires`.
+     */
+    requires?: Array<[RetailResource, RetailAction]>;
   }>;
 };
 
@@ -129,6 +126,13 @@ type WorkspaceProfileRecipe = {
   nativeModules: WorkspaceModuleId[];
   sections: WorkspaceProfileSectionSpec[];
 };
+
+function retailHomeHref(role: string | null | undefined): string {
+  const normalized = role?.trim().toUpperCase();
+  if (normalized === "CASHIER") return "/retail/shifts";
+  if (normalized === "STOCK_CLERK") return "/retail/stock";
+  return "/retail";
+}
 
 function resolveRecipeHomeHref(
   recipe: WorkspaceProfileRecipe,
@@ -262,30 +266,6 @@ const SUPPORT_ITEMS: NavItem[] = [
   { href: "/help", icon: FileText, label: "Quick Tips" },
 ];
 
-/**
- * Whether a stock transfer is a thing this workspace can actually do.
- *
- * `InventoryItem` holds one on-hand figure per (site, itemCode) — there is no
- * per-location quantity anywhere in the schema — so a `TRANSFER` reclassifies a
- * whole line from one location to another *inside one site*, and
- * `recordStockMovement` refuses anything else. It therefore takes two active
- * locations at the same site before a transfer has anywhere to go. Derived from
- * the tenant's own locations rather than assumed: the demo bottle store happens
- * to have exactly one (`SHOP`), a second branch would not.
- */
-function canReclassifyStockBetweenLocations(siteIds: string[] | undefined): boolean {
-  if (!siteIds || siteIds.length < 2) return false;
-
-  const perSite = new Map<string, number>();
-  for (const siteId of siteIds) {
-    const next = (perSite.get(siteId) ?? 0) + 1;
-    if (next >= 2) return true;
-    perSite.set(siteId, next);
-  }
-
-  return false;
-}
-
 function createSectionModule(args: {
   id: WorkspaceModuleId;
   label: string;
@@ -346,41 +326,14 @@ const WORKSPACE_MODULES: Record<WorkspaceModuleId, WorkspaceModuleDefinition> = 
       return context.navSectionById.get("schools")?.groups;
     },
   },
-  retail: {
+  // The retail nav section is the definition — `lib/retail/nav/`, where each
+  // item's `requires` decides who sees it (`buildContext`).
+  retail: createSectionModule({
     id: "retail",
     label: "Retail",
+    sectionId: "retail",
     homeHref: "/retail",
-    /**
-     * The retail nav section is already the definition — see `lib/navigation.ts`.
-     * This adds the three things gating cannot express: the till is a portal app
-     * rather than a retail page, the back-office shifts screen is the manager's
-     * view of a cash-up a cashier does at the register, and a transfer needs
-     * somewhere to transfer to.
-     */
-    getItems(context) {
-      const posCapable = canAccessPosPortal(context.role);
-      const canTransfer = canReclassifyStockBetweenLocations(context.activeStockLocationSiteIds);
-      const items: NavItem[] = [];
-
-      for (const item of context.navSectionById.get("retail")?.items ?? []) {
-        if (item.href === "/retail/shifts" && posCapable) continue;
-        // A shop with one stock location has nowhere to send anything, and
-        // `recordStockMovement` refuses such a transfer outright — the
-        // destination has to be a *different* active location at the same site.
-        // A surface whose only action cannot be performed is not offered, the
-        // same rule the till applies to its site picker when there is one branch.
-        if (item.href === "/retail/stock/transfers" && !canTransfer) continue;
-        // `/portal/pos` and `/retail/sales` are both gated on `retail.pos`, so
-        // offering the till alongside the sales list keeps them in step.
-        if (item.href === "/retail/sales" && posCapable) {
-          items.push({ href: "/portal/pos", label: "Open POS", icon: Payments });
-        }
-        items.push(item);
-      }
-
-      return items;
-    },
-  },
+  }),
   crm: {
     id: "crm",
     label: "CRM",
@@ -578,7 +531,9 @@ const WORKSPACE_PROFILE_RECIPES: Partial<Record<WorkspaceProfile, WorkspaceProfi
   },
   RETAIL: {
     label: "Retail",
-    preferredHomeHref: "/retail",
+    // Where each role starts its day (00-foundations 5.3.4): the counter for a
+    // cashier, the shelves for a stock clerk, the overview for everyone else.
+    preferredHomeHref: retailHomeHref,
     /**
      * `stores` is native here, which is what removes "Stores & Inventory" as its
      * own entry from a retail sidebar: `buildAdditionalSections` only emits
@@ -587,83 +542,16 @@ const WORKSPACE_PROFILE_RECIPES: Partial<Record<WorkspaceProfile, WorkspaceProfi
      * Every other profile leaves `stores` unclaimed and still gets the section.
      */
     nativeModules: ["retail", "reporting", "stores"],
-    sections: [
-      {
-        id: "retail-floor",
-        title: "The floor",
-        refs: [
-          { moduleId: "retail", href: "/retail" },
-          { moduleId: "retail", href: "/portal/pos" },
-          { moduleId: "retail", href: "/retail/sales" },
-          { moduleId: "retail", href: "/retail/shifts" },
-          { moduleId: "retail", href: "/retail/customers" },
-        ],
-      },
-      /**
-       * The one stock door in a retail workspace.
-       *
-       * Retail's range and the core stock module are the same shop from two
-       * angles, and they used to be two entries in the sidebar — "Range & Stock"
-       * and, under More, "Stores & Inventory". A shopkeeper had to know which of
-       * the two owned the answer, and the answer was usually "both": on-hand has
-       * only ever lived in the core `InventoryItem`, and every retail movement
-       * writes a core `StockMovement`.
-       *
-       * What it holds, and why:
-       *  - **What we sell** is retail's own — the range, its shelf prices and its
-       *    promotions. Core's catalogue and price lists are deliberately *not*
-       *    here: they are a second item master and a second price book that no
-       *    retail surface reads today, and offering them beside retail's own
-       *    would be offering the shopkeeper a choice with no right answer. They
-       *    stay entitled, reachable as tabs of the Stores shell, and they get the
-       *    keys (`stores.catalogue`, `stores.price-lists`) that let a tenant be
-       *    given retail's stock without them. S-3 and S-4 collapse the pair; the
-       *    nav follows that, it does not pre-empt it.
-       *  - **Stock** is core's, plus the two retail screens core has no answer
-       *    for. `/retail/stock` carries the on-order and goods-received values
-       *    that come from retail purchase orders and receipts, which the core
-       *    stock overview cannot show. `/retail/stock/count` posts a variance as
-       *    an `ADJUSTMENT`; the Stores module offers Issue and Receive and has no
-       *    adjustment surface at all, so deleting it would lose the stock take.
-       *    `/retail/stock/transfers` is the only `TRANSFER` surface in the
-       *    product, and it hides itself when the shop has nowhere to transfer to.
-       */
-      {
-        id: "retail-range",
-        title: "Products and stock",
-        groups: [
-          { id: "selling", label: "What we sell" },
-          { id: "stock", label: "Stock" },
-        ],
-        refs: [
-          { moduleId: "retail", href: "/retail/catalog", group: "selling" },
-          { moduleId: "retail", href: "/retail/merchandising/pricing", group: "selling" },
-          { moduleId: "retail", href: "/retail/merchandising/promotions", group: "selling" },
-          { moduleId: "retail", href: "/retail/stock", group: "stock" },
-          { moduleId: "stores", href: "/stores/inventory", group: "stock" },
-          { moduleId: "stores", href: "/stores/movements", group: "stock" },
-          { moduleId: "stores", href: "/stores/locations", group: "stock" },
-          { moduleId: "retail", href: "/retail/stock/count", group: "stock" },
-          { moduleId: "retail", href: "/retail/stock/transfers", group: "stock" },
-        ],
-      },
-      {
-        id: "retail-buy",
-        title: "Purchasing",
-        refs: [
-          { moduleId: "retail", href: "/retail/purchasing/orders" },
-          { moduleId: "retail", href: "/retail/purchasing/receipts" },
-        ],
-      },
-      {
-        id: "retail-control",
-        title: "Insights",
-        refs: [
-          { moduleId: "retail", href: "/retail/reports" },
-          { moduleId: "reporting", href: "/reports" },
-        ],
-      },
-    ],
+    /**
+     * The retail modules, one rail mark each, in the canvas's order
+     * (00-foundations 5.3.4), read from `lib/retail/nav/`, Setup last. The
+     * gear at the foot of the rail is the Management surface, not a module.
+     */
+    sections: RETAIL_NAV_MODULES.map((module) => ({
+      id: module.id,
+      title: module.title,
+      refs: module.items.map((item) => ({ moduleId: "retail" as const, href: item.href })),
+    })),
   },
   PAYROLL: {
     label: "Payroll",
@@ -760,7 +648,11 @@ function buildContext(args: WorkspaceModelArgs): WorkspaceBuildContext {
   )
     .map((section) => ({
       ...section,
-      items: section.items.filter((item) => isRouteAllowedForRole(args.role, item.href)),
+      items: section.items.filter(
+        (item) =>
+          isRouteAllowedForRole(args.role, item.href) &&
+          (!item.requires || roleMeetsRetailRequires(args.role, item.requires)),
+      ),
     }))
     .filter((section) => section.items.length > 0);
 
@@ -803,6 +695,7 @@ function getVisibleItem(
 function buildProfileSections(
   recipe: WorkspaceProfileRecipe,
   visibleModules: Map<WorkspaceModuleId, NavItem[]>,
+  role: string | null | undefined,
 ): WorkspaceNavSection[] {
   return recipe.sections
     .map((section) => {
@@ -812,6 +705,7 @@ function buildProfileSections(
       for (const ref of section.refs) {
         const item = getVisibleItem(visibleModules, ref.moduleId, ref.href);
         if (!item || seen.has(item.href)) continue;
+        if (ref.requires && !roleMeetsRetailRequires(role, ref.requires)) continue;
         seen.add(item.href);
         // The arrangement's grouping wins over whatever band the item carried
         // in its own module — `/stores/inventory` is "Stock" in both, but the
@@ -996,13 +890,14 @@ function getPrimarySections(
   recipe: WorkspaceProfileRecipe,
   visibleModules: Map<WorkspaceModuleId, NavItem[]>,
   verticalProduct: VerticalProductBundleDefinition,
+  role: string | null | undefined,
   verticalOnly = false,
 ): WorkspaceNavSection[] {
   if (recipe === WORKSPACE_PROFILE_RECIPES.GENERAL) {
     return buildGeneralSections(visibleModules, verticalProduct);
   }
 
-  const profileSections = buildProfileSections(recipe, visibleModules);
+  const profileSections = buildProfileSections(recipe, visibleModules, role);
   const usedHrefs = collectSectionHrefs(profileSections);
 
   if (verticalOnly || recipe === WORKSPACE_PROFILE_RECIPES.RETAIL) {
@@ -1317,23 +1212,17 @@ export function getWorkspaceSidebarModel(args: WorkspaceModelArgs): WorkspaceSid
     enabledFeatures: args.enabledFeatures,
     workspaceProfile: profile,
   });
-  const primarySections = getPrimarySections(recipe, visibleModules, verticalProduct, verticalOnly);
+  const primarySections = getPrimarySections(recipe, visibleModules, verticalProduct, args.role, verticalOnly);
   const usedPrimaryHrefs = collectSectionHrefs(primarySections);
-  const canonicalAdditionalSections =
+  // The retail workspace is the canvas's: its own modules and the Management
+  // gear, nothing appended (00-foundations 5.3.2). A vertical of a split
+  // tenant and the general workspace carry no leftovers either.
+  const additionalSections =
+    verticalOnly ||
+    recipe === WORKSPACE_PROFILE_RECIPES.GENERAL ||
     recipe === WORKSPACE_PROFILE_RECIPES.RETAIL
-      ? buildCanonicalCoreSections(
-          visibleModules,
-          usedPrimaryHrefs,
-          verticalProduct,
-          "additional",
-        )
-      : [];
-  const additionalSections = verticalOnly || recipe === WORKSPACE_PROFILE_RECIPES.GENERAL
-    ? []
-    : [
-        ...canonicalAdditionalSections,
-        ...buildAdditionalSections(recipe, visibleModules, usedPrimaryHrefs, verticalProduct),
-      ];
+      ? []
+      : buildAdditionalSections(recipe, visibleModules, usedPrimaryHrefs, verticalProduct);
   const sections = [...primarySections, ...additionalSections];
   const homeTarget = getHomeTarget({
     recipe,

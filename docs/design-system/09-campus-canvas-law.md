@@ -119,7 +119,7 @@ prop (`Compact` | `Cozy`):
 
 ## 7. Tokens
 
-Resolved values of `app/styles/tokens.css`. Use the token, not the hex.
+Resolved values of the `@corelithzw/react` tokens under the Corelith theme (`app/themes/roles.css`). Use the token, not the hex.
 
 | role | value |
 |---|---|

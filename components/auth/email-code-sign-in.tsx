@@ -96,7 +96,9 @@ export function EmailCodeSignIn({
         setError(describeCodeError(result.error));
         return;
       }
-      router.push(result?.url ?? callbackUrl);
+      // Stay on this host: `result.url` is built on NEXTAUTH_URL, and the
+      // session cookie belongs to the host the sign-in was made on.
+      router.push(callbackUrl);
       router.refresh();
     } finally {
       setBusy(false);

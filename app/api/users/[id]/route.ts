@@ -66,7 +66,8 @@ export async function GET(
             role: user.role,
           })
         : Promise.resolve([]),
-      findLastSignInAt({ companyId: session.user.companyId, email: user.email }),
+      // Someone who only uses a till has no email, so no admin sign-in.
+      user.email ? findLastSignInAt({ companyId: session.user.companyId, email: user.email }) : Promise.resolve(null),
     ]);
 
     return successResponse({

@@ -202,19 +202,8 @@ async function main() {
   }
 
   if (hasTable) {
-    // A was-price still only on the listing would be lost outright.
-    const strandedCompares = await count(
-      `SELECT COUNT(*) AS n FROM ${ident(TABLE)} r
-        JOIN "Product" p ON p."id" = r."productId"
-        WHERE r."compareAtPrice" IS NOT NULL AND p."compareAtPrice" IS NULL`,
-    )
-    if (strandedCompares > 0) {
-      blocking.push(
-        `${strandedCompares} listing(s) carry a was-price the product does not — ` +
-          "copy compareAtPrice onto the product before running this",
-      )
-    }
-
+    // A was-price is the price history now (PRD-03): `Product` keeps none, and
+    // a listing's was-price is not carried over.
     const unlinked = await count(`SELECT COUNT(*) AS n FROM ${ident(TABLE)} WHERE "productId" IS NULL`)
     if (unlinked > 0) {
       blocking.push(

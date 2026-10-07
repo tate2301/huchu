@@ -23,43 +23,21 @@ test.describe.configure({ timeout: 180_000 });
 test.use({ tenant: SCHOOL, as: "head", serviceWorkers: "block" });
 
 /**
- * Open the palette from the app bar and hand back its input.
+ * Open the palette and hand back its input.
  *
- * The button is matched by its accessible name and the input by its exact
- * placeholder: the register underneath has a search box of its own and a year
- * group picker, and a loose placeholder pattern typed a pupil's surname into the
- * year group filter, which then reported the palette as broken.
+ * The header carries no search box any more (00-foundations 5.3.6): the
+ * palette opens with Ctrl+K from anywhere. The input is matched by its exact
+ * placeholder, because the register underneath has a search box of its own.
  *
- * The trigger is asked for by its full name, and that is the fix at desktop.
- * Matching `"Search"` used to be unambiguous; the workspace rail now carries a
- * search of its own, labelled "Search ⌘K", which sits above the navigation and
- * comes first in the DOM. So `"Search"` matched the rail's button, the click
- * landed on it rather than on the palette, and the palette's input was reported
- * missing — correctly, because nothing had opened it. Filtering to what is
- * visible does not help: at 1440px the rail's search is visible too.
- *
- * `GlobalCommandBar` gives both of its variants the `aria-label`
- * "Search records and actions", so that name reaches the palette and nothing
- * else. `.filter({ visible: true })` still earns its place after it: `Navbar`
- * mounts the bar twice, once in the phone row and once in the `md:flex` one,
- * and only the row belonging to this width is on screen.
+ * Pressed until it opens rather than once: a key pressed before React has
+ * hydrated the shell does nothing, and Ctrl+K toggles, so it is only pressed
+ * again while the input is still missing.
  */
 async function openPalette(page: Page) {
   await page.goto("/schools/students");
-  const button = page
-    .getByRole("button", { name: "Search records and actions" })
-    .filter({ visible: true })
-    .first();
-  await expect(button).toBeVisible({ timeout: 30_000 });
   const input = page.getByPlaceholder("Search quick actions");
-
-  // Clicked until it opens rather than once. The button paints before React
-  // hydrates the app bar, and a click that lands in that window does nothing at
-  // all — which on the phone viewport made the palette look broken while the
-  // same code opened it perfectly a second later. The handler sets open rather
-  // than toggling it, so clicking again is safe.
   await expect(async () => {
-    await button.click();
+    if (!(await input.isVisible())) await page.keyboard.press("Control+k");
     await expect(input).toBeVisible({ timeout: 5_000 });
   }).toPass({ timeout: 60_000 });
 

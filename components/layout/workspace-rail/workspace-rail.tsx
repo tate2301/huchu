@@ -3,190 +3,147 @@
 import * as React from "react";
 import Link from "next/link";
 
-import { cn } from "@/lib/utils";
-import {
-  MedusaCogSixToothIcon,
-  Package,
-} from "@/lib/icons";
+import { MedusaCogSixToothIcon, Package } from "@/lib/icons";
+import { isSettingsSurfacePath } from "@/lib/settings/management-nav";
 import type { NavItem } from "@/lib/navigation";
-import type { WorkspaceNavSection, WorkspaceOption } from "@/lib/workspaces";
-import { areaForHref, getRailModel } from "@/lib/rail/model";
-import {
-  areaRows,
-  folderForHref,
-  type RailArea,
-  type RailFolder,
-} from "@/lib/rail/areas";
+import { areaRows, folderForHref, type RailArea, type RailFolder } from "@/lib/rail/areas";
+import { areaForHref, type RailModel } from "@/lib/rail/model";
 import { orderRows } from "@/lib/rail/order";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
 
-import { RailAvatar } from "./rail-avatar";
 import { RailPanel } from "./rail-panel";
-import { RailHeading, RailRow, RailRows } from "./rail-row";
+import { RailHeading, RailRow } from "./rail-row";
 import { SwitcherRail, type RailMark } from "./switcher-rail";
 import { usePins } from "./use-pins";
 import styles from "./workspace-rail.module.css";
 
-/** The shelf: the same three rows in the same place in every workspace. */
-const MANAGEMENT: NavItem = {
-  href: "/management/master-data",
-  label: "Management",
-  icon: MedusaCogSixToothIcon,
-};
-
-function initialsFor(name: string): string {
-  const parts = name.trim().split(/\s+/).filter(Boolean);
-  if (parts.length === 0) return "?";
-  if (parts.length === 1) return parts[0]!.slice(0, 2).toUpperCase();
-  return (parts[0]![0]! + parts[parts.length - 1]![0]!).toUpperCase();
+/**
+ * Where a module, or a folder in one, opens: its first page inside the shell.
+ * A module may list a page of the full-screen settings surface (Setup's Shop),
+ * which is a place to go to from the module, not the module's own front page.
+ */
+function landingHref(level: RailArea | RailFolder): string {
+  const inShell = level.items.find((item) => !isSettingsSurfacePath(item.href.split("?")[0] ?? item.href));
+  return (inShell ?? level.items[0])?.href ?? "#";
 }
 
+/**
+ * Where the panel is standing: the module list (no area), a module, or a
+ * folder inside a module read whole.
+ */
+type RailView = { areaId: string | null; folderId: string | null };
+
+/**
+ * The rail and its panel, side by side (00-foundations 5.3.1–5.3.3).
+ *
+ * The panel has two levels when the workspace is too big to show at once: the
+ * workspace's module list, and one module's items. It opens on the module the
+ * page belongs to; the chevron before the module's title goes back up to the
+ * module list, and picking a module there opens its items. A module read whole
+ * because its groups would not fit as marks (the CRM beside other modules)
+ * keeps those groups as folders among its items: picking one goes down a
+ * level, and the chevron comes back up one level at a time. A workspace small
+ * enough to fit is drawn flat: every module's items under its title, and the
+ * rail carries pins alone. Collapsing the panel is its own control.
+ */
 export function WorkspaceRail({
-  sections,
+  model,
   workspaceLabel,
-  companyName,
-  companyLogoUrl,
   activeHref,
-  supportItems,
-  isCollapsed,
-  onToggleCollapse,
-  onOpenSearch,
-  onOpenNew,
-  onOpenSwitcher,
-  workspaces,
-  activeWorkspaceId,
-  onSelectWorkspace,
-  user,
-  accountMenu,
-  collections,
+  badges,
+  tile,
+  person,
+  management,
+  supportItems = [],
+  panelShown,
+  panelOverlay,
+  onCollapse,
+  onOpenPanel,
+  onSearch,
+  onNavigate,
+  extra,
 }: {
-  sections: WorkspaceNavSection[];
+  model: RailModel;
+  /** The workspace's name: the module list's title ("Retail"). */
   workspaceLabel: string;
-  companyName: string;
-  /** The workspace's branding logo, drawn as the company mark. */
-  companyLogoUrl?: string | null;
   activeHref: string | null;
-  supportItems: NavItem[];
-  isCollapsed?: boolean;
-  onToggleCollapse?: () => void;
-  onOpenSearch?: () => void;
-  onOpenNew?: () => void;
-  onOpenSwitcher?: () => void;
-  /** The businesses this company runs. Fewer than two draws no switcher. */
-  workspaces?: WorkspaceOption[];
-  activeWorkspaceId?: string;
-  onSelectWorkspace?: (id: string) => void;
-  user?: { name?: string | null; image?: string | null };
-  accountMenu?: React.ReactNode;
-  /**
-   * The user's own shelves — saved views, lists. Sits under the
-   * product's own rows because it is not part of the app's structure.
-   * Renders nothing outside the surface that owns it.
-   */
-  collections?: React.ReactNode;
+  badges: Record<string, string>;
+  tile: React.ReactNode;
+  /** The person at the foot of the rail, with their menu. */
+  person?: React.ReactNode;
+  /** The Management surface: the gear at the foot of the rail and a shelf row. */
+  management: NavItem | null;
+  /** Help, on the shelf above Management. */
+  supportItems?: NavItem[];
+  panelShown: boolean;
+  panelOverlay?: boolean;
+  onCollapse?: () => void;
+  onOpenPanel: () => void;
+  onSearch?: () => void;
+  onNavigate?: () => void;
+  extra?: React.ReactNode;
 }) {
-  const model = React.useMemo(() => getRailModel(sections), [sections]);
-  const { shape, areas, loose, pinCapacity } = model;
-
-  const activeArea = React.useMemo(
-    () => areaForHref(areas, activeHref),
-    [areas, activeHref],
-  );
+  const { shape, areas, pinCapacity } = model;
+  const activeArea = React.useMemo(() => areaForHref(areas, activeHref), [areas, activeHref]);
   const activeFolderId = activeArea ? (folderForHref(activeArea, activeHref)?.id ?? null) : null;
-  const looseActive = loose.some((item) => item.href === activeHref);
 
-  // Where the panel is standing: the map (no area), an area, or a folder in
-  // one. Down is a row with a caret, up is the back button, one level at a
-  // time. It follows the page: opening a destination opens the level it sits
-  // in, and opening one of the loose pages — Home, Overview — goes back to the
-  // map, which is where those rows live.
-  const [view, setView] = React.useState<{ areaId: string | null; folderId: string | null }>({
-    areaId: null,
-    folderId: null,
-  });
-  React.useEffect(() => {
-    if (activeArea) setView({ areaId: activeArea.id, folderId: activeFolderId });
-    else if (looseActive) setView({ areaId: null, folderId: null });
-  }, [activeArea, activeFolderId, looseActive]);
+  // Where the panel is standing. The module list (`areaId` null) is a
+  // legitimate place to stand: you are looking at the workspace, not inside
+  // one of its modules. It follows the page whenever the page's module, or
+  // the folder it sits in, changes.
+  const pageView: RailView = { areaId: activeArea?.id ?? null, folderId: activeFolderId };
+  const pageViewKey = `${pageView.areaId ?? ""}/${pageView.folderId ?? ""}`;
+  const [view, setView] = React.useState<RailView>(pageView);
+  const [followedViewKey, setFollowedViewKey] = React.useState(pageViewKey);
+  if (pageViewKey !== followedViewKey) {
+    setFollowedViewKey(pageViewKey);
+    if (activeArea) setView(pageView);
+  }
 
   const { pins, isPinned, toggle } = usePins(workspaceLabel, pinCapacity);
 
   const byHref = React.useMemo(() => {
     const map = new Map<string, NavItem>();
-    for (const item of loose) map.set(item.href, item);
-    for (const area of areas) {
-      for (const item of area.items) map.set(item.href, item);
-    }
+    for (const area of areas) for (const item of area.items) map.set(item.href, item);
     return map;
-  }, [areas, loose]);
+  }, [areas]);
 
-  const pinnedItems = React.useMemo(
-    () =>
-      orderRows(
-        pins
-          .map((href) => byHref.get(href))
-          .filter((item): item is NavItem => Boolean(item)),
-        { label: (item) => item.label },
-      ),
-    [byHref, pins],
+  const pinnedItems = orderRows(
+    pins.map((href) => byHref.get(href)).filter((item): item is NavItem => Boolean(item)),
+    { label: (item) => item.label },
   );
 
-  const shownArea =
-    shape === "areas"
-      ? (areas.find((area) => area.id === view.areaId) ?? null)
-      : null;
-  const shownFolder =
-    shownArea?.folders?.find((folder) => folder.id === view.folderId) ?? null;
+  const shownArea = shape === "areas" ? (areas.find((area) => area.id === view.areaId) ?? null) : null;
+  const shownFolder = shownArea?.folders?.find((folder) => folder.id === view.folderId) ?? null;
 
-  const marks: RailMark[][] = React.useMemo(() => {
-    const groups: RailMark[][] = [];
-    if (shape === "areas") {
-      groups.push(
-        areas.map((area) => ({
+  const groups: RailMark[][] = [
+    shape === "areas"
+      ? areas.map((area) => ({
           id: area.id,
           label: area.label,
           icon: area.icon,
-          href: area.items[0]?.href ?? "#",
-          active: area.id === activeArea?.id,
-        })),
-      );
-    }
-    if (pinnedItems.length > 0) {
-      groups.push(
-        pinnedItems.map((item) => ({
-          id: `pin:${item.href}`,
-          label: item.label,
-          icon: item.icon,
-          href: item.href,
-          active: item.href === activeHref,
-        })),
-      );
-    }
-    return groups;
-  }, [activeArea?.id, activeHref, areas, pinnedItems, shape]);
+          href: landingHref(area),
+          current: area.id === activeArea?.id,
+          onSelect: () => setView({ areaId: area.id, folderId: null }),
+        }))
+      : [],
+    pinnedItems.map((item) => ({
+      id: `pin:${item.href}`,
+      label: item.label,
+      icon: item.icon,
+      href: item.href,
+      current: item.href === activeHref,
+    })),
+  ];
 
-  const shelf = (
-    <RailRows>
-      {[...supportItems, MANAGEMENT].map((item) => (
-        <RailRow
-          key={item.href}
-          href={item.href}
-          label={item.label}
-          icon={item.icon}
-          dim
-          active={item.href === activeHref}
-        />
-      ))}
-    </RailRows>
-  );
-
-  const person = accountMenu ?? (
-    <RailAvatar src={user?.image} name={user?.name} />
-  );
+  const managementMark: RailMark | null = management
+    ? {
+        id: "management",
+        label: management.label,
+        icon: management.icon,
+        href: management.href,
+        current: false,
+      }
+    : null;
 
   const rowFor = (item: NavItem) => (
     <RailRow
@@ -194,7 +151,9 @@ export function WorkspaceRail({
       href={item.href}
       label={item.label}
       icon={item.icon}
-      active={item.href === activeHref}
+      current={item.href === activeHref}
+      badge={badges[item.href]}
+      onNavigate={onNavigate}
       onPin={pinCapacity > 0 ? () => toggle(item.href) : undefined}
       pinned={isPinned(item.href)}
     />
@@ -208,191 +167,122 @@ export function WorkspaceRail({
       alphabetical: area.ranked === true,
     }).map(rowFor);
 
-  // A row that opens a level: the area or folder's first page, and the level
-  // itself in the panel. Setting the view here as well as from the page is
-  // what makes it open when that page is the one already showing.
-  const levelRow = (
-    level: RailArea | RailFolder,
-    open: () => void,
-    active: boolean,
-  ) => (
+  // A row that opens a level: a module in the module list, or a folder in a
+  // module. Following it lands on the level's first page and opens the level;
+  // setting the view here as well as from the page is what opens it when that
+  // page is the one already showing.
+  const levelRow = (level: RailArea | RailFolder, open: RailView, current: boolean) => (
     <RailRow
       key={level.id}
-      href={level.items[0]?.href ?? "#"}
+      href={landingHref(level)}
       label={level.label}
       icon={level.icon}
-      active={active}
-      onOpen={open}
+      current={current}
+      onNavigate={() => {
+        setView(open);
+        onNavigate?.();
+      }}
     />
   );
 
-  const looseRows = loose.length > 0 ? <RailRows>{loose.map(rowFor)}</RailRows> : null;
+  // The chevron goes up one level: from a folder to its module, from a module
+  // to the module list.
+  const back =
+    shownArea && shownFolder
+      ? { label: shownArea.label, go: () => setView({ areaId: shownArea.id, folderId: null }) }
+      : shownArea
+        ? { label: workspaceLabel, go: () => setView({ areaId: null, folderId: null }) }
+        : null;
 
-  const body =
-    shape === "flat" ? (
-      <>
-        {looseRows}
-        {areas.map((area) => (
-          <React.Fragment key={area.id}>
-            <RailHeading>{area.label}</RailHeading>
-            <RailRows>{rowsFor(area.items, area)}</RailRows>
-          </React.Fragment>
+  const shelfItems = management ? [...supportItems, management] : supportItems;
+  const shelf =
+    shelfItems.length > 0 ? (
+      <ul className={styles.items}>
+        {shelfItems.map((item) => (
+          <RailRow
+            key={item.href}
+            href={item.href}
+            label={item.label}
+            icon={item.icon}
+            current={item.href === activeHref}
+            onNavigate={onNavigate}
+          />
         ))}
-      </>
-    ) : shownArea && shownFolder ? (
-      <RailRows>{rowsFor(shownFolder.items, shownArea)}</RailRows>
-    ) : shownArea ? (
-      <RailRows>
-        {rowsFor(areaRows(shownArea), shownArea)}
-        {(shownArea.folders ?? []).map((folder) =>
-          levelRow(
-            folder,
-            () => setView({ areaId: shownArea.id, folderId: folder.id }),
-            folder.id === activeFolderId,
-          ),
-        )}
-      </RailRows>
-    ) : (
-      <>
-        {looseRows}
-        <RailRows>
-          {areas.map((area) =>
-            levelRow(
-              area,
-              () => setView({ areaId: area.id, folderId: null }),
-              area.id === activeArea?.id,
-            ),
-          )}
-        </RailRows>
-      </>
+      </ul>
+    ) : null;
+
+  let panel: React.ReactNode = null;
+  if (panelShown && areas.length === 0) {
+    panel = (
+      <RailPanel title={workspaceLabel} overlay={panelOverlay} onCollapse={onCollapse} onSearch={onSearch} shelf={shelf}>
+        <div className={styles.empty}>
+          <span className={styles.emptyMark}>
+            <Package className={styles.itemIcon} />
+          </span>
+          <p className={styles.emptyLabel}>No modules yet</p>
+          <Link href="/management/master-data" className={styles.find}>
+            <MedusaCogSixToothIcon className={styles.findIcon} />
+            <span className={styles.findLabel}>Turn one on</span>
+          </Link>
+        </div>
+      </RailPanel>
     );
-
-  // Back goes up one level: from a folder to its area, from an area to the map.
-  const panelTitle = shownFolder?.label ?? shownArea?.label ?? workspaceLabel;
-  const back = shownFolder
-    ? { label: shownArea!.label, go: () => setView({ areaId: shownArea!.id, folderId: null }) }
-    : shownArea
-      ? { label: workspaceLabel, go: () => setView({ areaId: null, folderId: null }) }
-      : null;
-
-  if (areas.length === 0 && loose.length === 0) {
-    return (
-      <div className={styles.rail}>
-        <SwitcherRail
-          companyInitials={initialsFor(companyName)}
-          companyLogoUrl={companyLogoUrl}
-          companyLabel={companyName}
-          onCompanyClick={onOpenSwitcher}
-          workspaces={workspaces}
-          activeWorkspaceId={activeWorkspaceId}
-          onSelectWorkspace={onSelectWorkspace}
-          groups={[]}
-          person={person}
-        />
-        <RailPanel
-          title={companyName}
-          onCollapse={onToggleCollapse}
-          onSearch={onOpenSearch}
-          shelf={
-            <RailRows>
-              <RailRow {...MANAGEMENT} dim />
-              {supportItems.slice(0, 1).map((item) => (
-                <RailRow
-                  key={item.href}
-                  href={item.href}
-                  label={item.label}
-                  icon={item.icon}
-                  dim
-                />
-              ))}
-            </RailRows>
-          }
-        >
-          <div className={styles.empty}>
-            <span className={styles.emptyMark}>
-              <Package width={18} height={18} />
-            </span>
-            <p className={styles.emptyLabel}>No modules yet</p>
-            <Link href="/management/master-data" className={styles.find}>
-              <MedusaCogSixToothIcon width={13} height={13} />
-              <span className={styles.findLabel}>Turn one on</span>
-            </Link>
-          </div>
-        </RailPanel>
-      </div>
+  } else if (panelShown) {
+    panel = (
+      <RailPanel
+        title={shownFolder?.label ?? shownArea?.label ?? workspaceLabel}
+        backLabel={back?.label}
+        onBack={back?.go}
+        overlay={panelOverlay}
+        onCollapse={onCollapse}
+        onSearch={onSearch}
+        extra={extra}
+        shelf={shelf}
+      >
+        {shape === "flat" ? (
+          <ul className={styles.items}>
+            {areas.map((area) => (
+              <React.Fragment key={area.id}>
+                <RailHeading>{area.label}</RailHeading>
+                {rowsFor(area.items, area)}
+              </React.Fragment>
+            ))}
+          </ul>
+        ) : shownArea && shownFolder ? (
+          <ul className={styles.items}>{rowsFor(shownFolder.items, shownArea)}</ul>
+        ) : shownArea ? (
+          <ul className={styles.items}>
+            {rowsFor(areaRows(shownArea), shownArea)}
+            {(shownArea.folders ?? []).map((folder) =>
+              levelRow(
+                folder,
+                { areaId: shownArea.id, folderId: folder.id },
+                shownArea.id === activeArea?.id && folder.id === activeFolderId,
+              ),
+            )}
+          </ul>
+        ) : (
+          <ul className={styles.items}>
+            {areas.map((area) =>
+              levelRow(area, { areaId: area.id, folderId: null }, area.id === activeArea?.id),
+            )}
+          </ul>
+        )}
+      </RailPanel>
     );
   }
 
   return (
-    <div className={cn(styles.rail)}>
+    <div className={styles.nav}>
       <SwitcherRail
-        companyInitials={initialsFor(companyName)}
-        companyLogoUrl={companyLogoUrl}
-        companyLabel={companyName}
-        onCompanyClick={onOpenSwitcher}
-        workspaces={workspaces}
-        activeWorkspaceId={activeWorkspaceId}
-        onSelectWorkspace={onSelectWorkspace}
-        groups={marks}
+        tile={tile}
+        groups={groups}
+        management={managementMark}
         person={person}
+        panelShown={panelShown}
+        onOpenPanel={onOpenPanel}
       />
-      {isCollapsed ? null : (
-        <RailPanel
-          title={panelTitle}
-          backLabel={back?.label}
-          onBack={back?.go}
-          onCollapse={onToggleCollapse}
-          onSearch={onOpenSearch}
-          onNew={onOpenNew}
-          shelf={shelf}
-        >
-          {body}
-          {collections}
-        </RailPanel>
-      )}
+      {panel}
     </div>
   );
 }
-
-/**
- * The flyout a collapsed rail opens when a mark is pressed.
- *
- * Exported separately because a collapsed rail is still one press from
- * anywhere, and that press has to land somewhere legible.
- */
-export function RailFlyout({
-  title,
-  items,
-  activeHref,
-  trigger,
-}: {
-  title: string;
-  items: NavItem[];
-  activeHref: string | null;
-  trigger: React.ReactNode;
-}) {
-  return (
-    <Popover>
-      <PopoverTrigger asChild>{trigger}</PopoverTrigger>
-      <PopoverContent
-        side="right"
-        align="start"
-        className={cn("w-56 p-1.5", styles.flyout)}
-      >
-        <p className={styles.flyoutTitle}>{title}</p>
-        <RailRows>
-          {items.map((item) => (
-            <RailRow
-              key={item.href}
-              href={item.href}
-              label={item.label}
-              icon={item.icon}
-              active={item.href === activeHref}
-            />
-          ))}
-        </RailRows>
-      </PopoverContent>
-    </Popover>
-  );
-}
-

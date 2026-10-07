@@ -19,7 +19,7 @@ const patchSchema = z.object({
 
 async function getPromotion(companyId: string, id: string) {
   return prisma.retailPromotion.findFirst({
-    where: { id, companyId },
+    where: { id, companyId, archivedAt: null },
   });
 }
 
@@ -32,7 +32,7 @@ export async function PATCH(
     return response as NextResponse;
   }
 
-  const gate = requireRetailPermission(session, "retail.catalog", "update");
+  const gate = requireRetailPermission(session, "retail.promotions", "update");
   if (gate) return gate;
 
   try {
@@ -75,28 +75,4 @@ export async function PATCH(
     console.error("[API] PATCH /api/v2/retail/promotions/[id] error:", error);
     return errorResponse("Failed to update promotion");
   }
-}
-
-export async function DELETE(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
-) {
-  const { response, session } = await requireRetailSession(request);
-  if (response || !session) {
-    return response as NextResponse;
-  }
-
-  const gate = requireRetailPermission(session, "retail.catalog", "delete");
-  if (gate) return gate;
-
-  const path = await parseRetailParams(params, retailIdParams);
-  if (path.response) return path.response;
-  const { id } = path.data;
-  const existing = await getPromotion(session.user.companyId, id);
-  if (!existing) {
-    return errorResponse("Promotion not found", 404);
-  }
-
-  await prisma.retailPromotion.delete({ where: { id: existing.id } });
-  return successResponse({ success: true });
 }

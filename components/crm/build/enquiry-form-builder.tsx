@@ -117,7 +117,7 @@ export function EnquiryFormBuilder({ id }: { id: string }) {
   if (error || (data && !form)) {
     return (
       <>
-        <PageChrome title="Enquiry form" icon={Globe} {...back} />
+        <PageChrome title="Enquiry form" {...back} />
         <p className="text-sm text-[var(--text-muted)]">{error ? getApiErrorMessage(error) : "That enquiry form is not here."}</p>
       </>
     );
@@ -125,7 +125,7 @@ export function EnquiryFormBuilder({ id }: { id: string }) {
   if (isLoading || !form || !draft) {
     return (
       <>
-        <PageChrome title="Enquiry form" icon={Globe} {...back} />
+        <PageChrome title="Enquiry form" {...back} />
         <Skeleton className="h-[70vh] w-full" />
       </>
     );
@@ -136,7 +136,7 @@ export function EnquiryFormBuilder({ id }: { id: string }) {
 
   return (
     <>
-      <PageChrome title={draft.name || "Untitled enquiry form"} icon={Globe} {...back}>
+      <PageChrome title={draft.name || "Untitled enquiry form"} {...back}>
         <span className="text-sm text-[var(--text-muted)]">{save.isPending ? "Saving…" : dirty ? "Not saved yet" : "Saved"}</span>
         <Button asChild type="button" variant="outline" size="sm">
           <a href={publicPath} target="_blank" rel="noreferrer">

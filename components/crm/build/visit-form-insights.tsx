@@ -10,7 +10,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/components/ui/use-toast";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import type { FormInsights } from "@/lib/crm/site-visits/insights";
-import { Check, ClipboardText, Lightning, Pencil } from "@/lib/icons";
+import { Check, Lightning, Pencil } from "@/lib/icons";
 
 import styles from "./visit-form-insights.module.css";
 
@@ -41,7 +41,7 @@ export function VisitFormInsights({ id }: { id: string }) {
   });
 
   const chrome = (
-    <PageChrome title={data?.name ?? "Site visit form"} icon={ClipboardText} backHref="/crm/build" backLabel="Build">
+    <PageChrome title={data?.name ?? "Site visit form"} backHref="/crm/build" backLabel="Build">
       <Button asChild variant="outline" size="sm">
         <Link href={`/crm/build/visits/${id}`}>
           <Pencil aria-hidden className="mr-1 h-4 w-4" />

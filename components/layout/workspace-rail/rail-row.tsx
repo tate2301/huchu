@@ -4,74 +4,51 @@ import * as React from "react";
 import Link from "next/link";
 
 import { cn } from "@/lib/utils";
-import { ChevronRight, PushPin } from "@/lib/icons";
+import { PushPin } from "@/lib/icons";
 import type { LucideIcon } from "@/lib/icons";
 
 import styles from "./workspace-rail.module.css";
 
-export type RailCount =
-  | { kind: "count"; value: number }
-  | { kind: "badge"; value: string; urgent?: boolean }
-  | undefined;
-
 /**
- * A destination.
- *
- * A figure is drawn only where the number changes what you would do next: a
- * plain grey count for how many there are, a red pill for how many are waiting
- * on you, and nothing at all everywhere else. A count on every row is a count
- * on none.
+ * One panel item (00-foundations 5.3.3): 34px, a 16px icon, the label and, on
+ * the right, its badge from `GET /api/v2/retail/nav/badges`. The current item
+ * is solid ink (G1). Where the rail has room for pins, a pin shows on hover.
  */
 export function RailRow({
   href,
   label,
   icon: Icon,
-  active,
-  dim,
-  trailing,
+  current,
+  badge,
+  onNavigate,
   onPin,
   pinned,
-  pinLabel,
-  onOpen,
 }: {
   href: string;
   label: string;
   icon: LucideIcon;
-  active?: boolean;
-  dim?: boolean;
-  trailing?: RailCount;
+  current?: boolean;
+  badge?: string | null;
+  onNavigate?: () => void;
   onPin?: () => void;
   pinned?: boolean;
-  pinLabel?: string;
-  /**
-   * The row stands for a level with rows of its own — an area, or a folder in
-   * one. Following it lands on the level's first page and opens the level in
-   * the panel; the caret says there is more under it.
-   */
-  onOpen?: () => void;
 }) {
   return (
     <li>
       <Link
         href={href}
-        onClick={onOpen}
-        aria-current={active ? "page" : undefined}
-        className={cn(
-          styles.row,
-          active && styles.rowActive,
-          dim && styles.rowDim,
-        )}
+        aria-current={current ? "page" : undefined}
+        className={cn(styles.item, current && styles.itemCurrent)}
+        onClick={onNavigate}
       >
-        <Icon className={styles.rowIcon} width={16} height={16} />
-        <span className={styles.rowLabel}>{label}</span>
+        <Icon className={styles.itemIcon} />
+        <span className={styles.itemLabel}>{label}</span>
         {onPin ? (
           <button
             type="button"
-            aria-label={
-              pinned ? `Unpin ${pinLabel ?? label}` : `Pin ${pinLabel ?? label}`
-            }
+            aria-label={pinned ? `Unpin ${label}` : `Pin ${label}`}
             aria-pressed={pinned}
-            className={cn(styles.pinButton, pinned && styles.pinButtonOn)}
+            className={cn(styles.pin, pinned && styles.pinOn)}
             onClick={(event) => {
               // The row is a link; the pin is not a way of following it.
               event.preventDefault();
@@ -79,36 +56,16 @@ export function RailRow({
               onPin();
             }}
           >
-            <PushPin width={13} height={13} />
+            <PushPin className={styles.pinIcon} weight={pinned ? "fill" : "regular"} />
           </button>
         ) : null}
-        <RailTrailing trailing={trailing} />
-        {onOpen ? (
-          <ChevronRight className={styles.rowCaret} width={13} height={13} aria-hidden="true" />
-        ) : null}
+        {badge ? <span className={styles.badge}>{badge}</span> : null}
       </Link>
     </li>
   );
 }
 
-function RailTrailing({ trailing }: { trailing: RailCount }) {
-  if (!trailing) return null;
-  if (trailing.kind === "count") {
-    return <span className={styles.count}>{trailing.value}</span>;
-  }
-  return (
-    <span
-      className={cn(styles.badge, trailing.urgent && styles.badgeUrgent)}
-    >
-      {trailing.value}
-    </span>
-  );
-}
-
-export function RailRows({ children }: { children: React.ReactNode }) {
-  return <ul className={styles.rows}>{children}</ul>;
-}
-
+/** A module's title over its items, in the flat panel. */
 export function RailHeading({ children }: { children: React.ReactNode }) {
-  return <div className={styles.heading}>{children}</div>;
+  return <li className={styles.heading}>{children}</li>;
 }

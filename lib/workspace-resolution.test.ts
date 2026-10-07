@@ -462,19 +462,22 @@ describe("an explicit GENERAL survives every layer", () => {
 /* ── Reports, from every workspace ───────────────────────────────────── */
 
 describe("reports in every workspace", () => {
-  const reportLinks = (model: ReturnType<typeof getWorkspaceSidebarModel>) =>
-    model.sections.flatMap((section) => section.items).filter((item) => item.href === "/reports").length;
+  const hrefs = (model: ReturnType<typeof getWorkspaceSidebarModel>) =>
+    model.sections.flatMap((section) => section.items).map((item) => item.href);
+  // A shop reads its reports at /retail/reports, by area; everyone else at /reports.
+  const reachesReports = (links: string[]) => links.some((href) => href === "/reports" || href.startsWith("/retail/reports"));
 
   it.each(CLIENT_BUNDLE_TEMPLATES.map((template) => [template.code, template] as const))(
-    "%s reaches the reports, once, from each of its workspaces",
+    "%s reaches the reports from each of its workspaces",
     (_, template) => {
       const disabled = new Set(getClientTemplateDisabledFeatureKeys(template.code));
       const enabledFeatures = getClientTemplateFeatureKeys(template.code).filter((key) => !disabled.has(key));
       for (const role of ["MANAGER", "CLERK"]) {
         const args = { role, enabledFeatures, workspaceProfile: getWorkspaceProfileForTemplate(template.code) };
         for (const option of getWorkspaceOptions(args)) {
-          const model = getWorkspaceSidebarModel({ ...args, activeWorkspaceId: option.id });
-          expect(reportLinks(model), `${option.label} as ${role}`).toBe(1);
+          const links = hrefs(getWorkspaceSidebarModel({ ...args, activeWorkspaceId: option.id }));
+          expect(reachesReports(links), `${option.label} as ${role}`).toBe(true);
+          expect(links.filter((href) => href === "/reports").length, `${option.label} as ${role}`).toBeLessThanOrEqual(1);
         }
       }
     },

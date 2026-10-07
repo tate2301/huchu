@@ -80,7 +80,7 @@ async function main() {
   console.log(`\n  branch    ${result.site.code} — ${result.site.name} (${was(result.site.created)})`);
   console.log(`  location  ${result.location.code} (${was(result.location.created)})`);
   console.log(`  till      ${result.register.code} — ${result.register.name} (${was(result.register.created)})`);
-  console.log(`  defaults  ${result.setupProfileWritten ? "written" : "left as the shop set them"}`);
+  console.log(`  defaults  ${result.defaultSiteWritten ? "written" : "left as the shop set them"}`);
   console.log(
     `  ledger    ${result.accounting.accountsCreated} account(s), ` +
       `${result.accounting.taxCodesCreated} tax code(s), ` +

@@ -164,6 +164,7 @@ async function ensureTierPlan(tierCode: string) {
       monthlyPrice: tier.monthlyPrice,
       annualPrice: tier.annualMonthlyPrice * 12,
       maxSites: tier.includedSites,
+      maxTills: tier.includedTills,
       maxUsers: tier.includedUsers,
       warningDays: tier.warningDays,
       graceDays: tier.graceDays,
@@ -176,6 +177,7 @@ async function ensureTierPlan(tierCode: string) {
       monthlyPrice: tier.monthlyPrice,
       annualPrice: tier.annualMonthlyPrice * 12,
       maxSites: tier.includedSites,
+      maxTills: tier.includedTills,
       maxUsers: tier.includedUsers,
       warningDays: tier.warningDays,
       graceDays: tier.graceDays,
@@ -433,7 +435,8 @@ export async function provisionTenant(
   return {
     created,
     company: { id: companyId, name: company.name, slug: company.slug },
-    admin: { id: admin.id, email: admin.email, created: !existingAdmin },
+    // Found or made by this address, so it has one.
+    admin: { id: admin.id, email: admin.email ?? adminEmail, created: !existingAdmin },
     subscription: {
       id: subscription.id,
       status: subscription.status,

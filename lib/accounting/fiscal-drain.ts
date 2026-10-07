@@ -57,6 +57,7 @@ import { Prisma as PrismaNs } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { issueFiscalReceipt } from "@/lib/accounting/fiscalisation";
 import { issueSchoolFeeReceiptFiscalisation } from "@/lib/schools/fiscalisation";
+import { fiscaliseRetailSale } from "@/lib/retail/fiscalisation";
 import { emitIncidentNotification } from "@/lib/notifications";
 
 /** How many receipts one pass claims. Small on purpose: a pass holds its leases
@@ -157,8 +158,8 @@ export type FiscalDrainIssueOutcome = {
  * The re-issue seam.
  *
  * Injected so the tests can exercise claiming, backoff and exhaustion against a
- * real database without a network, and so a future FD-4.1/FD-5.1 can add a
- * credit-note or till-sale issuer here rather than inside the loop.
+ * real database without a network, and so a future FD-4.1 can add the
+ * credit-note issuer here rather than inside the loop.
  */
 export type FiscalDrainIssuers = {
   salesInvoice: (args: { companyId: string; invoiceId: string }) => Promise<FiscalDrainIssueOutcome>;
@@ -166,6 +167,8 @@ export type FiscalDrainIssuers = {
     companyId: string;
     receiptId: string;
   }) => Promise<FiscalDrainIssueOutcome>;
+  /** A till sale (SET-08 "Keep selling, sign later"): the receipt signed when it was rung, sent again. */
+  retailSale: (args: { companyId: string; saleId: string }) => Promise<FiscalDrainIssueOutcome>;
 };
 
 export const defaultFiscalDrainIssuers: FiscalDrainIssuers = {
@@ -175,6 +178,10 @@ export const defaultFiscalDrainIssuers: FiscalDrainIssuers = {
   },
   schoolFeeReceipt: async ({ companyId, receiptId }) => {
     const result = await issueSchoolFeeReceiptFiscalisation({ companyId, receiptId });
+    return { status: result.fiscalStatus, error: result.fiscalError ?? null };
+  },
+  retailSale: async ({ companyId, saleId }) => {
+    const result = await fiscaliseRetailSale({ companyId, saleId });
     return { status: result.fiscalStatus, error: result.fiscalError ?? null };
   },
 };
@@ -379,12 +386,15 @@ async function attemptReceipt(args: {
         receiptId: claimed.schoolReceiptId,
       });
     }
-    if (claimed.creditNoteId || claimed.retailSaleId) {
-      // FD-0.4a widened `FiscalReceipt` to four sources; only two of them have
-      // an issuer. Re-issuing needs the signing input rebuilt from the source
-      // document, which is FD-4.1 (credit note) and FD-5.1 (till sale). Nothing
-      // is wrong with these rows and no attempt was made, so they neither fail
-      // nor count against the attempt budget.
+    if (claimed.retailSaleId) {
+      return args.issuers.retailSale({ companyId: claimed.companyId, saleId: claimed.retailSaleId });
+    }
+    if (claimed.creditNoteId) {
+      // FD-0.4a widened `FiscalReceipt` to four sources; the credit note has no
+      // issuer yet. Re-issuing needs the signing input rebuilt from the source
+      // document, which is FD-4.1. Nothing is wrong with these rows and no
+      // attempt was made, so they neither fail nor count against the attempt
+      // budget.
       return { status: "SKIPPED", error: "No issuer for this fiscal source yet" };
     }
     // `FiscalReceipt_one_source_check` makes a row naming no source impossible.
@@ -427,7 +437,7 @@ async function attemptReceipt(args: {
   return settleAttempt({
     claimed,
     outcome: parked
-      ? claimed.creditNoteId || claimed.retailSaleId
+      ? claimed.creditNoteId
         ? "DEFERRED"
         : "SKIPPED"
       : "RETRY_SCHEDULED",

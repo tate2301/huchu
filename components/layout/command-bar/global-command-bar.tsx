@@ -5,8 +5,7 @@ import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
 
-import { IconButton } from "@/components/ui/icon-button";
-import { useSidebar } from "@/components/ui/sidebar";
+import { useShell } from "@/components/layout/shell-state";
 import { fetchJson } from "@/lib/api-client";
 import { navSections } from "@/lib/navigation";
 import { filterNavSectionsByEnabledFeatures } from "@/lib/platform/gating/nav-filter";
@@ -151,9 +150,10 @@ function relativeStart(iso: string, now: number): string {
 export function GlobalCommandBar() {
   const router = useRouter();
   const { data: session } = useSession();
-  const { toggleSidebar } = useSidebar();
-
-  const [open, setOpen] = React.useState(false);
+  // Headless: the palette opens with ⌘K / Ctrl+K from anywhere and from the
+  // account menu's "Search" (00-foundations 5.3.6); the open state is the
+  // shell's so the menu can set it.
+  const { togglePanel, commandOpen: open, setCommandOpen: setOpen } = useShell();
   const [query, setQuery] = React.useState("");
   const [debounced, setDebounced] = React.useState("");
   const [recents, setRecents] = React.useState<RecentEntry[]>([]);
@@ -174,15 +174,16 @@ export function GlobalCommandBar() {
    * empty field because the last close emptied it, and a keystroke in the app bar
    * opens onto exactly what was typed.
    */
-  const changeOpen = React.useCallback((next: boolean) => {
-    setOpen(next);
-    if (next) {
-      setRecents(loadRecents());
-    } else {
-      setQuery("");
-      setDebounced("");
-    }
-  }, []);
+  const changeOpen = React.useCallback(
+    (next: boolean) => {
+      setOpen(next);
+      if (!next) {
+        setQuery("");
+        setDebounced("");
+      }
+    },
+    [setOpen],
+  );
 
   React.useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -195,8 +196,12 @@ export function GlobalCommandBar() {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [open, changeOpen]);
 
+  // However it was opened (⌘K or the account menu), it opens on what was
+  // viewed last and on this instant.
   React.useEffect(() => {
-    if (open) setNow(Date.now());
+    if (!open) return;
+    setNow(Date.now());
+    setRecents(loadRecents());
   }, [open]);
 
   React.useEffect(() => {
@@ -476,16 +481,17 @@ export function GlobalCommandBar() {
       {
         id: "action-sidebar",
         group: "general",
-        label: "Collapse sidebar",
+        label: "Collapse the panel",
         icon: PanelLeft,
+        keywords: "sidebar",
         preview: (
           <ActionPreview
             icon={PanelLeft}
-            title="Collapse sidebar"
-            body="Gives the page its full width. The same key brings it back."
+            title="Collapse the panel"
+            body="Gives the page more width. ⌘B brings it back."
           />
         ),
-        primary: { label: "Collapse", run: toggleSidebar },
+        primary: { label: "Collapse", run: togglePanel },
       },
       {
         id: "action-help",
@@ -537,57 +543,11 @@ export function GlobalCommandBar() {
     recents,
     searchQuery.data,
     todayQuery.data,
-    toggleSidebar,
+    togglePanel,
   ]);
 
   return (
     <>
-      {/*
-        A phone gets the icon, everything else gets the box.
-        ===================================================
-        The comment here used to claim "on mobile the icon alone opens the bar",
-        but the input rendered at every width — 144px of it, plus a bell and a
-        primary action, on a 390px bar. What gave way was the page title, which
-        is the one thing in that bar nothing else on the screen says: every CRM
-        page with a "New …" button showed "C…" where its name should be.
-
-        So there are two triggers into one bar. Which is not the same as two
-        searches: both hand their text to the `CommandBar` below, so there is
-        one query, one result shape and one keyboard contract.
-      */}
-      <IconButton
-        aria-label="Search records and actions"
-        size="lg"
-        className="md:hidden"
-        onClick={() => changeOpen(true)}
-      >
-        <Search />
-      </IconButton>
-
-      {/*
-        A ghost field, not a bordered box.
-        =================================
-        The app bar carries one search affordance and the dialog carries the
-        real one, so this is a trigger wearing a field's clothes: a filled
-        ghost with no outline, which reads as part of the bar rather than as a
-        control fenced off inside it. Clicking it opens the bar, whose own
-        input autofocuses — one place to type, never two inputs holding two
-        different queries.
-      */}
-      <button
-        type="button"
-        aria-label="Search records and actions"
-        aria-keyshortcuts="Meta+K Control+K"
-        onClick={() => changeOpen(true)}
-        className="hidden h-9 w-36 items-center gap-2 rounded-[var(--radius-sm)] border-0 bg-[var(--surface-muted)] px-2.5 text-left text-sm text-[var(--text-muted)] outline-none transition-colors hover:bg-[var(--surface-subtle)] hover:text-[var(--text-body)] focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)] md:flex lg:w-64"
-      >
-        <Search className="size-4 shrink-0 text-[var(--text-subtle)]" aria-hidden="true" />
-        <span className="min-w-0 flex-1 truncate">Search</span>
-        <kbd className="hidden shrink-0 font-sans text-sm text-[var(--text-subtle)] lg:inline">
-          ⌘K
-        </kbd>
-      </button>
-
       <CommandBar
         open={open}
         onOpenChange={changeOpen}

@@ -12,12 +12,11 @@
  *
  * ── Scope: this cashier, this week ─────────────────────────────────────────
  *
- * Not the whole shop. The POS portal admits `CASHIER` and `POS_CASHIER` and
- * nobody else — `canAccessPosPortal` in `lib/retail/pos-host.ts` — so there is
- * no manager at this screen doing a floor-wide review; there is one person
- * asking what happened at their own till. Widening it to every register would
- * hand each cashier a log of their colleagues' takings for no use case anyone
- * has.
+ * Not the whole shop. Whoever is signed in at the till, a manager included
+ * (`canAccessPosPortal` in `lib/retail/pos-host.ts`), is asking what happened
+ * at their own hands; a floor-wide review belongs in the back office. Widening
+ * it to every register would hand each cashier a log of their colleagues'
+ * takings for no use case anyone has.
  *
  * Seven days rather than today, because the question that brings somebody to
  * this screen is usually about a shift that has already been cashed up.
@@ -100,6 +99,10 @@ export async function GET(request: NextRequest) {
           postedAt: true,
           createdAt: true,
           shiftId: true,
+          // For the sentence: the sale a reversal undid, and the lines an override took money off.
+          exchangeRate: true,
+          sourceSale: { select: { id: true, saleNo: true, customerName: true, baseAmount: true } },
+          lines: { where: { discountAmount: { gt: 0 } }, select: { itemName: true, discountAmount: true } },
         },
       }),
       shiftIds.length === 0
@@ -122,8 +125,9 @@ export async function GET(request: NextRequest) {
 
     const entries = buildTillActivity({
       sales: sales.map(
-        ({ shiftId, ...sale }): TillActivitySaleRow => ({
+        ({ shiftId, lines, ...sale }): TillActivitySaleRow => ({
           ...sale,
+          discountLines: lines,
           shiftNo: shiftId ? shiftNoById.get(shiftId) ?? null : null,
         }),
       ),

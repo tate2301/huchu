@@ -16,6 +16,8 @@ import type { AuthGuardResult, AuthenticatedSession } from "@/lib/auth-core/type
 type ResolveAccessContextOptions = {
   session: AuthenticatedSession | null;
   pathname?: string;
+  /** The request's method; a page is a read. */
+  method?: string;
   hostHeader?: string | null;
   requireAdmin?: boolean;
   requireTenantContext?: boolean;
@@ -27,6 +29,7 @@ export async function resolveAccessContext(options: ResolveAccessContextOptions)
   const {
     session,
     pathname,
+    method,
     hostHeader,
     requireAdmin = false,
     requireTenantContext = true,
@@ -50,6 +53,18 @@ export async function resolveAccessContext(options: ResolveAccessContextOptions)
       reason: "AUTH_EXPIRED",
       status: 401,
       message: "Authentication expired",
+      path: pathname,
+    };
+  }
+
+  // A PIN session is made at a paired till and is good on the POS host only
+  // (10-setup W-04 step 7): anywhere else it is no session at all.
+  if (session.user.authStrategy === "till-pin" && getPlatformHostContext(hostHeader).portalCanonicalPrefix !== "pos") {
+    return {
+      ok: false,
+      reason: "UNAUTHORIZED",
+      status: 401,
+      message: "Unauthorized",
       path: pathname,
     };
   }
@@ -127,7 +142,7 @@ export async function resolveAccessContext(options: ResolveAccessContextOptions)
     // Role-level route pinning (e.g. SALES_REP → CRM only). Enforced before
     // the feature check and independent of it, so a restricted role can never
     // reach a module its tenant happens to have enabled.
-    if (pathname && !isRouteAllowedForRole(session.user.role, pathname)) {
+    if (pathname && !isRouteAllowedForRole(session.user.role, pathname, method)) {
       return {
         ok: false,
         reason: "ROLE_ROUTE_RESTRICTED",

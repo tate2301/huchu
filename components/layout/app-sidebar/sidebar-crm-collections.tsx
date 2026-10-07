@@ -44,7 +44,7 @@ const ENTITY_EMOJI: Record<string, string> = {
  *
  * Only rendered inside the CRM, where saved views and groups exist.
  */
-export function SidebarCrmCollections({ isCollapsed }: { isCollapsed?: boolean }) {
+export function SidebarCrmCollections() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -105,14 +105,12 @@ export function SidebarCrmCollections({ isCollapsed }: { isCollapsed?: boolean }
       <SidebarCollection
         label="Saved views"
         entries={views}
-        isCollapsed={isCollapsed}
         activeHref={activeView?.href ?? null}
       />
 
       <SidebarCollection
         label="Groups"
         entries={lists}
-        isCollapsed={isCollapsed}
         activeHref={activeGroup ? groupHref(activeGroup.entity, activeGroup.id) : null}
         createLabel="New group"
         onCreate={() => setCreatingGroup(true)}

@@ -35,7 +35,7 @@ import {
   StatusDot,
 } from "@/components/management/ui";
 import { FILTER_ANY, ViewToolbar, ViewToolbarFilter } from "@/components/records/view-toolbar";
-import { DateRangeFilter } from "@/components/ui/date-range-filter";
+import { COMMON_PRESETS, DateRangePicker, DayRangeChip } from "@/components/ui/date-picker";
 import { SectionTab, SectionTabs } from "@/components/ui/section-tabs";
 import { ApiError, fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { REQUISITION_TONE } from "@/lib/crm/tones";
@@ -198,6 +198,12 @@ export function FinanceContent() {
   if (chosen("project") !== FILTER_ANY) listScope.set("project", chosen("project"));
   if (chosen("person") !== FILTER_ANY) listScope.set("person", chosen("person"));
 
+  // What the chip shows: the chosen days, else the period the server answered with.
+  const period = {
+    from: searchParams.get("from") ?? data?.period.from ?? null,
+    to: searchParams.get("to") ?? data?.period.to ?? null,
+  };
+
   return (
     <div className="pb-10">
       {/* Which money — the period, a project, a person. Every figure on the
@@ -211,12 +217,14 @@ export function FinanceContent() {
           [chosen("project"), chosen("person"), chosen("currency")].filter((value) => value !== FILTER_ANY).length
         }
         search={
-          <DateRangeFilter
-            label="Period"
-            anyLabel="This month"
-            value={{ from: searchParams.get("from") ?? data?.period.from ?? null, to: searchParams.get("to") ?? data?.period.to ?? null }}
-            max={todayKey()}
+          <DateRangePicker
+            openEnded
+            presets={COMMON_PRESETS}
+            title="Period"
+            value={period}
+            latest={todayKey()}
             onChange={(next) => setParams({ from: next.from, to: next.to })}
+            trigger={<DayRangeChip label="Period" range={period} anyLabel="This month" />}
           />
         }
         start={

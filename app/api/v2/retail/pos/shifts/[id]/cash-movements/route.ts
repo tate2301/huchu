@@ -35,4 +35,35 @@
  * nothing else. The old path stays for the back office.
  */
 
-export { GET, POST } from "../../../../shifts/[id]/cash-movements/route";
+import type { NextRequest, NextResponse } from "next/server";
+
+import { refuseShiftElsewhere, requirePosDevice } from "@/lib/retail/devices";
+import { parseRetailParams, retailIdParams } from "@/lib/retail/request";
+import { requireRetailSession } from "../../../../_helpers";
+import { GET as drawerGet, POST as drawerPost } from "../../../../shifts/[id]/cash-movements/route";
+
+/*
+  SET-04: at the till, on a till, on this till's shift. The device is checked
+  first (its key is the credential for which till this is) against the
+  session's shop, then that the shift is on this till; the handlers then check
+  the person.
+*/
+type Context = Parameters<typeof drawerGet>[1];
+
+async function refuseShiftElsewhereFromRequest(request: NextRequest, context: Context): Promise<NextResponse | null> {
+  const { response, session } = await requireRetailSession(request);
+  if (response || !session) return response as NextResponse;
+  const { device, response: deviceResponse } = await requirePosDevice(request, session);
+  if (deviceResponse) return deviceResponse;
+  const path = await parseRetailParams(context.params, retailIdParams);
+  if (path.response) return path.response;
+  return refuseShiftElsewhere(device, path.data.id);
+}
+
+export async function GET(request: NextRequest, context: Context) {
+  return (await refuseShiftElsewhereFromRequest(request, context)) ?? drawerGet(request, context);
+}
+
+export async function POST(request: NextRequest, context: Context) {
+  return (await refuseShiftElsewhereFromRequest(request, context)) ?? drawerPost(request, context);
+}

@@ -1,0 +1,5 @@
+/* Approvals' "Waiting now": each reference a link to its record, in the line's own ink. */
+.cx-sf-aside .cx-ap-ref { color: inherit; text-decoration: underline; text-decoration-color: var(--line-strong); text-underline-offset: 3px; }
+.cx-sf-aside .cx-ap-ref:hover { color: var(--ink); }
+.cx-sf-aside .cx-ap-muted { color: var(--ink-3); }
+.cx-sf-aside .cx-ap-bad { color: var(--bad); }

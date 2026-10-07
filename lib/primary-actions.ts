@@ -54,8 +54,8 @@ const PRODUCT_PRIMARY_ACTIONS: Record<VerticalProductId, NavItem[]> = {
     { href: "/portal/pos", icon: Payments, label: "Open POS", roles: ["CASHIER"] },
     { href: "/retail/sales", icon: ClipboardList, label: "Sales" },
     { href: "/retail/stock", icon: Package, label: "Stock" },
-    { href: "/retail/purchasing/orders", icon: Package, label: "Orders" },
-    { href: "/retail/purchasing/receipts", icon: LocalShipping, label: "Deliveries" },
+    { href: "/retail/buying/orders", icon: Package, label: "Orders" },
+    { href: "/retail/buying/deliveries", icon: LocalShipping, label: "Deliveries" },
     { href: "/retail/customers", icon: Users, label: "Customers" },
     {
       href: "/retail/shifts",
@@ -63,8 +63,8 @@ const PRODUCT_PRIMARY_ACTIONS: Record<VerticalProductId, NavItem[]> = {
       label: "Shifts",
       roles: ["SUPERADMIN", "MANAGER", "SHOP_MANAGER"],
     },
-    { href: "/retail/reports", icon: BarChart3, label: "Insights" },
-    { href: "/retail/setup/operations", icon: Building2, label: "Shop settings" },
+    { href: "/retail/insights/sales", icon: BarChart3, label: "Insights" },
+    { href: "/retail/manage/company", icon: Building2, label: "Shop settings" },
   ],
   "crm-sales": [
     { href: "/crm/leads", icon: Funnel, label: "New Lead" },

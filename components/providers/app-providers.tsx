@@ -14,6 +14,7 @@ import { OfflineRuntime } from "@/components/offline/offline-runtime"
 import { AppearanceProvider } from "@/components/providers/appearance-provider"
 import { Toaster } from "@/components/ui/toaster"
 import { isRefusal } from "@/lib/api-client"
+import type { Product } from "@/lib/theme/products"
 
 /** Kept query results live as long as the client keeps them in memory. */
 const PERSISTED_QUERY_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000
@@ -29,13 +30,23 @@ const PERSISTED_QUERY_BUSTER = "1"
  * device has seen still have their data offline.
  *
  * One key per tenant: signing in to a second workspace on the same device
- * restores that workspace's data and never the first one's.
+ * restores that workspace's data and never the first one's. Within the
+ * tenant the copy belongs to one person (see `persistedBuster`).
  */
 function createTenantPersister(tenantKey: string) {
   return createAsyncStoragePersister({
     storage: { getItem: get, setItem: set, removeItem: del },
     key: `huchu-query-cache:${tenantKey}`,
   })
+}
+
+/**
+ * The stored copy is restored only for the person who saved it. A till hands
+ * over from one cashier to the next with a PIN, and the next one must never
+ * open on the last one's shift; a mismatch makes the persister drop the copy.
+ */
+function persistedBuster(userId: string) {
+  return `${PERSISTED_QUERY_BUSTER}:${userId}`
 }
 
 /**
@@ -58,9 +69,12 @@ export function AppProviders({
    * would put the provider back in its fetch-on-mount behaviour.
    */
   session,
+  /** The workspace's product, from the root layout: it decides the themes. */
+  product,
 }: {
   children: React.ReactNode
   session?: Session | null
+  product: Product
 }) {
   const pathname = usePathname()
   const [queryClient] = React.useState(
@@ -95,17 +109,28 @@ export function AppProviders({
   )
   const tenantKey =
     (session?.user as { companyId?: string } | undefined)?.companyId ?? null
+  const userId = session?.user?.id ?? null
   const persistOptions = React.useMemo(
     () =>
-      tenantKey
+      tenantKey && userId
         ? {
             persister: createTenantPersister(tenantKey),
             maxAge: PERSISTED_QUERY_MAX_AGE_MS,
-            buster: PERSISTED_QUERY_BUSTER,
+            buster: persistedBuster(userId),
           }
         : null,
-    [tenantKey],
+    [tenantKey, userId],
   )
+  // A different person signed in without a page load: nothing the last one
+  // fetched stays in memory to be shown, or saved, as theirs.
+  const lastUserIdRef = React.useRef(userId)
+  React.useEffect(() => {
+    if (!userId) return
+    if (lastUserIdRef.current && lastUserIdRef.current !== userId) {
+      queryClient.clear()
+    }
+    lastUserIdRef.current = userId
+  }, [queryClient, userId])
   const isAdminRoute =
     pathname === "/admin" ||
     pathname?.startsWith("/admin/") ||
@@ -122,7 +147,7 @@ export function AppProviders({
       refetchWhenOffline={false}
     >
       <QueryProvider client={queryClient} persistOptions={persistOptions}>
-        <AppearanceProvider>
+        <AppearanceProvider product={product}>
           <OfflineRuntime />
           <OfflineChrome />
           {children}

@@ -3,85 +3,87 @@
 import * as React from "react";
 
 import { cn } from "@/lib/utils";
-import {
-  CaretLeft,
-  MagnifyingGlass,
-  MedusaCirclePlusIcon,
-  SidebarSimple,
-} from "@/lib/icons";
+import { CaretLeft, MagnifyingGlass, SidebarSimple } from "@/lib/icons";
 
 import styles from "./workspace-rail.module.css";
 
 /**
- * Tier two.
+ * The panel beside the rail (00-foundations 5.3.3, `Main.dc.html`): 240px on
+ * `--ground`.
  *
- * Its header is either the workspace (the map) or the area you are in, with a
- * way back to the map. Search and New sit under it in both, because both are
- * about the whole workspace rather than this area.
+ * Its 48px head is either the workspace (the module list) or the module (or
+ * folder in one) you are in, with the chevron before the title going back up
+ * one level.
+ * Collapsing the panel is its own button at the right of the head (and
+ * Cmd/Ctrl+B). Search sits under the head in both, because it is about the
+ * whole workspace. The shelf at the foot holds Help and Management.
  */
 export function RailPanel({
   title,
   backLabel,
   onBack,
+  overlay,
   onCollapse,
   onSearch,
-  onNew,
-  newLabel,
   children,
+  extra,
   shelf,
 }: {
   title: string;
+  /** What the chevron goes back to: the workspace's name, or the module a folder sits in. */
   backLabel?: string;
+  /** Shown while a module or a folder is open: back up one level. */
   onBack?: () => void;
+  /** Drawn over the page (720–1099px) rather than beside it. */
+  overlay?: boolean;
   onCollapse?: () => void;
   onSearch?: () => void;
-  onNew?: () => void;
-  newLabel?: string;
   children: React.ReactNode;
+  /** The module's own extra section (the CRM's saved views). */
+  extra?: React.ReactNode;
+  /** Help and Management, at the foot. */
   shelf?: React.ReactNode;
 }) {
   return (
-    <div className={styles.panel}>
-      <div className={cn(styles.panelHead, onBack && styles.panelHeadBack)}>
+    <div className={cn(styles.panel, overlay && styles.panelOverlay)}>
+      <div className={styles.panelHead}>
         {onBack ? (
           <button
             type="button"
-            aria-label={`Back to ${backLabel ?? "the workspace"}`}
-            className={styles.iconButton}
+            aria-label={`Back to ${backLabel ?? "the modules"}`}
+            className={cn(styles.iconButton, styles.back)}
             onClick={onBack}
           >
-            <CaretLeft width={15} height={15} />
+            <CaretLeft className={styles.iconButtonIcon} />
           </button>
         ) : null}
         <span className={styles.panelTitle}>{title}</span>
         {onCollapse ? (
           <button
             type="button"
-            aria-label="Collapse the rail"
-            className={styles.iconButton}
+            aria-label="Collapse the panel"
+            aria-keyshortcuts="Meta+B Control+B"
+            className={cn(styles.iconButton, styles.collapse)}
             onClick={onCollapse}
           >
-            <SidebarSimple width={15} height={15} />
+            <SidebarSimple className={styles.iconButtonIcon} />
           </button>
         ) : null}
       </div>
 
-      <div className={styles.panelTools}>
-        <button type="button" className={styles.find} onClick={onSearch}>
-          <MagnifyingGlass width={15} height={15} />
-          <span className={styles.findLabel}>Search</span>
-          <span className={styles.count}>⌘K</span>
-        </button>
-        {onNew ? (
-          <button type="button" className={styles.new} onClick={onNew}>
-            <MedusaCirclePlusIcon width={15} height={15} />
-            {newLabel ?? "New"}
+      {onSearch ? (
+        <div className={styles.panelTools}>
+          <button type="button" className={styles.find} onClick={onSearch} aria-keyshortcuts="Meta+K Control+K">
+            <MagnifyingGlass className={styles.findIcon} />
+            <span className={styles.findLabel}>Search</span>
+            <span className={styles.findHint}>⌘K</span>
           </button>
-        ) : null}
-      </div>
+        </div>
+      ) : null}
 
-      <nav className={styles.panelBody} aria-label={title}>
+      <nav aria-label={title} className={styles.panelBody}>
         {children}
+        {extra ? <div className={styles.extra}>{extra}</div> : null}
       </nav>
 
       {shelf ? <div className={styles.shelf}>{shelf}</div> : null}

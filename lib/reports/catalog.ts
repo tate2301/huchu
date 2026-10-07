@@ -12,7 +12,7 @@ import type { ReportMeta, ReportDefinition, SavedReportSetup } from "@/lib/repor
  * added a module still finds its reports, just after the ones it is about.
  */
 
-export type CatalogEntry = Pick<ReportMeta, "key" | "title" | "area">;
+export type CatalogEntry = Pick<ReportMeta, "key" | "title" | "area"> & { summary: string | null };
 
 export type CatalogArea = {
   area: string;
@@ -26,7 +26,10 @@ export function reportCatalog(
   /** Reports this workspace switched off. */
   disabled: ReadonlySet<string> = new Set(),
 ): CatalogArea[] {
-  const readable = sources.filter((source) => !disabled.has(source.key) && canReadReport(source, access));
+  const readable = sources.filter(
+    // A working list is a page of its own and a report face is Reports': neither is in this catalogue.
+    (source) => !disabled.has(source.key) && !source.list && !source.report && canReadReport(source, access),
+  );
   const forProfile = (source: ReportDefinition) => (profile ? source.profiles.includes(profile) : false);
 
   const areas = new Map<string, { area: string; ours: boolean; reports: CatalogEntry[] }>();
@@ -37,7 +40,7 @@ export function reportCatalog(
       areas.set(source.area, entry);
     }
     entry.ours ||= forProfile(source);
-    entry.reports.push({ key: source.key, title: source.title, area: source.area });
+    entry.reports.push({ key: source.key, title: source.title, area: source.area, summary: source.summary ?? null });
   }
 
   // Stable: within each half, areas keep the order the registry declares them in.

@@ -183,7 +183,7 @@ export function SettingsFrame({
   );
 
   const groups = React.useMemo<SettingsRailGroup[]>(() => {
-    const visible = getSettingsRailGroups({ role, enabledFeatures });
+    const visible = getSettingsRailGroups({ role, enabledFeatures, workspaceProfile: user?.workspaceProfile });
     const active = findActiveSettingsNavEntry(
       pathname ?? "",
       visible.flatMap((group) => group.items),
@@ -208,7 +208,7 @@ export function SettingsFrame({
         active: entry.id === active?.id,
       })),
     }));
-  }, [enabledFeatures, pathname, railAttention, railCounts, role]);
+  }, [enabledFeatures, pathname, railAttention, railCounts, role, user?.workspaceProfile]);
 
   return (
     <SettingsSurface

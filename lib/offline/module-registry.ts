@@ -18,6 +18,7 @@ import {
   markOfflineOperationSynced,
 } from "@/lib/offline/outbox";
 import { hasTokenFeature } from "@/lib/platform/gating/token-check";
+import { onPairedTill } from "@/lib/retail/till-presence";
 import type {
   OfflineModuleDefinition,
   OfflineMutationAdapter,
@@ -189,6 +190,8 @@ const retailPreloadQueries: OfflinePreloadQuery[] = [
   },
   {
     key: "retail-current-shift",
+    // `pos/current-shift` answers only a till (409 NOT_A_TILL elsewhere).
+    enabled: onPairedTill,
     queryKey: ["retail-current-shift"],
     featureKey: "retail.pos",
     fetcher: async () => fetchJson("/api/v2/retail/pos/current-shift"),
@@ -202,31 +205,14 @@ const retailPreloadQueries: OfflinePreloadQuery[] = [
     fetcher: async () => fetchJson("/api/v2/retail/promotions?status=ACTIVE&pos=1"),
   },
   /*
-    There is no `retail-tender-policy` preload any more, and that is the fix
-    rather than an omission.
-
-    It fetched `/api/v2/retail/setup/tender-policy`, which is gated on
-    `retail.setup` `view` — a permission no cashier holds — so it 403'd on
-    every till warm-up. Pointing it at `pos/context` instead fixed the cashier
-    and broke everyone else: that route additionally enforces
-    `canAccessPosPortal(role)`, so a CRM owner warming this module took a 403
-    on every page. The e2e suite caught that within one run of the change.
-
-    The entry is gone because nothing needs it. Nothing reads the
-    `["retail-pos-tender-policy"]` cache key, and the two rules it carried now
-    reach the till live through `pos-portal-state.tsx`, which reads them off
-    `pos/context` — and that query is persisted with the rest of the tenant's
-    cache, so the till has them offline too. A second copy warmed for every
-    session in the product was buying nothing.
-
-    The general lesson is worth keeping: a preload in a *module* runs for
-    anybody whose session warms that module, and feature keys cannot express
-    "only a cashier" — `retail.pos` is a tenant feature and a CRM superadmin
-    holds it. A route that also checks a role is therefore not safe to preload
-    from here at all.
+    No till rules preload: they reach the till through `devices/me`
+    (`components/retail/till/state.tsx`, SET-06), and that query is persisted with the
+    rest of the tenant's cache, so the till has them offline too.
   */
   {
     key: "retail-catalog-default",
+    // `pos/current-shift` answers only a till (409 NOT_A_TILL elsewhere).
+    enabled: onPairedTill,
     queryKey: async () => {
       const shift = await fetchJson<{ data: { siteId?: string | null } | null }>(
         "/api/v2/retail/pos/current-shift",
@@ -234,15 +220,13 @@ const retailPreloadQueries: OfflinePreloadQuery[] = [
       const siteId = shift.data?.siteId;
       return siteId ? ["retail-pos-catalog", siteId, ""] : null;
     },
-    fetcher: async (queryKey) => {
-      const siteId = String(queryKey[1] ?? "");
-      return fetchJson(
-        `/api/v2/retail/pos/catalog?siteId=${encodeURIComponent(siteId)}&search=`,
-      );
-    },
+    // The key carries the site so the till's own query finds it; the route reads the device's.
+    fetcher: async () => fetchJson("/api/v2/retail/pos/catalog?search="),
   },
   {
     key: "retail-held-carts",
+    // `pos/current-shift` answers only a till (409 NOT_A_TILL elsewhere).
+    enabled: onPairedTill,
     queryKey: async () => {
       const shift = await fetchJson<{ data: { id?: string | null } | null }>(
         "/api/v2/retail/pos/current-shift",
@@ -259,6 +243,8 @@ const retailPreloadQueries: OfflinePreloadQuery[] = [
   },
   {
     key: "retail-pos-sales-overview",
+    // `pos/current-shift` answers only a till (409 NOT_A_TILL elsewhere).
+    enabled: onPairedTill,
     queryKey: async () => {
       const shift = await fetchJson<{ data: { id?: string | null } | null }>(
         "/api/v2/retail/pos/current-shift",
@@ -298,6 +284,8 @@ const retailPreloadQueries: OfflinePreloadQuery[] = [
   },
   {
     key: "retail-pos-price-check-default",
+    // `pos/current-shift` answers only a till (409 NOT_A_TILL elsewhere).
+    enabled: onPairedTill,
     queryKey: async () => {
       const shift = await fetchJson<{ data: { siteId?: string | null } | null }>(
         "/api/v2/retail/pos/current-shift",
@@ -305,12 +293,8 @@ const retailPreloadQueries: OfflinePreloadQuery[] = [
       const siteId = shift.data?.siteId;
       return siteId ? ["retail-pos-price-check", siteId, ""] : null;
     },
-    fetcher: async (queryKey) => {
-      const siteId = String(queryKey[1] ?? "");
-      return fetchJson(
-        `/api/v2/retail/pos/catalog?siteId=${encodeURIComponent(siteId)}&search=`,
-      );
-    },
+    // The key carries the site so the till's own query finds it; the route reads the device's.
+    fetcher: async () => fetchJson("/api/v2/retail/pos/catalog?search="),
   },
 ];
 

@@ -6,7 +6,6 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PageChrome } from "@/components/layout/page-chrome";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
-import { ListBullets } from "@/lib/icons";
 import { fetchCrmList } from "@/lib/crm/crm-v2";
 
 import { RecordList, type RecordListRow } from "@/components/records/record-list";
@@ -68,7 +67,7 @@ export function ListDetailPage({ listId }: { listId: string }) {
 
   return (
     <div className="space-y-4">
-      <PageChrome title={list.name} icon={ListBullets} />
+      <PageChrome title={list.name} />
 
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
         <span className="text-sm text-[var(--text-muted)]">

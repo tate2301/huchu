@@ -548,7 +548,6 @@ export function RecordPageShell({
           list is what it falls back to when there isn't one. */}
       <PageChrome
         title={title}
-        icon={icon}
         reference={reference}
         backHref={
           openSection && narrow ? recordHref : (trailBack?.href ?? backHref)

@@ -73,7 +73,7 @@ export async function GET(request: NextRequest) {
     // in the search box.
     const lastSignInByEmail = await findLastSignInByEmail({
       companyId: session.user.companyId,
-      emails: users.map((user) => user.email),
+      emails: users.flatMap((user) => (user.email ? [user.email] : [])),
     })
 
     const rows = users.map((user) => ({
@@ -81,7 +81,7 @@ export async function GET(request: NextRequest) {
       // Null means this account has never signed in — the register draws that
       // rather than leaving the column blank.
       lastSignInAt:
-        lastSignInByEmail.get(user.email.trim().toLowerCase())?.toISOString() ?? null,
+        (user.email ? lastSignInByEmail.get(user.email.trim().toLowerCase())?.toISOString() : null) ?? null,
     }))
 
     return successResponse(paginationResponse(rows, total, page, limit))

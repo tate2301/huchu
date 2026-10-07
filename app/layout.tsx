@@ -8,20 +8,27 @@
 import "./globals.css";
 import "@rtcamp/frappe-ui-react/theme";
 import "./themes/corelith-bridge.css";
+// After the bridge: the roles answer the package's tokens, so they have the
+// last word (00-foundations 5.1).
+import "./themes/roles.css";
+// The workspace components read the roles (5.2).
+import "./themes/workspace.css";
 import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
-import { Suspense } from "react";
+import { cache, Suspense } from "react";
 import type { Metadata, Viewport } from "next";
-import { headers } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { getServerSession } from "next-auth";
 import { AppProviders } from "@/components/providers/app-providers";
 import { AppShell } from "@/components/layout/app-shell";
+import { PANEL_COOKIE } from "@/lib/rail/panel-cookie";
+import { navConditions } from "@/lib/retail/nav/conditions";
+import { isAdminPortalHost } from "@/lib/admin-portal";
 import {
   PLATFORM_APP_DESCRIPTION,
   PLATFORM_BRAND_NAME,
   PLATFORM_MARKETING_TAGLINE,
 } from "@/lib/platform/brand";
-import { getBrandingCssVariables } from "@/lib/platform/branding";
 import { authOptions } from "@/lib/auth";
 import { getSiteUrl } from "@/lib/site-url";
 import { getHostHeaderFromRequestHeaders, getPlatformHostContext } from "@/lib/platform/tenant";
@@ -30,11 +37,44 @@ import {
   buildWorkspaceManifestHref,
   resolveWorkspaceIdentityForHost,
 } from "@/lib/platform/workspace-identity";
+import {
+  APPEARANCE_SCRIPT,
+  productForProfile,
+  themeColorForProduct,
+  themesForProduct,
+  type Product,
+} from "@/lib/theme/products";
 
-export async function generateMetadata(): Promise<Metadata> {
+/**
+ * The request's workspace, session and product, resolved once per request and
+ * shared by the metadata, the viewport and the layout.
+ *
+ * The workspace's profile is its primary product (5.1.1): the session's claim
+ * first, else the host's company. The admin portal is always the Corelith
+ * product, whoever is signed in to it.
+ *
+ * The session is also handed to `SessionProvider`. Without it `useSession()`
+ * had no data during SSR and every client component that reads it rendered
+ * its signed-out shape into the HTML, then a different shape on hydration —
+ * the sidebar, the command bar's module bands, the nav filter and the quick
+ * actions all derive from it. Given the prop, `SessionProvider` treats it as
+ * the initial value instead of fetching `/api/auth/session`.
+ */
+const resolveRequestWorkspace = cache(async () => {
   const requestHeaders = await headers();
   const hostHeader = getHostHeaderFromRequestHeaders(requestHeaders);
-  const identity = await resolveWorkspaceIdentityForHost(hostHeader);
+  const [identity, session] = await Promise.all([
+    resolveWorkspaceIdentityForHost(hostHeader),
+    getServerSession(authOptions),
+  ]);
+  const product: Product = isAdminPortalHost(hostHeader)
+    ? "corelith"
+    : productForProfile(session?.user?.workspaceProfile ?? identity.workspaceProfile);
+  return { hostHeader, identity, session, product };
+});
+
+export async function generateMetadata(): Promise<Metadata> {
+  const { identity } = await resolveRequestWorkspace();
   const branding = identity.branding;
   const workspaceName = identity.workspaceName;
   const legalCompanyName = branding.companyName?.trim() || null;
@@ -103,56 +143,51 @@ export async function generateMetadata(): Promise<Metadata> {
   };
 }
 
-export const viewport: Viewport = {
-  width: "device-width",
-  initialScale: 1,
-  userScalable: true,
-  themeColor: "#4C64D4",
-};
+export async function generateViewport(): Promise<Viewport> {
+  const { product } = await resolveRequestWorkspace();
+  return {
+    width: "device-width",
+    initialScale: 1,
+    userScalable: true,
+    themeColor: themeColorForProduct(product),
+  };
+}
 
 export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const requestHeaders = await headers();
-  const hostHeader = getHostHeaderFromRequestHeaders(requestHeaders);
   // The host's workspace, or the signed-in one's on a shared host — the same
   // resolution the favicon and title use, so the rail's logo, the tab's icon
-  // and the page's colours all describe one workspace.
-  const identity = await resolveWorkspaceIdentityForHost(hostHeader);
-  const branding = identity.branding;
+  // and the page's theme all describe one workspace.
+  const { hostHeader, identity, session, product } = await resolveRequestWorkspace();
   const workspaceBrand = identity.companyId
-    ? { name: identity.workspaceName, logoUrl: identity.logoUrl }
+    ? { name: identity.workspaceName, logoUrl: identity.logoUrl, legalName: identity.branding.legalName }
     : null;
+  // The module panel's open state, so the first paint draws it as it was left.
+  const defaultPanelOpen = (await cookies()).get(PANEL_COOKIE)?.value !== "false";
+  // The shop facts retail nav items wait on, so the server's HTML draws the
+  // same panel the browser hydrates (the badges fetch keeps them current).
+  const companyId = session?.user?.companyId;
+  const shopConditions = product === "retail" && companyId ? await navConditions(companyId) : null;
   const hostContext = getPlatformHostContext(hostHeader);
-  const brandingVars = getBrandingCssVariables(branding);
-
-  /**
-   * The session, resolved on the server and handed to `SessionProvider`.
-   *
-   * Without this, `useSession()` had no data during SSR and every client
-   * component that reads it rendered its signed-out shape into the HTML, then a
-   * different shape on hydration. The sidebar was the visible casualty: the
-   * workspace model falls back to the first profile when it is given no role and
-   * no features, so the server sent Scrap & Recycling's label and icon and the
-   * browser replaced them with School Operations — a hydration error on every
-   * page of the app, including ones nothing in the schools work had touched.
-   *
-   * `getServerSession` here rather than a guard in the sidebar because the
-   * sidebar is not the only reader: the command bar's module bands, the nav
-   * filter and the quick actions all derive from the same three fields, and
-   * fixing them one at a time is how the next one gets missed. The layout is
-   * already dynamic — it reads `headers()` — so this costs a session decode, and
-   * it saves the client's opening `/api/auth/session` round trip: given the prop,
-   * `SessionProvider` treats it as the initial value instead of fetching.
-   */
-  const session = await getServerSession(authOptions);
 
   return (
-    <html lang="en" suppressHydrationWarning>
+    /*
+      The product's light theme is in the server HTML; the inline script swaps
+      in its dark one from the person's stored choice before the first paint.
+      `suppressHydrationWarning` because that swap is a deliberate difference
+      between the server's `<html>` and the one React hydrates.
+    */
+    <html
+      lang="en-GB"
+      data-product={product}
+      data-theme={themesForProduct(product).light}
+      suppressHydrationWarning
+    >
       <head>
-
+        <script dangerouslySetInnerHTML={{ __html: APPEARANCE_SCRIPT }} />
       </head>
       <body
         /* No `font-sans`: frappe's theme ships its own `.font-sans` utility
@@ -161,16 +196,17 @@ export default async function RootLayout({
            system's `body` rule sets the family and is the authority here. */
         className="subpixel-antialiased"
         data-portal-path={hostContext.portalPath ?? undefined}
-        style={brandingVars as React.CSSProperties}
       >
         <Analytics />
         <SpeedInsights />
         <div className="app-root">
-          <AppProviders session={session}>
+          <AppProviders session={session} product={product}>
             <Suspense fallback={<div className="min-h-screen bg-background" />}>
               <AppShell
                 hostPortalPath={hostContext.portalPath}
                 workspaceBrand={workspaceBrand}
+                defaultPanelOpen={defaultPanelOpen}
+                shopConditions={shopConditions}
               >
                 {children}
               </AppShell>

@@ -601,7 +601,7 @@ export async function provisionBundle(input: ProvisionBundleInput): Promise<Prov
 
   let tx: {
     company: { id: string; name: string; slug: string; tenantStatus: string; isProvisioned: boolean };
-    admin: { id: string; email: string; name: string; role: string };
+    admin: { id: string; email: string | null; name: string; role: string };
     subscription: { id: string; status: string };
     appliedBundles: string[];
     appliedFeatures: string[];
@@ -803,7 +803,7 @@ export async function provisionBundle(input: ProvisionBundleInput): Promise<Prov
     },
     admin: {
       id: tx.admin.id,
-      email: tx.admin.email,
+      email: tx.admin.email ?? "",
       name: tx.admin.name,
       role: tx.admin.role as AdminRole,
     },

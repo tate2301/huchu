@@ -10,7 +10,7 @@ import { PageChrome } from "@/components/layout/page-chrome";
 import { ViewToolbar } from "@/components/records/view-toolbar";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { fetchCrmTasks } from "@/lib/crm/crm-v2";
-import { Checklist, Plus } from "@/lib/icons";
+import { Plus } from "@/lib/icons";
 import { bucketByDueDate } from "@/components/records/record-list-groups";
 
 import { TaskFormSheet } from "./task-form-sheet";
@@ -75,7 +75,7 @@ export function TasksRegisterContent() {
     // A register of one-line tasks reads as a column; stretched across a wide
     // screen it just puts air between a task and when it is due.
     <div className="max-w-3xl space-y-4">
-      <PageChrome title="Tasks" icon={Checklist}>
+      <PageChrome title="Tasks">
         {actions}
       </PageChrome>
 

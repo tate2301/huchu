@@ -148,40 +148,29 @@ export async function captureAccountingEvent(input: CaptureAccountingEventInput,
   });
 }
 
-export async function retryPendingAccountingEvents(input: {
-  companyId: string;
-  limit?: number;
-  actorRole?: string | null;
-  periodOverrideReason?: string | null;
-}) {
-  const limit = Math.min(Math.max(input.limit ?? 100, 1), 1000);
-  const now = new Date();
+type IntegrationEventRow = Awaited<ReturnType<typeof prisma.accountingIntegrationEvent.findMany>>[number];
 
-  const events = await prisma.accountingIntegrationEvent.findMany({
-    where: {
-      companyId: input.companyId,
-      sourceType: { not: null },
-      sourceId: { not: null },
-      status: { in: ["FAILED", "PENDING"] },
-      OR: [{ nextRetryAt: null }, { nextRetryAt: { lte: now } }],
-    },
-    orderBy: [{ nextRetryAt: "asc" }, { updatedAt: "asc" }],
-    take: limit,
-  });
+/**
+ * Post one captured accounting event now, whatever its "not before": the
+ * drain below, and a shop's posting run (SET-09).
+ */
+export async function postIntegrationEvent(
+  event: IntegrationEventRow,
+  input: { actorRole?: string | null; periodOverrideReason?: string | null; defaultsReady?: boolean } = {},
+): Promise<"posted" | "skipped" | "failed"> {
+  const payload = parsePayload(event.payloadJson);
+  const createdById = event.createdById ?? (await resolveFallbackActorId(event.companyId));
+  if (!createdById) {
+    // Marked, so a posting run that passed it does not take it up again.
+    await prisma.accountingIntegrationEvent.update({
+      where: { id: event.id },
+      data: { status: "FAILED", lastError: "Nobody in the company to post as", attemptCount: { increment: 1 } },
+    });
+    return "failed";
+  }
 
-  let posted = 0;
-  let failed = 0;
-  let skipped = 0;
-
-  for (const event of events) {
-    const payload = parsePayload(event.payloadJson);
-    const createdById = event.createdById ?? (await resolveFallbackActorId(event.companyId));
-    if (!createdById) {
-      failed += 1;
-      continue;
-    }
-
-    const result = await createJournalEntryFromSource({
+  const result = await createJournalEntryFromSource(
+    {
       companyId: event.companyId,
       sourceType: event.sourceType as AccountingSourceType,
       sourceId: event.sourceId,
@@ -209,15 +198,46 @@ export async function retryPendingAccountingEvents(input: {
       payload,
       payments: parsePostingPayments(payload),
       inventory: parsePostingInventory(payload),
-    });
+    },
+    prisma,
+    // Its time has come (or someone asked): an end-of-day shop's event is not put off again.
+    { postNow: true, defaultsReady: input.defaultsReady },
+  );
 
-    if (result.entryId) {
-      posted += 1;
-    } else if (result.skipped) {
-      skipped += 1;
-    } else {
-      failed += 1;
-    }
+  if (result.skipped) return "skipped";
+  return result.entryId ? "posted" : "failed";
+}
+
+export async function retryPendingAccountingEvents(input: {
+  companyId: string;
+  limit?: number;
+  actorRole?: string | null;
+  periodOverrideReason?: string | null;
+}) {
+  const limit = Math.min(Math.max(input.limit ?? 100, 1), 1000);
+  const now = new Date();
+
+  const events = await prisma.accountingIntegrationEvent.findMany({
+    where: {
+      companyId: input.companyId,
+      sourceType: { not: null },
+      sourceId: { not: null },
+      status: { in: ["FAILED", "PENDING"] },
+      OR: [{ nextRetryAt: null }, { nextRetryAt: { lte: now } }],
+    },
+    orderBy: [{ nextRetryAt: "asc" }, { updatedAt: "asc" }],
+    take: limit,
+  });
+
+  let posted = 0;
+  let failed = 0;
+  let skipped = 0;
+
+  for (const event of events) {
+    const outcome = await postIntegrationEvent(event, input);
+    if (outcome === "posted") posted += 1;
+    else if (outcome === "skipped") skipped += 1;
+    else failed += 1;
   }
 
   return {
@@ -490,7 +510,8 @@ export async function backfillRetailAccounting(input: {
   const failures: Array<{ key: string; error: string }> = [];
 
   for (const task of ordered) {
-    const result = await createJournalEntryFromSource(task.context);
+    // A backfill posts what it finds now, whatever the shop's posting schedule.
+    const result = await createJournalEntryFromSource(task.context, prisma, { postNow: true });
     if (result.entryId) {
       posted += 1;
     } else if (result.skipped) {

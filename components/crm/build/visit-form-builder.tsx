@@ -131,7 +131,7 @@ export function VisitFormBuilder({ id }: { id: string }) {
   if (error) {
     return (
       <>
-        <PageChrome title="Site visit form" icon={ClipboardText} backHref="/crm/build" backLabel="Build" />
+        <PageChrome title="Site visit form" backHref="/crm/build" backLabel="Build" />
         <p className="text-sm text-[var(--text-muted)]">{getApiErrorMessage(error)}</p>
       </>
     );
@@ -139,7 +139,7 @@ export function VisitFormBuilder({ id }: { id: string }) {
   if (isLoading || !data || !draft) {
     return (
       <>
-        <PageChrome title="Site visit form" icon={ClipboardText} backHref="/crm/build" backLabel="Build" />
+        <PageChrome title="Site visit form" backHref="/crm/build" backLabel="Build" />
         <Skeleton className="h-[70vh] w-full" />
       </>
     );
@@ -155,7 +155,7 @@ export function VisitFormBuilder({ id }: { id: string }) {
 
   return (
     <>
-      <PageChrome title={draft.name || "Untitled site visit form"} icon={ClipboardText} backHref="/crm/build" backLabel="Build">
+      <PageChrome title={draft.name || "Untitled site visit form"} backHref="/crm/build" backLabel="Build">
         <span className="text-sm text-[var(--text-muted)]">{save.isPending ? "Saving…" : dirty ? "Not saved yet" : "Saved"}</span>
         <Button asChild type="button" variant="outline" size="sm">
           <Link href={`/crm/build/visits/${id}/insights`}>

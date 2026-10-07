@@ -1332,6 +1332,108 @@ export async function emitCrmNotification(args: {
   }
 }
 
+/**
+ * A retail notice: a requisition waiting on a manager, or decided, or paid.
+ * Filed under operations, the shop's own category, so a shopkeeper's CRM
+ * switch does not silence it.
+ */
+export async function emitRetailNotification(args: {
+  companyId: string
+  recipientIds: string[]
+  type: NotificationType
+  title: string
+  summary: string
+  entityType: NotificationEntityType
+  entityId: string
+  viewPath: string
+  severity?: NotificationSeverity
+}): Promise<void> {
+  try {
+    const recipientIds = args.recipientIds.filter(Boolean)
+    if (recipientIds.length === 0) return
+    await createNotification(prisma, {
+      companyId: args.companyId,
+      type: args.type,
+      title: args.title,
+      summary: args.summary,
+      severity: args.severity ?? NotificationSeverity.INFO,
+      category: "OPS",
+      recipientIds,
+      payload: { viewPath: args.viewPath },
+      entityType: args.entityType,
+      entityId: args.entityId,
+      sourceAction: NotificationSourceAction.STATUS_CHANGE,
+    })
+  } catch (error) {
+    console.error("[Notifications] emitRetailNotification failed:", error)
+  }
+}
+
 export async function getCrmManagerRecipients(companyId: string, excludeId?: string): Promise<string[]> {
   return getManagerIds(companyId, excludeId)
+}
+
+/**
+ * Stock on its way to another site (30-stock W-24): "TRF-0008 is on the way to
+ * Borrowdale", opening the transfer. The caller names who may receive it.
+ */
+export async function emitRetailTransferSentNotification(args: {
+  companyId: string
+  transferId: string
+  transferNo: string
+  fromName: string
+  toName: string
+  recipientIds: string[]
+}): Promise<void> {
+  try {
+    await createNotification(prisma, {
+      companyId: args.companyId,
+      type: NotificationType.RETAIL_TRANSFER_SENT,
+      title: `${args.transferNo} is on the way to ${args.toName}`,
+      summary: `Sent from ${args.fromName}. Receive it when it arrives.`,
+      severity: NotificationSeverity.INFO,
+      category: "OPS",
+      recipientIds: args.recipientIds,
+      payload: { transferNo: args.transferNo, viewPath: `/retail/stock/transfers/${args.transferId}` },
+      entityType: NotificationEntityType.RETAIL_STOCK_TRANSFER,
+      entityId: args.transferId,
+      sourceAction: NotificationSourceAction.CREATE,
+    })
+  } catch (error) {
+    console.error("[Notifications] emitRetailTransferSentNotification failed:", error)
+  }
+}
+
+/**
+ * A transfer called off (30-stock W-24 step 5): "TRF-0008 is not coming",
+ * and what went back to the site it left.
+ */
+export async function emitRetailTransferCancelledNotification(args: {
+  companyId: string
+  transferId: string
+  transferNo: string
+  fromName: string
+  units: number
+  recipientIds: string[]
+}): Promise<void> {
+  try {
+    await createNotification(prisma, {
+      companyId: args.companyId,
+      type: NotificationType.RETAIL_TRANSFER_CANCELLED,
+      title: `${args.transferNo} is not coming`,
+      summary:
+        args.units > 0
+          ? `It was cancelled and ${args.units} ${args.units === 1 ? "unit went" : "units went"} back to ${args.fromName}.`
+          : "It was cancelled.",
+      severity: NotificationSeverity.INFO,
+      category: "OPS",
+      recipientIds: args.recipientIds,
+      payload: { transferNo: args.transferNo, viewPath: `/retail/stock/transfers/${args.transferId}` },
+      entityType: NotificationEntityType.RETAIL_STOCK_TRANSFER,
+      entityId: args.transferId,
+      sourceAction: NotificationSourceAction.STATUS_CHANGE,
+    })
+  } catch (error) {
+    console.error("[Notifications] emitRetailTransferCancelledNotification failed:", error)
+  }
 }

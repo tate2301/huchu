@@ -8,7 +8,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { EmptyState, Skeleton } from "@corelithzw/react";
 import { PageChrome } from "@/components/layout/page-chrome";
 import { Button } from "@/components/ui/button";
-import { DateRangeFilter } from "@/components/ui/date-range-filter";
+import { COMMON_PRESETS, DateRangePicker, DayRangeChip } from "@/components/ui/date-picker";
 import { dsConfirm } from "@/components/ui/ds-confirm";
 import {
   DropdownMenu,
@@ -234,11 +234,13 @@ export function CustomReportScreen({ id }: { id: string }) {
           <p className="max-w-[70ch] text-[13px] leading-[1.5] text-[var(--text-body)]">{current.description}</p>
         ) : null}
         <div className="flex flex-wrap items-center gap-2">
-          <DateRangeFilter
-            label="Dates"
-            anyLabel="Any time"
+          <DateRangePicker
+            openEnded
+            presets={COMMON_PRESETS}
+            title="Dates"
             value={{ from: params.from || null, to: params.to || null }}
             onChange={(next) => setDates({ from: next.from ?? "", to: next.to ?? "" })}
+            trigger={<DayRangeChip label="Dates" range={{ from: params.from || null, to: params.to || null }} />}
           />
         </div>
 

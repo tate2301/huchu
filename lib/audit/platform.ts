@@ -27,7 +27,8 @@ export type AuditClient = Pick<Prisma.TransactionClient, "platformAuditEvent">
 
 export type PlatformAuditArgs = {
   companyId: string
-  actorId: string
+  /** Null when nobody acted: a scheduled job (the bin's nightly purge). */
+  actorId: string | null
   eventType: string
   entityType?: string
   entityId?: string
@@ -37,7 +38,7 @@ export type PlatformAuditArgs = {
 
 export function buildAuditEventHash(args: {
   companyId: string
-  actorId: string
+  actorId: string | null
   eventType: string
   entityType?: string
   entityId?: string

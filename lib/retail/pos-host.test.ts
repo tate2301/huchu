@@ -27,6 +27,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   POS_ALL_PUBLIC_PATHS,
+  canAccessPosPortal,
   getPosPortalHrefPair,
   type PosPortalNavKey,
 } from "./pos-host";
@@ -38,7 +39,6 @@ const NAV_KEYS: PosPortalNavKey[] = [
   "history",
   "reports",
   "shift",
-  "overview",
   "customers",
   "price-check",
   "offline",
@@ -63,8 +63,9 @@ describe("every POS nav destination resolves on the POS host", () => {
 describe("every POS nav destination has a page behind it", () => {
   it.each(NAV_KEYS)("%s points at a route that exists", (key) => {
     const { internalHref } = getPosPortalHrefPair(key);
-    // `/portal/pos/held` → `app/portal/pos/held/page.tsx`; the root is `app/portal/pos/page.tsx`.
-    const pagePath = join(REPO_ROOT, "app", `${internalHref.replace(/^\//, "")}`, "page.tsx");
+    // `/portal/pos/held` → `app/portal/pos/(till)/held/page.tsx` (the till's
+    // route group); the root is `app/portal/pos/(till)/page.tsx`.
+    const pagePath = join(REPO_ROOT, "app", internalHref.replace(/^\/portal\/pos/, "portal/pos/(till)"), "page.tsx");
     expect(existsSync(pagePath), `${internalHref} has no page at ${pagePath}`).toBe(true);
   });
 });
@@ -76,13 +77,35 @@ describe("the public path list has nothing dangling in it", () => {
         (href): href is string => href !== null,
       ),
     );
-    // `/login` is reachable without a nav entry, by definition.
+    // `/login`, the device screens (`/pair`, `/unpaired`) and a sale's
+    // `/receipt` are reachable without a nav entry, by definition.
+    const unlisted = new Set(["/login", "/pair", "/unpaired", "/receipt"]);
     const orphans = (POS_ALL_PUBLIC_PATHS as readonly string[]).filter(
-      (path) => path !== "/login" && !claimed.has(path),
+      (path) => !unlisted.has(path) && !claimed.has(path),
     );
     expect(
       orphans,
       "a public path no nav entry uses is either dead or a rename that only got done on one side — `/queue` was both",
     ).toEqual([]);
+  });
+});
+
+describe("the device screens", () => {
+  it.each(["pair", "unpaired", "who"])("/portal/pos/%s has its own page outside the till's layout", (screen) => {
+    expect(existsSync(join(REPO_ROOT, "app", "portal", "pos", screen, "page.tsx"))).toBe(true);
+  });
+});
+
+describe("canAccessPosPortal", () => {
+  it("admits anyone the matrix lets open a shift, managers included", () => {
+    for (const role of ["CASHIER", "SHOP_MANAGER", "MANAGER", "SUPERADMIN", " cashier "]) {
+      expect(canAccessPosPortal(role), role).toBe(true);
+    }
+  });
+
+  it("keeps out roles that cannot open a shift, and roles the matrix does not know", () => {
+    for (const role of ["STOCK_CLERK", "FINANCE_OFFICER", "CLERK", "POS_CASHIER", "", null, undefined]) {
+      expect(canAccessPosPortal(role), String(role)).toBe(false);
+    }
   });
 });

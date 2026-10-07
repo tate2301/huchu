@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { type RetailTenderType } from "@prisma/client";
 import { createJournalEntryFromSource } from "@/lib/accounting/posting";
 import { errorResponse, validateSession } from "@/lib/api-utils";
-import { normalizeProvidedId, reserveIdentifier } from "@/lib/id-generator";
 import { prisma } from "@/lib/prisma";
 
 export type RetailSession = Awaited<ReturnType<typeof validateSession>> extends infer TResult
@@ -72,6 +71,8 @@ function round(value: number) {
 }
 
 const RETAIL_PENDING_POSTING_CODES = new Set([
+  // A shop posting at the end of each day: the event waits for the day's run (SET-09).
+  "POSTING_DEFERRED",
   "PERIOD_LOCKED",
   "PERIOD_OVERRIDE_FORBIDDEN",
   "PERIOD_OVERRIDE_REASON_REQUIRED",
@@ -92,9 +93,12 @@ export function normalizeRetailPostingPayments(input: {
     /** Quote units per one base unit for this tender: 27.5 ZWG buys one USD. */
     exchangeRate?: number | null;
   }>;
-  changeAmount?: number;
+  /**
+   * The change handed back, in the base currency, by the notes it was given
+   * in (SET-05, W-05): whole US dollars, then ZiG for what is under US$1.
+   */
+  change?: { usd: number; zig: number };
 }) {
-  const changeAmount = Math.max(round(input.changeAmount ?? 0), 0);
   const normalized = input.payments.map((payment) => ({
     tenderType: payment.tenderType,
     amount: round(Math.abs(payment.amount)),
@@ -103,29 +107,37 @@ export function normalizeRetailPostingPayments(input: {
     exchangeRate: payment.exchangeRate ?? null,
   }));
 
-  if (changeAmount <= 0) {
-    return normalized.filter((payment) => payment.amount > 0);
-  }
-
-  let remainingChange = changeAmount;
-  return normalized
-    .flatMap((payment) => {
-      if (payment.tenderType !== "CASH") {
-        return [payment];
+  // Each part of the change comes off the cash in its own currency first, so
+  // the US dollar and ZiG cash accounts each lose what their drawer gave back;
+  // only what one currency's cash cannot cover comes off the other's.
+  const isZig = (currency: string | null) => (currency ?? "").toUpperCase() === "ZWG";
+  const takeOff = (amount: number, first: (currency: string | null) => boolean) => {
+    let remaining = Math.max(round(amount), 0);
+    for (const pass of [true, false]) {
+      for (const payment of normalized) {
+        if (remaining <= 0) return;
+        if (payment.tenderType !== "CASH" || first(payment.currency) !== pass) continue;
+        const offset = Math.min(payment.amount, remaining);
+        payment.amount = round(payment.amount - offset);
+        remaining = round(remaining - offset);
       }
-      const offset = Math.min(payment.amount, remainingChange);
-      remainingChange = round(remainingChange - offset);
-      const amount = round(payment.amount - offset);
-      return amount > 0 ? [{ ...payment, amount }] : [];
-    })
-    .filter((payment) => payment.amount > 0);
+    }
+  };
+  takeOff(input.change?.usd ?? 0, (currency) => !isZig(currency));
+  takeOff(input.change?.zig ?? 0, isZig);
+  return normalized.filter((payment) => payment.amount > 0);
 }
 
+/**
+ * Post a retail journal. `defaultsReady`: the caller has run
+ * `ensureAccountingDefaults` for the company already, once for many journals
+ * (an import's opening stock), so each post does not check them again.
+ */
 export async function postRetailJournal(
   input: Parameters<typeof createJournalEntryFromSource>[0],
-  options: { throwOnFail?: boolean } = {},
+  options: { throwOnFail?: boolean; defaultsReady?: boolean } = {},
 ) {
-  const result = await createJournalEntryFromSource(input);
+  const result = await createJournalEntryFromSource(input, prisma, { defaultsReady: options.defaultsReady });
   if (result.entryId || result.skipped) {
     return {
       accountingStatus: "POSTED",
@@ -327,47 +339,6 @@ export async function ensureInventoryItemAccess(companyId: string, inventoryItem
   }
 
   return item;
-}
-
-export async function upsertRetailRegister(input: {
-  companyId: string;
-  siteId: string;
-  registerName: string;
-  registerCode?: string | null;
-}) {
-  const normalizedName = input.registerName.trim();
-  if (!normalizedName) {
-    throw new Error("Register name is required.");
-  }
-
-  const existing = await prisma.retailRegister.findFirst({
-    where: {
-      companyId: input.companyId,
-      siteId: input.siteId,
-      name: { equals: normalizedName, mode: "insensitive" },
-    },
-  });
-
-  if (existing) {
-    return existing;
-  }
-
-  const code = input.registerCode
-    ? normalizeProvidedId(input.registerCode, "RETAIL_REGISTER")
-    : await reserveIdentifier(prisma, {
-        companyId: input.companyId,
-        entity: "RETAIL_REGISTER",
-        siteId: input.siteId,
-      });
-
-  return prisma.retailRegister.create({
-    data: {
-      companyId: input.companyId,
-      siteId: input.siteId,
-      code,
-      name: normalizedName,
-    },
-  });
 }
 
 export function retailValidationError(message: string, status = 400, details?: unknown) {

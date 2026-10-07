@@ -20,11 +20,9 @@
     a shared layer rather than a wall. An unlayered module would beat every
     utility a later agent writes.
 
-  Tokens: an exact `@corelithzw/react` variable is used wherever its runtime
-  value matches the board. Where it does not, the literal is written out and
-  the reason sits beside it. The big one is `#5E6573` — the DS declares
-  `--text-subtle` three times and the last one wins at `#8A91A0`, which fails
-  4.5:1 on white, so every readable meta value here is the literal.
+  Tokens: every colour is a theme role (`--ink`, `--line`, `--ok` …, declared
+  per product in `app/themes/roles.css`), never a literal, so this surface
+  follows Tender light, Tender dark and Corelith alike.
 */
 
 @layer components {
@@ -72,37 +70,38 @@
   .field,
   .activity,
   .formPage {
-    /* Ink */
-    --s-ink: var(--text-strong); /* #16181D */
-    --s-body: var(--text-body); /* #262A33 */
-    --s-label: var(--text-muted); /* #565C69 */
-    --s-meta: #5E6573; /* unreachable as a token; see the note above */
-    --s-faint: var(--text-subtle); /* #8A91A0 */
+    /* Ink — every value is a role (app/themes/roles.css), so the surface
+       follows the product, light or dark. */
+    --s-ink: var(--ink);
+    --s-body: var(--ink-2);
+    --s-label: var(--ink-3);
+    --s-meta: var(--ink-3);
+    --s-faint: var(--faint);
 
     /* Lines and surfaces */
-    --s-rule: var(--border); /* #E5E8EE */
-    --s-rule-soft: var(--border-subtle); /* #EEF0F4 */
-    --s-control-border: var(--border-strong); /* #D2D7E0 */
-    --s-page: var(--surface); /* #FFFFFF */
-    --s-ground: var(--canvas); /* #F7F8FA */
-    --s-tile: var(--surface-muted); /* #F1F3F6 */
-    --s-selected: var(--surface-sunken); /* #E8EBF0 */
+    --s-rule: var(--line);
+    --s-rule-soft: var(--line-soft);
+    --s-control-border: var(--line-strong);
+    --s-page: var(--surface);
+    --s-ground: var(--ground);
+    --s-tile: var(--tray);
+    --s-selected: var(--active);
 
     /* Accent and state */
-    --s-primary: var(--brand); /* #0B5DF0 */
-    --s-on-tint: var(--brand-strong); /* #0944C2 */
-    --s-tint: var(--brand-soft); /* #E8EFFE */
-    --s-ok-bg: var(--tone-success-bg); /* #E7EFE0 */
-    --s-ok-fg: var(--tone-success-strong); /* #2E5526 */
-    --s-ok-dot: var(--tone-success); /* #5E8E54 */
-    --s-warn-bg: var(--tone-warn-bg); /* #F4E6C5 */
-    --s-warn-fg: #6B4A12; /* no --tone-warn-strong exists */
-    --s-warn-dot: var(--tone-warn); /* #B07626 */
-    --s-warn-list-dot: #C08A2E; /* lighter than the chip dot, by design */
-    --s-bad-bg: var(--tone-danger-bg); /* #F6E2DD */
-    --s-bad-fg: var(--tone-danger-strong); /* #7A2419 */
-    --s-bad-line: var(--tone-danger); /* #B83A2A */
-    --s-neutral-dot: #A8AFBC; /* --gray-400 is #A6AEBD — two digits off */
+    --s-primary: var(--action);
+    --s-on-tint: var(--action-ink);
+    --s-tint: var(--sel-bg);
+    --s-ok-bg: var(--ok-soft);
+    --s-ok-fg: var(--ok);
+    --s-ok-dot: var(--ok);
+    --s-warn-bg: var(--warn-soft);
+    --s-warn-fg: var(--warn);
+    --s-warn-dot: var(--warn-dot);
+    --s-warn-list-dot: var(--warn-dot);
+    --s-bad-bg: var(--bad-soft);
+    --s-bad-fg: var(--bad);
+    --s-bad-line: var(--bad);
+    --s-neutral-dot: var(--faint);
 
     --s-mono: var(--font-mono);
   }
@@ -179,10 +178,12 @@
     box-shadow: 0 0 0 3px var(--focus-ring-soft);
   }
 
+  /* The one primary button paints the product's button fill, not the
+     brighter action colour the focus ring uses (00-foundations 5.1.2). */
   .buttonPrimary {
-    border-color: var(--s-primary);
-    background: var(--s-primary);
-    color: #ffffff;
+    border-color: var(--action-primary-bg);
+    background: var(--action-primary-bg);
+    color: var(--action-primary-fg);
     /* The New button draws its + tighter than a label-led button. */
     padding: 0 11px 0 9px;
     gap: 6px;
@@ -195,8 +196,8 @@
   }
 
   .buttonPrimary:hover {
-    background: var(--brand-strong);
-    border-color: var(--brand-strong);
+    background: var(--action-primary-hover);
+    border-color: var(--action-primary-hover);
   }
 
   /* Section-level: one rung down, because it sits against a 15px heading. */
@@ -1471,6 +1472,66 @@
     color: var(--s-bad-fg);
   }
 
+  /* A fact that can be changed in place: the value is the button, drawn as
+     the value until the pointer is over it. */
+  .factEditable {
+    display: block;
+    width: calc(100% + 16px);
+    margin: 0 -8px;
+    padding: 6px 8px;
+    border: 0;
+    border-radius: 6px;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    text-align: inherit;
+    cursor: text;
+  }
+
+  .factEditable:hover,
+  .factEditable:focus-visible {
+    background: var(--s-tile);
+    outline: none;
+  }
+
+  .factEditable:focus-visible {
+    box-shadow: 0 0 0 3px var(--focus-ring-soft);
+  }
+
+  .factEditing {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 4px 0;
+  }
+
+  .factInput {
+    width: 100%;
+    height: 32px;
+    padding: 0 8px;
+    border: 1px solid var(--s-control-border);
+    border-radius: 6px;
+    background: var(--surface-base);
+    color: var(--s-ink);
+    font: 500 13px/1.4 var(--font-sans);
+  }
+
+  .factInput:focus {
+    outline: none;
+    border-color: var(--action-primary-bg);
+    box-shadow: 0 0 0 3px var(--focus-ring-soft);
+  }
+
+  .factInputMono {
+    font-family: var(--s-mono);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .factError {
+    font: 400 12px/1.4 var(--font-sans);
+    color: var(--s-bad-fg);
+  }
+
   .factLink {
     color: inherit;
     text-decoration: underline;
@@ -1521,15 +1582,15 @@
   .formSubmit {
     height: 34px;
     padding: 0 16px;
-    border-color: var(--s-primary);
-    background: var(--s-primary);
-    color: #ffffff;
+    border-color: var(--action-primary-bg);
+    background: var(--action-primary-bg);
+    color: var(--action-primary-fg);
     gap: 0;
   }
 
   .formSubmit:hover {
-    background: var(--brand-strong);
-    border-color: var(--brand-strong);
+    background: var(--action-primary-hover);
+    border-color: var(--action-primary-hover);
   }
 
   .formSubmit:disabled {

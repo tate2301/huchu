@@ -42,7 +42,6 @@ vi.mock("@/lib/accounting/fiscal-day", async () => {
 });
 
 import { FiscalDayAlreadyOpenError, FiscalDayConfigError } from "@/lib/accounting/fiscal-day";
-import { SETTINGS_PROVIDER_KEYS } from "@/lib/accounting/fiscal-device-scope";
 import { GET, POST } from "./route";
 
 const COMPANY_ID = "company-1";
@@ -142,7 +141,7 @@ describe("GET /api/accounting/fiscalisation/fiscal-days", () => {
     // console listed RETAIL_SETUP_PROFILE as one until they were kept out.
     expect(prismaMock.fiscalisationProviderConfig.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: { companyId: COMPANY_ID, providerKey: { notIn: [...SETTINGS_PROVIDER_KEYS] } },
+        where: { companyId: COMPANY_ID },
       }),
     );
     expect(prismaMock.fiscalDay.findMany).toHaveBeenCalledWith(
@@ -349,6 +348,17 @@ describe("POST /api/accounting/fiscalisation/fiscal-days", () => {
     const response = await POST(postRequest({ providerConfigId: "8f2b1d1e-0a2c-4c7f-9a1b-1f2e3d4c5b6a" }));
 
     expect(response.status).toBe(403);
+    expect(openFiscalDayMock).not.toHaveBeenCalled();
+  });
+
+  it("in a shop, opens a day only for a role that may change the fiscal device", async () => {
+    validateSessionMock.mockResolvedValue({
+      session: { user: { companyId: COMPANY_ID, role: "MANAGER", enabledFeatures: ["retail.core"] } },
+    });
+    const response = await POST(postRequest({ providerConfigId: "8f2b1d1e-0a2c-4c7f-9a1b-1f2e3d4c5b6a" }));
+
+    expect(response.status).toBe(403);
+    expect((await response.json()).error).toBe("Your role cannot change the fiscal device");
     expect(openFiscalDayMock).not.toHaveBeenCalled();
   });
 

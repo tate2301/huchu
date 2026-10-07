@@ -43,6 +43,8 @@ export type RetailSaleDetail = {
   discountAmount: number;
   taxAmount: number;
   totalAmount: number;
+  /** Bottle deposits on top of the goods; negative on a refund or void. */
+  depositAmount: number;
   tenderedAmount: number | null;
   changeAmount: number | null;
   promotionCode: string | null;
@@ -144,7 +146,15 @@ export function RetailSaleDetailBody({ sale }: { sale: RetailSaleDetail }) {
       ? [{ label: "Discount", value: formatSignedMoney(-Math.abs(sale.discountAmount)), mono: true }]
       : []),
     { label: "VAT", value: formatSignedMoney(sale.taxAmount), mono: true },
-    { label: "Total", value: formatSignedMoney(sale.totalAmount), mono: true },
+    { label: sale.depositAmount ? "Goods" : "Total", value: formatSignedMoney(sale.totalAmount), mono: true },
+    // Deposits are owed back on the empties, not earned, so they sit beside
+    // the goods rather than inside them.
+    ...(sale.depositAmount
+      ? [
+          { label: "Bottle deposits", value: formatSignedMoney(sale.depositAmount), mono: true },
+          { label: "Total", value: formatSignedMoney(sale.totalAmount + sale.depositAmount), mono: true },
+        ]
+      : []),
     ...(sale.tenderedAmount !== null
       ? [{ label: "Tendered", value: formatSignedMoney(sale.tenderedAmount), mono: true }]
       : []),

@@ -72,6 +72,20 @@ describe("buildWorkbook", () => {
     expect(total.getCell(4).value).toMatchObject({ formula: "SUBTOTAL(109,D2:D4)", result: 2300.5 });
   });
 
+  it("prints groups as headed sections with their subtotals, and the whole set last", async () => {
+    const sheet = (await read({ ...defaultView(META), groupBy: "stage" })).worksheets[0]!;
+    // Won (2 rows) then Open (1 row), as applyView grouped them.
+    expect(sheet.getRow(2).getCell(1).value).toBe("Won (2)");
+    expect(sheet.getRow(2).getCell(4).value).toMatchObject({ formula: "SUBTOTAL(109,D3:D4)", result: 1500 });
+    expect(sheet.getRow(3).getCell(1).value).toBe("0012");
+    expect(sheet.getRow(5).getCell(1).value).toBe("Open (1)");
+    expect(sheet.getRow(5).getCell(4).value).toMatchObject({ formula: "SUBTOTAL(109,D6:D6)", result: 800.5 });
+    // SUBTOTAL skips the headings' SUBTOTALs, so the last row is the whole set once.
+    const total = sheet.getRow(7);
+    expect(total.getCell(1).value).toBe("Total");
+    expect(total.getCell(4).value).toMatchObject({ formula: "SUBTOTAL(109,D2:D6)", result: 2300.5 });
+  });
+
   it("summarises by the first state, largest first, with its share", async () => {
     const summary = (await read()).getWorksheet("Summary")!;
     expect(summary.getRow(1).values).toEqual([undefined, "Stage", "Rows", "Value", "Share of value"]);

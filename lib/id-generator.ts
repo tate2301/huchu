@@ -29,6 +29,11 @@ export type ReservableIdEntity =
   | "RETAIL_HELD_CART"
   | "RETAIL_SALE"
   | "RETAIL_PROMOTION"
+  | "RETAIL_STOCK_ADJUSTMENT"
+  | "RETAIL_CASE_BREAK"
+  | "RETAIL_STOCK_TRANSFER"
+  | "RETAIL_STOCK_COUNT"
+  | "RETAIL_SUPPLIER"
   | "CRM_CLIENT"
   | "CRM_LEAD"
   | "CRM_APPOINTMENT"
@@ -48,6 +53,8 @@ type EntityConfig = {
   // True: use GlobalIdSequence (no companyId FK) so the counter is shared across tenants.
   // Required when the underlying table has a global @unique on the reference field.
   globalSequence?: boolean;
+  /** Digits after the prefix, when not the usual four. */
+  padWidth?: number;
 };
 
 const PAD = 4;
@@ -79,10 +86,22 @@ export const ID_ENTITY_CONFIG: Record<ReservableIdEntity, EntityConfig> = {
   RETAIL_REGISTER: { prefix: "REG", requiresSiteId: true },
   RETAIL_PURCHASE_ORDER: { prefix: "RPO", requiresSiteId: true },
   RETAIL_GOODS_RECEIPT: { prefix: "RGR", requiresSiteId: true },
-  RETAIL_SHIFT: { prefix: "RSH", requiresSiteId: true },
+  // "SH-00243", the number the floor, the boards and the seeded history use.
+  RETAIL_SHIFT: { prefix: "SH", requiresSiteId: true, padWidth: 5 },
   RETAIL_HELD_CART: { prefix: "RHC", requiresSiteId: false },
   RETAIL_SALE: { prefix: "RSL", requiresSiteId: true },
   RETAIL_PROMOTION: { prefix: "RPM", requiresSiteId: false },
+  // A stock adjustment and a case break are documents only in name: the number
+  // lives on their movements (`StockMovement.reference`), shared by both legs
+  // of a case break.
+  RETAIL_STOCK_ADJUSTMENT: { prefix: "ADJ", requiresSiteId: false },
+  RETAIL_CASE_BREAK: { prefix: "BRK", requiresSiteId: false },
+  // "TRF-0008": stock sent from one site to another (W-24).
+  RETAIL_STOCK_TRANSFER: { prefix: "TRF", requiresSiteId: false },
+  // "CNT-0020": a stock count (W-22).
+  RETAIL_STOCK_COUNT: { prefix: "CNT", requiresSiteId: false },
+  // "SUP-0001": a supplier the shop buys from (W-29), company-wide.
+  RETAIL_SUPPLIER: { prefix: "SUP", requiresSiteId: false },
   CRM_CLIENT: { prefix: "CLI", requiresSiteId: false },
   CRM_LEAD: { prefix: "CRL", requiresSiteId: false },
   CRM_APPOINTMENT: { prefix: "SVT", requiresSiteId: false },
@@ -408,6 +427,35 @@ async function findEntityMaxExistingCode(
       });
       return extractMaxFromCodes(records.map((record) => record.promoCode), prefix);
     }
+    case "RETAIL_STOCK_ADJUSTMENT":
+    case "RETAIL_CASE_BREAK": {
+      const records = await db.stockMovement.findMany({
+        where: { item: { site: { companyId } }, reference: { startsWith: `${prefix}-` } },
+        select: { reference: true },
+      });
+      return extractMaxFromCodes(records.map((record) => record.reference), prefix);
+    }
+    case "RETAIL_STOCK_TRANSFER": {
+      const records = await db.retailStockTransfer.findMany({
+        where: { companyId },
+        select: { transferNo: true },
+      });
+      return extractMaxFromCodes(records.map((record) => record.transferNo), prefix);
+    }
+    case "RETAIL_STOCK_COUNT": {
+      const records = await db.retailStockCount.findMany({
+        where: { companyId },
+        select: { countNo: true },
+      });
+      return extractMaxFromCodes(records.map((record) => record.countNo), prefix);
+    }
+    case "RETAIL_SUPPLIER": {
+      const records = await db.vendor.findMany({
+        where: { companyId, code: { not: null } },
+        select: { code: true },
+      });
+      return extractMaxFromCodes(records.map((record) => record.code), prefix);
+    }
     // CRM entities seed from existing rows so a lost IdSequence row cannot
     // restart the counter at 0001 and collide with the unique constraint.
     case "CRM_CLIENT": {
@@ -624,7 +672,7 @@ export async function reserveIdentifier(
               ),
               padWidth: PAD,
             }
-          : { prefix: config.prefix, separator: "-", max: 0, padWidth: PAD };
+          : { prefix: config.prefix, separator: "-", max: 0, padWidth: config.padWidth ?? PAD };
 
     if (!existing) {
       const maxExisting = SCHOOL_NUMBERED_ENTITIES.has(input.entity)

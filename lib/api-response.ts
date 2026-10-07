@@ -31,6 +31,16 @@ export function errorResponse(
 }
 
 /**
+ * A form refused field by field (00-foundations 4): 400
+ * `{ error, fieldErrors: { <field>: "<sentence>" } }`. The sheet shows each
+ * sentence under its field.
+ */
+export function fieldErrorResponse(message: string, fieldErrors: Record<string, string>, status: number = 400) {
+  markActivityFailed();
+  return NextResponse.json({ error: message, fieldErrors }, { status });
+}
+
+/**
  * Standard success response for API
  */
 export function successResponse<T>(data: T, status: number = 200) {

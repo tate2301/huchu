@@ -119,7 +119,10 @@ export function LoginForm({
       if (result?.error) {
         setError(getAuthErrorMessage(result.error));
       } else {
-        router.push(result?.url ?? resolvedCallbackUrl);
+        // The relative path, not `result.url`: NextAuth builds that on
+        // NEXTAUTH_URL, and the session cookie this sign-in just set belongs
+        // to the host it was made on (a till's POS host signs in there).
+        router.push(resolvedCallbackUrl);
         router.refresh();
       }
     } catch {

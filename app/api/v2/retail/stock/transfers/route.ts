@@ -1,112 +1,54 @@
 import { NextRequest, NextResponse } from "next/server";
-import { z } from "zod";
-import { captureAccountingEvent } from "@/lib/accounting/integration";
-import { errorResponse, successResponse } from "@/lib/api-response";
-import { recordStockMovement } from "@/lib/inventory/stock-movements";
-import { multiplyMoney, toNumberOrZero } from "@/lib/money";
+
+import { errorResponse, fieldErrorResponse, successResponse } from "@/lib/api-response";
+import { canRetailSessionDo } from "@/lib/retail/permission-matrix";
 import { requireRetailPermission } from "@/lib/retail/permissions";
-import {
-  ensureInventoryItemAccess,
-  resolveRetailSite,
-  requireRetailSession,
-} from "../../_helpers";
+import { sendTransfer, transferFieldErrors, transferInput, TransferRefusal } from "@/lib/retail/stock/transfers";
 
-const transferSchema = z.object({
-  siteId: z.string().uuid().optional(),
-  itemId: z.string().uuid(),
-  toLocationId: z.string().uuid(),
-  quantity: z.number().positive(),
-  notes: z.string().max(500).optional().nullable(),
-});
+import { requireRetailSession } from "../../_helpers";
 
+/**
+ * Send stock to another site (30-stock W-24 step 2, 4.5). `retail.transfers:create`
+ * (owner, manager, stock clerk).
+ *
+ * `{ fromSiteId, toSiteId, lines: [{ lineId, quantity }], takenById, arrives }`
+ * → 201 `{ data: { id, transferNo, units, value?, to } }`. Refused field by
+ * field (`from`, `to`, `lines.<i>`, `who`, `when`): "Pick a different site.",
+ * "Only 9 at Harare Main Branch.". The list is the `retail-stock-transfers`
+ * source.
+ */
 export async function POST(request: NextRequest) {
   const { response, session } = await requireRetailSession(request);
-  if (response || !session) {
-    return response as NextResponse;
-  }
+  if (response || !session) return response as NextResponse;
 
-  // R-2.4. A transfer moves stock between locations. Same grant as a count.
-  const gate = requireRetailPermission(session, "retail.stock", "create");
+  const gate = requireRetailPermission(session, "retail.transfers", "create");
   if (gate) return gate;
 
+  const parsed = transferInput.safeParse(await request.json().catch(() => null));
+  if (!parsed.success) {
+    const fieldErrors = transferFieldErrors(parsed.error);
+    return fieldErrorResponse(Object.values(fieldErrors)[0] ?? "Check the transfer.", fieldErrors);
+  }
+
   try {
-    const body = await request.json();
-    const input = transferSchema.parse(body);
-
-    const { site, response: siteResponse } = await resolveRetailSite(
-      session.user.companyId,
-      input.siteId,
-    );
-    if (siteResponse) return siteResponse;
-    if (!site) {
-      return errorResponse("Invalid site", 400);
-    }
-
-    const item = await ensureInventoryItemAccess(session.user.companyId, input.itemId);
-    if (!item || item.siteId !== site.id) {
-      return errorResponse("Invalid inventory item for the selected site", 400);
-    }
-
-    // The destination, the same-site rule and the whole-line rule all live in
-    // `recordStockMovement` now — one movement service, one set of rules. It
-    // throws with a message the catch below turns into a 400.
-    const fromLocationId = item.locationId;
-    const { movement } = await recordStockMovement({
-      companyId: session.user.companyId,
-      userId: session.user.id,
-      itemId: item.id,
-      movementType: "TRANSFER",
-      quantity: input.quantity,
-      unit: item.unit,
-      unitCost: item.unitCost ?? 0,
-      notes: input.notes?.trim() || `Retail transfer of ${item.name}`,
-      toLocationId: input.toLocationId,
-      sourceType: "RETAIL_STOCK_TRANSFER",
-      sourceId: `stock-transfer:${item.id}:${Date.now()}`,
-    });
-
-    await captureAccountingEvent({
-      companyId: session.user.companyId,
-      sourceDomain: "retail",
-      sourceAction: "stock-transfer",
-      sourceType: "RETAIL_STOCK_TRANSFER",
-      sourceId: movement.id,
-      sourceSubtype: "SAME_SITE",
-      siteId: site.id,
-      entryDate: new Date(),
-      description: `Retail stock transfer ${movement.referenceId}`,
-      // S-1. `unitCost` is `Decimal(14,2)`; this is the value posted to the
-      // ledger for the move.
-      amount: toNumberOrZero(multiplyMoney(input.quantity, item.unitCost ?? 0).abs()),
-      payload: {
-        movementId: movement.id,
-        movementReference: movement.referenceId,
-        itemId: item.id,
-        itemName: item.name,
-        quantity: input.quantity,
-        fromLocationId,
-        toLocationId: input.toLocationId,
-        movementType: "TRANSFER",
-      },
-      createdById: session.user.id,
-      status: "POSTED",
-    });
-
-    return successResponse(
+    const data = await sendTransfer(
       {
-        movementId: movement.id,
-        referenceId: movement.referenceId,
-        itemId: item.id,
-        quantity: input.quantity,
-        fromLocationId,
-        toLocationId: input.toLocationId,
+        companyId: session.user.companyId,
+        userId: session.user.id,
+        userName: session.user.name ?? null,
+        userRole: session.user.role ?? null,
+        canSeeCost: canRetailSessionDo(session, "retail.catalog", "view-cost"),
       },
-      201,
+      parsed.data,
     );
+    return successResponse({ data }, 201);
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      return errorResponse("Validation failed", 400, error.issues);
+    if (error instanceof TransferRefusal) {
+      return error.fieldErrors
+        ? fieldErrorResponse(error.message, error.fieldErrors, error.status)
+        : errorResponse(error.message, error.status);
     }
-    return errorResponse(error instanceof Error ? error.message : "Failed to post stock transfer", 400);
+    console.error("[API] POST /api/v2/retail/stock/transfers error:", error);
+    return errorResponse("That transfer was not sent. Nothing moved; try again.");
   }
 }

@@ -86,12 +86,12 @@ test.describe("retail", () => {
   ]);
 
   journey("retail — range and stock", "retail", "range-and-stock", [
-    { path: "/retail/catalog", name: "catalogue" },
-    { path: "/retail/merchandising/pricing", name: "pricing" },
-    { path: "/retail/merchandising/promotions", name: "promotions" },
+    { path: "/retail/products", name: "catalogue" },
+    { path: "/retail/products/price-lists", name: "pricing" },
+    { path: "/retail/products/promotions", name: "promotions" },
     { path: "/retail/stock", name: "stock-on-hand" },
-    { path: "/retail/stock/count", name: "stock-count" },
-    { path: "/retail/purchasing/orders", name: "purchase-orders" },
+    { path: "/retail/stock/counts", name: "stock-count" },
+    { path: "/retail/buying/orders", name: "purchase-orders" },
   ]);
 
   journey("retail — what the owner reads", "retail", "reporting", [

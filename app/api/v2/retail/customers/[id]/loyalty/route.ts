@@ -3,7 +3,8 @@ import { errorResponse, successResponse } from "@/lib/api-response";
 import { parseRetailParams, retailIdParams } from "@/lib/retail/request";
 import { toNumberOrZero } from "@/lib/money";
 import { prisma } from "@/lib/prisma";
-import { getCustomerLoyaltyBalance, parseLoyaltyRedeemPoints } from "@/lib/retail/loyalty";
+import { getCustomerLoyaltyBalance } from "@/lib/retail/loyalty";
+import { parseLoyaltyRedeemPoints } from "@/lib/retail/loyalty-rules";
 import { requireRetailPermission } from "@/lib/retail/permissions";
 import { requireRetailSession } from "../../../_helpers";
 
@@ -18,7 +19,7 @@ export async function GET(
 
   // R-2.3. One customer's points and the history behind them, read at the
   // counter while they wait. Selling, not reporting.
-  const gate = requireRetailPermission(session, "retail.sell", "view");
+  const gate = requireRetailPermission(session, "retail.customers", "view");
   if (gate) return gate;
 
   /*

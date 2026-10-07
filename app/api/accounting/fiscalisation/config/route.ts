@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { validateSession, successResponse, errorResponse } from "@/lib/api-utils";
 import { prisma } from "@/lib/prisma";
-import { fiscalDeviceWhere } from "@/lib/accounting/fiscal-device-scope";
+import { canOnSharedRoute, requireOnSharedRoute } from "@/lib/retail/permissions";
 
 const configSchema = z.object({
   providerKey: z.string().min(1).max(50),
@@ -38,7 +38,7 @@ export async function GET(request: NextRequest) {
 
     const [provider, settings] = await Promise.all([
       prisma.fiscalisationProviderConfig.findFirst({
-        where: fiscalDeviceWhere(session.user.companyId),
+        where: { companyId: session.user.companyId, isActive: true },
         orderBy: { updatedAt: "desc" },
       }),
       prisma.accountingSettings.findUnique({
@@ -46,7 +46,11 @@ export async function GET(request: NextRequest) {
       }),
     ]);
 
-    return successResponse({ provider, settings });
+    return successResponse({
+      provider,
+      settings,
+      canEdit: canOnSharedRoute(session, "retail.fiscal", "update", null),
+    });
   } catch (error) {
     console.error("[API] GET /api/accounting/fiscalisation/config error:", error);
     return errorResponse("Failed to fetch fiscalisation config");
@@ -58,6 +62,10 @@ export async function POST(request: NextRequest) {
     const sessionResult = await validateSession(request);
     if (sessionResult instanceof NextResponse) return sessionResult;
     const { session } = sessionResult;
+    // A shop's Fiscal device row: the owner changes it; the manager and the
+    // bookkeeper read it. Other products have only ever checked the session.
+    const refused = requireOnSharedRoute(session, "retail.fiscal", "update", null, "");
+    if (refused) return refused;
 
     const body = await request.json();
     const validated = configSchema.parse(body);

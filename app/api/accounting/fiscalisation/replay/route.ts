@@ -8,7 +8,7 @@ import {
   SCHOOL_FISCALISATION_FEATURE,
 } from "@/lib/schools/fiscalisation";
 import { hasFeature } from "@/lib/platform/features";
-import { hasRole } from "@/lib/roles";
+import { requireOnSharedRoute } from "@/lib/retail/permissions";
 
 const schema = z.object({
   limit: z.number().int().min(1).max(200).optional(),
@@ -37,9 +37,14 @@ export async function POST(request: NextRequest) {
     if (sessionResult instanceof NextResponse) return sessionResult;
     const { session } = sessionResult;
 
-    if (!hasRole(session.user.role, ["SUPERADMIN", "MANAGER"])) {
-      return errorResponse("Insufficient permissions to replay fiscal receipts", 403);
-    }
+    const refused = requireOnSharedRoute(
+      session,
+      "retail.fiscal",
+      "update",
+      ["SUPERADMIN", "MANAGER"],
+      "Insufficient permissions to replay fiscal receipts",
+    );
+    if (refused) return refused;
 
     const body = await request.json().catch(() => ({}));
     const validated = schema.parse(body);

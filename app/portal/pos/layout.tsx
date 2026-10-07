@@ -1,33 +1,14 @@
 import type { ReactNode } from "react";
-import { headers } from "next/headers";
-import { PosPortalProvider } from "@/components/retail/portal/pos-portal-state";
-import { PosPortalLayoutFrame } from "@/components/retail/portal/pos-portal-layout-frame";
-import { PosTillLockProvider } from "@/components/retail/portal/pos-lock-screen";
-import { getHostHeaderFromRequestHeaders, getPortalRequestRouting } from "@/lib/platform/tenant";
-import { resolveWorkspaceIdentityForHost } from "@/lib/platform/workspace-identity";
 
-export default async function PosPortalLayout({ children }: { children: ReactNode }) {
-  const headersList = await headers();
-  const hostHeader = getHostHeaderFromRequestHeaders(headersList);
-  const portalRouting = getPortalRequestRouting(hostHeader, "/portal/pos");
-  const workspace = await resolveWorkspaceIdentityForHost(hostHeader);
+import { tillMono, tillSans } from "@/components/retail/till/fonts";
+import { TillRoot } from "@/components/retail/till/till-root";
 
-  return (
-    <PosPortalProvider isPosHost={portalRouting.isPortalHost}>
-      {/*
-        S-7.5. The lock wraps the whole till, not a single screen: a cashier
-        stepping away leaves whichever view they were on, and the basket has to
-        be covered wherever they left it. The provider renders the PIN screen
-        over its children when locked, so mounting it here is the whole wiring.
-      */}
-      <PosTillLockProvider>
-        <PosPortalLayoutFrame
-          workspaceName={workspace.workspaceName}
-          workspaceInitial={workspace.initial}
-        >
-          {children}
-        </PosPortalLayoutFrame>
-      </PosTillLockProvider>
-    </PosPortalProvider>
-  );
+/**
+ * Every till screen, signed in or not, sits in the till's own root: its tokens,
+ * its kit and its two faces. The door (`/pair`, "Who is selling?",
+ * `/unpaired`) and the receipt use it as they are; the signed-in screens add
+ * the shell in `(till)`.
+ */
+export default function PosPortalLayout({ children }: { children: ReactNode }) {
+  return <TillRoot fontClass={`${tillSans.variable} ${tillMono.variable}`}>{children}</TillRoot>;
 }

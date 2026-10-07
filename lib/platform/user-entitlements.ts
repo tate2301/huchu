@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { getCompanyFeatureMap, type FeatureMap } from "@/lib/platform/entitlements";
 import { FEATURE_CATALOG } from "@/lib/platform/feature-catalog";
 import { normalizeFeatureKey } from "@/lib/platform/gating/catalog-utils";
+import { RETAIL_CORE_FEATURE } from "@/lib/retail/permission-matrix";
 
 const MANAGER_TEMPLATE_DENY = new Set([
   "core.branding.manage",
@@ -158,6 +159,14 @@ const ROLE_PREFIX_ALLOWLIST: Record<string, readonly string[] | null> = {
     "accounting.ar",
     "accounting.banking",
     "accounting.tax",
+    /*
+      The retail bookkeeper (the Roles board's FINANCE_OFFICER column): the
+      retail modules here, and the other modules' reads the retail pages lean
+      on in `RETAIL_TEMPLATE_PREFIXES`. What each request may do is
+      `lib/retail/permission-matrix.ts`. In a tenant without retail the
+      company's own features keep `retail.` shut.
+    */
+    "retail.",
   ],
   /*
     `crm.customers` on both till roles, because the till has a customer screen.
@@ -206,6 +215,16 @@ const ROLE_PREFIX_ALLOWLIST: Record<string, readonly string[] | null> = {
       indistinguishable from "there are none".
     */
     "retail.promotions",
+    /*
+      The back office a cashier reaches (00-foundations 5.3.4): their own
+      shifts, and their own requisitions under Buying. The role matrix in
+      `lib/retail/permission-matrix.ts` still decides what each request may do;
+      these only let the pages and their APIs answer at all.
+    */
+    "retail.shifts",
+    "retail.purchasing",
+    // `retail.catalog` depends on it: without it the Products list is gone.
+    "stores.inventory",
     "crm.customers",
     "portal.core",
     "portal.pos",
@@ -215,11 +234,49 @@ const ROLE_PREFIX_ALLOWLIST: Record<string, readonly string[] | null> = {
     "core.help.",
     "core.notifications.",
     "core.multitenancy.",
+    /*
+      Stock is the clerk's module (5.3.4): On hand and Counts sit under
+      `retail.core`, and they read the stock ledger's items and movements.
+    */
+    "retail.core",
+    "stores.inventory",
+    "stores.movements",
     "retail.purchasing",
     "retail.catalog",
     "portal.pos",
   ],
 };
+
+/**
+ * Other modules' features a role reaches only in a company that runs retail.
+ *
+ * The bookkeeper's retail pages read the stock ledger (On hand, Movements),
+ * the shop's customers and the fiscal device, which live in the stores, CRM
+ * and accounting modules. In a mine or a school a finance officer has no
+ * business in stores or the fiscal device, so these stay off their template
+ * there; `lib/auth-core/role-routes.ts` keeps them read only where they open.
+ */
+const RETAIL_TEMPLATE_PREFIXES: Record<string, readonly string[]> = {
+  FINANCE_OFFICER: ["crm.customers", "stores.inventory", "stores.movements", "accounting.zimra.fiscalisation"],
+};
+
+/**
+ * The only accounting features a MANAGER keeps in a company that runs retail.
+ *
+ * The Roles board gives the shop manager no Posting to the books and only
+ * reads the fiscal device (80-admin 3.1): they run the shop, not the books.
+ * The fiscal device page needs `accounting.zimra.fiscalisation`, which depends
+ * on `accounting.core` and `accounting.tax`; every other accounting feature
+ * (chart of accounts, journals, periods, posting rules, statements, payables,
+ * receivables, banking) is off their template, so its pages and APIs refuse
+ * them before a handler runs. Outside retail a MANAGER keeps the whole module.
+ */
+const RETAIL_MANAGER_ACCOUNTING_ALLOW = new Set([
+  "accounting.core",
+  "accounting.tax",
+  "accounting.zimra.fiscalisation",
+]);
+
 
 const MANAGED_USER_ROLE_VALUES = [
   "SUPERADMIN",
@@ -319,11 +376,27 @@ function getAllCompanyEnabledFeatureKeys(companyMap: FeatureMap): string[] {
   return [...enabled].sort();
 }
 
-export function isTemplateAllowedForRole(role: string, featureKey: string): boolean {
+export function isTemplateAllowedForRole(
+  role: string,
+  featureKey: string,
+  companyRunsRetail = false,
+): boolean {
   const normalizedRole = role.trim().toUpperCase();
   const normalizedFeatureKey = normalizeFeatureKey(featureKey);
 
+  const retailPrefixes = RETAIL_TEMPLATE_PREFIXES[normalizedRole];
+  if (companyRunsRetail && retailPrefixes && featureMatchesAnyPrefix(normalizedFeatureKey, retailPrefixes)) {
+    return true;
+  }
+
   if (normalizedRole === "MANAGER") {
+    if (
+      companyRunsRetail &&
+      normalizedFeatureKey.startsWith("accounting.") &&
+      !RETAIL_MANAGER_ACCOUNTING_ALLOW.has(normalizedFeatureKey)
+    ) {
+      return false;
+    }
     return !MANAGER_TEMPLATE_DENY.has(normalizedFeatureKey);
   }
 
@@ -339,9 +412,13 @@ export function isTemplateAllowedForRole(role: string, featureKey: string): bool
   return true;
 }
 
-function getRoleDefaultForFeature(templateRole: string, featureKey: string): boolean {
+function getRoleDefaultForFeature(templateRole: string, featureKey: string, companyMap: FeatureMap): boolean {
   if (!isManagedUserRole(templateRole)) return true;
-  return isTemplateAllowedForRole(templateRole, featureKey);
+  return isTemplateAllowedForRole(
+    templateRole,
+    featureKey,
+    isCompanyFeatureEnabled(RETAIL_CORE_FEATURE, companyMap),
+  );
 }
 
 export async function getUserFeatureOverrideMap(userId: string): Promise<Map<string, boolean>> {
@@ -417,7 +494,7 @@ export async function getEffectiveFeaturesForUser(input: {
   return companyEnabled.filter((featureKey) => {
     const override = overrideMap.get(featureKey);
     if (override !== undefined) return override;
-    return getRoleDefaultForFeature(templateRole, featureKey);
+    return getRoleDefaultForFeature(templateRole, featureKey, companyMap);
   });
 }
 
@@ -439,7 +516,7 @@ export async function getManagedUserFeatureAccessEntries(input: {
   const entries: ManagedUserFeatureAccessEntry[] = [];
   for (const featureKey of getAllCompanyEnabledFeatureKeys(companyMap)) {
     const catalog = CATALOG_BY_KEY.get(featureKey);
-    const roleDefault = getRoleDefaultForFeature(templateRole, featureKey);
+    const roleDefault = getRoleDefaultForFeature(templateRole, featureKey, companyMap);
     const override = overrideMap.get(featureKey);
 
     entries.push({
@@ -496,7 +573,7 @@ export async function setManagedUserFeatureOverride(input: {
     select: { id: true },
   });
 
-  const roleDefault = getRoleDefaultForFeature(templateRole, normalizedFeatureKey);
+  const roleDefault = getRoleDefaultForFeature(templateRole, normalizedFeatureKey, companyMap);
 
   if (input.isEnabled === roleDefault) {
     // Matches the role default, so no override is needed.

@@ -1,0 +1,32 @@
+/* A till receipt on screen (SET-07, board ReceiptSettings): white 80 mm paper,
+   in mono, the shop's lines centred, dashed rules between the parts. Paper
+   stays white with dark ink in every theme, as the printout does. */
+
+.cx-receipt-paper {
+  align-self: center;
+  /* 240px of paper inside its margins, as the board draws it. */
+  width: 240px;
+  max-width: calc(100% - 32px);
+  box-sizing: content-box;
+  padding: 20px 16px;
+  background: #ffffff;
+  color: #24140e;
+  box-shadow: 0 0 0 1px var(--line), 0 14px 30px -18px rgba(36, 20, 14, 0.3);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 1.5;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-variant-numeric: tabular-nums;
+}
+.cx-receipt-paper__c { text-align: center; overflow-wrap: anywhere; white-space: pre-wrap; }
+.cx-receipt-paper__title { font-weight: 600; font-size: 12px; }
+.cx-receipt-paper__logo { display: block; align-self: center; max-width: 120px; max-height: 48px; margin-bottom: 6px; object-fit: contain; }
+.cx-receipt-paper__rule { border-top: 1px dashed #a89c94; margin: 6px 0; }
+.cx-receipt-paper__row { display: flex; justify-content: space-between; gap: 10px; }
+.cx-receipt-paper__row > span:first-child { min-width: 0; overflow-wrap: anywhere; }
+.cx-receipt-paper__row > span:last-child { white-space: nowrap; }
+.cx-receipt-paper__row--total { font-weight: 600; }
+.cx-receipt-paper__fiscal { margin-top: 6px; }
+.cx-receipt-paper__empty { color: #75675f; text-align: center; }

@@ -40,6 +40,7 @@ export async function destroyProvisionedTenant(companyId: string): Promise<void>
       await tx.taxCode.deleteMany({ where: { companyId } });
       await tx.taxCategory.deleteMany({ where: { companyId } });
       await tx.tenderAccountMapping.deleteMany({ where: { companyId } });
+      await tx.retailAccountRoleMapping.deleteMany({ where: { companyId } });
       await tx.postingRule.deleteMany({ where: { companyId } });
       await tx.bankAccount.deleteMany({ where: { companyId } });
       await tx.accountingPeriod.deleteMany({ where: { companyId } });

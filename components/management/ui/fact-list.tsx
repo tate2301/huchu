@@ -3,6 +3,7 @@ import Link from "next/link";
 
 import { cn } from "@/lib/utils";
 
+import { EditableFactValue, type FactEdit } from "./editable-fact";
 import styles from "./settings.module.css";
 
 export type FactListItem = {
@@ -16,6 +17,8 @@ export type FactListItem = {
   tone?: "default" | "muted" | "warn" | "danger";
   /** Where the value leads — the list the figure was counted from. */
   href?: string;
+  /** Change it where it stands. See `EditableFactValue`. */
+  edit?: FactEdit;
 };
 
 export type FactListProps = {
@@ -59,7 +62,9 @@ export function FactList({
             data-mono={item.mono ? "true" : undefined}
             data-tone={item.tone && item.tone !== "default" ? item.tone : undefined}
           >
-            {item.href ? (
+            {item.edit ? (
+              <EditableFactValue label={item.label} display={item.value} edit={item.edit} />
+            ) : item.href ? (
               <Link href={item.href} className={styles.factLink}>
                 {item.value}
               </Link>

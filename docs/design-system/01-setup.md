@@ -99,34 +99,29 @@ are Tailwind font-size and line-height theme keys. The bridge declares them in a
 override Tailwind's defaults for every `text-sm` / `leading-normal` class in the app. That is intentional and
 long-standing — but it means changing one of those values in the bridge resizes text app-wide.
 
-### 3. Tenant branding used to override everything
+### 3. Tenant branding no longer reaches the interface
 
-`getBrandingCssVariables` in `lib/platform/branding.ts` writes CSS custom properties **inline on `<body>`**,
-which outranks every stylesheet including the package. It used to emit a complete hardcoded warm-paper
-palette — surfaces, text, borders, statuses, charts, shadows — on every request, branded or not. That, more
-than any collision, is why the product rendered off-token.
+`<body>` carries no inline branding variables. A tenant's colours and typeface paint documents and the logo
+tile only; the interface is painted by the product theme (`app/themes/roles.css`) and the fixed type pair
+(98-decisions, foundations questions 3 and 4; 00-foundations 5.1.5). An inline style on `<body>` would outrank
+every theme block, which is why nothing is written there.
 
-It now emits nothing when branding is disabled, and when enabled it re-anchors the design system's own
-`--brand` scale on the tenant's colour rather than restating a palette. Two rules if you touch it:
+### Themes and dark mode
 
-1. Emit only what the tenant actually chose.
-2. Re-tint through the package's token names, not the app's aliases — that is what makes a tenant's colour
-   reach components rendered by `@corelithzw/react`.
-
-### Dark mode
-
-The DS ships no `prefers-color-scheme` or `.dark` block; it flips tokens on `body.is-dark`. The app is
-light-only today (`app/globals.css` has a dark block for `.pos-terminal` only). Any surface that wants dark
-should add `is-dark` to `<body>` and let the package's token flip do the work.
+`<html data-theme>` picks one of three role blocks in `app/themes/roles.css`: `corelith` for every product but
+retail, `tender` for retail and `tender-dark` when a retail person chooses Dark (or "Match the device" on a dark
+device) on `/preferences/appearance`. The head script in `app/layout.tsx` applies the choice before the first
+paint. A final `:root[data-theme]` block points the package's tokens — surfaces, text, borders, the brand and
+gray ramps, the status tones — at the roles, so every screen follows the product. There is no
+`body.is-dark` and no `prefers-color-scheme` block.
 
 ### Typeface — decided
 
-**Atkinson Hyperlegible.** The self-hosted "SS Huchu" `@font-face` blocks are gone and `--font-sans` comes
-from the package untouched. One consequence: `styles.css` pulls the two families from Google Fonts via an
-`@import` on its line 14, and once bundled that lands *inside* `@layer corelith`, where it is invalid CSS
-that browsers drop. `app/globals.css` hoists the same import to the top of the file — that copy is the one
-that loads. If a CSP or an offline build blocks Google Fonts the stack falls back to `-apple-system`; the fix
-is to self-host the two families, not to remove the hoisted import.
+**Atkinson Hyperlegible Next** for every word and **IBM Plex Mono** for figures, references and times.
+`app/globals.css` imports both from Google Fonts at the top of the file (an `@import` inside
+`@layer corelith` would be dropped); `roles.css` sets `--font-mono`. If a CSP or an offline build blocks Google
+Fonts the stack falls back to the system face; the fix is to self-host the two families, not to remove the
+import.
 
 The `.woff2` files remain in `public/` and are now unreferenced.
 

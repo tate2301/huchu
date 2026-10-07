@@ -166,6 +166,10 @@ export async function POST(request: NextRequest) {
           sourceType,
           // A movement posted by hand has no upstream document: it is the document.
           sourceId: null,
+          // The stores module types its movements by hand; it has no shop
+          // reason and no document number beyond the row's own.
+          reason: null,
+          reference: null,
           entryDate: movementDate,
         });
         break;

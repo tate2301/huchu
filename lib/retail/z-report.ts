@@ -134,8 +134,10 @@ import {
 export const RETAIL_Z_REPORT_TENDERS = [
   "CASH",
   "CARD",
-  "MOBILE_MONEY",
+  "ECOCASH",
+  "INNBUCKS",
   "TRANSFER",
+  "ON_ACCOUNT",
   "VOUCHER",
 ] as const;
 
@@ -247,6 +249,11 @@ export type ZReportSaleInput = {
   discountAmount: MoneyLike;
   taxAmount: MoneyLike;
   totalAmount: MoneyLike;
+  /**
+   * Bottle deposits taken on top of `totalAmount`. Outside the goods total, so
+   * outside sales and VAT, but inside the tenders and the drawer. Signed.
+   */
+  depositAmount: MoneyLike;
   changeAmount: MoneyLike;
   /** Quote units per one base unit, stamped on the sale. 1 for a base-currency sale. */
   exchangeRate: MoneyLike;
@@ -358,6 +365,12 @@ export type RetailZReportFigures = {
   taxRatePercent: Prisma.Decimal;
   /** Σ `totalAmount` — what customers actually paid. `netSales + taxTotal`. */
   grossTakings: Prisma.Decimal;
+  /**
+   * Bottle deposits held from the day, net of those handed back. Not revenue:
+   * the shop owes it to whoever brings the empties back. Tenders add up to
+   * `grossTakings + depositTotal`.
+   */
+  depositTotal: Prisma.Decimal;
   refundTotal: Prisma.Decimal;
   voidTotal: Prisma.Decimal;
 
@@ -425,6 +438,7 @@ export function buildRetailZReportFigures(
   let discountTotal = ZERO;
   let taxTotal = ZERO;
   let grossTakings = ZERO;
+  let depositTotal = ZERO;
   let refundTotal = ZERO;
   let voidTotal = ZERO;
   let saleCount = 0;
@@ -470,6 +484,7 @@ export function buildRetailZReportFigures(
       discountTotal = discountTotal.plus(saleDiscount);
       taxTotal = taxTotal.plus(saleTax);
       grossTakings = grossTakings.plus(saleTotal);
+      depositTotal = depositTotal.plus(toBaseAmount(sale.depositAmount, fx));
 
       if (sale.saleType === "SALE") saleCount += 1;
       if (sale.saleType === "REFUND") {
@@ -637,6 +652,7 @@ export function buildRetailZReportFigures(
     taxTotal,
     taxRatePercent,
     grossTakings,
+    depositTotal: money(depositTotal),
     refundTotal: money(refundTotal),
     voidTotal: money(voidTotal),
 
@@ -710,6 +726,7 @@ export type RetailZReportPayload = {
   taxTotal: number;
   taxRatePercent: number;
   grossTakings: number;
+  depositTotal: number;
   refundTotal: number;
   voidTotal: number;
   openingFloat: number;
@@ -754,6 +771,7 @@ export type RetailZReportRow = {
   taxTotal: MoneyLike;
   taxRatePercent: MoneyLike;
   grossTakings: MoneyLike;
+  depositTotal: MoneyLike;
   refundTotal: MoneyLike;
   voidTotal: MoneyLike;
   openingFloat: MoneyLike;
@@ -810,6 +828,7 @@ export function serializeRetailZReport(
     taxTotal: num(row.taxTotal),
     taxRatePercent: Number(percent(row.taxRatePercent)),
     grossTakings: num(row.grossTakings),
+    depositTotal: num(row.depositTotal),
     refundTotal: num(row.refundTotal),
     voidTotal: num(row.voidTotal),
     openingFloat: num(row.openingFloat),
@@ -871,6 +890,7 @@ export function retailZReportToCsv(report: RetailZReportPayload): string {
   push("Sales", "Net sales (excl. VAT)", "", "", fixed(report.netSales));
   push("Sales", "VAT", `${report.taxRatePercent.toFixed(2)}%`, "", fixed(report.taxTotal));
   push("Sales", "Take-home (after discounts)", "", "", fixed(report.grossTakings));
+  push("Sales", "Bottle deposits held", "", "", fixed(report.depositTotal));
   push("Sales", "Refunds", "", String(report.refundCount), fixed(report.refundTotal));
   push("Sales", "Voids", "", String(report.voidCount), fixed(report.voidTotal));
 

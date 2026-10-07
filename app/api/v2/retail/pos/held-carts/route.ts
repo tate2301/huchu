@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { requirePosDevice } from "@/lib/retail/devices";
 import { Prisma } from "@prisma/client";
 import { z } from "zod";
 import { errorResponse, successResponse } from "@/lib/api-response";
@@ -23,6 +24,8 @@ export async function GET(request: NextRequest) {
   // R-2.3. A parked cart is a sale in progress.
   const gate = requireRetailPermission(session, "retail.sell", "view");
   if (gate) return gate;
+  const { response: deviceResponse } = await requirePosDevice(request, session);
+  if (deviceResponse) return deviceResponse;
 
   const { searchParams } = new URL(request.url);
   const shiftId = searchParams.get("shiftId")?.trim();
@@ -51,6 +54,8 @@ export async function POST(request: NextRequest) {
 
   const gate = requireRetailPermission(session, "retail.sell", "create");
   if (gate) return gate;
+  const { response: deviceResponse } = await requirePosDevice(request, session);
+  if (deviceResponse) return deviceResponse;
 
   try {
     const body = await request.json();

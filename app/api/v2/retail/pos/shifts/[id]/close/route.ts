@@ -4,7 +4,9 @@ import { errorResponse, successResponse } from "@/lib/api-response";
 import { parseRetailParams, retailIdParams } from "@/lib/retail/request";
 import { requireRetailSession } from "../../../../_helpers";
 import { canAccessPosPortal } from "@/lib/retail/pos-host";
+import { requireRetailPermission } from "@/lib/retail/permissions";
 import { closeRetailShiftTransaction } from "../../../../_services";
+import { refuseShiftElsewhere, requirePosDevice } from "@/lib/retail/devices";
 
 const closePosShiftSchema = z.object({
   countedCash: z.number().min(0),
@@ -23,6 +25,10 @@ export async function POST(
   if (!canAccessPosPortal(session.user.role)) {
     return errorResponse("POS access denied", 403);
   }
+  const gate = requireRetailPermission(session, "retail.sell", "close-shift");
+  if (gate) return gate;
+  const { device, response: deviceResponse } = await requirePosDevice(request, session);
+  if (deviceResponse) return deviceResponse;
 
   try {
     /*
@@ -35,9 +41,11 @@ export async function POST(
   const path = await parseRetailParams(params, retailIdParams);
   if (path.response) return path.response;
   const { id } = path.data;
+    const elsewhere = await refuseShiftElsewhere(device, id);
+    if (elsewhere) return elsewhere;
     const body = await request.json();
     const input = closePosShiftSchema.parse(body);
-    const { shift, accounting } = await closeRetailShiftTransaction({
+    const { shift, accounting, fiscalDayClosed } = await closeRetailShiftTransaction({
       actor: {
         companyId: session.user.companyId,
         userId: session.user.id,
@@ -52,7 +60,7 @@ export async function POST(
       allowManagerClose: false,
     });
 
-    return successResponse({ ...shift, ...accounting });
+    return successResponse({ ...shift, ...accounting, fiscalDayClosed });
   } catch (error) {
     if (error instanceof z.ZodError) {
       return errorResponse("Validation failed", 400, error.issues);

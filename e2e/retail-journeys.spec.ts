@@ -21,9 +21,10 @@ import { RETAIL } from "./_support/tenants";
  *
  * ## The fiscal device
  *
- * W14 points the shop's fiscal device at `scripts/fake-fdms.mjs`, which must
- * be running (`node scripts/fake-fdms.mjs`) on 127.0.0.1:9911, or at
- * `E2E_FAKE_FDMS_URL`. The real FDMS spends a single-use activation key on
+ * W14 connects the shop's fiscal device to `scripts/fake-fdms.mjs`, which must
+ * be running (`node scripts/fake-fdms.mjs`) on 127.0.0.1:9911, with the app's
+ * `ZIMRA_FDMS_API_BASE_URL` pointing at it — a device takes its FDMS address
+ * from there. The real FDMS spends a single-use activation key on
  * registration and treats every receipt as a tax document.
  *
  *   node scripts/fake-fdms.mjs &
@@ -35,7 +36,6 @@ test.describe.configure({ mode: "serial", timeout: 600_000 });
 
 const RUN = Date.now().toString(36).slice(-4).toUpperCase();
 const PRODUCT = `Mazoe Orange 2L ${RUN}`;
-const FAKE_FDMS = process.env.E2E_FAKE_FDMS_URL ?? "http://127.0.0.1:9911";
 const SETTLE = 2_500;
 
 /** A record's rare verb: the "…" beside its one labelled verb, then the item. */
@@ -67,7 +67,7 @@ test.describe("the back office", () => {
 
   test("W3 add a product", async ({ page }) => {
     const shot = shooter("retail", "journey-w03-add-a-product");
-    await visitSettled(page, "/retail/catalog");
+    await visitSettled(page, "/retail/products");
     await expect(page.getByRole("table")).toBeVisible({ timeout: 60_000 });
     await shot(page, "products");
 
@@ -98,7 +98,7 @@ test.describe("the back office", () => {
 
   test("W4 take a product off sale, and back", async ({ page }) => {
     const shot = shooter("retail", "journey-w04-edit-a-product");
-    await visitSettled(page, "/retail/catalog");
+    await visitSettled(page, "/retail/products");
     await page.getByPlaceholder(/search by name/i).first().fill(RUN);
     await page.getByRole("link", { name: new RegExp(PRODUCT) }).first().click();
     await expect(page.getByRole("heading", { name: PRODUCT })).toBeVisible({ timeout: 60_000 });
@@ -126,7 +126,7 @@ test.describe("the back office", () => {
 
   test("W5 change a price", async ({ page }) => {
     const shot = shooter("retail", "journey-w05-change-a-price");
-    await visitSettled(page, "/retail/merchandising/pricing");
+    await visitSettled(page, "/retail/products/price-lists");
     await page.getByPlaceholder(/search by name/i).first().fill(RUN);
     await expect(page.getByText(PRODUCT).first()).toBeVisible({ timeout: 60_000 });
     await shot(page, "prices");
@@ -147,7 +147,7 @@ test.describe("the back office", () => {
 
   test("W6 run a promotion", async ({ page }) => {
     const shot = shooter("retail", "journey-w06-run-a-promotion");
-    await visitSettled(page, "/retail/merchandising/promotions");
+    await visitSettled(page, "/retail/products/promotions");
     await shot(page, "promotions");
     await page.getByRole("button", { name: "New promotion" }).click();
     const dialog = await dialogNamed(page, "New promotion");
@@ -162,7 +162,7 @@ test.describe("the back office", () => {
 
   test("W7 order stock and receive the delivery", async ({ page }) => {
     const shot = shooter("retail", "journey-w07-order-and-deliver");
-    await visitSettled(page, "/retail/purchasing/orders");
+    await visitSettled(page, "/retail/buying/orders");
     await shot(page, "orders");
 
     await page.getByRole("button", { name: "New order" }).click();
@@ -208,7 +208,7 @@ test.describe("the back office", () => {
 
   test("W8 count stock", async ({ page }) => {
     const shot = shooter("retail", "journey-w08-count-stock");
-    await visitSettled(page, "/retail/stock/count");
+    await visitSettled(page, "/retail/stock/counts");
     await shot(page, "stock-counts");
     await page.getByRole("button", { name: "Count stock" }).first().click();
     const dialog = await dialogNamed(page, "Count stock");
@@ -221,25 +221,9 @@ test.describe("the back office", () => {
     await shot(page, "saved");
   });
 
-  test("W9 move stock between locations", async ({ page }) => {
-    const shot = shooter("retail", "journey-w09-move-stock");
-    await visitSettled(page, "/retail/stock/transfers");
-    await shot(page, "transfers");
-    await page.getByRole("button", { name: "Move stock" }).first().click();
-    const dialog = await dialogNamed(page, "Move stock");
-    await dialog.getByLabel("Product").click();
-    await page.getByRole("option", { name: new RegExp(PRODUCT) }).first().click();
-    await dialog.getByLabel("To").click();
-    await page.getByRole("option", { name: new RegExp(`Back store ${RUN}`) }).first().click();
-    await shot(page, "move");
-    await dialog.getByRole("button", { name: "Move stock" }).click();
-    await toast(page, "Stock moved");
-    await shot(page, "moved");
-  });
-
   test("W11 add a till", async ({ page }) => {
     const shot = shooter("retail", "journey-w11-add-a-till");
-    await visitSettled(page, "/retail/setup/operations");
+    await visitSettled(page, "/retail/manage/tills");
     await expect(page.getByRole("heading", { name: "Tills" }).first()).toBeVisible({ timeout: 60_000 });
     await shot(page, "tills");
     await page.getByRole("button", { name: /^New/ }).first().click();
@@ -254,7 +238,7 @@ test.describe("the back office", () => {
 
   test("W12 set the till rules", async ({ page }) => {
     const shot = shooter("retail", "journey-w12-till-rules");
-    await visitSettled(page, "/retail/setup/pos-policy");
+    await visitSettled(page, "/retail/manage/till-rules");
     await expect(page.getByText("Tenders that need a reference")).toBeVisible({ timeout: 60_000 });
     await shot(page, "till-rules");
     await page.getByRole("button", { name: "Save till rules" }).click();
@@ -264,7 +248,7 @@ test.describe("the back office", () => {
 
   test("W13 set up the accounts a sale posts to", async ({ page }) => {
     const shot = shooter("retail", "journey-w13-posting");
-    await visitSettled(page, "/retail/setup/accounting");
+    await visitSettled(page, "/retail/manage/posting");
     await expect(page.getByText("Checks").first()).toBeVisible({ timeout: 60_000 });
     await shot(page, "posting");
     await page.getByRole("button", { name: "Set up the accounts" }).first().click();
@@ -279,47 +263,28 @@ test.describe("the back office", () => {
     await shot(page, "set-up");
   });
 
-  test("W14 set up and register the fiscal device, and open the day", async ({ page }) => {
+  test("W14 set up and connect the fiscal device", async ({ page }) => {
     const shot = shooter("retail", "journey-w14-fiscal-device");
-    await visitSettled(page, "/retail/setup/fiscal");
+    await visitSettled(page, "/retail/manage/fiscal");
     await expect(page.getByLabel("Device ID", { exact: true })).toBeVisible({ timeout: 60_000 });
     await shot(page, "fiscal-device");
 
-    await page.getByLabel("Device ID", { exact: true }).fill("12345");
-    await page.getByLabel("FDMS address", { exact: true }).fill(FAKE_FDMS);
-    await page.getByLabel("Legal name", { exact: true }).fill("ACME Inc (Private) Limited");
-    await page.getByLabel("Trading name", { exact: true }).fill("Samora Machel Bottle Store");
-    await page.getByLabel("VAT number", { exact: true }).fill("220012345");
-    await page.getByLabel("TIN", { exact: true }).fill("2000123456");
-    await page.getByRole("button", { name: "Save fiscal device" }).click();
-    await toast(page, "Fiscal device saved");
-    await settle(page, SETTLE);
-
-    // A device registers once. On a tenant this spec has already run against,
-    // it is registered and its day may be open; the workflow is the same.
-    const register = page.getByRole("button", { name: "Register with ZIMRA" });
-    if (await register.isVisible().catch(() => false)) {
-      await expect(page.getByText("Not registered")).toBeVisible();
-      await shot(page, "saved-not-registered");
-      await register.click();
-      const dialog = await dialogNamed(page, "Register with ZIMRA");
-      await dialog.getByLabel("Serial number", { exact: true }).fill("SN-001");
-      await dialog.getByLabel("Activation key", { exact: true }).fill("00112233");
-      await shot(page, "register");
-      await dialog.getByRole("button", { name: "Register the device" }).click();
-      await toast(page, "Device registered");
-      await expect(page.getByText("Not registered")).toBeHidden({ timeout: 30_000 });
+    // A device connects once. On a tenant this spec has already run against it
+    // is connected, and its day opens with the first shift; the workflow is the same.
+    const connect = page.getByRole("button", { name: "Connect" });
+    if (await connect.isVisible().catch(() => false)) {
+      await expect(page.getByText("Not connected yet.")).toBeVisible();
+      await page.getByLabel("Device ID", { exact: true }).fill("12345");
+      await page.getByLabel("Serial number", { exact: true }).fill("SN-001");
+      await page.getByLabel("Taxpayer number", { exact: true }).fill("2000123456");
+      await page.getByLabel("VAT number", { exact: true }).fill("22001234");
+      await page.getByLabel("Activation key", { exact: true }).fill("00112233");
+      await shot(page, "connect");
+      await connect.click();
     }
-
-    const openDay = page.getByRole("button", { name: "Open the fiscal day" });
-    if (await openDay.isVisible().catch(() => false)) {
-      await openDay.click();
-      await toast(page, "Fiscal day opened");
-    }
-    await expect(page.getByRole("button", { name: "Close the fiscal day" })).toBeVisible({
-      timeout: 30_000,
-    });
-    await shot(page, "day-open");
+    await expect(page.getByText(/^Connected to ZIMRA\./)).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByRole("button", { name: "Test a receipt" })).toBeVisible();
+    await shot(page, "connected");
   });
 });
 

@@ -1,3 +1,4 @@
+import { prisma } from "@/lib/prisma";
 import {
   getAllowedHostsForCompany,
   getTenantClaimsForCompany,
@@ -76,6 +77,9 @@ export function buildInitialTokenClaims(input: {
   companyId?: string;
   authStrategy?: AuthStrategyId;
   rememberMe?: boolean;
+  deviceId?: string;
+  registerId?: string;
+  pinMustChange?: boolean;
 }): PlatformJwtClaims {
   const sessionPolicy = resolvePolicyForStrategy(input.authStrategy, input.rememberMe === true);
 
@@ -84,6 +88,9 @@ export function buildInitialTokenClaims(input: {
     ...(input.role ? { role: input.role } : {}),
     ...(input.companyId ? { companyId: input.companyId } : {}),
     ...(input.authStrategy ? { authStrategy: input.authStrategy } : {}),
+    ...(input.deviceId ? { deviceId: input.deviceId } : {}),
+    ...(input.registerId ? { registerId: input.registerId } : {}),
+    ...(input.pinMustChange ? { pinMustChange: true } : {}),
     sessionPolicy,
     rememberMe: sessionPolicy === "remember",
     authExpiresAt: buildAuthExpiresAt(sessionPolicy),
@@ -93,6 +100,19 @@ export function buildInitialTokenClaims(input: {
 export async function enrichTokenClaims(token: PlatformJwtClaims): Promise<PlatformJwtClaims> {
   if (!token.companyId) {
     return token;
+  }
+
+  // Who they are now, on every request (80-admin, People): a changed role
+  // applies at once, and someone whose access was removed — or who is gone —
+  // has no session from their next request on. An empty token is no session.
+  if (token.id) {
+    const user = await prisma.user.findUnique({
+      where: { id: token.id },
+      select: { role: true, isActive: true, name: true },
+    });
+    if (!user || !user.isActive) return {} as PlatformJwtClaims;
+    token.role = user.role;
+    token.name = user.name;
   }
 
   const tenantClaims = await getTenantClaimsForCompany(token.companyId);
@@ -146,6 +166,9 @@ export function applyTokenToSessionClaims(
     enabledFeatures: token.enabledFeatures,
     subscriptionHealth: token.subscriptionHealth,
     allowedHosts: token.allowedHosts,
+    deviceId: token.deviceId,
+    registerId: token.registerId,
+    pinMustChange: token.pinMustChange,
   };
 
   return session;

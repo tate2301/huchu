@@ -4,19 +4,8 @@ import * as React from "react";
 import Link from "next/link";
 
 import { cn } from "@/lib/utils";
-import type { LucideIcon } from "@/lib/icons";
-import { Check } from "@/lib/icons";
-import type { WorkspaceOption } from "@/lib/workspaces";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+import { SidebarSimple, type LucideIcon } from "@/lib/icons";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 import styles from "./workspace-rail.module.css";
 
@@ -25,185 +14,92 @@ export type RailMark = {
   label: string;
   icon: LucideIcon;
   href: string;
-  active?: boolean;
-  alert?: boolean;
+  current: boolean;
+  /** Pressed: what it does besides following its link. */
+  onSelect?: () => void;
 };
 
 /**
- * The company mark's face: the branding logo when the workspace has one, the
- * initials when it does not — or when the logo will not load, since a broken
- * image in the rail's top corner is worse than the letters it replaced.
- */
-function CompanyMark({
-  initials,
-  logoUrl,
-}: {
-  initials: string;
-  logoUrl?: string | null;
-}) {
-  const [failedUrl, setFailedUrl] = React.useState<string | null>(null);
-
-  if (!logoUrl || failedUrl === logoUrl) return <>{initials}</>;
-
-  // A tenant's logo is an arbitrary URL, not one `next/image` can list.
-  return (
-    // eslint-disable-next-line @next/next/no-img-element
-    <img
-      src={logoUrl}
-      alt=""
-      className={styles.companyLogo}
-      onError={() => setFailedUrl(logoUrl)}
-    />
-  );
-}
-
-/**
- * Tier one: the column the rail is navigated by.
+ * The 56px rail (00-foundations 5.3.2): the logo tile, then the module marks
+ * (when the panel shows one module at a time), then the pinned items, and at
+ * the foot the Management gear and the person.
  *
- * Every mark here is unlabelled, so every one of them carries an accessible
- * name and a tooltip. An icon with neither is a memory test.
+ * Every mark is unlabelled, so each carries an accessible name and a tooltip.
+ * The current module's mark, pressed while the panel is hidden, opens the
+ * panel again instead of reloading the page.
  */
 export function SwitcherRail({
-  companyInitials,
-  companyLogoUrl,
-  companyLabel,
-  onCompanyClick,
-  workspaces,
-  activeWorkspaceId,
-  onSelectWorkspace,
+  tile,
   groups,
+  management,
   person,
+  panelShown,
+  onOpenPanel,
 }: {
-  companyInitials: string;
-  /** The workspace's branding logo. Drawn in place of the initials when set. */
-  companyLogoUrl?: string | null;
-  companyLabel: string;
-  onCompanyClick?: () => void;
-  /** The workspaces to switch between. Fewer than two draws no switcher. */
-  workspaces?: WorkspaceOption[];
-  activeWorkspaceId?: string;
-  onSelectWorkspace?: (id: string) => void;
+  /** The logo tile: the account menu's trigger. */
+  tile: React.ReactNode;
+  /** The module marks, then the pins; an empty group draws nothing. */
   groups: RailMark[][];
-  person: React.ReactNode;
+  /** The gear: the Management surface. */
+  management: RailMark | null;
+  /** The person, with their own menu. */
+  person?: React.ReactNode;
+  panelShown: boolean;
+  onOpenPanel: () => void;
 }) {
-  // One workspace is not a choice, and a control that offers one is a control
-  // that teaches people it does nothing.
-  const canSwitch = (workspaces?.length ?? 0) > 1;
+  const markFor = (mark: RailMark) => (
+    <Tooltip key={mark.id}>
+      <TooltipTrigger asChild>
+        <Link
+          href={mark.href}
+          aria-label={mark.label}
+          aria-current={mark.current ? "page" : undefined}
+          className={cn(styles.mark, mark.current && styles.markCurrent)}
+          onClick={(event) => {
+            mark.onSelect?.();
+            if (mark.current && !panelShown) {
+              event.preventDefault();
+              onOpenPanel();
+            }
+          }}
+        >
+          <mark.icon className={styles.markIcon} />
+        </Link>
+      </TooltipTrigger>
+      <TooltipContent side="right">{mark.label}</TooltipContent>
+    </Tooltip>
+  );
 
   return (
-    <div className={styles.switcher}>
-      <div className={styles.company}>
-        {canSwitch ? (
-          <Popover>
-            <PopoverTrigger asChild>
-              <button
-                type="button"
-                aria-label={`${companyLabel} — switch workspace`}
-                className={styles.companyMark}
-              >
-                <CompanyMark initials={companyInitials} logoUrl={companyLogoUrl} />
-              </button>
-            </PopoverTrigger>
-            <PopoverContent
-              side="right"
-              align="start"
-              /* Width and padding as utilities: `PopoverContent` sets `w-72`
-                 and `.popover` sets 16px of its own, and `cn()` only merges
-                 Tailwind classes — a module class would be left to win on
-                 stylesheet order. */
-              className={cn("w-52 p-1.5", styles.workspaceMenu)}
+    <nav aria-label="Modules" className={styles.rail}>
+      {tile}
+      {panelShown ? null : (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              type="button"
+              aria-label="Open the panel"
+              aria-keyshortcuts="Meta+B Control+B"
+              className={styles.mark}
+              onClick={onOpenPanel}
             >
-              {/* The company, once, above its businesses. The rows below are
-                  named for the business rather than the company, so without
-                  this the menu never says whose they are. */}
-              <p className={styles.workspaceMenuTitle}>{companyLabel}</p>
-              <ul className={styles.rows}>
-                {workspaces!.map((workspace) => {
-                  const active = workspace.id === activeWorkspaceId;
-                  return (
-                    <li key={workspace.id}>
-                      <button
-                        type="button"
-                        aria-current={active ? "true" : undefined}
-                        onClick={() => onSelectWorkspace?.(workspace.id)}
-                        className={cn(
-                          styles.row,
-                          styles.rowButton,
-                          active && styles.rowActive,
-                        )}
-                      >
-                        <workspace.icon
-                          width={16}
-                          height={16}
-                          className={styles.rowIcon}
-                        />
-                        <span className={styles.rowLabel}>
-                          {workspace.label}
-                        </span>
-                        {active ? (
-                          <Check width={14} height={14} className={styles.rowIcon} />
-                        ) : null}
-                      </button>
-                    </li>
-                  );
-                })}
-              </ul>
-            </PopoverContent>
-          </Popover>
-        ) : (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <button
-                type="button"
-                aria-label={companyLabel}
-                className={styles.companyMark}
-                onClick={onCompanyClick}
-              >
-                <CompanyMark initials={companyInitials} logoUrl={companyLogoUrl} />
-              </button>
-            </TooltipTrigger>
-            <TooltipContent side="right">{companyLabel}</TooltipContent>
-          </Tooltip>
-        )}
-      </div>
-
-      <nav className={styles.marks} aria-label="Areas">
-        {groups
-          .filter((group) => group.length > 0)
-          .map((group, index) => (
-            <React.Fragment key={group.map((m) => m.id).join("|")}>
-              {index > 0 ? <span className={styles.divider} /> : null}
-              <ul className={styles.markList}>
-                {group.map((mark) => (
-                  <li key={mark.id}>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Link
-                          href={mark.href}
-                          aria-label={mark.label}
-                          aria-current={mark.active ? "true" : undefined}
-                          className={cn(
-                            styles.slot,
-                            styles.slotWrap,
-                            mark.active && styles.slotActive,
-                          )}
-                        >
-                          <mark.icon width={17} height={17} />
-                          {mark.alert ? (
-                            <span className={styles.markAlert} />
-                          ) : null}
-                        </Link>
-                      </TooltipTrigger>
-                      <TooltipContent side="right">{mark.label}</TooltipContent>
-                    </Tooltip>
-                  </li>
-                ))}
-              </ul>
-            </React.Fragment>
-          ))}
-      </nav>
-
-      <div className={styles.person}>{person}</div>
-    </div>
+              <SidebarSimple className={styles.markIcon} />
+            </button>
+          </TooltipTrigger>
+          <TooltipContent side="right">Open the panel</TooltipContent>
+        </Tooltip>
+      )}
+      {groups
+        .filter((group) => group.length > 0)
+        .map((group, index) => (
+          <React.Fragment key={group.map((mark) => mark.id).join("|")}>
+            {index > 0 ? <span aria-hidden="true" className={styles.divider} /> : null}
+            {group.map(markFor)}
+          </React.Fragment>
+        ))}
+      <div className={styles.spacer} />
+      {management ? markFor(management) : null}
+      {person ?? null}
+    </nav>
   );
 }

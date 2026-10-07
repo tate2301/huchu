@@ -76,8 +76,8 @@ one is null when its end of the range is open.
 Totals by month, for a trend:
 
 ```sql
-select date_trunc('month', date)::date as month, sum(total) as takings
-from retail_sales
+select date_trunc('month', date)::date as month, sum(revenue) as takings
+from retail_items_sold
 group by 1
 order by 1
 ```

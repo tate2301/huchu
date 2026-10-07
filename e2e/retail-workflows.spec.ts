@@ -1,5 +1,5 @@
 import { test, expect } from "./_support/fixtures";
-import { RETAIL, loginFor } from "./_support/tenants";
+import { RETAIL } from "./_support/tenants";
 import { visitSettled } from "./_support/nav";
 import { settle, shooter, VIEWPORT } from "./_support/shots";
 import type { Locator } from "@playwright/test";
@@ -87,7 +87,6 @@ test("a trading day: open the drawer, sell, cash up", async ({ page }) => {
     grew a per-test prefix; it now lives in `_support/shots.ts`.
   */
   const shot = shooter("retail", "trading-day");
-  const manager = loginFor(RETAIL, "manager");
 
   // 30 min. The day now opens a drawer, sells, refunds under approval, drops
   // cash and cashes up, and a single POST against the shared pooler has
@@ -297,20 +296,17 @@ test("a trading day: open the drawer, sell, cash up", async ({ page }) => {
     reason and the approval.
   */
   const refundDialog = page.getByRole("dialog");
-  await refundDialog
-    .getByPlaceholder(/damaged|wrong item|changed/i)
-    .or(refundDialog.locator('input[placeholder*="eason" i]'))
-    .first()
-    .fill("Customer changed their mind");
+  // A reason from the till rules' list (SET-06), never typed.
+  await refundDialog.getByRole("radio", { name: "Changed mind" }).click();
   await shot(page, "refund-needs-a-manager");
 
   /*
-    The seeded manager, named rather than spelled out — `_support/tenants.ts`
-    holds the credential, and the point of the assertion is that the *server*
-    checks it, not that it is secret.
+    Over the till rules' limit the manager approves at the counter: they tap
+    their name and type their till PIN (the seed's, `scripts/seed-retail-demo.ts`).
+    The point of the assertion is that the *server* checks it.
   */
-  await refundDialog.getByPlaceholder("Manager email").fill(manager.email);
-  await refundDialog.getByPlaceholder("Manager password").fill(manager.password);
+  await refundDialog.getByRole("radio", { name: "Tafara Nyathi" }).click();
+  await refundDialog.getByPlaceholder("Manager PIN").fill("2468");
   await settle(page, 1500);
   await shot(page, "manager-approves-at-the-counter");
 
