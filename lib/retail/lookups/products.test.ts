@@ -89,3 +89,30 @@ describe("the supplier and pack nouns", () => {
     expect(found).toEqual([expect.objectContaining({ id: caseId, sub: "0 cases" })]);
   });
 });
+
+describe("printers (PRD-06)", () => {
+  it("lists paired till printers first, then unpaired ones, then Print here; the default is a paired one at the person's site", async () => {
+    const register = (name: string, code: string, hasPrinter = true) =>
+      prisma.retailRegister.create({ data: { companyId: shop.companyId, siteId: shop.mainId, code, name, hasPrinter }, select: { id: true } });
+    const back = await register("Back till", "BACK");
+    const front = await register("Front till", "FRONT");
+    await register("Scale", "SCALE", false);
+    await prisma.retailDevice.create({
+      data: { companyId: shop.companyId, registerId: front.id, kind: "BROWSER", keyHash: `printer-lookup-${shop.companyId}`, pairedById: shop.ownerId },
+    });
+    try {
+      expect(await options("printer", "")).toEqual([
+        { id: front.id, label: "Front till printer", sub: "Harare Main Branch" },
+        { id: back.id, label: "Back till printer", sub: "Harare Main Branch · not paired" },
+        { id: "here", label: "Print here", sub: "This computer, any printer" },
+      ]);
+      expect(await options("printer", "", { pick: "default" })).toEqual([{ id: front.id, label: "Front till printer", sub: "Harare Main Branch" }]);
+      // A stock clerk reads it too; with nothing paired the default is Print here.
+      await prisma.retailDevice.deleteMany({ where: { companyId: shop.companyId } });
+      expect(await options("printer", "", { pick: "default" }, "STOCK_CLERK")).toEqual([{ id: "here", label: "Print here", sub: "This computer, any printer" }]);
+    } finally {
+      await prisma.retailDevice.deleteMany({ where: { companyId: shop.companyId } });
+      await prisma.retailRegister.deleteMany({ where: { companyId: shop.companyId } });
+    }
+  });
+});

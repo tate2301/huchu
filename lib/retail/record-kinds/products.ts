@@ -142,6 +142,8 @@ export const productKind: RecordKind<ProductRecord> = {
     { key: "edit", label: "Edit", requires: [UPDATE], do: { sheet: "product-edit", id: product.id } },
     // W-23: breakage, own use, found more or a fixed mistake.
     { key: "adjust", label: "Adjust stock", requires: [ADJUST], do: { sheet: "stock-adjust", params: { productId: product.id } } },
+    // W-20: the owner, the manager and the stock clerk (C-30).
+    { key: "labels", label: "Print label", requires: [UPDATE, ADJUST], do: { sheet: "labels", id: product.id } },
   ],
   more: (product): RecordAction[] => [
     { key: "pdf", label: "Export as PDF", requires: [VIEW], do: { download: `/api/v2/retail/records/Product/${product.id}/pdf` } },

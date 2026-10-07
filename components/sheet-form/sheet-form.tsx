@@ -344,18 +344,27 @@ export function SheetForm({ kind, ctx, open, onClose }: SheetFormProps) {
   // After the check, and the ask when the kind has one.
   const sendChecked = async (again: boolean) => {
     setSaving(true);
+    // Opened on the click, before anything is awaited, so no popup blocker takes it.
+    let tab = kind.newTab?.when(values) ? window.open("", "_blank") : null;
+    if (tab) tab.opener = null;
     try {
       const request = kind.submit(values, ctx);
       if (!request) {
+        tab?.close();
         await after(null, again);
         return;
       }
       const answer = await send(request);
       if (answer.ok) {
         const result = (answer.payload as { data?: unknown } | null)?.data ?? answer.payload;
+        const href = tab ? kind.newTab?.href(result) : null;
+        if (tab && href) tab.location.href = new URL(href, window.location.href).toString();
+        else tab?.close();
+        tab = null;
         await after(result, again, answer.payload);
         return;
       }
+      tab?.close();
       const refused = kind.onRefused?.(answer.payload, values) ?? null;
       if (refused) setValues((current) => ({ ...current, ...refused }));
       const failure = submitFailure(answer.status, answer.payload, fieldIds(kind));
@@ -365,6 +374,7 @@ export function SheetForm({ kind, ctx, open, onClose }: SheetFormProps) {
       const firstId = Object.keys(failure.fieldErrors)[0];
       if (firstId) requestAnimationFrame(() => focusField(firstId));
     } catch {
+      tab?.close();
       setFooterError("That did not reach the server. Nothing was saved; try again.");
     } finally {
       setSaving(false);

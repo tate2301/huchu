@@ -11,6 +11,8 @@ import { Prisma } from "@prisma/client";
 
 import { toNumberOrZero } from "@/lib/money";
 import { prisma } from "@/lib/prisma";
+import { defaultSiteFor } from "@/lib/retail/floor/default-site";
+import { PRINT_HERE, printerName } from "@/lib/retail/labels/words";
 import { canRetailSessionDo } from "@/lib/retail/permission-matrix";
 import { createProduct, ProductRefusal } from "@/lib/retail/products/create";
 import { productFieldErrors, productInput } from "@/lib/retail/products/input";
@@ -224,4 +226,52 @@ const pack: LookupNoun = {
   },
 };
 
-export const PRODUCT_LOOKUPS: LookupNoun[] = [category, product, pack];
+/**
+ * Printers for shelf labels (PRD-06): every live till with a printer, "<till>
+ * printer" over its site, the paired ones first (those at the person's own
+ * site before the rest), then "Print here". `context.pick: "default"` answers
+ * the one the sheet starts on: the first paired till printer at the person's
+ * site, else Print here. Nobody adds a printer here.
+ */
+const printer: LookupNoun = {
+  noun: "printer",
+  read: [
+    ["retail.catalog", "view"],
+    ["retail.adjustments", "create"],
+  ],
+  quick: [],
+  ranked: true,
+  async search(ctx, q, context) {
+    const [registers, siteId] = await Promise.all([
+      prisma.retailRegister.findMany({
+        where: { companyId: ctx.companyId, isActive: true, hasPrinter: true, site: { isActive: true } },
+        orderBy: { code: "asc" },
+        select: {
+          id: true,
+          name: true,
+          siteId: true,
+          site: { select: { name: true } },
+          devices: { where: { unpairedAt: null }, take: 1, select: { id: true } },
+        },
+      }),
+      defaultSiteFor(ctx.companyId, ctx.userId),
+    ]);
+    const rank = (row: (typeof registers)[number]) => (row.devices.length === 0 ? 2 : row.siteId === siteId ? 0 : 1);
+    const sorted = [...registers].sort((a, b) => rank(a) - rank(b));
+    if (context.pick === "default") {
+      const first = sorted[0];
+      return [first && rank(first) === 0 ? { id: first.id, label: printerName(first.name), sub: first.site.name } : PRINT_HERE];
+    }
+    const needle = q.trim().toLowerCase();
+    return [
+      ...sorted.map((row) => ({
+        id: row.id,
+        label: printerName(row.name),
+        sub: row.devices.length ? row.site.name : `${row.site.name} · not paired`,
+      })),
+      PRINT_HERE,
+    ].filter((option) => !needle || option.label.toLowerCase().includes(needle));
+  },
+};
+
+export const PRODUCT_LOOKUPS: LookupNoun[] = [category, product, pack, printer];

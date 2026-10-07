@@ -237,6 +237,13 @@ export type SheetKind = {
   note: string | ((values: SheetValues) => string);
   /** The toast: fixed, or from the answer's `data` (`result`), the values, and the whole answer (`{ data, message }`). */
   done: string | ((result: unknown, values: SheetValues, payload: unknown) => string);
+  /**
+   * A file the save makes, opened in a new tab: the tab opens on the click
+   * while `when` holds (so no popup blocker takes it), then goes to `href`
+   * of the answer, or closes when there is none or the save is refused
+   * ("Print here" opens the labels' PDF).
+   */
+  newTab?: { when: (values: SheetValues) => boolean; href: (result: unknown) => string | null };
   /** Where the toast's action goes for a created record. */
   open?: (result: unknown, values: SheetValues) => string | null;
   /** The toast action's words, fixed or from the answer ("Count now" on a count that is yours). Default "Open". */
@@ -304,6 +311,6 @@ export type SheetKind = {
   submit: (values: SheetValues, ctx: SheetCtx) => SheetRequest | null;
   /** React Query keys to refetch after a save. */
   invalidate: string[][];
-  /** Every one of these, or the sheet does not open. */
+  /** Any one of these, or the sheet does not open (labels: change the catalogue, or adjust stock). */
   requires: Array<[RetailResource, RetailAction]>;
 };

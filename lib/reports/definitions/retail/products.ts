@@ -10,9 +10,9 @@ import { COVER_WARN_PCT } from "@/lib/retail/products/figures";
  * default list.
  *
  * The bulk actions and row items that open sheets other units build (Change
- * prices, Print shelf labels, Add to an order, Add to a price list, Edit,
- * Adjust stock) join this file with their sheets; until then the list offers
- * what works today: stop selling, sell again and export.
+ * prices, Add to an order, Add to a price list, Adjust stock) join this file
+ * with their sheets; until then the list offers what works today: print
+ * shelf labels, stop selling, sell again and export.
  */
 
 const products: ListSpec = {
@@ -152,6 +152,15 @@ const products: ListSpec = {
       do: { sheet: "product-edit" },
     },
     {
+      key: "labels",
+      label: "Print label",
+      requires: [
+        ["retail.catalog", "update"],
+        ["retail.adjustments", "create"],
+      ],
+      do: { sheet: "labels" },
+    },
+    {
       key: "archive",
       label: "Stop selling it",
       requires: [["retail.catalog", "update"]],
@@ -167,6 +176,17 @@ const products: ListSpec = {
     },
   ],
   bulk: [
+    // W-20: the owner, the manager and the stock clerk (C-30).
+    {
+      key: "labels",
+      label: "Print shelf labels",
+      requires: [
+        ["retail.catalog", "update"],
+        ["retail.adjustments", "create"],
+      ],
+      tabs: ["selling", "low", "all"],
+      do: { sheet: "labels" },
+    },
     {
       key: "archive",
       label: "Archive",

@@ -498,6 +498,7 @@ describe("the chain", () => {
       saleReprinted: "RETAIL_SALE.REPRINTED",
       saleSent: "RETAIL_SALE.SENT",
       saleReviewed: "RETAIL_SALE.REVIEWED",
+      labelsPrinted: "RETAIL_LABELS.PRINTED",
     });
   });
 });

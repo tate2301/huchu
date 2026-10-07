@@ -266,6 +266,17 @@ describe("Activity's sentences (00-foundations 5.6.9)", () => {
     expect(activityWords("RETAIL_SUPPLIER.MESSAGED", { to: "+263 77 214 9080" })).toEqual({ what: "Sent a message on WhatsApp", tone: "hollow" });
   });
 
+  it("shelf labels printed, one line a product (PRD-06)", () => {
+    expect(activityWords("RETAIL_LABELS.PRINTED", { size: "STRIP", copies: 1, printer: "Front till printer" })).toEqual({
+      what: "Printed 1 shelf strip on the front till printer",
+      tone: "hollow",
+    });
+    expect(activityWords("RETAIL_LABELS.PRINTED", { size: "TAG", copies: 2, printer: "here" })).toEqual({
+      what: "Printed 2 price tags here",
+      tone: "hollow",
+    });
+  });
+
   it("anything else reads as its type's last segment", () => {
     expect(fallbackWords("RETAIL_EXPORT.DOWNLOADED")).toBe("Downloaded");
     expect(activityWords("STOCK.COUNT_POSTED", null)).toEqual({ what: "Count posted", tone: "hollow" });

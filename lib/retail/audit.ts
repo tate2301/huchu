@@ -254,6 +254,12 @@ export const RETAIL_AUDIT_EVENTS = {
   saleSent: "RETAIL_SALE.SENT",
   /** A flagged sale looked at by a manager (W-44). Entity `RetailSale`; carries why it was flagged. */
   saleReviewed: "RETAIL_SALE.REVIEWED",
+  /**
+   * Shelf labels printed for a product (PRD-06, W-20): one per product.
+   * Entity `Product`; carries the size, the copies and where they printed
+   * ("Front till printer", or "here").
+   */
+  labelsPrinted: "RETAIL_LABELS.PRINTED",
 } as const;
 
 export type RetailAuditEvent =

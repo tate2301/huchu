@@ -348,6 +348,23 @@ Recorded unit choices:
   with the list's totals over every row; the toast reads "The file has the first 5,000 of 5,858 rows. Narrow the
   filters for the rest."
 
+- **PRD-06 departs from packet 19 in six places.**
+  - **"The next opening" is 08:00 on the shop's clock.** The shop keeps no opening hours (SET-01 left licence hours to
+    Sites), so a label carries the price of a change on the default list that comes due before the next 08:00 in
+    Harare; that change's own from price is the was price when it is a drop.
+  - **"Print here" keeps no file.** The POST stores a `RetailPrintJob` with no till (status PRINTED) whose payload is
+    the labels, and `GET /api/v2/retail/labels/<jobId>.pdf` renders the PDF from it for the person who printed it, for
+    15 minutes; another person's, another company's or an older id reads 404. `registerId` is therefore nullable.
+  - **The refusal reads the matrix's sentence**, "Your role cannot change products", as SET-11 settled, not the
+    packet's "Your role cannot change catalogue items".
+  - **`bundleIds` waits for PRD-08.** There is no retail bundle yet, so the POST takes `productIds` only.
+  - **A sheet's `requires` is "any of" for every sheet**, as list and record actions already are; every other sheet
+    names one grant, so nothing else changes. A printer that is not one of the shop's live tills with a printer is a
+    400 on `printer`; a till printer with no paired device is the packet's 409.
+  - **The seed's dropped price is Charcoal 4kg, 4.50 to 3.90 on 3 October, with a real EAN-13 (6001586239666).**
+    Coca-Cola stays at the boards' 0.75; every other seeded barcode is a 12-digit stand-in and prints as Code 128 of
+    the product's code.
+
 ## Owner direction, 5 October: sidebar, Management and Setup
 
 These override 00-foundations §5.3 and every spec that disagrees.

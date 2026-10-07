@@ -1,4 +1,5 @@
 import { RETAIL_AUDIT_EVENTS } from "@/lib/retail/audit";
+import { labelsPrintedSentence } from "@/lib/retail/labels/words";
 import { formatCount, formatMoney, formatPercent, formatSigned } from "@/lib/workspace/format";
 
 /**
@@ -439,6 +440,8 @@ const WORDS: Record<string, (payload: Payload, eventType: string, seeCost: boole
     what: `Sent the receipt on WhatsApp${text(payload.to) ? ` to ${text(payload.to)}` : ""}`,
     tone: "hollow",
   }),
+  // PRD-06: "Printed 1 shelf strip on the front till printer", "Printed 2 price tags here".
+  [RETAIL_AUDIT_EVENTS.labelsPrinted]: (payload) => ({ what: labelsPrintedSentence(payload), tone: "hollow" }),
   [RETAIL_AUDIT_EVENTS.saleReviewed]: (payload) => ({
     what: text(payload.reason) ? `Looked at: ${text(payload.reason)}` : "Looked at",
     tone: "ok",

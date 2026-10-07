@@ -10,6 +10,7 @@ import type { ProductNewContext } from "@/lib/retail/products/context";
 import { AGE_CHECK_SEG, ageCheckOfSeg, segOfAgeCheck } from "@/lib/retail/products/age-check";
 import { BARCODE_MESSAGE, normalizeBarcode } from "@/lib/retail/products/input";
 import type { ProductView } from "@/lib/retail/products/view";
+import { COPIES_MESSAGE, labelCount, labelsDoneSentence, PRINT_HERE } from "@/lib/retail/labels/words";
 import { formatCount } from "@/lib/workspace/format";
 import type { FieldSpec, PickedOption, SheetCtx, SheetKind, SheetValues } from "@/lib/workspace/sheet-kind";
 
@@ -819,6 +820,104 @@ const priceListRules: SheetKind = {
   requires: [["retail.prices", "view"]],
 };
 
+/**
+ * Print shelf labels (PRD-06, W-20; `Labels.png`): over Products with the
+ * ticked rows, or a product's record with its own. A shelf strip on the till
+ * printer by default; an A4 sheet prints here.
+ */
+const LABEL_SIZES: Array<[label: string, sub: string]> = [
+  ["Shelf strip", "38 × 21 mm, on the till printer"],
+  ["Price tag", "50 × 30 mm, label printer"],
+  ["A4 sheet", "24 a page, any printer"],
+];
+const SIZE_OF_CARD: Record<string, "STRIP" | "TAG" | "A4"> = { "Shelf strip": "STRIP", "Price tag": "TAG", "A4 sheet": "A4" };
+
+const labelIds = (ctx: SheetCtx): string[] => (ctx.id ? [ctx.id] : (ctx.params.get("ids") ?? "").split(",").filter(Boolean));
+
+/** Copies typed as a whole number from 1 to 50, else null. */
+function labelCopies(value: unknown): number | null {
+  const typed = String(value ?? "").trim();
+  if (!/^\d{1,2}$/.test(typed)) return null;
+  const copies = Number(typed);
+  return copies >= 1 && copies <= 50 ? copies : null;
+}
+
+const labels: SheetKind = {
+  title: "Print shelf labels",
+  sub: (ctx) => {
+    const count = labelIds(ctx).length;
+    return count === 1 ? "1 product" : `${formatCount(count)} products ticked`;
+  },
+  cur: "US$",
+  sections: [
+    {
+      fields: [
+        {
+          id: "size",
+          t: "cards",
+          l: "Label size",
+          nolabel: true,
+          cols: 3,
+          o: LABEL_SIZES,
+          v: LABEL_SIZES[0]![0],
+          // An A4 sheet goes to this computer's printer.
+          follow: async (value) => (value === "A4 sheet" ? { printer: PRINT_HERE } : null),
+        },
+        { id: "price", t: "toggle", l: "Price", v: true },
+        { id: "was", t: "toggle", l: "Was price, when it dropped", v: true },
+        { id: "barcode", t: "toggle", l: "Barcode", v: true },
+        {
+          id: "copies",
+          t: "text",
+          l: "Copies of each",
+          half: true,
+          mono: true,
+          right: true,
+          max: 2,
+          v: "1",
+          needed: COPIES_MESSAGE,
+          schema: z.string().refine((value) => labelCopies(value) !== null, COPIES_MESSAGE),
+        },
+        { id: "printer", t: "auto", l: "Printer", half: true, noun: "printer", needed: "Pick a printer." },
+      ],
+    },
+  ],
+  // The printer it starts on: the first paired till printer at the person's site, else Print here.
+  load: async (ctx) => {
+    const page = await readJson<{ options: PickedOption[] }>(
+      `/api/v2/retail/lookup/printer?context=${encodeURIComponent(JSON.stringify({ pick: "default" }))}`,
+    );
+    return { printer: page.options[0] ?? PRINT_HERE, _products: labelIds(ctx).length };
+  },
+  note: "Prices changing tonight print with tomorrow’s price.",
+  primary: (values) => `Print ${labelCount((labelCopies(values.copies) ?? 1) * Number(values._products ?? 0))}`,
+  done: (result) => {
+    const printed = result as { count: number; printer: string };
+    return labelsDoneSentence(printed.count, printed.printer);
+  },
+  newTab: {
+    when: (values) => (values.printer as PickedOption | null)?.id === PRINT_HERE.id,
+    href: (result) => (result as { pdfUrl?: string }).pdfUrl ?? null,
+  },
+  submit: (values, ctx) => ({
+    method: "POST",
+    url: "/api/v2/retail/labels",
+    body: {
+      productIds: labelIds(ctx),
+      size: SIZE_OF_CARD[String(values.size)] ?? "STRIP",
+      show: { price: values.price === true, was: values.was === true, barcode: values.barcode === true },
+      copies: Number(String(values.copies ?? "").trim()),
+      printer: (values.printer as PickedOption | null)?.id ?? "",
+    },
+  }),
+  invalidate: [],
+  // The owner and manager change the catalogue; the stock clerk adjusts stock on the shelf (C-30).
+  requires: [
+    ["retail.catalog", "update"],
+    ["retail.adjustments", "create"],
+  ],
+};
+
 export const PRODUCT_SHEETS: Record<string, SheetKind> = {
   "price-list-new": priceListNew,
   "price-list-rules": priceListRules,
@@ -830,4 +929,5 @@ export const PRODUCT_SHEETS: Record<string, SheetKind> = {
   "category-vat": categoryVat,
   "category-margin": categoryMargin,
   "category-merge": categoryMerge,
+  labels,
 };

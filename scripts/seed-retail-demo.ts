@@ -123,6 +123,8 @@ type CatalogueEntry = {
   site?: "BORROWDALE"
   /** Sold out this many days ago: every unit of `sold30` sold before then. */
   soldOutDays?: number
+  /** A real EAN-13, check digit and all (PRD-06 prints it as EAN-13); the rest get a 12-digit stand-in. */
+  barcode?: string
 }
 const CATALOGUE: CatalogueEntry[] = [
   { code: "AMARULA-750", name: "Amarula Cream 750ml", unit: "bottle", price: "18.25", cost: "13.03", stock: 13, sold30: 63, min: 12, reorder: 24, weight: 64, category: "Spirits" },
@@ -130,7 +132,7 @@ const CATALOGUE: CatalogueEntry[] = [
   { code: "BOHLINGER-330", name: "Bohlinger’s 330ml", unit: "bottle", price: "1.55", cost: "1.08", stock: 96, sold30: 70, min: 36, reorder: 48, weight: 70, category: "Beer", site: "BORROWDALE" },
   { code: "CASTLE-340", name: "Castle Lager 340ml", unit: "bottle", price: "1.20", cost: "0.86", stock: 26, sold30: 90, min: 96, reorder: 96, weight: 88, category: "Beer", deposit: "0.10" },
   { code: "CASTLE-CASE", name: "Castle Lager case of 24", unit: "case", price: "26.50", cost: "20.10", stock: 22, sold30: 55, min: 8, reorder: 10, weight: 55, category: "Beer" },
-  { code: "CHARCOAL-4KG", name: "Charcoal 4kg", unit: "bag", price: "3.90", cost: "2.40", stock: 11, sold30: 20, min: 6, reorder: 12, weight: 20, category: "Snacks" },
+  { code: "CHARCOAL-4KG", name: "Charcoal 4kg", unit: "bag", price: "3.90", cost: "2.40", stock: 11, sold30: 20, min: 6, reorder: 12, weight: 20, category: "Snacks", barcode: "6001586239666" },
   { code: "CHIBUKU-1L", name: "Chibuku Scud 1L", unit: "carton", price: "1.10", cost: "0.82", stock: 210, sold30: 102, min: 60, reorder: 120, weight: 350, category: "Beer" },
   { code: "CHIBUKU-12", name: "Chibuku crate of 12", unit: "crate", price: "12.50", cost: "9.84", stock: 17, sold30: 21, min: 4, reorder: 6, weight: 21, category: "Beer" },
   { code: "COKE-500", name: "Coca-Cola 500ml", unit: "bottle", price: "0.75", cost: "0.52", stock: 180, sold30: 216, min: 48, reorder: 96, weight: 216, category: "Soft drinks" },
@@ -641,7 +643,7 @@ async function main() {
       name: entry.name,
       itemId: item.id,
       price: entry.price,
-      barcode: `600${String(Math.abs(hashCode(entry.code))).padStart(9, "0").slice(0, 9)}`,
+      barcode: entry.barcode ?? `600${String(Math.abs(hashCode(entry.code))).padStart(9, "0").slice(0, 9)}`,
       // Zambezi and Bols are archived: off every till, their stock kept.
       isActive: !entry.archived,
       categoryId: categoryIds.get(entry.category) ?? null,
@@ -4301,9 +4303,11 @@ async function dateRetailAdds(companyId: string, codes: string[]) {
 
 /**
  * PRD-03: the price history on the default list. Every product put on it 1
- * August at its "was" price; on 3 October at 10:00 Tendai Mhlanga typed nine
- * of them up to today's. Amarula went on at 16.90 and rose twice in between,
- * so it has four rows. Deleted and written again per product.
+ * August at its "was" price; on 3 October at 10:00 Tendai Mhlanga typed ten
+ * of them to today's. Amarula went on at 16.90 and rose twice in between,
+ * so it has four rows. Charcoal is the one that came down, 4.50 to 3.90, so
+ * its shelf label strikes the old price through (PRD-06). Deleted and written
+ * again per product.
  */
 const WAS: Record<string, string> = {
   "AMARULA-750": "17.50",
@@ -4315,6 +4319,7 @@ const WAS: Record<string, string> = {
   "JAMESON-750": "26.50",
   "NEDERBURG-750": "12.00",
   "TWOKEYS-750": "9.50",
+  "CHARCOAL-4KG": "4.50",
 }
 
 async function seedPriceHistory(companyId: string) {

@@ -317,6 +317,7 @@ model Company {
   retailDevices                 RetailDevice[]
   retailPairingCodes            RetailPairingCode[]
   retailDeviceMessages          RetailDeviceMessage[]
+  retailPrintJobs               RetailPrintJob[]
   retailShopProfile             RetailShopProfile?
   retailLicenceHours            RetailLicenceHours[]
   retailPaymentSettings         RetailPaymentSettings?
@@ -1459,6 +1460,7 @@ model User {
   retailSalesApproved               RetailSale[]                   @relation("RetailSaleApprovedBy")
   retailPairingCodesCreated         RetailPairingCode[]            @relation("RetailPairingCodeCreatedBy")
   retailDeviceMessagesSent          RetailDeviceMessage[]          @relation("RetailDeviceMessageSentBy")
+  retailPrintJobsCreated            RetailPrintJob[]               @relation("RetailPrintJobCreatedBy")
   retailTransfersSent               RetailStockTransfer[]          @relation("RetailStockTransferSentBy")
   retailTransfersReceived           RetailStockTransfer[]          @relation("RetailStockTransferReceivedBy")
   retailTransfersCancelled          RetailStockTransfer[]          @relation("RetailStockTransferCancelledBy")
@@ -4870,11 +4872,48 @@ model RetailRegister {
   devices      RetailDevice[]
   pairingCodes RetailPairingCode[]
   messages     RetailDeviceMessage[]
+  printJobs    RetailPrintJob[]
   shifts       RetailShift[]
   sales        RetailSale[]
 
   @@unique([companyId, code])
   @@index([companyId, siteId, isActive])
+}
+
+/// PRD-06: a print for a till's printer (shelf labels) or for "Print here".
+/// A till pulls the QUEUED jobs of its own register (`/devices/me/print-jobs`)
+/// and says PRINTED or FAILED. A job with no register was printed here: its
+/// payload is the PDF's, opened by the person who printed it for 15 minutes.
+model RetailPrintJob {
+  id          String               @id @default(uuid())
+  companyId   String
+  /// The till whose printer prints it; null for "Print here".
+  registerId  String?
+  kind        RetailPrintJobKind
+  /// LABELS: `{ size, show, labels: [{ name, price, was, barcode, symbology, copies }] }`.
+  payload     Json
+  status      RetailPrintJobStatus @default(QUEUED)
+  /// What the till said went wrong, when it FAILED.
+  error       String?
+  createdById String?
+  createdAt   DateTime             @default(now())
+  printedAt   DateTime?
+
+  company   Company         @relation(fields: [companyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  register  RetailRegister? @relation(fields: [registerId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  createdBy User?           @relation("RetailPrintJobCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([registerId, status, createdAt])
+}
+
+enum RetailPrintJobKind {
+  LABELS
+}
+
+enum RetailPrintJobStatus {
+  QUEUED
+  PRINTED
+  FAILED
 }
 
 enum RetailDeviceKind {

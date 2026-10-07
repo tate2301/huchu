@@ -58,7 +58,7 @@ function Host() {
     };
   }, [search, userId, userName, role]);
 
-  const allowed = Boolean(kind && ctx && kind.requires.every(([resource, action]) => ctx.can(resource, action)));
+  const allowed = Boolean(kind && ctx && kind.requires.some(([resource, action]) => ctx.can(resource, action)));
   const openKey = allowed && key ? `${key}|${ctx?.id ?? ""}` : null;
 
   // What is drawn: the open kind, kept through the closing slide. Each new
