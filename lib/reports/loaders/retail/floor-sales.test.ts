@@ -10,9 +10,10 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { prisma } from "@/lib/prisma";
 import { FLOOR_REPORTS } from "@/lib/reports/definitions/retail/floor";
-import { publicListSpec, resolveListQuery } from "@/lib/reports/list-query";
+import { canReadList, publicListSpec, resolveListQuery } from "@/lib/reports/list-query";
 import type { ListQuery } from "@/lib/reports/types";
 import { defaultSiteFor } from "@/lib/retail/floor/default-site";
+import { canRetailRoleDo } from "@/lib/retail/permission-matrix";
 import { addTestSale, destroySalesShop, makeSalesShop, type SalesShop } from "@/lib/retail/floor/test-fixtures";
 
 import { FLOOR_SALES_LOADERS } from "./floor-sales";
@@ -92,6 +93,13 @@ describe("retail-sales paged in the database", () => {
     expect(farai.tabs).toEqual({ today: 2, refunds: 0, voids: 1, all: 2 });
     const resolved = resolveListQuery(LIST, { page: 1, size: 25, filters: { cashier: shop.chipo } }, options, { role: "CASHIER", seeCost: false });
     expect(resolved.filters.cashier).toBe("any");
+  });
+
+  it("is read by owners, managers, bookkeepers and cashiers, never a stock clerk", () => {
+    const reads = (role: string) => canReadList(LIST, { can: ([resource, action]) => canRetailRoleDo(role, resource, action) });
+    expect(["SUPERADMIN", "MANAGER", "FINANCE_OFFICER", "CASHIER"].map(reads)).toEqual([true, true, true, true]);
+    expect(reads("STOCK_CLERK")).toBe(false);
+    expect(LIST.refusal ?? `Your role cannot view ${LIST.noun}`).toBe("Your role cannot view sales");
   });
 
   it("narrows the rows and the totals by till", async () => {

@@ -102,7 +102,7 @@ describe("loadSaleView", () => {
     });
     await addTestSale(shop, { saleNo: "RFD-0001", at, saleType: "REFUND", sourceSaleId: both.id, lines: [line(0, 1)] });
     expect((await loadSaleView(shop.companyId, both.id, owner(), now))?.state).toBe("PART_REFUNDED");
-    await addTestSale(shop, { saleNo: "RFD-0002", at, saleType: "REFUND", sourceSaleId: both.id, lines: [line(0, 1), line(1, 2)] });
+    await addTestSale(shop, { saleNo: "RFD-0002", at: new Date(at.getTime() + 60_000), saleType: "REFUND", sourceSaleId: both.id, lines: [line(0, 1), line(1, 2)] });
     const view = await loadSaleView(shop.companyId, both.id, owner(), now);
     expect(view?.state).toBe("REFUNDED");
     expect(view?.refunds.map((refund) => refund.saleNo)).toEqual(["RFD-0001", "RFD-0002"]);
