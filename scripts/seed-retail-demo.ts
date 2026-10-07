@@ -63,7 +63,7 @@ import { createProduct } from "@/lib/retail/products/create"
 import { productInput } from "@/lib/retail/products/input"
 import { deleteFromBinForGood, listBinEntries, moveToBin } from "@/lib/retail/bin"
 import { CATEGORY_SEEDS, ensureRetailCategories } from "@/lib/retail/categories"
-import { activeRetailPriceList } from "@/lib/retail/shelf-pricing"
+import { findDefaultPriceList, followPrice } from "@/lib/retail/prices/change"
 import { tradingDayKey } from "@/lib/retail/z-report"
 import { dayKey } from "@/lib/workspace/format"
 import {
@@ -596,9 +596,9 @@ async function main() {
 
   // PRD-03: the default list is a flag; every product goes on it and the till prices from it.
   const shelfList = await prisma.priceList.upsert({
-    where: { companyId_name: { companyId, name: "Shelf prices" } },
-    update: { isDefault: true, isActive: true },
-    create: { companyId, name: "Shelf prices", kind: "RETAIL", taxInclusive: true, isActive: true, isDefault: true },
+    where: { companyId_name: { companyId, name: "Retail" } },
+    update: { isDefault: true, state: "ON", archivedAt: null },
+    create: { companyId, name: "Retail", kind: "RETAIL", taxInclusive: true, state: "ON", isDefault: true },
     select: { id: true },
   })
 
@@ -1826,6 +1826,7 @@ async function main() {
   await seedAdjustments({ companyId, mainSiteId: site.id, reset })
   await seedCounts({ companyId, mainSiteId: site.id })
   await seedPriceHistory(companyId)
+  await seedPriceLists({ companyId, borrowdaleId: borrowdale.id, reset })
   await seedStockLedger(companyId, site.id)
   await seedBin({ companyId, siteId: site.id, locationId: location.id, wineId: categoryIds.get("Wine") ?? null, reset })
   await seedPayments(companyId)
@@ -2177,7 +2178,7 @@ async function seedDayCloses(companyId: string) {
 
 async function seedSites(input: { companyId: string; mainSiteId: string; borrowdaleId: string; reset: boolean }) {
   const { companyId, mainSiteId, borrowdaleId } = input
-  const priceList = await activeRetailPriceList(companyId)
+  const priceList = await findDefaultPriceList(prisma, companyId)
   await prisma.site.update({
     where: { id: mainSiteId },
     data: {
@@ -4342,13 +4343,138 @@ async function seedPriceHistory(companyId: string) {
   console.log(`  price history: ${rows} changes on the default list`)
 }
 
+/**
+ * PRD-05: the board's five lists (20-products 3.5, `PriceLists.png`). Retail
+ * is the default and sets each product's own price; Wholesale follows it less
+ * 8% for customers on a wholesale account buying 6 or more, Amarula typed at
+ * 16.90; Happy hour is 10% off beer on Fridays 17:00 to 19:00; Staff is cost
+ * plus 5%; Avondale branch is a draft for Borrowdale at Retail plus 5%, with
+ * Ice and Coca-Cola typed below their cost. Each row carries its ADDED (and
+ * TYPED) history on its list's day. "Happy hour (old)" sits in the bin
+ * (BinList board). The four are made again on every run; with --reset any
+ * other list goes too. Sales seeded before the engine are marked as priced
+ * from Retail.
+ */
+async function seedPriceLists(input: { companyId: string; borrowdaleId: string; reset: boolean }) {
+  const { companyId } = input
+  const owner = await prisma.user.findFirst({ where: { companyId, email: "owner@bottlestore.test" }, select: { id: true, name: true } })
+  const retail = await prisma.priceList.findFirstOrThrow({ where: { companyId, isDefault: true }, select: { id: true } })
+  const names = ["Wholesale", "Happy hour", "Staff", "Avondale branch", "Happy hour (old)"]
+  await prisma.priceList.deleteMany({
+    where: { companyId, isDefault: false, ...(input.reset ? {} : { name: { in: names } }) },
+  })
+  // Harare is UTC+2.
+  const day = (iso: string) => new Date(`${iso}T08:00:00Z`)
+  await prisma.priceList.update({ where: { id: retail.id }, data: { updatedAt: day("2026-10-03") } })
+
+  const products = await prisma.product.findMany({
+    where: { companyId, archivedAt: null },
+    select: { id: true, code: true, costPrice: true, categoryId: true },
+  })
+  const retailRows = await prisma.productPrice.findMany({
+    where: { priceListId: retail.id, minQuantity: 1, product: { archivedAt: null } },
+    select: { productId: true, unitPrice: true },
+  })
+  const retailOf = new Map(retailRows.map((row) => [row.productId, row.unitPrice]))
+  const codeOf = new Map(products.map((product) => [product.id, product.code]))
+  const beer = await prisma.retailCategory.findFirst({ where: { companyId, name: "Beer", archivedAt: null }, select: { id: true } })
+
+  type Row = { productId: string; price: Prisma.Decimal; follows: boolean; typed?: string }
+  const make = async (spec: {
+    name: string
+    data: Omit<Prisma.PriceListUncheckedCreateInput, "companyId" | "name">
+    on: string
+    rows: Row[]
+    minQuantity?: number
+    categories?: string[]
+  }) => {
+    const at = day(spec.on)
+    const list = await prisma.priceList.create({
+      data: { companyId, name: spec.name, currency: "USD", taxInclusive: true, updatedById: owner?.id ?? null, ...spec.data, updatedAt: at, createdAt: at },
+      select: { id: true },
+    })
+    if (spec.categories?.length) {
+      await prisma.priceListCategory.createMany({ data: spec.categories.map((categoryId) => ({ priceListId: list.id, categoryId })) })
+    }
+    const minQuantity = new Prisma.Decimal(spec.minQuantity ?? 1)
+    await prisma.productPrice.createMany({
+      data: spec.rows.map((row) => ({
+        companyId,
+        priceListId: list.id,
+        productId: row.productId,
+        minQuantity,
+        unitPrice: row.typed ? money(row.typed) : row.price,
+        followsBase: row.typed ? false : row.follows,
+      })),
+    })
+    const typedAt = new Date(at.getTime() + 60 * 60 * 1000)
+    await prisma.productPriceChange.createMany({
+      data: spec.rows.flatMap((row) => [
+        { companyId, priceListId: list.id, productId: row.productId, minQuantity, fromPrice: null, toPrice: row.price, source: "ADDED" as const, effectiveAt: at, appliedAt: at, createdAt: at, createdById: owner?.id ?? null },
+        ...(row.typed
+          ? [{ companyId, priceListId: list.id, productId: row.productId, minQuantity, fromPrice: row.price, toPrice: money(row.typed), source: "TYPED" as const, effectiveAt: typedAt, appliedAt: typedAt, createdAt: typedAt, createdById: owner?.id ?? null }]
+          : []),
+      ]),
+    })
+    return list.id
+  }
+
+  const fromRetail = (adjust: number, only?: (product: (typeof products)[number]) => boolean, typed: Record<string, string> = {}): Row[] =>
+    products
+      .filter((product) => retailOf.has(product.id) && (!only || only(product)))
+      .map((product) => ({ productId: product.id, price: followPrice(retailOf.get(product.id)!, adjust), follows: true, typed: typed[codeOf.get(product.id)!] }))
+
+  await make({
+    name: "Wholesale",
+    on: "2026-09-28",
+    minQuantity: 6,
+    data: { kind: "WHOLESALE", state: "ON", audience: "ACCOUNT_CUSTOMERS", whenKind: "ALWAYS", minQuantity: 6, basis: "LIST", basisListId: retail.id, adjustPercent: new Prisma.Decimal(-8) },
+    rows: fromRetail(-8, undefined, { "AMARULA-750": "16.90" }),
+  })
+  await make({
+    name: "Happy hour",
+    on: "2026-09-19",
+    data: { state: "ON", audience: "EVERYONE", whenKind: "DAYS_AND_HOURS", daysOfWeek: [5], fromTime: "17:00", toTime: "19:00", basis: "LIST", basisListId: retail.id, adjustPercent: new Prisma.Decimal(-10) },
+    categories: beer ? [beer.id] : [],
+    rows: fromRetail(-10, (product) => Boolean(beer) && product.categoryId === beer!.id),
+  })
+  await make({
+    name: "Staff",
+    on: "2026-08-01",
+    data: { state: "ON", audience: "STAFF", whenKind: "ALWAYS", basis: "COST", adjustPercent: new Prisma.Decimal(5) },
+    rows: products
+      .filter((product) => product.costPrice !== null)
+      .map((product) => ({ productId: product.id, price: followPrice(product.costPrice!, 5), follows: true })),
+  })
+  await make({
+    name: "Avondale branch",
+    on: "2026-10-02",
+    data: { state: "DRAFT", audience: "EVERYONE", whenKind: "ALWAYS", siteId: input.borrowdaleId, basis: "LIST", basisListId: retail.id, adjustPercent: new Prisma.Decimal(5) },
+    rows: fromRetail(5, undefined, { "ICE-2KG": "0.95", "COKE-500": "0.50" }),
+  })
+  // The bin's "Happy hour (old)": last year's, moved there by the owner.
+  const old = await make({
+    name: "Happy hour (old)",
+    on: "2026-06-05",
+    data: { state: "PAUSED", audience: "EVERYONE", whenKind: "DAYS_AND_HOURS", daysOfWeek: [5], fromTime: "16:00", toTime: "18:00", basis: "LIST", basisListId: retail.id, adjustPercent: new Prisma.Decimal(-15) },
+    rows: fromRetail(-15, (product) => Boolean(beer) && product.categoryId === beer!.id),
+  })
+  if (owner) {
+    await moveToBin({ companyId, userId: owner.id, userName: owner.name, userRole: "SUPERADMIN" }, { kind: "price-list", id: old }, new Date(Math.min(harareTime(1, 16, 40).getTime(), Date.now() - 60_000)))
+  }
+
+  // Lines rung before the engine came off the default list.
+  const marked = await prisma.retailSaleLine.updateMany({ where: { companyId, priceListId: null, productId: { not: null } }, data: { priceListId: retail.id } })
+  console.log(`  price lists: Retail and four more, one in the bin; ${marked.count} sale lines marked as priced from Retail`)
+}
+
 /** Stable pseudo-barcode from the SKU, so a re-run does not renumber the shelf. */
 /**
  * ADM-07: the bin as the BinList board shows it — Nederburg Rosé 750ml, a
  * wine the shop stopped stocking, moved to the bin by Tendai Mhlanga today at
  * 09:02 through the product's own move (one minute before the run when that
- * is earlier). The board's PO-0029 (an order, BUY-02) and "Happy hour (old)"
- * (a price list, PRD-05) join when those kinds can go in the bin; T. Marange
+ * is earlier); "Happy hour (old)" is `seedPriceLists`'. The board's PO-0029
+ * (an order, BUY-02) joins when that kind can go in the bin; T. Marange
  * is not merged here. With --reset anything else in the bin — what test runs
  * left — goes for good, so the bin reads as the board does.
  */
@@ -4423,7 +4549,10 @@ async function seedBin(input: { companyId: string; siteId: string; locationId: s
   }
 
   if (input.reset) {
-    const strays = (await listBinEntries(companyId)).filter((entry) => !(entry.kind === "product" && entry.name === "Nederburg Rosé 750ml"))
+    const strays = (await listBinEntries(companyId)).filter(
+      (entry) =>
+        !(entry.kind === "product" && entry.name === "Nederburg Rosé 750ml") && !(entry.kind === "price-list" && entry.name === "Happy hour (old)"),
+    )
     if (strays.length) {
       const gone = await deleteFromBinForGood(
         actor,

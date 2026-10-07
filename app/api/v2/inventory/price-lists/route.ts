@@ -12,7 +12,7 @@ export async function GET(request: NextRequest) {
     const { session } = sessionResult;
 
     const lists = await prisma.priceList.findMany({
-      where: { companyId: session.user.companyId },
+      where: { companyId: session.user.companyId, archivedAt: null },
       include: { _count: { select: { entries: true } } },
       orderBy: [{ isDefault: "desc" }, { name: "asc" }],
     });
@@ -60,7 +60,7 @@ export async function POST(request: NextRequest) {
           isDefault: data.isDefault ?? false,
           region: data.region ?? undefined,
           currency: data.currency ?? "USD",
-          isActive: data.isActive ?? true,
+          state: data.state ?? "ON",
         },
       });
     });

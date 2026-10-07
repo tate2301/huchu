@@ -58,7 +58,10 @@ function writeStored(source: string, what: "size" | "cols", value: string | null
  * ungrouped), sent to the API while the address names none, so the server
  * starts where the page does.
  */
-export function useListAddress(source: string, defaults: { sort?: string; group?: string | null } = {}) {
+export function useListAddress(
+  source: string,
+  defaults: { sort?: string; group?: string | null; fixed?: Record<string, string> } = {},
+) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -86,8 +89,10 @@ export function useListAddress(source: string, defaults: { sort?: string; group?
     if (storedCols?.length) params.set("hidden", storedCols.join(","));
     if (!params.has("sort") && defaults.sort) params.set("sort", defaults.sort);
     if (!params.has("group") && defaults.group !== undefined) params.set("group", defaults.group ?? "none");
+    // A page about one record scopes its list to it, whatever the address says.
+    for (const [key, value] of Object.entries(defaults.fixed ?? {})) params.set(key, value);
     return params;
-  }, [defaults.group, defaults.sort, searchParams, storedCols, storedSize]);
+  }, [defaults.fixed, defaults.group, defaults.sort, searchParams, storedCols, storedSize]);
 
   const write = React.useCallback(
     (patch: ListAddressPatch, defaults: { tab?: string | null; sort?: string; group?: string | null; filters?: Record<string, string> }) => {

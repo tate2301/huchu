@@ -170,8 +170,11 @@ export type ReportLoader = {
    * which the in-memory path does for `load`.
    */
   page?: (ctx: ReportContext, query: ResolvedListQuery) => Promise<ListPageResult>;
-  /** The name of the record a `parent` filter with `all` scopes the list to ("Amarula Cream 750ml"). */
-  parentLabel?: (ctx: ReportContext, filters: Record<string, string>) => Promise<string | null>;
+  /**
+   * The name of the record a `parent` filter scopes the list to ("Amarula Cream 750ml"), and for a
+   * page about that record the words under it ("Default price list · all tills · all sites").
+   */
+  parentLabel?: (ctx: ReportContext, filters: Record<string, string>) => Promise<string | { label: string; sub: string | null } | null>;
 };
 
 /* ──────────────────────────────────────────────────────────────────────────
@@ -380,7 +383,7 @@ export type ListAction = {
   separated?: boolean;
   /** Any of. */
   requires: ListGrant[];
-  /** Row menu: only for rows that match. */
+  /** Row menu: only for rows that match. Bulk: only while every ticked row matches ("Switch on" for paused lists). */
   when?: Condition[];
   /** Bulk: only on these tabs ("Sell them again" on Archived). */
   tabs?: string[];
@@ -487,8 +490,12 @@ export type ListSpec = {
   rowMenu?: ListAction[];
   bulk?: Array<ListAction | { key: "export" }>;
   primary?: { label: string; icon?: "plus"; requires: ListGrant[]; sheet?: string; href?: string };
-  /** A link in the header after the title (and the sub): a sheet over the list ("Who can do what"). */
-  subLink?: { label: string; sheet: string };
+  /**
+   * A link in the header after the title (and the sub): a sheet over the list ("Who can do what").
+   * `requires`: drawn only for a caller with any of these. `idFrom`: the parent filter whose
+   * value the sheet opens on ("Edit the rules" of the price list the worksheet is scoped to).
+   */
+  subLink?: { label: string; sheet: string; requires?: ListGrant[]; idFrom?: string };
   /** The phone card. */
   card: {
     title: string;
@@ -514,8 +521,9 @@ export type ListSpec = {
  * scoping rule; only the columns, filters and actions that role has; choice
  * options resolved for the company.
  */
-export type ListSpecPublic = Omit<ListSpec, "read" | "scopeOwn" | "primary" | "exportExtras" | "empty"> & {
+export type ListSpecPublic = Omit<ListSpec, "read" | "scopeOwn" | "primary" | "exportExtras" | "empty" | "subLink"> & {
   primary: Omit<NonNullable<ListSpec["primary"]>, "requires"> | null;
+  subLink?: Omit<NonNullable<ListSpec["subLink"]>, "requires">;
   empty: EmptyGuidePublic;
   exportExtras?: Array<{ label: string; href: string }>;
 };
@@ -616,8 +624,11 @@ export type ListPageResult = {
 
 export type ListPageResponse = ListPageResult & {
   report: ReportMeta & { list: ListSpecPublic };
-  /** The record a parent filter with `all` scopes the list to: the header sub, and the filter `all` clears. */
-  parent: { key: string; label: string; all: string } | null;
+  /**
+   * The record a parent filter scopes the list to, named by the loader: the header sub (or, for a
+   * page about that record, its title and `sub`), and with `all` the link that clears it.
+   */
+  parent: { key: string; label: string; sub: string | null; all: string | null } | null;
   query: ResolvedListQuery;
   size: number;
 };

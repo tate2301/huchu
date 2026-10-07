@@ -171,6 +171,8 @@ export type RailRow = {
   edit?: RailEdit;
   /** Drawn only for roles holding this (a product's cost). */
   visible?: Grant;
+  /** The value as links, comma-separated, in place of `value` ("Retail, Wholesale US$16.90" to each worksheet). */
+  links?: Array<{ label: string; href: string }>;
 };
 
 export type RailGroup = {

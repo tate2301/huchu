@@ -90,6 +90,8 @@ async function loadProducts(ctx: ReportContext, params: ReportParams) {
       unitPrice: product.standardPrice,
       taxPercent: product.defaultTaxRate,
     })),
+    // The product's price is its default list's, whatever another list charges right now.
+    { baseOnly: true },
   );
 
   return result(

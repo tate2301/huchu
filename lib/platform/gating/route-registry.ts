@@ -461,7 +461,7 @@ export const API_FEATURE_ROUTES: FeatureRouteEntry[] = [
   // above gate; it was the one sibling with no entry.
   { scope: "api", prefix: "/api/v2/inventory/locations", featureKey: "stores.inventory" },
   { scope: "api", prefix: "/api/v2/retail/customers", featureKey: "crm.customers" },
-  { scope: "api", prefix: "/api/v2/retail/catalog", featureKey: "retail.catalog" },
+  { scope: "api", prefix: "/api/v2/retail/price-lists", featureKey: "retail.promotions" },
   { scope: "api", prefix: "/api/v2/retail/products", featureKey: "retail.catalog" },
   { scope: "api", prefix: "/api/v2/retail/categories", featureKey: "retail.catalog" },
   { scope: "api", prefix: "/api/v2/retail/requisitions", featureKey: "retail.purchasing" },

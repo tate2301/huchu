@@ -3,7 +3,7 @@ import { Prisma } from "@prisma/client";
 import { money, toNumberOrZero } from "@/lib/money";
 import type { ApprovalLimits } from "@/lib/retail/approvals/limits";
 import { auditRecordEdited, type RetailAuditActor } from "@/lib/retail/audit";
-import { changePrices, defaultPriceList, PriceRefusal } from "@/lib/retail/prices/change";
+import { changePrices, defaultPriceList, PriceRefusal, repriceCostFollowers } from "@/lib/retail/prices/change";
 import { setStockLineLevels } from "@/lib/retail/stock/lines";
 import { recordOpeningStock } from "@/lib/retail/stock/opening";
 
@@ -176,6 +176,10 @@ export async function updateProduct(
   });
   if (name !== undefined) await tx.inventoryItem.updateMany({ where: { productId: id }, data: { name } });
   if (cost !== undefined && line) await tx.inventoryItem.update({ where: { id: line.id }, data: { unitCost: cost } });
+  // Lists that follow the cost (Staff, cost plus 5%) move with it.
+  if (cost !== undefined && cost !== null && !(product.costPrice && cost.equals(product.costPrice))) {
+    await repriceCostFollowers(tx, companyId, id, actor);
+  }
   if (soldAs !== undefined && line) {
     await tx.inventoryItem.update({ where: { id: line.id }, data: { unit: soldAs === "BY_WEIGHT" ? "kg" : "each" } });
   }

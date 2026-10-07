@@ -12,8 +12,8 @@ import { productInput } from "./input";
 
 export async function defaultListFor(companyId: string): Promise<string> {
   const list = await prisma.priceList.upsert({
-    where: { companyId_name: { companyId, name: "Shelf prices" } },
-    create: { companyId, name: "Shelf prices", kind: "RETAIL", taxInclusive: true, isActive: true, isDefault: true },
+    where: { companyId_name: { companyId, name: "Retail" } },
+    create: { companyId, name: "Retail", kind: "RETAIL", taxInclusive: true, isDefault: true },
     update: { isDefault: true },
     select: { id: true },
   });

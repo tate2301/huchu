@@ -69,6 +69,17 @@ export function DetailRow({
             <Pencil className="cx-rf-ev__pen" aria-hidden="true" />
           </button>
         </span>
+      ) : row.links?.length ? (
+        <span className={valueClass}>
+          {row.links.map((link, index) => (
+            <React.Fragment key={link.href}>
+              {index > 0 ? ", " : null}
+              <a className="cx-rf-row__link" href={link.href}>
+                {link.label}
+              </a>
+            </React.Fragment>
+          ))}
+        </span>
       ) : (
         <span className={valueClass}>{row.value}</span>
       )}

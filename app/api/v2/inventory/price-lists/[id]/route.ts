@@ -102,7 +102,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
           isDefault: data.isDefault,
           region: data.region,
           currency: data.currency,
-          isActive: data.isActive,
+          state: data.state,
         },
         include: { _count: { select: { entries: true } } },
       });
@@ -136,8 +136,8 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
 
     const list = await prisma.priceList.update({
       where: { id },
-      data: { isActive: false },
-      select: { id: true, isActive: true },
+      data: { state: "PAUSED" },
+      select: { id: true, state: true },
     });
 
     return successResponse(list);

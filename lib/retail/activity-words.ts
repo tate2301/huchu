@@ -19,6 +19,10 @@ type Payload = Record<string, unknown>;
 const text = (value: unknown): string | null =>
   value === null || value === undefined || value === "" ? null : String(value);
 
+/** "Name, Who gets it and Where". */
+const joinAnd = (words: string[]): string =>
+  words.length <= 1 ? (words[0] ?? "") : `${words.slice(0, -1).join(", ")} and ${words[words.length - 1]}`;
+
 const amount = (value: unknown): number | null => {
   const raw = text(value);
   if (raw === null) return null;
@@ -455,6 +459,15 @@ const WORDS: Record<string, (payload: Payload, eventType: string, seeCost: boole
     what: text(payload.from) ? `Added it, a copy of ${text(payload.from)}` : "Added it",
     tone: "ok",
   }),
+  // "Changed Who gets it and Where" (PRD-05): the labels the rules sheet saved.
+  [RETAIL_AUDIT_EVENTS.priceListChanged]: (payload) => {
+    const labels = Array.isArray(payload.changes)
+      ? payload.changes.map((change) => text((change as Record<string, unknown>)?.label)).filter((label): label is string => Boolean(label))
+      : [];
+    return { what: labels.length ? `Changed ${joinAnd(labels)}` : "Changed it", tone: "info" };
+  },
+  [RETAIL_AUDIT_EVENTS.priceListPaused]: () => ({ what: "Paused it", tone: "hollow" }),
+  [RETAIL_AUDIT_EVENTS.priceListResumed]: () => ({ what: "Switched it on", tone: "ok" }),
   // "Sent 540 units to Borrowdale" / "Cancelled: 540 units back at Harare Main Branch" (30-stock 3.3).
   [RETAIL_AUDIT_EVENTS.transferSent]: (payload) => ({
     what: `Sent ${unitWords(amount(payload.units) ?? 0)}${text(payload.to) ? ` to ${text(payload.to)}` : ""}`,

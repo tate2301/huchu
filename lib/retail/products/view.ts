@@ -61,6 +61,8 @@ export type ProductView = {
   maxDiscountPercent: number | null;
   price: number;
   listName: string;
+  /** The default list, for its worksheet link. */
+  listId: string | null;
   currency: string;
   cost: number | null;
   /** The viewer's role may see what the shop pays. */
@@ -158,8 +160,10 @@ export async function loadProductView(
         select: { id: true, name: true, vatRate: true, vatExempt: true, ageRestricted: true, parent: { select: { name: true } } },
       },
       prices: {
-        where: { minQuantity: 1 },
-        select: { unitPrice: true, priceList: { select: { id: true, name: true, isDefault: true, currency: true, taxInclusive: true } } },
+        // A list's own rows: the default's single price, another list's from its minimum (Wholesale from 6).
+        where: { OR: [{ minQuantity: 1 }, { priceList: { isDefault: false } }], priceList: { archivedAt: null } },
+        orderBy: { minQuantity: "asc" },
+        select: { unitPrice: true, minQuantity: true, priceList: { select: { id: true, name: true, isDefault: true, currency: true, taxInclusive: true } } },
       },
       inventoryItems: {
         orderBy: { createdAt: "asc" },
@@ -180,8 +184,7 @@ export async function loadProductView(
 
   const [defaultList, profile, bin, soldLines] = await Promise.all([
     prisma.priceList.findFirst({
-      where: { companyId, isDefault: true },
-      orderBy: { createdAt: "asc" },
+      where: { companyId, isDefault: true, archivedAt: null },
       select: { id: true, name: true, currency: true, taxInclusive: true },
     }),
     prisma.retailShopProfile.findUnique({
@@ -251,13 +254,14 @@ export async function loadProductView(
     maxDiscountPercent: num(product.maxDiscountPercent),
     price,
     listName: defaultList?.name ?? "Retail",
+    listId: defaultList?.id ?? null,
     currency: defaultList?.currency ?? "USD",
     cost,
     seesCost: seeCost,
     margin: margin?.percent ?? null,
     marginPerUnit: margin?.perUnit ?? null,
     otherLists: product.prices
-      .filter((row) => row.priceList.id !== defaultList?.id)
+      .filter((row, index, rows) => row.priceList.id !== defaultList?.id && rows.findIndex((other) => other.priceList.id === row.priceList.id) === index)
       .map((row) => ({ id: row.priceList.id, name: row.priceList.name, price: toNumberOrZero(row.unitPrice), currency: row.priceList.currency }))
       .sort((a, b) => a.name.localeCompare(b.name)),
     supplier: product.supplier,

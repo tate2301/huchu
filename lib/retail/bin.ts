@@ -28,7 +28,7 @@ import type { RetailAction, RetailResource } from "@/lib/retail/permission-matri
  * `KINDS`.
  */
 
-export const BIN_KINDS = ["product", "promotion", "category"] as const;
+export const BIN_KINDS = ["product", "promotion", "category", "price-list"] as const;
 export type BinKind = (typeof BIN_KINDS)[number];
 
 type Tx = Prisma.TransactionClient;
@@ -220,6 +220,42 @@ const KINDS: Record<BinKind, BinKindSpec> = {
     listBinned: async (where) =>
       (
         await prisma.retailCategory.findMany({
+          where: binnedWhere(where),
+          select: { companyId: true, id: true, name: true, archivedAt: true },
+        })
+      ).map((row) => ({ companyId: row.companyId, id: row.id, name: row.name, reference: null, binnedAt: row.archivedAt! })),
+  },
+  "price-list": {
+    kind: "price-list",
+    label: "Price list",
+    entityType: "PriceList",
+    deleteRight: ["retail.prices", "delete"],
+    viewRight: ["retail.prices", "view"],
+    openKey: "priceListId",
+    binEvents: [RETAIL_AUDIT_EVENTS.recordBinned],
+    find: (tx, companyId, id) => tx.priceList.findFirst({ where: { id, companyId }, select: { name: true, archivedAt: true } }),
+    // Tills stop charging it at once; the default list cannot go (PRD-05).
+    move: async (tx, companyId, id, at) => {
+      const list = await tx.priceList.findFirstOrThrow({ where: { id, companyId }, select: { name: true, isDefault: true } });
+      if (list.isDefault) return `${list.name} is the default list. Make another the default first.`;
+      await tx.priceList.update({ where: { id }, data: { archivedAt: at, state: "PAUSED" } });
+      return null;
+    },
+    // Back paused: switching it on again is the owner's call.
+    restore: async (tx, _companyId, id) => {
+      await tx.priceList.update({ where: { id }, data: { archivedAt: null, state: "PAUSED" } });
+      return null;
+    },
+    // A sale line priced from it keeps it, under its name.
+    purge: async (tx, companyId, id) => {
+      const sold = await tx.retailSaleLine.count({ where: { companyId, priceListId: id } });
+      if (sold > 0) return "kept";
+      await tx.priceList.delete({ where: { id } });
+      return "deleted";
+    },
+    listBinned: async (where) =>
+      (
+        await prisma.priceList.findMany({
           where: binnedWhere(where),
           select: { companyId: true, id: true, name: true, archivedAt: true },
         })

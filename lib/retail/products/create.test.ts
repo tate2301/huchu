@@ -191,7 +191,7 @@ describe("adding a product", () => {
     expect(created.site.name).toBe("Borrowdale");
     expect((await productNewContext(shop.companyId)).oneSite).toBe(false);
     const context = await productNewContext(oneSite.companyId);
-    expect(context).toMatchObject({ oneSite: true, defaultSiteId: oneSite.mainId, depositsOn: true, listName: "Shelf prices" });
+    expect(context).toMatchObject({ oneSite: true, defaultSiteId: oneSite.mainId, depositsOn: true, listName: "Retail" });
     expect((await add({ name: "Coca-Cola 500ml", price: "0.75" }, oneSite)).site.id).toBe(oneSite.mainId);
   });
 

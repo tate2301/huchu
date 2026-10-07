@@ -122,7 +122,7 @@ describe("a product's fields and its price history, as stored", () => {
 
   it("backfills one ADDED change per price on a list, and flags the RETAIL list as the default", async () => {
     const list = await prisma.priceList.create({
-      data: { companyId, name: "Shelf prices", kind: "RETAIL", isActive: true, isDefault: false },
+      data: { companyId, name: "Shelf prices", kind: "RETAIL", isDefault: false },
     });
     const products = await Promise.all(
       ["A", "B", "C"].map((code, index) =>
@@ -138,7 +138,9 @@ describe("a product's fields and its price history, as stored", () => {
     await expect(
       prisma.$transaction(async (tx) => {
         await tx.$executeRawUnsafe(statement('INSERT INTO "ProductPriceChange"'));
-        await tx.$executeRawUnsafe(statement('UPDATE "PriceList"'));
+        // PRD-05 came after: its one-default index goes for the re-run, and `isActive` is `state` now.
+        await tx.$executeRawUnsafe(`DROP INDEX "PriceList_one_default"`);
+        await tx.$executeRawUnsafe(statement('UPDATE "PriceList"').replace('pl."isActive"', `pl."state" = 'ON'`));
         const rows = await tx.productPriceChange.findMany({ where: { companyId } });
         changes = rows.map((row) => ({
           productId: row.productId,

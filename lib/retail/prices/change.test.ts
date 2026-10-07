@@ -13,6 +13,9 @@ import { destroyProvisionedTenant } from "@/lib/platform/tenant-teardown";
 import { prisma } from "@/lib/prisma";
 import { addTestProduct, makeTestShop, type TestShop } from "@/lib/retail/products/test-fixtures";
 
+import { createPriceList } from "@/lib/retail/price-lists/service";
+import { updateProduct } from "@/lib/retail/products/update";
+
 import { applyDuePriceChanges, changePrices, defaultPriceList, PriceRefusal, priceChangeNeedsOwner } from "./change";
 
 let shop: TestShop;
@@ -72,7 +75,7 @@ describe("changing a price", () => {
     expect((await prisma.product.findUniqueOrThrow({ where: { id: amarulaId } })).standardPrice.toFixed(2)).toBe("12.00");
     const events = await prisma.platformAuditEvent.findMany({ where: { entityId: amarulaId, eventType: "RETAIL_PRICE.CHANGED" } });
     expect(events).toHaveLength(1);
-    expect(JSON.parse(events[0]!.payloadJson!)).toMatchObject({ list: "Shelf prices", from: "18.25", to: "12.00", how: "TYPED" });
+    expect(JSON.parse(events[0]!.payloadJson!)).toMatchObject({ list: "Retail", from: "18.25", to: "12.00", how: "TYPED" });
     await change(shop.owner(), "18.25");
   });
 
@@ -130,5 +133,60 @@ describe("changing a price", () => {
     const [waiting] = await prisma.productPriceChange.findMany({ where: { productId: binned.productId, source: "TYPED" } });
     expect(waiting).toMatchObject({ appliedAt: null, cancelledAt: due });
     expect(await prisma.platformAuditEvent.count({ where: { entityId: binned.productId, eventType: "RETAIL_PRICE.CHANGED" } })).toBe(0);
+  });
+});
+
+describe("followers (PRD-05)", () => {
+  let castleId: string;
+  let wholesaleId: string;
+  let staffId: string;
+
+  beforeAll(async () => {
+    castleId = (await addTestProduct(shop.companyId, { name: "Castle Lager 340ml", price: "1.20", cost: "0.86" })).productId;
+    const base = {
+      prices: "OFF" as const,
+      by: "8%",
+      audience: "EVERYONE" as const,
+      when: "ALWAYS" as const,
+      siteId: null,
+      categoryIds: [],
+      switchOn: true,
+    };
+    wholesaleId = (await createPriceList(shop.owner(), { ...base, name: "Wholesale", startFrom: { listId } })).data.id;
+    staffId = (await createPriceList(shop.owner(), { ...base, name: "Staff", startFrom: { cost: true }, prices: "ON", by: "5%" })).data.id;
+  }, 60_000);
+
+  const rowOn = (list: string, product: string) =>
+    prisma.productPrice.findFirstOrThrow({ where: { priceListId: list, productId: product }, select: { unitPrice: true, followsBase: true } });
+
+  const changeOn = (list: string, product: string, price: string) =>
+    prisma.$transaction((tx) =>
+      changePrices(tx, { companyId: shop.companyId, actor: shop.owner(), listId: list, rows: [{ productId: product, price }], source: "TYPED", limits: LIMITS }),
+    );
+
+  it("moves a following Wholesale row when Retail changes, with its own FOLLOWED history", async () => {
+    expect((await rowOn(wholesaleId, castleId)).unitPrice.toFixed(2)).toBe("1.10");
+    await changeOn(listId, castleId, "1.30");
+    expect((await rowOn(wholesaleId, castleId)).unitPrice.toFixed(2)).toBe("1.20");
+    const followed = await prisma.productPriceChange.findFirstOrThrow({
+      where: { priceListId: wholesaleId, productId: castleId, source: "FOLLOWED" },
+    });
+    expect([followed.fromPrice?.toFixed(2), followed.toPrice?.toFixed(2)]).toEqual(["1.10", "1.20"]);
+  });
+
+  it("stops a row following once a price is typed on it", async () => {
+    await changeOn(wholesaleId, castleId, "1.15");
+    expect(await rowOn(wholesaleId, castleId)).toMatchObject({ followsBase: false });
+    await changeOn(listId, castleId, "1.40");
+    expect((await rowOn(wholesaleId, castleId)).unitPrice.toFixed(2)).toBe("1.15");
+  });
+
+  it("prices Staff's rows again when the cost changes", async () => {
+    expect((await rowOn(staffId, castleId)).unitPrice.toFixed(2)).toBe("0.90");
+    await prisma.$transaction((tx) => updateProduct(tx, { actor: shop.owner(), id: castleId, input: { cost: "1.00" }, limits: LIMITS }));
+    expect((await rowOn(staffId, castleId)).unitPrice.toFixed(2)).toBe("1.05");
+    expect(
+      await prisma.productPriceChange.count({ where: { priceListId: staffId, productId: castleId, source: "FOLLOWED" } }),
+    ).toBe(1);
   });
 });

@@ -39,6 +39,7 @@ import { ListTabs } from "./list-tabs";
 import { ListToolbar } from "./list-toolbar";
 import {
   bulkKeys,
+  rowMatches,
   defaultFilters,
   filtersOn,
   foldAt,
@@ -108,9 +109,14 @@ export type ListFrameProps = {
   defaultGroup?: string | null;
   /** The header's back link, for a list under another page ("‹ End of day / Past days"). */
   back?: { href: string; label: string };
+  /**
+   * A page about one record (a price list's worksheet): the list is scoped to it by this parent
+   * filter, and the header reads the record's name as the title and its words as the sub.
+   */
+  parent?: { key: string; value: string };
 };
 
-export function ListFrame({ source, title, sub, rowFilters, defaultSort, defaultGroup, back }: ListFrameProps) {
+export function ListFrame({ source, title, sub, rowFilters, defaultSort, defaultGroup, back, parent: scope }: ListFrameProps) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -120,7 +126,10 @@ export function ListFrame({ source, title, sub, rowFilters, defaultSort, default
   const home = useHomeLink();
   const phone = shell.width === "phone";
 
-  const address = useListAddress(source, { sort: defaultSort, group: defaultGroup });
+  const scopeKey = scope?.key;
+  const scopeValue = scope?.value;
+  const fixed = React.useMemo(() => (scopeKey && scopeValue ? { [scopeKey]: scopeValue } : undefined), [scopeKey, scopeValue]);
+  const address = useListAddress(source, { sort: defaultSort, group: defaultGroup, fixed });
   const apiQuery = address.listParams.toString();
   const listQuery = useQuery({
     queryKey: ["list", source, apiQuery],
@@ -512,24 +521,25 @@ export function ListFrame({ source, title, sub, rowFilters, defaultSort, default
   // Scoped to one record ("?product="): its name as the sub, and the link that clears it.
   const parent = data?.parent ?? null;
   const clearParent = React.useMemo(() => {
-    if (!parent) return null;
+    if (!parent?.all) return null;
     const params = new URLSearchParams(searchParams.toString());
     params.delete(parent.key);
     params.delete("page");
     const query = params.toString();
     return { href: query ? `${pathname}?${query}` : pathname, label: parent.all };
   }, [parent, pathname, searchParams]);
-  // The source's own sub link opens a sheet over the list ("Who can do what").
-  const listSubLink = definition?.list?.subLink ?? null;
+  // The source's own sub link opens a sheet over the list ("Who can do what"), for a caller it is drawn for.
+  const listSubLink = data?.report.list.subLink ?? null;
+  const subLinkId = listSubLink?.idFrom ? (resolved?.filters[listSubLink.idFrom] ?? null) : null;
   const sheetLink = listSubLink
-    ? { href: sheetHref(pathname, searchParams.toString(), listSubLink.sheet, []), label: listSubLink.label }
+    ? { href: sheetHref(pathname, searchParams.toString(), listSubLink.sheet, subLinkId ? [subLinkId] : []), label: listSubLink.label }
     : null;
   const chrome = (
     <PageChrome
-      title={title}
+      title={scope ? (parent?.label ?? title) : title}
       backHref={back?.href}
       backLabel={back?.label}
-      sub={sub ?? parent?.label ?? definition?.list?.sub ?? null}
+      sub={sub ?? (scope ? parent?.sub : parent?.label) ?? definition?.list?.sub ?? null}
       subLink={clearParent ?? (refusal ? null : sheetLink)}
       primary={refusal ? null : primary}
     />
@@ -571,8 +581,12 @@ export function ListFrame({ source, title, sub, rowFilters, defaultSort, default
     write({ q: null, filters: Object.fromEntries(Object.keys(defaults.filters).map((key) => [key, null])) });
   };
   // Bulk actions that belong to other tabs ("Sell them again" on Archived) are not offered here.
+  // And those whose rows are not the ones ticked ("Switch on" while every ticked list is paused).
+  const tickedRows = all ? all.rows : [...picked.values()];
   const bulk = (spec?.bulk ?? []).filter(
-    (action) => !("tabs" in action) || !action.tabs || action.tabs.includes(resolved?.tab ?? ""),
+    (action) =>
+      (!("tabs" in action) || !action.tabs || action.tabs.includes(resolved?.tab ?? "")) &&
+      (!("when" in action) || !action.when || tickedRows.every((row) => rowMatches(row, spec?.columns ?? [], action.when))),
   );
   const selectionFold = phone ? bulk.length : fold.hints ? 2 : fold.chips ? 1 : 0;
 

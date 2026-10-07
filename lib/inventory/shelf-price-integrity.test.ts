@@ -11,8 +11,8 @@
  * ## What it still catches
  *
  * The till does not read `Product.standardPrice`. It reads whatever
- * `resolvePrice` hands back, which is the `ProductPrice` row on the "Shelf
- * prices" list when there is one and `standardPrice` when there is not. Three
+ * `resolvePrice` hands back, which is the `ProductPrice` row on the default
+ * list when there is one and `standardPrice` when there is not. Three
  * rows therefore have to stay in step, and nothing in the type system makes them:
  *
  *  - a list entry that goes missing silently drops the shop to `standardPrice`;
@@ -49,7 +49,6 @@ import { beforeAll, describe, expect, it } from "vitest";
 import { money, percent } from "@/lib/money";
 import { prisma } from "@/lib/prisma";
 import { priceProduct, type PricedProduct } from "@/lib/inventory/catalogue-service";
-import { SHELF_PRICE_LIST_NAME } from "@/lib/retail/shelf-pricing";
 
 /**
  * One ranged line.
@@ -248,19 +247,19 @@ describe("the shelf-price list is shaped the way the till needs", () => {
 
     const problems: string[] = [];
     for (const companyId of companyIds) {
-      const list = await prisma.priceList.findUnique({
-        where: { companyId_name: { companyId, name: SHELF_PRICE_LIST_NAME } },
-        select: { kind: true, taxInclusive: true, isActive: true, currency: true },
+      const list = await prisma.priceList.findFirst({
+        where: { companyId, isDefault: true, archivedAt: null },
+        select: { kind: true, taxInclusive: true, state: true, currency: true },
       });
       if (!list) {
-        problems.push(`${companyId}: no "${SHELF_PRICE_LIST_NAME}" list`);
+        problems.push(`${companyId}: no default list`);
         continue;
       }
       if (list.kind !== "RETAIL") problems.push(`${companyId}: kind is ${list.kind}`);
       // A Zimbabwean shelf price is what the customer pays. A list marked
       // exclusive would have the till add 15% to a figure that already has it.
       if (!list.taxInclusive) problems.push(`${companyId}: not taxInclusive`);
-      if (!list.isActive) problems.push(`${companyId}: inactive`);
+      if (list.state !== "ON") problems.push(`${companyId}: ${list.state}`);
       if (!/^[A-Z]{3}$/.test(list.currency)) problems.push(`${companyId}: currency ${list.currency}`);
     }
 
@@ -271,9 +270,9 @@ describe("the shelf-price list is shaped the way the till needs", () => {
     const productIds = [...new Set(ranged.map((line) => line.productId))];
     const entries = await prisma.productPrice.findMany({
       where: { productId: { in: productIds } },
-      select: { productId: true, minQuantity: true, priceList: { select: { name: true } } },
+      select: { productId: true, minQuantity: true, priceList: { select: { isDefault: true } } },
     });
-    const shelf = entries.filter((entry) => entry.priceList.name === SHELF_PRICE_LIST_NAME);
+    const shelf = entries.filter((entry) => entry.priceList.isDefault);
 
     expect(
       shelf

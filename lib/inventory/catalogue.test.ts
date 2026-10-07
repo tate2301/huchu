@@ -116,9 +116,10 @@ describe("resolvePrice", () => {
 
 describe("choosePriceList", () => {
   const lists = [
-    { id: "std", isDefault: true, isActive: true },
-    { id: "trade", isDefault: false, isActive: true },
-    { id: "old", isDefault: false, isActive: false },
+    { id: "std", isDefault: true, state: "ON" },
+    { id: "trade", isDefault: false, state: "ON" },
+    { id: "old", isDefault: false, state: "PAUSED" },
+    { id: "binned", isDefault: false, state: "ON", archivedAt: new Date() },
   ];
 
   it("honours an explicit choice first", () => {
@@ -130,9 +131,10 @@ describe("choosePriceList", () => {
     expect(choosePriceList(lists)?.id).toBe("std");
   });
 
-  it("never picks an inactive list, even when named", () => {
+  it("never picks a paused or binned list, even when named", () => {
     // A retired list must not quietly come back because an old record points at it.
     expect(choosePriceList(lists, { priceListId: "old" })?.id).toBe("std");
+    expect(choosePriceList(lists, { priceListId: "binned" })?.id).toBe("std");
   });
 
   it("returns nothing when there is no list at all", () => {

@@ -603,7 +603,12 @@ export function SheetForm({ kind, ctx, open, onClose }: SheetFormProps) {
             ) : (
             <footer className="cx-sheet__foot">
               {danger ? (
-                <button type="button" className="sf-danger" onClick={() => void startDanger()} disabled={saving}>
+                <button
+                  type="button"
+                  className="sf-danger"
+                  onClick={() => void startDanger()}
+                  disabled={saving || Boolean(danger.disabled?.(values))}
+                >
                   {dangerAsks ? <Trash aria-hidden="true" /> : null}
                   {dangerLabel}
                 </button>

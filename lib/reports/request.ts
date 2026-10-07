@@ -125,7 +125,7 @@ type OpenList = {
   resolved: ResolvedListQuery;
   rows: () => Promise<ReportLoadResult>;
   page: ((query: ResolvedListQuery) => Promise<ListPageResult>) | null;
-  parentLabel: ((filters: Record<string, string>) => Promise<string | null>) | null;
+  parentLabel: ((filters: Record<string, string>) => Promise<string | { label: string; sub: string | null } | null>) | null;
 };
 
 /** Whether a source has a column or filter that only a company with two open sites sees. */
@@ -246,15 +246,17 @@ export async function fetchListPage(
   };
 }
 
-/** The record a parent filter with `all` scopes this list to, named by the loader. */
+/** The record a parent filter scopes this list to, named by the loader. */
 async function parentOf(opened: OpenList): Promise<ListPageResponse["parent"]> {
   const filter = opened.definition.list.filters.find(
     (candidate): candidate is Extract<ListSpec["filters"][number], { type: "parent" }> =>
-      candidate.type === "parent" && Boolean(candidate.all) && Boolean(opened.resolved.filters[candidate.key]),
+      candidate.type === "parent" && Boolean(opened.resolved.filters[candidate.key]),
   );
   if (!filter || !opened.parentLabel) return null;
-  const label = await opened.parentLabel(opened.resolved.filters);
-  return label ? { key: filter.key, label, all: filter.all! } : null;
+  const named = await opened.parentLabel(opened.resolved.filters);
+  if (!named) return null;
+  const { label, sub } = typeof named === "string" ? { label: named, sub: null } : named;
+  return { key: filter.key, label, sub, all: filter.all ?? null };
 }
 
 /** Every matching id, for "Select all <n>". */

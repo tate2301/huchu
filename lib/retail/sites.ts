@@ -4,7 +4,7 @@ import { z } from "zod";
 import { recordStockMovement } from "@/lib/inventory/stock-movements";
 import { prisma } from "@/lib/prisma";
 import { RETAIL_AUDIT_EVENTS, writeRetailAuditEvent, type RetailAuditActor } from "@/lib/retail/audit";
-import { activeRetailPriceList } from "@/lib/retail/shelf-pricing";
+import { findDefaultPriceList } from "@/lib/retail/prices/change";
 import { unpairDevicesOf } from "@/lib/retail/tills";
 import {
   SITE_CODE_PATTERN,
@@ -312,11 +312,11 @@ export async function priceListOptions(companyId: string, client: Client = prism
 }> {
   const [lists, active] = await Promise.all([
     client.priceList.findMany({
-      where: { companyId, isActive: true },
+      where: { companyId, archivedAt: null },
       orderBy: [{ isDefault: "desc" }, { name: "asc" }],
       select: { id: true, name: true },
     }),
-    activeRetailPriceList(companyId),
+    findDefaultPriceList(client, companyId),
   ]);
   const counts = await client.productPrice.groupBy({
     by: ["priceListId", "productId"],
@@ -377,7 +377,7 @@ async function checkCode(tx: Prisma.TransactionClient, companyId: string, code: 
 }
 
 async function checkPriceList(tx: Prisma.TransactionClient, companyId: string, priceListId: string) {
-  const list = await tx.priceList.findFirst({ where: { id: priceListId, companyId, isActive: true }, select: { name: true } });
+  const list = await tx.priceList.findFirst({ where: { id: priceListId, companyId, archivedAt: null }, select: { name: true } });
   if (!list) throw new SiteRefusal(400, "Choose one of your price lists.", { field: "priceListId" });
   return list.name;
 }

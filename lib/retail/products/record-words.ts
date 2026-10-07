@@ -76,9 +76,20 @@ export function productKpis(product: ProductView): ProductKpi[] {
   ];
 }
 
-/** "Shelf prices, Wholesale US$16.90": the default list, then every other with its price. */
+/** "Retail, Wholesale US$16.90": the default list, then every other with its price. */
 export function priceListsWords(product: ProductView): string {
-  return [product.listName, ...product.otherLists.map((list) => `${list.name} ${formatMoney(list.price, list.currency)}`)].join(", ");
+  return priceListLinks(product)
+    .map((link) => link.label)
+    .join(", ");
+}
+
+/** The same, each to its list's worksheet. */
+export function priceListLinks(product: ProductView): Array<{ label: string; href: string }> {
+  const worksheet = (id: string) => `/retail/products/price-lists/${id}`;
+  return [
+    ...(product.listId ? [{ label: product.listName, href: worksheet(product.listId) }] : []),
+    ...product.otherLists.map((list) => ({ label: `${list.name} ${formatMoney(list.price, list.currency)}`, href: worksheet(list.id) })),
+  ];
 }
 
 /** "12 bottles"; "Not set"; with levels at two or more sites, "12 at Harare Main Branch, 6 at Borrowdale". */

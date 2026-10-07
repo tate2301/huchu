@@ -561,9 +561,9 @@ export async function POST(request: NextRequest) {
       return errorResponse(refusal, 409);
     }
 
-    // S-3. *The* resolution point. The shelf price comes out of the core price
-    // engine, resolved once for the whole basket — per line, because a volume
-    // break depends on how many the customer is buying.
+    // PRD-05. *The* resolution point: the till's price engine over the
+    // snapshot for this site and till at the moment the sale was rung — per
+    // line, because a list's minimum and a volume break depend on how many.
     const shelfPrices = await resolveShelfPrices(
       session.user.companyId,
       input.items.map((item, index) => {
@@ -576,6 +576,7 @@ export async function POST(request: NextRequest) {
           quantity: item.quantity,
         };
       }),
+      { siteId: site.id, registerId: device.registerId, at: soldAt },
     );
 
     const preNormalizedLines = input.items.map((item, index) => {
@@ -610,6 +611,21 @@ export async function POST(request: NextRequest) {
         baseDiscountAmount: lineDiscount,
       };
     });
+    /*
+      PRD-05. A price the till sent that is not the engine's, with no reason
+      given, is a till selling off an old snapshot: refused, so it rings the
+      line again at the new price. With a reason it is an override, judged
+      below by the discount rule against the engine's price. A replay is
+      judged by its review instead.
+    */
+    if (
+      !replaySoldAt &&
+      !input.overrideReason?.trim() &&
+      preNormalizedLines.some((line) => Math.abs(line.unitPrice - line.shelf.unitPrice) > 0.01)
+    ) {
+      return errorResponse("Prices changed while you were selling. The till has the new prices; ring it again.", 409);
+    }
+
     /*
       A product's own ceiling (`Product.maxDiscountPercent`): the most a line
       of it may come off the shelf, managers included. Refused at the counter;
@@ -997,6 +1013,7 @@ export async function POST(request: NextRequest) {
         inventoryItemId: line.inventoryItem.id,
         inventoryUnit: line.inventoryItem.unit,
         productId: line.listing.productId,
+        priceListId: line.shelf.priceListId,
         itemName: line.listing.name,
         quantity: line.quantity,
         unitPrice: line.unitPrice,

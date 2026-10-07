@@ -814,7 +814,7 @@ export function publicListSpec(
   const keys = new Set(columns.map((column) => column.key));
   const cost = new Set(spec.columns.filter((column) => !keys.has(column.key)).map((column) => column.key));
   const scope = scopedFor(spec, ctx.role);
-  const { read: _read, scopeOwn: _scopeOwn, primary, exportExtras, empty, ...rest } = spec;
+  const { read: _read, scopeOwn: _scopeOwn, primary, exportExtras, empty, subLink, ...rest } = spec;
   void _read;
   void _scopeOwn;
   const extras = exportExtras
@@ -837,6 +837,9 @@ export function publicListSpec(
     rowMenu: spec.rowMenu?.filter((action) => allowed(action, ctx)),
     bulk: spec.bulk?.filter((action) => !("requires" in action) || allowed(action, ctx)),
     ...(extras?.length ? { exportExtras: extras } : {}),
+    ...(subLink && (!subLink.requires || subLink.requires.some((grant) => ctx.can(grant)))
+      ? { subLink: { label: subLink.label, sheet: subLink.sheet, ...(subLink.idFrom ? { idFrom: subLink.idFrom } : {}) } }
+      : {}),
     empty: publicEmptyGuide(empty, ctx),
     primary:
       primary && primary.requires.some((grant) => ctx.can(grant))

@@ -84,6 +84,8 @@ export type RetailSaleLineInput = {
    * column is frozen and nothing writes it now.
    */
   productId?: string | null;
+  /** PRD-05 — the price list the engine priced it from. */
+  priceListId?: string | null;
   sourceLineId?: string | null;
   itemName: string;
   quantity: number;
@@ -562,6 +564,7 @@ export async function createRetailSaleTransaction(input: {
                 companyId: input.actor.companyId,
                 inventoryItemId: line.inventoryItemId,
                 productId: line.productId ?? null,
+                priceListId: line.priceListId ?? null,
                 itemName: line.itemName,
                 quantity: line.quantity,
                 unitPrice: line.unitPrice,

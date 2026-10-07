@@ -12,7 +12,7 @@ import {
   type PairingPurpose,
   type PairingState,
 } from "@/lib/retail/pairing";
-import { activeRetailPriceList } from "@/lib/retail/shelf-pricing";
+import { findDefaultPriceList } from "@/lib/retail/prices/change";
 import {
   MOVE_SHIFT_OPEN,
   deviceWords,
@@ -277,9 +277,9 @@ export async function getTill(companyId: string, id: string, now: Date = new Dat
     openShifts(client, companyId),
     lastSales(client, companyId),
     client.site.count({ where: { companyId, isActive: true } }),
-    till.site.priceList ? Promise.resolve(null) : activeRetailPriceList(companyId),
+    till.site.priceList ? Promise.resolve(null) : findDefaultPriceList(client, companyId),
     client.priceList.findMany({
-      where: { companyId, isActive: true },
+      where: { companyId, archivedAt: null },
       orderBy: [{ isDefault: "desc" }, { name: "asc" }],
       select: { id: true, name: true },
     }),
@@ -476,7 +476,7 @@ export async function updateTill(actor: RetailAuditActor, id: string, patch: Til
     if (patch.priceListId !== undefined && patch.priceListId !== till.priceListId) {
       let listName: string | null = null;
       if (patch.priceListId) {
-        const list = await tx.priceList.findFirst({ where: { id: patch.priceListId, companyId, isActive: true }, select: { name: true } });
+        const list = await tx.priceList.findFirst({ where: { id: patch.priceListId, companyId, archivedAt: null }, select: { name: true } });
         if (!list) throw new PairingRefusal(400, "Choose one of your price lists.", { field: "priceListId" });
         listName = list.name;
       }

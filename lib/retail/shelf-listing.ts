@@ -229,6 +229,8 @@ export async function loadShelfListings(
       unitPrice: product.standardPrice,
       taxPercent: product.defaultTaxRate,
     })),
+    // The engine at this site now, one of each, no customer: what the till grid shows.
+    { siteId: siteId ?? null },
   );
 
   const listings: ShelfListing[] = [];

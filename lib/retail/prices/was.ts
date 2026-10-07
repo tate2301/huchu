@@ -18,8 +18,7 @@ export async function wasPrices(
   const was = new Map<string, number>();
   if (current.size === 0) return was;
   const list = await prisma.priceList.findFirst({
-    where: { companyId, isDefault: true },
-    orderBy: { createdAt: "asc" },
+    where: { companyId, isDefault: true, archivedAt: null },
     select: { id: true },
   });
   if (!list) return was;

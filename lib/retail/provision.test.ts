@@ -242,7 +242,7 @@ describe("a shop that has just been opened", () => {
     ).toBe(6);
     expect(
       await prisma.productPrice.count({
-        where: { companyId, priceList: { name: "Shelf prices" } },
+        where: { companyId, priceList: { name: "Retail" } },
       }),
     ).toBe(6);
   });

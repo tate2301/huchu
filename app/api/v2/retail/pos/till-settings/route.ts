@@ -65,7 +65,7 @@ import { resolveBaseCurrency } from "@/lib/money";
 import { prisma } from "@/lib/prisma";
 import { canRetailSessionDo, requireRetailPermission } from "@/lib/retail/permissions";
 import { requirePosDevice } from "@/lib/retail/devices";
-import { SHELF_PRICE_LIST_NAME } from "@/lib/retail/shelf-pricing";
+import { findDefaultPriceList } from "@/lib/retail/prices/change";
 import { receiptWire } from "@/lib/retail/receipt-settings";
 import { loadTillRules, tillRulesForTill } from "@/lib/retail/till-rules";
 import { summariseShelfTax, summariseTillCapabilities } from "@/lib/retail/till-settings";
@@ -122,10 +122,7 @@ export async function GET(request: NextRequest) {
       }),
       // The list the till actually sells off, and — the part that changes what a
       // receipt says — whether its prices already contain the VAT.
-      prisma.priceList.findUnique({
-        where: { companyId_name: { companyId, name: SHELF_PRICE_LIST_NAME } },
-        select: { name: true, currency: true, taxInclusive: true },
-      }),
+      findDefaultPriceList(prisma, companyId),
       /**
        * What the shelf is taxed at, counted rather than configured.
        *

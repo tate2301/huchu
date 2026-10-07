@@ -318,6 +318,21 @@ Recorded unit choices:
   - **The order-by day is a weekday name up to six days ahead and a date from a week on** ("Order 24 by 14
     October" on a Wednesday 7 October), so the sentence never names today's own weekday for a day a week off.
 
+- **PRD-05 departs from packet 18 in six places.**
+  - **The till's grid shows the engine's price at that site now.** `pos/catalog`'s `unitPrice` is what
+    `priceBasket` charges for one at the till's site at this moment (a live Happy hour included), not the base
+    list's own price, so the price the till sends is the one `pos/sales` checks it against. The Products page's
+    Price stays the default list's own (`baseOnly`).
+  - **A till's own list replaces the default as a candidate too.** When the site's or the till's list is on,
+    the default list is not also offered beside it; every other live list still is, the lower price winning.
+  - **A follower moves only with its base's single price.** A change on the base at a minimum above one (a
+    volume break) moves no follower; the follower's row sits at its own list's minimum (Wholesale from 6).
+  - **Cashier and bookkeeper keep Print price sheet and Export.** Both read; neither has New price list,
+    Duplicate, Pause or Switch on, nor a row menu.
+  - **The worksheet's VAT column is 72px**, not 60px: 60 cuts "15.5%" (SET-08 prices the shelf at 15.5%).
+  - **The seed marks every sale line rung before the engine as priced from Retail**, and puts the Bin board's
+    "Happy hour (old)" in the bin. The lists' product counts are the shop's 26, not the board's 17.
+
 - **A list's Export stops at 5,000 rows and says so.** The file holds the engine's first 5,000 rows in the list's order
   with the list's totals over every row; the toast reads "The file has the first 5,000 of 5,858 rows. Narrow the
   filters for the rest."

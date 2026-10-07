@@ -4,6 +4,7 @@ import {
   depositWords,
   idCheckWords,
   levelWords,
+  priceListLinks,
   priceListsWords,
   productKpis,
 } from "@/lib/retail/products/record-words";
@@ -292,7 +293,7 @@ export const productKind: RecordKind<ProductRecord> = {
           },
           // From the category: changed there, or by moving the product to another.
           { key: "vat", label: "VAT", value: product.vatLabel },
-          { key: "price-lists", label: "Price lists", value: priceListsWords(product) },
+          { key: "price-lists", label: "Price lists", value: priceListsWords(product), links: priceListLinks(product) },
         ],
       },
       {

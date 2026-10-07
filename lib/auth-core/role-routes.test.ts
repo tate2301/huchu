@@ -50,7 +50,7 @@ describe("role route allowlist", () => {
     expect(isRouteAllowedForRole("CASHIER", "/stores/inventory")).toBe(false);
     // Retail's own routes are the matrix's to decide.
     expect(isRouteAllowedForRole("CASHIER", "/retail/shifts")).toBe(true);
-    expect(isRouteAllowedForRole("CASHIER", "/api/v2/retail/catalog", "GET")).toBe(true);
+    expect(isRouteAllowedForRole("CASHIER", "/api/v2/retail/products", "GET")).toBe(true);
     expect(isRouteAllowedForRole("CASHIER", "/api/inventory-reports")).toBe(true);
   });
 

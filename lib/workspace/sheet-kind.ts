@@ -267,6 +267,8 @@ export type SheetKind = {
     label: string | ((values: SheetValues) => string);
     /** Offered only while this holds (the owner's "Delete category"). */
     show?: (ctx: SheetCtx, values: SheetValues) => boolean;
+    /** Drawn but not pressable while this holds (the default list cannot be deleted); the note says why. */
+    disabled?: (values: SheetValues) => boolean;
     /** Asked before it sends; null sends at once (bringing something back asks nothing). */
     ask: (ctx: SheetCtx, values: SheetValues) => Ask | null;
     request: (ctx: SheetCtx, values: SheetValues) => SheetRequest;

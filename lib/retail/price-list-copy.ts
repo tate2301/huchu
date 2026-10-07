@@ -34,7 +34,7 @@ export async function copyPriceList(
   try {
     return await prisma.$transaction(async (tx) => {
       const from = await tx.priceList.findFirst({
-        where: { id: input.fromId, companyId, isActive: true },
+        where: { id: input.fromId, companyId, archivedAt: null },
         select: { id: true, name: true, currency: true, taxInclusive: true },
       });
       if (!from) throw new PriceListCopyRefusal("from", "Start from one of your price lists.");

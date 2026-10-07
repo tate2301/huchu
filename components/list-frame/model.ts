@@ -161,6 +161,8 @@ export function cellText(column: ListColumn, row: ReportRow): string {
     case "edit-money":
       return formatMoney(Number(value), currency);
     case "owed":
+      // A count that is owed attention ("2" lists below cost) rather than money.
+      if (column.kind === "number") return formatCount(Number(value));
       return Number(value) < 0 ? `${formatMoney(-Number(value), currency)} credit` : formatMoney(Number(value), currency);
     case "diff":
       return formatSigned(Number(value), currency);
@@ -184,6 +186,7 @@ export function totalText(column: ListColumn, value: ReportValue | undefined): s
   if (column.cell === "diff") return formatSigned(Number(value), currency);
   if (column.cell === "num" && column.sign) return formatSignedCount(Number(value));
   if (column.cell === "num") return column.percent ? formatPercent(Number(value)) : formatCount(Number(value));
+  if (column.cell === "owed" && column.kind === "number") return formatCount(Number(value));
   if (isFigure(column)) return formatMoney(Number(value), currency);
   return String(value);
 }
@@ -268,6 +271,7 @@ export function bulkKeys(spec: Pick<ListSpecPublic, "bulk">): string[] {
   for (const action of spec.bulk ?? []) {
     if (!("do" in action)) continue;
     if ("copy" in action.do) keys.add(action.do.copy);
+    for (const condition of action.when ?? []) keys.add(condition.column);
     if ("href" in action.do && typeof action.do.href === "string") {
       for (const match of action.do.href.matchAll(/\{(?:(?:min|max):)?(\w+)\}/g)) keys.add(match[1]!);
     }

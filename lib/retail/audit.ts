@@ -169,8 +169,14 @@ export const RETAIL_AUDIT_EVENTS = {
   siteChanged: "RETAIL_SITE.CHANGED",
   /** A site closed. Carries its name and how many tills stopped. */
   siteClosed: "RETAIL_SITE.CLOSED",
-  /** A price list added by copying another (the Price list field's quick add). Carries its name, what it copied and how many products. */
+  /** A price list added (New price list, or a copy from the Price list field's quick add). Carries its name, its rule or what it copied, and how many products. */
   priceListCreated: "RETAIL_PRICE_LIST.CREATED",
+  /** A price list's rules changed (PRD-05): `changes` names each field's label, before and after. */
+  priceListChanged: "RETAIL_PRICE_LIST.CHANGED",
+  /** A price list paused: tills stop charging it. */
+  priceListPaused: "RETAIL_PRICE_LIST.PAUSED",
+  /** A paused or draft price list switched on. */
+  priceListResumed: "RETAIL_PRICE_LIST.RESUMED",
   /** A till made on Pair a till, recorded when Done first saves it (Cancel leaves nothing). Carries its name, site and device. */
   tillCreated: "RETAIL_TILL.CREATED",
   /** A till changed: each field before and after. */

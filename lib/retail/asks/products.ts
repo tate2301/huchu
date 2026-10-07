@@ -61,3 +61,32 @@ export const PRODUCT_LIST_RUNS: Record<string, ListActionRun> = {
   archivemany: { ask: stopSelling, done: offTill },
   unarchive: { done: backOnSale },
 };
+
+/** A price list's rules sheet › Delete this list (PRD-05 `pricelistdelete`). */
+export function priceListDeleteAsk(name: string, defaultName = "Retail"): Ask {
+  return {
+    title: `Delete ${name}?`,
+    body: `Tills stop using it now and charge the ${defaultName} price instead. Sales keep the prices they were rung at. It stays in the bin for 30 days.`,
+    keep: "Keep it",
+    go: "Delete this list",
+    fill: "bad",
+  };
+}
+
+const listsWord = (count: number, rows: ReportRow[]) => {
+  const name = count === 1 ? nameOf(rows) : null;
+  return name ?? `${formatCount(count)} ${count === 1 ? "price list" : "price lists"}`;
+};
+
+/** Price lists' actions that post the ticked ids (PRD-05). */
+export const PRICE_LIST_RUNS: Record<string, ListActionRun> = {
+  pricelistduplicate: {
+    done: (count, rows) => (count === 1 && nameOf(rows) ? `${nameOf(rows)} copied. The copy is a draft.` : `${formatCount(count)} price lists copied as drafts.`),
+  },
+  pricelistpause: {
+    done: (count, rows) => `${listsWord(count, rows)} ${count === 1 ? "is" : "are"} paused. Tills stop charging ${count === 1 ? "it" : "them"} within a minute.`,
+  },
+  pricelistresume: {
+    done: (count, rows) => `${listsWord(count, rows)} ${count === 1 ? "is" : "are"} on. Tills pick ${count === 1 ? "it" : "them"} up within a minute.`,
+  },
+};

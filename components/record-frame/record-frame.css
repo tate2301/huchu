@@ -158,6 +158,8 @@
 .cx-rf-row__saved { font-size: 11px; color: var(--ok); }
 .cx-rf-row__value { font-size: 13px; color: var(--ink); overflow-wrap: anywhere; min-width: 0; }
 .cx-rf-row__value--muted { color: var(--ink-3); }
+.cx-rf-row__link { color: var(--ink); text-decoration: underline; text-decoration-color: var(--rule); text-underline-offset: 2px; }
+.cx-rf-row__link:hover { text-decoration-color: currentColor; }
 .cx-rf-ev { display: flex; align-items: center; gap: 6px; width: calc(100% + 12px); min-height: 30px; box-sizing: border-box; margin: 0 -6px; padding: 4px 6px; border: 0; border-radius: 6px; background: transparent; color: inherit; font: inherit; text-align: left; cursor: text; }
 .cx-rf-ev:hover { background: var(--hover); }
 .cx-rf-ev__text { flex: 1; min-width: 0; overflow-wrap: anywhere; }

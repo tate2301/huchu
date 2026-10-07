@@ -150,42 +150,17 @@ export function resolvePrice(params: {
  *
  * An explicit choice wins; otherwise the customer's own list; otherwise the
  * company default; otherwise none, and everything falls back to standard
- * prices. Written as a function so every module resolves it the same way.
+ * prices. Only lists that are on (`state` ON, not in the bin) count. Written as
+ * a function so every module resolves it the same way.
  */
-export function choosePriceList<T extends { id: string; isDefault: boolean; isActive: boolean }>(
+export function choosePriceList<T extends { id: string; isDefault: boolean; state: string; archivedAt?: Date | null }>(
   lists: T[],
   preference?: { priceListId?: string | null; customerPriceListId?: string | null },
 ): T | null {
-  const active = lists.filter((list) => list.isActive);
-  const byId = (id?: string | null) => (id ? active.find((list) => list.id === id) : undefined);
+  const live = lists.filter((list) => list.state === "ON" && !list.archivedAt);
+  const byId = (id?: string | null) => (id ? live.find((list) => list.id === id) : undefined);
 
-  return (
-    byId(preference?.priceListId) ??
-    byId(preference?.customerPriceListId) ??
-    active.find((list) => list.isDefault) ??
-    /*
-      One active list and nothing marked default: use it.
-
-      Without this, the till and every other screen disagreed about the price of
-      the same product. `activeRetailPriceList` finds the tenant's RETAIL list
-      by kind and passes its id in as a preference, so the counter charges the
-      shelf price. `priceProduct` is called with no preference at all, reached
-      `isDefault`, found none, and fell back to `Product.standardPrice` — so the
-      catalogue, the picker and anything quoting off core showed one number
-      while the counter rang up another.
-
-      A seeded bottle store has exactly this shape: a single active "Shelf
-      prices" list, `kind: RETAIL`, `isDefault: false`. Nothing sets the flag —
-      the till never needed it — so nothing else could find the list.
-
-      Only when there is exactly one. With two, picking either would be a guess,
-      and a wrong price is worse than no price: `null` sends the caller to
-      `standardPrice`, which is at least a number the tenant typed. This is the
-      unambiguous case and only that.
-    */
-    (active.length === 1 ? active[0] : null) ??
-    null
-  );
+  return byId(preference?.priceListId) ?? byId(preference?.customerPriceListId) ?? live.find((list) => list.isDefault) ?? null;
 }
 
 // ---------------------------------------------------------------------------
@@ -310,7 +285,8 @@ export const priceListSchema = z.object({
   isDefault: z.boolean().optional(),
   region: z.string().trim().max(80).nullable().optional(),
   currency: z.string().trim().length(3).optional(),
-  isActive: z.boolean().optional(),
+  /** On is charged; paused is kept but never chosen. */
+  state: z.enum(["ON", "PAUSED"]).optional(),
 });
 
 export const priceEntrySchema = z.object({

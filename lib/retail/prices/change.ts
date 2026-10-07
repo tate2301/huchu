@@ -11,8 +11,10 @@ import { formatMoney } from "@/lib/workspace/format";
  * The price-change core (20-products 4.5, PRD-03): every price on a list moves
  * through `changePrices`, now or on a date, and leaves a `ProductPriceChange`
  * row behind — the price history, "Was" and "Changed". A change dated later
- * waits until `applyDuePriceChanges` claims it. Followers (a list that follows
- * another, a price that follows the cost) are PRD-05's.
+ * waits until `applyDuePriceChanges` claims it. Followers (PRD-05): a price on
+ * a list that follows another moves with its base's price, and one on a list
+ * that follows the cost moves with the cost, each with its own FOLLOWED row;
+ * a price typed on a follower stops it following.
  */
 
 type Tx = Prisma.TransactionClient;
@@ -24,12 +26,16 @@ export class DefaultListMissing extends Error {
   }
 }
 
-export async function defaultPriceList(tx: Tx | typeof prisma, companyId: string) {
-  const list = await tx.priceList.findFirst({
-    where: { companyId, isDefault: true },
-    orderBy: { createdAt: "asc" },
-    select: { id: true, name: true, currency: true, isDefault: true },
+/** The live default list (one per company, a partial unique index), or null. */
+export async function findDefaultPriceList(tx: Tx | typeof prisma, companyId: string) {
+  return tx.priceList.findFirst({
+    where: { companyId, isDefault: true, archivedAt: null },
+    select: { id: true, name: true, currency: true, taxInclusive: true, isDefault: true },
   });
+}
+
+export async function defaultPriceList(tx: Tx | typeof prisma, companyId: string) {
+  const list = await findDefaultPriceList(tx, companyId);
   if (!list) throw new DefaultListMissing();
   return list;
 }
@@ -66,6 +72,15 @@ export type PriceChangeResult = { applied: number; scheduled: number; refused: R
 
 const ONE = new Prisma.Decimal(1);
 
+/** `price × (1 + adjust/100)` to the cent: a follower's price off its base (or the cost). */
+export function followPrice(base: Prisma.Decimal.Value, adjustPercent: Prisma.Decimal.Value | null): Prisma.Decimal {
+  const adjust = new Prisma.Decimal(adjustPercent ?? 0);
+  return new Prisma.Decimal(base).times(adjust.dividedBy(100).plus(1)).toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP);
+}
+
+/** A typed or bulk price is the owner's own: that row stops following its base. */
+const OWN_SOURCES: RetailPriceChangeSource[] = ["TYPED", "BULK"];
+
 /** Put one price on its list now: the list row, the fallback, the history and the event. */
 async function applyPrice(
   tx: Tx,
@@ -81,6 +96,8 @@ async function applyPrice(
     /** The scheduled row this applies; else a new row is written. */
     changeId?: string;
     batchId?: string | null;
+    /** Lists already moved in this chain, so a follower of a follower never comes back round. */
+    visited?: Set<string>;
   },
 ): Promise<boolean> {
   const key = { priceListId: input.list.id, productId: input.productId, minQuantity: input.minQuantity };
@@ -94,10 +111,11 @@ async function applyPrice(
   if (input.to === null) {
     if (existing) await tx.productPrice.delete({ where: { priceListId_productId_minQuantity: key } });
   } else {
+    const own = OWN_SOURCES.includes(input.source);
     await tx.productPrice.upsert({
       where: { priceListId_productId_minQuantity: key },
       create: { companyId: input.companyId, ...key, unitPrice: input.to },
-      update: { unitPrice: input.to },
+      update: { unitPrice: input.to, ...(own ? { followsBase: false } : {}) },
     });
     // The fallback the resolver reaches for stays the default list's single price.
     if (input.list.isDefault && input.minQuantity.equals(ONE)) {
@@ -130,7 +148,86 @@ async function applyPrice(
     productId: input.productId,
     payload: { list: input.list.name, from: auditAmount(from), to: auditAmount(input.to), how: input.source },
   });
+  if (input.to !== null && input.minQuantity.equals(ONE)) {
+    await moveFollowers(tx, { ...input, to: input.to, visited: new Set([...(input.visited ?? []), input.list.id]) });
+  }
   return true;
+}
+
+/**
+ * The rows that follow this list's price for this product, moved to it: every
+ * row still following, on a live list whose basis is this list. One hop each,
+ * recursively, and never back into a list already moved in the chain.
+ */
+async function moveFollowers(
+  tx: Tx,
+  input: {
+    companyId: string;
+    actor: RetailAuditActor | null;
+    list: { id: string };
+    productId: string;
+    to: Prisma.Decimal;
+    at: Date;
+    batchId?: string | null;
+    visited: Set<string>;
+  },
+) {
+  const rows = await tx.productPrice.findMany({
+    where: {
+      companyId: input.companyId,
+      productId: input.productId,
+      followsBase: true,
+      priceList: { basis: "LIST", basisListId: input.list.id, archivedAt: null },
+    },
+    select: {
+      minQuantity: true,
+      priceList: { select: { id: true, name: true, isDefault: true, adjustPercent: true } },
+    },
+  });
+  for (const row of rows) {
+    if (input.visited.has(row.priceList.id)) continue;
+    await applyPrice(tx, {
+      companyId: input.companyId,
+      actor: input.actor,
+      list: row.priceList,
+      productId: input.productId,
+      minQuantity: new Prisma.Decimal(row.minQuantity),
+      to: followPrice(input.to, row.priceList.adjustPercent),
+      source: "FOLLOWED",
+      at: input.at,
+      batchId: input.batchId,
+      visited: input.visited,
+    });
+  }
+}
+
+/**
+ * The cost moved (the record's Cost, a delivery): every row still following
+ * the cost on a live COST list is priced again off it, each with its FOLLOWED
+ * history (and its own followers after it).
+ */
+export async function repriceCostFollowers(tx: Tx, companyId: string, productId: string, actor: RetailAuditActor | null = null) {
+  const product = await tx.product.findFirst({ where: { id: productId, companyId }, select: { costPrice: true } });
+  if (!product?.costPrice) return 0;
+  const rows = await tx.productPrice.findMany({
+    where: { companyId, productId, followsBase: true, priceList: { basis: "COST", archivedAt: null } },
+    select: { minQuantity: true, priceList: { select: { id: true, name: true, isDefault: true, adjustPercent: true } } },
+  });
+  let moved = 0;
+  for (const row of rows) {
+    const changed = await applyPrice(tx, {
+      companyId,
+      actor,
+      list: row.priceList,
+      productId,
+      minQuantity: new Prisma.Decimal(row.minQuantity),
+      to: followPrice(product.costPrice, row.priceList.adjustPercent),
+      source: "FOLLOWED",
+      at: new Date(),
+    });
+    if (changed) moved += 1;
+  }
+  return moved;
 }
 
 /**

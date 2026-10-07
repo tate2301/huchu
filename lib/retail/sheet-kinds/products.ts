@@ -1,8 +1,10 @@
 import { z } from "zod";
 
 import { categoryDeleteAsk, categoryMergeAsk } from "@/lib/retail/asks/categories";
-import { archiveAsk } from "@/lib/retail/asks/products";
+import { archiveAsk, priceListDeleteAsk } from "@/lib/retail/asks/products";
 import type { CategoryView } from "@/lib/retail/categories";
+import { BETWEEN_HINT, HOURS_HINT } from "@/lib/retail/price-lists/hours";
+import type { PriceListView } from "@/lib/retail/price-lists/service";
 import { parseMargin, type CategoryVat } from "@/lib/retail/category-words";
 import type { ProductNewContext } from "@/lib/retail/products/context";
 import { AGE_CHECK_SEG, ageCheckOfSeg, segOfAgeCheck } from "@/lib/retail/products/age-check";
@@ -609,7 +611,217 @@ const productEdit: SheetKind = {
   requires: [["retail.catalog", "update"]],
 };
 
+/* ── Price lists (PRD-05) ─────────────────────────────────────────────── */
+
+const invalidatePriceLists = [["list", "retail-price-lists"], ["list", "retail-prices"], ["lookup", "price-list"]];
+
+/** The site lookup's "All sites" (`context.allSites`), which sends no site. */
+const ALL_SITES_ID = "all";
+const ALL_SITES: PickedOption = { id: ALL_SITES_ID, label: "All sites", sub: null };
+
+const PRICES_SEG = ["The same", "% off", "% on"];
+const PRICES_OF_SEG: Record<string, "SAME" | "OFF" | "ON"> = { "The same": "SAME", "% off": "OFF", "% on": "ON" };
+const AUDIENCE_SEG = ["Everyone", "Customers on account", "Loyalty members", "Staff"];
+const AUDIENCE_OF_SEG: Record<string, PriceListView["audience"]> = {
+  Everyone: "EVERYONE",
+  "Customers on account": "ACCOUNT_CUSTOMERS",
+  "Loyalty members": "LOYALTY_MEMBERS",
+  Staff: "STAFF",
+};
+const SEG_OF_AUDIENCE = Object.fromEntries(Object.entries(AUDIENCE_OF_SEG).map(([seg, value]) => [value, seg])) as Record<string, string>;
+const WHEN_SEG = ["Always", "Days and hours", "Between dates"];
+const WHEN_OF_SEG: Record<string, "ALWAYS" | "DAYS_AND_HOURS" | "BETWEEN_DATES"> = {
+  Always: "ALWAYS",
+  "Days and hours": "DAYS_AND_HOURS",
+  "Between dates": "BETWEEN_DATES",
+};
+const VAT_PRICES_SEG = ["Include VAT", "Before VAT"];
+const CURRENCY_SEG = ["US$", "ZiG"];
+
+const audienceField: FieldSpec = { id: "audience", t: "seg", l: "Who gets it", o: AUDIENCE_SEG, v: "Everyone" };
+const whereField: FieldSpec = {
+  id: "siteId",
+  t: "auto",
+  l: "Where",
+  noun: "site",
+  context: { allSites: true },
+  v: ALL_SITES,
+};
+const siteOf = (values: SheetValues) => {
+  const picked = values.siteId as PickedOption | null;
+  return picked && picked.id !== ALL_SITES_ID ? picked.id : null;
+};
+
+const readPriceList = (id: string) => readJson<PriceListView>(`/api/v2/retail/price-lists/${encodeURIComponent(id)}`);
+
+/** `K.pricelistnew` (`PriceListNew.png`, W-16): start from a list or the cost, the rules, switch it on. */
+const priceListNew: SheetKind = {
+  title: "New price list",
+  sub: "Products › Price lists",
+  cur: "US$",
+  sections: [
+    {
+      fields: [
+        nameField,
+        { id: "startFrom", t: "auto", l: "Start from", noun: "price-list", context: { withCost: true } },
+        { id: "prices", t: "seg", l: "Prices", o: PRICES_SEG, v: "% off", half: true },
+        {
+          id: "by",
+          t: "text",
+          l: "By",
+          mono: true,
+          half: true,
+          v: "10%",
+          show: (values) => values.prices !== "The same",
+          schema: z.string().refine((value) => {
+            const match = /^\s*(\d{1,3}(?:\.\d{1,2})?)\s*%?\s*$/.exec(value);
+            return Boolean(match) && Number(match![1]) <= 90;
+          }, "Make it 0% to 90%."),
+        },
+      ],
+    },
+    {
+      title: "Rules",
+      fields: [
+        audienceField,
+        { id: "when", t: "seg", l: "When", o: WHEN_SEG, v: "Always" },
+        {
+          id: "hours",
+          t: "text",
+          l: "Days and hours",
+          p: "Fridays, 17:00 to 19:00",
+          needed: HOURS_HINT,
+          show: (values) => values.when === "Days and hours",
+        },
+        {
+          id: "between",
+          t: "text",
+          l: "Between dates",
+          p: "1 December to 26 December",
+          needed: BETWEEN_HINT,
+          show: (values) => values.when === "Between dates",
+        },
+        whereField,
+        {
+          id: "categories",
+          t: "tags",
+          l: "Only these categories",
+          noun: "category",
+          p: "Add a category, then Enter",
+          h: "Empty means everything on the list.",
+          opt: true,
+          optQuiet: true,
+        },
+      ],
+    },
+    {
+      title: "Switching on",
+      fields: [{ id: "switchOn", t: "toggle", l: "Switch it on now", h: "Tills pick it up within a minute.", v: true }],
+    },
+  ],
+  note: "When two lists apply, the till charges the lower price.",
+  primary: "Add price list",
+  done: (_result, _values, payload) => String((payload as { message?: string } | null)?.message ?? "Price list added."),
+  next: (result) => `/retail/products/price-lists/${(result as PriceListView).id}`,
+  // "Start from" opens on the default list.
+  load: async () => {
+    const params = new URLSearchParams({ q: "", limit: "50", context: JSON.stringify({ withCost: true }) });
+    const page = await readJson<{ options: Array<{ id: string; label: string; sub?: string | null }> }>(
+      `/api/v2/retail/lookup/price-list?${params.toString()}`,
+    );
+    const first = page.options.find((option) => option.sub?.startsWith("Default")) ?? page.options[0];
+    return first ? { startFrom: { id: first.id, label: first.label, sub: first.sub ?? null } } : {};
+  },
+  submit: (values) => {
+    const start = values.startFrom as PickedOption | null;
+    const prices = PRICES_OF_SEG[String(values.prices)] ?? "SAME";
+    const when = WHEN_OF_SEG[String(values.when)] ?? "ALWAYS";
+    return {
+      method: "POST",
+      url: "/api/v2/retail/price-lists",
+      body: {
+        name: String(values.name ?? ""),
+        startFrom: start?.id === "cost" ? { cost: true } : { listId: start?.id ?? "" },
+        prices,
+        by: prices === "SAME" ? null : String(values.by ?? ""),
+        audience: AUDIENCE_OF_SEG[String(values.audience)] ?? "EVERYONE",
+        when,
+        hours: when === "DAYS_AND_HOURS" ? String(values.hours ?? "") : null,
+        between: when === "BETWEEN_DATES" ? String(values.between ?? "") : null,
+        siteId: siteOf(values),
+        categoryIds: (Array.isArray(values.categories) ? (values.categories as PickedOption[]) : []).map((option) => option.id),
+        switchOn: values.switchOn === true,
+      },
+    };
+  },
+  invalidate: invalidatePriceLists,
+  requires: [["retail.prices", "create"]],
+};
+
+/** `K.pricelistedit` (`PriceListEdit.png`): the rules of one list, and Delete this list for the owner. */
+const priceListRules: SheetKind = {
+  title: (_ctx, values) => String(values._name ?? "Price list"),
+  sub: (_ctx, values) =>
+    values._name === undefined
+      ? "Products › Price lists"
+      : `${values._isDefault ? "Default price list" : `${String(values._name)} price list`} · ${productWords(Number(values._products ?? 0))}`,
+  cur: "US$",
+  sections: [
+    {
+      fields: [
+        nameField,
+        { id: "isDefault", t: "toggle", l: "Default list", h: "Every till uses it unless another rule applies." },
+        { id: "taxInclusive", t: "seg", l: "Prices", o: VAT_PRICES_SEG, half: true },
+        { id: "currency", t: "seg", l: "Currency", o: CURRENCY_SEG, half: true },
+      ],
+    },
+    { title: "Rules", fields: [audienceField, whereField] },
+  ],
+  note: (values) => (values._isDefault ? "The default list cannot be deleted. Make another the default first." : "Tills stop using it the moment you delete it."),
+  primary: "Save",
+  done: (result) => `${(result as PriceListView).name} saved.`,
+  danger: {
+    label: "Delete this list",
+    show: (ctx, values) => ctx.can("retail.prices", "delete") && values._name !== undefined,
+    disabled: (values) => values._isDefault === true,
+    ask: (_ctx, values) => priceListDeleteAsk(String(values._name ?? "this list")),
+    request: (ctx) => ({ method: "POST", url: "/api/v2/retail/bin", body: { kind: "price-list", id: ctx.id } }),
+    done: (values) => `${String(values._name)} is in the bin. Tills stopped using it.`,
+  },
+  readOnly: (ctx) => !ctx.can("retail.prices", "update"),
+  load: async (ctx) => {
+    const view = await readPriceList(ctx.id ?? "");
+    return {
+      name: view.name,
+      isDefault: view.isDefault,
+      taxInclusive: view.taxInclusive ? "Include VAT" : "Before VAT",
+      currency: view.currency === "ZWG" ? "ZiG" : "US$",
+      audience: SEG_OF_AUDIENCE[view.audience] ?? "Everyone",
+      siteId: view.siteId ? { id: view.siteId, label: view.siteName ?? "", sub: null } : ALL_SITES,
+      _name: view.name,
+      _isDefault: view.isDefault,
+      _products: view.products,
+    };
+  },
+  submit: (values, ctx) => ({
+    method: "PATCH",
+    url: `/api/v2/retail/price-lists/${encodeURIComponent(ctx.id ?? "")}`,
+    body: {
+      name: String(values.name ?? ""),
+      isDefault: values.isDefault === true,
+      taxInclusive: values.taxInclusive === "Include VAT",
+      currency: values.currency === "ZiG" ? "ZWG" : "USD",
+      audience: AUDIENCE_OF_SEG[String(values.audience)] ?? "EVERYONE",
+      siteId: siteOf(values),
+    },
+  }),
+  invalidate: invalidatePriceLists,
+  requires: [["retail.prices", "view"]],
+};
+
 export const PRODUCT_SHEETS: Record<string, SheetKind> = {
+  "price-list-new": priceListNew,
+  "price-list-rules": priceListRules,
   "product-new": productNew,
   "product-edit": productEdit,
   "category-new": categoryNew,

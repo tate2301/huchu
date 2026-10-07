@@ -27,7 +27,11 @@ const actorOf = (ctx: LookupCtx) => ({
  * Open sites, the default first with the sub "Default". Read by anyone who
  * picks a site in a form: Sites itself, stock, products and tills.
  * `context.exclude` leaves one site out (the other end of a transfer).
+ * `context.allSites` puts "All sites" first (`ALL_SITES_ID`, sent as no site).
  */
+/** The "All sites" option's id: a field that holds it sends `null`. */
+export const ALL_SITES_ID = "all";
+
 const site: LookupNoun = {
   noun: "site",
   read: [
@@ -36,6 +40,8 @@ const site: LookupNoun = {
     ["retail.catalog", "create"],
     ["retail.transfers", "create"],
     ["retail.tills", "view"],
+    // A price list's Where (New price list, Edit the rules).
+    ["retail.prices", "create"],
   ],
   create: ["retail.sites", "create"],
   quick: [
@@ -58,9 +64,12 @@ const site: LookupNoun = {
       prisma.retailShopProfile.findUnique({ where: { companyId: ctx.companyId }, select: { defaultSiteId: true } }),
     ]);
     const defaultId = profile?.defaultSiteId ?? null;
-    return [...sites]
+    const found = [...sites]
       .sort((a, b) => Number(b.id === defaultId) - Number(a.id === defaultId))
       .map((row) => ({ id: row.id, label: row.name, sub: row.id === defaultId ? "Default" : null }));
+    // `context.allSites` (a price list's Where): "All sites" first, which sends no site.
+    const all = context.allSites === true && (!q || "all sites".includes(q.toLowerCase())) ? [{ id: ALL_SITES_ID, label: "All sites", sub: null }] : [];
+    return [...all, ...found];
   },
   async add(ctx, fields) {
     const name = (fields.name ?? "").trim();
@@ -95,8 +104,10 @@ const site: LookupNoun = {
 };
 
 /**
- * Price lists, the default first: "Default, 214 products", "96 products".
- * The inline add copies another list ("Start from"; empty is the default).
+ * Price lists, the default first: "Default, 214 products", "96 products";
+ * binned ones are not offered. `context.withCost` (New price list's "Start
+ * from") adds "Cost" last. The inline add copies another list ("Start from";
+ * empty is the default).
  */
 const priceList: LookupNoun = {
   noun: "price-list",
@@ -110,12 +121,12 @@ const priceList: LookupNoun = {
     { key: "name", label: "Name", placeholder: "" },
     { key: "from", label: "Start from", placeholder: "The default list" },
   ],
-  async search(ctx, q) {
+  async search(ctx, q, context) {
     const needle = q.toLowerCase();
     const { options } = await priceListOptions(ctx.companyId);
-    return options
-      .filter((option) => !needle || option.name.toLowerCase().includes(needle))
-      .map((option) => ({ id: option.id, label: option.name, sub: option.sub }));
+    const found = options.map((option) => ({ id: option.id, label: option.name, sub: option.sub }));
+    if (context.withCost === true) found.push({ id: "cost", label: "Cost", sub: "What each product costs" });
+    return found.filter((option) => !needle || option.label.toLowerCase().includes(needle));
   },
   async add(ctx, fields) {
     const { options, defaultId } = await priceListOptions(ctx.companyId);

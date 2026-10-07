@@ -553,11 +553,7 @@ export async function tillContext(device: PosDevice, now: Date = new Date()): Pr
     prisma.stockLocation.count({ where: { siteId: register.site.id, isActive: true } }),
     register.priceListId || register.site.priceListId
       ? Promise.resolve(null)
-      : prisma.priceList.findFirst({
-          where: { companyId: device.companyId, isActive: true },
-          orderBy: [{ isDefault: "desc" }, { name: "asc" }],
-          select: { id: true },
-        }),
+      : prisma.priceList.findFirst({ where: { companyId: device.companyId, isDefault: true, archivedAt: null }, select: { id: true } }),
     loadShopProfile(device.companyId),
     loadTillRules(device.companyId),
     tillPayments(device.companyId),

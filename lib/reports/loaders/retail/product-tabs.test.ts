@@ -156,7 +156,7 @@ describe("Price history", () => {
       [16.9, 17.5, "Typed", null],
       [null, 16.9, "Added", null],
     ]);
-    expect(page.rows[0]).toMatchObject({ list: "Shelf prices", by: "Tendai Mhlanga" });
+    expect(page.rows[0]).toMatchObject({ list: "Retail", by: "Tendai Mhlanga" });
     expect(String(page.rows[0]!.whenText)).toMatch(/^From /);
   });
 });

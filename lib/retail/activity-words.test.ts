@@ -89,10 +89,19 @@ describe("Activity's sentences (00-foundations 5.6.9)", () => {
       tone: "info",
     });
     expect(activityWords("RETAIL_SITE.CLOSED", { name: "Borrowdale" })).toEqual({ what: "Closed it", tone: "bad" });
-    expect(activityWords("RETAIL_PRICE_LIST.CREATED", { name: "Avondale", from: "Shelf prices" })).toEqual({
-      what: "Added it, a copy of Shelf prices",
+    expect(activityWords("RETAIL_PRICE_LIST.CREATED", { name: "Avondale", from: "Retail" })).toEqual({
+      what: "Added it, a copy of Retail",
       tone: "ok",
     });
+    expect(activityWords("RETAIL_PRICE_LIST.CREATED", { name: "Happy hour", products: 6, rule: "Retail less 10% on beer" })).toEqual({
+      what: "Added it",
+      tone: "ok",
+    });
+    expect(
+      activityWords("RETAIL_PRICE_LIST.CHANGED", { changes: [{ label: "Who gets it" }, { label: "Where" }] }),
+    ).toEqual({ what: "Changed Who gets it and Where", tone: "info" });
+    expect(activityWords("RETAIL_PRICE_LIST.PAUSED", { name: "Happy hour" })).toEqual({ what: "Paused it", tone: "hollow" });
+    expect(activityWords("RETAIL_PRICE_LIST.RESUMED", { name: "Happy hour" })).toEqual({ what: "Switched it on", tone: "ok" });
   });
 
   it("settings name every label changed", () => {

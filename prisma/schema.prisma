@@ -1153,6 +1153,7 @@ model Site {
   retailDefaultFor      RetailShopProfile[]    @relation("RetailDefaultSite")
   retailLicenceHours    RetailLicenceHours[]
   priceList             PriceList?             @relation("SitePriceList", fields: [priceListId], references: [id], onDelete: SetNull)
+  priceListsHere        PriceList[]            @relation("PriceListSite")
   closedBy              User?                  @relation("SiteClosedBy", fields: [closedById], references: [id], onDelete: SetNull)
   retailPurchaseOrders  RetailPurchaseOrder[]
   crmRequisitions       CrmRequisition[]
@@ -1420,6 +1421,7 @@ model User {
   crmDailyReports                   CrmDailyReport[]               @relation("CrmDailyReportUser")
   productsCreated                   Product[]                      @relation("ProductCreatedBy")
   productPriceChanges               ProductPriceChange[]           @relation("ProductPriceChangeCreatedBy")
+  priceListsUpdated                 PriceList[]                    @relation("PriceListUpdatedBy")
   retailShopProfilesUpdated         RetailShopProfile[]            @relation("RetailShopProfileUpdatedBy")
   retailPaymentSettingsUpdated      RetailPaymentSettings[]        @relation("RetailPaymentSettingsUpdatedBy")
   retailPostingSettingsUpdated      RetailPostingSettings[]        @relation("RetailPostingSettingsUpdatedBy")
@@ -4837,6 +4839,7 @@ model RetailCategory {
   /// NULL, in migration 20261005142607_retail_category_live_name. This file
   /// cannot express it, so a `\d` on the database shows an index it does not.
   children RetailCategory[] @relation("RetailCategoryParent")
+  priceLists PriceListCategory[]
 
   @@index([companyId, archivedAt, sortOrder])
   @@index([parentId])
@@ -5836,6 +5839,8 @@ model RetailSaleLine {
   /// a product may be archived out from under a receipt; `itemName` is what a
   /// reprint actually renders, and it is denormalised for exactly that reason.
   productId       String?
+  /// PRD-05 — the price list the line was priced from; kept null once that list is purged.
+  priceListId     String?
   itemName        String
   quantity        Decimal @default(0) @db.Decimal(12, 4)
   unitPrice       Decimal @default(0) @db.Decimal(14, 2)
@@ -5859,6 +5864,7 @@ model RetailSaleLine {
   /// not make six months of receipts undeletable, and the receipt still reprints
   /// from `itemName`.
   product       Product?           @relation(fields: [productId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  priceList     PriceList?         @relation(fields: [priceListId], references: [id], onDelete: SetNull)
   sourceLine    RetailSaleLine?    @relation("RetailSaleLineSource", fields: [sourceLineId], references: [id], onDelete: SetNull, onUpdate: Cascade)
   reversals     RetailSaleLine[]   @relation("RetailSaleLineSource")
 
@@ -14128,18 +14134,88 @@ model PriceList {
   /// shelf figure instead. False by default, so every list that existed this
   /// morning still means exactly what it meant.
   taxInclusive Boolean    @default(false)
-  isActive  Boolean       @default(true)
+  /// PRD-05 — ON is charged at the tills whose rules it meets; DRAFT and PAUSED never are.
+  state     PriceListState    @default(ON)
+  /// Who gets it. Only EVERYONE matches until the customer units pass a customer to the engine.
+  audience  PriceListAudience @default(EVERYONE)
+  whenKind  PriceListWhen     @default(ALWAYS)
+  /// DAYS_AND_HOURS: ISO weekdays, Monday 1 to Sunday 7.
+  daysOfWeek Int[]            @default([])
+  /// DAYS_AND_HOURS: "17:00" to "19:00", Africa/Harare, the end not included.
+  fromTime  String?
+  toTime    String?
+  /// BETWEEN_DATES: both days included.
+  startsOn  DateTime?         @db.Date
+  endsOn    DateTime?         @db.Date
+  /// Only at this site; null at every site.
+  siteId    String?
+  /// The smallest quantity a line must hold for the list's price.
+  minQuantity Int             @default(1)
+  /// OWN prices typed per product; LIST follows `basisListId`; COST follows each product's cost.
+  basis     PriceListBasis    @default(OWN)
+  basisListId String?
+  /// −8 is "less 8%", +5 "plus 5%"; null for OWN.
+  adjustPercent Decimal?      @db.Decimal(6, 2)
+  /// In the bin. The partial unique index on the default ignores binned lists.
+  archivedAt DateTime?
+  updatedById String?
   createdAt DateTime      @default(now())
   updatedAt DateTime      @updatedAt
 
   company Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  site    Site?          @relation("PriceListSite", fields: [siteId], references: [id], onDelete: SetNull)
+  basisList PriceList?   @relation("PriceListBasis", fields: [basisListId], references: [id], onDelete: SetNull)
+  followers PriceList[]  @relation("PriceListBasis")
+  updatedBy User?        @relation("PriceListUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
   entries ProductPrice[]
   changes ProductPriceChange[]
+  categories PriceListCategory[]
+  saleLines RetailSaleLine[]
   sites   Site[]         @relation("SitePriceList")
   registers RetailRegister[] @relation("RegisterPriceList")
 
   @@unique([companyId, name])
-  @@index([companyId, isActive, kind])
+  /// One default per company among live lists: a partial unique index
+  /// "PriceList_one_default" on ("companyId") WHERE "isDefault" AND "archivedAt"
+  /// IS NULL, in migration 20261008010000_retail_price_list_rules.
+  @@index([companyId, state, kind])
+}
+
+/// PRD-05 — a list that applies only to these categories; none means every product on it.
+model PriceListCategory {
+  priceListId String
+  categoryId  String
+
+  priceList PriceList      @relation(fields: [priceListId], references: [id], onDelete: Cascade)
+  category  RetailCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@id([priceListId, categoryId])
+  @@index([categoryId])
+}
+
+enum PriceListState {
+  DRAFT
+  ON
+  PAUSED
+}
+
+enum PriceListAudience {
+  EVERYONE
+  ACCOUNT_CUSTOMERS
+  LOYALTY_MEMBERS
+  STAFF
+}
+
+enum PriceListWhen {
+  ALWAYS
+  DAYS_AND_HOURS
+  BETWEEN_DATES
+}
+
+enum PriceListBasis {
+  OWN
+  LIST
+  COST
 }
 
 /// One product's price on one list. `minQuantity` gives simple volume breaks;
@@ -14154,6 +14230,8 @@ model ProductPrice {
   minQuantity Decimal  @default(1) @db.Decimal(12, 4)
   /// S-1 — what a price list actually says a thing costs. Money, so `Decimal`.
   unitPrice   Decimal  @db.Decimal(14, 2)
+  /// PRD-05 — moves with the list's basis (its base list's price, or the cost); a typed price stops it.
+  followsBase Boolean  @default(false)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 

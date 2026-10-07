@@ -2,7 +2,6 @@ import { prisma } from "@/lib/prisma";
 import { ensureAccountingDefaults } from "@/lib/accounting/bootstrap";
 import { createProduct } from "@/lib/retail/products/create";
 import { productInput } from "@/lib/retail/products/input";
-import { SHELF_PRICE_LIST_NAME } from "@/lib/retail/shelf-pricing";
 
 /**
  * Opening a shop.
@@ -228,12 +227,12 @@ export async function provisionRetail(
     The default price list (PRD-03): every product goes on it, and the till
     prices from it. A shelf price is what the customer pays, VAT inside.
   */
-  const defaultList = await prisma.priceList.findFirst({ where: { companyId, isDefault: true }, select: { id: true } });
+  const defaultList = await prisma.priceList.findFirst({ where: { companyId, isDefault: true, archivedAt: null }, select: { id: true } });
   if (!defaultList) {
     await prisma.priceList.upsert({
-      where: { companyId_name: { companyId, name: SHELF_PRICE_LIST_NAME } },
-      create: { companyId, name: SHELF_PRICE_LIST_NAME, kind: "RETAIL", taxInclusive: true, isActive: true, isDefault: true },
-      update: { isDefault: true },
+      where: { companyId_name: { companyId, name: "Retail" } },
+      create: { companyId, name: "Retail", kind: "RETAIL", taxInclusive: true, state: "ON", isDefault: true },
+      update: { isDefault: true, state: "ON", archivedAt: null },
     });
   }
 
