@@ -18,13 +18,14 @@ import {
   PintGlass,
   Plus,
   SimCard,
+  Tag,
   Wine,
 } from "@/lib/icons";
 import { clockLabel } from "@/lib/retail/licence-hours";
-import { count, MEASURES, qty, usd } from "./format";
+import { count, MEASURES, qty, usd, whole } from "./format";
 import { TillPopover } from "./parts";
 import { useTill } from "./state";
-import type { PosCatalogItem } from "./types";
+import type { PosCatalogItem, Promotion } from "./types";
 
 /** A glyph for a product with no photo, from what its name says it is. */
 const GLYPHS: Array<[RegExp, React.ComponentType<{ className?: string }>]> = [
@@ -48,8 +49,8 @@ export function ProductGlyph({ name }: { name: string }) {
   return <Icon className="ic" />;
 }
 
-/** The photo when there is one, else a glyph for its kind on the fill. */
-export function ProductPreview({ name, imageUrl }: { name: string; imageUrl?: string | null }) {
+/** The photo when there is one, else a glyph for its kind on the fill; marks (18+, the count on the sale) ride on it. */
+export function ProductPreview({ name, imageUrl, children }: { name: string; imageUrl?: string | null; children?: React.ReactNode }) {
   return (
     <span className="pic" aria-hidden="true">
       {imageUrl ? (
@@ -58,11 +59,28 @@ export function ProductPreview({ name, imageUrl }: { name: string; imageUrl?: st
       ) : (
         <ProductGlyph name={name} />
       )}
+      {children}
     </span>
   );
 }
 
-const LOW_STOCK = 5;
+/** At or under the stock row's reorder level: the tile says so, and what that level is. */
+function belowReorder(item: PosCatalogItem) {
+  const stock = item.inventoryItem?.currentStock ?? 0;
+  const level = item.inventoryItem?.reorderLevel ?? null;
+  return level !== null && stock > 0 && stock <= level ? level : null;
+}
+
+/** "+10c", "+US$1.00": a returnable bottle's deposit, after its price. */
+function depositWord(amount: number) {
+  return `+${amount < 1 ? `${Math.round(amount * 100)}c` : usd(amount)}`;
+}
+
+/** Sold and out of reach: none left (and no case to open), or 18+ outside the licence hours. */
+function tileOff(item: PosCatalogItem, stoppedUntil: number | null | undefined) {
+  const stock = item.inventoryItem?.currentStock ?? 0;
+  return (item.ageRestricted && stoppedUntil !== undefined) || (stock <= 0 && !item.openableCase);
+}
 
 function stockLine(item: PosCatalogItem) {
   const stock = item.inventoryItem?.currentStock ?? 0;
@@ -82,6 +100,7 @@ export function ProductTile({
   item,
   stoppedUntil,
   depositsOn,
+  onSale,
   onAdd,
   pricing,
   onPricing,
@@ -91,6 +110,8 @@ export function ProductTile({
   stoppedUntil: number | null | undefined;
   /** The shop charges deposits on returnable bottles. */
   depositsOn: boolean;
+  /** How many of it are on the sale now; 0 when none. */
+  onSale: number;
   /** `typedPrice`: the amount typed for an open-price product. */
   onAdd: (item: PosCatalogItem, typedPrice?: number) => void;
   /** An open-price product's amount is being asked for; Enter in the search opens it too. */
@@ -99,13 +120,10 @@ export function ProductTile({
 }) {
   const stock = item.inventoryItem?.currentStock ?? 0;
   const stopped = item.ageRestricted && stoppedUntil !== undefined;
-  const empty = stock <= 0 && !item.openableCase;
-  const off = stopped || empty;
+  const off = tileOff(item, stoppedUntil);
   const was = !item.openPrice && item.wasPrice !== null && item.wasPrice > item.unitPrice ? item.wasPrice : null;
-  const tags = [
-    ...(item.ageRestricted ? ["18+"] : []),
-    ...(depositsOn && item.returnable && item.depositAmount ? [`+${item.depositAmount < 1 ? `${Math.round(item.depositAmount * 100)}c` : usd(item.depositAmount)} deposit`] : []),
-  ];
+  const deposit = depositsOn && item.returnable && item.depositAmount ? depositWord(item.depositAmount) : null;
+  const reorderAt = item.openPrice ? null : belowReorder(item);
   const status = stopped
     ? stoppedUntil === null
       ? "Not today"
@@ -116,13 +134,25 @@ export function ProductTile({
         : "None left"
       : item.openPrice
         ? "Type the amount"
-        : stockLine(item);
+        : reorderAt !== null
+          ? `${stockLine(item)}, reorder at ${qty(reorderAt)}`
+          : stockLine(item);
+  // The count on the sale reads as a quantity: a weighed line shows its weight.
+  const inCart = onSale > 0 ? qty(onSale) : null;
 
   const tile = (
     <button
       type="button"
       className="tile"
-      aria-label={[item.name, item.openPrice ? "any amount" : usd(item.unitPrice), ...(was !== null ? [`was ${usd(was)}`] : []), ...tags, status].join(", ")}
+      aria-label={[
+        item.name,
+        item.openPrice ? "any amount" : usd(item.unitPrice),
+        ...(was !== null ? [`was ${usd(was)}`] : []),
+        ...(item.ageRestricted ? ["18+"] : []),
+        ...(deposit ? [`${deposit} deposit`] : []),
+        status,
+        ...(inCart ? [`${inCart} on this sale`] : []),
+      ].join(", ")}
       aria-disabled={off || undefined}
       onClick={
         item.openPrice
@@ -132,24 +162,17 @@ export function ProductTile({
             }
       }
     >
-      <ProductPreview name={item.name} imageUrl={item.imageUrl} />
+      <ProductPreview name={item.name} imageUrl={item.imageUrl}>
+        {item.ageRestricted ? <span className="age">18+</span> : null}
+        {inCart ? <span className="in">{inCart}</span> : null}
+      </ProductPreview>
       <span className="p">
         {item.openPrice ? "Any" : usd(item.unitPrice)}
         {was !== null ? <s className="was">{usd(was)}</s> : null}
+        {deposit ? <span className="dep">{deposit}</span> : null}
       </span>
       <span className="n">{item.name}</span>
-      {tags.length ? (
-        <span className="t">
-          {tags.map((tag) => (
-            <span key={tag} className="tag">
-              {tag}
-            </span>
-          ))}
-        </span>
-      ) : null}
-      <span className={`s${!off && !item.openPrice && stock > 0 && stock <= LOW_STOCK ? " low" : !off && item.ageRestricted ? " age" : ""}`}>
-        {status}
-      </span>
+      <span className={reorderAt !== null && !off ? "s low" : "s"}>{status}</span>
     </button>
   );
 
@@ -158,6 +181,107 @@ export function ProductTile({
     <AmountPopover item={item} open={pricing} onOpenChange={onPricing} onAdd={(price) => onAdd(item, price)}>
       {tile}
     </AmountPopover>
+  );
+}
+
+/** A promotion on the quick row: what it takes off, short. */
+function promotionWord(promotion: Promotion) {
+  if (promotion.type === "PERCENT") return `${whole(promotion.value)}% off`;
+  if (promotion.type === "AMOUNT") return `${usd(promotion.value)} off`;
+  return null;
+}
+
+/** At most this many on the quick row: promotions first, then what needs typing (airtime), then the most sold. */
+const QUICK_MOST = 5;
+
+/**
+ * The quick row, above the groups on Most sold: the shop's running promotions
+ * (pressed, one goes on the sale; pressed again, it comes off), open-price
+ * products like airtime, and the best sellers, never more than five. Out of
+ * stock and stopped products are left off rather than shown grey.
+ */
+export function QuickRow({
+  ranked,
+  promotions,
+  selectedPromotionId,
+  onPromotion,
+  stoppedUntil,
+  onSaleOf,
+  onAdd,
+}: {
+  /** The shelf, most sold first. */
+  ranked: readonly PosCatalogItem[];
+  promotions: readonly Promotion[];
+  selectedPromotionId: string;
+  onPromotion: (id: string) => void;
+  stoppedUntil: number | null | undefined;
+  onSaleOf: (item: PosCatalogItem) => number;
+  onAdd: (item: PosCatalogItem, typedPrice?: number) => void;
+}) {
+  const shown = promotions.slice(0, 2);
+  const sellable = ranked.filter((item) => !tileOff(item, stoppedUntil));
+  const typed = sellable.filter((item) => item.openPrice).slice(0, 1);
+  const best = sellable.filter((item) => !item.openPrice).slice(0, Math.max(QUICK_MOST - shown.length - typed.length, 0));
+  const products = [...typed, ...best];
+  if (!shown.length && !products.length) return null;
+
+  return (
+    <div className="quick" role="group" aria-label="Quick add">
+      {shown.map((promotion) => {
+        const on = promotion.id === selectedPromotionId;
+        // Said once: a name that already says "5% off" needs no label after it.
+        const off = promotionWord(promotion);
+        const word = off && !promotion.name.toLowerCase().includes(off.toLowerCase()) ? off : null;
+        return (
+          <button
+            key={promotion.id}
+            type="button"
+            className="quick-item"
+            aria-pressed={on}
+            title={promotion.name}
+            onClick={() => onPromotion(on ? "" : promotion.id)}
+          >
+            <span className="qpic" aria-hidden="true">
+              <Tag className="ic" />
+            </span>
+            <span className="qn">{promotion.name}</span>
+            {word ? <span className="qp">{word}</span> : null}
+          </button>
+        );
+      })}
+      {products.map((item) => {
+        const onIt = onSaleOf(item);
+        const button = (
+          <button
+            key={item.id}
+            type="button"
+            className="quick-item"
+            title={item.name}
+            aria-label={[item.name, item.openPrice ? "any amount" : usd(item.unitPrice), ...(onIt > 0 ? [`${qty(onIt)} on this sale`] : [])].join(", ")}
+            onClick={item.openPrice ? undefined : () => onAdd(item)}
+          >
+            <span className="qpic" aria-hidden="true">
+              {item.imageUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element -- the shop's own uploads, cached offline
+                <img src={item.imageUrl} alt="" width={40} height={40} loading="lazy" />
+              ) : (
+                <ProductGlyph name={item.name} />
+              )}
+            </span>
+            <span className="qn">{item.name}</span>
+            <span className="qp">{item.openPrice ? "Any" : usd(item.unitPrice)}</span>
+            {onIt > 0 ? <span className="in">{qty(onIt)}</span> : null}
+          </button>
+        );
+        return item.openPrice ? (
+          <AmountPopover key={item.id} item={item} onAdd={(price) => onAdd(item, price)}>
+            {button}
+          </AmountPopover>
+        ) : (
+          button
+        );
+      })}
+    </div>
   );
 }
 

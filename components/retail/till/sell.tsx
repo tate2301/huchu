@@ -49,7 +49,7 @@ import {
 import { DOORS, PersonMenu } from "./shell";
 import { useSignOut } from "./sign-out";
 import { useTill } from "./state";
-import { BottlesBackTile, ProductTile } from "./tile";
+import { BottlesBackTile, ProductTile, QuickRow } from "./tile";
 import type { Approval, PaymentRow, PosCatalogItem } from "./types";
 
 const WEEKDAY = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
@@ -338,6 +338,9 @@ function Shelf({
     lineStopped,
     amountDue,
     selectedCustomer,
+    promotions,
+    selectedPromotionId,
+    setSelectedPromotionId,
   } = useTill();
   const { online, since } = useConnection();
   // A tablet's keyboard would cover the shelf: the search takes focus only where there is a pointer.
@@ -352,6 +355,9 @@ function Shelf({
   const showBottles = depositsOn && !search.trim();
   // The licence's weekday is Harare's, whatever the device's clock says.
   const today = WEEKDAY[harareClock(new Date()).weekday];
+  // How many of a product the sale holds now, for the count on its tile.
+  const onSaleOf = (item: PosCatalogItem) =>
+    cart.filter((line) => line.catalogItemId === item.id).reduce((sum, line) => sum + line.quantity, 0);
 
   return (
     <main className="main">
@@ -436,6 +442,18 @@ function Shelf({
           <span className="kbd">/</span>
         </label>
       </div>
+      {/* Quick things on Most sold, the shelf the till opens on: a search or a group is already a choice. */}
+      {!search.trim() && !selectedCategory && !catalogLoading ? (
+        <QuickRow
+          ranked={catalogItems}
+          promotions={promotions}
+          selectedPromotionId={selectedPromotionId}
+          onPromotion={setSelectedPromotionId}
+          stoppedUntil={stoppedUntil}
+          onSaleOf={onSaleOf}
+          onAdd={onAdd}
+        />
+      ) : null}
       {categories.length ? (
         <div className="tools is-seg-row">
           <Segmented
@@ -481,6 +499,7 @@ function Shelf({
               item={item}
               stoppedUntil={stoppedUntil}
               depositsOn={depositsOn}
+              onSale={onSaleOf(item)}
               onAdd={(added, typedPrice) => {
                 onAdd(added, typedPrice);
                 // Asked for from the search: the search clears, as it does for anything Enter adds.
