@@ -8,10 +8,13 @@ import { BarChart } from "@/components/dashboard-frame/bar-chart";
 import { Segmented } from "@/components/workspace/segmented";
 import type { RecordChart } from "@/lib/retail/record-kinds/types";
 
+import { LineChart } from "./line-chart";
+
 /**
  * The chart panel (5.6.5 item 2): a 48px head on `--ground` with the title,
- * its unit or chip and, at the right, a sentence; a 150px bar plot with its
- * dashed grid and hover tooltip (the empty state while every bar is 0); an optional footer with a sentence and a
+ * its unit or chip and, at the right, a sentence; a 150px bar plot, or a line
+ * over days (`LineChart`), with its dashed grid and hover tooltip (the empty
+ * state while there is nothing to draw); an optional footer with a sentence and a
  * link. No range control unless the kind has one (decision 10).
  */
 export function ChartPanel({
@@ -24,9 +27,10 @@ export function ChartPanel({
 }) {
   const id = React.useId();
   // Nothing but zeros has no scale to draw: the empty state, not a made-up axis.
-  const empty = chart.bars.every((bar) => bar.value === 0);
+  const bars = chart.bars ?? [];
+  const empty = chart.line ? chart.line.points.length === 0 : bars.every((bar) => bar.value === 0);
   // The gap narrows as the bars multiply, so no bar is ever squeezed to nothing.
-  const count = chart.bars.length;
+  const count = bars.length;
   const gap = count <= 8 ? 16 : count <= 16 ? 8 : 3;
   return (
     <section className="cx-rf-panel" aria-labelledby={id} style={{ "--rf-bar-gap": `${gap}px` } as React.CSSProperties}>
@@ -49,10 +53,12 @@ export function ChartPanel({
       </div>
       {empty ? (
         <p className="cx-rf-panel__empty">Nothing to draw yet.</p>
+      ) : chart.line ? (
+        <LineChart line={chart.line} label={chart.title} />
       ) : (
         <BarChart
-          bars={chart.bars}
-          xLabels={chart.bars.map((bar) => bar.tick ?? bar.label)}
+          bars={bars}
+          xLabels={bars.map((bar) => bar.tick ?? bar.label)}
           label={chart.title}
           tick={chart.tick}
           evenX

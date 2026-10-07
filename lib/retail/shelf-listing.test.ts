@@ -112,15 +112,15 @@ describe("a shelf line in the shop's own category", () => {
     expect(products.get(castleId)?.ageRestricted).toBe(true);
   });
 
-  it("lets the product's own no beat its 18+ category, and carries its discount ceiling", async () => {
+  it("asks ID under its 18+ category whatever the product says, and carries its discount ceiling", async () => {
     await prisma.product.update({ where: { id: castleId }, data: { ageRestricted: false, maxDiscountPercent: 5 } });
     try {
       expect(await loadShelfListing(companyId, castleId)).toMatchObject({
-        ageRestricted: false,
+        ageRestricted: true,
         maxDiscountPercent: 5,
       });
       const { products } = await loadSellableProducts({ companyId, siteId, productIds: [castleId] });
-      expect(products.get(castleId)?.ageRestricted).toBe(false);
+      expect(products.get(castleId)?.ageRestricted).toBe(true);
     } finally {
       await prisma.product.update({ where: { id: castleId }, data: { ageRestricted: null, maxDiscountPercent: null } });
     }

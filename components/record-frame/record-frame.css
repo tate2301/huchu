@@ -237,3 +237,25 @@ button.cx-rf-photo:hover { background: var(--hover); }
 /* A kind's own banner (an archived product): the bin banner's shape, in the tray. */
 .cx-rf-banner--note { background: var(--tray); color: var(--ink-2); border-bottom-color: var(--line, color-mix(in oklab, var(--ink-2) 14%, var(--tray))); }
 .cx-rf-banner--note .cx-rf-banner__restore { border-color: var(--line-strong, var(--ink-2)); color: var(--ink); }
+
+/* ── The line chart (a product's When it runs out) ──────── */
+.cx-rf-line { position: relative; padding: 24px 16px 28px 48px; }
+.cx-rf-line__grid { position: absolute; left: 16px; right: 16px; top: 24px; height: 150px; display: flex; flex-direction: column; justify-content: space-between; font-family: var(--font-mono); font-size: 11px; color: var(--ink-3); pointer-events: none; }
+.cx-rf-line__grid > span { border-bottom: 1px dashed var(--line); line-height: 0; }
+.cx-rf-line__grid > span:last-child { border-bottom: 1px solid var(--line-strong); }
+.cx-rf-line__plot { position: relative; height: 150px; }
+.cx-rf-line__plot svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+.cx-rf-line__now { fill: none; stroke: var(--ink-2); stroke-width: 2px; stroke-linejoin: round; }
+.cx-rf-line__ahead { fill: none; stroke: var(--ink-2); stroke-width: 1.5px; stroke-dasharray: 4 4; }
+.cx-rf-line__reference { stroke: var(--warn-dot); stroke-width: 1.5px; stroke-dasharray: 4 4; }
+.cx-rf-line__today { position: absolute; top: -8px; bottom: 0; right: 0; background: color-mix(in oklab, var(--ink) 4%, transparent); pointer-events: none; }
+.cx-rf-line__today > span { position: absolute; top: -14px; left: 0; transform: translateX(-50%); font-size: 11px; color: var(--ink-3); }
+.cx-rf-line__dot { position: absolute; width: 10px; height: 10px; margin: -5px 0 0 -5px; border-radius: 99px; background: var(--ok); border: 2px solid var(--surface); box-sizing: border-box; pointer-events: none; }
+.cx-rf-line__label { position: absolute; transform: translateY(calc(-100% - 4px)); font-size: 12px; white-space: nowrap; pointer-events: none; }
+.cx-rf-line__label--warn { color: var(--warn); }
+.cx-rf-line__label--ok { color: var(--ok); transform: translate(-50%, calc(-100% - 8px)); }
+.cx-rf-line__cross { position: absolute; top: 0; bottom: 0; border-left: 1px dashed var(--line-strong); pointer-events: none; }
+.cx-rf-line__x { position: absolute; left: 48px; right: 16px; bottom: 6px; height: 16px; font-family: var(--font-mono); font-size: 11px; color: var(--ink-3); }
+.cx-rf-line__x > span { position: absolute; transform: translateX(-50%); white-space: nowrap; }
+.cx-rf-line__x > span:first-child { transform: none; }
+.cx-rf-line__x > span:last-child { transform: translateX(-100%); }

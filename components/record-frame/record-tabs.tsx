@@ -310,7 +310,8 @@ function RecordCards({
   totals: TotalsCell[];
 }) {
   const column = (key: string | undefined) => (key ? columns.find((candidate) => candidate.key === key) : undefined);
-  const title = column(spec.card.title);
+  // The card's title from the source's own columns when the tab leaves it out (a movement's product).
+  const title = column(spec.card.title) ?? spec.columns.find((candidate) => candidate.key === spec.card.title);
   const figure = column(spec.card.figure);
   // The money totals, as the list's phone footer gives them.
   const figures = totals.filter((cell) => cell.index > 0 && cell.text && ["money", "diff"].includes(columns[cell.index]!.cell));

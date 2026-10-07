@@ -1,22 +1,33 @@
 import { fetchJson } from "@/lib/api-client";
 import { archiveAsk } from "@/lib/retail/asks/products";
-import { ageCheckWords } from "@/lib/retail/products/age-check";
+import {
+  depositWords,
+  idCheckWords,
+  levelWords,
+  priceListsWords,
+  productKpis,
+} from "@/lib/retail/products/record-words";
+import { runOutChip, type StockChart } from "@/lib/retail/products/stock-chart";
 import type { ProductView } from "@/lib/retail/products/view";
-import { formatCount, formatMoney, formatSignedCount } from "@/lib/workspace/format";
+import { formatCount, formatMoney, formatShortDay, formatSignedCount } from "@/lib/workspace/format";
 
-import type { Grant, RecordKind } from "./types";
+import type { Grant, RecordAction, RecordChart, RecordKind, RecordLinePoint } from "./types";
 
 /**
- * The product record kind (00-foundations 5.6.10, Product board): the
- * reference for the details rail edited in place and for the bin. The rail's
- * groups are the board's; Edit opens the Edit a product sheet over it; an
- * archived product says so under the header with "Sell it again". The
- * products spec adds its KPIs, chart and tabs (PRD-04).
+ * The product record kind (00-foundations 5.6.10, Product board, PRD-04):
+ * its five figures, When it runs out, its sales, stock, prices and suppliers
+ * as tabs, and the rail edited in place. Edit opens the Edit a product sheet
+ * over it; an archived product says so under the header with "Sell it again".
+ *
+ * The record is the product's view and its stock chart, read side by side.
  */
+
+export type ProductRecord = ProductView & { stockChart: StockChart };
 
 const UPDATE: Grant = ["retail.catalog", "update"];
 const VIEW: Grant = ["retail.catalog", "view"];
 const ADJUST: Grant = ["retail.adjustments", "create"];
+const CREATE: Grant = ["retail.catalog", "create"];
 
 /** "18.50" → "18.50", as the API reads money. A blank or a word is refused in words. */
 function figure(text: string, { optional = false } = {}): string | null {
@@ -37,21 +48,8 @@ function needed(label: string) {
   };
 }
 
-/** "Yes" ("Yes, 18 and over", "18+"), "No", or nothing to follow the category. */
-function parseIdCheck(text: string): boolean | null {
-  const answer = text.trim().toLowerCase();
-  if (!answer) return null;
-  if (answer === "y" || answer.startsWith("yes") || answer.startsWith("18")) return true;
-  if (answer === "n" || answer.startsWith("no")) return false;
-  throw new Error("Write Yes or No, or clear it to follow the category.");
-}
-
-/** "10", "12.5": a percentage up to 100; blank is no limit. */
-function parsePercent(text: string): string | null {
-  const percent = figure(text.replace(/%\s*$/, ""), { optional: true });
-  if (percent !== null && Number(percent) > 100) throw new Error("Write a percentage up to 100, or clear it for no limit.");
-  return percent;
-}
+/** The seg's "Yes" or "No". */
+const parseIdCheck = (text: string): boolean => text === "Yes";
 
 async function uploadPhoto(file: File): Promise<string> {
   const body = new FormData();
@@ -66,11 +64,76 @@ async function uploadPhoto(file: File): Promise<string> {
 
 const productUrl = (id: string) => `/api/v2/retail/products/${id}`;
 
-export const productKind: RecordKind<ProductView> = {
+const WEEKDAY = new Intl.DateTimeFormat("en-GB", { weekday: "short", timeZone: "UTC" });
+/** "Fri 3 Oct". */
+const tipDay = (day: string) => `${WEEKDAY.format(new Date(`${day}T12:00:00Z`))} ${formatShortDay(`${day}T12:00:00Z`, "UTC")}`;
+
+/** When it runs out: on hand day by day, dashed on to the day it runs out. */
+function stockChart(product: ProductRecord): RecordChart {
+  const chart = product.stockChart;
+  const perDay = chart.perDay;
+  const points: RecordLinePoint[] = chart.days.map((day) => ({
+    date: day.date,
+    value: day.onHand,
+    tip: {
+      label: tipDay(day.date),
+      value: `${formatCount(day.onHand)} on hand`,
+      sub: [`${formatCount(day.sold)} sold`, ...(day.received > 0 ? [`${formatCount(day.received)} received`] : [])].join(" · "),
+    },
+  }));
+  const projection: RecordLinePoint[] = chart.projection.map((day, index) => ({
+    date: day.date,
+    value: day.onHand,
+    tip:
+      index === 0
+        ? points[points.length - 1]!.tip
+        : {
+            label: `${tipDay(day.date)} · expected`,
+            value: `${formatCount(Math.round(day.onHand))} on hand, if it keeps selling`,
+            sub: `About ${formatCount(Math.round(perDay))} a day`,
+          },
+  }));
+  const first = chart.days[0]?.date;
+  const today = chart.days[chart.days.length - 1]?.date ?? "";
+  // Every ten days from the first, today, and the day it runs out.
+  const ticks = first
+    ? [
+        ...chart.days.filter((_, index) => index % 10 === 0 && chart.days.length - 1 - index >= 4).map((day) => day.date),
+        today,
+        ...(chart.runsOutOn && chart.runsOutOn !== today && projection.some((day) => day.date === chart.runsOutOn) ? [chart.runsOutOn] : []),
+      ]
+    : [];
+  return {
+    title: "When it runs out",
+    chip: runOutChip(chart) ?? undefined,
+    aside: perDay > 0 ? `Selling about ${perDay.toFixed(1)} a day` : "Not sold in 30 days",
+    line: {
+      points,
+      projection,
+      reference: chart.reorderAt === null ? null : { value: chart.reorderAt, label: `reorder at ${formatCount(chart.reorderAt)}` },
+      markers: chart.received.map((day) => ({ date: day.date, label: `${formatSignedCount(day.quantity)} received`, tone: "ok" as const })),
+      todayFrom: today,
+      ticks: ticks.map((date) => ({ date, label: formatShortDay(`${date}T12:00:00Z`, "UTC") })),
+    },
+    footer: chart.advice ? { text: chart.advice.sentence } : undefined,
+  };
+}
+
+/** "Single; case of 24": a case product's line says what it holds. */
+const caseChip = (product: ProductView) =>
+  product.packOf ? [{ label: `Case of ${product.packSize ?? "?"} × ${product.packOf.name}`, tone: "plain" as const }] : [];
+
+export const productKind: RecordKind<ProductRecord> = {
   type: "Product",
   back: { label: "Products", href: "/retail/products" },
   queryKey: (id) => ["retail-product", id],
-  load: async (id) => (await fetchJson<{ data: ProductView }>(productUrl(id))).data,
+  load: async (id) => {
+    const [view, chart] = await Promise.all([
+      fetchJson<{ data: ProductView }>(productUrl(id)),
+      fetchJson<{ data: StockChart }>(`${productUrl(id)}/stock-chart?days=30`),
+    ]);
+    return { ...view.data, stockChart: chart.data };
+  },
   endpoint: productUrl,
   title: (product) => product.name,
   reference: (product) => product.code,
@@ -79,12 +142,13 @@ export const productKind: RecordKind<ProductView> = {
     // W-23: breakage, own use, found more or a fixed mistake.
     { key: "adjust", label: "Adjust stock", requires: [ADJUST], do: { sheet: "stock-adjust", params: { productId: product.id } } },
   ],
-  more: (product) => [
+  more: (product): RecordAction[] => [
+    { key: "pdf", label: "Export as PDF", requires: [VIEW], do: { download: `/api/v2/retail/records/Product/${product.id}/pdf` } },
     // W-26: a case, or a single sold by the case too, while the shop sells cases and singles.
     ...((product.packOf || product.hasCases) && product.casesAndSingles
       ? [{ key: "case-break", label: "Break a case", requires: [ADJUST], do: { sheet: "case-break", params: { productId: product.id } } }]
       : []),
-    { key: "pdf", label: "Export as PDF", requires: [VIEW], do: { download: `/api/v2/retail/records/Product/${product.id}/pdf` } },
+    { key: "duplicate", label: "Duplicate", requires: [CREATE], do: { sheet: "product-new", params: { from: product.id } } },
     product.isActive
       ? {
           key: "archive",
@@ -106,7 +170,12 @@ export const productKind: RecordKind<ProductView> = {
           do: { post: { url: "/api/v2/retail/products/unarchive", body: { ids: [product.id] }, done: `${product.name} is on sale again.` } },
         },
   ],
-  bin: { kind: "product", deleteRight: ["retail.catalog", "delete"], state: (product) => product.bin },
+  bin: {
+    kind: "product",
+    deleteRight: ["retail.catalog", "delete"],
+    state: (product) => product.bin,
+    meanwhile: "Off the till and out of lists; its sales and stock history stay.",
+  },
   banner: (product) =>
     !product.isActive && !product.archivedAt
       ? {
@@ -124,11 +193,26 @@ export const productKind: RecordKind<ProductView> = {
         }
       : null,
   chips: (product) => [
+    ...(product.out ? [{ label: "Out of stock", tone: "bad" as const }] : []),
+    ...(product.low
+      ? [
+          {
+            label:
+              product.figures.coverDays === null
+                ? "Reorder soon"
+                : `Reorder soon · about ${product.figures.coverDays} ${product.figures.coverDays === 1 ? "day" : "days"} left`,
+            tone: "warn" as const,
+          },
+        ]
+      : []),
     ...(!product.isActive && !product.archivedAt ? [{ label: "Archived", tone: "plain" as const }] : []),
-    ...(product.category ? [{ label: product.category.name, tone: "plain" as const }] : []),
+    ...(product.category ? [{ label: product.category.path, tone: "plain" as const }] : []),
     ...(product.ageCheck ? [{ label: "ID check at the till", tone: "plain" as const }] : []),
+    ...caseChip(product),
   ],
   figure: (product) => ({ label: "Selling at", value: formatMoney(product.price, product.currency) }),
+  kpis: (product) => productKpis(product),
+  chart: (product) => stockChart(product),
   tabs: [
     {
       // W-28: the product's ledger, its last 30 days, newest first.
@@ -145,6 +229,26 @@ export const productKind: RecordKind<ProductView> = {
         balance: formatCount(Number(totals.onHand ?? 0)),
       }),
     },
+    {
+      key: "sales",
+      label: "Sales",
+      source: "retail-product-sales",
+      parent: "product",
+    },
+    {
+      key: "price-history",
+      label: "Price history",
+      source: "retail-product-price-history",
+      parent: "product",
+      requires: ["retail.prices", "view"],
+    },
+    {
+      key: "suppliers",
+      label: "Suppliers",
+      source: "retail-product-suppliers",
+      parent: "product",
+      requires: ["retail.catalog", "view-cost"],
+    },
     { key: "activity", label: "Activity" },
   ],
   railTop: (product) => ({
@@ -156,9 +260,7 @@ export const productKind: RecordKind<ProductView> = {
     },
   }),
   rail: (product) => {
-    const reorder = product.stock.reorderAt;
-    const reorderQty = product.stock.reorderQty;
-    const units = (count: number) => `${formatCount(count)} ${product.unit}${count === 1 || product.unit === "each" ? "" : "s"}`;
+    const levels = product.stock.levelsEditable;
     return [
       {
         title: "Price",
@@ -168,6 +270,7 @@ export const productKind: RecordKind<ProductView> = {
             label: "Price",
             value: formatMoney(product.price, product.currency),
             mono: true,
+            // Through the price core on the default list (W-14): the owner rule and the history row.
             ...(product.canEdit.price
               ? { edit: { field: "price", type: "money" as const, initial: product.price.toFixed(2), parse: (text: string) => figure(text), requires: UPDATE } }
               : {}),
@@ -175,7 +278,7 @@ export const productKind: RecordKind<ProductView> = {
           {
             key: "cost",
             label: "Cost",
-            value: product.cost === null ? "—" : formatMoney(product.cost, product.currency),
+            value: product.cost === null ? "Not on file" : formatMoney(product.cost, product.currency),
             mono: product.cost !== null,
             muted: product.cost === null,
             visible: ["retail.catalog", "view-cost"],
@@ -189,32 +292,7 @@ export const productKind: RecordKind<ProductView> = {
           },
           // From the category: changed there, or by moving the product to another.
           { key: "vat", label: "VAT", value: product.vatLabel },
-          {
-            key: "most-off",
-            label: "Most off",
-            value: product.maxDiscountPercent === null ? "No limit" : `${product.maxDiscountPercent}%`,
-            mono: product.maxDiscountPercent !== null,
-            muted: product.maxDiscountPercent === null,
-            ...(product.canEdit.maxDiscount
-              ? {
-                  edit: {
-                    field: "maxDiscountPercent",
-                    type: "number" as const,
-                    initial: product.maxDiscountPercent === null ? "" : String(product.maxDiscountPercent),
-                    parse: parsePercent,
-                    requires: UPDATE,
-                  },
-                }
-              : {}),
-          },
-          {
-            key: "price-lists",
-            label: "Price lists",
-            value: product.otherLists.length
-              ? product.otherLists.map((list) => `${list.name} ${formatMoney(list.price, list.currency)}`).join(", ")
-              : `On the ${product.listName} list only`,
-            muted: product.otherLists.length === 0,
-          },
+          { key: "price-lists", label: "Price lists", value: priceListsWords(product) },
         ],
       },
       {
@@ -223,30 +301,38 @@ export const productKind: RecordKind<ProductView> = {
           {
             key: "reorder-at",
             label: "Reorder at",
-            value: reorder === null ? "Never asked" : units(reorder),
-            mono: reorder !== null,
-            muted: reorder === null,
-            edit: {
-              field: "reorderAt",
-              type: "number",
-              initial: reorder === null ? "" : String(reorder),
-              parse: (text) => figure(text, { optional: true }),
-              requires: UPDATE,
-            },
+            value: levelWords(product, "reorderAt", "Never asked"),
+            mono: product.stock.reorderAt !== null,
+            muted: product.stock.reorderAt === null && levels,
+            ...(levels
+              ? {
+                  edit: {
+                    field: "reorderAt",
+                    type: "number" as const,
+                    initial: product.stock.reorderAt === null ? "" : String(product.stock.reorderAt),
+                    parse: (text: string) => figure(text, { optional: true }),
+                    requires: UPDATE,
+                  },
+                }
+              : {}),
           },
           {
             key: "reorder",
             label: "Reorder",
-            value: reorderQty === null ? "Not set" : units(reorderQty),
-            mono: reorderQty !== null,
-            muted: reorderQty === null,
-            edit: {
-              field: "reorderQty",
-              type: "number",
-              initial: reorderQty === null ? "" : String(reorderQty),
-              parse: (text) => figure(text, { optional: true }),
-              requires: UPDATE,
-            },
+            value: levelWords(product, "reorderQty", "Not set"),
+            mono: product.stock.reorderQty !== null,
+            muted: product.stock.reorderQty === null && levels,
+            ...(levels
+              ? {
+                  edit: {
+                    field: "reorderQty",
+                    type: "number" as const,
+                    initial: product.stock.reorderQty === null ? "" : String(product.stock.reorderQty),
+                    parse: (text: string) => figure(text, { optional: true }),
+                    requires: UPDATE,
+                  },
+                }
+              : {}),
           },
           {
             key: "supplier",
@@ -279,12 +365,12 @@ export const productKind: RecordKind<ProductView> = {
             label: "Code",
             value: product.code,
             mono: true,
-            edit: { field: "code", type: "text", mono: true, initial: product.code, parse: needed("Code"), requires: UPDATE },
+            edit: { field: "code", type: "text", mono: true, initial: product.code, parse: (text) => needed("Code")(text).toUpperCase(), requires: UPDATE },
           },
           {
             key: "barcode",
             label: "Barcode",
-            value: product.barcode ?? "Not on file",
+            value: product.barcode ? `${product.barcode.slice(0, 7)} ${product.barcode.slice(7)}`.trim() : "Not on file",
             mono: Boolean(product.barcode),
             muted: !product.barcode,
             edit: {
@@ -316,35 +402,38 @@ export const productKind: RecordKind<ProductView> = {
           {
             key: "id-check",
             label: "ID check",
-            value: ageCheckWords(product.ownAgeCheck, product.category),
-            muted: product.ownAgeCheck === null,
-            ...(product.canEdit.ageCheck
-              ? {
+            value: idCheckWords(product),
+            // A category that checks ID checks it for every product in it.
+            ...(product.category?.ageCheck
+              ? {}
+              : {
                   edit: {
                     field: "ageCheck",
-                    type: "text" as const,
-                    initial: product.ownAgeCheck === null ? "" : product.ownAgeCheck ? "Yes" : "No",
+                    type: "seg" as const,
+                    options: ["Yes", "No"],
+                    initial: product.ownAgeCheck ? "Yes" : "No",
                     parse: parseIdCheck,
                     requires: UPDATE,
                   },
-                }
-              : {}),
+                }),
           },
-          product.returnable
-            ? {
-                key: "deposit",
-                label: "Deposit",
-                value: product.depositAmount === null ? "Returnable, no deposit set" : formatMoney(product.depositAmount),
-                mono: product.depositAmount !== null,
-                edit: {
-                  field: "depositAmount",
-                  type: "money",
-                  initial: product.depositAmount === null ? "" : product.depositAmount.toFixed(2),
-                  parse: (text) => figure(text, { optional: true }),
-                  requires: UPDATE,
+          ...(product.depositsOn
+            ? [
+                {
+                  key: "deposit",
+                  label: "Deposit",
+                  value: depositWords(product),
+                  mono: product.returnable && Boolean(product.depositAmount),
+                  edit: {
+                    field: "depositAmount",
+                    type: "money" as const,
+                    initial: product.returnable && product.depositAmount !== null ? product.depositAmount.toFixed(2) : "",
+                    parse: (text: string) => figure(text, { optional: true }),
+                    requires: UPDATE,
+                  },
                 },
-              }
-            : { key: "deposit", label: "Deposit", value: "None, not returnable" },
+              ]
+            : []),
         ],
       },
     ];

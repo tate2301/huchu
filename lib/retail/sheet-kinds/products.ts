@@ -516,7 +516,16 @@ const productNew: SheetKind = {
     return `${view.name} is on sale at US$${view.price.toFixed(2)} on every till.`;
   },
   open: (result) => `/retail/products/${(result as ProductView).id}`,
-  load: async () => contextValues(await readNewContext()),
+  // Duplicate (PRD-04): `from` names the product it starts from.
+  load: async (ctx) => {
+    const from = ctx.params.get("from");
+    if (!from) return contextValues(await readNewContext());
+    const [view, context] = await Promise.all([
+      readJson<ProductView>(`/api/v2/retail/products/${encodeURIComponent(from)}`),
+      readNewContext(),
+    ]);
+    return duplicateValues(view, context);
+  },
   submit: (values, ctx) => ({ method: "POST", url: "/api/v2/retail/products", body: productBody(values, ctx, false) }),
   invalidate: invalidateProducts,
   requires: [["retail.catalog", "create"]],
@@ -547,6 +556,19 @@ function productValues(view: ProductView, context: ProductNewContext): SheetValu
     _hasMovements: view.hasMovements,
     _canPrice: view.canEdit.price,
     _onHand: view.stock.onHand > 0 ? view.stock.onHandLabel : null,
+  };
+}
+
+/** What Duplicate starts New product with: the category, price, cost, supplier and how it is sold, under "<name> (copy)". */
+function duplicateValues(view: ProductView, context: ProductNewContext): SheetValues {
+  return {
+    ...contextValues(context),
+    name: `${view.name} (copy)`,
+    categoryId: view.category ? { id: view.category.id, label: view.category.path } : null,
+    price: view.price.toFixed(2),
+    cost: view.cost === null ? "" : view.cost.toFixed(2),
+    supplierId: view.supplier ? { id: view.supplier.id, label: view.supplier.name } : null,
+    soldAs: view.soldAsKind === "BY_WEIGHT" ? "By weight" : "Single",
   };
 }
 

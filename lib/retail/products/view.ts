@@ -6,16 +6,22 @@ import { auditAmount, type RecordValueKind } from "@/lib/retail/audit";
 import { binState, type BinState } from "@/lib/retail/bin";
 import { categoryPath, vatLabelOf } from "@/lib/retail/category-words";
 import { canRetailRoleDo } from "@/lib/retail/permission-matrix";
+import { startOfDayIn } from "@/lib/reports/list-query";
 import { ageCheckFor } from "@/lib/retail/products/age-check";
-import { onHandLabel } from "@/lib/retail/products/figures";
+import { coverDays, marginOn, onHandLabel, saleFigures, type SaleFigures } from "@/lib/retail/products/figures";
+import { loadSoldLines } from "@/lib/retail/products/sold-lines";
 import { shopFeatures } from "@/lib/retail/shop-profile-rules";
+import { stockLevel } from "@/lib/retail/stock/levels";
+import { DEFAULT_TIME_ZONE, todayIn } from "@/lib/workspace/format";
 
 /**
  * One product as its record and its Edit sheet read it (20-products 4.2,
  * PRD-03): what it is, its price on the default list and the others, what it
  * costs (for roles that may see cost), its supplier, how it is sold and its
  * stock at every site. `GET /products/[id]` answers with this; the `PATCH`
- * beside it answers with it again. PRD-04 adds `figures` and `tabCounts`.
+ * beside it answers with it again. PRD-04 adds its `figures`: sold and taken
+ * over 30 days against the 30 before, today's sales and the cover; the
+ * record's tabs count their own rows.
  */
 
 export type ProductEditable =
@@ -57,7 +63,9 @@ export type ProductView = {
   listName: string;
   currency: string;
   cost: number | null;
-  /** Of the price before VAT, as a percentage; null without cost or `view-cost`. */
+  /** The viewer's role may see what the shop pays. */
+  seesCost: boolean;
+  /** Of the price the customer pays, VAT included, as a percentage; null without cost or `view-cost`. */
   margin: number | null;
   marginPerUnit: number | null;
   otherLists: Array<{ id: string; name: string; price: number; currency: string }>;
@@ -72,6 +80,8 @@ export type ProductView = {
   hasCases: boolean;
   /** The shop's Cases and singles switch (liquor stores). */
   casesAndSingles: boolean;
+  /** The shop charges deposits on returnable bottles (liquor stores). */
+  depositsOn: boolean;
   returnable: boolean;
   depositAmount: number | null;
   /** The stock line's unit: "bottle". */
@@ -84,10 +94,18 @@ export type ProductView = {
     /** The line Reorder at and Reorder write: the default site's, else the first; and its site. */
     lineId: string | null;
     siteId: string | null;
-    sites: Array<{ id: string; name: string; onHand: number }>;
+    sites: Array<{ id: string; name: string; onHand: number; reorderAt: number | null; reorderQty: number | null }>;
+    /**
+     * Reorder at and Reorder are changed on the record while at most one site
+     * keeps levels for it, and that one is the line the record writes; with
+     * two or more, each is changed on its line in On hand.
+     */
+    levelsEditable: boolean;
   };
+  /** STK-01's rule over every site's stock, against every site's reorder level. */
   low: boolean;
   out: boolean;
+  figures: SaleFigures & { coverDays: number | null };
   /** Any movement on any of its lines: opening stock and its site are no longer asked. */
   hasMovements: boolean;
   canEdit: Record<ProductEditable, boolean>;
@@ -107,7 +125,12 @@ function soldAsWords(product: {
   return "Single";
 }
 
-export async function loadProductView(companyId: string, id: string, role: string | null | undefined): Promise<ProductView | null> {
+export async function loadProductView(
+  companyId: string,
+  id: string,
+  role: string | null | undefined,
+  now = new Date(),
+): Promise<ProductView | null> {
   const product = await prisma.product.findFirst({
     where: { id, companyId },
     select: {
@@ -155,7 +178,7 @@ export async function loadProductView(companyId: string, id: string, role: strin
   });
   if (!product) return null;
 
-  const [defaultList, profile, bin] = await Promise.all([
+  const [defaultList, profile, bin, soldLines] = await Promise.all([
     prisma.priceList.findFirst({
       where: { companyId, isDefault: true },
       orderBy: { createdAt: "asc" },
@@ -166,6 +189,8 @@ export async function loadProductView(companyId: string, id: string, role: strin
       select: { defaultSiteId: true, businessType: true, ageCheck: true, licenceHours: true, emptiesAndDeposits: true, casesAndSingles: true },
     }),
     binState(companyId, "Product", id, product.archivedAt),
+    // This 30 days and the 30 before them.
+    loadSoldLines(companyId, id, new Date(now.getTime() - 60 * 24 * 60 * 60 * 1000)),
   ]);
 
   const onDefault = product.prices.find((row) => row.priceList.id === defaultList?.id);
@@ -175,15 +200,29 @@ export async function loadProductView(companyId: string, id: string, role: strin
 
   const seeCost = canRetailRoleDo(role, "retail.catalog", "view-cost");
   const cost = seeCost ? num(product.costPrice) : null;
-  const net = inclusive ? price / (1 + rate / 100) : price;
-  const marginPerUnit = cost === null ? null : Math.round((net - cost) * 100) / 100;
-  const margin = cost === null || net <= 0 ? null : Math.round(((net - cost) / net) * 1000) / 10;
+  const margin = marginOn(price, cost);
 
   const lines = product.inventoryItems;
   const line = lines.find((row) => row.siteId === profile?.defaultSiteId) ?? lines[0] ?? null;
   const onHand = lines.reduce((sum, row) => sum + toNumberOrZero(row.currentStock), 0);
   const reorderAt = num(line?.minStock);
   const unit = line?.unit ?? "each";
+  const sites = lines.map((row) => ({
+    id: row.site.id,
+    name: row.site.name,
+    onHand: toNumberOrZero(row.currentStock),
+    reorderAt: num(row.minStock),
+    reorderQty: num(row.reorderQty),
+  }));
+  const keeping = lines.filter((row) => row.minStock !== null || row.reorderQty !== null);
+  const levels = sites.map((site) => site.reorderAt).filter((value): value is number => value !== null);
+  const figures = saleFigures(soldLines, now, startOfDayIn(todayIn(DEFAULT_TIME_ZONE, now), DEFAULT_TIME_ZONE));
+  const level = stockLevel({
+    onHand,
+    reorderAt: levels.length ? levels.reduce((total, value) => total + value, 0) : null,
+    soldLast30: figures.sold30,
+    archived: !product.isActive,
+  });
   const update = canRetailRoleDo(role, "retail.catalog", "update");
 
   const category = product.retailCategory;
@@ -214,8 +253,9 @@ export async function loadProductView(companyId: string, id: string, role: strin
     listName: defaultList?.name ?? "Retail",
     currency: defaultList?.currency ?? "USD",
     cost,
-    margin,
-    marginPerUnit,
+    seesCost: seeCost,
+    margin: margin?.percent ?? null,
+    marginPerUnit: margin?.perUnit ?? null,
     otherLists: product.prices
       .filter((row) => row.priceList.id !== defaultList?.id)
       .map((row) => ({ id: row.priceList.id, name: row.priceList.name, price: toNumberOrZero(row.unitPrice), currency: row.priceList.currency }))
@@ -228,6 +268,7 @@ export async function loadProductView(companyId: string, id: string, role: strin
     breakAtTill: product.breakAtTill,
     hasCases: product.packs.length > 0,
     casesAndSingles: profile ? shopFeatures(profile).casesAndSingles : false,
+    depositsOn: profile ? shopFeatures(profile).emptiesAndDeposits : false,
     returnable: product.returnable,
     depositAmount: num(product.depositAmount),
     unit,
@@ -238,10 +279,12 @@ export async function loadProductView(companyId: string, id: string, role: strin
       reorderQty: num(line?.reorderQty),
       lineId: line?.id ?? null,
       siteId: line?.siteId ?? null,
-      sites: lines.map((row) => ({ id: row.site.id, name: row.site.name, onHand: toNumberOrZero(row.currentStock) })),
+      sites,
+      levelsEditable: keeping.length === 0 || (keeping.length === 1 && keeping[0]!.id === line?.id),
     },
-    low: onHand > 0 && reorderAt !== null && onHand <= reorderAt,
-    out: onHand <= 0,
+    low: level === "LOW",
+    out: level === "OUT",
+    figures: { ...figures, coverDays: coverDays(onHand, figures.sold30) },
     hasMovements: lines.some((row) => row._count.movements > 0),
     canEdit: {
       name: update,

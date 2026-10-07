@@ -99,10 +99,11 @@ describe("a site's licence hours", () => {
 });
 
 describe("a product's ID check", () => {
-  it("is its own answer when it has one, else its category's", () => {
+  it("is always asked under a category that checks, else the product's own answer", () => {
     const beer = { ageRestricted: true };
     expect(ageCheckFor({ ageRestricted: null, retailCategory: beer })).toBe(true);
-    expect(ageCheckFor({ ageRestricted: false, retailCategory: beer })).toBe(false);
+    expect(ageCheckFor({ ageRestricted: false, retailCategory: beer })).toBe(true);
+    expect(ageCheckFor({ ageRestricted: false, retailCategory: { ageRestricted: false } })).toBe(false);
     expect(ageCheckFor({ ageRestricted: true, retailCategory: { ageRestricted: false } })).toBe(true);
     expect(ageCheckFor({ ageRestricted: null, retailCategory: null })).toBe(false);
   });

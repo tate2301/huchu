@@ -76,3 +76,95 @@ export function productStock(input: {
 export function vatLabel(rate: number): string {
   return `${Number.isInteger(rate) ? rate : Number(rate.toFixed(2))}%`;
 }
+
+/* ──────────────────────────────────────────────────────────────────────────
+   The product record's figures (20-products 3.2, PRD-04)
+   ────────────────────────────────────────────────────────────────────────── */
+
+/**
+ * Margin on the price the customer pays, VAT included, to one decimal, and
+ * what each unit leaves: US$18.25 against US$13.03 is 28.6%, US$5.22 a
+ * bottle. Null without a cost (or a price).
+ */
+export function marginOn(price: number, cost: number | null): { percent: number; perUnit: number } | null {
+  if (cost === null || !(price > 0)) return null;
+  const perUnit = Math.round((price - cost) * 100) / 100;
+  return { percent: Math.round(((price - cost) / price) * 1000) / 10, perUnit };
+}
+
+/** The change on the 30 days before, in whole percent; null when those days had nothing to compare with. */
+export function changeOn(now: number, before: number): number | null {
+  if (!(before > 0)) return null;
+  return Math.round(((now - before) / before) * 100);
+}
+
+/** "+12%", "−8%", "0%"; "—" with nothing to compare. */
+export function changeWords(change: number | null): string {
+  if (change === null) return "—";
+  return `${change > 0 ? "+" : change < 0 ? "−" : ""}${Math.abs(change)}%`;
+}
+
+/** Up is good, down is bad, nothing to compare is plain. */
+export function changeTone(change: number | null): "ok" | "bad" | "plain" {
+  if (change === null || change === 0) return "plain";
+  return change > 0 ? "ok" : "bad";
+}
+
+/** One posted sale or refund line of the product: refunds carry a negative quantity and total. */
+export type SoldLine = { at: Date; quantity: number; total: number; refund: boolean; till: string | null };
+
+export type SaleFigures = {
+  sold30: number;
+  soldPrev30: number;
+  takings30: number;
+  takingsPrev30: number;
+  /** Units a day over the last 30. */
+  perDay: number;
+  soldToday: number;
+  /** The newest sale today and its till; null before the first. */
+  lastSale: { at: string; till: string | null } | null;
+};
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+const cents = (value: number) => Math.round(value * 100) / 100;
+
+/**
+ * Sold and taken over the 30 days ending now and the 30 before them, net of
+ * refunds; and today, from midnight in the shop's zone (Africa/Harare), with
+ * the last sale's time and till.
+ */
+export function saleFigures(lines: SoldLine[], now: Date, todayStart: Date): SaleFigures {
+  const since = now.getTime() - COVER_WINDOW_DAYS * DAY_MS;
+  const before = since - COVER_WINDOW_DAYS * DAY_MS;
+  let units30 = 0;
+  let unitsPrev = 0;
+  let takings30 = 0;
+  let takingsPrev = 0;
+  let unitsToday = 0;
+  let last: SoldLine | null = null;
+  for (const line of lines) {
+    const at = line.at.getTime();
+    if (at > now.getTime() || at < before) continue;
+    if (at >= since) {
+      units30 += line.quantity;
+      takings30 += line.total;
+    } else {
+      unitsPrev += line.quantity;
+      takingsPrev += line.total;
+    }
+    if (at >= todayStart.getTime()) {
+      unitsToday += line.quantity;
+      if (!line.refund && (!last || at > last.at.getTime())) last = line;
+    }
+  }
+  const sold30 = Math.max(0, units30);
+  return {
+    sold30,
+    soldPrev30: Math.max(0, unitsPrev),
+    takings30: cents(takings30),
+    takingsPrev30: cents(takingsPrev),
+    perDay: sold30 / COVER_WINDOW_DAYS,
+    soldToday: Math.max(0, unitsToday),
+    lastSale: last ? { at: last.at.toISOString(), till: last.till } : null,
+  };
+}

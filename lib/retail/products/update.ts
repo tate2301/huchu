@@ -7,6 +7,7 @@ import { changePrices, defaultPriceList, PriceRefusal } from "@/lib/retail/price
 import { setStockLineLevels } from "@/lib/retail/stock/lines";
 import { recordOpeningStock } from "@/lib/retail/stock/opening";
 
+import { categoryChecksWords } from "./age-check";
 import {
   DEFAULT_DEPOSIT,
   checkProductUnique,
@@ -68,7 +69,7 @@ export async function updateProduct(
       imageUrl: true,
       ageRestricted: true,
       maxDiscountPercent: true,
-      retailCategory: { select: { id: true, name: true, depositAmount: true } },
+      retailCategory: { select: { id: true, name: true, depositAmount: true, ageRestricted: true } },
       supplier: { select: { id: true, name: true } },
       inventoryItems: {
         orderBy: { createdAt: "asc" },
@@ -117,14 +118,22 @@ export async function updateProduct(
   const code = input.code === undefined ? undefined : input.code.toUpperCase();
   if (code !== undefined && code !== product.code) {
     const taken = await tx.product.findFirst({ where: { companyId, code, id: { not: id } }, select: { name: true } });
-    if (taken) throw new ProductRefusal(400, `${taken.name} already has the code ${code}.`, "code");
+    if (taken) throw new ProductRefusal(400, `${code} is taken by another product.`, "code");
+  }
+  // A category that checks ID checks it for every product in it.
+  const checking = category === undefined ? product.retailCategory : category;
+  if (input.ageCheck === false && checking?.ageRestricted) {
+    throw new ProductRefusal(400, categoryChecksWords(checking.name), "ageCheck");
   }
   const opening = input.openingStock ? new Prisma.Decimal(input.openingStock) : null;
   if ((opening && opening.greaterThan(0)) || (input.siteId && line && input.siteId !== line.siteId)) {
     if (hasMovements) throw new ProductRefusal(400, "It has stock history already. Adjust stock instead.", "openingStock");
   }
 
-  const returnable = input.returnable ?? product.returnable;
+  // A deposit of nothing is not returnable; any other deposit is.
+  const returnable =
+    input.returnable ??
+    (input.depositAmount !== undefined ? input.depositAmount !== null && Number(input.depositAmount) > 0 : product.returnable);
   const deposit =
     returnable === false
       ? null

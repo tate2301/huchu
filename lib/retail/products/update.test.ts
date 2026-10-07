@@ -65,32 +65,54 @@ describe("changing a product", () => {
     expect(product.defaultTaxRate.toFixed(2)).toBe("15.50");
   });
 
-  it("keeps the product's own ID check over its category's, and its most off, each as one edit", async () => {
-    // Ciders and coolers asks for ID; the product follows it until it says otherwise.
-    expect(await loadProductView(shop.companyId, amarulaId, "SUPERADMIN")).toMatchObject({
-      ageCheck: true,
-      ownAgeCheck: null,
-      maxDiscountPercent: null,
+  it("asks ID for every product under a category that checks it, and refuses No there; its most off is one edit", async () => {
+    // Ciders and coolers asks for ID: the product cannot say otherwise.
+    expect(await loadProductView(shop.companyId, amarulaId, "SUPERADMIN")).toMatchObject({ ageCheck: true, ownAgeCheck: null });
+    expect(await refusal(edit({ ageCheck: false }))).toEqual({
+      status: 400,
+      field: "ageCheck",
+      message: "Ciders and coolers checks ID for every product in it.",
     });
-    const { changed } = await edit({ ageCheck: false, maxDiscountPercent: "5" });
-    expect(changed).toEqual([
-      { field: "ageCheck", label: "ID check", kind: "text", from: "As category", to: "No" },
-      { field: "maxDiscountPercent", label: "Most off", kind: "percent", from: null, to: "5" },
-    ]);
-    expect(await loadProductView(shop.companyId, amarulaId, "SUPERADMIN")).toMatchObject({
-      ageCheck: false,
-      ownAgeCheck: false,
-      maxDiscountPercent: 5,
-    });
-    const back = await edit({ ageCheck: null, maxDiscountPercent: "" });
-    expect(back.changed.map((change) => [change.field, change.to])).toEqual([
-      ["ageCheck", "As category"],
-      ["maxDiscountPercent", null],
-    ]);
-    const product = await prisma.product.findUniqueOrThrow({ where: { id: amarulaId } });
-    expect(product.ageRestricted).toBeNull();
-    expect(product.maxDiscountPercent).toBeNull();
+    const { changed } = await edit({ maxDiscountPercent: "5" });
+    expect(changed).toEqual([{ field: "maxDiscountPercent", label: "Most off", kind: "percent", from: null, to: "5" }]);
+    expect((await edit({ maxDiscountPercent: "" })).changed.map((change) => [change.field, change.to])).toEqual([["maxDiscountPercent", null]]);
     expect(productPatch.safeParse({ maxDiscountPercent: "120" }).error?.issues[0]?.message).toBe("Most off is at most 100%.");
+
+    // Outside such a category the product answers for itself.
+    const lighter = await addTestProduct(shop.companyId, { name: "Lighter", price: "1.00" });
+    const yes = await edit({ ageCheck: true }, shop.owner(), lighter.productId);
+    expect(yes.changed).toEqual([{ field: "ageCheck", label: "ID check", kind: "text", from: "As category", to: "Yes" }]);
+    expect(await loadProductView(shop.companyId, lighter.productId, "SUPERADMIN")).toMatchObject({ ageCheck: true, ownAgeCheck: true });
+    await edit({ ageCheck: false }, shop.owner(), lighter.productId);
+    expect(await loadProductView(shop.companyId, lighter.productId, "SUPERADMIN")).toMatchObject({ ageCheck: false });
+    // Moved under a category that checks, it is asked for whatever it said.
+    await edit({ categoryId: shop.ciderId }, shop.owner(), lighter.productId);
+    expect(await loadProductView(shop.companyId, lighter.productId, "SUPERADMIN")).toMatchObject({ ageCheck: true });
+  });
+
+  it("takes a code upper-cased and refuses one another product has", async () => {
+    const other = await addTestProduct(shop.companyId, { name: "Two Keys Whisky 750ml", price: "9.75" });
+    const taken = await prisma.product.findUniqueOrThrow({ where: { id: other.productId }, select: { code: true } });
+    expect(await refusal(edit({ code: taken.code.toLowerCase() }))).toEqual({
+      status: 400,
+      field: "code",
+      message: `${taken.code} is taken by another product.`,
+    });
+    const { changed } = await edit({ code: "amarula-750" });
+    expect(changed).toEqual([{ field: "code", label: "Code", kind: "text", from: expect.any(String), to: "AMARULA-750" }]);
+  });
+
+  it("reads a deposit of nothing as not returnable, and any other as returnable", async () => {
+    await edit({ depositAmount: "0.10" });
+    expect(await prisma.product.findUniqueOrThrow({ where: { id: amarulaId }, select: { returnable: true, depositAmount: true } })).toMatchObject({
+      returnable: true,
+    });
+    const { changed } = await edit({ depositAmount: "0" });
+    expect(changed.map((change) => [change.field, change.to])).toEqual([["depositAmount", null]]);
+    expect(await prisma.product.findUniqueOrThrow({ where: { id: amarulaId }, select: { returnable: true, depositAmount: true } })).toEqual({
+      returnable: false,
+      depositAmount: null,
+    });
   });
 
   it("refuses a manager's price below cost under Price, and takes the owner's with its history row", async () => {

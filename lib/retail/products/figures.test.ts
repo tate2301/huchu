@@ -1,14 +1,22 @@
 import { describe, expect, it } from "vitest";
 
+import { startOfDayIn } from "@/lib/reports/list-query";
+
 import {
+  changeOn,
+  changeTone,
+  changeWords,
   coverDays,
   coverFill,
   coverLabel,
+  marginOn,
   netSold,
   onHandLabel,
   productStock,
+  saleFigures,
   unitWord,
   vatLabel,
+  type SoldLine,
 } from "./figures";
 
 /** The ProductsList board's rows: on hand, sold in 30 days, reorder at. */
@@ -67,5 +75,67 @@ describe("Products' figures (20-products 3.2)", () => {
     expect(netSold(1, -3)).toBe(0);
     expect(vatLabel(15)).toBe("15%");
     expect(vatLabel(0)).toBe("0%");
+  });
+});
+
+describe("the product record's figures (PRD-04)", () => {
+  it("margin is on the price the customer pays: US$18.25 against US$13.03 is 28.6%, US$5.22 a bottle", () => {
+    expect(marginOn(18.25, 13.03)).toEqual({ percent: 28.6, perUnit: 5.22 });
+    expect(marginOn(18.25, null)).toBeNull();
+    expect(marginOn(0, 1)).toBeNull();
+    expect(marginOn(10, 12)).toEqual({ percent: -20, perUnit: -2 });
+  });
+
+  it("the change on the 30 days before is whole percent, up good and down bad, a dash with nothing before", () => {
+    expect(changeOn(64, 57)).toBe(12);
+    expect(changeWords(changeOn(64, 57))).toBe("+12%");
+    expect(changeTone(changeOn(64, 57))).toBe("ok");
+    expect(changeWords(changeOn(50, 57))).toBe("−12%");
+    expect(changeTone(changeOn(50, 57))).toBe("bad");
+    expect(changeOn(64, 0)).toBeNull();
+    expect(changeWords(null)).toBe("—");
+    expect(changeTone(null)).toBe("plain");
+    expect(changeWords(changeOn(57, 57))).toBe("0%");
+  });
+
+  it("cover is on hand over the rate it sells: 13 at 64 in 30 days is 6 days", () => {
+    expect(coverDays(13, 64)).toBe(6);
+  });
+
+  it("counts today from midnight in Harare, nets refunds off, and names the last sale's till", () => {
+    // 10:00 in Harare on 7 October is 08:00 UTC.
+    const now = new Date("2026-10-07T08:00:00Z");
+    const todayStart = startOfDayIn("2026-10-07", "Africa/Harare");
+    expect(todayStart.toISOString()).toBe("2026-10-06T22:00:00.000Z");
+    const line = (at: string, quantity: number, till: string, refund = false): SoldLine => ({
+      at: new Date(at),
+      quantity,
+      total: quantity * 18.25,
+      refund,
+      till,
+    });
+    const lines = [
+      // Yesterday at 23:30 Harare: not today, although it is the 6th in UTC too.
+      line("2026-10-06T21:30:00Z", 1, "Front till"),
+      // 00:30 today in Harare is still the 6th in UTC.
+      line("2026-10-06T22:30:00Z", 2, "Back till"),
+      line("2026-10-07T07:12:00Z", 1, "Front till"),
+      line("2026-10-07T07:40:00Z", -1, "Front till", true),
+      // 40 days ago: the 30 before.
+      line("2026-08-28T08:00:00Z", 4, "Front till"),
+      // After now: not counted.
+      line("2026-10-07T09:00:00Z", 5, "Front till"),
+    ];
+    const figures = saleFigures(lines, now, todayStart);
+    expect(figures).toMatchObject({
+      sold30: 3,
+      soldPrev30: 4,
+      takings30: 54.75,
+      takingsPrev30: 73,
+      soldToday: 2,
+      lastSale: { at: "2026-10-07T07:12:00.000Z", till: "Front till" },
+    });
+    expect(figures.perDay).toBeCloseTo(0.1);
+    expect(saleFigures([], now, todayStart).lastSale).toBeNull();
   });
 });

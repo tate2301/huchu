@@ -1,6 +1,6 @@
 import { esc } from "@/lib/documents/html-renderer";
 import type { RetailAction, RetailResource } from "@/lib/retail/permission-matrix";
-import { ageCheckWords } from "@/lib/retail/products/age-check";
+import { depositWords, idCheckWords, levelWords, priceListsWords, productKpis } from "@/lib/retail/products/record-words";
 import { loadProductView } from "@/lib/retail/products/view";
 import { loadSaleView } from "@/lib/retail/floor/sale-view";
 import { paidWords, saleStateLabel } from "@/lib/retail/floor/sale-words";
@@ -139,39 +139,45 @@ const RECORD_PDF: Record<string, RecordPdfType> = {
       };
     },
   },
-  /** A product: its price, stock and details, as the record's rail lists them. */
+  /** A product: its five figures, then its price, stock and details, as the record's rail lists them. */
   Product: {
     read: ["retail.catalog", "view"],
     render: async (caller, id) => {
       const product = await loadProductView(caller.companyId, id, caller.role);
       if (!product) return null;
+      const figures = rows(
+        productKpis(product).map((kpi): [string, string] => [
+          kpi.label,
+          [kpi.value, [kpi.lead, kpi.note].filter(Boolean).join(" ")].filter(Boolean).join(" · "),
+        ]),
+      );
       const price = rows([
-        [product.listName, formatMoney(product.price, product.currency)],
+        ["Price", formatMoney(product.price, product.currency)],
         ...(product.cost === null ? [] : ([["Cost", formatMoney(product.cost)]] as Array<[string, string]>)),
         ["VAT", product.vatLabel],
-        ...product.otherLists.map((list): [string, string] => [list.name, formatMoney(list.price, list.currency)]),
-        ["Most off", product.maxDiscountPercent === null ? "No limit" : `${product.maxDiscountPercent}%`],
+        ["Price lists", priceListsWords(product)],
       ]);
-      const stock = product.stock;
       const stockRows = rows([
-        ["On hand", stock.onHandLabel],
-        ["Reorder at", stock.reorderAt === null ? "—" : `${stock.reorderAt} ${product.unit}`],
-        ["Reorder", stock.reorderQty === null ? "—" : `${stock.reorderQty} ${product.unit}`],
+        ["On hand", product.stock.onHandLabel],
+        ["Reorder at", levelWords(product, "reorderAt", "Never asked")],
+        ["Reorder", levelWords(product, "reorderQty", "Not set")],
+        ["Supplier", product.supplier?.name ?? "None"],
+        ["Sold as", product.soldAs],
       ]);
       const details = rows([
         ["Name", product.name],
         ["Code", product.code],
-        ["Barcode", product.barcode ?? "—"],
-        ["Category", product.category?.path ?? "—"],
-        ["Supplier", product.supplier?.name ?? "—"],
-        ["ID check", ageCheckWords(product.ownAgeCheck, product.category)],
-        ["Deposit", product.returnable && product.depositAmount ? formatMoney(product.depositAmount) : "None"],
+        ["Barcode", product.barcode ?? "Not on file"],
+        ["Category", product.category?.path ?? "None"],
+        ["ID check", idCheckWords(product)],
+        ...(product.depositsOn ? ([["Deposit", depositWords(product)]] as Array<[string, string]>) : []),
       ]);
       return {
         ref: product.code,
         title: product.name,
-        subtitle: product.code,
-        content: `<div class="rd-cols">
+        subtitle: `${product.code} · selling at ${formatMoney(product.price, product.currency)}`,
+        content: `<table class="rd-table"><caption>The last 30 days</caption><tbody>${figures}</tbody></table>
+<div class="rd-cols">
   <table class="rd-table"><caption>Price</caption><tbody>${price}</tbody></table>
   <table class="rd-table"><caption>Stock</caption><tbody>${stockRows}</tbody></table>
 </div>

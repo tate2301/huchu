@@ -207,4 +207,136 @@ const productsSource: ReportDefinition = {
   list: products,
 };
 
-export const PRODUCT_REPORTS: ReportDefinition[] = [productsSource];
+/* ──────────────────────────────────────────────────────────────────────────
+   The product record's tabs (PRD-04): each opened with `product` set
+   ────────────────────────────────────────────────────────────────────────── */
+
+const PRODUCT_PARENT: ListSpec["filters"][number] = { key: "product", type: "parent", column: "productId" };
+
+/** Sales: every posted line of the product, a refund's negative, newest first. */
+const productSales: ListSpec = {
+  noun: "sales",
+  read: [["retail.catalog", "view"]],
+  search: { placeholder: "Sale, till or cashier", keys: ["saleNo", "till", "cashier"] },
+  filters: [{ key: "when", label: "When", type: "period", any: "Any time", column: "date", default: "30d" }, PRODUCT_PARENT],
+  sorts: [
+    {
+      key: "newest",
+      label: "Newest first",
+      rules: [
+        { column: "at", dir: "desc" },
+        { column: "id", dir: "desc" },
+      ],
+    },
+  ],
+  columns: [
+    { key: "at", label: "When", kind: "date", cell: "when", width: "130px", align: "start", priority: 1 },
+    { key: "saleNo", label: "Sale", kind: "code", cell: "ref", href: "/retail/sales/{saleId}", width: "130px", align: "start", priority: 1 },
+    { key: "till", label: "Till", kind: "text", cell: "muted", width: "minmax(110px,1fr)", align: "start", priority: 2 },
+    { key: "cashier", label: "Cashier", kind: "text", cell: "text", width: "minmax(120px,1fr)", align: "start", priority: 2 },
+    { key: "quantity", label: "Quantity", kind: "number", cell: "num", total: "sum", width: "90px", align: "end", priority: 1 },
+    { key: "price", label: "Price", kind: "money", currency: "USD", cell: "money", width: "100px", align: "end", priority: 3 },
+    { key: "total", label: "Total", kind: "money", currency: "USD", cell: "money", total: "sum", width: "130px", align: "end", priority: 1 },
+  ],
+  rowHref: "/retail/sales/{saleId}",
+  card: { title: "saleNo", figure: "total", meta: "{whenText} · {till} · {cashier}" },
+  empty: { icon: "Receipt", title: "No sales yet", line: "Every sale and refund of it shows here." },
+};
+
+/** Price history: every change of its price on any list, scheduled ones first by date. */
+const productPriceHistory: ListSpec = {
+  noun: "price changes",
+  read: [["retail.prices", "view"]],
+  search: { placeholder: "List or person", keys: ["list", "by"] },
+  filters: [PRODUCT_PARENT],
+  sorts: [
+    {
+      key: "newest",
+      label: "Newest first",
+      rules: [
+        { column: "at", dir: "desc" },
+        { column: "id", dir: "desc" },
+      ],
+    },
+  ],
+  columns: [
+    { key: "at", label: "When", kind: "date", cell: "when", width: "130px", align: "start", priority: 1 },
+    {
+      key: "state",
+      label: "",
+      kind: "status",
+      cell: "state",
+      tones: { Scheduled: "pending" },
+      empty: "blank",
+      width: "100px",
+      align: "start",
+      priority: 2,
+    },
+    { key: "list", label: "List", kind: "text", cell: "muted", width: "minmax(110px,1fr)", align: "start", priority: 2 },
+    { key: "from", label: "From", kind: "money", currency: "USD", cell: "zero", width: "100px", align: "end", priority: 1 },
+    { key: "to", label: "To", kind: "money", currency: "USD", cell: "money", width: "100px", align: "end", priority: 1 },
+    { key: "by", label: "By", kind: "text", cell: "text", width: "minmax(120px,1fr)", align: "start", priority: 2 },
+    { key: "how", label: "How", kind: "text", cell: "muted", width: "minmax(120px,1fr)", align: "start", priority: 2 },
+  ],
+  rowHref: "/retail/products/{productId}",
+  card: { title: "list", badge: "state", figure: "to", meta: "{whenText} · {how}" },
+  empty: { icon: "Clock", title: "No price changes", line: "Each change of its price, on any list, shows here." },
+};
+
+/** Suppliers: who delivers it, and the one it is usually ordered from. */
+const productSuppliers: ListSpec = {
+  noun: "suppliers",
+  read: [["retail.catalog", "view-cost"]],
+  search: { placeholder: "Supplier", keys: ["supplier"] },
+  filters: [PRODUCT_PARENT],
+  sorts: [
+    {
+      key: "usual",
+      label: "Usual first",
+      rules: [
+        { column: "usualRank", dir: "asc" },
+        { column: "supplier", dir: "asc" },
+      ],
+    },
+  ],
+  columns: [
+    {
+      key: "supplier",
+      label: "Supplier",
+      kind: "text",
+      cell: "link",
+      href: "/retail/buying/suppliers/{supplierId}",
+      width: "minmax(160px,1.4fr)",
+      align: "start",
+      priority: 1,
+    },
+    { key: "lastDelivered", label: "Last delivered", kind: "date", cell: "date", dayFormat: "medium", width: "130px", align: "start", priority: 2 },
+    { key: "lastCost", label: "Last cost", kind: "money", currency: "USD", cell: "money", requires: "view-cost", width: "110px", align: "end", priority: 1 },
+    { key: "delivered", label: "Delivered, 12 months", kind: "number", cell: "num", total: "sum", width: "150px", align: "end", priority: 1 },
+    { key: "usual", label: "", kind: "status", cell: "state", tones: { Usual: "hollow" }, empty: "blank", width: "90px", align: "start", priority: 2 },
+  ],
+  rowHref: "/retail/buying/suppliers/{supplierId}",
+  card: { title: "supplier", badge: "usual", figure: "delivered", meta: "{lastDeliveredText}" },
+  empty: { icon: "Truck", title: "No supplier yet", line: "Give it a supplier, or receive a delivery of it, and they show here." },
+};
+
+function productTab(key: string, title: string, list: ListSpec): ReportDefinition {
+  return {
+    key,
+    title,
+    area: "Products",
+    href: "/retail/products",
+    profiles: ["RETAIL"],
+    params: [],
+    columns: list.columns,
+    defaults: {},
+    list,
+  };
+}
+
+export const PRODUCT_REPORTS: ReportDefinition[] = [
+  productsSource,
+  productTab("retail-product-sales", "Sales of a product", productSales),
+  productTab("retail-product-price-history", "A product's price history", productPriceHistory),
+  productTab("retail-product-suppliers", "A product's suppliers", productSuppliers),
+];

@@ -289,7 +289,7 @@ export function RecordFrame<R>({
     <div className={`cx-rf${binned ? " is-binned" : ""}`}>
       {chrome}
       {bin ? (
-        <BinBanner state={bin} viewerId={user?.id ?? null} canRestore={can(["retail.bin", "update"])} onRestore={restore} />
+        <BinBanner state={bin} meanwhile={kind.bin?.meanwhile} viewerId={user?.id ?? null} canRestore={can(["retail.bin", "update"])} onRestore={restore} />
       ) : banner ? (
         <KindBanner banner={banner} canAct={banner.action ? can(banner.action.requires) : false} onAct={(action) => post({ url: action.post, method: action.method, body: action.body, done: action.done })} />
       ) : null}

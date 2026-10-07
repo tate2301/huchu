@@ -70,6 +70,25 @@ export type RecordKpi = {
   note: string;
 };
 
+/** A point of a line chart: its day and value, and the tooltip's three lines ("Fri 3 Oct" / "13 on hand" / "3 sold"). */
+export type RecordLinePoint = { date: string; value: number; tip: { label: string; value: string; sub?: string } };
+
+/**
+ * A line over days (a product's on hand): solid to today, dashed after it
+ * (`projection`, starting at today's point), a dashed reference level, dots
+ * on the days something happened, and today's band shaded to the end.
+ */
+export type RecordLine = {
+  points: RecordLinePoint[];
+  projection: RecordLinePoint[];
+  reference: { value: number; label: string } | null;
+  markers: Array<{ date: string; label: string; tone: "ok" }>;
+  /** The day the shaded band starts ("today"). */
+  todayFrom: string;
+  /** The x labels and the days they sit under. */
+  ticks: Array<{ date: string; label: string }>;
+};
+
 export type RecordChart = {
   title: string;
   /** "US$", "% of what was ordered". */
@@ -78,7 +97,9 @@ export type RecordChart = {
   /** A right-aligned sentence instead of a range: "Selling about 2.1 a day". */
   aside?: string;
   /** `label` names a bar in its tooltip; `tick` is its x label ("" to skip it), `label` when absent. */
-  bars: Array<{ label: string; tick?: string; value: number; text: string }>;
+  bars?: Array<{ label: string; tick?: string; value: number; text: string }>;
+  /** Drawn instead of bars. */
+  line?: RecordLine;
   /** A y-axis tick: "US$20". */
   tick?: (value: number) => string;
   /** The one bar drawn dark (a sale's own hour); absent, the last. */
@@ -189,7 +210,13 @@ export type RecordKind<R> = {
   /** A note under the header while the record is in some state (archived); the bin banner wins. */
   banner?: (record: R) => RecordBanner | null;
   /** Binnable kinds add "Move to the bin" and draw the banner. */
-  bin?: { kind: BinKind; deleteRight: Grant; state: (record: R) => BinState | null };
+  bin?: {
+    kind: BinKind;
+    deleteRight: Grant;
+    state: (record: R) => BinState | null;
+    /** What the bin banner says happens meanwhile, after "Kept until 2 November." ("Off the till and out of lists; …"). */
+    meanwhile?: string;
+  };
   steps?: (record: R) => RecordStep[];
   chips?: (record: R) => RecordChip[];
   figure?: (record: R) => RecordFigure | null;

@@ -18,11 +18,14 @@ function dayMonth(iso: string) {
  */
 export function BinBanner({
   state,
+  meanwhile,
   viewerId,
   canRestore,
   onRestore,
 }: {
   state: BinState;
+  /** The kind's words for what happens while it is kept ("Off the till and out of lists; …"). */
+  meanwhile?: string;
   viewerId: string | null;
   canRestore: boolean;
   onRestore: () => Promise<void>;
@@ -50,7 +53,7 @@ export function BinBanner({
       <span className="cx-rf-banner__text">
         <b>In the bin</b>{" "}
         {state.restorable
-          ? `${since} Kept until ${dayMonth(state.keptUntil)}, then gone for good. Nothing sold, paid or counted against it changes.`
+          ? `${since} Kept until ${dayMonth(state.keptUntil)}${meanwhile ? `. ${meanwhile}` : ", then gone for good. Nothing sold, paid or counted against it changes."}`
           : state.purged
             ? `${since} It was deleted for good and is kept only for what was sold, paid or counted against it.`
             : `${since.replace(/\.$/, "")}. It is past 30 days and can no longer be restored.`}
