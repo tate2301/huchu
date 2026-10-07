@@ -165,7 +165,7 @@ export async function createTemplate(
 ): Promise<TemplateChange> {
   const definition = readable(session, input.reportKey);
   if (!definition) return { ok: false, status: 404 };
-  if (!canShareWith(input.audience, session.user.role)) return { ok: false, status: 403 };
+  if (!canShareWith(input.audience, session.user.role, { retail: Boolean(definition.report) })) return { ok: false, status: 403 };
   // Started from nothing, it opens the way everyone opens the report today.
   const view = input.view
     ? fitView(input.view, definition.columns)
@@ -196,7 +196,12 @@ export async function updateTemplate(
   const current = await readTemplate(session, id);
   if (!current) return { ok: false, status: 404 };
   if (!current.canChange) return { ok: false, status: 403 };
-  if (patch.audience !== undefined && !canShareWith(patch.audience, session.user.role)) return { ok: false, status: 403 };
+  if (
+    patch.audience !== undefined &&
+    !canShareWith(patch.audience, session.user.role, { retail: Boolean(getReportDefinition(current.reportKey)?.report) })
+  ) {
+    return { ok: false, status: 403 };
+  }
   const row = await prisma.reportTemplate.update({
     where: { id },
     data: {

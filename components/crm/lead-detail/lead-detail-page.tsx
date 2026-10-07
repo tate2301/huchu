@@ -790,8 +790,10 @@ export function LeadDetailPage({ leadId }: { leadId: string }) {
         onOpenChange={(next) => (!next ? setReportFor(null) : undefined)}
         appointmentId={reportFor?.id ?? null}
         appointmentNo={reportFor?.appointmentNo}
-        onCompleted={(items) => {
-          const lines = draftsToLines(items);
+        onCompleted={(items, drafted) => {
+          // What the forms drafted from the measurements first, then anything
+          // measured item by item.
+          const lines = [...drafted, ...draftsToLines(items)];
           if (lines.length === 0 || !lead.clientId) return;
           // Straight from the site into a priced quotation — the whole point of
           // capturing measurements in a structured form.
@@ -799,7 +801,7 @@ export function LeadDetailPage({ leadId }: { leadId: string }) {
           setTab("documents");
           toast({
             title: "Ready to quote",
-            description: `${lines.length} measured item${lines.length === 1 ? "" : "s"} carried into a new quotation.`,
+            description: `${lines.length} line${lines.length === 1 ? "" : "s"} from the visit carried into a new quotation.`,
           });
         }}
       />

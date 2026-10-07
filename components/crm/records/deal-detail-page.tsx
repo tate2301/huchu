@@ -824,14 +824,16 @@ export function DealDetailPage({ dealId }: { dealId: string }) {
         onOpenChange={(next) => (!next ? setReportFor(null) : undefined)}
         appointmentId={reportFor?.id ?? null}
         appointmentNo={reportFor?.appointmentNo}
-        onCompleted={(items) => {
-          const lines = draftsToLines(items);
+        onCompleted={(items, drafted) => {
+          // What the forms drafted from the measurements first, then anything
+          // measured item by item.
+          const lines = [...drafted, ...draftsToLines(items)];
           if (lines.length === 0 || !deal.clientId) return;
           setQuotationPrefill(lines);
           setTab("documents");
           toast({
             title: "Ready to quote",
-            description: `${lines.length} measured item${lines.length === 1 ? "" : "s"} carried into a new quotation.`,
+            description: `${lines.length} line${lines.length === 1 ? "" : "s"} from the visit carried into a new quotation.`,
           });
         }}
       />

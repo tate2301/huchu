@@ -96,3 +96,31 @@ describe("what a template keeps", () => {
     expect(paramsToKeep(declared, shown, true)).toEqual({ from: "2026-10-01", to: "2026-10-03", site: "a" });
   });
 });
+
+describe("templates in every business", () => {
+  const schoolAdmin = { id: "u-head", role: "SCHOOL_ADMIN" };
+  const bursar = { id: "u-bursar", role: "BURSAR" };
+  const teacher = { id: "u-teacher", role: "TEACHER" };
+  const elsewhere = { retail: false };
+
+  it("counts a school's administrator and bursar as Managers, never a teacher", () => {
+    for (const person of [schoolAdmin, bursar]) expect(canSeeTemplate(tendaisShared, person)).toBe(true);
+    expect(canSeeTemplate(tendaisShared, teacher)).toBe(false);
+  });
+
+  it("lets each business's managers share on its own reports", () => {
+    for (const role of ["SUPERADMIN", "MANAGER", "FINANCE_OFFICER", "SCHOOL_ADMIN", "BURSAR"]) {
+      expect(canShareWith("EVERYONE", role, elsewhere)).toBe(true);
+      expect(canShareWith("MANAGERS", role, elsewhere)).toBe(true);
+    }
+    for (const role of ["TEACHER", "CLERK", "CASHIER", "SALES_REP"]) {
+      expect(canShareWith("EVERYONE", role, elsewhere)).toBe(false);
+      expect(canShareWith("JUST_ME", role, elsewhere)).toBe(true);
+    }
+  });
+
+  it("leaves a shop's own rule as it is: the bookkeeper does not share retail templates", () => {
+    expect(canShareWith("MANAGERS", "FINANCE_OFFICER", { retail: true })).toBe(false);
+    expect(canShareWith("MANAGERS", "SCHOOL_ADMIN", { retail: true })).toBe(false);
+  });
+});

@@ -125,6 +125,7 @@ model Company {
   accountingSeedExecutions      AccountingSeedExecution[]
   documentTemplates             DocumentTemplate[]
   reportSettings                ReportSetting[]
+  customReports                 CustomReport[]
   reportTemplates               ReportTemplate[]
   reportTemplateUses            ReportTemplateUse[]
   documentRenderJobs            DocumentRenderJob[]
@@ -7759,6 +7760,28 @@ model ReportSetting {
   @@unique([companyId, reportKey])
 }
 
+model CustomReport {
+  id          String   @id @default(uuid())
+  companyId   String
+  title       String
+  description String?
+  /// A `CustomDocument` (`lib/reports/custom/document.ts`): the page's blocks
+  /// and the queries behind them. Rows are never stored — they are fetched
+  /// through the report sources each time, under the reader's own access.
+  document    Json
+  /// Who sees it besides its maker, the way a report template says it: just
+  /// them, the managers, or everyone (`lib/reports/template-access.ts`).
+  audience    ReportTemplateAudience @default(JUST_ME)
+  createdById String
+  updatedById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId, createdById])
+}
+
 /// A report saved under a name: one of the code's reports, with the columns,
 /// filters, sort, grouping and totals somebody chose, and who else sees it.
 /// It lists under its report's area, beside the built-in one, and opens that
@@ -12512,6 +12535,18 @@ enum CrmQuestionType {
   DIMENSION
   /// The answer is the photograph.
   PHOTO_EVIDENCE
+  /// The builder's measuring kinds (see `lib/forms/fields.ts`). The figure
+  /// a quote line reads goes in `valueNumber`; the measurements in `valueJson`.
+  LENGTH
+  AREA
+  AREAS
+  COUNT
+  READING
+  RUN
+  SIGNATURE
+  /// On the page to organise it; never answered.
+  SECTION
+  NOTE
 }
 
 /// A named set of questions a rep works through on site.
@@ -12534,6 +12569,8 @@ model CrmQuestionSet {
   isActive  Boolean            @default(true)
   /// Which template seeded this, for provenance. Null once hand-built.
   sourceTemplateKey String?
+  /// The quote these answers draft: `QuoteLine[]` from `lib/forms/quote.ts`.
+  quoteLines        Json?
   archivedAt  DateTime?
   createdById String?
   createdAt   DateTime         @default(now())
@@ -12564,6 +12601,9 @@ model CrmQuestion {
   options       Json?
   /// "mm", "m2", "m" — shown beside a NUMBER input.
   unit          String?
+  /// The rest of the question as the builder makes it: bounds, an area's
+  /// shape, the warning range, and the answer that shows it (`showWhen`).
+  settings      Json?
   isRequired    Boolean         @default(false)
   /// The bank says to photograph this one.
   requiresPhoto Boolean         @default(false)

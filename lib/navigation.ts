@@ -826,6 +826,15 @@ export const navSections: NavSection[] = [
         roles: ["SUPERADMIN", "MANAGER"],
         group: "setup",
       },
+      // What reps are asked on site and the quote it drafts, built here; the
+      // enquiry forms and reports made from them are listed beside it.
+      {
+        href: "/crm/build",
+        icon: Grid3x3,
+        label: "Build",
+        roles: ["SUPERADMIN", "MANAGER"],
+        group: "setup",
+      },
       {
         href: "/crm/workflows",
         icon: Zap,

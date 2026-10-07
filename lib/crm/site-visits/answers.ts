@@ -20,21 +20,12 @@
 import { z } from "zod";
 import type { Prisma } from "@prisma/client";
 
+import { cleanMeasurement, fieldFromQuestion, type QuestionType } from "@/lib/crm/site-visits/fields";
+import { answerSchemaFor, measureOf, type FieldDefinition } from "@/lib/forms/fields";
+
 export type Tx = Prisma.TransactionClient;
 
-export const QUESTION_TYPES = [
-  "SHORT_TEXT",
-  "LONG_TEXT",
-  "NUMBER",
-  "BOOLEAN",
-  "SINGLE_SELECT",
-  "MULTI_SELECT",
-  "DATE",
-  "DIMENSION",
-  "PHOTO_EVIDENCE",
-] as const;
-
-export type QuestionType = (typeof QUESTION_TYPES)[number];
+export { QUESTION_TYPES, type QuestionType } from "@/lib/crm/site-visits/fields";
 
 /** "___ m x ___ m" — the only compound answer the bank asks for. */
 export const dimensionSchema = z.object({
@@ -88,7 +79,7 @@ const EMPTY: ValueColumns = {
  * hours into a warehouse should not lose a visit because one number arrived as
  * an empty string.
  */
-export function valueColumnsFor(type: QuestionType, value: unknown): ValueColumns {
+export function valueColumnsFor(type: QuestionType, value: unknown, field?: FieldDefinition): ValueColumns {
   const out: ValueColumns = { ...EMPTY, valueOptions: [] };
   if (value === null || value === undefined || value === "") return out;
 
@@ -136,8 +127,50 @@ export function valueColumnsFor(type: QuestionType, value: unknown): ValueColumn
 
     case "PHOTO_EVIDENCE":
       // The photographs are the answer; this row records that the rep
-      // addressed the item, and the photos point back at it.
+      // addressed the item, and the photos point back at it. Taken in the
+      // builder's photo input, their addresses are kept on the answer too.
+      if (Array.isArray(value)) {
+        const urls = value.map(String).filter((url) => /^https?:\/\//i.test(url)).slice(0, 30);
+        out.valueJson = urls as Prisma.InputJsonValue;
+        out.valueBool = urls.length > 0;
+        return out;
+      }
       out.valueBool = value === false ? false : true;
+      return out;
+
+    case "LENGTH":
+    case "COUNT":
+    case "READING": {
+      const parsed = typeof value === "number" ? value : Number(String(value).trim());
+      out.valueNumber = Number.isFinite(parsed) ? (type === "COUNT" ? Math.round(parsed) : parsed) : null;
+      return out;
+    }
+
+    case "AREA":
+    case "AREAS":
+    case "RUN": {
+      // The measurements are kept as taken; the figure they come to goes in
+      // `valueNumber`, so "sites over 200 m²" is the same indexed lookup as
+      // any other number.
+      const measured: FieldDefinition = field ?? { key: "measure", label: "Measure", type: type === "AREA" ? "area" : type === "AREAS" ? "areas" : "run", required: false };
+      const cleaned = cleanMeasurement(measured, value);
+      if (cleaned === null) return out;
+      out.valueJson = cleaned as Prisma.InputJsonValue;
+      out.valueNumber = measureOf(measured, cleaned);
+      return out;
+    }
+
+    case "SIGNATURE": {
+      const signature = answerSchemaFor({ key: "signature", label: "Signature", type: "signature", required: true }).safeParse(value);
+      if (signature.success) {
+        out.valueJson = signature.data as Prisma.InputJsonValue;
+        out.valueText = (signature.data as { name: string }).name;
+      }
+      return out;
+    }
+
+    case "SECTION":
+    case "NOTE":
       return out;
   }
 }
@@ -184,7 +217,7 @@ export async function saveAnswers(
   const definitions = section.questionSetId
     ? await tx.crmQuestion.findMany({
         where: { companyId, questionSetId: section.questionSetId },
-        select: { id: true, key: true, label: true, type: true, position: true },
+        select: { id: true, key: true, label: true, helpText: true, type: true, options: true, unit: true, isRequired: true, settings: true, position: true },
       })
     : [];
   const byKey = new Map(definitions.map((definition) => [definition.key, definition]));
@@ -193,7 +226,9 @@ export async function saveAnswers(
   for (const answer of answers) {
     const definition = byKey.get(answer.questionKey);
     const type = (definition?.type ?? "SHORT_TEXT") as QuestionType;
-    const columns = valueColumnsFor(type, answer.value);
+    // A heading or a note on the form is read, not answered.
+    if (type === "SECTION" || type === "NOTE") continue;
+    const columns = valueColumnsFor(type, answer.value, definition ? fieldFromQuestion(definition) : undefined);
 
     await tx.crmSiteVisitAnswer.upsert({
       where: {

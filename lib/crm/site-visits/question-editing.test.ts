@@ -317,3 +317,68 @@ describe("removing a question", () => {
     await prisma.user.deleteMany({ where: { companyId } });
   });
 });
+
+/**
+ * The migration witness for `20261006120000_built_site_visit_questions`, and
+ * what a set built in the builder keeps: settings, measuring kinds, a quote.
+ */
+describe("a section built in the builder", () => {
+  it("has the columns and kinds the builder writes", async () => {
+    const columns = await prisma.$queryRaw<Array<{ table_name: string; column_name: string; data_type: string }>>`
+      SELECT table_name, column_name, data_type FROM information_schema.columns
+      WHERE table_schema = 'public'
+        AND ((table_name = 'CrmQuestion' AND column_name = 'settings') OR (table_name = 'CrmQuestionSet' AND column_name = 'quoteLines'))
+    `;
+    expect(columns.map((column) => column.data_type)).toEqual(["jsonb", "jsonb"]);
+    const kinds = await prisma.$queryRaw<Array<{ kind: string }>>`SELECT unnest(enum_range(NULL::"CrmQuestionType"))::text AS kind`;
+    expect(kinds.map((row) => row.kind)).toEqual(expect.arrayContaining(["AREAS", "READING", "RUN", "SIGNATURE", "SECTION"]));
+  });
+
+  it("keeps a measured question's settings and the quote it drafts", async () => {
+    const set = await seedSet();
+    await prisma.$transaction((tx) =>
+      saveQuestionSet(
+        tx,
+        companyId,
+        setId,
+        questionSetDraftSchema.parse({
+          name: "Epoxy flooring",
+          questions: [
+            { id: set.questions[0].id, key: "damp", label: "Is there visible moisture/damp?", type: "BOOLEAN" },
+            { key: "areas", label: "Areas to be coated", type: "AREAS", unit: "m", isRequired: true },
+            { key: "moisture", label: "Moisture reading", type: "READING", unit: "%", settings: { warnAbove: 4, showWhen: { key: "damp", op: "is", value: "true" } } },
+          ],
+          quoteLines: [{ id: "coat", description: "Epoxy coating", unit: "m²", unitPrice: 35, quantity: { from: "field", key: "areas", factor: 1.08 } }],
+        }),
+      ),
+    );
+    const saved = await prisma.crmQuestionSet.findUniqueOrThrow({ where: { id: setId }, include: { questions: { where: { archivedAt: null }, orderBy: { position: "asc" } } } });
+    expect(saved.quoteLines).toEqual([{ id: "coat", description: "Epoxy coating", unit: "m²", unitPrice: 35, quantity: { from: "field", key: "areas", factor: 1.08 } }]);
+    expect(saved.questions.map((question) => question.type)).toEqual(["BOOLEAN", "AREAS", "READING"]);
+    expect(saved.questions[2].settings).toEqual({ warnAbove: 4, showWhen: { key: "damp", op: "is", value: "true" } });
+  });
+
+  it("refuses a quote line counting something that is not measured", async () => {
+    const set = await seedSet();
+    await expect(
+      prisma.$transaction((tx) =>
+        saveQuestionSet(tx, companyId, setId, questionSetDraftSchema.parse({
+          name: "Epoxy flooring",
+          questions: [{ id: set.questions[0].id, key: "damp", label: "Is there visible moisture/damp?", type: "BOOLEAN" }],
+          quoteLines: [{ id: "coat", description: "Epoxy coating", unitPrice: 35, quantity: { from: "field", key: "damp" } }],
+        })),
+      ),
+    ).rejects.toThrow(/not a measurement/);
+  });
+
+  it("refuses a question shown by an answer that is not on the form", async () => {
+    await seedSet();
+    await expect(
+      prisma.$transaction((tx) =>
+        saveQuestionSet(tx, companyId, setId, draft([
+          { key: "moisture", label: "Moisture reading", type: "READING", settings: { showWhen: { key: "gone", op: "isAnswered" } } },
+        ])),
+      ),
+    ).rejects.toBeInstanceOf(QuestionEditError);
+  });
+});

@@ -11,9 +11,13 @@ import { z } from "zod";
 
 import { errorResponse, successResponse, validateSession } from "@/lib/api-utils";
 import { prisma } from "@/lib/prisma";
+import { builderTemplate, createQuestionSetFrom } from "@/lib/crm/site-visits/builder-templates";
+import { quoteLinesOf } from "@/lib/crm/site-visits/fields";
 import { createQuestionSetSchema } from "@/lib/crm/site-visits/question-editing";
 import { ensureSiteVisitQuestionSets } from "@/lib/crm/site-visits/question-sets";
 import { requireCrmCapability } from "../_helpers";
+
+const startSchema = z.union([z.object({ template: z.string().min(1).max(80) }).strict(), z.object({ blank: z.literal(true) }).strict()]);
 
 export async function GET(request: NextRequest) {
   try {
@@ -31,7 +35,7 @@ export async function GET(request: NextRequest) {
       orderBy: [{ kind: "asc" }, { position: "asc" }],
       include: {
         product: { select: { id: true, name: true } },
-        _count: { select: { questions: { where: { archivedAt: null } } } },
+        _count: { select: { questions: { where: { archivedAt: null } }, sections: true } },
       },
     });
 
@@ -46,6 +50,10 @@ export async function GET(request: NextRequest) {
         /** Null once a human has edited it — it is the tenant's now. */
         sourceTemplateKey: set.sourceTemplateKey,
         questionCount: set._count.questions,
+        /** How many visits have opened it. */
+        visitCount: set._count.sections,
+        quoteLineCount: quoteLinesOf(set.quoteLines).length,
+        updatedAt: set.updatedAt,
       })),
       canEdit: await requireCrmCapability(session, "settings.manage"),
     });
@@ -66,7 +74,19 @@ export async function POST(request: NextRequest) {
       return errorResponse("You cannot change the site-visit questions", 403);
     }
 
-    const data = createQuestionSetSchema.parse(await request.json());
+    const body = (await request.json()) as Record<string, unknown>;
+
+    // From the builder: a form made from a template, or a blank one, named
+    // and keyed for the person rather than by them.
+    const start = startSchema.safeParse(body);
+    if (start.success) {
+      const template = "template" in start.data ? builderTemplate(start.data.template) : null;
+      if ("template" in start.data && !template) return errorResponse("No template by that name", 404);
+      const set = await prisma.$transaction((tx) => createQuestionSetFrom(tx, companyId, session.user.id, template));
+      return successResponse({ set }, 201);
+    }
+
+    const data = createQuestionSetSchema.parse(body);
 
     if (data.productId) {
       const product = await prisma.product.findFirst({

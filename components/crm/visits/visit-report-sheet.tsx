@@ -15,6 +15,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { RecordDialog } from "@/components/crm/records/record-dialog";
 import { useToast } from "@/components/ui/use-toast";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import type { CrmDocumentLineInput } from "@/lib/crm/accounting-bridge";
 import { FileText, MapPin, Plus, Trash2 } from "@/lib/icons";
 import {
   fetchCrmVisitReport,
@@ -108,8 +109,11 @@ export function VisitReportSheet({
   onOpenChange: (open: boolean) => void;
   appointmentId: string | null;
   appointmentNo?: string;
-  /** Fired after a visit is closed out, with the items captured on site. */
-  onCompleted?: (items: MeasurementDraft[]) => void;
+  /**
+   * Fired after a visit is closed out, with the items captured on site and
+   * the quote lines its forms drafted from the answers.
+   */
+  onCompleted?: (items: MeasurementDraft[], drafted: CrmDocumentLineInput[]) => void;
 }) {
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -125,6 +129,13 @@ export function VisitReportSheet({
   const reportQuery = useQuery({
     queryKey: ["crm", "visit-report", appointmentId],
     queryFn: () => fetchCrmVisitReport(appointmentId as string),
+    enabled: open && Boolean(appointmentId),
+  });
+  // The site questions answered so far — the same request the questions
+  // themselves make, so this reads the answers they have saved.
+  const sectionsQuery = useQuery({
+    queryKey: ["crm", "visit-sections", appointmentId],
+    queryFn: () => fetchJson<{ sections: Array<{ answers: unknown[] }> }>(`/api/v2/crm/appointments/${appointmentId}/sections`),
     enabled: open && Boolean(appointmentId),
   });
 
@@ -191,7 +202,12 @@ export function VisitReportSheet({
       if (markCompleted) {
         toast({ title: "Site visit completed" });
         onOpenChange(false);
-        onCompleted?.(items.filter((item) => item.description.trim()));
+        const captured = items.filter((item) => item.description.trim());
+        // The lines the visit's forms drafted. A quote can still start from the
+        // measured items if drafting fails; it is a head start, not a gate.
+        fetchJson<{ lines: CrmDocumentLineInput[] }>(`/api/v2/crm/appointments/${appointmentId}/quote-draft`)
+          .then((draft) => onCompleted?.(captured, draft.lines))
+          .catch(() => onCompleted?.(captured, []));
       } else {
         toast({ title: "Report saved" });
       }
@@ -264,9 +280,10 @@ export function VisitReportSheet({
   const validateForCompletion = (): string[] => {
     const found: string[] = [];
     const measured = items.filter((item) => item.description.trim());
-    if (measured.length === 0 && !reportNotes.trim()) {
+    const answered = (sectionsQuery.data?.sections ?? []).some((section) => section.answers.length > 0);
+    if (measured.length === 0 && !answered && !reportNotes.trim()) {
       found.push(
-        "Record what you found — at least one measurement or a note about the visit.",
+        "Record what you found — answer the site questions, add a measurement, or write a note about the visit.",
       );
     }
     if (items.some((item) => item.description.trim() && !(Number(item.quantity) > 0))) {

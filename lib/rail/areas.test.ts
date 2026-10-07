@@ -92,7 +92,7 @@ describe("areasFromSections", () => {
     ]);
     expect(rows("Insights")).toEqual(["My performance", "Insights", "Sales reports", "Team"]);
     // Workflow activity and the site-visit questions live on their index pages.
-    expect(rows("Setup")).toEqual(["Import", "Settings", "Workflows"]);
+    expect(rows("Setup")).toEqual(["Build", "Import", "Settings", "Workflows"]);
   });
 
   it("keeps the CRM's Home out of every area", () => {
