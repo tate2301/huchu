@@ -64,6 +64,7 @@ import { deleteFromBinForGood, listBinEntries, moveToBin } from "@/lib/retail/bi
 import { CATEGORY_SEEDS, ensureRetailCategories } from "@/lib/retail/categories"
 import { activeRetailPriceList } from "@/lib/retail/shelf-pricing"
 import { tradingDayKey } from "@/lib/retail/z-report"
+import { dayKey } from "@/lib/workspace/format"
 import {
   auditCashMoved,
   auditRecordEdited,
@@ -297,6 +298,12 @@ function harareTime(daysBack: number, hour: number, minute: number) {
   const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Harare" }).format(new Date())
   const midnight = Date.parse(`${today}T00:00:00+02:00`)
   return new Date(midnight - daysBack * 24 * 60 * 60 * 1000 + (hour * 60 + minute) * 60 * 1000)
+}
+
+/** Days since this week's Monday in Harare (Monday 0 … Sunday 6): the week the Overview's "this week" reads. */
+function daysSinceMonday() {
+  const weekday = new Intl.DateTimeFormat("en-US", { timeZone: "Africa/Harare", weekday: "short" }).format(new Date())
+  return ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].indexOf(weekday)
 }
 
 function pick<T>(items: T[]): T {
@@ -922,6 +929,55 @@ async function main() {
   if (bigOver) differences.set(bigOver, money("42.80"))
 
   /*
+    FLR-05 (seedSignOffs signs the rest off): this week, Monday to the run,
+    every counted drawer balanced but three short and waiting for a sign-off —
+    Chipo Dube −US$7.15, Farai Moyo −US$8.14, Chipo Dube −US$0.50 — on the
+    Front till's Wednesday, Thursday and Friday once the week has them, else
+    on the week's closed drawers in order (the Front till's first), then the
+    last ones before Monday; nothing closed uncounted this week. Last week's
+    Wednesday, Chipo Dube's Front till drawer counted US$412.50 against
+    US$432.50: the drawer she agreed to repay.
+  */
+  const weekStarts = harareTime(daysSinceMonday(), 0, 0)
+  const frontOn = (daysBack: number) =>
+    closedSlots.find((slot) => slot.register.id === register.id && dayKey(slot.openedAt) === dayKey(harareTime(daysBack, 12, 0)))
+  const thisWeek = closedSlots.filter((slot) => slot.openedAt.getTime() >= weekStarts.getTime())
+  for (const slot of thisWeek) {
+    uncounted.delete(slot)
+    differences.delete(slot)
+  }
+  const byOpening = (a: Slot, b: Slot) => a.openedAt.getTime() - b.openedAt.getTime()
+  const named = [2, 3, 4].map((weekday) => daysSinceMonday() - weekday).filter((back) => back >= 1).map(frontOn).filter((slot): slot is Slot => Boolean(slot))
+  const fallback = [
+    ...thisWeek.filter((slot) => slot.register.id === register.id).sort(byOpening),
+    ...thisWeek.filter((slot) => slot.register.id !== register.id).sort(byOpening),
+    ...closedSlots.filter((slot) => slot.register.id === register.id && slot.openedAt.getTime() < weekStarts.getTime()).sort(byOpening).reverse(),
+  ]
+  const shortThisWeek = (named.length === 3 ? named : [...named, ...fallback.filter((slot) => !named.includes(slot))].slice(0, 3)).sort(byOpening)
+  const SHORT_THIS_WEEK: Array<[string, string]> = [["Chipo Dube", "-7.15"], ["Farai Moyo", "-8.14"], ["Chipo Dube", "-0.50"]]
+  shortThisWeek.forEach((slot, index) => {
+    const [who, amount] = SHORT_THIS_WEEK[index]!
+    slot.cashier = staffNamed(who)
+    uncounted.delete(slot)
+    differences.set(slot, money(amount))
+  })
+  const pinnedExpected = new Map<Slot, Prisma.Decimal>()
+  const recovered = frontOn(daysSinceMonday() + 5)
+  if (recovered && !shortThisWeek.includes(recovered)) {
+    recovered.cashier = staffNamed("Chipo Dube")
+    // It was counted: the drawer closed without a count about a week ago is the one before it.
+    if (uncounted.delete(recovered)) {
+      const earlier = closedSlots[closedSlots.indexOf(recovered) - 1]
+      if (earlier) {
+        uncounted.add(earlier)
+        differences.delete(earlier)
+      }
+    }
+    differences.set(recovered, money("-20.00"))
+    pinnedExpected.set(recovered, money("432.50"))
+  }
+
+  /*
     PRD-01. Each shift's sale times, planned before any is written, so the
     last 30 days know how many sales they hold and can deal each product's
     `sold30` across them exactly (`WindowQuota`). The six hours after the
@@ -1078,7 +1134,7 @@ async function main() {
 
       const shiftId = randomUUID()
       const shiftNo = `SH-${String(slotIndex + 1).padStart(5, "0")}`
-      const openingFloat = money(slot.float)
+      let openingFloat = money(slot.float)
 
       let cashTaken = money(0)
 
@@ -1343,8 +1399,15 @@ async function main() {
       */
       let dropped = money(0)
       const inDrawer = openingFloat.plus(cashTaken).minus(20)
-      if (closedAt && dropApprover && Math.random() < 0.25 && inDrawer.greaterThanOrEqualTo(100)) {
+      // FLR-05: a drawer whose expected cash the SignOff board fixes takes its float, or a drop, to make it so.
+      const pinned = pinnedExpected.get(slot)
+      if (pinned && closedAt) {
+        if (cashTaken.lessThanOrEqualTo(pinned.minus(50))) openingFloat = pinned.minus(cashTaken)
+        else dropped = openingFloat.plus(cashTaken).minus(pinned)
+      } else if (closedAt && dropApprover && Math.random() < 0.25 && inDrawer.greaterThanOrEqualTo(100)) {
         dropped = money(String(Math.min(between(100, 300), Math.floor(inDrawer.toNumber()))))
+      }
+      if (closedAt && dropApprover && dropped.greaterThan(0)) {
         const at = new Date(Math.min(openedAt.getTime() + between(150, 300) * 60 * 1000, closedAt.getTime() - 10 * 60 * 1000))
         movementRows.push({
           id: randomUUID(),
@@ -1752,6 +1815,7 @@ async function main() {
   await seedApprovals(companyId)
   await seedShiftFloor(companyId)
   await seedShiftCounts(companyId)
+  await seedSignOffs(companyId)
   await seedImportDemo({ companyId, mainSiteId: site.id, softDrinksId: categoryIds.get("Soft drinks") ?? null })
   await seedReportTemplates(companyId)
 
@@ -1857,6 +1921,93 @@ async function seedShiftCounts(companyId: string) {
     WHERE s."id" = v."id"`
   const uncounted = rows.filter((row) => row.countedUsd === null).length
   console.log(`  shift counts: ${rows.length - uncounted} closed drawers counted by note, ${uncounted} closed without a count`)
+}
+
+/**
+ * FLR-05 `seedSignOffs()`: who signed off the drawers that closed out. Last
+ * week's Wednesday's Front till drawer, Chipo Dube's US$20.00 short, Tafara
+ * Nyathi recovered the next morning with her agreement noted, and its
+ * recovery journal is posted (Dr 1150 Staff owe the shop, Cr 5420). Every
+ * other difference before this week, and every drawer closed without a
+ * count, Tafara accepted the morning after. This week's three short drawers
+ * wait. A sign-off already made (an acceptance walk without --reset) stays.
+ */
+async function seedSignOffs(companyId: string) {
+  await ensureAccountingDefaults(companyId)
+  const tafara = await prisma.user.findFirst({ where: { companyId, email: "tafara.manager@bottlestore.test" }, select: { id: true } })
+  if (!tafara) return
+  const weekStarts = harareTime(daysSinceMonday(), 0, 0)
+  const lastWednesday = dayKey(harareTime(daysSinceMonday() + 5, 12, 0))
+  const morningAfter = (closedAt: Date) => new Date(Math.min(closedAt.getTime() + 14 * 60 * 60 * 1000, Date.now() - 60 * 1000))
+
+  // A recovery whose shift a reset replaced has nothing left to point at.
+  const shiftIds = (await prisma.retailShift.findMany({ where: { companyId }, select: { id: true } })).map((shift) => shift.id)
+  const orphans = { companyId, sourceType: "RETAIL_SHIFT_RECOVERY" as const, sourceId: { notIn: shiftIds } }
+  await prisma.journalEntry.deleteMany({ where: orphans })
+  await prisma.accountingIntegrationEvent.deleteMany({ where: orphans })
+  await prisma.approvalAction.deleteMany({ where: { companyId, entityType: "RETAIL_SHIFT", entityId: { notIn: shiftIds } } })
+
+  const waiting = await prisma.retailShift.findMany({
+    where: { companyId, status: "CLOSED", signOffOutcome: null, OR: [{ countedCash: null }, { variance: null }, { variance: { not: 0 } }] },
+    select: { id: true, shiftNo: true, registerCode: true, siteId: true, cashierName: true, openedAt: true, closedAt: true, variance: true },
+  })
+  const recovered = waiting.find(
+    (shift) =>
+      shift.registerCode === "TILL-1" &&
+      shift.cashierName === "Chipo Dube" &&
+      shift.variance !== null &&
+      money(shift.variance).equals(money("-20.00")) &&
+      dayKey(shift.openedAt) === lastWednesday,
+  )
+  const before = waiting.filter((shift) => shift.closedAt && shift.closedAt.getTime() < weekStarts.getTime() && shift.id !== recovered?.id)
+  for (const shift of before) {
+    const at = morningAfter(shift.closedAt!)
+    await prisma.retailShift.update({ where: { id: shift.id }, data: { signOffOutcome: "ACCEPT", signedOffAt: at, signedOffById: tafara.id } })
+    await prisma.approvalAction.create({
+      data: { companyId, entityType: "RETAIL_SHIFT", entityId: shift.id, action: "APPROVE", actedById: tafara.id, fromStatus: "CLOSED", toStatus: "SIGNED_OFF", createdAt: at },
+    })
+  }
+
+  if (recovered?.closedAt) {
+    const at = morningAfter(recovered.closedAt)
+    const note = "Chipo says a US$20 note went out as change for a US$10. Agreed to recover."
+    await prisma.retailShift.update({
+      where: { id: recovered.id },
+      data: { signOffOutcome: "RECOVER", signedOffAt: at, signedOffById: tafara.id, signOffNote: note, recoverAmount: money("20.00") },
+    })
+    await prisma.approvalAction.create({
+      data: { companyId, entityType: "RETAIL_SHIFT", entityId: recovered.id, action: "APPROVE", actedById: tafara.id, fromStatus: "CLOSED", toStatus: "SIGNED_OFF", note, createdAt: at },
+    })
+    await postRetailJournal({
+      companyId,
+      sourceType: "RETAIL_SHIFT_RECOVERY",
+      sourceId: recovered.id,
+      siteId: recovered.siteId,
+      registerCode: recovered.registerCode,
+      entryDate: at,
+      createdById: tafara.id,
+      description: `Retail shift recovery ${recovered.shiftNo}`,
+      amount: 20,
+      netAmount: 20,
+      grossAmount: 20,
+      taxAmount: 0,
+    })
+    // Posted with that night's run, long before this one.
+    const waitingEvent = await prisma.accountingIntegrationEvent.findFirst({
+      where: { companyId, sourceType: "RETAIL_SHIFT_RECOVERY", sourceId: recovered.id, status: "PENDING" },
+    })
+    if (waitingEvent) await postIntegrationEvent(waitingEvent)
+  }
+
+  const open = await prisma.retailShift.findMany({
+    where: { companyId, status: "CLOSED", OR: [{ signOffOutcome: null }, { signOffOutcome: "LOOK_INTO" }], AND: [{ OR: [{ countedCash: null }, { variance: { not: 0 } }] }] },
+    orderBy: { openedAt: "asc" },
+    select: { shiftNo: true, cashierName: true, variance: true },
+  })
+  console.log(
+    `  sign-offs: ${before.length} older difference(s) accepted by Tafara Nyathi; ${recovered ? `${recovered.shiftNo} recovered from Chipo Dube (US$20.00)` : "no drawer to recover"}; ` +
+      `waiting: ${open.map((shift) => `${shift.shiftNo} ${shift.cashierName} ${shift.variance === null ? "not counted" : money(shift.variance).toFixed(2)}`).join(", ") || "none"}`,
+  )
 }
 
 /**
