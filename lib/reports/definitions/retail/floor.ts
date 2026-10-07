@@ -462,7 +462,8 @@ const sales: ListSpec = {
       key: "reprint",
       label: "Reprint the receipt",
       requires: SELL_OR_CASH,
-      do: { open: "/api/v2/retail/sales/{id}/receipt?format=pdf" },
+      // POSTed, so each copy is one click and one "Printed a copy of the receipt".
+      do: { download: "/api/v2/retail/sales/{id}/receipt", open: true },
     },
     {
       key: "send",

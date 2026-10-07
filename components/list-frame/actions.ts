@@ -112,9 +112,12 @@ export async function runAction(
         toast: { title: `Tick ${how.cap} or fewer for ${action.label.toLowerCase()}.`, variant: "warning" },
       };
     }
+    // A row's file: its `{key}` holes filled from the row.
+    const url = rows.length === 1 ? fillTemplate(how.download, rows[0]!) : how.download;
+    if (!url) return { kind: "done", toast: { title: "There is nothing to open for this row.", variant: "warning" } };
     // Opened before the request, so the browser treats the new tab as the click's.
     const tab = how.open ? window.open("", "_blank") : null;
-    const response = await fetch(how.download, {
+    const response = await fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ [how.idsAs ?? "ids"]: ids, ...how.with }),
@@ -140,19 +143,31 @@ export async function runAction(
   return { kind: "done" };
 }
 
-/** Exports the list as a file (W-55): the list's query, or only the ticked rows. */
+/**
+ * Exports the list as a file (W-55): the list's query, or only the ticked
+ * rows. Answers what to toast: why it failed, or that the file stops at the
+ * engine's row limit; null when the file is the whole list.
+ */
 export async function exportList(
   source: string,
   format: "xlsx" | "csv" | "pdf",
   query: Record<string, unknown>,
   rowIds?: string[],
-): Promise<string | null> {
+): Promise<{ title: string; variant: "destructive" | "warning" } | null> {
   const response = await fetch(`/api/v2/reports/${encodeURIComponent(source)}/export`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ format, query, ...(rowIds ? { rowIds } : {}) }),
   });
-  if (!response.ok) return errorText(response);
+  if (!response.ok) return { title: await errorText(response), variant: "destructive" };
   saveBlob(await response.blob(), fileNameFrom(response, `${source}.${format}`));
-  return null;
+  return cutWords(response.headers.get("X-Export-Rows"), response.headers.get("X-Export-Of"));
+}
+
+/** "The file has the first 5,000 of 5,858 rows. Narrow the filters for the rest." */
+export function cutWords(rows: string | null, of: string | null): { title: string; variant: "warning" } | null {
+  if (!rows) return null;
+  const count = (value: string) => Number(value).toLocaleString("en-US");
+  const first = of ? `the first ${count(rows)} of ${count(of)} rows` : `the first ${count(rows)} rows`;
+  return { title: `The file has ${first}. Narrow the filters for the rest.`, variant: "warning" };
 }

@@ -59,12 +59,15 @@ export function RecordTabs<R>({
   recordId,
   type,
   canReadActivity,
+  actionFor,
 }: {
   tabs: RecordTab<R>[];
   record: R;
   recordId: string;
   type: string;
   canReadActivity: boolean;
+  /** The record's action by key, as this role may do it; null when it may not. */
+  actionFor: (key: string) => (() => void) | null;
 }) {
   const shown = tabs.filter((tab) => (isSource(tab) ? !tab.when || tab.when(record) : canReadActivity));
   const [selected, setSelected] = React.useState(shown[0]?.key ?? "");
@@ -105,8 +108,8 @@ export function RecordTabs<R>({
     const all = (page?.data?.report.list.columns ?? []) as ListColumn[];
     const shownKeys = new Set(tabColumns(tab, all).map((column) => column.key));
     const hidden = tab.columns ? all.map((column) => column.key).filter((key) => !shownKeys.has(key)) : undefined;
-    const failed = await exportList(current.source, format, tabQuery(tab, recordId, hidden));
-    if (failed) toast({ title: failed, variant: "destructive" });
+    const said = await exportList(current.source, format, tabQuery(tab, recordId, hidden));
+    if (said) toast(said);
   };
 
   return (
@@ -134,7 +137,7 @@ export function RecordTabs<R>({
       </div>
       <div id={panelId} role="tabpanel" aria-label={current.label}>
         {isSource(current) ? (
-          <SourceTable tab={current} record={record} result={page} />
+          <SourceTable tab={current} record={record} result={page} actionFor={actionFor} />
         ) : (
           <ActivityTable
             result={activity}
@@ -149,7 +152,17 @@ export function RecordTabs<R>({
 
 type PageQuery = { data?: ListPageResponse; isPending: boolean; isError: boolean; error: unknown; refetch: () => unknown };
 
-function SourceTable<R>({ tab, record, result }: { tab: SourceTab<R>; record: R; result: PageQuery | null }) {
+function SourceTable<R>({
+  tab,
+  record,
+  result,
+  actionFor,
+}: {
+  tab: SourceTab<R>;
+  record: R;
+  result: PageQuery | null;
+  actionFor: (key: string) => (() => void) | null;
+}) {
   if (!result || result.isPending) return <p className="cx-rf-tablemsg">Loading…</p>;
   if (result.isError || !result.data) {
     return (
@@ -168,7 +181,11 @@ function SourceTable<R>({ tab, record, result }: { tab: SourceTab<R>; record: R;
   const rows = data.rows.slice(0, SHOWN);
   const last = columns.length - 1;
   const extra = tab.totalsText?.(record, data.totals) ?? {};
-  const allLink = tab.allLink ? { label: tab.allLink.label, href: tab.allLink.href(record) } : null;
+  const allLink = !tab.allLink
+    ? null
+    : "action" in tab.allLink
+      ? { label: tab.allLink.label, href: null, onClick: actionFor(tab.allLink.action) }
+      : { label: tab.allLink.label, href: tab.allLink.href(record), onClick: null };
 
   if (data.total === 0) {
     return <p className="cx-rf-tablemsg">{spec.empty.title}.</p>;
@@ -242,17 +259,20 @@ function SourceTable<R>({ tab, record, result }: { tab: SourceTab<R>; record: R;
           of <b>{formatCount(data.total)}</b>
         </span>
         <span className="cx-rf-tablefoot__spacer" />
-        {allLink ? (
-          // A file (a sale's receipt) opens in a new tab to print; a page opens here.
-          allLink.href.startsWith("/api/") ? (
-            <a href={allLink.href} target="_blank" rel="noopener" className="cx-rf-link">
-              {allLink.label}
-            </a>
-          ) : (
-            <Link href={allLink.href} className="cx-rf-link">
-              {allLink.label}
-            </Link>
-          )
+        {allLink?.onClick ? (
+          // One of the record's actions ("View the receipt" prints a copy).
+          <button
+            type="button"
+            className="cx-rf-link"
+            style={{ border: 0, background: "none", font: "inherit", cursor: "pointer", padding: 0 }}
+            onClick={allLink.onClick}
+          >
+            {allLink.label}
+          </button>
+        ) : allLink?.href ? (
+          <Link href={allLink.href} className="cx-rf-link">
+            {allLink.label}
+          </Link>
         ) : null}
       </div>
     </>

@@ -20,6 +20,17 @@ let flagged: { id: string };
 let theirs: { id: string };
 const as = { role: "SUPERADMIN", userId: "" };
 
+// A receipt the outbox could not make, for the one test that needs it.
+const outbox = vi.hoisted(() => ({ refuse: false }));
+vi.mock("@/lib/retail/receipt-settings", async (importOriginal) => {
+  const real = await importOriginal<typeof import("@/lib/retail/receipt-settings")>();
+  return {
+    ...real,
+    queueSaleReceipt: (...args: Parameters<typeof real.queueSaleReceipt>) =>
+      outbox.refuse ? Promise.resolve(null) : real.queueSaleReceipt(...args),
+  };
+});
+
 vi.mock("@/app/api/v2/retail/_helpers", async (importOriginal) => {
   const real = await importOriginal<typeof import("@/app/api/v2/retail/_helpers")>();
   return {
@@ -35,6 +46,7 @@ const { GET: readSale, PATCH: patchSale } = await import("./[id]/route");
 const { POST: send } = await import("./[id]/send/route");
 const { POST: reviewed } = await import("./[id]/reviewed/route");
 const { POST: sendMany } = await import("./send/route");
+const receiptRoute = await import("./[id]/receipt/route");
 
 const call = (id: string, body?: unknown, method = "POST") =>
   new NextRequest(`http://shop.test/api/v2/retail/sales/${id}`, {
@@ -181,5 +193,55 @@ describe("POST /sales/[id]/send", () => {
     expect(answer.status).toBe(200);
     expect(await answer.json()).toEqual({ sent: 1, noNumber: 2 });
     expect(await prisma.retailMessage.count({ where: { saleId: sale.id, to: "+263713308826" } })).toBe(1);
+  });
+});
+
+describe("POST /sales/[id]/send, when nothing was queued", () => {
+  it("does not say it sent, nor write that it did", async () => {
+    outbox.refuse = true;
+    try {
+      const answer = await send(call(`${flagged.id}/send`, { to: "+263 77 412 3388" }), params(flagged.id));
+      expect(answer.status).toBe(404);
+      expect(await prisma.platformAuditEvent.count({ where: { entityId: flagged.id, eventType: RETAIL_AUDIT_EVENTS.saleSent } })).toBe(0);
+    } finally {
+      outbox.refuse = false;
+    }
+  });
+
+  it("leaves a cashier's colleague's ticked sale out of the count", async () => {
+    const answer = await asRole(
+      "CASHIER",
+      () =>
+        sendMany(
+          new NextRequest("http://shop.test/api/v2/retail/sales/send", {
+            method: "POST",
+            body: JSON.stringify({ ids: [flagged.id, theirs.id] }),
+            headers: { "Content-Type": "application/json" },
+          }),
+        ),
+      shop.chipo,
+    );
+    expect(answer.status).toBe(200);
+    expect(await answer.json()).toEqual({ sent: 0, noNumber: 1 });
+  });
+});
+
+describe("POST /sales/[id]/receipt", () => {
+  it("prints a copy as an 80 mm PDF and writes one line for it", async () => {
+    const before = await prisma.platformAuditEvent.count({ where: { entityId: sale.id, eventType: RETAIL_AUDIT_EVENTS.saleReprinted } });
+    const answer = await receiptRoute.POST(call(`${sale.id}/receipt`), params(sale.id));
+    expect(answer.status).toBe(200);
+    expect(answer.headers.get("Content-Type")).toBe("application/pdf");
+    expect((await answer.arrayBuffer()).byteLength).toBeGreaterThan(0);
+    expect(await prisma.platformAuditEvent.count({ where: { entityId: sale.id, eventType: RETAIL_AUDIT_EVENTS.saleReprinted } })).toBe(before + 1);
+  }, 60_000);
+
+  it("has no GET, so a prefetch or a reload never prints one", () => {
+    expect("GET" in receiptRoute).toBe(false);
+  });
+
+  it("does not print a colleague's sale for a cashier", async () => {
+    const answer = await asRole("CASHIER", () => receiptRoute.POST(call(`${theirs.id}/receipt`), params(theirs.id)), shop.chipo);
+    expect(answer.status).toBe(404);
   });
 });

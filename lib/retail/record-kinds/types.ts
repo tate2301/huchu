@@ -15,14 +15,16 @@ export type Grant = [RetailResource, RetailAction];
 /**
  * What an action does: open a sheet over the record (with the record's id
  * when `id` is set, and any `params` the sheet reads), go to a page, open a file in a new tab (a PDF to print),
- * download one, ask the `bin` confirm, post to the server (asking first when
- * it has an ask) and toast its done words, or hand an event to the page (a
- * dialog the page owns).
+ * print one the server logs (`print`: POSTed, its PDF opened in a new tab,
+ * then the record and its Activity read again), download one, ask the `bin`
+ * confirm, post to the server (asking first when it has an ask) and toast its
+ * done words, or hand an event to the page (a dialog the page owns).
  */
 export type RecordDo =
   | { sheet: string; id?: string; params?: Record<string, string> }
   | { href: string }
   | { open: string }
+  | { print: string }
   | { download: string }
   | { confirm: "bin" }
   | { post: { url: string; body?: unknown; ask?: Ask; done: string } }
@@ -98,8 +100,8 @@ export type SourceTab<R> = {
   requires?: Grant;
   /** Drawn only while the record has something here (a sale's Refunds once it has one). */
   when?: (record: R) => boolean;
-  /** The link to everything, filtered to this record. */
-  allLink?: { label: string; href: (record: R) => string };
+  /** The link to everything, filtered to this record; or one of the record's actions by key ("View the receipt" prints a copy). */
+  allLink?: { label: string; href: (record: R) => string } | { label: string; action: string };
   /**
    * The source's columns this tab draws, in this order, and the header each
    * reads when it differs from the list's. Absent: every column the list shows.
@@ -150,7 +152,12 @@ export type RailRow = {
   visible?: Grant;
 };
 
-export type RailGroup = { title: string; rows: RailRow[] };
+export type RailGroup = {
+  title: string;
+  rows: RailRow[];
+  /** Carries "click any value to change it" while this role may change a value anywhere on the rail. Default: the first group it may change. */
+  hint?: boolean;
+};
 
 export type RailTop =
   | { meter: { label: string; value: string; pct: number; note: string } }

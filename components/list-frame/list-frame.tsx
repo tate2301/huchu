@@ -444,8 +444,8 @@ export function ListFrame({ source, title, sub, rowFilters, defaultSort, default
   const doExport = async (format: ExportFormat, rowIds?: string[]) => {
     if (!resolved) return;
     const query = { ...resolved, tab: resolved.tab ?? undefined, group: resolved.group ?? "none", page: 1 };
-    const failed = await exportList(source, format, query, rowIds);
-    if (failed) toast({ title: failed, variant: "destructive" });
+    const said = await exportList(source, format, query, rowIds);
+    if (said) toast(said);
   };
 
   // ── Keyboard (5.4.13) ────────────────────────────────────────────────

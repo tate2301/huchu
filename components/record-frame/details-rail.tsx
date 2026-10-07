@@ -9,8 +9,9 @@ import { DetailRow } from "./detail-row";
 
 /**
  * The details rail (5.6.6): an optional meter or photo card, then the kind's
- * groups. The first group with a row this role may change carries the hint
- * "click any value to change it"; rows the role may not change are plain
+ * groups. The group the kind marks `hint`, else the first with a row this
+ * role may change, carries "click any value to change it" (only while the
+ * role may change something); rows the role may not change are plain
  * text with no pen. One row edits at a time.
  */
 export function DetailsRail({
@@ -33,7 +34,9 @@ export function DetailsRail({
   const shown = groups
     .map((group) => ({ ...group, rows: group.rows.filter((row) => !row.visible || can(row.visible)) }))
     .filter((group) => group.rows.length > 0);
-  const hinted = shown.findIndex((group) => group.rows.some((row) => editable(row.edit)));
+  const firstEditable = shown.findIndex((group) => group.rows.some((row) => editable(row.edit)));
+  const marked = shown.findIndex((group) => group.hint);
+  const hinted = firstEditable < 0 ? -1 : marked >= 0 ? marked : firstEditable;
 
   return (
     <aside aria-label="Details" className="cx-rf-rail">

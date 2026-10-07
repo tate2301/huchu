@@ -142,9 +142,17 @@ export async function reprintSaleReceipt(companyId: string, id: string, actor: S
   return { saleNo: sale.saleNo, pdf };
 }
 
-/** Queue one sale's receipt on WhatsApp, with its audit line. */
-async function queueOne(tx: Prisma.TransactionClient, companyId: string, saleId: string, saleNo: string, phone: string, actor: SaleActor) {
-  await queueSaleReceipt(tx, { companyId, saleId, to: { phone, email: null }, createdById: actor.userId, channel: "WHATSAPP" });
+/** Queue one sale's receipt on WhatsApp, with its audit line; false, and no line, when nothing was queued. */
+async function queueOne(
+  tx: Prisma.TransactionClient,
+  companyId: string,
+  saleId: string,
+  saleNo: string,
+  phone: string,
+  actor: SaleActor,
+): Promise<boolean> {
+  const message = await queueSaleReceipt(tx, { companyId, saleId, to: { phone, email: null }, createdById: actor.userId, channel: "WHATSAPP" });
+  if (!message) return false;
   await writeRetailAuditEvent(tx, {
     actor,
     eventType: RETAIL_AUDIT_EVENTS.saleSent,
@@ -152,6 +160,7 @@ async function queueOne(tx: Prisma.TransactionClient, companyId: string, saleId:
     entityId: saleId,
     payload: { saleNo, to: maskedNumber(phone) },
   });
+  return true;
 }
 
 /**
@@ -170,11 +179,17 @@ export async function sendSaleReceipt(
   const raw = given?.trim() ? given : sale.customer?.phone;
   const phone = normalizePhoneE164(raw, "263");
   if (!phone || phone.replace(/\D/g, "").length < 9) throw new SaleRefusal("Validation failed", 400, { to: GIVE_A_NUMBER });
-  await prisma.$transaction((tx) => queueOne(tx, companyId, sale.id, sale.saleNo, phone, actor));
+  const queued = await prisma.$transaction((tx) => queueOne(tx, companyId, sale.id, sale.saleNo, phone, actor));
+  // Nothing to send means no receipt could be made of the sale.
+  if (!queued) throw new SaleRefusal(SALE_NOT_FOUND, 404);
   return { queued: true, to: maskedNumber(phone), waiting: !isWhatsAppConfigured() };
 }
 
-/** "Send receipts": one receipt for each ticked sale with a customer's number; the rest are counted. */
+/**
+ * "Send receipts": one receipt for each ticked sale with a customer's
+ * number. `noNumber` counts the ticked sales this person may read that have
+ * none; ids they may not read (a cashier's colleague's sale) are left out.
+ */
 export async function sendSaleReceipts(
   companyId: string,
   ids: string[],
@@ -192,12 +207,13 @@ export async function sendSaleReceipts(
   const reachable = sales
     .map((sale) => ({ sale, phone: normalizePhoneE164(sale.customer?.phone, "263") }))
     .filter((entry): entry is { sale: (typeof sales)[number]; phone: string } => Boolean(entry.phone));
+  let sent = 0;
   if (reachable.length) {
     await prisma.$transaction(async (tx) => {
-      for (const { sale, phone } of reachable) await queueOne(tx, companyId, sale.id, sale.saleNo, phone, actor);
+      for (const { sale, phone } of reachable) if (await queueOne(tx, companyId, sale.id, sale.saleNo, phone, actor)) sent += 1;
     });
   }
-  return { sent: reachable.length, noNumber: ids.length - reachable.length };
+  return { sent, noNumber: sales.length - sent };
 }
 
 /** "Mark as looked at" (W-44): a flagged sale nobody has looked at yet. */

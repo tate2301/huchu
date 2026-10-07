@@ -10,10 +10,12 @@ import { SALES_REFUSAL, saleActor, saleRefusalResponse } from "../../_shared";
 
 /**
  * "Reprint the receipt": the sale's receipt as an 80 mm PDF with "COPY"
- * printed above the header, opened in a new tab to print. Anyone who reads
- * the sale may (a cashier their own).
+ * printed above the header, which the page opens in a new tab to print.
+ * Anyone who reads the sale may (a cashier their own). A POST, so each copy
+ * is one deliberate click and one `RETAIL_SALE.REPRINTED` line: a prefetch,
+ * a reload of the tab or a restored session never prints one.
  */
-export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { response, session } = await requireRetailSession(request);
   if (response || !session) return response as NextResponse;
   const reads = canRetailSessionDo(session, "retail.sell", "view") || canRetailSessionDo(session, "retail.cash-control", "view");
@@ -31,6 +33,6 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       },
     });
   } catch (error) {
-    return saleRefusalResponse(error, "GET /api/v2/retail/sales/[id]/receipt");
+    return saleRefusalResponse(error, "POST /api/v2/retail/sales/[id]/receipt");
   }
 }

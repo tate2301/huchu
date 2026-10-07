@@ -3,7 +3,7 @@ import type { SaleView } from "@/lib/retail/floor/sale-view";
 import { fiscalChip, paidKpi, saleStateChip } from "@/lib/retail/floor/sale-words";
 import type { ShiftRecordView } from "@/lib/retail/shift-record";
 import { salesWords, takingsTitle } from "@/lib/retail/shift-words";
-import { formatDay, formatDuration, formatMediumDay, formatMoney, formatSigned, formatTime, formatCount } from "@/lib/workspace/format";
+import { formatDay, formatDuration, formatMediumDay, formatMoney, formatSigned, formatTime, formatWhen, formatCount } from "@/lib/workspace/format";
 
 import type { RailGroup, RecordAction, RecordChip, RecordKind, RecordKpi, RecordStep } from "./types";
 
@@ -260,6 +260,8 @@ function saleRail(sale: SaleView): RailGroup[] {
   }
   groups.push({
     title: "Sale",
+    // The board's hint sits here, beside the customer it is for, though Customer is read-only until CUS-02.
+    hint: true,
     rows: [
       { key: "till", label: "Till", value: sale.till.name },
       { key: "cashier", label: "Cashier", value: sale.cashier.name },
@@ -311,29 +313,28 @@ function saleRail(sale: SaleView): RailGroup[] {
       ...(Number(sale.deposit) !== 0 ? [{ key: "deposit", label: "Deposit", value: usd(sale.deposit), mono: true }] : []),
     ],
   });
-  if (sale.fiscal.state !== "OFF") {
-    groups.push({
-      title: "Fiscal",
-      rows: [
-        { key: "receipt", label: sale.saleType === "REFUND" ? "Credit note" : "Receipt", value: sale.fiscal.receipt ?? "Not signed yet", mono: Boolean(sale.fiscal.receipt), muted: !sale.fiscal.receipt },
-        { key: "day", label: "Day", value: sale.fiscal.dayNo === null ? "—" : String(sale.fiscal.dayNo), mono: sale.fiscal.dayNo !== null },
-        { key: "id", label: "ID checked", value: sale.idCheckedAt ? `Yes, ${formatTime(sale.idCheckedAt)}` : "Not needed", muted: !sale.idCheckedAt },
-        ...(sale.fiscal.error ? [{ key: "error", label: "Why not", value: sale.fiscal.error }] : []),
-      ],
-    });
-  } else {
-    groups.push({
-      title: "ID",
-      rows: [{ key: "id", label: "ID checked", value: sale.idCheckedAt ? `Yes, ${formatTime(sale.idCheckedAt)}` : "Not needed", muted: !sale.idCheckedAt }],
-    });
-  }
+  // Without a fiscal receipt the group keeps only ID checked, where the board puts it.
+  const signs = sale.fiscal.state !== "OFF";
+  groups.push({
+    title: "Fiscal",
+    rows: [
+      ...(signs
+        ? [
+            { key: "receipt", label: sale.saleType === "REFUND" ? "Credit note" : "Receipt", value: sale.fiscal.receipt ?? "Not signed yet", mono: Boolean(sale.fiscal.receipt), muted: !sale.fiscal.receipt },
+            { key: "day", label: "Day", value: sale.fiscal.dayNo === null ? "—" : String(sale.fiscal.dayNo), mono: sale.fiscal.dayNo !== null },
+          ]
+        : []),
+      { key: "id", label: "ID checked", value: sale.idCheckedAt ? `Yes, ${formatTime(sale.idCheckedAt)}` : "Not needed", muted: !sale.idCheckedAt },
+      ...(signs && sale.fiscal.error ? [{ key: "error", label: "Why not", value: sale.fiscal.error }] : []),
+    ],
+  });
   if (sale.void) {
     groups.push({
       title: "Void",
       rows: [
         { key: "why", label: "Why", value: sale.void.reason ?? "Not given", muted: !sale.void.reason },
         { key: "approved", label: "Approved by", value: sale.void.approvedBy ?? "Not needed", muted: !sale.void.approvedBy },
-        { key: "when", label: "When", value: `${formatDay(sale.void.at)}, ${formatTime(sale.void.at)}`, mono: true },
+        { key: "when", label: "When", value: formatWhen(sale.void.at), mono: true },
       ],
     });
   }
@@ -360,7 +361,7 @@ export const saleKind: RecordKind<SaleView> = {
   reference: (sale) => `${sale.till.name} · ${sale.cashier.name}`,
   // Refund and Void join with FLR-02 (packet 56).
   actions: (sale) => [
-    { key: "reprint", label: "Reprint the receipt", requires: SALES_READ, do: { open: `/api/v2/retail/sales/${sale.id}/receipt?format=pdf` } },
+    { key: "reprint", label: "Reprint the receipt", requires: SALES_READ, do: { print: `/api/v2/retail/sales/${sale.id}/receipt` } },
     sendAction(sale),
   ],
   more: (sale) => [
@@ -409,7 +410,7 @@ export const saleKind: RecordKind<SaleView> = {
       label: "Lines",
       source: "retail-sale-lines",
       parent: "sale",
-      allLink: { label: "View the receipt", href: (sale) => `/api/v2/retail/sales/${sale.id}/receipt?format=pdf` },
+      allLink: { label: "View the receipt", action: "reprint" },
       totalsText: (sale) => ({ name: `Σ ${count(sale.lines.length, "line", "lines")}` }),
     },
     { key: "payment", label: "Payment", source: "retail-sale-payments", parent: "sale" },

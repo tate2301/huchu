@@ -392,7 +392,7 @@ export type ListAction = {
      */
     | { run: string; endpoint: string }
     | {
-        /** POSTed with the ids; the answer is a file. */
+        /** POSTed with the ids; the answer is a file. A row menu action's may hold `{key}` holes, filled from its row. */
         download: string;
         /** The body key the ids go under. Default `ids`. */
         idsAs?: string;
