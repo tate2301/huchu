@@ -443,6 +443,8 @@ export async function auditShiftClosed(
     countedCash: MoneyLike;
     variance: MoneyLike;
     notes?: string | null;
+    /** The count by note (FLR-04): each currency, the rate that added them, the float left and what went to the safe. */
+    count?: { countedUsd: string; countedZig: string; rate: string | null; floatLeft: string; toSafe: string };
   },
 ): Promise<void> {
   await writeRetailAuditEvent(client, {
@@ -457,6 +459,7 @@ export async function auditShiftClosed(
       expectedCash: auditAmount(input.expectedCash),
       countedCash: auditAmount(input.countedCash),
       variance: auditAmount(input.variance),
+      ...(input.count ?? {}),
       // Whether the drawer was cashed up by the person who worked it. A manager
       // closing somebody else's till is legitimate and routine; it is also the
       // shape of a drawer being closed before its cashier can count it.

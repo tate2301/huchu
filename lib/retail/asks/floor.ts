@@ -1,3 +1,6 @@
+import type { Ask } from "@/lib/workspace/ask";
+import { formatMoney } from "@/lib/workspace/format";
+
 import type { ListActionRun } from "./runs";
 
 /**
@@ -36,3 +39,19 @@ export const FLOOR_LIST_RUNS: Record<string, ListActionRun> = {
     },
   },
 };
+
+/**
+ * "Close SH-00240 without counting?" (W-39, a lost handheld): nobody counts
+ * the drawer, so it closes Not counted with what should be in it left on the
+ * shift, for a manager to sign off. Why is needed.
+ */
+export function closeUncountedAsk(shift: { shiftNo: string; expectedCash: number }): Ask {
+  return {
+    title: `Close ${shift.shiftNo} without counting?`,
+    body: `Nobody counts the drawer. It closes as Not counted, the ${formatMoney(shift.expectedCash)} that should be in it stays on the shift, and a manager has to sign it off.`,
+    keep: "Keep it open",
+    go: "Close without counting",
+    fill: "bad",
+    field: { key: "reason", label: "Why", placeholder: "The handheld was lost, for example", min: 3, max: 300, needed: "Say why it was not counted." },
+  };
+}

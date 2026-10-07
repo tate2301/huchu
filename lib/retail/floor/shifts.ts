@@ -1,17 +1,27 @@
 import { Prisma } from "@prisma/client";
-import type { NextResponse } from "next/server";
+import { NextResponse } from "next/server";
+import { z } from "zod";
 
-import { errorResponse, fieldErrorResponse } from "@/lib/api-response";
+import { errorResponse, fieldErrorResponse, successResponse } from "@/lib/api-response";
+import { markActivityFailed } from "@/lib/activity/context";
 import { reserveIdentifier } from "@/lib/id-generator";
-import { exceeds, money, toNumberOrZero } from "@/lib/money";
+import { exceeds, money, sumMoney, toNumberOrZero } from "@/lib/money";
+import { emitRetailNotification } from "@/lib/notifications";
 import { prisma } from "@/lib/prisma";
-import { auditShiftOpened } from "@/lib/retail/audit";
-import { shiftOpenPosting } from "@/lib/retail/cash-up";
-import { openFiscalDayIfNone } from "@/lib/retail/fiscal-settings";
+import { auditShiftClosed, auditShiftOpened } from "@/lib/retail/audit";
+import { getCashNetFromPayments, shiftOpenPosting, sumCashMovementDeltas } from "@/lib/retail/cash-up";
+import { closeFiscalDayIfLastShift, openFiscalDayIfNone } from "@/lib/retail/fiscal-settings";
 import { canRetailRoleDo, canRetailSessionDo, retailPermissionDenial, type SessionLike } from "@/lib/retail/permission-matrix";
 import { latestZigRate, loadPaymentSettings, NoZigRate } from "@/lib/retail/payment-settings";
+import { closeShiftUncounted } from "@/lib/retail/shift-close-uncounted";
 import { FLOAT_MESSAGE, FLOAT_PATTERN, tillWords } from "@/lib/retail/shift-open-rules";
+import { tenderLabel } from "@/lib/retail/words";
+import { shiftState } from "@/lib/reports/loaders/retail/floor";
+import { createApprovalAction } from "@/lib/workflow/approvals";
+import { formatDuration, formatMoney, formatSigned, formatTime } from "@/lib/workspace/format";
 import { postRetailJournal, type RetailAccountingResult } from "@/app/api/v2/retail/_helpers";
+
+import { countDrawer, DENOMINATIONS, moreThan, needsExplaining, type CountCurrency, type CountRow, type DrawerState } from "./count";
 
 /**
  * Opening a shift (50-floor W-37, FLR-03): who may open one for whom, on
@@ -26,6 +36,10 @@ import { postRetailJournal, type RetailAccountingResult } from "@/app/api/v2/ret
  * the dollars, Dr 1001 the ZiG part, Cr 1005 the whole. The ZiG part's
  * dollar value is kept on the shift (`openingFloatZigBase`), so the Z-report
  * and a backfill read the float at the rate it was counted in.
+ *
+ * Closing one (W-39, FLR-04) is below: `closeShift` counts by note under the
+ * shift's row lock, `closeUncounted` closes a drawer nobody can count, and
+ * `closeForm` is what the close page reads.
  */
 
 export type ShiftSession = SessionLike & {
@@ -245,4 +259,456 @@ export function shiftRefusal(error: unknown): NextResponse {
   }
   if (error instanceof NoZigRate) return errorResponse(error.message, 409);
   throw error;
+}
+
+/* ── Count and close (50-floor W-39, FLR-04) ─────────────────────────────── */
+
+const countRow = z.object({ denomination: z.string().trim().max(10), count: z.number().int().min(0).max(100000) });
+
+/** What the close page and the till post. */
+export const closeInput = z.object({
+  counts: z.object({ USD: z.array(countRow).max(20), ZWG: z.array(countRow).max(20).optional() }),
+  note: z.string().trim().max(500).optional(),
+  floatLeft: z.string().trim().regex(/^\d{1,9}(\.\d{1,2})?$/),
+});
+export type CloseInput = z.infer<typeof closeInput>;
+
+/** A close refused: the status, the sentence, the fields it belongs under, and the difference when the count revealed it. */
+export class CloseRefused extends Error {
+  constructor(
+    readonly status: 400 | 403 | 404 | 409,
+    message: string,
+    readonly fieldErrors?: Record<string, string>,
+    readonly difference?: string,
+  ) {
+    super(message);
+    this.name = "CloseRefused";
+  }
+}
+
+const WHOLE_NOTES = "Count whole notes.";
+const NOTE_NEEDED = "Say what happened.";
+
+/** `fiscalDayClosed`: the fiscal day's number when this close was the shop's last shift and closed it (SET-08), so the till can say so. */
+export type CloseResult = { shiftNo: string; closedAt: string; difference: string; state: DrawerState; fiscalDayClosed: number | null };
+
+type ClosingShift = Prisma.RetailShiftGetPayload<object>;
+
+const auditActorOf = (session: ShiftSession) => ({
+  companyId: session.user.companyId,
+  userId: session.user.id,
+  userRole: session.user.role ?? null,
+  userName: session.user.name ?? null,
+});
+
+/** Whether this session may close this drawer: its own with selling, anybody's with cash control. */
+function mayClose(session: ShiftSession, shift: { cashierId: string }): boolean {
+  if (shift.cashierId === session.user.id && canRetailSessionDo(session, "retail.sell", "close-shift")) return true;
+  return canRetailSessionDo(session, "retail.cash-control", "close-shift");
+}
+
+/** The role-level gate every close route answers first: "Your role cannot close a till shift in sales". */
+export function closeDenial(session: ShiftSession): string | null {
+  if (canRetailSessionDo(session, "retail.cash-control", "close-shift")) return null;
+  return retailPermissionDenial(session, "retail.sell", "close-shift");
+}
+
+async function shiftToClose(session: ShiftSession, shiftId: string): Promise<ClosingShift> {
+  const shift = await prisma.retailShift.findFirst({ where: { id: shiftId, companyId: session.user.companyId } });
+  if (!shift) throw new CloseRefused(404, "Shift not found");
+  if (!mayClose(session, shift)) throw new CloseRefused(403, `Only ${shift.shiftNo}’s cashier or a manager can close it.`);
+  if (shift.status !== "OPEN") throw new CloseRefused(409, `${shift.shiftNo} is closed already.`);
+  return shift;
+}
+
+/** Each row a known note of its currency, counted once; zero rows dropped. */
+function rowsOf(rows: ReadonlyArray<CountRow> | undefined, currency: CountCurrency): CountRow[] {
+  const known: readonly string[] = DENOMINATIONS[currency];
+  const key = currency === "USD" ? "usd" : "zwg";
+  const seen = new Set<string>();
+  const kept: CountRow[] = [];
+  for (const row of rows ?? []) {
+    const denomination = row.denomination.trim();
+    if (!known.includes(denomination) || seen.has(denomination)) {
+      throw new CloseRefused(400, WHOLE_NOTES, { [key]: `Count ${currency === "USD" ? "US$" : "ZiG"} notes: ${known.join(", ")}.` });
+    }
+    seen.add(denomination);
+    if (row.count > 0) kept.push({ denomination, count: row.count });
+  }
+  return kept;
+}
+
+const usdWords = (value: string) => formatMoney(Number(value));
+
+/**
+ * Count and close a drawer. The count is checked, then — under the shift's
+ * row lock, so a sale either lands before and is counted or finds the shift
+ * closed — the difference is worked out against what should be there, the
+ * shift closes with its count, and after the commit the variance and the cash
+ * to the safe post, owners and managers hear of a difference, and the last
+ * shift closes the fiscal day. A blind cashier learns the difference from the
+ * 400 that asks what happened.
+ */
+export async function closeShift(input: {
+  session: ShiftSession;
+  shiftId: string;
+  body: CloseInput;
+  periodOverrideReason?: string | null;
+  now?: Date;
+}): Promise<CloseResult> {
+  const { session, body } = input;
+  const companyId = session.user.companyId;
+  const shift = await shiftToClose(session, input.shiftId);
+
+  const usd = rowsOf(body.counts.USD, "USD");
+  const zig = rowsOf(body.counts.ZWG, "ZWG");
+  const settings = await loadPaymentSettings(companyId);
+  if (zig.length > 0 && !settings.tenders.cashZig) {
+    throw new CloseRefused(400, "This shop does not take ZiG cash.", { zwg: "This shop does not take ZiG cash." });
+  }
+  let rate: Prisma.Decimal | null = null;
+  if (zig.length > 0) {
+    const today = await latestZigRate(companyId);
+    if (!today) throw new NoZigRate();
+    rate = new Prisma.Decimal(today.value);
+  }
+  const floatLeft = new Prisma.Decimal(body.floatLeft);
+  const note = body.note?.trim() || null;
+
+  const actor = auditActorOf(session);
+  const closedAt = input.now ?? new Date();
+
+  const { closed, count } = await prisma.$transaction(async (tx) => {
+    const [locked] = await tx.$queryRaw<Array<{ status: string; expectedCash: Prisma.Decimal }>>`
+      SELECT "status", "expectedCash" FROM "RetailShift" WHERE "id" = ${shift.id} FOR UPDATE`;
+    if (!locked || locked.status !== "OPEN") throw new CloseRefused(409, `${shift.shiftNo} is closed already.`);
+    const count = countDrawer({ usd, zig, rate, expected: money(locked.expectedCash).toFixed(2), floatLeft: floatLeft.toFixed(2) });
+    if (moreThan(floatLeft, count.countedUsd)) {
+      const only = `Only ${usdWords(count.countedUsd)} in US$ notes was counted.`;
+      throw new CloseRefused(400, only, { floatLeft: only });
+    }
+    if (needsExplaining(count.difference) && !note) {
+      throw new CloseRefused(
+        400,
+        `It is out by ${formatSigned(Number(count.difference))}. Say what happened, then close.`,
+        { note: NOTE_NEEDED },
+        count.difference,
+      );
+    }
+    const updated = await tx.retailShift.updateMany({
+      where: { id: shift.id, companyId, status: "OPEN" },
+      data: {
+        status: "CLOSED",
+        closedAt,
+        closedById: session.user.id,
+        countedCash: count.counted,
+        countedUsd: count.countedUsd,
+        countedZig: count.countedZig,
+        countRate: rate ?? new Prisma.Decimal(1),
+        countLines: { USD: usd, ZWG: zig },
+        variance: count.difference,
+        closeNote: note,
+        floatLeft,
+        toSafe: count.toSafe,
+      },
+    });
+    if (updated.count !== 1) throw new CloseRefused(409, `${shift.shiftNo} is closed already.`);
+    await auditShiftClosed(tx, {
+      actor,
+      shiftId: shift.id,
+      shiftNo: shift.shiftNo,
+      cashierId: shift.cashierId,
+      expectedCash: locked.expectedCash,
+      countedCash: count.counted,
+      variance: count.difference,
+      notes: note,
+      count: { countedUsd: count.countedUsd, countedZig: count.countedZig, rate: rate?.toFixed(4) ?? null, floatLeft: floatLeft.toFixed(2), toSafe: count.toSafe },
+    });
+    // A drawer that balanced is signed off as it closes; a different one waits for a manager's sign-off.
+    if (count.state === "BALANCED") {
+      await createApprovalAction(tx, {
+        companyId,
+        entityType: "RETAIL_SHIFT",
+        entityId: shift.id,
+        action: "APPROVE",
+        actedById: session.user.id,
+        fromStatus: "OPEN",
+        toStatus: "CLOSED",
+        note: `Counted ${count.counted} against ${money(locked.expectedCash).toFixed(2)} expected; balanced`,
+      });
+    }
+    const closed = await tx.retailShift.findUniqueOrThrow({ where: { id: shift.id } });
+    return { closed, count };
+  });
+
+  const journal = {
+    companyId,
+    sourceId: closed.id,
+    siteId: closed.siteId,
+    registerCode: closed.registerCode,
+    entryDate: closedAt,
+    createdById: session.user.id,
+    actorRole: session.user.role ?? undefined,
+    periodOverrideReason: input.periodOverrideReason ?? undefined,
+    taxAmount: 0,
+  };
+  const difference = new Prisma.Decimal(count.difference);
+  if (!difference.isZero()) {
+    const abs = toNumberOrZero(difference.abs());
+    await postRetailJournal({
+      ...journal,
+      sourceType: "RETAIL_SHIFT_VARIANCE",
+      sourceSubtype: difference.isNegative() ? "SHORT" : "OVER",
+      description: `Retail shift variance ${closed.shiftNo}`,
+      amount: abs,
+      netAmount: abs,
+      grossAmount: abs,
+      invertDirection: difference.isNegative(),
+    });
+  }
+  const toSafe = new Prisma.Decimal(count.toSafe);
+  if (exceeds(toSafe, 0)) {
+    // Every ZiG note leaves the ZiG drawer (the float left is US$ only); the rest is dollars, so the two sum to the amount.
+    const zigPart = new Prisma.Decimal(count.zigBase);
+    const usdPart = toSafe.minus(zigPart);
+    await postRetailJournal({
+      ...journal,
+      sourceType: "RETAIL_SHIFT_CLOSE",
+      description: `Retail shift close ${closed.shiftNo}`,
+      amount: toNumberOrZero(toSafe),
+      netAmount: toNumberOrZero(toSafe),
+      grossAmount: toNumberOrZero(toSafe),
+      payload: { usd: toNumberOrZero(usdPart), zig: toNumberOrZero(zigPart) },
+    });
+  }
+
+  if (!difference.isZero()) {
+    const words = difference.isNegative() ? `short ${formatMoney(toNumberOrZero(difference.abs()))}` : `over ${formatMoney(toNumberOrZero(difference))}`;
+    await tellManagers(companyId, session.user.id, closed, `${closed.shiftNo} is ${words}`);
+  }
+
+  // "Close the fiscal day · With the last shift" (SET-08): the shop's last open shift closing closes its day.
+  const fiscalDay = await closeFiscalDayIfLastShift(actor);
+
+  return { shiftNo: closed.shiftNo, closedAt: closedAt.toISOString(), difference: count.difference, state: count.state, fiscalDayClosed: fiscalDay.closed };
+}
+
+/** A drawer closed out or uncounted: every active owner and manager but the person who closed it. */
+async function tellManagers(companyId: string, closerId: string, shift: ClosingShift, title: string) {
+  const recipients = await prisma.user.findMany({
+    where: { companyId, isActive: true, role: { in: ["SUPERADMIN", "MANAGER", "SHOP_MANAGER"] }, id: { not: closerId } },
+    select: { id: true },
+  });
+  await emitRetailNotification({
+    companyId,
+    recipientIds: recipients.map((person) => person.id),
+    type: "RETAIL_SHIFT_DIFFERENCE",
+    title,
+    summary: `${shift.registerName} · ${shift.cashierName}. Sign it off on the overview.`,
+    entityType: "RETAIL_SHIFT",
+    entityId: shift.id,
+    viewPath: `/retail/shifts/${shift.id}`,
+    severity: "WARNING",
+  });
+}
+
+/** The routes' answer to a close: the result, or the refusal in the page's words. */
+export async function answerClose(input: { session: ShiftSession; shiftId: string; body: unknown }): Promise<NextResponse> {
+  const denied = closeDenial(input.session);
+  if (denied) return errorResponse(denied, 403);
+  const parsed = closeInput.safeParse(input.body);
+  if (!parsed.success) {
+    const issue = parsed.error.issues[0];
+    const [top, currency, index] = issue?.path ?? [];
+    if (top === "counts" && typeof index === "number") {
+      const rows = (input.body as { counts?: Record<string, Array<{ denomination?: unknown }>> } | null)?.counts?.[String(currency)];
+      const key = `${currency === "ZWG" ? "zwg" : "usd"}.${String(rows?.[index]?.denomination ?? index)}`;
+      return fieldErrorResponse(WHOLE_NOTES, { [key]: WHOLE_NOTES });
+    }
+    if (top === "floatLeft") return fieldErrorResponse("Give the float, like 100.00.", { floatLeft: "Give the float, like 100.00." });
+    if (top === "note") return fieldErrorResponse("Keep it to 500 characters.", { note: "Keep it to 500 characters." });
+    return errorResponse("Count the notes in the drawer.", 400);
+  }
+  try {
+    return successResponse({ data: await closeShift({ session: input.session, shiftId: input.shiftId, body: parsed.data }) });
+  } catch (error) {
+    return closeRefusal(error);
+  }
+}
+
+/** A `CloseRefused` (or no ZiG rate) as the routes answer it; anything else is thrown on. */
+export function closeRefusal(error: unknown): NextResponse {
+  if (error instanceof CloseRefused) {
+    if (error.difference !== undefined) {
+      markActivityFailed();
+      return NextResponse.json({ error: error.message, difference: error.difference, fieldErrors: error.fieldErrors }, { status: error.status });
+    }
+    return error.fieldErrors ? fieldErrorResponse(error.message, error.fieldErrors, error.status) : errorResponse(error.message, error.status);
+  }
+  if (error instanceof NoZigRate) return errorResponse(error.message, 409);
+  throw error;
+}
+
+/** Close without counting (W-39, a lost handheld): cash control only; it closes "Not counted" for a manager to sign off. */
+export async function closeUncounted(input: { session: ShiftSession; shiftId: string; reason: string; now?: Date }): Promise<{ shiftNo: string; closedAt: string }> {
+  const { session } = input;
+  if (!canRetailSessionDo(session, "retail.cash-control", "close-shift")) {
+    throw new CloseRefused(403, retailPermissionDenial(session, "retail.cash-control", "close-shift")!);
+  }
+  const reason = input.reason.trim();
+  if (reason.length < 3 || reason.length > 300) throw new CloseRefused(400, "Say why it was not counted.", { why: "Say why it was not counted." });
+  const shift = await prisma.retailShift.findFirst({ where: { id: input.shiftId, companyId: session.user.companyId } });
+  if (!shift) throw new CloseRefused(404, "Shift not found");
+  if (shift.status !== "OPEN") throw new CloseRefused(409, `${shift.shiftNo} is closed already.`);
+  const actor = auditActorOf(session);
+  const closedAt = input.now ?? new Date();
+  const done = await prisma.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT "id" FROM "RetailShift" WHERE "id" = ${shift.id} FOR UPDATE`;
+    return closeShiftUncounted(tx, { actor, shiftId: shift.id, reason, now: closedAt });
+  });
+  if (!done) throw new CloseRefused(409, `${shift.shiftNo} is closed already.`);
+  await tellManagers(session.user.companyId, session.user.id, shift, `${shift.shiftNo} closed without a count`);
+  await closeFiscalDayIfLastShift(actor, closedAt);
+  return { shiftNo: shift.shiftNo, closedAt: closedAt.toISOString() };
+}
+
+/** The close page's data (`GET /api/v2/retail/shifts/[id]/close`). Money as two-decimal text in US$. */
+export type CountForm = {
+  shiftId: string;
+  shiftNo: string;
+  /** "Front till · Chipo Dube · open 6h 12m". */
+  sub: string;
+  /** The cashier counting their own drawer: what should be there stays hidden until the server answers. */
+  blind: boolean;
+  denominations: { USD: string[]; ZWG: string[] | null };
+  /** ZiG per US$1, "26.80"; null when the shop takes no ZiG cash or has no rate. */
+  rate: string | null;
+  parts: { openingFloat: string; cashSales: string; moves: { label: "Dropped to the safe" | "Cash in and out"; amount: string } | null } | null;
+  expected: string | null;
+  checked: Array<{ label: string; amount: string; ok: boolean; note: string }>;
+  floatLeft: string;
+  closed: {
+    at: string;
+    /** What was counted in US$, as the close wrote it; null when it was not counted. */
+    counted: string | null;
+    difference: string | null;
+    state: "Not counted" | "Short" | "Over" | "Balanced";
+    note: string | null;
+    lines: { USD: CountRow[]; ZWG: CountRow[] } | null;
+  } | null;
+};
+
+/** Who may read the close page: whoever may close the drawer, and cash control reading a closed one. */
+async function shiftToRead(session: ShiftSession, shiftId: string): Promise<ClosingShift> {
+  const shift = await prisma.retailShift.findFirst({ where: { id: shiftId, companyId: session.user.companyId } });
+  if (!shift) throw new CloseRefused(404, "Shift not found");
+  if (mayClose(session, shift)) return shift;
+  if (shift.status === "CLOSED" && canRetailSessionDo(session, "retail.cash-control", "view")) return shift;
+  const denied = closeDenial(session);
+  throw new CloseRefused(403, denied ?? `Only ${shift.shiftNo}’s cashier or a manager can close it.`);
+}
+
+const text2 = (value: Prisma.Decimal.Value | null | undefined) => money(value ?? 0).toFixed(2);
+
+function linesOf(value: Prisma.JsonValue | null): { USD: CountRow[]; ZWG: CountRow[] } | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const read = (rows: unknown): CountRow[] =>
+    Array.isArray(rows)
+      ? rows.flatMap((row) =>
+          row && typeof row === "object" && "denomination" in row && "count" in row
+            ? [{ denomination: String((row as CountRow).denomination), count: Number((row as CountRow).count) || 0 }]
+            : [],
+        )
+      : [];
+  return { USD: read((value as Record<string, unknown>).USD), ZWG: read((value as Record<string, unknown>).ZWG) };
+}
+
+export async function closeForm(session: ShiftSession, shiftId: string, now: Date = new Date()): Promise<CountForm> {
+  const companyId = session.user.companyId;
+  const shift = await shiftToRead(session, shiftId);
+  const [settings, zig, sales, movements, lastClose] = await Promise.all([
+    loadPaymentSettings(companyId),
+    latestZigRate(companyId),
+    prisma.retailSale.findMany({
+      where: { shiftId: shift.id, companyId },
+      select: { changeAmount: true, exchangeRate: true, payments: { select: { tenderType: true, baseAmount: true, reference: true } } },
+    }),
+    prisma.retailCashMovement.findMany({ where: { shiftId: shift.id, companyId }, select: { type: true, baseAmount: true } }),
+    prisma.retailShift.findFirst({
+      where: { companyId, registerId: shift.registerId, status: "CLOSED", floatLeft: { not: null }, id: { not: shift.id } },
+      orderBy: { closedAt: "desc" },
+      select: { floatLeft: true },
+    }),
+  ]);
+
+  const open = shift.status === "OPEN";
+  const blind = open && shift.cashierId === session.user.id && !canRetailSessionDo(session, "retail.cash-control", "close-shift");
+
+  const cashSales = sumMoney(
+    sales.map((sale) =>
+      getCashNetFromPayments(sale.payments, money(sale.changeAmount).div(money(sale.exchangeRate).isZero() ? 1 : money(sale.exchangeRate))),
+    ),
+  );
+  const movesNet = sumCashMovementDeltas(movements);
+  const onlyDrops = movements.length > 0 && movements.every((movement) => movement.type === "DROP_TO_SAFE");
+
+  const tenders = new Map<string, { amount: Prisma.Decimal; missing: number }>();
+  for (const sale of sales) {
+    for (const payment of sale.payments) {
+      if (payment.tenderType === "CASH") continue;
+      const entry = tenders.get(payment.tenderType) ?? { amount: new Prisma.Decimal(0), missing: 0 };
+      entry.amount = entry.amount.plus(money(payment.baseAmount));
+      if (!payment.reference?.trim()) entry.missing += 1;
+      tenders.set(payment.tenderType, entry);
+    }
+  }
+
+  const minutes = Math.max(0, Math.floor(((shift.closedAt ?? now).getTime() - shift.openedAt.getTime()) / 60_000));
+  const variance = shift.variance === null ? null : toNumberOrZero(shift.variance);
+  const takesZig = settings.tenders.cashZig;
+
+  return {
+    shiftId: shift.id,
+    shiftNo: shift.shiftNo,
+    sub: `${shift.registerName} · ${shift.cashierName} · ${open ? `open ${formatDuration(minutes)}` : `closed ${formatTime(shift.closedAt ?? now)}`}`,
+    blind,
+    denominations: { USD: [...DENOMINATIONS.USD], ZWG: takesZig ? [...DENOMINATIONS.ZWG] : null },
+    rate: takesZig && zig ? zig.rate : open ? null : shift.countRate && !money(shift.countRate).equals(1) ? money(shift.countRate).toFixed(2) : null,
+    parts: blind
+      ? null
+      : {
+          openingFloat: text2(money(shift.openingFloat).plus(money(shift.openingFloatZigBase))),
+          cashSales: cashSales.toFixed(2),
+          moves: movements.length ? { label: onlyDrops ? "Dropped to the safe" : "Cash in and out", amount: movesNet.toFixed(2) } : null,
+        },
+    expected: blind ? null : text2(shift.expectedCash),
+    checked: [...tenders.entries()]
+      .sort((a, b) => b[1].amount.comparedTo(a[1].amount))
+      .map(([tender, entry]) => ({
+        label: tenderLabel(tender),
+        amount: entry.amount.toFixed(2),
+        ok: entry.missing === 0,
+        note: entry.missing === 0 ? "matches" : `${entry.missing} without a reference`,
+      })),
+    floatLeft: open ? text2(lastClose?.floatLeft ?? shift.openingFloat) : text2(shift.floatLeft ?? 0),
+    closed: open
+      ? null
+      : {
+          at: (shift.closedAt ?? now).toISOString(),
+          counted: shift.countedCash === null ? null : text2(shift.countedCash),
+          difference: variance === null || shift.countedCash === null ? null : text2(shift.variance),
+          state: shiftState({ status: shift.status, countedCash: shift.countedCash, variance }) as "Not counted" | "Short" | "Over" | "Balanced",
+          note: shift.closeNote,
+          lines: linesOf(shift.countLines),
+        },
+  };
+}
+
+/** `GET …/close`: the form, or the refusal. */
+export async function answerCloseForm(session: ShiftSession, shiftId: string): Promise<NextResponse> {
+  try {
+    return successResponse({ data: await closeForm(session, shiftId) });
+  } catch (error) {
+    return closeRefusal(error);
+  }
 }

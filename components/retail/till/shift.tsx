@@ -2,9 +2,12 @@
 
 /**
  * The shift: what happened to the drawer, with cash-up as the one action.
- * Cash up counts the notes blind, then shows what the till expected beside
- * what was counted, then closes. Closing ends the session: the till goes back
- * to "Who is selling?" and stays paired. The cash-drop prompt lands here with
+ * Cash up counts the notes blind (US$, and ZiG where the shop takes it), asks
+ * for the float left for tomorrow, then closes through the same `closeShift`
+ * as the back office (FLR-04): the difference shows only once the server
+ * has it, and a drawer out by more than US$1.00 comes back asking what
+ * happened. Closing ends the session: the till goes back to "Who is
+ * selling?" and stays paired. The cash-drop prompt lands here with
  * `?move=drop`, and Move cash opens on "To the safe".
  */
 
@@ -13,7 +16,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
-import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { ApiError, fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { ArrowsClockwise, CaretLeft, CaretRight, CashRegister, Check, Minus, Money, Plus, Vault, X } from "@/lib/icons";
 import {
   getCashDenominations,
@@ -21,6 +24,7 @@ import {
   type RetailCashMovementReasonCode,
   type RetailCashMovementTypeName,
 } from "@/lib/retail/cash-movements";
+import { DENOMINATIONS, rowTotal, type CountCurrency } from "@/lib/retail/floor/count";
 import { count, dayMonth, hhmm, pairedWhen, usd, whole } from "./format";
 import { Empty, ErrorLine, GateSide, Keypad, Segmented, TillDialog, useKeypadKeys, useWindowKeys, type KeypadKey } from "./parts";
 import { ManagerFields, useManagerPin } from "./manager-pin";
@@ -68,6 +72,25 @@ function useMovements(shiftId: string | undefined) {
     enabled: Boolean(shiftId),
     queryFn: () => fetchJson<{ data: Movement[] }>(`/api/v2/retail/pos/shifts/${shiftId}/cash-movements`),
   });
+}
+
+/** The notes the drawer is counted in: US$, then ZiG where the shop takes ZiG cash. Counts are keyed "USD:20". */
+type CountNote = { key: string; currency: CountCurrency; denomination: string };
+
+function useCountNotes(): CountNote[] {
+  const { context } = useTill();
+  const takesZig = (context?.tenders ?? []).some((choice) => choice.tender === "CASH" && choice.currency === "ZWG");
+  return (["USD", "ZWG"] as const)
+    .filter((currency) => currency === "USD" || takesZig)
+    .flatMap((currency) => DENOMINATIONS[currency].map((denomination) => ({ key: `${currency}:${denomination}`, currency, denomination })));
+}
+
+const countNoteLabel = (note: CountNote) => (note.currency === "ZWG" ? `ZiG ${note.denomination}` : noteLabel(note.denomination));
+
+function countedIn(notes: CountNote[], counts: Record<string, number>, currency: CountCurrency): number {
+  return notes
+    .filter((note) => note.currency === currency)
+    .reduce((sum, note) => sum + Number(rowTotal({ denomination: note.denomination, count: counts[note.key] ?? 0 })), 0);
 }
 
 /** A shift just closed: its number, the drawer's difference, the held sales it ended, and the fiscal day it closed (SET-08). */
@@ -376,20 +399,21 @@ function CountScreen({
   onNext: () => void;
 }) {
   const { shiftHere } = useTill();
-  const notes = getCashDenominations(shiftHere?.baseCurrency ?? "USD") ?? [];
+  const notes = useCountNotes();
   const [at, setAt] = React.useState(0);
-  const denomination = notes[at];
-  const typed = String(counts[denomination] ?? "");
-  const counted = notes.reduce((sum, value) => sum + Number(value) * (counts[value] ?? 0), 0);
+  const current = notes[at];
+  const typed = String(current ? (counts[current.key] ?? "") : "");
+  const countedUsd = countedIn(notes, counts, "USD");
+  const countedZig = countedIn(notes, counts, "ZWG");
 
   const onKey = (key: KeypadKey) => {
-    if (!denomination) return;
+    if (!current) return;
     let next = typed;
     if (key.kind === "delete") next = typed.slice(0, -1);
     else if (key.kind === "clear") next = "";
     else if (key.kind === "digit" && typed.length < 5) next = typed === "0" ? key.value : typed + key.value;
     else return;
-    setCounts({ ...counts, [denomination]: next ? Number(next) : 0 });
+    setCounts({ ...counts, [current.key]: next ? Number(next) : 0 });
   };
   useKeypadKeys(onKey);
   useWindowKeys((event) => {
@@ -427,24 +451,25 @@ function CountScreen({
             </tr>
           </thead>
           <tbody>
-            {notes.map((value, index) => {
-              const n = counts[value] ?? 0;
+            {notes.map((note, index) => {
+              const n = counts[note.key] ?? 0;
+              const comes = Number(rowTotal({ denomination: note.denomination, count: n }));
               return (
                 <tr
-                  key={value}
+                  key={note.key}
                   className="is-pickable"
                   aria-current={index === at || undefined}
                   onClick={() => setAt(index)}
                 >
                   <td>
                     <span className="cell-lead num text-left">
-                      {noteLabel(value)}
+                      {countNoteLabel(note)}
                     </span>
                   </td>
                   <td className="num ink weight-500">
                     {n}
                   </td>
-                  <td className={`num${n ? "" : " muted"}`}>{n ? usd(Number(value) * n) : "—"}</td>
+                  <td className={`num${n ? "" : " muted"}`}>{n ? (note.currency === "ZWG" ? `ZiG ${comes.toFixed(2)}` : usd(comes)) : "—"}</td>
                 </tr>
               );
             })}
@@ -453,14 +478,17 @@ function CountScreen({
             <tr>
               <td>Counted</td>
               <td />
-              <td className="num">{usd(counted)}</td>
+              <td className="num">
+                {usd(countedUsd)}
+                {countedZig > 0 ? ` and ZiG ${countedZig.toFixed(2)}` : ""}
+              </td>
             </tr>
           </tfoot>
         </table>
       </main>
       <aside className="bench-side" aria-label="Counting">
         <div className="bar">
-          <h1>{denomination ? `${noteLabel(denomination)} ${Number(denomination) < 1 ? "coins" : "notes"}` : "Counting"}</h1>
+          <h1>{current ? `${countNoteLabel(current)} notes` : "Counting"}</h1>
         </div>
         <div className="rail-body">
           <div className="tender">
@@ -470,11 +498,11 @@ function CountScreen({
           <Keypad onKey={onKey} />
           <div className="grow" />
           <p className="note">
-            Count first. What the till expected shows on the next step. Card and mobile money need no counting.
+            Count the notes without looking at the till. The difference shows once you close. Card and mobile money need no counting.
           </p>
           <button type="button" className="btn btn-primary btn-touch btn-block" onClick={onNext}>
             <Check className="ic" />
-            Check against the till
+            Next: the float
           </button>
         </div>
       </aside>
@@ -482,7 +510,9 @@ function CountScreen({
   );
 }
 
-/* ─── Cash up, 2: what the till expected beside what was counted ─────── */
+/* ─── Cash up, 2: the float left, then close (blind) ──────────────────── */
+
+type CloseAnswer = { data: { shiftNo: string; difference: string; state: "BALANCED" | "SHORT" | "OVER"; fiscalDayClosed: number | null } };
 
 function CheckScreen({
   counts,
@@ -496,43 +526,57 @@ function CheckScreen({
   const queryClient = useQueryClient();
   const { shiftHere, context } = useTill();
   const shift = shiftHere!;
-  const movements = useMovements(shift.id);
+  const notes = useCountNotes();
   // "Close the fiscal day · With the last shift" (SET-08): said before, since only the server knows if it is the last.
   const closesDay = Boolean(context?.fiscal.deviceId && context.fiscal.dayNo !== null && context.fiscal.dayClose === "WITH_LAST_SHIFT");
   // Read while the shift is still open: closing ends its held sales.
   const held = useHeldSummary().count;
-  const notes = getCashDenominations(shift.baseCurrency ?? "USD") ?? [];
-  const counted = Number(notes.reduce((sum, value) => sum + Number(value) * (counts[value] ?? 0), 0).toFixed(2));
-  const expected = Number(shift.expectedCash);
-  const list = movements.data?.data ?? [];
-  const moved = list.reduce((sum, movement) => sum + movement.delta, 0);
-  const cameIn = list.some((movement) => movement.type === "FLOAT_TOP_UP");
-  const wentOut = list.some((movement) => movement.type !== "FLOAT_TOP_UP");
-  const float = Number(shift.openingFloat);
-  const takings = Number((expected - float - moved).toFixed(2));
-  const variance = Number((counted - expected).toFixed(2));
+  const countedUsd = countedIn(notes, counts, "USD");
+  const countedZig = countedIn(notes, counts, "ZWG");
+  const [floatLeft, setFloatLeft] = React.useState(Number(shift.openingFloat).toFixed(2));
   const [note, setNote] = React.useState("");
+  // The difference, once the server has said it: the count is blind until then.
+  const [outBy, setOutBy] = React.useState<string | null>(null);
+  const [problem, setProblem] = React.useState<{ field: "floatLeft" | "note" | null; message: string } | null>(null);
+  const noteRef = React.useRef<HTMLInputElement>(null);
   const id = React.useId();
 
   const close = useMutation({
-    mutationFn: () =>
-      fetchJson<{ shiftNo: string; variance: number | string; fiscalDayClosed: number | null }>(`/api/v2/retail/pos/shifts/${shift.id}/close`, {
-        method: "POST",
-        body: JSON.stringify({ countedCash: counted, notes: note.trim() || null }),
-      }),
+    mutationFn: async () => {
+      const lines = (currency: CountCurrency) =>
+        notes.filter((entry) => entry.currency === currency).map((entry) => ({ denomination: entry.denomination, count: counts[entry.key] ?? 0 }));
+      try {
+        return await fetchJson<CloseAnswer>(`/api/v2/retail/pos/shifts/${shift.id}/close`, {
+          method: "POST",
+          body: JSON.stringify({
+            counts: { USD: lines("USD"), ...(notes.some((entry) => entry.currency === "ZWG") ? { ZWG: lines("ZWG") } : {}) },
+            floatLeft: floatLeft.trim() || "0",
+            ...(note.trim() ? { note: note.trim() } : {}),
+          }),
+        });
+      } catch (error) {
+        // A blind count learns its difference here: the 400 that asks what happened carries it.
+        const details = (error instanceof ApiError ? error.details : null) as { difference?: string; fieldErrors?: Record<string, string> } | null;
+        if (details?.difference !== undefined) setOutBy(details.difference);
+        const field = details?.fieldErrors?.note ? "note" : details?.fieldErrors?.floatLeft ? "floatLeft" : null;
+        setProblem({ field, message: getApiErrorMessage(error) });
+        if (field === "note") requestAnimationFrame(() => noteRef.current?.focus());
+        throw error;
+      }
+    },
+    onMutate: () => setProblem(null),
     onSuccess: (result) => {
       onClosed({
-        shiftNo: result.shiftNo ?? shift.shiftNo,
-        variance: Number(result.variance ?? variance),
+        shiftNo: result.data.shiftNo ?? shift.shiftNo,
+        variance: Number(result.data.difference),
         held,
-        fiscalDay: result.fiscalDayClosed ?? null,
+        fiscalDay: result.data.fiscalDayClosed ?? null,
       });
       void queryClient.invalidateQueries({ queryKey: ["retail-current-shift"] });
     },
   });
 
-  const verdict = Math.abs(variance) < 0.005 ? "Spot on." : variance < 0 ? <>Short by <span className="num">{usd(-variance)}</span>.</> : <>Over by <span className="num">{usd(variance)}</span>.</>;
-  const closeLabel = Math.abs(variance) < 0.005 ? "Close shift" : variance < 0 ? `Close shift, short ${usd(-variance)}` : `Close shift, over ${usd(variance)}`;
+  const out = outBy === null ? 0 : Number(outBy);
 
   return (
     <div className="main is-scroll">
@@ -541,7 +585,7 @@ function CheckScreen({
           <CaretLeft className="ic" />
           Count
         </button>
-        <h1>Check the difference</h1>
+        <h1>Close the shift</h1>
         <div className="end">
           <span className="note">
             <span className="num">{shift.shiftNo}</span> · 2 of 2
@@ -550,46 +594,50 @@ function CheckScreen({
       </div>
       <div className="page">
         <p className="lede-figure">
-          {verdict}{" "}
-          <span className="q">
-            The till expected {usd(expected)}; you counted {usd(counted)}.
-          </span>
-        </p>
-        <dl className="attrs is-widest">
-          <dt>Float</dt>
-          <dd className="num text-left">
-            {usd(float)}
-          </dd>
-          <dt>Cash takings, after change</dt>
-          <dd className="num text-left">
-            {usd(takings)}
-          </dd>
-          {Math.abs(moved) > 0.004 ? (
+          {outBy === null ? (
             <>
-              <dt>{cameIn && wentOut ? "Moved in and out" : cameIn ? "In from the safe" : "To the safe and paid out"}</dt>
-              <dd className="num text-left">
-                {usd(moved)}
-              </dd>
+              You counted <span className="num">{usd(countedUsd)}</span>
+              {countedZig > 0 ? (
+                <>
+                  {" "}and <span className="num">ZiG {countedZig.toFixed(2)}</span>
+                </>
+              ) : null}
+              .{" "}
+              <span className="q">The difference shows once you close.</span>
             </>
-          ) : null}
-          <dt>Expected</dt>
-          <dd className="num text-left ink">
-            {usd(expected)}
-          </dd>
-          <dt>Counted</dt>
-          <dd className="num text-left ink">
-            {usd(counted)}
-          </dd>
-        </dl>
-        {Math.abs(variance) >= 0.005 ? (
+          ) : (
+            <>
+              {out < 0 ? "Short by" : "Over by"} <span className="num">{usd(Math.abs(out))}</span>.{" "}
+              <span className="q">Say what happened, then close.</span>
+            </>
+          )}
+        </p>
+        <div className="field">
+          <label htmlFor={`${id}f`}>Float left for tomorrow</label>
+          <input
+            id={`${id}f`}
+            className="input input-lg num text-left"
+            inputMode="decimal"
+            aria-invalid={problem?.field === "floatLeft" || undefined}
+            value={floatLeft}
+            onChange={(event) => setFloatLeft(event.target.value)}
+          />
+          <span className="help">In US$ notes, left in the drawer. The rest goes to the safe.</span>
+        </div>
+        {outBy !== null ? (
           <div className="field">
-            <label htmlFor={id}>
-              What happened, if you know <span className="opt">optional</span>
-            </label>
-            <input id={id} className="input input-lg" aria-describedby={`${id}h`} value={note} onChange={(event) => setNote(event.target.value)} />
-            <span id={`${id}h`} className="help">
-              {`The manager sees this beside the ${variance < 0 ? "shortfall" : "difference"}.`}
-            </span>
+            <label htmlFor={id}>What happened</label>
+            <input
+              ref={noteRef}
+              id={id}
+              className="input input-lg"
+              aria-invalid={problem?.field === "note" || undefined}
+              placeholder="For example: gave change for US$20 instead of US$10"
+              maxLength={500}
+              value={note}
+              onChange={(event) => setNote(event.target.value)}
+            />
+            <span className="help">A manager signs it off.</span>
           </div>
         ) : null}
         {closesDay ? (
@@ -598,7 +646,7 @@ function CheckScreen({
             one and its report goes to ZIMRA.
           </p>
         ) : null}
-        {close.isError ? <ErrorLine large>{getApiErrorMessage(close.error)}</ErrorLine> : null}
+        {problem ? <ErrorLine large>{problem.message}</ErrorLine> : null}
         <div className="actions">
           <button type="button" className="btn btn-lg" onClick={onBack}>
             <ArrowsClockwise className="ic" />
@@ -606,7 +654,7 @@ function CheckScreen({
           </button>
           <button type="button" className="btn btn-primary btn-lg" disabled={close.isPending} aria-busy={close.isPending || undefined} onClick={() => close.mutate()}>
             <Check className="ic" />
-            {closeLabel}
+            Close the shift
           </button>
         </div>
       </div>

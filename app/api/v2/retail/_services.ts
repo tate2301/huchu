@@ -1,4 +1,3 @@
-import { closeFiscalDayIfLastShift } from "@/lib/retail/fiscal-settings";
 import { assignRetailSaleFiscalDay } from "@/lib/retail/fiscalisation";
 import { Prisma, type RetailTenderType } from "@prisma/client";
 import { normalizeProvidedId, reserveIdentifier } from "@/lib/id-generator";
@@ -44,18 +43,14 @@ import {
   tradingDayAsDate,
   tradingDayWindow,
 } from "@/lib/retail/z-report";
-import { createApprovalAction } from "@/lib/workflow/approvals";
 import {
   auditSalePosted,
   auditSaleReversed,
-  auditShiftClosed,
 } from "@/lib/retail/audit";
-import { canRetailRoleDo } from "@/lib/retail/permissions";
 import {
   ensureSiteAccess,
   normalizeRetailPostingPayments,
   postRetailJournal,
-  type RetailAccountingResult,
 } from "./_helpers";
 import { shiftElsewhereSentence } from "@/lib/retail/device-words";
 
@@ -259,147 +254,6 @@ async function ensureRetailSaleAccountingPosted(input: {
       totalCost: postingLines.reduce((total, line) => total + line.totalCost, 0),
     },
   });
-}
-
-export async function closeRetailShiftTransaction(input: {
-  actor: RetailActorContext;
-  shiftId: string;
-  countedCash: number;
-  notes?: string | null;
-  periodOverrideReason?: string | null;
-  closedAt?: Date;
-  allowManagerClose?: boolean;
-}) {
-  const existing = await prisma.retailShift.findFirst({
-    where: { id: input.shiftId, companyId: input.actor.companyId },
-  });
-  if (!existing) {
-    throw new Error("Shift not found");
-  }
-  if (existing.status !== "OPEN") {
-    throw new Error("Only open shifts can be closed");
-  }
-
-  const allowManagerClose = input.allowManagerClose ?? true;
-  if (existing.cashierId !== input.actor.userId) {
-    if (
-      !allowManagerClose ||
-      // R-2.4. Somebody else's drawer is `retail.cash-control`, which is the
-      // resource the matrix defines as "the back-office half of a shift".
-      !canRetailRoleDo(input.actor.userRole, "retail.cash-control", "close-shift")
-    ) {
-      throw new Error("Only the shift owner or a manager can close this shift");
-    }
-  }
-
-  const { closed: updated, variance } = await prisma.$transaction(async (tx) => {
-    // The drawer's expected cash as it stands once nothing else can move it: a
-    // sale or a cash movement committing between the read above and this close
-    // would otherwise leave a variance worked out from a stale figure.
-    const [locked] = await tx.$queryRaw<Array<{ status: string; expectedCash: Prisma.Decimal }>>`
-      SELECT "status", "expectedCash" FROM "RetailShift" WHERE "id" = ${existing.id} FOR UPDATE`;
-    if (!locked || locked.status !== "OPEN") {
-      throw new Error("Only open shifts can be closed");
-    }
-    const expectedCash = money(locked.expectedCash);
-    // In `Decimal`, not `round(a - b)`: a cash-up variance is the number a manager is
-    // asked to explain, and the float subtraction it replaces could put a cent on it
-    // that nobody counted.
-    const variance = money(input.countedCash).minus(expectedCash);
-    const closed = await tx.retailShift.update({
-      where: { id: existing.id },
-      data: {
-        status: "CLOSED",
-        countedCash: input.countedCash,
-        variance,
-        notes: input.notes?.trim() || existing.notes,
-        closedAt: input.closedAt ?? new Date(),
-      },
-    });
-
-    /*
-      R-3.3. The cash-up is the retail equivalent of a payroll run being
-      approved: a figure somebody counted, checked against a figure the system
-      derived, and signed off. `closedByOwner` on the event is the fact worth
-      keeping — a manager closing a cashier's drawer is routine, and is also
-      the shape of a drawer closed before its cashier could count it.
-    */
-    await auditShiftClosed(tx, {
-      actor: input.actor,
-      shiftId: closed.id,
-      shiftNo: closed.shiftNo,
-      cashierId: closed.cashierId,
-      expectedCash,
-      countedCash: closed.countedCash ?? 0,
-      variance,
-      notes: input.notes,
-    });
-
-    /*
-      And the same sign-off in the approvals table, where every other module's
-      goes.
-
-      Two records of one act, deliberately, because they answer different
-      questions. The chained event above answers "can I trust this is what the
-      system said on Friday". This answers "what has this person signed off",
-      across payroll, disbursements and now the till, in one query — which is
-      the question an owner asks about a manager, and it should not need three.
-
-      No notification comes of it: `emitWorkflowNotificationFromApprovalAction`
-      returns null for an entity type it has no copy for, which is right here.
-      A cash-up is not waiting on anybody; it is already done.
-    */
-    await createApprovalAction(tx, {
-      companyId: input.actor.companyId,
-      entityType: "RETAIL_SHIFT",
-      entityId: closed.id,
-      action: "APPROVE",
-      actedById: input.actor.userId,
-      fromStatus: "OPEN",
-      toStatus: "CLOSED",
-      note: `Counted ${money(input.countedCash).toFixed(2)} against ${expectedCash.toFixed(2)} expected; variance ${variance.toFixed(2)}`,
-    });
-
-    return { closed, variance };
-  });
-
-  const accounting =
-    !variance.isZero()
-      ? await postRetailJournal({
-          companyId: input.actor.companyId,
-          sourceType: "RETAIL_SHIFT_VARIANCE",
-          sourceId: updated.id,
-          sourceSubtype: variance.isNegative() ? "SHORT" : "OVER",
-          siteId: updated.siteId,
-          registerCode: updated.registerCode,
-          entryDate: updated.closedAt ?? new Date(),
-          description: `Retail shift variance ${updated.shiftNo}`,
-          createdById: input.actor.userId,
-          actorRole: input.actor.userRole ?? undefined,
-          periodOverrideReason: input.periodOverrideReason ?? undefined,
-          amount: toNumberOrZero(variance.abs()),
-          netAmount: toNumberOrZero(variance.abs()),
-          taxAmount: 0,
-          grossAmount: toNumberOrZero(variance.abs()),
-          invertDirection: variance.isNegative(),
-        })
-      : ({
-          accountingStatus: "POSTED",
-          accountingError: null,
-          accountingCode: null,
-          journalEntryId: null,
-        } satisfies RetailAccountingResult);
-
-  // "Close the fiscal day · With the last shift" (SET-08): the shop's last open shift closing closes its day.
-  const fiscalDay = await closeFiscalDayIfLastShift({
-    companyId: input.actor.companyId,
-    userId: input.actor.userId,
-    userName: input.actor.userName ?? null,
-    userRole: input.actor.userRole ?? null,
-  });
-
-  /** `fiscalDayClosed`: the fiscal day's number when this shift closing closed it, so the till can say so. */
-  return { shift: updated, accounting, fiscalDayClosed: fiscalDay.closed };
 }
 
 /**

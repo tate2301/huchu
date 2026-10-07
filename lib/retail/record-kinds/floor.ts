@@ -1,4 +1,5 @@
 import { fetchJson } from "@/lib/api-client";
+import { closeUncountedAsk } from "@/lib/retail/asks";
 import type { SaleView } from "@/lib/retail/floor/sale-view";
 import { fiscalChip, paidKpi, saleStateChip } from "@/lib/retail/floor/sale-words";
 import type { ShiftRecordView } from "@/lib/retail/shift-record";
@@ -10,8 +11,9 @@ import type { RailGroup, RecordAction, RecordChip, RecordKind, RecordKpi, Record
 /**
  * The shift record kind (00-foundations 5.6.10, ShiftRecord board): the
  * reference record. FND wires "Export as PDF", "Print X-report" (open) or
- * "Print Z-report" (closed) and the existing count and close; the floor spec
- * adds the cash move, staff message, sign-off and close without counting.
+ * "Print Z-report" (closed); the floor spec adds the cash move, staff
+ * message, Count and close (its own page, FLR-04), close without counting
+ * and sign-off.
  */
 
 const CASH_CONTROL = ["retail.cash-control", "view"] as const;
@@ -130,6 +132,24 @@ export const shiftKind: RecordKind<ShiftRecordView> = {
       requires: [[...CASH_CONTROL], [...OWN_TILL]],
       do: { download: `/api/v2/retail/records/RetailShift/${shift.id}/pdf` },
     },
+    // FLR-04: a drawer nobody can count (a lost handheld) closes Not counted, for a manager to sign off.
+    ...(shift.status === "OPEN"
+      ? [
+          {
+            key: "close-uncounted",
+            label: "Close without counting",
+            tone: "bad",
+            requires: [["retail.cash-control", "close-shift"]],
+            do: {
+              post: {
+                url: `/api/v2/retail/shifts/${shift.id}/close-uncounted`,
+                ask: closeUncountedAsk(shift),
+                done: `${shift.shiftNo} closed without a count.`,
+              },
+            },
+          } satisfies RecordAction,
+        ]
+      : []),
   ],
   primary: (shift) =>
     shift.status === "OPEN"
@@ -140,7 +160,7 @@ export const shiftKind: RecordKind<ShiftRecordView> = {
             ["retail.cash-control", "close-shift"],
             ["retail.sell", "close-shift"],
           ],
-          do: { event: "count-and-close" },
+          do: { href: `/retail/shifts/${shift.id}/close` },
         }
       : null,
   steps,
@@ -232,7 +252,20 @@ export const shiftKind: RecordKind<ShiftRecordView> = {
             title: "Close",
             rows: [
               { key: "closed", label: "Closed", value: `${formatDay(shift.closedAt)}, ${formatTime(shift.closedAt)}`, mono: true },
-              ...(shift.notes ? [{ key: "note", label: "What happened", value: shift.notes }] : []),
+              { key: "by", label: "By", value: shift.close?.byName ?? "—", muted: !shift.close?.byName },
+              { key: "note", label: "What happened", value: shift.close?.note ?? "Nothing to explain", muted: !shift.close?.note },
+              {
+                key: "float-left",
+                label: "Float left",
+                value: shift.close?.floatLeft === null || shift.close?.floatLeft === undefined ? "—" : formatMoney(shift.close.floatLeft),
+                mono: shift.close?.floatLeft !== null && shift.close?.floatLeft !== undefined,
+              },
+              {
+                key: "to-safe",
+                label: "To the safe",
+                value: shift.close?.toSafe === null || shift.close?.toSafe === undefined ? "—" : formatMoney(shift.close.toSafe),
+                mono: shift.close?.toSafe !== null && shift.close?.toSafe !== undefined,
+              },
             ],
           },
         ]

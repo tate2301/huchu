@@ -115,7 +115,8 @@ function caseBrokenWords(payload: Payload): ActivityWords {
 function shiftClosedWords(payload: Payload): ActivityWords {
   const variance = amount(payload.variance);
   if (variance === null || amount(payload.countedCash) === null) {
-    return { what: "Closed without a count", tone: "warn" };
+    const reason = text(payload.reason);
+    return { what: reason ? `Closed without a count: ${reason}` : "Closed without a count", tone: "warn" };
   }
   if (variance < 0) return { what: `Counted and closed, short by ${formatMoney(-variance)}`, tone: "bad" };
   if (variance > 0) return { what: `Counted and closed, over by ${formatMoney(variance)}`, tone: "warn" };

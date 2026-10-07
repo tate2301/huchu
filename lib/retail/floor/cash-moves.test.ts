@@ -10,7 +10,7 @@ import { cashMovementWhy } from "@/lib/retail/cash-movements";
 import { runRetailPosting } from "@/lib/retail/posting-settings";
 import { makeTestShop, type TestShop } from "@/lib/retail/products/test-fixtures";
 
-import { closeRetailShiftTransaction } from "@/app/api/v2/retail/_services";
+import { closeShift } from "./shifts";
 
 import { answerCashMove } from "./cash-moves";
 
@@ -258,7 +258,11 @@ describe("a close racing a cash movement", () => {
       });
       const [moved] = await Promise.allSettled([
         move(tafara(), { amount: "30.00" }, shift.id),
-        closeRetailShiftTransaction({ actor: owner, shiftId: shift.id, countedCash: 100 }),
+        closeShift({
+          session: { user: { id: owner.userId, companyId: owner.companyId, role: owner.userRole, name: owner.userName } },
+          shiftId: shift.id,
+          body: { counts: { USD: [{ denomination: "100", count: 1 }] }, floatLeft: "0", note: "Counted while a drop was made" },
+        }),
       ]);
       const after = await prisma.retailShift.findUniqueOrThrow({ where: { id: shift.id } });
       expect(after.status).toBe("CLOSED");

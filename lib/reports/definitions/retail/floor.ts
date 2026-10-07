@@ -159,8 +159,8 @@ const shifts: ListSpec = {
   ],
   rowHref: "/retail/shifts/{id}",
   // The row menu is the floor spec's (C-25, 50-floor 5.4): Open; on an open
-  // shift, Record cash in or out and the X-report (FLR-03); the closed day's
-  // Z-report. Count and close and sign-off arrive with their sheets.
+  // shift, Count and close (FLR-04), Record cash in or out and the X-report
+  // (FLR-03); the closed day's Z-report. Sign-off arrives with its sheet.
   rowMenu: [
     {
       key: "open",
@@ -170,6 +170,16 @@ const shifts: ListSpec = {
         ["retail.sell", "view"],
       ],
       do: { href: "/retail/shifts/{id}" },
+    },
+    {
+      key: "count-and-close",
+      label: "Count and close",
+      requires: [
+        ["retail.cash-control", "close-shift"],
+        ["retail.sell", "close-shift"],
+      ],
+      when: [{ column: "state", op: "is", value: ["Open"] }],
+      do: { href: "/retail/shifts/{id}/close" },
     },
     {
       key: "cash-move",

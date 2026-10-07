@@ -52,6 +52,8 @@ export type ShiftRecordView = {
   expectedCash: number;
   countedCash: number | null;
   variance: number | null;
+  /** The close (FLR-04): who closed it, what happened, the float left for tomorrow and what went to the safe. */
+  close: { byName: string | null; note: string | null; floatLeft: number | null; toSafe: number | null } | null;
   tenders: Array<{ tender: string; label: string; amount: number; sales: number }>;
   /** Takings over the time it was open, for the chart: see `takingsOverTime`. */
   takingsOverTime: TakingsOverTime;
@@ -140,6 +142,7 @@ export async function loadShiftRecord(
   const timeZone = options.timeZone ?? DEFAULT_TIME_ZONE;
   const shift = await prisma.retailShift.findFirst({
     where: { id, companyId, ...(options.cashierId ? { cashierId: options.cashierId } : {}) },
+    include: { closedBy: { select: { name: true } } },
   });
   if (!shift) return null;
 
@@ -229,6 +232,15 @@ export async function loadShiftRecord(
     expectedCash: toNumberOrZero(shift.expectedCash),
     countedCash: shift.countedCash === null ? null : toNumberOrZero(shift.countedCash),
     variance,
+    close:
+      status === "CLOSED"
+        ? {
+            byName: shift.closedBy?.name ?? null,
+            note: shift.closeNote,
+            floatLeft: shift.floatLeft === null ? null : toNumberOrZero(shift.floatLeft),
+            toSafe: shift.toSafe === null ? null : toNumberOrZero(shift.toSafe),
+          }
+        : null,
     tenders: [...tenders.entries()]
       .map(([tender, entry]) => ({ tender, label: tenderLabel(tender), amount: cents(entry.amount), sales: entry.sales.size }))
       .sort((a, b) => b.amount - a.amount),

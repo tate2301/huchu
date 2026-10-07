@@ -4,7 +4,7 @@ import { act, useState } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { binAsk, closeShortAsk, unpairAsk } from "@/lib/retail/asks";
+import { binAsk, closeShortAsk, closeUncountedAsk, unpairAsk } from "@/lib/retail/asks";
 import type { Ask } from "@/lib/workspace/ask";
 import { ConfirmDialog } from "./confirm-dialog";
 
@@ -18,7 +18,7 @@ afterEach(() => {
   document.body.innerHTML = "";
 });
 
-function mount(ask: Ask, onConfirm: () => Promise<void>) {
+function mount(ask: Ask, onConfirm: (value?: string) => Promise<void>) {
   const onOpenChange = vi.fn();
   function Harness() {
     const [open, setOpen] = useState(true);
@@ -98,5 +98,28 @@ describe("ConfirmDialog with nothing to go ahead with", () => {
     mount(unpairAsk("Front till", "CounterMini", "Close Chipo Dube’s shift on Front till first."), vi.fn(async () => {}));
     expect(dialog()?.textContent).toContain("Close Chipo Dube’s shift on Front till first.");
     expect(Array.from(document.querySelectorAll("button")).map((b) => b.textContent)).toEqual(["Keep it"]);
+  });
+});
+
+describe("ConfirmDialog with a field", () => {
+  const ask = closeUncountedAsk({ shiftNo: "SH-00240", expectedCash: 72.95 });
+
+  it("asks why, refuses go until it is said, then sends it", async () => {
+    const onConfirm = vi.fn(async (value?: string) => void value);
+    mount(ask, onConfirm);
+    expect(dialog()?.textContent).toContain("the US$72.95 that should be in it stays on the shift");
+    const area = document.querySelector("textarea") as HTMLTextAreaElement;
+    expect(area.placeholder).toBe("The handheld was lost, for example");
+    expect(document.querySelector(`label[for="${area.id}"]`)?.textContent).toBe("Why");
+    await act(async () => button("Close without counting").click());
+    expect(onConfirm).not.toHaveBeenCalled();
+    expect(document.querySelector(".cx-error")?.textContent).toBe("Say why it was not counted.");
+    await act(async () => {
+      const setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")!.set!;
+      setter.call(area, "  The handheld was lost  ");
+      area.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    await act(async () => button("Close without counting").click());
+    expect(onConfirm).toHaveBeenCalledWith("The handheld was lost");
   });
 });

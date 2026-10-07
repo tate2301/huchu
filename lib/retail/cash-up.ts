@@ -184,9 +184,9 @@ export function shiftOpenPosting(shift: { openingFloat: MoneyLike; openingFloatZ
 /**
  * Counted less expected. Over is positive, short is negative.
  *
- * The same subtraction `closeRetailShiftTransaction` performs, exported so the
- * hand-worked test asserts the arithmetic the route runs rather than its own copy
- * of it.
+ * The Z-report's subtraction, exported so the hand-worked test asserts the
+ * arithmetic the report runs rather than its own copy of it. (The close itself
+ * counts by note through `countDrawer`, FLR-04.)
  */
 export function cashVariance(input: {
   countedCash: MoneyLike;
