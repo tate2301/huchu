@@ -502,7 +502,12 @@ function buildSchoolsProfileSections(): WorkspaceProfileSectionSpec[] {
       .map((item) => ({ moduleId: "schools" as const, href: item.href })),
   }));
 
-  return [...loose, ...bands];
+  // Every report the workspace can open, beside the school's own. Pulled in by
+  // the arrangement so a school that is one workspace of several still has it:
+  // a split vertical's rail holds only what its arrangement asks for.
+  const reports = { id: "schools-all-reports", title: "Reports", refs: [{ moduleId: "reporting" as const, href: "/reports" }] };
+
+  return [...loose, ...bands, reports];
 }
 
 /**
@@ -1131,8 +1136,13 @@ function scopeModulesToWorkspace(
     // the stored enum carries. There is no curated arrangement to pull shared
     // destinations through, so the general builder would simply list every
     // module it can see. This workspace is its own module and nothing else.
+    // Its reports come with it: every workspace can open the reports it is
+    // about, and a sales desk's are its pipeline's.
     const items = visibleModules.get(active.moduleId);
-    return items ? new Map([[active.moduleId, items]]) : new Map();
+    const scopedModules = new Map<WorkspaceModuleId, NavItem[]>(items ? [[active.moduleId, items]] : []);
+    const reports = visibleModules.get("reporting");
+    if (items && reports) scopedModules.set("reporting", reports);
+    return scopedModules;
   }
   for (const moduleId of WORKSPACE_OWNER_MODULES) {
     if (moduleId !== active.moduleId) scoped.delete(moduleId);

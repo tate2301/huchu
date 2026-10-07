@@ -4,7 +4,12 @@ import {
   inferWorkspaceProfileFromEnabledFeatures,
   WORKSPACE_PROFILES,
 } from "@/lib/workspace-products";
-import { getWorkspaceSidebarModel } from "@/lib/workspaces";
+import {
+  CLIENT_BUNDLE_TEMPLATES,
+  getClientTemplateDisabledFeatureKeys,
+  getClientTemplateFeatureKeys,
+} from "@/lib/platform/client-templates";
+import { getWorkspaceOptions, getWorkspaceProfileForTemplate, getWorkspaceSidebarModel } from "@/lib/workspaces";
 import { resolveWorkspaceVerticalProductBundle } from "@/lib/workspace-products";
 
 /**
@@ -452,4 +457,26 @@ describe("an explicit GENERAL survives every layer", () => {
     expect(hrefs.filter((href) => href.startsWith("/gold"))).toEqual([]);
     expect(hrefs.some((href) => href.startsWith("/schools"))).toBe(true);
   });
+});
+
+/* ── Reports, from every workspace ───────────────────────────────────── */
+
+describe("reports in every workspace", () => {
+  const reportLinks = (model: ReturnType<typeof getWorkspaceSidebarModel>) =>
+    model.sections.flatMap((section) => section.items).filter((item) => item.href === "/reports").length;
+
+  it.each(CLIENT_BUNDLE_TEMPLATES.map((template) => [template.code, template] as const))(
+    "%s reaches the reports, once, from each of its workspaces",
+    (_, template) => {
+      const disabled = new Set(getClientTemplateDisabledFeatureKeys(template.code));
+      const enabledFeatures = getClientTemplateFeatureKeys(template.code).filter((key) => !disabled.has(key));
+      for (const role of ["MANAGER", "CLERK"]) {
+        const args = { role, enabledFeatures, workspaceProfile: getWorkspaceProfileForTemplate(template.code) };
+        for (const option of getWorkspaceOptions(args)) {
+          const model = getWorkspaceSidebarModel({ ...args, activeWorkspaceId: option.id });
+          expect(reportLinks(model), `${option.label} as ${role}`).toBe(1);
+        }
+      }
+    },
+  );
 });
