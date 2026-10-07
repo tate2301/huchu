@@ -18,14 +18,13 @@ import {
   PintGlass,
   Plus,
   SimCard,
-  Tag,
   Wine,
 } from "@/lib/icons";
 import { clockLabel } from "@/lib/retail/licence-hours";
-import { count, MEASURES, qty, usd, whole } from "./format";
+import { count, MEASURES, qty, usd } from "./format";
 import { TillPopover } from "./parts";
 import { useTill } from "./state";
-import type { PosCatalogItem, Promotion } from "./types";
+import type { PosCatalogItem } from "./types";
 
 /** A glyph for a product with no photo, from what its name says it is. */
 const GLYPHS: Array<[RegExp, React.ComponentType<{ className?: string }>]> = [
@@ -184,71 +183,35 @@ export function ProductTile({
   );
 }
 
-/** A promotion on the quick row: what it takes off, short. */
-function promotionWord(promotion: Promotion) {
-  if (promotion.type === "PERCENT") return `${whole(promotion.value)}% off`;
-  if (promotion.type === "AMOUNT") return `${usd(promotion.value)} off`;
-  return null;
-}
-
-/** At most this many on the quick row: promotions first, then what needs typing (airtime), then the most sold. */
+/** At most this many on the quick row: what needs typing (airtime) first, then the most sold. */
 const QUICK_MOST = 5;
 
 /**
- * The quick row, above the groups on Most sold: the shop's running promotions
- * (pressed, one goes on the sale; pressed again, it comes off), open-price
- * products like airtime, and the best sellers, never more than five. Out of
- * stock and stopped products are left off rather than shown grey.
+ * The quick row, above the groups on Most sold: open-price products like
+ * airtime and the best sellers, never more than five. Running promotions are
+ * not here: they come off a sale on their own (PRD-09). Out of stock and
+ * stopped products are left off rather than shown grey.
  */
 export function QuickRow({
   ranked,
-  promotions,
-  selectedPromotionId,
-  onPromotion,
   stoppedUntil,
   onSaleOf,
   onAdd,
 }: {
   /** The shelf, most sold first. */
   ranked: readonly PosCatalogItem[];
-  promotions: readonly Promotion[];
-  selectedPromotionId: string;
-  onPromotion: (id: string) => void;
   stoppedUntil: number | null | undefined;
   onSaleOf: (item: PosCatalogItem) => number;
   onAdd: (item: PosCatalogItem, typedPrice?: number) => void;
 }) {
-  const shown = promotions.slice(0, 2);
   const sellable = ranked.filter((item) => !tileOff(item, stoppedUntil));
   const typed = sellable.filter((item) => item.openPrice).slice(0, 1);
-  const best = sellable.filter((item) => !item.openPrice).slice(0, Math.max(QUICK_MOST - shown.length - typed.length, 0));
+  const best = sellable.filter((item) => !item.openPrice).slice(0, Math.max(QUICK_MOST - typed.length, 0));
   const products = [...typed, ...best];
-  if (!shown.length && !products.length) return null;
+  if (!products.length) return null;
 
   return (
     <div className="quick" role="group" aria-label="Quick add">
-      {shown.map((promotion) => {
-        const on = promotion.id === selectedPromotionId;
-        // Said once: a name that already says "5% off" needs no label after it.
-        const off = promotionWord(promotion);
-        const word = off && !promotion.name.toLowerCase().includes(off.toLowerCase()) ? off : null;
-        return (
-          <button
-            key={promotion.id}
-            type="button"
-            className="quick-item"
-            aria-pressed={on}
-            title={promotion.name}
-            onClick={() => onPromotion(on ? "" : promotion.id)}
-          >
-            <span className="qpic" aria-hidden="true">
-              <Tag className="ic" />
-            </span>
-            <span className="qn">{promotion.name}</span>
-            {word ? <span className="qp">{word}</span> : null}
-          </button>
-        );
-      })}
       {products.map((item) => {
         const onIt = onSaleOf(item);
         const button = (

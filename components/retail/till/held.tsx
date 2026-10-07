@@ -32,7 +32,7 @@ export function HeldScreen() {
   const router = useRouter();
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const { shiftHere, shiftLoading, cart, amountDue, replaceCartFromHeld, customerName, orderDiscountAmount, selectedPromotionId, clearCart, isPosHost } = useTill();
+  const { shiftHere, shiftLoading, cart, amountDue, replaceCartFromHeld, customerName, orderDiscountAmount, clearCart, isPosHost } = useTill();
   const [recalling, setRecalling] = React.useState<HeldCart | null>(null);
   const [discarding, setDiscarding] = React.useState<HeldCart | null>(null);
 
@@ -52,7 +52,7 @@ export function HeldScreen() {
           body: JSON.stringify({
             shiftId: shiftHere?.id,
             label: customerName || undefined,
-            cartSnapshot: { items: cart, customerName, orderDiscountAmount, selectedPromotionId },
+            cartSnapshot: { items: cart, customerName, orderDiscountAmount },
           }),
         });
         clearCart();

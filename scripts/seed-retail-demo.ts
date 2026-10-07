@@ -65,7 +65,7 @@ import { deleteFromBinForGood, listBinEntries, moveToBin } from "@/lib/retail/bi
 import { CATEGORY_SEEDS, ensureRetailCategories } from "@/lib/retail/categories"
 import { findDefaultPriceList, followPrice } from "@/lib/retail/prices/change"
 import { tradingDayKey } from "@/lib/retail/z-report"
-import { dayKey } from "@/lib/workspace/format"
+import { dayKey, formatWhen } from "@/lib/workspace/format"
 import {
   auditCashMoved,
   auditRecordEdited,
@@ -79,7 +79,7 @@ import { closeDay, dayFigures, DayRefused, loadDayRows } from "@/lib/retail/floo
 import { postRetailJournal } from "@/app/api/v2/retail/_helpers"
 import { adjustmentJournal, adjustStock, type AdjustWhy } from "@/lib/retail/stock/adjustments"
 import { breakCase } from "@/lib/retail/stock/cases"
-import { shareCents } from "@/lib/retail/pricing/engine"
+import { applyPromotions, shareCents, type SnapshotPromotion } from "@/lib/retail/pricing/engine"
 import { hashInviteToken, INVITE_DAYS } from "@/lib/retail/people/invite"
 
 function readArg(name: string): string | undefined {
@@ -814,34 +814,8 @@ async function main() {
   }
   const customerNamed = (name: string) => customers.find((customer) => customer.name === name)!
 
-  // ── Promotions ───────────────────────────────────────────────────────────
-  await prisma.retailPromotion.upsert({
-    where: { companyId_promoCode: { companyId, promoCode: "PROMO-CASE" } },
-    update: { status: "ACTIVE" },
-    create: {
-      companyId,
-      promoCode: "PROMO-CASE",
-      name: "Case of Castle — 5% off",
-      type: "PERCENT",
-      value: money("5.00"),
-      status: "ACTIVE",
-      startsAt: daysAgo(30),
-      endsAt: daysAgo(-30),
-    },
-  })
-  await prisma.retailPromotion.upsert({
-    where: { companyId_promoCode: { companyId, promoCode: "PROMO-FESTIVE" } },
-    update: { status: "SCHEDULED" },
-    create: {
-      companyId,
-      promoCode: "PROMO-FESTIVE",
-      name: "Festive season $2 off spirits",
-      type: "AMOUNT",
-      value: money("2.00"),
-      status: "SCHEDULED",
-      startsAt: daysAgo(-20),
-    },
-  })
+  // ── Promotions (PRD-09): the nine on the boards; the history's lines carry what they took off.
+  const promotions = await seedPromotions({ companyId, productIds: new Map([...stocked].map(([code, line]) => [code, line.productId])), categoryIds })
 
   if (reset) {
     // Only the trading history, never the shelf or the staff. A reset that wiped
@@ -1281,6 +1255,8 @@ async function main() {
         lineTotal: negate(line.lineTotal),
         costTotal: negate(line.costTotal),
         depositAmount: negate(line.depositAmount ?? 0),
+        promotionId: null,
+        promotionDiscount: money(0),
         createdAt: at,
       })
     }
@@ -1301,6 +1277,11 @@ async function main() {
   let functionOrderSaleId: string | null = null
   const bundleSaleIds = new Set<string>()
   const byCode = new Map(CATALOGUE.map((entry) => [entry.code, entry]))
+  const festive = festiveDates()
+  const pairs2 = pairDeals()
+  const categoryOfProduct = new Map(
+    [...stocked].map(([code, line]) => [line.productId, categoryIds.get(byCode.get(code)?.category ?? "") ?? null]),
+  )
   const codeOfProduct = new Map([...stocked].map(([code, line]) => [line.productId, code]))
 
   for (const [slotIndex, slot] of slots.entries()) {
@@ -1338,8 +1319,12 @@ async function main() {
           : inWindow
           ? [...quota.take(windowSalesLeft--), ...(postedAt.getTime() < soldOutBy ? soldOutQuota.take(soldOutSalesLeft--) : [])]
           : Array.from({ length: between(1, 2) }, () => {
-              const product = pickProduct()
-              return { code: product.code, units: product.weight >= 200 ? between(1, 3) : 1 }
+              let product = pickProduct()
+              // Spirits sold slower in the weeks before the festive US$2 came off them (PRD-09's record compares the two).
+              if (product.category === "Spirits" && postedAt >= festive.before && postedAt < festive.starts && Math.random() < 0.35) product = pickProduct()
+              // Two for one price brings them in pairs while it runs.
+              const pairs = pairs2.some((deal) => deal.code === product.code && postedAt >= deal.from && postedAt <= deal.to)
+              return { code: product.code, units: product.weight >= 200 || pairs ? between(1, 3) : 1 }
             })
         const lines: LineRow[] = []
         for (const pickedLine of picks) {
@@ -1385,6 +1370,8 @@ async function main() {
         if (lines.length === 0) continue
         // A bundle's lines share its price pro rata to their own, in whole cents (PRD-08's engine).
         if (bundleSale) priceBundleLines(lines, bundleSale.bundle)
+        // The promotions running when it was rung, by the till's own engine (PRD-09); none on a bundle.
+        else promoteLines(lines, promotions, postedAt, slotSiteId, (productId) => categoryOfProduct.get(productId) ?? null)
 
         // Revenue before tax. On a tax-inclusive list that is the ex-VAT value
         // of the shelf prices, not the shelf prices themselves — the same basis
@@ -1771,6 +1758,8 @@ async function main() {
       taxAmount: negate(soldLine.taxAmount),
       lineTotal: negate(soldLine.lineTotal),
       costTotal: negate(soldLine.costTotal),
+      promotionId: null,
+      promotionDiscount: money(0),
       createdAt: refundAt,
     })
     paymentRows.push({
@@ -5415,4 +5404,192 @@ function priceBundleLines(lines: Prisma.RetailSaleLineCreateManyInput[], bundle:
     line.taxAmount = gross.minus(net)
     line.discountAmount = netOfInclusiveTax(shelfGross, VAT_PERCENT).minus(net)
   })
+}
+
+
+/* ── Promotions (PRD-09) ─────────────────────────────────────────────── */
+
+/** A wall-clock moment in Harare on a fixed day: "2026-09-02", "00:00". */
+function harareAt(day: string, time = "00:00") {
+  return new Date(`${day}T${time}:00+02:00`)
+}
+
+/** When the festive promotion starts, and as long again before it. */
+function festiveDates() {
+  return { starts: harareAt("2026-09-02"), before: harareAt("2026-07-28") }
+}
+
+/** The two-for deals' products and dates, so the history sells them in pairs while they ran. */
+function pairDeals() {
+  return [
+    { code: "COKE-500", from: harareAt("2026-07-01"), to: harareAt("2026-07-31", "23:59") },
+    { code: "SAVANNA-330", from: harareAt("2026-06-01"), to: harareAt("2026-06-30", "23:59") },
+  ]
+}
+
+type PromotionSeed = {
+  code: string
+  name: string
+  type: "PERCENT" | "AMOUNT" | "BUY_X_PAY" | "FIXED_PRICE"
+  value: string
+  buyQuantity?: number
+  scope: "EVERYTHING" | "CATEGORIES" | "PRODUCTS"
+  products?: string[]
+  categories?: string[]
+  minBasket?: string
+  audience?: "EVERYONE" | "STAFF"
+  startsAt: Date
+  endsAt: Date | null
+}
+
+/**
+ * The nine promotions of `PromotionsList.png` (20-products 3.5), "today" the
+ * seed's day: Running 3 (Festive, Staff, the Castle case at US$24.00 ending
+ * tomorrow), Scheduled 1 (Christmas), Ended 5. PROMO-CASE and PROMO-FESTIVE
+ * are updated in place. Returned as the till's snapshot holds them, so the
+ * history is discounted by the engine itself. Staff never matches until the
+ * customer units flag staff (D-3), so it gave nothing away.
+ */
+async function seedPromotions(input: {
+  companyId: string
+  productIds: Map<string, string>
+  categoryIds: Map<string, string>
+}): Promise<SnapshotPromotion[]> {
+  const { companyId } = input
+  const owner = await prisma.user.findFirst({ where: { companyId, email: "owner@bottlestore.test" }, select: { id: true, name: true } })
+  const seeds: PromotionSeed[] = [
+    { code: "PROMO-FESTIVE", name: "Festive season US$2 off spirits", type: "AMOUNT", value: "2.00", scope: "CATEGORIES", categories: ["Spirits"], startsAt: harareAt("2026-09-02"), endsAt: null },
+    { code: "PROMO-STAFF", name: "Staff discount US$2", type: "AMOUNT", value: "2.00", scope: "EVERYTHING", audience: "STAFF", startsAt: harareAt("2026-08-15"), endsAt: null },
+    { code: "PROMO-CASE24", name: "Castle case at US$24.00", type: "FIXED_PRICE", value: "24.00", scope: "PRODUCTS", products: ["CASTLE-CASE"], startsAt: harareTime(14, 0, 0), endsAt: harareTime(-1, 23, 59) },
+    {
+      code: "PROMO-XMAS",
+      name: "Christmas hampers 10% off",
+      type: "PERCENT",
+      value: "10.00",
+      scope: "PRODUCTS",
+      products: ["AMARULA-750", "GORDONS-750", "JAMESON-750", "TWOKEYS-750"],
+      startsAt: harareAt("2026-12-01"),
+      endsAt: harareAt("2026-12-26", "23:59"),
+    },
+    { code: "PROMO-WINTER", name: "Winter basket 5% off", type: "PERCENT", value: "5.00", scope: "EVERYTHING", minBasket: "20.00", startsAt: harareAt("2026-08-05"), endsAt: harareAt("2026-09-02") },
+    { code: "PROMO-CASE", name: "Case of Castle 5% off", type: "PERCENT", value: "5.00", scope: "PRODUCTS", products: ["CASTLE-CASE"], startsAt: harareAt("2026-07-14"), endsAt: harareAt("2026-09-12", "23:59") },
+    { code: "PROMO-HERITAGE", name: "Heritage ciders 10% off", type: "PERCENT", value: "10.00", scope: "CATEGORIES", categories: ["Ciders and coolers"], startsAt: harareAt("2026-09-20"), endsAt: harareAt("2026-09-25", "23:59") },
+    { code: "PROMO-COKE2", name: "Two Cokes for US$1.40", type: "BUY_X_PAY", value: "1.40", buyQuantity: 2, scope: "PRODUCTS", products: ["COKE-500"], startsAt: harareAt("2026-07-01"), endsAt: harareAt("2026-07-31", "23:59") },
+    { code: "PROMO-SAVANNA", name: "Two Savanna for US$3.50", type: "BUY_X_PAY", value: "3.50", buyQuantity: 2, scope: "PRODUCTS", products: ["SAVANNA-330"], startsAt: harareAt("2026-06-01"), endsAt: harareAt("2026-06-30", "23:59") },
+  ]
+  // The boards' nine and no others (a walk's leftovers go), the bin's left as it is.
+  await prisma.retailPromotion.deleteMany({ where: { companyId, archivedAt: null, promoCode: { notIn: seeds.map((seed) => seed.code) } } })
+  const out: SnapshotPromotion[] = []
+  for (const seed of seeds) {
+    const productIds = (seed.products ?? []).map((code) => input.productIds.get(code)).filter((id): id is string => Boolean(id))
+    const categoryIds = (seed.categories ?? []).map((name) => input.categoryIds.get(name)).filter((id): id is string => Boolean(id))
+    const data = {
+      name: seed.name,
+      type: seed.type,
+      value: money(seed.value),
+      buyQuantity: seed.buyQuantity ?? null,
+      scope: seed.scope,
+      minBasket: seed.minBasket ? money(seed.minBasket) : null,
+      daysOfWeek: [],
+      audience: seed.audience ?? "EVERYONE",
+      stacks: false,
+      siteId: null,
+      startsAt: seed.startsAt,
+      endsAt: seed.endsAt,
+      pausedAt: null,
+      endedAt: null,
+      archivedAt: null,
+      createdById: owner?.id ?? null,
+      createdAt: new Date(Math.min(seed.startsAt.getTime() - 3 * 24 * 60 * 60 * 1000, Date.now())),
+    }
+    const row = await prisma.retailPromotion.upsert({
+      where: { companyId_promoCode: { companyId, promoCode: seed.code } },
+      update: data,
+      create: { companyId, promoCode: seed.code, ...data },
+      select: { id: true },
+    })
+    await prisma.retailPromotionProduct.deleteMany({ where: { promotionId: row.id } })
+    await prisma.retailPromotionCategory.deleteMany({ where: { promotionId: row.id } })
+    if (productIds.length) await prisma.retailPromotionProduct.createMany({ data: productIds.map((productId) => ({ promotionId: row.id, productId })) })
+    if (categoryIds.length) await prisma.retailPromotionCategory.createMany({ data: categoryIds.map((categoryId) => ({ promotionId: row.id, categoryId })) })
+    out.push({
+      id: row.id,
+      code: seed.code,
+      name: seed.name,
+      type: seed.type,
+      value: Number(seed.value),
+      buyQuantity: seed.buyQuantity ?? null,
+      scope: seed.scope,
+      productIds,
+      categoryIds,
+      minBasket: seed.minBasket ? Number(seed.minBasket) : null,
+      daysOfWeek: [],
+      fromTime: null,
+      toTime: null,
+      audience: seed.audience ?? "EVERYONE",
+      stacks: false,
+      siteId: null,
+      startsAt: seed.startsAt.toISOString(),
+      endsAt: seed.endsAt?.toISOString() ?? null,
+    })
+  }
+  // Their Activity: made by the owner a few days before each started ("Scheduled it from 2 Sep 00:00").
+  await prisma.platformAuditEvent.deleteMany({ where: { companyId, entityType: "RetailPromotion", eventType: "RETAIL_PROMOTION.CREATED" } })
+  for (const promotion of owner ? out : []) {
+    const startsAt = new Date(promotion.startsAt)
+    await writeRetailAuditEvent(prisma, {
+      actor: { companyId, userId: owner!.id, userName: owner!.name, userRole: "SUPERADMIN" },
+      eventType: "RETAIL_PROMOTION.CREATED",
+      entityType: "RetailPromotion",
+      entityId: promotion.id,
+      payload: { code: promotion.code, name: promotion.name, from: formatWhen(startsAt) },
+    })
+    const latest = await prisma.platformAuditEvent.findFirst({
+      where: { companyId, eventType: "RETAIL_PROMOTION.CREATED", entityId: promotion.id },
+      orderBy: { createdAt: "desc" },
+      select: { id: true },
+    })
+    const at = new Date(Math.min(startsAt.getTime() - 3 * 24 * 60 * 60 * 1000, Date.now()))
+    if (latest) await prisma.platformAuditEvent.update({ where: { id: latest.id }, data: { createdAt: at } })
+  }
+  return out
+}
+
+/**
+ * A seeded sale's lines through the promotions running when it was rung, as
+ * the till's engine prices them (`applyPromotions`): each discounted line
+ * keeps its promotion and what it took off the shelf price; its total, VAT
+ * and ex-VAT discount follow, the shelf price VAT-inclusive.
+ */
+function promoteLines(
+  lines: Prisma.RetailSaleLineCreateManyInput[],
+  promotions: SnapshotPromotion[],
+  at: Date,
+  siteId: string,
+  categoryOf: (productId: string) => string | null,
+) {
+  const promoted = applyPromotions(
+    promotions,
+    lines.map((line) => ({
+      key: line.id as string,
+      productId: line.productId as string,
+      categoryId: categoryOf(line.productId as string),
+      quantity: money(line.quantity as Prisma.Decimal).toNumber(),
+      unitPrice: money(line.unitPrice as Prisma.Decimal).toNumber(),
+      alreadyOff: 0,
+    })),
+    { at, siteId },
+  )
+  for (const entry of promoted) {
+    if (!entry.promotionId) continue
+    const line = lines.find((row) => row.id === entry.key)!
+    const shelfGross = multiplyMoney(line.quantity as Prisma.Decimal, line.unitPrice as Prisma.Decimal)
+    const gross = shelfGross.minus(money(entry.discount))
+    const net = netOfInclusiveTax(gross, VAT_PERCENT)
+    line.lineTotal = gross
+    line.taxAmount = gross.minus(net)
+    line.discountAmount = netOfInclusiveTax(shelfGross, VAT_PERCENT).minus(net)
+    line.promotionId = entry.promotionId
+    line.promotionDiscount = money(entry.discount)
+  }
 }

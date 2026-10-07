@@ -136,3 +136,51 @@ export const BUNDLE_LIST_RUNS: Record<string, ListActionRun> = {
     done: (count, rows) => (count === 1 && nameOf(rows) ? `${nameOf(rows)} copied.` : `${formatCount(count)} bundles copied.`),
   },
 };
+
+/** A promotion's "End now" (PRD-09 `promoend`), on its record, its edit sheet and its row. */
+export function promotionEndAsk(code: string): Ask {
+  return {
+    title: `End ${code} now?`,
+    body: "It stops at the next sale on every till. What it sold and gave away stays on its page. An ended promotion cannot start again; duplicate it instead.",
+    keep: "Keep it running",
+    go: "End it now",
+    fill: "bad",
+  };
+}
+
+/** Promotions › tick rows › End now (PRD-09 `promoendmany`). */
+export function promotionEndManyAsk(count: number): Ask {
+  if (count === 1) return { ...promotionEndAsk("1 promotion"), title: "End 1 promotion now?" };
+  return {
+    title: `End ${formatCount(count)} promotions now?`,
+    body: "They stop at the next sale on every till. What they sold and gave away stays on their pages. An ended promotion cannot start again; duplicate it instead.",
+    keep: "Keep them running",
+    go: "End them now",
+    fill: "bad",
+  };
+}
+
+const codeOf = (rows: ReportRow[]) => (rows.length === 1 && rows[0]?.code ? String(rows[0].code) : null);
+const promotionsWord = (count: number, rows: ReportRow[]) => (count === 1 ? (nameOf(rows) ?? "1 promotion") : `${formatCount(count)} promotions`);
+
+/** Promotions' actions that post the ticked ids (PRD-09). */
+export const PROMOTION_LIST_RUNS: Record<string, ListActionRun> = {
+  promopause: {
+    done: (count, rows) => `${promotionsWord(count, rows)} ${count === 1 ? "is" : "are"} paused. The tills stop applying ${count === 1 ? "it" : "them"}.`,
+  },
+  promoresume: {
+    done: (count, rows) => `${promotionsWord(count, rows)} ${count === 1 ? "runs" : "run"} again.`,
+  },
+  promoend: {
+    ask: (count, rows) => (count === 1 && codeOf(rows) ? promotionEndAsk(codeOf(rows)!) : promotionEndManyAsk(count)),
+    done: (count, rows) => `${promotionsWord(count, rows)} ${count === 1 ? "has" : "have"} ended.`,
+  },
+  promoendmany: {
+    ask: (count, rows) => (count === 1 && codeOf(rows) ? promotionEndAsk(codeOf(rows)!) : promotionEndManyAsk(count)),
+    done: (count, rows) => `${promotionsWord(count, rows)} ${count === 1 ? "has" : "have"} ended.`,
+  },
+  promoduplicate: {
+    done: (count, rows) =>
+      count === 1 && nameOf(rows) ? `${nameOf(rows)} copied. The copy starts tomorrow.` : `${formatCount(count)} promotions copied. The copies start tomorrow.`,
+  },
+};

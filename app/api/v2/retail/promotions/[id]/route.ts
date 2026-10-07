@@ -1,78 +1,48 @@
 import { NextRequest, NextResponse } from "next/server";
-import { RetailPromotionStatus } from "@prisma/client";
-import { z } from "zod";
+
 import { errorResponse, successResponse } from "@/lib/api-response";
-import { parseRetailParams, retailIdParams } from "@/lib/retail/request";
-import { prisma } from "@/lib/prisma";
 import { requireRetailPermission } from "@/lib/retail/permissions";
+import { isPromotionId, parsePromotionBody, promotionActor, promotionFailure } from "@/lib/retail/promotions/routes";
+import { loadPromotionView, promotionPatch, updatePromotion } from "@/lib/retail/promotions/service";
 import { requireRetailSession } from "../../_helpers";
 
-const patchSchema = z.object({
-  name: z.string().min(1).max(200).optional(),
-  type: z.enum(["PERCENT", "AMOUNT", "BUY_X_GET_Y", "BUNDLE"]).optional(),
-  value: z.number().min(0).optional(),
-  startsAt: z.string().datetime().optional().nullable(),
-  endsAt: z.string().datetime().optional().nullable(),
-  status: z.nativeEnum(RetailPromotionStatus).optional(),
-  notes: z.string().max(500).optional().nullable(),
-});
+type Params = { params: Promise<{ id: string }> };
 
-async function getPromotion(companyId: string, id: string) {
-  return prisma.retailPromotion.findFirst({
-    where: { id, companyId, archivedAt: null },
-  });
+/** A promotion with its figures (the record, the edit sheet): `retail.promotions:view`. */
+export async function GET(request: NextRequest, { params }: Params) {
+  const { response, session } = await requireRetailSession(request);
+  if (response || !session) return response as NextResponse;
+  const gate = requireRetailPermission(session, "retail.promotions", "view");
+  if (gate) return gate;
+
+  const { id } = await params;
+  if (!isPromotionId(id)) return errorResponse("Promotion not found", 404);
+  const data = await loadPromotionView(session.user.companyId, id);
+  if (!data) return errorResponse("Promotion not found", 404);
+  return successResponse({ data });
 }
 
-export async function PATCH(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
-) {
+/**
+ * Change its rules (the edit sheet, the record's rail): `retail.promotions:update`.
+ * Once it has started its Starts and its kind stay (409 "It has already
+ * started. Change when it ends instead."; 400 "A running promotion keeps its
+ * kind."); an ended one is refused (409 "It has ended. Duplicate it to run it again.").
+ */
+export async function PATCH(request: NextRequest, { params }: Params) {
   const { response, session } = await requireRetailSession(request);
-  if (response || !session) {
-    return response as NextResponse;
-  }
-
+  if (response || !session) return response as NextResponse;
   const gate = requireRetailPermission(session, "retail.promotions", "update");
   if (gate) return gate;
 
+  const { id } = await params;
+  if (!isPromotionId(id)) return errorResponse("Promotion not found", 404);
+  const parsed = await parsePromotionBody(request, promotionPatch);
+  if ("response" in parsed) return parsed.response;
   try {
-    /*
-    R-3.1. The segment, through a schema.
-
-    Prisma is not injectable, so this is not a security fix. It is the
-    difference between a 400 naming the parameter and a 404 that reads, to a
-    shopkeeper, as "the receipt you are holding is not in the system".
-  */
-  const path = await parseRetailParams(params, retailIdParams);
-  if (path.response) return path.response;
-  const { id } = path.data;
-    const existing = await getPromotion(session.user.companyId, id);
-    if (!existing) {
-      return errorResponse("Promotion not found", 404);
-    }
-
-    const body = await request.json();
-    const input = patchSchema.parse(body);
-
-    const updated = await prisma.retailPromotion.update({
-      where: { id: existing.id },
-      data: {
-        name: input.name?.trim(),
-        type: input.type,
-        value: input.value,
-        startsAt: input.startsAt ? new Date(input.startsAt) : input.startsAt,
-        endsAt: input.endsAt ? new Date(input.endsAt) : input.endsAt,
-        status: input.status,
-        notes: input.notes?.trim() ?? input.notes,
-      },
-    });
-
-    return successResponse(updated);
+    const saved = await updatePromotion(promotionActor(session), id, parsed.data);
+    const data = await loadPromotionView(session.user.companyId, id);
+    return successResponse({ data, changed: saved.changed, message: saved.message });
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      return errorResponse("Validation failed", 400, error.issues);
-    }
-    console.error("[API] PATCH /api/v2/retail/promotions/[id] error:", error);
-    return errorResponse("Failed to update promotion");
+    return promotionFailure(error, "PATCH /api/v2/retail/promotions/[id]");
   }
 }

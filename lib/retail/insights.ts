@@ -329,7 +329,6 @@ const saleSelect = {
   siteId: true,
   saleType: true,
   totalAmount: true,
-  discountAmount: true,
   depositAmount: true,
   postedAt: true,
   createdAt: true,
@@ -344,6 +343,7 @@ const saleSelect = {
       lineTotal: true,
       taxAmount: true,
       costTotal: true,
+      promotionDiscount: true,
       product: { select: { retailCategory: { select: { id: true, name: true, targetMarginPercent: true } } } },
     },
   },
@@ -693,7 +693,10 @@ async function profitInsight(companyId: string, window: InsightWindow): Promise<
   const lines = now.flatMap((sale) => sale.lines);
   const current = profitOf(lines);
   const previous = profitOf(then.flatMap((sale) => sale.lines));
-  const promotions = now.filter((sale) => sale.saleType === "SALE").reduce((sum, sale) => sum + n(sale.discountAmount), 0);
+  // What the promotions took off the shelf price, line by line (PRD-09); a cashier's discount is not a promotion.
+  const promotions = now
+    .filter((sale) => sale.saleType === "SALE")
+    .reduce((sum, sale) => sum + sale.lines.reduce((lineSum, line) => lineSum + n(line.promotionDiscount), 0), 0);
   const lost = -counts.reduce((sum, row) => sum + Math.min(row.value, 0), 0);
   const lostBefore = -countsBefore.reduce((sum, row) => sum + Math.min(row.value, 0), 0);
 

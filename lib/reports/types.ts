@@ -303,6 +303,8 @@ export type ListColumn = ReportColumn & {
    * Last sale before its first); `dash` draws "–", where the board does (a count's Difference while it is counting).
    */
   empty?: "blank" | "dash";
+  /** No value draws these words in `--ink-3` instead of a faint dash ("No end" under a promotion's Ends). */
+  emptyWords?: string;
   /**
    * `view-cost`: dropped, values and all, for roles that may not see cost.
    * `multi-site`: dropped while the company has one open site.

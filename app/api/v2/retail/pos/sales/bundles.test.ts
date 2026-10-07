@@ -21,7 +21,7 @@ import { addTestProduct, makeTestShop, type TestShop } from "@/lib/retail/produc
  * its own, and the sale's journal balances. The till's own sum over what
  * `pos/catalog` and `pos/pricing` give it comes to what the server stores; a
  * cashier's discount on a line a deal splits is shared over its pieces; a
- * sale promotion takes nothing off a bundled unit.
+ * running promotion takes nothing off a unit in a fixed set.
  */
 
 const { validateSessionMock } = vi.hoisted(() => ({ validateSessionMock: vi.fn() }));
@@ -42,7 +42,6 @@ let shiftId = "";
 const ids: Record<string, string> = {};
 const items: Record<string, string> = {};
 let braaiId = "";
-let promotionId = "";
 
 beforeAll(async () => {
   shop = await makeTestShop("Sale bundles");
@@ -93,12 +92,6 @@ beforeAll(async () => {
   // Savanna may come off at most 30%; a cashier may give up to 40% without a manager.
   await prisma.product.update({ where: { id: ids.savanna! }, data: { maxDiscountPercent: new Prisma.Decimal(30) } });
   await prisma.retailTillRules.create({ data: { companyId: shop.companyId, maxCashierDiscountPercent: new Prisma.Decimal(40) } });
-  promotionId = (
-    await prisma.retailPromotion.create({
-      data: { companyId: shop.companyId, promoCode: `TEN-${stamp}`, name: "Ten off", type: "PERCENT", value: new Prisma.Decimal(10) },
-      select: { id: true },
-    })
-  ).id;
 
   const cashierId = (
     await prisma.user.create({
@@ -264,6 +257,7 @@ describe("the till and the server come to one total", () => {
         };
       }),
       bundles: snapshot.bundles,
+      promotions: snapshot.promotions,
       at: new Date(),
       siteId: snapshot.siteId,
     });
@@ -304,8 +298,22 @@ describe("the cashier's discount on a line a deal splits", () => {
   });
 });
 
-describe("a sale promotion beside a bundle", () => {
+describe("a promotion beside a bundle", () => {
   it("takes nothing off a Braai pack, and its 10% off the Castle beside it", async () => {
+    // Ten off Castle, running now; ended once this sale is in so the sales after it sell at the shelf.
+    const promotion = await prisma.retailPromotion.create({
+      data: {
+        companyId: shop.companyId,
+        promoCode: `TEN-${stamp}`,
+        name: "Ten off",
+        type: "PERCENT",
+        value: new Prisma.Decimal(10),
+        scope: "PRODUCTS",
+        startsAt: new Date(Date.now() - 60 * 60 * 1000),
+        products: { create: [{ productId: ids.castle! }] },
+      },
+      select: { id: true },
+    });
     const sold = await sell(
       "braai-promo",
       [
@@ -315,13 +323,16 @@ describe("a sale promotion beside a bundle", () => {
         { productId: ids.castle!, quantity: 1, unitPrice: 1.2 },
       ],
       12.08,
-      { promotionId },
     );
+    await prisma.retailPromotion.update({ where: { id: promotion.id }, data: { endedAt: new Date() } });
     expect(sold.status).toBe(201);
     const sale = await prisma.retailSale.findUniqueOrThrow({ where: { id: sold.body.id! }, include: { lines: true } });
     expect(sale.totalAmount.toFixed(2)).toBe("12.08");
     const inPack = sale.lines.filter((entry) => entry.bundleId === braaiId);
     expect(inPack.reduce((sum, entry) => sum.plus(entry.lineTotal), new Prisma.Decimal(0)).toFixed(2)).toBe("11.00");
+    expect(inPack.every((entry) => entry.promotionId === null)).toBe(true);
+    const single = sale.lines.find((entry) => entry.bundleId === null)!;
+    expect([single.promotionId, single.promotionDiscount.toFixed(2)]).toEqual([promotion.id, "0.12"]);
   });
 });
 

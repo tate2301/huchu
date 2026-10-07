@@ -3,6 +3,7 @@ import type { RetailAction, RetailResource } from "@/lib/retail/permission-matri
 import { depositWords, idCheckWords, levelWords, priceListsWords, productKpis } from "@/lib/retail/products/record-words";
 import { loadProductView } from "@/lib/retail/products/view";
 import { loadBundleView } from "@/lib/retail/bundles/service";
+import { loadPromotionView, promotionProductRows } from "@/lib/retail/promotions/service";
 import { loadSaleView } from "@/lib/retail/floor/sale-view";
 import { paidWords, saleStateLabel } from "@/lib/retail/floor/sale-words";
 import { loadShiftRecord } from "@/lib/retail/shift-record";
@@ -219,6 +220,47 @@ const RECORD_PDF: Record<string, RecordPdfType> = {
         content: `<table class="rd-table"><caption>The last 30 days</caption><tbody>${figures}</tbody></table>
 <table class="rd-table"><caption>What is in it</caption><thead><tr><th>Product</th><th class="num">Quantity</th><th class="num">On their own</th><th class="num">On hand</th></tr></thead><tbody>${items}</tbody></table>
 <table class="rd-table"><caption>Selling</caption><tbody>${selling}</tbody></table>`,
+      };
+    },
+  },
+  /** A promotion (PRD-09): what it did, the products it covers, and its rules. */
+  RetailPromotion: {
+    read: ["retail.promotions", "view"],
+    render: async (caller, id) => {
+      const promotion = await loadPromotionView(caller.companyId, id);
+      if (!promotion) return null;
+      const f = promotion.figures;
+      const figures = rows([
+        ["Sold under it", String(f.soldUnder)],
+        ["Extra takings", formatMoney(f.extraTakings)],
+        ["Given away", formatMoney(f.givenAway)],
+        ["Products", `${f.products}, ${f.notSold} not sold yet`],
+        ["Running for", promotion.state === "SCHEDULED" ? "Not started" : `${f.runningDays} days`],
+      ]);
+      const products = (await promotionProductRows(caller.companyId, id, caller.role)) ?? [];
+      const lines = products
+        .map(
+          (row) =>
+            `<tr><td>${esc(row.name)}</td><td class="num mono">${esc(row.normal === null ? "—" : formatMoney(row.normal))}</td><td class="num mono">${esc(row.onPromotion === null ? "—" : formatMoney(row.onPromotion))}</td><td class="num mono">${row.sold}</td><td class="num mono">${esc(formatMoney(row.givenAway))}</td></tr>`,
+        )
+        .join("");
+      const rules = rows([
+        ["Type", promotion.kindLabel],
+        ["Value", promotion.valueLabel],
+        ["Applies to", promotion.appliesToLabel],
+        ["Basket", promotion.minBasket === null ? "Any size" : formatMoney(promotion.minBasket)],
+        ["Days", promotion.days],
+        ["Starts", formatWhen(promotion.startsAt)],
+        ["Ends", promotion.endsAt ? formatWhen(promotion.endsAt) : "No end date"],
+        ["Sites", promotion.site?.name ?? "All sites"],
+      ]);
+      return {
+        ref: promotion.code,
+        title: promotion.name,
+        subtitle: `${promotion.code} · ${promotion.badge.label} · ${promotion.valueLabel}`,
+        content: `<table class="rd-table"><caption>What it did</caption><tbody>${figures}</tbody></table>
+<table class="rd-table"><caption>Products</caption><thead><tr><th>Product</th><th class="num">Normal</th><th class="num">On promotion</th><th class="num">Sold</th><th class="num">Given away</th></tr></thead><tbody>${lines}</tbody></table>
+<table class="rd-table"><caption>Rules</caption><tbody>${rules}</tbody></table>`,
       };
     },
   },

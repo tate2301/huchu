@@ -6,7 +6,7 @@ import { shopSiteId } from "@/lib/retail/devices";
 import { wasPrices } from "@/lib/retail/prices/was";
 import { ageCheckFor } from "@/lib/retail/products/age-check";
 
-import { baseListOf, type PricingSnapshot, type SnapshotBundle, type SnapshotList } from "./engine";
+import { baseListOf, type PricingSnapshot, type SnapshotBundle, type SnapshotList, type SnapshotPromotion } from "./engine";
 
 /**
  * The price snapshot a till prices from (PRD-05, 20-products 4.4): the lists
@@ -35,7 +35,7 @@ export async function loadPricingSnapshot(
     ? await prisma.site.findFirst({ where: { id: siteId, companyId }, select: { id: true, priceListId: true } })
     : null;
 
-  const [lists, products, lastApplied, bundles] = await Promise.all([
+  const [lists, products, lastApplied, bundles, promotions] = await Promise.all([
     prisma.priceList.findMany({
       where: { companyId, archivedAt: null, OR: [{ state: "ON" }, { isDefault: true }] },
       orderBy: { name: "asc" },
@@ -81,6 +81,7 @@ export async function loadPricingSnapshot(
     }),
     prisma.productPriceChange.aggregate({ where: { companyId, appliedAt: { not: null } }, _max: { appliedAt: true } }),
     loadBundleSnapshot(companyId, siteId ?? null),
+    loadPromotionSnapshot(companyId, siteId ?? null, now),
   ]);
 
   const productIds = products.map((product) => product.id);
@@ -130,7 +131,7 @@ export async function loadPricingSnapshot(
     prices,
     products: [],
     bundles: bundles.bundles,
-    promotions: [],
+    promotions: promotions.promotions,
   };
   const base = baseListOf(partial);
   const baseRows = new Map(
@@ -144,9 +145,10 @@ export async function loadPricingSnapshot(
     ...products.map((product) => product.updatedAt.getTime()),
     lastApplied._max.appliedAt?.getTime() ?? 0,
     bundles.newest,
+    promotions.newest,
   ].reduce((max, value) => Math.max(max, value), 0);
   const version = createHash("sha1")
-    .update([companyId, site?.id ?? "", register?.id ?? "", ownListId ?? "", newest, lists.length, rows.length, products.length, bundles.bundles.length].join("|"))
+    .update([companyId, site?.id ?? "", register?.id ?? "", ownListId ?? "", newest, lists.length, rows.length, products.length, bundles.bundles.length, promotions.promotions.length].join("|"))
     .digest("hex")
     .slice(0, 16);
 
@@ -240,4 +242,101 @@ export async function loadBundleSnapshot(
       })),
     })),
   };
+}
+
+/**
+ * The promotions a till at this site may apply (PRD-09): running and
+ * scheduled ones, with their windows, not paused, ended or in the bin at
+ * `at`, for every site or this one. Whether one runs at a sale's moment is
+ * the engine's to say (`promotionApplies`). A category scope carries the
+ * categories under it too. `pos/sales` asks at the moment the sale was rung,
+ * so a sale rung offline before an End now still gets its promotion.
+ */
+export async function loadPromotionSnapshot(
+  companyId: string,
+  siteId: string | null,
+  at: Date = new Date(),
+): Promise<{ promotions: SnapshotPromotion[]; newest: number }> {
+  const rows = await prisma.retailPromotion.findMany({
+    where: {
+      companyId,
+      archivedAt: null,
+      AND: [
+        { OR: [{ pausedAt: null }, { pausedAt: { gt: at } }] },
+        { OR: [{ endedAt: null }, { endedAt: { gt: at } }] },
+        { OR: [{ endsAt: null }, { endsAt: { gt: at } }] },
+        ...(siteId ? [{ OR: [{ siteId: null }, { siteId }] }] : []),
+      ],
+    },
+    orderBy: { promoCode: "asc" },
+    select: {
+      id: true,
+      promoCode: true,
+      name: true,
+      type: true,
+      value: true,
+      buyQuantity: true,
+      scope: true,
+      minBasket: true,
+      daysOfWeek: true,
+      fromTime: true,
+      toTime: true,
+      audience: true,
+      stacks: true,
+      siteId: true,
+      startsAt: true,
+      endsAt: true,
+      updatedAt: true,
+      products: { select: { productId: true } },
+      categories: { select: { categoryId: true } },
+    },
+  });
+  if (rows.length === 0) return { promotions: [], newest: 0 };
+  const under = rows.some((row) => row.scope === "CATEGORIES") ? await categoriesUnder(companyId) : new Map<string, string[]>();
+  return {
+    newest: rows.reduce((max, row) => Math.max(max, row.updatedAt.getTime()), 0),
+    promotions: rows.map((row) => ({
+      id: row.id,
+      code: row.promoCode,
+      name: row.name,
+      type: row.type,
+      value: toNumberOrZero(row.value),
+      buyQuantity: row.buyQuantity,
+      scope: row.scope,
+      productIds: row.products.map((entry) => entry.productId).sort(),
+      categoryIds: [...new Set(row.categories.flatMap((entry) => under.get(entry.categoryId) ?? [entry.categoryId]))].sort(),
+      minBasket: row.minBasket === null ? null : toNumberOrZero(row.minBasket),
+      daysOfWeek: row.daysOfWeek,
+      fromTime: row.fromTime,
+      toTime: row.toTime,
+      audience: row.audience,
+      stacks: row.stacks,
+      siteId: row.siteId,
+      startsAt: row.startsAt.toISOString(),
+      endsAt: row.endsAt?.toISOString() ?? null,
+    })),
+  };
+}
+
+/** Each category with every category under it, itself first. */
+export async function categoriesUnder(companyId: string): Promise<Map<string, string[]>> {
+  const categories = await prisma.retailCategory.findMany({ where: { companyId }, select: { id: true, parentId: true } });
+  const children = new Map<string, string[]>();
+  for (const category of categories) {
+    if (!category.parentId) continue;
+    children.set(category.parentId, [...(children.get(category.parentId) ?? []), category.id]);
+  }
+  const out = new Map<string, string[]>();
+  for (const category of categories) {
+    const all: string[] = [];
+    const queue = [category.id];
+    while (queue.length) {
+      const id = queue.shift()!;
+      if (all.includes(id)) continue;
+      all.push(id);
+      queue.push(...(children.get(id) ?? []));
+    }
+    out.set(category.id, all);
+  }
+  return out;
 }

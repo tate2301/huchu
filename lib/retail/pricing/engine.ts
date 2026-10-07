@@ -13,7 +13,8 @@
  *
  * Bundles (PRD-08) are priced by `applyBundles` after the lists: a fixed set
  * the till rang as one, and buy-more deals on their own. Promotions (PRD-09)
- * arrive empty here; `discounts` stays [].
+ * by `applyPromotions` after the bundles, on the units no fixed set took;
+ * `priceSale` (`./sale.ts`) puts the three together. `discounts` stays [].
  */
 
 export type PriceListStateWord = "DRAFT" | "ON" | "PAUSED";
@@ -72,7 +73,8 @@ export type PricingSnapshot = {
   prices: SnapshotPrice[];
   products: SnapshotProduct[];
   bundles: SnapshotBundle[];
-  promotions: never[];
+  /** Running and scheduled promotions with their windows; the engine judges each at the sale's moment. */
+  promotions: SnapshotPromotion[];
 };
 
 export type BundleKindWord = "FIXED_SET" | "BUY_MORE";
@@ -457,4 +459,158 @@ export function applyBundles(
     }
   }
   return { pieces: out, saving: units(savingCents) };
+}
+
+
+/* ── Promotions (PRD-09) ──────────────────────────────────────────────── */
+
+export type PromotionTypeWord = "PERCENT" | "AMOUNT" | "BUY_X_PAY" | "FIXED_PRICE";
+export type PromotionScopeWord = "EVERYTHING" | "CATEGORIES" | "PRODUCTS";
+export type PromotionAudienceWord = "EVERYONE" | "LOYALTY_MEMBERS" | "STAFF";
+
+/** A promotion as the till holds it: not paused, ended or in the bin; for every site or the till's. */
+export type SnapshotPromotion = {
+  id: string;
+  code: string;
+  name: string;
+  type: PromotionTypeWord;
+  /** PERCENT: the percentage; AMOUNT: off each unit; BUY_X_PAY: what `buyQuantity` cost; FIXED_PRICE: each unit's price. */
+  value: number;
+  buyQuantity: number | null;
+  scope: PromotionScopeWord;
+  productIds: string[];
+  /** CATEGORIES: those categories and every category under them. */
+  categoryIds: string[];
+  /** The basket before promotions must reach this; null for any size. */
+  minBasket: number | null;
+  /** ISO weekdays; empty for every day. */
+  daysOfWeek: number[];
+  /** "17:00" to "19:00", the end not included; null for all day. */
+  fromTime: string | null;
+  toTime: string | null;
+  audience: PromotionAudienceWord;
+  stacks: boolean;
+  siteId: string | null;
+  /** ISO instants. */
+  startsAt: string;
+  endsAt: string | null;
+};
+
+/** Is it running at that moment, at that site, for that customer? */
+export function promotionApplies(
+  promotion: SnapshotPromotion,
+  context: { at: Date | string; siteId: string | null; customer?: PricingCustomer | null },
+): boolean {
+  const at = new Date(context.at).getTime();
+  if (new Date(promotion.startsAt).getTime() > at) return false;
+  if (promotion.endsAt !== null && new Date(promotion.endsAt).getTime() <= at) return false;
+  if (promotion.siteId !== null && promotion.siteId !== context.siteId) return false;
+  // Loyalty members and staff are told apart only once the customer units pass a customer (D-3).
+  if (promotion.audience === "LOYALTY_MEMBERS" && !context.customer?.loyalty) return false;
+  if (promotion.audience === "STAFF" && !context.customer?.staff) return false;
+  const moment = harareMoment(context.at);
+  if (promotion.daysOfWeek.length > 0 && !promotion.daysOfWeek.includes(moment.weekday)) return false;
+  if (promotion.fromTime !== null && promotion.toTime !== null && !(promotion.fromTime <= moment.time && moment.time < promotion.toTime)) return false;
+  return true;
+}
+
+/** A piece of the basket as the promotions see it: its shelf price, and what is already off it. */
+export type PromotionLine = {
+  key: string;
+  productId: string;
+  categoryId: string | null;
+  quantity: number;
+  /** The shelf price of one. */
+  unitPrice: number;
+  /** What a bundle or the cashier already took off the piece; a promotion never takes it below zero. */
+  alreadyOff: number;
+};
+
+/** Each piece's promotion: the one it is attributed to and what the promotions took off it, in money. */
+export type PromotedLine = { key: string; promotionId: string | null; discount: number };
+
+function inScope(promotion: SnapshotPromotion, line: PromotionLine): boolean {
+  switch (promotion.scope) {
+    case "EVERYTHING":
+      return true;
+    case "PRODUCTS":
+      return promotion.productIds.includes(line.productId);
+    case "CATEGORIES":
+      return line.categoryId !== null && promotion.categoryIds.includes(line.categoryId);
+  }
+}
+
+/** What one promotion would take off each piece, in cents, on its own. */
+function savingsOf(promotion: SnapshotPromotion, lines: PromotionLine[]): Map<string, number> {
+  const out = new Map<string, number>();
+  const valueCents = cents(promotion.value);
+  const qualifying = lines.filter((line) => inScope(promotion, line));
+  if (promotion.type === "BUY_X_PAY") {
+    const size = promotion.buyQuantity ?? 0;
+    if (size < 2) return out;
+    // Every X qualifying units, mixed within the scope, priced highest first, cost the "For".
+    const unitsOf: Array<{ key: string; cents: number }> = [];
+    for (const line of qualifying) {
+      for (let unit = 0; unit < Math.floor(line.quantity); unit += 1) unitsOf.push({ key: line.key, cents: cents(line.unitPrice) });
+    }
+    unitsOf.sort((a, b) => b.cents - a.cents);
+    for (let start = 0; start + size <= unitsOf.length; start += size) {
+      const group = unitsOf.slice(start, start + size);
+      const saving = group.reduce((sum, unit) => sum + unit.cents, 0) - valueCents;
+      if (saving <= 0) continue;
+      const shares = shareCents(saving, group.map((unit) => unit.cents));
+      group.forEach((unit, index) => out.set(unit.key, (out.get(unit.key) ?? 0) + shares[index]!));
+    }
+    return out;
+  }
+  for (const line of qualifying) {
+    const unitCents = cents(line.unitPrice);
+    let off = 0;
+    if (promotion.type === "PERCENT") off = Math.round((unitCents * line.quantity * promotion.value) / 100);
+    else if (promotion.type === "AMOUNT") off = Math.round(Math.min(valueCents, unitCents) * line.quantity);
+    else if (promotion.type === "FIXED_PRICE") off = Math.round(Math.max(0, unitCents - valueCents) * line.quantity);
+    if (off > 0) out.set(line.key, off);
+  }
+  return out;
+}
+
+/**
+ * The promotions on a basket (20-products 4.9). Each that applies at the
+ * sale's moment and whose basket minimum the basket before promotions
+ * reaches works out its saving on each piece in scope. A piece takes the
+ * single biggest saving among the non-stacking ones, or the sum of the
+ * stacking ones, whichever saves more, never below zero; it is attributed to
+ * the promotion that took the most off it. Integer cents inside.
+ */
+export function applyPromotions(
+  promotions: SnapshotPromotion[],
+  lines: PromotionLine[],
+  context: { at: Date | string; siteId: string | null; customer?: PricingCustomer | null },
+): PromotedLine[] {
+  const basketCents = lines.reduce((sum, line) => sum + Math.round(cents(line.unitPrice) * line.quantity), 0);
+  const live = promotions
+    .filter((promotion) => promotionApplies(promotion, context))
+    .filter((promotion) => promotion.minBasket === null || basketCents >= cents(promotion.minBasket))
+    .sort((a, b) => a.code.localeCompare(b.code));
+  const savings = live.map((promotion) => ({ promotion, off: savingsOf(promotion, lines) }));
+
+  return lines.map((line) => {
+    let best: { id: string; cents: number } | null = null;
+    let stackedCents = 0;
+    let stackedLead: { id: string; cents: number } | null = null;
+    for (const { promotion, off } of savings) {
+      const value = off.get(line.key) ?? 0;
+      if (value <= 0) continue;
+      if (promotion.stacks) {
+        stackedCents += value;
+        if (!stackedLead || value > stackedLead.cents) stackedLead = { id: promotion.id, cents: value };
+      } else if (!best || value > best.cents) {
+        best = { id: promotion.id, cents: value };
+      }
+    }
+    const chosen = stackedCents > (best?.cents ?? 0) ? { id: stackedLead!.id, cents: stackedCents } : best;
+    const room = Math.max(0, Math.round(cents(line.unitPrice) * line.quantity) - cents(line.alreadyOff));
+    const taken = chosen ? Math.min(chosen.cents, room) : 0;
+    return { key: line.key, promotionId: taken > 0 ? chosen!.id : null, discount: units(taken) };
+  });
 }

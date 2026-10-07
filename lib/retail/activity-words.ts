@@ -502,6 +502,20 @@ const WORDS: Record<string, (payload: Payload, eventType: string, seeCost: boole
   [RETAIL_AUDIT_EVENTS.bundlePaused]: () => ({ what: "Paused it", tone: "hollow" }),
   [RETAIL_AUDIT_EVENTS.bundleResumed]: () => ({ what: "Put it on sale again", tone: "ok" }),
   [RETAIL_AUDIT_EVENTS.bundleStopped]: () => ({ what: "Stopped selling it", tone: "bad" }),
+  // PRD-09: "Scheduled it from 25 Oct 00:00" (or "Started it" when it ran at once), "Changed Value and Ends", "Paused it", "Resumed it", "Ended it".
+  [RETAIL_AUDIT_EVENTS.promotionCreated]: (payload) => ({
+    what: text(payload.from) ? `Scheduled it from ${text(payload.from)}` : "Started it",
+    tone: "ok",
+  }),
+  [RETAIL_AUDIT_EVENTS.promotionChanged]: (payload) => {
+    const labels = Array.isArray(payload.changes)
+      ? payload.changes.map((change) => text((change as Record<string, unknown>)?.label)).filter((label): label is string => Boolean(label))
+      : [];
+    return { what: labels.length ? `Changed ${joinAnd(labels)}` : "Changed it", tone: "info" };
+  },
+  [RETAIL_AUDIT_EVENTS.promotionPaused]: () => ({ what: "Paused it", tone: "hollow" }),
+  [RETAIL_AUDIT_EVENTS.promotionResumed]: () => ({ what: "Resumed it", tone: "ok" }),
+  [RETAIL_AUDIT_EVENTS.promotionEnded]: () => ({ what: "Ended it", tone: "hollow" }),
   // "Sent 540 units to Borrowdale" / "Cancelled: 540 units back at Harare Main Branch" (30-stock 3.3).
   [RETAIL_AUDIT_EVENTS.transferSent]: (payload) => ({
     what: `Sent ${unitWords(amount(payload.units) ?? 0)}${text(payload.to) ? ` to ${text(payload.to)}` : ""}`,

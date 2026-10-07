@@ -433,6 +433,30 @@ Recorded unit choices:
   - **A barcode finds one thing**: a product's barcode is refused when a live bundle has it, and a bundle comes back
     from the bin only while its barcode is still free.
 
+- **PRD-09 departs from packet 22 in these places.**
+  - **`promotionDiscount` is shelf money**, what the customer was shown ("US$2.00 a bottle"). On a VAT-inclusive list a
+    line's `discountAmount` is ex-VAT, so the money invariant reads on the shelf's basis: a line's promotion is at most
+    `quantity × unitPrice − lineTotal`, and the sale's total and VAT are worked out after it exactly as before.
+  - **Stacking promotions on one line are attributed to the one that took the most**; the line's `promotionDiscount` is
+    their sum. A fixed set takes no promotion (PRD-08's rule stands); a buy-more group leaves its deal whole when the
+    promotions would save more on its units, and those units take the promotions instead.
+  - **The basket minimum reads the shelf total before any discount.** Loyalty members and Staff never match until the
+    customer units pass a customer (D-3), so the seeded PROMO-STAFF has sold nothing under it.
+  - **Dates come from the shared picker** ("2026-10-25T00:00" on the shop's clock); the words "25 October, 00:00" are
+    read too, the year the next time that day comes round. The rail's Ends date ends at 23:59 that day; its Starts at
+    00:00. The rail's Days is a segment, Every day / Weekdays / Weekends; hours stay all day (the engine honours
+    `fromTime`/`toTime` when set).
+  - **pos/sales prices a replay with the promotions as they stood when it was rung** (paused or ended after it still
+    apply); a till that still sends `promotionId` is refused (400), queued sales included. Until FLR-10 draws line
+    discounts the till shows their total as "Promotions" under the sale.
+  - **A void or refund line carries no promotion**; every figure reads posted sales. The Products tab also lists a
+    product that sold under it and has since left its scope (archived), so its totals match "Sold under it". Its
+    footer link reads "All products" (a record tab's link label is fixed).
+  - **The seed discounts its history with the engine itself.** The shop's Spirits are 7 products, not 12; spirits sold
+    a little slower in the five weeks before the festive US$2, and Cokes and Savanna sell in pairs while their two-for
+    deals ran. Ciders sold only in the "Any 3 ciders" deal while Heritage ran, so it sold nothing under it. Today's
+    hand-made floor sales carry no promotion.
+
 ## Owner direction, 5 October: sidebar, Management and Setup
 
 These override 00-foundations §5.3 and every spec that disagrees.

@@ -29,7 +29,6 @@ export type PosSaleQueuePayload = {
   loyaltyRedemptionPoints?: number;
   discountAmount?: number;
   overrideReason?: string;
-  promotionId?: string;
   /** The cashier confirmed the customer's ID for an age-restricted line. */
   idChecked?: boolean;
   /**

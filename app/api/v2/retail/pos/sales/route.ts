@@ -28,13 +28,9 @@ import { loadLicenceHours } from "@/lib/retail/site-licence-hours";
 import { cashierFilterFor } from "@/lib/retail/own-rows";
 import { resolveShelfPrices } from "@/lib/retail/shelf-pricing";
 import { priceSale } from "@/lib/retail/pricing/sale";
-import { loadBundleSnapshot } from "@/lib/retail/pricing/snapshot";
+import { loadBundleSnapshot, loadPromotionSnapshot } from "@/lib/retail/pricing/snapshot";
 import { tillCasesFor, type TillCase } from "@/lib/retail/stock/cases";
-import {
-  getPosSupportedPromotionTypes,
-  isPosSupportedPromotionType,
-  requireRetailSession,
-} from "../../_helpers";
+import { requireRetailSession } from "../../_helpers";
 import { BeingCounted } from "@/lib/retail/stock/counts";
 import { ShiftElsewhere, createRetailSaleTransaction, stampSalePayments } from "../../_services";
 import { postedChange } from "@/lib/retail/sale-totals";
@@ -105,7 +101,6 @@ const saleSchema = z.object({
    * over "Largest discount a cashier can give", or a price above the shelf.
    */
   approver: approverSchema.optional().nullable(),
-  promotionId: z.string().uuid().optional().nullable(),
   items: z.array(saleLineSchema).min(1),
   payments: z.array(salePaymentSchema).min(1),
   /**
@@ -167,16 +162,6 @@ async function discountCeilingRefusal(
     }
   }
   return null;
-}
-
-function inPromotionWindow(promotion: {
-  startsAt: Date | null;
-  endsAt: Date | null;
-}) {
-  const now = new Date();
-  if (promotion.startsAt && promotion.startsAt > now) return false;
-  if (promotion.endsAt && promotion.endsAt < now) return false;
-  return true;
 }
 
 function normalizePhone(input: string | null | undefined) {
@@ -243,7 +228,6 @@ function mapSales(
     depositAmount: toNumberOrZero(sale.depositAmount),
     tenderedAmount: toNumber(sale.tenderedAmount),
     changeAmount: toNumber(sale.changeAmount),
-    promotionCode: sale.promotionCode,
     overrideReason: sale.overrideReason,
     approvedByName: sale.approvedByName,
     // NONE, PART or ALL of the sale handed back by refunds.
@@ -502,6 +486,10 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
+    // PRD-09: promotions come off on their own, by the engine; a till that still picks one is out of date.
+    if (body && typeof body === "object" && "promotionId" in body) {
+      return errorResponse("Promotions come off on their own now. Update the till and ring it again.", 400);
+    }
     const input = saleSchema.parse(body);
     // A replay's date is the till's word, but never ahead of the server's clock: a sale dated after it
     // arrived goes in when it arrived, for review, so no receipt (nor those signed after it) is dated
@@ -532,36 +520,6 @@ export async function POST(request: NextRequest) {
     // The till fixes the site: the shift was opened on this device's till, at
     // its site (a shift on another till is refused with the sale, ShiftElsewhere).
     const site = { id: shift.siteId };
-
-    const promotion = input.promotionId
-      ? await prisma.retailPromotion.findFirst({
-          where: {
-            id: input.promotionId,
-            companyId: session.user.companyId,
-            status: "ACTIVE",
-            type: { in: getPosSupportedPromotionTypes() },
-          },
-        })
-      : null;
-
-    if (input.promotionId && !promotion) {
-      const existingPromotion = await prisma.retailPromotion.findFirst({
-        where: { id: input.promotionId, companyId: session.user.companyId },
-        select: { id: true, type: true, status: true },
-      });
-      if (
-        existingPromotion &&
-        existingPromotion.status === "ACTIVE" &&
-        !isPosSupportedPromotionType(existingPromotion.type)
-      ) {
-        return errorResponse("This promotion type is not supported in POS checkout yet", 400);
-      }
-      return errorResponse("Promotion is not active", 400);
-    }
-
-    if (promotion && !inPromotionWindow(promotion)) {
-      return errorResponse("Promotion is not active", 400);
-    }
 
     // S-4b. The range is `Product` + the `InventoryItem` behind it at this
     // branch, resolved in one query. The site check that used to compare
@@ -705,7 +663,9 @@ export async function POST(request: NextRequest) {
       a deal and part not comes back as pieces, the cashier's own discount
       shared over them by quantity. The saving is each piece's
       `bundleDiscount`, apart from the cashier's, so the till rules judge only
-      the cashier's; a promotion takes nothing off a bundled unit.
+      the cashier's. PRD-09: then the promotions running at the moment of the
+      sale, on every unit not in a bundle (a unit in a buy-more deal takes
+      the better of the two); each piece keeps its promotion.
     */
     const priced = priceSale({
       lines: preNormalizedLines.map((line, index) => ({
@@ -719,20 +679,15 @@ export async function POST(request: NextRequest) {
         // out of $1.20 rather than added to it.
         taxInclusive: line.shelf.taxInclusive,
         lineDiscount: line.baseDiscountAmount,
+        categoryId: line.listing.categoryId,
         bundleId: input.items[index]!.bundleId ?? null,
         bundleRef: input.items[index]!.bundleRef ?? null,
       })),
       bundles: (await loadBundleSnapshot(session.user.companyId, site.id)).bundles,
+      promotions: (await loadPromotionSnapshot(session.user.companyId, site.id, soldAt)).promotions,
       at: soldAt,
       siteId: site.id,
       orderDiscountAmount: input.discountAmount ?? 0,
-      promotion: promotion
-        ? {
-            id: promotion.id,
-            type: promotion.type,
-            value: toNumberOrZero(promotion.value),
-          }
-        : null,
     });
     if ("error" in priced) {
       return errorResponse(priced.error, 400);
@@ -750,6 +705,8 @@ export async function POST(request: NextRequest) {
           baseDiscountAmount: piece.lineDiscount,
           bundleId: piece.bundleId,
           bundleGroup: piece.group,
+          promotionId: piece.promotionId,
+          promotionDiscount: piece.promotionDiscount,
           emptiesBack: emptiesBack || undefined,
         };
       });
@@ -1161,9 +1118,10 @@ export async function POST(request: NextRequest) {
         costTotal: round(line.quantity * (line.inventoryItem.unitCost ?? 0)),
         bundleId: line.bundleId,
         bundleGroup: line.bundleGroup,
+        promotionId: line.promotionId,
+        promotionDiscount: line.promotionDiscount,
       })),
       caseBreaks,
-      promotionCode: promotion?.promoCode ?? null,
       overrideReason: overrideReason ?? null,
       approvedBy: approval.approvedBy,
       notes: normalizedNotes || null,
@@ -1229,7 +1187,6 @@ export async function POST(request: NextRequest) {
       changeZig: toNumberOrZero(sale.changeZig),
       payments: sale.payments,
       lines: sale.lines,
-      promotionCode: sale.promotionCode,
       overrideReason: sale.overrideReason,
       // The manager whose PIN let a discount or price through; null when nobody had to.
       approvedByName: sale.approvedByName,
