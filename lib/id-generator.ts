@@ -36,6 +36,7 @@ export type ReservableIdEntity =
   | "RETAIL_STOCK_TRANSFER"
   | "RETAIL_STOCK_COUNT"
   | "RETAIL_SUPPLIER"
+  | "RETAIL_BUNDLE"
   | "CRM_CLIENT"
   | "CRM_LEAD"
   | "CRM_APPOINTMENT"
@@ -108,6 +109,8 @@ export const ID_ENTITY_CONFIG: Record<ReservableIdEntity, EntityConfig> = {
   RETAIL_STOCK_COUNT: { prefix: "CNT", requiresSiteId: false },
   // "SUP-0001": a supplier the shop buys from (W-29), company-wide.
   RETAIL_SUPPLIER: { prefix: "SUP", requiresSiteId: false },
+  // "BND-0004": a bundle or buy-more deal (PRD-08), company-wide.
+  RETAIL_BUNDLE: { prefix: "BND", requiresSiteId: false },
   CRM_CLIENT: { prefix: "CLI", requiresSiteId: false },
   CRM_LEAD: { prefix: "CRL", requiresSiteId: false },
   CRM_APPOINTMENT: { prefix: "SVT", requiresSiteId: false },
@@ -459,6 +462,13 @@ async function findEntityMaxExistingCode(
     case "RETAIL_SUPPLIER": {
       const records = await db.vendor.findMany({
         where: { companyId, code: { not: null } },
+        select: { code: true },
+      });
+      return extractMaxFromCodes(records.map((record) => record.code), prefix);
+    }
+    case "RETAIL_BUNDLE": {
+      const records = await db.retailBundle.findMany({
+        where: { companyId },
         select: { code: true },
       });
       return extractMaxFromCodes(records.map((record) => record.code), prefix);

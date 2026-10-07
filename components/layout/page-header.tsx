@@ -167,7 +167,22 @@ export function PageHeader() {
           <NotificationsBell />
         </div>
         {actions ? <div className="flex shrink-0 items-center gap-2">{actions}</div> : null}
-        {primary?.disabled ? (
+        {primary?.menu?.length ? (
+          <Menu>
+            <MenuTrigger asChild>
+              <Button variant="primary" icon={primary.icon === "plus" ? <Plus className="size-3.5" aria-hidden="true" /> : undefined}>
+                {primary.label}
+              </Button>
+            </MenuTrigger>
+            <MenuContent align="end">
+              {primary.menu.map((item) => (
+                <MenuItem key={item.href} onSelect={() => router.push(item.href)}>
+                  {item.label}
+                </MenuItem>
+              ))}
+            </MenuContent>
+          </Menu>
+        ) : primary?.disabled ? (
           <span title={primary.disabled} className="inline-flex">
             <Button variant="primary" disabled aria-description={primary.disabled}>
               {primary.label}
@@ -235,7 +250,26 @@ export function PageHeader() {
             </MenuContent>
           </Menu>
         ) : null}
-        {primary && !primaryInMenu ? (
+        {primary?.menu?.length ? (
+          <Menu>
+            <MenuTrigger asChild>
+              <button
+                type="button"
+                aria-label={primary.label}
+                className="flex size-11 shrink-0 items-center justify-center rounded-[8px] text-[var(--action)]"
+              >
+                <Plus className="size-[22px]" aria-hidden="true" />
+              </button>
+            </MenuTrigger>
+            <MenuContent align="end">
+              {primary.menu.map((item) => (
+                <MenuItem key={item.href} onSelect={() => router.push(item.href)}>
+                  {item.label}
+                </MenuItem>
+              ))}
+            </MenuContent>
+          </Menu>
+        ) : primary && !primaryInMenu ? (
           <button
             type="button"
             aria-label={primary.label}

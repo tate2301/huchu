@@ -24,6 +24,8 @@ export type LabelPrinter = string | "here";
 
 export type LabelsInput = {
   productIds: string[];
+  /** Bundles' own labels (PRD-08): their price and barcode. */
+  bundleIds?: string[];
   size: LabelSize;
   show: LabelShow;
   copies: number;
@@ -42,8 +44,8 @@ export const labelsInputSchema = z
   .object({
     productIds: z
       .array(z.string().uuid("Tick the products again."), { message: "Tick at least one product." })
-      .min(1, "Tick at least one product.")
       .max(MAX_LABEL_PRODUCTS, `Print at most ${MAX_LABEL_PRODUCTS} products at a time.`),
+    bundleIds: z.array(z.string().uuid("Tick the bundles again.")).max(MAX_LABEL_PRODUCTS).default([]),
     size: z.enum(["STRIP", "TAG", "A4"], { message: "Pick a label size." }),
     show: z
       .object({ price: z.boolean(), was: z.boolean(), barcode: z.boolean() }, { message: "Say what the labels show." })
@@ -51,7 +53,8 @@ export const labelsInputSchema = z
     copies: z.number({ message: COPIES_MESSAGE }).int(COPIES_MESSAGE).min(1, COPIES_MESSAGE).max(50, COPIES_MESSAGE),
     printer: z.union([z.literal("here"), z.string().uuid()], { message: "Pick a printer." }),
   })
-  .refine((input) => input.productIds.length * input.copies <= MAX_LABELS, { message: TOO_MANY_MESSAGE, path: ["copies"] });
+  .refine((input) => input.productIds.length + input.bundleIds.length > 0, { message: "Tick at least one product.", path: ["productIds"] })
+  .refine((input) => (input.productIds.length + input.bundleIds.length) * input.copies <= MAX_LABELS, { message: TOO_MANY_MESSAGE, path: ["copies"] });
 
 /** A print refused: the sentence, its status, and the field it is about. */
 export class LabelRefusal extends Error {
@@ -102,7 +105,13 @@ export async function printLabels(actor: RetailAuditActor, input: LabelsInput, n
     throw new LabelRefusal(A4_ON_TILL_MESSAGE, 400, { size: A4_ON_TILL_MESSAGE });
   }
   const till = input.printer === "here" ? null : await tillPrinter(actor.companyId, input.printer);
-  const read = await labelData(actor.companyId, { productIds: input.productIds, show: input.show, copies: input.copies, at: now });
+  const read = await labelData(actor.companyId, {
+    productIds: input.productIds,
+    bundleIds: input.bundleIds,
+    show: input.show,
+    copies: input.copies,
+    at: now,
+  });
   const labels = input.lines ? asChanged(read.labels, input.lines, input.show) : read.labels;
   if (labels.length === 0) throw new LabelRefusal("Product not found", 404);
   const printer = till?.name ?? "here";
@@ -125,7 +134,7 @@ export async function printLabels(actor: RetailAuditActor, input: LabelsInput, n
       await writeRetailAuditEvent(tx, {
         actor,
         eventType: RETAIL_AUDIT_EVENTS.labelsPrinted,
-        entityType: "Product",
+        entityType: label.bundle ? "RetailBundle" : "Product",
         entityId: label.productId,
         payload: { size: input.size, copies: label.copies, printer, jobId: created.id },
       });
@@ -134,7 +143,7 @@ export async function printLabels(actor: RetailAuditActor, input: LabelsInput, n
   });
   const unpriced = input.show.price ? labels.filter((label) => label.price === null).map((label) => label.name) : [];
   const count = labels.reduce((total, label) => total + label.copies, 0);
-  return { jobId: job.id, count, printer, unpriced, notFound: new Set(input.productIds).size - labels.length };
+  return { jobId: job.id, count, printer, unpriced, notFound: new Set([...input.productIds, ...(input.bundleIds ?? [])]).size - labels.length };
 }
 
 /** The labels at the prices they are changing to, each with its own copies; a line of none prints nothing. */

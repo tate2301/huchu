@@ -191,6 +191,16 @@ export const RETAIL_AUDIT_EVENTS = {
   priceListProductsAdded: "RETAIL_PRICE_LIST.PRODUCTS_ADDED",
   /** Products taken off a price list (PRD-07). Entity `PriceList`; carries how many and their names. */
   priceListProductsRemoved: "RETAIL_PRICE_LIST.PRODUCTS_REMOVED",
+  /** A bundle or buy-more deal made (W-13, PRD-08). Entity `RetailBundle`; carries its name and price. */
+  bundleCreated: "RETAIL_BUNDLE.CREATED",
+  /** A bundle changed: `changes` names each field's label, before and after. */
+  bundleChanged: "RETAIL_BUNDLE.CHANGED",
+  /** A bundle paused: the tills stop offering it. */
+  bundlePaused: "RETAIL_BUNDLE.PAUSED",
+  /** A paused bundle put on sale again. */
+  bundleResumed: "RETAIL_BUNDLE.RESUMED",
+  /** A bundle stopped for good; its sales history stays. */
+  bundleStopped: "RETAIL_BUNDLE.STOPPED",
   /** A till made on Pair a till, recorded when Done first saves it (Cancel leaves nothing). Carries its name, site and device. */
   tillCreated: "RETAIL_TILL.CREATED",
   /** A till changed: each field before and after. */

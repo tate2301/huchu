@@ -511,7 +511,20 @@ export type ListSpec = {
   rowMenu?: ListAction[];
   bulk?: Array<ListAction | { key: "export" }>;
   /** `idFrom`: the parent filter whose value the sheet opens on (Add products to this list). */
-  primary?: { label: string; icon?: "plus"; requires: ListGrant[]; sheet?: string; href?: string; idFrom?: string };
+  primary?: {
+    label: string;
+    icon?: "plus";
+    requires: ListGrant[];
+    sheet?: string;
+    href?: string;
+    idFrom?: string;
+    /**
+     * A menu instead of one sheet ("+ New bundle or pack": a pack, a bundle, a
+     * buy-more deal): each item opens its sheet with `params`. An item's own
+     * `requires` (any of) narrows it further; items the caller cannot do are left out.
+     */
+    menu?: Array<{ label: string; sheet: string; params?: Record<string, string>; requires?: ListGrant[] }>;
+  };
   /**
    * A link in the header after the title (and the sub): a sheet over the list ("Who can do what").
    * `requires`: drawn only for a caller with any of these. `idFrom`: the parent filter whose
@@ -562,7 +575,11 @@ export type ListSpec = {
  * options resolved for the company.
  */
 export type ListSpecPublic = Omit<ListSpec, "read" | "scopeOwn" | "primary" | "exportExtras" | "empty" | "subLink" | "edit"> & {
-  primary: Omit<NonNullable<ListSpec["primary"]>, "requires"> | null;
+  primary:
+    | (Omit<NonNullable<ListSpec["primary"]>, "requires" | "menu"> & {
+        menu?: Array<{ label: string; sheet: string; params?: Record<string, string> }>;
+      })
+    | null;
   edit?: Omit<NonNullable<ListSpec["edit"]>, "requires">;
   subLink?: Omit<NonNullable<ListSpec["subLink"]>, "requires">;
   empty: EmptyGuidePublic;

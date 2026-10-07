@@ -152,6 +152,8 @@ export const productKind: RecordKind<ProductRecord> = {
       ? [{ key: "case-break", label: "Break a case", requires: [ADJUST], do: { sheet: "case-break", params: { productId: product.id } } }]
       : []),
     { key: "duplicate", label: "Duplicate", requires: [CREATE], do: { sheet: "product-new", params: { from: product.id } } },
+    // W-12 (PRD-08): a single sold by the case too, at its own price.
+    ...(product.packOf ? [] : [{ key: "case", label: "Sell it by the case too", requires: [CREATE], do: { sheet: "pack-new", params: { single: product.id } } }]),
     product.isActive
       ? {
           key: "archive",

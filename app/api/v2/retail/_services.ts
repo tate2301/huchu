@@ -1,3 +1,5 @@
+import { randomUUID } from "node:crypto";
+
 import { assignRetailSaleFiscalDay } from "@/lib/retail/fiscalisation";
 import { Prisma, type RetailTenderType } from "@prisma/client";
 import { normalizeProvidedId, reserveIdentifier } from "@/lib/id-generator";
@@ -28,6 +30,7 @@ import {
 import { OFFLINE_REFUND_NO_REFERENCE_REVIEW, offlineReversalReview } from "@/lib/retail/till-rule-words";
 import { approvalFor, replayApproval, type Approval, type ApproverInput } from "@/lib/retail/manager-pin";
 import { refuseWhileCounted } from "@/lib/retail/stock/counts";
+import { breakCasesForSale, type TillCase } from "@/lib/retail/stock/cases";
 import {
   checkSaleTenders,
   loadPaymentSettings,
@@ -97,6 +100,9 @@ export type RetailSaleLineInput = {
   costTotal: number;
   /** The deposit on this line's returnable bottles, net of empties back. */
   depositAmount?: number;
+  /** PRD-08 — the bundle or buy-more deal it sold under, and that bundle's number in the sale (`bundleRef` "<saleId>:<n>"). */
+  bundleId?: string | null;
+  bundleGroup?: number | null;
 };
 
 function round(value: number) {
@@ -400,6 +406,12 @@ export async function createRetailSaleTransaction(input: {
    * sends by WhatsApp or email (SET-07): queued in the outbox with the sale.
    */
   receiptTo?: ReceiptRecipient | null;
+  /**
+   * PRD-08 (W-12) — singles the sale needs more of than the site has, and
+   * the case the till opens for them: broken inside the sale's transaction,
+   * before its stock comes off.
+   */
+  caseBreaks?: Array<{ singleItemId: string; quantity: number; tillCase: TillCase }>;
 }) {
   const site = await ensureSiteAccess(input.actor.companyId, input.siteId);
   if (!site) {
@@ -520,8 +532,17 @@ export async function createRetailSaleTransaction(input: {
             input.lines.map((line) => line.inventoryItemId),
           );
         }
+        if (input.caseBreaks?.length) {
+          await breakCasesForSale(tx, {
+            actor: { companyId: input.actor.companyId, userId: input.actor.userId, userName: input.actor.userName ?? null, userRole: input.actor.userRole ?? null },
+            siteId: site.id,
+            needs: input.caseBreaks,
+          });
+        }
+        const saleId = randomUUID();
         const created = await tx.retailSale.create({
           data: {
+            id: saleId,
             companyId: input.actor.companyId,
             saleNo,
             clientRef,
@@ -574,6 +595,8 @@ export async function createRetailSaleTransaction(input: {
                 costUnit: line.costUnit,
                 costTotal: line.costTotal,
                 depositAmount: money(line.depositAmount ?? 0),
+                bundleId: line.bundleId ?? null,
+                bundleRef: line.bundleId && line.bundleGroup ? `${saleId}:${line.bundleGroup}` : null,
               })),
             },
             payments: {

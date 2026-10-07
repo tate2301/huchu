@@ -318,6 +318,7 @@ model Company {
   retailPairingCodes            RetailPairingCode[]
   retailDeviceMessages          RetailDeviceMessage[]
   retailPrintJobs               RetailPrintJob[]
+  retailBundles                 RetailBundle[]
   retailShopProfile             RetailShopProfile?
   retailLicenceHours            RetailLicenceHours[]
   retailPaymentSettings         RetailPaymentSettings?
@@ -1168,6 +1169,7 @@ model Site {
   retailStockCounts     RetailStockCount[]
   retailImports         RetailImport[]
   userAccess            UserSiteAccess[]
+  retailBundles         RetailBundle[]         @relation("RetailBundleSite")
 
   @@unique([companyId, code])
   @@index([companyId])
@@ -1461,6 +1463,7 @@ model User {
   retailPairingCodesCreated         RetailPairingCode[]            @relation("RetailPairingCodeCreatedBy")
   retailDeviceMessagesSent          RetailDeviceMessage[]          @relation("RetailDeviceMessageSentBy")
   retailPrintJobsCreated            RetailPrintJob[]               @relation("RetailPrintJobCreatedBy")
+  retailBundlesCreated              RetailBundle[]                 @relation("RetailBundleCreatedBy")
   retailTransfersSent               RetailStockTransfer[]          @relation("RetailStockTransferSentBy")
   retailTransfersReceived           RetailStockTransfer[]          @relation("RetailStockTransferReceivedBy")
   retailTransfersCancelled          RetailStockTransfer[]          @relation("RetailStockTransferCancelledBy")
@@ -4842,6 +4845,7 @@ model RetailCategory {
   /// cannot express it, so a `\d` on the database shows an index it does not.
   children RetailCategory[] @relation("RetailCategoryParent")
   priceLists PriceListCategory[]
+  bundles    RetailBundle[]
 
   @@index([companyId, archivedAt, sortOrder])
   @@index([parentId])
@@ -4904,6 +4908,75 @@ model RetailPrintJob {
   createdBy User?           @relation("RetailPrintJobCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
 
   @@index([registerId, status, createdAt])
+}
+
+/// PRD-08 — a fixed set ("Bundle") or a buy-more deal ("Buy more, pay less").
+enum RetailBundleKind {
+  FIXED_SET
+  BUY_MORE
+}
+
+enum RetailOnSaleDays {
+  EVERY_DAY
+  WEEKENDS
+  CHOOSE
+}
+
+/// PRD-08 (20-products §3.3) — bundles and buy-more deals. Packs are products.
+model RetailBundle {
+  id          String           @id @default(uuid())
+  companyId   String
+  /// "BND-0004", reserveIdentifier(…, "RETAIL_BUNDLE").
+  code        String
+  kind        RetailBundleKind
+  name        String
+  barcode     String?
+  /// The till button sits under this category ("Till button: Yes, under Beer").
+  categoryId  String?
+  /// Fixed set: the bundle's price. Buy more: what `buyQuantity` of them cost together.
+  price       Decimal          @db.Decimal(14, 2)
+  /// Buy more: how many from the set ("Any 3"). Null for a fixed set.
+  buyQuantity Int?
+  days        RetailOnSaleDays @default(EVERY_DAY)
+  /// ISO weekdays when days = CHOOSE; [6, 7] is stored for WEEKENDS.
+  daysOfWeek  Int[]            @default([])
+  /// "Until": null = "No end date".
+  endsOn      DateTime?        @db.Date
+  /// "Sites": null = all sites.
+  siteId      String?
+  tillButton  Boolean          @default(true)
+  pausedAt    DateTime?
+  stoppedAt   DateTime?
+  archivedAt  DateTime?
+  createdById String?
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  company   Company            @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  category  RetailCategory?    @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  site      Site?              @relation("RetailBundleSite", fields: [siteId], references: [id], onDelete: SetNull)
+  createdBy User?              @relation("RetailBundleCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  items     RetailBundleItem[]
+  saleLines RetailSaleLine[]
+
+  @@unique([companyId, code])
+  @@index([companyId, barcode])
+  @@index([companyId, archivedAt, stoppedAt])
+}
+
+model RetailBundleItem {
+  id        String  @id @default(uuid())
+  bundleId  String
+  productId String
+  /// Fixed set: how many of it. Buy more: 1 (the product counts towards buyQuantity).
+  quantity  Int     @default(1)
+  sortOrder Int     @default(0)
+
+  bundle  RetailBundle @relation(fields: [bundleId], references: [id], onDelete: Cascade)
+  product Product      @relation(fields: [productId], references: [id], onDelete: Restrict)
+
+  @@unique([bundleId, productId])
+  @@index([productId])
 }
 
 enum RetailPrintJobKind {
@@ -5891,9 +5964,14 @@ model RetailSaleLine {
   /// The deposit this line took on its returnable bottles, net of empties back.
   /// The sale's `depositAmount` is their sum; a refund pays back its share.
   depositAmount   Decimal @default(0) @db.Decimal(14, 2)
+  /// PRD-08 — the bundle or buy-more deal this line was sold under.
+  bundleId        String?
+  /// PRD-08 — lines sold as one bundle (or one buy-more group) share this ("<saleId>:<n>").
+  bundleRef       String?
   createdAt       DateTime @default(now())
 
   sale RetailSale @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  bundle RetailBundle? @relation(fields: [bundleId], references: [id], onDelete: SetNull)
 
   company       Company            @relation(fields: [companyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   inventoryItem InventoryItem      @relation(fields: [inventoryItemId], references: [id], onDelete: Restrict, onUpdate: Cascade)
@@ -5912,6 +5990,7 @@ model RetailSaleLine {
   @@index([companyId, inventoryItemId])
   /// Best-sellers and margin-by-line group on the product now, not the listing.
   @@index([companyId, productId])
+  @@index([companyId, bundleId])
 }
 
 model RetailSalePayment {
@@ -14139,6 +14218,7 @@ model Product {
   retailSaleLines RetailSaleLine[]
   retailTransferLines RetailStockTransferLine[]
   retailCountLines    RetailStockCountLine[]
+  bundleItems         RetailBundleItem[]
   crmQuestionSets      CrmQuestionSet[]
   crmSiteVisitSections CrmSiteVisitSection[]
 

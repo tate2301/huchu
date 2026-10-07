@@ -110,3 +110,29 @@ export const PRICE_LIST_RUNS: Record<string, ListActionRun> = {
     done: (count, rows) => `${listsWord(count, rows)} ${count === 1 ? "is" : "are"} on. Tills pick ${count === 1 ? "it" : "them"} up within a minute.`,
   },
 };
+
+/** A bundle's "Stop selling it" (PRD-08 `bundlestop`), on its record and its edit sheet. */
+export function bundleStopAsk(name: string): Ask {
+  return {
+    title: `Stop selling ${name}?`,
+    body: "It leaves every till and is no longer offered when its items are in a sale. Its sales history stays.",
+    keep: "Keep it",
+    go: "Stop selling it",
+    fill: "bad",
+  };
+}
+
+const bundlesWord = (count: number, rows: ReportRow[]) => (count === 1 ? (nameOf(rows) ?? "1 bundle") : `${formatCount(count)} bundles and packs`);
+
+/** Bundles and packs' actions that post the ticked ids (PRD-08). */
+export const BUNDLE_LIST_RUNS: Record<string, ListActionRun> = {
+  bundlepause: {
+    done: (count, rows) => `${bundlesWord(count, rows)} ${count === 1 ? "is" : "are"} paused. The tills stop offering ${count === 1 ? "it" : "them"}.`,
+  },
+  bundleresume: {
+    done: (count, rows) => `${bundlesWord(count, rows)} ${count === 1 ? "is" : "are"} on sale again.`,
+  },
+  bundleduplicate: {
+    done: (count, rows) => (count === 1 && nameOf(rows) ? `${nameOf(rows)} copied.` : `${formatCount(count)} bundles copied.`),
+  },
+};

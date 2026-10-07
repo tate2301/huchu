@@ -65,7 +65,9 @@ export type FieldType =
   /** A day, `"YYYY-MM-DD"`, from the date picker; null when empty. */
   | "date"
   /** A day and a shop wall-clock time, `"YYYY-MM-DDTHH:mm"`; null when empty. */
-  | "datetime";
+  | "datetime"
+  /** Days of the week as seven chips, Mon … Sun; the value is ISO weekdays (Monday 1). */
+  | "days";
 
 /** A `date` field's bound: a day, today in the shop's zone, or worked out from the other values. */
 export type DayBound = string | "today" | ((values: SheetValues) => string | null);
@@ -141,6 +143,10 @@ export type FieldSpec = {
   /** `lines`: the quantity and cost column labels. */
   ql?: string;
   cl?: string;
+  /** `lines`: the cost column is each one's price, shown to everyone (a bundle's "Each"). */
+  priced?: boolean;
+  /** `lines`: no quantity column while this holds (a buy-more deal's products: any of them count). */
+  noQuantity?: (values: SheetValues) => boolean;
   /** The money prefix: fixed, or as the values say (US$ or ZiG, from a currency segment). */
   cur?: SheetCurrency | ((values: SheetValues) => SheetCurrency);
   /** `money`: decimals kept, two at least (a rate keeps four). */

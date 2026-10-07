@@ -51,18 +51,22 @@ const FROM = Prisma.sql`
   LEFT JOIN "Customer" c ON c.id = s."customerId"
   LEFT JOIN "FiscalReceipt" f ON f."retailSaleId" = s.id`;
 
-type Scope = { companyId: string; cashierId: string | null; shiftId: string | null };
+type Scope = { companyId: string; cashierId: string | null; shiftId: string | null; bundleId: string | null };
 
 /** The rows a caller may see at all: this company's sales and refunds, a cashier's own, a shift's when opened from one. */
 function scopeOf(ctx: ReportContext, filters: Record<string, string>): Scope {
   const own = LIST.scopeOwn && LIST.scopeOwn.roles.includes(ctx.role) ? ctx.userId : null;
-  return { companyId: ctx.companyId, cashierId: own, shiftId: filters.shift || null };
+  return { companyId: ctx.companyId, cashierId: own, shiftId: filters.shift || null, bundleId: filters.bundle || null };
 }
 
 function scopeSql(scope: Scope): Prisma.Sql[] {
   const parts = [Prisma.sql`s."companyId" = ${scope.companyId}`, Prisma.sql`s."saleType" IN ('SALE', 'REFUND')`];
   if (scope.cashierId) parts.push(Prisma.sql`s."cashierId" = ${scope.cashierId}`);
   if (scope.shiftId) parts.push(Prisma.sql`s."shiftId" = ${scope.shiftId}`);
+  // "Every sale of it" from a bundle's record (PRD-08): the sales with a line sold under it.
+  if (scope.bundleId) {
+    parts.push(Prisma.sql`EXISTS (SELECT 1 FROM "RetailSaleLine" bl WHERE bl."saleId" = s.id AND bl."bundleId" = ${scope.bundleId})`);
+  }
   return parts;
 }
 
@@ -222,8 +226,10 @@ export function toSaleRow(row: SaleRow, now: Date): ReportRow {
 /** Every row (at most 5,000) the caller may see, for the in-memory engine: "Select all", a grouped list, an export of ticked rows. */
 async function loadSales(ctx: ReportContext, params: ReportParams) {
   const now = new Date();
-  const rows = await selectRows(where(scopeSql(scopeOf(ctx, params))), orderFor("newest"), TAKE, 0, true);
-  return result(rows.map((row) => toSaleRow(row, now)));
+  const scope = scopeOf(ctx, params);
+  const rows = await selectRows(where(scopeSql(scope)), orderFor("newest"), TAKE, 0, true);
+  // Scoped to a bundle in SQL: each row carries it, so the engine's parent condition holds.
+  return result(rows.map((row) => ({ ...toSaleRow(row, now), bundleId: scope.bundleId })));
 }
 
 type Sums = { total: number; items: Prisma.Decimal | null; counted: Prisma.Decimal | null };

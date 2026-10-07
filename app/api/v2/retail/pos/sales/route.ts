@@ -27,6 +27,9 @@ import { liquorSaleRefusal, loadShopProfile, shopFeatures } from "@/lib/retail/s
 import { loadLicenceHours } from "@/lib/retail/site-licence-hours";
 import { cashierFilterFor } from "@/lib/retail/own-rows";
 import { resolveShelfPrices } from "@/lib/retail/shelf-pricing";
+import { applyBundles } from "@/lib/retail/pricing/engine";
+import { loadBundleSnapshot } from "@/lib/retail/pricing/snapshot";
+import { tillCasesFor, type TillCase } from "@/lib/retail/stock/cases";
 import {
   getPosSupportedPromotionTypes,
   isPosSupportedPromotionType,
@@ -54,6 +57,13 @@ const saleLineSchema = z.object({
   discountAmount: z.number().min(0).optional(),
   /** Empties the customer brought back for this line, on a shop that takes deposits. */
   emptiesBack: z.number().int().min(0).optional(),
+  /**
+   * PRD-08 — a fixed set the till rang as one: the bundle, and the till's own
+   * key for that one bundle, shared by its component lines. Buy-more deals
+   * need neither: the server finds them.
+   */
+  bundleId: z.string().uuid().optional().nullable(),
+  bundleRef: z.string().min(1).max(40).optional().nullable(),
 });
 
 const salePaymentSchema = z.object({
@@ -656,16 +666,59 @@ export async function POST(request: NextRequest) {
     }
 
     /*
+      PRD-08. Bundles, after the lists: a fixed set the till rang as one sells
+      at its price, shared over its components pro rata to their own prices
+      in whole cents; buy-more deals apply on their own, priced highest
+      first. A line part in a deal and part not comes back as two lines. The
+      saving is the line's `bundleDiscount`, apart from any discount the
+      cashier gave, so the till rules judge only the cashier's.
+    */
+    const bundled = applyBundles(
+      (await loadBundleSnapshot(session.user.companyId, site.id)).bundles,
+      preNormalizedLines.map((line, index) => ({
+        key: line.lineKey,
+        productId: line.listing.productId,
+        quantity: line.quantity,
+        unitPrice: line.unitPrice,
+        bundleId: input.items[index]!.bundleId ?? null,
+        bundleRef: input.items[index]!.bundleRef ?? null,
+      })),
+      { at: soldAt, siteId: site.id },
+    );
+    if ("error" in bundled) {
+      return errorResponse(bundled.error, 400);
+    }
+    const saleLines = preNormalizedLines.flatMap((line, index) => {
+      const pieces = bundled.pieces.filter((piece) => piece.key === line.lineKey);
+      let emptiesLeft = input.items[index]!.emptiesBack ?? 0;
+      return pieces.map((piece, at) => {
+        const emptiesBack = Math.min(emptiesLeft, Math.floor(piece.quantity));
+        emptiesLeft -= emptiesBack;
+        return {
+          ...line,
+          lineKey: pieces.length > 1 ? `${line.lineKey}:${at}` : line.lineKey,
+          quantity: piece.quantity,
+          // The cashier's own discount stays with the first piece.
+          baseDiscountAmount: at === 0 ? line.baseDiscountAmount : 0,
+          bundleDiscount: piece.discount,
+          bundleId: piece.bundleId,
+          bundleGroup: piece.group,
+          emptiesBack: emptiesBack || undefined,
+        };
+      });
+    });
+
+    /*
       A product's own ceiling (`Product.maxDiscountPercent`): the most a line
       of it may come off the shelf, managers included. Refused at the counter;
       a replay already took the money, so it goes in for a manager to look at.
     */
-    const ceilingRefusal = await discountCeilingRefusal(session.user.companyId, preNormalizedLines);
+    const ceilingRefusal = await discountCeilingRefusal(session.user.companyId, saleLines);
     if (ceilingRefusal && !input.offlineCreatedAt) {
       return errorResponse(ceilingRefusal, 400);
     }
 
-    const requestedInventoryQuantities = preNormalizedLines.reduce<Map<string, number>>(
+    const requestedInventoryQuantities = saleLines.reduce<Map<string, number>>(
       (accumulator, line) => {
         accumulator.set(
           line.inventoryItem.id,
@@ -675,8 +728,33 @@ export async function POST(request: NextRequest) {
       },
       new Map(),
     );
-    for (const line of preNormalizedLines) {
+    /*
+      PRD-08 (W-12). A single the site has run short of, with a case set to
+      break at the till and cases on hand: the sale opens as many cases as
+      it needs, inside its own transaction, before its stock comes off.
+    */
+    const short = saleLines.filter(
+      (line) => !atLeast(line.inventoryItem.currentStock, requestedInventoryQuantities.get(line.inventoryItem.id) ?? 0),
+    );
+    const tillCases = await tillCasesFor(
+      session.user.companyId,
+      site.id,
+      [...new Set(short.map((line) => line.listing.productId))],
+      shopFeatures(shopProfile).casesAndSingles,
+    );
+    const caseBreaks: Array<{ singleItemId: string; quantity: number; tillCase: TillCase }> = [];
+    for (const line of saleLines) {
       const requestedQty = requestedInventoryQuantities.get(line.inventoryItem.id) ?? 0;
+      const tillCase = tillCases.get(line.listing.productId);
+      if (tillCase && !atLeast(line.inventoryItem.currentStock, requestedQty)) {
+        const reach = toNumberOrZero(line.inventoryItem.currentStock) + tillCase.caseOnHand * tillCase.pack.packSize;
+        if (reach >= requestedQty) {
+          if (!caseBreaks.some((entry) => entry.singleItemId === line.inventoryItem.id)) {
+            caseBreaks.push({ singleItemId: line.inventoryItem.id, quantity: requestedQty, tillCase });
+          }
+          continue;
+        }
+      }
       /*
         This one was correct by accident: `currentStock` is a `Decimal` and
         `requestedQty` a `number`, and a mixed comparison coerces back to
@@ -717,7 +795,7 @@ export async function POST(request: NextRequest) {
      */
     const replayReview = replaySoldAt
       ? reviewReplayedPrices({
-          lines: preNormalizedLines.map((line) => ({
+          lines: saleLines.map((line) => ({
             itemName: line.listing.name,
             submittedUnitPrice: line.unitPrice,
             resolvedUnitPrice: line.shelf.unitPrice,
@@ -811,7 +889,7 @@ export async function POST(request: NextRequest) {
     }
 
     const checkout = calculateRetailCheckout({
-      lines: preNormalizedLines.map((line) => ({
+      lines: saleLines.map((line) => ({
         id: line.lineKey,
         quantity: line.quantity,
         unitPrice: line.unitPrice,
@@ -820,7 +898,8 @@ export async function POST(request: NextRequest) {
         // Zimbabwean shelf it does, so the ex-VAT line and the tax are carved
         // out of $1.20 rather than added to it.
         taxInclusive: line.shelf.taxInclusive,
-        lineDiscountAmount: line.baseDiscountAmount,
+        // The cashier's discount and the bundle's saving, both off the shelf price.
+        lineDiscountAmount: round(line.baseDiscountAmount + line.bundleDiscount),
       })),
       orderDiscountAmount: input.discountAmount ?? 0,
       promotion: promotion
@@ -832,7 +911,7 @@ export async function POST(request: NextRequest) {
         : null,
     });
     const normalizedLineMap = new Map(checkout.lines.map((line) => [line.id, line]));
-    const normalizedLines = preNormalizedLines.map((line) => {
+    const normalizedLines = saleLines.map((line) => {
       const calculated = normalizedLineMap.get(line.lineKey);
       if (!calculated) {
         throw new Error(`Unable to price ${line.listing.name}.`);
@@ -852,13 +931,13 @@ export async function POST(request: NextRequest) {
     // Deposits on returnable bottles, priced off the product rather than the
     // device, and only on a shop that charges them.
     const depositsOn = shopFeatures(shopProfile).emptiesAndDeposits;
-    const depositLines = input.items.map((item) => {
-      const product = sellable.get(item.productId)!;
+    const depositLines = saleLines.map((line) => {
+      const product = sellable.get(line.listing.productId)!;
       return {
-        quantity: item.quantity,
+        quantity: line.quantity,
         returnable: depositsOn && product.returnable,
         depositAmount: product.depositAmount,
-        emptiesBack: item.emptiesBack,
+        emptiesBack: line.emptiesBack,
       };
     });
     const depositAmount = depositsDue(depositLines);
@@ -1051,7 +1130,10 @@ export async function POST(request: NextRequest) {
         lineTotal: line.lineTotal,
         costUnit: line.inventoryItem.unitCost ?? 0,
         costTotal: round(line.quantity * (line.inventoryItem.unitCost ?? 0)),
+        bundleId: line.bundleId,
+        bundleGroup: line.bundleGroup,
       })),
+      caseBreaks,
       promotionCode: promotion?.promoCode ?? null,
       overrideReason: overrideReason ?? null,
       approvedBy: approval.approvedBy,

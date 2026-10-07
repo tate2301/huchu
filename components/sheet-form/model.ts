@@ -25,6 +25,7 @@ function emptyValue(field: FieldSpec): unknown {
       return false;
     case "tags":
     case "lines":
+    case "days":
       return [];
     default:
       return "";

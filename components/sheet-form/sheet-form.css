@@ -128,6 +128,13 @@
 .sf-lines__totals { height: 40px; background: var(--ground); border-radius: 0 0 10px 10px; font-family: var(--font-mono); font-weight: 600; }
 .sf-lines__count { padding: 0 12px; font-family: var(--font-sans); font-weight: 500; color: var(--ink-3); }
 .sf-lines__count .cx-mono { color: var(--ink); }
+/* A buy-more deal's products: no How many (PRD-08). */
+.sf-lines--noqty .sf-lines__head, .sf-lines--noqty .sf-lines__row, .sf-lines--noqty .sf-lines__totals { grid-template-columns: minmax(0, 1fr) 104px 112px 36px; }
+/* Seven day chips, Mon … Sun (PRD-08's "Choose days"). */
+.sf-days { display: flex; gap: 6px; flex-wrap: wrap; }
+.sf-days__chip { width: 44px; height: 32px; border: 1px solid var(--line-strong); border-radius: 8px; background: var(--surface); color: var(--ink-2); font: inherit; font-size: 13px; cursor: pointer; }
+.sf-days__chip[aria-pressed="true"] { background: var(--ink); border-color: var(--ink); color: var(--surface); font-weight: 600; }
+.sf-days__chip:focus-visible { outline: 2px solid var(--focus, var(--action)); outline-offset: 2px; }
 /* A phone: each line's name on its own row, its figures under it; the Σ row stays one line. */
 @media (max-width: 559px) {
   .sf-lines__head { display: none; }
@@ -137,6 +144,8 @@
   .sf-lines__qty { justify-content: flex-start; padding: 0 12px; }
   .sf-lines__totals { grid-template-columns: minmax(0, 1fr) 72px 0 minmax(0, 1fr) 0; }
   .sf-lines--nocost .sf-lines__totals { grid-template-columns: minmax(0, 1fr) 72px 0; }
+  .sf-lines--noqty .sf-lines__row { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 36px; }
+  .sf-lines--noqty .sf-lines__totals { grid-template-columns: minmax(0, 1fr) 0 minmax(0, 1fr) 0; }
   .sf-lines__count { white-space: nowrap; }
 }
 

@@ -1,4 +1,4 @@
-import { Folder, Megaphone, Rows, Tag } from "@/lib/icons";
+import { Folder, Megaphone, Package, Rows, Tag } from "@/lib/icons";
 
 import type { RetailNavModule } from "./types";
 
@@ -19,6 +19,12 @@ export const productsNav: RetailNavModule = {
       href: "/retail/products/promotions",
       icon: Megaphone,
       label: "Promotions",
+      requires: [["retail.promotions", "view"]],
+    },
+    {
+      href: "/retail/products/bundles",
+      icon: Package,
+      label: "Bundles and packs",
       requires: [["retail.promotions", "view"]],
     },
     {

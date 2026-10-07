@@ -36,6 +36,8 @@ export type LinesFieldProps = {
   closed?: boolean;
   /** A line's sub in `--warn` while this holds, as typed. */
   lineWarn?: (line: SheetLine) => boolean;
+  /** No quantity column: any of the products count (a buy-more deal). */
+  hideQuantity?: boolean;
 };
 
 export function LinesField({
@@ -54,6 +56,7 @@ export function LinesField({
   onOpenChange,
   closed = false,
   lineWarn,
+  hideQuantity = false,
 }: LinesFieldProps) {
   const money = (n: number) => formatMoney(n, currency === "ZiG" ? "ZiG" : "USD");
   const totals = lineTotals(value);
@@ -68,10 +71,14 @@ export function LinesField({
   };
 
   return (
-    <div role="table" aria-label={label} className={showCost ? "sf-lines" : "sf-lines sf-lines--nocost"}>
+    <div
+      role="table"
+      aria-label={label}
+      className={["sf-lines", showCost ? "" : "sf-lines--nocost", hideQuantity ? "sf-lines--noqty" : ""].filter(Boolean).join(" ")}
+    >
       <div role="row" className="sf-lines__head">
         <span role="columnheader">Product</span>
-        <span role="columnheader" className="sf-lines__num">{quantityLabel}</span>
+        {hideQuantity ? null : <span role="columnheader" className="sf-lines__num">{quantityLabel}</span>}
         {showCost ? (
           <>
             <span role="columnheader" className="sf-lines__num">{costLabel}</span>
@@ -92,6 +99,7 @@ export function LinesField({
               <span className={line.warn || lineWarn?.(line) ? "sf-lines__sub sf-lines__sub--warn" : "sf-lines__sub"}>{line.sub}</span>
             ) : null}
           </span>
+          {hideQuantity ? null : (
           <span role="cell" className="sf-lines__qty">
             <input
               aria-label={`${quantityLabel}, ${line.name}`}
@@ -107,6 +115,7 @@ export function LinesField({
               }
             />
           </span>
+          )}
           {showCost ? (
             <>
               <span role="cell" className="sf-lines__num sf-lines__cost">
@@ -150,7 +159,7 @@ export function LinesField({
         <span role="cell" className="sf-lines__count">
           Σ <span className="cx-mono">{formatCount(totals.count)}</span> {totals.count === 1 ? "line" : "lines"}
         </span>
-        <span role="cell" className="sf-lines__num">{formatCount(totals.quantity)}</span>
+        {hideQuantity ? null : <span role="cell" className="sf-lines__num">{formatCount(totals.quantity)}</span>}
         {showCost ? (
           <>
             <span />

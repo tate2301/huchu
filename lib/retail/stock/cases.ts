@@ -148,20 +148,54 @@ export async function breakCase(input: {
     : null;
   if (!siteId || !caseLine) throw new CaseBreakRefused(`There is no ${pack.name} in stock at this branch.`);
 
-  const single = pack.packOf;
-  const singleLines = await prisma.inventoryItem.findMany({
+  return prisma.$transaction((tx) =>
+    openCases(tx, {
+      actor,
+      siteId,
+      cases: input.cases,
+      pack: { id: input.caseProductId, name: pack.name, packSize: pack.packSize!, itemId: caseLine.id, unit: caseLine.unit, unitCost: caseLine.unitCost },
+      single: pack.packOf!,
+      tillRule: atTill,
+    }),
+  );
+}
+
+type Tx = Prisma.TransactionClient;
+
+/**
+ * Open `cases` of a case into its singles at a site, in the caller's
+ * transaction: one BRK reference, the case's line out and the singles' in.
+ * The case's line is locked first, then the singles': the order every
+ * movement-writing transaction keeps. `tillRule` refuses when the singles
+ * have not run out (a cashier's break on the record).
+ */
+export async function openCases(
+  tx: Tx,
+  args: {
+    actor: RetailAuditActor;
+    siteId: string;
+    cases: number;
+    pack: { id: string; name: string; packSize: number; itemId: string; unit: string; unitCost: Prisma.Decimal | null };
+    single: { id: string; name: string; code: string };
+    tillRule?: boolean;
+  },
+): Promise<BreakCaseResult> {
+  const { actor, siteId, pack, single } = args;
+  const { companyId } = actor;
+  const caseLine = { id: pack.itemId, unit: pack.unit, unitCost: pack.unitCost };
+  const singleLines = await tx.inventoryItem.findMany({
     where: { productId: single.id, site: { companyId } },
     orderBy: { createdAt: "asc" },
     select: { id: true, siteId: true, unit: true },
   });
   const singleHere = singleLines.find((line) => line.siteId === siteId) ?? null;
 
-  const singles = input.cases * pack.packSize;
+  const singles = args.cases * pack.packSize;
   // What one single of this case cost: the case's cost shared over its bottles.
   const caseShare = caseLine.unitCost === null ? null : money(caseLine.unitCost).dividedBy(pack.packSize);
-  const notes = `Opened ${input.cases} × ${pack.name} into ${singles} × ${single.name}`;
+  const notes = `Opened ${args.cases} × ${pack.name} into ${singles} × ${single.name}`;
 
-  return prisma.$transaction(async (tx) => {
+  {
     // The document's number and both rows' own first, then the lines: every
     // movement-writing transaction takes them in this order.
     const reference = await reserveIdentifier(tx, { companyId, entity: "RETAIL_CASE_BREAK" });
@@ -170,7 +204,7 @@ export async function breakCase(input: {
 
     await tx.$queryRaw`SELECT "id" FROM "InventoryItem" WHERE "id" = ${caseLine.id} FOR UPDATE`;
     const fresh = await tx.inventoryItem.findUniqueOrThrow({ where: { id: caseLine.id }, select: { currentStock: true } });
-    if (fresh.currentStock.lessThan(input.cases)) {
+    if (fresh.currentStock.lessThan(args.cases)) {
       const left = toNumberOrZero(fresh.currentStock);
       throw new CaseBreakRefused(`There ${left === 1 ? "is" : "are"} only ${formatCount(left)} of ${pack.name} to open.`);
     }
@@ -183,7 +217,7 @@ export async function breakCase(input: {
       await tx.$queryRaw`SELECT "id" FROM "InventoryItem" WHERE "id" = ${singleHere.id} FOR UPDATE`;
       const row = await tx.inventoryItem.findUniqueOrThrow({ where: { id: singleHere.id }, select: { currentStock: true, unitCost: true } });
       singlesBefore = { onHand: row.currentStock, unitCost: row.unitCost };
-      if (atTill && row.currentStock.greaterThanOrEqualTo(1)) throw new CaseBreakRefused(CANNOT_ADJUST, 403);
+      if (args.tillRule && row.currentStock.greaterThanOrEqualTo(1)) throw new CaseBreakRefused(CANNOT_ADJUST, 403);
     }
     const singleCost = blendedCost(singlesBefore, singles, caseShare);
 
@@ -212,7 +246,7 @@ export async function breakCase(input: {
         });
       })());
 
-    const sourceId = `${input.caseProductId}:${reference}`;
+    const sourceId = `${pack.id}:${reference}`;
     const out = await recordStockMovement({
       tx,
       referenceId: outId,
@@ -220,7 +254,7 @@ export async function breakCase(input: {
       userId: actor.userId,
       itemId: caseLine.id,
       movementType: "ISSUE",
-      quantity: quantity(input.cases),
+      quantity: quantity(args.cases),
       unit: caseLine.unit,
       notes,
       sourceType: "RETAIL_STOCK_ADJUSTMENT",
@@ -249,18 +283,93 @@ export async function breakCase(input: {
       actor,
       eventType: RETAIL_AUDIT_EVENTS.caseBroken,
       entityType: "Product",
-      entityId: input.caseProductId,
-      payload: { reference, cases: input.cases, singles, siteId },
+      entityId: pack.id,
+      payload: { reference, cases: args.cases, singles, siteId },
     });
 
     const singleOnHand = toNumberOrZero(into.nextStock);
     return {
       reference,
-      cases: input.cases,
+      cases: args.cases,
       singles,
       caseOnHand: toNumberOrZero(out.nextStock),
       singleOnHand,
-      message: brokenToast(input.cases, singleOnHand),
+      message: brokenToast(args.cases, singleOnHand),
     };
+  }
+}
+
+/** A live case a till opens when its single runs out (PRD-08, W-12): "Break cases at the till" on, with cases at the site. */
+export type TillCase = {
+  singleProductId: string;
+  single: { id: string; name: string; code: string };
+  pack: { id: string; name: string; packSize: number; itemId: string; unit: string; unitCost: Prisma.Decimal | null };
+  caseOnHand: number;
+};
+
+/**
+ * Each single's case at the site that the till may open: live, set to break
+ * at the till, with at least one case on hand there; the one with the most
+ * cases when there are two. Empty when the shop does not keep cases and
+ * singles.
+ */
+export async function tillCasesFor(
+  companyId: string,
+  siteId: string,
+  singleProductIds: string[],
+  casesAndSingles: boolean,
+): Promise<Map<string, TillCase>> {
+  const found = new Map<string, TillCase>();
+  if (!casesAndSingles || singleProductIds.length === 0) return found;
+  const lines = await prisma.inventoryItem.findMany({
+    where: {
+      siteId,
+      currentStock: { gte: 1 },
+      product: { companyId, packOfId: { in: singleProductIds }, breakAtTill: true, isActive: true, archivedAt: null, packSize: { gte: 2 } },
+    },
+    orderBy: { currentStock: "desc" },
+    select: {
+      id: true,
+      unit: true,
+      unitCost: true,
+      currentStock: true,
+      product: { select: { id: true, name: true, packSize: true, packOf: { select: { id: true, name: true, code: true } } } },
+    },
   });
+  for (const line of lines) {
+    const single = line.product?.packOf;
+    if (!line.product || !single || found.has(single.id)) continue;
+    found.set(single.id, {
+      singleProductId: single.id,
+      single,
+      pack: { id: line.product.id, name: line.product.name, packSize: line.product.packSize!, itemId: line.id, unit: line.unit, unitCost: line.unitCost },
+      caseOnHand: toNumberOrZero(line.currentStock),
+    });
+  }
+  return found;
+}
+
+/**
+ * Inside a sale's transaction, before its stock comes off: for each single
+ * the sale needs more of than the site has, open as many of its case as the
+ * shortfall takes (case line locked first, then the singles'). No journal:
+ * it is the same stock on the same account. Returns the BRK references.
+ */
+export async function breakCasesForSale(
+  tx: Tx,
+  args: { actor: RetailAuditActor; siteId: string; needs: Array<{ singleItemId: string; quantity: number; tillCase: TillCase }> },
+): Promise<string[]> {
+  const references: string[] = [];
+  for (const need of args.needs) {
+    const { pack } = need.tillCase;
+    await tx.$queryRaw`SELECT "id" FROM "InventoryItem" WHERE "id" = ${pack.itemId} FOR UPDATE`;
+    await tx.$queryRaw`SELECT "id" FROM "InventoryItem" WHERE "id" = ${need.singleItemId} FOR UPDATE`;
+    const single = await tx.inventoryItem.findUniqueOrThrow({ where: { id: need.singleItemId }, select: { currentStock: true } });
+    const short = need.quantity - toNumberOrZero(single.currentStock);
+    if (short <= 0) continue;
+    const cases = Math.ceil(short / pack.packSize);
+    const opened = await openCases(tx, { actor: args.actor, siteId: args.siteId, cases, pack, single: need.tillCase.single });
+    references.push(opened.reference);
+  }
+  return references;
 }

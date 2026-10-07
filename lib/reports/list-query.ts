@@ -864,6 +864,13 @@ export function publicListSpec(
             ...(primary.sheet ? { sheet: primary.sheet } : {}),
             ...(primary.href ? { href: primary.href } : {}),
             ...(primary.idFrom ? { idFrom: primary.idFrom } : {}),
+            ...(primary.menu
+              ? {
+                  menu: primary.menu
+                    .filter((item) => (item.requires ?? primary.requires).some((grant) => ctx.can(grant)))
+                    .map((item) => ({ label: item.label, sheet: item.sheet, ...(item.params ? { params: item.params } : {}) })),
+                }
+              : {}),
           }
         : null,
   };

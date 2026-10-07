@@ -553,6 +553,19 @@ export function ListFrame({ source, title, sub, rowFilters, defaultSort, default
                 ? { sheet: primarySpec.sheet }
                 : {}),
             ...(primarySpec.href ? { href: primarySpec.href } : {}),
+            // A menu of sheets ("+ New bundle or pack"), each with its own address.
+            ...(primarySpec.menu?.length
+              ? {
+                  menu: primarySpec.menu.map((item) => {
+                    const params = new URLSearchParams(addressSearch);
+                    params.set("sheet", item.sheet);
+                    params.delete("id");
+                    params.delete("ids");
+                    for (const [key, value] of Object.entries(item.params ?? {})) params.set(key, value);
+                    return { label: item.label, href: `${pathname}?${params.toString()}` };
+                  }),
+                }
+              : {}),
           }
         : null,
     [addressSearch, pathname, primaryId, primarySpec],

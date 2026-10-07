@@ -40,6 +40,8 @@ export type PagePrimary = {
   onClick?: () => void;
   /** Why it cannot be pressed yet: drawn disabled, the reason its tooltip ("2 things before closing"). */
   disabled?: string;
+  /** A menu under it instead of one action ("+ New bundle or pack": a pack, a bundle, a buy-more deal). */
+  menu?: Array<{ label: string; href: string }>;
 };
 
 /**

@@ -14,7 +14,9 @@ import { prisma } from "@/lib/prisma";
 import { defaultSiteFor } from "@/lib/retail/floor/default-site";
 import { PRINT_HERE, printerName } from "@/lib/retail/labels/words";
 import { canRetailSessionDo } from "@/lib/retail/permission-matrix";
+import { defaultPrices } from "@/lib/retail/bundles/service";
 import { createProduct, ProductRefusal } from "@/lib/retail/products/create";
+import { createPack } from "@/lib/retail/products/packs";
 import { productFieldErrors, productInput } from "@/lib/retail/products/input";
 import { formatCount } from "@/lib/workspace/format";
 
@@ -123,7 +125,9 @@ const productSelect = {
  * it (Change many prices' add row); `context.ids` offers only those products
  * (a sheet opened on ticked rows names them). A role that may see cost gets each
  * one's cost. The quick add makes a product on sale with a name and a price
- * at the default site, in no category.
+ * at the default site, in no category. `context.priced` (a bundle's lines,
+ * PRD-08) gives everyone each one's price on the default list as `cost`
+ * instead: the lines' "Each".
  */
 const product: LookupNoun = {
   noun: "product",
@@ -169,13 +173,18 @@ const product: LookupNoun = {
       return 3;
     };
     const seeCost = canRetailSessionDo(ctx.session, "retail.catalog", "view-cost");
+    const priced = context.priced ? await defaultPrices(prisma, ctx.companyId, rows.map((row) => row.id)) : null;
     return [...rows]
       .sort((a, b) => rank(a) - rank(b))
       .map((row): LookupOption => ({
         id: row.id,
         label: row.name,
         sub: productSub({ category: row.retailCategory?.name ?? null, barcode: row.barcode }),
-        ...(seeCost ? { cost: row.costPrice === null ? null : row.costPrice.toFixed(2) } : {}),
+        ...(priced
+          ? { cost: (priced.get(row.id) ?? 0).toFixed(2) }
+          : seeCost
+            ? { cost: row.costPrice === null ? null : row.costPrice.toFixed(2) }
+            : {}),
       }));
   },
   async add(ctx, fields) {
@@ -204,11 +213,46 @@ const product: LookupNoun = {
   },
 };
 
-/** Cases (`packOfId` set): "4 cases" on hand at `context.siteId`. PRD-08 adds the quick add. */
+/**
+ * Cases (`packOfId` set): "4 cases" on hand at `context.siteId`. The quick
+ * add (PRD-08) makes a case of the single named, at the single's price times
+ * how many it holds: Sell by the case without the sheet.
+ */
 const pack: LookupNoun = {
   noun: "pack",
   read: [["retail.catalog", "view"]],
-  quick: [],
+  create: ["retail.catalog", "create"],
+  quick: [
+    { key: "single", label: "Single", placeholder: "" },
+    { key: "size", label: "How many in it", placeholder: "" },
+  ],
+  async add(ctx, fields) {
+    const typed = (fields.single ?? "").trim();
+    const size = Number((fields.size ?? "").trim());
+    if (!typed) throw new LookupFieldErrors({ single: "Name the single." });
+    if (!Number.isInteger(size) || size < 2 || size > 1000) throw new LookupFieldErrors({ size: "A case holds 2 to 1,000." });
+    const singles = await prisma.product.findMany({
+      where: { companyId: ctx.companyId, archivedAt: null, packOfId: null, name: { contains: typed, mode: "insensitive" } },
+      orderBy: { name: "asc" },
+      take: 5,
+      select: { id: true, name: true },
+    });
+    const single = singles.find((row) => row.name.toLowerCase() === typed.toLowerCase()) ?? singles[0];
+    if (!single) throw new LookupFieldErrors({ single: "No product by that name. Add the single first." });
+    const each = (await defaultPrices(prisma, ctx.companyId, [single.id])).get(single.id) ?? 0;
+    try {
+      const made = await createPack(
+        { companyId: ctx.companyId, userId: ctx.userId, userName: ctx.userName, userRole: ctx.session.user?.role ?? null },
+        { singleId: single.id, size, price: (each * size).toFixed(2), breakAtTill: true },
+      );
+      return { id: made.productId, label: made.name, sub: null, notice: made.message };
+    } catch (error) {
+      if (error instanceof ProductRefusal) {
+        throw new LookupFieldErrors({ [error.field === "single" ? "single" : "size"]: error.message });
+      }
+      throw error;
+    }
+  },
   async search(ctx, q, context) {
     const siteId = typeof context.siteId === "string" ? context.siteId : null;
     const rows = await prisma.product.findMany({

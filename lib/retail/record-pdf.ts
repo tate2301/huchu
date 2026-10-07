@@ -2,6 +2,7 @@ import { esc } from "@/lib/documents/html-renderer";
 import type { RetailAction, RetailResource } from "@/lib/retail/permission-matrix";
 import { depositWords, idCheckWords, levelWords, priceListsWords, productKpis } from "@/lib/retail/products/record-words";
 import { loadProductView } from "@/lib/retail/products/view";
+import { loadBundleView } from "@/lib/retail/bundles/service";
 import { loadSaleView } from "@/lib/retail/floor/sale-view";
 import { paidWords, saleStateLabel } from "@/lib/retail/floor/sale-words";
 import { loadShiftRecord } from "@/lib/retail/shift-record";
@@ -182,6 +183,42 @@ const RECORD_PDF: Record<string, RecordPdfType> = {
   <table class="rd-table"><caption>Stock</caption><tbody>${stockRows}</tbody></table>
 </div>
 <table class="rd-table"><caption>Details</caption><tbody>${details}</tbody></table>`,
+      };
+    },
+  },
+  /** A bundle or buy-more deal (PRD-08): its figures, what is in it, and how it sells. */
+  RetailBundle: {
+    read: ["retail.promotions", "view"],
+    render: async (caller, id) => {
+      const bundle = await loadBundleView(caller.companyId, id, caller.role);
+      if (!bundle) return null;
+      const figures = rows([
+        ["Sold, 30 days", String(bundle.sold30)],
+        ["Takings, 30 days", formatMoney(bundle.takings30)],
+        ...(bundle.margin === null ? [] : ([["Margin", `${bundle.margin.toFixed(1)}%`]] as Array<[string, string]>)),
+        ["Can make", bundle.canMake === null ? "—" : String(bundle.canMake)],
+        ["Saves", formatMoney(bundle.saves)],
+      ]);
+      const items = bundle.items
+        .map(
+          (item) =>
+            `<tr><td>${esc(item.name)}</td><td class="num mono">${item.quantity}</td><td class="num mono">${esc(formatMoney(item.each * item.quantity))}</td><td class="num mono">${item.onHand}</td></tr>`,
+        )
+        .join("");
+      const selling = rows([
+        ["Price", formatMoney(bundle.price)],
+        ["On sale", bundle.daysLabel],
+        ["Until", bundle.untilLabel],
+        ["Sites", bundle.site?.name ?? "All sites"],
+        ["Barcode", bundle.barcode ?? "None"],
+      ]);
+      return {
+        ref: bundle.code,
+        title: bundle.name,
+        subtitle: `${bundle.code} · ${bundle.kindLabel} · ${formatMoney(bundle.price)}`,
+        content: `<table class="rd-table"><caption>The last 30 days</caption><tbody>${figures}</tbody></table>
+<table class="rd-table"><caption>What is in it</caption><thead><tr><th>Product</th><th class="num">Quantity</th><th class="num">On their own</th><th class="num">On hand</th></tr></thead><tbody>${items}</tbody></table>
+<table class="rd-table"><caption>Selling</caption><tbody>${selling}</tbody></table>`,
       };
     },
   },

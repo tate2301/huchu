@@ -221,6 +221,30 @@ export function SheetField({
                 onOpenChange={onListOpen}
               />
             );
+          case "days": {
+            const picked = new Set(Array.isArray(value) ? (value as number[]) : []);
+            return (
+              <div id={control.id} role="group" aria-label={field.l} className="sf-days">
+                {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((day, index) => (
+                  <button
+                    key={day}
+                    type="button"
+                    className="sf-days__chip"
+                    aria-pressed={picked.has(index + 1)}
+                    disabled={disabled}
+                    onClick={() => {
+                      const next = new Set(picked);
+                      if (next.has(index + 1)) next.delete(index + 1);
+                      else next.add(index + 1);
+                      onChange([...next].sort());
+                    }}
+                  >
+                    {day}
+                  </button>
+                ))}
+              </div>
+            );
+          }
           case "seg":
             return (
               <Segmented
@@ -335,7 +359,8 @@ export function SheetField({
                 costLabel={field.cl}
                 placeholder={field.p}
                 context={context}
-                showCost={ctx.can("retail.catalog", "view-cost")}
+                showCost={field.priced || ctx.can("retail.catalog", "view-cost")}
+                hideQuantity={field.noQuantity?.(values) ?? false}
                 lineErrors={lineErrors}
                 closed={field.closed}
                 lineWarn={field.lineWarn ? (line) => field.lineWarn!(line, values) : undefined}

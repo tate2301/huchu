@@ -154,6 +154,12 @@ export async function createProduct(
      * first price is not a change, and adding products is the manager's (W-09).
      */
     limits?: Pick<ApprovalLimits, "belowCostNeedsOwner">;
+    /**
+     * A case of a single (PRD-08, `packs.ts`): the single, how many it holds,
+     * whether the till breaks it, and the other sites to keep an empty line
+     * of it at (where the single has one), its unit "case" at each.
+     */
+    pack?: { of: { id: string; name: string }; size: number; breakAtTill: boolean; alsoAt: string[] };
   },
 ): Promise<ProductCreated> {
   const { actor, input } = args;
@@ -208,6 +214,7 @@ export async function createProduct(
       imageUrl: input.imageUrl ?? null,
       isActive: true,
       createdById: actor.userId,
+      ...(args.pack ? { packOfId: args.pack.of.id, packSize: args.pack.size, breakAtTill: args.pack.breakAtTill } : {}),
     },
     select: { id: true },
   });
@@ -225,7 +232,7 @@ export async function createProduct(
       itemCode: code,
       name: input.name,
       category: "RETAIL",
-      unit: byWeight ? "kg" : category?.ageRestricted ? "bottle" : "each",
+      unit: args.pack ? "case" : byWeight ? "kg" : category?.ageRestricted ? "bottle" : "each",
       siteId: site.id,
       locationId: location.id,
       minStock: input.reorderAt ? new Prisma.Decimal(input.reorderAt) : null,
@@ -234,6 +241,26 @@ export async function createProduct(
     },
     select: { id: true },
   });
+
+  // A case is kept wherever its single is: an empty line at each other site.
+  for (const siteId of args.pack?.alsoAt ?? []) {
+    if (siteId === site.id) continue;
+    const place = await tx.stockLocation.findFirst({ where: { siteId, isActive: true }, orderBy: { createdAt: "asc" }, select: { id: true } });
+    if (!place) continue;
+    const taken = await tx.inventoryItem.findFirst({ where: { siteId, itemCode: code }, select: { id: true } });
+    await tx.inventoryItem.create({
+      data: {
+        itemCode: taken ? `${code}-${product.id.slice(0, 4).toUpperCase()}` : code,
+        name: input.name,
+        category: "RETAIL",
+        unit: "case",
+        siteId,
+        locationId: place.id,
+        unitCost: cost,
+        productId: product.id,
+      },
+    });
+  }
 
   // 5. On sale: its price on the default list, and the history row that says so.
   const list = await defaultPriceList(tx, companyId);
@@ -275,6 +302,7 @@ export async function createProduct(
     category: category?.name ?? null,
     openingStock: opening?.quantity ?? null,
     site: site.name,
+    ...(args.pack ? { packOf: args.pack.of.name, packSize: args.pack.size } : {}),
   };
   if (actor.userId) {
     await writeRetailAuditEvent(tx, {

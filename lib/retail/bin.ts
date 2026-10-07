@@ -28,7 +28,7 @@ import type { RetailAction, RetailResource } from "@/lib/retail/permission-matri
  * `KINDS`.
  */
 
-export const BIN_KINDS = ["product", "promotion", "category", "price-list"] as const;
+export const BIN_KINDS = ["product", "promotion", "category", "price-list", "bundle"] as const;
 export type BinKind = (typeof BIN_KINDS)[number];
 
 type Tx = Prisma.TransactionClient;
@@ -260,6 +260,39 @@ const KINDS: Record<BinKind, BinKindSpec> = {
           select: { companyId: true, id: true, name: true, archivedAt: true },
         })
       ).map((row) => ({ companyId: row.companyId, id: row.id, name: row.name, reference: null, binnedAt: row.archivedAt! })),
+  },
+  bundle: {
+    kind: "bundle",
+    label: "Bundle",
+    entityType: "RetailBundle",
+    deleteRight: ["retail.promotions", "delete"],
+    viewRight: ["retail.promotions", "view"],
+    openKey: "bundleId",
+    binEvents: [RETAIL_AUDIT_EVENTS.recordBinned],
+    find: (tx, companyId, id) => tx.retailBundle.findFirst({ where: { id, companyId }, select: { name: true, archivedAt: true } }),
+    // Off every till at once (PRD-08).
+    move: async (tx, _companyId, id, at) => {
+      await tx.retailBundle.update({ where: { id }, data: { archivedAt: at } });
+      return null;
+    },
+    restore: async (tx, _companyId, id) => {
+      await tx.retailBundle.update({ where: { id }, data: { archivedAt: null } });
+      return null;
+    },
+    // A sale line sold under it keeps it, under its name.
+    purge: async (tx, companyId, id) => {
+      const sold = await tx.retailSaleLine.count({ where: { companyId, bundleId: id } });
+      if (sold > 0) return "kept";
+      await tx.retailBundle.delete({ where: { id } });
+      return "deleted";
+    },
+    listBinned: async (where) =>
+      (
+        await prisma.retailBundle.findMany({
+          where: binnedWhere(where),
+          select: { companyId: true, id: true, name: true, code: true, archivedAt: true },
+        })
+      ).map((row) => ({ companyId: row.companyId, id: row.id, name: row.name, reference: row.code, binnedAt: row.archivedAt! })),
   },
 };
 

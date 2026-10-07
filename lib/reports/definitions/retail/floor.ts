@@ -447,6 +447,7 @@ const sales: ListSpec = {
       options: [{ value: "only", label: "Only flagged", where: [{ column: "flagged", op: "is", value: ["yes"] }] }],
     },
     { key: "shift", type: "parent", column: "shiftId" },
+    { key: "bundle", type: "parent", column: "bundleId" },
   ],
   sorts: [
     { key: "newest", label: "Newest first", rules: [{ column: "postedAt", dir: "desc" }] },

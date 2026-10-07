@@ -132,7 +132,7 @@ export type SourceTab<R> = {
   totalsText?: (record: R, totals: Record<string, number | string | boolean | null>) => Record<string, string>;
 };
 
-export type ActivityTab = { key: "activity"; label: "Activity" };
+export type ActivityTab = { key: "activity"; label: "Activity" | "Changes" };
 
 export type RecordTab<R> = SourceTab<R> | ActivityTab;
 

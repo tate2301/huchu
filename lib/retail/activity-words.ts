@@ -488,6 +488,20 @@ const WORDS: Record<string, (payload: Payload, eventType: string, seeCost: boole
     what: `Removed ${productWords(amount(payload.count) ?? 0)}`,
     tone: "hollow",
   }),
+  // PRD-08: "Made it at US$9.50", "Changed Price and On sale", "Paused it", "Put it on sale again", "Stopped selling it".
+  [RETAIL_AUDIT_EVENTS.bundleCreated]: (payload) => ({
+    what: amount(payload.price) === null ? "Made it" : `Made it at ${moneyWords(payload.price)}`,
+    tone: "ok",
+  }),
+  [RETAIL_AUDIT_EVENTS.bundleChanged]: (payload) => {
+    const labels = Array.isArray(payload.changes)
+      ? payload.changes.map((change) => text((change as Record<string, unknown>)?.label)).filter((label): label is string => Boolean(label))
+      : [];
+    return { what: labels.length ? `Changed ${joinAnd(labels)}` : "Changed it", tone: "info" };
+  },
+  [RETAIL_AUDIT_EVENTS.bundlePaused]: () => ({ what: "Paused it", tone: "hollow" }),
+  [RETAIL_AUDIT_EVENTS.bundleResumed]: () => ({ what: "Put it on sale again", tone: "ok" }),
+  [RETAIL_AUDIT_EVENTS.bundleStopped]: () => ({ what: "Stopped selling it", tone: "bad" }),
   // "Sent 540 units to Borrowdale" / "Cancelled: 540 units back at Harare Main Branch" (30-stock 3.3).
   [RETAIL_AUDIT_EVENTS.transferSent]: (payload) => ({
     what: `Sent ${unitWords(amount(payload.units) ?? 0)}${text(payload.to) ? ` to ${text(payload.to)}` : ""}`,

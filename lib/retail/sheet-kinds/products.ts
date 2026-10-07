@@ -833,6 +833,8 @@ const LABEL_SIZES: Array<[label: string, sub: string]> = [
 const SIZE_OF_CARD: Record<string, "STRIP" | "TAG" | "A4"> = { "Shelf strip": "STRIP", "Price tag": "TAG", "A4 sheet": "A4" };
 
 const labelIds = (ctx: SheetCtx): string[] => (ctx.id ? [ctx.id] : (ctx.params.get("ids") ?? "").split(",").filter(Boolean));
+/** A bundle's record prints its own label (PRD-08). */
+const labelBundleIds = (ctx: SheetCtx): string[] => (ctx.params.get("bundleIds") ?? "").split(",").filter(Boolean);
 
 /** Copies typed as a whole number from 1 to 50, else null. */
 function labelCopies(value: unknown): number | null {
@@ -853,7 +855,9 @@ function labelsRefusal(values: SheetValues): string | null {
 const labels: SheetKind = {
   title: "Print shelf labels",
   sub: (ctx) => {
-    const count = labelIds(ctx).length;
+    const bundles = labelBundleIds(ctx).length;
+    if (bundles && !labelIds(ctx).length) return bundles === 1 ? "1 bundle" : `${formatCount(bundles)} bundles`;
+    const count = labelIds(ctx).length + bundles;
     return count === 1 ? "1 product" : `${formatCount(count)} products ticked`;
   },
   cur: "US$",
@@ -895,7 +899,7 @@ const labels: SheetKind = {
     const page = await readJson<{ options: PickedOption[] }>(
       `/api/v2/retail/lookup/printer?context=${encodeURIComponent(JSON.stringify({ pick: "default" }))}`,
     );
-    return { printer: page.options[0] ?? PRINT_HERE, _products: labelIds(ctx).length };
+    return { printer: page.options[0] ?? PRINT_HERE, _products: labelIds(ctx).length + labelBundleIds(ctx).length };
   },
   note: (values) =>
     labelsRefusal(values) ?? "Prices changing tonight print with tomorrow’s price.",
@@ -911,6 +915,7 @@ const labels: SheetKind = {
     url: "/api/v2/retail/labels",
     body: {
       productIds: labelIds(ctx),
+      bundleIds: labelBundleIds(ctx),
       size: SIZE_OF_CARD[String(values.size)] ?? "STRIP",
       show: { price: values.price === true, was: values.was === true, barcode: values.barcode === true },
       copies: Number(String(values.copies ?? "").trim()),

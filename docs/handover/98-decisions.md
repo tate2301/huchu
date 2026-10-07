@@ -399,6 +399,25 @@ Recorded unit choices:
     printed them already the toast says to take them off the shelf. Undo is written to Activity
     ("Undid 4 prices for 7 Oct 22:00"). Undo stays on the toast only; a Cancel on the product's Price history
     is not added (the board draws none).
+- **PRD-08 departs from packet 21 in seven places.**
+  - **A bundle's components keep the shelf price; the bundle's saving is their discount.** Each component line is
+    rung at its own price with the bundle's share of the saving as `discountAmount` (shared pro rata to "On their
+    own" in whole cents, the cents left to the dearest line), so its `lineTotal` is its share and the lines sum to
+    the bundle's price. The cashier's own discount stays apart, so the till rules judge only that. When today's
+    prices make a fixed set cost no more than its price, its lines sell at their own prices.
+  - **A buy-more line that is part in a group and part not comes back as two lines** (4 Savanna: 3 in the deal,
+    1 at its own price), so every group has its own `bundleRef` and "Sold, 30 days" counts groups exactly.
+  - **"Can make" for a bundle for every site counts the shop's default site** (Harare Main Branch), a site's own
+    bundle that site's; of two items that make as few, the one with fewer left "runs out first".
+  - **Gin and tonic is US$17.30**, saving the board's US$1.50: Gordon's is US$16.40 on the Products board, so the
+    packet's US$18.90 would cost more than the gin and four tonics (US$18.80).
+  - **Made of keeps the product's own name** ("6 × Castle Lager 340ml, Ice 2kg, Charcoal 4kg"): only the word for
+    what it comes in (bag, can, bottle) is dropped. The board's "Castle 340ml" and "charcoal" are not a rule the
+    names give.
+  - **The Kind filter's address key is `of`**, not `kind`: New bundle opens over the list as
+    `?sheet=bundle-new&kind=…`, which would otherwise filter the list behind it.
+  - **The buy-more-versus-promotion rule waits for PRD-09**: there is no promotion engine yet, so a buy-more deal
+    applies alone.
 
 ## Owner direction, 5 October: sidebar, Management and Setup
 

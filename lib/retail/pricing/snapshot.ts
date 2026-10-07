@@ -6,7 +6,7 @@ import { shopSiteId } from "@/lib/retail/devices";
 import { wasPrices } from "@/lib/retail/prices/was";
 import { ageCheckFor } from "@/lib/retail/products/age-check";
 
-import { baseListOf, type PricingSnapshot, type SnapshotList } from "./engine";
+import { baseListOf, type PricingSnapshot, type SnapshotBundle, type SnapshotList } from "./engine";
 
 /**
  * The price snapshot a till prices from (PRD-05, 20-products 4.4): the lists
@@ -35,7 +35,7 @@ export async function loadPricingSnapshot(
     ? await prisma.site.findFirst({ where: { id: siteId, companyId }, select: { id: true, priceListId: true } })
     : null;
 
-  const [lists, products, lastApplied] = await Promise.all([
+  const [lists, products, lastApplied, bundles] = await Promise.all([
     prisma.priceList.findMany({
       where: { companyId, archivedAt: null, OR: [{ state: "ON" }, { isDefault: true }] },
       orderBy: { name: "asc" },
@@ -80,6 +80,7 @@ export async function loadPricingSnapshot(
       },
     }),
     prisma.productPriceChange.aggregate({ where: { companyId, appliedAt: { not: null } }, _max: { appliedAt: true } }),
+    loadBundleSnapshot(companyId, siteId ?? null),
   ]);
 
   const productIds = products.map((product) => product.id);
@@ -128,7 +129,7 @@ export async function loadPricingSnapshot(
     lists: snapshotLists,
     prices,
     products: [],
-    bundles: [],
+    bundles: bundles.bundles,
     promotions: [],
   };
   const base = baseListOf(partial);
@@ -142,9 +143,10 @@ export async function loadPricingSnapshot(
     ...rows.map((row) => row.updatedAt.getTime()),
     ...products.map((product) => product.updatedAt.getTime()),
     lastApplied._max.appliedAt?.getTime() ?? 0,
+    bundles.newest,
   ].reduce((max, value) => Math.max(max, value), 0);
   const version = createHash("sha1")
-    .update([companyId, site?.id ?? "", register?.id ?? "", ownListId ?? "", newest, lists.length, rows.length, products.length].join("|"))
+    .update([companyId, site?.id ?? "", register?.id ?? "", ownListId ?? "", newest, lists.length, rows.length, products.length, bundles.bundles.length].join("|"))
     .digest("hex")
     .slice(0, 16);
 
@@ -161,6 +163,81 @@ export async function loadPricingSnapshot(
       packSize: product.packSize,
       breakAtTill: product.breakAtTill,
       wasPrice: was.get(product.id) ?? null,
+    })),
+  };
+}
+
+/**
+ * The bundles a till at this site may sell (PRD-08): live ones (not paused,
+ * stopped or in the bin) for every site or this one, with their items and
+ * each item's price on the default list ("On their own"), which a fixed set's
+ * price is shared over. Whether one is on sale today is the engine's to say
+ * (`bundleOnSale`), at the moment of the sale.
+ */
+export async function loadBundleSnapshot(
+  companyId: string,
+  siteId: string | null,
+): Promise<{ bundles: SnapshotBundle[]; newest: number }> {
+  const rows = await prisma.retailBundle.findMany({
+    where: {
+      companyId,
+      archivedAt: null,
+      stoppedAt: null,
+      pausedAt: null,
+      ...(siteId ? { OR: [{ siteId: null }, { siteId }] } : {}),
+    },
+    orderBy: { code: "asc" },
+    select: {
+      id: true,
+      code: true,
+      kind: true,
+      name: true,
+      barcode: true,
+      categoryId: true,
+      price: true,
+      buyQuantity: true,
+      days: true,
+      daysOfWeek: true,
+      endsOn: true,
+      siteId: true,
+      tillButton: true,
+      updatedAt: true,
+      items: {
+        orderBy: { sortOrder: "asc" },
+        select: { productId: true, quantity: true, product: { select: { name: true } } },
+      },
+    },
+  });
+  if (rows.length === 0) return { bundles: [], newest: 0 };
+  const productIds = [...new Set(rows.flatMap((row) => row.items.map((item) => item.productId)))];
+  const own = await prisma.productPrice.findMany({
+    where: { companyId, productId: { in: productIds }, minQuantity: 1, priceList: { isDefault: true } },
+    select: { productId: true, unitPrice: true },
+  });
+  const each = new Map(own.map((row) => [row.productId, toNumberOrZero(row.unitPrice)]));
+  return {
+    newest: rows.reduce((max, row) => Math.max(max, row.updatedAt.getTime()), 0),
+    bundles: rows.map((row) => ({
+      id: row.id,
+      code: row.code,
+      kind: row.kind,
+      name: row.name,
+      barcode: row.barcode,
+      categoryId: row.categoryId,
+      price: toNumberOrZero(row.price),
+      buyQuantity: row.buyQuantity,
+      days: row.days,
+      daysOfWeek: row.daysOfWeek,
+      endsOn: day(row.endsOn),
+      siteId: row.siteId,
+      tillButton: row.tillButton,
+      state: "ON_SALE" as const,
+      items: row.items.map((item) => ({
+        productId: item.productId,
+        name: item.product.name,
+        quantity: item.quantity,
+        each: each.get(item.productId) ?? 0,
+      })),
     })),
   };
 }

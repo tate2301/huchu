@@ -79,6 +79,7 @@ import { closeDay, dayFigures, DayRefused, loadDayRows } from "@/lib/retail/floo
 import { postRetailJournal } from "@/app/api/v2/retail/_helpers"
 import { adjustmentJournal, adjustStock, type AdjustWhy } from "@/lib/retail/stock/adjustments"
 import { breakCase } from "@/lib/retail/stock/cases"
+import { shareCents } from "@/lib/retail/pricing/engine"
 import { hashInviteToken, INVITE_DAYS } from "@/lib/retail/people/invite"
 
 function readArg(name: string): string | undefined {
@@ -152,6 +153,81 @@ const CATALOGUE: CatalogueEntry[] = [
   { code: "ZAMBEZI-375", name: "Zambezi Lager 375ml", unit: "bottle", price: "1.35", cost: "0.95", stock: 144, sold30: 0, min: 48, reorder: 48, weight: 40, category: "Beer", deposit: "0.10", archived: true },
   { code: "BOLS-50", name: "Bols Brandy 50ml", unit: "bottle", price: "1.80", cost: "1.20", stock: 6, sold30: 12, min: 2, reorder: 12, weight: 12, category: "Spirits" },
   { code: "BOLS-750", name: "Bols Brandy 750ml", unit: "bottle", price: "14.20", cost: "11.22", stock: 6, sold30: 0, min: 6, reorder: 6, weight: 6, category: "Spirits", archived: true },
+]
+
+/**
+ * PRD-08's bundles and buy-more deals, made by the owner, and how many sold:
+ * in the last 30 days and the 30 before. Their sales are bundle-tagged
+ * component lines dealt out of the products' own 30-day quotas, so they count
+ * in each product's "Sold, 30 days". A buy-more group is three (or two) of one
+ * product, `groups` saying how many of each. Gin and tonic is US$17.30, not the
+ * packet's 18.90: Gordon's is US$16.40 here, so 18.90 would cost more than the
+ * gin and four tonics at US$18.80 (98-decisions, PRD-08).
+ */
+type BundleSeed = {
+  code: string
+  kind: "FIXED_SET" | "BUY_MORE"
+  name: string
+  price: string
+  buy?: number
+  barcode?: string
+  category?: string
+  made: string
+  items: Array<[code: string, quantity: number]>
+  sold30: number
+  soldPrev: number
+  groups?: Record<string, number>
+}
+const BUNDLE_SEEDS: BundleSeed[] = [
+  {
+    code: "BND-0004",
+    kind: "FIXED_SET",
+    name: "Braai pack",
+    price: "11.00",
+    barcode: "6001234500044",
+    category: "Beer",
+    made: "2026-08-02T09:40:00+02:00",
+    items: [["CASTLE-340", 6], ["ICE-2KG", 1], ["CHARCOAL-4KG", 1]],
+    sold30: 10,
+    soldPrev: 4,
+  },
+  {
+    code: "BND-0005",
+    kind: "FIXED_SET",
+    name: "Gin and tonic",
+    price: "17.30",
+    category: "Spirits",
+    made: "2026-08-20T10:15:00+02:00",
+    items: [["GORDONS-750", 1], ["TONIC-200", 4]],
+    sold30: 9,
+    soldPrev: 0,
+  },
+  {
+    code: "BND-0006",
+    kind: "BUY_MORE",
+    name: "Any 3 ciders",
+    price: "5.00",
+    buy: 3,
+    category: "Ciders and coolers",
+    made: "2026-09-01T08:30:00+02:00",
+    items: [["SAVANNA-330", 1], ["HUNTERS-330", 1], ["BERNINI-275", 1]],
+    sold30: 44,
+    soldPrev: 0,
+    groups: { "SAVANNA-330": 15, "HUNTERS-330": 16, "BERNINI-275": 13 },
+  },
+  {
+    code: "BND-0007",
+    kind: "BUY_MORE",
+    name: "Second Amarula half price",
+    price: "27.38",
+    buy: 2,
+    category: "Spirits",
+    made: "2026-09-03T11:05:00+02:00",
+    items: [["AMARULA-750", 1]],
+    sold30: 6,
+    soldPrev: 0,
+    groups: { "AMARULA-750": 6 },
+  },
 ]
 
 /** The cases: what each opens into and how many (W-12's packs). */
@@ -663,7 +739,13 @@ async function main() {
   for (const [pack, single, size] of PACKS) {
     await prisma.product.update({
       where: { id: stocked.get(pack)!.productId },
-      data: { packOfId: stocked.get(single)!.productId, packSize: size, breakAtTill: true },
+      // PRD-08: the Castle case carries a US$3.00 deposit on its crate.
+      data: {
+        packOfId: stocked.get(single)!.productId,
+        packSize: size,
+        breakAtTill: true,
+        ...(pack === "CASTLE-CASE" ? { returnable: true, depositAmount: money("3.00") } : {}),
+      },
     })
   }
   /*
@@ -769,6 +851,9 @@ async function main() {
     })
     console.log(`  reset: cleared ${saleIds.length} previous sale(s) and their shifts`)
   }
+
+  // PRD-08: the bundles their sales below are tagged with.
+  const bundleSeeds = await seedBundles({ companyId, productIds: new Map([...stocked].map(([code, line]) => [code, line.productId])), reset })
 
   // ── The history ──────────────────────────────────────────────────────────
   type ShiftRow = Prisma.RetailShiftCreateManyInput
@@ -1081,6 +1166,44 @@ async function main() {
     if (functionOrderAt.getTime() < soldOutBy) soldOutSalesLeft -= 1
   }
   /*
+    PRD-08. The bundles' sales: each is its own sale on a closed drawer, of
+    the bundle's lines alone. In the window their units come out of the
+    quotas first, like the preview sale's; the 30 days before take the Braai
+    pack's four. Never refunded or voided.
+  */
+  const bundleSales = new Map<string, { bundle: SeededBundle; picks: Array<{ code: string; units: number }> }>()
+  {
+    const closedPlans = salePlans.flatMap((plan, slotIndex) =>
+      slots[slotIndex]!.open ? [] : plan.map((postedAt) => ({ slotIndex, at: postedAt.getTime(), key: `${slotIndex}|${postedAt.getTime()}` })),
+    )
+    const taken = new Set<string>()
+    const place = (from: number, to: number) => {
+      const free = closedPlans.filter((entry) => entry.at >= from && entry.at < to && !taken.has(entry.key) && !isFunctionOrder(entry.slotIndex, new Date(entry.at)))
+      const chosen = free.length ? free[Math.floor(Math.random() * free.length)]! : null
+      if (chosen) taken.add(chosen.key)
+      return chosen
+    }
+    for (const seed of BUNDLE_SEEDS) {
+      const bundle = bundleSeeds.get(seed.code)
+      if (!bundle) continue
+      const groups = seed.groups
+        ? Object.entries(seed.groups).flatMap(([code, count]) => Array.from({ length: count }, () => [{ code, units: seed.buy! }]))
+        : Array.from({ length: seed.sold30 }, () => seed.items.map(([code, units]) => ({ code, units })))
+      for (const picks of groups) {
+        const slot = place(windowCounts, floorFirst.getTime())
+        if (!slot) break
+        for (const line of picks) quota.reserve(line.code, line.units)
+        windowSalesLeft -= 1
+        if (slot.at < soldOutBy) soldOutSalesLeft -= 1
+        bundleSales.set(slot.key, { bundle, picks })
+      }
+      for (let index = 0; index < seed.soldPrev; index += 1) {
+        const slot = place(windowOpens - 30 * DAY_MS, windowOpens)
+        if (slot) bundleSales.set(slot.key, { bundle, picks: seed.items.map(([code, units]) => ({ code, units })) })
+      }
+    }
+  }
+  /*
     FLR-01: refunds are numbered RFD-0001 upwards and the boards' RFD-0044
     (this morning's) is the newest, so the history holds exactly 43, on
     closed drawers outside the window's quiet hours.
@@ -1089,7 +1212,7 @@ async function main() {
     slots[slotIndex]!.open
       ? []
       : plan
-          .filter((postedAt) => !isFunctionOrder(slotIndex, postedAt))
+          .filter((postedAt) => !isFunctionOrder(slotIndex, postedAt) && !bundleSales.has(`${slotIndex}|${postedAt.getTime()}`))
           .map((postedAt) => postedAt.getTime())
           .filter((at) => !(at + 20 * 60 * 1000 >= windowOpens && at + 20 * 60 * 1000 < windowCounts))
           .map((at) => `${slotIndex}|${at}`),
@@ -1160,6 +1283,7 @@ async function main() {
   }
   let previewSaleId: string | null = null
   let functionOrderSaleId: string | null = null
+  const bundleSaleIds = new Set<string>()
   const byCode = new Map(CATALOGUE.map((entry) => [entry.code, entry]))
   const codeOfProduct = new Map([...stocked].map(([code, line]) => [line.productId, code]))
 
@@ -1185,9 +1309,13 @@ async function main() {
         if (isPreviewSale) previewSaleId = saleId
         const functionOrder = isFunctionOrder(slotIndex, postedAt)
         if (functionOrder) functionOrderSaleId = saleId
+        const bundleSale = bundleSales.get(`${slotIndex}|${postedAt.getTime()}`) ?? null
+        if (bundleSale) bundleSaleIds.add(saleId)
 
         // In the window, this sale's share of the quotas; before it, a weighted pick.
-        const picks = isPreviewSale
+        const picks = bundleSale
+          ? bundleSale.picks
+          : isPreviewSale
           ? PREVIEW_PICKS
           : functionOrder
           ? FUNCTION_PICKS
@@ -1220,6 +1348,7 @@ async function main() {
           // The preview sale carries its bottles' deposit, as the till charges it.
           const lineDeposit = isPreviewSale && product.deposit ? multiplyMoney(quantity, product.deposit) : money(0)
           lines.push({
+            ...(bundleSale ? { bundleId: bundleSale.bundle.id, bundleRef: `${saleId}:1` } : {}),
             depositAmount: lineDeposit,
             id: randomUUID(),
             companyId,
@@ -1238,6 +1367,8 @@ async function main() {
           })
         }
         if (lines.length === 0) continue
+        // A bundle's lines share its price pro rata to their own, in whole cents (PRD-08's engine).
+        if (bundleSale) priceBundleLines(lines, bundleSale.bundle)
 
         // Revenue before tax. On a tax-inclusive list that is the ex-VAT value
         // of the shelf prices, not the shelf prices themselves — the same basis
@@ -1422,6 +1553,7 @@ async function main() {
               row.status === "POSTED" &&
               row.id !== previewSaleId &&
               row.id !== functionOrderSaleId &&
+              !bundleSaleIds.has(row.id as string) &&
               !saleRows.some((other) => other.sourceSaleId === row.id),
           )
 
@@ -5118,4 +5250,118 @@ async function seedApprovals(companyId: string) {
   })
   if (saved) await prisma.platformAuditEvent.update({ where: { id: saved.id }, data: { createdAt: changedAt } })
   console.log("  approvals: the board's limits, owner approvals to Tendai Mhlanga, last changed on 1 September")
+}
+
+/* ── PRD-08: bundles and buy-more deals ───────────────────────────────── */
+
+type SeededBundle = { id: string; code: string; kind: "FIXED_SET" | "BUY_MORE"; price: string }
+
+/**
+ * The four bundles of `BUNDLE_SEEDS`, made by the owner on their day, with
+ * their items, and their Changes: "Made it at US$…", and the Braai pack's
+ * price brought down from US$11.50 a month later. With --reset any other
+ * bundle (one a walk made) goes, and the seeded ones are put back on sale.
+ */
+async function seedBundles(input: { companyId: string; productIds: Map<string, string>; reset: boolean }): Promise<Map<string, SeededBundle>> {
+  const { companyId, productIds, reset } = input
+  const owner = await prisma.user.findFirst({ where: { companyId, email: "owner@bottlestore.test" }, select: { id: true, name: true } })
+  const categories = new Map(
+    (await prisma.retailCategory.findMany({ where: { companyId, archivedAt: null }, select: { id: true, name: true } })).map((row) => [row.name, row.id]),
+  )
+  const codes = BUNDLE_SEEDS.map((seed) => seed.code)
+  if (reset) {
+    await prisma.retailBundle.deleteMany({ where: { companyId, code: { notIn: codes } } })
+    await prisma.platformAuditEvent.deleteMany({ where: { companyId, entityType: "RetailBundle" } })
+  }
+  const seeded = new Map<string, SeededBundle>()
+  for (const seed of BUNDLE_SEEDS) {
+    const made = new Date(seed.made)
+    const data = {
+      kind: seed.kind,
+      name: seed.name,
+      barcode: seed.barcode ?? null,
+      categoryId: seed.category ? (categories.get(seed.category) ?? null) : null,
+      price: money(seed.price),
+      buyQuantity: seed.buy ?? null,
+      days: "EVERY_DAY" as const,
+      daysOfWeek: [],
+      endsOn: null,
+      siteId: null,
+      tillButton: true,
+      pausedAt: null,
+      stoppedAt: null,
+      archivedAt: null,
+      createdById: owner?.id ?? null,
+      createdAt: made,
+    }
+    const bundle = await prisma.retailBundle.upsert({
+      where: { companyId_code: { companyId, code: seed.code } },
+      create: { companyId, code: seed.code, ...data },
+      update: data,
+      select: { id: true },
+    })
+    await prisma.retailBundleItem.deleteMany({ where: { bundleId: bundle.id } })
+    await prisma.retailBundleItem.createMany({
+      data: seed.items.map(([code, quantity], index) => ({ bundleId: bundle.id, productId: productIds.get(code)!, quantity, sortOrder: index })),
+    })
+    seeded.set(seed.code, { id: bundle.id, code: seed.code, kind: seed.kind, price: seed.price })
+
+    // Its Changes, once: made at its price; the Braai pack's price down a month later.
+    const written = await prisma.platformAuditEvent.count({ where: { companyId, entityType: "RetailBundle", entityId: bundle.id } })
+    if (owner && written === 0) {
+      const actor = { companyId, userId: owner.id, userName: owner.name ?? "Tendai Mhlanga", userRole: "SUPERADMIN" }
+      const braai = seed.code === "BND-0004"
+      await writeRetailAuditEvent(prisma, {
+        actor,
+        eventType: RETAIL_AUDIT_EVENTS.bundleCreated,
+        entityType: "RetailBundle",
+        entityId: bundle.id,
+        payload: { code: seed.code, name: seed.name, price: braai ? "11.50" : seed.price },
+      })
+      await prisma.platformAuditEvent.updateMany({ where: { companyId, entityId: bundle.id, eventType: RETAIL_AUDIT_EVENTS.bundleCreated }, data: { createdAt: made } })
+      if (braai) {
+        await writeRetailAuditEvent(prisma, {
+          actor,
+          eventType: RETAIL_AUDIT_EVENTS.bundleChanged,
+          entityType: "RetailBundle",
+          entityId: bundle.id,
+          payload: { name: seed.name, changes: [{ field: "price", label: "Price", from: "US$11.50", to: "US$11.00" }] },
+        })
+        await prisma.platformAuditEvent.updateMany({
+          where: { companyId, entityId: bundle.id, eventType: RETAIL_AUDIT_EVENTS.bundleChanged },
+          data: { createdAt: new Date(made.getTime() + 30 * DAY_MS) },
+        })
+      }
+    }
+  }
+  const last = Math.max(...codes.map((code) => Number(code.slice(4))))
+  const sequence = { companyId_entityKey_scopeKey: { companyId, entityKey: "RETAIL_BUNDLE", scopeKey: "GLOBAL" } }
+  const current = await prisma.idSequence.findUnique({ where: sequence, select: { lastNumber: true } })
+  if (reset || (current?.lastNumber ?? 0) < last) {
+    await prisma.idSequence.upsert({ where: sequence, create: { companyId, entityKey: "RETAIL_BUNDLE", scopeKey: "GLOBAL", lastNumber: last }, update: { lastNumber: last } })
+  }
+  console.log(`  bundles: ${seeded.size} (${BUNDLE_SEEDS.map((seed) => seed.name).join(", ")})`)
+  return seeded
+}
+
+/**
+ * A bundle sale's lines at the bundle's price: a fixed set's price shared
+ * over its lines pro rata to their own prices in whole cents, the cents left
+ * to the dearest (as the till's engine shares it); a buy-more group's line
+ * at the deal's price. Each line's VAT comes out of what it took, and its
+ * discount is the bundle's saving on it, ex-VAT as the till writes it.
+ */
+function priceBundleLines(lines: Prisma.RetailSaleLineCreateManyInput[], bundle: SeededBundle) {
+  const cents = (value: Prisma.Decimal) => Math.round(value.toNumber() * 100)
+  const shelf = lines.map((line) => cents(money(line.unitPrice as Prisma.Decimal).times(line.quantity as Prisma.Decimal)))
+  const target = cents(money(bundle.price))
+  const shares = bundle.kind === "FIXED_SET" ? shareCents(target, shelf) : [target]
+  lines.forEach((line, index) => {
+    const gross = money(shares[index]! / 100)
+    const net = netOfInclusiveTax(gross, VAT_PERCENT)
+    const shelfGross = money(shelf[index]! / 100)
+    line.lineTotal = gross
+    line.taxAmount = gross.minus(net)
+    line.discountAmount = netOfInclusiveTax(shelfGross, VAT_PERCENT).minus(net)
+  })
 }

@@ -3,6 +3,7 @@
  * file and one export line here.
  */
 export type * from "./types";
+export { bundleKind } from "./bundles";
 export { supplierKind } from "./buying";
 export { saleKind, shiftKind } from "./floor";
 export { productKind } from "./products";

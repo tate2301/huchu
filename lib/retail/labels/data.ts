@@ -28,6 +28,8 @@ export type Label = {
   barcode: string | null;
   symbology: LabelSymbology | null;
   copies: number;
+  /** A bundle's label (PRD-08): `productId` is the bundle's id. */
+  bundle?: boolean;
 };
 
 /**
@@ -57,8 +59,46 @@ export function labelBarcode(product: { code: string; barcode: string | null }):
   return isEan13(barcode) ? { barcode, symbology: "EAN13" } : { barcode: product.code, symbology: "CODE128" };
 }
 
-/** The products' labels, in name order; products that are not the company's are left out. */
+/**
+ * The labels, in name order: the products', then the bundles' (PRD-08) at
+ * their own price and barcode. An id may be either (the Bundles and packs
+ * list ticks both); ids that are not the company's are left out.
+ */
 export async function labelData(
+  companyId: string,
+  input: { productIds: string[]; bundleIds?: string[]; show: LabelShow; copies: number; at?: Date },
+): Promise<{ labels: Label[] }> {
+  const ids = [...new Set([...input.productIds, ...(input.bundleIds ?? [])])];
+  const [own, bundles] = await Promise.all([
+    productLabels(companyId, { ...input, productIds: ids }),
+    prisma.retailBundle.findMany({
+      where: { companyId, id: { in: ids }, archivedAt: null },
+      orderBy: { name: "asc" },
+      select: { id: true, name: true, code: true, barcode: true, price: true },
+    }),
+  ]);
+  const list = bundles.length ? await defaultPriceList(prisma, companyId) : null;
+  return {
+    labels: [
+      ...own.labels,
+      ...bundles.map((bundle): Label => {
+        const code = input.show.barcode ? labelBarcode(bundle) : null;
+        return {
+          productId: bundle.id,
+          name: bundle.name,
+          price: input.show.price ? formatMoney(toNumberOrZero(bundle.price), list?.currency ?? "USD") : null,
+          was: null,
+          barcode: code?.barcode ?? null,
+          symbology: code?.symbology ?? null,
+          copies: input.copies,
+          bundle: true,
+        };
+      }),
+    ],
+  };
+}
+
+async function productLabels(
   companyId: string,
   input: { productIds: string[]; show: LabelShow; copies: number; at?: Date },
 ): Promise<{ labels: Label[] }> {

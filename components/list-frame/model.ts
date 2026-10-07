@@ -173,6 +173,8 @@ export function cellText(column: ListColumn, row: ReportRow): string {
     case "num": {
       if (column.sign) return formatSignedCount(Number(value));
       if (column.percent) return formatPercent(Number(value));
+      // Money in a pill ("Saves US$2.30"): the figure keeps its currency.
+      if (column.kind === "money") return formatMoney(Number(value), currency);
       const unit = column.unitKey ? row[column.unitKey] : null;
       return isBlank(unit) ? formatCount(Number(value)) : `${formatCount(Number(value))} ${String(unit)}`;
     }
