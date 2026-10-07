@@ -353,7 +353,7 @@ const signOff: SheetKind = {
       body: { ...(outcome ? { outcome } : {}), ...(note ? { note } : {}) },
     };
   },
-  invalidate: [["retail-shift"], ["list", "retail-shifts"], ["nav-badges"], ["retail-overview"], ["record-activity"], ["reports"]],
+  invalidate: [["retail-shift"], ["list", "retail-shifts"], ["nav-badges"], ["retail-overview"], ["record-activity"], ["reports"], ["retail-end-of-day"], ["list", "retail-days"]],
   requires: [["retail.cash-control", "approve"]],
 };
 

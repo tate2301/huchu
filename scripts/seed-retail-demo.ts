@@ -75,7 +75,7 @@ import {
   RETAIL_AUDIT_EVENTS,
   writeRetailAuditEvent,
 } from "@/lib/retail/audit"
-import { generateRetailZReportTransaction } from "@/app/api/v2/retail/_services"
+import { closeDay, dayFigures, DayRefused, loadDayRows } from "@/lib/retail/floor/day-close"
 import { postRetailJournal } from "@/app/api/v2/retail/_helpers"
 import { adjustmentJournal, adjustStock, type AdjustWhy } from "@/lib/retail/stock/adjustments"
 import { breakCase } from "@/lib/retail/stock/cases"
@@ -752,7 +752,12 @@ async function main() {
     await prisma.retailSaleLine.deleteMany({ where: { saleId: { in: saleIds } } })
     await prisma.retailSale.deleteMany({ where: { companyId } })
     await prisma.retailHeldCart.deleteMany({ where: { companyId } })
-    // The days' Z-reports were taken over the history being replaced.
+    // The days closed over the history being replaced: their Z-reports, the cash banked and its journal.
+    const banked = { companyId, sourceType: "RETAIL_DAY_BANKED" as const }
+    await prisma.bankTransaction.deleteMany({ where: banked })
+    await prisma.journalEntry.deleteMany({ where: banked })
+    await prisma.accountingIntegrationEvent.deleteMany({ where: banked })
+    await prisma.retailDayClose.deleteMany({ where: { companyId } })
     await prisma.retailZReport.deleteMany({ where: { companyId } })
     await prisma.retailShift.deleteMany({ where: { companyId } })
     // The next shift number is worked out again from the history written below
@@ -1699,31 +1704,6 @@ async function main() {
     prisma.retailSalePayment.createMany({ data: batch, skipDuplicates: true }),
   )
 
-  // ── Every closed day, closed ─────────────────────────────────────────────
-  /*
-    Each till's trading days before today get their Z-report, taken by the
-    manager through the same service the end-of-day screen calls, so the
-    Shifts list's "Print Z-reports" has documents to print. A day with a
-    drawer still open (the stale Back till) cannot be closed and stays open.
-  */
-  const manager = staff.find((person) => person.name === "Tafara Nyathi") ?? staff[0]
-  const today = tradingDayKey(now)
-  const openDays = new Set(
-    shiftRows.filter((row) => row.status === "OPEN").map((row) => `${row.registerCode}|${tradingDayKey(row.openedAt as Date)}`),
-  )
-  const closeDays = [
-    ...new Set(shiftRows.map((row) => `${row.registerCode}|${tradingDayKey(row.openedAt as Date)}`)),
-  ].filter((key) => !openDays.has(key) && key.split("|")[1]! < today)
-  for (const key of closeDays) {
-    const [registerCode, businessDate] = key.split("|") as [string, string]
-    await generateRetailZReportTransaction({
-      actor: { companyId, userId: manager.id, userName: manager.name, userRole: "MANAGER" },
-      registerCode,
-      businessDate,
-    })
-  }
-  console.log(`  ${closeDays.length} Z-reports (every closed till-day before today)`)
-
   // ── A cart nobody came back for ──────────────────────────────────────────
   const openShift = shiftRows.find((row) => row.status === "OPEN")
   const castle = stocked.get("CASTLE-CASE")
@@ -1857,6 +1837,7 @@ async function main() {
   await seedShiftCounts(companyId)
   await seedShiftVariances(companyId)
   await seedSignOffs(companyId)
+  await seedDayCloses(companyId)
   await seedImportDemo({ companyId, mainSiteId: site.id, softDrinksId: categoryIds.get("Soft drinks") ?? null })
   await seedReportTemplates(companyId)
 
@@ -2128,6 +2109,68 @@ async function seedSignOffs(companyId: string) {
  * put on their shelves. `--reset` takes away sites added since (an acceptance
  * run's Avondale): deleted when nothing else refers to them, else closed.
  */
+/**
+ * FLR-07 `seedDayCloses()`: every past trading day of the history closed at
+ * 22:00 by Tafara Nyathi through Close the day itself — each till's Z-report,
+ * the figures frozen, the day's "Cash, US$" banked to CBZ (the default bank
+ * account, made when the tenant has none of its own: the books' placeholder
+ * does not count). Only where a day can close: the
+ * day the stale Back till opened and the days of this week's unsigned
+ * shortages stay "Not closed"; older accepted shortages close "Signed off short".
+ */
+async function seedDayCloses(companyId: string) {
+  const tafara = await prisma.user.findFirst({ where: { companyId, email: "tafara.manager@bottlestore.test" }, select: { id: true, name: true, role: true, email: true } })
+  if (!tafara) return
+  // The books' own placeholder ("Operating Bank" at "Seeded Foundation Bank") is not a bank the shop uses.
+  const settings = await prisma.accountingSettings.findUnique({ where: { companyId }, select: { defaultBankAccount: { select: { bankName: true } } } })
+  if (!settings?.defaultBankAccount || settings.defaultBankAccount.bankName === "Seeded Foundation Bank") {
+    const account =
+      (await prisma.bankAccount.findFirst({ where: { companyId, name: "CBZ current account" }, select: { id: true } })) ??
+      (await prisma.bankAccount.create({ data: { companyId, name: "CBZ current account", bankName: "CBZ", currency: "USD" }, select: { id: true } }))
+    await prisma.accountingSettings.upsert({
+      where: { companyId },
+      update: { defaultBankAccountId: account.id },
+      create: { companyId, defaultBankAccountId: account.id },
+    })
+  }
+
+  const today = tradingDayKey(new Date())
+  const [shifts, backOffice] = await Promise.all([
+    prisma.retailShift.findMany({ where: { companyId }, select: { siteId: true, openedAt: true } }),
+    prisma.retailSale.findMany({ where: { companyId, shiftId: null, saleType: { in: ["SALE", "REFUND", "VOID"] } }, select: { siteId: true, postedAt: true } }),
+  ])
+  const days = [
+    ...new Set([
+      ...shifts.map((shift) => `${shift.siteId}|${tradingDayKey(shift.openedAt)}`),
+      ...backOffice.map((sale) => `${sale.siteId}|${tradingDayKey(sale.postedAt)}`),
+    ]),
+  ]
+    .filter((key) => key.split("|")[1]! < today)
+    .sort((a, b) => a.split("|")[1]!.localeCompare(b.split("|")[1]!))
+  const actor = { user: { id: tafara.id, companyId, name: tafara.name, role: tafara.role, email: tafara.email } }
+  let closed = 0
+  let already = 0
+  const left: string[] = []
+  for (const key of days) {
+    const [siteId, date] = key.split("|") as [string, string]
+    const { shifts: own, sales } = await loadDayRows(companyId, siteId, date)
+    const cash = money(dayFigures(own, sales).cashUsd)
+    try {
+      await closeDay(actor, { siteId, date, banked: (cash.isNegative() ? ZERO : cash).toFixed(2) }, { now: new Date(`${date}T20:00:00.000Z`) })
+      closed += 1
+    } catch (error) {
+      if (!(error instanceof DayRefused) || error.status !== 409) throw error
+      if (/closed already/.test(error.message)) already += 1
+      else left.push(`${date} (${error.message})`)
+    }
+  }
+  // The cash banked as each night's posting run posted it: Dr 1010 Operating bank, Cr 1005 Cash vault.
+  for (const event of await prisma.accountingIntegrationEvent.findMany({ where: { companyId, sourceType: "RETAIL_DAY_BANKED", status: "PENDING" } })) {
+    await postIntegrationEvent(event)
+  }
+  console.log(`  day closes: ${closed} closed, ${already} closed before, ${left.length} not closed${left.length ? `: ${left.join("; ")}` : ""}`)
+}
+
 async function seedSites(input: { companyId: string; mainSiteId: string; borrowdaleId: string; reset: boolean }) {
   const { companyId, mainSiteId, borrowdaleId } = input
   const priceList = await activeRetailPriceList(companyId)

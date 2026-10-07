@@ -26,13 +26,23 @@ import {
 /** At most this many shifts per request: the selection's own cap. */
 export const Z_REPORT_SHIFT_CAP = 500;
 
-export const zReportPrintSchema = z.object({
-  shiftIds: z.array(z.string().uuid()).min(1).max(Z_REPORT_SHIFT_CAP),
-});
+/** At most this many site-days per request: a year of one site (Past days' selection). */
+export const Z_REPORT_DAY_CAP = 366;
 
-export const zReportExportSchema = zReportPrintSchema.extend({
-  format: z.literal("csv"),
-});
+const shiftIds = z.array(z.string().uuid()).min(1).max(Z_REPORT_SHIFT_CAP);
+
+/** The Shifts list's shifts, or Past days' site-days (FLR-07). */
+export const zReportPrintSchema = z.union([
+  z.object({ shiftIds }),
+  z.object({
+    days: z
+      .array(z.object({ siteId: z.string().uuid(), date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/) }))
+      .min(1)
+      .max(Z_REPORT_DAY_CAP),
+  }),
+]);
+
+export const zReportExportSchema = z.object({ shiftIds, format: z.literal("csv") });
 
 /** Refused with 409 when no day the shifts belong to has a report yet. */
 export const NONE_CLOSED = "None of these days has been closed yet.";
@@ -51,7 +61,7 @@ export function registerDays(shifts: Array<{ registerCode: string; openedAt: Dat
   );
 }
 
-type ZReportClient = Pick<PrismaClient, "retailShift" | "retailZReport">;
+type ZReportClient = Pick<PrismaClient, "retailShift" | "retailZReport" | "retailDayClose">;
 
 export type ShiftZReports = {
   reports: RetailZReportPayload[];
@@ -90,6 +100,32 @@ export async function findShiftZReports(
     .map((row) => serializeRetailZReport(row, row.site?.name ?? null))
     .sort((a, b) => a.businessDate.localeCompare(b.businessDate) || a.registerCode.localeCompare(b.registerCode));
   return { reports, days: days.length, notClosed: days.length - reports.length };
+}
+
+/**
+ * The Z-reports taken when these site-days closed (FLR-07): a day closes all
+ * its tills' reports at once, so a day not closed yet has none, and the
+ * caller is told how many such days there were.
+ */
+export async function findDayZReports(
+  client: ZReportClient,
+  companyId: string,
+  days: Array<{ siteId: string; date: string }>,
+): Promise<ShiftZReports> {
+  const unique = [...new Map(days.map((day) => [`${day.siteId}|${day.date}`, day])).values()];
+  if (unique.length === 0) return { reports: [], days: 0, notClosed: 0 };
+  const closes = await client.retailDayClose.findMany({
+    where: { companyId, OR: unique.map((day) => ({ siteId: day.siteId, businessDate: tradingDayAsDate(day.date) })) },
+    select: { zReportIds: true },
+  });
+  const ids = closes.flatMap((close) => close.zReportIds);
+  const rows = ids.length
+    ? await client.retailZReport.findMany({ where: { companyId, id: { in: ids } }, include: { site: { select: { name: true } } } })
+    : [];
+  const reports = rows
+    .map((row) => serializeRetailZReport(row, row.site?.name ?? null))
+    .sort((a, b) => a.businessDate.localeCompare(b.businessDate) || a.registerCode.localeCompare(b.registerCode));
+  return { reports, days: unique.length, notClosed: unique.length - closes.length };
 }
 
 /* ──────────────────────────────────────────────────────────────────────────

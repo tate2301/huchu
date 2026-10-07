@@ -249,6 +249,21 @@ Recorded unit choices:
   (14 cases of Castle Lager and 5 bags of ice, US$378.50, its units taken out of the 30-day quotas) and a drop to the
   safe bring its expected cash to the board's US$432.50. Every seeded difference over US$1.00 has a close note, and
   every seeded sign-off has its `RETAIL_SHIFT.SIGNED_OFF` line on the shift's Activity.
+- **FLR-07 departs from packet 59 in five places.**
+  - **A trading day is the Z-report's day.** The day's shifts are those opened in `tradingDayWindow` (the window
+    every Z-report already keys on), so End of day, Past days and the Z-reports a close takes never disagree about
+    which day a drawer belongs to.
+  - **Past days lists today and every day not closed yet.** Today reads "Not closed" until it is closed, so the
+    first row after closing today is today "Closed" (acceptance 2). "Fiscal day" is blank on a day whose sales
+    were signed into no fiscal day.
+  - **The demo shop banks with CBZ.** The books' own placeholder account ("Operating Bank" at "Seeded Foundation
+    Bank") is not a bank the shop uses, so the seed makes "CBZ current account" the default bank account in its
+    place. The seeded closes' banked journals are posted as each night's run posted them (Dr 1010, Cr 1005).
+  - **A day with nothing sold and no drawer opened cannot be closed** ("Nothing was sold at … on …."); the page
+    shows the empty-day sentence and no "Close the day".
+  - **The till keeps its taken reports, read only.** `GET /api/v2/retail/z-reports` answers the trading day and the
+    reports taken; the till's End of day finds its own for today there and otherwise says it is taken when a
+    manager closes the day.
 - **A list's Export stops at 5,000 rows and says so.** The file holds the engine's first 5,000 rows in the list's order
   with the list's totals over every row; the toast reads "The file has the first 5,000 of 5,858 rows. Narrow the
   filters for the rest."

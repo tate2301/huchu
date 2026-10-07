@@ -28,7 +28,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { prisma } from "@/lib/prisma";
-import { generateRetailZReportTransaction } from "@/app/api/v2/retail/_services";
+import { generateRetailZReportTransaction } from "@/lib/retail/z-report-generate";
 import { buildRetailZReportNo } from "./z-report";
 
 const FRIDAY = "2026-08-14";

@@ -547,4 +547,108 @@ const salesSource: ReportDefinition = {
   list: sales,
 };
 
-export const FLOOR_REPORTS: ReportDefinition[] = [shiftsSource, salesSource];
+const END_OF_DAY: ListSpec["read"] = [["retail.end-of-day", "view"]];
+const DAY_ROWS = { key: "days", fields: { siteId: "siteId", date: "date" } };
+
+/**
+ * Past days (50-floor, DaysList board; FLR-07): one row per site per trading
+ * day that had shifts, closed or not. A closed day reads what its close froze;
+ * one not closed yet is added up live with the same functions End of day uses.
+ */
+const days: ListSpec = {
+  noun: "days",
+  read: END_OF_DAY,
+  refusal: "Your role cannot view the end of day",
+  search: { placeholder: "Date", keys: ["dayWords"] },
+  filters: [
+    { key: "site", label: "Site", type: "choice", any: "All sites", optionsFromLoader: true, column: "siteId", primary: true },
+    { key: "when", label: "When", type: "period", any: "Any time", column: "date" },
+    {
+      key: "state",
+      label: "State",
+      type: "choice",
+      any: "Any",
+      options: [
+        { value: "closed", label: "Closed", where: [{ column: "state", op: "is", value: ["Closed"] }] },
+        { value: "short", label: "Signed off short", where: [{ column: "state", op: "is", value: ["Signed off short"] }] },
+        { value: "not-closed", label: "Not closed", where: [{ column: "state", op: "is", value: ["Not closed"] }] },
+      ],
+    },
+  ],
+  sorts: [
+    { key: "newest", label: "Newest first", rules: [{ column: "date", dir: "desc" }, { column: "site", dir: "asc" }] },
+    { key: "oldest", label: "Oldest first", rules: [{ column: "date", dir: "asc" }, { column: "site", dir: "asc" }] },
+    { key: "most-taken", label: "Most taken", rules: [{ column: "takings", dir: "desc" }] },
+  ],
+  groups: ["site", "state"],
+  columns: [
+    {
+      key: "day",
+      label: "Day",
+      kind: "text",
+      cell: "link",
+      href: "/retail/end-of-day?date={date}&site={siteId}",
+      width: "150px",
+      align: "start",
+      priority: 1,
+    },
+    { key: "site", label: "Site", kind: "text", cell: "text", width: "170px", align: "start", priority: 2 },
+    { key: "fiscalDayNo", label: "Fiscal day", kind: "text", cell: "mono", width: "90px", align: "end", priority: 3 },
+    money("takings", "Takings", { width: "130px", sortable: true }),
+    money("refunds", "Refunds", { width: "120px", priority: 3 }),
+    money("cashDifference", "Cash difference", { cell: "diff", diff: "variance", width: "130px" }),
+    money("banked", "Banked", { width: "130px", priority: 2 }),
+    {
+      key: "state",
+      label: "State",
+      kind: "status",
+      cell: "state",
+      width: "120px",
+      align: "start",
+      priority: 1,
+      tones: { "Not closed": "bad", "Signed off short": "warn", Closed: "hollow" },
+    },
+  ],
+  rowHref: "/retail/end-of-day?date={date}&site={siteId}",
+  rowMenu: [
+    { key: "open", label: "Open", requires: END_OF_DAY, do: { href: "/retail/end-of-day?date={date}&site={siteId}" } },
+    {
+      key: "z-reports",
+      label: "Download Z-reports",
+      requires: END_OF_DAY,
+      when: [{ column: "state", op: "isNot", value: ["Not closed"] }],
+      do: { download: "/api/v2/retail/z-reports/print", rowsAs: DAY_ROWS, open: true },
+    },
+  ],
+  bulk: [
+    {
+      key: "export-z",
+      label: "Export Z-reports",
+      requires: END_OF_DAY,
+      do: {
+        download: "/api/v2/retail/z-reports/print",
+        rowsAs: DAY_ROWS,
+        open: true,
+        cap: 366,
+        notice: { header: "X-Not-Closed", text: "{n} of these days are not closed yet." },
+      },
+    },
+    { key: "export" },
+  ],
+  card: { title: "day", badge: "state", figure: "takings", meta: "{site}", figure2: "banked" },
+  empty: { icon: "Clock", title: "No days yet", line: "Each day you close shows here with its Z-reports." },
+};
+
+const daysSource: ReportDefinition = {
+  key: "retail-days",
+  title: "Past days",
+  area: "The floor",
+  href: "/retail/end-of-day/days",
+  profiles: ["RETAIL"],
+  params: [],
+  columns: days.columns,
+  defaults: {},
+  list: days,
+};
+
+export const FLOOR_REPORTS: ReportDefinition[] = [shiftsSource, salesSource, daysSource];

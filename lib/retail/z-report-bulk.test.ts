@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { RetailZReportRow } from "./z-report";
 import {
+  findDayZReports,
   findShiftZReports,
   registerDays,
   zReportPrintSchema,
@@ -137,6 +138,64 @@ describe("findShiftZReports", () => {
     expect(found).toEqual({ reports: [], days: 0, notClosed: 0 });
     // Nothing else is even looked up for an id from another company.
     expect(seen).toHaveLength(0);
+  });
+});
+
+describe("findDayZReports (Past days, FLR-07)", () => {
+  const SITE = "6f1f7a52-6b5c-4a6e-9d2c-3d7b3c1e9a10";
+  /** Two closed site-days of this company (Front and Back till on the 30th, Front on the 1st), one of another's. */
+  function daysClient() {
+    const rows = [
+      report("TILL-1", "Front till", "2026-09-30"),
+      report("TILL-2", "Back till", "2026-09-30"),
+      report("TILL-1", "Front till", "2026-10-01"),
+      { ...report("TILL-1", "Front till", "2026-09-29"), companyId: "other" },
+    ];
+    const closes = [
+      { companyId: COMPANY, siteId: SITE, businessDate: new Date("2026-09-30T00:00:00.000Z"), zReportIds: ["z-TILL-1-2026-09-30", "z-TILL-2-2026-09-30"] },
+      { companyId: COMPANY, siteId: SITE, businessDate: new Date("2026-10-01T00:00:00.000Z"), zReportIds: ["z-TILL-1-2026-10-01"] },
+      { companyId: "other", siteId: SITE, businessDate: new Date("2026-09-29T00:00:00.000Z"), zReportIds: ["z-TILL-1-2026-09-29"] },
+    ];
+    const client = {
+      retailDayClose: {
+        findMany: async ({ where }: { where: { companyId: string; OR: Array<{ siteId: string; businessDate: Date }> } }) =>
+          closes.filter(
+            (close) =>
+              close.companyId === where.companyId &&
+              where.OR.some((key) => key.siteId === close.siteId && key.businessDate.getTime() === close.businessDate.getTime()),
+          ),
+      },
+      retailZReport: {
+        findMany: async ({ where }: { where: { companyId: string; id: { in: string[] } } }) =>
+          rows.filter((row) => ((row as { companyId?: string }).companyId ?? COMPANY) === where.companyId && where.id.in.includes(row.id)),
+      },
+    };
+    return client as unknown as Parameters<typeof findDayZReports>[0];
+  }
+
+  it("prints every till's report of each closed day, oldest first, and counts the days not closed", async () => {
+    const found = await findDayZReports(daysClient(), COMPANY, [
+      { siteId: SITE, date: "2026-10-01" },
+      { siteId: SITE, date: "2026-09-30" },
+      { siteId: SITE, date: "2026-10-02" },
+      { siteId: SITE, date: "2026-09-30" },
+    ]);
+    expect(found.days).toBe(3);
+    expect(found.notClosed).toBe(1);
+    expect(found.reports.map((entry) => entry.reportNo)).toEqual(["Z-TILL1-20260930", "Z-TILL2-20260930", "Z-TILL1-20261001"]);
+  });
+
+  it("finds nothing of another company's days", async () => {
+    const found = await findDayZReports(daysClient(), COMPANY, [{ siteId: SITE, date: "2026-09-29" }]);
+    expect(found).toEqual({ reports: [], days: 1, notClosed: 1 });
+  });
+
+  it("takes 1 to 366 site-days, each a site id and a date", () => {
+    expect(zReportPrintSchema.safeParse({ days: [{ siteId: SITE, date: "2026-10-02" }] }).success).toBe(true);
+    expect(zReportPrintSchema.safeParse({ days: [] }).success).toBe(false);
+    expect(zReportPrintSchema.safeParse({ days: [{ siteId: SITE, date: "2 Oct" }] }).success).toBe(false);
+    expect(zReportPrintSchema.safeParse({ days: [{ siteId: "main", date: "2026-10-02" }] }).success).toBe(false);
+    expect(zReportPrintSchema.safeParse({ days: Array.from({ length: 367 }, () => ({ siteId: SITE, date: "2026-10-02" })) }).success).toBe(false);
   });
 });
 

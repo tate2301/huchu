@@ -1,0 +1,147 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   END OF DAY — one site's trading day (W-43, FLR-07; board EndOfDay).
+
+   Under the shell's header: a strip on --ground (the state chip, Takings),
+   then two columns — the tills table and the How-people-paid tiles, and the
+   360px aside (Before the day closes, Banked, the slip). Under 720px the aside
+   goes under the main column, the table becomes cards and the tiles go two a row.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.cx-eod {
+  display: flex;
+  flex-direction: column;
+  min-height: var(--content-viewport);
+  width: calc(100% + (var(--content-gutter-x) * 2));
+  margin-inline: calc(var(--content-gutter-x) * -1);
+  margin-top: calc(var(--content-lede) * -1);
+  background: var(--surface);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 1.4;
+}
+.cx-eod :is(button, a, input):focus-visible { outline: 2px solid var(--action); outline-offset: 2px; }
+.cx-eod-mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+.cx-eod-end { text-align: right; justify-self: end; }
+.cx-eod-bad { color: var(--bad); }
+.cx-eod-warn { color: var(--warn); }
+.cx-eod-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+/* ── The strip ──────────────────────────────────────────────── */
+.cx-eod-strip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 48px;
+  padding: 0 16px;
+  background: var(--ground);
+  border-bottom: 1px solid var(--line);
+}
+.cx-eod-chip { display: inline-flex; align-items: center; height: 24px; padding: 0 8px; border-radius: 6px; font-size: 13px; white-space: nowrap; }
+.cx-eod-chip--warn { background: var(--warn-soft); color: var(--warn); }
+.cx-eod-chip--ok { background: var(--ok-soft); color: var(--ok); }
+.cx-eod-chip--plain { padding: 0; color: var(--ink-2); }
+.cx-eod-takings { display: inline-flex; align-items: baseline; gap: 8px; color: var(--ink-3); font-size: 13px; white-space: nowrap; }
+.cx-eod-takings b { color: var(--ink); font-size: 15px; font-weight: 600; }
+
+/* ── The body ───────────────────────────────────────────────── */
+.cx-eod-body { flex: 1; display: grid; grid-template-columns: minmax(0, 1fr) 360px; }
+.cx-eod-main { min-width: 0; padding: 20px 24px; display: flex; flex-direction: column; gap: 20px; }
+.cx-eod-problem { margin: 0; color: var(--bad); }
+.cx-eod-empty { margin: 0; padding: 24px; border: 1px solid var(--line); border-radius: 12px; color: var(--ink-2); }
+
+.cx-eod-table { border: 1px solid var(--line); border-radius: 12px; overflow: hidden; font-size: 13px; }
+.cx-eod-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 120px 120px 100px 110px 130px;
+  align-items: center;
+  column-gap: 0;
+  min-height: 48px;
+  padding: 0 14px;
+  border-bottom: 1px solid var(--line);
+}
+.cx-eod-row > span { padding-right: 10px; min-width: 0; }
+.cx-eod-row > span:last-child { padding-right: 0; padding-left: 14px; }
+.cx-eod-row:last-child { border-bottom: 0; }
+.cx-eod-row--head { min-height: 36px; background: var(--ground); color: var(--ink-3); }
+.cx-eod-row--sum { min-height: 44px; background: var(--ground); color: var(--ink-2); }
+.cx-eod-row--sum .cx-eod-mono { color: var(--ink); font-weight: 700; }
+.cx-eod-row--sum .cx-eod-warn { color: var(--warn); }
+.cx-eod-till { display: flex; flex-direction: column; line-height: 1.2; }
+.cx-eod-till__name { color: var(--ink); }
+.cx-eod-till__who { color: var(--ink-3); font-size: 12.5px; }
+.cx-eod-link a { color: var(--ink); text-decoration: underline; text-decoration-color: var(--ink-3); text-underline-offset: 3px; }
+.cx-eod-link a:hover { text-decoration-color: var(--ink); }
+
+.cx-eod-tiles { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+.cx-eod-tile { display: flex; flex-direction: column; gap: 4px; padding: 12px 14px; border-left: 1px solid var(--line); border-top: 1px solid var(--line); margin-top: -1px; }
+.cx-eod-tile:nth-child(5n + 1) { border-left: 0; }
+.cx-eod-tile__label { color: var(--ink-3); font-size: 13px; }
+.cx-eod-tile__amount { font-size: 17px; font-weight: 700; color: var(--ink); white-space: nowrap; }
+
+/* ── The aside ──────────────────────────────────────────────── */
+.cx-eod-aside { min-width: 0; padding: 20px; border-left: 1px solid var(--line); display: flex; flex-direction: column; gap: 16px; }
+.cx-eod-aside h2 { margin: 0; font-size: 15px; font-weight: 700; color: var(--ink); }
+.cx-eod-checks { margin: 0; padding: 0; list-style: none; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+.cx-eod-check { position: relative; display: grid; grid-template-columns: 20px minmax(0, 1fr) auto; align-items: center; gap: 12px; padding: 14px; border-bottom: 1px solid var(--line); }
+.cx-eod-check:last-child { border-bottom: 0; }
+.cx-eod-check__mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  box-sizing: border-box;
+  border: 1.5px solid var(--line-strong, var(--line));
+  border-radius: 99px;
+  font-size: 12px;
+  font-weight: 700;
+}
+.cx-eod-check[data-done] .cx-eod-check__mark { border-color: var(--ok); background: var(--ok); color: var(--surface); }
+.cx-eod-check__text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.cx-eod-check__label { color: var(--ink); }
+.cx-eod-check__detail { color: var(--ink-3); font-size: 13px; line-height: 1.35; }
+
+.cx-eod-field { display: flex; flex-direction: column; gap: 6px; }
+.cx-eod-field label { font-size: 14px; font-weight: 500; color: var(--ink); }
+.cx-eod-field .cx-money { width: 100%; }
+.cx-eod-optional { color: var(--ink-3); font-weight: 400; }
+.cx-eod-hint { color: var(--ink-3); font-size: 13px; line-height: 1.45; }
+.cx-eod-error { color: var(--bad); font-size: 13px; }
+
+.cx-eod-read { margin: 0; display: flex; flex-direction: column; gap: 10px; }
+.cx-eod-read > div { display: flex; justify-content: space-between; gap: 12px; }
+.cx-eod-read dt { color: var(--ink-2); }
+.cx-eod-read dd { margin: 0; color: var(--ink); text-align: right; }
+.cx-eod-read a { color: var(--ink); text-decoration: underline; text-underline-offset: 3px; }
+
+/* ── Phone ──────────────────────────────────────────────────── */
+@media (max-width: 719px) {
+  .cx-eod-body { grid-template-columns: minmax(0, 1fr); }
+  .cx-eod-main { padding: 16px; }
+  .cx-eod-aside { border-left: 0; border-top: 1px solid var(--line); padding: 16px; }
+  .cx-eod-strip { padding: 0 16px; }
+
+  /* The table becomes cards: till and shift, then takings and difference, then the link. */
+  .cx-eod-table { border: 0; border-radius: 0; overflow: visible; display: flex; flex-direction: column; gap: 10px; }
+  .cx-eod-row--head { display: none; }
+  .cx-eod-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    row-gap: 6px;
+    padding: 12px 14px;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+  }
+  .cx-eod-row:last-child { border-bottom: 1px solid var(--line); }
+  .cx-eod-row > span:last-child { padding-left: 0; }
+  .cx-eod-row > span:nth-child(2) { text-align: right; justify-self: end; padding-right: 0; }
+  .cx-eod-row > span[data-label]::before { content: attr(data-label) " "; color: var(--ink-3); font-family: var(--font-sans); }
+  .cx-eod-row > span[data-label] { justify-self: start; text-align: left; }
+  .cx-eod-row > span[data-label="Refunds"] { display: none; }
+  .cx-eod-row--sum > span:nth-child(4) { display: none; }
+  .cx-eod-row--sum > span:nth-child(3) { justify-self: end; }
+  .cx-eod-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .cx-eod-tile:nth-child(5n + 1) { border-left: 1px solid var(--line); }
+  .cx-eod-tile:nth-child(2n + 1) { border-left: 0; }
+}

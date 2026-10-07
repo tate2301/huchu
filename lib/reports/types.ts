@@ -408,6 +408,11 @@ export type ListAction = {
         download: string;
         /** The body key the ids go under. Default `ids`. */
         idsAs?: string;
+        /**
+         * Instead of ids: each row as an object of these row keys, under this body key (Past days' `days:
+         * [{ siteId, date }]`). `fields` maps the object's key to the row's.
+         */
+        rowsAs?: { key: string; fields: Record<string, string> };
         /** More of the body, fixed. */
         with?: Record<string, string>;
         /** Opened in a new tab (a PDF to print) rather than saved. */

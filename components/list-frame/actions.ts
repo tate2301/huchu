@@ -120,7 +120,12 @@ export async function runAction(
     const response = await fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ [how.idsAs ?? "ids"]: ids, ...how.with }),
+      body: JSON.stringify({
+        ...(how.rowsAs
+          ? { [how.rowsAs.key]: rows.map((row) => Object.fromEntries(Object.entries(how.rowsAs!.fields).map(([field, column]) => [field, row[column]]))) }
+          : { [how.idsAs ?? "ids"]: ids }),
+        ...how.with,
+      }),
     });
     if (!response.ok) {
       tab?.close();

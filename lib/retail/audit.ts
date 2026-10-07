@@ -71,6 +71,8 @@ export const RETAIL_AUDIT_EVENTS = {
   shiftClosed: "RETAIL_SHIFT.CLOSED",
   /** A manager's decision on a drawer that closed out: accepted, to recover from the cashier, or being looked into (FLR-05). */
   shiftSignedOff: "RETAIL_SHIFT.SIGNED_OFF",
+  /** A site's trading day closed: its figures frozen, its Z-reports taken, the cash banked (FLR-07). */
+  dayClosed: "RETAIL_DAY.CLOSED",
   /** Cash to the safe, a float top-up, or a payout. */
   cashMoved: "RETAIL_CASH.MOVED",
   /** A delivery booked in against a purchase order. */

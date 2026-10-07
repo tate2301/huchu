@@ -106,9 +106,11 @@ export type ListFrameProps = {
   defaultSort?: string;
   /** This page's grouping before anyone picks one (`null`: none), in place of the source's. */
   defaultGroup?: string | null;
+  /** The header's back link, for a list under another page ("‹ End of day / Past days"). */
+  back?: { href: string; label: string };
 };
 
-export function ListFrame({ source, title, sub, rowFilters, defaultSort, defaultGroup }: ListFrameProps) {
+export function ListFrame({ source, title, sub, rowFilters, defaultSort, defaultGroup, back }: ListFrameProps) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -525,6 +527,8 @@ export function ListFrame({ source, title, sub, rowFilters, defaultSort, default
   const chrome = (
     <PageChrome
       title={title}
+      backHref={back?.href}
+      backLabel={back?.label}
       sub={sub ?? parent?.label ?? definition?.list?.sub ?? null}
       subLink={clearParent ?? (refusal ? null : sheetLink)}
       primary={refusal ? null : primary}

@@ -24,7 +24,7 @@ import { useShell } from "@/components/layout/shell-state";
 import { Button } from "@/components/workspace/button";
 import { Menu, MenuContent, MenuItem, MenuTrigger } from "@/components/workspace/menu";
 import { CrmMembers } from "@/components/crm/crm-members";
-import { CaretLeft, DotsThree, List, Plus, type LucideIcon } from "@/lib/icons";
+import { CaretLeft, ChevronDown, DotsThree, List, Plus, type LucideIcon } from "@/lib/icons";
 import { navSections } from "@/lib/navigation";
 
 /**
@@ -75,6 +75,7 @@ export function PageHeader() {
   const back = identity?.back;
   const primaryHref = primary?.href ?? (primary?.sheet ? sheetHref(pathname, searchParams.toString(), primary.sheet) : null);
   const runPrimary = (target: PagePrimary) => {
+    if (target.disabled) return;
     if (target.onClick) target.onClick();
     else if (primaryHref) router.push(primaryHref);
   };
@@ -117,7 +118,35 @@ export function PageHeader() {
         {identity?.reference ? (
           <span className="shrink-0 font-mono text-[var(--ink-3)]" style={{ fontSize: 12 }}>
             {identity.reference}
+            {identity.picker ? " · " : null}
           </span>
+        ) : null}
+        {identity?.picker ? (
+          identity.picker.options.length > 1 ? (
+            <Menu>
+              <MenuTrigger asChild>
+                <button
+                  type="button"
+                  className="-ml-1.5 flex h-7 shrink-0 items-center gap-1 rounded-[6px] px-1 font-mono text-[var(--ink-3)] hover:bg-[var(--hover)] hover:text-[var(--ink)]"
+                  style={{ fontSize: 12 }}
+                >
+                  {identity.picker.label}
+                  <ChevronDown className="size-3" aria-hidden="true" />
+                </button>
+              </MenuTrigger>
+              <MenuContent align="start">
+                {identity.picker.options.map((option) => (
+                  <MenuItem key={option.key} onSelect={() => router.push(option.href)}>
+                    {option.label}
+                  </MenuItem>
+                ))}
+              </MenuContent>
+            </Menu>
+          ) : (
+            <span className="-ml-1.5 shrink-0 font-mono text-[var(--ink-3)]" style={{ fontSize: 12 }}>
+              {identity.picker.label}
+            </span>
+          )
         ) : null}
         {identity?.sub ? (
           <span className="min-w-0 truncate text-[var(--ink-3)]">{identity.sub}</span>
@@ -138,7 +167,13 @@ export function PageHeader() {
           <NotificationsBell />
         </div>
         {actions ? <div className="flex shrink-0 items-center gap-2">{actions}</div> : null}
-        {primary ? (
+        {primary?.disabled ? (
+          <span title={primary.disabled} className="inline-flex">
+            <Button variant="primary" disabled aria-description={primary.disabled}>
+              {primary.label}
+            </Button>
+          </span>
+        ) : primary ? (
           primaryHref && !primary.onClick ? (
             <Button asChild variant="primary">
               <Link href={primaryHref}>
@@ -185,7 +220,7 @@ export function PageHeader() {
             </MenuTrigger>
             <MenuContent align="end">
               {primaryInMenu ? (
-                <MenuItem className="font-semibold" onSelect={() => runPrimary(primaryInMenu)}>
+                <MenuItem className="font-semibold" disabled={Boolean(primaryInMenu.disabled)} sub={primaryInMenu.disabled} onSelect={() => runPrimary(primaryInMenu)}>
                   {primaryInMenu.label}
                 </MenuItem>
               ) : null}

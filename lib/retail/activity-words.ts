@@ -131,6 +131,12 @@ function shiftSignedOffWords(payload: Payload): ActivityWords {
   return { what: figure === null ? "Signed off: accepted, not counted" : `Signed off: accepted ${formatSigned(figure)}`, tone: "ok" };
 }
 
+/** "Closed the day, US$2,610.00 banked" (FLR-07). */
+function dayClosedWords(payload: Payload): ActivityWords {
+  const banked = amount(payload.banked);
+  return { what: banked ? `Closed the day, ${formatMoney(banked)} banked` : "Closed the day", tone: "ok" };
+}
+
 function cashMovedWords(payload: Payload): ActivityWords {
   const figure = moneyWords(payload.amount, currencyOf(payload));
   switch (payload.type) {
@@ -413,6 +419,7 @@ const WORDS: Record<string, (payload: Payload, eventType: string, seeCost: boole
   }),
   [RETAIL_AUDIT_EVENTS.shiftClosed]: shiftClosedWords,
   [RETAIL_AUDIT_EVENTS.shiftSignedOff]: shiftSignedOffWords,
+  [RETAIL_AUDIT_EVENTS.dayClosed]: dayClosedWords,
   // "Opened the drawer without a sale, approved by Tafara Nyathi" (SET-06).
   [RETAIL_AUDIT_EVENTS.drawerOpened]: (payload) => ({
     what: `Opened the drawer without a sale${text(payload.approvedByName) ? `, approved by ${text(payload.approvedByName)}` : ""}`,

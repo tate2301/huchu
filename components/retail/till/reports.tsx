@@ -8,11 +8,11 @@
  */
 
 import * as React from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
 
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
-import { ChartBar, Check, Printer, Receipt } from "@/lib/icons";
+import { ChartBar, Printer, Receipt } from "@/lib/icons";
 import { canRetailRoleDo } from "@/lib/retail/permission-matrix";
 import { SHOP_TIME_ZONE } from "@/lib/retail/shop-profile-rules";
 import type { RetailZReportPayload } from "@/lib/retail/z-report";
@@ -31,11 +31,10 @@ type SaleWithLines = {
 };
 
 type ZDay = {
-  data: {
-    /** The trading day as the server keys it: a report is asked for by this, not by the till's clock. */
-    businessDate: string;
-    registers: Array<{ registerCode: string; registerName: string; shiftCount: number; openShiftNo: string | null; reportId: string | null }>;
-  };
+  /** The trading day as the server keys it: today's report is found by this, not by the till's clock. */
+  data: { businessDate: string };
+  /** The reports taken, newest first. */
+  recent: Array<{ id: string; registerCode: string; businessDate: string }>;
 };
 
 /** The finding counts shifts in words: "Two shifts". */
@@ -221,30 +220,19 @@ function MySales() {
 }
 
 function EndOfDay() {
-  const queryClient = useQueryClient();
   const { context } = useTill();
-  // Today's trading day as the server keys it, so the till and the report agree on what "today" is.
+  // The reports already taken, with today's trading day as the server keys it, so the till and the report agree
+  // on what "today" is. A till's report is taken when a manager closes the day (End of day, FLR-07).
   const dayQuery = useQuery({
     queryKey: ["retail-z-report-day"],
     queryFn: () => fetchJson<ZDay>("/api/v2/retail/z-reports"),
   });
-  const day = dayQuery.data?.data.businessDate ?? null;
-  const register = (dayQuery.data?.data.registers ?? []).find((entry) => entry.registerCode === context?.till.code) ?? null;
+  const taken =
+    (dayQuery.data?.recent ?? []).find((entry) => entry.registerCode === context?.till.code && entry.businessDate === dayQuery.data?.data.businessDate) ?? null;
   const reportQuery = useQuery({
-    queryKey: ["retail-z-report", register?.reportId ?? null],
-    enabled: Boolean(register?.reportId),
-    queryFn: async () => (await fetchJson<{ data: RetailZReportPayload }>(`/api/v2/retail/z-reports/${register?.reportId}`)).data,
-  });
-  const take = useMutation({
-    mutationFn: () =>
-      fetchJson<{ data: RetailZReportPayload }>("/api/v2/retail/z-reports", {
-        method: "POST",
-        body: JSON.stringify({ registerCode: context?.till.code, businessDate: day }),
-      }),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ["retail-z-report-day"] });
-      void queryClient.invalidateQueries({ queryKey: ["retail-z-report"] });
-    },
+    queryKey: ["retail-z-report", taken?.id ?? null],
+    enabled: Boolean(taken),
+    queryFn: async () => (await fetchJson<{ data: RetailZReportPayload }>(`/api/v2/retail/z-reports/${taken?.id}`)).data,
   });
   const report = reportQuery.data;
 
@@ -255,31 +243,13 @@ function EndOfDay() {
       </div>
     );
   }
-  if (!register) {
-    return (
-      <Empty icon={Receipt} title={`${context?.till.name ?? "This till"} was not opened today`}>
-        The end-of-day report covers the shifts opened on a till in a day.
-      </Empty>
-    );
+  if (dayQuery.isError) {
+    return <ErrorLine>{getApiErrorMessage(dayQuery.error)}</ErrorLine>;
   }
   if (!report) {
     return (
-      <Empty
-        icon={Receipt}
-        title={`Take ${context?.till.name ?? "the till"}’s end-of-day report`}
-        action={
-          <>
-            {take.isError ? <ErrorLine>{getApiErrorMessage(take.error)}</ErrorLine> : null}
-            <button type="button" className="btn btn-primary btn-lg" aria-busy={take.isPending || undefined} disabled={Boolean(register.openShiftNo) || !day || take.isPending} onClick={() => take.mutate()}>
-              <Check className="ic" />
-              Take the report
-            </button>
-          </>
-        }
-      >
-        {register.openShiftNo
-          ? `Shift ${register.openShiftNo} is still open. Cash it up and close it first, then take the report.`
-          : `${count(register.shiftCount, "shift")} today. Once taken it is frozen; taking it again shows the same one.`}
+      <Empty icon={Receipt} title={`${context?.till.name ?? "This till"}’s end-of-day report is not taken yet`}>
+        It is taken when a manager closes the day in End of day, once every drawer is counted and closed.
       </Empty>
     );
   }
@@ -419,7 +389,7 @@ function EndOfDay() {
                 {usd(report.countedCash)}
               </dd>
             </dl>
-            <p className="help">One report a till a day. Taking it again prints the same one.</p>
+            <p className="help">One report a till a day, taken when the day closes.</p>
           </section>
         </aside>
       </div>

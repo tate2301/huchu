@@ -17,7 +17,14 @@ export type PageIdentity = {
   sub?: string | null;
   /** A link after the sub ("Edit the rules"). */
   subLink?: { href: string; label: string } | null;
+  /**
+   * After the reference, in its mono: the one thing the page is about, as a
+   * menu of the others (End of day's site, with more than one).
+   */
+  picker?: PagePicker | null;
 };
+
+export type PagePicker = { label: string; options: Array<{ key: string; label: string; href: string }> };
 
 /**
  * The page's one primary action, at the right of the header. A create action
@@ -31,6 +38,8 @@ export type PagePrimary = {
   href?: string;
   sheet?: string;
   onClick?: () => void;
+  /** Why it cannot be pressed yet: drawn disabled, the reason its tooltip ("2 things before closing"). */
+  disabled?: string;
 };
 
 /**
@@ -100,6 +109,7 @@ function PageChrome({
   backLabel,
   sub,
   subLink,
+  picker,
   primary,
   phoneMenu,
   children,
@@ -111,6 +121,7 @@ function PageChrome({
   backLabel?: string;
   sub?: string | null;
   subLink?: { href: string; label: string } | null;
+  picker?: PagePicker | null;
   primary?: PagePrimary | null;
   /** The phone's ⋯ items in place of the folded `children`. */
   phoneMenu?: PageMenuItem[] | null;
@@ -120,6 +131,8 @@ function PageChrome({
   const { setActions, setIdentity, setPrimary, setPhoneMenu } = usePageChrome();
   const subLinkHref = subLink?.href;
   const subLinkLabel = subLink?.label;
+  // By value: the page draws a fresh picker each render.
+  const pickerKey = picker ? JSON.stringify(picker) : null;
 
   React.useEffect(() => {
     setIdentity({
@@ -127,10 +140,11 @@ function PageChrome({
       reference,
       sub,
       subLink: subLinkHref && subLinkLabel ? { href: subLinkHref, label: subLinkLabel } : null,
+      picker: pickerKey ? (JSON.parse(pickerKey) as PagePicker) : null,
       back: backHref && backLabel ? { href: backHref, label: backLabel } : undefined,
     });
     return () => setIdentity(null);
-  }, [title, reference, sub, subLinkHref, subLinkLabel, backHref, backLabel, setIdentity]);
+  }, [title, reference, sub, subLinkHref, subLinkLabel, pickerKey, backHref, backLabel, setIdentity]);
 
   React.useEffect(() => {
     // Left undefined, this component is only claiming the title — some other

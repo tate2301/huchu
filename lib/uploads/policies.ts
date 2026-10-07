@@ -26,6 +26,12 @@ export const uploadPolicies = {
     maxBytes: 2 * MB,
     folder: "user-avatars",
   },
+  // The bank's deposit slip for a closed day's takings (FLR-07): a photo, or the PDF a bank app gives.
+  "retail-deposit-slip": {
+    allowedTypes: ["image/jpeg", "image/png", "application/pdf"],
+    maxBytes: 8 * MB,
+    folder: "retail-deposit-slips",
+  },
   "scrap-purchase-ticket-photo": {
     allowedTypes: ["image/jpeg", "image/png", "image/webp"],
     maxBytes: 8 * MB,
