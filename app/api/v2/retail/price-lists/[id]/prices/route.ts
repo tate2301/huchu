@@ -12,9 +12,10 @@ type Params = { params: Promise<{ id: string }> };
 
 /**
  * The worksheet's "Save prices" (W-14, PRD-07): ListFrame's edit contract,
- * `{ changes: [{ id: productId, value: "18.99" }] }`, saved as one batch, all
- * or nothing. 400 `{ error, details: { rows: [{ id, message }] } }` names
- * each refused row. `retail.prices:update`.
+ * `{ changes: [{ id: productId, value: "18.99", was: "18.25" }] }`, saved as
+ * one batch, all or nothing → `{ data: { saved, batchId }, message }`. 400
+ * `{ error, details: { rows: [{ id, message }] } }` names each refused row.
+ * `retail.prices:update`.
  */
 export async function PATCH(request: NextRequest, { params }: Params) {
   const { response, session } = await requireRetailSession(request);
@@ -27,8 +28,7 @@ export async function PATCH(request: NextRequest, { params }: Params) {
   const parsed = await parsePriceListBody(request, worksheetInput);
   if ("response" in parsed) return parsed.response;
   try {
-    const data = await saveWorksheet(priceListActor(session), id, parsed.data.changes);
-    return successResponse({ data });
+    return successResponse(await saveWorksheet(priceListActor(session), id, parsed.data.changes));
   } catch (error) {
     if (error instanceof WorksheetMissing) return errorResponse(error.message, 404);
     if (error instanceof PriceRefusal) {

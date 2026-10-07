@@ -147,11 +147,11 @@ describe("adding a product", () => {
       openingStock: "12345678901234567890",
     });
     expect(productFieldErrors(big.error!).fieldErrors).toEqual({
-      price: "Price is too big. Keep it under 10,000,000,000.",
+      price: "Price is too big. Keep it under 10,000,000.",
       cost: "Cost is too big. Keep it under 10,000,000,000.",
       openingStock: "Opening stock is too big. Keep it under 10,000,000.",
     });
-    expect(productInput.safeParse({ name: "Fits", price: "9999999999.99", openingStock: "9999999" }).success).toBe(true);
+    expect(productInput.safeParse({ name: "Fits", price: "9999999.99", openingStock: "9999999" }).success).toBe(true);
     expect(productFieldErrors(productInput.safeParse("a string").error!)).toEqual({ error: "Check the fields.", fieldErrors: {} });
   });
 

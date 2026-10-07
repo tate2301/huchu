@@ -428,7 +428,11 @@ export async function createPriceList(actor: ListActor, input: PriceListInput): 
   return { data: (await priceListView(companyId, created.id))!, message: created.message };
 }
 
-/** Put rows on a list, each with its ADDED history. */
+/**
+ * Put rows on a list, each with its ADDED history. A row already there (put
+ * on by someone else a moment ago) is left as it is and has no history here;
+ * the product ids actually added are returned.
+ */
 export async function addRows(
   tx: Tx,
   input: {
@@ -438,9 +442,9 @@ export async function addRows(
     rows: Array<{ productId: string; minQuantity: Prisma.Decimal; unitPrice: Prisma.Decimal; followsBase: boolean }>;
     at: Date;
   },
-) {
-  if (input.rows.length === 0) return;
-  await tx.productPrice.createMany({
+): Promise<Set<string>> {
+  if (input.rows.length === 0) return new Set();
+  const created = await tx.productPrice.createManyAndReturn({
     data: input.rows.map((row) => ({
       companyId: input.companyId,
       priceListId: input.listId,
@@ -449,9 +453,13 @@ export async function addRows(
       unitPrice: row.unitPrice,
       followsBase: row.followsBase,
     })),
+    skipDuplicates: true,
+    select: { productId: true, minQuantity: true },
   });
+  const added = (row: { productId: string; minQuantity: Prisma.Decimal }) =>
+    created.some((made) => made.productId === row.productId && made.minQuantity.equals(row.minQuantity));
   await tx.productPriceChange.createMany({
-    data: input.rows.map((row) => ({
+    data: input.rows.filter(added).map((row) => ({
       companyId: input.companyId,
       priceListId: input.listId,
       productId: row.productId,
@@ -464,6 +472,7 @@ export async function addRows(
       createdById: input.actor.userId,
     })),
   });
+  return new Set(created.map((row) => row.productId));
 }
 
 const RULE_LABELS: Record<keyof PriceListRulesInput, string> = {

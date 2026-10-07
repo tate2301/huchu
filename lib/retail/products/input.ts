@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { PRICE_DIGITS } from "@/lib/retail/prices/figure";
+
 /**
  * What a product is made from (20-products 4.2, PRD-03): one shape for the New
  * product and Edit a product sheets, `POST /products`, `PATCH /products/[id]`
@@ -31,13 +33,14 @@ const blankToNull = (value: unknown) => {
   return value;
 };
 
-const moneyText = (label: string) =>
+/** A price is what a till charges, so it keeps to the price rule's digits (`centsOf`); a cost fits its column. */
+const moneyText = (label: string, digits = MONEY_DIGITS) =>
   z.preprocess(
     blankToNull,
     z
       .string({ message: `${label} is a figure, like 2.10.` })
       .regex(MONEY, `Write ${label.toLowerCase()} as a figure, like 2.10.`)
-      .refine((text) => wholeDigits(text) <= MONEY_DIGITS, `${label} is too big. Keep it under 10,000,000,000.`),
+      .refine((text) => wholeDigits(text) <= digits, `${label} is too big. Keep it under ${(10 ** digits).toLocaleString("en-US")}.`),
   );
 
 const optionalMoney = (label: string) => moneyText(label).nullable().optional();
@@ -103,7 +106,7 @@ const fields = {
     z.string({ message: "Name is needed." }).min(1, "Name is needed.").max(200, "Keep the name to 200 characters."),
   ),
   categoryId: id("That category is not one of this shop's."),
-  price: moneyText("Price"),
+  price: moneyText("Price", PRICE_DIGITS),
   barcode,
   cost: optionalMoney("Cost"),
   supplierId: id("That supplier is not one of this shop's."),

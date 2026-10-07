@@ -26,11 +26,26 @@ export const scheduledWords = (at: Date) => `From ${shortWhen(at)}`;
 export const priceWords = (n: number) => `${formatCount(n)} ${n === 1 ? "price" : "prices"}`;
 export const productWords = (n: number) => `${formatCount(n)} ${n === 1 ? "product" : "products"}`;
 
+/** A price for a product the list does not carry: the worksheet and Change many prices refuse it. */
+export const NOT_ON_LIST = "That product is not on this list.";
+
+/**
+ * The worksheet's toast: "3 prices saved. The till has them now.", and what
+ * was waiting for them that a typed price called off ("1 change scheduled for
+ * them was cancelled."). "Those prices are already set." when nothing moved.
+ */
+export function savedSentence(saved: number, unscheduled: number): string {
+  const parts = [saved === 0 ? "Those prices are already set." : `${priceWords(saved)} saved. The till has ${saved === 1 ? "it" : "them"} now.`];
+  if (unscheduled > 0) parts.push(`${unscheduled === 1 ? "1 change" : `${formatCount(unscheduled)} changes`} scheduled for later ${unscheduled === 1 ? "was" : "were"} cancelled.`);
+  return parts.join(" ");
+}
+
 /** "3 prices were not saved." / "1 price was not saved." */
 export const notSavedSentence = (n: number) => `${priceWords(n)} ${n === 1 ? "was" : "were"} not saved.`;
 
 /**
- * Change many prices' toast: "4 prices changed.", "4 prices change tonight at
+ * Change many prices' toast: "4 prices changed." ("Those prices are already
+ * set." when none moved), "4 prices change tonight at
  * 22:00.", "4 prices change tomorrow at 22:00.", "4 prices change on 15
  * October."; then what happened to the labels, when any were asked for.
  */
@@ -41,7 +56,9 @@ export function changedSentence(
 ): string {
   const first =
     when.kind === "NOW"
-      ? `${priceWords(n)} changed.`
+      ? n === 0
+        ? "Those prices are already set."
+        : `${priceWords(n)} changed.`
       : when.kind === "TONIGHT"
         ? `${priceWords(n)} change ${when.tomorrow ? "tomorrow" : "tonight"} at ${CLOCK.format(when.at)}.`
         : `${priceWords(n)} change on ${DAY_MONTH.format(when.at)}.`;
@@ -60,3 +77,12 @@ export function addedSentence(list: string, added: number, skipped: number, setE
 
 /** The Activity line of a scheduled batch: "Scheduled 4 prices for 3 Oct 22:00". */
 export const scheduledActivity = (count: number, at: Date) => `Scheduled ${priceWords(count)} for ${shortWhen(at)}`;
+
+/** The Activity line of an undone batch: "Undid 4 prices for 3 Oct 22:00". */
+export const undoneActivity = (count: number, at: Date) => `Undid ${priceWords(count)} for ${shortWhen(at)}`;
+
+/** Undo's toast; when the till printed the batch's labels already, which shelves to see to. */
+export const undoneSentence = (labelsPrinted: boolean) =>
+  labelsPrinted
+    ? "Undone. The prices stay as they are. The new labels printed already; take them off the shelf."
+    : "Undone. The prices stay as they are.";

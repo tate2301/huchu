@@ -382,6 +382,23 @@ Recorded unit choices:
     8% from 6 as before.
   - **Add to a price list from Products names at most 50 ticked products in its Products field** (the lookup's
     page); more can be added by search. The field's tags are the products sent.
+- **PRD-07's price rules after review (7 October).**
+  - **A price is read one way everywhere:** digits with at most two decimals, an optional "US$", under
+    US$10,000,000 (`lib/retail/prices/figure.ts`). The worksheet, the phone's price sheet, Change many prices,
+    the product form, the import and the live margin all use it; "1e3", "1.234", "18,99" and eleven-digit
+    figures are refused ("Write the price as a figure, like 2.10."), never rounded. The product form's price
+    keeps to the same seven digits ("Price is too big. Keep it under 10,000,000."); a cost keeps its ten.
+  - **A price typed now cancels what was scheduled for it on that list.** Typing 3.50 on the worksheet (or
+    changing it now in Change many prices, or on the product) is the latest word on that price: the batch
+    waiting to set it to 3.90 tonight no longer touches that product, and the save's toast says so
+    ("1 change scheduled for later was cancelled."). The rest of the batch still comes due.
+  - **The worksheet refuses a row someone else changed since it was opened**: each change carries the price
+    the cell held when typing began, and a row that has moved is refused with "Changed by someone else since
+    you opened the list. It is now US$3.20."; the list is read again, and saving once more saves over it.
+  - **Undo stops the batch's shelf labels** still waiting for the till (failed with "Undone"); when the till
+    printed them already the toast says to take them off the shelf. Undo is written to Activity
+    ("Undid 4 prices for 7 Oct 22:00"). Undo stays on the toast only; a Cancel on the product's Price history
+    is not added (the board draws none).
 
 ## Owner direction, 5 October: sidebar, Management and Setup
 

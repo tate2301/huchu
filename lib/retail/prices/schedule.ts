@@ -13,8 +13,8 @@ import { SHOP_TIME_ZONE } from "@/lib/retail/shop-profile-rules";
 import { dailySlot } from "@/lib/retail/worker/schedule";
 
 import { applyDuePriceChanges, changePrices, PriceRefusal } from "./change";
-import { typedFigure } from "./worksheet";
-import { changedSentence, notSavedSentence } from "./words";
+import { centsOf } from "./figure";
+import { changedSentence, NOT_ON_LIST, notSavedSentence, undoneSentence } from "./words";
 
 /**
  * Change many prices (W-15, PRD-07): one BULK batch on one list, now, tonight
@@ -114,18 +114,37 @@ export async function changeMany(actor: RetailAuditActor, input: ChangeManyInput
   const lines = [...new Map(input.lines.map((line) => [line.productId, line])).values()];
   const indexOf = new Map(input.lines.map((line, index) => [line.productId, index]));
   const batchId = randomUUID();
+  let applied = 0;
   try {
     await prisma.$transaction(async (tx) => {
-      await changePrices(tx, {
-        companyId,
-        actor,
-        listId: list.id,
-        rows: lines.map((line) => ({ productId: line.productId, price: typedFigure(line.price), minQuantity: list.minQuantity })),
-        source: "BULK",
-        batchId,
-        effectiveAt,
-        limits: await getApprovalLimits(companyId, tx),
-      });
+      // Only products already on the list: putting one on it is Add products (W-16), with its history and event.
+      const onList = new Set(
+        (
+          await tx.productPrice.findMany({
+            where: { priceListId: list.id, minQuantity: list.minQuantity, productId: { in: lines.map((line) => line.productId) } },
+            select: { productId: true },
+          })
+        ).map((row) => row.productId),
+      );
+      const refused: Record<string, string> = {};
+      for (const line of lines) if (!onList.has(line.productId)) refused[line.productId] = NOT_ON_LIST;
+      try {
+        const result = await changePrices(tx, {
+          companyId,
+          actor,
+          listId: list.id,
+          rows: lines.filter((line) => onList.has(line.productId)).map((line) => ({ productId: line.productId, price: line.price, minQuantity: list.minQuantity })),
+          source: "BULK",
+          batchId,
+          effectiveAt,
+          limits: await getApprovalLimits(companyId, tx),
+        });
+        applied = result.applied;
+      } catch (error) {
+        if (!(error instanceof PriceRefusal)) throw error;
+        Object.assign(refused, error.refused);
+      }
+      if (Object.keys(refused).length > 0) throw new PriceRefusal(refused);
       if (effectiveAt) {
         await writeRetailAuditEvent(tx, {
           actor,
@@ -159,7 +178,8 @@ export async function changeMany(actor: RetailAuditActor, input: ChangeManyInput
           show: { price: true, was: true, barcode: true },
           copies: 1,
           printer: printer ?? "here",
-          lines: labelled.map((line) => ({ productId: line.productId, copies: line.labels, price: Number(typedFigure(line.price)) })),
+          lines: labelled.map((line) => ({ productId: line.productId, copies: line.labels, price: centsOf(line.price)! / 100 })),
+          batchId,
         },
         now,
       );
@@ -172,24 +192,52 @@ export async function changeMany(actor: RetailAuditActor, input: ChangeManyInput
 
   return {
     data: { batchId, effectiveAt: (effectiveAt ?? now).toISOString(), applied: effectiveAt === null, labelsJobId, pdfUrl },
-    message: changedSentence(lines.length, when, labelsJobId ? (pdfUrl ? "here" : "queued") : null),
+    // Now: the prices that moved ("Those prices are already set." when none did); later: the lines scheduled.
+    message: changedSentence(effectiveAt ? lines.length : applied, when, labelsJobId ? (pdfUrl ? "here" : "queued") : null),
   };
 }
 
 /**
  * Undo a batch still waiting: its rows not yet applied are cancelled, the
- * rows already applied stay. 404 for a batch that is not the shop's; 409 when
- * every row has come due already.
+ * rows already applied stay, and its shelf labels still waiting for the till
+ * are stopped ("Undone"), so no label prints a price that never comes. One
+ * RETAIL_PRICE.SCHEDULE_CANCELLED on the list. 404 for a batch that is not the
+ * shop's; 409 when every row has come due already.
  */
-export async function cancelBatch(actor: RetailAuditActor, batchId: string, now: Date = new Date()): Promise<{ cancelled: number }> {
-  const cancelled = await prisma.productPriceChange.updateMany({
-    where: { companyId: actor.companyId, batchId, appliedAt: null, cancelledAt: null },
-    data: { cancelledAt: now },
+export async function cancelBatch(
+  actor: RetailAuditActor,
+  batchId: string,
+  now: Date = new Date(),
+): Promise<{ data: { cancelled: number }; message: string }> {
+  const { companyId } = actor;
+  return prisma.$transaction(async (tx) => {
+    const waiting = await tx.productPriceChange.findMany({
+      where: { companyId, batchId, appliedAt: null, cancelledAt: null },
+      select: { id: true, effectiveAt: true, priceList: { select: { id: true, name: true } } },
+    });
+    if (waiting.length === 0) {
+      const any = await tx.productPriceChange.count({ where: { companyId, batchId } });
+      if (any === 0) throw new ChangeManyRefusal(404, "Price change not found");
+      throw new ChangeManyRefusal(409, "Those prices have changed already. Change them back on the list.");
+    }
+    // Claimed as the worker claims: a row the worker applied a moment ago is not counted as undone.
+    const cancelled = await tx.productPriceChange.updateMany({
+      where: { id: { in: waiting.map((row) => row.id) }, appliedAt: null, cancelledAt: null },
+      data: { cancelledAt: now },
+    });
+    const labels = { companyId, kind: "LABELS" as const, payload: { path: ["batchId"], equals: batchId } };
+    await tx.retailPrintJob.updateMany({ where: { ...labels, status: "QUEUED" }, data: { status: "FAILED", error: "Undone" } });
+    const printed = (await tx.retailPrintJob.count({ where: { ...labels, status: "PRINTED", registerId: { not: null } } })) > 0;
+    const first = waiting[0]!;
+    await writeRetailAuditEvent(tx, {
+      actor,
+      eventType: RETAIL_AUDIT_EVENTS.priceScheduleCancelled,
+      entityType: "PriceList",
+      entityId: first.priceList.id,
+      payload: { list: first.priceList.name, count: cancelled.count, effectiveAt: first.effectiveAt.toISOString(), batchId },
+    });
+    return { data: { cancelled: cancelled.count }, message: undoneSentence(printed) };
   });
-  if (cancelled.count > 0) return { cancelled: cancelled.count };
-  const any = await prisma.productPriceChange.count({ where: { companyId: actor.companyId, batchId } });
-  if (any === 0) throw new ChangeManyRefusal(404, "Price change not found");
-  throw new ChangeManyRefusal(409, "Those prices have changed already. Change them back on the list.");
 }
 
 /** The worker's job: every shop with a change come due, applied (each row once). */

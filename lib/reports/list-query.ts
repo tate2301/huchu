@@ -833,7 +833,6 @@ export function publicListSpec(
             changedLabel: editing.changedLabel,
             note: editing.note,
             save: editing.save,
-            done: editing.done,
             ...(editing.changedColumn ? { changedColumn: editing.changedColumn } : {}),
             ...(editing.sheet ? { sheet: editing.sheet } : {}),
           },

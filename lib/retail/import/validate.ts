@@ -1,5 +1,6 @@
 import type { RetailImportAction, RetailImportProblem } from "@prisma/client";
 
+import { PRICE_DIGITS } from "@/lib/retail/prices/figure";
 import { productInput } from "@/lib/retail/products/input";
 
 import { barcodeKey, matchRow, nameKey, type CatalogIndex } from "./match";
@@ -53,7 +54,7 @@ function cellProblems(row: CheckedFields, ctx: CheckContext): RetailImportProble
   const price = row.price?.trim() ?? "";
   if (price === "" || (MONEY.test(price) && Number(price) === 0)) problems.push("NO_PRICE");
   else if (COMMA.test(price)) problems.push("PRICE_COMMA");
-  else if (!MONEY.test(price) || price.split(".")[0]!.replace(/^0+(?=\d)/, "").length > 10) problems.push("PRICE_NOT_NUMBER");
+  else if (!MONEY.test(price) || price.split(".")[0]!.replace(/^0+(?=\d)/, "").length > PRICE_DIGITS) problems.push("PRICE_NOT_NUMBER");
 
   if (row.category?.trim() && !ctx.categories.has(categoryKey(row.category))) problems.push("NEW_CATEGORY");
 

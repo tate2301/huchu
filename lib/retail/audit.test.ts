@@ -464,6 +464,7 @@ describe("the chain", () => {
       priceListPaused: "RETAIL_PRICE_LIST.PAUSED",
       priceListResumed: "RETAIL_PRICE_LIST.RESUMED",
       priceScheduled: "RETAIL_PRICE.SCHEDULED",
+      priceScheduleCancelled: "RETAIL_PRICE.SCHEDULE_CANCELLED",
       priceListProductsAdded: "RETAIL_PRICE_LIST.PRODUCTS_ADDED",
       priceListProductsRemoved: "RETAIL_PRICE_LIST.PRODUCTS_REMOVED",
       tillCreated: "RETAIL_TILL.CREATED",

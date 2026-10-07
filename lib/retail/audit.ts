@@ -182,6 +182,11 @@ export const RETAIL_AUDIT_EVENTS = {
    * when they take effect and the batch, which Undo cancels.
    */
   priceScheduled: "RETAIL_PRICE.SCHEDULED",
+  /**
+   * A scheduled batch undone before it came due (PRD-07). Entity `PriceList`; carries the list's name, how many
+   * were called off, when they were to take effect and the batch.
+   */
+  priceScheduleCancelled: "RETAIL_PRICE.SCHEDULE_CANCELLED",
   /** Products put on a price list (W-16, PRD-07). Entity `PriceList`; carries how many and their names. */
   priceListProductsAdded: "RETAIL_PRICE_LIST.PRODUCTS_ADDED",
   /** Products taken off a price list (PRD-07). Entity `PriceList`; carries how many and their names. */

@@ -314,7 +314,7 @@ export function SheetForm({ kind, ctx, open, onClose }: SheetFormProps) {
                 void send(undo.request).then(async (answer) => {
                   await invalidate();
                   const refusal = (answer.payload as { error?: string } | null)?.error;
-                  toast(answer.ok ? { title: undo.done, variant: "success" } : { title: refusal ?? "That did not work. Try again.", variant: "destructive" });
+                  toast(answer.ok ? { title: undo.done(answer.payload), variant: "success" } : { title: refusal ?? "That did not work. Try again.", variant: "destructive" });
                 });
               },
             },

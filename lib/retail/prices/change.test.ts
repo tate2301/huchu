@@ -67,7 +67,7 @@ describe("changing a price", () => {
   });
 
   it("lets the owner, and moves the fallback price with the default list", async () => {
-    expect(await change(shop.owner(), "12.00")).toEqual({ applied: 1, scheduled: 0, refused: {} });
+    expect(await change(shop.owner(), "12.00")).toEqual({ applied: 1, scheduled: 0, unscheduled: 0 });
     const rows = await history();
     expect(rows.at(-1)).toMatchObject({ source: "TYPED", createdById: shop.ownerId });
     expect(rows.at(-1)!.fromPrice?.toFixed(2)).toBe("18.25");
@@ -95,7 +95,7 @@ describe("changing a price", () => {
 
   it("writes only the history for a change dated later, and applies it once when it comes due", async () => {
     const later = new Date(Date.now() + 60 * 60_000);
-    expect(await change(shop.manager(), "19.50", LIMITS, later)).toEqual({ applied: 0, scheduled: 1, refused: {} });
+    expect(await change(shop.manager(), "19.50", LIMITS, later)).toEqual({ applied: 0, scheduled: 1, unscheduled: 0 });
     expect((await prisma.productPrice.findFirstOrThrow({ where: { productId: amarulaId, priceListId: listId } })).unitPrice.toFixed(2)).toBe("18.25");
     const before = await prisma.platformAuditEvent.count({ where: { entityId: amarulaId, eventType: "RETAIL_PRICE.CHANGED" } });
 

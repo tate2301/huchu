@@ -5,7 +5,7 @@ import { getReportDefinition } from "@/lib/reports/registry";
 import type { ReportRow } from "@/lib/reports/types";
 
 import { ListCell } from "./list-cell";
-import { countTemplate, fillFromFilters, leaveAsk, typedNumber, typedRow, UNSAVED } from "./model";
+import { fillFromFilters, leaveAsk, typedNumber, typedRow, UNSAVED } from "./model";
 import { SaveBar } from "./save-bar";
 
 /**
@@ -44,14 +44,14 @@ describe("typing a price on the worksheet", () => {
   it("leaves a row nobody typed in as it was, and a figure that is not one unworked", () => {
     expect(typedRow(amarula, undefined, spec.columns, edit)).toBe(amarula);
     expect(typedRow(amarula, "18.", spec.columns, edit)).toMatchObject({ price: 18.25, margin: 28.6, changed: UNSAVED });
-    expect(typedNumber("US$ 18,99")).toBe(18.99);
+    expect(typedNumber("US$ 18.99")).toBe(18.99);
+    // What the server refuses is not worked out here either.
+    expect([typedNumber("18,99"), typedNumber("1e3"), typedNumber("1.234"), typedNumber("99999999999")]).toEqual([null, null, null, null]);
   });
 
-  it("saves to the list the worksheet is scoped to, and says how many", () => {
+  it("saves to the list the worksheet is scoped to", () => {
     expect(fillFromFilters(edit.endpoint, { list: "l-retail" })).toBe("/api/v2/retail/price-lists/l-retail/prices");
     expect(fillFromFilters(edit.endpoint, {})).toBeNull();
-    expect(countTemplate(edit.done, 3)).toBe("3 prices saved. The till has them now.");
-    expect(countTemplate(edit.done, 1)).toBe("1 price saved. The till has it now.");
   });
 
   it("counts the changes on the save bar", () => {

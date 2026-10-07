@@ -251,7 +251,7 @@ export type SheetKind = {
    * change waits): sent on the click, then its own toast and the kind's
    * `invalidate`. Wins over `open`.
    */
-  undo?: (result: unknown, values: SheetValues) => { label: string; request: SheetRequest; done: string } | null;
+  undo?: (result: unknown, values: SheetValues) => { label: string; request: SheetRequest; done: (payload: unknown) => string } | null;
   /** The toast action's words, fixed or from the answer ("Count now" on a count that is yours). Default "Open". */
   openLabel?: string | ((result: unknown, values: SheetValues) => string);
   /**

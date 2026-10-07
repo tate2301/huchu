@@ -105,6 +105,9 @@ describe("Activity's sentences (00-foundations 5.6.9)", () => {
     expect(
       activityWords("RETAIL_PRICE.SCHEDULED", { list: "Retail", count: 4, effectiveAt: "2026-10-03T20:00:00.000Z", batchId: "b" }),
     ).toEqual({ what: "Scheduled 4 prices for 3 Oct 22:00", tone: "info" });
+    expect(
+      activityWords("RETAIL_PRICE.SCHEDULE_CANCELLED", { list: "Retail", count: 4, effectiveAt: "2026-10-07T20:00:00.000Z", batchId: "b" }),
+    ).toEqual({ what: "Undid 4 prices for 7 Oct 22:00", tone: "hollow" });
     expect(activityWords("RETAIL_PRICE_LIST.PRODUCTS_ADDED", { count: 3, names: ["Savanna Dry 330ml"] })).toEqual({
       what: "Added 3 products",
       tone: "ok",

@@ -535,9 +535,9 @@ export type ListSpec = {
   /**
    * A list whose job is typing values (a price list's worksheet, 5.4.10): the column's cells are
    * inputs for a caller with any of `requires`, and read as money for anyone else. `endpoint` is
-   * PATCHed `{ changes: [{ id, value }] }`; its `{key}` holes are filled from the parent filters.
-   * `done` is the toast: `{n}` the count, `{s}` "s" and `{them}` "them" unless one. `changedColumn` reads "Not saved"
-   * on a row typed in and not yet saved.
+   * PATCHed `{ changes: [{ id, value, was }] }` (`was`: what the cell held when typing began); its
+   * `{key}` holes are filled from the parent filters. The answer's `message` is the toast. `changedColumn`
+   * reads "Not saved" on a row typed in and not yet saved.
    */
   edit?: {
     column: string;
@@ -545,7 +545,6 @@ export type ListSpec = {
     changedLabel: string;
     note: string;
     save: string;
-    done: string;
     changedColumn?: string;
     /** On a phone the cards carry no inputs: tapping the figure opens this one-field sheet for the row. */
     sheet?: string;

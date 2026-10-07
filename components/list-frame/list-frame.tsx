@@ -52,7 +52,7 @@ import {
   selectionTotals,
   shownColumns,
 } from "./model";
-import { countTemplate, fillFromFilters, leaveAsk, typedRow } from "./model";
+import { fillFromFilters, leaveAsk, typedRow } from "./model";
 import { SaveBar } from "./save-bar";
 import { SelectionBar } from "./selection-bar";
 import { TotalsBand } from "./totals-band";
@@ -347,6 +347,8 @@ export function ListFrame({ source, title, sub, rowFilters, defaultSort, default
 
   // ── Editable cells (5.4.10) ─────────────────────────────────────────
   const [edits, setEdits] = React.useState<Map<string, string>>(() => new Map());
+  // What each typed cell held when the typing began, sent as `was` so a row someone else changed meanwhile is refused.
+  const editedFrom = React.useRef(new Map<string, string>());
   const [refusedEdits, setRefusedEdits] = React.useState<Map<string, string>>(() => new Map());
   const [saving, setSaving] = React.useState(false);
   const [leaveTo, setLeaveTo] = React.useState<string | null>(null);
@@ -387,21 +389,32 @@ export function ListFrame({ source, title, sub, rowFilters, defaultSort, default
       const response = await fetch(endpoint, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ changes: [...edits].map(([id, value]) => ({ id, value })) }),
+        body: JSON.stringify({
+          changes: [...edits].map(([id, value]) => ({
+            id,
+            value,
+            was: editedFrom.current.get(id) ?? (originalRow.has(id) ? savedValue(originalRow.get(id)!, editSpec.column) : ""),
+          })),
+        }),
       });
       if (!response.ok) {
         // 400 `{ error, details: { rows: [{ id, message }] } }`: the refused rows keep their pills.
         const body = (await response.json().catch(() => null)) as { error?: string; details?: { rows?: Array<{ id: string; message: string }> } } | null;
         const refused = body?.details?.rows ?? [];
         setRefusedEdits(new Map(refused.map((entry) => [entry.id, entry.message])));
+        // A refused row is read again, so saving it once more is over what is there now ("Changed by someone else …").
+        for (const entry of refused) editedFrom.current.delete(entry.id);
         // The server's sentence: "1 price was not saved."
         toast({ title: body?.error ?? "Nothing was saved.", variant: "destructive" });
+        await queryClient.invalidateQueries({ queryKey: ["list", source] });
         return;
       }
-      const count = edits.size;
+      const body = (await response.json().catch(() => null)) as { message?: string } | null;
       setEdits(new Map());
+      editedFrom.current.clear();
       setRefusedEdits(new Map());
-      toast({ title: countTemplate(editSpec.done, count), variant: "success" });
+      // The server's sentence: "3 prices saved. The till has them now."
+      toast({ title: body?.message ?? "Saved.", variant: "success" });
       await queryClient.invalidateQueries({ queryKey: ["list", source] });
     } finally {
       setSaving(false);
@@ -694,6 +707,7 @@ export function ListFrame({ source, title, sub, rowFilters, defaultSort, default
           onConfirm={() => {
             const href = leaveTo;
             setEdits(new Map());
+            editedFrom.current.clear();
             setLeaveTo(null);
             router.push(href);
           }}
@@ -866,13 +880,17 @@ export function ListFrame({ source, title, sub, rowFilters, defaultSort, default
                       changed: (row) => edits.has(row.id),
                       refused: (row) => refusedEdits.get(row.id) ?? null,
                       changedColumn: editSpec.changedColumn,
-                      onChange: (row, value) =>
+                      onChange: (row, value) => {
+                        const saved = savedValue(originalRow.get(row.id) ?? row, editSpec.column);
+                        if (value === saved) editedFrom.current.delete(row.id);
+                        else if (!editedFrom.current.has(row.id)) editedFrom.current.set(row.id, saved);
                         setEdits((current) => {
                           const next = new Map(current);
-                          if (value === savedValue(originalRow.get(row.id) ?? row, editSpec.column)) next.delete(row.id);
+                          if (value === saved) next.delete(row.id);
                           else next.set(row.id, value);
                           return next;
-                        }),
+                        });
+                      },
                     }
                   : undefined
               }
@@ -922,6 +940,7 @@ export function ListFrame({ source, title, sub, rowFilters, defaultSort, default
           saving={saving}
           onDiscard={() => {
             setEdits(new Map());
+            editedFrom.current.clear();
             setRefusedEdits(new Map());
           }}
           onSave={saveEdits}

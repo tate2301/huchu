@@ -103,20 +103,21 @@ export async function addProductsToList(
       const sentence = await belowCostRefusal(tx, actor, rows);
       if (sentence) throw new PriceListRefusal(400, sentence, { products: sentence });
     }
-    await addRows(tx, { companyId, actor, listId: list.id, rows, at: new Date() });
-    if (rows.length > 0) {
+    // Someone adding the same product at the same moment: theirs stands and this one counts it as on it already.
+    const added = await addRows(tx, { companyId, actor, listId: list.id, rows, at: new Date() });
+    if (added.size > 0) {
       await writeRetailAuditEvent(tx, {
         actor,
         eventType: RETAIL_AUDIT_EVENTS.priceListProductsAdded,
         entityType: "PriceList",
         entityId: list.id,
-        payload: { count: rows.length, names: fresh.map((product) => product.name) },
+        payload: { count: added.size, names: fresh.filter((product) => added.has(product.id)).map((product) => product.name) },
       });
     }
-    const skipped = products.length - fresh.length;
+    const skipped = products.length - added.size;
     return {
-      data: { added: rows.length, skipped },
-      message: addedSentence(list.name, rows.length, skipped, input.pricedAt === "EACH"),
+      data: { added: added.size, skipped },
+      message: addedSentence(list.name, added.size, skipped, input.pricedAt === "EACH"),
     };
   });
 }

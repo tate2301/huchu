@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { basisPoints, byProblem, centsOf, NO_COST_NOTE, previewLines, type PreviewRow } from "./preview";
+import { centsOf } from "./figure";
+import { basisPoints, byProblem, NO_COST_NOTE, previewLines, type PreviewRow } from "./preview";
 
 /** Change many prices' arithmetic (PRD-07, W-15): whole cents, rounded up. */
 

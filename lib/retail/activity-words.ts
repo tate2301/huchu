@@ -1,6 +1,6 @@
 import { RETAIL_AUDIT_EVENTS } from "@/lib/retail/audit";
 import { labelsPrintedSentence } from "@/lib/retail/labels/words";
-import { priceWords, productWords, scheduledActivity } from "@/lib/retail/prices/words";
+import { priceWords, productWords, scheduledActivity, undoneActivity } from "@/lib/retail/prices/words";
 import { formatCount, formatMoney, formatPercent, formatSigned } from "@/lib/workspace/format";
 
 /**
@@ -472,11 +472,16 @@ const WORDS: Record<string, (payload: Payload, eventType: string, seeCost: boole
   },
   [RETAIL_AUDIT_EVENTS.priceListPaused]: () => ({ what: "Paused it", tone: "hollow" }),
   [RETAIL_AUDIT_EVENTS.priceListResumed]: () => ({ what: "Switched it on", tone: "ok" }),
-  // PRD-07: "Scheduled 4 prices for 3 Oct 22:00", "Added 3 products", "Removed 2 products".
+  // PRD-07: "Scheduled 4 prices for 3 Oct 22:00", "Undid 4 prices for 3 Oct 22:00", "Added 3 products", "Removed 2 products".
   [RETAIL_AUDIT_EVENTS.priceScheduled]: (payload) => {
     const count = amount(payload.count) ?? 0;
     const at = text(payload.effectiveAt);
     return { what: at ? scheduledActivity(count, new Date(at)) : `Scheduled ${priceWords(count)}`, tone: "info" };
+  },
+  [RETAIL_AUDIT_EVENTS.priceScheduleCancelled]: (payload) => {
+    const count = amount(payload.count) ?? 0;
+    const at = text(payload.effectiveAt);
+    return { what: at ? undoneActivity(count, new Date(at)) : `Undid ${priceWords(count)}`, tone: "hollow" };
   },
   [RETAIL_AUDIT_EVENTS.priceListProductsAdded]: (payload) => ({ what: `Added ${productWords(amount(payload.count) ?? 0)}`, tone: "ok" }),
   [RETAIL_AUDIT_EVENTS.priceListProductsRemoved]: (payload) => ({

@@ -100,6 +100,6 @@ describe("what is answered in words", () => {
 
     const big = await add(request("", "POST", { name: "Big", categoryId: shop.ciderId, price: "99999999999999.99" }));
     expect(big.status).toBe(400);
-    expect(await big.json()).toMatchObject({ fieldErrors: { price: "Price is too big. Keep it under 10,000,000,000." } });
+    expect(await big.json()).toMatchObject({ fieldErrors: { price: "Price is too big. Keep it under 10,000,000." } });
   });
 });

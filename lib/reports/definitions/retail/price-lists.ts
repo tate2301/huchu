@@ -247,7 +247,6 @@ const prices: ListSpec = {
     changedLabel: "prices changed",
     note: "The till picks them up the moment you save. Margins update as you type.",
     save: "Save prices",
-    done: "{n} price{s} saved. The till has {them} now.",
     changedColumn: "changed",
     sheet: "price-edit",
     requires: UPDATE,

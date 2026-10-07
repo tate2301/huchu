@@ -1,11 +1,13 @@
 import { Prisma, type RetailPriceChangeSource } from "@prisma/client";
 
-import { money, toNumberOrZero } from "@/lib/money";
+import { toNumberOrZero } from "@/lib/money";
 import { prisma } from "@/lib/prisma";
 import type { ApprovalLimits } from "@/lib/retail/approvals/limits";
 import { auditAmount, auditPriceChanged, type RetailAuditActor } from "@/lib/retail/audit";
 import { canRetailRoleDo } from "@/lib/retail/permission-matrix";
 import { formatMoney } from "@/lib/workspace/format";
+
+import { centsOf, PRICE_FIGURE_MESSAGE } from "./figure";
 
 /**
  * The price-change core (20-products 4.5, PRD-03): every price on a list moves
@@ -66,9 +68,23 @@ export function priceChangeNeedsOwner(
   return null;
 }
 
-export type PriceRow = { productId: string; price: Prisma.Decimal.Value; minQuantity?: Prisma.Decimal.Value };
+/**
+ * A price as typed ("18.99", "US$ 18.99"), read by `centsOf`: anything else is
+ * refused, never rounded. `was` is the price the person saw when they typed
+ * it ("" for none): a row someone else has changed since is refused.
+ */
+export type PriceRow = { productId: string; price: string; minQuantity?: Prisma.Decimal.Value; was?: string };
 
-export type PriceChangeResult = { applied: number; scheduled: number; refused: Record<string, string> };
+export type PriceChangeResult = {
+  applied: number;
+  scheduled: number;
+  /** Changes that were waiting for these prices, cancelled because a price was set by hand now. */
+  unscheduled: number;
+};
+
+/** The worksheet's row moved under the person typing on it. */
+export const changedSinceSentence = (now: Prisma.Decimal | null) =>
+  `Changed by someone else since you opened the list. It is ${now === null ? "off the list now" : `now ${formatMoney(toNumberOrZero(now))}`}.`;
 
 const ONE = new Prisma.Decimal(1);
 
@@ -76,6 +92,22 @@ const ONE = new Prisma.Decimal(1);
 export function followPrice(base: Prisma.Decimal.Value, adjustPercent: Prisma.Decimal.Value | null): Prisma.Decimal {
   const adjust = new Prisma.Decimal(adjustPercent ?? 0);
   return new Prisma.Decimal(base).times(adjust.dividedBy(100).plus(1)).toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP);
+}
+
+/**
+ * The price on a list row, with the row locked until the transaction ends:
+ * two saves of one price at the same moment take turns, so the second reads
+ * the price the first left and the history links from one to the next.
+ */
+async function lockedPrice(
+  tx: Tx,
+  key: { priceListId: string; productId: string; minQuantity: Prisma.Decimal },
+): Promise<Prisma.Decimal | null> {
+  const rows = await tx.$queryRaw<Array<{ unitPrice: string }>>`
+    SELECT "unitPrice"::text AS "unitPrice" FROM "ProductPrice"
+    WHERE "priceListId" = ${key.priceListId} AND "productId" = ${key.productId} AND "minQuantity" = ${key.minQuantity}
+    FOR UPDATE`;
+  return rows[0] ? new Prisma.Decimal(rows[0].unitPrice) : null;
 }
 
 /** A typed or bulk price is the owner's own: that row stops following its base. */
@@ -101,15 +133,11 @@ async function applyPrice(
   },
 ): Promise<boolean> {
   const key = { priceListId: input.list.id, productId: input.productId, minQuantity: input.minQuantity };
-  const existing = await tx.productPrice.findUnique({
-    where: { priceListId_productId_minQuantity: key },
-    select: { unitPrice: true },
-  });
-  const from = existing?.unitPrice ?? null;
+  const from = await lockedPrice(tx, key);
   if (!input.changeId && from !== null && input.to !== null && from.equals(input.to)) return false;
 
   if (input.to === null) {
-    if (existing) await tx.productPrice.delete({ where: { priceListId_productId_minQuantity: key } });
+    if (from !== null) await tx.productPrice.delete({ where: { priceListId_productId_minQuantity: key } });
   } else {
     const own = OWN_SOURCES.includes(input.source);
     await tx.productPrice.upsert({
@@ -281,40 +309,56 @@ export async function changePrices(
   });
   const byId = new Map(products.map((product) => [product.id, product]));
 
+  const now = new Date();
+  const effectiveAt = input.effectiveAt ?? now;
+  const dueNow = effectiveAt.getTime() <= now.getTime();
   const refused: Record<string, string> = {};
   const checked: Array<{ productId: string; price: Prisma.Decimal; minQuantity: Prisma.Decimal }> = [];
-  for (const row of input.rows) {
+  // In one order, so two saves that share rows lock them the same way round.
+  const rows = [...input.rows].sort((a, b) => (a.productId < b.productId ? -1 : a.productId > b.productId ? 1 : 0));
+  for (const row of rows) {
     const product = byId.get(row.productId);
     if (!product) {
       refused[row.productId] = "That product is not one of this shop's.";
       continue;
     }
-    let price: Prisma.Decimal;
-    try {
-      price = money(row.price);
-    } catch {
-      refused[row.productId] = "Write the price as a figure, like 2.10.";
+    const cents = centsOf(row.price);
+    if (cents === null) {
+      refused[row.productId] = PRICE_FIGURE_MESSAGE;
       continue;
     }
-    if (price.isNegative()) {
-      refused[row.productId] = "A price is zero or more.";
-      continue;
-    }
+    const price = new Prisma.Decimal(cents).dividedBy(100);
     const owner = priceChangeNeedsOwner(input.limits, input.actor, { price, cost: product.costPrice });
     if (owner) {
       refused[row.productId] = owner;
       continue;
     }
-    checked.push({ productId: row.productId, price, minQuantity: new Prisma.Decimal(row.minQuantity ?? 1) });
+    const minQuantity = new Prisma.Decimal(row.minQuantity ?? 1);
+    if (row.was !== undefined && dueNow) {
+      const current = await lockedPrice(tx, { priceListId: list.id, productId: row.productId, minQuantity });
+      const seen = row.was.trim() === "" ? null : centsOf(row.was);
+      if ((current === null ? null : current.times(100).toNumber()) !== seen) {
+        refused[row.productId] = changedSinceSentence(current);
+        continue;
+      }
+    }
+    checked.push({ productId: row.productId, price, minQuantity });
   }
   if (Object.keys(refused).length > 0) throw new PriceRefusal(refused);
 
-  const now = new Date();
-  const effectiveAt = input.effectiveAt ?? now;
   let applied = 0;
   let scheduled = 0;
+  let unscheduled = 0;
   for (const row of checked) {
-    if (effectiveAt.getTime() <= now.getTime()) {
+    if (dueNow) {
+      // A price set by hand now is the latest word on it: what was waiting for it on this list is cancelled.
+      if (OWN_SOURCES.includes(input.source)) {
+        const cancelled = await tx.productPriceChange.updateMany({
+          where: { priceListId: list.id, productId: row.productId, minQuantity: row.minQuantity, appliedAt: null, cancelledAt: null },
+          data: { cancelledAt: now },
+        });
+        unscheduled += cancelled.count;
+      }
       const moved = await applyPrice(tx, {
         companyId: input.companyId,
         actor: input.actor,
@@ -350,7 +394,7 @@ export async function changePrices(
     });
     scheduled += 1;
   }
-  return { applied, scheduled, refused: {} };
+  return { applied, scheduled, unscheduled };
 }
 
 /**

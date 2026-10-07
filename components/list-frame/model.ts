@@ -13,6 +13,7 @@ import type {
   Tone,
 } from "@/lib/reports/types";
 import { marginOf, marginTone } from "@/lib/reports/margin";
+import { centsOf } from "@/lib/retail/prices/figure";
 import { filterRows, ratioOf } from "@/lib/reports/view";
 import {
   dayRangeWords,
@@ -283,18 +284,10 @@ export function fillFromFilters(template: string, filters: Record<string, string
   return complete ? filled : null;
 }
 
-/** "{n} price{s} saved. The till has {them} now." with the count: `{s}` an "s" and `{them}` "them" unless it is one. */
-export function countTemplate(template: string, n: number): string {
-  return template
-    .replace(/\{n\}/g, formatCount(n))
-    .replace(/\{s\}/g, n === 1 ? "" : "s")
-    .replace(/\{them\}/g, n === 1 ? "it" : "them");
-}
-
-/** A typed figure ("US$ 18.99", "18,99") as a number; null when it is not one. */
+/** A typed price ("US$ 18.99") as a number, read as the server reads it (`centsOf`); null when it is not one. */
 export function typedNumber(typed: string): number | null {
-  const cleaned = typed.replace(/US\$|\$/g, "").replace(/\s/g, "").replace(/,/g, ".");
-  return /^\d+(\.\d+)?$/.test(cleaned) ? Number(cleaned) : null;
+  const cents = centsOf(typed);
+  return cents === null ? null : cents / 100;
 }
 
 /**

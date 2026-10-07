@@ -231,7 +231,8 @@ const bulkPrice: SheetKind = {
       ? {
           label: "Undo",
           request: { method: "POST", url: `/api/v2/retail/price-changes/${data.batchId}/cancel` },
-          done: "Undone. The prices stay as they are.",
+          // "Undone. The prices stay as they are.", and the shelves to see to when the labels printed already.
+          done: (payload) => messageOf(payload, "Undone. The prices stay as they are."),
         }
       : null;
   },
@@ -394,7 +395,8 @@ const priceEdit: SheetKind = {
       preview({ listId, productIds: [ctx.id], how: "RAISE", by: "0", round: "NO" }),
     ]);
     const line = lines?.[0];
-    return { _list: list.name, _listId: list.id, _name: line?.name ?? "", price: line ? line.now.toFixed(2) : "" };
+    const price = line ? line.now.toFixed(2) : "";
+    return { _list: list.name, _listId: list.id, _name: line?.name ?? "", price, _was: price };
   },
   onRefused: (payload) => {
     const rows = (payload as { details?: { rows?: Array<{ message: string }> } } | null)?.details?.rows ?? [];
@@ -403,9 +405,9 @@ const priceEdit: SheetKind = {
   submit: (values, ctx) => ({
     method: "PATCH",
     url: `/api/v2/retail/price-lists/${encodeURIComponent(String(values._listId ?? ""))}/prices`,
-    body: { changes: [{ id: ctx.id, value: String(values.price ?? "") }] },
+    body: { changes: [{ id: ctx.id, value: String(values.price ?? ""), was: String(values._was ?? "") }] },
   }),
-  done: "1 price saved. The till has it now.",
+  done: (_result, _values, payload) => messageOf(payload, "Saved."),
   invalidate: invalidatePrices,
   requires: UPDATE,
 };

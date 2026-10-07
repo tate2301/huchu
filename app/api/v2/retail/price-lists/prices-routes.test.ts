@@ -97,8 +97,8 @@ describe("PATCH /price-lists/[id]/prices", () => {
     const answer = await savePrices(
       request(`/price-lists/${retailId}/prices`, "PATCH", {
         changes: [
-          { id: amarula, value: "18.99" },
-          { id: castle, value: "US$ 1.25" },
+          { id: amarula, value: "18.99", was: "18.25" },
+          { id: castle, value: "US$ 1.25", was: "1.20" },
         ],
       }),
       params(retailId),
@@ -106,6 +106,7 @@ describe("PATCH /price-lists/[id]/prices", () => {
     expect(answer.status).toBe(200);
     const body = await answer.json();
     expect(body.data.saved).toBe(2);
+    expect(body.message).toBe("2 prices saved. The till has them now.");
     expect([await priceOn(retailId, amarula), await priceOn(retailId, castle)]).toEqual(["18.99", "1.25"]);
     const batch = await prisma.productPriceChange.findMany({ where: { batchId: body.data.batchId, priceListId: retailId } });
     expect(batch.map((row) => row.source)).toEqual(["TYPED", "TYPED"]);
@@ -118,8 +119,8 @@ describe("PATCH /price-lists/[id]/prices", () => {
       savePrices(
         request(`/price-lists/${retailId}/prices`, "PATCH", {
           changes: [
-            { id: amarula, value: "12.00" },
-            { id: castle, value: "1.30" },
+            { id: amarula, value: "12.00", was: "18.99" },
+            { id: castle, value: "1.30", was: "1.25" },
           ],
         }),
         params(retailId),
@@ -137,8 +138,8 @@ describe("PATCH /price-lists/[id]/prices", () => {
     const answer = await savePrices(
       request(`/price-lists/${wholesaleId}/prices`, "PATCH", {
         changes: [
-          { id: castle, value: "abc" },
-          { id: amarula, value: "17.00" },
+          { id: castle, value: "abc", was: "1.15" },
+          { id: amarula, value: "17.00", was: "" },
         ],
       }),
       params(wholesaleId),
@@ -152,9 +153,40 @@ describe("PATCH /price-lists/[id]/prices", () => {
     });
   });
 
+  it("refuses a figure that is not a plain price, and an absurd one, rather than round or read it", async () => {
+    const answer = await savePrices(
+      request(`/price-lists/${retailId}/prices`, "PATCH", {
+        changes: [
+          { id: amarula, value: "1e3", was: "18.99" },
+          { id: castle, value: "1.234", was: "1.25" },
+          { id: savanna, value: "99999999999", was: "1.85" },
+        ],
+      }),
+      params(retailId),
+    );
+    expect(answer.status).toBe(400);
+    const body = await answer.json();
+    expect(body.error).toBe("3 prices were not saved.");
+    expect(new Set(body.details.rows.map((row: { message: string }) => row.message))).toEqual(new Set(["Write the price as a figure, like 2.10."]));
+    expect([await priceOn(retailId, amarula), await priceOn(retailId, castle), await priceOn(retailId, savanna)]).toEqual(["18.99", "1.25", "1.85"]);
+    expect(await priceOn(wholesaleId, castle)).toBe("1.15");
+  });
+
+  it("refuses a row someone else changed since the list was opened, and saves over it once it is read again", async () => {
+    const stale = await savePrices(
+      request(`/price-lists/${retailId}/prices`, "PATCH", { changes: [{ id: castle, value: "1.40", was: "1.20" }] }),
+      params(retailId),
+    );
+    expect(stale.status).toBe(400);
+    expect((await stale.json()).details.rows).toEqual([
+      { id: castle, message: "Changed by someone else since you opened the list. It is now US$1.25." },
+    ]);
+    expect(await priceOn(retailId, castle)).toBe("1.25");
+  });
+
   it("is refused to a cashier, who reads prices only", async () => {
     const answer = await as("CASHIER", () =>
-      savePrices(request(`/price-lists/${retailId}/prices`, "PATCH", { changes: [{ id: amarula, value: "1.00" }] }), params(retailId)),
+      savePrices(request(`/price-lists/${retailId}/prices`, "PATCH", { changes: [{ id: amarula, value: "1.00", was: "18.99" }] }), params(retailId)),
     );
     expect(answer.status).toBe(403);
     expect(await priceOn(retailId, amarula)).toBe("18.99");
@@ -197,6 +229,26 @@ describe("adding products to a list", () => {
     expect((await answer.json()).message).toBe("1 product added to Wholesale. Set each price in the list.");
     const row = await prisma.productPrice.findFirstOrThrow({ where: { priceListId: wholesaleId, productId: amarula } });
     expect([row.unitPrice.toFixed(2), row.minQuantity.toNumber(), row.followsBase]).toEqual(["18.99", 6, false]);
+  });
+
+  it("counts a product someone else put on at the same moment as on it already, not as a failure", async () => {
+    const twoKeys = (await addTestProduct(shop.companyId, { name: "Two Keys Brandy 750ml", price: "9.50", cost: "7.10" })).productId;
+    const add = () =>
+      addProducts(
+        request(`/price-lists/${wholesaleId}/products`, "POST", { productIds: [twoKeys], pricedAt: "BASE" }),
+        params(wholesaleId),
+      );
+    const answers = await Promise.all([add(), add()]);
+    expect(answers.map((answer) => answer.status)).toEqual([200, 200]);
+    const bodies = await Promise.all(answers.map((answer) => answer.json()));
+    expect(bodies.map((body) => body.data).sort((a, b) => b.added - a.added)).toEqual([
+      { added: 1, skipped: 0 },
+      { added: 0, skipped: 1 },
+    ]);
+    expect(await prisma.productPrice.count({ where: { priceListId: wholesaleId, productId: twoKeys } })).toBe(1);
+    expect(await prisma.productPriceChange.count({ where: { priceListId: wholesaleId, productId: twoKeys, source: "ADDED" } })).toBe(1);
+    const events = await prisma.platformAuditEvent.findMany({ where: { entityId: wholesaleId, eventType: "RETAIL_PRICE_LIST.PRODUCTS_ADDED" } });
+    expect(events.filter((event) => (event.payloadJson ?? "").includes("Two Keys"))).toHaveLength(1);
   });
 
   it("refuses a less that is not 0% to 90%", async () => {
@@ -271,6 +323,40 @@ describe("Change many prices", () => {
     expect(await priceOn(retailId, savanna)).toBe("1.85");
   });
 
+  it("refuses a figure that is not a plain price, and an absurd one, under its line", async () => {
+    const answer = await changeMany(
+      request("/price-changes", "POST", {
+        listId: retailId,
+        lines: [
+          { productId: amarula, price: "1e3", labels: 0 },
+          { productId: castle, price: "1.234", labels: 0 },
+          { productId: savanna, price: "99999999999", labels: 0 },
+        ],
+        when: "NOW",
+        printLabels: false,
+      }),
+    );
+    expect(answer.status).toBe(400);
+    expect(await answer.json()).toEqual({
+      error: "3 prices were not saved.",
+      fieldErrors: {
+        "lines.0": "Write the price as a figure, like 2.10.",
+        "lines.1": "Write the price as a figure, like 2.10.",
+        "lines.2": "Write the price as a figure, like 2.10.",
+      },
+    });
+    expect([await priceOn(retailId, amarula), await priceOn(retailId, castle), await priceOn(retailId, savanna)]).toEqual(["18.99", "1.25", "1.85"]);
+  });
+
+  it("refuses a product that is not on the list, rather than put it there", async () => {
+    const answer = await changeMany(
+      request("/price-changes", "POST", { listId: wholesaleId, lines: [{ productId: savanna, price: "1.70", labels: 0 }], when: "NOW", printLabels: false }),
+    );
+    expect(answer.status).toBe(400);
+    expect((await answer.json()).fieldErrors).toEqual({ "lines.0": "That product is not on this list." });
+    expect(await priceOn(wholesaleId, savanna)).toBeNull();
+  });
+
   it("schedules for the owner and undoes it while it waits; a cashier may do neither", async () => {
     const scheduled = await changeMany(
       request("/price-changes", "POST", { listId: retailId, lines: [{ productId: savanna, price: "1.90", labels: 0 }], when: "TONIGHT", printLabels: false }),
@@ -283,7 +369,12 @@ describe("Change many prices", () => {
     );
     expect(refused.status).toBe(403);
     const undone = await cancel(request(`/price-changes/${body.data.batchId}/cancel`, "POST"), { params: Promise.resolve({ batchId: body.data.batchId }) });
-    expect(await undone.json()).toEqual({ cancelled: 1 });
+    expect(await undone.json()).toEqual({ data: { cancelled: 1 }, message: "Undone. The prices stay as they are." });
+    // Changed now to the price it has: nothing moved, and it says so.
+    const same = await changeMany(
+      request("/price-changes", "POST", { listId: retailId, lines: [{ productId: savanna, price: "1.85", labels: 0 }], when: "NOW", printLabels: false }),
+    );
+    expect((await same.json()).message).toBe("Those prices are already set.");
     const cashier = await as("CASHIER", () =>
       changeMany(request("/price-changes", "POST", { listId: retailId, lines: [{ productId: savanna, price: "1.90", labels: 0 }], when: "NOW", printLabels: false })),
     );

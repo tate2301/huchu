@@ -3,6 +3,8 @@ import { z } from "zod";
 import { toNumberOrZero } from "@/lib/money";
 import { prisma } from "@/lib/prisma";
 
+import { centsOf, PRICE_FIGURE_MESSAGE } from "./figure";
+
 /**
  * Change many prices' lines (W-15, PRD-07): what each ticked product costs
  * now and what it will cost, worked out in whole cents so a raise and its
@@ -41,13 +43,6 @@ export function basisPoints(typed: string): number | null {
   return match ? Math.round(Number(match[1]) * 100) : null;
 }
 
-/** "18.99" or "US$18.99" in cents; null when it is not a price. */
-export function centsOf(typed: string): number | null {
-  const match = /^\s*(?:US\$|\$)?\s*(\d{1,7})(?:\.(\d{1,2}))?\s*$/.exec(typed);
-  if (!match) return null;
-  return Number(match[1]) * 100 + Number((match[2] ?? "0").padEnd(2, "0"));
-}
-
 const toCents = (value: number) => Math.round(value * 100);
 
 function roundUp(cents: number, round: PreviewRound): number {
@@ -63,7 +58,7 @@ function marginOf(priceCents: number, costCents: number | null): number | null {
 
 /** Why the "By" is refused, or null: a raise of −90% to 1,000%, a margin under 100%, a price. */
 export function byProblem(how: PreviewHow, by: string): string | null {
-  if (how === "ONE_PRICE") return centsOf(by) === null ? "Write the price as a figure, like 2.10." : null;
+  if (how === "ONE_PRICE") return centsOf(by) === null ? PRICE_FIGURE_MESSAGE : null;
   const points = basisPoints(by);
   if (how === "MARGIN") return points === null || points < 0 || points >= 10000 ? "Write the margin as a percentage under 100, like 30%." : null;
   return points === null || points <= -9000 || points > 100000 ? "Write the raise as a percentage, like 5%." : null;

@@ -3,17 +3,21 @@
  * "Tonight, after closing" is 22:00 on the shop's clock (tomorrow's once it
  * has passed), a date must be from tomorrow, a scheduled batch moves no price
  * until it comes due, then applies once with its BULK history and one
- * RETAIL_PRICE.CHANGED each; Undo cancels only what is still waiting; and the
- * worker and a till's price read racing on the same due rows apply each once.
+ * RETAIL_PRICE.CHANGED each; Undo cancels only what is still waiting, stops its
+ * shelf labels and says so in Activity; a price typed now calls off what was
+ * scheduled for it; two saves of one price take turns; and the worker and a
+ * till's price read racing on the same due rows apply each once.
  */
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { destroyProvisionedTenant } from "@/lib/platform/tenant-teardown";
 import { prisma } from "@/lib/prisma";
+import { hashDeviceKey } from "@/lib/retail/devices";
 import { addTestProduct, makeTestShop, type TestShop } from "@/lib/retail/products/test-fixtures";
 
-import { applyDuePriceChanges, defaultPriceList } from "./change";
+import { applyDuePriceChanges, changePrices, defaultPriceList, PriceRefusal } from "./change";
 import { applyDuePriceChangesForAll, cancelBatch, changeMany, ChangeManyRefusal, dateAt, tonightAt } from "./schedule";
+import { saveWorksheet } from "./worksheet";
 
 let shop: TestShop;
 let listId: string;
@@ -28,7 +32,9 @@ beforeAll(async () => {
 }, 60_000);
 
 afterAll(async () => {
-  if (shop) await destroyProvisionedTenant(shop.companyId);
+  if (!shop) return;
+  await prisma.retailDevice.deleteMany({ where: { companyId: shop.companyId } });
+  await destroyProvisionedTenant(shop.companyId);
 });
 
 const priceOf = async (productId: string) =>
@@ -124,12 +130,103 @@ describe("changeMany", () => {
 describe("Undo", () => {
   it("cancels only the rows still waiting", async () => {
     const result = await changeMany(shop.owner(), { listId, lines: [{ productId: chibuku, price: "1.25", labels: 0 }], when: "TONIGHT", printLabels: false });
-    expect(await cancelBatch(shop.owner(), result.data.batchId)).toEqual({ cancelled: 1 });
+    expect(await cancelBatch(shop.owner(), result.data.batchId)).toEqual({
+      data: { cancelled: 1 },
+      message: "Undone. The prices stay as they are.",
+    });
+    const undone = await prisma.platformAuditEvent.findFirstOrThrow({ where: { entityId: listId, eventType: "RETAIL_PRICE.SCHEDULE_CANCELLED" } });
+    expect(JSON.parse(undone.payloadJson ?? "{}")).toMatchObject({ count: 1, batchId: result.data.batchId, effectiveAt: result.data.effectiveAt });
     expect(await applyDuePriceChanges(shop.companyId, new Date(Date.now() + 3 * 86_400_000))).toBe(0);
     expect(await priceOf(chibuku)).toBe("1.15");
     // Nothing left to cancel: it is said, not ignored.
     await expect(cancelBatch(shop.owner(), result.data.batchId)).rejects.toMatchObject({ status: 409 });
     await expect(cancelBatch(shop.owner(), "6d1f3c7e-0000-4000-8000-000000000000")).rejects.toMatchObject({ status: 404 });
+  });
+});
+
+describe("Undo and the shelf labels", () => {
+  it("stops the labels still waiting for the till, so none prints a price that never comes", async () => {
+    const register = (
+      await prisma.retailRegister.create({ data: { companyId: shop.companyId, siteId: shop.mainId, code: "FRONT", name: "Front till" }, select: { id: true } })
+    ).id;
+    await prisma.retailDevice.create({
+      data: { companyId: shop.companyId, registerId: register, kind: "BROWSER", keyHash: hashDeviceKey(`front-${register}`), pairedById: shop.ownerId },
+    });
+    const queued = await changeMany(shop.owner(), {
+      listId,
+      lines: [{ productId: castle, price: "2.50", labels: 2 }],
+      when: "TONIGHT",
+      printLabels: true,
+    });
+    expect(queued.message).toMatch(/Labels are queued\.$/);
+    const job = () => prisma.retailPrintJob.findUniqueOrThrow({ where: { id: queued.data.labelsJobId! } });
+    expect(await job()).toMatchObject({ status: "QUEUED", registerId: register });
+    expect((await job()).payload).toMatchObject({ batchId: queued.data.batchId, labels: [{ price: "US$2.50", copies: 2 }] });
+
+    const undone = await cancelBatch(shop.owner(), queued.data.batchId);
+    expect(undone.message).toBe("Undone. The prices stay as they are.");
+    expect(await job()).toMatchObject({ status: "FAILED", error: "Undone" });
+
+    // Printed already: the toast says which shelves to see to.
+    const printed = await changeMany(shop.owner(), { listId, lines: [{ productId: castle, price: "2.60", labels: 1 }], when: "TONIGHT", printLabels: true });
+    await prisma.retailPrintJob.update({ where: { id: printed.data.labelsJobId! }, data: { status: "PRINTED", printedAt: new Date() } });
+    expect((await cancelBatch(shop.owner(), printed.data.batchId)).message).toBe(
+      "Undone. The prices stay as they are. The new labels printed already; take them off the shelf.",
+    );
+  });
+});
+
+describe("a price typed while a change waits", () => {
+  it("calls off what was scheduled for that product, and says so", async () => {
+    const before = await priceOf(castle);
+    const scheduled = await changeMany(shop.owner(), { listId, lines: [{ productId: castle, price: "3.90", labels: 0 }], when: "TONIGHT", printLabels: false });
+    const saved = await saveWorksheet(shop.owner(), listId, [{ id: castle, value: "3.50", was: before }]);
+    expect(saved.message).toBe("1 price saved. The till has it now. 1 change scheduled for later was cancelled.");
+    expect(await applyDuePriceChanges(shop.companyId, new Date(Date.now() + 3 * 86_400_000))).toBe(0);
+    expect(await priceOf(castle)).toBe("3.50");
+    const row = await prisma.productPriceChange.findFirstOrThrow({ where: { batchId: scheduled.data.batchId } });
+    expect(row.cancelledAt).not.toBeNull();
+  });
+});
+
+describe("two saves of one price at the same moment", () => {
+  it("take turns, so the history links from one to the next", async () => {
+    const start = await priceOf(chibuku);
+    const save = (price: string) =>
+      prisma.$transaction((tx) =>
+        changePrices(tx, {
+          companyId: shop.companyId,
+          actor: shop.owner(),
+          listId,
+          rows: [{ productId: chibuku, price }],
+          source: "TYPED",
+          limits: { priceChanges: "MANAGERS", belowCostNeedsOwner: true },
+        }),
+      );
+    const since = new Date();
+    await Promise.all([save("3.10"), save("3.20")]);
+    const history = await prisma.productPriceChange.findMany({
+      where: { productId: chibuku, priceListId: listId, createdAt: { gte: since } },
+      orderBy: { createdAt: "asc" },
+    });
+    const steps = history.map((row) => [row.fromPrice?.toFixed(2), row.toPrice?.toFixed(2)]);
+    expect(steps).toHaveLength(2);
+    expect(steps[0]![0]).toBe(start);
+    expect(steps[1]![0]).toBe(steps[0]![1]);
+    expect(await priceOf(chibuku)).toBe(steps[1]![1]);
+  });
+
+  it("refuses the second worksheet save over a price it did not see", async () => {
+    const start = await priceOf(chibuku);
+    const results = await Promise.allSettled([
+      saveWorksheet(shop.owner(), listId, [{ id: chibuku, value: "3.30", was: start }]),
+      saveWorksheet(shop.owner(), listId, [{ id: chibuku, value: "3.40", was: start }]),
+    ]);
+    const refused = results.filter((result) => result.status === "rejected");
+    expect(refused).toHaveLength(1);
+    const reason = (refused[0] as PromiseRejectedResult).reason;
+    expect(reason).toBeInstanceOf(PriceRefusal);
+    expect(Object.values((reason as PriceRefusal).refused)[0]).toMatch(/^Changed by someone else since you opened the list\. It is now US\$3\.[34]0\.$/);
   });
 });
 

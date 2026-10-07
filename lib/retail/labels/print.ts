@@ -34,6 +34,8 @@ export type LabelsInput = {
    * price as the was.
    */
   lines?: Array<{ productId: string; copies: number; price: number }>;
+  /** The Change many prices batch these labels are for, kept on the job so Undo can stop it. */
+  batchId?: string;
 };
 
 export const labelsInputSchema = z
@@ -111,7 +113,7 @@ export async function printLabels(actor: RetailAuditActor, input: LabelsInput, n
         companyId: actor.companyId,
         registerId: till?.id ?? null,
         kind: "LABELS",
-        payload: { size: input.size, show: input.show, labels },
+        payload: { size: input.size, show: input.show, labels, ...(input.batchId ? { batchId: input.batchId } : {}) },
         status: till ? "QUEUED" : "PRINTED",
         printedAt: till ? null : now,
         createdById: actor.userId,
