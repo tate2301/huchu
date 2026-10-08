@@ -615,6 +615,7 @@ export const Flame = createPhosphorIcon("Flame", "Flame");
 export const Grains = createPhosphorIcon("Grains", "Grains");
 export const HandCoins = createPhosphorIcon("HandCoins", "HandCoins");
 export const Key = createPhosphorIcon("Key", "Key");
+export const Link = createPhosphorIcon("Link", "Link");
 export const LinkBreak = createPhosphorIcon("LinkBreak", "LinkBreak");
 export const Martini = createPhosphorIcon("Martini", "Martini");
 export const Moon = createPhosphorIcon("Moon", "Moon");

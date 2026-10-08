@@ -6,6 +6,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { markActivityFailed } from "@/lib/activity/context";
 import { errorResponse } from "@/lib/api-response";
 import { getHostHeaderFromRequestHeaders, resolveTenantFromHost } from "@/lib/platform/tenant";
+import { peekIdentifier } from "@/lib/id-generator";
 import { prisma } from "@/lib/prisma";
 import { RETAIL_AUDIT_EVENTS, writeRetailAuditEvent } from "@/lib/retail/audit";
 import {
@@ -34,6 +35,7 @@ import type { LicenceWindow } from "@/lib/retail/licence-hours";
 import { loadShopProfile } from "@/lib/retail/shop-profile";
 import { shopFeatures, type ShopProfile } from "@/lib/retail/shop-profile-rules";
 import { loadLicenceHours } from "@/lib/retail/site-licence-hours";
+import { cashUpSignOff, type SignOff } from "@/lib/retail/sign-off";
 import { loadTillRules, tillRulesForTill, type TillRulesForTill } from "@/lib/retail/till-rules";
 import { checkTillPin, type PinPlace } from "@/lib/retail/till-pin-attempt";
 import { deviceWords, type DeviceKind } from "@/lib/retail/till-words";
@@ -224,6 +226,61 @@ export async function salesSentAfterUnpairing(device: PosDevice): Promise<number
       createdAt: { gte: device.unpairedAt },
     },
   });
+}
+
+/** What /unpaired says (board NoLonger), all of it read from the database. */
+export type NoLongerFacts = {
+  till: string;
+  reason: UnpairReason;
+  /** Who unpaired it, or made the code that replaced it. */
+  by: string | null;
+  at: string;
+  /** Sales this device held offline that came in after it was unpaired. */
+  sent: number;
+  /** REPLACED: the device that took its place, and who paired it when. */
+  replacement: { kind: DeviceKind; label: string | null; by: string | null; at: string } | null;
+  /** REPLACED while a shift was open on the till, and it still is: whose. */
+  shift: { cashier: string } | null;
+};
+
+/**
+ * Everything /unpaired shows: who unpaired this device and when, how many of
+ * its offline sales came in since, and when it was replaced, the device that
+ * took the till over and the shift that carried on there.
+ */
+export async function noLongerFacts(device: PosDevice): Promise<NoLongerFacts | null> {
+  const unpairedAt = device.unpairedAt;
+  if (!unpairedAt) return null;
+  const reason = (device.unpairReason ?? "UNPAIRED") as UnpairReason;
+  const replaced = reason === "REPLACED";
+  const [sent, replacement, shift] = await Promise.all([
+    salesSentAfterUnpairing(device),
+    replaced
+      ? prisma.retailDevice.findFirst({
+          where: { companyId: device.companyId, registerId: device.registerId, id: { not: device.id }, pairedAt: { gte: unpairedAt } },
+          orderBy: { pairedAt: "asc" },
+          select: { kind: true, label: true, pairedAt: true, pairedBy: { select: { name: true } } },
+        })
+      : null,
+    replaced
+      ? prisma.retailShift.findFirst({
+          where: { companyId: device.companyId, registerId: device.registerId, status: "OPEN", openedAt: { lte: unpairedAt } },
+          orderBy: { openedAt: "desc" },
+          select: { cashierName: true },
+        })
+      : null,
+  ]);
+  return {
+    till: device.register.name,
+    reason,
+    by: device.unpairedBy?.name || null,
+    at: unpairedAt.toISOString(),
+    sent,
+    replacement: replacement
+      ? { kind: replacement.kind, label: replacement.label, by: replacement.pairedBy.name || null, at: replacement.pairedAt.toISOString() }
+      : null,
+    shift: shift ? { cashier: shift.cashierName } : null,
+  };
 }
 
 /** Last seen now (at most once a minute), and the shell's version when it says. */
@@ -529,6 +586,18 @@ export type TillContext = {
   tenders: TillTender[];
   /** Today's ZiG rate and how ZiG change rounds, while the shop takes ZiG cash and has a rate. */
   zig: { rate: string; setAt: string; rounding: string } | null;
+  /**
+   * How customers pay by EcoCash, so the till can tell them: the shop's
+   * merchant code, the number to send money to, or the terminal at the counter
+   * (nothing to say but the amount). `name` is "Shows customers as". Null when
+   * the shop does not take EcoCash.
+   */
+  ecocash: {
+    method: "MERCHANT_CODE" | "PHONE_NUMBER" | "TERMINAL";
+    merchantCode: string | null;
+    phone: string | null;
+    name: string | null;
+  } | null;
   /** The till rules (SET-06): the till asks first, the server checks them again. */
   rules: TillRulesForTill;
   /** What its receipts say (SET-07): the shop's top and bottom lines, numbers and copies. */
@@ -545,11 +614,15 @@ export type TillContext = {
   approvers: Array<{ userId: string; name: string }>;
   /** The till's own list, else the site's, else the shop's default; null when the shop has none. */
   priceListId: string | null;
+  /** The number the next shift opened at this site will take ("SH-00244"): a forecast, not reserved. */
+  nextShiftNo: string;
+  /** Who signs the cash-up off: the site's shop manager, else the company's first manager by name; null when there is none. */
+  signOff: SignOff | null;
 };
 
 export async function tillContext(device: PosDevice, now: Date = new Date()): Promise<TillContext> {
   const { register } = device;
-  const [places, defaultList, shop, tillRules, payments, pins, receipt, fiscal, licenceHours] = await Promise.all([
+  const [places, defaultList, shop, tillRules, payments, pins, receipt, fiscal, licenceHours, nextShiftNo, signOff] = await Promise.all([
     prisma.stockLocation.count({ where: { siteId: register.site.id, isActive: true } }),
     register.priceListId || register.site.priceListId
       ? Promise.resolve(null)
@@ -564,6 +637,8 @@ export async function tillContext(device: PosDevice, now: Date = new Date()): Pr
     receiptWire(device.companyId, register.site.id),
     tillFiscal(device.companyId),
     loadLicenceHours(device.companyId, register.site.id),
+    peekIdentifier(prisma, { companyId: device.companyId, entity: "RETAIL_SHIFT", siteId: register.site.id }),
+    cashUpSignOff(device.companyId, register.site.id),
   ]);
   const pairedBy = device.pairedBy.name ?? "";
   return {
@@ -588,6 +663,7 @@ export async function tillContext(device: PosDevice, now: Date = new Date()): Pr
     licenceHours: shopFeatures(shop).licenceHours ? licenceHours : [],
     tenders: payments.tenders,
     zig: payments.zig,
+    ecocash: payments.ecocash,
     rules: tillRulesForTill(tillRules),
     receipt,
     fiscal,
@@ -596,6 +672,8 @@ export async function tillContext(device: PosDevice, now: Date = new Date()): Pr
       .map((pin) => ({ userId: pin.user.id, name: pin.user.name ?? "" }))
       .sort((a, b) => a.name.localeCompare(b.name)),
     priceListId: register.priceListId ?? register.site.priceListId ?? defaultList?.id ?? null,
+    nextShiftNo,
+    signOff,
   };
 }
 

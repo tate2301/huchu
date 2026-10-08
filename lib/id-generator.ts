@@ -86,9 +86,11 @@ export const ID_ENTITY_CONFIG: Record<ReservableIdEntity, EntityConfig> = {
   GOLD_POUR: { prefix: "BAR", requiresSiteId: false },
   GOLD_RECEIPT: { prefix: "RCP", requiresSiteId: false },
   GOLD_PURCHASE: { prefix: "GPUR", requiresSiteId: false },
-  RETAIL_REGISTER: { prefix: "REG", requiresSiteId: true },
-  RETAIL_PURCHASE_ORDER: { prefix: "RPO", requiresSiteId: true },
-  RETAIL_GOODS_RECEIPT: { prefix: "RGR", requiresSiteId: true },
+  // Retail numbers are unique in the company, not the site (`@@unique([companyId, …])`), so they
+  // count across every site: a second shop counting from its own SH-00001 met the first shop’s.
+  RETAIL_REGISTER: { prefix: "REG", requiresSiteId: false },
+  RETAIL_PURCHASE_ORDER: { prefix: "RPO", requiresSiteId: false },
+  RETAIL_GOODS_RECEIPT: { prefix: "RGR", requiresSiteId: false },
   // "SH-00243", the number the floor, the boards and the seeded history use.
   RETAIL_SHIFT: { prefix: "SH", requiresSiteId: false, padWidth: 5 },
   RETAIL_HELD_CART: { prefix: "RHC", requiresSiteId: false },
@@ -187,6 +189,13 @@ export function inferNumbering(
   return { prefix: winner.prefix, separator: winner.separator, max: winner.max };
 }
 
+/**
+ * The highest number a sequence could have handed out: `lastNumber` is an int4.
+ * A code above it was never one of ours (a till once named offline sales
+ * `RSL-<clock>`), and counting from it would overflow the sequence.
+ */
+const MAX_SEQUENCE_NUMBER = 2_147_483_647;
+
 function extractMaxFromCodes(codes: Array<string | null | undefined>, prefix: string) {
   const regex = new RegExp(`^${prefix}-(\\d+)$`, "i");
   let max = 0;
@@ -195,7 +204,7 @@ function extractMaxFromCodes(codes: Array<string | null | undefined>, prefix: st
     const match = value.match(regex);
     if (!match) continue;
     const parsed = Number.parseInt(match[1], 10);
-    if (Number.isFinite(parsed)) {
+    if (Number.isFinite(parsed) && parsed <= MAX_SEQUENCE_NUMBER) {
       max = Math.max(max, parsed);
     }
   }
@@ -383,25 +392,22 @@ async function findEntityMaxExistingCode(
       return extractMaxFromCodes(records.map((record) => record.purchaseNumber), prefix);
     }
     case "RETAIL_REGISTER": {
-      if (!siteId) return 0;
       const records = await db.retailRegister.findMany({
-        where: { companyId, siteId },
+        where: { companyId },
         select: { code: true },
       });
       return extractMaxFromCodes(records.map((record) => record.code), prefix);
     }
     case "RETAIL_PURCHASE_ORDER": {
-      if (!siteId) return 0;
       const records = await db.retailPurchaseOrder.findMany({
-        where: { companyId, siteId },
+        where: { companyId },
         select: { poNo: true },
       });
       return extractMaxFromCodes(records.map((record) => record.poNo), prefix);
     }
     case "RETAIL_GOODS_RECEIPT": {
-      if (!siteId) return 0;
       const records = await db.retailGoodsReceipt.findMany({
-        where: { companyId, siteId },
+        where: { companyId },
         select: { receiptNo: true },
       });
       return extractMaxFromCodes(records.map((record) => record.receiptNo), prefix);
@@ -728,4 +734,36 @@ export async function reserveIdentifier(
     return (db as PrismaClient).$transaction(run);
   }
   return run(db as Prisma.TransactionClient);
+}
+
+/**
+ * The number `reserveIdentifier` would hand out next, without taking it: for a
+ * screen that says what is coming ("Opening SH-00244"). Another caller may
+ * take it first, so it is a forecast, never a promise. Not for the school
+ * entities, whose numbering is inferred.
+ */
+export async function peekIdentifier(
+  db: PrismaClient | Prisma.TransactionClient,
+  input: { companyId: string; entity: ReservableIdEntity; siteId?: string },
+): Promise<string> {
+  const config = ID_ENTITY_CONFIG[input.entity];
+  if (SCHOOL_NUMBERED_ENTITIES.has(input.entity)) {
+    throw new Error(`${input.entity} numbers cannot be forecast.`);
+  }
+  if (config.requiresSiteId && !input.siteId) {
+    throw new Error(`siteId is required for ${input.entity}`);
+  }
+  const scopeKey = config.requiresSiteId && input.siteId ? input.siteId : GLOBAL_SCOPE;
+  const sequence = config.globalSequence
+    ? await db.globalIdSequence.findUnique({
+        where: { entityKey_scopeKey: { entityKey: input.entity, scopeKey } },
+        select: { lastNumber: true },
+      })
+    : await db.idSequence.findUnique({
+        where: { companyId_entityKey_scopeKey: { companyId: input.companyId, entityKey: input.entity, scopeKey } },
+        select: { lastNumber: true },
+      });
+  const last = sequence ? sequence.lastNumber : await findEntityMaxExistingCode(db, input);
+  // As `reserveIdentifier` builds it: a global sequence at the default width.
+  return buildCode(config.prefix, last + 1, "-", config.globalSequence ? PAD : (config.padWidth ?? PAD));
 }

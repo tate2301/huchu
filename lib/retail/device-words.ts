@@ -102,28 +102,6 @@ export function pairedFootnote(at: Date, by: string, now: Date = new Date(), tim
 export type UnpairReason = "UNPAIRED" | "REPLACED" | "SITE_CLOSED" | "ACCOUNT_CLOSED";
 
 /**
- * The body of /unpaired: "Tafara Nyathi paired another device to Back till at
- * 14:02. The 3 sales this one held offline were sent." A plain unpair says
- * "{name} unpaired {till} at {HH:MM}."; the second sentence only when the
- * device sent something in on its way out.
- */
-export function unpairedSentence(
-  input: { by: string; at: Date; reason: UnpairReason; tillName: string; sent: number },
-  timeZone = DEFAULT_TIME_ZONE,
-): string {
-  const time = formatTime(input.at, timeZone);
-  const who = input.by || "A manager";
-  const first =
-    input.reason === "REPLACED"
-      ? `${who} paired another device to ${input.tillName} at ${time}.`
-      : `${who} unpaired ${input.tillName} at ${time}.`;
-  if (input.sent <= 0) return first;
-  return input.sent === 1
-    ? `${first} The 1 sale this one held offline was sent.`
-    : `${first} The ${input.sent} sales this one held offline were sent.`;
-}
-
-/**
  * W-76: a device that was unpaired may still send in what it sold before it
  * was told; a sale made after that moment is refused. `accept` is a sale from
  * a device still paired.

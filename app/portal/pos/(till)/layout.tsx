@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { headers } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 
 import { TillLockProvider } from "@/components/retail/till/lock";
@@ -10,6 +10,8 @@ import { requirePageAuth } from "@/lib/auth-core/guards";
 import { getHostHeaderFromRequestHeaders, getPortalRequestRouting } from "@/lib/platform/tenant";
 import { isLiveTill } from "@/lib/retail/devices";
 import { canAccessPosPortal } from "@/lib/retail/pos-host";
+import { TILL_LOCK_COOKIE } from "@/lib/retail/till-pin";
+import { readTillPinStatus } from "@/lib/retail/till-pin-status";
 import { deviceForPage } from "../device-page";
 
 /**
@@ -32,13 +34,17 @@ export default async function TillLayout({ children }: { children: ReactNode }) 
   if (!canAccessPosPortal(session.user.role)) {
     redirect("/access-blocked");
   }
-  const { device } = await deviceForPage();
+  const [{ device }, pinStatus, cookieStore] = await Promise.all([
+    deviceForPage(),
+    readTillPinStatus(session.user.id, session.user.companyId),
+    cookies(),
+  ]);
 
   return (
     <TillStateProvider isPosHost={routing.isPortalHost} paired={isLiveTill(device)}>
       <TillSignOutProvider>
         {/* The lock covers every screen: a cashier steps away from wherever they were. */}
-        <TillLockProvider>
+        <TillLockProvider pinStatus={pinStatus} locked={cookieStore.get(TILL_LOCK_COOKIE)?.value === "1"}>
           <TillShell>{children}</TillShell>
         </TillLockProvider>
       </TillSignOutProvider>

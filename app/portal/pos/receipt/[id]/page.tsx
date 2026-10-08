@@ -1,3 +1,4 @@
+import * as React from "react";
 import { headers } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 
@@ -7,17 +8,12 @@ import { getHostHeaderFromRequestHeaders, getPortalRequestRouting } from "@/lib/
 import { prisma } from "@/lib/prisma";
 import { canAccessPosPortal } from "@/lib/retail/pos-host";
 import { receiptWire } from "@/lib/retail/receipt-settings";
-import { receiptTenderLabel, receiptTextLines } from "@/lib/retail/receipt-words";
+import { receiptTenderLabel } from "@/lib/retail/receipt-words";
 import { postedChange } from "@/lib/retail/sale-totals";
-import { SHOP_TIME_ZONE } from "@/lib/retail/shop-profile-rules";
-import { firstName, hhmm, qty, usd } from "@/components/retail/till/format";
+import { firstName, qty, usd } from "@/components/retail/till/format";
+import { depositRowLabel, ReceiptFoot, ReceiptHead, receiptFigure as figure, receiptStamp } from "@/components/retail/till/receipt-parts";
 import { requireTillDevice } from "../../device-page";
 import { PrintedStamp } from "./printed-stamp";
-
-/** A figure without the currency: the receipt prints "US$" on the total only. */
-function figure(value: number): string {
-  return usd(value).replace("US$", "");
-}
 
 /**
  * A sale's receipt, to print: on paid, and again from History. The till loads
@@ -42,7 +38,8 @@ export default async function TillReceiptPage({ params }: { params: Promise<{ id
       : await prisma.retailSale.findFirst({
           where: { id, companyId },
           include: {
-            lines: { orderBy: { createdAt: "asc" } },
+            // One bottle's deposit, to count the bottles a line's deposit is for.
+            lines: { orderBy: { createdAt: "asc" }, include: { product: { select: { depositAmount: true } } } },
             payments: { orderBy: [{ createdAt: "asc" }, { id: "asc" }] },
             fiscalReceipt: { select: { status: true, fiscalNumber: true } },
             shift: { select: { registerName: true } },
@@ -52,23 +49,8 @@ export default async function TillReceiptPage({ params }: { params: Promise<{ id
   if (id !== "sample" && !sale) notFound();
 
   const wire = await receiptWire(companyId, sale?.siteId ?? device.register.site.id);
-  const head = receiptTextLines(wire.header);
-  const numbers = [
-    wire.showVatNumber && wire.vatNumber ? `VAT ${wire.vatNumber}` : null,
-    wire.liquor && wire.showLicenceNumber && wire.licenceNumber ? `Licence ${wire.licenceNumber}` : null,
-  ].filter((line): line is string => Boolean(line));
-  const foot = receiptTextLines(wire.footer);
-  const logoUrl = wire.printLogo ? wire.logoUrl : null;
 
-  const when = sale ? (sale.postedAt ?? sale.createdAt) : new Date();
-  const datePart = new Intl.DateTimeFormat("en-GB", {
-    weekday: "short",
-    day: "numeric",
-    month: "short",
-    // The shop's own clock, as every till time is read.
-    timeZone: SHOP_TIME_ZONE,
-  }).format(when);
-  const stamp = `${datePart} ${hhmm(when)}`;
+  const stamp = receiptStamp(sale ? (sale.postedAt ?? sale.createdAt) : new Date());
   const total = sale ? toNumberOrZero(sale.totalAmount) : 1;
   const deposit = sale ? toNumberOrZero(sale.depositAmount) : 0;
   const due = total + deposit;
@@ -81,21 +63,7 @@ export default async function TillReceiptPage({ params }: { params: Promise<{ id
 
   const copy = (
     <div className="receipt">
-      <div className="c">
-        {logoUrl ? (
-          // The shop's name is the first line under it, so the logo is decorative.
-          // eslint-disable-next-line @next/next/no-img-element -- the tenant's uploaded logo, any origin
-          <img src={logoUrl} alt="" style={{ display: "block", margin: "0 auto 8px", maxWidth: 160, maxHeight: 72 }} />
-        ) : null}
-        {head.map((line, index) => (
-          <div key={`h${index}`} className={index === 0 ? "t" : undefined}>
-            {line}
-          </div>
-        ))}
-        {numbers.map((line) => (
-          <div key={line}>{line}</div>
-        ))}
-      </div>
+      <ReceiptHead wire={wire} />
       <hr />
       <div className="c t">{title}</div>
       <div className="l">
@@ -111,28 +79,34 @@ export default async function TillReceiptPage({ params }: { params: Promise<{ id
       {sale?.customerName ? <div>Customer: {sale.customerName}</div> : null}
       <hr />
       {sale ? (
-        sale.lines.map((line) => (
-          <div key={line.id} className="l">
-            <span>
-              {qty(toNumberOrZero(line.quantity))} × {line.itemName}
-              {toNumberOrZero(line.discountAmount) ? `, ${figure(toNumberOrZero(line.discountAmount))} off` : ""}
-            </span>
-            <span>{figure(toNumberOrZero(line.lineTotal))}</span>
-          </div>
-        ))
+        sale.lines.map((line) => {
+          const lineDeposit = toNumberOrZero(line.depositAmount);
+          const each = line.product?.depositAmount ? toNumberOrZero(line.product.depositAmount) : null;
+          return (
+            <React.Fragment key={line.id}>
+              <div className="l">
+                <span>
+                  {qty(toNumberOrZero(line.quantity))} × {line.itemName}
+                  {toNumberOrZero(line.discountAmount) ? `, ${figure(toNumberOrZero(line.discountAmount))} off` : ""}
+                </span>
+                <span>{figure(toNumberOrZero(line.lineTotal))}</span>
+              </div>
+              {/* The line's deposit, net of the empties brought back against it, right under it. */}
+              {lineDeposit ? (
+                <div className="l">
+                  <span>{depositRowLabel(lineDeposit, each)}</span>
+                  <span>{figure(lineDeposit)}</span>
+                </div>
+              ) : null}
+            </React.Fragment>
+          );
+        })
       ) : (
         <div className="l">
           <span>Printer test</span>
           <span>{figure(1)}</span>
         </div>
       )}
-      {/* Deposits, net of the empties brought back, print once after the lines. */}
-      {deposit ? (
-        <div className="l">
-          <span>Deposits</span>
-          <span>{figure(deposit)}</span>
-        </div>
-      ) : null}
       <hr />
       {sale && toNumberOrZero(sale.discountAmount) ? (
         <div className="l">
@@ -179,16 +153,7 @@ export default async function TillReceiptPage({ params }: { params: Promise<{ id
         </>
       ) : null}
       {fiscalNumber ? <div className="c muted">Fiscal {fiscalNumber}</div> : null}
-      {foot.length > 0 ? (
-        <>
-          <hr />
-          {foot.map((line, index) => (
-            <div key={`f${index}`} className="c">
-              {line}
-            </div>
-          ))}
-        </>
-      ) : null}
+      <ReceiptFoot wire={wire} />
     </div>
   );
 

@@ -2,8 +2,6 @@
 
 -- AlterTable
 ALTER TABLE "RetailSale" ADD COLUMN "customerId" TEXT,
-ADD COLUMN "approvedById" TEXT,
-ADD COLUMN "approvedByName" TEXT,
 ADD COLUMN "restocked" BOOLEAN NOT NULL DEFAULT true;
 
 -- CreateIndex
@@ -14,9 +12,6 @@ CREATE INDEX "RetailSale_companyId_saleType_postedAt_idx" ON "RetailSale"("compa
 
 -- AddForeignKey
 ALTER TABLE "RetailSale" ADD CONSTRAINT "RetailSale_customerId_fkey" FOREIGN KEY ("customerId") REFERENCES "Customer"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "RetailSale" ADD CONSTRAINT "RetailSale_approvedById_fkey" FOREIGN KEY ("approvedById") REFERENCES "User"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- A sale rung for a name that is exactly one live customer of the shop is theirs.
 UPDATE "RetailSale" s

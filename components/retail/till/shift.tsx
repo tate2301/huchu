@@ -25,7 +25,7 @@ import {
   type RetailCashMovementTypeName,
 } from "@/lib/retail/cash-movements";
 import { DENOMINATIONS, floatLeftProblem, rowTotal, type CountCurrency } from "@/lib/retail/floor/count";
-import { count, dayMonth, hhmm, pairedWhen, usd, whole } from "./format";
+import { count, dayMonth, firstName, hhmm, pairedWhen, paymentLabel, usd, whole } from "./format";
 import { Empty, ErrorLine, GateSide, Keypad, Segmented, TillDialog, useKeypadKeys, useWindowKeys, type KeypadKey } from "./parts";
 import { ManagerFields, useManagerPin } from "./manager-pin";
 import { useHeldSummary } from "./shell";
@@ -153,6 +153,11 @@ function ShiftRecord({ onCashUp }: { onCashUp: () => void }) {
   const moves = [...(movements.data?.data ?? [])].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   // The feed is headed by the day of its newest line, so a shift past midnight reads right.
   const top = dayMonth(moves[0]?.createdAt ?? shift.openedAt);
+  // Each tender but cash: those the shop takes, in the payment screen's order, and any other that took money.
+  const takes = (context?.tenders ?? []).map((entry) => entry.tender).filter((tender) => tender !== "CASH");
+  const byTender = (Object.entries(shift.nonCashByTender) as Array<[keyof typeof shift.nonCashByTender, number]>)
+    .filter(([tender, amount]) => takes.includes(tender) || Math.abs(amount) > 0.004)
+    .sort(([a], [b]) => (takes.includes(a) ? takes.indexOf(a) : takes.length) - (takes.includes(b) ? takes.indexOf(b) : takes.length));
 
   return (
     <div className="with-rail">
@@ -233,10 +238,12 @@ function ShiftRecord({ onCashUp }: { onCashUp: () => void }) {
             <dd className="num text-left">
               {usd(Number(shift.cashSales))}
             </dd>
-            <dt>Card and mobile</dt>
-            <dd className="num text-left">
-              {usd(Number(shift.nonCashSales))}
-            </dd>
+            {byTender.map(([tender, amount]) => (
+              <React.Fragment key={tender}>
+                <dt>{paymentLabel(tender)}</dt>
+                <dd className="num text-left">{usd(amount)}</dd>
+              </React.Fragment>
+            ))}
             <dt>Held</dt>
             <dd>
               {held.count ? (
@@ -636,7 +643,9 @@ function CheckScreen({
         </div>
         {outBy !== null ? (
           <div className="field">
-            <label htmlFor={id}>What happened</label>
+            <label htmlFor={id}>
+              What happened, if you know <span className="opt">optional</span>
+            </label>
             <input
               ref={noteRef}
               id={id}
@@ -647,7 +656,9 @@ function CheckScreen({
               value={note}
               onChange={(event) => setNote(event.target.value)}
             />
-            <span className="help">A manager signs it off.</span>
+            <span className="help">
+              {`${context?.signOff ? firstName(context.signOff.name) : "The manager"} sees this beside the ${out < 0 ? "shortfall" : "difference"}.`}
+            </span>
           </div>
         ) : null}
         {closesDay ? (
@@ -678,7 +689,7 @@ function ClosedScreen({ shiftNo, variance, held, fiscalDay }: Closed) {
   const what =
     Math.abs(variance) < 0.005
       ? "The drawer matched the till."
-      : `${variance < 0 ? "Short" : "Over"} ${usd(Math.abs(variance))}. A manager sees it in the back office and signs it off.`;
+      : `${variance < 0 ? "Short" : "Over"} ${usd(Math.abs(variance))}. ${context?.signOff?.name ?? "A manager"} sees it in the back office and signs it off.`;
   return (
     <div className="gate is-over">
       <div className="gate-form">

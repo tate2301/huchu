@@ -40,13 +40,38 @@ describe("the Payments page's rules", () => {
       ok: true,
       values: { ecocashDisplayName: "HARARE BOTTLE" },
     });
+    expect(checkSettingsChanges(paymentsPage, { ecocashMethod: "Till", ecocashPhone: "0771-234" })).toEqual({
+      ok: false,
+      fieldErrors: {
+        ecocashMethod: "Choose merchant code, phone number or terminal.",
+        ecocashPhone: "Use digits and spaces, and + at the start.",
+      },
+    });
+    expect(checkSettingsChanges(paymentsPage, { ecocashMethod: "Phone number", ecocashPhone: " 0771 234 567 " })).toEqual({
+      ok: true,
+      values: { ecocashMethod: "Phone number", ecocashPhone: "0771 234 567" },
+    });
   });
 
-  it("hints the EcoCash merchant, or asks for it", () => {
+  it("hints how customers pay by EcoCash, or asks for what is missing", () => {
     const ecocash = paymentsPage.sections[0]!.fields.find((field) => field.id === "ecocash")!;
     const hint = ecocash.h as (values: Record<string, unknown>) => string;
-    expect(hint({ ecocashMerchantCode: "0921 774" })).toBe("Merchant 0921 774. The cashier types the confirmation code.");
-    expect(hint({ ecocashMerchantCode: "" })).toBe("Add your merchant code below.");
+    const code = { ecocashMethod: "Merchant code", ecocashMerchantCode: "0921 774" };
+    expect(hint(code)).toBe("Merchant 0921 774. The cashier types the confirmation code.");
+    expect(hint({ ...code, ecocashMerchantCode: "" })).toBe("Add your merchant code below.");
+    const phone = { ecocashMethod: "Phone number", ecocashPhone: "0771 234 567", ecocashMerchantCode: "0921 774" };
+    expect(hint(phone)).toBe("Sent to 0771 234 567. The cashier types the confirmation code.");
+    expect(hint({ ...phone, ecocashPhone: " " })).toBe("Add your EcoCash number below.");
+    expect(hint({ ...phone, ecocashMethod: "Terminal" })).toBe("On the terminal at the counter.");
+  });
+
+  it("shows the merchant code, the number and the name only for the way customers pay", () => {
+    const fields = paymentsPage.sections.find((section) => section.title === "EcoCash")!.fields;
+    const shown = (method: string) =>
+      fields.filter((field) => !field.show || field.show({ ecocashMethod: method }, {} as never)).map((field) => field.id);
+    expect(shown("Merchant code")).toEqual(["ecocashMethod", "ecocashMerchantCode", "ecocashDisplayName"]);
+    expect(shown("Phone number")).toEqual(["ecocashMethod", "ecocashPhone", "ecocashDisplayName"]);
+    expect(shown("Terminal")).toEqual(["ecocashMethod"]);
   });
 });
 
@@ -125,6 +150,21 @@ describe("saving Payments and taking ZiG", () => {
     const fields = (JSON.parse(settingsEvent.payloadJson!) as { changes: Array<{ field: string }> }).changes.map((c) => c.field);
     expect(fields).not.toContain("zigRate");
     expect((await loadPaymentSettings(companyId)).ecocashDisplayName).toBe("HARARE BOTTLE");
+  });
+
+  it("saves how customers pay by EcoCash, and reads it back as the page's words", async () => {
+    expect((await loadPaymentSettings(companyId)).ecocashMethod).toBe("MERCHANT_CODE");
+    await saveSettings(owner(), "payments", { ecocashMethod: "Phone number", ecocashPhone: "0771 234 567" });
+    expect(await loadPaymentSettings(companyId)).toMatchObject({ ecocashMethod: "PHONE_NUMBER", ecocashPhone: "0771 234 567" });
+    const read = await readSettings(companyId, "payments", true);
+    expect(read?.values).toMatchObject({ ecocashMethod: "Phone number", ecocashPhone: "0771 234 567", ecocashMerchantCode: "0921 774" });
+    expect((await tillPayments(companyId)).ecocash).toEqual({
+      method: "PHONE_NUMBER",
+      merchantCode: "0921 774",
+      phone: "0771 234 567",
+      name: "HARARE BOTTLE",
+    });
+    await saveSettings(owner(), "payments", { ecocashMethod: "Merchant code" });
   });
 
   it("records the manager's new rate as history, and says so on the page", async () => {

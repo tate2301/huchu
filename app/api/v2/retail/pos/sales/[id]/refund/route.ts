@@ -109,6 +109,8 @@ export async function POST(
       lines: sale.lines,
       payments: sale.payments,
       overrideReason: sale.overrideReason,
+      // The manager whose PIN let it through; null when nobody had to.
+      approvedByName: sale.approvedByName,
       notes: sale.notes,
       accountingStatus: accounting.accountingStatus,
       accountingError: accounting.accountingError,

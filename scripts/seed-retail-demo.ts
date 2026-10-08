@@ -230,6 +230,12 @@ const BUNDLE_SEEDS: BundleSeed[] = [
   },
 ]
 
+/** The deposit values the shop names (CATALOGUE's `deposit`). */
+const DEPOSIT_KINDS = [{ amount: "0.10", name: "Bottles, 340 to 375ml" }]
+
+/** Econet airtime: sold at whatever the cashier types, so its shelf price is only a starting figure. */
+const AIRTIME = { code: "ECONET-AIRTIME", name: "Econet airtime", price: "1.00", stock: 1000 }
+
 /** The cases: what each opens into and how many (W-12's packs). */
 const PACKS: Array<[pack: string, single: string, size: number]> = [
   ["CASTLE-CASE", "CASTLE-340", 24],
@@ -660,8 +666,17 @@ async function main() {
       create: { companyId, siteId: site.id, weekday, ...hours },
     })
   }
+  // What the shop calls its deposit values: the till shows the name beside the bottles.
+  for (const kind of DEPOSIT_KINDS) {
+    await prisma.retailDepositKind.upsert({
+      where: { companyId_amount: { companyId, amount: money(kind.amount) } },
+      update: { name: kind.name },
+      create: { companyId, amount: money(kind.amount), name: kind.name },
+    })
+  }
   await ensureRetailCategories(prisma, companyId, "LIQUOR")
   await seedCategories(companyId, reset)
+  await seedAirtimeCategory(companyId)
   await seedShopSettingsSave(companyId)
   const categoryIds = new Map(
     (await prisma.retailCategory.findMany({ where: { companyId, archivedAt: null }, select: { id: true, name: true } })).map(
@@ -748,6 +763,7 @@ async function main() {
       },
     })
   }
+  await seedAirtime({ companyId, siteId: site.id, locationId: location.id, listId: shelfList.id, categoryId: categoryIds.get("Airtime") ?? null })
   /*
     The range is exactly the catalogue. Anything else ranged on this tenant —
     a product a test run added by hand — goes to the bin with --reset, so the
@@ -759,7 +775,7 @@ async function main() {
       where: {
         companyId,
         archivedAt: null,
-        code: { notIn: [...CATALOGUE.map((entry) => entry.code), SPRITE.code, COKE_2L.code] },
+        code: { notIn: [...CATALOGUE.map((entry) => entry.code), SPRITE.code, COKE_2L.code, AIRTIME.code] },
         inventoryItems: { some: {} },
       },
       data: { archivedAt: new Date() },
@@ -4087,6 +4103,41 @@ async function seedShelfLine(input: {
   return product.id
 }
 
+/** Airtime, a category of its own beside the liquor set: VAT included, no ID check, out of the bin. */
+async function seedAirtimeCategory(companyId: string) {
+  const fields = { vatRate: money(VAT_PERCENT), vatExempt: false, ageRestricted: false, returnable: false, depositAmount: null, parentId: null, archivedAt: null }
+  const row = await prisma.retailCategory.findFirst({
+    where: { companyId, name: { equals: "Airtime", mode: "insensitive" } },
+    orderBy: [{ archivedAt: { sort: "desc", nulls: "first" } }, { createdAt: "desc" }],
+    select: { id: true },
+  })
+  if (row) await prisma.retailCategory.update({ where: { id: row.id }, data: { name: "Airtime", ...fields } })
+  else await prisma.retailCategory.create({ data: { companyId, name: "Airtime", ...fields } })
+}
+
+/** Econet airtime at Harare Main Branch, an open price: the till asks what the customer wants. */
+async function seedAirtime(input: { companyId: string; siteId: string; locationId: string; listId: string; categoryId: string | null }) {
+  const levels = { name: AIRTIME.name, unit: "each", siteId: input.siteId, locationId: input.locationId, currentStock: AIRTIME.stock, minStock: 50, reorderQty: 500, unitCost: 0 }
+  const existing = await prisma.inventoryItem.findFirst({ where: { siteId: input.siteId, itemCode: AIRTIME.code }, select: { id: true } })
+  const item = existing
+    ? await prisma.inventoryItem.update({ where: { id: existing.id }, data: levels, select: { id: true } })
+    : await prisma.inventoryItem.create({ data: { itemCode: AIRTIME.code, category: "OTHER", ...levels }, select: { id: true } })
+  const productId = await seedShelfLine({
+    companyId: input.companyId,
+    listId: input.listId,
+    code: AIRTIME.code,
+    name: AIRTIME.name,
+    itemId: item.id,
+    price: AIRTIME.price,
+    isActive: true,
+    categoryId: input.categoryId,
+    cost: "0",
+    deposit: null,
+  })
+  await prisma.product.update({ where: { id: productId }, data: { openPrice: true, archivedAt: null } })
+  console.log("  Econet airtime on the shelf, at whatever the cashier types")
+}
+
 type SeedSupplier = {
   code: string
   supplier: SupplierInput
@@ -4177,7 +4228,8 @@ async function seedSuppliers(input: { companyId: string; mainSiteId: string; sof
   const actor = { companyId, userId: owner.id, userName: owner.name, userRole: owner.role }
 
   if (input.reset) {
-    const gone = await prisma.vendor.findMany({ where: { companyId, bills: { none: {} } }, select: { id: true } })
+    // A supplier the books hold a bill against, or the shop holds empties for, stays.
+    const gone = await prisma.vendor.findMany({ where: { companyId, bills: { none: {} }, emptiesEntries: { none: {} } }, select: { id: true } })
     const ids = gone.map((vendor) => vendor.id)
     await prisma.retailMessage.deleteMany({ where: { companyId, entityType: "Vendor", entityId: { in: ids } } })
     await prisma.platformAuditEvent.deleteMany({ where: { companyId, entityType: "Vendor", entityId: { in: ids } } })
@@ -4693,7 +4745,6 @@ async function seedBin(input: { companyId: string; siteId: string; locationId: s
       categoryId: input.wineId,
       cost: "9.40",
       deposit: null,
-      supplierId: null,
     })
     await moveToBin(actor, { kind: "product", id: productId }, at)
     const event = await prisma.platformAuditEvent.findFirst({

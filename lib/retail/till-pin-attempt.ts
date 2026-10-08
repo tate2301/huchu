@@ -168,7 +168,7 @@ async function tillNameOf(companyId: string, place: PinPlace): Promise<string | 
 /* ── Choosing your own PIN (POST /api/v2/retail/pos/pin/change) ───────────── */
 
 export const CURRENT_PIN_WRONG = "That PIN is not right.";
-export const PIN_SAME_AS_SENT = "Pick a PIN that is not the one you were sent.";
+export const PIN_SAME_AS_SENT = "That is the PIN you were sent. Pick four new digits.";
 export const NO_PIN_TO_CHANGE = "You have no till PIN yet. Ask a manager to send you one.";
 
 /** A PIN change refused: under a field (400), locked (423), or nothing to change (409). */
@@ -190,6 +190,9 @@ export class TillPinRefused extends Error {
  * the issued PIN that must change (`pinMustChange`) and it still must. The new
  * PIN is theirs: `mustChange` off, the counter cleared, `issuedById` null, and
  * `RETAIL_PERSON.PIN_CHOSEN` on the chain.
+ *
+ * `check` asks the same questions and writes nothing, so the till can refuse
+ * the PIN they were sent as soon as it is typed once, not after it is typed twice.
  */
 export async function chooseTillPin(input: {
   companyId: string;
@@ -201,8 +204,10 @@ export async function chooseTillPin(input: {
   /** The session's `pinMustChange` claim. */
   openedByIssuedPin: boolean;
   place: PinPlace;
+  /** Only whether `newPin` would be taken; nothing is saved. */
+  check?: boolean;
   now?: Date;
-}): Promise<{ mustChange: false }> {
+}): Promise<{ saved: boolean }> {
   const now = input.now ?? new Date();
   const record = await prisma.retailTillPin.findFirst({
     where: { companyId: input.companyId, userId: input.userId },
@@ -230,6 +235,7 @@ export async function chooseTillPin(input: {
   if (record.mustChange && (await bcrypt.compare(input.newPin, record.pinHash))) {
     throw new TillPinRefused(PIN_SAME_AS_SENT, 400, "newPin");
   }
+  if (input.check) return { saved: false };
 
   const pinHash = await bcrypt.hash(input.newPin, PIN_HASH_ROUNDS);
   await prisma.$transaction(async (tx) => {
@@ -245,5 +251,5 @@ export async function chooseTillPin(input: {
       payload: {},
     });
   });
-  return { mustChange: false };
+  return { saved: true };
 }

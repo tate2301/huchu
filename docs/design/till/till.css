@@ -40,6 +40,11 @@
 .pin i { width: 16px; height: 16px; border-radius: var(--radius-pill); box-shadow: inset 0 0 0 2px var(--color-ink-2); }
 .pin i.on { background: var(--color-ink); box-shadow: none; }
 .pin.is-wrong i { background: var(--color-danger); box-shadow: none; }
+/* Choosing a PIN: a row for the new one and a row for typing it again; the row still to come is quiet. */
+.pin-rows { display: flex; flex-direction: column; gap: var(--space-16); }
+.pin-row { display: flex; flex-direction: column; gap: var(--space-8); }
+.pin-row.is-later .label { color: var(--color-muted); }
+.pin-row.is-later .pin i { box-shadow: inset 0 0 0 2px var(--color-faint); }
 .code-boxes { display: flex; align-items: center; gap: var(--space-8); }
 .code-boxes span { width: 48px; height: 56px; border-radius: var(--radius-card); box-shadow: var(--shadow-ring), var(--shadow-raised); display: grid; place-items: center; font-family: var(--font-mono); font-size: var(--text-20); font-weight: 500; color: var(--color-ink); }
 .code-boxes span.at { box-shadow: 0 0 0 2px var(--color-accent); }
@@ -60,16 +65,22 @@
 /* A tile that cannot sell right now. */
 .tile[aria-disabled="true"] { color: var(--color-faint); box-shadow: var(--shadow-ring); background: var(--color-surface); cursor: default; }
 .tile[aria-disabled="true"] .p, .tile[aria-disabled="true"] .n { color: var(--color-faint); }
-.tile .t { display: flex; gap: var(--space-4); flex-wrap: wrap; }
-.tile .s.age { color: var(--color-ink-2); }
+/* The deposit rides after the price, quiet: it is part of what the bottle costs. */
+.tile .p .dep { margin-left: var(--space-4); font-size: var(--text-12); font-weight: 400; color: var(--color-muted); }
+.tile .n { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 /* The price before a recent cut (PRD-03), struck through after the price. */
 .tile .p .was { margin-left: var(--space-4); font-size: var(--text-12); font-weight: 400; color: var(--color-muted); }
 
 /* The tray rises over the sale column and keeps one height through ask, wait and done. */
 .bench-side .over { position: absolute; inset: 0; z-index: 40; display: flex; flex-direction: column; justify-content: flex-end; }
-.bench-side .over .scrim { position: absolute; inset: 0; display: block; padding: 0; }
-.bench-side .tray { position: relative; height: 640px; }
+/* The scrim dims the sale under the tray, never the tray: the kit gives .scrim z-index 100, so both are set here. */
+.bench-side .over .scrim { position: absolute; inset: 0; z-index: 0; display: block; padding: 0; }
+.bench-side .tray { position: relative; z-index: 1; height: 640px; }
 .tray-top { display: flex; align-items: baseline; justify-content: space-between; }
+/* How this shop takes EcoCash, as the cashier reads it out: the code or number large enough to read across the counter. */
+.pay-how { display: flex; flex-direction: column; gap: var(--space-4); padding: var(--space-16); border-radius: var(--radius-card); background: var(--color-ground); }
+.pay-how .say { font-family: var(--font-mono); font-size: var(--text-20); font-weight: 500; line-height: var(--leading-20); color: var(--color-ink); }
+.pay-how .as { font-size: var(--text-13); color: var(--color-ink-2); }
 /* Nothing in the tray gives up its height but the spacer: a tall tray scrolls, it never squeezes Take. */
 .tray > :not(.grow) { flex-shrink: 0; }
 .tray .wait { display: flex; align-items: center; justify-content: space-between; gap: var(--space-12); min-height: var(--target-touch); padding: 0 var(--space-12); border-radius: var(--radius-card); background: var(--color-ground); }
@@ -88,6 +99,12 @@
 /* A tile that opens something is still a tile, not a link. A count beside a bar title never wraps. */
 a.tile { color: inherit; text-decoration: none; }
 .bar .muted, .bar h1 { white-space: nowrap; }
+/* A windowed list: only the rows in view are drawn, each placed down its full height. The first row under a heading has no rule, as in a .list. */
+.windowed { position: relative; }
+.windowed-item { position: absolute; top: 0; left: 0; width: 100%; }
+.windowed-item.is-lead > .row { box-shadow: none; }
+/* Filters on their own row under the bar: the same rule and gutter, a little shorter, and it wraps rather than scrolls. */
+.bar.is-filters { height: auto; min-height: var(--layout-navbar); flex-wrap: wrap; padding-block: var(--space-8); }
 
 /* Shell B, chosen 5 October 2026: an icon rail. The person at the top, the doors, Lock at the foot. */
 .shell-b { display: grid; grid-template-columns: 80px minmax(0, 1fr); height: 100%; }
@@ -105,10 +122,35 @@ a.tile { color: inherit; text-decoration: none; }
 .tabbar .nav .ic { width: 20px; height: 20px; }
 
 /* Product preview: the photo when there is one, else a glyph for its kind on the fill. */
-.tile .pic { height: 72px; margin: -4px -4px var(--space-4); border-radius: calc(var(--radius-card) - 4px); background: var(--color-fill); display: grid; place-items: center; overflow: hidden; }
+/* Nothing in a tile gives up its height: a full shelf squeezes its grid rows to the tile's least, and the picture and name (both clipped) went to nothing. */
+.tile { position: relative; }
+.tile > * { flex-shrink: 0; }
+.tile .pic { position: relative; height: 96px; margin: -4px -4px var(--space-4); border-radius: calc(var(--radius-card) - 4px); background: var(--color-fill); display: grid; place-items: center; overflow: hidden; }
 .tile .pic img { width: 100%; height: 100%; object-fit: cover; }
-.tile .pic .ic { width: 20px; height: 20px; color: var(--color-faint); }
+.tile .pic .ic { width: 24px; height: 24px; color: var(--color-faint); }
+/* Out of stock: the photo goes grey with the words, so an empty shelf reads at a glance. */
 .tile[aria-disabled="true"] .pic { opacity: .5; }
+.tile[aria-disabled="true"] .pic img { filter: grayscale(1); }
+/* 18+ on the picture's corner, where the eye lands; the count on this sale on the other. */
+.tile .age, .quick-item .age { position: absolute; top: var(--space-4); left: var(--space-4); height: 20px; padding: 0 var(--space-4); border-radius: var(--radius-pill); display: inline-flex; align-items: center; font-size: var(--text-12); font-weight: 600; color: var(--color-ink); background: var(--color-surface); box-shadow: var(--shadow-ring); }
+.tile .in, .quick-item .in { position: absolute; top: var(--space-4); right: var(--space-4); min-width: 24px; height: 24px; padding: 0 var(--space-4); border-radius: var(--radius-pill); display: inline-flex; align-items: center; justify-content: center; font-family: var(--font-mono); font-size: var(--text-13); font-weight: 600; color: var(--color-surface); background: var(--color-ink); }
+.tile .s.low { font-weight: 500; }
+
+/* Quick: a few things rung all day (a promotion, airtime, ice), one press from the top of the shelf. */
+.quick { display: flex; gap: var(--space-8); padding: var(--space-12) var(--space-24) 0; overflow-x: auto; scrollbar-width: none; flex: none; }
+.quick-item { position: relative; display: inline-flex; align-items: center; gap: var(--space-8); height: 48px; padding: 0 var(--space-12) 0 var(--space-4); border-radius: var(--radius-card); background: var(--color-surface); box-shadow: var(--shadow-ring), var(--shadow-raised); white-space: nowrap; flex: none; text-align: left; transition: background-color var(--motion-fast) var(--motion-ease), transform var(--motion-fast) var(--motion-ease); }
+@media (hover: hover) { .quick-item:hover { background: var(--color-hover); } }
+.quick-item:active { transform: scale(var(--motion-press)); }
+.quick-item:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--color-surface), 0 0 0 4px var(--color-accent); }
+.quick-item .qpic { width: 40px; height: 40px; border-radius: calc(var(--radius-card) - 4px); background: var(--color-fill); display: grid; place-items: center; overflow: hidden; flex: none; }
+.quick-item .qpic img { width: 100%; height: 100%; object-fit: cover; }
+.quick-item .qpic .ic { width: 20px; height: 20px; color: var(--color-ink-2); }
+.quick-item .qn { max-width: 140px; overflow: hidden; text-overflow: ellipsis; font-size: var(--text-13); color: var(--color-ink); }
+.quick-item .qp { font-family: var(--font-mono); font-size: var(--text-13); color: var(--color-ink-2); }
+.quick-item .in { top: -6px; right: -6px; }
+.quick-item[aria-pressed="true"] { box-shadow: 0 0 0 2px var(--color-ink); }
+.quick-item[aria-disabled="true"] { color: var(--color-faint); box-shadow: var(--shadow-ring); cursor: default; }
+.quick-item[aria-disabled="true"] .qn, .quick-item[aria-disabled="true"] .qp { color: var(--color-faint); }
 .pay .mark img { width: 100%; height: 100%; object-fit: cover; }
 
 /* The shell in a real browser: the rail and the screen fill the window; on a phone the rail becomes the tab bar. */
@@ -118,7 +160,7 @@ a.tile { color: inherit; text-decoration: none; }
 .shell-b .bench-side .list { flex: 1; min-height: 0; overflow: auto; }
 .shell-b .main { min-height: 0; }
 .shell-b .main.is-fixed { height: 100%; }
-.shell-b .main > .tile-grid { overflow: auto; flex: 1; min-height: 0; }
+.shell-b .main > .tile-grid { overflow: auto; flex: 1; min-height: 0; grid-auto-rows: max-content; }
 .shell-b .bench-side .tray { height: auto; min-height: min(640px, calc(100% - var(--space-24))); max-height: calc(100% - var(--space-24)); overflow: auto; }
 .shell-b .bench-side { position: relative; min-height: 0; }
 .tabbar { display: none; }
@@ -256,7 +298,7 @@ a.tile { color: inherit; text-decoration: none; }
 .dialog-place { position: fixed; inset: 0; z-index: 101; display: grid; place-items: center; padding: var(--space-16); pointer-events: none; }
 .dialog-place > * { pointer-events: auto; }
 .pop.is-till { z-index: 60; }
-.error.is-large { font-size: var(--text-14); }
+.error.is-large, .saved.is-large { font-size: var(--text-14); }
 /* The till under the lock: hidden, not unmounted, so the sale on it is kept as it was. */
 .under-lock { display: contents; }
 .under-lock[hidden] { display: none; }
@@ -297,3 +339,10 @@ tr.is-pickable[aria-current="true"] { background: var(--color-accent-tint); }
 .dialog-lg.is-compact { max-width: 560px; }
 .row.is-sale[aria-current="true"] { background: var(--color-accent-tint); }
 .col .v { top: 0; }
+
+/* The pairing door's camera, when the QR is scanned instead of typed. */
+.qr-cam { position: relative; width: 100%; max-width: 320px; aspect-ratio: 1; border-radius: var(--radius-card); overflow: hidden; background: var(--color-ink); box-shadow: var(--shadow-ring); }
+.qr-cam video { display: block; width: 100%; height: 100%; object-fit: cover; }
+.qr-cam .frame { position: absolute; inset: 18%; border-radius: var(--radius-card); box-shadow: 0 0 0 2px var(--color-accent-ink), 0 0 0 999px rgb(0 0 0 / 0.35); pointer-events: none; }
+/* A shop's logo at the head of a receipt or an offline slip. */
+.receipt-logo { display: block; margin: 0 auto var(--space-8); max-width: 160px; max-height: 72px; }

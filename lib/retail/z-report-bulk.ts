@@ -196,7 +196,7 @@ function reportSection(report: RetailZReportPayload): string {
   const m = (value: number | string) => formatMoney(Number(value), cur);
   const sales = [
     row("Sales before discounts", m(report.grossSales)),
-    row("Discounts", m(-report.discountTotal)),
+    row(report.approvedDiscountCount ? `Discounts (${report.approvedDiscountCount} approved)` : "Discounts", m(-report.discountTotal)),
     row(`VAT ${report.taxRatePercent.toFixed(2)}%`, m(report.taxTotal)),
     row("Takings", m(report.grossTakings), true),
     ...(report.depositTotal ? [row("Bottle deposits held", m(report.depositTotal))] : []),

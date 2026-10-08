@@ -2,7 +2,8 @@
 
 /**
  * The device's door, before it is a till: pair it with a manager's code
- * (`/pair`), and what it says once it is no longer one (`/unpaired`).
+ * (`/pair`), typed or read from the QR, and what it says once it is no longer
+ * one (`/unpaired`).
  *
  * Pairing happens on the POS host only (`devices/pair`), which sets the
  * httpOnly `tender_device` key. The page then loads the till's root afresh, so
@@ -12,9 +13,22 @@
 import * as React from "react";
 
 import { ApiError, fetchJson } from "@/lib/api-client";
-import { CaretRight, QrCode, Tag } from "@/lib/icons";
-import { hhmm, pairedWhen } from "./format";
+import { Keyboard, Link, QrCode, Tag } from "@/lib/icons";
+import type { NoLongerFacts } from "@/lib/retail/devices";
+import { firstName, hhmm, pairedWhen } from "./format";
+import {
+  NOT_A_PAIRING_QR,
+  SCAN_FAILURE,
+  SCAN_FOR_MS,
+  cameraFailure,
+  pairingCodeFrom,
+  qrDetector,
+  type QrDetector,
+  type ScanFailure,
+} from "./pair-scan";
 import { CodeBoxes, ErrorLine, GateSide, Keypad, useKeypadKeys, type KeypadKey } from "./parts";
+
+export type { NoLongerFacts };
 
 /** What a pairing that never reached the server says. */
 const UNREACHABLE = "The till cannot reach the shop. Check the connection and try again.";
@@ -36,7 +50,11 @@ export function PairDoor({
   const [busy, setBusy] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [wrong, setWrong] = React.useState(false);
+  // The Kora's own scanner, which types the code.
   const [scanning, setScanning] = React.useState(false);
+  // Any other device: its camera, read by the browser's detector.
+  const [camera, setCamera] = React.useState<QrDetector | null>(null);
+  const [scanFailed, setScanFailed] = React.useState<ScanFailure | null>(null);
   // Five wrong codes stop this device for a while; the keypad waits with it.
   const [lockedUntil, setLockedUntil] = React.useState<number | null>(null);
 
@@ -68,9 +86,42 @@ export function PairDoor({
     setBusy(false);
   };
 
+  const fresh = () => {
+    setCode("");
+    setWrong(false);
+    setError(null);
+    setScanFailed(null);
+  };
+
+  const scan = async () => {
+    fresh();
+    if (kora) {
+      // The scanner types the code's digits: start it on empty boxes.
+      setScanning(true);
+      return;
+    }
+    const detector = await qrDetector();
+    if (detector === "unsupported") setScanFailed("unsupported");
+    else setCamera(detector);
+  };
+
+  // A pairing QR is the code, typed for them: it pairs exactly as the keypad does.
+  const read = (digits: string) => {
+    setCamera(null);
+    setCode(digits);
+    void submit(digits);
+  };
+  const failed = (failure: ScanFailure) => {
+    setCamera(null);
+    setScanFailed(failure);
+  };
+
   const locked = Boolean(lockedUntil);
   const onKey = (key: KeypadKey) => {
     if (busy || locked) return;
+    // A key typed while the camera looks: they chose to type.
+    setCamera(null);
+    setScanFailed(null);
     if (wrong) {
       setWrong(false);
       setError(null);
@@ -93,35 +144,38 @@ export function PairDoor({
         <div>
           <h1 className="text-display balance">Pair this device</h1>
           <p className="under">
-            Type the code a manager made under Tills and devices in Management.
-            {wrong ? "" : " It works once, for 10 minutes."}
+            {camera
+              ? "Hold the QR on the manager’s screen up to the camera."
+              : `Type the code a manager made under Tills and devices in Management.${wrong ? "" : " It works once, for 10 minutes."}`}
           </p>
         </div>
-        <CodeBoxes value={code} wrong={wrong} />
-        {error ? (
-          <ErrorLine large>{lockedUntil ? `Too many tries. Try again at ${hhmm(new Date(lockedUntil))}.` : error}</ErrorLine>
-        ) : scanning ? (
-          <span className="help">Hold the code on the manager’s screen up to the scanner.</span>
-        ) : null}
-        <Keypad onKey={onKey} left="clear" disabled={busy || locked} />
+        {camera ? (
+          <QrCamera detector={camera} onCode={read} onFail={failed} />
+        ) : (
+          <>
+            <CodeBoxes value={code} wrong={wrong} />
+            {error ? (
+              <ErrorLine large>{lockedUntil ? `Too many tries. Try again at ${hhmm(new Date(lockedUntil))}.` : error}</ErrorLine>
+            ) : scanFailed ? (
+              <ErrorLine large>{SCAN_FAILURE[scanFailed]}</ErrorLine>
+            ) : scanning ? (
+              <span className="help">Hold the code on the manager’s screen up to the scanner.</span>
+            ) : null}
+            <Keypad onKey={onKey} left="clear" disabled={busy || locked} />
+          </>
+        )}
         <div className="btn-group" role="group" aria-label="Other ways in">
-          {kora ? (
-            <button
-              type="button"
-              className="btn btn-lg grow"
-              disabled={busy || locked}
-              onClick={() => {
-                // The scanner types the code's digits: start it on empty boxes.
-                setCode("");
-                setWrong(false);
-                setError(null);
-                setScanning(true);
-              }}
-            >
-              <QrCode className="ic" />
-              Scan the QR instead
+          {camera ? (
+            <button type="button" className="btn btn-lg grow" onClick={() => setCamera(null)}>
+              <Keyboard className="ic" />
+              Type the code instead
             </button>
-          ) : null}
+          ) : (
+            <button type="button" className="btn btn-lg grow" disabled={busy || locked} onClick={() => void scan()}>
+              <QrCode className="ic" />
+              {scanFailed === "nothing-seen" || scanFailed === "wrong-qr" ? "Scan again" : "Scan the QR instead"}
+            </button>
+          )}
           <a className="btn btn-lg grow" href={`${base}/price-check`}>
             <Tag className="ic" />
             Check a price
@@ -133,26 +187,114 @@ export function PairDoor({
   );
 }
 
+/**
+ * The camera, looking for the pairing QR five times a second until it finds
+ * one, fails, or gives up after `SCAN_FOR_MS`. Leaving stops the camera.
+ */
+function QrCamera({
+  detector,
+  onCode,
+  onFail,
+}: {
+  detector: QrDetector;
+  onCode: (code: string) => void;
+  onFail: (failure: ScanFailure) => void;
+}) {
+  const video = React.useRef<HTMLVideoElement>(null);
+  const [stray, setStray] = React.useState(false);
+  const handlers = React.useRef({ onCode, onFail });
+  React.useEffect(() => {
+    handlers.current = { onCode, onFail };
+  });
+
+  React.useEffect(() => {
+    let stream: MediaStream | null = null;
+    let next = 0;
+    let giveUp = 0;
+    let done = false;
+    let sawStray = false;
+    const stop = () => {
+      done = true;
+      window.clearTimeout(next);
+      window.clearTimeout(giveUp);
+      stream?.getTracks().forEach((track) => track.stop());
+    };
+    const end = (then: () => void) => {
+      if (done) return;
+      stop();
+      then();
+    };
+    giveUp = window.setTimeout(() => end(() => handlers.current.onFail(sawStray ? "wrong-qr" : "nothing-seen")), SCAN_FOR_MS);
+
+    const look = async () => {
+      if (done) return;
+      const element = video.current;
+      if (element && element.readyState >= element.HAVE_CURRENT_DATA) {
+        try {
+          const found = await detector.detect(element);
+          const digits = found.map((entry) => pairingCodeFrom(entry.rawValue)).find(Boolean);
+          if (digits) return end(() => handlers.current.onCode(digits));
+          if (found.length && !done) {
+            sawStray = true;
+            setStray(true);
+          }
+        } catch {
+          // A frame it could not read; the next one may do.
+        }
+      }
+      if (!done) next = window.setTimeout(() => void look(), 200);
+    };
+
+    navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: "environment" } }, audio: false }).then(
+      (media) => {
+        if (done) {
+          media.getTracks().forEach((track) => track.stop());
+          return;
+        }
+        stream = media;
+        if (video.current) {
+          video.current.srcObject = media;
+          video.current.play().catch(() => null);
+        }
+        void look();
+      },
+      (refusal: unknown) => end(() => handlers.current.onFail(cameraFailure(refusal))),
+    );
+    return stop;
+  }, [detector]);
+
+  return (
+    <>
+      <div className="qr-cam">
+        <video ref={video} muted playsInline aria-hidden="true" />
+        <span className="frame" aria-hidden="true" />
+      </div>
+      {stray ? (
+        <ErrorLine large>{NOT_A_PAIRING_QR}</ErrorLine>
+      ) : (
+        <span className="help" role="status">
+          Looking for the QR.
+        </span>
+      )}
+    </>
+  );
+}
+
 /* ─── Replaced or unpaired ────────────────────────────────────────────── */
 
-export type NoLongerFacts = {
-  till: string;
-  /** REPLACED when a manager paired another device to its till; any other reason reads as unpaired. */
-  reason: string;
-  by: string | null;
-  at: string;
-  /** Sales this device held offline that came in after it was unpaired. */
-  sent: number;
-};
+/** "CounterMini", "Kora", "Windows PC"; a browser nothing more is known of is a browser. */
+const deviceNoun = (device: NonNullable<NoLongerFacts["replacement"]>) =>
+  device.kind === "COUNTER_MINI" ? "CounterMini" : device.kind === "KORA" ? "Kora" : device.label || "browser";
 
 export function NoLongerDoor({ base, host, facts }: { base: string; host: string; facts: NoLongerFacts }) {
   const [busy, setBusy] = React.useState(false);
-  const who = facts.by || "A manager";
-  const when = ` ${pairedWhen(facts.at)}`;
+  const replacement = facts.replacement;
   const what =
-    facts.reason === "REPLACED"
-      ? `${who} paired another device to ${facts.till}${when}.`
-      : `${who} unpaired it from ${facts.till}${when}.`;
+    facts.reason !== "REPLACED"
+      ? `${facts.by || "A manager"} unpaired it from ${facts.till} ${pairedWhen(facts.at)}.`
+      : replacement
+        ? `${replacement.by || "A manager"} paired a new ${deviceNoun(replacement)} ${pairedWhen(replacement.at)}.`
+        : `${facts.by || "A manager"} paired another device to ${facts.till} ${pairedWhen(facts.at)}.`;
   const sent =
     facts.sent === 1
       ? " The 1 sale saved here was sent first."
@@ -171,10 +313,14 @@ export function NoLongerDoor({ base, host, facts }: { base: string; host: string
           </p>
         </div>
         <dl className="attrs">
-          <dt>Open shifts</dt>
-          <dd>Carry on wherever {facts.till} is now</dd>
+          {facts.shift ? (
+            <>
+              <dt>{firstName(facts.shift.cashier)}’s shift</dt>
+              <dd>Carries on on the new device</dd>
+            </>
+          ) : null}
           <dt>This device</dt>
-          <dd>Sells again once it is paired</dd>
+          <dd>Checks prices until it is paired again</dd>
         </dl>
         <button
           type="button"
@@ -188,11 +334,11 @@ export function NoLongerDoor({ base, host, facts }: { base: string; host: string
             window.location.assign(`${base}/pair`);
           }}
         >
-          <CaretRight className="ic" />
+          <Link className="ic" />
           Pair it to a till
         </button>
       </div>
-      <GateSide lede={host} quiet="Not a till now." step={1} />
+      <GateSide lede={host} quiet="Not a till yet. Price check works; selling does not." step={1} />
     </div>
   );
 }

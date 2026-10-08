@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { Prisma, RetailSaleStatus, RetailSaleType } from "@prisma/client";
+import { Prisma, RetailSaleStatus, RetailSaleType, RetailTenderType } from "@prisma/client";
 import { z } from "zod";
 import { errorResponse, successResponse } from "@/lib/api-response";
 import { atLeast, money, sumMoney, toNumber, toNumberOrZero } from "@/lib/money";
@@ -21,7 +21,8 @@ import { RETAIL_TENDER_TYPES } from "@/lib/accounting/source-types";
 import { OFFLINE_REPLAY_NOTE_MARKER } from "@/lib/retail/offline-queue-verdict";
 import { reviewReplayedPrices } from "@/lib/retail/replay-price-review";
 import { loadSellableProducts } from "@/lib/retail/shelf-listing";
-import { depositsDue, lineDeposit } from "@/lib/retail/deposits";
+import { depositsDue, emptiesCounted, lineDeposit } from "@/lib/retail/deposits";
+import { saleEmpties } from "@/lib/retail/empties";
 import { liquorSaleRefusal, loadShopProfile, shopFeatures } from "@/lib/retail/shop-profile";
 import { loadLicenceHours } from "@/lib/retail/site-licence-hours";
 import { cashierFilterFor } from "@/lib/retail/own-rows";
@@ -121,8 +122,11 @@ const saleSchema = z.object({
   pricedAt: z.string().datetime().optional(),
 });
 
+/** The refunds written against a sale, for "Refunded" and "Part refunded" on the list. */
+const REFUNDS_ON = { where: { saleType: RetailSaleType.REFUND }, select: { totalAmount: true } } as const;
+
 type SaleListItem = Prisma.RetailSaleGetPayload<{
-  include: { lines: true; payments: true };
+  include: { lines: true; payments: true; reversals: typeof REFUNDS_ON };
 }>;
 
 function round(value: number) {
@@ -192,6 +196,12 @@ function normalizeEmail(input: string | null | undefined) {
   return trimmed || null;
 }
 
+function refundedShare(sale: SaleListItem): "NONE" | "PART" | "ALL" {
+  if (!sale.reversals.length) return "NONE";
+  const back = sumMoney(sale.reversals.map((refund) => money(refund.totalAmount).abs()));
+  return atLeast(back, money(sale.totalAmount).abs()) ? "ALL" : "PART";
+}
+
 function mapSales(
   sales: SaleListItem[],
   sourceSaleMap: Map<string, string>,
@@ -235,6 +245,9 @@ function mapSales(
     changeAmount: toNumber(sale.changeAmount),
     promotionCode: sale.promotionCode,
     overrideReason: sale.overrideReason,
+    approvedByName: sale.approvedByName,
+    // NONE, PART or ALL of the sale handed back by refunds.
+    refunded: refundedShare(sale),
     voidReason: sale.voidReason,
     sourceSaleId: sale.sourceSaleId,
     sourceSaleNo: sale.sourceSaleId ? sourceSaleMap.get(sale.sourceSaleId) ?? null : null,
@@ -286,6 +299,9 @@ export async function GET(request: NextRequest) {
   const search = searchParams.get("search")?.trim();
   const saleType = searchParams.get("saleType")?.trim();
   const status = searchParams.get("status")?.trim();
+  const refunded = searchParams.get("refunded") === "1";
+  const tender = searchParams.get("tender")?.trim();
+  const currency = searchParams.get("currency")?.trim().toUpperCase() || undefined;
   const scope = searchParams.get("scope")?.trim();
   const cashierId = searchParams.get("cashierId")?.trim();
   const from = searchParams.get("from")?.trim();
@@ -338,6 +354,11 @@ export async function GET(request: NextRequest) {
   if (status && status !== "all" && !statusFilter) {
     return errorResponse(`Unknown status "${status}"`, 400);
   }
+  // Paid by: a tender, and for cash its currency (US dollars or ZiG).
+  const tenderFilter = tender && tender !== "all" ? RetailTenderType[tender as keyof typeof RetailTenderType] : undefined;
+  if (tender && tender !== "all" && !tenderFilter) {
+    return errorResponse(`Unknown tender "${tender}"`, 400);
+  }
 
   const where: Prisma.RetailSaleWhereInput = {
     companyId: session.user.companyId,
@@ -345,6 +366,9 @@ export async function GET(request: NextRequest) {
     ...(siteId ? { siteId } : {}),
     ...(saleTypeFilter ? { saleType: saleTypeFilter } : {}),
     ...(statusFilter ? { status: statusFilter } : {}),
+    // History’s "Refunded": a sale with a refund written against it, in part or whole.
+    ...(refunded ? { reversals: { some: { saleType: RetailSaleType.REFUND } } } : {}),
+    ...(tenderFilter ? { payments: { some: { tenderType: tenderFilter, ...(currency ? { currency } : {}) } } } : {}),
     ...(effectiveCashierId ? { cashierId: effectiveCashierId } : {}),
     ...(fromDate || toDate
       ? {
@@ -370,7 +394,7 @@ export async function GET(request: NextRequest) {
   // round trip and a number that can disagree with the rows beside it.
   const page = await prisma.retailSale.findMany({
     where,
-    include: { lines: true, payments: true },
+    include: { lines: true, payments: true, reversals: REFUNDS_ON },
     orderBy: [{ postedAt: "desc" }, { createdAt: "desc" }, { id: "desc" }],
     take: limit + 1,
     ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
@@ -420,6 +444,9 @@ export async function GET(request: NextRequest) {
       siteId: siteId ?? null,
       saleType: saleType ?? null,
       status: status ?? null,
+      refunded,
+      tender: tender ?? null,
+      currency: currency ?? null,
       scope: scope ?? null,
       cashierId: effectiveCashierId ?? null,
       from: fromDate?.toISOString() ?? null,
@@ -593,10 +620,16 @@ export async function POST(request: NextRequest) {
       const inventoryItem = listing.inventoryItem;
 
       const lineKey = `${listing.productId}:${index}`;
-      const shelf = shelfPrices.get(lineKey);
-      if (!shelf) {
+      const resolved = shelfPrices.get(lineKey);
+      if (!resolved) {
         throw new Error(`Unable to price ${listing.name}.`);
       }
+      // An open price (airtime, bundles): what the cashier typed is the shelf
+      // price, so it is never a price change, a discount or a manager's call.
+      if (listing.openPrice && !(item.unitPrice && item.unitPrice > 0)) {
+        throw new Error(`Type the price of ${listing.name}.`);
+      }
+      const shelf = listing.openPrice ? { ...resolved, unitPrice: item.unitPrice!, priceChangedAt: null } : resolved;
 
       // `calculateRetailCheckout` is shared with the offline till, which stores
       // plain JSON, so the calculator stays in `number` and the crossing from
@@ -1112,6 +1145,8 @@ export async function POST(request: NextRequest) {
       replay: Boolean(replaySoldAt),
       lines: normalizedLines.map((line, index) => ({
         depositAmount: lineDeposit(depositLines[index]),
+        // The bottles that counted against the line, for its supplier's empties.
+        emptiesBack: depositLines[index].returnable ? emptiesCounted(depositLines[index]) : 0,
         inventoryItemId: line.inventoryItem.id,
         inventoryUnit: line.inventoryItem.unit,
         productId: line.listing.productId,
@@ -1168,6 +1203,8 @@ export async function POST(request: NextRequest) {
     });
     // The receipt the till prints (SET-07): the settings in force and the fiscal line just signed.
     const receipt = await saleReceipt(session.user.companyId, sale.id);
+    // The bottles that came back, per supplier, for the Paid screen.
+    const empties = await saleEmpties(prisma, session.user.companyId, sale.id);
 
     return successResponse({
       id: sale.id,
@@ -1194,6 +1231,9 @@ export async function POST(request: NextRequest) {
       lines: sale.lines,
       promotionCode: sale.promotionCode,
       overrideReason: sale.overrideReason,
+      // The manager whose PIN let a discount or price through; null when nobody had to.
+      approvedByName: sale.approvedByName,
+      empties,
       notes: sale.notes,
       accountingStatus: accounting.accountingStatus,
       accountingError: accounting.accountingError,

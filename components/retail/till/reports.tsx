@@ -346,6 +346,7 @@ function EndOfDay() {
               <dt>Discounts</dt>
               <dd className="num text-left">
                 {usd(report.discountTotal)}
+                {report.approvedDiscountCount ? `, ${report.approvedDiscountCount} approved` : ""}
               </dd>
               <dt>VAT at {report.taxRatePercent}%</dt>
               <dd className="num text-left">

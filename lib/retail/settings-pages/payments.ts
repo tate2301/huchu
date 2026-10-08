@@ -1,7 +1,10 @@
 import { z } from "zod";
 
 import {
+  ECOCASH_METHOD_LABELS,
+  ECOCASH_METHOD_WORDS,
   merchantCodeProblem,
+  phoneProblem,
   RATE_BY_HAND,
   RATE_RBZ_DAILY,
   rateChangedLine,
@@ -15,7 +18,8 @@ import type { SettingsPage } from "./types";
 /**
  * Setup › Payments (`/retail/manage/payments`, board PaymentsSettings, W-05):
  * the tenders the shop takes, today's ZiG rate and how ZiG change is
- * rounded, and its EcoCash merchant (10-setup 5.6).
+ * rounded, and how it takes EcoCash (10-setup 5.6): its merchant code, its
+ * EcoCash number or a terminal at the counter.
  *
  * The owner changes everything; the manager changes the rate and how it is
  * updated only (`retail.zig-rate`, its own action); the bookkeeper reads it. A
@@ -37,6 +41,29 @@ export const TENDER_FIELD_IDS = [
 ] as const;
 
 export const ZIG_RATE_FIELDS = ["zigRate", "zigSource"];
+
+const BY_MERCHANT_CODE = ECOCASH_METHOD_WORDS.MERCHANT_CODE;
+const BY_PHONE = ECOCASH_METHOD_WORDS.PHONE_NUMBER;
+const BY_TERMINAL = ECOCASH_METHOD_WORDS.TERMINAL;
+
+function typed(value: unknown): string {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+/**
+ * The EcoCash switch's hint, by how customers pay. No EcoCash feed confirms a
+ * payment: the cashier types its confirmation code (98-decisions, honest
+ * version); on a terminal the terminal's slip is the proof.
+ */
+function ecocashHint(values: Record<string, unknown>): string {
+  if (values.ecocashMethod === BY_TERMINAL) return "On the terminal at the counter.";
+  if (values.ecocashMethod === BY_PHONE) {
+    const phone = typed(values.ecocashPhone);
+    return phone ? `Sent to ${phone}. The cashier types the confirmation code.` : "Add your EcoCash number below.";
+  }
+  const code = typed(values.ecocashMerchantCode);
+  return code ? `Merchant ${code}. The cashier types the confirmation code.` : "Add your merchant code below.";
+}
 
 export const paymentsPage: SettingsPage = {
   title: "Payments",
@@ -61,11 +88,7 @@ export const paymentsPage: SettingsPage = {
           id: "ecocash",
           t: "toggle",
           l: "EcoCash",
-          // No EcoCash feed confirms a payment: the cashier types its confirmation code (98-decisions, honest version).
-          h: (values) =>
-            typeof values.ecocashMerchantCode === "string" && values.ecocashMerchantCode.trim()
-              ? `Merchant ${values.ecocashMerchantCode.trim()}. The cashier types the confirmation code.`
-              : "Add your merchant code below.",
+          h: ecocashHint,
         },
         { id: "innbucks", t: "toggle", l: "InnBucks" },
         { id: "bankTransfer", t: "toggle", l: "Bank transfer", h: "Held until the transfer shows in the bank." },
@@ -119,7 +142,27 @@ export const paymentsPage: SettingsPage = {
       title: "EcoCash",
       when: ["ecocash", true],
       fields: [
-        { id: "ecocashMerchantCode", t: "text", l: "EcoCash merchant code", half: true, mono: true, opt: true, optQuiet: true },
+        { id: "ecocashMethod", t: "seg", l: "Customers pay by", o: [...ECOCASH_METHOD_LABELS] },
+        {
+          id: "ecocashMerchantCode",
+          t: "text",
+          l: "EcoCash merchant code",
+          half: true,
+          mono: true,
+          opt: true,
+          optQuiet: true,
+          show: (values) => values.ecocashMethod === BY_MERCHANT_CODE,
+        },
+        {
+          id: "ecocashPhone",
+          t: "text",
+          l: "EcoCash number",
+          half: true,
+          mono: true,
+          opt: true,
+          optQuiet: true,
+          show: (values) => values.ecocashMethod === BY_PHONE,
+        },
         {
           id: "ecocashDisplayName",
           t: "text",
@@ -129,6 +172,7 @@ export const paymentsPage: SettingsPage = {
           upper: true,
           opt: true,
           optQuiet: true,
+          show: (values) => values.ecocashMethod !== BY_TERMINAL,
         },
       ],
     },
@@ -155,11 +199,19 @@ export const paymentsPage: SettingsPage = {
     zigRounding: z.enum(ZIG_ROUNDING.map((option) => option.label) as [string, ...string[]], {
       message: "Choose 0.50, 1 or 5.",
     }),
+    ecocashMethod: z.enum(ECOCASH_METHOD_LABELS, { message: "Choose merchant code, phone number or terminal." }),
     ecocashMerchantCode: z
       .string()
       .transform((value) => value.trim())
       .superRefine((value, ctx) => {
         const problem = merchantCodeProblem(value);
+        if (problem) ctx.addIssue({ code: "custom", message: problem });
+      }),
+    ecocashPhone: z
+      .string()
+      .transform((value) => value.trim())
+      .superRefine((value, ctx) => {
+        const problem = phoneProblem(value);
         if (problem) ctx.addIssue({ code: "custom", message: problem });
       }),
     ecocashDisplayName: z

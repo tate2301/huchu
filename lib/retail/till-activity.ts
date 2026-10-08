@@ -75,6 +75,7 @@ export {
   TILL_ACTIVITY_KINDS,
   TILL_ACTIVITY_LABELS,
   filterTillActivity,
+  wasApproved,
   type TillActivityEntry,
   type TillActivityKind,
 } from "./till-activity-shared";
@@ -98,6 +99,8 @@ export type TillActivitySaleRow = {
   cashierName: string | null;
   customerName: string | null;
   overrideReason: string | null;
+  /** The manager whose PIN let the discount, refund or void through; null when nobody had to. */
+  approvedByName: string | null;
   postedAt: Date | string | null;
   createdAt: Date | string;
   shiftNo: string | null;
@@ -158,12 +161,13 @@ const SALE_KIND: Record<TillActivitySaleRow["saleType"], TillActivityKind> = {
 };
 
 /** The fields each kind of entry leaves empty, so every entry carries the whole shape. */
-const NOT_A_SALE: Pick<TillActivityEntry, "saleNo" | "customerName" | "tendered" | "sale" | "discounts"> = {
+const NOT_A_SALE: Pick<TillActivityEntry, "saleNo" | "customerName" | "tendered" | "sale" | "discounts" | "approvedBy"> = {
   saleNo: null,
   customerName: null,
   tendered: null,
   sale: null,
   discounts: [],
+  approvedBy: null,
 };
 const NOT_CASH: Pick<TillActivityEntry, "cashType" | "reasonLabel"> = { cashType: null, reasonLabel: null };
 const NOT_A_SHIFT: Pick<TillActivityEntry, "shiftEvent" | "registerName" | "variance"> = {
@@ -238,6 +242,8 @@ export function saleActivityEntries(sale: TillActivitySaleRow): TillActivityEntr
       // it belongs here rather than on an override line that never happened.
       reason: sale.saleType === "SALE" ? null : trimmed(sale.overrideReason),
       discounts: [],
+      // A sale's approver approved its discount, and says so on the override line.
+      approvedBy: sale.saleType === "SALE" ? null : trimmed(sale.approvedByName),
     },
   ];
 
@@ -257,6 +263,7 @@ export function saleActivityEntries(sale: TillActivitySaleRow): TillActivityEntr
       sale: subjectOf(sale),
       reason: override,
       discounts: discountsOf(sale),
+      approvedBy: trimmed(sale.approvedByName),
     });
   }
 

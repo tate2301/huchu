@@ -3,6 +3,9 @@
  * the till ("Choose your own PIN"), or from the till's settings (Change my
  * PIN). `lib/retail/till-pin-attempt.ts` `chooseTillPin` holds the rules.
  *
+ * With `check`, the same answers and nothing saved: the till asks after the
+ * first entry, so the PIN they were sent is refused before it is typed twice.
+ *
  * 400 `fieldErrors.newPin` (`tillPinDenial`, or the PIN they were sent),
  * 400 `fieldErrors.currentPin` "That PIN is not right.", 423 while locked.
  */
@@ -19,6 +22,8 @@ import { requireRetailSession } from "../../../_helpers";
 const changeSchema = z.object({
   currentPin: z.string().max(12).optional().nullable(),
   newPin: z.string().max(12),
+  /** Only whether the new PIN would be taken (`chooseTillPin` `check`); nothing is saved. */
+  check: z.boolean().optional(),
 });
 
 export async function POST(request: NextRequest) {
@@ -40,6 +45,7 @@ export async function POST(request: NextRequest) {
       newPin: parsed.data.newPin,
       openedByIssuedPin: session.user.pinMustChange === true,
       place: await pinPlaceOf(request, session),
+      check: parsed.data.check === true,
     });
     return successResponse({ data: result });
   } catch (error) {

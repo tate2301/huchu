@@ -110,6 +110,11 @@ export type TillActivityEntry = {
   sale: TillActivitySale | null;
   /** Why: a reversal's reason, an override's justification, a cash movement's note. */
   reason: string | null;
+  /**
+   * On a refund, a void or an override: the manager whose PIN let it through
+   * ("Farai Mutasa approved"). Null when nobody had to, and on everything else.
+   */
+  approvedBy: string | null;
   /** On an override: the lines that came off the shelf price. */
   discounts: TillActivityDiscount[];
   /** On a cash movement: which way, and the reason picked from the list. */
@@ -121,6 +126,11 @@ export type TillActivityEntry = {
   /** Signed fixed-2; null when the drawer was not counted. */
   variance: string | null;
 };
+
+/** What a manager approved with their PIN: a refund, a void or a discount. The till's "Approved" filter. */
+export function wasApproved(entry: TillActivityEntry): boolean {
+  return entry.approvedBy !== null;
+}
 
 export function filterTillActivity(
   entries: TillActivityEntry[],

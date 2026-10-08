@@ -118,10 +118,11 @@ export default async function PreviewHostPage({
                     <CaretRight className="ic" />
                     {portalLabel === "Till" ? "Go to the till’s door" : "Go to sign-in"}
                   </Link>
-                  <Link className="btn btn-lg" href={`/preview-host?${PREVIEW_HOST_PARAM}=`}>
+                  {/* A whole page load, never prefetched: following it changes which address every page answers as. */}
+                  <a className="btn btn-lg" href={`/preview-host?${PREVIEW_HOST_PARAM}=`}>
                     <X className="ic" />
                     Clear it
-                  </Link>
+                  </a>
                 </div>
               </>
             ) : (

@@ -17,7 +17,7 @@ import { listOfflineRetailOperations } from "@/lib/retail/offline-runtime";
 import { canRetailRoleDo } from "@/lib/retail/permission-matrix";
 import { getPosPortalHref } from "@/lib/retail/pos-host";
 import { SEND_BY_WORDS, type ReceiptWire } from "@/lib/retail/receipt-words";
-import type { TillActivityEntry, TillActivityKind } from "@/lib/retail/till-activity-shared";
+import { wasApproved, type TillActivityEntry, type TillActivityKind } from "@/lib/retail/till-activity-shared";
 import { TILL_PIN_LOCKED } from "@/lib/retail/till-pin";
 import { hoursWords, percentWords, voidPinSentence } from "@/lib/retail/till-rule-words";
 import { count, dayMonth, hhmm, TENDER_LABEL, usd } from "./format";
@@ -38,10 +38,13 @@ const KIND_ICON: Record<TillActivityKind, React.ComponentType<{ className?: stri
   shift: CashRegister,
 };
 
-const FILTERS: Array<{ id: "all" | "override" | "cash"; label: string }> = [
-  { id: "all", label: "All" },
-  { id: "override", label: "Approved" },
-  { id: "cash", label: "Cash moved" },
+type ActivityFilter = "all" | "approved" | "cash";
+
+const FILTERS: Array<{ id: ActivityFilter; label: string; keeps: (entry: TillActivityEntry) => boolean }> = [
+  { id: "all", label: "All", keeps: () => true },
+  // Refunds, voids and discounts a manager let through with their PIN.
+  { id: "approved", label: "Approved", keeps: wasApproved },
+  { id: "cash", label: "Cash moved", keeps: (entry) => entry.kind === "cash" },
 ];
 
 /** Money in a sentence: no sign, the verb says which way it went. */
@@ -63,8 +66,26 @@ function Then({ children }: { children: React.ReactNode }) {
   return children ? <>, {children}</> : null;
 }
 
-/** One event as the board writes it: who did what, with the money in bold. */
+/** The manager who let it through, after the sentence: ". Farai Mutasa approved". */
+function Approved({ by }: { by: string | null }) {
+  return by ? (
+    <>
+      . <b>{by}</b> approved
+    </>
+  ) : null;
+}
+
+/** One event as the board writes it: who did what, with the money in bold, and who approved it. */
 function sentence(entry: TillActivityEntry, me: string | null | undefined, history: string): React.ReactNode {
+  return (
+    <>
+      {what(entry, me, history)}
+      <Approved by={entry.approvedBy} />
+    </>
+  );
+}
+
+function what(entry: TillActivityEntry, me: string | null | undefined, history: string): React.ReactNode {
   const who = !entry.actor || entry.actor === me ? "You" : entry.actor;
   const money = entry.amount === null ? null : <Amount value={entry.amount} />;
   const paidIn = entry.tendered ? `paid in ${entry.tendered}` : null;
@@ -171,13 +192,14 @@ export function ActivityScreen() {
   const { data: session } = useSession();
   const { isPosHost } = useTill();
   const history = getPosPortalHref("history", isPosHost);
-  const [filter, setFilter] = React.useState<"all" | "override" | "cash">("all");
+  const [filter, setFilter] = React.useState<ActivityFilter>("all");
   const query = useQuery({
     queryKey: ["retail-till-activity"],
-    queryFn: () => fetchJson<{ data: { entries: TillActivityEntry[]; counts: Record<TillActivityKind, number> } }>("/api/v2/retail/pos/activity"),
+    queryFn: () => fetchJson<{ data: { entries: TillActivityEntry[] } }>("/api/v2/retail/pos/activity"),
   });
   const entries = query.data?.data.entries ?? [];
-  const shown = filter === "all" ? entries : entries.filter((entry) => entry.kind === filter);
+  const keeps = (FILTERS.find((entry) => entry.id === filter) ?? FILTERS[0]).keeps;
+  const shown = entries.filter(keeps);
   const days = new Map<string, TillActivityEntry[]>();
   for (const entry of shown) {
     const day = dayMonth(entry.at);
@@ -197,7 +219,7 @@ export function ActivityScreen() {
               value: entry.id,
               label: (
                 <>
-                  {entry.label} <span className="n">{entry.id === "all" ? entries.length : (query.data?.data.counts[entry.id] ?? 0)}</span>
+                  {entry.label} <span className="n">{entries.filter(entry.keeps).length}</span>
                 </>
               ),
             }))}
@@ -377,14 +399,14 @@ export function SettingsScreen() {
           <header>
             <h2>My PIN</h2>
             <p>
-              {!pinStatus?.hasPin
+              {!pinStatus.hasPin
                 ? NO_PIN_YET
                 : pinStatus.locked
                   ? TILL_PIN_LOCKED
                   : `${pinStatus.lastUnlockedAt ? `Last used on ${dayMonth(pinStatus.lastUnlockedAt)}. ` : ""}Changing it needs the one you have.`}
             </p>
           </header>
-          {pinStatus?.hasPin && !pinStatus.locked ? (
+          {pinStatus.hasPin && !pinStatus.locked ? (
             <div className="body">
               <div>
                 <button type="button" className="btn" onClick={() => setChanging(true)}>

@@ -69,7 +69,7 @@ export function PortalChoice({
       <div>
         <button type="submit" className={quiet ? "btn" : "btn btn-primary"} disabled={disabled || !clean || !rootDomain}>
           <Check className="ic" />
-          {`Use ${name}’s ${label.toLowerCase()}`}
+          {clean ? `Use ${clean}’s ${label.toLowerCase()}` : `Type a workspace for its ${label.toLowerCase()}`}
         </button>
       </div>
     </form>

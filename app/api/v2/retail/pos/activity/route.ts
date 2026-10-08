@@ -96,6 +96,7 @@ export async function GET(request: NextRequest) {
           cashierName: true,
           customerName: true,
           overrideReason: true,
+          approvedByName: true,
           postedAt: true,
           createdAt: true,
           shiftId: true,

@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { successResponse } from "@/lib/api-response";
+import { depositKindName, loadDepositKinds } from "@/lib/retail/deposit-kinds";
 import { wasPrices } from "@/lib/retail/prices/was";
-import { loadShelfListings } from "@/lib/retail/shelf-listing";
+import { loadShelfListings, mostSoldProductIds } from "@/lib/retail/shelf-listing";
 import { shelfPriceBreaks } from "@/lib/retail/shelf-pricing";
 import { requirePosDevice, shopSiteId } from "@/lib/retail/devices";
 import { requireRetailPermission } from "@/lib/retail/permissions";
@@ -28,6 +29,10 @@ import { tillCaseLinks, type CaseLinks } from "../_cases";
  * shop's default branch instead. On a shop that sells
  * cases and singles, each line also says which case can be opened for it
  * (`openableCase`) and, for a case, which single it holds (`caseOf`).
+ *
+ * The order is "Most sold", the till's first group: units on posted sales at
+ * this branch over the last 30 days, most first, then everything unsold by
+ * name. A category or a search keeps the same order inside what it narrows to.
  */
 /**
  * R-3.1. The till sends two filters and nothing else; the device fixes the site.
@@ -63,7 +68,8 @@ export async function GET(request: NextRequest) {
   if (!siteId) return deviceResponse as NextResponse;
   // Priced as `pos/sales` prices this till's sale: its own list, its site's, else the default.
   const registerId = device?.registerId ?? null;
-  const [listings, profile] = await Promise.all([
+  const mostSold = await mostSoldProductIds(companyId, siteId);
+  const [listings, profile, depositKinds] = await Promise.all([
     loadShelfListings(companyId, {
       siteId,
       registerId,
@@ -71,8 +77,10 @@ export async function GET(request: NextRequest) {
       category: query.data.category || null,
       activeOnly: true,
       take: 120,
+      firstIds: mostSold,
     }),
     loadShopProfile(companyId),
+    loadDepositKinds(companyId),
   ]);
   const links: CaseLinks = shopFeatures(profile).casesAndSingles
     ? await tillCaseLinks(companyId, siteId, listings.map((item) => item.productId))
@@ -84,6 +92,8 @@ export async function GET(request: NextRequest) {
       ...item,
       openableCase: links.get(item.productId)?.openableCase ?? null,
       caseOf: links.get(item.productId)?.caseOf ?? null,
+      // What the shop calls its deposit ("Bottles, 340 to 375ml"); null when unnamed or none.
+      depositName: item.returnable ? depositKindName(depositKinds, item.depositAmount) : null,
     }))
     .filter((item) => (item.inventoryItem?.currentStock ?? 0) > 0 || (item.openableCase?.casesOnHand ?? 0) > 0);
   // The till strikes through a recent cut: the price before it, from the history.

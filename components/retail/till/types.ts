@@ -9,6 +9,7 @@
 import type { RetailTenderType } from "@prisma/client";
 
 import type { CaseOf, OpenableCase } from "@/app/api/v2/retail/pos/_cases";
+import type { SaleEmpties } from "@/lib/retail/empties";
 import type { TillFiscalStatus } from "@/lib/retail/fiscalisation";
 import type { PriceBreak } from "@/lib/retail/pricing/engine";
 import type { ChangeSplit, TenderCurrency } from "@/lib/retail/payment-words";
@@ -32,7 +33,11 @@ export type PaymentRow = {
   currency?: TenderCurrency;
 };
 
-/** One product on the shelf, as `pos/catalog` sends it: the till's offline snapshot of its own site. */
+/**
+ * One product on the shelf, as `pos/catalog` sends it: the till's offline
+ * snapshot of its own site, most sold first. `inventoryItem.reorderLevel` is the
+ * stock row's `minStock` (price check's "the reorder level is 6").
+ */
 export type PosCatalogItem = ShelfListing & {
   /** The case this single comes in, while the shop sells cases and singles. */
   openableCase: OpenableCase | null;
@@ -42,6 +47,8 @@ export type PosCatalogItem = ShelfListing & {
   wasPrice: number | null;
   /** From this many, this price (volume breaks), lowest quantity first; `unitPrice` is the price of one. */
   priceBreaks: PriceBreak[];
+  /** What the shop calls this deposit ("Bottles, 340 to 375ml"); null when unnamed or none. */
+  depositName: string | null;
 };
 
 /** A line on the sale. `catalogItemId` is the product's id. */
@@ -56,6 +63,8 @@ export type CartItem = {
   /** The shelf price of one, and its volume breaks: `shelfPrice` follows the quantity through them. */
   priceOfOne: number;
   priceBreaks: PriceBreak[];
+  /** Sold at whatever the cashier types (airtime): the typed price is the shelf price, never a change. */
+  openPrice: boolean;
   taxPercent: number;
   taxInclusive: boolean;
   lineDiscountAmount: number;
@@ -66,6 +75,8 @@ export type CartItem = {
   /** A returnable bottle and its deposit, while the shop charges deposits. */
   returnable: boolean;
   depositAmount: number | null;
+  /** What the shop calls this deposit ("Bottles, 340 to 375ml"), or null. */
+  depositName: string | null;
   /** Empties the customer brought back against this line: whole bottles, at most the line's quantity. */
   emptiesBack: number;
   /** The most off this product, as a percentage of its shelf price; null is no limit. */
@@ -96,6 +107,8 @@ export type CurrentShift = {
   voidCount: number;
   cashSales: number;
   nonCashSales: number;
+  /** What each non-cash way of paying took this shift, in `baseCurrency`, refunds and voids netted off. */
+  nonCashByTender: Record<Exclude<TenderType, "CASH">, number>;
   site: { id: string; name: string; code: string } | null;
 };
 
@@ -164,6 +177,8 @@ export type CompletedSale = {
   fiscal: TillFiscalStatus | null;
   /** The hold this sale was recalled from, as the receipt names it. Set by the till. */
   heldAs?: string | null;
+  /** Bottles brought back on this sale, owed back to each supplier. */
+  empties: SaleEmpties;
 };
 
 /** A sale the till could not send, kept in its offline queue until the line is back. */
