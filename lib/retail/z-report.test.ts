@@ -727,6 +727,8 @@ describe("discounts a manager approved", () => {
         countedCash: null,
         movements: [],
         sales: [approved, voided, ownDiscount, priceOnly],
+        openingFloatZigBase: 0,
+        variance: 0
       },
     ],
   });

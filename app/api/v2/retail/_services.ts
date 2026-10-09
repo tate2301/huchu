@@ -51,6 +51,7 @@ import {
   postRetailJournal,
 } from "./_helpers";
 import { shiftElsewhereSentence } from "@/lib/retail/device-words";
+import { buildRetailZReportFigures, parseTradingDay, tradingDayAsDate, tradingDayWindow } from "@/lib/retail/z-report";
 
 /** 409: this person's shift is open on another till ("People are not devices", 10-setup W-04 step 8). */
 export class ShiftElsewhere extends Error {
@@ -1670,6 +1671,8 @@ export async function generateRetailZReportTransaction(input: {
           lineTotal: line.lineTotal,
         })),
       })),
+      openingFloatZigBase: shift.openingFloatZigBase,
+      variance: shift.variance
     })),
   });
 

@@ -34,7 +34,7 @@ export async function GET(request: NextRequest) {
       { actor: { companyId, userId: session.user.id, userName: session.user.name, userEmail: session.user.email }, registerCode: register.code, businessDate: date },
       prisma,
     );
-    const payload = serializeRetailZReport({ ...data, id: "x-report", generatedAt: new Date() }, register.site.name);
+    const payload = serializeRetailZReport({ ...data, id: "x-report", generatedAt: new Date(), approvedDiscountCount: 20 }, register.site.name);
     const pdf = await zReportsPdf(companyId, [payload], { title: "X-report", subtitle: `${payload.registerName} · Not final until the day closes` });
     return new NextResponse(new Uint8Array(pdf), {
       headers: { "Content-Type": "application/pdf", "Content-Disposition": `inline; filename="X-${payload.reportNo.replace(/^Z-/, "")}.pdf"` },

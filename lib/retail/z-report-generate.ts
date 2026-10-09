@@ -219,6 +219,8 @@ export async function tillDayReport(
         changeAmount: sale.changeAmount ?? 0,
         exchangeRate: sale.exchangeRate,
         payments: sale.payments,
+        status: sale.status,
+        approvedById: sale.approvedById,
         lines: sale.lines.map((line) => ({
           // The product is the identity a shop thinks in; the stock row is the
           // fallback for a line rung against an item with no product behind it.
@@ -227,6 +229,7 @@ export async function tillDayReport(
           sku: line.product?.code ?? null,
           quantity: line.quantity,
           lineTotal: line.lineTotal,
+
         })),
       })),
     })),
