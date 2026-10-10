@@ -458,7 +458,7 @@ Use the existing backfill scripts as references for production data repair and h
 
 ## Environment Variables
 
-See `.env.example` for a copyable template. Important variables include:
+See `.env.example` for a copyable template. Important variables include
 
 | Variable | Purpose |
 | --- | --- |
