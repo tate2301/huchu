@@ -58,7 +58,7 @@ export async function activePriceList(
 ) {
   const lists = await prisma.priceList.findMany({
     where: { companyId },
-    select: { id: true, name: true, kind: true, isDefault: true, isActive: true, currency: true },
+    select: { id: true, name: true, kind: true, isDefault: true, state: true, archivedAt: true, currency: true },
   });
   return choosePriceList(lists, preference);
 }

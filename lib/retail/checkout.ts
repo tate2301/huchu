@@ -17,6 +17,12 @@ export type RetailCheckoutLineInput = {
    * Defaults to false, so a list that says nothing keeps meaning what it meant.
    */
   taxInclusive?: boolean;
+  /**
+   * PRD-08. False for a unit sold in a bundle or a buy-more deal: it already
+   * has its saving, so a sale promotion is worked out on, and shared over,
+   * the other lines only. Defaults to true.
+   */
+  promotionEligible?: boolean;
 };
 
 export type RetailCheckoutPromotion = {
@@ -115,41 +121,43 @@ export function calculateRetailCheckout(input: {
   // The cart in the basis its prices are quoted in — shelf money on a
   // tax-inclusive list, ex-VAT money on an exclusive one. Discounts and
   // promotions are worked out against this, because a percentage off is a
-  // percentage off the price the customer was shown.
-  const chargeSubtotal = round(
-    normalizedLines.reduce((total, line) => total + line.baseAmount, 0),
+  // percentage off the price the customer was shown. A promotion counts only
+  // the lines it may touch: none in a bundle or a buy-more deal (PRD-08).
+  const eligible = normalizedLines.map((line) => line.promotionEligible !== false);
+  const promotionSubtotal = round(
+    normalizedLines.reduce((total, line, index) => total + (eligible[index] ? line.baseAmount : 0), 0),
   );
   const manualOrderDiscount = round(input.orderDiscountAmount ?? 0);
   const promotionDiscountAmount = calculateRetailPromotionDiscount(
     input.promotion ?? null,
-    chargeSubtotal,
-  );
-  const extraDiscountPool = round(manualOrderDiscount + promotionDiscountAmount);
-  const totalTaxableBeforeHeader = round(
-    normalizedLines.reduce((total, line) => total + line.taxableBeforeHeader, 0),
+    promotionSubtotal,
   );
 
-  const allocatedExtraDiscounts = normalizedLines.map((line, index) => {
-    if (extraDiscountPool <= 0 || totalTaxableBeforeHeader <= 0) {
-      return 0;
-    }
-
-    if (index === normalizedLines.length - 1) {
-      const priorAllocated = normalizedLines
-        .slice(0, index)
-        .reduce((total, entry) => {
-          const share = round(
-            (entry.taxableBeforeHeader / totalTaxableBeforeHeader) * extraDiscountPool,
-          );
-          return total + share;
-        }, 0);
-      return round(extraDiscountPool - priorAllocated);
-    }
-
-    return round(
-      (line.taxableBeforeHeader / totalTaxableBeforeHeader) * extraDiscountPool,
-    );
-  });
+  // The order discount over every line, the promotion over the lines it may
+  // touch: each pro rata to what the line comes to, the last taking the cents.
+  const allocate = (pool: number, weights: number[]) => {
+    const total = round(weights.reduce((sum, weight) => sum + weight, 0));
+    const last = weights.reduce((at, weight, index) => (weight > 0 ? index : at), -1);
+    if (pool <= 0 || total <= 0) return weights.map(() => 0);
+    let given = 0;
+    return weights.map((weight, index) => {
+      if (index === last) return round(pool - given);
+      const share = weight > 0 ? round((weight / total) * pool) : 0;
+      given = round(given + share);
+      return share;
+    });
+  };
+  const orderShares = allocate(
+    manualOrderDiscount,
+    normalizedLines.map((line) => line.taxableBeforeHeader),
+  );
+  const promotionShares = allocate(
+    promotionDiscountAmount,
+    normalizedLines.map((line, index) => (eligible[index] ? line.taxableBeforeHeader : 0)),
+  );
+  const allocatedExtraDiscounts = normalizedLines.map((_, index) =>
+    round(orderShares[index]! + promotionShares[index]!),
+  );
 
   const lines = normalizedLines.map((line, index) => {
     // Discounts are taken in the basis the price is quoted in: a cashier who

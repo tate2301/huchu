@@ -1,0 +1,513 @@
+import bcrypt from "bcryptjs";
+import { NextRequest } from "next/server";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
+
+import { prisma } from "@/lib/prisma";
+
+import {
+  PAIR_SHOP_MAX_WRONG,
+  PairRefusal,
+  checkTillPasswordSignIn,
+  checkTillPinSignIn,
+  hashDeviceKey,
+  noLongerFacts,
+  pairDevice,
+  refuseShiftElsewhere,
+  requirePosDevice,
+  salesSentAfterUnpairing,
+  tillPeople,
+  unpairedSaleGate,
+  type PosDevice,
+} from "./devices";
+import { DEVICE_COOKIE, UNPAIRED_REVIEW_REASON } from "./device-words";
+import { issuePairingCode } from "./pairing";
+
+/** W-04 and W-76 on the device side, against the test database, on a shop with a two-till plan. */
+
+const stamp = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+let companyId = "";
+let ownerId = "";
+let planId = "";
+let siteId = "";
+const people: Record<string, string> = {};
+
+const WINDOWS = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/128.0 Safari/537.36";
+
+async function till(name: string) {
+  return prisma.retailRegister.create({
+    data: { companyId, siteId, code: `T-${Math.random().toString(36).slice(2, 8)}`, name },
+    select: { id: true, name: true },
+  });
+}
+
+async function code(registerId: string, purpose: "PAIR" | "REPLACE" = "PAIR") {
+  return prisma.$transaction((tx) => issuePairingCode(tx, { companyId, registerId, purpose, createdById: ownerId }));
+}
+
+const pair = (
+  value: string,
+  installId: string | null = `install-${stamp}`,
+  options: { address?: string; deviceKey?: string | null } = {},
+) =>
+  pairDevice({
+    companyId,
+    code: value,
+    installId,
+    address: options.address ?? `10.0.0.${Math.floor(Math.random() * 250)}-${installId}`,
+    deviceKey: options.deviceKey ?? null,
+    userAgent: WINDOWS,
+    shell: null,
+    appVersion: null,
+  });
+
+async function refusal(promise: Promise<unknown>): Promise<PairRefusal> {
+  try {
+    await promise;
+  } catch (error) {
+    if (error instanceof PairRefusal) return error;
+    throw error;
+  }
+  throw new Error("expected a refusal");
+}
+
+const request = (key: string | null) =>
+  new NextRequest("http://pos.test.localtest.me/api/v2/retail/pos/current-shift", {
+    headers: key ? { cookie: `${DEVICE_COOKIE}=${key}` } : {},
+  });
+
+beforeAll(async () => {
+  companyId = (await prisma.company.create({ data: { name: `Devices ${stamp}`, slug: `devices-${stamp}` }, select: { id: true } })).id;
+  ownerId = (
+    await prisma.user.create({
+      data: {
+        companyId,
+        name: "Tendai Mhlanga",
+        role: "SUPERADMIN",
+        email: `owner-${stamp}@devices.test`,
+        password: await bcrypt.hash("owner password", 4),
+      },
+      select: { id: true },
+    })
+  ).id;
+  planId = (
+    await prisma.subscriptionPlan.create({
+      data: { code: `TEST-START-${stamp}`, name: "Start", monthlyPrice: 19, maxSites: 1, maxTills: 2 },
+      select: { id: true },
+    })
+  ).id;
+  await prisma.companySubscription.create({ data: { companyId, planId, status: "ACTIVE" } });
+  siteId = (await prisma.site.create({ data: { companyId, name: "Harare Main Branch", code: "HRE" }, select: { id: true } })).id;
+  const pinHash = await bcrypt.hash("2580", 4);
+  for (const [key, name, role, pin] of [
+    ["chipo", "Chipo Dube", "CASHIER", true],
+    ["kuda", "Kuda Banda", "CASHIER", true],
+    ["farai", "Farai Moyo", "CASHIER", true],
+    ["nopin", "Rudo Moyo", "CASHIER", false],
+    ["clerk", "Tendai Sibanda", "STOCK_CLERK", true],
+  ] as const) {
+    const user = await prisma.user.create({
+      data: { companyId, name, role, email: `${key}-${stamp}@devices.test`, password: await bcrypt.hash(`${key} password`, 4) },
+      select: { id: true },
+    });
+    people[key] = user.id;
+    if (pin) await prisma.retailTillPin.create({ data: { companyId, userId: user.id, pinHash } });
+  }
+});
+
+afterAll(async () => {
+  if (!companyId) return;
+  await prisma.retailTillPin.deleteMany({ where: { companyId } });
+  await prisma.retailPairingThrottle.deleteMany({ where: { companyId } });
+  await prisma.retailPairingCode.deleteMany({ where: { companyId } });
+  await prisma.retailSale.deleteMany({ where: { companyId } });
+  await prisma.retailShift.deleteMany({ where: { companyId } });
+  await prisma.retailDevice.deleteMany({ where: { companyId } });
+  await prisma.retailRegister.deleteMany({ where: { companyId } });
+  await prisma.platformAuditEvent.deleteMany({ where: { companyId } });
+  await prisma.notificationRecipient.deleteMany({ where: { notification: { companyId } } });
+  await prisma.notification.deleteMany({ where: { companyId } });
+  await prisma.site.deleteMany({ where: { companyId } });
+  await prisma.companySubscription.deleteMany({ where: { companyId } });
+  if (planId) await prisma.subscriptionPlan.delete({ where: { id: planId } });
+  await prisma.user.deleteMany({ where: { companyId } });
+  await prisma.company.delete({ where: { id: companyId } });
+});
+
+describe("pairing a device with a code (W-04 step 6)", () => {
+  it("makes a browser device on the till, keeps only the key's hash, and uses the code once", async () => {
+    const test = await till("Test till");
+    const issued = await code(test.id);
+    const paired = await pair(issued.code);
+
+    expect(paired.till).toEqual({ id: test.id, name: "Test till" });
+    expect(paired.site).toEqual({ id: siteId, name: "Harare Main Branch" });
+    expect(paired.key).toMatch(/^[\w-]{43}$/);
+    const device = await prisma.retailDevice.findFirstOrThrow({ where: { registerId: test.id, unpairedAt: null } });
+    expect(device).toMatchObject({ kind: "BROWSER", label: "Windows PC", keyHash: hashDeviceKey(paired.key), pairedById: ownerId });
+    expect((await prisma.retailPairingCode.findFirstOrThrow({ where: { registerId: test.id } })).deviceId).toBe(device.id);
+
+    const again = await refusal(pair(issued.code));
+    expect(again).toMatchObject({ status: 400, body: { code: "BAD_CODE" } });
+    const audit = await prisma.platformAuditEvent.findMany({ where: { companyId, entityId: test.id }, select: { eventType: true, payloadJson: true } });
+    expect(audit.map((row) => row.eventType)).toEqual(["RETAIL_DEVICE.PAIRED"]);
+    expect(JSON.stringify(audit)).not.toContain(issued.code);
+    expect(JSON.stringify(audit)).not.toContain(paired.key);
+  });
+
+  it("stops one install for 15 minutes after five wrong codes, and says how many tries are left", async () => {
+    const install = `wrong-${stamp}`;
+    for (const left of [4, 3, 2, 1]) {
+      expect(await refusal(pair("000000", install))).toMatchObject({ status: 400, body: { code: "BAD_CODE", triesLeft: left } });
+    }
+    const locked = await refusal(pair("000000", install));
+    expect(locked).toMatchObject({ status: 429, body: { code: "LOCKED" } });
+    expect(locked.message).toMatch(/^Too many tries\. Try again at \d\d:\d\d\.$/);
+    const until = new Date(String(locked.body.lockedUntil)).getTime();
+    expect(until - Date.now()).toBeGreaterThan(14 * 60 * 1000);
+
+    // Even the right code waits out the lock.
+    const spare = await till("Spare till");
+    const issued = await code(spare.id);
+    expect(await refusal(pair(issued.code, install))).toMatchObject({ status: 429 });
+    await prisma.retailRegister.update({ where: { id: spare.id }, data: { isActive: false } });
+  });
+
+  it("counts wrong codes per address too, so a fresh install id each time is still stopped", async () => {
+    const address = `203.0.113.9-${stamp}`;
+    for (const left of [4, 3, 2, 1]) {
+      const fresh = `rotate-${left}-${stamp}`;
+      expect(await refusal(pair("000000", fresh, { address }))).toMatchObject({ status: 400, body: { code: "BAD_CODE", triesLeft: left } });
+    }
+    expect(await refusal(pair("000000", `rotate-5-${stamp}`, { address }))).toMatchObject({ status: 429, body: { code: "LOCKED" } });
+    expect(await refusal(pair("000000", `rotate-6-${stamp}`, { address }))).toMatchObject({ status: 429, body: { code: "LOCKED" } });
+    expect(await refusal(pair("000000", null, { address }))).toMatchObject({ status: 429, body: { code: "LOCKED" } });
+  });
+
+  it("refuses a device that is already one of the shop's tills", async () => {
+    const front = await till("Front till");
+    const first = await pair((await code(front.id)).code, `front-${stamp}`);
+    const other = await till("Other till");
+    const issued = await code(other.id);
+    const refused = await refusal(pair(issued.code, `front-${stamp}`, { deviceKey: first.key }));
+    expect(refused).toMatchObject({ status: 409, body: { code: "ALREADY_A_TILL" } });
+    expect(refused.message).toBe("This device is already Front till. Unpair it in Management › Tills and devices first.");
+    // The code is still good for a device that is not a till.
+    expect(await prisma.retailPairingCode.count({ where: { registerId: other.id, usedAt: null } })).toBe(1);
+    await prisma.retailDevice.updateMany({ where: { registerId: front.id }, data: { unpairedAt: new Date(), unpairReason: "UNPAIRED" } });
+    await prisma.retailRegister.updateMany({ where: { id: { in: [front.id, other.id] } }, data: { isActive: false } });
+  });
+
+  it("swaps the device on a replace code: the old one is unpaired by whoever made the code", async () => {
+    const back = await till("Back till");
+    const first = await pair((await code(back.id)).code);
+    const second = await pair((await code(back.id, "REPLACE")).code, `second-${stamp}`);
+
+    const old = await prisma.retailDevice.findUniqueOrThrow({ where: { keyHash: hashDeviceKey(first.key) } });
+    expect(old).toMatchObject({ unpairReason: "REPLACED", unpairedById: ownerId });
+    expect(old.unpairedAt).not.toBeNull();
+    const now = await prisma.retailDevice.findUniqueOrThrow({ where: { keyHash: hashDeviceKey(second.key) } });
+    expect(now.unpairedAt).toBeNull();
+    const audit = await prisma.platformAuditEvent.findMany({ where: { companyId, entityId: back.id }, orderBy: { createdAt: "asc" } });
+    expect(audit.map((row) => row.eventType)).toEqual(["RETAIL_DEVICE.PAIRED", "RETAIL_DEVICE.PAIRED", "RETAIL_DEVICE.REPLACED"]);
+  });
+
+  it("tells a replaced device which device took its till, who paired it, and whose shift carried on", async () => {
+    const side = await till("Side till");
+    // Made directly: the plan's two tills are taken, and a replace code does not ask for room.
+    const first = { key: `side-key-${stamp}` };
+    await prisma.retailDevice.create({
+      data: { companyId, registerId: side.id, kind: "COUNTER_MINI", keyHash: hashDeviceKey(first.key), pairedById: ownerId },
+    });
+    const shift = await prisma.retailShift.create({
+      data: {
+        companyId,
+        siteId,
+        shiftNo: `SH-side-${stamp}`,
+        registerCode: "SIDE",
+        registerName: "Side till",
+        registerId: side.id,
+        cashierId: people.chipo!,
+        cashierName: "Chipo Dube",
+        openedAt: new Date(Date.now() - 60_000),
+      },
+      select: { id: true },
+    });
+    const old = (await requirePosDevice(request(first.key), { user: { companyId } })).device!;
+    expect(await noLongerFacts(old)).toBeNull();
+
+    await pair((await code(side.id, "REPLACE")).code, `side-second-${stamp}`);
+    const gone = (await requirePosDevice(request(first.key), { user: { companyId } }, { allowUnpaired: true })).device!;
+    const facts = await noLongerFacts(gone);
+    expect(facts).toMatchObject({
+      till: "Side till",
+      reason: "REPLACED",
+      by: "Tendai Mhlanga",
+      sent: 0,
+      replacement: { kind: "BROWSER", label: "Windows PC", by: "Tendai Mhlanga" },
+      shift: { cashier: "Chipo Dube" },
+    });
+    expect(Date.parse(facts!.replacement!.at)).toBeGreaterThanOrEqual(gone.unpairedAt!.getTime());
+
+    // Once that shift is closed nothing carries on; the device that took over is still named.
+    await prisma.retailShift.update({ where: { id: shift.id }, data: { status: "CLOSED", closedAt: new Date() } });
+    expect(await noLongerFacts(gone)).toMatchObject({ shift: null, replacement: { kind: "BROWSER" } });
+    await prisma.retailDevice.updateMany({ where: { registerId: side.id }, data: { unpairedAt: new Date(), unpairReason: "UNPAIRED" } });
+    await prisma.retailRegister.update({ where: { id: side.id }, data: { isActive: false } });
+  });
+
+  it("refuses a third paired till on a two-till plan", async () => {
+    const third = await till("Cold room till");
+    const refused = await refusal(pair((await code(third.id)).code, `third-${stamp}`));
+    expect(refused).toMatchObject({ status: 409, body: { code: "PLAN_LIMIT" } });
+    expect(await prisma.retailDevice.count({ where: { registerId: third.id } })).toBe(0);
+  });
+
+  it("forgets an install's and an address's wrong codes once none has come for 15 minutes", async () => {
+    const install = `slow-${stamp}`;
+    const address = `198.51.100.7-${stamp}`;
+    for (const left of [4, 3, 2, 1]) {
+      expect(await refusal(pair("000000", install, { address }))).toMatchObject({ status: 400, body: { triesLeft: left } });
+    }
+    // Weeks pass between typos: the next one is the first again, not the fifth.
+    await prisma.retailPairingThrottle.updateMany({
+      where: { companyId, installId: { in: [`install:${install}`, `ip:${address}`] } },
+      data: { updatedAt: new Date(Date.now() - 16 * 60 * 1000) },
+    });
+    expect(await refusal(pair("000000", install, { address }))).toMatchObject({ status: 400, body: { code: "BAD_CODE", triesLeft: 4 } });
+  });
+
+  it("ends the shop's live codes at twenty wrong codes from anywhere, and a code made after pairs", async () => {
+    await prisma.retailPairingThrottle.deleteMany({ where: { companyId } });
+    const back = await prisma.retailRegister.findFirstOrThrow({ where: { companyId, name: "Back till" } });
+    const guessed = await code(back.id, "REPLACE");
+    for (let index = 1; index < PAIR_SHOP_MAX_WRONG; index += 1) {
+      expect(await refusal(pair("000000", `spray-${index}-${stamp}`))).toMatchObject({ status: 400, body: { code: "BAD_CODE" } });
+    }
+    expect(await prisma.retailPairingCode.count({ where: { companyId, usedAt: null, expiresAt: { gt: new Date() } } })).toBeGreaterThan(0);
+    // The twentieth: the code alive while the guessing went on has faced its twenty and is gone.
+    expect(await refusal(pair("000000", `spray-last-${stamp}`))).toMatchObject({ status: 400, body: { code: "BAD_CODE" } });
+    expect(await prisma.retailPairingCode.count({ where: { companyId, usedAt: null, expiresAt: { gt: new Date() } } })).toBe(0);
+    expect(await refusal(pair(guessed.code, `owner-${stamp}`))).toMatchObject({ status: 400, body: { code: "BAD_CODE" } });
+
+    // The shop is not locked: the owner's next code pairs, and the count starts again.
+    const paired = await pair((await code(back.id, "REPLACE")).code, `owner-again-${stamp}`);
+    expect(paired.till.name).toBe("Back till");
+    const shop = await prisma.retailPairingThrottle.findUniqueOrThrow({ where: { companyId_installId: { companyId, installId: "shop" } } });
+    expect(shop).toMatchObject({ failedAttempts: 1, lockedUntil: null });
+  });
+});
+
+describe("every POS request names its device (W-04 step 8)", () => {
+  let key = "";
+  let device: PosDevice;
+
+  beforeAll(async () => {
+    const test = await prisma.retailRegister.findFirstOrThrow({ where: { companyId, name: "Test till" } });
+    await prisma.retailDevice.updateMany({ where: { registerId: test.id }, data: { lastSeenAt: new Date(Date.now() - 10 * 60 * 1000) } });
+    // A key we know: the one the first pairing set is gone with its response.
+    key = `key-${stamp}`;
+    await prisma.retailDevice.updateMany({ where: { registerId: test.id, unpairedAt: null }, data: { keyHash: hashDeviceKey(key) } });
+  });
+
+  it("refuses a request with no device, or another shop's, as NOT_A_TILL", async () => {
+    const none = await requirePosDevice(request(null), { user: { companyId } });
+    expect(none.response?.status).toBe(409);
+    expect(await none.response?.json()).toMatchObject({ code: "NOT_A_TILL" });
+    const foreign = await requirePosDevice(request(key), { user: { companyId: "someone-else" } });
+    expect(foreign.response?.status).toBe(409);
+  });
+
+  it("finds the device by its key and notes that it was seen", async () => {
+    const found = await requirePosDevice(request(key), { user: { companyId } });
+    expect(found.response).toBeNull();
+    device = found.device!;
+    expect(device.register.name).toBe("Test till");
+    const seen = await prisma.retailDevice.findUniqueOrThrow({ where: { id: device.id } });
+    expect(Date.now() - seen.lastSeenAt!.getTime()).toBeLessThan(60 * 1000);
+  });
+
+  it("offers the PIN holders who may open a shift, whoever is on the till first", async () => {
+    const before = await tillPeople(device);
+    expect(before.map((person) => person.label)).toEqual(["Kuda B.", "Chipo D.", "Farai M."]);
+    expect(before.every((person) => !person.pinLocked && person.openShift === null)).toBe(true);
+    await prisma.retailShift.create({
+      data: {
+        companyId,
+        siteId,
+        shiftNo: `SH-${stamp}`,
+        registerCode: device.register.code,
+        registerName: device.register.name,
+        registerId: device.registerId,
+        cashierId: people.chipo!,
+        cashierName: "Chipo Dube",
+      },
+    });
+    await prisma.retailTillPin.update({ where: { userId: people.farai! }, data: { failedAttempts: 5, lockedAt: new Date() } });
+    const side = await till("Side till");
+    await prisma.retailShift.create({
+      data: {
+        companyId,
+        siteId,
+        shiftNo: `SH-K-${stamp}`,
+        registerCode: "SIDE",
+        registerName: "Side till",
+        registerId: side.id,
+        cashierId: people.kuda!,
+        cashierName: "Kuda Banda",
+      },
+    });
+
+    const offered = await tillPeople(device);
+    expect(offered.map((person) => person.label)).toEqual(["Chipo D.", "Kuda B.", "Farai M."]);
+    expect(offered.map((person) => person.outcome)).toEqual([
+      "Chipo’s PIN carries on their shift on Test till.",
+      "Kuda’s shift is open on Side till. Close it there first.",
+      "Farai’s PIN opens their shift on Test till.",
+    ]);
+    expect(offered[0]!.openShift).toEqual({ shiftNo: `SH-${stamp}`, here: true, till: "Test till" });
+    expect(offered[1]!.openShift).toEqual({ shiftNo: `SH-K-${stamp}`, here: false, till: "Side till" });
+    expect(offered[2]).toMatchObject({ pinLocked: true });
+
+    await prisma.retailShift.deleteMany({ where: { registerId: side.id } });
+    await prisma.retailTillPin.update({ where: { userId: people.farai! }, data: { failedAttempts: 0, lockedAt: null } });
+  });
+
+  it("signs a person in with their PIN at the device, with the till PIN's lockout", async () => {
+    expect(await checkTillPinSignIn({ deviceKey: key, userId: people.chipo!, pin: "2580" })).toMatchObject({ ok: true, mustChange: false });
+    expect(await checkTillPinSignIn({ deviceKey: key, userId: people.kuda!, pin: "1111" })).toEqual({
+      ok: false,
+      reason: "WRONG_PIN",
+      triesLeft: 4,
+    });
+    expect(await checkTillPinSignIn({ deviceKey: null, userId: people.chipo!, pin: "2580" })).toEqual({ ok: false, reason: "NOT_A_TILL" });
+    expect(await checkTillPinSignIn({ deviceKey: key, userId: people.clerk!, pin: "2580" })).toEqual({
+      ok: false,
+      reason: "NOT_ON_THIS_TILL",
+    });
+    // Someone with no PIN is not on the till's list at all: a manager sends them one from People.
+    expect(await checkTillPinSignIn({ deviceKey: key, userId: people.nopin!, pin: "2580" })).toEqual({ ok: false, reason: "NOT_ON_THIS_TILL" });
+  });
+
+  it("takes the account password instead of a locked PIN, leaving the PIN's count alone", async () => {
+    const verify = (password: string) => (hash: string) => bcrypt.compare(password, hash);
+    const before = await prisma.retailTillPin.findUniqueOrThrow({ where: { userId: people.kuda! }, select: { failedAttempts: true } });
+    await prisma.retailTillPin.update({ where: { userId: people.kuda! }, data: { failedAttempts: 5, lockedAt: new Date() } });
+    expect(await checkTillPasswordSignIn({ deviceKey: key, userId: people.kuda!, verify: verify("kuda password") })).toMatchObject({ ok: true });
+    expect(await checkTillPasswordSignIn({ deviceKey: key, userId: people.nopin!, verify: verify("nopin password") })).toEqual({
+      ok: false,
+      reason: "NOT_ON_THIS_TILL",
+    });
+    expect(await checkTillPasswordSignIn({ deviceKey: key, userId: people.kuda!, verify: verify("wrong") })).toEqual({
+      ok: false,
+      reason: "WRONG_PASSWORD",
+    });
+    expect(await checkTillPasswordSignIn({ deviceKey: key, userId: people.clerk!, verify: verify("clerk password") })).toEqual({
+      ok: false,
+      reason: "NOT_ON_THIS_TILL",
+    });
+    expect(await prisma.retailTillPin.findUniqueOrThrow({ where: { userId: people.kuda! } })).toMatchObject({ failedAttempts: 5 });
+    // Put back as it was: the wrong PIN the test above typed still counts.
+    await prisma.retailTillPin.update({ where: { userId: people.kuda! }, data: { failedAttempts: before.failedAttempts, lockedAt: null } });
+  });
+
+  it("treats a paired device on a closed till as no till, and lets it pair again", async () => {
+    await prisma.retailRegister.update({ where: { id: device.registerId }, data: { isActive: false } });
+    const refused = await requirePosDevice(request(key), { user: { companyId } });
+    expect(refused.response?.status).toBe(409);
+    expect(await refused.response?.json()).toMatchObject({ code: "NOT_A_TILL" });
+    expect(await checkTillPinSignIn({ deviceKey: key, userId: people.chipo!, pin: "2580" })).toEqual({
+      ok: false,
+      reason: "NOT_A_TILL",
+    });
+    await prisma.retailRegister.update({ where: { id: device.registerId }, data: { isActive: true } });
+    expect((await requirePosDevice(request(key), { user: { companyId } })).response).toBeNull();
+  });
+
+  it("says an issued PIN must be changed, and locks a PIN on the fifth wrong try until a new one is sent (ADM-03)", async () => {
+    await prisma.retailTillPin.update({ where: { userId: people.farai! }, data: { mustChange: true } });
+    expect(await checkTillPinSignIn({ deviceKey: key, userId: people.farai!, pin: "2580" })).toMatchObject({ ok: true, mustChange: true });
+
+    for (let attempt = 0; attempt < 3; attempt += 1) await checkTillPinSignIn({ deviceKey: key, userId: people.kuda!, pin: "1111" });
+    expect(await checkTillPinSignIn({ deviceKey: key, userId: people.kuda!, pin: "1111" })).toEqual({ ok: false, reason: "LOCKED" });
+    const later = new Date(Date.now() + 7 * 86_400_000);
+    expect(await checkTillPinSignIn({ deviceKey: key, userId: people.kuda!, pin: "2580" }, later)).toEqual({ ok: false, reason: "LOCKED" });
+    expect((await tillPeople(device)).find((person) => person.userId === people.kuda)).toMatchObject({ label: "Kuda B.", pinLocked: true });
+
+    const event = await prisma.platformAuditEvent.findFirstOrThrow({ where: { companyId, entityId: people.kuda!, eventType: "RETAIL_PIN.LOCKED" } });
+    expect(JSON.parse(event.payloadJson ?? "{}")).toMatchObject({ registerName: "Test till", source: "TILL" });
+    const notice = await prisma.notification.findFirstOrThrow({
+      where: { companyId, type: "RETAIL_PIN_LOCKED" },
+      include: { recipients: { select: { userId: true } } },
+    });
+    expect(notice.title).toBe("Kuda Banda’s PIN is locked");
+    expect(notice.summary).toMatch(/^Five wrong tries at Test till, \d{2}:\d{2}\. Send a new PIN from People\.$/);
+    expect(notice.recipients.map((row) => row.userId)).toEqual([ownerId]);
+    await prisma.retailTillPin.update({ where: { userId: people.kuda! }, data: { failedAttempts: 0, lockedAt: null } });
+  });
+
+  it("acts only on its own till's shifts", async () => {
+    const own = await prisma.retailShift.findFirstOrThrow({ where: { companyId, registerId: device.registerId } });
+    expect(await refuseShiftElsewhere(device, own.id)).toBeNull();
+    const back = await prisma.retailRegister.findFirstOrThrow({ where: { companyId, name: "Back till" } });
+    const other = await prisma.retailShift.create({
+      data: {
+        companyId,
+        siteId,
+        shiftNo: `SH-B-${stamp}`,
+        registerCode: "OLD-CODE",
+        registerName: "Old name",
+        registerId: back.id,
+        cashierId: people.kuda!,
+        cashierName: "Kuda Banda",
+      },
+    });
+    const refused = await refuseShiftElsewhere(device, other.id);
+    expect(refused?.status).toBe(409);
+    expect(await refused?.json()).toMatchObject({ error: "That shift is on Back till.", code: "SHIFT_ELSEWHERE" });
+    expect(await refuseShiftElsewhere(device, "00000000-0000-0000-0000-000000000000")).toBeNull();
+  });
+
+  it("answers DEVICE_UNPAIRED once unpaired, and lets only earlier offline sales in, flagged", async () => {
+    const unpairedAt = new Date();
+    await prisma.retailDevice.update({
+      where: { id: device.id },
+      data: { unpairedAt, unpairedById: ownerId, unpairReason: "UNPAIRED" },
+    });
+    const refused = await requirePosDevice(request(key), { user: { companyId } });
+    expect(refused.response?.status).toBe(401);
+    expect(await refused.response?.json()).toMatchObject({
+      code: "DEVICE_UNPAIRED",
+      by: "Tendai Mhlanga",
+      reason: "UNPAIRED",
+      tillName: "Test till",
+      deviceLabel: "Browser, Windows PC",
+    });
+
+    const sync = await requirePosDevice(request(key), { user: { companyId } }, { allowUnpaired: true });
+    expect(sync.response).toBeNull();
+    const gone = sync.device!;
+    expect(unpairedSaleGate(gone, new Date(unpairedAt.getTime() - 60_000))).toEqual({ reviewReason: UNPAIRED_REVIEW_REASON, response: null });
+    expect(unpairedSaleGate(gone, new Date(unpairedAt.getTime() + 60_000)).response?.status).toBe(401);
+    expect(unpairedSaleGate(gone, null).response?.status).toBe(401);
+    expect(await checkTillPinSignIn({ deviceKey: key, userId: people.chipo!, pin: "2580" })).toEqual({
+      ok: false,
+      reason: "DEVICE_UNPAIRED",
+    });
+
+    // /unpaired counts what came in flagged from this device after the unpairing, not what the device says.
+    for (const [index, reviewReason] of [UNPAIRED_REVIEW_REASON, UNPAIRED_REVIEW_REASON, null].entries()) {
+      await prisma.retailSale.create({
+        data: { companyId, siteId, saleNo: `S-${index}-${stamp}`, deviceId: gone.id, registerId: gone.registerId, reviewReason },
+      });
+    }
+    expect(await salesSentAfterUnpairing(gone)).toBe(2);
+    expect(await noLongerFacts(gone)).toMatchObject({
+      till: "Test till",
+      reason: "UNPAIRED",
+      by: "Tendai Mhlanga",
+      sent: 2,
+      replacement: null,
+      shift: null,
+    });
+  });
+});

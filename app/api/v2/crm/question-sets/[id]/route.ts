@@ -46,9 +46,20 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       answered.filter((row) => row.questionId).map((row) => [row.questionId!, row._count._all]),
     );
 
+    // What the form can be asked about, for the builder's "used for".
+    const products = await prisma.product.findMany({
+      where: { companyId, archivedAt: null },
+      select: { id: true, name: true },
+      orderBy: { name: "asc" },
+      take: 500,
+    });
+    const visitCount = await prisma.crmSiteVisitSection.count({ where: { companyId, questionSetId: id } });
+
     return successResponse({
       set,
       answerCounts,
+      products,
+      visitCount,
       canEdit: await requireCrmCapability(session, "settings.manage"),
     });
   } catch (error) {

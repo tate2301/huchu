@@ -24,7 +24,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { quantity, type MoneyLike } from "@/lib/money";
 import { prisma } from "@/lib/prisma";
 
-import { recordStockMovement } from "./stock-movements";
+import { recordStockMovement, type RecordStockMovementInput } from "./stock-movements";
 
 let companyId: string;
 let otherCompanyId: string;
@@ -35,7 +35,8 @@ let storeroomId: string;
 let shopFloorId: string;
 /** A location at the *other* site, for the cross-site refusal. */
 let otherSiteLocationId: string;
-let itemId: string;
+let stamp: string;
+let lines = 0;
 
 const UNIT = "EACH";
 
@@ -45,28 +46,54 @@ const UNIT = "EACH";
  * Both sides go through the same rounding, so the comparison is exact and a
  * failure prints two readable numbers rather than two Decimal internals.
  */
-function qty(value: MoneyLike): string {
-  return quantity(value).toFixed(4);
+function qty(value: MoneyLike | null): string {
+  return value === null ? "null" : quantity(value).toFixed(4);
 }
 
 async function onHand(id: string) {
-  const item = await prisma.inventoryItem.findUniqueOrThrow({
+  return prisma.inventoryItem.findUniqueOrThrow({
     where: { id },
     select: { currentStock: true, locationId: true },
   });
-  return item;
 }
 
-/** Put the fixture item back where the previous test found it. */
-async function resetItem(stock: number, locationId: string) {
-  await prisma.inventoryItem.update({
-    where: { id: itemId },
-    data: { currentStock: stock, locationId },
+/** A new stock line in the storeroom holding `stock`, with no history. */
+async function freshItem(stock: number) {
+  lines += 1;
+  const item = await prisma.inventoryItem.create({
+    data: {
+      siteId,
+      locationId: storeroomId,
+      itemCode: `CASTLE-330-${stamp}-${lines}`,
+      name: "Castle Lager 330ml",
+      category: "CONSUMABLES",
+      unit: UNIT,
+      currentStock: stock,
+      unitCost: 0.8,
+    },
+    select: { id: true },
+  });
+  return item.id;
+}
+
+/** A retail movement on `itemId`; everything not given is a sale's. */
+function move(itemId: string, input: Partial<RecordStockMovementInput>) {
+  return recordStockMovement({
+    companyId,
+    userId,
+    itemId,
+    movementType: "ISSUE",
+    quantity: 1,
+    unit: UNIT,
+    sourceType: "RETAIL_SALE",
+    reason: "SALE",
+    reference: "S-000001",
+    ...input,
   });
 }
 
 beforeAll(async () => {
-  const stamp = String(Date.now());
+  stamp = String(Date.now());
 
   const shop = await prisma.company.create({
     data: { name: `Bottle store ${stamp}`, slug: `bottle-store-${stamp}` },
@@ -122,21 +149,6 @@ beforeAll(async () => {
     select: { id: true },
   });
   otherSiteLocationId = mbareStore.id;
-
-  const item = await prisma.inventoryItem.create({
-    data: {
-      siteId,
-      locationId: storeroomId,
-      itemCode: `CASTLE-330-${stamp}`,
-      name: "Castle Lager 330ml",
-      category: "CONSUMABLES",
-      unit: UNIT,
-      currentStock: 24,
-      unitCost: 0.8,
-    },
-    select: { id: true },
-  });
-  itemId = item.id;
 });
 
 afterAll(async () => {
@@ -149,6 +161,8 @@ afterAll(async () => {
   if (ids.length === 0) return;
 
   const companies = { in: ids };
+  // Reversals first: a reversed movement cannot go while its reversal stands.
+  await prisma.stockMovement.deleteMany({ where: { reversesId: { not: null }, item: { site: { companyId: companies } } } });
   await prisma.stockMovement.deleteMany({ where: { item: { site: { companyId: companies } } } });
   await prisma.inventoryItem.deleteMany({ where: { site: { companyId: companies } } });
   await prisma.stockLocation.deleteMany({ where: { site: { companyId: companies } } });
@@ -158,78 +172,82 @@ afterAll(async () => {
 });
 
 describe("recordStockMovement", () => {
-  it("raises on-hand for a receipt", async () => {
-    await resetItem(24, storeroomId);
+  it("raises on-hand for a receipt, and writes +change and the balance after", async () => {
+    const itemId = await freshItem(24);
 
-    const { movement, previousStock, nextStock } = await recordStockMovement({
-      companyId,
-      userId,
-      itemId,
+    const { movement, previousStock, nextStock } = await move(itemId, {
       movementType: "RECEIPT",
       quantity: 12,
-      unit: UNIT,
       sourceType: "RETAIL_GOODS_RECEIPT",
       sourceId: "receipt-1",
+      reason: "RECEIVED",
+      reference: "GRN-0004",
     });
 
     expect(qty(previousStock)).toBe(qty(24));
     expect(qty(nextStock)).toBe(qty(36));
     expect(qty(movement.quantity)).toBe(qty(12));
+    expect(qty(movement.change)).toBe(qty(12));
+    expect(qty(movement.balanceAfter)).toBe(qty(36));
+    expect(movement).toMatchObject({ reason: "RECEIVED", reference: "GRN-0004", reversesId: null });
     expect(qty((await onHand(itemId)).currentStock)).toBe(qty(36));
   });
 
-  it("lowers on-hand for an issue", async () => {
-    await resetItem(36, storeroomId);
+  it("lowers on-hand for an issue, with a negative change", async () => {
+    const itemId = await freshItem(36);
 
-    const { nextStock } = await recordStockMovement({
-      companyId,
-      userId,
-      itemId,
-      movementType: "ISSUE",
-      quantity: 6,
-      unit: UNIT,
-      sourceType: "RETAIL_SALE",
-      sourceId: "sale-1",
-    });
+    const { movement, nextStock } = await move(itemId, { quantity: 6, sourceId: "sale-1", reference: "S-000930" });
 
     expect(qty(nextStock)).toBe(qty(30));
+    expect(qty(movement.change)).toBe(qty(-6));
+    expect(qty(movement.balanceAfter)).toBe(qty(30));
+    expect(movement).toMatchObject({ reason: "SALE", reference: "S-000930" });
     expect(qty((await onHand(itemId)).currentStock)).toBe(qty(30));
   });
 
   it("refuses to issue more than is on the shelf", async () => {
-    await resetItem(30, storeroomId);
+    const itemId = await freshItem(30);
 
-    await expect(
-      recordStockMovement({
-        companyId,
-        userId,
-        itemId,
-        movementType: "ISSUE",
-        quantity: 31,
-        unit: UNIT,
-        sourceType: "RETAIL_SALE",
-        sourceId: "sale-2",
-      }),
-    ).rejects.toThrow("Insufficient stock.");
+    await expect(move(itemId, { quantity: 31, sourceId: "sale-2" })).rejects.toThrow("Insufficient stock.");
 
     expect(qty((await onHand(itemId)).currentStock)).toBe(qty(30));
+    expect(await prisma.stockMovement.count({ where: { itemId } })).toBe(0);
   });
 
-  it("moves a same-site transfer's location and leaves the count alone", async () => {
-    await resetItem(30, storeroomId);
+  it("sells the last one once when two tills sell it at the same moment", async () => {
+    const itemId = await freshItem(1);
 
-    const { movement, nextStock, locationId } = await recordStockMovement({
-      companyId,
-      userId,
-      itemId,
+    const results = await Promise.allSettled([
+      move(itemId, { sourceId: "sale-a", reference: "S-000101" }),
+      move(itemId, { sourceId: "sale-b", reference: "S-000102" }),
+    ]);
+
+    const sold = results.filter((result) => result.status === "fulfilled");
+    const refused = results.filter((result): result is PromiseRejectedResult => result.status === "rejected");
+    expect(sold).toHaveLength(1);
+    expect(refused).toHaveLength(1);
+    expect(String(refused[0].reason)).toContain("Insufficient stock.");
+
+    // No lost update: one movement, and on hand is 0, not a second sale's -1
+    // clamped back to 0 by a write that never saw the first.
+    const movements = await prisma.stockMovement.findMany({ where: { itemId }, select: { balanceAfter: true } });
+    expect(movements.map((row) => qty(row.balanceAfter))).toEqual([qty(0)]);
+    expect(qty((await onHand(itemId)).currentStock)).toBe(qty(0));
+  });
+
+  it("moves a same-site transfer's location, leaves the count alone, and changes nothing", async () => {
+    const itemId = await freshItem(30);
+
+    const { movement, nextStock, locationId } = await move(itemId, {
       movementType: "TRANSFER",
       // A transfer moves the whole line: on-hand is held per site, not per
       // location, so there is nowhere to leave a remainder.
       quantity: 30,
-      unit: UNIT,
       toLocationId: shopFloorId,
       sourceType: "RETAIL_STOCK_TRANSFER",
       sourceId: "transfer-1",
+      reason: "PLACE_MOVE",
+      reference: null,
     });
 
     const after = await onHand(itemId);
@@ -238,22 +256,23 @@ describe("recordStockMovement", () => {
     expect(locationId).toBe(shopFloorId);
     expect(after.locationId).toBe(shopFloorId);
     expect(movement.toLocationId).toBe(shopFloorId);
+    expect(qty(movement.change)).toBe(qty(0));
+    expect(qty(movement.balanceAfter)).toBe(qty(30));
+    expect(movement).toMatchObject({ reason: "PLACE_MOVE", reference: null });
   });
 
   it("refuses to transfer part of a line, because there is nowhere to leave the rest", async () => {
-    await resetItem(30, storeroomId);
+    const itemId = await freshItem(30);
 
     await expect(
-      recordStockMovement({
-        companyId,
-        userId,
-        itemId,
+      move(itemId, {
         movementType: "TRANSFER",
         quantity: 5,
-        unit: UNIT,
         toLocationId: shopFloorId,
         sourceType: "RETAIL_STOCK_TRANSFER",
         sourceId: "transfer-2",
+        reason: "PLACE_MOVE",
+        reference: null,
       }),
     ).rejects.toThrow("A transfer moves the whole stock line");
 
@@ -261,19 +280,17 @@ describe("recordStockMovement", () => {
   });
 
   it("refuses a transfer to another site", async () => {
-    await resetItem(30, storeroomId);
+    const itemId = await freshItem(30);
 
     await expect(
-      recordStockMovement({
-        companyId,
-        userId,
-        itemId,
+      move(itemId, {
         movementType: "TRANSFER",
         quantity: 30,
-        unit: UNIT,
         toLocationId: otherSiteLocationId,
         sourceType: "RETAIL_STOCK_TRANSFER",
         sourceId: "transfer-3",
+        reason: "PLACE_MOVE",
+        reference: null,
       }),
     ).rejects.toThrow("Stock cannot be transferred between sites");
 
@@ -283,18 +300,15 @@ describe("recordStockMovement", () => {
   });
 
   it("refuses a movement in the wrong unit", async () => {
-    await resetItem(30, storeroomId);
+    const itemId = await freshItem(30);
 
     await expect(
-      recordStockMovement({
-        companyId,
-        userId,
-        itemId,
+      move(itemId, {
         movementType: "RECEIPT",
-        quantity: 1,
         unit: "CASE",
         sourceType: "RETAIL_GOODS_RECEIPT",
         sourceId: "receipt-2",
+        reason: "RECEIVED",
       }),
     ).rejects.toThrow("Stock unit mismatch.");
 
@@ -302,48 +316,119 @@ describe("recordStockMovement", () => {
   });
 
   it("refuses to touch another tenant's stock", async () => {
-    await resetItem(30, storeroomId);
+    const itemId = await freshItem(30);
 
-    await expect(
-      recordStockMovement({
-        companyId: otherCompanyId,
-        userId,
-        itemId,
-        movementType: "ISSUE",
-        quantity: 1,
-        unit: UNIT,
-        sourceType: "RETAIL_SALE",
-        sourceId: "sale-3",
-      }),
-    ).rejects.toThrow("Invalid inventory item.");
+    await expect(move(itemId, { companyId: otherCompanyId, sourceId: "sale-3" })).rejects.toThrow(
+      "Invalid inventory item.",
+    );
 
     expect(qty((await onHand(itemId)).currentStock)).toBe(qty(30));
   });
 
-  it("writes what caused the movement onto the row", async () => {
-    await resetItem(30, storeroomId);
+  it("writes what caused the movement onto the row, with a signed adjustment", async () => {
+    const itemId = await freshItem(30);
 
-    const { movement } = await recordStockMovement({
-      companyId,
-      userId,
-      itemId,
+    const { movement } = await move(itemId, {
       movementType: "ADJUSTMENT",
       quantity: -2,
-      unit: UNIT,
       sourceType: "RETAIL_STOCK_ADJUSTMENT",
       sourceId: "stock-count-1",
+      reason: "BROKEN",
+      reference: "ADJ-0031",
     });
 
     // Read it back rather than trusting the object the create returned.
     const stored = await prisma.stockMovement.findUniqueOrThrow({
       where: { id: movement.id },
-      select: { sourceType: true, sourceId: true, quantity: true },
+      select: {
+        sourceType: true,
+        sourceId: true,
+        quantity: true,
+        change: true,
+        balanceAfter: true,
+        reason: true,
+        reference: true,
+      },
     });
 
-    expect(stored.sourceType).toBe("RETAIL_STOCK_ADJUSTMENT");
-    expect(stored.sourceId).toBe("stock-count-1");
+    expect(stored).toMatchObject({
+      sourceType: "RETAIL_STOCK_ADJUSTMENT",
+      sourceId: "stock-count-1",
+      reason: "BROKEN",
+      reference: "ADJ-0031",
+    });
     // An adjustment keeps its sign: a count that came up short is a negative.
     expect(qty(stored.quantity)).toBe(qty(-2));
+    expect(qty(stored.change)).toBe(qty(-2));
+    expect(qty(stored.balanceAfter)).toBe(qty(28));
     expect(qty((await onHand(itemId)).currentStock)).toBe(qty(28));
+  });
+
+  it("slots a back-dated movement into its place and keeps the newest balance on hand", async () => {
+    const itemId = await freshItem(10);
+    const hourAgo = new Date(Date.now() - 60 * 60 * 1000);
+
+    await move(itemId, { quantity: 3, reference: "S-000201" }); // now: 10 → 7
+    const late = await move(itemId, {
+      movementType: "RECEIPT",
+      quantity: 5,
+      sourceType: "RETAIL_GOODS_RECEIPT",
+      reason: "RECEIVED",
+      reference: "GRN-0005",
+      entryDate: hourAgo,
+    }); // an hour ago: 10 → 15, so the sale after it leaves 12
+
+    expect(qty(late.movement.balanceAfter)).toBe(qty(15));
+    const ledger = await prisma.stockMovement.findMany({
+      where: { itemId },
+      orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+      select: { reference: true, change: true, balanceAfter: true },
+    });
+    expect(ledger.map((row) => [row.reference, qty(row.change), qty(row.balanceAfter)])).toEqual([
+      ["GRN-0005", qty(5), qty(15)],
+      ["S-000201", qty(-3), qty(12)],
+    ]);
+    expect(qty((await onHand(itemId)).currentStock)).toBe(qty(12));
+  });
+
+  it("reverses a movement once, and refuses a second reversal of it on the unique key", async () => {
+    const itemId = await freshItem(13);
+    const { movement: broken } = await move(itemId, {
+      movementType: "ADJUSTMENT",
+      quantity: -2,
+      sourceType: "RETAIL_STOCK_ADJUSTMENT",
+      reason: "BROKEN",
+      reference: "ADJ-0032",
+    });
+
+    const putBack = {
+      movementType: "ADJUSTMENT" as const,
+      quantity: 2,
+      sourceType: "RETAIL_STOCK_ADJUSTMENT" as const,
+      reason: "REVERSAL" as const,
+      reference: "ADJ-0032",
+      reversesId: broken.id,
+    };
+    const { movement: reversal } = await move(itemId, putBack);
+    expect(reversal.reversesId).toBe(broken.id);
+    expect(qty(reversal.balanceAfter)).toBe(qty(13));
+
+    await expect(move(itemId, putBack)).rejects.toMatchObject({ code: "P2002" });
+    expect(qty((await onHand(itemId)).currentStock)).toBe(qty(13));
+  });
+
+  it("refuses a reversal of a movement on another line", async () => {
+    const itemId = await freshItem(5);
+    const otherId = await freshItem(5);
+    const { movement } = await move(otherId, { reference: "S-000301" });
+
+    await expect(
+      move(itemId, {
+        movementType: "RECEIPT",
+        reason: "REVERSAL",
+        reference: "S-000301",
+        reversesId: movement.id,
+      }),
+    ).rejects.toThrow("A reversal puts back a movement on the same stock line.");
   });
 });

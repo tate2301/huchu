@@ -1,14 +1,10 @@
 /**
- * Who may do what in retail.
+ * Who may do what in retail: the grant table behind the Roles board.
  *
- * These are cheap assertions about a lookup table, and they earn their place
- * because the table is a policy decision somebody will one day change casually —
- * most likely by adding a role to a set to unblock a support ticket.
- *
- * The ones that matter are the negatives. A bottle store is being run for a full
- * trading day by its own staff, and the failure this table exists to prevent is
- * not an outage: it is a cashier who can read what the shop paid for a case of
- * Castle, pull the day's margin, or sign off their own cash-up.
+ * `roles-matrix.test.ts` holds every letter on the board. This file holds what
+ * the board cannot draw: actions under its letters (`view-cost`, `refund`,
+ * `receive`, `view-own`), the three resources without a row (`retail.stock`,
+ * `retail.money`, `retail.reports`), the session form, and the refusals.
  */
 
 import { describe, it, expect } from "vitest";
@@ -17,332 +13,263 @@ import { ROLES } from "@/lib/roles";
 
 import {
   canRetailRoleDo,
+  canRetailSessionDo,
   canSeeRetailCostPrice,
   retailPermissionDenial,
+  retailRoleKey,
   RETAIL_ACTIONS,
   RETAIL_RESOURCES,
+  RETAIL_ROLE_KEYS,
   type RetailAction,
   type RetailResource,
 } from "./permissions";
 
-const session = (role: string | null | undefined) => ({ user: { role } });
+const session = (role: string | null | undefined, supportSessionId?: string | null) => ({
+  user: { role, supportSessionId },
+});
 
-/**
- * Every role that can appear in a session, plus the ones that cannot.
- *
- * `ROLES` is the `UserRole` enum, so this sweep grows on its own when a vertical
- * adds a role — which is the point: a new role must be denied retail until
- * somebody writes it into the matrix.
- *
- * `POS_CASHIER` is in the list because `lib/retail/pos-host.ts` admits it to the
- * POS portal, and it is not a `UserRole` — no row can hold it. It is here to pin
- * that the matrix denies it rather than half-recognising it.
- */
-const EVERY_ROLE = [...ROLES, "POS_CASHIER", "NOT_A_ROLE", "", " ", "cashier "] as const;
+const EVERY_ROLE = [...ROLES, "CORELITH_SUPPORT", "POS_CASHIER", "NOT_A_ROLE", "", " ", "cashier "] as const;
 
-describe("the shop's own", () => {
-  it.each(["SUPERADMIN", "MANAGER", "SHOP_MANAGER"])("%s may do everything", (role) => {
-    for (const resource of RETAIL_RESOURCES) {
-      for (const action of RETAIL_ACTIONS) {
-        expect(canRetailRoleDo(role, resource, action)).toBe(true);
-      }
+describe("the owner", () => {
+  it("holds every resource, but the activity, insights and money pages read only", () => {
+    for (const resource of RETAIL_RESOURCES) expect(canRetailRoleDo("SUPERADMIN", resource, "view")).toBe(true);
+    expect(canRetailRoleDo("SUPERADMIN", "retail.activity", "update")).toBe(false);
+    expect(canRetailRoleDo("SUPERADMIN", "retail.money", "view")).toBe(true);
+  });
+
+  it("does not create or delete the company, and ends the day without deleting it", () => {
+    expect(canRetailRoleDo("SUPERADMIN", "retail.company", "update")).toBe(true);
+    expect(canRetailRoleDo("SUPERADMIN", "retail.company", "create")).toBe(false);
+    expect(canRetailRoleDo("SUPERADMIN", "retail.company", "delete")).toBe(false);
+    expect(canRetailRoleDo("SUPERADMIN", "retail.end-of-day", "delete")).toBe(false);
+  });
+
+  it("restores from and deletes for good in the bin", () => {
+    expect(canRetailRoleDo("SUPERADMIN", "retail.bin", "update")).toBe(true);
+    expect(canRetailRoleDo("SUPERADMIN", "retail.bin", "delete")).toBe(true);
+  });
+});
+
+describe.each(["MANAGER", "SHOP_MANAGER"])("the manager (%s)", (role) => {
+  it("runs the shop", () => {
+    expect(canRetailRoleDo(role, "retail.tills", "create")).toBe(true);
+    expect(canRetailRoleDo(role, "retail.till-rules", "update")).toBe(true);
+    expect(canRetailRoleDo(role, "retail.sell", "refund")).toBe(true);
+    expect(canRetailRoleDo(role, "retail.sell", "approve")).toBe(true);
+    expect(canRetailRoleDo(role, "retail.cash-control", "close-shift")).toBe(true);
+    expect(canRetailRoleDo(role, "retail.catalog", "view-cost")).toBe(true);
+    expect(canRetailRoleDo(role, "retail.requisitions", "approve")).toBe(true);
+    expect(canRetailRoleDo(role, "retail.reports", "view")).toBe(true);
+  });
+
+  it("does not keep the books, the plan or the money page", () => {
+    for (const resource of ["retail.posting", "retail.billing", "retail.money"] as const) {
+      for (const action of RETAIL_ACTIONS) expect(canRetailRoleDo(role, resource, action)).toBe(false);
     }
+    expect(retailPermissionDenial(session(role), "retail.money", "view")).toBe("Your role cannot view the money page");
+  });
+
+  it("changes the ZiG rate but not the payment settings, and reads the company", () => {
+    expect(canRetailRoleDo(role, "retail.zig-rate", "update")).toBe(true);
+    expect(canRetailRoleDo(role, "retail.payments", "update")).toBe(false);
+    expect(retailPermissionDenial(session(role), "retail.company", "update")).toBe(
+      "Your role cannot change company settings",
+    );
+  });
+
+  it("restores from the bin but does not delete for good, and does not approve prices", () => {
+    expect(canRetailRoleDo(role, "retail.bin", "update")).toBe(true);
+    expect(canRetailRoleDo(role, "retail.bin", "delete")).toBe(false);
+    expect(canRetailRoleDo(role, "retail.prices", "approve")).toBe(false);
+    expect(canRetailRoleDo(role, "retail.people", "delete")).toBe(false);
   });
 });
 
 describe("the cashier", () => {
-  it("runs a till", () => {
-    expect(canRetailRoleDo("CASHIER", "retail.sell", "view")).toBe(true);
-    expect(canRetailRoleDo("CASHIER", "retail.sell", "create")).toBe(true);
-    expect(canRetailRoleDo("CASHIER", "retail.sell", "open-shift")).toBe(true);
-    expect(canRetailRoleDo("CASHIER", "retail.sell", "close-shift")).toBe(true);
+  it("sells, refunds and voids within the till rules, and runs their own drawer", () => {
+    for (const action of ["view", "create", "refund", "void", "open-shift", "close-shift"] as const) {
+      expect(canRetailRoleDo("CASHIER", "retail.sell", action)).toBe(true);
+    }
+    // Approving a reversal without a manager is not theirs: the till rules ask one.
+    expect(canRetailRoleDo("CASHIER", "retail.sell", "approve")).toBe(false);
+    expect(canRetailRoleDo("CASHIER", "retail.sell", "update")).toBe(false);
   });
 
-  it("reads the shelf price but not the buying price", () => {
-    // The reason this module is a matrix and not three role sets. `pos/catalog`
-    // has to stay open to a cashier — a till that cannot list its stock cannot
-    // sell — and the cost and margin columns it carries must not.
+  it("reads the shelf price but never the cost", () => {
     expect(canRetailRoleDo("CASHIER", "retail.catalog", "view")).toBe(true);
-    expect(canRetailRoleDo("CASHIER", "retail.catalog", "view-cost")).toBe(false);
     expect(canSeeRetailCostPrice("CASHIER")).toBe(false);
-  });
-
-  it("cannot change the shelf", () => {
-    expect(canRetailRoleDo("CASHIER", "retail.catalog", "create")).toBe(false);
     expect(canRetailRoleDo("CASHIER", "retail.catalog", "update")).toBe(false);
-    expect(canRetailRoleDo("CASHIER", "retail.catalog", "delete")).toBe(false);
   });
 
-  it("cannot reverse a posted sale", () => {
-    // Reversal is how a till is stolen from: ring the sale, take the cash, void
-    // it. `requireRetailPos` let a cashier do both until S-7.7; the endpoints
-    // now ask this, and `route-guard-coverage.test.ts` holds them to it.
-    expect(canRetailRoleDo("CASHIER", "retail.sell", "refund")).toBe(false);
-    expect(canRetailRoleDo("CASHIER", "retail.sell", "void")).toBe(false);
+  it("adds customers and lay-bys, takes empties back and asks for money", () => {
+    expect(canRetailRoleDo("CASHIER", "retail.customers", "create")).toBe(true);
+    expect(canRetailRoleDo("CASHIER", "retail.laybys", "update")).toBe(true);
+    expect(canRetailRoleDo("CASHIER", "retail.empties", "create")).toBe(true);
+    expect(canRetailRoleDo("CASHIER", "retail.requisitions", "create")).toBe(true);
+    expect(canRetailRoleDo("CASHIER", "retail.requisitions", "view-own")).toBe(true);
+    expect(canRetailRoleDo("CASHIER", "retail.requisitions", "view")).toBe(false);
   });
 
-  it("cannot reach purchasing", () => {
-    for (const action of RETAIL_ACTIONS) {
-      expect(canRetailRoleDo("CASHIER", "retail.purchasing", action)).toBe(false);
-    }
-  });
-
-  it("cannot reach cash control", () => {
-    // Closing their own drawer is `retail.sell`. Cash control is every cashier's
-    // shift, its variance, and the sign-off — the count that catches the person
-    // doing the counting.
-    for (const action of RETAIL_ACTIONS) {
-      expect(canRetailRoleDo("CASHIER", "retail.cash-control", action)).toBe(false);
-    }
-  });
-
-  it("cannot reach the trading dashboard", () => {
-    for (const action of RETAIL_ACTIONS) {
-      expect(canRetailRoleDo("CASHIER", "retail.reports", action)).toBe(false);
-    }
-  });
-
-  it("cannot reach setup", () => {
-    for (const action of RETAIL_ACTIONS) {
-      expect(canRetailRoleDo("CASHIER", "retail.setup", action)).toBe(false);
-    }
-  });
-
-  it("cannot touch the stock ledger", () => {
-    for (const action of RETAIL_ACTIONS) {
-      expect(canRetailRoleDo("CASHIER", "retail.stock", action)).toBe(false);
+  it("reaches none of the back office", () => {
+    const backOffice: RetailResource[] = [
+      "retail.purchasing",
+      "retail.cash-control",
+      "retail.reports",
+      "retail.insights",
+      "retail.stock",
+      "retail.counts",
+      "retail.company",
+      "retail.till-rules",
+      "retail.people",
+      "retail.bin",
+    ];
+    for (const resource of backOffice) {
+      for (const action of RETAIL_ACTIONS) expect(canRetailRoleDo("CASHIER", resource, action)).toBe(false);
     }
   });
 });
 
 describe("the stock clerk", () => {
-  it("counts, moves and corrects stock", () => {
-    expect(canRetailRoleDo("STOCK_CLERK", "retail.stock", "view")).toBe(true);
-    expect(canRetailRoleDo("STOCK_CLERK", "retail.stock", "create")).toBe(true);
-    expect(canRetailRoleDo("STOCK_CLERK", "retail.stock", "update")).toBe(true);
-  });
-
-  it("cannot delete a stock movement or approve a write-off", () => {
-    expect(canRetailRoleDo("STOCK_CLERK", "retail.stock", "delete")).toBe(false);
-    expect(canRetailRoleDo("STOCK_CLERK", "retail.stock", "approve")).toBe(false);
-  });
-
-  it("books a delivery in against an order it cannot raise", () => {
-    expect(canRetailRoleDo("STOCK_CLERK", "retail.purchasing", "view")).toBe(true);
+  it("counts, transfers and receives, and books breakage in", () => {
+    for (const action of ["view", "create", "update"] as const) {
+      expect(canRetailRoleDo("STOCK_CLERK", "retail.counts", action)).toBe(true);
+      expect(canRetailRoleDo("STOCK_CLERK", "retail.transfers", action)).toBe(true);
+    }
+    expect(canRetailRoleDo("STOCK_CLERK", "retail.adjustments", "create")).toBe(true);
     expect(canRetailRoleDo("STOCK_CLERK", "retail.purchasing", "receive")).toBe(true);
-    // `purchasing/orders` POST was gated on `requireRetailStock`, which admits a
-    // clerk. R-2.4 moved it onto this line — a real narrowing, and the intended
-    // one: deciding what the shop buys, and at what price, is not theirs.
+    expect(canRetailRoleDo("STOCK_CLERK", "retail.stock", "view")).toBe(true);
+  });
+
+  it("does not order, approve a count, or change the on-hand figures directly", () => {
     expect(canRetailRoleDo("STOCK_CLERK", "retail.purchasing", "create")).toBe(false);
-    expect(canRetailRoleDo("STOCK_CLERK", "retail.purchasing", "update")).toBe(false);
-    expect(canRetailRoleDo("STOCK_CLERK", "retail.purchasing", "approve")).toBe(false);
+    expect(canRetailRoleDo("STOCK_CLERK", "retail.counts", "approve")).toBe(false);
+    expect(canRetailRoleDo("STOCK_CLERK", "retail.adjustments", "view")).toBe(false);
+    expect(canRetailRoleDo("STOCK_CLERK", "retail.stock", "update")).toBe(false);
   });
 
-  it("cannot sell", () => {
-    // A shop that lets the person who counts the stock also sell it has removed
-    // its own separation of duties.
-    for (const action of RETAIL_ACTIONS) {
-      expect(canRetailRoleDo("STOCK_CLERK", "retail.sell", action)).toBe(false);
+  it("cannot sell, cash up or read reports", () => {
+    for (const resource of ["retail.sell", "retail.cash-control", "retail.reports", "retail.customers"] as const) {
+      for (const action of RETAIL_ACTIONS) expect(canRetailRoleDo("STOCK_CLERK", resource, action)).toBe(false);
     }
+    expect(canSeeRetailCostPrice("STOCK_CLERK")).toBe(false);
+  });
+});
+
+describe("the bookkeeper (FINANCE_OFFICER)", () => {
+  it("reads sales, shifts, reports, insights and money, and sees cost", () => {
+    expect(canRetailRoleDo("FINANCE_OFFICER", "retail.sell", "view")).toBe(true);
+    expect(canRetailRoleDo("FINANCE_OFFICER", "retail.cash-control", "view")).toBe(true);
+    expect(canRetailRoleDo("FINANCE_OFFICER", "retail.reports", "view")).toBe(true);
+    expect(canRetailRoleDo("FINANCE_OFFICER", "retail.money", "view")).toBe(true);
+    expect(canSeeRetailCostPrice("FINANCE_OFFICER")).toBe(true);
   });
 
-  it("cannot reach cash control", () => {
-    for (const action of RETAIL_ACTIONS) {
-      expect(canRetailRoleDo("STOCK_CLERK", "retail.cash-control", action)).toBe(false);
+  it("keeps the books and the bills", () => {
+    expect(canRetailRoleDo("FINANCE_OFFICER", "retail.posting", "update")).toBe(true);
+    expect(canRetailRoleDo("FINANCE_OFFICER", "retail.bills", "delete")).toBe(true);
+    expect(canRetailRoleDo("FINANCE_OFFICER", "retail.accounts", "update")).toBe(true);
+  });
+
+  it("never touches the till", () => {
+    expect(retailPermissionDenial(session("FINANCE_OFFICER"), "retail.sell", "open-shift")).toBe(
+      "Your role cannot open a till shift in sales",
+    );
+    expect(canRetailRoleDo("FINANCE_OFFICER", "retail.sell", "create")).toBe(false);
+    expect(canRetailRoleDo("FINANCE_OFFICER", "retail.tills", "view")).toBe(false);
+  });
+});
+
+describe("Corelith support", () => {
+  it("is measured as CORELITH_SUPPORT only while a support session is on", () => {
+    expect(retailRoleKey(session("SUPERADMIN"))).toBe("SUPERADMIN");
+    expect(retailRoleKey(session("SUPERADMIN", "support-1"))).toBe("CORELITH_SUPPORT");
+    expect(canRetailSessionDo(session("CASHIER", "support-1"), "retail.company", "delete")).toBe(true);
+    expect(canRetailSessionDo(session("CASHIER"), "retail.company", "delete")).toBe(false);
+  });
+
+  it("reads activity, insights and money but changes none of them", () => {
+    const support = session("SUPERADMIN", "support-1");
+    for (const resource of ["retail.activity", "retail.insights", "retail.money"] as const) {
+      expect(canRetailSessionDo(support, resource, "view")).toBe(true);
+      expect(retailPermissionDenial(support, resource, "delete")).toMatch(/^Your role cannot delete /);
     }
-  });
-
-  it("cannot reach reports or setup", () => {
-    for (const action of RETAIL_ACTIONS) {
-      expect(canRetailRoleDo("STOCK_CLERK", "retail.reports", action)).toBe(false);
-      expect(canRetailRoleDo("STOCK_CLERK", "retail.setup", action)).toBe(false);
-    }
-  });
-
-  it("reads the shelf without the buying price", () => {
-    expect(canRetailRoleDo("STOCK_CLERK", "retail.catalog", "view")).toBe(true);
-    expect(canRetailRoleDo("STOCK_CLERK", "retail.catalog", "view-cost")).toBe(false);
   });
 });
 
 describe("default deny", () => {
-  it("denies an absent, empty or unrecognised role everything", () => {
-    const strangers = [null, undefined, "", "   ", "NOT_A_ROLE", "POS_CASHIER", "ADMIN"];
-    for (const role of strangers) {
+  it.each(ROLES.filter((role) => !(RETAIL_ROLE_KEYS as readonly string[]).includes(role)))(
+    "gives a %s nothing in retail",
+    (role) => {
       for (const resource of RETAIL_RESOURCES) {
-        for (const action of RETAIL_ACTIONS) {
-          expect(canRetailRoleDo(role, resource, action)).toBe(false);
-        }
+        for (const action of RETAIL_ACTIONS) expect(canRetailRoleDo(role, resource, action)).toBe(false);
+      }
+    },
+  );
+
+  it("denies an absent, empty or unrecognised role everything", () => {
+    for (const role of [null, undefined, "", "   ", "NOT_A_ROLE", "POS_CASHIER", "ADMIN", "constructor"]) {
+      for (const resource of RETAIL_RESOURCES) {
+        for (const action of RETAIL_ACTIONS) expect(canRetailRoleDo(role, resource, action)).toBe(false);
       }
     }
   });
 
-  it.each(
-    ROLES.filter(
-      (role) => !["SUPERADMIN", "MANAGER", "SHOP_MANAGER", "CASHIER", "STOCK_CLERK"].includes(role),
-    ),
-  )("gives a %s nothing in retail", (role) => {
-    // These share one `UserRole` enum with the retail roles. A tenant running a
-    // school and a bottle store would otherwise put a teacher on the till.
-    // CLERK and FINANCE_OFFICER are in `VERTICAL_ROLE_REGISTRY.RETAIL` and still
-    // get nothing: no retail gate admits them today, and this ticket is not the
-    // place to widen access.
-    for (const resource of RETAIL_RESOURCES) {
-      for (const action of RETAIL_ACTIONS) {
-        expect(canRetailRoleDo(role, resource, action)).toBe(false);
-      }
-    }
-  });
-
-  it("normalises case and whitespace rather than failing open or closed on it", () => {
+  it("normalises case and whitespace", () => {
     expect(canRetailRoleDo("  cashier ", "retail.sell", "create")).toBe(true);
     expect(canRetailRoleDo("Cashier", "retail.reports", "view")).toBe(false);
+  });
+
+  it("refuses an unknown resource or action rather than failing open", () => {
+    expect(canRetailRoleDo("SUPERADMIN", "retail.setup" as RetailResource, "view")).toBe(false);
+    expect(canRetailRoleDo("SUPERADMIN", "retail.sell", "obliterate" as RetailAction)).toBe(false);
+  });
+
+  it("gives view-own to nobody who already reads every row", () => {
+    for (const role of RETAIL_ROLE_KEYS) {
+      for (const resource of RETAIL_RESOURCES) {
+        if (canRetailRoleDo(role, resource, "view")) expect(canRetailRoleDo(role, resource, "view-own")).toBe(false);
+      }
+    }
   });
 });
 
 describe("the matrix itself", () => {
-  it("is not vacuously all-deny — every resource has a role that can view it", () => {
-    for (const resource of RETAIL_RESOURCES) {
-      const viewers = EVERY_ROLE.filter((role) => canRetailRoleDo(role, resource, "view"));
-      expect(viewers.length, `no role can view ${resource}`).toBeGreaterThan(0);
-    }
-  });
-
   it("grants somebody every action it defines", () => {
-    // An action nobody holds is either dead vocabulary or a grant that was meant
-    // to be written and was not.
     for (const action of RETAIL_ACTIONS) {
-      const holders = EVERY_ROLE.flatMap((role) =>
+      const holders = RETAIL_ROLE_KEYS.flatMap((role) =>
         RETAIL_RESOURCES.filter((resource) => canRetailRoleDo(role, resource, action)),
       );
       expect(holders.length, `no role holds ${action}`).toBeGreaterThan(0);
     }
   });
 
-  it("decides every role × resource × action without throwing", () => {
-    // The gap-catcher. A missing verb or label in the message tables, or a role
-    // whose grants are the wrong shape, surfaces here rather than as a 500 at the
-    // till on a Saturday.
-    let decisions = 0;
+  it("refuses with a whole sentence for every role × resource × action", () => {
     for (const role of EVERY_ROLE) {
       for (const resource of RETAIL_RESOURCES) {
         for (const action of RETAIL_ACTIONS) {
-          const allowed = canRetailRoleDo(role, resource, action);
-          expect(typeof allowed).toBe("boolean");
-
           const denial = retailPermissionDenial(session(role), resource, action);
-          if (allowed) {
+          if (canRetailRoleDo(role, resource, action)) {
             expect(denial).toBeNull();
           } else {
-            expect(typeof denial).toBe("string");
-            // Not a half-built sentence: no `undefined` from a missing table entry.
             expect(denial).toMatch(/^Your role cannot \S.*\S$/);
             expect(denial).not.toContain("undefined");
           }
-          decisions += 1;
         }
       }
     }
-    expect(decisions).toBe(EVERY_ROLE.length * RETAIL_RESOURCES.length * RETAIL_ACTIONS.length);
   });
 
-  it("refuses an unknown resource or action rather than failing open", () => {
-    // The matrix is indexed, not searched, so a typo in a call site must land on
-    // deny. Cast because the whole point is a value the type system forbids.
-    const bogusResource = "retail.nonsense" as RetailResource;
-    const bogusAction = "obliterate" as RetailAction;
-    expect(canRetailRoleDo("CASHIER", bogusResource, "view")).toBe(false);
-    expect(canRetailRoleDo("CASHIER", "retail.sell", bogusAction)).toBe(false);
-    expect(canRetailRoleDo("MANAGER", bogusResource, "view")).toBe(false);
-  });
-});
-
-describe("retailPermissionDenial", () => {
-  it("returns null when allowed", () => {
-    expect(retailPermissionDenial(session("CASHIER"), "retail.sell", "create")).toBeNull();
-    expect(retailPermissionDenial(session("MANAGER"), "retail.reports", "view")).toBeNull();
-  });
-
-  it("returns a message a person behind a counter can act on", () => {
-    // A message rather than a throw, because a throw is caught by the generic
-    // handler and reported as a 500 — telling a cashier the shop's system is
-    // broken when in fact they simply may not.
+  it("refuses in the words of the board's labels", () => {
     expect(retailPermissionDenial(session("CASHIER"), "retail.catalog", "view-cost")).toBe(
-      "Your role cannot see cost price on catalogue items",
-    );
-    expect(retailPermissionDenial(session("CASHIER"), "retail.reports", "view")).toBe(
-      "Your role cannot view retail reports",
-    );
-    expect(retailPermissionDenial(session("CASHIER"), "retail.cash-control", "approve")).toBe(
-      "Your role cannot approve cash control",
-    );
-    expect(retailPermissionDenial(session("STOCK_CLERK"), "retail.sell", "create")).toBe(
-      "Your role cannot create sales",
+      "Your role cannot see cost price on products",
     );
     expect(retailPermissionDenial(session("STOCK_CLERK"), "retail.purchasing", "create")).toBe(
-      "Your role cannot create purchase orders",
+      "Your role cannot create orders and deliveries",
     );
-  });
-});
-
-describe("canSeeRetailCostPrice", () => {
-  it("is the question the row serialisers ask", () => {
-    expect(canSeeRetailCostPrice("MANAGER")).toBe(true);
-    expect(canSeeRetailCostPrice("SHOP_MANAGER")).toBe(true);
-    // The cashier reads the same `pos/catalog` rows with the cost stripped out.
-    expect(canSeeRetailCostPrice("CASHIER")).toBe(false);
-    expect(canSeeRetailCostPrice("STOCK_CLERK")).toBe(false);
-    expect(canSeeRetailCostPrice(null)).toBe(false);
-  });
-});
-
-/**
- * R-2.3, pinned.
- *
- * Sixteen reads had no gate in front of them, and the work was deciding each one
- * rather than gating them all. The decisions are in the route files as
- * `requireRetailPermission(session, resource, action)` calls, and
- * `route-guard-coverage.test.ts` proves each handler names *a* gate — but not
- * *which*. These are the ones a wrong answer would be expensive, stated as the
- * question the route now asks.
- */
-describe("the reads R-2.3 decided", () => {
-  const CAN: Array<[string, RetailResource, RetailAction, string]> = [
-    ["CASHIER", "retail.catalog", "view", "pos/catalog — a till that cannot list its stock cannot sell"],
-    ["CASHIER", "retail.sell", "view", "pos/sales, held-carts, current-shift, sync"],
-    ["STOCK_CLERK", "retail.catalog", "view", "the range, to count against"],
-    ["STOCK_CLERK", "retail.purchasing", "view", "cannot receive against an order they cannot see"],
-  ];
-
-  it.each(CAN)("%s may %s %s — %s", (role, resource, action) => {
-    expect(canRetailRoleDo(role, resource, action)).toBe(true);
-  });
-
-  const CANNOT: Array<[string, RetailResource, RetailAction, string]> = [
-    ["CASHIER", "retail.purchasing", "view", "what the shop pays Delta is not the counter's business"],
-    ["CASHIER", "retail.reports", "view", "the trading dashboard carries the day's margin"],
-    ["CASHIER", "retail.cash-control", "view", "every cashier's drawer, not your own"],
-    ["CASHIER", "retail.setup", "view", "registers, trading hours, tender policy"],
-    ["CASHIER", "retail.catalog", "view-cost", "the shelf price is public, the buying price is not"],
-    ["STOCK_CLERK", "retail.sell", "view", "customers, loyalty and the sales list are the counter's"],
-    ["STOCK_CLERK", "retail.reports", "view", "the trading dashboard"],
-    ["STOCK_CLERK", "retail.cash-control", "view", "cash-up"],
-  ];
-
-  it.each(CANNOT)("%s may not %s %s — %s", (role, resource, action) => {
-    expect(canRetailRoleDo(role, resource, action)).toBe(false);
-  });
-
-  /**
-   * The till PIN routes gate on `retail.sell` `view` rather than `update`, and
-   * this is the assertion that keeps that from looking like an oversight: a
-   * cashier holds `view` and does not hold `update`, so gating the write on
-   * `update` would have silently taken the feature away from the only people who
-   * use it. What authorises the change is the account password, checked in the
-   * handler; the row is always the caller's own.
-   */
-  it("lets a cashier reach their own till PIN, which `update` would not have", () => {
-    expect(canRetailRoleDo("CASHIER", "retail.sell", "view")).toBe(true);
-    expect(canRetailRoleDo("CASHIER", "retail.sell", "update")).toBe(false);
+    expect(retailPermissionDenial(session("MANAGER"), "retail.bin", "delete")).toBe("Your role cannot delete the bin");
+    expect(retailPermissionDenial(session("STOCK_CLERK"), "retail.requisitions", "view-own")).toBeNull();
+    expect(retailPermissionDenial(session("STOCK_CLERK"), "retail.requisitions", "view")).toBe(
+      "Your role cannot view requisitions",
+    );
   });
 });

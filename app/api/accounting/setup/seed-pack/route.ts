@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { errorResponse, successResponse, validateSession } from "@/lib/api-utils";
 import { previewAccountingSeedPack, runAccountingSeedPack } from "@/lib/accounting/bootstrap";
-import { hasRole } from "@/lib/roles";
+import { requireOnSharedRoute } from "@/lib/retail/permissions";
 
 const schema = z.object({
   mode: z.enum(["DRY_RUN", "APPLY"]).optional(),
@@ -15,9 +15,16 @@ export async function POST(request: NextRequest) {
     if (sessionResult instanceof NextResponse) return sessionResult;
     const { session } = sessionResult;
 
-    if (!hasRole(session.user.role, ["SUPERADMIN", "MANAGER", "SHOP_MANAGER"])) {
-      return errorResponse("Insufficient permissions to run accounting foundation pack", 403);
-    }
+    // A shop's Posting to the books row: the owner and the bookkeeper set the
+    // accounts up; the manager does not reach the books.
+    const refused = requireOnSharedRoute(
+      session,
+      "retail.posting",
+      "update",
+      ["SUPERADMIN", "MANAGER"],
+      "Insufficient permissions to run accounting foundation pack",
+    );
+    if (refused) return refused;
 
     const body = await request.json().catch(() => ({}));
     const validated = schema.parse(body);

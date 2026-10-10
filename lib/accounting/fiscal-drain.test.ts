@@ -47,6 +47,10 @@ function issuerReturning(
     schoolFeeReceipt: async () => {
       throw new Error("no school receipts in this fixture");
     },
+    retailSale: async ({ saleId }) => {
+      issued.push(saleId);
+      return outcome(saleId);
+    },
   };
 }
 
@@ -350,9 +354,8 @@ describe("a receipt past its attempt budget", () => {
   });
 });
 
-describe("a source with no issuer yet", () => {
-  it("is deferred rather than failed, and costs no attempts", async () => {
-    // FD-4.1 (credit note) and FD-5.1 (till sale) will supply these issuers.
+describe("a till sale", () => {
+  it("is sent again through the till issuer, and a failure costs an attempt (SET-08 sign later)", async () => {
     const sale = await prisma.retailSale.create({
       data: {
         companyId,
@@ -365,6 +368,47 @@ describe("a source with no issuer yet", () => {
       data: {
         companyId,
         retailSaleId: sale.id,
+        status: "FAILED",
+        nextRetryAt: new Date(Date.now() - MINUTE),
+        providerKey: `zimra-${suite}`,
+      },
+    });
+
+    issued = [];
+    const result = await drain({ issuers: alwaysFails });
+
+    expect(issued).toEqual([sale.id]);
+    expect(result.deferred).toBe(0);
+    expect(result.retryScheduled).toBe(1);
+    const after = await prisma.fiscalReceipt.findUniqueOrThrow({ where: { id: receipt.id } });
+    expect(after.attemptCount).toBe(1);
+    expect(after.status).toBe("FAILED");
+
+    await prisma.fiscalReceipt.delete({ where: { id: receipt.id } });
+    await prisma.retailSale.delete({ where: { id: sale.id } });
+  });
+});
+
+describe("a source with no issuer yet", () => {
+  it("is deferred rather than failed, and costs no attempts", async () => {
+    // FD-4.1 (credit note) will supply this issuer.
+    const invoice = await prisma.salesInvoice.create({
+      data: {
+        companyId,
+        customerId,
+        invoiceNumber: `FD6-${suite}-${crypto.randomUUID().slice(0, 8)}`,
+        invoiceDate: new Date(),
+        currency: "USD",
+        total: 115,
+      },
+    });
+    const note = await prisma.creditNote.create({
+      data: { companyId, invoiceId: invoice.id, noteNumber: `CN-${suite}-${crypto.randomUUID().slice(0, 8)}`, noteDate: new Date() },
+    });
+    const receipt = await prisma.fiscalReceipt.create({
+      data: {
+        companyId,
+        creditNoteId: note.id,
         status: "PENDING",
         nextRetryAt: new Date(Date.now() - MINUTE),
         providerKey: `zimra-${suite}`,
@@ -383,7 +427,8 @@ describe("a source with no issuer yet", () => {
     expect(after.nextRetryAt!.getTime()).toBeGreaterThan(Date.now());
 
     await prisma.fiscalReceipt.delete({ where: { id: receipt.id } });
-    await prisma.retailSale.delete({ where: { id: sale.id } });
+    await prisma.creditNote.delete({ where: { id: note.id } });
+    await prisma.salesInvoice.delete({ where: { id: invoice.id } });
   });
 });
 

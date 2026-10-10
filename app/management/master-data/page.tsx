@@ -39,13 +39,14 @@ export default function MasterDataIndexPage() {
   const { data: session, status } = useSession();
 
   const user = session?.user as
-    | { role?: string; enabledFeatures?: string[] }
+    | { role?: string; enabledFeatures?: string[]; workspaceProfile?: string }
     | undefined;
   const role = user?.role;
   const enabledFeatures = user?.enabledFeatures;
+  const workspaceProfile = user?.workspaceProfile;
 
   const destination = useMemo(() => {
-    const visible = getSettingsRailGroups({ role, enabledFeatures }).flatMap(
+    const visible = getSettingsRailGroups({ role, enabledFeatures, workspaceProfile }).flatMap(
       (group) => group.items,
     );
 
@@ -58,7 +59,7 @@ export default function MasterDataIndexPage() {
     );
 
     return inArea?.href ?? visible[0]?.href ?? LAST_RESORT_HREF;
-  }, [enabledFeatures, role]);
+  }, [enabledFeatures, role, workspaceProfile]);
 
   useEffect(() => {
     // Waiting for the session first: filtering against an undefined role and

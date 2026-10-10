@@ -77,7 +77,7 @@ describe("the rendered document", () => {
 
   it("sets figures in the same monospace face the app uses", () => {
     const html = render(branding("huchu"));
-    expect(html).toContain("Atkinson Hyperlegible Mono");
+    expect(html).toContain("IBM Plex Mono");
     // The old hard-coded face was never loaded, so it only ever resolved to
     // whatever monospace the container happened to have.
     expect(html).not.toContain("JetBrains Mono");

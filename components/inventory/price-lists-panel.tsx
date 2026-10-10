@@ -39,7 +39,7 @@ type PriceListSummary = {
   name: string;
   kind: PriceListKind;
   isDefault: boolean;
-  isActive: boolean;
+  state: "DRAFT" | "ON" | "PAUSED";
   region: string | null;
   currency: string;
   _count: { entries: number };
@@ -174,7 +174,7 @@ export function PriceListsPanel() {
                     />
                   </button>
                 ),
-                state: list.isActive ? null : <StatusDot tone="neutral" label="Inactive" />,
+                state: list.state === "ON" ? null : <StatusDot tone="neutral" label="Inactive" />,
                 currency: <ColumnFigure tone="muted">{list.currency}</ColumnFigure>,
                 prices: (
                   <ColumnFigure tone={list._count.entries === 0 ? "muted" : "default"}>
@@ -209,7 +209,7 @@ export function PriceListsPanel() {
         open={creating || editing !== null}
         list={editing}
         footerStart={
-          editing?.isActive ? (
+          editing?.state === "ON" ? (
             <Button
               type="button"
               size="sm"
@@ -260,7 +260,7 @@ function PriceListDialog({
     region: "",
     currency: "USD",
     isDefault: false,
-    isActive: true,
+    active: true,
   });
   const [errors, setErrors] = useState<string[]>([]);
 
@@ -274,7 +274,7 @@ function PriceListDialog({
         region: list?.region ?? "",
         currency: list?.currency ?? "USD",
         isDefault: list?.isDefault ?? false,
-        isActive: list?.isActive ?? true,
+        active: list ? list.state === "ON" : true,
       });
       setErrors([]);
     }
@@ -294,7 +294,7 @@ function PriceListDialog({
             region: form.kind === "REGIONAL" ? form.region.trim() || null : null,
             currency: form.currency.trim() || "USD",
             isDefault: form.isDefault,
-            isActive: form.isActive,
+            state: form.active ? "ON" : "PAUSED",
           }),
         },
       ),
@@ -406,8 +406,8 @@ function PriceListDialog({
 
       <label className="flex items-center gap-2 text-sm text-[var(--text-strong)]">
         <Checkbox
-          checked={form.isActive}
-          onCheckedChange={(checked) => setForm((prev) => ({ ...prev, isActive: checked === true }))}
+          checked={form.active}
+          onCheckedChange={(checked) => setForm((prev) => ({ ...prev, active: checked === true }))}
         />
         Active
       </label>

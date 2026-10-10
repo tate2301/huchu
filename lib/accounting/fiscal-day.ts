@@ -13,14 +13,14 @@
  * That is why this module exists as a seam of its own, and why two things in it
  * are written the way they are rather than the obvious way:
  *
- * 1. **Opening a day never checks-then-writes.** Two tills, or a till and the
+ * 1. **Opening a day holds the device first.** Two tills, or a till and the
  *    console, or a retry of a request whose response was lost, can call
  *    `openFiscalDay` in the same millisecond. Both would read "no day open" and
  *    both would insert, and a device with two open days has two counters
- *    issuing the same numbers. The `FiscalDay_one_open_per_device` partial
- *    unique index (added in `20260818120000_fdms_foundations`) is the actual
- *    guard; the pre-read below exists only to give the loser a good error
- *    message, and the code is correct if it is deleted.
+ *    issuing the same numbers. Every opener takes the device's row lock before
+ *    it looks, so the second sees the first's day; the
+ *    `FiscalDay_one_open_per_device` partial unique index (added in
+ *    `20260818120000_fdms_foundations`) stays as the guard behind it.
  *
  * 2. **Reserving numbers is one atomic `UPDATE ... RETURNING`.** Not a read,
  *    not a `MAX()` over the receipts table, not a Prisma read-modify-write. A
@@ -148,6 +148,23 @@ export class FiscalDayAlreadyOpenError extends FiscalDayError {
   }
 }
 
+/**
+ * A close asked for a day another close holds. One close at a time: the
+ * second would read the day's receipts while the first may give the day back
+ * to the tills, and a report built before a receipt was signed misses it.
+ */
+export class FiscalDayCloseInProgressError extends FiscalDayError {
+  readonly dayId: string;
+  readonly fiscalDayNo: number;
+
+  constructor(day: { id: string; fiscalDayNo: number }) {
+    super("FISCAL_DAY_CLOSE_IN_PROGRESS", `Fiscal day ${day.fiscalDayNo} (${day.id}) is being closed by another close`);
+    this.name = "FiscalDayCloseInProgressError";
+    this.dayId = day.id;
+    this.fiscalDayNo = day.fiscalDayNo;
+  }
+}
+
 /** Named so the console can list the offending receipts (FD-2.2) instead of
  *  showing a supervisor a day that simply refuses to close. */
 export class FiscalDayHasPendingReceiptsError extends FiscalDayError {
@@ -163,11 +180,6 @@ export class FiscalDayHasPendingReceiptsError extends FiscalDayError {
     this.dayId = dayId;
     this.receipts = receipts;
   }
-}
-
-function isUniqueViolation(error: unknown): boolean {
-  return typeof error === "object" && error !== null && "code" in error &&
-    (error as { code?: unknown }).code === "P2002";
 }
 
 // ---------------------------------------------------------------------------
@@ -242,21 +254,19 @@ export type OpenFiscalDayInput = {
   openedAt?: Date;
 };
 
-const OPEN_ATTEMPTS = 5;
-
 /**
  * Open the device's next fiscal day.
  *
- * The day number is allocated as `max(fiscalDayNo) + 1` for the device and the
- * insert is allowed to fail: the two unique indexes decide the winner, not this
- * function. On a P2002 we re-read to find out *which* index fired — an active
- * day means somebody else opened one and we refuse; a day-number collision
- * means somebody else took the number we picked while we were picking it, and
- * we simply pick the next one. Bounded retries, because an unbounded loop
- * against a constraint we have misdiagnosed is a spin, not a recovery.
+ * Under the device's own row lock ({@link lockFiscalDevice}), which every
+ * opener takes before it looks for a day still open: the look and the insert
+ * after it cannot interleave with another opener's, and nothing here waits on
+ * a unique violation, which would abort a caller's transaction. The partial
+ * unique index stays as the guard behind it. Pass a transaction to open the
+ * day in it (a sale that finds none, SET-08); without one it opens in its own.
  */
-export async function openFiscalDay(input: OpenFiscalDayInput): Promise<FiscalDay> {
-  const provider = await prisma.fiscalisationProviderConfig.findFirst({
+export async function openFiscalDay(input: OpenFiscalDayInput, db?: Prisma.TransactionClient): Promise<FiscalDay> {
+  if (!db) return prisma.$transaction((tx) => openFiscalDay(input, tx));
+  const provider = await db.fiscalisationProviderConfig.findFirst({
     where: { id: input.providerConfigId, companyId: input.companyId },
   });
   if (!provider) {
@@ -280,52 +290,74 @@ export async function openFiscalDay(input: OpenFiscalDayInput): Promise<FiscalDa
     );
   }
 
-  for (let attempt = 0; attempt < OPEN_ATTEMPTS; attempt += 1) {
-    const active = await getActiveFiscalDay(
-      { companyId: input.companyId, providerConfigId: provider.id },
-      prisma,
-    );
-    if (active) throw new FiscalDayAlreadyOpenError(active);
+  await lockFiscalDevice(db, provider.id);
+  const active = await getActiveFiscalDay({ providerConfigId: provider.id }, db);
+  if (active) throw new FiscalDayAlreadyOpenError(active);
 
-    const previous = await prisma.fiscalDay.findFirst({
-      where: { providerConfigId: provider.id },
-      orderBy: { fiscalDayNo: "desc" },
-    });
-
-    const seed = openFiscalDayCounters(
-      previous
-        ? { receiptCounter: previous.lastReceiptCounter, receiptGlobalNo: previous.lastReceiptGlobalNo }
-        : null,
-    );
-
-    try {
-      return await prisma.fiscalDay.create({
-        data: {
-          companyId: input.companyId,
-          providerConfigId: provider.id,
-          deviceId,
-          fiscalDayNo: (previous?.fiscalDayNo ?? 0) + 1,
-          status: FISCAL_DAY_STATUS.OPENED,
-          openedAt: input.openedAt ?? new Date(),
-          lastReceiptCounter: seed.receiptCounter,
-          lastReceiptGlobalNo: seed.receiptGlobalNo,
-          // Null, not the previous day's hash: the chain restarts each fiscal
-          // day (see the module header).
-          lastReceiptHash: null,
-        },
-      });
-    } catch (error) {
-      if (!isUniqueViolation(error)) throw error;
-
-      const conflicting = await getActiveFiscalDay({ providerConfigId: provider.id }, prisma);
-      if (conflicting) throw new FiscalDayAlreadyOpenError(conflicting);
-      // Otherwise the day-number index fired; loop and take the next number.
-    }
-  }
-
-  throw new FiscalDayConfigError(
-    `Could not allocate a fiscal day number for device ${deviceId} after ${OPEN_ATTEMPTS} attempts`,
+  const previous = await db.fiscalDay.findFirst({
+    where: { providerConfigId: provider.id },
+    orderBy: { fiscalDayNo: "desc" },
+  });
+  const seed = openFiscalDayCounters(
+    previous
+      ? { receiptCounter: previous.lastReceiptCounter, receiptGlobalNo: previous.lastReceiptGlobalNo }
+      : null,
   );
+
+  return db.fiscalDay.create({
+    data: {
+      companyId: input.companyId,
+      providerConfigId: provider.id,
+      deviceId,
+      fiscalDayNo: (previous?.fiscalDayNo ?? 0) + 1,
+      status: FISCAL_DAY_STATUS.OPENED,
+      openedAt: input.openedAt ?? new Date(),
+      lastReceiptCounter: seed.receiptCounter,
+      lastReceiptGlobalNo: seed.receiptGlobalNo,
+      // Null, not the previous day's hash: the chain restarts each fiscal
+      // day (see the module header).
+      lastReceiptHash: null,
+    },
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Locks: which day a receipt goes in
+// ---------------------------------------------------------------------------
+
+/** The device's not-yet-closed day, as its locked row says. */
+export type LockedFiscalDay = { id: string; fiscalDayNo: number; status: string; openedAt: Date };
+
+/** Hold the device for the rest of the transaction: what every opener of a day takes first (SET-08). */
+export async function lockFiscalDevice(db: Prisma.TransactionClient, providerConfigId: string): Promise<void> {
+  await db.$queryRaw`SELECT "id" FROM "FiscalisationProviderConfig" WHERE "id" = ${providerConfigId} FOR NO KEY UPDATE`;
+}
+
+/**
+ * Hold the device's day that has not closed, for the rest of the transaction,
+ * and say what it is: open, closing, or none — and then the device is held
+ * too, so no day opens meanwhile. What a sale decides about its day under
+ * this lock stays true until it commits: a close claims the day with an
+ * update of this same row, so the claim waits for the sale, or the sale for
+ * the claim (SET-08).
+ */
+export async function lockDeviceDay(
+  db: Prisma.TransactionClient,
+  providerConfigId: string,
+): Promise<LockedFiscalDay | null> {
+  const locked = () =>
+    db.$queryRaw<LockedFiscalDay[]>`
+      SELECT "id", "fiscalDayNo", "status", "openedAt"
+        FROM "FiscalDay"
+       WHERE "providerConfigId" = ${providerConfigId}
+         AND "status" <> ${FISCAL_DAY_STATUS.CLOSED}
+         FOR NO KEY UPDATE`;
+  const [day] = await locked();
+  if (day) return day;
+  // None, or it closed while this waited for it: hold the device, then look again for one opened meanwhile.
+  await lockFiscalDevice(db, providerConfigId);
+  const [opened] = await locked();
+  return opened ?? null;
 }
 
 // ---------------------------------------------------------------------------
@@ -620,6 +652,82 @@ export function buildFiscalDayCountersJson(counters: FiscalDayCounters): string 
 // Close
 // ---------------------------------------------------------------------------
 
+/**
+ * How long a close may hold a day before another close may take it over: far
+ * longer than a close takes (two FDMS calls of at most 20 seconds each, and
+ * the receipts it sends again), so only a close that died is taken over.
+ */
+export const FISCAL_DAY_CLOSE_LEASE_MS = 5 * 60 * 1000;
+
+/** A close's hold on a day: where the day was taken from, and when (the fence every later write checks). */
+export type FiscalDayClaim = {
+  dayId: string;
+  from: typeof FISCAL_DAY_STATUS.OPENED | typeof FISCAL_DAY_STATUS.CLOSING;
+  since: Date;
+};
+
+/**
+ * Take a day for one close: OPENED -> CLOSING, so it stops taking receipts
+ * before they are counted. Single-flight: a day another close holds is
+ * refused ({@link FiscalDayCloseInProgressError}), never shared. A CLOSING
+ * day no close holds — ZIMRA refused its report, or the close that held it
+ * died ({@link FISCAL_DAY_CLOSE_LEASE_MS}) — is taken again as it is.
+ *
+ * Every later write of the close is fenced on the claim's `since`, so a close
+ * that lost its hold can neither reopen nor close a day another close holds.
+ */
+export async function claimFiscalDayClosing(
+  dayId: string,
+  db: FiscalDayDb = prisma,
+  now: Date = new Date(),
+): Promise<FiscalDayClaim> {
+  const opened = await db.fiscalDay.updateMany({
+    where: { id: dayId, status: FISCAL_DAY_STATUS.OPENED },
+    data: { status: FISCAL_DAY_STATUS.CLOSING, closingSince: now, lastError: null },
+  });
+  if (opened.count === 1) return { dayId, from: FISCAL_DAY_STATUS.OPENED, since: now };
+  const stale = new Date(now.getTime() - FISCAL_DAY_CLOSE_LEASE_MS);
+  const free = await db.fiscalDay.updateMany({
+    where: {
+      id: dayId,
+      status: FISCAL_DAY_STATUS.CLOSING,
+      OR: [{ closingSince: null }, { closingSince: { lt: stale } }],
+    },
+    data: { closingSince: now, lastError: null },
+  });
+  if (free.count === 1) return { dayId, from: FISCAL_DAY_STATUS.CLOSING, since: now };
+  const current = await getFiscalDay(dayId, db);
+  if (current.status === FISCAL_DAY_STATUS.CLOSING) throw new FiscalDayCloseInProgressError(current);
+  throw new FiscalDayNotOpenError({ dayId: current.id, status: current.status });
+}
+
+/**
+ * A close that did not happen lets go of the day. With `reopen`, a day it
+ * took open takes the tills' receipts again; otherwise (or a day it took
+ * closing) the day stays closing, free for the next close. Fenced on the
+ * claim: false when another close holds the day now, and nothing changed.
+ */
+export async function releaseFiscalDayClosing(
+  claim: FiscalDayClaim,
+  options: { reopen: boolean },
+  db: FiscalDayDb = prisma,
+): Promise<boolean> {
+  const reopen = options.reopen && claim.from === FISCAL_DAY_STATUS.OPENED;
+  const released = await db.fiscalDay.updateMany({
+    where: { id: claim.dayId, status: FISCAL_DAY_STATUS.CLOSING, closingSince: claim.since },
+    data: { closingSince: null, ...(reopen ? { status: FISCAL_DAY_STATUS.OPENED } : {}) },
+  });
+  return released.count === 1;
+}
+
+/** Note why a close stopped, on the day it still holds. */
+async function noteCloseError(claim: FiscalDayClaim, message: string): Promise<void> {
+  await prisma.fiscalDay.updateMany({
+    where: { id: claim.dayId, status: FISCAL_DAY_STATUS.CLOSING, closingSince: claim.since },
+    data: { lastError: message },
+  });
+}
+
 export type CloseFiscalDayInput = {
   dayId: string;
   /** Tenant guard for callers that hold a session rather than a trusted id. */
@@ -640,6 +748,13 @@ export type CloseFiscalDayInput = {
     countersJson: string;
   }) => string | Promise<string>;
   closedAt?: Date;
+  /**
+   * The caller's own hold on the day ({@link claimFiscalDayClosing}), when it
+   * took the day itself to do work of its own first. The caller then lets go
+   * of it when the close fails; without one, the close takes the day and lets
+   * go of it itself.
+   */
+  claim?: FiscalDayClaim;
 };
 
 export type CloseFiscalDayResult = {
@@ -657,7 +772,12 @@ export type CloseFiscalDayResult = {
  * *stuck closing* — no longer taking receipts, not yet reported — rather than
  * one that looks open and starts issuing numbers into a day ZIMRA may already
  * have closed. Recovery from CLOSING is re-running this function, which is why
- * it accepts a CLOSING day as an input state.
+ * it accepts a CLOSING day no close holds as an input state.
+ *
+ * One close holds the day at a time ({@link claimFiscalDayClosing}), and the
+ * final write is fenced on that hold: a report is built only by the close that
+ * holds the day, no receipt can be signed into it meanwhile, and a close that
+ * lost its hold never marks the day closed.
  *
  * Closing an already-CLOSED day is a no-op that returns the day, not an error:
  * the DoD requires resubmitting an operation to be observably harmless, and a
@@ -669,8 +789,41 @@ export async function closeFiscalDay(input: CloseFiscalDayInput): Promise<CloseF
     throw new FiscalDayNotFoundError(input.dayId);
   }
 
-  const receipts = await prisma.fiscalReceipt.findMany({
-    where: { fiscalDayId: day.id },
+  if (day.status === FISCAL_DAY_STATUS.CLOSED && !input.claim) {
+    return {
+      day,
+      counters: aggregateFiscalDayCounters({
+        receipts: await readDayReceipts(day.id),
+        taxLinesByReceiptId: input.taxLinesByReceiptId ?? {},
+      }),
+      alreadyClosed: true,
+    };
+  }
+
+  if (input.claim) {
+    if (input.claim.dayId !== day.id) throw new FiscalDayError("FISCAL_DAY_CLAIM_MISMATCH", `The close holds day ${input.claim.dayId}, not ${day.id}`);
+    return closeHeldFiscalDay(day, input.claim, input);
+  }
+
+  // The day stops taking receipts before they are read: a receipt signed
+  // between a read and the claim would be in the day but missing from its
+  // Z-report. The claim waits on the row lock of any signing in flight, so
+  // what is read after it is every receipt the day will ever hold.
+  const claim = await claimFiscalDayClosing(day.id);
+  try {
+    return await closeHeldFiscalDay(day, claim, input);
+  } catch (error) {
+    // A day that was open goes back to taking receipts when something in it
+    // blocks the close: refusing to close must not half-close it. A report that
+    // could not be signed or sent leaves it closing, for the next close.
+    await releaseFiscalDayClosing(claim, { reopen: error instanceof FiscalDayHasPendingReceiptsError });
+    throw error;
+  }
+}
+
+function readDayReceipts(dayId: string) {
+  return prisma.fiscalReceipt.findMany({
+    where: { fiscalDayId: dayId },
     select: {
       id: true,
       status: true,
@@ -681,17 +834,15 @@ export async function closeFiscalDay(input: CloseFiscalDayInput): Promise<CloseF
     },
     orderBy: [{ receiptGlobalNo: "asc" }],
   });
+}
 
-  if (day.status === FISCAL_DAY_STATUS.CLOSED) {
-    return {
-      day,
-      counters: aggregateFiscalDayCounters({
-        receipts,
-        taxLinesByReceiptId: input.taxLinesByReceiptId ?? {},
-      }),
-      alreadyClosed: true,
-    };
-  }
+/** The close proper, under a hold on the day. Lets go of nothing: its caller does. */
+async function closeHeldFiscalDay(
+  day: FiscalDay,
+  claim: FiscalDayClaim,
+  input: CloseFiscalDayInput,
+): Promise<CloseFiscalDayResult> {
+  const receipts = await readDayReceipts(day.id);
 
   const unsubmitted = receipts.filter((r) => UNSUBMITTED_STATUSES.includes(r.status));
   if (unsubmitted.length > 0) {
@@ -702,25 +853,8 @@ export async function closeFiscalDay(input: CloseFiscalDayInput): Promise<CloseF
     }));
     // Recorded on the day as well as thrown: the supervisor who hits this is
     // usually not the person reading the API response.
-    await prisma.fiscalDay.update({
-      where: { id: day.id },
-      data: { lastError: `${unsubmitted.length} unsubmitted receipt(s) block close` },
-    });
+    await noteCloseError(claim, `${unsubmitted.length} unsubmitted receipt(s) block close`);
     throw new FiscalDayHasPendingReceiptsError(day.id, detail);
-  }
-
-  // OPENED -> CLOSING, guarded: a day that closed underneath us must not be
-  // reopened into CLOSING by this update.
-  const claimed = await prisma.fiscalDay.updateMany({
-    where: {
-      id: day.id,
-      status: { in: [FISCAL_DAY_STATUS.OPENED, FISCAL_DAY_STATUS.CLOSING] },
-    },
-    data: { status: FISCAL_DAY_STATUS.CLOSING, lastError: null },
-  });
-  if (claimed.count !== 1) {
-    const current = await getFiscalDay(day.id);
-    throw new FiscalDayNotOpenError({ dayId: current.id, status: current.status });
   }
 
   const counters = aggregateFiscalDayCounters({
@@ -734,26 +868,29 @@ export async function closeFiscalDay(input: CloseFiscalDayInput): Promise<CloseF
     try {
       signature = await input.signClosure({ day, counters, countersJson });
     } catch (error) {
-      // Leave the day CLOSING: it has stopped taking receipts and the failure is
-      // recoverable by re-running close once the key or transport is fixed.
-      await prisma.fiscalDay.update({
-        where: { id: day.id },
-        data: { lastError: error instanceof Error ? error.message : String(error) },
-      });
+      // The day stays CLOSING: it has stopped taking receipts and the failure
+      // is recoverable by closing again once the key or transport is fixed.
+      await noteCloseError(claim, error instanceof Error ? error.message : String(error));
       throw error;
     }
   }
 
-  const closed = await prisma.fiscalDay.update({
-    where: { id: day.id },
+  const closedAt = input.closedAt ?? new Date();
+  const closed = await prisma.fiscalDay.updateMany({
+    where: { id: day.id, status: FISCAL_DAY_STATUS.CLOSING, closingSince: claim.since },
     data: {
       status: FISCAL_DAY_STATUS.CLOSED,
-      closedAt: input.closedAt ?? new Date(),
+      closedAt,
+      closingSince: null,
       countersJson,
       closingSignature: signature,
       lastError: null,
     },
   });
+  if (closed.count !== 1) {
+    // Another close took the day over (this one outlived its lease): the day is its now.
+    throw new FiscalDayCloseInProgressError(day);
+  }
 
-  return { day: closed, counters, alreadyClosed: false };
+  return { day: await getFiscalDay(day.id), counters, alreadyClosed: false };
 }

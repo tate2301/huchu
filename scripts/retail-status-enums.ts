@@ -118,7 +118,7 @@ const CONVERSIONS: readonly Conversion[] = [
     table: "RetailSalePayment",
     column: "tenderType",
     type: "RetailTenderType",
-    values: ["CASH", "CARD", "MOBILE_MONEY", "TRANSFER", "VOUCHER"],
+    values: ["CASH", "CARD", "ECOCASH", "INNBUCKS", "TRANSFER", "ON_ACCOUNT", "VOUCHER"],
     defaultValue: null,
   },
 ]

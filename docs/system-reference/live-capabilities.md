@@ -468,7 +468,7 @@ Accounting is one of the broadest domains in the current system.
 ### Live APIs
 
 - setup and summary:
-  - `/api/accounting/setup`
+  - `/api/accounting/setup/seed-pack`, `/api/accounting/setup/readiness`
   - `/api/accounting/summary`
 - ledger and posting:
   - `/api/accounting/coa`

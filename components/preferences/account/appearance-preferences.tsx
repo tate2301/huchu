@@ -38,7 +38,7 @@ import styles from "./account.module.css";
 const themes: Array<{ value: AppearancePreference; label: string }> = [
   { value: "light", label: "Light" },
   { value: "dark", label: "Dark" },
-  { value: "system", label: "System" },
+  { value: "system", label: "Match the device" },
 ];
 
 /**
@@ -73,13 +73,15 @@ function createDraft(
  *
  * Two halves that save differently, which is the board's own arrangement:
  *
- *   - **Theme.** Three cards, each a drawing of the window it produces, the
- *     current one outlined. It applies as it is picked and there is nothing to
- *     submit — light/dark/system has to be on the document before first paint
- *     or the page flashes the wrong one, so `AppearanceProvider` keeps it in
- *     `localStorage` and reads it synchronously. That is also why the theme is
- *     deliberately not in `UserDisplayPreference`: a fetch cannot be awaited in
- *     that position.
+ *   - **Theme.** Light, Dark and Match the device, each a drawing of the
+ *     window it produces, the current one outlined — offered only where the
+ *     product has a dark theme (retail's Tender, 00-foundations 5.1.4); other
+ *     products have nothing to choose and show no cards. It applies as it is
+ *     picked and there is nothing to submit — the theme has to be on the
+ *     document before first paint or the page flashes the wrong one, so
+ *     `AppearanceProvider` keeps it in `localStorage`, where the head script
+ *     reads it. That is also why the theme is deliberately not in
+ *     `UserDisplayPreference`: a fetch cannot be awaited in that position.
  *   - **Display.** Density, Open on and Reduce motion are a row on the user,
  *     read and written through `/api/preferences/appearance`, so they edit a
  *     draft and the board's Save/Cancel footer writes it. The board draws that
@@ -89,7 +91,7 @@ function createDraft(
  * grew one the moment it had something to submit.
  */
 export function AppearancePreferences() {
-  const { appearance, setAppearance } = useAppearance();
+  const { appearance, setAppearance, canChoose } = useAppearance();
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -127,12 +129,12 @@ export function AppearancePreferences() {
     },
   });
 
-  const themeCards = (
+  const themeCards = canChoose ? (
     /*
       The three cards are one choice, so they are announced as one group.
-      Without it each button reads as a bare "Light" / "Dark" / "System" with
-      nothing saying what is being chosen — the board's visual grouping carries
-      that for a sighted reader and nothing carried it otherwise.
+      Without it each button reads as a bare "Light" / "Dark" with nothing
+      saying what is being chosen — the visual grouping carries that for a
+      sighted reader and nothing carried it otherwise.
     */
     <div className={styles.themes} role="group" aria-label="Theme">
       {themes.map((theme) => {
@@ -147,7 +149,7 @@ export function AppearancePreferences() {
           >
             <span
               className={styles.themePreview}
-              data-theme={theme.value}
+              data-choice={theme.value}
               aria-hidden="true"
             >
               {theme.value === "system" ? null : <span className={styles.themeSidebar} />}
@@ -157,7 +159,7 @@ export function AppearancePreferences() {
         );
       })}
     </div>
-  );
+  ) : null;
 
   // The theme is local and always ready, so the cards draw while the row is in
   // flight or after it failed; only the Display section waits on the query.

@@ -24,7 +24,6 @@ const purchaseOrderSchema = z.object({
   siteId: z.string().uuid().optional(),
   supplierName: z.string().min(1).max(200),
   expectedDate: z.string().datetime().optional().nullable(),
-  status: z.nativeEnum(RetailPurchaseOrderStatus).optional(),
   notes: z.string().max(500).optional().nullable(),
   lines: z.array(lineSchema).min(1),
 });
@@ -92,13 +91,9 @@ export async function POST(request: NextRequest) {
   }
 
   /*
-    R-2.4, and a deliberate narrowing.
-
-    This was `requireRetailStock`, which admits STOCK_CLERK. The matrix does
-    not: `BOOK_A_DELIVERY_IN` is `view` and `receive`, and the note beside it
-    says why — deciding what the shop buys, and at what price, is not the
-    clerk's. Raising an order is now a manager's act, which is what the matrix
-    has said since R-2.1 and what the route has been contradicting.
+    Raising an order is `create` on `retail.purchasing`: the owner and the
+    manager. The stock clerk holds `view` and `receive` only — deciding what
+    the shop buys, and at what price, is not the clerk's.
   */
   const gate = requireRetailPermission(session, "retail.purchasing", "create");
   if (gate) return gate;
@@ -167,7 +162,8 @@ export async function POST(request: NextRequest) {
             poNo,
             siteId: site.id,
             supplierName: input.supplierName.trim(),
-            status: input.status ?? RetailPurchaseOrderStatus.DRAFT,
+            // Deliveries move it on; nobody sets it by hand.
+            status: RetailPurchaseOrderStatus.DRAFT,
             expectedDate: input.expectedDate ? new Date(input.expectedDate) : null,
             notes: input.notes?.trim() || null,
             createdById: session.user.id,

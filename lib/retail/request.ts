@@ -18,7 +18,7 @@
  * ## What this is not
  *
  * It is not a rule that every handler must name a schema. Several retail routes
- * take no input at all — `pos/context`, `setup/overview`, the trading dashboard
+ * take no input at all — `devices/me`, the trading dashboard
  * — and wrapping a handler with no parameters in a validator would be theatre
  * that makes the next reader look for the input. The rule is that **every input
  * a retail route accepts is parsed by a schema**, and a route accepting nothing

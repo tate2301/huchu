@@ -1,0 +1,1080 @@
+"use client";
+
+/**
+ * History: my sales, newest first: this shift, today, seven days or everything,
+ * filtered by what happened and how it was paid, a page at a time as it scrolls
+ * and only the rows in view drawn. A sale opens as its record:
+ * what happened to it, with the one thing to do next. Refunds and voids happen
+ * there, for one of the till rules' reasons, with a manager's PIN when the
+ * rules ask for one and the person selling may not approve it themselves.
+ */
+
+import * as React from "react";
+import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useVirtualizer } from "@tanstack/react-virtual";
+
+import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import {
+  ArrowsCounterClockwise,
+  CaretLeft,
+  CaretRight,
+  IdentificationCard,
+  Key,
+  MagnifyingGlass,
+  Minus,
+  Money,
+  Plus,
+  Printer,
+  Prohibit,
+  Receipt,
+  ReceiptX,
+  SealCheck,
+  Tag,
+  X,
+} from "@/lib/icons";
+import { depositBack } from "@/lib/retail/deposits";
+import { getPosPortalHref } from "@/lib/retail/pos-host";
+import { SHOP_TIME_ZONE } from "@/lib/retail/shop-profile-rules";
+import { refundPinSentence, VOID_FREE_MS, voidPinSentence } from "@/lib/retail/till-rule-words";
+import { count, dayMonth, firstName, hhmm, paymentLabel, qty, usd, weekdayDayMonth, whole, zig } from "./format";
+import { Avatar, Empty, ErrorLine, Segmented, TillDialog } from "./parts";
+import { ManagerFields, useManagerPin } from "./manager-pin";
+import { printReceipt, tenderKey } from "./pay-tray";
+import { useTill } from "./state";
+import type { TenderType } from "./types";
+
+type Amount = string | number;
+type PaymentLine = { tenderType: TenderType; currency: string | null };
+
+type SaleRow = {
+  id: string;
+  saleNo: string;
+  saleType: "SALE" | "REFUND" | "VOID";
+  status: string;
+  shiftId: string | null;
+  postedAt: string;
+  customerName: string | null;
+  cashierName: string | null;
+  totalAmount: number;
+  depositAmount: number;
+  itemCount: number;
+  lineCount: number;
+  payments: PaymentLine[];
+  overrideReason: string | null;
+  /** How much of it refunds have handed back. */
+  refunded: "NONE" | "PART" | "ALL";
+};
+
+/** `pos/sales/{id}`: the sale, its lines and payments, and what was refunded or voided off it. */
+type SaleDetail = {
+  id: string;
+  saleNo: string;
+  saleType: "SALE" | "REFUND" | "VOID";
+  status: string;
+  postedAt: string | null;
+  createdAt: string;
+  customerName: string | null;
+  cashierName: string | null;
+  totalAmount: Amount;
+  /** Bottle deposits on top of the goods, net of empties back. */
+  depositAmount: Amount;
+  tenderedAmount: Amount | null;
+  /** What the change was worth in the sale's money: the US dollars and the ZiG notes together. */
+  changeAmount: Amount | null;
+  changeZig: Amount;
+  idCheckedAt: string | null;
+  overrideReason: string | null;
+  /** The manager whose PIN let its discount, refund or void through; null when nobody had to. */
+  approvedByName: string | null;
+  /** The bottles that came back on it, per supplier. */
+  empties: Array<{ supplierId: string; supplierName: string; quantity: number }>;
+  /** The customer, matched by name as loyalty is: points earned on it, taken back by its refunds and voids, and now. Null on a walk-in. */
+  customer: { phone: string | null; tier: string; balance: number; earned: number; returned: number } | null;
+  promotionCode: string | null;
+  promotion?: { name: string } | null;
+  voidReason: string | null;
+  shift: { id: string; shiftNo: string; registerName: string; status: string } | null;
+  sourceSale: { id: string; saleNo: string } | null;
+  fiscalReceipt: { status: string; fiscalNumber: string | null; lastError: string | null } | null;
+  reversals: Array<{
+    id: string;
+    saleNo: string;
+    saleType: string;
+    totalAmount: Amount;
+    depositAmount: Amount;
+    postedAt: string | null;
+    cashierName: string | null;
+    /** The till rules' reason, as listed. */
+    overrideReason: string | null;
+    /** The manager who approved it with their PIN; null when nobody had to. */
+    approvedByName: string | null;
+    lines: Array<{ id: string; itemName: string; quantity: Amount; lineTotal: Amount }>;
+    payments: PaymentLine[];
+  }>;
+  payments: Array<{ id: string; tenderType: TenderType; amount: Amount; currency: string | null; reference: string | null }>;
+  lines: Array<{
+    id: string;
+    itemName: string;
+    quantity: Amount;
+    unitPrice: Amount;
+    lineTotal: Amount;
+    discountAmount: Amount;
+    depositAmount: Amount;
+    depositRefunded: number;
+    refundedQuantity: number;
+    refundableQuantity: number;
+  }>;
+};
+
+const n = (value: Amount | null | undefined) => Number(value ?? 0);
+const cents = (value: number) => Math.round(value * 100) / 100;
+/** "Sugar, 2kg" as a sentence says it: "sugar". */
+const product = (itemName: string) => itemName.split(",")[0].toLowerCase();
+/** "Cash", "Cash ZiG", "EcoCash": each way it was paid, once. */
+const paidBy = (payments: PaymentLine[]) => [...new Set(payments.map((payment) => paymentLabel(payment.tenderType, payment.currency)))];
+/** What the customer paid: the goods and the deposits on them. */
+const paidOn = (row: { totalAmount: Amount; depositAmount: Amount }) => n(row.totalAmount) + n(row.depositAmount);
+/* ─── Filters, and the list a page at a time ─────────────────────────── */
+
+type When = "shift" | "today" | "week" | "all";
+type What = "all" | "paid" | "refunded" | "voided";
+type Filters = { when: When; what: What; paidBy: string; search: string };
+
+const PAGE = 40;
+/** The Harare calendar day of an instant, as YYYY-MM-DD: the key a day’s group is made on. */
+const dayKey = new Intl.DateTimeFormat("en-CA", { timeZone: SHOP_TIME_ZONE, year: "numeric", month: "2-digit", day: "2-digit" });
+/** Midnight, Harare (UTC+2 all year), `daysBack` days before today. */
+function harareMidnight(daysBack: number) {
+  const today = dayKey.format(new Date());
+  return new Date(new Date(`${today}T00:00:00+02:00`).getTime() - daysBack * 86_400_000);
+}
+
+function salesQuery(filters: Filters, shiftId: string | null) {
+  const params = new URLSearchParams({ scope: "mine", saleType: "SALE", limit: String(PAGE) });
+  if (filters.search) params.set("search", filters.search);
+  if (filters.when === "shift" && shiftId) params.set("shiftId", shiftId);
+  if (filters.when === "today") params.set("from", harareMidnight(0).toISOString());
+  if (filters.when === "week") params.set("from", harareMidnight(6).toISOString());
+  if (filters.what === "paid") params.set("status", "POSTED");
+  if (filters.what === "voided") params.set("status", "VOIDED");
+  if (filters.what === "refunded") params.set("refunded", "1");
+  if (filters.paidBy !== "any") {
+    const [tender, currency] = filters.paidBy.split(":");
+    params.set("tender", tender);
+    if (currency) params.set("currency", currency);
+  }
+  return params;
+}
+
+function useSalesPages(filters: Filters, shiftId: string | null) {
+  const params = salesQuery(filters, shiftId);
+  return useInfiniteQuery({
+    queryKey: ["retail-pos-sales", "history", params.toString()] as const,
+    initialPageParam: null as string | null,
+    queryFn: ({ pageParam }) => {
+      const page = new URLSearchParams(params);
+      if (pageParam) page.set("cursor", pageParam);
+      return fetchJson<{ data: SaleRow[]; page: { nextCursor: string | null; hasMore: boolean } }>(`/api/v2/retail/pos/sales?${page}`);
+    },
+    getNextPageParam: (last) => (last.page.hasMore ? last.page.nextCursor : null),
+  });
+}
+
+function saleStatus(row: Pick<SaleRow, "saleType" | "status" | "refunded">) {
+  if (row.saleType === "REFUND") return { label: "Refund", tone: "" };
+  if (row.saleType === "VOID") return { label: "Void", tone: "" };
+  if (row.status === "VOIDED") return { label: "Voided", tone: "" };
+  if (row.refunded === "ALL") return { label: "Refunded", tone: "" };
+  if (row.refunded === "PART") return { label: "Part refunded", tone: "status-success" };
+  return { label: "Paid", tone: "status-success" };
+}
+
+/** The change as it was handed back (W-05): whole US dollars, then ZiG notes for what was under a dollar. */
+function handedBack(sale: SaleDetail) {
+  const change = Math.abs(n(sale.changeAmount));
+  const zigNotes = Math.abs(n(sale.changeZig));
+  if (!zigNotes || sale.tenderedAmount === null) return { usd: change, zig: 0 };
+  const owed = n(sale.tenderedAmount) - paidOn(sale);
+  return { usd: Math.min(Math.floor(owed + 1e-9), change), zig: zigNotes };
+}
+
+/** The manager who let it through, after the sentence: ". Farai Mutasa approved". */
+function Approved({ by }: { by: string | null }) {
+  return by ? (
+    <>
+      . <b>{by}</b> approved
+    </>
+  ) : null;
+}
+
+/** "Bronze", from the scheme's "BRONZE". */
+const tierWord = (tier: string) => tier.charAt(0) + tier.slice(1).toLowerCase();
+
+/** "+14 on this sale, 210 now"; once refunded, "+14, then −3 back, 207 now". */
+function pointsWords(customer: NonNullable<SaleDetail["customer"]>) {
+  const now = `${whole(customer.balance)} now`;
+  if (!customer.earned) return `None on this sale, ${now}`;
+  if (!customer.returned) return `+${whole(customer.earned)} on this sale, ${now}`;
+  return `+${whole(customer.earned)}, then −${whole(customer.returned)} back, ${now}`;
+}
+
+/** "12 bottles on the ledger for Delta Beverages", a supplier at a time. */
+const emptiesWords = (empties: SaleDetail["empties"]) =>
+  empties.map((entry) => `${count(entry.quantity, "bottle")} on the ledger for ${entry.supplierName}`).join("; ");
+
+/* ─── The list ───────────────────────────────────────────────────────── */
+
+const WHEN_OPTIONS: Array<{ value: When; label: string }> = [
+  { value: "shift", label: "This shift" },
+  { value: "today", label: "Today" },
+  { value: "week", label: "7 days" },
+  { value: "all", label: "Everything" },
+];
+const WHAT_OPTIONS: Array<{ value: What; label: string }> = [
+  { value: "all", label: "All" },
+  { value: "paid", label: "Paid" },
+  { value: "refunded", label: "Refunded" },
+  { value: "voided", label: "Voided" },
+];
+
+function filterQuery(filters: Filters) {
+  const params = new URLSearchParams();
+  params.set("when", filters.when);
+  if (filters.what !== "all") params.set("what", filters.what);
+  if (filters.paidBy !== "any") params.set("paid", filters.paidBy);
+  if (filters.search) params.set("q", filters.search);
+  return params.toString();
+}
+
+/** The filters, as History’s address carries them: a reload, a sale's Newer and Older, and the way back keep them. */
+function useFilters(): { filters: Filters; set: (change: Partial<Filters>) => void; text: string } {
+  const params = useSearchParams();
+  const router = useRouter();
+  const { shiftHere, isPosHost } = useTill();
+  const asked = params.get("when");
+  const when = WHEN_OPTIONS.find((option) => option.value === asked && (asked !== "shift" || shiftHere))?.value;
+  const filters: Filters = {
+    when: when ?? (shiftHere ? "shift" : "today"),
+    what: WHAT_OPTIONS.find((option) => option.value === params.get("what"))?.value ?? "all",
+    paidBy: params.get("paid") ?? "any",
+    search: params.get("q") ?? "",
+  };
+  const set = (change: Partial<Filters>) =>
+    router.replace(`${getPosPortalHref("history", isPosHost)}?${filterQuery({ ...filters, ...change })}`, { scroll: false });
+  return { filters, set, text: filterQuery(filters) };
+}
+
+/** "Today", "Yesterday", or "Sunday 4 October". */
+function dayTitle(key: string, at: string) {
+  if (key === dayKey.format(new Date())) return "Today";
+  if (key === dayKey.format(new Date(Date.now() - 86_400_000))) return "Yesterday";
+  return weekdayDayMonth(at);
+}
+
+type Item =
+  | { kind: "head"; key: string; title: string; rows: SaleRow[] }
+  | { kind: "row"; key: string; row: SaleRow };
+
+/** The rows a group at a time: one group for the shift, else one a day. Headings are items, so the window holds them. */
+function groupItems(rows: SaleRow[], when: When): Item[] {
+  const out: Item[] = [];
+  let head: Extract<Item, { kind: "head" }> | null = null;
+  for (const row of rows) {
+    const key = when === "shift" ? "shift" : dayKey.format(new Date(row.postedAt));
+    if (!head || head.key !== key) {
+      head = { kind: "head", key, title: key === "shift" ? "This shift" : dayTitle(key, row.postedAt), rows: [] };
+      out.push(head);
+    }
+    head.rows.push(row);
+    out.push({ kind: "row", key: row.id, row });
+  }
+  return out;
+}
+
+export function HistoryScreen() {
+  const { shiftHere, isPosHost, context } = useTill();
+  // The sale you came back from stays marked, so you find your place.
+  const from = useSearchParams().get("from");
+  const { filters, set: setFilters, text: filterText } = useFilters();
+  const [typed, setTyped] = React.useState(filters.search);
+  const searchNow = React.useRef(setFilters);
+  searchNow.current = setFilters;
+  React.useEffect(() => {
+    const timer = window.setTimeout(() => {
+      if (typed.trim() !== filters.search) searchNow.current({ search: typed.trim() });
+    }, 250);
+    return () => window.clearTimeout(timer);
+  }, [typed, filters.search]);
+  const query = useSalesPages(filters, shiftHere?.id ?? null);
+  const rows = React.useMemo(() => query.data?.pages.flatMap((page) => page.data) ?? [], [query.data]);
+  const items = React.useMemo(() => groupItems(rows, filters.when), [rows, filters.when]);
+  const base = getPosPortalHref("history", isPosHost);
+  const paidByOptions = [
+    { value: "any", label: "Any way" },
+    ...(context?.tenders ?? []).map((tender) => ({ value: tenderKey(tender), label: tender.label })),
+  ];
+
+  const scroller = React.useRef<HTMLDivElement>(null);
+  const windowed = useVirtualizer({
+    count: items.length,
+    getScrollElement: () => scroller.current,
+    estimateSize: (index) => (items[index]?.kind === "head" ? 56 : 52),
+    getItemKey: (index) => `${items[index]?.kind}:${items[index]?.key}`,
+    overscan: 8,
+  });
+  const shown = windowed.getVirtualItems();
+  const lastShown = shown[shown.length - 1]?.index ?? 0;
+  const { hasNextPage, isFetchingNextPage, fetchNextPage } = query;
+  React.useEffect(() => {
+    if (lastShown >= items.length - 10 && hasNextPage && !isFetchingNextPage) void fetchNextPage();
+  }, [lastShown, items.length, hasNextPage, isFetchingNextPage, fetchNextPage]);
+  // Back from a sale: its row in view, once.
+  const placed = React.useRef(false);
+  React.useEffect(() => {
+    if (placed.current || !from) return;
+    const at = items.findIndex((item) => item.kind === "row" && item.row.id === from);
+    if (at < 0) return;
+    placed.current = true;
+    windowed.scrollToIndex(at, { align: "center" });
+  }, [from, items, windowed]);
+
+  // The shift’s own figures, not the rows loaded so far.
+  const finding =
+    shiftHere && filters.when === "shift" && filters.what === "all" && filters.paidBy === "any" && !filters.search ? shiftHere : null;
+  const filtered = filters.what !== "all" || filters.paidBy !== "any" || Boolean(filters.search);
+
+  return (
+    <div className="main is-fixed">
+      <div className="bar">
+        <h1>History</h1>
+        <div className="end">
+          <label className="input-wrap is-search">
+            <MagnifyingGlass className="ic" />
+            <input type="search" aria-label="Search my sales" placeholder="Sale, customer or product" value={typed} onChange={(event) => setTyped(event.target.value)} />
+          </label>
+        </div>
+      </div>
+      <div className="bar is-filters" role="group" aria-label="Filters">
+        <Segmented
+          label="When"
+          value={filters.when}
+          options={shiftHere ? WHEN_OPTIONS : WHEN_OPTIONS.filter((option) => option.value !== "shift")}
+          onChange={(when) => setFilters({ when })}
+        />
+        <Segmented label="What happened" value={filters.what} options={WHAT_OPTIONS} onChange={(what) => setFilters({ what })} />
+        {paidByOptions.length > 2 ? (
+          <Segmented label="Paid by" value={filters.paidBy} options={paidByOptions} onChange={(paidBy) => setFilters({ paidBy })} />
+        ) : null}
+      </div>
+      {query.isPending ? (
+        <div className="finding" aria-busy="true">
+          <span className="skeleton is-lede" />
+        </div>
+      ) : query.isError ? (
+        <Empty icon={Receipt} title="Your sales did not load">
+          {getApiErrorMessage(query.error)}
+        </Empty>
+      ) : !rows.length ? (
+        <Empty icon={Receipt} title={filters.search ? `No sale matches “${filters.search}”` : filtered ? "No sales like that" : "No sales yet"}>
+          {filters.search
+            ? "Try the sale number from the receipt, or the customer’s name."
+            : filtered
+              ? "Nothing in this stretch matches. Try All, Any way, or a longer stretch."
+              : "Sales you take show here, newest first."}
+        </Empty>
+      ) : (
+        <div className="table-shell">
+          <div className="table-scroll" ref={scroller}>
+            {finding ? (
+              <div className="finding">
+                <p className="lede-figure">
+                  <span className="num">{usd(finding.netSalesValue)}</span> from your {count(finding.saleCount, "sale")} this shift.{" "}
+                  <span className="q">
+                    {finding.voidCount ? `${finding.voidCount === 1 ? "One" : finding.voidCount} voided` : "None voided"},{" "}
+                    {finding.refundCount ? `${finding.refundCount === 1 ? "one" : finding.refundCount} refunded.` : "none refunded yet."}
+                  </span>
+                </p>
+              </div>
+            ) : null}
+            <div className="windowed" style={{ height: windowed.getTotalSize() }}>
+              {shown.map((virtual) => {
+                const item = items[virtual.index];
+                if (!item) return null;
+                const place = { transform: `translateY(${virtual.start}px)` };
+                if (item.kind === "head") {
+                  return (
+                    <div key={virtual.key} ref={windowed.measureElement} data-index={virtual.index} className="windowed-item" style={place}>
+                      <div className="group-head">
+                        <h2>{item.title}</h2>
+                        <span className="sum">
+                          {count(item.rows.length, "sale")} · {usd(item.rows.reduce((sum, row) => sum + paidOn(row), 0))}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                }
+                const row = item.row;
+                const status = saleStatus(row);
+                return (
+                  <div key={virtual.key} ref={windowed.measureElement} data-index={virtual.index} className={items[virtual.index - 1]?.kind === "head" ? "windowed-item is-lead" : "windowed-item"} style={place}>
+                    <Link className="row is-sale" href={`${base}/${row.id}?${filterText}`} aria-current={row.id === from ? "true" : undefined}>
+                      <span className="code num text-left">{row.saleNo}</span>
+                      <span className="truncate">
+                        <span className="ink">{row.customerName || "Walk-in"}</span> <span className="muted">{count(row.lineCount, "item")}</span>
+                      </span>
+                      <span className={`status ${status.tone}`}>{status.label}</span>
+                      <span className="muted truncate">
+                        {hhmm(row.postedAt)} · {paidBy(row.payments).join(" and ") || "Cash"}
+                        {row.overrideReason ? " · discount approved" : null}
+                      </span>
+                      <span className="num ink">{usd(paidOn(row))}</span>
+                      <CaretRight className="ic" />
+                    </Link>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+          <div className="table-foot">
+            <div className="foot-row">
+              <span className="num text-left">{hasNextPage ? `${rows.length} loaded` : `All ${rows.length}`}</span>
+              {hasNextPage ? <span className="muted">{isFetchingNextPage ? "Loading more…" : "More as you scroll"}</span> : null}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ─── A sale ─────────────────────────────────────────────────────────── */
+
+export function SaleScreen({ id }: { id: string }) {
+  const router = useRouter();
+  const { isPosHost, shiftHere, context } = useTill();
+  const [refunding, setRefunding] = React.useState(false);
+  const [voiding, setVoiding] = React.useState(false);
+  const { filters, text: filterText } = useFilters();
+  const list = useSalesPages(filters, shiftHere?.id ?? null);
+  const query = useQuery({
+    queryKey: ["retail-pos-sale", id],
+    queryFn: async () => (await fetchJson<{ data: SaleDetail }>(`/api/v2/retail/pos/sales/${id}`)).data,
+  });
+  const sale = query.data;
+  const base = getPosPortalHref("history", isPosHost);
+  const rows = list.data?.pages.flatMap((page) => page.data) ?? [];
+  const index = rows.findIndex((row) => row.id === id);
+  const previous = index > 0 ? rows[index - 1] : null;
+  const next = index >= 0 && index < rows.length - 1 ? rows[index + 1] : null;
+
+  if (query.isLoading) {
+    return (
+      <div className="main" aria-busy="true">
+        <div className="rec-head">
+          <span className="skeleton is-title" />
+        </div>
+      </div>
+    );
+  }
+  if (!sale) {
+    return (
+      <div className="main">
+        <Empty icon={Receipt} title="That sale did not load">
+          {getApiErrorMessage(query.error)}
+        </Empty>
+      </div>
+    );
+  }
+
+  const paid = paidOn(sale);
+  const isSale = sale.saleType === "SALE";
+  const refunds = sale.reversals.filter((entry) => entry.saleType === "REFUND");
+  const refundedTotal = refunds.reduce((sum, entry) => sum + Math.abs(paidOn(entry)), 0);
+  const voided = sale.status === "VOIDED";
+  const refundable = sale.lines.some((line) => line.refundableQuantity > 0);
+  const tenders = paidBy(sale.payments);
+  const when = sale.postedAt ?? sale.createdAt;
+  const receiptHref = `${isPosHost ? "" : "/portal/pos"}/receipt/${sale.id}`;
+  // Refunded in part or whole, from what is left to refund on its lines.
+  const refundedLines = sale.lines.filter((line) => line.refundedQuantity > 0).length;
+  const status = saleStatus({
+    ...sale,
+    refunded: !refundedLines ? "NONE" : refundable ? "PART" : "ALL",
+  });
+  const lineCount = sale.lines.length;
+  const change = handedBack(sale);
+  // The feed is newest first; a day heading goes wherever the day changes.
+  const today = dayMonth(new Date());
+  const dayOf = (value: string | null) => dayMonth(value ?? when);
+  const dayHead = (value: string | null) => <div className="feed-day">{dayOf(value) === today ? "Today" : dayOf(value)}</div>;
+  const lastReversal = sale.reversals[sale.reversals.length - 1];
+  const promotionName = sale.promotion?.name ?? sale.promotionCode;
+  const discounted = sale.lines.filter((line) => n(line.discountAmount) > 0);
+  const discounts: Array<{ id: string; text: React.ReactNode }> = isSale
+    ? [
+        ...(promotionName
+          ? discounted.length
+            ? discounted.map((line) => ({
+                id: line.id,
+                text: (
+                  <>
+                    {promotionName} took <b className="nowrap">{usd(n(line.discountAmount))}</b> off {product(line.itemName)}
+                  </>
+                ),
+              }))
+            : [{ id: "promotion", text: `${promotionName} applied` }]
+          : []),
+        ...(sale.overrideReason
+          ? [
+              {
+                id: "override",
+                text: sale.approvedByName ? (
+                  <>
+                    <b>{sale.approvedByName}</b> approved the discount: {sale.overrideReason.charAt(0).toLowerCase()}
+                    {sale.overrideReason.slice(1)}
+                  </>
+                ) : (
+                  `Discount approved: ${sale.overrideReason}`
+                ),
+              },
+            ]
+          : []),
+      ]
+    : [];
+
+  return (
+    <div className="with-rail">
+      <main className="main is-scroll">
+        <div className="bar">
+          <Link className="btn btn-quiet" href={`${base}?${filterText}&from=${sale.id}`}>
+            <CaretLeft className="ic" />
+            History
+          </Link>
+          <div className="end">
+            <div className="btn-group" role="group" aria-label="Move between sales">
+              <button type="button" className="btn btn-icon" aria-label="Newer sale" disabled={!previous} onClick={() => previous && router.push(`${base}/${previous.id}?${filterText}`)}>
+                <CaretLeft className="ic" />
+              </button>
+              <button type="button" className="btn btn-icon" aria-label="Older sale" disabled={!next} onClick={() => next && router.push(`${base}/${next.id}?${filterText}`)}>
+                <CaretRight className="ic" />
+              </button>
+            </div>
+          </div>
+        </div>
+        <div className="rec-head">
+          <div className="grow">
+            <h1>
+              {isSale ? "Sale" : sale.saleType === "REFUND" ? "Refund" : "Void"} {sale.saleNo}
+            </h1>
+            <p className="sub">
+              {[sale.customerName || "Walk-in", hhmm(when), `${sale.cashierName ?? "Someone"} on ${sale.shift?.registerName ?? context?.till.name ?? "a till"}`].join(" · ")}
+            </p>
+          </div>
+          <div className="end">
+            <div className="btn-group" role="group" aria-label="This sale">
+              <button type="button" className="btn" onClick={() => printReceipt(receiptHref)}>
+                <Printer className="ic" />
+                Print receipt
+              </button>
+              {isSale && !voided && !refundedTotal ? (
+                <button type="button" className="btn" onClick={() => setVoiding(true)}>
+                  <ReceiptX className="ic" />
+                  Void
+                </button>
+              ) : null}
+            </div>
+            {isSale && !voided && refundable ? (
+              <button type="button" className="btn btn-primary" onClick={() => setRefunding(true)}>
+                <ArrowsCounterClockwise className="ic" />
+                Refund lines
+              </button>
+            ) : null}
+          </div>
+        </div>
+
+        <div className="feed lead-8">
+          {sale.reversals.map((entry, index) => {
+            const voidEntry = entry.saleType === "VOID";
+            const reason = entry.overrideReason?.trim();
+            const back = entry.lines.map((line) => `${qty(Math.abs(n(line.quantity)))} ${product(line.itemName)}`).join(", ");
+            const by = paidBy(entry.payments).map((label) => label.toLowerCase()).join(" and ");
+            return (
+              <React.Fragment key={entry.id}>
+                {index === 0 || dayOf(entry.postedAt) !== dayOf(sale.reversals[index - 1].postedAt) ? dayHead(entry.postedAt) : null}
+                <div className="ev">
+                  <span className="ev-dot">{voidEntry ? <Prohibit className="ic" /> : <ArrowsCounterClockwise className="ic" />}</span>
+                  <div className="ev-text">
+                    <b>{entry.cashierName ?? "Someone"}</b> {voidEntry ? "voided" : "refunded"}
+                    {back ? ` ${back}` : null}
+                    {reason ? `, ${reason.charAt(0).toLowerCase()}${reason.slice(1)}` : null}, <b className="nowrap">{usd(Math.abs(paidOn(entry)))}</b>
+                    {by ? ` by ${by}` : null}
+                    <Approved by={entry.approvedByName} />
+                    <div className="embed">
+                      <div className="embed-head">
+                        <b className="weight-600">
+                          <Link className="link num" href={`${base}/${entry.id}`}>
+                            {entry.saleNo}
+                          </Link>
+                        </b>
+                        <span className="status">{voidEntry ? "Voided" : "Refunded"}</span>
+                      </div>
+                      {entry.lines.map((line) => (
+                        <div key={line.id} className="embed-line">
+                          <span>
+                            {line.itemName} × {qty(Math.abs(n(line.quantity)))}, back into stock
+                          </span>
+                          <span className="num">{usd(Math.abs(n(line.lineTotal)))}</span>
+                        </div>
+                      ))}
+                      {n(entry.depositAmount) ? (
+                        <div className="embed-line">
+                          <span>Deposits back</span>
+                          <span className="num">{usd(Math.abs(n(entry.depositAmount)))}</span>
+                        </div>
+                      ) : null}
+                    </div>
+                  </div>
+                  {entry.postedAt ? <time>{hhmm(entry.postedAt)}</time> : <span />}
+                </div>
+              </React.Fragment>
+            );
+          })}
+          {!lastReversal || dayOf(lastReversal.postedAt) !== dayOf(when) ? dayHead(when) : null}
+          <div className="ev">
+            <span className="ev-dot is-money">
+              <Money className="ic" />
+            </span>
+            <div className="ev-text">
+              <b>{sale.cashierName ?? "Someone"}</b>{" "}
+              {isSale ? (
+                <>
+                  sold {count(lineCount, "item")}
+                  {sale.customerName ? (
+                    <>
+                      {" "}
+                      to <b>{sale.customerName}</b>
+                    </>
+                  ) : null}
+                  , paid {tenders.length ? `by ${tenders.map((label) => label.toLowerCase()).join(" and ")}` : "in cash"}
+                </>
+              ) : (
+                <>
+                  {sale.saleType === "REFUND" ? "refunded" : "voided"} {sale.sourceSale ? (
+                    <Link className="link num" href={`${base}/${sale.sourceSale.id}`}>
+                      {sale.sourceSale.saleNo}
+                    </Link>
+                  ) : "a sale"}
+                  {sale.voidReason || sale.overrideReason ? `: ${sale.voidReason || sale.overrideReason}` : ""}
+                  <Approved by={sale.approvedByName} />
+                </>
+              )}
+              <div className="embed">
+                <div className="embed-head">
+                  <b className="weight-600">{sale.saleNo}</b>
+                  <span className={`status ${status.tone}`}>{status.label}</span>
+                </div>
+                {sale.lines.map((line) => (
+                  <div key={line.id} className="embed-line">
+                    <span>
+                      {line.itemName} × {qty(Math.abs(n(line.quantity)))}
+                    </span>
+                    <span className="num">{usd(n(line.lineTotal))}</span>
+                  </div>
+                ))}
+                {n(sale.depositAmount) ? (
+                  <div className="embed-line">
+                    <span>Deposits</span>
+                    <span className="num">{usd(n(sale.depositAmount))}</span>
+                  </div>
+                ) : null}
+                <div className="embed-foot">
+                  <span>Total</span>
+                  <span className="num">{usd(paid)}</span>
+                </div>
+              </div>
+            </div>
+            <time>{hhmm(when)}</time>
+          </div>
+          {sale.fiscalReceipt && sale.fiscalReceipt.status !== "SKIPPED" ? (
+            <div className="ev">
+              <span className="ev-dot">
+                <SealCheck className="ic" />
+              </span>
+              <div className="ev-text">
+                {sale.fiscalReceipt.status === "SUCCESS" ? (
+                  <>
+                    ZIMRA fiscalised the receipt{sale.fiscalReceipt.fiscalNumber ? <>, <span className="num">{sale.fiscalReceipt.fiscalNumber}</span></> : null}
+                  </>
+                ) : sale.fiscalReceipt.status === "PENDING" ? (
+                  "Waiting for ZIMRA to fiscalise the receipt"
+                ) : (
+                  `ZIMRA did not fiscalise it: ${sale.fiscalReceipt.lastError ?? "no answer"}`
+                )}
+              </div>
+              <time>{hhmm(when)}</time>
+            </div>
+          ) : null}
+          {sale.idCheckedAt ? (
+            <div className="ev">
+              <span className="ev-dot">
+                <IdentificationCard className="ic" />
+              </span>
+              <div className="ev-text">
+                {firstName(sale.cashierName)} checked the customer’s ID: 18 or over
+              </div>
+              <time>{hhmm(sale.idCheckedAt)}</time>
+            </div>
+          ) : null}
+          {discounts.map((entry, index) => (
+            <div key={entry.id} className={`ev${index === discounts.length - 1 ? " end" : ""}`}>
+              <span className="ev-dot">
+                <Tag className="ic" />
+              </span>
+              <div className="ev-text">{entry.text}</div>
+              <time>{hhmm(when)}</time>
+            </div>
+          ))}
+        </div>
+      </main>
+      <aside className="rail" aria-label="About this sale">
+        <section>
+          <div className="sec-title">{isSale ? "Paid" : sale.saleType === "REFUND" ? "Paid back" : "Cancelled"}</div>
+          <div className="figure">{usd(Math.abs(paid))}</div>
+          <dl className="attrs">
+            <dt>By</dt>
+            <dd>{tenders.join(" and ") || "Cash"}</dd>
+            {sale.payments
+              .filter((payment) => payment.reference)
+              .map((payment) => (
+                <React.Fragment key={payment.id}>
+                  <dt>Reference</dt>
+                  <dd className="num text-left">
+                    {payment.reference}
+                  </dd>
+                </React.Fragment>
+              ))}
+            {change.usd || change.zig ? (
+              <>
+                <dt>Change</dt>
+                <dd className="num text-left">
+                  {change.zig ? `${usd(change.usd)} and ${zig(change.zig)}` : usd(change.usd)}
+                </dd>
+              </>
+            ) : null}
+            {isSale ? (
+              <>
+                <dt>Refunded</dt>
+                <dd>
+                  {refundedTotal ? (
+                    <>
+                      {usd(refundedTotal)}
+                      {refunds.map((entry) => (
+                        <React.Fragment key={entry.id}>
+                          , <span className="num">{entry.saleNo}</span>
+                        </React.Fragment>
+                      ))}
+                    </>
+                  ) : (
+                    <span className="muted">Nothing</span>
+                  )}
+                </dd>
+              </>
+            ) : null}
+            {sale.empties.length ? (
+              <>
+                <dt>Empties</dt>
+                <dd>{emptiesWords(sale.empties)}</dd>
+              </>
+            ) : null}
+          </dl>
+        </section>
+        {sale.customerName ? (
+          <section>
+            <div className="sec-title">Customer</div>
+            <div className="who-head">
+              <Avatar name={sale.customerName} />
+              <div>
+                <div className="ink weight-500">{sale.customerName}</div>
+                {sale.customer ? (
+                  <div className="note num text-left">
+                    {[sale.customer.phone, tierWord(sale.customer.tier)].filter(Boolean).join(" · ")}
+                  </div>
+                ) : null}
+              </div>
+            </div>
+            {sale.customer && isSale ? (
+              <dl className="attrs">
+                <dt>Points</dt>
+                <dd>{pointsWords(sale.customer)}</dd>
+              </dl>
+            ) : null}
+          </section>
+        ) : null}
+      </aside>
+      {refunding ? <RefundDialog sale={sale} shiftId={shiftHere?.id ?? null} onClose={() => setRefunding(false)} /> : null}
+      {voiding ? <VoidDialog sale={sale} shiftId={shiftHere?.id ?? null} onClose={() => setVoiding(false)} /> : null}
+    </div>
+  );
+}
+
+function invalidateSale(queryClient: ReturnType<typeof useQueryClient>) {
+  void queryClient.invalidateQueries({ queryKey: ["retail-pos-sale"] });
+  void queryClient.invalidateQueries({ queryKey: ["retail-pos-sales"] });
+  void queryClient.invalidateQueries({ queryKey: ["retail-current-shift"] });
+}
+
+function RefundDialog({ sale, shiftId, onClose }: { sale: SaleDetail; shiftId: string | null; onClose: () => void }) {
+  const queryClient = useQueryClient();
+  const { rules, canApprove, referenceProblem } = useTill();
+  const ids = React.useId();
+  const reasons = rules?.refundReasons ?? [];
+  const [back, setBack] = React.useState<Record<string, number>>({});
+  const [why, setWhy] = React.useState(reasons[0] ?? "");
+  const [reference, setReference] = React.useState("");
+  const [problem, setProblem] = React.useState<string | null>(null);
+  const tender = sale.payments.find((payment) => payment.tenderType !== "CASH")?.tenderType ?? "CASH";
+  // The goods' share of the line and, with them, the bottles' deposit, as the server works it out.
+  const lineBack = (line: SaleDetail["lines"][number], quantity: number) => {
+    const sold = Math.abs(n(line.quantity));
+    if (!quantity || !sold) return 0;
+    const deposit = depositBack(
+      { quantity: sold, depositAmount: n(line.depositAmount), depositRefunded: line.depositRefunded },
+      quantity,
+      line.refundableQuantity,
+    );
+    return cents(Math.abs(n(line.lineTotal)) * (quantity / sold)) + deposit;
+  };
+  const amount = cents(sale.lines.reduce((sum, line) => sum + lineBack(line, back[line.id] ?? 0), 0));
+  // The rules' limit is on the sale's refunds together.
+  const alreadyBack = sale.reversals.filter((entry) => entry.saleType === "REFUND").reduce((sum, entry) => sum + Math.abs(paidOn(entry)), 0);
+  const fields = useManagerPin(
+    !canApprove && rules && amount + alreadyBack > Number(rules.refundPinOver) ? refundPinSentence(rules.refundPinOver, rules.currency) : null,
+  );
+  const items = Object.values(back).reduce((sum, value) => sum + value, 0);
+  const backNames = sale.lines.filter((line) => (back[line.id] ?? 0) > 0).map((line) => product(line.itemName));
+
+  const refund = useMutation({
+    mutationFn: () =>
+      fetchJson(`/api/v2/retail/pos/sales/${sale.id}/refund`, {
+        method: "POST",
+        body: JSON.stringify({
+          shiftId,
+          reason: why,
+          lines: Object.entries(back)
+            .filter(([, value]) => value > 0)
+            .map(([saleLineId, quantity]) => ({ saleLineId, quantity })),
+          payments: [{ tenderType: tender, amount, reference: reference.trim() || undefined }],
+          ...fields.approver(),
+        }),
+      }),
+    onSuccess: () => {
+      invalidateSale(queryClient);
+      onClose();
+    },
+    onError: (error) => setProblem(fields.refused(error)),
+  });
+
+  const submit = () => {
+    if (!shiftId) return setProblem("Open a shift on this till first: the money comes out of its drawer.");
+    if (!items) return setProblem("Say what comes back: one or more of a line.");
+    if (!why) return setProblem("Say why it came back.");
+    const missing = referenceProblem({ tenderType: tender, amount: String(amount), reference });
+    if (missing) return setProblem(missing);
+    if (!fields.ready) return setProblem("A manager types their PIN to approve it.");
+    setProblem(null);
+    refund.mutate();
+  };
+
+  return (
+    <TillDialog
+      open
+      large
+      onOpenChange={(open) => !open && onClose()}
+      title={`Refund from ${sale.saleNo}`}
+      meta={`${sale.customerName || "Walk-in"} · paid by ${paidBy(sale.payments).map((label) => label.toLowerCase()).join(" and ") || "cash"}`}
+      foot={
+        <>
+          {fields.asks ? (
+            <span className="start">
+              <Key className="ic" />
+              {fields.asks}
+            </span>
+          ) : null}
+          <button type="button" className="btn" onClick={onClose}>
+            <X className="ic" />
+            Cancel
+          </button>
+          <button type="button" className="btn btn-primary" disabled={refund.isPending} aria-busy={refund.isPending || undefined} onClick={submit}>
+            <ArrowsCounterClockwise className="ic" />
+            Refund {usd(amount)}
+          </button>
+        </>
+      }
+    >
+      <table className="table">
+        <thead>
+          <tr>
+            <th>Product</th>
+            <th className="num">Sold</th>
+            <th className="num">Back</th>
+            <th className="num">Refund</th>
+          </tr>
+        </thead>
+        <tbody>
+          {sale.lines.map((line) => {
+            const value = back[line.id] ?? 0;
+            return (
+              <tr key={line.id}>
+                <td>
+                  <span className="cell-lead">{line.itemName}</span>
+                </td>
+                <td className="num">{qty(Math.abs(n(line.quantity)))}</td>
+                <td className="num">
+                  <span className="qty" role="group" aria-label={`${line.itemName} back`}>
+                    <button type="button" aria-label={`One fewer ${line.itemName}`} disabled={value === 0} onClick={() => setBack({ ...back, [line.id]: value - 1 })}>
+                      <Minus className="ic" />
+                    </button>
+                    <span>{value}</span>
+                    <button
+                      type="button"
+                      aria-label={`One more ${line.itemName}`}
+                      disabled={value >= line.refundableQuantity}
+                      onClick={() => setBack({ ...back, [line.id]: value + 1 })}
+                    >
+                      <Plus className="ic" />
+                    </button>
+                  </span>
+                </td>
+                <td className={value ? "num ink" : "num muted"}>
+                  {value ? usd(lineBack(line, value)) : "—"}
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+        <tfoot>
+          <tr>
+            <td>{count(items, "item")} back</td>
+            <td />
+            <td />
+            <td className="num">{usd(amount)}</td>
+          </tr>
+        </tfoot>
+      </table>
+      <div className="field-row">
+        <div className="field">
+          <label htmlFor={`${ids}w`}>Why</label>
+          <select id={`${ids}w`} className="select input-lg" value={why} onChange={(event) => setWhy(event.target.value)}>
+            {reasons.map((entry) => (
+              <option key={entry}>{entry}</option>
+            ))}
+          </select>
+          <span className="help">
+            {backNames.length ? `The ${backNames.join(" and ")} ${backNames.length > 1 ? "go" : "goes"} back into stock.` : "What comes back goes back into stock."}
+          </span>
+        </div>
+        <div className="field">
+          {tender === "CASH" ? <span className="label">Back by cash</span> : <label htmlFor={`${ids}r`}>Back by {paymentLabel(tender).toLowerCase()}</label>}
+          {tender === "CASH" ? (
+            <p className="help is-flush">
+              From this till’s drawer.
+            </p>
+          ) : (
+            <>
+              <input
+                id={`${ids}r`}
+                className="input input-lg num text-left"
+                placeholder="Reference"
+                aria-describedby={`${ids}rh`}
+                value={reference}
+                onChange={(event) => setReference(event.target.value)}
+              />
+              <span id={`${ids}rh`} className="help">
+                From the message confirming the money went to {sale.customerName ? firstName(sale.customerName) : "the customer"}.
+              </span>
+            </>
+          )}
+        </div>
+      </div>
+      <ManagerFields fields={fields} ids={ids} />
+      {problem ? <ErrorLine>{problem}</ErrorLine> : null}
+    </TillDialog>
+  );
+}
+
+function VoidDialog({ sale, shiftId, onClose }: { sale: SaleDetail; shiftId: string | null; onClose: () => void }) {
+  const router = useRouter();
+  const queryClient = useQueryClient();
+  const { isPosHost, rules, canApprove } = useTill();
+  const ids = React.useId();
+  const reasons = rules?.voidReasons ?? [];
+  // "After 5 minutes" is judged from when Void was pressed.
+  const [openedAt] = React.useState(() => Date.now());
+  const age = openedAt - new Date(sale.postedAt ?? sale.createdAt).getTime();
+  const locked = rules?.voidPin === "ALWAYS" || (rules?.voidPin === "AFTER_5_MINUTES" && age > VOID_FREE_MS);
+  const fields = useManagerPin(!canApprove && rules && locked ? voidPinSentence(rules.voidPin) : null);
+  const [reason, setReason] = React.useState(reasons[0] ?? "");
+  const [problem, setProblem] = React.useState<string | null>(null);
+  const tenders = paidBy(sale.payments).map((label) => label.toLowerCase());
+
+  const voidSale = useMutation({
+    mutationFn: () =>
+      fetchJson(`/api/v2/retail/pos/sales/${sale.id}/void`, {
+        method: "POST",
+        body: JSON.stringify({ shiftId, reason, ...fields.approver() }),
+      }),
+    onSuccess: () => {
+      invalidateSale(queryClient);
+      onClose();
+      router.push(getPosPortalHref("history", isPosHost));
+    },
+    onError: (error) => setProblem(fields.refused(error)),
+  });
+
+  return (
+    <TillDialog
+      open
+      onOpenChange={(open) => !open && onClose()}
+      title={`Void ${sale.saleNo}?`}
+      description={`${sale.customerName || "Walk-in"}, ${count(sale.lines.length, "item")}, ${usd(paidOn(sale))} ${tenders.join(" and ") || "cash"}. The whole sale is cancelled: back in stock and out of the drawer count. A void stays on the record and cannot be reversed. To take back part of a sale, refund it.`}
+      foot={
+        <>
+          <button type="button" className="btn" onClick={onClose}>
+            <X className="ic" />
+            Keep the sale
+          </button>
+          <button
+            type="button"
+            className="btn btn-danger"
+            disabled={voidSale.isPending}
+            aria-busy={voidSale.isPending || undefined}
+            onClick={() => {
+              if (!shiftId) return setProblem("Open a shift on this till first: the cash goes back out of its drawer.");
+              if (!reason) return setProblem("Say why it is voided.");
+              if (!fields.ready) return setProblem("A manager types their PIN to approve it.");
+              setProblem(null);
+              voidSale.mutate();
+            }}
+          >
+            <Prohibit className="ic" />
+            Void {sale.saleNo}
+          </button>
+        </>
+      }
+    >
+      <div className="field">
+        <label htmlFor={`${ids}r`}>Reason</label>
+        <select id={`${ids}r`} className="select input-lg" value={reason} onChange={(event) => setReason(event.target.value)}>
+          {reasons.map((entry) => (
+            <option key={entry}>{entry}</option>
+          ))}
+        </select>
+        {fields.asks ? <span className="help">{fields.asks}</span> : null}
+      </div>
+      <ManagerFields fields={fields} ids={ids} />
+      {problem ? <ErrorLine>{problem}</ErrorLine> : null}
+    </TillDialog>
+  );
+}

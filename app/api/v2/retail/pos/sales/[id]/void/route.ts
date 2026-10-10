@@ -1,23 +1,29 @@
 import { NextRequest, NextResponse } from "next/server";
+import { requirePosDevice } from "@/lib/retail/devices";
 import { z } from "zod";
 import { errorResponse, successResponse } from "@/lib/api-response";
 import { parseRetailParams, retailIdParams } from "@/lib/retail/request";
-import { canRetailRoleDo } from "@/lib/retail/permissions";
-import {
-  managerOverrideSchema,
-  verifyManagerOverride,
-  withApprover,
-} from "@/lib/retail/manager-override";
+import { requireRetailPermission } from "@/lib/retail/permissions";
+import { approverSchema, tillRuleResponse } from "@/lib/retail/manager-pin";
+import { doneOffline } from "@/lib/retail/till-rules";
 import { requireRetailSession } from "../../../../_helpers";
 import { voidRetailSaleTransaction } from "../../../../_services";
+import { fiscaliseAfterPosting } from "@/lib/retail/fiscalisation";
 
 const voidSchema = z.object({
   shiftId: z.string().uuid(),
-  reason: z.string().min(3).max(240),
+  /** One of the till rules' void reasons (SET-06). */
+  reason: z.string().min(1).max(240),
   periodOverrideReason: z.string().max(500).optional().nullable(),
   notes: z.string().max(500).optional().nullable(),
-  /** A manager approving this at the till. See the refund route beside this one. */
-  managerOverride: managerOverrideSchema.optional(),
+  /** A manager's till PIN, when "Voids need a manager PIN" asks for one. See the refund route beside this one. */
+  approver: approverSchema.optional().nullable(),
+  /**
+   * When the till voided it, set only by the offline queue. Done offline
+   * (more than a minute before it arrives), it is judged leniently: what the
+   * rules would refuse now goes in, marked for a manager to look at.
+   */
+  voidedAt: z.string().datetime().optional(),
 });
 
 export async function POST(
@@ -29,11 +35,11 @@ export async function POST(
     return response as NextResponse;
   }
 
-  /*
-    The matrix, not the role list — `requireRetailPos` admitted a cashier, who
-    `RUN_A_TILL` deliberately does not grant `void`. See the refund route beside
-    this one for the full reasoning.
-  */
+  const gate = requireRetailPermission(session, "retail.sell", "void");
+  if (gate) return gate;
+  const { device, response: deviceResponse } = await requirePosDevice(request, session);
+  if (deviceResponse) return deviceResponse;
+
   try {
     /*
     R-3.1. The segment, through a schema.
@@ -48,29 +54,7 @@ export async function POST(
     const body = await request.json();
     const input = voidSchema.parse(body);
 
-    /*
-      The matrix, or a manager standing here. `requireRetailPos` used to admit a
-      cashier, who `RUN_A_TILL` deliberately does not grant `void`; the override
-      is what keeps voids reachable at a till the portal admits only cashiers
-      to. See the refund route beside this one for the full reasoning.
-    */
-    let reason = input.reason.trim();
-    let approvedBy: { id: string; name: string } | null = null;
-    if (!canRetailRoleDo(session.user.role, "retail.sell", "void")) {
-      if (!input.managerOverride) {
-        return errorResponse("A manager must approve this void", 403);
-      }
-      const approval = await verifyManagerOverride({
-        companyId: session.user.companyId,
-        override: input.managerOverride,
-        action: "void",
-      });
-      if (!approval.ok) return errorResponse(approval.error, 403);
-      reason = withApprover(reason, approval.approver.name);
-      approvedBy = approval.approver;
-    }
-
-    const { sale, accounting } = await voidRetailSaleTransaction({
+    const { sale, accounting, fiscal: assigned } = await voidRetailSaleTransaction({
       actor: {
         companyId: session.user.companyId,
         userId: session.user.id,
@@ -80,13 +64,16 @@ export async function POST(
       },
       saleId: id,
       shiftId: input.shiftId,
-      // Carries the approver's name when a manager signed this off at the counter.
-      reason,
-      // And the approval itself, so the service's own role guard knows about it.
-      approvedBy,
+      reason: input.reason,
+      approver: input.approver ?? null,
+      offlineAt: input.voidedAt && doneOffline(new Date(input.voidedAt), new Date()) ? new Date(input.voidedAt) : null,
       notes: input.notes ?? null,
       periodOverrideReason: input.periodOverrideReason ?? null,
+      deviceId: device.id,
     });
+
+    // Its credit note, signed in its commit (SET-08), goes to ZIMRA now.
+    const fiscal = await fiscaliseAfterPosting({ companyId: session.user.companyId, saleId: sale.id, assigned });
 
     return successResponse({
       id: sale.id,
@@ -102,11 +89,16 @@ export async function POST(
       lines: sale.lines,
       payments: sale.payments,
       overrideReason: sale.overrideReason,
+      // The manager whose PIN let it through; null when nobody had to.
+      approvedByName: sale.approvedByName,
       notes: sale.notes,
       accountingStatus: accounting.accountingStatus,
       accountingError: accounting.accountingError,
+      fiscal,
     }, 201);
   } catch (error) {
+    const refused = tillRuleResponse(error);
+    if (refused) return refused;
     if (error instanceof z.ZodError) {
       return errorResponse("Validation failed", 400, error.issues);
     }

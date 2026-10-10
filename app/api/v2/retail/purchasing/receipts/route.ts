@@ -6,8 +6,15 @@ import { normalizeProvidedId, reserveIdentifier } from "@/lib/id-generator";
 import { recordStockMovement } from "@/lib/inventory/stock-movements";
 import { money, multiplyMoney, sumMoney, toNumberOrZero } from "@/lib/money";
 import { prisma } from "@/lib/prisma";
-import { auditGoodsReceived } from "@/lib/retail/audit";
+import { auditGoodsReceived, RETAIL_AUDIT_EVENTS, writeRetailAuditEvent } from "@/lib/retail/audit";
 import { requireRetailPermission } from "@/lib/retail/permissions";
+import {
+  isOpenForDelivery,
+  matchDeliveryToOrder,
+  OrderRefused,
+  orderStatusFor,
+  outstanding,
+} from "@/lib/retail/purchase-orders";
 import {
   ensureInventoryItemAccess,
   ensureLocationAccess,
@@ -21,6 +28,8 @@ const receiptLineSchema = z.object({
   quantity: z.number().positive(),
   unitCost: z.number().min(0),
   locationId: z.string().uuid().optional().nullable(),
+  /** The order line this fills, when the delivery form knew it. */
+  purchaseOrderLineId: z.string().uuid().optional().nullable(),
 });
 
 const receiptSchema = z.object({
@@ -31,6 +40,11 @@ const receiptSchema = z.object({
   periodOverrideReason: z.string().max(500).optional().nullable(),
   notes: z.string().max(500).optional().nullable(),
   lines: z.array(receiptLineSchema).min(1),
+  /**
+   * The order is complete with this delivery: stop waiting for whatever it
+   * still owes. Left off, a short delivery leaves the rest owed.
+   */
+  closeRest: z.boolean().optional(),
 });
 
 export async function GET(request: NextRequest) {
@@ -114,6 +128,20 @@ export async function POST(request: NextRequest) {
           include: { lines: true },
         })
       : null;
+    if (input.purchaseOrderId && !purchaseOrder) {
+      return errorResponse("Purchase order not found", 404);
+    }
+    if (purchaseOrder && !isOpenForDelivery(purchaseOrder.status)) {
+      return errorResponse(
+        purchaseOrder.status === "CLOSED"
+          ? `${purchaseOrder.poNo} is closed. Reopen it to book a delivery against it.`
+          : `Everything on ${purchaseOrder.poNo} has already come.`,
+        409,
+      );
+    }
+    if (purchaseOrder && purchaseOrder.siteId !== site.id) {
+      return errorResponse(`${purchaseOrder.poNo} is for another branch.`, 409);
+    }
 
     const normalizedLines = await Promise.all(
       input.lines.map(async (line) => {
@@ -137,6 +165,7 @@ export async function POST(request: NextRequest) {
           location,
           quantity: line.quantity,
           unitCost: line.unitCost,
+          purchaseOrderLineId: line.purchaseOrderLineId ?? null,
         };
       }),
     );
@@ -178,6 +207,22 @@ export async function POST(request: NextRequest) {
         //    physically arrived. The goods facts commit first; the journal is
         //    posted against the committed receipt and its status is reported.
         const receipt = await prisma.$transaction(async (tx) => {
+          // Matched inside the transaction, against the order as it is now, so
+          // two deliveries booked at once cannot both fill the same shortfall.
+          const orderLines = purchaseOrder
+            ? await tx.retailPurchaseOrderLine.findMany({ where: { purchaseOrderId: purchaseOrder.id } })
+            : [];
+          const matched = purchaseOrder
+            ? matchDeliveryToOrder(
+                orderLines,
+                normalizedLines.map((line) => ({
+                  inventoryItemId: line.inventoryItem.id,
+                  quantity: line.quantity,
+                  purchaseOrderLineId: line.purchaseOrderLineId,
+                })),
+              )
+            : normalizedLines.map(() => null);
+
           const created = await tx.retailGoodsReceipt.create({
             data: {
               companyId: session.user.companyId,
@@ -190,9 +235,10 @@ export async function POST(request: NextRequest) {
               receivedById: session.user.id,
               postedAt: new Date(),
               lines: {
-                create: normalizedLines.map((line) => ({
+                create: normalizedLines.map((line, index) => ({
                   companyId: session.user.companyId,
                   inventoryItemId: line.inventoryItem.id,
+                  purchaseOrderLineId: matched[index],
                   itemName: line.inventoryItem.name,
                   quantity: line.quantity,
                   unitCost: line.unitCost,
@@ -215,6 +261,8 @@ export async function POST(request: NextRequest) {
               toLocationId: line.location.id,
               notes: `Retail receipt ${created.receiptNo}`,
               sourceType: "RETAIL_GOODS_RECEIPT",
+              reason: "RECEIVED",
+              reference: created.receiptNo,
               sourceId: `${created.id}:${line.inventoryItem.id}`,
               entryDate: created.postedAt ?? new Date(),
               tx,
@@ -222,32 +270,57 @@ export async function POST(request: NextRequest) {
           }
 
           if (purchaseOrder) {
-            for (const line of normalizedLines) {
-              const matchingLine = purchaseOrder.lines.find(
-                (orderLine) => orderLine.inventoryItemId === line.inventoryItem.id,
-              );
-              if (matchingLine) {
-                await tx.retailPurchaseOrderLine.update({
-                  where: { id: matchingLine.id },
-                  data: {
-                    receivedQuantity: {
-                      increment: line.quantity,
-                    },
-                  },
-                });
-              }
+            for (const [index, line] of normalizedLines.entries()) {
+              const orderLineId = matched[index];
+              if (!orderLineId) continue;
+              const orderLine = orderLines.find((row) => row.id === orderLineId)!;
+              await tx.retailPurchaseOrderLine.update({
+                where: { id: orderLineId },
+                data: {
+                  receivedQuantity: { increment: line.quantity },
+                  // A line ordered by name becomes the product that came.
+                  ...(orderLine.inventoryItemId ? {} : { inventoryItemId: line.inventoryItem.id }),
+                },
+              });
             }
 
             const refreshedLines = await tx.retailPurchaseOrderLine.findMany({
               where: { purchaseOrderId: purchaseOrder.id },
             });
-            const allReceived = refreshedLines.every(
-              (line) => line.receivedQuantity >= line.quantity,
-            );
+            const status = orderStatusFor(refreshedLines, false);
+            const closing = input.closeRest === true && status === "PARTIAL";
             await tx.retailPurchaseOrder.update({
               where: { id: purchaseOrder.id },
-              data: { status: allReceived ? "RECEIVED" : "PARTIAL" },
+              data: closing
+                ? {
+                    status: "CLOSED",
+                    closedAt: new Date(),
+                    closedById: session.user.id,
+                    closeNote: `Closed on delivery ${receiptNo}`,
+                  }
+                : { status },
             });
+            if (closing) {
+              await writeRetailAuditEvent(tx, {
+                actor: {
+                  companyId: session.user.companyId,
+                  userId: session.user.id,
+                  userName: session.user.name ?? null,
+                  userRole: session.user.role ?? null,
+                },
+                eventType: RETAIL_AUDIT_EVENTS.orderClosed,
+                entityType: "RetailPurchaseOrder",
+                entityId: purchaseOrder.id,
+                reason: `Closed on delivery ${receiptNo}`,
+                payload: {
+                  poNo: purchaseOrder.poNo,
+                  supplier: purchaseOrder.supplierName,
+                  owed: refreshedLines
+                    .filter((line) => outstanding(line).greaterThan(0))
+                    .map((line) => ({ itemName: line.itemName, quantity: outstanding(line).toString() })),
+                },
+              });
+            }
           }
 
           /*
@@ -329,6 +402,7 @@ export async function POST(request: NextRequest) {
     if (error instanceof z.ZodError) {
       return errorResponse("Validation failed", 400, error.issues);
     }
+    if (error instanceof OrderRefused) return errorResponse(error.message, 409);
     return errorResponse(error instanceof Error ? error.message : "Failed to post receipt", 400);
   }
 }

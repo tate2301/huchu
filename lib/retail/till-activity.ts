@@ -51,9 +51,8 @@
 
 import type { Prisma } from "@prisma/client";
 
-import { money, type MoneyLike } from "@/lib/money";
+import { money, toBaseAmount, type MoneyLike } from "@/lib/money";
 import {
-  RETAIL_CASH_MOVEMENT_LABELS,
   RETAIL_CASH_MOVEMENT_REASON_LABELS,
   cashMovementDirection,
   type RetailCashMovementReasonCode,
@@ -76,14 +75,17 @@ export {
   TILL_ACTIVITY_KINDS,
   TILL_ACTIVITY_LABELS,
   filterTillActivity,
+  wasApproved,
   type TillActivityEntry,
   type TillActivityKind,
 } from "./till-activity-shared";
 
 import {
   TILL_ACTIVITY_KINDS as ACTIVITY_KINDS,
+  type TillActivityDiscount,
   type TillActivityEntry,
   type TillActivityKind,
+  type TillActivitySale,
 } from "./till-activity-shared";
 
 export type TillActivitySaleRow = {
@@ -97,9 +99,22 @@ export type TillActivitySaleRow = {
   cashierName: string | null;
   customerName: string | null;
   overrideReason: string | null;
+  /** The manager whose PIN let the discount, refund or void through; null when nobody had to. */
+  approvedByName: string | null;
   postedAt: Date | string | null;
   createdAt: Date | string;
   shiftNo: string | null;
+  /** Quote units per base unit; the lines are priced in the sale's own currency. */
+  exchangeRate?: MoneyLike;
+  /** The sale a refund or a void reverses. */
+  sourceSale?: {
+    id: string;
+    saleNo: string;
+    customerName: string | null;
+    baseAmount: MoneyLike;
+  } | null;
+  /** The lines that came off the shelf price, for the override's sentence. */
+  discountLines?: Array<{ itemName: string; discountAmount: MoneyLike }>;
 };
 
 export type TillActivityMovementRow = {
@@ -145,11 +160,55 @@ const SALE_KIND: Record<TillActivitySaleRow["saleType"], TillActivityKind> = {
   VOID: "void",
 };
 
-const SALE_TITLE: Record<TillActivitySaleRow["saleType"], string> = {
-  SALE: "Sale",
-  REFUND: "Refund",
-  VOID: "Void",
+/** The fields each kind of entry leaves empty, so every entry carries the whole shape. */
+const NOT_A_SALE: Pick<TillActivityEntry, "saleNo" | "customerName" | "tendered" | "sale" | "discounts" | "approvedBy"> = {
+  saleNo: null,
+  customerName: null,
+  tendered: null,
+  sale: null,
+  discounts: [],
+  approvedBy: null,
 };
+const NOT_CASH: Pick<TillActivityEntry, "cashType" | "reasonLabel"> = { cashType: null, reasonLabel: null };
+const NOT_A_SHIFT: Pick<TillActivityEntry, "shiftEvent" | "registerName" | "variance"> = {
+  shiftEvent: null,
+  registerName: null,
+  variance: null,
+};
+const NOT_CASH_OR_SHIFT = { ...NOT_CASH, ...NOT_A_SHIFT };
+
+/**
+ * The sale an event is about, so the screen can write "of Tapiwa's US$14.30 on
+ * S-005078" and link to it. A reversal points at the sale it reversed; an
+ * override at the sale it was given on. In base currency, like `amount`.
+ */
+function subjectOf(sale: TillActivitySaleRow): TillActivitySale | null {
+  if (sale.saleType === "SALE") {
+    return {
+      id: sale.id,
+      saleNo: sale.saleNo,
+      customerName: trimmed(sale.customerName),
+      total: signed(money(sale.baseAmount)),
+    };
+  }
+  if (!sale.sourceSale) return null;
+  return {
+    id: sale.sourceSale.id,
+    saleNo: sale.sourceSale.saleNo,
+    customerName: trimmed(sale.sourceSale.customerName) ?? trimmed(sale.customerName),
+    total: signed(money(sale.sourceSale.baseAmount).abs()),
+  };
+}
+
+/** What each discounted line took off, converted to base so it sits beside the total. */
+function discountsOf(sale: TillActivitySaleRow): TillActivityDiscount[] {
+  return (sale.discountLines ?? [])
+    .filter((line) => money(line.discountAmount).greaterThan(0))
+    .map((line) => ({
+      itemName: line.itemName,
+      amount: signed(toBaseAmount(line.discountAmount, sale.exchangeRate ?? 1)),
+    }));
+}
 
 /**
  * A sale row becomes one entry — or two, when a manager signed off a price on it.
@@ -165,24 +224,26 @@ export function saleActivityEntries(sale: TillActivitySaleRow): TillActivityEntr
   // Only worth saying when the two disagree — a ZWG sale in a USD-based shop.
   const currencyNote =
     tendered.equals(baseAmount) ? null : `${sale.currency} ${tendered.abs().toFixed(2)}`;
-
-  const detail = [trimmed(sale.customerName), currencyNote].filter(Boolean).join(" · ") || null;
+  const own = { ...NOT_CASH_OR_SHIFT, saleNo: sale.saleNo, customerName: trimmed(sale.customerName) };
 
   const entries: TillActivityEntry[] = [
     {
       id: `sale:${sale.id}`,
       kind: SALE_KIND[sale.saleType],
       at,
-      title: `${SALE_TITLE[sale.saleType]} ${sale.saleNo}`,
-      // On a reversal `overrideReason` is the reason for the reversal itself, so
-      // it belongs here rather than on an override line that never happened.
-      detail:
-        sale.saleType === "SALE"
-          ? detail
-          : [trimmed(sale.overrideReason), detail].filter(Boolean).join(" · ") || null,
       actor: trimmed(sale.cashierName),
       amount: signed(baseAmount),
       shiftNo: sale.shiftNo,
+      ...own,
+      tendered: currencyNote,
+      // A plain sale is its own subject; a reversal needs the sale it reversed.
+      sale: sale.saleType === "SALE" ? null : subjectOf(sale),
+      // On a reversal `overrideReason` is the reason for the reversal itself, so
+      // it belongs here rather than on an override line that never happened.
+      reason: sale.saleType === "SALE" ? null : trimmed(sale.overrideReason),
+      discounts: [],
+      // A sale's approver approved its discount, and says so on the override line.
+      approvedBy: sale.saleType === "SALE" ? null : trimmed(sale.approvedByName),
     },
   ];
 
@@ -192,13 +253,17 @@ export function saleActivityEntries(sale: TillActivitySaleRow): TillActivityEntr
       id: `override:${sale.id}`,
       kind: "override",
       at,
-      title: `Price override on ${sale.saleNo}`,
-      detail: override,
       actor: trimmed(sale.cashierName),
       // The override's own value is not a column anywhere; showing the sale's
       // total beside it would read as the size of the discount, which it is not.
       amount: null,
       shiftNo: sale.shiftNo,
+      ...own,
+      tendered: null,
+      sale: subjectOf(sale),
+      reason: override,
+      discounts: discountsOf(sale),
+      approvedBy: trimmed(sale.approvedByName),
     });
   }
 
@@ -215,14 +280,14 @@ export function movementActivityEntry(
     id: `cash:${movement.id}`,
     kind: "cash",
     at: iso(movement.createdAt),
-    title: RETAIL_CASH_MOVEMENT_LABELS[movement.type],
-    detail:
-      [RETAIL_CASH_MOVEMENT_REASON_LABELS[movement.reasonCode], trimmed(movement.reason)]
-        .filter(Boolean)
-        .join(" · ") || null,
     actor: trimmed(movement.recordedByName),
     amount: signed(amount),
     shiftNo: movement.shiftNo,
+    ...NOT_A_SALE,
+    ...NOT_A_SHIFT,
+    reason: trimmed(movement.reason),
+    cashType: movement.type,
+    reasonLabel: RETAIL_CASH_MOVEMENT_REASON_LABELS[movement.reasonCode],
   };
 }
 
@@ -240,11 +305,15 @@ export function shiftActivityEntries(shift: TillActivityShiftRow): TillActivityE
       id: `shift-open:${shift.id}`,
       kind: "shift",
       at: iso(shift.openedAt),
-      title: `Till opened · ${shift.shiftNo}`,
-      detail: `${shift.registerName} · float counted in`,
       actor: trimmed(shift.cashierName),
       amount: signed(money(shift.openingFloat)),
       shiftNo: shift.shiftNo,
+      ...NOT_A_SALE,
+      ...NOT_CASH,
+      reason: null,
+      shiftEvent: "open",
+      registerName: shift.registerName,
+      variance: null,
     },
   ];
 
@@ -254,14 +323,15 @@ export function shiftActivityEntries(shift: TillActivityShiftRow): TillActivityE
       id: `shift-close:${shift.id}`,
       kind: "shift",
       at: iso(shift.closedAt),
-      title: `Till closed · ${shift.shiftNo}`,
-      detail:
-        variance === null || variance.isZero()
-          ? `${shift.registerName} · drawer agreed`
-          : `${shift.registerName} · drawer ${variance.isNegative() ? "short" : "over"} ${variance.abs().toFixed(2)}`,
       actor: trimmed(shift.cashierName),
       amount: shift.countedCash === null ? null : signed(money(shift.countedCash)),
       shiftNo: shift.shiftNo,
+      ...NOT_A_SALE,
+      ...NOT_CASH,
+      reason: null,
+      shiftEvent: "close",
+      registerName: shift.registerName,
+      variance: variance === null ? null : signed(variance),
     });
   }
 

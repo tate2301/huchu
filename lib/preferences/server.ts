@@ -14,10 +14,12 @@ export async function requirePreferencesAccess(itemId?: string) {
     const user = session.user as {
       role?: string;
       enabledFeatures?: string[];
+      workspaceProfile?: string;
     };
     const allowed = canViewPreferenceItem(itemId, {
       role: user.role,
       enabledFeatures: user.enabledFeatures,
+      workspaceProfile: user.workspaceProfile,
     });
 
     if (!allowed) {

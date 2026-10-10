@@ -1,15 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
+import { requirePosDevice } from "@/lib/retail/devices";
 import { z } from "zod";
+import { RETAIL_TENDER_TYPES } from "@/lib/accounting/source-types";
 import { errorResponse, successResponse } from "@/lib/api-response";
 import { parseRetailParams, retailIdParams } from "@/lib/retail/request";
-import { canRetailRoleDo } from "@/lib/retail/permissions";
-import {
-  managerOverrideSchema,
-  verifyManagerOverride,
-  withApprover,
-} from "@/lib/retail/manager-override";
+import { requireRetailPermission } from "@/lib/retail/permissions";
+import { approverSchema, tillRuleResponse } from "@/lib/retail/manager-pin";
+import { doneOffline } from "@/lib/retail/till-rules";
 import { requireRetailSession } from "../../../../_helpers";
 import { refundRetailSaleTransaction } from "../../../../_services";
+import { fiscaliseAfterPosting } from "@/lib/retail/fiscalisation";
 
 const refundLineSchema = z.object({
   saleLineId: z.string().uuid(),
@@ -17,27 +17,31 @@ const refundLineSchema = z.object({
 });
 
 const refundPaymentSchema = z.object({
-  tenderType: z.enum(["CASH", "CARD", "MOBILE_MONEY", "TRANSFER", "VOUCHER"]),
+  tenderType: z.enum(RETAIL_TENDER_TYPES),
   amount: z.number().positive(),
   reference: z.string().max(120).optional().nullable(),
 });
 
 const refundSchema = z.object({
   shiftId: z.string().uuid(),
-  reason: z.string().min(3).max(240),
+  /** One of the till rules' refund reasons (SET-06). */
+  reason: z.string().min(1).max(240),
   periodOverrideReason: z.string().max(500).optional().nullable(),
   notes: z.string().max(500).optional().nullable(),
   lines: z.array(refundLineSchema).min(1),
   payments: z.array(refundPaymentSchema).min(1),
   /**
-   * A manager approving this at the till, when the cashier may not.
-   *
-   * The refund has to be rung at a till because the cash comes out of a real
-   * drawer and lands against `shiftId` at cash-up — a manager in the back
-   * office has no drawer to take it from. So the manager comes to the counter
-   * and approves the one act. See `lib/retail/manager-override.ts`.
+   * A manager approving this with their till PIN, when the till rules ask
+   * for one (a refund over "Manager PIN for refunds over"). Without it the
+   * server answers 409 `needsApprover` and the till opens its PIN dialog.
    */
-  managerOverride: managerOverrideSchema.optional(),
+  approver: approverSchema.optional().nullable(),
+  /**
+   * When the till refunded it, set only by the offline queue. Done offline
+   * (more than a minute before it arrives), it is judged leniently: what the
+   * rules would refuse now goes in, marked for a manager to look at.
+   */
+  refundedAt: z.string().datetime().optional(),
 });
 
 export async function POST(
@@ -48,6 +52,10 @@ export async function POST(
   if (response || !session) {
     return response as NextResponse;
   }
+  const gate = requireRetailPermission(session, "retail.sell", "refund");
+  if (gate) return gate;
+  const { device, response: deviceResponse } = await requirePosDevice(request, session);
+  if (deviceResponse) return deviceResponse;
 
   try {
     /*
@@ -63,40 +71,7 @@ export async function POST(
     const body = await request.json();
     const input = refundSchema.parse(body);
 
-    /**
-     * S-7.7 — the matrix, or a manager standing here.
-     *
-     * This used to be `requireRetailPos`, which admits `RETAIL_MANAGER_ROLES`
-     * **plus `CASHIER`** — so a cashier could POST a refund straight at this
-     * endpoint and reverse a posted sale that the till's own history screen
-     * would never have offered them a button for. `RUN_A_TILL` in
-     * `lib/retail/permissions.ts` withholds `refund` deliberately. The endpoint
-     * being the only thing that disagreed is what made it a hole rather than a
-     * difference of opinion, and `route-guard-coverage.test.ts` could not see
-     * it because there *was* a gate here — just the wrong one.
-     *
-     * The override is the other half. Withholding `refund` from a cashier left
-     * reversals unreachable from the shop floor entirely, because the portal
-     * admits nobody else. A manager approves the one act at the counter, and
-     * their name goes onto the reversal.
-     */
-    let reason = input.reason.trim();
-    let approvedBy: { id: string; name: string } | null = null;
-    if (!canRetailRoleDo(session.user.role, "retail.sell", "refund")) {
-      if (!input.managerOverride) {
-        return errorResponse("A manager must approve this refund", 403);
-      }
-      const approval = await verifyManagerOverride({
-        companyId: session.user.companyId,
-        override: input.managerOverride,
-        action: "refund",
-      });
-      if (!approval.ok) return errorResponse(approval.error, 403);
-      reason = withApprover(reason, approval.approver.name);
-      approvedBy = approval.approver;
-    }
-
-    const { sale, accounting } = await refundRetailSaleTransaction({
+    const { sale, accounting, fiscal: assigned } = await refundRetailSaleTransaction({
       actor: {
         companyId: session.user.companyId,
         userId: session.user.id,
@@ -106,15 +81,18 @@ export async function POST(
       },
       saleId: id,
       shiftId: input.shiftId,
-      // Carries the approver's name when a manager signed this off at the counter.
-      reason,
-      // And the approval itself, so the service's own role guard knows about it.
-      approvedBy,
+      reason: input.reason,
+      approver: input.approver ?? null,
+      offlineAt: input.refundedAt && doneOffline(new Date(input.refundedAt), new Date()) ? new Date(input.refundedAt) : null,
       notes: input.notes ?? null,
       periodOverrideReason: input.periodOverrideReason ?? null,
       lines: input.lines,
       payments: input.payments,
+      deviceId: device.id,
     });
+
+    // Its credit note, signed in its commit (SET-08), goes to ZIMRA now.
+    const fiscal = await fiscaliseAfterPosting({ companyId: session.user.companyId, saleId: sale.id, assigned });
 
     return successResponse({
       id: sale.id,
@@ -125,16 +103,22 @@ export async function POST(
       siteId: sale.siteId,
       sourceSaleId: sale.sourceSaleId,
       totalAmount: sale.totalAmount,
+      depositAmount: sale.depositAmount,
       tenderedAmount: sale.tenderedAmount,
       postedAt: sale.postedAt ?? sale.createdAt,
       lines: sale.lines,
       payments: sale.payments,
       overrideReason: sale.overrideReason,
+      // The manager whose PIN let it through; null when nobody had to.
+      approvedByName: sale.approvedByName,
       notes: sale.notes,
       accountingStatus: accounting.accountingStatus,
       accountingError: accounting.accountingError,
+      fiscal,
     }, 201);
   } catch (error) {
+    const refused = tillRuleResponse(error);
+    if (refused) return refused;
     if (error instanceof z.ZodError) {
       return errorResponse("Validation failed", 400, error.issues);
     }

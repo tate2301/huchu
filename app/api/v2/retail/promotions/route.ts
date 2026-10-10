@@ -26,7 +26,7 @@ export async function GET(request: NextRequest) {
 
   // R-2.3. A promotion is a price, so it is the shelf's question, not its own.
   // The till has to know what is on offer before it can apply one.
-  const gate = requireRetailPermission(session, "retail.catalog", "view");
+  const gate = requireRetailPermission(session, "retail.promotions", "view");
   if (gate) return gate;
 
   const { searchParams } = new URL(request.url);
@@ -36,7 +36,8 @@ export async function GET(request: NextRequest) {
   const posOnly =
     searchParams.get("pos") === "1" || (status === "ACTIVE" && !includeUnsupported);
 
-  const where: Prisma.RetailPromotionWhereInput = { companyId: session.user.companyId };
+  // What is in the bin is not on the list; Setup › Bin restores it.
+  const where: Prisma.RetailPromotionWhereInput = { companyId: session.user.companyId, archivedAt: null };
   if (status && status !== "all") {
     const parsed = RetailPromotionStatus[status as keyof typeof RetailPromotionStatus];
     if (!parsed) return errorResponse(`Unknown status "${status}"`, 400);
@@ -74,7 +75,7 @@ export async function POST(request: NextRequest) {
     return response as NextResponse;
   }
 
-  const gate = requireRetailPermission(session, "retail.catalog", "create");
+  const gate = requireRetailPermission(session, "retail.promotions", "create");
   if (gate) return gate;
 
   try {

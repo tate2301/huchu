@@ -1,5 +1,4 @@
 import {
-  ArrowDownward,
   BarChart3,
   Building2,
   Calendar,
@@ -61,6 +60,8 @@ import {
 import { PEOPLE_TABS } from "@/lib/people/tab-config";
 import { PAYROLL_TABS } from "@/lib/payroll/tab-config";
 import { hasRole, type UserRole } from "@/lib/roles";
+import { RETAIL_NAV_ITEMS } from "@/lib/retail/nav";
+import type { RetailAction, RetailResource } from "@/lib/retail/permission-matrix";
 import type { SchoolAction, SchoolResource } from "@/lib/schools/access";
 
 // Who may reach People and Payroll at all. Mirrored as a Set in `proxy.ts`,
@@ -90,6 +91,17 @@ export type NavItem = {
   grant?: SchoolNavGrant;
   /** Where this row sits in a `ranked` section. See `NavRank`. */
   rank?: NavRank;
+  /**
+   * Retail only: the grants that show this item, any of them
+   * (00-foundations 5.3.4). Checked with `canRetailRoleDo`; the server still
+   * refuses on its own, hiding is never the check.
+   */
+  requires?: Array<[RetailResource, RetailAction]>;
+  /**
+   * Matches its own path only, not the pages under it. A workspace's Overview
+   * at its root (`/retail`) is not the parent of every page in the workspace.
+   */
+  exact?: boolean;
 };
 
 /**
@@ -639,30 +651,14 @@ export const navSections: NavSection[] = [
   {
     id: "retail",
     title: "Retail",
-    description: "Overview, sales, range and stock, purchasing, customers, shifts, reports, and setup",
+    description: "The floor, products, stock, buying, insights and management",
     featureKey: "retail.core",
-    // The only definition of retail's nav items, and every href is a route that
-    // exists. It used to be a second list of alias paths (`/retail/sell`,
-    // `/retail/buy`, …) whose sole purpose was to carry a feature key for
-    // `lib/workspaces.ts` to probe, which meant every surface was gated on
-    // `retail.core` here while the page itself enforced a tighter key. The
-    // real paths carry their own keys in the route registry, so gating and
-    // enforcement now agree.
-    items: [
-      { href: "/retail", icon: Wallet, label: "Overview" },
-      { href: "/retail/sales", icon: ClipboardList, label: "Sales" },
-      { href: "/retail/shifts", icon: ReceiptLong, label: "Shifts" },
-      { href: "/retail/customers", icon: Users, label: "Customers" },
-      { href: "/retail/catalog", icon: TableRows, label: "Products" },
-      { href: "/retail/merchandising/pricing", icon: Coins, label: "Prices" },
-      { href: "/retail/merchandising/promotions", icon: ReceiptLong, label: "Promotions" },
-      { href: "/retail/stock", icon: Package, label: "Stock" },
-      { href: "/retail/stock/count", icon: ClipboardList, label: "Stock counts" },
-      { href: "/retail/stock/transfers", icon: ArrowDownward, label: "Transfers" },
-      { href: "/retail/purchasing/orders", icon: Package, label: "Orders" },
-      { href: "/retail/purchasing/receipts", icon: LocalShipping, label: "Deliveries" },
-      { href: "/retail/reports", icon: BarChart3, label: "Insights" },
-    ],
+    // Retail's nav items live one file per module in `lib/retail/nav/`
+    // (00-foundations 5.3.4, 99-coverage 4.1 rule 4): every href a route that
+    // exists, labelled and drawn as the canvas draws it, with `requires` as
+    // the role visibility. The route registry still gates each path on the
+    // tenant's features.
+    items: RETAIL_NAV_ITEMS,
   },
   {
     // Retail's customer ledger, not the CRM module. It used to share the id
@@ -827,6 +823,15 @@ export const navSections: NavSection[] = [
         href: "/crm/settings",
         icon: ManageAccounts,
         label: "Settings",
+        roles: ["SUPERADMIN", "MANAGER"],
+        group: "setup",
+      },
+      // What reps are asked on site and the quote it drafts, built here; the
+      // enquiry forms and reports made from them are listed beside it.
+      {
+        href: "/crm/build",
+        icon: Grid3x3,
+        label: "Build",
         roles: ["SUPERADMIN", "MANAGER"],
         group: "setup",
       },

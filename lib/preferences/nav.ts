@@ -31,7 +31,18 @@ export type PreferencesNavItem = {
 export type PreferencesAccessInput = {
   role?: string | null;
   enabledFeatures?: string[] | undefined;
+  /** The company's workspace profile from the session ("RETAIL", stored as "THRIFT"). */
+  workspaceProfile?: string | null;
 };
+
+/**
+ * A shop manages its sites in Setup › Sites (10-setup SET-02; 98-decisions,
+ * owner direction 8): the operations sites register here is a mining one.
+ */
+function isRetailWorkspace(profile: string | null | undefined): boolean {
+  const normalized = String(profile ?? "").trim().toUpperCase();
+  return normalized === "RETAIL" || normalized === "THRIFT";
+}
 
 export const ACCOUNT_PREFERENCES_ITEMS: PreferencesNavItem[] = [
   {
@@ -151,6 +162,7 @@ export function canViewPreferenceItem(
     return isOrgAdminRole(role) && hasTokenFeature(enabledFeatures, "admin.user-management.directory");
   }
   if (itemId === "sites") {
+    if (isRetailWorkspace(input.workspaceProfile)) return false;
     return isOrgAdminRole(role) && hasTokenFeature(enabledFeatures, "admin.sites-sections");
   }
   if (itemId === "departments") {

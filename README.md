@@ -1,6 +1,6 @@
-# Huchu Operations Platform
+# Corelith Operations Platform
 
-Huchu is a multi-tenant operations and ERP platform built on Next.js, Prisma, PostgreSQL, and feature-gated workspace modules. The same runtime powers tenant workspaces, external portals, platform administration, industry packs, reporting, document output, and operator tooling.
+Corelith is a multi-tenant operations and ERP platform built on Next.js, Prisma, PostgreSQL, and feature-gated workspace modules. The same runtime powers tenant workspaces, external portals, platform administration, industry packs, reporting, document output, and operator tooling.
 
 This README is the developer entry point. For deeper product context, start with `docs/system-reference/README.md`, then use this file for day-to-day setup, commands, and contribution workflow.
 
@@ -83,7 +83,7 @@ Copy-Item .env.example .env
    random bytes (`openssl rand -base64 32`):
 
 ```env
-DATABASE_URL="postgresql://huchu:huchu_dev@localhost:5432/huchu_mines?schema=public"
+DATABASE_URL="postgresql://Corelith:Corelith_dev@localhost:5432/Corelith_mines?schema=public"
 NEXTAUTH_SECRET="<openssl rand -base64 32>"
 NEXTAUTH_URL="http://acme.apps.localtest.me:3000"
 PLATFORM_ROOT_DOMAIN="apps.localtest.me"
@@ -175,7 +175,7 @@ workspace.
 
 `dev:down` kills whatever is listening on the dev port if it belongs to this
 repo, so it also clears the stray `pnpm dev` that has been holding 3000 since
-this morning. Data lives in the `huchu_pgdata` Docker volume and survives
+this morning. Data lives in the `Corelith_pgdata` Docker volume and survives
 `dev:down`; only `--wipe` removes it.
 
 Set `POSTGRES_PORT` in the environment if 5432 is already taken on your machine,
@@ -458,7 +458,7 @@ Use the existing backfill scripts as references for production data repair and h
 
 ## Environment Variables
 
-See `.env.example` for a copyable template. Important variables include:
+See `.env.example` for a copyable template. Important variables include
 
 | Variable | Purpose |
 | --- | --- |
@@ -584,4 +584,4 @@ Run `pnpm db:generate`, confirm `BLOB_READ_WRITE_TOKEN` when artifact storage is
 
 ## License
 
-Copyright 2026 Huchu Enterprises. All rights reserved.
+Copyright 2026 Corelith Enterprises. All rights reserved.

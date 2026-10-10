@@ -3,7 +3,7 @@ import { validateSession, successResponse, errorResponse } from "@/lib/api-utils
 import { prisma } from "@/lib/prisma"
 import { createJournalEntryFromSource } from "@/lib/accounting/posting"
 import { z } from "zod"
-import { reserveIdentifier } from "@/lib/id-generator"
+import { recordStockMovement } from "@/lib/inventory/stock-movements"
 import { exceeds, multiplyMoney, quantity, ZERO } from "@/lib/money"
 
 const inventoryItemUpdateSchema = z
@@ -146,14 +146,6 @@ export async function PATCH(
       validated.currentStock === undefined
         ? ZERO
         : quantity(validated.currentStock).minus(quantity(existing.currentStock))
-    const adjustmentReferenceId =
-      !stockDelta.isZero()
-        ? await reserveIdentifier(prisma, {
-            companyId: session.user.companyId,
-            entity: "STOCK_MOVEMENT",
-          })
-        : null
-
     const { item, adjustmentMovement } = await prisma.$transaction(async (tx) => {
       const updatedItem = await tx.inventoryItem.update({
         where: { id },
@@ -163,37 +155,41 @@ export async function PATCH(
           siteId: validated.siteId,
           locationId: validated.locationId,
           unit: validated.unit,
-          currentStock: validated.currentStock,
           minStock: validated.minStock,
           maxStock: validated.maxStock,
           unitCost: validated.unitCost,
         },
+      })
+
+      // On hand moves only through the one movement service, so the ledger's
+      // balance after this edit is the figure that was typed in.
+      const movement = stockDelta.isZero()
+        ? null
+        : (
+            await recordStockMovement({
+              tx,
+              companyId: session.user.companyId,
+              userId: session.user.id,
+              itemId: updatedItem.id,
+              movementType: "ADJUSTMENT",
+              quantity: stockDelta,
+              unit: updatedItem.unit,
+              notes: `Auto adjustment from manual stock edit (${existing.currentStock} -> ${validated.currentStock})`,
+              sourceType: "STOCK_ADJUSTMENT",
+              reason: null,
+              reference: null,
+            })
+          ).movement
+
+      const item = await tx.inventoryItem.findUniqueOrThrow({
+        where: { id },
         include: {
           site: { select: { name: true, code: true } },
           location: { select: { name: true } },
         },
       })
 
-      let movement: { id: string; createdAt: Date } | null = null
-      if (!stockDelta.isZero()) {
-        movement = await tx.stockMovement.create({
-          data: {
-            referenceId: adjustmentReferenceId!,
-            itemId: updatedItem.id,
-            movementType: "ADJUSTMENT",
-            quantity: stockDelta,
-            unit: updatedItem.unit,
-            issuedById: session.user.id,
-            notes: `Auto adjustment from manual stock edit (${existing.currentStock} -> ${updatedItem.currentStock})`,
-          },
-          select: {
-            id: true,
-            createdAt: true,
-          },
-        })
-      }
-
-      return { item: updatedItem, adjustmentMovement: movement }
+      return { item, adjustmentMovement: movement }
     })
 
     if (adjustmentMovement) {

@@ -3,7 +3,7 @@
 import * as React from "react";
 
 import { useIsBelow } from "@/hooks/use-mobile";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Popover, PopoverAnchor, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   Sheet,
   SheetContent,
@@ -31,6 +31,12 @@ import { cn } from "@/lib/utils";
  *
  * The trigger is the caller's own element either way, so keyboard and pointer
  * behaviour on a desktop is exactly the Radix popover it was before.
+ *
+ * `anchor` opens it from another element instead (a filter chip whose menu
+ * just closed): no trigger is drawn, the popover sits under the anchor, and
+ * focus goes back to the anchor when it closes. A phone sheet has nothing to
+ * sit under, so it only takes the focus back.
+ * `initialFocus` is what takes focus on opening, in both shapes.
  */
 export function ResponsivePopover({
   open,
@@ -45,16 +51,21 @@ export function ResponsivePopover({
   className,
   /** Classes for the region that holds `children` in both shapes. */
   contentClassName,
+  anchor,
+  initialFocus,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  trigger: React.ReactNode;
+  /** The caller's control; none when it opens from `anchor`. */
+  trigger?: React.ReactNode;
   title: React.ReactNode;
   children: React.ReactNode;
   align?: React.ComponentProps<typeof PopoverContent>["align"];
   sideOffset?: number;
   className?: string;
   contentClassName?: string;
+  anchor?: React.RefObject<HTMLElement | null>;
+  initialFocus?: React.RefObject<HTMLElement | null>;
 }) {
   const compact = useIsBelow(640);
 
@@ -84,14 +95,29 @@ export function ResponsivePopover({
     return () => document.removeEventListener("keydown", onKeyDown, { capture: true });
   }, [compact, open, onOpenChange]);
 
+  const focusFirst = initialFocus
+    ? (event: Event) => {
+        if (!initialFocus.current) return;
+        event.preventDefault();
+        initialFocus.current.focus();
+      }
+    : undefined;
+
+  const backToAnchor = anchor
+    ? (event: Event) => {
+        event.preventDefault();
+        anchor.current?.focus();
+      }
+    : undefined;
+
   if (compact) {
     return (
       <Sheet open={open} onOpenChange={onOpenChange}>
-        <SheetTrigger asChild>{trigger}</SheetTrigger>
+        {trigger ? <SheetTrigger asChild>{trigger}</SheetTrigger> : null}
         {/* `size="lg"` is a cap, not a height — the sheet is as tall as what
             is in it. A picker with three options should not open a panel with
             room for twenty. */}
-        <SheetContent side="bottom" size="lg" className="p-0">
+        <SheetContent side="bottom" size="lg" className="p-0" onOpenAutoFocus={focusFirst} onCloseAutoFocus={backToAnchor}>
           <SheetHeader className="px-4 pb-2 pt-1 text-left">
             <SheetTitle className="text-base">{title}</SheetTitle>
           </SheetHeader>
@@ -105,8 +131,18 @@ export function ResponsivePopover({
 
   return (
     <Popover open={open} onOpenChange={onOpenChange}>
-      <PopoverTrigger asChild>{trigger}</PopoverTrigger>
-      <PopoverContent align={align} sideOffset={sideOffset} className={className}>
+      {anchor ? (
+        <PopoverAnchor virtualRef={anchor as React.RefObject<HTMLElement>} />
+      ) : trigger ? (
+        <PopoverTrigger asChild>{trigger}</PopoverTrigger>
+      ) : null}
+      <PopoverContent
+        align={align}
+        sideOffset={sideOffset}
+        className={className}
+        onOpenAutoFocus={focusFirst}
+        onCloseAutoFocus={backToAnchor}
+      >
         <div className={contentClassName}>{children}</div>
       </PopoverContent>
     </Popover>

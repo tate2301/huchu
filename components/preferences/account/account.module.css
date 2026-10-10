@@ -215,17 +215,17 @@
     align-items: center;
     height: 34px;
     padding: 0 16px;
-    border: 1px solid var(--brand);
+    border: 1px solid var(--action-primary-bg);
     border-radius: var(--radius-md);
-    background: var(--brand); /* #0B5DF0 */
+    background: var(--action-primary-bg);
     font: 500 13px/1.4 var(--font-sans);
-    color: #ffffff;
+    color: var(--action-primary-fg);
     cursor: pointer;
   }
 
   .dialogSubmit:hover {
-    background: var(--brand-strong);
-    border-color: var(--brand-strong);
+    background: var(--action-primary-hover);
+    border-color: var(--action-primary-hover);
   }
 
   .dialogSubmit:disabled {
@@ -279,41 +279,41 @@
     text-align: left;
   }
 
+  /* Chosen reads as solid ink, never orange (G1): orange is the primary
+     action's, the focus ring's and the ticks'. */
   .themeCard[aria-current="true"] {
-    border: 2px solid var(--brand); /* #0B5DF0 */
+    border: 2px solid var(--ink);
   }
 
   .themeCard:focus-visible {
-    outline: none;
-    border-color: var(--brand);
-    box-shadow: 0 0 0 3px rgba(11, 93, 240, 0.22);
+    outline: 2px solid var(--action);
+    outline-offset: 3px;
   }
 
   /*
     The preview is a picture of a theme, not a surface painted in the current
-    one, so its colours are literal rather than tokens. `--canvas`,
-    `--surface`, `--text-body` and `--text-strong` all flip under
-    `[data-theme="dark"]` — token-painted previews invert with the page, and
-    the Light card draws itself almost black the moment somebody picks Dark.
-    The values are the board's, and they are the light palette's own
-    #F7F8FA / #FFFFFF / #E5E8EE / #262A33 / #16181D.
+    one, so its colours are literal rather than roles: the roles flip under
+    `tender-dark`, and a role-painted Light card would draw itself almost
+    black the moment somebody picks Dark. The values are Tender's own —
+    ground, surface and line in light (#FAF7F4 / #FFFFFF / #ECE6E0) and dark
+    (#171310 / #1E1915) from `app/themes/roles.css`.
   */
   .themePreview {
     display: block;
     height: 78px;
   }
 
-  .themePreview[data-theme="light"] {
-    background: #f7f8fa;
-    border-bottom: 1px solid #e5e8ee;
+  .themePreview[data-choice="light"] {
+    background: #faf7f4;
+    border-bottom: 1px solid #ece6e0;
   }
 
-  .themePreview[data-theme="dark"] {
-    background: #262a33;
+  .themePreview[data-choice="dark"] {
+    background: #171310;
   }
 
-  .themePreview[data-theme="system"] {
-    background: linear-gradient(90deg, #f7f8fa 50%, #262a33 50%);
+  .themePreview[data-choice="system"] {
+    background: linear-gradient(90deg, #faf7f4 50%, #171310 50%);
   }
 
   /* The sidebar in the little drawing of a window. */
@@ -323,13 +323,13 @@
     height: 100%;
   }
 
-  .themePreview[data-theme="light"] .themeSidebar {
+  .themePreview[data-choice="light"] .themeSidebar {
     background: #ffffff;
-    border-right: 1px solid #e5e8ee;
+    border-right: 1px solid #ece6e0;
   }
 
-  .themePreview[data-theme="dark"] .themeSidebar {
-    background: #16181d;
+  .themePreview[data-choice="dark"] .themeSidebar {
+    background: #1e1915;
   }
 
   .themeLabel {

@@ -101,88 +101,6 @@ function formatMomentDay(iso: string) {
 
 
 
-// ── Initialize wizard ─────────────────────────────────────────────────────────
-
-function InitializeWizardDialog({
-  open,
-  onOpenChange,
-}: {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-}) {
-  const queryClient = useQueryClient();
-  const [step, setStep] = useState<"confirm" | "running" | "done">("confirm");
-  const [error, setError] = useState<string | null>(null);
-
-  const mutation = useMutation({
-    mutationFn: () => fetchJson("/api/accounting/setup", { method: "POST" }),
-    onMutate: () => { setStep("running"); setError(null); },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["accounting-summary"] });
-      setStep("done");
-    },
-    onError: (err) => {
-      setError(getApiErrorMessage(err));
-      setStep("confirm");
-    },
-  });
-
-  function handleClose(open: boolean) {
-    if (!open) { setStep("confirm"); setError(null); }
-    onOpenChange(open);
-  }
-
-  return (
-    <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="max-w-sm">
-        <DialogHeader>
-          <DialogTitle>Initialize Accounting Defaults</DialogTitle>
-          <DialogDescription>
-            Sets up the core accounting configuration for your company — tax categories, default periods, and system accounts.
-          </DialogDescription>
-        </DialogHeader>
-
-        {step === "confirm" && (
-          <div className="space-y-4 pt-1">
-            {error && <p className="text-sm text-destructive">{error}</p>}
-            <ul className="space-y-1.5 text-sm text-muted-foreground">
-              {["Default tax categories", "Opening accounting period", "System control accounts", "Base posting configuration"].map((item) => (
-                <li key={item} className="flex items-center gap-2">
-                  <span className="size-1.5 shrink-0 rounded-full bg-[var(--action-primary-bg)]" />
-                  {item}
-                </li>
-              ))}
-            </ul>
-            <div className="flex justify-end gap-2 pt-1">
-              <Button variant="outline" size="sm" onClick={() => handleClose(false)}>Cancel</Button>
-              <Button size="sm" onClick={() => mutation.mutate()}>
-                <RefreshCcw className="mr-1.5 size-3.5" />
-                Initialize
-              </Button>
-            </div>
-          </div>
-        )}
-
-        {step === "running" && (
-          <div className="flex flex-col items-center gap-3 py-6 text-center">
-            <RefreshCcw className="size-6 animate-spin text-[var(--action-primary-bg)]" />
-            <p className="text-sm text-muted-foreground">Setting up defaults…</p>
-          </div>
-        )}
-
-        {step === "done" && (
-          <div className="space-y-4 pt-1">
-            <p className="text-sm text-muted-foreground">Accounting defaults have been initialized successfully.</p>
-            <div className="flex justify-end">
-              <Button size="sm" onClick={() => handleClose(false)}>Done</Button>
-            </div>
-          </div>
-        )}
-      </DialogContent>
-    </Dialog>
-  );
-}
-
 // ── Foundation Pack wizard ────────────────────────────────────────────────────
 
 const PACK_LABELS: [string, keyof AccountingSeedPackResult, keyof AccountingSeedPackResult["preview"]][] = [
@@ -379,7 +297,6 @@ export default function AccountingOverviewPage() {
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [branchId, setBranchId] = useState("all");
-  const [initOpen, setInitOpen] = useState(false);
   const [foundationOpen, setFoundationOpen] = useState(false);
 
   const { data: branches } = useQuery({
@@ -751,10 +668,6 @@ export default function AccountingOverviewPage() {
                 </Link>
               </DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuItem onSelect={() => setInitOpen(true)}>
-                <RefreshCcw className="mr-2 size-4" />
-                Initialize accounting defaults
-              </DropdownMenuItem>
               <DropdownMenuItem onSelect={() => setFoundationOpen(true)}>
                 <Package className="mr-2 size-4" />
                 Apply foundation pack
@@ -962,7 +875,6 @@ export default function AccountingOverviewPage() {
       </div>
 
 
-      <InitializeWizardDialog open={initOpen} onOpenChange={setInitOpen} />
       <FoundationPackDialog open={foundationOpen} onOpenChange={setFoundationOpen} />
     </AccountingShell>
   );

@@ -1,0 +1,423 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   WORKSPACE — the Corelith Workspace component layer (00-foundations 5.2).
+
+   Ported from the Corelith Workspace bundle (G1), with the canvas winning where
+   the two differ (98-decisions, foundations question 9):
+     - a sheet is 520px, 760px when wide (not 560/720);
+     - the totals band sits on `--ground` under `--shadow-pin` (not `--tray`);
+     - a ticked row is `--selected` (not `--sel-bg`);
+     - the scrim is `--scrim`.
+   The one thing G1 adds to the canvas is the selected state: a chosen segment,
+   an on switch, a chosen chip, the current nav item, step and page are solid
+   ink (`--sel-fill`) with `--on-sel` text at 600.
+
+   Every rule reads a role from `roles.css`, so the same markup answers in
+   Tender, Tender dark and Corelith. Unlayered and imported after `roles.css`.
+   The React wrappers live in `components/workspace/`.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.cx { font-family: var(--font-sans); font-size: 13px; line-height: 1.4; color: var(--ink); -webkit-font-smoothing: antialiased; }
+.cx-mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+
+/* Focus: one ring for every control (5.1.5). */
+:is(.cx-btn, .cx-seg__item, .cx-switch, .cx-switch-row, .cx-chip, .cx-option, .cx-tab, .cx-filter, .cx-filter__clear,
+  .cx-nav__item, .cx-ref, .cx-pager__page, .cx-tag__remove, .cx-photo, .cx-photo__action):focus-visible,
+:is(.cx-input, .cx-textarea):focus-visible,
+:is(.cx-money, .cx-pick, .cx-tags):focus-within {
+  outline: 2px solid var(--action);
+  outline-offset: 3px;
+}
+:is(.cx-input, .cx-textarea, .cx-money input, .cx-pick input, .cx-tags input):focus { outline: none; }
+:is(.cx-input, .cx-textarea):focus-visible { outline: 2px solid var(--action); }
+
+/* ── Buttons ─────────────────────────────────────────────── */
+.cx-btn { height: 32px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 0 12px; border: 1px solid var(--line-strong); border-radius: 8px; background: var(--surface); color: var(--ink); font: inherit; font-size: 13px; font-weight: 500; line-height: 1; white-space: nowrap; text-decoration: none; cursor: pointer; }
+.cx-btn:hover { background: var(--hover); }
+.cx-btn:active { background: var(--active); }
+.cx-btn:disabled, .cx-btn[aria-disabled="true"] { opacity: 0.6; cursor: default; }
+.cx-btn svg { width: 14px; height: 14px; flex: none; }
+.cx-btn--primary { border-color: transparent; background: var(--action-fill); color: var(--on-action); font-weight: 600; padding: 0 14px; }
+.cx-btn--primary:hover, .cx-btn--primary:active { background: var(--action-fill); filter: brightness(0.94); }
+.cx-btn--ghost { border-color: transparent; background: transparent; color: var(--ink-2); }
+.cx-btn--danger { border-color: var(--bad-soft); color: var(--bad); }
+.cx-btn--danger-fill { border-color: transparent; background: var(--bad); color: var(--on-sel); font-weight: 600; }
+.cx-btn--danger-fill:hover, .cx-btn--danger-fill:active { background: var(--bad); filter: brightness(0.94); }
+.cx-btn--field { height: 36px; font-size: 14px; }
+.cx-btn--icon { width: 32px; padding: 0; }
+.cx-btn--field.cx-btn--icon { width: 36px; }
+.cx-btn__spin { animation: cx-spin 0.8s linear infinite; }
+@keyframes cx-spin { to { transform: rotate(360deg); } }
+.cx-group { display: inline-flex; }
+.cx-group > .cx-btn { border-radius: 0; margin-left: -1px; }
+.cx-group > .cx-btn:first-child { border-radius: 8px 0 0 8px; margin-left: 0; }
+.cx-group > .cx-btn:last-child { border-radius: 0 8px 8px 0; }
+.cx-group > .cx-btn:only-child { border-radius: 8px; }
+.cx-group > .cx-btn:focus-visible { position: relative; z-index: 1; }
+
+/* ── Selected: solid ink (G1) ─────────────────────────────── */
+/* Segmented: an inset track; the chosen segment sits 3px inside it, in ink. */
+.cx-seg { display: inline-flex; align-items: stretch; gap: 2px; padding: 3px; border-radius: 10px; background: var(--tray); }
+.cx-seg--block { display: flex; }
+.cx-seg--block .cx-seg__item { flex: 1 1 0; }
+.cx-seg__item { flex: none; min-width: 0; min-height: 30px; display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 4px 12px; border: 0; border-radius: 7px; background: transparent; color: var(--ink-2); font: inherit; font-size: 13px; font-weight: 500; line-height: 1.25; white-space: nowrap; cursor: pointer; }
+.cx-seg__item:hover { background: var(--active); color: var(--ink); }
+.cx-seg__item:disabled { opacity: 0.6; cursor: default; }
+.cx-seg__item[aria-pressed="true"], .cx-seg__item[aria-checked="true"], .cx-seg__item[aria-selected="true"] { background: var(--sel-fill); color: var(--on-sel); font-weight: 600; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.18); }
+.cx-seg--field .cx-seg__item { min-height: 30px; font-size: 13px; line-height: 1.2; white-space: normal; text-align: center; }
+/* A form's segmented field (98-decisions 9): the board's row of equal white cells with borders and dividers, not a
+   track. Only the chosen cell is selected: solid ink, white text. */
+.cx-seg--field { gap: 0; padding: 0; border-radius: 8px; background: transparent; }
+.cx-seg--field .cx-seg__item { min-height: 36px; padding: 4px 8px; margin-left: -1px; border: 1px solid var(--line-strong); border-radius: 0; background: var(--surface); color: var(--ink); font-weight: 400; box-shadow: none; }
+.cx-seg--field .cx-seg__item:first-child { margin-left: 0; border-radius: 8px 0 0 8px; }
+.cx-seg--field .cx-seg__item:last-child { border-radius: 0 8px 8px 0; }
+.cx-seg--field .cx-seg__item:only-child { border-radius: 8px; }
+.cx-seg--field .cx-seg__item:hover { background: var(--hover); }
+.cx-seg--field .cx-seg__item[aria-pressed="true"], .cx-seg--field .cx-seg__item[aria-checked="true"], .cx-seg--field .cx-seg__item[aria-selected="true"] { position: relative; z-index: 1; border-color: var(--sel-fill); background: var(--sel-fill); color: var(--on-sel); font-weight: 600; }
+
+/* Switch: on is the board's green — a switch is a setting, not a selection (98-decisions 9). */
+.cx-switch { flex: none; position: relative; width: 34px; height: 20px; padding: 0; border: 0; border-radius: 99px; background: var(--line-strong); cursor: pointer; }
+.cx-switch::after { content: ""; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 99px; background: #ffffff; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3); transition: left 140ms ease; }
+.cx-switch[aria-checked="true"], .cx-switch-row[aria-checked="true"] .cx-switch { background: var(--ok); }
+.cx-switch[aria-checked="true"]::after, .cx-switch-row[aria-checked="true"] .cx-switch::after { left: 16px; background: #ffffff; }
+.cx-switch:disabled, .cx-switch-row:disabled { opacity: 0.6; cursor: default; }
+.cx-switch-row { display: flex; align-items: flex-start; gap: 12px; width: 100%; padding: 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); color: var(--ink); font: inherit; font-size: 13px; text-align: left; cursor: pointer; }
+/* The card's border stays light, on or off (98-decisions 9). */
+.cx-switch-row__text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.cx-switch-row__label { font-weight: 500; line-height: 1.2; }
+.cx-switch-row__hint { font-size: 12.5px; line-height: 1.4; color: var(--ink-3); }
+
+/* Choice chips: one or many picked, in ink. */
+.cx-chip { height: 30px; display: inline-flex; align-items: center; gap: 6px; padding: 0 12px; border: 1px solid var(--line-strong); border-radius: 99px; background: var(--surface); color: var(--ink); font: inherit; font-size: 13px; white-space: nowrap; cursor: pointer; }
+.cx-chip:hover { background: var(--hover); }
+.cx-chip[aria-pressed="true"], .cx-chip[aria-checked="true"] { border-color: var(--sel-fill); background: var(--sel-fill); color: var(--on-sel); font-weight: 600; }
+.cx-chip__count { font-family: var(--font-mono); font-size: 12px; opacity: 0.75; }
+
+/* Option card: a 2px ink outline and a filled ring. */
+.cx-options { display: grid; grid-template-columns: repeat(var(--cx-cols, 2), minmax(0, 1fr)); gap: 10px; }
+.cx-option { display: flex; align-items: flex-start; gap: 10px; width: 100%; padding: 14px; border: 1.5px solid var(--line); border-radius: 12px; background: var(--surface); color: var(--ink); font: inherit; font-size: 13px; text-align: left; cursor: pointer; }
+.cx-option::before { content: ""; flex: none; width: 18px; height: 18px; margin-top: 1px; border-radius: 99px; border: 1.5px solid var(--line-strong); background: var(--surface); }
+.cx-option[aria-checked="true"] { border: 2px solid var(--ink); padding: 13.5px; }
+.cx-option[aria-checked="true"]::before { border: 5px solid var(--sel-fill); }
+.cx-option:disabled, .cx-option[aria-disabled="true"] { opacity: 0.6; cursor: default; }
+.cx-option__body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.cx-option__head { display: flex; align-items: center; gap: 8px; }
+.cx-option__title { font-size: 14px; font-weight: 600; }
+.cx-option__badge { height: 20px; padding: 0 7px; border-radius: 99px; background: var(--tray); color: var(--ink-2); font-size: 12px; font-weight: 500; display: inline-flex; align-items: center; }
+.cx-option__desc { font-size: 12.5px; line-height: 1.45; color: var(--ink-3); }
+
+/* Nav: the current page is solid ink. */
+.cx-nav { display: flex; flex-direction: column; gap: 2px; padding: 4px 10px; }
+.cx-nav__item { height: 34px; display: flex; white-space: nowrap; align-items: center; gap: 10px; padding: 0 10px; border-radius: 8px; color: var(--ink); text-decoration: none; }
+.cx-nav__item:hover { background: var(--active); }
+.cx-nav__item svg { width: 16px; height: 16px; flex: none; }
+.cx-nav__icon { display: inline-flex; flex: none; color: var(--ink-3); }
+.cx-nav__item[aria-current="page"] { background: var(--sel-fill); color: var(--on-sel); font-weight: 600; }
+.cx-nav__item[aria-current="page"] .cx-nav__icon { color: var(--on-sel); }
+.cx-nav__badge { margin-left: auto; flex: none; white-space: nowrap; height: 20px; padding: 0 6px; border-radius: 6px; background: var(--tray); color: var(--ink-2); font-family: var(--font-mono); font-size: 11px; display: inline-flex; align-items: center; }
+.cx-nav__item[aria-current="page"] .cx-nav__badge { background: rgba(255, 255, 255, 0.16); color: var(--on-sel); }
+
+/* Tabs: an ink underline, which already reads as selected. */
+.cx-tabs { height: 44px; display: flex; align-items: flex-end; gap: 2px; padding: 0 16px; border-bottom: 1px solid var(--line); }
+.cx-tab { height: 40px; display: inline-flex; align-items: center; gap: 6px; padding: 0 12px; margin-bottom: -1px; border: 0; border-bottom: 2px solid transparent; background: transparent; color: var(--ink-2); font: inherit; font-size: 13px; font-weight: 400; white-space: nowrap; cursor: pointer; }
+.cx-tab:hover { color: var(--ink); }
+.cx-tab[aria-selected="true"] { border-bottom-color: var(--ink); color: var(--ink); font-weight: 600; }
+
+/* Counts: grey for a count, ink when it says how many filters are on. */
+.cx-count { flex: none; height: 20px; padding: 0 7px; border-radius: 6px; background: var(--tray); color: var(--ink-2); font-family: var(--font-mono); font-size: 12px; font-weight: 400; display: inline-flex; align-items: center; }
+.cx-count--tab { height: 18px; font-size: 11px; }
+.cx-badge-on { flex: none; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 99px; background: var(--sel-fill); color: var(--on-sel); font-family: var(--font-mono); font-size: 11px; display: inline-flex; align-items: center; justify-content: center; }
+
+/* ── Fields (5.7.4) ──────────────────────────────────────── */
+.cx-field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+/* Labels and section titles sit at the boards' normal line height (about 1.2), not the body's 1.4. */
+.cx-label { font-size: 13px; font-weight: 500; line-height: 1.2; color: var(--ink); }
+.cx-label__opt { font-weight: 400; color: var(--ink-3); }
+.cx-hint { font-size: 12.5px; line-height: 1.4; color: var(--ink-3); }
+.cx-hint--warn { color: var(--warn); }
+.cx-error { font-size: 12.5px; line-height: 1.4; color: var(--bad); }
+.cx-input { width: 100%; height: 36px; padding: 0 10px; border: 1px solid var(--line-strong); border-radius: 8px; background: var(--surface); color: var(--ink); font: inherit; font-size: 14px; }
+.cx-input--mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+.cx-input--right { text-align: right; }
+.cx-input::placeholder, .cx-textarea::placeholder, .cx-money input::placeholder, .cx-pick input::placeholder, .cx-tags input::placeholder { color: var(--faint); }
+.cx-input[aria-invalid="true"], .cx-textarea[aria-invalid="true"], .cx-money[data-invalid="true"] { border-color: var(--bad); }
+.cx-textarea { display: block; width: 100%; padding: 8px 10px; border: 1px solid var(--line-strong); border-radius: 8px; background: var(--surface); color: var(--ink); font: inherit; font-size: 14px; line-height: 1.45; resize: vertical; }
+.cx-money { height: 36px; display: flex; align-items: center; border: 1px solid var(--line-strong); border-radius: 8px; background: var(--surface); overflow: hidden; }
+.cx-money__cur { height: 100%; display: flex; align-items: center; padding: 0 10px; background: var(--tray); color: var(--ink-2); border-right: 1px solid var(--line-strong); font-family: var(--font-mono); font-size: 12.5px; }
+.cx-money input { flex: 1; min-width: 0; height: 100%; padding: 0 10px; border: 0; outline: none; background: transparent; font-family: var(--font-mono); font-size: 14px; font-weight: 600; text-align: right; color: var(--ink); }
+.cx-read { min-height: 36px; display: flex; align-items: center; padding: 0 10px; border-radius: 8px; background: var(--tray); color: var(--ink); font-size: 14px; font-weight: 600; }
+.cx-read--mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+.cx-read--right { justify-content: flex-end; }
+.cx-read--ok { color: var(--ok); }
+.cx-read--warn { color: var(--warn); }
+.cx-pick { height: 36px; display: flex; align-items: center; gap: 8px; padding: 0 10px; border: 1px solid var(--line-strong); border-radius: 8px; background: var(--surface); }
+.cx-pick[aria-expanded="true"], .cx-pick:has([aria-expanded="true"]) { border-color: var(--action); }
+.cx-pick input { flex: 1; min-width: 0; border: 0; outline: none; background: transparent; font: inherit; font-size: 14px; color: var(--ink); }
+.cx-tags { min-height: 40px; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 6px; border: 1px solid var(--line-strong); border-radius: 8px; background: var(--surface); }
+.cx-tag { height: 26px; display: inline-flex; align-items: center; gap: 2px; padding: 0 4px 0 10px; border-radius: 6px; background: var(--tray); color: var(--ink); font-size: 13px; }
+.cx-tag__remove { width: 20px; height: 20px; display: inline-flex; align-items: center; justify-content: center; padding: 0; border: 0; border-radius: 5px; background: transparent; color: var(--ink-3); cursor: pointer; }
+.cx-tag__remove:hover { background: var(--active); color: var(--ink); }
+/* The board's small ×: about 6px of cross in a 20px target. */
+.cx-tag__remove svg { width: 10px; height: 10px; }
+.cx-tags input { flex: 1; min-width: 180px; height: 26px; padding: 0 4px; border: 0; outline: none; background: transparent; font: inherit; font-size: 14px; color: var(--ink); }
+.cx-photo { position: relative; min-height: 76px; display: flex; align-items: center; gap: 12px; padding: 12px 14px; border: 1.5px dashed var(--line-strong); border-radius: 10px; background: var(--ground); color: var(--ink); cursor: pointer; }
+.cx-photo[data-dragging="true"] { border-color: var(--action); }
+.cx-photo__text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.cx-photo__value { font-weight: 500; }
+.cx-photo__sub { font-size: 12px; color: var(--ink-3); }
+.cx-photo__img { flex: none; width: 52px; height: 52px; border-radius: 8px; object-fit: cover; background: var(--surface); }
+.cx-photo__actions { margin-left: auto; display: flex; gap: 8px; }
+.cx-photo__action { height: 28px; padding: 0 10px; border: 1px solid var(--line-strong); border-radius: 8px; background: var(--surface); color: var(--ink); font: inherit; font-size: 13px; cursor: pointer; }
+.cx-photo input[type="file"] { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+
+/* ── Menus (5.2) ─────────────────────────────────────────── */
+.cx-menu { z-index: 60; min-width: 180px; padding: 6px; border-radius: 12px; background: var(--surface); color: var(--ink); box-shadow: var(--shadow-float); display: flex; flex-direction: column; font-family: var(--font-sans); font-size: 13px; }
+.cx-menu__caption { padding: 6px 8px 8px; font-size: 12px; line-height: 1.4; color: var(--ink-3); }
+.cx-menu__item { position: relative; min-height: 34px; display: flex; align-items: center; gap: 8px; padding: 0 8px; border: 0; border-radius: 8px; background: transparent; color: var(--ink); font: inherit; text-align: left; text-decoration: none; cursor: pointer; outline: none; user-select: none; }
+.cx-menu--roomy .cx-menu__item { min-height: 36px; }
+.cx-menu__item:hover, .cx-menu__item[data-highlighted], .cx-menu__item[aria-selected="true"] { background: var(--hover); }
+.cx-menu__item[data-disabled] { opacity: 0.5; cursor: default; }
+.cx-menu__item svg { width: 14px; height: 14px; flex: none; }
+.cx-menu__icon { display: inline-flex; flex: none; color: var(--ink-3); }
+.cx-menu__item--add { color: var(--action-ink); font-weight: 500; }
+.cx-menu__item--danger, .cx-menu__item--danger .cx-menu__icon { color: var(--bad); }
+.cx-menu__label { flex: 1; min-width: 0; display: flex; flex-direction: column; padding: 7px 0; }
+.cx-menu__sub { font-size: 12px; color: var(--ink-3); }
+.cx-menu__hint { margin-left: auto; flex: none; font-family: var(--font-mono); font-size: 11px; color: var(--ink-3); }
+.cx-menu__mark { width: 14px; flex: none; display: inline-flex; color: var(--action); }
+.cx-menu__rule { height: 1px; margin: 4px 0; background: var(--line); }
+
+/* ── Toolbar and filters ─────────────────────────────────── */
+.cx-search { flex: 0 1 240px; min-width: 120px; height: 32px; display: flex; align-items: center; gap: 8px; padding: 0 10px; border: 1px solid var(--line-strong); border-radius: 8px; background: var(--surface); color: var(--ink-3); }
+.cx-search input { flex: 1; min-width: 0; border: 0; outline: none; background: transparent; font: inherit; color: var(--ink); }
+.cx-filter { flex: none; height: 32px; display: inline-flex; align-items: center; gap: 6px; padding: 0 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--ink); font: inherit; font-size: 13px; white-space: nowrap; cursor: pointer; }
+.cx-filter:hover { background: var(--hover); }
+.cx-filter__chev { display: inline-flex; flex: none; color: var(--ink-3); }
+.cx-filter__chev svg { width: 12px; height: 12px; }
+.cx-filter__label { color: var(--ink-3); }
+.cx-filter__value { font-weight: 600; }
+.cx-filter.is-set { border-color: var(--sel-line); background: var(--sel-bg); }
+.cx-filter.is-set .cx-filter__value { color: var(--sel-ink); }
+/* A chip that can be cleared: the chip and its × are two buttons in one 32px outline. */
+.cx-filter-wrap { flex: none; height: 32px; box-sizing: border-box; display: inline-flex; align-items: center; padding-right: 3px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
+.cx-filter-wrap.is-set { border-color: var(--sel-line); background: var(--sel-bg); }
+.cx-filter-wrap > .cx-filter { height: 30px; padding-right: 4px; border: 0; background: transparent; }
+.cx-filter-wrap > .cx-filter:hover { background: transparent; }
+.cx-filter__clear { flex: none; width: 24px; height: 24px; display: inline-flex; align-items: center; justify-content: center; padding: 0; border: 0; border-radius: 6px; background: transparent; color: var(--ink-3); cursor: pointer; }
+.cx-filter__clear:hover { background: var(--hover); color: var(--ink); }
+.cx-filter__clear svg { width: 14px; height: 14px; }
+
+/* ── State badges and cells ──────────────────────────────── */
+.cx-state { display: inline-flex; align-items: center; gap: 6px; max-width: 100%; height: 22px; padding: 0 8px; border: 1px solid transparent; border-radius: 6px; font-size: 12px; font-weight: 500; line-height: 1; white-space: nowrap; }
+.cx-state::before { content: ""; flex: none; width: 7px; height: 7px; border-radius: 99px; background: currentColor; }
+.cx-state--ok { background: var(--ok-soft); color: var(--ok); }
+.cx-state--warn { background: var(--warn-soft); color: var(--warn); }
+.cx-state--warn::before { background: var(--warn-dot); }
+.cx-state--bad { background: var(--bad-soft); color: var(--bad); }
+.cx-state--bad::before { background: var(--bad-dot); }
+.cx-state--info { background: var(--info-soft); color: var(--info); }
+.cx-state--neutral { background: var(--tray); color: var(--ink-2); }
+.cx-state--neutral::before { background: var(--faint); }
+.cx-state--hollow { background: transparent; color: var(--ink-3); }
+.cx-state--hollow::before { background: transparent; border: 1.5px solid var(--ink-3); }
+.cx-state--pending { background: var(--surface); border-color: var(--warn-line); color: var(--warn); }
+.cx-state--pending::before { background: transparent; border: 1.5px solid var(--warn-dot); }
+.cx-state--gold { background: var(--surface); border-color: var(--line); color: var(--ink-2); }
+.cx-state--gold::before { background: var(--warn-dot); }
+.cx-ref { font-family: var(--font-mono); font-weight: 500; color: var(--ink); text-decoration: underline; text-decoration-color: var(--line-strong); text-underline-offset: 3px; }
+.cx-money-cell { font-family: var(--font-mono); font-weight: 500; font-variant-numeric: tabular-nums; color: var(--ink); text-align: right; }
+.cx-num { font-family: var(--font-mono); font-variant-numeric: tabular-nums; color: var(--ink-2); text-align: right; }
+.cx-time { font-family: var(--font-mono); font-size: 12px; color: var(--ink-3); }
+.cx-diff { font-family: var(--font-mono); font-size: 12.5px; font-weight: 500; padding: 2px 6px; border-radius: 6px; }
+.cx-diff--short { background: var(--bad-soft); color: var(--bad); }
+.cx-diff--over { background: var(--warn-soft); color: var(--warn); }
+.cx-diff--zero { color: var(--ink-3); }
+.cx-none { color: var(--faint); }
+
+/* ── The list frame: seven bands ─────────────────────────── */
+.cx-appbar { height: 48px; flex: none; display: flex; align-items: center; gap: 10px; padding: 0 16px; border-bottom: 1px solid var(--line); background: var(--surface); }
+.cx-appbar__title { margin: 0; font-size: 15px; font-weight: 600; letter-spacing: -0.01em; }
+.cx-appbar__back { height: 32px; display: inline-flex; align-items: center; gap: 4px; padding: 0 8px 0 4px; border-radius: 8px; color: var(--ink-3); text-decoration: none; }
+.cx-appbar__ref { font-family: var(--font-mono); font-size: 12px; color: var(--ink-3); }
+.cx-spacer { flex: 1; }
+.cx-toolbar { height: 48px; flex: none; display: flex; align-items: center; gap: 6px; padding: 0 16px; border-bottom: 1px solid var(--line); background: var(--surface); }
+.cx-toolbar--selection { border-bottom-color: var(--line-strong); background: var(--sel-bg); color: var(--sel-ink); }
+.cx-colhead, .cx-row, .cx-group-row, .cx-totals { display: grid; align-items: center; }
+.cx-colhead { height: 34px; background: var(--ground); border-bottom: 1px solid var(--line); color: var(--ink-3); font-size: 12.5px; font-weight: 500; position: sticky; top: 0; z-index: 3; }
+.cx-colhead [aria-sort]:not([aria-sort="none"]) { color: var(--ink); }
+.cx-group-row { height: 36px; background: var(--ground); border-bottom: 1px solid var(--line); font-weight: 500; }
+.cx-row { height: 40px; border-bottom: 1px solid var(--line-soft); background: var(--surface); }
+.cx-row:hover { background: var(--hover); }
+.cx-row[aria-selected="true"] { background: var(--selected); }
+.cx-row > *, .cx-colhead > *, .cx-totals > * { min-width: 0; padding: 0 10px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.cx-totals { height: 36px; background: var(--ground); box-shadow: var(--shadow-pin); font-family: var(--font-mono); font-size: 12.5px; font-weight: 600; position: sticky; bottom: 0; z-index: 3; }
+.cx-pager { height: 48px; flex: none; display: flex; align-items: center; gap: 12px; padding: 0 16px; border-top: 1px solid var(--line); background: var(--surface); color: var(--ink-3); }
+.cx-pager__page { min-width: 32px; height: 30px; padding: 0 8px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); font-family: var(--font-mono); cursor: pointer; }
+.cx-pager__page[aria-current="page"] { border-color: var(--sel-fill); background: var(--sel-fill); color: var(--on-sel); font-weight: 600; }
+.cx-check { width: 16px; height: 16px; margin: 0; accent-color: var(--action); }
+
+/* ── Record ──────────────────────────────────────────────── */
+.cx-steps { margin: 0; padding: 0; list-style: none; display: flex; align-items: center; gap: 4px; }
+.cx-step { height: 26px; display: inline-flex; align-items: center; gap: 6px; padding: 0 10px 0 6px; border-radius: 99px; border: 1px solid var(--line); background: var(--surface); color: var(--ink-3); white-space: nowrap; }
+.cx-step::before { content: ""; width: 16px; height: 16px; border-radius: 99px; border: 1.5px solid var(--line-strong); }
+.cx-step--done { color: var(--ink-2); }
+.cx-step--done::before { border-color: var(--ok); background: var(--ok); }
+.cx-step[aria-current="step"] { border-color: var(--sel-fill); background: var(--sel-fill); color: var(--on-sel); font-weight: 600; }
+.cx-step[aria-current="step"]::before { border-color: var(--on-sel); }
+.cx-step-joint { width: 12px; height: 1px; background: var(--line-strong); }
+.cx-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+.cx-kpi { padding: 12px 14px; border-left: 1px solid var(--line); margin-left: -1px; display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.cx-kpi__label { font-size: 12.5px; color: var(--ink-3); }
+.cx-kpi__value { font-family: var(--font-mono); font-size: 17px; font-weight: 600; letter-spacing: -0.03em; }
+.cx-kpi__note { font-size: 12px; color: var(--ink-3); }
+
+/* ── Sheet, confirm, save bar, note ──────────────────────── */
+.cx-scrim { position: fixed; inset: 0; z-index: 50; background: var(--scrim); }
+.cx-sheet { display: flex; flex-direction: column; width: 520px; max-width: 100%; background: var(--surface); box-shadow: var(--shadow-sheet); }
+.cx-sheet--wide { width: 760px; }
+.cx-sheet__head { height: 64px; flex: none; display: flex; align-items: center; gap: 12px; padding: 0 20px 0 24px; border-bottom: 1px solid var(--line); }
+.cx-sheet__title { margin: 0; font-size: 18px; font-weight: 600; letter-spacing: -0.01em; }
+.cx-sheet__sub { font-size: 12.5px; color: var(--ink-3); }
+.cx-sheet__body { flex: 1; min-height: 0; overflow: auto; padding: 4px 24px 24px; }
+.cx-sheet__section { padding-top: 20px; display: flex; flex-direction: column; gap: 14px; }
+.cx-sheet__section + .cx-sheet__section { margin-top: 20px; border-top: 1px solid var(--line); }
+.cx-sheet__section-title { margin: 0; font-size: 14px; font-weight: 600; line-height: 1.2; }
+.cx-sheet__foot { height: 68px; flex: none; display: flex; align-items: center; gap: 12px; padding: 0 24px; border-top: 1px solid var(--line); background: var(--ground); }
+@media (max-width: 719px) { .cx-sheet, .cx-sheet--wide { width: 100%; } }
+
+.cx-confirm-layer { position: fixed; inset: 0; z-index: 51; display: flex; align-items: center; justify-content: center; padding: 16px; pointer-events: none; }
+.cx-confirm { pointer-events: auto; width: 440px; max-width: 100%; padding: 24px; border-radius: 12px; background: var(--surface); color: var(--ink); box-shadow: var(--shadow-float); display: flex; flex-direction: column; gap: 12px; font-family: var(--font-sans); outline: none; }
+.cx-confirm__title { margin: 0; font-size: 17px; font-weight: 600; line-height: 1.3; letter-spacing: -0.01em; }
+.cx-confirm__body { margin: 0; font-size: 14px; line-height: 1.5; color: var(--ink-2); white-space: pre-line; }
+.cx-confirm__error { margin: 0; font-size: 14px; line-height: 1.5; color: var(--bad); }
+.cx-confirm__actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 8px; }
+
+.cx-savebar { height: 52px; display: flex; align-items: center; gap: 10px; padding: 0 16px; border-top: 1px solid var(--line-strong); background: var(--tray); }
+.cx-note { padding: 12px 14px; border-radius: 10px; background: var(--info-soft); color: var(--info); line-height: 1.45; }
+
+/* ── Toast (5.9) ─────────────────────────────────────────── */
+/* The done message after a sheet, a bulk action or a confirm: bottom-left of
+   the main column, one at a time. The host sets `left` from the main column. */
+.cx-toast-host { position: fixed; z-index: 100; bottom: 16px; left: 16px; max-width: min(420px, calc(100vw - 32px)); pointer-events: none; }
+.cx-toast { pointer-events: auto; display: flex; align-items: flex-start; gap: 10px; padding: 12px 14px; border-radius: 12px; background: var(--surface); color: var(--ink); box-shadow: var(--shadow-float); font-family: var(--font-sans); font-size: 14px; line-height: 1.4; }
+.cx-toast__icon { flex: none; display: inline-flex; margin-top: 2px; }
+.cx-toast__icon svg { width: 16px; height: 16px; }
+.cx-toast__icon--ok { color: var(--ok); }
+.cx-toast__icon--warn { color: var(--warn); }
+.cx-toast__icon--bad { color: var(--bad); }
+.cx-toast__text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.cx-toast__body { font-size: 13px; color: var(--ink-2); }
+.cx-toast__action { flex: none; padding: 0; border: 0; background: transparent; color: var(--ink); font: inherit; font-size: 14px; font-weight: 500; text-decoration: underline; text-decoration-color: var(--line-strong); text-underline-offset: 3px; cursor: pointer; }
+.cx-toast__action:focus-visible { outline: 2px solid var(--action); outline-offset: 3px; }
+@media (max-width: 719px) { .cx-toast-host { left: 16px !important; right: 16px; max-width: none; } }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   EMPTY GUIDE — a list before its first row (00-foundations 5.12.2; boards
+   Guided and TenderUI). Centred in the list's scroll box, at most 640 wide.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.cx-eg {
+  box-sizing: border-box;
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 40px 40px 36px;
+  display: flex;
+  align-items: flex-start;
+  gap: 24px;
+  color: var(--ink);
+  font-size: 13px;
+}
+.cx-eg h2, .cx-eg p, .cx-eg ol { margin: 0; }
+
+/* Without steps: the list's icon beside a statement (TenderUI). */
+.cx-eg__icon { flex: none; width: 48px; height: 48px; display: flex; align-items: center; justify-content: center; border-radius: 12px; background: var(--tray); color: var(--ink-2); }
+.cx-eg__icon svg { width: 24px; height: 24px; }
+.cx-eg__body { min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 8px; }
+.cx-eg__statement { font-size: 16px; font-weight: 600; }
+.cx-eg__line { font-size: 14px; line-height: 1.5; color: var(--ink-2); }
+.cx-eg__body .cx-eg__actions { margin-top: 4px; }
+
+/* With steps: a question, one line, three numbered sentences (Guided). */
+.cx-eg--steps { flex-direction: column; align-items: stretch; gap: 20px; }
+.cx-eg__head { display: flex; flex-direction: column; gap: 6px; }
+.cx-eg__title { font-size: 20px; font-weight: 600; letter-spacing: -0.02em; }
+.cx-eg--steps .cx-eg__line { font-size: 13px; }
+.cx-eg__steps { padding: 0; list-style: none; display: flex; flex-direction: column; gap: 12px; }
+.cx-eg__step { display: flex; gap: 12px; }
+.cx-eg__num { flex: none; width: 24px; height: 24px; border-radius: 99px; background: var(--tray); display: flex; align-items: center; justify-content: center; font-family: var(--font-mono); font-size: 11px; font-weight: 600; }
+.cx-eg__sentence { line-height: 1.45; }
+.cx-eg__sentence strong { font-weight: 600; }
+.cx-eg__rest { color: var(--ink-2); }
+.cx-eg__actions { display: flex; flex-wrap: wrap; gap: 8px; }
+
+@media (max-width: 719px) {
+  .cx-eg { padding: 28px 16px; gap: 16px; }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   SETUP CHECKLIST — "Finish setting up", the first card of the Overview
+   (00-foundations 5.12.1; the left card of the Guided board).
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.cx-sc {
+  container-type: inline-size;
+  align-self: start;
+  min-width: 0;
+  box-sizing: border-box;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  overflow: hidden;
+  color: var(--ink);
+  font-family: var(--font-sans);
+  font-size: 13px;
+  line-height: 1.4;
+}
+.cx-sc h2, .cx-sc p, .cx-sc ul { margin: 0; }
+.cx-sc :is(button, a):focus-visible { outline: 2px solid var(--action); outline-offset: 3px; }
+
+.cx-sc__head { display: flex; align-items: center; gap: 12px; padding: 18px 20px; border-bottom: 1px solid var(--line); }
+.cx-sc__heading { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 8px; }
+.cx-sc__title { font-size: 16px; font-weight: 600; }
+.cx-sc__progress { display: flex; align-items: center; gap: 10px; color: var(--ink-3); white-space: nowrap; }
+.cx-sc__track { flex: 1; height: 6px; border-radius: 99px; background: var(--tray); overflow: hidden; }
+.cx-sc__fill { display: block; height: 100%; background: var(--ok); }
+.cx-sc__figure { font-family: var(--font-mono); font-variant-numeric: tabular-nums; color: var(--ink); }
+.cx-sc .cx-sc__hide { flex: none; padding: 0 10px; color: var(--ink-3); font-weight: 400; }
+
+.cx-sc__items { padding: 0; list-style: none; }
+.cx-sc__item { display: flex; align-items: center; gap: 12px; padding: 12px 20px; border-bottom: 1px solid var(--line-soft); line-height: 1.2; }
+.cx-sc__circle { flex: none; width: 22px; height: 22px; box-sizing: border-box; padding: 0; border-radius: 99px; border: 1.5px solid var(--line-strong); background: transparent; color: #ffffff; display: flex; align-items: center; justify-content: center; }
+button.cx-sc__circle { cursor: pointer; }
+.cx-sc__circle--done { border: 0; background: var(--ok); }
+.cx-sc__circle svg { width: 12px; height: 12px; }
+.cx-sc__text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.cx-sc__label { font-weight: 500; }
+.cx-sc__item--done .cx-sc__label { color: var(--ink-3); text-decoration: line-through; }
+.cx-sc__why { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: 12.5px; color: var(--ink-3); }
+.cx-sc__cta { flex: none; height: 30px; box-sizing: border-box; display: flex; align-items: center; padding: 0 12px; border: 1px solid var(--line-strong); border-radius: 8px; background: var(--surface); color: var(--ink); text-decoration: none; white-space: nowrap; }
+.cx-sc__cta:hover { background: var(--hover); }
+
+.cx-sc__foot { padding: 14px 20px; color: var(--ink-3); line-height: 1.45; }
+
+.cx-sc__skel { display: block; border-radius: 4px; background: var(--tray); }
+
+/* A narrow card (a phone): the call to action wraps under its text. */
+@container (max-width: 440px) {
+  .cx-sc__head { align-items: flex-start; padding: 16px; }
+  .cx-sc__item { flex-wrap: wrap; padding: 12px 16px; }
+  .cx-sc__text { flex-basis: calc(100% - 34px); }
+  .cx-sc__why { white-space: normal; }
+  .cx-sc__cta { margin-left: 34px; }
+  .cx-sc__foot { padding: 14px 16px; }
+}
+
+/* Join a shop by the WhatsApp link (80-admin 5.6): a public page, a 420px card on the ground. */
+.join-page { min-height: 100dvh; display: flex; align-items: center; justify-content: center; padding: 24px 16px; background: var(--ground); color: var(--ink); font-family: var(--font-sans); }
+.join-card { width: 100%; max-width: 420px; display: flex; flex-direction: column; gap: 14px; padding: 28px 24px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); }
+.join-card__shop { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
+.join-card__tile { width: 32px; height: 32px; flex: none; display: inline-flex; align-items: center; justify-content: center; border-radius: 8px; background: var(--ink); color: var(--surface); font-size: 13px; font-weight: 700; }
+.join-card__shop-name { font-size: 14px; font-weight: 600; }
+.join-card__title { margin: 0; font-size: 22px; line-height: 1.25; font-weight: 700; }
+.join-card__line { margin: 0; font-size: 14px; line-height: 1.5; color: var(--ink-2); }
+.join-card__form { display: flex; flex-direction: column; gap: 14px; }
+.join-card .cx-btn { align-self: stretch; justify-content: center; }

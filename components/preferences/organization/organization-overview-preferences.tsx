@@ -44,8 +44,8 @@ function tenantTone(status: string): StatusTone {
  * So the page keeps the board's frame exactly — 560px centred column, the
  * title line and its rule, bare section headings at `36px 0 14px` — and draws
  * the four facts it has in the row shape `Billing.dc.html` uses for the same
- * job. When a company-settings endpoint exists, the sections here become
- * `FormField`s and `FormPage` grows an `onSubmit`; nothing else moves.
+ * job. A shop's own settings (business type, liquor features) are on the
+ * retail sidebar's Setup › Shop.
  */
 export function OrganizationOverviewPreferences() {
   const profileQuery = useQuery({

@@ -2,18 +2,19 @@
  * The words retail says things in — one per thing, used by the back office and
  * the till alike.
  *
- * Every screen used to render the stored enum: `MOBILE_MONEY` in one place,
- * "Mobile" in another, "EcoCash / OneMoney" in a third — six spellings of one
- * tender — and `DROP_TO_SAFE` straight onto a shift's page. A value a person
- * reads goes through here, so the same value reads the same everywhere. The
+ * Every screen used to render the stored enum: one tender spelt six ways,
+ * and `DROP_TO_SAFE` straight onto a shift's page. A value a person reads
+ * goes through here, so the same value reads the same everywhere. The
  * names follow `docs/retail/retail-management-alignment-2026-09-29.md` §3.
  */
 
 const TENDER: Record<string, string> = {
   CASH: "Cash",
   CARD: "Card",
-  MOBILE_MONEY: "Mobile money",
+  ECOCASH: "EcoCash",
+  INNBUCKS: "InnBucks",
   TRANSFER: "Bank transfer",
+  ON_ACCOUNT: "On account",
   VOUCHER: "Voucher",
 };
 
@@ -43,7 +44,18 @@ const CASH_MOVEMENT: Record<string, string> = {
 const ORDER_STATUS: Record<string, string> = {
   DRAFT: "Draft",
   PARTIAL: "Part delivered",
+  CLOSED: "Closed short",
   RECEIVED: "Delivered",
+};
+
+const REQUISITION_STATUS: Record<string, string> = {
+  DRAFT: "Draft",
+  SUBMITTED: "Waiting",
+  APPROVED: "Approved",
+  REJECTED: "Declined",
+  DISBURSED: "Paid",
+  ACQUITTED: "Paid",
+  CANCELLED: "Cancelled",
 };
 
 const PROMOTION_TYPE: Record<string, string> = {
@@ -84,12 +96,31 @@ export const saleStatusLabel = (value: string | null | undefined) => lookup(SALE
 export const shiftStatusLabel = (value: string | null | undefined) => lookup(SHIFT_STATUS, value);
 export const cashMovementLabel = (value: string | null | undefined) => lookup(CASH_MOVEMENT, value);
 export const orderStatusLabel = (value: string | null | undefined) => lookup(ORDER_STATUS, value);
+export const requisitionStatusLabel = (value: string | null | undefined) => lookup(REQUISITION_STATUS, value);
 export const promotionTypeLabel = (value: string | null | undefined) => lookup(PROMOTION_TYPE, value);
 export const promotionStatusLabel = (value: string | null | undefined) =>
   lookup(PROMOTION_STATUS, value);
 export const fiscalStatusLabel = (value: string | null | undefined) => lookup(FISCAL_STATUS, value);
 /** Any other stored constant — a category, a loyalty tier. */
 export const enumLabel = (value: string | null | undefined) => (value ? sentence(value) : "");
+
+/** One way of paying as a person says it: cash taken in ZiG is "ZiG". */
+export function tenderWord(payment: { tenderType: string; currency?: string | null }): string {
+  if (payment.tenderType === "CASH" && (payment.currency ?? "").toUpperCase() === "ZWG") return "ZiG";
+  return tenderLabel(payment.tenderType);
+}
+
+/**
+ * How a sale was paid (50-floor "Paid with"): "Cash", "ZiG", "EcoCash",
+ * "Cash and EcoCash" for two ways, "3 ways" for three or more.
+ */
+export function paidWithLabel(payments: ReadonlyArray<{ tenderType: string; currency?: string | null }>): string {
+  const ways = [...new Set(payments.map(tenderWord))];
+  if (ways.length === 0) return "";
+  if (ways.length === 1) return ways[0]!;
+  if (ways.length === 2) return `${ways[0]} and ${ways[1]}`;
+  return `${ways.length} ways`;
+}
 
 /**
  * A product is on sale or off it. On sale is the ordinary case and draws
@@ -178,7 +209,7 @@ export function formatQuantity(value: number, unit?: string | null): string {
   const amount = Number.isInteger(value) ? String(value) : String(Number(value.toFixed(2)));
   const name = (unit ?? "").trim();
   if (!name) return amount;
-  const countable = /^[a-z]+$/i.test(name) && name.length > 2 && !/s$/i.test(name);
+  const countable = /^[a-z]+$/i.test(name) && name.length > 2 && !/s$/i.test(name) && name.toLowerCase() !== "each";
   if (!countable || Math.abs(value) === 1) return `${amount} ${name}`;
   return `${amount} ${/(x|ch|sh)$/i.test(name) ? `${name}es` : `${name}s`}`;
 }

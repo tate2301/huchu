@@ -1,8 +1,7 @@
 import { prisma } from "@/lib/prisma";
-import { money, percent } from "@/lib/money";
 import { ensureAccountingDefaults } from "@/lib/accounting/bootstrap";
-import { upsertShelfListing } from "@/lib/retail/shelf-listing";
-import { getRetailSetupProfile, saveRetailSetupProfile } from "@/lib/retail/setup-profile";
+import { createProduct } from "@/lib/retail/products/create";
+import { productInput } from "@/lib/retail/products/input";
 
 /**
  * Opening a shop.
@@ -10,7 +9,7 @@ import { getRetailSetupProfile, saveRetailSetupProfile } from "@/lib/retail/setu
  * R-5.1. Provisioning a retail tenant created a company, an administrator, a
  * tier, a bundle and a subdomain — and no shop. The first thing a cashier does
  * on their first morning is open a drawer, and
- * `openRetailShiftTransaction` needs a **site** and a **register** to open one
+ * `openShift` (lib/retail/floor/shifts.ts) needs a **site** and a **register** to open one
  * against. Neither existed, so the answer to "can this tenant trade today" was
  * no, and the way you found out was a cashier standing at a till reading
  * *Invalid site*.
@@ -36,11 +35,8 @@ import { getRetailSetupProfile, saveRetailSetupProfile } from "@/lib/retail/setu
  * before they trust the screen. The four records above are infrastructure; a
  * product is an opinion about what this shop sells.
  *
- * **A tender policy.** `getRetailTenderPolicy` already returns
- * `DEFAULT_RETAIL_TENDER_POLICY` when no row exists, and that default is the
- * sensible one. Writing it to the database would turn "running on defaults"
- * into "somebody configured this", which is exactly the distinction the POS
- * policy screen renders as *Draft* against *Saved*.
+ * **Till rules.** `loadTillRules` reads the board's defaults when no row
+ * exists; a row appears when somebody saves the Till rules page.
  *
  * **Users.** Who works the till is the operator's decision and it is made
  * elsewhere.
@@ -77,8 +73,6 @@ const DEFAULT_REGISTER_CODE = "REG-001";
  * Zimbabwe's standard rate. The shelf list is tax-inclusive, so a $1.20 tag is
  * what the customer pays and $0.16 of it is VAT.
  */
-const VAT_PERCENT = 15;
-
 /**
  * A starter range, only when asked for.
  *
@@ -88,12 +82,12 @@ const VAT_PERCENT = 15;
  * Prices are ordinary Harare bottle-store prices in USD.
  */
 const STARTER_RANGE = [
-  { code: "CASTLE-340", name: "Castle Lager 340ml", unit: "bottle", price: "1.20", cost: "0.85" },
-  { code: "CHIBUKU-1L", name: "Chibuku Scud 1L", unit: "carton", price: "1.10", cost: "0.72" },
-  { code: "COKE-500", name: "Coca-Cola 500ml", unit: "bottle", price: "0.75", cost: "0.48" },
-  { code: "CASTLE-CASE", name: "Castle Lager case of 24", unit: "case", price: "26.50", cost: "20.40" },
-  { code: "TWOKEYS-750", name: "Two Keys Whisky 750ml", unit: "bottle", price: "9.75", cost: "7.20" },
-  { code: "ICE-2KG", name: "Ice 2kg bag", unit: "bag", price: "1.50", cost: "0.60" },
+  { name: "Castle Lager 340ml", price: "1.20", cost: "0.85" },
+  { name: "Chibuku Scud 1L", price: "1.10", cost: "0.72" },
+  { name: "Coca-Cola 500ml", price: "0.75", cost: "0.48" },
+  { name: "Castle Lager case of 24", price: "26.50", cost: "20.40" },
+  { name: "Two Keys Whisky 750ml", price: "9.75", cost: "7.20" },
+  { name: "Ice 2kg bag", price: "1.50", cost: "0.60" },
 ] as const;
 
 export type ProvisionRetailOptions = {
@@ -115,7 +109,8 @@ export type ProvisionRetailResult = {
   location: { id: string; code: string; created: boolean };
   register: { id: string; code: string; name: string; created: boolean };
   /** Whether the POS portal's default site and register were written. */
-  setupProfileWritten: boolean;
+  /** Whether the shop's default site was set here (it is left alone when the shop chose one). */
+  defaultSiteWritten: boolean;
   /** How many `STARTER_RANGE` lines this run ranged. Zero unless asked. */
   productsRanged: number;
   accounting: { accountsCreated: number; taxCodesCreated: number; postingRulesCreated: number };
@@ -198,21 +193,22 @@ export async function provisionRetail(
       select: { id: true, code: true, name: true },
     }));
 
-  /* ── 4. What the POS portal opens on ─────────────────────────────────── */
+  /* ── 4. The shop's default site ──────────────────────────────────────── */
 
   /*
     Written only when it is empty. A shop that has since chosen a different
-    default register must not have that choice reverted by somebody re-running
-    provisioning to fix something else.
+    default site must not have that choice reverted by somebody re-running
+    provisioning to fix something else. A till is whichever one a device is
+    paired to (SET-04), so there is no default till to point at.
   */
-  const profile = await getRetailSetupProfile(companyId);
-  const setupProfileWritten = !profile.defaultSiteId || !profile.defaultRegisterId;
-  if (setupProfileWritten) {
-    await saveRetailSetupProfile(companyId, {
-      defaultSiteId: profile.defaultSiteId ?? site.id,
-      defaultRegisterId: profile.defaultRegisterId ?? register.id,
-      defaultRegisterName: profile.defaultRegisterName ?? register.name,
-      defaultRegisterCode: profile.defaultRegisterCode ?? register.code,
+  const shop = await prisma.retailShopProfile.findUnique({ where: { companyId }, select: { defaultSiteId: true } });
+  const defaultSiteWritten = !shop?.defaultSiteId;
+  if (!shop?.defaultSiteId) {
+    // The shop's default site (SET-01): new products, orders and stock go here.
+    await prisma.retailShopProfile.upsert({
+      where: { companyId },
+      create: { companyId, defaultSiteId: site.id },
+      update: { defaultSiteId: site.id },
     });
   }
 
@@ -227,44 +223,40 @@ export async function provisionRetail(
 
   /* ── 6. A range, only if asked ───────────────────────────────────────── */
 
+  /*
+    The default price list (PRD-03): every product goes on it, and the till
+    prices from it. A shelf price is what the customer pays, VAT inside.
+  */
+  const defaultList = await prisma.priceList.findFirst({ where: { companyId, isDefault: true, archivedAt: null }, select: { id: true } });
+  if (!defaultList) {
+    await prisma.priceList.upsert({
+      where: { companyId_name: { companyId, name: "Retail" } },
+      create: { companyId, name: "Retail", kind: "RETAIL", taxInclusive: true, state: "ON", isDefault: true },
+      update: { isDefault: true, state: "ON", archivedAt: null },
+    });
+  }
+
   let productsRanged = 0;
   if (starterRange) {
     for (const entry of STARTER_RANGE) {
-      const existingItem = await prisma.inventoryItem.findFirst({
-        where: { siteId: site.id, itemCode: entry.code },
+      const existing = await prisma.product.findFirst({
+        where: { companyId, archivedAt: null, name: { equals: entry.name, mode: "insensitive" } },
         select: { id: true },
       });
-      if (existingItem) continue;
+      if (existing) continue;
 
-      const item = await prisma.inventoryItem.create({
-        data: {
-          itemCode: entry.code,
-          name: entry.name,
-          category: "CONSUMABLES",
-          unit: entry.unit,
+      // The same service New product calls, so a provisioned range and a
+      // hand-added product are the same shape. Nothing on the shelf yet: a
+      // provisioning step that invented stock would put a figure in the count
+      // screen nobody has counted. Nobody is named: nobody added it.
+      await prisma.$transaction((tx) =>
+        createProduct(tx, {
+          actor: { companyId, userId: null },
+          input: productInput.parse({ name: entry.name, price: entry.price, cost: entry.cost }),
+          source: "IMPORT",
           siteId: site.id,
-          locationId: location.id,
-          // Nothing on the shelf yet. A provisioning step that invented stock
-          // would put a figure in the count screen nobody has counted.
-          currentStock: 0,
-          unitCost: money(entry.cost),
-        },
-        select: { id: true },
-      });
-
-      // The same writer the catalogue screen calls, so a provisioned range and
-      // a hand-added line are the same shape — a `Product`, a shelf-list entry,
-      // and the stock row claimed by it.
-      await upsertShelfListing({
-        companyId,
-        productId: null,
-        sku: entry.code,
-        name: entry.name,
-        inventoryItemId: item.id,
-        unitPrice: money(entry.price),
-        taxPercent: percent(VAT_PERCENT),
-        isActive: true,
-      });
+        }),
+      );
       productsRanged += 1;
     }
   }
@@ -273,7 +265,7 @@ export async function provisionRetail(
     site: { ...site, created: !existingSite },
     location: { ...location, created: !existingLocation },
     register: { ...register, created: !existingRegister },
-    setupProfileWritten,
+    defaultSiteWritten,
     productsRanged,
     accounting,
     blockers: await retailTradingBlockers(companyId),

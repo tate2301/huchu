@@ -98,6 +98,7 @@ model Company {
   currencyDefinitions           CurrencyDefinition[]
   customers                     Customer[]
   vendors                       Vendor[]
+  vendorContacts                VendorContact[]
   salesInvoices                 SalesInvoice[]
   salesQuotations               SalesQuotation[]
   salesReceipts                 SalesReceipt[]
@@ -124,6 +125,9 @@ model Company {
   accountingSeedExecutions      AccountingSeedExecution[]
   documentTemplates             DocumentTemplate[]
   reportSettings                ReportSetting[]
+  customReports                 CustomReport[]
+  reportTemplates               ReportTemplate[]
+  reportTemplateUses            ReportTemplateUse[]
   documentRenderJobs            DocumentRenderJob[]
   documentArtifacts             DocumentArtifact[]
   idSequences                   IdSequence[]
@@ -309,10 +313,28 @@ model Company {
   products                      Product[]
   priceLists                    PriceList[]
   productPrices                 ProductPrice[]
+  productPriceChanges           ProductPriceChange[]
   retailRegisters               RetailRegister[]
+  retailDevices                 RetailDevice[]
+  retailPairingCodes            RetailPairingCode[]
+  retailDeviceMessages          RetailDeviceMessage[]
+  retailPrintJobs               RetailPrintJob[]
+  retailBundles                 RetailBundle[]
+  retailShopProfile             RetailShopProfile?
+  retailLicenceHours            RetailLicenceHours[]
+  retailDepositKinds            RetailDepositKind[]
+  retailEmptiesEntries          RetailEmptiesEntry[]
+  retailPaymentSettings         RetailPaymentSettings?
+  retailPostingSettings         RetailPostingSettings?
+  retailAccountRoleMappings     RetailAccountRoleMapping[]
+  retailPostingRuns             RetailPostingRun[]
+  retailCategories              RetailCategory[]
   retailPromotions              RetailPromotion[]
   retailPurchaseOrders          RetailPurchaseOrder[]
   retailPurchaseOrderLines      RetailPurchaseOrderLine[]
+  retailStockTransfers          RetailStockTransfer[]
+  retailStockCounts             RetailStockCount[]
+  retailImports                 RetailImport[]
   retailGoodsReceipts           RetailGoodsReceipt[]
   retailGoodsReceiptLines       RetailGoodsReceiptLine[]
   retailShifts                  RetailShift[]
@@ -322,7 +344,15 @@ model Company {
   retailSalePayments            RetailSalePayment[]
   retailCashMovements           RetailCashMovement[]
   retailZReports                RetailZReport[]
+  retailDayCloses               RetailDayClose[]
   retailTillPins                RetailTillPin[]
+  retailTillRules               RetailTillRules?
+  retailApprovalSettings        RetailApprovalSettings?
+  retailReceiptSettings         RetailReceiptSettings?
+  retailFiscalSettings          RetailFiscalSettings?
+  retailMessages                RetailMessage[]
+  userSiteAccess     UserSiteAccess[]
+  retailStaffInvites RetailStaffInvite[]
 
   @@index([tenantStatus])
   @@index([isProvisioned])
@@ -483,6 +513,8 @@ model SubscriptionPlan {
   currency     String   @default("USD")
   maxSites     Int?
   maxUsers     Int?
+  /// Paired tills the plan allows (SET-03). Null = any number.
+  maxTills     Int?
   warningDays  Int      @default(14)
   graceDays    Int      @default(7)
   isActive     Boolean  @default(true)
@@ -1067,6 +1099,9 @@ model PlatformAuditEvent {
 
   @@index([companyId, createdAt])
   @@index([eventType, createdAt])
+  @@index([companyId, entityType, entityId, createdAt])
+  /// "Last in" on People, and Activity's Who filter (ADM-02).
+  @@index([companyId, actor, createdAt])
 }
 
 model Site {
@@ -1079,6 +1114,16 @@ model Site {
 
   // Configurable per site
   measurementUnit String @default("tonnes") // tonnes, trips, wheelbarrows
+
+  /// Retail (SET-02): the site's phone. `location` is its address.
+  phone        String?
+  /// Retail: opening hours as written ("Mon to Sat 08:00 to 21:00, Sun 10:00 to 17:00").
+  openingHours String?
+  /// Retail: the price list this site's tills sell from unless a till says otherwise.
+  priceListId  String?
+  /// Set when the site is closed; `isActive` goes false with it. History stays.
+  closedAt     DateTime?
+  closedById   String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1110,11 +1155,25 @@ model Site {
   goldLedgerImports     GoldLedgerImport[]
   goldPeriodCloses      GoldPeriodClose[]
   retailRegisters       RetailRegister[]
+  retailDefaultFor      RetailShopProfile[]    @relation("RetailDefaultSite")
+  retailLicenceHours    RetailLicenceHours[]
+  retailEmptiesEntries  RetailEmptiesEntry[]
+  priceList             PriceList?             @relation("SitePriceList", fields: [priceListId], references: [id], onDelete: SetNull)
+  priceListsHere        PriceList[]            @relation("PriceListSite")
+  closedBy              User?                  @relation("SiteClosedBy", fields: [closedById], references: [id], onDelete: SetNull)
   retailPurchaseOrders  RetailPurchaseOrder[]
+  crmRequisitions       CrmRequisition[]
   retailGoodsReceipts   RetailGoodsReceipt[]
   retailShifts          RetailShift[]
   retailSales           RetailSale[]
   retailZReports        RetailZReport[]
+  retailDayCloses       RetailDayClose[]
+  retailTransfersOut    RetailStockTransfer[]  @relation("RetailStockTransferFrom")
+  retailTransfersIn     RetailStockTransfer[]  @relation("RetailStockTransferTo")
+  retailStockCounts     RetailStockCount[]
+  retailImports         RetailImport[]
+  userAccess            UserSiteAccess[]
+  retailBundles         RetailBundle[]         @relation("RetailBundleSite")
 
   @@unique([companyId, code])
   @@index([companyId])
@@ -1166,13 +1225,23 @@ enum UserRole {
 
 model User {
   id                String    @id @default(uuid())
-  email             String    @unique
+  /// Null for someone who only uses a till: they never sign in to the admin.
+  email             String?   @unique
   name              String
   password          String? // Optional for OAuth users
   role              UserRole
   companyId         String
+  /// E.164 ("+263719027713"). Required for retail people (checked in the
+  /// service, `lib/retail/people`); other products leave it null. Not unique:
+  /// a school's guardians may share a number.
   phone             String?
   isActive          Boolean   @default(true)
+  /// Works at every site, now and later. False: only the sites in `siteAccess`.
+  allSites          Boolean   @default(true)
+  /// When their access was removed (isActive went false), and by whom. Null
+  /// while they have access.
+  accessRemovedAt   DateTime?
+  accessRemovedById String?
   emailVerified     DateTime? // For NextAuth
   image             String? // For NextAuth
   /// When the password was last set. Null means it has never been changed since
@@ -1358,19 +1427,106 @@ model User {
   crmDailyLogs                      CrmDailyLog[]                  @relation("CrmDailyLogUser")
   crmDailyReports                   CrmDailyReport[]               @relation("CrmDailyReportUser")
   productsCreated                   Product[]                      @relation("ProductCreatedBy")
+  productPriceChanges               ProductPriceChange[]           @relation("ProductPriceChangeCreatedBy")
+  priceListsUpdated                 PriceList[]                    @relation("PriceListUpdatedBy")
+  retailShopProfilesUpdated         RetailShopProfile[]            @relation("RetailShopProfileUpdatedBy")
+  retailPaymentSettingsUpdated      RetailPaymentSettings[]        @relation("RetailPaymentSettingsUpdatedBy")
+  retailPostingSettingsUpdated      RetailPostingSettings[]        @relation("RetailPostingSettingsUpdatedBy")
+  retailPostingRunsStarted          RetailPostingRun[]             @relation("RetailPostingRunStartedBy")
+  currencyRatesCreated              CurrencyRate[]                 @relation("CurrencyRateCreatedBy")
   schoolMessagesSent                SchoolMessage[]
   retailPurchaseOrdersCreated       RetailPurchaseOrder[]          @relation("RetailPurchaseOrderCreatedBy")
+  retailPurchaseOrdersClosed        RetailPurchaseOrder[]          @relation("RetailPurchaseOrderClosedBy")
   retailGoodsReceiptsReceived       RetailGoodsReceipt[]           @relation("RetailGoodsReceiptReceivedBy")
   retailSalesRung                   RetailSale[]                   @relation("RetailSaleCashier")
   retailShifts                      RetailShift[]                  @relation("RetailShiftCashier")
+  retailShiftsClosed                RetailShift[]                  @relation("RetailShiftClosedBy")
+  retailShiftsSignedOff             RetailShift[]                  @relation("RetailShiftSignedOffBy")
   retailHeldCarts                   RetailHeldCart[]               @relation("RetailHeldCartCashier")
+  retailHeldCartsReleased           RetailHeldCart[]               @relation("RetailHeldCartReleasedBy")
   retailCashMovements               RetailCashMovement[]           @relation("RetailCashMovementRecordedBy")
+  retailCashMovementsApproved       RetailCashMovement[]           @relation("RetailCashMovementApprovedBy")
   retailZReports                    RetailZReport[]                @relation("RetailZReportGeneratedBy")
+  retailDaysClosed                  RetailDayClose[]               @relation("RetailDayCloseClosedBy")
   retailTillPin                     RetailTillPin?                 @relation("RetailTillPinUser")
+  retailTillRulesUpdated            RetailTillRules[]              @relation("RetailTillRulesUpdatedBy")
+  retailApprovalOwnerOf             RetailApprovalSettings[]       @relation("RetailApprovalOwner")
+  retailApprovalSettingsUpdated     RetailApprovalSettings[]       @relation("RetailApprovalSettingsUpdatedBy")
+  retailReceiptSettingsUpdated      RetailReceiptSettings[]        @relation("RetailReceiptSettingsUpdatedBy")
+  retailFiscalSettingsUpdated       RetailFiscalSettings[]         @relation("RetailFiscalSettingsUpdatedBy")
+  fiscalDevicesRegistered           FiscalisationProviderConfig[]  @relation("FiscalDeviceRegisteredBy")
   sessionHandoffs                   SessionHandoff[]
+  reportTemplates                   ReportTemplate[]
+  reportTemplatesOpened             ReportTemplateUse[]            @relation("ReportTemplateUseLastOpenedBy")
+  sitesClosed                       Site[]                         @relation("SiteClosedBy")
+  retailRegistersCreated            RetailRegister[]               @relation("RetailRegisterCreatedBy")
+  retailDevicesPaired               RetailDevice[]                 @relation("RetailDevicePairedBy")
+  retailDevicesUnpaired             RetailDevice[]                 @relation("RetailDeviceUnpairedBy")
+  retailSalesReviewed               RetailSale[]                   @relation("RetailSaleReviewedBy")
+  retailSalesApproved               RetailSale[]                   @relation("RetailSaleApprovedBy")
+  retailPairingCodesCreated         RetailPairingCode[]            @relation("RetailPairingCodeCreatedBy")
+  retailDeviceMessagesSent          RetailDeviceMessage[]          @relation("RetailDeviceMessageSentBy")
+  retailPrintJobsCreated            RetailPrintJob[]               @relation("RetailPrintJobCreatedBy")
+  retailBundlesCreated              RetailBundle[]                 @relation("RetailBundleCreatedBy")
+  retailTransfersSent               RetailStockTransfer[]          @relation("RetailStockTransferSentBy")
+  retailTransfersReceived           RetailStockTransfer[]          @relation("RetailStockTransferReceivedBy")
+  retailTransfersCancelled          RetailStockTransfer[]          @relation("RetailStockTransferCancelledBy")
+  retailCountsToCount               RetailStockCount[]             @relation("RetailStockCountCounter")
+  retailCountsStarted               RetailStockCount[]             @relation("RetailStockCountCreatedBy")
+  retailCountsApproved              RetailStockCount[]             @relation("RetailStockCountApprovedBy")
+  retailCountsCancelled             RetailStockCount[]             @relation("RetailStockCountCancelledBy")
+  retailCountLinesCounted           RetailStockCountLine[]         @relation("RetailStockCountLineCountedBy")
+  accessRemovedBy                   User?                          @relation("UserAccessRemovedBy", fields: [accessRemovedById], references: [id], onDelete: SetNull)
+  accessRemovals                    User[]                         @relation("UserAccessRemovedBy")
+  siteAccess                        UserSiteAccess[]
+  staffInvites                      RetailStaffInvite[]            @relation("RetailStaffInvitee")
+  staffInvitesSent                  RetailStaffInvite[]            @relation("RetailStaffInviter")
+  retailTillPinsIssued              RetailTillPin[]                @relation("RetailTillPinIssuedBy")
+  vendorsStopped                    Vendor[]                       @relation("VendorStoppedBy")
+  vendorsCreated                    Vendor[]                       @relation("VendorCreatedBy")
 
   @@index([companyId])
   @@index([email])
+  @@index([companyId, phone])
+}
+
+/// The sites a person works at, when they do not work at all of them (ADM-02).
+model UserSiteAccess {
+  userId    String
+  siteId    String
+  companyId String
+  createdAt DateTime @default(now())
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  site    Site    @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@id([userId, siteId])
+  @@index([companyId, siteId])
+}
+
+/// The WhatsApp link a new person joins with (ADM-02). Works for 7 days;
+/// stored only as its SHA-256.
+model RetailStaffInvite {
+  id          String    @id @default(uuid())
+  companyId   String
+  userId      String
+  invitedById String?
+  tokenHash   String    @unique
+  /// The phone it was sent to.
+  sentTo      String
+  expiresAt   DateTime
+  /// They opened the link and joined, used their PIN, or signed in.
+  acceptedAt  DateTime?
+  /// Sent again (a newer invite replaces it) or their access was removed.
+  revokedAt   DateTime?
+  createdAt   DateTime  @default(now())
+
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  user      User    @relation("RetailStaffInvitee", fields: [userId], references: [id], onDelete: Cascade)
+  invitedBy User?   @relation("RetailStaffInviter", fields: [invitedById], references: [id], onDelete: SetNull)
+
+  @@index([companyId, userId])
 }
 
 model Employee {
@@ -3014,6 +3170,23 @@ enum NotificationType {
   SCHOOL_NOTICE_PARENTS
   SCHOOL_NOTICE_STUDENTS
   SCHOOL_NOTICE_TEACHERS
+  /// Retail stock: a count sent to its counter, a count sent for approval, a
+  /// transfer on its way to the receiving site.
+  RETAIL_COUNT_ASSIGNED
+  RETAIL_COUNT_SUBMITTED
+  RETAIL_TRANSFER_SENT
+  RETAIL_TRANSFER_CANCELLED
+  /// The admin area's (80-admin 3.5), in its first migration.
+  RETAIL_PRICE_APPROVAL
+  RETAIL_PRICE_DECIDED
+  RETAIL_PIN_LOCKED
+  RETAIL_SUPPORT
+  /// A message to staff from People (ADM-02); the floor's "Message the cashier" sends it too.
+  RETAIL_STAFF_MESSAGE
+  /// A drawer closed out (short or over) or without a count, for a manager to sign off (FLR-04).
+  RETAIL_SHIFT_DIFFERENCE
+  /// A manager signed off the cashier's drawer: accepted, to recover, or being looked into (FLR-05).
+  RETAIL_SHIFT_SIGNED_OFF
 }
 
 enum NotificationSeverity {
@@ -3043,6 +3216,12 @@ enum NotificationEntityType {
   CRM_DAILY_REPORT
   /// A lead, deal, company, person or site; which one is in the payload's view path.
   CRM_RECORD
+  RETAIL_STOCK_COUNT
+  RETAIL_STOCK_TRANSFER
+  RETAIL_PRICE_APPROVAL
+  RETAIL_PERSON
+  RETAIL_SETTINGS
+  RETAIL_SHIFT
 }
 
 enum HrIncidentCategory {
@@ -4139,10 +4318,14 @@ model StockLocation {
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
 
+  /// "Places inside it", in the owner's order. The first active place is where removed places' stock goes.
+  sortOrder Int      @default(0)
+
   site              Site            @relation(fields: [siteId], references: [id])
   items             InventoryItem[]
   equipment         Equipment[]
   incomingMovements StockMovement[] @relation("StockMovementDestination")
+  retailStockCounts RetailStockCount[]
 
   @@unique([siteId, code])
   @@index([siteId])
@@ -4173,6 +4356,12 @@ model InventoryItem {
   /// The catalogue item this stock is of. Optional: plenty of stock (fuel,
   /// consumables) is never sold and needs no catalogue entry at all.
   productId    String?
+  /// "Reorder": how many to order when it is low. Suggested orders start from
+  /// it. (`minStock` is "Reorder at".)
+  reorderQty   Decimal? @db.Decimal(12, 4)
+  /// Where on the shelf it lives ("Shelf 2, top"). The phone count sorts and
+  /// labels lines by it.
+  shelf        String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -4185,6 +4374,9 @@ model InventoryItem {
   retailPurchaseOrderLines RetailPurchaseOrderLine[]
   retailGoodsReceiptLines  RetailGoodsReceiptLine[]
   retailSaleLines          RetailSaleLine[]
+  retailTransferLinesFrom  RetailStockTransferLine[] @relation("RetailStockTransferLineFrom")
+  retailTransferLinesTo    RetailStockTransferLine[] @relation("RetailStockTransferLineTo")
+  retailCountLines         RetailStockCountLine[]
 
   @@unique([siteId, itemCode])
   @@index([siteId])
@@ -4232,16 +4424,58 @@ model StockMovement {
   /// some callers key a line within a document (`<receiptId>:<itemId>`).
   sourceId   String?
 
+  /// Why stock moved, in the shop's words. Retail writes one on every
+  /// movement; the stores module writes null.
+  reason       StockMovementReason?
+  /// The document number a person reads: SALE-31862, GRN-0004, CNT-0019,
+  /// TRF-0007, BRK-0012, ADJ-0031. Shared by every movement of one document,
+  /// unlike `referenceId`, which is this row's own.
+  reference    String?
+  /// Signed effect on the line's on hand: +40 received, −1 sold, 0 for a move
+  /// between places.
+  change       Decimal  @default(0) @db.Decimal(12, 4)
+  /// The line's on hand straight after this movement, in (createdAt, id) order.
+  balanceAfter Decimal? @db.Decimal(12, 4)
+  /// On a reversal: the movement it puts back. Unique, so a movement is
+  /// reversed at most once.
+  reversesId   String?  @unique
+
   createdAt DateTime @default(now())
 
   item       InventoryItem  @relation(fields: [itemId], references: [id])
   toLocation StockLocation? @relation("StockMovementDestination", fields: [toLocationId], references: [id])
   issuedBy   User?          @relation(fields: [issuedById], references: [id])
+  reverses   StockMovement? @relation("StockMovementReversal", fields: [reversesId], references: [id], onDelete: Restrict)
+  reversedBy StockMovement? @relation("StockMovementReversal")
 
   @@index([itemId])
+  @@index([itemId, createdAt])
   @@index([toLocationId])
   @@index([createdAt])
   @@index([sourceType, sourceId])
+}
+
+/// Why stock moved, in the shop's words. Retail writes one on every movement;
+/// the stores module passes null.
+enum StockMovementReason {
+  OPENING
+  SALE
+  REFUND
+  VOID
+  RECEIVED
+  DELIVERY_DIFFERENCE
+  SUPPLIER_RETURN
+  COUNT
+  BROKEN
+  OWN_USE
+  FOUND
+  CORRECTION
+  TRANSFER_OUT
+  TRANSFER_IN
+  TRANSFER_BACK
+  CASE_BROKEN
+  REVERSAL
+  PLACE_MOVE
 }
 
 /// Retail's status vocabularies.
@@ -4275,6 +4509,13 @@ enum RetailSaleType {
 enum RetailShiftStatus {
   OPEN
   CLOSED
+}
+
+/// What a manager decided about a drawer that closed out (FLR-05).
+enum RetailShiftSignOff {
+  ACCEPT
+  RECOVER
+  LOOK_INTO
 }
 
 /// S-7.1 — why cash left or entered the drawer between opening and cash-up.
@@ -4351,11 +4592,13 @@ enum RetailHeldCartStatus {
 }
 
 /// `DRAFT` on creation, then driven by receipts: `PARTIAL` while quantities are
-/// outstanding, `RECEIVED` once they are not.
+/// outstanding, `RECEIVED` once they are not. `CLOSED` when the shop stops
+/// waiting for what is left — the supplier ran out, or the rest is not coming.
 enum RetailPurchaseOrderStatus {
   DRAFT
   PARTIAL
   RECEIVED
+  CLOSED
 }
 
 enum RetailGoodsReceiptStatus {
@@ -4381,29 +4624,486 @@ enum RetailPromotionStatus {
 /// Mirrors `RetailTenderType` in `lib/retail/tender-policy.ts`, which is the set
 /// the checkout zod schemas already enforce at the edge. This puts the same set
 /// behind the column, so a payment row cannot disagree with the policy.
+/// The ways a shop is paid (SET-05): the two wallets Harare takes, and
+/// selling on account. Cash US$ and cash ZiG are both `CASH`, told apart by
+/// the payment's `currency`.
 enum RetailTenderType {
   CASH
   CARD
-  MOBILE_MONEY
+  ECOCASH
+  INNBUCKS
   TRANSFER
+  ON_ACCOUNT
   VOUCHER
 }
 
-model RetailRegister {
-  id        String   @id @default(uuid())
+/// How the ZiG rate is kept: typed in by hand, or the RBZ's daily rate.
+enum RetailRateSource {
+  MANUAL
+  RBZ_DAILY
+}
+
+/// Where a `CurrencyRate` row came from.
+enum CurrencyRateSource {
+  MANUAL
+  RBZ
+}
+
+/// Payments (SET-05, board PaymentsSettings): the tenders a shop takes, the
+/// ZiG rule and its EcoCash merchant. One row per company; no row reads as
+/// the defaults.
+model RetailPaymentSettings {
+  companyId           String           @id
+  takeCashUsd         Boolean          @default(true)
+  takeCashZig         Boolean          @default(true)
+  takeCard            Boolean          @default(false)
+  takeEcocash         Boolean          @default(true)
+  takeInnbucks        Boolean          @default(false)
+  takeBankTransfer    Boolean          @default(false)
+  takeOnAccount       Boolean          @default(false)
+  takeVouchers        Boolean          @default(false)
+  zigRateSource       RetailRateSource @default(MANUAL)
+  /// "Round ZiG change to": 0.50, 1 or 5.
+  zigChangeRounding   Decimal          @default(1) @db.Decimal(6, 2)
+  /// "Customers pay by": what the till tells the customer to pay EcoCash to.
+  ecocashMethod       RetailEcocashMethod @default(MERCHANT_CODE)
+  ecocashMerchantCode String?
+  /// "EcoCash number": the shop's phone number, when customers send money to it.
+  ecocashPhone        String?
+  /// "Shows customers as".
+  ecocashDisplayName  String?
+  updatedById         String?
+  createdAt           DateTime         @default(now())
+  updatedAt           DateTime         @updatedAt
+
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  updatedBy User?   @relation("RetailPaymentSettingsUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+}
+
+/// How a shop takes EcoCash: its merchant code, money sent to its phone number, or a terminal at the counter.
+enum RetailEcocashMethod {
+  MERCHANT_CODE
+  PHONE_NUMBER
+  TERMINAL
+}
+
+/// Setup › Posting to the books (SET-09): when retail sales and stock reach the ledger.
+enum RetailPostingSchedule {
+  END_OF_DAY
+  EVERY_SALE
+}
+
+enum RetailPostingTrigger {
+  SCHEDULE
+  BY_HAND
+}
+
+/// The accounts a retail posting rule line can ask for by role instead of by code.
+enum RetailAccountRole {
+  SALES
+  VAT_OUTPUT
+  COST_OF_SALES
+  STOCK
+  BREAKAGE
+  DEPOSITS_HELD
+  OPENING_BALANCES
+}
+
+/// The company's account for each role ("Sales and stock" on Posting to the books).
+model RetailAccountRoleMapping {
   companyId String
-  code      String
-  name      String
-  siteId    String
-  isActive  Boolean  @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  role      RetailAccountRole
+  accountId String
+  updatedAt DateTime          @updatedAt
+
+  company Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  account ChartOfAccount @relation(fields: [accountId], references: [id], onDelete: Restrict)
+
+  @@id([companyId, role])
+}
+
+model RetailPostingSettings {
+  companyId   String                @id
+  schedule    RetailPostingSchedule @default(END_OF_DAY)
+  updatedById String?
+  createdAt   DateTime              @default(now())
+  updatedAt   DateTime              @updatedAt
+
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  updatedBy User?   @relation("RetailPostingSettingsUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+}
+
+/// One posting pass: what "Last posted" reads.
+model RetailPostingRun {
+  id               String               @id @default(uuid())
+  companyId        String
+  trigger          RetailPostingTrigger
+  startedById      String?
+  startedAt        DateTime             @default(now())
+  finishedAt       DateTime?
+  /// Moves with every event the run counts: a run quiet for two minutes was cut off.
+  updatedAt        DateTime             @default(now()) @updatedAt
+  /// Set while one slice posts, so a second Post now waits rather than posting beside it.
+  sliceUntil       DateTime?
+  salesPosted      Int                  @default(0)
+  refundsPosted    Int                  @default(0)
+  deliveriesPosted Int                  @default(0)
+  countsPosted     Int                  @default(0)
+  otherPosted      Int                  @default(0)
+  failed           Int                  @default(0)
+
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  startedBy User?   @relation("RetailPostingRunStartedBy", fields: [startedById], references: [id], onDelete: SetNull)
+
+  @@index([companyId, startedAt])
+}
+
+/// What kind of shop a retail workspace is. It decides the categories a new
+/// shop starts with and which shop-type features exist for the till to use.
+enum RetailBusinessType {
+  GENERAL
+  LIQUOR
+}
+
+/// The shop's own profile: its business type and the features that come with
+/// it. One row per company, written from Settings › General.
+///
+/// A feature is on only when the business type has it *and* its switch is on,
+/// so switching a liquor store to General retail turns every liquor feature
+/// off without losing how they were set. See `lib/retail/shop-profile.ts`.
+model RetailShopProfile {
+  companyId          String             @id
+  businessType       RetailBusinessType @default(GENERAL)
+  /// Liquor: the till asks for an ID check before selling anything that needs one.
+  ageCheck           Boolean            @default(true)
+  /// Liquor: age-restricted lines stop selling outside the licence hours,
+  /// which each site keeps weekday by weekday in `RetailLicenceHours`.
+  licenceHours       Boolean            @default(true)
+  /// Liquor: returnable bottles carry a deposit that comes back with the empty.
+  emptiesAndDeposits Boolean            @default(true)
+  /// Liquor: a case is sold whole or broken into singles.
+  casesAndSingles    Boolean            @default(true)
+  licenceNumber      String?
+  licenceExpiresOn   DateTime?          @db.Date
+  /// The shop's WhatsApp number, from onboarding. Shown to customers; nothing is sent from it.
+  whatsapp           String?
+  /// "Registered for VAT". No: the type's categories seed at 0%, receipts omit the VAT line, posting skips VAT.
+  vatRegistered      Boolean            @default(true)
+  /// "Default site": new products, orders and stock go here unless another is chosen.
+  defaultSiteId      String?
+  updatedById        String?
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+
+  company     Company @relation(fields: [companyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  defaultSite Site?   @relation("RetailDefaultSite", fields: [defaultSiteId], references: [id], onDelete: SetNull)
+  updatedBy   User?   @relation("RetailShopProfileUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+}
+
+/// When a site may sell age-restricted products, one row per weekday, read on
+/// Harare's clock (`lib/retail/licence-hours.ts`). A licence is per premises,
+/// and Saturday often differs. A weekday with no row sells all day; a row whose
+/// start equals its end sells none that day; an end before the start runs past
+/// midnight. Read only while `RetailShopProfile.licenceHours` is on.
+model RetailLicenceHours {
+  id           String @id @default(uuid())
+  companyId    String
+  siteId       String
+  /// 0 is Sunday, as `Date.getDay()`.
+  weekday      Int
+  /// Minutes after midnight.
+  alcoholFrom  Int
+  alcoholUntil Int
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
   company Company @relation(fields: [companyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  site    Site    @relation(fields: [siteId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  site    Site    @relation(fields: [siteId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  @@unique([siteId, weekday])
+  @@index([companyId])
+}
+
+/// A shop's product category: Beer, Spirits, Soft drinks. The shop's own list,
+/// seeded from its business type and edited in Products › Categories — not the
+/// stores module's fixed FUEL/SPARES/CONSUMABLES, which describe a mine.
+model RetailCategory {
+  id                  String    @id @default(uuid())
+  companyId           String
+  name                String
+  /// VAT on products in it, as a percentage. 15 is the standard rate.
+  vatRate             Decimal   @default(15) @db.Decimal(5, 2)
+  /// The till asks for an ID check on anything in it, when the shop checks ID.
+  ageRestricted       Boolean   @default(false)
+  /// New products in it start returnable, at this deposit.
+  returnable          Boolean   @default(false)
+  depositAmount       Decimal?  @db.Decimal(14, 2)
+  /// Prices that earn less than this are flagged. A percentage of the price.
+  targetMarginPercent Decimal?  @db.Decimal(5, 2)
+  sortOrder           Int       @default(0)
+  archivedAt          DateTime?
+  /// "Inside": one level only. Null for a top-level category.
+  parentId            String?
+  /// VAT "Exempt" as opposed to "Zero-rated". Both have vatRate 0; the fiscal device needs the difference.
+  vatExempt           Boolean   @default(false)
+  /// The shop type whose seed made it ("Shop type" filter). Null when added by hand.
+  seededFor           RetailBusinessType?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  company  Company          @relation(fields: [companyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  products Product[]
+  parent   RetailCategory?  @relation("RetailCategoryParent", fields: [parentId], references: [id], onDelete: SetNull)
+  /// The name is unique among the shop's live categories, whatever its case: a
+  /// partial unique index on ("companyId", lower("name")) WHERE "archivedAt" IS
+  /// NULL, in migration 20261005142607_retail_category_live_name. This file
+  /// cannot express it, so a `\d` on the database shows an index it does not.
+  children RetailCategory[] @relation("RetailCategoryParent")
+  priceLists PriceListCategory[]
+  bundles    RetailBundle[]
+
+  @@index([companyId, archivedAt, sortOrder])
+  @@index([parentId])
+}
+
+model RetailRegister {
+  id          String           @id @default(uuid())
+  companyId   String
+  code        String
+  name        String
+  siteId      String
+  isActive    Boolean          @default(true)
+  /// What the owner said will run here ("Device" on Pair a till). The paired device's own kind is what the list shows.
+  deviceKind  RetailDeviceKind @default(COUNTER_MINI)
+  hasPrinter  Boolean          @default(true)
+  hasDrawer   Boolean          @default(true)
+  hasScale    Boolean          @default(false)
+  /// "Sells from price list". Null = the site's list.
+  priceListId String?
+  createdById String?
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  company      Company               @relation(fields: [companyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  site         Site                  @relation(fields: [siteId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  priceList    PriceList?            @relation("RegisterPriceList", fields: [priceListId], references: [id], onDelete: SetNull)
+  createdBy    User?                 @relation("RetailRegisterCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  devices      RetailDevice[]
+  pairingCodes RetailPairingCode[]
+  messages     RetailDeviceMessage[]
+  printJobs    RetailPrintJob[]
+  shifts       RetailShift[]
+  sales        RetailSale[]
 
   @@unique([companyId, code])
   @@index([companyId, siteId, isActive])
+}
+
+/// PRD-06: a print for a till's printer (shelf labels) or for "Print here".
+/// A till pulls the QUEUED jobs of its own register (`/devices/me/print-jobs`)
+/// and says PRINTED or FAILED. A job with no register was printed here: its
+/// payload is the PDF's, opened by the person who printed it for 15 minutes.
+model RetailPrintJob {
+  id          String               @id @default(uuid())
+  companyId   String
+  /// The till whose printer prints it; null for "Print here".
+  registerId  String?
+  kind        RetailPrintJobKind
+  /// LABELS: `{ size, show, labels: [{ name, price, was, barcode, symbology, copies }] }`.
+  payload     Json
+  status      RetailPrintJobStatus @default(QUEUED)
+  /// What the till said went wrong, when it FAILED.
+  error       String?
+  createdById String?
+  createdAt   DateTime             @default(now())
+  printedAt   DateTime?
+
+  company   Company         @relation(fields: [companyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  register  RetailRegister? @relation(fields: [registerId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  createdBy User?           @relation("RetailPrintJobCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([registerId, status, createdAt])
+}
+
+/// PRD-08 — a fixed set ("Bundle") or a buy-more deal ("Buy more, pay less").
+enum RetailBundleKind {
+  FIXED_SET
+  BUY_MORE
+}
+
+enum RetailOnSaleDays {
+  EVERY_DAY
+  WEEKENDS
+  CHOOSE
+}
+
+/// PRD-08 (20-products §3.3) — bundles and buy-more deals. Packs are products.
+model RetailBundle {
+  id          String           @id @default(uuid())
+  companyId   String
+  /// "BND-0004", reserveIdentifier(…, "RETAIL_BUNDLE").
+  code        String
+  kind        RetailBundleKind
+  name        String
+  barcode     String?
+  /// The till button sits under this category ("Till button: Yes, under Beer").
+  categoryId  String?
+  /// Fixed set: the bundle's price. Buy more: what `buyQuantity` of them cost together.
+  price       Decimal          @db.Decimal(14, 2)
+  /// Buy more: how many from the set ("Any 3"). Null for a fixed set.
+  buyQuantity Int?
+  days        RetailOnSaleDays @default(EVERY_DAY)
+  /// ISO weekdays when days = CHOOSE; [6, 7] is stored for WEEKENDS.
+  daysOfWeek  Int[]            @default([])
+  /// "Until": null = "No end date".
+  endsOn      DateTime?        @db.Date
+  /// "Sites": null = all sites.
+  siteId      String?
+  tillButton  Boolean          @default(true)
+  pausedAt    DateTime?
+  stoppedAt   DateTime?
+  archivedAt  DateTime?
+  createdById String?
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  company   Company            @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  category  RetailCategory?    @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  site      Site?              @relation("RetailBundleSite", fields: [siteId], references: [id], onDelete: SetNull)
+  createdBy User?              @relation("RetailBundleCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  items     RetailBundleItem[]
+  saleLines RetailSaleLine[]
+
+  @@unique([companyId, code])
+  @@index([companyId, barcode])
+  @@index([companyId, archivedAt, stoppedAt])
+}
+
+model RetailBundleItem {
+  id        String  @id @default(uuid())
+  bundleId  String
+  productId String
+  /// Fixed set: how many of it. Buy more: 1 (the product counts towards buyQuantity).
+  quantity  Int     @default(1)
+  sortOrder Int     @default(0)
+
+  bundle  RetailBundle @relation(fields: [bundleId], references: [id], onDelete: Cascade)
+  product Product      @relation(fields: [productId], references: [id], onDelete: Restrict)
+
+  @@unique([bundleId, productId])
+  @@index([productId])
+}
+
+enum RetailPrintJobKind {
+  LABELS
+}
+
+enum RetailPrintJobStatus {
+  QUEUED
+  PRINTED
+  FAILED
+}
+
+enum RetailDeviceKind {
+  COUNTER_MINI
+  KORA
+  BROWSER
+}
+
+enum RetailDeviceUnpairReason {
+  UNPAIRED
+  REPLACED
+  SITE_CLOSED
+  ACCOUNT_CLOSED
+}
+
+enum RetailPairingPurpose {
+  PAIR
+  REPLACE
+}
+
+/// What runs Tender at a till. One active device per till (partial unique index in the migration).
+model RetailDevice {
+  id           String                    @id @default(uuid())
+  companyId    String
+  registerId   String
+  kind         RetailDeviceKind
+  /// For a browser: "Windows PC", "Android tablet"… from the user agent. Null for CounterMini and Kora.
+  label        String?
+  /// sha256 of the device key. The key itself only ever lives in the device's httpOnly cookie.
+  keyHash      String                    @unique
+  appVersion   String?
+  pairedAt     DateTime                  @default(now())
+  pairedById   String
+  lastSeenAt   DateTime?
+  unpairedAt   DateTime?
+  unpairedById String?
+  unpairReason RetailDeviceUnpairReason?
+  createdAt    DateTime                  @default(now())
+  updatedAt    DateTime                  @updatedAt
+
+  company    Company        @relation(fields: [companyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  register   RetailRegister @relation(fields: [registerId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  pairedBy   User           @relation("RetailDevicePairedBy", fields: [pairedById], references: [id], onDelete: Restrict)
+  unpairedBy User?          @relation("RetailDeviceUnpairedBy", fields: [unpairedById], references: [id], onDelete: SetNull)
+  shifts     RetailShift[]
+  sales      RetailSale[]
+  pairingCodes RetailPairingCode[]
+
+  @@index([companyId, registerId, unpairedAt])
+}
+
+/// A six-digit code a manager makes; good once, for 10 minutes. Only its hash is stored.
+model RetailPairingCode {
+  id          String               @id @default(uuid())
+  companyId   String
+  registerId  String
+  purpose     RetailPairingPurpose
+  /// sha256(companyId + ":" + code)
+  codeHash    String
+  expiresAt   DateTime
+  usedAt      DateTime?
+  deviceId    String?
+  createdById String
+  createdAt   DateTime             @default(now())
+
+  company   Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  register  RetailRegister @relation(fields: [registerId], references: [id], onDelete: Cascade)
+  createdBy User           @relation("RetailPairingCodeCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  /// The device the code paired, once used.
+  device    RetailDevice?  @relation(fields: [deviceId], references: [id], onDelete: SetNull)
+
+  @@index([companyId, codeHash])
+  @@index([registerId, usedAt, expiresAt])
+}
+
+/// Five wrong codes from one unpaired device stop it for 15 minutes.
+model RetailPairingThrottle {
+  companyId      String
+  /// What the wrong codes are counted against: `install:<tender_install cookie>`, `ip:<address>`, or `shop`.
+  installId      String
+  failedAttempts Int       @default(0)
+  lockedUntil    DateTime?
+  updatedAt      DateTime  @updatedAt
+
+  @@id([companyId, installId])
+}
+
+/// "Send a message" from the Tills list: shown on the till until dismissed.
+model RetailDeviceMessage {
+  id          String    @id @default(uuid())
+  companyId   String
+  registerId  String
+  body        String
+  sentById    String
+  createdAt   DateTime  @default(now())
+  dismissedAt DateTime?
+
+  company  Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  register RetailRegister @relation(fields: [registerId], references: [id], onDelete: Cascade)
+  sentBy   User           @relation("RetailDeviceMessageSentBy", fields: [sentById], references: [id], onDelete: Restrict)
+
+  @@index([registerId, dismissedAt])
 }
 
 model RetailPromotion {
@@ -4417,6 +5117,8 @@ model RetailPromotion {
   endsAt    DateTime?
   status    RetailPromotionStatus @default(ACTIVE)
   notes     String?
+  /// In the bin: removed, restorable, and gone from every list and the till.
+  archivedAt DateTime?
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
 
@@ -4436,6 +5138,10 @@ model RetailPurchaseOrder {
   expectedDate DateTime?
   notes        String?
   createdById  String?
+  /// Who stopped waiting for the rest, when, and why. Set with `CLOSED`.
+  closedAt     DateTime?
+  closedById   String?
+  closeNote    String?
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 
@@ -4444,6 +5150,7 @@ model RetailPurchaseOrder {
   company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   site      Site    @relation(fields: [siteId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   createdBy User?   @relation("RetailPurchaseOrderCreatedBy", fields: [createdById], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  closedBy  User?   @relation("RetailPurchaseOrderClosedBy", fields: [closedById], references: [id], onDelete: SetNull, onUpdate: Cascade)
 
   @@unique([companyId, poNo])
   @@index([companyId, siteId, status])
@@ -4465,6 +5172,7 @@ model RetailPurchaseOrderLine {
   createdAt        DateTime @default(now())
 
   purchaseOrder RetailPurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+  receiptLines  RetailGoodsReceiptLine[]
 
   company       Company        @relation(fields: [companyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   inventoryItem InventoryItem? @relation(fields: [inventoryItemId], references: [id], onDelete: Restrict, onUpdate: Cascade)
@@ -4508,13 +5216,18 @@ model RetailGoodsReceiptLine {
   quantity        Decimal @default(0) @db.Decimal(12, 4)
   unitCost        Decimal @default(0) @db.Decimal(14, 2)
   lineTotal       Decimal @default(0) @db.Decimal(14, 2)
+  /// The order line this delivery filled. Null for a delivery with no order, or
+  /// a line the order did not have.
+  purchaseOrderLineId String?
   createdAt       DateTime @default(now())
 
-  receipt RetailGoodsReceipt @relation(fields: [receiptId], references: [id], onDelete: Cascade)
+  receipt           RetailGoodsReceipt       @relation(fields: [receiptId], references: [id], onDelete: Cascade)
+  purchaseOrderLine RetailPurchaseOrderLine? @relation(fields: [purchaseOrderLineId], references: [id], onDelete: SetNull)
 
   company       Company       @relation(fields: [companyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   inventoryItem InventoryItem @relation(fields: [inventoryItemId], references: [id], onDelete: Restrict, onUpdate: Cascade)
 
+  @@index([purchaseOrderLineId])
   @@index([receiptId])
   @@index([companyId])
 }
@@ -4523,12 +5236,23 @@ model RetailShift {
   id           String    @id @default(uuid())
   companyId    String
   shiftNo      String
+  /// The frozen snapshot the Z report keys on; `registerId` is the till itself.
   registerCode String
   registerName String
+  /// The till the shift is on (SET-04): a shift opens on the device's own till.
+  registerId   String
+  /// The device it was opened on; null for shifts opened in the back office.
+  deviceId     String?
   siteId       String
   cashierId    String
   cashierName  String
   openingFloat Decimal @default(0) @db.Decimal(14, 2)
+  /// The ZiG counted into the drawer at opening; expectedCash includes it at the day's rate (FLR-03).
+  openingFloatZig Decimal @default(0) @db.Decimal(14, 2)
+  /// The ZiG float's dollar value at the rate it was counted in; expectedCash, the Z-report and the open journal add it.
+  openingFloatZigBase Decimal @default(0) @db.Decimal(14, 2)
+  /// "Float left for tomorrow", written by the close; read by the next opening's default (FLR-03).
+  floatLeft    Decimal? @db.Decimal(14, 2)
   status       RetailShiftStatus @default(OPEN)
   openedAt     DateTime  @default(now())
   closedAt     DateTime?
@@ -4536,12 +5260,35 @@ model RetailShift {
   countedCash  Decimal? @db.Decimal(14, 2)
   variance     Decimal? @db.Decimal(14, 2)
   notes        String?
+  /// Who closed it (FLR-04): the cashier, or a manager closing someone else's drawer.
+  closedById   String?
+  /// The count by note (FLR-04): US$ notes, ZiG notes, and the ZiG per US$1 that added them; countedCash is the sum in US$.
+  countedUsd   Decimal? @db.Decimal(14, 2)
+  countedZig   Decimal? @db.Decimal(14, 2)
+  countRate    Decimal? @db.Decimal(12, 4)
+  /// `{ USD: [{ denomination: "20", count: 2 }], ZWG: [...] }`, the rows typed.
+  countLines   Json?
+  /// "What happened" at the close, or why it was closed without a count.
+  closeNote    String?
+  /// Counted cash less the float left in the drawer: what went to the safe.
+  toSafe       Decimal? @db.Decimal(14, 2)
+  /// A manager's decision on a drawer that closed short, over or uncounted (FLR-05); LOOK_INTO is not final.
+  signOffOutcome RetailShiftSignOff?
+  signedOffAt    DateTime?
+  signedOffById  String?
+  signOffNote    String?
+  /// RECOVER: the shortage the cashier owes the shop.
+  recoverAmount  Decimal? @db.Decimal(14, 2)
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 
   company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   site      Site    @relation(fields: [siteId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   cashier   User    @relation("RetailShiftCashier", fields: [cashierId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  closedBy  User?   @relation("RetailShiftClosedBy", fields: [closedById], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  signedOffBy User? @relation("RetailShiftSignedOffBy", fields: [signedOffById], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  register  RetailRegister @relation(fields: [registerId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  device    RetailDevice?  @relation(fields: [deviceId], references: [id], onDelete: SetNull)
   heldCarts     RetailHeldCart[]
   sales         RetailSale[]
   cashMovements RetailCashMovement[]
@@ -4549,6 +5296,8 @@ model RetailShift {
   @@unique([companyId, shiftNo])
   @@index([companyId, siteId, status])
   @@index([cashierId, status])
+  @@index([registerId, status])
+  @@index([companyId, status, signOffOutcome])
 }
 
 /// S-7.1 — cash that left or entered the drawer between opening and cash-up.
@@ -4609,14 +5358,222 @@ model RetailCashMovement {
   /// Denormalised for the same reason `RetailSale.cashierName` is: the user row can
   /// go, and a reprinted safe log still has to name who carried the money.
   recordedByName String?
+  /// The manager who approved it with their PIN, or the person who recorded it when they hold the right (FLR-03).
+  approvedById   String?
+  approvedByName String?
   createdAt      DateTime @default(now())
 
   company    Company     @relation(fields: [companyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   shift      RetailShift @relation(fields: [shiftId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   recordedBy User?       @relation("RetailCashMovementRecordedBy", fields: [recordedById], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  approvedBy User?       @relation("RetailCashMovementApprovedBy", fields: [approvedById], references: [id], onDelete: SetNull, onUpdate: Cascade)
 
   @@index([companyId, shiftId, createdAt])
   @@index([companyId, type])
+}
+
+/// "Voids need a manager PIN" on Till rules (SET-06).
+enum RetailVoidPinRule {
+  ALWAYS
+  AFTER_5_MINUTES
+  NEVER
+}
+
+/// Till rules (SET-06, board TillRules): what every till asks before money goes
+/// back or out, and what the server enforces. One row per company; no row
+/// reads as the defaults.
+model RetailTillRules {
+  companyId                 String            @id
+  /// "Manager PIN for refunds over".
+  refundPinOver             Decimal           @default(20) @db.Decimal(14, 2)
+  voidPin                   RetailVoidPinRule @default(ALWAYS)
+  refundReasons             String[]          @default(["Damaged", "Wrong item", "Changed mind", "Overcharged"])
+  voidReasons               String[]          @default(["Rang up wrong", "Customer left", "Test sale"])
+  splitTender               Boolean           @default(true)
+  /// "Card and EcoCash need a reference" (applies to CARD, ECOCASH, INNBUCKS; 4 characters minimum).
+  referenceRequired         Boolean           @default(true)
+  maxCashierDiscountPercent Decimal           @default(10) @db.Decimal(5, 2)
+  drawerOpenWithoutSale     Boolean           @default(false)
+  cashDropPromptOver        Decimal           @default(500) @db.Decimal(14, 2)
+  offlineHours              Int               @default(24)
+  updatedById               String?
+  createdAt                 DateTime          @default(now())
+  updatedAt                 DateTime          @updatedAt
+
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  updatedBy User?   @relation("RetailTillRulesUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+}
+
+enum RetailPriceChangeRule {
+  /// "Managers, no approval"
+  MANAGERS
+  /// "Owner approves"
+  OWNER
+}
+
+enum RetailCountApprovalRule {
+  /// "Any manager"
+  ANY_MANAGER
+  /// "Owner approves over US$100" (the amount is `countOwnerOver`)
+  OWNER_OVER_LIMIT
+}
+
+enum RetailApprovalChannel {
+  /// "The app only"
+  APP
+  /// "WhatsApp and the app"
+  WHATSAPP_AND_APP
+}
+
+/// Management › Approvals (ADM-04). One row per company; absent = the defaults below.
+/// Every area reads it through `getApprovalLimits` (`lib/retail/approvals/limits.ts`).
+model RetailApprovalSettings {
+  companyId            String                  @id
+  /// "Requisitions need the owner over". Under it, any manager approves.
+  requisitionOwnerOver Decimal                 @default(500) @db.Decimal(14, 2)
+  /// "Owner approvals go to". Null = every active owner.
+  ownerApproverId      String?
+  priceChanges         RetailPriceChangeRule   @default(MANAGERS)
+  /// "Below cost needs the owner": a manager's price under cost waits for the owner.
+  belowCostNeedsOwner  Boolean                 @default(true)
+  /// "Stock adjustments need a manager PIN over"
+  adjustmentPinOver    Decimal                 @default(50) @db.Decimal(14, 2)
+  countDifferences     RetailCountApprovalRule @default(OWNER_OVER_LIMIT)
+  /// The amount in "Owner approves over US$100". Not editable on the page; the segment's label is built from it.
+  countOwnerOver       Decimal                 @default(100) @db.Decimal(14, 2)
+  /// "Accounts need the owner over", when opening or raising a limit.
+  accountOwnerOver     Decimal                 @default(250) @db.Decimal(14, 2)
+  askBy                RetailApprovalChannel   @default(WHATSAPP_AND_APP)
+  updatedById          String?
+  createdAt            DateTime                @default(now())
+  updatedAt            DateTime                @updatedAt
+
+  company       Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  ownerApprover User?   @relation("RetailApprovalOwner", fields: [ownerApproverId], references: [id], onDelete: SetNull)
+  updatedBy     User?   @relation("RetailApprovalSettingsUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+}
+
+enum RetailReceiptSendBy {
+  NOTHING
+  WHATSAPP
+  EMAIL
+}
+
+/// Receipts (SET-07, board ReceiptSettings, W-07): what every till receipt
+/// says above and below the sale, and whether it also goes to the customer.
+/// One row per company; no row reads as the defaults.
+model RetailReceiptSettings {
+  companyId         String              @id
+  /// "Top of the receipt". Null = trading name (upper case) and the site's address.
+  header            String?
+  /// "Bottom of the receipt".
+  footer            String?
+  showVatNumber     Boolean             @default(true)
+  showLicenceNumber Boolean             @default(true)
+  printLogo         Boolean             @default(false)
+  copies            Int                 @default(1)
+  alsoSendBy        RetailReceiptSendBy @default(NOTHING)
+  updatedById       String?
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  updatedBy User?   @relation("RetailReceiptSettingsUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+}
+
+/// SET-08: when the shop's fiscal day closes.
+enum RetailFiscalDayClose {
+  WITH_LAST_SHIFT
+  BY_HAND
+}
+
+/// SET-08: what the tills do while ZIMRA cannot be reached.
+enum RetailFiscalUnreachable {
+  KEEP_SELLING
+  STOP_SELLING
+}
+
+/// Setup › Fiscal device (SET-08, W-06): how the shop's fiscal day closes and
+/// whether the tills stop while ZIMRA does not answer. The device itself is the
+/// company's `ZIMRA_FDMS` `FiscalisationProviderConfig`.
+model RetailFiscalSettings {
+  companyId       String                  @id
+  dayClose        RetailFiscalDayClose    @default(WITH_LAST_SHIFT)
+  whenUnreachable RetailFiscalUnreachable @default(KEEP_SELLING)
+  updatedById     String?
+  createdAt       DateTime                @default(now())
+  updatedAt       DateTime                @updatedAt
+
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  updatedBy User?   @relation("RetailFiscalSettingsUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+}
+
+enum RetailMessageChannel {
+  WHATSAPP
+  EMAIL
+}
+
+enum RetailMessageDirection {
+  OUT
+  IN
+}
+
+enum RetailMessageStatus {
+  QUEUED
+  SENT
+  FAILED
+}
+
+/// What a message carries besides its text (C-02): a picture or a document.
+enum RetailMessageMediaKind {
+  IMAGE
+  DOCUMENT
+}
+
+/// The outbox for messages the shop sends (SET-07): receipts now; staff PINs
+/// (logged with the PIN redacted), orders, offers and pictures later. Written
+/// in the transaction of what it is about, sent by the worker's drain every
+/// five minutes (C-03), never from a request.
+model RetailMessage {
+  id           String                  @id @default(uuid())
+  companyId    String
+  channel      RetailMessageChannel
+  /// E.164 for WhatsApp ("+263772123456"), an address for email.
+  to           String
+  /// "receipt" | "staff-pin" | …
+  template     String
+  body         String
+  saleId       String?
+  /// One attachment (C-02): its address, the name the recipient sees, and what it is.
+  mediaUrl     String?
+  mediaName    String?
+  mediaKind    RetailMessageMediaKind?
+  /// Not before this; null sends with the next drain (C-03).
+  scheduledFor DateTime?
+  status       RetailMessageStatus     @default(QUEUED)
+  attempts     Int                     @default(0)
+  lastError    String?
+  /// The provider's id for the message (Meta's `wamid`), which its status callbacks name.
+  externalId   String?
+  sentAt       DateTime?
+  createdById  String?
+  createdAt    DateTime                @default(now())
+  /// Sent by the shop, or a reply that came in (BUY-01).
+  direction    RetailMessageDirection  @default(OUT)
+  /// What the message is about ("Vendor", "RetailPurchaseOrder") and its id.
+  entityType   String?
+  entityId     String?
+  /// A reply's sender.
+  fromNumber   String?
+
+  company Company     @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  sale    RetailSale? @relation(fields: [saleId], references: [id], onDelete: SetNull)
+
+  @@index([companyId, entityType, entityId, createdAt])
+  @@index([companyId, status, createdAt])
+  @@index([status, scheduledFor])
+  @@index([saleId])
+  @@index([externalId])
 }
 
 /// S-7.5 — the four digits that unlock a till that is already signed in.
@@ -4642,19 +5599,26 @@ model RetailTillPin {
   /// returned by any endpoint, or written to a log.
   pinHash   String
   /// Consecutive wrong guesses since the last correct one. Reset on success and
-  /// when a lock expires.
+  /// when somebody sends a new PIN.
   failedAttempts Int       @default(0)
-  /// Set on the fifth wrong guess. While it is in the future the unlock route
-  /// refuses without comparing the hash at all.
-  lockedUntil    DateTime?
+  /// Set on the fifth wrong PIN in a row. While set the PIN is refused without
+  /// comparing it, until somebody sends a new one (ADM-03).
+  lockedAt       DateTime?
   /// When the terminal was last unlocked with it. Shown on the settings screen so
   /// a cashier can tell whether a PIN they have forgotten is in use.
   lastUnlockedAt DateTime?
+  /// True for a PIN somebody else issued from People (ADM-02): the person
+  /// chooses their own the first time they use it (ADM-03).
+  mustChange     Boolean   @default(false)
+  /// When this PIN was issued or set, and who issued it (null: they chose it).
+  issuedAt       DateTime  @default(now())
+  issuedById     String?
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 
-  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  user    User    @relation("RetailTillPinUser", fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  company  Company @relation(fields: [companyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  user     User    @relation("RetailTillPinUser", fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  issuedBy User?   @relation("RetailTillPinIssuedBy", fields: [issuedById], references: [id], onDelete: SetNull)
 
   @@index([companyId])
 }
@@ -4700,6 +5664,44 @@ model RetailTillPin {
 /// and cost four more things to keep in step. Money inside them is written as a
 /// decimal **string** for the reason above. Same bargain as
 /// `RetailCashMovement.denominations`, and the same discipline.
+/// A site's trading day, closed (FLR-07): the figures frozen as they stood, the
+/// Z-reports taken for each till and the cash banked. One close per site per day;
+/// nothing recomputes it afterwards.
+model RetailDayClose {
+  id             String   @id @default(uuid())
+  companyId      String
+  siteId         String
+  /// The trading day (Africa/Harare); shifts belong to the day they opened.
+  businessDate   DateTime @db.Date
+  takings        Decimal  @db.Decimal(14, 2)
+  /// Refunds as a positive magnitude.
+  refunds        Decimal  @db.Decimal(14, 2)
+  /// Σ the day's shift differences (negative = short).
+  cashDifference Decimal  @db.Decimal(14, 2)
+  cashUsd        Decimal  @db.Decimal(14, 2)
+  cashZig        Decimal  @db.Decimal(14, 2)
+  /// `[{ tender, label, currency, amount }]` as it stood.
+  tenders        Json
+  /// The tills table as it stood (`TillRow[]`, lib/retail/floor/day-close.ts): a later void moves no row.
+  tills          Json
+  banked         Decimal  @db.Decimal(14, 2)
+  bankAccountId  String?
+  slipUrl        String?
+  fiscalDayNo    Int?
+  zReportIds     String[]
+  closedAt       DateTime @default(now())
+  closedById     String
+  closedByName   String
+
+  company     Company      @relation(fields: [companyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  site        Site         @relation(fields: [siteId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  bankAccount BankAccount? @relation("RetailDayCloseBankAccount", fields: [bankAccountId], references: [id], onDelete: SetNull)
+  closedBy    User         @relation("RetailDayCloseClosedBy", fields: [closedById], references: [id], onDelete: Restrict)
+
+  @@unique([companyId, siteId, businessDate])
+  @@index([companyId, businessDate])
+}
+
 model RetailZReport {
   id        String @id @default(uuid())
   /// This module's rule: if a query can reach a table, it carries its own tenant.
@@ -4730,6 +5732,8 @@ model RetailZReport {
   saleCount   Int @default(0)
   refundCount Int @default(0)
   voidCount   Int @default(0)
+  /// Sales that day whose discount a manager approved with their PIN, not since voided: "3 approved".
+  approvedDiscountCount Int @default(0)
   /// Distinct products that moved. The "out of 184" beside the best-sellers table.
   itemCount   Int @default(0)
 
@@ -4757,6 +5761,9 @@ model RetailZReport {
   /// Σ `RetailSale.totalAmount` — what customers paid, and the figure the two
   /// above are derived from.
   grossTakings   Decimal @default(0) @db.Decimal(14, 2)
+  /// Bottle deposits taken, net of deposits paid back. Outside `grossTakings`
+  /// (it is owed back, not earned) but inside the cash, so the drawer reconciles.
+  depositTotal   Decimal @default(0) @db.Decimal(14, 2)
   /// Positive magnitudes. The signed values are already inside the totals above.
   refundTotal    Decimal @default(0) @db.Decimal(14, 2)
   voidTotal      Decimal @default(0) @db.Decimal(14, 2)
@@ -4809,12 +5816,16 @@ model RetailHeldCart {
   label        String?
   cartSnapshot Json
   status       RetailHeldCartStatus @default(HELD)
+  /// Discarded at the till (`RELEASED`): who let it go, and when.
+  releasedAt   DateTime?
+  releasedById String?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  company Company     @relation(fields: [companyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  shift   RetailShift @relation(fields: [shiftId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  cashier User        @relation("RetailHeldCartCashier", fields: [cashierId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  company    Company     @relation(fields: [companyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  shift      RetailShift @relation(fields: [shiftId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  cashier    User        @relation("RetailHeldCartCashier", fields: [cashierId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  releasedBy User?       @relation("RetailHeldCartReleasedBy", fields: [releasedById], references: [id], onDelete: SetNull, onUpdate: Cascade)
 
   @@unique([companyId, holdNo])
   @@index([companyId, shiftId, status])
@@ -4842,13 +5853,25 @@ model RetailSale {
   cashierId      String?
   cashierName    String?
   customerName   String?
+  /// FLR-01: who the sale was rung for; `customerName` stays the printed name.
+  customerId     String?
+  /// FLR-01: the manager who approved a refund or void (PIN or own session).
+  approvedById   String?
+  approvedByName String?
+  /// FLR-01: a refund's goods went back on the shelf; false = written off instead.
+  restocked      Boolean   @default(true)
   saleType       RetailSaleType @default(SALE)
   subtotal       Decimal @default(0) @db.Decimal(14, 2)
   discountAmount Decimal @default(0) @db.Decimal(14, 2)
   taxAmount      Decimal @default(0) @db.Decimal(14, 2)
   totalAmount    Decimal @default(0) @db.Decimal(14, 2)
   tenderedAmount Decimal? @db.Decimal(14, 2)
+  /// What the change handed back is worth in the sale's currency (SET-05, W-05):
+  /// whole US dollars, then `changeZig` at the sale's ZiG rate. It can differ
+  /// from tendered less due by the ZiG rounding, which posts to cash over short.
   changeAmount   Decimal? @db.Decimal(14, 2)
+  /// The ZiG notes handed back as change, rounded to the shop's step.
+  changeZig      Decimal @default(0) @db.Decimal(14, 2)
   /// R-1.5 — what the shelf price is quoted in. Zimbabwe trades in both, and a
   /// bottle store prices in USD while taking ZWG across the counter all day, so a
   /// sale that does not say which one it means is a sale nobody can reconcile.
@@ -4875,13 +5898,36 @@ model RetailSale {
   voidReason     String?
   status         RetailSaleStatus @default(POSTED)
   notes          String?
+  /// When the cashier confirmed the customer's ID for an age-restricted line.
+  /// Null on a sale with nothing age-restricted in it.
+  idCheckedAt    DateTime?
+  /// Deposits on returnable bottles, net of empties brought back. Not part of
+  /// `totalAmount`, which stays the goods the receipt is signed for: what the
+  /// customer pays is `totalAmount + depositAmount`, and the deposit is a
+  /// liability the shop owes back, not revenue. Negative on a void.
+  depositAmount  Decimal   @default(0) @db.Decimal(14, 2)
+  /// The till and the device it was rung on (SET-04); null for back-office sales.
+  registerId     String?
+  deviceId       String?
+  /// Set by the till when the receipt printed (`pos/sales/[id]/printed`). Onboarding's test sale reads it.
+  printedAt      DateTime?
+  /// Why a manager should look at this sale; null for ordinary sales.
+  reviewReason   String?
+  reviewedAt     DateTime?
+  reviewedById   String?
   postedAt       DateTime?
+  /// SET-08: rung while a fiscal day's report was on its way to ZIMRA, so no
+  /// day was open to sign it into. It is signed, oldest first, into the next
+  /// day that is open: the same day when its close is given back, else the
+  /// next. Null once it has its receipt or cannot be signed.
+  fiscalWaitsSince DateTime?
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 
   lines         RetailSaleLine[]
   payments      RetailSalePayment[]
   fiscalReceipt FiscalReceipt?      @relation("RetailSaleFiscalReceipt")
+  messages      RetailMessage[]
 
   company    Company      @relation(fields: [companyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   site       Site         @relation(fields: [siteId], references: [id], onDelete: Restrict, onUpdate: Cascade)
@@ -4889,11 +5935,21 @@ model RetailSale {
   shift      RetailShift? @relation(fields: [shiftId], references: [id], onDelete: SetNull, onUpdate: Cascade)
   sourceSale RetailSale?  @relation("RetailSaleSource", fields: [sourceSaleId], references: [id], onDelete: SetNull, onUpdate: Cascade)
   reversals  RetailSale[] @relation("RetailSaleSource")
+  register   RetailRegister? @relation(fields: [registerId], references: [id], onDelete: SetNull)
+  device     RetailDevice?   @relation(fields: [deviceId], references: [id], onDelete: SetNull)
+  reviewedBy User?           @relation("RetailSaleReviewedBy", fields: [reviewedById], references: [id], onDelete: SetNull)
+  customer   Customer?       @relation("RetailSaleCustomer", fields: [customerId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  approvedBy User?           @relation("RetailSaleApprovedBy", fields: [approvedById], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  empties    RetailEmptiesEntry[]
 
   @@unique([companyId, saleNo])
   @@unique([companyId, clientRef])
   @@index([companyId, siteId, status, postedAt])
   @@index([shiftId])
+  @@index([companyId, registerId, postedAt])
+  @@index([companyId, fiscalWaitsSince])
+  @@index([companyId, customerId])
+  @@index([companyId, saleType, postedAt])
 }
 
 model RetailSaleLine {
@@ -4913,6 +5969,8 @@ model RetailSaleLine {
   /// a product may be archived out from under a receipt; `itemName` is what a
   /// reprint actually renders, and it is denormalised for exactly that reason.
   productId       String?
+  /// PRD-05 — the price list the line was priced from; kept null once that list is purged.
+  priceListId     String?
   itemName        String
   quantity        Decimal @default(0) @db.Decimal(12, 4)
   unitPrice       Decimal @default(0) @db.Decimal(14, 2)
@@ -4921,9 +5979,17 @@ model RetailSaleLine {
   lineTotal       Decimal @default(0) @db.Decimal(14, 2)
   costUnit        Decimal @default(0) @db.Decimal(14, 2)
   costTotal       Decimal @default(0) @db.Decimal(14, 2)
+  /// The deposit this line took on its returnable bottles, net of empties back.
+  /// The sale's `depositAmount` is their sum; a refund pays back its share.
+  depositAmount   Decimal @default(0) @db.Decimal(14, 2)
+  /// PRD-08 — the bundle or buy-more deal this line was sold under.
+  bundleId        String?
+  /// PRD-08 — lines sold as one bundle (or one buy-more group) share this ("<saleId>:<n>").
+  bundleRef       String?
   createdAt       DateTime @default(now())
 
   sale RetailSale @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  bundle RetailBundle? @relation(fields: [bundleId], references: [id], onDelete: SetNull)
 
   company       Company            @relation(fields: [companyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   inventoryItem InventoryItem      @relation(fields: [inventoryItemId], references: [id], onDelete: Restrict, onUpdate: Cascade)
@@ -4933,6 +5999,7 @@ model RetailSaleLine {
   /// not make six months of receipts undeletable, and the receipt still reprints
   /// from `itemName`.
   product       Product?           @relation(fields: [productId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  priceList     PriceList?         @relation(fields: [priceListId], references: [id], onDelete: SetNull)
   sourceLine    RetailSaleLine?    @relation("RetailSaleLineSource", fields: [sourceLineId], references: [id], onDelete: SetNull, onUpdate: Cascade)
   reversals     RetailSaleLine[]   @relation("RetailSaleLineSource")
 
@@ -4941,6 +6008,50 @@ model RetailSaleLine {
   @@index([companyId, inventoryItemId])
   /// Best-sellers and margin-by-line group on the product now, not the listing.
   @@index([companyId, productId])
+  @@index([companyId, bundleId])
+}
+
+/// What the shop calls a deposit value it charges: "Bottles, 340 to 375ml" for
+/// 0.10, "Crates of 24" for 3.40. Products keep their own deposit amount; the
+/// till finds the name by the amount. One name per amount per shop.
+model RetailDepositKind {
+  id        String   @id @default(uuid())
+  companyId String
+  amount    Decimal  @db.Decimal(14, 2)
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, amount])
+}
+
+/// The empties the shop holds for each supplier: bottles brought back at the
+/// till, which go back to the supplier for their deposit. Positive is brought
+/// back to the shop (owed back to the supplier); a void writes the same
+/// bottles negative. Written with the sale, by the product's supplier.
+model RetailEmptiesEntry {
+  id            String   @id @default(uuid())
+  companyId     String
+  siteId        String
+  supplierId    String
+  /// The sale they came back on; the entry stays, unlinked, if the sale goes.
+  saleId        String?
+  productId     String
+  quantity      Int
+  /// The deposit on one bottle, the product's at the time.
+  depositAmount Decimal  @db.Decimal(14, 2)
+  createdAt     DateTime @default(now())
+
+  company  Company     @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  site     Site        @relation(fields: [siteId], references: [id], onDelete: Restrict)
+  supplier Vendor      @relation(fields: [supplierId], references: [id], onDelete: Restrict)
+  sale     RetailSale? @relation(fields: [saleId], references: [id], onDelete: SetNull)
+  product  Product     @relation(fields: [productId], references: [id], onDelete: Restrict)
+
+  @@index([companyId, supplierId])
+  @@index([saleId])
 }
 
 model RetailSalePayment {
@@ -5143,6 +6254,12 @@ enum AccountingSourceType {
   RETAIL_STOCK_ADJUSTMENT
   RETAIL_STOCK_TRANSFER
   RETAIL_SHIFT_VARIANCE
+  RETAIL_OPENING_STOCK
+  RETAIL_CASH_MOVEMENT
+  RETAIL_PETTY_CASH
+  RETAIL_SHIFT_CLOSE
+  RETAIL_SHIFT_RECOVERY
+  RETAIL_DAY_BANKED
   GOLD_SHIFT_ALLOCATION_COMPANY
   GOLD_SHIFT_ALLOCATION_WORKER
   GOLD_SHIFT_EXPENSE
@@ -5219,6 +6336,7 @@ enum PostingRuleLineRepeatMode {
 enum PostingRuleLineAccountSource {
   FIXED_ACCOUNT
   TENDER_MAPPING
+  ROLE_MAPPING
 }
 
 enum AccountingSeedExecutionMode {
@@ -5382,7 +6500,8 @@ model ChartOfAccount {
   journalLines           JournalLine[]
   postingLines           PostingRuleLine[]
   tenderClearingMappings TenderAccountMapping[] @relation("TenderClearingAccount")
-  tenderOffsetMappings   TenderAccountMapping[] @relation("TenderOffsetAccount")
+  tenderOffsetMappings   TenderAccountMapping[]     @relation("TenderOffsetAccount")
+  retailRoleMappings     RetailAccountRoleMapping[]
 
   @@unique([companyId, code])
   @@index([companyId, type])
@@ -5551,6 +6670,8 @@ model PostingRuleLine {
   taxCodeId       String?
   repeatMode      PostingRuleLineRepeatMode    @default(NONE)
   accountSource   PostingRuleLineAccountSource @default(FIXED_ACCOUNT)
+  /// With `accountSource = ROLE_MAPPING`: which of the company's role accounts this line posts to.
+  accountRole     RetailAccountRole?
   valuePath       String?
   memoTemplate    String?
   costCenterId    String?
@@ -5740,6 +6861,7 @@ model Customer {
   invoices        SalesInvoice[]
   quotations      SalesQuotation[]
   crmClients      CrmClient[]
+  retailSales     RetailSale[]     @relation("RetailSaleCustomer")
 
   @@index([companyId, isActive])
 }
@@ -5758,12 +6880,69 @@ model Vendor {
   isActive      Boolean  @default(true)
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
+  // Read by retail (BUY-01) as: contactName = "Rep" (kept in step with the rep
+  // contact), address = "Address", taxNumber = "BP number", vatNumber = "VAT number".
+  /// "SUP-0001". Unique per company.
+  code                 String?
+  /// Where orders and reminders go on WhatsApp. Starts as `phone`.
+  whatsapp             String?
+  /// "Send orders on WhatsApp".
+  sendOrdersOnWhatsapp Boolean   @default(true)
+  /// "Pays": null = on delivery; else days from delivery (7, 14, 30).
+  payTermsDays         Int?
+  /// "Delivers", as said: "Tuesdays and Fridays".
+  deliversOn           String?
+  /// "Lead time", whole days. Fills an order's Expected.
+  leadTimeDays         Int?
+  /// "Minimum order", with VAT.
+  minimumOrder         Decimal?  @db.Decimal(14, 2)
+  /// "Bank account" as typed. The rail shows "CBZ · •••• 4471".
+  bankDetails          String?
+  /// "Stop buying from them". isActive is false while set.
+  stoppedAt            DateTime?
+  stoppedById          String?
+  createdById          String?
 
   company             Company              @relation(fields: [companyId], references: [id], onDelete: Cascade)
   taxCategory         TaxCategory?         @relation(fields: [taxCategoryId], references: [id])
   bills               PurchaseBill[]
+  products            Product[]            @relation("ProductSupplier")
+  contacts            VendorContact[]
+  emptiesEntries      RetailEmptiesEntry[]
+  stoppedBy           User?                @relation("VendorStoppedBy", fields: [stoppedById], references: [id], onDelete: SetNull)
+  createdBy           User?                @relation("VendorCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
 
+  @@unique([companyId, code])
   @@index([companyId, isActive])
+}
+
+enum VendorContactSends {
+  ORDERS
+  STATEMENTS
+  NOTHING
+}
+
+/// A person at a supplier (BUY-01): the rep, accounts, the orders desk, a driver.
+model VendorContact {
+  id        String             @id @default(uuid())
+  companyId String
+  vendorId  String
+  name      String
+  /// "Sales rep", "Accounts", "Orders desk", "Driver", or a word the shop added.
+  role      String?
+  phone     String?
+  email     String?
+  /// "Sends them".
+  sends     VendorContactSends @default(ORDERS)
+  removedAt DateTime?
+  createdAt DateTime           @default(now())
+  updatedAt DateTime           @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  vendor  Vendor  @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+
+  @@index([vendorId])
+  @@index([companyId])
 }
 
 model SalesInvoice {
@@ -6173,6 +7352,7 @@ model BankAccount {
   reconciliations    BankReconciliation[]
   crmRequisitions    CrmRequisition[]
   defaultForSettings AccountingSettings[] @relation("DefaultBankAccount")
+  retailDayCloses    RetailDayClose[]     @relation("RetailDayCloseBankAccount")
 
   @@index([companyId, isActive])
   @@index([companyId, showOnDocuments, documentPosition])
@@ -6425,9 +7605,13 @@ model CurrencyRate {
   quoteCurrency String
   rate          Float
   effectiveDate DateTime
-  createdAt     DateTime @default(now())
+  createdAt     DateTime           @default(now())
+  /// Who typed it in; null for a rate a feed brought (the RBZ's daily rate).
+  createdById   String?
+  source        CurrencyRateSource @default(MANUAL)
 
-  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  createdBy User?   @relation("CurrencyRateCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
 
   @@index([companyId, effectiveDate])
 }
@@ -6448,11 +7632,19 @@ model FiscalisationProviderConfig {
   webhookSecretRef String?
   metadataJson     String?
   isActive         Boolean  @default(true)
+  /// ZIMRA's serial for the device (SET-08; was only passed through at registration).
+  serialNumber     String?
+  registeredAt     DateTime?
+  registeredById   String?
+  /// Last FDMS call that succeeded / failed. "Stop selling" reads `lastFailedAt`.
+  lastOkAt         DateTime?
+  lastFailedAt     DateTime?
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
-  company    Company     @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  fiscalDays FiscalDay[]
+  company      Company     @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  registeredBy User?       @relation("FiscalDeviceRegisteredBy", fields: [registeredById], references: [id], onDelete: SetNull)
+  fiscalDays   FiscalDay[]
 
   @@unique([companyId, providerKey])
   @@index([companyId, isActive])
@@ -6491,6 +7683,10 @@ model FiscalDay {
   lastReceiptHash     String?
   closingSignature    String?
   countersJson        String?
+  /// While a close holds the day (CLOSING): when it took it. One close at a
+  /// time; null when no close holds it (a report ZIMRA refused waits for the
+  /// next close). A hold older than the close lease is a close that died.
+  closingSince        DateTime?
   lastError           String?
   createdAt           DateTime  @default(now())
   updatedAt           DateTime  @updatedAt
@@ -6563,6 +7759,16 @@ model FiscalReceipt {
   fiscalDayId           String?
   receiptType           String?
   receiptCurrency       String?
+  /// SET-08 — the date the receipt was signed with, kept so a resend sends the
+  /// same one. A till sale's is its own time, or the last receipt's when that
+  /// is later (ZIMRA takes no receipt dated before the last one it took), so
+  /// the sale's `postedAt` stays when it was really rung.
+  receiptDate           DateTime?
+  /// SET-08 — the tax a till receipt was signed with: each sale line's rate
+  /// (by `RetailSaleLine.id`) and the receipt's lines per ZIMRA taxID, minor
+  /// units as strings. A resend sends these and the day's Z-report counts
+  /// them, so a catalogue rate edited after the sale changes neither.
+  signedTax             Json?
   createdAt             DateTime            @default(now())
   updatedAt             DateTime            @updatedAt
 
@@ -6613,6 +7819,86 @@ model ReportSetting {
   company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
 
   @@unique([companyId, reportKey])
+}
+
+model CustomReport {
+  id          String   @id @default(uuid())
+  companyId   String
+  title       String
+  description String?
+  /// A `CustomDocument` (`lib/reports/custom/document.ts`): the page's blocks
+  /// and the queries behind them. Rows are never stored — they are fetched
+  /// through the report sources each time, under the reader's own access.
+  document    Json
+  /// Who sees it besides its maker, the way a report template says it: just
+  /// them, the managers, or everyone (`lib/reports/template-access.ts`).
+  audience    ReportTemplateAudience @default(JUST_ME)
+  createdById String
+  updatedById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId, createdById])
+}
+
+/// A report saved under a name: one of the code's reports, with the columns,
+/// filters, sort, grouping and totals somebody chose, and who else sees it.
+/// It lists under its report's area, beside the built-in one, and opens that
+/// report with this view. The rows are still the report's, read under the
+/// reader's own role, so sharing a template never shares what a role may not see.
+model ReportTemplate {
+  id          String                 @id @default(uuid())
+  companyId   String
+  /// The report it reads, e.g. `retail-sales`. Not a foreign key: reports are
+  /// code, and a template on a report a release removes is simply not listed.
+  reportKey   String
+  name        String
+  description String?
+  /// A `ReportView` (`lib/reports/types.ts`).
+  view        Json
+  /// The report's choices it keeps, and its dates when they were kept. Dates
+  /// left out move with today: the report's own period applies.
+  params      Json                   @default("{}")
+  audience    ReportTemplateAudience @default(JUST_ME)
+  createdById String
+  createdAt   DateTime               @default(now())
+  updatedAt   DateTime               @updatedAt
+
+  company   Company             @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  createdBy User                @relation(fields: [createdById], references: [id], onDelete: Cascade)
+  uses      ReportTemplateUse[]
+
+  @@index([companyId, reportKey])
+  @@index([companyId, createdById])
+}
+
+/// How often a report template is opened in a workspace, built in or saved: the catalogue's
+/// "Last opened" and the edit sheet's "opened 22 times". One row per template per company.
+model ReportTemplateUse {
+  id             String   @id @default(uuid())
+  companyId      String
+  /// "builtin:<slug>" for a built-in template, the ReportTemplate id for a saved one.
+  templateRef    String
+  templateId     String?
+  opens          Int      @default(0)
+  lastOpenedAt   DateTime
+  lastOpenedById String?
+
+  company      Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  template     ReportTemplate? @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  lastOpenedBy User?           @relation("ReportTemplateUseLastOpenedBy", fields: [lastOpenedById], references: [id], onDelete: SetNull)
+
+  @@unique([companyId, templateRef])
+  @@index([templateId])
+}
+
+/// Who sees a report template besides whoever made it.
+enum ReportTemplateAudience {
+  JUST_ME
+  MANAGERS
+  EVERYONE
 }
 
 model DocumentTemplate {
@@ -11310,6 +12596,18 @@ enum CrmQuestionType {
   DIMENSION
   /// The answer is the photograph.
   PHOTO_EVIDENCE
+  /// The builder's measuring kinds (see `lib/forms/fields.ts`). The figure
+  /// a quote line reads goes in `valueNumber`; the measurements in `valueJson`.
+  LENGTH
+  AREA
+  AREAS
+  COUNT
+  READING
+  RUN
+  SIGNATURE
+  /// On the page to organise it; never answered.
+  SECTION
+  NOTE
 }
 
 /// A named set of questions a rep works through on site.
@@ -11332,6 +12630,8 @@ model CrmQuestionSet {
   isActive  Boolean            @default(true)
   /// Which template seeded this, for provenance. Null once hand-built.
   sourceTemplateKey String?
+  /// The quote these answers draft: `QuoteLine[]` from `lib/forms/quote.ts`.
+  quoteLines        Json?
   archivedAt  DateTime?
   createdById String?
   createdAt   DateTime         @default(now())
@@ -11362,6 +12662,9 @@ model CrmQuestion {
   options       Json?
   /// "mm", "m2", "m" — shown beside a NUMBER input.
   unit          String?
+  /// The rest of the question as the builder makes it: bounds, an area's
+  /// shape, the warning range, and the answer that shows it (`showWhen`).
+  settings      Json?
   isRequired    Boolean         @default(false)
   /// The bank says to photograph this one.
   requiresPhoto Boolean         @default(false)
@@ -12943,7 +14246,14 @@ model Product {
   name               String
   description        String?
   kind               ProductKind   @default(GOODS)
+  /// Free text for the modules that have no category list of their own.
+  /// Retail does: it files a product under `retailCategory` and leaves this
+  /// alone.
   category           String?
+  /// The shop's own category, from Products › Categories. Its VAT rate, ID
+  /// check and deposit are the defaults a new product in it starts from, and
+  /// the till checks ID when either the product or its category asks for it.
+  categoryId         String?
   unit               UnitOfMeasure @default(EACH)
   /// Free text when `unit` is OTHER, e.g. "per pallet".
   unitLabel          String?
@@ -12953,15 +14263,6 @@ model Product {
   /// model from S-3 onward, and routing numbers R-1.1 made exact back through a
   /// double would undo R-1.1 by the back door.
   standardPrice      Decimal       @default(0) @db.Decimal(14, 2)
-  /// The "was" price, shown struck through beside the shelf price.
-  ///
-  /// S-4b — a merchandising attribute of the retail profile, alongside `barcode`
-  /// and `ageRestricted`. It lived on `RetailCatalogItem.compareAtPrice`, and the
-  /// pricing screen edits it in the same row as the sell price; when the item
-  /// master moved to `Product` it had to come with it or the column would have
-  /// been deleted rather than migrated. Not on `ProductPrice`: a tenant runs one
-  /// shelf list, and a per-list was-price is generality nothing has asked for.
-  compareAtPrice     Decimal?      @db.Decimal(14, 2)
   costPrice          Decimal?      @db.Decimal(14, 2)
   /// A percentage, not money — hence the narrower scale.
   defaultTaxRate     Decimal       @default(0) @db.Decimal(5, 2)
@@ -12978,11 +14279,26 @@ model Product {
   barcode            String?
   /// A liquor licence is not optional, and a bottle store's range is mostly
   /// things it applies to. The counter has to be told to check.
-  ageRestricted      Boolean       @default(false)
+  ///
+  /// The product's own answer, overriding its category's: true checks ID even
+  /// in a category that does not, false sells a category's odd one out
+  /// (alcohol-free beer in Beer) without one. Null follows the category.
+  ageRestricted      Boolean?
   /// A Chibuku scud comes back and the empty is worth money. Ordinary Zimbabwean
   /// bottle-store trade, modelled nowhere in this repo before now.
   returnable         Boolean       @default(false)
   depositAmount      Decimal?      @db.Decimal(14, 2)
+  /// A case: the single it breaks into on the shelf, and how many of them.
+  /// Null on everything that is not a case.
+  packOfId           String?
+  packSize           Int?
+  /// A case: "Break cases at the till". The till opens one when the singles run out.
+  breakAtTill        Boolean       @default(true)
+  /// Sold at whatever the cashier types (airtime, bundles): the till asks for
+  /// the price, and a typed price is not a price change for a manager.
+  openPrice          Boolean       @default(false)
+  /// "Supplier" on the product form: who it is usually bought from.
+  supplierId         String?
   imageUrl           String?
   notes              String?
   isActive           Boolean       @default(true)
@@ -12996,15 +14312,27 @@ model Product {
 
   company        Company             @relation(fields: [companyId], references: [id], onDelete: Cascade)
   createdBy      User?               @relation("ProductCreatedBy", fields: [createdById], references: [id])
+  retailCategory RetailCategory?     @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  packOf         Product?            @relation("ProductPack", fields: [packOfId], references: [id], onDelete: SetNull)
+  packs          Product[]           @relation("ProductPack")
+  supplier       Vendor?             @relation("ProductSupplier", fields: [supplierId], references: [id], onDelete: SetNull)
   prices         ProductPrice[]
+  priceChanges   ProductPriceChange[]
   inventoryItems InventoryItem[]
   retailSaleLines RetailSaleLine[]
+  retailTransferLines RetailStockTransferLine[]
+  retailCountLines    RetailStockCountLine[]
+  bundleItems         RetailBundleItem[]
+  retailEmptiesEntries RetailEmptiesEntry[]
   crmQuestionSets      CrmQuestionSet[]
   crmSiteVisitSections CrmSiteVisitSection[]
 
   @@unique([companyId, code])
   @@index([companyId, isActive, kind])
   @@index([companyId, category])
+  @@index([categoryId])
+  @@index([packOfId])
+  @@index([supplierId])
   /// The till scans on this and expects an answer before the next item.
   @@index([companyId, barcode])
 }
@@ -13030,15 +14358,88 @@ model PriceList {
   /// shelf figure instead. False by default, so every list that existed this
   /// morning still means exactly what it meant.
   taxInclusive Boolean    @default(false)
-  isActive  Boolean       @default(true)
+  /// PRD-05 — ON is charged at the tills whose rules it meets; DRAFT and PAUSED never are.
+  state     PriceListState    @default(ON)
+  /// Who gets it. Only EVERYONE matches until the customer units pass a customer to the engine.
+  audience  PriceListAudience @default(EVERYONE)
+  whenKind  PriceListWhen     @default(ALWAYS)
+  /// DAYS_AND_HOURS: ISO weekdays, Monday 1 to Sunday 7.
+  daysOfWeek Int[]            @default([])
+  /// DAYS_AND_HOURS: "17:00" to "19:00", Africa/Harare, the end not included.
+  fromTime  String?
+  toTime    String?
+  /// BETWEEN_DATES: both days included.
+  startsOn  DateTime?         @db.Date
+  endsOn    DateTime?         @db.Date
+  /// Only at this site; null at every site.
+  siteId    String?
+  /// The smallest quantity a line must hold for the list's price.
+  minQuantity Int             @default(1)
+  /// OWN prices typed per product; LIST follows `basisListId`; COST follows each product's cost.
+  basis     PriceListBasis    @default(OWN)
+  basisListId String?
+  /// −8 is "less 8%", +5 "plus 5%"; null for OWN.
+  adjustPercent Decimal?      @db.Decimal(6, 2)
+  /// In the bin. The partial unique index on the default ignores binned lists.
+  archivedAt DateTime?
+  updatedById String?
   createdAt DateTime      @default(now())
   updatedAt DateTime      @updatedAt
 
   company Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  site    Site?          @relation("PriceListSite", fields: [siteId], references: [id], onDelete: SetNull)
+  basisList PriceList?   @relation("PriceListBasis", fields: [basisListId], references: [id], onDelete: SetNull)
+  followers PriceList[]  @relation("PriceListBasis")
+  updatedBy User?        @relation("PriceListUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
   entries ProductPrice[]
+  changes ProductPriceChange[]
+  categories PriceListCategory[]
+  saleLines RetailSaleLine[]
+  sites   Site[]         @relation("SitePriceList")
+  registers RetailRegister[] @relation("RegisterPriceList")
 
   @@unique([companyId, name])
-  @@index([companyId, isActive, kind])
+  /// One default per company among live lists: a partial unique index
+  /// "PriceList_one_default" on ("companyId") WHERE "isDefault" AND "archivedAt"
+  /// IS NULL, in migration 20261008010000_retail_price_list_rules.
+  @@index([companyId, state, kind])
+}
+
+/// PRD-05 — a list that applies only to these categories; none means every product on it.
+model PriceListCategory {
+  priceListId String
+  categoryId  String
+
+  priceList PriceList      @relation(fields: [priceListId], references: [id], onDelete: Cascade)
+  category  RetailCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@id([priceListId, categoryId])
+  @@index([categoryId])
+}
+
+enum PriceListState {
+  DRAFT
+  ON
+  PAUSED
+}
+
+enum PriceListAudience {
+  EVERYONE
+  ACCOUNT_CUSTOMERS
+  LOYALTY_MEMBERS
+  STAFF
+}
+
+enum PriceListWhen {
+  ALWAYS
+  DAYS_AND_HOURS
+  BETWEEN_DATES
+}
+
+enum PriceListBasis {
+  OWN
+  LIST
+  COST
 }
 
 /// One product's price on one list. `minQuantity` gives simple volume breaks;
@@ -13053,6 +14454,8 @@ model ProductPrice {
   minQuantity Decimal  @default(1) @db.Decimal(12, 4)
   /// S-1 — what a price list actually says a thing costs. Money, so `Decimal`.
   unitPrice   Decimal  @db.Decimal(14, 2)
+  /// PRD-05 — moves with the list's basis (its base list's price, or the cost); a typed price stops it.
+  followsBase Boolean  @default(false)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -13062,6 +14465,55 @@ model ProductPrice {
 
   @@unique([priceListId, productId, minQuantity])
   @@index([companyId, productId])
+}
+
+enum RetailPriceChangeSource {
+  /// Put on a list (new product, new list, added to a list).
+  ADDED
+  /// Typed on the worksheet or the record.
+  TYPED
+  /// Change many prices.
+  BULK
+  /// Followed its base list or the cost.
+  FOLLOWED
+  /// Import or the starter catalogue.
+  IMPORT
+  /// Taken off a list.
+  REMOVED
+}
+
+/// One price on one list changing, now or later: the price history, "Was"
+/// and "Changed", and scheduled changes (20-products 3.3).
+model ProductPriceChange {
+  id          String                  @id @default(uuid())
+  companyId   String
+  priceListId String
+  productId   String
+  minQuantity Decimal                 @default(1) @db.Decimal(12, 4)
+  /// Null when the product was put on the list.
+  fromPrice   Decimal?                @db.Decimal(14, 2)
+  /// Null when it was taken off the list.
+  toPrice     Decimal?                @db.Decimal(14, 2)
+  source      RetailPriceChangeSource
+  /// Rows saved together (one save bar, one Change many prices).
+  batchId     String?
+  /// When it takes effect. Equal to createdAt for "Now".
+  effectiveAt DateTime
+  /// Null while scheduled. Set once by applyDuePriceChanges.
+  appliedAt   DateTime?
+  cancelledAt DateTime?
+  createdById String?
+  createdAt   DateTime                @default(now())
+
+  company   Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  priceList PriceList @relation(fields: [priceListId], references: [id], onDelete: Cascade)
+  product   Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+  createdBy User?     @relation("ProductPriceChangeCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([companyId, productId, appliedAt])
+  @@index([priceListId, productId, appliedAt])
+  @@index([appliedAt, effectiveAt])
+  @@index([batchId])
 }
 
 enum ProductKind {
@@ -13276,6 +14728,9 @@ model CrmRequisition {
 
   /// Null for fuel, airtime and anything else that belongs to no project.
   projectId String?
+  /// The shop it was raised at, for a requisition raised in retail. Null on a
+  /// CRM requisition, which belongs to a project instead.
+  siteId    String?
 
   amount   Decimal @db.Decimal(14, 2)
   currency String  @default("USD")
@@ -13312,6 +14767,7 @@ model CrmRequisition {
 
   company     Company             @relation(fields: [companyId], references: [id], onDelete: Cascade)
   project     CrmProject?         @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  site        Site?               @relation(fields: [siteId], references: [id], onDelete: SetNull)
   requestedBy User                @relation("CrmRequisitionRequestedBy", fields: [requestedById], references: [id])
   approvedBy  User?               @relation("CrmRequisitionApprovedBy", fields: [approvedById], references: [id])
   disbursedBy User?               @relation("CrmRequisitionDisbursedBy", fields: [disbursedById], references: [id])
@@ -13323,6 +14779,7 @@ model CrmRequisition {
   @@index([companyId, status, createdAt])
   @@index([companyId, requestedById, status])
   @@index([companyId, projectId])
+  @@index([companyId, siteId, status])
 }
 
 /// One person's money for one day.
@@ -13534,4 +14991,255 @@ enum CrmWorkOrderStatus {
   BLOCKED
   COMPLETED
   CANCELLED
+}
+
+/// STK-07: stock sent from one site of a shop to another (W-24). It leaves the
+/// sending site when it is sent and joins the receiving site when received.
+enum RetailStockTransferStatus {
+  ON_THE_WAY
+  RECEIVED
+  CANCELLED
+}
+
+model RetailStockTransfer {
+  id            String                    @id @default(uuid())
+  companyId     String
+  /// "TRF-0008".
+  transferNo    String
+  fromSiteId    String
+  toSiteId      String
+  status        RetailStockTransferStatus @default(ON_THE_WAY)
+  sentAt        DateTime                  @default(now())
+  sentById      String
+  /// "Taken by" on the sheet, "Driver" in the rail: a name, which need not be staff.
+  driver        String?
+  vehicle       String?
+  /// As typed: "Today, by 11:00".
+  arrives       String?
+  note          String?
+  receivedAt    DateTime?
+  receivedById  String?
+  cancelledAt   DateTime?
+  cancelledById String?
+  createdAt     DateTime                  @default(now())
+  updatedAt     DateTime                  @updatedAt
+
+  company     Company                   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  fromSite    Site                      @relation("RetailStockTransferFrom", fields: [fromSiteId], references: [id], onDelete: Restrict)
+  toSite      Site                      @relation("RetailStockTransferTo", fields: [toSiteId], references: [id], onDelete: Restrict)
+  sentBy      User                      @relation("RetailStockTransferSentBy", fields: [sentById], references: [id], onDelete: Restrict)
+  receivedBy  User?                     @relation("RetailStockTransferReceivedBy", fields: [receivedById], references: [id], onDelete: SetNull)
+  cancelledBy User?                     @relation("RetailStockTransferCancelledBy", fields: [cancelledById], references: [id], onDelete: SetNull)
+  lines       RetailStockTransferLine[]
+
+  @@unique([companyId, transferNo])
+  @@index([companyId, status, sentAt])
+  @@index([companyId, fromSiteId, toSiteId])
+}
+
+/// One product on a transfer. Still to come = sent - received - lost.
+model RetailStockTransferLine {
+  id               String   @id @default(uuid())
+  companyId        String
+  transferId       String
+  productId        String
+  fromItemId       String
+  /// The line at the receiving site; set when the first units are received.
+  toItemId         String?
+  quantitySent     Decimal  @db.Decimal(12, 4)
+  quantityReceived Decimal  @default(0) @db.Decimal(12, 4)
+  quantityLost     Decimal  @default(0) @db.Decimal(12, 4)
+  /// The sending line's cost when it was sent.
+  unitCost         Decimal  @db.Decimal(14, 2)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  transfer RetailStockTransfer @relation(fields: [transferId], references: [id], onDelete: Cascade)
+  product  Product             @relation(fields: [productId], references: [id], onDelete: Restrict)
+  fromItem InventoryItem       @relation("RetailStockTransferLineFrom", fields: [fromItemId], references: [id], onDelete: Restrict)
+  toItem   InventoryItem?      @relation("RetailStockTransferLineTo", fields: [toItemId], references: [id], onDelete: SetNull)
+
+  @@unique([transferId, productId])
+  @@index([companyId, productId])
+}
+
+/// STK-05: a stock count (W-22). Lines are counted on a phone, sent for review
+/// and approved (STK-06); nothing on hand changes until then.
+enum RetailStockCountScope {
+  EVERYTHING
+  CATEGORIES
+  PRODUCTS
+  PLACE
+}
+
+enum RetailStockCountStatus {
+  COUNTING
+  TO_APPROVE
+  APPROVED
+  CANCELLED
+}
+
+/// Why a counted line differs, as the approver records it ("Why" on the review).
+enum RetailStockCountWhy {
+  BROKEN
+  NOT_KNOWN
+  FOUND
+}
+
+model RetailStockCount {
+  id              String                 @id @default(uuid())
+  companyId       String
+  /// "CNT-0020".
+  countNo         String
+  siteId          String
+  /// "Spirits shelf". Shown as "Shelf" in the record's rail, editable there.
+  name            String
+  scope           RetailStockCountScope
+  categoryIds     String[]               @default([])
+  placeId         String?
+  blind           Boolean                @default(true)
+  keepSelling     Boolean                @default(true)
+  status          RetailStockCountStatus @default(COUNTING)
+  counterId       String
+  createdById     String
+  firstCountedAt  DateTime?
+  submittedAt     DateTime?
+  approvedAt      DateTime?
+  approvedById    String?
+  cancelledAt     DateTime?
+  cancelledById   String?
+  /// Set on approval, at cost, signed. Short ≤ 0, over ≥ 0, difference = short + over.
+  differenceValue Decimal?               @db.Decimal(14, 2)
+  shortValue      Decimal?               @db.Decimal(14, 2)
+  overValue       Decimal?               @db.Decimal(14, 2)
+  createdAt       DateTime               @default(now())
+  updatedAt       DateTime               @updatedAt
+
+  company     Company                @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  site        Site                   @relation(fields: [siteId], references: [id], onDelete: Restrict)
+  place       StockLocation?         @relation(fields: [placeId], references: [id], onDelete: SetNull)
+  counter     User                   @relation("RetailStockCountCounter", fields: [counterId], references: [id], onDelete: Restrict)
+  createdBy   User                   @relation("RetailStockCountCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  approvedBy  User?                  @relation("RetailStockCountApprovedBy", fields: [approvedById], references: [id], onDelete: SetNull)
+  cancelledBy User?                  @relation("RetailStockCountCancelledBy", fields: [cancelledById], references: [id], onDelete: SetNull)
+  lines       RetailStockCountLine[]
+
+  @@unique([companyId, countNo])
+  @@index([companyId, status, createdAt])
+  @@index([companyId, siteId, name])
+}
+
+model RetailStockCountLine {
+  id              String               @id @default(uuid())
+  companyId       String
+  countId         String
+  inventoryItemId String
+  productId       String?
+  /// On hand when the count started: what a counter sees when the count is not blind.
+  expected        Decimal              @db.Decimal(12, 4)
+  counted         Decimal?             @db.Decimal(12, 4)
+  countedAt       DateTime?
+  countedById     String?
+  /// On hand at the moment the figure was saved: sales during the count are allowed for, line by line.
+  expectedAtCount Decimal?             @db.Decimal(12, 4)
+  /// counted − expectedAtCount.
+  difference      Decimal?             @db.Decimal(12, 4)
+  unitCost        Decimal              @default(0) @db.Decimal(14, 2)
+  why             RetailStockCountWhy?
+  recount         Boolean              @default(false)
+  /// Shelf, then product name: the phone's order.
+  sortKey         String
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
+
+  count         RetailStockCount @relation(fields: [countId], references: [id], onDelete: Cascade)
+  inventoryItem InventoryItem    @relation(fields: [inventoryItemId], references: [id], onDelete: Restrict)
+  product       Product?         @relation(fields: [productId], references: [id], onDelete: SetNull)
+  countedBy     User?            @relation("RetailStockCountLineCountedBy", fields: [countedById], references: [id], onDelete: SetNull)
+
+  @@unique([countId, inventoryItemId])
+  @@index([companyId, inventoryItemId])
+}
+
+/// A spreadsheet of products being imported (SET-11, W-08): checked row by
+/// row, fixed in place, then imported a batch of 200 rows per call.
+enum RetailImportStatus {
+  CHECKING
+  /// Some rows are in Products; the rest go in on the next commit call.
+  IMPORTING
+  IMPORTED
+  DISCARDED
+}
+
+/// What an import row does: adds a product, or updates the one it matched.
+enum RetailImportAction {
+  NEW
+  UPDATE
+}
+
+/// Why a row cannot be imported yet. The first is the one shown.
+enum RetailImportProblem {
+  NO_NAME
+  NO_PRICE
+  PRICE_COMMA
+  PRICE_NOT_NUMBER
+  NEW_CATEGORY
+  BARCODE_SHORT
+  BARCODE_LONG
+  BARCODE_LETTERS
+  DUPLICATE_IN_FILE
+  LOOKS_LIKE
+  COST_NOT_NUMBER
+  STOCK_NOT_NUMBER
+  PACK_NOT_NUMBER
+  SAME_NAME_IN_FILE
+  SAME_PRODUCT_IN_FILE
+}
+
+model RetailImport {
+  id           String             @id @default(uuid())
+  companyId    String
+  fileName     String
+  rowCount     Int
+  status       RetailImportStatus @default(CHECKING)
+  /// The default site at upload: where new products go on sale.
+  siteId       String
+  createdById  String
+  createdAt    DateTime           @default(now())
+  importedAt   DateTime?
+  importedById String?
+  createdCount Int?
+  updatedCount Int?
+  skippedCount Int?
+
+  company Company           @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  site    Site              @relation(fields: [siteId], references: [id], onDelete: Restrict)
+  rows    RetailImportRow[]
+
+  @@index([companyId, status, createdAt])
+}
+
+model RetailImportRow {
+  id               String                @id @default(uuid())
+  importId         String
+  /// The spreadsheet's own row number (header is row 1).
+  rowNo            Int
+  name             String?
+  category         String?
+  /// As typed, so "12,60" stays visible until fixed.
+  price            String?
+  barcode          String?
+  cost             String?
+  supplier         String?
+  packSize         String?
+  openingStock     String?
+  action           RetailImportAction?
+  matchedProductId String?
+  problems         RetailImportProblem[] @default([])
+  /// Names a problem sentence needs: { category, matchedName, duplicateOfRow }; `done` once committed.
+  problemArgs      Json?
+
+  import RetailImport @relation(fields: [importId], references: [id], onDelete: Cascade)
+
+  @@unique([importId, rowNo])
 }

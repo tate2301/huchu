@@ -336,16 +336,14 @@
      because they are decisions about a specific pairing, not a ramp
      position anything else can be derived from.
 
-     Literal is safe here because this app is light-only (see the
-     `data-appearance` note at the foot of this file). If dark ever lands,
-     these three need the inverse treatment — on a dark tint it is the light
-     inks that stay readable — so they are grouped here to be found. */
+     They are the product's status roles now (`app/themes/roles.css`), which
+     carry the lighter inks Tender dark needs on its dark tints. */
   --badge-ok-bg:   var(--tone-success-bg);
-  --badge-ok-fg:   #4A7042;
+  --badge-ok-fg:   var(--ok);
   --badge-warn-bg: var(--tone-warn-bg);
-  --badge-warn-fg: #8A5C18;
+  --badge-warn-fg: var(--warn);
   --badge-bad-bg:  var(--tone-danger-bg);
-  --badge-bad-fg:  #8F2D20;
+  --badge-bad-fg:  var(--bad);
   --badge-mute-bg: var(--surface-muted);
   --badge-mute-fg: var(--text-muted);
   /* Info needs no new pair — `--badge-info-bg`/`-text` above already resolve
@@ -361,11 +359,11 @@
      `--surface-muted`. One step lighter, and it matters because the head is
      sticky: it sits over rows as they scroll under it, so it wants to read as
      the field the card is cut out of rather than as a fourth grey. */
-  --table-header-bg:       var(--canvas);
+  --table-header-bg:       var(--ground);
   --table-header-text:     var(--text-muted);
   /* Row rules are lighter still. At 36px a row this is the difference between
      a table you read across and a grid you read as boxes. */
-  --table-divider:         #F4F6F9;
+  --table-divider:         var(--line-soft);
   --table-row-bg:          var(--surface);
   --table-row-bg-alt:      var(--surface);
   --table-row-hover-bg:    var(--surface-muted);
@@ -380,28 +378,21 @@
      SIDEBAR
      ══════════════════════════════════════════════════════════════════════ */
 
-  /* The sidebar is the page's own surface, not a tinted panel beside it. A
-     muted background made it read as a separate application chrome; flat white
-     lets the nav sit in the same plane as the content and puts all the visual
-     weight on the one item that is selected. */
-  --sidebar:                    var(--surface);
+  /* The module panel sits on the page ground, as the canvas draws it; the
+     rail beside it is the surface. */
+  --sidebar:                    var(--ground);
   --sidebar-foreground:         var(--text-body);
   --sidebar-primary:            var(--action-primary-bg);
   --sidebar-primary-foreground: var(--action-primary-fg);
-  /* Hover has to darken now that the base is white — against `--surface` the
-     old value was invisible. */
   --sidebar-accent:             var(--surface-muted);
   --sidebar-accent-foreground:  var(--text-strong);
-  /* The seam between navigation and work, and the one under the app bar.
-     `--border` (#E5E8EE) and `--border-subtle` (#EEF0F4) are both too light to
-     read as an edge at 1px on white — the sidebar and the app bar were drawing
-     lines nobody could see, so the chrome and the content looked like one
-     undifferentiated white field. `--chrome-edge` is one step stronger, and
-     `--chrome-shadow` is a **hard** 1px offset with no blur: a crisp second
-     hairline for the sticky app bar, which genuinely is floating over the
-     scrolling content, rather than a soft glow that would violate
-     "borders at rest, shadows only when floating". */
-  --chrome-edge:                var(--border-strong);
+  /* The seam between navigation and work, and the one under the app bar: the
+     canvas draws rail, panel and header edges in `--line`. `--chrome-shadow`
+     is a **hard** 1px offset with no blur: a crisp second hairline for the
+     sticky app bar, which genuinely is floating over the scrolling content,
+     rather than a soft glow that would violate "borders at rest, shadows only
+     when floating". */
+  --chrome-edge:                var(--line);
   --chrome-shadow:              0 1px 0 0 var(--hairline);
   --sidebar-border:             var(--chrome-edge);
   --sidebar-ring:               var(--focus-ring);
@@ -506,7 +497,7 @@
      rail — and every other column that should line up with it. A record's
      section rail is one: it sits beside the app's panel, and two adjacent
      navigation columns of different widths read as a mistake. */
-  --sidebar-panel-w: 224px;
+  --sidebar-panel-w: 240px;
 
   /* The app bar's height, and the padding `main` puts above and below a page.
      Named because any page that wants to fill the screen has to subtract them
@@ -734,10 +725,4 @@
   :root {
     --section-gutter-x: var(--gutter-x);
   }
-}
-
-/* The design system flips its tokens on `body.is-dark`. The app is light-only
-   today; this keeps the explicit opt-in working if a surface sets it. */
-:root[data-appearance="light"] {
-  color-scheme: light;
 }

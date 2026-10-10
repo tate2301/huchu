@@ -34,11 +34,11 @@ import { getAdminRootDomain, isAdminPortalHost, isPlatformSuperuser } from "@/li
 import { buildCallbackLoginPath } from "@/lib/auth-core/redirects";
 import { isAuthExpired } from "@/lib/auth-core/session-policy";
 import {
-  isRoleRouteRestricted,
   isRouteAllowedForRole,
   landingPathForRole,
 } from "@/lib/auth-core/role-routes";
-import { getPosHostForCompany, isCashierRole, isPublicPosPath } from "@/lib/retail/pos-host";
+import { isPublicPosPath } from "@/lib/retail/pos-host";
+import { DEVICE_COOKIE, DEVICE_COOKIE_MAX_AGE, INSTALL_COOKIE } from "@/lib/retail/device-words";
 import { PUBLIC_BASE_PATHS } from "@/lib/public-routes";
 
 const ACCESS_BLOCKED_PATH = "/access-blocked";
@@ -61,7 +61,6 @@ const PORTAL_HOME_BY_ROLE = {
   STUDENT: "/portal/student",
   TEACHER: "/portal/teacher",
   POS_CASHIER: "/portal/pos",
-  CASHIER: "/portal/pos",
 } as const;
 // Mirrors WORKFORCE_MODULE_ALLOWED_ROLES in `lib/navigation.ts`. Checked on the
 // prefix here so a school teacher signing into a tenant that also runs payroll
@@ -78,7 +77,23 @@ type PlatformToken = {
   role?: string;
   email?: string | null;
   authExpiresAt?: string;
+  authStrategy?: string;
 };
+
+/**
+ * A session the proxy honours here. A till PIN session (10-setup W-04 step 7)
+ * is good on the POS host only; anywhere else it is no session at all.
+ */
+function usableToken(token: PlatformToken | null, portalPrefix: string | null): PlatformToken | null {
+  if (!token || isAuthExpired(token.authExpiresAt)) return null;
+  if (token.authStrategy === "till-pin" && portalPrefix !== "pos") return null;
+  return token;
+}
+
+/** POS host screens that need no session: the device screens (SET-04). */
+const POS_DEVICE_PATHS = new Set(["/pair", "/unpaired"]);
+/** POS host screens open to a device that is not a till yet: sign-in, and price check ("works before pairing"). */
+const POS_UNPAIRED_PATHS = new Set(["/login", "/price-check"]);
 
 function getResolvedAllowedHosts(token: PlatformToken | null, rootDomain: string | null): string[] | undefined {
   if (!token) {
@@ -128,6 +143,27 @@ function denyFeature(request: NextRequestWithAuth, decision: { message?: string;
 }
 
 /**
+ * A page whose feature this person lacks. A retail page their role's nav hides
+ * is answered by the shell's own refusal ("This page is not part of your
+ * role", 00-foundations 5.3.4), like every other hidden retail page, rather
+ * than by /access-blocked. Retail pages are client pages: nothing is read
+ * until their APIs answer, and those still refuse.
+ */
+async function denyPageFeature(
+  request: NextRequestWithAuth,
+  role: string | null | undefined,
+  decision: { message?: string; featureKey?: string; path?: string },
+) {
+  const { pathname, searchParams } = request.nextUrl;
+  if (pathname === "/retail" || pathname.startsWith("/retail/")) {
+    // Loaded only here: the nav registry carries the icon set.
+    const { canRoleOpenRetailPath } = await import("@/lib/retail/nav");
+    if (!canRoleOpenRetailPath(role, pathname, searchParams)) return NextResponse.next();
+  }
+  return denyFeature(request, decision);
+}
+
+/**
  * SS-1.2 — the answer to a write from a workspace whose subscription has lapsed.
  *
  * A named code rather than the generic access denial because the app shell has
@@ -167,8 +203,7 @@ function getPortalHomeForRole(role: string | undefined | null) {
     role === "PARENT" ||
     role === "STUDENT" ||
     role === "TEACHER" ||
-    role === "POS_CASHIER" ||
-    role === "CASHIER"
+    role === "POS_CASHIER"
   ) {
     return PORTAL_HOME_BY_ROLE[role as keyof typeof PORTAL_HOME_BY_ROLE];
   }
@@ -333,7 +368,7 @@ export default withAuth(
     const hostContext = getPlatformHostContext(resolvedHost);
     const isAdminHost = isAdminPortalHost(resolvedHost);
     const rawToken = request.nextauth.token as PlatformToken | null;
-    const token = rawToken && !isAuthExpired(rawToken.authExpiresAt) ? rawToken : null;
+    const token = usableToken(rawToken, hostContext.portalCanonicalPrefix);
 
     // The site root is the public marketing home on the marketing domain, so a
     // signed-out visitor has to reach it without a tenant context. On a tenant
@@ -341,7 +376,8 @@ export default withAuth(
     // sign-in — not the generic access-blocked page that strict tenant
     // enforcement below would otherwise give them. Signed-in users fall through
     // either way so they keep being routed to their own tenant host.
-    if (pathname === "/" && !token && !isAdminHost) {
+    // A portal host answers its own root (the till asks "Who is selling?").
+    if (pathname === "/" && !token && !isAdminHost && !hostContext.portalPath) {
       return hostContext.isTenantHost
         ? NextResponse.redirect(new URL(LOGIN_PATH, request.url))
         : NextResponse.next();
@@ -408,16 +444,6 @@ export default withAuth(
       return redirectToPath(request, ADMIN_BASE_PATH);
     }
 
-    if (!isApiRequest && token && isCashierRole(token.role)) {
-      const posHost = getPosHostForCompany(token.companySlug, rootDomain);
-      if (posHost && hostContext.hostname !== posHost && !isAdminHost) {
-        const redirectUrl = request.nextUrl.clone();
-        redirectUrl.pathname = "/";
-        redirectUrl.search = "";
-        return redirectAcrossHost(posHost, redirectUrl);
-      }
-    }
-
     if (hostContext.portalPath && !isApiRequest) {
       if (!hostContext.tenantSlug) {
         return redirectToAccessBlocked(request);
@@ -451,6 +477,39 @@ export default withAuth(
 
       if (publicPortalPath) {
         return redirectToPathPreserveSearch(request, publicPortalPath);
+      }
+
+      /*
+        The till (SET-04). A device with no key pairs first; the device
+        screens need no session; a paired device with nobody signed in asks
+        "Who is selling?" at `/` (an internal page, so the till's own layout
+        never mounts for it). Whether the key is still good is the pages'
+        question: the proxy cannot read the database.
+      */
+      if (portalDescriptor.key === "pos") {
+        const internal = (path: string) => {
+          const rewriteUrl = request.nextUrl.clone();
+          rewriteUrl.pathname = getPortalInternalPathForPublicPath(path, portalDescriptor);
+          return NextResponse.rewrite(rewriteUrl);
+        };
+        if (POS_DEVICE_PATHS.has(pathname)) {
+          const response = internal(pathname);
+          // The install id an unpaired device's wrong codes are counted against (W-04 step 6).
+          if (!request.cookies.get(INSTALL_COOKIE)?.value) {
+            response.cookies.set(INSTALL_COOKIE, crypto.randomUUID(), {
+              httpOnly: true,
+              sameSite: "strict",
+              secure: request.nextUrl.protocol === "https:",
+              path: "/",
+              maxAge: DEVICE_COOKIE_MAX_AGE,
+            });
+          }
+          return response;
+        }
+        const hasDeviceKey = Boolean(request.cookies.get(DEVICE_COOKIE)?.value);
+        if (!hasDeviceKey && !POS_UNPAIRED_PATHS.has(pathname)) return redirectToPath(request, "/pair");
+        if (!token && pathname === "/") return internal("/who");
+        if (!token && hasDeviceKey && pathname !== LOGIN_PATH) return redirectToPath(request, "/");
       }
 
       if (!token && pathname !== LOGIN_PATH) {
@@ -507,15 +566,17 @@ export default withAuth(
     // covers validateSession routes, but matcher-covered legacy APIs (gold,
     // payroll, compliance) authenticate with bare getServerSession and
     // would otherwise never see the allowlist.
-    if (token && isRoleRouteRestricted(token.role) && !isRouteAllowedForRole(token.role, pathname)) {
+    // The shop-floor roles' limits (`ROLE_ROUTE_LIMITS`) apply here too, so a
+    // cashier who types /stores/inventory is refused before the page renders.
+    if (token && !isRouteAllowedForRole(token.role, pathname, request.method)) {
       if (isApiRequest) {
         return NextResponse.json(
           { error: "This area is not available for your role.", code: "ROLE_ROUTE_RESTRICTED", path: pathname },
           { status: 403 },
         );
       }
-      const landing = landingPathForRole(token.role) ?? "/";
-      return redirectToPath(request, landing);
+      const landing = landingPathForRole(token.role);
+      return landing ? redirectToPath(request, landing) : redirectToAccessBlocked(request);
     }
 
     if (
@@ -596,7 +657,7 @@ export default withAuth(
     if (!tenantHostEnforcementEnabled || !hostContext.strictTenantEnforcement) {
       const pageFeatureDecision = canAccessRouteWithToken(pathname, token?.enabledFeatures);
       if (!pageFeatureDecision.allowed) {
-        return denyFeature(request, pageFeatureDecision);
+        return denyPageFeature(request, token?.role, pageFeatureDecision);
       }
       return NextResponse.next();
     }
@@ -616,7 +677,7 @@ export default withAuth(
 
     const pageFeatureDecision = canAccessRouteWithToken(pathname, token.enabledFeatures);
     if (!pageFeatureDecision.allowed) {
-      return denyFeature(request, pageFeatureDecision);
+      return denyPageFeature(request, token?.role, pageFeatureDecision);
     }
 
     return NextResponse.next();
@@ -627,8 +688,8 @@ export default withAuth(
         const pathname = req.nextUrl.pathname;
         const hostHeader = getHostHeaderFromRequestHeaders(req.headers);
         const resolvedHost = hostHeader || req.nextUrl.host || null;
-        const typedToken = token as PlatformToken | null;
         const hostContext = getPlatformHostContext(resolvedHost);
+        const typedToken = usableToken(token as PlatformToken | null, hostContext.portalCanonicalPrefix);
 
         if (isAdminPortalHost(resolvedHost)) {
           return true;
@@ -666,10 +727,6 @@ export default withAuth(
 
         if (getPortalBasePathForPathname(pathname)) {
           return true;
-        }
-
-        if (typedToken && isAuthExpired(typedToken.authExpiresAt)) {
-          return false;
         }
 
         return !!typedToken;

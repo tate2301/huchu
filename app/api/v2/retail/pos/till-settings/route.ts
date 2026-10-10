@@ -9,17 +9,15 @@
  *
  * ── Why this endpoint reads and does not write ─────────────────────────────
  *
- * The settings the demo shows already exist, in one place: `RetailPosPolicy` and
- * `RetailTenderPolicy` (both `FiscalisationProviderConfig` rows),
- * `RetailSetupProfile`, `CompanyBranding`, `Site` and `RetailRegister`. They are
- * edited under `/retail/setup/**` through PUT handlers gated on
+ * The settings the demo shows already exist, in one place: `RetailTillRules`
+ * (SET-06), `RetailReceiptSettings` (SET-07), `Site` and `RetailRegister`. They are
+ * edited under `/retail/manage/**` through PUT handlers gated on
  * `requireRetailManager`. This composes those for the till and shapes them for a
  * cashier; it does not accept a write, and there is no second store.
  *
  * That is not timidity, it is the permissions matrix applied honestly. In
- * `lib/retail/permissions.ts` a CASHIER holds `retail.sell` and `retail.catalog`
- * and nothing else — `retail.setup` is the shop's configuration and is not
- * theirs. A cashier who could raise the discount ceiling from the till has
+ * `lib/retail/permissions.ts` a CASHIER holds no `retail.till-rules` and no
+ * `retail.payments` — the shop's configuration is not theirs. A cashier who could raise the discount ceiling from the till has
  * removed the control the ceiling exists to be. So the till *shows* the rules it
  * is operating under, which is genuinely useful to the person operating under
  * them, and the place to change them is a link to the back office.
@@ -65,11 +63,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { errorResponse, successResponse } from "@/lib/api-response";
 import { resolveBaseCurrency } from "@/lib/money";
 import { prisma } from "@/lib/prisma";
-import { canRetailRoleDo, requireRetailPermission } from "@/lib/retail/permissions";
-import { getRetailPosPolicy } from "@/lib/retail/pos-policy";
-import { getRetailSetupProfile } from "@/lib/retail/setup-profile";
-import { SHELF_PRICE_LIST_NAME } from "@/lib/retail/shelf-pricing";
-import { getRetailTenderPolicy } from "@/lib/retail/tender-policy";
+import { canRetailSessionDo, requireRetailPermission } from "@/lib/retail/permissions";
+import { requirePosDevice } from "@/lib/retail/devices";
+import { findDefaultPriceList } from "@/lib/retail/prices/change";
+import { receiptWire } from "@/lib/retail/receipt-settings";
+import { loadTillRules, tillRulesForTill } from "@/lib/retail/till-rules";
 import { summariseShelfTax, summariseTillCapabilities } from "@/lib/retail/till-settings";
 import { requireRetailSession } from "../../_helpers";
 
@@ -80,48 +78,36 @@ export async function GET(request: NextRequest) {
   }
 
   /**
-   * `retail.sell`, not `retail.setup`. Everything returned below is a rule the
+   * `retail.sell`, not `retail.till-rules`. Everything returned below is a rule the
    * caller is already operating under at the counter — which register they are
    * on, whether a reference is required for EcoCash, whether a refund needs a
    * reason. Withholding it from the person it constrains would be theatre. What
-   * `retail.setup` decides is whether they may *change* any of it, which is the
+   * `retail.till-rules` decides is whether they may *change* any of it, which is the
    * `canEdit` flag at the bottom and is enforced by the PUT handlers, not here.
    */
   const gate = requireRetailPermission(session, "retail.sell", "view");
   if (gate) return gate;
+  // The till is this device's (SET-04), not a company-wide default.
+  const { device, response: deviceResponse } = await requirePosDevice(request, session);
+  if (deviceResponse) return deviceResponse;
 
   try {
     const companyId = session.user.companyId;
 
-    const [profile, posPolicy, tenderPolicy, baseCurrency, branding, shift] = await Promise.all([
-      getRetailSetupProfile(companyId),
-      getRetailPosPolicy(companyId),
-      getRetailTenderPolicy(companyId),
+    const [tillRules, baseCurrency, receipt, shift] = await Promise.all([
+      loadTillRules(companyId),
       resolveBaseCurrency(companyId),
-      prisma.companyBranding.findUnique({
-        where: { companyId },
-        select: {
-          displayName: true,
-          tradingName: true,
-          legalName: true,
-          vatNumber: true,
-          registrationNumber: true,
-          phone: true,
-          physicalAddress: true,
-          defaultFooterText: true,
-        },
-      }),
-      // The shift names the register this device is actually on, which beats the
-      // company-wide default when the two disagree — and they disagree exactly
-      // when a shop runs a second till.
+      // What this till's receipts say (SET-07), at its site.
+      receiptWire(companyId, device.register.site.id),
+      // The caller's shift on this till.
       prisma.retailShift.findFirst({
-        where: { companyId, cashierId: session.user.id, status: "OPEN" },
+        where: { companyId, cashierId: session.user.id, registerId: device.registerId, status: "OPEN" },
         orderBy: { openedAt: "desc" },
         select: { id: true, shiftNo: true, registerName: true, siteId: true, openedAt: true },
       }),
     ]);
 
-    const siteId = shift?.siteId ?? profile.defaultSiteId;
+    const siteId = device.register.site.id;
     const site = siteId
       ? await prisma.site.findFirst({
           where: { id: siteId, companyId },
@@ -136,10 +122,7 @@ export async function GET(request: NextRequest) {
       }),
       // The list the till actually sells off, and — the part that changes what a
       // receipt says — whether its prices already contain the VAT.
-      prisma.priceList.findUnique({
-        where: { companyId_name: { companyId, name: SHELF_PRICE_LIST_NAME } },
-        select: { name: true, currency: true, taxInclusive: true },
-      }),
+      findDefaultPriceList(prisma, companyId),
       /**
        * What the shelf is taxed at, counted rather than configured.
        *
@@ -180,8 +163,8 @@ export async function GET(request: NextRequest) {
           branchName: site?.name ?? null,
           branchCode: site?.code ?? null,
           branchLocation: site?.location ?? null,
-          registerName: shift?.registerName ?? profile.defaultRegisterName,
-          registerCode: profile.defaultRegisterCode,
+          registerName: device.register.name,
+          registerCode: device.register.code,
           shiftNo: shift?.shiftNo ?? null,
           shiftOpenedAt: shift?.openedAt ?? null,
         },
@@ -198,42 +181,23 @@ export async function GET(request: NextRequest) {
           taxInclusive: shelfPriceList?.taxInclusive ?? null,
           shelfTax,
         },
+        /**
+         * The till rules the caller works under (SET-06), and whether they
+         * need a manager's PIN for what the rules limit: a person holding the
+         * approve right is their own approval.
+         */
         rules: {
-          /**
-           * The discount rule as it actually is, not as a percentage.
-           *
-           * The prototype has a "Default discount limit (%)" and retail has no
-           * such column — `Product.maxDiscountPercent` exists in core and no
-           * retail surface reads it. What `pos/sales` really enforces is binary:
-           * a manager may change a price or give a discount with a reason, and
-           * anybody else needs a manager's password on the spot. Rendering that
-           * as "25%" would be a comforting lie on the one screen whose job is to
-           * tell a cashier what they are allowed to do.
-           */
-          discountsNeedApproval: !canRetailRoleDo(session.user.role, "retail.sell", "approve"),
-          refundRequiresReason: posPolicy.refundRequiresReason,
-          voidRequiresReason: posPolicy.voidRequiresReason,
-          requireSupervisorForRefunds: posPolicy.requireSupervisorForRefunds,
-          splitTenderEnabled: posPolicy.splitTenderEnabled,
-          requiredReferenceTenders: tenderPolicy.requiredReferenceTenders,
-          minReferenceLength: tenderPolicy.minReferenceLength,
+          ...tillRulesForTill(tillRules),
+          needsApproval: !canRetailSessionDo(session, "retail.sell", "approve"),
         },
-        receipt: {
-          displayName: branding?.displayName ?? branding?.tradingName ?? company?.name ?? null,
-          legalName: branding?.legalName ?? null,
-          vatNumber: branding?.vatNumber ?? null,
-          registrationNumber: branding?.registrationNumber ?? null,
-          phone: branding?.phone ?? null,
-          physicalAddress: branding?.physicalAddress ?? null,
-          footerText: branding?.defaultFooterText ?? null,
-        },
+        receipt,
         /**
          * What the person at this till may do, off the same matrix the API
          * gates on — so the screen cannot drift from the enforcement.
          */
         capabilities: summariseTillCapabilities(session.user.role),
         /** Whether this caller may change any of it, and therefore see the link. */
-        canEdit: canRetailRoleDo(session.user.role, "retail.setup", "update"),
+        canEdit: canRetailSessionDo(session, "retail.till-rules", "update"),
       },
     });
   } catch (error) {

@@ -8,6 +8,7 @@ import {
 import { buildAccountingEventKey } from "@/lib/accounting/integration-keys";
 import { buildRetailPostingPayload } from "@/lib/accounting/retail-posting";
 import { isPositive, money, sumMoney, toNumber, toNumberOrZero, type MoneyLike } from "@/lib/money";
+import { shiftOpenPosting } from "@/lib/retail/cash-up";
 
 type Db = PrismaClient | Prisma.TransactionClient;
 
@@ -148,40 +149,29 @@ export async function captureAccountingEvent(input: CaptureAccountingEventInput,
   });
 }
 
-export async function retryPendingAccountingEvents(input: {
-  companyId: string;
-  limit?: number;
-  actorRole?: string | null;
-  periodOverrideReason?: string | null;
-}) {
-  const limit = Math.min(Math.max(input.limit ?? 100, 1), 1000);
-  const now = new Date();
+type IntegrationEventRow = Awaited<ReturnType<typeof prisma.accountingIntegrationEvent.findMany>>[number];
 
-  const events = await prisma.accountingIntegrationEvent.findMany({
-    where: {
-      companyId: input.companyId,
-      sourceType: { not: null },
-      sourceId: { not: null },
-      status: { in: ["FAILED", "PENDING"] },
-      OR: [{ nextRetryAt: null }, { nextRetryAt: { lte: now } }],
-    },
-    orderBy: [{ nextRetryAt: "asc" }, { updatedAt: "asc" }],
-    take: limit,
-  });
+/**
+ * Post one captured accounting event now, whatever its "not before": the
+ * drain below, and a shop's posting run (SET-09).
+ */
+export async function postIntegrationEvent(
+  event: IntegrationEventRow,
+  input: { actorRole?: string | null; periodOverrideReason?: string | null; defaultsReady?: boolean } = {},
+): Promise<"posted" | "skipped" | "failed"> {
+  const payload = parsePayload(event.payloadJson);
+  const createdById = event.createdById ?? (await resolveFallbackActorId(event.companyId));
+  if (!createdById) {
+    // Marked, so a posting run that passed it does not take it up again.
+    await prisma.accountingIntegrationEvent.update({
+      where: { id: event.id },
+      data: { status: "FAILED", lastError: "Nobody in the company to post as", attemptCount: { increment: 1 } },
+    });
+    return "failed";
+  }
 
-  let posted = 0;
-  let failed = 0;
-  let skipped = 0;
-
-  for (const event of events) {
-    const payload = parsePayload(event.payloadJson);
-    const createdById = event.createdById ?? (await resolveFallbackActorId(event.companyId));
-    if (!createdById) {
-      failed += 1;
-      continue;
-    }
-
-    const result = await createJournalEntryFromSource({
+  const result = await createJournalEntryFromSource(
+    {
       companyId: event.companyId,
       sourceType: event.sourceType as AccountingSourceType,
       sourceId: event.sourceId,
@@ -209,15 +199,46 @@ export async function retryPendingAccountingEvents(input: {
       payload,
       payments: parsePostingPayments(payload),
       inventory: parsePostingInventory(payload),
-    });
+    },
+    prisma,
+    // Its time has come (or someone asked): an end-of-day shop's event is not put off again.
+    { postNow: true, defaultsReady: input.defaultsReady },
+  );
 
-    if (result.entryId) {
-      posted += 1;
-    } else if (result.skipped) {
-      skipped += 1;
-    } else {
-      failed += 1;
-    }
+  if (result.skipped) return "skipped";
+  return result.entryId ? "posted" : "failed";
+}
+
+export async function retryPendingAccountingEvents(input: {
+  companyId: string;
+  limit?: number;
+  actorRole?: string | null;
+  periodOverrideReason?: string | null;
+}) {
+  const limit = Math.min(Math.max(input.limit ?? 100, 1), 1000);
+  const now = new Date();
+
+  const events = await prisma.accountingIntegrationEvent.findMany({
+    where: {
+      companyId: input.companyId,
+      sourceType: { not: null },
+      sourceId: { not: null },
+      status: { in: ["FAILED", "PENDING"] },
+      OR: [{ nextRetryAt: null }, { nextRetryAt: { lte: now } }],
+    },
+    orderBy: [{ nextRetryAt: "asc" }, { updatedAt: "asc" }],
+    take: limit,
+  });
+
+  let posted = 0;
+  let failed = 0;
+  let skipped = 0;
+
+  for (const event of events) {
+    const outcome = await postIntegrationEvent(event, input);
+    if (outcome === "posted") posted += 1;
+    else if (outcome === "skipped") skipped += 1;
+    else failed += 1;
   }
 
   return {
@@ -235,6 +256,80 @@ type BackfillTask = {
   context: Parameters<typeof createJournalEntryFromSource>[0];
 };
 
+/**
+ * The recovery journal a RECOVER sign-off owes (FLR-05: Dr 1150 Staff owe the
+ * shop, Cr 5420), as the backfill posts it when the sign-off committed and the
+ * journal after it was lost; null for any other shift.
+ */
+export function recoveryBackfillTask(
+  shift: Pick<
+    Prisma.RetailShiftGetPayload<object>,
+    "id" | "shiftNo" | "siteId" | "registerCode" | "openedAt" | "closedAt" | "signOffOutcome" | "signedOffAt" | "signedOffById" | "recoverAmount"
+  >,
+  input: { companyId: string; actorId: string; actorRole?: string | null; periodOverrideReason?: string | null },
+): BackfillTask | null {
+  const recover = money(shift.recoverAmount ?? 0);
+  if (shift.signOffOutcome !== "RECOVER" || !isPositive(recover)) return null;
+  const entryDate = shift.signedOffAt ?? shift.closedAt ?? shift.openedAt;
+  const amount = toNumberOrZero(recover);
+  return {
+    key: `RETAIL_SHIFT_RECOVERY:${shift.id}`,
+    label: `RETAIL_SHIFT_RECOVERY ${shift.shiftNo}`,
+    entryDate,
+    context: {
+      companyId: input.companyId,
+      sourceType: "RETAIL_SHIFT_RECOVERY",
+      sourceId: shift.id,
+      siteId: shift.siteId,
+      registerCode: shift.registerCode,
+      entryDate,
+      description: `Retail shift recovery ${shift.shiftNo}`,
+      createdById: shift.signedOffById ?? input.actorId,
+      amount,
+      netAmount: amount,
+      taxAmount: 0,
+      grossAmount: amount,
+      actorRole: input.actorRole ?? undefined,
+      periodOverrideReason: input.periodOverrideReason ?? undefined,
+    },
+  };
+}
+
+/**
+ * The cash a day close banked (FLR-07) whose vault-to-bank journal was lost
+ * after the close committed: Dr 1010 Operating bank, Cr 1005 Cash vault.
+ */
+export function dayBankedBackfillTask(
+  close: Pick<Prisma.RetailDayCloseGetPayload<object>, "id" | "siteId" | "businessDate" | "banked" | "closedAt" | "closedById">,
+  site: string,
+  input: { companyId: string; actorRole?: string | null; periodOverrideReason?: string | null },
+): BackfillTask | null {
+  const banked = money(close.banked);
+  if (!isPositive(banked)) return null;
+  const amount = toNumberOrZero(banked);
+  const date = close.businessDate.toISOString().slice(0, 10);
+  return {
+    key: `RETAIL_DAY_BANKED:${close.id}`,
+    label: `RETAIL_DAY_BANKED ${site} ${date}`,
+    entryDate: close.closedAt,
+    context: {
+      companyId: input.companyId,
+      sourceType: "RETAIL_DAY_BANKED",
+      sourceId: close.id,
+      siteId: close.siteId,
+      entryDate: close.closedAt,
+      description: `Retail day banked ${site} ${date}`,
+      createdById: close.closedById,
+      amount,
+      netAmount: amount,
+      taxAmount: 0,
+      grossAmount: amount,
+      actorRole: input.actorRole ?? undefined,
+      periodOverrideReason: input.periodOverrideReason ?? undefined,
+    },
+  };
+}
+
 export async function backfillRetailAccounting(input: {
   companyId: string;
   actorId?: string | null;
@@ -249,7 +344,7 @@ export async function backfillRetailAccounting(input: {
     throw new Error("No active actor is available for retail accounting backfill");
   }
 
-  const [sales, receipts, shifts, journalEntries, inventoryItems] = await Promise.all([
+  const [sales, receipts, shifts, journalEntries, inventoryItems, dayCloses] = await Promise.all([
     prisma.retailSale.findMany({
       where: { companyId: input.companyId, status: "POSTED" },
       include: { lines: true, payments: true },
@@ -278,6 +373,8 @@ export async function backfillRetailAccounting(input: {
             "RETAIL_VOID",
             "RETAIL_GOODS_RECEIPT",
             "RETAIL_SHIFT_VARIANCE",
+            "RETAIL_SHIFT_RECOVERY",
+            "RETAIL_DAY_BANKED",
           ],
         },
       },
@@ -286,6 +383,12 @@ export async function backfillRetailAccounting(input: {
     prisma.inventoryItem.findMany({
       where: { site: { companyId: input.companyId } },
       select: { id: true, unitCost: true },
+    }),
+    prisma.retailDayClose.findMany({
+      where: { companyId: input.companyId, banked: { gt: 0 } },
+      select: { id: true, siteId: true, businessDate: true, banked: true, closedAt: true, closedById: true, site: { select: { name: true } } },
+      orderBy: [{ closedAt: "asc" }],
+      take: limit,
     }),
   ]);
 
@@ -418,10 +521,11 @@ export async function backfillRetailAccounting(input: {
     // go through `lib/money.ts` rather than JavaScript's operators — `>` on a
     // `Decimal` is a type error, and `!== 0` would have been true for every shift
     // because an object is never equal to a number.
-    const openingFloat = money(shift.openingFloat);
+    // The dollars and the ZiG float at the rate it was counted in, each drawer's part (FLR-03).
+    const opened = shiftOpenPosting(shift);
     const variance = money(shift.variance ?? 0);
 
-    if (isPositive(openingFloat) && !journalKeySet.has(`RETAIL_SHIFT_OPEN:${shift.id}`)) {
+    if (isPositive(opened.amount) && !journalKeySet.has(`RETAIL_SHIFT_OPEN:${shift.id}`)) {
       tasks.push({
         key: `RETAIL_SHIFT_OPEN:${shift.id}`,
         label: `RETAIL_SHIFT_OPEN ${shift.shiftNo}`,
@@ -435,10 +539,11 @@ export async function backfillRetailAccounting(input: {
           entryDate: shift.openedAt,
           description: `Retail shift open ${shift.shiftNo}`,
           createdById: actorId,
-          amount: toNumberOrZero(openingFloat.abs()),
-          netAmount: toNumberOrZero(openingFloat.abs()),
+          amount: toNumberOrZero(opened.amount),
+          netAmount: toNumberOrZero(opened.amount),
           taxAmount: 0,
-          grossAmount: toNumberOrZero(openingFloat.abs()),
+          grossAmount: toNumberOrZero(opened.amount),
+          payload: opened.payload,
           actorRole: input.actorRole ?? undefined,
           periodOverrideReason: input.periodOverrideReason ?? undefined,
         },
@@ -469,6 +574,16 @@ export async function backfillRetailAccounting(input: {
         },
       });
     }
+
+    // A shortage recovered from the cashier (FLR-05) whose journal was lost after the sign-off committed.
+    const recovery = recoveryBackfillTask(shift, { ...input, actorId });
+    if (recovery && !journalKeySet.has(recovery.key)) tasks.push(recovery);
+  }
+
+  // Cash a day close banked whose journal was lost after the close committed (FLR-07).
+  for (const close of dayCloses) {
+    const banked = dayBankedBackfillTask(close, close.site.name, input);
+    if (banked && !journalKeySet.has(banked.key)) tasks.push(banked);
   }
 
   const ordered = tasks.sort((a, b) => a.entryDate.getTime() - b.entryDate.getTime()).slice(0, limit);
@@ -490,7 +605,8 @@ export async function backfillRetailAccounting(input: {
   const failures: Array<{ key: string; error: string }> = [];
 
   for (const task of ordered) {
-    const result = await createJournalEntryFromSource(task.context);
+    // A backfill posts what it finds now, whatever the shop's posting schedule.
+    const result = await createJournalEntryFromSource(task.context, prisma, { postNow: true });
     if (result.entryId) {
       posted += 1;
     } else if (result.skipped) {

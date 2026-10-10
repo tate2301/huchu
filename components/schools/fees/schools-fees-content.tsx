@@ -246,11 +246,7 @@ function StudentCell({
   );
 }
 
-/** A `yyyy-mm-dd` filter value as a date the picker can hold, and back. */
-function isoToDate(value: string) {
-  return value ? new Date(`${value}T00:00:00`) : undefined;
-}
-
+/** A local date as a `yyyy-mm-dd` value. */
 function dateToIso(value?: Date) {
   if (!value) return "";
   const month = String(value.getMonth() + 1).padStart(2, "0");
@@ -1719,18 +1715,26 @@ export function SchoolsFeesContent() {
                     options={INVOICE_STATUSES}
                     onChange={setInvoiceStatus}
                   />
-                  <DatePicker
-                    label="Due from"
-                    placeholder="Any date"
-                    value={isoToDate(invoiceDueFrom)}
-                    onChange={(date) => setInvoiceDueFrom(dateToIso(date))}
-                  />
-                  <DatePicker
-                    label="Due to"
-                    placeholder="Any date"
-                    value={isoToDate(invoiceDueTo)}
-                    onChange={(date) => setInvoiceDueTo(dateToIso(date))}
-                  />
+                  <div className="field">
+                    <Label>Due from</Label>
+                    <DatePicker
+                      label="Due from"
+                      placeholder="Any date"
+                      clearable
+                      value={invoiceDueFrom || null}
+                      onChange={(day) => setInvoiceDueFrom(day ?? "")}
+                    />
+                  </div>
+                  <div className="field">
+                    <Label>Due to</Label>
+                    <DatePicker
+                      label="Due to"
+                      placeholder="Any date"
+                      clearable
+                      value={invoiceDueTo || null}
+                      onChange={(day) => setInvoiceDueTo(day ?? "")}
+                    />
+                  </div>
                   <div className="field">
                     <Label htmlFor="invoice-min">Owing at least</Label>
                     <Input
@@ -1890,18 +1894,26 @@ export function SchoolsFeesContent() {
                     options={RECEIPT_STATUSES}
                     onChange={setReceiptStatus}
                   />
-                  <DatePicker
-                    label="Received from"
-                    placeholder="Any date"
-                    value={isoToDate(receiptFrom)}
-                    onChange={(date) => setReceiptFrom(dateToIso(date))}
-                  />
-                  <DatePicker
-                    label="Received to"
-                    placeholder="Any date"
-                    value={isoToDate(receiptTo)}
-                    onChange={(date) => setReceiptTo(dateToIso(date))}
-                  />
+                  <div className="field">
+                    <Label>Received from</Label>
+                    <DatePicker
+                      label="Received from"
+                      placeholder="Any date"
+                      clearable
+                      value={receiptFrom || null}
+                      onChange={(day) => setReceiptFrom(day ?? "")}
+                    />
+                  </div>
+                  <div className="field">
+                    <Label>Received to</Label>
+                    <DatePicker
+                      label="Received to"
+                      placeholder="Any date"
+                      clearable
+                      value={receiptTo || null}
+                      onChange={(day) => setReceiptTo(day ?? "")}
+                    />
+                  </div>
                 </FilterSheet>
                 <RowCount
                   showing={receipts.length}

@@ -1,5 +1,6 @@
 import type { FieldDefinition } from "@/lib/forms/fields";
 import type { ReportLayout } from "@/lib/reports/layout";
+import type { RetailAction, RetailResource } from "@/lib/retail/permissions";
 
 /**
  * A report is a source of rows about one kind of thing, and a view over them.
@@ -38,6 +39,13 @@ export type ReportColumn = {
   hidden?: boolean;
   /** The total the footer shows until someone picks another. */
   total?: Aggregate;
+  /**
+   * A percentage of two summed row keys (`num ÷ den × 100`): its `avg` total
+   * is over the whole set ("24.6%" margin across categories), not a mean of rows.
+   */
+  ratio?: { num: string; den: string };
+  /** The total sums this row key instead of the cell's own (a voided sale shows its total, which no longer counts). */
+  totalOf?: string;
 };
 
 /** Something the rows are narrowed by before they are fetched. */
@@ -141,18 +149,44 @@ export type ReportDefinition = ReportMeta & {
   roles?: string[];
   /** Workspace profiles this report is at the front of the catalogue for. */
   profiles: string[];
+  /** One line on what it shows, under its name in the catalogue. */
+  summary?: string;
+  /** A working list: paged on the server, drawn by ListFrame (5.4). */
+  list?: ListSpec;
+  /** The same rows as Reports reads them (`face=report`, 70-insights-reports decision 5). */
+  report?: ReportFace;
 };
 
 /** How a report's rows are fetched. Server-only: it queries the database. */
 export type ReportLoader = {
-  load: (ctx: ReportContext, params: ReportParams) => Promise<ReportLoadResult>;
-  /** Choices for `choice` params that depend on the company, by param key. */
+  load: (ctx: ReportContext, params: ReportParams, face?: "list" | "report") => Promise<ReportLoadResult>;
+  /** Choices for `choice` params (and list filters) that depend on the company, by key. */
   options?: (ctx: ReportContext) => Promise<Record<string, ReportOption[]>>;
+  /**
+   * One list page, paged by the database. Required for a list source that can
+   * pass `REPORT_ROW_LIMIT` rows; it honours the whole query and totals every
+   * filtered row with `aggregate`/`groupBy`, never by adding up a page. It also
+   * applies the list's `scopeOwn` and drops `view-cost` values for `ctx.role`,
+   * which the in-memory path does for `load`.
+   */
+  page?: (ctx: ReportContext, query: ResolvedListQuery) => Promise<ListPageResult>;
+  /**
+   * The name of the record a `parent` filter scopes the list to ("Amarula Cream 750ml"), and for a
+   * page about that record the words under it ("Default price list · all tills · all sites").
+   */
+  parentLabel?: (ctx: ReportContext, filters: Record<string, string>) => Promise<string | ParentNamed | null>;
 };
 
 /* ──────────────────────────────────────────────────────────────────────────
    The view
    ────────────────────────────────────────────────────────────────────────── */
+
+/**
+ * The record a parent filter scopes a list to, as its loader names it: the
+ * header's title and sub, and `facts` the actions' `whenParent` ask about
+ * ("isDefault": "Yes" hides Remove from this list on the default list).
+ */
+export type ParentNamed = { label: string; sub: string | null; facts?: Record<string, string> };
 
 export const CONDITION_OPS = ["is", "isNot", "contains", "gt", "lt", "between", "empty", "notEmpty"] as const;
 export type ConditionOp = (typeof CONDITION_OPS)[number];
@@ -175,4 +209,494 @@ export type ReportView = {
   groupBy: string | null;
   /** Which total each column's footer shows. Absent means none. */
   totals: Record<string, Aggregate>;
+  /** "One row for each": the rollup keys a report face is rolled up by. */
+  rows?: string[];
+};
+
+/* ──────────────────────────────────────────────────────────────────────────
+   Lists: a report source paged on the server (00-foundations 5.4.2)
+   ────────────────────────────────────────────────────────────────────────── */
+
+/** A grant from the retail matrix. Type-only, so this file stays importable in the browser. */
+export type ListGrant = [RetailResource, RetailAction];
+
+/** How a judgement is coloured. Colour always comes with a word. */
+export type Tone = "ok" | "warn" | "bad" | "info" | "neutral" | "hollow" | "pending" | "gold";
+
+export type CellKind =
+  | "link"
+  | "ref"
+  | "text"
+  | "muted"
+  | "mono"
+  | "num"
+  | "date"
+  | "when"
+  | "money"
+  | "diff"
+  | "owed"
+  | "zero"
+  | "state"
+  /** A dot in the value's tone and the word, no ground ("● Cash"): a kind of thing, not a judgement. */
+  | "dot"
+  | "bar"
+  | "duration"
+  | "edit-money"
+  /** A word that does the row menu action named by the column's `action` ("Restore"), in 600 ink. */
+  | "action";
+
+export type ListColumn = ReportColumn & {
+  cell: CellKind;
+  /** Grid track: "104px" or "minmax(132px,1fr)". */
+  width: string;
+  /** Default end for num, money, diff, owed, zero, edit-money. */
+  align?: "start" | "end";
+  /** 3 leaves at ≤1140px of table width, 2 at ≤940px. */
+  priority?: 1 | 2 | 3;
+  sortable?: boolean;
+  /** state and dot: value → tone. The order of the keys is the order groups are drawn in. */
+  tones?: Record<string, Tone>;
+  /** Totals band: rows whose tone is one of these, counted under this label ("23 to check"). */
+  summary?: { tones: Tone[]; label: string };
+  /** variance: − bad, + warn; gain: + ok. */
+  diff?: "variance" | "gain";
+  /** date: the row key holding the time of day, drawn after the day and sorted with it. */
+  timeKey?: string;
+  /** date: "2 Nov 2026" (medium), or "Today", "Yesterday", else medium (relative). Default "15 August 2026". */
+  dayFormat?: "medium" | "relative";
+  /** duration: the row key that is true while the thing is still running. */
+  runningKey?: string;
+  /** link/ref: default `list.rowHref`. */
+  href?: RowTemplate;
+  /** text: drawn in 600 ink, a name that is not a link (a supplier's contact, edited from the row ⋯). */
+  strong?: boolean;
+  /** link: the row key holding muted words after the link (" · stopped"). */
+  suffixKey?: string;
+  /** bar: the fill % key, and the % under which the bar warns. */
+  bar?: { pctKey: string; warnBelow: number };
+  /** num: the row key holding the unit word printed after the figure ("13 bottles"). */
+  unitKey?: string;
+  /** num: the figure is a percentage, printed "22.4%". */
+  percent?: boolean;
+  /** The totals band's word after the figure: "average" prints "24.4% average". */
+  totalSuffix?: string;
+  /** num: the row key holding a tone; when set the figure sits in that tone's pill ("22.4%" under target). */
+  pillKey?: string;
+  /**
+   * num: worked out again in the browser while the list's edited column is typed: `margin` is
+   * (typed − cost) ÷ typed with its pill tone against the row's target (`lib/reports/margin.ts`).
+   */
+  derive?: { kind: "margin"; from: string; costKey: string; targetKey: string };
+  /** num: always signed ("+40", "−1"); `gain` also colours a rise `--ok`, without a pill. */
+  sign?: "plain" | "gain";
+  /**
+   * state and dot: the row key holding the tone, when the words vary row to row ("Count, two broken").
+   * text and date: the words take that tone's ink when the key is set ("2 Nov 2026" in `--warn` in its last days).
+   * money: the figure takes that ink (a voided sale's total in `--ink-3`). link: a row with no record to open
+   * draws its words in that ink ("Walk-in" in `--faint`), or plain.
+   */
+  toneKey?: string;
+  /** action: the key of the row menu action the cell does; drawn only when the row's menu offers it. */
+  action?: string;
+  /**
+   * No value draws "—" in `--faint`, except: `blank` draws nothing, where the board leaves the cell blank (a till's
+   * Last sale before its first); `dash` draws "–", where the board does (a count's Difference while it is counting).
+   */
+  empty?: "blank" | "dash";
+  /**
+   * `view-cost`: dropped, values and all, for roles that may not see cost.
+   * `multi-site`: dropped while the company has one open site.
+   */
+  requires?: "view-cost" | "multi-site";
+  /** Grouped by this column, its groups are drawn in this order of values (Reports' areas); others after, by name. */
+  groupOrder?: readonly string[];
+  /**
+   * Said once by the page instead of on every row: not drawn while the list is
+   * grouped by it (`group`), or while the parent filter named here narrows the
+   * list to one value of it (`parent`). The Group menu turns it back on.
+   */
+  impliedBy?: { group?: boolean; parent?: string };
+};
+
+/**
+ * A choice. `where` narrows the rows itself, for a choice that is a range or a word rather than a value.
+ * `anyTime`: chosen, the list's period filters start from their "any" rather than their default, for a
+ * choice that is about rows however old they are (Shifts › State › Needs sign-off).
+ */
+export type ListOption = ReportOption & { where?: Condition[]; anyTime?: boolean };
+
+export const PERIOD_PRESETS = [
+  "today",
+  "yesterday",
+  "this-week",
+  "last-weekend",
+  "7d",
+  "30d",
+  "this-month",
+  "last-month",
+  "this-year",
+  "any",
+] as const;
+export type PeriodPreset = (typeof PERIOD_PRESETS)[number];
+
+export type ListFilter =
+  | {
+      key: string;
+      label: string;
+      type: "choice";
+      /** The "any" option's words: "Any", "Anyone", "All sites". Its value is `any`. */
+      any: string;
+      options?: ListOption[];
+      /** The options come from the loader's `options(ctx)` under this filter's key. */
+      optionsFromLoader?: boolean;
+      /** Set: applied as `column is <value>` over the loaded rows. Unset: passed to the loader as a param. */
+      column?: string;
+      /** On the toolbar row; otherwise inside Filters. */
+      primary?: boolean;
+      default?: string;
+      /** The default is worked out for the caller: `default-site`, the site their floor pages open on. */
+      defaultFrom?: "default-site";
+      /** Not offered while the company has fewer options than this (Site, with one site). */
+      hideBelow?: number;
+      /** `multi-site`: dropped while the company has one open site. `view-cost`: dropped for a role that may not see cost. */
+      requires?: "multi-site" | "view-cost";
+    }
+  | {
+      key: string;
+      label: string;
+      type: "period";
+      any: string;
+      /** A `date` column holding calendar days (`YYYY-MM-DD`) in the company's zone. */
+      column: string;
+      primary?: boolean;
+      default?: PeriodPreset;
+    }
+  /**
+   * Never drawn: the record a record tab or an "all" link is scoped to. Passed
+   * to the loader too. With `all`, a list opened on it says whose rows these
+   * are as its header sub (the loader's `parentLabel`) and `all` clears it.
+   */
+  | { key: string; type: "parent"; column: string; all?: string };
+
+/** A period filter's default while `chosen` holds: `any` under a chosen `anyTime` option, else its own. */
+export function periodDefault(filters: ListFilter[], period: Extract<ListFilter, { type: "period" }>, chosen: Record<string, string>): string {
+  const anyTime = filters.some(
+    (filter) => filter.type === "choice" && filter.options?.some((option) => option.anyTime && chosen[filter.key] === option.value),
+  );
+  return anyTime ? "any" : (period.default ?? "any");
+}
+
+export type ConfirmSpec = { title: string; body: string; confirm: string; tone?: "bad" };
+
+export type ListAction = {
+  key: string;
+  label: string;
+  tone?: "bad";
+  more?: boolean;
+  /** Row menu: a separator is drawn before it ("Delete for good" after "Open it"). */
+  separated?: boolean;
+  /** Any of. */
+  requires: ListGrant[];
+  /** Row menu: only for rows that match. Bulk: only while every ticked row matches ("Switch on" for paused lists). */
+  when?: Condition[];
+  /** Only while the record the list is scoped to matches, asked of its `facts` (not on the default price list). */
+  whenParent?: Condition[];
+  /** Bulk: only on these tabs ("Sell them again" on Archived). */
+  tabs?: string[];
+  /** Dropped while the company has one open site ("Move to another site"). */
+  sites?: "multi-site";
+  do:
+    /**
+     * A sheet over the list with the rows' ids; `with` adds to its address, its `{key}` holes filled
+     * from the list's filters (`{ list: "{list}", how: "RAISE" }` on a worksheet).
+     */
+    | { sheet: string; with?: Record<string, string> }
+    /**
+     * A row's link, or for a bulk action a link built from the ticked rows:
+     * `{min:key}` and `{max:key}` are the smallest and largest of that column.
+     */
+    | { href: RowTemplate }
+    /** A row's file, opened in a new tab to print (a sale's receipt). */
+    | { open: RowTemplate }
+    | { confirm: ConfirmSpec; endpoint: string }
+    /**
+     * POSTs `{ ids }` to the endpoint, asking first when the named entry of
+     * the list runs (`lib/retail/asks`) has an ask, and toasts its done words.
+     * A row menu action's endpoint may hold `{key}` holes, filled from its row
+     * (`/api/v2/retail/tills/{id}/unpair`).
+     */
+    | { run: string; endpoint: string }
+    | {
+        /** POSTed with the ids; the answer is a file. A row menu action's may hold `{key}` holes, filled from its row. */
+        download: string;
+        /** The body key the ids go under. Default `ids`. */
+        idsAs?: string;
+        /**
+         * Instead of ids: each row as an object of these row keys, under this body key (Past days' `days:
+         * [{ siteId, date }]`). `fields` maps the object's key to the row's.
+         */
+        rowsAs?: { key: string; fields: Record<string, string> };
+        /** More of the body, fixed. */
+        with?: Record<string, string>;
+        /** Opened in a new tab (a PDF to print) rather than saved. */
+        open?: boolean;
+        /** A response header holding a count, and the toast that says it: `{n}` is the count. */
+        notice?: { header: string; text: string };
+        /** At most this many ids per request. */
+        cap?: number;
+      }
+    /** Copies that column's values, comma-separated; `done` is the toast, `{n}` the count. */
+    | { copy: string; done?: string }
+    /** The list's own Export over the ticked rows, in this format ("Print" is the PDF). */
+    | { export: "pdf" | "csv" | "xlsx" };
+};
+
+/**
+ * What a list says before it has ever had a row (00-foundations 5.12.2).
+ * With `steps` it teaches the job in three numbered sentences under a
+ * question (the Guided board); without, it is the list's icon, a statement
+ * and one line (the TenderUI board). `icon` names an export of `lib/icons`.
+ */
+export type EmptyGuideSpec = {
+  icon?: string;
+  title: string;
+  line: string;
+  /** Each step: the bold clause, then the rest of the sentence. */
+  steps?: Array<[bold: string, rest: string]>;
+  /**
+   * Record tabs carry none: their rows arrive from elsewhere. Any of
+   * `requires` offers it, as with the list's own primary; a caller with none
+   * of them sees the guide without the button.
+   */
+  primary?: { label: string; sheet?: string; href?: string; requires: ListGrant[]; idFrom?: string };
+  secondary?: { label: string; href: string; requires: ListGrant[] };
+};
+
+/** The guide as one caller sees it: only the actions their grants allow, no grants. */
+export type EmptyGuidePublic = Omit<EmptyGuideSpec, "primary" | "secondary"> & {
+  primary?: Omit<NonNullable<EmptyGuideSpec["primary"]>, "requires">;
+  secondary?: Omit<NonNullable<EmptyGuideSpec["secondary"]>, "requires">;
+};
+
+/** `requires: "view-cost"`: offered only to a role that may see cost (a margin sort gives the cost's order away). */
+export type ListSort = { key: string; label: string; rules: SortRule[]; requires?: "view-cost" };
+
+export type ListSpec = {
+  /** "shifts" — in Export's caption, empty states, refusals ("Your role cannot view shifts"). */
+  noun: string;
+  /** The header's sub beside the title ("Kept for 30 days, then gone for good"); a parent's name replaces it. */
+  sub?: string;
+  /** Any of these grants reads the list. */
+  read: ListGrant[];
+  /** The 403 for a role none of `read` admits, where the list speaks for a module ("Your role cannot view reports"). Default "Your role cannot view <noun>". */
+  refusal?: string;
+  /**
+   * The list exists only for a company with two or more open sites; with one,
+   * every read answers 403 with this sentence ("Transfers need a second site.").
+   */
+  multiSiteOnly?: { refusal: string };
+  /** These roles see only the rows where `column` is their own user id; `filter` is hidden from them. */
+  scopeOwn?: { roles: string[]; column: string; filter?: string };
+  search: { placeholder: string; keys: string[] };
+  /** `empty`: the line drawn while the tab holds nothing at all ("Nothing of yours yet. …"), in place of "No match". */
+  tabs?: Array<{ key: string; label: string; where: Condition[]; empty?: string }>;
+  filters: ListFilter[];
+  /** The first is the default. */
+  sorts: ListSort[];
+  /** Column keys offered under Group. */
+  groups?: string[];
+  defaultGroup?: string;
+  columns: ListColumn[];
+  rowHref: RowTemplate;
+  rowMenu?: ListAction[];
+  bulk?: Array<ListAction | { key: "export" }>;
+  /** `idFrom`: the parent filter whose value the sheet opens on (Add products to this list). */
+  primary?: {
+    label: string;
+    icon?: "plus";
+    requires: ListGrant[];
+    sheet?: string;
+    href?: string;
+    idFrom?: string;
+    /**
+     * A menu instead of one sheet ("+ New bundle or pack": a pack, a bundle, a
+     * buy-more deal): each item opens its sheet with `params`. An item's own
+     * `requires` (any of) narrows it further; items the caller cannot do are left out.
+     */
+    menu?: Array<{ label: string; sheet: string; params?: Record<string, string>; requires?: ListGrant[] }>;
+  };
+  /**
+   * A link in the header after the title (and the sub): a sheet over the list ("Who can do what").
+   * `requires`: drawn only for a caller with any of these. `idFrom`: the parent filter whose
+   * value the sheet opens on ("Edit the rules" of the price list the worksheet is scoped to).
+   */
+  subLink?: { label: string; sheet: string; requires?: ListGrant[]; idFrom?: string };
+  /** The phone card. */
+  card: {
+    title: string;
+    badge?: string;
+    figure: string;
+    meta: RowTemplate;
+    /** A second meta line under the first ("Last sale Today, 11:42 · Chipo Dube"). */
+    meta2?: RowTemplate;
+    figure2?: string;
+    /** A button on the card doing this row menu action ("Restore"), when the row's menu offers it. */
+    action?: string;
+  };
+  /** The empty guide's title and line may say `{parent}`: the record the list is scoped to ("Nothing is on Wholesale yet"). */
+  empty: EmptyGuideSpec;
+  /**
+   * A list whose job is typing values (a price list's worksheet, 5.4.10): the column's cells are
+   * inputs for a caller with any of `requires`, and read as money for anyone else. `endpoint` is
+   * PATCHed `{ changes: [{ id, value, was }] }` (`was`: what the cell held when typing began); its
+   * `{key}` holes are filled from the parent filters. The answer's `message` is the toast. `changedColumn`
+   * reads "Not saved" on a row typed in and not yet saved.
+   */
+  edit?: {
+    column: string;
+    endpoint: string;
+    changedLabel: string;
+    note: string;
+    save: string;
+    changedColumn?: string;
+    /** On a phone the cards carry no inputs: tapping the figure opens this one-field sheet for the row. */
+    sheet?: string;
+    requires: ListGrant[];
+  };
+  /** Links under Export's formats, after a separator: other ways in ("Import a spreadsheet"). */
+  exportExtras?: Array<{ label: string; href: string; requires: ListGrant[] }>;
+  /** Refetched this often while open, for rows whose state changes on its own (a till going offline). */
+  refreshSeconds?: number;
+};
+
+/**
+ * What the browser is told about a list, for one role: no grants and no
+ * scoping rule; only the columns, filters and actions that role has; choice
+ * options resolved for the company.
+ */
+export type ListSpecPublic = Omit<ListSpec, "read" | "scopeOwn" | "primary" | "exportExtras" | "empty" | "subLink" | "edit"> & {
+  primary:
+    | (Omit<NonNullable<ListSpec["primary"]>, "requires" | "menu"> & {
+        menu?: Array<{ label: string; sheet: string; params?: Record<string, string> }>;
+      })
+    | null;
+  edit?: Omit<NonNullable<ListSpec["edit"]>, "requires">;
+  subLink?: Omit<NonNullable<ListSpec["subLink"]>, "requires">;
+  empty: EmptyGuidePublic;
+  exportExtras?: Array<{ label: string; href: string }>;
+};
+
+/** The six places a Reports template belongs (`lib/reports/areas.ts`). */
+export type ReportArea = "selling" | "stock" | "buying" | "customers" | "money" | "floor";
+
+/**
+ * A source as Reports reads it (70-insights-reports 5.14): a second list spec
+ * over the same loader, with the board's columns, filters and sorts, and the
+ * "One row for each" choices. `startsFrom` is the source's "Starts from" card
+ * on the New template sheet; the inherited `card` stays the phone card.
+ */
+export type ReportFace = ListSpec & {
+  area: ReportArea;
+  startsFrom?: { title: string; sub: string };
+  /** "One row for each". The first is the unrolled row ("Sale"), key `none`; the rest are column keys. */
+  rollups: Array<{ key: string; label: string }>;
+  /** The count column that exists only rolled up ("Payments"): how many source rows each rolled row holds. */
+  rollupOnly?: string;
+};
+
+/** Which spec of a source a list request reads. */
+export type ListFace = "list" | "report";
+
+/** A list request as the address carries it. */
+export type ListQuery = {
+  tab?: string;
+  q?: string;
+  sort?: string;
+  group?: string;
+  page: number;
+  size: number;
+  /** choice, period and parent filters by key. */
+  filters: Record<string, string>;
+  /** Hidden column keys. */
+  hidden?: string[];
+  /** `report`: the source's report face. Default `list`. */
+  face?: ListFace;
+  /** A Reports template whose query lies under this one. */
+  template?: string;
+  /** "One row for each": rollup keys of the report face. */
+  rows?: string[];
+  /** Visible columns, in order. */
+  cols?: string[];
+};
+
+export const LIST_PAGE_SIZES = [25, 50, 100] as const;
+export type ListPageSize = (typeof LIST_PAGE_SIZES)[number];
+
+/** A query with every default filled and every value checked against the source. */
+export type ResolvedListQuery = {
+  tab: string | null;
+  q: string;
+  /** A named sort's key, or `<column>:asc|desc`. */
+  sort: string;
+  group: string | null;
+  page: number;
+  /** One of `LIST_PAGE_SIZES` from an address; an export asks a database-paged source for `REPORT_ROW_LIMIT`. */
+  size: number;
+  /** Every declared filter's value (`any` when off); parents only when given. */
+  filters: Record<string, string>;
+  hidden: string[];
+  face: ListFace;
+  /** The template the query was laid over, when it was. */
+  template: string | null;
+  /** Rolled up by these keys; empty when not. */
+  rows: string[];
+  /** The visible columns in drawing order, when the address chose them; the rest are hidden. */
+  cols: string[] | null;
+};
+
+export type ListGroup = {
+  value: string | null;
+  /** "None" for blank. */
+  label: string;
+  tone: Tone | null;
+  /** Rows in the whole group, not just this page. */
+  count: number;
+  totals: Record<string, ReportValue>;
+};
+
+export type ListSummary = Record<string, { count: number; label: string; tone: Tone }>;
+
+/** One page, and everything about the whole filtered set the frame draws around it. */
+export type ListPageResult = {
+  total: number;
+  pages: number;
+  page: number;
+  rows: ReportRow[];
+  groups: ListGroup[] | null;
+  totals: Record<string, ReportValue>;
+  summary: ListSummary;
+  tabs: Record<string, number> | null;
+  everEmpty: boolean;
+  truncated: boolean;
+};
+
+export type ListPageResponse = ListPageResult & {
+  report: ReportMeta & { list: ListSpecPublic };
+  /**
+   * The record a parent filter scopes the list to, named by the loader: the header sub (or, for a
+   * page about that record, its title and `sub`), and with `all` the link that clears it.
+   */
+  parent: { key: string; label: string; sub: string | null; all: string | null; facts: Record<string, string> } | null;
+  query: ResolvedListQuery;
+  size: number;
+};
+
+/** "Select all" fetches at most this many ids. */
+export const LIST_IDS_CAP = 5000;
+export type ListIdsResponse = {
+  ids: string[];
+  total: number;
+  capped: boolean;
+  /** With `pick=a,b`: those columns' values, in the order of `ids` (what bulk actions read). */
+  picked?: Record<string, ReportValue[]>;
 };

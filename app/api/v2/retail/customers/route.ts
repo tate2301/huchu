@@ -4,6 +4,7 @@ import { z } from "zod";
 import { errorResponse, successResponse } from "@/lib/api-response";
 import { money, sumMoney, toNumberOrZero } from "@/lib/money";
 import { prisma } from "@/lib/prisma";
+import { getLoyaltyTier } from "@/lib/retail/loyalty-rules";
 import { requireRetailPermission } from "@/lib/retail/permissions";
 import { parseRetailQuery, retailOffsetQuery, slicePage } from "@/lib/retail/request";
 import { requireRetailSession } from "../_helpers";
@@ -22,12 +23,6 @@ const customerListQuery = retailOffsetQuery.extend({
   scanLimit: z.coerce.number().int().min(100).max(20_000).optional(),
 });
 
-function getLoyaltyTier(points: number) {
-  if (points >= 2_000) return "GOLD";
-  if (points >= 500) return "SILVER";
-  return "BRONZE";
-}
-
 export async function GET(request: NextRequest) {
   const { response, session } = await requireRetailSession(request);
   if (response || !session) {
@@ -37,7 +32,7 @@ export async function GET(request: NextRequest) {
   // R-2.3. The customer list is a selling tool: loyalty is applied mid-sale, so
   // a cashier needs it. A stock clerk does not — knowing who shops here is not
   // part of counting what is on the shelf.
-  const gate = requireRetailPermission(session, "retail.sell", "view");
+  const gate = requireRetailPermission(session, "retail.customers", "view");
   if (gate) return gate;
 
   const query = parseRetailQuery(request, customerListQuery);
@@ -187,7 +182,7 @@ export async function POST(request: NextRequest) {
     return response as NextResponse;
   }
 
-  const gate = requireRetailPermission(session, "retail.sell", "create");
+  const gate = requireRetailPermission(session, "retail.customers", "create");
   if (gate) return gate;
 
   try {

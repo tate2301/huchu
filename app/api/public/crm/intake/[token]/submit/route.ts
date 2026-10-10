@@ -4,17 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { checkRateLimit } from "@/lib/auth-core/rate-limit";
 import { buildSubmissionSchema, parseIntakeFormConfig } from "@/lib/crm/intake-schema";
 import { ingestLead } from "@/lib/crm/intake-ingest";
-
-// Only accept photo URLs that came from our own blob store — arbitrary
-// external URLs would otherwise be rendered as <img> inside the CRM.
-function isOwnBlobUrl(value: string): boolean {
-  try {
-    const url = new URL(value);
-    return url.protocol === "https:" && url.hostname.endsWith(".blob.vercel-storage.com");
-  } catch {
-    return false;
-  }
-}
+import { isOwnBlobUrl } from "@/lib/uploads/blob-url";
 
 function clientIp(request: NextRequest): string {
   return (
@@ -75,8 +65,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     return NextResponse.json({ ok: true, message: form.successMessage ?? "Thank you." });
   }
 
+  // Only photos from our own blob store: an outside URL would render as an <img> in the CRM.
   const photoUrls = form.allowPhotos
-    ? (data.photoUrls ?? []).filter(isOwnBlobUrl).slice(0, form.maxPhotos)
+    ? (data.photoUrls ?? []).filter((url) => isOwnBlobUrl(url)).slice(0, form.maxPhotos)
     : [];
 
   try {

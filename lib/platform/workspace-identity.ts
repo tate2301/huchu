@@ -1,5 +1,7 @@
 import { createHash } from "crypto";
 import { headers } from "next/headers";
+import { isAdminPortalHost } from "@/lib/admin-portal";
+import { prisma } from "@/lib/prisma";
 import { PLATFORM_BRAND_INITIAL, PLATFORM_BRAND_NAME } from "@/lib/platform/brand";
 import {
   type EffectiveBranding,
@@ -21,6 +23,12 @@ export type WorkspaceIdentity = {
   logoUrl: string | null;
   version: string;
   branding: EffectiveBranding;
+  /**
+   * `Company.workspaceProfile`, which picks the product theme when there is
+   * no session to say (5.1.1). Null without a company, and on the admin
+   * portal, which is always the Corelith product.
+   */
+  workspaceProfile: string | null;
 };
 
 function resolveForegroundColor(background: string) {
@@ -69,7 +77,10 @@ function buildVersionSeed(branding: EffectiveBranding, workspaceName: string) {
   });
 }
 
-function toWorkspaceIdentity(branding: EffectiveBranding): WorkspaceIdentity {
+function toWorkspaceIdentity(
+  branding: EffectiveBranding,
+  workspaceProfile: string | null,
+): WorkspaceIdentity {
   const workspaceName = deriveWorkspaceName(branding);
   const backgroundColor = branding.colors.primary || "#0f8f86";
   return {
@@ -85,7 +96,18 @@ function toWorkspaceIdentity(branding: EffectiveBranding): WorkspaceIdentity {
       .digest("hex")
       .slice(0, 12),
     branding,
+    workspaceProfile,
   };
+}
+
+async function findWorkspaceProfile(companyId: string | null): Promise<string | null> {
+  if (!companyId) {
+    return null;
+  }
+  const company = await prisma.company
+    .findUnique({ where: { id: companyId }, select: { workspaceProfile: true } })
+    .catch(() => null);
+  return company?.workspaceProfile ?? null;
 }
 
 export async function resolveWorkspaceIdentityForHost(hostHeader?: string | null) {
@@ -99,12 +121,17 @@ export async function resolveWorkspaceIdentityForHost(hostHeader?: string | null
     }
   }
 
-  return toWorkspaceIdentity(branding);
+  const workspaceProfile = isAdminPortalHost(hostHeader)
+    ? null
+    : await findWorkspaceProfile(branding.companyId);
+
+  return toWorkspaceIdentity(branding, workspaceProfile);
 }
 
 /** A workspace's identity by its company, or the platform's without one. */
 export async function resolveWorkspaceIdentityForCompany(companyId: string | null) {
-  return toWorkspaceIdentity(await getEffectiveBrandingForCompany(companyId ?? ""));
+  const branding = await getEffectiveBrandingForCompany(companyId ?? "");
+  return toWorkspaceIdentity(branding, await findWorkspaceProfile(branding.companyId));
 }
 
 export async function resolveWorkspaceIdentityFromRequestHeaders() {

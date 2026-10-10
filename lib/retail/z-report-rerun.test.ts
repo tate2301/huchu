@@ -28,7 +28,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { prisma } from "@/lib/prisma";
-import { generateRetailZReportTransaction } from "@/app/api/v2/retail/_services";
+import { generateRetailZReportTransaction } from "@/lib/retail/z-report-generate";
 import { buildRetailZReportNo } from "./z-report";
 
 const FRIDAY = "2026-08-14";
@@ -38,6 +38,7 @@ const stamp = `${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
 let companyId = "";
 let siteId = "";
 let userId = "";
+let registerId = "";
 
 const actor = () => ({
   companyId,
@@ -59,6 +60,7 @@ beforeAll(async () => {
     select: { id: true },
   });
   siteId = site.id;
+  registerId = (await prisma.retailRegister.create({ data: { companyId, siteId, code: REGISTER, name: "Till 01" }, select: { id: true } })).id;
 
   const user = await prisma.user.create({
     data: {
@@ -78,6 +80,7 @@ beforeAll(async () => {
       shiftNo: `ZS-${stamp}-A`,
       registerCode: REGISTER,
       registerName: "Till 01",
+      registerId,
       siteId,
       cashierId: userId,
       cashierName: "Faith Moyo",
@@ -99,6 +102,7 @@ beforeAll(async () => {
       shiftNo: `ZS-${stamp}-B`,
       registerCode: REGISTER,
       registerName: "Till 01",
+      registerId,
       siteId,
       cashierId: userId,
       cashierName: "Tendai Chikwava",
@@ -245,6 +249,7 @@ afterAll(async () => {
   await prisma.retailSalePayment.deleteMany({ where: { companyId } });
   await prisma.retailSale.deleteMany({ where: { companyId } });
   await prisma.retailShift.deleteMany({ where: { companyId } });
+  await prisma.retailRegister.deleteMany({ where: { companyId } });
   await prisma.site.deleteMany({ where: { companyId } });
   await prisma.user.deleteMany({ where: { companyId } });
   await prisma.company.delete({ where: { id: companyId } });

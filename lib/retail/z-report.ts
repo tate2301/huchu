@@ -123,7 +123,6 @@ import type {
   RetailCashMovementTypeName,
 } from "./cash-movements";
 import {
-  cashVariance,
   expectedCashForShift,
   getCashNetFromPayments,
   sumCashMovementDeltas,
@@ -134,8 +133,10 @@ import {
 export const RETAIL_Z_REPORT_TENDERS = [
   "CASH",
   "CARD",
-  "MOBILE_MONEY",
+  "ECOCASH",
+  "INNBUCKS",
   "TRANSFER",
+  "ON_ACCOUNT",
   "VOUCHER",
 ] as const;
 
@@ -239,6 +240,10 @@ export type ZReportLineInput = {
  */
 export type ZReportSaleInput = {
   saleType: RetailSaleType;
+  /** `VOIDED` on a sale later voided: its approved discount was cancelled with it. */
+  status: string;
+  /** The manager whose PIN let a discount or price through (SET-06); null when nobody had to. */
+  approvedById: string | null;
   /**
    * `RetailSale.subtotal` is deliberately absent. It is recorded ex-VAT on a sale
    * and VAT-inclusive on a refund, so it cannot be summed across the two — see the
@@ -247,6 +252,11 @@ export type ZReportSaleInput = {
   discountAmount: MoneyLike;
   taxAmount: MoneyLike;
   totalAmount: MoneyLike;
+  /**
+   * Bottle deposits taken on top of `totalAmount`. Outside the goods total, so
+   * outside sales and VAT, but inside the tenders and the drawer. Signed.
+   */
+  depositAmount: MoneyLike;
   changeAmount: MoneyLike;
   /** Quote units per one base unit, stamped on the sale. 1 for a base-currency sale. */
   exchangeRate: MoneyLike;
@@ -269,8 +279,12 @@ export type ZReportShiftInput = {
   openedAt: Date;
   closedAt: Date | null;
   openingFloat: MoneyLike;
+  /** The ZiG float's dollar value at the rate it was counted in; zero for a dollars-only drawer. */
+  openingFloatZigBase: MoneyLike;
   /** What the cashier actually counted at close. Null on a shift never counted. */
   countedCash: MoneyLike | null;
+  /** The difference the close recorded (FLR-04: none under the ZiG count's US$0.05 tolerance). Null on a shift never counted. */
+  variance: MoneyLike | null;
   movements: ZReportMovementInput[];
   sales: ZReportSaleInput[];
 };
@@ -345,6 +359,11 @@ export type RetailZReportFigures = {
   saleCount: number;
   refundCount: number;
   voidCount: number;
+  /**
+   * Sales whose discount a manager approved with their PIN, not since voided:
+   * "Discounts US$12.90, 3 approved".
+   */
+  approvedDiscountCount: number;
   /** Distinct products that moved. The "of 184" beside the best-sellers table. */
   itemCount: number;
 
@@ -358,6 +377,12 @@ export type RetailZReportFigures = {
   taxRatePercent: Prisma.Decimal;
   /** Σ `totalAmount` — what customers actually paid. `netSales + taxTotal`. */
   grossTakings: Prisma.Decimal;
+  /**
+   * Bottle deposits held from the day, net of those handed back. Not revenue:
+   * the shop owes it to whoever brings the empties back. Tenders add up to
+   * `grossTakings + depositTotal`.
+   */
+  depositTotal: Prisma.Decimal;
   refundTotal: Prisma.Decimal;
   voidTotal: Prisma.Decimal;
 
@@ -425,16 +450,19 @@ export function buildRetailZReportFigures(
   let discountTotal = ZERO;
   let taxTotal = ZERO;
   let grossTakings = ZERO;
+  let depositTotal = ZERO;
   let refundTotal = ZERO;
   let voidTotal = ZERO;
   let saleCount = 0;
   let refundCount = 0;
   let voidCount = 0;
+  let approvedDiscountCount = 0;
 
   let openingFloat = ZERO;
   let cashTakings = ZERO;
   let expectedCash = ZERO;
   let countedCash = ZERO;
+  let cashVariance = ZERO;
 
   const tenderAmounts = new Map<RetailTenderType, Prisma.Decimal>();
   const tenderCounts = new Map<RetailTenderType, number>();
@@ -470,8 +498,13 @@ export function buildRetailZReportFigures(
       discountTotal = discountTotal.plus(saleDiscount);
       taxTotal = taxTotal.plus(saleTax);
       grossTakings = grossTakings.plus(saleTotal);
+      depositTotal = depositTotal.plus(toBaseAmount(sale.depositAmount, fx));
 
       if (sale.saleType === "SALE") saleCount += 1;
+      // A voided sale's discount nets out of `discountTotal` with its void, so it leaves the count too.
+      if (sale.saleType === "SALE" && sale.approvedById && sale.status !== "VOIDED" && saleDiscount.greaterThan(0)) {
+        approvedDiscountCount += 1;
+      }
       if (sale.saleType === "REFUND") {
         refundCount += 1;
         refundTotal = refundTotal.plus(saleTotal.abs());
@@ -541,15 +574,21 @@ export function buildRetailZReportFigures(
     // implementation of it standing beside the first.
     const shiftExpected = expectedCashForShift({
       openingFloat: shift.openingFloat,
+      openingFloatZigBase: shift.openingFloatZigBase,
       cashTakings: shiftCashTakings,
       movements: shift.movements,
     });
     const shiftCounted = shift.countedCash == null ? null : money(shift.countedCash);
+    // The float in the base currency, both drawers, so the report's cash lines add up to expected.
+    const shiftFloat = money(shift.openingFloat).plus(money(shift.openingFloatZigBase));
 
-    openingFloat = openingFloat.plus(money(shift.openingFloat));
+    openingFloat = openingFloat.plus(shiftFloat);
     cashTakings = cashTakings.plus(shiftCashTakings);
     expectedCash = expectedCash.plus(shiftExpected);
     countedCash = countedCash.plus(shiftCounted ?? ZERO);
+    // The shift's own difference, as its close recorded it and the Shifts list reads it, not counted less expected again.
+    const shiftVariance = shiftCounted && shift.variance != null ? money(shift.variance) : null;
+    cashVariance = cashVariance.plus(shiftVariance ?? ZERO);
 
     shiftLines.push({
       shiftId: shift.id,
@@ -557,12 +596,12 @@ export function buildRetailZReportFigures(
       cashierName: shift.cashierName,
       openedAt: shift.openedAt.toISOString(),
       closedAt: shift.closedAt?.toISOString() ?? null,
-      openingFloat: money(shift.openingFloat).toFixed(2),
+      openingFloat: shiftFloat.toFixed(2),
       cashTakings: shiftCashTakings.toFixed(2),
       movementNet: shiftMovementNet.toFixed(2),
       expectedCash: shiftExpected.toFixed(2),
       countedCash: shiftCounted?.toFixed(2) ?? null,
-      variance: shiftCounted ? shiftCounted.minus(shiftExpected).toFixed(2) : null,
+      variance: shiftVariance?.toFixed(2) ?? null,
     });
   }
 
@@ -629,6 +668,7 @@ export function buildRetailZReportFigures(
     saleCount,
     refundCount,
     voidCount,
+    approvedDiscountCount,
     itemCount: items.length,
 
     grossSales,
@@ -637,6 +677,7 @@ export function buildRetailZReportFigures(
     taxTotal,
     taxRatePercent,
     grossTakings,
+    depositTotal: money(depositTotal),
     refundTotal: money(refundTotal),
     voidTotal: money(voidTotal),
 
@@ -648,12 +689,8 @@ export function buildRetailZReportFigures(
     cashMovementNet,
     expectedCash: money(expectedCash),
     countedCash: money(countedCash),
-    // The same subtraction cash-up performs, from the same function, so a Z-report
-    // and the closeout screen can never disagree about which way a drawer is out.
-    cashVariance: cashVariance({
-      countedCash: money(countedCash),
-      expectedCash: money(expectedCash),
-    }),
+    // The counted drawers' recorded differences, so the Z-report and the Shifts list never disagree about a drawer.
+    cashVariance: money(cashVariance),
 
     tenderBreakdown: tenderRows.map((row, index) => ({
       tenderType: row.tenderType,
@@ -703,6 +740,7 @@ export type RetailZReportPayload = {
   saleCount: number;
   refundCount: number;
   voidCount: number;
+  approvedDiscountCount: number;
   itemCount: number;
   grossSales: number;
   discountTotal: number;
@@ -710,6 +748,7 @@ export type RetailZReportPayload = {
   taxTotal: number;
   taxRatePercent: number;
   grossTakings: number;
+  depositTotal: number;
   refundTotal: number;
   voidTotal: number;
   openingFloat: number;
@@ -747,6 +786,7 @@ export type RetailZReportRow = {
   saleCount: number;
   refundCount: number;
   voidCount: number;
+  approvedDiscountCount: number;
   itemCount: number;
   grossSales: MoneyLike;
   discountTotal: MoneyLike;
@@ -754,6 +794,7 @@ export type RetailZReportRow = {
   taxTotal: MoneyLike;
   taxRatePercent: MoneyLike;
   grossTakings: MoneyLike;
+  depositTotal: MoneyLike;
   refundTotal: MoneyLike;
   voidTotal: MoneyLike;
   openingFloat: MoneyLike;
@@ -803,6 +844,7 @@ export function serializeRetailZReport(
     saleCount: row.saleCount,
     refundCount: row.refundCount,
     voidCount: row.voidCount,
+    approvedDiscountCount: row.approvedDiscountCount,
     itemCount: row.itemCount,
     grossSales: num(row.grossSales),
     discountTotal: num(row.discountTotal),
@@ -810,6 +852,7 @@ export function serializeRetailZReport(
     taxTotal: num(row.taxTotal),
     taxRatePercent: Number(percent(row.taxRatePercent)),
     grossTakings: num(row.grossTakings),
+    depositTotal: num(row.depositTotal),
     refundTotal: num(row.refundTotal),
     voidTotal: num(row.voidTotal),
     openingFloat: num(row.openingFloat),
@@ -868,9 +911,11 @@ export function retailZReportToCsv(report: RetailZReportPayload): string {
 
   push("Sales", "Sales before discounts (excl. VAT)", "", String(report.saleCount), fixed(report.grossSales));
   push("Sales", "Discounts given", "", "", fixed(report.discountTotal));
+  push("Sales", "Discounts a manager approved", "", String(report.approvedDiscountCount), "");
   push("Sales", "Net sales (excl. VAT)", "", "", fixed(report.netSales));
   push("Sales", "VAT", `${report.taxRatePercent.toFixed(2)}%`, "", fixed(report.taxTotal));
   push("Sales", "Take-home (after discounts)", "", "", fixed(report.grossTakings));
+  push("Sales", "Bottle deposits held", "", "", fixed(report.depositTotal));
   push("Sales", "Refunds", "", String(report.refundCount), fixed(report.refundTotal));
   push("Sales", "Voids", "", String(report.voidCount), fixed(report.voidTotal));
 

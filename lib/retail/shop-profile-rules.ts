@@ -1,0 +1,143 @@
+import type { RetailBusinessType } from "@prisma/client";
+
+import { alcoholVerdict, clockLabel, harareClock, LICENCE_TIMEZONE, type LicenceWindow } from "@/lib/retail/licence-hours";
+
+/**
+ * The shop's profile: what kind of shop it is, and the features that come with
+ * that.
+ *
+ * The business type is chosen on Setup › Shop. It seeds the categories a
+ * shop starts with (`lib/retail/categories.ts`) and decides which shop-type
+ * features exist at all. Each feature then has its own switch, so an owner can
+ * keep a liquor store's age check and turn its empties off.
+ *
+ * A feature is *on* only when both agree: the business type has it and its
+ * switch is on. That is `shopFeatures`, and it is the only thing the till and
+ * the admin read. Keeping the switches separate from the type means switching a
+ * liquor store to General retail turns everything liquor off, and switching it
+ * back restores exactly what the owner had set.
+ */
+
+export const RETAIL_BUSINESS_TYPES = ["GENERAL", "LIQUOR"] as const satisfies readonly RetailBusinessType[];
+
+/** The words a shopkeeper sees for each type. */
+export const BUSINESS_TYPE_LABELS: Record<RetailBusinessType, string> = {
+  GENERAL: "General retail",
+  LIQUOR: "Liquor store",
+};
+
+/** Licence hours, and every other shop clock, run on Harare's time for every tenant today. */
+export const SHOP_TIME_ZONE = LICENCE_TIMEZONE;
+
+export type ShopSwitches = {
+  ageCheck: boolean;
+  licenceHours: boolean;
+  emptiesAndDeposits: boolean;
+  casesAndSingles: boolean;
+};
+
+export type ShopProfile = ShopSwitches & {
+  businessType: RetailBusinessType;
+  licenceNumber: string | null;
+  /** `YYYY-MM-DD`, the day the licence runs out. */
+  licenceExpiresOn: string | null;
+  /** The shop's WhatsApp number, shown to customers. */
+  whatsapp: string | null;
+  /** Registered for VAT: no means categories seed at 0% and receipts carry no VAT line. */
+  vatRegistered: boolean;
+  /** Where new products, orders and stock go unless another site is chosen. */
+  defaultSiteId: string | null;
+  /** False until somebody has saved the profile once. */
+  saved: boolean;
+  updatedAt: string | null;
+};
+
+export type ShopFeatures = ShopSwitches;
+
+export const DEFAULT_SHOP_PROFILE: ShopProfile = {
+  businessType: "GENERAL",
+  ageCheck: true,
+  licenceHours: true,
+  emptiesAndDeposits: true,
+  casesAndSingles: true,
+  licenceNumber: null,
+  licenceExpiresOn: null,
+  whatsapp: null,
+  vatRegistered: true,
+  defaultSiteId: null,
+  saved: false,
+  updatedAt: null,
+};
+
+/**
+ * Which features are on.
+ *
+ * Every one of them belongs to the liquor store today. When a second shop type
+ * brings features of its own, this is where the type decides which switches it
+ * honours.
+ */
+export function shopFeatures(profile: Pick<ShopProfile, "businessType"> & ShopSwitches): ShopFeatures {
+  const liquor = profile.businessType === "LIQUOR";
+  return {
+    ageCheck: liquor && profile.ageCheck,
+    licenceHours: liquor && profile.licenceHours,
+    emptiesAndDeposits: liquor && profile.emptiesAndDeposits,
+    casesAndSingles: liquor && profile.casesAndSingles,
+  };
+}
+
+/**
+ * The shop's weekday and time of day at `at`, read on the shop's own clock.
+ *
+ * `Intl` rather than arithmetic on the UTC hour: the server runs in UTC, the
+ * shop's day is Harare's, and the two only agree by accident.
+ */
+export function shopClock(at: Date, timeZone = SHOP_TIME_ZONE) {
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone,
+    weekday: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(at);
+  const read = (type: Intl.DateTimeFormatPartTypes) => parts.find((part) => part.type === type)?.value ?? "";
+  return { weekday: read("weekday"), minutes: Number(read("hour")) * 60 + Number(read("minute")) };
+}
+
+/**
+ * Why a liquor store may not ring up this basket, or null when it may.
+ *
+ * One function for the till and the server: the till asks before it adds a
+ * line, and the sale route asks again, against the moment the sale was made
+ * rather than the moment it reached the server — a sale rung at 21:55 and
+ * synced at 22:10 was legal.
+ *
+ * `hours` are the selling site's licence hours (`loadLicenceHours`), read only
+ * while the licence-hours switch is on. Only age-restricted lines are refused:
+ * a shop out of licence hours still sells bread and airtime.
+ */
+export function liquorSaleRefusal(input: {
+  profile: Pick<ShopProfile, "businessType"> & ShopSwitches;
+  hours: readonly LicenceWindow[];
+  ageRestricted: readonly string[];
+  idChecked: boolean;
+  at: Date;
+}): string | null {
+  if (input.ageRestricted.length === 0) return null;
+  const features = shopFeatures(input.profile);
+  const what = input.ageRestricted.length === 1 ? input.ageRestricted[0] : "alcohol";
+  const verdict = features.licenceHours ? alcoholVerdict(input.hours, input.at) : ({ sellable: true } as const);
+  if (!verdict.sellable) {
+    const subject = what.charAt(0).toUpperCase() + what.slice(1);
+    const today = input.hours.find((window) => window.weekday === harareClock(input.at).weekday);
+    const stopped =
+      today && today.alcoholFrom === today.alcoholUntil
+        ? `${subject} can't be sold today under the licence.`
+        : `${subject} can't be sold now. The licence stopped it at ${clockLabel(verdict.stoppedAt)}.`;
+    return verdict.startsAt === null ? stopped : `${stopped} It sells again from ${clockLabel(verdict.startsAt)}.`;
+  }
+  if (features.ageCheck && !input.idChecked) {
+    return `Check the customer's ID before selling ${what}.`;
+  }
+  return null;
+}

@@ -28,7 +28,15 @@ export type ReservableIdEntity =
   | "RETAIL_SHIFT"
   | "RETAIL_HELD_CART"
   | "RETAIL_SALE"
+  | "RETAIL_REFUND"
+  | "RETAIL_VOID"
   | "RETAIL_PROMOTION"
+  | "RETAIL_STOCK_ADJUSTMENT"
+  | "RETAIL_CASE_BREAK"
+  | "RETAIL_STOCK_TRANSFER"
+  | "RETAIL_STOCK_COUNT"
+  | "RETAIL_SUPPLIER"
+  | "RETAIL_BUNDLE"
   | "CRM_CLIENT"
   | "CRM_LEAD"
   | "CRM_APPOINTMENT"
@@ -48,6 +56,8 @@ type EntityConfig = {
   // True: use GlobalIdSequence (no companyId FK) so the counter is shared across tenants.
   // Required when the underlying table has a global @unique on the reference field.
   globalSequence?: boolean;
+  /** Digits after the prefix, when not the usual four. */
+  padWidth?: number;
 };
 
 const PAD = 4;
@@ -76,13 +86,33 @@ export const ID_ENTITY_CONFIG: Record<ReservableIdEntity, EntityConfig> = {
   GOLD_POUR: { prefix: "BAR", requiresSiteId: false },
   GOLD_RECEIPT: { prefix: "RCP", requiresSiteId: false },
   GOLD_PURCHASE: { prefix: "GPUR", requiresSiteId: false },
-  RETAIL_REGISTER: { prefix: "REG", requiresSiteId: true },
-  RETAIL_PURCHASE_ORDER: { prefix: "RPO", requiresSiteId: true },
-  RETAIL_GOODS_RECEIPT: { prefix: "RGR", requiresSiteId: true },
-  RETAIL_SHIFT: { prefix: "RSH", requiresSiteId: true },
+  // Retail numbers are unique in the company, not the site (`@@unique([companyId, …])`), so they
+  // count across every site: a second shop counting from its own SH-00001 met the first shop’s.
+  RETAIL_REGISTER: { prefix: "REG", requiresSiteId: false },
+  RETAIL_PURCHASE_ORDER: { prefix: "RPO", requiresSiteId: false },
+  RETAIL_GOODS_RECEIPT: { prefix: "RGR", requiresSiteId: false },
+  // "SH-00243", the number the floor, the boards and the seeded history use.
+  RETAIL_SHIFT: { prefix: "SH", requiresSiteId: false, padWidth: 5 },
   RETAIL_HELD_CART: { prefix: "RHC", requiresSiteId: false },
-  RETAIL_SALE: { prefix: "RSL", requiresSiteId: true },
+  // "SALE-31866", "RFD-0044", "VOID-0012" (FLR-01): one line of numbers per
+  // company, whichever site rang them. Rows numbered before keep theirs.
+  RETAIL_SALE: { prefix: "SALE", requiresSiteId: false, padWidth: 5 },
+  RETAIL_REFUND: { prefix: "RFD", requiresSiteId: false },
+  RETAIL_VOID: { prefix: "VOID", requiresSiteId: false },
   RETAIL_PROMOTION: { prefix: "RPM", requiresSiteId: false },
+  // A stock adjustment and a case break are documents only in name: the number
+  // lives on their movements (`StockMovement.reference`), shared by both legs
+  // of a case break.
+  RETAIL_STOCK_ADJUSTMENT: { prefix: "ADJ", requiresSiteId: false },
+  RETAIL_CASE_BREAK: { prefix: "BRK", requiresSiteId: false },
+  // "TRF-0008": stock sent from one site to another (W-24).
+  RETAIL_STOCK_TRANSFER: { prefix: "TRF", requiresSiteId: false },
+  // "CNT-0020": a stock count (W-22).
+  RETAIL_STOCK_COUNT: { prefix: "CNT", requiresSiteId: false },
+  // "SUP-0001": a supplier the shop buys from (W-29), company-wide.
+  RETAIL_SUPPLIER: { prefix: "SUP", requiresSiteId: false },
+  // "BND-0004": a bundle or buy-more deal (PRD-08), company-wide.
+  RETAIL_BUNDLE: { prefix: "BND", requiresSiteId: false },
   CRM_CLIENT: { prefix: "CLI", requiresSiteId: false },
   CRM_LEAD: { prefix: "CRL", requiresSiteId: false },
   CRM_APPOINTMENT: { prefix: "SVT", requiresSiteId: false },
@@ -159,6 +189,13 @@ export function inferNumbering(
   return { prefix: winner.prefix, separator: winner.separator, max: winner.max };
 }
 
+/**
+ * The highest number a sequence could have handed out: `lastNumber` is an int4.
+ * A code above it was never one of ours (a till once named offline sales
+ * `RSL-<clock>`), and counting from it would overflow the sequence.
+ */
+const MAX_SEQUENCE_NUMBER = 2_147_483_647;
+
 function extractMaxFromCodes(codes: Array<string | null | undefined>, prefix: string) {
   const regex = new RegExp(`^${prefix}-(\\d+)$`, "i");
   let max = 0;
@@ -167,7 +204,7 @@ function extractMaxFromCodes(codes: Array<string | null | undefined>, prefix: st
     const match = value.match(regex);
     if (!match) continue;
     const parsed = Number.parseInt(match[1], 10);
-    if (Number.isFinite(parsed)) {
+    if (Number.isFinite(parsed) && parsed <= MAX_SEQUENCE_NUMBER) {
       max = Math.max(max, parsed);
     }
   }
@@ -355,33 +392,30 @@ async function findEntityMaxExistingCode(
       return extractMaxFromCodes(records.map((record) => record.purchaseNumber), prefix);
     }
     case "RETAIL_REGISTER": {
-      if (!siteId) return 0;
       const records = await db.retailRegister.findMany({
-        where: { companyId, siteId },
+        where: { companyId },
         select: { code: true },
       });
       return extractMaxFromCodes(records.map((record) => record.code), prefix);
     }
     case "RETAIL_PURCHASE_ORDER": {
-      if (!siteId) return 0;
       const records = await db.retailPurchaseOrder.findMany({
-        where: { companyId, siteId },
+        where: { companyId },
         select: { poNo: true },
       });
       return extractMaxFromCodes(records.map((record) => record.poNo), prefix);
     }
     case "RETAIL_GOODS_RECEIPT": {
-      if (!siteId) return 0;
       const records = await db.retailGoodsReceipt.findMany({
-        where: { companyId, siteId },
+        where: { companyId },
         select: { receiptNo: true },
       });
       return extractMaxFromCodes(records.map((record) => record.receiptNo), prefix);
     }
     case "RETAIL_SHIFT": {
-      if (!siteId) return 0;
+      // Company-wide (FLR-03): a per-site counter collides between Harare and Borrowdale.
       const records = await db.retailShift.findMany({
-        where: { companyId, siteId },
+        where: { companyId },
         select: { shiftNo: true },
       });
       return extractMaxFromCodes(records.map((record) => record.shiftNo), prefix);
@@ -393,10 +427,11 @@ async function findEntityMaxExistingCode(
       });
       return extractMaxFromCodes(records.map((record) => record.holdNo), prefix);
     }
-    case "RETAIL_SALE": {
-      if (!siteId) return 0;
+    case "RETAIL_SALE":
+    case "RETAIL_REFUND":
+    case "RETAIL_VOID": {
       const records = await db.retailSale.findMany({
-        where: { companyId, siteId },
+        where: { companyId, saleNo: { startsWith: `${prefix}-` } },
         select: { saleNo: true },
       });
       return extractMaxFromCodes(records.map((record) => record.saleNo), prefix);
@@ -407,6 +442,42 @@ async function findEntityMaxExistingCode(
         select: { promoCode: true },
       });
       return extractMaxFromCodes(records.map((record) => record.promoCode), prefix);
+    }
+    case "RETAIL_STOCK_ADJUSTMENT":
+    case "RETAIL_CASE_BREAK": {
+      const records = await db.stockMovement.findMany({
+        where: { item: { site: { companyId } }, reference: { startsWith: `${prefix}-` } },
+        select: { reference: true },
+      });
+      return extractMaxFromCodes(records.map((record) => record.reference), prefix);
+    }
+    case "RETAIL_STOCK_TRANSFER": {
+      const records = await db.retailStockTransfer.findMany({
+        where: { companyId },
+        select: { transferNo: true },
+      });
+      return extractMaxFromCodes(records.map((record) => record.transferNo), prefix);
+    }
+    case "RETAIL_STOCK_COUNT": {
+      const records = await db.retailStockCount.findMany({
+        where: { companyId },
+        select: { countNo: true },
+      });
+      return extractMaxFromCodes(records.map((record) => record.countNo), prefix);
+    }
+    case "RETAIL_SUPPLIER": {
+      const records = await db.vendor.findMany({
+        where: { companyId, code: { not: null } },
+        select: { code: true },
+      });
+      return extractMaxFromCodes(records.map((record) => record.code), prefix);
+    }
+    case "RETAIL_BUNDLE": {
+      const records = await db.retailBundle.findMany({
+        where: { companyId },
+        select: { code: true },
+      });
+      return extractMaxFromCodes(records.map((record) => record.code), prefix);
     }
     // CRM entities seed from existing rows so a lost IdSequence row cannot
     // restart the counter at 0001 and collide with the unique constraint.
@@ -624,7 +695,7 @@ export async function reserveIdentifier(
               ),
               padWidth: PAD,
             }
-          : { prefix: config.prefix, separator: "-", max: 0, padWidth: PAD };
+          : { prefix: config.prefix, separator: "-", max: 0, padWidth: config.padWidth ?? PAD };
 
     if (!existing) {
       const maxExisting = SCHOOL_NUMBERED_ENTITIES.has(input.entity)
@@ -663,4 +734,36 @@ export async function reserveIdentifier(
     return (db as PrismaClient).$transaction(run);
   }
   return run(db as Prisma.TransactionClient);
+}
+
+/**
+ * The number `reserveIdentifier` would hand out next, without taking it: for a
+ * screen that says what is coming ("Opening SH-00244"). Another caller may
+ * take it first, so it is a forecast, never a promise. Not for the school
+ * entities, whose numbering is inferred.
+ */
+export async function peekIdentifier(
+  db: PrismaClient | Prisma.TransactionClient,
+  input: { companyId: string; entity: ReservableIdEntity; siteId?: string },
+): Promise<string> {
+  const config = ID_ENTITY_CONFIG[input.entity];
+  if (SCHOOL_NUMBERED_ENTITIES.has(input.entity)) {
+    throw new Error(`${input.entity} numbers cannot be forecast.`);
+  }
+  if (config.requiresSiteId && !input.siteId) {
+    throw new Error(`siteId is required for ${input.entity}`);
+  }
+  const scopeKey = config.requiresSiteId && input.siteId ? input.siteId : GLOBAL_SCOPE;
+  const sequence = config.globalSequence
+    ? await db.globalIdSequence.findUnique({
+        where: { entityKey_scopeKey: { entityKey: input.entity, scopeKey } },
+        select: { lastNumber: true },
+      })
+    : await db.idSequence.findUnique({
+        where: { companyId_entityKey_scopeKey: { companyId: input.companyId, entityKey: input.entity, scopeKey } },
+        select: { lastNumber: true },
+      });
+  const last = sequence ? sequence.lastNumber : await findEntityMaxExistingCode(db, input);
+  // As `reserveIdentifier` builds it: a global sequence at the default width.
+  return buildCode(config.prefix, last + 1, "-", config.globalSequence ? PAD : (config.padWidth ?? PAD));
 }

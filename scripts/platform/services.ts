@@ -1308,6 +1308,7 @@ async function provisionOrganization(input: ProvisionOrganizationInput): Promise
     },
     adminUser: {
       ...result.adminUser,
+      email: result.adminUser.email ?? "",
       role: result.adminUser.role as AdminRole,
     },
     subscription: {
@@ -1968,7 +1969,7 @@ async function applyClientTemplate(input: ApplySubscriptionTemplateInput): Promi
     R-5.1. The same hole, on the retail side, and a worse one.
 
     A retail template left the tenant with no site and no register, and
-    `openRetailShiftTransaction` needs both — so the first thing a cashier does
+    `openShift` (lib/retail/floor/shifts.ts) needs both — so the first thing a cashier does
     on their first morning failed with *Invalid site*. A school at least renders
     its empty screens; a till that cannot open a drawer cannot do anything at
     all.
@@ -2291,7 +2292,7 @@ async function listAdmins(input?: ListAdminsInput): Promise<AdminSummary[]> {
 
   return rows.map((row) => ({
     id: row.id,
-    email: row.email,
+    email: row.email ?? "",
     name: row.name,
     role: row.role as AdminRole,
     isActive: row.isActive,
@@ -2334,7 +2335,7 @@ async function createAdmin(input: CreateAdminInput): Promise<AdminCreateResult> 
     id: user.id,
     companyId: user.companyId,
     companyName: company.name,
-    email: user.email,
+    email: user.email ?? "",
     name: user.name,
     role: user.role as AdminRole,
     isActive: user.isActive,
@@ -2380,7 +2381,7 @@ async function setAdminStatus(input: SetAdminStatusInput & { isActive: boolean }
 
   return {
     adminId: updated.id,
-    email: updated.email,
+    email: updated.email ?? "",
     name: updated.name,
     role: updated.role as AdminRole,
     isActive: updated.isActive,
@@ -2414,7 +2415,7 @@ async function resetAdminPassword(input: ResetAdminPasswordInput): Promise<Admin
 
   return {
     adminId: user.id,
-    email: user.email,
+    email: user.email ?? "",
     role: user.role as AdminRole,
     companyId: user.companyId,
     companyName: user.company.name,

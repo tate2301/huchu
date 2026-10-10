@@ -17,15 +17,19 @@ import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { prisma } from "@/lib/prisma";
 import {
   FISCAL_DAY_STATUS,
+  FISCAL_DAY_CLOSE_LEASE_MS,
   FiscalDayAlreadyOpenError,
+  FiscalDayCloseInProgressError,
   FiscalDayConfigError,
   FiscalDayHasPendingReceiptsError,
   FiscalDayNotOpenError,
   aggregateFiscalDayCounters,
+  claimFiscalDayClosing,
   closeFiscalDay,
   getOpenFiscalDay,
   openFiscalDay,
   recordReceiptHash,
+  releaseFiscalDayClosing,
   requireOpenFiscalDay,
   reserveNextReceiptNumbers,
 } from "@/lib/accounting/fiscal-day";
@@ -352,6 +356,52 @@ describe("closeFiscalDay", () => {
       where: { id: { in: [pending.id, failed.id] } },
       data: { status: "SUCCESS" },
     });
+  });
+
+  it("stops the day taking receipts before it counts them, one close at a time, and gives an open day back when it does not close", async () => {
+    const day = await requireOpenFiscalDay({ companyId, providerConfigId });
+
+    const claim = await claimFiscalDayClosing(day.id);
+    expect(claim).toMatchObject({ dayId: day.id, from: FISCAL_DAY_STATUS.OPENED });
+    // Nothing signed from here on lands in the day its report is counting.
+    await expect(reserveNextReceiptNumbers(day.id)).rejects.toBeInstanceOf(FiscalDayNotOpenError);
+    // A second close while this one holds the day is refused, never shared.
+    await expect(claimFiscalDayClosing(day.id)).rejects.toBeInstanceOf(FiscalDayCloseInProgressError);
+    await expect(closeFiscalDay({ dayId: day.id, closingSignature: "second" })).rejects.toBeInstanceOf(FiscalDayCloseInProgressError);
+
+    expect(await releaseFiscalDayClosing(claim, { reopen: true })).toBe(true);
+    expect(await prisma.fiscalDay.findUniqueOrThrow({ where: { id: day.id } })).toMatchObject({
+      status: FISCAL_DAY_STATUS.OPENED,
+      closingSince: null,
+    });
+    // Let go of once, it cannot be let go of again.
+    expect(await releaseFiscalDayClosing(claim, { reopen: true })).toBe(false);
+  });
+
+  it("lets a close take over a day whose close died, and the dead close can then neither reopen nor close it", async () => {
+    const day = await requireOpenFiscalDay({ companyId, providerConfigId });
+    const dead = await claimFiscalDayClosing(day.id, prisma, new Date(Date.now() - FISCAL_DAY_CLOSE_LEASE_MS - 1_000));
+    const live = await claimFiscalDayClosing(day.id);
+    expect(live).toMatchObject({ from: FISCAL_DAY_STATUS.CLOSING });
+
+    // The dead close wakes up: its give-back and its report both find the day is not theirs.
+    expect(await releaseFiscalDayClosing(dead, { reopen: true })).toBe(false);
+    await expect(closeFiscalDay({ dayId: day.id, claim: dead, closingSignature: "stale" })).rejects.toBeInstanceOf(
+      FiscalDayCloseInProgressError,
+    );
+    expect(await prisma.fiscalDay.findUniqueOrThrow({ where: { id: day.id } })).toMatchObject({
+      status: FISCAL_DAY_STATUS.CLOSING,
+      closingSince: live.since,
+      closingSignature: null,
+    });
+
+    // The live close lets go and the day stays closing (it was taken closing), free for the next close.
+    expect(await releaseFiscalDayClosing(live, { reopen: true })).toBe(true);
+    expect(await prisma.fiscalDay.findUniqueOrThrow({ where: { id: day.id } })).toMatchObject({
+      status: FISCAL_DAY_STATUS.CLOSING,
+      closingSince: null,
+    });
+    await prisma.fiscalDay.update({ where: { id: day.id }, data: { status: FISCAL_DAY_STATUS.OPENED } });
   });
 
   it("closes with aggregated counters and the closing signature", async () => {

@@ -29,7 +29,7 @@ import { RecordDialog } from "@/components/crm/records/record-dialog";
 import { RecordListShell } from "@/components/crm/records/record-list-shell";
 import { RecordListPager } from "@/components/records/record-list";
 import { FILTER_ANY, ViewToolbarFilter } from "@/components/records/view-toolbar";
-import { DateRangeFilter } from "@/components/ui/date-range-filter";
+import { COMMON_PRESETS, DateRangePicker, DayRangeChip } from "@/components/ui/date-picker";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -538,11 +538,14 @@ function Register({ onAdd }: { onAdd?: () => void }) {
       filterCount={filterCount}
       filters={
         <>
-          <DateRangeFilter
-            label="Day"
+          <DateRangePicker
+            openEnded
+            presets={COMMON_PRESETS}
+            title="Day"
             value={{ from, to }}
-            max={todayKey()}
+            latest={todayKey()}
             onChange={(next) => setParams({ from: next.from, to: next.to })}
+            trigger={<DayRangeChip label="Day" range={{ from, to }} />}
           />
           {mayViewAll ? (
             <ViewToolbarFilter

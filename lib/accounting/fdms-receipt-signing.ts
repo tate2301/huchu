@@ -196,8 +196,17 @@ function normaliseReceiptDate(value: string | Date): string {
   return value;
 }
 
+/**
+ * The device ID as FDMS reads it: the digits, without the grouping a shop may
+ * type them in ("0441-2209" on Setup › Fiscal device). Paths, the receipt
+ * wire and the signature all use this form.
+ */
+export function fdmsDeviceId(value: number | string): string {
+  return String(value).trim().replace(/[\s-]/g, "");
+}
+
 function normaliseDeviceId(value: number | string): string {
-  const text = String(value).trim();
+  const text = fdmsDeviceId(value);
   if (!/^\d+$/.test(text) || text.length === 0) {
     throw new FiscalSigningError(`deviceId must be numeric, received "${text}"`);
   }

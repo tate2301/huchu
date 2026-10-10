@@ -63,6 +63,20 @@ function buildStrategyRegistry(): AuthStrategyDescriptor[] {
       kind: "handoff",
       supportsRememberMe: false,
     },
+    {
+      // A PIN at a paired till (10-setup W-04 step 7). The device key in the
+      // POS host's cookie is the second factor; the session is good on the
+      // POS host only. "Who is selling?" is its surface, not a sign-in form.
+      id: "till-pin",
+      providerId: "till-pin",
+      label: "Till PIN",
+      description: "Four digits at a paired till; the device's key says which till.",
+      surfaces: [],
+      enabled: true,
+      live: true,
+      kind: "pin",
+      supportsRememberMe: false,
+    },
   ];
 }
 

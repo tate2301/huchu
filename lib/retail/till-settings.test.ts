@@ -29,7 +29,7 @@ describe("a cashier cannot raise their own ceiling", () => {
    * The whole reason the screen has no write handler. If this ever flips, the
    * discount ceiling has stopped being a control.
    */
-  it("refuses a cashier retail.setup", () => {
+  it("refuses a cashier retail.till-rules", () => {
     expect(canEditTillSettings("CASHIER")).toBe(false);
   });
 

@@ -560,7 +560,7 @@ export function renderDocumentShell(input: {
     branding.fontFamily || '"Inter", "Segoe UI", "Helvetica Neue", Arial, sans-serif';
   const monoFontFamily =
     branding.monoFontFamily ||
-    '"Atkinson Hyperlegible Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace';
+    '"IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace';
   // Fetched by the renderer before it prints. Without it the container has
   // almost no fonts installed and the stack falls through to a default.
   const fontImport = branding.fontImportUrl

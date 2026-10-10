@@ -30,6 +30,7 @@ import {
   movementActivityEntry,
   saleActivityEntries,
   shiftActivityEntries,
+  wasApproved,
   type TillActivityMovementRow,
   type TillActivitySaleRow,
   type TillActivityShiftRow,
@@ -61,6 +62,7 @@ const SALE: TillActivitySaleRow = {
   cashierName: "Faith Moyo",
   customerName: "Walk-in",
   overrideReason: null,
+  approvedByName: null,
   postedAt: new Date("2026-08-14T09:12:00.000Z"),
   createdAt: new Date("2026-08-14T09:11:55.000Z"),
   shiftNo: "S-2841",
@@ -162,8 +164,8 @@ describe("overrideReason is a price approval on a sale and a reason on a reversa
     });
     expect(entries).toHaveLength(2);
     expect(entries[1].kind).toBe("override");
-    expect(entries[1].title).toBe("Price override on HS-01044");
-    expect(entries[1].detail).toBe("Manager approved $2.00 off — damaged label");
+    expect(entries[1].saleNo).toBe("HS-01044");
+    expect(entries[1].reason).toBe("Manager approved $2.00 off — damaged label");
     // The sale's total is not the size of the discount and must not be shown
     // beside a line labelled "override".
     expect(entries[1].amount).toBeNull();
@@ -173,7 +175,7 @@ describe("overrideReason is a price approval on a sale and a reason on a reversa
     const entries = saleActivityEntries(REFUND);
     expect(entries).toHaveLength(1);
     expect(entries[0].kind).toBe("refund");
-    expect(entries[0].detail).toContain("Crates returned unopened");
+    expect(entries[0].reason).toContain("Crates returned unopened");
   });
 
   it("raises no override line for a void either", () => {
@@ -187,16 +189,54 @@ describe("overrideReason is a price approval on a sale and a reason on a reversa
   });
 });
 
+/* ─── Who approved it ─────────────────────────────────────────────────────── */
+
+describe("the manager who approved it", () => {
+  it("is named on the override line, not on the sale it was given on", () => {
+    const [sale, override] = saleActivityEntries({
+      ...SALE,
+      overrideReason: "Regular customer",
+      approvedByName: "Farai Mutasa",
+    });
+    expect(sale.approvedBy).toBeNull();
+    expect(override.approvedBy).toBe("Farai Mutasa");
+    expect(wasApproved(sale)).toBe(false);
+    expect(wasApproved(override)).toBe(true);
+  });
+
+  it("is named on a refund and a void", () => {
+    const [refund] = saleActivityEntries({ ...REFUND, approvedByName: "Farai Mutasa" });
+    const [voided] = saleActivityEntries({ ...VOID, approvedByName: "Farai Mutasa" });
+    expect(refund.approvedBy).toBe("Farai Mutasa");
+    expect(voided.approvedBy).toBe("Farai Mutasa");
+  });
+
+  it("is absent when nobody had to approve, so the Approved filter leaves it out", () => {
+    const entries = buildTillActivity({
+      sales: [
+        { ...SALE, overrideReason: "Manager's own discount" },
+        REFUND,
+        { ...VOID, approvedByName: "Farai Mutasa" },
+      ],
+      movements: [DROP],
+      shifts: [SHIFT],
+    });
+    expect(entries.filter(wasApproved).map((entry) => entry.id)).toEqual(["sale:sale-3"]);
+  });
+});
+
 /* ─── Shift boundaries ────────────────────────────────────────────────────── */
 
 describe("a shift is two events, and the close says whether the drawer agreed", () => {
   it("opens with the float and closes with the count", () => {
     const [open, close] = shiftActivityEntries(SHIFT);
-    expect(open.title).toBe("Till opened · S-2841");
+    expect(open.shiftEvent).toBe("open");
+    expect(open.shiftNo).toBe("S-2841");
+    expect(open.registerName).toBe("Till 02");
     expect(open.amount).toBe("150.00");
-    expect(close.title).toBe("Till closed · S-2841");
+    expect(close.shiftEvent).toBe("close");
     expect(close.amount).toBe("1356.75");
-    expect(close.detail).toContain("drawer agreed");
+    expect(Number(close.variance ?? 0)).toBe(0);
   });
 
   it("names a shortfall as short, and by how much", () => {
@@ -205,7 +245,7 @@ describe("a shift is two events, and the close says whether the drawer agreed", 
       countedCash: dec("1156.75"),
       variance: dec("-200.00"),
     });
-    expect(close.detail).toBe("Till 02 · drawer short 200.00");
+    expect(close.variance).toBe("-200.00");
   });
 
   it("names an overage as over", () => {
@@ -214,7 +254,7 @@ describe("a shift is two events, and the close says whether the drawer agreed", 
       countedCash: dec("1361.75"),
       variance: dec("5.00"),
     });
-    expect(close.detail).toBe("Till 02 · drawer over 5.00");
+    expect(close.variance).toBe("5.00");
   });
 
   /** An open drawer has no close. Inventing one would report a shift that ended. */
@@ -226,7 +266,7 @@ describe("a shift is two events, and the close says whether the drawer agreed", 
       closedAt: null,
     });
     expect(entries).toHaveLength(1);
-    expect(entries[0].title).toBe("Till opened · S-2841");
+    expect(entries[0].shiftEvent).toBe("open");
   });
 });
 
@@ -318,11 +358,12 @@ describe("a ZWG sale in a USD shop", () => {
   it("shows the base amount and notes the tendered currency", () => {
     const [entry] = saleActivityEntries(zwgSale);
     expect(entry.amount).toBe("46.00");
-    expect(entry.detail).toContain("ZWG 1265.00");
+    expect(entry.tendered).toBe("ZWG 1265.00");
   });
 
   it("says nothing about currency when the two agree", () => {
     const [entry] = saleActivityEntries(SALE);
-    expect(entry.detail).toBe("Walk-in");
+    expect(entry.tendered).toBeNull();
+    expect(entry.customerName).toBe("Walk-in");
   });
 });

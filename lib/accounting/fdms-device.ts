@@ -7,6 +7,7 @@ import {
 } from "node:crypto";
 import type { FiscalisationProviderConfig } from "@prisma/client";
 import { issueWithFdmsConnector, syncWithFdmsConnector } from "@/lib/accounting/fdms-connector";
+import { fdmsDeviceId } from "@/lib/accounting/fdms-receipt-signing";
 
 /**
  * FD-1 — the device half of the ZIMRA FDGA v7.2 protocol: keypair, CSR,
@@ -413,7 +414,7 @@ function devicePath(provider: FiscalisationProviderConfig, deviceId: string, ope
       ? metadata.devicePathPrefix.trim()
       : DEFAULT_DEVICE_PATH_PREFIX
   ).replace(/\/+$/, "");
-  return `${prefix}/${encodeURIComponent(deviceId)}/${operation}`;
+  return `${prefix}/${encodeURIComponent(fdmsDeviceId(deviceId))}/${operation}`;
 }
 
 function deviceProvider(
@@ -776,6 +777,88 @@ export async function getDeviceStatus(
             raw: body,
           }
         : null,
+    operationId: readOperationId(body),
+    error: result.error ?? null,
+    nextRetryAt: result.nextRetryAt ?? null,
+    rawResponseJson: result.rawResponseJson,
+  };
+}
+
+export type FiscalDayCloseCounter = {
+  fiscalCounterType: string;
+  fiscalCounterCurrency: string;
+  fiscalCounterTaxID: number;
+  fiscalCounterTaxPercent: string | null;
+  /** Minor units as a decimal string, as `countersJson` holds them. */
+  fiscalCounterValueCents: string;
+};
+
+/**
+ * The string a fiscal day's closing signature covers (v7.2 CloseDay): the
+ * device number, the day number, the day's date (Zimbabwe), then each
+ * non-zero counter as type, currency, percent (empty when exempt) and value
+ * in cents, upper case, in the order the counters are sorted (type, currency,
+ * taxID) — no separators, as the receipt's canonical string has none.
+ */
+export function buildFiscalDayCanonicalString(input: {
+  deviceId: string;
+  fiscalDayNo: number;
+  fiscalDayDate: string;
+  counters: FiscalDayCloseCounter[];
+}): string {
+  const counters = input.counters
+    .filter((counter) => BigInt(counter.fiscalCounterValueCents) !== BigInt(0))
+    .map(
+      (counter) =>
+        `${counter.fiscalCounterType.toUpperCase()}${counter.fiscalCounterCurrency.toUpperCase()}${
+          counter.fiscalCounterTaxPercent ?? ""
+        }${counter.fiscalCounterValueCents}`,
+    )
+    .join("");
+  return `${String(BigInt(fdmsDeviceId(input.deviceId)))}${input.fiscalDayNo}${input.fiscalDayDate}${counters}`;
+}
+
+/**
+ * POST /Device/v1/{deviceID}/CloseDay — the Z-report: the day's counters and
+ * the device's signature over them. FDMS answers SUCCESS when it has taken the
+ * day; anything else leaves the day closing, to be sent again.
+ */
+export async function closeDayOnDevice(
+  input: {
+    provider: FiscalisationProviderConfig;
+    deviceId?: string;
+    fiscalDayNo: number;
+    receiptCounter: number;
+    counters: FiscalDayCloseCounter[];
+    signature: { hash: string; signature: string };
+    attemptCount?: number;
+  },
+  transport: FdmsDeviceTransport = defaultTransport,
+): Promise<FdmsDeviceCallResult<{ raw: Record<string, unknown> }>> {
+  const deviceId = requireDeviceId(input.provider, input.deviceId);
+  const result = await transport.issue({
+    provider: deviceProvider(input.provider, { issuePath: devicePath(input.provider, deviceId, "CloseDay") }),
+    payload: {
+      idempotencyKey: `${input.provider.companyId}:close-day:${fdmsDeviceId(deviceId)}:${input.fiscalDayNo}`,
+      payload: {
+        fiscalDayNo: input.fiscalDayNo,
+        receiptCounter: input.receiptCounter,
+        fiscalDayCounters: input.counters.map((counter) => ({
+          fiscalCounterType: counter.fiscalCounterType,
+          fiscalCounterCurrency: counter.fiscalCounterCurrency,
+          fiscalCounterTaxID: counter.fiscalCounterTaxID,
+          fiscalCounterTaxPercent: counter.fiscalCounterTaxPercent,
+          fiscalCounterValue: counter.fiscalCounterValueCents,
+        })),
+        fiscalDayDeviceSignature: input.signature,
+      },
+    },
+    attemptCount: input.attemptCount ?? 0,
+  });
+  const body = readBody(result.rawResponseJson);
+  return {
+    status: result.status,
+    data: result.status === "SUCCESS" ? { raw: body } : null,
     operationId: readOperationId(body),
     error: result.error ?? null,
     nextRetryAt: result.nextRetryAt ?? null,

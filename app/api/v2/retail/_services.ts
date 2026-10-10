@@ -1,14 +1,11 @@
-import {
-  Prisma,
-  type RetailCashMovementReason,
-  type RetailCashMovementType,
-  type RetailTenderType,
-} from "@prisma/client";
+import { randomUUID } from "node:crypto";
+
+import { assignRetailSaleFiscalDay } from "@/lib/retail/fiscalisation";
+import { Prisma, type RetailTenderType } from "@prisma/client";
 import { normalizeProvidedId, reserveIdentifier } from "@/lib/id-generator";
 import { recordStockMovement } from "@/lib/inventory/stock-movements";
 import {
   ZERO,
-  exceeds,
   money,
   multiplyMoney,
   rate,
@@ -18,37 +15,52 @@ import {
   type MoneyLike,
 } from "@/lib/money";
 import { prisma } from "@/lib/prisma";
-import type { CashDenominationLine } from "@/lib/retail/cash-movements";
+import { getCashNetFromPayments } from "@/lib/retail/cash-up";
+import { postedChange, reversalSubtotal } from "@/lib/retail/sale-totals";
+import { depositBack } from "@/lib/retail/deposits";
 import {
-  buildCashMovementAmounts,
-  cashMovementDelta,
-  getCashNetFromPayments,
-  totalFromDenominations,
-} from "@/lib/retail/cash-up";
-import { reversalSubtotal } from "@/lib/retail/sale-totals";
-import { getRetailTenderPolicy, validateTenderReferences } from "@/lib/retail/tender-policy";
+  checkTillRule,
+  loadTillRules,
+  offlineReview,
+  replayedAt,
+  reversalReason,
+  tenderRuleProblem,
+  type TillRuleDecision,
+} from "@/lib/retail/till-rules";
+import { OFFLINE_REFUND_NO_REFERENCE_REVIEW, offlineReversalReview } from "@/lib/retail/till-rule-words";
+import { approvalFor, replayApproval, type Approval, type ApproverInput } from "@/lib/retail/manager-pin";
+import { refuseWhileCounted } from "@/lib/retail/stock/counts";
+import { breakCasesForSale, type TillCase } from "@/lib/retail/stock/cases";
+import { recordSaleEmpties, reverseSaleEmpties } from "@/lib/retail/empties";
 import {
-  buildRetailZReportFigures,
-  parseTradingDay,
-  tradingDayAsDate,
-  tradingDayWindow,
-} from "@/lib/retail/z-report";
-import { createApprovalAction } from "@/lib/workflow/approvals";
+  checkSaleTenders,
+  loadPaymentSettings,
+  NoZigRate,
+  paymentRate,
+  type PaymentSettings,
+} from "@/lib/retail/payment-settings";
+import { splitChange } from "@/lib/retail/payment-words";
+import { queueSaleReceipt, type ReceiptRecipient } from "@/lib/retail/receipt-settings";
 import {
-  auditCashMoved,
   auditSalePosted,
   auditSaleReversed,
-  auditShiftClosed,
-  auditShiftOpened,
 } from "@/lib/retail/audit";
-import { canRetailRoleDo } from "@/lib/retail/permissions";
 import {
-  ensureRetailRegisterAccess,
   ensureSiteAccess,
+  normalizeRetailPostingPayments,
   postRetailJournal,
-  type RetailAccountingResult,
-  upsertRetailRegister,
 } from "./_helpers";
+import { shiftElsewhereSentence } from "@/lib/retail/device-words";
+import { buildRetailZReportFigures, parseTradingDay, tradingDayAsDate, tradingDayWindow } from "@/lib/retail/z-report";
+
+/** 409: this person's shift is open on another till ("People are not devices", 10-setup W-04 step 8). */
+export class ShiftElsewhere extends Error {
+  readonly status = 409;
+  constructor(readonly tillName: string) {
+    super(shiftElsewhereSentence(tillName));
+    this.name = "ShiftElsewhere";
+  }
+}
 
 export type RetailActorContext = {
   companyId: string;
@@ -62,14 +74,11 @@ export type RetailPaymentInput = {
   tenderType: RetailTenderType;
   amount: number;
   reference?: string | null;
-  /** The tender's own currency, when it differs from the sale's. */
-  currency?: string | null;
   /**
-   * Quote units per one base unit for this tender — 27.5 means 27.5 ZWG buys one
-   * USD. Only meaningful alongside `currency`; ignored when the tender is in the
-   * sale's own currency.
+   * The tender's own currency, when it differs from the sale's (ZiG cash). It
+   * carries no rate: `stampSalePayments` stamps the shop's own (SET-05).
    */
-  exchangeRate?: number | null;
+  currency?: string | null;
 };
 
 export type RetailSaleLineInput = {
@@ -80,6 +89,8 @@ export type RetailSaleLineInput = {
    * column is frozen and nothing writes it now.
    */
   productId?: string | null;
+  /** PRD-05 — the price list the engine priced it from. */
+  priceListId?: string | null;
   sourceLineId?: string | null;
   itemName: string;
   quantity: number;
@@ -89,6 +100,17 @@ export type RetailSaleLineInput = {
   lineTotal: number;
   costUnit: number;
   costTotal: number;
+  /** The deposit on this line's returnable bottles, net of empties back. */
+  depositAmount?: number;
+  /** PRD-08 — the bundle or buy-more deal it sold under, and that bundle's number in the sale (`bundleRef` "<saleId>:<n>"). */
+  bundleId?: string | null;
+  bundleGroup?: number | null;
+  /**
+   * The empties that counted against this line (`emptiesCounted`, on a
+   * returnable product at a shop that takes deposits): written to the
+   * product's supplier's empties ledger with the sale.
+   */
+  emptiesBack?: number;
 };
 
 function round(value: number) {
@@ -143,7 +165,10 @@ async function ensureRetailSaleAccountingPosted(input: {
     discountAmount: MoneyLike;
     taxAmount: MoneyLike;
     totalAmount: MoneyLike;
+    tenderedAmount: MoneyLike | null;
     changeAmount: MoneyLike;
+    changeZig: MoneyLike;
+    depositAmount: MoneyLike;
     lines: Array<{
       inventoryItemId: string;
       itemName: string;
@@ -154,6 +179,8 @@ async function ensureRetailSaleAccountingPosted(input: {
     payments: Array<{
       tenderType: RetailTenderType;
       amount: MoneyLike;
+      /** `amount` in the base currency at the rate stamped on it (SET-05). */
+      baseAmount: MoneyLike;
       reference: string | null;
       currency?: string | null;
     }>;
@@ -193,6 +220,7 @@ async function ensureRetailSaleAccountingPosted(input: {
     };
   });
 
+  const change = postedChange(input.sale);
   return postRetailJournal({
     companyId: input.actor.companyId,
     sourceType: getRetailSourceType(input.sale.saleType),
@@ -209,13 +237,28 @@ async function ensureRetailSaleAccountingPosted(input: {
     netAmount: toNumberOrZero(money(input.sale.subtotal).minus(money(input.sale.discountAmount)).abs()),
     taxAmount: toNumberOrZero(money(input.sale.taxAmount).abs()),
     grossAmount: toNumberOrZero(money(input.sale.totalAmount).abs()),
+    // Read by the deposits-held line of the retail sale rule. Always a number,
+    // so a rule line keyed on it never falls back to the whole amount.
+    // The change rounding lines too, always numbers for the same reason.
+    payload: {
+      depositAmount: toNumberOrZero(money(input.sale.depositAmount).abs()),
+      changeRoundingKept: change.kept,
+      changeRoundingGiven: change.given,
+    },
     invertDirection: input.sale.saleType === "REFUND" || input.sale.saleType === "VOID",
-    payments: input.sale.payments.map((payment) => ({
-      tenderType: payment.tenderType,
-      amount: toNumberOrZero(money(payment.amount).abs()),
-      reference: payment.reference,
-      currency: payment.currency ?? null,
-    })),
+    // The books are kept in the base currency: each tender at its base amount
+    // (ZiG notes at the rate stamped on them), and the change handed back taken
+    // off the cash in the notes it was given in, so what is debited is what
+    // each drawer kept.
+    payments: normalizeRetailPostingPayments({
+      payments: input.sale.payments.map((payment) => ({
+        tenderType: payment.tenderType,
+        amount: toNumberOrZero(money(payment.baseAmount).abs()),
+        reference: payment.reference,
+        currency: payment.currency ?? null,
+      })),
+      change: { usd: change.usd, zig: change.zig },
+    }),
     inventory: {
       lines: postingLines,
       totalCost: postingLines.reduce((total, line) => total + line.totalCost, 0),
@@ -223,406 +266,103 @@ async function ensureRetailSaleAccountingPosted(input: {
   });
 }
 
-export async function openRetailShiftTransaction(input: {
-  actor: RetailActorContext;
-  siteId: string;
-  registerId?: string | null;
-  registerName?: string | null;
-  registerCode?: string | null;
-  shiftNo?: string | null;
-  openingFloat?: number;
-  notes?: string | null;
-  periodOverrideReason?: string | null;
-  openedAt?: Date;
+/**
+ * SET-05, W-05. The tenders of a sale, each at the rate the server stamps — the
+ * shop's own for the moment of the sale (`paymentRate`), whatever rate a till
+ * believes — checked against what the shop takes and in the sale's money, so
+ * ZiG notes and dollars add up; and the change, split by the shop's ZiG rule
+ * (`splitChange`, as the till splits it). The one path for a sale rung now
+ * (`pos/sales`) and one sent in from the offline queue (`replay`, either route).
+ * Throws `NoZigRate` while the shop has never set a rate for a tender's currency.
+ */
+export async function stampSalePayments(input: {
+  companyId: string;
+  payments: RetailPaymentInput[];
+  amountDue: number;
+  on: Date;
+  /** Rung offline and sent in now: a tender turned off since is let in for a manager to look at. */
+  replay: boolean;
+  /** When it reached the server, for how long it was kept offline. */
+  now?: Date;
 }) {
-  const site = await ensureSiteAccess(input.actor.companyId, input.siteId);
-  if (!site) {
-    throw new Error("Invalid site");
+  const [saleCurrency, settings] = await Promise.all([
+    getCompanyBaseCurrency(input.companyId),
+    loadPaymentSettings(input.companyId),
+  ]);
+  const tenders = checkSaleTenders(
+    settings,
+    input.payments.map((payment) => ({
+      tenderType: payment.tenderType,
+      currency: payment.currency?.trim().toUpperCase() || saleCurrency,
+    })),
+    input.replay,
+  );
+  if (tenders.refusal) {
+    throw new Error(tenders.refusal);
   }
-
-  const existing = await prisma.retailShift.findFirst({
-    where: {
-      companyId: input.actor.companyId,
-      cashierId: input.actor.userId,
-      status: "OPEN",
-    },
-  });
-  if (existing) {
-    throw new Error("Close the current shift before opening a new one");
-  }
-
-  const register = input.registerId
-    ? await ensureRetailRegisterAccess({
-        companyId: input.actor.companyId,
-        siteId: site.id,
-        registerId: input.registerId,
-      })
-    : await upsertRetailRegister({
-        companyId: input.actor.companyId,
-        siteId: site.id,
-        registerName: input.registerName?.trim() || "POS Register",
-        registerCode: input.registerCode ?? undefined,
-      });
-  if (!register) {
-    throw new Error("Invalid register");
-  }
-
-  const providedCode = input.shiftNo
-    ? normalizeProvidedId(input.shiftNo, "RETAIL_SHIFT")
-    : null;
-
-  for (let attempt = 0; attempt < 5; attempt += 1) {
-    const shiftNo =
-      providedCode ??
-      (await reserveIdentifier(prisma, {
-        companyId: input.actor.companyId,
-        entity: "RETAIL_SHIFT",
-        siteId: site.id,
-      }));
-
-    try {
-      /*
-        R-3.3. The create and its audit row go in one transaction. `create`
-        alone was a bare write; wrapping it changes nothing about the shift and
-        means a drawer cannot be opened without the chain recording it.
-      */
-      const shift = await prisma.$transaction(async (tx) => {
-        const created = await tx.retailShift.create({
-        data: {
-          companyId: input.actor.companyId,
-          shiftNo,
-          registerCode: register.code,
-          registerName: register.name,
-          siteId: site.id,
-          cashierId: input.actor.userId,
-          cashierName: resolveCashierName(input.actor),
-          openingFloat: input.openingFloat ?? 0,
-          notes: input.notes?.trim() || null,
-          status: "OPEN",
-          expectedCash: input.openingFloat ?? 0,
-          ...(input.openedAt ? { openedAt: input.openedAt } : {}),
-        },
-        });
-
-        await auditShiftOpened(tx, {
-          actor: input.actor,
-          shiftId: created.id,
-          shiftNo: created.shiftNo,
-          siteId: created.siteId,
-          registerCode: created.registerCode,
-          cashierId: created.cashierId,
-          openingFloat: created.openingFloat,
-        });
-
-        return created;
-      });
-
-      const openingFloat = money(shift.openingFloat);
-      const accounting =
-        exceeds(openingFloat, 0)
-          ? await postRetailJournal({
-              companyId: input.actor.companyId,
-              sourceType: "RETAIL_SHIFT_OPEN",
-              sourceId: shift.id,
-              siteId: shift.siteId,
-              registerCode: shift.registerCode,
-              entryDate: shift.openedAt,
-              description: `Retail shift open ${shift.shiftNo}`,
-              createdById: input.actor.userId,
-              actorRole: input.actor.userRole ?? undefined,
-              periodOverrideReason: input.periodOverrideReason ?? undefined,
-              amount: toNumberOrZero(openingFloat.abs()),
-              netAmount: toNumberOrZero(openingFloat.abs()),
-              taxAmount: 0,
-              grossAmount: toNumberOrZero(openingFloat.abs()),
-            })
-          : ({
-              accountingStatus: "POSTED",
-              accountingError: null,
-              accountingCode: null,
-              journalEntryId: null,
-            } satisfies RetailAccountingResult);
-
-      return { shift, accounting };
-    } catch (error) {
-      if (
-        error instanceof Prisma.PrismaClientKnownRequestError &&
-        error.code === "P2002"
-      ) {
-        if (providedCode) {
-          throw new Error("Shift number already exists");
-        }
-        continue;
-      }
-      throw error;
+  const rates = new Map<string, Prisma.Decimal>();
+  for (const payment of input.payments) {
+    const currency = payment.currency?.trim().toUpperCase() || saleCurrency;
+    if (!rates.has(currency)) {
+      rates.set(currency, rate(await paymentRate(input.companyId, saleCurrency, currency, input.on)));
     }
   }
-
-  throw new Error("Unable to generate shift number");
-}
-
-export async function closeRetailShiftTransaction(input: {
-  actor: RetailActorContext;
-  shiftId: string;
-  countedCash: number;
-  notes?: string | null;
-  periodOverrideReason?: string | null;
-  closedAt?: Date;
-  allowManagerClose?: boolean;
-}) {
-  const existing = await prisma.retailShift.findFirst({
-    where: { id: input.shiftId, companyId: input.actor.companyId },
+  const payments = input.payments.map((payment) => {
+    const currency = payment.currency?.trim().toUpperCase() || saleCurrency;
+    const exchangeRate = rates.get(currency)!;
+    const amount = round(payment.amount);
+    return {
+      tenderType: payment.tenderType,
+      amount,
+      reference: payment.reference?.trim() || null,
+      currency,
+      exchangeRate,
+      baseAmount: toNumberOrZero(toBaseAmount(amount, exchangeRate)),
+    };
   });
-  if (!existing) {
-    throw new Error("Shift not found");
+  /*
+    SET-06. The till rules on the tenders: one tender while split payments
+    are off, a reference on card and wallet payments while references are on.
+    A sale rung now is refused; one sent in from the offline queue has
+    already taken the money, so it is let in for a manager to look at, and so
+    is one the till kept offline longer than the rules allow.
+  */
+  const tillRules = await loadTillRules(input.companyId);
+  const tenderRule = tenderRuleProblem(tillRules, payments);
+  if (tenderRule && !input.replay) {
+    throw new Error(tenderRule);
   }
-  if (existing.status !== "OPEN") {
-    throw new Error("Only open shifts can be closed");
+  const ruleReviews = input.replay
+    ? [tenderRule, offlineReview(tillRules, input.on, input.now ?? new Date())].filter(Boolean)
+    : [];
+  const totalOf = (rows: typeof payments) => round(rows.reduce((total, payment) => total + payment.baseAmount, 0));
+  const tenderedAmount = totalOf(payments);
+  const nonCashTotal = totalOf(payments.filter((payment) => payment.tenderType !== "CASH"));
+  const cashTotal = totalOf(payments.filter((payment) => payment.tenderType === "CASH"));
+  if (nonCashTotal > input.amountDue) {
+    throw new Error("Non-cash tenders cannot exceed the sale total");
   }
-
-  const allowManagerClose = input.allowManagerClose ?? true;
-  if (existing.cashierId !== input.actor.userId) {
-    if (
-      !allowManagerClose ||
-      // R-2.4. Somebody else's drawer is `retail.cash-control`, which is the
-      // resource the matrix defines as "the back-office half of a shift".
-      !canRetailRoleDo(input.actor.userRole, "retail.cash-control", "close-shift")
-    ) {
-      throw new Error("Only the shift owner or a manager can close this shift");
-    }
+  if (tenderedAmount < input.amountDue) {
+    throw new Error("Tendered amount is below the sale total");
   }
-
-  // In `Decimal`, not `round(a - b)`: a cash-up variance is the number a manager is
-  // asked to explain, and the float subtraction it replaces could put a cent on it
-  // that nobody counted.
-  const variance = money(input.countedCash).minus(money(existing.expectedCash));
-  const updated = await prisma.$transaction(async (tx) => {
-    const closed = await tx.retailShift.update({
-      where: { id: existing.id },
-      data: {
-        status: "CLOSED",
-        countedCash: input.countedCash,
-        variance,
-        notes: input.notes?.trim() || existing.notes,
-        closedAt: input.closedAt ?? new Date(),
-      },
-    });
-
-    /*
-      R-3.3. The cash-up is the retail equivalent of a payroll run being
-      approved: a figure somebody counted, checked against a figure the system
-      derived, and signed off. `closedByOwner` on the event is the fact worth
-      keeping — a manager closing a cashier's drawer is routine, and is also
-      the shape of a drawer closed before its cashier could count it.
-    */
-    await auditShiftClosed(tx, {
-      actor: input.actor,
-      shiftId: closed.id,
-      shiftNo: closed.shiftNo,
-      cashierId: closed.cashierId,
-      expectedCash: existing.expectedCash,
-      countedCash: closed.countedCash ?? 0,
-      variance,
-      notes: input.notes,
-    });
-
-    /*
-      And the same sign-off in the approvals table, where every other module's
-      goes.
-
-      Two records of one act, deliberately, because they answer different
-      questions. The chained event above answers "can I trust this is what the
-      system said on Friday". This answers "what has this person signed off",
-      across payroll, disbursements and now the till, in one query — which is
-      the question an owner asks about a manager, and it should not need three.
-
-      No notification comes of it: `emitWorkflowNotificationFromApprovalAction`
-      returns null for an entity type it has no copy for, which is right here.
-      A cash-up is not waiting on anybody; it is already done.
-    */
-    await createApprovalAction(tx, {
-      companyId: input.actor.companyId,
-      entityType: "RETAIL_SHIFT",
-      entityId: closed.id,
-      action: "APPROVE",
-      actedById: input.actor.userId,
-      fromStatus: "OPEN",
-      toStatus: "CLOSED",
-      note: `Counted ${money(input.countedCash).toFixed(2)} against ${money(
-        existing.expectedCash,
-      ).toFixed(2)} expected; variance ${variance.toFixed(2)}`,
-    });
-
-    return closed;
-  });
-
-  const accounting =
-    !variance.isZero()
-      ? await postRetailJournal({
-          companyId: input.actor.companyId,
-          sourceType: "RETAIL_SHIFT_VARIANCE",
-          sourceId: updated.id,
-          sourceSubtype: variance.isNegative() ? "SHORT" : "OVER",
-          siteId: updated.siteId,
-          registerCode: updated.registerCode,
-          entryDate: updated.closedAt ?? new Date(),
-          description: `Retail shift variance ${updated.shiftNo}`,
-          createdById: input.actor.userId,
-          actorRole: input.actor.userRole ?? undefined,
-          periodOverrideReason: input.periodOverrideReason ?? undefined,
-          amount: toNumberOrZero(variance.abs()),
-          netAmount: toNumberOrZero(variance.abs()),
-          taxAmount: 0,
-          grossAmount: toNumberOrZero(variance.abs()),
-          invertDirection: variance.isNegative(),
-        })
-      : ({
-          accountingStatus: "POSTED",
-          accountingError: null,
-          accountingCode: null,
-          journalEntryId: null,
-        } satisfies RetailAccountingResult);
-
-  return { shift: updated, accounting };
+  const owed = round(Math.max(cashTotal - Math.max(input.amountDue - nonCashTotal, 0), 0));
+  const change = splitChange(owed, await zigChangeRule(input.companyId, saleCurrency, settings, input.on));
+  const reviewReason = [tenders.reviewReason, ...ruleReviews].filter(Boolean).join(" ") || null;
+  return { saleCurrency, payments, tenderedAmount, change, reviewReason };
 }
 
 /**
- * Records cash leaving or entering the drawer mid-shift, and moves `expectedCash`
- * with it.
- *
- * S-7.1. This is the fix. Without it a Friday drop to the safe left `expectedCash`
- * counting money that was no longer in the drawer, and the cashier read as short by
- * exactly what had been banked.
- *
- * The row and the increment go in one `$transaction`, guarded on the shift still
- * being `OPEN`, exactly as `createRetailSaleTransaction` does for a sale's net
- * cash. A movement written against a shift that closed underneath it would be a
- * movement nothing ever counts.
- *
- * `baseAmount` is what moves the column, not `amount`: `expectedCash` is
- * denominated in the company's base currency because `openingFloat` is, and a
- * bundle of ZWG notes taken to the safe at 27.5 is not 200 dollars off the drawer.
+ * The ZiG rule change follows: only on a US dollar shop that takes ZiG cash
+ * and has a rate for the moment of the sale; otherwise change is all dollars.
  */
-export async function recordRetailCashMovementTransaction(input: {
-  actor: RetailActorContext;
-  shiftId: string;
-  type: RetailCashMovementType;
-  amount: number;
-  currency?: string | null;
-  exchangeRate?: number | null;
-  reasonCode: RetailCashMovementReason;
-  reason?: string | null;
-  /**
-   * The bundle as it was counted, when the till could offer a denomination set for
-   * the currency. Optional: a currency with no configured denominations is keyed as
-   * a total, which is what the till did before this ticket.
-   */
-  denominations?: CashDenominationLine[] | null;
-  /**
-   * A cashier moves their own drawer; moving somebody else's is a supervisory act.
-   * The route decides that against `lib/retail/permissions.ts` and says so here, in
-   * the same shape as `allowManagerClose` above.
-   */
-  allowOtherCashiers?: boolean;
-}) {
-  const shift = await prisma.retailShift.findFirst({
-    where: { id: input.shiftId, companyId: input.actor.companyId },
-  });
-  if (!shift) {
-    throw new Error("Shift not found");
+async function zigChangeRule(companyId: string, saleCurrency: string, settings: PaymentSettings, on: Date) {
+  if (saleCurrency !== "USD" || !settings.tenders.cashZig) return null;
+  try {
+    return { rate: (await paymentRate(companyId, saleCurrency, "ZWG", on)).toNumber(), rounding: settings.zigChangeRounding };
+  } catch (error) {
+    if (error instanceof NoZigRate) return null;
+    throw error;
   }
-  if (shift.status !== "OPEN") {
-    throw new Error("Cash can only be moved on an open shift");
-  }
-  if (shift.cashierId !== input.actor.userId && !(input.allowOtherCashiers ?? false)) {
-    throw new Error("Only the shift owner can move cash on this drawer");
-  }
-
-  const reason = input.reason?.trim() || null;
-  // The named reasons stand on their own; `OTHER` is the escape hatch, and an
-  // escape hatch that lets a movement be recorded with no explanation at all is the
-  // unexplained variance this ticket exists to prevent, moved one row over.
-  if (input.reasonCode === "OTHER" && !reason) {
-    throw new Error("Say why the cash moved");
-  }
-
-  const baseCurrency = await getCompanyBaseCurrency(input.actor.companyId);
-  const currency = input.currency?.trim().toUpperCase() || baseCurrency;
-  const amounts = buildCashMovementAmounts({
-    amount: input.amount,
-    // A movement in the company's own currency converts to itself, so a
-    // single-currency shop never has to supply a rate.
-    exchangeRate: currency === baseCurrency ? 1 : (input.exchangeRate ?? 1),
-  });
-  if (amounts.amount.isZero()) {
-    throw new Error("A cash movement needs an amount");
-  }
-
-  // A breakdown that does not add up to the amount is worse than none: the safe log
-  // and the drawer would disagree and the row could not say which was right. The
-  // total is recomputed here rather than trusted, in `Decimal`, and a mismatch is
-  // refused.
-  const countedLines = (input.denominations ?? []).filter((line) => line.count > 0);
-  if (countedLines.length > 0) {
-    const counted = totalFromDenominations(countedLines);
-    if (!counted.equals(amounts.amount)) {
-      throw new Error(
-        `The notes counted come to ${counted.toFixed(2)}, not ${amounts.amount.toFixed(2)}`,
-      );
-    }
-  }
-
-  const delta = cashMovementDelta({ type: input.type, baseAmount: amounts.baseAmount });
-
-  return prisma.$transaction(async (tx) => {
-    const movement = await tx.retailCashMovement.create({
-      data: {
-        companyId: input.actor.companyId,
-        shiftId: shift.id,
-        type: input.type,
-        amount: amounts.amount,
-        currency,
-        exchangeRate: amounts.exchangeRate,
-        baseAmount: amounts.baseAmount,
-        reasonCode: input.reasonCode,
-        reason,
-        // Keyed to this row's own currency, never assumed to be the base one.
-        denominations:
-          countedLines.length > 0 ? { currency, lines: countedLines } : Prisma.DbNull,
-        recordedById: input.actor.userId,
-        recordedByName: resolveCashierName(input.actor),
-      },
-    });
-
-    const updated = await tx.retailShift.updateMany({
-      where: { id: shift.id, companyId: input.actor.companyId, status: "OPEN" },
-      data: { expectedCash: { increment: delta } },
-    });
-    if (updated.count !== 1) {
-      throw new Error("Shift is no longer open.");
-    }
-
-    const refreshed = await tx.retailShift.findFirstOrThrow({
-      where: { id: shift.id, companyId: input.actor.companyId },
-      select: { id: true, shiftNo: true, openingFloat: true, expectedCash: true },
-    });
-
-    // R-3.3. Cash leaving a drawer for the safe is the plainest case for a chain
-    // nobody can edit: the row itself is the only evidence the money moved.
-    await auditCashMoved(tx, {
-      actor: input.actor,
-      movementId: movement.id,
-      shiftId: shift.id,
-      type: movement.type,
-      reasonCode: movement.reasonCode,
-      amount: movement.amount,
-      currency: movement.currency,
-      baseAmount: movement.baseAmount,
-      note: movement.reason,
-    });
-
-    return { movement, shift: refreshed };
-  });
 }
 
 export async function createRetailSaleTransaction(input: {
@@ -648,9 +388,38 @@ export async function createRetailSaleTransaction(input: {
   lines: RetailSaleLineInput[];
   promotionCode?: string | null;
   overrideReason?: string | null;
+  /**
+   * The manager whose PIN let a discount or a price over the shelf through
+   * (SET-06). It goes into the sale's audit event, not into `overrideReason`.
+   */
+  approvedBy?: Approval | null;
   notes?: string | null;
   periodOverrideReason?: string | null;
   postedAt?: Date;
+  /** When the cashier confirmed the customer's ID, for a sale with an age-restricted line. */
+  idCheckedAt?: Date | null;
+  /** The device it was rung on (SET-04); the till is the shift's. */
+  device?: { id: string; registerId: string } | null;
+  /** Why a manager should look at it (an offline sale from a device unpaired since, W-76). */
+  reviewReason?: string | null;
+  /**
+   * When the till rang it, for a sale replayed after the fact: the ZiG rate is
+   * the one in force then. Defaults to `postedAt`, then now.
+   */
+  soldAt?: Date;
+  /** Rung offline and sent in now (`pos/sales` with `offlineCreatedAt`). */
+  replay?: boolean;
+  /**
+   * The customer's phone and email, for the copy of the receipt the shop also
+   * sends by WhatsApp or email (SET-07): queued in the outbox with the sale.
+   */
+  receiptTo?: ReceiptRecipient | null;
+  /**
+   * PRD-08 (W-12) — singles the sale needs more of than the site has, and
+   * the case the till opens for them: broken inside the sale's transaction,
+   * before its stock comes off.
+   */
+  caseBreaks?: Array<{ singleItemId: string; quantity: number; tillCase: TillCase }>;
 }) {
   const site = await ensureSiteAccess(input.actor.companyId, input.siteId);
   if (!site) {
@@ -671,43 +440,40 @@ export async function createRetailSaleTransaction(input: {
   if (shift.siteId !== site.id) {
     throw new Error("Shift site does not match the selected site");
   }
-
-  const normalizedPayments = input.payments.map((payment) => ({
-    tenderType: payment.tenderType,
-    amount: round(payment.amount),
-    reference: payment.reference?.trim() || null,
-    currency: payment.currency ?? null,
-    exchangeRate: payment.exchangeRate ?? null,
-  }));
-  const tenderPolicy = await getRetailTenderPolicy(input.actor.companyId);
-  const paymentReferenceError = validateTenderReferences(tenderPolicy, normalizedPayments);
-  if (paymentReferenceError) {
-    throw new Error(paymentReferenceError);
+  if (input.device && input.device.registerId !== shift.registerId) {
+    throw new ShiftElsewhere(shift.registerName);
   }
 
-  const tenderedAmount = round(
-    normalizedPayments.reduce((total, payment) => total + payment.amount, 0),
-  );
-  const nonCashTotal = round(
-    normalizedPayments
-      .filter((payment) => payment.tenderType !== "CASH")
-      .reduce((total, payment) => total + payment.amount, 0),
-  );
-  const cashTotal = round(
-    normalizedPayments
-      .filter((payment) => payment.tenderType === "CASH")
-      .reduce((total, payment) => total + payment.amount, 0),
-  );
-
-  if (nonCashTotal > input.totalAmount) {
-    throw new Error("Non-cash tenders cannot exceed the sale total");
-  }
-  if (tenderedAmount < input.totalAmount) {
-    throw new Error("Tendered amount is below the sale total");
-  }
-
-  const cashDue = round(Math.max(input.totalAmount - nonCashTotal, 0));
-  const changeAmount = round(Math.max(cashTotal - cashDue, 0));
+  /**
+   * The sale is priced in the company's base currency at rate 1; a tender in
+   * another currency (ZiG cash on a US dollar shop) carries the rate the
+   * caller stamped from the shop's own rates (SET-05), never the till's.
+   */
+  // What the customer pays: the goods, and the deposit on their bottles.
+  // Deposits on returnable bottles, net of empties back: the sum of the lines'
+  // own, so a refund can pay back exactly the share of the lines it returns.
+  // Paid on top of `totalAmount` and posted to deposits held, never revenue.
+  const depositAmount = sumMoney(input.lines.map((line) => money(line.depositAmount ?? 0)));
+  const amountDue = round(input.totalAmount + toNumberOrZero(depositAmount));
+  const {
+    saleCurrency,
+    payments: normalizedPayments,
+    tenderedAmount,
+    change,
+    reviewReason: tenderReview,
+  } = await stampSalePayments({
+    companyId: input.actor.companyId,
+    payments: input.payments,
+    amountDue,
+    on: input.soldAt ?? input.postedAt ?? new Date(),
+    replay: input.replay ?? false,
+  });
+  const saleExchangeRate = rate(1);
+  // What left the drawer as change: whole dollars and the ZiG notes, by the
+  // shop's rule. Rounding the ZiG leaves it a little off what was owed; the
+  // sale's journal posts that to cash over short.
+  const changeAmount = change.value;
+  const reviewReason = [input.reviewReason, tenderReview].filter(Boolean).join(" ") || null;
   const providedCode = input.saleNo
     ? normalizeProvidedId(input.saleNo, "RETAIL_SALE")
     : null;
@@ -719,7 +485,7 @@ export async function createRetailSaleTransaction(input: {
    * Checked before doing any work rather than only in the `P2002` handler
    * below. The exception path is the backstop for a genuine race; this is the
    * ordinary case — the till posted, the response was lost, the sale was queued
-   * and `pos/sync` is now replaying it minutes later. Letting that reach the
+   * and the offline queue is now replaying it minutes later. Letting that reach the
    * insert would allocate a second receipt number and post a second set of
    * journal lines before the constraint threw them away.
    */
@@ -735,7 +501,7 @@ export async function createRetailSaleTransaction(input: {
         registerCode: shift.registerCode,
         periodOverrideReason: input.periodOverrideReason ?? null,
       });
-      return { sale: alreadyPosted, accounting };
+      return { sale: alreadyPosted, accounting, fiscal: null };
     }
   }
 
@@ -745,25 +511,7 @@ export async function createRetailSaleTransaction(input: {
       (await reserveIdentifier(prisma, {
         companyId: input.actor.companyId,
         entity: "RETAIL_SALE",
-        siteId: site.id,
       }));
-
-    /**
-     * The sale is priced in the company's base currency at rate 1.
-     *
-     * That is what every retail sale has been implicitly since the module was
-     * written, and writing it down is the point: the columns exist now, so the
-     * value has to be *stated* rather than defaulted, or `baseAmount` lands at
-     * zero and a day's takings read as nothing.
-     *
-     * Quoting a basket in a second currency is a separate change — it needs a
-     * price list per currency and a rate the till can show the customer before
-     * they agree to it. What R-1.5 buys today is that a **payment** may be in
-     * ZWG against a USD-priced sale, which is the case a Harare bottle store
-     * actually has all day, and that is carried on the payment rows below.
-     */
-    const saleCurrency = await getCompanyBaseCurrency(input.actor.companyId);
-    const saleExchangeRate = rate(1);
 
     // Cash into the drawer, in base currency on both sides. Declared here and
     // not with the other totals above because it needs the sale's currency,
@@ -773,36 +521,56 @@ export async function createRetailSaleTransaction(input: {
     // in Harare, so each tender converts at its own rate; the change is handed
     // back in the currency the sale was priced in, so it converts at the sale's.
     const netCash = getCashNetFromPayments(
-      normalizedPayments.map((payment) => {
-        const paymentCurrency = payment.currency?.trim().toUpperCase() || saleCurrency;
-        const paymentRate =
-          paymentCurrency === saleCurrency ? saleExchangeRate : rate(payment.exchangeRate ?? 1);
-        return {
-          tenderType: payment.tenderType,
-          baseAmount: toBaseAmount(payment.amount, paymentRate),
-        };
-      }),
+      normalizedPayments.map((payment) => ({
+        tenderType: payment.tenderType,
+        baseAmount: toBaseAmount(payment.amount, payment.exchangeRate),
+      })),
       toBaseAmount(changeAmount, saleExchangeRate),
     );
 
     try {
-      const sale = await prisma.$transaction(async (tx) => {
+      const { fiscal, ...sale } = await prisma.$transaction(async (tx) => {
+        // A count that does not keep selling holds its products back until it
+        // is sent (W-22), checked in this transaction so a count starting now
+        // and this sale take turns. A replay is not asked: the money was already taken.
+        if (!input.replay) {
+          await refuseWhileCounted(
+            tx,
+            input.actor.companyId,
+            input.lines.map((line) => line.inventoryItemId),
+          );
+        }
+        if (input.caseBreaks?.length) {
+          await breakCasesForSale(tx, {
+            actor: { companyId: input.actor.companyId, userId: input.actor.userId, userName: input.actor.userName ?? null, userRole: input.actor.userRole ?? null },
+            siteId: site.id,
+            needs: input.caseBreaks,
+          });
+        }
+        const saleId = randomUUID();
         const created = await tx.retailSale.create({
           data: {
+            id: saleId,
             companyId: input.actor.companyId,
             saleNo,
             clientRef,
             shiftId: shift.id,
             siteId: site.id,
+            registerId: shift.registerId,
+            deviceId: input.device?.id ?? null,
+            reviewReason,
             cashierId: input.actor.userId,
             cashierName: resolveCashierName(input.actor),
             customerName: input.customerName ?? null,
+            idCheckedAt: input.idCheckedAt ?? null,
+            depositAmount,
             subtotal: input.subtotal,
             discountAmount: input.discountAmount,
             taxAmount: input.taxAmount,
             totalAmount: input.totalAmount,
             tenderedAmount,
             changeAmount,
+            changeZig: change.zig,
             // R-1.5. Defaulting these at the column would put `baseAmount` at zero
             // on every sale the till takes, and a day's takings would read as
             // nothing. A sale priced in the base currency is rate 1 and its own
@@ -813,15 +581,21 @@ export async function createRetailSaleTransaction(input: {
             baseAmount: toBaseAmount(input.totalAmount, saleExchangeRate),
             promotionCode: input.promotionCode ?? null,
             overrideReason: input.overrideReason ?? null,
+            approvedById: input.approvedBy?.id ?? null,
+            approvedByName: input.approvedBy?.name ?? null,
             status: "POSTED",
             notes: input.notes?.trim() || null,
             postedAt: input.postedAt ?? new Date(),
-            tenderSummary: normalizedPayments,
+            tenderSummary: normalizedPayments.map((payment) => ({
+              ...payment,
+              exchangeRate: payment.exchangeRate.toString(),
+            })),
             lines: {
               create: input.lines.map((line) => ({
                 companyId: input.actor.companyId,
                 inventoryItemId: line.inventoryItemId,
                 productId: line.productId ?? null,
+                priceListId: line.priceListId ?? null,
                 itemName: line.itemName,
                 quantity: line.quantity,
                 unitPrice: line.unitPrice,
@@ -830,6 +604,9 @@ export async function createRetailSaleTransaction(input: {
                 lineTotal: line.lineTotal,
                 costUnit: line.costUnit,
                 costTotal: line.costTotal,
+                depositAmount: money(line.depositAmount ?? 0),
+                bundleId: line.bundleId ?? null,
+                bundleRef: line.bundleId && line.bundleGroup ? `${saleId}:${line.bundleGroup}` : null,
               })),
             },
             payments: {
@@ -837,21 +614,15 @@ export async function createRetailSaleTransaction(input: {
               // USD-priced basket settled in ZWG notes is the ordinary case in
               // Harare, and `normalizeRetailPostingPayments` has been carrying
               // this field the whole time with nowhere to put it.
-              create: normalizedPayments.map((payment) => {
-                const paymentCurrency =
-                  payment.currency?.trim().toUpperCase() || saleCurrency;
-                const paymentRate =
-                  paymentCurrency === saleCurrency ? saleExchangeRate : rate(payment.exchangeRate ?? 1);
-                return {
-                  companyId: input.actor.companyId,
-                  tenderType: payment.tenderType,
-                  amount: payment.amount,
-                  currency: paymentCurrency,
-                  exchangeRate: paymentRate,
-                  baseAmount: toBaseAmount(payment.amount, paymentRate),
-                  reference: payment.reference,
-                };
-              }),
+              create: normalizedPayments.map((payment) => ({
+                companyId: input.actor.companyId,
+                tenderType: payment.tenderType,
+                amount: payment.amount,
+                currency: payment.currency,
+                exchangeRate: payment.exchangeRate,
+                baseAmount: toBaseAmount(payment.amount, payment.exchangeRate),
+                reference: payment.reference,
+              })),
             },
           },
           include: { lines: true, payments: true },
@@ -868,6 +639,8 @@ export async function createRetailSaleTransaction(input: {
             unitCost: line.costUnit,
             notes: `Retail sale ${created.saleNo}`,
             sourceType: "RETAIL_SALE",
+            reason: "SALE",
+            reference: created.saleNo,
             sourceId: `${created.id}:${line.inventoryItemId}`,
             entryDate: created.postedAt ?? new Date(),
             tx,
@@ -892,6 +665,14 @@ export async function createRetailSaleTransaction(input: {
           }
         }
 
+        // The empties that came back, on their suppliers' ledger.
+        await recordSaleEmpties(tx, {
+          companyId: input.actor.companyId,
+          siteId: created.siteId,
+          saleId: created.id,
+          lines: input.lines,
+        });
+
         await auditSalePosted(tx, {
           actor: input.actor,
           saleId: created.id,
@@ -903,9 +684,20 @@ export async function createRetailSaleTransaction(input: {
           baseAmount: created.baseAmount,
           lineCount: input.lines.length,
           overrideReason: created.overrideReason,
+          approvedBy: input.approvedBy ?? null,
         });
 
-        return created;
+        // The customer's copy, in the outbox with the sale: never sent for a sale that did not commit.
+        await queueSaleReceipt(tx, {
+          companyId: input.actor.companyId,
+          saleId: created.id,
+          to: input.receiptTo ?? null,
+          createdById: input.actor.userId,
+        });
+
+        // Last: the sale's fiscal day, settled in this commit (SET-08). Its receipt is dated here; the sale keeps its time.
+        const fiscal = await assignRetailSaleFiscalDay(tx, { companyId: input.actor.companyId, saleId: created.id });
+        return { ...created, fiscal };
       });
 
       const accounting = await ensureRetailSaleAccountingPosted({
@@ -915,7 +707,7 @@ export async function createRetailSaleTransaction(input: {
         periodOverrideReason: input.periodOverrideReason ?? null,
       });
 
-      return { sale, accounting };
+      return { sale, accounting, fiscal };
     } catch (error) {
       if (
         error instanceof Prisma.PrismaClientKnownRequestError &&
@@ -942,7 +734,7 @@ export async function createRetailSaleTransaction(input: {
             registerCode: shift.registerCode,
             periodOverrideReason: input.periodOverrideReason ?? null,
           });
-          return { sale: existing, accounting };
+          return { sale: existing, accounting, fiscal: null };
         }
       }
 
@@ -959,6 +751,63 @@ export async function createRetailSaleTransaction(input: {
   throw new Error("Unable to generate sale number");
 }
 
+
+/**
+ * Holds the sale a refund or void reverses for the rest of the transaction
+ * (`SELECT ... FOR UPDATE`). Two reversals of one sale at the same moment then
+ * run one after the other: the second reads what the first wrote, so a sale
+ * cannot be handed back twice, or in pieces under the refund PIN limit.
+ */
+async function lockSourceSale(tx: Prisma.TransactionClient, saleId: string): Promise<void> {
+  await tx.$queryRaw`SELECT "id" FROM "RetailSale" WHERE "id" = ${saleId} FOR UPDATE`;
+}
+
+/** The sentence a till shows when its refund or void lost a race with another change to the same rows. */
+const REVERSAL_TRY_AGAIN = "Someone else was changing this sale at the same moment. Try again.";
+
+/**
+ * A refund's or void's transaction. A deadlock or a serialization failure
+ * (Postgres 40P01, 40001; Prisma P2034) changed nothing, so the till is told
+ * to try again in plain words instead of being shown the database's message.
+ */
+async function reversalTransaction<T>(work: (tx: Prisma.TransactionClient) => Promise<T>): Promise<T> {
+  try {
+    return await prisma.$transaction(work);
+  } catch (error) {
+    if (lostRace(error)) throw new Error(REVERSAL_TRY_AGAIN);
+    throw error;
+  }
+}
+
+function lostRace(error: unknown): boolean {
+  if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2034") return true;
+  const message = error instanceof Error ? error.message : "";
+  return /deadlock detected|could not serialize access|40P01|40001/.test(message);
+}
+
+/**
+ * The manager a refund or void needs (SET-06): at the counter, the approval or
+ * a 409; sent in late from an offline till, the approval if it carries one
+ * that checks out, else the act goes in with a review line.
+ */
+async function reversalApproval(
+  input: { actor: RetailActorContext; approver?: ApproverInput | null; offlineAt?: Date | null; deviceId?: string | null },
+  rule: { decision: TillRuleDecision; kind: "refund" | "void" },
+): Promise<{ approvedBy: Approval | null; review: string | null }> {
+  const asked = {
+    companyId: input.actor.companyId,
+    actorRole: input.actor.userRole,
+    decision: rule.decision,
+    approver: input.approver,
+    // The till the approver typed their PIN at, for a lock's words.
+    place: { deviceId: input.deviceId ?? null },
+  };
+  if (input.offlineAt) {
+    return replayApproval({ ...asked, review: (reason) => offlineReversalReview(rule.kind, reason) });
+  }
+  return { approvedBy: await approvalFor(asked), review: null };
+}
+
 export async function refundRetailSaleTransaction(input: {
   actor: RetailActorContext;
   saleId: string;
@@ -968,28 +817,33 @@ export async function refundRetailSaleTransaction(input: {
   payments: RetailPaymentInput[];
   notes?: string | null;
   periodOverrideReason?: string | null;
-  postedAt?: Date;
+  /** The device it is done on (SET-04); the till is the shift's. */
+  deviceId?: string | null;
   /**
-   * S-7.7 — a manager who approved this at the counter, already verified.
-   *
-   * The actor stays the cashier: they rang it, the drawer is theirs, and the
-   * shift it lands against is theirs. This says somebody with the authority
-   * stood there and said yes. Only `lib/retail/manager-override.ts` produces
-   * one, and only after checking the approver's role against the matrix and
-   * their password with bcrypt.
+   * A manager approving this with their till PIN, when the till rules ask for
+   * one (SET-06). The actor stays the cashier: they rang it, the drawer is
+   * theirs, and the shift it lands against is theirs; the approver's name
+   * goes on the refund and into the audit chain.
    */
-  approvedBy?: { id: string; name: string } | null;
+  approver?: ApproverInput | null;
+  /**
+   * Done offline and sent in late (`refundedAt` on the refund route): when the till says it was
+   * done. The money has left the drawer, so a missing approval, an unlisted
+   * reason or a missing reference marks it for review instead of refusing it.
+   * The date is the till's word: it is kept only when it falls after the sale
+   * and the shift's opening (`replayedAt`).
+   */
+  offlineAt?: Date | null;
 }) {
   /*
-    Defence in depth, and it has to know about the approval or it is simply a
-    fourth opinion. This guard fired on the first refund driven end to end: the
-    route had verified a manager, and the service refused anyway because the
-    actor was still the cashier — a 400 reading "Only retail managers can
-    process refunds" on a refund a manager had just authorised.
+    SET-06. The reason is one of the shop's refund reasons; the refund's value
+    over "Manager PIN for refunds over" needs a manager's approval (checked
+    below, once the value is known). Someone who holds the approve right is
+    their own approval.
   */
-  if (!canRetailRoleDo(input.actor.userRole, "retail.sell", "refund") && !input.approvedBy) {
-    throw new Error("Only retail managers can process refunds");
-  }
+  const tillRules = await loadTillRules(input.actor.companyId);
+  const replay = Boolean(input.offlineAt);
+  const { reason, review: reasonReview } = reversalReason(tillRules, "refund", input.reason, replay);
 
   const [sourceSale, shift] = await Promise.all([
     prisma.retailSale.findFirst({
@@ -1021,8 +875,7 @@ export async function refundRetailSaleTransaction(input: {
 
   const refundNo = await reserveIdentifier(prisma, {
     companyId: input.actor.companyId,
-    entity: "RETAIL_SALE",
-    siteId: sourceSale.siteId,
+    entity: "RETAIL_REFUND",
   });
   const requestedByLine = input.lines.reduce<Map<string, number>>((accumulator, line) => {
     accumulator.set(line.saleLineId, round((accumulator.get(line.saleLineId) ?? 0) + line.quantity));
@@ -1033,23 +886,41 @@ export async function refundRetailSaleTransaction(input: {
     quantity,
   }));
 
+  // Paid back in the sale's own currency, at its rate, so the money out of the
+  // drawer is what the refund is worth; a tender in other money is refused
+  // rather than written down as that many of the sale's.
+  if (input.payments.some((payment) => payment.currency && payment.currency.trim().toUpperCase() !== sourceSale.currency)) {
+    throw new Error("A refund is paid back in the sale's currency.");
+  }
   const refundPayments = input.payments.map((payment) => ({
     tenderType: payment.tenderType,
     amount: round(payment.amount),
     reference: payment.reference?.trim() || null,
-    currency: payment.currency ?? null,
+    currency: sourceSale.currency,
   }));
-  const tenderPolicy = await getRetailTenderPolicy(input.actor.companyId);
-  const paymentReferenceError = validateTenderReferences(tenderPolicy, refundPayments);
-  if (paymentReferenceError) {
-    throw new Error(paymentReferenceError);
+  const referenceProblem = tenderRuleProblem(
+    { splitTender: true, referenceRequired: tillRules.referenceRequired },
+    refundPayments,
+  );
+  // Sent in late, the money has already gone back on the card or wallet: it
+  // goes in for a manager to look at rather than being refused for good.
+  if (referenceProblem && !replay) {
+    throw new Error(referenceProblem);
   }
+  const referenceReview = referenceProblem ? OFFLINE_REFUND_NO_REFERENCE_REVIEW : null;
+  const arrived = new Date();
+  const when = input.offlineAt
+    ? replayedAt(input.offlineAt, { saleAt: sourceSale.postedAt ?? sourceSale.createdAt, shiftOpenedAt: shift.openedAt }, arrived)
+    : { at: arrived, review: null };
   const negativePayments = refundPayments.map((payment) => ({
     ...payment,
     amount: -payment.amount,
   }));
 
-  const refund = await prisma.$transaction(async (tx) => {
+  const { fiscal, ...refund } = await reversalTransaction(async (tx) => {
+    // One reversal of a sale at a time: the earlier refunds below are read
+    // after any running one has committed, so they are judged together.
+    await lockSourceSale(tx, input.saleId);
     const currentSourceSale = await tx.retailSale.findFirst({
       where: { id: input.saleId, companyId: input.actor.companyId },
       include: { lines: true },
@@ -1081,6 +952,18 @@ export async function refundRetailSaleTransaction(input: {
         );
         return accumulator;
       }, new Map());
+    // The deposit each line has already paid back, so the last refund of a
+    // line returns exactly what is left of it rather than a rounded share.
+    const depositBackByLine = priorRefunds
+      .flatMap((sale) => sale.lines)
+      .reduce<Map<string, Prisma.Decimal>>((accumulator, line) => {
+        if (!line.sourceLineId) return accumulator;
+        accumulator.set(
+          line.sourceLineId,
+          (accumulator.get(line.sourceLineId) ?? ZERO).plus(money(line.depositAmount).abs()),
+        );
+        return accumulator;
+      }, new Map());
 
     const requestedLines = normalizedLineRequests.map((line) => {
       const sourceLine = currentSourceSale.lines.find((entry) => entry.id === line.saleLineId);
@@ -1103,6 +986,17 @@ export async function refundRetailSaleTransaction(input: {
         ? multiplyMoney(sourceQuantity, sourceCostUnit)
         : sourceCostTotal.abs();
 
+      // Bottles back with the goods: the line's deposit comes back with them.
+      const deposit = depositBack(
+        {
+          quantity: toNumberOrZero(sourceQuantity),
+          depositAmount: toNumberOrZero(sourceLine.depositAmount),
+          depositRefunded: toNumberOrZero(depositBackByLine.get(sourceLine.id) ?? ZERO),
+        },
+        toNumberOrZero(requestedQuantity),
+        toNumberOrZero(refundableQty),
+      );
+
       return {
         sourceLine,
         quantity: requestedQuantity,
@@ -1111,6 +1005,7 @@ export async function refundRetailSaleTransaction(input: {
         lineTotal: multiplyMoney(money(sourceLine.lineTotal).abs(), ratio).negated(),
         costUnit: sourceCostUnit,
         costTotal: multiplyMoney(wholeLineCost, ratio),
+        depositAmount: money(deposit).negated(),
       };
     });
 
@@ -1120,7 +1015,9 @@ export async function refundRetailSaleTransaction(input: {
     const discountAmount = sumMoney(requestedLines.map((line) => line.discountAmount));
     const taxAmount = sumMoney(requestedLines.map((line) => line.taxAmount));
     const totalAmount = sumMoney(requestedLines.map((line) => line.lineTotal));
-    const refundValue = totalAmount.abs();
+    const depositAmount = sumMoney(requestedLines.map((line) => line.depositAmount));
+    // The goods and their bottles' deposits: what the customer gets back.
+    const refundValue = totalAmount.abs().plus(depositAmount.abs());
     const paymentTotal = sumMoney(refundPayments.map((payment) => payment.amount));
     // Exactly equal, not within a cent. The `Math.abs(a - b) > 0.01` this replaces
     // is the epsilon fudge `lib/money.ts` exists to retire — it let a refund be a
@@ -1128,6 +1025,25 @@ export async function refundRetailSaleTransaction(input: {
     if (!paymentTotal.equals(refundValue)) {
       throw new Error("Refund payments must match the refund value");
     }
+
+    // The approval the refund's value needs. A wrong PIN still counts against
+    // the approver: the attempt is written outside this transaction.
+    // The limit is on the sale's refunds together — what earlier refunds gave
+    // back plus this one — so a sale cannot be handed back in pieces under it.
+    // It is in the base currency: the refunds are compared at their sale's rate.
+    const alreadyRefunded = sumMoney(
+      priorRefunds
+        .filter((sale) => sale.saleType === "REFUND")
+        .map((sale) => money(sale.totalAmount).abs().plus(money(sale.depositAmount).abs())),
+    );
+    const { approvedBy, review: approvalReview } = await reversalApproval(input, {
+      decision: checkTillRule(tillRules, {
+        act: "refund",
+        amount: toBaseAmount(refundValue, currentSourceSale.exchangeRate),
+        alreadyRefunded: toBaseAmount(alreadyRefunded, currentSourceSale.exchangeRate),
+      }),
+      kind: "refund",
+    });
 
     const inventoryItems = await tx.inventoryItem.findMany({
       where: {
@@ -1142,6 +1058,8 @@ export async function refundRetailSaleTransaction(input: {
         companyId: input.actor.companyId,
         saleNo: refundNo,
         shiftId: shift.id,
+        registerId: shift.registerId,
+        deviceId: input.deviceId ?? null,
         sourceSaleId: currentSourceSale.id,
         siteId: currentSourceSale.siteId,
         cashierId: input.actor.userId,
@@ -1152,6 +1070,8 @@ export async function refundRetailSaleTransaction(input: {
         discountAmount,
         taxAmount,
         totalAmount,
+        // Paid back on top of the goods, out of deposits held.
+        depositAmount,
         tenderedAmount: -paymentTotal,
         changeAmount: 0,
         // R-1.5 — a refund is denominated by the sale it reverses, not by
@@ -1162,10 +1082,13 @@ export async function refundRetailSaleTransaction(input: {
         currency: currentSourceSale.currency,
         exchangeRate: currentSourceSale.exchangeRate,
         baseAmount: toBaseAmount(totalAmount, currentSourceSale.exchangeRate),
-        overrideReason: input.reason.trim(),
+        overrideReason: reason,
+        approvedById: approvedBy?.id ?? null,
+        approvedByName: approvedBy?.name ?? null,
+        reviewReason: [approvalReview, reasonReview, referenceReview, when.review].filter(Boolean).join(" ") || null,
         status: "POSTED",
         notes: input.notes?.trim() || null,
-        postedAt: input.postedAt ?? new Date(),
+        postedAt: when.at,
         tenderSummary: negativePayments,
         lines: {
           create: requestedLines.map((line) => ({
@@ -1181,6 +1104,7 @@ export async function refundRetailSaleTransaction(input: {
             lineTotal: line.lineTotal,
             costUnit: line.costUnit,
             costTotal: line.costTotal,
+            depositAmount: line.depositAmount,
           })),
         },
         payments: {
@@ -1219,6 +1143,8 @@ export async function refundRetailSaleTransaction(input: {
         unitCost: item.unitCost ?? 0,
         notes: `Retail refund ${created.saleNo}`,
         sourceType: "RETAIL_REFUND",
+        reason: "REFUND",
+        reference: created.saleNo,
         sourceId: `${created.id}:${item.id}`,
         entryDate: created.postedAt ?? new Date(),
         tx,
@@ -1256,10 +1182,11 @@ export async function refundRetailSaleTransaction(input: {
 
       A reversal is how a till is stolen from — ring the sale, take the cash,
       refund it — and the question afterwards is always who allowed it.
-      `RUN_A_TILL` withholds `refund`, so a cashier reaches this only with a
-      manager's password verified at the counter, and `approvedBy` is that
-      manager. It already goes into `overrideReason` as free text on the sale
-      row; that row is mutable, and free text is not evidence.
+      Over the till rules' limit a cashier reaches this only with a manager's
+      PIN verified at the counter, and `approvedBy` is that manager. The
+      approver lives here, in the audit chain, and not in `overrideReason`:
+      that column keeps the listed reason alone, so Insights groups refunds by
+      why, and a mutable row's free text is not evidence anyway.
     */
     await auditSaleReversed(tx, {
       actor: input.actor,
@@ -1271,11 +1198,13 @@ export async function refundRetailSaleTransaction(input: {
       shiftId: created.shiftId,
       totalAmount: created.totalAmount,
       currency: created.currency,
-      reason: input.reason,
-      approvedBy: input.approvedBy ?? null,
+      reason,
+      approvedBy,
     });
 
-    return created;
+    // Last: its fiscal day, settled in this commit (SET-08). Its receipt is dated here; the reversal keeps its time.
+    const fiscal = await assignRetailSaleFiscalDay(tx, { companyId: input.actor.companyId, saleId: created.id });
+    return { ...created, fiscal };
   });
 
   const accounting = await ensureRetailSaleAccountingPosted({
@@ -1285,7 +1214,7 @@ export async function refundRetailSaleTransaction(input: {
     periodOverrideReason: input.periodOverrideReason ?? null,
   });
 
-  return { sale: refund, accounting };
+  return { sale: refund, accounting, fiscal };
 }
 
 export async function voidRetailSaleTransaction(input: {
@@ -1295,13 +1224,15 @@ export async function voidRetailSaleTransaction(input: {
   reason: string;
   notes?: string | null;
   periodOverrideReason?: string | null;
-  postedAt?: Date;
-  /** A manager who approved this at the counter. See the refund above. */
-  approvedBy?: { id: string; name: string } | null;
+  /** The device it is done on (SET-04). */
+  deviceId?: string | null;
+  /** A manager approving this with their till PIN, when the till rules ask for one. See the refund above. */
+  approver?: ApproverInput | null;
+  /** Done offline and sent in late: when the till says it was done. See the refund above. */
+  offlineAt?: Date | null;
 }) {
-  if (!canRetailRoleDo(input.actor.userRole, "retail.sell", "void") && !input.approvedBy) {
-    throw new Error("Only retail managers can void sales");
-  }
+  const tillRules = await loadTillRules(input.actor.companyId);
+  const { reason, review: reasonReview } = reversalReason(tillRules, "void", input.reason, Boolean(input.offlineAt));
 
   const [sourceSale, shift] = await Promise.all([
     prisma.retailSale.findFirst({
@@ -1331,13 +1262,30 @@ export async function voidRetailSaleTransaction(input: {
     throw new Error("Void shift site does not match sale site");
   }
 
+  // "Voids need a manager PIN": always, after 5 minutes from the sale, or
+  // never. Judged at the moment the void reaches the server, a replayed one
+  // too: the till's own date for it is its word, not the server's clock, so
+  // a void dated back into the five free minutes is no way round the PIN.
+  // One the rule asks about at arrival, sent without a PIN, goes in for review.
+  const saleAt = sourceSale.postedAt ?? sourceSale.createdAt;
+  const arrived = new Date();
+  const { approvedBy, review: approvalReview } = await reversalApproval(input, {
+    decision: checkTillRule(tillRules, { act: "void", saleAt, at: arrived }),
+    kind: "void",
+  });
+  const when = input.offlineAt
+    ? replayedAt(input.offlineAt, { saleAt, shiftOpenedAt: shift.openedAt }, arrived)
+    : { at: arrived, review: null };
+
   const voidNo = await reserveIdentifier(prisma, {
     companyId: input.actor.companyId,
-    entity: "RETAIL_SALE",
-    siteId: sourceSale.siteId,
+    entity: "RETAIL_VOID",
   });
 
-  const reversal = await prisma.$transaction(async (tx) => {
+  const { fiscal, ...reversal } = await reversalTransaction(async (tx) => {
+    // One reversal of a sale at a time, so a void and a refund of the same
+    // sale cannot both read "nothing reversed yet".
+    await lockSourceSale(tx, input.saleId);
     const currentSourceSale = await tx.retailSale.findFirst({
       where: { id: input.saleId, companyId: input.actor.companyId },
       include: { lines: true, payments: true },
@@ -1358,11 +1306,16 @@ export async function voidRetailSaleTransaction(input: {
       throw new Error("Sales with refunds or existing reversals cannot be voided");
     }
 
-    const negativePayments = currentSourceSale.payments.map((payment) => ({
+    // A void undoes its sale exactly (SET-05, W-05): each tender goes back in
+    // its own currency at the rate stamped on it — ZiG notes as ZiG, never as
+    // that many dollars — and the change the drawer gave goes back into it.
+    const reversedPayments = currentSourceSale.payments.map((payment) => ({
       tenderType: payment.tenderType,
-      amount: toNumberOrZero(money(payment.amount).abs().negated()),
+      amount: money(payment.amount).negated(),
+      currency: payment.currency,
+      exchangeRate: payment.exchangeRate,
+      baseAmount: money(payment.baseAmount).negated(),
       reference: payment.reference?.trim() || null,
-      currency: null,
     }));
 
     const inventoryItems = await tx.inventoryItem.findMany({
@@ -1378,6 +1331,8 @@ export async function voidRetailSaleTransaction(input: {
         companyId: input.actor.companyId,
         saleNo: voidNo,
         shiftId: shift.id,
+        registerId: shift.registerId,
+        deviceId: input.deviceId ?? null,
         sourceSaleId: currentSourceSale.id,
         siteId: currentSourceSale.siteId,
         cashierId: input.actor.userId,
@@ -1388,12 +1343,16 @@ export async function voidRetailSaleTransaction(input: {
         discountAmount: money(currentSourceSale.discountAmount).abs().negated(),
         taxAmount: money(currentSourceSale.taxAmount).abs().negated(),
         totalAmount: money(currentSourceSale.totalAmount).abs().negated(),
-        tenderedAmount: money(
-          currentSourceSale.tenderedAmount ?? currentSourceSale.totalAmount,
-        )
-          .abs()
-          .negated(),
-        changeAmount: 0,
+        // The deposit goes back with the bottles' sale, or the ledger keeps a
+        // liability for empties nobody owes.
+        depositAmount: money(currentSourceSale.depositAmount).negated(),
+        // What was tendered and the change handed back, negated: the drawer
+        // and the journal take off exactly what the sale put on.
+        tenderedAmount:
+          currentSourceSale.tenderedAmount == null ? null : money(currentSourceSale.tenderedAmount).negated(),
+        changeAmount:
+          currentSourceSale.changeAmount == null ? null : money(currentSourceSale.changeAmount).negated(),
+        changeZig: money(currentSourceSale.changeZig).negated(),
         // R-1.5 — same reasoning as the refund above: a void is denominated by
         // the sale it cancels. Defaulting these made a void of a ZWG sale post
         // as USD with a zero base amount, so the two never cancelled out.
@@ -1404,11 +1363,19 @@ export async function voidRetailSaleTransaction(input: {
           currentSourceSale.exchangeRate,
         ),
         promotionCode: currentSourceSale.promotionCode,
-        overrideReason: input.reason.trim(),
+        overrideReason: reason,
+        approvedById: approvedBy?.id ?? null,
+        approvedByName: approvedBy?.name ?? null,
+        reviewReason: [approvalReview, reasonReview, when.review].filter(Boolean).join(" ") || null,
         status: "POSTED",
         notes: input.notes?.trim() || null,
-        postedAt: input.postedAt ?? new Date(),
-        tenderSummary: negativePayments,
+        postedAt: when.at,
+        tenderSummary: reversedPayments.map((payment) => ({
+          ...payment,
+          amount: toNumberOrZero(payment.amount),
+          exchangeRate: payment.exchangeRate.toString(),
+          baseAmount: toNumberOrZero(payment.baseAmount),
+        })),
         lines: {
           create: currentSourceSale.lines.map((line) => ({
             companyId: input.actor.companyId,
@@ -1429,21 +1396,13 @@ export async function voidRetailSaleTransaction(input: {
             costTotal: money(line.costTotal).isZero()
               ? multiplyMoney(money(line.quantity).abs(), money(line.costUnit))
               : money(line.costTotal),
+            depositAmount: money(line.depositAmount).negated(),
           })),
         },
         payments: {
-          // R-1.5 — the reversal is settled in the currency the sale was taken
-          // in. Without these three the tender defaulted to USD at 1 with a zero
-          // base amount, which is how a refund could balance against the sale on
-          // the receipt and still not net off in the ledger.
-          create: negativePayments.map((payment) => ({
+          create: reversedPayments.map((payment) => ({
             companyId: input.actor.companyId,
-            tenderType: payment.tenderType,
-            amount: payment.amount,
-            currency: currentSourceSale.currency,
-            exchangeRate: currentSourceSale.exchangeRate,
-            baseAmount: toBaseAmount(payment.amount, currentSourceSale.exchangeRate),
-            reference: payment.reference,
+            ...payment,
           })),
         },
       },
@@ -1465,19 +1424,20 @@ export async function voidRetailSaleTransaction(input: {
         unitCost: item.unitCost ?? 0,
         notes: `Retail sale void ${created.saleNo}`,
         sourceType: "RETAIL_VOID",
+        reason: "VOID",
+        reference: created.saleNo,
         sourceId: `${created.id}:${item.id}`,
         entryDate: created.postedAt ?? new Date(),
         tx,
       });
     }
 
+    // What the sale left in the drawer, taken back out: its cash tenders at
+    // their base amounts, less the change it gave, read the way cash-up reads
+    // every sale.
     const netCash = getCashNetFromPayments(
-      // A reversal is denominated by the sale it reverses, so the money leaving
-      // the drawer converts at that sale's rate rather than today's.
-      negativePayments.map((payment) => ({
-        tenderType: payment.tenderType,
-        baseAmount: toBaseAmount(payment.amount, currentSourceSale.exchangeRate),
-      })),
+      created.payments,
+      toBaseAmount(created.changeAmount ?? 0, created.exchangeRate),
     );
     if (!netCash.isZero()) {
       const updatedShift = await tx.retailShift.updateMany({
@@ -1501,8 +1461,15 @@ export async function voidRetailSaleTransaction(input: {
       where: { id: currentSourceSale.id },
       data: {
         status: "VOIDED",
-        voidReason: input.reason.trim(),
+        voidReason: reason,
       },
+    });
+
+    // The empties the sale took back come off their suppliers' ledger with it.
+    await reverseSaleEmpties(tx, {
+      companyId: input.actor.companyId,
+      sourceSaleId: currentSourceSale.id,
+      saleId: created.id,
     });
 
     // R-3.3. Same reasoning as the refund above; a void is the other half of it.
@@ -1516,11 +1483,13 @@ export async function voidRetailSaleTransaction(input: {
       shiftId: created.shiftId,
       totalAmount: created.totalAmount,
       currency: created.currency,
-      reason: input.reason,
-      approvedBy: input.approvedBy ?? null,
+      reason,
+      approvedBy,
     });
 
-    return created;
+    // Last: its fiscal day, settled in this commit (SET-08). Its receipt is dated here; the reversal keeps its time.
+    const fiscal = await assignRetailSaleFiscalDay(tx, { companyId: input.actor.companyId, saleId: created.id });
+    return { ...created, fiscal };
   });
 
   const accounting = await ensureRetailSaleAccountingPosted({
@@ -1530,8 +1499,9 @@ export async function voidRetailSaleTransaction(input: {
     periodOverrideReason: input.periodOverrideReason ?? null,
   });
 
-  return { sale: reversal, accounting };
+  return { sale: reversal, accounting, fiscal };
 }
+
 
 /**
  * Closes one register's trading day and writes the Z-report down.
@@ -1682,9 +1652,12 @@ export async function generateRetailZReportTransaction(input: {
       })),
       sales: (salesByShift.get(shift.id) ?? []).map((sale) => ({
         saleType: sale.saleType,
+        status: sale.status,
+        approvedById: sale.approvedById,
         discountAmount: sale.discountAmount,
         taxAmount: sale.taxAmount,
         totalAmount: sale.totalAmount,
+        depositAmount: sale.depositAmount,
         changeAmount: sale.changeAmount ?? 0,
         exchangeRate: sale.exchangeRate,
         payments: sale.payments,
@@ -1698,6 +1671,8 @@ export async function generateRetailZReportTransaction(input: {
           lineTotal: line.lineTotal,
         })),
       })),
+      openingFloatZigBase: shift.openingFloatZigBase,
+      variance: shift.variance
     })),
   });
 
@@ -1715,6 +1690,7 @@ export async function generateRetailZReportTransaction(input: {
     saleCount: figures.saleCount,
     refundCount: figures.refundCount,
     voidCount: figures.voidCount,
+    approvedDiscountCount: figures.approvedDiscountCount,
     itemCount: figures.itemCount,
     grossSales: figures.grossSales,
     discountTotal: figures.discountTotal,
@@ -1722,6 +1698,7 @@ export async function generateRetailZReportTransaction(input: {
     taxTotal: figures.taxTotal,
     taxRatePercent: figures.taxRatePercent,
     grossTakings: figures.grossTakings,
+    depositTotal: figures.depositTotal,
     refundTotal: figures.refundTotal,
     voidTotal: figures.voidTotal,
     openingFloat: figures.openingFloat,

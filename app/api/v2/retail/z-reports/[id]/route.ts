@@ -6,9 +6,9 @@
  * A reprint on any day, in either format, is identical to the first one because
  * there is nothing here that could make it otherwise.
  *
- * Gated on `retail.cash-control` / `view`, the same resource as the list and the
- * close — a document naming every cashier's variance is not a cashier's to read.
- * See the header of `../route.ts` for the full argument.
+ * Gated on `retail.cash-control` / `view` or `retail.end-of-day` / `view` — a
+ * document naming every cashier's variance is not a cashier's to read. `?format=pdf`
+ * is the page End of day and Past days open.
  *
  * ── Export is here, email is not ───────────────────────────────────────────
  *
@@ -33,11 +33,12 @@ import { z } from "zod";
 import { errorResponse, successResponse } from "@/lib/api-response";
 import { parseRetailParams, parseRetailQuery, retailIdParams } from "@/lib/retail/request";
 import { prisma } from "@/lib/prisma";
-import { requireRetailPermission } from "@/lib/retail/permissions";
+import { canRetailSessionDo, retailPermissionDenial } from "@/lib/retail/permission-matrix";
 import { retailZReportToCsv, serializeRetailZReport } from "@/lib/retail/z-report";
+import { zReportsPdf } from "@/lib/retail/z-report-pdf";
 import { requireRetailSession } from "../../_helpers";
 
-const zReportQuery = z.object({ format: z.enum(["csv"]).optional() });
+const zReportQuery = z.object({ format: z.enum(["csv", "pdf"]).optional() });
 
 export async function GET(
   request: NextRequest,
@@ -48,8 +49,10 @@ export async function GET(
     return response as NextResponse;
   }
 
-  const gate = requireRetailPermission(session, "retail.cash-control", "view");
-  if (gate) return gate;
+  // Cash control reads it from a shift; End of day from the day it closed (FLR-07).
+  if (!canRetailSessionDo(session, "retail.cash-control", "view") && !canRetailSessionDo(session, "retail.end-of-day", "view")) {
+    return errorResponse(retailPermissionDenial(session, "retail.end-of-day", "view")!, 403);
+  }
 
   /*
     R-3.1. The segment, through a schema.
@@ -71,8 +74,7 @@ export async function GET(
 
   const payload = serializeRetailZReport(report, report.site?.name ?? null);
 
-  // R-3.1. Two renderings of one report, and `?format=pdf` should say so rather
-  // than quietly hand back JSON.
+  // Three renderings of one report: JSON for the till, CSV, and the PDF End of day opens.
   const query = parseRetailQuery(request, zReportQuery);
   if (query.response) return query.response;
   const format = query.data.format ?? null;
@@ -83,6 +85,13 @@ export async function GET(
         "Content-Type": "text/csv; charset=utf-8",
         "Content-Disposition": `attachment; filename="${payload.reportNo}.csv"`,
       },
+    });
+  }
+
+  if (format === "pdf") {
+    const pdf = await zReportsPdf(session.user.companyId, [payload]);
+    return new NextResponse(new Uint8Array(pdf), {
+      headers: { "Content-Type": "application/pdf", "Content-Disposition": `inline; filename="${payload.reportNo}.pdf"` },
     });
   }
 

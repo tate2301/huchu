@@ -15,7 +15,7 @@ import {
   FactList,
   SectionHeading,
 } from "@/components/management/ui";
-import { retailMoney } from "@/components/retail/sale-detail";
+import { retailMoney } from "@/components/retail/money";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import {
   enumLabel,

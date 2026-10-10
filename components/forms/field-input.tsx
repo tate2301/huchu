@@ -19,6 +19,7 @@ import {
 } from "@/lib/forms/fields";
 
 import styles from "./forms.module.css";
+import { AreaInput, AreasInput, CountInput, LengthInput, PhotosInput, RunInput, SignatureInput } from "./measure-inputs";
 
 /**
  * One question, as the person answering it meets it.
@@ -63,6 +64,19 @@ export function FieldInput({
     .filter(Boolean)
     .join(" ") || undefined;
 
+  // A section heads the questions under it; a note is something to read. Neither is answered.
+  if (field.type === "section") {
+    return (
+      <div className={styles.section}>
+        <h3 className={styles.sectionTitle}>{field.label}</h3>
+        {field.help ? <p className={styles.help}>{field.help}</p> : null}
+      </div>
+    );
+  }
+  if (field.type === "note") {
+    return <p className={styles.note}>{field.help || field.label}</p>;
+  }
+
   if (mode === "read") {
     const shown = formatAnswer(field, value);
     return (
@@ -72,6 +86,8 @@ export function FieldInput({
           <a href={value} target="_blank" rel="noreferrer" className={styles.fileLink}>
             {fileNameFrom(value)}
           </a>
+        ) : (field.type === "photos" || field.type === "signature") && value ? (
+          <Control field={field} id={id} value={value} set={() => undefined} invalid={false} />
         ) : (
           <p className={styles.factValue} data-empty={shown ? undefined : "true"}>
             {shown || "—"}
@@ -239,7 +255,27 @@ function Control({
     case "file":
       return <FileAnswer id={id} value={typeof value === "string" ? value : null} uploadUrl={uploadUrl} onChange={set} />;
 
+    case "length":
+    case "reading":
+      return <LengthInput field={field} id={id} value={value} set={set} aria={aria} />;
+    case "count":
+      return <CountInput field={field} id={id} value={value} set={set} aria={aria} />;
+    case "area":
+      return <AreaInput field={field} id={id} value={value} set={set} aria={aria} />;
+    case "areas":
+      return <AreasInput field={field} id={id} value={value} set={set} aria={aria} />;
+    case "run":
+      return <RunInput field={field} id={id} value={value} set={set} aria={aria} />;
+    case "photos":
+      return <PhotosInput field={field} id={id} value={value} set={set} uploadUrl={uploadUrl} />;
+    case "signature":
+      return <SignatureInput field={field} id={id} value={value} set={set} />;
+    case "section":
+    case "note":
+      return null;
+
     case "number":
+      if (field.unit) return <LengthInput field={field} id={id} value={value} set={set} aria={aria} />;
       // Kept as typed. Converting on every keystroke eats "1." and "-", and
       // the answer is coerced to a number where it is validated anyway.
       return (

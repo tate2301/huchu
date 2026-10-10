@@ -68,20 +68,44 @@ const GUARD_MARKERS = [
    */
   "requireRetailPermission",
   /**
+   * The matrix's own refusal text, for handlers that build their own 403
+   * (`retailPermissionDenial` is what `requireRetailPermission` calls).
+   */
+  "retailPermissionDenial",
+  /**
    * The same matrix read as a boolean, for handlers that answer "may this caller
-   * do it *or* has a manager approved it here" rather than simply refusing. The
-   * two reversal endpoints need that shape: the POS portal admits only cashiers,
-   * and `RUN_A_TILL` withholds `refund` and `void`, so a flat refusal would put
-   * reversals out of reach of the shop floor entirely.
+   * do it *or* has a manager approved it here" rather than simply refusing.
    */
   "canRetailRoleDo",
+  /** The same, measured with the session's role key (support sessions included). */
+  "canRetailSessionDo",
   /**
-   * `lib/retail/pos-host.ts` — which portal you may sign into. Deliberately not
-   * folded into the matrix: it is a question about hosts and sessions, not about
-   * resources, and the till routes ask it *as well as* the matrix rather than
-   * instead of it.
+   * SET-04: a till's own routes (`devices/me`, `people`, `heartbeat`,
+   * `forget`), where the caller is a device, not a person. Its key — the POS
+   * host's httpOnly cookie — is the credential, and it must be a paired device
+   * of the shop whose POS host this is. Nothing a person could change is
+   * behind it: `forget` only clears a key this guard has already refused.
    */
-  "canAccessPosPortal",
+  "requireHostDevice",
+  /**
+   * SET-04: `devices/pair`. The six-digit code a manager made is the proof, good
+   * once for ten minutes, with five wrong tries stopping the device.
+   */
+  "pairDevice",
+  /**
+   * SET-04: the till's door onto the back office's cash-movement handlers. The
+   * device must be one of the session's shop's tills and the shift must be on
+   * it (409 otherwise); the handler it then hands to asks the matrix (own
+   * drawer `retail.sell`, anybody else's `retail.cash-control`).
+   */
+  "refuseShiftElsewhere",
+  /*
+    `canAccessPosPortal` (`lib/retail/pos-host.ts`) is not here. It answers
+    which portal you may sign into, a question about hosts rather than
+    resources, so the till routes ask it *as well as* the matrix. It used to
+    count on its own, and the POS shift open, close and context handlers asked
+    nothing else (80-admin's endpoint convention: the matrix on every route).
+  */
 ];
 
 /**
@@ -217,6 +241,15 @@ describe("retail API handler guards", () => {
   );
 
   /**
+   * `retail.setup` was one resource for every settings page. ADM-01 split it
+   * into the Roles board's own (tills, till rules, payments, company, bin …);
+   * a handler that names it again asks a question the matrix always refuses.
+   */
+  it.each(allHandlers.map((h) => [h.key, h] as const))("%s names no retail.setup", (_key, h) => {
+    expect(stripComments(h.body)).not.toContain('"retail.setup"');
+  });
+
+  /**
    * The line that must not move. Reads are a product decision still being made;
    * a write reachable by any signed-in user in the tenant is not.
    */
@@ -232,21 +265,17 @@ describe("retail API handler guards", () => {
 });
 
 /**
- * Reversals are gated on the matrix, never on the role list.
+ * Reversals: the right to reverse, then the right to do it without a manager.
  *
- * S-7.7. `requireRetailPos` admits `RETAIL_MANAGER_ROLES` **plus `CASHIER`**,
- * and `pos/sales/[id]/refund` and `.../void` both used it — so a cashier could
- * POST either endpoint and reverse a posted sale. `RUN_A_TILL` in
- * `lib/retail/permissions.ts` grants `view`, `create`, `open-shift` and
- * `close-shift` and deliberately withholds `refund` and `void`; the till's own
- * history screen hides both buttons accordingly. The endpoints were the only
- * thing that disagreed.
- *
- * The suite above could not catch it, and that is the point of this block: it
- * asks "is there a gate?", and there was one — the wrong one. These two
- * handlers are held to the specific gate rather than to any gate.
+ * S-7.7 found a cashier able to POST a refund straight past the till's rules.
+ * Since ADM-01 the Roles board gives a cashier `refund` and `void` on
+ * `retail.sell` ("Sales, refunds, voids": C R) and keeps `approve` for owners
+ * and managers, so each endpoint asks two things: may this caller reverse a
+ * sale at all, and may they do it without a manager at the counter. The suite
+ * above asks only "is there a gate?"; these two handlers are held to the
+ * specific gates.
  */
-describe("reversing a sale is a manager act", () => {
+describe("reversing a sale past the till rules needs a manager unless you approve", () => {
   const REVERSALS: Array<{ key: string; action: "refund" | "void" }> = [
     { key: "pos/sales/[id]/refund/route.ts POST", action: "refund" },
     { key: "pos/sales/[id]/void/route.ts POST", action: "void" },
@@ -257,33 +286,33 @@ describe("reversing a sale is a manager act", () => {
     return allHandlers.find((candidate) => candidate.key.endsWith(key));
   }
 
-  it.each(REVERSALS)("$key gates on retail.sell $action", ({ key, action }) => {
+  it.each(REVERSALS)("$key gates on retail.sell $action, then the till rules' approval", ({ key, action }) => {
     const handler = findHandler(key);
     expect(handler, `no handler found for ${key}`).toBeDefined();
     if (!handler) return;
 
     const source = stripComments(handler.body);
-    // The caller is measured against the matrix for this exact action …
-    expect(source).toContain("canRetailRoleDo");
-    expect(source).toContain(`"retail.sell", "${action}"`);
-    // … and the only way past a refusal is a verified manager approval.
-    expect(source).toContain("verifyManagerOverride");
-    expect(source).toContain(`action: "${action}"`);
+    expect(source).toContain(`requireRetailPermission(session, "retail.sell", "${action}")`);
+    // SET-06: the service asks the till rules whether a manager must approve
+    // (\`approvalFor\`, which lets \`approve\` through); the route hands it the
+    // manager's PIN and answers its refusals (409 needsApprover, 400, 423).
+    expect(source).toContain("approver: input.approver");
+    expect(source).toContain("tillRuleResponse(error)");
   });
 
   it.each(REVERSALS)("$key does not fall back to the role list", ({ key }) => {
     const handler = findHandler(key);
     expect(handler).toBeDefined();
-    // `requireRetailPos` here is the exact regression this block exists for.
     expect(stripComments(handler?.body ?? "")).not.toContain("requireRetailPos");
   });
 
-  it("the matrix itself still withholds both from a cashier", () => {
-    // If this ever flips, the gates above stop meaning what they are here for.
-    expect(canRetailRoleDo("CASHIER", "retail.sell", "refund")).toBe(false);
-    expect(canRetailRoleDo("CASHIER", "retail.sell", "void")).toBe(false);
-    expect(canRetailRoleDo("CASHIER", "retail.sell", "create")).toBe(true);
-    expect(canRetailRoleDo("MANAGER", "retail.sell", "refund")).toBe(true);
-    expect(canRetailRoleDo("MANAGER", "retail.sell", "void")).toBe(true);
+  it("the matrix gives the cashier the reversal but not the approval", () => {
+    // If this flips, every cashier reversal stops needing a manager.
+    expect(canRetailRoleDo("CASHIER", "retail.sell", "refund")).toBe(true);
+    expect(canRetailRoleDo("CASHIER", "retail.sell", "void")).toBe(true);
+    expect(canRetailRoleDo("CASHIER", "retail.sell", "approve")).toBe(false);
+    expect(canRetailRoleDo("MANAGER", "retail.sell", "approve")).toBe(true);
+    expect(canRetailRoleDo("STOCK_CLERK", "retail.sell", "refund")).toBe(false);
+    expect(canRetailRoleDo("FINANCE_OFFICER", "retail.sell", "void")).toBe(false);
   });
 });

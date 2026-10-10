@@ -1,4 +1,4 @@
-import type { AccountingSourceType } from "@prisma/client";
+import type { AccountingSourceType, RetailTenderType } from "@prisma/client";
 
 export const ACCOUNTING_SOURCE_TYPE_OPTIONS: Array<{ value: AccountingSourceType; label: string }> = [
   { value: "STOCK_RECEIPT", label: "Stock Receipt" },
@@ -28,6 +28,12 @@ export const ACCOUNTING_SOURCE_TYPE_OPTIONS: Array<{ value: AccountingSourceType
   { value: "RETAIL_STOCK_ADJUSTMENT", label: "Retail Stock Adjustment" },
   { value: "RETAIL_STOCK_TRANSFER", label: "Retail Stock Transfer" },
   { value: "RETAIL_SHIFT_VARIANCE", label: "Retail Shift Variance" },
+  { value: "RETAIL_OPENING_STOCK", label: "Retail opening stock" },
+  { value: "RETAIL_CASH_MOVEMENT", label: "Retail cash to or from the safe" },
+  { value: "RETAIL_PETTY_CASH", label: "Retail petty cash" },
+  { value: "RETAIL_SHIFT_CLOSE", label: "Retail shift close to the safe" },
+  { value: "RETAIL_SHIFT_RECOVERY", label: "Retail short drawer recovered from the cashier" },
+  { value: "RETAIL_DAY_BANKED", label: "Retail day's cash banked" },
   { value: "GOLD_SHIFT_ALLOCATION_COMPANY", label: "Gold Shift — Company Share (Mdara)" },
   { value: "GOLD_SHIFT_ALLOCATION_WORKER", label: "Gold Shift — Worker Share (Boys)" },
   { value: "GOLD_SHIFT_EXPENSE", label: "Gold Shift Expense" },
@@ -98,7 +104,16 @@ export const SCHOOLS_REQUIRED_SOURCE_TYPES: AccountingSourceType[] = [
   "SCHOOL_FEE_REFUND",
 ];
 
-export const RETAIL_TENDER_TYPES = ["CASH", "CARD", "MOBILE_MONEY", "TRANSFER", "VOUCHER"] as const;
+/** Every retail tender, in the order the payment screen lists them (SET-05). */
+export const RETAIL_TENDER_TYPES = [
+  "CASH",
+  "CARD",
+  "ECOCASH",
+  "INNBUCKS",
+  "TRANSFER",
+  "ON_ACCOUNT",
+  "VOUCHER",
+] as const satisfies readonly RetailTenderType[];
 
 export function formatAccountingSourceType(sourceType: string) {
   const match = ACCOUNTING_SOURCE_TYPE_OPTIONS.find((item) => item.value === sourceType);

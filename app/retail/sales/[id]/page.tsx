@@ -1,74 +1,45 @@
 "use client";
 
+import { Suspense } from "react";
 import { useParams } from "next/navigation";
-import { useQuery } from "@tanstack/react-query";
-import { Alert, Skeleton } from "@corelithzw/react";
+import { useQueryClient } from "@tanstack/react-query";
 
-import { RecordHeader, StatusBadge } from "@/components/management/ui";
-import { RetailShell } from "@/components/retail/retail-shell";
-import {
-  RetailSaleDetailBody,
-  SALE_WIDTH,
-  saleExceptionLabel,
-  type RetailSaleDetail,
-} from "@/components/retail/sale-detail";
+import { RecordFrame } from "@/components/record-frame/record-frame";
+import { useToast } from "@/components/ui/use-toast";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
-import { ClipboardList } from "@/lib/icons";
+import { sentWords } from "@/lib/retail/asks";
+import type { SaleView } from "@/lib/retail/floor/sale-view";
+import { saleKind } from "@/lib/retail/record-kinds";
 
-/**
- * One sale, at its own address.
- *
- * An audit row names a `RetailSale` and an id, and "which one was RSL-0042?"
- * is answered by pasting a link — so a sale is a record page, and the sales
- * list's rows open it. Drawn as a management record: the header with the sale
- * number and a badge only for a refund, a void or a voided sale, then the
- * body's sections. The header carries no verb: a sale is refunded or voided on
- * the till, by the cashier who has the customer in front of them.
- */
-export default function RetailSalePage() {
-  const params = useParams<{ id: string }>();
-  const saleId = params?.id ?? "";
-
-  const query = useQuery({
-    queryKey: ["retail-sale", saleId],
-    enabled: Boolean(saleId),
-    queryFn: () => fetchJson<{ data: RetailSaleDetail }>(`/api/v2/retail/pos/sales/${saleId}`),
-  });
-
-  const sale = query.data?.data;
-  const exception = sale ? saleExceptionLabel(sale) : null;
-
+/** A sale or a refund (50-floor, SaleRecord board), on RecordFrame. */
+export default function SalePage() {
   return (
-    <RetailShell title="Sales">
-      {query.isPending ? (
-        <div aria-busy="true" aria-live="polite" className="space-y-3" style={{ maxWidth: SALE_WIDTH }}>
-          <span className="sr-only">Loading the sale</span>
-          <Skeleton height={44} />
-          <Skeleton height={44} />
-          <Skeleton height={44} />
-        </div>
-      ) : query.isError ? (
-        <Alert tone="danger" title="The sale would not load">
-          {getApiErrorMessage(query.error)}
-        </Alert>
-      ) : !sale ? (
-        <p className="text-sm text-[var(--text-muted)]">There is no sale at this address.</p>
-      ) : (
-        <div className="space-y-6" style={{ maxWidth: SALE_WIDTH }}>
-          <RecordHeader
-            icon={ClipboardList}
-            title={sale.saleNo}
-            badge={
-              exception ? (
-                <StatusBadge tone={sale.saleType === "VOID" ? "warn" : "neutral"} context="header">
-                  {exception}
-                </StatusBadge>
-              ) : null
-            }
-          />
-          <RetailSaleDetailBody sale={sale} />
-        </div>
-      )}
-    </RetailShell>
+    <Suspense>
+      <Sale />
+    </Suspense>
   );
+}
+
+function Sale() {
+  const params = useParams<{ id: string }>();
+  const id = params?.id ?? "";
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  // "Send on WhatsApp" with a customer number: straight to it, and say where it went.
+  const onEvent = async (event: string, sale: SaleView) => {
+    if (event !== "send") return;
+    try {
+      const answer = await fetchJson<{ to: string; waiting: boolean }>(`/api/v2/retail/sales/${sale.id}/send`, {
+        method: "POST",
+        body: JSON.stringify({}),
+      });
+      toast({ title: sentWords(answer), variant: "success" });
+      await queryClient.invalidateQueries({ queryKey: ["record-activity"] });
+    } catch (error) {
+      toast({ title: getApiErrorMessage(error, "That did not work. Try again."), variant: "destructive" });
+    }
+  };
+
+  return <RecordFrame kind={saleKind} id={id} onEvent={(event, sale) => void onEvent(event, sale)} />;
 }

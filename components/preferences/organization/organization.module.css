@@ -30,7 +30,7 @@
   /*
     The boards draw the title line 32px tall — the height of the icon button
     at its right end — over the header's own 16px of padding and its 1px rule:
-    49px in all. `box-sizing: border-box` is global (`app/styles/tokens.css`),
+    49px in all. `box-sizing: border-box` is global (the `@corelithzw/react` reset),
     so the floor has to count the padding and the border, not just the content;
     a 32px floor is under the title's own 38px and does nothing at all.
     General has no verb, so without the right floor its rule rides ~11px higher

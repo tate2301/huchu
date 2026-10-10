@@ -7,11 +7,10 @@
  *
  * ── The cashier / manager decision, and why it is not a slider ─────────────
  *
- * The till portal is cashier-only. `canAccessPosPortal` in `lib/retail/pos-host.ts`
- * admits `CASHIER` and `POS_CASHIER` and nothing else, and `PosPortalAuthGuard`
- * sends everybody else to `/access-blocked`. A shop manager does not work at this
- * screen; they work in the back office at `/retail/setup/**` and they approve at
- * the counter by typing their password into the override dialog.
+ * Anyone the matrix lets open a shift may sign in at the till
+ * (`canAccessPosPortal` in `lib/retail/pos-host.ts`), managers included, so a
+ * manager can close the day and approve on the spot with their PIN. Nobody
+ * edits rules there: they are set in the back office at `/retail/manage/**`.
  *
  * So "what does a cashier see" is the whole question, and the answer is: all of
  * it, and none of it editable.
@@ -21,14 +20,14 @@
  *    a reference, whether a refund needs a reason, that the shelf price already
  *    contains the VAT. Withholding the rules from the person they constrain is
  *    theatre, and it costs the shop a cashier who has to ask.
- *  - **None of it editable**, because `retail.setup` is not a cashier grant in
+ *  - **None of it editable**, because `retail.till-rules` is not a cashier grant in
  *    `lib/retail/permissions.ts` and a cashier who can raise the discount ceiling
  *    has removed the control the ceiling exists to be. That is not enforced by
  *    hiding a button: there is no write handler on `pos/till-settings` at all, so
  *    the capability does not exist to be found.
  *
  * The one exception is the cashier's **own unlock PIN**, which is not a setting
- * and is not `retail.setup`. It is a personal credential, it has its own endpoint
+ * and is not `retail.till-rules`. It is a personal credential, it has its own endpoint
  * at `pos/pin`, and that endpoint requires the caller's own account password
  * before it will mint one — so changing it is an act of authentication rather than
  * of configuration. Conflating the two would either lock a cashier out of their own
@@ -136,31 +135,22 @@ export type TillCapability = {
 /**
  * The capability list the settings screen renders, straight off the matrix.
  *
- * Read from `canRetailRoleDo` rather than from `canManageRetailTransactions` so
- * there is one authority. The two agree today — `RUN_A_TILL` grants a cashier
- * neither `update` nor `refund` nor `void`, and `MANAGE_THE_SHOP` grants
- * everything — and the point is that they cannot drift.
+ * Read from `canRetailRoleDo` so there is one authority with the API. A
+ * cashier holds `refund` and `void` (the Roles board) but not `approve`, so a
+ * reversal at the counter still needs a manager there; the rows below answer
+ * "on your own".
  *
  * `whenRefused` is the honest half. Three of these are refusals a cashier can
  * work around at the counter with a manager present, and three are not; a screen
  * that showed six identical red crosses would teach the cashier to stop reading it.
  */
 /**
- * What actually happens when a cashier cannot reverse a sale.
- *
- * S-7.7. This used to read "A manager approves it at the till with their
- * password", which described a flow that does not exist. `pos/sales` has a
- * `managerOverride` field in its schema and **nothing in `components/` sends
- * it**; there is no approval dialog anywhere in the till. A capability list
- * whose refusals describe an imaginary remedy is worse than one that says
- * nothing, because a cashier follows it in front of a customer and finds no
- * button.
- *
- * Building that dialog is a real ticket. Until it exists the screen says where
- * the work genuinely gets done.
+ * What happens when the till rules ask for more than the cashier may do alone
+ * (SET-06): a manager standing at the till approves that one act with their
+ * PIN, and their name goes on the record.
  */
-const REVERSAL_IS_A_BACK_OFFICE_JOB =
-  "Ask the manager — reversals are done in the back office, not at the till.";
+const A_MANAGER_APPROVES =
+  "Within the till rules you do it yourself; past them a manager approves it with their PIN.";
 
 export function summariseTillCapabilities(role: string | null | undefined): TillCapability[] {
   return [
@@ -180,21 +170,21 @@ export function summariseTillCapabilities(role: string | null | undefined): Till
     },
     {
       id: "refund",
-      label: "Refund a posted sale",
-      allowed: canRetailRoleDo(role, "retail.sell", "refund"),
-      whenRefused: REVERSAL_IS_A_BACK_OFFICE_JOB,
+      label: "Refund a sale over the till rules' limit on your own",
+      allowed: canRetailRoleDo(role, "retail.sell", "refund") && canRetailRoleDo(role, "retail.sell", "approve"),
+      whenRefused: A_MANAGER_APPROVES,
     },
     {
       id: "void",
-      label: "Void a receipt",
-      allowed: canRetailRoleDo(role, "retail.sell", "void"),
-      whenRefused: REVERSAL_IS_A_BACK_OFFICE_JOB,
+      label: "Void a sale the till rules lock, on your own",
+      allowed: canRetailRoleDo(role, "retail.sell", "void") && canRetailRoleDo(role, "retail.sell", "approve"),
+      whenRefused: A_MANAGER_APPROVES,
     },
     {
       id: "price-override",
-      label: "Change a price or give a discount",
-      allowed: canRetailRoleDo(role, "retail.sell", "update"),
-      whenRefused: REVERSAL_IS_A_BACK_OFFICE_JOB,
+      label: "Give a discount over the till rules' largest on your own",
+      allowed: canRetailRoleDo(role, "retail.sell", "approve"),
+      whenRefused: A_MANAGER_APPROVES,
     },
     {
       id: "cost-price",
@@ -205,7 +195,7 @@ export function summariseTillCapabilities(role: string | null | undefined): Till
     {
       id: "setup",
       label: "Change any of the settings on this screen",
-      allowed: canRetailRoleDo(role, "retail.setup", "update"),
+      allowed: canRetailRoleDo(role, "retail.till-rules", "update"),
       whenRefused: "The shop manager changes these in the back office.",
     },
   ];
@@ -219,5 +209,5 @@ export function summariseTillCapabilities(role: string | null | undefined): Till
  * lives instead of offering a door that leads to `/access-blocked`.
  */
 export function canEditTillSettings(role: string | null | undefined): boolean {
-  return canRetailRoleDo(role, "retail.setup", "update");
+  return canRetailRoleDo(role, "retail.till-rules", "update");
 }

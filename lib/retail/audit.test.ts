@@ -26,6 +26,10 @@ import { describe, expect, it } from "vitest";
 import {
   auditAmount,
   auditCashMoved,
+  auditExportDownloaded,
+  auditRecordBin,
+  auditRecordPurged,
+  auditRecordEdited,
   auditGoodsReceived,
   auditSalePosted,
   auditSaleReversed,
@@ -325,6 +329,65 @@ describe("cash and stock", () => {
       lineCount: 3,
     });
   });
+
+  it("records who took a list home, as what, and how many rows", async () => {
+    const log = recorder();
+    await auditExportDownloaded(log.client, { actor: CHIPO, key: "retail-shifts", format: "xlsx", rows: 312 });
+
+    expect(log.last().eventType).toBe(RETAIL_AUDIT_EVENTS.exportDownloaded);
+    expect(log.last().entityType).toBe("ReportSource");
+    expect(log.last().entityId).toBe("retail-shifts");
+    expect(log.payload()).toMatchObject({ key: "retail-shifts", format: "xlsx", rows: 312 });
+  });
+});
+
+describe("records edited in place and moved to the bin", () => {
+  it("records the field, its label and both values, money as a string", async () => {
+    const log = recorder();
+    await auditRecordEdited(log.client, {
+      actor: CHIPO,
+      entityType: "Product",
+      entityId: "product-1",
+      field: "unitPrice",
+      label: "Price",
+      from: auditAmount(17.99),
+      to: auditAmount(18.25),
+      kind: "money",
+    });
+    expect(log.last().eventType).toBe("RETAIL_RECORD.EDITED");
+    expect(log.last().entityType).toBe("Product");
+    expect(log.payload()).toMatchObject({
+      entityType: "Product",
+      field: "unitPrice",
+      label: "Price",
+      from: "17.99",
+      to: "18.25",
+      kind: "money",
+    });
+  });
+
+  it("records a bin move and a restore with the kind and the name", async () => {
+    const log = recorder();
+    const base = { actor: CHIPO, entityType: "Product", entityId: "product-1", kind: "product", name: "Amarula Cream 750ml" };
+    await auditRecordBin(log.client, { ...base, action: "binned" });
+    expect(log.last().eventType).toBe("RETAIL_RECORD.BINNED");
+    expect(log.payload()).toMatchObject({ kind: "product", name: "Amarula Cream 750ml" });
+    await auditRecordBin(log.client, { ...base, action: "restored" });
+    expect(log.last().eventType).toBe("RETAIL_RECORD.RESTORED");
+  });
+
+  it("records deleting for good: by someone, or by the nightly purge with no actor", async () => {
+    const log = recorder();
+    const base = { companyId: "company-1", entityType: "RetailPromotion", entityId: "promo-1", kind: "promotion", name: "Happy hour" };
+    await auditRecordPurged(log.client, { ...base, actor: CHIPO, how: "deleted" });
+    expect(log.last().eventType).toBe("RETAIL_RECORD.PURGED");
+    expect(log.last().actor).toBe("user-chipo");
+    expect(log.payload()).toMatchObject({ kind: "promotion", name: "Happy hour", how: "deleted", automatic: false, actorName: "Chipo Dube" });
+    await auditRecordPurged(log.client, { ...base, actor: null, how: "kept" });
+    expect(log.last().actor).toBeNull();
+    expect(log.last().companyId).toBe("company-1");
+    expect(log.payload()).toMatchObject({ how: "kept", automatic: true, actorName: null });
+  });
 });
 
 describe("the chain", () => {
@@ -369,8 +432,82 @@ describe("the chain", () => {
       saleVoided: "RETAIL_SALE.VOIDED",
       shiftOpened: "RETAIL_SHIFT.OPENED",
       shiftClosed: "RETAIL_SHIFT.CLOSED",
+      shiftSignedOff: "RETAIL_SHIFT.SIGNED_OFF",
+      dayClosed: "RETAIL_DAY.CLOSED",
       cashMoved: "RETAIL_CASH.MOVED",
       goodsReceived: "RETAIL_GOODS.RECEIVED",
+      movementsReversed: "RETAIL_STOCK.MOVEMENTS_REVERSED",
+      stockAdjusted: "RETAIL_STOCK.ADJUSTED",
+      caseBroken: "RETAIL_STOCK.CASE_BROKEN",
+      orderClosed: "RETAIL_PURCHASE_ORDER.CLOSED",
+      orderReopened: "RETAIL_PURCHASE_ORDER.REOPENED",
+      shopProfileChanged: "RETAIL_SHOP.PROFILE_CHANGED",
+      exportDownloaded: "RETAIL_EXPORT.DOWNLOADED",
+      recordEdited: "RETAIL_RECORD.EDITED",
+      recordBinned: "RETAIL_RECORD.BINNED",
+      recordRestored: "RETAIL_RECORD.RESTORED",
+      recordPurged: "RETAIL_RECORD.PURGED",
+      settingsChanged: "RETAIL_SETTINGS.CHANGED",
+      productArchived: "RETAIL_PRODUCT.ARCHIVED",
+      productUnarchived: "RETAIL_PRODUCT.UNARCHIVED",
+      productCreated: "RETAIL_PRODUCT.CREATED",
+      productsImported: "RETAIL_PRODUCTS.IMPORTED",
+      priceChanged: "RETAIL_PRICE.CHANGED",
+      categoryCreated: "RETAIL_CATEGORY.CREATED",
+      categoryChanged: "RETAIL_CATEGORY.CHANGED",
+      categoryDeleted: "RETAIL_CATEGORY.DELETED",
+      siteCreated: "RETAIL_SITE.CREATED",
+      siteChanged: "RETAIL_SITE.CHANGED",
+      siteClosed: "RETAIL_SITE.CLOSED",
+      priceListCreated: "RETAIL_PRICE_LIST.CREATED",
+      priceListChanged: "RETAIL_PRICE_LIST.CHANGED",
+      priceListPaused: "RETAIL_PRICE_LIST.PAUSED",
+      priceListResumed: "RETAIL_PRICE_LIST.RESUMED",
+      priceScheduled: "RETAIL_PRICE.SCHEDULED",
+      priceScheduleCancelled: "RETAIL_PRICE.SCHEDULE_CANCELLED",
+      priceListProductsAdded: "RETAIL_PRICE_LIST.PRODUCTS_ADDED",
+      priceListProductsRemoved: "RETAIL_PRICE_LIST.PRODUCTS_REMOVED",
+      bundleCreated: "RETAIL_BUNDLE.CREATED",
+      bundleChanged: "RETAIL_BUNDLE.CHANGED",
+      bundlePaused: "RETAIL_BUNDLE.PAUSED",
+      bundleResumed: "RETAIL_BUNDLE.RESUMED",
+      bundleStopped: "RETAIL_BUNDLE.STOPPED",
+      tillCreated: "RETAIL_TILL.CREATED",
+      tillChanged: "RETAIL_TILL.CHANGED",
+      deviceUnpaired: "RETAIL_DEVICE.UNPAIRED",
+      devicePaired: "RETAIL_DEVICE.PAIRED",
+      deviceReplaced: "RETAIL_DEVICE.REPLACED",
+      tillMessageSent: "RETAIL_TILL.MESSAGE_SENT",
+      transferSent: "RETAIL_STOCK_TRANSFER.SENT",
+      transferCancelled: "RETAIL_STOCK_TRANSFER.CANCELLED",
+      transferChanged: "RETAIL_STOCK_TRANSFER.CHANGED",
+      transferReceived: "RETAIL_STOCK_TRANSFER.RECEIVED",
+      countStarted: "RETAIL_STOCK_COUNT.STARTED",
+      countSubmitted: "RETAIL_STOCK_COUNT.SUBMITTED",
+      zigRateSet: "RETAIL_ZIG_RATE.SET",
+      postingRun: "RETAIL_POSTING.RUN",
+      postingAccountAdded: "RETAIL_POSTING.ACCOUNT_ADDED",
+      drawerOpened: "RETAIL_DRAWER.OPENED",
+      fiscalConnected: "RETAIL_FISCAL.CONNECTED",
+      fiscalDayClosed: "RETAIL_FISCAL.DAY_CLOSED",
+      personInvited: "RETAIL_PERSON.INVITED",
+      personJoined: "RETAIL_PERSON.JOINED",
+      personChanged: "RETAIL_PERSON.CHANGED",
+      personPinSent: "RETAIL_PERSON.PIN_SENT",
+      personAccessRemoved: "RETAIL_PERSON.ACCESS_REMOVED",
+      personAccessRestored: "RETAIL_PERSON.ACCESS_RESTORED",
+      pinChosen: "RETAIL_PERSON.PIN_CHOSEN",
+      pinLocked: "RETAIL_PIN.LOCKED",
+      supplierCreated: "RETAIL_SUPPLIER.CREATED",
+      supplierContactAdded: "RETAIL_SUPPLIER.CONTACT_ADDED",
+      supplierContactRemoved: "RETAIL_SUPPLIER.CONTACT_REMOVED",
+      supplierStopped: "RETAIL_SUPPLIER.STOPPED",
+      supplierResumed: "RETAIL_SUPPLIER.RESUMED",
+      suppliersMessaged: "RETAIL_SUPPLIER.MESSAGED",
+      saleReprinted: "RETAIL_SALE.REPRINTED",
+      saleSent: "RETAIL_SALE.SENT",
+      saleReviewed: "RETAIL_SALE.REVIEWED",
+      labelsPrinted: "RETAIL_LABELS.PRINTED",
     });
   });
 });

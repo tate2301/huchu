@@ -87,6 +87,56 @@ const siteVisits: ReportDefinition = {
   defaults: { sort: [{ column: "scheduled", dir: "desc" }] },
 };
 
+/**
+ * What the site-visit forms collected: one row per form filled in on a visit,
+ * with what it measured, the quote it drafted and how the deal went — the
+ * line from the tape measure to the signed quote.
+ */
+const visitForms: ReportDefinition = {
+  key: "crm-visit-forms",
+  title: "Site visit forms",
+  area: AREA,
+  href: "/crm/appointments",
+  profiles: PROFILES,
+  params: periodParams(90, "Visited"),
+  columns: [
+    { key: "visitNo", label: "Visit", kind: "code" },
+    { key: "visited", label: "Visited", kind: "date" },
+    { key: "form", label: "Form", kind: "text" },
+    { key: "rep", label: "Rep", kind: "text" },
+    { key: "customer", label: "Customer", kind: "relation" },
+    { key: "answered", label: "Answered", kind: "number", total: "sum" },
+    { key: "asked", label: "Asked", kind: "number", total: "sum", hidden: true },
+    { key: "measured", label: "Area measured (m²)", kind: "number", total: "sum" },
+    { key: "drafted", label: "Quote drafted", kind: "money", total: "sum" },
+    { key: "outcome", label: "Deal", kind: "status" },
+    { key: "dealValue", label: "Deal value", kind: "money", total: "sum", hidden: true },
+  ],
+  defaults: { sort: [{ column: "visited", dir: "desc" }] },
+};
+
+/** Every answer given on site, as it reads, with its figure where it measured something. */
+const visitAnswers: ReportDefinition = {
+  key: "crm-visit-answers",
+  title: "Site visit answers",
+  area: AREA,
+  href: "/crm/appointments",
+  profiles: PROFILES,
+  params: periodParams(90, "Visited"),
+  columns: [
+    { key: "visitNo", label: "Visit", kind: "code" },
+    { key: "visited", label: "Visited", kind: "date" },
+    { key: "form", label: "Form", kind: "text" },
+    { key: "question", label: "Question", kind: "text" },
+    { key: "questionKey", label: "Saved as", kind: "code", hidden: true },
+    { key: "answer", label: "Answer", kind: "text" },
+    { key: "figure", label: "Figure", kind: "number" },
+    { key: "rep", label: "Rep", kind: "text", hidden: true },
+    { key: "notApplicable", label: "Not applicable", kind: "status", hidden: true },
+  ],
+  defaults: { sort: [{ column: "visited", dir: "desc" }] },
+};
+
 const projects: ReportDefinition = {
   key: "crm-projects",
   title: "Projects",
@@ -238,6 +288,8 @@ export const CRM_REPORTS: ReportDefinition[] = [
   leads,
   deals,
   siteVisits,
+  visitForms,
+  visitAnswers,
   quotes,
   projects,
   jobs,

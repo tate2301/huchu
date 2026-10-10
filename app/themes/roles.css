@@ -1,0 +1,276 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   ROLES — one theme per product (00-foundations 5.1, the Tokens board).
+
+   Components ask for a role (`--ground`, `--ink`, `--line`, `--action` …);
+   each theme below answers every role. `ROLE_TOKENS` in `lib/theme/products.ts`
+   is the typed list, and `lib/theme/products.test.ts` holds every theme block
+   to exactly that list, so a product cannot leave one out.
+
+   The root layout sets `data-theme` on `<html>` from the workspace's profile:
+   `tender` for retail, `corelith` for everything else, and `tender-dark` when
+   a retail person picks Dark (the inline head script applies it before the
+   first paint).
+
+   Unlayered, and imported after `corelith-bridge.css`, so it outranks the
+   design-system package's `:root` in `@layer corelith`. The last block points
+   the package's own tokens at the roles, which is what makes every screen not
+   yet moved onto the workspace components follow the product too.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+:root[data-theme="corelith"] {
+  --ground: #f6f7f9;
+  --surface: #ffffff;
+  --hover: #f9fafb;
+  --tray: #eef0f3;
+  --active: #e7e9ef;
+  --selected: #f3f7fe;
+  --line: #e7e9ef;
+  --line-soft: #eef0f3;
+  --line-strong: #d4d9e0;
+  --ink: #0b0c14;
+  --ink-2: #3b3d47;
+  --ink-3: #6b6d78;
+  --faint: #9aa1ad;
+  --action: #2563eb;
+  --action-fill: #2563eb;
+  --on-action: #ffffff;
+  --action-ink: #1d4ed8;
+  --sel-fill: #0b0c14;
+  --on-sel: #ffffff;
+  --sel-bg: #e8effd;
+  --sel-line: #bfd0f8;
+  --sel-ink: #1d4ed8;
+  --device: #2a2e37;
+  --info: #1d4ed8;
+  --info-soft: #e8effd;
+  --ok: #17734c;
+  --ok-soft: #e7f4ee;
+  --warn: #8a5a10;
+  --warn-soft: #fbf1dc;
+  --warn-dot: #c98a1b;
+  --warn-line: #e3c58f;
+  --bad: #b42318;
+  --bad-soft: #fdecea;
+  --bad-dot: #b42318;
+  --data: #4b5363;
+  --data-muted: #8a93a3;
+  --data-compare: #c9cdd4;
+  --s1: #1baf7a;
+  --s2: #2a78d6;
+  --s3: #e87ba4;
+  --s4: #4a3aa7;
+  --scrim: rgba(11, 12, 20, 0.32);
+  --shadow-float: 0 0 0 1px #e7e9ef, 0 14px 30px -18px rgba(11, 12, 20, 0.28);
+  --shadow-pin: 0 -1px 0 #d4d9e0, 0 -10px 18px -14px rgba(11, 12, 20, 0.35);
+  --shadow-sheet: -24px 0 48px -24px rgba(11, 12, 20, 0.35);
+}
+
+:root[data-theme="tender"] {
+  --ground: #faf7f4;
+  --surface: #ffffff;
+  --hover: #fbf8f5;
+  --tray: #f3eee9;
+  --active: #efe8e2;
+  --selected: #fbf7f3;
+  --line: #ece6e0;
+  --line-soft: #f3eee9;
+  --line-strong: #ddd4cc;
+  --ink: #24140e;
+  --ink-2: #4a3a33;
+  --ink-3: #75675f;
+  --faint: #a89c94;
+  --action: #e8620f;
+  --action-fill: #b84a0c;
+  --on-action: #ffffff;
+  --action-ink: #a8420c;
+  --sel-fill: #24140e;
+  --on-sel: #ffffff;
+  --sel-bg: #f3eee9;
+  --sel-line: #ddd4cc;
+  --sel-ink: #24140e;
+  --device: #24140e;
+  --info: #3d4fb8;
+  --info-soft: #eceefb;
+  --ok: #17734c;
+  --ok-soft: #e7f4ee;
+  --warn: #8a5a10;
+  --warn-soft: #fbf1dc;
+  --warn-dot: #e0a21a;
+  --warn-line: #e8cf9a;
+  --bad: #a3122f;
+  --bad-soft: #fbe8ec;
+  --bad-dot: #c8203f;
+  --data: #4b5363;
+  --data-muted: #8a93a3;
+  --data-compare: #c9c0b8;
+  --s1: #1baf7a;
+  --s2: #2a78d6;
+  --s3: #e87ba4;
+  --s4: #4a3aa7;
+  --scrim: rgba(36, 20, 14, 0.32);
+  --shadow-float: 0 0 0 1px #ece6e0, 0 14px 30px -18px rgba(36, 20, 14, 0.3);
+  --shadow-pin: 0 -1px 0 #ddd4cc, 0 -10px 18px -14px rgba(36, 20, 14, 0.35);
+  --shadow-sheet: -24px 0 48px -24px rgba(36, 20, 14, 0.35);
+}
+
+/* Dark by layering: warm near-black, each surface a step lighter; accents and
+   status colours lift a step to keep their contrast (TenderUI). */
+:root[data-theme="tender-dark"],
+/* …and any element that asks for it: the till's device screens are dark whatever the shop's theme. */
+[data-theme="tender-dark"] {
+  --ground: #171310;
+  --surface: #1e1915;
+  --hover: #241e1a;
+  --tray: #2a231f;
+  --active: #322a25;
+  --selected: #241e1a;
+  --line: #352d28;
+  --line-soft: #2a231f;
+  --line-strong: #4a403a;
+  --ink: #fff8f1;
+  --ink-2: #e3d8d0;
+  --ink-3: #b0a39a;
+  --faint: #7d716a;
+  --action: #f07a2a;
+  --action-fill: #b84a0c;
+  --on-action: #ffffff;
+  --action-ink: #f5a06a;
+  --sel-fill: #fff8f1;
+  --on-sel: #1e1915;
+  --sel-bg: #2a231f;
+  --sel-line: #4a403a;
+  --sel-ink: #fff8f1;
+  --device: #0f0c0a;
+  --info: #9aa7ff;
+  --info-soft: #1f2340;
+  --ok: #4cc38a;
+  --ok-soft: #15291f;
+  --warn: #f0b44c;
+  --warn-soft: #33280f;
+  --warn-dot: #f0b44c;
+  --warn-line: #5c4718;
+  --bad: #ff7a8a;
+  --bad-soft: #3a1a20;
+  --bad-dot: #ff5c70;
+  --data: #b0a39a;
+  --data-muted: #6f645d;
+  --data-compare: #4a403a;
+  --s1: #1baf7a;
+  --s2: #3b8ae6;
+  --s3: #d86a95;
+  --s4: #7a6ae0;
+  --scrim: rgba(0, 0, 0, 0.55);
+  --shadow-float: 0 0 0 1px #352d28, 0 18px 36px -16px rgba(0, 0, 0, 0.6);
+  --shadow-pin: 0 -1px 0 #4a403a, 0 -10px 18px -12px rgba(0, 0, 0, 0.55);
+  --shadow-sheet: -24px 0 48px -24px rgba(0, 0, 0, 0.6);
+}
+
+/* ── The package's tokens, pointed at the roles (5.1.3) ──────────────────────
+   `--surface` and `--ink` are roles under the package's own names and need no
+   line here. Selection is never orange: the brand tints go to `--sel-bg`. */
+:root[data-theme] {
+  --canvas: var(--ground);
+  --surface-muted: var(--tray);
+  --surface-sunken: var(--active);
+  --surface-deep: var(--line-strong);
+
+  --border: var(--line);
+  --border-subtle: var(--line-soft);
+  --border-strong: var(--line-strong);
+  --border-hover: var(--line-strong);
+  --hairline: var(--line);
+
+  --text-strong: var(--ink);
+  --text-body: var(--ink-2);
+  --text-muted: var(--ink-3);
+  --text-subtle: var(--ink-3);
+  --text-inverse: var(--on-sel);
+  /* Links are ink, underlined in `--line-strong`. */
+  --text-link: var(--ink);
+
+  --ink-soft: var(--ink-2);
+
+  --brand: var(--action);
+  --clay: var(--action);
+  --brand-strong: var(--action-ink);
+  --brand-deeper: var(--action-fill);
+  --brand-soft: var(--sel-bg);
+  --brand-50: var(--sel-bg);
+  --brand-tint: var(--sel-bg);
+  --brand-100: var(--sel-line);
+  --brand-200: var(--sel-line);
+  --brand-300: var(--sel-line);
+  --brand-500: var(--action);
+  --brand-700: var(--action-ink);
+  --brand-900: var(--action-ink);
+  --clay-strong: var(--action-ink);
+  --clay-soft: var(--sel-bg);
+  --clay-tint: var(--sel-bg);
+
+  /* The package's cool gray ramp, laid onto the product's own steps. The
+     bridge's --neutral-* and the 700–900 status rungs mix from it, so they
+     follow the product too. */
+  --gray-50: var(--ground);
+  --gray-100: var(--tray);
+  --gray-200: var(--line);
+  --gray-300: var(--line-strong);
+  --gray-400: var(--faint);
+  --gray-500: var(--ink-3);
+  --gray-600: color-mix(in oklab, var(--ink-3) 50%, var(--ink-2));
+  --gray-700: var(--ink-2);
+  --gray-800: color-mix(in oklab, var(--ink-2) 50%, var(--ink));
+  --gray-900: var(--ink);
+  --gray-950: var(--ink);
+
+  --action-primary-bg: var(--action-fill);
+  --action-primary-hover: color-mix(in oklab, var(--action-fill) 88%, #000);
+  --action-primary-pressed: color-mix(in oklab, var(--action-fill) 88%, #000);
+  --action-primary-fg: var(--on-action);
+  --action-secondary-bg: var(--surface);
+  --action-secondary-bg-h: var(--hover);
+  --action-secondary-fg: var(--ink);
+  --action-destructive-bg: var(--bad);
+  --action-destructive-hover: color-mix(in oklab, var(--bad) 88%, #000);
+  /* Text on `--bad`: white on the light themes, the dark ink on Tender dark,
+     where `--bad` is lifted to a light rose and white would read at 2.5:1. */
+  --action-destructive-fg: var(--on-sel);
+  /* The package's "serious but reversible" button: a filled warm grey with
+     `--canvas` text, so it takes the ink steps and inverts with the theme. */
+  --action-destructive-soft-bg: var(--ink-2);
+  --action-destructive-soft-hover: var(--ink);
+
+  /* Status ink: the role itself, which each theme already sets to read at
+     4.5:1 on its surfaces (the dark steps are lifted). */
+  --tone-success-strong: var(--ok);
+  --tone-danger-strong: var(--bad);
+  --tone-warn-strong: var(--warn);
+
+  --tone-info: var(--info);
+  --tone-info-bg: var(--info-soft);
+  --tone-info-bd: color-mix(in oklab, var(--info) 25%, var(--surface));
+  --tone-success: var(--ok);
+  --tone-success-bg: var(--ok-soft);
+  --tone-success-bd: color-mix(in oklab, var(--ok) 25%, var(--surface));
+  --tone-warn: var(--warn);
+  --tone-warn-bg: var(--warn-soft);
+  --tone-warn-bd: var(--warn-line);
+  --tone-danger: var(--bad);
+  --tone-danger-bg: var(--bad-soft);
+  --tone-danger-bd: color-mix(in oklab, var(--bad) 25%, var(--surface));
+  --tone-neutral: var(--ink-3);
+  --tone-neutral-bg: var(--tray);
+  --tone-neutral-bd: var(--line);
+
+  --dot-attention: var(--info);
+  --dot-progress: var(--info);
+  --dot-ok: var(--ok);
+  --dot-idle: var(--faint);
+
+  --focus-ring: var(--action);
+  --focus-ring-soft: color-mix(in oklab, var(--action) 22%, transparent);
+
+  --shadow-popover: var(--shadow-float);
+  --shadow-bar-bottom: var(--shadow-pin);
+
+  --font-mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+}

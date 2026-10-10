@@ -1,14 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
-import { RetailPurchaseOrderStatus } from "@prisma/client";
 import { z } from "zod";
 import { errorResponse, successResponse } from "@/lib/api-response";
 import { parseRetailParams, retailIdParams } from "@/lib/retail/request";
 import { money, multiplyMoney } from "@/lib/money";
 import { prisma } from "@/lib/prisma";
 import { requireRetailPermission } from "@/lib/retail/permissions";
+import { OrderRefused, orderStatusFor, planOrderLineEdits } from "@/lib/retail/purchase-orders";
 import { ensureInventoryItemAccess, ensureSiteAccess, requireRetailSession } from "../../../_helpers";
 
 const lineSchema = z.object({
+  /** The line being edited. Absent on a line added in this edit. */
+  id: z.string().uuid().optional().nullable(),
   inventoryItemId: z.string().uuid().optional().nullable(),
   itemName: z.string().min(1).max(200).optional(),
   quantity: z.number().positive(),
@@ -19,7 +21,6 @@ const patchSchema = z.object({
   siteId: z.string().uuid().optional(),
   supplierName: z.string().min(1).max(200).optional(),
   expectedDate: z.string().datetime().optional().nullable(),
-  status: z.nativeEnum(RetailPurchaseOrderStatus).optional(),
   notes: z.string().max(500).optional().nullable(),
   lines: z.array(lineSchema).min(1).optional(),
 });
@@ -103,6 +104,12 @@ export async function PATCH(
     const body = await request.json();
     const input = patchSchema.parse(body);
     const nextSiteId = input.siteId ?? existing.siteId;
+    if (
+      nextSiteId !== existing.siteId &&
+      existing.lines.some((line) => line.receivedQuantity.greaterThan(0))
+    ) {
+      return errorResponse("Part of this order has been delivered to its branch; it cannot move to another.", 409);
+    }
     const site = await ensureSiteAccess(session.user.companyId, nextSiteId);
     if (!site) {
       return errorResponse("Invalid site", 400);
@@ -145,12 +152,41 @@ export async function PATCH(
         )
       : null;
 
+    // Lines are edited in place, so what has been delivered against them
+    // stays delivered; see `planOrderLineEdits`.
+    const plan = lines
+      ? planOrderLineEdits(
+          existing.lines,
+          lines.map((line, index) => ({ ...line, id: input.lines![index].id ?? null })),
+        )
+      : null;
+
     const updated = await prisma.$transaction(async (tx) => {
-      if (lines) {
-        await tx.retailPurchaseOrderLine.deleteMany({
-          where: { purchaseOrderId: existing.id },
-        });
+      if (plan) {
+        if (plan.remove.length > 0) {
+          await tx.retailPurchaseOrderLine.deleteMany({
+            where: { purchaseOrderId: existing.id, id: { in: plan.remove } },
+          });
+        }
+        for (const { id: lineId, line } of plan.update) {
+          const { id: _id, ...data } = line;
+          void _id;
+          await tx.retailPurchaseOrderLine.update({ where: { id: lineId }, data });
+        }
+        if (plan.create.length > 0) {
+          await tx.retailPurchaseOrderLine.createMany({
+            data: plan.create.map(({ id: _id, ...line }) => {
+              void _id;
+              return { ...line, purchaseOrderId: existing.id };
+            }),
+          });
+        }
       }
+
+      const nextLines = await tx.retailPurchaseOrderLine.findMany({
+        where: { purchaseOrderId: existing.id },
+        select: { quantity: true, receivedQuantity: true },
+      });
 
       return tx.retailPurchaseOrder.update({
         where: { id: existing.id },
@@ -158,15 +194,9 @@ export async function PATCH(
           siteId: site.id,
           supplierName: input.supplierName?.trim(),
           expectedDate: input.expectedDate ? new Date(input.expectedDate) : input.expectedDate,
-          status: input.status,
+          // Asking for more of a delivered line reopens it to part delivered.
+          status: orderStatusFor(nextLines, existing.status === "CLOSED"),
           notes: input.notes?.trim() ?? input.notes,
-          ...(lines
-            ? {
-                lines: {
-                  create: lines,
-                },
-              }
-            : {}),
         },
         include: { lines: true },
       });
@@ -177,6 +207,7 @@ export async function PATCH(
     if (error instanceof z.ZodError) {
       return errorResponse("Validation failed", 400, error.issues);
     }
+    if (error instanceof OrderRefused) return errorResponse(error.message, 409);
     return errorResponse(error instanceof Error ? error.message : "Failed to update purchase order", 400);
   }
 }
@@ -201,6 +232,11 @@ export async function DELETE(
     return errorResponse("Purchase order not found", 404);
   }
 
+  // Once anything has come, the order is the record of what the deliveries
+  // were against; it is closed, not removed.
+  if (existing.lines.some((line) => line.receivedQuantity.greaterThan(0))) {
+    return errorResponse("Part of this order has been delivered. Close it instead of removing it.", 409);
+  }
   await prisma.retailPurchaseOrder.delete({ where: { id: existing.id } });
   return successResponse({ success: true });
 }

@@ -1,0 +1,117 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   COUNT AND CLOSE — the shift's close page (W-39, FLR-04; board ShiftClose).
+
+   Under the shell's header, a body of two columns: the count (the line, then
+   the US$ and ZiG note tables side by side) and the 360px aside on --ground
+   (the summary card, What happened, the tenders checked, After closing).
+   Under 720px the tables stack and the aside goes under them.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.cx-sc {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 360px;
+  min-height: var(--content-viewport);
+  width: calc(100% + (var(--content-gutter-x) * 2));
+  margin-inline: calc(var(--content-gutter-x) * -1);
+  margin-top: calc(var(--content-lede) * -1);
+  background: var(--surface);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 1.4;
+}
+.cx-sc :is(button, a, input, textarea):focus-visible { outline: 2px solid var(--action); outline-offset: 2px; }
+.cx-sc-mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+.cx-sc-strong { font-weight: 600; color: var(--ink); }
+.cx-sc-end { text-align: right; }
+
+/* ── The count ──────────────────────────────────────────────── */
+.cx-sc-main { min-width: 0; padding: 24px; display: flex; flex-direction: column; gap: 16px; }
+.cx-sc-line { margin: 0; max-width: 760px; color: var(--ink-2); font-size: 14px; line-height: 1.5; }
+.cx-sc-problem { margin: 0; color: var(--bad); font-size: 14px; }
+.cx-sc-hint { color: var(--ink-3); font-size: 13px; line-height: 1.45; }
+.cx-sc-banner { margin: 0; padding: 12px 14px; border-radius: 10px; font-size: 14px; line-height: 1.45; }
+.cx-sc-banner--ok { background: var(--ok-soft); color: var(--ink); }
+.cx-sc-banner--warn { background: var(--warn-soft); color: var(--ink); }
+
+.cx-sc-tables { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; align-items: start; }
+.cx-sc-table { width: 100%; border-collapse: separate; border-spacing: 0; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; font-size: 13px; }
+.cx-sc-table thead th { height: 36px; padding: 0 14px; text-align: left; font-weight: 400; color: var(--ink-3); background: var(--ground); border-bottom: 1px solid var(--line); }
+.cx-sc-table thead th.cx-sc-end { text-align: right; }
+.cx-sc-table tbody th,
+.cx-sc-table tbody td { height: 44px; padding: 0 14px; border-bottom: 1px solid var(--line); }
+.cx-sc-table tbody tr:last-child th,
+.cx-sc-table tbody tr:last-child td { border-bottom: 0; }
+.cx-sc-table tbody th { text-align: left; font-weight: 700; color: var(--ink); }
+.cx-sc-table tbody td.cx-sc-mono { color: var(--ink); white-space: nowrap; }
+.cx-sc-table tfoot td { padding: 8px 14px; border-top: 1px solid var(--line); }
+.cx-sc-count {
+  width: 72px;
+  height: 32px;
+  box-sizing: border-box;
+  padding: 0 10px;
+  border: 1px solid var(--line-strong, var(--line));
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--ink);
+  font-family: var(--font-mono);
+  font-size: 14px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+.cx-sc-count::placeholder { color: var(--ink); }
+.cx-sc-count[aria-invalid="true"] { border-color: var(--bad); }
+.cx-sc-count[readonly] { background: var(--ground); }
+
+/* ── The aside ──────────────────────────────────────────────── */
+.cx-sc-aside { min-width: 0; padding: 20px; background: var(--ground); border-left: 1px solid var(--line); display: flex; flex-direction: column; gap: 16px; }
+.cx-sc-summary { margin: 0; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); overflow: hidden; }
+.cx-sc-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 40px; padding: 0 14px; border-bottom: 1px solid var(--line); }
+.cx-sc-row:last-child { border-bottom: 0; }
+.cx-sc-row dt { color: var(--ink-2); }
+.cx-sc-row dd { margin: 0; text-align: right; }
+.cx-sc-later { color: var(--ink-3); font-size: 13px; }
+.cx-sc-diff { min-height: 52px; }
+.cx-sc-diff dt { color: var(--ink); font-weight: 700; }
+.cx-sc-diff__value { font-size: 18px; font-weight: 700; }
+.cx-sc-diff--ok { background: var(--ok-soft); }
+.cx-sc-diff--ok .cx-sc-diff__value { color: var(--ok); }
+.cx-sc-diff--bad { background: var(--bad-soft); }
+.cx-sc-diff--bad .cx-sc-diff__value { color: var(--bad); font-family: var(--font-mono); }
+.cx-sc-diff--warn { background: var(--warn-soft); }
+.cx-sc-diff--warn .cx-sc-diff__value { color: var(--warn); font-family: var(--font-mono); }
+
+.cx-sc-field { display: flex; flex-direction: column; gap: 6px; padding-bottom: 16px; border-bottom: 1px solid var(--line); }
+.cx-sc-field label { font-size: 14px; font-weight: 500; color: var(--ink); }
+.cx-sc-field .cx-textarea { background: var(--surface); }
+
+.cx-sc-group { display: flex; flex-direction: column; gap: 6px; padding-bottom: 16px; border-bottom: 1px solid var(--line); }
+.cx-sc-group:last-child { border-bottom: 0; }
+.cx-sc-group h2 { margin: 0 0 4px; font-size: 15px; font-weight: 700; color: var(--ink); }
+.cx-sc-line-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 22px; color: var(--ink-2); }
+.cx-sc-line-row > span:first-child { white-space: nowrap; }
+.cx-sc-line-row .cx-sc-mono { color: var(--ink); white-space: nowrap; text-align: right; }
+/* A tender checked without counting: the label left, the amount right, "matches" beside the
+   amount as the board draws it, and what is missing ("1 without a reference") on its own line under it. */
+.cx-sc-check { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: baseline; column-gap: 12px; min-height: 22px; color: var(--ink-2); }
+.cx-sc-check > span:first-child { white-space: nowrap; }
+.cx-sc-check__end { display: flex; flex-wrap: wrap; justify-content: flex-end; column-gap: 6px; text-align: right; }
+.cx-sc-check__end > .cx-sc-mono { color: var(--ink); white-space: nowrap; }
+.cx-sc-check__end > .cx-sc-ok { color: var(--ok); }
+.cx-sc-check__end > .cx-sc-warn { color: var(--warn); }
+.cx-sc-check__end > .cx-sc-check__own { flex-basis: 100%; white-space: normal; }
+.cx-sc-ok { color: var(--ok); }
+.cx-sc-warn { color: var(--warn); }
+.cx-sc-float-button { padding: 0; border: 0; background: none; color: var(--ink); cursor: pointer; text-decoration: underline dotted var(--ink-3); text-underline-offset: 3px; }
+.cx-sc-float-button:disabled { cursor: default; text-decoration: none; }
+.cx-sc-float-button--bad { color: var(--bad); text-decoration-color: var(--bad); }
+.cx-sc-float { width: 140px; }
+
+/* ── Phone ──────────────────────────────────────────────────── */
+@media (max-width: 719px) {
+  .cx-sc { grid-template-columns: minmax(0, 1fr); }
+  .cx-sc-main { padding: 16px; }
+  .cx-sc-tables { grid-template-columns: minmax(0, 1fr); }
+  .cx-sc-aside { border-left: 0; border-top: 1px solid var(--line); padding: 16px; }
+}

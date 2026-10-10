@@ -16,7 +16,7 @@ import {
 } from "@/components/management/ui";
 import { CRM_STAGE_LABELS } from "@/components/crm/leads/stage-config";
 import { ClientDate } from "@/components/ui/client-date";
-import { DateRangeFilter } from "@/components/ui/date-range-filter";
+import { COMMON_PRESETS, DateRangePicker, DayRangeChip } from "@/components/ui/date-picker";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ApiError, fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import {
@@ -185,6 +185,9 @@ export function RepDetailPage({ repId }: { repId: string }) {
     enabled: section === "money" && Boolean(period),
   });
 
+  // What the chip shows: the chosen days, else the period the server answered with.
+  const shownPeriod = { from: from ?? period?.from ?? null, to: to ?? period?.to ?? null };
+
   const setPeriod = (next: { from: string | null; to: string | null }) => {
     const params = new URLSearchParams(searchParams.toString());
     for (const [key, value] of Object.entries(next)) {
@@ -301,12 +304,14 @@ export function RepDetailPage({ repId }: { repId: string }) {
       // One period for every section: what they did, what they spent, which
       // days — all of it this month unless somebody chooses otherwise.
       toolbar={
-        <DateRangeFilter
-          label="Period"
-          anyLabel="This month"
-          value={{ from: from ?? period?.from ?? null, to: to ?? period?.to ?? null }}
-          max={todayKey()}
+        <DateRangePicker
+          openEnded
+          presets={COMMON_PRESETS}
+          title="Period"
+          value={shownPeriod}
+          latest={todayKey()}
           onChange={setPeriod}
+          trigger={<DayRangeChip label="Period" range={shownPeriod} anyLabel="This month" />}
         />
       }
       // The open section is the URL's, which the shell's own links write.

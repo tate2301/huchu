@@ -29,6 +29,11 @@ export const PUBLIC_BASE_PATHS = [
    * has no session and no tenant yet, which is the point.
    */
   "/signup",
+  /**
+   * Joining a shop by the WhatsApp link a new person is sent — /join/[token]
+   * (80-admin 5.6). They have no password yet, or never will (till only).
+   */
+  "/join",
 ] as const;
 
 export function isPublicPath(pathname: string): boolean {

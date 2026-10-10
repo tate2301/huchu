@@ -119,7 +119,7 @@ test.describe("the back office", () => {
     */
     const shot = shooter("retail", "shelf-photo");
 
-    await visitSettled(page, "/retail/catalog");
+    await visitSettled(page, "/retail/products");
     await settle(page, SETTLE_MS);
     await shot(page, "the-range");
 

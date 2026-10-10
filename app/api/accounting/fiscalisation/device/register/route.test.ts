@@ -29,7 +29,6 @@ vi.mock("@/lib/accounting/fdms-device", async () => {
 
 vi.mock("@/lib/accounting/zimra-tax-mapping", () => ({ applyZimraTaxMapping: applyMappingMock }));
 
-import { SETTINGS_PROVIDER_KEYS } from "@/lib/accounting/fiscal-device-scope";
 import { POST } from "./route";
 
 const COMPANY_ID = "company-1";
@@ -43,7 +42,7 @@ function request(body: unknown) {
 }
 
 function signedInAs(role: string) {
-  validateSessionMock.mockResolvedValue({ session: { user: { companyId: COMPANY_ID, role } } });
+  validateSessionMock.mockResolvedValue({ session: { user: { id: "user-1", companyId: COMPANY_ID, role } } });
 }
 
 const PROVIDER = {
@@ -81,6 +80,16 @@ describe("POST /api/accounting/fiscalisation/device/register", () => {
     expect(registerDeviceMock).not.toHaveBeenCalled();
   });
 
+  it("in a shop, is the owner's to do: the manager reads the fiscal device", async () => {
+    validateSessionMock.mockResolvedValue({
+      session: { user: { companyId: COMPANY_ID, role: "MANAGER", enabledFeatures: ["retail.core"] } },
+    });
+    const response = await POST(request({ activationKey: "00112233", serialNumber: "SN-1" }));
+    expect(response.status).toBe(403);
+    expect((await response.json()).error).toBe("Your role cannot change the fiscal device");
+    expect(prismaMock.fiscalisationProviderConfig.findFirst).not.toHaveBeenCalled();
+  });
+
   it("looks for a device, never a retail settings row", async () => {
     signedInAs("MANAGER");
     prismaMock.fiscalisationProviderConfig.findFirst.mockResolvedValue(null);
@@ -93,7 +102,6 @@ describe("POST /api/accounting/fiscalisation/device/register", () => {
         where: {
           companyId: COMPANY_ID,
           isActive: true,
-          providerKey: { notIn: [...SETTINGS_PROVIDER_KEYS] },
         },
       }),
     );
@@ -115,8 +123,12 @@ describe("POST /api/accounting/fiscalisation/device/register", () => {
     expect(call.activationKey).toBe("00112233");
     expect(call.certificateRequestPem).toMatch(/BEGIN CERTIFICATE REQUEST/);
 
-    const saved = prismaMock.fiscalisationProviderConfig.update.mock.calls[0][0];
+    // First the answer is noted (SET-08), then the certificate is kept.
+    expect(prismaMock.fiscalisationProviderConfig.update.mock.calls[0][0].data).toHaveProperty("lastOkAt");
+    const saved = prismaMock.fiscalisationProviderConfig.update.mock.calls[1][0];
     expect(saved.where).toEqual({ id: PROVIDER.id });
+    expect(saved.data.serialNumber).toBe("SN-1");
+    expect(saved.data.registeredAt).toBeInstanceOf(Date);
     const bundle = JSON.parse(saved.data.certificateRef);
     expect(bundle.key).toMatch(/PRIVATE KEY/);
     expect(bundle.cert).toMatch(/BEGIN CERTIFICATE/);
@@ -142,6 +154,8 @@ describe("POST /api/accounting/fiscalisation/device/register", () => {
 
     expect(response.status).toBe(502);
     expect((await response.json()).error).toBe("Activation key already used");
-    expect(prismaMock.fiscalisationProviderConfig.update).not.toHaveBeenCalled();
+    // ZIMRA answered, so only that is noted: no certificate, no registration.
+    const writes = prismaMock.fiscalisationProviderConfig.update.mock.calls.map((call) => call[0].data);
+    expect(writes).toEqual([{ lastOkAt: expect.any(Date) }]);
   });
 });

@@ -1,0 +1,169 @@
+/*
+  The custom report editor: the page editor's column, and the sources it can
+  read beside it. The block controls are the arranger's own
+  (report-arranger.module.css), so the two builders read as one product.
+*/
+@layer components {
+  .frame {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    height: calc(100dvh - var(--stack-top, 0px) - 49px);
+    margin: -16px -16px 0;
+    border-top: 1px solid var(--border);
+    background: var(--surface);
+  }
+
+  @media (min-width: 1280px) {
+    .frame {
+      grid-template-columns: minmax(0, 1fr) 280px;
+    }
+  }
+
+  .aside {
+    display: none;
+    min-height: 0;
+    overflow-y: auto;
+    border-left: 1px solid var(--border);
+    background: var(--canvas);
+    padding: 16px 14px 48px;
+  }
+
+  @media (min-width: 1280px) {
+    .aside {
+      display: block;
+    }
+  }
+
+  .titleInput {
+    width: 100%;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    font-family: inherit;
+    font-weight: 600;
+    font-size: 22px;
+    line-height: 1.25;
+    letter-spacing: -0.016em;
+    color: var(--text-strong);
+    outline: none;
+  }
+
+  .descriptionInput {
+    display: block;
+    width: 100%;
+    margin-top: 6px;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    resize: none;
+    font-family: inherit;
+    font-size: 13px;
+    line-height: 1.5;
+    color: var(--text-body);
+    field-sizing: content;
+    outline: none;
+  }
+
+  .titleInput::placeholder,
+  .descriptionInput::placeholder,
+  .blockTitle::placeholder,
+  .blockName::placeholder {
+    color: var(--text-subtle);
+  }
+
+  .titleInput:focus-visible,
+  .descriptionInput:focus-visible,
+  .blockTitle:focus-visible,
+  .blockName:focus-visible {
+    border-radius: 4px;
+    box-shadow: 0 0 0 2px var(--focus-ring);
+  }
+
+  .settings {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 16px;
+    margin: 14px 0 28px;
+    padding-bottom: 14px;
+    border-bottom: 1px solid var(--border);
+    font-size: 12px;
+    color: var(--text-muted);
+  }
+
+  .blockHead {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+  }
+
+  .blockTitle {
+    flex: 1;
+    min-width: 0;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    font-family: inherit;
+    font-weight: 600;
+    font-size: 15px;
+    line-height: 1.35;
+    color: var(--text-strong);
+    outline: none;
+  }
+
+  .blockName {
+    width: 12ch;
+    padding: 2px 6px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    background: var(--canvas);
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--text-muted);
+    outline: none;
+  }
+
+  .preview {
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px dashed var(--border);
+  }
+
+  .previewScroll {
+    max-height: 440px;
+    overflow: auto;
+  }
+
+  .sourceButton {
+    display: flex;
+    width: 100%;
+    align-items: baseline;
+    gap: 6px;
+    padding: 4px 6px;
+    border: 0;
+    border-radius: 4px;
+    background: transparent;
+    text-align: left;
+    font-size: 12px;
+    line-height: 1.4;
+    color: var(--text);
+    cursor: pointer;
+  }
+
+  .sourceButton:hover {
+    background: var(--surface);
+  }
+
+  .sourceButton:focus-visible {
+    outline: 2px solid var(--focus-ring);
+  }
+
+  .columnList {
+    margin: 2px 0 8px 14px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    line-height: 1.7;
+    color: var(--text-muted);
+  }
+}

@@ -131,13 +131,13 @@ export async function searchGlobal(query: string, limit = 20): Promise<SearchInd
     ...admins.map((row) => ({
       id: `admin:${row.id}`,
       kind: "admin" as const,
-      label: row.email,
+      label: row.email ?? row.name,
       detail: `Admin ${row.name}`,
       moduleId: "admins",
       companyId: row.companyId,
       companySlug: row.company?.slug,
       companyName: row.company?.name,
-      keywords: [row.email, row.name, row.id],
+      keywords: [row.email ?? "", row.name, row.id],
     })),
     ...incidents.map((row) => ({
       id: `incident:${row.id}`,

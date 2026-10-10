@@ -30,7 +30,7 @@ describe("session during SSR", () => {
   });
 
   it("the root layout hands it to the providers", () => {
-    expect(LAYOUT).toMatch(/<AppProviders session=\{session\}>/);
+    expect(LAYOUT).toMatch(/<AppProviders session=\{session\}[\s>]/);
   });
 
   it("the providers hand it to SessionProvider", () => {

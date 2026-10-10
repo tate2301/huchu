@@ -3,6 +3,7 @@ import {
   DEFAULT_TAX_CODES,
   getZimbabweRetailFoundationPack,
   includeSchoolFlows,
+  RETAIL_ROLE_ACCOUNT_CODES,
   ZIMBABWE_RETAIL_FOUNDATION_PACK_CODE,
 } from "@/lib/accounting/defaults";
 import {
@@ -67,6 +68,8 @@ export type AccountingSeedPackResult = {
   createdTaxRules: number;
   createdPostingRules: number;
   createdTenderMappings: number;
+  /** SET-09: the role accounts ("Sales", "VAT" …) the retail rules post to. */
+  createdRoleMappings: number;
   createdCurrencyDefinitions: number;
   createdCurrencyRates: number;
   createdPeriods: number;
@@ -79,6 +82,7 @@ export type AccountingSeedPackResult = {
     missingTaxRules: string[];
     missingPostingRules: string[];
     missingTenderMappings: string[];
+    missingRoleMappings: string[];
     missingCurrencies: string[];
     missingFxQuotes: string[];
   };
@@ -425,6 +429,8 @@ export async function runAccountingSeedPack(input: SeedPackInput): Promise<Accou
       existingCurrencies,
       existingBankAccounts,
       existingPeriods,
+      existingRoleMappings,
+      existingRates,
     ] = await Promise.all([
       prisma.accountingSettings.upsert({
         where: { companyId: input.companyId },
@@ -471,7 +477,21 @@ export async function runAccountingSeedPack(input: SeedPackInput): Promise<Accou
         where: { companyId: input.companyId },
         select: { id: true, startDate: true, endDate: true },
       }),
+      prisma.retailAccountRoleMapping.findMany({
+        where: { companyId: input.companyId },
+        select: { role: true },
+      }),
+      prisma.currencyRate.findMany({
+        where: { companyId: input.companyId, baseCurrency: "USD" },
+        distinct: ["quoteCurrency"],
+        select: { quoteCurrency: true },
+      }),
     ]);
+    const ratedCurrencies = new Set(existingRates.map((rate) => rate.quoteCurrency));
+    const mappedRoles = new Set(existingRoleMappings.map((mapping) => mapping.role));
+    const missingRoles = (Object.keys(RETAIL_ROLE_ACCOUNT_CODES) as Array<keyof typeof RETAIL_ROLE_ACCOUNT_CODES>).filter(
+      (role) => !mappedRoles.has(role),
+    );
 
     const accountByCode = new Map(existingAccounts.map((account) => [account.code, account.id]));
     const taxCodeByCode = new Map(existingTaxCodes.map((taxCode) => [taxCode.code, taxCode.id]));
@@ -508,10 +528,13 @@ export async function runAccountingSeedPack(input: SeedPackInput): Promise<Accou
                 (existing.currency ?? null) === (mapping.currency ?? null),
             ),
         )
-        .map((mapping) => mapping.tenderType),
+        .map((mapping) => (mapping.currency ? `${mapping.tenderType}:${mapping.currency}` : mapping.tenderType)),
+      missingRoleMappings: missingRoles,
       missingCurrencies: pack.currencies.filter((currency) => !currencyCodeSet.has(currency.code)).map((currency) => currency.code),
+      // A currency with no rate yet, none in the books and none given with this run.
       missingFxQuotes: pack.currencies
         .filter((currency) => !currency.isBase)
+        .filter((currency) => !ratedCurrencies.has(currency.code))
         .filter((currency) => toMoney(input.fxRates?.[currency.code]) <= 0)
         .map((currency) => currency.code),
     };
@@ -523,6 +546,7 @@ export async function runAccountingSeedPack(input: SeedPackInput): Promise<Accou
     let createdTaxRules = 0;
     let createdPostingRules = 0;
     let createdTenderMappings = 0;
+    let createdRoleMappings = 0;
     let createdCurrencyDefinitions = 0;
     let createdCurrencyRates = 0;
     let createdPeriods = 0;
@@ -751,6 +775,15 @@ export async function runAccountingSeedPack(input: SeedPackInput): Promise<Accou
         createdTenderMappings += 1;
       }
 
+      for (const role of missingRoles) {
+        const accountId = nextAccountByCode.get(RETAIL_ROLE_ACCOUNT_CODES[role]);
+        if (!accountId) {
+          throw new Error(`Account ${RETAIL_ROLE_ACCOUNT_CODES[role]} is required for the ${role} role`);
+        }
+        await prisma.retailAccountRoleMapping.create({ data: { companyId: input.companyId, role, accountId } });
+        createdRoleMappings += 1;
+      }
+
       for (const rule of pack.postingRules) {
         const existing = existingRules.find(
           (row) => row.name === rule.name && row.sourceType === rule.sourceType && row.siteId === null,
@@ -765,6 +798,7 @@ export async function runAccountingSeedPack(input: SeedPackInput): Promise<Accou
           taxCodeId: line.taxCodeCode ? nextTaxCodeByCode.get(line.taxCodeCode) ?? null : null,
           repeatMode: line.repeatMode ?? "NONE",
           accountSource: line.accountSource ?? "FIXED_ACCOUNT",
+          accountRole: line.accountRole ?? null,
           valuePath: line.valuePath ?? null,
           memoTemplate: line.memoTemplate ?? null,
           costCenterId: null,
@@ -883,6 +917,7 @@ export async function runAccountingSeedPack(input: SeedPackInput): Promise<Accou
       createdTaxRules,
       createdPostingRules,
       createdTenderMappings,
+      createdRoleMappings,
       createdCurrencyDefinitions,
       createdCurrencyRates,
       createdPeriods,

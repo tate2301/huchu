@@ -83,10 +83,10 @@ function assertAssignableRoleForCompany(
   }
 }
 
-function assertManagedLifecycleTarget(user: { role: string; email: string }) {
+function assertManagedLifecycleTarget(user: { role: string; email: string | null }) {
   if (user.role === "SUPERADMIN") {
     throw new Error(
-      `User ${user.email} is SUPERADMIN. SUPERADMIN lifecycle must be managed in the Admins module.`,
+      `User ${user.email ?? "without an email"} is SUPERADMIN. SUPERADMIN lifecycle must be managed in the Admins module.`,
     );
   }
 }
@@ -108,7 +108,7 @@ async function assertHasActiveSuperadmin(companyId: string) {
 
 function mapUser(row: {
   id: string;
-  email: string;
+  email: string | null;
   name: string;
   role: string;
   isActive: boolean;
@@ -119,7 +119,8 @@ function mapUser(row: {
 }): UserSummary {
   return {
     id: row.id,
-    email: row.email,
+    // A till-only person has no email (80-admin, People).
+    email: row.email ?? "",
     name: row.name,
     role: row.role as UserRole,
     isActive: row.isActive,
@@ -229,7 +230,7 @@ export async function createUser(input: CreateUserInput): Promise<UserCreateResu
     id: user.id,
     companyId: user.companyId,
     companyName: company.name,
-    email: user.email,
+    email: user.email ?? "",
     name: user.name,
     role: user.role as UserRole,
     isActive: user.isActive,
@@ -286,7 +287,7 @@ export async function setUserStatus(input: SetUserStatusInput & { isActive: bool
 
   return {
     userId: updated.id,
-    email: updated.email,
+    email: updated.email ?? "",
     name: updated.name,
     role: updated.role as UserRole,
     isActive: updated.isActive,
@@ -333,7 +334,7 @@ export async function resetUserPassword(input: ResetUserPasswordInput): Promise<
 
   return {
     userId: user.id,
-    email: user.email,
+    email: user.email ?? "",
     role: user.role as UserRole,
     companyId: user.companyId,
     companyName: user.company.name,
@@ -366,7 +367,7 @@ export async function changeUserRole(input: ChangeUserRoleInput): Promise<UserRo
 
   const beforeRole = normalizeEnum(before.role, "role", USER_MANAGEMENT_ROLES);
   if (beforeRole === afterRole) {
-    throw new Error(`User ${before.email} is already ${afterRole}.`);
+    throw new Error(`User ${before.email ?? before.name} is already ${afterRole}.`);
   }
 
   const updated = await prisma.user.update({
@@ -399,7 +400,7 @@ export async function changeUserRole(input: ChangeUserRoleInput): Promise<UserRo
 
   return {
     userId: updated.id,
-    email: updated.email,
+    email: updated.email ?? "",
     name: updated.name,
     beforeRole,
     afterRole,

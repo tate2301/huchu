@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { successResponse } from "@/lib/api-response";
+import { RETAIL_TENDER_TYPES } from "@/lib/accounting/source-types";
 import {
   money,
   resolveBaseCurrency,
@@ -10,7 +11,14 @@ import {
 import { prisma } from "@/lib/prisma";
 import { getCashNetFromPayments } from "@/lib/retail/cash-up";
 import { requireRetailPermission } from "@/lib/retail/permissions";
+import { requirePosDevice } from "@/lib/retail/devices";
+import { floatToLeave } from "@/lib/retail/floor/shifts";
 import { requireRetailSession } from "../../_helpers";
+
+/** Every tender but cash, in the base currency, each always present. */
+const NON_CASH_TENDERS = RETAIL_TENDER_TYPES.filter(
+  (tender): tender is Exclude<(typeof RETAIL_TENDER_TYPES)[number], "CASH"> => tender !== "CASH",
+);
 
 export async function GET(request: NextRequest) {
   const { response, session } = await requireRetailSession(request);
@@ -22,11 +30,16 @@ export async function GET(request: NextRequest) {
   // person with no business at a till has no business asking.
   const gate = requireRetailPermission(session, "retail.sell", "view");
   if (gate) return gate;
+  const { device, response: deviceResponse } = await requirePosDevice(request, session);
+  if (deviceResponse) return deviceResponse;
 
+  // The caller's open drawer on this till. One open on another till is not
+  // this till's: opening here says "Close your shift on {till} first."
   const shift = await prisma.retailShift.findFirst({
     where: {
       companyId: session.user.companyId,
       cashierId: session.user.id,
+      registerId: device.registerId,
       status: "OPEN",
     },
     orderBy: { openedAt: "desc" },
@@ -87,16 +100,26 @@ export async function GET(request: NextRequest) {
   ).abs();
   // `baseAmount` here too. A card or EcoCash tender in ZWG is the same face-value
   // trap as cash, and this figure sits beside the cash total on the same screen.
-  const nonCashNet = sumMoney(
-    postedSales
-      .flatMap((sale) => sale.payments)
-      .filter((payment) => payment.tenderType !== "CASH")
-      .map((payment) => money(payment.baseAmount)),
-  );
+  const nonCashPayments = postedSales.flatMap((sale) => sale.payments).filter((payment) => payment.tenderType !== "CASH");
+  const nonCashNet = sumMoney(nonCashPayments.map((payment) => money(payment.baseAmount)));
+  // The same, tender by tender, net of refunds and voids: what the cash-up checks against each statement.
+  const nonCashByTender = Object.fromEntries(
+    NON_CASH_TENDERS.map((tender) => [
+      tender,
+      toNumberOrZero(
+        sumMoney(nonCashPayments.filter((payment) => payment.tenderType === tender).map((payment) => money(payment.baseAmount))),
+      ),
+    ]),
+  ) as Record<(typeof NON_CASH_TENDERS)[number], number>;
 
   return successResponse({
     data: {
       ...shift,
+      // Numbers on the wire, like every figure below: the till does sums with them.
+      openingFloat: toNumberOrZero(shift.openingFloat),
+      expectedCash: toNumberOrZero(shift.expectedCash),
+      // The close's default float left for tomorrow, the same rule as the back office's close page (FLR-04).
+      floatLeft: await floatToLeave(shift),
       actorRole: session.user.role,
       baseCurrency,
       site,
@@ -113,11 +136,12 @@ export async function GET(request: NextRequest) {
         sumMoney(saleTickets.flatMap((sale) => sale.lines).map((line) => line.quantity)),
       ),
       transactionCount: postedSales.length,
-      cashSales: cashIn,
-      cashIn,
-      cashOut,
-      cashNet: cashIn.minus(cashOut),
-      nonCashSales: nonCashNet,
+      cashSales: toNumberOrZero(cashIn),
+      cashIn: toNumberOrZero(cashIn),
+      cashOut: toNumberOrZero(cashOut),
+      cashNet: toNumberOrZero(cashIn.minus(cashOut)),
+      nonCashSales: toNumberOrZero(nonCashNet),
+      nonCashByTender,
       recentTransactions: recentCashierSales.map((sale) => ({
         id: sale.id,
         saleNo: sale.saleNo,

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { requirePosDevice } from "@/lib/retail/devices";
 import { errorResponse, successResponse } from "@/lib/api-response";
 import { parseRetailParams, retailIdParams } from "@/lib/retail/request";
 import { prisma } from "@/lib/prisma";
@@ -16,6 +17,8 @@ export async function POST(
 
   const gate = requireRetailPermission(session, "retail.sell", "create");
   if (gate) return gate;
+  const { response: deviceResponse } = await requirePosDevice(request, session);
+  if (deviceResponse) return deviceResponse;
 
   /*
     R-3.1. The segment, through a schema.

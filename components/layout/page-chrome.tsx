@@ -2,50 +2,83 @@
 
 import * as React from "react";
 
-import type { LucideIcon } from "@/lib/icons";
-
 /**
- * What the top app bar should say this page is.
+ * What the page header says this page is (00-foundations 5.3.5).
  *
- * The bar used to carry a breadcrumb trail, which spent its width restating
- * the sidebar — the section you are in is already lit up over there. The page
- * title and its icon are the one thing the bar could say that nothing else on
- * screen does, so that is what it says now, and the page stops repeating it in
- * its own body.
+ * Back link, title, then a record's reference or a list's sub and sub link.
+ * A page that sets none is named by its nav item.
  */
 export type PageIdentity = {
   title: string;
-  icon?: LucideIcon;
-  /**
-   * A record's reference — `DEAL-0001`, `INV-0042` — set in mono after its
-   * name. It is part of what the record is called, so it sits with the name
-   * rather than in a band of its own under the bar.
-   */
-  reference?: string | null;
-  /**
-   * Where "up" is, for a page that sits under a list. Rendered in the bar
-   * immediately before the title, because that is where the page's name is —
-   * a back link stranded in the body is a second header in a different place.
-   */
   back?: { href: string; label: string };
+  /** A record's reference — `PO-0003`, `SH-00242` — in mono after its name. */
+  reference?: string | null;
+  /** A list's one-line explanation, in `--ink-3`. */
+  sub?: string | null;
+  /** A link after the sub ("Edit the rules"). */
+  subLink?: { href: string; label: string } | null;
+  /**
+   * After the reference, in its mono: the one thing the page is about, as a
+   * menu of the others (End of day's site, with more than one).
+   */
+  picker?: PagePicker | null;
+};
+
+export type PagePicker = { label: string; options: Array<{ key: string; label: string; href: string }> };
+
+/**
+ * The page's one primary action, at the right of the header. A create action
+ * carries the plus; a record verb does not. It goes to `href`, opens the sheet
+ * `?sheet=<kind>` over this page, or runs `onClick`. On a phone a create
+ * action is the 44px plus and a verb is the first item of ⋯.
+ */
+export type PagePrimary = {
+  label: string;
+  icon?: "plus";
+  href?: string;
+  sheet?: string;
+  onClick?: () => void;
+  /** Why it cannot be pressed yet: drawn disabled, the reason its tooltip ("2 things before closing"). */
+  disabled?: string;
+  /** A menu under it instead of one action ("+ New bundle or pack": a pack, a bundle, a buy-more deal). */
+  menu?: Array<{ label: string; href: string }>;
+};
+
+/**
+ * One item of the page's ⋯ on a phone, when the page lists its actions as
+ * items rather than letting the header fold its controls (a record: its
+ * action group and its ⋯ as one menu, 5.6.2).
+ */
+export type PageMenuItem = {
+  key: string;
+  label: string;
+  danger?: boolean;
+  sub?: string;
+  onSelect: () => void;
 };
 
 type PageChromeContextValue = {
   actions: React.ReactNode;
   setActions: (actions: React.ReactNode) => void;
+  phoneMenu: PageMenuItem[] | null;
+  setPhoneMenu: (items: PageMenuItem[] | null) => void;
   identity: PageIdentity | null;
   setIdentity: (identity: PageIdentity | null) => void;
+  primary: PagePrimary | null;
+  setPrimary: (primary: PagePrimary | null) => void;
 };
 
 const PageChromeContext = React.createContext<PageChromeContextValue | null>(null);
 
 function PageChromeProvider({ children }: { children: React.ReactNode }) {
   const [actions, setActions] = React.useState<React.ReactNode>(null);
+  const [phoneMenu, setPhoneMenu] = React.useState<PageMenuItem[] | null>(null);
   const [identity, setIdentity] = React.useState<PageIdentity | null>(null);
+  const [primary, setPrimary] = React.useState<PagePrimary | null>(null);
 
   const value = React.useMemo(
-    () => ({ actions, setActions, identity, setIdentity }),
-    [actions, identity],
+    () => ({ actions, setActions, phoneMenu, setPhoneMenu, identity, setIdentity, primary, setPrimary }),
+    [actions, phoneMenu, identity, primary],
   );
 
   return <PageChromeContext.Provider value={value}>{children}</PageChromeContext.Provider>;
@@ -60,17 +93,10 @@ function usePageChrome() {
 }
 
 /**
- * Registers this page's title, icon and actions with the top app bar.
+ * Registers this page's identity, actions and primary with the page header.
  *
- * Renders nothing. Children are the page's actions — pass the buttons that
- * would once have sat in a page header and they appear in the bar next to
- * search and notifications.
- *
- * The icon is optional and usually left off: the bar falls back to the icon
- * the sidebar already shows for this route, which is the one people are
- * looking for. Pass one only where the route has no nav entry — a record page
- * under a list, say. It cannot be passed from a Server Component, because an
- * icon is a function; register from a client component when you need it.
+ * Renders nothing. Children are the page's own controls (a record's action
+ * group and ⋯, a dashboard's Export); `primary` is its one orange button.
  *
  * Safe to render on every page render even though `children` is a fresh
  * element each time: `AppShell` receives the page as a `children` prop from a
@@ -80,32 +106,47 @@ function usePageChrome() {
  */
 function PageChrome({
   title,
-  icon,
   reference,
   backHref,
   backLabel,
+  sub,
+  subLink,
+  picker,
+  primary,
+  phoneMenu,
   children,
 }: {
   title: string;
-  icon?: LucideIcon;
   reference?: string | null;
   /** Where "up" goes. Both this and `backLabel` are needed for a back link. */
   backHref?: string;
   backLabel?: string;
-  /** The page's actions, rendered in the top app bar. */
+  sub?: string | null;
+  subLink?: { href: string; label: string } | null;
+  picker?: PagePicker | null;
+  primary?: PagePrimary | null;
+  /** The phone's ⋯ items in place of the folded `children`. */
+  phoneMenu?: PageMenuItem[] | null;
+  /** The page's actions, rendered in the header. */
   children?: React.ReactNode;
 }) {
-  const { setActions, setIdentity } = usePageChrome();
+  const { setActions, setIdentity, setPrimary, setPhoneMenu } = usePageChrome();
+  const subLinkHref = subLink?.href;
+  const subLinkLabel = subLink?.label;
+  // By value: the page draws a fresh picker each render.
+  const pickerKey = picker ? JSON.stringify(picker) : null;
 
   React.useEffect(() => {
     setIdentity({
       title,
-      icon,
       reference,
+      sub,
+      subLink: subLinkHref && subLinkLabel ? { href: subLinkHref, label: subLinkLabel } : null,
+      picker: pickerKey ? (JSON.parse(pickerKey) as PagePicker) : null,
       back: backHref && backLabel ? { href: backHref, label: backLabel } : undefined,
     });
     return () => setIdentity(null);
-  }, [title, icon, reference, backHref, backLabel, setIdentity]);
+  }, [title, reference, sub, subLinkHref, subLinkLabel, pickerKey, backHref, backLabel, setIdentity]);
 
   React.useEffect(() => {
     // Left undefined, this component is only claiming the title — some other
@@ -116,10 +157,22 @@ function PageChrome({
     return () => setActions(null);
   }, [children, setActions]);
 
+  React.useEffect(() => {
+    if (phoneMenu === undefined) return;
+    setPhoneMenu(phoneMenu);
+    return () => setPhoneMenu(null);
+  }, [phoneMenu, setPhoneMenu]);
+
+  React.useEffect(() => {
+    if (primary === undefined) return;
+    setPrimary(primary);
+    return () => setPrimary(null);
+  }, [primary, setPrimary]);
+
   return null;
 }
 
-/** Actions only, for pages whose title still comes from the route table. */
+/** Actions only, for pages whose title still comes from the nav. */
 function PageActions({ children }: { children: React.ReactNode }) {
   const { setActions } = usePageChrome();
 

@@ -1,10 +1,9 @@
 "use client";
 
-import { useMemo, type CSSProperties, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, type CSSProperties, type ReactNode } from "react";
 
-import { Alert, Button } from "@corelithzw/react";
-import { PageChrome } from "@/components/layout/page-chrome";
-import { Plus } from "@/lib/icons";
+import { Alert } from "@corelithzw/react";
+import { PageChrome, type PagePrimary } from "@/components/layout/page-chrome";
 import { cn } from "@/lib/utils";
 
 import { ListSearch } from "./list-search";
@@ -92,18 +91,21 @@ export function RecordListShell({
   width?: "full" | "narrow";
   children: ReactNode;
 }) {
-  const actions = useMemo(
+  // The create action is the page's one primary (00-foundations 5.3.5): the
+  // orange button at the right of the header, and the 44px plus on a phone.
+  // The handler is read through a ref so a page passing a fresh arrow each
+  // render does not re-register the header on every render.
+  const onCreateRef = useRef(onCreate);
+  useEffect(() => {
+    onCreateRef.current = onCreate;
+  }, [onCreate]);
+  const hasCreate = Boolean(createLabel && onCreate);
+  const primary = useMemo<PagePrimary | null>(
     () =>
-      createLabel && onCreate ? (
-        <Button
-          variant="primary"
-          startIcon={<Plus className="h-4 w-4" />}
-          onClick={onCreate}
-        >
-          {createLabel}
-        </Button>
-      ) : null,
-    [createLabel, onCreate],
+      hasCreate && createLabel
+        ? { label: createLabel, icon: "plus", onClick: () => onCreateRef.current?.() }
+        : null,
+    [createLabel, hasCreate],
   );
 
   return (
@@ -122,7 +124,7 @@ export function RecordListShell({
         } as CSSProperties
       }
     >
-      <PageChrome title={title}>{actions}</PageChrome>
+      <PageChrome title={title} primary={primary} />
 
       {notice ? <div className="mb-3">{notice}</div> : null}
 

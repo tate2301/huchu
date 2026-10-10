@@ -1,0 +1,93 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   SETTINGS FRAME — every settings page (00-foundations 5.10; board
+   CompanySettings).
+
+   Under the shell's header: a body of two columns — the form column (a
+   scroll region holding the form, 680px at most, and the 60px save bar at
+   its foot) and the 320px aside on --ground. Under 1100px the aside moves
+   under the form; under 720px the form's padding is 16. Every rule reads a
+   role from roles.css.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.cx-sf {
+  display: flex;
+  flex-direction: column;
+  height: var(--content-viewport);
+  width: calc(100% + (var(--content-gutter-x) * 2));
+  margin-inline: calc(var(--content-gutter-x) * -1);
+  margin-top: calc(var(--content-lede) * -1);
+  background: var(--surface);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  font-size: 13px;
+  line-height: 1.4;
+}
+.cx-sf :is(button, a, input, textarea):focus-visible { outline: 2px solid var(--action); outline-offset: 3px; }
+
+.cx-sf-body { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) 320px; grid-template-rows: minmax(0, 1fr); }
+.cx-sf-main { min-width: 0; min-height: 0; display: flex; flex-direction: column; }
+.cx-sf-scroll { flex: 1; min-height: 0; overflow: auto; padding: 4px 32px 32px; }
+.cx-sf-form { max-width: 680px; }
+
+/* A value the page shows and does not change here: the read box, at the weight of the text around it. */
+.cx-sf .cx-read { font-weight: 400; overflow-wrap: anywhere; }
+.cx-sf .cx-read--area { min-height: 58px; align-items: flex-start; padding-top: 9px; padding-bottom: 9px; white-space: pre-line; }
+.cx-sf-empty { color: var(--faint); }
+.cx-sf-logo { width: 28px; height: 28px; margin-right: 10px; border-radius: 6px; object-fit: cover; background: var(--surface); }
+/* A choice with one option today ("By hand" until the RBZ feed is connected): a segment's width, not the track's. */
+.cx-sf .cx-seg--block > .cx-seg__item:only-child { flex: 0 0 50%; }
+.cx-sf-note { margin: -6px 0 0; color: var(--ink-3); font-size: 12.5px; line-height: 1.4; }
+.cx-sf-note a { color: var(--ink); text-decoration: underline; text-decoration-color: var(--line-strong); text-underline-offset: 3px; }
+
+/* ── Save bar (5.10.1) ──────────────────────────────────── */
+.cx-sf-bar { height: 60px; flex: none; box-sizing: border-box; display: flex; align-items: center; gap: 10px; padding: 0 32px; border-top: 1px solid var(--line); background: var(--ground); }
+.cx-sf-bar__line { flex: 1; min-width: 0; color: var(--ink-3); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.cx-sf-bar__dirty { flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; font-weight: 500; }
+.cx-sf-bar__dot { width: 8px; height: 8px; flex: none; border-radius: 99px; background: var(--warn-dot); }
+.cx-sf-bar__error { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; color: var(--bad); font-weight: 400; }
+
+/* ── Aside ──────────────────────────────────────────────── */
+.cx-sf-aside { min-width: 0; overflow: auto; border-left: 1px solid var(--line); background: var(--ground); padding: 24px; display: flex; flex-direction: column; gap: 22px; }
+.cx-sf-aside__section { display: flex; flex-direction: column; gap: 10px; }
+.cx-sf-aside__section + .cx-sf-aside__section { padding-top: 22px; border-top: 1px solid var(--line); }
+.cx-sf-aside h2 { margin: 0; font-size: 14px; font-weight: 600; }
+.cx-sf-aside ul { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 8px; }
+.cx-sf-aside li { display: flex; gap: 10px; line-height: 1.45; color: var(--ink-2); }
+.cx-sf-aside li::before { content: ""; flex: none; width: 6px; height: 6px; margin-top: 7px; border-radius: 99px; background: var(--faint); }
+.cx-sf-aside p { margin: 0; line-height: 1.5; color: var(--ink-2); }
+.cx-sf-aside p a { color: var(--ink); text-decoration: underline; text-decoration-color: var(--line-strong); text-underline-offset: 3px; }
+/* The copy of the aside at the foot of the form, for narrow screens. */
+.cx-sf-aside--under { display: none; }
+
+/* ── States ─────────────────────────────────────────────── */
+.cx-sf-state { padding: 24px 0; color: var(--ink-3); }
+.cx-sf-state--bad { color: var(--bad); }
+.cx-sf-state button { margin-left: 6px; }
+.cx-sf-skel { height: 36px; border-radius: 8px; background: var(--tray); }
+
+@media (max-width: 1099px) {
+  .cx-sf-body { grid-template-columns: minmax(0, 1fr); }
+  .cx-sf-body > .cx-sf-aside { display: none; }
+  .cx-sf-aside--under { display: flex; overflow: visible; margin: 32px -32px -32px; border-left: 0; border-top: 1px solid var(--line); }
+}
+@media (max-width: 719px) {
+  .cx-sf-scroll { padding: 4px 16px 24px; }
+  .cx-sf-bar { padding: 0 16px; }
+  .cx-sf-aside--under { margin: 24px -16px -24px; padding: 24px 16px; }
+}
+
+/* ── Activity sheet ─────────────────────────────────────── */
+.cx-sf-activity { list-style: none; margin: 0; padding: 12px 0 0; display: flex; flex-direction: column; }
+.cx-sf-activity li { display: flex; gap: 10px; padding: 12px 0; border-bottom: 1px solid var(--line-soft); }
+.cx-sf-activity__dot { width: 8px; height: 8px; flex: none; margin-top: 5px; border-radius: 99px; background: var(--faint); }
+.cx-sf-activity__dot--info { background: var(--info); }
+.cx-sf-activity__dot--ok { background: var(--ok); }
+.cx-sf-activity__dot--bad { background: var(--bad); }
+.cx-sf-activity__dot--warn { background: var(--warn); }
+.cx-sf-activity__text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.cx-sf-activity__what { color: var(--ink); font-weight: 500; }
+.cx-sf-activity__meta { color: var(--ink-3); font-size: 12.5px; }
+.cx-sf-activity__meta .mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+.cx-sf-pager { display: flex; align-items: center; gap: 8px; padding-top: 14px; color: var(--ink-3); }
+.cx-sf-pager b { color: var(--ink); font-family: var(--font-mono); font-weight: 600; }
+.cx-sf-pager span { flex: 1; }

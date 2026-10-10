@@ -15,6 +15,7 @@ import { z } from "zod";
  */
 
 export const FIELD_TYPES = [
+  // Asking
   "text",
   "longText",
   "number",
@@ -26,6 +27,19 @@ export const FIELD_TYPES = [
   "checkbox",
   "file",
   "rating",
+  // Measuring — each has a figure a quote line can take its quantity from
+  "length",
+  "area",
+  "areas",
+  "count",
+  "reading",
+  "run",
+  // Capturing
+  "photos",
+  "signature",
+  // Laying out — on the page, never answered
+  "section",
+  "note",
 ] as const;
 export type FieldType = (typeof FIELD_TYPES)[number];
 
@@ -41,18 +55,58 @@ export const FIELD_TYPE_LABELS: Record<FieldType, string> = {
   checkbox: "Yes or no",
   file: "Upload",
   rating: "Rating",
+  length: "Length",
+  area: "Area",
+  areas: "Areas",
+  count: "Count",
+  reading: "Reading",
+  run: "Run of metres",
+  photos: "Photos",
+  signature: "Signature",
+  section: "Section",
+  note: "Note",
 };
+
+/** Types that sit on the page to organise it, and take no answer. */
+export const DISPLAY_FIELD_TYPES: readonly FieldType[] = ["section", "note"];
+
+/** Types that measure something: each has a figure (`measureOf`) a quote can use. */
+export const MEASURE_FIELD_TYPES: readonly FieldType[] = ["number", "length", "area", "areas", "count", "reading", "run"];
+
+/** Types measured in lengths, whose unit is one of `LENGTH_UNITS`. */
+export const LENGTH_UNIT_FIELD_TYPES: readonly FieldType[] = ["length", "area", "areas", "run"];
+
+export const LENGTH_UNITS = ["m", "cm", "mm"] as const;
+export type LengthUnit = (typeof LENGTH_UNITS)[number];
+
+const PER_METRE: Record<LengthUnit, number> = { m: 1, cm: 100, mm: 1000 };
+
+/** A length from one unit to another, to four places. */
+export function convertLength(value: number, from: LengthUnit, to: LengthUnit): number {
+  return Math.round((value / PER_METRE[from]) * PER_METRE[to] * 10_000) / 10_000;
+}
 
 /** Types that are meaningless without a list of choices. */
 export const CHOICE_FIELD_TYPES: readonly FieldType[] = ["select", "multiSelect"];
 
 /** Types whose `min` and `max` bound the value rather than its length. */
-export const NUMERIC_FIELD_TYPES: readonly FieldType[] = ["number", "rating"];
+export const NUMERIC_FIELD_TYPES: readonly FieldType[] = ["number", "rating", "length", "count", "reading"];
 
 /** Types whose `min` and `max` bound how many characters may be typed. */
 export const LENGTH_FIELD_TYPES: readonly FieldType[] = ["text", "longText"];
 
 export const DEFAULT_RATING_MAX = 5;
+
+/**
+ * When a question is asked: only once another has a given answer. Hidden
+ * questions are not asked, not required and not stored.
+ */
+export const fieldRuleSchema = z.object({
+  key: z.string().min(1).max(64),
+  op: z.enum(["is", "isNot", "isAnswered", "above", "below"]),
+  value: z.union([z.string().max(120), z.number().finite()]).optional(),
+});
+export type FieldRule = z.infer<typeof fieldRuleSchema>;
 
 export const fieldKeySchema = z
   .string()
@@ -86,6 +140,19 @@ export const fieldDefinitionSchema = z
      * record — `{{customer.name}}` saves somebody typing what is already known.
      */
     prefill: z.string().max(80).optional(),
+    /**
+     * What a figure is in. A length, area, areas or run: m, cm or mm. A number
+     * or a reading: whatever it is read in — %, kg, °C.
+     */
+    unit: z.string().trim().min(1).max(12).optional(),
+    /** An area: its length and width (the default), or its total alone. */
+    shape: z.enum(["rect", "total"]).optional(),
+    /** A figure outside these is accepted, and said in place: "over 4%, add a damp-proof primer". */
+    warnAbove: z.number().finite().optional(),
+    warnBelow: z.number().finite().optional(),
+    warning: z.string().trim().max(200).optional(),
+    /** Asked only when another answer says so. */
+    showWhen: fieldRuleSchema.optional(),
   })
   .superRefine((field, ctx) => {
     if (CHOICE_FIELD_TYPES.includes(field.type) && (field.options ?? []).length === 0) {
@@ -110,6 +177,16 @@ export const fieldDefinitionSchema = z
         message: `"${field.label}" has a lowest value above its highest`,
       });
     }
+    if (LENGTH_UNIT_FIELD_TYPES.includes(field.type) && field.unit && !(LENGTH_UNITS as readonly string[]).includes(field.unit)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["unit"],
+        message: `"${field.label}" is measured in m, cm or mm`,
+      });
+    }
+    if (field.showWhen?.key === field.key) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["showWhen"], message: `"${field.label}" cannot depend on itself` });
+    }
     if (field.type === "rating" && field.max !== undefined && (field.max < 2 || field.max > 10)) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
@@ -122,7 +199,7 @@ export type FieldDefinition = z.infer<typeof fieldDefinitionSchema>;
 
 export const fieldListSchema = z
   .array(fieldDefinitionSchema)
-  .max(60)
+  .max(120)
   .superRefine((fields, ctx) => {
     const seen = new Set<string>();
     for (const field of fields) {
@@ -133,6 +210,14 @@ export const fieldListSchema = z
         });
       }
       seen.add(field.key);
+    }
+    for (const field of fields) {
+      if (field.showWhen && !seen.has(field.showWhen.key)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: `"${field.label}" is shown by an answer to "${field.showWhen.key}", which is not on the form`,
+        });
+      }
     }
   });
 
@@ -169,6 +254,9 @@ export function fieldProblems(fields: readonly FieldDefinition[]): string[] {
     }
     if (field.min !== undefined && field.max !== undefined && field.min > field.max) {
       problems.push(`"${name}" has a lowest value above its highest.`);
+    }
+    if (field.showWhen && !fields.some((other) => other.key === field.showWhen!.key && other.key !== field.key)) {
+      problems.push(`"${name}" is shown by an answer that is not on the form.`);
     }
   }
 
@@ -212,6 +300,9 @@ export function emptyField(type: FieldType, taken: ReadonlySet<string>): FieldDe
     ];
   }
   if (type === "rating") field.max = DEFAULT_RATING_MAX;
+  if (LENGTH_UNIT_FIELD_TYPES.includes(type)) field.unit = "m";
+  if (type === "area") field.shape = "rect";
+  if (type === "reading") field.unit = "%";
   return field;
 }
 
@@ -235,6 +326,22 @@ export function retypeField(field: FieldDefinition, type: FieldType): FieldDefin
     delete next.max;
   }
   if (type === "rating" && next.max === undefined) next.max = DEFAULT_RATING_MAX;
+
+  // A unit survives between kinds that measure the same thing.
+  const lengthsBoth = LENGTH_UNIT_FIELD_TYPES.includes(type) && LENGTH_UNIT_FIELD_TYPES.includes(field.type);
+  const figuresBoth = ["number", "reading"].includes(type) && ["number", "reading"].includes(field.type);
+  if (!lengthsBoth && !figuresBoth) {
+    delete next.unit;
+    if (LENGTH_UNIT_FIELD_TYPES.includes(type)) next.unit = "m";
+    if (type === "reading") next.unit = "%";
+  }
+  if (type === "area") next.shape = next.shape ?? "rect";
+  else delete next.shape;
+  if (!MEASURE_FIELD_TYPES.includes(type)) {
+    delete next.warnAbove;
+    delete next.warnBelow;
+    delete next.warning;
+  }
   return next;
 }
 
@@ -259,6 +366,9 @@ function blank(value: unknown): boolean {
  * all three to absent: three ways of saying "they didn't answer" is three
  * branches at every reader.
  */
+/** A measured length: a number not below zero, typed as text as often as not. */
+const dimension = z.coerce.number().finite().nonnegative("Not below 0");
+
 export function answerSchemaFor(field: FieldDefinition): z.ZodTypeAny {
   const values = (field.options ?? []).map((choice) => choice.value);
   const oneOf = (): z.ZodTypeAny =>
@@ -311,6 +421,42 @@ export function answerSchemaFor(field: FieldDefinition): z.ZodTypeAny {
         if (field.max !== undefined) schema = schema.max(field.max, `At most ${field.max} characters`);
         return schema;
       }
+      case "length":
+      case "reading": {
+        let schema = z.coerce.number().finite();
+        if (field.type === "length") schema = schema.nonnegative("A length is not below 0");
+        if (field.min !== undefined) schema = schema.min(field.min, `At least ${field.min}`);
+        if (field.max !== undefined) schema = schema.max(field.max, `At most ${field.max}`);
+        return schema;
+      }
+      case "count": {
+        let schema = z.coerce.number().int("A whole number").nonnegative("Not below 0");
+        if (field.min !== undefined) schema = schema.min(field.min, `At least ${field.min}`);
+        if (field.max !== undefined) schema = schema.max(field.max, `At most ${field.max}`);
+        return schema;
+      }
+      case "area":
+        return field.shape === "total" ? z.object({ area: dimension }) : z.object({ length: dimension, width: dimension });
+      case "areas":
+        return z
+          .array(z.object({ name: z.string().trim().min(1, "Name each area").max(80), length: dimension, width: dimension, note: z.string().trim().max(300).optional() }))
+          .max(100, "At most 100 areas");
+      case "run":
+        return z.array(dimension).max(100, "At most 100 lengths");
+      case "photos":
+        return z
+          .array(z.string().trim().max(2000).refine((value) => /^https?:\/\//i.test(value), "Not an uploaded photo"))
+          .max(30, "At most 30 photos");
+      case "signature":
+        return z.object({
+          name: z.string().trim().min(1, "Who is signing").max(120),
+          signedAt: z.string().refine((value) => !Number.isNaN(Date.parse(value)), "Not a time"),
+          // The drawing itself: a PNG, small enough to keep with the answer.
+          image: z.string().max(400_000).refine((value) => value.startsWith("data:image/png;base64,") || /^https?:\/\//i.test(value), "Not a signature"),
+        });
+      case "section":
+      case "note":
+        return z.unknown();
     }
   };
 
@@ -319,6 +465,9 @@ export function answerSchemaFor(field: FieldDefinition): z.ZodTypeAny {
     if (field.type === "multiSelect") {
       return (schema as z.ZodArray<z.ZodTypeAny>).min(1, "Pick at least one");
     }
+    if (field.type === "areas") return (schema as z.ZodArray<z.ZodTypeAny>).min(1, "Add at least one area");
+    if (field.type === "run") return (schema as z.ZodArray<z.ZodTypeAny>).min(1, "Add at least one length");
+    if (field.type === "photos") return (schema as z.ZodArray<z.ZodTypeAny>).min(1, "Add at least one photo");
     if (field.type === "checkbox") {
       return schema.refine((value) => value === true, "Required");
     }
@@ -347,6 +496,7 @@ export function validateAnswers(
   const problems: AnswerProblem[] = [];
 
   for (const field of fields) {
+    if (DISPLAY_FIELD_TYPES.includes(field.type) || !isShown(field, fields, answers)) continue;
     const raw = answers[field.key];
     if (field.required && blank(raw)) {
       problems.push({ key: field.key, label: field.label, message: "Required" });
@@ -367,6 +517,117 @@ export function validateAnswers(
   return { values, problems };
 }
 
+/* ──────────────────────────────────────────────────────────────────────────
+   Figures
+   ────────────────────────────────────────────────────────────────────────── */
+
+const toNumber = (value: unknown): number | null => {
+  const number = typeof value === "number" ? value : typeof value === "string" && value.trim() !== "" ? Number(value) : NaN;
+  return Number.isFinite(number) ? number : null;
+};
+
+const round = (value: number) => Math.round(value * 10_000) / 10_000;
+
+/**
+ * The figure an answer comes to: a length, an area (length × width, or the
+ * total), the areas or lengths added up, a count, a reading. What a quote
+ * line multiplies; null when there is nothing to measure yet.
+ */
+export function measureOf(field: FieldDefinition, value: unknown): number | null {
+  if (blank(value)) return null;
+  switch (field.type) {
+    case "number":
+    case "length":
+    case "reading":
+    case "count":
+      return toNumber(value);
+    case "area": {
+      const area = value as { area?: unknown; length?: unknown; width?: unknown };
+      if (area.area !== undefined) return toNumber(area.area);
+      const length = toNumber(area.length);
+      const width = toNumber(area.width);
+      return length === null || width === null ? null : round(length * width);
+    }
+    case "areas": {
+      if (!Array.isArray(value)) return null;
+      let total = 0;
+      for (const entry of value as Array<{ length?: unknown; width?: unknown }>) {
+        total += (toNumber(entry.length) ?? 0) * (toNumber(entry.width) ?? 0);
+      }
+      return round(total);
+    }
+    case "run":
+      return Array.isArray(value) ? round(value.reduce((sum: number, entry) => sum + (toNumber(entry) ?? 0), 0)) : null;
+    default:
+      return null;
+  }
+}
+
+/** What a figure is in: m² for an area measured in metres, % for a reading. */
+export function measureUnit(field: FieldDefinition): string {
+  if (field.type === "area" || field.type === "areas") return `${field.unit ?? "m"}²`;
+  if (field.type === "count") return "";
+  return field.unit ?? (LENGTH_UNIT_FIELD_TYPES.includes(field.type) ? "m" : "");
+}
+
+/** Outside the range the question warns about, with what to say. */
+export function measureWarning(field: FieldDefinition, value: unknown): string | null {
+  const figure = measureOf(field, value);
+  if (figure === null) return null;
+  const outside = (field.warnAbove !== undefined && figure > field.warnAbove) || (field.warnBelow !== undefined && figure < field.warnBelow);
+  if (!outside) return null;
+  if (field.warning) return field.warning;
+  return field.warnAbove !== undefined && figure > field.warnAbove
+    ? `Over ${field.warnAbove}${measureUnit(field)}`
+    : `Under ${field.warnBelow}${measureUnit(field)}`;
+}
+
+const figure = new Intl.NumberFormat("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const count = new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 });
+
+/** A figure as it is read: "189.00 m²", "3.8 %", "3". */
+export function formatMeasure(field: FieldDefinition, value: number): string {
+  const unit = measureUnit(field);
+  const shown = LENGTH_UNIT_FIELD_TYPES.includes(field.type) ? figure.format(value) : count.format(value);
+  return unit ? `${shown} ${unit}` : shown;
+}
+
+/* ──────────────────────────────────────────────────────────────────────────
+   When a question is asked
+   ────────────────────────────────────────────────────────────────────────── */
+
+/** Whether a question is asked, given the answers so far. One without a rule always is. */
+export function isShown(field: FieldDefinition, fields: readonly FieldDefinition[], answers: Record<string, unknown>): boolean {
+  const rule = field.showWhen;
+  if (!rule) return true;
+  const target = fields.find((candidate) => candidate.key === rule.key);
+  if (!target) return true;
+  // A question hidden by another hidden question is hidden too.
+  if (target !== field && !isShown(target, fields.filter((candidate) => candidate !== field), answers)) return false;
+  const answer = answers[rule.key];
+  switch (rule.op) {
+    case "isAnswered":
+      return !blank(answer);
+    case "above":
+    case "below": {
+      const figure = MEASURE_FIELD_TYPES.includes(target.type) ? measureOf(target, answer) : toNumber(answer);
+      const bound = toNumber(rule.value);
+      if (figure === null || bound === null) return false;
+      return rule.op === "above" ? figure > bound : figure < bound;
+    }
+    case "is":
+    case "isNot": {
+      const wanted = String(rule.value ?? "");
+      const holds = Array.isArray(answer)
+        ? answer.map(String).includes(wanted)
+        : typeof answer === "boolean"
+          ? String(answer) === wanted
+          : !blank(answer) && String(answer) === wanted;
+      return rule.op === "is" ? holds : !holds;
+    }
+  }
+}
+
 /** How an answer reads once given — for records, exports and read-only views. */
 export function formatAnswer(field: FieldDefinition, value: unknown): string {
   if (blank(value)) return "";
@@ -382,6 +643,41 @@ export function formatAnswer(field: FieldDefinition, value: unknown): string {
       return value === true || value === "true" ? "Yes" : "No";
     case "rating":
       return `${value} of ${field.max ?? DEFAULT_RATING_MAX}`;
+    case "length":
+    case "reading":
+    case "count": {
+      const number = toNumber(value);
+      return number === null ? String(value) : formatMeasure(field, number);
+    }
+    case "area": {
+      const total = measureOf(field, value);
+      const area = value as { length?: unknown; width?: unknown };
+      if (total === null) return "";
+      return area.length !== undefined
+        ? `${figure.format(toNumber(area.length) ?? 0)} × ${figure.format(toNumber(area.width) ?? 0)} ${field.unit ?? "m"} = ${formatMeasure(field, total)}`
+        : formatMeasure(field, total);
+    }
+    case "areas": {
+      const list = Array.isArray(value) ? value : [];
+      const total = measureOf(field, value) ?? 0;
+      return `${list.length} ${list.length === 1 ? "area" : "areas"}, ${formatMeasure(field, total)}`;
+    }
+    case "run": {
+      const list = Array.isArray(value) ? value.map((entry) => figure.format(toNumber(entry) ?? 0)) : [];
+      const total = measureOf(field, value) ?? 0;
+      return list.length > 1 ? `${list.join(" + ")} = ${formatMeasure(field, total)}` : formatMeasure(field, total);
+    }
+    case "photos": {
+      const list = Array.isArray(value) ? value : [];
+      return `${list.length} ${list.length === 1 ? "photo" : "photos"}`;
+    }
+    case "signature": {
+      const signed = value as { name?: string; signedAt?: string };
+      return signed.name ? `Signed by ${signed.name}` : "Signed";
+    }
+    case "section":
+    case "note":
+      return "";
     default:
       return String(value);
   }

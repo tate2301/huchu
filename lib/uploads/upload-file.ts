@@ -29,6 +29,14 @@ export class UploadValidationError extends Error {
   }
 }
 
+/** No file storage on this server (no `BLOB_READ_WRITE_TOKEN`): nothing a retry would fix. */
+export class UploadStorageMissing extends Error {
+  constructor() {
+    super("BLOB_READ_WRITE_TOKEN is not configured")
+    this.name = "UploadStorageMissing"
+  }
+}
+
 export type UploadResult = {
   url: string
   pathname: string
@@ -61,7 +69,7 @@ export async function uploadFileToBlob(input: UploadInput): Promise<UploadResult
   }
 
   if (!process.env.BLOB_READ_WRITE_TOKEN?.trim()) {
-    throw new Error("BLOB_READ_WRITE_TOKEN is not configured")
+    throw new UploadStorageMissing()
   }
 
   const now = new Date()

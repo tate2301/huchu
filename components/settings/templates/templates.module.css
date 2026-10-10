@@ -29,7 +29,7 @@
     --t-ink: var(--text-strong); /* #16181D */
     --t-body: var(--text-body); /* #262A33 */
     --t-label: var(--text-muted); /* #565C69 */
-    --t-meta: #5E6573; /* the DS's --text-subtle resolves to #8A91A0 and fails 4.5:1 */
+    --t-meta: var(--ink-3);
     --t-faint: var(--text-subtle); /* #8A91A0 */
     --t-rule: var(--border); /* #E5E8EE */
     --t-rule-soft: var(--border-subtle); /* #EEF0F4 */
@@ -44,9 +44,9 @@
     --t-ok-fg: var(--tone-success-strong); /* #2E5526 */
     --t-ok-dot: var(--tone-success); /* #5E8E54 */
     --t-warn-bg: var(--tone-warn-bg); /* #F4E6C5 */
-    --t-warn-fg: #6B4A12; /* no --tone-warn-strong exists */
+    --t-warn-fg: var(--warn);
     --t-warn-dot: var(--tone-warn); /* #B07626 */
-    --t-neutral-dot: #A8AFBC;
+    --t-neutral-dot: var(--faint);
     --t-mono: var(--font-mono);
   }
 

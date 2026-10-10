@@ -21,7 +21,10 @@ import { verifyEmailCode } from "@/lib/auth-core/email-code";
 import { consumeSessionHandoff } from "@/lib/auth-core/session-handoff";
 import { resolveSignInScope } from "@/lib/auth-core/sign-in-scope";
 import { canAccessPosPortal } from "@/lib/retail/pos-host";
+import { checkTillPasswordSignIn, checkTillPinSignIn } from "@/lib/retail/devices";
+import { DEVICE_COOKIE } from "@/lib/retail/device-words";
 import { getSubscriptionHealth } from "@/lib/platform/subscription";
+import { trustedClientAddress } from "@/lib/platform/client-address";
 import {
   validateAuthConfiguration,
   getAuthRuntimeConfig,
@@ -48,6 +51,7 @@ import type {
   PlatformJwtClaims,
   SessionPolicy,
 } from "@/lib/auth-core/types";
+import { acceptPendingInvite } from "@/lib/retail/people/join";
 
 type AuthenticatedUserLike = {
   id: string;
@@ -57,7 +61,23 @@ type AuthenticatedUserLike = {
   rememberMe?: boolean;
   sessionPolicy?: SessionPolicy;
   authExpiresAt?: string;
+  deviceId?: string;
+  registerId?: string;
+  pinMustChange?: boolean;
 };
+
+/** One cookie out of a request's `Cookie` header. */
+function readRequestCookie(
+  headers: Headers | Record<string, string | string[] | undefined> | undefined,
+  name: string,
+): string | null {
+  const header = readHeaderValue(headers, "cookie") ?? "";
+  for (const part of header.split(";")) {
+    const [key, ...rest] = part.trim().split("=");
+    if (key === name) return decodeURIComponent(rest.join("="));
+  }
+  return null;
+}
 
 const AUTH_RUNTIME_CONFIG = getAuthRuntimeConfig();
 
@@ -220,14 +240,20 @@ function readHeaderValue(
   return rawValue;
 }
 
+/**
+ * The caller's address as our own edge saw it (`trustedClientAddress`), so a
+ * client cannot step around the sign-in rate limit by sending its own
+ * `x-forwarded-for`.
+ */
 function getClientAddressFromHeaders(
   headers: Headers | Record<string, string | string[] | undefined> | undefined,
 ): string {
-  const forwardedFor = readHeaderValue(headers, "x-forwarded-for")
-    ?.split(",")[0]
-    ?.trim();
-  const realIp = readHeaderValue(headers, "x-real-ip")?.trim();
-  return forwardedFor || realIp || "unknown";
+  const picked = new Headers();
+  for (const name of ["x-forwarded-for", "x-real-ip"]) {
+    const value = readHeaderValue(headers, name);
+    if (value) picked.set(name, value);
+  }
+  return trustedClientAddress(picked);
 }
 
 function isAdminRoutePath(pathname: string): boolean {
@@ -287,7 +313,7 @@ type SignInContext = {
 
 type SignInUserRecord = {
   id: string;
-  email: string;
+  email: string | null;
   name: string;
   password: string | null;
   role: UserRole;
@@ -355,23 +381,30 @@ async function resolveSignInCompanyScope(ctx: SignInContext): Promise<string | u
   return scope.companyId;
 }
 
+const SIGN_IN_USER_SELECT = {
+  id: true,
+  email: true,
+  name: true,
+  password: true,
+  role: true,
+  companyId: true,
+  isActive: true,
+  image: true,
+} as const;
+
 async function findSignInUser(email: string, companyId: string | undefined): Promise<SignInUserRecord | null> {
   return prisma.user.findFirst({
     where: {
       email: { equals: email, mode: "insensitive" },
       ...(companyId ? { companyId } : {}),
     },
-    select: {
-      id: true,
-      email: true,
-      name: true,
-      password: true,
-      role: true,
-      companyId: true,
-      isActive: true,
-      image: true,
-    },
+    select: SIGN_IN_USER_SELECT,
   });
+}
+
+/** The same record by id: someone who only uses a till has no email (80-admin, People). */
+async function findSignInUserById(id: string, companyId: string | undefined): Promise<SignInUserRecord | null> {
+  return prisma.user.findFirst({ where: { id, ...(companyId ? { companyId } : {}) }, select: SIGN_IN_USER_SELECT });
 }
 
 async function assertAccountUsable(user: SignInUserRecord, ctx: SignInContext): Promise<void> {
@@ -412,6 +445,8 @@ async function completeSignIn(user: SignInUserRecord, ctx: SignInContext, rememb
     entityId: ctx.strategy,
     payload: { hostHeader: ctx.hostHeader, clientAddress: ctx.clientAddress, rememberMe },
   });
+  // In: a staff invite still waiting has done its job (80-admin W-57).
+  await acceptPendingInvite(user.id, ctx.strategy === "till-pin" ? "pin" : "sign-in");
 
   const sessionPolicy: SessionPolicy = rememberMe ? "remember" : "standard";
   return {
@@ -664,7 +699,8 @@ export const authOptions: NextAuthOptions = {
           return failSignIn(ctx, "INVALID_CODE");
         }
 
-        const verified = await verifyEmailCode({ email: user.email, purpose: "SIGN_IN", code });
+        // Found by this address, so it has one.
+        const verified = await verifyEmailCode({ email: user.email ?? email, purpose: "SIGN_IN", code });
         if (!verified.ok) {
           const reason =
             verified.reason === "EXPIRED" ? "CODE_EXPIRED" : verified.reason === "LOCKED" ? "CODE_LOCKED" : "INVALID_CODE";
@@ -673,6 +709,70 @@ export const authOptions: NextAuthOptions = {
 
         await assertAccountUsable(user, ctx);
         return completeSignIn(user, ctx, rememberMe);
+      },
+    }),
+    CredentialsProvider({
+      // A PIN at a paired till (10-setup W-04 step 7, "Who is selling?"). The
+      // device key in the POS host's httpOnly cookie says which till; the
+      // four digits say who, with the till PIN's lockout (ADM-03). The
+      // account password instead is the way round a locked PIN, which stays
+      // locked until a manager sends a new one. Only on the POS host, and the session it makes is good there
+      // only (`proxy.ts`, `resolveAccessContext`). Every try counts against
+      // the sign-in rate limit.
+      id: "till-pin",
+      name: "till-pin",
+      credentials: {
+        userId: { label: "Who", type: "text" },
+        pin: { label: "PIN", type: "password" },
+        password: { label: "Password", type: "password" },
+      },
+      async authorize(credentials, req) {
+        assertStrategyEnabled("till-pin");
+
+        const userId = credentials?.userId?.trim() ?? "";
+        const pin = credentials?.pin?.trim() ?? "";
+        const password = credentials?.password ?? "";
+        const account = userId
+          ? await prisma.user.findUnique({ where: { id: userId }, select: { email: true } })
+          : null;
+        // Someone who only uses a till has no email; their id names them in the log.
+        const ctx = buildSignInContext(account?.email ?? `till-pin:${userId || "nobody"}`, "till-pin", req?.headers);
+        await enforceSignInRateLimit(ctx);
+        if (!userId || (!pin && !password)) return failSignIn(ctx, password ? "WRONG_PASSWORD" : "WRONG_PIN");
+        if (!account) return failSignIn(ctx, "NOT_ON_THIS_TILL");
+        if (getPlatformHostContext(ctx.hostHeader).portalCanonicalPrefix !== "pos") {
+          return failSignIn(ctx, "NOT_A_TILL");
+        }
+        const scopedCompanyId = await resolveSignInCompanyScope(ctx);
+        const user = await findSignInUserById(userId, scopedCompanyId);
+        if (!user || user.id !== userId) return failSignIn(ctx, "NOT_ON_THIS_TILL");
+
+        const deviceKey = readRequestCookie(req?.headers, DEVICE_COOKIE);
+        const checked = password
+          ? await checkTillPasswordSignIn({
+              deviceKey,
+              userId: user.id,
+              verify: (passwordHash) => bcrypt.compare(password, passwordHash),
+            })
+          : await checkTillPinSignIn({ deviceKey, userId: user.id, pin });
+        if (!checked.ok) {
+          const triesLeft = "triesLeft" in checked ? checked.triesLeft : undefined;
+          return failSignIn(ctx, checked.reason, {
+            companyId: user.companyId,
+            message: checked.reason === "WRONG_PIN" ? `WRONG_PIN:${triesLeft ?? 0}` : checked.reason,
+          });
+        }
+        if (checked.device.companyId !== user.companyId) return failSignIn(ctx, "NOT_A_TILL");
+
+        await assertAccountUsable(user, ctx);
+        const signedIn = await completeSignIn(user, ctx, false);
+        // An issued PIN (ADM-03): the till asks them to choose their own before it opens.
+        return {
+          ...signedIn,
+          deviceId: checked.device.id,
+          registerId: checked.device.registerId,
+          ...("mustChange" in checked && checked.mustChange ? { pinMustChange: true } : {}),
+        };
       },
     }),
     CredentialsProvider({
@@ -698,9 +798,9 @@ export const authOptions: NextAuthOptions = {
           throw new Error("HANDOFF_INVALID");
         }
 
-        const ctx = buildSignInContext(account.email, "handoff", req?.headers);
+        const ctx = buildSignInContext(account.email ?? userId, "handoff", req?.headers);
         const scopedCompanyId = await resolveSignInCompanyScope(ctx);
-        const user = await findSignInUser(account.email, scopedCompanyId);
+        const user = await findSignInUserById(userId, scopedCompanyId);
         if (!user || user.id !== userId) {
           return failSignIn(ctx, "TENANT_HOST_MISMATCH");
         }
@@ -754,6 +854,9 @@ export const authOptions: NextAuthOptions = {
             companyId: typedUser.companyId,
             authStrategy,
             rememberMe: typedUser.rememberMe === true,
+            deviceId: typedUser.deviceId,
+            registerId: typedUser.registerId,
+            pinMustChange: typedUser.pinMustChange,
           }),
         );
       } else {
