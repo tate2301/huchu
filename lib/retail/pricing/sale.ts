@@ -94,7 +94,9 @@ export function priceSale(input: {
   customer?: PricingCustomer | null;
   orderDiscountAmount?: number;
 }): PricedSale | { error: string } {
-  const context = { at: input.at, siteId: input.siteId, customer: input.customer ?? null };
+  // The basket minimum reads the whole basket on the shelf, before any bundle, deal or promotion.
+  const basketShelf = fromCents(input.lines.reduce((sum, line) => sum + Math.round(toCents(line.unitPrice) * line.quantity), 0));
+  const context = { at: input.at, siteId: input.siteId, customer: input.customer ?? null, basketShelf };
   const bundled = applyBundles(
     input.bundles,
     input.lines.map((line) => ({

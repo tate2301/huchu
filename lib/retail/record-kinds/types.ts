@@ -171,6 +171,8 @@ export type RailRow = {
   mono?: boolean;
   /** Drawn in `--ink-3` ("Not counted yet"). */
   muted?: boolean;
+  /** A sentence in `--warn` under the value (an amount off that gives a product away). */
+  warn?: string;
   edit?: RailEdit;
   /** Drawn only for roles holding this (a product's cost). */
   visible?: Grant;

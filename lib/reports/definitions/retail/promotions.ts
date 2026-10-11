@@ -3,7 +3,8 @@ import type { ListGrant, ListSpec, ReportDefinition } from "@/lib/reports/types"
 /**
  * Promotions (PRD-09, 20-products 5.17, `PromotionsList.png`): every
  * promotion with its state by the clock, what it applies to, its dates and
- * what it sold and gave away; and a promotion record's two tabs, the products
+ * what it sold and gave away, its columns inside the 1144px a 1440 screen
+ * leaves beside the sidebar (the checkbox and ⋯ columns included); and a promotion record's two tabs, the products
  * it covers and every sale line it discounted.
  */
 
@@ -83,16 +84,16 @@ const promotions: ListSpec = {
   ],
   groups: ["state", "type"],
   columns: [
-    { key: "code", label: "Promotion", kind: "code", cell: "ref", width: "130px", align: "start", priority: 1 },
-    { key: "name", label: "Name", kind: "text", cell: "text", width: "minmax(170px,1.3fr)", align: "start", priority: 1 },
-    { key: "state", label: "State", kind: "status", cell: "state", toneKey: "stateTone", width: "110px", align: "start", priority: 1 },
+    { key: "code", label: "Promotion", kind: "code", cell: "ref", width: "120px", align: "start", priority: 1 },
+    { key: "name", label: "Name", kind: "text", cell: "text", width: "minmax(115px,1fr)", align: "start", priority: 1 },
+    { key: "state", label: "State", kind: "status", cell: "state", toneKey: "stateTone", width: "125px", align: "start", priority: 1 },
     { key: "type", label: "Type", kind: "text", cell: "muted", width: "100px", align: "start", priority: 2 },
-    { key: "appliesTo", label: "Applies to", kind: "text", cell: "muted", width: "120px", align: "start", priority: 2 },
-    { key: "starts", label: "Starts", kind: "date", cell: "date", width: "130px", align: "start", priority: 1 },
-    { key: "ends", label: "Ends", kind: "date", cell: "date", emptyWords: "No end", width: "110px", align: "start", priority: 2 },
-    { key: "value", label: "Value", kind: "text", cell: "mono", width: "80px", align: "end", priority: 1 },
-    { key: "sold", label: "Sold", kind: "number", cell: "num", total: "sum", width: "80px", align: "end", priority: 1 },
-    { key: "givenAway", label: "Given away", kind: "money", currency: "USD", cell: "money", total: "sum", width: "110px", align: "end", priority: 1 },
+    { key: "appliesTo", label: "Applies to", kind: "text", cell: "muted", width: "100px", align: "start", priority: 2 },
+    { key: "starts", label: "Starts", kind: "date", cell: "date", dayFormat: "medium", width: "100px", align: "start", priority: 1 },
+    { key: "ends", label: "Ends", kind: "date", cell: "date", dayFormat: "medium", emptyWords: "No end", width: "100px", align: "start", priority: 2 },
+    { key: "value", label: "Value", kind: "text", cell: "mono", width: "120px", align: "end", priority: 1 },
+    { key: "sold", label: "Sold", kind: "number", cell: "num", total: "sum", width: "60px", align: "end", priority: 1 },
+    { key: "givenAway", label: "Given away", kind: "money", currency: "USD", cell: "money", total: "sum", width: "115px", align: "end", priority: 1 },
   ],
   rowHref: "/retail/products/promotions/{id}",
   rowMenu: [
@@ -149,6 +150,7 @@ const promotionProducts: ListSpec = {
       cell: "num",
       percent: true,
       pillKey: "marginTone",
+      pillWordsKey: "marginWords",
       total: "avg",
       totalSuffix: "average",
       ratio: { num: "profit", den: "pricedCost" },

@@ -123,3 +123,21 @@ export const DAYS_SEG: Array<[string, number[]]> = [
   ["Weekdays", [1, 2, 3, 4, 5]],
   ["Weekends", [6, 7]],
 ];
+
+/**
+ * What an amount off or a fixed price does to the products it covers when it
+ * reaches their price (the sheet's value hint, the record's Value row): an
+ * amount off at or over a product's price gives it away; a fixed price at or
+ * over it takes nothing off. Null when every product keeps a real price.
+ */
+export function valueWarning(kind: PromotionKind, value: number, prices: ReadonlyArray<{ name: string; price: number }>): string | null {
+  if (!(value > 0) || (kind !== "AMOUNT" && kind !== "FIXED_PRICE")) return null;
+  const reached = prices.filter((product) => Math.round(product.price * 100) <= Math.round(value * 100));
+  if (reached.length === 0) return null;
+  const who =
+    reached.length === 1
+      ? `${reached[0]!.name} is ${formatMoney(reached[0]!.price)}`
+      : `${reached.length} of its products are ${formatMoney(value)} or less`;
+  if (kind === "AMOUNT") return `${who}: ${reached.length === 1 ? "it goes" : "they go"} free.`;
+  return `${who}: nothing comes off ${reached.length === 1 ? "it" : "them"}.`;
+}

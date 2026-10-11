@@ -7,6 +7,7 @@ import { DEFAULT_TARGET_MARGIN } from "@/lib/reports/loaders/retail/price-lists"
 import { marginOf, marginTone } from "@/lib/reports/margin";
 import { auditRecordEdited, RETAIL_AUDIT_EVENTS, writeRetailAuditEvent, type RetailAuditActor } from "@/lib/retail/audit";
 import { binState, type BinState } from "@/lib/retail/bin";
+import { defaultPrices } from "@/lib/retail/bundles/service";
 import { canRetailRoleDo } from "@/lib/retail/permission-matrix";
 import { centsOf, PRICE_FIGURE_MESSAGE } from "@/lib/retail/prices/figure";
 import { harareMoment } from "@/lib/retail/pricing/engine";
@@ -241,12 +242,22 @@ const valueOf = (rules: Pick<Rules, "valueCents">) => money2(rules.valueCents);
 export const madeWords = (name: string, startsAt: Date, now: Date) =>
   startsAt.getTime() > now.getTime() ? `${name} starts ${dayWords(startsAt)}.` : `${name} is running now.`;
 
+/** A code taken by a save that ran at the same moment (the unique (company, code) index): the same refusal as one taken before. */
+const isCodeClash = (error: unknown) =>
+  error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002" && JSON.stringify(error.meta ?? {}).includes("promoCode");
+
+function codeTaken(error: unknown, code: string | null): never {
+  if (isCodeClash(error) && code) refuse("code", `There is already a promotion called ${code}.`);
+  throw error;
+}
+
 export async function createPromotion(
   actor: RetailAuditActor,
   input: PromotionInput,
   now: Date = new Date(),
 ): Promise<{ id: string; message: string }> {
   const { companyId } = actor;
+  let code: string | null = null;
   const made = await prisma.$transaction(async (tx) => {
     const rules = await check(tx, companyId, {
       name: input.name,
@@ -268,6 +279,7 @@ export async function createPromotion(
       now,
     });
     if (rules.endsAt && rules.endsAt.getTime() <= now.getTime()) refuse("ends", "That has passed. Choose when it ends.");
+    code = rules.code;
     const promotion = await tx.retailPromotion.create({
       data: {
         companyId,
@@ -295,7 +307,7 @@ export async function createPromotion(
       payload: { code: rules.code, name: rules.name, ...(rules.startsAt.getTime() > now.getTime() ? { from: formatWhen(rules.startsAt) } : {}) },
     });
     return { id: promotion.id, rules };
-  });
+  }).catch((error: unknown) => codeTaken(error, code));
   return { id: made.id, message: madeWords(made.rules.name, made.rules.startsAt, now) };
 }
 
@@ -459,7 +471,7 @@ export async function updatePromotion(
       });
     }
     return { changed: changes.length, name: rules.name, message: "Promotion saved." };
-  });
+  }).catch((error: unknown) => codeTaken(error, patch.code?.trim().toUpperCase() || null));
 }
 
 /* ── Pause, resume, end, duplicate ────────────────────────────────────── */
@@ -486,7 +498,11 @@ export async function movePromotions(actor: RetailAuditActor, ids: string[], mov
               ? { endedAt: now }
               : {};
       if (Object.keys(data).length === 0) continue;
-      await tx.retailPromotion.update({ where: { id: row.id }, data });
+      // Only while it still is what was read: of two End now at once, one ends it and one finds it ended.
+      const still: Prisma.RetailPromotionWhereInput =
+        move === "pause" ? { pausedAt: null, endedAt: null } : move === "resume" ? { pausedAt: { not: null }, endedAt: null } : { endedAt: null };
+      const { count } = await tx.retailPromotion.updateMany({ where: { id: row.id, companyId, ...still }, data: data as Prisma.RetailPromotionUpdateManyMutationInput });
+      if (count === 0) continue;
       await writeRetailAuditEvent(tx, {
         actor,
         eventType:
@@ -521,6 +537,17 @@ export async function duplicatePromotions(
   ids: string[],
   now: Date = new Date(),
 ): Promise<Array<{ id: string; name: string }>> {
+  // Two copies made at once can pick the same free code; the one that loses picks again.
+  for (let attempt = 1; ; attempt += 1) {
+    try {
+      return await duplicateOnce(actor, ids, now);
+    } catch (error) {
+      if (!isCodeClash(error) || attempt >= 5) throw error;
+    }
+  }
+}
+
+async function duplicateOnce(actor: RetailAuditActor, ids: string[], now: Date): Promise<Array<{ id: string; name: string }>> {
   const { companyId } = actor;
   return prisma.$transaction(async (tx) => {
     const rows = await tx.retailPromotion.findMany({
@@ -638,9 +665,16 @@ async function soldBetween(companyId: string, productIds: string[] | null, from:
 
 export type PromotionFigures = {
   soldUnder: number;
+  /** Units of the products it covers while it ran, and in as many days just before it started. */
+  soldDuring: number;
   soldBefore: number;
-  /** Sold under it against the same days before it started, as a percentage; null with nothing before. */
+  /**
+   * Its products' units while it ran against the same days before, as a
+   * percentage; null with nothing before, or nothing sold under it (a Staff
+   * promotion before the customer units, D-3), when there is nothing to judge.
+   */
   soldChange: number | null;
+  /** Its products' takings while it ran less the same days before; 0 when nothing sold under it. */
   extraTakings: number;
   givenAway: number;
   perDollarGiven: number | null;
@@ -648,6 +682,8 @@ export type PromotionFigures = {
   givenEach: number | null;
   products: number;
   notSold: number;
+  /** Products that sold under it and have since left its scope (archived, moved); its Products tab lists them too. */
+  leftScope: number;
   runningDays: number;
   startsInDays: number;
 };
@@ -669,6 +705,8 @@ export type PromotionView = {
   buyQuantity: number | null;
   scope: RetailPromotionScope;
   products: Array<{ id: string; name: string }>;
+  /** A record's: each product it covers at its price on the default list, for the warning when an amount off or a fixed price reaches it. */
+  scopePrices: Array<{ id: string; name: string; price: number }>;
   categories: Array<{ id: string; name: string }>;
   appliesToLabel: string;
   appliesToShort: string;
@@ -705,6 +743,7 @@ export async function loadPromotionViews(
   });
   if (rows.length === 0) return [];
   const [scopes, lines] = await Promise.all([scopeProducts(companyId, rows), underLines(companyId, rows.map((row) => row.id))]);
+  const priceOf = where.full ? await defaultPrices(prisma, companyId, [...new Set([...scopes.values()].flat().map((product) => product.id))]) : new Map<string, number>();
   const one = where.ids?.length === 1 ? where.ids[0]! : null;
   const [activity, saleCount] = one
     ? await Promise.all([
@@ -720,18 +759,23 @@ export async function loadPromotionViews(
     const soldUnder = round2(own.reduce((sum, line) => sum + line.units, 0));
     const givenAway = round2(own.reduce((sum, line) => sum + line.given, 0));
     const soldIds = new Set(own.filter((line) => line.units > 0).map((line) => line.productId));
+    const inScope = new Set(products.map((product) => product.id));
+    const leftScope = new Set(own.map((line) => line.productId).filter((productId) => productId && !inScope.has(productId))).size;
     const state = promotionState(row, now);
     const started = row.startsAt.getTime() <= now.getTime();
     const end = runEnd(row, now);
     const length = started ? Math.max(0, end.getTime() - row.startsAt.getTime()) : 0;
+    let soldDuring = 0;
     let soldBefore = 0;
     let extraTakings = 0;
-    if (where.full && started) {
+    // Nothing sold under it: nothing it did to compare, whatever else the shop sold meanwhile.
+    if (where.full && started && soldUnder > 0) {
       const ids = row.scope === "EVERYTHING" ? null : products.map((product) => product.id);
       const [during, before] = await Promise.all([
         soldBetween(companyId, ids, row.startsAt, end),
         soldBetween(companyId, ids, new Date(row.startsAt.getTime() - length), row.startsAt),
       ]);
+      soldDuring = round2(during.units);
       soldBefore = round2(before.units);
       extraTakings = round2(during.takings - before.takings);
     }
@@ -752,6 +796,7 @@ export async function loadPromotionViews(
       buyQuantity: row.buyQuantity,
       scope: row.scope,
       products,
+      scopePrices: products.flatMap((product) => (priceOf.has(product.id) ? [{ id: product.id, name: product.name, price: priceOf.get(product.id)! }] : [])),
       categories,
       appliesToLabel: appliesToWords({ ...appliesTo, long: true }),
       appliesToShort: appliesToWords(appliesTo),
@@ -770,21 +815,23 @@ export async function loadPromotionViews(
       badge: promotionBadge(row, now),
       figures: {
         soldUnder,
+        soldDuring,
         soldBefore,
-        soldChange: soldBefore > 0 ? Math.round(((soldUnder - soldBefore) / soldBefore) * 100) : null,
+        soldChange: soldBefore > 0 ? Math.round(((soldDuring - soldBefore) / soldBefore) * 100) : null,
         extraTakings,
         givenAway,
         perDollarGiven: givenAway > 0 ? round2(extraTakings / givenAway) : null,
         givenEach: row.type === "AMOUNT" ? value : soldUnder > 0 ? round2(givenAway / soldUnder) : null,
         products: products.length,
         notSold: products.filter((product) => !soldIds.has(product.id)).length,
+        leftScope,
         runningDays: started ? daysBetween(dayKey(row.startsAt), dayKey(end)) : 0,
         startsInDays: started ? 0 : Math.max(1, daysBetween(today, dayKey(row.startsAt)) - 1),
       },
       createdBy: row.createdBy?.name ?? null,
       archivedAt: row.archivedAt?.toISOString() ?? null,
       bin: null,
-      tabCounts: { products: products.length, sales: saleCount, activity },
+      tabCounts: { products: products.length + leftScope, sales: saleCount, activity },
     });
   }
   return views;
@@ -823,17 +870,13 @@ export async function promotionProductRows(companyId: string, id: string, role: 
   const products = [...view.products, ...strayRows];
   const ids = products.map((product) => product.id);
   const seeCost = canRetailRoleDo(role, "retail.catalog", "view-cost");
-  const [prices, details] = await Promise.all([
-    prisma.productPrice.findMany({
-      where: { companyId, productId: { in: ids }, minQuantity: 1, priceList: { isDefault: true, archivedAt: null } },
-      select: { productId: true, unitPrice: true },
-    }),
+  const [priceOf, details] = await Promise.all([
+    defaultPrices(prisma, companyId, ids),
     prisma.product.findMany({
       where: { companyId, id: { in: ids } },
       select: { id: true, costPrice: true, retailCategory: { select: { targetMarginPercent: true } } },
     }),
   ]);
-  const priceOf = new Map(prices.map((row) => [row.productId, toNumberOrZero(row.unitPrice)]));
   const detailOf = new Map(details.map((row) => [row.id, row]));
   return products.map((product) => {
     const normal = priceOf.get(product.id) ?? null;
@@ -851,7 +894,8 @@ export async function promotionProductRows(companyId: string, id: string, role: 
       sold: round2(own.reduce((sum, line) => sum + line.units, 0)),
       givenAway: round2(own.reduce((sum, line) => sum + line.given, 0)),
       margin: seeCost ? margin : null,
-      marginTone: seeCost ? marginTone(margin, target, cost !== null && onPromotion !== null && onPromotion < cost) : null,
+      // At or under cost is a bad pill, given away ("Free") included.
+      marginTone: seeCost ? marginTone(margin, target, cost !== null && onPromotion !== null && onPromotion <= cost) : null,
       cost,
     };
   });

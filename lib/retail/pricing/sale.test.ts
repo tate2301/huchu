@@ -154,6 +154,25 @@ describe("a promotion beside a bundle", () => {
     expect(priced.checkout.total).toBe(5.92);
   });
 
+  it("reads the basket minimum off the whole basket on the shelf, the Braai pack and a kept deal included", () => {
+    const winter = promotion({ value: 5, minBasket: 20 });
+    // A Braai pack (US$12.60 on the shelf) and a US$9.00 gin: US$21.60, over the minimum; the 5% is on the gin alone.
+    const braaiAndGin = sell([...braaiLines(), line("g", "gin", 1, 9)], { promotions: [winter] });
+    expect(braaiAndGin.pieces.find((piece) => piece.key === "g")).toMatchObject({ promotionId: "promo", promotionDiscount: 0.45 });
+    expect(braaiAndGin.checkout.total).toBe(19.55);
+    // With three Savanna in their deal as well (US$27.15 on the shelf): the deal stays whole, the gin still takes its 5%.
+    const withDeal = sell([...braaiLines(), line("s", "savanna", 3, 1.85), line("g", "gin", 1, 9)], { promotions: [winter] });
+    expect(withDeal.bundleSaving).toBe(2.15);
+    expect(withDeal.promotionSaving).toBe(0.45);
+    expect(withDeal.checkout.total).toBe(24.55);
+    // A deal and a gin over the minimum only together (US$14.55 against US$14.00): both passes read the same basket.
+    const dealAndGin = sell([line("s", "savanna", 3, 1.85), line("g", "gin", 1, 9)], { promotions: [promotion({ value: 5, minBasket: 14 })] });
+    expect([dealAndGin.bundleSaving, dealAndGin.promotionSaving, dealAndGin.checkout.total]).toEqual([0.55, 0.45, 13.55]);
+    // Under it, nothing comes off.
+    const under = sell([...braaiLines(), line("d", "coke", 1, 0.75)], { promotions: [winter] });
+    expect(under.promotionSaving).toBe(0);
+  });
+
   it("caps an amount off at the shelf price of the units it is on", () => {
     const priced = sell([line("i", "ice", 1, 1.5)], { promotions: [promotion({ type: "AMOUNT", value: 2 })] });
     expect(priced.checkout.total).toBe(0);

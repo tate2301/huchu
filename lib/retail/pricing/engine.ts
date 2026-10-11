@@ -581,13 +581,20 @@ function savingsOf(promotion: SnapshotPromotion, lines: PromotionLine[]): Map<st
  * single biggest saving among the non-stacking ones, or the sum of the
  * stacking ones, whichever saves more, never below zero; it is attributed to
  * the promotion that took the most off it. Integer cents inside.
+ *
+ * `basketShelf` is the whole basket at shelf prices, units in a bundle or a
+ * buy-more deal included, when `lines` are only the pieces promotions may
+ * touch (`priceSale`); without it the basket is `lines` themselves.
  */
 export function applyPromotions(
   promotions: SnapshotPromotion[],
   lines: PromotionLine[],
-  context: { at: Date | string; siteId: string | null; customer?: PricingCustomer | null },
+  context: { at: Date | string; siteId: string | null; customer?: PricingCustomer | null; basketShelf?: number },
 ): PromotedLine[] {
-  const basketCents = lines.reduce((sum, line) => sum + Math.round(cents(line.unitPrice) * line.quantity), 0);
+  const basketCents =
+    context.basketShelf !== undefined
+      ? cents(context.basketShelf)
+      : lines.reduce((sum, line) => sum + Math.round(cents(line.unitPrice) * line.quantity), 0);
   const live = promotions
     .filter((promotion) => promotionApplies(promotion, context))
     .filter((promotion) => promotion.minBasket === null || basketCents >= cents(promotion.minBasket))

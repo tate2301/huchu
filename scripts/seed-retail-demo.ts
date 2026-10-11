@@ -1321,7 +1321,7 @@ async function main() {
           : Array.from({ length: between(1, 2) }, () => {
               let product = pickProduct()
               // Spirits sold slower in the weeks before the festive US$2 came off them (PRD-09's record compares the two).
-              if (product.category === "Spirits" && postedAt >= festive.before && postedAt < festive.starts && Math.random() < 0.35) product = pickProduct()
+              if (product.category === "Spirits" && postedAt >= festive.before && postedAt < festive.starts && Math.random() < 0.45) product = pickProduct()
               // Two for one price brings them in pairs while it runs.
               const pairs = pairs2.some((deal) => deal.code === product.code && postedAt >= deal.from && postedAt <= deal.to)
               return { code: product.code, units: product.weight >= 200 || pairs ? between(1, 3) : 1 }
@@ -5414,9 +5414,10 @@ function harareAt(day: string, time = "00:00") {
   return new Date(`${day}T${time}:00+02:00`)
 }
 
-/** When the festive promotion starts, and as long again before it. */
+/** When the festive promotion starts, and as long again before it as it has run by the seed's day: the days its record compares. */
 function festiveDates() {
-  return { starts: harareAt("2026-09-02"), before: harareAt("2026-07-28") }
+  const starts = harareAt("2026-09-02")
+  return { starts, before: new Date(starts.getTime() - Math.max(0, Date.now() - starts.getTime())) }
 }
 
 /** The two-for deals' products and dates, so the history sells them in pairs while they ran. */
@@ -5533,8 +5534,8 @@ async function seedPromotions(input: {
       endsAt: seed.endsAt?.toISOString() ?? null,
     })
   }
-  // Their Activity: made by the owner a few days before each started ("Scheduled it from 2 Sep 00:00").
-  await prisma.platformAuditEvent.deleteMany({ where: { companyId, entityType: "RetailPromotion", eventType: "RETAIL_PROMOTION.CREATED" } })
+  // Their Activity, and nothing a walk left on them: made by the owner a few days before each started ("Scheduled it from 2 Sep 00:00").
+  await prisma.platformAuditEvent.deleteMany({ where: { companyId, entityType: "RetailPromotion", entityId: { in: out.map((promotion) => promotion.id) } } })
   for (const promotion of owner ? out : []) {
     const startsAt = new Date(promotion.startsAt)
     await writeRetailAuditEvent(prisma, {
@@ -5551,6 +5552,32 @@ async function seedPromotions(input: {
     })
     const at = new Date(Math.min(startsAt.getTime() - 3 * 24 * 60 * 60 * 1000, Date.now()))
     if (latest) await prisma.platformAuditEvent.update({ where: { id: latest.id }, data: { createdAt: at } })
+  }
+  // Festive's two changes before it started (`PromotionRecord.png`: Changes 3): US$1.50 off became US$2.00, weekends became every day.
+  const festive = out.find((promotion) => promotion.code === "PROMO-FESTIVE")
+  if (owner && festive) {
+    const startsAt = new Date(festive.startsAt)
+    const changes = [
+      { daysBefore: 2, field: "value", label: "Value", from: "US$1.50", to: "US$2.00" },
+      { daysBefore: 1, field: "days", label: "Days", from: "Weekends, all day", to: "Every day, all day" },
+    ]
+    for (const change of changes) {
+      await writeRetailAuditEvent(prisma, {
+        actor: { companyId, userId: owner.id, userName: owner.name, userRole: "SUPERADMIN" },
+        eventType: "RETAIL_PROMOTION.CHANGED",
+        entityType: "RetailPromotion",
+        entityId: festive.id,
+        payload: { name: festive.name, changes: [{ field: change.field, label: change.label, from: change.from, to: change.to }] },
+      })
+      const latest = await prisma.platformAuditEvent.findFirst({
+        where: { companyId, eventType: "RETAIL_PROMOTION.CHANGED", entityId: festive.id },
+        orderBy: { createdAt: "desc" },
+        select: { id: true },
+      })
+      if (latest) {
+        await prisma.platformAuditEvent.update({ where: { id: latest.id }, data: { createdAt: new Date(startsAt.getTime() - change.daysBefore * 24 * 60 * 60 * 1000 + 10 * 60 * 60 * 1000) } })
+      }
+    }
   }
   return out
 }

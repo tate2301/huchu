@@ -28,6 +28,7 @@ import { loadLicenceHours } from "@/lib/retail/site-licence-hours";
 import { cashierFilterFor } from "@/lib/retail/own-rows";
 import { resolveShelfPrices } from "@/lib/retail/shelf-pricing";
 import { priceSale } from "@/lib/retail/pricing/sale";
+import { formatMoney } from "@/lib/workspace/format";
 import { loadBundleSnapshot, loadPromotionSnapshot } from "@/lib/retail/pricing/snapshot";
 import { tillCasesFor, type TillCase } from "@/lib/retail/stock/cases";
 import { requireRetailSession } from "../../_helpers";
@@ -115,7 +116,18 @@ const saleSchema = z.object({
   idChecked: z.boolean().optional(),
   /** S-3. When the device's price snapshot was resolved, if it carries a stamp. */
   pricedAt: z.string().datetime().optional(),
+  /**
+   * PRD-09. What the till showed the customer and took the money for (goods
+   * and deposits). A sale rung now that the server prices differently (a
+   * promotion ended or started since the till's snapshot) is refused
+   * `PRICES_CHANGED`, so the till re-prices it before the money is taken
+   * again; a replay already took it and is priced as below.
+   */
+  total: z.number().min(0).optional(),
 });
+
+/** The till sold off an old price snapshot: it fetches the new one and the cashier rings or charges again. */
+const pricesChanged = (message: string) => NextResponse.json({ error: message, code: "PRICES_CHANGED" }, { status: 409 });
 
 /** The refunds written against a sale, for "Refunded" and "Part refunded" on the list. */
 const REFUNDS_ON = { where: { saleType: RetailSaleType.REFUND }, select: { totalAmount: true } } as const;
@@ -652,7 +664,7 @@ export async function POST(request: NextRequest) {
       !input.overrideReason?.trim() &&
       preNormalizedLines.some((line) => Math.abs(line.unitPrice - line.shelf.unitPrice) > 0.01)
     ) {
-      return errorResponse("Prices changed while you were selling. The till has the new prices; ring it again.", 409);
+      return pricesChanged("Prices changed while you were selling. The till has the new prices; ring it again.");
     }
 
     /*
@@ -926,6 +938,11 @@ export async function POST(request: NextRequest) {
     });
     const depositAmount = depositsDue(depositLines);
     const amountDue = round(totalAmount + depositAmount);
+    if (!replaySoldAt && input.total !== undefined && Math.round(input.total * 100) !== Math.round(amountDue * 100)) {
+      return pricesChanged(
+        `Prices changed while you were selling. This sale comes to ${formatMoney(amountDue)} now; check the total and take the payment again.`,
+      );
+    }
     /*
       SET-05. Only the tenders the shop takes (one turned off since an offline
       sale was rung comes in for a manager to look at), each at the rate the

@@ -48,6 +48,8 @@ export type PosSaleQueuePayload = {
     emptiesBack?: number;
   }>;
   payments: PosSalePaymentInput[];
+  /** What the till showed and charged (PRD-09): `pos/sales` refuses a sale rung now that it prices differently. */
+  total?: number;
 };
 
 /**

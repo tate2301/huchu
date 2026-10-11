@@ -206,6 +206,66 @@ describe("a running promotion at the till", () => {
   });
 });
 
+describe("a till still holding an old snapshot", () => {
+  const castle = (quantity: number) => [
+    { key: "c", productId: ids.castle!, categoryId: null, quantity, unitPrice: 1.2, taxPercent: 15.5, taxInclusive: true, lineDiscount: 0 },
+  ];
+  const tillTotal = (promotions: Awaited<ReturnType<typeof loadPromotionSnapshot>>["promotions"]) => {
+    const priced = priceSale({ lines: castle(1), bundles: [], promotions, at: new Date(), siteId: shop.mainId });
+    if ("error" in priced) throw new Error(priced.error);
+    return priced.checkout.total;
+  };
+  const beerPromotion = (code: string) =>
+    createPromotion(shop.owner(), {
+      name: `${code} 20c off Castle`,
+      kind: "AMOUNT",
+      value: "0.20",
+      appliesTo: "PRODUCTS",
+      productIds: [ids.castle!],
+      starts: new Date(Date.now() - 60 * 60 * 1000).toISOString().slice(0, 16),
+      ends: null,
+      audience: "EVERYONE",
+      stacks: false,
+      code,
+    });
+
+  it("is refused PRICES_CHANGED when the promotion it priced from has ended, and sells once re-priced", async () => {
+    const promotion = await beerPromotion("PROMO-BEER");
+    const stale = (await loadPromotionSnapshot(shop.companyId, shop.mainId)).promotions;
+    expect(tillTotal(stale)).toBe(1);
+    expect(await movePromotions(shop.owner(), [promotion.id], "end")).toBe(1);
+
+    const refused = await sell("stale-ended", [{ productId: ids.castle!, quantity: 1, unitPrice: 1.2 }], 1, { total: 1 });
+    expect(refused).toMatchObject({
+      status: 409,
+      body: { code: "PRICES_CHANGED", error: "Prices changed while you were selling. This sale comes to US$1.20 now; check the total and take the payment again." },
+    });
+
+    const fresh = (await loadPromotionSnapshot(shop.companyId, shop.mainId)).promotions;
+    const total = tillTotal(fresh);
+    expect(total).toBe(1.2);
+    const sold = await sell("fresh-ended", [{ productId: ids.castle!, quantity: 1, unitPrice: 1.2 }], total, { total });
+    expect(sold.status).toBe(201);
+    const line = await prisma.retailSaleLine.findFirstOrThrow({ where: { saleId: sold.body.id! } });
+    expect([line.promotionId, line.lineTotal.toFixed(2)]).toEqual([null, "1.20"]);
+  });
+
+  it("is refused PRICES_CHANGED when a promotion started since, so the change it hands over is the stored one", async () => {
+    const stale = (await loadPromotionSnapshot(shop.companyId, shop.mainId)).promotions;
+    expect(tillTotal(stale)).toBe(1.2);
+    const promotion = await beerPromotion("PROMO-BEER-NOW");
+    const refused = await sell("stale-started", [{ productId: ids.castle!, quantity: 1, unitPrice: 1.2 }], 2, { total: 1.2 });
+    expect(refused).toMatchObject({ status: 409, body: { code: "PRICES_CHANGED" } });
+    expect(String(refused.body.error)).toContain("comes to US$1.00 now");
+
+    const sold = await sell("fresh-started", [{ productId: ids.castle!, quantity: 1, unitPrice: 1.2 }], 2, { total: 1 });
+    expect(sold.status).toBe(201);
+    const line = await prisma.retailSaleLine.findFirstOrThrow({ where: { saleId: sold.body.id! } });
+    expect([line.promotionId, line.lineTotal.toFixed(2)]).toEqual([promotion.id, "1.00"]);
+    expect(await movePromotions(shop.owner(), [promotion.id], "end")).toBe(1);
+  });
+});
+
 describe("the month-end cider deal on 25 October", () => {
   it("rings two Savanna at US$5.00 by the till's sum over the server's snapshot, the promotion on the line", async () => {
     const at = new Date("2026-10-25T10:00:00Z");

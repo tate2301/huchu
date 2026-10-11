@@ -47,6 +47,10 @@ export function ListCell({
   }
 
   if (isBlank(value)) {
+    const words = column.pillKey && column.pillWordsKey ? row[column.pillWordsKey] : null;
+    if (!isBlank(words) && !isBlank(row[column.pillKey!])) {
+      return <span className={`cx-lf-pill cx-lf-pill--${String(row[column.pillKey!])}`}>{String(words)}</span>;
+    }
     if (column.empty === "blank") return null;
     return <span className={column.emptyWords ? "cx-lf-muted" : "cx-lf-none"}>{noValue(column)}</span>;
   }

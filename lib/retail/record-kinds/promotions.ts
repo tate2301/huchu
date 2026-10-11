@@ -2,7 +2,7 @@ import { fetchJson } from "@/lib/api-client";
 import { promotionEndAsk } from "@/lib/retail/asks/products";
 import type { PromotionView } from "@/lib/retail/promotions/service";
 import { dayWords, momentWords } from "@/lib/retail/promotions/state";
-import { AUDIENCE_SEG, AUDIENCE_WORDS, DAYS_SEG, STACKS_WORDS } from "@/lib/retail/promotions/words";
+import { AUDIENCE_SEG, AUDIENCE_WORDS, DAYS_SEG, STACKS_WORDS, valueWarning } from "@/lib/retail/promotions/words";
 import { dayKey, formatCount, formatMoney, formatShortDay } from "@/lib/workspace/format";
 
 import type { Grant, RailGroup, RecordAction, RecordChart, RecordChip, RecordKind, RecordKpi, RecordStep } from "./types";
@@ -89,7 +89,7 @@ function kpis(promotion: PromotionRecord): RecordKpi[] {
       label: "Sold under it",
       value: formatCount(f.soldUnder),
       ...(change === null ? {} : { lead: `${change > 0 ? "+" : change < 0 ? "−" : ""}${Math.abs(change)}%`, leadTone: change >= 0 ? ("ok" as const) : ("bad" as const) }),
-      note: change === null ? (scheduled ? "Not started yet" : "Nothing sold the days before") : "on the days before",
+      note: change === null ? (scheduled ? "Not started yet" : f.soldUnder === 0 ? "Nothing sold under it yet" : "Nothing sold the days before") : "on the days before",
     },
     {
       label: "Extra takings",
@@ -103,13 +103,16 @@ function kpis(promotion: PromotionRecord): RecordKpi[] {
       ...(f.givenEach === null ? {} : { lead: formatMoney(f.givenEach), leadTone: "plain" as const }),
       note: f.givenEach === null ? "Nothing sold under it yet" : `a ${unitOf(promotion)}`,
     },
-    {
-      label: "Products",
-      value: formatCount(f.products),
-      lead: formatCount(f.notSold),
-      leadTone: f.notSold > 0 ? "warn" : "plain",
-      note: f.notSold === 1 ? "has not sold yet" : "have not sold yet",
-    },
+    // In its scope now; one that sold under it and has since left is counted under it, as its Products tab lists it.
+    f.notSold === 0 && f.leftScope > 0
+      ? { label: "Products", value: formatCount(f.products), lead: `+${formatCount(f.leftScope)}`, leadTone: "plain" as const, note: "more sold under it" }
+      : {
+          label: "Products",
+          value: formatCount(f.products),
+          lead: formatCount(f.notSold),
+          leadTone: f.notSold > 0 ? ("warn" as const) : ("plain" as const),
+          note: f.notSold === 1 ? "has not sold yet" : "have not sold yet",
+        },
     timing,
   ];
 }
@@ -146,6 +149,7 @@ function rail(promotion: PromotionRecord): RailGroup[] {
           label: "Value",
           value: valueShown,
           mono: true,
+          warn: ended ? undefined : (valueWarning(promotion.kind, promotion.value, promotion.scopePrices) ?? undefined),
           edit: edit({
             field: "value",
             type: promotion.kind === "PERCENT" ? ("text" as const) : ("money" as const),
@@ -212,8 +216,13 @@ function rail(promotion: PromotionRecord): RailGroup[] {
         {
           key: "ends",
           label: "Ends",
-          value: promotion.endsAt ? momentWords(new Date(promotion.endsAt), true) : "No end date",
-          mono: Boolean(promotion.endsAt),
+          // Ended by End now: when it was ended, not the end date it never reached.
+          value: promotion.endedAt
+            ? `Ended ${momentWords(new Date(promotion.endedAt), true)}`
+            : promotion.endsAt
+              ? momentWords(new Date(promotion.endsAt), true)
+              : "No end date",
+          mono: Boolean(promotion.endedAt ?? promotion.endsAt),
           edit: edit({
             field: "ends",
             type: "date" as const,
@@ -345,8 +354,9 @@ export const promotionKind: RecordKind<PromotionRecord> = {
       source: "retail-promotion-products",
       parent: "promotion",
       allLink: { label: "All products", href: productsHref },
+      // The tab's own rows: what it covers, and what sold under it and has since left its scope.
       totalsText: (promotion) => ({
-        product: `Σ ${formatCount(promotion.products.length)} ${promotion.products.length === 1 ? "product" : "products"}`,
+        product: `Σ ${formatCount(promotion.tabCounts.products)} ${promotion.tabCounts.products === 1 ? "product" : "products"}`,
       }),
     },
     {

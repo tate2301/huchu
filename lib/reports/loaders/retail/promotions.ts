@@ -65,6 +65,8 @@ async function loadProducts(ctx: ReportContext, params: ReportParams) {
           : {
               margin: row.margin,
               marginTone: row.marginTone,
+              // Given away, it has no margin to show: the pill says so.
+              ...(row.onPromotion === 0 ? { marginWords: "Free" } : {}),
               // The average margin over what it would sell at: profit ÷ the promotion prices that have a cost.
               profit: row.cost !== null && row.onPromotion !== null ? Math.round((row.onPromotion - row.cost) * 100) / 100 : 0,
               pricedCost: row.cost !== null && row.onPromotion !== null ? row.onPromotion : 0,

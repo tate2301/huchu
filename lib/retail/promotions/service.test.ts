@@ -149,6 +149,40 @@ describe("changing one", () => {
   });
 });
 
+describe("two at once", () => {
+  it("ends it once when End now is pressed twice together: one ended event", async () => {
+    const made = await createPromotion(shop.manager(), { ...ciders(), name: "Twice", code: "TWICE-END", starts: "2026-10-07T00:00", ends: null }, NOW);
+    const counts = await Promise.all([movePromotions(shop.manager(), [made.id], "end", NOW), movePromotions(shop.manager(), [made.id], "end", NOW)]);
+    expect(counts.sort()).toEqual([0, 1]);
+    expect(await prisma.platformAuditEvent.count({ where: { entityId: made.id, eventType: "RETAIL_PROMOTION.ENDED" } })).toBe(1);
+  });
+
+  it("pauses it once when Pause is pressed twice together", async () => {
+    const made = await createPromotion(shop.manager(), { ...ciders(), name: "Twice paused", code: "TWICE-PAUSE", starts: "2026-10-07T00:00", ends: null }, NOW);
+    const counts = await Promise.all([movePromotions(shop.manager(), [made.id], "pause", NOW), movePromotions(shop.manager(), [made.id], "pause", NOW)]);
+    expect(counts.sort()).toEqual([0, 1]);
+    expect(await prisma.platformAuditEvent.count({ where: { entityId: made.id, eventType: "RETAIL_PROMOTION.PAUSED" } })).toBe(1);
+  });
+
+  it("gives two copies made together two codes", async () => {
+    const made = await createPromotion(shop.manager(), { ...ciders(), name: "Copied", code: "COPIED", starts: "2026-10-07T00:00", ends: null }, NOW);
+    const copies = await Promise.all([duplicatePromotions(shop.manager(), [made.id], NOW), duplicatePromotions(shop.manager(), [made.id], NOW)]);
+    const codes = await prisma.retailPromotion.findMany({ where: { id: { in: copies.flat().map((copy) => copy.id) } }, select: { promoCode: true } });
+    expect(codes.map((row) => row.promoCode).sort()).toEqual(["COPIED-2", "COPIED-3"]);
+  });
+
+  it("refuses the second of two promotions made together with one code under its field", async () => {
+    const results = await Promise.allSettled([
+      createPromotion(shop.manager(), { ...ciders(), name: "Same one", code: "SAME-CODE" }, NOW),
+      createPromotion(shop.manager(), { ...ciders(), name: "Same two", code: "SAME-CODE" }, NOW),
+    ]);
+    expect(results.filter((result) => result.status === "fulfilled")).toHaveLength(1);
+    const lost = results.find((result) => result.status === "rejected") as PromiseRejectedResult;
+    expect(lost.reason).toBeInstanceOf(PromotionRefusal);
+    expect((lost.reason as PromotionRefusal).fieldErrors).toEqual({ code: "There is already a promotion called SAME-CODE." });
+  });
+});
+
 describe("what it did", () => {
   it("reads sold under it, the same days before, the extra takings and what it gave away off the sale lines", async () => {
     const startsAt = new Date(NOW.getTime() - 10 * DAY);
@@ -191,22 +225,25 @@ describe("what it did", () => {
         },
       });
     };
-    // Before: 4 bottles in the ten days before it started. While it ran: 3 and 2 under it.
+    // Before: 4 bottles in the ten days before it started. While it ran: 3 and 2 under it, and 1 not (in a bundle, say).
     await sell(new Date(startsAt.getTime() - 3 * DAY), 4, false);
     await sell(new Date(startsAt.getTime() - 20 * DAY), 9, false);
     await sell(new Date(startsAt.getTime() + 2 * DAY), 3, true);
     await sell(new Date(startsAt.getTime() + 5 * DAY), 2, true);
+    await sell(new Date(startsAt.getTime() + 6 * DAY), 1, false);
 
     const view = await loadPromotionView(shop.companyId, promotion.id, NOW);
+    // Like with like: the 6 Jameson sold while it ran against the 4 before, not the 5 under it.
     expect(view?.figures).toMatchObject({
       soldUnder: 5,
+      soldDuring: 6,
       soldBefore: 4,
-      soldChange: 25,
+      soldChange: 50,
       givenAway: 10,
       givenEach: 2,
-      // 5 × 25.90 − 4 × 27.90
-      extraTakings: 17.9,
-      perDollarGiven: 1.79,
+      // 5 × 25.90 + 27.90 − 4 × 27.90
+      extraTakings: 45.8,
+      perDollarGiven: 4.58,
       products: 1,
       notSold: 0,
       runningDays: 11,
@@ -214,5 +251,13 @@ describe("what it did", () => {
     expect(view?.appliesToLabel).toBe("1 product");
     expect(view?.unitWord).toBe("bottle");
     expect(view?.badge).toEqual({ label: "Running", tone: "ok" });
+
+    // A Staff promotion over everything has sold nothing under it (D-3): nothing to judge, whatever the shop sold.
+    const staff = await prisma.retailPromotion.create({
+      data: { companyId: shop.companyId, promoCode: "PROMO-STAFF-T", name: "Staff US$2", type: "AMOUNT", value: new Prisma.Decimal(2), scope: "EVERYTHING", audience: "STAFF", startsAt },
+      select: { id: true },
+    });
+    const idle = await loadPromotionView(shop.companyId, staff.id, NOW);
+    expect(idle?.figures).toMatchObject({ soldUnder: 0, soldDuring: 0, soldBefore: 0, soldChange: null, extraTakings: 0, perDollarGiven: null });
   });
 });

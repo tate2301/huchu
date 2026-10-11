@@ -3,7 +3,7 @@ import { z } from "zod";
 import { promotionEndAsk } from "@/lib/retail/asks/products";
 import type { PromotionView } from "@/lib/retail/promotions/service";
 import { momentWords, parsePromotionMoment, pickerValue, STATE_WORD, tomorrowStart } from "@/lib/retail/promotions/state";
-import { AUDIENCE_SEG, codeFromName, KIND_SEG, SCOPE_SEG, type PromotionKind, type PromotionScope } from "@/lib/retail/promotions/words";
+import { AUDIENCE_SEG, codeFromName, KIND_SEG, SCOPE_SEG, valueWarning, type PromotionKind, type PromotionScope } from "@/lib/retail/promotions/words";
 import { formatCount } from "@/lib/workspace/format";
 import type { FieldSpec, PickedOption, SheetCtx, SheetKind, SheetValues } from "@/lib/workspace/sheet-kind";
 
@@ -29,6 +29,24 @@ const percentSchema = z
   .refine((value) => /^\d{1,2}(\.\d{1,2})?\s*%?$/.test(value.trim()) && Number(value.replace("%", "")) > 0 && Number(value.replace("%", "")) <= 90, "Take 1% to 90% off.");
 const buySchema = z.string().refine((value) => /^\d+$/.test(value.trim()) && Number(value) >= 2 && Number(value) <= 24, "Buy is 2 to 24.");
 
+/**
+ * The prices an amount off or a fixed price is judged against: the products
+ * picked (priced by their lookup), or, while it covers what it covered when
+ * the sheet opened, those the server read for it (a category, everything).
+ */
+function scopePrices(values: SheetValues): Array<{ name: string; price: number }> {
+  const scope = scopeOf(values);
+  if (scope === "PRODUCTS") {
+    return picked(values.products).flatMap((option) => (option.cost ? [{ name: option.label, price: Number(option.cost) }] : []));
+  }
+  const same = scope === values._scope && picked(values.categories).map((option) => option.id).join() === String(values._categoryIds ?? "");
+  return same && Array.isArray(values._prices) ? (values._prices as Array<{ name: string; price: number }>) : [];
+}
+
+/** Under "Off each" and "Each at": a product it would give away, or take nothing off. */
+const valueHint = (field: "amount" | "each") => (values: SheetValues) =>
+  valueWarning(kindOf(values), Number(String(values[field] ?? "").replace(/,/g, "")), scopePrices(values)) ?? "";
+
 /** The value fields, one set a kind; only the kind's own are drawn and sent. */
 const valueFields: FieldSpec[] = [
   { id: "percent", t: "text", l: "Off", half: true, mono: true, v: "10%", show: (values) => kindOf(values) === "PERCENT", schema: percentSchema, needed: "Write the percent off, like 10." },
@@ -40,10 +58,21 @@ const valueFields: FieldSpec[] = [
     half: true,
     show: (values) => kindOf(values) === "AMOUNT",
     needed: "Write how much comes off each.",
+    h: valueHint("amount"),
+    warn: true,
   },
   { id: "buy", t: "text", l: "Buy", half: true, mono: true, right: true, max: 2, v: "2", show: (values) => kindOf(values) === "BUY_X_PAY", schema: buySchema },
   { id: "for", t: "money", l: "For", half: true, show: (values) => kindOf(values) === "BUY_X_PAY", needed: "Write what they come to together." },
-  { id: "each", t: "money", l: "Each at", half: true, show: (values) => kindOf(values) === "FIXED_PRICE", needed: "Write the price each sells at." },
+  {
+    id: "each",
+    t: "money",
+    l: "Each at",
+    half: true,
+    show: (values) => kindOf(values) === "FIXED_PRICE",
+    needed: "Write the price each sells at.",
+    h: valueHint("each"),
+    warn: true,
+  },
 ];
 
 const valueOfFields = (values: SheetValues) => {
@@ -66,6 +95,20 @@ function valueFieldsOf(view: PromotionView): SheetValues {
   return { [key]: text, ...(view.buyQuantity ? { buy: String(view.buyQuantity) } : {}) };
 }
 
+/** Its products as picked, each with its price. */
+const pickedProducts = (view: PromotionView): PickedOption[] =>
+  view.products.map((product) => {
+    const price = view.scopePrices.find((entry) => entry.id === product.id)?.price;
+    return { id: product.id, label: product.name, ...(price === undefined ? {} : { cost: price.toFixed(2) }) };
+  });
+
+/** What it covered when the sheet opened, and those products' prices. */
+const scopeSeed = (view: PromotionView): SheetValues => ({
+  _scope: view.scope,
+  _categoryIds: view.categories.map((category) => category.id).join(),
+  _prices: view.scopePrices,
+});
+
 const appliesFields: FieldSpec[] = [
   { id: "appliesTo", t: "seg", l: "Applies to", o: SCOPE_SEG.map(([label]) => label), v: SCOPE_SEG[0]![0] },
   {
@@ -73,6 +116,8 @@ const appliesFields: FieldSpec[] = [
     t: "tags",
     l: "Products",
     noun: "product",
+    // Each picked with its price, for the value's warning.
+    context: { priced: true },
     p: "Search products, then Enter",
     show: (values) => scopeOf(values) === "PRODUCTS",
     needed: "Pick the products it applies to.",
@@ -166,11 +211,12 @@ const promotionNew: SheetKind = {
       kind: KIND_SEG.find(([, kind]) => kind === view.kind)![0],
       ...valueFieldsOf(view),
       appliesTo: SCOPE_SEG.find(([, scope]) => scope === view.scope)![0],
-      products: view.scope === "PRODUCTS" ? view.products.map((product) => ({ id: product.id, label: product.name })) : [],
+      products: view.scope === "PRODUCTS" ? pickedProducts(view) : [],
       categories: view.categories.map((category) => ({ id: category.id, label: category.name })),
       audience: AUDIENCE_SEG.find(([, audience]) => audience === view.audience)![0],
       stacks: view.stacks,
       _unitWord: view.unitWord,
+      ...scopeSeed(view),
     };
   },
   submit: (values) => ({
@@ -238,7 +284,7 @@ const promotionEdit: SheetKind = {
       kind: KIND_SEG.find(([, kind]) => kind === view.kind)![0],
       ...valueFieldsOf(view),
       appliesTo: SCOPE_SEG.find(([, scope]) => scope === view.scope)![0],
-      products: view.scope === "PRODUCTS" ? view.products.map((product) => ({ id: product.id, label: product.name })) : [],
+      products: view.scope === "PRODUCTS" ? pickedProducts(view) : [],
       categories: view.categories.map((category) => ({ id: category.id, label: category.name })),
       starts: pickerValue(new Date(view.startsAt)),
       startedAt: momentWords(new Date(view.startsAt)),
@@ -251,6 +297,7 @@ const promotionEdit: SheetKind = {
       _started: isStarted,
       _ended: view.state === "ENDED",
       _unitWord: view.unitWord,
+      ...scopeSeed(view),
     };
   },
   readOnly: (_ctx, values) => values._ended === true,

@@ -84,6 +84,8 @@ export const TILL_CONTEXT_KEY = ["till-context"] as const;
 /** The heartbeat: last seen, and the back office's messages. */
 export const TILL_HEARTBEAT_KEY = ["till-heartbeat"] as const;
 const HEARTBEAT_MS = 60_000;
+/** The price snapshot the till prices every sale from (PRD-05, PRD-08, PRD-09). */
+const PRICING_KEY = ["retail-pos-pricing"] as const;
 
 /** The till's words while ZIMRA is away and the shop stops selling (SET-08). */
 const FISCAL_STOP = "ZIMRA is not answering, so this shop stops selling until it does. The sale stays here; try again in a few minutes.";
@@ -373,10 +375,19 @@ function useTillStateValue({ isPosHost, paired }: { isPosHost: boolean; paired: 
     server, online and offline (the snapshot is kept with the till's cache),
     so the total shown, charged and printed is the one stored.
   */
+  /*
+    The snapshot is fetched again with every heartbeat and after every sale,
+    so an ended, paused or newly started promotion reaches an open till
+    within the minute (an unchanged one answers 304 off its ETag). A sale
+    rung in that minute is refused `PRICES_CHANGED` and re-priced here.
+  */
   const pricingQuery = useQuery({
-    queryKey: ["retail-pos-pricing"],
+    queryKey: PRICING_KEY,
     queryFn: () => fetchJson<PricingSnapshot>("/api/v2/retail/pos/pricing"),
     enabled: Boolean(shiftHere),
+    staleTime: 0,
+    refetchInterval: HEARTBEAT_MS,
+    refetchIntervalInBackground: true,
   });
   const bundles = pricingQuery.data?.bundles;
   const promotions = pricingQuery.data?.promotions;
@@ -609,6 +620,7 @@ function useTillStateValue({ isPosHost, paired }: { isPosHost: boolean; paired: 
           ...(payment.currency ? { currency: payment.currency } : {}),
           reference: payment.reference.trim() || undefined,
         })),
+      total: amountDue,
     };
   };
 
@@ -626,6 +638,7 @@ function useTillStateValue({ isPosHost, paired }: { isPosHost: boolean; paired: 
       void queryClient.invalidateQueries({ queryKey: ["retail-pos-catalog"] });
       void queryClient.invalidateQueries({ queryKey: ["retail-pos-sales"] });
       void queryClient.invalidateQueries({ queryKey: ["retail-held-carts"] });
+      void queryClient.invalidateQueries({ queryKey: PRICING_KEY });
       router.prefetch(getPosPortalHref("history", isPosHost));
     },
     onError: (error, { payload, handed, changeOwed }) => {
@@ -634,8 +647,12 @@ function useTillStateValue({ isPosHost, paired }: { isPosHost: boolean; paired: 
       const usesOfflineCustomer = isOfflineRetailCustomerId(payload.customerId);
       const offline = isNetworkError || (typeof navigator !== "undefined" && !navigator.onLine) || usesOfflineCustomer;
       if (!tenantKey || !offline) {
-        if (error instanceof ApiError && (error.details as { code?: unknown } | undefined)?.code === "FISCAL_OFFLINE") {
-          setFiscalRefused(true);
+        const code = error instanceof ApiError ? (error.details as { code?: unknown } | undefined)?.code : undefined;
+        if (code === "FISCAL_OFFLINE") setFiscalRefused(true);
+        // Sold off an old snapshot: the new one re-prices the sale on screen before the cashier takes the money again.
+        if (code === "PRICES_CHANGED") {
+          void queryClient.invalidateQueries({ queryKey: PRICING_KEY });
+          void queryClient.invalidateQueries({ queryKey: ["retail-pos-catalog"] });
         }
         setSaleRefusal(saleRefusalOf(error));
         return;
