@@ -193,5 +193,10 @@ describe("a count's asks (STK-06)", () => {
       title: "1 count approved. CNT-0023 waits for the owner.",
       variant: "warning",
     });
+    // A count that broke partway is named; the ones before it stand.
+    expect(run.done(2, rows, { approved: ["CNT-0020"], waiting: [], skipped: [], failed: ["CNT-0024"] })).toEqual({
+      title: "1 count approved. CNT-0024 was not approved. Try it again.",
+      variant: "warning",
+    });
   });
 });

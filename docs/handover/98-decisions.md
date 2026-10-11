@@ -187,6 +187,11 @@ Recorded unit choices:
 - **STK-06's review page draws "Approve and adjust" as a header action, not the page primary.** The header's primary
   has no busy state; the board's spinner is the workspace Button's `busy`. The record's ⋯ "Export as PDF" goes
   through the record-PDF registry (`RetailStockCount`), not a separate `export.pdf` route.
+- **STK-06's review Differ tab lists the matching lines after the differing ones, at 60%** (for the canvas owner to
+  confirm). That is what `CountReview.png` draws; the spec's "Differ" read as the differing lines alone. Match and
+  All stay as they were. Approving waits for every figure still being saved, and a correction or a Why takes the
+  count's lock first, so one that arrives as the count is approved is refused ("This count is closed." / "This
+  count is not waiting for approval.") rather than written beside the approval.
 - **STK-06's count chart drops "CNT-" under the bars past five.** The demo's 12 months hold seven Spirits counts
   (the four June to August ones matched), which do not fit a phone with the prefix.
 - **Reseeding with `--reset` clears what acceptance walks did to the shop's stock and records.** Every order and

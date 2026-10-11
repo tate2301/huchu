@@ -259,7 +259,8 @@ const COUNT_CANCEL: Grant = ["retail.counts", "delete"];
 const countBase = (count: CountView) => `/retail/stock/counts/${count.id}`;
 const countApi = (count: CountView) => `/api/v2/retail/stock/counts/${count.id}`;
 const isOpen = (count: CountView) => count.status === "COUNTING" || count.status === "TO_APPROVE";
-const lineWord = (n: number) => `${formatCount(n)} ${n === 1 ? "line" : "lines"}`;
+const linesNoun = (n: number) => (n === 1 ? "line" : "lines");
+const lineWord = (n: number) => `${formatCount(n)} ${linesNoun(n)}`;
 
 /** Minutes it took, or has taken so far: start to sent. */
 function tookMinutes(count: CountView, now = Date.now()): number {
@@ -303,11 +304,13 @@ function countKpis(count: CountView): RecordKpi[] {
       ? { label: "Short", value: "—", note: "at cost" }
       : count.short.lines === 0
         ? { label: "Short", value: formatMoney(0), note: "nothing short" }
-        : { label: "Short", value: formatMoney(count.short.value), lead: lineWord(count.short.lines), leadTone: "bad", note: "" };
+        : { label: "Short", value: formatMoney(count.short.value), lead: formatCount(count.short.lines), leadTone: "bad", note: linesNoun(count.short.lines) };
   const over: RecordKpi =
     count.over === undefined
       ? { label: "Over", value: "—", note: "at cost" }
-      : { label: "Over", value: formatSigned(count.over.value), note: count.over.lines === 0 ? "nothing over" : lineWord(count.over.lines) };
+      : count.over.lines === 0
+        ? { label: "Over", value: formatSigned(count.over.value), note: "nothing over" }
+        : { label: "Over", value: formatSigned(count.over.value), lead: formatCount(count.over.lines), leadTone: "plain", note: linesNoun(count.over.lines) };
   return [
     { label: "Lines", value: formatCount(count.lines), note: "counted" },
     { label: "Differ", value: formatCount(count.differ), lead: `${share}%`, leadTone: count.differ > 0 ? "warn" : "plain", note: "of the lines" },

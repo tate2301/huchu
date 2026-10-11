@@ -56,6 +56,8 @@
 .cx-cr-body { flex: 1; display: grid; grid-template-columns: minmax(0, 1fr) 320px; }
 .cx-cr-main { min-width: 0; padding: 16px 24px 24px; }
 
+/* The tab row starts flush with the table's edge, as on the board. */
+.cx-cr-main > .cx-tabs { padding: 0; }
 .cx-cr-table { margin-top: 0; border-top: 1px solid var(--line); }
 .cx-cr-g {
   display: grid;
@@ -64,6 +66,8 @@
   padding: 0 12px;
 }
 .cx-cr-g > div + div { padding-left: 8px; }
+/* Why stands clear of the money before it (the board's 20px). */
+.cx-cr-g > .cx-cr-whycol { padding-left: 20px; }
 .cx-cr-table--nocost .cx-cr-g { grid-template-columns: minmax(0, 1fr) 76px 84px 84px 110px 72px; }
 .cx-cr-g > div { display: flex; align-items: center; min-width: 0; }
 .cx-cr-head { height: 34px; background: var(--ground); border-bottom: 1px solid var(--line); color: var(--ink-3); font-size: 13px; }

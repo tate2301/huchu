@@ -9,9 +9,10 @@ import { countActor } from "../respond";
 
 /**
  * Counts › tick rows › "Approve the differences" (ask `approvecounts`):
- * `retail.counts:approve`, at most 100. → `{ approved, waiting, skipped }`
- * by count number: waiting are over the owner's limit (the owner is asked),
- * skipped were not waiting for approval.
+ * `retail.counts:approve`, at most 100. → `{ approved, waiting, skipped,
+ * failed }` by count number: waiting are over the owner's limit (the owner is
+ * asked), skipped were not waiting for approval, failed broke on the way and
+ * are left as they were while the others stand.
  */
 export async function POST(request: NextRequest) {
   const { response, session } = await requireRetailSession(request);

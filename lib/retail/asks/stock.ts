@@ -1,6 +1,7 @@
 import type { ReportRow } from "@/lib/reports/types";
 import type { Ask } from "@/lib/workspace/ask";
 import { formatCount, formatMoney, formatSigned } from "@/lib/workspace/format";
+import type { ApprovedCounts } from "@/lib/retail/stock/count-review";
 import { approvedCountsToast } from "@/lib/retail/stock/count-words";
 import { reversedToast, type Skipped } from "@/lib/retail/stock/reverse-words";
 
@@ -153,9 +154,10 @@ export const STOCK_LIST_RUNS: Record<string, ListActionRun> = {
       });
     },
     done: (_count, _rows, answer) => {
-      const body = (answer ?? {}) as Partial<{ approved: string[]; waiting: string[]; skipped: string[] }>;
-      const said = approvedCountsToast({ approved: body.approved ?? [], waiting: body.waiting ?? [], skipped: body.skipped ?? [] });
-      return (body.waiting?.length ?? 0) + (body.skipped?.length ?? 0) > 0 ? { title: said, variant: "warning" } : said;
+      const body = (answer ?? {}) as Partial<ApprovedCounts>;
+      const said = approvedCountsToast({ approved: body.approved ?? [], waiting: body.waiting ?? [], skipped: body.skipped ?? [], failed: body.failed ?? [] });
+      const leftOver = (body.waiting?.length ?? 0) + (body.skipped?.length ?? 0) + (body.failed?.length ?? 0);
+      return leftOver > 0 ? { title: said, variant: "warning" } : said;
     },
   },
 };

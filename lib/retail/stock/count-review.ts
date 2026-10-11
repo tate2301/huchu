@@ -55,15 +55,10 @@ async function countOf(companyId: string, id: string) {
 
 /* ── Rename (PATCH /api/v2/retail/stock/counts/[id]) ──────────────────────── */
 
-export const countPatch = z
-  .object({
-    name: z
-      .string({ message: "Name the shelf." })
-      .trim()
-      .min(1, "Name the shelf.")
-      .max(80, "Keep it to 80 characters."),
-  })
-  .strict();
+/** Only the Shelf changes here; any other key is ignored. */
+export const countPatch = z.object({
+  name: z.string({ message: "Name the shelf." }).trim().min(1, "Name the shelf.").max(80, "Keep it to 80 characters."),
+});
 
 /** The rail's Shelf: one `RETAIL_RECORD.EDITED`. Approved and cancelled counts do not change. */
 export async function renameCount(actor: CountActor, id: string, name: string): Promise<{ changed: boolean }> {
@@ -95,11 +90,17 @@ export const countWhyInput = z.object({
 
 /** Why a line differs, while the count waits for approval: it becomes the movement's notes. */
 export async function setLineWhy(actor: CountActor, countId: string, lineId: string, why: RetailStockCountWhy): Promise<{ why: RetailStockCountWhy }> {
-  const count = await countOf(actor.companyId, countId);
-  if (count.status !== "TO_APPROVE") throw new CountRefusal(409, NOT_WAITING);
-  const updated = await prisma.retailStockCountLine.updateMany({ where: { id: lineId, countId }, data: { why } });
-  if (updated.count === 0) throw new CountRefusal(404, "That line is not on this count.");
-  return { why };
+  await countOf(actor.companyId, countId);
+  // Under the count's lock, as approval takes it: a Why lands before the
+  // approval writes the movement's notes, or finds the count approved.
+  return prisma.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT "id" FROM "RetailStockCount" WHERE "id" = ${countId} FOR UPDATE`;
+    const count = await tx.retailStockCount.findUniqueOrThrow({ where: { id: countId }, select: { status: true } });
+    if (count.status !== "TO_APPROVE") throw new CountRefusal(409, NOT_WAITING);
+    const updated = await tx.retailStockCountLine.updateMany({ where: { id: lineId, countId }, data: { why } });
+    if (updated.count === 0) throw new CountRefusal(404, "That line is not on this count.");
+    return { why };
+  });
 }
 
 /* ── Tell the counter ─────────────────────────────────────────────────────── */
@@ -422,25 +423,28 @@ export async function approveCount(actor: CountActor, id: string, requestUrl: st
 /* ── Approve many (POST /api/v2/retail/stock/counts/approve) ──────────────── */
 
 export const countIdsInput = z.object({
-  ids: z.array(z.string().uuid(), { message: "Tick a count first." }).min(1, "Tick a count first.").max(100, "Approve at most 100 at a time."),
+  ids: z
+    .array(z.string().uuid("Tick a count first."), { message: "Tick a count first." })
+    .min(1, "Tick a count first.")
+    .max(100, "Approve at most 100 at a time."),
 });
+
+export type ApprovedCounts = { approved: string[]; waiting: string[]; skipped: string[]; failed: string[] };
 
 /**
  * Counts › tick rows › "Approve the differences": each through
- * `approveCount`. Over the owner's limit waits for the owner; not waiting
- * for approval (or refused for a line that sold since) is skipped.
+ * `approveCount`, each in its own transaction. Over the owner's limit waits
+ * for the owner; not waiting for approval (or refused for a line that sold
+ * since) is skipped; anything else failed, and the counts before it stay
+ * approved, so the answer names each.
  */
-export async function approveCounts(
-  actor: CountActor,
-  ids: string[],
-  requestUrl: string | null = null,
-): Promise<{ approved: string[]; waiting: string[]; skipped: string[] }> {
+export async function approveCounts(actor: CountActor, ids: string[], requestUrl: string | null = null): Promise<ApprovedCounts> {
   const counts = await prisma.retailStockCount.findMany({
     where: { companyId: actor.companyId, id: { in: [...new Set(ids)] } },
     orderBy: { countNo: "asc" },
     select: { id: true, countNo: true },
   });
-  const answer = { approved: [] as string[], waiting: [] as string[], skipped: [] as string[] };
+  const answer: ApprovedCounts = { approved: [], waiting: [], skipped: [], failed: [] };
   for (const count of counts) {
     try {
       await approveCount(actor, count.id, requestUrl);
@@ -448,7 +452,10 @@ export async function approveCounts(
     } catch (error) {
       if (error instanceof OwnerNeeded) answer.waiting.push(count.countNo);
       else if (error instanceof CountRefusal) answer.skipped.push(count.countNo);
-      else throw error;
+      else {
+        console.error(`[stock count] ${count.countNo} was not approved:`, error);
+        answer.failed.push(count.countNo);
+      }
     }
   }
   return answer;

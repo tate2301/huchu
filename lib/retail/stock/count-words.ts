@@ -183,8 +183,8 @@ export const recountText = (lines: number, link: string) =>
   lines === 1 ? `Please count this one again: ${link}` : `Please count these ${formatCount(lines)} again: ${link}`;
 
 /** The bulk toast: "2 counts approved." / "1 count approved. CNT-0023 waits for the owner." */
-export function approvedCountsToast(answer: { approved: string[]; waiting: string[]; skipped: string[] }): string {
-  const { approved, waiting, skipped } = answer;
+export function approvedCountsToast(answer: { approved: string[]; waiting: string[]; skipped: string[]; failed: string[] }): string {
+  const { approved, waiting, skipped, failed } = answer;
   const head =
     approved.length === 0
       ? "Nothing was approved."
@@ -194,6 +194,7 @@ export function approvedCountsToast(answer: { approved: string[]; waiting: strin
   const parts = [head];
   if (waiting.length > 0) parts.push(`${list(waiting)} ${waiting.length === 1 ? "waits" : "wait"} for the owner.`);
   if (skipped.length > 0) parts.push(`${list(skipped)} ${skipped.length === 1 ? "was" : "were"} left as ${skipped.length === 1 ? "it is" : "they are"}.`);
+  if (failed.length > 0) parts.push(`${list(failed)} ${failed.length === 1 ? "was" : "were"} not approved. Try ${failed.length === 1 ? "it" : "them"} again.`);
   return parts.join(" ");
 }
 

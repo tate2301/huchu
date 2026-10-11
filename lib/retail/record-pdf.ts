@@ -3,6 +3,7 @@ import { multiplyMoney, sumMoney } from "@/lib/money";
 import { prisma } from "@/lib/prisma";
 import { canSeeRetailCostPrice } from "@/lib/retail/permission-matrix";
 import { COUNT_STATE } from "@/lib/retail/stock/count-words";
+import { hidesExpected } from "@/lib/retail/stock/counts";
 import type { RetailAction, RetailResource } from "@/lib/retail/permission-matrix";
 import { depositWords, idCheckWords, levelWords, priceListsWords, productKpis } from "@/lib/retail/products/record-words";
 import { loadProductView } from "@/lib/retail/products/view";
@@ -316,6 +317,7 @@ const RECORD_PDF: Record<string, RecordPdfType> = {
           name: true,
           status: true,
           blind: true,
+          counterId: true,
           createdAt: true,
           submittedAt: true,
           approvedAt: true,
@@ -336,7 +338,10 @@ const RECORD_PDF: Record<string, RecordPdfType> = {
         },
       });
       if (!count) return null;
-      const seeCost = canSeeRetailCostPrice(caller.role ?? "");
+      // The counter of a blind count, while counting, sees what they counted
+      // and nothing to compare it with: no expected, no difference, no value.
+      const blindToCaller = hidesExpected(caller, count);
+      const seeCost = canSeeRetailCostPrice(caller.role ?? "") && !blindToCaller;
       const valued = count.lines.map((line) => ({
         line,
         value: line.difference ? multiplyMoney(line.difference, line.unitCost).toNumber() : 0,
@@ -346,7 +351,7 @@ const RECORD_PDF: Record<string, RecordPdfType> = {
       const signed = (n: number) => (n > 0 ? `+${n}` : String(n));
       const figures = rows([
         ["Lines", String(count.lines.length)],
-        ["Differ", String(differing.length)],
+        ...(blindToCaller ? [] : ([["Differ", String(differing.length)]] as Array<[string, string]>)),
         ...(seeCost ? ([["Difference at cost", formatSigned(net)]] as Array<[string, string]>) : []),
         ["Site", count.site.name],
         ["Counted by", count.counter.name],
@@ -360,9 +365,9 @@ const RECORD_PDF: Record<string, RecordPdfType> = {
           const expected = (line.expectedAtCount ?? line.expected).toNumber();
           const cells = [
             `<td>${esc(line.inventoryItem.product?.name ?? line.inventoryItem.name)}</td>`,
-            `<td class="num mono">${expected}</td>`,
+            ...(blindToCaller ? [] : [`<td class="num mono">${expected}</td>`]),
             `<td class="num mono">${line.counted === null ? "—" : line.counted.toNumber()}</td>`,
-            `<td class="num mono">${line.difference === null ? "—" : esc(signed(line.difference.toNumber()))}</td>`,
+            ...(blindToCaller ? [] : [`<td class="num mono">${line.difference === null ? "—" : esc(signed(line.difference.toNumber()))}</td>`]),
             ...(seeCost ? [`<td class="num mono">${line.difference === null ? "—" : esc(formatSigned(value))}</td>`] : []),
           ];
           return `<tr>${cells.join("")}</tr>`;
@@ -373,7 +378,7 @@ const RECORD_PDF: Record<string, RecordPdfType> = {
         title: count.name,
         subtitle: `${count.countNo} · ${COUNT_STATE[count.status].label} · ${count.site.name}`,
         content: `<table class="rd-table"><caption>The count</caption><tbody>${figures}</tbody></table>
-<table class="rd-table"><caption>Every line</caption><thead><tr><th>Product</th><th class="num">Expected</th><th class="num">Counted</th><th class="num">Difference</th>${seeCost ? '<th class="num">Value</th>' : ""}</tr></thead><tbody>${lines}</tbody></table>`,
+<table class="rd-table"><caption>Every line</caption><thead><tr><th>Product</th>${blindToCaller ? "" : '<th class="num">Expected</th>'}<th class="num">Counted</th>${blindToCaller ? "" : '<th class="num">Difference</th>'}${seeCost ? '<th class="num">Value</th>' : ""}</tr></thead><tbody>${lines}</tbody></table>`,
       };
     },
   },

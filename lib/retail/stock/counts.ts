@@ -421,7 +421,7 @@ function mayRead(actor: CountActor, grants: CountGrants, count: CountHead) {
 }
 
 /** Whether `expected` is kept from this reader: the counter of a blind count, while it is theirs to count. */
-const hidesExpected = (actor: CountActor, count: CountHead) =>
+export const hidesExpected = (actor: { userId: string }, count: Pick<CountHead, "blind" | "counterId" | "status">) =>
   count.blind && count.counterId === actor.userId && count.status === "COUNTING";
 
 export type CountView = {
@@ -746,12 +746,21 @@ export async function saveCountLine(
 ): Promise<{ line: CountLine; progress: CountProgress }> {
   const head = await headOf(actor.companyId, countId);
   mayRead(actor, grants, head);
-  if (head.status === "APPROVED" || head.status === "CANCELLED") throw new CountRefusal(409, CLOSED);
-  if (head.status === "COUNTING" && head.counterId !== actor.userId && !grants.update) throw new CountRefusal(403, NOT_YOURS);
-  if (head.status === "TO_APPROVE" && !grants.approve) throw new CountRefusal(409, "This count was sent for review.");
+  const maySave = (status: typeof head.status) => {
+    if (status === "APPROVED" || status === "CANCELLED") throw new CountRefusal(409, CLOSED);
+    if (status === "COUNTING" && head.counterId !== actor.userId && !grants.update) throw new CountRefusal(403, NOT_YOURS);
+    if (status === "TO_APPROVE" && !grants.approve) throw new CountRefusal(409, "This count was sent for review.");
+  };
+  maySave(head.status);
 
   const value = quantity(counted);
   return prisma.$transaction(async (tx) => {
+    // The count first, then the stock line: the order approval takes them in.
+    // A correction either lands before the approval reads the lines, or
+    // finds the count approved and is refused.
+    await tx.$queryRaw`SELECT "id" FROM "RetailStockCount" WHERE "id" = ${countId} FOR UPDATE`;
+    const status = await tx.retailStockCount.findUniqueOrThrow({ where: { id: countId }, select: { status: true, firstCountedAt: true } });
+    maySave(status.status);
     const line = await tx.retailStockCountLine.findFirst({
       where: { id: lineId, countId },
       select: {
@@ -766,8 +775,6 @@ export async function saveCountLine(
     // Held until the save commits: a sale waits, and lands after the figure.
     const [stock] = await tx.$queryRaw<Array<{ currentStock: Prisma.Decimal }>>`
       SELECT "currentStock" FROM "InventoryItem" WHERE "id" = ${line.inventoryItemId} FOR UPDATE`;
-    const status = await tx.retailStockCount.findUniqueOrThrow({ where: { id: countId }, select: { status: true, firstCountedAt: true } });
-    if (status.status === "APPROVED" || status.status === "CANCELLED") throw new CountRefusal(409, CLOSED);
     // An approver's correction keeps what was on hand when it was counted.
     const correcting = status.status === "TO_APPROVE";
     const atCount = correcting && line.expectedAtCount ? line.expectedAtCount : quantity(stock!.currentStock);
@@ -800,7 +807,7 @@ export async function saveCountLine(
         },
       });
     }
-    const showExpected = !hidesExpected(actor, head);
+    const showExpected = !hidesExpected(actor, { ...head, status: status.status });
     return { line: asCountLine(saved, showExpected, grants.seeCost && showExpected), progress: await progressOf(tx, countId) };
   });
 }

@@ -120,9 +120,9 @@ export function RecordTabs<R>({
           <div className="cx-rf-tabsrow__export">
             <Menu>
               <MenuTrigger asChild>
-                <button type="button" className="cx-rf-export">
+                <button type="button" className="cx-rf-export" aria-label="Export">
                   <Download aria-hidden="true" />
-                  Export
+                  <span className="cx-rf-export__label">Export</span>
                 </button>
               </MenuTrigger>
               <MenuContent align="end" roomy style={{ width: 260 }}>

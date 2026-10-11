@@ -280,7 +280,7 @@ describe("approving many from Counts", () => {
       keepSelling: true,
     });
     const answer = await approveCounts(shop.manager(), [small.id, big.id, counting.id]);
-    expect(answer).toEqual({ approved: [small.countNo], waiting: [big.countNo], skipped: [counting.countNo] });
+    expect(answer).toEqual({ approved: [small.countNo], waiting: [big.countNo], skipped: [counting.countNo], failed: [] });
     expect(await onHand("amarula")).toBe(12);
     expect(await onHand("jw")).toBe(10);
     await cancelCount(shop.manager(), big.id);

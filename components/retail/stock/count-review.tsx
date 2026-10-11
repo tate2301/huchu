@@ -79,15 +79,21 @@ export function CountReview({ countId }: { countId: string }) {
   const [said, setSaid] = React.useState<Said | null>(null);
   const [approved, setApproved] = React.useState(false);
   const [cancelling, setCancelling] = React.useState(false);
+  // Figures on their way to the server, by line: approving waits for them.
+  const saving = React.useRef(new Map<string, { text: string; done: Promise<boolean> }>());
+  // Set before the approval is sent: a refetch that already sees it approved
+  // must not take the page to the record before the "Approved." line shows.
+  const approving = React.useRef(false);
 
   React.useEffect(() => {
     if (linesQuery.data) setLines(linesQuery.data.lines);
   }, [linesQuery.data]);
 
   const count = view.data;
-  // Only a count waiting for approval is reviewed here; any other opens its record.
+  // Only a count waiting for approval is reviewed here; any other opens its
+  // record. Not the one approved from this page: it stays to say so.
   React.useEffect(() => {
-    if (count && count.status !== "TO_APPROVE" && !approved) router.replace(`/retail/stock/counts/${count.id}`);
+    if (count && count.status !== "TO_APPROVE" && !approved && !approving.current) router.replace(`/retail/stock/counts/${count.id}`);
   }, [count, approved, router]);
 
   const refresh = React.useCallback(async () => {
@@ -141,7 +147,8 @@ export function CountReview({ countId }: { countId: string }) {
   const seeCost = count.difference !== undefined;
   const differing = lines.filter(differs);
   const matching = lines.filter((line) => !differs(line));
-  const shown = tab === "differ" ? differing : tab === "match" ? matching : lines;
+  // Differ lists the differing lines, then the matching ones faded (the board).
+  const shown = tab === "differ" ? [...differing, ...matching] : tab === "match" ? matching : lines;
   const net = Math.round(differing.reduce((sum, line) => sum + valueOf(line), 0) * 100) / 100;
   const recountIds = [...ticked].filter((id) => differing.some((line) => line.id === id));
   const recountN = recountIds.length > 0 ? recountIds.length : differing.length;
@@ -149,31 +156,45 @@ export function CountReview({ countId }: { countId: string }) {
   const lastThree = [...count.history].reverse().slice(0, 3);
   const now = new Date();
 
-  const save = async (line: CountLine) => {
-    const text = typed[line.id];
-    if (text === undefined || text.trim() === (line.counted ?? "")) return;
-    if (!COUNTED.test(text.trim())) {
+  /** Saves a typed figure; true when there was nothing to save or it saved. The same figure already on its way is not sent twice. */
+  const save = (line: CountLine): Promise<boolean> => {
+    const text = typed[line.id]?.trim();
+    if (text === undefined || text === (line.counted ?? "")) return Promise.resolve(true);
+    const inFlight = saving.current.get(line.id);
+    if (inFlight?.text === text) return inFlight.done;
+    if (!COUNTED.test(text)) {
       setBadLine(line.id);
       toast({ title: "Type how many are there.", variant: "destructive" });
-      return;
+      return Promise.resolve(false);
     }
-    try {
-      const answer = await fetchJson<{ line: CountLine }>(`/api/v2/retail/stock/counts/${countId}/lines/${line.id}`, {
-        method: "PUT",
-        body: JSON.stringify({ counted: text.trim() }),
-      });
-      setBadLine(null);
-      setLines((current) => current?.map((row) => (row.id === line.id ? answer.line : row)) ?? null);
-      setTyped((current) => {
-        const next = { ...current };
-        delete next[line.id];
-        return next;
-      });
-      void refresh();
-    } catch (error) {
-      setBadLine(line.id);
-      toast({ title: getApiErrorMessage(error), variant: "destructive" });
-    }
+    const entry = { text, done: Promise.resolve(true) };
+    entry.done = (async () => {
+      await inFlight?.done;
+      try {
+        const answer = await fetchJson<{ line: CountLine }>(`/api/v2/retail/stock/counts/${countId}/lines/${line.id}`, {
+          method: "PUT",
+          body: JSON.stringify({ counted: text }),
+        });
+        setBadLine(null);
+        setLines((current) => current?.map((row) => (row.id === line.id ? answer.line : row)) ?? null);
+        setTyped((current) => {
+          if (current[line.id]?.trim() !== text) return current;
+          const next = { ...current };
+          delete next[line.id];
+          return next;
+        });
+        void refresh();
+        return true;
+      } catch (error) {
+        setBadLine(line.id);
+        toast({ title: getApiErrorMessage(error), variant: "destructive" });
+        return false;
+      } finally {
+        if (saving.current.get(line.id) === entry) saving.current.delete(line.id);
+      }
+    })();
+    saving.current.set(line.id, entry);
+    return entry.done;
   };
 
   const setWhy = async (line: CountLine, why: CountWhy) => {
@@ -196,8 +217,17 @@ export function CountReview({ countId }: { countId: string }) {
     });
 
   const approve = async () => {
+    approving.current = true;
     setBusy("approve");
     setSaid(null);
+    // A figure typed and not yet saved goes first, and every save on its way
+    // lands, before the approval reads the lines; one refused stops it here.
+    const saved = await Promise.all([...lines.map(save), ...[...saving.current.values()].map((entry) => entry.done)]);
+    if (!saved.every(Boolean)) {
+      approving.current = false;
+      setBusy(null);
+      return;
+    }
     try {
       const answer = await fetchJson<{ data: { differenceValue: number } }>(`/api/v2/retail/stock/counts/${countId}/approve`, { method: "POST" });
       const value = answer.data.differenceValue;
@@ -205,6 +235,7 @@ export function CountReview({ countId }: { countId: string }) {
       setSaid({ tone: "ok", lead: "Approved.", text: approvedWords(value === 0 || !seeCost ? null : formatSigned(value)) });
       await refresh();
     } catch (error) {
+      approving.current = false;
       setSaid({ tone: "bad", lead: null, text: getApiErrorMessage(error) });
     } finally {
       setBusy(null);
@@ -346,16 +377,15 @@ export function CountReview({ countId }: { countId: string }) {
                     At cost
                   </div>
                 ) : null}
-                <div role="columnheader" className="cx-cr-wide">
+                <div role="columnheader" className="cx-cr-wide cx-cr-whycol">
                   Why
                 </div>
                 <div role="columnheader" className="cx-cr-wide">
                   Recount
                 </div>
               </div>
-              {shown.length === 0 ? (
-                <p className="cx-cr-empty">{tab === "differ" ? "Every line is as expected." : "Every line differs."}</p>
-              ) : null}
+              {tab === "differ" && differing.length === 0 ? <p className="cx-cr-empty">Every line is as expected.</p> : null}
+              {tab === "match" && matching.length === 0 ? <p className="cx-cr-empty">Every line differs.</p> : null}
               {shown.map((line) => {
                 const diff = differs(line);
                 const value = valueOf(line);
@@ -400,7 +430,7 @@ export function CountReview({ countId }: { countId: string }) {
                         {diff ? formatSigned(value) : "–"}
                       </div>
                     ) : null}
-                    <div role="cell" className="cx-cr-wide">
+                    <div role="cell" className="cx-cr-wide cx-cr-whycol">
                       {diff ? whyButton(line) : null}
                     </div>
                     <div role="cell" className="cx-cr-wide">
@@ -419,7 +449,7 @@ export function CountReview({ countId }: { countId: string }) {
               <p>
                 {seeCost && net !== 0 ? (
                   <>
-                    The difference, <span className="cx-cr-mono cx-cr-strong">{formatSigned(net)}</span>, is posted to Breakage and losses and shows in
+                    The difference, <span className="cx-cr-mono">{formatSigned(net)}</span>, is posted to Breakage and losses and shows in
                     Insights › Losses.
                   </>
                 ) : (

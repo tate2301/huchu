@@ -94,7 +94,7 @@
 .cx-rf-kpi__label { font-size: 12.5px; color: var(--ink-3); }
 .cx-rf-kpi__value { font-family: var(--font-mono); font-variant-numeric: tabular-nums; font-size: 17px; font-weight: 600; letter-spacing: -0.03em; color: var(--ink); }
 .cx-rf-kpi__note { font-size: 12px; color: var(--ink-3); }
-.cx-rf-kpi__lead { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+.cx-rf-kpi__lead { font-variant-numeric: tabular-nums; }
 .cx-rf-kpi__lead--ok { color: var(--ok); }
 .cx-rf-kpi__lead--bad { color: var(--bad); }
 .cx-rf-kpi__lead--warn { color: var(--warn); }
@@ -117,6 +117,8 @@
 .cx-rf-panel .cx-df-bars__grid { top: 16px; height: 150px; }
 .cx-rf-panel .cx-df-bars__plot { height: 150px; }
 .cx-rf-panel .cx-df-bars__bar { max-width: 100px; border-radius: 3px 3px 0 0; }
+/* A chart that marks this record's bar (Record template): the others in the warm soft data tone. */
+.cx-rf-panel--marked .cx-df-bars__bar:not(.cx-df-bars__bar--now) { background: var(--data-compare); }
 .cx-rf-panel__foot { min-height: 44px; box-sizing: border-box; display: flex; align-items: center; gap: 8px; padding: 0 16px; border-top: 1px solid var(--line); }
 .cx-rf-panel__empty { padding: 32px 16px; color: var(--ink-3); text-align: center; }
 
@@ -215,6 +217,13 @@ button.cx-rf-photo:hover { background: var(--hover); }
 .cx-rf-tabsrow .cx-tabs { overflow-x: auto; scrollbar-width: none; }
 .cx-rf-tabsrow .cx-tabs::-webkit-scrollbar { display: none; }
 .cx-rf-tabsrow__export { flex: none; }
+/* On a phone Export is its icon, so the tabs keep the row; a tab past the
+   edge fades out under the scroller rather than running into the button. */
+@media (max-width: 719px) {
+  .cx-rf-export { width: 32px; padding: 0; justify-content: center; }
+  .cx-rf-export__label { display: none; }
+  .cx-rf-tabsrow .cx-tabs { mask-image: linear-gradient(to right, #000 calc(100% - 20px), transparent); }
+}
 /* On a phone a tab's rows are cards (AGENTS table→cards), the strip wraps so
    its figure stays on screen. */
 .cx-rf-cards { display: none; }
