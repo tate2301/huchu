@@ -318,6 +318,8 @@ function Shelf({
 }) {
   // The open-price product whose amount is being asked for. Enter in the search asks for it as well.
   const [pricing, setPricing] = React.useState<{ id: string; fromSearch: boolean } | null>(null);
+  // Scans still being found; the box takes the next one meanwhile.
+  const [finding, setFinding] = React.useState(0);
   const { data: session } = useSession();
   const {
     context,
@@ -329,6 +331,7 @@ function Shelf({
     catalogItems,
     catalogLoading,
     catalogError,
+    findScanned,
     alcohol,
     features,
     pendingOfflineSales,
@@ -430,17 +433,35 @@ function Shelf({
             onKeyDown={(event) => {
               if (event.key === "Enter") {
                 event.preventDefault();
-                const first = catalogItems[0];
-                if (search.trim() && first?.openPrice) setPricing({ id: first.id, fromSearch: true });
-                else if (search.trim() && first) {
-                  onAdd(first);
-                  setSearch("");
-                }
+                const code = search.trim();
+                if (!code) return;
+                // The box is clear for the next scan while this one is found.
+                setSearch("");
+                setFinding((n) => n + 1);
+                void findScanned(code).then((item) => {
+                  setFinding((n) => n - 1);
+                  if (item && !item.openPrice) {
+                    onAdd(item);
+                    return;
+                  }
+                  // An amount to ask for, or nothing found: the search comes back, unless a new one began.
+                  setSearch((current) => current || code);
+                  if (item) {
+                    setSelectedCategory(null);
+                    setPricing({ id: item.id, fromSearch: true });
+                  }
+                });
               }
               if (event.key === "Escape") setSearch("");
             }}
           />
-          <span className="kbd">/</span>
+          {finding ? (
+            <span className="note" role="status">
+              Finding…
+            </span>
+          ) : (
+            <span className="kbd">/</span>
+          )}
         </label>
       </div>
       {/* Quick things on Most sold, the shelf the till opens on: a search or a group is already a choice. */}
