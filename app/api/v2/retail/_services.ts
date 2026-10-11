@@ -42,7 +42,7 @@ import {
 import { splitChange } from "@/lib/retail/payment-words";
 import { queueSaleReceipt, type ReceiptRecipient } from "@/lib/retail/receipt-settings";
 import { sellGiftVouchers } from "@/lib/retail/vouchers/issue";
-import { redeemInSale } from "@/lib/retail/vouchers/redeem";
+import { redeemInSale, restoreDiscountUse, restoreVoucherUse } from "@/lib/retail/vouchers/redeem";
 import {
   auditSalePosted,
   auditSaleReversed,
@@ -66,6 +66,8 @@ export class ShiftElsewhere extends Error {
 
 /** A sale that sold gift vouchers is not reversed at the till: its vouchers are voided on Products › Vouchers. */
 const SOLD_VOUCHERS_REFUSAL = "This sale sold gift vouchers. Void them on Products › Vouchers instead.";
+/** A refund is not paid back onto a voucher yet: a credit note for it comes with FLR-02. */
+export const VOUCHER_REFUND_REFUSAL = "A refund cannot be paid back on a voucher yet. Pay it back another way.";
 
 export type RetailActorContext = {
   companyId: string;
@@ -936,6 +938,11 @@ export async function refundRetailSaleTransaction(input: {
   if (input.payments.some((payment) => payment.currency && payment.currency.trim().toUpperCase() !== sourceSale.currency)) {
     throw new Error("A refund is paid back in the sale's currency.");
   }
+  // PRD-10: money back as a voucher is a credit note, issued with the refund
+  // (FLR-02). Until then a VOUCHER refund would owe money no voucher holds.
+  if (input.payments.some((payment) => payment.tenderType === "VOUCHER")) {
+    throw new Error(VOUCHER_REFUND_REFUSAL);
+  }
   const refundPayments = input.payments.map((payment) => ({
     tenderType: payment.tenderType,
     amount: round(payment.amount),
@@ -1450,14 +1457,31 @@ export async function voidRetailSaleTransaction(input: {
           })),
         },
         payments: {
-          create: reversedPayments.map((payment) => ({
+          // A voucher's money goes back on the voucher it came off (PRD-10), so the payment names it.
+          create: reversedPayments.map((payment, index) => ({
             companyId: input.actor.companyId,
             ...payment,
+            voucherId: currentSourceSale.payments[index]!.voucherId,
           })),
         },
       },
       include: { lines: true, payments: true },
     });
+
+    // PRD-10: what was paid by voucher goes back on it, and a discount
+    // voucher gets its use back, so Vouchers owed (2250, credited by the
+    // reversed VOUCHER tender) is again what the live vouchers hold.
+    const reversal = {
+      actor: { companyId: input.actor.companyId, userId: input.actor.userId, userName: input.actor.userName ?? null, userRole: input.actor.userRole ?? null },
+      saleId: currentSourceSale.id,
+      reversalSaleId: created.id,
+      reversalSaleNo: created.saleNo,
+      at: created.postedAt ?? new Date(),
+    };
+    await restoreVoucherUse(tx, reversal);
+    if (currentSourceSale.discountVoucherId) {
+      await restoreDiscountUse(tx, { ...reversal, voucherId: currentSourceSale.discountVoucherId });
+    }
 
     for (const line of currentSourceSale.lines) {
       const item = inventoryItemMap.get(line.inventoryItemId);

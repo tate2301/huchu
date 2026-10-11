@@ -13,7 +13,8 @@ import { checkVoucher, LOCKED, WRONG_SECRET } from "@/lib/retail/vouchers/redeem
  * cashier, a bookkeeper and a stock clerk cannot issue one, and a stock clerk
  * cannot read one; a bad expiry and WhatsApp with nobody to send to are
  * refused under their fields; a manager issues gift vouchers, sees the secret
- * a cashier does not, and the books owe what was given (Dr 5450 / Cr 2250);
+ * a cashier does not, and prints the cards a cashier and a bookkeeper cannot;
+ * the books owe what was given (Dr 5450 / Cr 2250);
  * a void needs a reason, writes off what was left back off promotions, and a
  * voided voucher cannot be changed or sent; a sold one lapsing writes its
  * money to other income once, however often the job runs; five wrong secrets
@@ -40,6 +41,7 @@ const { GET: read, PATCH: change } = await import("./[id]/route");
 const { POST: send } = await import("./[id]/send/route");
 const { POST: voidThem } = await import("./void/route");
 const { POST: extend } = await import("./extend/route");
+const { GET: print } = await import("./print/route");
 
 const request = (path: string, method: string, body?: unknown) =>
   new NextRequest(`http://shop.test/api/v2/retail${path}`, {
@@ -146,6 +148,12 @@ describe("issuing", () => {
     const cashierView = await json(await as("CASHIER", () => read(request(`/vouchers/${ids.first}`, "GET"), params(ids.first!))));
     expect(cashierView.status).toBe(200);
     expect(cashierView.body.data?.secret ?? null).toBeNull();
+
+    // The printed card carries the secret and a barcode of it: printed by those who see the secret only.
+    const printed = (role: string) => as(role, () => print(request(`/vouchers/print?ids=${ids.first}`, "GET")));
+    for (const role of ["CASHIER", "FINANCE_OFFICER"]) expect((await printed(role)).status).toBe(403);
+    const card = await printed("MANAGER");
+    expect([card.status, card.headers.get("content-type")]).toEqual([200, "application/pdf"]);
   });
 
   it("keeps who it is for as typed when no customer has that name, and prints one discount voucher that many times", async () => {

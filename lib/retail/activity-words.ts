@@ -546,6 +546,13 @@ const WORDS: Record<string, (payload: Payload, eventType: string, seeCost: boole
     }
     return { what: `${moneyWords(payload.amount)} spent on ${sale}, ${moneyWords(payload.left)} left`, tone: "ok" };
   },
+  // "US$10.00 back from VOID-0012, US$15.00 left" / "A use back from VOID-0012, 3 left".
+  [RETAIL_AUDIT_EVENTS.voucherRestored]: (payload) => {
+    const sale = text(payload.saleNo) ?? "a reversed sale";
+    const usesLeft = amount(payload.usesLeft);
+    if (usesLeft !== null) return { what: `A use back from ${sale}, ${formatCount(usesLeft)} left`, tone: "info" };
+    return { what: `${moneyWords(payload.amount)} back from ${sale}, ${moneyWords(payload.left)} left`, tone: "info" };
+  },
   [RETAIL_AUDIT_EVENTS.voucherVoided]: (payload) => ({ what: `Voided: ${text(payload.reason) ?? "no reason given"}`, tone: "bad" }),
   [RETAIL_AUDIT_EVENTS.voucherExpired]: (payload) => {
     const left = amount(payload.left);

@@ -197,7 +197,7 @@ export const voucherKind: RecordKind<VoucherRecord> = {
   reference: (voucher) => voucher.code,
   actions: (voucher): RecordAction[] => [
     ...(open(voucher) ? [{ key: "extend", label: "Extend", requires: [UPDATE], do: { sheet: "voucher-edit", id: voucher.id } }] : []),
-    { key: "print", label: "Print", requires: [VIEW], do: { open: `/api/v2/retail/vouchers/print?ids=${voucher.id}` } },
+    { key: "print", label: "Print", requires: [UPDATE], do: { open: `/api/v2/retail/vouchers/print?ids=${voucher.id}` } },
     ...(open(voucher) && voucher.canSend
       ? [
           {

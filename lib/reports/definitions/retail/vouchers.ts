@@ -123,11 +123,11 @@ const vouchers: ListSpec = {
   bulk: [
     { key: "extend", label: "Extend", requires: UPDATE, when: [OPEN], do: { sheet: "voucher-extend" } },
     { key: "void", label: "Void", tone: "bad", requires: DELETE, when: [OPEN], do: { run: "voidvoucher", endpoint: "/api/v2/retail/vouchers/void" } },
-    { key: "print", label: "Print", requires: VIEW, do: { download: "/api/v2/retail/vouchers/print", open: true } },
+    { key: "print", label: "Print", requires: UPDATE, do: { download: "/api/v2/retail/vouchers/print", open: true } },
     { key: "export" },
   ],
   primary: { label: "Issue vouchers", icon: "plus", sheet: "voucher-new", requires: CREATE },
-  card: { title: "code", badge: "kind", figure: "left", meta: "{holder} · expires {expiresText}" },
+  card: { title: "code", badge: "kind", figure: "left", meta: "{holder} · expires {expiresText}", metaMono: ["expiresText"] },
   empty: {
     icon: "Ticket",
     title: "No vouchers yet",

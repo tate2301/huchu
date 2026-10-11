@@ -8,6 +8,7 @@ import { hashDeviceKey } from "@/lib/retail/devices";
 import { addTestProduct, makeTestShop, type TestShop } from "@/lib/retail/products/test-fixtures";
 import { issueVoucher, type Issued } from "@/lib/retail/vouchers/issue";
 import { barcodeText, WRONG_SECRET } from "@/lib/retail/vouchers/redeem";
+import { VOUCHER_REFUND_REFUSAL } from "../../_services";
 
 /**
  * `pos/sales` with vouchers (PRD-10, W-18) on a paired till, against the test
@@ -17,7 +18,10 @@ import { barcodeText, WRONG_SECRET } from "@/lib/retail/vouchers/redeem";
  * voucher at once cannot both have it; a gift voucher bought in a sale is paid
  * on top of the goods, issued with the sale and owed in its journal (Cr 2250),
  * and the sale cannot be voided at the till; a discount voucher takes 10% off
- * after the promotions and gives up one use; the till's check reads a scan.
+ * after the promotions and gives up one use; voiding a sale paid by voucher
+ * puts the money back on it (2250 ties out with what it holds) and gives a
+ * discount voucher its use back; a refund onto a voucher is refused; the
+ * till's check reads a scan.
  */
 
 const { validateSessionMock } = vi.hoisted(() => ({ validateSessionMock: vi.fn() }));
@@ -29,6 +33,7 @@ vi.mock("@/lib/api-utils", async (importOriginal) => ({
 
 import { POST as SELL } from "./route";
 import { POST as VOID } from "./[id]/void/route";
+import { POST as REFUND } from "./[id]/refund/route";
 import { GET as CHECK } from "../vouchers/check/route";
 
 const stamp = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -142,9 +147,9 @@ const brandy = () => [{ productId: ids.brandy!, quantity: 1, unitPrice: 10 }];
 const salesOf = (ref: string) => prisma.retailSale.count({ where: { companyId: shop.companyId, clientRef: `${ref}-${stamp}` } });
 
 /** The sale's journal netted by account: debit less credit. */
-async function books(saleId: string) {
+async function books(saleId: string, sourceType: "RETAIL_SALE" | "RETAIL_VOID" = "RETAIL_SALE") {
   const entry = await prisma.journalEntry.findFirstOrThrow({
-    where: { companyId: shop.companyId, sourceType: "RETAIL_SALE", sourceId: saleId },
+    where: { companyId: shop.companyId, sourceType, sourceId: saleId },
     select: { lines: { select: { debit: true, credit: true, account: { select: { code: true } } } } },
   });
   const byAccount: Record<string, number> = {};
@@ -152,6 +157,16 @@ async function books(saleId: string) {
     byAccount[line.account.code] = Number(((byAccount[line.account.code] ?? 0) + Number(line.debit) - Number(line.credit)).toFixed(2));
   }
   return byAccount;
+}
+function voidSale(saleId: string) {
+  return VOID(
+    new NextRequest(`http://pos.test.localtest.me/api/v2/retail/pos/sales/${saleId}/void`, {
+      method: "POST",
+      headers: { cookie: `${DEVICE_COOKIE}=${key}`, "content-type": "application/json" },
+      body: JSON.stringify({ shiftId, reason: "Customer left", voidedAt: new Date(Date.now() - 5 * 60_000).toISOString() }),
+    }),
+    { params: Promise.resolve({ id: saleId }) },
+  ).then(async (response) => ({ status: response.status, body: (await response.json()) as Record<string, unknown> & { id?: string; error?: string } }));
 }
 const balanced = (byAccount: Record<string, number>) => Math.abs(Math.round(Object.values(byAccount).reduce((sum, net) => sum + net, 0) * 100));
 
@@ -211,16 +226,9 @@ describe("selling a gift voucher", () => {
     expect(journal["2250"]).toBe(-20);
     expect(balanced(journal)).toBe(0);
 
-    const voided = await VOID(
-      new NextRequest(`http://pos.test.localtest.me/api/v2/retail/pos/sales/${sale.id}/void`, {
-        method: "POST",
-        headers: { cookie: `${DEVICE_COOKIE}=${key}`, "content-type": "application/json" },
-        body: JSON.stringify({ shiftId, reason: "Customer left", voidedAt: new Date(Date.now() - 5 * 60_000).toISOString() }),
-      }),
-      { params: Promise.resolve({ id: sale.id }) },
-    );
+    const voided = await voidSale(sale.id);
     expect(voided.status).not.toBe(201);
-    expect(((await voided.json()) as { error?: string }).error).toBe("This sale sold gift vouchers. Void them on Products › Vouchers instead.");
+    expect(voided.body.error).toBe("This sale sold gift vouchers. Void them on Products › Vouchers instead.");
   });
 });
 
@@ -241,6 +249,95 @@ describe("a discount voucher", () => {
       status: 400,
       body: { error: `${vouchers.discount!.code} is a discount voucher. Take it off the sale instead.` },
     });
+  });
+});
+
+describe("voiding a sale paid by voucher", () => {
+  it("puts the money back on the voucher, so Vouchers owed is again what the voucher holds", async () => {
+    // A US$15.00 gift voucher bought at the till (Cr 2250 15.00), then US$10.00 of it spent (Dr 2250 10.00).
+    const bought = await sell("owed-buy", [{ productId: ids.castle!, quantity: 1, unitPrice: 1.2 }], [cash(16.2)], { vouchersSold: [{ value: "15.00" }], total: 16.2 });
+    expect(bought.status).toBe(201);
+    const voucher = await prisma.retailVoucher.findFirstOrThrow({ where: { companyId: shop.companyId, soldSaleId: bought.body.id! } });
+    const secret = voucher.secret;
+    const spent = await sell("owed-spend", brandy(), [{ tenderType: "VOUCHER", currency: "USD", amount: 10, voucherCode: voucher.code, voucherSecret: secret }]);
+    expect(spent.status).toBe(201);
+    expect((await prisma.retailVoucher.findUniqueOrThrow({ where: { id: voucher.id } })).balance.toFixed(2)).toBe("5.00");
+
+    const voided = await voidSale(spent.body.id!);
+    expect(voided.status).toBe(201);
+    const after = await prisma.retailVoucher.findUniqueOrThrow({ where: { id: voucher.id }, include: { uses: { orderBy: { createdAt: "asc" } } } });
+    expect(after.balance.toFixed(2)).toBe("15.00");
+    expect(after.uses.map((use) => [use.saleId, use.amount.toFixed(2), use.balanceAfter?.toFixed(2)])).toEqual([
+      [spent.body.id, "10.00", "5.00"],
+      [voided.body.id, "-10.00", "15.00"],
+    ]);
+    const reversed = await prisma.retailSalePayment.findFirstOrThrow({ where: { saleId: voided.body.id!, tenderType: "VOUCHER" } });
+    expect([reversed.amount.toFixed(2), reversed.voucherId]).toEqual(["-10.00", voucher.id]);
+    expect(await prisma.platformAuditEvent.count({ where: { entityId: voucher.id, eventType: "RETAIL_VOUCHER.RESTORED" } })).toBe(1);
+
+    // 2250 over the three journals is what the voucher holds: owed 15, spent 10, put back 10.
+    const voidJournal = await books(voided.body.id!, "RETAIL_VOID");
+    expect(voidJournal["2250"]).toBe(-10);
+    expect(balanced(voidJournal)).toBe(0);
+    const owed = -((await books(bought.body.id!))["2250"]! + (await books(spent.body.id!))["2250"]! + voidJournal["2250"]!);
+    expect(owed).toBe(Number(after.balance));
+  }, 30_000);
+
+  it("refuses to void a sale whose voucher was voided since, and changes nothing", async () => {
+    const voucher = await issue({ valueCents: 1000 });
+    const spent = await sell("voided-since", brandy(), [byVoucher(voucher, 10)]);
+    expect(spent.status).toBe(201);
+    await prisma.retailVoucher.update({ where: { id: voucher.id }, data: { voidedAt: new Date(), voidReason: "Reported stolen" } });
+    expect(await voidSale(spent.body.id!)).toMatchObject({
+      status: 400,
+      body: { error: `${voucher.code} was voided, so what was paid with it cannot go back on it.` },
+    });
+    const sale = await prisma.retailSale.findUniqueOrThrow({ where: { id: spent.body.id! } });
+    expect(sale.status).toBe("POSTED");
+    expect((await prisma.retailVoucher.findUniqueOrThrow({ where: { id: voucher.id } })).balance.toFixed(2)).toBe("0.00");
+  });
+
+  it("gives a discount voucher its use back", async () => {
+    const discount = await issue({ kind: "DISCOUNT", funding: "GIVEN", valueCents: null, percentOff: 10, copies: 3 });
+    const sold = await sell("dv-void", [{ productId: ids.jameson!, quantity: 1, unitPrice: 27.9 }], [cash(25.11)], {
+      discountVoucher: { code: discount.code, secret: discount.secret },
+    });
+    expect(sold.status).toBe(201);
+    expect((await prisma.retailVoucher.findUniqueOrThrow({ where: { id: discount.id } })).usesLeft).toBe(2);
+    const voided = await voidSale(sold.body.id!);
+    expect(voided.status).toBe(201);
+    const after = await prisma.retailVoucher.findUniqueOrThrow({ where: { id: discount.id }, include: { uses: { orderBy: { createdAt: "asc" } } } });
+    expect([after.usesLeft, after.uses.map((use) => [use.saleId, use.amount.toFixed(2)])]).toEqual([
+      3,
+      [
+        [sold.body.id, "2.79"],
+        [voided.body.id, "-2.79"],
+      ],
+    ]);
+  });
+});
+
+describe("refunding onto a voucher", () => {
+  it("is refused until a refund issues its credit note", async () => {
+    const sold = await sell("refund-voucher", brandy(), [cash(10)]);
+    const line = await prisma.retailSaleLine.findFirstOrThrow({ where: { saleId: sold.body.id! } });
+    const refused = await REFUND(
+      new NextRequest(`http://pos.test.localtest.me/api/v2/retail/pos/sales/${sold.body.id}/refund`, {
+        method: "POST",
+        headers: { cookie: `${DEVICE_COOKIE}=${key}`, "content-type": "application/json" },
+        body: JSON.stringify({
+          shiftId,
+          reason: "Damaged",
+          lines: [{ saleLineId: line.id, quantity: 1 }],
+          payments: [{ tenderType: "VOUCHER", amount: 10 }],
+          refundedAt: new Date(Date.now() - 5 * 60_000).toISOString(),
+        }),
+      }),
+      { params: Promise.resolve({ id: sold.body.id! }) },
+    );
+    expect(refused.status).toBe(400);
+    expect(((await refused.json()) as { error?: string }).error).toBe(VOUCHER_REFUND_REFUSAL);
+    expect(await prisma.retailSale.count({ where: { companyId: shop.companyId, sourceSaleId: sold.body.id!, saleType: "REFUND" } })).toBe(0);
   });
 });
 

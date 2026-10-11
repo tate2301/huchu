@@ -23,6 +23,19 @@ import { PERIOD_LABELS, cellText, countWords, diffTone, drawnFilters, filterValu
  * a card and brings the selection bar.
  */
 
+/** A card's meta line with only its `metaMono` holes in mono: the first template whose holes all fill, as `fillTemplate` picks. */
+function metaParts(template: string | string[], row: ReportRow, mono: string[]): React.ReactNode {
+  for (const candidate of Array.isArray(template) ? template : [template]) {
+    const parts = candidate.split(/\{(\w+)\}/);
+    const holes = parts.filter((_, index) => index % 2 === 1);
+    if (holes.some((key) => isBlank(row[key]))) continue;
+    return parts.map((part, index) =>
+      index % 2 === 0 ? part : mono.includes(part) ? <span key={index} className="mono">{String(row[part])}</span> : String(row[part]),
+    );
+  }
+  return "";
+}
+
 export function PhoneToolbar({
   spec,
   search,
@@ -176,7 +189,11 @@ export function ListCards({
             ) : (
               <span className="cx-lf-card__fig">{figureColumn ? cellText(figureColumn, row) : badgeEl}</span>
             )}
-            <span className="cx-lf-card__meta">{fillTemplate(spec.card.meta, row, false) ?? ""}</span>
+            {spec.card.metaMono ? (
+              <span className="cx-lf-card__meta cx-lf-card__meta--sans">{metaParts(spec.card.meta, row, spec.card.metaMono)}</span>
+            ) : (
+              <span className="cx-lf-card__meta">{fillTemplate(spec.card.meta, row, false) ?? ""}</span>
+            )}
             <span className="cx-lf-card__fig2">
               {figure2Column ? (
                 isBlank(figure2) ? (

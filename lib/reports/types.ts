@@ -550,6 +550,11 @@ export type ListSpec = {
     badge?: string;
     figure: string;
     meta: RowTemplate;
+    /**
+     * The holes of `meta` set in mono ("expiresText"); the rest of the line reads in the body
+     * face, so a name is not set as a figure. Without it the whole line is mono (codes and times).
+     */
+    metaMono?: string[];
     /** A second meta line under the first ("Last sale Today, 11:42 · Chipo Dube"). */
     meta2?: RowTemplate;
     figure2?: string;

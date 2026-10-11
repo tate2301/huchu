@@ -219,6 +219,8 @@ export const RETAIL_AUDIT_EVENTS = {
   voucherSent: "RETAIL_VOUCHER.SENT",
   /** A voucher spent at the till. Carries the sale's number, what came off it and what is left. */
   voucherRedeemed: "RETAIL_VOUCHER.REDEEMED",
+  /** A voided (or refunded) sale's voucher payment put back on it, or its discount voucher's use given back. Carries the reversal's number, what went back and what is left. */
+  voucherRestored: "RETAIL_VOUCHER.RESTORED",
   /** A voucher voided with a reason; what was left is written off. Carries the reason and what was left. */
   voucherVoided: "RETAIL_VOUCHER.VOIDED",
   /** A voucher lapsed at its expiry by the retail worker. Carries what was left. */

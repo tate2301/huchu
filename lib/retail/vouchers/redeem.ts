@@ -238,21 +238,36 @@ export async function redeemInSale(
   }
 }
 
+/** A voucher no longer live cannot take money or a use back: its money was written off when it was voided or lapsed. */
+async function notLiveReason(tx: Tx, voucherId: string): Promise<string> {
+  const row = await tx.retailVoucher.findUniqueOrThrow({ where: { id: voucherId }, select: { code: true, voidedAt: true } });
+  return row.voidedAt
+    ? `${row.code} was voided, so what was paid with it cannot go back on it.`
+    : `${row.code} expired and was written off, so what was paid with it cannot go back on it.`;
+}
+
+type Reversal = { actor: RetailAuditActor; saleId: string; reversalSaleId: string; reversalSaleNo: string; at: Date };
+
 /**
- * A refund of a sale paid by voucher puts the money back on it (D-4, FLR-02
- * calls it in the refund's transaction): a negative use row against the
- * refund, the balance up by what comes back, over the sale's voucher payments
- * in order and never more than each paid less what earlier refunds of the
- * same sale put back. Returns what went back.
+ * Money paid by voucher going back on it, in the reversal's transaction: a
+ * void of the sale (everything, `amount` left out) or a refund of part of it
+ * (FLR-02, D-4). Over the sale's voucher payments in order, never more than
+ * each paid less what earlier reversals of the same sale put back: a guarded
+ * increment (the voucher still live, so money already written off is not
+ * owed twice; refused otherwise), a negative use row against the reversal,
+ * and its Activity line. Returns what went back on each voucher.
  */
-export async function restoreVoucherUse(tx: Tx, input: { saleId: string; refundSaleId: string; amount: number }): Promise<number> {
-  let remaining = cents(input.amount);
+export async function restoreVoucherUse(
+  tx: Tx,
+  input: Reversal & { amount?: number },
+): Promise<Array<{ voucherId: string; amount: number }>> {
+  let remaining = input.amount === undefined ? Number.POSITIVE_INFINITY : cents(input.amount);
   const paid = await tx.retailVoucherUse.findMany({
     where: { saleId: input.saleId, amount: { gt: 0 }, voucher: { kind: { not: "DISCOUNT" } } },
     orderBy: { createdAt: "asc" },
-    select: { voucherId: true, amount: true, companyId: true },
+    select: { voucherId: true, amount: true },
   });
-  let restored = 0;
+  const restored: Array<{ voucherId: string; amount: number }> = [];
   for (const use of paid) {
     if (remaining <= 0) break;
     const back = await tx.retailVoucherUse.aggregate({
@@ -260,18 +275,59 @@ export async function restoreVoucherUse(tx: Tx, input: { saleId: string; refundS
       _sum: { amount: true },
     });
     const room = cents(toNumberOrZero(use.amount) + toNumberOrZero(back._sum.amount ?? 0));
-    const amount = Math.min(room, remaining);
+    const amount = cents(Math.min(room, remaining));
     if (amount <= 0) continue;
-    const voucher = await tx.retailVoucher.update({
-      where: { id: use.voucherId },
-      data: { balance: { increment: amount } },
-      select: { balance: true },
-    });
+    const [row] = await tx.$queryRaw<Array<{ balance: Prisma.Decimal; code: string }>>`
+      UPDATE "RetailVoucher" SET "balance" = "balance" + ${amount}::numeric, "updatedAt" = NOW()
+      WHERE "id" = ${use.voucherId} AND "companyId" = ${input.actor.companyId}
+        AND "voidedAt" IS NULL AND "expiredAt" IS NULL
+      RETURNING "balance", "code"`;
+    if (!row) throw new VoucherRefusal(409, await notLiveReason(tx, use.voucherId));
+    const left = toNumberOrZero(row.balance);
     await tx.retailVoucherUse.create({
-      data: { companyId: use.companyId, voucherId: use.voucherId, saleId: input.refundSaleId, amount: -amount, balanceAfter: voucher.balance },
+      data: { companyId: input.actor.companyId, voucherId: use.voucherId, saleId: input.reversalSaleId, amount: -amount, balanceAfter: left, createdAt: input.at },
+    });
+    await writeRetailAuditEvent(tx, {
+      actor: input.actor,
+      eventType: RETAIL_AUDIT_EVENTS.voucherRestored,
+      entityType: "RetailVoucher",
+      entityId: use.voucherId,
+      payload: { code: row.code, saleId: input.reversalSaleId, saleNo: input.reversalSaleNo, amount: amount.toFixed(2), left: left.toFixed(2) },
     });
     remaining = cents(remaining - amount);
-    restored = cents(restored + amount);
+    restored.push({ voucherId: use.voucherId, amount });
   }
   return restored;
+}
+
+/**
+ * A voided sale gives its discount voucher's use back, in the void's
+ * transaction: one use more, guarded on the voucher still being live (one
+ * voided or lapsed since stays as it is, there is no money on it), and a
+ * negative use row against the void with the discount it gave.
+ */
+export async function restoreDiscountUse(tx: Tx, input: Reversal & { voucherId: string }): Promise<boolean> {
+  const given = await tx.retailVoucherUse.findFirst({
+    where: { saleId: input.saleId, voucherId: input.voucherId, amount: { gt: 0 } },
+    select: { amount: true },
+  });
+  if (!given) return false;
+  const [row] = await tx.$queryRaw<Array<{ usesLeft: number; code: string }>>`
+    UPDATE "RetailVoucher" SET "usesLeft" = "usesLeft" + 1, "updatedAt" = NOW()
+    WHERE "id" = ${input.voucherId} AND "companyId" = ${input.actor.companyId}
+      AND "kind" = 'DISCOUNT' AND "voidedAt" IS NULL AND "expiredAt" IS NULL
+    RETURNING "usesLeft", "code"`;
+  if (!row) return false;
+  const discount = cents(toNumberOrZero(given.amount));
+  await tx.retailVoucherUse.create({
+    data: { companyId: input.actor.companyId, voucherId: input.voucherId, saleId: input.reversalSaleId, amount: -discount, balanceAfter: row.usesLeft, createdAt: input.at },
+  });
+  await writeRetailAuditEvent(tx, {
+    actor: input.actor,
+    eventType: RETAIL_AUDIT_EVENTS.voucherRestored,
+    entityType: "RetailVoucher",
+    entityId: input.voucherId,
+    payload: { code: row.code, saleId: input.reversalSaleId, saleNo: input.reversalSaleNo, amount: discount.toFixed(2), usesLeft: row.usesLeft },
+  });
+  return true;
 }

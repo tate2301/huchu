@@ -492,6 +492,14 @@ Recorded unit choices:
     (`issueCreditNote`, `restoreVoucherUse` are ready for it).
   - **A sale that sold gift vouchers is not refunded or voided at the till** ("This sale sold gift vouchers. Void
     them on Products › Vouchers instead."): the vouchers are live money, voided with a reason here.
+  - **Voiding a sale paid by voucher puts the money back on it**, in the void's transaction (a negative use against
+    the void, the reversed payment naming the voucher, "US$10.00 back from VOID-0012, US$15.00 left" in Activity),
+    and a discount voucher gets its use back. A voucher voided or lapsed since had its money written off, so the
+    sale is not voided ("GV-0019 was voided, so what was paid with it cannot go back on it."). A refund paid back
+    onto a voucher is refused until FLR-02 issues its credit note ("A refund cannot be paid back on a voucher yet.
+    Pay it back another way.").
+  - **Printing is gated as the secret is** (promotions:update, Owner and Manager): the card carries the secret and a
+    barcode of it, so Cashier and Bookkeeper read vouchers but neither print them nor see Print.
   - **The printed barcode carries the code and its secret** (`GV-0019-K7MQ2X`), so a scan needs no typing; the
     server still checks the secret, and five wrong secrets in ten minutes lock that code for fifteen.
   - **A discount voucher comes off after the promotions**, in `priceSale`, shared across the lines by their value;

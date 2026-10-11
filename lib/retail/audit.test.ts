@@ -481,6 +481,7 @@ describe("the chain", () => {
       voucherChanged: "RETAIL_VOUCHER.CHANGED",
       voucherSent: "RETAIL_VOUCHER.SENT",
       voucherRedeemed: "RETAIL_VOUCHER.REDEEMED",
+      voucherRestored: "RETAIL_VOUCHER.RESTORED",
       voucherVoided: "RETAIL_VOUCHER.VOIDED",
       voucherExpired: "RETAIL_VOUCHER.EXPIRED",
       tillCreated: "RETAIL_TILL.CREATED",

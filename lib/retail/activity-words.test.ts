@@ -123,7 +123,7 @@ describe("Activity's sentences (00-foundations 5.6.9)", () => {
     expect(activityWords("RETAIL_PROMOTION.ENDED", { name: "Festive" })).toEqual({ what: "Ended it", tone: "hollow" });
   });
 
-  it("vouchers: issued, changed, sent, spent, voided and expired", () => {
+  it("vouchers: issued, changed, sent, spent, put back, voided and expired", () => {
     expect(activityWords("RETAIL_VOUCHER.ISSUED", { code: "GV-0022", kind: "GIFT", value: "50.00" })).toEqual({ what: "Issued for US$50.00", tone: "ok" });
     expect(activityWords("RETAIL_VOUCHER.ISSUED", { code: "DV-0008", kind: "DISCOUNT", value: "10% off" })).toEqual({ what: "Issued for 10% off", tone: "ok" });
     expect(
@@ -137,6 +137,14 @@ describe("Activity's sentences (00-foundations 5.6.9)", () => {
     expect(activityWords("RETAIL_VOUCHER.REDEEMED", { saleNo: "SALE-29812", amount: "1.20", usesLeft: 11 })).toEqual({
       what: "US$1.20 off SALE-29812, 11 left",
       tone: "ok",
+    });
+    expect(activityWords("RETAIL_VOUCHER.RESTORED", { saleNo: "VOID-0012", amount: "10.00", left: "15.00" })).toEqual({
+      what: "US$10.00 back from VOID-0012, US$15.00 left",
+      tone: "info",
+    });
+    expect(activityWords("RETAIL_VOUCHER.RESTORED", { saleNo: "VOID-0013", amount: "2.79", usesLeft: 3 })).toEqual({
+      what: "A use back from VOID-0013, 3 left",
+      tone: "info",
     });
     expect(activityWords("RETAIL_VOUCHER.VOIDED", { reason: "Printed twice", left: "12.60" })).toEqual({ what: "Voided: Printed twice", tone: "bad" });
     expect(activityWords("RETAIL_VOUCHER.EXPIRED", { left: "4.20" })).toEqual({ what: "Expired with US$4.20 left", tone: "hollow" });
