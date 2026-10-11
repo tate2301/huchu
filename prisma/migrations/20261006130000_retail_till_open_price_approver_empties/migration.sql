@@ -17,8 +17,11 @@
 ALTER TABLE "Product" ADD COLUMN     "openPrice" BOOLEAN NOT NULL DEFAULT false;
 
 -- AlterTable
-ALTER TABLE "RetailSale" ADD COLUMN     "approvedById" TEXT,
-ADD COLUMN     "approvedByName" TEXT;
+-- PR #193's sale-floor migration (20261007090000_retail_sale_floor) added these
+-- two columns and their key too, and some databases ran it before this one.
+-- Add them only where they are missing, so the order the two ran in does not matter.
+ALTER TABLE "RetailSale" ADD COLUMN IF NOT EXISTS "approvedById" TEXT,
+ADD COLUMN IF NOT EXISTS "approvedByName" TEXT;
 
 -- CreateTable
 CREATE TABLE "RetailDepositKind" (
@@ -58,8 +61,13 @@ CREATE INDEX "RetailEmptiesEntry_companyId_supplierId_idx" ON "RetailEmptiesEntr
 -- CreateIndex
 CREATE INDEX "RetailEmptiesEntry_saleId_idx" ON "RetailEmptiesEntry"("saleId");
 
--- AddForeignKey
-ALTER TABLE "RetailSale" ADD CONSTRAINT "RetailSale_approvedById_fkey" FOREIGN KEY ("approvedById") REFERENCES "User"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+-- AddForeignKey (only where the sale-floor migration has not added it already)
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'RetailSale_approvedById_fkey') THEN
+    ALTER TABLE "RetailSale" ADD CONSTRAINT "RetailSale_approvedById_fkey" FOREIGN KEY ("approvedById") REFERENCES "User"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+  END IF;
+END $$;
 
 -- AddForeignKey
 ALTER TABLE "RetailDepositKind" ADD CONSTRAINT "RetailDepositKind_companyId_fkey" FOREIGN KEY ("companyId") REFERENCES "Company"("id") ON DELETE CASCADE ON UPDATE CASCADE;
