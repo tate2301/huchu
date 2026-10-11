@@ -45,6 +45,8 @@ export type Bar = {
   text: string;
   /** A third tooltip line ("142 sales"). */
   sub?: string | null;
+  /** Drawn in `--data` whatever `mark` says (a promotion's weeks while it ran); the bars without it muted. */
+  dark?: boolean;
 };
 
 /**
@@ -81,6 +83,8 @@ export function BarChart({
   const scale = niceScale(Math.max(0, ...bars.map((bar) => bar.value)), steps);
   const tip = hover === null ? null : bars[hover];
   const now = mark ?? (emphasiseLast ? bars.length - 1 : -1);
+  const someDark = bars.some((bar) => bar.dark !== undefined);
+  const isNow = (bar: Bar, index: number) => (someDark ? Boolean(bar.dark) : index === now);
   return (
     <div className="cx-df-bars">
       <Grid ticks={scale.ticks} format={tick} />
@@ -94,8 +98,8 @@ export function BarChart({
           >
             <span
               data-bar=""
-              data-now={index === now || undefined}
-              className={cn("cx-df-bars__bar", index === now && "cx-df-bars__bar--now")}
+              data-now={isNow(bar, index) || undefined}
+              className={cn("cx-df-bars__bar", isNow(bar, index) && "cx-df-bars__bar--now")}
               style={{ height: `${((Math.max(bar.value, 0) / scale.top) * 100).toFixed(2)}%` }}
             />
           </span>

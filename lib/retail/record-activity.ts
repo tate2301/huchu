@@ -70,6 +70,11 @@ const RECORD_TYPES: Record<string, RecordActivityType> = {
     exists: async (companyId, id) =>
       Boolean(await prisma.retailBundle.findFirst({ where: { id, companyId }, select: { id: true } })),
   },
+  RetailPromotion: {
+    read: ["retail.promotions", "view"],
+    exists: async (companyId, id) =>
+      Boolean(await prisma.retailPromotion.findFirst({ where: { id, companyId }, select: { id: true } })),
+  },
   Vendor: {
     read: ["retail.suppliers", "view"],
     exists: async (companyId, id) => Boolean(await prisma.vendor.findFirst({ where: { id, companyId }, select: { id: true } })),

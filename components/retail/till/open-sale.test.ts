@@ -25,7 +25,6 @@ const sale: OpenSale = {
   loyaltyRedemptionPoints: "",
   payments: [{ tenderType: "CASH", amount: "5", reference: "" }],
   orderDiscountAmount: "",
-  selectedPromotionId: "",
   idChecked: true,
   heldAs: null,
 };

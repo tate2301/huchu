@@ -38,7 +38,6 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { useOfflineRuntime } from "@/components/offline/offline-runtime";
 import { useToast } from "@/components/ui/use-toast";
-import { useHasFeature } from "@/hooks/use-entitlement";
 import { ApiError, fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { removeOfflineOperation, resetOfflineOperationToQueued } from "@/lib/offline/outbox";
 import type { OfflineOutboxOperation } from "@/lib/offline/types";
@@ -75,7 +74,6 @@ import type {
   CustomerLookupResult,
   PaymentRow,
   PosCatalogItem,
-  Promotion,
   SaleRefusal,
   SavedSale,
   TillCategory,
@@ -90,6 +88,8 @@ export const TILL_CONTEXT_KEY = ["till-context"] as const;
 /** The heartbeat: last seen, and the back office's messages. */
 export const TILL_HEARTBEAT_KEY = ["till-heartbeat"] as const;
 const HEARTBEAT_MS = 60_000;
+/** The price snapshot the till prices every sale from (PRD-05, PRD-08, PRD-09). */
+const PRICING_KEY = ["retail-pos-pricing"] as const;
 
 /** The till's words while ZIMRA is away and the shop stops selling (SET-08). */
 const FISCAL_STOP = "ZIMRA is not answering, so this shop stops selling until it does. The sale stays here; try again in a few minutes.";
@@ -286,7 +286,6 @@ function useTillStateValue({ isPosHost, paired }: { isPosHost: boolean; paired: 
   const [loyaltyRedemptionPoints, setLoyaltyRedemptionPoints] = useState("");
   const [payments, setPayments] = useState<PaymentRow[]>([CASH_ROW]);
   const [orderDiscountAmount, setOrderDiscountAmount] = useState("");
-  const [selectedPromotionId, setSelectedPromotionId] = useState("");
   /** The cashier has looked at this customer's ID. One check covers the sale. */
   const [idChecked, setIdChecked] = useState(false);
   const [heldAs, setHeldAs] = useState<string | null>(null);
@@ -393,13 +392,6 @@ function useTillStateValue({ isPosHost, paired }: { isPosHost: boolean; paired: 
     enabled: Boolean(shiftHere && siteId),
     staleTime: 60_000,
   });
-  // Only when the shop has promotions: asking otherwise is a refusal waiting to happen.
-  const hasPromotions = useHasFeature("retail.promotions");
-  const promotionsQuery = useQuery({
-    queryKey: ["retail-pos-promotions"],
-    queryFn: () => fetchJson<{ data: Promotion[] }>("/api/v2/retail/promotions?status=ACTIVE&pos=1"),
-    enabled: Boolean(shiftHere) && hasPromotions,
-  });
   // The name as typed settles for a moment before it is searched, online or on the till.
   const [customerSearch, setCustomerSearch] = useState("");
   useEffect(() => {
@@ -426,27 +418,39 @@ function useTillStateValue({ isPosHost, paired }: { isPosHost: boolean; paired: 
 
   /* ── What the sale comes to ─────────────────────────────────────────── */
 
-  const activePromotion = useMemo(
-    () => (promotionsQuery.data?.data ?? []).find((promotion) => promotion.id === selectedPromotionId) ?? null,
-    [promotionsQuery.data?.data, selectedPromotionId],
-  );
   /*
-    PRD-08. The sale is priced by the sum `pos/sales` runs (`priceSale`) over
-    the price snapshot's live bundles: a buy-more deal comes off here as it
-    will on the server, online and offline (the snapshot is kept with the
-    till's cache), so the total shown, charged and printed is the one stored.
+    PRD-08, PRD-09. The sale is priced by the sum `pos/sales` runs
+    (`priceSale`) over the price snapshot's live bundles and promotions: a
+    buy-more deal and a running promotion come off here as they will on the
+    server, online and offline (the snapshot is kept with the till's cache),
+    so the total shown, charged and printed is the one stored.
+  */
+  /*
+    The snapshot is fetched again with every heartbeat and after every sale,
+    so an ended, paused or newly started promotion reaches an open till
+    within the minute (an unchanged one answers 304 off its ETag). A sale
+    rung in that minute is refused `PRICES_CHANGED` and re-priced here.
   */
   const pricingQuery = useQuery({
-    queryKey: ["retail-pos-pricing"],
+    queryKey: PRICING_KEY,
     queryFn: () => fetchJson<PricingSnapshot>("/api/v2/retail/pos/pricing"),
     enabled: Boolean(shiftHere),
+    staleTime: 0,
+    refetchInterval: HEARTBEAT_MS,
+    refetchIntervalInBackground: true,
   });
   const bundles = pricingQuery.data?.bundles;
+  const promotions = pricingQuery.data?.promotions;
+  const productCategory = useMemo(
+    () => new Map((pricingQuery.data?.products ?? []).map((product) => [product.id, product.categoryId])),
+    [pricingQuery.data?.products],
+  );
   const priced = useMemo(() => {
     const sale = priceSale({
       lines: sellingLines.map((item) => ({
         key: item.catalogItemId,
         productId: item.catalogItemId,
+        categoryId: productCategory.get(item.catalogItemId) ?? null,
         quantity: item.quantity,
         unitPrice: item.unitPrice,
         taxPercent: item.taxPercent,
@@ -454,17 +458,18 @@ function useTillStateValue({ isPosHost, paired }: { isPosHost: boolean; paired: 
         lineDiscount: item.lineDiscountAmount,
       })),
       bundles: bundles ?? [],
+      promotions: promotions ?? [],
       at: now,
       siteId,
       orderDiscountAmount: Number(orderDiscountAmount || "0"),
-      promotion: activePromotion ? { id: activePromotion.id, type: activePromotion.type, value: activePromotion.value } : null,
     });
     // The till rings no fixed set yet (FLR-10), so a bundle refusal cannot arise here.
     if ("error" in sale) throw new Error(sale.error);
     return sale;
-  }, [activePromotion, bundles, now, orderDiscountAmount, sellingLines, siteId]);
+  }, [bundles, now, orderDiscountAmount, productCategory, promotions, sellingLines, siteId]);
   const checkout = priced.checkout;
   const bundleSaving = priced.bundleSaving;
+  const promotionSaving = priced.promotionSaving;
   // Deposits sit outside the goods total; the customer pays both. Net of the empties each line took back.
   const depositTotal = useMemo(() => depositsDue(sellingLines), [sellingLines]);
   const emptiesBackCount = sellingLines.reduce((sum, item) => sum + emptiesCounted(item), 0);
@@ -607,7 +612,6 @@ function useTillStateValue({ isPosHost, paired }: { isPosHost: boolean; paired: 
     setLoyaltyRedemptionPoints("");
     setPayments([CASH_ROW]);
     setOrderDiscountAmount("");
-    setSelectedPromotionId("");
     setIdChecked(false);
     setHeldAs(null);
     setSaleRefusal(null);
@@ -626,7 +630,6 @@ function useTillStateValue({ isPosHost, paired }: { isPosHost: boolean; paired: 
       loyaltyRedemptionPoints,
       payments,
       orderDiscountAmount,
-      selectedPromotionId,
       idChecked,
       heldAs,
     };
@@ -638,7 +641,6 @@ function useTillStateValue({ isPosHost, paired }: { isPosHost: boolean; paired: 
       setLoyaltyRedemptionPoints(kept.loyaltyRedemptionPoints);
       setPayments(kept.payments);
       setOrderDiscountAmount(kept.orderDiscountAmount);
-      setSelectedPromotionId(kept.selectedPromotionId);
       setIdChecked(kept.idChecked);
       setHeldAs(kept.heldAs);
     };
@@ -682,7 +684,6 @@ function useTillStateValue({ isPosHost, paired }: { isPosHost: boolean; paired: 
       loyaltyRedemptionPoints: Number(loyaltyRedemptionPoints || "0") || undefined,
       discountAmount: Number(orderDiscountAmount || "0") || undefined,
       overrideReason: reason?.trim() || undefined,
-      promotionId: selectedPromotionId || undefined,
       idChecked: idChecked || undefined,
       items: sellingLines.map((item) => ({
         productId: item.catalogItemId,
@@ -699,6 +700,7 @@ function useTillStateValue({ isPosHost, paired }: { isPosHost: boolean; paired: 
           ...(payment.currency ? { currency: payment.currency } : {}),
           reference: payment.reference.trim() || undefined,
         })),
+      total: amountDue,
     };
   };
 
@@ -716,6 +718,7 @@ function useTillStateValue({ isPosHost, paired }: { isPosHost: boolean; paired: 
       void queryClient.invalidateQueries({ queryKey: ["retail-pos-catalog"] });
       void queryClient.invalidateQueries({ queryKey: ["retail-pos-sales"] });
       void queryClient.invalidateQueries({ queryKey: ["retail-held-carts"] });
+      void queryClient.invalidateQueries({ queryKey: PRICING_KEY });
       router.prefetch(getPosPortalHref("history", isPosHost));
     },
     onError: (error, { payload, handed, changeOwed }) => {
@@ -724,8 +727,12 @@ function useTillStateValue({ isPosHost, paired }: { isPosHost: boolean; paired: 
       const usesOfflineCustomer = isOfflineRetailCustomerId(payload.customerId);
       const offline = isNetworkError || (typeof navigator !== "undefined" && !navigator.onLine) || usesOfflineCustomer;
       if (!tenantKey || !offline) {
-        if (error instanceof ApiError && (error.details as { code?: unknown } | undefined)?.code === "FISCAL_OFFLINE") {
-          setFiscalRefused(true);
+        const code = error instanceof ApiError ? (error.details as { code?: unknown } | undefined)?.code : undefined;
+        if (code === "FISCAL_OFFLINE") setFiscalRefused(true);
+        // Sold off an old snapshot: the new one re-prices the sale on screen before the cashier takes the money again.
+        if (code === "PRICES_CHANGED") {
+          void queryClient.invalidateQueries({ queryKey: PRICING_KEY });
+          void queryClient.invalidateQueries({ queryKey: ["retail-pos-catalog"] });
         }
         setSaleRefusal(saleRefusalOf(error));
         return;
@@ -779,7 +786,6 @@ function useTillStateValue({ isPosHost, paired }: { isPosHost: boolean; paired: 
       setLoyaltyRedemptionPoints(kept.loyaltyRedemptionPoints);
       setPayments(kept.payments);
       setOrderDiscountAmount(kept.orderDiscountAmount);
-      setSelectedPromotionId(kept.selectedPromotionId);
       setIdChecked(kept.idChecked);
       setHeldAs(kept.heldAs);
       setRestored(true);
@@ -804,10 +810,10 @@ function useTillStateValue({ isPosHost, paired }: { isPosHost: boolean; paired: 
       void keepOpenSale(keepKey, null);
       return;
     }
-    const sale = { cart, customerName, selectedCustomer, loyaltyRedemptionPoints, payments, orderDiscountAmount, selectedPromotionId, idChecked, heldAs };
+    const sale = { cart, customerName, selectedCustomer, loyaltyRedemptionPoints, payments, orderDiscountAmount, idChecked, heldAs };
     const timer = window.setTimeout(() => void keepOpenSale(keepKey, sale), 300);
     return () => window.clearTimeout(timer);
-  }, [keepKey, readFor, sending, cart, customerName, selectedCustomer, loyaltyRedemptionPoints, payments, orderDiscountAmount, selectedPromotionId, idChecked, heldAs]);
+  }, [keepKey, readFor, sending, cart, customerName, selectedCustomer, loyaltyRedemptionPoints, payments, orderDiscountAmount, idChecked, heldAs]);
 
   /* ── The customer screen: the sale as the customer sees it (display-feed.ts) ── */
 
@@ -906,10 +912,6 @@ function useTillStateValue({ isPosHost, paired }: { isPosHost: boolean; paired: 
     catalogLoading: catalogQuery.isLoading,
     catalogError: catalogQuery.isError ? catalogQuery.error : null,
     findScanned,
-    promotions: promotionsQuery.data?.data ?? [],
-    activePromotion,
-    selectedPromotionId,
-    setSelectedPromotionId,
     alcohol,
     lineStopped,
 
@@ -948,7 +950,6 @@ function useTillStateValue({ isPosHost, paired }: { isPosHost: boolean; paired: 
       items?: CartItem[];
       customerName?: string;
       orderDiscountAmount?: string;
-      selectedPromotionId?: string;
       heldAs?: string;
     }) => {
       // A recalled sale may be a different customer: the ID is checked again.
@@ -957,7 +958,6 @@ function useTillStateValue({ isPosHost, paired }: { isPosHost: boolean; paired: 
       setCart((input.items ?? []).map((item) => ({ ...item })));
       setCustomerNameRaw(input.customerName ?? "");
       setOrderDiscountAmount(input.orderDiscountAmount ?? "");
-      setSelectedPromotionId(input.selectedPromotionId ?? "");
     },
     clearCart,
     dropSale,
@@ -1000,6 +1000,7 @@ function useTillStateValue({ isPosHost, paired }: { isPosHost: boolean; paired: 
     emptiesBackCount,
     lineDiscountTotal,
     bundleSaving,
+    promotionSaving,
     amountDue,
 
     /* How it is paid */

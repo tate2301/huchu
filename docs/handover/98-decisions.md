@@ -433,6 +433,54 @@ Recorded unit choices:
   - **A barcode finds one thing**: a product's barcode is refused when a live bundle has it, and a bundle comes back
     from the bin only while its barcode is still free.
 
+- **PRD-09 departs from packet 22 in these places.**
+  - **`promotionDiscount` is shelf money**, what the customer was shown ("US$2.00 a bottle"). On a VAT-inclusive list a
+    line's `discountAmount` is ex-VAT, so the money invariant reads on the shelf's basis: a line's promotion is at most
+    `quantity × unitPrice − lineTotal`, and the sale's total and VAT are worked out after it exactly as before.
+  - **Stacking promotions on one line are attributed to the one that took the most**; the line's `promotionDiscount` is
+    their sum. A fixed set takes no promotion (PRD-08's rule stands); a buy-more group leaves its deal whole when the
+    promotions would save more on its units, and those units take the promotions instead.
+  - **The basket minimum reads the shelf total before any discount**, of the whole basket: units in a bundle or a
+    buy-more deal count towards it though no promotion comes off them, and both of `priceSale`'s passes read the
+    same total. Loyalty members and Staff never match until the
+    customer units pass a customer (D-3), so the seeded PROMO-STAFF has sold nothing under it.
+  - **Dates come from the shared picker** ("2026-10-25T00:00" on the shop's clock); the words "25 October, 00:00" are
+    read too, the year the next time that day comes round. The rail's Ends date ends at 23:59 that day; its Starts at
+    00:00. The rail's Days is a segment, Every day / Weekdays / Weekends; hours stay all day (the engine honours
+    `fromTime`/`toTime` when set).
+  - **pos/sales prices a replay with the promotions that were running when it was rung** (paused or ended after it
+    still apply), **by their rules as they are when it arrives**: a value, scope or kind changed between the ringing
+    and the replay applies to it. Rules are not versioned, and a replay already took the money, so a total that differs
+    from the till's is stored as the server works it out and the change as the tenders give it. A till that still
+    sends `promotionId` is refused (400), queued sales included. Until FLR-10 draws line discounts the till shows
+    their total as "Promotions" under the sale.
+  - **An open till keeps its price snapshot fresh**: it fetches `pos/pricing` again with every heartbeat (a minute;
+    an unchanged snapshot is a 304 off its ETag) and after every sale. A sale rung now sends the total the till
+    showed (`total`); when the server prices it differently (a promotion ended, paused or started inside that
+    minute) it is refused 409 `PRICES_CHANGED` with what it comes to now, and the till fetches the snapshot and
+    re-prices the sale on screen before the cashier takes the money again. "It stops at the next sale on every
+    till" therefore holds: the next sale either sells without it or is re-priced before it is taken.
+  - **A void or refund line carries no promotion**; every figure reads posted sales. The Products tab also lists a
+    product that sold under it and has since left its scope (archived), so its totals match "Sold under it"; its
+    count and its Σ count it, and the Products KPI stays the products in scope with "+1 more sold under it" when
+    every one of them has sold. Its footer link reads "All products" (a record tab's link label is fixed).
+  - **"On the days before" compares like with like**: units of the products it covers while it ran against the same
+    number of days just before it started, and Extra takings their takings the same way. A promotion that has sold
+    nothing under it (Staff, until D-3) shows no change and no extra takings rather than the whole shop's.
+  - **An amount off at or over a product's price gives it away** (never below zero, as the packet says): its Margin
+    now pill reads "Free" in bad, a price at or under cost is a bad pill, and the sheet's value field and the
+    record's Value row warn in words ("Bols Brandy 50ml is US$1.80: it goes free."); a fixed price at or over a
+    price warns that nothing comes off it. The new sheet judges picked products; a category's prices are judged on
+    its record and in Edit rules.
+  - **An ended promotion's rail reads "Ended 11 October 2026, 21:52"** under Ends when End now ended it.
+  - **Two End now (or Pause) at once end it once**, one Ended in its Changes; two copies made at once take the next
+    free codes; two promotions made at once with one code refuse the second under Code.
+  - **The seed discounts its history with the engine itself.** The shop's Spirits are 7 products, not 12; spirits sold
+    a little slower in the days before the festive US$2 (as many as it has run by the seed's day, the window its
+    record compares), Festive has two changes before it started, and Cokes and Savanna sell in pairs while their two-for
+    deals ran. Ciders sold only in the "Any 3 ciders" deal while Heritage ran, so it sold nothing under it. Today's
+    hand-made floor sales carry no promotion.
+
 ## Owner direction, 5 October: sidebar, Management and Setup
 
 These override 00-foundations §5.3 and every spec that disagrees.

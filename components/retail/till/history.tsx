@@ -92,8 +92,6 @@ type SaleDetail = {
   empties: Array<{ supplierId: string; supplierName: string; quantity: number }>;
   /** The customer, matched by name as loyalty is: points earned on it, taken back by its refunds and voids, and now. Null on a walk-in. */
   customer: { phone: string | null; tier: string; balance: number; earned: number; returned: number } | null;
-  promotionCode: string | null;
-  promotion?: { name: string } | null;
   voidReason: string | null;
   shift: { id: string; shiftNo: string; registerName: string; status: string } | null;
   sourceSale: { id: string; saleNo: string } | null;
@@ -121,6 +119,9 @@ type SaleDetail = {
     unitPrice: Amount;
     lineTotal: Amount;
     discountAmount: Amount;
+    /** What its promotion took off, and which promotion (PRD-09). */
+    promotionDiscount: number;
+    promotion: { code: string; name: string } | null;
     depositAmount: Amount;
     depositRefunded: number;
     refundedQuantity: number;
@@ -506,22 +507,17 @@ export function SaleScreen({ id }: { id: string }) {
   const dayOf = (value: string | null) => dayMonth(value ?? when);
   const dayHead = (value: string | null) => <div className="feed-day">{dayOf(value) === today ? "Today" : dayOf(value)}</div>;
   const lastReversal = sale.reversals[sale.reversals.length - 1];
-  const promotionName = sale.promotion?.name ?? sale.promotionCode;
-  const discounted = sale.lines.filter((line) => n(line.discountAmount) > 0);
+  const promoted = sale.lines.filter((line) => line.promotion && line.promotionDiscount > 0);
   const discounts: Array<{ id: string; text: React.ReactNode }> = isSale
     ? [
-        ...(promotionName
-          ? discounted.length
-            ? discounted.map((line) => ({
-                id: line.id,
-                text: (
-                  <>
-                    {promotionName} took <b className="nowrap">{usd(n(line.discountAmount))}</b> off {product(line.itemName)}
-                  </>
-                ),
-              }))
-            : [{ id: "promotion", text: `${promotionName} applied` }]
-          : []),
+        ...promoted.map((line) => ({
+          id: line.id,
+          text: (
+            <>
+              {line.promotion!.name} took <b className="nowrap">{usd(line.promotionDiscount)}</b> off {product(line.itemName)}
+            </>
+          ),
+        })),
         ...(sale.overrideReason
           ? [
               {

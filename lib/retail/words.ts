@@ -61,14 +61,8 @@ const REQUISITION_STATUS: Record<string, string> = {
 const PROMOTION_TYPE: Record<string, string> = {
   PERCENT: "Percent off",
   AMOUNT: "Amount off",
-  BUY_X_GET_Y: "Buy X get Y",
-  BUNDLE: "Bundle",
-};
-
-const PROMOTION_STATUS: Record<string, string> = {
-  ACTIVE: "Running",
-  SCHEDULED: "Scheduled",
-  INACTIVE: "Stopped",
+  BUY_X_PAY: "Buy X, pay less",
+  FIXED_PRICE: "Fixed price",
 };
 
 const FISCAL_STATUS: Record<string, string> = {
@@ -98,8 +92,6 @@ export const cashMovementLabel = (value: string | null | undefined) => lookup(CA
 export const orderStatusLabel = (value: string | null | undefined) => lookup(ORDER_STATUS, value);
 export const requisitionStatusLabel = (value: string | null | undefined) => lookup(REQUISITION_STATUS, value);
 export const promotionTypeLabel = (value: string | null | undefined) => lookup(PROMOTION_TYPE, value);
-export const promotionStatusLabel = (value: string | null | undefined) =>
-  lookup(PROMOTION_STATUS, value);
 export const fiscalStatusLabel = (value: string | null | undefined) => lookup(FISCAL_STATUS, value);
 /** Any other stored constant — a category, a loyalty tier. */
 export const enumLabel = (value: string | null | undefined) => (value ? sentence(value) : "");

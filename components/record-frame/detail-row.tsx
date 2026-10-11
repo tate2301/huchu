@@ -83,6 +83,7 @@ export function DetailRow({
       ) : (
         <span className={valueClass}>{row.value}</span>
       )}
+      {row.warn && !editing ? <span className="cx-rf-row__warn">{row.warn}</span> : null}
     </div>
   );
 }

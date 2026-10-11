@@ -1174,6 +1174,7 @@ model Site {
   retailImports         RetailImport[]
   userAccess            UserSiteAccess[]
   retailBundles         RetailBundle[]         @relation("RetailBundleSite")
+  retailPromotions      RetailPromotion[]      @relation("RetailPromotionSite")
 
   @@unique([companyId, code])
   @@index([companyId])
@@ -1468,6 +1469,7 @@ model User {
   retailDeviceMessagesSent          RetailDeviceMessage[]          @relation("RetailDeviceMessageSentBy")
   retailPrintJobsCreated            RetailPrintJob[]               @relation("RetailPrintJobCreatedBy")
   retailBundlesCreated              RetailBundle[]                 @relation("RetailBundleCreatedBy")
+  retailPromotionsCreated           RetailPromotion[]              @relation("RetailPromotionCreatedBy")
   retailTransfersSent               RetailStockTransfer[]          @relation("RetailStockTransferSentBy")
   retailTransfersReceived           RetailStockTransfer[]          @relation("RetailStockTransferReceivedBy")
   retailTransfersCancelled          RetailStockTransfer[]          @relation("RetailStockTransferCancelledBy")
@@ -4605,20 +4607,27 @@ enum RetailGoodsReceiptStatus {
   POSTED
 }
 
-/// `PERCENT` and `AMOUNT` are the two the till can apply offline —
-/// `getPosSupportedPromotionTypes()` filters to exactly these. The other two are
-/// accepted by the admin API and are not yet honoured at the point of sale.
+/// PRD-09 — what a promotion takes off each qualifying unit: a percentage, an
+/// amount, every `buyQuantity` units for `value` (Buy X, pay less), or a fixed
+/// price per unit. The price engine applies all four at the till.
 enum RetailPromotionType {
   PERCENT
   AMOUNT
-  BUY_X_GET_Y
-  BUNDLE
+  BUY_X_PAY
+  FIXED_PRICE
 }
 
-enum RetailPromotionStatus {
-  ACTIVE
-  SCHEDULED
-  INACTIVE
+enum RetailPromotionScope {
+  EVERYTHING
+  CATEGORIES
+  PRODUCTS
+}
+
+/// LOYALTY_MEMBERS and STAFF never match until the customer units pass a customer to the engine.
+enum RetailPromotionAudience {
+  EVERYONE
+  LOYALTY_MEMBERS
+  STAFF
 }
 
 /// Mirrors `RetailTenderType` in `lib/retail/tender-policy.ts`, which is the set
@@ -4861,6 +4870,7 @@ model RetailCategory {
   children RetailCategory[] @relation("RetailCategoryParent")
   priceLists PriceListCategory[]
   bundles    RetailBundle[]
+  promotions RetailPromotionCategory[]
 
   @@index([companyId, archivedAt, sortOrder])
   @@index([parentId])
@@ -5106,26 +5116,72 @@ model RetailDeviceMessage {
   @@index([registerId, dismissedAt])
 }
 
+/// PRD-09 — its state is the clock's: ENDED once `endedAt` is set or `endsAt`
+/// has passed, PAUSED while `pausedAt` is set, SCHEDULED before `startsAt`,
+/// RUNNING otherwise (`lib/retail/promotions/state.ts`).
 model RetailPromotion {
   id        String    @id @default(uuid())
   companyId String
   promoCode String
   name      String
   type      RetailPromotionType
+  /// PERCENT: the percentage; AMOUNT: off each unit; BUY_X_PAY: what `buyQuantity` units cost; FIXED_PRICE: each unit's price.
   value     Decimal @default(0) @db.Decimal(14, 2)
-  startsAt  DateTime?
+  buyQuantity Int?
+  scope     RetailPromotionScope @default(EVERYTHING)
+  /// The basket, before promotions, must reach this; null for any size.
+  minBasket Decimal? @db.Decimal(14, 2)
+  /// ISO weekdays, Monday 1 to Sunday 7; empty for every day.
+  daysOfWeek Int[]   @default([])
+  /// "17:00" to "19:00", Africa/Harare, the end not included; null for all day.
+  fromTime  String?
+  toTime    String?
+  audience  RetailPromotionAudience @default(EVERYONE)
+  /// Adds to other stacking promotions; a non-stacking one competes with them.
+  stacks    Boolean   @default(false)
+  /// Only at this site; null at every site.
+  siteId    String?
+  startsAt  DateTime
   endsAt    DateTime?
-  status    RetailPromotionStatus @default(ACTIVE)
-  notes     String?
+  pausedAt  DateTime?
+  endedAt   DateTime?
+  createdById String?
   /// In the bin: removed, restorable, and gone from every list and the till.
   archivedAt DateTime?
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
 
-  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  site      Site?   @relation("RetailPromotionSite", fields: [siteId], references: [id], onDelete: SetNull)
+  createdBy User?   @relation("RetailPromotionCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  products   RetailPromotionProduct[]
+  categories RetailPromotionCategory[]
+  saleLines  RetailSaleLine[]
 
   @@unique([companyId, promoCode])
-  @@index([companyId, status])
+  @@index([companyId, startsAt])
+}
+
+model RetailPromotionProduct {
+  promotionId String
+  productId   String
+
+  promotion RetailPromotion @relation(fields: [promotionId], references: [id], onDelete: Cascade)
+  product   Product         @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@id([promotionId, productId])
+  @@index([productId])
+}
+
+model RetailPromotionCategory {
+  promotionId String
+  categoryId  String
+
+  promotion RetailPromotion @relation(fields: [promotionId], references: [id], onDelete: Cascade)
+  category  RetailCategory  @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@id([promotionId, categoryId])
+  @@index([categoryId])
 }
 
 model RetailPurchaseOrder {
@@ -5893,7 +5949,6 @@ model RetailSale {
   /// and what a day's takings are summed in when the till has seen both.
   baseAmount     Decimal  @default(0) @db.Decimal(14, 2)
   tenderSummary  Json?
-  promotionCode  String?
   overrideReason String?
   voidReason     String?
   status         RetailSaleStatus @default(POSTED)
@@ -5986,10 +6041,14 @@ model RetailSaleLine {
   bundleId        String?
   /// PRD-08 — lines sold as one bundle (or one buy-more group) share this ("<saleId>:<n>").
   bundleRef       String?
+  /// PRD-09 — the promotion that discounted this line, and how much of `discountAmount` it took off.
+  promotionId       String?
+  promotionDiscount Decimal @default(0) @db.Decimal(14, 2)
   createdAt       DateTime @default(now())
 
   sale RetailSale @relation(fields: [saleId], references: [id], onDelete: Cascade)
   bundle RetailBundle? @relation(fields: [bundleId], references: [id], onDelete: SetNull)
+  promotion RetailPromotion? @relation(fields: [promotionId], references: [id], onDelete: SetNull)
 
   company       Company            @relation(fields: [companyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   inventoryItem InventoryItem      @relation(fields: [inventoryItemId], references: [id], onDelete: Restrict, onUpdate: Cascade)
@@ -6009,6 +6068,7 @@ model RetailSaleLine {
   /// Best-sellers and margin-by-line group on the product now, not the listing.
   @@index([companyId, productId])
   @@index([companyId, bundleId])
+  @@index([companyId, promotionId])
 }
 
 /// What the shop calls a deposit value it charges: "Bottles, 340 to 375ml" for
@@ -14324,6 +14384,7 @@ model Product {
   retailCountLines    RetailStockCountLine[]
   bundleItems         RetailBundleItem[]
   retailEmptiesEntries RetailEmptiesEntry[]
+  promotions          RetailPromotionProduct[]
   crmQuestionSets      CrmQuestionSet[]
   crmSiteVisitSections CrmSiteVisitSection[]
 

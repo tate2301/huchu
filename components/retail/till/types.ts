@@ -112,14 +112,6 @@ export type CurrentShift = {
   site: { id: string; name: string; code: string } | null;
 };
 
-export type Promotion = {
-  id: string;
-  name: string;
-  promoCode: string;
-  type: "PERCENT" | "AMOUNT" | "BUY_X_GET_Y" | "BUNDLE";
-  value: number;
-};
-
 export type HeldCart = {
   id: string;
   holdNo: string;
@@ -131,7 +123,6 @@ export type HeldCart = {
     items?: CartItem[];
     customerName?: string;
     orderDiscountAmount?: string;
-    selectedPromotionId?: string;
   };
 };
 

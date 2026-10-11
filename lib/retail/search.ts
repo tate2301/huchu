@@ -3,8 +3,8 @@
  *
  * One arm, and it is the till receipt. A customer comes back with a printed slip
  * and a complaint, and the number on that slip is the only handle anybody has on
- * the sale — so `saleNo` is what gets typed, and the customer name and the
- * promotion code are searched beside it because the slip is sometimes lost.
+ * the sale — so `saleNo` is what gets typed, and the customer's and the
+ * cashier's names are searched beside it because the slip is sometimes lost.
  *
  * Deliberately one arm only. `RetailCatalogItem` is the catalogue, which the CRM
  * arm already searches as `PRODUCT` — two groups for the same tin of paint would
@@ -55,7 +55,6 @@ export async function searchRetail(
       companyId: input.companyId,
       OR: [
         { saleNo: contains },
-        { promotionCode: contains },
         { AND: wordMatches(query, ["customerName"]) },
         { AND: wordMatches(query, ["cashierName"]) },
       ],
@@ -68,7 +67,6 @@ export async function searchRetail(
       saleType: true,
       status: true,
       totalAmount: true,
-      promotionCode: true,
       postedAt: true,
       createdAt: true,
       _count: { select: { lines: true } },
@@ -98,7 +96,6 @@ export async function searchRetail(
         ["Served by", row.cashierName],
         ["Items", String(row._count.lines)],
         ["Total", `USD ${row.totalAmount.toFixed(2)}`],
-        ["Promotion", row.promotionCode],
         // SALE / REFUND — the difference between a receipt and a credit note.
         ["Type", row.saleType],
         ["Status", row.status],

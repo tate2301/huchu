@@ -16,7 +16,6 @@ export type OpenSale = {
   loyaltyRedemptionPoints: string;
   payments: PaymentRow[];
   orderDiscountAmount: string;
-  selectedPromotionId: string;
   idChecked: boolean;
   heldAs: string | null;
 };
@@ -50,7 +49,6 @@ export function readOpenSale(value: unknown, now = Date.now()): OpenSale | null 
     typeof sale.customerName !== "string" ||
     typeof sale.loyaltyRedemptionPoints !== "string" ||
     typeof sale.orderDiscountAmount !== "string" ||
-    typeof sale.selectedPromotionId !== "string" ||
     typeof sale.idChecked !== "boolean" ||
     !(sale.heldAs === null || typeof sale.heldAs === "string") ||
     !(sale.selectedCustomer === null || (isObject(sale.selectedCustomer) && typeof sale.selectedCustomer.id === "string"))

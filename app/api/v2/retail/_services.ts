@@ -111,6 +111,9 @@ export type RetailSaleLineInput = {
    * product's supplier's empties ledger with the sale.
    */
   emptiesBack?: number;
+  /** PRD-09 — the promotion that discounted it, and what that took off (shelf money, inside `discountAmount`). */
+  promotionId?: string | null;
+  promotionDiscount?: number;
 };
 
 function round(value: number) {
@@ -386,7 +389,6 @@ export async function createRetailSaleTransaction(input: {
   totalAmount: number;
   payments: RetailPaymentInput[];
   lines: RetailSaleLineInput[];
-  promotionCode?: string | null;
   overrideReason?: string | null;
   /**
    * The manager whose PIN let a discount or a price over the shelf through
@@ -579,7 +581,6 @@ export async function createRetailSaleTransaction(input: {
             currency: saleCurrency,
             exchangeRate: saleExchangeRate,
             baseAmount: toBaseAmount(input.totalAmount, saleExchangeRate),
-            promotionCode: input.promotionCode ?? null,
             overrideReason: input.overrideReason ?? null,
             approvedById: input.approvedBy?.id ?? null,
             approvedByName: input.approvedBy?.name ?? null,
@@ -607,6 +608,8 @@ export async function createRetailSaleTransaction(input: {
                 depositAmount: money(line.depositAmount ?? 0),
                 bundleId: line.bundleId ?? null,
                 bundleRef: line.bundleId && line.bundleGroup ? `${saleId}:${line.bundleGroup}` : null,
+                promotionId: line.promotionId ?? null,
+                promotionDiscount: money(line.promotionDiscount ?? 0),
               })),
             },
             payments: {
@@ -1362,7 +1365,6 @@ export async function voidRetailSaleTransaction(input: {
           money(currentSourceSale.totalAmount).abs().negated(),
           currentSourceSale.exchangeRate,
         ),
-        promotionCode: currentSourceSale.promotionCode,
         overrideReason: reason,
         approvedById: approvedBy?.id ?? null,
         approvedByName: approvedBy?.name ?? null,
