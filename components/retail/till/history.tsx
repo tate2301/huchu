@@ -15,7 +15,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useVirtualizer } from "@tanstack/react-virtual";
 
-import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { fetchJson } from "@/lib/api-client";
 import {
   ArrowsCounterClockwise,
   CaretLeft,
@@ -39,7 +39,7 @@ import { getPosPortalHref } from "@/lib/retail/pos-host";
 import { SHOP_TIME_ZONE } from "@/lib/retail/shop-profile-rules";
 import { refundPinSentence, VOID_FREE_MS, voidPinSentence } from "@/lib/retail/till-rule-words";
 import { count, dayMonth, firstName, hhmm, paymentLabel, qty, usd, weekdayDayMonth, whole, zig } from "./format";
-import { Avatar, Empty, ErrorLine, Segmented, TillDialog } from "./parts";
+import { Avatar, Empty, ErrorLine, LoadFailed, Segmented, TillDialog } from "./parts";
 import { ManagerFields, useManagerPin } from "./manager-pin";
 import { printReceipt, tenderKey } from "./pay-tray";
 import { useTill } from "./state";
@@ -374,9 +374,7 @@ export function HistoryScreen() {
           <span className="skeleton is-lede" />
         </div>
       ) : query.isError ? (
-        <Empty icon={Receipt} title="Your sales did not load">
-          {getApiErrorMessage(query.error)}
-        </Empty>
+        <LoadFailed icon={Receipt} title="Your sales did not load" error={query.error} onRetry={() => void query.refetch()} />
       ) : !rows.length ? (
         <Empty icon={Receipt} title={filters.search ? `No sale matches “${filters.search}”` : filtered ? "No sales like that" : "No sales yet"}>
           {filters.search
@@ -482,9 +480,7 @@ export function SaleScreen({ id }: { id: string }) {
   if (!sale) {
     return (
       <div className="main">
-        <Empty icon={Receipt} title="That sale did not load">
-          {getApiErrorMessage(query.error)}
-        </Empty>
+        <LoadFailed icon={Receipt} title="That sale did not load" error={query.error} onRetry={() => void query.refetch()} />
       </div>
     );
   }

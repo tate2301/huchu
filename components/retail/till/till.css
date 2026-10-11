@@ -2114,5 +2114,69 @@
 /* The pairing door's camera, when the QR is scanned instead of typed. */
 .tl.tl.tl .qr-cam { position: relative; width: 100%; max-width: 320px; aspect-ratio: 1; border-radius: var(--radius-card); overflow: hidden; background: var(--color-ink); box-shadow: var(--shadow-ring); }
 .tl.tl.tl .qr-cam video { display: block; width: 100%; height: 100%; object-fit: cover; }
+/* On paper the total and the change carry the weight: the customer checks the one and counts the other.
+   Everything else on a receipt is the quiet ink at the receipt's own size. */
+.tl.tl.tl .receipt .l.t { font-size: var(--text-16); padding: var(--space-4) 0; }
+.tl.tl.tl .receipt .l.is-change { color: var(--color-ink); font-weight: 600; }
 /* A shop's logo at the head of a receipt or an offline slip. */
 .tl.tl.tl .receipt-logo { display: block; margin: 0 auto var(--space-8); max-width: 160px; max-height: 72px; }
+
+/* Motion: one set of movements, from the motion tokens. Each says where a thing came from or went.
+   A count that changes pops; a code the till does not know shakes the box once; the tray slides in from
+   the side it sits on; a product's picture flies from its tile to its line (motion.ts). */
+@keyframes tl-pop { from { transform: scale(1.25); } to { transform: scale(1); } }
+@keyframes tl-shake { 0%, 100% { transform: translateX(0); } 25%, 75% { transform: translateX(-4px); } 50% { transform: translateX(4px); } }
+@keyframes tl-tray-in { from { opacity: 0; transform: translateX(24px); } to { opacity: 1; transform: none; } }
+@keyframes tl-fade-in { from { opacity: 0; } to { opacity: 1; } }
+.tl.tl.tl .tile .in, .tl.tl.tl .quick-item .in, .tl.tl.tl .line .qty .tick { animation: tl-pop var(--motion-fast) var(--motion-ease-out); }
+.tl.tl.tl .line .qty .tick { display: inline-block; }
+/* On a phone the sale column is its own screen: the row under the shelf counts up instead of the flight. */
+.tl.tl.tl .phone-sale .is-bump { display: inline-block; transform-origin: left center; animation: tl-pop var(--motion-fast) var(--motion-ease-out); }
+.tl.tl.tl .input-wrap.is-shake { animation: tl-shake 180ms var(--motion-ease); }
+.tl.tl.tl .bench-side .tray { animation: tl-tray-in var(--motion-base) var(--motion-ease-out); }
+.tl.tl.tl .bench-side .list.is-empty .empty { animation: tl-fade-in var(--motion-base) var(--motion-ease); }
+.tl.tl.tl .fly { position: fixed; z-index: 60; margin: 0; overflow: hidden; border-radius: var(--radius-card); pointer-events: none; background: var(--color-fill); }
+.tl.tl.tl .fly img, .tl.tl.tl .fly svg { width: 100%; height: 100%; object-fit: cover; }
+/* Reduced motion: tokens.css already stills every animation and transition. */
+
+/* Change to give back: the one figure on Paid that is read out across the counter, so it is the largest
+   on the screen, with the notes that make it up under it. The tick draws in once the money is in. */
+.tl.tl.tl .tender.is-change { flex-direction: column; align-items: flex-start; gap: var(--space-4); padding: var(--space-16); }
+.tl.tl.tl .tender.is-change .tender-figure { font-size: calc(var(--text-20) * 2); line-height: 1.1; }
+.tl.tl.tl .tender.is-change .notes { font-family: var(--font-mono); font-size: var(--text-13); color: var(--color-ink-2); }
+@keyframes tl-draw { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
+.tl.tl.tl .paid-tick { width: 20px; height: 20px; flex: none; color: var(--color-success); }
+.tl.tl.tl .status.has-tick::before { display: none; }
+
+/* The customer screen: a second screen facing the customer, read from a step back. One thing at a time:
+   the shop, then the items and what they come to, then thank you and the change. The total is the largest
+   figure; the last item rung up carries the ink, the rest are quieter. */
+.tl.tl.tl .display { min-height: 100dvh; display: flex; flex-direction: column; padding: var(--space-32); background: var(--color-surface); color: var(--color-ink); }
+.tl.tl.tl .display.is-idle, .tl.tl.tl .display.is-paid { justify-content: center; align-items: center; text-align: center; gap: var(--space-16); }
+.tl.tl.tl .display-shop { font-size: calc(var(--text-20) * 2); font-weight: 600; letter-spacing: var(--tracking-display); }
+.tl.tl.tl .display-shop.is-small { font-size: var(--text-20); font-weight: 500; color: var(--color-ink-2); }
+.tl.tl.tl .display-thanks { font-size: calc(var(--text-28) * 2); font-weight: 600; letter-spacing: var(--tracking-display); line-height: 1.1; }
+.tl.tl.tl .display-change { font-size: var(--text-28); color: var(--color-ink-2); }
+.tl.tl.tl .display-change .num { color: var(--color-ink); font-weight: 600; }
+.tl.tl.tl .display-note { font-size: var(--text-16); color: var(--color-muted); }
+.tl.tl.tl .display-head { padding-bottom: var(--space-16); }
+.tl.tl.tl .display-lines { flex: 1; min-height: 0; overflow: auto; display: flex; flex-direction: column; justify-content: flex-end; }
+.tl.tl.tl .display-lines li { display: grid; grid-template-columns: minmax(0, 1fr) auto 120px; gap: var(--space-16); align-items: baseline; padding: var(--space-12) 0; box-shadow: inset 0 1px 0 var(--color-line); font-size: var(--text-20); color: var(--color-ink-2); animation: tl-fade-in var(--motion-base) var(--motion-ease); }
+.tl.tl.tl .display-lines li .num { text-align: right; }
+.tl.tl.tl .display-lines li .muted { color: var(--color-muted); }
+.tl.tl.tl .display-lines li.is-last { color: var(--color-ink); font-weight: 500; }
+.tl.tl.tl .display-foot { display: flex; flex-direction: column; gap: var(--space-4); padding-top: var(--space-24); box-shadow: inset 0 1px 0 var(--color-rule); }
+.tl.tl.tl .display-label { font-size: var(--text-16); color: var(--color-ink-2); }
+.tl.tl.tl .display-total { font-family: var(--font-mono); font-variant-numeric: tabular-nums; font-size: calc(var(--text-28) * 2.5); font-weight: 600; letter-spacing: var(--tracking-display); line-height: 1; }
+.tl.tl.tl .display-pay { margin-top: var(--space-12); font-size: var(--text-20); font-weight: 500; }
+
+/* Larger text, a switch in Till settings on this device: every type step one up and touch targets at 56px,
+   so the till reads from arm's length. Leading stays the same ratio. */
+.tl[data-size="large"] {
+  --text-12: 0.875rem; --text-13: 0.9375rem; --text-14: 1rem; --text-16: 1.125rem; --text-20: 1.375rem; --text-28: 2rem;
+  --target-touch: 56px; --layout-control: 40px; --layout-control-large: 48px; --layout-row: 48px;
+}
+
+/* A key pressed with another, or after it ("Shift Delete", "3 *"): the caps sit side by side. */
+.tl.tl.tl .attrs dt.keys { display: flex; gap: var(--space-4); }
+.tl.tl.tl .paid-tick path { stroke-dasharray: 1; animation: tl-draw var(--motion-slow) var(--motion-ease-out) both; }

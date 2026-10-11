@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { takingsOverTime } from "./shift-record";
-import { salesWords, takingsTitle } from "./shift-words";
+import { salesWords, shiftTookWords, takingsTitle } from "./shift-words";
 
 const at = (iso: string) => new Date(iso);
 
@@ -59,5 +59,18 @@ describe("takings over the time a drawer was open", () => {
     const view = takingsOverTime(at("2026-09-01T06:00:00Z"), at("2026-10-05T06:00:00Z"), []);
     expect(view.bars.length).toBeLessThanOrEqual(24);
     expect(view.hoursEach % 24).toBe(0);
+  });
+});
+
+describe("a closed shift in one sentence", () => {
+  const usd = (value: number) => `US$${value.toFixed(2)}`;
+  it("says what it took and in how many sales", () => {
+    expect(shiftTookWords({ takings: 412, sales: 86 }, usd)).toBe("US$412.00 in 86 sales.");
+    expect(shiftTookWords({ takings: 1.5, sales: 1 }, usd)).toBe("US$1.50 in 1 sale.");
+    expect(shiftTookWords({ takings: 2400, sales: 1204 }, usd)).toBe("US$2400.00 in 1,204 sales.");
+  });
+
+  it("says when it sold nothing", () => {
+    expect(shiftTookWords({ takings: 0, sales: 0 }, usd)).toBe("No sales this shift.");
   });
 });

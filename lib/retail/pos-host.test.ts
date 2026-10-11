@@ -77,9 +77,10 @@ describe("the public path list has nothing dangling in it", () => {
         (href): href is string => href !== null,
       ),
     );
-    // `/login`, the device screens (`/pair`, `/unpaired`) and a sale's
-    // `/receipt` are reachable without a nav entry, by definition.
-    const unlisted = new Set(["/login", "/pair", "/unpaired", "/receipt"]);
+    // `/login`, the device screens (`/pair`, `/unpaired`), a sale's `/receipt`
+    // and the customer screen (`/display`, opened from the menu into a window
+    // of its own) are reachable without a nav entry, by definition.
+    const unlisted = new Set(["/login", "/pair", "/unpaired", "/receipt", "/display"]);
     const orphans = (POS_ALL_PUBLIC_PATHS as readonly string[]).filter(
       (path) => !unlisted.has(path) && !claimed.has(path),
     );
