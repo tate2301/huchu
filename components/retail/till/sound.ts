@@ -6,6 +6,8 @@
  * it is turned off.
  */
 
+import { devicePrefs } from "./device-prefs";
+
 export type Cue = "added" | "unknown" | "paid";
 
 const NOTES: Record<Cue, Array<[hz: number, seconds: number]>> = {
@@ -21,42 +23,10 @@ const NOTES: Record<Cue, Array<[hz: number, seconds: number]>> = {
 };
 const BUZZ: Record<Cue, number | number[]> = { added: 10, unknown: [30, 40, 30], paid: 20 };
 
-const SOUNDS_KEY = "till:sounds";
-
-export function soundsOn(): boolean {
-  try {
-    return window.localStorage.getItem(SOUNDS_KEY) !== "off";
-  } catch {
-    return true;
-  }
-}
-
-const CHANGED = "till:sounds-changed";
-
-export function setSoundsOn(on: boolean) {
-  try {
-    if (on) window.localStorage.removeItem(SOUNDS_KEY);
-    else window.localStorage.setItem(SOUNDS_KEY, "off");
-  } catch {
-    // Storage blocked: the switch goes back to on with the next reload.
-  }
-  window.dispatchEvent(new Event(CHANGED));
-}
-
-/** For `useSyncExternalStore`: the switch, as this tab and any other on the device change it. */
-export function onSoundsChange(callback: () => void) {
-  window.addEventListener(CHANGED, callback);
-  window.addEventListener("storage", callback);
-  return () => {
-    window.removeEventListener(CHANGED, callback);
-    window.removeEventListener("storage", callback);
-  };
-}
-
 let audio: AudioContext | null = null;
 
 export function cue(kind: Cue) {
-  if (typeof window === "undefined" || !soundsOn()) return;
+  if (typeof window === "undefined" || !devicePrefs().sounds) return;
   try {
     audio ??= new AudioContext();
     if (audio.state === "suspended") void audio.resume();

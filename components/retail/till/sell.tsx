@@ -35,7 +35,7 @@ import { enumLabel } from "@/lib/retail/words";
 import { count, firstName, hhmm, pairedWhen, usd } from "./format";
 import { KeySheet } from "./keys";
 import { RollingFigure } from "./motion";
-import { Avatar, Empty, ErrorLine, GateSide, Keypad, Segmented, typeAmount, useKeypadKeys, useWindowKeys, type KeypadKey } from "./parts";
+import { Avatar, Empty, ErrorLine, GateSide, Keypad, type KeypadKey, LoadFailed, Segmented, typeAmount, useKeypadKeys, useWindowKeys } from "./parts";
 import { PayTray, payWays, TenderMark, type PayWay } from "./pay-tray";
 import {
   ApproveDialog,
@@ -51,6 +51,7 @@ import {
   SaleLine,
   useDropSale,
 } from "./sale-parts";
+import { saleChangeWords } from "./sale-words";
 import { parseScan } from "./scan-match";
 import { DOORS, PersonMenu } from "./shell";
 import { useSignOut } from "./sign-out";
@@ -355,6 +356,7 @@ function Shelf({
 }) {
   // The open-price product whose amount is being asked for. Enter in the search asks for it as well.
   const [pricing, setPricing] = React.useState<{ id: string; fromSearch: boolean } | null>(null);
+  const queryClient = useQueryClient();
   // Scans still being found; the box takes the next one meanwhile.
   const [finding, setFinding] = React.useState(0);
   // A code the till does not know: the box shakes once, and the till says so out loud.
@@ -536,9 +538,7 @@ function Shelf({
           ))}
         </div>
       ) : catalogError && !catalogItems.length ? (
-        <Empty icon={WifiSlash} title="The shelf did not load">
-          {getApiErrorMessage(catalogError)}
-        </Empty>
+        <LoadFailed icon={WifiSlash} title="The shelf did not load" error={catalogError} onRetry={() => void queryClient.invalidateQueries({ queryKey: ["retail-pos-catalog"] })} />
       ) : !catalogItems.length && search.trim() ? (
         <Empty
           icon={Barcode}
@@ -600,6 +600,22 @@ function Shelf({
 }
 
 /* ─── The sale ────────────────────────────────────────────────────────── */
+
+/** Each change to the sale, said to a screen reader: what happened, then the total (sale-words.ts). */
+function SaleWords() {
+  const { cart, amountDue } = useTill();
+  const [seen, setSeen] = React.useState(cart);
+  const [words, setWords] = React.useState("");
+  if (cart !== seen) {
+    setSeen(cart);
+    setWords(saleChangeWords(seen, cart, amountDue));
+  }
+  return (
+    <span className="visually-hidden" role="status" aria-live="polite">
+      {words}
+    </span>
+  );
+}
 
 function SaleColumn({
   ways,
@@ -667,6 +683,7 @@ function SaleColumn({
           Products
         </button>
         <h1>This sale</h1>
+        <SaleWords />
         <span className="note when-wide">
           {selling ? count(selling, "item") : ""}
         </span>

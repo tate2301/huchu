@@ -396,6 +396,13 @@ tr.is-pickable[aria-current="true"] { background: var(--color-accent-tint); }
 .display-total { font-family: var(--font-mono); font-variant-numeric: tabular-nums; font-size: calc(var(--text-28) * 2.5); font-weight: 600; letter-spacing: var(--tracking-display); line-height: 1; }
 .display-pay { margin-top: var(--space-12); font-size: var(--text-20); font-weight: 500; }
 
+/* Larger text, a switch in Till settings on this device: every type step one up and touch targets at 56px,
+   so the till reads from arm's length. Leading stays the same ratio. */
+:root[data-size="large"] {
+  --text-12: 0.875rem; --text-13: 0.9375rem; --text-14: 1rem; --text-16: 1.125rem; --text-20: 1.375rem; --text-28: 2rem;
+  --target-touch: 56px; --layout-control: 40px; --layout-control-large: 48px; --layout-row: 48px;
+}
+
 /* A key pressed with another, or after it ("Shift Delete", "3 *"): the caps sit side by side. */
 .attrs dt.keys { display: flex; gap: var(--space-4); }
 .paid-tick path { stroke-dasharray: 1; animation: tl-draw var(--motion-slow) var(--motion-ease-out) both; }

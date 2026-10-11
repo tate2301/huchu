@@ -20,13 +20,14 @@ import { SEND_BY_WORDS, type ReceiptWire } from "@/lib/retail/receipt-words";
 import { wasApproved, type TillActivityEntry, type TillActivityKind } from "@/lib/retail/till-activity-shared";
 import { TILL_PIN_LOCKED } from "@/lib/retail/till-pin";
 import { hoursWords, percentWords, voidPinSentence } from "@/lib/retail/till-rule-words";
+import { setDevicePrefs, useDevicePrefs } from "./device-prefs";
 import { count, dayMonth, hhmm, TENDER_LABEL, usd } from "./format";
 import type { TillRulesForTill } from "./types";
-import { Empty, ErrorLine, PinDots, Segmented, TillDialog } from "./parts";
+import { Empty, ErrorLine, LoadFailed, PinDots, Segmented, TillDialog } from "./parts";
 import { printReceipt } from "./pay-tray";
 import { KeyList } from "./keys";
 import { useTillLock } from "./lock";
-import { cue, onSoundsChange, setSoundsOn, soundsOn } from "./sound";
+import { cue } from "./sound";
 import { useTill } from "./state";
 
 /* ─── My activity ────────────────────────────────────────────────────── */
@@ -234,9 +235,7 @@ export function ActivityScreen() {
           <span className="skeleton is-line" />
         </div>
       ) : query.isError ? (
-        <Empty icon={ListChecks} title="Your activity did not load">
-          {getApiErrorMessage(query.error)}
-        </Empty>
+        <LoadFailed icon={ListChecks} title="Your activity did not load" error={query.error} onRetry={() => void query.refetch()} />
       ) : !shown.length ? (
         <Empty icon={ListChecks} title="Nothing here yet">
           What you do on the till in the last seven days shows here, newest first.
@@ -288,8 +287,7 @@ function listWords(words: string[]) {
 
 /** What this device does for whoever is selling on it; kept on the device, not in the back office. */
 function ThisDevice() {
-  const sounds = React.useSyncExternalStore(onSoundsChange, soundsOn, () => true);
-  const id = React.useId();
+  const prefs = useDevicePrefs();
   return (
     <div className="form-sec">
       <header>
@@ -297,24 +295,50 @@ function ThisDevice() {
         <p>Kept on this till for whoever sells on it.</p>
       </header>
       <div className="body">
-        <label className="check">
-          <input
-            type="checkbox"
-            role="switch"
-            className="switch"
-            aria-describedby={id}
-            checked={sounds}
-            onChange={(event) => {
-              setSoundsOn(event.target.checked);
-              if (event.target.checked) cue("added");
-            }}
-          />
-          Sounds
-        </label>
-        <span id={id} className="help">
-          A tick for each product, a low note for a code the till does not know, and two notes when the money is in.
-        </span>
+        <DeviceSwitch
+          label="Sounds"
+          help="A tick for each product, a low note for a code the till does not know, and two notes when the money is in."
+          on={prefs.sounds}
+          onChange={(sounds) => {
+            setDevicePrefs({ sounds });
+            if (sounds) cue("added");
+          }}
+        />
+        <DeviceSwitch
+          label="Dim screen"
+          help="Dark grounds and light type, for a night shift or a bar with the lights down."
+          on={prefs.dim}
+          onChange={(dim) => setDevicePrefs({ dim })}
+        />
+        <DeviceSwitch
+          label="Larger text"
+          help="Everything a step larger, for reading the till from further away."
+          on={prefs.large}
+          onChange={(large) => setDevicePrefs({ large })}
+        />
       </div>
+    </div>
+  );
+}
+
+function DeviceSwitch({ label, help, on, onChange }: { label: string; help: string; on: boolean; onChange: (on: boolean) => void }) {
+  const id = React.useId();
+  return (
+    <div className="field">
+      <label className="check">
+        <input
+          type="checkbox"
+          role="switch"
+          className="switch"
+          aria-describedby={id}
+          checked={on}
+          onChange={(event) => onChange(event.target.checked)}
+        />
+        {label}
+      </label>
+      <span id={id} className="help">
+        {help}
+      </span>
     </div>
   );
 }

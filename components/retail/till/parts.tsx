@@ -9,7 +9,8 @@ import * as React from "react";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import * as PopoverPrimitive from "@radix-ui/react-popover";
 
-import { Backspace, Check, User, WarningCircle, X } from "@/lib/icons";
+import { getApiErrorMessage } from "@/lib/api-client";
+import { ArrowsClockwise, Backspace, Check, User, WarningCircle, X } from "@/lib/icons";
 
 /* ─── The root every overlay portals into, so the kit's styles reach it ── */
 
@@ -97,6 +98,34 @@ export function Empty({
       {children ? <p>{children}</p> : null}
       {action}
     </div>
+  );
+}
+
+/** A list or a record that did not load: what went wrong, and the way on, which is to ask again. */
+export function LoadFailed({
+  icon,
+  title,
+  error,
+  onRetry,
+}: {
+  icon: React.ComponentType<{ className?: string }>;
+  title: string;
+  error: unknown;
+  onRetry: () => void;
+}) {
+  return (
+    <Empty
+      icon={icon}
+      title={title}
+      action={
+        <button type="button" className="btn" onClick={onRetry}>
+          <ArrowsClockwise className="ic" />
+          Try again
+        </button>
+      }
+    >
+      {getApiErrorMessage(error)}
+    </Empty>
   );
 }
 

@@ -15,7 +15,7 @@ import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { PauseCircle, PlayCircle, Trash, X } from "@/lib/icons";
 import { getPosPortalHref } from "@/lib/retail/pos-host";
 import { count, hhmm, usd } from "./format";
-import { Empty, TillDialog } from "./parts";
+import { Empty, LoadFailed, TillDialog } from "./parts";
 import { heldTotal } from "./shell";
 import { useTill } from "./state";
 import type { HeldCart } from "./types";
@@ -115,9 +115,7 @@ export function HeldScreen() {
           Held sales belong to a shift. Open one on the till first.
         </Empty>
       ) : query.isError ? (
-        <Empty icon={PauseCircle} title="Held sales did not load">
-          {getApiErrorMessage(query.error)}
-        </Empty>
+        <LoadFailed icon={PauseCircle} title="Held sales did not load" error={query.error} onRetry={() => void query.refetch()} />
       ) : !held.length ? (
         <Empty icon={PauseCircle} title="Nothing is held">
           Hold a sale from the till when someone steps away to fetch money. It waits here until this shift closes.
