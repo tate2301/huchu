@@ -41,6 +41,11 @@ const nextConfig: NextConfig = {
    */
   typescript: { ignoreBuildErrors: true },
   experimental: {
+    // Keep Turbopack's compiled modules in .next/cache between builds. Vercel
+    // restores that folder from the previous deployment, so a build recompiles
+    // only what changed instead of the whole app — on Vercel's 2-core, 8 GB
+    // machine the full compile took ~20 min.
+    turbopackFileSystemCacheForBuild: true,
     // Phosphor is not in Next's built-in optimizePackageImports list. Its SSR
     // barrel re-exports 1,513 modules and lib/icons.tsx imports the barrel, so
     // every icon-using route (291 of them) otherwise compiles ~4.5k package
