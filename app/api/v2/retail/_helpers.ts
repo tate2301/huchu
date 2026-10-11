@@ -47,16 +47,6 @@ export async function requireRetailSession(request: NextRequest) {
   different doors.
 */
 
-const POS_SUPPORTED_PROMOTION_TYPES = ["PERCENT", "AMOUNT"] as const;
-
-export function isPosSupportedPromotionType(type: string | null | undefined) {
-  return POS_SUPPORTED_PROMOTION_TYPES.includes((type ?? "") as (typeof POS_SUPPORTED_PROMOTION_TYPES)[number]);
-}
-
-export function getPosSupportedPromotionTypes() {
-  return [...POS_SUPPORTED_PROMOTION_TYPES];
-}
-
 export type RetailAccountingStatus = "POSTED" | "PENDING" | "FAILED";
 
 export type RetailAccountingResult = {

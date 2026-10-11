@@ -400,6 +400,7 @@ export async function loadSellableProducts(input: {
           returnable: true,
           depositAmount: true,
           openPrice: true,
+          categoryId: true,
           retailCategory: { select: { ageRestricted: true } },
         },
       },
@@ -420,6 +421,7 @@ export async function loadSellableProducts(input: {
       returnable: row.product.returnable,
       depositAmount: row.product.depositAmount === null ? null : toNumberOrZero(row.product.depositAmount),
       openPrice: row.product.openPrice,
+      categoryId: row.product.categoryId,
       siteId: row.siteId,
       inventoryItem: {
         id: row.id,
@@ -454,6 +456,8 @@ export type SellableProduct = {
   depositAmount: number | null;
   /** Sold at whatever the cashier types: the typed price is the shelf price. */
   openPrice: boolean;
+  /** What a category promotion asks of it (PRD-09). */
+  categoryId: string | null;
   siteId: string;
   inventoryItem: {
     id: string;

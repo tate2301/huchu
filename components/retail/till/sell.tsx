@@ -339,9 +339,6 @@ function Shelf({
     lineStopped,
     amountDue,
     selectedCustomer,
-    promotions,
-    selectedPromotionId,
-    setSelectedPromotionId,
   } = useTill();
   const { online, since } = useConnection();
   // A tablet's keyboard would cover the shelf: the search takes focus only where there is a pointer.
@@ -447,9 +444,6 @@ function Shelf({
       {!search.trim() && !selectedCategory && !catalogLoading ? (
         <QuickRow
           ranked={catalogItems}
-          promotions={promotions}
-          selectedPromotionId={selectedPromotionId}
-          onPromotion={setSelectedPromotionId}
           stoppedUntil={stoppedUntil}
           onSaleOf={onSaleOf}
           onAdd={onAdd}
@@ -557,6 +551,7 @@ function SaleColumn({
     vatIncluded,
     lineDiscountTotal,
     bundleSaving,
+    promotionSaving,
     discountAmount,
     depositTotal,
     taxAmount,
@@ -570,7 +565,7 @@ function SaleColumn({
     orderDiscountAmount,
     loyaltyRedemptionPoints,
   } = useTill();
-  const orderOff = Math.max(discountAmount - lineDiscountTotal - bundleSaving, 0);
+  const orderOff = Math.max(discountAmount - lineDiscountTotal - bundleSaving - promotionSaving, 0);
   // Lines stopped by the licence hours do not sell, so they are not counted.
   const sellingLines = cart.filter((item) => !lineStopped(item));
   const selling = sellingLines.length;
@@ -653,6 +648,12 @@ function SaleColumn({
               <div className="l">
                 <span>Buy more, pay less</span>
                 <span className="off-figure">{usd(-bundleSaving)}</span>
+              </div>
+            ) : null}
+            {promotionSaving > 0.004 ? (
+              <div className="l">
+                <span>Promotions</span>
+                <span className="off-figure">{usd(-promotionSaving)}</span>
               </div>
             ) : null}
             {orderOff > 0.004 ? (

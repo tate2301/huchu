@@ -104,15 +104,8 @@ const CONVERSIONS: readonly Conversion[] = [
     table: "RetailPromotion",
     column: "type",
     type: "RetailPromotionType",
-    values: ["PERCENT", "AMOUNT", "BUY_X_GET_Y", "BUNDLE"],
+    values: ["PERCENT", "AMOUNT", "BUY_X_PAY", "FIXED_PRICE"],
     defaultValue: null,
-  },
-  {
-    table: "RetailPromotion",
-    column: "status",
-    type: "RetailPromotionStatus",
-    values: ["ACTIVE", "SCHEDULED", "INACTIVE"],
-    defaultValue: "ACTIVE",
   },
   {
     table: "RetailSalePayment",

@@ -109,6 +109,18 @@ describe("Activity's sentences (00-foundations 5.6.9)", () => {
     expect(activityWords("RETAIL_BUNDLE.PAUSED", { name: "Braai pack" })).toEqual({ what: "Paused it", tone: "hollow" });
     expect(activityWords("RETAIL_BUNDLE.RESUMED", { name: "Braai pack" })).toEqual({ what: "Put it on sale again", tone: "ok" });
     expect(activityWords("RETAIL_BUNDLE.STOPPED", { name: "Braai pack" })).toEqual({ what: "Stopped selling it", tone: "bad" });
+    expect(activityWords("RETAIL_PROMOTION.CREATED", { code: "MONTHEND-CIDER", name: "Month-end", from: "25 Oct 00:00" })).toEqual({
+      what: "Scheduled it from 25 Oct 00:00",
+      tone: "ok",
+    });
+    expect(activityWords("RETAIL_PROMOTION.CREATED", { code: "PROMO-NOW", name: "Now" })).toEqual({ what: "Started it", tone: "ok" });
+    expect(activityWords("RETAIL_PROMOTION.CHANGED", { changes: [{ label: "Value" }, { label: "Ends" }] })).toEqual({
+      what: "Changed Value and Ends",
+      tone: "info",
+    });
+    expect(activityWords("RETAIL_PROMOTION.PAUSED", { name: "Festive" })).toEqual({ what: "Paused it", tone: "hollow" });
+    expect(activityWords("RETAIL_PROMOTION.RESUMED", { name: "Festive" })).toEqual({ what: "Resumed it", tone: "ok" });
+    expect(activityWords("RETAIL_PROMOTION.ENDED", { name: "Festive" })).toEqual({ what: "Ended it", tone: "hollow" });
     expect(activityWords("RETAIL_PRICE_LIST.RESUMED", { name: "Happy hour" })).toEqual({ what: "Switched it on", tone: "ok" });
     expect(
       activityWords("RETAIL_PRICE.SCHEDULED", { list: "Retail", count: 4, effectiveAt: "2026-10-03T20:00:00.000Z", batchId: "b" }),

@@ -27,7 +27,7 @@ export const promotionEnding: NeedsActionProvider = {
       where: {
         companyId: ctx.companyId,
         archivedAt: null,
-        status: { not: "INACTIVE" },
+        endedAt: null,
         endsAt: { gte: startOfDayIn(ctx.tomorrow, DEFAULT_TIME_ZONE), lt: startOfDayIn(addDays(ctx.tomorrow, 1), DEFAULT_TIME_ZONE) },
       },
       select: { name: true },

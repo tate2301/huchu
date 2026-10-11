@@ -1,4 +1,5 @@
 import { FLOOR_NAV_BADGES } from "./floor";
+import { PRODUCTS_NAV_BADGES } from "./products";
 import { REPORTS_NAV_BADGES } from "./reports";
 import { STOCK_NAV_BADGES } from "./stock";
 import type { NavBadgeContext, NavBadgeProvider } from "./types";
@@ -13,6 +14,7 @@ export type { NavBadgeContext, NavBadgeProvider } from "./types";
  */
 export const NAV_BADGE_PROVIDERS: readonly NavBadgeProvider[] = [
   ...FLOOR_NAV_BADGES,
+  ...PRODUCTS_NAV_BADGES,
   ...STOCK_NAV_BADGES,
   ...REPORTS_NAV_BADGES,
 ];

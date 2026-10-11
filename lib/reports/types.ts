@@ -282,6 +282,8 @@ export type ListColumn = ReportColumn & {
   totalSuffix?: string;
   /** num: the row key holding a tone; when set the figure sits in that tone's pill ("22.4%" under target). */
   pillKey?: string;
+  /** num: the row key holding words its pill shows when there is no figure ("Free" for a product a promotion gives away). */
+  pillWordsKey?: string;
   /**
    * num: worked out again in the browser while the list's edited column is typed: `margin` is
    * (typed − cost) ÷ typed with its pill tone against the row's target (`lib/reports/margin.ts`).
@@ -303,6 +305,8 @@ export type ListColumn = ReportColumn & {
    * Last sale before its first); `dash` draws "–", where the board does (a count's Difference while it is counting).
    */
   empty?: "blank" | "dash";
+  /** No value draws these words in `--ink-3` instead of a faint dash ("No end" under a promotion's Ends). */
+  emptyWords?: string;
   /**
    * `view-cost`: dropped, values and all, for roles that may not see cost.
    * `multi-site`: dropped while the company has one open site.

@@ -201,6 +201,16 @@ export const RETAIL_AUDIT_EVENTS = {
   bundleResumed: "RETAIL_BUNDLE.RESUMED",
   /** A bundle stopped for good; its sales history stays. */
   bundleStopped: "RETAIL_BUNDLE.STOPPED",
+  /** A promotion made (W-17, PRD-09). Entity `RetailPromotion`; carries its code, name and start. */
+  promotionCreated: "RETAIL_PROMOTION.CREATED",
+  /** A promotion's rules changed: `changes` names each field's label, before and after. */
+  promotionChanged: "RETAIL_PROMOTION.CHANGED",
+  /** A promotion paused: the tills stop applying it. */
+  promotionPaused: "RETAIL_PROMOTION.PAUSED",
+  /** A paused promotion running again. */
+  promotionResumed: "RETAIL_PROMOTION.RESUMED",
+  /** A promotion ended now; what it sold and gave away stays on its page. */
+  promotionEnded: "RETAIL_PROMOTION.ENDED",
   /** A till made on Pair a till, recorded when Done first saves it (Cancel leaves nothing). Carries its name, site and device. */
   tillCreated: "RETAIL_TILL.CREATED",
   /** A till changed: each field before and after. */
