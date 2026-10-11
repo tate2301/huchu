@@ -516,6 +516,48 @@ const WORDS: Record<string, (payload: Payload, eventType: string, seeCost: boole
   [RETAIL_AUDIT_EVENTS.promotionPaused]: () => ({ what: "Paused it", tone: "hollow" }),
   [RETAIL_AUDIT_EVENTS.promotionResumed]: () => ({ what: "Resumed it", tone: "ok" }),
   [RETAIL_AUDIT_EVENTS.promotionEnded]: () => ({ what: "Ended it", tone: "hollow" }),
+  // Vouchers (20-products 3.4): "Issued for US$50.00", "Changed Expires from 28 Sep 2027 to 28 Mar 2028",
+  // "Sent on WhatsApp", "US$8.40 spent on SALE-29811, US$11.60 left", "Voided: <reason>", "Expired with US$4.20 left".
+  [RETAIL_AUDIT_EVENTS.voucherIssued]: (payload) => {
+    const value = amount(payload.value);
+    return { what: `Issued for ${value === null ? (text(payload.value) ?? "nothing") : formatMoney(value)}`, tone: "ok" };
+  },
+  [RETAIL_AUDIT_EVENTS.voucherChanged]: (payload) => {
+    const changes = Array.isArray(payload.changes) ? (payload.changes as Payload[]) : [];
+    const said = changes
+      .map((change) => {
+        const label = text(change?.label);
+        if (!label) return null;
+        const from = text(change.from);
+        const to = text(change.to);
+        if (from && to) return `${label} from ${from} to ${to}`;
+        if (to) return `${label} to ${to}`;
+        return `${label}`;
+      })
+      .filter((words): words is string => Boolean(words));
+    return { what: said.length ? `Changed ${joinAnd(said)}` : "Changed it", tone: "info" };
+  },
+  [RETAIL_AUDIT_EVENTS.voucherSent]: (payload) => ({ what: `Sent on ${text(payload.via) ?? "WhatsApp"}`, tone: "hollow" }),
+  [RETAIL_AUDIT_EVENTS.voucherRedeemed]: (payload) => {
+    const sale = text(payload.saleNo) ?? "a sale";
+    const usesLeft = amount(payload.usesLeft);
+    if (usesLeft !== null) {
+      return { what: `${moneyWords(payload.amount)} off ${sale}, ${formatCount(usesLeft)} left`, tone: "ok" };
+    }
+    return { what: `${moneyWords(payload.amount)} spent on ${sale}, ${moneyWords(payload.left)} left`, tone: "ok" };
+  },
+  // "US$10.00 back from VOID-0012, US$15.00 left" / "A use back from VOID-0012, 3 left".
+  [RETAIL_AUDIT_EVENTS.voucherRestored]: (payload) => {
+    const sale = text(payload.saleNo) ?? "a reversed sale";
+    const usesLeft = amount(payload.usesLeft);
+    if (usesLeft !== null) return { what: `A use back from ${sale}, ${formatCount(usesLeft)} left`, tone: "info" };
+    return { what: `${moneyWords(payload.amount)} back from ${sale}, ${moneyWords(payload.left)} left`, tone: "info" };
+  },
+  [RETAIL_AUDIT_EVENTS.voucherVoided]: (payload) => ({ what: `Voided: ${text(payload.reason) ?? "no reason given"}`, tone: "bad" }),
+  [RETAIL_AUDIT_EVENTS.voucherExpired]: (payload) => {
+    const left = amount(payload.left);
+    return { what: left !== null && left > 0 ? `Expired with ${formatMoney(left)} left` : "Expired", tone: "hollow" };
+  },
   // "Sent 540 units to Borrowdale" / "Cancelled: 540 units back at Harare Main Branch" (30-stock 3.3).
   [RETAIL_AUDIT_EVENTS.transferSent]: (payload) => ({
     what: `Sent ${unitWords(amount(payload.units) ?? 0)}${text(payload.to) ? ` to ${text(payload.to)}` : ""}`,

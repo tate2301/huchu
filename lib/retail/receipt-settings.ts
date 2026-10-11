@@ -147,6 +147,7 @@ const saleSelect = {
   currency: true,
   totalAmount: true,
   depositAmount: true,
+  vouchersSoldAmount: true,
   saleType: true,
   tenderedAmount: true,
   changeAmount: true,
@@ -173,13 +174,17 @@ export function fiscalLine(day: { deviceId: string; fiscalDayNo: number } | null
 /** A posted sale's receipt content: its lines and deposits, payments and the change as handed back. */
 export function saleReceiptContent(sale: ReceiptSale): ReceiptContent {
   return receiptContent({
-    lines: sale.lines.map((line) => ({
-      name: line.itemName,
-      quantity: Number(line.quantity),
-      amount: line.lineTotal.toString(),
-      deposit: line.depositAmount.toString(),
-    })),
-    total: Number(sale.totalAmount) + Number(sale.depositAmount),
+    lines: [
+      ...sale.lines.map((line) => ({
+        name: line.itemName,
+        quantity: Number(line.quantity),
+        amount: line.lineTotal.toString(),
+        deposit: line.depositAmount.toString(),
+      })),
+      // Gift vouchers bought in the sale are paid with it (PRD-10).
+      ...(Number(sale.vouchersSoldAmount) !== 0 ? [{ name: "Gift vouchers", quantity: 1, amount: sale.vouchersSoldAmount.toString(), deposit: 0 }] : []),
+    ],
+    total: Number(sale.totalAmount) + Number(sale.depositAmount) + Number(sale.vouchersSoldAmount),
     currency: receiptCurrency(sale.currency),
     payments: sale.payments.map((payment) => ({ ...payment, amount: payment.amount.toString() })),
     // The dollars, then the ZiG notes as counted out (not what they were worth).

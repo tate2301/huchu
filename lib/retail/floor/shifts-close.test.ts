@@ -472,6 +472,7 @@ describe("the till accounts across a close and the next opening", () => {
       saleType: "SALE",
       totalAmount: "18.40",
       depositAmount: "0",
+      vouchersSoldAmount: "0",
       tenderedAmount: "20.00",
       changeAmount: "1.60",
       changeZig: "16.08",

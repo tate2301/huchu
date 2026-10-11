@@ -12,6 +12,7 @@ import { STOCK_SHEETS } from "./stock";
 import { STOCK_ADJUST_SHEETS } from "./stock-adjust";
 import { STOCK_COUNT_SHEETS } from "./stock-count";
 import { TILL_SHEETS } from "./tills";
+import { VOUCHER_SHEETS } from "./vouchers";
 
 /**
  * Every sheet kind, by the `?sheet=` key that opens it (00-foundations 5.7.6).
@@ -23,6 +24,7 @@ export const SHEET_KINDS: Readonly<Record<string, SheetKind>> = {
   ...PRICE_SHEETS,
   ...BUNDLE_SHEETS,
   ...PROMOTION_SHEETS,
+  ...VOUCHER_SHEETS,
   ...SETUP_SHEETS,
   ...STOCK_SHEETS,
   ...STOCK_ADJUST_SHEETS,

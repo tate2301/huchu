@@ -215,6 +215,8 @@ const BASE_CHART_OF_ACCOUNTS: DefaultAccount[] = [
   { code: "5400", name: "Inventory Adjustments", type: "EXPENSE", category: "Inventory", systemManaged: true },
   { code: "5410", name: "Inventory Shrinkage", type: "EXPENSE", category: "Inventory", systemManaged: true },
   { code: "5420", name: "Cash Over Short", type: "EXPENSE", category: "Cash", systemManaged: true },
+  // PRD-10: gift vouchers and discounts the shop gives away; what is left on one is written back here when it lapses.
+  { code: "5450", name: "Promotions and Gifts", type: "EXPENSE", category: "Operations", systemManaged: true },
   { code: "5600", name: "Bad Debt Expense", type: "EXPENSE", category: "Receivables", systemManaged: true },
   // The CRM's money-out categories. A rep asks for "fuel", not for account
   // 5500, so the requisition form offers a category and one seeded rule per
@@ -837,6 +839,17 @@ export const RETAIL_POSTING_RULES: DefaultPostingRule[] = [
         memoTemplate: "{description} / bottle deposits",
         sortOrder: 35,
       },
+      // PRD-10: gift vouchers bought in the sale, owed to their holders until
+      // spent (outside the goods' total). DEDUCTIONS is nothing on a sale, so
+      // a posting without the figure posts no line rather than the whole amount.
+      {
+        accountSource: "ROLE_MAPPING", accountRole: "VOUCHERS_OWED",
+        direction: "CREDIT",
+        basis: "DEDUCTIONS",
+        valuePath: "vouchersSoldAmount",
+        memoTemplate: "{description} / gift vouchers sold",
+        sortOrder: 38,
+      },
       // SET-05, W-05: what rounding the ZiG change leaves, kept by the shop or
       // given to the customer. A sale always sends both as numbers; the
       // DEDUCTIONS basis (nothing, on a sale) is what a posting without them
@@ -1054,6 +1067,39 @@ export const RETAIL_POSTING_RULES: DefaultPostingRule[] = [
       { accountCode: "1005", direction: "CREDIT", basis: "AMOUNT", memoTemplate: "{description} / cash vault", sortOrder: 20 },
     ],
   },
+  // PRD-10 (W-18): a voucher given in the back office is a cost to the shop and
+  // money owed to its holder until spent.
+  {
+    name: "Retail voucher issued",
+    sourceType: "RETAIL_VOUCHER_ISSUE",
+    description: "Gift vouchers and credit notes given away: Promotions and gifts against Vouchers owed.",
+    priority: 10,
+    scopeType: "COMPANY",
+    ruleMode: "GUIDED",
+    isFallback: true,
+    lines: [
+      { accountSource: "ROLE_MAPPING", accountRole: "PROMOTIONS_GIVEN", direction: "DEBIT", basis: "AMOUNT", memoTemplate: "{description} / given", sortOrder: 10 },
+      { accountSource: "ROLE_MAPPING", accountRole: "VOUCHERS_OWED", direction: "CREDIT", basis: "AMOUNT", memoTemplate: "{description} / owed", sortOrder: 20 },
+    ],
+  },
+  // What was left on a voided or lapsed voucher is no longer owed: a paid one
+  // (sold, or a refund's credit note) becomes other income, a given one comes
+  // back off promotions and gifts. The payload always carries both figures, one
+  // of them zero, and a zero line is dropped.
+  ...(["RETAIL_VOUCHER_VOID", "RETAIL_VOUCHER_EXPIRY"] as const).map((sourceType) => ({
+    name: sourceType === "RETAIL_VOUCHER_VOID" ? "Retail voucher voided" : "Retail voucher expired",
+    sourceType,
+    description: "What was left on a voucher written off: Vouchers owed against Other income (paid) or Promotions and gifts (given).",
+    priority: 10,
+    scopeType: "COMPANY" as const,
+    ruleMode: "GUIDED" as const,
+    isFallback: true,
+    lines: [
+      { accountSource: "ROLE_MAPPING" as const, accountRole: "VOUCHERS_OWED" as const, direction: "DEBIT" as const, basis: "AMOUNT" as const, memoTemplate: "{description} / owed", sortOrder: 10 },
+      { accountSource: "ROLE_MAPPING" as const, accountRole: "OTHER_INCOME" as const, direction: "CREDIT" as const, basis: "DEDUCTIONS" as const, valuePath: "paidLeft", memoTemplate: "{description} / written off", sortOrder: 20 },
+      { accountSource: "ROLE_MAPPING" as const, accountRole: "PROMOTIONS_GIVEN" as const, direction: "CREDIT" as const, basis: "DEDUCTIONS" as const, valuePath: "givenLeft", memoTemplate: "{description} / written back", sortOrder: 30 },
+    ],
+  })),
   {
     name: "Retail cash movement",
     sourceType: "RETAIL_CASH_MOVEMENT",
@@ -1291,6 +1337,9 @@ export const RETAIL_ROLE_ACCOUNT_CODES: Record<RetailAccountRole, string> = {
   BREAKAGE: "5410",
   DEPOSITS_HELD: "2240",
   OPENING_BALANCES: "3100",
+  VOUCHERS_OWED: "2250",
+  PROMOTIONS_GIVEN: "5450",
+  OTHER_INCOME: "4200",
 };
 
 type AccountingDefaultArgs = {
