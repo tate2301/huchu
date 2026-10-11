@@ -651,6 +651,31 @@ export function CustomerPopover() {
 
 /* ─── Hold ───────────────────────────────────────────────────────────── */
 
+/**
+ * Drop: the checkout will not happen, so the sale goes in one press, beside
+ * Hold. It asks nothing; the toast that says what went brings it all back.
+ */
+export function DropSaleButton() {
+  const { cart, amountDue, dropSale } = useTill();
+  const { toast } = useToast();
+  const items = cart.reduce((sum, item) => sum + (Number.isInteger(item.quantity) ? item.quantity : 1), 0);
+  return (
+    <button
+      type="button"
+      className="btn btn-quiet is-icon-on-phone"
+      aria-label="Drop this sale"
+      onClick={() => {
+        const words = `Sale dropped: ${count(items, "item")}, ${usd(amountDue)}`;
+        const undo = dropSale();
+        toast({ title: words, duration: 8000, action: { label: "Undo", onClick: undo } });
+      }}
+    >
+      <Trash className="ic" />
+      <span className="when-wide">Drop</span>
+    </button>
+  );
+}
+
 export function HoldPopover() {
   const { toast } = useToast();
   const router = useRouter();

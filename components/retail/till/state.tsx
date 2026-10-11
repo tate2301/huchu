@@ -563,6 +563,37 @@ function useTillStateValue({ isPosHost, paired }: { isPosHost: boolean; paired: 
     setSaleRefusal(null);
   };
 
+  /**
+   * A checkout that will not happen: the sale goes, everything on it, in one
+   * press. Nothing reached the server, so nothing is written; what comes back
+   * is the way to put it all back, for the toast's Undo.
+   */
+  const dropSale = () => {
+    const kept = {
+      cart,
+      customerName,
+      selectedCustomer,
+      loyaltyRedemptionPoints,
+      payments,
+      orderDiscountAmount,
+      selectedPromotionId,
+      idChecked,
+      heldAs,
+    };
+    clearCart();
+    return () => {
+      setCart(kept.cart);
+      setCustomerNameRaw(kept.customerName);
+      setSelectedCustomer(kept.selectedCustomer);
+      setLoyaltyRedemptionPoints(kept.loyaltyRedemptionPoints);
+      setPayments(kept.payments);
+      setOrderDiscountAmount(kept.orderDiscountAmount);
+      setSelectedPromotionId(kept.selectedPromotionId);
+      setIdChecked(kept.idChecked);
+      setHeldAs(kept.heldAs);
+    };
+  };
+
   /** One more of a product; an open-price product comes with the price the cashier typed. */
   const addToCart = (item: PosCatalogItem, typedPrice?: number) => {
     setCart((current) => {
@@ -758,6 +789,7 @@ function useTillStateValue({ isPosHost, paired }: { isPosHost: boolean; paired: 
       setSelectedPromotionId(input.selectedPromotionId ?? "");
     },
     clearCart,
+    dropSale,
 
     /* The customer */
     customerName,

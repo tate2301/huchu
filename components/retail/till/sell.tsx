@@ -42,6 +42,7 @@ import {
   CaseBanners,
   CustomerPopover,
   DiscountPopover,
+  DropSaleButton,
   HoldPopover,
   IdCheckDialog,
   SaleLine,
@@ -601,7 +602,12 @@ function SaleColumn({
           {selling ? count(selling, "item") : ""}
         </span>
         <div className="end">
-          {cart.length ? <HoldPopover /> : null}
+          {cart.length ? (
+            <>
+              <HoldPopover />
+              <DropSaleButton />
+            </>
+          ) : null}
           <CustomerPopover />
         </div>
       </div>
