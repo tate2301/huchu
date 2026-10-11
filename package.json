@@ -37,6 +37,7 @@
     "worker:pdf": "tsx scripts/pdf-worker.ts",
     "worker:fiscal": "tsx scripts/fiscal-worker.ts",
     "worker:retail": "tsx scripts/retail-worker.ts",
+    "vane:ping": "tsx scripts/vane-ping.ts",
     "brand:ascii-logo": "tsx scripts/brand/ascii-logo.ts",
     "db:generate": "prisma generate",
     "db:up": "docker compose up -d --wait",
@@ -53,6 +54,7 @@
     "start:e2e": "node scripts/start-e2e.mjs"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.133.0",
     "@auth/prisma-adapter": "^2.11.1",
     "@base-ui/react": "^1.1.0",
     "@codemirror/autocomplete": "^6.20.3",
