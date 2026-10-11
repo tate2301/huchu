@@ -1,6 +1,7 @@
 import type { Tone } from "@/lib/reports/types";
-import { DEFAULT_TIME_ZONE, dayKey, formatCount } from "@/lib/workspace/format";
+import { DEFAULT_TIME_ZONE, dayKey, formatCount, formatTime } from "@/lib/workspace/format";
 
+import type { CountWhy } from "./movement-words";
 import { formatDayTime } from "./transfer-words";
 
 /**
@@ -139,4 +140,93 @@ export function countWhen(
     case "CANCELLED":
       return formatDayTime(count.cancelledAt ?? count.createdAt, now, timeZone);
   }
+}
+
+/* ── Approving the differences (STK-06) ──────────────────────────────────── */
+
+/** The Why menu's words, kept as the movement's notes when the count is approved. */
+export const COUNT_WHY_WORDS: Record<CountWhy, string> = { BROKEN: "Broken", NOT_KNOWN: "Not known", FOUND: "Found" };
+
+/** A line's Why until someone picks one: short is not known, over was found. */
+export const whyOf = (why: CountWhy | null, difference: number): CountWhy => why ?? (difference < 0 ? "NOT_KNOWN" : "FOUND");
+
+/** A count movement's notes back to its Why ("Broken" → BROKEN); anything else is not one. */
+export function countWhyOfNote(notes: string | null | undefined): CountWhy | null {
+  const found = Object.entries(COUNT_WHY_WORDS).find(([, words]) => words === notes?.trim());
+  return found ? (found[0] as CountWhy) : null;
+}
+
+const linesWord = (n: number) => `${formatCount(n)} ${n === 1 ? "line" : "lines"}`;
+
+/** 409 for anything but a count waiting for approval. */
+export const NOT_WAITING = "This count is not waiting for approval.";
+
+/** 403 when the net is over the owner's limit: "Over US$100.00 needs the owner. Tendai Mhlanga has been told." */
+export function ownerNeededWords(limit: string, owner: string | null): string {
+  return owner ? `Over ${limit} needs the owner. ${owner} has been told.` : `Over ${limit} needs the owner.`;
+}
+
+/** 409 when a line sold more since it was counted than the count found. */
+export const soldSinceWords = (product: string) => `${product} sold more since it was counted than the count found. Recount it.`;
+
+/** The status line once approved: "Stock set to what was counted. −US$41.20 posted to Breakage and losses." (after "Approved."). */
+export function approvedWords(net: string | null): string {
+  if (net === null) return "Stock set to what was counted.";
+  return `Stock set to what was counted. ${net} posted to Breakage and losses.`;
+}
+
+/** The toast after Recount: "3 lines sent back to Rudo Moyo." */
+export const recountToast = (lines: number, counter: string) => `${linesWord(lines)} sent back to ${counter}.`;
+
+/** The WhatsApp the counter gets: "Please count these 3 again: <link>". */
+export const recountText = (lines: number, link: string) =>
+  lines === 1 ? `Please count this one again: ${link}` : `Please count these ${formatCount(lines)} again: ${link}`;
+
+/** The bulk toast: "2 counts approved." / "1 count approved. CNT-0023 waits for the owner." */
+export function approvedCountsToast(answer: { approved: string[]; waiting: string[]; skipped: string[] }): string {
+  const { approved, waiting, skipped } = answer;
+  const head =
+    approved.length === 0
+      ? "Nothing was approved."
+      : `${formatCount(approved.length)} ${approved.length === 1 ? "count" : "counts"} approved.`;
+  const list = (numbers: string[]) =>
+    numbers.length === 1 ? numbers[0]! : `${numbers.slice(0, -1).join(", ")} and ${numbers[numbers.length - 1]}`;
+  const parts = [head];
+  if (waiting.length > 0) parts.push(`${list(waiting)} ${waiting.length === 1 ? "waits" : "wait"} for the owner.`);
+  if (skipped.length > 0) parts.push(`${list(skipped)} ${skipped.length === 1 ? "was" : "were"} left as ${skipped.length === 1 ? "it is" : "they are"}.`);
+  return parts.join(" ");
+}
+
+/** A history point's day in the review aside: "Today", "Yesterday", "30 September". */
+export function historyDay(at: string, now: Date, timeZone = DEFAULT_TIME_ZONE): string {
+  const day = dayKey(new Date(at), timeZone);
+  if (day === dayKey(now, timeZone)) return "Today";
+  if (day === dayKey(new Date(now.getTime() - 24 * 60 * 60 * 1000), timeZone)) return "Yesterday";
+  const [year, month, date] = day.split("-").map(Number) as [number, number, number];
+  const name = new Intl.DateTimeFormat("en-GB", { month: "long", timeZone: "UTC" }).format(new Date(Date.UTC(year, month - 1, 15)));
+  return year === Number(dayKey(now, timeZone).slice(0, 4)) ? `${date} ${name}` : `${date} ${name} ${year}`;
+}
+
+/**
+ * The review strip's sentence: "Counted blind by Rudo Moyo on a phone, today
+ * 10:12 to 10:40. Sales during the count are allowed for." Not blind:
+ * "Counted by …"; other days "yesterday" or "on 2 October"; not selling
+ * meanwhile: "The till stopped selling these while they were counted."
+ */
+export function countedSentence(
+  input: { blind: boolean; counter: string; from: string | null; to: string | null; keepSelling: boolean },
+  now: Date,
+  timeZone = DEFAULT_TIME_ZONE,
+): string {
+  const head = `Counted ${input.blind ? "blind " : ""}by ${input.counter} on a phone`;
+  const to = input.to ? new Date(input.to) : null;
+  const from = input.from ? new Date(input.from) : to;
+  let when = "";
+  if (to && from) {
+    const day = historyDay(to.toISOString(), now, timeZone);
+    const dayWords = day === "Today" || day === "Yesterday" ? day.toLowerCase() : `on ${day}`;
+    when = `, ${dayWords} ${formatTime(from, timeZone)} to ${formatTime(to, timeZone)}`;
+  }
+  const selling = input.keepSelling ? "Sales during the count are allowed for." : "The till stopped selling these while they were counted.";
+  return `${head}${when}. ${selling}`;
 }

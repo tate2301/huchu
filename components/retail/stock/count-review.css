@@ -1,0 +1,153 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   APPROVE THE DIFFERENCES — a count's review page (W-22, STK-06; board CountReview).
+
+   Under the shell's header: a 48px strip on --ground (the badge, the sentence,
+   the difference), then a body of two columns: the lines (Differ, Match, All)
+   and the 320px aside (When you approve; the shelf's last three counts).
+   Under 720px the aside goes under the table and each row keeps Product,
+   Counted and Difference, the rest on a second line.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.cx-cr {
+  display: flex;
+  flex-direction: column;
+  min-height: var(--content-viewport);
+  width: calc(100% + (var(--content-gutter-x) * 2));
+  margin-inline: calc(var(--content-gutter-x) * -1);
+  margin-top: calc(var(--content-lede) * -1);
+  background: var(--surface);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 1.4;
+}
+.cx-cr :is(button, a, input):focus-visible { outline: 2px solid var(--action); outline-offset: 2px; }
+.cx-cr-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+.cx-cr-mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+.cx-cr-strong { font-weight: 600; color: var(--ink); }
+.cx-cr-muted { color: var(--ink-3); }
+.cx-cr-faint { color: var(--ink-3); }
+.cx-cr-bad { color: var(--bad); }
+.cx-cr-ok { color: var(--ok); }
+.cx-cr-plain { color: var(--ink); }
+.cx-cr-end { text-align: right; justify-content: flex-end; }
+
+/* ── The strip ──────────────────────────────────────────────── */
+.cx-cr-strip {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 48px;
+  padding: 6px 16px;
+  box-sizing: border-box;
+  background: var(--ground);
+  border-bottom: 1px solid var(--line);
+}
+.cx-cr-strip__text { flex: 1; min-width: 0; color: var(--ink); }
+.cx-cr-strip__figure { white-space: nowrap; color: var(--ink-3); }
+.cx-cr-strip__figure b { margin-left: 6px; font-size: 16px; font-weight: 700; }
+
+.cx-cr-said { margin: 0; padding: 12px 16px; border-bottom: 1px solid var(--line); font-size: 14px; }
+.cx-cr-said--ok { background: var(--ok-soft); color: var(--ink); }
+.cx-cr-said--ok b { color: var(--ok); }
+.cx-cr-said--bad { background: var(--bad-soft); color: var(--bad); }
+
+/* ── The body ───────────────────────────────────────────────── */
+.cx-cr-body { flex: 1; display: grid; grid-template-columns: minmax(0, 1fr) 320px; }
+.cx-cr-main { min-width: 0; padding: 16px 24px 24px; }
+
+.cx-cr-table { margin-top: 0; border-top: 1px solid var(--line); }
+.cx-cr-g {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 76px 84px 84px 100px 110px 72px;
+  align-items: center;
+  padding: 0 12px;
+}
+.cx-cr-g > div + div { padding-left: 8px; }
+.cx-cr-table--nocost .cx-cr-g { grid-template-columns: minmax(0, 1fr) 76px 84px 84px 110px 72px; }
+.cx-cr-g > div { display: flex; align-items: center; min-width: 0; }
+.cx-cr-head { height: 34px; background: var(--ground); border-bottom: 1px solid var(--line); color: var(--ink-3); font-size: 13px; }
+.cx-cr-row { min-height: 48px; border-bottom: 1px solid var(--line); }
+.cx-cr-row--match { opacity: 0.6; }
+.cx-cr-product { flex-direction: column; align-items: flex-start !important; justify-content: center; }
+.cx-cr-product__name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
+.cx-cr-product__more { display: none; }
+.cx-cr-empty { margin: 0; padding: 16px 12px; color: var(--ink-3); }
+
+.cx-cr-count {
+  width: 64px;
+  height: 30px;
+  box-sizing: border-box;
+  padding: 0 8px;
+  border: 1px solid var(--line-strong, var(--line));
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--ink);
+  font-family: var(--font-mono);
+  font-size: 14px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+.cx-cr-count[aria-invalid="true"] { border-color: var(--bad); }
+
+.cx-cr-why {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ink);
+  font: inherit;
+  cursor: pointer;
+}
+.cx-cr-why__pen { width: 13px; height: 13px; color: var(--ink-3); opacity: 0; }
+.cx-cr-why:hover .cx-cr-why__pen,
+.cx-cr-why:focus-visible .cx-cr-why__pen { opacity: 1; }
+.cx-cr-tick { width: 16px; height: 16px; margin: 0; accent-color: var(--ink); }
+
+/* ── The aside ──────────────────────────────────────────────── */
+.cx-cr-aside { min-width: 0; padding: 16px 20px; border-left: 1px solid var(--line); display: flex; flex-direction: column; gap: 18px; }
+.cx-cr-group { display: flex; flex-direction: column; gap: 10px; padding-bottom: 18px; border-bottom: 1px solid var(--line); }
+.cx-cr-group:last-child { border-bottom: 0; }
+.cx-cr-group h2 { margin: 0; font-size: 15px; font-weight: 700; color: var(--ink); }
+.cx-cr-group p { margin: 0; color: var(--ink); line-height: 1.45; }
+.cx-cr-cancel { display: flex; flex-direction: column; gap: 4px; }
+.cx-cr-cancel span { color: var(--ink-3); }
+.cx-cr-cancel__link {
+  align-self: flex-start;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--bad);
+  font: inherit;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+.cx-cr-history { margin: 0; }
+.cx-cr-history__row { display: flex; justify-content: space-between; gap: 12px; min-height: 28px; align-items: center; border-bottom: 1px solid var(--line); }
+.cx-cr-history__row:last-child { border-bottom: 0; }
+.cx-cr-history__row dt { color: var(--ink-2); }
+.cx-cr-history__row dd { margin: 0; color: var(--ink); }
+
+.cx-cr-state { padding: 32px 24px; max-width: 560px; }
+.cx-cr-state h2 { margin: 0 0 6px; font-size: 18px; font-weight: 700; color: var(--ink); }
+.cx-cr-state p { margin: 0; color: var(--ink-2); }
+
+/* ── A phone ────────────────────────────────────────────────── */
+@media (max-width: 719px) {
+  .cx-cr-strip { flex-wrap: wrap; padding: 8px 16px; }
+  .cx-cr-strip__text { flex-basis: 100%; order: 3; }
+  .cx-cr-strip__figure { margin-left: auto; }
+  .cx-cr-body { grid-template-columns: minmax(0, 1fr); }
+  .cx-cr-main { padding: 12px 16px 16px; }
+  .cx-cr-aside { border-left: 0; border-top: 1px solid var(--line); padding: 16px; }
+  .cx-cr-g,
+  .cx-cr-table--nocost .cx-cr-g { grid-template-columns: minmax(0, 1fr) 72px 64px; padding: 0 4px; }
+  .cx-cr-wide { display: none !important; }
+  .cx-cr-row { padding-block: 8px; }
+  .cx-cr-product__name { white-space: normal; }
+  .cx-cr-product__more { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; margin-top: 4px; color: var(--ink-3); font-size: 13px; }
+}

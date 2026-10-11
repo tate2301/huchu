@@ -124,8 +124,16 @@ export type SourceTab<R> = {
   requires?: Grant;
   /** Drawn only while the record has something here (a sale's Refunds once it has one). */
   when?: (record: R) => boolean;
-  /** The link to everything, filtered to this record; or one of the record's actions by key ("View the receipt" prints a copy). */
-  allLink?: { label: string; href: (record: R) => string } | { label: string; action: string };
+  /**
+   * The link to everything, filtered to this record; or one of the record's actions by key ("View the receipt" prints a copy);
+   * or another of the record's tabs ("All 38 lines" opens Every line).
+   */
+  allLink?:
+    | { label: string; href: (record: R) => string }
+    | { label: string; action: string }
+    | { label: (record: R) => string; tab: string };
+  /** What an empty table says instead of the source's empty title ("Nothing to compare until the count is in."). */
+  emptyText?: (record: R) => string | null;
   /**
    * The source's columns this tab draws, in this order, and the header each
    * reads when it differs from the list's. Absent: every column the list shows.

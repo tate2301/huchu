@@ -174,6 +174,21 @@ Recorded unit choices:
 - **STK-05's phone count marks the current line with `--selected`.** The theme has no `--action-soft`; `--selected`
   is the same warm tint the board draws. The phone's counter rule lets a cashier asked to count open
   `/retail/stock/counts/<id>/count` (outside the shell, like the till) while Counts itself stays closed to them.
+- **STK-06 seeds CNT-0023 on four lines CNT-0020 also holds** (for the canvas owner to confirm). Stock is one line per
+  product at a site and every Spirits line at Harare Main Branch is in CNT-0020, so "Spirits, back shelf" cannot avoid
+  them; the seed writes it as rows, past the start's 409. No mix of the shelf's lines at today's costs comes to the
+  packet's −US$141.20 with Johnnie Walker −3 and Jameson −2 (that pair is −US$145.10), and lines CNT-0020 finds
+  different are left alone, so CNT-0023 is Johnnie Walker +1, Jameson −6, Two Keys +2 and Bols Brandy 750ml −5:
+  −US$141.20 to the cent. Starting a count on Spirits now names both counts in its 409.
+- **STK-06 approval posts through the shop's posting run.** The count's one journal (`RETAIL_STOCK_ADJUSTMENT`, keyed
+  by the count, `LOSS` or `GAIN`) is handed to `postRetailJournal` after the commit; a shop that posts at the end of
+  the day (the demo's) holds it PENDING as its accounting event until the run, which writes Dr 5410 / Cr 1200. The
+  approval answers `accountingStatus` as it stands.
+- **STK-06's review page draws "Approve and adjust" as a header action, not the page primary.** The header's primary
+  has no busy state; the board's spinner is the workspace Button's `busy`. The record's ⋯ "Export as PDF" goes
+  through the record-PDF registry (`RetailStockCount`), not a separate `export.pdf` route.
+- **STK-06's count chart drops "CNT-" under the bars past five.** The demo's 12 months hold seven Spirits counts
+  (the four June to August ones matched), which do not fit a phone with the prefix.
 - **Reseeding with `--reset` clears what acceptance walks did to the shop's stock and records.** Every order and
   delivery goes (PO-00001 and GRN-00001 are written again) with the movements, journals and Activity they
   wrote, and so do the products' edit lines in Activity (the seed's own, Amarula's price, is written again).

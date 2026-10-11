@@ -577,6 +577,30 @@ const WORDS: Record<string, (payload: Payload, eventType: string, seeCost: boole
     const lines = amount(payload.lines) ?? 0;
     return { what: `Counted ${lines} ${lines === 1 ? "line and sent it" : "lines and sent them"} for review`, tone: "info" };
   },
+  // "Changed Gordon’s Gin 750ml from 19 to 20": an approver's correction (STK-06).
+  [RETAIL_AUDIT_EVENTS.countLineChanged]: (payload) => {
+    const from = amount(payload.from);
+    const to = amount(payload.to);
+    const product = text(payload.product) ?? "a line";
+    return {
+      what: from === null ? `Changed ${product} to ${countWords(to ?? 0)}` : `Changed ${product} from ${countWords(from)} to ${countWords(to ?? 0)}`,
+      tone: "info",
+    };
+  },
+  // "Asked for 3 lines to be counted again" (STK-06).
+  [RETAIL_AUDIT_EVENTS.countRecountAsked]: (payload) => {
+    const lines = amount(payload.lines) ?? 0;
+    return { what: `Asked for ${formatCount(lines)} ${lines === 1 ? "line" : "lines"} to be counted again`, tone: "warn" };
+  },
+  // "Approved: stock set to what was counted, −US$41.20 to Breakage and losses" (STK-06).
+  [RETAIL_AUDIT_EVENTS.countApproved]: (payload) => {
+    const net = amount(payload.net) ?? 0;
+    return {
+      what: `Approved: stock set to what was counted${net === 0 ? "" : `, ${formatSigned(net)} to Breakage and losses`}`,
+      tone: "ok",
+    };
+  },
+  [RETAIL_AUDIT_EVENTS.countCancelled]: () => ({ what: "Cancelled the count", tone: "bad" }),
   // "Changed the lines: 560 units on the way" (30-stock 3.3).
   [RETAIL_AUDIT_EVENTS.transferChanged]: (payload) => ({
     what: `Changed the lines: ${unitWords(amount(payload.units) ?? 0)} on the way`,

@@ -20,7 +20,7 @@ export { archiveAsk, archiveManyAsk, bundleStopAsk, priceListDeleteAsk, promotio
 export { closeSiteAsk } from "./sites";
 export { removeAccessAsk, removedToast } from "./people";
 export { unpairAsk, unpairRowAsk } from "./tills";
-export { cancelTransferAsk, cancelTransfersAsk, reverseMovementsAsk } from "./stock";
+export { approveCountsAsk, cancelCountAsk, cancelTransferAsk, cancelTransfersAsk, reverseMovementsAsk } from "./stock";
 export type { ListActionRun } from "./runs";
 
 /** Every list action that posts, by its `run` key; each area adds its own. */

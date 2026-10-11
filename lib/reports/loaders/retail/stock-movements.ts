@@ -21,6 +21,7 @@ import {
   type MovementKind,
 } from "@/lib/retail/stock/movement-words";
 import { REVERSIBLE_REASONS } from "@/lib/retail/stock/reverse-words";
+import { countWhyOfNote } from "@/lib/retail/stock/count-words";
 import { dayKey, DEFAULT_TIME_ZONE, formatWhen } from "@/lib/workspace/format";
 
 /**
@@ -112,6 +113,7 @@ type MovementRow = {
   toPlace: string | null;
   reversed: boolean;
   unitCost: Prisma.Decimal | null;
+  notes: string | null;
 };
 
 async function selectRows(where: Prisma.Sql, order: Prisma.Sql, limit: number, offset = 0): Promise<MovementRow[]> {
@@ -120,7 +122,7 @@ async function selectRows(where: Prisma.Sql, order: Prisma.Sql, limit: number, o
            m."balanceAfter" AS "balanceAfter", m.reference, m."sourceId" AS "sourceId",
            p.id AS "productId", p.name AS product, p.code, s.id AS "siteId", s.name AS site,
            u.id AS "byId", u.name AS "byName", u.email AS "byEmail",
-           o.reason AS "reversedReason", tl.name AS "toPlace", i."unitCost" AS "unitCost",
+           o.reason AS "reversedReason", tl.name AS "toPlace", i."unitCost" AS "unitCost", m.notes,
            EXISTS (SELECT 1 FROM "StockMovement" r WHERE r."reversesId" = m.id) AS reversed
     ${FROM}
     LEFT JOIN "User" u ON u.id = m."issuedById"
@@ -150,7 +152,16 @@ export function toListRow(row: MovementRow): ReportRow {
   // At today's unit cost: a movement keeps no cost of its own (the same basis as Value at cost on hand).
   const value = round2(change * (num(row.unitCost) ?? 0));
   const counted = row.reason === "COUNT";
-  const words = { reason: row.reason, movementType: row.movementType, change, reference: row.reference, toPlace: row.toPlace, reversedReason: row.reversedReason };
+  const words = {
+    reason: row.reason,
+    movementType: row.movementType,
+    change,
+    // A count's Why is kept in the movement's notes when the count is approved ("Count, two broken").
+    why: counted ? countWhyOfNote(row.notes) : null,
+    reference: row.reference,
+    toPlace: row.toPlace,
+    reversedReason: row.reversedReason,
+  };
   const by = personName({ name: row.byName, email: row.byEmail });
   const at = row.at.toISOString();
   return {

@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  approveCountsAsk,
   archiveAsk,
   archiveManyAsk,
   binAsk,
+  cancelCountAsk,
   cancelRequisitionAsk,
   closeShortAsk,
   LIST_ACTION_RUNS,
@@ -153,5 +155,43 @@ describe("Unpair on a till (10-setup 5.5)", () => {
     const run = LIST_ACTION_RUNS.unpairtill!;
     expect(run.ask?.(1, [{ id: "t", name: "Back till", device: "Browser, Windows PC", cashier: null }]).go).toBe("Unpair");
     expect(run.done(1, [{ id: "t", name: "Back till" }])).toBe("Back till unpaired.");
+  });
+});
+
+describe("a count's asks (STK-06)", () => {
+  it("cancelcount says nothing on hand changes and the counter is told", () => {
+    expect(cancelCountAsk({ countNo: "CNT-0020", counter: "Rudo Moyo" })).toEqual({
+      title: "Cancel CNT-0020?",
+      body: "Nothing on hand changes. What has been counted stays on the count for the record, and Rudo Moyo is told it is off.",
+      keep: "Keep the count",
+      go: "Cancel the count",
+      fill: "bad",
+    });
+    const run = LIST_ACTION_RUNS.cancelcount!;
+    expect(run.ask?.(1, [{ id: "c", countNo: "CNT-0021", counter: "Kuda Banda" }]).title).toBe("Cancel CNT-0021?");
+    expect(run.done(1, [{ id: "c", countNo: "CNT-0021" }])).toBe("CNT-0021 cancelled. Nothing on hand changed.");
+  });
+
+  it("approvecounts adds up the ticked counts and names the owner's limit", () => {
+    expect(approveCountsAsk({ counts: 2, lines: 41, net: -106.02, ownerOver: 100 })).toEqual({
+      title: "Approve 2 counts?",
+      body: "Stock on hand becomes what was counted for 41 lines, and −US$106.02 is posted to Breakage and losses. A count over US$100.00 waits for the owner.",
+      keep: "Not yet",
+      go: "Approve the differences",
+      fill: "action",
+    });
+    const run = LIST_ACTION_RUNS.approvecounts!;
+    const rows = [
+      { id: "a", status: "TO_APPROVE", lineCount: 9, difference: -41.2, ownerOver: 100 },
+      { id: "b", status: "TO_APPROVE", lineCount: 4, difference: -141.2, ownerOver: 100 },
+    ];
+    expect(run.ask?.(2, rows).body).toBe(
+      "Stock on hand becomes what was counted for 13 lines, and −US$182.40 is posted to Breakage and losses. A count over US$100.00 waits for the owner.",
+    );
+    expect(run.done(2, rows, { approved: ["CNT-0020", "CNT-0024"], waiting: [], skipped: [] })).toBe("2 counts approved.");
+    expect(run.done(2, rows, { approved: ["CNT-0020"], waiting: ["CNT-0023"], skipped: [] })).toEqual({
+      title: "1 count approved. CNT-0023 waits for the owner.",
+      variant: "warning",
+    });
   });
 });

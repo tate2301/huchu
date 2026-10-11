@@ -3485,9 +3485,11 @@ type SeedCountLine = { code: string; counted: number; why?: "BROKEN" | "NOT_KNOW
 type SeedCount = {
   no: string
   name: string
-  scope: "EVERYTHING" | "CATEGORIES" | "PLACE"
+  scope: "EVERYTHING" | "CATEGORIES" | "PLACE" | "PRODUCTS"
   categories?: string[]
   place?: "BACK" | "COLD"
+  /** PRODUCTS: the stock lines it covers, by item code. */
+  codes?: string[]
   counter: string
   startedAt: Date
   submittedAt: Date | null
@@ -3516,19 +3518,26 @@ async function seedCounts(input: { companyId: string; mainSiteId: string }) {
   const people = await prisma.user.findMany({
     where: {
       companyId,
-      email: { in: ["tafara.manager@bottlestore.test", "rudo.stock@bottlestore.test", "kuda.till@bottlestore.test"] },
+      email: {
+        in: ["tafara.manager@bottlestore.test", "rudo.stock@bottlestore.test", "kuda.till@bottlestore.test", "tendai.stock@bottlestore.test"],
+      },
     },
     select: { id: true, email: true, name: true },
   })
   const who = (prefix: string) => people.find((person) => person.email?.startsWith(prefix))
   const tafara = who("tafara")
-  if (!tafara || !who("rudo") || !who("kuda")) {
-    console.log("  counts: Tafara Nyathi, Rudo Moyo or Kuda Banda missing, skipped")
+  if (!tafara || !who("rudo") || !who("kuda") || !who("tendai")) {
+    console.log("  counts: Tafara Nyathi, Rudo Moyo, Kuda Banda or Tendai Sibanda missing, skipped")
     return
   }
 
   // What an earlier run (or an acceptance run) left: the counts, their stock movements, Activity and messages.
   await prisma.stockMovement.deleteMany({ where: { reason: "COUNT", item: { site: { companyId } } } })
+  // What an approval posted (STK-06): one journal per count, keyed by the count.
+  const countIds = (await prisma.retailStockCount.findMany({ where: { companyId }, select: { id: true } })).map((row) => row.id)
+  const countJournals = { companyId, sourceType: "RETAIL_STOCK_ADJUSTMENT" as const, sourceId: { in: countIds } }
+  await prisma.journalEntry.deleteMany({ where: countJournals })
+  await prisma.accountingIntegrationEvent.deleteMany({ where: countJournals })
   await prisma.retailStockCount.deleteMany({ where: { companyId } })
   await prisma.platformAuditEvent.deleteMany({ where: { companyId, entityType: "RetailStockCount" } })
   await prisma.notification.deleteMany({
@@ -3684,6 +3693,25 @@ async function seedCounts(input: { companyId: string; mainSiteId: string }) {
       approvedAt: null,
       counted: 3,
     },
+    // STK-06: over the owner's US$100.00, so a manager's approval waits for the owner. The back
+    // shelf's bottles share their stock lines with the spirits shelf (one line per product at a site).
+    {
+      no: "CNT-0023",
+      name: "Spirits, back shelf",
+      scope: "PRODUCTS",
+      codes: ["BLKLABEL-750", "JAMESON-750", "TWOKEYS-750", "BOLS-750"],
+      counter: "tendai",
+      startedAt: today(8, 30, 130),
+      submittedAt: today(9, 5, 95),
+      approvedAt: null,
+      // −US$141.20 at today's costs: +33.60 − 132.90 + 14.20 − 56.10.
+      differ: [
+        { code: "BLKLABEL-750", counted: 1, why: "FOUND" },
+        { code: "JAMESON-750", counted: -6, why: "NOT_KNOWN" },
+        { code: "TWOKEYS-750", counted: 2, why: "FOUND" },
+        { code: "BOLS-750", counted: -5, why: "BROKEN" },
+      ],
+    },
   )
 
   const placeIds = { BACK: back.id, COLD: cold.id }
@@ -3694,7 +3722,9 @@ async function seedCounts(input: { companyId: string; mainSiteId: string }) {
       .filter((line) =>
         spec.scope === "EVERYTHING"
           ? true
-          : spec.scope === "PLACE"
+          : spec.scope === "PRODUCTS"
+            ? (spec.codes ?? []).includes(line.itemCode)
+            : spec.scope === "PLACE"
             ? line.locationId === placeIds[spec.place!]
             : categoryIds.includes(line.product!.categoryId ?? ""),
       )
@@ -3813,14 +3843,14 @@ async function seedCounts(input: { companyId: string; mainSiteId: string }) {
     }
   }
 
-  // The next count the shop starts is CNT-0022.
+  // The next count the shop starts is CNT-0024.
   const sequence = { companyId_entityKey_scopeKey: { companyId, entityKey: "RETAIL_STOCK_COUNT", scopeKey: "GLOBAL" } }
   await prisma.idSequence.upsert({
     where: sequence,
-    create: { companyId, entityKey: "RETAIL_STOCK_COUNT", scopeKey: "GLOBAL", lastNumber: 21 },
-    update: { lastNumber: 21 },
+    create: { companyId, entityKey: "RETAIL_STOCK_COUNT", scopeKey: "GLOBAL", lastNumber: 23 },
+    update: { lastNumber: 23 },
   })
-  console.log(`  counts: ${counts.length} (CNT-0020 to approve, CNT-0021 counting), ${movements} count movement(s)`)
+  console.log(`  counts: ${counts.length} (CNT-0020 and CNT-0023 to approve, CNT-0021 counting), ${movements} count movement(s)`)
 }
 
 /**

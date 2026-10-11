@@ -137,7 +137,7 @@ export function RecordTabs<R>({
       </div>
       <div id={panelId} role="tabpanel" aria-label={current.label}>
         {isSource(current) ? (
-          <SourceTable tab={current} record={record} result={page} actionFor={actionFor} />
+          <SourceTable tab={current} record={record} result={page} actionFor={actionFor} onTab={setSelected} />
         ) : (
           <ActivityTable
             result={activity}
@@ -157,11 +157,14 @@ function SourceTable<R>({
   record,
   result,
   actionFor,
+  onTab,
 }: {
   tab: SourceTab<R>;
   record: R;
   result: PageQuery | null;
   actionFor: (key: string) => (() => void) | null;
+  /** Opens another of the record's tabs (an all link that names one). */
+  onTab: (key: string) => void;
 }) {
   if (!result || result.isPending) return <p className="cx-rf-tablemsg">Loading…</p>;
   if (result.isError || !result.data) {
@@ -181,14 +184,17 @@ function SourceTable<R>({
   const rows = data.rows.slice(0, SHOWN);
   const last = columns.length - 1;
   const extra = tab.totalsText?.(record, data.totals) ?? {};
-  const allLink = !tab.allLink
+  const link = tab.allLink;
+  const allLink = !link
     ? null
-    : "action" in tab.allLink
-      ? { label: tab.allLink.label, href: null, onClick: actionFor(tab.allLink.action) }
-      : { label: tab.allLink.label, href: tab.allLink.href(record), onClick: null };
+    : "tab" in link
+      ? { label: link.label(record), href: null, onClick: () => onTab(link.tab) }
+      : "action" in link
+        ? { label: link.label, href: null, onClick: actionFor(link.action) }
+        : { label: link.label, href: link.href(record), onClick: null };
 
   if (data.total === 0) {
-    return <p className="cx-rf-tablemsg">{spec.empty.title}.</p>;
+    return <p className="cx-rf-tablemsg">{tab.emptyText?.(record) ?? `${spec.empty.title}.`}</p>;
   }
   const totals = totalsCells(columns, (column, index) =>
     index === 0

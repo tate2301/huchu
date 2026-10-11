@@ -249,6 +249,14 @@ export const RETAIL_AUDIT_EVENTS = {
   countStarted: "RETAIL_STOCK_COUNT.STARTED",
   /** A count sent for review from the phone. Carries the lines and how many differ. */
   countSubmitted: "RETAIL_STOCK_COUNT.SUBMITTED",
+  /** A figure corrected by an approver while the count waits for approval (STK-06). Carries the product and the figure from and to. */
+  countLineChanged: "RETAIL_STOCK_COUNT.LINE_CHANGED",
+  /** Lines sent back to the counter to count again (STK-06). Carries how many. */
+  countRecountAsked: "RETAIL_STOCK_COUNT.RECOUNT_ASKED",
+  /** The differences approved (W-22 step 4): on hand set to what was counted. Carries lines, differ, net, short and over (money as strings). */
+  countApproved: "RETAIL_STOCK_COUNT.APPROVED",
+  /** A count called off: nothing on hand changes. */
+  countCancelled: "RETAIL_STOCK_COUNT.CANCELLED",
   /** A new ZiG rate (W-05), typed in on Payments. Entity `RetailSettings`, id `payments`; carries the rate and the one it replaced. */
   zigRateSet: "RETAIL_ZIG_RATE.SET",
   /**

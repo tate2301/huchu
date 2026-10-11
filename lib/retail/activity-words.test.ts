@@ -294,6 +294,24 @@ describe("Activity's sentences (00-foundations 5.6.9)", () => {
     });
   });
 
+  it("counts corrected, sent back, approved and cancelled (STK-06)", () => {
+    expect(activityWords("RETAIL_STOCK_COUNT.LINE_CHANGED", { product: "Gordon’s Gin 750ml", from: 19, to: 20 })).toEqual({
+      what: "Changed Gordon’s Gin 750ml from 19 to 20",
+      tone: "info",
+    });
+    expect(activityWords("RETAIL_STOCK_COUNT.RECOUNT_ASKED", { lines: 3 })).toEqual({ what: "Asked for 3 lines to be counted again", tone: "warn" });
+    expect(activityWords("RETAIL_STOCK_COUNT.RECOUNT_ASKED", { lines: 1 })).toEqual({ what: "Asked for 1 line to be counted again", tone: "warn" });
+    expect(activityWords("RETAIL_STOCK_COUNT.APPROVED", { lines: 9, differ: 3, net: "-41.20", short: "-43.60", over: "2.40" })).toEqual({
+      what: "Approved: stock set to what was counted, −US$41.20 to Breakage and losses",
+      tone: "ok",
+    });
+    expect(activityWords("RETAIL_STOCK_COUNT.APPROVED", { lines: 9, differ: 0, net: "0.00" })).toEqual({
+      what: "Approved: stock set to what was counted",
+      tone: "ok",
+    });
+    expect(activityWords("RETAIL_STOCK_COUNT.CANCELLED", { countNo: "CNT-0020" })).toEqual({ what: "Cancelled the count", tone: "bad" });
+  });
+
   it("transfers sent, changed, received and cancelled (30-stock 3.3)", () => {
     expect(activityWords("RETAIL_STOCK_TRANSFER.SENT", { units: 540, to: "Borrowdale" })).toEqual({ what: "Sent 540 units to Borrowdale", tone: "info" });
     expect(activityWords("RETAIL_STOCK_TRANSFER.CHANGED", { units: 560 })).toEqual({ what: "Changed the lines: 560 units on the way", tone: "info" });

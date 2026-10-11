@@ -1,4 +1,8 @@
 import { esc } from "@/lib/documents/html-renderer";
+import { multiplyMoney, sumMoney } from "@/lib/money";
+import { prisma } from "@/lib/prisma";
+import { canSeeRetailCostPrice } from "@/lib/retail/permission-matrix";
+import { COUNT_STATE } from "@/lib/retail/stock/count-words";
 import type { RetailAction, RetailResource } from "@/lib/retail/permission-matrix";
 import { depositWords, idCheckWords, levelWords, priceListsWords, productKpis } from "@/lib/retail/products/record-words";
 import { loadProductView } from "@/lib/retail/products/view";
@@ -295,6 +299,81 @@ const RECORD_PDF: Record<string, RecordPdfType> = {
         subtitle: `${voucher.code} · ${voucher.stateLabel} · ${voucher.leftLabel} left`,
         content: `<table class="rd-table"><caption>Voucher</caption><tbody>${details}</tbody></table>
 <table class="rd-table"><caption>Uses</caption><thead><tr><th>Sale</th><th>When</th><th>Till</th><th class="num">Spent</th><th class="num">Left after</th></tr></thead><tbody>${uses}</tbody></table>`,
+      };
+    },
+  },
+  /**
+   * A stock count (STK-06): its figures and every line, expected, counted and
+   * the difference; the value at cost only for roles that see cost.
+   */
+  RetailStockCount: {
+    read: ["retail.counts", "view"],
+    render: async (caller, id) => {
+      const count = await prisma.retailStockCount.findFirst({
+        where: { id, companyId: caller.companyId },
+        select: {
+          countNo: true,
+          name: true,
+          status: true,
+          blind: true,
+          createdAt: true,
+          submittedAt: true,
+          approvedAt: true,
+          site: { select: { name: true } },
+          counter: { select: { name: true } },
+          approvedBy: { select: { name: true } },
+          lines: {
+            orderBy: [{ sortKey: "asc" }, { id: "asc" }],
+            select: {
+              expected: true,
+              expectedAtCount: true,
+              counted: true,
+              difference: true,
+              unitCost: true,
+              inventoryItem: { select: { name: true, product: { select: { name: true } } } },
+            },
+          },
+        },
+      });
+      if (!count) return null;
+      const seeCost = canSeeRetailCostPrice(caller.role ?? "");
+      const valued = count.lines.map((line) => ({
+        line,
+        value: line.difference ? multiplyMoney(line.difference, line.unitCost).toNumber() : 0,
+      }));
+      const differing = valued.filter(({ line }) => line.difference && !line.difference.isZero());
+      const net = sumMoney(differing.map(({ value }) => value)).toNumber();
+      const signed = (n: number) => (n > 0 ? `+${n}` : String(n));
+      const figures = rows([
+        ["Lines", String(count.lines.length)],
+        ["Differ", String(differing.length)],
+        ...(seeCost ? ([["Difference at cost", formatSigned(net)]] as Array<[string, string]>) : []),
+        ["Site", count.site.name],
+        ["Counted by", count.counter.name],
+        ["Blind", count.blind ? "Yes" : "No"],
+        ["Started", formatWhen(count.createdAt)],
+        ["Finished", count.submittedAt ? formatWhen(count.submittedAt) : "—"],
+        ...(count.approvedAt ? ([["Approved", `${formatWhen(count.approvedAt)}, ${count.approvedBy?.name ?? ""}`]] as Array<[string, string]>) : []),
+      ]);
+      const lines = valued
+        .map(({ line, value }) => {
+          const expected = (line.expectedAtCount ?? line.expected).toNumber();
+          const cells = [
+            `<td>${esc(line.inventoryItem.product?.name ?? line.inventoryItem.name)}</td>`,
+            `<td class="num mono">${expected}</td>`,
+            `<td class="num mono">${line.counted === null ? "—" : line.counted.toNumber()}</td>`,
+            `<td class="num mono">${line.difference === null ? "—" : esc(signed(line.difference.toNumber()))}</td>`,
+            ...(seeCost ? [`<td class="num mono">${line.difference === null ? "—" : esc(formatSigned(value))}</td>`] : []),
+          ];
+          return `<tr>${cells.join("")}</tr>`;
+        })
+        .join("");
+      return {
+        ref: count.countNo,
+        title: count.name,
+        subtitle: `${count.countNo} · ${COUNT_STATE[count.status].label} · ${count.site.name}`,
+        content: `<table class="rd-table"><caption>The count</caption><tbody>${figures}</tbody></table>
+<table class="rd-table"><caption>Every line</caption><thead><tr><th>Product</th><th class="num">Expected</th><th class="num">Counted</th><th class="num">Difference</th>${seeCost ? '<th class="num">Value</th>' : ""}</tr></thead><tbody>${lines}</tbody></table>`,
       };
     },
   },
