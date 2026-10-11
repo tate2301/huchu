@@ -19,3 +19,12 @@ export function takingsTitle(hoursEach: number): string {
   if (hoursEach === 24) return "Takings per day";
   return `Takings per ${hoursEach} hours`;
 }
+
+/**
+ * What a closed shift did, the sentence the till closes on: "US$412.00 in 86
+ * sales." A shift that sold nothing says so.
+ */
+export function shiftTookWords(took: { takings: number; sales: number }, money: (value: number) => string): string {
+  if (!took.sales) return "No sales this shift.";
+  return `${money(took.takings)} in ${formatCount(took.sales)} ${took.sales === 1 ? "sale" : "sales"}.`;
+}

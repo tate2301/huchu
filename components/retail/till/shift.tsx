@@ -25,6 +25,7 @@ import {
   type RetailCashMovementTypeName,
 } from "@/lib/retail/cash-movements";
 import { DENOMINATIONS, floatLeftProblem, rowTotal, type CountCurrency } from "@/lib/retail/floor/count";
+import { shiftTookWords } from "@/lib/retail/shift-words";
 import { count, dayMonth, firstName, hhmm, pairedWhen, paymentLabel, usd, whole } from "./format";
 import { Empty, ErrorLine, GateSide, Keypad, Segmented, TillDialog, useKeypadKeys, useWindowKeys, type KeypadKey } from "./parts";
 import { ManagerFields, useManagerPin } from "./manager-pin";
@@ -94,7 +95,7 @@ function countedIn(notes: CountNote[], counts: Record<string, number>, currency:
 }
 
 /** A shift just closed: its number, the drawer's difference, the held sales it ended, and the fiscal day it closed (SET-08). */
-type Closed = { shiftNo: string; variance: number; held: number; fiscalDay: number | null };
+type Closed = { shiftNo: string; variance: number; held: number; fiscalDay: number | null; takings: number; sales: number };
 
 export function ShiftScreen() {
   const { shiftHere, shiftLoading, context } = useTill();
@@ -519,7 +520,9 @@ function CountScreen({
 
 /* ─── Cash up, 2: the float left, then close (blind) ──────────────────── */
 
-type CloseAnswer = { data: { shiftNo: string; difference: string; state: "BALANCED" | "SHORT" | "OVER"; fiscalDayClosed: number | null } };
+type CloseAnswer = {
+  data: { shiftNo: string; difference: string; state: "BALANCED" | "SHORT" | "OVER"; fiscalDayClosed: number | null; takings: string; sales: number };
+};
 
 function CheckScreen({
   counts,
@@ -578,6 +581,8 @@ function CheckScreen({
         variance: Number(result.data.difference),
         held,
         fiscalDay: result.data.fiscalDayClosed ?? null,
+        takings: Number(result.data.takings),
+        sales: result.data.sales,
       });
       void queryClient.invalidateQueries({ queryKey: ["retail-current-shift"] });
     },
@@ -683,12 +688,14 @@ function CheckScreen({
   );
 }
 
-function ClosedScreen({ shiftNo, variance, held, fiscalDay }: Closed) {
+function ClosedScreen({ shiftNo, variance, held, fiscalDay, takings, sales }: Closed) {
   const { context } = useTill();
+  const { data: session } = useSession();
   const { requestSignOut } = useSignOut();
+  // A drawer that matched is the job done well: one quiet line of thanks, by name.
   const what =
     Math.abs(variance) < 0.005
-      ? "The drawer matched the till."
+      ? `The drawer matched the till. Thank you, ${firstName(session?.user?.name)}.`
       : `${variance < 0 ? "Short" : "Over"} ${usd(Math.abs(variance))}. ${context?.signOff?.name ?? "A manager"} sees it in the back office and signs it off.`;
   return (
     <div className="gate is-over">
@@ -697,6 +704,7 @@ function ClosedScreen({ shiftNo, variance, held, fiscalDay }: Closed) {
           <h1 className="text-display">
             Shift <span className="num">{shiftNo}</span> closed
           </h1>
+          <p className="lede-figure">{shiftTookWords({ takings, sales }, usd)}</p>
           <p className="under">
             {what}
             {held ? ` The ${count(held, "held sale")} ended with the shift.` : ""}

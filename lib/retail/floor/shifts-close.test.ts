@@ -160,6 +160,7 @@ afterAll(async () => {
   await prisma.accountingIntegrationEvent.deleteMany({ where: { companyId } });
   await prisma.approvalAction.deleteMany({ where: { companyId } });
   await prisma.retailCashMovement.deleteMany({ where: { companyId } });
+  await prisma.retailSale.deleteMany({ where: { companyId } });
   await prisma.retailDevice.deleteMany({ where: { companyId } });
   await prisma.retailShift.deleteMany({ where: { companyId } });
   await destroyProvisionedTenant(companyId);
@@ -464,6 +465,20 @@ describe("the till accounts across a close and the next opening", () => {
       { code: "1005", debit: 5, credit: 0 },
     ]);
     expect(await books([zigOnly.id])).toEqual({ "1000": 0, "1001": 0, "1005": -5 });
+  });
+
+  it("answers with what the shift took and how many sales, as the shift's record counts them", async () => {
+    const shift = await openDrawer("chipo", "100.00");
+    const sale = (saleNo: string, saleType: "SALE" | "REFUND", status: "POSTED" | "VOIDED", baseAmount: string) =>
+      prisma.retailSale.create({
+        data: { companyId: shop.companyId, saleNo, siteId: shop.mainId, shiftId: shift.id, saleType, status, totalAmount: baseAmount, baseAmount },
+      });
+    await sale(`T-${shift.id.slice(0, 6)}-1`, "SALE", "POSTED", "12.50");
+    await sale(`T-${shift.id.slice(0, 6)}-2`, "SALE", "POSTED", "7.50");
+    await sale(`T-${shift.id.slice(0, 6)}-3`, "REFUND", "POSTED", "-2.00");
+    const closed = await closeShift({ session: sessionOf("manager"), shiftId: shift.id, body: { counts: { USD: rows({ "100": 1 }) }, floatLeft: "0" } });
+    // Two sales, and the refund comes off the takings, as on the shift's record.
+    expect(closed).toMatchObject({ takings: "18.00", sales: 2 });
   });
 
   it("books a sale's ZiG as its journal does: ZiG cash less the change taken off it, a void taking it back", () => {

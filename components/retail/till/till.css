@@ -2115,6 +2115,10 @@
 /* The pairing door's camera, when the QR is scanned instead of typed. */
 .tl.tl.tl .qr-cam { position: relative; width: 100%; max-width: 320px; aspect-ratio: 1; border-radius: var(--radius-card); overflow: hidden; background: var(--color-ink); box-shadow: var(--shadow-ring); }
 .tl.tl.tl .qr-cam video { display: block; width: 100%; height: 100%; object-fit: cover; }
+/* On paper the total and the change carry the weight: the customer checks the one and counts the other.
+   Everything else on a receipt is the quiet ink at the receipt's own size. */
+.tl.tl.tl .receipt .l.t { font-size: var(--text-16); padding: var(--space-4) 0; }
+.tl.tl.tl .receipt .l.is-change { color: var(--color-ink); font-weight: 600; }
 /* A shop's logo at the head of a receipt or an offline slip. */
 .tl.tl.tl .receipt-logo { display: block; margin: 0 auto var(--space-8); max-width: 160px; max-height: 72px; }
 
