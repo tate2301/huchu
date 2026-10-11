@@ -340,8 +340,10 @@ export function PayTray({
   const onKey = (key: KeypadKey) => setHanded((current) => typeAmount(current, key));
   useKeypadKeys(onKey, !done && !saved && mode === "single" && tenderType === "CASH");
 
-  // Escape and the scrim close it while it is still asking; once money is moving, only Next sale does.
+  // Escape and the scrim close it while it is still asking; while money is moving, nothing does;
+  // once it is paid or saved, anything does, and that is the next sale.
   const closable = !done && !saved && !postSalePending;
+  const finished = Boolean(done || saved);
 
   useWindowKeys((event) => {
     const target = event.target as HTMLElement | null;
@@ -451,6 +453,7 @@ export function PayTray({
           Next sale
           <EnterKey />
         </button>
+        <p className="help is-centred">Or tap anywhere else. The shelf works while this shows.</p>
       </>
     );
   } else if (saved) {
@@ -500,6 +503,7 @@ export function PayTray({
           Next sale
           <EnterKey />
         </button>
+        <p className="help is-centred">Or tap anywhere else. The shelf works while this shows.</p>
       </>
     );
   } else if (mode === "split") {
@@ -713,23 +717,32 @@ export function PayTray({
 
   // Not portalled: the tray rises over the sale column, so it stays inside it.
   return (
+    // Paid or saved, the tray stops holding the till: no scrim, the shelf works, and a press
+    // anywhere else is the next sale (a product pressed is added to it).
     <DialogPrimitive.Root
       open
+      modal={!finished}
       onOpenChange={(open) => {
-        if (!open && closable) onClose();
+        if (open) return;
+        if (finished) onNext();
+        else if (closable) onClose();
       }}
     >
       <div className="over">
-        <DialogPrimitive.Overlay className="scrim" />
+        {finished ? null : <DialogPrimitive.Overlay className="scrim" />}
         <DialogPrimitive.Content
           className="tray"
           aria-describedby={undefined}
-          onCloseAutoFocus={returnFocus}
+          onCloseAutoFocus={finished ? (event) => event.preventDefault() : returnFocus}
           onEscapeKeyDown={(event) => {
-            if (!closable) event.preventDefault();
+            if (!closable && !finished) event.preventDefault();
           }}
           onPointerDownOutside={(event) => {
-            if (!closable) event.preventDefault();
+            if (!closable && !finished) event.preventDefault();
+          }}
+          onFocusOutside={(event) => {
+            // Paid stays put while the search takes focus for the next scan; a press is what moves on.
+            if (finished) event.preventDefault();
           }}
         >
           <DialogPrimitive.Title className="visually-hidden">{label}</DialogPrimitive.Title>
@@ -756,7 +769,7 @@ function WhichTender({ way, value, onChange }: { way: PayWay; value: string; onC
 
 function EnterKey() {
   return (
-    <span className="kbd on-primary">
+    <span className="kbd on-primary" aria-hidden="true">
       Enter
     </span>
   );
