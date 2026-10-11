@@ -6,6 +6,17 @@
 
 type Scannable = { name: string; sku: string; barcode: string | null };
 
+/**
+ * "3*6001234", typed before a scan or a code: three of it. Up to 999 at a
+ * time; anything else is the code alone, one of it. Only `*` (or `×`)
+ * counts, so a code like "12X500" is never read as twelve.
+ */
+export function parseScan(text: string): { quantity: number; code: string } {
+  const counted = /^\s*(\d{1,3})\s*[*×]\s*(\S.*)$/.exec(text);
+  if (counted && Number(counted[1]) > 0) return { quantity: Number(counted[1]), code: counted[2].trim() };
+  return { quantity: 1, code: text.trim() };
+}
+
 export function pickScanned<T extends Scannable>(items: readonly T[], code: string): T | null {
   if (!code.trim()) return null;
   return exactMatch(items, code) ?? items[0] ?? null;

@@ -61,6 +61,7 @@ import { shopFeatures } from "@/lib/retail/shop-profile-rules";
 import { cashDropDue, cashDropSentence, offlineStopSentence, offlineWindowClosed } from "@/lib/retail/till-on-device";
 import { markPairedTill } from "@/lib/retail/till-presence";
 import { referenceSentence } from "@/lib/retail/till-rule-words";
+import { displayChannel, onDisplayHello, postDisplay, type DisplayFeed } from "./display-feed";
 import { count, paymentLabel, usd } from "./format";
 import { keepOpenSale, loadOpenSale, openSaleKey } from "./open-sale";
 import { discountApprovalReason, discountCeilingProblem, paymentSummary, type RuledLine } from "./sale-rules";
@@ -643,8 +644,8 @@ function useTillStateValue({ isPosHost, paired }: { isPosHost: boolean; paired: 
     };
   };
 
-  /** One more of a product; an open-price product comes with the price the cashier typed. */
-  const addToCart = (item: PosCatalogItem, typedPrice?: number) => {
+  /** One more of a product (or as many as "3*" asked for); an open-price product comes with the price the cashier typed. */
+  const addToCart = (item: PosCatalogItem, typedPrice?: number, quantity = 1) => {
     setCart((current) => {
       const existing = current.find((entry) => entry.catalogItemId === item.id);
       // Another amount of an open price already on the sale (airtime for US$5, then US$2):
@@ -659,10 +660,11 @@ function useTillStateValue({ isPosHost, paired }: { isPosHost: boolean; paired: 
       }
       if (existing) {
         return current.map((entry) =>
-          entry.catalogItemId === item.id ? { ...atQuantity(entry, entry.quantity + 1), stock: item.inventoryItem?.currentStock } : entry,
+          entry.catalogItemId === item.id ? { ...atQuantity(entry, entry.quantity + quantity), stock: item.inventoryItem?.currentStock } : entry,
         );
       }
-      return [...current, lineFromItem(item, Boolean(features?.emptiesAndDeposits), typedPrice)];
+      const line = lineFromItem(item, Boolean(features?.emptiesAndDeposits), typedPrice);
+      return [...current, quantity === 1 ? line : atQuantity(line, quantity)];
     });
   };
 
@@ -806,6 +808,69 @@ function useTillStateValue({ isPosHost, paired }: { isPosHost: boolean; paired: 
     const timer = window.setTimeout(() => void keepOpenSale(keepKey, sale), 300);
     return () => window.clearTimeout(timer);
   }, [keepKey, readFor, sending, cart, customerName, selectedCustomer, loyaltyRedemptionPoints, payments, orderDiscountAmount, selectedPromotionId, idChecked, heldAs]);
+
+  /* ── The customer screen: the sale as the customer sees it (display-feed.ts) ── */
+
+  const tillId = context?.till.id ?? null;
+  const shopName = context?.ecocash?.name || context?.site.name || "";
+  const displayFeed: DisplayFeed | null = !context
+    ? null
+    : lastCompletedSale
+      ? {
+          phase: "paid",
+          shop: shopName,
+          total: round(lastCompletedSale.totalAmount + lastCompletedSale.depositAmount),
+          change: lastCompletedSale.changeAmount > 0.004 ? { usd: lastCompletedSale.changeUsd, zig: lastCompletedSale.changeZig } : null,
+          points: lastCompletedSale.loyalty
+            ? { earned: lastCompletedSale.loyalty.pointsEarned, balance: lastCompletedSale.loyalty.pointsBalance }
+            : null,
+          customer: lastCompletedSale.customerName,
+        }
+      : lastSavedSale
+        ? {
+            phase: "paid",
+            shop: shopName,
+            total: lastSavedSale.total,
+            change: lastSavedSale.change.value > 0.004 ? lastSavedSale.change : null,
+            points: null,
+            customer: null,
+          }
+        : sellingLines.length
+          ? {
+              phase: "selling",
+              shop: shopName,
+              lines: sellingLines.map((item) => ({
+                name: item.name,
+                quantity: item.quantity,
+                amount: round(Math.max(item.unitPrice * item.quantity - item.lineDiscountAmount, 0)),
+              })),
+              total: amountDue,
+              zig: zigRate ? { total: round(amountDue * zigRate), rate: zigRate } : null,
+              ecocash: context.ecocash,
+            }
+          : { phase: "idle", shop: shopName };
+  const displayNow = useRef(displayFeed);
+  const displayOut = useRef<BroadcastChannel | null>(null);
+  useEffect(() => {
+    if (!tillId || typeof BroadcastChannel === "undefined") return;
+    const channel = displayChannel(tillId);
+    displayOut.current = channel;
+    // A screen opened after the sale began asks for it.
+    const stop = onDisplayHello(channel, () => {
+      if (displayNow.current) postDisplay(channel, displayNow.current);
+    });
+    return () => {
+      stop();
+      channel.close();
+      displayOut.current = null;
+    };
+  }, [tillId]);
+  const displayText = JSON.stringify(displayFeed);
+  useEffect(() => {
+    displayNow.current = displayFeed;
+    if (displayOut.current && displayFeed) postDisplay(displayOut.current, displayFeed);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- posted when what it says changes
+  }, [displayText]);
 
   return {
     /* The device */

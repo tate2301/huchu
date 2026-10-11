@@ -24,7 +24,9 @@ import { count, dayMonth, hhmm, TENDER_LABEL, usd } from "./format";
 import type { TillRulesForTill } from "./types";
 import { Empty, ErrorLine, PinDots, Segmented, TillDialog } from "./parts";
 import { printReceipt } from "./pay-tray";
+import { KeyList } from "./keys";
 import { useTillLock } from "./lock";
+import { cue, onSoundsChange, setSoundsOn, soundsOn } from "./sound";
 import { useTill } from "./state";
 
 /* ─── My activity ────────────────────────────────────────────────────── */
@@ -284,6 +286,39 @@ function listWords(words: string[]) {
   return words.length > 1 ? `${words.slice(0, -1).join(", ")} and ${words[words.length - 1]}` : (words[0] ?? "");
 }
 
+/** What this device does for whoever is selling on it; kept on the device, not in the back office. */
+function ThisDevice() {
+  const sounds = React.useSyncExternalStore(onSoundsChange, soundsOn, () => true);
+  const id = React.useId();
+  return (
+    <div className="form-sec">
+      <header>
+        <h2>On this device</h2>
+        <p>Kept on this till for whoever sells on it.</p>
+      </header>
+      <div className="body">
+        <label className="check">
+          <input
+            type="checkbox"
+            role="switch"
+            className="switch"
+            aria-describedby={id}
+            checked={sounds}
+            onChange={(event) => {
+              setSoundsOn(event.target.checked);
+              if (event.target.checked) cue("added");
+            }}
+          />
+          Sounds
+        </label>
+        <span id={id} className="help">
+          A tick for each product, a low note for a code the till does not know, and two notes when the money is in.
+        </span>
+      </div>
+    </div>
+  );
+}
+
 export function SettingsScreen() {
   const { data: session } = useSession();
   const { context, isPosHost, shiftHere, pendingOfflineSales } = useTill();
@@ -394,6 +429,8 @@ export function SettingsScreen() {
             </div>
           </div>
         </div>
+        <hr className="divider" />
+        <ThisDevice />
         <hr className="divider" />
         <div className="form-sec" id="pin">
           <header>
@@ -591,24 +628,7 @@ export function HelpScreen() {
             <h2>Keys</h2>
           </header>
           <div className="body">
-            <dl className="attrs is-narrow">
-              <dt>
-                <span className="kbd">/</span>
-              </dt>
-              <dd>Search, or scan into it</dd>
-              <dt>
-                <span className="kbd">Enter</span>
-              </dt>
-              <dd>Take the money once the total is right</dd>
-              <dt>
-                <span className="kbd">Esc</span>
-              </dt>
-              <dd>Close what is open</dd>
-              <dt>
-                <span className="kbd">L</span>
-              </dt>
-              <dd>Lock the till</dd>
-            </dl>
+            <KeyList />
           </div>
         </div>
         <div className="form-sec">

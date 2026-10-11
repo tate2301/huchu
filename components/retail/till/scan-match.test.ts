@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { exactMatch, pickScanned, searchShelf } from "./scan-match";
+import { exactMatch, parseScan, pickScanned, searchShelf } from "./scan-match";
 
 const shelf = [
   { id: "lager", name: "Castle Lager 340ml", sku: "CL340", barcode: "6001108011234" },
@@ -30,6 +30,20 @@ describe("exactMatch", () => {
     expect(exactMatch(shelf, "6009801234567")?.id).toBe("milk");
     expect(exactMatch(shelf, "cl340")?.id).toBe("lager");
     expect(exactMatch(shelf, "castle")).toBeNull();
+  });
+});
+
+describe("parseScan", () => {
+  it("reads a count typed before the code", () => {
+    expect(parseScan("3*6001108011234")).toEqual({ quantity: 3, code: "6001108011234" });
+    expect(parseScan(" 12 × ice2 ")).toEqual({ quantity: 12, code: "ice2" });
+  });
+
+  it("takes anything else as one of the code", () => {
+    expect(parseScan("6001108011234")).toEqual({ quantity: 1, code: "6001108011234" });
+    expect(parseScan("12X500")).toEqual({ quantity: 1, code: "12X500" });
+    expect(parseScan("0*ice")).toEqual({ quantity: 1, code: "0*ice" });
+    expect(parseScan("3*")).toEqual({ quantity: 1, code: "3*" });
   });
 });
 

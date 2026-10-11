@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { MotionConfig } from "framer-motion";
 
 import { TillRootProvider } from "./parts";
 import "./till.css";
@@ -16,7 +17,10 @@ export function TillRoot({ fontClass, children }: { fontClass: string; children:
       ref={setElement}
       className={`tl ${fontClass}`}
     >
-      <TillRootProvider element={element}>{children}</TillRootProvider>
+      {/* Movement follows the device: with reduced motion asked for, the till keeps still. */}
+      <MotionConfig reducedMotion="user">
+        <TillRootProvider element={element}>{children}</TillRootProvider>
+      </MotionConfig>
     </div>
   );
 }

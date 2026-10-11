@@ -27,6 +27,8 @@ export const POS_PUBLIC_PATHS = [
   "/unpaired",
   /** A sale's printable receipt, loaded in a hidden frame by the till. */
   "/receipt",
+  /** The customer screen: the sale as the customer sees it, in a second window on the till. */
+  "/display",
 ] as const;
 export const POS_OPTIONAL_PUBLIC_PATHS = ["/customers", "/price-check"] as const;
 export const POS_ALL_PUBLIC_PATHS = [...POS_PUBLIC_PATHS, ...POS_OPTIONAL_PUBLIC_PATHS] as const;

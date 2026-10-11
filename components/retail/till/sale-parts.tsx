@@ -12,6 +12,7 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { motion } from "framer-motion";
 
 import { useOfflineRuntime } from "@/components/offline/offline-runtime";
 import { useToast } from "@/components/ui/use-toast";
@@ -39,6 +40,7 @@ import { discountPinSentence } from "@/lib/retail/till-rule-words";
 import { enumLabel } from "@/lib/retail/words";
 import { emptiesRows, spreadEmpties } from "./empties-words";
 import { count, firstName, MEASURES, qty, usd, whole } from "./format";
+import { lineMotion } from "./motion";
 import { Avatar, ErrorLine, TillDialog, TillPopover } from "./parts";
 import { discountApprovalReason } from "./sale-rules";
 import { lineIsChanged, useTill } from "./state";
@@ -149,7 +151,7 @@ export function SaleLine({ item }: { item: CartItem }) {
         .join(" · ") || null;
 
   return (
-    <div className={`line${stopped ? " is-stopped" : ""}`} aria-current={open ? "true" : undefined}>
+    <motion.div {...lineMotion} data-line={item.catalogItemId} className={`line${stopped ? " is-stopped" : ""}`} aria-current={open ? "true" : undefined}>
       <TillPopover
         arrow
         open={open}
@@ -253,13 +255,15 @@ export function SaleLine({ item }: { item: CartItem }) {
         <button type="button" aria-label={`One fewer ${item.name}`} onClick={() => updateQty(item.catalogItemId, item.quantity - 1)}>
           <Minus className="ic" />
         </button>
-        <span>{measured ? item.quantity.toFixed(3) : qty(item.quantity)}</span>
+        <span key={item.quantity} className="tick">
+          {measured ? item.quantity.toFixed(3) : qty(item.quantity)}
+        </span>
         <button type="button" aria-label={`One more ${item.name}`} onClick={() => updateQty(item.catalogItemId, item.quantity + 1)}>
           <Plus className="ic" />
         </button>
       </span>
       <span className="num">{stopped ? "—" : usd(lineAmount)}</span>
-    </div>
+    </motion.div>
   );
 }
 
@@ -656,33 +660,40 @@ export function CustomerPopover() {
  * Hold. It asks nothing; the toast that says what went brings it all back.
  */
 export function DropSaleButton() {
-  const { cart, amountDue, dropSale } = useTill();
-  const { toast } = useToast();
-  const items = cart.reduce((sum, item) => sum + (Number.isInteger(item.quantity) ? item.quantity : 1), 0);
+  const drop = useDropSale();
   return (
-    <button
-      type="button"
-      className="btn btn-quiet is-icon-on-phone"
-      aria-label="Drop this sale"
-      onClick={() => {
-        const words = `Sale dropped: ${count(items, "item")}, ${usd(amountDue)}`;
-        const undo = dropSale();
-        toast({ title: words, duration: 8000, action: { label: "Undo", onClick: undo } });
-      }}
-    >
+    <button type="button" className="btn btn-quiet is-icon-on-phone" aria-label="Drop this sale" onClick={drop}>
       <Trash className="ic" />
       <span className="when-wide">Drop</span>
     </button>
   );
 }
 
-export function HoldPopover() {
+/** The drop itself, for the button and for Shift Delete: the sale goes, and the toast says what went with Undo. */
+export function useDropSale() {
+  const { cart, amountDue, dropSale } = useTill();
+  const { toast } = useToast();
+  return () => {
+    const items = cart.reduce((sum, item) => sum + (Number.isInteger(item.quantity) ? item.quantity : 1), 0);
+    const words = `Sale dropped: ${count(items, "item")}, ${usd(amountDue)}`;
+    const undo = dropSale();
+    toast({ title: words, duration: 8000, action: { label: "Undo", onClick: undo } });
+  };
+}
+
+/** Opened by its button, or by H on the keyboard (the sell screen holds `open`). */
+export function HoldPopover({ open, onOpenChange: setOpen }: { open: boolean; onOpenChange: (open: boolean) => void }) {
   const { toast } = useToast();
   const router = useRouter();
   const queryClient = useQueryClient();
   const { cart, shiftHere, customerName, orderDiscountAmount, selectedPromotionId, clearCart, isPosHost } = useTill();
-  const [open, setOpen] = React.useState(false);
   const [label, setLabel] = React.useState("");
+  // However it opens, it opens on the customer's name.
+  const [wasOpen, setWasOpen] = React.useState(open);
+  if (open !== wasOpen) {
+    setWasOpen(open);
+    if (open) setLabel(customerName);
+  }
   const id = React.useId();
 
   const hold = useMutation({
@@ -709,10 +720,7 @@ export function HoldPopover() {
     <TillPopover
       arrow
       open={open}
-      onOpenChange={(next) => {
-        setOpen(next);
-        if (next) setLabel(customerName);
-      }}
+      onOpenChange={setOpen}
       label="Hold this sale"
       align="end"
       trigger={

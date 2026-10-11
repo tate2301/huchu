@@ -23,6 +23,7 @@ import {
 } from "@/lib/icons";
 import { clockLabel } from "@/lib/retail/licence-hours";
 import { count, MEASURES, qty, usd, whole } from "./format";
+import { flyToSale } from "./motion";
 import { TillPopover } from "./parts";
 import { useTill } from "./state";
 import type { PosCatalogItem, Promotion } from "./types";
@@ -157,14 +158,20 @@ export function ProductTile({
       onClick={
         item.openPrice
           ? undefined
-          : () => {
-              if (!off) onAdd(item);
+          : (event) => {
+              if (off) return;
+              flyToSale(event.currentTarget, item.id);
+              onAdd(item);
             }
       }
     >
       <ProductPreview name={item.name} imageUrl={item.imageUrl}>
         {item.ageRestricted ? <span className="age">18+</span> : null}
-        {inCart ? <span className="in">{inCart}</span> : null}
+        {inCart ? (
+          <span key={inCart} className="in">
+            {inCart}
+          </span>
+        ) : null}
       </ProductPreview>
       <span className="p">
         {item.openPrice ? "Any" : usd(item.unitPrice)}
@@ -258,7 +265,14 @@ export function QuickRow({
             className="quick-item"
             title={item.name}
             aria-label={[item.name, item.openPrice ? "any amount" : usd(item.unitPrice), ...(onIt > 0 ? [`${qty(onIt)} on this sale`] : [])].join(", ")}
-            onClick={item.openPrice ? undefined : () => onAdd(item)}
+            onClick={
+              item.openPrice
+                ? undefined
+                : (event) => {
+                    flyToSale(event.currentTarget, item.id);
+                    onAdd(item);
+                  }
+            }
           >
             <span className="qpic" aria-hidden="true">
               {item.imageUrl ? (
@@ -270,7 +284,11 @@ export function QuickRow({
             </span>
             <span className="qn">{item.name}</span>
             <span className="qp">{item.openPrice ? "Any" : usd(item.unitPrice)}</span>
-            {onIt > 0 ? <span className="in">{qty(onIt)}</span> : null}
+            {onIt > 0 ? (
+              <span key={onIt} className="in">
+                {qty(onIt)}
+              </span>
+            ) : null}
           </button>
         );
         return item.openPrice ? (
