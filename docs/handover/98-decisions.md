@@ -480,6 +480,33 @@ Recorded unit choices:
     record compares), Festive has two changes before it started, and Cokes and Savanna sell in pairs while their two-for
     deals ran. Ciders sold only in the "Any 3 ciders" deal while Heritage ran, so it sold nothing under it. Today's
     hand-made floor sales carry no promotion.
+- **PRD-10 departs from packet 23 in these places.**
+  - **"For" is typed until the customer lookup lands** (CUS-02, packet 53). A live customer's exact name links that
+    customer, so WhatsApp knows their number; anything else ("Delta reps") is kept on the voucher as who it is for
+    (`holderNote`). Send by stays on Print until something is typed under For, and WhatsApp to someone with no
+    number is refused under Send by ("Tapiwa Marange has no WhatsApp number.").
+  - **The till does not take or sell vouchers yet.** `pos/sales` takes a VOUCHER tender with its code and secret, a
+    discount voucher, and gift vouchers bought (`vouchersSold`, paid on top of the goods, Cr Vouchers owed), and
+    `pos/vouchers/check` reads a typed code or a scanned card; the till's screens for them are FLR-10's, so the
+    Vouchers tender stays off the till's tender list until then. A refund paid as a credit note is FLR-02's
+    (`issueCreditNote`, `restoreVoucherUse` are ready for it).
+  - **A sale that sold gift vouchers is not refunded or voided at the till** ("This sale sold gift vouchers. Void
+    them on Products › Vouchers instead."): the vouchers are live money, voided with a reason here.
+  - **The printed barcode carries the code and its secret** (`GV-0019-K7MQ2X`), so a scan needs no typing; the
+    server still checks the secret, and five wrong secrets in ten minutes lock that code for fifteen.
+  - **A discount voucher comes off after the promotions**, in `priceSale`, shared across the lines by their value;
+    its smallest sale reads the basket after promotions.
+  - **Back-office vouchers are given** (Dr Promotions and gifts 5450 / Cr Vouchers owed 2250). A void or a lapse
+    writes off what was left: to Other income 4200 when it was paid for (sold, or a refund's credit note), back
+    off 5450 when it was given. The VOUCHER tender's clearing account moves from 1018 to 2250, so spending one
+    takes it off what the shop owes.
+  - **A voided or lapsed voucher cannot be extended or changed** ("It was voided.", "It expired on … and was
+    written off."); the worker lapses vouchers at 00:10 the day after they expire, once.
+  - **The Changes tab counts every line of its Activity, uses included** (the board's "1" is a voucher with one
+    change and no use). Sale numbers are the ones the seed's history gives those sales (the board's SALE-29410,
+    GV-0019's sale, is SALE-29888 on the last seed). The board's day is before 9 October; on the seed's day CN-0031 (last day 9 October) reads
+    Expired, so Live 14, Used up 31, Expired 6, All 51 hold with it under Expired. The seed leaves its US$4.20
+    for the worker's next 00:10 run to write off, so that lapse can be watched.
 
 ## Owner direction, 5 October: sidebar, Management and Setup
 

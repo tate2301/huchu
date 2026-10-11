@@ -60,9 +60,10 @@ export function reversalSubtotal(
  * A sale's change as the books take it (SET-05, W-05), in the base currency:
  * the whole US dollars and what the ZiG notes were worth (`changeAmount` is
  * both), and what rounding the ZiG left against what was owed (tendered less
- * the goods and deposits) — kept by the shop, or given to the customer.
+ * the goods, deposits and gift vouchers) — kept by the shop, or given to the customer.
  * With ZiG in the change the dollars are the whole dollars owed, as
- * `splitChange` hands them back. A void carries its sale's figures negated,
+ * `splitChange` hands them back. Gift vouchers bought in the sale are owed
+ * like the goods (PRD-10). A void carries its sale's figures negated,
  * so it reads back the same split and its journal reverses the sale's; a
  * refund hands back no change.
  */
@@ -70,6 +71,7 @@ export function postedChange(sale: {
   saleType: string;
   totalAmount: MoneyLike;
   depositAmount: MoneyLike;
+  vouchersSoldAmount: MoneyLike;
   tenderedAmount: MoneyLike | null;
   changeAmount: MoneyLike | null;
   changeZig: MoneyLike;
@@ -81,6 +83,7 @@ export function postedChange(sale: {
   const owed = money(sale.tenderedAmount)
     .minus(money(sale.totalAmount))
     .minus(money(sale.depositAmount))
+    .minus(money(sale.vouchersSoldAmount))
     .times(sale.saleType === "VOID" ? -1 : 1);
   const usd = money(sale.changeZig).abs().greaterThan(0) ? Prisma.Decimal.min(owed.floor(), change) : change;
   const rounding = owed.minus(change);

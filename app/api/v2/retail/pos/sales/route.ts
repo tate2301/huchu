@@ -42,6 +42,12 @@ import { saleReceipt } from "@/lib/retail/receipt-settings";
 import { approverSchema, approvalFor, replayApproval, tillRuleResponse } from "@/lib/retail/manager-pin";
 import { loadTillRules, saleDiscountRule } from "@/lib/retail/till-rules";
 import { offlineDiscountReview, REPLAY_AHEAD_REVIEW } from "@/lib/retail/till-rule-words";
+import { centsOf } from "@/lib/retail/prices/figure";
+import { VoucherRefusal } from "@/lib/retail/vouchers/issue";
+import { checkVoucher, WRONG_SECRET } from "@/lib/retail/vouchers/redeem";
+
+/** When a voucher is judged: when the till rang the sale (a replay), else now. */
+const soldAtOf = (replaySoldAt: Date | null, arrived: Date) => replaySoldAt ?? arrived;
 
 const saleLineSchema = z.object({
   /**
@@ -74,6 +80,9 @@ const salePaymentSchema = z.object({
    */
   currency: z.enum(["USD", "ZWG"]).optional(),
   reference: z.string().max(120).optional().nullable(),
+  /** PRD-10: tender VOUCHER names the voucher and its secret; a VOUCHER with no voucher behind it is refused. */
+  voucherCode: z.string().trim().max(40).optional(),
+  voucherSecret: z.string().trim().max(20).optional(),
 });
 
 const saleSchema = z.object({
@@ -124,6 +133,13 @@ const saleSchema = z.object({
    * again; a replay already took it and is priced as below.
    */
   total: z.number().min(0).optional(),
+  /** PRD-10: gift vouchers bought in the sale ("20.00"), paid on top of the goods. */
+  vouchersSold: z
+    .array(z.object({ value: z.string().max(20), customerId: z.string().uuid().optional().nullable() }))
+    .max(20)
+    .optional(),
+  /** PRD-10: a discount voucher, taken off after the promotions. */
+  discountVoucher: z.object({ code: z.string().trim().max(40), secret: z.string().trim().max(20) }).optional().nullable(),
 });
 
 /** The till sold off an old price snapshot: it fetches the new one and the cashier rings or charges again. */
@@ -533,6 +549,63 @@ export async function POST(request: NextRequest) {
     // its site (a shift on another till is refused with the sale, ShiftElsewhere).
     const site = { id: shift.siteId };
 
+    /*
+      PRD-10 (W-18). Every voucher the sale names is checked with its secret
+      before anything is priced: a tender VOUCHER is a money voucher with as
+      much left as it pays, a discount voucher comes off after the
+      promotions. A replay is refused only when the check fails (the money was
+      taken); the sale's transaction takes the money off again, guarded.
+    */
+    const voucherPayments: Array<{ voucherId: string } | null> = [];
+    const takenOff = new Map<string, number>();
+    for (const payment of input.payments) {
+      if (payment.tenderType !== "VOUCHER") {
+        voucherPayments.push(null);
+        continue;
+      }
+      if (!payment.voucherCode || !payment.voucherSecret) {
+        return errorResponse("A voucher payment needs its code and its secret.", 400);
+      }
+      if (payment.currency && payment.currency !== "USD") return errorResponse("A voucher pays in US dollars.", 400);
+      const { check, id, reason } = await checkVoucher(session.user.companyId, {
+        code: payment.voucherCode,
+        secret: payment.voucherSecret,
+        siteId: site.id,
+        now: soldAtOf(replaySoldAt, arrived),
+      });
+      if (!check || !id || reason) return errorResponse(reason ?? WRONG_SECRET, 409);
+      if (check.kind === "DISCOUNT") return errorResponse(`${check.code} is a discount voucher. Take it off the sale instead.`, 400);
+      const taking = Math.round(((takenOff.get(id) ?? 0) + payment.amount) * 100) / 100;
+      if (taking > (check.left ?? 0) + 0.0001) return errorResponse(`That voucher has ${formatMoney(check.left ?? 0)} left.`, 409);
+      takenOff.set(id, taking);
+      voucherPayments.push({ voucherId: id });
+    }
+    let discountVoucher: { voucherId: string; percentOff: number | null; amountOff: number | null; minSale: number | null } | null = null;
+    if (input.discountVoucher) {
+      const { check, id, reason } = await checkVoucher(session.user.companyId, {
+        code: input.discountVoucher.code,
+        secret: input.discountVoucher.secret,
+        siteId: site.id,
+        now: soldAtOf(replaySoldAt, arrived),
+      });
+      if (!check || !id || reason) return errorResponse(reason ?? WRONG_SECRET, 409);
+      if (check.kind !== "DISCOUNT") return errorResponse(`${check.code} is worth money. Take it as a payment.`, 400);
+      discountVoucher = { voucherId: id, percentOff: check.percentOff, amountOff: check.amountOff, minSale: check.minSale };
+    }
+    const vouchersSold: Array<{ valueCents: number; customerId: string | null }> = [];
+    for (const sold of input.vouchersSold ?? []) {
+      const cents = centsOf(sold.value);
+      if (cents === null || cents <= 0 || cents > 100_000) {
+        return errorResponse("Write the gift voucher's value as a figure, like 20.00, at most 1,000.00.", 400);
+      }
+      if (sold.customerId) {
+        const customer = await prisma.customer.findFirst({ where: { id: sold.customerId, companyId: session.user.companyId, isActive: true }, select: { id: true } });
+        if (!customer) return errorResponse("Selected customer is invalid", 400);
+      }
+      vouchersSold.push({ valueCents: cents, customerId: sold.customerId ?? null });
+    }
+    const vouchersSoldAmount = vouchersSold.reduce((sum, voucher) => sum + voucher.valueCents, 0) / 100;
+
     // S-4b. The range is `Product` + the `InventoryItem` behind it at this
     // branch, resolved in one query. The site check that used to compare
     // `RetailCatalogItem.siteId` is now inherent: a product with no stock row at
@@ -700,9 +773,13 @@ export async function POST(request: NextRequest) {
       at: soldAt,
       siteId: site.id,
       orderDiscountAmount: input.discountAmount ?? 0,
+      voucher: discountVoucher,
     });
     if ("error" in priced) {
       return errorResponse(priced.error, 400);
+    }
+    if (discountVoucher?.minSale && priced.basketAfterPromotions + 0.0001 < discountVoucher.minSale) {
+      return errorResponse(`It works on sales of ${formatMoney(discountVoucher.minSale)} or more.`, 409);
     }
     const saleLines = preNormalizedLines.flatMap((line, index) => {
       const pieces = priced.pieces.filter((piece) => piece.lineKey === line.lineKey);
@@ -937,7 +1014,8 @@ export async function POST(request: NextRequest) {
       };
     });
     const depositAmount = depositsDue(depositLines);
-    const amountDue = round(totalAmount + depositAmount);
+    // What the customer pays: the goods, the deposits and any gift vouchers bought (PRD-10).
+    const amountDue = round(totalAmount + depositAmount + vouchersSoldAmount);
     if (!replaySoldAt && input.total !== undefined && Math.round(input.total * 100) !== Math.round(amountDue * 100)) {
       return pricesChanged(
         `Prices changed while you were selling. This sale comes to ${formatMoney(amountDue)} now; check the total and take the payment again.`,
@@ -1085,7 +1163,7 @@ export async function POST(request: NextRequest) {
       .filter((value): value is string => Boolean(value))
       .join(" | ");
 
-    const { sale, accounting, fiscal: assigned } = await createRetailSaleTransaction({
+    const { sale, accounting, fiscal: assigned, vouchersSold: voucherCards } = await createRetailSaleTransaction({
       actor: {
         companyId: session.user.companyId,
         userId: session.user.id,
@@ -1111,7 +1189,9 @@ export async function POST(request: NextRequest) {
       discountAmount: totalDiscount,
       taxAmount,
       totalAmount,
-      payments: input.payments,
+      payments: input.payments.map((payment, index) => ({ ...payment, voucherId: voucherPayments[index]?.voucherId ?? null })),
+      vouchersSold,
+      discountVoucher: discountVoucher ? { voucherId: discountVoucher.voucherId, discount: priced.voucherSaving } : null,
       soldAt,
       // A replay is dated when the till rang it, so the shift, the day and a
       // refund or void sent in after it all read it in its place.
@@ -1197,6 +1277,9 @@ export async function POST(request: NextRequest) {
       taxAmount: sale.taxAmount,
       totalAmount: sale.totalAmount,
       depositAmount: sale.depositAmount,
+      vouchersSoldAmount: sale.vouchersSoldAmount,
+      // The gift vouchers it sold, with their secrets, for the till to print (FLR-10).
+      vouchersSold: voucherCards.map((voucher) => ({ id: voucher.id, code: voucher.code, secret: voucher.secret, value: voucher.valueLabel, expiresOn: voucher.expiresOn })),
       tenderedAmount: sale.tenderedAmount,
       changeAmount: sale.changeAmount,
       // How the change is handed back: whole US dollars, then the ZiG notes (W-05).
@@ -1232,6 +1315,7 @@ export async function POST(request: NextRequest) {
       return errorResponse("Validation failed", 400, error.issues);
     }
     if (error instanceof ShiftElsewhere || error instanceof BeingCounted) return errorResponse(error.message, 409);
+    if (error instanceof VoucherRefusal) return errorResponse(error.message, error.status);
     return errorResponse(error instanceof Error ? error.message : "Failed to post sale", 400);
   }
 }

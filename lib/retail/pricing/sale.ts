@@ -15,8 +15,12 @@
  * 4. Promotions (`applyPromotions`) on every piece not in a bundle or a kept
  *    deal, after the cashier's discount, never below zero; each piece keeps
  *    the promotion it is attributed to and what the promotions took off it.
- * 5. `calculateRetailCheckout`: the bundle's saving, the cashier's discount
- *    and the promotion come off each piece; the sale's own discount after.
+ * 5. A discount voucher (PRD-10, W-18): a percent of what the basket comes to
+ *    after the promotions, or an amount off it, never below zero, shared over
+ *    the pieces pro rata to what each comes to in whole cents.
+ * 6. `calculateRetailCheckout`: the bundle's saving, the cashier's discount,
+ *    the promotion and the voucher come off each piece; the sale's own
+ *    discount after.
  */
 
 import { calculateRetailCheckout, type RetailCalculatedCheckout } from "@/lib/retail/checkout";
@@ -61,7 +65,12 @@ export type SalePiece = {
   /** The promotion this piece sold under, and what the promotions took off it (shelf money). */
   promotionId: string | null;
   promotionDiscount: number;
+  /** This piece's share of the discount voucher (shelf money). */
+  voucherDiscount: number;
 };
+
+/** A discount voucher on the sale: a percent off, or an amount off. */
+export type SaleVoucher = { percentOff: number | null; amountOff: number | null };
 
 export type PricedSale = {
   pieces: SalePiece[];
@@ -70,6 +79,10 @@ export type PricedSale = {
   bundleSaving: number;
   /** What the promotions took off, in shelf money. */
   promotionSaving: number;
+  /** What the basket comes to after bundles, the cashier's discounts and the promotions: what a voucher's smallest sale reads. */
+  basketAfterPromotions: number;
+  /** What the discount voucher took off, in shelf money. */
+  voucherSaving: number;
 };
 
 const toCents = (value: number) => Math.round(value * 100);
@@ -93,6 +106,7 @@ export function priceSale(input: {
   siteId: string | null;
   customer?: PricingCustomer | null;
   orderDiscountAmount?: number;
+  voucher?: SaleVoucher | null;
 }): PricedSale | { error: string } {
   // The basket minimum reads the whole basket on the shelf, before any bundle, deal or promotion.
   const basketShelf = fromCents(input.lines.reduce((sum, line) => sum + Math.round(toCents(line.unitPrice) * line.quantity), 0));
@@ -166,6 +180,7 @@ export function priceSale(input: {
         group: piece.group,
         promotionId: null,
         promotionDiscount: 0,
+        voucherDiscount: 0,
       });
     });
   }
@@ -196,7 +211,25 @@ export function priceSale(input: {
     promotionCents += toCents(entry.discount);
   }
 
-  // 5. What it comes to.
+  // 5. The discount voucher, after the promotions, over what each piece comes to.
+  const after = sold.map((piece) => {
+    const line = lineOf.get(piece.lineKey)!;
+    const shelf = Math.round(toCents(line.unitPrice) * piece.quantity);
+    return Math.max(0, shelf - toCents(piece.lineDiscount) - toCents(piece.bundleDiscount) - toCents(piece.promotionDiscount));
+  });
+  const basketCents = after.reduce((sum, cents) => sum + cents, 0);
+  const voucherCents = input.voucher
+    ? Math.min(
+        basketCents,
+        input.voucher.percentOff !== null ? Math.round((basketCents * input.voucher.percentOff) / 100) : toCents(input.voucher.amountOff ?? 0),
+      )
+    : 0;
+  const voucherShares = shareByWeight(voucherCents, after);
+  sold.forEach((piece, index) => {
+    piece.voucherDiscount = fromCents(Math.min(voucherShares[index] ?? 0, after[index]!));
+  });
+
+  // 6. What it comes to.
   const checkoutLines = sold.map((piece) => {
     const line = lineOf.get(piece.lineKey)!;
     return {
@@ -205,7 +238,9 @@ export function priceSale(input: {
       unitPrice: line.unitPrice,
       taxPercent: line.taxPercent,
       taxInclusive: line.taxInclusive,
-      lineDiscountAmount: fromCents(toCents(piece.lineDiscount) + toCents(piece.bundleDiscount) + toCents(piece.promotionDiscount)),
+      lineDiscountAmount: fromCents(
+        toCents(piece.lineDiscount) + toCents(piece.bundleDiscount) + toCents(piece.promotionDiscount) + toCents(piece.voucherDiscount),
+      ),
     };
   });
   const bundleCents = sold.reduce((sum, piece) => sum + toCents(piece.bundleDiscount), 0);
@@ -215,5 +250,7 @@ export function priceSale(input: {
     checkout: calculateRetailCheckout({ lines: checkoutLines, orderDiscountAmount: input.orderDiscountAmount ?? 0 }),
     bundleSaving: fromCents(bundleCents),
     promotionSaving: fromCents(promotionCents),
+    basketAfterPromotions: fromCents(basketCents),
+    voucherSaving: fromCents(sold.reduce((sum, piece) => sum + toCents(piece.voucherDiscount), 0)),
   };
 }

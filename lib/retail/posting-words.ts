@@ -16,6 +16,9 @@ export const ROLE_OPTIONS: ReadonlyArray<{ role: RetailAccountRole; field: strin
   { role: "BREAKAGE", field: "breakage", label: "Breakage and losses" },
   { role: "DEPOSITS_HELD", field: "deposits", label: "Deposits on empties" },
   { role: "OPENING_BALANCES", field: "openingBalances", label: "Opening balances" },
+  { role: "VOUCHERS_OWED", field: "vouchersOwed", label: "Vouchers owed" },
+  { role: "PROMOTIONS_GIVEN", field: "promotionsGiven", label: "Promotions and gifts" },
+  { role: "OTHER_INCOME", field: "otherIncome", label: "Other income" },
 ];
 
 /** The account types each role posts to sensibly (10-setup W-65). */
@@ -27,6 +30,9 @@ export const ROLE_TYPES: Record<RetailAccountRole, AccountType[]> = {
   BREAKAGE: ["EXPENSE"],
   DEPOSITS_HELD: ["LIABILITY"],
   OPENING_BALANCES: ["EQUITY"],
+  VOUCHERS_OWED: ["LIABILITY"],
+  PROMOTIONS_GIVEN: ["EXPENSE"],
+  OTHER_INCOME: ["INCOME"],
 };
 
 /** A tender settles into an asset (cash, a bank, a debtor), or for vouchers what the shop owes. */

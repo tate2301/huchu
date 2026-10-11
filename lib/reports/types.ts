@@ -46,6 +46,12 @@ export type ReportColumn = {
   ratio?: { num: string; den: string };
   /** The total sums this row key instead of the cell's own (a voided sale shows its total, which no longer counts). */
   totalOf?: string;
+  /**
+   * A words column whose total is two sums in one: the money key's sum, then
+   * " + " and the count key's sum when it has any ("US$74.20 + 12": money left
+   * on vouchers, then a discount voucher's uses).
+   */
+  totalParts?: { money: string; count: string };
 };
 
 /** Something the rows are narrowed by before they are fetched. */
@@ -280,7 +286,10 @@ export type ListColumn = ReportColumn & {
   percent?: boolean;
   /** The totals band's word after the figure: "average" prints "24.4% average". */
   totalSuffix?: string;
-  /** num: the row key holding a tone; when set the figure sits in that tone's pill ("22.4%" under target). */
+  /**
+   * num: the row key holding a tone; when set the figure sits in that tone's pill ("22.4%" under target).
+   * date: the day sits in that tone's pill ("31 October 2026" in warn, a voucher in its last month).
+   */
   pillKey?: string;
   /** num: the row key holding words its pill shows when there is no figure ("Free" for a product a promotion gives away). */
   pillWordsKey?: string;

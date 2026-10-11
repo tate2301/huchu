@@ -65,7 +65,7 @@ import { deleteFromBinForGood, listBinEntries, moveToBin } from "@/lib/retail/bi
 import { CATEGORY_SEEDS, ensureRetailCategories } from "@/lib/retail/categories"
 import { findDefaultPriceList, followPrice } from "@/lib/retail/prices/change"
 import { tradingDayKey } from "@/lib/retail/z-report"
-import { dayKey, formatWhen } from "@/lib/workspace/format"
+import { addDays, dayKey, formatWhen } from "@/lib/workspace/format"
 import {
   auditCashMoved,
   auditRecordEdited,
@@ -77,6 +77,12 @@ import {
 } from "@/lib/retail/audit"
 import { closeDay, dayFigures, DayRefused, loadDayRows } from "@/lib/retail/floor/day-close"
 import { postRetailJournal } from "@/app/api/v2/retail/_helpers"
+import { ensureRetailSaleAccountingPosted } from "@/app/api/v2/retail/_services"
+import { expireVouchers } from "@/lib/retail/vouchers/expire"
+import { issueCreditNote, issueVoucher, sellGiftVouchers } from "@/lib/retail/vouchers/issue"
+import { postVoucherIssue } from "@/lib/retail/vouchers/posting"
+import { redeemInSale } from "@/lib/retail/vouchers/redeem"
+import { addMonths } from "@/lib/retail/vouchers/dates"
 import { adjustmentJournal, adjustStock, type AdjustWhy } from "@/lib/retail/stock/adjustments"
 import { breakCase } from "@/lib/retail/stock/cases"
 import { applyPromotions, shareCents, type SnapshotPromotion } from "@/lib/retail/pricing/engine"
@@ -371,6 +377,8 @@ const FLOOR_SALES: FloorSale[] = [
 /** The run's last sale is SALE-31870; RFD-0044 is the 44th refund. */
 const LAST_SALE_NO = 31870
 const FLOOR_REFUND_NO = 44
+/** PRD-10: CN-0031 and CN-0033 are refunds paid as credit notes, dealt with the history. */
+const VOUCHER_REFUNDS = 2
 
 /** ZiG per US dollar: today's rate on Payments (SET-05), the one the seeded ZiG sales were taken at. */
 const ZWG_RATE = "26.8000"
@@ -822,9 +830,13 @@ async function main() {
     // the catalogue would take the demo's barcodes with it.
     const sales = await prisma.retailSale.findMany({ where: { companyId }, select: { id: true } })
     const saleIds = sales.map((sale) => sale.id)
+    // PRD-10: vouchers spent on the history hold it; they are seeded again below.
+    await clearVouchers(companyId)
     await prisma.retailSalePayment.deleteMany({ where: { saleId: { in: saleIds } } })
     await prisma.retailSaleLine.deleteMany({ where: { saleId: { in: saleIds } } })
     await prisma.retailSale.deleteMany({ where: { companyId } })
+    // Their journals go with them (PRD-10 posts the vouchers' sales), and any a run before left behind.
+    await clearSaleJournals(companyId)
     await prisma.retailHeldCart.deleteMany({ where: { companyId } })
     // The days closed over the history being replaced: their Z-reports, the cash banked and its journal.
     const banked = { companyId, sourceType: "RETAIL_DAY_BANKED" as const }
@@ -1208,7 +1220,8 @@ async function main() {
           .map((at) => `${slotIndex}|${at}`),
   )
   const refundPicks = new Set<string>()
-  while (refundPicks.size < Math.min(FLOOR_REFUND_NO - 1, refundable.length)) refundPicks.add(pick(refundable))
+  // Less the vouchers' two refunds paid as credit notes (PRD-10), so the boards' RFD-0044 stays the newest.
+  while (refundPicks.size < Math.min(FLOOR_REFUND_NO - 1 - VOUCHER_REFUNDS, refundable.length)) refundPicks.add(pick(refundable))
 
   /**
    * A void as the till writes it (FLR-01): the sale VOIDED with its reason, and a
@@ -1283,6 +1296,22 @@ async function main() {
     [...stocked].map(([code, line]) => [line.productId, categoryIds.get(byCode.get(code)?.category ?? "") ?? null]),
   )
   const codeOfProduct = new Map([...stocked].map(([code, line]) => [line.productId, code]))
+
+  // PRD-10: the vouchers' sales, dealt with the history so they are numbered in it (`seedVouchers` reads them back).
+  const voucherHooks = voucherHistory()
+  {
+    const board = voucherBoardSales({
+      companyId,
+      siteId: site.id,
+      tills: { front: register.id, back: backRegister.id },
+      cashier: staffNamed("Chipo Dube"),
+      customerNamed,
+      line: (code) => ({ ...stocked.get(code)!, ...byCode.get(code)! }),
+    })
+    saleRows.push(...board.sales)
+    lineRows.push(...board.lines)
+    paymentRows.push(...board.payments)
+  }
 
   for (const [slotIndex, slot] of slots.entries()) {
     {
@@ -1372,6 +1401,8 @@ async function main() {
         if (bundleSale) priceBundleLines(lines, bundleSale.bundle)
         // The promotions running when it was rung, by the till's own engine (PRD-09); none on a bundle.
         else promoteLines(lines, promotions, postedAt, slotSiteId, (productId) => categoryOfProduct.get(productId) ?? null)
+        // PRD-10: DV-0007's 10% off on a few sales of its first days.
+        const discountRef = !bundleSale && !isPreviewSale && !functionOrder ? voucherHooks.discount(postedAt, lines) : null
 
         // Revenue before tax. On a tax-inclusive list that is the ex-VAT value
         // of the shelf prices, not the shelf prices themselves — the same basis
@@ -1410,9 +1441,16 @@ async function main() {
                 : "TRANSFER"
 
         const named = !isPreviewSale && Math.random() < 0.22 ? pick(customers) : null
+        // PRD-10: a voucher paying part or all of an older card, EcoCash or transfer sale (never the drawer's cash).
+        const voucherUse =
+          !discountRef && !bundleSale && !isPreviewSale && !functionOrder && currency === "USD" && !refundPicks.has(`${slotIndex}|${postedAt.getTime()}`)
+            ? voucherHooks.use(postedAt, tender, totalAmount.plus(saleDeposit))
+            : null
+        const voucherRef = discountRef ?? voucherUse?.ref ?? null
         saleRows.push({
           id: saleId,
           companyId,
+          ...(voucherRef ? { clientRef: voucherRef } : {}),
           saleNo: `S-${String(saleSeq).padStart(6, "0")}`,
           shiftId,
           registerId: slot.register.id,
@@ -1438,16 +1476,20 @@ async function main() {
           updatedAt: postedAt,
         })
         lineRows.push(...lines)
-        paymentRows.push({
+        const voucherPart = voucherUse ? money(voucherUse.amount) : money(0)
+        if (voucherUse) {
+          paymentRows.push({ id: randomUUID(), companyId, saleId, tenderType: "VOUCHER", amount: voucherPart, currency, exchangeRate, baseAmount: voucherPart, reference: null, createdAt: postedAt })
+        }
+        if (totalAmount.plus(saleDeposit).minus(voucherPart).greaterThan(0)) paymentRows.push({
           id: randomUUID(),
           companyId,
           saleId,
           tenderType: tender,
           // What the customer paid: the goods and the deposit on their bottles.
-          amount: totalAmount.plus(saleDeposit),
+          amount: totalAmount.plus(saleDeposit).minus(voucherPart),
           currency,
           exchangeRate,
-          baseAmount: baseAmount.plus(saleDeposit),
+          baseAmount: baseAmount.plus(saleDeposit).minus(voucherPart),
           reference: tender === "ECOCASH" ? `EC${between(100000, 999999)}` : null,
           createdAt: postedAt,
         })
@@ -1842,6 +1884,9 @@ async function main() {
   await insert("payments", paymentRows, (batch) =>
     prisma.retailSalePayment.createMany({ data: batch, skipDuplicates: true }),
   )
+
+  // ── Vouchers (PRD-10), through their services, on the sales dealt for them ──
+  await seedVouchers(companyId)
 
   // ── A cart nobody came back for ──────────────────────────────────────────
   const openShift = shiftRows.find((row) => row.status === "OPEN")
@@ -5619,4 +5664,454 @@ function promoteLines(
     line.promotionId = entry.promotionId
     line.promotionDiscount = money(entry.discount)
   }
+}
+
+/* ── Vouchers (PRD-10) ─────────────────────────────────────────────────── */
+
+type VoucherSaleRow = Prisma.RetailSaleCreateManyInput
+type VoucherLineRow = Prisma.RetailSaleLineCreateManyInput
+type VoucherPaymentRow = Prisma.RetailSalePaymentCreateManyInput
+
+const voucherAt = (iso: string) => new Date(`${iso}+02:00`)
+
+/**
+ * The boards' own voucher sales (`VoucherRecord.png`, `VouchersList.png`):
+ * GV-0019 bought for US$20.00 cash on 14 August and spent on two Coke
+ * six-packs (US$8.40) on 20 August at the Front till and one (US$4.20) on
+ * 3 September at the Back till; GV-0021 bought by Tapiwa Marange on
+ * 28 September; and the two refunds paid as credit notes, Nyasha Gwenzi's
+ * Nederburg (CN-0033, US$12.60) and Kudzai Zhou's Coke six-pack (CN-0031,
+ * US$4.20). Numbered with the history; `seedVouchers` finds them by `clientRef`.
+ */
+const VOUCHER_BOARD_SALES: Array<{
+  ref: string
+  at: string
+  till: "front" | "back"
+  customer?: string
+  lines?: Array<[code: string, units: number]>
+  refundOf?: string
+  sold?: string
+  pay: Array<[RetailTenderType, string]>
+}> = [
+  { ref: "voucher:CN-0031:sale", at: "2026-07-08T12:14:00", till: "front", customer: "Kudzai Zhou", lines: [["COKE-6PK", 1]], pay: [["ECOCASH", "4.20"]] },
+  { ref: "voucher:CN-0031:refund", at: "2026-07-09T09:40:00", till: "front", customer: "Kudzai Zhou", refundOf: "voucher:CN-0031:sale", pay: [["VOUCHER", "4.20"]] },
+  { ref: "voucher:GV-0019:sold", at: "2026-08-14T11:20:00", till: "front", sold: "20.00", pay: [["CASH", "20.00"]] },
+  { ref: "voucher:GV-0019:use:1", at: "2026-08-20T13:05:00", till: "front", lines: [["COKE-6PK", 2]], pay: [["VOUCHER", "8.40"]] },
+  { ref: "voucher:GV-0019:use:2", at: "2026-09-03T17:40:00", till: "back", lines: [["COKE-6PK", 1]], pay: [["VOUCHER", "4.20"]] },
+  { ref: "voucher:GV-0021:sold", at: "2026-09-28T10:10:00", till: "front", customer: "Tapiwa Marange", sold: "50.00", pay: [["CASH", "50.00"]] },
+  { ref: "voucher:CN-0033:sale", at: "2026-09-30T16:25:00", till: "front", customer: "Nyasha Gwenzi", lines: [["NEDERBURG-750", 1]], pay: [["CARD", "12.60"]] },
+  { ref: "voucher:CN-0033:refund", at: "2026-10-02T10:30:00", till: "front", customer: "Nyasha Gwenzi", refundOf: "voucher:CN-0033:sale", pay: [["VOUCHER", "12.60"]] },
+]
+
+function voucherBoardSales(input: {
+  companyId: string
+  siteId: string
+  tills: { front: string; back: string }
+  cashier: { id: string; name: string }
+  customerNamed: (name: string) => { id: string; name: string }
+  line: (code: string) => { inventoryItemId: string; productId: string; name: string; price: string; cost: string }
+}): { sales: VoucherSaleRow[]; lines: VoucherLineRow[]; payments: VoucherPaymentRow[] } {
+  const sales: VoucherSaleRow[] = []
+  const lines: VoucherLineRow[] = []
+  const payments: VoucherPaymentRow[] = []
+  const idOf = new Map<string, string>()
+  VOUCHER_BOARD_SALES.forEach((plan, index) => {
+    const at = voucherAt(plan.at)
+    const saleId = randomUUID()
+    idOf.set(plan.ref, saleId)
+    const customer = plan.customer ? input.customerNamed(plan.customer) : null
+    const sourceId = plan.refundOf ? idOf.get(plan.refundOf)! : null
+    const own: VoucherLineRow[] = sourceId
+      ? lines
+          .filter((row) => row.saleId === sourceId)
+          .map((row) => ({
+            ...row,
+            id: randomUUID(),
+            saleId,
+            sourceLineId: row.id as string,
+            quantity: money(row.quantity as Prisma.Decimal).negated(),
+            taxAmount: money(row.taxAmount as Prisma.Decimal).negated(),
+            lineTotal: money(row.lineTotal as Prisma.Decimal).negated(),
+            costTotal: money(row.costTotal as Prisma.Decimal).negated(),
+            createdAt: at,
+          }))
+      : (plan.lines ?? []).map(([code, units]) => {
+          const product = input.line(code)
+          const gross = multiplyMoney(rate(String(units)), product.price)
+          const net = netOfInclusiveTax(gross, VAT_PERCENT)
+          return {
+            id: randomUUID(),
+            companyId: input.companyId,
+            saleId,
+            inventoryItemId: product.inventoryItemId,
+            productId: product.productId,
+            itemName: product.name,
+            quantity: rate(String(units)),
+            unitPrice: money(product.price),
+            discountAmount: money(0),
+            taxAmount: gross.minus(net),
+            lineTotal: gross,
+            costUnit: money(product.cost),
+            costTotal: multiplyMoney(rate(String(units)), product.cost),
+            createdAt: at,
+          }
+        })
+    lines.push(...own)
+    const total = sumMoney(own.map((row) => row.lineTotal as Prisma.Decimal))
+    const tax = sumMoney(own.map((row) => row.taxAmount as Prisma.Decimal))
+    const sold = money(plan.sold ?? "0")
+    const sign = sourceId ? -1 : 1
+    const paid = plan.pay.map(([tender, amount]) => [tender, money(amount).times(sign)] as const)
+    sales.push({
+      id: saleId,
+      companyId: input.companyId,
+      clientRef: plan.ref,
+      saleNo: `S-V-${index + 1}`,
+      siteId: input.siteId,
+      registerId: input.tills[plan.till],
+      sourceSaleId: sourceId,
+      cashierId: input.cashier.id,
+      cashierName: input.cashier.name,
+      customerId: customer?.id ?? null,
+      customerName: customer?.name ?? null,
+      saleType: sourceId ? "REFUND" : "SALE",
+      status: "POSTED",
+      subtotal: total.minus(tax),
+      discountAmount: money(0),
+      taxAmount: tax,
+      totalAmount: total,
+      vouchersSoldAmount: sold,
+      tenderedAmount: sumMoney(paid.map(([, amount]) => amount)),
+      changeAmount: money(0),
+      currency: "USD",
+      exchangeRate: rate("1"),
+      baseAmount: total,
+      ...(sourceId ? { overrideReason: "Paid back as a credit note" } : {}),
+      postedAt: at,
+      createdAt: at,
+      updatedAt: at,
+    })
+    for (const [tender, amount] of paid) {
+      payments.push({ id: randomUUID(), companyId: input.companyId, saleId, tenderType: tender, amount, currency: "USD", exchangeRate: rate("1"), baseAmount: amount, reference: null, createdAt: at })
+    }
+  })
+  return { sales, lines, payments }
+}
+
+/**
+ * What the history's dealing asks of the vouchers: the generated used-up
+ * vouchers' one use each, paying part (a gift voucher, in fives up to
+ * US$50.00) or all (a credit note) of an older card, EcoCash or transfer
+ * sale between 20 April and 30 July; and DV-0007's 10% off eight baskets of
+ * US$10.00 or more between 1 and 10 October, after the promotions. Every
+ * eleventh and third sale that can take one, so the picks spread out.
+ */
+const USED_UP_VOUCHERS = 31
+const DV_USES = 8
+
+function voucherHistory() {
+  const useFrom = voucherAt("2026-04-20T00:00:00").getTime()
+  const useTo = voucherAt("2026-07-31T00:00:00").getTime()
+  const dvFrom = voucherAt("2026-10-01T09:00:00").getTime()
+  const dvTo = voucherAt("2026-10-10T22:00:00").getTime()
+  let useSeen = 0
+  let used = 0
+  let dvSeen = 0
+  let dvTaken = 0
+  return {
+    use(at: Date, tender: RetailTenderType, due: Prisma.Decimal): { ref: string; amount: string } | null {
+      const when = at.getTime()
+      if (when < useFrom || when >= useTo || used >= USED_UP_VOUCHERS) return null
+      if (!["CARD", "ECOCASH", "TRANSFER"].includes(tender) || due.lessThan(8)) return null
+      if (useSeen++ % 11 !== 5) return null
+      const index = used++
+      // Twelve gift vouchers among the thirty-one, spread through them.
+      const gift = [0, 2, 5].includes(index % 8)
+      const amount = gift ? money(Math.min(50, Math.floor(due.toNumber() / 5) * 5)) : due
+      return { ref: `voucher:used:${index + 1}:${gift ? "GIFT" : "CREDIT_NOTE"}`, amount: amount.toFixed(2) }
+    },
+    discount(at: Date, lines: VoucherLineRow[]): string | null {
+      const when = at.getTime()
+      if (when < dvFrom || when > dvTo || dvTaken >= DV_USES || lines.length === 0) return null
+      const totals = lines.map((line) => Math.round(money(line.lineTotal as Prisma.Decimal).toNumber() * 100))
+      const basket = totals.reduce((sum, cents) => sum + cents, 0)
+      // The reps' customers spend a little: baskets of US$10.00 or more.
+      if (basket < 1000 || dvSeen++ % 3 !== 1) return null
+      const off = Math.round(basket / 10)
+      let given = 0
+      lines.forEach((line, index) => {
+        const share = index === lines.length - 1 ? off - given : Math.floor((off * totals[index]!) / Math.max(1, basket))
+        given += share
+        const shelfGross = multiplyMoney(line.quantity as Prisma.Decimal, line.unitPrice as Prisma.Decimal)
+        const gross = money(line.lineTotal as Prisma.Decimal).minus(money(share).dividedBy(100))
+        const net = netOfInclusiveTax(gross, VAT_PERCENT)
+        line.lineTotal = gross
+        line.taxAmount = gross.minus(net)
+        line.discountAmount = netOfInclusiveTax(shelfGross, VAT_PERCENT).minus(net)
+      })
+      dvTaken += 1
+      return `voucher:DV-0007:${dvTaken}`
+    },
+  }
+}
+
+const VOUCHER_SOURCES = ["RETAIL_VOUCHER_ISSUE", "RETAIL_VOUCHER_EXPIRY", "RETAIL_VOUCHER_VOID"] as const
+const VOUCHER_ENTITIES = ["RETAIL_GIFT_VOUCHER", "RETAIL_CREDIT_NOTE", "RETAIL_DISCOUNT_VOUCHER"] as const
+
+/** The journals of sales that are no longer there (a reset's history, and the vouchers' sales it posted). */
+async function clearSaleJournals(companyId: string) {
+  const types = ["RETAIL_SALE", "RETAIL_REFUND", "RETAIL_VOID"] as const
+  const entries = await prisma.journalEntry.findMany({ where: { companyId, sourceType: { in: [...types] }, sourceId: { not: null } }, select: { sourceId: true } })
+  const ids = [...new Set(entries.map((entry) => entry.sourceId!))]
+  const kept = new Set((await prisma.retailSale.findMany({ where: { id: { in: ids } }, select: { id: true } })).map((sale) => sale.id))
+  const gone = ids.filter((id) => !kept.has(id))
+  if (gone.length === 0) return
+  const where = { companyId, sourceType: { in: [...types] }, sourceId: { in: gone } }
+  await prisma.journalEntry.deleteMany({ where })
+  await prisma.accountingIntegrationEvent.deleteMany({ where })
+  console.log(`  reset: cleared the journals of ${gone.length} sale(s) no longer there`)
+}
+
+/** Every voucher, its uses, journals, messages and Activity: seeded again from nothing. */
+async function clearVouchers(companyId: string) {
+  await prisma.retailSalePayment.updateMany({ where: { companyId, voucherId: { not: null } }, data: { voucherId: null } })
+  await prisma.retailSale.updateMany({ where: { companyId, discountVoucherId: { not: null } }, data: { discountVoucherId: null } })
+  await prisma.retailVoucherUse.deleteMany({ where: { companyId } })
+  const books = { companyId, sourceType: { in: [...VOUCHER_SOURCES] } }
+  await prisma.journalLine.deleteMany({ where: { entry: books } })
+  await prisma.journalEntry.deleteMany({ where: books })
+  await prisma.accountingIntegrationEvent.deleteMany({ where: books })
+  await prisma.retailMessage.deleteMany({ where: { companyId, entityType: "RetailVoucher" } })
+  await prisma.platformAuditEvent.deleteMany({ where: { companyId, entityType: "RetailVoucher" } })
+  await prisma.retailVoucher.deleteMany({ where: { companyId } })
+  await prisma.idSequence.deleteMany({ where: { companyId, entityKey: { in: [...VOUCHER_ENTITIES] } } })
+}
+
+/** The next number of a kind is at least `next` (the boards' GV-0019 after fourteen generated gift vouchers). */
+async function voucherNumberFrom(companyId: string, entity: (typeof VOUCHER_ENTITIES)[number], next: number) {
+  const key = { companyId_entityKey_scopeKey: { companyId, entityKey: entity, scopeKey: "GLOBAL" } }
+  const row = await prisma.idSequence.findUnique({ where: key, select: { lastNumber: true } })
+  if (row && row.lastNumber >= next - 1) {
+    if (row.lastNumber > next - 1) console.warn(`  vouchers: ${entity} is past ${next} already`)
+    return
+  }
+  await prisma.idSequence.upsert({ where: key, update: { lastNumber: next - 1 }, create: { companyId, entityKey: entity, scopeKey: "GLOBAL", lastNumber: next - 1 } })
+}
+
+/**
+ * PRD-10 `seedVouchers()`: the boards' five (GV-0021, CN-0033, GV-0019,
+ * DV-0007, CN-0031) and the generated ones — 31 used up on the history, 10
+ * live and 5 lapsed (9 and 6 while CN-0031 has not expired yet), so the tabs
+ * read Live 14 · Used up 31 · Expired 6 · All 51 — each made, spent and
+ * lapsed through its service, and every journal posted as it happened: the
+ * ledger's 2250 Vouchers owed holds what is left on the live ones.
+ */
+async function seedVouchers(companyId: string) {
+  const sales = await prisma.retailSale.findMany({
+    where: { companyId, clientRef: { startsWith: "voucher:" } },
+    include: { lines: true, payments: true, register: { select: { code: true } } },
+  })
+  const byRef = new Map(sales.map((sale) => [sale.clientRef!, sale]))
+  if (!byRef.has("voucher:GV-0019:sold")) {
+    console.log("  vouchers: the history has none of the vouchers' sales (run with --reset)")
+    return
+  }
+  await clearVouchers(companyId)
+  // Posted as it happened, whatever the schedule: Setup › Posting puts the shop's own back after.
+  await prisma.retailPostingSettings.upsert({ where: { companyId }, update: { schedule: "EVERY_SALE" }, create: { companyId, schedule: "EVERY_SALE" } })
+
+  const ownerRow = await prisma.user.findFirst({ where: { companyId, email: "owner@bottlestore.test" }, select: { id: true, name: true, role: true } })
+  const chipoRow = await prisma.user.findFirst({ where: { companyId, name: "Chipo Dube" }, select: { id: true, name: true, role: true } })
+  if (!ownerRow || !chipoRow) {
+    console.log("  vouchers: no owner or Chipo Dube, skipped")
+    return
+  }
+  const owner = { companyId, userId: ownerRow.id, userName: ownerRow.name, userRole: ownerRow.role }
+  const chipo = { companyId, userId: chipoRow.id, userName: chipoRow.name, userRole: chipoRow.role }
+  const customers = await prisma.customer.findMany({ where: { companyId, isActive: true }, select: { id: true, name: true }, orderBy: { name: "asc" } })
+  const customerId = (name: string) => customers.find((customer) => customer.name === name)?.id ?? null
+
+  /** The events a service just wrote for a voucher, dated when it happened. */
+  const stamp = async (entityId: string, eventType: string, at: Date) => {
+    const event = await prisma.platformAuditEvent.findFirst({ where: { companyId, entityType: "RetailVoucher", entityId, eventType }, orderBy: { createdAt: "desc" }, select: { id: true } })
+    if (event) await prisma.platformAuditEvent.update({ where: { id: event.id }, data: { createdAt: at } })
+  }
+  const postSale = async (sale: (typeof sales)[number]) => {
+    const row = await prisma.retailSale.findUniqueOrThrow({ where: { id: sale.id }, include: { lines: true, payments: true } })
+    await ensureRetailSaleAccountingPosted({ actor: chipo, sale: row, registerCode: sale.register?.code ?? null })
+  }
+  const given = async (input: { kind: "GIFT" | "CREDIT_NOTE"; value: string; issued: Date; expires: string; customer: string | null }) => {
+    const valueCents = Math.round(Number(input.value) * 100)
+    const made = await prisma.$transaction((tx) =>
+      issueVoucher(tx, { actor: owner, kind: input.kind, funding: "GIVEN", valueCents, customerId: input.customer ? customerId(input.customer) : null, expiresOn: input.expires, sendBy: "PRINT", issuedAt: input.issued }),
+    )
+    await postVoucherIssue(owner, { firstId: made.id, codes: [made.code], total: valueCents / 100, siteId: null, at: input.issued })
+    await stamp(made.id, RETAIL_AUDIT_EVENTS.voucherIssued, input.issued)
+    return made
+  }
+  const spend = async (sale: (typeof sales)[number], voucherId: string, amount: number) => {
+    await prisma.$transaction((tx) =>
+      redeemInSale(tx, { actor: chipo, sale: { id: sale.id, saleNo: sale.saleNo, siteId: sale.siteId, at: sale.postedAt! }, tenders: [{ voucherId, amount }], discount: null }),
+    )
+    await prisma.retailSalePayment.updateMany({ where: { saleId: sale.id, tenderType: "VOUCHER" }, data: { voucherId } })
+    await stamp(voucherId, RETAIL_AUDIT_EVENTS.voucherRedeemed, sale.postedAt!)
+    await postSale(sale)
+  }
+  const dayOf = (at: Date) => dayKey(at)
+  const at10 = (day: string) => voucherAt(`${day}T10:15:00`)
+
+  type Step = { at: Date; run: () => Promise<unknown> }
+  const steps: Step[] = []
+
+  // Used up on the history: each issued a few days before its sale, for anyone or one of the customers.
+  const usedUp = sales.filter((sale) => sale.clientRef!.startsWith("voucher:used:"))
+  for (const sale of usedUp) {
+    const [, , number, kind] = sale.clientRef!.split(":") as [string, string, string, "GIFT" | "CREDIT_NOTE"]
+    const index = Number(number)
+    const amount = toNumberOrZero(sale.payments.find((payment) => payment.tenderType === "VOUCHER")?.amount ?? 0)
+    const issued = at10(addDays(dayOf(sale.postedAt!), -(2 + (index % 12))))
+    const issuedDay = dayOf(issued)
+    steps.push({
+      at: issued,
+      run: async () => {
+        const made = await given({
+          kind,
+          value: amount.toFixed(2),
+          issued,
+          expires: addMonths(issuedDay, kind === "GIFT" ? 12 : 3),
+          customer: index % 3 === 0 ? null : customers[index % customers.length]?.name ?? null,
+        })
+        await spend(sale, made.id, amount)
+      },
+    })
+  }
+
+  // CN-0031 still live today: one fewer generated live voucher and one more lapsed, so the tabs read the boards'.
+  const today = dayKey(new Date())
+  const cn0031Live = "2026-10-09" >= today
+  const lapsed: Array<{ kind: "GIFT" | "CREDIT_NOTE"; value: string; issued: string; expires: string; customer: string | null }> = [
+    { kind: "GIFT", value: "25.00", issued: "2026-04-22", expires: "2026-07-22", customer: "Rudo Chirwa" },
+    { kind: "GIFT", value: "20.00", issued: "2026-05-06", expires: "2026-08-06", customer: null },
+    { kind: "CREDIT_NOTE", value: "6.40", issued: "2026-05-15", expires: "2026-08-15", customer: "Simba Mutasa" },
+    { kind: "CREDIT_NOTE", value: "9.75", issued: "2026-06-03", expires: "2026-09-03", customer: "Munashe Chari" },
+    { kind: "CREDIT_NOTE", value: "14.20", issued: "2026-06-18", expires: "2026-09-18", customer: "Blessing Ncube" },
+    ...(cn0031Live ? [{ kind: "GIFT" as const, value: "30.00", issued: "2026-05-28", expires: "2026-08-28", customer: "Rutendo Banda" }] : []),
+  ]
+  for (const voucher of lapsed) steps.push({ at: at10(voucher.issued), run: () => given({ ...voucher, issued: at10(voucher.issued) }) })
+
+  const live: Array<{ kind: "GIFT" | "CREDIT_NOTE"; value: string; issued: string; customer: string | null }> = [
+    { kind: "CREDIT_NOTE", value: "7.80", issued: "2026-08-25", customer: "Farai Chikore" },
+    { kind: "GIFT", value: "25.00", issued: "2026-09-05", customer: "Rudo Chirwa" },
+    { kind: "GIFT", value: "10.00", issued: "2026-10-03", customer: null },
+    { kind: "CREDIT_NOTE", value: "3.90", issued: "2026-10-04", customer: "Simba Mutasa" },
+    { kind: "GIFT", value: "15.00", issued: "2026-10-05", customer: "Blessing Ncube" },
+    { kind: "CREDIT_NOTE", value: "16.40", issued: "2026-10-06", customer: "Munashe Chari" },
+    { kind: "GIFT", value: "20.00", issued: "2026-10-07", customer: null },
+    { kind: "CREDIT_NOTE", value: "5.60", issued: "2026-10-08", customer: "Rutendo Banda" },
+    { kind: "CREDIT_NOTE", value: "12.50", issued: "2026-10-09", customer: "Tinashe Mavhunga" },
+    ...(cn0031Live ? [] : [{ kind: "CREDIT_NOTE" as const, value: "2.20", issued: "2026-10-10", customer: "Farai Chikore" }]),
+  ].filter((voucher) => voucher.issued < today)
+  for (const voucher of live) {
+    steps.push({
+      at: at10(voucher.issued),
+      run: () => given({ ...voucher, issued: at10(voucher.issued), expires: addMonths(voucher.issued, voucher.kind === "GIFT" ? 12 : 3) }),
+    })
+  }
+
+  // The boards' five.
+  const board = (ref: string) => byRef.get(ref)!
+  const creditNote = (code: string, customer: string) => async () => {
+    await voucherNumberFrom(companyId, "RETAIL_CREDIT_NOTE", Number(code.slice(3)))
+    const sale = board(`voucher:${code}:sale`)
+    const refund = board(`voucher:${code}:refund`)
+    const value = toNumberOrZero(refund.payments[0]!.amount)
+    const made = await prisma.$transaction((tx) =>
+      issueCreditNote(tx, { actor: chipo, sourceSaleId: sale.id, value: Math.abs(value).toFixed(2), customerId: customerId(customer), now: refund.postedAt! }),
+    )
+    await prisma.retailSalePayment.updateMany({ where: { saleId: refund.id, tenderType: "VOUCHER" }, data: { voucherId: made.id } })
+    await stamp(made.id, RETAIL_AUDIT_EVENTS.voucherIssued, refund.postedAt!)
+    await postSale(sale)
+    await postSale(refund)
+  }
+  const soldVoucher = (code: string, customer: string | null) => async () => {
+    await voucherNumberFrom(companyId, "RETAIL_GIFT_VOUCHER", Number(code.slice(3)))
+    const sale = board(`voucher:${code}:sold`)
+    const [made] = await prisma.$transaction((tx) =>
+      sellGiftVouchers(tx, {
+        actor: chipo,
+        saleId: sale.id,
+        vouchers: [{ valueCents: Math.round(toNumberOrZero(sale.vouchersSoldAmount) * 100), customerId: customer ? customerId(customer) : null }],
+        now: sale.postedAt!,
+      }),
+    )
+    await stamp(made!.id, RETAIL_AUDIT_EVENTS.voucherIssued, sale.postedAt!)
+    await postSale(sale)
+    return made!
+  }
+  steps.push({ at: board("voucher:CN-0031:refund").postedAt!, run: creditNote("CN-0031", "Kudzai Zhou") })
+  steps.push({
+    at: board("voucher:GV-0019:sold").postedAt!,
+    run: async () => {
+      const made = await soldVoucher("GV-0019", null)()
+      for (const ref of ["voucher:GV-0019:use:1", "voucher:GV-0019:use:2"]) {
+        const sale = board(ref)
+        await spend(sale, made.id, toNumberOrZero(sale.payments[0]!.amount))
+      }
+    },
+  })
+  steps.push({ at: board("voucher:GV-0021:sold").postedAt!, run: soldVoucher("GV-0021", "Tapiwa Marange") })
+  steps.push({ at: board("voucher:CN-0033:refund").postedAt!, run: creditNote("CN-0033", "Nyasha Gwenzi") })
+  steps.push({
+    at: voucherAt("2026-10-01T09:00:00"),
+    run: async () => {
+      await voucherNumberFrom(companyId, "RETAIL_DISCOUNT_VOUCHER", 7)
+      const issued = voucherAt("2026-10-01T09:00:00")
+      const made = await prisma.$transaction((tx) =>
+        issueVoucher(tx, { actor: owner, kind: "DISCOUNT", funding: "GIVEN", percentOff: 10, copies: 20, holderNote: "Delta reps", expiresOn: "2026-10-31", sendBy: "PRINT", issuedAt: issued }),
+      )
+      await stamp(made.id, RETAIL_AUDIT_EVENTS.voucherIssued, issued)
+      const dvSales = sales.filter((sale) => sale.clientRef!.startsWith("voucher:DV-0007:")).sort((a, b) => a.postedAt!.getTime() - b.postedAt!.getTime())
+      for (const sale of dvSales) {
+        // What the voucher took off: the shelf less what the lines came to and what the promotions gave.
+        const off = sale.lines.reduce(
+          (sum, line) => sum + toNumberOrZero(line.quantity) * toNumberOrZero(line.unitPrice) - toNumberOrZero(line.lineTotal) - toNumberOrZero(line.promotionDiscount),
+          0,
+        )
+        await prisma.$transaction((tx) =>
+          redeemInSale(tx, {
+            actor: chipo,
+            sale: { id: sale.id, saleNo: sale.saleNo, siteId: sale.siteId, at: sale.postedAt! },
+            tenders: [],
+            discount: { voucherId: made.id, discount: Math.round(off * 100) / 100 },
+          }),
+        )
+        await prisma.retailSale.update({ where: { id: sale.id }, data: { discountVoucherId: made.id } })
+        await stamp(made.id, RETAIL_AUDIT_EVENTS.voucherRedeemed, sale.postedAt!)
+      }
+    },
+  })
+
+  steps.sort((a, b) => a.at.getTime() - b.at.getTime())
+  for (const step of steps) await step.run()
+
+  // The lapsed ones expired by the worker on their next day; CN-0031 is left for the worker (W-18, acceptance).
+  const lapseAt = new Date(Math.min(Date.now(), voucherAt("2026-10-01T00:10:00").getTime()))
+  const expired = await expireVouchers(lapseAt, companyId)
+  for (const voucher of await prisma.retailVoucher.findMany({ where: { companyId, expiredAt: { not: null } }, select: { id: true, expiresOn: true } })) {
+    const at = voucherAt(`${addDays(voucher.expiresOn.toISOString().slice(0, 10), 1)}T00:10:00`)
+    await prisma.retailVoucher.update({ where: { id: voucher.id }, data: { expiredAt: at } })
+    await stamp(voucher.id, RETAIL_AUDIT_EVENTS.voucherExpired, at)
+  }
+
+  // What the ledger owes against what is left on the live money vouchers.
+  const owedAccount = await prisma.chartOfAccount.findFirst({ where: { companyId, code: "2250" }, select: { id: true } })
+  const owed = owedAccount
+    ? await prisma.journalLine.aggregate({ where: { accountId: owedAccount.id }, _sum: { credit: true, debit: true } })
+    : null
+  const ledger = owed ? toNumberOrZero(owed._sum.credit ?? 0) - toNumberOrZero(owed._sum.debit ?? 0) : 0
+  const left = await prisma.retailVoucher.aggregate({ where: { companyId, voidedAt: null, expiredAt: null, kind: { not: "DISCOUNT" } }, _sum: { balance: true } })
+  const count = await prisma.retailVoucher.count({ where: { companyId } })
+  console.log(
+    `  vouchers: ${count} (${usedUp.length} used up on the history, ${expired} lapsed), 2250 owes US$${ledger.toFixed(2)} against US$${toNumberOrZero(left._sum.balance ?? 0).toFixed(2)} left on them`,
+  )
 }

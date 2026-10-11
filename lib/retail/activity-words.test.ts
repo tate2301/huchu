@@ -121,6 +121,25 @@ describe("Activity's sentences (00-foundations 5.6.9)", () => {
     expect(activityWords("RETAIL_PROMOTION.PAUSED", { name: "Festive" })).toEqual({ what: "Paused it", tone: "hollow" });
     expect(activityWords("RETAIL_PROMOTION.RESUMED", { name: "Festive" })).toEqual({ what: "Resumed it", tone: "ok" });
     expect(activityWords("RETAIL_PROMOTION.ENDED", { name: "Festive" })).toEqual({ what: "Ended it", tone: "hollow" });
+  });
+
+  it("vouchers: issued, changed, sent, spent, voided and expired", () => {
+    expect(activityWords("RETAIL_VOUCHER.ISSUED", { code: "GV-0022", kind: "GIFT", value: "50.00" })).toEqual({ what: "Issued for US$50.00", tone: "ok" });
+    expect(activityWords("RETAIL_VOUCHER.ISSUED", { code: "DV-0008", kind: "DISCOUNT", value: "10% off" })).toEqual({ what: "Issued for 10% off", tone: "ok" });
+    expect(
+      activityWords("RETAIL_VOUCHER.CHANGED", { changes: [{ label: "Expires", from: "28 Sep 2027", to: "28 Mar 2028" }] }),
+    ).toEqual({ what: "Changed Expires from 28 Sep 2027 to 28 Mar 2028", tone: "info" });
+    expect(activityWords("RETAIL_VOUCHER.SENT", { via: "WhatsApp" })).toEqual({ what: "Sent on WhatsApp", tone: "hollow" });
+    expect(activityWords("RETAIL_VOUCHER.REDEEMED", { saleNo: "SALE-29811", amount: "8.40", left: "11.60" })).toEqual({
+      what: "US$8.40 spent on SALE-29811, US$11.60 left",
+      tone: "ok",
+    });
+    expect(activityWords("RETAIL_VOUCHER.REDEEMED", { saleNo: "SALE-29812", amount: "1.20", usesLeft: 11 })).toEqual({
+      what: "US$1.20 off SALE-29812, 11 left",
+      tone: "ok",
+    });
+    expect(activityWords("RETAIL_VOUCHER.VOIDED", { reason: "Printed twice", left: "12.60" })).toEqual({ what: "Voided: Printed twice", tone: "bad" });
+    expect(activityWords("RETAIL_VOUCHER.EXPIRED", { left: "4.20" })).toEqual({ what: "Expired with US$4.20 left", tone: "hollow" });
     expect(activityWords("RETAIL_PRICE_LIST.RESUMED", { name: "Happy hour" })).toEqual({ what: "Switched it on", tone: "ok" });
     expect(
       activityWords("RETAIL_PRICE.SCHEDULED", { list: "Retail", count: 4, effectiveAt: "2026-10-03T20:00:00.000Z", batchId: "b" }),

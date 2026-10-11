@@ -41,6 +41,8 @@ import {
 } from "@/lib/retail/payment-settings";
 import { splitChange } from "@/lib/retail/payment-words";
 import { queueSaleReceipt, type ReceiptRecipient } from "@/lib/retail/receipt-settings";
+import { sellGiftVouchers } from "@/lib/retail/vouchers/issue";
+import { redeemInSale } from "@/lib/retail/vouchers/redeem";
 import {
   auditSalePosted,
   auditSaleReversed,
@@ -62,6 +64,9 @@ export class ShiftElsewhere extends Error {
   }
 }
 
+/** A sale that sold gift vouchers is not reversed at the till: its vouchers are voided on Products › Vouchers. */
+const SOLD_VOUCHERS_REFUSAL = "This sale sold gift vouchers. Void them on Products › Vouchers instead.";
+
 export type RetailActorContext = {
   companyId: string;
   userId: string;
@@ -79,6 +84,8 @@ export type RetailPaymentInput = {
    * carries no rate: `stampSalePayments` stamps the shop's own (SET-05).
    */
   currency?: string | null;
+  /** PRD-10: tender VOUCHER, the voucher checked for it (`checkVoucher`); its money comes off in the sale. */
+  voucherId?: string | null;
 };
 
 export type RetailSaleLineInput = {
@@ -153,7 +160,7 @@ function getRetailSaleDescription(saleType: string, saleNo: string) {
   return `Retail sale ${saleNo}`;
 }
 
-async function ensureRetailSaleAccountingPosted(input: {
+export async function ensureRetailSaleAccountingPosted(input: {
   actor: RetailActorContext;
     sale: {
       id: string;
@@ -172,6 +179,7 @@ async function ensureRetailSaleAccountingPosted(input: {
     changeAmount: MoneyLike;
     changeZig: MoneyLike;
     depositAmount: MoneyLike;
+    vouchersSoldAmount: MoneyLike;
     lines: Array<{
       inventoryItemId: string;
       itemName: string;
@@ -245,6 +253,8 @@ async function ensureRetailSaleAccountingPosted(input: {
     // The change rounding lines too, always numbers for the same reason.
     payload: {
       depositAmount: toNumberOrZero(money(input.sale.depositAmount).abs()),
+      // PRD-10: gift vouchers bought in the sale, owed to their holders (Cr Vouchers owed).
+      vouchersSoldAmount: toNumberOrZero(money(input.sale.vouchersSoldAmount).abs()),
       changeRoundingKept: change.kept,
       changeRoundingGiven: change.given,
     },
@@ -321,6 +331,7 @@ export async function stampSalePayments(input: {
       currency,
       exchangeRate,
       baseAmount: toNumberOrZero(toBaseAmount(amount, exchangeRate)),
+      voucherId: payment.voucherId ?? null,
     };
   });
   /*
@@ -422,6 +433,14 @@ export async function createRetailSaleTransaction(input: {
    * before its stock comes off.
    */
   caseBreaks?: Array<{ singleItemId: string; quantity: number; tillCase: TillCase }>;
+  /**
+   * PRD-10 (W-18) — gift vouchers bought in this sale, in cents: issued in
+   * its transaction, paid for on top of `totalAmount` (not revenue, not VAT,
+   * not fiscalised as goods), owed to their holders until spent.
+   */
+  vouchersSold?: Array<{ valueCents: number; customerId?: string | null }>;
+  /** PRD-10 — the discount voucher the engine took off the sale (`priceSale`'s `voucherSaving`): one use comes off it. */
+  discountVoucher?: { voucherId: string; discount: number } | null;
 }) {
   const site = await ensureSiteAccess(input.actor.companyId, input.siteId);
   if (!site) {
@@ -456,7 +475,10 @@ export async function createRetailSaleTransaction(input: {
   // own, so a refund can pay back exactly the share of the lines it returns.
   // Paid on top of `totalAmount` and posted to deposits held, never revenue.
   const depositAmount = sumMoney(input.lines.map((line) => money(line.depositAmount ?? 0)));
-  const amountDue = round(input.totalAmount + toNumberOrZero(depositAmount));
+  // Gift vouchers bought with it: paid for on top of the goods, as deposits are.
+  const vouchersSoldCents = (input.vouchersSold ?? []).reduce((sum, voucher) => sum + voucher.valueCents, 0);
+  const vouchersSoldAmount = money(vouchersSoldCents).dividedBy(100);
+  const amountDue = round(input.totalAmount + toNumberOrZero(depositAmount) + vouchersSoldCents / 100);
   const {
     saleCurrency,
     payments: normalizedPayments,
@@ -503,7 +525,7 @@ export async function createRetailSaleTransaction(input: {
         registerCode: shift.registerCode,
         periodOverrideReason: input.periodOverrideReason ?? null,
       });
-      return { sale: alreadyPosted, accounting, fiscal: null };
+      return { sale: alreadyPosted, accounting, fiscal: null, vouchersSold: [] };
     }
   }
 
@@ -531,7 +553,7 @@ export async function createRetailSaleTransaction(input: {
     );
 
     try {
-      const { fiscal, ...sale } = await prisma.$transaction(async (tx) => {
+      const { fiscal, vouchersSold, ...sale } = await prisma.$transaction(async (tx) => {
         // A count that does not keep selling holds its products back until it
         // is sent (W-22), checked in this transaction so a count starting now
         // and this sale take turns. A replay is not asked: the money was already taken.
@@ -566,6 +588,8 @@ export async function createRetailSaleTransaction(input: {
             customerName: input.customerName ?? null,
             idCheckedAt: input.idCheckedAt ?? null,
             depositAmount,
+            vouchersSoldAmount,
+            discountVoucherId: input.discountVoucher?.voucherId ?? null,
             subtotal: input.subtotal,
             discountAmount: input.discountAmount,
             taxAmount: input.taxAmount,
@@ -625,6 +649,7 @@ export async function createRetailSaleTransaction(input: {
                 exchangeRate: payment.exchangeRate,
                 baseAmount: toBaseAmount(payment.amount, payment.exchangeRate),
                 reference: payment.reference,
+                voucherId: payment.voucherId,
               })),
             },
           },
@@ -668,6 +693,22 @@ export async function createRetailSaleTransaction(input: {
           }
         }
 
+        // PRD-10: the vouchers it was paid with and the discount voucher, each a guarded
+        // decrement (a voucher spent elsewhere meanwhile refuses the whole sale, 409);
+        // then the gift vouchers it bought.
+        const voucherActor = { companyId: input.actor.companyId, userId: input.actor.userId, userName: input.actor.userName ?? null, userRole: input.actor.userRole ?? null };
+        await redeemInSale(tx, {
+          actor: voucherActor,
+          sale: { id: created.id, saleNo: created.saleNo, siteId: created.siteId, at: created.postedAt ?? new Date() },
+          tenders: normalizedPayments
+            .filter((payment) => payment.tenderType === "VOUCHER" && payment.voucherId)
+            .map((payment) => ({ voucherId: payment.voucherId!, amount: payment.amount })),
+          discount: input.discountVoucher ?? null,
+        });
+        const vouchersSold = input.vouchersSold?.length
+          ? await sellGiftVouchers(tx, { actor: voucherActor, saleId: created.id, vouchers: input.vouchersSold, now: created.postedAt ?? new Date() })
+          : [];
+
         // The empties that came back, on their suppliers' ledger.
         await recordSaleEmpties(tx, {
           companyId: input.actor.companyId,
@@ -700,7 +741,7 @@ export async function createRetailSaleTransaction(input: {
 
         // Last: the sale's fiscal day, settled in this commit (SET-08). Its receipt is dated here; the sale keeps its time.
         const fiscal = await assignRetailSaleFiscalDay(tx, { companyId: input.actor.companyId, saleId: created.id });
-        return { ...created, fiscal };
+        return { ...created, fiscal, vouchersSold };
       });
 
       const accounting = await ensureRetailSaleAccountingPosted({
@@ -710,7 +751,7 @@ export async function createRetailSaleTransaction(input: {
         periodOverrideReason: input.periodOverrideReason ?? null,
       });
 
-      return { sale, accounting, fiscal };
+      return { sale, accounting, fiscal, vouchersSold };
     } catch (error) {
       if (
         error instanceof Prisma.PrismaClientKnownRequestError &&
@@ -737,7 +778,7 @@ export async function createRetailSaleTransaction(input: {
             registerCode: shift.registerCode,
             periodOverrideReason: input.periodOverrideReason ?? null,
           });
-          return { sale: existing, accounting, fiscal: null };
+          return { sale: existing, accounting, fiscal: null, vouchersSold: [] };
         }
       }
 
@@ -930,6 +971,10 @@ export async function refundRetailSaleTransaction(input: {
     });
     if (!currentSourceSale || currentSourceSale.saleType !== "SALE" || currentSourceSale.status !== "POSTED") {
       throw new Error("Only posted sales can be refunded");
+    }
+    // PRD-10: gift vouchers it sold are live money now; they are voided on Products › Vouchers, not handed back here.
+    if (money(currentSourceSale.vouchersSoldAmount).greaterThan(0)) {
+      throw new Error(SOLD_VOUCHERS_REFUSAL);
     }
 
     const priorRefunds = await tx.retailSale.findMany({
@@ -1295,6 +1340,9 @@ export async function voidRetailSaleTransaction(input: {
     });
     if (!currentSourceSale || currentSourceSale.saleType !== "SALE" || currentSourceSale.status !== "POSTED") {
       throw new Error("Only posted sales can be voided");
+    }
+    if (money(currentSourceSale.vouchersSoldAmount).greaterThan(0)) {
+      throw new Error(SOLD_VOUCHERS_REFUSAL);
     }
 
     const existingReversals = await tx.retailSale.findMany({

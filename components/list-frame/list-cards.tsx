@@ -244,7 +244,7 @@ export function PhoneFooter({
   onPage: (page: number) => void;
   onTop: () => void;
 }) {
-  const money = spec.columns.filter((column) => column.total && (column.cell === "money" || column.cell === "diff"));
+  const money = spec.columns.filter((column) => column.total && (column.cell === "money" || column.cell === "diff" || column.totalParts));
   return (
     <div className="cx-lf-mfoot" data-toast-floor="">
       <div className="cx-lf-mtotals" aria-label={`Totals for every ${spec.noun.replace(/s$/, "")} the filters let through`}>

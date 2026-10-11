@@ -136,6 +136,9 @@ export function ListCell({
           {!isBlank(time) ? <span className="cx-lf-time"> {String(time)}</span> : null}
         </>
       );
+      // A pill in its tone when the row says so ("31 October 2026" in warn: a voucher in its last month).
+      const pill = column.pillKey ? row[column.pillKey] : null;
+      if (!isBlank(pill)) return <span className={`cx-lf-pill cx-lf-pill--${String(pill)}`}>{day}</span>;
       return isBlank(tone) ? day : <span style={{ color: `var(--${String(tone)})` }}>{day}</span>;
     }
     case "when":

@@ -363,6 +363,7 @@ async function zigBooked(db: Prisma.TransactionClient, shift: { id: string; comp
         saleType: true,
         totalAmount: true,
         depositAmount: true,
+        vouchersSoldAmount: true,
         tenderedAmount: true,
         changeAmount: true,
         changeZig: true,

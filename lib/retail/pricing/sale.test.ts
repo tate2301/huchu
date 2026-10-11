@@ -78,7 +78,7 @@ describe("a buy-more deal", () => {
     expect(priced.checkout.total).toBe(5);
     expect(priced.bundleSaving).toBe(0.55);
     expect(priced.pieces).toEqual([
-      { key: "s", lineKey: "s", quantity: 3, lineDiscount: 0, bundleDiscount: 0.55, bundleId: "ciders", group: 1, promotionId: null, promotionDiscount: 0 },
+      { key: "s", lineKey: "s", quantity: 3, lineDiscount: 0, bundleDiscount: 0.55, bundleId: "ciders", group: 1, promotionId: null, promotionDiscount: 0, voucherDiscount: 0 },
     ]);
   });
 

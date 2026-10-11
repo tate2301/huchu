@@ -37,6 +37,9 @@ export type ReservableIdEntity =
   | "RETAIL_STOCK_COUNT"
   | "RETAIL_SUPPLIER"
   | "RETAIL_BUNDLE"
+  | "RETAIL_GIFT_VOUCHER"
+  | "RETAIL_CREDIT_NOTE"
+  | "RETAIL_DISCOUNT_VOUCHER"
   | "CRM_CLIENT"
   | "CRM_LEAD"
   | "CRM_APPOINTMENT"
@@ -113,6 +116,10 @@ export const ID_ENTITY_CONFIG: Record<ReservableIdEntity, EntityConfig> = {
   RETAIL_SUPPLIER: { prefix: "SUP", requiresSiteId: false },
   // "BND-0004": a bundle or buy-more deal (PRD-08), company-wide.
   RETAIL_BUNDLE: { prefix: "BND", requiresSiteId: false },
+  // "GV-0021", "CN-0033", "DV-0007": vouchers (PRD-10), one line of numbers per kind, company-wide.
+  RETAIL_GIFT_VOUCHER: { prefix: "GV", requiresSiteId: false },
+  RETAIL_CREDIT_NOTE: { prefix: "CN", requiresSiteId: false },
+  RETAIL_DISCOUNT_VOUCHER: { prefix: "DV", requiresSiteId: false },
   CRM_CLIENT: { prefix: "CLI", requiresSiteId: false },
   CRM_LEAD: { prefix: "CRL", requiresSiteId: false },
   CRM_APPOINTMENT: { prefix: "SVT", requiresSiteId: false },
@@ -475,6 +482,15 @@ async function findEntityMaxExistingCode(
     case "RETAIL_BUNDLE": {
       const records = await db.retailBundle.findMany({
         where: { companyId },
+        select: { code: true },
+      });
+      return extractMaxFromCodes(records.map((record) => record.code), prefix);
+    }
+    case "RETAIL_GIFT_VOUCHER":
+    case "RETAIL_CREDIT_NOTE":
+    case "RETAIL_DISCOUNT_VOUCHER": {
+      const records = await db.retailVoucher.findMany({
+        where: { companyId, code: { startsWith: `${prefix}-` } },
         select: { code: true },
       });
       return extractMaxFromCodes(records.map((record) => record.code), prefix);

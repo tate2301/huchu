@@ -12,6 +12,7 @@ import {
   type ReportValue,
   type ReportView,
 } from "@/lib/reports/types";
+import { formatCount, formatMoney } from "@/lib/workspace/format";
 
 /**
  * A view applied to rows: filtered, sorted, grouped and totalled.
@@ -89,7 +90,8 @@ export function fitView(view: ReportView, columns: ReportColumn[]): ReportView {
     groupBy: view.groupBy && byKey.has(view.groupBy) ? view.groupBy : null,
     totals: Object.fromEntries(
       Object.entries(view.totals).filter(
-        ([key, fn]) => byKey.has(key) && aggregatesFor(byKey.get(key)!.kind).includes(fn),
+        // A words column made of two sums (`totalParts`) is summed though its cells are words.
+        ([key, fn]) => byKey.has(key) && (byKey.get(key)!.totalParts ? fn === "sum" : aggregatesFor(byKey.get(key)!.kind).includes(fn)),
       ),
     ),
   };
@@ -260,12 +262,25 @@ export function ratioOf(rows: ReportRow[], ratio: { num: string; den: string }):
   return den === 0 ? null : Math.round((num / den) * 1000) / 10;
 }
 
+/** "US$74.20 + 12": the money key's sum, and the count key's after a plus when there is any. */
+export function partsTotal(rows: ReportRow[], parts: { money: string; count: string }): string {
+  let money = 0;
+  let count = 0;
+  for (const row of rows) {
+    money += asNumber(row[parts.money] ?? null) ?? 0;
+    count += asNumber(row[parts.count] ?? null) ?? 0;
+  }
+  const figure = formatMoney(Math.round(money * 100) / 100);
+  return count > 0 ? `${figure} + ${formatCount(count)}` : figure;
+}
+
 export function totalsFor(rows: ReportRow[], columns: ReportColumn[], view: ReportView): Record<string, ReportValue> {
   const byKey = new Map(columns.map((column) => [column.key, column]));
   const totals: Record<string, ReportValue> = {};
   for (const [key, fn] of Object.entries(view.totals)) {
     const column = byKey.get(key);
     if (column?.ratio && fn === "avg") totals[key] = ratioOf(rows, column.ratio);
+    else if (column?.totalParts && fn === "sum") totals[key] = partsTotal(rows, column.totalParts);
     else if (column) totals[key] = aggregate(rows, column.totalOf ? { ...column, key: column.totalOf } : column, fn);
   }
   return totals;
