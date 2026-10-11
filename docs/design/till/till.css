@@ -148,7 +148,6 @@ a.tile { color: inherit; text-decoration: none; }
 .quick-item .qn { max-width: 140px; overflow: hidden; text-overflow: ellipsis; font-size: var(--text-13); color: var(--color-ink); }
 .quick-item .qp { font-family: var(--font-mono); font-size: var(--text-13); color: var(--color-ink-2); }
 .quick-item .in { top: -6px; right: -6px; }
-.quick-item[aria-pressed="true"] { box-shadow: 0 0 0 2px var(--color-ink); }
 .quick-item[aria-disabled="true"] { color: var(--color-faint); box-shadow: var(--shadow-ring); cursor: default; }
 .quick-item[aria-disabled="true"] .qn, .quick-item[aria-disabled="true"] .qp { color: var(--color-faint); }
 .pay .mark img { width: 100%; height: 100%; object-fit: cover; }

@@ -580,7 +580,6 @@ function useTillStateValue({ isPosHost, paired }: { isPosHost: boolean; paired: 
       loyaltyRedemptionPoints,
       payments,
       orderDiscountAmount,
-      selectedPromotionId,
       idChecked,
       heldAs,
     };
@@ -592,7 +591,6 @@ function useTillStateValue({ isPosHost, paired }: { isPosHost: boolean; paired: 
       setLoyaltyRedemptionPoints(kept.loyaltyRedemptionPoints);
       setPayments(kept.payments);
       setOrderDiscountAmount(kept.orderDiscountAmount);
-      setSelectedPromotionId(kept.selectedPromotionId);
       setIdChecked(kept.idChecked);
       setHeldAs(kept.heldAs);
     };
