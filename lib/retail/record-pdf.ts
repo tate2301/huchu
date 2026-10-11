@@ -3,6 +3,8 @@ import type { RetailAction, RetailResource } from "@/lib/retail/permission-matri
 import { depositWords, idCheckWords, levelWords, priceListsWords, productKpis } from "@/lib/retail/products/record-words";
 import { loadProductView } from "@/lib/retail/products/view";
 import { loadBundleView } from "@/lib/retail/bundles/service";
+import { loadPromotionView, promotionProductRows } from "@/lib/retail/promotions/service";
+import { loadVoucherView, voucherUseRows } from "@/lib/retail/vouchers/service";
 import { loadSaleView } from "@/lib/retail/floor/sale-view";
 import { paidWords, saleStateLabel } from "@/lib/retail/floor/sale-words";
 import { loadShiftRecord } from "@/lib/retail/shift-record";
@@ -219,6 +221,80 @@ const RECORD_PDF: Record<string, RecordPdfType> = {
         content: `<table class="rd-table"><caption>The last 30 days</caption><tbody>${figures}</tbody></table>
 <table class="rd-table"><caption>What is in it</caption><thead><tr><th>Product</th><th class="num">Quantity</th><th class="num">On their own</th><th class="num">On hand</th></tr></thead><tbody>${items}</tbody></table>
 <table class="rd-table"><caption>Selling</caption><tbody>${selling}</tbody></table>`,
+      };
+    },
+  },
+  /** A promotion (PRD-09): what it did, the products it covers, and its rules. */
+  RetailPromotion: {
+    read: ["retail.promotions", "view"],
+    render: async (caller, id) => {
+      const promotion = await loadPromotionView(caller.companyId, id);
+      if (!promotion) return null;
+      const f = promotion.figures;
+      const figures = rows([
+        ["Sold under it", String(f.soldUnder)],
+        ["Extra takings", formatMoney(f.extraTakings)],
+        ["Given away", formatMoney(f.givenAway)],
+        ["Products", `${f.products}, ${f.notSold} not sold yet`],
+        ["Running for", promotion.state === "SCHEDULED" ? "Not started" : `${f.runningDays} days`],
+      ]);
+      const products = (await promotionProductRows(caller.companyId, id, caller.role)) ?? [];
+      const lines = products
+        .map(
+          (row) =>
+            `<tr><td>${esc(row.name)}</td><td class="num mono">${esc(row.normal === null ? "—" : formatMoney(row.normal))}</td><td class="num mono">${esc(row.onPromotion === null ? "—" : formatMoney(row.onPromotion))}</td><td class="num mono">${row.sold}</td><td class="num mono">${esc(formatMoney(row.givenAway))}</td></tr>`,
+        )
+        .join("");
+      const rules = rows([
+        ["Type", promotion.kindLabel],
+        ["Value", promotion.valueLabel],
+        ["Applies to", promotion.appliesToLabel],
+        ["Basket", promotion.minBasket === null ? "Any size" : formatMoney(promotion.minBasket)],
+        ["Days", promotion.days],
+        ["Starts", formatWhen(promotion.startsAt)],
+        ["Ends", promotion.endsAt ? formatWhen(promotion.endsAt) : "No end date"],
+        ["Sites", promotion.site?.name ?? "All sites"],
+      ]);
+      return {
+        ref: promotion.code,
+        title: promotion.name,
+        subtitle: `${promotion.code} · ${promotion.badge.label} · ${promotion.valueLabel}`,
+        content: `<table class="rd-table"><caption>What it did</caption><tbody>${figures}</tbody></table>
+<table class="rd-table"><caption>Products</caption><thead><tr><th>Product</th><th class="num">Normal</th><th class="num">On promotion</th><th class="num">Sold</th><th class="num">Given away</th></tr></thead><tbody>${lines}</tbody></table>
+<table class="rd-table"><caption>Rules</caption><tbody>${rules}</tbody></table>`,
+      };
+    },
+  },
+  RetailVoucher: {
+    read: ["retail.promotions", "view"],
+    render: async (caller, id) => {
+      // The secret stays off paper that is not a voucher card.
+      const voucher = await loadVoucherView(caller.companyId, id, false);
+      if (!voucher) return null;
+      const details = rows([
+        ["Kind", voucher.kindLabel],
+        ["Holder", voucher.holder],
+        ["Value", voucher.valueLabel],
+        ["Left", voucher.leftLabel],
+        ["Spent", `${formatMoney(voucher.spent)}, ${voucher.uses} ${voucher.uses === 1 ? "time" : "times"}`],
+        ["Issued", formatDay(voucher.issuedAt)],
+        ["Expires", formatDay(voucher.expiresOn)],
+        ["Sites", voucher.site],
+        ...(voucher.soldSale ? ([["Sale", `${voucher.soldSale.saleNo}, ${voucher.soldSale.paidWith}`]] as Array<[string, string]>) : []),
+        ...(voucher.voidReason ? ([["Voided", voucher.voidReason]] as Array<[string, string]>) : []),
+      ]);
+      const uses = (await voucherUseRows(caller.companyId, id))
+        .map(
+          (use) =>
+            `<tr><td class="mono">${esc(use.saleNo)}</td><td>${esc(formatDay(use.at))}</td><td>${esc(use.till)}</td><td class="num mono">${esc(formatMoney(use.spent))}</td><td class="num mono">${esc(use.leftAfter === null ? "—" : formatMoney(use.leftAfter))}</td></tr>`,
+        )
+        .join("");
+      return {
+        ref: voucher.code,
+        title: `${voucher.kindLabel} ${voucher.code}`,
+        subtitle: `${voucher.code} · ${voucher.stateLabel} · ${voucher.leftLabel} left`,
+        content: `<table class="rd-table"><caption>Voucher</caption><tbody>${details}</tbody></table>
+<table class="rd-table"><caption>Uses</caption><thead><tr><th>Sale</th><th>When</th><th>Till</th><th class="num">Spent</th><th class="num">Left after</th></tr></thead><tbody>${uses}</tbody></table>`,
       };
     },
   },

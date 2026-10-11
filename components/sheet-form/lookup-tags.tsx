@@ -91,7 +91,7 @@ export function LookupTags({
   }, [open, setOpen]);
 
   const pick = (option: PickedOption) => {
-    onValueChange([...value, { id: option.id, label: option.label, sub: option.sub ?? null }]);
+    onValueChange([...value, { id: option.id, label: option.label, sub: option.sub ?? null, ...(option.cost ? { cost: option.cost } : {}) }]);
     setDraft("");
     setActive(0);
     setOpen(false);

@@ -201,6 +201,30 @@ export const RETAIL_AUDIT_EVENTS = {
   bundleResumed: "RETAIL_BUNDLE.RESUMED",
   /** A bundle stopped for good; its sales history stays. */
   bundleStopped: "RETAIL_BUNDLE.STOPPED",
+  /** A promotion made (W-17, PRD-09). Entity `RetailPromotion`; carries its code, name and start. */
+  promotionCreated: "RETAIL_PROMOTION.CREATED",
+  /** A promotion's rules changed: `changes` names each field's label, before and after. */
+  promotionChanged: "RETAIL_PROMOTION.CHANGED",
+  /** A promotion paused: the tills stop applying it. */
+  promotionPaused: "RETAIL_PROMOTION.PAUSED",
+  /** A paused promotion running again. */
+  promotionResumed: "RETAIL_PROMOTION.RESUMED",
+  /** A promotion ended now; what it sold and gave away stays on its page. */
+  promotionEnded: "RETAIL_PROMOTION.ENDED",
+  /** Vouchers issued (W-18, PRD-10), one event per voucher. Entity `RetailVoucher`; carries its code, kind and value ("10% off" for a discount voucher). */
+  voucherIssued: "RETAIL_VOUCHER.ISSUED",
+  /** A voucher's expiry or holder changed: `changes` names each field's label, before and after. */
+  voucherChanged: "RETAIL_VOUCHER.CHANGED",
+  /** A voucher sent to its holder again. Carries how ("WhatsApp"). */
+  voucherSent: "RETAIL_VOUCHER.SENT",
+  /** A voucher spent at the till. Carries the sale's number, what came off it and what is left. */
+  voucherRedeemed: "RETAIL_VOUCHER.REDEEMED",
+  /** A voided (or refunded) sale's voucher payment put back on it, or its discount voucher's use given back. Carries the reversal's number, what went back and what is left. */
+  voucherRestored: "RETAIL_VOUCHER.RESTORED",
+  /** A voucher voided with a reason; what was left is written off. Carries the reason and what was left. */
+  voucherVoided: "RETAIL_VOUCHER.VOIDED",
+  /** A voucher lapsed at its expiry by the retail worker. Carries what was left. */
+  voucherExpired: "RETAIL_VOUCHER.EXPIRED",
   /** A till made on Pair a till, recorded when Done first saves it (Cancel leaves nothing). Carries its name, site and device. */
   tillCreated: "RETAIL_TILL.CREATED",
   /** A till changed: each field before and after. */

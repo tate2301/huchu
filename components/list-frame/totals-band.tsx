@@ -80,7 +80,7 @@ export function TotalsBand({
                 <span className="mono">{formatCount(entry.count)}</span> {entry.label}
               </span>
             );
-          } else if (isFigure(column) && column.total) {
+          } else if ((isFigure(column) || column.totalParts) && column.total) {
             content = totalText(column, totals[column.key]);
             if (column.cell === "num") tone = "is-count";
             if (column.cell === "diff") {

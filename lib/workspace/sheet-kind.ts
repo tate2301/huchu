@@ -312,6 +312,15 @@ export type SheetKind = {
    * settled: the till Pair a till made goes, a pairing code stops.
    */
   cancel?: (ctx: SheetCtx, values: SheetValues) => SheetRequest | null;
+  /**
+   * The secondary as an action of its own instead of Cancel ("Resend"): sent on
+   * the click, its toast, the kind's `invalidate`, and the sheet stays open.
+   * Drawn but not pressable while `disabled` (a voucher with no one to send to).
+   */
+  secondaryAction?: (
+    ctx: SheetCtx,
+    values: SheetValues,
+  ) => { label: string; request: SheetRequest; done: (payload: unknown) => string; disabled?: boolean } | null;
   /** The secondary as a way on instead of Cancel ("Pair another device"), while this gives one. */
   secondaryLink?: (ctx: SheetCtx, values: SheetValues) => { label: string; href: string } | null;
   /**

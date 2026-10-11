@@ -651,11 +651,36 @@ export function CustomerPopover() {
 
 /* ─── Hold ───────────────────────────────────────────────────────────── */
 
+/**
+ * Drop: the checkout will not happen, so the sale goes in one press, beside
+ * Hold. It asks nothing; the toast that says what went brings it all back.
+ */
+export function DropSaleButton() {
+  const { cart, amountDue, dropSale } = useTill();
+  const { toast } = useToast();
+  const items = cart.reduce((sum, item) => sum + (Number.isInteger(item.quantity) ? item.quantity : 1), 0);
+  return (
+    <button
+      type="button"
+      className="btn btn-quiet is-icon-on-phone"
+      aria-label="Drop this sale"
+      onClick={() => {
+        const words = `Sale dropped: ${count(items, "item")}, ${usd(amountDue)}`;
+        const undo = dropSale();
+        toast({ title: words, duration: 8000, action: { label: "Undo", onClick: undo } });
+      }}
+    >
+      <Trash className="ic" />
+      <span className="when-wide">Drop</span>
+    </button>
+  );
+}
+
 export function HoldPopover() {
   const { toast } = useToast();
   const router = useRouter();
   const queryClient = useQueryClient();
-  const { cart, shiftHere, customerName, orderDiscountAmount, selectedPromotionId, clearCart, isPosHost } = useTill();
+  const { cart, shiftHere, customerName, orderDiscountAmount, clearCart, isPosHost } = useTill();
   const [open, setOpen] = React.useState(false);
   const [label, setLabel] = React.useState("");
   const id = React.useId();
@@ -667,7 +692,7 @@ export function HoldPopover() {
         body: JSON.stringify({
           shiftId: shiftHere?.id,
           label: label.trim() || undefined,
-          cartSnapshot: { items: cart, customerName, orderDiscountAmount, selectedPromotionId },
+          cartSnapshot: { items: cart, customerName, orderDiscountAmount },
         }),
       }),
     onSuccess: () => {
@@ -727,13 +752,10 @@ export function HoldPopover() {
   );
 }
 
-/* ─── Discount, promotion or points ──────────────────────────────────── */
+/* ─── Discount or points ─────────────────────────────────────────────── */
 
 export function DiscountPopover() {
   const {
-    promotions,
-    selectedPromotionId,
-    setSelectedPromotionId,
     orderDiscountAmount,
     setOrderDiscountAmount,
     loyaltyRedemptionPoints,
@@ -744,7 +766,6 @@ export function DiscountPopover() {
   const [open, setOpen] = React.useState(false);
   const [manual, setManual] = React.useState("");
   const [points, setPoints] = React.useState("");
-  const [promotion, setPromotion] = React.useState("");
   const ids = React.useId();
 
   const pointsValue = Math.max(0, Math.floor(Number(points || "0")));
@@ -763,7 +784,6 @@ export function DiscountPopover() {
           const rest = Number(orderDiscountAmount || "0") - used / LOYALTY_REDEEM_POINTS_PER_USD;
           setManual(rest > 0.009 ? rest.toFixed(2) : "");
           setPoints(used ? String(used) : "");
-          setPromotion(selectedPromotionId);
         }
       }}
       label="Discount on the sale"
@@ -772,7 +792,7 @@ export function DiscountPopover() {
       trigger={
         <button type="button" className="btn btn-quiet is-hang">
           <Percent className="ic" />
-          Discount, promotion or points
+          Discount or points
         </button>
       }
     >
@@ -784,25 +804,11 @@ export function DiscountPopover() {
           const total = (amountOf(manual) ?? 0) + fromPoints;
           setLoyaltyRedemptionPoints(pointsValue ? String(pointsValue) : "");
           setOrderDiscountAmount(total > 0 ? total.toFixed(2) : "");
-          setSelectedPromotionId(promotion);
           setOpen(false);
         }}
       >
         <div className="pop-body">
           <MoneyField id={`${ids}m`} label="Off the whole sale" value={manual} onChange={setManual} placeholder="0.00" autoFocus />
-          {promotions.length ? (
-            <div className="field">
-              <label htmlFor={`${ids}p`}>Promotion</label>
-              <select id={`${ids}p`} className="select input-lg" value={promotion} onChange={(event) => setPromotion(event.target.value)}>
-                <option value="">None</option>
-                {promotions.map((entry) => (
-                  <option key={entry.id} value={entry.id}>
-                    {entry.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-          ) : null}
           <div className="field">
             <label htmlFor={`${ids}l`}>Points</label>
             {selectedCustomer ? (

@@ -1,30 +1,43 @@
 /**
- * What a sale comes to (PRD-08): the one sum the till shows and `pos/sales`
- * stores. Pure, so the till (online and offline) and the server run the very
- * same steps over the same snapshot and never disagree on a total.
+ * What a sale comes to (PRD-08, PRD-09): the one sum the till shows and
+ * `pos/sales` stores. Pure, so the till (online and offline) and the server
+ * run the very same steps over the same snapshot and never disagree on a total.
  *
  * 1. Bundles (`applyBundles`): a fixed set rung as one sells at its price, and
  *    live buy-more deals apply on their own. A line part in a deal and part
  *    not comes back as pieces.
- * 2. The cashier's own line discount is shared over the line's pieces pro
+ * 2. A unit in a buy-more deal takes the better of the deal and the
+ *    promotions: a group whose units the promotions would save more on
+ *    leaves the deal, and its pieces go back to their line.
+ * 3. The cashier's own line discount is shared over the line's pieces pro
  *    rata to quantity, in whole cents with what is left on the last piece, so
  *    a left-over single never carries the whole line's discount.
- * 3. `calculateRetailCheckout`: the bundle's saving and the cashier's
- *    discount come off each piece; a sale promotion takes its share off the
- *    units sold at their own price only. A unit in a bundle or a buy-more deal
- *    already has its saving and takes no promotion on top.
+ * 4. Promotions (`applyPromotions`) on every piece not in a bundle or a kept
+ *    deal, after the cashier's discount, never below zero; each piece keeps
+ *    the promotion it is attributed to and what the promotions took off it.
+ * 5. A discount voucher (PRD-10, W-18): a percent of what the basket comes to
+ *    after the promotions, or an amount off it, never below zero, shared over
+ *    the pieces pro rata to what each comes to in whole cents.
+ * 6. `calculateRetailCheckout`: the bundle's saving, the cashier's discount,
+ *    the promotion and the voucher come off each piece; the sale's own
+ *    discount after.
  */
 
+import { calculateRetailCheckout, type RetailCalculatedCheckout } from "@/lib/retail/checkout";
 import {
-  calculateRetailCheckout,
-  type RetailCalculatedCheckout,
-  type RetailCheckoutPromotion,
-} from "@/lib/retail/checkout";
-import { applyBundles, type SnapshotBundle } from "@/lib/retail/pricing/engine";
+  applyBundles,
+  applyPromotions,
+  type BundledPiece,
+  type PricingCustomer,
+  type SnapshotBundle,
+  type SnapshotPromotion,
+} from "@/lib/retail/pricing/engine";
 
 export type SaleLineInput = {
   key: string;
   productId: string;
+  /** What a category promotion asks of it. */
+  categoryId?: string | null;
   quantity: number;
   unitPrice: number;
   taxPercent: number;
@@ -49,13 +62,27 @@ export type SalePiece = {
   bundleId: string | null;
   /** Numbers each bundle and buy-more group in the sale from 1. */
   group: number | null;
+  /** The promotion this piece sold under, and what the promotions took off it (shelf money). */
+  promotionId: string | null;
+  promotionDiscount: number;
+  /** This piece's share of the discount voucher (shelf money). */
+  voucherDiscount: number;
 };
+
+/** A discount voucher on the sale: a percent off, or an amount off. */
+export type SaleVoucher = { percentOff: number | null; amountOff: number | null };
 
 export type PricedSale = {
   pieces: SalePiece[];
   checkout: RetailCalculatedCheckout;
   /** What the bundles and buy-more deals took off, in shelf money. */
   bundleSaving: number;
+  /** What the promotions took off, in shelf money. */
+  promotionSaving: number;
+  /** What the basket comes to after bundles, the cashier's discounts and the promotions: what a voucher's smallest sale reads. */
+  basketAfterPromotions: number;
+  /** What the discount voucher took off, in shelf money. */
+  voucherSaving: number;
 };
 
 const toCents = (value: number) => Math.round(value * 100);
@@ -74,11 +101,16 @@ function shareByWeight(total: number, weights: number[]): number[] {
 export function priceSale(input: {
   lines: SaleLineInput[];
   bundles: SnapshotBundle[];
+  promotions: SnapshotPromotion[];
   at: Date | string;
   siteId: string | null;
+  customer?: PricingCustomer | null;
   orderDiscountAmount?: number;
-  promotion?: RetailCheckoutPromotion;
+  voucher?: SaleVoucher | null;
 }): PricedSale | { error: string } {
+  // The basket minimum reads the whole basket on the shelf, before any bundle, deal or promotion.
+  const basketShelf = fromCents(input.lines.reduce((sum, line) => sum + Math.round(toCents(line.unitPrice) * line.quantity), 0));
+  const context = { at: input.at, siteId: input.siteId, customer: input.customer ?? null, basketShelf };
   const bundled = applyBundles(
     input.bundles,
     input.lines.map((line) => ({
@@ -93,15 +125,52 @@ export function priceSale(input: {
   );
   if ("error" in bundled) return bundled;
 
-  const pieces: SalePiece[] = [];
-  const checkoutLines = input.lines.flatMap((line) => {
-    const ofLine = bundled.pieces.filter((piece) => piece.key === line.key);
-    const discounts = shareByWeight(
-      toCents(line.lineDiscount),
-      ofLine.map((piece) => piece.quantity),
-    );
-    return ofLine.map((piece, at) => {
-      const sold: SalePiece = {
+  const lineOf = new Map(input.lines.map((line) => [line.key, line]));
+  const fixedSets = new Set(input.bundles.filter((bundle) => bundle.kind === "FIXED_SET").map((bundle) => bundle.id));
+  const inFixedSet = (piece: BundledPiece) => piece.bundleId !== null && fixedSets.has(piece.bundleId);
+  const asPromotionLine = (piece: BundledPiece, id: string, alreadyOff: number) => {
+    const line = lineOf.get(piece.key)!;
+    return { key: id, productId: line.productId, categoryId: line.categoryId ?? null, quantity: piece.quantity, unitPrice: line.unitPrice, alreadyOff };
+  };
+
+  // 2. A buy-more group the promotions would save more on leaves its deal.
+  let pieces = bundled.pieces;
+  const open = pieces.map((piece, index) => ({ piece, id: String(index) })).filter(({ piece }) => !inFixedSet(piece));
+  const asIf = new Map(
+    applyPromotions(input.promotions, open.map(({ piece, id }) => asPromotionLine(piece, id, 0)), context).map((entry) => [entry.key, entry.discount]),
+  );
+  const groups = new Map<number, { deal: number; promotion: number }>();
+  open.forEach(({ piece, id }) => {
+    if (piece.group === null || piece.bundleId === null) return;
+    const entry = groups.get(piece.group) ?? { deal: 0, promotion: 0 };
+    entry.deal += toCents(piece.discount);
+    entry.promotion += toCents(asIf.get(id) ?? 0);
+    groups.set(piece.group, entry);
+  });
+  const leaving = new Set([...groups.entries()].filter(([, entry]) => entry.promotion > entry.deal).map(([group]) => group));
+  if (leaving.size > 0) {
+    const kept: BundledPiece[] = [];
+    const loose = new Map<string, number>();
+    for (const piece of pieces) {
+      if (piece.bundleId === null || (piece.group !== null && leaving.has(piece.group))) {
+        loose.set(piece.key, (loose.get(piece.key) ?? 0) + piece.quantity);
+      } else {
+        kept.push(piece);
+      }
+    }
+    pieces = [
+      ...[...loose.entries()].map(([key, quantity]) => ({ key, quantity, discount: 0, bundleId: null, group: null })),
+      ...kept,
+    ];
+  }
+
+  // 3. The cashier's discount over each line's pieces; 4. the promotions on the loose pieces.
+  const sold: SalePiece[] = [];
+  for (const line of input.lines) {
+    const ofLine = pieces.filter((piece) => piece.key === line.key);
+    const discounts = shareByWeight(toCents(line.lineDiscount), ofLine.map((piece) => piece.quantity));
+    ofLine.forEach((piece, at) => {
+      sold.push({
         key: ofLine.length > 1 ? `${line.key}:${at}` : line.key,
         lineKey: line.key,
         quantity: piece.quantity,
@@ -109,27 +178,79 @@ export function priceSale(input: {
         bundleDiscount: piece.discount,
         bundleId: piece.bundleId,
         group: piece.group,
-      };
-      pieces.push(sold);
-      return {
-        id: sold.key,
-        quantity: sold.quantity,
-        unitPrice: line.unitPrice,
-        taxPercent: line.taxPercent,
-        taxInclusive: line.taxInclusive,
-        lineDiscountAmount: fromCents(discounts[at]! + toCents(piece.discount)),
-        promotionEligible: piece.bundleId === null,
-      };
+        promotionId: null,
+        promotionDiscount: 0,
+        voucherDiscount: 0,
+      });
     });
+  }
+  const promoted = applyPromotions(
+    input.promotions,
+    sold
+      .filter((piece) => piece.bundleId === null)
+      .map((piece) => {
+        const line = lineOf.get(piece.lineKey)!;
+        return {
+          key: piece.key,
+          productId: line.productId,
+          categoryId: line.categoryId ?? null,
+          quantity: piece.quantity,
+          unitPrice: line.unitPrice,
+          alreadyOff: piece.lineDiscount,
+        };
+      }),
+    context,
+  );
+  const promotionOf = new Map(promoted.map((entry) => [entry.key, entry]));
+  let promotionCents = 0;
+  for (const piece of sold) {
+    const entry = promotionOf.get(piece.key);
+    if (!entry || entry.promotionId === null) continue;
+    piece.promotionId = entry.promotionId;
+    piece.promotionDiscount = entry.discount;
+    promotionCents += toCents(entry.discount);
+  }
+
+  // 5. The discount voucher, after the promotions, over what each piece comes to.
+  const after = sold.map((piece) => {
+    const line = lineOf.get(piece.lineKey)!;
+    const shelf = Math.round(toCents(line.unitPrice) * piece.quantity);
+    return Math.max(0, shelf - toCents(piece.lineDiscount) - toCents(piece.bundleDiscount) - toCents(piece.promotionDiscount));
+  });
+  const basketCents = after.reduce((sum, cents) => sum + cents, 0);
+  const voucherCents = input.voucher
+    ? Math.min(
+        basketCents,
+        input.voucher.percentOff !== null ? Math.round((basketCents * input.voucher.percentOff) / 100) : toCents(input.voucher.amountOff ?? 0),
+      )
+    : 0;
+  const voucherShares = shareByWeight(voucherCents, after);
+  sold.forEach((piece, index) => {
+    piece.voucherDiscount = fromCents(Math.min(voucherShares[index] ?? 0, after[index]!));
   });
 
+  // 6. What it comes to.
+  const checkoutLines = sold.map((piece) => {
+    const line = lineOf.get(piece.lineKey)!;
+    return {
+      id: piece.key,
+      quantity: piece.quantity,
+      unitPrice: line.unitPrice,
+      taxPercent: line.taxPercent,
+      taxInclusive: line.taxInclusive,
+      lineDiscountAmount: fromCents(
+        toCents(piece.lineDiscount) + toCents(piece.bundleDiscount) + toCents(piece.promotionDiscount) + toCents(piece.voucherDiscount),
+      ),
+    };
+  });
+  const bundleCents = sold.reduce((sum, piece) => sum + toCents(piece.bundleDiscount), 0);
+
   return {
-    pieces,
-    checkout: calculateRetailCheckout({
-      lines: checkoutLines,
-      orderDiscountAmount: input.orderDiscountAmount ?? 0,
-      promotion: input.promotion ?? null,
-    }),
-    bundleSaving: bundled.saving,
+    pieces: sold,
+    checkout: calculateRetailCheckout({ lines: checkoutLines, orderDiscountAmount: input.orderDiscountAmount ?? 0 }),
+    bundleSaving: fromCents(bundleCents),
+    promotionSaving: fromCents(promotionCents),
+    basketAfterPromotions: fromCents(basketCents),
+    voucherSaving: fromCents(sold.reduce((sum, piece) => sum + toCents(piece.voucherDiscount), 0)),
   };
 }

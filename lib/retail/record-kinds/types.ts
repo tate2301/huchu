@@ -96,8 +96,11 @@ export type RecordChart = {
   chip?: RecordChip;
   /** A right-aligned sentence instead of a range: "Selling about 2.1 a day". */
   aside?: string;
-  /** `label` names a bar in its tooltip; `tick` is its x label ("" to skip it), `label` when absent. */
-  bars?: Array<{ label: string; tick?: string; value: number; text: string }>;
+  /**
+   * `label` names a bar in its tooltip; `tick` is its x label ("" to skip it), `label` when absent.
+   * `dark` draws it in `--data` and the rest `--data-muted` (a promotion's weeks while it ran).
+   */
+  bars?: Array<{ label: string; tick?: string; value: number; text: string; dark?: boolean }>;
   /** Drawn instead of bars. */
   line?: RecordLine;
   /** A y-axis tick: "US$20". */
@@ -168,6 +171,8 @@ export type RailRow = {
   mono?: boolean;
   /** Drawn in `--ink-3` ("Not counted yet"). */
   muted?: boolean;
+  /** A sentence in `--warn` under the value (an amount off that gives a product away). */
+  warn?: string;
   edit?: RailEdit;
   /** Drawn only for roles holding this (a product's cost). */
   visible?: Grant;

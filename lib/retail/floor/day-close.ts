@@ -95,6 +95,7 @@ export const daySaleSelect = {
   baseAmount: true,
   totalAmount: true,
   depositAmount: true,
+  vouchersSoldAmount: true,
   tenderedAmount: true,
   changeAmount: true,
   changeZig: true,

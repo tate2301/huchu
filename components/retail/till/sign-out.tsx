@@ -46,7 +46,7 @@ export function useSignOut() {
 export function TillSignOutProvider({ children }: { children: React.ReactNode }) {
   const { data: session } = useSession();
   const queryClient = useQueryClient();
-  const { cart, amountDue, customerName, orderDiscountAmount, selectedPromotionId, shiftHere, context, isPosHost, clearCart } = useTill();
+  const { cart, amountDue, customerName, orderDiscountAmount, shiftHere, context, isPosHost, clearCart } = useTill();
   const [asking, setAsking] = React.useState(false);
   const [busy, setBusy] = React.useState(false);
   const [problem, setProblem] = React.useState<string | null>(null);
@@ -97,7 +97,7 @@ export function TillSignOutProvider({ children }: { children: React.ReactNode })
         body: JSON.stringify({
           shiftId: shiftHere?.id,
           label: customerName || undefined,
-          cartSnapshot: { items: cart, customerName, orderDiscountAmount, selectedPromotionId },
+          cartSnapshot: { items: cart, customerName, orderDiscountAmount },
         }),
       });
     } catch (error) {

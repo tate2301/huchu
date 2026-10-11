@@ -46,7 +46,14 @@ export function ListCell({
     );
   }
 
-  if (isBlank(value)) return column.empty === "blank" ? null : <span className="cx-lf-none">{noValue(column)}</span>;
+  if (isBlank(value)) {
+    const words = column.pillKey && column.pillWordsKey ? row[column.pillWordsKey] : null;
+    if (!isBlank(words) && !isBlank(row[column.pillKey!])) {
+      return <span className={`cx-lf-pill cx-lf-pill--${String(row[column.pillKey!])}`}>{String(words)}</span>;
+    }
+    if (column.empty === "blank") return null;
+    return <span className={column.emptyWords ? "cx-lf-muted" : "cx-lf-none"}>{noValue(column)}</span>;
+  }
   const text = cellText(column, row);
 
   switch (column.cell) {
@@ -129,6 +136,9 @@ export function ListCell({
           {!isBlank(time) ? <span className="cx-lf-time"> {String(time)}</span> : null}
         </>
       );
+      // A pill in its tone when the row says so ("31 October 2026" in warn: a voucher in its last month).
+      const pill = column.pillKey ? row[column.pillKey] : null;
+      if (!isBlank(pill)) return <span className={`cx-lf-pill cx-lf-pill--${String(pill)}`}>{day}</span>;
       return isBlank(tone) ? day : <span style={{ color: `var(--${String(tone)})` }}>{day}</span>;
     }
     case "when":

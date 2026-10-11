@@ -451,6 +451,9 @@ const ROLE_WORDS: Record<RetailAccountRole, string> = {
   BREAKAGE: "breakage and losses",
   DEPOSITS_HELD: "deposits on empties",
   OPENING_BALANCES: "opening balances",
+  VOUCHERS_OWED: "vouchers owed",
+  PROMOTIONS_GIVEN: "promotions and gifts",
+  OTHER_INCOME: "other income",
 };
 
 function resolveLineAmount(line: PostingRuleLine, context: PostingContext, envelope: ReturnType<typeof buildEnvelope>, repeatItem?: Record<string, unknown>) {

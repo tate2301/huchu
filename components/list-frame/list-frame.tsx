@@ -428,16 +428,18 @@ export function ListFrame({ source, title, sub, rowFilters, defaultSort, default
   // What a run shows once done (the PINs WhatsApp did not take): only its "keep".
   const [afterAsk, setAfterAsk] = React.useState<Ask | null>(null);
   /** A `run` action's POST, its done toast, and the list (and nav badges) read again. */
-  const post = async (action: ListAction, ids: string[], targetRows: ReportRow[]) => {
+  /** `noted`: the ask's field and what was typed in it ("Why"), sent beside the ids. */
+  const post = async (action: ListAction, ids: string[], targetRows: ReportRow[], noted?: { key: string; value: string }) => {
     const how = action.do;
     if (!("endpoint" in how)) return;
     const run = "run" in how ? LIST_ACTION_RUNS[how.run] : undefined;
     const endpoint = runEndpoint(fillFromFilters(how.endpoint, resolved?.filters ?? {}) ?? how.endpoint, targetRows);
     if (!endpoint) throw new Error("That did not work. Nothing was changed; try again.");
+    const body = run?.body ? run.body(ids, targetRows) : { ids };
     const response = await fetch(endpoint, {
       method: run?.method ?? "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(run?.body ? run.body(ids, targetRows) : { ids }),
+      body: JSON.stringify(noted ? { ...(body as object), [noted.key]: noted.value } : body),
     });
     if (!response.ok) {
       const body = (await response.json().catch(() => null)) as { error?: string } | null;
@@ -688,10 +690,11 @@ export function ListFrame({ source, title, sub, rowFilters, defaultSort, default
           ask={confirmAsk}
           open
           onOpenChange={(open) => !open && setConfirming(null)}
-          onConfirm={async () => {
+          onConfirm={async (value) => {
             const how = confirming.action.do;
             if ("run" in how) {
-              await post(confirming.action, confirming.ids, confirming.rows);
+              const field = confirmAsk.field;
+              await post(confirming.action, confirming.ids, confirming.rows, field && value !== undefined ? { key: field.key, value } : undefined);
               return;
             }
             if (!("endpoint" in how)) return;

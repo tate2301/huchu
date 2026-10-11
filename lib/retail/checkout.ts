@@ -1,5 +1,3 @@
-export type RetailPromotionType = "PERCENT" | "AMOUNT" | "BUY_X_GET_Y" | "BUNDLE";
-
 export type RetailCheckoutLineInput = {
   id: string;
   quantity: number;
@@ -17,19 +15,7 @@ export type RetailCheckoutLineInput = {
    * Defaults to false, so a list that says nothing keeps meaning what it meant.
    */
   taxInclusive?: boolean;
-  /**
-   * PRD-08. False for a unit sold in a bundle or a buy-more deal: it already
-   * has its saving, so a sale promotion is worked out on, and shared over,
-   * the other lines only. Defaults to true.
-   */
-  promotionEligible?: boolean;
 };
-
-export type RetailCheckoutPromotion = {
-  id: string;
-  type: RetailPromotionType;
-  value: number;
-} | null;
 
 export type RetailCalculatedCheckoutLine = RetailCheckoutLineInput & {
   baseAmount: number;
@@ -53,12 +39,6 @@ export type RetailCalculatedCheckout = {
   taxAmount: number;
   /** What the customer pays. */
   total: number;
-  /**
-   * The promotion's own contribution, in the basis the shelf price is quoted
-   * in — a 10% promotion takes 10% off the price on the tag, which is what the
-   * customer was promised, rather than 10% off an ex-VAT figure they never saw.
-   */
-  promotionDiscountAmount: number;
   lines: RetailCalculatedCheckoutLine[];
 };
 
@@ -81,29 +61,9 @@ function netOfInclusiveTax(gross: number, taxPercent: number) {
   return round(gross / (1 + taxPercent / 100));
 }
 
-export function calculateRetailPromotionDiscount(
-  promotion: RetailCheckoutPromotion,
-  subtotal: number,
-) {
-  if (!promotion) {
-    return 0;
-  }
-
-  if (promotion.type === "PERCENT") {
-    return round((subtotal * promotion.value) / 100);
-  }
-
-  if (promotion.type === "AMOUNT") {
-    return round(Math.min(promotion.value, subtotal));
-  }
-
-  return 0;
-}
-
 export function calculateRetailCheckout(input: {
   lines: RetailCheckoutLineInput[];
   orderDiscountAmount?: number;
-  promotion?: RetailCheckoutPromotion;
 }) {
   const normalizedLines = input.lines.map((line) => {
     const baseAmount = round(line.unitPrice * line.quantity);
@@ -118,23 +78,10 @@ export function calculateRetailCheckout(input: {
     };
   });
 
-  // The cart in the basis its prices are quoted in — shelf money on a
-  // tax-inclusive list, ex-VAT money on an exclusive one. Discounts and
-  // promotions are worked out against this, because a percentage off is a
-  // percentage off the price the customer was shown. A promotion counts only
-  // the lines it may touch: none in a bundle or a buy-more deal (PRD-08).
-  const eligible = normalizedLines.map((line) => line.promotionEligible !== false);
-  const promotionSubtotal = round(
-    normalizedLines.reduce((total, line, index) => total + (eligible[index] ? line.baseAmount : 0), 0),
-  );
+  // The sale's own discount over every line, pro rata to what the line comes
+  // to, the last taking the cents. Promotions and bundles are already in each
+  // line's own discount (`lib/retail/pricing/sale.ts`).
   const manualOrderDiscount = round(input.orderDiscountAmount ?? 0);
-  const promotionDiscountAmount = calculateRetailPromotionDiscount(
-    input.promotion ?? null,
-    promotionSubtotal,
-  );
-
-  // The order discount over every line, the promotion over the lines it may
-  // touch: each pro rata to what the line comes to, the last taking the cents.
   const allocate = (pool: number, weights: number[]) => {
     const total = round(weights.reduce((sum, weight) => sum + weight, 0));
     const last = weights.reduce((at, weight, index) => (weight > 0 ? index : at), -1);
@@ -147,16 +94,9 @@ export function calculateRetailCheckout(input: {
       return share;
     });
   };
-  const orderShares = allocate(
+  const allocatedExtraDiscounts = allocate(
     manualOrderDiscount,
     normalizedLines.map((line) => line.taxableBeforeHeader),
-  );
-  const promotionShares = allocate(
-    promotionDiscountAmount,
-    normalizedLines.map((line, index) => (eligible[index] ? line.taxableBeforeHeader : 0)),
-  );
-  const allocatedExtraDiscounts = normalizedLines.map((_, index) =>
-    round(orderShares[index]! + promotionShares[index]!),
   );
 
   const lines = normalizedLines.map((line, index) => {
@@ -216,7 +156,6 @@ export function calculateRetailCheckout(input: {
     ),
     taxAmount: round(lines.reduce((total, line) => total + line.taxAmount, 0)),
     total: round(lines.reduce((total, line) => total + line.lineTotal, 0)),
-    promotionDiscountAmount,
     lines,
   } satisfies RetailCalculatedCheckout;
 }

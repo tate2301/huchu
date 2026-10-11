@@ -29,7 +29,6 @@ export type PosSaleQueuePayload = {
   loyaltyRedemptionPoints?: number;
   discountAmount?: number;
   overrideReason?: string;
-  promotionId?: string;
   /** The cashier confirmed the customer's ID for an age-restricted line. */
   idChecked?: boolean;
   /**
@@ -49,6 +48,8 @@ export type PosSaleQueuePayload = {
     emptiesBack?: number;
   }>;
   payments: PosSalePaymentInput[];
+  /** What the till showed and charged (PRD-09): `pos/sales` refuses a sale rung now that it prices differently. */
+  total?: number;
 };
 
 /**

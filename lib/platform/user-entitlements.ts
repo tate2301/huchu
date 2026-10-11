@@ -204,15 +204,8 @@ const ROLE_PREFIX_ALLOWLIST: Record<string, readonly string[] | null> = {
     "retail.pos",
     "retail.catalog",
     /*
-      A promotion the till cannot read is a promotion the shop is not running.
-
-      The checkout asks `/api/v2/retail/promotions?status=ACTIVE&pos=1` on
-      every load to know what comes off the basket. Gated on
-      `retail.promotions`, which no cashier had, so the request 403'd and the
-      basket was priced at full shelf price — on a shop that had bought the
-      feature, configured the promotion, and would have seen it apply from the
-      back office. It fails the same way as the customer picker: closed, and
-      indistinguishable from "there are none".
+      A cashier reads Promotions (the Roles board): what is running and how it
+      did. The till applies them from its price snapshot (PRD-09), not from here.
     */
     "retail.promotions",
     /*

@@ -68,7 +68,7 @@ describe("a sale's tenders as the books take them", () => {
 });
 
 describe("a sale's change as the books take it", () => {
-  const sale = { saleType: "SALE", totalAmount: 3.9, depositAmount: 0 };
+  const sale = { saleType: "SALE", totalAmount: 3.9, depositAmount: 0, vouchersSoldAmount: 0 };
 
   it("splits dollars from ZiG and finds what the rounding left", () => {
     // US$5 for US$3.90: US$1.10 owed, handed back US$1 and ZiG 3 at 27.10 (US$0.11).
@@ -90,7 +90,17 @@ describe("a sale's change as the books take it", () => {
   it("is all dollars on a refund, and on a sale with no ZiG in its change", () => {
     expect(postedChange({ ...sale, tenderedAmount: 5, changeAmount: 1.1, changeZig: 0 })).toEqual({ usd: 1.1, zig: 0, kept: 0, given: 0 });
     expect(
-      postedChange({ saleType: "REFUND", totalAmount: -3.9, depositAmount: 0, tenderedAmount: -3.9, changeAmount: 0, changeZig: 0 }),
+      postedChange({ saleType: "REFUND", totalAmount: -3.9, depositAmount: 0, vouchersSoldAmount: 0, tenderedAmount: -3.9, changeAmount: 0, changeZig: 0 }),
     ).toEqual({ usd: 0, zig: 0, kept: 0, given: 0 });
+  });
+
+  it("owes the gift vouchers bought in the sale, so none of their price is rounding", () => {
+    // US$21.20 for a US$1.20 Castle and a US$20.00 gift voucher: nothing back, nothing kept.
+    expect(postedChange({ ...sale, totalAmount: 1.2, vouchersSoldAmount: 20, tenderedAmount: 21.2, changeAmount: 0, changeZig: 0 })).toEqual({
+      usd: 0,
+      zig: 0,
+      kept: 0,
+      given: 0,
+    });
   });
 });

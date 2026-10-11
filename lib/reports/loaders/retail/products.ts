@@ -1,6 +1,7 @@
 import type { Prisma } from "@prisma/client";
 
 import { prisma } from "@/lib/prisma";
+import { promotionProductIds } from "@/lib/retail/promotions/service";
 import { num, result } from "@/lib/reports/loaders/shared";
 import type { ReportContext, ReportLoader, ReportOption, ReportParams, ReportRow } from "@/lib/reports/types";
 import {
@@ -53,6 +54,8 @@ async function unitsSold(
 
 async function loadProducts(ctx: ReportContext, params: ReportParams) {
   const siteId = params.site ?? null;
+  // Opened from a promotion: only the products it covers, each carrying the promotion for the parent filter.
+  const covered = params.promotion ? new Set(await promotionProductIds(ctx.companyId, params.promotion)) : null;
   const since = new Date(Date.now() - COVER_WINDOW_DAYS * DAY_MS);
   const stockWhere: Prisma.InventoryItemWhereInput = { site: { companyId: ctx.companyId }, ...(siteId ? { siteId } : {}) };
 
@@ -95,7 +98,7 @@ async function loadProducts(ctx: ReportContext, params: ReportParams) {
   );
 
   return result(
-    products.map((product): ReportRow => {
+    products.filter((product) => !covered || covered.has(product.id)).map((product): ReportRow => {
       const lines = product.inventoryItems;
       const onHand = lines.reduce((sum, line) => sum + (num(line.currentStock) ?? 0), 0);
       // "Reorder at" over the lines counted: summed across sites, as on hand is.
@@ -130,6 +133,7 @@ async function loadProducts(ctx: ReportContext, params: ReportParams) {
         // archived first, then what needs buying.
         cardMeta: [product.code, onHandLabel(onHand, unit), coverLabel(cover)].filter(Boolean).join(" · "),
         flag: archived ? "Archived" : stock === "In stock" ? null : stock,
+        promotionId: params.promotion ?? null,
       };
     }),
   );
@@ -155,5 +159,12 @@ async function productOptions(ctx: ReportContext): Promise<Record<string, Report
 }
 
 export const PRODUCT_LOADERS: Record<string, ReportLoader> = {
-  "retail-products": { load: loadProducts, options: productOptions },
+  "retail-products": { load: loadProducts, options: productOptions, parentLabel: promotionName },
 };
+
+/** The promotion a products list is opened on, by its name. */
+async function promotionName(ctx: ReportContext, filters: Record<string, string>): Promise<string | null> {
+  if (!filters.promotion || !/^[0-9a-f-]{36}$/i.test(filters.promotion)) return null;
+  const promotion = await prisma.retailPromotion.findFirst({ where: { id: filters.promotion, companyId: ctx.companyId }, select: { name: true } });
+  return promotion ? `On ${promotion.name}` : null;
+}

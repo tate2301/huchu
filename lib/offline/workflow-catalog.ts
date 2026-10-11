@@ -66,7 +66,6 @@ export const OFFLINE_WORKFLOW_CATALOG: OfflineWorkflowCatalogEntry[] = [
       "retail-current-shift",
       "retail-pos-catalog",
       "retail-pos-catalog-categories",
-      "retail-pos-promotions",
       "retail-pos-pricing",
       "retail-pos-held-carts",
       "retail-pos-sales",

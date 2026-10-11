@@ -151,7 +151,7 @@ export function dayText(column: Pick<ListColumn, "dayFormat">, value: string, no
 }
 
 /** What a cell with no value reads: "—", or "–" where the column's board draws that. */
-export const noValue = (column: ListColumn) => (column.empty === "dash" ? "–" : "—");
+export const noValue = (column: ListColumn) => column.emptyWords ?? (column.empty === "dash" ? "–" : "—");
 
 export function cellText(column: ListColumn, row: ReportRow): string {
   const value = row[column.key];

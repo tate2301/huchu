@@ -160,3 +160,18 @@ describe("ratio totals", () => {
     });
   });
 });
+
+describe("a total in two parts", () => {
+  it("sums a words column's money and its count, and keeps it through the view", () => {
+    // Vouchers' Left (PRD-10): money left on gift vouchers and credit notes, then a discount voucher's uses.
+    const rows: ReportRow[] = [
+      { id: "gv", left: "US$50.00", leftMoney: 50, leftUses: 0 },
+      { id: "cn", left: "US$12.60", leftMoney: 12.6, leftUses: 0 },
+      { id: "dv", left: "12 left", leftMoney: 0, leftUses: 12 },
+    ];
+    const columns: ReportColumn[] = [{ key: "left", label: "Left", kind: "text", totalParts: { money: "leftMoney", count: "leftUses" } }];
+    const view = { ...defaultView({ columns, defaults: {} }), totals: { left: "sum" as const } };
+    expect(applyView(rows, columns, view).totals).toEqual({ left: "US$62.60 + 12" });
+    expect(totalsFor(rows.slice(0, 2), columns, view)).toEqual({ left: "US$62.60" });
+  });
+});

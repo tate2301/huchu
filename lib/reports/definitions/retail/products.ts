@@ -42,6 +42,8 @@ const products: ListSpec = {
       column: "categoryId",
       primary: true,
     },
+    // A promotion's "All 12 products" (PRD-09): the products it covers.
+    { key: "promotion", type: "parent", column: "promotionId", all: "All products" },
     {
       key: "stock",
       label: "Stock",
