@@ -1,5 +1,6 @@
 import type { ReportRow } from "@/lib/reports/types";
 import type { Ask } from "@/lib/workspace/ask";
+import { voidAskWords } from "@/lib/retail/vouchers/words";
 import { formatCount } from "@/lib/workspace/format";
 
 import type { ListActionRun } from "./runs";
@@ -182,5 +183,46 @@ export const PROMOTION_LIST_RUNS: Record<string, ListActionRun> = {
   promoduplicate: {
     done: (count, rows) =>
       count === 1 && nameOf(rows) ? `${nameOf(rows)} copied. The copy starts tomorrow.` : `${formatCount(count)} promotions copied. The copies start tomorrow.`,
+  },
+};
+
+/**
+ * A voucher's ⋯ › Void it, and Vouchers' bulk Void (PRD-10 `voidvoucher`):
+ * "Void GV-0019?" / "US$7.40 left on it can no longer be spent. …", with the
+ * required reason that shows in Activity.
+ */
+export function voidVoucherAsk(input: { code: string | null; count: number; left: string | null }): Ask {
+  const one = input.count === 1;
+  return {
+    title: one && input.code ? `Void ${input.code}?` : `Void ${formatCount(input.count)} vouchers?`,
+    body: one
+      ? voidAskWords(input.left)
+      : "What is left on them can no longer be spent. The books write it off, and each shows in Activity with your reason.",
+    keep: one ? "Keep it" : "Keep them",
+    go: one ? "Void it" : "Void them",
+    fill: "bad",
+    field: { key: "reason", label: "Why", placeholder: "Printed twice, for example", min: 3, max: 300, needed: "Say why you are voiding it." },
+  };
+}
+
+/** Vouchers' actions that post the ticked ids (PRD-10). */
+export const VOUCHER_LIST_RUNS: Record<string, ListActionRun> = {
+  voidvoucher: {
+    ask: (count, rows) =>
+      voidVoucherAsk({
+        code: codeOf(rows),
+        count,
+        // The money left on the one ticked, as its row reads it ("US$7.40"); a discount voucher has none.
+        left: rows.length === 1 && rows[0]?.kindKey !== "DISCOUNT" && rows[0]?.left ? String(rows[0].left) : null,
+      }),
+    done: (count, rows, answer) => {
+      const voided = (answer as { voided?: number } | null)?.voided ?? count;
+      if (voided === 0) return { title: "Nothing was voided: they were voided or expired already.", variant: "warning" };
+      return count === 1 && codeOf(rows) ? `${codeOf(rows)} is void.` : `${formatCount(voided)} vouchers voided.`;
+    },
+  },
+  sendvoucher: {
+    done: (_count, rows, answer) => (answer as { message?: string } | null)?.message ?? `${codeOf(rows) ?? "The voucher"} sent on WhatsApp.`,
+    body: () => ({}),
   },
 };

@@ -6,6 +6,7 @@ import { PEOPLE_REPORTS } from "@/lib/reports/definitions/retail/people";
 import { PRICE_LIST_REPORTS } from "@/lib/reports/definitions/retail/price-lists";
 import { BUNDLE_REPORTS } from "@/lib/reports/definitions/retail/bundles";
 import { PROMOTION_REPORTS } from "@/lib/reports/definitions/retail/promotions";
+import { VOUCHER_REPORTS } from "@/lib/reports/definitions/retail/vouchers";
 import { PRODUCT_REPORTS } from "@/lib/reports/definitions/retail/products";
 import { SALE_RECORD_REPORTS } from "@/lib/reports/definitions/retail/sale-record";
 import { SHIFT_RECORD_REPORTS } from "@/lib/reports/definitions/retail/shift-record";
@@ -20,4 +21,4 @@ import { REPORT_CATALOG_REPORTS } from "@/lib/reports/definitions/retail/reports
 import type { ReportDefinition } from "@/lib/reports/types";
 
 /** Retail's report sources, one file per area so area units add a line here and nothing else. */
-export const RETAIL_REPORTS: ReportDefinition[] = [...FLOOR_REPORTS, ...SHIFT_RECORD_REPORTS, ...SALE_RECORD_REPORTS, ...PRODUCT_REPORTS, ...PRICE_LIST_REPORTS, ...BUNDLE_REPORTS, ...PROMOTION_REPORTS, ...STOCK_ON_HAND_REPORTS, ...STOCK_MOVEMENT_REPORTS, ...STOCK_TRANSFER_REPORTS, ...STOCK_COUNT_REPORTS, ...CATEGORY_REPORTS, ...BIN_REPORTS, ...SITE_REPORTS, ...TILL_REPORTS, ...PEOPLE_REPORTS, ...BUYING_REPORTS, ...REPORT_ONLY_REPORTS, ...REPORT_CATALOG_REPORTS];
+export const RETAIL_REPORTS: ReportDefinition[] = [...FLOOR_REPORTS, ...SHIFT_RECORD_REPORTS, ...SALE_RECORD_REPORTS, ...PRODUCT_REPORTS, ...PRICE_LIST_REPORTS, ...BUNDLE_REPORTS, ...PROMOTION_REPORTS, ...VOUCHER_REPORTS, ...STOCK_ON_HAND_REPORTS, ...STOCK_MOVEMENT_REPORTS, ...STOCK_TRANSFER_REPORTS, ...STOCK_COUNT_REPORTS, ...CATEGORY_REPORTS, ...BIN_REPORTS, ...SITE_REPORTS, ...TILL_REPORTS, ...PEOPLE_REPORTS, ...BUYING_REPORTS, ...REPORT_ONLY_REPORTS, ...REPORT_CATALOG_REPORTS];

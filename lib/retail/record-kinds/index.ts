@@ -9,3 +9,4 @@ export { supplierKind } from "./buying";
 export { saleKind, shiftKind } from "./floor";
 export { productKind } from "./products";
 export { transferKind } from "./stock";
+export { voucherKind } from "./vouchers";

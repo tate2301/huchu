@@ -448,6 +448,7 @@ const sales: ListSpec = {
     },
     { key: "shift", type: "parent", column: "shiftId" },
     { key: "bundle", type: "parent", column: "bundleId" },
+    { key: "voucher", type: "parent", column: "voucherId" },
   ],
   sorts: [
     { key: "newest", label: "Newest first", rules: [{ column: "postedAt", dir: "desc" }] },

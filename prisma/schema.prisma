@@ -330,6 +330,8 @@ model Company {
   retailPostingRuns             RetailPostingRun[]
   retailCategories              RetailCategory[]
   retailPromotions              RetailPromotion[]
+  retailVouchers                RetailVoucher[]
+  retailVoucherUses             RetailVoucherUse[]
   retailPurchaseOrders          RetailPurchaseOrder[]
   retailPurchaseOrderLines      RetailPurchaseOrderLine[]
   retailStockTransfers          RetailStockTransfer[]
@@ -1175,6 +1177,7 @@ model Site {
   userAccess            UserSiteAccess[]
   retailBundles         RetailBundle[]         @relation("RetailBundleSite")
   retailPromotions      RetailPromotion[]      @relation("RetailPromotionSite")
+  retailVouchers        RetailVoucher[]        @relation("RetailVoucherSite")
 
   @@unique([companyId, code])
   @@index([companyId])
@@ -1470,6 +1473,8 @@ model User {
   retailPrintJobsCreated            RetailPrintJob[]               @relation("RetailPrintJobCreatedBy")
   retailBundlesCreated              RetailBundle[]                 @relation("RetailBundleCreatedBy")
   retailPromotionsCreated           RetailPromotion[]              @relation("RetailPromotionCreatedBy")
+  retailVouchersIssued              RetailVoucher[]                @relation("RetailVoucherIssuedBy")
+  retailVouchersVoided              RetailVoucher[]                @relation("RetailVoucherVoidedBy")
   retailTransfersSent               RetailStockTransfer[]          @relation("RetailStockTransferSentBy")
   retailTransfersReceived           RetailStockTransfer[]          @relation("RetailStockTransferReceivedBy")
   retailTransfersCancelled          RetailStockTransfer[]          @relation("RetailStockTransferCancelledBy")
@@ -4716,6 +4721,9 @@ enum RetailAccountRole {
   BREAKAGE
   DEPOSITS_HELD
   OPENING_BALANCES
+  VOUCHERS_OWED
+  PROMOTIONS_GIVEN
+  OTHER_INCOME
 }
 
 /// The company's account for each role ("Sales and stock" on Posting to the books).
@@ -5160,6 +5168,109 @@ model RetailPromotion {
 
   @@unique([companyId, promoCode])
   @@index([companyId, startsAt])
+}
+
+/// PRD-10 (W-18): "Gift voucher" (GV-), "Credit note" (CN-), a discount voucher
+/// ("Promotion" on the form, "Discount voucher" in the list, DV-).
+enum RetailVoucherKind {
+  GIFT
+  CREDIT_NOTE
+  DISCOUNT
+}
+
+/// Who paid for a voucher: SOLD at the till (money owed to the holder), GIVEN
+/// in the back office (a cost to the shop), REFUND paid as a credit note.
+enum RetailVoucherFunding {
+  SOLD
+  GIVEN
+  REFUND
+}
+
+enum RetailVoucherSendBy {
+  PRINT
+  WHATSAPP
+  BOTH
+}
+
+/// A voucher (PRD-10, 20-products §3.3): its code and secret, what is left on
+/// it, and who holds it. State by `voucherState`: Void, Used up, Expired, Live.
+model RetailVoucher {
+  id           String               @id @default(uuid())
+  companyId    String
+  /// "GV-0021", "CN-0033", "DV-0007".
+  code         String
+  /// Printed and sent with the code; asked at the till when the code is typed rather than scanned.
+  secret       String
+  kind         RetailVoucherKind
+  funding      RetailVoucherFunding
+  /// Money vouchers: the value when issued. Null for a discount voucher.
+  value        Decimal?             @db.Decimal(14, 2)
+  /// Money vouchers: what is left.
+  balance      Decimal              @default(0) @db.Decimal(14, 2)
+  /// Discount vouchers: "10% off" or an amount off.
+  percentOff   Decimal?             @db.Decimal(5, 2)
+  amountOff    Decimal?             @db.Decimal(14, 2)
+  /// Discount vouchers: copies printed and uses left ("20 printed", "12 left").
+  copies       Int                  @default(1)
+  usesLeft     Int?
+  customerId   String?
+  /// "For" as typed when it names no customer ("Delta reps").
+  holderNote   String?
+  /// "Smallest sale it works on".
+  minSale      Decimal?             @db.Decimal(14, 2)
+  expiresOn    DateTime             @db.Date
+  /// "Sites": null = all sites.
+  siteId       String?
+  sendBy       RetailVoucherSendBy  @default(PRINT)
+  sentAt       DateTime?
+  /// The sale it was bought in (SOLD) or refunded from (REFUND).
+  soldSaleId   String?
+  issuedById   String?
+  issuedAt     DateTime             @default(now())
+  expiredAt    DateTime?
+  voidedAt     DateTime?
+  voidedById   String?
+  voidReason   String?
+  /// Wrong secrets typed at a till: the count since `wrongSince` (10 minutes),
+  /// and the lock the fifth sets (15 minutes).
+  wrongSecrets Int                  @default(0)
+  wrongSince   DateTime?            @db.Timestamptz(3)
+  lockedUntil  DateTime?            @db.Timestamptz(3)
+  createdAt    DateTime             @default(now())
+  updatedAt    DateTime             @updatedAt
+
+  company       Company             @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  customer      Customer?           @relation("RetailVoucherCustomer", fields: [customerId], references: [id], onDelete: SetNull)
+  site          Site?               @relation("RetailVoucherSite", fields: [siteId], references: [id], onDelete: SetNull)
+  soldSale      RetailSale?         @relation("RetailVoucherSoldSale", fields: [soldSaleId], references: [id], onDelete: SetNull)
+  issuedBy      User?               @relation("RetailVoucherIssuedBy", fields: [issuedById], references: [id], onDelete: SetNull)
+  voidedBy      User?               @relation("RetailVoucherVoidedBy", fields: [voidedById], references: [id], onDelete: SetNull)
+  uses          RetailVoucherUse[]
+  payments      RetailSalePayment[]
+  discountSales RetailSale[]        @relation("RetailSaleDiscountVoucher")
+
+  @@unique([companyId, code])
+  @@index([companyId, kind, expiresOn])
+  @@index([customerId])
+}
+
+/// Where a voucher was spent: money taken off it, or the discount it gave.
+/// Negative when a refund put money back on it.
+model RetailVoucherUse {
+  id           String   @id @default(uuid())
+  companyId    String
+  voucherId    String
+  saleId       String
+  amount       Decimal  @db.Decimal(14, 2)
+  balanceAfter Decimal  @db.Decimal(14, 2)
+  createdAt    DateTime @default(now())
+
+  company Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  voucher RetailVoucher @relation(fields: [voucherId], references: [id], onDelete: Restrict)
+  sale    RetailSale    @relation("RetailVoucherUseSale", fields: [saleId], references: [id], onDelete: Restrict)
+
+  @@index([voucherId, createdAt])
+  @@index([saleId])
 }
 
 model RetailPromotionProduct {
@@ -5976,6 +6087,12 @@ model RetailSale {
   /// day that is open: the same day when its close is given back, else the
   /// next. Null once it has its receipt or cannot be signed.
   fiscalWaitsSince DateTime?
+  /// PRD-10: gift vouchers bought in this sale. Outside `totalAmount`, like
+  /// `depositAmount`: owed to the holder until spent, not revenue, not VAT, not
+  /// fiscalised as goods. What the customer pays is total + deposits + this.
+  vouchersSoldAmount Decimal @default(0) @db.Decimal(14, 2)
+  /// PRD-10: the discount voucher taken off this sale (after promotions).
+  discountVoucherId  String?
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 
@@ -5996,6 +6113,9 @@ model RetailSale {
   customer   Customer?       @relation("RetailSaleCustomer", fields: [customerId], references: [id], onDelete: SetNull, onUpdate: Cascade)
   approvedBy User?           @relation("RetailSaleApprovedBy", fields: [approvedById], references: [id], onDelete: SetNull, onUpdate: Cascade)
   empties    RetailEmptiesEntry[]
+  discountVoucher RetailVoucher?     @relation("RetailSaleDiscountVoucher", fields: [discountVoucherId], references: [id], onDelete: SetNull)
+  vouchersSold    RetailVoucher[]    @relation("RetailVoucherSoldSale")
+  voucherUses     RetailVoucherUse[] @relation("RetailVoucherUseSale")
 
   @@unique([companyId, saleNo])
   @@unique([companyId, clientRef])
@@ -6136,9 +6256,12 @@ model RetailSalePayment {
   /// `amount` in the company's base currency, so a mixed-tender sale still adds up.
   baseAmount Decimal @default(0) @db.Decimal(14, 2)
   reference  String?
+  /// PRD-10: tender VOUCHER, the voucher that paid.
+  voucherId  String?
   createdAt  DateTime @default(now())
 
-  sale RetailSale @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  sale    RetailSale     @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  voucher RetailVoucher? @relation(fields: [voucherId], references: [id], onDelete: SetNull)
 
   company Company @relation(fields: [companyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
 
@@ -6320,6 +6443,9 @@ enum AccountingSourceType {
   RETAIL_SHIFT_CLOSE
   RETAIL_SHIFT_RECOVERY
   RETAIL_DAY_BANKED
+  RETAIL_VOUCHER_ISSUE
+  RETAIL_VOUCHER_EXPIRY
+  RETAIL_VOUCHER_VOID
   GOLD_SHIFT_ALLOCATION_COMPANY
   GOLD_SHIFT_ALLOCATION_WORKER
   GOLD_SHIFT_EXPENSE
@@ -6922,6 +7048,7 @@ model Customer {
   quotations      SalesQuotation[]
   crmClients      CrmClient[]
   retailSales     RetailSale[]     @relation("RetailSaleCustomer")
+  retailVouchers  RetailVoucher[]  @relation("RetailVoucherCustomer")
 
   @@index([companyId, isActive])
 }

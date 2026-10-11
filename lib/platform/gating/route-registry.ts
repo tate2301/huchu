@@ -474,6 +474,8 @@ export const API_FEATURE_ROUTES: FeatureRouteEntry[] = [
   { scope: "api", prefix: "/api/v2/retail/promotions", featureKey: "retail.promotions" },
   // Bundles and buy-more deals, and Sell by the case (PRD-08).
   { scope: "api", prefix: "/api/v2/retail/bundles", featureKey: "retail.promotions" },
+  // Vouchers, credit notes and discount vouchers (PRD-10).
+  { scope: "api", prefix: "/api/v2/retail/vouchers", featureKey: "retail.promotions" },
   { scope: "api", prefix: "/api/v2/retail/packs", featureKey: "retail.catalog" },
   { scope: "api", prefix: "/api/v2/retail/shifts", featureKey: "retail.shifts" },
   { scope: "api", prefix: "/api/v2/retail/pos", featureKey: "retail.pos" },
