@@ -43,6 +43,68 @@ export function removeOrderAsk({ ref, supplier }: { ref: string; supplier: strin
   };
 }
 
+/** "on WhatsApp" / "by email" / null (nobody to tell). */
+type TellChannel = "WHATSAPP" | "EMAIL" | "BY_HAND";
+
+/** "Cancel what is left" on an order (`cancelrest`, **Defined here**). */
+export function cancelRestAsk({
+  ref,
+  units,
+  lines,
+  supplier,
+  channel,
+  anythingCame,
+}: {
+  ref: string;
+  units: number;
+  lines: number;
+  supplier: string;
+  channel: TellChannel;
+  anythingCame: boolean;
+}): Ask {
+  const told =
+    channel === "WHATSAPP" ? `${supplier} is told on WhatsApp.` : channel === "EMAIL" ? `${supplier} is told by email.` : `${supplier} has no WhatsApp number or email; tell them yourself.`;
+  const came = anythingCame ? "What came stays in stock and is billed as usual." : "Nothing came, so the order is cancelled.";
+  return {
+    title: `Cancel what is left of ${ref}?`,
+    body: `${plural(units, "unit", "units")} across ${plural(lines, "line", "lines")} will not come. ${told} ${came} This cannot be undone; order again if you need them.`,
+    keep: "Keep the order",
+    go: "Cancel what is left",
+    fill: "bad",
+  };
+}
+
+/** "PO-0004 to Pamela on WhatsApp and PO-0007 to Delta Beverages on WhatsApp." */
+function listWords(parts: string[]): string {
+  if (parts.length <= 1) return parts.join("");
+  return `${parts.slice(0, -1).join(", ")} and ${parts.at(-1)}`;
+}
+
+/** Orders' bulk "Send to suppliers" (`sendorders`, **Defined here**): each order, to whom and how. */
+export function sendOrdersAsk(orders: Array<{ poNo: string; supplier: string; how: string }>, count = orders.length): Ask {
+  const named = orders.length === count && orders.length > 0;
+  return {
+    title: `Send ${plural(count, "order", "orders")}?`,
+    body: named
+      ? `${listWords(orders.map((order) => `${order.poNo} to ${order.supplier} ${order.how}`))}.`
+      : "Each goes to its supplier the way they take orders. Drafts with no lines are left.",
+    keep: "Not yet",
+    go: `Send ${formatCount(count)}`,
+    fill: "action",
+  };
+}
+
+/** Orders' bulk "Cancel" (`cancelorders`, **Defined here**). */
+export function cancelOrdersAsk(count: number): Ask {
+  return {
+    title: `Cancel ${plural(count, "order", "orders")}?`,
+    body: "Drafts go to the bin for 30 days. Sent orders have what is left cancelled and their suppliers are told. Orders that are done are left alone.",
+    keep: "Keep them",
+    go: `Cancel ${formatCount(count)}`,
+    fill: "bad",
+  };
+}
+
 /** A requisition's "Cancel the requisition" (Record board, `ASKS.cancelreq`). */
 export function cancelRequisitionAsk({
   ref,
@@ -131,6 +193,26 @@ export const BUYING_LIST_RUNS: Record<string, ListActionRun> = {
     ask: (_count, rows) => removeOrderAsk({ ref: String(rows[0]?.poNo ?? "the order"), supplier: String(rows[0]?.supplier ?? "The supplier") }),
     body: (ids) => ({ kind: "order", id: ids[0] }),
     done: (_count, rows, answer) => orderBinnedWords(String(rows[0]?.poNo ?? "The order"), (answer as { keptUntil?: string } | null)?.keptUntil),
+  },
+  sendorders: {
+    ask: (count, rows) =>
+      sendOrdersAsk(
+        rows.map((row) => ({ poNo: String(row.poNo ?? ""), supplier: String(row.supplier ?? ""), how: String(row.sendWords ?? "") })),
+        count,
+      ),
+    done: (count, _rows, answer) => {
+      const skipped = (answer as { skipped?: unknown[] } | null)?.skipped ?? [];
+      const words = said(answer, `${plural(count, "order", "orders")} sent.`);
+      return skipped.length ? { title: words, variant: "warning" } : words;
+    },
+  },
+  cancelorders: {
+    ask: (count) => cancelOrdersAsk(count),
+    done: (count, _rows, answer) => {
+      const skipped = (answer as { skipped?: unknown[] } | null)?.skipped ?? [];
+      const words = said(answer, `${plural(count, "order", "orders")} cancelled.`);
+      return skipped.length ? { title: words, variant: "warning" } : words;
+    },
   },
   sendagain: {
     done: (_count, _rows, answer) => said(answer, "It is queued to send again."),

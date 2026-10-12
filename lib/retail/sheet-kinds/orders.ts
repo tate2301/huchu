@@ -1,14 +1,31 @@
+import { cancelRestAsk } from "@/lib/retail/asks/buying";
 import type { OrderView } from "@/lib/retail/buying/order-view";
 import type { Suggestion } from "@/lib/retail/buying/suggest";
-import { firstWord, orderStateWords, PAYMENT_OF, PAYING, PAYING_WORD, SEND_LABEL, sentWords, tellNote, termsNote, type OrderChannel } from "@/lib/retail/buying/words";
+import {
+  chaseMessage,
+  chasePrimary,
+  chaseSub,
+  firstWord,
+  orderStateWords,
+  PAYMENT_OF,
+  PAYING,
+  PAYING_WORD,
+  SEND_LABEL,
+  sentWords,
+  tellNote,
+  termsNote,
+  type OrderChannel,
+  type OwedLine,
+} from "@/lib/retail/buying/words";
 import { formatMoney } from "@/lib/workspace/format";
 import type { PickedOption, SheetCtx, SheetKind, SheetLine, SheetRequest, SheetValues } from "@/lib/workspace/sheet-kind";
 
 /**
- * Buying's order sheets (40-buying 5.15, 5.16): New order — the supplier's
- * suggested lines, where and when, how it is paid, sent or saved as a draft;
- * stepping through ticked suppliers with `supplierIds` — and Edit an order,
- * telling the supplier or not. Both talk to `/api/v2/retail/buying/orders`.
+ * Buying's order sheets (40-buying 5.15, 5.16, 5.17): New order — the
+ * supplier's suggested lines, where and when, how it is paid, sent or saved
+ * as a draft; stepping through ticked suppliers with `supplierIds` — Edit an
+ * order, telling the supplier or not, or cancelling what is left; and Chase a
+ * late order. All talk to `/api/v2/retail/buying/orders`.
  */
 
 const API = "/api/v2/retail/buying";
@@ -260,6 +277,15 @@ const orderEdit: SheetKind = {
       _siteOpen: order.siteOpen,
       exp: order.expectedDate,
       site: { id: order.site.id, label: order.site.name, sub: null },
+      _waiting: order.can.cancelRest,
+      _cancel: {
+        ref: order.poNo,
+        units: order.figures.stillUnits,
+        lines: order.lines.filter((line) => line.outstanding > 0 && !line.closedShort).length,
+        supplier: order.supplier.name,
+        channel: order.channel,
+        anythingCame: order.figures.delivered > 0,
+      },
       lines: order.lines.map(
         (line): SheetLine => ({
           productId: line.productId ?? line.id,
@@ -309,6 +335,104 @@ const orderEdit: SheetKind = {
   },
   submit: (values, ctx) => editRequest(ctx, values, !values._draft),
   done: (_result, _values, payload) => String((payload as { message?: string }).message ?? "Changed."),
+  // A sent order: stop waiting for the rest, and tell the supplier (W-34).
+  danger: {
+    label: "Cancel what is left",
+    show: (_ctx, values) => Boolean(values._waiting),
+    ask: (_ctx, values) => cancelRestAsk(values._cancel as Parameters<typeof cancelRestAsk>[0]),
+    request: (ctx) => ({ method: "POST", url: `${API}/orders/${ctx.id ?? ctx.params.get("id") ?? ""}/cancel-rest`, body: { tell: true } }),
+    done: (values) => {
+      const facts = values._cancel as Parameters<typeof cancelRestAsk>[0];
+      return `What was left of ${facts.ref} is cancelled.${facts.channel === "BY_HAND" ? "" : ` ${firstWord(facts.supplier)} has been told.`}`;
+    },
+  },
+  invalidate: invalidateOrders,
+  requires: [["retail.purchasing", "update"]],
+};
+
+/* ── 5.17 Chase a late order ────────────────────────────────────────────── */
+
+const THEN = ["Remind me", "Cancel the rest"] as const;
+
+/** The facts the message is built from, kept so a new To can write it again. */
+type ChaseFacts = { poNo: string; sentAt: string | null; raisedAt: string; site: string; lines: OwedLine[] };
+
+/** "Tinashe Moyo, rep" → "Tinashe". */
+const firstNameOf = (label: string) => firstWord(label.replace(/, rep$/, "")) || null;
+
+/** The person's channel, from the lookup's sub: their phone (WhatsApp), else their email. */
+const channelOfPick = (picked: PickedOption | null, fallback: "WHATSAPP" | "EMAIL"): "WHATSAPP" | "EMAIL" =>
+  picked ? (picked.sub && picked.sub.includes("@") ? "EMAIL" : "WHATSAPP") : fallback;
+
+const orderChase: SheetKind = {
+  title: (_ctx, values) => (values._poNo ? `Chase ${String(values._poNo)}` : "Chase the order"),
+  sub: (_ctx, values) => (values._sub ? String(values._sub) : SUB),
+  cur: "US$",
+  load: async (ctx) => {
+    const order = await orderOf(ctx);
+    const facts: ChaseFacts = {
+      poNo: order.poNo,
+      sentAt: order.sentAt,
+      raisedAt: order.raisedAt,
+      site: order.site.name,
+      lines: order.lines.map((line) => ({ name: line.name, outstanding: line.closedShort ? 0 : line.outstanding })),
+    };
+    const chase = order.chase;
+    const msg = chaseMessage(facts, { firstName: chase?.firstName ?? null });
+    return {
+      _poNo: order.poNo,
+      _supplierId: order.supplier.id,
+      _sub: chaseSub(order.supplier.name, order.late?.days ?? null, order.expectedDate),
+      _facts: facts,
+      _hasContacts: chase?.hasContacts ?? false,
+      _channel: chase?.channel ?? "WHATSAPP",
+      _fallback: chase?.channel ?? "WHATSAPP",
+      _built: msg,
+      to: chase?.contact ?? null,
+      msg,
+      new: chase?.promisedFor ?? "",
+      then: THEN[0],
+    };
+  },
+  sections: [
+    {
+      fields: [
+        {
+          id: "to",
+          t: "auto",
+          l: "To",
+          noun: "contact",
+          context: (_ctx, values) => ({ supplierId: values._supplierId }),
+          needed: "Choose who it goes to.",
+          show: (values) => Boolean(values._hasContacts),
+          // A new person: their first name in the message, unless it was written over.
+          follow: async (value, values) => {
+            const picked = value as PickedOption | null;
+            const channel = channelOfPick(picked, (values._fallback as "WHATSAPP" | "EMAIL") ?? "WHATSAPP");
+            if (values.msg !== values._built) return { _channel: channel };
+            const msg = chaseMessage(values._facts as ChaseFacts, { firstName: picked ? firstNameOf(picked.label) : null });
+            return { _channel: channel, msg, _built: msg };
+          },
+        },
+        { id: "msg", t: "area", l: "Message", rows: 5, max: 1000, needed: "Write the message." },
+        { id: "new", t: "date", l: "Promised for", half: true, earliest: "today", h: "Moves the expected date.", needed: "Choose the day they promise." },
+        { id: "then", t: "seg", l: "If it does not come", half: true, o: [...THEN], v: THEN[0] },
+      ],
+    },
+  ],
+  note: "The message and their reply are kept on the order.",
+  primary: (values) => chasePrimary((values._channel as "WHATSAPP" | "EMAIL" | undefined) ?? "WHATSAPP"),
+  submit: (values, ctx) => ({
+    method: "POST",
+    url: `${API}/orders/${ctx.id ?? ctx.params.get("id") ?? ""}/chase`,
+    body: {
+      contactId: values._hasContacts ? (one(values, "to")?.id ?? null) : null,
+      message: text(values.msg),
+      promisedFor: text(values.new),
+      then: values.then === THEN[1] ? "CANCEL_REST" : "REMIND",
+    },
+  }),
+  done: (_result, _values, payload) => String((payload as { toast?: string }).toast ?? "Reminder sent."),
   invalidate: invalidateOrders,
   requires: [["retail.purchasing", "update"]],
 };
@@ -316,4 +440,5 @@ const orderEdit: SheetKind = {
 export const ORDER_SHEETS: Record<string, SheetKind> = {
   "order-new": orderNew,
   "order-edit": orderEdit,
+  "order-chase": orderChase,
 };

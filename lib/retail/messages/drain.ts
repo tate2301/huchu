@@ -72,6 +72,8 @@ const SUBJECTS: Record<string, (shop: string) => string> = {
   receipt: (shop) => `Your receipt from ${shop}`,
   "purchase-order": (shop) => `An order from ${shop}`,
   "order-changed": (shop) => `A changed order from ${shop}`,
+  "order-reminder": (shop) => `About your order from ${shop}`,
+  "order-cancel-rest": (shop) => `Cancelling the rest of an order from ${shop}`,
 };
 
 export type DrainDeps = {

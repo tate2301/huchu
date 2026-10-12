@@ -270,6 +270,17 @@ const orders: ListSpec = {
   filters: [
     { key: "supplier", label: "Supplier", type: "choice", any: "Any", primary: true, optionsFromLoader: true, column: "supplierId" },
     { key: "site", label: "Site", type: "choice", any: "Any", primary: true, optionsFromLoader: true, column: "siteId", hideBelow: 2 },
+    // Late (W-34): sent or part delivered, something still to come, and past the day first expected. The loader asks it.
+    {
+      key: "late",
+      label: "Late",
+      type: "choice",
+      any: "Any",
+      options: [
+        { value: "late", label: "Late" },
+        { value: "not-late", label: "Not late" },
+      ],
+    },
     { key: "raised", label: "Raised", type: "period", any: "Any time", column: "raised" },
     { key: "supplierId", type: "parent", column: "supplierId" },
   ],
@@ -355,6 +366,13 @@ const orders: ListSpec = {
       do: { href: "/retail/buying/deliveries?orderId={id}" },
     },
     {
+      key: "chase",
+      label: "Send a reminder",
+      requires: ORDER_UPDATE,
+      when: IS(["SENT", "PARTIAL"]),
+      do: { href: "/retail/buying/orders?sheet=order-chase&id={id}" },
+    },
+    {
       key: "edit",
       label: "Edit lines",
       requires: ORDER_UPDATE,
@@ -379,7 +397,17 @@ const orders: ListSpec = {
       do: { run: "removeorder", endpoint: "/api/v2/retail/bin" },
     },
   ],
-  bulk: [{ key: "export" }],
+  bulk: [
+    {
+      key: "send",
+      label: "Send to suppliers",
+      requires: ORDER_CREATE,
+      when: IS(["DRAFT"]),
+      do: { run: "sendorders", endpoint: "/api/v2/retail/buying/orders/bulk/send" },
+    },
+    { key: "cancel", label: "Cancel", tone: "bad", requires: ORDER_UPDATE, do: { run: "cancelorders", endpoint: "/api/v2/retail/buying/orders/bulk/cancel" } },
+    { key: "export" },
+  ],
   primary: { label: "New order", icon: "plus", requires: ORDER_CREATE, sheet: "order-new" },
   card: { title: "title", badge: "state", figure: "stillToCome", meta: "{cardMeta}" },
   empty: {

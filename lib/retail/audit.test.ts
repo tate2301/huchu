@@ -544,6 +544,8 @@ describe("the chain", () => {
       orderSent: "RETAIL_PURCHASE_ORDER.SENT",
       orderChanged: "RETAIL_PURCHASE_ORDER.CHANGED",
       orderDuplicated: "RETAIL_PURCHASE_ORDER.DUPLICATED",
+      orderChased: "RETAIL_PURCHASE_ORDER.CHASED",
+      orderRestCancelled: "RETAIL_PURCHASE_ORDER.REST_CANCELLED",
       messageReceived: "RETAIL_MESSAGE.RECEIVED",
     });
   });

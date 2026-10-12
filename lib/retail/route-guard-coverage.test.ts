@@ -319,3 +319,35 @@ describe("reversing a sale past the till rules needs a manager unless you approv
     expect(canRetailRoleDo("FINANCE_OFFICER", "retail.sell", "void")).toBe(false);
   });
 });
+
+/**
+ * BUY-03's order follow-ups (40-buying 4.3): chasing, cancelling what is left
+ * and the bulk cancel change orders; the bulk send creates. A stock clerk and
+ * a bookkeeper hold neither, so each answers them 403 "Your role cannot
+ * change orders and deliveries".
+ */
+describe("order follow-ups gate on their own purchasing right", () => {
+  const FOLLOW_UPS: Array<{ key: string; action: "create" | "update" }> = [
+    { key: "buying/orders/[id]/chase/route.ts POST", action: "update" },
+    { key: "buying/orders/[id]/cancel-rest/route.ts POST", action: "update" },
+    { key: "buying/orders/bulk/send/route.ts POST", action: "create" },
+    { key: "buying/orders/bulk/cancel/route.ts POST", action: "update" },
+  ];
+
+  it.each(FOLLOW_UPS)("$key gates on retail.purchasing $action", ({ key, action }) => {
+    const handler = allHandlers.find((candidate) => candidate.key.endsWith(key));
+    expect(handler, `no handler found for ${key}`).toBeDefined();
+    expect(stripComments(handler?.body ?? "")).toContain(`requireRetailPermission(session, "retail.purchasing", "${action}")`);
+  });
+
+  it("gives owners and managers the follow-ups, and not the stock clerk or the bookkeeper", () => {
+    for (const role of ["SUPERADMIN", "MANAGER"]) {
+      expect(canRetailRoleDo(role, "retail.purchasing", "update")).toBe(true);
+      expect(canRetailRoleDo(role, "retail.purchasing", "create")).toBe(true);
+    }
+    for (const role of ["STOCK_CLERK", "FINANCE_OFFICER"]) {
+      expect(canRetailRoleDo(role, "retail.purchasing", "update")).toBe(false);
+      expect(canRetailRoleDo(role, "retail.purchasing", "create")).toBe(false);
+    }
+  });
+});

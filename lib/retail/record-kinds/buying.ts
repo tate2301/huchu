@@ -1,5 +1,5 @@
 import { fetchJson } from "@/lib/api-client";
-import { closeShortAsk, stopBuyingAsk } from "@/lib/retail/asks/buying";
+import { cancelRestAsk, closeShortAsk, stopBuyingAsk } from "@/lib/retail/asks/buying";
 import type { OrderView } from "@/lib/retail/buying/order-view";
 import type { SupplierView } from "@/lib/retail/buying/supplier-view";
 import { firstWord, lateWords, PAYING, PAYING_WORD, PAYMENT_OF, paysRailWords, sentWords } from "@/lib/retail/buying/words";
@@ -471,6 +471,7 @@ export const orderKind: RecordKind<OrderView> = {
   title: (order) => order.supplier.name,
   reference: (order) => order.poNo,
   actions: (order) => [
+    ...(order.can.chase ? [{ key: "chase", label: "Send a reminder", requires: [ORDER_UPDATE], do: { sheet: "order-chase", id: order.id } }] : []),
     ...(isOpen(order)
       ? [{ key: "edit", label: "Edit lines", requires: [ORDER_UPDATE], do: { sheet: "order-edit", id: order.id } }]
       : []),
@@ -496,6 +497,31 @@ export const orderKind: RecordKind<OrderView> = {
                   supplier: firstWord(order.supplier.name),
                 }),
                 done: `${order.poNo} closed with what came. ${formatCount(order.figures.stillUnits)} ${order.figures.stillUnits === 1 ? "unit is" : "units are"} no longer expected.`,
+              },
+            },
+          },
+        ]
+      : []),
+    ...(order.can.cancelRest
+      ? [
+          {
+            key: "cancelRest",
+            label: "Cancel what is left",
+            tone: "bad" as const,
+            requires: [ORDER_UPDATE],
+            do: {
+              post: {
+                url: `${ORDER_API}/${order.id}/cancel-rest`,
+                body: { tell: true },
+                ask: cancelRestAsk({
+                  ref: order.poNo,
+                  units: order.figures.stillUnits,
+                  lines: order.lines.filter((line) => line.outstanding > 0 && !line.closedShort).length,
+                  supplier: order.supplier.name,
+                  channel: order.channel,
+                  anythingCame: order.figures.delivered > 0,
+                }),
+                done: `What was left of ${order.poNo} is cancelled.${order.channel === "BY_HAND" ? "" : ` ${firstWord(order.supplier.name)} has been told.`}`,
               },
             },
           },

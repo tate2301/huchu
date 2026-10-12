@@ -7,7 +7,8 @@ import { isOpenForDelivery, outstanding } from "@/lib/retail/purchase-orders";
 import { dayKey, formatDay, formatTime } from "@/lib/workspace/format";
 
 import { deliveredValue, lateness, orderedDelivered, orderTotals, stillToCome, type OrderState } from "./figures";
-import { channelOf, orderRecipients } from "./orders";
+import { channelOf, chaseRecipient, expectedFor, orderRecipients } from "./orders";
+import { repOf } from "./suppliers";
 import { shortName, type OrderChannel } from "./words";
 
 /**
@@ -74,7 +75,31 @@ export type OrderView = {
   deliveries: Array<{ id: string; receiptNo: string; postedAt: string; units: number }>;
   requisition: null;
   counts: { lines: number; deliveries: number; messages: number };
-  can: { send: boolean; edit: boolean; close: boolean; reopen: boolean; remove: boolean; duplicate: boolean; receive: boolean };
+  can: {
+    send: boolean;
+    edit: boolean;
+    close: boolean;
+    reopen: boolean;
+    remove: boolean;
+    duplicate: boolean;
+    receive: boolean;
+    /** Sent or part delivered: "Send a reminder" and "Cancel what is left". */
+    chase: boolean;
+    cancelRest: boolean;
+  };
+  /**
+   * The chase sheet's starting point (5.17): who it goes to (the first
+   * contact who gets orders, else the rep; null with no contacts, when it
+   * goes to the supplier's own number), how, and the day to promise (today
+   * plus the lead time, tomorrow at the soonest). Null when not waiting.
+   */
+  chase: {
+    contact: { id: string; label: string; sub: string | null } | null;
+    hasContacts: boolean;
+    channel: "WHATSAPP" | "EMAIL";
+    firstName: string | null;
+    promisedFor: string;
+  } | null;
 };
 
 const VIA_WORDS: Record<RetailOrderSentVia, string> = { WHATSAPP: "WhatsApp", EMAIL: "Email", BY_HAND: "By hand" };
@@ -104,12 +129,13 @@ export async function loadOrderView(companyId: string, id: string, now = new Dat
           id: true,
           name: true,
           payTermsDays: true,
+          leadTimeDays: true,
           stoppedAt: true,
           whatsapp: true,
           email: true,
           sendOrdersOnWhatsapp: true,
           contactName: true,
-          contacts: { where: { removedAt: null }, orderBy: [{ createdAt: "asc" }, { id: "asc" }], select: { name: true, phone: true, email: true, sends: true } },
+          contacts: { where: { removedAt: null }, orderBy: [{ createdAt: "asc" }, { id: "asc" }], select: { id: true, name: true, phone: true, email: true, sends: true } },
         },
       },
       site: { select: { id: true, name: true } },
@@ -148,6 +174,10 @@ export async function loadOrderView(companyId: string, id: string, now = new Dat
   const open = state === "DRAFT" || state === "SENT" || state === "PARTIAL";
   const anythingCame = order.lines.some((line) => quantity(line.receivedQuantity).greaterThan(0));
   const binned = await binState(companyId, "RetailPurchaseOrder", order.id, order.archivedAt, now);
+  const waiting = state === "SENT" || state === "PARTIAL";
+  const rep = repOf(order.vendor.contactName, order.vendor.contacts);
+  const chaseTo = order.vendor.contacts.find((contact) => contact.sends === "ORDERS" && (contact.phone || contact.email)) ?? rep;
+  const chaseVia = chaseRecipient(order.vendor, chaseTo ?? null);
 
   return {
     id: order.id,
@@ -220,6 +250,19 @@ export async function loadOrderView(companyId: string, id: string, now = new Dat
       remove: state === "DRAFT",
       duplicate: !order.vendor.stoppedAt,
       receive: isOpenForDelivery(order.status) && !order.archivedAt,
+      chase: waiting,
+      cancelRest: waiting,
     },
+    chase: waiting
+      ? {
+          contact: chaseTo
+            ? { id: chaseTo.id, label: chaseTo === rep ? `${chaseTo.name}, rep` : chaseTo.name, sub: chaseTo.phone ?? chaseTo.email ?? null }
+            : null,
+          hasContacts: order.vendor.contacts.length > 0,
+          channel: chaseVia?.channel ?? "WHATSAPP",
+          firstName: chaseVia?.firstName ?? null,
+          promisedFor: expectedFor(Math.max(1, order.vendor.leadTimeDays ?? 0), now),
+        }
+      : null,
   };
 }

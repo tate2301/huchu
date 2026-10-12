@@ -1,4 +1,4 @@
-import { formatCount } from "@/lib/workspace/format";
+import { formatCount, formatDay } from "@/lib/workspace/format";
 
 import type { OrderState } from "./figures";
 
@@ -115,3 +115,57 @@ export function termsNote(input: {
   const pays = input.payTermsDays === null ? `${short} pays on delivery.` : `${short} pays ${input.payTermsDays} days.`;
   return { text: input.minimum === null ? pays : `${pays} Their minimum is ${input.money(input.minimum)}.`, warn: false };
 }
+
+/* ── Chasing an order and cancelling what is left (W-34) ────────────────── */
+
+/** "10 August": a day without its year, as the messages and toasts say it. A shop day (`YYYY-MM-DD`) is read at noon. */
+export function dayMonth(value: Date | string): string {
+  const at = typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value) ? `${value}T12:00:00Z` : value;
+  return formatDay(at).replace(/ \d{4}$/, "");
+}
+
+/** What an order still owes, line by line, as the supplier reads it. */
+export type OwedLine = { name: string; outstanding: number };
+
+/** "Castle 340ml 120, Chibuku 1L 180": each line still to come, by its short name. */
+function owedWords(lines: OwedLine[]): { units: number; text: string } {
+  const owed = lines.filter((line) => line.outstanding > 0);
+  return {
+    units: owed.reduce((sum, line) => sum + line.outstanding, 0),
+    text: owed.map((line) => `${shortName(line.name)} ${formatCount(line.outstanding)}`).join(", "),
+  };
+}
+
+/**
+ * The reminder as the chase sheet fills it in (40-buying W-34): "Hello
+ * Tinashe, order PO-0003 from 10 August is still 480 units short: Castle
+ * 340ml 120, Chibuku 1L 180, …. When can you deliver? Harare Main Branch."
+ * "From" is the day it was sent; "Hello" alone with no first name.
+ */
+export function chaseMessage(
+  order: { poNo: string; sentAt: Date | string | null; raisedAt: Date | string; site: string; lines: OwedLine[] },
+  contact: { firstName: string | null } | null,
+): string {
+  const hello = contact?.firstName ? `Hello ${contact.firstName}` : "Hello";
+  const owed = owedWords(order.lines);
+  return `${hello}, order ${order.poNo} from ${dayMonth(order.sentAt ?? order.raisedAt)} is still ${formatCount(owed.units)} ${
+    owed.units === 1 ? "unit" : "units"
+  } short: ${owed.text}. When can you deliver? ${order.site}.`;
+}
+
+/** "Please cancel what is left of PO-0003: Castle 340ml 120, …. Thank you." */
+export function cancelRestMessage(poNo: string, lines: OwedLine[]): string {
+  return `Please cancel what is left of ${poNo}: ${owedWords(lines).text}. Thank you.`;
+}
+
+/** The chase sheet's sub: "Delta Beverages · 48 days late", or "Delta Beverages · expected 9 October". */
+export function chaseSub(supplier: string, lateDays: number | null, expected: string | null): string {
+  if (lateDays && lateDays > 0) return `${supplier} · ${lateWords(lateDays)}`;
+  return expected ? `${supplier} · expected ${dayMonth(expected)}` : supplier;
+}
+
+/** "Send on WhatsApp", or "Send by email" for someone with only an email. */
+export const chasePrimary = (channel: "WHATSAPP" | "EMAIL") => (channel === "EMAIL" ? "Send by email" : "Send on WhatsApp");
+
+/** "on WhatsApp" / "by email" / "by hand": how an order would go, in the send asks. */
+export const CHANNEL_WORDS: Record<OrderChannel, string> = { WHATSAPP: "on WhatsApp", EMAIL: "by email", BY_HAND: "by hand" };

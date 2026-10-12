@@ -6,7 +6,8 @@ import { loaderParams, periodInstants, runList } from "@/lib/reports/list-query"
 import { num, result, TAKE } from "@/lib/reports/loaders/shared";
 import type { ListPageResult, ReportContext, ReportLoader, ReportOption, ReportParams, ReportRow, ResolvedListQuery } from "@/lib/reports/types";
 import { lateness, type OrderState } from "@/lib/retail/buying/figures";
-import { firstWord, orderBadge } from "@/lib/retail/buying/words";
+import { channelOf, dayStart, orderRecipients } from "@/lib/retail/buying/orders";
+import { CHANNEL_WORDS, firstWord, orderBadge } from "@/lib/retail/buying/words";
 import { dayKey, DEFAULT_TIME_ZONE, formatCount, formatDay, formatShortDay, formatTime } from "@/lib/workspace/format";
 
 /**
@@ -27,7 +28,7 @@ const TAB_STATES: Record<string, string[] | null> = {
   all: null,
 };
 
-type Filters = { supplier?: string; site?: string; raised?: string; supplierId?: string; q?: string };
+type Filters = { supplier?: string; site?: string; raised?: string; supplierId?: string; late?: string; q?: string };
 
 /** One order and its line sums. Money with VAT, line by line to the cent, as `orderTotals` does. */
 const ORDERS = Prisma.sql`
@@ -63,6 +64,13 @@ function whereFor(companyId: string, filters: Filters, tab: string | null, now: 
   if (filters.supplier && filters.supplier !== "any") parts.push(Prisma.sql`o."vendorId" = ${filters.supplier}`);
   if (filters.supplierId) parts.push(Prisma.sql`o."vendorId" = ${filters.supplierId}`);
   if (filters.site && filters.site !== "any") parts.push(Prisma.sql`o."siteId" = ${filters.site}`);
+  if (filters.late === "late" || filters.late === "not-late") {
+    // Late counts from the day first expected, never from a promise a reminder moved it to.
+    const late = Prisma.sql`(o.status::text IN ('SENT', 'PARTIAL') AND o."firstExpectedDate" < ${dayStart(dayKey(now, DEFAULT_TIME_ZONE))}
+      AND EXISTS (SELECT 1 FROM "RetailPurchaseOrderLine" ol
+                  WHERE ol."purchaseOrderId" = o.id AND ol."closedShortAt" IS NULL AND ol.quantity > ol."receivedQuantity"))`;
+    parts.push(filters.late === "late" ? late : Prisma.sql`NOT ${late}`);
+  }
   const range = filters.raised ? periodInstants(filters.raised, now, DEFAULT_TIME_ZONE) : undefined;
   if (range?.gte) parts.push(Prisma.sql`o."createdAt" >= ${range.gte}`);
   if (range?.lt) parts.push(Prisma.sql`o."createdAt" < ${range.lt}`);
@@ -110,13 +118,30 @@ type OrderRow = {
   stillValue: Prisma.Decimal;
   deliveredValue: Prisma.Decimal;
   linesOwed: bigint | number;
+  /** "on WhatsApp", "by email", "by hand": how a send would reach the supplier. */
+  sendWords: string;
 };
 
 async function selectRows(where: Prisma.Sql, order: Prisma.Sql, limit: number, offset = 0): Promise<OrderRow[]> {
-  return prisma.$queryRaw<OrderRow[]>`
+  const rows = await prisma.$queryRaw<Omit<OrderRow, "sendWords">[]>`
     SELECT r.* FROM (${ORDERS} WHERE po.id IN (SELECT o.id FROM "RetailPurchaseOrder" o ${where})) r
     ${order}
     LIMIT ${limit} OFFSET ${offset}`;
+  // How each supplier takes orders ("on WhatsApp"), for the bulk send's ask: one read for the page's suppliers.
+  const vendors = await prisma.vendor.findMany({
+    where: { id: { in: [...new Set(rows.map((row) => row.supplierId))] } },
+    select: {
+      id: true,
+      name: true,
+      whatsapp: true,
+      email: true,
+      sendOrdersOnWhatsapp: true,
+      contactName: true,
+      contacts: { where: { removedAt: null }, orderBy: [{ createdAt: "asc" }, { id: "asc" }], select: { name: true, phone: true, email: true, sends: true } },
+    },
+  });
+  const how = new Map(vendors.map((vendor) => [vendor.id, CHANNEL_WORDS[channelOf(orderRecipients(vendor))]]));
+  return rows.map((row) => ({ ...row, sendWords: how.get(row.supplierId) ?? CHANNEL_WORDS.BY_HAND }));
 }
 
 export function toOrderRow(row: OrderRow, now: Date): ReportRow {
@@ -158,13 +183,14 @@ export function toOrderRow(row: OrderRow, now: Date): ReportRow {
     deliveredValue: num(row.deliveredValue) ?? 0,
     linesOwed: Number(row.linesOwed),
     closable: row.status === "PARTIAL" || (row.status === "SENT" && late.late) ? "yes" : "no",
+    sendWords: row.sendWords,
     title: `${row.poNo} · ${row.supplier}`,
     cardMeta: `${deliveredWords}${expected ? ` · expected ${formatShortDay(expected)}` : ""}`,
   };
 }
 
 function filtersOf(params: ReportParams): Filters {
-  return { supplier: params.supplier, site: params.site, raised: params.raised, supplierId: params.supplierId };
+  return { supplier: params.supplier, site: params.site, raised: params.raised, supplierId: params.supplierId, late: params.late };
 }
 
 async function loadOrders(ctx: ReportContext, params: ReportParams) {

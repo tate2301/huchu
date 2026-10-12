@@ -377,6 +377,10 @@ export const RETAIL_AUDIT_EVENTS = {
   orderChanged: "RETAIL_PURCHASE_ORDER.CHANGED",
   /** An order made from another ("Duplicate order"). Entity the new order; carries the one it was made from. */
   orderDuplicated: "RETAIL_PURCHASE_ORDER.DUPLICATED",
+  /** A reminder sent about a late order (W-34). Carries who it went to, the day promised and what happens if it does not come. */
+  orderChased: "RETAIL_PURCHASE_ORDER.CHASED",
+  /** What was left of an order cancelled, by hand or by the worker (`automatic`). Carries the units and value no longer coming. */
+  orderRestCancelled: "RETAIL_PURCHASE_ORDER.REST_CANCELLED",
   /** A supplier's reply on WhatsApp. Entity the order it is about, else the `Vendor`; carries the supplier and the text. */
   messageReceived: "RETAIL_MESSAGE.RECEIVED",
 } as const;

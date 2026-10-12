@@ -3,6 +3,7 @@ import { nameAndPhone, pointsAndVisits } from "@/lib/retail/customers/merge-word
 import { labelsPrintedSentence } from "@/lib/retail/labels/words";
 import { adjustReasonLabel, pointsWords } from "@/lib/retail/loyalty/format";
 import { priceWords, productWords, scheduledActivity, undoneActivity } from "@/lib/retail/prices/words";
+import { dayMonth } from "@/lib/retail/buying/words";
 import { tenderLabel } from "@/lib/retail/words";
 import { DEFAULT_TIME_ZONE, formatCount, formatDay, formatMoney, formatPercent, formatSigned, formatTime } from "@/lib/workspace/format";
 
@@ -463,6 +464,17 @@ const WORDS: Record<string, (payload: Payload, eventType: string, seeCost: boole
   [RETAIL_AUDIT_EVENTS.orderSent]: orderSentWords,
   [RETAIL_AUDIT_EVENTS.orderChanged]: orderChangedWords,
   [RETAIL_AUDIT_EVENTS.orderDuplicated]: (payload) => ({ what: `Made from ${text(payload.from) ?? "another order"}`, tone: "hollow" }),
+  // "Sent a reminder; promised for 7 October" (W-34).
+  [RETAIL_AUDIT_EVENTS.orderChased]: (payload) => {
+    const day = text(payload.promisedFor);
+    return { what: day ? `Sent a reminder; promised for ${dayMonth(day)}` : "Sent a reminder", tone: "warn" };
+  },
+  // "Cancelled what was left, 480 units" ("…, automatically" when the worker did it).
+  [RETAIL_AUDIT_EVENTS.orderRestCancelled]: (payload) => {
+    const units = amount(payload.units) ?? 0;
+    const automatic = payload.automatic === true ? ", automatically" : "";
+    return { what: `Cancelled what was left, ${formatCount(units)} ${units === 1 ? "unit" : "units"}${automatic}`, tone: "bad" };
+  },
   [RETAIL_AUDIT_EVENTS.messageReceived]: (payload) => {
     const body = text(payload.body) ?? "";
     const short = body.length > 80 ? `${body.slice(0, 80).trimEnd()}…` : body;

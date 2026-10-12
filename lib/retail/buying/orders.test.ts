@@ -4,7 +4,9 @@
  * WhatsApp, else email, else by hand with no message), a stopped supplier
  * refused, the lines rule on an edit, the site locked once something came, a
  * change told to the supplier, a duplicate at today's cost, closing with what
- * came and reopening, and a supplier with an open order not stopped.
+ * came and reopening, and a supplier with an open order not stopped. BUY-03:
+ * chasing a late order (the expected date moves, the first one stays), the
+ * reminder's text, cancelling what is left, and sending or cancelling several.
  */
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
@@ -13,8 +15,23 @@ import { prisma } from "@/lib/prisma";
 import { addTestProduct, makeTestShop, type TestShop } from "@/lib/retail/products/test-fixtures";
 
 import { receiveDelivery } from "./deliveries";
-import { changeOrder, closeOrder, duplicateOrder, OrderRefusal, orderRecipients, raiseOrder, reopenOrder, sendOrder } from "./orders";
+import {
+  cancelOrders,
+  cancelRest,
+  changeOrder,
+  chaseOrder,
+  closeOrder,
+  dayStart,
+  duplicateOrder,
+  OrderRefusal,
+  orderRecipients,
+  raiseOrder,
+  reopenOrder,
+  sendOrder,
+  sendOrders,
+} from "./orders";
 import { addContact, createSupplier, stopSupplier, SupplierRefusal } from "./suppliers";
+import { chaseMessage } from "./words";
 
 let shop: TestShop;
 let castle: { productId: string; itemId: string };
@@ -237,5 +254,139 @@ describe("changing, duplicating, closing and reopening", () => {
       status: 409,
       message: `${open.poNo} is still open with Delta Beverages. Close or cancel it first.`,
     });
+  });
+});
+
+describe("chasing a late order (BUY-03, W-34)", () => {
+  // 08:00 in Harare on 12 October 2026.
+  const now = new Date("2026-10-12T06:00:00Z");
+  const tinashe = async () =>
+    (await prisma.vendorContact.findFirstOrThrow({ where: { companyId: shop.companyId, vendorId: delta, name: "Tinashe Moyo" }, select: { id: true } })).id;
+
+  it("builds the board's reminder from PO-0003's seeded figures", () => {
+    const text = chaseMessage(
+      {
+        poNo: "PO-0003",
+        sentAt: "2026-08-10T12:20:00Z",
+        raisedAt: "2026-08-10T12:00:00Z",
+        site: "Harare Main Branch",
+        lines: [
+          { name: "Castle Lager 340ml", outstanding: 120 },
+          { name: "Chibuku Scud 1L", outstanding: 180 },
+          { name: "Coca-Cola 500ml", outstanding: 90 },
+          { name: "Sprite 500ml", outstanding: 90 },
+        ],
+      },
+      { firstName: "Tinashe" },
+    );
+    // The board's "Coke 500ml" is a nickname no data holds: the short name keeps "Coca-Cola".
+    expect(text).toBe(
+      "Hello Tinashe, order PO-0003 from 10 August is still 480 units short: Castle 340ml 120, Chibuku 1L 180, Coca-Cola 500ml 90, Sprite 500ml 90. When can you deliver? Harare Main Branch.",
+    );
+    expect(chaseMessage({ poNo: "PO-0001", sentAt: null, raisedAt: "2026-08-10T12:00:00Z", site: "Borrowdale", lines: [{ name: "Ice 2kg", outstanding: 1 }] }, null)).toBe(
+      "Hello, order PO-0001 from 10 August is still 1 unit short: Ice 2kg 1. When can you deliver? Borrowdale.",
+    );
+  });
+
+  it("moves the expected date only, keeps the message on the order and records the chase", async () => {
+    const order = await raise(delta, true);
+    const before = await prisma.retailPurchaseOrder.findUniqueOrThrow({ where: { id: order.id } });
+    const chased = await chaseOrder(shop.manager(), order.id, { contactId: await tinashe(), message: "When can you deliver?", promisedFor: "2026-10-20", then: "REMIND" }, now);
+    expect(chased.toast).toBe("Reminder sent. Expected date moved to 20 October.");
+    const after = await prisma.retailPurchaseOrder.findUniqueOrThrow({ where: { id: order.id } });
+    expect(after.expectedDate?.toISOString()).toBe(dayStart("2026-10-20").toISOString());
+    expect(after.firstExpectedDate?.toISOString()).toBe(before.firstExpectedDate?.toISOString());
+    expect(after).toMatchObject({ status: "SENT", chaseAction: "REMIND", chasedById: shop.managerId, followUpDoneAt: null });
+    const message = await prisma.retailMessage.findUniqueOrThrow({ where: { id: chased.message.id } });
+    expect(message).toMatchObject({ channel: "WHATSAPP", to: "+263772149080", template: "order-reminder", body: "When can you deliver?", entityId: order.id, direction: "OUT" });
+    const event = await prisma.platformAuditEvent.findFirstOrThrow({ where: { entityId: order.id, eventType: "RETAIL_PURCHASE_ORDER.CHASED" } });
+    expect(JSON.parse(event.payloadJson ?? "{}")).toMatchObject({ to: "Tinashe Moyo", promisedFor: "2026-10-20", then: "REMIND" });
+  });
+
+  it("refuses a promise for yesterday, and an order that has all come", async () => {
+    const order = await raise(delta, true);
+    expect(await refusal(chaseOrder(shop.manager(), order.id, { contactId: null, message: "Hello", promisedFor: "2026-10-11", then: "REMIND" }, now))).toMatchObject({
+      status: 400,
+      fieldErrors: { new: "Promise a date from today on." },
+    });
+    const lines = await prisma.retailPurchaseOrderLine.findMany({ where: { purchaseOrderId: order.id }, orderBy: { sortOrder: "asc" } });
+    await receiveDelivery(
+      shop.manager(),
+      {
+        purchaseOrderId: order.id,
+        siteId: shop.mainId,
+        lines: [
+          { inventoryItemId: castle.itemId, quantity: 240, unitCost: 0.86, purchaseOrderLineId: lines[0]!.id },
+          { inventoryItemId: coke.itemId, quantity: 180, unitCost: 0.52, purchaseOrderLineId: lines[1]!.id },
+        ],
+      },
+      noJournal,
+    );
+    expect((await prisma.retailPurchaseOrder.findUniqueOrThrow({ where: { id: order.id } })).status).toBe("RECEIVED");
+    expect(await refusal(chaseOrder(shop.manager(), order.id, { contactId: null, message: "Hello", promisedFor: "2026-10-20", then: "REMIND" }, now))).toMatchObject({
+      status: 409,
+      message: `${order.poNo} has all come.`,
+    });
+  });
+});
+
+describe("cancelling what is left (BUY-03)", () => {
+  it("cancels an order nothing came against, and asks the supplier to cancel it", async () => {
+    const order = await raise(delta, true);
+    const done = await cancelRest(shop.manager(), order.id);
+    expect(done).toMatchObject({ status: "CANCELLED", units: 420, told: true, message: `What was left of ${order.poNo} is cancelled. Delta has been told.` });
+    const after = await prisma.retailPurchaseOrder.findUniqueOrThrow({ where: { id: order.id }, include: { lines: { orderBy: { sortOrder: "asc" } } } });
+    expect(after).toMatchObject({ status: "CANCELLED", cancelledById: shop.managerId });
+    expect(after.lines.map((line) => Number(line.quantity))).toEqual([0, 0]);
+    const asked = await prisma.retailMessage.findFirstOrThrow({ where: { entityId: order.id, template: "order-cancel-rest" } });
+    expect(asked).toMatchObject({ to: "+263772149080", status: "QUEUED", body: `Please cancel what is left of ${order.poNo}: Castle 340ml 240, Coca-Cola 500ml 180. Thank you.` });
+    expect(await refusal(cancelRest(shop.manager(), order.id))).toMatchObject({ status: 409 });
+  });
+
+  it("receives an order part of which came, its lines brought down to what came", async () => {
+    const order = await raise(delta, true);
+    const lines = await prisma.retailPurchaseOrderLine.findMany({ where: { purchaseOrderId: order.id }, orderBy: { sortOrder: "asc" } });
+    await receiveDelivery(
+      shop.manager(),
+      { purchaseOrderId: order.id, siteId: shop.mainId, lines: [{ inventoryItemId: castle.itemId, quantity: 120, unitCost: 0.86, purchaseOrderLineId: lines[0]!.id }] },
+      noJournal,
+    );
+    const done = await cancelRest(shop.manager(), order.id);
+    expect(done).toMatchObject({ status: "RECEIVED", units: 300 });
+    const after = await prisma.retailPurchaseOrderLine.findMany({ where: { purchaseOrderId: order.id }, orderBy: { sortOrder: "asc" } });
+    expect(after.map((line) => [Number(line.quantity), Number(line.receivedQuantity), line.closedShortAt])).toEqual([
+      [120, 120, null],
+      [0, 0, null],
+    ]);
+    expect(await prisma.retailMessage.count({ where: { entityId: order.id, template: "order-cancel-rest" } })).toBe(1);
+  });
+});
+
+describe("several orders at once (BUY-03)", () => {
+  it("sends the ticked drafts and skips one with no lines and one already sent", async () => {
+    const ready = await raise(delta, false);
+    const empty = await raiseOrder(shop.manager(), { supplierId: delta, siteId: shop.mainId, lines: [], payment: "ON_ACCOUNT", send: false }, deps);
+    const sent = await raise(delta, true);
+    const done = await sendOrders(shop.manager(), [ready.id, empty.id, sent.id], deps);
+    expect(done.sent).toEqual([ready.poNo]);
+    expect(done.skipped).toEqual([
+      { poNo: empty.poNo, why: `${empty.poNo} has no lines.` },
+      { poNo: sent.poNo, why: "Already sent" },
+    ]);
+    expect(done.message).toBe(`1 order sent. ${empty.poNo} has no lines. ${sent.poNo} was already sent.`);
+    expect((await prisma.retailPurchaseOrder.findUniqueOrThrow({ where: { id: ready.id } })).status).toBe("SENT");
+  });
+
+  it("bins a draft, cancels what is left of a sent one and leaves a done one", async () => {
+    const draft = await raise(delta, false);
+    const sent = await raise(delta, true);
+    const done = await raise(delta, true);
+    await cancelRest(shop.manager(), done.id);
+    const result = await cancelOrders(shop.manager(), [draft.id, sent.id, done.id], { canRemoveDrafts: true });
+    expect(result.binned).toEqual([draft.poNo]);
+    expect(result.cancelled).toEqual([sent.poNo]);
+    expect(result.skipped).toEqual([{ poNo: done.poNo, why: "Already done" }]);
+    expect((await prisma.retailPurchaseOrder.findUniqueOrThrow({ where: { id: draft.id } })).archivedAt).not.toBeNull();
+    expect((await prisma.retailPurchaseOrder.findUniqueOrThrow({ where: { id: sent.id } })).status).toBe("CANCELLED");
   });
 });

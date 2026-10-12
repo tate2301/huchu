@@ -9,6 +9,7 @@ import { closeWaitingFiscalDays } from "@/lib/retail/fiscal-settings";
 import { expireVouchers } from "@/lib/retail/vouchers/expire";
 import { birthdayBonusesForAll, expirePointsForAll } from "@/lib/retail/loyalty/jobs";
 import { sendLaybyRemindersForAll } from "@/lib/retail/floor/layby-reminders";
+import { runBuyingFollowUpsForAll } from "@/lib/retail/buying/follow-ups";
 
 import type { RetailJob } from "./schedule";
 
@@ -22,7 +23,7 @@ import type { RetailJob } from "./schedule";
  * every minute the price changes come due (PRD-07), 00:10 the vouchers whose
  * expiry day has passed lapse (PRD-10), 00:05 points a year old expire,
  * 07:00 on Mondays the birthday bonuses (CUS-01) and 09:00 the weekly lay-by
- * reminders (FLR-06).
+ * reminders (FLR-06), 07:00 the order follow-ups (BUY-03).
  */
 export const RETAIL_JOBS: RetailJob[] = [
   {
@@ -42,6 +43,12 @@ export const RETAIL_JOBS: RetailJob[] = [
     name: "birthday-bonus",
     when: { dailyAt: "07:00" },
     run: (now) => birthdayBonusesForAll(now),
+  },
+  {
+    // Chased orders whose promised day has passed: "Remind me" tells the chaser, "Cancel the rest" cancels it (BUY-03, W-34).
+    name: "buying-follow-ups",
+    when: { dailyAt: "07:00" },
+    run: (now) => runBuyingFollowUpsForAll(now),
   },
   {
     // Vouchers past their expiry day with something left lapse, and what money was left is written off (PRD-10).

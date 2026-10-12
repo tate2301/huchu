@@ -53,8 +53,30 @@ export const sendSchema = z.object({ via: z.enum(["WHATSAPP", "EMAIL", "BY_HAND"
 
 export const closeSchema = z.object({ note: z.string().trim().max(500).nullish() });
 
+/** "Send a reminder" (W-34): who, what, the day promised and what happens if it does not come. */
+export const chaseSchema = z.object({
+  contactId: z.string().uuid().nullable(),
+  message: z.string().trim().min(1, "Write the message.").max(1000, "Keep it to 1,000 characters."),
+  promisedFor: day,
+  then: z.enum(["REMIND", "CANCEL_REST"]).default("REMIND"),
+});
+
+export const cancelRestSchema = z.object({ tell: z.literal(true).default(true) });
+
+/** Orders' bulk actions: the ticked orders. */
+export const bulkOrdersSchema = z.object({ ids: z.array(z.string().uuid()).min(1, "Tick at least one order.").max(100, "Tick at most 100 orders.") });
+
 /** The request's keys as the order sheets' field ids. */
-const SHEET_FIELD: Record<string, string> = { supplierId: "sup", siteId: "site", expectedDate: "exp", noteToSupplier: "msg", askForCash: "ask" };
+const SHEET_FIELD: Record<string, string> = {
+  supplierId: "sup",
+  siteId: "site",
+  expectedDate: "exp",
+  noteToSupplier: "msg",
+  askForCash: "ask",
+  contactId: "to",
+  message: "msg",
+  promisedFor: "new",
+};
 
 /** Zod's issues as the sheet's field errors, first message per field. */
 export function issuesToFields(error: z.ZodError): Record<string, string> {

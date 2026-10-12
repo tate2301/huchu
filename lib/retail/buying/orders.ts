@@ -1,9 +1,11 @@
-import { Prisma, type RetailOrderPayment, type RetailOrderSentVia, type VendorContactSends } from "@prisma/client";
+import { Prisma, type RetailOrderChaseAction, type RetailOrderPayment, type RetailOrderSentVia, type VendorContactSends } from "@prisma/client";
 
+import { writePlatformAuditEvent } from "@/lib/audit/platform";
 import { reserveIdentifier } from "@/lib/id-generator";
 import { money, quantity, sumMoney, toNumberOrZero } from "@/lib/money";
 import { prisma } from "@/lib/prisma";
 import { auditAmount, auditRecordEdited, RETAIL_AUDIT_EVENTS, writeRetailAuditEvent, type RetailAuditActor } from "@/lib/retail/audit";
+import { BinRefusal, moveToBin } from "@/lib/retail/bin";
 import { shopName } from "@/lib/retail/messages/send-now";
 import { OrderRefused, orderStatusFor, outstanding, planOrderLineEdits } from "@/lib/retail/purchase-orders";
 import { startOfDayIn } from "@/lib/reports/list-query";
@@ -12,12 +14,13 @@ import { dayKey, DEFAULT_TIME_ZONE, formatCount, formatDay, formatMoney } from "
 import { orderPdfLink } from "./documents";
 import { lineValue, orderTotals } from "./figures";
 import { e164Of } from "./suppliers";
-import { firstWord, payingWords, type OrderChannel } from "./words";
+import { cancelRestMessage, dayMonth, firstWord, payingWords, type OrderChannel, type OwedLine } from "./words";
 
 /**
- * Orders (40-buying W-30, W-70, BUY-02): raise one (as a draft or sent), send
- * a draft, change its lines and dates (telling the supplier or not),
- * duplicate it, close it with what came and reopen it. Every write is one
+ * Orders (40-buying W-30, W-34, W-70, BUY-02, BUY-03): raise one (as a draft
+ * or sent), send a draft, change its lines and dates (telling the supplier or
+ * not), duplicate it, close it with what came and reopen it, chase a late one,
+ * cancel what is left, and send or cancel several at once. Every write is one
  * transaction with its audit; the order number is reserved before it, as a
  * rolled-back sequence would hand a number out twice. Sending queues one
  * `RetailMessage` per recipient with a signed 30-day link to the order's PDF;
@@ -811,3 +814,303 @@ export async function sendAgain(actor: RetailAuditActor, orderId: string, messag
   if (moved.count === 0) throw new OrderRefusal(409, "Only a message that failed can be sent again.");
 }
 
+
+/* ── Chase a late order (W-34) ──────────────────────────────────────────── */
+
+export const PROMISE_FROM_TODAY = "Promise a date from today on.";
+export const hasAllCome = (poNo: string) => `${poNo} has all come.`;
+
+/** Why a chase or a cancel of the rest is refused: the order is not waiting for anything. */
+function notWaiting(order: { poNo: string; status: string }): string {
+  if (order.status === "DRAFT") return `${order.poNo} has not been sent yet.`;
+  if (order.status === "RECEIVED") return hasAllCome(order.poNo);
+  return orderDone(order.poNo);
+}
+
+const waiting = (status: string) => status === "SENT" || status === "PARTIAL";
+
+/** What each line still owes, by name. */
+const owedLines = (lines: Array<{ itemName: string; quantity: Prisma.Decimal; receivedQuantity: Prisma.Decimal; closedShortAt: Date | null }>): OwedLine[] =>
+  lines.map((line) => ({ name: line.itemName, outstanding: toNumberOrZero(outstanding(line)) }));
+
+/**
+ * Who a reminder goes to: the chosen contact (their phone on WhatsApp, else
+ * their email), or with none chosen the supplier's own WhatsApp number, else
+ * its email. Null: nowhere to send it.
+ */
+export function chaseRecipient(
+  vendor: { whatsapp: string | null; email: string | null },
+  contact: { name: string; phone: string | null; email: string | null } | null,
+): Recipient | null {
+  if (contact) {
+    const first = firstWord(contact.name) || null;
+    if (contact.phone) return { name: contact.name, firstName: first, channel: "WHATSAPP", to: e164Of(contact.phone) };
+    if (contact.email) return { name: contact.name, firstName: first, channel: "EMAIL", to: contact.email.trim() };
+    return null;
+  }
+  if (vendor.whatsapp) return { name: null, firstName: null, channel: "WHATSAPP", to: e164Of(vendor.whatsapp) };
+  if (vendor.email) return { name: null, firstName: null, channel: "EMAIL", to: vendor.email.trim() };
+  return null;
+}
+
+/** One text message about an order, in the outbox: no attachment. */
+async function queueText(
+  tx: Tx,
+  input: { companyId: string; createdById: string | null; orderId: string; recipient: Recipient; template: "order-reminder" | "order-cancel-rest"; body: string; now: Date },
+): Promise<QueuedMessage> {
+  const created = await tx.retailMessage.create({
+    data: {
+      companyId: input.companyId,
+      channel: input.recipient.channel,
+      to: input.recipient.to,
+      template: input.template,
+      body: input.body,
+      direction: "OUT",
+      entityType: "RetailPurchaseOrder",
+      entityId: input.orderId,
+      createdById: input.createdById,
+      createdAt: input.now,
+    },
+    select: { id: true },
+  });
+  return { id: created.id, to: input.recipient.to, channel: input.recipient.channel, name: input.recipient.name ?? input.recipient.to };
+}
+
+export type ChaseInput = {
+  /** A contact of the order's supplier; null sends to the supplier's own number. */
+  contactId: string | null;
+  message: string;
+  /** `YYYY-MM-DD`, a shop day from today on. */
+  promisedFor: string;
+  then: RetailOrderChaseAction;
+};
+
+export type Chased = { id: string; poNo: string; supplier: string; promisedFor: string; message: QueuedMessage; toast: string };
+
+/**
+ * "Send a reminder" (W-34): the message goes to the chosen person, the order
+ * is now expected on the day promised (the first expected day stays, so the
+ * order is as late as it was), and what happens if it does not come is kept
+ * for the morning's follow-ups.
+ */
+export async function chaseOrder(actor: RetailAuditActor, id: string, input: ChaseInput, now = new Date()): Promise<Chased> {
+  const body = input.message.trim();
+  if (!body) throw new OrderRefusal(400, "Validation failed", { msg: "Write the message." });
+  if (body.length > 1000) throw new OrderRefusal(400, "Validation failed", { msg: "Keep it to 1,000 characters." });
+  if (input.promisedFor < dayKey(now)) throw new OrderRefusal(400, "Validation failed", { new: PROMISE_FROM_TODAY });
+  return prisma.$transaction(async (tx) => {
+    const order = await liveOrder(tx, actor.companyId, id);
+    if (!waiting(order.status)) throw new OrderRefusal(409, notWaiting(order));
+    const contact = input.contactId
+      ? await tx.vendorContact.findFirst({
+          where: { id: input.contactId, vendorId: order.vendorId, companyId: actor.companyId, removedAt: null },
+          select: { name: true, phone: true, email: true },
+        })
+      : null;
+    if (input.contactId && !contact) throw new OrderRefusal(400, "Validation failed", { to: `Choose someone at ${order.vendor.name}.` });
+    const recipient = chaseRecipient(order.vendor, contact);
+    if (!recipient) {
+      throw new OrderRefusal(409, contact ? `${contact.name} has no phone number or email.` : `${order.vendor.name} has no WhatsApp number or email.`);
+    }
+    const message = await queueText(tx, {
+      companyId: actor.companyId,
+      createdById: actor.userId,
+      orderId: order.id,
+      recipient,
+      template: "order-reminder",
+      body,
+      now,
+    });
+    await tx.retailPurchaseOrder.update({
+      where: { id: order.id },
+      data: { expectedDate: dayStart(input.promisedFor), chaseAction: input.then, chasedAt: now, chasedById: actor.userId, followUpDoneAt: null },
+    });
+    await writeRetailAuditEvent(tx, {
+      actor,
+      eventType: RETAIL_AUDIT_EVENTS.orderChased,
+      entityType: "RetailPurchaseOrder",
+      entityId: order.id,
+      payload: { poNo: order.poNo, supplier: order.vendor.name, to: recipient.name ?? recipient.to, channel: recipient.channel, promisedFor: input.promisedFor, then: input.then },
+    });
+    return {
+      id: order.id,
+      poNo: order.poNo,
+      supplier: order.vendor.name,
+      promisedFor: input.promisedFor,
+      message,
+      toast: `Reminder sent. Expected date moved to ${dayMonth(input.promisedFor)}.`,
+    };
+  });
+}
+
+/* ── Cancel what is left (W-34) ─────────────────────────────────────────── */
+
+/** Who cancels: a person, or nobody when the morning's follow-ups do it ("Automatic"). */
+export type CancelActor = { companyId: string; userId: string | null; userName?: string | null; userRole?: string | null };
+
+export type RestCancelled = { id: string; poNo: string; supplier: string; status: "RECEIVED" | "CANCELLED"; units: number; told: boolean; message: string };
+
+/**
+ * "Cancel what is left": every line comes down to what came, so nothing more
+ * is expected; nothing came at all and the order is cancelled, else it is
+ * received. The supplier is always asked to cancel the rest (the route's
+ * `{ tell: true }`). A requisition for the
+ * order not yet paid out is cancelled with it once requisitions exist
+ * (BUY-04); until then no order has one.
+ */
+export async function cancelRest(
+  actor: CancelActor,
+  id: string,
+  options: { automatic?: boolean; now?: Date } = {},
+): Promise<RestCancelled> {
+  const now = options.now ?? new Date();
+  const automatic = options.automatic === true;
+  const by = automatic ? null : actor.userId;
+  return prisma.$transaction(async (tx) => {
+    const order = await liveOrder(tx, actor.companyId, id);
+    if (!waiting(order.status)) throw new OrderRefusal(409, notWaiting(order));
+    const owed = owedLines(order.lines);
+    const units = owed.reduce((sum, line) => sum + line.outstanding, 0);
+    const value = sumMoney(order.lines.map((line) => lineValue(outstanding(line), line.unitCost)));
+    const anythingCame = order.lines.some((line) => quantity(line.receivedQuantity).greaterThan(0));
+    const status = anythingCame ? ("RECEIVED" as const) : ("CANCELLED" as const);
+    // Claimed first: a second cancel of the same order finds it done.
+    const claimed = await tx.retailPurchaseOrder.updateMany({
+      where: { id: order.id, status: { in: ["SENT", "PARTIAL"] } },
+      data: { status, ...(status === "CANCELLED" ? { cancelledAt: now, cancelledById: by } : {}) },
+    });
+    if (claimed.count === 0) throw new OrderRefusal(409, notWaiting({ poNo: order.poNo, status: "RECEIVED" }));
+    for (const line of order.lines) {
+      await tx.retailPurchaseOrderLine.update({
+        where: { id: line.id },
+        data: { quantity: line.receivedQuantity, lineTotal: lineValue(line.receivedQuantity, line.unitCost), closedShortAt: null, closedShortById: null },
+      });
+    }
+    const body = cancelRestMessage(order.poNo, owed);
+    const told: QueuedMessage[] = [];
+    for (const recipient of orderRecipients(order.vendor)) {
+      told.push(await queueText(tx, { companyId: actor.companyId, createdById: by, orderId: order.id, recipient, template: "order-cancel-rest", body, now }));
+    }
+    await writePlatformAuditEvent(
+      {
+        companyId: actor.companyId,
+        actorId: by,
+        eventType: RETAIL_AUDIT_EVENTS.orderRestCancelled,
+        entityType: "RetailPurchaseOrder",
+        entityId: order.id,
+        payload: {
+          actorRole: automatic ? null : (actor.userRole ?? null),
+          actorName: automatic ? null : (actor.userName ?? null),
+          poNo: order.poNo,
+          supplier: order.vendor.name,
+          units,
+          value: auditAmount(value),
+          lines: owed.filter((line) => line.outstanding > 0).map((line) => ({ itemName: line.name, quantity: String(line.outstanding) })),
+          status,
+          told: told.map((message) => message.name),
+          automatic,
+        },
+      },
+      tx,
+    );
+    const short = firstWord(order.vendor.name);
+    return {
+      id: order.id,
+      poNo: order.poNo,
+      supplier: order.vendor.name,
+      status,
+      units,
+      told: told.length > 0,
+      message: `What was left of ${order.poNo} is cancelled.${told.length > 0 ? ` ${short} has been told.` : ""}`,
+    };
+  });
+}
+
+/* ── Several at once (Orders' bulk) ─────────────────────────────────────── */
+
+export type Skipped = { poNo: string; why: string };
+
+const plural = (n: number, one: string, many: string) => `${formatCount(n)} ${n === 1 ? one : many}`;
+
+/** The ticked orders of this shop, in number order. */
+async function ordersOf(companyId: string, ids: string[]) {
+  return prisma.retailPurchaseOrder.findMany({
+    where: { id: { in: ids }, companyId, archivedAt: null },
+    orderBy: { poNo: "asc" },
+    select: { id: true, poNo: true, status: true },
+  });
+}
+
+/** A skipped order as the toast says it: "PO-0007 has no lines.", "PO-0003 was already sent.". */
+const skippedWords = (skipped: Skipped[]) =>
+  skipped.map((row) => (row.why === "Already sent" ? `${row.poNo} was already sent.` : row.why === "Already done" ? `${row.poNo} was already done.` : row.why)).join(" ");
+
+/**
+ * "Send to suppliers": each ticked draft with lines goes as its own send
+ * does. A draft with no lines, or one already sent, is skipped and said.
+ */
+export async function sendOrders(
+  actor: RetailAuditActor,
+  ids: string[],
+  deps: OrderDeps,
+): Promise<{ sent: string[]; skipped: Skipped[]; message: string }> {
+  const sent: string[] = [];
+  const skipped: Skipped[] = [];
+  for (const order of await ordersOf(actor.companyId, ids)) {
+    if (order.status !== "DRAFT") {
+      skipped.push({ poNo: order.poNo, why: "Already sent" });
+      continue;
+    }
+    try {
+      await sendOrder(actor, order.id, null, deps);
+      sent.push(order.poNo);
+    } catch (error) {
+      if (!(error instanceof OrderRefusal)) throw error;
+      const why = error.message === LINE_NEEDED ? `${order.poNo} has no lines.` : error.message === alreadySent(order.poNo) ? "Already sent" : error.message;
+      skipped.push({ poNo: order.poNo, why });
+    }
+  }
+  const lead = `${plural(sent.length, "order", "orders")} sent.`;
+  return { sent, skipped, message: skipped.length ? `${lead} ${skippedWords(skipped)}` : lead };
+}
+
+/**
+ * "Cancel": drafts go to the bin (with the right to remove them), sent and
+ * part-delivered orders have what is left cancelled and their suppliers told,
+ * and orders already done are left alone.
+ */
+export async function cancelOrders(
+  actor: RetailAuditActor,
+  ids: string[],
+  options: { canRemoveDrafts: boolean; now?: Date },
+): Promise<{ binned: string[]; cancelled: string[]; skipped: Skipped[]; message: string }> {
+  const binned: string[] = [];
+  const cancelled: string[] = [];
+  const skipped: Skipped[] = [];
+  for (const order of await ordersOf(actor.companyId, ids)) {
+    try {
+      if (order.status === "DRAFT") {
+        if (!options.canRemoveDrafts) {
+          skipped.push({ poNo: order.poNo, why: `Your role cannot remove a draft; ${order.poNo} is kept.` });
+          continue;
+        }
+        await moveToBin(actor, { kind: "order", id: order.id }, options.now);
+        binned.push(order.poNo);
+      } else if (waiting(order.status)) {
+        await cancelRest(actor, order.id, { now: options.now });
+        cancelled.push(order.poNo);
+      } else {
+        skipped.push({ poNo: order.poNo, why: "Already done" });
+      }
+    } catch (error) {
+      if (error instanceof OrderRefusal || error instanceof BinRefusal) skipped.push({ poNo: order.poNo, why: error.message });
+      else throw error;
+    }
+  }
+  const parts = [
+    ...(binned.length ? [`${plural(binned.length, "draft", "drafts")} in the bin`] : []),
+    ...(cancelled.length ? [`${plural(cancelled.length, "order", "orders")} cancelled and ${cancelled.length === 1 ? "its supplier" : "their suppliers"} told`] : []),
+  ];
+  const lead = parts.length ? `${parts.join(", ")}.` : "Nothing cancelled.";
+  return { binned, cancelled, skipped, message: skipped.length ? `${lead} ${skippedWords(skipped)}` : lead };
+}

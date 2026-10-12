@@ -621,6 +621,16 @@ Recorded unit choices:
   - **On hand's "Add to an order" sends the ticked stock lines** (`lineIds`); the suggestions route turns them into their
     products. Products' bulk and the product chart's footer send `productIds` (the chart adds `quantity`).
 
+- **BUY-03 departs from packet 33 in these places.**
+  - **The reminder names products by their short name from data**, so PO-0003's prefilled text reads "Coca-Cola 500ml 90"
+    where the board says "Coke 500ml 90"; no product holds a nickname.
+  - **The reminder's and the cancel message's words live in `lib/retail/buying/words.ts`** (`chaseMessage`,
+    `cancelRestMessage`), pure, so the chase sheet writes the message again for a newly chosen person without asking the
+    server; the sheets stay in `lib/retail/sheet-kinds/orders.ts` with the other order sheets.
+  - **Bulk "Cancel" from a role that may change orders but not remove them skips the drafts and says so** instead of
+    refusing the whole request; owners and managers hold both rights, so nobody sees it today.
+  - **"Send to suppliers" is offered only while every ticked order is a draft**; the server still skips one already sent.
+
 ## Owner direction, 5 October: sidebar, Management and Setup
 
 These override 00-foundations §5.3 and every spec that disagrees.
