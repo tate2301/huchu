@@ -291,7 +291,10 @@ const purchases: ListSpec = {
   noun: "sales",
   read: VIEW,
   search: { placeholder: "Sale", keys: ["ref"] },
-  filters: [{ key: "customer", type: "parent", column: "customerId" }],
+  filters: [
+    { key: "customer", type: "parent", column: "customerId" },
+    { key: "when", label: "When", type: "period", any: "Any time", column: "day", primary: true },
+  ],
   sorts: [{ key: "newest", label: "Newest first", rules: [{ column: "at", dir: "desc" }] }],
   columns: [
     { key: "at", label: "When", kind: "date", cell: "when", width: "150px", align: "start", priority: 1 },

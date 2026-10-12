@@ -24,6 +24,7 @@ describe("retail page prefixes", () => {
     ["/retail/end-of-day", "retail.shifts"],
     ["/retail/customers", "crm.customers"],
     ["/retail/accounts", "crm.customers"],
+    ["/api/v2/retail/customers/abc", "retail.core"],
     ["/retail/insights/sales", "retail.reports"],
     ["/retail/manage/fiscal", "accounting.zimra.fiscalisation"],
     ["/api/v2/retail/fiscal/connect", "accounting.zimra.fiscalisation"],

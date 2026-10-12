@@ -200,7 +200,7 @@ export async function loadCustomerRecord(
     buyingHabits(companyId, id, now),
     prisma.retailPointsEntry.aggregate({ where: { companyId, customerId: id }, _sum: { points: true } }),
     prisma.retailPointsEntry.count({ where: { companyId, customerId: id, createdAt: { gte: from12, lte: now } } }),
-    prisma.retailSale.count({ where: { companyId, customerId: id, saleType: { in: ["SALE", "REFUND", "VOID"] } } }),
+    prisma.retailSale.count({ where: { companyId, customerId: id, saleType: { in: ["SALE", "REFUND", "VOID"] }, postedAt: { gte: from12, lte: now } } }),
     prisma.retailCustomerNote.count({ where: { companyId, customerId: id } }),
     prisma.retailLayby.count({ where: { companyId, customerId: id } }),
     isStaffPhone(companyId, customer.phone),

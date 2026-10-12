@@ -27,7 +27,7 @@ export function BinBanner({
   onRestore,
 }: {
   state: BinState;
-  /** A line before the rest ("Merged into Tapiwa Marange."), its link last. */
+  /** A line before the rest ("Merged into Tapiwa Marange"), its link last; the when and who follow it. */
   lead?: BinLead | null;
   /** The kind's words for what happens while it is kept ("Off the till and out of lists; …"). */
   meanwhile?: string;
@@ -38,7 +38,14 @@ export function BinBanner({
   const [busy, setBusy] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const by = state.by ? (state.by.id && state.by.id === viewerId ? "you" : state.by.name) : null;
-  const since = `since ${dayMonth(state.since)}, ${formatTime(state.since)}${by ? `, moved by ${by}` : ""}.`;
+  const when = `${dayMonth(state.since)}, ${formatTime(state.since)}`;
+  // With a lead the when joins its sentence ("Merged into Tapiwa Marange on 12 October, 09:30, by you.").
+  const since = lead ? "" : `since ${when}${by ? `, moved by ${by}` : ""}. `;
+  const rest = state.restorable
+    ? `Kept until ${dayMonth(state.keptUntil)}${meanwhile ? `. ${meanwhile}` : ", then gone for good. Nothing sold, paid or counted against it changes."}`
+    : state.purged
+      ? "It was deleted for good and is kept only for what was sold, paid or counted against it."
+      : "It is past 30 days and can no longer be restored.";
 
   const restore = async () => {
     setBusy(true);
@@ -56,21 +63,18 @@ export function BinBanner({
     <div role="status" className="cx-rf-banner">
       <Trash aria-hidden="true" />
       <span className="cx-rf-banner__text">
-        <b>In the bin</b>{" "}
+        <b>{lead ? "In the bin." : "In the bin"}</b>{" "}
         {lead ? (
           <>
             {lead.text}{" "}
             <Link className="cx-rf-banner__link" href={lead.link.href}>
               {lead.link.label}
             </Link>
-            .{" "}
+            {` on ${when}${by ? `, by ${by}` : ""}. `}
           </>
         ) : null}
-        {state.restorable
-          ? `${since} Kept until ${dayMonth(state.keptUntil)}${meanwhile ? `. ${meanwhile}` : ", then gone for good. Nothing sold, paid or counted against it changes."}`
-          : state.purged
-            ? `${since} It was deleted for good and is kept only for what was sold, paid or counted against it.`
-            : `${since.replace(/\.$/, "")}. It is past 30 days and can no longer be restored.`}
+        {since}
+        {rest}
         {error ? (
           <>
             {" "}

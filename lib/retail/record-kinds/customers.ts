@@ -194,6 +194,8 @@ export const customerKind: RecordKind<CustomerRecord> = {
       source: "retail-customer-purchases",
       parent: "customer",
       requires: VIEW,
+      // The 12 months Visits and the board count, as Points movements reads.
+      filters: (customer) => ({ when: `${customer.since12m}..` }),
       allLink: { label: "All their purchases", href: (customer) => `/retail/sales?customer=${customer.id}` },
     },
     {

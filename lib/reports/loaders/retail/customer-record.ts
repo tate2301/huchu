@@ -233,12 +233,16 @@ type PurchaseRow = {
   customerId: string;
 };
 
-function purchasesWhere(companyId: string, customerId: string, q?: string): Prisma.Sql {
+function purchasesWhere(companyId: string, customerId: string, q?: string, when?: string, now: Date = new Date()): Prisma.Sql {
   const parts = [
     Prisma.sql`s."companyId" = ${companyId}`,
     Prisma.sql`s."customerId" = ${customerId}`,
     Prisma.sql`s."saleType" IN ('SALE', 'REFUND', 'VOID')`,
   ];
+  // The record's tab reads the same 12 months as its Visits figure.
+  const range = when && when !== "any" ? periodInstants(when, now, ZONE) : undefined;
+  if (range?.gte) parts.push(Prisma.sql`coalesce(s."postedAt", s."createdAt") >= ${range.gte}`);
+  if (range?.lt) parts.push(Prisma.sql`coalesce(s."postedAt", s."createdAt") < ${range.lt}`);
   const text = q?.trim();
   if (text) parts.push(Prisma.sql`s."saleNo" ILIKE ${`%${text.replace(/[\\%_]/g, (char) => `\\${char}`)}%`}`);
   return Prisma.sql`WHERE ${Prisma.join(parts, " AND ")}`;
@@ -263,6 +267,7 @@ function toPurchaseRow(row: PurchaseRow): ReportRow {
     id: row.id,
     at: at.toISOString(),
     whenText: formatWhen(at),
+    day: dayKey(at, ZONE),
     ref: row.saleNo,
     // A void opens the sale it cancelled.
     saleId: row.saleType === "VOID" ? (row.sourceSaleId ?? row.id) : row.id,
@@ -276,7 +281,7 @@ function toPurchaseRow(row: PurchaseRow): ReportRow {
 
 async function loadPurchases(ctx: ReportContext, params: ReportParams) {
   if (!isId(params.customer)) return result([]);
-  const rows = await selectPurchases(purchasesWhere(ctx.companyId, params.customer), TAKE);
+  const rows = await selectPurchases(purchasesWhere(ctx.companyId, params.customer, undefined, params.when), TAKE);
   return result(rows.map(toPurchaseRow));
 }
 
@@ -297,7 +302,7 @@ async function pagePurchases(ctx: ReportContext, query: ResolvedListQuery): Prom
     truncated: false,
   };
   if (!isId(customerId)) return base;
-  const where = purchasesWhere(ctx.companyId, customerId, query.q);
+  const where = purchasesWhere(ctx.companyId, customerId, query.q, query.filters.when);
   const [sums] = await prisma.$queryRaw<PurchaseSums[]>`
     SELECT count(*)::int AS total,
            sum((SELECT sum(abs(l.quantity)) FROM "RetailSaleLine" l WHERE l."saleId" = s.id)) AS items,

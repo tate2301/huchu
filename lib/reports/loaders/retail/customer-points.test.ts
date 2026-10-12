@@ -51,6 +51,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
   if (!shop) return;
+  await prisma.retailSale.deleteMany({ where: { companyId: shop.companyId } });
   await destroyProvisionedTenant(shop.companyId);
 }, 60_000);
 
@@ -102,5 +103,26 @@ describe("the points ledger", () => {
   it("narrows to what happened", async () => {
     const result = await page({ filters: { what: "birthday" } });
     expect(result.rows.map((row) => row.what)).toEqual(["Birthday bonus"]);
+  });
+});
+
+describe("their purchases (CUS-03)", () => {
+  it("counts the record's 12 months, as Visits does, and every sale with Any time", async () => {
+    const purchases = CUSTOMER_RECORD_LOADERS["retail-customer-purchases"]!;
+    const list = CUSTOMER_REPORTS.find((source) => source.key === "retail-customer-purchases")!.list!;
+    const now = Date.now();
+    for (const [n, daysAgo] of [[1, 400], [2, 200], [3, 30]] as const) {
+      await prisma.retailSale.create({
+        data: { companyId: shop.companyId, saleNo: `P-${n}-${now}`, siteId: shop.mainId, customerId, totalAmount: 10, baseAmount: 10, postedAt: new Date(now - daysAgo * DAY) },
+      });
+    }
+    const since12m = dayKey(new Date(now - 365 * DAY));
+    const read = (filters: Record<string, string>) =>
+      purchases.page!(
+        ctx(),
+        resolveListQuery(list, { page: 1, size: 25, filters: { customer: customerId, ...filters } }, {}, { role: "SUPERADMIN", seeCost: true, defaultSite: null }),
+      );
+    expect((await read({ when: `${since12m}..` })).total).toBe(2);
+    expect((await read({})).total).toBe(3);
   });
 });
