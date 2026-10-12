@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { stopHandler } from "@/lib/retail/messages/stop";
 
 /**
  * What Meta's WhatsApp webhook delivers (C-04), as events, and the handlers
@@ -117,7 +118,7 @@ export const outboxStatusHandler: WhatsAppHandler = {
 };
 
 /** Every handler, in the order each event visits them. Area units append theirs. */
-export const WHATSAPP_HANDLERS: WhatsAppHandler[] = [outboxStatusHandler];
+export const WHATSAPP_HANDLERS: WhatsAppHandler[] = [outboxStatusHandler, stopHandler];
 
 /** Hand each event to every handler; one that throws is logged and the rest still run. */
 export async function dispatchWhatsAppEvents(

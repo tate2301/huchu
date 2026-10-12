@@ -15,7 +15,8 @@ export type Sent = { whatsapp: boolean; error?: string };
 
 export const SECRET_MARK = "••••";
 
-async function shopName(companyId: string): Promise<string> {
+/** The name the shop's messages go out under: its trading name, display name, or company name. */
+export async function shopName(companyId: string): Promise<string> {
   const [branding, company] = await Promise.all([
     prisma.companyBranding.findUnique({ where: { companyId }, select: { tradingName: true, displayName: true } }),
     prisma.company.findUnique({ where: { id: companyId }, select: { name: true } }),

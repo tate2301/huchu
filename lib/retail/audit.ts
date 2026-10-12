@@ -329,6 +329,16 @@ export const RETAIL_AUDIT_EVENTS = {
    * Entity `Customer`; carries `{ code, name, consent, via: "sheet" | "till" | "lookup" }`.
    */
   customerCreated: "RETAIL_CUSTOMER.CREATED",
+  /**
+   * A customer's marketing consent turned on or off (CUS-06): a STOP reply on WhatsApp (by the system), or a change on
+   * the record. Entity `Customer`; carries `{ agreed, via }` ("STOP reply").
+   */
+  customerConsent: "RETAIL_CUSTOMER.CONSENT_CHANGED",
+  /**
+   * Messages to customers queued (CUS-06, W-50): an offer or a reminder, now or scheduled. Entity
+   * `RetailMessageBatch`; carries `{ purpose, audience, count, scheduledFor }`.
+   */
+  messagesQueued: "RETAIL_MESSAGES.QUEUED",
 } as const;
 
 export type RetailAuditEvent =

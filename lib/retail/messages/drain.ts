@@ -5,6 +5,8 @@ import { isWhatsAppConfigured, sendTemplate, type SendResult } from "@/lib/messa
 import { prisma } from "@/lib/prisma";
 import { refreshReceiptBody } from "@/lib/retail/receipt-settings";
 
+import { refillOffer, refillReminder } from "./refill";
+
 /**
  * The message outbox's drain (SET-07, C-03): the one place a `RetailMessage`
  * leaves the shop. The retail worker runs it every five minutes; each pass
@@ -27,6 +29,13 @@ import { refreshReceiptBody } from "@/lib/retail/receipt-settings";
  * the UTILITY template "receipt": "Your receipt from {{1}}: {{2}}. Thank you
  * for shopping with us." A message with media needs its template approved
  * with an IMAGE or DOCUMENT header, which carries it.
+ *
+ * Messages to customers (CUS-06) go the same way, each a MARKETING or
+ * UTILITY template named as its `template`, {{1}} the shop and {{2}} the
+ * message as filled for the person: "customer-offer" (an offer), and
+ * "account-reminder" and "layby-reminder". Each is filled again from its
+ * batch's template just before it goes, so a scheduled one carries the
+ * points or the balance owed at send time.
  */
 
 export const MAX_ATTEMPTS = 5;
@@ -34,12 +43,28 @@ const BATCH = 100;
 
 type Due = Pick<
   RetailMessage,
-  "id" | "companyId" | "channel" | "to" | "template" | "body" | "saleId" | "mediaUrl" | "mediaName" | "mediaKind" | "attempts"
+  | "id"
+  | "companyId"
+  | "channel"
+  | "to"
+  | "template"
+  | "body"
+  | "saleId"
+  | "mediaUrl"
+  | "mediaName"
+  | "mediaKind"
+  | "attempts"
+  | "customerId"
+  | "batchId"
+  | "entityId"
 >;
 
 /** Templates whose text is written again just before sending. */
 const REFRESH: Record<string, (message: Due) => Promise<string | null>> = {
   receipt: (message) => refreshReceiptBody(message),
+  "customer-offer": refillOffer,
+  "account-reminder": refillReminder("account"),
+  "layby-reminder": refillReminder("layby"),
 };
 
 /** An email's subject, by template; anything else is "A message from {shop}". */
@@ -127,6 +152,9 @@ export async function drainOutbox(now: Date = new Date(), deps: DrainDeps = LIVE
       mediaName: true,
       mediaKind: true,
       attempts: true,
+      customerId: true,
+      batchId: true,
+      entityId: true,
     },
   });
   const names = new Map<string, string>();

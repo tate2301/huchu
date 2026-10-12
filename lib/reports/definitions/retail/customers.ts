@@ -11,6 +11,7 @@ import type { ListGrant, ListSpec, ReportDefinition, ReportFace } from "@/lib/re
 const VIEW: ListGrant[] = [["retail.customers", "view"]];
 const CREATE: ListGrant[] = [["retail.customers", "create"]];
 const BIN: ListGrant[] = [["retail.customers", "delete"]];
+const MESSAGE: ListGrant[] = [["retail.customers", "update"]];
 
 /** Last visit's choices: each a range of days since, so the in-memory engine narrows the same way. */
 const LAST_VISIT = [
@@ -125,11 +126,15 @@ const customers: ListSpec = {
   ],
   rowHref: "/retail/customers/{id}",
   rowMenu: [
-    // "Adjust points" (packet 64), "Message on WhatsApp" (55) and "Edit everything" (61) join with their sheets.
+    // "Adjust points" (packet 64) and "Edit everything" (61) join with their sheets.
+    { key: "message", label: "Message on WhatsApp", requires: MESSAGE, do: { href: "/retail/customers?sheet=message&ids={id}" } },
     { key: "bin", label: "Move to the bin", tone: "bad", requires: BIN, do: { run: "bincustomer", endpoint: "/api/v2/retail/bin" } },
   ],
-  // "Message on WhatsApp" (55), "Add points" and "Change tier" (64) join with their sheets.
-  bulk: [{ key: "export" }],
+  // "Add points" and "Change tier" (64) join with their sheets.
+  bulk: [
+    { key: "message", label: "Message on WhatsApp", requires: MESSAGE, do: { sheet: "message" } },
+    { key: "export" },
+  ],
   primary: { label: "New customer", icon: "plus", requires: CREATE, sheet: "customer-new" },
   card: { title: "name", badge: "tier", figure: "spend12m", meta: "{phone} · {visitsWords}", metaMono: ["phone"], figure2: "points" },
   empty: {

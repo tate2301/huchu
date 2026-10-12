@@ -1,7 +1,7 @@
 import { RETAIL_AUDIT_EVENTS } from "@/lib/retail/audit";
 import { labelsPrintedSentence } from "@/lib/retail/labels/words";
 import { priceWords, productWords, scheduledActivity, undoneActivity } from "@/lib/retail/prices/words";
-import { formatCount, formatMoney, formatPercent, formatSigned } from "@/lib/workspace/format";
+import { DEFAULT_TIME_ZONE, formatCount, formatMoney, formatPercent, formatSigned, formatTime } from "@/lib/workspace/format";
 
 /**
  * What a record's Activity tab says about each event (00-foundations 5.6.9).
@@ -31,6 +31,10 @@ const amount = (value: unknown): number | null => {
   const parsed = Number(raw);
   return Number.isFinite(parsed) ? parsed : null;
 };
+
+/** "Friday 16:00", in the shop's zone. */
+const weekdayTime = (at: Date) =>
+  `${new Intl.DateTimeFormat("en-GB", { weekday: "long", timeZone: DEFAULT_TIME_ZONE }).format(at)} ${formatTime(at)}`;
 
 const currencyOf = (payload: Payload) => text(payload.currency) ?? "USD";
 
@@ -478,6 +482,18 @@ const WORDS: Record<string, (payload: Payload, eventType: string, seeCost: boole
   [RETAIL_AUDIT_EVENTS.customerCreated]: (payload) => ({
     what: payload.via === "till" ? "Added at the till" : payload.consent === true ? "Added, agreed to messages" : "Added",
     tone: "ok",
+  }),
+  // CUS-06: "Sent an offer to 8 customers", "Scheduled an offer to 8 customers for Friday 16:00".
+  [RETAIL_AUDIT_EVENTS.messagesQueued]: (payload) => {
+    const count = amount(payload.count) ?? 0;
+    const what = `${payload.purpose === "OFFER" ? "an offer" : "a reminder"} to ${formatCount(count)} ${count === 1 ? "customer" : "customers"}`;
+    const at = text(payload.scheduledFor);
+    return { what: at ? `Scheduled ${what} for ${weekdayTime(new Date(at))}` : `Sent ${what}`, tone: "hollow" };
+  },
+  // CUS-06: "Replied STOP on WhatsApp" / "Stopped marketing messages" / "Agreed to messages".
+  [RETAIL_AUDIT_EVENTS.customerConsent]: (payload) => ({
+    what: payload.via === "STOP reply" ? "Replied STOP on WhatsApp" : payload.agreed === true ? "Agreed to messages" : "Stopped marketing messages",
+    tone: "hollow",
   }),
   [RETAIL_AUDIT_EVENTS.saleReviewed]: (payload) => ({
     what: text(payload.reason) ? `Looked at: ${text(payload.reason)}` : "Looked at",

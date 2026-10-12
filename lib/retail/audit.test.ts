@@ -529,6 +529,8 @@ describe("the chain", () => {
       pointsExpired: "RETAIL_POINTS.EXPIRED",
       pointsBirthday: "RETAIL_POINTS.BIRTHDAY",
       customerCreated: "RETAIL_CUSTOMER.CREATED",
+      customerConsent: "RETAIL_CUSTOMER.CONSENT_CHANGED",
+      messagesQueued: "RETAIL_MESSAGES.QUEUED",
     });
   });
 });

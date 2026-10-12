@@ -356,6 +356,7 @@ model Company {
   retailReceiptSettings         RetailReceiptSettings?
   retailFiscalSettings          RetailFiscalSettings?
   retailMessages                RetailMessage[]
+  retailMessageBatches          RetailMessageBatch[]
   userSiteAccess     UserSiteAccess[]
   retailStaffInvites RetailStaffInvite[]
 
@@ -1462,6 +1463,7 @@ model User {
   retailApprovalSettingsUpdated     RetailApprovalSettings[]       @relation("RetailApprovalSettingsUpdatedBy")
   retailLoyaltySettingsUpdated      RetailLoyaltySettings[]        @relation("RetailLoyaltySettingsUpdatedBy")
   customersCreated                  Customer[]                     @relation("CustomerCreatedBy")
+  retailMessageBatchesCreated       RetailMessageBatch[]           @relation("RetailMessageBatchCreatedBy")
   retailCustomerNotes               RetailCustomerNote[]           @relation("RetailCustomerNoteCreatedBy")
   retailPointsEntries               RetailPointsEntry[]            @relation("RetailPointsEntryActor")
   retailReceiptSettingsUpdated      RetailReceiptSettings[]        @relation("RetailReceiptSettingsUpdatedBy")
@@ -5747,15 +5749,50 @@ model RetailMessage {
   entityId     String?
   /// A reply's sender.
   fromNumber   String?
+  /// The customer it went to (CUS-06), and the send it was part of.
+  customerId   String?
+  batchId      String?
 
-  company Company     @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  sale    RetailSale? @relation(fields: [saleId], references: [id], onDelete: SetNull)
+  company  Company             @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  sale     RetailSale?         @relation(fields: [saleId], references: [id], onDelete: SetNull)
+  customer Customer?           @relation("RetailMessageCustomer", fields: [customerId], references: [id], onDelete: SetNull)
+  batch    RetailMessageBatch? @relation(fields: [batchId], references: [id], onDelete: SetNull)
 
   @@index([companyId, entityType, entityId, createdAt])
   @@index([companyId, status, createdAt])
   @@index([status, scheduledFor])
   @@index([saleId])
   @@index([externalId])
+  @@index([customerId, createdAt])
+}
+
+/// What a message to customers is for (CUS-06).
+enum RetailMessagePurpose {
+  OFFER
+  ACCOUNT_REMINDER
+  LAYBY_REMINDER
+  STATEMENT
+}
+
+/// One send to many customers (CUS-06): the template as typed, who it went to, and when.
+model RetailMessageBatch {
+  id           String               @id @default(uuid())
+  companyId    String
+  purpose      RetailMessagePurpose
+  /// "ticked" | "top-tier" | "lapsed-30" | "all-agreed"
+  audience     String
+  /// The text as typed, with its placeholders ("Hi {first name}, …").
+  template     String
+  scheduledFor DateTime?
+  total        Int
+  createdById  String?
+  createdAt    DateTime             @default(now())
+
+  company   Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  createdBy User?           @relation("RetailMessageBatchCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  messages  RetailMessage[]
+
+  @@index([companyId, createdAt])
 }
 
 /// S-7.5 — the four digits that unlock a till that is already signed in.
@@ -7117,6 +7154,7 @@ model Customer {
   createdBy       User?            @relation("CustomerCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
   notes           RetailCustomerNote[]
   pointsEntries   RetailPointsEntry[]
+  retailMessages  RetailMessage[]  @relation("RetailMessageCustomer")
 
   @@unique([companyId, code])
   @@unique([companyId, cardNo])

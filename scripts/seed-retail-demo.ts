@@ -88,6 +88,7 @@ import { adjustmentJournal, adjustStock, type AdjustWhy } from "@/lib/retail/sto
 import { breakCase } from "@/lib/retail/stock/cases"
 import { applyPromotions, shareCents, type SnapshotPromotion } from "@/lib/retail/pricing/engine"
 import { hashInviteToken, INVITE_DAYS } from "@/lib/retail/people/invite"
+import { offerValues, renderMessage } from "@/lib/retail/messages/render"
 
 function readArg(name: string): string | undefined {
   const prefix = `--${name}=`
@@ -1901,6 +1902,7 @@ async function main() {
 
   // ── Customers (CUS-02): the board's regulars, the members, their visits and points ──
   await seedCustomers(companyId)
+  await seedCustomerMessages(companyId)
 
   // ── A cart nobody came back for ──────────────────────────────────────────
   const openShift = shiftRows.find((row) => row.status === "OPEN")
@@ -6723,6 +6725,58 @@ async function seedCustomers(companyId: string) {
     `  customers: ${live} live (the board's 8 regulars, T. Marange, ${members.length} members, ${shopped.length} shopped in 30 days), ` +
       `${planned.length} visits before the history, ${entries.length} sales earning points`,
   )
+}
+
+const PAST_OFFER =
+  "Hi {first name}, double points on every Castle Lite this weekend, 26 to 28 September. You have {points} points to spend. Harare Bottle Store."
+
+/**
+ * CUS-06 `seedCustomerMessages()`: one past offer, so the outbox has history.
+ * Tendai Mhlanga sent it on 25 September at 10:00 to the Gold customers
+ * (audience "top-tier"): the board's eight regulars, each message filled for
+ * them and SENT five minutes later. Batches a walk queued go with it.
+ */
+async function seedCustomerMessages(companyId: string) {
+  const batches = await prisma.retailMessageBatch.findMany({ where: { companyId }, select: { id: true } })
+  await prisma.retailMessage.deleteMany({ where: { companyId, batchId: { in: batches.map((batch) => batch.id) } } })
+  await prisma.retailMessageBatch.deleteMany({ where: { companyId } })
+
+  const owner = await prisma.user.findFirst({ where: { companyId, email: "owner@bottlestore.test" }, select: { id: true } })
+  const names = REGULARS.map((regular) => regular.name)
+  const customers = await prisma.customer.findMany({
+    where: { companyId, name: { in: names }, archivedAt: null },
+    select: { id: true, name: true, phone: true, whatsapp: true },
+  })
+  const points = new Map(
+    (
+      await prisma.retailPointsEntry.groupBy({ by: ["customerId"], where: { companyId, customerId: { in: customers.map((row) => row.id) } }, _sum: { points: true } })
+    ).map((row) => [row.customerId, row._sum.points ?? 0]),
+  )
+  const day = lastDayOn("09-25")
+  const createdAt = harareDay(day, "10:00")
+  const sentAt = harareDay(day, "10:05")
+  const batch = await prisma.retailMessageBatch.create({
+    data: { companyId, purpose: "OFFER", audience: "top-tier", template: PAST_OFFER, total: customers.length, createdById: owner?.id ?? null, createdAt },
+    select: { id: true },
+  })
+  await prisma.retailMessage.createMany({
+    data: customers.map((customer, index) => ({
+      companyId,
+      channel: "WHATSAPP" as const,
+      to: customer.whatsapp ?? customer.phone ?? CUSTOMER_PHONES[customer.name]!,
+      template: "customer-offer",
+      body: renderMessage(PAST_OFFER, offerValues({ name: customer.name, points: points.get(customer.id) ?? 0 })),
+      customerId: customer.id,
+      batchId: batch.id,
+      status: "SENT" as const,
+      attempts: 1,
+      externalId: `wamid.seed-offer-${index + 1}`,
+      sentAt,
+      createdById: owner?.id ?? null,
+      createdAt,
+    })),
+  })
+  console.log(`  customer messages: an offer to ${customers.length} Gold customers on ${day}, sent`)
 }
 
 /**
