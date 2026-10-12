@@ -43,6 +43,10 @@ import { splitChange } from "@/lib/retail/payment-words";
 import { queueSaleReceipt, type ReceiptRecipient } from "@/lib/retail/receipt-settings";
 import { sellGiftVouchers } from "@/lib/retail/vouchers/issue";
 import { redeemInSale, restoreDiscountUse, restoreVoucherUse } from "@/lib/retail/vouchers/redeem";
+import { earnPoints } from "@/lib/retail/loyalty/earn";
+import { balance as pointsBalance, spendPoints } from "@/lib/retail/loyalty/ledger";
+import { reversePoints } from "@/lib/retail/loyalty/reverse";
+import type { LoyaltySettings } from "@/lib/retail/loyalty/settings";
 import {
   auditSalePosted,
   auditSaleReversed,
@@ -56,6 +60,9 @@ import { shiftElsewhereSentence } from "@/lib/retail/device-words";
 import { buildRetailZReportFigures, parseTradingDay, tradingDayAsDate, tradingDayWindow } from "@/lib/retail/z-report";
 
 /** 409: this person's shift is open on another till ("People are not devices", 10-setup W-04 step 8). */
+/** What a sale did to its customer's points (CUS-01): the `loyalty` of the `pos/sales` response. */
+export type SaleLoyalty = { earned: number; spent: number; balance: number; tier: string | null };
+
 export class ShiftElsewhere extends Error {
   readonly status = 409;
   constructor(readonly tillName: string) {
@@ -396,6 +403,17 @@ export async function createRetailSaleTransaction(input: {
    */
   clientRef?: string | null;
   customerName?: string | null;
+  /** FLR-01/CUS-01: who the sale was rung for; their points are earned (and spent) in its transaction. */
+  customerId?: string | null;
+  /**
+   * CUS-01 (W-46): the loyalty scheme in force, and the points spent on the
+   * sale (already taken off its lines): written as SPENT under the
+   * customer's lock, then what the sale earns.
+   */
+  loyalty?: {
+    settings: LoyaltySettings;
+    spend: { customer: { id: string; name: string }; points: number; value: number; payable: number } | null;
+  } | null;
   subtotal: number;
   discountAmount: number;
   taxAmount: number;
@@ -555,7 +573,7 @@ export async function createRetailSaleTransaction(input: {
     );
 
     try {
-      const { fiscal, vouchersSold, ...sale } = await prisma.$transaction(async (tx) => {
+      const { fiscal, vouchersSold, loyalty, ...sale } = await prisma.$transaction(async (tx) => {
         // A count that does not keep selling holds its products back until it
         // is sent (W-22), checked in this transaction so a count starting now
         // and this sale take turns. A replay is not asked: the money was already taken.
@@ -588,6 +606,7 @@ export async function createRetailSaleTransaction(input: {
             cashierId: input.actor.userId,
             cashierName: resolveCashierName(input.actor),
             customerName: input.customerName ?? null,
+            customerId: input.customerId ?? null,
             idCheckedAt: input.idCheckedAt ?? null,
             depositAmount,
             vouchersSoldAmount,
@@ -711,6 +730,43 @@ export async function createRetailSaleTransaction(input: {
           ? await sellGiftVouchers(tx, { actor: voucherActor, saleId: created.id, vouchers: input.vouchersSold, now: created.postedAt ?? new Date() })
           : [];
 
+        // CUS-01: the points spent (the customer's row locked, the balance checked again), then what it earns.
+        let loyalty: SaleLoyalty | null = null;
+        if (input.loyalty && created.customerId) {
+          const postedAt = created.postedAt ?? new Date();
+          if (input.loyalty.spend) {
+            await spendPoints(tx, {
+              companyId: input.actor.companyId,
+              customer: input.loyalty.spend.customer,
+              points: input.loyalty.spend.points,
+              value: input.loyalty.spend.value,
+              payable: input.loyalty.spend.payable,
+              saleId: created.id,
+              actor: { id: input.actor.userId, name: resolveCashierName(input.actor) },
+              settings: input.loyalty.settings,
+              at: postedAt,
+            });
+          }
+          const earned = await earnPoints(
+            tx,
+            {
+              id: created.id,
+              companyId: input.actor.companyId,
+              customerId: created.customerId,
+              postedAt,
+              cashierName: created.cashierName,
+              lines: created.lines,
+            },
+            input.loyalty.settings,
+          );
+          loyalty = {
+            earned: earned.points,
+            spent: input.loyalty.spend?.points ?? 0,
+            balance: await pointsBalance(tx, created.customerId),
+            tier: earned.tier,
+          };
+        }
+
         // STK-09: the deposit charged and the empties swapped back, on the Empties ledger.
         await recordSaleEmpties(tx, {
           companyId: input.actor.companyId,
@@ -747,7 +803,7 @@ export async function createRetailSaleTransaction(input: {
 
         // Last: the sale's fiscal day, settled in this commit (SET-08). Its receipt is dated here; the sale keeps its time.
         const fiscal = await assignRetailSaleFiscalDay(tx, { companyId: input.actor.companyId, saleId: created.id });
-        return { ...created, fiscal, vouchersSold };
+        return { ...created, fiscal, vouchersSold, loyalty };
       });
 
       const accounting = await ensureRetailSaleAccountingPosted({
@@ -757,7 +813,7 @@ export async function createRetailSaleTransaction(input: {
         periodOverrideReason: input.periodOverrideReason ?? null,
       });
 
-      return { sale, accounting, fiscal, vouchersSold };
+      return { sale, accounting, fiscal, vouchersSold, loyalty };
     } catch (error) {
       if (
         error instanceof Prisma.PrismaClientKnownRequestError &&
@@ -784,7 +840,7 @@ export async function createRetailSaleTransaction(input: {
             registerCode: shift.registerCode,
             periodOverrideReason: input.periodOverrideReason ?? null,
           });
-          return { sale: existing, accounting, fiscal: null, vouchersSold: [] };
+          return { sale: existing, accounting, fiscal: null, vouchersSold: [], loyalty: null };
         }
       }
 
@@ -1124,6 +1180,7 @@ export async function refundRetailSaleTransaction(input: {
         cashierId: input.actor.userId,
         cashierName: resolveCashierName(input.actor),
         customerName: currentSourceSale.customerName,
+        customerId: currentSourceSale.customerId,
         saleType: "REFUND",
         subtotal,
         discountAmount,
@@ -1235,6 +1292,17 @@ export async function refundRetailSaleTransaction(input: {
         throw new Error("Shift is no longer open.");
       }
     }
+
+    // CUS-01: the points the sale earned come off, and those it spent go back, in the share refunded.
+    await reversePoints(tx, {
+      saleId: currentSourceSale.id,
+      reversalSaleId: created.id,
+      share: money(currentSourceSale.totalAmount).isZero()
+        ? 1
+        : money(created.totalAmount).abs().dividedBy(money(currentSourceSale.totalAmount).abs()),
+      actor: { id: input.actor.userId, name: resolveCashierName(input.actor) },
+      at: created.postedAt ?? new Date(),
+    });
 
     // STK-09: the deposit handed back with the goods, on the Empties ledger.
     await recordRefundEmpties(tx, {
@@ -1411,6 +1479,7 @@ export async function voidRetailSaleTransaction(input: {
         cashierId: input.actor.userId,
         cashierName: resolveCashierName(input.actor),
         customerName: currentSourceSale.customerName,
+        customerId: currentSourceSale.customerId,
         saleType: "VOID",
         subtotal: money(currentSourceSale.subtotal).abs().negated(),
         discountAmount: money(currentSourceSale.discountAmount).abs().negated(),
@@ -1552,6 +1621,15 @@ export async function voidRetailSaleTransaction(input: {
         status: "VOIDED",
         voidReason: reason,
       },
+    });
+
+    // CUS-01: a void takes back everything the sale earned and gives back everything it spent.
+    await reversePoints(tx, {
+      saleId: currentSourceSale.id,
+      reversalSaleId: created.id,
+      share: 1,
+      actor: { id: input.actor.userId, name: resolveCashierName(input.actor) },
+      at: created.postedAt ?? new Date(),
     });
 
     // STK-09: the whole deposit handed back, on the Empties ledger (the bottles stay in the store).

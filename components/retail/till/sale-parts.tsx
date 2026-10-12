@@ -32,7 +32,7 @@ import {
 } from "@/lib/icons";
 import { depositsDue, emptiesCounted } from "@/lib/retail/deposits";
 import { clockLabel } from "@/lib/retail/licence-hours";
-import { LOYALTY_MAX_REDEEM_SHARE, LOYALTY_REDEEM_POINTS_PER_USD } from "@/lib/retail/loyalty-rules";
+import { pointsValue as worthOf, spendRefusal, SPENDING_NEEDS_THE_INTERNET } from "@/lib/retail/loyalty/spend";
 import { createOfflineRetailCustomer } from "@/lib/retail/offline-runtime";
 import { getPosPortalHref } from "@/lib/retail/pos-host";
 import { discountPinSentence } from "@/lib/retail/till-rule-words";
@@ -758,21 +758,33 @@ export function DiscountPopover() {
   const {
     orderDiscountAmount,
     setOrderDiscountAmount,
-    loyaltyRedemptionPoints,
-    setLoyaltyRedemptionPoints,
+    pointsToSpend,
+    setPointsToSpend,
     selectedCustomer,
-    goodsTotal,
+    loyaltyRules,
+    pointsPayable,
+    isOffline,
   } = useTill();
   const [open, setOpen] = React.useState(false);
   const [manual, setManual] = React.useState("");
   const [points, setPoints] = React.useState("");
   const ids = React.useId();
 
-  const pointsValue = Math.max(0, Math.floor(Number(points || "0")));
-  const maxPoints = selectedCustomer
-    ? Math.min(selectedCustomer.loyaltyPoints, Math.floor(goodsTotal * LOYALTY_MAX_REDEEM_SHARE * LOYALTY_REDEEM_POINTS_PER_USD))
-    : 0;
-  const tooMany = pointsValue > maxPoints;
+  const pointsWanted = Math.max(0, Math.floor(Number(points || "0")));
+  // CUS-01: the till's sentences, the same the server answers with.
+  const refusal =
+    pointsWanted > 0
+      ? isOffline
+        ? SPENDING_NEEDS_THE_INTERNET
+        : spendRefusal({
+            enabled: Boolean(loyaltyRules?.on),
+            customer: selectedCustomer ? { name: selectedCustomer.name, balance: selectedCustomer.loyaltyPoints } : null,
+            points: pointsWanted,
+            spendFrom: loyaltyRules?.spendFrom ?? 0,
+            pointValue: loyaltyRules?.pointValue ?? 0,
+            payable: pointsPayable,
+          })
+      : null;
 
   return (
     <TillPopover
@@ -780,10 +792,8 @@ export function DiscountPopover() {
       onOpenChange={(next) => {
         setOpen(next);
         if (next) {
-          const used = Number(loyaltyRedemptionPoints || "0");
-          const rest = Number(orderDiscountAmount || "0") - used / LOYALTY_REDEEM_POINTS_PER_USD;
-          setManual(rest > 0.009 ? rest.toFixed(2) : "");
-          setPoints(used ? String(used) : "");
+          setManual(Number(orderDiscountAmount || "0") > 0.009 ? Number(orderDiscountAmount).toFixed(2) : "");
+          setPoints(pointsToSpend);
         }
       }}
       label="Discount on the sale"
@@ -799,11 +809,10 @@ export function DiscountPopover() {
       <form
         onSubmit={(event) => {
           event.preventDefault();
-          if (tooMany) return;
-          const fromPoints = pointsValue / LOYALTY_REDEEM_POINTS_PER_USD;
-          const total = (amountOf(manual) ?? 0) + fromPoints;
-          setLoyaltyRedemptionPoints(pointsValue ? String(pointsValue) : "");
-          setOrderDiscountAmount(total > 0 ? total.toFixed(2) : "");
+          if (refusal) return;
+          const off = amountOf(manual) ?? 0;
+          setPointsToSpend(pointsWanted ? String(pointsWanted) : "");
+          setOrderDiscountAmount(off > 0 ? off.toFixed(2) : "");
           setOpen(false);
         }}
       >
@@ -811,30 +820,30 @@ export function DiscountPopover() {
           <MoneyField id={`${ids}m`} label="Off the whole sale" value={manual} onChange={setManual} placeholder="0.00" autoFocus />
           <div className="field">
             <label htmlFor={`${ids}l`}>Points</label>
-            {selectedCustomer ? (
+            {selectedCustomer && loyaltyRules?.on ? (
               <>
                 <input
                   id={`${ids}l`}
                   className="input input-lg num text-left"
                   inputMode="numeric"
                   value={points}
-                  aria-invalid={tooMany || undefined}
-                  aria-describedby={tooMany ? `${ids}le` : undefined}
+                  disabled={isOffline}
+                  aria-invalid={refusal ? true : undefined}
+                  aria-describedby={refusal ? `${ids}le` : undefined}
                   onChange={(event) => setPoints(event.target.value.replace(/\D/g, ""))}
                 />
-                {tooMany ? (
-                  <ErrorLine id={`${ids}le`}>
-                    {firstName(selectedCustomer.name)} can pay with {whole(maxPoints)} points at most on this sale.
-                  </ErrorLine>
+                {refusal ? (
+                  <ErrorLine id={`${ids}le`}>{refusal}</ErrorLine>
                 ) : (
                   <span className="help">
-                    {whole(selectedCustomer.loyaltyPoints)} points. 100 points are US$1.00, up to a fifth of the sale.
+                    {whole(selectedCustomer.loyaltyPoints)} points, worth {usd(worthOf(selectedCustomer.loyaltyPoints, loyaltyRules.pointValue))}.
+                    {pointsWanted > 0 ? ` These take ${usd(worthOf(pointsWanted, loyaltyRules.pointValue))} off.` : ""}
                   </span>
                 )}
               </>
             ) : (
               <p className="help is-flush">
-                Add a customer to pay with points: 100 points are US$1.00, up to a fifth of the sale.
+                {loyaltyRules?.on ? "Add a customer to pay with points." : "Loyalty is off."}
               </p>
             )}
           </div>
@@ -929,7 +938,6 @@ export function ApproveDialog({
     approvalReason,
     updateLine,
     setOrderDiscountAmount,
-    loyaltyRedemptionPoints,
     lineDiscountTotal,
     orderDiscountAmount,
     postSalePending,
@@ -979,7 +987,7 @@ export function ApproveDialog({
   const refusal = refusedOn("reason");
 
   const changed = cart.filter(lineIsChanged);
-  const orderOff = Number(orderDiscountAmount || "0") - Number(loyaltyRedemptionPoints || "0") / LOYALTY_REDEEM_POINTS_PER_USD;
+  const orderOff = Number(orderDiscountAmount || "0");
   const what = [
     changed.length === 1
       ? lineDiscountTotal > 0
@@ -1033,8 +1041,7 @@ export function ApproveDialog({
             className="btn"
             onClick={() => {
               for (const item of changed) updateLine(item.catalogItemId, { unitPrice: item.shelfPrice, lineDiscountAmount: 0 });
-              const points = Number(loyaltyRedemptionPoints || "0") / LOYALTY_REDEEM_POINTS_PER_USD;
-              setOrderDiscountAmount(points > 0 ? points.toFixed(2) : "");
+              setOrderDiscountAmount("");
               onOpenChange(false);
             }}
           >

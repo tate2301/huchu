@@ -3,8 +3,8 @@ import { errorResponse, successResponse } from "@/lib/api-response";
 import { parseRetailParams, retailIdParams } from "@/lib/retail/request";
 import { toNumberOrZero } from "@/lib/money";
 import { prisma } from "@/lib/prisma";
-import { getCustomerLoyaltyBalance } from "@/lib/retail/loyalty";
-import { parseLoyaltyRedeemPoints } from "@/lib/retail/loyalty-rules";
+import { balance, customerTier } from "@/lib/retail/loyalty/ledger";
+import { loadLoyaltySettings } from "@/lib/retail/loyalty/settings";
 import { requireRetailPermission } from "@/lib/retail/permissions";
 import { requireRetailSession } from "../../../_helpers";
 
@@ -22,67 +22,55 @@ export async function GET(
   const gate = requireRetailPermission(session, "retail.customers", "view");
   if (gate) return gate;
 
-  /*
-    R-3.1. The segment, through a schema.
-
-    Prisma is not injectable, so this is not a security fix. It is the
-    difference between a 400 naming the parameter and a 404 that reads, to a
-    shopkeeper, as "the receipt you are holding is not in the system".
-  */
   const path = await parseRetailParams(params, retailIdParams);
   if (path.response) return path.response;
   const { id } = path.data;
+  const companyId = session.user.companyId;
   const customer = await prisma.customer.findFirst({
-    where: { id, companyId: session.user.companyId, isActive: true },
+    where: { id, companyId, isActive: true },
     select: { id: true, name: true, phone: true, email: true },
   });
   if (!customer) {
     return errorResponse("Customer not found", 404);
   }
 
-  const sales = await prisma.retailSale.findMany({
-    where: {
-      companyId: session.user.companyId,
-      customerName: customer.name,
-      status: "POSTED",
-    },
-    orderBy: [{ postedAt: "desc" }, { createdAt: "desc" }],
-    take: 120,
-    select: {
-      id: true,
-      saleNo: true,
-      saleType: true,
-      totalAmount: true,
-      notes: true,
-      postedAt: true,
-      createdAt: true,
-    },
-  });
-
-  const loyalty = await getCustomerLoyaltyBalance({
-    companyId: session.user.companyId,
-    customerName: customer.name,
-  });
-
-  const ledger = sales.map((sale) => {
-    const earned = Math.max(Math.floor(toNumberOrZero(sale.totalAmount)), 0);
-    const redeemed = parseLoyaltyRedeemPoints(sale.notes);
-    const delta = earned - redeemed;
-    return {
-      id: sale.id,
-      saleNo: sale.saleNo,
-      saleType: sale.saleType,
-      postedAt: sale.postedAt ?? sale.createdAt,
-      amount: sale.totalAmount,
-      earnedPoints: earned,
-      redeemedPoints: redeemed,
-      delta,
-    };
-  });
+  // CUS-01: the points ledger, newest first, each row with the sale it moved on.
+  const settings = await loadLoyaltySettings(companyId);
+  const [entries, held, tier, totals] = await Promise.all([
+    prisma.retailPointsEntry.findMany({
+      where: { companyId, customerId: customer.id },
+      orderBy: { seq: "desc" },
+      take: 120,
+      select: {
+        id: true,
+        points: true,
+        createdAt: true,
+        sale: { select: { id: true, saleNo: true, saleType: true, totalAmount: true } },
+      },
+    }),
+    balance(prisma, customer.id),
+    customerTier(prisma, { companyId, customerId: customer.id, at: new Date(), settings }),
+    prisma.retailPointsEntry.groupBy({
+      by: ["kind"],
+      where: { companyId, customerId: customer.id, kind: { in: ["EARNED", "SPENT"] } },
+      _sum: { points: true },
+    }),
+  ]);
+  const sumOf = (kind: "EARNED" | "SPENT") => Math.abs(totals.find((row) => row.kind === kind)?._sum.points ?? 0);
 
   return successResponse({
     customer,
-    loyalty,
-    ledger,
+    loyalty: { earnedPoints: sumOf("EARNED"), redeemedPoints: sumOf("SPENT"), balance: held, tier },
+    ledger: entries.map((entry) => ({
+      id: entry.id,
+      saleId: entry.sale?.id ?? null,
+      saleNo: entry.sale?.saleNo ?? "",
+      saleType: entry.sale?.saleType ?? "",
+      postedAt: entry.createdAt,
+      amount: toNumberOrZero(entry.sale?.totalAmount ?? 0),
+      earnedPoints: Math.max(entry.points, 0),
+      redeemedPoints: Math.max(-entry.points, 0),
+      delta: entry.points,
+    })),
   });
 }

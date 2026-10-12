@@ -1,6 +1,7 @@
 import { approvalsPage } from "./approvals";
 import { companyPage } from "./company";
 import { fiscalPage } from "./fiscal";
+import { loyaltyPage } from "./loyalty";
 import { paymentsPage } from "./payments";
 import { postingPage } from "./posting";
 import { receiptsPage } from "./receipts";
@@ -24,6 +25,7 @@ export const SETTINGS_PAGES: Record<string, SettingsPage> = {
   approvals: approvalsPage,
   company: companyPage,
   fiscal: fiscalPage,
+  loyalty: loyaltyPage,
   payments: paymentsPage,
   posting: postingPage,
   receipts: receiptsPage,

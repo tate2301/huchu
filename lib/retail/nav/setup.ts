@@ -1,4 +1,4 @@
-import { DeviceMobile, ListChecks, Money, Receipt, Rows, ShieldCheck, Stamp, Storefront, Trash, UsersPair, Wrench } from "@/lib/icons";
+import { DeviceMobile, ListChecks, Money, Receipt, Rows, ShieldCheck, Stamp, Storefront, Ticket, Trash, UsersPair, Wrench } from "@/lib/icons";
 
 import type { RetailNavModule } from "./types";
 
@@ -50,6 +50,8 @@ export const setupNav: RetailNavModule = {
     { href: "/retail/manage/people", icon: UsersPair, label: "Staff and PINs", requires: [["retail.people", "view"]] },
     // ADM-04: when the owner must say yes, who is asked and how; what is waiting now.
     { href: "/retail/manage/approvals", icon: ShieldCheck, label: "Approvals", requires: [["retail.approvals", "view"]] },
+    // CUS-01: what customers earn and spend, the tiers and the rules (W-48).
+    { href: "/retail/manage/loyalty", icon: Ticket, label: "Loyalty", requires: [["retail.loyalty", "view"]] },
     { href: "/retail/manage/bin", icon: Trash, label: "Bin", requires: [["retail.bin", "view"]] },
   ],
 };

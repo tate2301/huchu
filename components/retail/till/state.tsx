@@ -42,7 +42,7 @@ import { removeOfflineOperation, resetOfflineOperationToQueued } from "@/lib/off
 import type { OfflineOutboxOperation } from "@/lib/offline/types";
 import { depositsDue, emptiesCounted } from "@/lib/retail/deposits";
 import { alcoholVerdict, type AlcoholVerdict } from "@/lib/retail/licence-hours";
-import { LOYALTY_REDEEM_POINTS_PER_USD } from "@/lib/retail/loyalty-rules";
+import { pointsValue, spendRefusal, SPENDING_NEEDS_THE_INTERNET, spreadPointsDiscount } from "@/lib/retail/loyalty/spend";
 import {
   isOfflineRetailCustomerId,
   listOfflineRetailOperations,
@@ -267,7 +267,7 @@ function useTillStateValue({ isPosHost, paired }: { isPosHost: boolean; paired: 
   const [cart, setCart] = useState<CartItem[]>([]);
   const [customerName, setCustomerNameRaw] = useState("");
   const [selectedCustomer, setSelectedCustomer] = useState<CustomerLookupResult | null>(null);
-  const [loyaltyRedemptionPoints, setLoyaltyRedemptionPoints] = useState("");
+  const [pointsToSpend, setPointsToSpend] = useState("");
   const [payments, setPayments] = useState<PaymentRow[]>([CASH_ROW]);
   const [orderDiscountAmount, setOrderDiscountAmount] = useState("");
   /** The cashier has looked at this customer's ID. One check covers the sale. */
@@ -412,12 +412,57 @@ function useTillStateValue({ isPosHost, paired }: { isPosHost: boolean; paired: 
       at: now,
       siteId,
       orderDiscountAmount: Number(orderDiscountAmount || "0"),
+      // A member on the sale while loyalty is on gets the loyalty members' promotions (D-3), as the server does.
+      customer: { loyalty: Boolean(context?.loyalty.on) && Boolean(selectedCustomer) },
     });
     // The till rings no fixed set yet (FLR-10), so a bundle refusal cannot arise here.
     if ("error" in sale) throw new Error(sale.error);
     return sale;
-  }, [bundles, now, orderDiscountAmount, productCategory, promotions, sellingLines, siteId]);
-  const checkout = priced.checkout;
+  }, [bundles, context?.loyalty.on, now, orderDiscountAmount, productCategory, promotions, selectedCustomer, sellingLines, siteId]);
+
+  /*
+    CUS-01. Points spent come off after the promotions, spread over the lines
+    points may pay as the server spreads them (`spreadPointsDiscount`), so the
+    total shown is the one charged. A spend the rules refuse takes nothing off
+    and says why.
+  */
+  const loyaltyRules = context?.loyalty ?? null;
+  const pointsWanted = Math.max(0, Math.floor(Number(pointsToSpend || "0")));
+  const pointsLines = useMemo(() => {
+    // A checkout line is a piece of a cart line (a deal splits one); its product is the piece's line.
+    const lineOfPiece = new Map(priced.pieces.map((piece) => [piece.key, piece.lineKey]));
+    const restricted = new Set(sellingLines.filter((item) => item.ageRestricted).map((item) => item.catalogItemId));
+    return priced.checkout.lines.map((line) => ({
+      ...line,
+      payable: Boolean(loyaltyRules?.payForAlcohol) || !restricted.has(lineOfPiece.get(line.id) ?? line.id),
+    }));
+  }, [loyaltyRules?.payForAlcohol, priced.checkout.lines, priced.pieces, sellingLines]);
+  const pointsPayable = round(pointsLines.filter((line) => line.payable).reduce((sum, line) => sum + line.lineTotal, 0));
+  const pointsProblem =
+    pointsWanted > 0
+      ? isOffline
+        ? SPENDING_NEEDS_THE_INTERNET
+        : spendRefusal({
+            enabled: Boolean(loyaltyRules?.on),
+            customer: selectedCustomer ? { name: selectedCustomer.name, balance: selectedCustomer.loyaltyPoints } : null,
+            points: pointsWanted,
+            spendFrom: loyaltyRules?.spendFrom ?? 0,
+            pointValue: loyaltyRules?.pointValue ?? 0,
+            payable: pointsPayable,
+          })
+      : null;
+  const pointsOff = pointsWanted > 0 && !pointsProblem && loyaltyRules ? pointsValue(pointsWanted, loyaltyRules.pointValue) : 0;
+  const checkout = useMemo(() => {
+    if (pointsOff <= 0) return priced.checkout;
+    const lines = spreadPointsDiscount(pointsLines, pointsOff).lines;
+    return {
+      ...priced.checkout,
+      discountAmount: round(lines.reduce((sum, line) => sum + line.discountAmount, 0)),
+      taxAmount: round(lines.reduce((sum, line) => sum + line.taxAmount, 0)),
+      total: round(priced.checkout.total - pointsOff),
+      lines,
+    };
+  }, [pointsLines, pointsOff, priced.checkout]);
   const bundleSaving = priced.bundleSaving;
   const promotionSaving = priced.promotionSaving;
   // Deposits sit outside the goods total; the customer pays both. Net of the empties each line took back.
@@ -440,8 +485,7 @@ function useTillStateValue({ isPosHost, paired }: { isPosHost: boolean; paired: 
   /* ── What the sale needs before it is taken ─────────────────────────── */
 
   const needsIdCheck = Boolean(features?.ageCheck) && !idChecked && sellingLines.some((item) => item.ageRestricted);
-  const pointsOff = Number(loyaltyRedemptionPoints || "0") / LOYALTY_REDEEM_POINTS_PER_USD;
-  const orderOff = Math.max(Number(orderDiscountAmount || "0") - pointsOff, 0);
+  const orderOff = Number(orderDiscountAmount || "0");
   // Points paid with are not a discount; anything else changed keeps a reason on the sale.
   const needsReason = sellingLines.some(lineIsChanged) || orderOff > 0.009;
   const canApprove = canRetailRoleDo(session?.user?.role, "retail.sell", "approve");
@@ -559,7 +603,7 @@ function useTillStateValue({ isPosHost, paired }: { isPosHost: boolean; paired: 
     setCart([]);
     setCustomerNameRaw("");
     setSelectedCustomer(null);
-    setLoyaltyRedemptionPoints("");
+    setPointsToSpend("");
     setPayments([CASH_ROW]);
     setOrderDiscountAmount("");
     setIdChecked(false);
@@ -577,7 +621,7 @@ function useTillStateValue({ isPosHost, paired }: { isPosHost: boolean; paired: 
       cart,
       customerName,
       selectedCustomer,
-      loyaltyRedemptionPoints,
+      pointsToSpend,
       payments,
       orderDiscountAmount,
       idChecked,
@@ -588,7 +632,7 @@ function useTillStateValue({ isPosHost, paired }: { isPosHost: boolean; paired: 
       setCart(kept.cart);
       setCustomerNameRaw(kept.customerName);
       setSelectedCustomer(kept.selectedCustomer);
-      setLoyaltyRedemptionPoints(kept.loyaltyRedemptionPoints);
+      setPointsToSpend(kept.pointsToSpend);
       setPayments(kept.payments);
       setOrderDiscountAmount(kept.orderDiscountAmount);
       setIdChecked(kept.idChecked);
@@ -630,7 +674,7 @@ function useTillStateValue({ isPosHost, paired }: { isPosHost: boolean; paired: 
       customerName: selectedCustomer?.name ?? (customerName.trim() || undefined),
       customerPhone: selectedCustomer?.phone ?? undefined,
       customerEmail: selectedCustomer?.email ?? undefined,
-      loyaltyRedemptionPoints: Number(loyaltyRedemptionPoints || "0") || undefined,
+      pointsToSpend: pointsOff > 0 ? pointsWanted : undefined,
       discountAmount: Number(orderDiscountAmount || "0") || undefined,
       overrideReason: reason?.trim() || undefined,
       idChecked: idChecked || undefined,
@@ -802,15 +846,20 @@ function useTillStateValue({ isPosHost, paired }: { isPosHost: boolean; paired: 
     selectCustomer: (customer: CustomerLookupResult | null) => {
       setSelectedCustomer(customer);
       setCustomerNameRaw(customer?.name ?? "");
-      if (!customer) setLoyaltyRedemptionPoints("");
+      if (!customer) setPointsToSpend("");
     },
     customerSearchResults: [
       ...offlineCustomerResults,
       ...(customerSearchQuery.data?.data ?? []).filter((customer) => !offlineCustomerResults.some((offline) => offline.id === customer.id)),
     ],
     customerSearchLoading: customerSearchQuery.isFetching,
-    loyaltyRedemptionPoints,
-    setLoyaltyRedemptionPoints,
+    pointsToSpend,
+    setPointsToSpend,
+    /** What the points come to off this sale, why they cannot be spent, and what they may pay. */
+    pointsOff,
+    pointsProblem,
+    pointsPayable,
+    loyaltyRules,
     orderDiscountAmount,
     setOrderDiscountAmount,
 
@@ -850,6 +899,7 @@ function useTillStateValue({ isPosHost, paired }: { isPosHost: boolean; paired: 
     canApprove,
     approvers: (context?.approvers ?? []).filter((person) => person.userId !== session?.user?.id),
     discountCeiling,
+    isOffline,
     offlineStop,
     /** ZIMRA is away and the shop stops selling until it answers (SET-08). */
     fiscalStop,

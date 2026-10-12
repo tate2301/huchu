@@ -18,7 +18,6 @@ import {
 import { retailMoney } from "@/components/retail/money";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import {
-  enumLabel,
   formatQuantity,
   formatRetailDate,
   formatSignedMoney,
@@ -37,9 +36,10 @@ type CustomerRow = {
 
 type CustomerLoyaltyPayload = {
   customer: { id: string; name: string; phone: string | null; email: string | null };
-  loyalty: { earnedPoints: number; redeemedPoints: number; balance: number; tier: string };
+  loyalty: { earnedPoints: number; redeemedPoints: number; balance: number; tier: string | null };
   ledger: Array<{
     id: string;
+    saleId: string | null;
     saleNo: string;
     saleType: string;
     postedAt: string;
@@ -144,7 +144,7 @@ export default function RetailCustomersPage() {
               id: customer.id,
               cells: {
                 customer: <ColumnName name={customer.customerName} meta={visits(customer)} />,
-                tier: <ColumnText>{enumLabel(customer.loyaltyTier)}</ColumnText>,
+                tier: <ColumnText>{customer.loyaltyTier}</ColumnText>,
                 lastVisit: <ColumnFigure tone="muted">{formatRetailDate(customer.lastPurchaseAt)}</ColumnFigure>,
                 points: (
                   <ColumnFigure tone={customer.loyaltyPoints ? "default" : "muted"}>
@@ -187,7 +187,7 @@ export default function RetailCustomersPage() {
             <FactList
               maxWidth={null}
               items={[
-                { label: "Tier", value: enumLabel(ledger.loyalty.tier) },
+                { label: "Tier", value: ledger.loyalty.tier ?? "" },
                 { label: "Balance", value: ledger.loyalty.balance, mono: true },
                 { label: "Earned", value: ledger.loyalty.earnedPoints, mono: true },
                 { label: "Redeemed", value: ledger.loyalty.redeemedPoints, mono: true },
@@ -218,7 +218,7 @@ export default function RetailCustomersPage() {
                     <ColumnName
                       code={entry.saleNo}
                       name={formatRetailDate(entry.postedAt)}
-                      href={`/retail/sales/${entry.id}`}
+                      href={entry.saleId ? `/retail/sales/${entry.saleId}` : undefined}
                     />
                   ),
                   amount: <ColumnFigure>{formatSignedMoney(entry.amount)}</ColumnFigure>,

@@ -64,7 +64,7 @@ export async function searchOfflineRetailCustomers(
     phone: (record.payload.phone as string | null | undefined) ?? null,
     email: (record.payload.email as string | null | undefined) ?? null,
     loyaltyPoints: 0,
-    loyaltyTier: "BRONZE",
+    loyaltyTier: "",
     isOfflineEntity: true,
     tempId: record.tempId,
     offlineStatus: record.status,

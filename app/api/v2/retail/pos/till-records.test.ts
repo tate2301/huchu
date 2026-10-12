@@ -5,7 +5,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { prisma } from "@/lib/prisma";
 import { DEVICE_COOKIE } from "@/lib/retail/device-words";
 import { hashDeviceKey } from "@/lib/retail/devices";
-import { getCustomerLoyaltyBalance } from "@/lib/retail/loyalty";
+import { balance } from "@/lib/retail/loyalty/ledger";
 
 /**
  * What the till's records read back (boards Sale, Refunded, Activity,
@@ -207,8 +207,7 @@ describe("a sale's record", () => {
     tapiwaSale = { id: sold.body.id!, saleNo: sold.body.saleNo! };
 
     const sale = await record(tapiwaSale.id);
-    const loyalty = await getCustomerLoyaltyBalance({ companyId, customerName: tapiwa });
-    expect(sale.customer).toEqual({ phone: "0772 418 330", tier: "BRONZE", balance: loyalty.balance, earned: 17, returned: 0 });
+    expect(sale.customer).toEqual({ phone: "0772 418 330", tier: "Bronze", balance: await balance(prisma, customerId), earned: 17, returned: 0 });
     expect(sale.empties).toBe(2);
     expect(sale.approvedByName).toBeNull();
   });
@@ -250,7 +249,7 @@ describe("a sale's record", () => {
   });
 
   it("names the manager who approved a void, and the void hands back exactly the points the sale earned", async () => {
-    const before = await getCustomerLoyaltyBalance({ companyId, customerName: tapiwa });
+    const before = await balance(prisma, customerId);
     const sold = await sell("to-void", { customerId, items: [{ productId: riceId, quantity: 1 }], payments: [{ tenderType: "CASH", amount: 2.8 }] });
     expect(sold.status).toBe(201);
     voidedId = sold.body.id!;
@@ -260,7 +259,7 @@ describe("a sale's record", () => {
     expect(sale.reversals).toEqual([expect.objectContaining({ saleType: "VOID", approvedByName: "Farai Mutasa" })]);
     expect(sale.customer).toMatchObject({ earned: 2, returned: 2 });
     // The voided sale and its void row come to nothing: the balance is where it was, not 2 lower.
-    expect((await getCustomerLoyaltyBalance({ companyId, customerName: tapiwa })).earnedPoints).toBe(before.earnedPoints);
+    expect(await balance(prisma, customerId)).toBe(before);
   });
 });
 

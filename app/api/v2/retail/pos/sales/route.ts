@@ -4,13 +4,17 @@ import { z } from "zod";
 import { errorResponse, successResponse } from "@/lib/api-response";
 import { atLeast, money, sumMoney, toNumber, toNumberOrZero } from "@/lib/money";
 import { prisma } from "@/lib/prisma";
+import { newCustomerNumbers } from "@/lib/retail/customers/numbers";
+import { normalizePhone } from "@/lib/retail/customers/phone";
+import { balance } from "@/lib/retail/loyalty/ledger";
+import { loadLoyaltySettings } from "@/lib/retail/loyalty/settings";
 import {
-  getLoyaltyTier,
-  LOYALTY_MAX_REDEEM_SHARE,
-  LOYALTY_REDEEM_POINTS_PER_USD,
-  parseLoyaltyRedeemPoints,
-} from "@/lib/retail/loyalty-rules";
-import { getCustomerLoyaltyBalance } from "@/lib/retail/loyalty";
+  LoyaltyRefusal,
+  pointsValue,
+  spendRefusal,
+  SPENDING_NEEDS_THE_INTERNET,
+  spreadPointsDiscount,
+} from "@/lib/retail/loyalty/spend";
 import {
   canRetailSessionDo,
   canSeeRetailCostPrice,
@@ -100,7 +104,12 @@ const saleSchema = z.object({
   customerName: z.string().max(200).optional().nullable(),
   customerPhone: z.string().max(40).optional().nullable(),
   customerEmail: z.string().email().max(200).optional().nullable(),
-  loyaltyRedemptionPoints: z.number().int().min(0).optional(),
+  /**
+   * CUS-01: points the customer spends on this sale, taken off its payable
+   * lines at what a point is worth. Refused on a replay: the till does not
+   * spend points offline.
+   */
+  pointsToSpend: z.number().int().min(0).optional(),
   notes: z.string().max(500).optional().nullable(),
   discountAmount: z.number().min(0).optional(),
   overrideReason: z.string().max(240).optional().nullable(),
@@ -189,17 +198,6 @@ async function discountCeilingRefusal(
     }
   }
   return null;
-}
-
-function normalizePhone(input: string | null | undefined) {
-  if (!input) return null;
-  const trimmed = input.trim();
-  if (!trimmed) return null;
-  const normalized = trimmed.replace(/[^\d+]/g, "");
-  if (normalized.length < 7) {
-    throw new Error("Customer phone number looks invalid.");
-  }
-  return normalized;
 }
 
 function normalizeEmail(input: string | null | undefined) {
@@ -639,6 +637,26 @@ export async function POST(request: NextRequest) {
       return errorResponse(refusal, 409);
     }
 
+    /*
+      CUS-01. The customer the till picked, live (not archived, not merged
+      away), and the loyalty scheme: a member on the sale while loyalty is on
+      gets the promotions for loyalty members (D-3), and may spend points.
+    */
+    const loyalty = await loadLoyaltySettings(session.user.companyId);
+    const pointsToSpend = input.pointsToSpend ?? 0;
+    const saleCustomer = input.customerId
+      ? await prisma.customer.findFirst({
+          where: { id: input.customerId, companyId: session.user.companyId, isActive: true, archivedAt: null, mergedIntoId: null },
+          select: { id: true, name: true, phone: true, email: true },
+        })
+      : null;
+    if (input.customerId && !saleCustomer) {
+      return errorResponse("Selected customer is invalid", 400);
+    }
+    if (pointsToSpend > 0 && replaySoldAt) {
+      return errorResponse(SPENDING_NEEDS_THE_INTERNET, 409);
+    }
+
     // PRD-05. *The* resolution point: the till's price engine over the
     // snapshot for this site and till at the moment the sale was rung — per
     // line, because a list's minimum and a volume break depend on how many.
@@ -773,6 +791,7 @@ export async function POST(request: NextRequest) {
       siteId: site.id,
       orderDiscountAmount: input.discountAmount ?? 0,
       voucher: discountVoucher,
+      customer: { loyalty: loyalty.enabled && saleCustomer !== null },
     });
     if ("error" in priced) {
       return errorResponse(priced.error, 400);
@@ -860,13 +879,7 @@ export async function POST(request: NextRequest) {
       }
     }
     const orderDiscountAmount = round(input.discountAmount ?? 0);
-    const requestedRedeemPoints = Math.max(input.loyaltyRedemptionPoints ?? 0, 0);
-    const loyaltyDiscountAmount = round(requestedRedeemPoints / LOYALTY_REDEEM_POINTS_PER_USD);
-    if (loyaltyDiscountAmount > orderDiscountAmount + 0.01) {
-      return errorResponse("Loyalty redemption exceeds order discount amount", 400);
-    }
-
-    const hasManualDiscount = Math.max(orderDiscountAmount - loyaltyDiscountAmount, 0) > 0.009;
+    const hasManualDiscount = orderDiscountAmount > 0.009;
 
     /**
      * S-7.3. A sale that has already happened is judged by a different rule.
@@ -946,7 +959,7 @@ export async function POST(request: NextRequest) {
         shelfUnitPrice: line.shelf.unitPrice,
         lineDiscount: line.baseDiscountAmount,
       })),
-      orderDiscount: round(Math.max(orderDiscountAmount - loyaltyDiscountAmount, 0)),
+      orderDiscount: orderDiscountAmount,
       pricesExplained: replayReview !== null,
     });
     const approval = replaySoldAt
@@ -983,7 +996,7 @@ export async function POST(request: NextRequest) {
 
     const checkout = priced.checkout;
     const normalizedLineMap = new Map(checkout.lines.map((line) => [line.id, line]));
-    const normalizedLines = saleLines.map((line) => {
+    const pricedLines = saleLines.map((line) => {
       const calculated = normalizedLineMap.get(line.lineKey);
       if (!calculated) {
         throw new Error(`Unable to price ${line.listing.name}.`);
@@ -992,14 +1005,42 @@ export async function POST(request: NextRequest) {
         ...line,
         discountAmount: calculated.discountAmount,
         taxAmount: calculated.taxAmount,
+        taxPercent: calculated.taxPercent,
         lineTotal: calculated.lineTotal,
+        // Points may pay it: anything but alcohol where the shop's rule keeps points off alcohol.
+        payable: loyalty.pointsPayForAlcohol || !sellable.get(line.listing.productId)!.ageRestricted,
       };
     });
 
+    /*
+      CUS-01 (W-46). Points spent come off after the price engine, the
+      promotions and the discount voucher: their worth spread over the lines
+      points may pay, VAT following each line. Checked here against the
+      balance as it stands; the sale's transaction checks it again under the
+      customer's lock and writes the spend.
+    */
+    let pointsSpend: { customer: { id: string; name: string }; points: number; value: number; payable: number } | null = null;
+    let normalizedLines = pricedLines;
+    if (pointsToSpend > 0) {
+      const payable = round(pricedLines.filter((line) => line.payable).reduce((sum, line) => sum + line.lineTotal, 0));
+      const refusal = spendRefusal({
+        enabled: loyalty.enabled,
+        customer: saleCustomer ? { name: saleCustomer.name, balance: await balance(prisma, saleCustomer.id) } : null,
+        points: pointsToSpend,
+        spendFrom: loyalty.spendFrom,
+        pointValue: loyalty.pointValue,
+        payable,
+      });
+      if (refusal) return errorResponse(refusal, 400);
+      const value = pointsValue(pointsToSpend, loyalty.pointValue);
+      normalizedLines = spreadPointsDiscount(pricedLines, value).lines;
+      pointsSpend = { customer: { id: saleCustomer!.id, name: saleCustomer!.name }, points: pointsToSpend, value, payable };
+    }
+
     const subtotal = checkout.subtotal;
-    const totalDiscount = checkout.discountAmount;
-    const taxAmount = checkout.taxAmount;
-    const totalAmount = checkout.total;
+    const totalDiscount = round(normalizedLines.reduce((sum, line) => sum + line.discountAmount, 0));
+    const taxAmount = round(normalizedLines.reduce((sum, line) => sum + line.taxAmount, 0));
+    const totalAmount = round(checkout.total - (pointsSpend?.value ?? 0));
     // Deposits on returnable bottles, priced off the product rather than the
     // device, and only on a shop that charges them.
     const depositsOn = shopFeatures(shopProfile).emptiesAndDeposits;
@@ -1051,18 +1092,8 @@ export async function POST(request: NextRequest) {
       | null = null;
     let resolvedCustomerName = requestedCustomerName;
 
-    if (input.customerId) {
-      const selectedCustomer = await prisma.customer.findFirst({
-        where: {
-          id: input.customerId,
-          companyId: session.user.companyId,
-          isActive: true,
-        },
-        select: { id: true, name: true, phone: true, email: true },
-      });
-      if (!selectedCustomer) {
-        return errorResponse("Selected customer is invalid", 400);
-      }
+    if (saleCustomer) {
+      const selectedCustomer = saleCustomer;
       capturedCustomer =
         customerPhone || customerEmail
           ? await prisma.customer.update({
@@ -1116,10 +1147,12 @@ export async function POST(request: NextRequest) {
           : await prisma.customer.create({
               data: {
                 companyId: session.user.companyId,
+                ...(await newCustomerNumbers(prisma, session.user.companyId)),
                 name: customerName,
                 phone: customerPhone,
                 email: customerEmail,
                 contactName: requestedCustomerName || undefined,
+                createdById: session.user.id,
               },
               select: { id: true, name: true, phone: true, email: true },
             });
@@ -1127,42 +1160,17 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    if (requestedRedeemPoints > 0) {
-      if (!resolvedCustomerName) {
-        return errorResponse("Select a customer before loyalty redemption", 400);
-      }
-      const loyalty = await getCustomerLoyaltyBalance({
-        companyId: session.user.companyId,
-        customerName: resolvedCustomerName,
-      });
-      if (requestedRedeemPoints > loyalty.balance) {
-        return errorResponse("Loyalty points redemption exceeds customer balance", 400);
-      }
-      const maxRedeemAmount = round(totalAmount * LOYALTY_MAX_REDEEM_SHARE);
-      if (loyaltyDiscountAmount > maxRedeemAmount + 0.01) {
-        return errorResponse(
-          `Loyalty redemption cannot exceed ${(LOYALTY_MAX_REDEEM_SHARE * 100).toFixed(0)}% of sale total`,
-          400,
-        );
-      }
-      if (Math.abs(orderDiscountAmount - loyaltyDiscountAmount) > 0.01) {
-        return errorResponse("Order discount must match loyalty redemption amount", 400);
-      }
-    }
-
-    const loyaltyNote =
-      requestedRedeemPoints > 0 ? `LOYALTY_REDEEM:${requestedRedeemPoints}` : null;
     // S-7.3. Marks the sale as one the till took while the line was down, so the
     // queue screen and the audit log can tell a replay from a sale rung at the
     // counter without guessing from timestamps.
     const replayNote = replaySoldAt
       ? `${OFFLINE_REPLAY_NOTE_MARKER}:${replaySoldAt.toISOString()}`
       : null;
-    const normalizedNotes = [input.notes?.trim() || null, replayNote, loyaltyNote]
+    const normalizedNotes = [input.notes?.trim() || null, replayNote]
       .filter((value): value is string => Boolean(value))
       .join(" | ");
 
-    const { sale, accounting, fiscal: assigned, vouchersSold: voucherCards } = await createRetailSaleTransaction({
+    const { sale, accounting, fiscal: assigned, vouchersSold: voucherCards, loyalty: points } = await createRetailSaleTransaction({
       actor: {
         companyId: session.user.companyId,
         userId: session.user.id,
@@ -1184,6 +1192,8 @@ export async function POST(request: NextRequest) {
         .filter(Boolean)
         .join(" ") || null,
       customerName: resolvedCustomerName,
+      customerId: capturedCustomer?.id ?? null,
+      loyalty: { settings: loyalty, spend: pointsSpend },
       subtotal,
       discountAmount: totalDiscount,
       taxAmount,
@@ -1228,20 +1238,6 @@ export async function POST(request: NextRequest) {
         email: capturedCustomer?.email ?? customerEmail,
       },
     });
-
-    const customerNetSpend =
-      resolvedCustomerName && resolvedCustomerName !== "Walk-in"
-        ? await getCustomerLoyaltyBalance({
-            companyId: session.user.companyId,
-            customerName: resolvedCustomerName,
-          })
-        : null;
-    const loyaltyPointsEarned =
-      resolvedCustomerName && money(sale.totalAmount).greaterThan(0)
-        ? Math.floor(toNumberOrZero(sale.totalAmount))
-        : 0;
-    const loyaltyPointsRedeemed = parseLoyaltyRedeemPoints(sale.notes);
-    const loyaltyPointsBalance = Math.max(customerNetSpend?.balance ?? 0, 0);
 
     /*
       The sale's commit settled its fiscal day and signed its receipt (SET-08),
@@ -1294,15 +1290,8 @@ export async function POST(request: NextRequest) {
       receipt,
       customerPhone: capturedCustomer?.phone ?? customerPhone,
       customerEmail: capturedCustomer?.email ?? customerEmail,
-      loyalty:
-        resolvedCustomerName && resolvedCustomerName !== "Walk-in"
-          ? {
-              pointsEarned: loyaltyPointsEarned,
-              pointsRedeemed: loyaltyPointsRedeemed,
-              pointsBalance: loyaltyPointsBalance,
-              tier: getLoyaltyTier(loyaltyPointsBalance),
-            }
-          : null,
+      // CUS-01: what the sale earned and spent, the balance after it and the tier; null with no customer.
+      loyalty: points,
     }, 201);
   } catch (error) {
     const refused = tillRuleResponse(error);
@@ -1312,6 +1301,7 @@ export async function POST(request: NextRequest) {
     }
     if (error instanceof ShiftElsewhere || error instanceof BeingCounted) return errorResponse(error.message, 409);
     if (error instanceof VoucherRefusal) return errorResponse(error.message, error.status);
+    if (error instanceof LoyaltyRefusal) return errorResponse(error.message, error.status);
     return errorResponse(error instanceof Error ? error.message : "Failed to post sale", 400);
   }
 }

@@ -40,6 +40,7 @@ export type ReservableIdEntity =
   | "RETAIL_GIFT_VOUCHER"
   | "RETAIL_CREDIT_NOTE"
   | "RETAIL_DISCOUNT_VOUCHER"
+  | "RETAIL_CUSTOMER"
   | "CRM_CLIENT"
   | "CRM_LEAD"
   | "CRM_APPOINTMENT"
@@ -120,6 +121,8 @@ export const ID_ENTITY_CONFIG: Record<ReservableIdEntity, EntityConfig> = {
   RETAIL_GIFT_VOUCHER: { prefix: "GV", requiresSiteId: false },
   RETAIL_CREDIT_NOTE: { prefix: "CN", requiresSiteId: false },
   RETAIL_DISCOUNT_VOUCHER: { prefix: "DV", requiresSiteId: false },
+  // "CUS-00141": a retail customer (CUS-01), company-wide; the card number follows it.
+  RETAIL_CUSTOMER: { prefix: "CUS", requiresSiteId: false, padWidth: 5 },
   CRM_CLIENT: { prefix: "CLI", requiresSiteId: false },
   CRM_LEAD: { prefix: "CRL", requiresSiteId: false },
   CRM_APPOINTMENT: { prefix: "SVT", requiresSiteId: false },
@@ -491,6 +494,13 @@ async function findEntityMaxExistingCode(
     case "RETAIL_DISCOUNT_VOUCHER": {
       const records = await db.retailVoucher.findMany({
         where: { companyId, code: { startsWith: `${prefix}-` } },
+        select: { code: true },
+      });
+      return extractMaxFromCodes(records.map((record) => record.code), prefix);
+    }
+    case "RETAIL_CUSTOMER": {
+      const records = await db.customer.findMany({
+        where: { companyId, code: { not: null } },
         select: { code: true },
       });
       return extractMaxFromCodes(records.map((record) => record.code), prefix);

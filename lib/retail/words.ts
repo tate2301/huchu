@@ -205,3 +205,38 @@ export function formatQuantity(value: number, unit?: string | null): string {
   if (!countable || Math.abs(value) === 1) return `${amount} ${name}`;
   return `${amount} ${/(x|ch|sh)$/i.test(name) ? `${name}es` : `${name}s`}`;
 }
+
+const POINTS_REASON: Record<string, string> = {
+  MISSED_AT_TILL: "Missed at the till",
+  COMPLAINT: "Make good a complaint",
+  BIRTHDAY: "Birthday bonus",
+  CORRECTION: "Correction",
+};
+
+/**
+ * A points ledger row in words and its tone (CUS-01): "Earned on a sale",
+ * "Taken back on a refund". A reversal reads by its sign; an adjustment by
+ * its reason.
+ */
+export function pointsKindLabel(entry: {
+  kind: string;
+  points: number;
+  reason?: string | null;
+}): { label: string; tone: "ok" | "info" | "warn" | "hollow" } {
+  switch (entry.kind) {
+    case "EARNED":
+      return { label: "Earned on a sale", tone: "ok" };
+    case "SPENT":
+      return { label: "Spent on a sale", tone: "info" };
+    case "BIRTHDAY":
+      return { label: "Birthday bonus", tone: "warn" };
+    case "EXPIRED":
+      return { label: "Expired, a year old", tone: "hollow" };
+    case "REVERSED":
+      return { label: entry.points < 0 ? "Taken back on a refund" : "Back on a refund", tone: "hollow" };
+    case "ADJUSTED":
+      return { label: lookup(POINTS_REASON, entry.reason ?? null) || "Adjusted", tone: "warn" };
+    default:
+      return { label: enumLabel(entry.kind), tone: "hollow" };
+  }
+}

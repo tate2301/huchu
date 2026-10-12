@@ -91,7 +91,7 @@ type SaleDetail = {
   /** The bottles that came back on it. */
   empties: number;
   /** The customer, matched by name as loyalty is: points earned on it, taken back by its refunds and voids, and now. Null on a walk-in. */
-  customer: { phone: string | null; tier: string; balance: number; earned: number; returned: number } | null;
+  customer: { phone: string | null; tier: string | null; balance: number; earned: number; returned: number } | null;
   voidReason: string | null;
   shift: { id: string; shiftNo: string; registerName: string; status: string } | null;
   sourceSale: { id: string; saleNo: string } | null;
@@ -209,9 +209,6 @@ function Approved({ by }: { by: string | null }) {
     </>
   ) : null;
 }
-
-/** "Bronze", from the scheme's "BRONZE". */
-const tierWord = (tier: string) => tier.charAt(0) + tier.slice(1).toLowerCase();
 
 /** "+14 on this sale, 210 now"; once refunded, "+14, then −3 back, 207 now". */
 function pointsWords(customer: NonNullable<SaleDetail["customer"]>) {
@@ -791,7 +788,7 @@ export function SaleScreen({ id }: { id: string }) {
                 <div className="ink weight-500">{sale.customerName}</div>
                 {sale.customer ? (
                   <div className="note num text-left">
-                    {[sale.customer.phone, tierWord(sale.customer.tier)].filter(Boolean).join(" · ")}
+                    {[sale.customer.phone, sale.customer.tier].filter(Boolean).join(" · ")}
                   </div>
                 ) : null}
               </div>

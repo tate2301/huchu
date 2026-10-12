@@ -136,7 +136,7 @@ describe("classifyReplayedSale", () => {
   const replayNote = `${OFFLINE_REPLAY_NOTE_MARKER}:${soldAt}`;
 
   it("leaves an ordinary counter sale alone", () => {
-    expect(classifyReplayedSale({ notes: "LOYALTY_REDEEM:40" }).kind).toBe("NOT_A_REPLAY");
+    expect(classifyReplayedSale({ notes: "Paid by card" }).kind).toBe("NOT_A_REPLAY");
     expect(classifyReplayedSale({}).kind).toBe("NOT_A_REPLAY");
   });
 

@@ -3,7 +3,8 @@ import { z } from "zod";
 import { successResponse } from "@/lib/api-response";
 import { money, toNumberOrZero } from "@/lib/money";
 import { prisma } from "@/lib/prisma";
-import { getCustomerLoyaltyBalance } from "@/lib/retail/loyalty";
+import { balance, customerTier } from "@/lib/retail/loyalty/ledger";
+import { loadLoyaltySettings } from "@/lib/retail/loyalty/settings";
 import { requireRetailPermission } from "@/lib/retail/permissions";
 import { parseRetailQuery } from "@/lib/retail/request";
 import { requireRetailSession } from "../../_helpers";
@@ -59,13 +60,17 @@ export async function GET(request: NextRequest) {
     },
   });
 
+  // CUS-01: each customer's points off the ledger and their tier now.
+  const settings = await loadLoyaltySettings(session.user.companyId);
+  const now = new Date();
   const data = await Promise.all(
     customers.map(async (customer) => {
-      const [loyalty, lastSale] = await Promise.all([
-        getCustomerLoyaltyBalance({ companyId: session.user.companyId, customerName: customer.name }),
+      const [points, tier, lastSale] = await Promise.all([
+        balance(prisma, customer.id),
+        customerTier(prisma, { companyId: session.user.companyId, customerId: customer.id, at: now, settings }),
         lastSaleOf(session.user.companyId, customer.name),
       ]);
-      return { ...customer, loyaltyPoints: loyalty.balance, loyaltyTier: loyalty.tier, lastSale };
+      return { ...customer, loyaltyPoints: points, loyaltyTier: tier ?? "", lastSale };
     }),
   );
 

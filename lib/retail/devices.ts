@@ -1,5 +1,6 @@
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 
+import { loadLoyaltySettings } from "@/lib/retail/loyalty/settings";
 import type { Prisma } from "@prisma/client";
 import { NextResponse, type NextRequest } from "next/server";
 
@@ -618,11 +619,13 @@ export type TillContext = {
   nextShiftNo: string;
   /** Who signs the cash-up off: the site's shop manager, else the company's first manager by name; null when there is none. */
   signOff: SignOff | null;
+  /** The loyalty scheme as the till spends points (CUS-01): on or off, a point's worth, the balance needed, alcohol. */
+  loyalty: { on: boolean; pointValue: number; spendFrom: number; payForAlcohol: boolean };
 };
 
 export async function tillContext(device: PosDevice, now: Date = new Date()): Promise<TillContext> {
   const { register } = device;
-  const [places, defaultList, shop, tillRules, payments, pins, receipt, fiscal, licenceHours, nextShiftNo, signOff] = await Promise.all([
+  const [places, defaultList, shop, tillRules, payments, pins, receipt, fiscal, licenceHours, nextShiftNo, signOff, loyalty] = await Promise.all([
     prisma.stockLocation.count({ where: { siteId: register.site.id, isActive: true } }),
     register.priceListId || register.site.priceListId
       ? Promise.resolve(null)
@@ -639,6 +642,7 @@ export async function tillContext(device: PosDevice, now: Date = new Date()): Pr
     loadLicenceHours(device.companyId, register.site.id),
     peekIdentifier(prisma, { companyId: device.companyId, entity: "RETAIL_SHIFT", siteId: register.site.id }),
     cashUpSignOff(device.companyId, register.site.id),
+    loadLoyaltySettings(device.companyId),
   ]);
   const pairedBy = device.pairedBy.name ?? "";
   return {
@@ -674,6 +678,12 @@ export async function tillContext(device: PosDevice, now: Date = new Date()): Pr
     priceListId: register.priceListId ?? register.site.priceListId ?? defaultList?.id ?? null,
     nextShiftNo,
     signOff,
+    loyalty: {
+      on: loyalty.enabled,
+      pointValue: loyalty.pointValue,
+      spendFrom: loyalty.spendFrom,
+      payForAlcohol: loyalty.pointsPayForAlcohol,
+    },
   };
 }
 

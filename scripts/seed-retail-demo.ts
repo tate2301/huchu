@@ -2024,6 +2024,7 @@ async function main() {
   await seedFiscal(companyId)
   await seedOverview(companyId)
   await seedApprovals(companyId)
+  await seedLoyalty(companyId)
   await seedShiftFloor(companyId)
   await seedShiftCounts(companyId)
   await seedShiftVariances(companyId)
@@ -5494,6 +5495,67 @@ async function seedApprovals(companyId: string) {
   })
   if (saved) await prisma.platformAuditEvent.update({ where: { id: saved.id }, data: { createdAt: changedAt } })
   console.log("  approvals: the board's limits, owner approvals to Tendai Mhlanga, last changed on 1 September")
+}
+
+/**
+ * CUS-01: the loyalty scheme with the board's values (1 point for each US$1,
+ * a point worth US$0.01, spend from 500, a year to expire, Bronze, Silver
+ * and Gold with Gold at 1.5), saved by the owner on 1 August at 09:30 —
+ * "Last changed by Tendai Mhlanga, 1 August." Customers and their ledgers
+ * come with the Customers units.
+ */
+async function seedLoyalty(companyId: string) {
+  const owner = await prisma.user.findFirst({
+    where: { companyId, email: "owner@bottlestore.test" },
+    select: { id: true, name: true },
+  })
+  if (!owner) {
+    console.log("  loyalty: no owner, skipped")
+    return
+  }
+  const settings = {
+    enabled: true,
+    earnPerDollar: new Prisma.Decimal("1"),
+    pointValue: new Prisma.Decimal("0.01"),
+    spendFrom: 500,
+    expiry: "AFTER_12_MONTHS" as const,
+    tiers: [
+      { name: "Bronze", from: "0.00" },
+      { name: "Silver", from: "500.00" },
+      { name: "Gold", from: "1500.00" },
+    ],
+    topTierEarnPerDollar: new Prisma.Decimal("1.5"),
+    earnOnPromotions: true,
+    birthdayBonus: true,
+    birthdayPoints: 200,
+    pointsPayForAlcohol: true,
+    updatedById: owner.id,
+  }
+  await prisma.retailLoyaltySettings.upsert({ where: { companyId }, update: settings, create: { companyId, ...settings } })
+  const year = Number(new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Harare", year: "numeric" }).format(new Date()))
+  const thisYear = new Date(`${year}-08-01T09:30:00+02:00`)
+  const changedAt = thisYear.getTime() <= Date.now() ? thisYear : new Date(`${year - 1}-08-01T09:30:00+02:00`)
+  await prisma.$executeRaw`UPDATE "RetailLoyaltySettings" SET "updatedAt" = ${changedAt} WHERE "companyId" = ${companyId}`
+  await prisma.platformAuditEvent.deleteMany({
+    where: { companyId, entityType: "RetailSettings", entityId: "loyalty", eventType: RETAIL_AUDIT_EVENTS.settingsChanged },
+  })
+  await writeRetailAuditEvent(prisma, {
+    actor: { companyId, userId: owner.id, userName: owner.name, userRole: "SUPERADMIN" },
+    eventType: RETAIL_AUDIT_EVENTS.settingsChanged,
+    entityType: "RetailSettings",
+    entityId: "loyalty",
+    payload: {
+      page: "loyalty",
+      changes: [{ field: "exp", label: "Points expire", from: "Never", to: "After 12 months" }],
+    },
+  })
+  const saved = await prisma.platformAuditEvent.findFirst({
+    where: { companyId, eventType: RETAIL_AUDIT_EVENTS.settingsChanged, entityId: "loyalty" },
+    orderBy: { createdAt: "desc" },
+    select: { id: true },
+  })
+  if (saved) await prisma.platformAuditEvent.update({ where: { id: saved.id }, data: { createdAt: changedAt } })
+  console.log("  loyalty: the board's scheme, last changed by Tendai Mhlanga on 1 August")
 }
 
 /* ── PRD-08: bundles and buy-more deals ───────────────────────────────── */

@@ -7,6 +7,7 @@ import { applyDuePriceChangesForAll } from "@/lib/retail/prices/schedule";
 import { applyRbzRate } from "@/lib/retail/rbz-rate";
 import { closeWaitingFiscalDays } from "@/lib/retail/fiscal-settings";
 import { expireVouchers } from "@/lib/retail/vouchers/expire";
+import { birthdayBonusesForAll, expirePointsForAll } from "@/lib/retail/loyalty/jobs";
 
 import type { RetailJob } from "./schedule";
 
@@ -18,9 +19,22 @@ import type { RetailJob } from "./schedule";
  * the posting runs (SET-09), every five minutes the
  * message outbox (SET-07, C-03) and the fiscal days left to close (SET-08),
  * every minute the price changes come due (PRD-07), 00:10 the vouchers whose
- * expiry day has passed lapse (PRD-10).
+ * expiry day has passed lapse (PRD-10), 00:05 points a year old expire and
+ * 07:00 on Mondays the birthday bonuses (CUS-01).
  */
 export const RETAIL_JOBS: RetailJob[] = [
+  {
+    // Points earned more than 12 months ago and not spent expire, for shops whose points expire (CUS-01).
+    name: "points-expiry",
+    when: { dailyAt: "00:05" },
+    run: (now) => expirePointsForAll(now),
+  },
+  {
+    // The birthday bonus for the week's birthdays; nothing except on Mondays (CUS-01).
+    name: "birthday-bonus",
+    when: { dailyAt: "07:00" },
+    run: (now) => birthdayBonusesForAll(now),
+  },
   {
     // Vouchers past their expiry day with something left lapse, and what money was left is written off (PRD-10).
     name: "voucher-expiry",

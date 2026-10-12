@@ -26,7 +26,8 @@ export type PosSaleQueuePayload = {
   customerName?: string;
   customerPhone?: string;
   customerEmail?: string;
-  loyaltyRedemptionPoints?: number;
+  /** CUS-01: refused on a replay ("Spending points needs the internet."); the till spends none offline. */
+  pointsToSpend?: number;
   discountAmount?: number;
   overrideReason?: string;
   /** The cashier confirmed the customer's ID for an age-restricted line. */

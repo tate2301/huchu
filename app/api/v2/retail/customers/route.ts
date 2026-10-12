@@ -4,7 +4,11 @@ import { z } from "zod";
 import { errorResponse, successResponse } from "@/lib/api-response";
 import { money, sumMoney, toNumberOrZero } from "@/lib/money";
 import { prisma } from "@/lib/prisma";
-import { getLoyaltyTier } from "@/lib/retail/loyalty-rules";
+import { newCustomerNumbers } from "@/lib/retail/customers/numbers";
+import { normalizePhone } from "@/lib/retail/customers/phone";
+import { loadLoyaltySettings } from "@/lib/retail/loyalty/settings";
+import { tierFor } from "@/lib/retail/loyalty/tiers";
+import { todayIn } from "@/lib/workspace/format";
 import { requireRetailPermission } from "@/lib/retail/permissions";
 import { parseRetailQuery, retailOffsetQuery, slicePage } from "@/lib/retail/request";
 import { requireRetailSession } from "../_helpers";
@@ -128,12 +132,35 @@ export async function GET(request: NextRequest) {
     }
   }
 
+  // CUS-01: points off the ledger, the tier by the customer's spend in 12 months.
+  const ids = [...buckets.values()].map((row) => row.customerId).filter((id): id is string => Boolean(id));
+  const now = new Date();
+  const [settings, balances, spends] = await Promise.all([
+    loadLoyaltySettings(session.user.companyId),
+    ids.length
+      ? prisma.retailPointsEntry.groupBy({ by: ["customerId"], where: { customerId: { in: ids } }, _sum: { points: true } })
+      : Promise.resolve([]),
+    ids.length
+      ? prisma.retailSale.groupBy({
+          by: ["customerId"],
+          where: {
+            companyId: session.user.companyId,
+            customerId: { in: ids },
+            saleType: { in: ["SALE", "REFUND", "VOID"] },
+            postedAt: { gte: new Date(now.getTime() - 365 * 86_400_000), lte: now },
+          },
+          _sum: { baseAmount: true },
+        })
+      : Promise.resolve([]),
+  ]);
+  const balanceOf = new Map(balances.map((row) => [row.customerId, row._sum.points ?? 0]));
+  const spendOf = new Map(spends.map((row) => [row.customerId, toNumberOrZero(row._sum.baseAmount)]));
+  const today = todayIn(undefined, now);
+
   const all = [...buckets.values()]
     .map((row) => {
       const totalSpend = sumMoney(row.amounts);
-      // A point per whole dollar netted. Floored on the Decimal, so a customer
-      // sitting on 499.995 does not round into SILVER on a rendering artefact.
-      const loyaltyPoints = Math.max(Number(totalSpend.floor()), 0);
+      const loyaltyPoints = row.customerId ? balanceOf.get(row.customerId) ?? 0 : 0;
       return {
         customerId: row.customerId,
         customerName: row.customerName,
@@ -142,7 +169,7 @@ export async function GET(request: NextRequest) {
         lastPurchaseAt: row.lastPurchaseAt,
         lastSaleNo: row.lastSaleNo,
         loyaltyPoints,
-        loyaltyTier: getLoyaltyTier(loyaltyPoints),
+        loyaltyTier: row.customerId ? tierFor({ spend12m: spendOf.get(row.customerId) ?? 0, settings, held: null, today }) ?? "" : "",
       };
     })
     .sort((a, b) => b.totalSpend - a.totalSpend);
@@ -189,7 +216,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const input = createCustomerSchema.parse(body);
     const normalizedName = input.name.trim();
-    const normalizedPhone = input.phone?.trim() || null;
+    const normalizedPhone = normalizePhone(input.phone);
     const normalizedEmail = input.email?.trim().toLowerCase() || null;
 
     const existing = await prisma.customer.findFirst({
@@ -231,9 +258,11 @@ export async function POST(request: NextRequest) {
     const created = await prisma.customer.create({
       data: {
         companyId: session.user.companyId,
+        ...(await newCustomerNumbers(prisma, session.user.companyId)),
         name: normalizedName,
         phone: normalizedPhone,
         email: normalizedEmail,
+        createdById: session.user.id,
       },
       select: {
         id: true,
@@ -247,6 +276,7 @@ export async function POST(request: NextRequest) {
     if (error instanceof z.ZodError) {
       return errorResponse("Validation failed", 400, error.issues);
     }
+    if (error instanceof Error && error.message === "Customer phone number looks invalid.") return errorResponse(error.message, 400);
     return errorResponse("Failed to create customer", 500);
   }
 }

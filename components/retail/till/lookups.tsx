@@ -11,7 +11,7 @@ import { useQuery } from "@tanstack/react-query";
 
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { Barcode, MagnifyingGlass, Plus, ShoppingCart, Tag, Users } from "@/lib/icons";
-import { LOYALTY_REDEEM_POINTS_PER_USD } from "@/lib/retail/loyalty-rules";
+import { pointsValue } from "@/lib/retail/loyalty/spend";
 import { getPosPortalHref } from "@/lib/retail/pos-host";
 import { count, dayMonth, firstName, qty, usd, whole } from "./format";
 import { Avatar, Empty } from "./parts";
@@ -19,14 +19,12 @@ import { useTill } from "./state";
 import { ProductPreview } from "./tile";
 import type { CustomerLookupResult, PosCatalogItem } from "./types";
 
-const TIER: Record<string, string> = { BRONZE: "Bronze", SILVER: "Silver", GOLD: "Gold" };
 
 /** A customer as `customers/search` answers here: with their last sale at the shop, whoever rang it. */
 type CustomerRow = CustomerLookupResult & { lastSale: { saleNo: string; total: number; at: string } | null };
 
 /** "today", else "on 3 October". */
 const onDay = (at: string) => (dayMonth(at) === dayMonth(new Date()) ? "today" : `on ${dayMonth(at)}`);
-const NEXT_TIER: Record<string, [string, number] | null> = { BRONZE: ["Silver", 500], SILVER: ["Gold", 2000], GOLD: null };
 
 function useTyped(delay = 250) {
   const [typed, setTyped] = React.useState("");
@@ -42,7 +40,7 @@ function useTyped(delay = 250) {
 
 export function CustomersScreen() {
   const router = useRouter();
-  const { selectCustomer, isPosHost } = useTill();
+  const { selectCustomer, isPosHost, loyaltyRules } = useTill();
   const search = useTyped();
   const [selectedId, setSelectedId] = React.useState<string | null>(null);
   const query = useQuery({
@@ -52,7 +50,6 @@ export function CustomersScreen() {
   });
   const rows = query.data?.data ?? [];
   const selected = rows.find((row) => row.id === selectedId) ?? rows[0] ?? null;
-  const next = selected ? NEXT_TIER[selected.loyaltyTier] : null;
 
   return (
     <div className="with-rail">
@@ -98,7 +95,7 @@ export function CustomersScreen() {
                     <span className="truncate">
                       <span className="ink">{row.name}</span> <span className="muted num">{row.phone ?? ""}</span>
                     </span>
-                    <span className="muted">{TIER[row.loyaltyTier] ?? row.loyaltyTier}</span>
+                    <span className="muted">{row.loyaltyTier}</span>
                     <span className="num">{whole(row.loyaltyPoints)}</span>
                   </button>
                 ))}
@@ -145,12 +142,11 @@ export function CustomersScreen() {
               <dl className="attrs">
                 <dt>Worth</dt>
                 <dd className="num text-left">
-                  {usd(selected.loyaltyPoints / LOYALTY_REDEEM_POINTS_PER_USD)}
+                  {usd(pointsValue(selected.loyaltyPoints, loyaltyRules?.pointValue ?? 0))}
                 </dd>
                 <dt>Tier</dt>
                 <dd>
-                  {TIER[selected.loyaltyTier] ?? selected.loyaltyTier}
-                  {next ? `, ${whole(next[1] - selected.loyaltyPoints)} to ${next[0]}` : ""}
+                  {selected.loyaltyTier || "None"}
                 </dd>
                 <dt>Last sale</dt>
                 <dd>

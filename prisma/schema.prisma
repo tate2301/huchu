@@ -350,6 +350,9 @@ model Company {
   retailTillPins                RetailTillPin[]
   retailTillRules               RetailTillRules?
   retailApprovalSettings        RetailApprovalSettings?
+  retailLoyaltySettings         RetailLoyaltySettings?
+  retailCustomerNotes           RetailCustomerNote[]
+  retailPointsEntries           RetailPointsEntry[]
   retailReceiptSettings         RetailReceiptSettings?
   retailFiscalSettings          RetailFiscalSettings?
   retailMessages                RetailMessage[]
@@ -1457,6 +1460,10 @@ model User {
   retailTillRulesUpdated            RetailTillRules[]              @relation("RetailTillRulesUpdatedBy")
   retailApprovalOwnerOf             RetailApprovalSettings[]       @relation("RetailApprovalOwner")
   retailApprovalSettingsUpdated     RetailApprovalSettings[]       @relation("RetailApprovalSettingsUpdatedBy")
+  retailLoyaltySettingsUpdated      RetailLoyaltySettings[]        @relation("RetailLoyaltySettingsUpdatedBy")
+  customersCreated                  Customer[]                     @relation("CustomerCreatedBy")
+  retailCustomerNotes               RetailCustomerNote[]           @relation("RetailCustomerNoteCreatedBy")
+  retailPointsEntries               RetailPointsEntry[]            @relation("RetailPointsEntryActor")
   retailReceiptSettingsUpdated      RetailReceiptSettings[]        @relation("RetailReceiptSettingsUpdatedBy")
   retailFiscalSettingsUpdated       RetailFiscalSettings[]         @relation("RetailFiscalSettingsUpdatedBy")
   fiscalDevicesRegistered           FiscalisationProviderConfig[]  @relation("FiscalDeviceRegisteredBy")
@@ -6124,6 +6131,7 @@ model RetailSale {
   discountVoucher RetailVoucher?     @relation("RetailSaleDiscountVoucher", fields: [discountVoucherId], references: [id], onDelete: SetNull)
   vouchersSold    RetailVoucher[]    @relation("RetailVoucherSoldSale")
   voucherUses     RetailVoucherUse[] @relation("RetailVoucherUseSale")
+  pointsEntries   RetailPointsEntry[] @relation("RetailPointsEntrySale")
 
   @@unique([companyId, saleNo])
   @@unique([companyId, clientRef])
@@ -7076,6 +7084,23 @@ model Customer {
   taxNumber     String?
   vatNumber     String?
   isActive      Boolean  @default(true)
+  /// CUS-01: "CUS-00141", company-wide (`RETAIL_CUSTOMER`); the card number follows it.
+  code             String?
+  /// The WhatsApp number when it is not the phone; null reads "Same number".
+  whatsapp         String?
+  area             String?
+  dateOfBirth      DateTime? @db.Date
+  marketingConsent Boolean   @default(false)
+  consentChangedAt DateTime?
+  /// 12 digits, "600914000141".
+  cardNo           String?
+  /// A tier kept until `tierHeldUntil` whatever the spend says.
+  tierHeld         String?
+  tierHeldUntil    DateTime? @db.Date
+  priceListId      String?
+  archivedAt       DateTime?
+  mergedIntoId     String?
+  createdById      String?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
@@ -7086,8 +7111,110 @@ model Customer {
   crmClients      CrmClient[]
   retailSales     RetailSale[]     @relation("RetailSaleCustomer")
   retailVouchers  RetailVoucher[]  @relation("RetailVoucherCustomer")
+  priceList       PriceList?       @relation("CustomerPriceList", fields: [priceListId], references: [id], onDelete: SetNull)
+  mergedInto      Customer?        @relation("CustomerMergedInto", fields: [mergedIntoId], references: [id], onDelete: SetNull)
+  mergedFrom      Customer[]       @relation("CustomerMergedInto")
+  createdBy       User?            @relation("CustomerCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  notes           RetailCustomerNote[]
+  pointsEntries   RetailPointsEntry[]
 
+  @@unique([companyId, code])
+  @@unique([companyId, cardNo])
   @@index([companyId, isActive])
+  @@index([companyId, phone])
+  @@index([companyId, archivedAt])
+}
+
+/// CUS-01: a note on a customer's record, newest first.
+model RetailCustomerNote {
+  id          String   @id @default(uuid())
+  companyId   String
+  customerId  String
+  body        String
+  createdById String?
+  createdAt   DateTime @default(now())
+
+  company   Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  customer  Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  createdBy User?    @relation("RetailCustomerNoteCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([customerId, createdAt])
+}
+
+enum RetailPointsExpiry {
+  NEVER
+  AFTER_12_MONTHS
+}
+
+/// CUS-01 (W-48): the loyalty scheme, one row per company; none reads as the defaults.
+model RetailLoyaltySettings {
+  companyId            String             @id
+  enabled              Boolean            @default(true)
+  earnPerDollar        Decimal            @default(1) @db.Decimal(6, 2)
+  pointValue           Decimal            @default(0.01) @db.Decimal(8, 4)
+  spendFrom            Int                @default(500)
+  expiry               RetailPointsExpiry @default(AFTER_12_MONTHS)
+  /// Ascending: [{ name, from: "500.00" }], the first from "0.00".
+  tiers                Json               @default("[{\"name\":\"Bronze\",\"from\":\"0.00\"},{\"name\":\"Silver\",\"from\":\"500.00\"},{\"name\":\"Gold\",\"from\":\"1500.00\"}]")
+  topTierEarnPerDollar Decimal            @default(1.5) @db.Decimal(6, 2)
+  earnOnPromotions     Boolean            @default(true)
+  birthdayBonus        Boolean            @default(true)
+  birthdayPoints       Int                @default(200)
+  pointsPayForAlcohol  Boolean            @default(true)
+  updatedById          String?
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
+
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  updatedBy User?   @relation("RetailLoyaltySettingsUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+}
+
+enum RetailPointsKind {
+  EARNED
+  SPENT
+  ADJUSTED
+  BIRTHDAY
+  EXPIRED
+  REVERSED
+}
+
+enum RetailPointsReason {
+  MISSED_AT_TILL
+  COMPLAINT
+  BIRTHDAY
+  CORRECTION
+}
+
+/// CUS-01 (W-46): the points ledger. Rows are never edited or deleted; a
+/// customer's balance is the sum of `points`.
+model RetailPointsEntry {
+  id           String             @id @default(uuid())
+  /// Stable order for the running balance.
+  seq          BigInt             @default(autoincrement())
+  companyId    String
+  customerId   String
+  kind         RetailPointsKind
+  /// Signed.
+  points       Int
+  /// What the points were worth when they moved (SPENT: the discount given).
+  value        Decimal            @default(0) @db.Decimal(14, 2)
+  saleId       String?
+  reason       RetailPointsReason?
+  note         String?
+  /// Null actor reads "Automatic".
+  actorId      String?
+  actorName    String?
+  mergedFromId String?
+  createdAt    DateTime           @default(now())
+
+  company  Company     @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  customer Customer    @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  sale     RetailSale? @relation("RetailPointsEntrySale", fields: [saleId], references: [id], onDelete: SetNull)
+  actor    User?       @relation("RetailPointsEntryActor", fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([companyId, customerId, createdAt])
+  @@index([companyId, kind, createdAt])
+  @@index([saleId])
 }
 
 model Vendor {
@@ -14621,6 +14748,7 @@ model PriceList {
   saleLines RetailSaleLine[]
   sites   Site[]         @relation("SitePriceList")
   registers RetailRegister[] @relation("RegisterPriceList")
+  customers Customer[]   @relation("CustomerPriceList")
 
   @@unique([companyId, name])
   /// One default per company among live lists: a partial unique index

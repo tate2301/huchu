@@ -465,6 +465,15 @@ const WORDS: Record<string, (payload: Payload, eventType: string, seeCost: boole
       tone: "ok",
     };
   },
+  // "42 points expired, a year old" / "Birthday bonus, 200 points" (CUS-01).
+  [RETAIL_AUDIT_EVENTS.pointsExpired]: (payload) => ({
+    what: `${formatCount(amount(payload.points) ?? 0)} points expired, a year old`,
+    tone: "hollow",
+  }),
+  [RETAIL_AUDIT_EVENTS.pointsBirthday]: (payload) => ({
+    what: `Birthday bonus, ${formatCount(amount(payload.points) ?? 0)} points`,
+    tone: "warn",
+  }),
   [RETAIL_AUDIT_EVENTS.saleReviewed]: (payload) => ({
     what: text(payload.reason) ? `Looked at: ${text(payload.reason)}` : "Looked at",
     tone: "ok",

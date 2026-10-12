@@ -28,7 +28,6 @@ import {
   X,
 } from "@/lib/icons";
 import { clockLabel, harareClock } from "@/lib/retail/licence-hours";
-import { LOYALTY_REDEEM_POINTS_PER_USD } from "@/lib/retail/loyalty-rules";
 import { getPosPortalHref } from "@/lib/retail/pos-host";
 import { enumLabel } from "@/lib/retail/words";
 import { count, firstName, hhmm, pairedWhen, usd } from "./format";
@@ -563,9 +562,9 @@ function SaleColumn({
     idChecked,
     lineStopped,
     orderDiscountAmount,
-    loyaltyRedemptionPoints,
+    pointsOff,
   } = useTill();
-  const orderOff = Math.max(discountAmount - lineDiscountTotal - bundleSaving - promotionSaving, 0);
+  const orderOff = Math.max(discountAmount - lineDiscountTotal - bundleSaving - promotionSaving - pointsOff, 0);
   // Lines stopped by the licence hours do not sell, so they are not counted.
   const sellingLines = cart.filter((item) => !lineStopped(item));
   const selling = sellingLines.length;
@@ -574,8 +573,7 @@ function SaleColumn({
   const bottlesBack = bottlesBackCredit(sellingLines);
   const deposits = Number((depositTotal + bottlesBack).toFixed(2));
   // A manager approves an amount off; a changed price is approved as a change.
-  const offToApprove =
-    lineDiscountTotal + Math.max(Number(orderDiscountAmount || "0") - Number(loyaltyRedemptionPoints || "0") / LOYALTY_REDEEM_POINTS_PER_USD, 0);
+  const offToApprove = lineDiscountTotal + Number(orderDiscountAmount || "0");
   const priceChanged = cart.some((item) => Math.abs(item.unitPrice - item.shelfPrice) > 0.009);
   const approvalLine = approvalReason
     ? !priceChanged && offToApprove > 0.009
@@ -660,6 +658,12 @@ function SaleColumn({
               <div className="l">
                 <span>Off the sale</span>
                 <span className="off-figure">{usd(-orderOff)}</span>
+              </div>
+            ) : null}
+            {pointsOff > 0.004 ? (
+              <div className="l">
+                <span>Points</span>
+                <span className="off-figure">{usd(-pointsOff)}</span>
               </div>
             ) : null}
             {deposits > 0.004 ? (

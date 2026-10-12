@@ -465,6 +465,7 @@ describe("workspace sidebar model", () => {
         "/retail/manage/posting",
         "/retail/manage/people",
         "/retail/manage/approvals",
+        "/retail/manage/loyalty",
         "/retail/manage/bin",
       ]);
       expect(itemsOf(retailModel(), "retail-setup")).not.toContain("/retail/manage/posting");

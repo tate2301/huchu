@@ -320,6 +320,10 @@ export const RETAIL_AUDIT_EVENTS = {
   emptiesReturned: "RETAIL_EMPTIES.RETURNED",
   /** A supplier's credit note against a return (STK-09). Entity the return's `RetailEmptiesEntry`; carries `{ creditNote, amount }`. */
   emptiesCredited: "RETAIL_EMPTIES.CREDITED",
+  /** Points a year old taken off a customer by the retail worker (CUS-01). Entity `Customer`; carries `{ points }`. */
+  pointsExpired: "RETAIL_POINTS.EXPIRED",
+  /** The birthday bonus given by the retail worker (CUS-01). Entity `Customer`; carries `{ points }`. */
+  pointsBirthday: "RETAIL_POINTS.BIRTHDAY",
 } as const;
 
 export type RetailAuditEvent =
