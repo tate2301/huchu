@@ -3,6 +3,12 @@
 -- empties and the purchase-order rework). Generated with `pnpm vane:reader-sql` and kept to
 -- what 20261012120000_vane does not already grant: a row policy and column grants for each
 -- new table, and grants for the new columns of tables it already covers. See docs/vane.md.
+-- RetailEmptiesEntry is dropped and recreated by 20261012130100_retail_empties, so its row policies and
+-- grants from 20261012120000_vane went with it: it gets them again here, whole.
+ALTER TABLE "RetailEmptiesEntry" ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "app_all" ON "RetailEmptiesEntry" AS PERMISSIVE FOR ALL TO PUBLIC USING (true) WITH CHECK (true);
+CREATE POLICY "vane_workspace" ON "RetailEmptiesEntry" AS RESTRICTIVE FOR SELECT TO vane_reader USING ("companyId" = (SELECT s."companyId" FROM "VaneReaderScope" s WHERE s."pid" = pg_backend_pid()));
+GRANT SELECT ("id", "companyId", "siteId", "kind", "bottles", "crates", "deposit", "bottlesAfter", "cratesAfter", "saleId", "customerId", "supplierId", "supplierName", "goodsReceiptId", "returnId", "reference", "note", "createdById", "createdAt") ON "RetailEmptiesEntry" TO vane_reader;
 GRANT SELECT ("bottleDeposit", "crateDeposit") ON "RetailShopProfile" TO vane_reader;
 GRANT SELECT ("vendorId", "firstExpectedDate", "payment", "noteToSupplier", "sentAt", "sentById", "sentVia", "chaseAction", "chasedAt", "chasedById", "followUpDoneAt", "cancelledAt", "cancelledById", "duplicatedFromId", "archivedAt") ON "RetailPurchaseOrder" TO vane_reader;
 GRANT SELECT ("vatRate", "sentQuantity", "closedShortAt", "closedShortById", "sortOrder") ON "RetailPurchaseOrderLine" TO vane_reader;
@@ -30,7 +36,6 @@ ALTER TABLE "RetailMessageBatch" ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "app_all" ON "RetailMessageBatch" AS PERMISSIVE FOR ALL TO PUBLIC USING (true) WITH CHECK (true);
 CREATE POLICY "vane_workspace" ON "RetailMessageBatch" AS RESTRICTIVE FOR SELECT TO vane_reader USING ("companyId" = (SELECT s."companyId" FROM "VaneReaderScope" s WHERE s."pid" = pg_backend_pid()));
 GRANT SELECT ("id", "companyId", "purpose", "audience", "template", "scheduledFor", "total", "createdById", "createdAt") ON "RetailMessageBatch" TO vane_reader;
-GRANT SELECT ("kind", "bottles", "crates", "deposit", "bottlesAfter", "cratesAfter", "customerId", "supplierName", "goodsReceiptId", "returnId", "reference", "note", "createdById") ON "RetailEmptiesEntry" TO vane_reader;
 GRANT SELECT ("eventAccountKey") ON "PostingRuleLine" TO vane_reader;
 GRANT SELECT ("code", "whatsapp", "area", "dateOfBirth", "marketingConsent", "consentChangedAt", "cardNo", "tierHeld", "tierHeldUntil", "priceListId", "archivedAt", "mergedIntoId", "createdById") ON "Customer" TO vane_reader;
 ALTER TABLE "RetailCustomerMerge" ENABLE ROW LEVEL SECURITY;

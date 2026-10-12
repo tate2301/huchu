@@ -7,13 +7,13 @@
 
 import { del, get, set } from "idb-keyval";
 
-import type { CartItem, CustomerLookupResult, PaymentRow } from "./types";
+import type { CartItem, PaymentRow, PosCustomer } from "./types";
 
 export type OpenSale = {
   cart: CartItem[];
   customerName: string;
-  selectedCustomer: CustomerLookupResult | null;
-  loyaltyRedemptionPoints: string;
+  selectedCustomer: PosCustomer | null;
+  pointsToSpend: string;
   payments: PaymentRow[];
   orderDiscountAmount: string;
   idChecked: boolean;
@@ -47,7 +47,7 @@ export function readOpenSale(value: unknown, now = Date.now()): OpenSale | null 
   if (!Array.isArray(sale.payments) || !sale.payments.every(isPayment)) return null;
   if (
     typeof sale.customerName !== "string" ||
-    typeof sale.loyaltyRedemptionPoints !== "string" ||
+    typeof sale.pointsToSpend !== "string" ||
     typeof sale.orderDiscountAmount !== "string" ||
     typeof sale.idChecked !== "boolean" ||
     !(sale.heldAs === null || typeof sale.heldAs === "string") ||

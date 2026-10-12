@@ -911,7 +911,6 @@ function useTillStateValue({ isPosHost, paired }: { isPosHost: boolean; paired: 
 
   /* ── The sale kept on the device: a reload or a power cut puts it back ── */
 
-  const { toast } = useToast();
   const userId = session?.user?.id ?? null;
   const keepKey = context && userId ? openSaleKey(context.till.id, userId) : null;
   // The key the kept sale has been read back for: nothing is kept over it before then.
@@ -932,7 +931,7 @@ function useTillStateValue({ isPosHost, paired }: { isPosHost: boolean; paired: 
       setCart(kept.cart);
       setCustomerNameRaw(kept.customerName);
       setSelectedCustomer(kept.selectedCustomer);
-      setLoyaltyRedemptionPoints(kept.loyaltyRedemptionPoints);
+      setPointsToSpend(kept.pointsToSpend);
       setPayments(kept.payments);
       setOrderDiscountAmount(kept.orderDiscountAmount);
       setIdChecked(kept.idChecked);
@@ -959,10 +958,10 @@ function useTillStateValue({ isPosHost, paired }: { isPosHost: boolean; paired: 
       void keepOpenSale(keepKey, null);
       return;
     }
-    const sale = { cart, customerName, selectedCustomer, loyaltyRedemptionPoints, payments, orderDiscountAmount, idChecked, heldAs };
+    const sale = { cart, customerName, selectedCustomer, pointsToSpend, payments, orderDiscountAmount, idChecked, heldAs };
     const timer = window.setTimeout(() => void keepOpenSale(keepKey, sale), 300);
     return () => window.clearTimeout(timer);
-  }, [keepKey, readFor, sending, cart, customerName, selectedCustomer, loyaltyRedemptionPoints, payments, orderDiscountAmount, idChecked, heldAs]);
+  }, [keepKey, readFor, sending, cart, customerName, selectedCustomer, pointsToSpend, payments, orderDiscountAmount, idChecked, heldAs]);
 
   /* ── The customer screen: the sale as the customer sees it (display-feed.ts) ── */
 

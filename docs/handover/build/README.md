@@ -38,7 +38,8 @@ tests yet) when the owner stopped the run. Its working tree is saved as `wip/buy
 before building packet 41, review it against the packet, finish it, and delete the patch in the same commit. It is a
 starting point, not reviewed code.
 
-The patch includes the migration folder `prisma/migrations/20261012131000_retail_bills/`. The stage base for the
+The patch includes the migration folder `prisma/migrations/20261012131000_retail_bills/`; it has no Vane grants
+yet, so add them when you apply it (see below). The stage base for the
 Buying test pass is `d7fac560` (the last stage 5 commit).
 
 ## What is in this folder
@@ -55,15 +56,20 @@ Buying test pass is `d7fac560` (the last stage 5 commit).
 - `../98-decisions.md` — owner decisions. **They override the packets** where the two disagree.
 - `../00-foundations.md` … `../80-admin.md` — the area specs the packets were cut from.
 
-## First job: merge `main`
+## Merged with `main` and the build flow
 
-`main` moved while stage 6 was building (PRs #206, #208 and #210: the owner's till work, Vane, the core-modules
-handover). The branch conflicts with it in nine files: `components/retail/till/{history,lookups,sale-parts,sell,
-shift,state,tile}.tsx`, `components/retail/till/till.css` and `prisma/schema.prisma`. Both sides changed the till
-(stage 5's approvals, lay-bys, messages and pricing on this branch; the owner's feel, keys, customer screen and
-reload-safe sale on `main`), so the merge needs someone who keeps both. Do it before anything else:
-`git merge origin/main`, resolve keeping both behaviours, run the schema lock command (it also regenerates the
-client), the till tests and the typecheck, then push.
+The branch carries `main` (the owner's till work, Vane) and the build-flow change
+(`claude/amazing-planck-tdgpak`): `pnpm build` no longer runs the typecheck or an unchanged `prisma generate`;
+the typecheck runs in `.github/workflows/checks.yml` on every push and PR instead.
+
+Migrations: this branch's migrations run after `20261012120000_vane` (they are `20261012130000` to
+`20261012130900`), then `20261012130950_vane_retail_reader` gives Vane's read-only roles the tables and columns
+they add. **Every later migration that adds a table or column must add its Vane grants too**: run
+`pnpm vane:reader-sql`, copy the new table's lines (or a `GRANT SELECT (...)` for new columns) into the same
+migration, and check `pnpm vane:reader-sql --summary` (see `docs/vane.md`).
+
+A database that applied the old migration names (`20261006160000_retail_purchase_orders`,
+`20261010010000_retail_empties`, `20261012010000` to `20261012080000`) needs a fresh database; no shared one did.
 
 ## Local setup
 
