@@ -288,6 +288,8 @@ export type ZReportShiftInput = {
   variance: MoneyLike | null;
   movements: ZReportMovementInput[];
   sales: ZReportSaleInput[];
+  /** Lay-by money taken (+) or paid back (−) on this drawer by a tender other than cash (FLR-06). */
+  laybyPayments: Array<{ tenderType: RetailTenderType; baseAmount: MoneyLike }>;
 };
 
 export type ZReportBuildInput = {
@@ -557,6 +559,13 @@ export function buildRetailZReportFigures(
           amount: existing.amount.plus(toBaseAmount(line.lineTotal, fx)),
         });
       }
+    }
+
+    // Lay-by money by card or wallet is on that tender's statement, so its row counts it.
+    // Cash is not here: a cash lay-by payment is the drawer's cash movement below.
+    for (const payment of shift.laybyPayments) {
+      tenderAmounts.set(payment.tenderType, (tenderAmounts.get(payment.tenderType) ?? ZERO).plus(money(payment.baseAmount)));
+      tenderCounts.set(payment.tenderType, (tenderCounts.get(payment.tenderType) ?? 0) + 1);
     }
 
     for (const movement of shift.movements) {

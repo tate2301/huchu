@@ -172,6 +172,13 @@ export function SheetField({
               if (!table || table.rows.length === 0) return <ReadValue id={control.id}>{table?.empty ?? "—"}</ReadValue>;
               return (
                 <table id={control.id} className="sf-read-table">
+                  {table.widths ? (
+                    <colgroup>
+                      {table.widths.map((width, index) => (
+                        <col key={index} style={{ width }} />
+                      ))}
+                    </colgroup>
+                  ) : null}
                   <thead>
                     <tr>
                       {table.head.map((cell, index) => (

@@ -119,7 +119,7 @@ export type FieldSpec = {
    * `read`: a small table instead of one value (a lay-by's payments: When · How · Amount · By).
    * `end` holds the columns set to the right, in mono (money). Null or no rows: the field reads `empty`.
    */
-  table?: (values: SheetValues) => { head: string[]; rows: string[][]; end?: number[]; empty?: string } | null;
+  table?: (values: SheetValues) => { head: string[]; rows: string[][]; end?: number[]; widths?: string[]; empty?: string } | null;
   /** The hint in `--warn`, always or while this holds (the default site switched off). */
   warn?: boolean | ((values: SheetValues) => boolean);
   /**

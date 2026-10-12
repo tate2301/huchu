@@ -1,6 +1,7 @@
 import { Prisma } from "@prisma/client";
 
 import { prisma } from "@/lib/prisma";
+import { laybyNonCashOnShifts } from "@/lib/retail/floor/layby-takings";
 import {
   buildRetailZReportFigures,
   parseTradingDay,
@@ -145,7 +146,7 @@ export async function tillDayReport(
   }
 
   const shiftIds = shifts.map((shift) => shift.id);
-  const [movements, sales, baseCurrency] = await Promise.all([
+  const [movements, sales, baseCurrency, laybyMoney] = await Promise.all([
     db.retailCashMovement.findMany({
       where: { companyId: input.actor.companyId, shiftId: { in: shiftIds } },
       orderBy: { createdAt: "asc" },
@@ -171,6 +172,7 @@ export async function tillDayReport(
       },
     }),
     companyBaseCurrency(input.actor.companyId, db),
+    laybyNonCashOnShifts(input.actor.companyId, shiftIds, db),
   ]);
 
   const movementsByShift = new Map<string, typeof movements>();
@@ -210,6 +212,7 @@ export async function tillDayReport(
         reasonCode: movement.reasonCode,
         baseAmount: movement.baseAmount,
       })),
+      laybyPayments: laybyMoney.filter((payment) => payment.shiftId === shift.id),
       sales: (salesByShift.get(shift.id) ?? []).map((sale) => ({
         saleType: sale.saleType,
         discountAmount: sale.discountAmount,

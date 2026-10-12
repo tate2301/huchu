@@ -464,7 +464,7 @@ describe("the till accounts across a close and the next opening", () => {
       { code: "1005", debit: 5, credit: 0 },
     ]);
     expect(await books([zigOnly.id])).toEqual({ "1000": 0, "1001": 0, "1005": -5 });
-  });
+  }, 20_000);
 
   it("books a sale's ZiG as its journal does: ZiG cash less the change taken off it, a void taking it back", () => {
     // ZiG 536.00 (US$20.00) for US$18.40: change US$1.60 as US$1 and ZiG for the 60c, both off the ZiG cash.

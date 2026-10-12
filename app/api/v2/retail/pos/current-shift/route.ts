@@ -12,6 +12,7 @@ import { prisma } from "@/lib/prisma";
 import { getCashNetFromPayments } from "@/lib/retail/cash-up";
 import { requireRetailPermission } from "@/lib/retail/permissions";
 import { requirePosDevice } from "@/lib/retail/devices";
+import { laybyNonCashOnShifts } from "@/lib/retail/floor/layby-takings";
 import { floatToLeave } from "@/lib/retail/floor/shifts";
 import { requireRetailSession } from "../../_helpers";
 
@@ -106,11 +107,14 @@ export async function GET(request: NextRequest) {
     .filter((payment) => payment.tenderType !== "CASH" && payment.tenderType !== "LAYBY");
   const nonCashNet = sumMoney(nonCashPayments.map((payment) => money(payment.baseAmount)));
   // The same, tender by tender, net of refunds and voids: what the cash-up checks against each statement.
+  // Lay-by money taken or paid back by these tenders is on the statement too.
+  const laybyMoney = await laybyNonCashOnShifts(session.user.companyId, [shift.id]);
+  const statementRows = [...nonCashPayments, ...laybyMoney];
   const nonCashByTender = Object.fromEntries(
     NON_CASH_TENDERS.map((tender) => [
       tender,
       toNumberOrZero(
-        sumMoney(nonCashPayments.filter((payment) => payment.tenderType === tender).map((payment) => money(payment.baseAmount))),
+        sumMoney(statementRows.filter((payment) => payment.tenderType === tender).map((payment) => money(payment.baseAmount))),
       ),
     ]),
   ) as Record<(typeof NON_CASH_TENDERS)[number], number>;

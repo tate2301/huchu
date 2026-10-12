@@ -328,6 +328,12 @@ Recorded unit choices:
     gets it on every reseed. Until a tenant reruns it, a void of a sale that sold vouchers does not balance and its
     journal stays FAILED in the posting run, which tries it again once the rule is refreshed; no other void is
     affected.
+- **FLR-06's lay-by money by EcoCash or card counts on the drawer it was taken at.** A lay-by deposit, payment or
+  refund by a tender other than cash carries the till's open shift, and that shift's takings by tender (the till's
+  cash-up, the back office's close page) and its Z-report's tender rows count it, refunds negative, so each
+  tender's row matches its statement. It is not takings: grossTakings, VAT and the hand-over sale are untouched,
+  and the hand-over's LAYBY row stays as how that sale was paid. Cash lay-by money is already the drawer's own
+  cash movement. End of day's "How people paid" tiles stay the sales' own tenders.
 - **FLR-10 departs from packet 63 in these places.**
   - **The till lives in `components/retail/till/*`**, as FLR-09 left it; the packet's `components/retail/portal/*`
     names are older. Its tests sit beside it (`pos-cart-pricing`, `pos-liquor-moments`, `pos-vouchers`). The sale body

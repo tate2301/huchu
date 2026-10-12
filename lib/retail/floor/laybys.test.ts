@@ -7,6 +7,7 @@ import { runRetailPosting } from "@/lib/retail/posting-settings";
 import { addDays, todayIn } from "@/lib/workspace/format";
 
 import { sendLaybyReminders } from "./layby-reminders";
+import { laybyNonCashOnShifts } from "./layby-takings";
 import { cancelLayby, handOver, payLayby, startLayby } from "./laybys";
 import { destroySalesShop, makeSalesShop, type SalesShop } from "./test-fixtures";
 
@@ -170,6 +171,9 @@ describe("paying it off and handing it over", () => {
     });
     const rest = await payLayby(chipo(), started.id, { amount: "16.00", tender: "ECOCASH", reference: "MP2610.57" }, atTill());
     expect([rest.status, rest.left]).toEqual(["READY", "0.00"]);
+    // The EcoCash went onto the till's drawer, so its cash-up and Z-report count it against the statement.
+    const onDrawer = (await laybyNonCashOnShifts(shop.companyId, [drawer])).filter((row) => row.tenderType === "ECOCASH");
+    expect(onDrawer.reduce((sum, row) => sum + Number(row.baseAmount), 0)).toBeGreaterThanOrEqual(36);
 
     const done = await handOver(chipo(), started.id, {}, atTill());
     const sale = await prisma.retailSale.findUniqueOrThrow({ where: { id: done.saleId }, include: { payments: true } });

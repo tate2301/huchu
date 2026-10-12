@@ -265,6 +265,7 @@ const layby: SheetKind = {
               head: ["When", "How", "Amount", "By"],
               rows: view.payments.map((payment) => [payment.at, `${payment.tender}, ${payment.kind.toLowerCase()}`, usd(payment.amount), payment.by]),
               end: [2],
+              widths: ["24%", "28%", "20%", "28%"],
             };
           },
         },
