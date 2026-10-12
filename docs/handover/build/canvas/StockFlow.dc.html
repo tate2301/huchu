@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<title>Stock to sellable</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Next:wght@400;500;600&amp;family=IBM+Plex+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+.th{--surface:#ffffff;--ground:#faf7f4;--hover:#fbf8f5;--tray:#f3eee9;--active:#efe8e2;--line:#ece6e0;--line-soft:#f3eee9;--line-strong:#ddd4cc;--ink:#24140e;--ink-2:#4a3a33;--muted:#75675f;--faint:#a89c94;--accent:#e8620f;--accent-fill:#b84a0c;--data:#4b5363;--ok:#17734c;--ok-soft:#e7f4ee;--info:#3d4fb8;--info-soft:#eceefb;--warn:#8a5a10;--warn-soft:#fbf1dc;--warn-dot:#e0a21a;--warn-line:#e8cf9a;--bad:#a3122f;--bad-soft:#fbe8ec;--bad-dot:#c8203f;--float:0 0 0 1px #ece6e0,0 14px 30px -18px rgba(36,20,14,.3)}
+.th button:focus-visible,.th a:focus-visible,.th input:focus-visible,.th select:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
+.th input::placeholder{color:var(--faint)}
+.c{min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.lk{color:var(--ink);text-decoration:underline;text-decoration-color:var(--line-strong);text-underline-offset:3px}
+.rw:hover{background:var(--hover)}
+.mi:hover{background:var(--hover)}
+.bg{display:flex}.bg>button{margin-left:-1px;border-radius:0}.bg>button:first-child{margin-left:0;border-radius:8px 0 0 8px}.bg>button:last-child{border-radius:0 8px 8px 0}
+.fld{display:flex;flex-direction:column;gap:6px;min-width:0}
+.fld>span:first-child{font-size:13px;font-weight:500;color:var(--ink)}
+.inp{height:36px;box-sizing:border-box;padding:0 10px;border:1px solid var(--line-strong);border-radius:8px;background:var(--surface);font:inherit;font-size:14px;color:var(--ink);width:100%}
+.hint{font-size:12.5px;color:var(--muted);line-height:1.4}
+</style>
+</helmet>
+<div class="th" style="position: relative; width: 1440px; height: 960px; box-sizing: border-box; overflow: hidden; background: #ffffff; color: var(--ink); font-family: 'Atkinson Hyperlegible Next', system-ui, sans-serif;">
+<div style="padding: 56px 64px; display: flex; flex-direction: column; gap: 36px;">
+  <header style="display: flex; flex-direction: column; gap: 10px; max-width: 900px;"><span style="font-size: 14px; font-weight: 500; color: var(--muted);">W-09 · Products</span><h1 style="margin: 0; font-size: 40px; line-height: 1.08; font-weight: 600; letter-spacing: -0.035em;">From stock item to sellable product, in one form</h1><p style="margin: 0; font-size: 17px; line-height: 1.55; color: var(--ink-2);">Today a bottle needs four records on three screens before a cashier can sell it. After: three fields, and it sells.</p></header>
+  <section style="display: flex; flex-direction: column; gap: 14px;"><h2 style="margin: 0; font-size: 18px; font-weight: 600;">Now: four steps, three screens</h2><div style="display: flex; align-items: stretch;"><div style="flex: 1; min-width: 0; padding: 16px; border: 1px solid #f0c3cc; border-radius: 12px; background: var(--bad-soft); display: flex; flex-direction: column; gap: 6px;"><span style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: var(--muted);">1</span><span style="font-size: 15px; font-weight: 600;">Stock item</span><span style="font-size: 13px; color: var(--ink-2);">Stores › Inventory</span><span style="font-size: 12.5px; line-height: 1.45; color: var(--bad);">Needs a site and a location. Category comes from the mining list.</span></div><span aria-hidden="true" style="flex: none; width: 28px; display: flex; align-items: center; justify-content: center; color: var(--faint);"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="m9 18 6-6-6-6"></path></svg></span><div style="flex: 1; min-width: 0; padding: 16px; border: 1px solid #f0c3cc; border-radius: 12px; background: var(--bad-soft); display: flex; flex-direction: column; gap: 6px;"><span style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: var(--muted);">2</span><span style="font-size: 15px; font-weight: 600;">Link to a location</span><span style="font-size: 13px; color: var(--ink-2);">Stores › Locations</span><span style="font-size: 12.5px; line-height: 1.45; color: var(--bad);">A shop with one room still has to pick it.</span></div><span aria-hidden="true" style="flex: none; width: 28px; display: flex; align-items: center; justify-content: center; color: var(--faint);"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="m9 18 6-6-6-6"></path></svg></span><div style="flex: 1; min-width: 0; padding: 16px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); display: flex; flex-direction: column; gap: 6px;"><span style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: var(--muted);">3</span><span style="font-size: 15px; font-weight: 600;">Product</span><span style="font-size: 13px; color: var(--ink-2);">Products</span><span style="font-size: 12.5px; line-height: 1.45; color: var(--muted);">A second record for the same thing, linked by hand.</span></div><span aria-hidden="true" style="flex: none; width: 28px; display: flex; align-items: center; justify-content: center; color: var(--faint);"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="m9 18 6-6-6-6"></path></svg></span><div style="flex: 1; min-width: 0; padding: 16px; border: 1px solid #f0c3cc; border-radius: 12px; background: var(--bad-soft); display: flex; flex-direction: column; gap: 6px;"><span style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: var(--muted);">4</span><span style="font-size: 15px; font-weight: 600;">Price list</span><span style="font-size: 13px; color: var(--ink-2);">Stores › Price lists</span><span style="font-size: 12.5px; line-height: 1.45; color: var(--bad);">Not on the till until it has a price here.</span></div></div></section>
+  <section style="display: flex; flex-direction: column; gap: 14px;"><h2 style="margin: 0; font-size: 18px; font-weight: 600;">After: one step</h2><div style="display: grid; grid-template-columns: 420px minmax(0, 1fr); gap: 32px; align-items: start;">
+  <div style="padding: 20px; border: 1.5px solid var(--ink); border-radius: 14px; background: var(--surface); display: flex; flex-direction: column; gap: 12px;">
+    <span style="font-size: 15px; font-weight: 600;">New product</span>
+    <span class="fld"><span>Name</span><span class="inp" style="display: flex; align-items: center;">Savanna Dry 330ml</span></span>
+    <span class="fld"><span>Category</span><span class="inp" style="display: flex; align-items: center;">Ciders and coolers</span></span>
+    <span class="fld"><span>Price</span><span class="inp" style="display: flex; align-items: center; justify-content: flex-end; font-family: 'IBM Plex Mono', monospace; font-weight: 600;">US$ 2.10</span></span>
+    <span style="height: 36px; display: flex; align-items: center; justify-content: center; border-radius: 8px; background: var(--accent-fill); color: #ffffff; font-weight: 600;">Add product</span>
+  </div>
+  <ul style="margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 14px; font-size: 15px; line-height: 1.5;">
+    <li><strong style="font-weight: 600;">One record.</strong> <span style="color: var(--ink-2);">The product is the thing you sell and the thing you stock. Its stock is kept per site, made for you on save.</span></li>
+    <li><strong style="font-weight: 600;">No site or location to choose.</strong> <span style="color: var(--ink-2);">One site: it is used. Two or more: the form asks once, under More details. Places inside a site only appear if you add them.</span></li>
+    <li><strong style="font-weight: 600;">On sale when saved.</strong> <span style="color: var(--ink-2);">The price goes into the default price list, so every till sells it within a minute.</span></li>
+    <li><strong style="font-weight: 600;">Your categories.</strong> <span style="color: var(--ink-2);">Read from Products › Categories, seeded by the shop type. Pick one, or add one as you type.</span></li>
+    <li><strong style="font-weight: 600;">The same form everywhere.</strong> <span style="color: var(--ink-2);">Products, On hand, an order line, a delivery, a price list, the import. Cost, barcode, supplier and opening stock wait under More details.</span></li>
+  </ul>
+</div></section>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":960}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

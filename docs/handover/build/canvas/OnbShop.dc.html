@@ -1,0 +1,209 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<title>Onboarding: your shop</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Next:wght@400;500;600&amp;family=IBM+Plex+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+.th{--surface:#ffffff;--ground:#faf7f4;--hover:#fbf8f5;--tray:#f3eee9;--active:#efe8e2;--line:#ece6e0;--line-soft:#f3eee9;--line-strong:#ddd4cc;--ink:#24140e;--ink-2:#4a3a33;--muted:#75675f;--faint:#a89c94;--accent:#e8620f;--accent-fill:#b84a0c;--data:#4b5363;--ok:#17734c;--ok-soft:#e7f4ee;--info:#3d4fb8;--info-soft:#eceefb;--warn:#8a5a10;--warn-soft:#fbf1dc;--warn-dot:#e0a21a;--warn-line:#e8cf9a;--bad:#a3122f;--bad-soft:#fbe8ec;--bad-dot:#c8203f;--float:0 0 0 1px #ece6e0,0 14px 30px -18px rgba(36,20,14,.3)}
+.th button:focus-visible,.th a:focus-visible,.th input:focus-visible,.th select:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
+.th input::placeholder{color:var(--faint)}
+.c{min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.lk{color:var(--ink);text-decoration:underline;text-decoration-color:var(--line-strong);text-underline-offset:3px}
+.rw:hover{background:var(--hover)}
+.mi:hover{background:var(--hover)}
+.bg{display:flex}.bg>button{margin-left:-1px;border-radius:0}.bg>button:first-child{margin-left:0;border-radius:8px 0 0 8px}.bg>button:last-child{border-radius:0 8px 8px 0}
+.fld{display:flex;flex-direction:column;gap:6px;min-width:0}
+.fld>span:first-child{font-size:13px;font-weight:500;color:var(--ink)}
+.inp{height:36px;box-sizing:border-box;padding:0 10px;border:1px solid var(--line-strong);border-radius:8px;background:var(--surface);font:inherit;font-size:14px;color:var(--ink);width:100%}
+.hint{font-size:12.5px;color:var(--muted);line-height:1.4}
+</style>
+</helmet>
+<div class="th" style="position: relative; width: 1440px; height: 960px; box-sizing: border-box; overflow: hidden; background: #ffffff; color: var(--ink); font-family: 'Atkinson Hyperlegible Next', system-ui, sans-serif;">
+<aside style="position: absolute; left: 0; top: 0; bottom: 0; width: 360px; box-sizing: border-box; padding: 40px; background: var(--ground); border-right: 1px solid var(--line); display: flex; flex-direction: column; gap: 32px;">
+  <div style="display: flex; align-items: center; gap: 10px;"><span style="width: 28px; height: 28px; border-radius: 8px; background: var(--accent); display: flex; align-items: center; justify-content: center; color: #ffffff; font-weight: 600;">T</span><span style="font-size: 18px; font-weight: 600; letter-spacing: -0.02em;">Tender</span></div>
+  <div style="display: flex; flex-direction: column; gap: 4px;"><span style="font-size: 13px; color: var(--muted);">Setting up</span><span style="font-size: 18px; font-weight: 600; letter-spacing: -0.01em;">Harare Bottle Store</span></div>
+  <ol aria-label="Setup steps" style="margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 4px;"><li><a href="OnbType.dc.html" style="display: flex; align-items: center; gap: 12px; padding: 10px 12px; margin: 0 -12px; border-radius: 10px; background: transparent; box-shadow: none; color: var(--ink); text-decoration: none;"><span style="width: 24px; height: 24px; border-radius: 99px; background: var(--ink); color: #ffffff; display: flex; align-items: center; justify-content: center;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12 5 5 9-10"></path></svg></span><span style="flex: 1; display: flex; flex-direction: column; gap: 1px;"><span style="font-weight: 500; color: var(--ink);">Shop type</span><span style="font-size: 12px; color: var(--muted);">Done</span></span></a></li><li aria-current="step"><a href="OnbShop.dc.html" style="display: flex; align-items: center; gap: 12px; padding: 10px 12px; margin: 0 -12px; border-radius: 10px; background: var(--surface); box-shadow: var(--float); color: var(--ink); text-decoration: none;"><span style="width: 24px; height: 24px; box-sizing: border-box; border-radius: 99px; border: 1.5px solid var(--ink); background: var(--ink); color: #ffffff; font-family: 'IBM Plex Mono', monospace; font-size: 11px; font-weight: 600; display: flex; align-items: center; justify-content: center;">2</span><span style="flex: 1; display: flex; flex-direction: column; gap: 1px;"><span style="font-weight: 600; color: var(--ink);">Your shop</span><span style="font-size: 12px; color: var(--muted);">2 minutes</span></span></a></li><li><a href="OnbProducts.dc.html" style="display: flex; align-items: center; gap: 12px; padding: 10px 12px; margin: 0 -12px; border-radius: 10px; background: transparent; box-shadow: none; color: var(--ink); text-decoration: none;"><span style="width: 24px; height: 24px; box-sizing: border-box; border-radius: 99px; border: 1.5px solid var(--line-strong); background: transparent; color: var(--muted); font-family: 'IBM Plex Mono', monospace; font-size: 11px; font-weight: 600; display: flex; align-items: center; justify-content: center;">3</span><span style="flex: 1; display: flex; flex-direction: column; gap: 1px;"><span style="font-weight: 500; color: var(--ink-2);">Products and prices</span><span style="font-size: 12px; color: var(--muted);">6 minutes</span></span></a></li><li><a href="OnbTills.dc.html" style="display: flex; align-items: center; gap: 12px; padding: 10px 12px; margin: 0 -12px; border-radius: 10px; background: transparent; box-shadow: none; color: var(--ink); text-decoration: none;"><span style="width: 24px; height: 24px; box-sizing: border-box; border-radius: 99px; border: 1.5px solid var(--line-strong); background: transparent; color: var(--muted); font-family: 'IBM Plex Mono', monospace; font-size: 11px; font-weight: 600; display: flex; align-items: center; justify-content: center;">4</span><span style="flex: 1; display: flex; flex-direction: column; gap: 1px;"><span style="font-weight: 500; color: var(--ink-2);">Tills and payments</span><span style="font-size: 12px; color: var(--muted);">2 minutes</span></span></a></li><li><a href="OnbStaff.dc.html" style="display: flex; align-items: center; gap: 12px; padding: 10px 12px; margin: 0 -12px; border-radius: 10px; background: transparent; box-shadow: none; color: var(--ink); text-decoration: none;"><span style="width: 24px; height: 24px; box-sizing: border-box; border-radius: 99px; border: 1.5px solid var(--line-strong); background: transparent; color: var(--muted); font-family: 'IBM Plex Mono', monospace; font-size: 11px; font-weight: 600; display: flex; align-items: center; justify-content: center;">5</span><span style="flex: 1; display: flex; flex-direction: column; gap: 1px;"><span style="font-weight: 500; color: var(--ink-2);">Staff and PINs</span><span style="font-size: 12px; color: var(--muted);">2 minutes</span></span></a></li><li><a href="OnbDone.dc.html" style="display: flex; align-items: center; gap: 12px; padding: 10px 12px; margin: 0 -12px; border-radius: 10px; background: transparent; box-shadow: none; color: var(--ink); text-decoration: none;"><span style="width: 24px; height: 24px; box-sizing: border-box; border-radius: 99px; border: 1.5px solid var(--line-strong); background: transparent; color: var(--muted); font-family: 'IBM Plex Mono', monospace; font-size: 11px; font-weight: 600; display: flex; align-items: center; justify-content: center;">6</span><span style="flex: 1; display: flex; flex-direction: column; gap: 1px;"><span style="font-weight: 500; color: var(--ink-2);">A test sale</span><span style="font-size: 12px; color: var(--muted);">1 minute</span></span></a></li></ol>
+  <div style="flex: 1;"></div>
+  <div style="display: flex; flex-direction: column; gap: 6px; font-size: 13px; line-height: 1.45; color: var(--ink-2);"><span><strong style="font-weight: 600; color: var(--ink);">Everything saves as you go.</strong> Close this and pick up where you left off.</span><span>Stuck? WhatsApp us on <span style="font-family: 'IBM Plex Mono', monospace;">+263 78 600 1100</span>.</span></div>
+</aside>
+<main style="position: absolute; left: 360px; right: 0; top: 0; bottom: 0; display: flex; flex-direction: column;">
+  <div style="flex: 1; min-height: 0; overflow: auto; padding: 56px 72px 32px;"><div style="max-width: 720px; display: flex; flex-direction: column; gap: 8px;">
+    <span style="font-size: 13px; color: var(--muted);">Step <span style="font-family: 'IBM Plex Mono', monospace;">2</span> of <span style="font-family: 'IBM Plex Mono', monospace;">6</span></span>
+    <h1 style="margin: 0; font-size: 32px; line-height: 1.15; font-weight: 600; letter-spacing: -0.03em;">Tell us about the shop</h1>
+    <p style="margin: 4px 0 0; font-size: 16px; line-height: 1.5; color: var(--ink-2);">This goes on receipts and orders. Only the name is needed now.</p>
+    <div style="margin-top: 8px;">    <sc-for list="{{sections}}" as="sec" hint-placeholder-count="3">
+      <div style="padding-top: 20px; margin-top: {{sec.gap}}; border-top: {{sec.rule}}; display: flex; flex-direction: column; gap: 14px;">
+        <sc-if value="{{sec.hasTitle}}" hint-placeholder-val="{{ true }}"><h3 style="margin: 0; font-size: 14px; font-weight: 600;">{{sec.title}}</h3></sc-if>
+        <sc-if value="{{sec.isFolded}}" hint-placeholder-val="{{ false }}">
+          <button onClick="{{sec.unfold}}" aria-expanded="false" style="height: 40px; display: flex; align-items: center; gap: 8px; padding: 0 12px; border: 1px dashed var(--line-strong); border-radius: 10px; background: var(--surface); color: var(--ink); font: inherit; text-align: left;"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M11 4h2v7h7v2h-7v7h-2v-7H4v-2h7z"></path></svg><span style="font-weight: 500;">{{sec.foldLabel}}</span><span class="c" style="flex: 1; color: var(--muted);">{{sec.foldHint}}</span></button>
+        </sc-if>
+        <sc-if value="{{sec.isOpen}}" hint-placeholder-val="{{ true }}">
+        <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 12px;">
+          <sc-for list="{{sec.fields}}" as="f" hint-placeholder-count="3">
+            <div class="fld" style="grid-column: span {{f.span}};">
+              <sc-if value="{{f.hasLabel}}" hint-placeholder-val="{{ true }}"><span>{{f.label}}<span style="font-weight: 400; color: var(--muted);">{{f.optional}}</span></span></sc-if>
+
+              <sc-if value="{{f.isText}}" hint-placeholder-val="{{ true }}"><input class="inp" aria-label="{{f.label}}" value="{{f.value}}" placeholder="{{f.placeholder}}" onChange="{{f.change}}" style="font-family: {{f.font}}; text-align: {{f.align}};"></sc-if>
+
+              <sc-if value="{{f.isMoney}}" hint-placeholder-val="{{ false }}"><span style="height: 36px; display: flex; align-items: center; border: 1px solid var(--line-strong); border-radius: 8px; background: var(--surface); overflow: hidden;"><span style="height: 100%; display: flex; align-items: center; padding: 0 10px; background: var(--tray); color: var(--ink-2); border-right: 1px solid var(--line-strong); font-family: 'IBM Plex Mono', monospace; font-size: 12.5px;">{{f.currency}}</span><input aria-label="{{f.label}}" value="{{f.value}}" placeholder="0.00" onChange="{{f.change}}" inputmode="decimal" style="flex: 1; min-width: 0; height: 100%; padding: 0 10px; border: 0; outline: none; background: transparent; font-family: 'IBM Plex Mono', monospace; font-size: 14px; font-weight: 600; text-align: right; color: var(--ink);"></span></sc-if>
+
+              <sc-if value="{{f.isRead}}" hint-placeholder-val="{{ false }}"><span style="min-height: 36px; display: flex; align-items: center; justify-content: {{f.justify}}; padding: 0 10px; border-radius: 8px; background: var(--tray); font-family: {{f.font}}; font-weight: 600; color: {{f.fg}};">{{f.value}}</span></sc-if>
+
+              <sc-if value="{{f.isArea}}" hint-placeholder-val="{{ false }}"><textarea aria-label="{{f.label}}" placeholder="{{f.placeholder}}" style="min-height: {{f.rows}}; box-sizing: border-box; padding: 8px 10px; border: 1px solid var(--line-strong); border-radius: 8px; font: inherit; font-size: 14px; line-height: 1.45; color: var(--ink); resize: vertical;">{{f.value}}</textarea></sc-if>
+
+              <sc-if value="{{f.isAuto}}" hint-placeholder-val="{{ false }}">
+                <span style="position: relative; display: block;">
+                  <span style="height: 36px; box-sizing: border-box; display: flex; align-items: center; gap: 8px; padding: 0 10px; border: 1px solid {{f.autoLine}}; border-radius: 8px; background: var(--surface);">
+                    <input role="combobox" aria-expanded="{{f.open}}" aria-autocomplete="list" aria-label="{{f.label}}" value="{{f.query}}" placeholder="{{f.placeholder}}" onFocus="{{f.openIt}}" onChange="{{f.type}}" style="flex: 1; min-width: 0; border: 0; outline: none; background: transparent; font: inherit; font-size: 14px; color: var(--ink);">
+                    <span style="color: var(--muted); display: flex;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg></span>
+                  </span>
+                  <sc-if value="{{f.open}}" hint-placeholder-val="{{ false }}">
+                    <span role="listbox" aria-label="{{f.label}}" style="position: absolute; z-index: 5; top: 40px; left: 0; right: 0; padding: 6px; background: var(--surface); border-radius: 10px; box-shadow: var(--float); display: flex; flex-direction: column;">
+                      <sc-for list="{{f.options}}" as="o" hint-placeholder-count="3"><button role="option" class="mi" onClick="{{o.pick}}" style="min-height: 36px; display: flex; align-items: center; gap: 8px; padding: 0 8px; border: 0; border-radius: 8px; background: transparent; font: inherit; color: var(--ink); text-align: left;"><span class="c" style="flex: 1;">{{o.label}}</span><span class="c" style="color: var(--muted); font-size: 12px;">{{o.sub}}</span></button></sc-for>
+                      <sc-if value="{{f.noMatch}}" hint-placeholder-val="{{ false }}"><span style="padding: 6px 8px; color: var(--muted);">Nothing matches.</span></sc-if>
+                      <span style="height: 1px; background: var(--line); margin: 4px 0;"></span>
+                      <button role="option" class="mi" onClick="{{f.startAdd}}" style="height: 36px; display: flex; align-items: center; gap: 8px; padding: 0 8px; border: 0; border-radius: 8px; background: transparent; font: inherit; color: var(--accent-fill); font-weight: 600; text-align: left;"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M11 4h2v7h7v2h-7v7h-2v-7H4v-2h7z"></path></svg>{{f.addLabel}}</button>
+                    </span>
+                  </sc-if>
+                </span>
+                <sc-if value="{{f.adding}}" hint-placeholder-val="{{ false }}">
+                  <span style="display: flex; flex-direction: column; gap: 10px; padding: 12px; border: 1px solid var(--line-strong); border-radius: 10px; background: var(--ground);">
+                    <span style="font-weight: 600;">{{f.quickTitle}}</span>
+                    <sc-for list="{{f.quick}}" as="q" hint-placeholder-count="2"><label class="fld"><span>{{q.label}}</span><input class="inp" value="{{q.value}}" placeholder="{{q.placeholder}}"></label></sc-for>
+                    <span style="display: flex; gap: 8px; justify-content: flex-end;"><button onClick="{{f.cancelAdd}}" style="height: 32px; padding: 0 12px; border: 1px solid var(--line-strong); border-radius: 8px; background: var(--surface); color: var(--ink); font: inherit;">Cancel</button><button onClick="{{f.doAdd}}" style="height: 32px; padding: 0 12px; border: 0; border-radius: 8px; background: var(--ink); color: #ffffff; font: inherit; font-weight: 600;">Add and use</button></span>
+                  </span>
+                </sc-if>
+              </sc-if>
+
+              <sc-if value="{{f.isSeg}}" hint-placeholder-val="{{ false }}"><span class="bg" role="group" aria-label="{{f.label}}"><sc-for list="{{f.opts}}" as="o" hint-placeholder-count="3"><button aria-pressed="{{o.on}}" onClick="{{o.pick}}" style="flex: 1 1 0; min-width: 0; min-height: 36px; padding: 4px 8px; border: 1px solid var(--line-strong); background: {{o.bg}}; color: var(--ink); font: inherit; font-weight: {{o.weight}}; line-height: 1.25;">{{o.label}}</button></sc-for></span></sc-if>
+
+              <sc-if value="{{f.isToggle}}" hint-placeholder-val="{{ false }}"><button role="switch" aria-checked="{{f.on}}" onClick="{{f.flip}}" style="display: flex; align-items: flex-start; gap: 12px; padding: 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); font: inherit; color: var(--ink); text-align: left;"><span style="flex: none; width: 34px; height: 20px; margin-top: 1px; border-radius: 99px; background: {{f.track}}; position: relative;"><span style="position: absolute; top: 2px; left: {{f.knob}}; width: 16px; height: 16px; border-radius: 99px; background: #ffffff; box-shadow: 0 1px 2px rgba(36, 20, 14, 0.3);"></span></span><span style="display: flex; flex-direction: column; gap: 2px;"><span style="font-weight: 500;">{{f.toggleLabel}}</span><span style="font-size: 12.5px; color: var(--muted); line-height: 1.4;">{{f.toggleHint}}</span></span></button></sc-if>
+
+              <sc-if value="{{f.isPhoto}}" hint-placeholder-val="{{ false }}"><span style="height: 76px; border: 1.5px dashed var(--line-strong); border-radius: 10px; background: var(--ground); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;"><span style="font-weight: 500;">{{f.value}}</span><span style="font-size: 12px; color: var(--muted);">Drop it here, or take one on a phone</span></span></sc-if>
+
+              <sc-if value="{{f.isLines}}" hint-placeholder-val="{{ false }}">
+                <span role="table" aria-label="{{f.label}}" style="display: block; border: 1px solid var(--line); border-radius: 10px; overflow: hidden;">
+                  <span role="row" style="display: grid; grid-template-columns: minmax(0, 1fr) 96px 104px 112px 36px; align-items: center; height: 34px; background: var(--ground); border-bottom: 1px solid var(--line); color: var(--muted); font-size: 12.5px; font-weight: 500;"><span role="columnheader" style="padding: 0 12px;">Product</span><span role="columnheader" style="padding: 0 10px; text-align: right;">{{f.qtyLabel}}</span><span role="columnheader" style="padding: 0 10px; text-align: right;">{{f.costLabel}}</span><span role="columnheader" style="padding: 0 10px; text-align: right;">Value</span><span></span></span>
+                  <sc-for list="{{f.rows}}" as="r" hint-placeholder-count="4">
+                    <span role="row" class="rw" style="display: grid; grid-template-columns: minmax(0, 1fr) 96px 104px 112px 36px; align-items: center; height: 48px; border-bottom: 1px solid var(--line-soft);">
+                      <span role="cell" style="padding: 0 12px; min-width: 0; display: flex; flex-direction: column; gap: 1px;"><span class="c" style="font-weight: 500;">{{r.name}}</span><span class="c" style="font-size: 12px; color: {{r.subFg}};">{{r.sub}}</span></span>
+                      <span role="cell" style="padding: 0 6px; display: flex; justify-content: flex-end;"><input aria-label="{{f.qtyLabel}}, {{r.name}}" value="{{r.qty}}" onChange="{{r.setQty}}" inputmode="numeric" style="width: 72px; height: 30px; box-sizing: border-box; padding: 0 8px; border: 1px solid var(--line-strong); border-radius: 8px; font-family: 'IBM Plex Mono', monospace; font-size: 13px; font-weight: 600; text-align: right; color: var(--ink);"></span>
+                      <span role="cell" style="padding: 0 10px; text-align: right; font-family: 'IBM Plex Mono', monospace; color: var(--ink-2);">{{r.cost}}</span>
+                      <span role="cell" style="padding: 0 10px; text-align: right; font-family: 'IBM Plex Mono', monospace;">{{r.value}}</span>
+                      <span role="cell"><button onClick="{{r.remove}}" aria-label="Remove {{r.name}}" style="width: 28px; height: 28px; border: 0; border-radius: 6px; background: transparent; color: var(--faint); display: flex; align-items: center; justify-content: center;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"></path></svg></button></span>
+                    </span>
+                  </sc-for>
+                  <span style="height: 44px; display: flex; align-items: center; gap: 8px; padding: 0 12px; border-bottom: 1px solid var(--line); color: var(--muted);"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M11 4h2v7h7v2h-7v7h-2v-7H4v-2h7z"></path></svg><input aria-label="Add a line" placeholder="{{f.addPlaceholder}}" style="flex: 1; min-width: 0; border: 0; outline: none; font: inherit; color: var(--ink); background: transparent;"></span>
+                  <span role="row" style="display: grid; grid-template-columns: minmax(0, 1fr) 96px 104px 112px 36px; align-items: center; height: 40px; background: var(--ground); font-family: 'IBM Plex Mono', monospace; font-weight: 600;"><span role="cell" style="padding: 0 12px; font-family: 'Atkinson Hyperlegible Next', system-ui, sans-serif; font-weight: 500; color: var(--muted);">Σ <span style="font-family: 'IBM Plex Mono', monospace; color: var(--ink);">{{f.lineCount}}</span> lines</span><span role="cell" style="padding: 0 16px; text-align: right;">{{f.qtyTotal}}</span><span></span><span role="cell" style="padding: 0 10px; text-align: right;">{{f.valueTotal}}</span><span></span></span>
+                </span>
+              </sc-if>
+
+              <sc-if value="{{f.isCards}}" hint-placeholder-val="{{ false }}"><span role="radiogroup" aria-label="{{f.label}}" style="display: grid; grid-template-columns: repeat({{f.cols}}, minmax(0, 1fr)); gap: 10px;"><sc-for list="{{f.cards}}" as="o" hint-placeholder-count="2"><button role="radio" aria-checked="{{o.on}}" onClick="{{o.pick}}" style="display: flex; align-items: flex-start; gap: 10px; padding: 14px; border: 1.5px solid {{o.line}}; border-radius: 12px; background: {{o.bg}}; font: inherit; color: var(--ink); text-align: left; opacity: {{o.opacity}};"><span style="flex: none; width: 18px; height: 18px; margin-top: 1px; box-sizing: border-box; border-radius: 99px; border: {{o.ring}}; background: var(--surface);"></span><span style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px;"><span style="display: flex; align-items: center; gap: 8px; font-weight: 600; font-size: 14px;">{{o.label}}<sc-if value="{{o.hasBadge}}" hint-placeholder-val="{{ false }}"><span style="height: 20px; padding: 0 6px; border-radius: 6px; background: var(--tray); color: var(--ink-2); font-size: 11.5px; font-weight: 500; display: flex; align-items: center;">{{o.badge}}</span></sc-if></span><span style="font-size: 12.5px; line-height: 1.45; color: var(--muted);">{{o.desc}}</span></span></button></sc-for></span></sc-if>
+
+              <sc-if value="{{f.isTags}}" hint-placeholder-val="{{ false }}"><span style="min-height: 40px; box-sizing: border-box; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 6px; border: 1px solid var(--line-strong); border-radius: 8px; background: var(--surface);"><sc-for list="{{f.tags}}" as="g" hint-placeholder-count="3"><span style="height: 26px; display: flex; align-items: center; gap: 4px; padding: 0 4px 0 10px; border-radius: 6px; background: var(--tray); color: var(--ink);">{{g.label}}<button onClick="{{g.remove}}" aria-label="Remove {{g.label}}" style="width: 20px; height: 20px; border: 0; border-radius: 4px; background: transparent; color: var(--muted); display: flex; align-items: center; justify-content: center;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"></path></svg></button></span></sc-for><input aria-label="Add to {{f.label}}" placeholder="{{f.placeholder}}" value="{{f.draft}}" onChange="{{f.typeTag}}" onKeyDown="{{f.addTag}}" style="flex: 1; min-width: 140px; height: 26px; border: 0; outline: none; background: transparent; font: inherit; font-size: 14px; color: var(--ink);"></span></sc-if>
+
+              <sc-if value="{{f.hasHint}}" hint-placeholder-val="{{ false }}"><span class="hint" style="color: {{f.hintFg}};">{{f.hint}}</span></sc-if>
+            </div>
+          </sc-for>
+        </div>
+        </sc-if>
+      </div>
+    </sc-for>
+</div>
+  </div></div>
+  <footer style="height: 76px; flex: none; display: flex; align-items: center; gap: 12px; padding: 0 72px; border-top: 1px solid var(--line);"><a href="OnbType.dc.html" style="height: 40px; display: flex; align-items: center; padding: 0 16px; border: 1px solid var(--line-strong); border-radius: 8px; color: var(--ink); text-decoration: none;">Back</a><span style="flex: 1;"></span><a href="OnbProducts.dc.html" style="height: 40px; display: flex; align-items: center; gap: 8px; padding: 0 20px; border-radius: 8px; background: var(--accent-fill); color: #ffffff; font-weight: 600; text-decoration: none;">Continue<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="m9 18 6-6-6-6"></path></svg></a></footer>
+</main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":960}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { vals: {}, qty: {}, removed: {}, open: null, query: {}, adding: null, unfolded: {}, saved: false, tags: {}, draft: {} };
+  }
+  renderVals() {
+    var self = this, st = this.state;
+    var c = {"cur": "US$", "sections": [{"fields": [{"id": "trade", "t": "text", "l": "Shop name", "v": "Harare Bottle Store"}, {"id": "phone", "t": "text", "l": "Phone", "v": "+263 24 270 5521", "half": 1, "mono": 1}, {"id": "wa", "t": "text", "l": "WhatsApp", "v": "+263 77 412 0098", "half": 1, "mono": 1, "opt": 1}, {"id": "addr", "t": "area", "l": "Where it is", "v": "14 Samora Machel Avenue, Harare", "rows": 2, "h": "More than one shop? Add the others later in Management › Sites."}, {"id": "cur", "t": "seg", "l": "You take", "v": "US$ and ZiG", "o": ["US$ only", "US$ and ZiG", "ZiG only"], "half": 1}, {"id": "vat", "t": "seg", "l": "Registered for VAT", "v": "Yes", "o": ["Yes", "No"], "half": 1}]}, {"fields": [{"id": "lic", "t": "text", "l": "Liquor licence number", "v": "HRE/BL/2024/0711", "half": 1, "mono": 1, "opt": 1}, {"id": "licx", "t": "text", "l": "Licence expires", "v": "31 December 2026", "half": 1, "opt": 1}, {"id": "hrs", "t": "text", "l": "Licence hours, Monday to Saturday", "v": "08:00 to 22:00", "half": 1, "mono": 1}, {"id": "sun", "t": "text", "l": "Sundays", "v": "10:00 to 18:00", "half": 1, "mono": 1}], "title": "Your licence"}]};
+    function money(v) { return c.cur + ' ' + v.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ','); }
+    function get(id, d) { return st.vals[id] !== undefined ? st.vals[id] : d; }
+    function put(id, v) { var n = Object.assign({}, st.vals); n[id] = v; return n; }
+    var sections = c.sections.filter(function (sec) { return !sec.when || get(sec.when[0], sec.when[2]) === sec.when[1]; }).map(function (sec, si) {
+      var folded = sec.fold && !st.unfolded[si];
+      return {
+        title: sec.title || '', hasTitle: Boolean(sec.title), gap: si === 0 ? '0' : '20px', rule: si === 0 ? '0' : '1px solid var(--line)',
+        isFolded: Boolean(folded), isOpen: !folded, foldLabel: sec.fold ? sec.fold[0] : '', foldHint: sec.fold ? sec.fold[1] : '',
+        unfold: function () { var u = Object.assign({}, st.unfolded); u[si] = true; self.setState({ unfolded: u }); },
+        fields: sec.fields.map(function (f) {
+          var t = f.t, id = f.id, v = get(id, f.v === undefined ? '' : f.v);
+          var o = { span: f.half ? 1 : 2, label: f.l || '', hasLabel: Boolean(f.l) && t !== 'toggle' && t !== 'lines' && !f.nolabel, optional: f.opt ? '  optional' : '',
+            hint: f.h || '', hasHint: Boolean(f.h), hintFg: f.warn ? 'var(--warn)' : 'var(--muted)',
+            isText: t === 'text', isMoney: t === 'money', isRead: t === 'read', isArea: t === 'area', isAuto: t === 'auto', isSeg: t === 'seg', isToggle: t === 'toggle', isPhoto: t === 'photo', isLines: t === 'lines', isCards: false, isTags: false,
+            value: v, placeholder: f.p || '', font: f.mono ? "'IBM Plex Mono', monospace" : 'inherit', align: f.mono && f.right ? 'right' : 'left',
+            justify: f.right ? 'flex-end' : 'flex-start', fg: f.tone === 'ok' ? 'var(--ok)' : (f.tone === 'warn' ? 'var(--warn)' : 'var(--ink)'),
+            currency: f.cur || c.cur, rows: (f.rows || 3) * 22 + 'px',
+            change: function (e) { self.setState({ vals: put(id, e.target.value), saved: false }); } };
+          if (t === 'auto') {
+            var q = st.query[id] !== undefined ? st.query[id] : v, open = st.open === id;
+            var list = (f.o || []).filter(function (x) { return !q || q === v || x[0].toLowerCase().indexOf(q.toLowerCase()) >= 0; });
+            o.query = q; o.open = open; o.autoLine = open ? 'var(--accent)' : 'var(--line-strong)';
+            o.openIt = function () { self.setState({ open: id, adding: null }); };
+            o.type = function (e) { var n = Object.assign({}, st.query); n[id] = e.target.value; self.setState({ query: n, open: id }); };
+            o.options = list.map(function (x) { return { label: x[0], sub: x[1] || '', pick: function () { var n = Object.assign({}, st.query); delete n[id]; self.setState({ vals: put(id, x[0]), query: n, open: null }); } }; });
+            o.noMatch = list.length === 0;
+            o.addLabel = q && q !== v ? 'Add ‘' + q + '’ as a new ' + f.noun : 'Add a new ' + f.noun;
+            o.startAdd = function () { self.setState({ adding: id, open: null }); };
+            o.adding = st.adding === id;
+            o.quickTitle = 'New ' + f.noun;
+            o.quick = (f.quick || [['Name', '']]).map(function (x, i) { return { label: x[0], placeholder: x[1], value: i === 0 && q !== v ? q : '' }; });
+            o.cancelAdd = function () { self.setState({ adding: null }); };
+            o.doAdd = function () { var n = Object.assign({}, st.query); var name = n[id] && n[id] !== v ? n[id] : 'New ' + f.noun; delete n[id]; self.setState({ vals: put(id, name), query: n, adding: null }); };
+          }
+          if (t === 'seg') {
+            o.opts = f.o.map(function (x) { var on = v === x; return { label: x, on: on, bg: on ? 'var(--active)' : 'var(--surface)', weight: on ? '600' : '400', pick: function () { self.setState({ vals: put(id, x), saved: false }); } }; });
+          }
+          if (t === 'toggle') {
+            var on = v === true || v === 'on';
+            o.on = on; o.toggleLabel = f.l; o.toggleHint = f.h || ''; o.hasHint = false;
+            o.track = on ? 'var(--ok)' : 'var(--line-strong)'; o.knob = on ? '16px' : '2px';
+            o.flip = function () { self.setState({ vals: put(id, !on), saved: false }); };
+          }
+          if (t === 'cards') {
+            o.isCards = true; o.cols = String(f.cols || 2);
+            o.cards = f.o.map(function (x) { var on = v === x[0], soon = x[2] === 'Soon'; return { label: x[0], desc: x[1] || '', badge: x[2] || '', hasBadge: Boolean(x[2]), on: on, opacity: soon ? '0.6' : '1', line: on ? 'var(--ink)' : 'var(--line)', bg: on ? 'var(--ground)' : 'var(--surface)', ring: on ? '5px solid var(--ink)' : '1.5px solid var(--line-strong)', pick: soon ? function () {} : function () { self.setState({ vals: put(id, x[0]), saved: false }); } }; });
+          }
+          if (t === 'tags') {
+            var tg = st.tags && st.tags[id] ? st.tags[id] : f.v;
+            o.isTags = true; o.draft = (st.draft && st.draft[id]) || '';
+            o.tags = tg.map(function (x, i) { return { label: x, remove: function () { var n = Object.assign({}, st.tags || {}); n[id] = tg.filter(function (y, j) { return j !== i; }); self.setState({ tags: n, saved: false }); } }; });
+            o.typeTag = function (e) { var n = Object.assign({}, st.draft || {}); n[id] = e.target.value; self.setState({ draft: n }); };
+            o.addTag = function (e) { if (e.key === 'Enter' && o.draft) { var n = Object.assign({}, st.tags || {}); n[id] = tg.concat([o.draft]); var d = Object.assign({}, st.draft || {}); d[id] = ''; self.setState({ tags: n, draft: d, saved: false }); } };
+          }
+          if (t === 'lines') {
+            var qt = 0, vt = 0, n = 0;
+            o.qtyLabel = f.ql || 'Quantity'; o.costLabel = f.cl || 'Cost'; o.addPlaceholder = f.p || 'Add a product: search, scan, or add a new one';
+            o.rows = f.rows.filter(function (r, i) { return !st.removed[id + i]; }).map(function (r) {
+              var i = f.rows.indexOf(r), key = id + i, q2 = st.qty[key] !== undefined ? st.qty[key] : String(r[2]), qn = parseFloat(q2) || 0, val = qn * r[3];
+              qt += qn; vt += val; n += 1;
+              return { name: r[0], sub: r[1], subFg: r[4] === 'warn' ? 'var(--warn)' : 'var(--muted)', qty: q2, cost: money(r[3]), value: money(val),
+                setQty: function (e) { var m = Object.assign({}, st.qty); m[key] = e.target.value; self.setState({ qty: m }); },
+                remove: function () { var m = Object.assign({}, st.removed); m[key] = true; self.setState({ removed: m }); } };
+            });
+            o.qtyTotal = String(qt); o.valueTotal = money(vt); o.lineCount = String(n);
+          }
+          return o;
+        })
+      };
+    });
+    return { sections: sections };
+  }
+}
+</script>
+</body>
+</html>

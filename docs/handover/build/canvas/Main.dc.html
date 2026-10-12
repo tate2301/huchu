@@ -1,0 +1,498 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<title>Shifts</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Next:wght@400;500;600&amp;family=IBM+Plex+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+.th-tender{--surface:#ffffff;--ground:#faf7f4;--hover:#fbf8f5;--tray:#f3eee9;--active:#efe8e2;--line:#ece6e0;--line-soft:#f3eee9;--line-strong:#ddd4cc;--ink:#24140e;--ink-2:#4a3a33;--muted:#75675f;--faint:#a89c94;--accent:#e8620f;--accent-fill:#b84a0c;--on-accent:#ffffff;--accent-ink:#a8420c;--sel-bg:#f3eee9;--sel-line:#ddd4cc;--sel-ink:#24140e;--selected:#fbf7f3;--device:#24140e;--ok:#17734c;--ok-soft:#e7f4ee;--info:#3d4fb8;--info-soft:#eceefb;--warn:#8a5a10;--warn-soft:#fbf1dc;--warn-dot:#e0a21a;--warn-line:#e8cf9a;--bad:#a3122f;--bad-soft:#fbe8ec;--bad-dot:#c8203f;--float:0 0 0 1px #ece6e0,0 14px 30px -18px rgba(36,20,14,.3);--pin:0 -1px 0 #ddd4cc,0 -10px 18px -14px rgba(36,20,14,.35)}
+.th-tender-dark{--surface:#1e1915;--ground:#171310;--hover:#241e1a;--tray:#2a231f;--active:#322a25;--line:#352d28;--line-soft:#2a231f;--line-strong:#4a403a;--ink:#fff8f1;--ink-2:#e3d8d0;--muted:#b0a39a;--faint:#7d716a;--accent:#f07a2a;--accent-fill:#b84a0c;--on-accent:#ffffff;--accent-ink:#f5a06a;--sel-bg:#2a231f;--sel-line:#4a403a;--sel-ink:#fff8f1;--selected:#241e1a;--device:#0f0c0a;--ok:#4cc38a;--ok-soft:#15291f;--info:#9aa7ff;--info-soft:#1f2340;--warn:#f0b44c;--warn-soft:#33280f;--warn-dot:#f0b44c;--warn-line:#5c4718;--bad:#ff7a8a;--bad-soft:#3a1a20;--bad-dot:#ff5c70;--float:0 0 0 1px #352d28,0 18px 36px -16px rgba(0,0,0,.6);--pin:0 -1px 0 #4a403a,0 -10px 18px -12px rgba(0,0,0,.55)}
+.th-corelith{--surface:#ffffff;--ground:#f6f7f9;--hover:#f9fafb;--tray:#eef0f3;--active:#e7e9ef;--line:#e7e9ef;--line-soft:#eef0f3;--line-strong:#d4d9e0;--ink:#0b0c14;--ink-2:#3b3d47;--muted:#6b6d78;--faint:#9aa1ad;--accent:#2563eb;--accent-fill:#2563eb;--on-accent:#ffffff;--accent-ink:#1d4ed8;--sel-bg:#e8effd;--sel-line:#bfd0f8;--sel-ink:#1d4ed8;--selected:#f3f7fe;--device:#2a2e37;--ok:#17734c;--ok-soft:#e7f4ee;--info:#1d4ed8;--info-soft:#e8effd;--warn:#8a5a10;--warn-soft:#fbf1dc;--warn-dot:#c98a1b;--warn-line:#e3c58f;--bad:#b42318;--bad-soft:#fdecea;--bad-dot:#b42318;--float:0 0 0 1px #e7e9ef,0 14px 30px -18px rgba(11,12,20,.28);--pin:0 -1px 0 #d4d9e0,0 -10px 18px -14px rgba(11,12,20,.35)}
+.th a{color:var(--ink)}
+.th button:focus-visible,.th a:focus-visible,.th input:focus-visible,.th select:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
+.th input::placeholder{color:var(--muted)}
+.r:hover{background:var(--hover) !important}
+.c{min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.g{display:grid;grid-template-columns:40px 104px minmax(132px,1fr) 96px 124px 160px 104px 64px 128px 136px 44px;align-items:center}
+.tw{min-width:1132px}
+.bg{display:flex;flex:none}
+.bg>button{border-radius:0 !important;margin-left:-1px}
+.bg>button:first-child{border-radius:8px 0 0 8px !important;margin-left:0}
+.bg>button:last-child{border-radius:0 8px 8px 0 !important}
+.tb{container:tb/inline-size}
+.tb button,.tb label,.tb span{flex:none;white-space:nowrap}
+.tbl{container:tbl/inline-size}
+.only-narrow,.p-primary,.m-s2,.m-s3{display:none !important}
+@container tb (max-width: 1060px){.t-view{display:none !important}.only-narrow{display:flex !important}}
+@container tb (max-width: 860px){.f-primary{display:none !important}.p-primary{display:flex !important}.s2{display:none !important}.m-s2{display:flex !important}}
+@container tb (max-width: 720px){.t-hint,.s3{display:none !important}.m-s3{display:flex !important}}
+@container tb (max-width: 640px){.t-count{display:none !important}}
+@container tbl (max-width: 1140px){.g{grid-template-columns:40px 104px minmax(132px,1fr) 124px 160px 64px 128px 136px 44px}.tw{min-width:932px}.lo{display:none !important}}
+@container tbl (max-width: 940px){.g{grid-template-columns:40px 104px minmax(96px,1fr) 112px 64px 128px 136px 44px}.tw{min-width:724px}.lo2{display:none !important}}
+</style>
+</helmet>
+<div class="th th-{{themeClass}}" style="width: 100%; height: 960px; display: flex; overflow: hidden; background: var(--ground); color: var(--ink); font-family: 'Atkinson Hyperlegible Next', system-ui, sans-serif; font-size: 13px;">
+
+  <nav aria-label="Modules" style="width: 56px; flex: none; display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 8px 0; background: var(--surface); border-right: 1px solid var(--line); box-sizing: border-box;">
+    <div style="width: 32px; height: 32px; border-radius: 8px; background: var(--device); color: #ffffff; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 600; margin-bottom: 8px;">HC</div>
+    <button aria-label="Retail" style="width: 36px; height: 36px; border: 0; border-radius: 8px; background: var(--active); color: var(--ink); display: flex; align-items: center; justify-content: center; cursor: pointer;"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M4 4h16l1.2 5a3 3 0 0 1-2.2 2.9V20H5v-8.1A3 3 0 0 1 2.8 9zm6 10v6h4v-6z"></path></svg></button>
+    <button aria-label="Catalogue" style="width: 36px; height: 36px; border: 0; border-radius: 8px; background: transparent; color: var(--muted); display: flex; align-items: center; justify-content: center; cursor: pointer;"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M3 3h9l9 9-9 9-9-9zm5 3.5a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3z"></path></svg></button>
+    <button aria-label="Stock" style="width: 36px; height: 36px; border: 0; border-radius: 8px; background: transparent; color: var(--muted); display: flex; align-items: center; justify-content: center; cursor: pointer;"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2 2 7l10 5 10-5zM3.6 11.2 2 12l10 5 10-5-1.6-.8-8.4 4.2zm0 5L2 17l10 5 10-5-1.6-.8-8.4 4.2z"></path></svg></button>
+    <button aria-label="Purchasing" style="width: 36px; height: 36px; border: 0; border-radius: 8px; background: transparent; color: var(--muted); display: flex; align-items: center; justify-content: center; cursor: pointer;"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M4 3h16a1 1 0 0 1 1 1v16a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1zm1 10v6h14v-6h-4l-1.5 2h-3L9 13z"></path></svg></button>
+    <button aria-label="Reports" style="width: 36px; height: 36px; border: 0; border-radius: 8px; background: transparent; color: var(--muted); display: flex; align-items: center; justify-content: center; cursor: pointer;"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 20h18v2H3zM5 10h3v8H5zm5.5-6h3v14h-3zM16 13h3v5h-3z"></path></svg></button>
+    <div style="flex: 1;"></div>
+    <div style="width: 28px; height: 28px; border-radius: 999px; background: var(--tray); color: var(--ink-2); display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 600;">TM</div>
+  </nav>
+
+  <nav aria-label="Retail" style="width: 240px; flex: none; display: flex; flex-direction: column; background: var(--ground); border-right: 1px solid var(--line); box-sizing: border-box;">
+    <div style="height: 48px; display: flex; align-items: center; gap: 8px; padding: 0 12px; box-sizing: border-box;">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="color: var(--muted);"><path d="m15 18-6-6 6-6"></path></svg>
+      <span style="font-size: 14px; font-weight: 600; flex: 1;">The floor</span>
+      <button aria-label="Collapse the panel" style="width: 28px; height: 28px; border: 0; border-radius: 6px; background: transparent; color: var(--faint); display: flex; align-items: center; justify-content: center; cursor: pointer;"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2zm11 2v14h3V5z"></path></svg></button>
+    </div>
+    <div style="padding: 0 10px 8px;">
+      <button style="width: 100%; height: 32px; display: flex; align-items: center; gap: 8px; padding: 0 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--muted); font: inherit; cursor: pointer;"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M10.5 3a7.5 7.5 0 0 1 5.96 12.06l4.24 4.23-1.42 1.42-4.23-4.24A7.5 7.5 0 1 1 10.5 3zm0 2.5a5 5 0 1 0 0 10 5 5 0 0 0 0-10z"></path></svg><span style="flex: 1; text-align: left;">Search</span><span style="font-family: 'IBM Plex Mono', monospace; font-size: 11px;">⌘K</span></button>
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 2px; padding: 4px 10px;">
+      <a href="#" style="height: 34px; display: flex; align-items: center; gap: 10px; padding: 0 10px; border-radius: 8px; color: var(--ink); text-decoration: none;"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="3"></rect></svg>Overview</a>
+      <a href="#" style="height: 34px; display: flex; align-items: center; gap: 10px; padding: 0 10px; border-radius: 8px; color: var(--ink); text-decoration: none;"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M6 3h12a1 1 0 0 1 1 1v17l-3-2-2 2-2-2-2 2-2-2-3 2V4a1 1 0 0 1 1-1z"></path></svg>Sales</a>
+      <a href="#" aria-current="page" style="height: 34px; display: flex; align-items: center; gap: 10px; padding: 0 10px; border-radius: 8px; color: var(--ink); background: var(--active); font-weight: 600; text-decoration: none;"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="3"></rect></svg>Shifts<span style="margin-left: auto; font-family: 'IBM Plex Mono', monospace; font-size: 11px; font-weight: 500; color: var(--info); background: var(--info-soft); padding: 1px 6px; border-radius: 6px; white-space: nowrap;">2 open</span></a>
+      <a href="#" style="height: 34px; display: flex; align-items: center; gap: 10px; padding: 0 10px; border-radius: 8px; color: var(--ink); text-decoration: none;"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="9" cy="8" r="3.5"></circle><circle cx="17" cy="9" r="2.5"></circle><path d="M2 19a7 7 0 0 1 14 0zM15 19a6 6 0 0 0-1.5-4 5 5 0 0 1 8.5 4z"></path></svg>Customers</a>
+    </div>
+    <div style="flex: 1;"></div>
+    <div style="display: flex; flex-direction: column; gap: 2px; padding: 10px; border-top: 1px solid var(--line);">
+      <a href="#" style="height: 34px; display: flex; align-items: center; gap: 10px; padding: 0 10px; color: var(--ink); text-decoration: none;"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M6 2h9l5 5v14a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1z"></path></svg>Help</a>
+      <a href="#" style="height: 34px; display: flex; align-items: center; gap: 10px; padding: 0 10px; color: var(--ink); text-decoration: none;"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M10.5 2h3l.5 2.6 2 .9 2.3-1.4 2.1 2.1-1.4 2.3.9 2 2.6.5v3l-2.6.5-.9 2 1.4 2.3-2.1 2.1-2.3-1.4-2 .9-.5 2.6h-3l-.5-2.6-2-.9-2.3 1.4-2.1-2.1 1.4-2.3-.9-2L2 13.5v-3l2.6-.5.9-2-1.4-2.3 2.1-2.1 2.3 1.4 2-.9zM12 8.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7z"></path></svg>Management</a>
+    </div>
+  </nav>
+
+  <main style="flex: 1; min-width: 0; display: flex; flex-direction: column; background: var(--surface);">
+
+    <header style="height: 48px; flex: none; display: flex; align-items: center; gap: 10px; padding: 0 16px; border-bottom: 1px solid var(--line); box-sizing: border-box;">
+      <button aria-label="Hide the sidebar" style="width: 32px; height: 32px; flex: none; border: 0; border-radius: 8px; background: transparent; color: var(--muted); display: flex; align-items: center; justify-content: center; cursor: pointer;"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2zm0 2v14h3V5z"></path></svg></button>
+      <h1 style="margin: 0; font-size: 15px; font-weight: 600; letter-spacing: -0.01em; white-space: nowrap;">Shifts</h1>
+      <div style="flex: 1; min-width: 0;"></div>
+      <button style="min-width: 0; flex: 0 1 240px; height: 32px; display: flex; align-items: center; gap: 8px; padding: 0 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--ground); color: var(--muted); font: inherit; cursor: pointer; overflow: hidden;" aria-label="Open command palette"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" style="flex: none;"><path fill-rule="evenodd" d="M10.5 3a7.5 7.5 0 0 1 5.96 12.06l4.24 4.23-1.42 1.42-4.23-4.24A7.5 7.5 0 1 1 10.5 3zm0 2.5a5 5 0 1 0 0 10 5 5 0 0 0 0-10z"></path></svg><span class="c" style="flex: 1; text-align: left;">Jump to anything</span><span style="font-family: 'IBM Plex Mono', monospace; font-size: 11px; flex: none;">⌘K</span></button>
+      <button aria-label="Notifications" style="width: 32px; height: 32px; flex: none; border: 0; border-radius: 8px; background: transparent; color: var(--ink-2); display: flex; align-items: center; justify-content: center; cursor: pointer;"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2a6 6 0 0 0-6 6v4.5L4 16v1h16v-1l-2-3.5V8a6 6 0 0 0-6-6zm-2.5 17a2.5 2.5 0 0 0 5 0z"></path></svg></button>
+      <button style="height: 32px; flex: none; display: flex; align-items: center; gap: 8px; padding: 0 14px; border: 0; border-radius: 8px; background: var(--accent-fill); color: var(--on-accent); font: inherit; font-size: 13px; font-weight: 600; white-space: nowrap; cursor: pointer;"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M10.75 4h2.5v6.75H20v2.5h-6.75V20h-2.5v-6.75H4v-2.5h6.75z"></path></svg>Open shift</button>
+    </header>
+
+    <div class="tb" style="flex: none; position: relative; z-index: 6;">
+    <sc-if value="{{noSelection}}" hint-placeholder-val="{{ true }}">
+      <div role="toolbar" aria-label="Shifts" style="height: 48px; display: flex; align-items: center; gap: 6px; padding: 0 16px; border-bottom: 1px solid var(--line); box-sizing: border-box;">
+        <label style="flex: 0 1 240px !important; min-width: 120px; height: 32px; display: flex; align-items: center; gap: 8px; padding: 0 10px; border: 1px solid var(--line-strong); border-radius: 8px; background: var(--surface); box-sizing: border-box; color: var(--muted);">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" style="flex: none;"><path fill-rule="evenodd" d="M10.5 3a7.5 7.5 0 0 1 5.96 12.06l4.24 4.23-1.42 1.42-4.23-4.24A7.5 7.5 0 1 1 10.5 3zm0 2.5a5 5 0 1 0 0 10 5 5 0 0 0 0-10z"></path></svg>
+          <input aria-label="Search shifts" placeholder="Shift, cashier or till" style="flex: 1; min-width: 0; border: 0; outline: none; font: inherit; color: var(--ink); background: transparent;">
+          <span style="font-family: 'IBM Plex Mono', monospace; font-size: 11px; border: 1px solid var(--line); border-radius: 4px; padding: 0 5px;">/</span>
+        </label>
+        <button class="f-primary" aria-label="Till: any" style="height: 32px; display: flex; align-items: center; gap: 6px; padding: 0 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--ink); font: inherit; cursor: pointer;"><span style="color: var(--muted);">Till</span><span style="font-weight: 600;">Any</span><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true" style="color: var(--muted);"><path d="m6 9 6 6 6-6"></path></svg></button>
+        <button class="f-primary" aria-label="Cashier: anyone" style="height: 32px; display: flex; align-items: center; gap: 6px; padding: 0 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--ink); font: inherit; cursor: pointer;"><span style="color: var(--muted);">Cashier</span><span style="font-weight: 600;">Anyone</span><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true" style="color: var(--muted);"><path d="m6 9 6 6 6-6"></path></svg></button>
+        <div style="position: relative; flex: none;">
+          <button onClick="{{toggleFilters}}" aria-expanded="{{filtersOpen}}" aria-label="More filters, 1 on" style="height: 32px; display: flex; align-items: center; gap: 6px; padding: 0 10px; border: 1px solid var(--line-strong); border-radius: 8px; background: var(--surface); color: var(--ink); font: inherit; font-weight: 500; cursor: pointer;"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 4h18l-7 8.5V19l-4 2v-8.5z"></path></svg>Filters<span style="min-width: 18px; height: 18px; padding: 0 5px; border-radius: 99px; background: var(--ink); color: var(--surface); font-family: 'IBM Plex Mono', monospace; font-size: 11px; display: flex; align-items: center; justify-content: center; box-sizing: border-box;">1</span></button>
+          <sc-if value="{{filtersOpen}}" hint-placeholder-val="{{ false }}">
+            <div role="dialog" aria-label="Filters" style="position: absolute; top: 40px; left: 0; width: 320px; box-sizing: border-box; padding: 8px; background: var(--surface); border-radius: 12px; box-shadow: var(--float); display: flex; flex-direction: column; gap: 2px;">
+              <div style="height: 32px; display: flex; align-items: center; padding: 0 8px;"><span style="flex: 1; font-weight: 600;">Filters</span><button style="border: 0; background: transparent; color: var(--ink-2); font: inherit; text-decoration: underline; text-decoration-color: var(--line-strong); text-underline-offset: 3px; cursor: pointer;">Clear all</button></div>
+              <button class="p-primary" style="height: 36px; align-items: center; gap: 8px; padding: 0 8px; border: 0; border-radius: 8px; background: transparent; color: var(--ink); font: inherit; cursor: pointer; text-align: left;"><span style="width: 90px; color: var(--muted);">Till</span><span style="flex: 1; font-weight: 600;">Any</span><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true" style="color: var(--muted);"><path d="m9 18 6-6-6-6"></path></svg></button>
+              <button class="p-primary" style="height: 36px; align-items: center; gap: 8px; padding: 0 8px; border: 0; border-radius: 8px; background: transparent; color: var(--ink); font: inherit; cursor: pointer; text-align: left;"><span style="width: 90px; color: var(--muted);">Cashier</span><span style="flex: 1; font-weight: 600;">Anyone</span><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true" style="color: var(--muted);"><path d="m9 18 6-6-6-6"></path></svg></button>
+              <button style="height: 36px; display: flex; align-items: center; gap: 8px; padding: 0 8px; border: 0; border-radius: 8px; background: transparent; color: var(--ink); font: inherit; cursor: pointer; text-align: left;"><span style="width: 90px; color: var(--muted);">State</span><span style="flex: 1; font-weight: 600;">Any</span><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true" style="color: var(--muted);"><path d="m9 18 6-6-6-6"></path></svg></button>
+              <button style="height: 36px; display: flex; align-items: center; gap: 8px; padding: 0 8px; border: 0; border-radius: 8px; background: var(--sel-bg); color: var(--sel-ink); font: inherit; cursor: pointer; text-align: left;"><span style="width: 90px;">Opened</span><span style="flex: 1; font-weight: 600;">Last 30 days</span><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><path d="m9 18 6-6-6-6"></path></svg></button>
+              <button style="height: 36px; display: flex; align-items: center; gap: 8px; padding: 0 8px; border: 0; border-radius: 8px; background: transparent; color: var(--ink); font: inherit; cursor: pointer; text-align: left;"><span style="width: 90px; color: var(--muted);">Variance</span><span style="flex: 1; font-weight: 600;">Any</span><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true" style="color: var(--muted);"><path d="m9 18 6-6-6-6"></path></svg></button>
+              <button style="height: 36px; display: flex; align-items: center; gap: 8px; padding: 0 8px; border: 0; border-radius: 8px; background: transparent; color: var(--ink); font: inherit; cursor: pointer; text-align: left;"><span style="width: 90px; color: var(--muted);">Takings</span><span style="flex: 1; font-weight: 600;">Any</span><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true" style="color: var(--muted);"><path d="m9 18 6-6-6-6"></path></svg></button>
+            </div>
+          </sc-if>
+        </div>
+        <div style="flex: 1 1 0; min-width: 0;"></div>
+        <span class="t-count" style="height: 20px; padding: 0 7px; border-radius: 6px; background: var(--tray); color: var(--ink-2); font-family: 'IBM Plex Mono', monospace; font-size: 12px; display: flex; align-items: center;">312</span>
+        <button class="t-count" style="height: 32px; padding: 0 6px; border: 0; background: transparent; color: var(--ink-2); font: inherit; text-decoration: underline; text-decoration-color: var(--line-strong); text-underline-offset: 3px; cursor: pointer;">Clear</button>
+        <span class="t-count" aria-hidden="true" style="width: 1px; height: 20px; background: var(--line); margin: 0 4px;"></span>
+        <div class="bg t-view" role="group" aria-label="How the rows are shown">
+          <button style="height: 32px; display: flex; align-items: center; gap: 6px; padding: 0 10px; border: 1px solid var(--line); background: var(--surface); color: var(--ink-2); font: inherit; cursor: pointer;"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 3l4.5 5H8.25v13h-2.5V8H2.5zm10 18-4.5-5h3.25V3h2.5v13h3.25z"></path></svg>Newest first</button>
+          <button onClick="{{cycleGroup}}" aria-label="Group by: {{groupLabel}}" style="height: 32px; display: flex; align-items: center; gap: 6px; padding: 0 10px; border: 1px solid var(--line); background: {{groupBg}}; color: {{groupFg}}; font: inherit; cursor: pointer;"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 4h18v4H3zm0 6h12v4H3zm0 6h8v4H3z"></path></svg>Group<span style="font-weight: 600;">{{groupLabel}}</span></button>
+          <button style="height: 32px; display: flex; align-items: center; gap: 6px; padding: 0 10px; border: 1px solid var(--line); background: var(--surface); color: var(--ink-2); font: inherit; cursor: pointer;"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M4 3h16a1 1 0 0 1 1 1v16a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1zm1 2v14h3V5zm5 0v14h4V5zm6 0v14h3V5z"></path></svg>Columns</button>
+        </div>
+        <div class="only-narrow" style="position: relative; flex: none;">
+          <button onClick="{{toggleView}}" aria-expanded="{{viewOpen}}" style="height: 32px; display: flex; align-items: center; gap: 6px; padding: 0 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--ink-2); font: inherit; cursor: pointer;"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 5h10.2a3 3 0 0 1 5.6 0H21v2.5h-2.2a3 3 0 0 1-5.6 0H3zm0 11.5h2.2a3 3 0 0 1 5.6 0H21V19H10.8a3 3 0 0 1-5.6 0H3z"></path></svg>View</button>
+          <sc-if value="{{viewOpen}}" hint-placeholder-val="{{ false }}">
+            <div role="menu" aria-label="View" style="position: absolute; top: 40px; right: 0; width: 240px; box-sizing: border-box; padding: 6px; background: var(--surface); border-radius: 12px; box-shadow: var(--float); display: flex; flex-direction: column;">
+              <button role="menuitem" style="height: 34px; display: flex; align-items: center; gap: 8px; padding: 0 8px; border: 0; border-radius: 8px; background: transparent; color: var(--ink); font: inherit; cursor: pointer;"><span style="width: 70px; color: var(--muted); text-align: left;">Sort</span><span style="font-weight: 600;">Newest first</span></button>
+              <button role="menuitem" onClick="{{cycleGroup}}" style="height: 34px; display: flex; align-items: center; gap: 8px; padding: 0 8px; border: 0; border-radius: 8px; background: transparent; color: var(--ink); font: inherit; cursor: pointer;"><span style="width: 70px; color: var(--muted); text-align: left;">Group</span><span style="font-weight: 600;">{{groupLabel}}</span></button>
+              <button role="menuitem" style="height: 34px; display: flex; align-items: center; gap: 8px; padding: 0 8px; border: 0; border-radius: 8px; background: transparent; color: var(--ink); font: inherit; cursor: pointer;"><span style="width: 70px; color: var(--muted); text-align: left;">Columns</span><span style="font-weight: 600;">Choose</span></button>
+            </div>
+          </sc-if>
+        </div>
+        <button style="height: 32px; display: flex; align-items: center; gap: 6px; padding: 0 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--ink); font: inherit; cursor: pointer;"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M10.75 3h2.5v9.4l3.4-3.4 1.77 1.77L12 17.2l-6.42-6.43L7.35 9l3.4 3.4zM4 18.5h16V21H4z"></path></svg>Export</button>
+      </div>
+    </sc-if>
+    <sc-if value="{{hasSelection}}" hint-placeholder-val="{{ false }}">
+      <div role="toolbar" aria-label="Selected shifts" style="height: 48px; display: flex; align-items: center; gap: 6px; padding: 0 16px; border-bottom: 1px solid var(--sel-line); background: var(--sel-bg); box-sizing: border-box;">
+        <button onClick="{{clear}}" aria-label="Clear the selection" style="width: 32px; height: 32px; border: 0; border-radius: 8px; background: transparent; color: var(--sel-ink); display: flex; align-items: center; justify-content: center; cursor: pointer;"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M6.4 5 12 10.6 17.6 5 19 6.4 13.4 12l5.6 5.6-1.4 1.4-5.6-5.6L6.4 19 5 17.6 10.6 12 5 6.4z"></path></svg></button>
+        <span style="font-weight: 600; color: var(--sel-ink);"><span style="font-family: 'IBM Plex Mono', monospace;">{{selectedCount}}</span> selected</span>
+        <button class="t-count" style="height: 32px; padding: 0 8px; border: 0; background: transparent; color: var(--sel-ink); font: inherit; text-decoration: underline; text-underline-offset: 3px; cursor: pointer;">Select all <span style="font-family: 'IBM Plex Mono', monospace;">312</span></button>
+        <span aria-hidden="true" style="width: 1px; height: 20px; background: var(--sel-line); margin: 0 6px;"></span>
+        <div class="bg" role="group" aria-label="Actions for the selected shifts">
+          <button style="height: 32px; display: flex; align-items: center; gap: 6px; padding: 0 10px; border: 1px solid var(--sel-line); background: var(--surface); color: var(--ink); font: inherit; cursor: pointer;"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M7 3h10v5H7zM4 9h16a1 1 0 0 1 1 1v7h-4v4H7v-4H3v-7a1 1 0 0 1 1-1zm5 6v4h6v-4z"></path></svg>Print Z-reports</button>
+          <button class="s2" style="height: 32px; display: flex; align-items: center; gap: 6px; padding: 0 10px; border: 1px solid var(--sel-line); background: var(--surface); color: var(--ink); font: inherit; cursor: pointer;"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M10.75 3h2.5v9.4l3.4-3.4 1.77 1.77L12 17.2l-6.42-6.43L7.35 9l3.4 3.4zM4 18.5h16V21H4z"></path></svg>Export <span style="font-family: 'IBM Plex Mono', monospace;">{{selectedCount}}</span></button>
+          <button class="s3" style="height: 32px; display: flex; align-items: center; gap: 6px; padding: 0 10px; border: 1px solid var(--sel-line); background: var(--surface); color: var(--ink); font: inherit; cursor: pointer;"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 7h11a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H8a1 1 0 0 1-1-1V8a1 1 0 0 1 1-1zM4 3h11v2H5v11H3V4a1 1 0 0 1 1-1z"></path></svg>Copy shift numbers</button>
+          <button onClick="{{toggleMore}}" aria-expanded="{{moreOpen}}" aria-label="More actions for the selection" style="width: 34px; height: 32px; border: 1px solid var(--sel-line); background: var(--surface); color: var(--ink-2); display: flex; align-items: center; justify-content: center; cursor: pointer;"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.8"></circle><circle cx="12" cy="12" r="1.8"></circle><circle cx="19" cy="12" r="1.8"></circle></svg></button>
+        </div>
+        <div style="position: relative; flex: none; width: 0;">
+          <sc-if value="{{moreOpen}}" hint-placeholder-val="{{ false }}">
+            <div role="menu" aria-label="More actions" style="position: absolute; top: 22px; right: 0; width: 240px; box-sizing: border-box; padding: 6px; background: var(--surface); border-radius: 12px; box-shadow: var(--float); display: flex; flex-direction: column;">
+              <button role="menuitem" class="m-s2" style="height: 34px; align-items: center; gap: 8px; padding: 0 8px; border: 0; border-radius: 8px; background: transparent; color: var(--ink); font: inherit; cursor: pointer;">Export <span style="font-family: 'IBM Plex Mono', monospace;">{{selectedCount}}</span></button>
+              <button role="menuitem" class="m-s3" style="height: 34px; align-items: center; gap: 8px; padding: 0 8px; border: 0; border-radius: 8px; background: transparent; color: var(--ink); font: inherit; cursor: pointer;">Copy shift numbers</button>
+              <button role="menuitem" style="height: 34px; display: flex; align-items: center; gap: 8px; padding: 0 8px; border: 0; border-radius: 8px; background: transparent; color: var(--ink); font: inherit; cursor: pointer;">Download Z-reports as CSV</button>
+              <button role="menuitem" style="height: 34px; display: flex; align-items: center; gap: 8px; padding: 0 8px; border: 0; border-radius: 8px; background: transparent; color: var(--ink); font: inherit; cursor: pointer;">Compare cashiers</button>
+            </div>
+          </sc-if>
+        </div>
+      </div>
+    </sc-if>
+    </div>
+
+    <div class="tbl" ref="{{setScroller}}" onScroll="{{onScroll}}" style="flex: 1; min-height: 0; overflow: auto; position: relative;">
+      <div class="tw" role="table" aria-label="Shifts" aria-rowcount="312">
+
+        <div role="row" class="g" style="position: sticky; top: 0; z-index: 3; height: 34px; background: var(--ground); border-bottom: 1px solid var(--line); color: var(--muted); font-size: 12.5px; font-weight: 500;">
+          <div role="columnheader" style="padding-left: 14px;"><input type="checkbox" aria-label="Select every shift on this page" checked="{{allSelected}}" onChange="{{toggleAll}}" style="width: 16px; height: 16px; margin: 0; accent-color: var(--accent);"></div>
+          <div role="columnheader" class="c" style="padding: 0 10px;">Shift</div>
+          <div role="columnheader" class="c" style="padding: 0 10px;">Cashier</div>
+          <div role="columnheader" class="c lo" style="padding: 0 10px;">Till</div>
+          <div role="columnheader" class="c" style="padding: 0 10px;">State</div>
+          <div role="columnheader" class="c lo2" aria-sort="descending" style="padding: 0 10px; color: var(--ink);">Opened <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align: -2px;"><path d="m6 9 6 6 6-6"></path></svg></div>
+          <div role="columnheader" class="c lo" style="padding: 0 10px;">Duration</div>
+          <div role="columnheader" class="c" style="padding: 0 10px; text-align: right;">Sales</div>
+          <div role="columnheader" class="c" style="padding: 0 10px; text-align: right;">Takings</div>
+          <div role="columnheader" class="c" style="padding: 0 20px 0 10px; text-align: right;">Variance</div>
+          <div role="columnheader"><span style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0);">Actions</span></div>
+        </div>
+
+        <sc-for list="{{sections}}" as="section" hint-placeholder-count="1">
+          <div role="rowgroup">
+            <sc-if value="{{section.showHeader}}" hint-placeholder-val="{{ false }}">
+              <div role="row" class="g" style="position: sticky; top: 34px; z-index: 2; height: 36px; background: var(--ground); border-bottom: 1px solid var(--line); border-top: 1px solid var(--line);">
+                <div role="cell" style="padding-left: 14px; display: flex; color: var(--muted);"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg></div>
+                <div role="cell" class="c" style="grid-column: 2 / -5; padding: 0 10px; display: flex; align-items: center; gap: 8px;">
+                  <span style="flex: none; width: 8px; height: 8px; box-sizing: border-box; border-radius: 99px; background: {{section.dotBg}}; border: 1.5px solid {{section.dotLine}};"></span>
+                  <span style="flex: none; font-weight: 600; color: var(--ink);">{{section.label}}</span>
+                  <span style="flex: none; height: 20px; padding: 0 7px; border-radius: 6px; background: var(--tray); color: var(--ink-2); font-family: 'IBM Plex Mono', monospace; font-size: 12px; display: flex; align-items: center;">{{section.count}}</span>
+                </div>
+                <div role="cell" class="c" style="padding: 0 10px; text-align: right; font-family: 'IBM Plex Mono', monospace; font-size: 12.5px; color: var(--ink-2);">{{section.sales}}</div>
+                <div role="cell" class="c" style="padding: 0 10px; text-align: right; font-family: 'IBM Plex Mono', monospace; font-size: 12.5px; font-weight: 600;">{{section.takings}}</div>
+                <div role="cell" class="c" style="padding: 0 20px 0 10px; text-align: right; font-family: 'IBM Plex Mono', monospace; font-size: 12.5px; font-weight: 600; color: {{section.varFg}};">{{section.variance}}</div>
+                <div role="cell"></div>
+              </div>
+            </sc-if>
+            <sc-for list="{{section.rows}}" as="row" hint-placeholder-count="12">
+              <div role="row" class="g r" aria-selected="{{row.selected}}" style="height: 40px; border-bottom: 1px solid var(--line-soft); background: {{row.bg}};">
+                <div role="cell" style="padding-left: 14px;"><input type="checkbox" aria-label="Select {{row.no}}" checked="{{row.selected}}" onChange="{{row.toggle}}" style="width: 16px; height: 16px; margin: 0; accent-color: var(--accent);"></div>
+                <div role="cell" class="c" style="padding: 0 10px;"><a href="ShiftRecord.dc.html" style="font-family: 'IBM Plex Mono', monospace; font-size: 12.5px; font-weight: 500; color: var(--ink); text-decoration: underline; text-decoration-color: var(--line-strong); text-underline-offset: 3px;">{{row.no}}</a></div>
+                <div role="cell" class="c" title="{{row.cashier}}" style="padding: 0 10px;">{{row.cashier}}</div>
+                <div role="cell" class="c lo" title="{{row.till}}" style="padding: 0 10px; color: var(--ink-2);">{{row.till}}</div>
+                <div role="cell" class="c" style="padding: 0 10px;"><span style="display: inline-flex; align-items: center; gap: 6px; max-width: 100%; box-sizing: border-box; height: 22px; padding: 0 8px; border-radius: 6px; font-size: 12px; font-weight: 500; white-space: nowrap; background: {{row.badgeBg}}; color: {{row.badgeFg}}; border: 1px solid {{row.badgeBorder}};"><span style="flex: none; width: 7px; height: 7px; box-sizing: border-box; border-radius: 99px; background: {{row.dotBg}}; border: 1.5px solid {{row.dotLine}};"></span>{{row.stateLabel}}</span></div>
+                <div role="cell" class="c lo2" title="{{row.day}} {{row.time}}" style="padding: 0 10px;">{{row.day}} <span style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: var(--muted);">{{row.time}}</span></div>
+                <div role="cell" class="c lo" style="padding: 0 10px;"><span title="{{row.durTitle}}" style="display: inline-flex; align-items: center; gap: 5px; max-width: 100%; box-sizing: border-box; font-family: 'IBM Plex Mono', monospace; font-size: 12px; padding: 2px 6px; border-radius: 6px; background: {{row.durBg}}; color: {{row.durFg}};"><sc-if value="{{row.live}}" hint-placeholder-val="{{ false }}"><span aria-hidden="true" style="flex: none; width: 6px; height: 6px; border-radius: 99px; background: var(--info); box-shadow: 0 0 0 3px var(--info-soft);"></span></sc-if>{{row.dur}}</span></div>
+                <div role="cell" class="c" style="padding: 0 10px; text-align: right; font-family: 'IBM Plex Mono', monospace; font-size: 12.5px; color: var(--ink-2);">{{row.sales}}</div>
+                <div role="cell" class="c" style="padding: 0 10px; text-align: right; font-family: 'IBM Plex Mono', monospace; font-size: 12.5px; font-weight: 500;">{{row.takings}}</div>
+                <div role="cell" class="c" style="padding: 0 14px 0 10px; text-align: right;"><span style="display: inline-block; padding: 2px 6px; border-radius: 6px; font-family: 'IBM Plex Mono', monospace; font-size: 12.5px; font-weight: 500; background: {{row.varBg}}; color: {{row.varFg}};">{{row.variance}}</span></div>
+                <div role="cell" style="display: flex; justify-content: center;"><button aria-label="Actions for {{row.no}}" style="width: 28px; height: 28px; border: 0; border-radius: 6px; background: transparent; color: var(--faint); display: flex; align-items: center; justify-content: center; cursor: pointer;"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.8"></circle><circle cx="12" cy="12" r="1.8"></circle><circle cx="19" cy="12" r="1.8"></circle></svg></button></div>
+              </div>
+            </sc-for>
+          </div>
+        </sc-for>
+
+        <div role="rowgroup" style="position: sticky; bottom: 0; z-index: 3; box-shadow: var(--pin);">
+          <sc-if value="{{hasSelection}}" hint-placeholder-val="{{ false }}">
+            <div role="row" class="g" aria-label="Totals for the selected shifts" style="height: 36px; background: var(--sel-bg); color: var(--sel-ink); border-bottom: 1px solid var(--sel-line);">
+              <div role="cell" style="padding-left: 14px; display: flex; color: var(--accent);"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M7 2h10a5 5 0 0 1 5 5v10a5 5 0 0 1-5 5H7a5 5 0 0 1-5-5V7a5 5 0 0 1 5-5zm9.3 6.3-6.1 6.1-2.5-2.5-1.4 1.4 3.9 3.9 7.5-7.5z"></path></svg></div>
+              <div role="cell" class="c" style="padding: 0 10px; font-family: 'IBM Plex Mono', monospace; font-size: 12.5px; font-weight: 600;">{{selectedCount}}</div>
+              <div role="cell"></div>
+              <div role="cell" class="lo"></div>
+              <div role="cell"></div>
+              <div role="cell" class="lo2"></div>
+              <div role="cell" class="lo"></div>
+              <div role="cell" class="c" style="padding: 0 10px; text-align: right; font-family: 'IBM Plex Mono', monospace; font-size: 12.5px;">{{selSales}}</div>
+              <div role="cell" class="c" style="padding: 0 10px; text-align: right; font-family: 'IBM Plex Mono', monospace; font-size: 12.5px; font-weight: 600;">{{selTakings}}</div>
+              <div role="cell" class="c" style="padding: 0 20px 0 10px; text-align: right; font-family: 'IBM Plex Mono', monospace; font-size: 12.5px; font-weight: 600;">{{selVariance}}</div>
+              <div role="cell"></div>
+            </div>
+          </sc-if>
+          <div role="row" class="g" aria-label="Totals for every shift the filters let through" style="height: 40px; background: var(--ground);">
+            <div role="cell" aria-hidden="true" style="padding-left: 14px; font-family: 'IBM Plex Mono', monospace; font-size: 14px; font-weight: 600; color: var(--muted);">Σ</div>
+            <div role="cell" class="c" style="padding: 0 10px; font-family: 'IBM Plex Mono', monospace; font-size: 12.5px; font-weight: 600;">312</div>
+            <div role="cell"></div>
+            <div role="cell" class="lo"></div>
+            <div role="cell" class="c" style="padding: 0 10px;"><span style="display: inline-flex; align-items: center; gap: 6px; height: 22px; padding: 0 8px; border-radius: 6px; font-size: 12px; font-weight: 500; background: var(--surface); color: var(--warn); border: 1px solid var(--warn-line);"><span style="flex: none; width: 7px; height: 7px; border-radius: 99px; background: var(--warn-dot);"></span><span style="font-family: 'IBM Plex Mono', monospace;">23</span>&#160;to check</span></div>
+            <div role="cell" class="lo2"></div>
+            <div role="cell" class="lo"></div>
+            <div role="cell" class="c" style="padding: 0 10px; text-align: right; font-family: 'IBM Plex Mono', monospace; font-size: 12.5px; color: var(--ink-2); font-weight: 600;">8,412</div>
+            <div role="cell" class="c" style="padding: 0 10px; text-align: right; font-family: 'IBM Plex Mono', monospace; font-size: 12.5px; font-weight: 600;">US$71,904.35</div>
+            <div role="cell" class="c" style="padding: 0 20px 0 10px; text-align: right; font-family: 'IBM Plex Mono', monospace; font-size: 12.5px; font-weight: 600; color: var(--bad);">−US$186.42</div>
+            <div role="cell"></div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <nav aria-label="Pages" class="tb" style="height: 48px; flex: none; display: flex; align-items: center; gap: 12px; padding: 0 16px; border-top: 1px solid var(--line); background: var(--surface); box-sizing: border-box;">
+      <div style="flex: 1 1 0; min-width: 0; display: flex; align-items: center; gap: 14px; overflow: hidden;">
+        <span style="color: var(--muted); white-space: nowrap;"><span style="font-family: 'IBM Plex Mono', monospace; color: var(--ink);">{{rangeFrom}}–{{rangeTo}}</span> of <span style="font-family: 'IBM Plex Mono', monospace; color: var(--ink);">312</span></span>
+        <label class="t-hint" style="display: flex; align-items: center; gap: 8px; color: var(--muted);">Rows per page
+          <select value="{{pageSizeText}}" onChange="{{setSize}}" style="height: 30px; padding: 0 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: var(--ink);">
+            <option value="25">25</option>
+            <option value="50">50</option>
+            <option value="100">100</option>
+          </select>
+        </label>
+      </div>
+      <div class="bg" role="group" aria-label="Pages">
+        <button onClick="{{prev}}" aria-label="Previous page" style="width: 34px; height: 32px; border: 1px solid var(--line); background: var(--surface); color: var(--ink-2); display: flex; align-items: center; justify-content: center; cursor: pointer;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"></path></svg></button>
+        <sc-for list="{{pages}}" as="p" hint-placeholder-count="5">
+          <button onClick="{{p.go}}" aria-current="{{p.current}}" aria-label="Page {{p.label}}" style="min-width: 34px; height: 32px; padding: 0 6px; border: 1px solid var(--line); background: {{p.bg}}; color: {{p.fg}}; font-family: 'IBM Plex Mono', monospace; font-size: 12px; font-weight: {{p.weight}}; cursor: pointer;">{{p.label}}</button>
+        </sc-for>
+        <button onClick="{{next}}" aria-label="Next page" style="width: 34px; height: 32px; border: 1px solid var(--line); background: var(--surface); color: var(--ink-2); display: flex; align-items: center; justify-content: center; cursor: pointer;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6"></path></svg></button>
+      </div>
+      <div style="flex: 1 1 0; min-width: 0; display: flex; justify-content: flex-end;">
+        <sc-if value="{{scrolled}}" hint-placeholder-val="{{ false }}">
+          <button onClick="{{toTop}}" aria-label="Back to top" style="height: 32px; display: flex; align-items: center; gap: 6px; padding: 0 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--ink); font: inherit; cursor: pointer;"><span class="t-hint">Back to top</span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m18 15-6-6-6 6"></path></svg></button>
+        </sc-if>
+      </div>
+    </nav>
+
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["tender","tender-dark","corelith"],"default":"tender"},"startSelected":{"editor":"boolean","default":false},"startGroup":{"editor":"enum","options":["none","state","cashier"],"default":"none"},"$preview":{"width":1440,"height":960}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = {
+      selected: props.startSelected ? ['s238', 's236', 's228'] : [],
+      group: props.startGroup || 'none',
+      page: 1,
+      pageSize: 50,
+      scrolled: false,
+      menu: null
+    };
+    this.scroller = null;
+  }
+
+  data() {
+    if (this.rows) return this.rows;
+    var MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+    var seed = [
+      ['s242', 'SH-00242', 'Chipo Dube', 'Front till', 19, '03:56', '6h 12m', 'run', 4, 41.5, null, 'open'],
+      ['s240', 'SH-00240', 'Farai Moyo', 'Back till', 17, '11:18', '52h 50m', 'stale', 11, 72.95, null, 'open'],
+      ['s241', 'SH-00241', 'Chipo Dube', 'Back till', 18, '22:33', '4h 54m', 'done', 2, 7.2, 42.8, null],
+      ['s239', 'SH-00239', 'Tafara Nyathi', 'Front till', 16, '11:07', '7h 00m', 'done', 38, 236.75, 0, null],
+      ['s238', 'SH-00238', 'Chipo Dube', 'Front till', 15, '18:14', '7h 00m', 'done', 96, 886.85, -7.15, null],
+      ['s237', 'SH-00237', 'Farai Moyo', 'Front till', 15, '11:00', '7h 00m', 'done', 71, 655.4, 0, null],
+      ['s236', 'SH-00236', 'Farai Moyo', 'Back till', 14, '18:07', '7h 00m', 'done', 77, 695.1, -8.14, null],
+      ['s235', 'SH-00235', 'Chipo Dube', 'Front till', 14, '11:14', '7h 00m', 'done', 34, 303.7, 3.17, null],
+      ['s234', 'SH-00234', 'Chipo Dube', 'Front till', 13, '11:18', '7h 00m', 'done', 41, 385.45, 0, null],
+      ['s233', 'SH-00233', 'Farai Moyo', 'Back till', 12, '11:19', '7h 00m', 'done', 29, 297.15, 0, null],
+      ['s232', 'SH-00232', 'Chipo Dube', 'Front till', 11, '11:24', '7h 00m', 'done', 9, 70.75, 0, null],
+      ['s231', 'SH-00231', 'Farai Moyo', 'Back till', 10, '11:10', '7h 00m', 'done', 8, 66.55, 0, null],
+      ['s230', 'SH-00230', 'Farai Moyo', 'Front till', 9, '11:24', '7h 00m', 'done', 27, 282.35, 0, null],
+      ['s229', 'SH-00229', 'Tafara Nyathi', 'Front till', 8, '11:02', '6h 56m', 'done', 31, 318.9, null, 'uncounted'],
+      ['s228', 'SH-00228', 'Chipo Dube', 'Back till', 7, '10:58', '7h 05m', 'done', 44, 402.1, -0.5, null],
+      ['s227', 'SH-00227', 'Tafara Nyathi', 'Front till', 6, '11:15', '6h 56m', 'done', 36, 351.6, 0, null]
+    ];
+    var rows = seed.map(function (s) {
+      return { id: s[0], no: s[1], cashier: s[2], till: s[3], day: s[4] + ' August 2026', time: s[5], dur: s[6], durKind: s[7], sales: s[8], takings: s[9], variance: s[10], forced: s[11] };
+    });
+    var cashiers = ['Chipo Dube', 'Farai Moyo', 'Tafara Nyathi'];
+    for (var i = 0; i < 34; i++) {
+      var d = new Date(2026, 7, 5 - Math.floor(i / 2));
+      var late = i % 2 === 0;
+      var v = i % 7 === 3 ? -Math.round(100 + ((i * 373) % 1200)) / 100 : (i % 11 === 5 ? Math.round(50 + ((i * 211) % 900)) / 100 : 0);
+      rows.push({
+        id: 'g' + i,
+        no: 'SH-00' + (226 - i),
+        cashier: cashiers[i % 3],
+        till: i % 2 === 0 ? 'Front till' : 'Back till',
+        day: d.getDate() + ' ' + MONTHS[d.getMonth()] + ' 2026',
+        time: late ? '18:' + String(10 + (i % 40)).slice(-2) : '11:' + String(10 + (i % 40)).slice(-2),
+        dur: '7h 0' + (i % 6) + 'm',
+        durKind: 'done',
+        sales: 12 + ((i * 37) % 88),
+        takings: Math.round(6000 + ((i * 13711) % 80000)) / 100,
+        variance: v,
+        forced: null
+      });
+    }
+    this.rows = rows;
+    return rows;
+  }
+
+  stateOf(row) {
+    if (row.forced === 'open') return 'open';
+    if (row.forced === 'uncounted' || row.variance === null) return 'uncounted';
+    if (row.variance < 0) return 'short';
+    if (row.variance > 0) return 'over';
+    return 'balanced';
+  }
+
+  renderVals() {
+    var self = this;
+    var STATES = {
+      open: { label: 'Open', bg: 'var(--info-soft)', fg: 'var(--info)', border: 'transparent', dotBg: 'var(--info)', dotLine: 'var(--info)' },
+      short: { label: 'Short', bg: 'var(--bad-soft)', fg: 'var(--bad)', border: 'transparent', dotBg: 'var(--bad-dot)', dotLine: 'var(--bad-dot)' },
+      over: { label: 'Over', bg: 'var(--warn-soft)', fg: 'var(--warn)', border: 'transparent', dotBg: 'var(--warn-dot)', dotLine: 'var(--warn-dot)' },
+      uncounted: { label: 'Not counted', bg: 'var(--surface)', fg: 'var(--warn)', border: 'var(--warn-line)', dotBg: 'transparent', dotLine: 'var(--warn-dot)' },
+      balanced: { label: 'Balanced', bg: 'transparent', fg: 'var(--muted)', border: 'transparent', dotBg: 'transparent', dotLine: 'var(--muted)' }
+    };
+    var ORDER = ['open', 'short', 'over', 'uncounted', 'balanced'];
+    function money(n) { return 'US$' + Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+    function signed(n) { return n === 0 ? money(0) : (n < 0 ? '−' : '+') + money(n); }
+
+    var selected = this.state.selected;
+    var all = this.data();
+
+    var rows = all.map(function (r) {
+      var st = self.stateOf(r);
+      var c = STATES[st];
+      var isSel = selected.indexOf(r.id) !== -1;
+      var varText = '—', varBg = 'transparent', varFg = 'var(--faint)';
+      if (st !== 'open' && st !== 'uncounted') {
+        varText = signed(r.variance);
+        if (r.variance < 0) { varBg = 'var(--bad-soft)'; varFg = 'var(--bad)'; }
+        else if (r.variance > 0) { varBg = 'var(--warn-soft)'; varFg = 'var(--warn)'; }
+        else { varFg = 'var(--muted)'; }
+      }
+      var durBg = 'transparent', durFg = 'var(--ink-2)';
+      if (r.durKind === 'run') { durFg = 'var(--info)'; }
+      if (r.durKind === 'stale') { durBg = 'var(--warn-soft)'; durFg = 'var(--warn)'; }
+      return {
+        id: r.id, no: r.no, cashier: r.cashier, till: r.till, day: r.day, time: r.time,
+        dur: r.dur, live: r.durKind === 'run',
+        durTitle: r.durKind === 'run' ? 'Still trading, open for ' + r.dur : (r.durKind === 'stale' ? 'Open for ' + r.dur + ', longer than a shift' : 'Ran for ' + r.dur),
+        durBg: durBg, durFg: durFg,
+        sales: String(r.sales), takings: money(r.takings),
+        variance: varText, varBg: varBg, varFg: varFg, rawVariance: r.variance || 0, rawTakings: r.takings, rawSales: r.sales,
+        state: st, stateLabel: c.label, badgeBg: c.bg, badgeFg: c.fg, badgeBorder: c.border, dotBg: c.dotBg, dotLine: c.dotLine,
+        selected: isSel, bg: isSel ? 'var(--selected)' : 'var(--surface)',
+        toggle: function () {
+          var next = self.state.selected.slice();
+          var at = next.indexOf(r.id);
+          if (at === -1) next.push(r.id); else next.splice(at, 1);
+          self.setState({ selected: next, menu: null });
+        }
+      };
+    });
+
+    function section(key, label, list, style) {
+      var takings = 0, variance = 0, sales = 0;
+      list.forEach(function (r) { takings += r.rawTakings; variance += r.rawVariance; sales += r.rawSales; });
+      return {
+        key: key, label: label, rows: list, showHeader: true, count: String(list.length), dotBg: style.dotBg, dotLine: style.dotLine,
+        sales: sales.toLocaleString('en-US'), takings: money(takings), variance: signed(Math.round(variance * 100) / 100),
+        varFg: variance < 0 ? 'var(--bad)' : (variance > 0 ? 'var(--warn)' : 'var(--ink-2)')
+      };
+    }
+
+    var group = this.state.group;
+    var sections;
+    if (group === 'state') {
+      sections = ORDER.map(function (k) {
+        return section(k, STATES[k].label, rows.filter(function (r) { return r.state === k; }), STATES[k]);
+      }).filter(function (s) { return s.rows.length > 0; });
+    } else if (group === 'cashier') {
+      var names = ['Chipo Dube', 'Farai Moyo', 'Tafara Nyathi'];
+      var plain = { dotBg: 'var(--faint)', dotLine: 'var(--faint)' };
+      sections = names.map(function (n) {
+        return section(n, n, rows.filter(function (r) { return r.cashier === n; }), plain);
+      });
+    } else {
+      sections = [{ key: 'all', label: '', rows: rows, showHeader: false }];
+    }
+
+    var chosen = rows.filter(function (r) { return r.selected; });
+    var selT = 0, selV = 0, selS = 0;
+    chosen.forEach(function (r) { selT += r.rawTakings; selV += r.rawVariance; selS += r.rawSales; });
+
+    var size = this.state.pageSize;
+    var pageCount = Math.ceil(312 / size);
+    var page = Math.min(this.state.page, pageCount);
+    var nums = [];
+    if (pageCount <= 7) { for (var i = 1; i <= pageCount; i++) nums.push(i); }
+    else if (page <= 4) { nums = [1, 2, 3, 4, 5, '…', pageCount]; }
+    else if (page >= pageCount - 3) { nums = [1, '…', pageCount - 4, pageCount - 3, pageCount - 2, pageCount - 1, pageCount]; }
+    else { nums = [1, '…', page - 1, page, page + 1, '…', pageCount]; }
+    var pages = nums.map(function (n) {
+      var cur = n === page;
+      return {
+        label: String(n), current: cur ? 'page' : 'false',
+        bg: cur ? 'var(--active)' : 'var(--surface)', fg: cur ? 'var(--ink)' : (n === '…' ? 'var(--faint)' : 'var(--ink-2)'),
+        weight: cur ? '600' : '400',
+        go: function () { if (n !== '…') self.goTo(n); }
+      };
+    });
+
+    var groupLabel = group === 'state' ? 'State' : (group === 'cashier' ? 'Cashier' : 'None');
+    var menu = this.state.menu;
+    function toggle(name) { return function () { self.setState({ menu: self.state.menu === name ? null : name }); }; }
+
+    return {
+      themeClass: this.props.theme || 'tender',
+      sections: sections,
+      noSelection: chosen.length === 0,
+      hasSelection: chosen.length > 0,
+      selectedCount: String(chosen.length),
+      allSelected: chosen.length === rows.length,
+      selSales: selS.toLocaleString('en-US'),
+      selTakings: money(selT),
+      selVariance: signed(Math.round(selV * 100) / 100),
+      groupLabel: groupLabel,
+      groupBg: group === 'none' ? 'var(--surface)' : 'var(--active)',
+      groupFg: group === 'none' ? 'var(--ink-2)' : 'var(--ink)',
+      pages: pages,
+      rangeFrom: String((page - 1) * size + 1),
+      rangeTo: String(Math.min(page * size, 312)),
+      pageSizeText: String(size),
+      scrolled: this.state.scrolled,
+      filtersOpen: menu === 'filters',
+      viewOpen: menu === 'view',
+      moreOpen: menu === 'more',
+      toggleFilters: toggle('filters'),
+      toggleView: toggle('view'),
+      toggleMore: toggle('more'),
+      toggleAll: function () {
+        self.setState({ selected: chosen.length === rows.length ? [] : rows.map(function (r) { return r.id; }), menu: null });
+      },
+      clear: function () { self.setState({ selected: [], menu: null }); },
+      cycleGroup: function () {
+        var g = self.state.group;
+        self.setState({ group: g === 'none' ? 'state' : (g === 'state' ? 'cashier' : 'none') });
+      },
+      setScroller: function (el) { self.scroller = el; },
+      onScroll: function (e) {
+        var past = e.currentTarget.scrollTop > 240;
+        if (past !== self.state.scrolled) self.setState({ scrolled: past });
+      },
+      toTop: function () { if (self.scroller) self.scroller.scrollTo({ top: 0, behavior: 'smooth' }); },
+      setSize: function (e) { self.setState({ pageSize: Number(e.target.value), page: 1 }); self.toStart(); },
+      prev: function () { self.goTo(Math.max(1, page - 1)); },
+      next: function () { self.goTo(Math.min(pageCount, page + 1)); }
+    };
+  }
+
+  goTo(n) {
+    this.setState({ page: n });
+    this.toStart();
+  }
+
+  toStart() {
+    if (this.scroller) this.scroller.scrollTo({ top: 0 });
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,528 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<title>Retail list</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Next:wght@400;500;600&amp;family=IBM+Plex+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+.th{--surface:#ffffff;--ground:#faf7f4;--hover:#fbf8f5;--tray:#f3eee9;--active:#efe8e2;--line:#ece6e0;--line-soft:#f3eee9;--line-strong:#ddd4cc;--ink:#24140e;--ink-2:#4a3a33;--muted:#75675f;--faint:#a89c94;--accent:#e8620f;--accent-fill:#b84a0c;--selected:#fbf7f3;--ok:#17734c;--ok-soft:#e7f4ee;--info:#3d4fb8;--info-soft:#eceefb;--warn:#8a5a10;--warn-soft:#fbf1dc;--warn-dot:#e0a21a;--warn-line:#e8cf9a;--bad:#a3122f;--bad-soft:#fbe8ec;--bad-dot:#c8203f;--float:0 0 0 1px #ece6e0,0 14px 30px -18px rgba(36,20,14,.3);--pin:0 -1px 0 #ddd4cc,0 -10px 18px -14px rgba(36,20,14,.35)}
+.th button:focus-visible,.th a:focus-visible,.th input:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
+.th input::placeholder{color:var(--muted)}
+.c{min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.r:hover{background:var(--hover) !important}
+.bg{display:flex}.bg>button{margin-left:-1px;border-radius:0}.bg>button:first-child{margin-left:0;border-radius:8px 0 0 8px}.bg>button:last-child{border-radius:0 8px 8px 0}
+.mi:hover{background:var(--hover)}
+.ed:focus{outline:2px solid var(--accent);outline-offset:0}
+</style>
+</helmet>
+<div class="th" style="width: 100%; height: 960px; display: flex; overflow: hidden; background: var(--ground); color: var(--ink); font-family: 'Atkinson Hyperlegible Next', system-ui, sans-serif; font-size: 13px;">
+
+  <nav aria-label="Modules" style="width: 56px; flex: none; display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 8px 0; background: var(--surface); border-right: 1px solid var(--line); box-sizing: border-box;">
+    <div style="width: 32px; height: 32px; border-radius: 8px; background: var(--ink); color: #ffffff; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 600; margin-bottom: 8px;">HC</div>
+    <sc-for list="{{rail}}" as="m" hint-placeholder-count="5">
+      <a href="{{m.href}}" aria-label="{{m.label}}" style="width: 36px; height: 36px; border-radius: 8px; background: {{m.bg}}; color: {{m.fg}}; display: flex; align-items: center; justify-content: center;"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="{{m.d}}"></path></svg></a>
+    </sc-for>
+    <div style="flex: 1;"></div>
+    <a href="CompanySettings.dc.html" aria-label="Management" style="width: 36px; height: 36px; border-radius: 8px; background: {{manageBg}}; color: {{manageFg}}; display: flex; align-items: center; justify-content: center;"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M10.5 2h3l.5 2.6 2 .9 2.3-1.4 2.1 2.1-1.4 2.3.9 2 2.6.5v3l-2.6.5-.9 2 1.4 2.3-2.1 2.1-2.3-1.4-2 .9-.5 2.6h-3l-.5-2.6-2-.9-2.3 1.4-2.1-2.1 1.4-2.3-.9-2L2 13.5v-3l2.6-.5.9-2-1.4-2.3 2.1-2.1 2.3 1.4 2-.9zM12 8.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7z"></path></svg></a>
+  </nav>
+  <nav aria-label="{{panelTitle}}" style="width: 240px; flex: none; display: flex; flex-direction: column; background: var(--ground); border-right: 1px solid var(--line); box-sizing: border-box;">
+    <div style="height: 48px; display: flex; align-items: center; gap: 8px; padding: 0 12px;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" style="color: var(--muted);"><path d="m15 18-6-6 6-6"></path></svg><span style="font-size: 14px; font-weight: 600;">{{panelTitle}}</span></div>
+    <div style="display: flex; flex-direction: column; gap: 2px; padding: 4px 10px;">
+      <sc-for list="{{nav}}" as="n" hint-placeholder-count="4">
+        <a href="{{n.href}}" style="height: 34px; display: flex; align-items: center; gap: 10px; padding: 0 10px; border-radius: 8px; color: var(--ink); background: {{n.bg}}; font-weight: {{n.weight}}; text-decoration: none;"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="{{n.d}}"></path></svg><span style="flex: 1;">{{n.label}}</span><sc-if value="{{n.hasBadge}}" hint-placeholder-val="{{ false }}"><span style="flex: none; white-space: nowrap; font-family: 'IBM Plex Mono', monospace; font-size: 11px; font-weight: 500; color: var(--ink-2); background: var(--tray); padding: 1px 6px; border-radius: 6px;">{{n.badge}}</span></sc-if></a>
+      </sc-for>
+    </div>
+  </nav>
+
+  <main style="flex: 1; min-width: 0; display: flex; flex-direction: column; background: var(--surface);">
+    <header style="height: 48px; flex: none; display: flex; align-items: center; gap: 10px; padding: 0 16px; border-bottom: 1px solid var(--line); box-sizing: border-box;">
+      <sc-if value="{{hasBack}}" hint-placeholder-val="{{ false }}"><a href="{{backHref}}" style="height: 32px; display: flex; align-items: center; gap: 4px; padding: 0 8px 0 4px; border-radius: 8px; color: var(--muted); text-decoration: none;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"></path></svg>{{back}}</a><span aria-hidden="true" style="color: var(--line-strong);">/</span></sc-if>
+      <h1 style="margin: 0; font-size: 15px; font-weight: 600;">{{title}}</h1>
+      <sc-if value="{{hasSub}}" hint-placeholder-val="{{ false }}"><span style="color: var(--muted);">{{sub}}</span><sc-if value="{{hasSubLink}}" hint-placeholder-val="{{ false }}"><a href="{{subHref}}" style="color: var(--ink); text-decoration: underline; text-decoration-color: var(--line-strong); text-underline-offset: 3px; white-space: nowrap;">{{subLink}}</a></sc-if></sc-if>
+      <div style="flex: 1;"></div>
+      <sc-if value="{{hasPrimary}}" hint-placeholder-val="{{ true }}">
+        <a href="{{primaryHref}}" style="height: 32px; display: flex; align-items: center; gap: 8px; padding: 0 14px; border-radius: 8px; background: var(--accent-fill); color: #ffffff; font-weight: 600; text-decoration: none; white-space: nowrap;"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M10.75 4h2.5v6.75H20v2.5h-6.75V20h-2.5v-6.75H4v-2.5h6.75z"></path></svg>{{primary}}</a>
+      </sc-if>
+    </header>
+
+    <sc-if value="{{hasTabs}}" hint-placeholder-val="{{ false }}">
+      <div role="tablist" aria-label="{{title}}" style="height: 44px; flex: none; display: flex; align-items: flex-end; gap: 2px; padding: 0 16px; border-bottom: 1px solid var(--line);">
+        <sc-for list="{{tabs}}" as="t" hint-placeholder-count="4"><button role="tab" aria-selected="{{t.on}}" onClick="{{t.pick}}" style="height: 40px; display: flex; align-items: center; gap: 6px; padding: 0 12px; border: 0; border-bottom: 2px solid {{t.line}}; margin-bottom: -1px; background: transparent; color: {{t.fg}}; font: inherit; font-weight: {{t.weight}};">{{t.label}}<span style="height: 18px; padding: 0 6px; border-radius: 6px; background: var(--tray); color: var(--ink-2); font-family: 'IBM Plex Mono', monospace; font-size: 11px; display: flex; align-items: center;">{{t.count}}</span></button></sc-for>
+      </div>
+    </sc-if>
+
+    <div style="flex: none; position: relative; z-index: 6;">
+      <sc-if value="{{noSelection}}" hint-placeholder-val="{{ true }}">
+        <div role="toolbar" aria-label="{{title}}" style="height: 48px; display: flex; align-items: center; gap: 6px; padding: 0 16px; border-bottom: 1px solid var(--line); box-sizing: border-box;">
+          <label style="flex: 0 1 240px; min-width: 120px; height: 32px; display: flex; align-items: center; gap: 8px; padding: 0 10px; border: 1px solid var(--line-strong); border-radius: 8px; box-sizing: border-box; color: var(--muted);"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" style="flex: none;"><path fill-rule="evenodd" d="M10.5 3a7.5 7.5 0 0 1 5.96 12.06l4.24 4.23-1.42 1.42-4.23-4.24A7.5 7.5 0 1 1 10.5 3zm0 2.5a5 5 0 1 0 0 10 5 5 0 0 0 0-10z"></path></svg><input aria-label="Search" placeholder="{{search}}" style="flex: 1; min-width: 0; border: 0; outline: none; font: inherit; color: var(--ink); background: transparent;"></label>
+          <sc-for list="{{filters}}" as="f" hint-placeholder-count="2">
+            <button aria-label="{{f.label}}: {{f.value}}" style="flex: none; height: 32px; display: flex; align-items: center; gap: 6px; padding: 0 10px; border: 1px solid {{f.border}}; border-radius: 8px; background: var(--surface); color: var(--ink); font: inherit; white-space: nowrap;"><span style="color: var(--muted);">{{f.label}}</span><span style="font-weight: 600;">{{f.value}}</span><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true" style="color: var(--muted);"><path d="m6 9 6 6 6-6"></path></svg></button>
+          </sc-for>
+          <button style="flex: none; height: 32px; display: flex; align-items: center; gap: 6px; padding: 0 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--ink); font: inherit; font-weight: 500;"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 4h18l-7 8.5V19l-4 2v-8.5z"></path></svg>Filters<sc-if value="{{hasMore}}" hint-placeholder-val="{{ false }}"><span style="min-width: 18px; height: 18px; padding: 0 5px; border-radius: 99px; background: var(--ink); color: var(--surface); font-family: 'IBM Plex Mono', monospace; font-size: 11px; display: flex; align-items: center; justify-content: center; box-sizing: border-box;">{{moreCount}}</span></sc-if></button>
+          <div style="flex: 1 1 0; min-width: 0;"></div>
+          <span style="flex: none; height: 20px; padding: 0 7px; border-radius: 6px; background: var(--tray); color: var(--ink-2); font-family: 'IBM Plex Mono', monospace; font-size: 12px; display: flex; align-items: center;">{{count}}</span>
+          <span aria-hidden="true" style="flex: none; width: 1px; height: 20px; background: var(--line); margin: 0 4px;"></span>
+          <div class="bg" role="group" aria-label="How the rows are shown" style="flex: none;">
+            <button style="height: 32px; display: flex; align-items: center; gap: 6px; padding: 0 10px; border: 1px solid var(--line); background: var(--surface); color: var(--ink-2); font: inherit; white-space: nowrap;"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 3l4.5 5H8.25v13h-2.5V8H2.5zm10 18-4.5-5h3.25V3h2.5v13h3.25z"></path></svg>{{sort}}</button>
+            <button style="height: 32px; display: flex; align-items: center; gap: 6px; padding: 0 10px; border: 1px solid var(--line); background: var(--surface); color: var(--ink-2); font: inherit;"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 4h18v4H3zm0 6h12v4H3zm0 6h8v4H3z"></path></svg>Group</button>
+            <button style="height: 32px; display: flex; align-items: center; gap: 6px; padding: 0 10px; border: 1px solid var(--line); background: var(--surface); color: var(--ink-2); font: inherit;"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M4 3h16a1 1 0 0 1 1 1v16a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1zm1 2v14h3V5zm5 0v14h4V5zm6 0v14h3V5z"></path></svg>Columns</button>
+          </div>
+          <div style="position: relative; flex: none;">
+            <button onClick="{{toggleExport}}" aria-expanded="{{exportOpen}}" style="height: 32px; display: flex; align-items: center; gap: 6px; padding: 0 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--ink); font: inherit;"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M10.75 3h2.5v9.4l3.4-3.4 1.77 1.77L12 17.2l-6.42-6.43L7.35 9l3.4 3.4zM4 18.5h16V21H4z"></path></svg>Export<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true" style="color: var(--muted);"><path d="m6 9 6 6 6-6"></path></svg></button>
+            <sc-if value="{{exportOpen}}" hint-placeholder-val="{{ false }}">
+              <div role="menu" aria-label="Export" style="position: absolute; top: 40px; right: 0; width: 260px; box-sizing: border-box; padding: 6px; background: var(--surface); border-radius: 12px; box-shadow: var(--float); display: flex; flex-direction: column;">
+                <span style="padding: 6px 8px 8px; font-size: 12px; color: var(--muted);">The <span style="font-family: 'IBM Plex Mono', monospace;">{{count}}</span> {{noun}} the filters show</span>
+                <button role="menuitem" class="mi" style="height: 36px; display: flex; align-items: center; justify-content: space-between; padding: 0 8px; border: 0; border-radius: 8px; background: transparent; color: var(--ink); font: inherit;">Spreadsheet<span style="font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: var(--muted);">.xlsx</span></button>
+                <button role="menuitem" class="mi" style="height: 36px; display: flex; align-items: center; justify-content: space-between; padding: 0 8px; border: 0; border-radius: 8px; background: transparent; color: var(--ink); font: inherit;">Comma-separated<span style="font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: var(--muted);">.csv</span></button>
+                <button role="menuitem" class="mi" style="height: 36px; display: flex; align-items: center; justify-content: space-between; padding: 0 8px; border: 0; border-radius: 8px; background: transparent; color: var(--ink); font: inherit;">PDF, ready to print<span style="font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: var(--muted);">.pdf</span></button>
+              </div>
+            </sc-if>
+          </div>
+        </div>
+      </sc-if>
+      <sc-if value="{{hasSelection}}" hint-placeholder-val="{{ false }}">
+        <div role="toolbar" aria-label="Selected {{noun}}" style="height: 48px; display: flex; align-items: center; gap: 6px; padding: 0 16px; border-bottom: 1px solid var(--line-strong); background: var(--tray); box-sizing: border-box;">
+          <button onClick="{{clear}}" aria-label="Clear the selection" style="width: 32px; height: 32px; border: 0; border-radius: 8px; background: transparent; color: var(--ink); display: flex; align-items: center; justify-content: center;"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M6.4 5 12 10.6 17.6 5 19 6.4 13.4 12l5.6 5.6-1.4 1.4-5.6-5.6L6.4 19 5 17.6 10.6 12 5 6.4z"></path></svg></button>
+          <span style="font-weight: 600;"><span style="font-family: 'IBM Plex Mono', monospace;">{{selectedCount}}</span> selected</span>
+          <span aria-hidden="true" style="width: 1px; height: 20px; background: var(--line-strong); margin: 0 6px;"></span>
+          <div class="bg" role="group" aria-label="Actions for the selection">
+            <sc-for list="{{bulk}}" as="b" hint-placeholder-count="3"><a href="{{b.href}}" style="height: 32px; box-sizing: border-box; display: flex; align-items: center; margin-left: -1px; padding: 0 12px; border: 1px solid var(--line-strong); border-radius: {{b.radius}}; background: var(--surface); color: var(--ink); text-decoration: none; white-space: nowrap;">{{b.label}}</a></sc-for>
+            <button style="height: 32px; display: flex; align-items: center; gap: 6px; padding: 0 12px; border: 1px solid var(--line-strong); background: var(--surface); color: var(--ink); font: inherit;"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M10.75 3h2.5v9.4l3.4-3.4 1.77 1.77L12 17.2l-6.42-6.43L7.35 9l3.4 3.4zM4 18.5h16V21H4z"></path></svg>Export <span style="font-family: 'IBM Plex Mono', monospace;">{{selectedCount}}</span></button>
+          </div>
+        </div>
+      </sc-if>
+    </div>
+
+    <div style="flex: 1; min-height: 0; overflow: auto; position: relative;">
+      <div role="table" aria-label="{{title}}" style="min-width: {{minWidth}};">
+        <div role="row" style="position: sticky; top: 0; z-index: 3; display: grid; grid-template-columns: {{grid}}; align-items: center; height: 34px; background: var(--ground); border-bottom: 1px solid var(--line); color: var(--muted); font-size: 12.5px; font-weight: 500;">
+          <div role="columnheader" style="padding-left: 14px;"><input type="checkbox" aria-label="Select every row on this page" checked="{{allSelected}}" onChange="{{toggleAll}}" style="width: 16px; height: 16px; margin: 0; accent-color: var(--accent);"></div>
+          <sc-for list="{{cols}}" as="h" hint-placeholder-count="6"><div role="columnheader" class="c" style="padding: {{h.pad}}; text-align: {{h.align}}; color: {{h.fg}};">{{h.label}}</div></sc-for>
+          <div role="columnheader"></div>
+        </div>
+        <sc-for list="{{rows}}" as="row" hint-placeholder-count="8">
+          <div role="row" class="r" style="display: grid; grid-template-columns: {{grid}}; align-items: center; height: 40px; border-bottom: 1px solid var(--line-soft); background: {{row.bg}};">
+            <div role="cell" style="padding-left: 14px;"><input type="checkbox" aria-label="Select {{row.name}}" checked="{{row.selected}}" onChange="{{row.toggle}}" style="width: 16px; height: 16px; margin: 0; accent-color: var(--accent);"></div>
+            <sc-for list="{{row.cells}}" as="x" hint-placeholder-count="6">
+              <div role="cell" class="c" title="{{x.title}}" style="padding: {{x.pad}}; text-align: {{x.align}};">
+                <sc-if value="{{x.isLink}}" hint-placeholder-val="{{ false }}"><a href="{{x.href}}" style="font-family: {{x.font}}; font-size: {{x.size}}; font-weight: {{x.weight}}; color: var(--ink); text-decoration: underline; text-decoration-color: var(--line-strong); text-underline-offset: 3px;">{{x.text}}</a></sc-if>
+                <sc-if value="{{x.isText}}" hint-placeholder-val="{{ true }}"><span style="display: inline-block; max-width: 100%; box-sizing: border-box; overflow: hidden; text-overflow: ellipsis; vertical-align: middle; font-family: {{x.font}}; font-size: {{x.size}}; font-weight: {{x.weight}}; color: {{x.fg}}; background: {{x.bg}}; padding: {{x.pillPad}}; border-radius: 6px;">{{x.text}}</span></sc-if>
+                <sc-if value="{{x.isBadge}}" hint-placeholder-val="{{ false }}"><span style="display: inline-flex; align-items: center; gap: 6px; max-width: 100%; box-sizing: border-box; height: 22px; padding: 0 8px; border-radius: 6px; font-size: 12px; font-weight: 500; background: {{x.bg}}; color: {{x.fg}}; border: 1px solid {{x.border}};"><span style="flex: none; width: 7px; height: 7px; box-sizing: border-box; border-radius: 99px; background: {{x.dotBg}}; border: 1.5px solid {{x.dotLine}};"></span>{{x.text}}</span></sc-if>
+                <sc-if value="{{x.isBar}}" hint-placeholder-val="{{ false }}"><span style="display: flex; align-items: center; gap: 8px;"><span style="flex: 1; height: 6px; border-radius: 3px; background: var(--tray); overflow: hidden;"><span style="display: block; height: 100%; width: {{x.pct}}; background: {{x.barFg}}; border-radius: 3px;"></span></span><span style="flex: none; font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: var(--ink-2);">{{x.text}}</span></span></sc-if>
+                <sc-if value="{{x.isInput}}" hint-placeholder-val="{{ false }}"><span style="display: inline-flex; align-items: center; gap: 2px; height: 28px; padding: 0 8px; border: 1px solid {{x.border}}; border-radius: 6px; background: {{x.bg}}; font-family: 'IBM Plex Mono', monospace; font-size: 12.5px;"><span style="color: var(--muted);">US$</span><input class="ed" aria-label="New price for {{row.name}}" value="{{x.text}}" onChange="{{x.change}}" inputmode="decimal" style="width: 64px; border: 0; outline: none; background: transparent; font: inherit; font-weight: 600; text-align: right; color: var(--ink); border-radius: 4px;"></span></sc-if>
+              </div>
+            </sc-for>
+            <div role="cell" style="display: flex; justify-content: center;"><button aria-label="Actions for {{row.name}}" style="width: 28px; height: 28px; border: 0; border-radius: 6px; background: transparent; color: var(--faint); display: flex; align-items: center; justify-content: center;"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.8"></circle><circle cx="12" cy="12" r="1.8"></circle><circle cx="19" cy="12" r="1.8"></circle></svg></button></div>
+          </div>
+        </sc-for>
+        <div role="row" style="position: sticky; bottom: 0; z-index: 3; display: grid; grid-template-columns: {{grid}}; align-items: center; height: 40px; background: var(--ground); box-shadow: var(--pin);">
+          <div role="cell" aria-hidden="true" style="padding-left: 14px; font-family: 'IBM Plex Mono', monospace; font-size: 14px; font-weight: 600; color: var(--muted);">Σ</div>
+          <sc-for list="{{total}}" as="t" hint-placeholder-count="6"><div role="cell" class="c" style="padding: {{t.pad}}; text-align: {{t.align}}; font-family: {{t.font}}; font-size: 12.5px; font-weight: 600; color: {{t.fg}};">{{t.text}}</div></sc-for>
+          <div role="cell"></div>
+        </div>
+      </div>
+    </div>
+
+    <sc-if value="{{hasEdits}}" hint-placeholder-val="{{ false }}">
+      <div role="region" aria-label="Unsaved changes" style="height: 52px; flex: none; display: flex; align-items: center; gap: 10px; padding: 0 16px; border-top: 1px solid var(--line-strong); background: var(--tray); box-sizing: border-box;">
+        <span style="font-weight: 600;"><span style="font-family: 'IBM Plex Mono', monospace;">{{editCount}}</span> prices changed</span>
+        <span style="color: var(--muted);">The till picks them up the moment you save. Margins update as you type.</span>
+        <div style="flex: 1;"></div>
+        <button onClick="{{discard}}" style="height: 32px; padding: 0 12px; border: 1px solid var(--line-strong); border-radius: 8px; background: var(--surface); color: var(--ink); font: inherit;">Discard</button>
+        <button style="height: 32px; padding: 0 14px; border: 0; border-radius: 8px; background: var(--accent-fill); color: #ffffff; font: inherit; font-weight: 600;">Save prices</button>
+      </div>
+    </sc-if>
+    <nav aria-label="Pages" style="height: 48px; flex: none; display: flex; align-items: center; gap: 12px; padding: 0 16px; border-top: 1px solid var(--line); background: var(--surface); box-sizing: border-box;">
+      <span style="color: var(--muted);"><span style="font-family: 'IBM Plex Mono', monospace; color: var(--ink);">1–{{shown}}</span> of <span style="font-family: 'IBM Plex Mono', monospace; color: var(--ink);">{{count}}</span></span>
+      <span style="color: var(--muted);">Rows per page <span style="font-family: 'IBM Plex Mono', monospace; color: var(--ink);">50</span></span>
+      <div style="flex: 1;"></div>
+      <div class="bg" role="group" aria-label="Pages"><button aria-label="Previous page" style="width: 34px; height: 32px; border: 1px solid var(--line); background: var(--surface); color: var(--faint);">‹</button><button aria-current="page" style="min-width: 34px; height: 32px; border: 1px solid var(--line); background: var(--active); color: var(--ink); font-family: 'IBM Plex Mono', monospace; font-weight: 600;">1</button><button aria-label="Next page" style="width: 34px; height: 32px; border: 1px solid var(--line); background: var(--surface); color: var(--faint);">›</button></div>
+    </nav>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"kind":{"editor":"enum","options":["customers","products","prices","promotions","suppliers","orders","deliveries","stock","movements","pricelists","bundles","vouchers","categories","requisitions","bills","sites","tills","counts","transfers","empties","sales","laybys","reports","reportsstock","salesreport","weekendreport","days","accounts","people","activity","bin"],"default":"orders"},"startSelected":{"editor":"boolean","default":false},"$preview":{"width":1440,"height":960}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { selected: props.startSelected ? [0, 2] : [], tab: 0, exportOpen: false, edits: props.kind === 'prices' && props.startSelected ? {} : (props.kind === 'prices' ? { 0: '18.99', 3: '27.50', 8: '1.60' } : {}) };
+  }
+
+  icons() {
+    return {
+      floor: 'M4 4h16l1.2 5a3 3 0 0 1-2.2 2.9V20H5v-8.1A3 3 0 0 1 2.8 9zm6 10v6h4v-6z',
+      products: 'M3 3h9l9 9-9 9-9-9zm5 3.5a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3z',
+      stock: 'M12 2 2 7l10 5 10-5zM3.6 11.2 2 12l10 5 10-5-1.6-.8-8.4 4.2zm0 5L2 17l10 5 10-5-1.6-.8-8.4 4.2z',
+      buying: 'M4 3h16a1 1 0 0 1 1 1v16a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1zm1 10v6h14v-6h-4l-1.5 2h-3L9 13z',
+      reports: 'M5 2h10l4 4v16H5zm9 1.5V7h3.5zM8 11v1.6h8V11zm0 3.4v1.6h8v-1.6zm0 3.4v1.6h5v-1.6z',
+      card: 'M6 5h12a3 3 0 0 1 3 3v8a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3V8a3 3 0 0 1 3-3z',
+      receipt: 'M6 3h12a1 1 0 0 1 1 1v17l-3-2-2 2-2-2-2 2-2-2-3 2V4a1 1 0 0 1 1-1z',
+      people: 'M9 4.5a3.5 3.5 0 1 1 0 7 3.5 3.5 0 0 1 0-7zM17 6.5a2.5 2.5 0 1 1 0 5 2.5 2.5 0 0 1 0-5zM2 19a7 7 0 0 1 14 0zm13 0a6 6 0 0 0-1.5-4 5 5 0 0 1 8.5 4z',
+      rows: 'M3 5h18v4H3zm0 5h18v4H3zm0 5h18v4H3z',
+      truck: 'M2 6h12v9H2zm12 3h4l3 3v3h-7zM6 19a2 2 0 1 1 0-4 2 2 0 0 1 0 4zm11 0a2 2 0 1 1 0-4 2 2 0 0 1 0 4z',
+      shop: 'M4 4h16l1.2 5a3 3 0 0 1-2.2 2.9V20H5v-8.1A3 3 0 0 1 2.8 9z',
+      voucher: 'M3 6h18v4a2 2 0 0 0 0 4v4H3v-4a2 2 0 0 0 0-4z',
+      box: 'M12 2 3 6.5v11L12 22l9-4.5v-11zm0 2.2 6.6 3.3L12 10.8 5.4 7.5z',
+      folder: 'M3 5h7l2 2h9v12H3z',
+      cash: 'M2 6h20v12H2zm10 3a3 3 0 1 0 0 6 3 3 0 0 0 0-6z',
+      clock: 'M12 2a10 10 0 1 1 0 20 10 10 0 0 1 0-20zm-1 5v6l5 3 1-1.7-4-2.3V7z',
+      count: 'M5 3h14v18H5zm3 4v2h8V7zm0 4v2h8v-2zm0 4v2h5v-2z',
+      swap: 'M7 4 3 8l4 4V9h10V7H7zm10 8v3H7v2h10v3l4-4z',
+      manage: 'M10.5 2h3l.5 2.6 2 .9 2.3-1.4 2.1 2.1-1.4 2.3.9 2 2.6.5v3l-2.6.5-.9 2 1.4 2.3-2.1 2.1-2.3-1.4-2 .9-.5 2.6h-3l-.5-2.6-2-.9-2.3 1.4-2.1-2.1 1.4-2.3-.9-2L2 13.5v-3l2.6-.5.9-2-1.4-2.3 2.1-2.1 2.3 1.4 2-.9zM12 8.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7z',
+      insights: 'M3 20h18v2H3zM5 10h3v8H5zm5.5-6h3v14h-3zM16 13h3v5h-3z'
+    };
+  }
+
+  config(kind) {
+    var I = this.icons();
+    var M = { floor: { title: 'The floor', nav: [['Overview', I.card, 'Floor.dc.html'], ['Sales', I.receipt, 'SalesList.dc.html'], ['Shifts', I.card, 'Main.dc.html', '2 open'], ['Lay-bys', I.box, 'LaybysList.dc.html', '3'], ['End of day', I.clock, 'EndOfDay.dc.html'], ['Customers', I.people, 'CustomersList.dc.html'], ['Accounts', I.card, 'AccountsList.dc.html', '1 overdue']] },
+      products: { title: 'Products', nav: [['Products', I.rows, 'ProductsList.dc.html'], ['Price lists', I.products, 'PriceLists.dc.html'], ['Promotions', I.card, 'PromotionsList.dc.html', '3 on'], ['Bundles and packs', I.box, 'BundlesList.dc.html'], ['Vouchers', I.voucher, 'VouchersList.dc.html'], ['Categories', I.folder, 'CategoriesList.dc.html']] },
+      stock: { title: 'Stock', nav: [['On hand', I.stock, 'StockList.dc.html', '5 low'], ['Movements', I.clock, 'MovementsList.dc.html'], ['Counts', I.count, 'CountsList.dc.html', '1 to approve'], ['Transfers', I.swap, 'TransfersList.dc.html'], ['Empties', I.box, 'EmptiesList.dc.html']] },
+      buying: { title: 'Buying', nav: [['Suppliers', I.shop, 'SuppliersList.dc.html'], ['Orders', I.buying, 'OrdersList.dc.html', '3 open'], ['Deliveries', I.truck, 'DeliveriesList.dc.html'], ['Requisitions', I.cash, 'RequisitionsList.dc.html', '2 to approve'], ['Bills', I.receipt, 'BillsList.dc.html', '1 overdue']] },
+      manage: { title: 'Management', nav: [['Company', I.shop, 'CompanySettings.dc.html'], ['Sites', I.floor, 'SitesList.dc.html'], ['Tills and devices', I.card, 'TillsList.dc.html'], ['Payments', I.cash, 'PaymentsSettings.dc.html'], ['Till rules', I.count, 'TillRules.dc.html'], ['Receipts', I.receipt, 'ReceiptSettings.dc.html'], ['Fiscal device', I.receipt, 'FiscalSettings.dc.html'], ['Posting to the books', I.rows, 'PostingSettings.dc.html'], ['People', I.people, 'PeopleList.dc.html'], ['Approvals', I.count, 'ApprovalSettings.dc.html'], ['Loyalty', I.voucher, 'LoyaltySettings.dc.html'], ['Activity', I.clock, 'ActivityList.dc.html'], ['Bin', I.folder, 'BinList.dc.html'], ['Plan and billing', I.card, 'BillingSettings.dc.html']] },
+      insights: { title: 'Insights', nav: [['Sales', I.insights, 'InsightsSales.dc.html'], ['Profit', I.insights, 'InsightsProfit.dc.html'], ['Products', I.insights, 'InsightsProducts.dc.html'], ['Stock health', I.insights, 'InsightsStock.dc.html'], ['Losses', I.insights, 'InsightsLosses.dc.html'], ['Customers', I.insights, 'InsightsCustomers.dc.html'], ['Money', I.insights, 'InsightsMoney.dc.html']] },
+      reports: { title: 'Reports', nav: [['Every template', I.reports, 'ReportsList.dc.html', '16'], ['Selling', I.receipt, 'ReportsList.dc.html', '4'], ['Stock', I.stock, 'ReportsStock.dc.html', '4'], ['Buying', I.buying, 'ReportsList.dc.html', '2'], ['Customers', I.people, 'ReportsList.dc.html', '2'], ['Money', I.cash, 'ReportsList.dc.html', '2'], ['The floor', I.card, 'ReportsList.dc.html', '2']] } };
+    var B = function (t, tone) { return { t: 'badge', v: t, tone: tone }; };
+    var cfg = {
+      customers: { module: 'floor', active: 5, title: 'Customers', noun: 'customers', primary: 'New customer', search: 'Name, phone or card', filters: [['Tier', 'Any'], ['Last visit', 'Any']], more: 0, sort: 'Most spent',
+        grid: 'minmax(180px,1.4fr) 150px 110px 80px 150px 90px 130px', minWidth: '980px',
+        cols: [['Customer'], ['Phone'], ['Tier'], ['Visits', 'end'], ['Last visit'], ['Points', 'end'], ['Spend, 12 months', 'end']],
+        href: 'CustomerRecord.dc.html',
+        rows: [['Tapiwa Marange', '+263 77 412 3388', 'Gold', '141', '15 August 2026', '3,021', 'US$3,021.80'], ['Nyasha Gwenzi', '+263 71 220 9014', 'Gold', '149', '16 August 2026', '2,975', 'US$2,975.55'], ['Rutendo Banda', '+263 78 301 5521', 'Gold', '121', '15 August 2026', '2,768', 'US$2,768.00'], ['Munashe Chari', '+263 77 988 1043', 'Gold', '139', '16 August 2026', '2,515', 'US$2,515.10'], ['Blessing Ncube', '+263 73 640 2219', 'Gold', '127', '17 August 2026', '2,414', 'US$2,414.10'], ['Kudzai Zhou', '+263 77 105 6672', 'Gold', '138', '17 August 2026', '2,345', 'US$2,345.90'], ['Simba Mutasa', '+263 71 884 0397', 'Gold', '122', '16 August 2026', '2,146', 'US$2,146.50'], ['Rudo Chirwa', '+263 78 552 7710', 'Gold', '124', '14 August 2026', '2,051', 'US$2,051.30']].map(function (r) { return [{ t: 'link', v: r[0] }, { t: 'mono', v: r[1] }, B(r[2], 'gold'), { t: 'num', v: r[3] }, { t: 'date', v: r[4] }, { t: 'num', v: r[5] }, { t: 'money', v: r[6] }]; }),
+        total: [['8', 'mono'], [''], [''], ['1,061', 'num'], [''], ['20,235', 'num'], ['US$20,238.25', 'money']], bulk: ['Message on WhatsApp', 'Add points', 'Change tier'] },
+
+      products: { module: 'products', active: 0, title: 'Products', noun: 'products', primary: 'New product', search: 'Name, code or barcode', filters: [['Category', 'Any'], ['Stock', 'Any']], more: 0, sort: 'Name A–Z',
+        tabs: [['Selling', '15'], ['Low stock', '4'], ['Archived', '2'], ['All', '17']],
+        grid: 'minmax(190px,1.4fr) 130px 120px 110px 130px 100px 80px 60px', minWidth: '1120px',
+        cols: [['Product'], ['Code'], ['Category'], ['On hand', 'end'], ['Cover'], ['Price', 'end'], ['Sold, 30 days', 'end'], ['VAT', 'end']],
+        href: 'Product.dc.html',
+        rows: [['Amarula Cream 750ml', 'AMARULA-750', 'Spirits', '13 bottles', 30, '6 days', 'US$18.25', '64'], ['Bohlinger\u2019s 330ml', 'BOHLINGER-330', 'Beer', '96 bottles', 100, '41 days', 'US$1.55', '70'], ['Castle Lager 340ml', 'CASTLE-340', 'Beer', '26 bottles', 45, '9 days', 'US$1.20', '88'], ['Castle Lager case of 24', 'CASTLE-CASE', 'Beer', '22 cases', 60, '12 days', 'US$26.50', '55'], ['Chibuku Scud 1L', 'CHIBUKU-1L', 'Beer', '210 cartons', 100, '18 days', 'US$1.10', '350'], ['Coca-Cola 500ml', 'COKE-500', 'Soft drinks', '180 bottles', 100, '25 days', 'US$0.75', '216'], ['Gordon\u2019s Gin 750ml', 'GORDONS-750', 'Spirits', '18 bottles', 40, '8 days', 'US$16.40', '67'], ['Jameson Irish Whiskey 750ml', 'JAMESON-750', 'Spirits', '9 bottles', 15, '2 days', 'US$27.90', '121'], ['Johnnie Walker Black 750ml', 'BLKLABEL-750', 'Spirits', '6 bottles', 20, '3 days', 'US$42.00', '58']].map(function (r) { return [{ t: 'link', v: r[0] }, { t: 'mono', v: r[1] }, { t: 'muted', v: r[2] }, { t: 'num', v: r[3] }, { t: 'bar', v: r[5], pct: r[4], tone: r[4] < 35 ? 'warn' : 'data' }, { t: 'money', v: r[6] }, { t: 'num', v: r[7] }, { t: 'num', v: '15%' }]; }),
+        total: [['9', 'mono'], [''], [''], [''], [''], [''], ['1,089', 'num'], ['']], bulk: ['Change prices', 'Print shelf labels', 'Add to an order', 'Add to a price list', 'Archive'] },
+
+      stock: { module: 'stock', active: 0, title: 'On hand', noun: 'products', primary: 'Add a product', search: 'Name, code or barcode', filters: [['Category', 'Any'], ['Site', 'All sites']], more: 0, sort: 'Least cover first',
+        tabs: [['All', '26'], ['Low', '4'], ['Out', '1'], ['Too much', '3']],
+        grid: 'minmax(190px,1.4fr) 130px 110px 140px 110px 90px 130px 110px', minWidth: '1180px',
+        cols: [['Product'], ['Code'], ['Level'], ['Site'], ['On hand', 'end'], ['Reorder at', 'end'], ['Cover'], ['Value at cost', 'end']],
+        href: 'Product.dc.html',
+        rows: [['Jaggermeister 750ml', 'JAGER-750', 'Out', 'Harare Main Branch', '0 bottles', '6', 0, 'No sales lost yet', 'US$0.00'], ['Johnnie Walker Black 750ml', 'BLKLABEL-750', 'Low', 'Harare Main Branch', '6 bottles', '12', 15, '3 days', 'US$201.60'], ['Jameson Irish Whiskey 750ml', 'JAMESON-750', 'Low', 'Harare Main Branch', '9 bottles', '12', 12, '2 days', 'US$199.35'], ['Amarula Cream 750ml', 'AMARULA-750', 'Low', 'Harare Main Branch', '13 bottles', '12', 30, '6 days', 'US$169.39'], ['Castle Lager 340ml', 'CASTLE-340', 'Low', 'Harare Main Branch', '26 bottles', '96', 45, '9 days', 'US$22.36'], ['Gordon’s Gin 750ml', 'GORDONS-750', 'Fine', 'Harare Main Branch', '18 bottles', '6', 40, '8 days', 'US$223.20'], ['Bohlinger’s 330ml', 'BOHLINGER-330', 'Fine', 'Borrowdale', '96 bottles', '36', 100, '41 days', 'US$103.68'], ['Chibuku Scud 1L', 'CHIBUKU-1L', 'Too much', 'Harare Main Branch', '210 cartons', '60', 100, '62 days', 'US$172.20'], ['Ice 2kg bag', 'ICE-2KG', 'Fine', 'Harare Main Branch', '40 bags', '20', 70, '14 days', 'US$40.00']].map(function (r) { var tone = { Out: 'bad', Low: 'warn', Fine: 'hollow', 'Too much': 'info' }[r[2]]; return [{ t: 'link', v: r[0] }, { t: 'mono', v: r[1] }, B(r[2], tone), { t: 'muted', v: r[3] }, { t: 'num', v: r[4] }, { t: 'num', v: r[5] }, r[6] ? { t: 'bar', v: r[7], pct: r[6], tone: r[6] < 35 ? 'warn' : 'data' } : { t: 'faint', v: '—' }, { t: 'money', v: r[8] }]; }),
+        total: [['9', 'mono'], [''], [''], [''], [''], [''], [''], ['US$1,131.78', 'money']], bulk: ['Add to an order', 'Count these', 'Move to another site', 'Change reorder level'] },
+
+      movements: { module: 'stock', active: 1, title: 'Movements', noun: 'movements', primary: '', search: 'Product or reference', filters: [['Kind', 'Any'], ['Site', 'All sites']], more: 1, sort: 'Newest first',
+        grid: '150px minmax(180px,1.3fr) 150px 120px 140px 80px 80px 120px', minWidth: '1100px',
+        cols: [['When'], ['Product'], ['Movement'], ['Reference'], ['Site'], ['Change', 'end'], ['Balance', 'end'], ['By']],
+        href: 'Product.dc.html',
+        rows: [['3 Oct 13:12', 'Amarula Cream 750ml', ['Sale', 'hollow'], 'SALE-31862', 'Harare Main Branch', '−1', '13', 'Chipo Dube'], ['3 Oct 09:40', 'Ice 2kg bag', ['Received', 'ok'], 'GRN-0004', 'Harare Main Branch', '+40', '40', 'Chipo Dube'], ['2 Oct 16:05', 'Amarula Cream 750ml', ['Received', 'ok'], 'GRN-0003', 'Harare Main Branch', '+24', '16', 'Tafara Nyathi'], ['2 Oct 09:12', 'Amarula Cream 750ml', ['Count, two broken', 'warn'], 'CNT-0019', 'Harare Main Branch', '−2', '−8', 'Tafara Nyathi'], ['1 Oct 12:03', 'Amarula Cream 750ml', ['Transfer out', 'info'], 'TRF-0007', 'Harare Main Branch', '−4', '−5', 'Tafara Nyathi'], ['1 Oct 12:40', 'Amarula Cream 750ml', ['Transfer in', 'info'], 'TRF-0007', 'Borrowdale', '+4', '4', 'Rumbi Gora'], ['30 Sep 18:02', 'Castle Lager case of 24', ['Case broken into singles', 'neutral'], 'BRK-0012', 'Harare Main Branch', '−1', '22', 'Farai Moyo']].map(function (r) { return [{ t: 'mono', v: r[0] }, { t: 'link', v: r[1] }, B(r[2][0], r[2][1]), { t: 'link', v: r[3], mono: 1, href: /^GRN/.test(r[3]) ? 'DeliveryRecord.dc.html' : (/^CNT/.test(r[3]) ? 'CountReview.dc.html' : (/^TRF/.test(r[3]) ? 'TransferReceive.dc.html' : '#')) }, { t: 'muted', v: r[4] }, r[5].charAt(0) === '+' ? { t: 'delta', v: r[5], fg: 'var(--ok)', bg: 'transparent' } : { t: 'num', v: r[5] }, { t: 'num', v: r[6].replace('−', '') }, { t: 'muted', v: r[7] }]; }),
+        total: [['7', 'mono'], [''], [''], [''], [''], ['+58', 'num'], [''], ['']], bulk: ['Reverse', 'Print'] },
+
+      pricelists: { module: 'products', active: 1, title: 'Price lists', noun: 'price lists', primary: 'New price list', search: 'Name', filters: [['Applies to', 'Anyone'], ['Site', 'All sites']], more: 0, sort: 'In use first',
+        grid: 'minmax(170px,1.2fr) 110px minmax(180px,1.3fr) 150px 90px 90px 140px', minWidth: '1100px',
+        cols: [['Price list'], ['State'], ['Used when'], ['Prices'], ['Products', 'end'], ['Below cost', 'end'], ['Changed']],
+        href: 'PricesList.dc.html',
+        rows: [['Retail', ['Default', 'ok'], 'Always, at every till', 'Set for each product', '17', '0', '3 October 2026'], ['Wholesale', ['In use', 'ok'], 'Customer on a wholesale account, 6 or more', 'Retail less 8%', '17', '0', '28 September 2026'], ['Happy hour', ['In use', 'ok'], 'Fridays 17:00 to 19:00', 'Retail less 10% on beer', '6', '0', '19 September 2026'], ['Staff', ['In use', 'ok'], 'Staff accounts', 'Cost plus 5%', '17', '0', '1 August 2026'], ['Avondale branch', ['Draft', 'neutral'], 'Avondale till, once it opens', 'Retail plus 5%', '17', '2', '2 October 2026']].map(function (r) { return [{ t: 'link', v: r[0] }, B(r[1][0], r[1][1] === 'ok' ? 'hollow' : r[1][1]), { t: 'muted', v: r[2] }, { t: 'muted', v: r[3] }, { t: 'num', v: r[4] }, r[5] === '0' ? { t: 'zero', v: '0' } : { t: 'owed', v: r[5] }, { t: 'date', v: r[6] }]; }),
+        total: [['5', 'mono'], [''], [''], [''], [''], ['2', 'num'], ['']], bulk: ['Duplicate', 'Pause', 'Print price sheet'] },
+
+      bundles: { module: 'products', active: 3, title: 'Bundles and packs', noun: 'bundles and packs', primary: 'New bundle or pack', search: 'Name or barcode', filters: [['Kind', 'Any'], ['Category', 'Any']], more: 0, sort: 'Most sold',
+        tabs: [['All', '7'], ['Packs', '3'], ['Bundles', '2'], ['Buy more, pay less', '2']],
+        grid: 'minmax(180px,1.3fr) 130px minmax(180px,1.4fr) 100px 110px 90px 100px 90px', minWidth: '1180px',
+        cols: [['Name'], ['Kind'], ['Made of'], ['Price', 'end'], ['On their own', 'end'], ['Saves', 'end'], ['Can make', 'end'], ['Sold, 30 days', 'end']],
+        href: 'BundleRecord.dc.html',
+        rows: [['Castle Lager case of 24', 'Pack', '24 × Castle Lager 340ml', 'US$26.50', 'US$28.80', 'US$2.30', '1', '55'], ['Coke 500ml six-pack', 'Pack', '6 × Coca-Cola 500ml', 'US$4.20', 'US$4.50', 'US$0.30', '30', '36'], ['Chibuku crate of 12', 'Pack', '12 × Chibuku Scud 1L', 'US$12.50', 'US$13.20', 'US$0.70', '17', '21'], ['Braai pack', 'Bundle', '6 × Castle 340ml, Ice 2kg, charcoal 4kg', 'US$11.00', 'US$12.60', 'US$1.60', '4', '18'], ['Gin and tonic', 'Bundle', 'Gordon’s Gin 750ml, 4 × tonic 200ml', 'US$18.90', 'US$20.40', 'US$1.50', '18', '9'], ['Any 3 ciders', 'Buy more, pay less', '3 from Savanna, Hunter’s, Bernini', 'US$5.00', 'US$5.55', 'US$0.55', '—', '44'], ['Second Amarula half price', 'Buy more, pay less', '2 × Amarula Cream 750ml', 'US$27.38', 'US$36.50', 'US$9.12', '—', '6']].map(function (r) { return [{ t: 'link', v: r[0] }, B(r[1], 'hollow'), { t: 'muted', v: r[2] }, { t: 'money', v: r[3] }, { t: 'zero', v: r[4] }, { t: 'delta', v: r[5], fg: 'var(--ok)', bg: 'var(--ok-soft)' }, r[6] === '—' ? { t: 'faint', v: '—' } : (r[6] === '1' ? { t: 'owed', v: '1' } : { t: 'num', v: r[6] }), { t: 'num', v: r[7] }]; }),
+        total: [['7', 'mono'], [''], [''], [''], [''], [''], [''], ['189', 'num']], bulk: ['Pause', 'Print shelf labels', 'Duplicate'] },
+
+      vouchers: { module: 'products', active: 4, title: 'Vouchers', noun: 'vouchers', primary: 'Issue vouchers', search: 'Code or customer', filters: [['Kind', 'Any'], ['Expires', 'Any time']], more: 0, sort: 'Expiring soonest',
+        tabs: [['Live', '14'], ['Used up', '31'], ['Expired', '6'], ['All', '51']],
+        grid: '140px 140px minmax(160px,1.2fr) 100px 100px 140px 140px', minWidth: '1060px',
+        cols: [['Code'], ['Kind'], ['Holder'], ['Value', 'end'], ['Left', 'end'], ['Issued'], ['Expires']],
+        href: 'VoucherRecord.dc.html',
+        rows: [['GV-0021', 'Gift voucher', 'Tapiwa Marange', 'US$50.00', 'US$50.00', '28 September 2026', '28 September 2027'], ['CN-0033', 'Credit note', 'Nyasha Gwenzi', 'US$12.60', 'US$12.60', '2 October 2026', '2 January 2027'], ['GV-0019', 'Gift voucher', 'Anyone holding it', 'US$20.00', 'US$7.40', '14 August 2026', '14 August 2027'], ['DV-0007', 'Discount voucher', 'Delta reps, 20 printed', '10% off', '12 left', '1 October 2026', '31 October 2026'], ['CN-0031', 'Credit note', 'Kudzai Zhou', 'US$4.20', 'US$4.20', '9 July 2026', '9 October 2026']].map(function (r) { return [{ t: 'link', v: r[0], mono: 1 }, B(r[1], 'hollow'), { t: 'text', v: r[2] }, { t: 'money', v: r[3] }, { t: 'money', v: r[4] }, { t: 'date', v: r[5] }, /October 2026/.test(r[6]) ? { t: 'owed', v: r[6] } : { t: 'date', v: r[6] }]; }),
+        total: [['5', 'mono'], [''], [''], [''], ['US$74.20 + 12', 'money'], [''], ['']], bulk: ['Extend', 'Void', 'Print'] },
+
+      categories: { module: 'products', active: 5, title: 'Categories', noun: 'categories', primary: 'New category', search: 'Name', filters: [['Shop type', 'Liquor store']], more: 0, sort: 'Most sold',
+        grid: 'minmax(170px,1.3fr) 90px 110px 110px 120px 120px 130px', minWidth: '1000px',
+        cols: [['Category'], ['Products', 'end'], ['VAT'], ['Age check'], ['Target margin', 'end'], ['Margin now', 'end'], ['Sold, 30 days', 'end']],
+        href: 'CategoryEdit.dc.html',
+        rows: [['Spirits', '9', '15% included', 'Yes', '25%', ['22.4%', 'warn'], 'US$9,840.20'], ['Beer', '6', '15% included', 'Yes', '22%', ['24.1%', ''], 'US$11,212.60'], ['Ciders', '3', '15% included', 'Yes', '25%', ['26.3%', ''], 'US$2,104.00'], ['Wine', '4', '15% included', 'Yes', '30%', ['25.4%', 'warn'], 'US$1,620.40'], ['Soft drinks and mixers', '5', '15% included', 'No', '28%', ['30.7%', ''], 'US$2,310.75'], ['Ice', '1', '15% included', 'No', '30%', ['33.3%', ''], 'US$612.00'], ['Snacks', '6', '15% included', 'No', '30%', ['29.0%', ''], 'US$904.30']].map(function (r) { return [{ t: 'link', v: r[0] }, { t: 'num', v: r[1] }, { t: 'muted', v: r[2] }, B(r[3], r[3] === 'Yes' ? 'gold' : 'hollow'), { t: 'num', v: r[4] }, r[5][1] === 'warn' ? { t: 'owed', v: r[5][0] } : { t: 'num', v: r[5][0] }, { t: 'money', v: r[6] }]; }),
+        total: [['7', 'mono'], ['34', 'num'], [''], [''], [''], ['24.6%', 'num'], ['US$28,604.25', 'money']], bulk: ['Change VAT', 'Set target margin', 'Merge'] },
+
+      requisitions: { module: 'buying', active: 3, title: 'Requisitions', noun: 'requisitions', primary: 'Ask for money', search: 'Number, purpose or person', filters: [['Purpose', 'Any'], ['Asked by', 'Anyone']], more: 0, sort: 'Needed soonest',
+        tabs: [['To approve', '2'], ['To pay out', '1'], ['Receipts due', '1'], ['All', '14']],
+        grid: '110px minmax(200px,1.5fr) 150px 120px 150px 120px 130px', minWidth: '1100px',
+        cols: [['Number'], ['What for'], ['State'], ['Amount', 'end'], ['Asked by'], ['Needed by'], ['Against']],
+        href: 'RequisitionRecord.dc.html',
+        rows: [['REQ-0014', 'Cash to pay Afdis for order PO-0005', ['Waiting for approval', 'warn'], 'US$1,940.00', 'Tafara Nyathi', '6 October 2026', 'PO-0005'], ['REQ-0015', 'Generator diesel, 40 litres', ['Waiting for approval', 'warn'], 'US$62.00', 'Farai Moyo', '4 October 2026', 'Fuel'], ['REQ-0013', 'Cash for Pamela order PO-0004', ['Approved, to pay', 'info'], 'US$637.80', 'Tafara Nyathi', '6 October 2026', 'PO-0004'], ['REQ-0012', 'Fridge repair, front till', ['Paid, receipt due', 'info'], 'US$85.00', 'Chipo Dube', '1 October 2026', 'Repairs'], ['REQ-0011', 'Liquor licence renewal', ['Accounted for', 'hollow'], 'US$240.00', 'Tendai Mhlanga', '30 September 2026', 'Licences']].map(function (r) { return [{ t: 'link', v: r[0], mono: 1 }, { t: 'text', v: r[1] }, B(r[2][0], r[2][1]), { t: 'money', v: r[3] }, { t: 'muted', v: r[4] }, { t: 'date', v: r[5] }, /^PO-/.test(r[6]) ? { t: 'link', v: r[6], mono: 1, href: 'OrderRecord.dc.html' } : { t: 'muted', v: r[6] }]; }),
+        total: [['5', 'mono'], [''], [''], ['US$2,964.80', 'money'], [''], [''], ['']], bulk: ['Approve', 'Reject', 'Pay out'] },
+      bills: { module: 'buying', active: 4, title: 'Bills', noun: 'bills', primary: 'Record a bill', search: 'Bill number or supplier', filters: [['Supplier', 'Any'], ['Due', 'Any time']], more: 0, sort: 'Due soonest',
+        tabs: [['To pay', '4'], ['Overdue', '1'], ['Paid', '31'], ['All', '35']],
+        grid: '120px minmax(170px,1.3fr) 110px 130px 130px 150px 120px 120px', minWidth: '1120px',
+        cols: [['Bill'], ['Supplier'], ['Delivery'], ['Billed'], ['Due'], ['State'], ['Amount', 'end'], ['Owed', 'end']],
+        href: 'BillEdit.dc.html',
+        rows: [['INV-88120', 'Delta Beverages', 'GRN-0002', '13 Aug 2026', '12 Sep 2026', ['21 days overdue', 'bad'], 'US$216.00', 'US$216.00'], ['AF-20931', 'Afdis Distillers', 'GRN-0004', '29 Sep 2026', '29 Sep 2026', ['Paid in cash', 'hollow'], 'US$1,902.40', 'US$0.00'], ['INV-88504', 'Delta Beverages', 'GRN-0003', '26 Sep 2026', '26 Oct 2026', ['Due in 23 days', 'info'], 'US$408.00', 'US$408.00'], ['SZ-4471', 'Schweppes Zimbabwe', 'GRN-0001', '22 Sep 2026', '6 Oct 2026', ['Due in 3 days', 'warn'], 'US$311.20', 'US$311.20'], ['MW-0192', 'Mutare Wholesalers', 'None', '30 Sep 2026', '30 Oct 2026', ['Due in 27 days', 'info'], 'US$96.00', 'US$96.00']].map(function (r) { return [{ t: 'link', v: r[0], mono: 1 }, { t: 'text', v: r[1] }, r[2] === 'None' ? { t: 'muted', v: 'No delivery' } : { t: 'link', v: r[2], mono: 1, href: 'DeliveryRecord.dc.html' }, { t: 'date', v: r[3] }, { t: 'date', v: r[4] }, B(r[5][0], r[5][1]), { t: 'money', v: r[6] }, { t: 'money', v: r[7] }]; }),
+        total: [['5', 'mono'], [''], [''], [''], [''], [''], ['US$2,933.60', 'money'], ['US$1,031.20', 'money']], bulk: ['Record a payment', 'Export for the bookkeeper'] },
+      sites: { module: 'manage', active: 1, title: 'Sites', noun: 'sites', primary: 'Add a site', search: 'Name or code', filters: [['State', 'Open']], more: 0, sort: 'Name A–Z',
+        grid: 'minmax(190px,1.4fr) 90px minmax(160px,1.2fr) 70px 140px 130px 120px', minWidth: '1040px',
+        cols: [['Site'], ['Code'], ['Places inside it'], ['Tills', 'end'], ['Price list'], ['Stock value', 'end'], ['State']],
+        href: 'SiteEdit.dc.html',
+        rows: [['Harare Main Branch', 'HRE', 'Shop floor, back store, cold room', '3', 'Retail', 'US$41,280.00', ['Default', 'info']], ['Borrowdale', 'BDL', 'Shop floor', '1', 'Retail', 'US$12,904.50', ['Open', 'hollow']]].map(function (r) { return [{ t: 'link', v: r[0] }, { t: 'mono', v: r[1] }, { t: 'text', v: r[2] }, { t: 'num', v: r[3] }, { t: 'text', v: r[4] }, { t: 'money', v: r[5] }, B(r[6][0], r[6][1])]; }),
+        total: [['2', 'mono'], [''], [''], ['4', 'num'], [''], ['US$54,184.50', 'money'], ['']], bulk: ['Export'] },
+      tills: { module: 'manage', active: 2, title: 'Tills and devices', noun: 'tills', primary: 'Pair a till', search: 'Till or device', filters: [['Site', 'All sites'], ['State', 'Any']], more: 0, sort: 'Site, then name',
+        grid: 'minmax(160px,1.2fr) 160px 150px 150px 150px 150px', minWidth: '1000px',
+        cols: [['Till'], ['Site'], ['Device'], ['Last sale'], ['On it now'], ['State']],
+        href: 'TillEdit.dc.html',
+        rows: [['Front till', 'Harare Main Branch', 'CounterMini', 'Today, 11:42', 'Chipo Dube', ['Selling', 'ok']], ['Back till', 'Harare Main Branch', 'Browser, Windows PC', 'Today, 11:38', 'Kuda Banda', ['Selling', 'ok']], ['Handheld 1', 'Harare Main Branch', 'Kora', 'Yesterday, 21:50', '', ['Closed', 'hollow']], ['Borrowdale till', 'Borrowdale', 'CounterMini', 'Today, 09:12', '', ['Offline 2 hours', 'warn']], ['Cold room till', 'Harare Main Branch', 'No device yet', '', '', ['Not paired', 'neutral']]].map(function (r) { return [{ t: 'link', v: r[0] }, { t: 'text', v: r[1] }, { t: 'muted', v: r[2] }, { t: 'date', v: r[3] }, r[4] ? { t: 'text', v: r[4] } : { t: 'muted', v: 'Nobody' }, B(r[5][0], r[5][1])]; }),
+        total: [['5', 'mono'], [''], [''], [''], [''], ['']], bulk: ['Close shifts', 'Send a message'] },
+      counts: { module: 'stock', active: 2, title: 'Counts', noun: 'counts', primary: 'Start a count', search: 'Count or shelf', filters: [['Site', 'All sites'], ['State', 'Any']], more: 0, sort: 'Newest first',
+        tabs: [['To approve', '1'], ['Counting', '1'], ['Done', '18'], ['All', '20']],
+        grid: '110px minmax(180px,1.3fr) 150px 140px 90px 90px 130px 150px', minWidth: '1120px',
+        cols: [['Count'], ['What'], ['Counted by'], ['When'], ['Lines', 'end'], ['Differ', 'end'], ['Difference', 'end'], ['State']],
+        href: 'CountRecord.dc.html',
+        rows: [['CNT-0020', 'Spirits shelf', 'Rudo Moyo', 'Today, 10:40', '38', '3', '−US$41.20', ['To approve', 'warn']], ['CNT-0021', 'Cold room', 'Kuda Banda', 'Started 11:05', '12 of 40', '', '', ['Counting', 'info']], ['CNT-0019', 'Beer, back store', 'Tafara Nyathi', '2 Oct, 09:12', '22', '1', '−US$1.72', ['Approved', 'hollow']], ['CNT-0018', 'Everything', 'Tafara Nyathi', '30 Sep, 07:00', '214', '9', '−US$63.10', ['Approved', 'hollow']]].map(function (r) { return [{ t: 'link', v: r[0], mono: 1 }, { t: 'text', v: r[1] }, { t: 'muted', v: r[2] }, { t: 'date', v: r[3] }, { t: 'num', v: r[4] }, { t: 'num', v: r[5] }, r[6] ? { t: 'money', v: r[6] } : { t: 'faint', v: '\u2013' }, B(r[7][0], r[7][1])]; }),
+        total: [['4', 'mono'], [''], [''], [''], [''], ['13', 'num'], ['−US$106.02', 'money'], ['']], bulk: ['Approve the differences', 'Print count sheets'] },
+      transfers: { module: 'stock', active: 3, title: 'Transfers', noun: 'transfers', primary: 'Move stock', search: 'Transfer or product', filters: [['From', 'Any site'], ['To', 'Any site']], more: 0, sort: 'Newest first',
+        tabs: [['On the way', '1'], ['Received', '9'], ['All', '10']],
+        grid: '110px 170px 170px 110px 130px 140px 150px', minWidth: '1000px',
+        cols: [['Transfer'], ['From'], ['To'], ['Lines', 'end'], ['Value', 'end'], ['Sent'], ['State']],
+        href: 'TransferRecord.dc.html',
+        rows: [['TRF-0008', 'Harare Main Branch', 'Borrowdale', '4', 'US$412.80', 'Today, 08:30', ['On the way', 'info']], ['TRF-0007', 'Harare Main Branch', 'Borrowdale', '3', 'US$198.20', '1 Oct, 12:03', ['Received', 'hollow']], ['TRF-0006', 'Borrowdale', 'Harare Main Branch', '1', 'US$46.00', '27 Sep, 16:20', ['Received, 2 short', 'warn']]].map(function (r) { return [{ t: 'link', v: r[0], mono: 1 }, { t: 'text', v: r[1] }, { t: 'text', v: r[2] }, { t: 'num', v: r[3] }, { t: 'money', v: r[4] }, { t: 'date', v: r[5] }, B(r[6][0], r[6][1])]; }),
+        total: [['3', 'mono'], [''], [''], ['8', 'num'], ['US$657.00', 'money'], [''], ['']], bulk: ['Print delivery notes', 'Cancel'] },
+      empties: { module: 'stock', active: 4, title: 'Empties', sub: 'Liquor store · deposits on returnable bottles and crates', noun: 'movements', primary: 'Return empties to a supplier', search: 'Customer, supplier or reference', filters: [['Kind', 'Any'], ['Item', 'Any']], more: 0, sort: 'Newest first',
+        tabs: [['Ledger', '64'], ['Held for customers', 'US$84.30'], ['Owed by suppliers', 'US$231.00']],
+        grid: '140px 190px minmax(160px,1.2fr) 90px 90px 120px 120px', minWidth: '1060px',
+        cols: [['When'], ['What happened'], ['Who'], ['Bottles', 'end'], ['Crates', 'end'], ['Deposit', 'end'], ['In the store', 'end']],
+        href: '#',
+        rows: [['Today 12:10', ['Deposit charged', 'hollow'], 'Sale SALE-31870', '+12', '+1', 'US$4.20', '412 · 31'], ['Today 11:02', ['Bottles back', 'ok'], 'Tapiwa Marange', '−24', '−2', '−US$8.40', '400 · 30'], ['Yesterday 17:40', ['Returned to supplier', 'info'], 'Delta Beverages, GRN-0005', '−240', '−20', 'US$84.00', '424 · 32'], ['2 Oct 09:30', ['Credit received', 'hollow'], 'Delta Beverages, CN-2210', '', '', '−US$84.00', '664 · 52']].map(function (r) { return [{ t: 'mono', v: r[0] }, B(r[1][0], r[1][1]), { t: 'text', v: r[2] }, { t: 'num', v: r[3] }, { t: 'num', v: r[4] }, { t: 'money', v: r[5] }, { t: 'num', v: r[6] }]; }),
+        total: [['4', 'mono'], [''], [''], ['−252', 'num'], ['−21', 'num'], ['', 'money'], ['412 · 31', 'num']], bulk: ['Export'] },
+      reports: { module: 'reports', active: 0, title: 'Every template', sub: 'Open one to run it. Change what it shows, then save it as your own.', noun: 'templates', primary: 'New template', search: 'Template, or what it shows', filters: [['Seen by', 'Anyone']], more: 0, sort: 'Area, then name',
+        tabs: [['All', '16'], ['Built in', '12'], ['Made by your team', '3'], ['Just yours', '1']],
+        grid: 'minmax(190px,1.1fr) minmax(280px,2fr) 110px 150px 130px 150px', minWidth: '1120px',
+        cols: [['Template'], ['What it shows'], ['Area'], ['Made by'], ['Seen by'], ['Last opened']],
+        href: 'ReportSales.dc.html',
+        rows: [['Sales', 'Every sale, refund and void, by day, shop and cashier', 'Selling', '', 'Everyone', 'Today, 08:12'], ['Items sold', 'Each line sold: quantity, price, revenue and margin', 'Selling', '', 'Everyone', 'Yesterday, 17:40'], ['Weekend takings by shop', 'Friday 17:00 to Sunday close, each shop, by payment', 'Selling', 'Tendai Mhlanga', 'Managers', 'Monday, 07:05', 'ReportWeekend.dc.html'], ['Discounts given', 'Every discount and price change at the till, and who allowed it', 'Selling', '', 'Managers', '28 September 2026'], ['Stock on hand', 'What is on the shelf at cost and at price, by shop', 'Stock', '', 'Everyone', '2 October 2026'], ['Count differences', 'What each count found short or over, at cost', 'Stock', '', 'Managers', '30 September 2026'], ['Stock movements', 'Every receipt, sale, adjustment and transfer, by product', 'Stock', '', 'Managers', '1 October 2026'], ['Empties owed by supplier', 'Bottles and crates out, and the deposit each supplier holds', 'Stock', 'Rufaro Ndlovu', 'Everyone', 'Yesterday, 16:20'], ['Orders and deliveries', 'What was ordered, what came and what is still due', 'Buying', '', 'Managers', '1 October 2026'], ['Supplier spend', 'What each supplier was paid and is owed, by month', 'Buying', '', 'Managers', '30 September 2026'], ['Customer spend', 'Spend, visits and points for each customer', 'Customers', '', 'Everyone', '27 September 2026'], ['Accounts owed', 'Who owes the shop, how much and for how long', 'Customers', '', 'Managers', 'Today, 07:30'], ['Takings by payment', 'Cash, EcoCash, card and account, by day and till', 'Money', '', 'Managers', 'Today, 08:02'], ['Requisitions paid', 'Cash asked for, who approved it and what it was spent on', 'Money', '', 'Managers', '2 October 2026'], ['Till shifts', 'Each shift: float, takings, counted, short or over', 'The floor', '', 'Managers', 'Today, 07:58'], ['Voids and refunds by cashier', 'Who voided or refunded what, this month', 'The floor', 'You', 'Just you', '29 September 2026']].map(function (r) { return [{ t: 'link', v: r[0], href: r[6] }, { t: 'text', v: r[1] }, { t: 'muted', v: r[2] }, r[3] ? { t: 'text', v: r[3] } : { t: 'faint', v: 'Built in' }, B(r[4], r[4] === 'Just you' ? 'neutral' : 'hollow'), { t: 'date', v: r[5] }]; }),
+        total: [['16', 'mono'], [''], [''], [''], [''], ['']], bulk: ['Share', 'Email every Monday', 'Delete'] },
+      reportsstock: { module: 'reports', active: 2, title: 'Stock', sub: 'Templates that read stock on hand, movements and counts', noun: 'templates', primary: 'New template', search: 'Template, or what it shows', filters: [['Made by', 'Anyone'], ['Seen by', 'Anyone']], more: 0, sort: 'Name A–Z',
+        tabs: [['All', '4'], ['Built in', '3'], ['Made by your team', '1'], ['Just yours', '0']],
+        grid: 'minmax(190px,1.1fr) minmax(280px,2fr) 150px 130px 150px', minWidth: '1040px',
+        cols: [['Template'], ['What it shows'], ['Made by'], ['Seen by'], ['Last opened']],
+        href: 'ReportSales.dc.html',
+        rows: [['Count differences', 'What each count found short or over, at cost', '', 'Managers', '30 September 2026'], ['Empties owed by supplier', 'Bottles and crates out, and the deposit each supplier holds', 'Rufaro Ndlovu', 'Everyone', 'Yesterday, 16:20'], ['Stock movements', 'Every receipt, sale, adjustment and transfer, by product', '', 'Managers', '1 October 2026'], ['Stock on hand', 'What is on the shelf at cost and at price, by shop', '', 'Everyone', '2 October 2026']].map(function (r) { return [{ t: 'link', v: r[0] }, { t: 'text', v: r[1] }, r[2] ? { t: 'text', v: r[2] } : { t: 'faint', v: 'Built in' }, B(r[3], 'hollow'), { t: 'date', v: r[4] }]; }),
+        total: [['4', 'mono'], [''], [''], [''], ['']], bulk: ['Share', 'Email every Monday', 'Delete'] },
+      salesreport: { module: 'reports', active: 1, back: 'Selling', backHref: 'ReportsList.dc.html', title: 'Sales', sub: 'Built in · 1 to 3 October 2026, every shop', noun: 'sales', primary: 'Save as a template', search: 'Sale, cashier or customer', filters: [['Period', 'This month'], ['Shop', 'Any'], ['Cashier', 'Anyone'], ['Type', 'Any']], more: 1, sort: 'Newest first',
+        grid: '130px 160px 170px 140px 100px 110px 110px 120px', minWidth: '1100px',
+        cols: [['Sale'], ['Date'], ['Shop'], ['Cashier'], ['Type'], ['State'], ['Discount', 'end'], ['Total', 'end']],
+        href: 'SaleRecord.dc.html',
+        rows: [['SALE-31870', '3 October 2026', 'Harare Main Branch', 'Chipo Dube', 'Sale', ['Posted', 'hollow'], 'US$0.00', 'US$23.40'], ['SALE-31869', '3 October 2026', 'Harare Main Branch', 'Kuda Banda', 'Sale', ['Posted', 'hollow'], 'US$1.20', 'US$9.30'], ['RFD-0044', '3 October 2026', 'Harare Main Branch', 'Chipo Dube', 'Refund', ['Posted', 'hollow'], 'US$0.00', '−US$27.90'], ['SALE-31866', '2 October 2026', 'Borrowdale', 'Tendai Mhlanga', 'Sale', ['Posted', 'hollow'], 'US$0.00', 'US$44.20'], ['SALE-31862', '2 October 2026', 'Harare Main Branch', 'Chipo Dube', 'Sale', ['Posted', 'hollow'], 'US$0.65', 'US$13.00'], ['SALE-31858', '1 October 2026', 'Borrowdale', 'Kuda Banda', 'Void', ['Voided', 'bad'], 'US$0.00', 'US$1.20'], ['SALE-31851', '1 October 2026', 'Harare Main Branch', 'Farai Moyo', 'Sale', ['Posted', 'hollow'], 'US$2.00', 'US$61.75'], ['SALE-31847', '1 October 2026', 'Harare Main Branch', 'Farai Moyo', 'Sale', ['Posted', 'hollow'], 'US$0.00', 'US$7.70']].map(function (r) { return [{ t: 'link', v: r[0], mono: 1 }, { t: 'date', v: r[1] }, { t: 'text', v: r[2] }, { t: 'muted', v: r[3] }, { t: 'text', v: r[4] }, B(r[5][0], r[5][1]), { t: 'money', v: r[6] }, { t: 'money', v: r[7] }]; }),
+        total: [['1,284', 'mono'], [''], [''], [''], [''], [''], ['US$412.35', 'money'], ['US$18,940.60', 'money']], bulk: ['Export', 'Email every Monday'] },
+      weekendreport: { module: 'reports', active: 1, back: 'Selling', backHref: 'ReportsList.dc.html', title: 'Weekend takings by shop', sub: 'Tendai Mhlanga’s template · managers see it', subLink: 'Change the template', subHref: 'TemplateEdit.dc.html', noun: 'shops', primary: 'Save as a template', search: 'Shop', filters: [['Period', 'Last weekend'], ['Shop', 'Any']], more: 0, sort: 'Most taken',
+        grid: 'minmax(180px,1.4fr) 90px 130px 130px 130px 130px 140px', minWidth: '1040px',
+        cols: [['Shop'], ['Sales', 'end'], ['Cash', 'end'], ['EcoCash', 'end'], ['Card', 'end'], ['On account', 'end'], ['Taken', 'end']],
+        href: 'ReportSales.dc.html',
+        rows: [['Harare Main Branch', '412', 'US$2,180.40', 'US$1,402.15', 'US$611.00', 'US$96.00', 'US$4,289.55'], ['Borrowdale', '268', 'US$1,240.10', 'US$988.60', 'US$702.35', 'US$0.00', 'US$2,931.05'], ['Avondale', '131', 'US$806.25', 'US$377.40', 'US$118.90', 'US$41.20', 'US$1,343.75']].map(function (r) { return [{ t: 'link', v: r[0] }, { t: 'num', v: r[1] }, { t: 'money', v: r[2] }, { t: 'money', v: r[3] }, { t: 'money', v: r[4] }, { t: 'money', v: r[5] }, { t: 'money', v: r[6] }]; }),
+        total: [['3', 'mono'], ['811', 'num'], ['US$4,226.75', 'money'], ['US$2,768.15', 'money'], ['US$1,432.25', 'money'], ['US$137.20', 'money'], ['US$8,564.35', 'money']], bulk: ['Export', 'Email every Monday'] },
+      sales: { module: 'floor', active: 1, title: 'Sales', noun: 'sales', primary: '', search: 'Sale, receipt, customer or product', filters: [['Till', 'Any'], ['Cashier', 'Anyone']], more: 1, sort: 'Newest first',
+        tabs: [['Today', '212'], ['Refunds', '3'], ['Voids', '1'], ['All', '31,870']],
+        grid: '120px 110px 130px 140px minmax(150px,1fr) 70px 120px 120px 130px', minWidth: '1240px',
+        cols: [['Sale'], ['When'], ['Till'], ['Cashier'], ['Customer'], ['Items', 'end'], ['Paid with'], ['Total', 'end'], ['State']],
+        href: 'SaleRecord.dc.html',
+        rows: [['SALE-31870', '12:10', 'Front till', 'Chipo Dube', '', '13', 'EcoCash', 'US$23.40', ['Sold', 'hollow']], ['SALE-31869', '12:02', 'Back till', 'Kuda Banda', 'Tapiwa Marange', '6', 'Cash', 'US$9.30', ['Sold', 'hollow']], ['RFD-0044', '11:51', 'Front till', 'Chipo Dube', 'Nyasha Gwenzi', '1', 'Cash', '\u2212US$27.90', ['Refund', 'warn']], ['SALE-31866', '11:40', 'Front till', 'Chipo Dube', '', '2', 'Card', 'US$44.20', ['Sold', 'hollow']], ['SALE-31862', '11:12', 'Front till', 'Chipo Dube', '', '4', 'Cash', 'US$13.00', ['Sold', 'hollow']], ['SALE-31858', '10:58', 'Back till', 'Kuda Banda', '', '1', 'Cash', 'US$1.20', ['Voided', 'bad']]].map(function (r) { return [{ t: 'link', v: r[0], mono: 1 }, { t: 'mono', v: r[1] }, { t: 'text', v: r[2] }, { t: 'muted', v: r[3] }, r[4] ? { t: 'link', v: r[4], href: 'CustomerRecord.dc.html' } : { t: 'faint', v: 'Walk-in' }, { t: 'num', v: r[5] }, { t: 'text', v: r[6] }, { t: 'money', v: r[7] }, B(r[8][0], r[8][1])]; }),
+        total: [['6', 'mono'], [''], [''], [''], [''], ['27', 'num'], [''], ['US$63.20', 'money'], ['']], bulk: ['Send receipts', 'Export'] },
+      laybys: { module: 'floor', active: 3, title: 'Lay-bys', noun: 'lay-bys', primary: 'New lay-by', search: 'Lay-by or customer', filters: [['State', 'Paying']], more: 0, sort: 'Due soonest',
+        tabs: [['Paying', '3'], ['Ready to collect', '1'], ['Done', '12'], ['All', '16']],
+        grid: '110px minmax(170px,1.2fr) minmax(160px,1fr) 110px 110px 110px 130px 140px', minWidth: '1180px',
+        cols: [['Lay-by'], ['Customer'], ['What'], ['Total', 'end'], ['Paid', 'end'], ['Left', 'end'], ['Due'], ['State']],
+        href: 'LaybyPay.dc.html',
+        rows: [['LAY-0031', 'Rutendo Banda', 'Hennessy VS 700ml, gift box', 'US$46.00', 'US$20.00', 'US$26.00', '20 Oct 2026', ['Paying', 'info']], ['LAY-0030', 'Farai Chikore', 'Wedding: 4 cases Castle, 2 cases Savanna', 'US$162.40', 'US$100.00', 'US$62.40', '17 Oct 2026', ['Paying', 'info']], ['LAY-0028', 'Nyasha Gwenzi', 'Johnnie Walker Black 750ml', 'US$42.00', 'US$42.00', 'US$0.00', 'Any time', ['Ready to collect', 'ok']], ['LAY-0027', 'Tinashe Mavhunga', 'Amarula Cream 750ml x2', 'US$36.50', 'US$10.00', 'US$26.50', '6 Oct 2026', ['Due in 3 days', 'warn']]].map(function (r) { return [{ t: 'link', v: r[0], mono: 1 }, { t: 'text', v: r[1] }, { t: 'muted', v: r[2] }, { t: 'money', v: r[3] }, { t: 'money', v: r[4] }, { t: 'money', v: r[5] }, { t: 'date', v: r[6] }, B(r[7][0], r[7][1])]; }),
+        total: [['4', 'mono'], [''], [''], ['US$286.90', 'money'], ['US$172.00', 'money'], ['US$114.90', 'money'], [''], ['']], bulk: ['Remind on WhatsApp'] },
+      days: { module: 'floor', active: 4, back: 'End of day', backHref: 'EndOfDay.dc.html', title: 'Past days', noun: 'days', primary: '', search: 'Date', filters: [['Site', 'All sites']], more: 0, sort: 'Newest first',
+        grid: '150px 170px 90px 130px 120px 130px 130px 120px', minWidth: '1120px',
+        cols: [['Day'], ['Site'], ['Fiscal day', 'end'], ['Takings', 'end'], ['Refunds', 'end'], ['Cash difference', 'end'], ['Banked', 'end'], ['State']],
+        href: 'EndOfDay.dc.html',
+        rows: [['Fri 2 Oct 2026', 'Harare Main Branch', '213', 'US$3,912.20', 'US$27.90', '\u2212US$4.50', 'US$2,610.00', ['Closed', 'hollow']], ['Fri 2 Oct 2026', 'Borrowdale', '088', 'US$1,204.80', 'US$0.00', 'US$0.00', 'US$740.00', ['Closed', 'hollow']], ['Thu 1 Oct 2026', 'Harare Main Branch', '212', 'US$3,488.75', 'US$12.60', 'US$1.20', 'US$2,300.00', ['Closed', 'hollow']], ['Wed 30 Sep 2026', 'Harare Main Branch', '211', 'US$4,102.00', 'US$0.00', '\u2212US$20.00', 'US$2,950.00', ['Signed off short', 'warn']]].map(function (r) { return [{ t: 'link', v: r[0] }, { t: 'text', v: r[1] }, { t: 'num', v: r[2] }, { t: 'money', v: r[3] }, { t: 'money', v: r[4] }, { t: 'money', v: r[5] }, { t: 'money', v: r[6] }, B(r[7][0], r[7][1])]; }),
+        total: [['4', 'mono'], [''], [''], ['US$12,707.75', 'money'], ['US$40.50', 'money'], ['\u2212US$23.30', 'money'], ['US$8,600.00', 'money'], ['']], bulk: ['Export Z-reports'] },
+      accounts: { module: 'floor', active: 6, title: 'Accounts', sub: 'Customers who buy now and pay later', noun: 'accounts', primary: 'Open an account', search: 'Customer', filters: [['State', 'Any']], more: 0, sort: 'Most owed',
+        tabs: [['Owing', '4'], ['Overdue', '1'], ['All', '9']],
+        grid: 'minmax(180px,1.3fr) 120px 120px 120px 110px 140px 140px', minWidth: '1080px',
+        cols: [['Customer'], ['Limit', 'end'], ['Owed', 'end'], ['Overdue', 'end'], ['Pays in'], ['Last paid'], ['State']],
+        href: 'CustomerRecord.dc.html',
+        rows: [['Mbare Sports Club', 'US$800.00', 'US$612.40', 'US$212.40', '30 days', '4 Sep 2026', ['Overdue', 'bad']], ['Chikore Weddings', 'US$500.00', 'US$162.40', 'US$0.00', '14 days', '28 Sep 2026', ['Owing', 'info']], ['Tapiwa Marange', 'US$150.00', 'US$31.00', 'US$0.00', '30 days', '1 Oct 2026', ['Owing', 'info']], ['Highfield Shebeen Co-op', 'US$1,000.00', 'US$408.00', 'US$0.00', '7 days', '30 Sep 2026', ['Owing', 'info']]].map(function (r) { return [{ t: 'link', v: r[0] }, { t: 'money', v: r[1] }, { t: 'money', v: r[2] }, r[3] === 'US$0.00' ? { t: 'zero', v: r[3] } : { t: 'owed', v: r[3] }, { t: 'text', v: r[4] }, { t: 'date', v: r[5] }, B(r[6][0], r[6][1])]; }),
+        total: [['4', 'mono'], ['US$2,450.00', 'money'], ['US$1,213.80', 'money'], ['US$212.40', 'money'], [''], [''], ['']], bulk: ['Send statements', 'Remind on WhatsApp'] },
+      people: { module: 'manage', active: 8, title: 'People', noun: 'people', primary: 'Invite someone', search: 'Name or phone', filters: [['Role', 'Any'], ['Site', 'All sites']], more: 0, sort: 'Name A–Z',
+        tabs: [['Active', '6'], ['Invited', '1'], ['No access', '2'], ['All', '9']],
+        grid: 'minmax(170px,1.2fr) 130px 160px 150px 110px 140px 120px', minWidth: '1100px',
+        cols: [['Name'], ['Role'], ['Sites'], ['Phone'], ['Till PIN'], ['Last in'], ['State']],
+        href: 'PersonEdit.dc.html',
+        rows: [['Tendai Mhlanga', 'Owner', 'All sites', '+263 77 412 0098', 'Set', 'Now', ['Active', 'ok']], ['Tafara Nyathi', 'Manager', 'Harare Main Branch', '+263 77 301 2290', 'Set', 'Today 12:31', ['Active', 'ok']], ['Chipo Dube', 'Cashier', 'Harare Main Branch', '+263 71 220 4410', 'Set', 'Selling now', ['Active', 'ok']], ['Kuda Banda', 'Cashier', 'Harare Main Branch', '+263 78 551 0921', 'Set', 'Selling now', ['Active', 'ok']], ['Rudo Moyo', 'Stock clerk', 'All sites', '+263 77 118 2044', 'Set', 'Today 10:40', ['Active', 'ok']], ['Farai Moyo', 'Cashier', 'Borrowdale', '+263 71 902 7713', 'Locked', 'Yesterday', ['PIN locked', 'warn']], ['Ruvimbo Chari', 'Bookkeeper', 'All sites', '+263 77 551 0283', '', 'Invited 2 Oct', ['Invited', 'info']]].map(function (r) { return [{ t: 'link', v: r[0] }, { t: 'text', v: r[1] }, { t: 'muted', v: r[2] }, { t: 'mono', v: r[3] }, r[4] ? { t: 'text', v: r[4] } : { t: 'faint', v: '\u2013' }, { t: 'date', v: r[5] }, B(r[6][0], r[6][1])]; }),
+        total: [['7', 'mono'], [''], [''], [''], [''], [''], ['']], bulk: ['Reset PINs', 'Send a message', 'Remove access'] },
+      activity: { module: 'manage', active: 11, title: 'Activity', noun: 'changes', primary: '', search: 'Person, record or change', filters: [['Who', 'Anyone'], ['Kind', 'Any']], more: 1, sort: 'Newest first',
+        tabs: [['Everything', '1,204'], ['Overrides', '12'], ['Prices', '41'], ['Settings', '6']],
+        grid: '120px 150px minmax(170px,1.2fr) 130px minmax(180px,1.3fr) 110px', minWidth: '1180px',
+        cols: [['When'], ['Who'], ['What'], ['Record'], ['Change'], ['Where']],
+        href: '#',
+        rows: [['Today 12:31', 'Tafara Nyathi', ['Manager PIN at the till', 'warn'], 'RFD-0045', 'Refund US$42.00 over the US$20.00 limit', 'Front till'], ['Today 12:20', 'Tendai Mhlanga', ['Changed a price', 'hollow'], 'CASTLE-340', 'US$1.20 \u2192 US$1.25, from tonight', 'Admin'], ['Today 10:41', 'Rudo Moyo', ['Count sent', 'hollow'], 'CNT-0020', '38 lines, 3 differ', 'Phone'], ['Today 09:02', 'Tendai Mhlanga', ['Moved to the bin', 'bad'], 'Nederburg Rosé 750ml', 'Restorable until 2 November', 'Admin'], ['Yesterday 21:58', 'Chipo Dube', ['Closed a shift', 'hollow'], 'SH-00239', 'Short \u2212US$20.00', 'Front till'], ['2 Oct 08:15', 'Tendai Mhlanga', ['Changed a setting', 'info'], 'Company', 'Empties and deposits: on', 'Admin']].map(function (r) { return [{ t: 'mono', v: r[0] }, { t: 'text', v: r[1] }, B(r[2][0], r[2][1]), { t: 'link', v: r[3], mono: /^[A-Z]{2,}-/.test(r[3]) ? 1 : 0 }, { t: 'muted', v: r[4] }, { t: 'muted', v: r[5] }]; }),
+        total: [['6', 'mono'], [''], [''], [''], [''], ['']], bulk: ['Export'] },
+      bin: { module: 'manage', active: 12, title: 'Bin', sub: 'Kept for 30 days, then gone for good', noun: 'items', primary: '', search: 'Name or reference', filters: [['Kind', 'Any']], more: 0, sort: 'Gone soonest',
+        grid: 'minmax(190px,1.4fr) 130px 150px 130px 130px 120px', minWidth: '1060px',
+        cols: [['What'], ['Kind'], ['Binned by'], ['Binned'], ['Gone for good'], ['']],
+        href: '#',
+        rows: [['Nederburg Rosé 750ml', 'Product', 'Tendai Mhlanga', 'Today', '2 Nov 2026', 'Restore'], ['T. Marange, +263 77 412 3380', 'Customer, merged', 'Tafara Nyathi', '28 Sep 2026', '28 Oct 2026', 'Restore'], ['PO-0029', 'Order, draft', 'Tafara Nyathi', '20 Sep 2026', '20 Oct 2026', 'Restore'], ['Happy hour (old)', 'Price list', 'Tendai Mhlanga', '9 Sep 2026', '9 Oct 2026', 'Restore']].map(function (r) { return [{ t: 'text', v: r[0] }, { t: 'muted', v: r[1] }, { t: 'muted', v: r[2] }, { t: 'date', v: r[3] }, { t: 'date', v: r[4] }, { t: 'link', v: r[5] }]; }),
+        total: [['4', 'mono'], [''], [''], [''], [''], ['']], bulk: ['Restore', 'Delete for good'] },
+      prices: { module: 'products', active: 1, back: 'Price lists', backHref: 'PriceLists.dc.html', title: 'Retail', sub: 'Default price list · all tills · all sites', subLinkX: 1, subLink: 'Edit the rules', subHref: 'PriceListEdit.dc.html', noun: 'prices', primary: 'Add products to this list', search: 'Name, code or barcode', filters: [['Category', 'Any'], ['Supplier', 'Any'], ['Margin', 'Any']], more: 0, sort: 'Name A–Z',
+        grid: 'minmax(190px,1.4fr) 130px 100px 120px 130px 90px 110px 60px', minWidth: '1060px',
+        cols: [['Product'], ['Code'], ['Cost', 'end'], ['Margin', 'end'], ['Price', 'end'], ['Was', 'end'], ['Changed'], ['VAT', 'end']],
+        href: 'Product.dc.html', bulk: ['Raise by a percentage', 'Set a margin', 'Round to 5 cents', 'Remove from this list'] },
+
+      promotions: { module: 'products', active: 2, title: 'Promotions', noun: 'promotions', primary: 'New promotion', search: 'Name or code', filters: [['Type', 'Any'], ['Applies to', 'Anything']], more: 0, sort: 'Starts, newest',
+        tabs: [['Running', '3'], ['Scheduled', '1'], ['Ended', '5'], ['All', '9']],
+        grid: '130px minmax(170px,1.3fr) 110px 100px 120px 130px 110px 80px 80px 110px', minWidth: '1200px',
+        cols: [['Promotion'], ['Name'], ['State'], ['Type'], ['Applies to'], ['Starts'], ['Ends'], ['Value', 'end'], ['Sold', 'end'], ['Given away', 'end']],
+        href: 'PromotionRecord.dc.html',
+        rows: [
+          [{ t: 'link', v: 'PROMO-FESTIVE', mono: 1 }, { t: 'text', v: 'Festive season US$2 off spirits' }, B('Running', 'ok'), { t: 'muted', v: 'Amount off' }, { t: 'muted', v: 'Spirits, 12' }, { t: 'date', v: '2 September 2026' }, { t: 'muted', v: 'No end' }, { t: 'money', v: 'US$2.00' }, { t: 'num', v: '142' }, { t: 'money', v: 'US$284.00' }],
+          [{ t: 'link', v: 'PROMO-STAFF', mono: 1 }, { t: 'text', v: 'Staff discount US$2' }, B('Running', 'ok'), { t: 'muted', v: 'Amount off' }, { t: 'muted', v: 'Staff, all items' }, { t: 'date', v: '15 August 2026' }, { t: 'muted', v: 'No end' }, { t: 'money', v: 'US$2.00' }, { t: 'num', v: '38' }, { t: 'money', v: 'US$76.00' }],
+          [{ t: 'link', v: 'PROMO-CASE24', mono: 1 }, { t: 'text', v: 'Castle case at US$24.00' }, B('Ends tomorrow', 'warn'), { t: 'muted', v: 'Fixed price' }, { t: 'muted', v: '1 product' }, { t: 'date', v: '19 September 2026' }, { t: 'date', v: '4 October 2026' }, { t: 'money', v: 'US$24.00' }, { t: 'num', v: '61' }, { t: 'money', v: 'US$152.50' }],
+          [{ t: 'link', v: 'PROMO-XMAS', mono: 1 }, { t: 'text', v: 'Christmas hampers 10% off' }, B('Scheduled', 'info'), { t: 'muted', v: 'Percent off' }, { t: 'muted', v: 'Hampers, 4' }, { t: 'date', v: '1 December 2026' }, { t: 'date', v: '26 December 2026' }, { t: 'money', v: '10%' }, { t: 'faint', v: '—' }, { t: 'faint', v: '—' }],
+          [{ t: 'link', v: 'PROMO-WINTER', mono: 1 }, { t: 'text', v: 'Winter basket 5% off' }, B('Ended', 'neutral'), { t: 'muted', v: 'Percent off' }, { t: 'muted', v: 'Basket over US$20' }, { t: 'date', v: '5 August 2026' }, { t: 'date', v: '2 September 2026' }, { t: 'money', v: '5%' }, { t: 'num', v: '96' }, { t: 'money', v: 'US$118.40' }],
+          [{ t: 'link', v: 'PROMO-CASE', mono: 1 }, { t: 'text', v: 'Case of Castle 5% off' }, B('Ended', 'neutral'), { t: 'muted', v: 'Percent off' }, { t: 'muted', v: '1 product' }, { t: 'date', v: '14 July 2026' }, { t: 'date', v: '12 September 2026' }, { t: 'money', v: '5%' }, { t: 'num', v: '210' }, { t: 'money', v: 'US$278.25' }]
+        ],
+        total: [['6', 'mono'], [''], [''], [''], [''], [''], [''], [''], ['547', 'num'], ['US$909.15', 'money']], bulk: ['Pause', 'End now', 'Duplicate'] },
+
+      suppliers: { module: 'buying', active: 0, title: 'Suppliers', noun: 'suppliers', primary: 'New supplier', search: 'Name, contact or phone', filters: [['Category', 'Any'], ['Owed', 'Any']], more: 0, sort: 'Most spent',
+        grid: 'minmax(170px,1.3fr) 130px 150px 90px 70px 110px 130px 130px 120px', minWidth: '1180px',
+        cols: [['Supplier'], ['Contact'], ['Phone'], ['Terms'], ['Open', 'end'], ['Owed', 'end'], ['Last delivery'], ['Fill rate'], ['Spend, 12 months', 'end']],
+        href: 'SupplierRecord.dc.html',
+        rows: [['Delta Beverages', 'Tinashe Moyo', '+263 24 270 1600', '30 days', '1', 'US$624.00', '2 October 2026', 92, 'US$18,420.00'], ['Afdis Distillers', 'Ruvimbo Sithole', '+263 24 266 8001', '30 days', '1', 'US$0.00', '29 September 2026', 98, 'US$11,960.50'], ['Mutare Wholesalers', 'Peter Chikore', '+263 20 206 4411', 'Cash', '1', 'US$119.00', '12 August 2026', 65, 'US$6,204.00'], ['Schweppes Zimbabwe', 'Lindiwe Dube', '+263 24 248 7720', '14 days', '0', 'US$0.00', '26 September 2026', 100, 'US$4,388.20'], ['Pamela', 'Pamela Ndlovu', '+263 77 330 1922', 'Cash', '1', 'US$0.00', '—', 0, 'US$1,150.00'], ['Ice Cold Supplies', 'Joseph Banda', '+263 71 909 2210', 'Cash', '0', 'US$0.00', '3 October 2026', 100, 'US$842.00']].map(function (r) { return [{ t: 'link', v: r[0] }, { t: 'text', v: r[1] }, { t: 'mono', v: r[2] }, { t: 'muted', v: r[3] }, { t: 'num', v: r[4] }, r[5] === 'US$0.00' ? { t: 'zero', v: r[5] } : { t: 'owed', v: r[5] }, { t: r[6] === '—' ? 'faint' : 'date', v: r[6] }, r[7] ? { t: 'bar', v: r[7] + '%', pct: r[7], tone: r[7] < 80 ? 'warn' : 'data' } : { t: 'faint', v: 'No deliveries yet' }, { t: 'money', v: r[8] }]; }),
+        total: [['6', 'mono'], [''], [''], [''], ['4', 'num'], ['US$743.00', 'money'], [''], [''], ['US$42,964.70', 'money']], bulk: ['New order for each', 'Record payments', 'Message on WhatsApp'] },
+
+      orders: { module: 'buying', active: 1, title: 'Orders', noun: 'orders', primary: 'New order', search: 'Order number or supplier', filters: [['Supplier', 'Any'], ['Site', 'Any']], more: 0, sort: 'Expected, soonest',
+        tabs: [['Open', '3'], ['Drafts', '1'], ['Received', '19'], ['All', '23']],
+        grid: '110px minmax(160px,1.3fr) 130px 120px 140px 150px 110px 120px', minWidth: '1100px',
+        cols: [['Order'], ['Supplier'], ['State'], ['Raised'], ['Expected'], ['Delivered'], ['Value', 'end'], ['Still to come', 'end']],
+        href: 'OrderRecord.dc.html',
+        rows: [
+          [{ t: 'link', v: 'PO-0004', mono: 1 }, { t: 'text', v: 'Pamela' }, B('Draft', 'neutral'), { t: 'date', v: '3 October 2026' }, { t: 'date', v: '6 October 2026' }, { t: 'bar', v: '0 of 36', pct: 0, tone: 'data' }, { t: 'money', v: 'US$637.80' }, { t: 'money', v: 'US$637.80' }],
+          [{ t: 'link', v: 'PO-0003', mono: 1 }, { t: 'text', v: 'Delta Beverages' }, B('48 days late', 'bad'), { t: 'date', v: '10 August 2026' }, { t: 'date', v: '16 August 2026' }, { t: 'bar', v: '300 of 780', pct: 38, tone: 'warn' }, { t: 'money', v: 'US$624.00' }, { t: 'owed', v: 'US$384.00' }],
+          [{ t: 'link', v: 'PO-0002', mono: 1 }, { t: 'text', v: 'Mutare Wholesalers' }, B('Part delivered', 'warn'), { t: 'date', v: '8 August 2026' }, { t: 'date', v: '16 August 2026' }, { t: 'bar', v: '65 of 100', pct: 65, tone: 'warn' }, { t: 'money', v: 'US$448.00' }, { t: 'owed', v: 'US$119.00' }],
+          [{ t: 'link', v: 'PO-0005', mono: 1 }, { t: 'text', v: 'Afdis Distillers' }, B('Sent', 'info'), { t: 'date', v: '1 October 2026' }, { t: 'date', v: '7 October 2026' }, { t: 'bar', v: '0 of 48', pct: 0, tone: 'data' }, { t: 'money', v: 'US$1,940.00' }, { t: 'money', v: 'US$1,940.00' }],
+          [{ t: 'link', v: 'PO-0001', mono: 1 }, { t: 'text', v: 'Afdis Distillers' }, B('Received', 'hollow'), { t: 'date', v: '2 August 2026' }, { t: 'date', v: '6 August 2026' }, { t: 'bar', v: '48 of 48', pct: 100, tone: 'ok' }, { t: 'money', v: 'US$1,880.00' }, { t: 'zero', v: 'US$0.00' }]
+        ],
+        total: [['5', 'mono'], [''], [''], [''], [''], ['413 of 1,012', 'mono'], ['US$5,529.80', 'money'], ['US$3,080.80', 'money']], bulk: ['Send to suppliers', 'Mark received', 'Cancel'] },
+
+      deliveries: { module: 'buying', active: 2, title: 'Deliveries', noun: 'deliveries', primary: 'Take in stock', search: 'Delivery number or supplier', filters: [['Supplier', 'Any'], ['Differences', 'Any']], more: 0, sort: 'Received, newest',
+        grid: '110px minmax(160px,1.3fr) 100px 150px 70px 90px 110px 130px 130px', minWidth: '1140px',
+        cols: [['Delivery'], ['Supplier'], ['Order'], ['Received'], ['Lines', 'end'], ['Units', 'end'], ['Value', 'end'], ['Against the order'], ['Received by']],
+        href: 'DeliveryRecord.dc.html',
+        rows: [
+          [{ t: 'link', v: 'GRN-0004', mono: 1 }, { t: 'text', v: 'Ice Cold Supplies' }, { t: 'faint', v: 'No order' }, { t: 'date', v: '3 October 2026' }, { t: 'num', v: '1' }, { t: 'num', v: '40' }, { t: 'money', v: 'US$40.00' }, B('No order', 'neutral'), { t: 'text', v: 'Chipo Dube' }],
+          [{ t: 'link', v: 'GRN-0003', mono: 1 }, { t: 'text', v: 'Delta Beverages' }, { t: 'link', v: 'PO-0003', mono: 1, href: 'OrderRecord.dc.html' }, { t: 'date', v: '2 October 2026' }, { t: 'num', v: '1' }, { t: 'num', v: '24' }, { t: 'money', v: 'US$312.72' }, B('Matches', 'hollow'), { t: 'text', v: 'Tafara Nyathi' }],
+          [{ t: 'link', v: 'GRN-0002', mono: 1 }, { t: 'text', v: 'Delta Beverages' }, { t: 'link', v: 'PO-0003', mono: 1, href: 'OrderRecord.dc.html' }, { t: 'date', v: '13 August 2026' }, { t: 'num', v: '4' }, { t: 'num', v: '300' }, { t: 'money', v: 'US$216.00' }, B('12 short', 'warn'), { t: 'text', v: 'Tafara Nyathi' }],
+          [{ t: 'link', v: 'GRN-0001', mono: 1 }, { t: 'text', v: 'Mutare Wholesalers' }, { t: 'link', v: 'PO-0002', mono: 1, href: 'OrderRecord.dc.html' }, { t: 'date', v: '12 August 2026' }, { t: 'num', v: '2' }, { t: 'num', v: '65' }, { t: 'money', v: 'US$329.00' }, B('2 damaged', 'bad'), { t: 'text', v: 'Farai Moyo' }]
+        ],
+        total: [['4', 'mono'], [''], [''], [''], ['8', 'num'], ['429', 'num'], ['US$897.72', 'money'], [''], ['']], bulk: ['Print delivery notes', 'Post to stock'] }
+    };
+    var c = cfg[kind] || cfg.orders;
+    c.mod = M[c.module];
+    return c;
+  }
+
+  prices() {
+    return [
+      ['Amarula Cream 750ml', 'AMARULA-750', 13.03, 18.25, 17.50], ['Bohlinger’s 330ml', 'BOHLINGER-330', 1.08, 1.55, null], ['Castle Lager 340ml', 'CASTLE-340', 0.86, 1.20, 1.10], ['Castle Lager case of 24', 'CASTLE-CASE', 20.10, 26.50, 25.90],
+      ['Chibuku Scud 1L', 'CHIBUKU-1L', 0.82, 1.10, null], ['Coca-Cola 500ml', 'COKE-500', 0.52, 0.75, 0.70], ['Gordon’s Gin 750ml', 'GORDONS-750', 12.40, 16.40, null], ['Hunter’s Gold 330ml', 'HUNTERS-330', 1.31, 1.85, 1.80],
+      ['Ice 2kg bag', 'ICE-2KG', 1.00, 1.50, 1.40], ['Jameson Irish Whiskey 750ml', 'JAMESON-750', 22.15, 27.90, 26.50], ['Johnnie Walker Black 750ml', 'BLKLABEL-750', 33.60, 42.00, null], ['Nederburg Cabernet 750ml', 'NEDERBURG-750', 9.40, 12.60, 12.00],
+      ['Savanna Dry 330ml', 'SAVANNA-330', 1.38, 1.85, null], ['Two Keys Whisky 750ml', 'TWOKEYS-750', 7.10, 9.75, 9.50]
+    ];
+  }
+
+  renderVals() {
+    var self = this;
+    var kind = this.props.kind || 'orders';
+    var c = this.config(kind);
+    var I = this.icons();
+    var MONO = "'IBM Plex Mono', monospace", SANS = "'Atkinson Hyperlegible Next', sans-serif";
+    var TONES = {
+      ok: ['var(--ok-soft)', 'var(--ok)', 'transparent', 'var(--ok)', 'var(--ok)'],
+      warn: ['var(--warn-soft)', 'var(--warn)', 'transparent', 'var(--warn-dot)', 'var(--warn-dot)'],
+      bad: ['var(--bad-soft)', 'var(--bad)', 'transparent', 'var(--bad-dot)', 'var(--bad-dot)'],
+      info: ['var(--info-soft)', 'var(--info)', 'transparent', 'var(--info)', 'var(--info)'],
+      neutral: ['var(--tray)', 'var(--ink-2)', 'transparent', 'var(--faint)', 'var(--faint)'],
+      hollow: ['transparent', 'var(--muted)', 'transparent', 'transparent', 'var(--muted)'],
+      gold: ['var(--surface)', 'var(--ink-2)', 'var(--line)', 'var(--warn-dot)', 'var(--warn-dot)']
+    };
+    function money(n) { return 'US$' + n.toFixed(2); }
+    function cell(d, align) {
+      var x = { isLink: false, isText: false, isBadge: false, isBar: false, isInput: false, text: d.v || '', title: d.v || '', font: SANS, size: '13px', weight: '400', fg: 'var(--ink)', bg: 'transparent', pillPad: '0', pad: align === 'end' ? '0 14px 0 10px' : '0 10px', align: align === 'end' ? 'right' : 'left', href: d.href || c.href, border: 'var(--line-strong)', pct: '0%', barFg: '#4b5363', dotBg: '', dotLine: '', change: null };
+      var t = d.t;
+      if (t === 'link') { x.isLink = true; if (d.mono) { x.font = MONO; x.size = '12.5px'; x.weight = '500'; } else { x.weight = '600'; } }
+      else if (t === 'badge') { var tn = TONES[d.tone]; x.isBadge = true; x.bg = tn[0]; x.fg = tn[1]; x.border = tn[2]; x.dotBg = tn[3]; x.dotLine = tn[4]; }
+      else if (t === 'bar') { x.isBar = true; x.pct = d.pct + '%'; x.barFg = d.tone === 'warn' ? 'var(--warn-dot)' : (d.tone === 'ok' ? 'var(--ok)' : '#4b5363'); }
+      else if (t === 'edit') { x.isInput = true; x.change = d.change; x.bg = d.dirty ? 'var(--warn-soft)' : 'var(--surface)'; x.border = d.dirty ? 'var(--warn-line)' : 'var(--line-strong)'; }
+      else {
+        x.isText = true;
+        if (t === 'mono' || t === 'num' || t === 'date') { x.font = t === 'date' ? SANS : MONO; x.size = t === 'date' ? '13px' : '12.5px'; x.fg = t === 'num' ? 'var(--ink-2)' : 'var(--ink)'; }
+        if (t === 'money') { x.font = MONO; x.size = '12.5px'; x.weight = '500'; }
+        if (t === 'owed') { x.font = MONO; x.size = '12.5px'; x.weight = '500'; x.fg = 'var(--warn)'; x.bg = 'var(--warn-soft)'; x.pillPad = '2px 6px'; }
+        if (t === 'zero') { x.font = MONO; x.size = '12.5px'; x.fg = 'var(--muted)'; }
+        if (t === 'muted') { x.fg = 'var(--ink-2)'; }
+        if (t === 'faint') { x.fg = 'var(--faint)'; }
+        if (t === 'delta') { x.font = MONO; x.size = '12.5px'; x.weight = '500'; x.fg = d.fg; x.bg = d.bg; x.pillPad = '2px 6px'; }
+      }
+      return x;
+    }
+
+    var rowsData = c.rows;
+    var total = c.total;
+    var edits = this.state.edits;
+    if (kind === 'prices') {
+      var sumCost = 0, sumPrice = 0;
+      rowsData = this.prices().map(function (p, i) {
+        var dirty = edits[i] !== undefined;
+        var priceTxt = dirty ? edits[i] : p[3].toFixed(2);
+        var price = parseFloat(priceTxt) || 0;
+        var margin = price > 0 ? (price - p[2]) / price * 100 : 0;
+        sumCost += p[2]; sumPrice += price;
+        var mFg = margin < 20 ? 'var(--bad)' : (margin < 25 ? 'var(--warn)' : 'var(--ink-2)');
+        var mBg = margin < 20 ? 'var(--bad-soft)' : (margin < 25 ? 'var(--warn-soft)' : 'transparent');
+        return [{ t: 'link', v: p[0] }, { t: 'mono', v: p[1] }, { t: 'zero', v: money(p[2]) }, { t: 'delta', v: margin.toFixed(1) + '%', fg: mFg, bg: mBg },
+          { t: 'edit', v: priceTxt, dirty: dirty, change: function (e) { var n = Object.assign({}, self.state.edits); n[i] = e.target.value; self.setState({ edits: n }); } },
+          p[4] ? { t: 'zero', v: money(p[4]) } : { t: 'faint', v: '—' }, dirty ? { t: 'badge', v: 'Not saved', tone: 'warn' } : { t: 'date', v: p[4] ? '3 October 2026' : '1 August 2026' }, { t: 'num', v: '15%' }];
+      });
+      total = [['14', 'mono'], [''], [money(sumCost), 'money'], [((sumPrice - sumCost) / sumPrice * 100).toFixed(1) + '% average', 'mono'], [money(sumPrice), 'money'], [''], [''], ['']];
+    }
+
+    var cols = c.cols.map(function (h) { return { label: h[0], align: h[1] === 'end' ? 'right' : 'left', pad: h[1] === 'end' ? '0 14px 0 10px' : '0 10px', fg: 'var(--muted)' }; });
+    var sel = this.state.selected;
+    var rows = rowsData.map(function (r, i) {
+      var on = sel.indexOf(i) !== -1;
+      return { name: r[0].v, selected: on, bg: on ? 'var(--selected)' : 'var(--surface)', cells: r.map(function (d, j) { return cell(d, c.cols[j][1]); }),
+        toggle: function () { var n = self.state.selected.slice(); var a = n.indexOf(i); if (a === -1) n.push(i); else n.splice(a, 1); self.setState({ selected: n }); } };
+    });
+    var tot = total.map(function (t, j) { var end = c.cols[j][1] === 'end'; return { text: t[0], align: end ? 'right' : 'left', pad: end ? '0 14px 0 10px' : '0 10px', font: t[1] ? MONO : SANS, fg: 'var(--ink)' }; });
+    var modules = [['floor', 'The floor', 'Floor.dc.html'], ['products', 'Products', 'ProductsList.dc.html'], ['stock', 'Stock', 'StockList.dc.html'], ['buying', 'Buying', 'OrdersList.dc.html'], ['insights', 'Insights', 'InsightsSales.dc.html'], ['reports', 'Reports', 'ReportsList.dc.html']];
+    var editCount = Object.keys(edits).length;
+    return {
+      manageBg: c.module === 'manage' ? 'var(--active)' : 'transparent', manageFg: c.module === 'manage' ? 'var(--ink)' : 'var(--muted)',
+      rail: modules.map(function (m) { var on = m[0] === c.module; return { label: m[1], href: m[2], d: I[m[0]], bg: on ? 'var(--active)' : 'transparent', fg: on ? 'var(--ink)' : 'var(--muted)' }; }),
+      panelTitle: c.mod.title,
+      nav: c.mod.nav.map(function (n, i) { var on = i === c.active; return { label: n[0], d: n[1], href: n[2], bg: on ? 'var(--active)' : 'transparent', weight: on ? '600' : '400', hasBadge: Boolean(n[3]), badge: n[3] || '' }; }),
+      hasBack: Boolean(c.back), back: c.back || '', backHref: c.backHref || '#', hasSub: Boolean(c.sub), sub: c.sub || '', hasSubLink: Boolean(c.subLink), subLink: c.subLink || '', subHref: c.subHref || '#', title: c.title, noun: c.noun, primary: c.primary, primaryHref: ({ reports: 'TemplateNew.dc.html', reportsstock: 'TemplateNew.dc.html', salesreport: 'ReportSaveTemplate.dc.html', weekendreport: 'ReportSaveTemplate.dc.html', suppliers: 'SupplierNew.dc.html', orders: 'OrderNew.dc.html', requisitions: 'ReqOrder.dc.html', deliveries: 'IntakeNew.dc.html', bills: 'BillNew.dc.html', sites: 'SiteNew.dc.html', tills: 'TillNew.dc.html', products: 'ProductNew.dc.html', stock: 'ProductNewStock.dc.html', pricelists: 'PriceListNew.dc.html', promotions: 'PromotionNew.dc.html', bundles: 'BundleNew.dc.html', vouchers: 'VoucherNew.dc.html', categories: 'CategoryNew.dc.html', prices: 'AddToList.dc.html', counts: 'CountNew.dc.html', transfers: 'TransferNew.dc.html', empties: 'EmptiesReturn.dc.html', laybys: 'LaybyNew.dc.html', customers: 'CustomerNew.dc.html', accounts: 'AccountOpen.dc.html', people: 'PersonNew.dc.html' })[kind] || '#', hasPrimary: Boolean(c.primary), search: c.search, sort: c.sort,
+      hasTabs: Boolean(c.tabs), tabs: (c.tabs || []).map(function (t, i) { var on = i === self.state.tab; return { label: t[0], count: t[1], on: on ? 'true' : 'false', line: on ? 'var(--ink)' : 'transparent', fg: on ? 'var(--ink)' : 'var(--ink-2)', weight: on ? '600' : '400', pick: function () { self.setState({ tab: i }); } }; }),
+      filters: c.filters.map(function (f) { return { label: f[0], value: f[1], border: 'var(--line)' }; }),
+      hasMore: c.more > 0, moreCount: String(c.more),
+      count: String(rowsData.length), shown: String(rowsData.length),
+      grid: '40px ' + c.grid + ' 44px', minWidth: c.minWidth, cols: cols, rows: rows, total: tot,
+      noSelection: sel.length === 0, hasSelection: sel.length > 0, selectedCount: String(sel.length), bulk: c.bulk.map(function (b, i) { return { label: b, href: ({ 'Print shelf labels': 'Labels.dc.html', 'Change prices': 'BulkPrice.dc.html', 'Raise by a percentage': 'BulkPrice.dc.html', 'Set a margin': 'BulkPrice.dc.html', 'Round to 5 cents': 'BulkPrice.dc.html', 'Approve': 'ReqApprove.dc.html', 'Count these': 'CountNew.dc.html', 'Message on WhatsApp': 'MessageNew.dc.html', 'Add points': 'PointsAdjust.dc.html', 'Send statements': 'StatementSend.dc.html', 'Remind on WhatsApp': 'MessageNew.dc.html', 'Approve the differences': 'CountReview.dc.html', 'Change reorder level': 'Reorder.dc.html', 'Move to another site': 'TransferNew.dc.html', 'Reject': 'ReqReject.dc.html', 'Pay out': 'ReqPayout.dc.html', 'Record a payment': 'PaymentNew.dc.html', 'Record payments': 'PaymentNew.dc.html', 'Add to an order': 'OrderNew.dc.html', 'New order for each': 'OrderNew.dc.html', 'Share': 'TemplateEdit.dc.html' })[b] || '#', radius: i === 0 ? '8px 0 0 8px' : '0' }; }),
+      allSelected: sel.length === rows.length,
+      toggleAll: function () { self.setState({ selected: sel.length === rows.length ? [] : rows.map(function (r, i) { return i; }) }); },
+      clear: function () { self.setState({ selected: [] }); },
+      exportOpen: this.state.exportOpen, toggleExport: function () { self.setState({ exportOpen: !self.state.exportOpen }); },
+      hasEdits: editCount > 0, editCount: String(editCount), discard: function () { self.setState({ edits: {} }); }
+    };
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<title>Every retail workflow</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Next:wght@400;500;600&amp;family=IBM+Plex+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>body{margin:0} .at:hover{background:#fbf8f5 !important;border-color:#ddd4cc !important} .at:focus-visible{outline:2px solid #e8620f;outline-offset:3px}</style>
+</helmet>
+<div style="width: 1440px; height: 1280px; box-sizing: border-box; padding: 64px; background: #ffffff; color: #24140e; font-family: 'Atkinson Hyperlegible Next', system-ui, sans-serif; display: flex; flex-direction: column; gap: 40px;">
+  <header style="display: flex; flex-direction: column; gap: 12px; max-width: 900px;">
+    <span style="font-size: 14px; font-weight: 500; color: #75675f;">Retail admin</span>
+    <h1 style="margin: 0; font-size: 48px; line-height: 1.06; font-weight: 600; letter-spacing: -0.035em;">Every workflow, before any screen</h1>
+    <p style="margin: 0; font-size: 18px; line-height: 1.55; color: #4a3a33;">Seventy-six things a shop does, from signing up to reading the week. Each has a trigger, the person who does it, where it starts and the fewest steps that finish it. Screens come from these, not the other way round.</p>
+  </header>
+
+  <section aria-labelledby="gp" style="display: flex; flex-direction: column; gap: 14px;">
+    <h2 id="gp" style="margin: 0; font-size: 20px; font-weight: 600; letter-spacing: -0.02em;">The golden path: signed up to first sale</h2>
+    <ol style="margin: 0; padding: 0; list-style: none; display: flex; align-items: stretch;">
+      <sc-for list="{{path}}" as="p" hint-placeholder-count="6">
+        <li style="flex: 1; display: flex; align-items: stretch;">
+          <a href="{{p.href}}" class="at" style="flex: 1; display: flex; flex-direction: column; gap: 6px; padding: 16px; border: 1px solid #ece6e0; border-radius: 12px; color: inherit; text-decoration: none;"><span style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #75675f;">{{p.time}}</span><span style="font-size: 15px; font-weight: 600;">{{p.title}}</span><span style="font-size: 13px; line-height: 1.45; color: #4a3a33;">{{p.what}}</span></a>
+          <sc-if value="{{p.more}}" hint-placeholder-val="{{ true }}"><span aria-hidden="true" style="width: 28px; display: flex; align-items: center; justify-content: center; color: #a89c94;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="m9 18 6-6-6-6"></path></svg></span></sc-if>
+        </li>
+      </sc-for>
+    </ol>
+  </section>
+
+  <section aria-labelledby="ar" style="display: flex; flex-direction: column; gap: 14px;">
+    <h2 id="ar" style="margin: 0; font-size: 20px; font-weight: 600; letter-spacing: -0.02em;">Eight areas</h2>
+    <div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px;">
+      <sc-for list="{{areas}}" as="a" hint-placeholder-count="8">
+        <a href="{{a.href}}" class="at" style="display: flex; flex-direction: column; gap: 6px; padding: 16px; border: 1px solid #ece6e0; border-radius: 12px; color: inherit; text-decoration: none;"><span style="display: flex; align-items: center; gap: 8px;"><span style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #75675f;">{{a.n}}</span><span style="font-size: 15px; font-weight: 600; flex: 1;">{{a.title}}</span><span style="height: 20px; padding: 0 7px; border-radius: 6px; background: #f3eee9; font-family: 'IBM Plex Mono', monospace; font-size: 12px; display: flex; align-items: center;">{{a.count}}</span></span><span style="font-size: 13px; line-height: 1.45; color: #4a3a33;">{{a.what}}</span></a>
+      </sc-for>
+    </div>
+  </section>
+
+  <section aria-labelledby="pr" style="display: flex; flex-direction: column; gap: 14px;">
+    <h2 id="pr" style="margin: 0; font-size: 20px; font-weight: 600; letter-spacing: -0.02em;">Rules every workflow follows</h2>
+    <ol style="margin: 0; padding: 0; list-style: none; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 40px; font-size: 14.5px; line-height: 1.5; color: #4a3a33;">
+      <sc-for list="{{rules}}" as="r" hint-placeholder-count="8"><li style="display: flex; gap: 12px;"><span style="flex: none; width: 24px; height: 24px; border-radius: 99px; background: #f3eee9; color: #24140e; font-family: 'IBM Plex Mono', monospace; font-size: 12px; font-weight: 600; display: flex; align-items: center; justify-content: center;">{{r.n}}</span><span><strong style="color: #24140e; font-weight: 600;">{{r.title}}</strong> {{r.body}}</span></li></sc-for>
+    </ol>
+  </section>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1280}}'>
+class Component extends DCLogic {
+  renderVals() {
+    var path = [['0:00', 'Pick the shop type', 'Liquor store. Categories, features and a starter catalogue come with it.', 'OnbType.dc.html'], ['0:30', 'Name the shop', 'One site, its hours, its currencies. Licence number for liquor.', 'OnbShop.dc.html'], ['2:00', 'Add products', 'Tick from the catalogue and set prices, or import a spreadsheet.', 'OnbProducts.dc.html'], ['8:00', 'Tills and payments', 'Pair the till, tick the tenders, set the ZiG rate.', 'OnbTills.dc.html'], ['10:00', 'Staff and PINs', 'Who works the till and who approves.', 'OnbTills.dc.html'], ['12:00', 'Make a test sale', 'Ring one up, print the receipt, void it.', 'OnbDone.dc.html']];
+    var areas = [['01', 'Set up the shop', '13', 'Signup to first sale, company and business type, sites, pairing devices to tills, payments, till rules, fiscal, posting.', 'WfSetup.dc.html'], ['02', 'Products and prices', '12', 'One form to add, price lists, packs, bundles, promotions, vouchers.', 'WfProducts.dc.html'], ['03', 'Stock', '8', 'Low stock, counts, waste, transfers, cases, empties.', 'WfStock.dc.html'], ['04', 'Buying and paying', '11', 'Suppliers, orders, money for them, deliveries in parts, bills.', 'WfBuying.dc.html'], ['05', 'Selling and the floor', '8', 'Shifts, cash, refunds, lay-by, end of day, offline.', 'WfFloor.dc.html'], ['06', 'Customers and accounts', '6', 'Points ledger, loyalty, accounts and statements, messages.', 'WfCustomers.dc.html'], ['07', 'Insights and reports', '10', 'Questions owners ask, and Reports: templates by area, run, saved as your own and shared.', 'WfInsights.dc.html'], ['08', 'People and controls', '8', 'Staff, PINs, approvals and limits, audit, shop features.', 'WfAdmin.dc.html']];
+    var rules = [['One form per thing.', 'Adding a product is the same form from Products, On hand, an order line or a price list.'], ['Defaults over questions.', 'The shop type and a single site answer most of them; a shop with one site never sees the word.'], ['Pick, or add as you pick.', 'Every field that picks from the database searches as you type and offers "Add ‘…’" when nothing matches.'], ['Nothing blocks selling.', 'A saved product is on sale at once; cost, barcode, supplier and opening stock can come later.'], ['Lists act, records explain.', 'Every list filters, exports and acts on a selection. Every row opens a record with its graph, its ledger and its next step.'], ['Guided the first time, quiet after.', 'An empty screen teaches its job in three steps; a full one gets out of the way.'], ['One primary action per screen.', 'In the app bar, a verb, in orange. Everything else is a button group or a menu.'], ['Money has a trail.', 'Requisitions, drawers, points and stock are ledgers; every number opens the lines behind it.'], ['Always editable, never lost.', 'A record\u2019s details are edited where they are read. Deleting moves it to a bin for 30 days, for people allowed to, and anything sold or paid against it stays.']];
+    return {
+      path: path.map(function (p, i) { return { time: p[0], title: p[1], what: p[2], href: p[3], more: i < path.length - 1 }; }),
+      areas: areas.map(function (a) { return { n: a[0], title: a[1], count: a[2], what: a[3], href: a[4] }; }),
+      rules: rules.map(function (r, i) { return { n: String(i + 1), title: r[0], body: r[1] }; })
+    };
+  }
+}
+</script>
+</body>
+</html>

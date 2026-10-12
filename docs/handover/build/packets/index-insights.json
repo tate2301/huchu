@@ -1,0 +1,205 @@
+[
+  {
+    "id": "90",
+    "file": "90-date-pickers.md",
+    "title": "One date picker and one date-range picker, everywhere retail picks a date",
+    "units": [
+      "FND-DATES"
+    ],
+    "dependsOn": [
+      "FND-05"
+    ],
+    "risk": "standard"
+  },
+  {
+    "id": "80a",
+    "file": "80a-insights-custom-dates.md",
+    "title": "Insights: choose your own dates on every insight page",
+    "units": [
+      "INS-01a"
+    ],
+    "dependsOn": [
+      "90",
+      "FND-09"
+    ],
+    "risk": "standard"
+  },
+  {
+    "id": "85a",
+    "file": "85a-reports-templates-now.md",
+    "title": "Reports: the retail templates whose sources exist today, grouped by area",
+    "units": [
+      "INS-06a"
+    ],
+    "dependsOn": [
+      "90",
+      "80a",
+      "FND-04",
+      "FND-05",
+      "STK-02",
+      "STK-03",
+      "SET-06"
+    ],
+    "risk": "standard"
+  },
+  {
+    "id": "80",
+    "file": "80-insights-sales-profit.md",
+    "title": "Insights \u203a Sales and Profit, and the insights contract",
+    "units": [
+      "INS-01"
+    ],
+    "dependsOn": [
+      "80a",
+      "FND-09",
+      "FLR-01",
+      "PRD-02",
+      "PRD-09",
+      "STK-04",
+      "STK-07",
+      "SET-01",
+      "SET-04",
+      "PRD-05",
+      "PRD-07"
+    ],
+    "risk": "standard"
+  },
+  {
+    "id": "81",
+    "file": "81-insights-export-send.md",
+    "title": "Insights: Export and Send me this on every insight page",
+    "units": [
+      "INS-05"
+    ],
+    "dependsOn": [
+      "80",
+      "SET-07",
+      "FND-07",
+      "ADM-02"
+    ],
+    "risk": "standard"
+  },
+  {
+    "id": "82",
+    "file": "82-insights-products-stock.md",
+    "title": "Insights \u203a Products (dead stock) and Stock health",
+    "units": [
+      "INS-02"
+    ],
+    "dependsOn": [
+      "80",
+      "STK-02",
+      "STK-03",
+      "STK-04",
+      "PRD-03",
+      "BUY-01",
+      "BUY-02",
+      "BUY-06",
+      "BUY-09",
+      "PRD-09"
+    ],
+    "risk": "standard"
+  },
+  {
+    "id": "83",
+    "file": "83-insights-losses-customers.md",
+    "title": "Insights \u203a Losses (investigate a loss) and Customers",
+    "units": [
+      "INS-03"
+    ],
+    "dependsOn": [
+      "80",
+      "FLR-01",
+      "FLR-02",
+      "FLR-04",
+      "FLR-05",
+      "SET-06",
+      "STK-05",
+      "STK-06",
+      "STK-08",
+      "CUS-01",
+      "CUS-02",
+      "CUS-03",
+      "CUS-06"
+    ],
+    "risk": "standard"
+  },
+  {
+    "id": "84",
+    "file": "84-insights-money.md",
+    "title": "Insights \u203a Money",
+    "units": [
+      "INS-04"
+    ],
+    "dependsOn": [
+      "80",
+      "BUY-04",
+      "BUY-05",
+      "BUY-07",
+      "CUS-07",
+      "CUS-08",
+      "CUS-09"
+    ],
+    "risk": "money"
+  },
+  {
+    "id": "85",
+    "file": "85-reports-sources-faces.md",
+    "title": "Reports: sales face, Sales and Discounts given built-ins, shelf price (rest of INS-06 after 85a)",
+    "units": [
+      "INS-06"
+    ],
+    "dependsOn": [
+      "85a",
+      "50",
+      "22",
+      "FLR-01",
+      "PRD-09",
+      "SET-06"
+    ],
+    "risk": "money"
+  },
+  {
+    "id": "86",
+    "file": "86-reports-every-template.md",
+    "title": "Reports \u203a Every template and the area pages",
+    "units": [
+      "INS-07"
+    ],
+    "dependsOn": [
+      "85a",
+      "FND-03",
+      "FND-05",
+      "ADM-01",
+      "ADM-02"
+    ],
+    "risk": "standard"
+  },
+  {
+    "id": "87",
+    "file": "87-reports-run-template.md",
+    "title": "Reports \u203a a template, run; save, make, change, share and delete templates",
+    "units": [
+      "INS-08"
+    ],
+    "dependsOn": [
+      "85a",
+      "86",
+      "FND-07"
+    ],
+    "risk": "standard"
+  },
+  {
+    "id": "88",
+    "file": "88-reports-weekly-email.md",
+    "title": "Reports: weekly template emails",
+    "units": [
+      "INS-09"
+    ],
+    "dependsOn": [
+      "81",
+      "87"
+    ],
+    "risk": "standard"
+  }
+]

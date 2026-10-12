@@ -1,0 +1,445 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<title>Retail record</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Next:wght@400;500;600&amp;family=IBM+Plex+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+.th{--surface:#ffffff;--ground:#faf7f4;--hover:#fbf8f5;--tray:#f3eee9;--active:#efe8e2;--line:#ece6e0;--line-soft:#f3eee9;--line-strong:#ddd4cc;--ink:#24140e;--ink-2:#4a3a33;--muted:#75675f;--faint:#a89c94;--accent:#e8620f;--accent-fill:#b84a0c;--ok:#17734c;--ok-soft:#e7f4ee;--info:#3d4fb8;--info-soft:#eceefb;--warn:#8a5a10;--warn-soft:#fbf1dc;--warn-dot:#e0a21a;--warn-line:#e8cf9a;--bad:#a3122f;--bad-soft:#fbe8ec;--bad-dot:#c8203f;--float:0 0 0 1px #ece6e0,0 14px 30px -18px rgba(36,20,14,.3)}
+.th button:focus-visible,.th a:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
+.c{min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.rw:hover{background:var(--hover)}
+.mi:hover{background:var(--hover)}
+.ev{width:100%;min-width:0;display:flex;align-items:center;gap:6px;min-height:30px;padding:4px 6px;box-sizing:border-box;margin:0 -6px;border:0;border-radius:6px;background:transparent;font:inherit;color:inherit;text-align:left;cursor:text}
+.ev:hover{background:var(--hover)}
+.ev .pen{opacity:0;flex:none;color:var(--faint)}
+.ev:hover .pen,.ev:focus-visible .pen{opacity:1}
+.dim{opacity:.45;pointer-events:none}
+.bg{display:flex}.bg>button{margin-left:-1px;border-radius:0}.bg>button:first-child{margin-left:0;border-radius:8px 0 0 8px}.bg>button:last-child{border-radius:0 8px 8px 0}
+</style>
+</helmet>
+<div class="th" style="position: relative; width: 100%; height: 1240px; display: flex; overflow: hidden; background: var(--ground); color: var(--ink); font-family: 'Atkinson Hyperlegible Next', system-ui, sans-serif; font-size: 13px;">
+
+  <nav aria-label="Modules" style="width: 56px; flex: none; display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 8px 0; background: var(--surface); border-right: 1px solid var(--line); box-sizing: border-box;">
+    <div style="width: 32px; height: 32px; border-radius: 8px; background: var(--ink); color: #ffffff; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 600; margin-bottom: 8px;">HC</div>
+    <sc-for list="{{rail}}" as="m" hint-placeholder-count="5">
+      <a href="{{m.href}}" aria-label="{{m.label}}" style="width: 36px; height: 36px; border-radius: 8px; background: {{m.bg}}; color: {{m.fg}}; display: flex; align-items: center; justify-content: center;"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="{{m.d}}"></path></svg></a>
+    </sc-for>
+    <div style="flex: 1;"></div>
+    <a href="CompanySettings.dc.html" aria-label="Management" style="width: 36px; height: 36px; border-radius: 8px; background: {{manageBg}}; color: {{manageFg}}; display: flex; align-items: center; justify-content: center;"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M10.5 2h3l.5 2.6 2 .9 2.3-1.4 2.1 2.1-1.4 2.3.9 2 2.6.5v3l-2.6.5-.9 2 1.4 2.3-2.1 2.1-2.3-1.4-2 .9-.5 2.6h-3l-.5-2.6-2-.9-2.3 1.4-2.1-2.1 1.4-2.3-.9-2L2 13.5v-3l2.6-.5.9-2-1.4-2.3 2.1-2.1 2.3 1.4 2-.9zM12 8.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7z"></path></svg></a>
+  </nav>
+  <nav aria-label="{{panelTitle}}" style="width: 240px; flex: none; display: flex; flex-direction: column; background: var(--ground); border-right: 1px solid var(--line); box-sizing: border-box;">
+    <div style="height: 48px; display: flex; align-items: center; gap: 8px; padding: 0 12px;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" style="color: var(--muted);"><path d="m15 18-6-6 6-6"></path></svg><span style="font-size: 14px; font-weight: 600;">{{panelTitle}}</span></div>
+    <div style="display: flex; flex-direction: column; gap: 2px; padding: 4px 10px;">
+      <sc-for list="{{nav}}" as="n" hint-placeholder-count="4">
+        <a href="{{n.href}}" style="height: 34px; display: flex; align-items: center; gap: 10px; padding: 0 10px; border-radius: 8px; color: var(--ink); background: {{n.bg}}; font-weight: {{n.weight}}; text-decoration: none;"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="{{n.d}}"></path></svg>{{n.label}}</a>
+      </sc-for>
+    </div>
+  </nav>
+
+  <main style="flex: 1; min-width: 0; display: flex; flex-direction: column; background: var(--surface);">
+    <header style="height: 48px; flex: none; display: flex; align-items: center; gap: 8px; padding: 0 16px; border-bottom: 1px solid var(--line); box-sizing: border-box; position: relative; z-index: 6;">
+      <a href="{{backHref}}" aria-label="Back to {{back}}" style="flex: none; height: 32px; display: flex; align-items: center; gap: 4px; padding: 0 8px 0 4px; border-radius: 8px; color: var(--muted); text-decoration: none;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"></path></svg>{{back}}</a>
+      <span aria-hidden="true" style="color: var(--line-strong);">/</span>
+      <h1 class="c" style="margin: 0; font-size: 15px; font-weight: 600;">{{title}}</h1>
+      <span style="flex: none; font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: var(--muted);">{{ref}}</span>
+      <div style="flex: 1;"></div>
+      <div class="bg" role="group" aria-label="Actions" style="flex: none;">
+        <sc-for list="{{actions}}" as="a" hint-placeholder-count="3"><a href="{{a.href}}" style="height: 32px; box-sizing: border-box; display: flex; align-items: center; margin-left: -1px; padding: 0 12px; border: 1px solid var(--line-strong); background: var(--surface); color: var(--ink); white-space: nowrap; text-decoration: none; border-radius: {{a.radius}};">{{a.label}}</a></sc-for>
+        <button onClick="{{toggleMore}}" aria-expanded="{{moreOpen}}" aria-label="More actions" style="width: 34px; height: 32px; border: 1px solid var(--line-strong); background: var(--surface); color: var(--ink-2); display: flex; align-items: center; justify-content: center;"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.8"></circle><circle cx="12" cy="12" r="1.8"></circle><circle cx="19" cy="12" r="1.8"></circle></svg></button>
+      </div>
+      <div style="position: relative; width: 0; flex: none;">
+        <sc-if value="{{moreOpen}}" hint-placeholder-val="{{ false }}">
+          <div role="menu" aria-label="More actions" style="position: absolute; top: 24px; right: 0; width: 240px; box-sizing: border-box; padding: 6px; background: var(--surface); border-radius: 12px; box-shadow: var(--float); display: flex; flex-direction: column;">
+            <sc-for list="{{more}}" as="m" hint-placeholder-count="4"><a role="menuitem" class="mi" href="{{m.href}}" onClick="{{m.go}}" style="height: 34px; display: flex; align-items: center; gap: 8px; padding: 0 8px; border-radius: 8px; color: {{m.fg}}; text-decoration: none;">{{m.label}}</a></sc-for>
+            <div style="height: 1px; background: var(--line); margin: 4px 0;"></div>
+            <button role="menuitem" class="mi" onClick="{{askBin}}" style="height: 34px; display: flex; align-items: center; gap: 8px; padding: 0 8px; border: 0; border-radius: 8px; background: transparent; color: var(--bad); font: inherit; text-align: left;"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M9 3h6l1 2h5v2H3V5h5zM5 9h14l-1 12H6z"></path></svg>Move to the bin</button>
+            <span style="padding: 2px 8px 6px 30px; font-size: 12px; color: var(--muted);">Managers and owners only</span>
+          </div>
+        </sc-if>
+      </div>
+      <sc-if value="{{hasPrimary}}" hint-placeholder-val="{{ true }}"><a href="{{primaryHref}}" style="flex: none; height: 32px; display: flex; align-items: center; padding: 0 14px; border-radius: 8px; background: var(--accent-fill); color: #ffffff; font-weight: 600; white-space: nowrap; text-decoration: none;">{{primary}}</a></sc-if>
+    </header>
+
+    <sc-if value="{{binned}}" hint-placeholder-val="{{ false }}">
+      <div role="status" style="height: 48px; flex: none; display: flex; align-items: center; gap: 10px; padding: 0 16px; background: var(--bad-soft); color: var(--bad); border-bottom: 1px solid #f0c3cc; box-sizing: border-box;"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M9 3h6l1 2h5v2H3V5h5zM5 9h14l-1 12H6z"></path></svg><span><strong style="font-weight: 600;">In the bin</strong> since 3 October, 14:52, moved by you. Kept until 2 November, then gone for good. Nothing sold, paid or counted against it changes.</span><span style="flex: 1;"></span><button onClick="{{restore}}" style="height: 32px; padding: 0 14px; border: 1px solid var(--bad); border-radius: 8px; background: var(--surface); color: var(--bad); font: inherit; font-weight: 600;">Restore</button></div>
+    </sc-if>
+    <div role="toolbar" aria-label="{{title}}" style="height: 48px; flex: none; display: flex; align-items: center; gap: 8px; padding: 0 16px; border-bottom: 1px solid var(--line); background: var(--ground); box-sizing: border-box;">
+      <sc-if value="{{hasSteps}}" hint-placeholder-val="{{ false }}">
+        <ol aria-label="Where it has got to" style="margin: 0; padding: 0; list-style: none; display: flex; align-items: center; gap: 4px;">
+          <sc-for list="{{steps}}" as="s" hint-placeholder-count="5">
+            <li aria-current="{{s.current}}" style="display: flex; align-items: center; gap: 6px; height: 26px; padding: 0 10px 0 6px; border-radius: 99px; background: {{s.bg}}; border: 1px solid {{s.border}}; color: {{s.fg}}; font-weight: {{s.weight}}; white-space: nowrap;"><span style="width: 16px; height: 16px; box-sizing: border-box; border-radius: 99px; background: {{s.dotBg}}; border: 1.5px solid {{s.dotLine}}; display: flex; align-items: center; justify-content: center; color: #ffffff; font-size: 10px;">{{s.mark}}</span>{{s.label}}</li>
+            <li aria-hidden="true" style="width: 12px; height: 1px; background: var(--line-strong);"></li>
+          </sc-for>
+        </ol>
+      </sc-if>
+      <sc-for list="{{chips}}" as="ch" hint-placeholder-count="2">
+        <span style="display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 8px; border-radius: 6px; font-size: 12px; font-weight: 500; white-space: nowrap; background: {{ch.bg}}; color: {{ch.fg}}; border: 1px solid {{ch.border}};"><sc-if value="{{ch.hasDot}}" hint-placeholder-val="{{ false }}"><span style="width: 7px; height: 7px; border-radius: 99px; background: {{ch.dot}};"></span></sc-if>{{ch.label}}</span>
+      </sc-for>
+      <div style="flex: 1;"></div>
+      <span style="color: var(--muted); white-space: nowrap;">{{figureLabel}}</span><span style="font-family: 'IBM Plex Mono', monospace; font-size: 15px; font-weight: 600; white-space: nowrap; color: {{figureFg}};">{{figure}}</span>
+    </div>
+
+    <div class="{{bodyClass}}" style="flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) 320px;">
+      <div style="min-width: 0; overflow: hidden; padding: 20px 24px; display: flex; flex-direction: column; gap: 20px;">
+        <section aria-label="Summary" style="display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); border: 1px solid var(--line); border-radius: 12px; overflow: hidden;">
+          <sc-for list="{{kpis}}" as="k" hint-placeholder-count="5">
+            <div style="padding: 12px 14px; border-left: 1px solid var(--line); margin-left: -1px; display: flex; flex-direction: column; gap: 4px; min-width: 0;">
+              <span class="c" style="font-size: 12.5px; color: var(--muted);">{{k.label}}</span>
+              <span class="c" style="font-family: 'IBM Plex Mono', monospace; font-size: 17px; font-weight: 600; letter-spacing: -0.03em; color: {{k.valueFg}};">{{k.value}}</span>
+              <span class="c" style="font-size: 12px; color: var(--muted);"><span style="font-family: 'IBM Plex Mono', monospace; color: {{k.fg}};">{{k.delta}}</span> {{k.note}}</span>
+            </div>
+          </sc-for>
+        </section>
+
+        <section aria-labelledby="ch" style="border: 1px solid var(--line); border-radius: 12px; overflow: hidden;">
+          <div style="height: 48px; display: flex; align-items: center; gap: 8px; padding: 0 16px; border-bottom: 1px solid var(--line); background: var(--ground);">
+            <h2 id="ch" style="margin: 0; font-size: 14px; font-weight: 600;">{{chartTitle}}</h2><span style="color: var(--muted);">{{chartUnit}}</span><span style="flex: 1;"></span>
+            <div class="bg" role="group" aria-label="Range"><sc-for list="{{ranges}}" as="r" hint-placeholder-count="3"><button aria-pressed="{{r.on}}" style="height: 28px; padding: 0 10px; border: 1px solid var(--line); background: {{r.bg}}; color: {{r.fg}}; font: inherit; font-weight: {{r.weight}};">{{r.label}}</button></sc-for></div>
+          </div>
+          <div style="position: relative; padding: 16px 16px 8px 76px;">
+            <div aria-hidden="true" style="position: absolute; left: 16px; right: 16px; top: 16px; height: 150px; display: flex; flex-direction: column; justify-content: space-between; font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: var(--muted);"><span style="border-bottom: 1px dashed var(--line); line-height: 0;">{{yTop}}</span><span style="border-bottom: 1px dashed var(--line); line-height: 0;">{{yMid}}</span><span style="border-bottom: 1px solid var(--line-strong); line-height: 0;">0</span></div>
+            <div role="img" aria-label="{{chartTitle}}" style="position: relative; height: 150px; display: flex; align-items: flex-end; gap: {{barGap}};">
+              <sc-for list="{{bars}}" as="b" hint-placeholder-count="12"><span onMouseEnter="{{b.hover}}" onMouseLeave="{{unhover}}" style="flex: 1; height: 100%; display: flex; align-items: flex-end;"><span style="width: 100%; height: {{b.h}}; min-height: 2px; background: {{b.c}}; border-radius: 4px 4px 0 0;"></span></span></sc-for>
+              <sc-if value="{{hasHover}}" hint-placeholder-val="{{ false }}"><div style="position: absolute; top: -10px; left: {{tipLeft}}; transform: translateX(-50%); padding: 8px 10px; background: var(--surface); border-radius: 8px; box-shadow: var(--float); white-space: nowrap; pointer-events: none; display: flex; flex-direction: column; gap: 2px;"><span style="font-size: 12px; color: var(--muted);">{{tip.label}}</span><span style="font-family: 'IBM Plex Mono', monospace; font-weight: 600;">{{tip.value}}</span></div></sc-if>
+            </div>
+            <div style="display: flex; gap: {{barGap}}; margin-top: 6px;"><sc-for list="{{bars}}" as="b" hint-placeholder-count="12"><span class="c" style="flex: 1; text-align: center; font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: var(--muted);">{{b.axis}}</span></sc-for></div>
+          </div>
+        </section>
+
+        <section style="display: flex; flex-direction: column;">
+          <div role="tablist" aria-label="{{title}}" style="display: flex; gap: 2px; border-bottom: 1px solid var(--line);">
+            <sc-for list="{{tabs}}" as="t" hint-placeholder-count="4"><button role="tab" aria-selected="{{t.on}}" onClick="{{t.pick}}" style="height: 40px; display: flex; align-items: center; gap: 6px; padding: 0 12px; border: 0; border-bottom: 2px solid {{t.line}}; margin-bottom: -1px; background: transparent; color: {{t.fg}}; font: inherit; font-weight: {{t.weight}};">{{t.label}}<span style="height: 18px; padding: 0 6px; border-radius: 6px; background: var(--tray); color: var(--ink-2); font-family: 'IBM Plex Mono', monospace; font-size: 11px; display: flex; align-items: center;">{{t.count}}</span></button></sc-for>
+            <span style="flex: 1;"></span>
+            <button style="align-self: center; height: 28px; display: flex; align-items: center; gap: 6px; padding: 0 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--ink); font: inherit;"><svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M10.75 3h2.5v9.4l3.4-3.4 1.77 1.77L12 17.2l-6.42-6.43L7.35 9l3.4 3.4zM4 18.5h16V21H4z"></path></svg>Export</button>
+          </div>
+          <div role="table" aria-label="{{tableTitle}}">
+            <div role="row" style="display: grid; grid-template-columns: {{grid}}; align-items: center; height: 34px; background: var(--ground); border-bottom: 1px solid var(--line); color: var(--muted); font-size: 12.5px; font-weight: 500;">
+              <sc-for list="{{cols}}" as="h" hint-placeholder-count="5"><span role="columnheader" class="c" style="padding: 0 10px; text-align: {{h.align}};">{{h.label}}</span></sc-for>
+            </div>
+            <sc-for list="{{rows}}" as="row" hint-placeholder-count="8">
+              <div role="row" class="rw" style="display: grid; grid-template-columns: {{grid}}; align-items: center; height: 40px; border-bottom: 1px solid var(--line-soft);">
+                <sc-for list="{{row}}" as="x" hint-placeholder-count="5">
+                  <span role="cell" class="c" style="padding: 0 10px; text-align: {{x.align}};">
+                    <sc-if value="{{x.isLink}}" hint-placeholder-val="{{ false }}"><a href="{{x.href}}" style="font-family: {{x.font}}; font-size: {{x.size}}; color: var(--ink); text-decoration: underline; text-decoration-color: var(--line-strong); text-underline-offset: 3px;">{{x.text}}</a></sc-if>
+                    <sc-if value="{{x.isText}}" hint-placeholder-val="{{ true }}"><span style="font-family: {{x.font}}; font-size: {{x.size}}; font-weight: {{x.weight}}; color: {{x.fg}}; background: {{x.bg}}; padding: {{x.pillPad}}; border-radius: 6px;"><sc-if value="{{x.hasDot}}" hint-placeholder-val="{{ false }}"><span style="display: inline-block; width: 7px; height: 7px; box-sizing: border-box; margin-right: 8px; border-radius: 99px; background: {{x.dotBg}}; border: 1.5px solid {{x.dotLine}};"></span></sc-if>{{x.text}}</span></sc-if>
+                  </span>
+                </sc-for>
+              </div>
+            </sc-for>
+            <div role="row" style="display: grid; grid-template-columns: {{grid}}; align-items: center; height: 40px; background: var(--ground); border-top: 1px solid var(--line-strong);">
+              <sc-for list="{{total}}" as="t" hint-placeholder-count="5"><span role="cell" class="c" style="padding: 0 10px; text-align: {{t.align}}; font-family: {{t.font}}; font-size: 12.5px; font-weight: 600; color: {{t.fg}};">{{t.text}}</span></sc-for>
+            </div>
+          </div>
+          <div style="height: 44px; display: flex; align-items: center; gap: 8px; color: var(--muted);"><span><span style="font-family: 'IBM Plex Mono', monospace; color: var(--ink);">1–{{rowCount}}</span> of <span style="font-family: 'IBM Plex Mono', monospace; color: var(--ink);">{{rowTotal}}</span></span><span style="flex: 1;"></span><a href="#" style="color: var(--ink); text-decoration: underline; text-decoration-color: var(--line-strong); text-underline-offset: 3px;">{{allLink}}</a></div>
+        </section>
+      </div>
+
+      <aside aria-label="Details" style="border-left: 1px solid var(--line); background: var(--surface); padding: 20px; display: flex; flex-direction: column; gap: 24px; overflow: hidden;">
+        <sc-if value="{{hasMeter}}" hint-placeholder-val="{{ false }}">
+          <section style="padding: 16px; border: 1px solid var(--line); border-radius: 12px; display: flex; flex-direction: column; gap: 8px;">
+            <span style="font-size: 12.5px; color: var(--muted);">{{meter.label}}</span>
+            <span style="font-family: 'IBM Plex Mono', monospace; font-size: 18px; font-weight: 600;">{{meter.value}}</span>
+            <span style="height: 6px; border-radius: 3px; background: var(--tray); overflow: hidden;"><span style="display: block; height: 100%; width: {{meter.pct}}; background: #4b5363; border-radius: 3px;"></span></span>
+            <span style="font-size: 12.5px; color: var(--muted);">{{meter.note}}</span>
+          </section>
+        </sc-if>
+        <sc-for list="{{railGroups}}" as="g" hint-placeholder-count="3">
+          <section style="display: flex; flex-direction: column;">
+            <h3 style="margin: 0 0 4px; font-size: 13px; font-weight: 600; display: flex; align-items: center; gap: 8px;">{{g.title}}<span style="font-size: 12px; font-weight: 400; color: var(--muted);">{{g.hint}}</span></h3>
+            <sc-for list="{{g.rows}}" as="r" hint-placeholder-count="4">
+              <div style="display: grid; grid-template-columns: 110px minmax(0, 1fr); gap: 12px; align-items: center; min-height: 36px; border-bottom: 1px solid var(--line-soft);"><span style="font-size: 12.5px; color: var(--muted);">{{r.k}}<sc-if value="{{r.saved}}" hint-placeholder-val="{{ false }}"><span style="display: block; font-size: 11px; color: var(--ok);">Saved</span></sc-if></span>
+                <sc-if value="{{r.editing}}" hint-placeholder-val="{{ false }}"><span style="display: flex; align-items: center; gap: 4px;"><input aria-label="{{r.k}}" value="{{draft}}" onChange="{{setDraft}}" onKeyDown="{{keyDown}}" style="flex: 1; min-width: 0; height: 30px; padding: 0 8px; border: 1px solid var(--accent); border-radius: 6px; outline: none; font-family: {{r.font}}; font-size: 13px; color: var(--ink);"><button onClick="{{save}}" aria-label="Save {{r.k}}" style="flex: none; width: 30px; height: 30px; border: 0; border-radius: 6px; background: var(--ink); color: #fff; display: flex; align-items: center; justify-content: center;"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="m9.5 16.2-4.2-4.2-1.4 1.4 5.6 5.6 11-11-1.4-1.4z"></path></svg></button></span></sc-if>
+                <sc-if value="{{r.reading}}" hint-placeholder-val="{{ true }}"><button class="ev" onClick="{{r.edit}}" aria-label="Edit {{r.k}}: {{r.v}}"><span style="flex: 1; min-width: 0; font-family: {{r.font}}; font-size: 13px; line-height: 1.4; color: {{r.fg}}; overflow-wrap: anywhere;">{{r.v}}</span><svg class="pen" width="13" height="13" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M15.2 4.2 19.8 8.8 9 19.6H4.4V15zM16.6 2.8l1.4-1.4 4.6 4.6-1.4 1.4z"></path></svg></button></sc-if></div>
+            </sc-for>
+          </section>
+        </sc-for>
+      </aside>
+    </div>
+  </main>
+  <sc-if value="{{confirming}}" hint-placeholder-val="{{ false }}">
+    <div style="position: absolute; inset: 0; background: rgba(36,20,14,0.28); display: flex; align-items: center; justify-content: center; z-index: 20;">
+      <div role="alertdialog" aria-labelledby="bin-t" aria-describedby="bin-d" style="width: 440px; background: var(--surface); border-radius: 12px; box-shadow: var(--float); padding: 24px; display: flex; flex-direction: column; gap: 12px;">
+        <h2 id="bin-t" style="margin: 0; font-size: 17px; font-weight: 600;">{{askTitle}}</h2>
+        <p id="bin-d" style="margin: 0; font-size: 14px; line-height: 1.5; color: var(--ink-2);">{{askBody}}</p>
+        <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 8px;"><button onClick="{{cancelBin}}" style="height: 36px; padding: 0 14px; border: 1px solid var(--line-strong); border-radius: 8px; background: var(--surface); color: var(--ink); font: inherit;">{{askKeep}}</button><button onClick="{{doBin}}" style="height: 36px; padding: 0 14px; border: 0; border-radius: 8px; background: {{askFill}}; color: #ffffff; font: inherit; font-weight: 600;">{{askGo}}</button></div>
+      </div>
+    </div>
+  </sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"kind":{"editor":"enum","options":["customer","shift","sale","promotion","supplier","order","orderdraft","delivery","requisition","bundle","voucher","transfer","count"],"default":"order"},"ask":{"editor":"enum","options":["","bin","closeshort","removeorder","cancelreq"],"default":""},"binned":{"editor":"boolean","default":false},"$preview":{"width":1440,"height":1240}}'>
+class Component extends DCLogic {
+  constructor(props) { super(props); this.state = { hover: -1, tab: 0, more: false, editing: null, draft: '', vals: {}, saved: null, confirming: props.ask || false, binned: Boolean(props.binned) }; }
+
+  config(kind) {
+    var I = {
+      floor: 'M4 4h16l1.2 5a3 3 0 0 1-2.2 2.9V20H5v-8.1A3 3 0 0 1 2.8 9zm6 10v6h4v-6z',
+      products: 'M3 3h9l9 9-9 9-9-9zm5 3.5a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3z',
+      stock: 'M12 2 2 7l10 5 10-5zM3.6 11.2 2 12l10 5 10-5-1.6-.8-8.4 4.2zm0 5L2 17l10 5 10-5-1.6-.8-8.4 4.2z',
+      buying: 'M4 3h16a1 1 0 0 1 1 1v16a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1zm1 10v6h14v-6h-4l-1.5 2h-3L9 13z',
+      reports: 'M5 2h10l4 4v16H5zm9 1.5V7h3.5zM8 11v1.6h8V11zm0 3.4v1.6h8v-1.6zm0 3.4v1.6h5v-1.6z',
+      card: 'M6 5h12a3 3 0 0 1 3 3v8a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3V8a3 3 0 0 1 3-3z',
+      receipt: 'M6 3h12a1 1 0 0 1 1 1v17l-3-2-2 2-2-2-2 2-2-2-3 2V4a1 1 0 0 1 1-1z',
+      people: 'M9 4.5a3.5 3.5 0 1 1 0 7 3.5 3.5 0 0 1 0-7zM17 6.5a2.5 2.5 0 1 1 0 5 2.5 2.5 0 0 1 0-5zM2 19a7 7 0 0 1 14 0zm13 0a6 6 0 0 0-1.5-4 5 5 0 0 1 8.5 4z',
+      rows: 'M3 5h18v4H3zm0 5h18v4H3zm0 5h18v4H3z',
+      truck: 'M2 6h12v9H2zm12 3h4l3 3v3h-7zM6 19a2 2 0 1 1 0-4 2 2 0 0 1 0 4zm11 0a2 2 0 1 1 0-4 2 2 0 0 1 0 4z',
+      shop: 'M4 4h16l1.2 5a3 3 0 0 1-2.2 2.9V20H5v-8.1A3 3 0 0 1 2.8 9z',
+      voucher: 'M3 6h18v4a2 2 0 0 0 0 4v4H3v-4a2 2 0 0 0 0-4z',
+      box: 'M12 2 3 6.5v11L12 22l9-4.5v-11zm0 2.2 6.6 3.3L12 10.8 5.4 7.5z',
+      folder: 'M3 5h7l2 2h9v12H3z',
+      cash: 'M2 6h20v12H2zm10 3a3 3 0 1 0 0 6 3 3 0 0 0 0-6z',
+      clock: 'M12 2a10 10 0 1 1 0 20 10 10 0 0 1 0-20zm-1 5v6l5 3 1-1.7-4-2.3V7z',
+      count: 'M5 3h14v18H5zm3 4v2h8V7zm0 4v2h8v-2zm0 4v2h5v-2z',
+      swap: 'M7 4 3 8l4 4V9h10V7H7zm10 8v3H7v2h10v3l4-4z',
+      manage: 'M10.5 2h3l.5 2.6 2 .9 2.3-1.4 2.1 2.1-1.4 2.3.9 2 2.6.5v3l-2.6.5-.9 2 1.4 2.3-2.1 2.1-2.3-1.4-2 .9-.5 2.6h-3l-.5-2.6-2-.9-2.3 1.4-2.1-2.1 1.4-2.3-.9-2L2 13.5v-3l2.6-.5.9-2-1.4-2.3 2.1-2.1 2.3 1.4 2-.9zM12 8.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7z',
+      insights: 'M3 20h18v2H3zM5 10h3v8H5zm5.5-6h3v14h-3zM16 13h3v5h-3z'
+    };
+    this.I = I;
+    var MOD = { floor: { title: 'The floor', nav: [['Overview', I.card, 'Floor.dc.html'], ['Sales', I.receipt, 'SalesList.dc.html'], ['Shifts', I.card, 'Main.dc.html', '2 open'], ['Lay-bys', I.box, 'LaybysList.dc.html', '3'], ['End of day', I.clock, 'EndOfDay.dc.html'], ['Customers', I.people, 'CustomersList.dc.html'], ['Accounts', I.card, 'AccountsList.dc.html', '1 overdue']] },
+      products: { title: 'Products', nav: [['Products', I.rows, 'ProductsList.dc.html'], ['Price lists', I.products, 'PriceLists.dc.html'], ['Promotions', I.card, 'PromotionsList.dc.html', '3 on'], ['Bundles and packs', I.box, 'BundlesList.dc.html'], ['Vouchers', I.voucher, 'VouchersList.dc.html'], ['Categories', I.folder, 'CategoriesList.dc.html']] },
+      stock: { title: 'Stock', nav: [['On hand', I.stock, 'StockList.dc.html', '5 low'], ['Movements', I.clock, 'MovementsList.dc.html'], ['Counts', I.count, 'CountsList.dc.html', '1 to approve'], ['Transfers', I.swap, 'TransfersList.dc.html'], ['Empties', I.box, 'EmptiesList.dc.html']] },
+      buying: { title: 'Buying', nav: [['Suppliers', I.shop, 'SuppliersList.dc.html'], ['Orders', I.buying, 'OrdersList.dc.html', '3 open'], ['Deliveries', I.truck, 'DeliveriesList.dc.html'], ['Requisitions', I.cash, 'RequisitionsList.dc.html', '2 to approve'], ['Bills', I.receipt, 'BillsList.dc.html', '1 overdue']] },
+      manage: { title: 'Management', nav: [['Company', I.shop, 'CompanySettings.dc.html'], ['Sites', I.floor, 'SitesList.dc.html'], ['Tills and devices', I.card, 'TillsList.dc.html'], ['Payments', I.cash, 'PaymentsSettings.dc.html'], ['Till rules', I.count, 'TillRules.dc.html'], ['Receipts', I.receipt, 'ReceiptSettings.dc.html'], ['Fiscal device', I.receipt, 'FiscalSettings.dc.html'], ['Posting to the books', I.rows, 'PostingSettings.dc.html'], ['People', I.people, 'PeopleList.dc.html'], ['Approvals', I.count, 'ApprovalSettings.dc.html'], ['Loyalty', I.voucher, 'LoyaltySettings.dc.html'], ['Activity', I.clock, 'ActivityList.dc.html'], ['Bin', I.folder, 'BinList.dc.html'], ['Plan and billing', I.card, 'BillingSettings.dc.html']] },
+      insights: { title: 'Insights', nav: [['Sales', I.insights, 'InsightsSales.dc.html'], ['Profit', I.insights, 'InsightsProfit.dc.html'], ['Products', I.insights, 'InsightsProducts.dc.html'], ['Stock health', I.insights, 'InsightsStock.dc.html'], ['Losses', I.insights, 'InsightsLosses.dc.html'], ['Customers', I.insights, 'InsightsCustomers.dc.html'], ['Money', I.insights, 'InsightsMoney.dc.html']] },
+      reports: { title: 'Reports', nav: [['Every template', I.reports, 'ReportsList.dc.html', '16'], ['Selling', I.receipt, 'ReportsList.dc.html', '4'], ['Stock', I.stock, 'ReportsStock.dc.html', '4'], ['Buying', I.buying, 'ReportsList.dc.html', '2'], ['Customers', I.people, 'ReportsList.dc.html', '2'], ['Money', I.cash, 'ReportsList.dc.html', '2'], ['The floor', I.card, 'ReportsList.dc.html', '2']] } };
+    var C = {
+      customer: { module: 'floor', active: 5, back: 'Customers', backHref: 'CustomersList.dc.html', title: 'Tapiwa Marange', ref: 'CUS-00141',
+        actions: ['Adjust points', 'Take a payment', 'Message on WhatsApp'], more: ['Export as PDF', 'Edit everything', 'Open an account', 'Change the account', 'Send a statement', 'Merge with another customer', 'Stop marketing messages'], primary: '',
+        chips: [['Gold', 'gold'], ['Member since 12 March 2024', 'plain'], ['Agreed to messages', 'plain']], figureLabel: 'Points', figure: '3,021',
+        kpis: [['Spend, 12 months', 'US$3,021.80', '+18%', 'ok', 'on the 12 before'], ['Visits', '141', '2.6', '', 'days apart'], ['Average basket', 'US$21.43', '+US$1.10', 'ok', 'on last year'], ['Points', '3,021', 'US$30.21', '', 'to spend'], ['Last visit', '15 Aug', '49', 'warn', 'days ago, usually 3']],
+        chart: { title: 'Spend per month', unit: 'US$', values: [188, 214, 240, 196, 262, 310, 228, 251, 244, 290, 309, 89], labels: ['Sep', 'Oct', 'Nov', 'Dec', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug'], prefix: 'US$', years: ['2025', '2025', '2025', '2025', '2026', '2026', '2026', '2026', '2026', '2026', '2026', '2026'] },
+        tabs: [['Points ledger', '214'], ['Purchases', '141'], ['Notes', '2']], tableTitle: 'Points ledger', allLink: 'All points movements',
+        cols: [['When'], ['What'], ['Receipt'], ['By'], ['Points', 'end'], ['Balance', 'end']], grid: '150px minmax(0,1fr) 120px 120px 90px 90px', rowTotal: '214',
+        rows: [['15 Aug 14:02', ['Earned on a sale', 'ok'], 'SALE-31702', 'Chipo Dube', '+32', '3,021'], ['14 Aug 11:40', ['Spent on a sale', 'info'], 'SALE-31688', 'Farai Moyo', '−500', '2,989'], ['9 Aug 17:15', ['Earned on a sale', 'ok'], 'SALE-31604', 'Chipo Dube', '+18', '3,489'], ['1 Aug 09:00', ['Birthday bonus', 'warn'], '—', 'Tendai Mhlanga', '+100', '3,471'], ['31 Jul 00:00', ['Expired, a year old', 'hollow'], '—', 'Automatic', '−42', '3,371'], ['28 Jul 16:20', ['Earned on a sale', 'ok'], 'SALE-31477', 'Tafara Nyathi', '+27', '3,413'], ['20 Jul 12:05', ['Earned on a sale', 'ok'], 'SALE-31390', 'Chipo Dube', '+41', '3,386']],
+        total: [['Σ 12 months', 1], ['earned +4,210 · spent −1,147 · expired −42'], [''], [''], ['+3,021', 1], ['3,021', 1]],
+        meter: ['Gold, on the way to Platinum', '3,021 of 5,000', 60, '1,979 more points, about 9 months at this rate'],
+        rail: [['Contact', [['Phone', '+263 77 412 3388', 1], ['WhatsApp', 'Same number'], ['Email', 'tapiwa.marange@gmail.com'], ['Area', 'Mbare, Harare']]], ['Loyalty', [['Earns', '1 point per US$1'], ['Worth', '100 points = US$1.00'], ['Card', '6009 1400 0141', 1], ['Expiry', 'After a year unused']]], ['Usually buys', [['Most', 'Castle Lager case of 24'], ['Then', 'Chibuku Scud 1L'], ['Pays with', 'EcoCash, mostly']]]] },
+
+      shift: { module: 'floor', active: 2, back: 'Shifts', backHref: 'Main.dc.html', title: 'Front till', ref: 'SH-00242',
+        actions: ['Record cash in or out', 'Print X-report'], more: ['Export as PDF', 'Message the cashier', 'Sign off the difference', ['Close without counting', 'bad']], primary: 'Count and close', primaryHref: 'ShiftClose.dc.html',
+        steps: [['Opened', 'done'], ['Trading', 'now'], ['Counted', 'todo'], ['Closed', 'todo']], chips: [['Chipo Dube', 'plain'], ['Open 6h 12m', 'info']], figureLabel: 'Should be in the drawer', figure: 'US$201.50',
+        kpis: [['Takings', 'US$41.50', '4', '', 'sales'], ['Opening float', 'US$200.00', '07:58', '', 'counted in'], ['Cash in and out', '\u2212US$20.00', '1', '', 'drop to the safe'], ['Should be in the drawer', 'US$201.50', 'US$21.50', '', 'in cash sales'], ['Counted', '\u2014', '', '', 'not counted yet']],
+        chart: { title: 'Takings per hour', unit: 'US$', values: [0, 8.5, 0, 14, 6, 13], labels: ['08:00', '09:00', '10:00', '11:00', '12:00', '13:00'], prefix: 'US$', fixedMax: 20 },
+        tabs: [['Sales', '4'], ['Cash in and out', '1'], ['How people paid', '3'], ['Activity', '6']], tableTitle: 'Sales on this shift', allLink: 'All sales on this shift',
+        cols: [['When'], ['Sale'], ['Items', 'end'], ['Paid with'], ['Total', 'end']], grid: '150px 140px 80px minmax(0,1fr) 120px', rowTotal: '4',
+        rows: [['3 Oct 13:12', 'SALE-31862', '4', ['Cash', 'ok'], 'US$13.00'], ['3 Oct 11:40', 'SALE-31851', '2', ['EcoCash', 'info'], 'US$14.00'], ['3 Oct 12:05', 'SALE-31855', '1', ['Card', 'warn'], 'US$6.00'], ['3 Oct 09:16', 'SALE-31840', '3', ['Cash', 'ok'], 'US$8.50']],
+        total: [['Σ 4 sales', 1], [''], ['10', 1], ['cash US$21.50 · EcoCash US$14.00 · card US$6.00'], ['US$41.50', 1]],
+        rail: [['Shift', [['Till', 'Front till'], ['Site', 'Harare Main Branch'], ['Cashier', 'Chipo Dube'], ['Opened', '3 October 2026, 07:58', 1]]], ['Cash up', [['Opening float', 'US$200.00', 1], ['Cash sales', 'US$21.50', 1], ['To the safe', '\u2212US$20.00 at 10:04', 1], ['Expected', 'US$201.50', 1], ['Counted', 'Not counted yet']]], ['Drawer', [['Last opened', '13:12, for SALE-31862'], ['No-sale opens', '0', 1]]]] },
+
+      sale: { module: 'floor', active: 1, back: 'Sales', backHref: 'SalesList.dc.html', title: 'SALE-31866', ref: 'Front till · Chipo Dube',
+        actions: ['Refund', 'Reprint the receipt', 'Send on WhatsApp'], more: ['Export as PDF', 'Void (same day only)', 'Add a customer to it'], primary: '',
+        chips: [['Sold', 'plain'], ['Fiscal receipt signed', 'ok']], figureLabel: 'Total', figure: 'US$44.20',
+        kpis: [['Total', 'US$44.20', '2', '', 'items'], ['VAT', 'US$5.77', '15%', '', 'included'], ['Margin', 'US$9.84', '22.3%', '', 'on cost'], ['Paid with', 'Card', 'CBZ 4412', '', 'reference'], ['When', '11:40', '3 Oct', '', '2026']],
+        ranges: [['Today', true], ['This week', false]], chart: { title: 'This till today, by hour', unit: 'US$, this sale\u2019s hour darker', values: [62, 184, 211, 296, 140, 118], labels: ['08:00', '09:00', '10:00', '11:00', '12:00', '13:00'], prefix: 'US$', mark: 3 },
+        tabs: [['Lines', '2'], ['Payment', '1'], ['Receipt', '1'], ['Activity', '2']], tableTitle: 'Lines', allLink: 'View the receipt',
+        cols: [['Product'], ['Quantity', 'end'], ['Price', 'end'], ['Discount', 'end'], ['Line', 'end']], grid: 'minmax(0,1fr) 90px 110px 110px 120px', rowTotal: '2',
+        rows: [['Johnnie Walker Black 750ml', '1', 'US$42.00', ['US$0.00', 'zero'], 'US$42.00'], ['Ice 2kg bag', '1', 'US$2.20', ['US$0.00', 'zero'], 'US$2.20']],
+        total: [['Σ 2 lines', 1], ['2', 1], [''], ['US$0.00', 1], ['US$44.20', 1]],
+        rail: [['Sale', [['Till', 'Front till'], ['Cashier', 'Chipo Dube'], ['Customer', 'Walk-in'], ['Price list', 'Retail']]], ['Paid', [['Card', 'US$44.20', 1], ['Reference', 'CBZ 4412 0988', 1], ['Change', 'US$0.00', 1]]], ['Fiscal', [['Receipt', 'FDMS 0441-2209 / 31866', 1], ['Day', '214', 1], ['ID checked', 'Yes, 11:39']]]] },
+
+      requisition: { module: 'buying', active: 3, back: 'Requisitions', backHref: 'RequisitionsList.dc.html', title: 'Cash to pay Afdis for order PO-0005', ref: 'REQ-0014',
+        actions: ['Approve a different amount', 'Reject', 'Ask a question'], more: ['Export as PDF', 'Print for signing', 'Pay out', 'Account for it', ['Cancel the requisition', 'bad']], primary: 'Approve US$1,940.00',
+        steps: [['Asked', 'done'], ['Approved', 'now'], ['Paid out', 'todo'], ['Accounted for', 'todo']], chips: [['Stock purchase', 'plain'], ['Needed by Tuesday', 'warn']], figureLabel: 'Asked for', figure: 'US$1,940.00',
+        kpis: [['Asked for', 'US$1,940.00', 'PO-0005', '', 'Afdis Distillers'], ['In the order', 'US$1,940.00', '90', '', 'units, with VAT'], ['Cash at hand', 'US$2,410.00', 'US$470.00', '', 'left after this'], ['Spent on stock', 'US$9,120.00', 'this month', '', 'of US$12,000.00 budget'], ['Needed by', '6 Oct', '3', 'warn', 'days']],
+        chart: { title: 'Money asked for, by month', unit: 'stock purchases', values: [6200, 7400, 8100, 6900, 9800, 7200, 8400, 9120], labels: ['Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct'], prefix: 'US$' },
+        tabs: [['What it pays for', '6'], ['Approvals', '1'], ['Receipts', '0'], ['Activity', '3']], tableTitle: 'Order lines this money pays for', allLink: 'Open order PO-0005',
+        cols: [['Product'], ['Quantity', 'end'], ['Cost', 'end'], ['Value', 'end']], grid: 'minmax(0,1fr) 110px 120px 140px', rowTotal: '6',
+        rows: [['Amarula Cream 750ml', '24', 'US$13.03', 'US$312.72'], ['Johnnie Walker Black 750ml', '24', 'US$33.60', 'US$806.40'], ['Jameson Irish Whiskey 750ml', '12', 'US$22.15', 'US$265.80'], ['Gordon\u2019s Gin 750ml', '12', 'US$12.40', 'US$148.80'], ['Two Keys Whisky 750ml', '12', 'US$7.10', 'US$85.20'], ['Bols Brandy 750ml', '6', 'US$11.34', 'US$68.04']],
+        total: [['Σ 6 lines', 1], ['90', 1], [''], ['US$1,686.96', 1]],
+        rail: [['Request', [['Asked by', 'Tafara Nyathi'], ['Asked', '3 October 2026, 11:20', 1], ['For', 'Order PO-0005'], ['Purpose', 'Stock purchase']]], ['Money', [['Amount', 'US$1,940.00', 1], ['Currency', 'US dollars, cash'], ['Pay from', 'Office safe'], ['Pay to', 'Afdis Distillers, on delivery']]], ['Approval', [['Approver', 'Tendai Mhlanga, owner'], ['Needs approval', 'Over US$500.00'], ['Receipt due', '3 days after paying']]]] },
+
+      promotion: { module: 'products', active: 2, back: 'Promotions', backHref: 'PromotionsList.dc.html', title: 'Festive season US$2 off spirits', ref: 'PROMO-FESTIVE',
+        actions: ['Edit rules', 'Pause', 'Duplicate'], more: ['Export as PDF', 'Print shelf labels', ['End now', 'bad']], primary: '',
+        steps: [['Draft', 'done'], ['Scheduled', 'done'], ['Running', 'now'], ['Ended', 'todo']], chips: [], figureLabel: 'Given away', figure: 'US$284.00',
+        kpis: [['Sold under it', '142', '+21%', 'ok', 'on the month before'], ['Extra takings', 'US$1,920.00', 'US$6.76', '', 'for each US$1 given'], ['Given away', 'US$284.00', 'US$2.00', '', 'a bottle'], ['Products', '12', '3', 'warn', 'have not sold yet'], ['Running for', '31 days', 'No', '', 'end date']],
+        chart: { title: 'Bottles sold per week', unit: 'on promotion', values: [18, 21, 17, 22, 31, 36, 38, 37], labels: ['5 Aug', '12 Aug', '19 Aug', '26 Aug', '2 Sep', '9 Sep', '16 Sep', '23 Sep'], prefix: '', suffix: ' bottles', mark: 4 },
+        tabs: [['Products', '12'], ['Sales', '142'], ['Changes', '3']], tableTitle: 'Products in this promotion', allLink: 'All 12 products',
+        cols: [['Product'], ['Normal', 'end'], ['On promotion', 'end'], ['Sold', 'end'], ['Given away', 'end'], ['Margin now', 'end']], grid: 'minmax(0,1fr) 100px 120px 80px 110px 110px', rowTotal: '12',
+        rows: [['Jameson Irish Whiskey 750ml', 'US$27.90', 'US$25.90', '31', 'US$62.00', ['14.5%', 'warn']], ['Johnnie Walker Black 750ml', 'US$42.00', 'US$40.00', '22', 'US$44.00', ['16.0%', 'warn']], ['Gordon’s Gin 750ml', 'US$16.40', 'US$14.40', '28', 'US$56.00', ['13.9%', 'bad']], ['Amarula Cream 750ml', 'US$18.25', 'US$16.25', '19', 'US$38.00', ['19.8%', 'warn']], ['Two Keys Whisky 750ml', 'US$9.75', 'US$7.75', '24', 'US$48.00', ['8.4%', 'bad']], ['Nederburg Cabernet 750ml', 'US$12.60', 'US$10.60', '18', 'US$36.00', ['11.3%', 'bad']], ['Bols Brandy 750ml', 'US$14.20', 'US$12.20', '0', 'US$0.00', ['21.0%', '']]],
+        total: [['Σ 12 products', 1], [''], [''], ['142', 1], ['US$284.00', 1], ['15.2% average', 1]],
+        rail: [['Rules', [['Type', 'Amount off'], ['Value', 'US$2.00 a bottle', 1], ['Applies to', 'Spirits, 12 products'], ['Basket', 'Any size'], ['Days', 'Every day, all day'], ['Stacks', 'Not with other promotions']]], ['When', [['Starts', '2 September 2026, 00:00', 1], ['Ends', 'No end date'], ['Sites', 'All sites']]], ['Who', [['Customers', 'Everyone'], ['Points', 'Earned on the promotion price'], ['Created by', 'Tendai Mhlanga']]]] },
+
+      bundle: { module: 'products', active: 3, back: 'Bundles and packs', backHref: 'BundlesList.dc.html', title: 'Braai pack', ref: 'BND-0004',
+        actions: ['Change the bundle', 'Pause', 'Print shelf labels'], more: ['Export as PDF', 'Duplicate', ['Stop selling it', 'bad']], primary: '',
+        steps: [], chips: [['Bundle', 'plain'], ['Can make 4', 'warn']], figureLabel: 'Saves the customer', figure: 'US$1.60',
+        kpis: [['Sold, 30 days', '18', '+6', 'ok', 'on the month before'], ['Takings', 'US$198.00', 'US$11.00', '', 'each'], ['Margin', '22.4%', 'US$2.46', '', 'a bundle'], ['Can make', '4', 'Ice 2kg', 'warn', 'runs out first'], ['Saves', 'US$1.60', '12.7%', '', 'on buying them alone']],
+        chart: { title: 'Bundles sold per week', unit: 'all sites', values: [2, 3, 1, 4, 5, 3, 4, 6], labels: ['5 Aug', '12 Aug', '19 Aug', '26 Aug', '2 Sep', '9 Sep', '16 Sep', '23 Sep'], prefix: '', suffix: ' bundles' },
+        tabs: [['What is in it', '3'], ['Sales', '18'], ['Changes', '2']], tableTitle: 'What is in it', allLink: 'Every sale of it',
+        cols: [['Product'], ['Quantity', 'end'], ['On their own', 'end'], ['On hand', 'end'], ['Makes', 'end']], grid: 'minmax(0,1fr) 100px 120px 100px 100px', rowTotal: '3',
+        rows: [['Castle Lager 340ml', '6', 'US$7.20', '148', '24'], ['Ice 2kg bag', '1', 'US$1.50', ['4', 'warn'], ['4', 'warn']], ['Charcoal 4kg', '1', 'US$3.90', '11', '11']],
+        total: [['Σ 3 products', 1], ['8', 1], ['US$12.60', 1], [''], ['4', 1]],
+        rail: [['Bundle', [['Name', 'Braai pack'], ['Barcode', '6001234500044', 1], ['Category', 'Beer'], ['Price', 'US$11.00', 1]]], ['Selling', [['Sites', 'All sites'], ['Till button', 'Yes, under Beer'], ['Points', 'Earned on US$11.00']]], ['Who', [['Made by', 'Tendai Mhlanga'], ['Made', '2 August 2026', 1]]]] },
+      voucher: { module: 'products', active: 4, back: 'Vouchers', backHref: 'VouchersList.dc.html', title: 'Gift voucher', ref: 'GV-0019',
+        actions: ['Extend', 'Print', 'Send to the holder'], more: ['Export as PDF', ['Void it', 'bad']], primary: '',
+        steps: [['Issued', 'done'], ['In use', 'now'], ['Used up', 'todo']], chips: [['Anyone holding it', 'plain']], figureLabel: 'Left', figure: 'US$7.40',
+        kpis: [['Value', 'US$20.00', '', '', 'when issued'], ['Spent', 'US$12.60', '2', '', 'times'], ['Left', 'US$7.40', '37%', '', 'of the value'], ['Expires', '14 Aug 2027', '313', '', 'days'], ['Sold for', 'US$20.00', 'Cash', '', 'SALE-29410']],
+        chart: { title: 'Spent from it, by month', unit: 'all sites', values: [0, 8.4, 4.2, 0, 0], labels: ['Aug', 'Aug', 'Sep', 'Sep', 'Oct'], prefix: 'US$', suffix: '' },
+        tabs: [['Uses', '2'], ['Changes', '1']], tableTitle: 'Where it was spent', allLink: 'Every use',
+        cols: [['Sale'], ['When'], ['Till'], ['Spent', 'end'], ['Left after', 'end']], grid: 'minmax(0,1fr) 170px 120px 100px 110px', rowTotal: '2',
+        rows: [[['SALE-29811', 'link', 'SaleRecord.dc.html'], '20 August 2026', 'Front till', 'US$8.40', 'US$11.60'], [['SALE-30442', 'link', 'SaleRecord.dc.html'], '3 September 2026', 'Back till', 'US$4.20', 'US$7.40']],
+        total: [['Σ 2 uses', 1], [''], [''], ['US$12.60', 1], ['US$7.40', 1]],
+        rail: [['Voucher', [['Code', 'GV-0019', 1], ['Kind', 'Gift voucher'], ['Holder', 'Anyone holding it'], ['Value', 'US$20.00', 1]]], ['Valid', [['Issued', '14 August 2026', 1], ['Expires', '14 August 2027', 1], ['Sites', 'All sites']]], ['Sold', [['Sale', 'SALE-29410', 1], ['Paid with', 'Cash'], ['By', 'Chipo Dube']]]] },
+      transfer: { module: 'stock', active: 3, back: 'Transfers', backHref: 'TransfersList.dc.html', title: 'Harare Main Branch to Borrowdale', ref: 'TRF-0008',
+        actions: ['Print delivery note', 'Change the lines'], more: ['Export as PDF', ['Cancel the transfer', 'bad']], primary: 'Receive it', primaryHref: 'TransferReceive.dc.html',
+        steps: [['Packed', 'done'], ['On the way', 'now'], ['Received', 'todo']], chips: [['On the way 2h 10m', 'info']], figureLabel: 'Value', figure: 'US$412.80',
+        kpis: [['Lines', '4', '', '', 'products'], ['Units', '540', '', '', 'sent'], ['Value', 'US$412.80', '', '', 'at cost'], ['Sent', '08:30', 'today', '', 'by Tafara Nyathi'], ['Borrowdale holds', '1,204', '+540', 'ok', 'units once received']],
+        chart: { title: 'Moved between the sites, by month', unit: 'transfers', values: [2, 1, 3, 2, 4, 2, 3, 1], labels: ['Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct'], prefix: '', suffix: ' transfers' },
+        tabs: [['Lines', '4'], ['Activity', '2']], tableTitle: 'What is on the way', allLink: 'All transfers',
+        cols: [['Product'], ['Sent', 'end'], ['Received', 'end'], ['Cost', 'end'], ['Value', 'end']], grid: 'minmax(0,1fr) 90px 100px 90px 110px', rowTotal: '4',
+        rows: [['Castle Lager 340ml', '240', '—', 'US$0.86', 'US$206.40'], ['Coca-Cola 500ml', '120', '—', 'US$0.52', 'US$62.40'], ['Chibuku Scud 1L', '120', '—', 'US$0.82', 'US$98.40'], ['Fanta Orange 500ml', '60', '—', 'US$0.76', 'US$45.60']],
+        total: [['Σ 4 lines', 1], ['540', 1], ['—', 1], [''], ['US$412.80', 1]],
+        rail: [['Transfer', [['From', 'Harare Main Branch'], ['To', 'Borrowdale'], ['Sent', 'Today, 08:30', 1], ['Sent by', 'Tafara Nyathi']]], ['Moving', [['Vehicle', 'Shop bakkie, AEZ 4471'], ['Driver', 'Simba Mutasa'], ['Note', 'For the weekend at Borrowdale']]]] },
+      count: { module: 'stock', active: 2, back: 'Counts', backHref: 'CountsList.dc.html', title: 'Spirits shelf', ref: 'CNT-0020',
+        actions: ['Print count sheet', 'Recount 3 lines'], more: ['Export as PDF', ['Cancel the count', 'bad']], primary: 'Approve the differences', primaryHref: 'CountReview.dc.html',
+        steps: [['Started', 'done'], ['Counted', 'done'], ['To approve', 'now'], ['Approved', 'todo']], chips: [['Blind count', 'plain'], ['3 lines differ', 'warn']], figureLabel: 'Difference', figure: '−US$41.20', figureTone: 'warn',
+        kpis: [['Lines', '38', '', '', 'counted'], ['Differ', '3', '8%', 'warn', 'of the lines'], ['Short', '−US$43.60', '2', 'bad', 'lines'], ['Over', '+US$2.40', '1', '', 'line'], ['Took', '34 min', '', '', 'Rudo Moyo']],
+        chart: { title: 'Difference at each count', unit: 'this shelf', values: [12, 8, 63, 2, 41], labels: ['CNT-0016', 'CNT-0017', 'CNT-0018', 'CNT-0019', 'CNT-0020'], prefix: 'US$', suffix: '', mark: 4 },
+        tabs: [['Differences', '3'], ['Every line', '38'], ['Activity', '4']], tableTitle: 'Lines that differ', allLink: 'All 38 lines',
+        cols: [['Product'], ['Expected', 'end'], ['Counted', 'end'], ['Difference', 'end'], ['Value', 'end']], grid: 'minmax(0,1fr) 100px 100px 110px 110px', rowTotal: '3',
+        rows: [['Gordon’s Gin 750ml', '22', '20', ['−2', 'bad'], ['−US$24.80', 'bad']], ['Nederburg Cabernet 750ml', '18', '16', ['−2', 'bad'], ['−US$18.80', 'bad']], ['Bols Brandy 50ml', '6', '8', ['+2', 'warn'], ['+US$2.40', 'warn']]],
+        total: [['Σ 3 lines', 1], ['46', 1], ['44', 1], ['−2', 1], ['−US$41.20', 1]],
+        rail: [['Count', [['Shelf', 'Spirits shelf'], ['Site', 'Harare Main Branch'], ['Started', 'Today, 10:06', 1], ['Finished', 'Today, 10:40', 1]]], ['People', [['Counted by', 'Rudo Moyo'], ['Blind', 'Yes, expected quantities hidden'], ['Approves', 'A manager']]]] },
+      supplier: { module: 'buying', active: 0, back: 'Suppliers', backHref: 'SuppliersList.dc.html', title: 'Delta Beverages', ref: 'SUP-0001',
+        actions: ['Record a payment', 'Record a bill', 'Message on WhatsApp'], more: ['Export statement as PDF', 'Add a contact', 'Return goods', ['Stop buying from them', 'bad']], primary: 'New order',
+        chips: [['Pays 30 days', 'plain'], ['Beverages', 'plain'], ['1 order late', 'bad']], figureLabel: 'Owed', figure: 'US$624.00', figureTone: 'warn',
+        kpis: [['Spend, 12 months', 'US$18,420.00', '+6%', 'ok', 'on the 12 before'], ['Orders', '23', '1', '', 'open'], ['On time', '78%', '−9 pts', 'bad', 'on last year'], ['Fill rate', '92%', '12', 'warn', 'units short this year'], ['Owed', 'US$624.00', '15 Oct', '', 'due']],
+        chart: { title: 'Bought per month', unit: 'US$', values: [1210, 1480, 1890, 2210, 1340, 1260, 1390, 1420, 1510, 1630, 1180, 1900], labels: ['Oct', 'Nov', 'Dec', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep'], prefix: 'US$' },
+        tabs: [['Orders', '23'], ['Deliveries', '21'], ['Bills', '4'], ['Payments', '19'], ['Returns', '2'], ['Contacts', '2']], tableTitle: 'Orders', allLink: 'All 23 orders',
+        cols: [['Order'], ['State'], ['Raised'], ['Expected'], ['Delivered', 'end'], ['Value', 'end']], grid: '100px 140px minmax(0,1fr) 130px 140px 120px', rowTotal: '23',
+        rows: [[['PO-0003', 'link', 'OrderRecord.dc.html'], ['48 days late', 'bad'], '10 August 2026', '16 August 2026', '300 of 780', 'US$624.00'], [['PO-0027', 'link'], ['Received', 'hollow'], '24 September 2026', '26 September 2026', '420 of 420', 'US$1,512.00'], [['PO-0024', 'link'], ['Received', 'hollow'], '9 September 2026', '12 September 2026', '380 of 384', 'US$1,364.40'], [['PO-0021', 'link'], ['Received', 'hollow'], '26 August 2026', '29 August 2026', '512 of 512', 'US$1,843.20'], [['PO-0018', 'link'], ['Received late', 'warn'], '11 August 2026', '14 August 2026', '300 of 300', 'US$1,080.00']],
+        total: [['Σ 5 shown', 1], [''], [''], [''], ['1,912 of 2,396', 1], ['US$6,423.60', 1]],
+        rail: [['Contact', [['Rep', 'Tinashe Moyo'], ['Phone', '+263 24 270 1600', 1], ['WhatsApp', '+263 77 214 9080', 1], ['Email', 'orders@delta.co.zw']]], ['Terms', [['Pays', '30 days from delivery'], ['Delivers', 'Tuesdays and Fridays'], ['Minimum', 'US$500.00 an order', 1], ['Lead time', '2 days']]], ['Details', [['VAT number', '10023881', 1], ['BP number', '200118844', 1], ['Bank', 'CBZ · •••• 4471', 1]]]] },
+
+      order: { module: 'buying', active: 1, back: 'Orders', backHref: 'OrdersList.dc.html', title: 'Delta Beverages', ref: 'PO-0003',
+        actions: ['Send a reminder', 'Edit lines', 'Print'], more: ['Export as PDF', 'Duplicate order', 'Close with what came', ['Cancel what is left', 'bad']], primary: 'Receive a delivery', primaryHref: 'Receive.dc.html',
+        steps: [['Draft', 'done'], ['Sent', 'done'], ['Part delivered', 'now'], ['Received', 'todo'], ['Billed', 'todo']], chips: [['48 days late', 'bad']], figureLabel: 'Still to come', figure: 'US$384.00', figureTone: 'warn',
+        kpis: [['Ordered', '780', '4', '', 'lines'], ['Delivered', '300', '38%', 'warn', 'of the units'], ['Value', 'US$624.00', 'US$240.00', '', 'delivered'], ['Still to come', 'US$384.00', '480', '', 'units'], ['Expected', '16 Aug', '48', 'bad', 'days late']],
+        chart: { title: 'Delivered, by line', unit: '% of what was ordered', values: [50, 25, 50, 34], labels: ['Castle 340ml', 'Chibuku 1L', 'Coke 500ml', 'Sprite 500ml'], prefix: '', suffix: '%', fixedMax: 100 },
+        tabs: [['Lines', '4'], ['Deliveries', '1'], ['Messages', '3'], ['Activity', '6']], tableTitle: 'Order lines', allLink: 'Order history',
+        cols: [['Product'], ['Ordered', 'end'], ['Delivered', 'end'], ['Still to come', 'end'], ['Cost', 'end'], ['Value', 'end']], grid: 'minmax(0,1fr) 90px 90px 110px 90px 110px', rowTotal: '4',
+        rows: [['Castle Lager 340ml', '240', '120', ['120', 'warn'], 'US$0.86', 'US$206.40'], ['Chibuku Scud 1L', '240', '60', ['180', 'warn'], 'US$0.82', 'US$196.80'], ['Coca-Cola 500ml', '180', '90', ['90', 'warn'], 'US$0.52', 'US$93.60'], ['Sprite 500ml', '120', '30', ['90', 'warn'], 'US$0.52', 'US$62.40']],
+        total: [['Σ 4 lines', 1], ['780', 1], ['300', 1], ['480', 1], [''], ['US$559.20', 1]],
+        rail: [['Order', [['Supplier', 'Delta Beverages'], ['Site', 'Harare Main Branch'], ['Raised', '10 August 2026', 1], ['Raised by', 'Tafara Nyathi'], ['Sent', 'WhatsApp, 10 August 14:20']]], ['Money', [['Lines', 'US$559.20', 1], ['VAT', 'US$64.80', 1], ['Total', 'US$624.00', 1], ['Pays', '30 days from delivery']]], ['Deliveries', [['GRN-0002', '13 August, 300 units'], ['Next', 'Promised for 7 October']]]] },
+
+      delivery: { module: 'buying', active: 2, back: 'Deliveries', backHref: 'DeliveriesList.dc.html', title: 'Delta Beverages', ref: 'GRN-0002',
+        actions: ['Record a difference', 'Add photos', 'Print'], more: ['Export as PDF', 'Email to supplier', ['Reverse this delivery', 'bad']], primary: 'Post to stock',
+        steps: [['Arrived', 'done'], ['Counted', 'done'], ['Checked', 'now'], ['In stock', 'todo'], ['Billed', 'todo']], chips: [['12 short', 'warn']], figureLabel: 'Value', figure: 'US$216.00',
+        kpis: [['Units', '300', '312', '', 'on the note'], ['Lines', '4', '2', 'warn', 'with differences'], ['Value', 'US$216.00', '−US$9.36', 'bad', 'short'], ['Against', 'PO-0003', '38%', '', 'of it delivered'], ['Received', '13 Aug', '10:42', '', 'by Tafara Nyathi']],
+        chart: { title: 'Counted against the delivery note', unit: '% of each line', values: [100, 90, 100, 85], labels: ['Castle 340ml', 'Chibuku 1L', 'Coke 500ml', 'Sprite 500ml'], prefix: '', suffix: '%', fixedMax: 100 },
+        tabs: [['Lines', '4'], ['Differences', '2'], ['Photos', '3'], ['Activity', '5']], tableTitle: 'Delivery lines', allLink: 'Delivery note PDF',
+        cols: [['Product'], ['On the note', 'end'], ['Counted', 'end'], ['Difference', 'end'], ['Cost', 'end'], ['Value', 'end']], grid: 'minmax(0,1fr) 110px 90px 110px 90px 110px', rowTotal: '4',
+        rows: [['Castle Lager 340ml', '120', '120', ['0', 'zero'], 'US$0.86', 'US$103.20'], ['Chibuku Scud 1L', '66', '60', ['−6', 'warn'], 'US$0.82', 'US$49.20'], ['Coca-Cola 500ml', '90', '90', ['0', 'zero'], 'US$0.52', 'US$46.80'], ['Sprite 500ml', '36', '30', ['−6', 'warn'], 'US$0.52', 'US$15.60']],
+        total: [['Σ 4 lines', 1], ['312', 1], ['300', 1], ['−12', 1], [''], ['US$214.80', 1]],
+        rail: [['Delivery', [['Supplier', 'Delta Beverages'], ['Order', 'PO-0003', 1], ['Note number', 'DB-778104', 1], ['Driver', 'Simon, truck AEZ 4471']]], ['Received', [['When', '13 August 2026, 10:42', 1], ['By', 'Tafara Nyathi'], ['Checked by', 'Tendai Mhlanga'], ['Site', 'Harare Main Branch']]], ['Differences', [['Short', '12 units, US$9.36', 1], ['Credit', 'Asked for, 13 August'], ['Photos', '3 of the boxes']]]] }
+    };
+    C.orderdraft = Object.assign({}, C.order, { ref: 'PO-0007',
+      actions: ['Edit lines', 'Print'], more: ['Export as PDF', 'Duplicate order', ['Remove the order', 'bad']], primary: 'Send to Delta', primaryHref: '#',
+      steps: [['Draft', 'now'], ['Sent', 'todo'], ['Part delivered', 'todo'], ['Received', 'todo'], ['Billed', 'todo']], chips: [['Not sent', 'plain']], figureLabel: 'Value', figure: 'US$412.80', figureTone: '',
+      kpis: [['Ordered', '480', '3', '', 'lines'], ['Delivered', '0', '0%', '', 'of the units'], ['Value', 'US$412.80', 'US$0.00', '', 'delivered'], ['Still to come', 'US$412.80', '480', '', 'units'], ['Expected', '9 Oct', '5', '', 'days']],
+      chart: { title: 'Delivered, by line', unit: '% of what was ordered', values: [0, 0, 0], labels: ['Castle 340ml', 'Chibuku 1L', 'Coke 500ml'], prefix: '', suffix: '%', fixedMax: 100 },
+      tabs: [['Lines', '3'], ['Deliveries', '0'], ['Messages', '0'], ['Activity', '1']],
+      rows: [['Castle Lager 340ml', '240', '0', ['240', 'plain'], 'US$0.86', 'US$206.40'], ['Chibuku Scud 1L', '120', '0', ['120', 'plain'], 'US$0.82', 'US$98.40'], ['Coca-Cola 500ml', '120', '0', ['120', 'plain'], 'US$0.52', 'US$62.40']],
+      total: [['Σ 3 lines', 1], ['480', 1], ['0', 1], ['480', 1], [''], ['US$367.20', 1]],
+      rail: [['Order', [['Supplier', 'Delta Beverages'], ['Site', 'Harare Main Branch'], ['Raised', '4 October 2026', 1], ['Raised by', 'Tafara Nyathi'], ['Sent', 'Not yet']]], ['Money', [['Lines', 'US$367.20', 1], ['VAT', 'US$45.60', 1], ['Total', 'US$412.80', 1], ['Pays', '30 days from delivery']]]] });
+    var c = C[kind] || C.order;
+    c.mod = MOD[c.module];
+    return c;
+  }
+
+  renderVals() {
+    var LINK = { 'Change the account': 'AccountEdit.dc.html', 'Adjust points': 'PointsAdjust.dc.html', 'Take a payment': 'CustPayment.dc.html', 'Message on WhatsApp': 'MessageNew.dc.html', 'Edit everything': 'CustomerEdit.dc.html', 'Open an account': 'AccountOpen.dc.html', 'Send a statement': 'StatementSend.dc.html', 'Merge with another customer': 'MergeCustomer.dc.html', 'Refund': 'RefundNew.dc.html', 'Void (same day only)': 'VoidSale.dc.html', 'Record cash in or out': 'CashMove.dc.html', 'Close without counting': 'ShiftClose.dc.html', 'Sign off the difference': 'SignOff.dc.html', 'Edit rules': 'PromotionEdit.dc.html', 'End now': 'PromotionEdit.dc.html', 'Print shelf labels': 'Labels.dc.html', 'Record a payment': 'PaymentNew.dc.html', 'Add a contact': 'ContactNew.dc.html', 'Record a bill': 'BillNew.dc.html', 'Return goods': 'ReturnNew.dc.html', 'Send a reminder': 'OrderChase.dc.html', 'Edit lines': 'OrderEdit.dc.html', 'Cancel what is left': 'OrderEdit.dc.html', 'Close with what came': 'OrderCloseShort.dc.html', 'Remove the order': 'OrderRemove.dc.html', 'Cancel the requisition': 'ReqCancel.dc.html', 'Change the bundle': 'BundleEdit.dc.html', 'Stop selling it': 'BundleEdit.dc.html', 'Extend': 'VoucherEdit.dc.html', 'Void it': 'VoucherEdit.dc.html', 'Change the lines': 'TransferNew.dc.html', 'Recount 3 lines': 'CountPhone.dc.html', 'Reopen the order': 'OrderRecord.dc.html', 'Record a difference': 'DeliveryDiff.dc.html', 'Approve a different amount': 'ReqApprove.dc.html', 'Reject': 'ReqReject.dc.html', 'Pay out': 'ReqPayout.dc.html', 'Account for it': 'ReqAcquit.dc.html' };
+    var self = this;
+    var kind = this.props.kind || 'order';
+    var c = this.config(kind);
+    var I = this.I;
+    var ASKS = {
+      bin: { title: 'Move ' + c.title + ' to the bin?', body: 'It leaves every list and search today. Anything sold, paid or counted against it stays exactly as it is. You can restore it from the bin until 2 November.', keep: 'Keep it', go: 'Move to the bin', fill: 'var(--bad)' },
+      closeshort: { title: 'Close ' + c.ref + ' with what came?', body: '480 units across 4 lines are still to come. Closing stops expecting them: the order is done at US$240.00, Delta is billed for what was delivered, and the lines stop showing as late. You can reopen it until a bill is recorded against it.', keep: 'Keep waiting', go: 'Close the order', fill: 'var(--accent-fill)' },
+      removeorder: { title: 'Remove ' + c.ref + '?', body: 'Nothing has come against it and it was never sent, so nothing in stock or in the books changes. It goes to the bin for 30 days; Delta Beverages is not told.', keep: 'Keep it', go: 'Remove the order', fill: 'var(--bad)' },
+      cancelreq: { title: 'Cancel ' + c.ref + '?', body: 'US$1,940.00 for order PO-0005 is no longer asked for. Tafara Nyathi, who asked, gets a message, and the order goes back to unpaid. Nothing was paid out, so no cash moves.', keep: 'Keep it', go: 'Cancel the requisition', fill: 'var(--bad)' }
+    };
+    var ask = ASKS[this.state.confirming === true ? 'bin' : this.state.confirming] || ASKS.bin;
+    var MONO = "'IBM Plex Mono', monospace", SANS = "'Atkinson Hyperlegible Next', sans-serif";
+    var TONE = { ok: ['var(--ok)', 'var(--ok)'], info: ['var(--info)', 'var(--info)'], warn: ['var(--warn-dot)', 'var(--warn-dot)'], bad: ['var(--bad-dot)', 'var(--bad-dot)'], hollow: ['transparent', 'var(--muted)'] };
+    var modules = [['floor', 'The floor', 'Floor.dc.html'], ['products', 'Products', 'ProductsList.dc.html'], ['stock', 'Stock', 'StockList.dc.html'], ['buying', 'Buying', 'OrdersList.dc.html'], ['insights', 'Insights', 'InsightsSales.dc.html'], ['reports', 'Reports', 'ReportsList.dc.html']];
+    var ch = c.chart;
+    var max = ch.fixedMax || Math.ceil(Math.max.apply(null, ch.values) / 100) * 100;
+    var hv = this.state.hover;
+    var n = ch.values.length;
+    var bars = ch.values.map(function (v, i) {
+      var col = i === hv ? 'var(--ink)' : (ch.mark !== undefined && i >= ch.mark ? '#4b5363' : (ch.mark !== undefined ? '#c9c0b8' : (i === n - 1 ? '#4b5363' : '#8a93a3')));
+      return { h: (v / max * 100).toFixed(1) + '%', c: col, axis: ch.labels[i], hover: function () { self.setState({ hover: i }); } };
+    });
+    var fmt = function (v) { return (ch.prefix || '') + v.toLocaleString('en-US') + (ch.suffix || ''); };
+    var tip = hv >= 0 ? { label: ch.labels[hv] + (ch.years ? ' ' + ch.years[hv] : '') + (ch.mark !== undefined ? (hv >= ch.mark ? ' · on promotion' : ' · before') : ''), value: fmt(ch.values[hv]) } : { label: '', value: '' };
+    function cell(d, end) {
+      var x = { isLink: false, isText: true, text: '', font: SANS, size: '13px', weight: '400', fg: 'var(--ink)', bg: 'transparent', pillPad: '0', hasDot: false, dotBg: '', dotLine: '', align: end ? 'right' : 'left', href: '#' };
+      if (Array.isArray(d)) {
+        var tone = d[1];
+        x.text = d[0];
+        if (tone === 'link') { x.isLink = true; x.isText = false; x.font = MONO; x.size = '12.5px'; x.href = d[2] || '#'; return x; }
+        if (TONE[tone] && !end) { x.hasDot = true; x.dotBg = TONE[tone][0]; x.dotLine = TONE[tone][1]; return x; }
+        x.font = MONO; x.size = '12.5px'; x.weight = '500';
+        if (tone === 'warn') { x.fg = 'var(--warn)'; x.bg = 'var(--warn-soft)'; x.pillPad = '2px 6px'; }
+        if (tone === 'bad') { x.fg = 'var(--bad)'; x.bg = 'var(--bad-soft)'; x.pillPad = '2px 6px'; }
+        if (tone === 'zero') { x.fg = 'var(--muted)'; x.weight = '400'; }
+        return x;
+      }
+      x.text = d;
+      if (/^(SALE|PO|GRN)-/.test(d)) { x.isLink = true; x.isText = false; x.font = MONO; x.size = '12.5px'; return x; }
+      if (end || /^\d+ \w{3} \d/.test(d)) { x.font = MONO; x.size = '12.5px'; }
+      if (end && /^[+]/.test(d)) { x.fg = 'var(--ok)'; x.weight = '500'; }
+      if (d === '—') { x.fg = 'var(--faint)'; }
+      return x;
+    }
+    var STEP = { done: { bg: 'var(--surface)', border: 'var(--line)', fg: 'var(--ink-2)', dotBg: 'var(--ok)', dotLine: 'var(--ok)', mark: '✓', weight: '400', current: 'false' },
+      now: { bg: 'var(--surface)', border: 'var(--ink)', fg: 'var(--ink)', dotBg: 'var(--ink)', dotLine: 'var(--ink)', mark: '', weight: '600', current: 'step' },
+      todo: { bg: 'transparent', border: 'transparent', fg: 'var(--muted)', dotBg: 'transparent', dotLine: 'var(--faint)', mark: '', weight: '400', current: 'false' } };
+    var CHIP = { plain: ['var(--surface)', 'var(--ink-2)', 'var(--line)', ''], gold: ['var(--surface)', 'var(--ink)', 'var(--line)', 'var(--warn-dot)'], bad: ['var(--bad-soft)', 'var(--bad)', 'transparent', 'var(--bad-dot)'], warn: ['var(--warn-soft)', 'var(--warn)', 'transparent', 'var(--warn-dot)'], info: ['var(--info-soft)', 'var(--info)', 'transparent', 'var(--info)'], ok: ['var(--ok-soft)', 'var(--ok)', 'transparent', 'var(--ok)'] };
+    var KFG = { ok: 'var(--ok)', bad: 'var(--bad)', warn: 'var(--warn)', '': 'var(--ink-2)' };
+    var ends = c.cols.map(function (h) { return h[1] === 'end'; });
+    return {
+      manageBg: c.module === 'manage' ? 'var(--active)' : 'transparent', manageFg: c.module === 'manage' ? 'var(--ink)' : 'var(--muted)',
+      rail: modules.map(function (m) { var on = m[0] === c.module; return { label: m[1], href: m[2], d: I[m[0]], bg: on ? 'var(--active)' : 'transparent', fg: on ? 'var(--ink)' : 'var(--muted)' }; }),
+      panelTitle: c.mod.title,
+      nav: c.mod.nav.map(function (nv, i) { var on = i === c.active; return { label: nv[0], d: nv[1], href: nv[2], bg: on ? 'var(--active)' : 'transparent', weight: on ? '600' : '400' }; }),
+      back: c.back, backHref: c.backHref, title: c.title, ref: c.ref, actions: c.actions.map(function (a, i) { return { label: a, href: LINK[a] || '#', radius: i === 0 ? '8px 0 0 8px' : '0' }; }),
+      more: c.more.map(function (m) { return Array.isArray(m) ? { label: m[0], href: LINK[m[0]] || '#', fg: 'var(--bad)', go: function () { self.setState({ more: false }); } } : { label: m, href: LINK[m] || '#', fg: 'var(--ink)', go: function () { self.setState({ more: false }); } }; }),
+      askBin: function () { self.setState({ more: false, confirming: true }); }, cancelBin: function () { self.setState({ confirming: false }); },
+      doBin: function () { self.setState({ confirming: false, binned: (self.state.confirming === true || self.state.confirming === 'bin') }); }, restore: function () { self.setState({ binned: false }); },
+      askTitle: ask.title, askBody: ask.body, askKeep: ask.keep, askGo: ask.go, askFill: ask.fill,
+      confirming: this.state.confirming, binned: this.state.binned, bodyClass: this.state.binned ? 'dim' : '',
+      draft: this.state.draft, setDraft: function (e) { self.setState({ draft: e.target.value }); },
+      save: function () { var v = Object.assign({}, self.state.vals); v[self.state.editing] = self.state.draft; self.setState({ vals: v, saved: self.state.editing, editing: null }); },
+      keyDown: function (e) { if (e.key === 'Enter') { var v = Object.assign({}, self.state.vals); v[self.state.editing] = self.state.draft; self.setState({ vals: v, saved: self.state.editing, editing: null }); } if (e.key === 'Escape') { self.setState({ editing: null }); } },
+      moreOpen: this.state.more, toggleMore: function () { self.setState({ more: !self.state.more }); },
+      hasPrimary: Boolean(c.primary), primary: c.primary, primaryHref: c.primaryHref || '#',
+      hasSteps: Boolean(c.steps), steps: (c.steps || []).map(function (s) { var st = STEP[s[1]]; return Object.assign({ label: s[0] }, st); }),
+      chips: c.chips.map(function (k) { var t = CHIP[k[1]]; return { label: k[0], bg: t[0], fg: t[1], border: t[2], hasDot: Boolean(t[3]), dot: t[3] }; }),
+      figureLabel: c.figureLabel, figure: c.figure, figureFg: c.figureTone === 'warn' ? 'var(--warn)' : 'var(--ink)',
+      kpis: c.kpis.map(function (k) { return { label: k[0], value: k[1], delta: k[2], fg: KFG[k[3]] || 'var(--ink-2)', note: k[4], valueFg: 'var(--ink)' }; }),
+      chartTitle: ch.title, chartUnit: ch.unit, bars: bars, barGap: n > 10 ? '4px' : '16px',
+      yTop: fmt(max), yMid: fmt(max / 2),
+      ranges: (c.ranges || [['3 months', false], ['12 months', true], ['All time', false]]).map(function (r) { return { label: r[0], on: r[1] ? 'true' : 'false', bg: r[1] ? 'var(--active)' : 'var(--surface)', fg: r[1] ? 'var(--ink)' : 'var(--ink-2)', weight: r[1] ? '600' : '400' }; }),
+      hasHover: hv >= 0, tip: tip, tipLeft: ((hv + 0.5) / n * 100).toFixed(1) + '%', unhover: function () { self.setState({ hover: -1 }); },
+      tabs: c.tabs.map(function (t, i) { var on = i === self.state.tab; return { label: t[0], count: t[1], on: on ? 'true' : 'false', line: on ? 'var(--ink)' : 'transparent', fg: on ? 'var(--ink)' : 'var(--ink-2)', weight: on ? '600' : '400', pick: function () { self.setState({ tab: i }); } }; }),
+      tableTitle: c.tableTitle, allLink: c.allLink, grid: c.grid,
+      cols: c.cols.map(function (h) { return { label: h[0], align: h[1] === 'end' ? 'right' : 'left' }; }),
+      rows: c.rows.map(function (r) { return r.map(function (d, j) { return cell(d, ends[j]); }); }),
+      total: c.total.map(function (t, j) { return { text: t[0], align: ends[j] ? 'right' : 'left', font: t[1] ? MONO : SANS, fg: 'var(--ink)' }; }),
+      rowCount: String(c.rows.length), rowTotal: c.rowTotal,
+      hasMeter: Boolean(c.meter), meter: c.meter ? { label: c.meter[0], value: c.meter[1], pct: c.meter[2] + '%', note: c.meter[3] } : { label: '', value: '', pct: '0%', note: '' },
+      railGroups: c.rail.map(function (g, gi) { return { title: g[0], hint: gi === 0 ? 'click any value to change it' : '', rows: g[1].map(function (r, ri) { var key = gi + '-' + ri; var val = self.state.vals[key] !== undefined ? self.state.vals[key] : r[1]; var ed = self.state.editing === key; return { k: r[0], v: val, font: r[2] ? MONO : SANS, fg: 'var(--ink)', editing: ed, reading: !ed, saved: self.state.saved === key, edit: function () { self.setState({ editing: key, draft: val, saved: null }); } }; }) }; })
+    };
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<title>Tender in the product</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Next:wght@400;500;600&amp;family=IBM+Plex+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>body{margin:0}</style>
+</helmet>
+<div style="width: 1440px; height: 1640px; box-sizing: border-box; padding: 72px 80px; background: #ffffff; color: #24140e; font-family: 'Atkinson Hyperlegible Next', system-ui, sans-serif; display: flex; flex-direction: column; gap: 56px; font-size: 13px;">
+
+  <header style="display: flex; flex-direction: column; gap: 14px; max-width: 860px;">
+    <span style="font-size: 14px; font-weight: 500; color: #75675f;">Design system</span>
+    <h1 style="margin: 0; font-size: 48px; line-height: 1.06; font-weight: 600; letter-spacing: -0.035em;">Tender in the product</h1>
+    <p style="margin: 0; font-size: 18px; line-height: 1.55; color: #4a3a33;">The same components as every Corelith product, answered in Tender's colours. Orange is spent once per screen; everything else is warm ink on warm greys.</p>
+  </header>
+
+  <section style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 40px; font-size: 14.5px; line-height: 1.5; color: #4a3a33;">
+    <div style="display: flex; flex-direction: column; gap: 8px;"><h3 style="margin: 0; font-size: 16px; font-weight: 600; color: #24140e;">Orange once</h3><p style="margin: 0;">The primary action is the only orange fill on a screen. The brighter orange marks focus and ticks. Nothing else is orange: not selection, not active filters, not headings.</p></div>
+    <div style="display: flex; flex-direction: column; gap: 8px;"><h3 style="margin: 0; font-size: 16px; font-weight: 600; color: #24140e;">States are not the brand</h3><p style="margin: 0;">Short is crimson, over and unfinished are amber, running is indigo, balanced is a hollow circle. Each carries a word or a sign, so colour is never the only signal.</p></div>
+    <div style="display: flex; flex-direction: column; gap: 8px;"><h3 style="margin: 0; font-size: 16px; font-weight: 600; color: #24140e;">Dark by layering</h3><p style="margin: 0;">Dark mode is warm near-black with each surface a step lighter, not a stack of shadows. Accents and status colours lift a step to keep their contrast.</p></div>
+  </section>
+
+  <section style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 48px;">
+    <div style="display: flex; flex-direction: column; gap: 16px;">
+      <h2 style="margin: 0; font-size: 24px; font-weight: 600; letter-spacing: -0.02em;">Actions</h2>
+      <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px;">
+        <button style="height: 36px; display: flex; align-items: center; gap: 8px; padding: 0 16px; border: 0; border-radius: 8px; background: #b84a0c; color: #ffffff; font: inherit; font-size: 14px; font-weight: 600;"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M10.75 4h2.5v6.75H20v2.5h-6.75V20h-2.5v-6.75H4v-2.5h6.75z"></path></svg>Open shift</button>
+        <button style="height: 36px; display: flex; align-items: center; gap: 8px; padding: 0 14px; border: 1px solid #ddd4cc; border-radius: 8px; background: #ffffff; color: #24140e; font: inherit; font-size: 14px;"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M10.75 3h2.5v9.4l3.4-3.4 1.77 1.77L12 17.2l-6.42-6.43L7.35 9l3.4 3.4zM4 18.5h16V21H4z"></path></svg>Export</button>
+        <button style="height: 36px; padding: 0 10px; border: 0; background: transparent; color: #4a3a33; font: inherit; font-size: 14px; text-decoration: underline; text-decoration-color: #ddd4cc; text-underline-offset: 3px;">Clear</button>
+        <button style="height: 36px; display: flex; align-items: center; gap: 8px; padding: 0 14px; border: 1px solid #f0c3cc; border-radius: 8px; background: #ffffff; color: #a3122f; font: inherit; font-size: 14px; font-weight: 500;">Void sale #31863</button>
+      </div>
+      <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px;">
+        <div role="group" aria-label="Button group example" style="display: flex;">
+          <button style="height: 32px; padding: 0 12px; border: 1px solid #ddd4cc; border-radius: 8px 0 0 8px; background: #ffffff; color: #24140e; font: inherit;">Print Z-reports</button>
+          <button style="height: 32px; padding: 0 12px; border: 1px solid #ddd4cc; border-left: 0; background: #ffffff; color: #24140e; font: inherit;">Export <span style="font-family: 'IBM Plex Mono', monospace;">3</span></button>
+          <button aria-label="More" style="width: 34px; height: 32px; border: 1px solid #ddd4cc; border-left: 0; border-radius: 0 8px 8px 0; background: #ffffff; color: #4a3a33;">⋯</button>
+        </div>
+        <button style="height: 32px; padding: 0 12px; border: 1px solid #ddd4cc; border-radius: 8px; background: #ffffff; color: #24140e; font: inherit; outline: 2px solid #e8620f; outline-offset: 3px;">Focused</button>
+      </div>
+      <p style="margin: 0; font-size: 14.5px; line-height: 1.5; color: #4a3a33;">Primary: #B84A0C under a white label, 5.2:1. Several actions in a row become one group. A destructive action names its object and stays an outline until the confirm.</p>
+    </div>
+
+    <div style="display: flex; flex-direction: column; gap: 16px;">
+      <h2 style="margin: 0; font-size: 24px; font-weight: 600; letter-spacing: -0.02em;">States</h2>
+      <div style="display: flex; flex-direction: column; border-radius: 12px; overflow: hidden; border: 1px solid #ece6e0;">
+        <div style="display: flex; flex-wrap: wrap; gap: 8px; padding: 20px; background: #ffffff; font-size: 12px; font-weight: 500;">
+          <span style="display: inline-flex; align-items: center; gap: 6px; height: 22px; padding: 0 8px; border-radius: 6px; background: #eceefb; color: #3d4fb8;"><span style="width: 7px; height: 7px; border-radius: 99px; background: #3d4fb8;"></span>Open</span>
+          <span style="display: inline-flex; align-items: center; gap: 6px; height: 22px; padding: 0 8px; border-radius: 6px; background: #fbe8ec; color: #a3122f;"><span style="width: 7px; height: 7px; border-radius: 99px; background: #c8203f;"></span>Short</span>
+          <span style="display: inline-flex; align-items: center; gap: 6px; height: 22px; padding: 0 8px; border-radius: 6px; background: #fbf1dc; color: #8a5a10;"><span style="width: 7px; height: 7px; border-radius: 99px; background: #e0a21a;"></span>Over</span>
+          <span style="display: inline-flex; align-items: center; gap: 6px; height: 20px; padding: 0 7px; border-radius: 6px; border: 1px solid #e8cf9a; color: #8a5a10;"><span style="width: 7px; height: 7px; box-sizing: border-box; border-radius: 99px; border: 1.5px solid #e0a21a;"></span>Not counted</span>
+          <span style="display: inline-flex; align-items: center; gap: 6px; height: 22px; padding: 0 8px; color: #75675f;"><span style="width: 7px; height: 7px; box-sizing: border-box; border-radius: 99px; border: 1.5px solid #75675f;"></span>Balanced</span>
+        </div>
+        <div style="display: flex; flex-wrap: wrap; gap: 8px; padding: 20px; background: #1e1915; font-size: 12px; font-weight: 500;">
+          <span style="display: inline-flex; align-items: center; gap: 6px; height: 22px; padding: 0 8px; border-radius: 6px; background: #1f2340; color: #9aa7ff;"><span style="width: 7px; height: 7px; border-radius: 99px; background: #9aa7ff;"></span>Open</span>
+          <span style="display: inline-flex; align-items: center; gap: 6px; height: 22px; padding: 0 8px; border-radius: 6px; background: #3a1a20; color: #ff7a8a;"><span style="width: 7px; height: 7px; border-radius: 99px; background: #ff5c70;"></span>Short</span>
+          <span style="display: inline-flex; align-items: center; gap: 6px; height: 22px; padding: 0 8px; border-radius: 6px; background: #33280f; color: #f0b44c;"><span style="width: 7px; height: 7px; border-radius: 99px; background: #f0b44c;"></span>Over</span>
+          <span style="display: inline-flex; align-items: center; gap: 6px; height: 20px; padding: 0 7px; border-radius: 6px; border: 1px solid #5c4718; color: #f0b44c;"><span style="width: 7px; height: 7px; box-sizing: border-box; border-radius: 99px; border: 1.5px solid #f0b44c;"></span>Not counted</span>
+          <span style="display: inline-flex; align-items: center; gap: 6px; height: 22px; padding: 0 8px; color: #b0a39a;"><span style="width: 7px; height: 7px; box-sizing: border-box; border-radius: 99px; border: 1.5px solid #b0a39a;"></span>Balanced</span>
+        </div>
+      </div>
+      <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 14px; font-family: 'IBM Plex Mono', monospace; font-size: 13px; font-weight: 500;">
+        <span>US$886.85</span>
+        <span style="padding: 2px 6px; border-radius: 6px; background: #fbe8ec; color: #a3122f;">−US$7.15</span>
+        <span style="padding: 2px 6px; border-radius: 6px; background: #fbf1dc; color: #8a5a10;">+US$3.17</span>
+        <span style="color: #75675f;">US$0.00</span>
+        <span style="color: #a89c94;">—</span>
+      </div>
+      <p style="margin: 0; font-size: 14.5px; line-height: 1.5; color: #4a3a33;">Money as the till prints it: US$ and two decimals, in mono, right-aligned. A difference carries its sign and a tint; zero stays quiet; nothing yet is a dash.</p>
+    </div>
+  </section>
+
+  <section style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 48px;">
+    <div style="display: flex; flex-direction: column; gap: 16px;">
+      <h2 style="margin: 0; font-size: 24px; font-weight: 600; letter-spacing: -0.02em;">Controls</h2>
+      <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px;">
+        <label style="width: 240px; height: 32px; display: flex; align-items: center; gap: 8px; padding: 0 10px; border: 1px solid #ddd4cc; border-radius: 8px; box-sizing: border-box; color: #75675f;"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M10.5 3a7.5 7.5 0 0 1 5.96 12.06l4.24 4.23-1.42 1.42-4.23-4.24A7.5 7.5 0 1 1 10.5 3zm0 2.5a5 5 0 1 0 0 10 5 5 0 0 0 0-10z"></path></svg><input aria-label="Search example" placeholder="Shift, cashier or till" style="flex: 1; min-width: 0; border: 0; outline: none; font: inherit; background: transparent;"></label>
+        <button style="height: 32px; display: flex; align-items: center; gap: 6px; padding: 0 10px; border: 1px solid #ece6e0; border-radius: 8px; background: #ffffff; color: #24140e; font: inherit;"><span style="color: #75675f;">Till</span><span style="font-weight: 600;">Any</span><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#75675f" stroke-width="2.4" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg></button>
+        <button style="height: 32px; display: flex; align-items: center; gap: 6px; padding: 0 10px; border: 1px solid #ddd4cc; border-radius: 8px; background: #ffffff; color: #24140e; font: inherit; font-weight: 500;">Filters<span style="min-width: 18px; height: 18px; padding: 0 5px; border-radius: 99px; background: #24140e; color: #ffffff; font-family: 'IBM Plex Mono', monospace; font-size: 11px; display: flex; align-items: center; justify-content: center; box-sizing: border-box;">1</span></button>
+        <span style="height: 20px; padding: 0 7px; border-radius: 6px; background: #f3eee9; color: #4a3a33; font-family: 'IBM Plex Mono', monospace; font-size: 12px; display: flex; align-items: center;">312</span>
+        <label style="display: flex; align-items: center; gap: 8px;"><input type="checkbox" checked aria-label="Ticked example" style="width: 16px; height: 16px; margin: 0; accent-color: #e8620f;">Ticked</label>
+      </div>
+      <p style="margin: 0; font-size: 14.5px; line-height: 1.5; color: #4a3a33;">A filter shows its label and its answer. Counts sit on a badge: grey for a count, ink when it says how many filters are on. Selected rows take a warm grey and an orange tick.</p>
+    </div>
+
+    <div style="display: flex; flex-direction: column; gap: 16px;">
+      <h2 style="margin: 0; font-size: 24px; font-weight: 600; letter-spacing: -0.02em;">Empty state</h2>
+      <div style="border: 1px solid #ece6e0; border-radius: 12px; padding: 28px; display: flex; align-items: center; gap: 24px;">
+        <img src="/_blob/42ffdc292bec6acd68cd5a8ca22c5dac" alt="" style="width: 132px; height: 132px; flex: none; margin: -16px;">
+        <div style="display: flex; flex-direction: column; gap: 8px; align-items: flex-start;">
+          <span style="font-size: 16px; font-weight: 600;">No shifts yet</span>
+          <span style="font-size: 14px; color: #4a3a33; line-height: 1.5;">A shift starts when a cashier opens a till with its float. Each one closes with a count.</span>
+          <button style="height: 32px; display: flex; align-items: center; gap: 8px; padding: 0 12px; border: 0; border-radius: 8px; background: #b84a0c; color: #ffffff; font: inherit; font-weight: 600; margin-top: 4px;"><svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M10.75 4h2.5v6.75H20v2.5h-6.75V20h-2.5v-6.75H4v-2.5h6.75z"></path></svg>Open shift</button>
+        </div>
+      </div>
+      <p style="margin: 0; font-size: 14.5px; line-height: 1.5; color: #4a3a33;">The one place a working screen gets a drawing: the list's own icon, a title, one line on what fills it, and the action that does.</p>
+    </div>
+  </section>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1640}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

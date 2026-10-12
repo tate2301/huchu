@@ -1,0 +1,2366 @@
+diff --git a/app/api/v2/retail/buying/bills/[id]/route.ts b/app/api/v2/retail/buying/bills/[id]/route.ts
+new file mode 100644
+index 00000000..0d4214f6
+--- /dev/null
++++ b/app/api/v2/retail/buying/bills/[id]/route.ts
+@@ -0,0 +1,47 @@
++import { NextRequest, NextResponse } from "next/server";
++
++import { fieldErrorResponse, successResponse } from "@/lib/api-response";
++import { billIssues, billPatchSchema } from "@/lib/retail/buying/bill-input";
++import { billView } from "@/lib/retail/buying/bill-view";
++import { changeBill } from "@/lib/retail/buying/bills";
++import { buyingActor, buyingFailure } from "@/lib/retail/buying/routes";
++import { requireRetailPermission } from "@/lib/retail/permissions";
++import { parseRetailParams, retailIdParams } from "@/lib/retail/request";
++
++import { requireRetailSession } from "../../../_helpers";
++
++type Params = { params: Promise<{ id: string }> };
++
++/** A bill as its sheet reads it (40-buying 5.28). */
++export async function GET(request: NextRequest, { params }: Params) {
++  const { response, session } = await requireRetailSession(request);
++  if (response || !session) return response as NextResponse;
++  const gate = requireRetailPermission(session, "retail.bills", "view");
++  if (gate) return gate;
++  const path = await parseRetailParams(params, retailIdParams);
++  if (path.response) return path.response;
++  try {
++    return successResponse({ data: await billView(buyingActor(session), path.data.id) });
++  } catch (error) {
++    return buyingFailure(error, "GET /api/v2/retail/buying/bills/[id]");
++  }
++}
++
++/** Change a bill: any of the fields it was recorded with (W-35 "Change or bin"). */
++export async function PATCH(request: NextRequest, { params }: Params) {
++  const { response, session } = await requireRetailSession(request);
++  if (response || !session) return response as NextResponse;
++  const gate = requireRetailPermission(session, "retail.bills", "update");
++  if (gate) return gate;
++  const path = await parseRetailParams(params, retailIdParams);
++  if (path.response) return path.response;
++  const parsed = billPatchSchema.safeParse(await request.json().catch(() => ({})));
++  if (!parsed.success) return fieldErrorResponse("Validation failed", billIssues(parsed.error));
++  const actor = buyingActor(session);
++  try {
++    const done = await changeBill(actor, path.data.id, parsed.data);
++    return successResponse({ data: await billView(actor, path.data.id), changed: done.changes, message: done.message });
++  } catch (error) {
++    return buyingFailure(error, "PATCH /api/v2/retail/buying/bills/[id]");
++  }
++}
+diff --git a/app/api/v2/retail/buying/bills/compare/route.ts b/app/api/v2/retail/buying/bills/compare/route.ts
+new file mode 100644
+index 00000000..4ff4cf68
+--- /dev/null
++++ b/app/api/v2/retail/buying/bills/compare/route.ts
+@@ -0,0 +1,23 @@
++import { NextRequest, NextResponse } from "next/server";
++
++import { errorResponse, successResponse } from "@/lib/api-response";
++import { compareBill } from "@/lib/retail/buying/bill-view";
++import { buyingFailure } from "@/lib/retail/buying/routes";
++import { requireRetailPermission } from "@/lib/retail/permissions";
++
++import { requireRetailSession } from "../../../_helpers";
++
++/** Record a bill's live hints: the amount against the delivery's value with VAT, and the due day by the terms. */
++export async function GET(request: NextRequest) {
++  const { response, session } = await requireRetailSession(request);
++  if (response || !session) return response as NextResponse;
++  const gate = requireRetailPermission(session, "retail.bills", "create");
++  if (gate) return gate;
++  const deliveryId = request.nextUrl.searchParams.get("deliveryId") ?? "";
++  if (!/^[0-9a-f-]{36}$/i.test(deliveryId)) return errorResponse("Delivery not found", 404);
++  try {
++    return successResponse({ data: await compareBill(session.user.companyId, { deliveryId, amount: request.nextUrl.searchParams.get("amount") }) });
++  } catch (error) {
++    return buyingFailure(error, "GET /api/v2/retail/buying/bills/compare");
++  }
++}
+diff --git a/app/api/v2/retail/buying/bills/export/route.ts b/app/api/v2/retail/buying/bills/export/route.ts
+new file mode 100644
+index 00000000..05951b24
+--- /dev/null
++++ b/app/api/v2/retail/buying/bills/export/route.ts
+@@ -0,0 +1,30 @@
++import { NextRequest, NextResponse } from "next/server";
++
++import { fieldErrorResponse } from "@/lib/api-response";
++import { billIssues, exportSchema } from "@/lib/retail/buying/bill-input";
++import { billsWorkbook } from "@/lib/retail/buying/bill-export";
++import { buyingActor, buyingFailure } from "@/lib/retail/buying/routes";
++import { requireRetailPermission } from "@/lib/retail/permissions";
++
++import { requireRetailSession } from "../../../_helpers";
++
++/** "Export for the bookkeeper": the ticked bills and their payments as an `.xlsx`. */
++export async function POST(request: NextRequest) {
++  const { response, session } = await requireRetailSession(request);
++  if (response || !session) return response as NextResponse;
++  const gate = requireRetailPermission(session, "retail.bills", "view");
++  if (gate) return gate;
++  const parsed = exportSchema.safeParse(await request.json().catch(() => ({})));
++  if (!parsed.success) return fieldErrorResponse("Validation failed", billIssues(parsed.error));
++  try {
++    const { bytes } = await billsWorkbook(buyingActor(session), parsed.data.ids);
++    return new NextResponse(new Uint8Array(bytes), {
++      headers: {
++        "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
++        "Content-Disposition": 'attachment; filename="bills-for-the-bookkeeper.xlsx"',
++      },
++    });
++  } catch (error) {
++    return buyingFailure(error, "POST /api/v2/retail/buying/bills/export");
++  }
++}
+diff --git a/app/api/v2/retail/buying/bills/route.ts b/app/api/v2/retail/buying/bills/route.ts
+new file mode 100644
+index 00000000..1cbe7099
+--- /dev/null
++++ b/app/api/v2/retail/buying/bills/route.ts
+@@ -0,0 +1,27 @@
++import { NextRequest, NextResponse } from "next/server";
++
++import { fieldErrorResponse, successResponse } from "@/lib/api-response";
++import { billIssues, billSchema } from "@/lib/retail/buying/bill-input";
++import { billView } from "@/lib/retail/buying/bill-view";
++import { recordBill } from "@/lib/retail/buying/bills";
++import { buyingActor, buyingFailure } from "@/lib/retail/buying/routes";
++import { requireRetailPermission } from "@/lib/retail/permissions";
++
++import { requireRetailSession } from "../../_helpers";
++
++/** Record a supplier's bill against its delivery, or none (W-35 "Match to the delivery"). */
++export async function POST(request: NextRequest) {
++  const { response, session } = await requireRetailSession(request);
++  if (response || !session) return response as NextResponse;
++  const gate = requireRetailPermission(session, "retail.bills", "create");
++  if (gate) return gate;
++  const parsed = billSchema.safeParse(await request.json().catch(() => ({})));
++  if (!parsed.success) return fieldErrorResponse("Validation failed", billIssues(parsed.error));
++  const actor = buyingActor(session);
++  try {
++    const done = await recordBill(actor, parsed.data);
++    return successResponse({ data: await billView(actor, done.id), accountingStatus: done.accountingStatus, message: done.message }, 201);
++  } catch (error) {
++    return buyingFailure(error, "POST /api/v2/retail/buying/bills");
++  }
++}
+diff --git a/app/api/v2/retail/buying/payments/preview/route.ts b/app/api/v2/retail/buying/payments/preview/route.ts
+new file mode 100644
+index 00000000..8a54c0c5
+--- /dev/null
++++ b/app/api/v2/retail/buying/payments/preview/route.ts
+@@ -0,0 +1,29 @@
++import { NextRequest, NextResponse } from "next/server";
++
++import { errorResponse, successResponse } from "@/lib/api-response";
++import { previewPayment } from "@/lib/retail/buying/payments";
++import { buyingFailure } from "@/lib/retail/buying/routes";
++import { requireRetailPermission } from "@/lib/retail/permissions";
++
++import { requireRetailSession } from "../../../_helpers";
++
++const UUID = /^[0-9a-f-]{36}$/i;
++
++/** What a payment would pay, live under the Pays row: the same allocation recording it writes. */
++export async function GET(request: NextRequest) {
++  const { response, session } = await requireRetailSession(request);
++  if (response || !session) return response as NextResponse;
++  const gate = requireRetailPermission(session, "retail.bills", "create");
++  if (gate) return gate;
++  const search = request.nextUrl.searchParams;
++  const supplierId = search.get("supplierId") ?? "";
++  if (!UUID.test(supplierId)) return errorResponse("Supplier not found", 404);
++  const billId = search.get("billId");
++  try {
++    return successResponse({
++      data: await previewPayment(session.user.companyId, { supplierId, amount: search.get("amount"), billId: billId && UUID.test(billId) ? billId : null }),
++    });
++  } catch (error) {
++    return buyingFailure(error, "GET /api/v2/retail/buying/payments/preview");
++  }
++}
+diff --git a/app/api/v2/retail/buying/payments/route.ts b/app/api/v2/retail/buying/payments/route.ts
+new file mode 100644
+index 00000000..205c3c55
+--- /dev/null
++++ b/app/api/v2/retail/buying/payments/route.ts
+@@ -0,0 +1,28 @@
++import { NextRequest, NextResponse } from "next/server";
++
++import { fieldErrorResponse, successResponse } from "@/lib/api-response";
++import { billIssues, paymentSchema } from "@/lib/retail/buying/bill-input";
++import { recordSupplierPayment } from "@/lib/retail/buying/payments";
++import { buyingActor, buyingFailure } from "@/lib/retail/buying/routes";
++import { requireRetailPermission } from "@/lib/retail/permissions";
++
++import { requireRetailSession } from "../../_helpers";
++
++/** Pay a supplier from a money account: the named bill first, then the oldest; anything over is credit (W-35 "Record payment"). */
++export async function POST(request: NextRequest) {
++  const { response, session } = await requireRetailSession(request);
++  if (response || !session) return response as NextResponse;
++  const gate = requireRetailPermission(session, "retail.bills", "create");
++  if (gate) return gate;
++  const parsed = paymentSchema.safeParse(await request.json().catch(() => ({})));
++  if (!parsed.success) return fieldErrorResponse("Validation failed", billIssues(parsed.error));
++  try {
++    const done = await recordSupplierPayment(buyingActor(session), parsed.data);
++    return successResponse(
++      { data: { groupNo: done.groupNo, rows: done.rows, owedAfter: done.owedAfter }, accountingStatus: done.accountingStatus, message: done.message },
++      201,
++    );
++  } catch (error) {
++    return buyingFailure(error, "POST /api/v2/retail/buying/payments");
++  }
++}
+diff --git a/lib/accounting/balances.ts b/lib/accounting/balances.ts
+index c4af8602..327a50ac 100644
+--- a/lib/accounting/balances.ts
++++ b/lib/accounting/balances.ts
+@@ -1,3 +1,5 @@
++import type { Prisma } from "@prisma/client";
++
+ import { prisma } from "@/lib/prisma";
+ import { toMoney } from "@/lib/accounting/ledger";
+ 
+@@ -50,23 +52,24 @@ export async function recalcSalesInvoiceBalance(invoiceId: string) {
+   return { amountPaid, creditTotal, writeOffTotal, balance, status: nextStatus };
+ }
+ 
+-export async function recalcPurchaseBillBalance(billId: string) {
+-  const bill = await prisma.purchaseBill.findUnique({
++/** A bill's paid, debit-noted and written-off figures and its status; `client` lets it run inside a transaction (BUY-07). */
++export async function recalcPurchaseBillBalance(billId: string, client: Prisma.TransactionClient | typeof prisma = prisma) {
++  const bill = await client.purchaseBill.findUnique({
+     where: { id: billId },
+     select: { id: true, total: true, status: true },
+   });
+   if (!bill) return null;
+ 
+   const [payments, debitNotes, writeOffs] = await Promise.all([
+-    prisma.purchasePayment.aggregate({
++    client.purchasePayment.aggregate({
+       where: { billId },
+       _sum: { amount: true },
+     }),
+-    prisma.debitNote.aggregate({
++    client.debitNote.aggregate({
+       where: { billId, status: "ISSUED" },
+       _sum: { total: true },
+     }),
+-    prisma.purchaseWriteOff.aggregate({
++    client.purchaseWriteOff.aggregate({
+       where: { billId, status: "POSTED" },
+       _sum: { amount: true },
+     }),
+@@ -86,7 +89,7 @@ export async function recalcPurchaseBillBalance(billId: string) {
+     }
+   }
+ 
+-  await prisma.purchaseBill.update({
++  await client.purchaseBill.update({
+     where: { id: billId },
+     data: {
+       amountPaid,
+diff --git a/lib/accounting/bootstrap.ts b/lib/accounting/bootstrap.ts
+index e2c8ac7c..c35ce0f5 100644
+--- a/lib/accounting/bootstrap.ts
++++ b/lib/accounting/bootstrap.ts
+@@ -800,6 +800,7 @@ export async function runAccountingSeedPack(input: SeedPackInput): Promise<Accou
+           accountSource: line.accountSource ?? "FIXED_ACCOUNT",
+           accountRole: line.accountRole ?? null,
+           eventAccountKey: line.eventAccountKey ?? null,
++          eventAmountKey: line.eventAmountKey ?? null,
+           valuePath: line.valuePath ?? null,
+           memoTemplate: line.memoTemplate ?? null,
+           costCenterId: null,
+diff --git a/lib/accounting/defaults.ts b/lib/accounting/defaults.ts
+index 25da8ccf..6a442c00 100644
+--- a/lib/accounting/defaults.ts
++++ b/lib/accounting/defaults.ts
+@@ -100,6 +100,8 @@ export type DefaultPostingRuleLine = {
+   accountRole?: RetailAccountRole;
+   /** With `accountSource: "EVENT_ACCOUNT"`: the key of the account in the event's `accounts` (BUY-05). */
+   eventAccountKey?: "moneyAccount" | "expenseAccount" | "changeAccount";
++  /** With `basis: "EVENT_AMOUNT"`: the key of the amount in the event's `amounts` (BUY-07). */
++  eventAmountKey?: "grni" | "tax" | "priceOver" | "priceUnder" | "amount" | "net";
+   valuePath?: string;
+   memoTemplate?: string;
+   costCenterCode?: string;
+@@ -1131,6 +1133,42 @@ export const RETAIL_POSTING_RULES: DefaultPostingRule[] = [
+       { accountSource: "EVENT_ACCOUNT", eventAccountKey: "moneyAccount", direction: "CREDIT", basis: "AMOUNT", memoTemplate: "{description} / paid out", sortOrder: 20 },
+     ],
+   },
++  // BUY-07: a supplier's bill. Against its delivery it clears GRNI at the
++  // delivery's value and books what the bill says over or under it to cost of
++  // sales; with no delivery the whole net is cost. One event carries every
++  // amount (`amounts` in its payload), each line reading its own.
++  {
++    name: "Retail supplier bill",
++    sourceType: "RETAIL_SUPPLIER_BILL",
++    description: "A supplier's bill against its delivery: GRNI cleared, VAT input, the price difference to cost of sales, owed to the supplier.",
++    priority: 10,
++    scopeType: "COMPANY",
++    ruleMode: "GUIDED",
++    isFallback: true,
++    conditions: [{ field: "MOVEMENT_TYPE", operator: "EQ", valueString: "DELIVERY" }],
++    lines: [
++      { accountCode: "2300", direction: "DEBIT", basis: "EVENT_AMOUNT", eventAmountKey: "grni", memoTemplate: "{description} / GRNI", sortOrder: 10 },
++      { accountCode: "2210", direction: "DEBIT", basis: "EVENT_AMOUNT", eventAmountKey: "tax", memoTemplate: "{description} / VAT input", sortOrder: 20 },
++      { accountCode: "5000", direction: "DEBIT", basis: "EVENT_AMOUNT", eventAmountKey: "priceOver", memoTemplate: "{description} / price over the delivery", sortOrder: 30 },
++      { accountCode: "5000", direction: "CREDIT", basis: "EVENT_AMOUNT", eventAmountKey: "priceUnder", memoTemplate: "{description} / price under the delivery", sortOrder: 40 },
++      { accountCode: "2000", direction: "CREDIT", basis: "EVENT_AMOUNT", eventAmountKey: "amount", memoTemplate: "{description} / owed", sortOrder: 50 },
++    ],
++  },
++  {
++    name: "Retail supplier bill, no delivery",
++    sourceType: "RETAIL_SUPPLIER_BILL",
++    description: "A supplier's bill with no delivery: the net to cost of sales, VAT input, owed to the supplier.",
++    priority: 10,
++    scopeType: "COMPANY",
++    ruleMode: "GUIDED",
++    isFallback: true,
++    conditions: [{ field: "MOVEMENT_TYPE", operator: "EQ", valueString: "NO_DELIVERY" }],
++    lines: [
++      { accountCode: "5000", direction: "DEBIT", basis: "EVENT_AMOUNT", eventAmountKey: "net", memoTemplate: "{description} / cost", sortOrder: 10 },
++      { accountCode: "2210", direction: "DEBIT", basis: "EVENT_AMOUNT", eventAmountKey: "tax", memoTemplate: "{description} / VAT input", sortOrder: 20 },
++      { accountCode: "2000", direction: "CREDIT", basis: "EVENT_AMOUNT", eventAmountKey: "amount", memoTemplate: "{description} / owed", sortOrder: 30 },
++    ],
++  },
+   {
+     name: "Retail stock adjustment",
+     sourceType: "RETAIL_STOCK_ADJUSTMENT",
+diff --git a/lib/accounting/posting.ts b/lib/accounting/posting.ts
+index 698521ef..2756a991 100644
+--- a/lib/accounting/posting.ts
++++ b/lib/accounting/posting.ts
+@@ -480,10 +480,28 @@ const ROLE_WORDS: Record<RetailAccountRole, string> = {
+   OTHER_INCOME: "other income",
+ };
+ 
++/**
++ * The amount an event names for a line with `basis = EVENT_AMOUNT` (BUY-07):
++ * its payload's `amounts[eventAmountKey]`. One event can carry several amounts
++ * (a supplier bill: GRNI, VAT, price over or under, the total), and a key the
++ * event leaves out is zero, so the line is dropped like any zero line.
++ */
++function resolveEventAmount(envelope: Record<string, unknown>, key: string | null) {
++  const amounts = envelope.amounts && typeof envelope.amounts === "object" ? (envelope.amounts as Record<string, unknown>) : {};
++  const value = key ? amounts[key] : undefined;
++  const number = typeof value === "number" ? value : typeof value === "string" ? Number(value) : 0;
++  return Number.isFinite(number) ? toMoney(number) : 0;
++}
++
+ function resolveLineAmount(line: PostingRuleLine, context: PostingContext, envelope: ReturnType<typeof buildEnvelope>, repeatItem?: Record<string, unknown>) {
+   const valueSource = repeatItem ?? envelope;
+   const valueFromPath = getPathValue(valueSource, line.valuePath);
+-  const base = typeof valueFromPath === "number" ? valueFromPath : resolveBasisAmount(line.basis, context);
++  const base =
++    typeof valueFromPath === "number"
++      ? valueFromPath
++      : line.basis === "EVENT_AMOUNT"
++        ? resolveEventAmount(envelope, line.eventAmountKey)
++        : resolveBasisAmount(line.basis, context);
+   if (line.allocationType === "FIXED") {
+     return toMoney(line.allocationValue ?? base);
+   }
+diff --git a/lib/retail/activity-words.ts b/lib/retail/activity-words.ts
+index 361b1b3a..7703d3e1 100644
+--- a/lib/retail/activity-words.ts
++++ b/lib/retail/activity-words.ts
+@@ -5,7 +5,7 @@ import { adjustReasonLabel, pointsWords } from "@/lib/retail/loyalty/format";
+ import { priceWords, productWords, scheduledActivity, undoneActivity } from "@/lib/retail/prices/words";
+ import { dayMonth } from "@/lib/retail/buying/words";
+ import { tenderLabel } from "@/lib/retail/words";
+-import { DEFAULT_TIME_ZONE, formatCount, formatDay, formatMoney, formatPercent, formatSigned, formatTime } from "@/lib/workspace/format";
++import { DEFAULT_TIME_ZONE, formatCount, formatDay, formatMoney, formatPercent, formatShortDay, formatSigned, formatTime } from "@/lib/workspace/format";
+ 
+ /**
+  * What a record's Activity tab says about each event (00-foundations 5.6.9).
+@@ -511,6 +511,19 @@ const WORDS: Record<string, (payload: Payload, eventType: string, seeCost: boole
+     const back = change > 0 ? `, ${moneyWords(payload.change, currency)} back${text(payload.into) ? ` in ${text(payload.into)}` : ""}` : "";
+     return { what: `Accounted for: spent ${moneyWords(payload.spent, currency)}${back}`, tone: "ok" };
+   },
++  // Bills and payments (40-buying 3.4): "Bill INV-88120 recorded, US$216.00, due 12 Sep, for GRN-0002"; "Paid US$624.00, PAY-0019: INV-88120, INV-88504".
++  [RETAIL_AUDIT_EVENTS.billRecorded]: (payload) => {
++    const due = text(payload.due);
++    const delivery = text(payload.delivery);
++    return {
++      what: `Bill ${text(payload.billNumber) ?? ""} recorded, ${moneyWords(payload.amount, text(payload.currency) ?? "USD")}${due ? `, due ${formatShortDay(`${due}T12:00:00Z`)}` : ""}${delivery ? `, for ${delivery}` : ""}`,
++      tone: "info",
++    };
++  },
++  [RETAIL_AUDIT_EVENTS.supplierPaid]: (payload) => {
++    const bills = Array.isArray(payload.bills) ? payload.bills.filter((bill): bill is string => typeof bill === "string") : [];
++    return { what: `Paid ${moneyWords(payload.amount, text(payload.currency) ?? "USD")}, ${text(payload.groupNo) ?? ""}${bills.length ? `: ${bills.join(", ")}` : ", held as credit"}`, tone: "ok" };
++  },
+   [RETAIL_AUDIT_EVENTS.messageReceived]: (payload) => {
+     const body = text(payload.body) ?? "";
+     const short = body.length > 80 ? `${body.slice(0, 80).trimEnd()}…` : body;
+diff --git a/lib/retail/audit.test.ts b/lib/retail/audit.test.ts
+index dd570027..3aa2a0cc 100644
+--- a/lib/retail/audit.test.ts
++++ b/lib/retail/audit.test.ts
+@@ -555,6 +555,8 @@ describe("the chain", () => {
+       requisitionCancelled: "RETAIL_REQUISITION.CANCELLED",
+       requisitionPaid: "RETAIL_REQUISITION.PAID",
+       requisitionAccounted: "RETAIL_REQUISITION.ACCOUNTED",
++      billRecorded: "RETAIL_BILL.RECORDED",
++      supplierPaid: "RETAIL_SUPPLIER_PAYMENT.RECORDED",
+     });
+   });
+ });
+diff --git a/lib/retail/audit.ts b/lib/retail/audit.ts
+index 61d10742..3fe08c54 100644
+--- a/lib/retail/audit.ts
++++ b/lib/retail/audit.ts
+@@ -403,6 +403,10 @@ export const RETAIL_AUDIT_EVENTS = {
+   requisitionPaid: "RETAIL_REQUISITION.PAID",
+   /** A paid-out requisition accounted for with its receipts (BUY-05). Carries `{ spent, change, into, currency }`. */
+   requisitionAccounted: "RETAIL_REQUISITION.ACCOUNTED",
++  /** A supplier's bill recorded (BUY-07), on the bill and its delivery. Carries `{ billNumber, amount, due, delivery }`. */
++  billRecorded: "RETAIL_BILL.RECORDED",
++  /** A payment to a supplier (BUY-07), on the supplier and each bill it pays. Carries `{ groupNo, amount, bills }`. */
++  supplierPaid: "RETAIL_SUPPLIER_PAYMENT.RECORDED",
+ } as const;
+ 
+ export type RetailAuditEvent =
+diff --git a/lib/retail/bin.ts b/lib/retail/bin.ts
+index 24a2abfc..629e897d 100644
+--- a/lib/retail/bin.ts
++++ b/lib/retail/bin.ts
+@@ -4,6 +4,8 @@ import { z } from "zod";
+ import { prisma } from "@/lib/prisma";
+ import { BIN_KEEP_DAYS, restorableUntil } from "@/lib/retail/asks";
+ import { auditRecordBin, auditRecordPurged, RETAIL_AUDIT_EVENTS, type RetailAuditActor } from "@/lib/retail/audit";
++import { BillRefusal, billPostingKey, binRefusalFor, settleSupplierCredits, unbookBill } from "@/lib/retail/buying/bills";
++import { postSupplierBill } from "@/lib/retail/buying/posting";
+ import { cancelOrderRequisitionsIn } from "@/lib/retail/buying/requisitions";
+ import { categoryBinRefusal, restoreCategory } from "@/lib/retail/categories";
+ import { CustomerRefusal } from "@/lib/retail/customers/create";
+@@ -32,7 +34,7 @@ import type { RetailAction, RetailResource } from "@/lib/retail/permission-matri
+  * `KINDS`.
+  */
+ 
+-export const BIN_KINDS = ["product", "promotion", "category", "price-list", "bundle", "customer", "order"] as const;
++export const BIN_KINDS = ["product", "promotion", "category", "price-list", "bundle", "customer", "order", "bill"] as const;
+ export type BinKind = (typeof BIN_KINDS)[number];
+ 
+ type Tx = Prisma.TransactionClient;
+@@ -71,8 +73,11 @@ export type BinKindSpec = {
+    * is who bins it; `later` runs once the bin move commits (telling people).
+    */
+   move(tx: Tx, companyId: string, id: string, at: Date, by?: { actor: RetailAuditActor; later: (fn: () => Promise<void>) => void }): Promise<string | null>;
+-  /** Out of the bin, by `actor`. A sentence refuses it (409), passed through as it is. */
+-  restore(tx: Tx, companyId: string, id: string, actor: RetailAuditActor): Promise<string | null>;
++  /**
++   * Out of the bin, by `actor`. A sentence refuses it (409), passed through as
++   * it is. `later` runs once the restore commits (posting it to the books again).
++   */
++  restore(tx: Tx, companyId: string, id: string, actor: RetailAuditActor, later?: (fn: () => Promise<void>) => void): Promise<string | null>;
+   /**
+    * Gone for good: the row is deleted when nothing sold, paid or counted
+    * refers to it; otherwise it is kept, under its name, for that history.
+@@ -138,8 +143,76 @@ const ORDER_KIND: BinKindSpec = {
+     ).map((row) => ({ companyId: row.companyId, id: row.id, name: orderName(row), reference: row.poNo, binnedAt: row.archivedAt! })),
+ };
+ 
++/** "INV-88120 · Delta Beverages": what the bin and the asks call a bill. */
++const billName = (bill: { billNumber: string; vendor: { name: string } }) => `${bill.billNumber} · ${bill.vendor.name}`;
++
++/**
++ * A supplier's bill (BUY-07). Nothing paid against it may go: what was paid
++ * names it. Going reverses what it posted; coming back posts it again, once
++ * the restore commits. Binned, it leaves every list, total and Owed.
++ */
++const BILL_KIND: BinKindSpec = {
++  kind: "bill",
++  label: "Bill",
++  entityType: "PurchaseBill",
++  deleteRight: ["retail.bills", "delete"],
++  viewRight: ["retail.bills", "view"],
++  binEvents: [RETAIL_AUDIT_EVENTS.recordBinned],
++  find: async (tx, companyId, id) => {
++    const bill = await tx.purchaseBill.findFirst({ where: { id, companyId }, select: { billNumber: true, archivedAt: true, vendor: { select: { name: true } } } });
++    return bill ? { name: billName(bill), archivedAt: bill.archivedAt } : null;
++  },
++  move: async (tx, companyId, id, at, by) => {
++    // The row first: a payment allocating against it waits, or has already landed and is seen.
++    await tx.$queryRaw`SELECT "id" FROM "PurchaseBill" WHERE "id" = ${id} FOR UPDATE`;
++    const bill = await tx.purchaseBill.findFirstOrThrow({ where: { id, companyId }, select: { id: true, billNumber: true, amountPaid: true, currency: true } });
++    const refusal = binRefusalFor(bill);
++    if (refusal) return refusal;
++    await tx.purchaseBill.update({ where: { id }, data: { archivedAt: at } });
++    if (by) {
++      try {
++        await unbookBill(tx, by.actor, bill, at, "moved to the bin");
++      } catch (error) {
++        if (error instanceof BillRefusal) return error.message;
++        throw error;
++      }
++    }
++    return null;
++  },
++  restore: async (tx, companyId, id, actor, later) => {
++    await tx.purchaseBill.update({ where: { id }, data: { archivedAt: null } });
++    const at = new Date();
++    later?.(async () => {
++      await postSupplierBill(companyId, id, billPostingKey(id, at), { userId: actor.userId, userRole: actor.userRole });
++      const bill = await prisma.purchaseBill.findUniqueOrThrow({ where: { id }, select: { vendorId: true } });
++      await settleSupplierCredits(companyId, bill.vendorId);
++    });
++    return null;
++  },
++  // Nothing was paid against it (it could not have gone in otherwise): it, its line and its file go.
++  purge: async (tx, companyId, id) => {
++    const held = await tx.purchaseBill.findFirst({
++      where: { id, companyId },
++      select: { _count: { select: { payments: true, debitNotes: true, writeOffs: true } } },
++    });
++    if (!held || held._count.payments + held._count.debitNotes + held._count.writeOffs > 0) return "kept";
++    await tx.retailAttachment.deleteMany({ where: { companyId, entityType: "PurchaseBill", entityId: id } });
++    await tx.purchaseBillLine.deleteMany({ where: { billId: id } });
++    await tx.purchaseBill.delete({ where: { id } });
++    return "deleted";
++  },
++  listBinned: async (where) =>
++    (
++      await prisma.purchaseBill.findMany({
++        where: binnedWhere(where),
++        select: { companyId: true, id: true, billNumber: true, archivedAt: true, vendor: { select: { name: true } } },
++      })
++    ).map((row) => ({ companyId: row.companyId, id: row.id, name: billName(row), reference: row.billNumber, binnedAt: row.archivedAt! })),
++};
++
+ const KINDS: Record<BinKind, BinKindSpec> = {
+   order: ORDER_KIND,
++  bill: BILL_KIND,
+   product: {
+     kind: "product",
+     label: "Product",
+@@ -559,7 +632,8 @@ export async function restoreFromBin(
+   now: Date = new Date(),
+ ): Promise<{ restored: true }> {
+   const spec = KINDS[input.kind];
+-  return prisma.$transaction(async (tx) => {
++  const afters: Array<() => Promise<void>> = [];
++  const restored = await prisma.$transaction(async (tx) => {
+     await lockRecord(tx, spec, input.id);
+     const found = await spec.find(tx, actor.companyId, input.id);
+     if (!found?.archivedAt) throw new BinRefusal(404, "That is not in the bin");
+@@ -569,7 +643,7 @@ export async function restoreFromBin(
+     if (!stillRestorable(found.archivedAt, now)) {
+       throw new BinRefusal(410, "It has been in the bin more than 30 days");
+     }
+-    const refusal = await spec.restore(tx, actor.companyId, input.id, actor);
++    const refusal = await spec.restore(tx, actor.companyId, input.id, actor, (fn) => afters.push(fn));
+     if (refusal) throw new BinRefusal(409, refusal);
+     await auditRecordBin(tx, {
+       actor,
+@@ -581,6 +655,8 @@ export async function restoreFromBin(
+     });
+     return { restored: true as const };
+   });
++  for (const after of afters) await after();
++  return restored;
+ }
+ 
+ /** Several out of the bin (W-63, the bin's Restore). Each on its own: one refused does not hold the rest. */
+diff --git a/lib/retail/buying/bill-export.ts b/lib/retail/buying/bill-export.ts
+new file mode 100644
+index 00000000..8a327ff4
+--- /dev/null
++++ b/lib/retail/buying/bill-export.ts
+@@ -0,0 +1,100 @@
++import ExcelJS from "exceljs";
++
++import { money, toNumberOrZero } from "@/lib/money";
++import { prisma } from "@/lib/prisma";
++import { auditExportDownloaded, type RetailAuditActor } from "@/lib/retail/audit";
++import { dayKey } from "@/lib/workspace/format";
++
++
++/**
++ * "Export for the bookkeeper" (W-35): the ticked bills as a workbook with two
++ * sheets: "Bills" (each with its supplier's VAT number, its delivery, net,
++ * VAT, amount, paid, owed and the ledger entry it posted as) and "Payments"
++ * (every payment row against them). Days are shop days; money is numbers to
++ * the cent, so the bookkeeper's spreadsheet adds them up.
++ */
++
++const BILL_COLUMNS = ["Bill", "Supplier", "Supplier VAT number", "Delivery", "Billed", "Due", "Net", "VAT", "Amount", "Paid", "Owed", "Ledger entry"];
++const PAYMENT_COLUMNS = ["Payment", "Bill", "Paid on", "Paid by", "From", "Reference", "Amount"];
++
++export async function billsWorkbook(actor: RetailAuditActor, ids: string[]): Promise<{ bytes: Buffer; rows: number }> {
++  const companyId = actor.companyId;
++  const bills = await prisma.purchaseBill.findMany({
++    where: { companyId, id: { in: ids }, archivedAt: null },
++    orderBy: [{ dueDate: "asc" }, { billNumber: "asc" }],
++    select: {
++      id: true,
++      billNumber: true,
++      billDate: true,
++      dueDate: true,
++      subTotal: true,
++      taxTotal: true,
++      total: true,
++      amountPaid: true,
++      debitNoteTotal: true,
++      writeOffTotal: true,
++      goodsReceiptId: true,
++      vendor: { select: { name: true, vatNumber: true } },
++      goodsReceipt: { select: { receiptNo: true } },
++      payments: {
++        orderBy: { paymentNumber: "asc" },
++        select: { paymentNumber: true, paidAt: true, method: true, reference: true, amount: true, bankAccount: { select: { name: true } } },
++      },
++    },
++  });
++  const entries = await prisma.journalEntry.findMany({
++    where: { companyId, sourceType: "RETAIL_SUPPLIER_BILL", status: "POSTED", reversedAt: null, OR: bills.map((bill) => ({ sourceId: { startsWith: bill.id } })) },
++    select: { entryNumber: true, sourceId: true },
++  });
++  const entryOf = (billId: string) => entries.find((entry) => entry.sourceId?.startsWith(billId));
++
++  const workbook = new ExcelJS.Workbook();
++  const billSheet = workbook.addWorksheet("Bills");
++  billSheet.addRow(BILL_COLUMNS);
++  for (const bill of bills) {
++    const owed = money(bill.total).minus(money(bill.amountPaid)).minus(money(bill.debitNoteTotal)).minus(money(bill.writeOffTotal));
++    const entry = entryOf(bill.id);
++    billSheet.addRow([
++      bill.billNumber,
++      bill.vendor.name,
++      bill.vendor.vatNumber ?? "",
++      bill.goodsReceipt?.receiptNo ?? "No delivery",
++      dayKey(bill.billDate),
++      bill.dueDate ? dayKey(bill.dueDate) : "",
++      toNumberOrZero(money(bill.subTotal)),
++      toNumberOrZero(money(bill.taxTotal)),
++      toNumberOrZero(money(bill.total)),
++      toNumberOrZero(money(bill.amountPaid)),
++      toNumberOrZero(owed.greaterThan(0) ? owed : money(0)),
++      entry ? `JE-${entry.entryNumber}` : "Not posted yet",
++    ]);
++  }
++  const paymentSheet = workbook.addWorksheet("Payments");
++  paymentSheet.addRow(PAYMENT_COLUMNS);
++  let payments = 0;
++  for (const bill of bills) {
++    for (const payment of bill.payments) {
++      payments += 1;
++      paymentSheet.addRow([
++        payment.paymentNumber,
++        bill.billNumber,
++        dayKey(payment.paidAt),
++        payment.method,
++        payment.bankAccount?.name ?? "",
++        payment.reference ?? "",
++        toNumberOrZero(money(payment.amount)),
++      ]);
++    }
++  }
++  for (const sheet of [billSheet, paymentSheet]) {
++    sheet.getRow(1).font = { bold: true };
++    sheet.views = [{ state: "frozen", ySplit: 1 }];
++    sheet.columns.forEach((column) => {
++      column.width = 18;
++    });
++  }
++  for (const key of [7, 8, 9, 10, 11]) billSheet.getColumn(key).numFmt = "#,##0.00";
++  paymentSheet.getColumn(7).numFmt = "#,##0.00";
++  await auditExportDownloaded(prisma, { actor, key: "retail-bills-bookkeeper", format: "xlsx", rows: bills.length + payments });
++  return { bytes: Buffer.from(await workbook.xlsx.writeBuffer()), rows: bills.length };
++}
+diff --git a/lib/retail/buying/bill-input.ts b/lib/retail/buying/bill-input.ts
+new file mode 100644
+index 00000000..47349963
+--- /dev/null
++++ b/lib/retail/buying/bill-input.ts
+@@ -0,0 +1,80 @@
++import { z } from "zod";
++
++import { parseDay } from "@/lib/workspace/format";
++
++/**
++ * The requests the bill and payment routes take (40-buying 4.6), as the
++ * sheets send them: money as a string with two decimals (or a number), days
++ * as shop days `YYYY-MM-DD` (or typed, "13 August 2026"), a file as the
++ * upload's whole answer.
++ */
++
++const day = z
++  .string()
++  .trim()
++  .transform((value, ctx) => {
++    const parsed = /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : parseDay(value);
++    if (!parsed) {
++      ctx.addIssue({ code: "custom", message: "Write a date, like 13 August 2026." });
++      return z.NEVER;
++    }
++    return parsed;
++  });
++
++const amount = z.union([z.number(), z.string().trim().min(1, "Write the amount, like 216.00.")]);
++
++const file = z.object({
++  url: z.string().min(1),
++  name: z.string().trim().min(1).max(200),
++  contentType: z.string().trim().min(1).max(100),
++  size: z.number().int().positive(),
++});
++
++export const billSchema = z.object({
++  supplierId: z.string().uuid({ message: "Choose the supplier." }),
++  deliveryId: z.string().uuid().nullish(),
++  billNumber: z.string().max(200),
++  billDate: day,
++  amount,
++  dueDate: day.nullish(),
++  file: file.nullish(),
++});
++
++export const billPatchSchema = billSchema.partial().refine((patch) => Object.keys(patch).length > 0, "Change something first.");
++
++export const paymentSchema = z.object({
++  supplierId: z.string().uuid({ message: "Choose the supplier." }),
++  amount,
++  paidOn: day,
++  how: z.enum(["Cash", "Bank transfer", "EcoCash"], { message: "Choose how it was paid." }),
++  fromId: z.string().uuid({ message: "Choose where the money comes from." }),
++  reference: z.string().max(200).nullish(),
++  firstBillId: z.string().uuid().nullish(),
++});
++
++export const exportSchema = z.object({ ids: z.array(z.string().uuid()).min(1, "Tick at least one bill.").max(2000) });
++
++/** The request's keys as the bill and payment sheets' field ids (5.27–5.29). */
++const SHEET_FIELD: Record<string, string> = {
++  supplierId: "sup",
++  deliveryId: "grn",
++  billNumber: "no",
++  billDate: "date",
++  amount: "amt",
++  dueDate: "due",
++  file: "pdf",
++  paidOn: "date",
++  how: "how",
++  fromId: "from",
++  reference: "ref",
++};
++
++/** Zod's issues as the sheet's field errors, first message per field. */
++export function billIssues(error: z.ZodError): Record<string, string> {
++  const fields: Record<string, string> = {};
++  for (const issue of error.issues) {
++    const raw = String(issue.path[0] ?? "form");
++    fields[SHEET_FIELD[raw] ?? raw] ??= issue.message;
++  }
++  return fields;
++}
+diff --git a/lib/retail/buying/bill-view.ts b/lib/retail/buying/bill-view.ts
+new file mode 100644
+index 00000000..1b5f51fc
+--- /dev/null
++++ b/lib/retail/buying/bill-view.ts
+@@ -0,0 +1,144 @@
++import { money, toNumberOrZero } from "@/lib/money";
++import { prisma } from "@/lib/prisma";
++import { RETAIL_AUDIT_EVENTS, type RetailAuditActor } from "@/lib/retail/audit";
++import { canRetailRoleDo } from "@/lib/retail/permission-matrix";
++import { dayKey } from "@/lib/workspace/format";
++
++import { BILL_NOT_FOUND, BillRefusal, defaultDue, differenceHint, dueHint } from "./bills";
++import { deliveryFigures } from "./delivery-value";
++import { billBalance, billState, paidInCash, type BillState } from "./figures";
++import { dayMonth } from "./words";
++
++/**
++ * A bill as its sheet reads it (40-buying 4.6, 5.28): the bill has no record
++ * page, the `bill-edit` sheet is its record. "Changed by …" is the latest of
++ * its own events (recorded, a value changed, paid), else who recorded it.
++ */
++
++export type BillView = {
++  id: string;
++  billNumber: string;
++  supplier: { id: string; name: string };
++  delivery: { id: string; receiptNo: string; date: string; valueWithVat: number } | null;
++  billDate: string;
++  dueDate: string | null;
++  amount: number;
++  paid: number;
++  owed: number;
++  currency: string;
++  state: BillState;
++  binned: boolean;
++  file: { url: string; name: string; contentType: string; size: number; added: string } | null;
++  lastChange: string;
++  can: { update: boolean; pay: boolean; bin: boolean };
++};
++
++const CHANGE_EVENTS = [RETAIL_AUDIT_EVENTS.billRecorded, RETAIL_AUDIT_EVENTS.recordEdited, RETAIL_AUDIT_EVENTS.supplierPaid];
++
++/** "Changed by Tendai Mhlanga, 14 August." / "Recorded by Ruvimbo Chari, 13 August." */
++async function lastChange(companyId: string, billId: string, createdBy: string | null, createdAt: Date): Promise<string> {
++  const event = await prisma.platformAuditEvent.findFirst({
++    where: { companyId, entityType: "PurchaseBill", entityId: billId, eventType: { in: CHANGE_EVENTS } },
++    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
++    select: { eventType: true, actor: true, payloadJson: true, createdAt: true },
++  });
++  let named: string | null = null;
++  try {
++    const payload = event?.payloadJson ? (JSON.parse(event.payloadJson) as Record<string, unknown>) : {};
++    named = typeof payload.actorName === "string" && payload.actorName ? payload.actorName : null;
++  } catch {
++    named = null;
++  }
++  const actorId = event?.actor ?? createdBy;
++  const who = named ?? (actorId ? ((await prisma.user.findFirst({ where: { id: actorId }, select: { name: true } }))?.name ?? null) : null) ?? "someone";
++  const changed = event && event.eventType !== RETAIL_AUDIT_EVENTS.billRecorded;
++  return `${changed ? "Changed" : "Recorded"} by ${who}, ${dayMonth(event?.createdAt ?? createdAt)}.`;
++}
++
++export async function billView(actor: RetailAuditActor, id: string, now = new Date()): Promise<BillView> {
++  const companyId = actor.companyId;
++  const bill = await prisma.purchaseBill.findFirst({
++    where: { id, companyId },
++    select: {
++      id: true,
++      billNumber: true,
++      billDate: true,
++      dueDate: true,
++      total: true,
++      amountPaid: true,
++      debitNoteTotal: true,
++      writeOffTotal: true,
++      currency: true,
++      archivedAt: true,
++      createdById: true,
++      createdAt: true,
++      vendor: { select: { id: true, name: true } },
++      goodsReceipt: { select: { id: true, receiptNo: true, createdAt: true } },
++      payments: { select: { method: true } },
++    },
++  });
++  if (!bill) throw new BillRefusal(404, BILL_NOT_FOUND);
++  const [file, delivery] = await Promise.all([
++    prisma.retailAttachment.findFirst({
++      where: { companyId, entityType: "PurchaseBill", entityId: id, kind: "BILL" },
++      orderBy: { createdAt: "desc" },
++      select: { url: true, name: true, contentType: true, size: true, createdAt: true },
++    }),
++    bill.goodsReceipt ? deliveryFigures(prisma, bill.goodsReceipt.id) : Promise.resolve(null),
++  ]);
++  const figure = { ...bill, binned: bill.archivedAt !== null, paidInCash: paidInCash(bill.payments.map((payment) => payment.method)) };
++  const owed = billBalance(figure);
++  const paid = money(bill.amountPaid);
++  const role = actor.userRole;
++  return {
++    id: bill.id,
++    billNumber: bill.billNumber,
++    supplier: bill.vendor,
++    delivery:
++      bill.goodsReceipt && delivery
++        ? {
++            id: bill.goodsReceipt.id,
++            receiptNo: bill.goodsReceipt.receiptNo,
++            date: dayKey(bill.goodsReceipt.createdAt),
++            valueWithVat: toNumberOrZero(delivery.value.plus(delivery.vat)),
++          }
++        : null,
++    billDate: dayKey(bill.billDate),
++    dueDate: bill.dueDate ? dayKey(bill.dueDate) : null,
++    amount: toNumberOrZero(money(bill.total)),
++    paid: toNumberOrZero(paid),
++    owed: toNumberOrZero(owed.greaterThan(0) ? owed : money(0)),
++    currency: bill.currency,
++    state: billState(figure, now),
++    binned: bill.archivedAt !== null,
++    file: file ? { url: file.url, name: file.name, contentType: file.contentType, size: file.size, added: file.createdAt.toISOString() } : null,
++    lastChange: await lastChange(companyId, bill.id, bill.createdById, bill.createdAt),
++    can: {
++      update: !bill.archivedAt && canRetailRoleDo(role, "retail.bills", "update"),
++      pay: !bill.archivedAt && owed.greaterThan(0) && canRetailRoleDo(role, "retail.bills", "create"),
++      bin: !bill.archivedAt && !paid.greaterThan(0) && canRetailRoleDo(role, "retail.bills", "delete"),
++    },
++  };
++}
++
++export type BillCompare = { deliveryValue: number; difference: number; hint: string | null; due: string; dueHint: string };
++
++/** The Record a bill sheet's live hints: the bill against the delivery's value with VAT, and its due day by the terms. */
++export async function compareBill(companyId: string, input: { deliveryId: string; amount?: string | null }): Promise<BillCompare> {
++  const receipt = await prisma.retailGoodsReceipt.findFirst({
++    where: { id: input.deliveryId, companyId },
++    select: { id: true, createdAt: true, vendor: { select: { payTermsDays: true } } },
++  });
++  if (!receipt) throw new BillRefusal(404, "Delivery not found");
++  const figures = await deliveryFigures(prisma, receipt.id);
++  const withVat = figures.value.plus(figures.vat);
++  const typed = (input.amount ?? "").replace(/,/g, "").trim();
++  const amount = /^\d+(\.\d+)?$/.test(typed) ? money(typed) : null;
++  return {
++    deliveryValue: toNumberOrZero(withVat),
++    difference: amount ? toNumberOrZero(amount.minus(withVat)) : 0,
++    hint: amount ? differenceHint(amount, withVat) : null,
++    due: defaultDue(dayKey(receipt.createdAt), receipt.vendor.payTermsDays),
++    dueHint: dueHint(receipt.vendor.payTermsDays, true),
++  };
++}
+diff --git a/lib/retail/buying/bills-migration.test.ts b/lib/retail/buying/bills-migration.test.ts
+new file mode 100644
+index 00000000..67596e0f
+--- /dev/null
++++ b/lib/retail/buying/bills-migration.test.ts
+@@ -0,0 +1,62 @@
++/**
++ * Migration witness for `20261012090000_retail_bills` (BUY-07).
++ *
++ * A supplier's bill names the delivery it is for (one bill a delivery) and can
++ * go in the bin; its number is unique for the supplier, no longer for the
++ * whole company, so two suppliers can both send "INV-001"; bills are read by
++ * supplier and due date. A posting rule line can read one of several amounts
++ * the event names (`EVENT_AMOUNT`, by `eventAmountKey`), and a supplier's
++ * bill has its own source type on the books.
++ */
++import { describe, expect, it } from "vitest";
++
++import { prisma } from "@/lib/prisma";
++
++type ColumnFacts = { column_name: string; data_type: string; is_nullable: string };
++
++async function columns(table: string) {
++  const rows = await prisma.$queryRaw<ColumnFacts[]>`
++    SELECT column_name, data_type, is_nullable
++    FROM information_schema.columns
++    WHERE table_schema = 'public' AND table_name = ${table}`;
++  return new Map(rows.map((row) => [row.column_name, row]));
++}
++
++async function enumLabels(name: string) {
++  const rows = await prisma.$queryRaw<Array<{ label: string }>>`
++    SELECT e.enumlabel AS label
++    FROM pg_enum e JOIN pg_type t ON t.oid = e.enumtypid
++    JOIN pg_namespace n ON n.oid = t.typnamespace
++    WHERE t.typname = ${name} AND n.nspname = 'public'
++    ORDER BY e.enumsortorder`;
++  return rows.map((row) => row.label);
++}
++
++async function indexDef(table: string, name: string) {
++  const [row] = await prisma.$queryRaw<Array<{ indexdef: string }>>`
++    SELECT indexdef FROM pg_indexes WHERE schemaname = 'public' AND tablename = ${table} AND indexname = ${name}`;
++  return row?.indexdef ?? null;
++}
++
++describe("supplier bills, as stored", () => {
++  it("name the delivery they are for, once each, and can go in the bin", async () => {
++    const facts = await columns("PurchaseBill");
++    expect(facts.get("goodsReceiptId")).toMatchObject({ data_type: "text", is_nullable: "YES" });
++    expect(facts.get("archivedAt")).toMatchObject({ data_type: "timestamp without time zone", is_nullable: "YES" });
++    expect(await indexDef("PurchaseBill", "PurchaseBill_goodsReceiptId_key")).toMatch(/CREATE UNIQUE INDEX .*\("goodsReceiptId"\)/);
++  });
++
++  it("are numbered uniquely per supplier, not per company, and read by supplier and due date", async () => {
++    expect(await indexDef("PurchaseBill", "PurchaseBill_companyId_vendorId_billNumber_key")).toMatch(
++      /CREATE UNIQUE INDEX .*\("companyId", "vendorId", "billNumber"\)/,
++    );
++    expect(await indexDef("PurchaseBill", "PurchaseBill_companyId_billNumber_key")).toBeNull();
++    expect(await indexDef("PurchaseBill", "PurchaseBill_companyId_vendorId_dueDate_idx")).toContain('("companyId", "vendorId", "dueDate")');
++  });
++
++  it("post through their own source type, each line reading the amount the event names", async () => {
++    expect(await enumLabels("AccountingSourceType")).toContain("RETAIL_SUPPLIER_BILL");
++    expect(await enumLabels("PostingBasis")).toContain("EVENT_AMOUNT");
++    expect((await columns("PostingRuleLine")).get("eventAmountKey")).toMatchObject({ data_type: "text", is_nullable: "YES" });
++  });
++});
+diff --git a/lib/retail/buying/bills.ts b/lib/retail/buying/bills.ts
+new file mode 100644
+index 00000000..544ed1fe
+--- /dev/null
++++ b/lib/retail/buying/bills.ts
+@@ -0,0 +1,529 @@
++import { Prisma } from "@prisma/client";
++
++import { recalcPurchaseBillBalance } from "@/lib/accounting/balances";
++import { JournalReversalError, reverseJournalEntry } from "@/lib/accounting/journals";
++import { money, toNumberOrZero, ZERO } from "@/lib/money";
++import { prisma } from "@/lib/prisma";
++import { auditAmount, auditRecordEdited, RETAIL_AUDIT_EVENTS, writeRetailAuditEvent, type RetailAuditActor } from "@/lib/retail/audit";
++import { STANDARD_VAT_RATE } from "@/lib/retail/category-words";
++import { startOfDayIn } from "@/lib/reports/list-query";
++import { dayKey, DEFAULT_TIME_ZONE, formatMoney } from "@/lib/workspace/format";
++
++import { AttachmentRefusal, recordAttachment, type UploadedFile } from "./attachments";
++import { deliveryFigures } from "./delivery-value";
++import { billAmounts } from "./figures";
++import { postSupplierBill, type AccountingResult } from "./posting";
++import { dayMonth } from "./words";
++
++/**
++ * A supplier's bills (40-buying W-35, BUY-07): recorded against the delivery
++ * it is for (or none), changed, moved to the bin and back. Money is worked
++ * in `Decimal` and stored rounded to the cent (the bill's columns are Float).
++ * The books follow after each commit: a bill posts `RETAIL_SUPPLIER_BILL`
++ * (Dr GRNI at the delivery's value, Dr VAT input, the price difference to
++ * cost of sales, Cr Accounts payable); a change or the bin reverses what is
++ * posted inside its own transaction, under the bill's row lock, so it is
++ * reversed once, and a change or a restore posts again under a key of its
++ * own. Credits the supplier holds (an overpayment, a requisition's cash) then
++ * settle the oldest unpaid bills.
++ */
++
++type Tx = Prisma.TransactionClient;
++type Client = Tx | typeof prisma;
++
++export class BillRefusal extends Error {
++  constructor(
++    readonly status: 400 | 403 | 404 | 409,
++    message: string,
++    readonly fieldErrors: Record<string, string> | null = null,
++  ) {
++    super(message);
++    this.name = "BillRefusal";
++  }
++}
++
++export const BILL_NOT_FOUND = "Bill not found";
++const invalid = (fieldErrors: Record<string, string>) => new BillRefusal(400, "Validation failed", fieldErrors);
++
++export type BillDeps = { now?: Date };
++
++export type BillInput = {
++  supplierId: string;
++  deliveryId?: string | null;
++  billNumber: string;
++  billDate: string;
++  amount: string | number;
++  dueDate?: string | null;
++  file?: UploadedFile | null;
++};
++
++/** "INV-88120": trimmed, single-spaced, 1–40 characters. */
++function cleanNumber(value: string): string {
++  return value.replace(/\s+/g, " ").trim();
++}
++
++function parseAmount(value: string | number | null | undefined): Prisma.Decimal | null {
++  const text = typeof value === "number" ? String(value) : (value ?? "").replace(/,/g, "").replace(/^US\$/, "").trim();
++  if (!text || !/^-?\d+(\.\d+)?$/.test(text)) return null;
++  return money(text);
++}
++
++/** A shop day's start in Harare: what a bill's dates are stored as. */
++const dayStart = (day: string) => startOfDayIn(day, DEFAULT_TIME_ZONE);
++const isDay = (value: string | null | undefined): value is string => typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value);
++const addDays = (day: string, days: number) => dayKey(new Date(Date.parse(`${day}T12:00:00Z`) + days * 86_400_000), "UTC");
++
++/** "30 days from delivery." / "On delivery." / "14 days from the bill.": what the default due day is. */
++export function dueHint(payTermsDays: number | null, fromDelivery: boolean): string {
++  if (!payTermsDays) return "On delivery.";
++  return `${payTermsDays} ${payTermsDays === 1 ? "day" : "days"} from ${fromDelivery ? "delivery" : "the bill"}.`;
++}
++
++/** The due day by the supplier's terms: the delivery's day (or the bill's) plus their days. */
++export function defaultDue(from: string, payTermsDays: number | null): string {
++  return addDays(from, payTermsDays ?? 0);
++}
++
++/**
++ * The shop's standard VAT rate: the rate most of its live products are sold
++ * at (15.5 on the demo), else the standard 15. A supplier with no VAT
++ * number charges none.
++ */
++export async function shopVatRate(companyId: string, client: Client = prisma): Promise<Prisma.Decimal> {
++  const tallies = await client.product.groupBy({
++    by: ["defaultTaxRate"],
++    where: { companyId, archivedAt: null, isActive: true },
++    _count: { _all: true },
++  });
++  const top = tallies.sort((a, b) => b._count._all - a._count._all || Number(b.defaultTaxRate) - Number(a.defaultTaxRate))[0];
++  return top ? money(top.defaultTaxRate) : money(STANDARD_VAT_RATE);
++}
++
++/** "US$1.20 more than the delivery. Accept it, or ask for a credit." / "US$1.20 less than the delivery." / null when equal. */
++export function differenceHint(amount: Prisma.Decimal, valueWithVat: Prisma.Decimal, currency = "USD"): string | null {
++  const difference = amount.minus(valueWithVat);
++  if (difference.isZero()) return null;
++  const figure = formatMoney(toNumberOrZero(difference.abs()), currency);
++  return difference.greaterThan(0) ? `${figure} more than the delivery. Accept it, or ask for a credit.` : `${figure} less than the delivery.`;
++}
++
++/* ── The delivery a bill is for ─────────────────────────────────────────── */
++
++type Delivery = { id: string; receiptNo: string; siteId: string; createdAt: Date };
++
++/** The delivery a bill names: this supplier's, posted, and not billed by another live bill. */
++async function checkDelivery(client: Client, companyId: string, vendorId: string, deliveryId: string, exceptBillId?: string): Promise<Delivery> {
++  const receipt = await client.retailGoodsReceipt.findFirst({
++    where: { id: deliveryId, companyId },
++    select: { id: true, receiptNo: true, siteId: true, createdAt: true, vendorId: true, status: true, bill: { select: { id: true, billNumber: true, archivedAt: true } } },
++  });
++  if (!receipt) throw new BillRefusal(404, "Delivery not found");
++  if (receipt.vendorId !== vendorId) throw invalid({ grn: `${receipt.receiptNo} came from another supplier.` });
++  if (receipt.status !== "POSTED") throw invalid({ grn: `${receipt.receiptNo} is not in stock yet. Post it first.` });
++  if (receipt.bill && receipt.bill.id !== exceptBillId) {
++    throw new BillRefusal(
++      409,
++      receipt.bill.archivedAt
++        ? `${receipt.receiptNo} has bill ${receipt.bill.billNumber} in the bin. Restore it, or delete it for good first.`
++        : `${receipt.receiptNo} already has bill ${receipt.bill.billNumber}.`,
++    );
++  }
++  return receipt;
++}
++
++/* ── What the bill posts ────────────────────────────────────────────────── */
++
++/**
++ * Reverses what a bill has on the books, inside the caller's transaction:
++ * every posted entry of it not yet reversed, and any posting still waiting
++ * (a shop that posts at the end of the day) is dropped so it never posts.
++ * Under the bill's row lock, so a second change waits and finds it done.
++ */
++export async function unbookBill(tx: Tx, actor: RetailAuditActor, bill: { id: string; billNumber: string }, at: Date, why: string): Promise<void> {
++  const keys = { companyId: actor.companyId, sourceType: "RETAIL_SUPPLIER_BILL" as const, sourceId: { startsWith: bill.id } };
++  const posted = await tx.journalEntry.findMany({ where: { ...keys, status: "POSTED", reversedAt: null, reversalOfEntryId: null }, select: { id: true } });
++  for (const entry of posted) {
++    try {
++      await reverseJournalEntry(tx, { companyId: actor.companyId, entryId: entry.id, actorId: actor.userId, actorRole: actor.userRole ?? null, reversalDate: at, reason: `${bill.billNumber} ${why}` });
++    } catch (error) {
++      if (error instanceof JournalReversalError) throw new BillRefusal(409, `${bill.billNumber} is in a closed period: ${error.message}.`);
++      throw error;
++    }
++  }
++  await tx.accountingIntegrationEvent.updateMany({
++    where: { ...keys, status: { in: ["PENDING", "FAILED"] } },
++    data: { status: "IGNORED", lastError: `${bill.billNumber} ${why}` },
++  });
++}
++
++/** The key a bill posts under: its id the first time, then one per change or restore. */
++export const billPostingKey = (billId: string, at?: Date) => (at ? `${billId}:${at.getTime()}` : billId);
++
++/* ── Credits the supplier holds ─────────────────────────────────────────── */
++
++/** "PAY-0019/3": the next row number of a payment group. */
++async function nextRowNumber(tx: Tx, companyId: string, groupNo: string): Promise<string> {
++  const rows = await tx.purchasePayment.findMany({ where: { companyId, groupNo }, select: { paymentNumber: true } });
++  const highest = rows.reduce((max, row) => Math.max(max, Number(/\/(\d+)$/.exec(row.paymentNumber)?.[1] ?? 0)), 0);
++  return `${groupNo}/${highest + 1}`;
++}
++
++/** Unpaid bills of a supplier, not in the bin, the named one first then by due day (oldest first). */
++export async function unpaidBills(client: Client, companyId: string, vendorId: string, firstBillId?: string | null) {
++  const bills = await client.purchaseBill.findMany({
++    where: { companyId, vendorId, archivedAt: null, status: { notIn: ["DRAFT", "VOIDED", "PAID"] } },
++    orderBy: [{ dueDate: "asc" }, { billDate: "asc" }, { billNumber: "asc" }],
++    select: { id: true, billNumber: true, total: true, amountPaid: true, debitNoteTotal: true, writeOffTotal: true, currency: true },
++  });
++  const open = bills
++    .map((bill) => ({ ...bill, balance: money(bill.total).minus(money(bill.amountPaid)).minus(money(bill.debitNoteTotal)).minus(money(bill.writeOffTotal)) }))
++    .filter((bill) => bill.balance.greaterThan(0));
++  const named = firstBillId ? open.find((bill) => bill.id === firstBillId) : undefined;
++  return named ? [named, ...open.filter((bill) => bill.id !== named.id)] : open;
++}
++
++/** Locks a supplier's row: one allocation of their money at a time. */
++export async function lockSupplier(tx: Tx, vendorId: string): Promise<void> {
++  await tx.$queryRaw`SELECT "id" FROM "Vendor" WHERE "id" = ${vendorId} FOR UPDATE`;
++}
++
++/**
++ * Credits a supplier holds (payment rows with no bill: an overpayment, a
++ * requisition's cash) settle their unpaid bills, oldest due first, never past
++ * a bill's balance. A credit that pays one bill whole moves onto it; one
++ * that is split leaves its rest as a credit and the part that pays becomes
++ * a row of the same payment ("PAY-0019/2"). No ledger entry: the money
++ * already went to Accounts payable when it was paid.
++ */
++export async function applySupplierCredits(tx: Tx, companyId: string, vendorId: string): Promise<string[]> {
++  await lockSupplier(tx, vendorId);
++  const credits = await tx.purchasePayment.findMany({
++    where: { companyId, vendorId, billId: null, amount: { gt: 0 } },
++    orderBy: [{ paidAt: "asc" }, { createdAt: "asc" }],
++  });
++  if (credits.length === 0) return [];
++  const bills = await unpaidBills(tx, companyId, vendorId);
++  const touched = new Set<string>();
++  let b = 0;
++  for (const credit of credits) {
++    let left = money(credit.amount);
++    while (left.greaterThan(0) && b < bills.length) {
++      const bill = bills[b]!;
++      const take = left.lessThan(bill.balance) ? left : bill.balance;
++      if (take.equals(left)) {
++        if (left.equals(money(credit.amount))) {
++          await tx.purchasePayment.update({ where: { id: credit.id }, data: { billId: bill.id } });
++        } else {
++          await tx.purchasePayment.update({ where: { id: credit.id }, data: { billId: bill.id, amount: toNumberOrZero(take) } });
++        }
++      } else {
++        const group = credit.groupNo ?? credit.paymentNumber.replace(/\/\d+$/, "");
++        await tx.purchasePayment.create({
++          data: {
++            companyId,
++            billId: bill.id,
++            vendorId,
++            groupNo: credit.groupNo ?? group,
++            paymentNumber: await nextRowNumber(tx, companyId, group),
++            requisitionId: credit.requisitionId,
++            paidAt: credit.paidAt,
++            amount: toNumberOrZero(take),
++            method: credit.method,
++            reference: credit.reference,
++            bankAccountId: credit.bankAccountId,
++            createdById: credit.createdById,
++          },
++        });
++        await tx.purchasePayment.update({ where: { id: credit.id }, data: { amount: toNumberOrZero(left.minus(take)) } });
++      }
++      bill.balance = bill.balance.minus(take);
++      left = left.minus(take);
++      touched.add(bill.id);
++      if (!bill.balance.greaterThan(0)) b += 1;
++    }
++    if (b >= bills.length) break;
++  }
++  for (const id of touched) await recalcPurchaseBillBalance(id, tx);
++  return [...touched];
++}
++
++/** Credits settled in a transaction of their own, after a bill is recorded or grows. */
++export async function settleSupplierCredits(companyId: string, vendorId: string): Promise<string[]> {
++  return prisma.$transaction((tx) => applySupplierCredits(tx, companyId, vendorId));
++}
++
++/* ── Record a bill (W-35 "Match to the delivery") ───────────────────────── */
++
++export type BillDone = { id: string; billNumber: string; message: string; accountingStatus: AccountingResult["accountingStatus"] };
++
++type Checked = {
++  vendor: { id: string; name: string; vatNumber: string | null; payTermsDays: number | null };
++  delivery: Delivery | null;
++  billNumber: string;
++  billDate: string;
++  dueDate: string;
++  amount: Prisma.Decimal;
++};
++
++async function checkInput(
++  client: Client,
++  actor: RetailAuditActor,
++  input: Omit<BillInput, "file">,
++  now: Date,
++  exceptBillId?: string,
++): Promise<Checked> {
++  const companyId = actor.companyId;
++  const vendor = input.supplierId
++    ? await client.vendor.findFirst({ where: { id: input.supplierId, companyId }, select: { id: true, name: true, vatNumber: true, payTermsDays: true } })
++    : null;
++  if (!vendor) throw invalid({ sup: "Choose the supplier." });
++  const billNumber = cleanNumber(input.billNumber ?? "");
++  if (!billNumber) throw invalid({ no: "Write the bill number." });
++  if (billNumber.length > 40) throw invalid({ no: "Keep the bill number to 40 characters." });
++  const amount = parseAmount(input.amount);
++  if (!amount || !amount.greaterThan(0)) throw invalid({ amt: "Write the amount on the bill." });
++  const today = dayKey(now);
++  if (!isDay(input.billDate)) throw invalid({ date: "Choose the bill date." });
++  if (input.billDate > today) throw invalid({ date: "A bill cannot be dated after today." });
++  const delivery = input.deliveryId ? await checkDelivery(client, companyId, vendor.id, input.deliveryId, exceptBillId) : null;
++  const dueDate = input.dueDate ? input.dueDate : defaultDue(delivery ? dayKey(delivery.createdAt) : input.billDate, vendor.payTermsDays);
++  if (!isDay(dueDate)) throw invalid({ due: "Choose when it is due." });
++  if (dueDate < input.billDate) throw invalid({ due: "It is due before it was billed." });
++  const clash = await client.purchaseBill.findFirst({
++    where: { companyId, vendorId: vendor.id, billNumber, ...(exceptBillId ? { id: { not: exceptBillId } } : {}) },
++    select: { id: true },
++  });
++  if (clash) throw new BillRefusal(409, `${vendor.name} already sent ${billNumber}.`, { no: `${vendor.name} already sent ${billNumber}.` });
++  return { vendor, delivery, billNumber, billDate: input.billDate, dueDate, amount };
++}
++
++/** What the bill's figures and its one line are, from the amount and the delivery. */
++async function figuresFor(client: Client, companyId: string, checked: Checked) {
++  const delivery = checked.delivery ? await deliveryFigures(client, checked.delivery.id) : null;
++  const rate = delivery ? delivery.rate : checked.vendor.vatNumber ? await shopVatRate(companyId, client) : ZERO;
++  const amounts = billAmounts(checked.amount, delivery ? { value: delivery.value, vat: delivery.vat } : null, rate);
++  return {
++    amounts,
++    bill: { subTotal: toNumberOrZero(amounts.net), taxTotal: toNumberOrZero(amounts.tax), total: toNumberOrZero(amounts.amount) },
++    line: {
++      description: checked.delivery ? `Delivery ${checked.delivery.receiptNo}` : `Bill ${checked.billNumber}`,
++      quantity: 1,
++      unitPrice: toNumberOrZero(amounts.net),
++      taxRate: toNumberOrZero(rate),
++      taxAmount: toNumberOrZero(amounts.tax),
++      lineTotal: toNumberOrZero(amounts.net),
++    },
++  };
++}
++
++async function keepFile(tx: Tx, actor: RetailAuditActor, billId: string, file: UploadedFile) {
++  try {
++    await recordAttachment(tx, actor, { entityType: "PurchaseBill", entityId: billId, kind: "BILL", file });
++  } catch (error) {
++    if (error instanceof AttachmentRefusal) throw invalid({ pdf: error.message });
++    throw error;
++  }
++}
++
++/** "Bill INV-88120 saved, due 12 September." */
++export const billSavedWords = (billNumber: string, due: string) => `Bill ${billNumber} saved, due ${dayMonth(due)}.`;
++
++export async function recordBill(actor: RetailAuditActor, input: BillInput, deps: BillDeps = {}): Promise<BillDone> {
++  const now = deps.now ?? new Date();
++  const companyId = actor.companyId;
++  const created = await prisma.$transaction(async (tx) => {
++    if (input.deliveryId) await tx.$queryRaw`SELECT "id" FROM "RetailGoodsReceipt" WHERE "id" = ${input.deliveryId} FOR UPDATE`;
++    const checked = await checkInput(tx, actor, input, now);
++    const figures = await figuresFor(tx, companyId, checked);
++    let bill: { id: string };
++    try {
++      bill = await tx.purchaseBill.create({
++        data: {
++          companyId,
++          vendorId: checked.vendor.id,
++          goodsReceiptId: checked.delivery?.id ?? null,
++          billNumber: checked.billNumber,
++          billDate: dayStart(checked.billDate),
++          dueDate: dayStart(checked.dueDate),
++          status: "RECEIVED",
++          currency: "USD",
++          ...figures.bill,
++          createdById: actor.userId,
++          issuedById: actor.userId,
++          issuedAt: now,
++          lines: { create: [figures.line] },
++        },
++        select: { id: true },
++      });
++    } catch (error) {
++      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
++        const said = `${checked.vendor.name} already sent ${checked.billNumber}.`;
++        throw new BillRefusal(409, said, { no: said });
++      }
++      throw error;
++    }
++    if (input.file) await keepFile(tx, actor, bill.id, input.file);
++    const payload = {
++      billNumber: checked.billNumber,
++      amount: auditAmount(checked.amount),
++      currency: "USD",
++      due: checked.dueDate,
++      delivery: checked.delivery?.receiptNo ?? null,
++    };
++    await writeRetailAuditEvent(tx, { actor, eventType: RETAIL_AUDIT_EVENTS.billRecorded, entityType: "PurchaseBill", entityId: bill.id, payload });
++    if (checked.delivery) {
++      await writeRetailAuditEvent(tx, { actor, eventType: RETAIL_AUDIT_EVENTS.billRecorded, entityType: "RetailGoodsReceipt", entityId: checked.delivery.id, payload });
++    }
++    return { id: bill.id, checked };
++  });
++  const accounting = await postSupplierBill(companyId, created.id, billPostingKey(created.id), { userId: actor.userId, userRole: actor.userRole });
++  await settleSupplierCredits(companyId, created.checked.vendor.id);
++  return {
++    id: created.id,
++    billNumber: created.checked.billNumber,
++    message: billSavedWords(created.checked.billNumber, created.checked.dueDate),
++    accountingStatus: accounting.accountingStatus,
++  };
++}
++
++/* ── Change a bill (W-35 "Change or bin") ───────────────────────────────── */
++
++export type BillPatch = Partial<Omit<BillInput, "file">> & { file?: UploadedFile | null };
++
++export type BillChanged = { id: string; billNumber: string; message: string; changes: Array<{ field: string; from: string | null; to: string | null }> };
++
++/** "US$100.00 is paid against INV-88120." */
++const paidAgainst = (paid: Prisma.Decimal, billNumber: string, currency: string) => `${formatMoney(toNumberOrZero(paid), currency)} is paid against ${billNumber}.`;
++
++export async function changeBill(actor: RetailAuditActor, id: string, patch: BillPatch, deps: BillDeps = {}): Promise<BillChanged> {
++  const now = deps.now ?? new Date();
++  const companyId = actor.companyId;
++  const result = await prisma.$transaction(async (tx) => {
++    await tx.$queryRaw`SELECT "id" FROM "PurchaseBill" WHERE "id" = ${id} FOR UPDATE`;
++    const bill = await tx.purchaseBill.findFirst({
++      where: { id, companyId },
++      select: {
++        id: true,
++        billNumber: true,
++        billDate: true,
++        dueDate: true,
++        total: true,
++        amountPaid: true,
++        currency: true,
++        archivedAt: true,
++        vendorId: true,
++        goodsReceiptId: true,
++        vendor: { select: { name: true } },
++        goodsReceipt: { select: { receiptNo: true } },
++      },
++    });
++    if (!bill) throw new BillRefusal(404, BILL_NOT_FOUND);
++    if (bill.archivedAt) throw new BillRefusal(409, `${bill.billNumber} is in the bin. Restore it first.`);
++    const before = {
++      supplierId: bill.vendorId,
++      deliveryId: bill.goodsReceiptId,
++      billNumber: bill.billNumber,
++      billDate: dayKey(bill.billDate),
++      amount: money(bill.total).toFixed(2),
++      dueDate: bill.dueDate ? dayKey(bill.dueDate) : null,
++    };
++    const supplierId = patch.supplierId ?? before.supplierId;
++    const next = {
++      supplierId,
++      // A new supplier's bill is not for the old supplier's delivery.
++      deliveryId: patch.deliveryId !== undefined ? patch.deliveryId : supplierId === before.supplierId ? before.deliveryId : null,
++      billNumber: patch.billNumber ?? before.billNumber,
++      billDate: patch.billDate ?? before.billDate,
++      amount: patch.amount ?? before.amount,
++      dueDate: patch.dueDate !== undefined ? patch.dueDate : before.dueDate,
++    };
++    const paid = money(bill.amountPaid);
++    if (supplierId !== before.supplierId && paid.greaterThan(0)) {
++      throw new BillRefusal(409, `${paidAgainst(paid, bill.billNumber, bill.currency)} Its supplier cannot change.`);
++    }
++    if (next.deliveryId) await tx.$queryRaw`SELECT "id" FROM "RetailGoodsReceipt" WHERE "id" = ${next.deliveryId} FOR UPDATE`;
++    const checked = await checkInput(tx, actor, { ...next, dueDate: next.dueDate ?? undefined }, now, id);
++    if (paid.greaterThan(checked.amount)) throw new BillRefusal(409, paidAgainst(paid, bill.billNumber, bill.currency), { amt: paidAgainst(paid, bill.billNumber, bill.currency) });
++
++    const after = {
++      supplierId: checked.vendor.id,
++      deliveryId: checked.delivery?.id ?? null,
++      billNumber: checked.billNumber,
++      billDate: checked.billDate,
++      amount: checked.amount.toFixed(2),
++      dueDate: checked.dueDate,
++    };
++    const rebook =
++      after.supplierId !== before.supplierId || after.deliveryId !== before.deliveryId || after.billDate !== before.billDate || after.amount !== before.amount;
++    const figures = await figuresFor(tx, companyId, checked);
++    await tx.purchaseBill.update({
++      where: { id },
++      data: {
++        vendorId: after.supplierId,
++        goodsReceiptId: after.deliveryId,
++        billNumber: after.billNumber,
++        billDate: dayStart(after.billDate),
++        dueDate: dayStart(after.dueDate),
++        ...figures.bill,
++        lines: { deleteMany: {}, create: [figures.line] },
++      },
++    });
++    await recalcPurchaseBillBalance(id, tx);
++
++    const changes: BillChanged["changes"] = [];
++    const words: Record<string, { label: string; kind?: "money"; show: (value: string | null) => Promise<string | null> | string | null }> = {
++      supplierId: { label: "Supplier", show: async (value) => (value ? ((await tx.vendor.findUnique({ where: { id: value }, select: { name: true } }))?.name ?? null) : null) },
++      deliveryId: {
++        label: "For delivery",
++        show: async (value) => (value ? ((await tx.retailGoodsReceipt.findUnique({ where: { id: value }, select: { receiptNo: true } }))?.receiptNo ?? null) : "No delivery"),
++      },
++      billNumber: { label: "Bill number", show: (value) => value },
++      billDate: { label: "Bill date", show: (value) => value },
++      amount: { label: "Amount", kind: "money", show: (value) => value },
++      dueDate: { label: "Due", show: (value) => value },
++    };
++    for (const field of Object.keys(words) as Array<keyof typeof before>) {
++      const from = before[field] ?? null;
++      const to = after[field] ?? null;
++      if (from === to) continue;
++      const word = words[field]!;
++      const shown = { from: await word.show(from), to: await word.show(to) };
++      changes.push({ field, ...shown });
++      await auditRecordEdited(tx, { actor, entityType: "PurchaseBill", entityId: id, field, label: word.label, ...shown, kind: word.kind ?? "text" });
++    }
++    if (patch.file !== undefined) {
++      const had = await tx.retailAttachment.findMany({ where: { companyId, entityType: "PurchaseBill", entityId: id, kind: "BILL" }, select: { id: true, name: true } });
++      const same = patch.file && had.some((file) => file.name === patch.file!.name);
++      if (!same) {
++        await tx.retailAttachment.deleteMany({ where: { id: { in: had.map((file) => file.id) } } });
++        if (patch.file) await keepFile(tx, actor, id, patch.file);
++        changes.push({ field: "file", from: had[0]?.name ?? null, to: patch.file?.name ?? null });
++        await auditRecordEdited(tx, { actor, entityType: "PurchaseBill", entityId: id, field: "file", label: "The bill", from: had[0]?.name ?? null, to: patch.file?.name ?? null });
++      }
++    }
++    if (rebook) await unbookBill(tx, actor, bill, now, "changed");
++    return { bill, after, changes, rebook };
++  });
++
++  if (result.rebook) await postSupplierBill(companyId, id, billPostingKey(id, now), { userId: actor.userId, userRole: actor.userRole });
++  if (result.changes.length > 0) await settleSupplierCredits(companyId, result.after.supplierId);
++  return { id, billNumber: result.after.billNumber, message: `${result.after.billNumber} saved.`, changes: result.changes };
++}
++
++/* ── The bin (W-63, kind `bill`) ────────────────────────────────────────── */
++
++/** "US$100.00 has been paid against INV-88120. It cannot go to the bin." — null when nothing is paid. */
++export function binRefusalFor(bill: { billNumber: string; amountPaid: number; currency: string }): string | null {
++  const paid = money(bill.amountPaid);
++  return paid.greaterThan(0) ? `${formatMoney(toNumberOrZero(paid), bill.currency)} has been paid against ${bill.billNumber}. It cannot go to the bin.` : null;
++}
++
++/** Overdue: not in the bin, something owed, due before today in Harare. The "1 overdue" badge. */
++export async function countOverdueBills(companyId: string, now: Date = new Date()): Promise<number> {
++  const today = dayStart(dayKey(now, DEFAULT_TIME_ZONE));
++  const bills = await prisma.purchaseBill.findMany({
++    where: { companyId, archivedAt: null, status: { notIn: ["DRAFT", "VOIDED", "PAID"] }, dueDate: { lt: today } },
++    select: { total: true, amountPaid: true, debitNoteTotal: true, writeOffTotal: true },
++  });
++  return bills.filter((bill) => money(bill.total).minus(money(bill.amountPaid)).minus(money(bill.debitNoteTotal)).minus(money(bill.writeOffTotal)).greaterThan(0)).length;
++}
+diff --git a/lib/retail/buying/delivery-value.ts b/lib/retail/buying/delivery-value.ts
+new file mode 100644
+index 00000000..9cf61603
+--- /dev/null
++++ b/lib/retail/buying/delivery-value.ts
+@@ -0,0 +1,22 @@
++import type { Prisma } from "@prisma/client";
++
++import { sumMoney, ZERO } from "@/lib/money";
++import { prisma } from "@/lib/prisma";
++
++import { lineVat } from "./figures";
++
++/**
++ * A posted delivery's value ex VAT (Σ in stock × cost, its lines' totals),
++ * its VAT line by line, and the rate that VAT is of the value: what a bill
++ * against it is matched with (40-buying 3.2) and what clears GRNI.
++ */
++export async function deliveryFigures(
++  client: Prisma.TransactionClient | typeof prisma,
++  receiptId: string,
++): Promise<{ value: Prisma.Decimal; vat: Prisma.Decimal; rate: Prisma.Decimal }> {
++  const lines = await client.retailGoodsReceiptLine.findMany({ where: { receiptId }, select: { lineTotal: true, vatRate: true } });
++  const value = sumMoney(lines.map((line) => line.lineTotal));
++  const vat = sumMoney(lines.map((line) => lineVat(line.lineTotal, line.vatRate)));
++  const rate = value.greaterThan(0) ? vat.dividedBy(value).times(100).toDecimalPlaces(2) : ZERO;
++  return { value, vat, rate };
++}
+diff --git a/lib/retail/buying/delivery-view.ts b/lib/retail/buying/delivery-view.ts
+index 3c89f4bb..e6f76124 100644
+--- a/lib/retail/buying/delivery-view.ts
++++ b/lib/retail/buying/delivery-view.ts
+@@ -230,7 +230,8 @@ export type DeliveryView = {
+   rail: { credit: string; photos: string };
+   bill: { id: string; billNumber: string } | null;
+   counts: { lines: number; differences: number; photos: number };
+-  can: { post: boolean; edit: boolean; editCounter: boolean };
++  /** `bill`: "Record a bill" (posted, not billed, `retail.bills:create`). */
++  can: { post: boolean; edit: boolean; editCounter: boolean; bill: boolean };
+ };
+ 
+ const DELIVERY_STEPS = ["Arrived", "Counted", "Checked", "In stock", "Billed"];
+@@ -254,9 +255,12 @@ export async function deliveryView(actor: RetailAuditActor, id: string): Promise
+       purchaseOrder: { select: { id: true, poNo: true, lines: { select: { quantity: true, receivedQuantity: true, unitCost: true, vatRate: true } } } },
+       lines: { orderBy: { createdAt: "asc" } },
+       differences: { orderBy: { createdAt: "asc" }, select: { settle: true, settledAt: true, createdAt: true } },
++      bill: { select: { id: true, billNumber: true, archivedAt: true } },
+     },
+   });
+   if (!receipt) throw new DeliveryRefusal(404, "Delivery not found");
++  // A bill in the bin does not bill it (40-buying 3.2).
++  const bill = receipt.bill && !receipt.bill.archivedAt ? { id: receipt.bill.id, billNumber: receipt.bill.billNumber } : null;
+   const photos = await prisma.retailAttachment.findMany({
+     where: { companyId, entityType: "RetailGoodsReceipt", entityId: receipt.id },
+     orderBy: { createdAt: "asc" },
+@@ -273,7 +277,7 @@ export async function deliveryView(actor: RetailAuditActor, id: string): Promise
+   const valueWithVat = sumMoney(receipt.lines.map((line) => line.lineTotal.plus(lineVat(line.lineTotal, line.vatRate))));
+ 
+   const status = receipt.status;
+-  const now = status === "COUNTED" ? 2 : status === "POSTED" ? 4 : -1;
++  const now = status === "COUNTED" ? 2 : status === "POSTED" ? (bill ? DELIVERY_STEPS.length : 4) : -1;
+   const steps: DeliveryStep[] =
+     status === "REVERSED"
+       ? DELIVERY_STEPS.map((label, index) => ({ label, state: index < 3 ? "done" : "todo" }))
+@@ -337,8 +341,13 @@ export async function deliveryView(actor: RetailAuditActor, id: string): Promise
+       credit,
+       photos: pictures.length === 0 ? "None" : `${pictures.length} ${pictures.length === 1 ? "photo" : "photos"}, ${pictures[0]!.name}`,
+     },
+-    bill: null,
++    bill,
+     counts: { lines: receipt.lines.length, differences: receipt.differences.length, photos: pictures.length },
+-    can: { post: status === "COUNTED" && can, edit, editCounter: status === "COUNTED" && edit },
++    can: {
++      post: status === "COUNTED" && can,
++      edit,
++      editCounter: status === "COUNTED" && edit,
++      bill: status === "POSTED" && !bill && canRetailRoleDo(actor.userRole, "retail.bills", "create"),
++    },
+   };
+ }
+diff --git a/lib/retail/buying/figures.ts b/lib/retail/buying/figures.ts
+index 781402ca..69cbe631 100644
+--- a/lib/retail/buying/figures.ts
++++ b/lib/retail/buying/figures.ts
+@@ -287,3 +287,70 @@ export function monthsSince(deliveries: FigureDelivery[], now: Date): number {
+   const [y2, m2] = dayKey(now).split("-").map(Number) as [number, number];
+   return Math.max(12, (y2 - y1) * 12 + (m2 - m1) + 1);
+ }
++
++/* ── Bills (40-buying 3.2, BUY-07) ──────────────────────────────────────── */
++
++export type BillStateKey = "paid" | "overdue" | "today" | "soon" | "later";
++
++export type BillState = { key: BillStateKey; label: string; tone: "hollow" | "bad" | "warn" | "info" };
++
++/** Whole days from `today` to `due`, both shop days ("YYYY-MM-DD"): negative once past. */
++export function daysUntil(due: string, today: string): number {
++  return Math.round((Date.parse(`${due}T00:00:00Z`) - Date.parse(`${today}T00:00:00Z`)) / DAY_MS);
++}
++
++/**
++ * A bill's state: paid ("Paid in cash" when every payment row was cash, else
++ * "Paid") hollow; unpaid by its due day against today in Harare: "21 days
++ * overdue" bad, "Due today" and "Due tomorrow" warn, "Due in 3 days" warn up
++ * to a week, "Due in 23 days" info after.
++ */
++export function billState(bill: FigureBill & { paidInCash?: boolean }, now: Date): BillState {
++  if (!billBalance(bill).greaterThan(0)) return { key: "paid", label: bill.paidInCash ? "Paid in cash" : "Paid", tone: "hollow" };
++  if (!bill.dueDate) return { key: "later", label: "Not due", tone: "info" };
++  const days = daysUntil(dayKey(bill.dueDate), dayKey(now));
++  if (days < 0) return { key: "overdue", label: `${-days} ${days === -1 ? "day" : "days"} overdue`, tone: "bad" };
++  if (days === 0) return { key: "today", label: "Due today", tone: "warn" };
++  if (days === 1) return { key: "soon", label: "Due tomorrow", tone: "warn" };
++  if (days <= 7) return { key: "soon", label: `Due in ${days} days`, tone: "warn" };
++  return { key: "later", label: `Due in ${days} days`, tone: "info" };
++}
++
++/** Paid in cash: there are payments and every one was cash. */
++export function paidInCash(methods: string[]): boolean {
++  return methods.length > 0 && methods.every((method) => method.trim().toLowerCase() === "cash");
++}
++
++/**
++ * A bill's amounts (40-buying W-35): against a delivery its VAT is the
++ * delivery's share of the amount, round(amount × VAT ÷ (value + VAT)); with no
++ * delivery it is amount × r ÷ (100 + r) at the shop's rate when the supplier
++ * is registered for VAT, else nothing. What the net is over or under the
++ * delivery's value is a price difference. grni + tax + priceOver − priceUnder
++ * is the amount, to the cent.
++ */
++export function billAmounts(
++  amount: MoneyLike,
++  delivery: { value: MoneyLike; vat: MoneyLike } | null,
++  vatRate: MoneyLike,
++): { amount: Prisma.Decimal; grni: Prisma.Decimal; tax: Prisma.Decimal; net: Prisma.Decimal; priceOver: Prisma.Decimal; priceUnder: Prisma.Decimal } {
++  const total = money(amount);
++  if (delivery) {
++    const grni = money(delivery.value);
++    const vat = money(delivery.vat);
++    const base = grni.plus(vat);
++    const tax = base.greaterThan(0) ? money(total.times(vat).dividedBy(base)) : ZERO;
++    const net = total.minus(tax);
++    return {
++      amount: total,
++      grni,
++      tax,
++      net,
++      priceOver: net.greaterThan(grni) ? net.minus(grni) : ZERO,
++      priceUnder: grni.greaterThan(net) ? grni.minus(net) : ZERO,
++    };
++  }
++  const r = money(vatRate);
++  const tax = r.greaterThan(0) ? money(total.times(r).dividedBy(r.plus(100))) : ZERO;
++  return { amount: total, grni: ZERO, tax, net: total.minus(tax), priceOver: ZERO, priceUnder: ZERO };
++}
+diff --git a/lib/retail/buying/order-view.ts b/lib/retail/buying/order-view.ts
+index 174b89f1..97979fcd 100644
+--- a/lib/retail/buying/order-view.ts
++++ b/lib/retail/buying/order-view.ts
+@@ -87,6 +87,8 @@ export type OrderView = {
+     /** Sent or part delivered: "Send a reminder" and "Cancel what is left". */
+     chase: boolean;
+     cancelRest: boolean;
++    /** Received or closed with a posted delivery not billed: "Record a bill" against the oldest. */
++    billDeliveryId: string | null;
+   };
+   /**
+    * The chase sheet's starting point (5.17): who it goes to (the first
+@@ -107,7 +109,7 @@ const VIA_WORDS: Record<RetailOrderSentVia, string> = { WHATSAPP: "WhatsApp", EM
+ const noYear = (value: Date) => formatDay(value).replace(/ \d{4}$/, "");
+ 
+ /** Draft · Sent · Part delivered · Received · Billed, done up to where the order is. */
+-export function orderSteps(state: OrderState): OrderStep[] {
++export function orderSteps(state: OrderState, billed = false): OrderStep[] {
+   const labels = ["Draft", "Sent", "Part delivered", state === "CLOSED" ? "Closed short" : "Received", "Billed"];
+   if (state === "CANCELLED") {
+     return [
+@@ -116,8 +118,9 @@ export function orderSteps(state: OrderState): OrderStep[] {
+       { label: "Cancelled", state: "now" },
+     ];
+   }
+-  // Bills arrive with their unit: a received or closed order waits at Billed.
+-  const now = { DRAFT: 0, SENT: 1, PARTIAL: 2, RECEIVED: 4, CLOSED: 4 }[state];
++  // A received or closed order waits at Billed until every posted delivery of it has a bill.
++  const done = state === "RECEIVED" || state === "CLOSED";
++  const now = done && billed ? labels.length : { DRAFT: 0, SENT: 1, PARTIAL: 2, RECEIVED: 4, CLOSED: 4 }[state];
+   return labels.map((label, index) => ({ label, state: index < now ? "done" : index === now ? "now" : "todo" }));
+ }
+ 
+@@ -145,7 +148,7 @@ export async function loadOrderView(companyId: string, id: string, now = new Dat
+         orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+         include: { inventoryItem: { select: { productId: true, product: { select: { retailCategory: { select: { name: true } } } } } } },
+       },
+-      receipts: { where: { status: "POSTED" }, orderBy: { postedAt: "asc" }, select: { id: true, receiptNo: true, postedAt: true, createdAt: true, lines: { select: { quantity: true } } } },
++      receipts: { where: { status: "POSTED" }, orderBy: { postedAt: "asc" }, select: { id: true, receiptNo: true, postedAt: true, createdAt: true, lines: { select: { quantity: true } }, bill: { select: { archivedAt: true } } } },
+     },
+   });
+   if (!order) return null;
+@@ -176,6 +179,8 @@ export async function loadOrderView(companyId: string, id: string, now = new Dat
+     orderBy: { createdAt: "desc" },
+     select: { id: true, requisitionNo: true, status: true, amount: true, approvedAmount: true, paidAmount: true, acquittedAmount: true },
+   });
++  // Posted deliveries with no bill (a binned bill does not count), oldest first.
++  const unbilled = order.receipts.filter((receipt) => !receipt.bill || receipt.bill.archivedAt);
+   const recipients = orderRecipients(order.vendor);
+   const open = state === "DRAFT" || state === "SENT" || state === "PARTIAL";
+   const anythingCame = order.lines.some((line) => quantity(line.receivedQuantity).greaterThan(0));
+@@ -209,7 +214,7 @@ export async function loadOrderView(companyId: string, id: string, now = new Dat
+     payment: order.payment,
+     noteToSupplier: order.noteToSupplier,
+     late: late.late ? { days: late.days } : null,
+-    steps: orderSteps(state),
++    steps: orderSteps(state, order.receipts.length > 0 && unbilled.length === 0),
+     figures: {
+       lines: order.lines.length,
+       ordered,
+@@ -260,6 +265,8 @@ export async function loadOrderView(companyId: string, id: string, now = new Dat
+       edit: open,
+       close: state === "PARTIAL" || (state === "SENT" && late.late),
+       reopen: state === "CLOSED",
++      /** "Record a bill": received or closed, against its oldest unbilled delivery. */
++      billDeliveryId: state === "RECEIVED" || state === "CLOSED" ? (unbilled[0]?.id ?? null) : null,
+       remove: state === "DRAFT",
+       duplicate: !order.vendor.stoppedAt,
+       receive: isOpenForDelivery(order.status) && !order.archivedAt,
+diff --git a/lib/retail/buying/orders.ts b/lib/retail/buying/orders.ts
+index 522a135d..1799cc27 100644
+--- a/lib/retail/buying/orders.ts
++++ b/lib/retail/buying/orders.ts
+@@ -820,6 +820,13 @@ export async function reopenOrder(actor: RetailAuditActor, id: string): Promise<
+   return prisma.$transaction(async (tx) => {
+     const order = await liveOrder(tx, actor.companyId, id);
+     if (order.status !== "CLOSED") throw new OrderRefusal(409, NOT_CLOSED);
++    // A bill against a delivery of it settles what came (W-70).
++    const billed = await tx.purchaseBill.findFirst({
++      where: { companyId: actor.companyId, archivedAt: null, goodsReceipt: { purchaseOrderId: order.id } },
++      orderBy: { billDate: "asc" },
++      select: { billNumber: true },
++    });
++    if (billed) throw new OrderRefusal(409, `${billed.billNumber} is recorded against ${order.poNo}. It cannot be reopened.`);
+     const open = order.lines.map((line) => ({ ...line, closedShortAt: null }));
+     const units = open.reduce((sum, line) => sum + toNumberOrZero(outstanding(line)), 0);
+     await tx.retailPurchaseOrderLine.updateMany({ where: { purchaseOrderId: order.id }, data: { closedShortAt: null, closedShortById: null } });
+diff --git a/lib/retail/buying/payments.ts b/lib/retail/buying/payments.ts
+new file mode 100644
+index 00000000..81fdb6c7
+--- /dev/null
++++ b/lib/retail/buying/payments.ts
+@@ -0,0 +1,230 @@
++import { Prisma } from "@prisma/client";
++
++import { recalcPurchaseBillBalance } from "@/lib/accounting/balances";
++import { reserveIdentifier } from "@/lib/id-generator";
++import { money, sumMoney, toNumberOrZero, ZERO } from "@/lib/money";
++import { prisma } from "@/lib/prisma";
++import { auditAmount, RETAIL_AUDIT_EVENTS, writeRetailAuditEvent, type RetailAuditActor } from "@/lib/retail/audit";
++import { startOfDayIn } from "@/lib/reports/list-query";
++import { dayKey, DEFAULT_TIME_ZONE, formatMoney } from "@/lib/workspace/format";
++
++import { BillRefusal, lockSupplier, unpaidBills } from "./bills";
++import { currencyWords, findMoneyAccount, moneyAccountBalance } from "./money-accounts";
++import { postSupplierPayment, type AccountingResult } from "./posting";
++
++/**
++ * Paying a supplier (40-buying W-35 "Record payment", BUY-07): one payment
++ * (`PAY-0019`) from a money account settles their unpaid bills — the bill it
++ * was opened from first, then by due day, oldest first — one row a bill
++ * ("PAY-0019/1", "/2"), never past a bill's balance, and whatever is over is
++ * one row with no bill: a credit the next bill takes. The account is locked
++ * before its balance is read, so two payments from one cash account cannot
++ * spend the same money; the supplier is locked so their money is allocated
++ * once. Money leaves the account as a CREDIT; the books follow after the
++ * commit (Dr Accounts payable / Cr the account's ledger).
++ */
++
++type Client = Prisma.TransactionClient | typeof prisma;
++
++const invalid = (fieldErrors: Record<string, string>) => new BillRefusal(400, "Validation failed", fieldErrors);
++
++export const PAYMENT_HOW = ["Cash", "Bank transfer", "EcoCash"] as const;
++export type PaymentHow = (typeof PAYMENT_HOW)[number];
++
++export type Allocation = { billId: string; billNumber: string; amount: Prisma.Decimal };
++
++/** How an amount settles bills in the order given: each up to its balance; what is left is credit. */
++export function allocate(amount: Prisma.Decimal, bills: Array<{ id: string; billNumber: string; balance: Prisma.Decimal }>): { pays: Allocation[]; credit: Prisma.Decimal } {
++  let left = amount;
++  const pays: Allocation[] = [];
++  for (const bill of bills) {
++    if (!left.greaterThan(0)) break;
++    const take = left.lessThan(bill.balance) ? left : bill.balance;
++    pays.push({ billId: bill.id, billNumber: bill.billNumber, amount: take });
++    left = left.minus(take);
++  }
++  return { pays, credit: left.greaterThan(0) ? left : ZERO };
++}
++
++/** "INV-88120, INV-88504, oldest first"; a credit is named after them; nothing to pay is all credit. */
++export function paysSentence(pays: Allocation[], credit: Prisma.Decimal, currency = "USD"): string {
++  const held = `${formatMoney(toNumberOrZero(credit), currency)} held as credit`;
++  if (pays.length === 0) return credit.greaterThan(0) ? `No bills to pay: ${held}` : "No bills to pay";
++  const bills = `${pays.map((pay) => pay.billNumber).join(", ")}${pays.length > 1 ? ", oldest first" : ""}`;
++  return credit.greaterThan(0) ? `${bills}; ${held}` : bills;
++}
++
++/**
++ * What a supplier owes now: Σ balances of their bills not in the bin, less
++ * the credits they hold (payment rows with no bill). Return credits join
++ * with returns (BUY-09).
++ */
++export async function supplierOwed(client: Client, companyId: string, vendorId: string): Promise<Prisma.Decimal> {
++  const [bills, credits] = await Promise.all([
++    client.purchaseBill.findMany({
++      where: { companyId, vendorId, archivedAt: null, status: { notIn: ["DRAFT", "VOIDED"] } },
++      select: { total: true, amountPaid: true, debitNoteTotal: true, writeOffTotal: true },
++    }),
++    client.purchasePayment.findMany({ where: { companyId, vendorId, billId: null }, select: { amount: true } }),
++  ]);
++  const balances = sumMoney(bills.map((bill) => money(bill.total).minus(money(bill.amountPaid)).minus(money(bill.debitNoteTotal)).minus(money(bill.writeOffTotal))));
++  return balances.minus(sumMoney(credits.map((row) => money(row.amount))));
++}
++
++export type PaymentPreview = {
++  owed: number;
++  pays: Array<{ billId: string; billNumber: string; amount: number }>;
++  credit: number;
++  sentence: string;
++};
++
++function parseAmount(value: string | number | null | undefined): Prisma.Decimal | null {
++  const text = typeof value === "number" ? String(value) : (value ?? "").replace(/,/g, "").replace(/^US\$/, "").trim();
++  if (!text || !/^\d+(\.\d+)?$/.test(text)) return null;
++  return money(text);
++}
++
++async function supplierOf(client: Client, companyId: string, supplierId: string) {
++  const vendor = await client.vendor.findFirst({ where: { id: supplierId, companyId }, select: { id: true, name: true } });
++  if (!vendor) throw new BillRefusal(404, "Supplier not found");
++  return vendor;
++}
++
++/** What a payment of `amount` would pay (the Pays row, live): exactly what recording it writes. */
++export async function previewPayment(
++  companyId: string,
++  input: { supplierId: string; amount?: string | number | null; billId?: string | null },
++): Promise<PaymentPreview> {
++  await supplierOf(prisma, companyId, input.supplierId);
++  const [bills, owed] = await Promise.all([unpaidBills(prisma, companyId, input.supplierId, input.billId), supplierOwed(prisma, companyId, input.supplierId)]);
++  const amount = parseAmount(input.amount ?? "") ?? ZERO;
++  const { pays, credit } = allocate(amount, bills);
++  return {
++    owed: toNumberOrZero(owed),
++    pays: pays.map((pay) => ({ billId: pay.billId, billNumber: pay.billNumber, amount: toNumberOrZero(pay.amount) })),
++    credit: toNumberOrZero(credit),
++    sentence: paysSentence(pays, credit, bills[0]?.currency ?? "USD"),
++  };
++}
++
++export type PaymentInput = {
++  supplierId: string;
++  amount: string | number;
++  paidOn: string;
++  how: string;
++  fromId: string;
++  reference?: string | null;
++  firstBillId?: string | null;
++};
++
++export type PaymentDone = {
++  groupNo: string;
++  rows: Array<{ paymentNumber: string; billNumber: string | null; amount: number }>;
++  owedAfter: number;
++  message: string;
++  accountingStatus: AccountingResult["accountingStatus"];
++};
++
++/** "US$624.00 paid to Delta Beverages. Nothing owed." / "… US$120.00 still owed." / "… US$40.00 held as credit." */
++export function paidWords(amount: Prisma.Decimal, supplier: string, owedAfter: Prisma.Decimal, currency = "USD"): string {
++  const head = `${formatMoney(toNumberOrZero(amount), currency)} paid to ${supplier}.`;
++  if (owedAfter.isZero()) return `${head} Nothing owed.`;
++  return owedAfter.greaterThan(0)
++    ? `${head} ${formatMoney(toNumberOrZero(owedAfter), currency)} still owed.`
++    : `${head} ${formatMoney(toNumberOrZero(owedAfter.abs()), currency)} held as credit.`;
++}
++
++export async function recordSupplierPayment(actor: RetailAuditActor, input: PaymentInput, deps: { now?: Date } = {}): Promise<PaymentDone> {
++  const now = deps.now ?? new Date();
++  const companyId = actor.companyId;
++  const vendor = await supplierOf(prisma, companyId, input.supplierId);
++  const amount = parseAmount(input.amount);
++  if (!amount || !amount.greaterThan(0)) throw invalid({ amt: "Write an amount." });
++  const today = dayKey(now);
++  if (!/^\d{4}-\d{2}-\d{2}$/.test(input.paidOn ?? "")) throw invalid({ date: "Choose the day it was paid." });
++  if (input.paidOn > today) throw invalid({ date: "A payment cannot be dated after today." });
++  const how = PAYMENT_HOW.find((word) => word === input.how);
++  if (!how) throw invalid({ how: "Choose how it was paid." });
++  const reference = input.reference?.replace(/\s+/g, " ").trim() || null;
++  if (reference && reference.length > 80) throw invalid({ ref: "Keep the reference to 80 characters." });
++  if (how !== "Cash" && !reference) throw invalid({ ref: "Add the reference." });
++  const from = input.fromId ? await findMoneyAccount(companyId, input.fromId) : null;
++  if (!from) throw invalid({ from: "Choose where the money comes from." });
++  const billCurrency = (await unpaidBills(prisma, companyId, vendor.id))[0]?.currency ?? "USD";
++  if (from.currency.toUpperCase() !== billCurrency.toUpperCase()) throw invalid({ from: `${from.name} holds ${currencyWords(from.currency)}.` });
++  const paidAt = input.paidOn === today ? now : startOfDayIn(input.paidOn, DEFAULT_TIME_ZONE);
++
++  let done: Omit<PaymentDone, "accountingStatus" | "message"> | null = null;
++  for (let attempt = 0; ; attempt += 1) {
++    try {
++      done = await prisma.$transaction(async (tx) => {
++        // The account's row first: a second payment from it waits here, then reads the balance this one left.
++        await tx.$queryRaw`SELECT "id" FROM "BankAccount" WHERE "id" = ${from.id} FOR UPDATE`;
++        await lockSupplier(tx, vendor.id);
++        if (from.kind === "CASH") {
++          const balance = await moneyAccountBalance(from.id, tx);
++          if (amount.greaterThan(balance)) {
++            const has = `${from.name} has ${formatMoney(toNumberOrZero(balance), from.currency)}.`;
++            throw new BillRefusal(409, has, { from: has });
++          }
++        }
++        const bills = await unpaidBills(tx, companyId, vendor.id, input.firstBillId);
++        const { pays, credit } = allocate(amount, bills);
++        const groupNo = await reserveIdentifier(tx, { companyId, entity: "RETAIL_SUPPLIER_PAYMENT" });
++        const rows: Array<{ paymentNumber: string; billId: string | null; billNumber: string | null; amount: Prisma.Decimal }> = [
++          ...pays.map((pay, index) => ({ paymentNumber: `${groupNo}/${index + 1}`, billId: pay.billId, billNumber: pay.billNumber, amount: pay.amount })),
++          ...(credit.greaterThan(0) ? [{ paymentNumber: `${groupNo}/${pays.length + 1}`, billId: null, billNumber: null, amount: credit }] : []),
++        ];
++        for (const row of rows) {
++          await tx.purchasePayment.create({
++            data: {
++              companyId,
++              billId: row.billId,
++              vendorId: vendor.id,
++              groupNo,
++              paymentNumber: row.paymentNumber,
++              paidAt,
++              amount: toNumberOrZero(row.amount),
++              method: how,
++              reference,
++              bankAccountId: from.id,
++              createdById: actor.userId,
++            },
++          });
++        }
++        for (const pay of pays) await recalcPurchaseBillBalance(pay.billId, tx);
++        await tx.bankTransaction.create({
++          data: {
++            companyId,
++            bankAccountId: from.id,
++            txnDate: paidAt,
++            description: `${groupNo} · ${vendor.name}`,
++            reference,
++            amount: toNumberOrZero(amount),
++            direction: "CREDIT",
++            sourceType: "RETAIL_SUPPLIER_PAYMENT",
++            sourceId: groupNo,
++          },
++        });
++        const payload = { groupNo, amount: auditAmount(amount), currency: from.currency, from: from.name, how, reference, bills: pays.map((pay) => pay.billNumber) };
++        await writeRetailAuditEvent(tx, { actor, eventType: RETAIL_AUDIT_EVENTS.supplierPaid, entityType: "Vendor", entityId: vendor.id, payload });
++        for (const pay of pays) {
++          await writeRetailAuditEvent(tx, { actor, eventType: RETAIL_AUDIT_EVENTS.supplierPaid, entityType: "PurchaseBill", entityId: pay.billId, payload });
++        }
++        const owedAfter = await supplierOwed(tx, companyId, vendor.id);
++        return {
++          groupNo,
++          rows: rows.map((row) => ({ paymentNumber: row.paymentNumber, billNumber: row.billNumber, amount: toNumberOrZero(row.amount) })),
++          owedAfter: toNumberOrZero(owedAfter),
++        };
++      });
++      break;
++    } catch (error) {
++      if (attempt < 4 && error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") continue;
++      throw error;
++    }
++  }
++  const paid = done!;
++  const accounting = await postSupplierPayment(companyId, paid.groupNo, { userId: actor.userId, userRole: actor.userRole });
++  return { ...paid, message: paidWords(amount, vendor.name, money(paid.owedAfter), from.currency), accountingStatus: accounting.accountingStatus };
++}
+diff --git a/lib/retail/buying/posting.ts b/lib/retail/buying/posting.ts
+index d1640389..91b70f5a 100644
+--- a/lib/retail/buying/posting.ts
++++ b/lib/retail/buying/posting.ts
+@@ -2,6 +2,8 @@ import { postRetailJournal } from "@/app/api/v2/retail/_helpers";
+ import { sumMoney, money, toNumberOrZero } from "@/lib/money";
+ import { prisma } from "@/lib/prisma";
+ 
++import { deliveryFigures } from "./delivery-value";
++
+ /**
+  * Money out to the books (40-buying 3.5, BUY-05): a requisition paid out, the
+  * change brought back on it, and a payment to a supplier. Each is one event
+@@ -136,3 +138,59 @@ export async function postSupplierPayment(companyId: string, groupNo: string, by
+     payload: { groupNo, accounts: { moneyAccount: first.bankAccount?.ledgerAccountId ?? null } },
+   });
+ }
++
++/**
++ * A supplier's bill (BUY-07): against its delivery Dr 2300 GRNI at the
++ * delivery's value, Dr 2210 VAT input, the price difference Dr or Cr 5000,
++ * Cr 2000 the amount; with no delivery Dr 5000 the net, Dr 2210 VAT, Cr 2000.
++ * One event carries every amount (`amounts`); each rule line reads its own,
++ * and a line of nought is left off. `key` is the bill's id the first time,
++ * then a key of its own for each change or restore (the earlier entry is
++ * reversed first, inside that change's transaction).
++ */
++export async function postSupplierBill(companyId: string, billId: string, key: string, by: PostedBy): Promise<AccountingResult> {
++  const bill = await prisma.purchaseBill.findFirstOrThrow({
++    where: { id: billId, companyId },
++    select: {
++      billNumber: true,
++      billDate: true,
++      currency: true,
++      total: true,
++      taxTotal: true,
++      subTotal: true,
++      goodsReceiptId: true,
++      goodsReceipt: { select: { siteId: true, receiptNo: true } },
++      vendor: { select: { name: true } },
++    },
++  });
++  const delivery = bill.goodsReceiptId ? await deliveryFigures(prisma, bill.goodsReceiptId) : null;
++  // The VAT and the net are the bill's own, as recorded.
++  const tax = money(bill.taxTotal);
++  const net = money(bill.total).minus(tax);
++  const grni = delivery ? delivery.value : money(0);
++  const figures = {
++    amount: toNumberOrZero(money(bill.total)),
++    net: toNumberOrZero(net),
++    tax: toNumberOrZero(tax),
++    grni: toNumberOrZero(grni),
++    priceOver: delivery ? toNumberOrZero(net.greaterThan(grni) ? net.minus(grni) : money(0)) : 0,
++    priceUnder: delivery ? toNumberOrZero(grni.greaterThan(net) ? grni.minus(net) : money(0)) : 0,
++  };
++  return postRetailJournal({
++    companyId,
++    sourceType: "RETAIL_SUPPLIER_BILL",
++    sourceId: key,
++    sourceSubtype: delivery ? "DELIVERY" : "NO_DELIVERY",
++    siteId: bill.goodsReceipt?.siteId ?? null,
++    entryDate: bill.billDate,
++    description: `${bill.billNumber} · ${bill.vendor.name}`,
++    createdById: by.userId,
++    actorRole: by.userRole ?? null,
++    amount: figures.amount,
++    netAmount: figures.net,
++    grossAmount: figures.amount,
++    taxAmount: figures.tax,
++    currency: bill.currency,
++    payload: { billNumber: bill.billNumber, delivery: bill.goodsReceipt?.receiptNo ?? null, amounts: figures },
++  });
++}
+diff --git a/lib/retail/buying/routes.ts b/lib/retail/buying/routes.ts
+index 18d1de9b..cc83c3f2 100644
+--- a/lib/retail/buying/routes.ts
++++ b/lib/retail/buying/routes.ts
+@@ -8,6 +8,7 @@ import { OrderRefused } from "@/lib/retail/purchase-orders";
+ import { EmptiesRefusal } from "@/lib/retail/stock/empties";
+ 
+ import { AttachmentRefusal } from "./attachments";
++import { BillRefusal } from "./bills";
+ import { DeliveryRefusal } from "./deliveries";
+ import { OrderRefusal } from "./orders";
+ import { RequisitionRefusal } from "./requisitions";
+@@ -47,7 +48,7 @@ export function supplierViewer(session: Session): SupplierViewer {
+ 
+ /** A refusal with its fields (400 "Validation failed", 409 under Name) or its sentence, else a 500 that says nothing was saved. */
+ export function buyingFailure(error: unknown, where: string): NextResponse {
+-  if (error instanceof SupplierRefusal || error instanceof OrderRefusal || error instanceof RequisitionRefusal) {
++  if (error instanceof SupplierRefusal || error instanceof OrderRefusal || error instanceof RequisitionRefusal || error instanceof BillRefusal) {
+     return error.fieldErrors ? fieldErrorResponse(error.message, error.fieldErrors, error.status) : errorResponse(error.message, error.status);
+   }
+   if (error instanceof DeliveryRefusal) return errorResponse(error.message, error.status);
+diff --git a/lib/retail/nav-badges/buying.ts b/lib/retail/nav-badges/buying.ts
+index ddb49e6c..da0929fc 100644
+--- a/lib/retail/nav-badges/buying.ts
++++ b/lib/retail/nav-badges/buying.ts
+@@ -1,4 +1,5 @@
+ import { prisma } from "@/lib/prisma";
++import { countOverdueBills } from "@/lib/retail/buying/bills";
+ import { decidableRequisitions } from "@/lib/retail/buying/waiting";
+ 
+ import type { NavBadgeProvider } from "./types";
+@@ -19,4 +20,12 @@ export const REQUISITIONS_NAV_BADGE: NavBadgeProvider = {
+   label: (count) => `${count} to approve`,
+ };
+ 
+-export const BUYING_NAV_BADGES: readonly NavBadgeProvider[] = [ORDERS_NAV_BADGE, REQUISITIONS_NAV_BADGE];
++/** Bills: those with something owed, due before today in Harare, not in the bin ("1 overdue"). */
++export const BILLS_NAV_BADGE: NavBadgeProvider = {
++  href: "/retail/buying/bills",
++  requires: [["retail.bills", "view"]],
++  count: ({ companyId }) => countOverdueBills(companyId),
++  label: (count) => `${count} overdue`,
++};
++
++export const BUYING_NAV_BADGES: readonly NavBadgeProvider[] = [ORDERS_NAV_BADGE, REQUISITIONS_NAV_BADGE, BILLS_NAV_BADGE];
+diff --git a/lib/retail/nav/buying.ts b/lib/retail/nav/buying.ts
+index 8bdf8445..0044966b 100644
+--- a/lib/retail/nav/buying.ts
++++ b/lib/retail/nav/buying.ts
+@@ -1,4 +1,4 @@
+-import { Money, Storefront, TrayArrowDown, Truck } from "@/lib/icons";
++import { Money, Receipt, Storefront, TrayArrowDown, Truck } from "@/lib/icons";
+ 
+ import type { RetailNavModule } from "./types";
+ 
+@@ -22,5 +22,6 @@ export const buyingNav: RetailNavModule = {
+         ["retail.requisitions", "view-own"],
+       ],
+     },
++    { href: "/retail/buying/bills", icon: Receipt, label: "Bills", requires: [["retail.bills", "view"]] },
+   ],
+ };
+diff --git a/lib/retail/posting-settings.ts b/lib/retail/posting-settings.ts
+index 1faea007..9d89c888 100644
+--- a/lib/retail/posting-settings.ts
++++ b/lib/retail/posting-settings.ts
+@@ -342,6 +342,7 @@ export const RETAIL_SOURCE_TYPES: AccountingSourceType[] = [
+   "RETAIL_REQUISITION_PAYOUT",
+   "RETAIL_REQUISITION_CHANGE",
+   "RETAIL_SUPPLIER_PAYMENT",
++  "RETAIL_SUPPLIER_BILL",
+ ];
+ 
+ type RunKind = "sales" | "refunds" | "deliveries" | "counts" | "other";
+diff --git a/lib/retail/record-activity.ts b/lib/retail/record-activity.ts
+index 279efe3a..c9aaddfc 100644
+--- a/lib/retail/record-activity.ts
++++ b/lib/retail/record-activity.ts
+@@ -112,6 +112,11 @@ const RECORD_TYPES: Record<string, RecordActivityType> = {
+     read: ["retail.suppliers", "view"],
+     exists: async (companyId, id) => Boolean(await prisma.vendor.findFirst({ where: { id, companyId }, select: { id: true } })),
+   },
++  // A supplier's bill (BUY-07): its own events, the payments against it among them.
++  PurchaseBill: {
++    read: ["retail.bills", "view"],
++    exists: async (companyId, id) => Boolean(await prisma.purchaseBill.findFirst({ where: { id, companyId }, select: { id: true } })),
++  },
+ };
+ 
+ export function recordActivityType(type: string): RecordActivityType | null {
+diff --git a/lib/retail/record-kinds/buying.ts b/lib/retail/record-kinds/buying.ts
+index 95cb152d..13a9fe52 100644
+--- a/lib/retail/record-kinds/buying.ts
++++ b/lib/retail/record-kinds/buying.ts
+@@ -24,6 +24,8 @@ const STOP: Grant = ["retail.suppliers", "delete"];
+ 
+ const API = "/api/v2/retail/buying/suppliers";
+ const ORDER_VIEW_GRANT: Grant = ["retail.purchasing", "view"];
++const BILL_VIEW: Grant = ["retail.bills", "view"];
++const BILL_CREATE: Grant = ["retail.bills", "create"];
+ const ORDER_CREATE_GRANT: Grant = ["retail.purchasing", "create"];
+ const base = (supplier: SupplierView) => `/retail/buying/suppliers/${supplier.id}`;
+ 
+@@ -355,23 +357,29 @@ function orderPrimary(order: OrderView): RecordAction | null {
+   if (order.status === "SENT" || order.status === "PARTIAL") {
+     return { key: "receive", label: "Receive a delivery", requires: [ORDER_RECEIVE], do: { href: `/retail/buying/orders/${order.id}/receive` } };
+   }
+-  if (order.status === "CLOSED") {
+-    return {
+-      key: "reopen",
+-      label: "Reopen the order",
+-      requires: [ORDER_UPDATE],
+-      do: {
+-        post: {
+-          url: `${ORDER_API}/${order.id}/close`,
+-          method: "DELETE",
+-          done: `${order.poNo} reopened. ${formatCount(order.figures.notDelivered)} ${order.figures.notDelivered === 1 ? "unit is" : "units are"} expected again.`,
+-        },
+-      },
+-    };
++  if (order.can.billDeliveryId) {
++    return { key: "bill", label: "Record a bill", requires: [BILL_CREATE], do: { sheet: "bill-new", params: { deliveryId: order.can.billDeliveryId } } };
+   }
++  if (order.status === "CLOSED") return reopenAction(order);
+   return null;
+ }
+ 
++/** "Reopen the order": the primary of a closed order, or under ⋯ while "Record a bill" is. */
++function reopenAction(order: OrderView): RecordAction {
++  return {
++    key: "reopen",
++    label: "Reopen the order",
++    requires: [ORDER_UPDATE],
++    do: {
++      post: {
++        url: `${ORDER_API}/${order.id}/close`,
++        method: "DELETE",
++        done: `${order.poNo} reopened. ${formatCount(order.figures.notDelivered)} ${order.figures.notDelivered === 1 ? "unit is" : "units are"} expected again.`,
++      },
++    },
++  };
++}
++
+ function orderRail(order: OrderView): RailGroup[] {
+   const open = isOpen(order);
+   const groups: RailGroup[] = [
+@@ -548,6 +556,7 @@ export const orderKind: RecordKind<OrderView> = {
+     ...(isOpen(order) && !order.requisition
+       ? [{ key: "ask", label: "Ask for money", requires: [REQ_CREATE], do: { sheet: "req-new", params: { for: "order", orderId: order.id } } }]
+       : []),
++    ...(order.status === "CLOSED" && order.can.billDeliveryId ? [reopenAction(order)] : []),
+     ...(order.can.remove ? [{ key: "remove", label: "Remove the order", tone: "bad" as const, requires: [ORDER_DELETE], do: { event: "remove" } }] : []),
+   ],
+   primary: orderPrimary,
+@@ -702,7 +711,9 @@ export const deliveryKind: RecordKind<DeliveryView> = {
+   actions: (delivery) => [{ key: "print", label: "Print", requires: [], do: { open: `${notePdf(delivery)}?print=1` } }],
+   more: (delivery) => [{ key: "pdf", label: "Export as PDF", requires: [], do: { download: notePdf(delivery) } }],
+   primary: (delivery) =>
+-    delivery.can.post
++    delivery.can.bill
++      ? { key: "bill", label: "Record a bill", requires: [BILL_CREATE], do: { sheet: "bill-new", params: { deliveryId: delivery.id } } }
++      : delivery.can.post
+       ? {
+           key: "post",
+           label: "Post to stock",
+diff --git a/lib/retail/route-guard-coverage.test.ts b/lib/retail/route-guard-coverage.test.ts
+index 8506bf4a..29ddcb99 100644
+--- a/lib/retail/route-guard-coverage.test.ts
++++ b/lib/retail/route-guard-coverage.test.ts
+@@ -440,3 +440,37 @@ describe("deliveries gate on their own purchasing right", () => {
+     expect(canRetailRoleDo("CASHIER", "retail.purchasing", "receive")).toBe(false);
+   });
+ });
++
++/**
++ * BUY-07's bills and supplier payments (40-buying 4.6): reading a bill and
++ * the bookkeeper's export take `view`; recording a bill, its live hints,
++ * the payment preview and paying take `create`; changing a bill `update`.
++ * Owners and bookkeepers hold them all; a manager reads only; cashiers and
++ * stock clerks hold none.
++ */
++describe("bills and supplier payments gate on retail.bills", () => {
++  const BILLS: Array<{ key: string; action: string }> = [
++    { key: "buying/bills/route.ts POST", action: "create" },
++    { key: "buying/bills/[id]/route.ts GET", action: "view" },
++    { key: "buying/bills/[id]/route.ts PATCH", action: "update" },
++    { key: "buying/bills/compare/route.ts GET", action: "create" },
++    { key: "buying/bills/export/route.ts POST", action: "view" },
++    { key: "buying/payments/route.ts POST", action: "create" },
++    { key: "buying/payments/preview/route.ts GET", action: "create" },
++  ];
++
++  it.each(BILLS)("$key gates on retail.bills $action", ({ key, action }) => {
++    const handler = allHandlers.find((candidate) => candidate.key.endsWith(key));
++    expect(handler, `no handler found for ${key}`).toBeDefined();
++    expect(stripComments(handler?.body ?? "")).toContain(`requireRetailPermission(session, "retail.bills", "${action}")`);
++  });
++
++  it("lets owners and bookkeepers record and pay, managers read, and nobody else in", () => {
++    for (const role of ["SUPERADMIN", "FINANCE_OFFICER"]) {
++      for (const action of ["view", "create", "update", "delete"] as const) expect(canRetailRoleDo(role, "retail.bills", action)).toBe(true);
++    }
++    expect(canRetailRoleDo("MANAGER", "retail.bills", "view")).toBe(true);
++    for (const action of ["create", "update", "delete"] as const) expect(canRetailRoleDo("MANAGER", "retail.bills", action)).toBe(false);
++    for (const role of ["CASHIER", "STOCK_CLERK"]) expect(canRetailRoleDo(role, "retail.bills", "view")).toBe(false);
++  });
++});
+diff --git a/prisma/migrations/20261012090000_retail_bills/migration.sql b/prisma/migrations/20261012090000_retail_bills/migration.sql
+new file mode 100644
+index 00000000..5c6e4b19
+--- /dev/null
++++ b/prisma/migrations/20261012090000_retail_bills/migration.sql
+@@ -0,0 +1,27 @@
++-- AlterEnum
++ALTER TYPE "AccountingSourceType" ADD VALUE 'RETAIL_SUPPLIER_BILL';
++
++-- AlterEnum
++ALTER TYPE "PostingBasis" ADD VALUE 'EVENT_AMOUNT';
++
++-- AlterTable
++ALTER TABLE "PostingRuleLine" ADD COLUMN     "eventAmountKey" TEXT;
++
++-- AlterTable
++ALTER TABLE "PurchaseBill" ADD COLUMN     "archivedAt" TIMESTAMP(3),
++ADD COLUMN     "goodsReceiptId" TEXT;
++
++-- DropIndex: two suppliers can both send "INV-001".
++DROP INDEX "PurchaseBill_companyId_billNumber_key";
++
++-- CreateIndex
++CREATE UNIQUE INDEX "PurchaseBill_goodsReceiptId_key" ON "PurchaseBill"("goodsReceiptId");
++
++-- CreateIndex
++CREATE INDEX "PurchaseBill_companyId_vendorId_dueDate_idx" ON "PurchaseBill"("companyId", "vendorId", "dueDate");
++
++-- CreateIndex
++CREATE UNIQUE INDEX "PurchaseBill_companyId_vendorId_billNumber_key" ON "PurchaseBill"("companyId", "vendorId", "billNumber");
++
++-- AddForeignKey
++ALTER TABLE "PurchaseBill" ADD CONSTRAINT "PurchaseBill_goodsReceiptId_fkey" FOREIGN KEY ("goodsReceiptId") REFERENCES "RetailGoodsReceipt"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+diff --git a/prisma/schema.prisma b/prisma/schema.prisma
+index c23bde71..ab6492c2 100644
+--- a/prisma/schema.prisma
++++ b/prisma/schema.prisma
+@@ -5520,6 +5520,7 @@ model RetailGoodsReceipt {
+ 
+   lines       RetailGoodsReceiptLine[]
+   differences RetailDeliveryDifference[]
++  bill        PurchaseBill?
+   countedBy   User?           @relation("RetailGoodsReceiptCountedBy", fields: [countedById], references: [id], onDelete: SetNull)
+   checkedBy   User?           @relation("RetailGoodsReceiptCheckedBy", fields: [checkedById], references: [id], onDelete: SetNull)
+   reversedBy  User?           @relation("RetailGoodsReceiptReversedBy", fields: [reversedById], references: [id], onDelete: SetNull)
+@@ -6769,6 +6770,8 @@ enum PostingBasis {
+   OTHER_DEDUCTIONS
+   /// Everything the employer owes on top of the wage, summed.
+   EMPLOYER_CONTRIBUTIONS
++  /// The amount the event names under the line's `eventAmountKey` (`payload.amounts[key]`).
++  EVENT_AMOUNT
+ }
+ 
+ enum AllocationType {
+@@ -6835,6 +6838,7 @@ enum AccountingSourceType {
+   RETAIL_REQUISITION_CHANGE
+   RETAIL_SUPPLIER_PAYMENT
+   RETAIL_DELIVERY_DIFFERENCE
++  RETAIL_SUPPLIER_BILL
+   GOLD_SHIFT_ALLOCATION_COMPANY
+   GOLD_SHIFT_ALLOCATION_WORKER
+   GOLD_SHIFT_EXPENSE
+@@ -7255,6 +7259,8 @@ model PostingRuleLine {
+   accountRole     RetailAccountRole?
+   /// With `accountSource = EVENT_ACCOUNT`: the key in the event's `accounts` ("moneyAccount", "expenseAccount", "changeAccount").
+   eventAccountKey String?
++  /// With `basis = EVENT_AMOUNT`: the key in the event's `amounts` ("grni", "tax", "priceOver", "priceUnder", "amount", "net").
++  eventAmountKey  String?
+   valuePath       String?
+   memoTemplate    String?
+   costCenterId    String?
+@@ -7923,9 +7929,16 @@ model PurchaseBill {
+   writeOffs           PurchaseWriteOff[]
+   createdBy           User?                @relation("PurchaseBillCreatedBy", fields: [createdById], references: [id])
+   issuedBy            User?                @relation("PurchaseBillIssuedBy", fields: [issuedById], references: [id])
++  /// The delivery this bill is for. One bill per delivery.
++  goodsReceiptId      String?              @unique
++  /// In the bin.
++  archivedAt          DateTime?
++  goodsReceipt        RetailGoodsReceipt?  @relation(fields: [goodsReceiptId], references: [id], onDelete: SetNull)
+ 
+-  @@unique([companyId, billNumber])
++  // Two suppliers can both send "INV-001".
++  @@unique([companyId, vendorId, billNumber])
+   @@index([companyId, status])
++  @@index([companyId, vendorId, dueDate])
+ }
+ 
+ model PurchaseBillLine {

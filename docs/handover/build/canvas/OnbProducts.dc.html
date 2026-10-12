@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<title>Onboarding: products</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Next:wght@400;500;600&amp;family=IBM+Plex+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+.th{--surface:#ffffff;--ground:#faf7f4;--hover:#fbf8f5;--tray:#f3eee9;--active:#efe8e2;--line:#ece6e0;--line-soft:#f3eee9;--line-strong:#ddd4cc;--ink:#24140e;--ink-2:#4a3a33;--muted:#75675f;--faint:#a89c94;--accent:#e8620f;--accent-fill:#b84a0c;--data:#4b5363;--ok:#17734c;--ok-soft:#e7f4ee;--info:#3d4fb8;--info-soft:#eceefb;--warn:#8a5a10;--warn-soft:#fbf1dc;--warn-dot:#e0a21a;--warn-line:#e8cf9a;--bad:#a3122f;--bad-soft:#fbe8ec;--bad-dot:#c8203f;--float:0 0 0 1px #ece6e0,0 14px 30px -18px rgba(36,20,14,.3)}
+.th button:focus-visible,.th a:focus-visible,.th input:focus-visible,.th select:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
+.th input::placeholder{color:var(--faint)}
+.c{min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.lk{color:var(--ink);text-decoration:underline;text-decoration-color:var(--line-strong);text-underline-offset:3px}
+.rw:hover{background:var(--hover)}
+.mi:hover{background:var(--hover)}
+.bg{display:flex}.bg>button{margin-left:-1px;border-radius:0}.bg>button:first-child{margin-left:0;border-radius:8px 0 0 8px}.bg>button:last-child{border-radius:0 8px 8px 0}
+.fld{display:flex;flex-direction:column;gap:6px;min-width:0}
+.fld>span:first-child{font-size:13px;font-weight:500;color:var(--ink)}
+.inp{height:36px;box-sizing:border-box;padding:0 10px;border:1px solid var(--line-strong);border-radius:8px;background:var(--surface);font:inherit;font-size:14px;color:var(--ink);width:100%}
+.hint{font-size:12.5px;color:var(--muted);line-height:1.4}
+</style>
+</helmet>
+<div class="th" style="position: relative; width: 1440px; height: 960px; box-sizing: border-box; overflow: hidden; background: #ffffff; color: var(--ink); font-family: 'Atkinson Hyperlegible Next', system-ui, sans-serif;">
+<aside style="position: absolute; left: 0; top: 0; bottom: 0; width: 360px; box-sizing: border-box; padding: 40px; background: var(--ground); border-right: 1px solid var(--line); display: flex; flex-direction: column; gap: 32px;">
+  <div style="display: flex; align-items: center; gap: 10px;"><span style="width: 28px; height: 28px; border-radius: 8px; background: var(--accent); display: flex; align-items: center; justify-content: center; color: #ffffff; font-weight: 600;">T</span><span style="font-size: 18px; font-weight: 600; letter-spacing: -0.02em;">Tender</span></div>
+  <div style="display: flex; flex-direction: column; gap: 4px;"><span style="font-size: 13px; color: var(--muted);">Setting up</span><span style="font-size: 18px; font-weight: 600; letter-spacing: -0.01em;">Harare Bottle Store</span></div>
+  <ol aria-label="Setup steps" style="margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 4px;"><li><a href="OnbType.dc.html" style="display: flex; align-items: center; gap: 12px; padding: 10px 12px; margin: 0 -12px; border-radius: 10px; background: transparent; box-shadow: none; color: var(--ink); text-decoration: none;"><span style="width: 24px; height: 24px; border-radius: 99px; background: var(--ink); color: #ffffff; display: flex; align-items: center; justify-content: center;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12 5 5 9-10"></path></svg></span><span style="flex: 1; display: flex; flex-direction: column; gap: 1px;"><span style="font-weight: 500; color: var(--ink);">Shop type</span><span style="font-size: 12px; color: var(--muted);">Done</span></span></a></li><li><a href="OnbShop.dc.html" style="display: flex; align-items: center; gap: 12px; padding: 10px 12px; margin: 0 -12px; border-radius: 10px; background: transparent; box-shadow: none; color: var(--ink); text-decoration: none;"><span style="width: 24px; height: 24px; border-radius: 99px; background: var(--ink); color: #ffffff; display: flex; align-items: center; justify-content: center;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12 5 5 9-10"></path></svg></span><span style="flex: 1; display: flex; flex-direction: column; gap: 1px;"><span style="font-weight: 500; color: var(--ink);">Your shop</span><span style="font-size: 12px; color: var(--muted);">Done</span></span></a></li><li aria-current="step"><a href="OnbProducts.dc.html" style="display: flex; align-items: center; gap: 12px; padding: 10px 12px; margin: 0 -12px; border-radius: 10px; background: var(--surface); box-shadow: var(--float); color: var(--ink); text-decoration: none;"><span style="width: 24px; height: 24px; box-sizing: border-box; border-radius: 99px; border: 1.5px solid var(--ink); background: var(--ink); color: #ffffff; font-family: 'IBM Plex Mono', monospace; font-size: 11px; font-weight: 600; display: flex; align-items: center; justify-content: center;">3</span><span style="flex: 1; display: flex; flex-direction: column; gap: 1px;"><span style="font-weight: 600; color: var(--ink);">Products and prices</span><span style="font-size: 12px; color: var(--muted);">6 minutes</span></span></a></li><li><a href="OnbTills.dc.html" style="display: flex; align-items: center; gap: 12px; padding: 10px 12px; margin: 0 -12px; border-radius: 10px; background: transparent; box-shadow: none; color: var(--ink); text-decoration: none;"><span style="width: 24px; height: 24px; box-sizing: border-box; border-radius: 99px; border: 1.5px solid var(--line-strong); background: transparent; color: var(--muted); font-family: 'IBM Plex Mono', monospace; font-size: 11px; font-weight: 600; display: flex; align-items: center; justify-content: center;">4</span><span style="flex: 1; display: flex; flex-direction: column; gap: 1px;"><span style="font-weight: 500; color: var(--ink-2);">Tills and payments</span><span style="font-size: 12px; color: var(--muted);">2 minutes</span></span></a></li><li><a href="OnbStaff.dc.html" style="display: flex; align-items: center; gap: 12px; padding: 10px 12px; margin: 0 -12px; border-radius: 10px; background: transparent; box-shadow: none; color: var(--ink); text-decoration: none;"><span style="width: 24px; height: 24px; box-sizing: border-box; border-radius: 99px; border: 1.5px solid var(--line-strong); background: transparent; color: var(--muted); font-family: 'IBM Plex Mono', monospace; font-size: 11px; font-weight: 600; display: flex; align-items: center; justify-content: center;">5</span><span style="flex: 1; display: flex; flex-direction: column; gap: 1px;"><span style="font-weight: 500; color: var(--ink-2);">Staff and PINs</span><span style="font-size: 12px; color: var(--muted);">2 minutes</span></span></a></li><li><a href="OnbDone.dc.html" style="display: flex; align-items: center; gap: 12px; padding: 10px 12px; margin: 0 -12px; border-radius: 10px; background: transparent; box-shadow: none; color: var(--ink); text-decoration: none;"><span style="width: 24px; height: 24px; box-sizing: border-box; border-radius: 99px; border: 1.5px solid var(--line-strong); background: transparent; color: var(--muted); font-family: 'IBM Plex Mono', monospace; font-size: 11px; font-weight: 600; display: flex; align-items: center; justify-content: center;">6</span><span style="flex: 1; display: flex; flex-direction: column; gap: 1px;"><span style="font-weight: 500; color: var(--ink-2);">A test sale</span><span style="font-size: 12px; color: var(--muted);">1 minute</span></span></a></li></ol>
+  <div style="flex: 1;"></div>
+  <div style="display: flex; flex-direction: column; gap: 6px; font-size: 13px; line-height: 1.45; color: var(--ink-2);"><span><strong style="font-weight: 600; color: var(--ink);">Everything saves as you go.</strong> Close this and pick up where you left off.</span><span>Stuck? WhatsApp us on <span style="font-family: 'IBM Plex Mono', monospace;">+263 78 600 1100</span>.</span></div>
+</aside>
+<main style="position: absolute; left: 360px; right: 0; top: 0; bottom: 0; display: flex; flex-direction: column;">
+  <div style="flex: 1; min-height: 0; overflow: auto; padding: 56px 72px 32px;"><div style="max-width: 720px; display: flex; flex-direction: column; gap: 8px;">
+    <span style="font-size: 13px; color: var(--muted);">Step <span style="font-family: 'IBM Plex Mono', monospace;">3</span> of <span style="font-family: 'IBM Plex Mono', monospace;">6</span></span>
+    <h1 style="margin: 0; font-size: 32px; line-height: 1.15; font-weight: 600; letter-spacing: -0.03em;">What do you sell?</h1>
+    <p style="margin: 4px 0 0; font-size: 16px; line-height: 1.5; color: var(--ink-2);">Tick what you stock and check the price. Cost, barcode and stock can come later; nothing here stops you selling.</p>
+    <div style="margin-top: 20px; display: flex; flex-direction: column; gap: 14px;">
+  <div role="radiogroup" aria-label="How to add products" style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px;">
+    <sc-for list="{{ways}}" as="w" hint-placeholder-count="3"><button role="radio" aria-checked="{{w.on}}" onClick="{{w.pick}}" style="display: flex; flex-direction: column; gap: 4px; padding: 14px; border: 1.5px solid {{w.line}}; border-radius: 12px; background: {{w.bg}}; font: inherit; color: var(--ink); text-align: left;"><span style="font-weight: 600;">{{w.label}}</span><span style="font-size: 12.5px; line-height: 1.4; color: var(--muted);">{{w.desc}}</span></button></sc-for>
+  </div>
+  <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;"><sc-for list="{{cats}}" as="k" hint-placeholder-count="6"><button aria-pressed="{{k.on}}" onClick="{{k.pick}}" style="height: 30px; display: flex; align-items: center; gap: 6px; padding: 0 12px; border: 1px solid {{k.line}}; border-radius: 99px; background: {{k.bg}}; color: var(--ink); font: inherit; font-weight: {{k.weight}};">{{k.label}}<span style="font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: var(--muted);">{{k.count}}</span></button></sc-for></div>
+  <div role="table" aria-label="Starter catalogue" style="border: 1px solid var(--line); border-radius: 12px; overflow: hidden;">
+    <div role="row" style="display: grid; grid-template-columns: 44px minmax(0, 1fr) 140px 90px 120px; align-items: center; height: 36px; background: var(--ground); border-bottom: 1px solid var(--line); color: var(--muted); font-size: 12.5px; font-weight: 500;"><span role="columnheader" style="padding-left: 14px;"><input type="checkbox" aria-label="Tick them all" checked="{{allOn}}" onChange="{{tickAll}}" style="width: 16px; height: 16px; margin: 0; accent-color: var(--accent);"></span><span role="columnheader">Product</span><span role="columnheader">Category</span><span role="columnheader">Sold as</span><span role="columnheader" style="padding-right: 14px; text-align: right;">Your price</span></div>
+    <sc-for list="{{rows}}" as="r" hint-placeholder-count="10"><div role="row" class="rw" style="display: grid; grid-template-columns: 44px minmax(0, 1fr) 140px 90px 120px; align-items: center; height: 44px; border-bottom: 1px solid var(--line-soft); background: {{r.bg}};"><span role="cell" style="padding-left: 14px;"><input type="checkbox" aria-label="Sell {{r.name}}" checked="{{r.on}}" onChange="{{r.tick}}" style="width: 16px; height: 16px; margin: 0; accent-color: var(--accent);"></span><span role="cell" class="c" style="font-weight: 500;">{{r.name}}</span><span role="cell" class="c" style="color: var(--ink-2);">{{r.cat}}</span><span role="cell" class="c" style="color: var(--ink-2);">{{r.unit}}</span><span role="cell" style="padding-right: 8px; display: flex; justify-content: flex-end;"><input aria-label="Price of {{r.name}}" value="{{r.price}}" onChange="{{r.setPrice}}" inputmode="decimal" style="width: 88px; height: 30px; box-sizing: border-box; padding: 0 8px; border: 1px solid var(--line-strong); border-radius: 8px; font-family: 'IBM Plex Mono', monospace; font-size: 13px; font-weight: 600; text-align: right; color: var(--ink);"></span></div></sc-for>
+    <div style="height: 44px; display: flex; align-items: center; gap: 8px; padding: 0 14px; background: var(--ground); color: var(--muted);"><span><span style="font-family: 'IBM Plex Mono', monospace; color: var(--ink); font-weight: 600;">{{ticked}}</span> ticked, on sale as soon as you finish</span><span style="flex: 1;"></span><span>Prices are suggestions from Harare shops this month.</span></div>
+  </div>
+</div>
+  </div></div>
+  <footer style="height: 76px; flex: none; display: flex; align-items: center; gap: 12px; padding: 0 72px; border-top: 1px solid var(--line);"><a href="OnbShop.dc.html" style="height: 40px; display: flex; align-items: center; padding: 0 16px; border: 1px solid var(--line-strong); border-radius: 8px; color: var(--ink); text-decoration: none;">Back</a><span style="flex: 1;"></span><a href="OnbTills.dc.html" style="color: var(--muted); text-decoration: underline; text-decoration-color: var(--line-strong); text-underline-offset: 3px;">I will add them later</a><a href="OnbTills.dc.html" style="height: 40px; display: flex; align-items: center; gap: 8px; padding: 0 20px; border-radius: 8px; background: var(--accent-fill); color: #ffffff; font-weight: 600; text-decoration: none;">Add 137 products<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="m9 18 6-6-6-6"></path></svg></a></footer>
+</main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":960}}'>
+class Component extends DCLogic {
+  constructor(props) { super(props); this.state = { way: 0, cat: 0, on: {}, price: {} }; }
+  renderVals() {
+    var self = this, st = this.state;
+    var R = [["Castle Lager 340ml", "Beer", "Single", "1.20", true], ["Castle Lager 340ml, case of 24", "Beer", "Case", "26.00", true], ["Black Label 340ml", "Beer", "Single", "1.20", true], ["Zambezi Lager 375ml", "Beer", "Single", "1.30", true], ["Chibuku Scud 1L", "Beer", "Single", "1.10", true], ["Johnnie Walker Black 750ml", "Spirits", "Single", "42.00", true], ["Jameson Irish Whiskey 750ml", "Spirits", "Single", "27.90", true], ["Two Keys Whisky 750ml", "Spirits", "Single", "9.75", false], ["Gordon’s Gin 750ml", "Spirits", "Single", "16.40", true], ["Amarula Cream 750ml", "Spirits", "Single", "18.25", false], ["Ice 2kg bag", "Ice and mixers", "Single", "1.50", true]];
+    var W = [['From the catalogue', 'Tick what you stock. Recommended.'], ['Import a spreadsheet', 'Download our template, fill it, upload.'], ['One by one', 'Name, category, price. Nothing else needed.']];
+    var C = [['All', '180'], ['Beer', '42'], ['Spirits', '61'], ['Wine', '38'], ['Ciders and coolers', '19'], ['Soft drinks', '14'], ['Ice and mixers', '6']];
+    var cat = C[st.cat][0];
+    var n = 0;
+    var rows = R.filter(function (r) { return cat === 'All' || r[1] === cat; }).map(function (r) {
+      var i = R.indexOf(r), on = st.on[i] !== undefined ? st.on[i] : r[4];
+      return { name: r[0], cat: r[1], unit: r[2], on: on, bg: on ? 'transparent' : 'var(--ground)', price: st.price[i] !== undefined ? st.price[i] : r[3],
+        tick: function () { var m = Object.assign({}, st.on); m[i] = !on; self.setState({ on: m }); },
+        setPrice: function (e) { var m = Object.assign({}, st.price); m[i] = e.target.value; self.setState({ price: m }); } };
+    });
+    R.forEach(function (r, i) { if (st.on[i] !== undefined ? st.on[i] : r[4]) n++; });
+    return {
+      ways: W.map(function (w, i) { var on = st.way === i; return { label: w[0], desc: w[1], on: on, line: on ? 'var(--ink)' : 'var(--line)', bg: on ? 'var(--ground)' : 'var(--surface)', pick: function () { self.setState({ way: i }); } }; }),
+      cats: C.map(function (k, i) { var on = st.cat === i; return { label: k[0], count: k[1], on: on, line: on ? 'var(--ink)' : 'var(--line-strong)', bg: on ? 'var(--active)' : 'var(--surface)', weight: on ? '600' : '400', pick: function () { self.setState({ cat: i }); } }; }),
+      rows: rows, ticked: String(n + 126), allOn: rows.every(function (r) { return r.on; }),
+      tickAll: function () { var m = Object.assign({}, st.on), all = rows.every(function (r) { return r.on; }); R.forEach(function (r, i) { m[i] = !all; }); self.setState({ on: m }); }
+    };
+  }
+}
+</script>
+</body>
+</html>

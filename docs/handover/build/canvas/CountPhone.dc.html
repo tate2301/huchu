@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<title>Counting on a phone</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Next:wght@400;500;600&amp;family=IBM+Plex+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+.th{--surface:#ffffff;--ground:#faf7f4;--hover:#fbf8f5;--tray:#f3eee9;--active:#efe8e2;--line:#ece6e0;--line-soft:#f3eee9;--line-strong:#ddd4cc;--ink:#24140e;--ink-2:#4a3a33;--muted:#75675f;--faint:#a89c94;--accent:#e8620f;--accent-fill:#b84a0c;--data:#4b5363;--ok:#17734c;--ok-soft:#e7f4ee;--info:#3d4fb8;--info-soft:#eceefb;--warn:#8a5a10;--warn-soft:#fbf1dc;--warn-dot:#e0a21a;--warn-line:#e8cf9a;--bad:#a3122f;--bad-soft:#fbe8ec;--bad-dot:#c8203f;--float:0 0 0 1px #ece6e0,0 14px 30px -18px rgba(36,20,14,.3)}
+.th button:focus-visible,.th a:focus-visible,.th input:focus-visible,.th select:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
+.th input::placeholder{color:var(--faint)}
+.c{min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.lk{color:var(--ink);text-decoration:underline;text-decoration-color:var(--line-strong);text-underline-offset:3px}
+.rw:hover{background:var(--hover)}
+.mi:hover{background:var(--hover)}
+.bg{display:flex}.bg>button{margin-left:-1px;border-radius:0}.bg>button:first-child{margin-left:0;border-radius:8px 0 0 8px}.bg>button:last-child{border-radius:0 8px 8px 0}
+.fld{display:flex;flex-direction:column;gap:6px;min-width:0}
+.fld>span:first-child{font-size:13px;font-weight:500;color:var(--ink)}
+.inp{height:36px;box-sizing:border-box;padding:0 10px;border:1px solid var(--line-strong);border-radius:8px;background:var(--surface);font:inherit;font-size:14px;color:var(--ink);width:100%}
+.hint{font-size:12.5px;color:var(--muted);line-height:1.4}
+</style>
+</helmet>
+<div class="th" style="position: relative; width: 390px; height: 844px; box-sizing: border-box; overflow: hidden; background: #ffffff; color: var(--ink); font-family: 'Atkinson Hyperlegible Next', system-ui, sans-serif;">
+<div style="height: 100%; display: flex; flex-direction: column; font-size: 14px;">
+  <div style="padding: 52px 16px 12px; display: flex; flex-direction: column; gap: 8px; border-bottom: 1px solid var(--line);">
+    <span style="font-size: 12.5px; color: var(--muted);">CNT-0020 · Harare Main Branch</span>
+    <span style="font-size: 20px; font-weight: 600; letter-spacing: -0.02em;">Counting the spirits shelf</span>
+    <span style="display: flex; align-items: center; gap: 10px; color: var(--muted);"><span style="flex: 1; height: 6px; border-radius: 99px; background: var(--tray); overflow: hidden;"><span style="display: block; width: 8%; height: 100%; background: var(--ok);"></span></span><span><span style="font-family: 'IBM Plex Mono', monospace; color: var(--ink);">3</span> of <span style="font-family: 'IBM Plex Mono', monospace; color: var(--ink);">38</span></span></span>
+  </div>
+  <div style="margin: 12px 16px; height: 44px; display: flex; align-items: center; gap: 8px; padding: 0 12px; border: 1px solid var(--line-strong); border-radius: 10px; color: var(--muted);"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 5h2v14H3zm4 0h1v14H7zm3 0h2v14h-2zm4 0h1v14h-1zm3 0h1v14h-1zm2 0h2v14h-2z"></path></svg>Scan a bottle to jump to it</div>
+  <ul style="margin: 0; padding: 0; list-style: none; flex: 1; overflow: hidden;"><li style="display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-bottom: 1px solid var(--line-soft); background: var(--surface);"><span style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px;"><span style="font-weight: 500; font-size: 15px;">Jameson Irish Whiskey 750ml</span><span style="font-size: 12.5px; color: var(--muted);">Shelf 2, top</span></span><span style="width: 72px; height: 44px; box-sizing: border-box; border: 1px solid var(--line-strong); border-radius: 10px; display: flex; align-items: center; justify-content: flex-end; padding: 0 12px; font-family: 'IBM Plex Mono', monospace; font-size: 18px; font-weight: 600;">7</span></li><li style="display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-bottom: 1px solid var(--line-soft); background: var(--surface);"><span style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px;"><span style="font-weight: 500; font-size: 15px;">Johnnie Walker Black 750ml</span><span style="font-size: 12.5px; color: var(--muted);">Shelf 2, top</span></span><span style="width: 72px; height: 44px; box-sizing: border-box; border: 1px solid var(--line-strong); border-radius: 10px; display: flex; align-items: center; justify-content: flex-end; padding: 0 12px; font-family: 'IBM Plex Mono', monospace; font-size: 18px; font-weight: 600;">5</span></li><li style="display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-bottom: 1px solid var(--line-soft); background: var(--surface);"><span style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px;"><span style="font-weight: 500; font-size: 15px;">Gordon’s Gin 750ml</span><span style="font-size: 12.5px; color: var(--muted);">Shelf 2, middle</span></span><span style="width: 72px; height: 44px; box-sizing: border-box; border: 1px solid var(--line-strong); border-radius: 10px; display: flex; align-items: center; justify-content: flex-end; padding: 0 12px; font-family: 'IBM Plex Mono', monospace; font-size: 18px; font-weight: 600;">19</span></li><li style="display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-bottom: 1px solid var(--line-soft); background: #fff8f2;"><span style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px;"><span style="font-weight: 500; font-size: 15px;">Amarula Cream 750ml</span><span style="font-size: 12.5px; color: var(--muted);">Shelf 3</span></span><span style="width: 72px; height: 44px; box-sizing: border-box; border: 2px solid var(--accent); border-radius: 10px; display: flex; align-items: center; justify-content: flex-end; padding: 0 12px; font-family: 'IBM Plex Mono', monospace; font-size: 18px; font-weight: 600;"></span></li><li style="display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-bottom: 1px solid var(--line-soft); background: var(--surface);"><span style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px;"><span style="font-weight: 500; font-size: 15px;">Two Keys Whisky 750ml</span><span style="font-size: 12.5px; color: var(--muted);">Shelf 3</span></span><span style="width: 72px; height: 44px; box-sizing: border-box; border: 1px solid var(--line-strong); border-radius: 10px; display: flex; align-items: center; justify-content: flex-end; padding: 0 12px; font-family: 'IBM Plex Mono', monospace; font-size: 18px; font-weight: 600;"></span></li></ul>
+  <div style="padding: 12px 16px 28px; border-top: 1px solid var(--line); display: flex; flex-direction: column; gap: 8px;"><span style="font-size: 12.5px; color: var(--muted); text-align: center;">You do not see what is expected. Count what is there.</span><span style="height: 48px; display: flex; align-items: center; justify-content: center; border-radius: 10px; background: var(--accent-fill); color: #ffffff; font-weight: 600;">Done, send for review</span></div>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>
