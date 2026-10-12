@@ -419,6 +419,8 @@ describe("workspace sidebar model", () => {
         "/retail/products",
         "/retail/products/price-lists",
         "/retail/products/promotions",
+        "/retail/products/bundles",
+        "/retail/products/vouchers",
         "/retail/products/categories",
       ]);
     });
@@ -428,6 +430,8 @@ describe("workspace sidebar model", () => {
         "/retail",
         "/retail/sales",
         "/retail/shifts",
+        "/retail/laybys",
+        "/retail/end-of-day",
         "/retail/customers",
       ]);
     });
@@ -461,8 +465,14 @@ describe("workspace sidebar model", () => {
       const model = retailModel("CASHIER");
       expect(model.homeHref).toBe("/retail/shifts");
       expect(Object.fromEntries(model.sections.map((section) => [section.id, section.items.map((i) => i.href)]))).toEqual({
-        "retail-floor": ["/retail/sales", "/retail/shifts", "/retail/customers"],
-        "retail-products": ["/retail/products", "/retail/products/price-lists", "/retail/products/promotions"],
+        "retail-floor": ["/retail/sales", "/retail/shifts", "/retail/laybys", "/retail/customers"],
+        "retail-products": [
+          "/retail/products",
+          "/retail/products/price-lists",
+          "/retail/products/promotions",
+          "/retail/products/bundles",
+          "/retail/products/vouchers",
+        ],
         "retail-buy": ["/retail/buying/requisitions"],
       });
     });
@@ -472,7 +482,7 @@ describe("workspace sidebar model", () => {
       expect(model.homeHref).toBe("/retail/stock");
       expect(Object.fromEntries(model.sections.map((section) => [section.id, section.items.map((i) => i.href)]))).toEqual({
         "retail-products": ["/retail/products"],
-        "retail-stock": ["/retail/stock", "/retail/stock/movements", "/retail/stock/counts", "/retail/stock/transfers"],
+        "retail-stock": ["/retail/stock", "/retail/stock/movements", "/retail/stock/counts", "/retail/stock/transfers", "/retail/stock/empties"],
         "retail-buy": [
           "/retail/buying/suppliers",
           "/retail/buying/orders",
@@ -490,6 +500,7 @@ describe("workspace sidebar model", () => {
         "/retail/stock/movements",
         "/retail/stock/counts",
         "/retail/stock/transfers",
+        "/retail/stock/empties",
       ]);
     });
 
@@ -595,7 +606,8 @@ describe("route gating", () => {
   it("gates retail customer surfaces behind CRM", () => {
     expect(resolveFeatureKeyForPath("/retail/customers")).toBe("crm.customers");
     expect(resolveFeatureKeyForPath("/portal/pos/customers")).toBe("crm.customers");
-    expect(resolveFeatureKeyForPath("/api/v2/retail/customers")).toBe("crm.customers");
+    // The API answers under retail.core: a retail role without the customer book is refused by the role matrix.
+    expect(resolveFeatureKeyForPath("/api/v2/retail/customers")).toBe("retail.core");
   });
 
   /**
