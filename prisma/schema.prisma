@@ -128,6 +128,11 @@ model Company {
   customReports                 CustomReport[]
   reportTemplates               ReportTemplate[]
   reportTemplateUses            ReportTemplateUse[]
+  vaneItems                     VaneItem[]
+  vanePlans                     VanePlan[]
+  vaneJobs                      VaneJob[]
+  vaneSettings                  VaneSettings?
+  vaneReaderScopes              VaneReaderScope[]
   documentRenderJobs            DocumentRenderJob[]
   documentArtifacts             DocumentArtifact[]
   idSequences                   IdSequence[]
@@ -1462,6 +1467,9 @@ model User {
   sessionHandoffs                   SessionHandoff[]
   reportTemplates                   ReportTemplate[]
   reportTemplatesOpened             ReportTemplateUse[]            @relation("ReportTemplateUseLastOpenedBy")
+  vaneItemsFor                    VaneItem[]                     @relation("VaneItemAudience")
+  vaneItemsResolved               VaneItem[]                     @relation("VaneItemResolvedBy")
+  vaneJobsRequested               VaneJob[]                      @relation("VaneJobRequestedBy")
   sitesClosed                       Site[]                         @relation("SiteClosedBy")
   retailRegistersCreated            RetailRegister[]               @relation("RetailRegisterCreatedBy")
   retailDevicesPaired               RetailDevice[]                 @relation("RetailDevicePairedBy")
@@ -5305,6 +5313,8 @@ model RetailPurchaseOrder {
   expectedDate DateTime?
   notes        String?
   createdById  String?
+  /// Drafted by Vane, not a person. createdById stays empty; a person still issues, sends or receives it.
+  madeByVane Boolean @default(false)
   /// Who stopped waiting for the rest, when, and why. Set with `CLOSED`.
   closedAt     DateTime?
   closedById   String?
@@ -7160,6 +7170,8 @@ model SalesInvoice {
   /// itself, which is what every invoice before editing existed did.
   revision      Int                  @default(0)
   createdById   String?
+  /// Drafted by Vane, not a person. createdById stays empty; a person still issues, sends or receives it.
+  madeByVane  Boolean @default(false)
   issuedById    String?
   issuedAt      DateTime?
   createdAt     DateTime             @default(now())
@@ -7216,6 +7228,8 @@ model SalesQuotation {
   total           Float           @default(0)
   notes           String?
   createdById     String?
+  /// Drafted by Vane, not a person. createdById stays empty; a person still issues, sends or receives it.
+  madeByVane    Boolean @default(false)
   issuedById      String?
   issuedAt        DateTime?
   createdAt       DateTime        @default(now())
@@ -15430,4 +15444,207 @@ model RetailImportRow {
   import RetailImport @relation(fields: [importId], references: [id], onDelete: Cascade)
 
   @@unique([importId, rowNo])
+}
+
+// -----------------------------------------------------------------------------
+// Vane: what it raises, the plans it breaks a job into, the jobs it runs and how
+// a workspace has set it up. Vane writes only these rows and draft records
+// (`madeByVane`); sending, paying, accepting and publishing stay with a person.
+// It reads the workspace as `vane_reader` (see 20261012120000_vane).
+// -----------------------------------------------------------------------------
+
+enum VaneItemKind {
+  ISSUE
+  SUGGESTION
+}
+
+enum VaneItemStatus {
+  OPEN
+  DONE
+  MUTED
+}
+
+enum VanePlanStatus {
+  OPEN
+  DONE
+  CANCELLED
+}
+
+enum VanePlanStepOwner {
+  VANE
+  PERSON
+}
+
+enum VanePlanStepStatus {
+  TODO
+  NOW
+  DONE
+}
+
+enum VaneJobTrigger {
+  /// A new or changed record in a module Vane watches.
+  RECORD
+  /// The every-few-minutes pass.
+  SCHEDULE
+  /// The 06:00 run in the workspace's time.
+  NIGHTLY
+  /// Someone used Give Vane a job.
+  PERSON
+}
+
+enum VaneJobStatus {
+  QUEUED
+  RUNNING
+  DONE
+  /// Claude could not be reached; waits until runAfter and tries again.
+  WAITING
+  FAILED
+}
+
+/// One For you card: an issue or a suggestion, with the SQL it ran and what it read.
+model VaneItem {
+  id             String         @id @default(uuid())
+  companyId      String
+  kind           VaneItemKind
+  /// The module it came from: "books", "crm", "retail", ...
+  sourceModule   String
+  subjectType    String?
+  subjectId      String?
+  /// The fact, in one line: "$2,480.00 is overdue across 3 invoices".
+  headline       String
+  /// The reason and the closing "Let's ..." proposal.
+  body           String
+  /// { type, label, shortcut, target }: the button names the act.
+  action         Json
+  /// What it read, so a person can check it: [{ template, filters, rows }].
+  readFrom       Json           @default("[]")
+  sql            String?
+  status         VaneItemStatus @default(OPEN)
+  mutedReason    String?
+  /// Who sees it: a role, or one person.
+  audienceRole   String?
+  audienceUserId String?
+  jobId          String?
+  createdAt      DateTime       @default(now())
+  resolvedAt     DateTime?
+  resolvedById   String?
+
+  company      Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  audienceUser User?    @relation("VaneItemAudience", fields: [audienceUserId], references: [id], onDelete: Cascade)
+  resolvedBy   User?    @relation("VaneItemResolvedBy", fields: [resolvedById], references: [id], onDelete: SetNull)
+  job          VaneJob? @relation(fields: [jobId], references: [id], onDelete: SetNull)
+
+  @@index([companyId, status, createdAt])
+  @@index([companyId, subjectType, subjectId])
+  @@index([audienceUserId])
+  @@index([resolvedById])
+  @@index([jobId])
+}
+
+/// A larger job broken into steps, each owned by Vane or by a person.
+model VanePlan {
+  id        String         @id @default(uuid())
+  companyId String
+  title     String
+  dueOn     DateTime?      @db.Date
+  status    VanePlanStatus @default(OPEN)
+  createdAt DateTime       @default(now())
+  doneAt    DateTime?
+
+  company Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  steps   VanePlanStep[]
+
+  @@index([companyId, status])
+}
+
+model VanePlanStep {
+  id            String             @id @default(uuid())
+  planId        String
+  position      Int
+  label         String
+  owner         VanePlanStepOwner
+  status        VanePlanStepStatus @default(TODO)
+  /// "38 of 61 lines".
+  progressLabel String?
+  doneAt        DateTime?
+
+  plan VanePlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+
+  @@unique([planId, position])
+}
+
+/// Every piece of work Vane does, with what it cost. Counted against the monthly allowance.
+model VaneJob {
+  id               String         @id @default(uuid())
+  companyId        String
+  /// (kind, subject, day): a job with the same key runs once.
+  key              String
+  kind             String
+  /// What the top bar shows while it runs: "Matching CBZ lines".
+  label            String
+  trigger          VaneJobTrigger
+  requestedById    String?
+  status           VaneJobStatus  @default(QUEUED)
+  attempts         Int            @default(0)
+  runAfter         DateTime       @default(now())
+  startedAt        DateTime?
+  finishedAt       DateTime?
+  progressDone     Int?
+  progressTotal    Int?
+  /// The model that answered, as Claude reported it.
+  model            String?
+  tokensIn         Int            @default(0)
+  tokensOut        Int            @default(0)
+  cacheReadTokens  Int            @default(0)
+  cacheWriteTokens Int            @default(0)
+  /// [{ name, ms, ok }] for each tool it called.
+  tools            Json           @default("[]")
+  result           String?
+  error            String?
+  createdAt        DateTime       @default(now())
+
+  company     Company    @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  requestedBy User?      @relation("VaneJobRequestedBy", fields: [requestedById], references: [id], onDelete: SetNull)
+  items       VaneItem[]
+
+  @@unique([companyId, key])
+  @@index([companyId, status, runAfter])
+  @@index([companyId, createdAt])
+  @@index([requestedById])
+}
+
+/// Management -> Vane. One row per workspace; no row means the defaults.
+model VaneSettings {
+  companyId          String   @id
+  paused             Boolean  @default(false)
+  /// { [module]: boolean }: what it watches.
+  watches            Json     @default("{}")
+  raiseIssues        Boolean  @default(true)
+  plans              Boolean  @default(true)
+  /// Draft and match.
+  drafts             Boolean  @default(true)
+  /// "People's pay and personal details": off reads as vane_reader, on as vane_reader_private.
+  readsPeoplePrivate Boolean  @default(false)
+  /// Quiet hours hold notifications, not work. "HH:MM" in the workspace's time.
+  quietFrom          String   @default("20:00") @db.VarChar(5)
+  quietTo            String   @default("06:00") @db.VarChar(5)
+  /// { [issue kind]: role[] }: who hears about what.
+  routing            Json     @default("{}")
+  monthlyAllowance   Int      @default(5000)
+  updatedAt          DateTime @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+}
+
+/// Which workspace a vane_reader connection may read, keyed by its backend pid.
+/// Written by the app, inside the reading transaction; vane_reader can read it
+/// but never write it, so its SQL cannot move itself to another workspace.
+model VaneReaderScope {
+  pid       Int      @id
+  companyId String
+  createdAt DateTime @default(now())
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId])
 }
