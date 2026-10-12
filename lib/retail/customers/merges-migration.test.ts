@@ -1,5 +1,5 @@
 /**
- * Migration witness for `20261012050000_retail_customer_merges` (CUS-05, 65-customers-merge).
+ * Migration witness for `20261012130600_retail_customer_merges` (CUS-05, 65-customers-merge).
  *
  * The merge table with its columns and defaults, one row per duplicate (the
  * unique), the survivor index, and both links to the customer that cascade.

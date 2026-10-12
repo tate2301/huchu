@@ -1,5 +1,5 @@
 /**
- * Migration witness for `20261010010000_retail_empties` (STK-09, 30-stock §3.2).
+ * Migration witness for `20261012130100_retail_empties` (STK-09, 30-stock §3.2).
  *
  * The Empties ledger: its kinds, its table (bottles, crates and deposit signed,
  * the running afters, the sale, customer, supplier, delivery and the return a

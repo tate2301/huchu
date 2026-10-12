@@ -17,7 +17,7 @@ import { canRetailRoleDo } from "@/lib/retail/permission-matrix";
 import { SHOP_TIME_ZONE } from "@/lib/retail/shop-profile-rules";
 import type { RetailZReportPayload } from "@/lib/retail/z-report";
 import { count, hhmm, TENDER_LABEL, usd, weekdayDayMonth, whole } from "./format";
-import { Empty, ErrorLine, Segmented } from "./parts";
+import { Empty, ErrorLine, LoadFailed, Segmented } from "./parts";
 import { useTill } from "./state";
 import { TenderMark } from "./pay-tray";
 
@@ -156,9 +156,7 @@ function MySales() {
           <span className="skeleton is-lede" />
         </div>
       ) : query.isError ? (
-        <Empty icon={ChartBar} title="Your sales did not load">
-          {getApiErrorMessage(query.error)}
-        </Empty>
+        <LoadFailed icon={ChartBar} title="Your sales did not load" error={query.error} onRetry={() => void query.refetch()} />
       ) : !sales.length ? (
         <Empty icon={ChartBar} title={period === "today" ? "No sales yet today" : "No sales this week"}>
           What you sell shows here, by the hour.

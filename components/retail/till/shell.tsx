@@ -28,6 +28,7 @@ import {
   Lock,
   LogOut,
   Megaphone,
+  Monitor,
   PauseCircle,
   Question,
   Receipt,
@@ -149,6 +150,20 @@ export function PersonMenu({ trigger, doors = [] }: { trigger: React.ReactNode; 
           <Key className="ic" />
           Change my PIN
         </Link>
+        <button
+          type="button"
+          className="menu-item"
+          role="menuitem"
+          tabIndex={-1}
+          onClick={() => {
+            close();
+            // A window of its own, to drag onto the screen that faces the customer.
+            window.open(`${isPosHost ? "" : "/portal/pos"}/display`, "till-display", "popup");
+          }}
+        >
+          <Monitor className="ic" />
+          Open the customer screen
+        </button>
         <div className="menu-sep" />
         {pinConfigured ? (
           <button

@@ -920,7 +920,7 @@ index 00000000..67596e0f
 +++ b/lib/retail/buying/bills-migration.test.ts
 @@ -0,0 +1,62 @@
 +/**
-+ * Migration witness for `20261012090000_retail_bills` (BUY-07).
++ * Migration witness for `20261012131000_retail_bills` (BUY-07).
 + *
 + * A supplier's bill names the delivery it is for (one bill a delivery) and can
 + * go in the bin; its number is unique for the supplier, no longer for the
@@ -2275,11 +2275,11 @@ index 8506bf4a..29ddcb99 100644
 +    for (const role of ["CASHIER", "STOCK_CLERK"]) expect(canRetailRoleDo(role, "retail.bills", "view")).toBe(false);
 +  });
 +});
-diff --git a/prisma/migrations/20261012090000_retail_bills/migration.sql b/prisma/migrations/20261012090000_retail_bills/migration.sql
+diff --git a/prisma/migrations/20261012131000_retail_bills/migration.sql b/prisma/migrations/20261012131000_retail_bills/migration.sql
 new file mode 100644
 index 00000000..5c6e4b19
 --- /dev/null
-+++ b/prisma/migrations/20261012090000_retail_bills/migration.sql
++++ b/prisma/migrations/20261012131000_retail_bills/migration.sql
 @@ -0,0 +1,27 @@
 +-- AlterEnum
 +ALTER TYPE "AccountingSourceType" ADD VALUE 'RETAIL_SUPPLIER_BILL';

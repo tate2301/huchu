@@ -20,11 +20,14 @@ import { SEND_BY_WORDS, type ReceiptWire } from "@/lib/retail/receipt-words";
 import { wasApproved, type TillActivityEntry, type TillActivityKind } from "@/lib/retail/till-activity-shared";
 import { TILL_PIN_LOCKED } from "@/lib/retail/till-pin";
 import { hoursWords, percentWords, voidPinSentence } from "@/lib/retail/till-rule-words";
+import { setDevicePrefs, useDevicePrefs } from "./device-prefs";
 import { count, dayMonth, hhmm, TENDER_LABEL, usd } from "./format";
 import type { TillRulesForTill } from "./types";
-import { Empty, ErrorLine, PinDots, Segmented, TillDialog } from "./parts";
+import { Empty, ErrorLine, LoadFailed, PinDots, Segmented, TillDialog } from "./parts";
 import { printReceipt } from "./pay-tray";
+import { KeyList } from "./keys";
 import { useTillLock } from "./lock";
+import { cue } from "./sound";
 import { useTill } from "./state";
 
 /* ─── My activity ────────────────────────────────────────────────────── */
@@ -233,9 +236,7 @@ export function ActivityScreen() {
           <span className="skeleton is-line" />
         </div>
       ) : query.isError ? (
-        <Empty icon={ListChecks} title="Your activity did not load">
-          {getApiErrorMessage(query.error)}
-        </Empty>
+        <LoadFailed icon={ListChecks} title="Your activity did not load" error={query.error} onRetry={() => void query.refetch()} />
       ) : !shown.length ? (
         <Empty icon={ListChecks} title="Nothing here yet">
           What you do on the till in the last seven days shows here, newest first.
@@ -283,6 +284,64 @@ function approvalWords(rules: TillSettings["rules"]) {
 /** "Card, EcoCash and InnBucks". */
 function listWords(words: string[]) {
   return words.length > 1 ? `${words.slice(0, -1).join(", ")} and ${words[words.length - 1]}` : (words[0] ?? "");
+}
+
+/** What this device does for whoever is selling on it; kept on the device, not in the back office. */
+function ThisDevice() {
+  const prefs = useDevicePrefs();
+  return (
+    <div className="form-sec">
+      <header>
+        <h2>On this device</h2>
+        <p>Kept on this till for whoever sells on it.</p>
+      </header>
+      <div className="body">
+        <DeviceSwitch
+          label="Sounds"
+          help="A tick for each product, a low note for a code the till does not know, and two notes when the money is in."
+          on={prefs.sounds}
+          onChange={(sounds) => {
+            setDevicePrefs({ sounds });
+            if (sounds) cue("added");
+          }}
+        />
+        <DeviceSwitch
+          label="Dim screen"
+          help="Dark grounds and light type, for a night shift or a bar with the lights down."
+          on={prefs.dim}
+          onChange={(dim) => setDevicePrefs({ dim })}
+        />
+        <DeviceSwitch
+          label="Larger text"
+          help="Everything a step larger, for reading the till from further away."
+          on={prefs.large}
+          onChange={(large) => setDevicePrefs({ large })}
+        />
+      </div>
+    </div>
+  );
+}
+
+function DeviceSwitch({ label, help, on, onChange }: { label: string; help: string; on: boolean; onChange: (on: boolean) => void }) {
+  const id = React.useId();
+  return (
+    <div className="field">
+      <label className="check">
+        <input
+          type="checkbox"
+          role="switch"
+          className="switch"
+          aria-describedby={id}
+          checked={on}
+          onChange={(event) => onChange(event.target.checked)}
+        />
+        {label}
+      </label>
+      <span id={id} className="help">
+        {help}
+      </span>
+    </div>
+  );
 }
 
 export function SettingsScreen() {
@@ -395,6 +454,8 @@ export function SettingsScreen() {
             </div>
           </div>
         </div>
+        <hr className="divider" />
+        <ThisDevice />
         <hr className="divider" />
         <div className="form-sec" id="pin">
           <header>
@@ -592,24 +653,7 @@ export function HelpScreen() {
             <h2>Keys</h2>
           </header>
           <div className="body">
-            <dl className="attrs is-narrow">
-              <dt>
-                <span className="kbd">/</span>
-              </dt>
-              <dd>Search, or scan into it</dd>
-              <dt>
-                <span className="kbd">Enter</span>
-              </dt>
-              <dd>Take the money once the total is right</dd>
-              <dt>
-                <span className="kbd">Esc</span>
-              </dt>
-              <dd>Close what is open</dd>
-              <dt>
-                <span className="kbd">L</span>
-              </dt>
-              <dd>Lock the till</dd>
-            </dl>
+            <KeyList />
           </div>
         </div>
         <div className="form-sec">

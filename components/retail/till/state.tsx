@@ -62,10 +62,13 @@ import { cashDropDue, cashDropSentence, offlineStopSentence, offlineWindowClosed
 import { markPairedTill } from "@/lib/retail/till-presence";
 import { referenceSentence } from "@/lib/retail/till-rule-words";
 import { bundleLineId, bundleOffers, makeBundle, newBundleRef, priceCart, repriceLines, shelfPriceNow } from "./cart-pricing";
-import { paymentLabel, usd } from "./format";
+import { displayChannel, onDisplayHello, postDisplay, type DisplayFeed } from "./display-feed";
+import { count, paymentLabel, usd } from "./format";
 import { breakOneCase, caseOpenedToast } from "./moments";
+import { keepOpenSale, loadOpenSale, openSaleKey } from "./open-sale";
 import { holdsVouchers, VOUCHERS_OFFLINE } from "./vouchers";
 import { discountApprovalReason, discountCeilingProblem, paymentSummary, type RuledLine } from "./sale-rules";
+import { exactMatch, pickScanned, searchShelf } from "./scan-match";
 import type {
   Approver,
   CartItem,
@@ -108,6 +111,18 @@ const CASH_ROW: PaymentRow = { tenderType: "CASH", amount: "", reference: "" };
 function createSaleClientRef() {
   if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") return crypto.randomUUID();
   return `till-${Date.now()}${Math.floor(Math.random() * 1000)}`;
+}
+
+/** The shelf for a search and a group, as the till caches it; the whole shelf is `["retail-pos-catalog", siteId, ""]`. */
+function fetchShelf(search: string, category: string | null) {
+  const params = new URLSearchParams({ search });
+  if (category) params.set("category", category);
+  return fetchJson<{ data: PosCatalogItem[] }>(`/api/v2/retail/pos/catalog?${params.toString()}`);
+}
+
+/** Items as the counter says them: a weighed line is one item. */
+function itemCount(cart: CartItem[]) {
+  return cart.reduce((sum, item) => sum + (Number.isInteger(item.quantity) ? item.quantity : 1), 0);
 }
 
 /** A short tag off a sale's key, for a sale saved on the till: its number comes when it is sent. */
@@ -334,16 +349,50 @@ function useTillStateValue({ isPosHost, paired }: { isPosHost: boolean; paired: 
 
   /* ── The shelf ──────────────────────────────────────────────────────── */
 
+  // The shelf is asked once the typing settles: a scanner types a whole code in a few
+  // milliseconds, and each character was a search of its own. Cleared is at once.
+  const [shelfSearch, setShelfSearch] = useState("");
+  useEffect(() => {
+    if (!search) {
+      setShelfSearch("");
+      return;
+    }
+    const timer = window.setTimeout(() => setShelfSearch(search), 150);
+    return () => window.clearTimeout(timer);
+  }, [search]);
   const catalogQuery = useQuery({
     // The same key the offline warm-up fills for the whole shelf (`["retail-pos-catalog", siteId, ""]`).
-    queryKey: ["retail-pos-catalog", siteId, search, ...(selectedCategory ? [selectedCategory] : [])],
-    queryFn: () => {
-      const params = new URLSearchParams({ search });
-      if (selectedCategory) params.set("category", selectedCategory);
-      return fetchJson<{ data: PosCatalogItem[] }>(`/api/v2/retail/pos/catalog?${params.toString()}`);
-    },
+    queryKey: ["retail-pos-catalog", siteId, shelfSearch, ...(selectedCategory ? [selectedCategory] : [])],
+    queryFn: () => fetchShelf(shelfSearch, selectedCategory),
     enabled: Boolean(shiftHere && siteId),
   });
+
+  /**
+   * What a scan, or a code typed and entered, means. A scanner sends Enter
+   * straight after the code, before the shelf has answered for it, so the
+   * till does not read the shelf on screen: a code that is exactly a barcode
+   * on the shelf it keeps is answered at once; anything else is asked for in
+   * every group, and offline looked for on the kept shelf.
+   */
+  const findScanned = async (code: string): Promise<PosCatalogItem | null> => {
+    if (!siteId || !code.trim()) return null;
+    const kept = queryClient.getQueryData<{ data: PosCatalogItem[] }>(["retail-pos-catalog", siteId, ""])?.data ?? [];
+    const known = exactMatch(kept, code);
+    if (known) return known;
+    if (!isOffline) {
+      try {
+        const found = await queryClient.fetchQuery({
+          queryKey: ["retail-pos-catalog", siteId, code],
+          queryFn: () => fetchShelf(code, null),
+          retry: false,
+        });
+        return pickScanned(found.data, code);
+      } catch {
+        // The line dropped while asking: the kept shelf answers instead.
+      }
+    }
+    return pickScanned(searchShelf(kept, code), code);
+  };
   const categoriesQuery = useQuery({
     queryKey: ["retail-pos-catalog-categories", siteId],
     queryFn: () => fetchJson<{ data: TillCategory[] }>("/api/v2/retail/pos/catalog/categories"),
@@ -656,8 +705,8 @@ function useTillStateValue({ isPosHost, paired }: { isPosHost: boolean; paired: 
     };
   };
 
-  /** One more of a product; an open-price product comes with the price the cashier typed. Loose lines only: a bundle's components stay its own. */
-  const addToCart = (item: PosCatalogItem, typedPrice?: number) => {
+  /** One more of a product (or as many as "3*" asked for); an open-price product comes with the price the cashier typed. Loose lines only: a bundle's components stay its own. */
+  const addToCart = (item: PosCatalogItem, typedPrice?: number, quantity = 1) => {
     setCart((current) => {
       const existing = current.find((entry) => entry.id === item.id);
       // Another amount of an open price already on the sale (airtime for US$5, then US$2):
@@ -671,10 +720,11 @@ function useTillStateValue({ isPosHost, paired }: { isPosHost: boolean; paired: 
       if (existing) {
         return current.map((entry) =>
           // The line keeps its own count: a case opened at this till is in it before the shelf is read again.
-          entry.id === item.id ? { ...entry, quantity: entry.quantity + 1, stock: entry.stock ?? item.inventoryItem?.currentStock } : entry,
+          entry.id === item.id ? { ...entry, quantity: entry.quantity + quantity, stock: entry.stock ?? item.inventoryItem?.currentStock } : entry,
         );
       }
-      return [...current, lineFromItem(item, Boolean(features?.emptiesAndDeposits), typedPrice)];
+      const line = lineFromItem(item, Boolean(features?.emptiesAndDeposits), typedPrice);
+      return [...current, { ...line, quantity }];
     });
   };
 
@@ -859,6 +909,124 @@ function useTillStateValue({ isPosHost, paired }: { isPosHost: boolean; paired: 
   /** Whoever is signed in may adjust stock from the till (STK-04): owner, manager, stock clerk; never the cashier. */
   const canAdjustStock = canRetailRoleDo(session?.user?.role, "retail.adjustments", "create");
 
+  /* ── The sale kept on the device: a reload or a power cut puts it back ── */
+
+  const { toast } = useToast();
+  const userId = session?.user?.id ?? null;
+  const keepKey = context && userId ? openSaleKey(context.till.id, userId) : null;
+  // The key the kept sale has been read back for: nothing is kept over it before then.
+  const [readFor, setReadFor] = useState<string | null>(null);
+  const [restored, setRestored] = useState(false);
+  const cartNow = useRef(cart);
+  useEffect(() => {
+    cartNow.current = cart;
+  });
+  useEffect(() => {
+    if (!keepKey) return;
+    let current = true;
+    void loadOpenSale(keepKey).then((kept) => {
+      if (!current) return;
+      setReadFor(keepKey);
+      // Lines rung up while it was being read are the sale now.
+      if (!kept || cartNow.current.length) return;
+      setCart(kept.cart);
+      setCustomerNameRaw(kept.customerName);
+      setSelectedCustomer(kept.selectedCustomer);
+      setLoyaltyRedemptionPoints(kept.loyaltyRedemptionPoints);
+      setPayments(kept.payments);
+      setOrderDiscountAmount(kept.orderDiscountAmount);
+      setIdChecked(kept.idChecked);
+      setHeldAs(kept.heldAs);
+      setRestored(true);
+    });
+    return () => {
+      current = false;
+    };
+  }, [keepKey]);
+  // Said once the sale is back on screen, at the total it comes to there.
+  useEffect(() => {
+    if (!restored) return;
+    setRestored(false);
+    toast({ title: `Your sale is back: ${count(itemCount(cart), "item")}, ${usd(amountDue)}` });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once, on the render that put it back
+  }, [restored]);
+  const sending = saleMutation.isPending;
+  useEffect(() => {
+    if (!keepKey || readFor !== keepKey) return;
+    // A checkout on its way may go through even if the page dies now: nothing is kept
+    // until it answers, so a sale that was taken is never put back to be taken twice.
+    if (sending || !cart.length) {
+      void keepOpenSale(keepKey, null);
+      return;
+    }
+    const sale = { cart, customerName, selectedCustomer, loyaltyRedemptionPoints, payments, orderDiscountAmount, idChecked, heldAs };
+    const timer = window.setTimeout(() => void keepOpenSale(keepKey, sale), 300);
+    return () => window.clearTimeout(timer);
+  }, [keepKey, readFor, sending, cart, customerName, selectedCustomer, loyaltyRedemptionPoints, payments, orderDiscountAmount, idChecked, heldAs]);
+
+  /* ── The customer screen: the sale as the customer sees it (display-feed.ts) ── */
+
+  const tillId = context?.till.id ?? null;
+  const shopName = context?.ecocash?.name || context?.site.name || "";
+  const displayFeed: DisplayFeed | null = !context
+    ? null
+    : lastCompletedSale
+      ? {
+          phase: "paid",
+          shop: shopName,
+          total: round(lastCompletedSale.totalAmount + lastCompletedSale.depositAmount),
+          change: lastCompletedSale.changeAmount > 0.004 ? { usd: lastCompletedSale.changeUsd, zig: lastCompletedSale.changeZig } : null,
+          points: lastCompletedSale.loyalty
+            ? { earned: lastCompletedSale.loyalty.pointsEarned, balance: lastCompletedSale.loyalty.pointsBalance }
+            : null,
+          customer: lastCompletedSale.customerName,
+        }
+      : lastSavedSale
+        ? {
+            phase: "paid",
+            shop: shopName,
+            total: lastSavedSale.total,
+            change: lastSavedSale.change.value > 0.004 ? lastSavedSale.change : null,
+            points: null,
+            customer: null,
+          }
+        : sellingLines.length
+          ? {
+              phase: "selling",
+              shop: shopName,
+              lines: sellingLines.map((item) => ({
+                name: item.name,
+                quantity: item.quantity,
+                amount: round(Math.max(item.unitPrice * item.quantity - item.lineDiscountAmount, 0)),
+              })),
+              total: amountDue,
+              zig: zigRate ? { total: round(amountDue * zigRate), rate: zigRate } : null,
+              ecocash: context.ecocash,
+            }
+          : { phase: "idle", shop: shopName };
+  const displayNow = useRef(displayFeed);
+  const displayOut = useRef<BroadcastChannel | null>(null);
+  useEffect(() => {
+    if (!tillId || typeof BroadcastChannel === "undefined") return;
+    const channel = displayChannel(tillId);
+    displayOut.current = channel;
+    // A screen opened after the sale began asks for it.
+    const stop = onDisplayHello(channel, () => {
+      if (displayNow.current) postDisplay(channel, displayNow.current);
+    });
+    return () => {
+      stop();
+      channel.close();
+      displayOut.current = null;
+    };
+  }, [tillId]);
+  const displayText = JSON.stringify(displayFeed);
+  useEffect(() => {
+    displayNow.current = displayFeed;
+    if (displayOut.current && displayFeed) postDisplay(displayOut.current, displayFeed);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- posted when what it says changes
+  }, [displayText]);
+
   return {
     /* The device */
     isPosHost,
@@ -893,6 +1061,7 @@ function useTillStateValue({ isPosHost, paired }: { isPosHost: boolean; paired: 
     catalogItems: catalogQuery.data?.data ?? [],
     catalogLoading: catalogQuery.isLoading,
     catalogError: catalogQuery.isError ? catalogQuery.error : null,
+    findScanned,
     alcohol,
     lineStopped,
 

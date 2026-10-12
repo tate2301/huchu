@@ -1,5 +1,5 @@
 /**
- * Migration witness for `20261012010000_retail_customers` (CUS-01, 60-customers §3.1).
+ * Migration witness for `20261012130200_retail_customers` (CUS-01, 60-customers §3.1).
  *
  * The customer's thirteen new columns, its code and card uniques, the phone
  * and bin indexes, the three links that let go (`SET NULL`), the notes table,
@@ -85,7 +85,7 @@ describe("customers, as stored", () => {
     const first = await prisma.customer.create({ data: { companyId: shop.companyId, name: "Tapiwa", phone: "0774 123 388", createdAt: at(1) } });
     const third = await prisma.customer.create({ data: { companyId: shop.companyId, name: "Nyasha", phone: "+44-20-7946-0000", createdAt: at(3) } });
 
-    const sql = readFileSync(`${process.cwd()}/prisma/migrations/20261012010000_retail_customers/migration.sql`, "utf8");
+    const sql = readFileSync(`${process.cwd()}/prisma/migrations/20261012130200_retail_customers/migration.sql`, "utf8");
     const data = sql.slice(sql.indexOf("WITH numbered AS"));
     // The data step, kept to this shop so other tenants in the test database are left as they are.
     const scoped = data

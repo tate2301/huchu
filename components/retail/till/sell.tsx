@@ -11,6 +11,7 @@ import * as React from "react";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { AnimatePresence } from "framer-motion";
 
 import { useToast } from "@/components/ui/use-toast";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
@@ -33,7 +34,9 @@ import { getPosPortalHref } from "@/lib/retail/pos-host";
 import { enumLabel } from "@/lib/retail/words";
 import { percentWords, PRICE_UP_SENTENCE } from "@/lib/retail/till-rule-words";
 import { count, firstName, hhmm, pairedWhen, usd } from "./format";
-import { Avatar, Empty, ErrorLine, GateSide, Keypad, Segmented, typeAmount, useKeypadKeys, useWindowKeys, type KeypadKey } from "./parts";
+import { KeySheet } from "./keys";
+import { RollingFigure } from "./motion";
+import { Avatar, Empty, ErrorLine, GateSide, Keypad, type KeypadKey, LoadFailed, Segmented, typeAmount, useKeypadKeys, useWindowKeys } from "./parts";
 import { PayTray, payWays, TenderMark, type PayWay } from "./pay-tray";
 import { useApproval } from "./approval";
 import { LaybyStartDialog } from "./layby";
@@ -50,9 +53,12 @@ import {
   VoucherSoldLines,
 } from "./floor-parts";
 import { asksForId, caseMoment, licenceEyebrow, licenceSentence } from "./moments";
-import { CustomerPopover, DiscountPopover, DropSaleButton, HoldPopover, ReasonDialog, SaleLine } from "./sale-parts";
+import { CustomerPopover, DiscountPopover, DropSaleButton, HoldPopover, ReasonDialog, SaleLine, useDropSale } from "./sale-parts";
+import { saleChangeWords } from "./sale-words";
+import { parseScan } from "./scan-match";
 import { DOORS, PersonMenu } from "./shell";
 import { useSignOut } from "./sign-out";
+import { cue } from "./sound";
 import { useTill } from "./state";
 import { ProductTile, QuickRow } from "./tile";
 import type { SnapshotBundle } from "@/lib/retail/pricing/engine";
@@ -241,6 +247,7 @@ function Workbench() {
     resetPayments,
     tenders,
     zig,
+    updateQty,
   } = till;
   const searchRef = React.useRef<HTMLInputElement>(null);
   const ecocash = till.context?.ecocash ?? null;
@@ -268,18 +275,19 @@ function Workbench() {
   const selling = cart.filter((item) => !lineStopped(item)).length;
 
   /** The line goes on, and the first 18+ line of the sale asks for an ID. */
-  const put = (item: PosCatalogItem, typedPrice?: number) => {
+  const put = (item: PosCatalogItem, typedPrice?: number, quantity = 1) => {
     const ask = asksForId({ ageCheckOn: Boolean(features?.ageCheck), idChecked, cart, item });
-    addToCart(item, typedPrice);
+    addToCart(item, typedPrice, quantity);
+    cue("added");
     if (ask) setAgeAsk({ lineIds: [item.id], product: item.name, category: item.category });
   };
 
   /*
-    One more of a product, from a tile, the quick row or a scan. Outside the
-    licence hours an 18+ product says so and adds nothing; a single with
-    none left opens a case first (at once, or after asking).
+    One more of a product (or as many as "3*" asked for), from a tile, the quick
+    row or a scan. Outside the licence hours an 18+ product says so and adds
+    nothing; a single with none left opens a case first (at once, or after asking).
   */
-  const add = (item: PosCatalogItem, typedPrice?: number) => {
+  const add = (item: PosCatalogItem, typedPrice?: number, quantity = 1) => {
     if (item.ageRestricted && !alcohol.sellable) {
       toast({ title: licenceSentence(alcohol, new Date()) ?? "Alcohol does not sell now." });
       return;
@@ -293,10 +301,10 @@ function Workbench() {
     }
     // Offline the sale itself opens the case when it arrives (Break cases at the till).
     if (moment.kind === "break" && !isOffline) {
-      void openCase(item).then((onHand) => put(onHand === null ? item : withStock(item, onHand), typedPrice));
+      void openCase(item).then((onHand) => put(onHand === null ? item : withStock(item, onHand), typedPrice, quantity));
       return;
     }
-    put(item, typedPrice);
+    put(item, typedPrice, quantity);
   };
 
   /** A bundle's button or barcode: its components as one, and the ID check if they hold an 18+ line. */
@@ -365,17 +373,37 @@ function Workbench() {
     window.setTimeout(() => searchRef.current?.focus(), 0);
   };
 
-  // `/` finds a product; Enter takes the money; both from anywhere but a field.
+  const [keySheet, setKeySheet] = React.useState(false);
+  const [holding, setHolding] = React.useState(false);
+  const dropSale = useDropSale();
+  const last = cart.at(-1);
+
+  // The keys on TILL_KEYS (keys.tsx), from anywhere but a field.
   useWindowKeys((event) => {
     const target = event.target as HTMLElement | null;
     const typing = target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.tagName === "SELECT" || target.isContentEditable);
-    if (typing || trayOpen || idCheck || approve || approval.asking) return;
+    if (typing || trayOpen || idCheck || approve || approval.asking || keySheet || holding || event.metaKey || event.ctrlKey || event.altKey) return;
     if (event.key === "/") {
       event.preventDefault();
       searchRef.current?.focus();
     } else if (event.key === "Enter" && target?.tagName !== "BUTTON") {
       event.preventDefault();
       openTray();
+    } else if ((event.key === "+" || event.key === "=") && last) {
+      event.preventDefault();
+      updateQty(last.catalogItemId, last.quantity + 1);
+    } else if ((event.key === "-" || event.key === "_") && last) {
+      event.preventDefault();
+      updateQty(last.catalogItemId, last.quantity - 1);
+    } else if ((event.key === "h" || event.key === "H") && cart.length) {
+      event.preventDefault();
+      setHolding(true);
+    } else if (event.key === "Delete" && event.shiftKey && cart.length) {
+      event.preventDefault();
+      dropSale();
+    } else if (event.key === "?") {
+      event.preventDefault();
+      setKeySheet(true);
     }
   });
 
@@ -383,7 +411,15 @@ function Workbench() {
     <div className={`bench${phoneSale ? " is-sale" : ""}`}>
       <Shelf searchRef={searchRef} onAdd={add} onAddBundle={addBundleOf} onShowSale={() => setPhoneSale(true)} onTake={openTray} />
       <aside className="bench-side" aria-label="This sale">
-        <SaleColumn ways={ways} way={way} onWay={setWayKey} onTake={openTray} onBack={() => setPhoneSale(false)} />
+        <SaleColumn
+          ways={ways}
+          way={way}
+          onWay={setWayKey}
+          onTake={openTray}
+          onBack={() => setPhoneSale(false)}
+          holding={holding}
+          onHolding={setHolding}
+        />
         {trayOpen ? <PayTray key={way.key} way={way} ways={ways} onClose={() => setTrayOpen(false)} onTake={take} onNext={next} /> : null}
       </aside>
       <AgeCheckDialog
@@ -427,6 +463,7 @@ function Workbench() {
         />
       ) : null}
       <ReasonDialog open={approve} onOpenChange={setApprove} amount={amountDue} onTake={takeWithReason} />
+      <KeySheet open={keySheet} onOpenChange={setKeySheet} />
       {approval.dialog}
     </div>
   );
@@ -442,13 +479,18 @@ function Shelf({
   onTake,
 }: {
   searchRef: React.RefObject<HTMLInputElement | null>;
-  onAdd: (item: PosCatalogItem, typedPrice?: number) => void;
+  onAdd: (item: PosCatalogItem, typedPrice?: number, quantity?: number) => void;
   onAddBundle: (bundle: SnapshotBundle) => void;
   onShowSale: () => void;
   onTake: () => void;
 }) {
   // The open-price product whose amount is being asked for. Enter in the search asks for it as well.
   const [pricing, setPricing] = React.useState<{ id: string; fromSearch: boolean } | null>(null);
+  const queryClient = useQueryClient();
+  // Scans still being found; the box takes the next one meanwhile.
+  const [finding, setFinding] = React.useState(0);
+  // A code the till does not know: the box shakes once, and the till says so out loud.
+  const [unknown, setUnknown] = React.useState(false);
   const { data: session } = useSession();
   const { toast } = useToast();
   // The product whose stock is being adjusted from its tile's long press (STK-04).
@@ -466,6 +508,7 @@ function Shelf({
     catalogItems,
     catalogLoading,
     catalogError,
+    findScanned,
     alcohol,
     features,
     pendingOfflineSales,
@@ -540,7 +583,7 @@ function Shelf({
       ) : null}
       {licence ? <LicenceBanner eyebrow={licenceEyebrow(context?.till.name ?? "This till", now)} sentence={licence} /> : null}
       <div className="tools">
-        <label className="input-wrap input-lg grow">
+        <label className={`input-wrap input-lg grow${unknown ? " is-shake" : ""}`} onAnimationEnd={() => setUnknown(false)}>
           <MagnifyingGlass className="ic" />
           <input
             ref={searchRef}
@@ -557,22 +600,46 @@ function Shelf({
             onKeyDown={(event) => {
               if (event.key === "Enter") {
                 event.preventDefault();
-                const first = catalogItems[0];
+                const { quantity, code } = parseScan(search);
+                if (!code) return;
                 // A bundle's barcode rings the bundle (PRD-08).
-                const bundle = search.trim() ? bundlesOnSale.find((entry) => entry.barcode && entry.barcode === search.trim()) : undefined;
+                const bundle = bundlesOnSale.find((entry) => entry.barcode && entry.barcode === code);
                 if (bundle) {
                   onAddBundle(bundle);
                   setSearch("");
-                } else if (search.trim() && first?.openPrice) setPricing({ id: first.id, fromSearch: true });
-                else if (search.trim() && first) {
-                  onAdd(first);
-                  setSearch("");
+                  return;
                 }
+                // The box is clear for the next scan while this one is found.
+                setSearch("");
+                setFinding((n) => n + 1);
+                void findScanned(code).then((item) => {
+                  setFinding((n) => n - 1);
+                  if (item && !item.openPrice) {
+                    onAdd(item, undefined, quantity);
+                    return;
+                  }
+                  if (!item) {
+                    cue("unknown");
+                    setUnknown(true);
+                  }
+                  // An amount to ask for, or nothing found: the search comes back, unless a new one began.
+                  setSearch((current) => current || code);
+                  if (item) {
+                    setSelectedCategory(null);
+                    setPricing({ id: item.id, fromSearch: true });
+                  }
+                });
               }
               if (event.key === "Escape") setSearch("");
             }}
           />
-          <span className="kbd">/</span>
+          {finding ? (
+            <span className="note" role="status">
+              Finding…
+            </span>
+          ) : (
+            <span className="kbd">/</span>
+          )}
         </label>
       </div>
       {/* Quick things on Most sold, the shelf the till opens on: a search or a group is already a choice. */}
@@ -602,9 +669,7 @@ function Shelf({
           ))}
         </div>
       ) : catalogError && !catalogItems.length ? (
-        <Empty icon={WifiSlash} title="The shelf did not load">
-          {getApiErrorMessage(catalogError)}
-        </Empty>
+        <LoadFailed icon={WifiSlash} title="The shelf did not load" error={catalogError} onRetry={() => void queryClient.invalidateQueries({ queryKey: ["retail-pos-catalog"] })} />
       ) : !catalogItems.length && search.trim() && !bundlesOnSale.some((bundle) => bundle.barcode === search.trim()) ? (
         <Empty
           icon={Barcode}
@@ -661,11 +726,11 @@ function Shelf({
       <div className="phone-sale">
         <button type="button" className="btn btn-touch btn-block" disabled={empty} onClick={onShowSale}>
           <ShoppingCart className="ic" />
-          <span className="grow text-left">
+          <span key={selling} className="grow text-left is-bump">
             {count(selling, "item")}
             {selectedCustomer ? `, ${selectedCustomer.name}` : ""}
           </span>
-          <span className="num ink">{usd(amountDue)}</span>
+          <RollingFigure className="num ink" value={amountDue} format={usd} />
         </button>
         <button type="button" className="btn btn-primary btn-touch btn-block" disabled={empty} onClick={onTake}>
           <HandCoins className="ic" />
@@ -678,18 +743,39 @@ function Shelf({
 
 /* ─── The sale ────────────────────────────────────────────────────────── */
 
+/** Each change to the sale, said to a screen reader: what happened, then the total (sale-words.ts). */
+function SaleWords() {
+  const { cart, amountDue } = useTill();
+  const [seen, setSeen] = React.useState(cart);
+  const [words, setWords] = React.useState("");
+  if (cart !== seen) {
+    setSeen(cart);
+    setWords(saleChangeWords(seen, cart, amountDue));
+  }
+  return (
+    <span className="visually-hidden" role="status" aria-live="polite">
+      {words}
+    </span>
+  );
+}
+
 function SaleColumn({
   ways,
   way,
   onWay,
   onTake,
   onBack,
+  holding,
+  onHolding,
 }: {
   ways: PayWay[];
   way: PayWay;
   onWay: (key: string) => void;
   onTake: () => void;
   onBack: () => void;
+  /** Hold is open: pressed, or H on the keyboard. */
+  holding: boolean;
+  onHolding: (open: boolean) => void;
 }) {
   const { data: session } = useSession();
   const {
@@ -747,6 +833,7 @@ function SaleColumn({
           Products
         </button>
         <h1>This sale</h1>
+        <SaleWords />
         <span className="note when-wide">
           {selling ? count(selling, "item") : ""}
         </span>
@@ -755,7 +842,7 @@ function SaleColumn({
           {cart.length ? (
             <>
               <LaybyButton />
-              <HoldPopover />
+              <HoldPopover open={holding} onOpenChange={onHolding} />
               <DropSaleButton />
             </>
           ) : null}
@@ -772,9 +859,11 @@ function SaleColumn({
         </div>
       ) : (
         <div className="list">
-          {cart.map((item) => (
-            <SaleLine key={item.id} item={item} />
-          ))}
+          <AnimatePresence initial={false}>
+            {cart.map((item) => (
+              <SaleLine key={item.id} item={item} />
+            ))}
+          </AnimatePresence>
           <VoucherSoldLines />
           <BundleOffers />
           {idChecked ? (
@@ -858,7 +947,7 @@ function SaleColumn({
         ) : null}
         <div className="l total">
           <span>{deposits > 0.004 || bottlesBack > 0.004 ? "To pay" : "Total"}</span>
-          <span className="figure">{usd(amountDue)}</span>
+          <RollingFigure className="figure" value={amountDue} format={usd} />
         </div>
         {cart.length ? (
           <div className="row">

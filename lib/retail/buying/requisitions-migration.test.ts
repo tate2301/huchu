@@ -1,5 +1,5 @@
 /**
- * Migration witness for `20261012060000_retail_requisitions` (BUY-04).
+ * Migration witness for `20261012130700_retail_requisitions` (BUY-04).
  *
  * A requisition can be for stock (`STOCK`), names the order or the expense
  * type it pays, who it is paid to, who it waits for and the limit it was
@@ -19,7 +19,7 @@ import { describe, expect, it } from "vitest";
 
 import { prisma } from "@/lib/prisma";
 
-const MIGRATION = path.join(process.cwd(), "prisma/migrations/20261012060000_retail_requisitions/migration.sql");
+const MIGRATION = path.join(process.cwd(), "prisma/migrations/20261012130700_retail_requisitions/migration.sql");
 
 type ColumnFacts = { column_name: string; data_type: string; udt_name: string; is_nullable: string; column_default: string | null; numeric_scale: number | null };
 

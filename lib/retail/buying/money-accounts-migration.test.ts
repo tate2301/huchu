@@ -1,5 +1,5 @@
 /**
- * Migration witness for `20261012070000_retail_money_accounts` (BUY-05).
+ * Migration witness for `20261012130800_retail_money_accounts` (BUY-05).
  *
  * A posting rule line can post to an account the event names
  * (`EVENT_ACCOUNT`, by `eventAccountKey`); a supplier payment names its
@@ -17,7 +17,7 @@ import { describe, expect, it } from "vitest";
 
 import { prisma } from "@/lib/prisma";
 
-const MIGRATION = path.join(process.cwd(), "prisma/migrations/20261012070000_retail_money_accounts/migration.sql");
+const MIGRATION = path.join(process.cwd(), "prisma/migrations/20261012130800_retail_money_accounts/migration.sql");
 
 type ColumnFacts = { column_name: string; data_type: string; is_nullable: string };
 

@@ -13,6 +13,7 @@ import Link from "next/link";
 import { useSession } from "next-auth/react";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 
+import { changeNoteWords } from "@/lib/retail/change-notes";
 import { formatZigRate, splitChange, type ChangeSplit } from "@/lib/retail/payment-words";
 import { getPosPortalHref } from "@/lib/retail/pos-host";
 import { fiscalStatusLabel } from "@/lib/retail/words";
@@ -22,6 +23,7 @@ import { printSlip, slipLines, type SlipSale } from "./offline-slip";
 import { ErrorLine, Keypad, Segmented, typeAmount, useKeypadKeys, useReturnFocus, useWindowKeys, type KeypadKey } from "./parts";
 import { useVoucherCheck } from "./floor-parts";
 import { paymentSummary } from "./sale-rules";
+import { cue } from "./sound";
 import { useTill } from "./state";
 import type { PaymentRow, TenderType, TillContext, TillTender } from "./types";
 import { voucherPays, voucherProblem, VOUCHERS_OFFLINE } from "./vouchers";
@@ -135,6 +137,27 @@ export function payWays(
   }
   if (other) other.label = orList(other.choices.map((choice) => choice.label));
   return ways;
+}
+
+/** What goes back to the customer, the largest figure on Paid, with the notes that make it up under it. */
+function ChangeBack({ label, change }: { label: string; change: Pick<ChangeSplit, "usd" | "zig"> }) {
+  const notes = changeNoteWords(change);
+  return (
+    <div className="tender is-quiet is-change" aria-live="polite">
+      <span className="l">{label}</span>
+      <span className="tender-figure">{changeText(change)}</span>
+      {notes ? <span className="notes">{notes}</span> : null}
+    </div>
+  );
+}
+
+/** Paid: a tick that draws itself once, where the status dot would be. */
+function PaidTick() {
+  return (
+    <svg className="paid-tick" viewBox="0 0 20 20" aria-hidden="true">
+      <path d="M4 10.5l4 4 8-9" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" pathLength={1} />
+    </svg>
+  );
 }
 
 /** Change as it is handed back: "US$3.00 and ZiG 11.00", "ZiG 11.00", "US$3.00". */
@@ -352,6 +375,10 @@ export function PayTray({
   // once it is paid or saved, anything does, and that is the next sale.
   const closable = !done && !saved && !postSalePending;
   const finished = Boolean(done || saved);
+  // The money is in: two rising notes, once.
+  React.useEffect(() => {
+    if (finished) cue("paid");
+  }, [finished]);
 
   useWindowKeys((event) => {
     const target = event.target as HTMLElement | null;
@@ -387,7 +414,8 @@ export function PayTray({
     body = (
       <>
         <div className="wait" role="status" aria-live="polite">
-          <span className="status status-success is-strong">
+          <span className="status status-success is-strong has-tick">
+            <PaidTick />
             Paid {allCash ? "in cash" : `by ${methods.map(inSentence).join(" and ")}`}, {done.saleNo}
           </span>
           <span className="note num">
@@ -395,10 +423,7 @@ export function PayTray({
           </span>
         </div>
         {tookCash ? (
-          <div className="tender is-quiet" aria-live="polite">
-            <span className="l">{done.changeAmount > 0.004 ? "Give back" : "Change"}</span>
-            <span className="tender-figure">{changeText({ usd: done.changeUsd, zig: done.changeZig })}</span>
-          </div>
+          <ChangeBack label={done.changeAmount > 0.004 ? "Give back" : "Change"} change={{ usd: done.changeUsd, zig: done.changeZig }} />
         ) : null}
         <dl className="attrs">
           {refs.map((payment, index) => (
@@ -484,10 +509,7 @@ export function PayTray({
             {hhmm(saved.at)}
           </span>
         </div>
-        <div className="tender is-quiet">
-          <span className="l">{saved.change.value > 0.004 ? `Give back from ${usd(saved.handed)}` : "Change"}</span>
-          <span className="tender-figure">{changeText(saved.change)}</span>
-        </div>
+        <ChangeBack label={saved.change.value > 0.004 ? `Give back from ${usd(saved.handed)}` : "Change"} change={saved.change} />
         <p className="note">
           Its sale number and fiscal receipt come when it is sent. Nothing else to do: it goes up on its own.
         </p>

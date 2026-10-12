@@ -1,5 +1,5 @@
 /**
- * Migration witness for `20261012080000_retail_deliveries` (BUY-06).
+ * Migration witness for `20261012130900_retail_deliveries` (BUY-06).
  *
  * A delivery is counted before it is posted: the status gains `COUNTED`
  * before `POSTED` (and `REVERSED` after), and a new delivery starts counted.
@@ -18,7 +18,7 @@ import { describe, expect, it } from "vitest";
 
 import { prisma } from "@/lib/prisma";
 
-const MIGRATION = path.join(process.cwd(), "prisma/migrations/20261012080000_retail_deliveries/migration.sql");
+const MIGRATION = path.join(process.cwd(), "prisma/migrations/20261012130900_retail_deliveries/migration.sql");
 
 type ColumnFacts = { column_name: string; data_type: string; is_nullable: string; column_default: string | null };
 

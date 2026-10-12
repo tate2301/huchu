@@ -1,5 +1,5 @@
 /**
- * Migration witness for `20261012040000_retail_laybys` (FLR-06, 58-floor-laybys).
+ * Migration witness for `20261012130500_retail_laybys` (FLR-06, 58-floor-laybys).
  *
  * The lay-by's two enums, its three tables with their uniques, indexes and
  * links, the new values on the tender, stock reason, drawer movement type and

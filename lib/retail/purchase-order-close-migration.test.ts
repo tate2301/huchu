@@ -18,7 +18,7 @@ beforeAll(async () => {
     await prisma.company.create({ data: { name: `PO witness ${stamp}`, slug: `po-witness-${stamp}` }, select: { id: true } })
   ).id;
   siteId = (await prisma.site.create({ data: { companyId, code: `W-${stamp}`, name: "Borrowdale" }, select: { id: true } })).id;
-  // Orders name their supplier since BUY-02 (`20261006160000_retail_purchase_orders`).
+  // Orders name their supplier since BUY-02 (`20261012130000_retail_purchase_orders`).
   vendorId = (await prisma.vendor.create({ data: { companyId, name: "Delta" }, select: { id: true } })).id;
 });
 

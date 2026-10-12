@@ -38,7 +38,7 @@ tests yet) when the owner stopped the run. Its working tree is saved as `wip/buy
 before building packet 41, review it against the packet, finish it, and delete the patch in the same commit. It is a
 starting point, not reviewed code.
 
-The patch includes the migration folder `prisma/migrations/20261012090000_retail_bills/`. The stage base for the
+The patch includes the migration folder `prisma/migrations/20261012131000_retail_bills/`. The stage base for the
 Buying test pass is `d7fac560` (the last stage 5 commit).
 
 ## What is in this folder

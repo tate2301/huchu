@@ -1,5 +1,5 @@
 /**
- * Migration witness for `20261012030000_retail_customer_messages` (CUS-06).
+ * Migration witness for `20261012130400_retail_customer_messages` (CUS-06).
  *
  * The purpose enum's labels in order, the batch table, the message's
  * customer and batch columns, both links letting go (`SET NULL`), and the

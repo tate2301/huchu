@@ -1,5 +1,5 @@
 /**
- * Migration witness for `20261012020000_retail_loyalty` (CUS-01, 60-customers §3.2).
+ * Migration witness for `20261012130300_retail_loyalty` (CUS-01, 60-customers §3.2).
  *
  * The settings row with the board's defaults, the points ledger with its
  * `seq` sequence and indexes, the three enums, and the data step: each posted
@@ -99,7 +99,7 @@ describe("loyalty, as stored", () => {
     // A walk-in's redemption has nobody to charge: no row, but its note is cleaned all the same.
     const alone = await sale("SALE-00003", "0.00", "LOYALTY_REDEEM:20", null);
 
-    const sql = readFileSync(`${process.cwd()}/prisma/migrations/20261012020000_retail_loyalty/migration.sql`, "utf8");
+    const sql = readFileSync(`${process.cwd()}/prisma/migrations/20261012130300_retail_loyalty/migration.sql`, "utf8");
     const data = sql.slice(sql.indexOf(`INSERT INTO "RetailPointsEntry"`));
     const scope = `'${shop.companyId}'`;
     const insert = data

@@ -106,13 +106,13 @@ function Slip({ sale, wire }: { sale: SlipSale; wire: ReceiptWire | null }) {
           </div>
         ))}
         {sale.change.usd > 0.004 ? (
-          <div className="l">
+          <div className="l is-change">
             <span>Change</span>
             <span>{figure(sale.change.usd)}</span>
           </div>
         ) : null}
         {sale.change.zig > 0.004 ? (
-          <div className="l">
+          <div className="l is-change">
             <span>Change ZiG</span>
             <span>{figure(sale.change.zig)}</span>
           </div>

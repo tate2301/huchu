@@ -508,6 +508,7 @@ export const ArrowBendUpLeft = createPhosphorIcon("ArrowBendUpLeft", "ArrowBendU
 export const ArrowLineDown = createPhosphorIcon("ArrowLineDown", "ArrowLineDown");
 export const ArrowLineUp = createPhosphorIcon("ArrowLineUp", "ArrowLineUp");
 export const Money = createPhosphorIcon("Money", "Money");
+export const Monitor = createPhosphorIcon("Monitor", "Monitor");
 export const Prohibit = createPhosphorIcon("Prohibit", "Prohibit");
 export const GearSix = createPhosphorIcon("GearSix", "GearSix");
 export const CalendarPlus = createPhosphorIcon("CalendarPlus", "CalendarPlus");

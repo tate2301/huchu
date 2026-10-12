@@ -584,7 +584,7 @@ Recorded unit choices:
 
 - **STK-09 departs from packet 17 in these places.**
   - **The Empties ledger replaces the till's per-supplier empties table.** `RetailEmptiesEntry` was a till-era table of
-    bottles back per product's supplier; migration `20261010010000_retail_empties` drops it (and its rows) and makes the
+    bottles back per product's supplier; migration `20261012130100_retail_empties` drops it (and its rows) and makes the
     packet's ledger. The till's Paid screen and its sale view now say "12 bottles", not "12 bottles on the ledger for
     Delta": empties go back to whichever supplier the shop books them to.
   - **Deposit charged is the gross deposit.** A sale's `depositAmount` is already net of its empties back, so its

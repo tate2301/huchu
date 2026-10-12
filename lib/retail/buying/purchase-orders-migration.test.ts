@@ -1,5 +1,5 @@
 /**
- * Migration witness for `20261006160000_retail_purchase_orders` (BUY-02).
+ * Migration witness for `20261012130000_retail_purchase_orders` (BUY-02).
  *
  * An order names its supplier (`vendorId`, replacing the typed
  * `supplierName`), is sent before anything comes (`SENT`), can be cancelled
@@ -18,7 +18,7 @@ import { describe, expect, it } from "vitest";
 
 import { prisma } from "@/lib/prisma";
 
-const MIGRATION = path.join(process.cwd(), "prisma/migrations/20261006160000_retail_purchase_orders/migration.sql");
+const MIGRATION = path.join(process.cwd(), "prisma/migrations/20261012130000_retail_purchase_orders/migration.sql");
 
 type ColumnFacts = {
   column_name: string;

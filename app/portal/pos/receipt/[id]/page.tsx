@@ -151,13 +151,13 @@ export default async function TillReceiptPage({ params }: { params: Promise<{ id
         </div>
       ))}
       {change?.usd ? (
-        <div className="l">
+        <div className="l is-change">
           <span>Change</span>
           <span>{figure(change.usd)}</span>
         </div>
       ) : null}
       {change?.zig ? (
-        <div className="l">
+        <div className="l is-change">
           <span>Change ZiG</span>
           <span>{figure(Math.abs(change.zig))}</span>
         </div>
