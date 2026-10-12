@@ -305,9 +305,11 @@ export async function unmergeCustomer(
     throw new CustomerRefusal(`Restore ${survivor.name} first.`, 409, {});
   }
 
-  // The points that go back: the duplicate's own, and those of customers merged into it before.
+  // The points that go back: the duplicate's own, those of customers merged into it before, and
+  // those written since on the survivor for the duplicate's sales (a refund's REVERSED row, say).
   const chain = await mergedChain(tx, duplicateId);
-  const moving = { customerId: survivor.id, mergedFromId: { in: chain } };
+  const ofItsSales = [{ saleId: { in: merge.saleIds } }, { sale: { sourceSaleId: { in: merge.saleIds } } }];
+  const moving: Prisma.RetailPointsEntryWhereInput = { customerId: survivor.id, OR: [{ mergedFromId: { in: chain } }, ...ofItsSales] };
   const [movingSum, held] = await Promise.all([
     tx.retailPointsEntry.aggregate({ where: moving, _sum: { points: true } }),
     pointsOf(tx, survivor.id),
@@ -336,6 +338,8 @@ export async function unmergeCustomer(
 
   const back = (ids: string[]) => ({ id: { in: ids }, customerId: survivor.id });
   await tx.retailSale.updateMany({ where: back(merge.saleIds), data: { customerId: duplicate.id } });
+  // Refunds and voids of its sales written since the merge go back with them.
+  await tx.retailSale.updateMany({ where: { sourceSaleId: { in: merge.saleIds }, customerId: survivor.id }, data: { customerId: duplicate.id } });
   await tx.retailLayby.updateMany({ where: back(merge.laybyIds), data: { customerId: duplicate.id } });
   await tx.retailVoucher.updateMany({ where: back(merge.voucherIds), data: { customerId: duplicate.id } });
   await tx.retailCustomerNote.updateMany({ where: back(merge.noteIds), data: { customerId: duplicate.id } });

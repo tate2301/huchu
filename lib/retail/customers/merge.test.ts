@@ -266,6 +266,25 @@ describe("merging a duplicate customer", () => {
     expect(await prisma.retailCustomerMerge.findUniqueOrThrow({ where: { duplicateId: world.duplicateId }, select: { undoneAt: true } })).toEqual({ undoneAt: null });
   });
 
+  it("takes back the points written since for the duplicate's sales, a refund's REVERSED row with its EARNED", async () => {
+    const world = await twoTapiwas("Merge refund since");
+    // T. Marange's 41.26 earned 41 of the 412.
+    await prisma.retailPointsEntry.updateMany({ where: { customerId: world.duplicateId }, data: { points: 371 } });
+    await ledgerRow(world.shop, { customerId: world.duplicateId, kind: "EARNED", points: 41, saleId: world.duplicateSale });
+    await prisma.$transaction((tx) =>
+      mergeCustomers(tx, world.shop.manager(), world.survivorId, { duplicateId: world.duplicateId, ...keep("+263 77 412 3388") }),
+    );
+    // Refunded after the merge: the refund and its REVERSED row land on Tapiwa.
+    const refund = await testSale(world.shop, { total: "-41.26", customerId: world.survivorId, saleType: "REFUND", sourceSaleId: world.duplicateSale });
+    await ledgerRow(world.shop, { customerId: world.survivorId, kind: "REVERSED", points: -41, saleId: refund });
+    expect(await points(world.survivorId)).toBe(3021 + 412 - 41);
+
+    await restoreFromBin(world.shop.manager(), { kind: "customer", id: world.duplicateId });
+    expect(await points(world.survivorId)).toBe(3021);
+    expect(await points(world.duplicateId)).toBe(412 - 41);
+    expect(await prisma.retailSale.findUniqueOrThrow({ where: { id: refund }, select: { customerId: true } })).toEqual({ customerId: world.duplicateId });
+  });
+
   it("refuses the undo once the survivor has spent the points that came across", async () => {
     const world = await twoTapiwas("Merge spent");
     await prisma.$transaction((tx) =>
