@@ -191,7 +191,7 @@ function SourceTable<R>({
       ? { label: link.label(record), href: null, onClick: () => onTab(link.tab) }
       : "action" in link
         ? { label: link.label, href: null, onClick: actionFor(link.action) }
-        : { label: link.label, href: link.href(record), onClick: null };
+        : { label: typeof link.label === "function" ? link.label(record) : link.label, href: link.href(record), onClick: null };
 
   if (data.total === 0) {
     const emptyLink = link && "href" in link && link.evenEmpty && allLink?.href ? allLink : null;

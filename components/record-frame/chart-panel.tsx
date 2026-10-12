@@ -64,6 +64,7 @@ export function ChartPanel({
           evenX
           steps={2}
           mark={chart.mark}
+          max={chart.max}
         />
       )}
       {chart.footer ? (

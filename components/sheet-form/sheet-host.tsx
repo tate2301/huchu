@@ -17,11 +17,11 @@ import { SheetForm } from "./sheet-form";
  */
 
 /** The sheet's own parameters, taken out of the address when it closes. */
-const SHEET_PARAMS = ["sheet", "id", "ids"];
+const SHEET_PARAMS = ["sheet", "id", "ids", "step"];
 
-function withoutSheet(pathname: string, search: string): string {
+function withoutSheet(pathname: string, search: string, extra: string[] = []): string {
   const params = new URLSearchParams(search);
-  for (const key of SHEET_PARAMS) params.delete(key);
+  for (const key of [...SHEET_PARAMS, ...extra]) params.delete(key);
   const query = params.toString();
   return query ? `${pathname}?${query}` : pathname;
 }
@@ -50,16 +50,21 @@ function Host() {
   const ctx = React.useMemo<SheetCtx | null>(() => {
     if (!userId) return null;
     const params = new URLSearchParams(search);
+    const steppingParam = kind?.stepping?.param;
+    const list = steppingParam ? (params.get(steppingParam) ?? "").split(",").filter(Boolean) : [];
+    const at = Math.min(Math.max(0, Number(params.get("step") ?? 0) || 0), Math.max(0, list.length - 1));
     return {
       params,
       id: params.get("id"),
       user: { id: userId, name: userName, role },
       can: (resource, action) => canRetailRoleDo(role, resource, action),
+      ...(list.length > 0 ? { step: { id: list[at]!, at, count: list.length } } : {}),
     };
-  }, [search, userId, userName, role]);
+  }, [search, userId, userName, role, kind]);
 
   const allowed = Boolean(kind && ctx && kind.requires.some(([resource, action]) => ctx.can(resource, action)));
-  const openKey = allowed && key ? `${key}|${ctx?.id ?? ""}` : null;
+  // A stepping sheet opens afresh on each item of its list.
+  const openKey = allowed && key ? `${key}|${ctx?.id ?? ""}|${ctx?.step?.at ?? ""}` : null;
 
   // What is drawn: the open kind, kept through the closing slide. Each new
   // opening is a fresh sheet (`round`), so nothing typed before carries over.
@@ -92,10 +97,12 @@ function Host() {
   const [lastCtx, setLastCtx] = React.useState<SheetCtx | null>(null);
   if (openKey && ctx && ctx !== lastCtx) setLastCtx(ctx);
 
+  const steppingParam = seen.shown?.kind.stepping?.param;
   const close = React.useCallback(() => {
-    if (openedHere) router.back();
-    else router.replace(withoutSheet(pathname, window.location.search.slice(1)), { scroll: false });
-  }, [openedHere, pathname, router]);
+    // A stepping sheet has replaced the address as it went: back would reopen an earlier item.
+    if (openedHere && !steppingParam) router.back();
+    else router.replace(withoutSheet(pathname, window.location.search.slice(1), steppingParam ? [steppingParam] : []), { scroll: false });
+  }, [openedHere, pathname, router, steppingParam]);
 
   const sheetCtx = (openKey ? ctx : null) ?? lastCtx;
   if (!shown || !sheetCtx) return null;

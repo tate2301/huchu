@@ -113,7 +113,9 @@ export function ListCell({
     case "zero":
       return <span className="cx-lf-zerocell">{text}</span>;
     case "owed":
-      // Owing nothing is a quiet zero; in credit, a quiet "US$40.00 credit".
+      // Owing nothing is a quiet zero; in credit, a quiet "US$40.00 credit". With `pillKey`, only a row
+      // that sets it draws the pill; the rest is plain money (an order nothing has come against yet).
+      if (Number(value) > 0 && column.pillKey && !row[column.pillKey]) return <span className="cx-lf-moneycell">{text}</span>;
       return Number(value) > 0 ? <span className="cx-lf-pill cx-lf-pill--warn">{text}</span> : <span className="cx-lf-zerocell">{text}</span>;
     case "diff": {
       const tone = diffTone(column, value);

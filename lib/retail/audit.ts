@@ -369,6 +369,16 @@ export const RETAIL_AUDIT_EVENTS = {
   laybyHandedOver: "RETAIL_LAYBY.HANDED_OVER",
   /** A lay-by cancelled: what was paid back, the fee kept, the goods back on the shelf. Entity `RetailLayby`; carries `{ laybyNo, paidBack, fee }`. */
   laybyCancelled: "RETAIL_LAYBY.CANCELLED",
+  /** An order raised (W-30). Entity `RetailPurchaseOrder`; carries its number, supplier, lines and value with VAT. */
+  orderCreated: "RETAIL_PURCHASE_ORDER.CREATED",
+  /** An order sent to its supplier, or marked sent by hand. Carries how and to whom. */
+  orderSent: "RETAIL_PURCHASE_ORDER.SENT",
+  /** An order's lines or expected date changed. Carries each line from and to, the expected date and whether the supplier was told. */
+  orderChanged: "RETAIL_PURCHASE_ORDER.CHANGED",
+  /** An order made from another ("Duplicate order"). Entity the new order; carries the one it was made from. */
+  orderDuplicated: "RETAIL_PURCHASE_ORDER.DUPLICATED",
+  /** A supplier's reply on WhatsApp. Entity the order it is about, else the `Vendor`; carries the supplier and the text. */
+  messageReceived: "RETAIL_MESSAGE.RECEIVED",
 } as const;
 
 export type RetailAuditEvent =
@@ -643,6 +653,8 @@ export async function auditGoodsReceived(
     supplier: string | null;
     totalValue: MoneyLike;
     lineCount: number;
+    /** Units in: "Received GRN-0004, 300 units". */
+    units?: number;
   },
 ): Promise<void> {
   await writeRetailAuditEvent(client, {
@@ -657,6 +669,7 @@ export async function auditGoodsReceived(
       supplier: input.supplier,
       totalValue: auditAmount(input.totalValue),
       lineCount: input.lineCount,
+      ...(input.units === undefined ? {} : { units: input.units }),
     },
   });
 }

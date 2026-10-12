@@ -57,6 +57,8 @@ type Order = {
   supplierName: string;
   siteId: string;
   status: string;
+  /** A delivery can still come against it. */
+  open: boolean;
   lines: OrderLine[];
 };
 
@@ -194,7 +196,7 @@ export default function RetailDeliveriesPage() {
     () => [
       { value: NO_ORDER, label: "No order" },
       ...orders
-        .filter((order) => (order.status === "DRAFT" || order.status === "PARTIAL") && outstandingQuantity(order) > 0)
+        .filter((order) => order.open && outstandingQuantity(order) > 0)
         .map((order) => ({ value: order.id, label: order.poNo, description: order.supplierName })),
     ],
     [orders],

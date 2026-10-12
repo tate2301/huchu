@@ -135,6 +135,8 @@ export function LinesField({
                 type="button"
                 className="sf-lines__remove"
                 aria-label={`Remove ${line.name}`}
+                disabled={Boolean(line.keep)}
+                title={line.keep}
                 onClick={() => onValueChange(value.filter((row) => row.productId !== line.productId))}
               >
                 <X aria-hidden="true" />

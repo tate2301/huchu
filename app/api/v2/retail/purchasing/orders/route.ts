@@ -1,33 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
-import { Prisma, RetailPurchaseOrderStatus } from "@prisma/client";
-import { z } from "zod";
-import { errorResponse, successResponse } from "@/lib/api-response";
-import { money, multiplyMoney, sumMoney, toNumberOrZero } from "@/lib/money";
-import { normalizeProvidedId, reserveIdentifier } from "@/lib/id-generator";
+import { Prisma } from "@prisma/client";
+
+import { successResponse } from "@/lib/api-response";
+import { sumMoney, toNumberOrZero } from "@/lib/money";
 import { prisma } from "@/lib/prisma";
 import { requireRetailPermission } from "@/lib/retail/permissions";
-import {
-  ensureInventoryItemAccess,
-  resolveRetailSite,
-  requireRetailSession,
-} from "../../_helpers";
+import { isOpenForDelivery } from "@/lib/retail/purchase-orders";
+import { requireRetailSession } from "../../_helpers";
 
-const lineSchema = z.object({
-  inventoryItemId: z.string().uuid().optional().nullable(),
-  itemName: z.string().min(1).max(200).optional(),
-  quantity: z.number().positive(),
-  unitCost: z.number().min(0),
-});
-
-const purchaseOrderSchema = z.object({
-  poNo: z.string().min(1).max(50).optional(),
-  siteId: z.string().uuid().optional(),
-  supplierName: z.string().min(1).max(200),
-  expectedDate: z.string().datetime().optional().nullable(),
-  notes: z.string().max(500).optional().nullable(),
-  lines: z.array(lineSchema).min(1),
-});
-
+/**
+ * The orders the Deliveries page's receive dialog books against, until the
+ * Receive page (BUY-06) replaces it: every order not in the bin, with its
+ * supplier's name and whether a delivery can still come against it.
+ */
 export async function GET(request: NextRequest) {
   const { response, session } = await requireRetailSession(request);
   if (response || !session) {
@@ -40,160 +25,29 @@ export async function GET(request: NextRequest) {
   const gate = requireRetailPermission(session, "retail.purchasing", "view");
   if (gate) return gate;
 
-  const { searchParams } = new URL(request.url);
-  const status = searchParams.get("status")?.trim();
-  const search = searchParams.get("search")?.trim();
-
-  const where: Prisma.RetailPurchaseOrderWhereInput = {
-    companyId: session.user.companyId,
-  };
-  if (status && status !== "all") {
-    const parsed = RetailPurchaseOrderStatus[status as keyof typeof RetailPurchaseOrderStatus];
-    if (!parsed) return errorResponse(`Unknown status "${status}"`, 400);
-    where.status = parsed;
-  }
+  const search = new URL(request.url).searchParams.get("search")?.trim();
+  const where: Prisma.RetailPurchaseOrderWhereInput = { companyId: session.user.companyId, archivedAt: null };
   if (search) {
     where.OR = [
       { poNo: { contains: search, mode: "insensitive" } },
-      { supplierName: { contains: search, mode: "insensitive" } },
+      { vendor: { name: { contains: search, mode: "insensitive" } } },
     ];
   }
 
   const orders = await prisma.retailPurchaseOrder.findMany({
     where,
-    include: { lines: true },
+    include: { lines: true, vendor: { select: { name: true } }, site: { select: { id: true, name: true, code: true } } },
     orderBy: { createdAt: "desc" },
   });
 
-  const sites = await prisma.site.findMany({
-    where: { id: { in: orders.map((order) => order.siteId) } },
-    select: { id: true, name: true, code: true },
-  });
-  const siteMap = new Map(sites.map((site) => [site.id, site]));
-
   return successResponse({
-    data: orders.map((order) => ({
+    data: orders.map(({ vendor, ...order }) => ({
       ...order,
-      site: siteMap.get(order.siteId) ?? null,
+      supplierName: vendor.name,
+      open: isOpenForDelivery(order.status),
       totalValue: toNumberOrZero(sumMoney(order.lines.map((line) => line.lineTotal))),
       totalQuantity: toNumberOrZero(sumMoney(order.lines.map((line) => line.quantity))),
-      receivedQuantity: toNumberOrZero(
-        sumMoney(order.lines.map((line) => line.receivedQuantity)),
-      ),
+      receivedQuantity: toNumberOrZero(sumMoney(order.lines.map((line) => line.receivedQuantity))),
     })),
   });
-}
-
-export async function POST(request: NextRequest) {
-  const { response, session } = await requireRetailSession(request);
-  if (response || !session) {
-    return response as NextResponse;
-  }
-
-  /*
-    Raising an order is `create` on `retail.purchasing`: the owner and the
-    manager. The stock clerk holds `view` and `receive` only — deciding what
-    the shop buys, and at what price, is not the clerk's.
-  */
-  const gate = requireRetailPermission(session, "retail.purchasing", "create");
-  if (gate) return gate;
-
-  try {
-    const body = await request.json();
-    const input = purchaseOrderSchema.parse(body);
-    const { site, response: siteResponse } = await resolveRetailSite(
-      session.user.companyId,
-      input.siteId,
-    );
-    if (siteResponse || !site) return siteResponse ?? errorResponse("Invalid site", 400);
-
-    const providedCode = input.poNo
-      ? normalizeProvidedId(input.poNo, "RETAIL_PURCHASE_ORDER")
-      : null;
-
-    const normalizedLines = await Promise.all(
-      input.lines.map(async (line) => {
-        if (line.inventoryItemId) {
-          const inventoryItem = await ensureInventoryItemAccess(
-            session.user.companyId,
-            line.inventoryItemId,
-          );
-          if (!inventoryItem) {
-            throw new Error("One of the selected inventory items is invalid.");
-          }
-          return {
-            companyId: session.user.companyId,
-            inventoryItemId: inventoryItem.id,
-            itemName: line.itemName?.trim() || inventoryItem.name,
-            quantity: line.quantity,
-            unitCost: line.unitCost,
-            lineTotal: multiplyMoney(money(line.quantity), money(line.unitCost)),
-          };
-        }
-
-        if (!line.itemName?.trim()) {
-          throw new Error("Each line needs an item or item name.");
-        }
-
-        return {
-          companyId: session.user.companyId,
-          inventoryItemId: null,
-          itemName: line.itemName.trim(),
-          quantity: line.quantity,
-          unitCost: line.unitCost,
-          lineTotal: multiplyMoney(money(line.quantity), money(line.unitCost)),
-        };
-      }),
-    );
-
-    for (let attempt = 0; attempt < 5; attempt += 1) {
-      const poNo =
-        providedCode ??
-        (await reserveIdentifier(prisma, {
-          companyId: session.user.companyId,
-          entity: "RETAIL_PURCHASE_ORDER",
-          siteId: site.id,
-        }));
-
-      try {
-        const order = await prisma.retailPurchaseOrder.create({
-          data: {
-            companyId: session.user.companyId,
-            poNo,
-            siteId: site.id,
-            supplierName: input.supplierName.trim(),
-            // Deliveries move it on; nobody sets it by hand.
-            status: RetailPurchaseOrderStatus.DRAFT,
-            expectedDate: input.expectedDate ? new Date(input.expectedDate) : null,
-            notes: input.notes?.trim() || null,
-            createdById: session.user.id,
-            lines: {
-              create: normalizedLines,
-            },
-          },
-          include: { lines: true },
-        });
-
-        return successResponse(order, 201);
-      } catch (error) {
-        if (
-          error instanceof Prisma.PrismaClientKnownRequestError &&
-          error.code === "P2002"
-        ) {
-          if (providedCode) {
-            return errorResponse("Purchase order number already exists", 409);
-          }
-          continue;
-        }
-        throw error;
-      }
-    }
-
-    return errorResponse("Unable to generate purchase order number", 409);
-  } catch (error) {
-    if (error instanceof z.ZodError) {
-      return errorResponse("Validation failed", 400, error.issues);
-    }
-    return errorResponse(error instanceof Error ? error.message : "Failed to create purchase order", 400);
-  }
 }

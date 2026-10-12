@@ -1,5 +1,5 @@
 import type { Ask } from "@/lib/workspace/ask";
-import { formatCount, formatMoney } from "@/lib/workspace/format";
+import { formatCount, formatDay, formatMoney } from "@/lib/workspace/format";
 
 import type { ListActionRun } from "./runs";
 
@@ -88,7 +88,18 @@ export function removeContactAsk(name: string, supplier: string): Ask {
   };
 }
 
-/** Suppliers' and a supplier's contacts' row actions. */
+/** The answer's own sentence ("PO-0031 sent to Delta Beverages on WhatsApp."), else the fallback. */
+const said = (answer: unknown, fallback: string) => {
+  const message = (answer as { message?: unknown } | null)?.message;
+  return typeof message === "string" && message ? message : fallback;
+};
+
+/** "PO-0007 is in the bin. You can restore it until 3 November." */
+export function orderBinnedWords(poNo: string, keptUntil: string | null | undefined): string {
+  return keptUntil ? `${poNo} is in the bin. You can restore it until ${formatDay(keptUntil).replace(/ \d{4}$/, "")}.` : `${poNo} is in the bin.`;
+}
+
+/** Suppliers', a supplier's contacts', orders' and an order's messages' row actions. */
 export const BUYING_LIST_RUNS: Record<string, ListActionRun> = {
   stopbuying: {
     ask: (_count, rows) => stopBuyingAsk(String(rows[0]?.name ?? "them")),
@@ -98,6 +109,31 @@ export const BUYING_LIST_RUNS: Record<string, ListActionRun> = {
     method: "PATCH",
     body: (ids) => ({ repContactId: ids[0] }),
     done: (_count, rows) => `${String(rows[0]?.name ?? "They")} is the rep now.`,
+  },
+  sendorder: {
+    done: (_count, rows, answer) => said(answer, `${String(rows[0]?.poNo ?? "The order")} sent.`),
+  },
+  duplicateorder: {
+    done: (_count, rows, answer) => said(answer, `${String(rows[0]?.poNo ?? "The order")} duplicated.`),
+  },
+  closeshort: {
+    ask: (_count, rows) =>
+      closeShortAsk({
+        ref: String(rows[0]?.poNo ?? "the order"),
+        unitsToCome: Number(rows[0]?.stillUnits ?? 0),
+        linesToCome: Number(rows[0]?.linesOwed ?? 0),
+        value: Number(rows[0]?.deliveredValue ?? 0),
+        supplier: String(rows[0]?.supplierShort ?? "The supplier"),
+      }),
+    done: (_count, rows, answer) => said(answer, `${String(rows[0]?.poNo ?? "The order")} closed with what came.`),
+  },
+  removeorder: {
+    ask: (_count, rows) => removeOrderAsk({ ref: String(rows[0]?.poNo ?? "the order"), supplier: String(rows[0]?.supplier ?? "The supplier") }),
+    body: (ids) => ({ kind: "order", id: ids[0] }),
+    done: (_count, rows, answer) => orderBinnedWords(String(rows[0]?.poNo ?? "The order"), (answer as { keptUntil?: string } | null)?.keptUntil),
+  },
+  sendagain: {
+    done: (_count, _rows, answer) => said(answer, "It is queued to send again."),
   },
   removecontact: {
     method: "DELETE",

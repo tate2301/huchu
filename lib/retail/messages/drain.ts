@@ -70,6 +70,8 @@ const REFRESH: Record<string, (message: Due) => Promise<string | null>> = {
 /** An email's subject, by template; anything else is "A message from {shop}". */
 const SUBJECTS: Record<string, (shop: string) => string> = {
   receipt: (shop) => `Your receipt from ${shop}`,
+  "purchase-order": (shop) => `An order from ${shop}`,
+  "order-changed": (shop) => `A changed order from ${shop}`,
 };
 
 export type DrainDeps = {

@@ -94,8 +94,8 @@ export const ID_ENTITY_CONFIG: Record<ReservableIdEntity, EntityConfig> = {
   // Retail numbers are unique in the company, not the site (`@@unique([companyId, …])`), so they
   // count across every site: a second shop counting from its own SH-00001 met the first shop’s.
   RETAIL_REGISTER: { prefix: "REG", requiresSiteId: false },
-  RETAIL_PURCHASE_ORDER: { prefix: "RPO", requiresSiteId: false },
-  RETAIL_GOODS_RECEIPT: { prefix: "RGR", requiresSiteId: false },
+  RETAIL_PURCHASE_ORDER: { prefix: "PO", requiresSiteId: false },
+  RETAIL_GOODS_RECEIPT: { prefix: "GRN", requiresSiteId: false },
   // "SH-00243", the number the floor, the boards and the seeded history use.
   RETAIL_SHIFT: { prefix: "SH", requiresSiteId: false, padWidth: 5 },
   RETAIL_HELD_CART: { prefix: "RHC", requiresSiteId: false },

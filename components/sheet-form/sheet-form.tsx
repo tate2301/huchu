@@ -224,7 +224,18 @@ export function SheetForm({ kind, ctx, open, onClose }: SheetFormProps) {
 
   const dirty = !readOnly && isDirty(initial, values);
   const title = sheetText(kind.title, ctx, values);
-  const sub = sheetText(kind.sub, ctx, values);
+  const step = kind.stepping ? ctx.step : undefined;
+  const sub = `${sheetText(kind.sub, ctx, values)}${step ? ` · ${step.at + 1} of ${step.count}` : ""}`;
+  // A stepping sheet's next item, or null at its last.
+  const nextStep = (): string | null => {
+    if (!step || step.at + 1 >= step.count) return null;
+    const params = new URLSearchParams(window.location.search);
+    params.set("step", String(step.at + 1));
+    return `${window.location.pathname}?${params.toString()}`;
+  };
+  // Which save is going: the primary, or the kind's second way to save.
+  const submitting = React.useRef<"primary" | "alt">("primary");
+  const [savingWith, setSavingWith] = React.useState<"primary" | "alt">("primary");
 
   // Leaving without saving: what the kind undoes, then close — or go on to
   // `to` (the secondary link, "Pair another device").
@@ -284,7 +295,8 @@ export function SheetForm({ kind, ctx, open, onClose }: SheetFormProps) {
       setPanel(handOver);
       return;
     }
-    const sentence = doneSentence(kind, result, values, payload);
+    const altDone = submitting.current === "alt" ? kind.alt?.done : undefined;
+    const sentence = altDone === undefined ? doneSentence(kind, result, values, payload) : typeof altDone === "function" ? altDone(result, values, payload) : altDone;
     if (again) {
       // What the load brought (`_` facts) stays, and the fields the kind keeps;
       // every other field starts again empty.
@@ -324,8 +336,8 @@ export function SheetForm({ kind, ctx, open, onClose }: SheetFormProps) {
           : {}),
     });
     settle(false);
-    const next = kind.next?.(result, values) ?? null;
-    if (next) router.replace(next);
+    const next = nextStep() ?? kind.next?.(result, values) ?? null;
+    if (next) router.replace(next, { scroll: false });
     else onClose();
   };
 
@@ -338,8 +350,10 @@ export function SheetForm({ kind, ctx, open, onClose }: SheetFormProps) {
     });
   };
 
-  const submit = async (again: boolean) => {
-    if (saving || readOnly || kind.primaryDisabled?.(values)) return;
+  const submit = async (again: boolean, which: "primary" | "alt" = "primary") => {
+    if (saving || readOnly || (which === "primary" && kind.primaryDisabled?.(values))) return;
+    submitting.current = which;
+    setSavingWith(which);
     setFooterError(null);
     setSavedLine(null);
     const problems = checkValues(kind, values, ctx);
@@ -351,7 +365,7 @@ export function SheetForm({ kind, ctx, open, onClose }: SheetFormProps) {
       return;
     }
     setErrors({});
-    if (kind.confirm) {
+    if (kind.confirm && which === "primary") {
       setAsking("confirm");
       return;
     }
@@ -365,7 +379,7 @@ export function SheetForm({ kind, ctx, open, onClose }: SheetFormProps) {
     let tab = kind.newTab?.when(values) ? window.open("", "_blank") : null;
     if (tab) tab.opener = null;
     try {
-      const request = kind.submit(values, ctx);
+      const request = submitting.current === "alt" && kind.alt ? kind.alt.submit(values, ctx) : kind.submit(values, ctx);
       if (!request) {
         tab?.close();
         await after(null, again);
@@ -496,7 +510,16 @@ export function SheetForm({ kind, ctx, open, onClose }: SheetFormProps) {
           ? kind.confirm(values, ctx)
           : null;
   const secondaryLink = readOnly ? null : (kind.secondaryLink?.(ctx, values) ?? null);
-  const secondary = readOnly ? "Close" : (secondaryLink?.label ?? kind.secondary ?? "Cancel");
+  const secondary = readOnly ? "Close" : (secondaryLink?.label ?? kind.secondary ?? (step ? "Skip" : "Cancel"));
+  const alt = !readOnly && !panel && kind.alt && (kind.alt.show?.(values, ctx) ?? true) ? kind.alt : null;
+  const altLabel = alt ? (typeof alt.label === "function" ? alt.label(values) : alt.label) : "";
+  // "Skip": on to the next item without saving this one.
+  const skip = () => {
+    const next = nextStep();
+    if (!next) return requestClose();
+    settle(true);
+    router.replace(next, { scroll: false });
+  };
   const again = !readOnly && kind.secondary !== undefined && kind.secondary !== "Cancel";
   const sections = shownSections(kind, values, ctx);
   const danger = !readOnly && kind.danger && (kind.danger.show?.(ctx, values) ?? true) ? kind.danger : null;
@@ -693,7 +716,16 @@ export function SheetForm({ kind, ctx, open, onClose }: SheetFormProps) {
                   ) : null}
                 </span>
               )}
-              {secondaryAction ? (
+              {alt && step ? (
+                <Button size="field" onClick={skip} disabled={saving}>
+                  Skip
+                </Button>
+              ) : null}
+              {alt ? (
+                <Button size="field" onClick={() => void submit(false, "alt")} busy={saving && savingWith === "alt"} disabled={saving}>
+                  {altLabel}
+                </Button>
+              ) : secondaryAction ? (
                 <Button size="field" onClick={() => void runSecondary()} busy={headBusy} disabled={saving || Boolean(secondaryAction.disabled)}>
                   {secondaryAction.label}
                 </Button>
@@ -703,6 +735,7 @@ export function SheetForm({ kind, ctx, open, onClose }: SheetFormProps) {
                   onClick={() => {
                     if (secondaryLink) requestClose(secondaryLink.href);
                     else if (again) void submit(true);
+                    else if (step) skip();
                     else requestClose();
                   }}
                   disabled={saving}
@@ -714,7 +747,7 @@ export function SheetForm({ kind, ctx, open, onClose }: SheetFormProps) {
                 <Button
                   size="field"
                   variant={kind.primaryTone === "danger" ? "danger" : "primary"}
-                  busy={saving}
+                  busy={saving && savingWith === "primary"}
                   disabled={primaryDisabled}
                   onClick={() => void submit(false)}
                 >

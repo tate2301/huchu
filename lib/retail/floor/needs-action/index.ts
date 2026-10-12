@@ -5,6 +5,7 @@ import { flaggedSales } from "./flagged-sales";
 import { laybysOverdue } from "./laybys-overdue";
 import { lowStock } from "./low-stock";
 import { notFiscalised } from "./not-fiscalised";
+import { orderDue } from "./order-due";
 import { promotionEnding } from "./promotion-ending";
 import { staleShift } from "./stale-shift";
 import type { NeedsActionProvider, NeedsActionRow, NeedsContext } from "./types";
@@ -12,10 +13,6 @@ import type { NeedsActionProvider, NeedsActionRow, NeedsContext } from "./types"
 /**
  * Needs action's rows, in the order the Overview lists them (50-floor
  * §4.1). A new kind of row is one file here and one line below.
- *
- * One of the spec's rows has no source yet, so no provider: `order-due`
- * waits for BUY-02's purchase orders (the order model is being replaced). Its
- * key is in `NeedsActionKey` and its place is marked below.
  */
 export const NEEDS_ACTION_PROVIDERS: ReadonlyArray<NeedsActionProvider> = [
   staleShift,
@@ -25,7 +22,7 @@ export const NEEDS_ACTION_PROVIDERS: ReadonlyArray<NeedsActionProvider> = [
   lowStock,
   notFiscalised,
   flaggedSales,
-  // order-due: BUY-02
+  orderDue,
   promotionEnding,
   laybysOverdue,
 ];

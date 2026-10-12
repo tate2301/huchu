@@ -14,6 +14,7 @@ import { customerSpendChart } from "@/lib/retail/customers/spend-chart";
 import { loadCustomerRecord } from "@/lib/retail/customers/view";
 import { signedPoints } from "@/lib/retail/loyalty/format";
 import { loadSaleView } from "@/lib/retail/floor/sale-view";
+import { renderOrderPdf } from "@/lib/retail/buying/documents";
 import { pointsKindLabel } from "@/lib/retail/words";
 import { paidWords, saleStateLabel } from "@/lib/retail/floor/sale-words";
 import { loadShiftRecord } from "@/lib/retail/shift-record";
@@ -61,6 +62,11 @@ export const RECORD_DOCUMENT_CSS = `
 `;
 
 const RECORD_PDF: Record<string, RecordPdfType> = {
+  /** A purchase order as the supplier gets it (40-buying 4.10); also opened by a message's signed link. */
+  RetailPurchaseOrder: {
+    read: ["retail.purchasing", "view"],
+    render: (caller, id) => renderOrderPdf(caller.companyId, id),
+  },
   /**
    * A shift: its cash up, how people paid and the takings per hour. Printed
    * for an open shift as `?as=x-report`, it is the X-report: the mid-shift

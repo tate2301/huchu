@@ -23,7 +23,11 @@ import {
   restoreFromBin,
   restoreManyFromBin,
 } from "./bin";
-import { addTestProduct } from "./products/test-fixtures";
+import { destroyProvisionedTenant } from "@/lib/platform/tenant-teardown";
+
+import { raiseOrder } from "./buying/orders";
+import { createSupplier } from "./buying/suppliers";
+import { addTestProduct, makeTestShop } from "./products/test-fixtures";
 import { loadShelfListing } from "./shelf-listing";
 
 const stamp = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -352,5 +356,53 @@ describe("a customer in the bin (CUS-02)", () => {
     expect(await deleteFromBinForGood(owner, [{ kind: "customer", id: nobody }, { kind: "customer", id: shopper }])).toEqual({ deleted: 1, kept: 1 });
     expect(await prisma.customer.count({ where: { id: nobody } })).toBe(0);
     expect(await prisma.customer.count({ where: { id: shopper } })).toBe(1);
+  });
+});
+
+describe("an order in the bin (W-71)", () => {
+  let shop: Awaited<ReturnType<typeof makeTestShop>>;
+  let draftId: string;
+  let sentId: string;
+
+  beforeAll(async () => {
+    shop = await makeTestShop("Order bin");
+    process.env.NEXTAUTH_SECRET ??= "test-secret";
+    const castle = await addTestProduct(shop.companyId, { name: "Castle Lager 340ml", price: "1.20", cost: "0.86" }, { siteId: shop.mainId });
+    const delta = (await prisma.$transaction((tx) => createSupplier(tx, shop.manager(), { name: "Delta Beverages" }))).id;
+    const raise = async (send: boolean) =>
+      (
+        await raiseOrder(
+          shop.manager(),
+          { supplierId: delta, siteId: shop.mainId, lines: [{ productId: castle.productId, quantity: 24, unitCost: "0.86" }], payment: "ON_ACCOUNT", send },
+          { requestUrl: "http://localhost:3000" },
+        )
+      ).id;
+    draftId = await raise(false);
+    sentId = await raise(true);
+  }, 60_000);
+
+  afterAll(async () => {
+    if (!shop) return;
+    await prisma.platformAuditEvent.deleteMany({ where: { companyId: shop.companyId } });
+    await prisma.retailMessage.deleteMany({ where: { companyId: shop.companyId } });
+    await prisma.retailPurchaseOrder.deleteMany({ where: { companyId: shop.companyId } });
+    await prisma.vendor.deleteMany({ where: { companyId: shop.companyId } });
+    await destroyProvisionedTenant(shop.companyId);
+  });
+
+  it("refuses an order that has been sent", async () => {
+    const sent = await prisma.retailPurchaseOrder.findUniqueOrThrow({ where: { id: sentId }, select: { poNo: true } });
+    await expect(moveToBin(shop.manager(), { kind: "order", id: sentId })).rejects.toThrow(`${sent.poNo} has been sent. Cancel what is left instead.`);
+  });
+
+  it("bins a draft, brings it back, and deletes it and its lines for good", async () => {
+    await moveToBin(shop.manager(), { kind: "order", id: draftId });
+    expect((await prisma.retailPurchaseOrder.findUniqueOrThrow({ where: { id: draftId } })).archivedAt).not.toBeNull();
+    await restoreFromBin(shop.owner(), { kind: "order", id: draftId });
+    expect((await prisma.retailPurchaseOrder.findUniqueOrThrow({ where: { id: draftId } })).archivedAt).toBeNull();
+    await moveToBin(shop.manager(), { kind: "order", id: draftId });
+    expect(await deleteFromBinForGood(shop.owner(), [{ kind: "order", id: draftId }])).toEqual({ deleted: 1, kept: 0 });
+    expect(await prisma.retailPurchaseOrder.count({ where: { id: draftId } })).toBe(0);
+    expect(await prisma.retailPurchaseOrderLine.count({ where: { purchaseOrderId: draftId } })).toBe(0);
   });
 });

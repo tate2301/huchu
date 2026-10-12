@@ -605,6 +605,22 @@ Recorded unit choices:
     SALE-31870 charged no deposit. GRN-0005 is the return's reference only until BUY-06's deliveries; Natbrew is added
     as a supplier for its return.
 
+- **BUY-02 departs from packet 31 in these places.**
+  - **An order line names its product, not its stock line.** `POST/PATCH /api/v2/retail/buying/orders` take
+    `lines: [{ id?, productId, quantity, unitCost }]`; the server finds the product's stock line at the order's site
+    (400 under Lines, "<product> is not kept at <site>.", when there is none), and a draft moved to another site has
+    its lines moved with it. The sheet's Lines field is the `product` lookup, so "add a new one" is PRD-03's quick add.
+  - **PO-0005 is US$1,940.00 with VAT at 15.5% only with three costs moved, not one.** Its lines' quantities are all
+    multiples of six, and no cost for Bols Brandy alone lands the total on 1,940.00 (it reaches 1,939.98 or 1,940.05).
+    The seed prices Amarula 13.05, Gordon's 12.39 and Bols Brandy 10.06 (lines US$1,679.64, VAT US$260.36) and checks the total.
+  - **A message waiting in the outbox reads "Waiting to send"** (pending) on the Messages tab; the spec names only Sent,
+    Delivered, Read, Failed and Reply. Every seeded message went when it was sent, so the drain never sends one again.
+  - **"Receive a delivery" opens the Deliveries page's receive dialog on the order** (`/retail/buying/deliveries?orderId=`)
+    until the Receive page (packet 38) exists, and the rail's Deliveries rows are not links until the delivery record
+    (packet 43) exists.
+  - **On hand's "Add to an order" sends the ticked stock lines** (`lineIds`); the suggestions route turns them into their
+    products. Products' bulk and the product chart's footer send `productIds` (the chart adds `quantity`).
+
 ## Owner direction, 5 October: sidebar, Management and Setup
 
 These override 00-foundations §5.3 and every spec that disagrees.

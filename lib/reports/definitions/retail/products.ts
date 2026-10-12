@@ -198,6 +198,13 @@ const products: ListSpec = {
       do: { sheet: "bulk-price", with: { how: "RAISE" } },
     },
     {
+      key: "order",
+      label: "Add to an order",
+      requires: [["retail.purchasing", "create"]],
+      tabs: ["selling", "low", "all"],
+      do: { sheet: "order-new", with: { productIds: "{ids}" } },
+    },
+    {
       key: "addToList",
       label: "Add to a price list",
       requires: [["retail.prices", "update"]],

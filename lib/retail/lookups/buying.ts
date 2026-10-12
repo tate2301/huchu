@@ -1,4 +1,9 @@
+import { toNumberOrZero } from "@/lib/money";
 import { prisma } from "@/lib/prisma";
+import { orderTotals } from "@/lib/retail/buying/figures";
+import { OrderRefusal, raiseOrder } from "@/lib/retail/buying/orders";
+import { defaultSiteFor } from "@/lib/retail/floor/default-site";
+import { formatMoney, parseDay } from "@/lib/workspace/format";
 import { addContact, createSupplier, repOf, REP_ROLE, SupplierRefusal } from "@/lib/retail/buying/suppliers";
 import { supplierCategories, termsSub } from "@/lib/retail/buying/supplier-view";
 import { phoneSearchText } from "@/lib/retail/people/words";
@@ -187,4 +192,66 @@ const contactRole: LookupNoun = {
   },
 };
 
-export const BUYING_LOOKUPS: LookupNoun[] = [supplier, payee, contact, contactRole];
+/**
+ * Orders a requisition can be for (40-buying 4.3): drafts and open orders not
+ * in the bin, "PO-0005 · Afdis Distillers", sub the total with VAT. The quick
+ * add makes an empty draft for the supplier named.
+ */
+const order: LookupNoun = {
+  noun: "order",
+  read: [["retail.requisitions", "create"]],
+  create: ["retail.purchasing", "create"],
+  quick: [
+    { key: "supplier", label: "Supplier", placeholder: "" },
+    { key: "expected", label: "Expected", placeholder: "" },
+  ],
+  ranked: true,
+  async search(ctx, q) {
+    const needle = q.trim();
+    const rows = await prisma.retailPurchaseOrder.findMany({
+      where: {
+        companyId: ctx.companyId,
+        archivedAt: null,
+        status: { in: ["DRAFT", "SENT", "PARTIAL"] },
+        ...(needle
+          ? { OR: [{ poNo: { contains: needle, mode: "insensitive" } }, { vendor: { name: { contains: needle, mode: "insensitive" } } }] }
+          : {}),
+      },
+      orderBy: { poNo: "desc" },
+      take: 100,
+      select: { id: true, poNo: true, vendor: { select: { name: true } }, lines: { select: { quantity: true, unitCost: true, vatRate: true } } },
+    });
+    return rows.map((row): LookupOption => ({
+      id: row.id,
+      label: `${row.poNo} · ${row.vendor.name}`,
+      sub: formatMoney(toNumberOrZero(orderTotals(row.lines).total)),
+    }));
+  },
+  async add(ctx, fields) {
+    const name = (fields.supplier ?? "").trim();
+    if (!name) throw new LookupFieldErrors({ supplier: "Say who the order is for." });
+    const vendor = await prisma.vendor.findFirst({
+      where: { companyId: ctx.companyId, stoppedAt: null, name: { equals: name, mode: "insensitive" } },
+      select: { id: true, name: true },
+    });
+    if (!vendor) throw new LookupFieldErrors({ supplier: `There is no supplier called ${name}.` });
+    const typed = (fields.expected ?? "").trim();
+    const expected = typed ? parseDay(typed) : null;
+    if (typed && !expected) throw new LookupFieldErrors({ expected: "Write a date, like 7 October 2026." });
+    const siteId = await defaultSiteFor(ctx.companyId, ctx.userId);
+    if (!siteId) throw new LookupFieldErrors({ supplier: "Add a site first." });
+    try {
+      const raised = await raiseOrder(
+        actorOf(ctx),
+        { supplierId: vendor.id, siteId, expectedDate: expected, lines: [], payment: "ON_ACCOUNT", send: false },
+        { requestUrl: ctx.requestUrl ?? "http://localhost" },
+      );
+      return { id: raised.id, label: `${raised.poNo} · ${vendor.name}`, sub: formatMoney(0), notice: `${raised.poNo} saved as a draft.` };
+    } catch (error) {
+      if (error instanceof OrderRefusal) throw new LookupFieldErrors(error.fieldErrors ?? { supplier: error.message });
+      throw error;
+    }
+  },
+};
+
+export const BUYING_LOOKUPS: LookupNoun[] = [supplier, payee, contact, contactRole, order];

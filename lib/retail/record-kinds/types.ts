@@ -27,7 +27,7 @@ export type RecordDo =
   | { print: string }
   | { download: string }
   | { confirm: "bin" }
-  | { post: { url: string; method?: "PATCH"; body?: unknown; ask?: Ask; done: string } }
+  | { post: { url: string; method?: "PATCH" | "DELETE"; body?: unknown; ask?: Ask; done: string } }
   | { event: string };
 
 /**
@@ -110,6 +110,8 @@ export type RecordChart = {
   line?: RecordLine;
   /** A y-axis tick: "US$20". */
   tick?: (value: number) => string;
+  /** The axis' fixed top (100: an order's "% of what was ordered"); absent, the tallest bar's. */
+  max?: number;
   /** The one bar drawn dark (a sale's own hour); absent, the last. */
   mark?: number | null;
   footer?: { text: string; link?: { label: string; href: string } };
@@ -137,7 +139,8 @@ export type SourceTab<R> = {
    */
   allLink?:
     | {
-        label: string;
+        /** Fixed, or from the record ("All 23 orders"). */
+        label: string | ((record: R) => string);
         /** Null: not drawn (a role that may not add a note). */
         href: (record: R) => string | null;
         /** Drawn under an empty table too (the Notes tab's "Add a note"). */
@@ -246,6 +249,8 @@ export type RecordKind<R> = {
     meanwhile?: string | ((record: R) => string);
     /** A line the banner leads with, its link last ("Merged into Tapiwa Marange."). */
     lead?: (record: R) => BinLead | null;
+    /** "Move to the bin" is offered only while this holds; false: the kind's own ⋯ item moves it (an order's "Remove the order"). */
+    offer?: (record: R) => boolean;
   };
   steps?: (record: R) => RecordStep[];
   chips?: (record: R) => RecordChip[];

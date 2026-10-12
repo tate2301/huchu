@@ -198,6 +198,35 @@ function orderClosedWords(payload: Payload): ActivityWords {
   };
 }
 
+/** "Sent on WhatsApp to Tinashe Moyo" / "Sent by email to orders@delta.co.zw" / "Marked sent by hand". */
+function orderSentWords(payload: Payload): ActivityWords {
+  const via = text(payload.via);
+  const to = Array.isArray(payload.to) ? payload.to.map(String).filter(Boolean).join(" and ") : text(payload.to);
+  if (via === "WHATSAPP") return { what: to ? `Sent on WhatsApp to ${to}` : "Sent on WhatsApp", tone: "info" };
+  if (via === "EMAIL") return { what: to ? `Sent by email to ${to}` : "Sent by email", tone: "info" };
+  return { what: "Marked sent by hand", tone: "info" };
+}
+
+/** "Changed the lines: Castle Lager 340ml 240 → 300, told Delta"; an expected date alone: "Changed the expected date to 7 October". */
+function orderChangedWords(payload: Payload): ActivityWords {
+  const changes = Array.isArray(payload.changes) ? (payload.changes as Payload[]) : [];
+  const told = text(payload.toldName);
+  const parts = changes.map((change) => {
+    const from = text(change.from);
+    const to = text(change.to);
+    const item = text(change.item) ?? "a line";
+    if (from === null) return `${item} added, ${to ?? 0}`;
+    if (to === null) return `${item} taken off`;
+    return `${item} ${from} → ${to}`;
+  });
+  const lead = parts.length
+    ? `Changed the lines: ${parts.join(", ")}`
+    : text(payload.expectedWords)
+      ? `Changed the expected date to ${text(payload.expectedWords)}`
+      : "Changed the order";
+  return { what: told ? `${lead}, told ${told}` : lead, tone: "info" };
+}
+
 /** What a supplier's contact is sent (`VendorContactSends`). */
 const SENDS_WORDS: Record<string, string> = { ORDERS: "orders", STATEMENTS: "statements", NOTHING: "nothing" };
 
@@ -426,6 +455,19 @@ const WORDS: Record<string, (payload: Payload, eventType: string, seeCost: boole
   [RETAIL_AUDIT_EVENTS.supplierStopped]: () => ({ what: "Stopped buying from them", tone: "bad" }),
   [RETAIL_AUDIT_EVENTS.supplierResumed]: () => ({ what: "Started buying from them again", tone: "ok" }),
   [RETAIL_AUDIT_EVENTS.suppliersMessaged]: () => ({ what: "Sent a message on WhatsApp", tone: "hollow" }),
+  // Orders (40-buying 3.4): "Raised PO-0031 for US$643.08"; "Sent on WhatsApp to Tinashe Moyo".
+  [RETAIL_AUDIT_EVENTS.orderCreated]: (payload) => ({
+    what: `Raised ${text(payload.poNo) ?? "the order"}${amount(payload.value) !== null ? ` for ${moneyWords(payload.value)}` : ""}`,
+    tone: "info",
+  }),
+  [RETAIL_AUDIT_EVENTS.orderSent]: orderSentWords,
+  [RETAIL_AUDIT_EVENTS.orderChanged]: orderChangedWords,
+  [RETAIL_AUDIT_EVENTS.orderDuplicated]: (payload) => ({ what: `Made from ${text(payload.from) ?? "another order"}`, tone: "hollow" }),
+  [RETAIL_AUDIT_EVENTS.messageReceived]: (payload) => {
+    const body = text(payload.body) ?? "";
+    const short = body.length > 80 ? `${body.slice(0, 80).trimEnd()}…` : body;
+    return { what: `${text(payload.supplier) ?? "The supplier"} replied: “${short}”`, tone: "info" };
+  },
   [RETAIL_AUDIT_EVENTS.shiftOpened]: (payload) => ({
     what: `Opened with a float of ${moneyWords(payload.openingFloat)}`,
     tone: "info",

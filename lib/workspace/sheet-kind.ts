@@ -19,6 +19,8 @@ export type SheetCtx = {
   id: string | null;
   user: { id: string; name: string; role: string };
   can: (resource: RetailResource, action: RetailAction) => boolean;
+  /** A stepping kind's place in its list: the item now (from `stepping.param`), and where it is ("1 of 3"). */
+  step?: { id: string; at: number; count: number };
 };
 
 /** A picked `auto` option: what it sends and what it reads as. */
@@ -44,6 +46,10 @@ export type SheetLine = {
   of?: string | null;
   /** The person typed this line's figure: values worked out for the sheet leave it alone. */
   touched?: boolean;
+  /** The record's own line this is (an order's line), sent back so the server keeps it. */
+  lineId?: string;
+  /** The line cannot come off: × is drawn but not pressable, with this as its title ("120 have come"). */
+  keep?: string;
 };
 
 export type SheetValues = Record<string, unknown>;
@@ -344,6 +350,21 @@ export type SheetKind = {
    * asks for: a 409 `needsApprover` reveals the manager's approval section.
    */
   onRefused?: (payload: unknown, values: SheetValues) => SheetValues | null;
+  /**
+   * A second way to save, drawn as the secondary in place of Cancel ("Save as draft", "Save without telling
+   * them"): checked as the primary is, sent with its own request, its own toast. Offered while `show` holds.
+   */
+  alt?: {
+    label: string | ((values: SheetValues) => string);
+    show?: (values: SheetValues, ctx: SheetCtx) => boolean;
+    submit: (values: SheetValues, ctx: SheetCtx) => SheetRequest | null;
+    done: string | ((result: unknown, values: SheetValues, payload: unknown) => string);
+  };
+  /**
+   * The sheet walks a list held in the address (`supplierIds=a,b,c`): one item at a time (`ctx.step`), the sub
+   * gains " · 1 of 3", Cancel reads "Skip", and each save or skip opens the next.
+   */
+  stepping?: { param: string };
   /** Null: nothing to send; the primary is done at once (a code that paired on its own). */
   submit: (values: SheetValues, ctx: SheetCtx) => SheetRequest | null;
   /** React Query keys to refetch after a save. */

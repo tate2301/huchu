@@ -31,7 +31,7 @@ import type { RetailAction, RetailResource } from "@/lib/retail/permission-matri
  * `KINDS`.
  */
 
-export const BIN_KINDS = ["product", "promotion", "category", "price-list", "bundle", "customer"] as const;
+export const BIN_KINDS = ["product", "promotion", "category", "price-list", "bundle", "customer", "order"] as const;
 export type BinKind = (typeof BIN_KINDS)[number];
 
 type Tx = Prisma.TransactionClient;
@@ -86,7 +86,54 @@ function binnedWhere(where: BinnedWhere) {
   };
 }
 
+/** "PO-0007 · Delta Beverages": what the bin and the asks call an order. */
+const orderName = (order: { poNo: string; vendor: { name: string } }) => `${order.poNo} · ${order.vendor.name}`;
+
+/** `RetailPurchaseOrder` rows the bin may hold: drafts only (W-71). */
+const ORDER_KIND: BinKindSpec = {
+  kind: "order",
+  label: "Order, draft",
+  entityType: "RetailPurchaseOrder",
+  deleteRight: ["retail.purchasing", "delete"],
+  viewRight: ["retail.purchasing", "view"],
+  openKey: "orderId",
+  binEvents: [RETAIL_AUDIT_EVENTS.recordBinned],
+  find: async (tx, companyId, id) => {
+    const order = await tx.retailPurchaseOrder.findFirst({
+      where: { id, companyId },
+      select: { poNo: true, archivedAt: true, vendor: { select: { name: true } } },
+    });
+    return order ? { name: orderName(order), archivedAt: order.archivedAt } : null;
+  },
+  // Only a draft, which was never sent and nothing came against, so nothing
+  // in stock or the books changes and the supplier is not told.
+  move: async (tx, companyId, id, at) => {
+    const order = await tx.retailPurchaseOrder.findFirstOrThrow({ where: { id, companyId }, select: { poNo: true, status: true } });
+    if (order.status !== "DRAFT") return `${order.poNo} has been sent. Cancel what is left instead.`;
+    await tx.retailPurchaseOrder.update({ where: { id }, data: { archivedAt: at } });
+    return null;
+  },
+  restore: async (tx, _companyId, id) => {
+    await tx.retailPurchaseOrder.update({ where: { id }, data: { archivedAt: null } });
+    return null;
+  },
+  // A draft has nothing pointing at it: it and its lines go.
+  purge: async (tx, companyId, id) => {
+    await tx.retailPurchaseOrderLine.deleteMany({ where: { companyId, purchaseOrderId: id } });
+    await tx.retailPurchaseOrder.delete({ where: { id } });
+    return "deleted";
+  },
+  listBinned: async (where) =>
+    (
+      await prisma.retailPurchaseOrder.findMany({
+        where: binnedWhere(where),
+        select: { companyId: true, id: true, poNo: true, archivedAt: true, vendor: { select: { name: true } } },
+      })
+    ).map((row) => ({ companyId: row.companyId, id: row.id, name: orderName(row), reference: row.poNo, binnedAt: row.archivedAt! })),
+};
+
 const KINDS: Record<BinKind, BinKindSpec> = {
+  order: ORDER_KIND,
   product: {
     kind: "product",
     label: "Product",

@@ -540,6 +540,11 @@ describe("the chain", () => {
       laybyPaid: "RETAIL_LAYBY.PAID",
       laybyHandedOver: "RETAIL_LAYBY.HANDED_OVER",
       laybyCancelled: "RETAIL_LAYBY.CANCELLED",
+      orderCreated: "RETAIL_PURCHASE_ORDER.CREATED",
+      orderSent: "RETAIL_PURCHASE_ORDER.SENT",
+      orderChanged: "RETAIL_PURCHASE_ORDER.CHANGED",
+      orderDuplicated: "RETAIL_PURCHASE_ORDER.DUPLICATED",
+      messageReceived: "RETAIL_MESSAGE.RECEIVED",
     });
   });
 });

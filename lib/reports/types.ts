@@ -289,6 +289,7 @@ export type ListColumn = ReportColumn & {
   /**
    * num: the row key holding a tone; when set the figure sits in that tone's pill ("22.4%" under target).
    * date: the day sits in that tone's pill ("31 October 2026" in warn, a voucher in its last month).
+   * owed: only a row that sets it draws the warn pill; another owing something is plain money.
    */
   pillKey?: string;
   /** num: the row key holding words its pill shows when there is no figure ("Free" for a product a promotion gives away). */

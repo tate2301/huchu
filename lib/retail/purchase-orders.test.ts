@@ -13,28 +13,41 @@ const castle = { id: "l1", itemName: "Castle Lager 340ml", inventoryItemId: "cas
 const coke = { id: "l2", itemName: "Coca-Cola 500ml", inventoryItemId: "coke", quantity: 24, receivedQuantity: 0 };
 
 describe("where an order stands", () => {
-  it("is a draft until anything comes, part delivered, then received", () => {
-    expect(orderStatusFor([{ ...castle, receivedQuantity: 0 }, coke], false)).toBe("DRAFT");
-    expect(orderStatusFor([castle, coke], false)).toBe("PARTIAL");
-    expect(orderStatusFor([{ ...castle, receivedQuantity: 48 }, { ...coke, receivedQuantity: 24 }], false)).toBe(
-      "RECEIVED",
-    );
+  const open = { closed: false, sent: true };
+
+  it("is a draft until sent, sent until anything comes, part delivered, then received", () => {
+    expect(orderStatusFor([{ ...castle, receivedQuantity: 0 }, coke], { closed: false, sent: false })).toBe("DRAFT");
+    expect(orderStatusFor([{ ...castle, receivedQuantity: 0 }, coke], open)).toBe("SENT");
+    expect(orderStatusFor([castle, coke], open)).toBe("PARTIAL");
+    expect(orderStatusFor([{ ...castle, receivedQuantity: 48 }, { ...coke, receivedQuantity: 24 }], open)).toBe("RECEIVED");
   });
 
   it("compares quantities as numbers, not as text", () => {
     // "9" >= "14" is true as strings; 9 of 14 is still part delivered.
-    expect(orderStatusFor([{ quantity: 14, receivedQuantity: 9 }], false)).toBe("PARTIAL");
+    expect(orderStatusFor([{ quantity: 14, receivedQuantity: 9 }], open)).toBe("PARTIAL");
   });
 
-  it("stays closed once the shop stops waiting", () => {
-    expect(orderStatusFor([castle], true)).toBe("CLOSED");
-    expect(isOpenForDelivery("CLOSED")).toBe(false);
-    expect(isOpenForDelivery("RECEIVED")).toBe(false);
-    expect(isOpenForDelivery("PARTIAL")).toBe(true);
+  it("counts a line closed short as done: closed once every line is in or closed short", () => {
+    const short = { ...castle, closedShortAt: new Date("2026-10-01") };
+    expect(orderStatusFor([short, coke], open)).toBe("PARTIAL");
+    expect(orderStatusFor([short, { ...coke, receivedQuantity: 24 }], open)).toBe("CLOSED");
+    expect(orderStatusFor([short, { ...coke, receivedQuantity: 3, closedShortAt: new Date() }], open)).toBe("CLOSED");
   });
 
-  it("never owes a negative", () => {
+  it("stays closed once the shop stops waiting, and is never inferred cancelled", () => {
+    expect(orderStatusFor([castle], { closed: true, sent: true })).toBe("CLOSED");
+    expect(orderStatusFor([{ ...coke }], open)).toBe("SENT");
+  });
+
+  it("takes a delivery while a draft, sent or part delivered, never once done", () => {
+    for (const status of ["DRAFT", "SENT", "PARTIAL"] as const) expect(isOpenForDelivery(status)).toBe(true);
+    for (const status of ["RECEIVED", "CLOSED", "CANCELLED"] as const) expect(isOpenForDelivery(status)).toBe(false);
+  });
+
+  it("never owes a negative, and owes nothing on a line closed short", () => {
     expect(outstanding({ quantity: 10, receivedQuantity: 12 }).toNumber()).toBe(0);
+    expect(outstanding({ quantity: 240, receivedQuantity: 120, closedShortAt: new Date() }).toNumber()).toBe(0);
+    expect(outstanding({ quantity: 240, receivedQuantity: 120, closedShortAt: null }).toNumber()).toBe(120);
   });
 });
 

@@ -58,7 +58,7 @@ export function RecordFrame<R>({
   const { data: session } = useSession();
   const [asking, setAsking] = React.useState(false);
   // A `{ post }` action waiting on its ask.
-  const [posting, setPosting] = React.useState<{ url: string; method?: "PATCH"; body?: unknown; ask: Ask; done: string } | null>(null);
+  const [posting, setPosting] = React.useState<{ url: string; method?: "PATCH" | "DELETE"; body?: unknown; ask: Ask; done: string } | null>(null);
   const [range, setRange] = React.useState<string | null>(kind.chartRanges?.initial ?? null);
 
   const query = useQuery({ queryKey: kind.queryKey(id), queryFn: () => kind.load(id), enabled: Boolean(id) });
@@ -165,7 +165,7 @@ export function RecordFrame<R>({
   const primaryAction = record && !binned ? (kind.primary?.(record) ?? null) : null;
   const primary: PagePrimary | null =
     primaryAction && allowed(primaryAction) ? { label: primaryAction.label, onClick: () => run(primaryAction) } : null;
-  const canBin = Boolean(record && kind.bin && !binned && can(kind.bin.deleteRight));
+  const canBin = Boolean(record && kind.bin && !binned && can(kind.bin.deleteRight) && (kind.bin.offer?.(record) ?? true));
 
   const saveField = React.useCallback(
     async (edit: RailEdit, value: unknown) => {

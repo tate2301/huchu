@@ -1,9 +1,11 @@
 import { fetchJson } from "@/lib/api-client";
-import { stopBuyingAsk } from "@/lib/retail/asks/buying";
+import { closeShortAsk, stopBuyingAsk } from "@/lib/retail/asks/buying";
+import type { OrderView } from "@/lib/retail/buying/order-view";
 import type { SupplierView } from "@/lib/retail/buying/supplier-view";
-import { formatCount, formatDay, formatMoney, formatShortMonth } from "@/lib/workspace/format";
+import { firstWord, lateWords, PAYING, PAYING_WORD, PAYMENT_OF, paysRailWords, sentWords } from "@/lib/retail/buying/words";
+import { dayKey, formatCount, formatDay, formatMoney, formatShortDay, formatShortMonth } from "@/lib/workspace/format";
 
-import type { Grant, RailRow, RecordChart, RecordKind, RecordKpi } from "./types";
+import type { Grant, RailGroup, RailRow, RecordAction, RecordChart, RecordKind, RecordKpi } from "./types";
 
 /**
  * The supplier record kind (40-buying 5.2, SupplierRecord board): who the
@@ -20,6 +22,8 @@ const UPDATE: Grant = ["retail.suppliers", "update"];
 const STOP: Grant = ["retail.suppliers", "delete"];
 
 const API = "/api/v2/retail/buying/suppliers";
+const ORDER_VIEW_GRANT: Grant = ["retail.purchasing", "view"];
+const ORDER_CREATE_GRANT: Grant = ["retail.purchasing", "create"];
 const base = (supplier: SupplierView) => `/retail/buying/suppliers/${supplier.id}`;
 
 const PAYS = ["On delivery", "7 days", "14 days", "30 days"];
@@ -123,6 +127,10 @@ export const supplierKind: RecordKind<SupplierView> = {
       do: { href: `${base(supplier)}?sheet=supplier-message&ids=${supplier.id}` },
     },
   ],
+  primary: (supplier) =>
+    supplier.stoppedAt
+      ? null
+      : { key: "order", label: "New order", requires: [ORDER_CREATE_GRANT], do: { sheet: "order-new", params: { supplierId: supplier.id } } },
   more: (supplier) => [
     { key: "contact", label: "Add a contact", requires: [UPDATE], do: { sheet: "contact-new", params: { supplierId: supplier.id } } },
     ...(supplier.stoppedAt
@@ -174,6 +182,19 @@ export const supplierKind: RecordKind<SupplierView> = {
   chartRanges: { options: SUPPLIER_RANGES, initial: "12m" },
   chart,
   tabs: [
+    {
+      key: "orders",
+      label: "Orders",
+      source: "retail-orders",
+      parent: "supplierId",
+      requires: ORDER_VIEW_GRANT,
+      filters: () => ({ tab: "all" }),
+      columns: ["poNo", "state", "raised", "expected", { key: "deliveredWords", label: "Delivered" }, "value"],
+      allLink: {
+        label: (supplier) => `All ${formatCount(supplier.kpis.orders)} ${supplier.kpis.orders === 1 ? "order" : "orders"}`,
+        href: (supplier) => `/retail/buying/orders?supplier=${supplier.id}&tab=all`,
+      },
+    },
     {
       key: "contacts",
       label: "Contacts",
@@ -245,4 +266,279 @@ export const supplierKind: RecordKind<SupplierView> = {
     },
   ],
   invalidates: [["list", "retail-suppliers"], ["lookup", "supplier"], ["lookup", "payee"], ["reports"]],
+};
+
+/* ── An order (40-buying 5.4) ───────────────────────────────────────────── */
+
+const ORDER_API = "/api/v2/retail/buying/orders";
+const ORDER_VIEW: Grant = ["retail.purchasing", "view"];
+const ORDER_CREATE: Grant = ["retail.purchasing", "create"];
+const ORDER_UPDATE: Grant = ["retail.purchasing", "update"];
+const ORDER_DELETE: Grant = ["retail.purchasing", "delete"];
+const ORDER_RECEIVE: Grant = ["retail.purchasing", "receive"];
+const DAY_MS = 86_400_000;
+
+const pdfOf = (order: OrderView) => `/api/v2/retail/records/RetailPurchaseOrder/${order.id}/pdf`;
+const isOpen = (order: OrderView) => order.status === "DRAFT" || order.status === "SENT" || order.status === "PARTIAL";
+const unitWords = (n: number) => (n === 1 ? "unit" : "units");
+
+/** Whole days from today (Harare) to a shop day: 0 today, 1 tomorrow, negative past. */
+function daysFromToday(day: string): number {
+  return Math.round((Date.parse(`${day}T00:00:00Z`) - Date.parse(`${dayKey(new Date())}T00:00:00Z`)) / DAY_MS);
+}
+
+function orderExpectedKpi(order: OrderView): RecordKpi {
+  const day = order.firstExpectedDate ?? order.expectedDate;
+  if (!day) return { label: "Expected", value: "—", note: "No date set" };
+  const value = formatShortDay(`${day}T12:00:00Z`);
+  if (order.late) return { label: "Expected", value, lead: formatCount(order.late.days), leadTone: "bad", note: order.late.days === 1 ? "day late" : "days late" };
+  if (order.figures.doneLateDays !== null) {
+    return order.figures.doneLateDays === 0
+      ? { label: "Expected", value, note: "on time" }
+      : { label: "Expected", value, lead: formatCount(order.figures.doneLateDays), leadTone: "bad", note: order.figures.doneLateDays === 1 ? "day late" : "days late" };
+  }
+  const days = daysFromToday(order.expectedDate ?? day);
+  if (days === 0) return { label: "Expected", value, note: "today" };
+  if (days === 1) return { label: "Expected", value, note: "tomorrow" };
+  return days > 1 ? { label: "Expected", value, lead: formatCount(days), leadTone: "plain", note: "days" } : { label: "Expected", value, note: "" };
+}
+
+function orderKpis(order: OrderView): RecordKpi[] {
+  const f = order.figures;
+  return [
+    { label: "Ordered", value: formatCount(f.ordered), lead: formatCount(f.lines), leadTone: "plain", note: f.lines === 1 ? "line" : "lines" },
+    {
+      label: "Delivered",
+      value: formatCount(f.delivered),
+      lead: `${f.deliveredPct}%`,
+      leadTone: f.deliveredPct >= 100 ? "ok" : f.delivered > 0 ? "warn" : "plain",
+      note: "of the units",
+    },
+    { label: "Value", value: formatMoney(f.total), lead: formatMoney(f.deliveredValue), leadTone: "plain", note: "delivered" },
+    order.status === "CLOSED" && f.notDelivered > 0
+      ? { label: "Still to come", value: formatMoney(0), lead: formatCount(f.notDelivered), leadTone: "plain", note: `${unitWords(f.notDelivered)} not delivered` }
+      : { label: "Still to come", value: formatMoney(f.stillValue), lead: formatCount(f.stillUnits), leadTone: "plain", note: unitWords(f.stillUnits) },
+    orderExpectedKpi(order),
+  ];
+}
+
+function orderChart(order: OrderView): RecordChart | null {
+  if (order.chart.length === 0) return null;
+  return {
+    title: "Delivered, by line",
+    unit: "% of what was ordered",
+    max: 100,
+    bars: order.chart.map((bar) => ({ label: bar.name, tick: bar.label, value: bar.pct, text: `${bar.pct}% delivered` })),
+    tick: (value) => `${value}%`,
+  };
+}
+
+function orderPrimary(order: OrderView): RecordAction | null {
+  if (order.status === "DRAFT") {
+    const short = firstWord(order.supplier.name);
+    return {
+      key: "send",
+      label: `Send to ${short}`,
+      requires: [ORDER_CREATE],
+      do: { post: { url: `${ORDER_API}/${order.id}/send`, done: sentWords(order.poNo, order.supplier.name, order.channel) } },
+    };
+  }
+  if (order.status === "SENT" || order.status === "PARTIAL") {
+    // The Receive page (BUY-06) takes over; until then the Deliveries page's receive dialog, opened on this order.
+    return { key: "receive", label: "Receive a delivery", requires: [ORDER_RECEIVE], do: { href: `/retail/buying/deliveries?orderId=${order.id}` } };
+  }
+  if (order.status === "CLOSED") {
+    return {
+      key: "reopen",
+      label: "Reopen the order",
+      requires: [ORDER_UPDATE],
+      do: {
+        post: {
+          url: `${ORDER_API}/${order.id}/close`,
+          method: "DELETE",
+          done: `${order.poNo} reopened. ${formatCount(order.figures.notDelivered)} ${order.figures.notDelivered === 1 ? "unit is" : "units are"} expected again.`,
+        },
+      },
+    };
+  }
+  return null;
+}
+
+function orderRail(order: OrderView): RailGroup[] {
+  const open = isOpen(order);
+  const groups: RailGroup[] = [
+    {
+      title: "Order",
+      rows: [
+        order.status === "DRAFT"
+          ? {
+              key: "supplier",
+              label: "Supplier",
+              value: order.supplier.name,
+              edit: {
+                field: "supplierId",
+                type: "auto",
+                initial: order.supplier.id,
+                lookup: { noun: "supplier", picked: { id: order.supplier.id, label: order.supplier.name } },
+                parse: (value: string) => value || undefined,
+                requires: ORDER_UPDATE,
+              },
+            }
+          : { key: "supplier", label: "Supplier", value: order.supplier.name, links: [{ label: order.supplier.name, href: `/retail/buying/suppliers/${order.supplier.id}` }] },
+        order.siteOpen
+          ? {
+              key: "site",
+              label: "Site",
+              value: order.site.name,
+              edit: {
+                field: "siteId",
+                type: "auto",
+                initial: order.site.id,
+                lookup: { noun: "site", picked: { id: order.site.id, label: order.site.name } },
+                parse: (value: string) => value || undefined,
+                requires: ORDER_UPDATE,
+              },
+            }
+          : { key: "site", label: "Site", value: order.site.name },
+        { key: "raised", label: "Raised", value: formatDay(order.raisedAt), mono: true },
+        { key: "raisedBy", label: "Raised by", value: order.raisedBy ?? "—", muted: !order.raisedBy },
+        { key: "sent", label: "Sent", value: order.sentWords, muted: !order.sentAt },
+      ],
+    },
+    {
+      title: "Money",
+      rows: [
+        { key: "lines", label: "Lines", value: formatMoney(order.figures.net), mono: true },
+        { key: "vat", label: "VAT", value: formatMoney(order.figures.vat), mono: true },
+        { key: "total", label: "Total", value: formatMoney(order.figures.total), mono: true },
+        {
+          key: "pays",
+          label: "Pays",
+          value: paysRailWords(order.payment, order.supplier.payTermsDays),
+          ...(open
+            ? {
+                edit: {
+                  field: "payment",
+                  type: "seg" as const,
+                  options: [...PAYING],
+                  initial: PAYING_WORD[order.payment],
+                  parse: (word: string) => PAYMENT_OF[word as (typeof PAYING)[number]],
+                  requires: ORDER_UPDATE,
+                },
+              }
+            : {}),
+        },
+      ],
+    },
+  ];
+  if (order.status !== "DRAFT") {
+    const next: RailRow[] = open
+      ? [
+          {
+            key: "next",
+            label: "Next",
+            value: order.expectedDate
+              ? `${order.promisedFor ? "Promised for" : "Expected"} ${formatDay(`${order.expectedDate}T12:00:00Z`).replace(/ \d{4}$/, "")}`
+              : "Not said",
+            muted: !order.expectedDate,
+            edit: { field: "expectedDate", type: "date", initial: order.expectedDate ?? "", earliest: "today", requires: ORDER_UPDATE },
+          },
+        ]
+      : [];
+    groups.push({
+      title: "Deliveries",
+      hint: false,
+      rows: [
+        ...order.deliveries.map((delivery) => ({
+          key: delivery.id,
+          label: delivery.receiptNo,
+          value: `${formatDay(delivery.postedAt).replace(/ \d{4}$/, "")}, ${formatCount(delivery.units)} ${unitWords(delivery.units)}`,
+        })),
+        ...(order.deliveries.length === 0 ? [{ key: "none", label: "Delivered", value: "Nothing yet", muted: true }] : []),
+        ...next,
+      ],
+    });
+  }
+  return groups;
+}
+
+export const orderKind: RecordKind<OrderView> = {
+  type: "RetailPurchaseOrder",
+  back: { label: "Orders", href: "/retail/buying/orders" },
+  queryKey: (id) => ["retail-order", id],
+  load: async (id) => (await fetchJson<{ data: OrderView }>(`${ORDER_API}/${id}`)).data,
+  endpoint: (id) => `${ORDER_API}/${id}`,
+  title: (order) => order.supplier.name,
+  reference: (order) => order.poNo,
+  actions: (order) => [
+    ...(isOpen(order)
+      ? [{ key: "edit", label: "Edit lines", requires: [ORDER_UPDATE], do: { sheet: "order-edit", id: order.id } }]
+      : []),
+    { key: "print", label: "Print", requires: [], do: { open: `${pdfOf(order)}?print=1` } },
+  ],
+  more: (order) => [
+    { key: "pdf", label: "Export as PDF", requires: [], do: { download: pdfOf(order) } },
+    { key: "duplicate", label: "Duplicate order", requires: [ORDER_CREATE], do: { event: "duplicate" } },
+    ...(order.can.close
+      ? [
+          {
+            key: "close",
+            label: "Close with what came",
+            requires: [ORDER_UPDATE],
+            do: {
+              post: {
+                url: `${ORDER_API}/${order.id}/close`,
+                ask: closeShortAsk({
+                  ref: order.poNo,
+                  unitsToCome: order.figures.stillUnits,
+                  linesToCome: order.lines.filter((line) => line.outstanding > 0 && !line.closedShort).length,
+                  value: order.figures.deliveredValue,
+                  supplier: firstWord(order.supplier.name),
+                }),
+                done: `${order.poNo} closed with what came. ${formatCount(order.figures.stillUnits)} ${order.figures.stillUnits === 1 ? "unit is" : "units are"} no longer expected.`,
+              },
+            },
+          },
+        ]
+      : []),
+    ...(order.can.remove ? [{ key: "remove", label: "Remove the order", tone: "bad" as const, requires: [ORDER_DELETE], do: { event: "remove" } }] : []),
+  ],
+  primary: orderPrimary,
+  bin: {
+    kind: "order",
+    deleteRight: ORDER_DELETE,
+    state: (order) => order.binned,
+    offer: () => false,
+    meanwhile: (order) => `Off the Orders list; ${order.supplier.name} was never told.`,
+  },
+  steps: (order) => order.steps,
+  chips: (order) => [
+    ...(order.late ? [{ label: lateWords(order.late.days), tone: "bad" as const }] : []),
+    ...(order.status === "DRAFT" ? [{ label: "Not sent", tone: "plain" as const }] : []),
+    ...(order.status === "CLOSED" ? [{ label: "Closed short", tone: "plain" as const }] : []),
+  ],
+  figure: (order) =>
+    order.status === "DRAFT"
+      ? { label: "Value", value: formatMoney(order.figures.total) }
+      : {
+          label: "Still to come",
+          value: formatMoney(order.figures.stillValue),
+          ...(order.figures.stillValue > 0 && (order.late || order.status === "PARTIAL") ? { tone: "warn" as const } : {}),
+        },
+  kpis: orderKpis,
+  chart: orderChart,
+  tabs: [
+    {
+      key: "lines",
+      label: "Lines",
+      source: "retail-order-lines",
+      parent: "orderId",
+      requires: ORDER_VIEW,
+      allLink: { label: () => "Order history", tab: "activity" },
+    },
+    { key: "messages", label: "Messages", source: "retail-order-messages", parent: "orderId", requires: ORDER_VIEW },
+    { key: "activity", label: "Activity" },
+  ],
+  rail: orderRail,
+  invalidates: [["list", "retail-orders"], ["list", "retail-order-lines"], ["list", "retail-order-messages"], ["retail-supplier"], ["nav-badges"], ["reports"]],
 };
