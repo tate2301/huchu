@@ -4,7 +4,18 @@ import { prisma } from "@/lib/prisma";
 import { loadLoyaltySettings, type LoyaltySettings } from "@/lib/retail/loyalty/settings";
 import { isTopTier, sortTiers, type LoyaltyTier } from "@/lib/retail/loyalty/tiers";
 import { PEOPLE_USER_ROLES } from "@/lib/retail/people/roles";
-import { todayIn } from "@/lib/workspace/format";
+import { tenderLabel } from "@/lib/retail/words";
+import {
+  dayKey,
+  daysBetween,
+  formatCount,
+  formatDay,
+  formatMediumDay,
+  formatMoney,
+  formatShortDay,
+  formatSigned,
+  todayIn,
+} from "@/lib/workspace/format";
 
 /**
  * A customer's figures, one definition (60-customers, CUS-02): the list, the
@@ -192,4 +203,202 @@ export async function isStaffPhone(companyId: string, phone: string | null): Pro
         AND regexp_replace(u.phone, '\\D', '', 'g') = ${digits}
     ) AS any`;
   return rows[0]?.any === true;
+}
+
+/* ── A customer's record (CUS-03, packet 61) ─────────────────────────────── */
+
+/**
+ * What a record's figures are worked out from: the 12 months to now and the
+ * 365 days before them ("the 12 before"), by the same rules as `figuresSql`.
+ */
+export type CustomerFacts = {
+  spend12m: number;
+  spendBefore: number;
+  visits: number;
+  visitsBefore: number;
+  points: number;
+  worth: number;
+  /** The balance a customer needs before they may spend. */
+  spendFrom: number;
+  lastVisitAt: Date | null;
+};
+
+/** One of the record's five figures (00-foundations 5.6.4); the shape `RecordKpi` draws. */
+export type CustomerKpi = {
+  label: string;
+  value: string;
+  lead?: string;
+  leadTone?: "ok" | "bad" | "warn" | "plain";
+  note: string;
+};
+
+const MINUS = "−";
+const cents2 = (value: number) => Math.round(value * 100) / 100;
+
+/** Days apart in 12 months: 365 ÷ visits, one decimal. */
+export const daysApart = (visits: number) => Math.round((365 / visits) * 10) / 10;
+
+/** "15 Aug" this year, "15 Aug 2025" another, "Today" today. */
+function lastVisitWords(at: Date, now: Date): string {
+  const day = dayKey(at);
+  const today = dayKey(now);
+  if (day === today) return "Today";
+  return day.slice(0, 4) === today.slice(0, 4) ? formatShortDay(at) : formatMediumDay(at);
+}
+
+/**
+ * The record's five figures (60-customers §5.3): Spend, 12 months; Visits;
+ * Average basket; Points; Last visit.
+ */
+export function customerKpis(facts: CustomerFacts, now: Date = new Date()): CustomerKpi[] {
+  const { spend12m, spendBefore, visits, visitsBefore } = facts;
+
+  const firstYear = spendBefore <= 0 && visitsBefore === 0;
+  let spend: CustomerKpi;
+  if (firstYear) spend = { label: "Spend, 12 months", value: formatMoney(spend12m), note: "their first year" };
+  else {
+    const pct = spendBefore > 0 ? Math.round((spend12m / spendBefore - 1) * 100) : 0;
+    spend = {
+      label: "Spend, 12 months",
+      value: formatMoney(spend12m),
+      lead: pct > 0 ? `+${pct}%` : pct < 0 ? `${MINUS}${-pct}%` : "0%",
+      leadTone: pct > 0 ? "ok" : pct < 0 ? "bad" : "plain",
+      note: "on the 12 before",
+    };
+  }
+
+  const visitsKpi: CustomerKpi =
+    visits < 2
+      ? { label: "Visits", value: formatCount(visits), note: "too few to tell" }
+      : { label: "Visits", value: formatCount(visits), lead: daysApart(visits).toFixed(1), leadTone: "plain", note: "days apart" };
+
+  let basket: CustomerKpi;
+  if (visits === 0) basket = { label: "Average basket", value: "—", note: "no visits yet" };
+  else {
+    const average = cents2(spend12m / visits);
+    if (visitsBefore === 0) basket = { label: "Average basket", value: formatMoney(average), note: "their first year" };
+    else {
+      const delta = cents2(average - cents2(spendBefore / visitsBefore));
+      basket = {
+        label: "Average basket",
+        value: formatMoney(average),
+        lead: formatSigned(delta),
+        leadTone: delta > 0 ? "ok" : delta < 0 ? "bad" : "plain",
+        note: "on last year",
+      };
+    }
+  }
+
+  const points: CustomerKpi = {
+    label: "Points",
+    value: formatCount(facts.points),
+    lead: formatMoney(facts.worth),
+    leadTone: "plain",
+    note: facts.points < facts.spendFrom ? `to spend from ${formatCount(facts.spendFrom)}` : "to spend",
+  };
+
+  let last: CustomerKpi;
+  if (!facts.lastVisitAt) last = { label: "Last visit", value: "—", note: "no visits yet" };
+  else {
+    const usual = visits >= 2 ? Math.round(365 / visits) : null;
+    const days = daysBetween(dayKey(facts.lastVisitAt), dayKey(now)) - 1;
+    if (days <= 0) {
+      last = { label: "Last visit", value: "Today", note: usual === null ? "today" : `usually ${usual} days apart` };
+    } else {
+      const late = usual !== null && days > 3 * usual && days >= 14;
+      last = {
+        label: "Last visit",
+        value: lastVisitWords(facts.lastVisitAt, now),
+        lead: formatCount(days),
+        leadTone: late ? "warn" : "plain",
+        note: usual === null ? (days === 1 ? "day ago" : "days ago") : `${days === 1 ? "day" : "days"} ago, usually ${usual}`,
+      };
+    }
+  }
+
+  return [spend, visitsKpi, basket, points, last];
+}
+
+/** "US$1,120": whole dollars, rounded down. */
+const wholeDollars = (value: number) => formatMoney(Math.floor(value + 1e-9)).replace(/\.\d\d$/, "");
+
+export type CustomerMeter = { label: string; value: string; pct: number; note: string };
+
+/**
+ * The rail's meter (60-customers §5.3): the way to the next tier by spend,
+ * the top tier and what keeps it, or a tier held by hand. Loyalty's tiers are
+ * by spend in 12 months and end at the top one (spec open question 2: no
+ * Platinum, no points meter).
+ */
+export function customerMeter(input: {
+  tiers: LoyaltyTier[];
+  spend12m: number;
+  /** The tier they are on: held, else by spend. */
+  tier: string | null;
+  /** A held tier's last day, `YYYY-MM-DD`, while it lasts. */
+  heldUntil: string | null;
+}): CustomerMeter {
+  const tiers = sortTiers(input.tiers);
+  const spend = input.spend12m;
+  const top = tiers[tiers.length - 1] ?? null;
+  const index = tiers.findIndex((tier) => tier.name === input.tier);
+  const next = index >= 0 ? (tiers[index + 1] ?? null) : (tiers[0] ?? null);
+  const name = input.tier ?? "No tier";
+
+  const toward = (target: LoyaltyTier) => {
+    const from = Number(target.from);
+    return { value: `${wholeDollars(spend)} of ${wholeDollars(from)}`, pct: from > 0 ? Math.min(100, (spend / from) * 100) : 100 };
+  };
+
+  if (input.heldUntil) {
+    const shown = next ? toward(next) : { value: `${wholeDollars(spend)} in 12 months`, pct: 100 };
+    return {
+      label: `${name}, held until ${formatDay(input.heldUntil)}`,
+      ...shown,
+      note: next ? `${name} whatever they spend until then.` : `Stays ${name} until then, whatever they spend.`,
+    };
+  }
+  if (!next || (top && input.tier === top.name)) {
+    return {
+      label: `${name}, the top tier`,
+      value: `${wholeDollars(spend)} in 12 months`,
+      pct: 100,
+      note: top ? `Stays ${top.name} while they spend ${wholeDollars(Number(top.from))} in 12 months.` : "",
+    };
+  }
+  const gap = Math.max(0, Number(next.from) - spend);
+  const monthly = spend / 12;
+  const months = monthly > 0 ? Math.ceil(gap / monthly) : null;
+  const pace = months === null ? "" : months <= 1 ? ", within a month at this rate" : `, about ${months} months at this rate`;
+  return {
+    label: `${name}, on the way to ${next.name}`,
+    ...toward(next),
+    note: `${wholeDollars(Math.ceil(gap))} more${pace}`,
+  };
+}
+
+export type UsuallyBuys = { most: string; then: string; paysWith: string };
+
+/**
+ * "Usually buys" (60-customers §5.3): the products on the most and the next
+ * most of their visits in 12 months, and how they pay: one way when it paid
+ * at least half their visits ("EcoCash, mostly"), else the two most used.
+ */
+export function usuallyBuys(input: {
+  visits: number;
+  products: Array<{ name: string; visits: number }>;
+  tenders: Array<{ tender: string; visits: number }>;
+}): UsuallyBuys {
+  if (input.visits === 0) return { most: "—", then: "—", paysWith: "—" };
+  const products = [...input.products].sort((a, b) => b.visits - a.visits || a.name.localeCompare(b.name));
+  const tenders = [...input.tenders].sort((a, b) => b.visits - a.visits || a.tender.localeCompare(b.tender));
+  const word = (tender: string) => tenderLabel(tender);
+  const lower = (label: string) => (label === "Cash" || label === "Card" ? label.toLowerCase() : label);
+  const [first, second] = tenders;
+  const paysWith = !first
+    ? "—"
+    : first.visits * 2 >= input.visits || !second
+      ? `${word(first.tender)}, mostly`
+      : `${word(first.tender)} or ${lower(word(second.tender))}`;
+  return { most: products[0]?.name ?? "—", then: products[1]?.name ?? "—", paysWith };
 }

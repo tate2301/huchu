@@ -1,12 +1,14 @@
-import { formatCount } from "@/lib/workspace/format";
-import type { SheetCtx, SheetKind, SheetRequest, SheetValues } from "@/lib/workspace/sheet-kind";
+import { binAsk } from "@/lib/retail/asks";
+import type { CustomerRecordView } from "@/lib/retail/customers/view";
+import { formatCount, formatDay } from "@/lib/workspace/format";
+import type { PickedOption, SheetCtx, SheetKind, SheetRequest, SheetValues } from "@/lib/workspace/sheet-kind";
 
 import { readJson } from "./products";
 
 /**
  * Customers' sheets (60-customers): New customer (W-45, CUS-02) and Message
- * on WhatsApp (W-50, CUS-06). Edit everything (61) and Adjust points (64)
- * join here.
+ * on WhatsApp (W-50, CUS-06), Edit everything and Add a note (61, CUS-03).
+ * Adjust points (64) joins here.
  */
 
 const text = (value: unknown) => (typeof value === "string" ? value.trim() : "");
@@ -221,7 +223,139 @@ const message: SheetKind = {
   ],
 };
 
+
+/* ── Edit everything and Add a note (61, CUS-03) ───────────────────────── */
+
+const customerUrl = (ctx: SheetCtx) => `/api/v2/retail/customers/${encodeURIComponent(ctx.id ?? "")}`;
+
+type Orig = {
+  phone: string;
+  name: string;
+  marketingConsent: boolean;
+  dateOfBirth: string;
+  area: string;
+  tier: string;
+  priceListId: string | null;
+};
+
+const origOf = (values: SheetValues) => (values._orig ?? {}) as Partial<Orig>;
+const pickedId = (value: unknown) => (value as PickedOption | null)?.id ?? null;
+
+/** "Held until 3 October 2027. Choose Silver to go back to spend." while a tier is held. */
+function tierHint(values: SheetValues): string {
+  const held = values._heldUntil as string | null | undefined;
+  const bySpend = values._bySpend as string | null | undefined;
+  if (held && bySpend) return `Held until ${formatDay(held)}. Choose ${bySpend} to go back to spend.`;
+  return "Set by spend. Changing it here holds it for 12 months.";
+}
+
+const customerEdit: SheetKind = {
+  title: (_ctx, values) => String(values._name ?? "A customer"),
+  sub: (_ctx, values) => String(values._sub ?? "Customers"),
+  cur: "US$",
+  sections: [
+    {
+      fields: [
+        { id: "phone", t: "text", l: "Phone or WhatsApp", mono: true, p: "+263 7", h: "The till finds customers by phone.", needed: "That is not a phone number." },
+        { id: "name", t: "text", l: "Name", needed: "Add their name.", max: 120 },
+        {
+          id: "marketingConsent",
+          t: "toggle",
+          l: "Agrees to WhatsApp messages",
+          h: "Receipts, points and offers. They can stop any time by replying STOP.",
+        },
+        {
+          id: "dateOfBirth",
+          t: "text",
+          l: "Date of birth",
+          half: true,
+          opt: true,
+          p: "Optional",
+          h: "For the birthday bonus; also confirms 18+.",
+        },
+        { id: "area", t: "text", l: "Area", half: true, opt: true, p: "Optional", max: 80 },
+      ],
+    },
+    {
+      title: "Loyalty and prices",
+      fields: [
+        { id: "tier", t: "seg", l: "Tier", o: (values) => (values._tiers as string[] | undefined) ?? [], h: tierHint },
+        { id: "priceListId", t: "auto", l: "Price list", noun: "price-list", context: { for: "customer" }, opt: true, optQuiet: true, p: "The default list" },
+      ],
+    },
+  ],
+  note: "Their sales and points history stay whatever happens.",
+  primary: "Save",
+  done: (_result, values) => `${String(values.name ?? values._name ?? "The customer").trim()} saved.`,
+  danger: {
+    label: "Move to the bin",
+    show: (ctx, values) => ctx.can("retail.customers", "delete") && values._name !== undefined && values._binned !== true,
+    ask: (_ctx, values) => binAsk({ title: String(values._name ?? "this customer") }),
+    request: (ctx) => ({ method: "POST", url: "/api/v2/retail/bin", body: { kind: "customer", id: ctx.id } }),
+    done: (values) => `${String(values._name)} is in the bin.`,
+  },
+  load: async (ctx) => {
+    const customer = await readJson<CustomerRecordView>(customerUrl(ctx));
+    const orig: Orig = {
+      phone: customer.phoneDisplay,
+      name: customer.name,
+      marketingConsent: customer.marketingConsent,
+      dateOfBirth: customer.dateOfBirth ? formatDay(customer.dateOfBirth) : "",
+      area: customer.area ?? "",
+      tier: customer.tier.name ?? "",
+      priceListId: customer.priceList?.id ?? null,
+    };
+    return {
+      ...orig,
+      priceListId: customer.priceList ? { id: customer.priceList.id, label: customer.priceList.name } : null,
+      _orig: orig,
+      _name: customer.name,
+      _sub: [customer.code, customer.tier.name, `${formatCount(customer.points.balance)} points`].filter(Boolean).join(" · "),
+      _tiers: customer.tiers,
+      _heldUntil: customer.tier.heldUntil,
+      _bySpend: customer.tier.bySpend,
+      _binned: customer.binned !== null,
+    };
+  },
+  // Only what changed goes.
+  submit: (values, ctx): SheetRequest | null => {
+    const orig = origOf(values);
+    const body: Record<string, unknown> = {};
+    if (text(values.phone) !== orig.phone) body.phone = text(values.phone);
+    if (text(values.name) !== orig.name) body.name = text(values.name);
+    if ((values.marketingConsent === true) !== orig.marketingConsent) {
+      body.marketingConsent = values.marketingConsent === true;
+      body.via = "sheet";
+    }
+    if (text(values.dateOfBirth) !== orig.dateOfBirth) body.dateOfBirth = text(values.dateOfBirth) || null;
+    if (text(values.area) !== orig.area) body.area = text(values.area) || null;
+    if (typeof values.tier === "string" && values.tier && values.tier !== orig.tier) body.tier = values.tier;
+    const list = pickedId(values.priceListId);
+    if (list !== (orig.priceListId ?? null)) body.priceListId = list;
+    if (Object.keys(body).length === 0) return null;
+    return { method: "PATCH", url: customerUrl(ctx), body };
+  },
+  invalidate: [["retail-customer"], ["list", "retail-customers"], ["lookup", "customer"], ["reports"], ["record-activity"], ["list", "retail-bin"]],
+  requires: [["retail.customers", "update"]],
+};
+
+const customerNote: SheetKind = {
+  title: "Add a note",
+  sub: (_ctx, values) => String(values._name ?? "A customer"),
+  cur: "US$",
+  sections: [{ fields: [{ id: "note", t: "area", l: "Note", rows: 4, maxRows: 8, max: 1000, needed: "Write the note." }] }],
+  note: "Everyone who can open the customer reads it.",
+  primary: "Add the note",
+  done: "Note added.",
+  load: async (ctx) => ({ _name: (await readJson<CustomerRecordView>(customerUrl(ctx))).name }),
+  submit: (values, ctx): SheetRequest => ({ method: "POST", url: `${customerUrl(ctx)}/notes`, body: { body: text(values.note) } }),
+  invalidate: [["retail-customer"], ["reports"], ["record-activity"]],
+  requires: [["retail.customers", "update"]],
+};
+
 export const CUSTOMER_SHEETS: Record<string, SheetKind> = {
   "customer-new": customerNew,
+  "customer-edit": customerEdit,
+  "customer-note": customerNote,
   message,
 };

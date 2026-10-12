@@ -27,7 +27,7 @@ export type RecordDo =
   | { print: string }
   | { download: string }
   | { confirm: "bin" }
-  | { post: { url: string; body?: unknown; ask?: Ask; done: string } }
+  | { post: { url: string; method?: "PATCH"; body?: unknown; ask?: Ask; done: string } }
   | { event: string };
 
 /**
@@ -126,12 +126,20 @@ export type SourceTab<R> = {
   requires?: Grant;
   /** Drawn only while the record has something here (a sale's Refunds once it has one). */
   when?: (record: R) => boolean;
+  /** More of the source's filters, from the record: a customer's ledger over its 12 months (`when`). */
+  filters?: (record: R) => Record<string, string>;
   /**
    * The link to everything, filtered to this record; or one of the record's actions by key ("View the receipt" prints a copy);
    * or another of the record's tabs ("All 38 lines" opens Every line).
    */
   allLink?:
-    | { label: string; href: (record: R) => string }
+    | {
+        label: string;
+        /** Null: not drawn (a role that may not add a note). */
+        href: (record: R) => string | null;
+        /** Drawn under an empty table too (the Notes tab's "Add a note"). */
+        evenEmpty?: boolean;
+      }
     | { label: string; action: string }
     | { label: (record: R) => string; tab: string };
   /** What an empty table says instead of the source's empty title ("Nothing to compare until the count is in."). */

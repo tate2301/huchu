@@ -10,7 +10,11 @@ import { loadProductView } from "@/lib/retail/products/view";
 import { loadBundleView } from "@/lib/retail/bundles/service";
 import { loadPromotionView, promotionProductRows } from "@/lib/retail/promotions/service";
 import { loadVoucherView, voucherUseRows } from "@/lib/retail/vouchers/service";
+import { customerSpendChart } from "@/lib/retail/customers/spend-chart";
+import { loadCustomerRecord } from "@/lib/retail/customers/view";
+import { signedPoints } from "@/lib/retail/loyalty/format";
 import { loadSaleView } from "@/lib/retail/floor/sale-view";
+import { pointsKindLabel } from "@/lib/retail/words";
 import { paidWords, saleStateLabel } from "@/lib/retail/floor/sale-words";
 import { loadShiftRecord } from "@/lib/retail/shift-record";
 import { salesWords, takingsTitle } from "@/lib/retail/shift-words";
@@ -300,6 +304,77 @@ const RECORD_PDF: Record<string, RecordPdfType> = {
         subtitle: `${voucher.code} · ${voucher.stateLabel} · ${voucher.leftLabel} left`,
         content: `<table class="rd-table"><caption>Voucher</caption><tbody>${details}</tbody></table>
 <table class="rd-table"><caption>Uses</caption><thead><tr><th>Sale</th><th>When</th><th>Till</th><th class="num">Spent</th><th class="num">Left after</th></tr></thead><tbody>${uses}</tbody></table>`,
+      };
+    },
+  },
+  /**
+   * A customer (CUS-03): who they are, their five figures, spend per month for
+   * 12 months as a table, the points ledger of those 12 months with its
+   * running balance, and the rail's values.
+   */
+  Customer: {
+    read: ["retail.customers", "view"],
+    render: async (caller, id) => {
+      const customer = await loadCustomerRecord(caller.companyId, id, { update: false, delete: false, activity: false });
+      if (!customer) return null;
+      const now = new Date();
+      const from = new Date(now.getTime() - 365 * 86_400_000);
+      const [chart, entries, before] = await Promise.all([
+        customerSpendChart(caller.companyId, id, "12m", now),
+        prisma.retailPointsEntry.findMany({
+          where: { companyId: caller.companyId, customerId: id, createdAt: { gte: from } },
+          orderBy: [{ createdAt: "asc" }, { seq: "asc" }],
+          select: { createdAt: true, kind: true, points: true, reason: true, actorName: true, sale: { select: { saleNo: true } } },
+        }),
+        prisma.retailPointsEntry.aggregate({ where: { companyId: caller.companyId, customerId: id, createdAt: { lt: from } }, _sum: { points: true } }),
+      ]);
+      const chips = [
+        customer.tier.name ? (customer.tier.heldUntil ? `${customer.tier.name}, held` : customer.tier.name) : null,
+        `Member since ${formatDay(customer.memberSince)}`,
+        customer.marketingConsent ? "Agreed to messages" : null,
+        customer.staff ? "Staff" : null,
+      ].filter(Boolean);
+      const figures = rows(
+        customer.kpis.map((kpi): [string, string] => [kpi.label, [kpi.value, [kpi.lead, kpi.note].filter(Boolean).join(" ")].filter(Boolean).join(" · ")]),
+      );
+      const months = rows(chart.bars.map((bar): [string, string] => [bar.tip, formatMoney(bar.value)]));
+      let running = before._sum.points ?? 0;
+      const ledger = entries
+        .map((entry) => {
+          running += entry.points;
+          return `<tr><td class="mono">${esc(formatWhen(entry.createdAt))}</td><td>${esc(pointsKindLabel(entry).label)}</td><td class="mono">${esc(entry.sale?.saleNo ?? "—")}</td><td>${esc(entry.actorName ?? "Automatic")}</td><td class="num mono">${esc(signedPoints(entry.points))}</td><td class="num mono">${running.toLocaleString("en-US")}</td></tr>`;
+        })
+        .reverse()
+        .join("");
+      const contact = rows([
+        ["Phone", customer.phoneDisplay || "—"],
+        ["WhatsApp", customer.whatsappDisplay ?? "Same number"],
+        ["Email", customer.email ?? "—"],
+        ["Area", customer.area ?? "—"],
+      ]);
+      const loyalty = rows([
+        ["Earns", customer.loyalty.earns],
+        ["Worth", customer.loyalty.worth],
+        ["Card", customer.cardNo ?? "—"],
+        ["Expiry", customer.loyalty.expiry],
+        ["Most", customer.usually.most],
+        ["Then", customer.usually.then],
+        ["Pays with", customer.usually.paysWith],
+      ]);
+      return {
+        ref: customer.code ?? customer.name,
+        title: customer.name,
+        subtitle: [customer.code, ...chips, `Points ${customer.points.balance.toLocaleString("en-US")}`].filter(Boolean).join(" · "),
+        content: `<table class="rd-table"><caption>The last 12 months</caption><tbody>${figures}</tbody></table>
+<p class="rd-note">${esc(customer.meter.label)} · ${esc(customer.meter.value)}. ${esc(customer.meter.note)}</p>
+<div class="rd-cols">
+  <table class="rd-table"><caption>Spend per month</caption><tbody>${months}</tbody></table>
+  <div>
+    <table class="rd-table"><caption>Contact</caption><tbody>${contact}</tbody></table>
+    <table class="rd-table"><caption>Loyalty</caption><tbody>${loyalty}</tbody></table>
+  </div>
+</div>
+<table class="rd-table"><caption>Points ledger, 12 months</caption><thead><tr><th>When</th><th>What</th><th>Receipt</th><th>By</th><th class="num">Points</th><th class="num">Balance</th></tr></thead><tbody>${ledger}</tbody></table>`,
       };
     },
   },

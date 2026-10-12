@@ -307,6 +307,8 @@ export type ListColumn = ReportColumn & {
    * draws its words in that ink ("Walk-in" in `--faint`), or plain.
    */
   toneKey?: string;
+  /** The row key whose words are the cell's tooltip in place of its own (a points row's note on its What). */
+  titleKey?: string;
   /** action: the key of the row menu action the cell does; drawn only when the row's menu offers it. */
   action?: string;
   /**

@@ -235,4 +235,110 @@ const customersSource: ReportDefinition = {
   report,
 };
 
-export const CUSTOMER_REPORTS: ReportDefinition[] = [customersSource];
+/* ── A customer's record (CUS-03, packet 61) ─────────────────────────────── */
+
+/** "What" on Points movements: each a kind of row, the reason telling a birthday bonus from another adjustment. */
+export const POINTS_WHAT = [
+  { value: "earned", label: "Earned" },
+  { value: "spent", label: "Spent" },
+  { value: "adjusted", label: "Adjusted" },
+  { value: "birthday", label: "Birthday bonus" },
+  { value: "expired", label: "Expired" },
+  { value: "refunds", label: "Refunds" },
+];
+
+/**
+ * A customer's points ledger (`retail-points`): every movement, newest first,
+ * with the balance it left, worked out over the customer's whole ledger
+ * before the page is cut. The record's Points ledger tab reads its 12 months;
+ * Points movements reads all of it.
+ */
+const points: ListSpec = {
+  noun: "movements",
+  read: VIEW,
+  search: { placeholder: "Receipt or note", keys: ["ref", "note"] },
+  filters: [
+    { key: "what", label: "What", type: "choice", any: "Any", primary: true, options: POINTS_WHAT },
+    { key: "when", label: "When", type: "period", any: "Any time", column: "day", primary: true },
+    { key: "customer", type: "parent", column: "customerId" },
+  ],
+  sorts: [
+    { key: "newest", label: "Newest first", rules: [{ column: "at", dir: "desc" }] },
+    { key: "oldest", label: "Oldest first", rules: [{ column: "at", dir: "asc" }] },
+    { key: "biggest", label: "Biggest first", rules: [{ column: "size", dir: "desc" }] },
+  ],
+  columns: [
+    { key: "at", label: "When", kind: "date", cell: "when", width: "150px", align: "start", priority: 1 },
+    { key: "what", label: "What", kind: "text", cell: "dot", toneKey: "tone", titleKey: "note", width: "minmax(0,1fr)", align: "start", priority: 1 },
+    { key: "ref", label: "Receipt", kind: "code", cell: "ref", href: "/retail/sales/{saleId}", width: "120px", align: "start", priority: 1 },
+    { key: "by", label: "By", kind: "text", cell: "text", width: "120px", align: "start", priority: 2 },
+    { key: "note", label: "Note", kind: "text", cell: "muted", width: "minmax(0,1fr)", align: "start", priority: 3 },
+    { key: "points", label: "Points", kind: "number", cell: "num", sign: "gain", total: "sum", width: "90px", align: "end", priority: 1 },
+    { key: "balance", label: "Balance", kind: "number", cell: "num", width: "90px", align: "end", priority: 1 },
+  ],
+  rowHref: "/retail/sales/{saleId}",
+  bulk: [{ key: "export" }],
+  card: { title: "what", figure: "points", meta: "{whenText} · {by}", figure2: "balance" },
+  empty: { icon: "Clock", title: "No points yet", line: "Points start with their first sale." },
+};
+
+/**
+ * A customer's purchases (`retail-customer-purchases`): their sales, refunds
+ * and voids, newest first, with what each earned.
+ */
+const purchases: ListSpec = {
+  noun: "sales",
+  read: VIEW,
+  search: { placeholder: "Sale", keys: ["ref"] },
+  filters: [{ key: "customer", type: "parent", column: "customerId" }],
+  sorts: [{ key: "newest", label: "Newest first", rules: [{ column: "at", dir: "desc" }] }],
+  columns: [
+    { key: "at", label: "When", kind: "date", cell: "when", width: "150px", align: "start", priority: 1 },
+    { key: "ref", label: "Sale", kind: "code", cell: "ref", href: "/retail/sales/{saleId}", width: "120px", align: "start", priority: 1 },
+    { key: "items", label: "Items", kind: "number", cell: "num", total: "sum", width: "70px", align: "end", priority: 2 },
+    { key: "paidWith", label: "Paid with", kind: "text", cell: "text", width: "minmax(0,1fr)", align: "start", priority: 2 },
+    { key: "points", label: "Points", kind: "number", cell: "num", sign: "gain", total: "sum", width: "90px", align: "end", priority: 2 },
+    { key: "total", label: "Total", kind: "money", currency: "USD", cell: "money", total: "sum", width: "120px", align: "end", priority: 1 },
+  ],
+  rowHref: "/retail/sales/{saleId}",
+  bulk: [{ key: "export" }],
+  card: { title: "ref", figure: "total", meta: "{whenText} · {paidWith}" },
+  empty: { icon: "Receipt", title: "No purchases yet", line: "Their sales show here once they buy with their number." },
+};
+
+/** A customer's notes (`retail-customer-notes`), newest first. */
+const notes: ListSpec = {
+  noun: "notes",
+  read: VIEW,
+  search: { placeholder: "Note or who wrote it", keys: ["body", "by"] },
+  filters: [{ key: "customer", type: "parent", column: "customerId" }],
+  sorts: [{ key: "newest", label: "Newest first", rules: [{ column: "at", dir: "desc" }] }],
+  columns: [
+    { key: "at", label: "When", kind: "date", cell: "when", width: "150px", align: "start", priority: 1 },
+    { key: "body", label: "Note", kind: "text", cell: "text", width: "minmax(0,1fr)", align: "start", priority: 1 },
+    { key: "by", label: "By", kind: "text", cell: "text", width: "160px", align: "start", priority: 2 },
+  ],
+  rowHref: "/retail/customers/{customerId}",
+  bulk: [{ key: "export" }],
+  card: { title: "body", figure: "by", meta: "{whenText}" },
+  empty: { icon: "FileText", title: "No notes yet", line: "Notes about them show here." },
+};
+
+const recordSource = (key: string, title: string, list: ListSpec): ReportDefinition => ({
+  key,
+  title,
+  area: "Customers",
+  href: "/retail/customers",
+  profiles: ["RETAIL"],
+  params: [],
+  columns: list.columns,
+  defaults: { sort: list.sorts[0]!.rules },
+  list,
+});
+
+export const CUSTOMER_REPORTS: ReportDefinition[] = [
+  customersSource,
+  recordSource("retail-points", "Points movements", points),
+  recordSource("retail-customer-purchases", "A customer's purchases", purchases),
+  recordSource("retail-customer-notes", "A customer's notes", notes),
+];

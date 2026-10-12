@@ -335,6 +335,13 @@ export const RETAIL_AUDIT_EVENTS = {
    */
   customerConsent: "RETAIL_CUSTOMER.CONSENT_CHANGED",
   /**
+   * A customer's tier set by hand on the record (CUS-03): held until `until` (a year on), or back to what
+   * their spend gives (`until` null). Entity `Customer`; carries `{ tier, until }`.
+   */
+  customerTierSet: "RETAIL_CUSTOMER.TIER_SET",
+  /** A note added to a customer (CUS-03). Entity `Customer`; carries `{ noteId }`. */
+  customerNoteAdded: "RETAIL_CUSTOMER.NOTE_ADDED",
+  /**
    * Messages to customers queued (CUS-06, W-50): an offer or a reminder, now or scheduled. Entity
    * `RetailMessageBatch`; carries `{ purpose, audience, count, scheduledFor }`.
    */

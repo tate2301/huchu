@@ -450,6 +450,8 @@ const sales: ListSpec = {
     { key: "shift", type: "parent", column: "shiftId" },
     { key: "bundle", type: "parent", column: "bundleId" },
     { key: "voucher", type: "parent", column: "voucherId" },
+    // "All their purchases" from a customer's record (CUS-03).
+    { key: "customer", type: "parent", column: "customerId", all: "All" },
   ],
   sorts: [
     { key: "newest", label: "Newest first", rules: [{ column: "postedAt", dir: "desc" }] },

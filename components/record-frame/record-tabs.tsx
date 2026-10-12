@@ -25,9 +25,9 @@ const SHOWN = 10;
 
 const isSource = <R,>(tab: RecordTab<R>): tab is SourceTab<R> => tab.key !== "activity";
 
-/** The list query a tab is: the first page of its source, scoped to this record. */
-function tabQuery(tab: SourceTab<unknown>, id: string, hidden?: string[]) {
-  return { page: 1, size: 25, filters: { [tab.parent]: id }, ...(hidden ? { hidden } : {}) };
+/** The list query a tab is: the first page of its source, scoped to this record (and any filters the tab adds). */
+function tabQuery(tab: SourceTab<unknown>, record: unknown, id: string, hidden?: string[]) {
+  return { page: 1, size: 25, filters: { ...(tab.filters?.(record) ?? {}), [tab.parent]: id }, ...(hidden ? { hidden } : {}) };
 }
 
 /** A tab that names its columns draws those, in its order, under its own headers. */
@@ -42,8 +42,8 @@ function tabColumns(tab: SourceTab<unknown>, all: ListColumn[]): ListColumn[] {
     .filter((column): column is ListColumn => Boolean(column));
 }
 
-function tabUrl(tab: SourceTab<unknown>, id: string) {
-  const params = new URLSearchParams({ page: "1", size: "25", [tab.parent]: id });
+function tabUrl(tab: SourceTab<unknown>, record: unknown, id: string) {
+  const params = new URLSearchParams({ page: "1", size: "25", ...(tab.filters?.(record) ?? {}), [tab.parent]: id });
   return `/api/v2/reports/${encodeURIComponent(tab.source)}?${params.toString()}`;
 }
 
@@ -78,8 +78,8 @@ export function RecordTabs<R>({
   const sources = shown.filter(isSource);
   const pages = useQueries({
     queries: sources.map((tab) => ({
-      queryKey: ["reports", tab.source, recordId],
-      queryFn: () => fetchJson<ListPageResponse>(tabUrl(tab as SourceTab<unknown>, recordId)),
+      queryKey: ["reports", tab.source, recordId, tab.filters?.(record) ?? null],
+      queryFn: () => fetchJson<ListPageResponse>(tabUrl(tab as SourceTab<unknown>, record, recordId)),
     })),
   });
   const activity = useQuery({
@@ -108,7 +108,7 @@ export function RecordTabs<R>({
     const all = (page?.data?.report.list.columns ?? []) as ListColumn[];
     const shownKeys = new Set(tabColumns(tab, all).map((column) => column.key));
     const hidden = tab.columns ? all.map((column) => column.key).filter((key) => !shownKeys.has(key)) : undefined;
-    const said = await exportList(current.source, format, tabQuery(tab, recordId, hidden));
+    const said = await exportList(current.source, format, tabQuery(tab, record, recordId, hidden));
     if (said) toast(said);
   };
 
@@ -194,7 +194,20 @@ function SourceTable<R>({
         : { label: link.label, href: link.href(record), onClick: null };
 
   if (data.total === 0) {
-    return <p className="cx-rf-tablemsg">{tab.emptyText?.(record) ?? `${spec.empty.title}.`}</p>;
+    const emptyLink = link && "href" in link && link.evenEmpty && allLink?.href ? allLink : null;
+    return (
+      <>
+        <p className="cx-rf-tablemsg">{tab.emptyText?.(record) ?? `${spec.empty.title}.`}</p>
+        {emptyLink?.href ? (
+          <div className="cx-rf-tablefoot">
+            <span className="cx-rf-tablefoot__spacer" />
+            <Link href={emptyLink.href} className="cx-rf-link">
+              {emptyLink.label}
+            </Link>
+          </div>
+        ) : null}
+      </>
+    );
   }
   const totals = totalsCells(columns, (column, index) =>
     index === 0

@@ -1903,6 +1903,7 @@ async function main() {
 
   // ── Customers (CUS-02): the board's regulars, the members, their visits and points ──
   await seedCustomers(companyId)
+  await seedCustomerRecord(companyId)
   await seedCustomerMessages(companyId)
 
   // ── A cart nobody came back for ──────────────────────────────────────────
@@ -6607,8 +6608,8 @@ async function seedCustomers(companyId: string) {
   }
 
   // The regulars: their days in the history, the last visit's day first.
-  type Visit = { customerId: string; name: string; at: Date; amount: number | null }
-  const planned: Visit[] = []
+  const planned: HistoryVisit[] = []
+  let tapiwa: TapiwaPlan | null = null
   const exact: Array<{ customerId: string; points: number }> = []
   for (const regular of [...REGULARS, DUPLICATE_TAPIWA]) {
     const customerId = ids.get(regular.name)!
@@ -6616,6 +6617,13 @@ async function seedCustomers(companyId: string) {
     const lastAt = harareDay(last, "23:59")
     // Their sales the boards already ring after the last visit are walk-ins now.
     await prisma.retailSale.updateMany({ where: { companyId, customerId, postedAt: { gt: lastAt } }, data: { customerId: null, customerName: null } })
+    // Tapiwa Marange's two years are the customer record's (CUS-03): `planTapiwa` rings every visit.
+    if (regular.name === TAPIWA.name) {
+      await prisma.retailSale.updateMany({ where: { companyId, customerId }, data: { customerId: null, customerName: null } })
+      tapiwa = planTapiwa(customerId, now, last)
+      planned.push(...tapiwa.visits)
+      continue
+    }
     const own = await prisma.retailSale.findMany({
       where: { companyId, customerId, postedAt: { gte: yearStart } },
       select: { saleType: true, status: true, baseAmount: true },
@@ -6701,7 +6709,7 @@ async function seedCustomers(companyId: string) {
     select: { id: true, customerId: true, baseAmount: true, postedAt: true, cashierName: true },
     orderBy: { postedAt: "asc" },
   })
-  const entries: Prisma.RetailPointsEntryCreateManyInput[] = earning.map((sale) => {
+  const entries: Prisma.RetailPointsEntryCreateManyInput[] = earning.filter((sale) => sale.customerId !== ids.get(TAPIWA.name)).map((sale) => {
     const points = Math.floor(Number(sale.baseAmount))
     return {
       companyId,
@@ -6725,6 +6733,7 @@ async function seedCustomers(companyId: string) {
   for (let index = 0; index < entries.length; index += 1000) {
     await prisma.retailPointsEntry.createMany({ data: entries.slice(index, index + 1000) })
   }
+  if (tapiwa) await seedTapiwaLedger(companyId, tapiwa)
 
   const live = await prisma.customer.count({ where: { companyId, archivedAt: null } })
   const shopped = await prisma.retailSale.groupBy({ by: ["customerId"], where: { companyId, customerId: { not: null }, saleType: "SALE", postedAt: { gte: new Date(monthAgo) } } })
@@ -6795,7 +6804,290 @@ async function seedCustomerMessages(companyId: string) {
  * below the history's lowest SALE number; then every shift is numbered again
  * in the order it opened, the Front till's open shift last.
  */
-async function seedCustomerHistory(companyId: string, visits: Array<{ customerId: string; name: string; at: Date; amount: number | null }>) {
+/* ── CUS-03: Tapiwa Marange's record ──────────────────────────────────── */
+
+const TAPIWA = { name: "Tapiwa Marange", spend: 3021.8, visits: 141, before: { spend: 2561.58, visits: 126, left: 42 } }
+
+/**
+ * The CustomerRecord board's spend per month, from November to July (the
+ * month of the last visit is 0): the total and how many visits. July's is
+ * what is left of it before the board's 20 and 28 July; August is the
+ * board's three August visits alone (US$33.50, not the board's 89: its ledger
+ * has no other visit after 28 July). What is left of US$3,021.80 falls in the
+ * window's first days before November.
+ */
+const TAPIWA_MONTHS: Array<{ offset: number; total: number; visits: number; lastDay?: number }> = [
+  { offset: -9, total: 240, visits: 13 },
+  { offset: -8, total: 196, visits: 10 },
+  { offset: -7, total: 262, visits: 14 },
+  { offset: -6, total: 310, visits: 16 },
+  { offset: -5, total: 228, visits: 12 },
+  { offset: -4, total: 251, visits: 13 },
+  { offset: -3, total: 244, visits: 13 },
+  { offset: -2, total: 290, visits: 15 },
+  { offset: -1, total: 263.4, visits: 13, lastDay: 19 },
+]
+
+/** The board's ledger rows that are visits: the month (0 the last visit's), day, time, what it came to and its points. */
+const TAPIWA_BOARD: Array<{ offset: number; day: number; time: string; net: number; earn: number; spend?: number; lines: Array<[string, number]>; tender: RetailTenderType }> = [
+  { offset: -1, day: 20, time: "12:05", net: 27.4, earn: 41, lines: [["CASTLE-CASE", 1]], tender: "ECOCASH" },
+  { offset: -1, day: 28, time: "16:20", net: 18.2, earn: 27, lines: [["CHIBUKU-1L", 3]], tender: "ECOCASH" },
+  { offset: 0, day: 9, time: "17:15", net: 12.1, earn: 18, lines: [["CHIBUKU-1L", 2]], tender: "CARD" },
+  // US$5.00 paid wholly in points.
+  { offset: 0, day: 14, time: "11:40", net: 0, earn: 0, spend: 500, lines: [["CHIBUKU-1L", 4]], tender: "ECOCASH" },
+  { offset: 0, day: 15, time: "14:02", net: 21.4, earn: 32, lines: [["CHIBUKU-1L", 2]], tender: "ECOCASH" },
+]
+
+type TapiwaRow = { saleId: string | null; kind: "EARNED" | "SPENT" | "EXPIRED" | "ADJUSTED"; points: number; at: Date | null; reason?: "BIRTHDAY"; owner?: boolean }
+type TapiwaPlan = { customerId: string; visits: HistoryVisit[]; rows: TapiwaRow[] }
+
+const monthStart = (day: string, offset: number) => {
+  const at = new Date(Date.UTC(Number(day.slice(0, 4)), Number(day.slice(5, 7)) - 1 + offset, 1))
+  return at.toISOString().slice(0, 10)
+}
+const daysInMonth = (first: string) => new Date(Date.UTC(Number(first.slice(0, 4)), Number(first.slice(5, 7)), 0)).getUTCDate()
+
+/**
+ * `total` over `count` visits to the cent, none under US$3.00. With `cases`,
+ * that many come to a Castle case and a little more (US$28 to US$33) and the
+ * rest share what is left.
+ */
+function splitSpend(total: number, count: number, random: () => number, cases = 0): Array<{ amount: number; kase: boolean }> {
+  let k = Math.min(cases, count)
+  for (;;) {
+    const caseAmounts = Array.from({ length: k }, () => Math.round((28 + random() * 5) * 100) / 100)
+    const rest = Math.round((total - caseAmounts.reduce((sum, value) => sum + value, 0)) * 100) / 100
+    const others = count - k
+    if (others === 0 && k > 0) {
+      // Every visit a case: the total shared, none under a case's price.
+      const even = Math.round((total / count) * 100) / 100
+      const amounts = Array.from({ length: count }, (_, index) => (index === count - 1 ? Math.round((total - even * (count - 1)) * 100) / 100 : even))
+      return amounts.map((amount) => ({ amount, kase: amount >= 27 }))
+    }
+    if (others > 0 && (rest >= others * 4 || k <= 0)) {
+      const share = rest / others
+      const amounts: number[] = []
+      let left = rest
+      for (let index = 0; index < others; index += 1) {
+        const remaining = others - index - 1
+        const amount =
+          remaining === 0 ? Math.round(left * 100) / 100 : Math.round(Math.min(Math.max(share * (0.6 + random() * 0.8), 3), left - remaining * 3) * 100) / 100
+        amounts.push(amount)
+        left = Math.round((left - amount) * 100) / 100
+      }
+      const out = [...caseAmounts.map((amount) => ({ amount, kase: true })), ...amounts.map((amount) => ({ amount, kase: false }))]
+      // Cases spread through the month.
+      return out.sort(() => random() - 0.5)
+    }
+    k -= 1
+  }
+}
+
+/** `count` days spread evenly over `days`. */
+const spreadDays = (days: string[], count: number) => Array.from({ length: count }, (_, index) => days[Math.floor(((index + 0.5) * days.length) / count)]!)
+
+/**
+ * Tapiwa Marange as the CustomerRecord board draws him (packet 61): 141
+ * visits in 12 months at the board's spend per month (US$3,021.80), a Castle
+ * case on most of them and Chibuku Scud 1L next, EcoCash on six in ten; 126
+ * visits worth US$2,561.58 in the 12 months before; and the points that land
+ * the board's ledger: its seven newest rows exactly, 214 rows in 12 months,
+ * earned +4,210 (the birthday bonus with it), spent −1,189, expired −42, a
+ * balance of 3,021.
+ */
+function planTapiwa(customerId: string, now: Date, lastVisit: string): TapiwaPlan {
+  const random = seededRandom(61)
+  const name = TAPIWA.name
+  const visits: HistoryVisit[] = []
+  const rows: TapiwaRow[] = []
+  const at = (day: string, time?: string) =>
+    harareDay(day, time ?? `${String(9 + Math.floor(random() * 9)).padStart(2, "0")}:${String(Math.floor(random() * 60)).padStart(2, "0")}`)
+  const tender = (): RetailTenderType => (random() < 0.6 ? "ECOCASH" : "CARD")
+  const linesFor = (kase: boolean): Array<[string, number]> =>
+    kase ? [["CASTLE-CASE", 1]] : [["CHIBUKU-1L", 2 + Math.floor(random() * 3)]]
+
+  // ── The 12 months before: 126 visits, all but 42 of their points spent ──
+  const beforeFrom = addDays(dayKey(new Date(now.getTime() - 730 * DAY_MS)), 3)
+  const beforeTo = addDays(dayKey(new Date(now.getTime() - 365 * DAY_MS)), -3)
+  const beforeDays = Array.from({ length: Math.round((Date.parse(beforeTo) - Date.parse(beforeFrom)) / DAY_MS) + 1 }, (_, index) => addDays(beforeFrom, index))
+  const beforeAmounts = splitSpend(TAPIWA.before.spend, TAPIWA.before.visits, random)
+  let balance = 0
+  spreadDays(beforeDays, TAPIWA.before.visits).forEach((day, index) => {
+    const net = beforeAmounts[index]!.amount
+    const earn = Math.floor(net)
+    const last = index === TAPIWA.before.visits - 1
+    // Spent three times along the way, and down to 42 on the last visit.
+    const spend = last ? balance + earn - TAPIWA.before.left : [31, 63, 95].includes(index) && balance + earn >= 600 ? 600 : 0
+    const saleId = randomUUID()
+    visits.push({ customerId, name, at: at(day), amount: Math.round((net + spend / 100) * 100) / 100, saleId, tender: tender(), pointsOff: spend / 100 })
+    rows.push({ saleId, kind: "EARNED", points: earn, at: null })
+    if (spend > 0) rows.push({ saleId, kind: "SPENT", points: -spend, at: null })
+    balance += earn - spend
+  })
+
+  // ── The 12 months: the board's months, then its seven rows ──
+  const windowFrom = addDays(dayKey(new Date(now.getTime() - 365 * DAY_MS)), 1)
+  const months = TAPIWA_MONTHS.map((month) => ({ ...month, days: [] as string[] }))
+  for (const month of months) {
+    const first = monthStart(lastVisit, month.offset)
+    const length = month.lastDay ?? daysInMonth(first)
+    month.days = Array.from({ length }, (_, index) => addDays(first, index)).filter((day) => day >= windowFrom)
+  }
+  const restTotal = Math.round((TAPIWA.spend - TAPIWA_MONTHS.reduce((sum, month) => sum + month.total, 0) - TAPIWA_BOARD.reduce((sum, row) => sum + row.net, 0)) * 100) / 100
+  const restCount = TAPIWA.visits - TAPIWA_BOARD.length - TAPIWA_MONTHS.reduce((sum, month) => sum + month.visits, 0)
+  const firstMonth = monthStart(lastVisit, TAPIWA_MONTHS[0]!.offset)
+  const restDays = Array.from({ length: Math.max(0, Math.round((Date.parse(firstMonth) - Date.parse(windowFrom)) / DAY_MS)) }, (_, index) => addDays(windowFrom, index))
+  // Seeded later in the year, the window starts inside November: the rest goes there. A short run of days takes two visits on some.
+  if (restDays.length > 0) months.unshift({ offset: -10, total: restTotal, visits: restCount, days: restDays })
+  else Object.assign(months[0]!, { total: months[0]!.total + restTotal, visits: months[0]!.visits + restCount })
+
+  type Planned = { day: string; net: number; kase: boolean; board?: (typeof TAPIWA_BOARD)[number] }
+  const year: Planned[] = []
+  for (const month of months) {
+    const cases = Math.max(0, Math.round((month.total - 11 * month.visits) / 17))
+    const amounts = splitSpend(month.total, month.visits, random, cases)
+    spreadDays(month.days, month.visits).forEach((day, index) => year.push({ day, net: amounts[index]!.amount, kase: amounts[index]!.kase }))
+  }
+  const boardDay = (row: (typeof TAPIWA_BOARD)[number]) => addDays(monthStart(lastVisit, row.offset), row.day - 1)
+  for (const row of TAPIWA_BOARD) year.push({ day: boardDay(row), net: row.net, kase: false, board: row })
+  year.sort((a, b) => a.day.localeCompare(b.day))
+
+  // Points: the board's rows as drawn; before them 136 EARNED rows coming to 3,992 and 71 small spends (−689): 214 rows.
+  const plain = year.filter((visit) => !visit.board)
+  const netTotal = plain.reduce((sum, visit) => sum + visit.net, 0)
+  const exact = plain.map((visit) => (visit.net * 3992) / netTotal)
+  const earns = exact.map(Math.floor)
+  let short = 3992 - earns.reduce((sum, value) => sum + value, 0)
+  for (const index of exact.map((value, i) => [value - Math.floor(value), i] as const).sort((a, b) => b[0] - a[0]).map(([, i]) => i)) {
+    if (short <= 0) break
+    earns[index]! += 1
+    short -= 1
+  }
+  const spendAt = new Map(Array.from({ length: 71 }, (_, index) => [30 + Math.floor((index * (plain.length - 30)) / 71), index < 50 ? 10 : 9] as const))
+  plain.forEach((visit, index) => Object.assign(visit, { earn: earns[index], spend: spendAt.get(index) ?? 0 }))
+
+  const lastMonth = monthStart(lastVisit, -1)
+  const expiry = harareDay(addDays(lastMonth, daysInMonth(lastMonth) - 1), "00:00")
+  const birthday = harareDay(monthStart(lastVisit, 0), "09:00")
+  for (const visit of year) {
+    const saleId = randomUUID()
+    const board = visit.board
+    const planned = visit as Planned & { earn?: number; spend?: number }
+    const spend = board?.spend ?? planned.spend ?? 0
+    const when = at(visit.day, board?.time)
+    visits.push({
+      customerId,
+      name,
+      at: when,
+      amount: Math.round((visit.net + spend / 100) * 100) / 100,
+      saleId,
+      tender: board?.tender ?? tender(),
+      lines: board?.lines ?? linesFor(visit.kase),
+      // A case and a top-up; else Chibuku and something else from the shelf.
+      fill: visit.kase ? "airtime" : { avoid: ["CASTLE-CASE", "CHIBUKU-1L"] },
+      pointsOff: spend / 100,
+    })
+    const earn = board ? board.earn : (planned.earn ?? 0)
+    if (earn > 0) rows.push({ saleId, kind: "EARNED", points: earn, at: null })
+    if (spend > 0) rows.push({ saleId, kind: "SPENT", points: -spend, at: null })
+  }
+  // A year old on the last day of July; the birthday bonus given by hand on 1 August.
+  rows.push({ saleId: null, kind: "EXPIRED", points: -TAPIWA.before.left, at: expiry })
+  rows.push({ saleId: null, kind: "ADJUSTED", reason: "BIRTHDAY", points: 100, at: birthday, owner: true })
+  return { customerId, visits, rows }
+}
+
+/**
+ * CUS-03 `seedCustomerRecord()`: Tapiwa Marange's notes, both by Tafara
+ * Nyathi (the day he joined, and the last 30 September), and the Retail price
+ * list. His visits and points are `planTapiwa`'s, rung by `seedCustomers`.
+ */
+async function seedCustomerRecord(companyId: string) {
+  const customer = await prisma.customer.findFirst({ where: { companyId, name: TAPIWA.name, archivedAt: null }, select: { id: true, createdAt: true } })
+  const tafara = await prisma.user.findFirst({ where: { companyId, email: "tafara.manager@bottlestore.test" }, select: { id: true } })
+  const retail = await prisma.priceList.findFirst({ where: { companyId, name: "Retail", archivedAt: null }, select: { id: true } })
+  if (!customer) {
+    console.log("  customer record: no Tapiwa Marange, skipped")
+    return
+  }
+  await prisma.customer.update({ where: { id: customer.id }, data: { priceListId: retail?.id ?? null } })
+  await prisma.retailCustomerNote.deleteMany({ where: { companyId, customerId: customer.id } })
+  await prisma.retailCustomerNote.createMany({
+    data: [
+      { companyId, customerId: customer.id, body: "Prefers EcoCash. Ask before charging the card.", createdById: tafara?.id ?? null, createdAt: harareDay(dayKey(customer.createdAt), "11:30") },
+      {
+        companyId,
+        customerId: customer.id,
+        body: "Says the Castle was warm on 30 September. Make it good.",
+        createdById: tafara?.id ?? null,
+        createdAt: harareDay(lastDayOn("09-30"), "17:45"),
+      },
+    ],
+  })
+  console.log("  customer record: Tapiwa Marange's two notes and the Retail price list")
+}
+
+/**
+ * Tapiwa's points, once his visits are rung: each row at its sale's time and
+ * by its cashier; the expiry automatic; the birthday bonus by the owner.
+ */
+async function seedTapiwaLedger(companyId: string, plan: TapiwaPlan) {
+  const owner = await prisma.user.findFirst({ where: { companyId, email: "owner@bottlestore.test" }, select: { id: true, name: true } })
+  const sales = new Map(
+    (
+      await prisma.retailSale.findMany({
+        where: { id: { in: plan.visits.map((visit) => visit.saleId!) } },
+        select: { id: true, postedAt: true, cashierId: true, cashierName: true },
+      })
+    ).map((sale) => [sale.id, sale]),
+  )
+  const data: Prisma.RetailPointsEntryCreateManyInput[] = []
+  for (const row of plan.rows) {
+    const sale = row.saleId ? sales.get(row.saleId) : null
+    if (row.saleId && !sale) continue
+    data.push({
+      companyId,
+      customerId: plan.customerId,
+      kind: row.kind,
+      points: row.points,
+      value: money(Math.abs(row.points) * 0.01).toDecimalPlaces(2),
+      saleId: sale?.id ?? null,
+      reason: row.reason ?? null,
+      actorId: row.owner ? (owner?.id ?? null) : (sale?.cashierId ?? null),
+      actorName: row.owner ? (owner?.name ?? null) : (sale?.cashierName ?? null),
+      createdAt: sale?.postedAt ?? row.at!,
+    })
+  }
+  // In the order they happened, so `seq` keeps a sale's earning before its spending.
+  data.sort((a, b) => (a.createdAt as Date).getTime() - (b.createdAt as Date).getTime())
+  await prisma.retailPointsEntry.createMany({ data })
+  const since = new Date(Date.now() - 365 * DAY_MS)
+  const inYear = data.filter((row) => (row.createdAt as Date) >= since)
+  console.log(
+    `  Tapiwa Marange: ${plan.visits.length} visits, ${data.length} points rows (${inYear.length} in 12 months), balance ${data.reduce((sum, row) => sum + row.points, 0)}`,
+  )
+}
+
+/**
+ * A visit `seedCustomerHistory` rings. Optional, for a customer the boards
+ * draw closely (CUS-03, Tapiwa Marange): the sale's own id, how it was paid,
+ * the products it starts with (code and units), and points spent on it (the
+ * US$ off, spread over its lines).
+ */
+type HistoryVisit = {
+  customerId: string
+  name: string
+  at: Date
+  amount: number | null
+  saleId?: string
+  tender?: RetailTenderType
+  lines?: Array<[code: string, units: number]>
+  /** What the shelf fills the rest with: any product but these, or nothing (the rest is airtime). */
+  fill?: { avoid: string[] } | "airtime"
+  pointsOff?: number
+}
+
+async function seedCustomerHistory(companyId: string, visits: HistoryVisit[]) {
   if (visits.length === 0) return
   const random = seededRandom(5301)
   const site = await prisma.site.findFirst({ where: { companyId, code: "HRE" }, select: { id: true } })
@@ -6811,12 +7103,22 @@ async function seedCustomerHistory(companyId: string, visits: Array<{ customerId
   }
   const siteId = front.siteId ?? site.id
   // The shelf as the history rang it: one price per product.
-  const shelf = await prisma.$queryRaw<Array<{ productId: string; inventoryItemId: string; itemName: string; unitPrice: Prisma.Decimal; costUnit: Prisma.Decimal }>>`
-    SELECT DISTINCT ON (l."productId") l."productId", l."inventoryItemId", l."itemName", l."unitPrice", l."costUnit"
-    FROM "RetailSaleLine" l JOIN "RetailSale" s ON s.id = l."saleId"
+  const shelf = await prisma.$queryRaw<Array<{ productId: string; code: string; inventoryItemId: string; itemName: string; unitPrice: Prisma.Decimal; costUnit: Prisma.Decimal }>>`
+    SELECT DISTINCT ON (l."productId") l."productId", pr.code, l."inventoryItemId", l."itemName", l."unitPrice", l."costUnit"
+    FROM "RetailSaleLine" l JOIN "RetailSale" s ON s.id = l."saleId" JOIN "Product" pr ON pr.id = l."productId"
     WHERE s."companyId" = ${companyId} AND s."siteId" = ${siteId} AND s."saleType" = 'SALE' AND l."productId" IS NOT NULL
       AND l."discountAmount" = 0 AND l."promotionId" IS NULL AND l."bundleId" IS NULL AND l."unitPrice" BETWEEN 0.5 AND 30
     ORDER BY l."productId", s."postedAt" DESC`
+  const byCode = new Map(shelf.map((item) => [item.code, item]))
+  // A day the Front till already traded (the floor's own history): its visits ride that closed shift, paid without cash so its drawer stays true.
+  const floorShifts = new Map(
+    (
+      await prisma.retailShift.findMany({
+        where: { companyId, registerId: front.id, status: "CLOSED", closedAt: { not: null } },
+        select: { id: true, openedAt: true, closedAt: true, cashierId: true, cashierName: true },
+      })
+    ).map((shift) => [dayKey(shift.openedAt), shift]),
+  )
   const airtime = await prisma.inventoryItem.findFirst({
     where: { siteId, product: { companyId, code: AIRTIME.code } },
     select: { id: true, productId: true, product: { select: { name: true } } },
@@ -6838,18 +7140,50 @@ async function seedCustomerHistory(companyId: string, visits: Array<{ customerId
   }
   for (const [day, dayVisits] of [...byDay].sort(([a], [b]) => a.localeCompare(b))) {
     const weekday = new Date(`${day}T12:00:00Z`).getUTCDay()
-    const cashier = weekday >= 1 && weekday <= 3 ? byEmail("chipo.till@bottlestore.test")! : weekday === 0 ? byEmail("tafara.manager@bottlestore.test")! : byEmail("farai.till@bottlestore.test")!
-    const shiftId = randomUUID()
-    const openedAt = harareDay(day, "07:55")
-    const closedAt = harareDay(day, "19:05")
+    const riding = floorShifts.get(day) ?? null
+    const cashier = riding
+      ? { id: riding.cashierId, name: riding.cashierName }
+      : weekday >= 1 && weekday <= 3 ? byEmail("chipo.till@bottlestore.test")! : weekday === 0 ? byEmail("tafara.manager@bottlestore.test")! : byEmail("farai.till@bottlestore.test")!
+    const shiftId = riding?.id ?? randomUUID()
+    const openedAt = riding?.openedAt ?? harareDay(day, "07:55")
+    const closedAt = riding?.closedAt ?? harareDay(day, "19:05")
     let cash = money(0)
     for (const visit of dayVisits) {
-      const saleId = randomUUID()
+      const saleId = visit.saleId ?? randomUUID()
+      // Inside the shift it rides.
+      const at = new Date(Math.min(Math.max(visit.at.getTime(), openedAt.getTime() + 600_000), closedAt.getTime() - 600_000))
       const target = Math.round((visit.amount ?? 10) * 100)
       const lines: Prisma.RetailSaleLineCreateManyInput[] = []
       let cents = 0
-      for (let guard = 0; guard < 40; guard += 1) {
-        const item = shelf[Math.floor(random() * shelf.length)]!
+      // The products the visit starts with, while they fit.
+      for (const [code, units] of visit.lines ?? []) {
+        const item = byCode.get(code)
+        if (!item) continue
+        const price = Math.round(Number(item.unitPrice) * 100)
+        if (cents + units * price > target) continue
+        cents += units * price
+        const gross = money((units * price) / 100)
+        lines.push({
+          id: randomUUID(),
+          companyId,
+          saleId,
+          inventoryItemId: item.inventoryItemId,
+          productId: item.productId,
+          itemName: item.itemName,
+          quantity: quantity(String(units)),
+          unitPrice: money(item.unitPrice),
+          discountAmount: money(0),
+          taxAmount: gross.minus(netOfInclusiveTax(gross, VAT_PERCENT)),
+          lineTotal: gross,
+          costUnit: money(item.costUnit),
+          costTotal: multiplyMoney(quantity(String(units)), money(item.costUnit)),
+          depositAmount: money(0),
+          createdAt: at,
+        })
+      }
+      const fillFrom = visit.fill && visit.fill !== "airtime" ? shelf.filter((item) => !(visit.fill as { avoid: string[] }).avoid.includes(item.code)) : shelf
+      for (let guard = 0; guard < 40 && target - cents >= 50 && visit.fill !== "airtime"; guard += 1) {
+        const item = fillFrom[Math.floor(random() * fillFrom.length)]!
         const price = Math.round(Number(item.unitPrice) * 100)
         if (cents + price > target) {
           if (target - cents < 50) break
@@ -6874,7 +7208,7 @@ async function seedCustomerHistory(companyId: string, visits: Array<{ customerId
           costUnit: money(item.costUnit),
           costTotal: multiplyMoney(quantity(String(units)), money(item.costUnit)),
           depositAmount: money(0),
-          createdAt: visit.at,
+          createdAt: at,
         })
         if (target - cents < 50) break
       }
@@ -6896,15 +7230,32 @@ async function seedCustomerHistory(companyId: string, visits: Array<{ customerId
           costUnit: gross,
           costTotal: gross,
           depositAmount: money(0),
-          createdAt: visit.at,
+          createdAt: at,
         })
         cents = target
       }
       if (lines.length === 0) continue
+      // Points spent: the US$ off, taken off the lines in order (FLR-01's line discount, ex-VAT).
+      let off = Math.round((visit.pointsOff ?? 0) * 100)
+      let discount = money(0)
+      for (const line of lines) {
+        if (off <= 0) break
+        const gross = money(line.lineTotal as Prisma.Decimal)
+        const take = Math.min(off, Math.round(gross.toNumber() * 100))
+        if (take <= 0) continue
+        off -= take
+        const charged = gross.minus(money(take / 100))
+        const lineDiscount = netOfInclusiveTax(gross, VAT_PERCENT).minus(netOfInclusiveTax(charged, VAT_PERCENT))
+        discount = discount.plus(lineDiscount)
+        line.discountAmount = lineDiscount
+        line.lineTotal = charged
+        line.taxAmount = charged.minus(netOfInclusiveTax(charged, VAT_PERCENT))
+      }
       const total = sumMoney(lines.map((line) => money(line.lineTotal as Prisma.Decimal)))
       const tax = sumMoney(lines.map((line) => money(line.taxAmount as Prisma.Decimal)))
       const roll = random()
-      const tender: RetailTenderType = roll < 0.5 ? "CASH" : roll < 0.78 ? "ECOCASH" : "CARD"
+      let tender: RetailTenderType = visit.tender ?? (roll < 0.5 ? "CASH" : roll < 0.78 ? "ECOCASH" : "CARD")
+      if (riding && tender === "CASH") tender = "CARD"
       if (tender === "CASH") cash = cash.plus(total)
       saleRows.push({
         id: saleId,
@@ -6919,8 +7270,8 @@ async function seedCustomerHistory(companyId: string, visits: Array<{ customerId
         customerName: visit.name,
         saleType: "SALE",
         status: "POSTED",
-        subtotal: total.minus(tax),
-        discountAmount: money(0),
+        subtotal: total.minus(tax).plus(discount),
+        discountAmount: discount,
         taxAmount: tax,
         totalAmount: total,
         depositAmount: money(0),
@@ -6929,12 +7280,13 @@ async function seedCustomerHistory(companyId: string, visits: Array<{ customerId
         currency: "USD",
         exchangeRate: rate("1"),
         baseAmount: total,
-        postedAt: visit.at,
-        createdAt: visit.at,
-        updatedAt: visit.at,
+        postedAt: at,
+        createdAt: at,
+        updatedAt: at,
       })
       lineRows.push(...lines)
-      paymentRows.push({
+      // Paid wholly in points: nothing was tendered.
+      if (total.gt(0)) paymentRows.push({
         id: randomUUID(),
         companyId,
         saleId,
@@ -6944,9 +7296,10 @@ async function seedCustomerHistory(companyId: string, visits: Array<{ customerId
         exchangeRate: rate("1"),
         baseAmount: total,
         reference: tender === "ECOCASH" ? `EC${100000 + Math.floor(random() * 900000)}` : null,
-        createdAt: visit.at,
+        createdAt: at,
       })
     }
+    if (riding) continue
     const expected = money("100.00").plus(cash)
     shiftRows.push({
       id: shiftId,
@@ -6987,7 +7340,7 @@ async function seedCustomerHistory(companyId: string, visits: Array<{ customerId
     ) o
     WHERE s.id = o.id`
   await prisma.idSequence.deleteMany({ where: { companyId, entityKey: "RETAIL_SHIFT" } })
-  console.log(`  customer history: ${saleRows.length} visits on ${shiftRows.length} Front till shifts before the floor's history`)
+  console.log(`  customer history: ${saleRows.length} visits, ${shiftRows.length} on Front till shifts of their own before the floor's history`)
 }
 
 /* ── Lay-bys (FLR-06) ─────────────────────────────────────────────────── */

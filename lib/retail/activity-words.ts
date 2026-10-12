@@ -2,7 +2,7 @@ import { RETAIL_AUDIT_EVENTS } from "@/lib/retail/audit";
 import { labelsPrintedSentence } from "@/lib/retail/labels/words";
 import { priceWords, productWords, scheduledActivity, undoneActivity } from "@/lib/retail/prices/words";
 import { tenderLabel } from "@/lib/retail/words";
-import { DEFAULT_TIME_ZONE, formatCount, formatMoney, formatPercent, formatSigned, formatTime } from "@/lib/workspace/format";
+import { DEFAULT_TIME_ZONE, formatCount, formatDay, formatMoney, formatPercent, formatSigned, formatTime } from "@/lib/workspace/format";
 
 /**
  * What a record's Activity tab says about each event (00-foundations 5.6.9).
@@ -505,6 +505,13 @@ const WORDS: Record<string, (payload: Payload, eventType: string, seeCost: boole
     what: payload.via === "STOP reply" ? "Replied STOP on WhatsApp" : payload.agreed === true ? "Agreed to messages" : "Stopped marketing messages",
     tone: "hollow",
   }),
+  // CUS-03: "Held at Gold until 3 October 2027" / "Back to Silver, by spend" / "Added a note".
+  [RETAIL_AUDIT_EVENTS.customerTierSet]: (payload) => {
+    const tier = text(payload.tier) ?? "a tier";
+    const until = text(payload.until);
+    return { what: until ? `Held at ${tier} until ${formatDay(until)}` : `Back to ${tier}, by spend`, tone: "info" };
+  },
+  [RETAIL_AUDIT_EVENTS.customerNoteAdded]: () => ({ what: "Added a note", tone: "hollow" }),
   [RETAIL_AUDIT_EVENTS.saleReviewed]: (payload) => ({
     what: text(payload.reason) ? `Looked at: ${text(payload.reason)}` : "Looked at",
     tone: "ok",

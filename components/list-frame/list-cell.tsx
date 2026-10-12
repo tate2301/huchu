@@ -179,6 +179,7 @@ export function ListCell({
 
 /** The full value for a cell's `title`: "15 August 2026 18:14", "Chipo Dube". */
 export function cellTitle(column: ListColumn, row: ReportRow): string {
+  if (column.titleKey && !isBlank(row[column.titleKey])) return String(row[column.titleKey]);
   const value = row[column.key];
   if (isBlank(value)) return "";
   if (column.cell === "date") {

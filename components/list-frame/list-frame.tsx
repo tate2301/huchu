@@ -115,9 +115,14 @@ export type ListFrameProps = {
    * filter, and the header reads the record's name as the title and its words as the sub.
    */
   parent?: { key: string; value: string };
+  /**
+   * With `parent`: the page keeps its own title ("Points movements") and the record's name is the
+   * back link's label ("‹ Tapiwa Marange"); the record's words are still the sub.
+   */
+  keepTitle?: boolean;
 };
 
-export function ListFrame({ source, title, sub, rowFilters, defaultSort, defaultGroup, back, parent: scope }: ListFrameProps) {
+export function ListFrame({ source, title, sub, rowFilters, defaultSort, defaultGroup, back, parent: scope, keepTitle }: ListFrameProps) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -592,9 +597,9 @@ export function ListFrame({ source, title, sub, rowFilters, defaultSort, default
     : null;
   const chrome = (
     <PageChrome
-      title={scope ? (parent?.label ?? title) : title}
+      title={scope && !keepTitle ? (parent?.label ?? title) : title}
       backHref={back?.href}
-      backLabel={back?.label}
+      backLabel={scope && keepTitle ? (parent?.label ?? back?.label) : back?.label}
       sub={sub ?? (scope ? parent?.sub : parent?.label) ?? definition?.list?.sub ?? null}
       subLink={clearParent ?? (refusal ? null : sheetLink)}
       primary={refusal ? null : primary}

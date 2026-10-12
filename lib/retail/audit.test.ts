@@ -530,6 +530,8 @@ describe("the chain", () => {
       pointsBirthday: "RETAIL_POINTS.BIRTHDAY",
       customerCreated: "RETAIL_CUSTOMER.CREATED",
       customerConsent: "RETAIL_CUSTOMER.CONSENT_CHANGED",
+      customerTierSet: "RETAIL_CUSTOMER.TIER_SET",
+      customerNoteAdded: "RETAIL_CUSTOMER.NOTE_ADDED",
       messagesQueued: "RETAIL_MESSAGES.QUEUED",
       laybyStarted: "RETAIL_LAYBY.STARTED",
       laybyPaid: "RETAIL_LAYBY.PAID",

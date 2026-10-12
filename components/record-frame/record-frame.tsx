@@ -58,7 +58,7 @@ export function RecordFrame<R>({
   const { data: session } = useSession();
   const [asking, setAsking] = React.useState(false);
   // A `{ post }` action waiting on its ask.
-  const [posting, setPosting] = React.useState<{ url: string; body?: unknown; ask: Ask; done: string } | null>(null);
+  const [posting, setPosting] = React.useState<{ url: string; method?: "PATCH"; body?: unknown; ask: Ask; done: string } | null>(null);
   const [range, setRange] = React.useState<string | null>(kind.chartRanges?.initial ?? null);
 
   const query = useQuery({ queryKey: kind.queryKey(id), queryFn: () => kind.load(id), enabled: Boolean(id) });
@@ -88,7 +88,7 @@ export function RecordFrame<R>({
 
   // Post, then read the record again and say what happened.
   const post = React.useCallback(
-    async (target: { url: string; method?: "POST" | "DELETE"; body?: unknown; done: string }) => {
+    async (target: { url: string; method?: "POST" | "DELETE" | "PATCH"; body?: unknown; done: string }) => {
       try {
         await fetchJson(target.url, { method: target.method ?? "POST", body: JSON.stringify(target.body ?? {}) });
       } catch (error) {

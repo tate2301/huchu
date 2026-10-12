@@ -29,7 +29,7 @@ export const DOB_WRONG = "Write it as 14 March 1988.";
 export class CustomerRefusal extends Error {
   constructor(
     message: string,
-    readonly status: 400 | 409,
+    readonly status: 400 | 404 | 409,
     readonly fieldErrors: Record<string, string>,
     readonly existing?: { id: string; name: string },
   ) {
@@ -61,13 +61,13 @@ export function parseBirthday(text: string): Date | null {
   return null;
 }
 
-/** A birthday that is real: not in the future, and at most 120 years ago. */
-function birthdayOf(text: string | undefined, now: Date): Date | null {
+/** A birthday that is real: not in the future, and at most 120 years ago. Refused under `field`. */
+export function birthdayOf(text: string | null | undefined, now: Date, field = "dob"): Date | null {
   if (!text?.trim()) return null;
   const parsed = parseBirthday(text);
   const oldest = new Date(Date.UTC(now.getUTCFullYear() - 120, now.getUTCMonth(), now.getUTCDate()));
   if (!parsed || parsed.getTime() > now.getTime() || parsed.getTime() < oldest.getTime()) {
-    throw new CustomerRefusal(DOB_WRONG, 400, { dob: DOB_WRONG });
+    throw new CustomerRefusal(DOB_WRONG, 400, { [field]: DOB_WRONG });
   }
   return parsed;
 }
