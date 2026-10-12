@@ -29,19 +29,25 @@ const OFFER_GRANT = ["retail.customers", "update"] as const;
 const purposeOf = messageInput.pick({ purpose: true, about: true });
 
 type Session = Parameters<typeof requireRetailPermission>[0];
+type Grant = readonly [Parameters<typeof requireRetailPermission>[1], Parameters<typeof requireRetailPermission>[2]];
 
-function messageGate(session: Session, raw: unknown): NextResponse | null {
+/**
+ * The right a message needs, read off its purpose: an offer's, or its reminder
+ * source's. With no purpose to read, a role that may message nobody needs an
+ * offer's (and is refused it); anyone else goes on to the body's own checks.
+ */
+function messageGrant(session: Session, raw: unknown): Grant | null {
   const head = purposeOf.safeParse(raw);
   if (head.success) {
-    if (head.data.purpose === "OFFER") return requireRetailPermission(session, ...OFFER_GRANT);
+    if (head.data.purpose === "OFFER") return OFFER_GRANT;
     try {
-      return requireRetailPermission(session, ...reminderSourceFor(head.data.about).source.requires);
+      return reminderSourceFor(head.data.about).source.requires;
     } catch (error) {
       if (!(error instanceof MessageRefusal)) throw error;
     }
   }
   const grants = [OFFER_GRANT, ...Object.values(REMINDER_SOURCES).map((source) => source!.requires)];
-  return grants.every(([resource, action]) => retailPermissionDenial(session, resource, action)) ? requireRetailPermission(session, ...OFFER_GRANT) : null;
+  return grants.every(([resource, action]) => retailPermissionDenial(session, resource, action)) ? OFFER_GRANT : null;
 }
 
 export async function POST(request: NextRequest) {
@@ -51,8 +57,9 @@ export async function POST(request: NextRequest) {
   // The right is checked before the body is: the purpose names it (an offer's, or its reminder source's),
   // and with no purpose to read, a role that may message nobody is refused all the same.
   const raw = await request.json().catch(() => null);
-  const gate = messageGate(session, raw);
-  if (gate) return gate;
+  const grant = messageGrant(session, raw);
+  const denied = grant ? requireRetailPermission(session, ...grant) : null;
+  if (denied) return denied;
 
   const parsed = messageInput.safeParse(raw);
   if (!parsed.success) {
