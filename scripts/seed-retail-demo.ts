@@ -466,17 +466,25 @@ class WindowQuota {
       if (chunk.units === 0) this.chunks.splice(index, 1)
     }
   }
+  /** One line's worth, set aside for a sale that must ring. */
+  takeOne(): Array<{ code: string; units: number }> {
+    return this.merge(this.chunks.splice(0, 1))
+  }
   /** Put units back (a refund or a void in the window). */
   giveBack(code: string, units: number) {
     if (units > 0) this.chunks.push({ code, units })
   }
-  /** One sale's lines, `salesLeft` counting this one. */
-  take(salesLeft: number): Array<{ code: string; units: number }> {
+  /**
+   * One sale's lines, `salesLeft` counting this one. A share under one line a
+   * sale leaves some sales empty, and an empty sale is not rung; `atLeast` is
+   * for a sale that must be (a sale a refund is planned on).
+   */
+  take(salesLeft: number, atLeast = 0): Array<{ code: string; units: number }> {
     if (this.chunks.length === 0) return []
     if (salesLeft <= 1) return this.merge(this.chunks.splice(0))
     const share = this.chunks.length / salesLeft
     const count = Math.floor(share) + (Math.random() < share - Math.floor(share) ? 1 : 0)
-    return this.merge(this.chunks.splice(0, count))
+    return this.merge(this.chunks.splice(0, Math.max(count, atLeast)))
   }
   /** One line per product on a sale. */
   private merge(chunks: Array<{ code: string; units: number }>) {
@@ -883,6 +891,7 @@ async function main() {
 
   let saleSeq = 0
   let refunds = 0
+  let partRefundId: string | null = null
   let voids = 0
   let zwgSales = 0
 
@@ -1122,9 +1131,8 @@ async function main() {
     Setup › Receipts' preview sale (SET-07).
   */
   const frontSlot = slots.findIndex((slot) => slot.open && slot.register.id === register.id)
-  salePlans[frontSlot]!.push(
-    ...([[11, 0], [11, 4], [11, 8], [11, 20], [11, 27], [11, 33], [11, 46], [11, 56]] as Array<[number, number]>).map(floorAt),
-  )
+  const morningBetween = ([[11, 0], [11, 4], [11, 8], [11, 20], [11, 27], [11, 33], [11, 46], [11, 56]] as Array<[number, number]>).map(floorAt)
+  salePlans[frontSlot]!.push(...morningBetween)
   /*
     FLR-05: the recovered drawer's morning took a function's order in cash —
     fourteen cases of Castle Lager and five bags of ice, US$378.50 — so its
@@ -1177,6 +1185,18 @@ async function main() {
     for (const pickLine of FUNCTION_PICKS) quota.reserve(pickLine.code, pickLine.units)
     windowSalesLeft -= 1
     if (functionOrderAt.getTime() < soldOutBy) soldOutSalesLeft -= 1
+  }
+  /*
+    FLR-01. The Front till's sales between the boards' are the window's last,
+    and a share under one line a sale leaves some sales empty (not rung), most
+    often at the end: each takes its line first, so every one rings and the
+    boards' SALE-31862, -31866 and -31869 land.
+  */
+  const morningPicks = new Map<number, Array<{ code: string; units: number }>>()
+  for (const at of morningBetween) {
+    if (at.getTime() === newestSale?.at || at.getTime() < windowCounts) continue
+    morningPicks.set(at.getTime(), quota.takeOne())
+    windowSalesLeft -= 1
   }
   /*
     PRD-08. The bundles' sales: each is its own sale on a closed drawer, of
@@ -1233,6 +1253,16 @@ async function main() {
   const refundPicks = new Set<string>()
   // Less the vouchers' two refunds paid as credit notes (PRD-10), so the boards' RFD-0044 stays the newest.
   while (refundPicks.size < Math.min(FLOOR_REFUND_NO - 1 - VOUCHER_REFUNDS, refundable.length)) refundPicks.add(pick(refundable))
+  /*
+    FLR-02: the newest refund before the 30-day window takes back one of a
+    line of two, so a refund sheet on that sale reads "Bought 2, 1 back
+    already" (packet 56). Its sale is dealt freely, not from the quotas, so
+    its first line is made two.
+  */
+  const partRefundKey =
+    [...refundPicks]
+      .filter((key) => Number(key.split("|")[1]) + 20 * 60 * 1000 < windowOpens)
+      .sort((a, b) => Number(b.split("|")[1]) - Number(a.split("|")[1]))[0] ?? null
 
   /**
    * A void as the till writes it (FLR-01): the sale VOIDED with its reason, and a
@@ -1350,16 +1380,23 @@ async function main() {
         if (functionOrder) functionOrderSaleId = saleId
         const bundleSale = bundleSales.get(`${slotIndex}|${postedAt.getTime()}`) ?? null
         if (bundleSale) bundleSaleIds.add(saleId)
+        // A sale a refund is planned on rings.
+        const mustRing = refundPicks.has(`${slotIndex}|${postedAt.getTime()}`)
 
         // In the window, this sale's share of the quotas; before it, a weighted pick.
         const picks = bundleSale
           ? bundleSale.picks
           : isPreviewSale
           ? PREVIEW_PICKS
+          : morningPicks.has(postedAt.getTime()) && slotIndex === frontSlot
+          ? morningPicks.get(postedAt.getTime())!
           : functionOrder
           ? FUNCTION_PICKS
           : inWindow
-          ? [...quota.take(windowSalesLeft--), ...(postedAt.getTime() < soldOutBy ? soldOutQuota.take(soldOutSalesLeft--) : [])]
+          ? [
+              ...quota.take(windowSalesLeft--, mustRing ? 1 : 0),
+              ...(postedAt.getTime() < soldOutBy ? soldOutQuota.take(soldOutSalesLeft--) : []),
+            ]
           : Array.from({ length: between(1, 2) }, () => {
               let product = pickProduct()
               // Spirits sold slower in the weeks before the festive US$2 came off them (PRD-09's record compares the two).
@@ -1368,6 +1405,7 @@ async function main() {
               const pairs = pairs2.some((deal) => deal.code === product.code && postedAt >= deal.from && postedAt <= deal.to)
               return { code: product.code, units: product.weight >= 200 || pairs ? between(1, 3) : 1 }
             })
+        if (`${slotIndex}|${postedAt.getTime()}` === partRefundKey && picks[0]) picks[0] = { ...picks[0], units: Math.max(2, picks[0].units) }
         const lines: LineRow[] = []
         for (const pickedLine of picks) {
           const product = byCode.get(pickedLine.code)!
@@ -1517,8 +1555,17 @@ async function main() {
           refunds += 1
           const refundId = randomUUID()
           const refundedAt = new Date(refundAt)
-          const source = lines[0]!
-          if (refundAt >= windowCounts) giveBack(codeOfProduct.get(source.productId as string)!, Number(source.quantity))
+          // The newest refund before the window takes one of a line of two (`partRefundKey`); every other takes the sale's first line whole.
+          const several = lines.find((line) => Number(line.quantity) >= 2)
+          const part = `${slotIndex}|${postedAt.getTime()}` === partRefundKey && Boolean(several)
+          const source = part ? several! : lines[0]!
+          const bought = Number(source.quantity)
+          const backUnits = part ? 1 : bought
+          const backGross = part ? money(source.lineTotal as Prisma.Decimal).dividedBy(bought).toDecimalPlaces(2) : money(source.lineTotal as Prisma.Decimal)
+          const backTax = part ? backGross.minus(netOfInclusiveTax(backGross, VAT_PERCENT)) : money(source.taxAmount as Prisma.Decimal)
+          const backCost = part ? money(source.costUnit as Prisma.Decimal) : money(source.costTotal as Prisma.Decimal)
+          if (part) partRefundId = refundId
+          if (refundAt >= windowCounts) giveBack(codeOfProduct.get(source.productId as string)!, backUnits)
           saleRows.push({
             id: refundId,
             companyId,
@@ -1531,18 +1578,15 @@ async function main() {
             cashierName: cashier.name,
             saleType: "REFUND",
             status: "POSTED",
-            subtotal: multiplyMoney(
-              source.quantity as Prisma.Decimal,
-              source.unitPrice as Prisma.Decimal,
-            ).negated(),
+            subtotal: backGross.minus(backTax).negated(),
             discountAmount: money(0),
-            taxAmount: money(source.taxAmount as Prisma.Decimal).negated(),
-            totalAmount: money(source.lineTotal as Prisma.Decimal).negated(),
-            tenderedAmount: money(source.lineTotal as Prisma.Decimal).negated(),
+            taxAmount: backTax.negated(),
+            totalAmount: backGross.negated(),
+            tenderedAmount: backGross.negated(),
             changeAmount: money(0),
             currency: "USD",
             exchangeRate: rate("1"),
-            baseAmount: money(source.lineTotal as Prisma.Decimal).negated(),
+            baseAmount: backGross.negated(),
             overrideReason: pick([
               "Bottle returned unopened",
               "Wrong item rung up",
@@ -1560,13 +1604,13 @@ async function main() {
             inventoryItemId: source.inventoryItemId,
             productId: source.productId as string | null,
             itemName: source.itemName,
-            quantity: money(source.quantity as Prisma.Decimal).negated(),
+            quantity: rate(String(backUnits)).negated(),
             unitPrice: source.unitPrice,
             discountAmount: money(0),
-            taxAmount: money(source.taxAmount as Prisma.Decimal).negated(),
-            lineTotal: money(source.lineTotal as Prisma.Decimal).negated(),
+            taxAmount: backTax.negated(),
+            lineTotal: backGross.negated(),
             costUnit: source.costUnit,
-            costTotal: money(source.costTotal as Prisma.Decimal).negated(),
+            costTotal: backCost.negated(),
             createdAt: refundedAt,
           })
           paymentRows.push({
@@ -1574,14 +1618,14 @@ async function main() {
             companyId,
             saleId: refundId,
             tenderType: "CASH",
-            amount: money(source.lineTotal as Prisma.Decimal).negated(),
+            amount: backGross.negated(),
             currency: "USD",
             exchangeRate: rate("1"),
-            baseAmount: money(source.lineTotal as Prisma.Decimal).negated(),
+            baseAmount: backGross.negated(),
             reference: null,
             createdAt: refundedAt,
           })
-          cashTaken = cashTaken.minus(money(source.lineTotal as Prisma.Decimal))
+          cashTaken = cashTaken.minus(backGross)
         }
       }
 
@@ -1866,6 +1910,10 @@ async function main() {
     const refundNo = saleRows.find((row) => row.id === refundId)!.saleNo
     if (refundNo !== `RFD-${String(FLOOR_REFUND_NO).padStart(4, "0")}`) console.warn(`  the boards' refund is ${refundNo}, not RFD-0044`)
     console.log(`  the boards' morning: SALE-31858 to SALE-31870, ${refundNo}, ${flaggable.length} sales to look at`)
+    const partRefund = saleRows.find((row) => row.id === partRefundId)
+    const partSource = partRefund ? saleRows.find((row) => row.id === partRefund.sourceSaleId) : null
+    if (partRefund && partSource) console.log(`  ${partRefund.saleNo} took one unit of a line back off ${partSource.saleNo} (Bought 2 or more, 1 back already)`)
+    else console.warn("  no refund of part of a line before the window")
   }
 
   if (quota.left + soldOutQuota.left > 0) {
