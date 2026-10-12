@@ -56,6 +56,10 @@
 /* Footer: the note, or the saved line, or what went wrong. It grows when a line wraps. */
 .sf-sheet .cx-sheet__foot { height: auto; min-height: 68px; padding-top: 10px; padding-bottom: 10px; }
 .sf-foot__note { flex: 1; min-width: 0; color: var(--ink-3); line-height: 1.4; }
+/* A footer with a danger action has no room for a sentence beside three buttons: the note takes the row above. */
+.sf-sheet .cx-sheet__foot:has(.sf-danger) { flex-wrap: wrap; }
+.sf-sheet .cx-sheet__foot:has(.sf-danger) .sf-foot__note:not(:empty) { order: -1; flex-basis: 100%; }
+.sf-sheet .cx-sheet__foot:has(.sf-danger) .sf-danger { margin-right: auto; }
 .sf-foot__note--bad { color: var(--bad); }
 .sf-foot__link { color: var(--ink); font-weight: 500; text-decoration: underline; text-underline-offset: 2px; }
 /* The done line wraps: it is a sentence to read, not a label to clip. */
