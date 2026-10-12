@@ -55,6 +55,16 @@ Buying test pass is `d7fac560` (the last stage 5 commit).
 - `../98-decisions.md` — owner decisions. **They override the packets** where the two disagree.
 - `../00-foundations.md` … `../80-admin.md` — the area specs the packets were cut from.
 
+## First job: merge `main`
+
+`main` moved while stage 6 was building (PRs #206, #208 and #210: the owner's till work, Vane, the core-modules
+handover). The branch conflicts with it in nine files: `components/retail/till/{history,lookups,sale-parts,sell,
+shift,state,tile}.tsx`, `components/retail/till/till.css` and `prisma/schema.prisma`. Both sides changed the till
+(stage 5's approvals, lay-bys, messages and pricing on this branch; the owner's feel, keys, customer screen and
+reload-safe sale on `main`), so the merge needs someone who keeps both. Do it before anything else:
+`git merge origin/main`, resolve keeping both behaviours, run the schema lock command (it also regenerates the
+client), the till tests and the typecheck, then push.
+
 ## Local setup
 
 ```sh
