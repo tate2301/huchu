@@ -196,7 +196,20 @@ function lineSpec(differences: boolean): ListSpec {
     read: VIEW,
     search: { placeholder: "Product", keys: ["product"] },
     filters: [{ key: "count", type: "parent", column: "countId" }],
-    sorts: [{ key: "shelf", label: "As counted", rules: [{ column: "order", dir: "asc" }] }],
+    // Differences lead with the largest loss (by value where the role sees cost); every line keeps the counted order.
+    sorts: differences
+      ? [
+          {
+            key: "loss",
+            label: "Largest loss first",
+            rules: [
+              { column: "value", dir: "asc" },
+              { column: "difference", dir: "asc" },
+              { column: "product", dir: "asc" },
+            ],
+          },
+        ]
+      : [{ key: "shelf", label: "As counted", rules: [{ column: "order", dir: "asc" }] }],
     columns: [
       { key: "product", label: "Product", kind: "text", cell: "text", width: "minmax(0,1fr)", align: "start", priority: 1 },
       { key: "expected", label: "Expected", kind: "number", cell: "num", total: "sum", width: "100px", align: "end", priority: 2 },

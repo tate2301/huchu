@@ -484,5 +484,5 @@ export const countKind: RecordKind<CountView> = {
       },
     ];
   },
-  invalidates: [["list", "retail-stock-counts"], ["list", "retail-stock-on-hand"], ["list", "retail-stock-movements"], ["reports"]],
+  invalidates: [["list", "retail-stock-counts"], ["list", "retail-stock-on-hand"], ["list", "retail-stock-movements"], ["reports"], ["nav-badges"]],
 };
