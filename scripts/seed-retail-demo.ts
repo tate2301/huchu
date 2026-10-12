@@ -5585,7 +5585,7 @@ async function seedLoyalty(companyId: string) {
     enabled: true,
     earnPerDollar: new Prisma.Decimal("1"),
     pointValue: new Prisma.Decimal("0.01"),
-    spendFrom: 500,
+    spendFrom: LOYALTY_SPEND_FROM,
     expiry: "AFTER_12_MONTHS" as const,
     tiers: [
       { name: "Bronze", from: "0.00" },
@@ -6450,6 +6450,12 @@ const REGULARS: Array<{
 const DUPLICATE_TAPIWA = { name: "T. Marange", phone: "+263774123380", visits: 9, last: "09-02", spend: "412.60", points: 412, since: "2025-09-20" }
 
 const MEMBER_COUNT = 420
+/** The Loyalty board's last 30 days: "96 spent 21,400 points", "Members spent 2.3 times more a visit". */
+const SPENDERS_30 = 96
+const SPENT_POINTS_30 = 21_400
+const MEMBERS_TIMES = 2.3
+/** The scheme's "Spend from 500 points" (`seedLoyalty`). */
+const LOYALTY_SPEND_FROM = 500
 const ACTIVE_MEMBERS = 412
 const MEMBER_FIRST = [
   "Tendai", "Tatenda", "Rumbidzai", "Chiedza", "Farai", "Nyasha", "Tafadzwa", "Kudakwashe", "Ropafadzo", "Tinotenda",
@@ -6628,6 +6634,9 @@ async function seedCustomers(companyId: string) {
   if (rows.length) await prisma.customer.createMany({ data: rows })
   await prisma.idSequence.deleteMany({ where: { companyId, entityKey: "RETAIL_CUSTOMER" } })
 
+  const nameOf = new Map([...ids].map(([name, id]) => [id, name]))
+  const nameOf0 = (customerId: string) => nameOf.get(customerId)!
+
   // ── Their visits ──
   // The floor's own sales stay as rung: the boards' morning and the vouchers' sales keep their customers.
   await prisma.retailSale.updateMany({
@@ -6723,17 +6732,20 @@ async function seedCustomers(companyId: string) {
   const bigFirst = (sales: typeof free) => [...sales].sort((a, b) => Number(b.baseAmount) * (0.5 + random()) - Number(a.baseAmount) * (0.5 + random()))
   const recent = bigFirst(free.filter((sale) => !used.has(sale.id) && sale.postedAt!.getTime() >= monthAgo))
   const older = bigFirst(free.filter((sale) => !used.has(sale.id) && sale.postedAt!.getTime() < monthAgo))
-  const members = plans.filter((plan) => !regularNames.has(plan.name)).map((plan) => ({ id: ids.get(plan.name)!, spend: 0 }))
+  const members = plans
+    .filter((plan) => !regularNames.has(plan.name))
+    .map((plan) => ({ id: ids.get(plan.name)!, named: keep.has(plan.name), spend: 0, olderPoints: 0, recentSale: null as (typeof free)[number] | null }))
   let recentAt = 0
   let olderAt = 0
   members.forEach((member, index) => {
-    const active = index < ACTIVE_MEMBERS || keep.has(plans.find((plan) => ids.get(plan.name) === member.id)!.name)
+    const active = index < ACTIVE_MEMBERS || member.named
     if (active) {
       while (recentAt < recent.length && used.has(recent[recentAt]!.id)) recentAt += 1
       const sale = recent[recentAt]
       if (sale) {
         give(member.id, sale.id)
         member.spend += Number(sale.baseAmount)
+        member.recentSale = sale
       }
     }
     for (let extra = within(active ? 0 : 1, 8); extra > 0 && olderAt < older.length; extra -= 1) {
@@ -6741,9 +6753,117 @@ async function seedCustomers(companyId: string) {
       if (member.spend + Number(sale.baseAmount) >= 1_450) break
       give(member.id, sale.id)
       member.spend += Number(sale.baseAmount)
+      member.olderPoints += Math.floor(Number(sale.baseAmount))
     }
   })
-  const nameOf = new Map([...ids].map(([name, id]) => [id, name]))
+
+  /*
+    The Loyalty board's last 30 days (packet 52): "96 spent 21,400 points,
+    US$214.00 off." Tapiwa's own spends in the window count first; the rest
+    are members who shopped in the 30 days, each with one more sale on a
+    closed Front till shift of the window that spends points (Econet airtime,
+    so no product's 30-day count moves). A member needs the shop's 500 points
+    before spending, so each first gets the visits before the history that
+    earn them, staying under US$1,500 in 12 months.
+  */
+  const windowStart = now.getTime() - 30 * DAY_MS
+  const tapiwaSpends = (tapiwa?.visits ?? []).filter((visit) => visit.at.getTime() >= windowStart && (visit.pointsOff ?? 0) > 0)
+  const spendPoints = SPENT_POINTS_30 - tapiwaSpends.reduce((sum, visit) => sum + Math.round(visit.pointsOff! * 100), 0)
+  const spenderCount = SPENDERS_30 - (tapiwaSpends.length > 0 ? 1 : 0)
+  const frontTill = await prisma.retailRegister.findFirst({ where: { companyId, code: "TILL-1" }, select: { id: true } })
+  const spendDays = [
+    ...new Set(
+      (
+        await prisma.retailShift.findMany({
+          where: { companyId, registerId: frontTill?.id ?? "", status: "CLOSED", openedAt: { gte: new Date(windowStart + 2 * DAY_MS) } },
+          select: { openedAt: true },
+        })
+      ).map((shift) => dayKey(shift.openedAt)),
+    ),
+  ].filter((day) => day < dayKey(now))
+  const spends = Array.from({ length: spenderCount }, () => within(15, 30) * 10)
+  for (let diff = spendPoints - spends.reduce((sum, value) => sum + value, 0), index = 0; Math.abs(diff) >= 10; index += 1) {
+    const step = diff > 0 ? 10 : -10
+    const at = index % spends.length
+    if (spends[at]! + step < 100 || spends[at]! + step > 400) continue
+    spends[at]! += step
+    diff -= step
+  }
+  if (spends.length) spends[0]! += spendPoints - spends.reduce((sum, value) => sum + value, 0)
+  const spenders: Array<{ customerId: string; points: number; saleId: string }> = []
+  const lastBeforeHistory = addDays(dayKey(floorStart), -1)
+  const beforeDays = Math.max(1, Math.round((Date.parse(lastBeforeHistory) - Date.parse(dayKey(yearStart))) / DAY_MS))
+  for (const member of members) {
+    if (spenders.length >= spends.length || spendDays.length === 0) break
+    if (member.named || !member.recentSale) continue
+    const points = spends[spenders.length]!
+    const net = within(6, 24)
+    const topUp = Math.max(0, LOYALTY_SPEND_FROM - member.olderPoints)
+    const visits = topUp > 0 ? within(3, 6) : 0
+    const topUpSpend = topUp > 0 ? topUp + visits + within(10, 120) : 0
+    if (member.spend + topUpSpend + net >= 1_450) continue
+    const name = nameOf0(member.id)
+    // The visits before the history that bring the balance to 500 or more.
+    let left = topUpSpend
+    for (let visit = 0; visit < visits; visit += 1) {
+      const rest = visits - visit - 1
+      const amount = rest === 0 ? Math.round(left * 100) / 100 : Math.round(Math.max(5, (left / (rest + 1)) * (0.6 + random() * 0.8)) * 100) / 100
+      left -= amount
+      const day = addDays(dayKey(yearStart), within(1, beforeDays - 1))
+      planned.push({ customerId: member.id, name, at: harareDay(day, `${String(within(9, 18)).padStart(2, "0")}:${String(within(0, 59)).padStart(2, "0")}`), amount })
+    }
+    const saleId = randomUUID()
+    const day = spendDays[within(0, spendDays.length - 1)]!
+    planned.push({
+      customerId: member.id,
+      name,
+      at: harareDay(day, `${String(within(10, 17)).padStart(2, "0")}:${String(within(0, 59)).padStart(2, "0")}`),
+      amount: Math.round((net + points / 100) * 100) / 100,
+      saleId,
+      tender: random() < 0.55 ? "ECOCASH" : "CARD",
+      fill: "airtime",
+      pointsOff: points / 100,
+    })
+    member.spend += topUpSpend + net
+    spenders.push({ customerId: member.id, points, saleId })
+  }
+  if (spenders.length < spends.length) console.warn(`  points spent: only ${spenders.length} of ${spends.length} members could spend points`)
+
+  /*
+    "Members spent 2.3 times more a visit": larger baskets went to members
+    first; their biggest sales in the window now go back to walk-ins, each for
+    a smaller walk-in sale, until a member's average visit is 2.3 times a
+    walk-in's (the board's figure, to one decimal).
+  */
+  const inWindow = await prisma.retailSale.findMany({
+    where: { companyId, saleType: "SALE", status: "POSTED", postedAt: { gte: new Date(windowStart) } },
+    select: { id: true, customerId: true, baseAmount: true },
+  })
+  const plannedInWindow = planned.filter((visit) => visit.at.getTime() >= windowStart)
+  let memberSum =
+    inWindow.filter((sale) => sale.customerId || used.has(sale.id)).reduce((sum, sale) => sum + Number(sale.baseAmount), 0) +
+    plannedInWindow.reduce((sum, visit) => sum + (visit.amount ?? 0) - (visit.pointsOff ?? 0), 0)
+  const memberCount = inWindow.filter((sale) => sale.customerId || used.has(sale.id)).length + plannedInWindow.length
+  const walkIns = recent.filter((sale) => !used.has(sale.id)).sort((a, b) => Number(a.baseAmount) - Number(b.baseAmount))
+  let walkInSum = inWindow.filter((sale) => !sale.customerId && !used.has(sale.id)).reduce((sum, sale) => sum + Number(sale.baseAmount), 0)
+  const walkInCount = inWindow.filter((sale) => !sale.customerId && !used.has(sale.id)).length
+  const ratioAfter = (moved: number) => (memberSum - moved) / memberCount / ((walkInSum + moved) / walkInCount)
+  const swappable = members.filter((member) => !member.named && member.recentSale).sort((a, b) => Number(b.recentSale!.baseAmount) - Number(a.recentSale!.baseAmount))
+  for (const member of swappable) {
+    if (walkInCount === 0 || ratioAfter(0) < MEMBERS_TIMES + 0.03) break
+    const mine = member.recentSale!
+    const at = walkIns.findIndex((sale) => Number(sale.baseAmount) < Number(mine.baseAmount) && ratioAfter(Number(mine.baseAmount) - Number(sale.baseAmount)) >= MEMBERS_TIMES - 0.03)
+    if (at < 0) continue
+    const theirs = walkIns.splice(at, 1)[0]!
+    const moved = Number(mine.baseAmount) - Number(theirs.baseAmount)
+    attach.set(member.id, attach.get(member.id)!.map((saleId) => (saleId === mine.id ? theirs.id : saleId)))
+    used.delete(mine.id)
+    used.add(theirs.id)
+    member.recentSale = theirs
+    member.spend -= moved
+    memberSum -= moved
+    walkInSum += moved
+  }
   for (const [customerId, saleIds] of attach) {
     await prisma.retailSale.updateMany({ where: { id: { in: saleIds } }, data: { customerId, customerName: nameOf.get(customerId) ?? null } })
   }
@@ -6778,6 +6898,28 @@ async function seedCustomers(companyId: string) {
     lastRow.points += points - sum
     lastRow.value = money(lastRow.points * 0.01).toDecimalPlaces(2)
   }
+  // The members' points spent, each after its sale's earning (`seq` keeps the order they are written in).
+  const spentSales = new Map(
+    (await prisma.retailSale.findMany({ where: { id: { in: spenders.map((row) => row.saleId) } }, select: { id: true, postedAt: true, cashierId: true, cashierName: true } })).map(
+      (sale) => [sale.id, sale],
+    ),
+  )
+  for (const spender of spenders) {
+    const sale = spentSales.get(spender.saleId)
+    if (!sale) continue
+    entries.push({
+      companyId,
+      customerId: spender.customerId,
+      kind: "SPENT",
+      points: -spender.points,
+      value: money(spender.points * 0.01).toDecimalPlaces(2),
+      saleId: sale.id,
+      actorId: sale.cashierId,
+      actorName: sale.cashierName,
+      createdAt: sale.postedAt!,
+    })
+  }
+  entries.sort((a, b) => (a.createdAt as Date).getTime() - (b.createdAt as Date).getTime())
   for (let index = 0; index < entries.length; index += 1000) {
     await prisma.retailPointsEntry.createMany({ data: entries.slice(index, index + 1000) })
   }
@@ -6787,7 +6929,8 @@ async function seedCustomers(companyId: string) {
   const shopped = await prisma.retailSale.groupBy({ by: ["customerId"], where: { companyId, customerId: { not: null }, saleType: "SALE", postedAt: { gte: new Date(monthAgo) } } })
   console.log(
     `  customers: ${live} live (the board's 8 regulars, T. Marange, ${members.length} members, ${shopped.length} shopped in 30 days), ` +
-      `${planned.length} visits before the history, ${entries.length} sales earning points`,
+      `${planned.length} visits before the history, ${entries.length} points rows; ${spenders.length} members spent ${spends.reduce((sum, value) => sum + value, 0)} points ` +
+      `in 30 days, members spent ${(memberSum / memberCount / (walkInSum / Math.max(1, walkInCount))).toFixed(2)} times more a visit`,
   )
 }
 
