@@ -16,7 +16,8 @@ import { dayKey, DEFAULT_TIME_ZONE, formatDay, formatMoney } from "@/lib/workspa
 
 import { AttachmentRefusal, recordAttachment, type UploadedFile } from "./attachments";
 import { orderTotals } from "./figures";
-import { currencyWords, findMoneyAccount, listMoneyAccounts, moneyAccountSub } from "./money-accounts";
+import { currencyWords, findMoneyAccount, listMoneyAccounts, moneyAccountBalance, moneyAccountSub } from "./money-accounts";
+import { postChange, postPayout, type AccountingResult } from "./posting";
 import {
   approvedWords,
   firstName,
@@ -26,6 +27,7 @@ import {
   sentForApproval,
   type RequisitionState,
 } from "./requisition-words";
+import { dayMonth } from "./words";
 
 /**
  * Requisitions in a shop (40-buying W-31, W-32, W-72, BUY-04): ask for money
@@ -36,8 +38,9 @@ import {
  * (`lib/crm/requisitions.ts`) is the one in force: every move here is one it
  * allows. Each write is one transaction with its audit; who is told is told
  * after it commits, in the app and, when the approvals settings say so, on
- * WhatsApp through the outbox. No money moves in this unit: paying out and
- * accounting for it are BUY-05's.
+ * WhatsApp through the outbox. Paying out (BUY-05) takes the money from a
+ * money account — never a till drawer (C-33) — and accounting for it keeps
+ * the receipts and puts the change back; both go to the books after commit.
  */
 
 type Tx = Prisma.TransactionClient;
@@ -872,3 +875,278 @@ export async function askContext(actor: RetailAuditActor, input: { orderId?: str
 
   return { limit: toNumberOrZero(limits.requisitionOwnerOver), approver: limits.ownerApprover?.name ?? null, payFrom: optionOf(cash), order, again };
 }
+
+/* ── Pay out (W-31, W-32 "Paid out", 5.22) ─────────────────────────────── */
+
+export const CANNOT_CHANGE = "Your role cannot change requisitions";
+
+export const PAYOUT_METHODS = { Cash: "CASH", "Bank transfer": "BANK_TRANSFER", EcoCash: "ECOCASH" } as const;
+export type PayoutHow = keyof typeof PAYOUT_METHODS;
+export const HOW_WORD: Record<string, PayoutHow> = { CASH: "Cash", BANK_TRANSFER: "Bank transfer", ECOCASH: "EcoCash" };
+
+/** Receipts are due three days after paying out. */
+export const RECEIPTS_DUE_DAYS = 3;
+
+export type PayInput = { paid: string | number; fromId?: string | null; toId?: string | null; how: string; reference?: string | null };
+export type MoneyDone = { id: string; requisitionNo: string; message: string; accountingStatus: AccountingResult["accountingStatus"] };
+
+/** Why one in this state cannot be paid out: "REQ-0014 has been paid out." */
+function notToPay(requisitionNo: string, status: string): string {
+  if (status === "DISBURSED" || status === "ACQUITTED") return `${requisitionNo} has been paid out.`;
+  if (status === "REJECTED") return `${requisitionNo} has been rejected.`;
+  if (status === "CANCELLED") return `${requisitionNo} has been cancelled.`;
+  return `${requisitionNo} has not been approved.`;
+}
+
+/** "Write an amount." for an empty, unreadable or nought figure. */
+function parseFigure(value: string | number | null | undefined, field: string): Prisma.Decimal {
+  const text = String(value ?? "").replace(/,/g, "").trim();
+  const n = Number(text);
+  if (!text || !Number.isFinite(n)) throw invalid({ [field]: "Write an amount." });
+  return money(n);
+}
+
+/** "the office safe" from "Office safe"; a name that starts with capitals ("CBZ current account") is kept. */
+export function accountInSentence(name: string): string {
+  const lower = /^[A-Z][a-z]/.test(name) ? name.charAt(0).toLowerCase() + name.slice(1) : name;
+  return `the ${lower}`;
+}
+
+/** "US$1,940.00 paid out. Receipts due by 9 October." */
+export const paidOutWords = (paid: number, currency: string, due: Date) => `${formatMoney(paid, currency)} paid out. Receipts due by ${dayMonth(due)}.`;
+
+/**
+ * Pays an approved requisition out of a money account (W-31, W-32): the
+ * account's row is locked before its balance is read, so two payouts from one
+ * cash account cannot both pass on the same money. A `BankTransaction` CREDIT
+ * on the account; for an order, the cash as a credit on the supplier's
+ * account (a `PurchasePayment` with no bill) that its bill uses later. No
+ * drawer and no shift is touched (C-33). The books after commit.
+ */
+export async function payOut(actor: RetailAuditActor, id: string, input: PayInput, deps: RequisitionDeps = {}): Promise<MoneyDone> {
+  const now = deps.now ?? new Date();
+  const companyId = actor.companyId;
+  if (!can(actor, "update")) throw new RequisitionRefusal(403, CANNOT_CHANGE);
+  const requisition = await readOne(prisma, actor, id);
+  if (requisition.status !== "APPROVED") throw new RequisitionRefusal(409, notToPay(requisition.requisitionNo, requisition.status));
+  assertTransition(requisition.status, "DISBURSED");
+
+  const paid = parseFigure(input.paid, "paid");
+  if (!paid.greaterThan(0)) throw invalid({ paid: "Write an amount." });
+  const approved = requisition.approvedAmount ?? requisition.amount;
+  if (paid.greaterThan(approved)) throw invalid({ paid: "Pay the approved amount or less." });
+  const method = PAYOUT_METHODS[input.how as PayoutHow];
+  if (!method) throw invalid({ how: "Choose how it is paid." });
+  const reference = input.reference?.replace(/\s+/g, " ").trim() || null;
+  if (reference && reference.length > 80) throw invalid({ ref: "Keep the reference to 80 characters." });
+  if (method !== "CASH" && !reference) throw invalid({ ref: "Add the reference." });
+
+  const from = input.fromId ? await findMoneyAccount(companyId, input.fromId) : null;
+  if (!from) throw invalid({ from: "Choose where the money comes from." });
+  if (from.currency.toUpperCase() !== requisition.currency.toUpperCase()) throw invalid({ from: `${from.name} holds ${currencyWords(from.currency)}.` });
+  const to = input.toId
+    ? await prisma.user.findFirst({ where: { id: input.toId, companyId, isActive: true }, select: { id: true, name: true, phone: true } })
+    : null;
+  if (!to) throw invalid({ to: "Choose who the money goes to." });
+
+  const due = new Date(now.getTime() + RECEIPTS_DUE_DAYS * 86_400_000);
+  const figure = formatMoney(toNumberOrZero(paid), requisition.currency);
+
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      await prisma.$transaction(async (tx) => {
+        // The account's row first: a second payout from it waits here, then reads the balance this one left.
+        await tx.$queryRaw`SELECT "id" FROM "BankAccount" WHERE "id" = ${from.id} FOR UPDATE`;
+        if (from.kind === "CASH") {
+          const balance = await moneyAccountBalance(from.id, tx);
+          if (paid.greaterThan(balance)) {
+            const has = `${from.name} has ${formatMoney(toNumberOrZero(balance), from.currency)}.`;
+            throw new RequisitionRefusal(409, has, { from: has });
+          }
+        }
+        const moved = await tx.crmRequisition.updateMany({
+          where: { id, status: "APPROVED" },
+          data: {
+            status: "DISBURSED",
+            disbursedById: actor.userId,
+            disbursedAt: now,
+            paidAmount: paid,
+            bankAccountId: from.id,
+            paidToId: to.id,
+            payoutMethod: method,
+            payoutReference: reference,
+            receiptsDueAt: due,
+          },
+        });
+        if (moved.count === 0) throw new RequisitionRefusal(409, notToPay(requisition.requisitionNo, "DISBURSED"));
+        await tx.bankTransaction.create({
+          data: {
+            companyId,
+            bankAccountId: from.id,
+            txnDate: now,
+            description: `${requisition.requisitionNo} · ${requisition.purpose}`,
+            reference,
+            amount: toNumberOrZero(paid),
+            direction: "CREDIT",
+            sourceType: "RETAIL_REQUISITION_PAYOUT",
+            sourceId: id,
+          },
+        });
+        if (requisition.purchaseOrderId && requisition.payeeVendorId) {
+          const groupNo = await reserveIdentifier(tx, { companyId, entity: "RETAIL_SUPPLIER_PAYMENT" });
+          await tx.purchasePayment.create({
+            data: {
+              companyId,
+              billId: null,
+              vendorId: requisition.payeeVendorId,
+              groupNo,
+              paymentNumber: `${groupNo}/1`,
+              requisitionId: id,
+              paidAt: now,
+              amount: toNumberOrZero(paid),
+              method: input.how,
+              reference: requisition.requisitionNo,
+              bankAccountId: from.id,
+              createdById: actor.userId,
+            },
+          });
+        }
+        await writeRetailAuditEvent(tx, {
+          actor,
+          eventType: RETAIL_AUDIT_EVENTS.requisitionPaid,
+          entityType: "CrmRequisition",
+          entityId: id,
+          payload: { requisitionNo: requisition.requisitionNo, amount: auditAmount(paid), currency: requisition.currency, from: from.name, to: to.name, how: input.how, reference },
+        });
+      });
+      break;
+    } catch (error) {
+      if (attempt < 4 && error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") continue;
+      throw error;
+    }
+  }
+
+  const accounting = await postPayout(companyId, id, { userId: actor.userId, userRole: actor.userRole });
+  if (requisition.requestedById !== actor.userId) {
+    const said = `${figure} paid out to ${to.name} from ${from.name}. Receipts due by ${dayMonth(due)}.`;
+    await tell(actor, {
+      people: [requisition.requestedBy],
+      type: "CRM_REQUISITION_DECIDED",
+      requisition,
+      title: `${requisition.requisitionNo} paid out`,
+      summary: said,
+      template: "requisition-paid",
+      text: `${requisition.requisitionNo}: ${said}`,
+    });
+  }
+  return { id, requisitionNo: requisition.requisitionNo, message: paidOutWords(toNumberOrZero(paid), requisition.currency, due), accountingStatus: accounting.accountingStatus };
+}
+
+/* ── Account for it (W-31 "Receipt attached", W-32, 5.23) ──────────────── */
+
+export type AcquitInput = { spent: string | number; changeIntoId?: string | null; receipts: UploadedFile[]; note?: string | null };
+
+/** "US$1,940.00 of this cash is already against bills; record the change as a supplier refund." */
+const AGAINST_BILLS = (allocated: string) => `${allocated} of this cash is already against bills; record the change as a supplier refund.`;
+
+/**
+ * Accounts for a paid-out requisition (the asker, or someone who may change
+ * requisitions): what was spent, the receipts, and the change back into a
+ * money account (a DEBIT there). For an order the supplier's credit from the
+ * payout comes down by the change, so it ends at what was spent. Afterwards
+ * the requisition's money-account rows add to minus what was spent, and the
+ * books carry what was spent on 2000 (an order) or the expense's account.
+ */
+export async function accountFor(actor: RetailAuditActor, id: string, input: AcquitInput, deps: RequisitionDeps = {}): Promise<MoneyDone> {
+  const now = deps.now ?? new Date();
+  const companyId = actor.companyId;
+  const requisition = await readOne(prisma, actor, id);
+  if (requisition.requestedById !== actor.userId && !can(actor, "update")) throw new RequisitionRefusal(403, CANNOT_CHANGE);
+  if (requisition.status !== "DISBURSED") {
+    throw new RequisitionRefusal(
+      409,
+      requisition.status === "ACQUITTED" ? `${requisition.requisitionNo} has been accounted for.` : `${requisition.requisitionNo} has not been paid out.`,
+    );
+  }
+  assertTransition(requisition.status, "ACQUITTED");
+
+  const paid = requisition.paidAmount ?? requisition.approvedAmount ?? requisition.amount;
+  const spent = parseFigure(input.spent, "spent");
+  if (spent.lessThan(0)) throw invalid({ spent: "Write an amount." });
+  if (spent.greaterThan(paid)) throw invalid({ spent: "Spent is more than was paid out. Ask for the rest as a new requisition." });
+  const receipts = (input.receipts ?? []).filter(Boolean);
+  if (receipts.length === 0) throw invalid({ rec: "Add the receipt." });
+  const note = input.note?.trim() || null;
+  if (note && note.length > 1000) throw invalid({ note: "Keep it to 1,000 characters." });
+
+  const change = paid.minus(spent);
+  let into: Awaited<ReturnType<typeof findMoneyAccount>> = null;
+  if (change.greaterThan(0)) {
+    into = input.changeIntoId ? await findMoneyAccount(companyId, input.changeIntoId) : null;
+    if (!into) throw invalid({ into: "Choose where the change goes." });
+    if (into.currency.toUpperCase() !== requisition.currency.toUpperCase()) throw invalid({ into: `${into.name} holds ${currencyWords(into.currency)}.` });
+  }
+
+  await prisma.$transaction(async (tx) => {
+    const moved = await tx.crmRequisition.updateMany({
+      where: { id, status: "DISBURSED" },
+      data: {
+        status: "ACQUITTED",
+        acquittedAt: now,
+        acquittedById: actor.userId,
+        acquittedAmount: spent,
+        changeAmount: change,
+        changeAccountId: into?.id ?? null,
+        acquittalNote: note,
+      },
+    });
+    if (moved.count === 0) throw new RequisitionRefusal(409, `${requisition.requisitionNo} has been accounted for.`);
+    for (const file of receipts) {
+      try {
+        await recordAttachment(tx, actor, { entityType: "CrmRequisition", entityId: id, kind: "RECEIPT", file });
+      } catch (error) {
+        if (error instanceof AttachmentRefusal) throw invalid({ rec: error.message });
+        throw error;
+      }
+    }
+    if (into) {
+      await tx.bankTransaction.create({
+        data: {
+          companyId,
+          bankAccountId: into.id,
+          txnDate: now,
+          description: `${requisition.requisitionNo} · change back`,
+          reference: requisition.requisitionNo,
+          amount: toNumberOrZero(change),
+          direction: "DEBIT",
+          sourceType: "RETAIL_REQUISITION_CHANGE",
+          sourceId: id,
+        },
+      });
+    }
+    if (requisition.purchaseOrderId && change.greaterThan(0)) {
+      // The cash still unallocated (no bill yet) is what the change can come off.
+      const credits = await tx.purchasePayment.findMany({ where: { companyId, requisitionId: id, billId: null }, orderBy: { createdAt: "desc" }, select: { id: true, amount: true } });
+      const unallocated = credits.reduce((sum, row) => sum.plus(money(row.amount)), money(0));
+      if (unallocated.lessThan(change) || credits.length === 0) {
+        throw new RequisitionRefusal(409, AGAINST_BILLS(formatMoney(toNumberOrZero(paid.minus(unallocated)), requisition.currency)));
+      }
+      const row = credits.find((credit) => money(credit.amount).greaterThanOrEqualTo(change)) ?? credits[0]!;
+      await tx.purchasePayment.update({ where: { id: row.id }, data: { amount: toNumberOrZero(money(row.amount).minus(change)) } });
+    }
+    await writeRetailAuditEvent(tx, {
+      actor,
+      eventType: RETAIL_AUDIT_EVENTS.requisitionAccounted,
+      entityType: "CrmRequisition",
+      entityId: id,
+      payload: { requisitionNo: requisition.requisitionNo, spent: auditAmount(spent), change: auditAmount(change), into: into?.name ?? null, currency: requisition.currency, receipts: receipts.length, note },
+    });
+  });
+
+  const accounting = change.greaterThan(0) ? await postChange(companyId, id, { userId: actor.userId, userRole: actor.userRole }) : null;
+  const message = into
+    ? `${requisition.requisitionNo} accounted for. ${formatMoney(toNumberOrZero(change), requisition.currency)} back in ${accountInSentence(into.name)}.`
+    : `${requisition.requisitionNo} accounted for.`;
+  return { id, requisitionNo: requisition.requisitionNo, message, accountingStatus: accounting?.accountingStatus ?? "POSTED" };
+}
+

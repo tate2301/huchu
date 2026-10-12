@@ -552,6 +552,8 @@ describe("the chain", () => {
       requisitionRejected: "RETAIL_REQUISITION.REJECTED",
       requisitionQuestion: "RETAIL_REQUISITION.QUESTION",
       requisitionCancelled: "RETAIL_REQUISITION.CANCELLED",
+      requisitionPaid: "RETAIL_REQUISITION.PAID",
+      requisitionAccounted: "RETAIL_REQUISITION.ACCOUNTED",
     });
   });
 });

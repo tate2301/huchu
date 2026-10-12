@@ -5,10 +5,11 @@ import { formatCount, formatMoney } from "@/lib/workspace/format";
 import type { PickedOption, SheetCtx, SheetKind, SheetRequest, SheetValues } from "@/lib/workspace/sheet-kind";
 
 /**
- * Buying's requisition sheets (40-buying 5.18–5.21, BUY-04): Ask for money
- * (an order or an expense, or again from a rejected one), Approve a different
- * amount, Reject (one, or the ticked ones), and Ask a question (or answer it).
- * All talk to `/api/v2/retail/buying/requisitions`.
+ * Buying's requisition sheets (40-buying 5.18–5.23, BUY-04, BUY-05): Ask for
+ * money (an order or an expense, or again from a rejected one), Approve a
+ * different amount, Reject (one, or the ticked ones), Ask a question (or
+ * answer it), Pay out (one, or stepping through the ticked ones) and Account
+ * for it. All talk to `/api/v2/retail/buying/requisitions`.
  */
 
 const API = "/api/v2/retail/buying/requisitions";
@@ -299,9 +300,189 @@ const reqQuestion: SheetKind = {
   ],
 };
 
+/* ── 5.22 Pay out (one, or stepping through the ticked ones) ─────────── */
+
+type PayContext = { accounts: Array<{ id: string; name: string; kind: "CASH" | "BANK" | "MOBILE"; currency: string; balance: number }> };
+
+const HOW = ["Cash", "Bank transfer", "EcoCash"] as const;
+const HOW_OF_KIND: Record<string, (typeof HOW)[number]> = { CASH: "Cash", BANK: "Bank transfer", MOBILE: "EcoCash" };
+const payId = (ctx: SheetCtx) => ctx.step?.id ?? idOf(ctx);
+const accountOf = (values: SheetValues) => {
+  const picked = one(values, "from");
+  return picked ? ((values._accounts as PayContext["accounts"] | undefined) ?? []).find((account) => account.id === picked.id) ?? null : null;
+};
+
+/** "US$470.00 left in it after this." / "Office safe has only US$410.00." (cash only: a bank or mobile account shows nothing). */
+function leftHint(values: SheetValues): { words: string; short: boolean } | null {
+  const account = accountOf(values);
+  if (!account || account.kind !== "CASH") return null;
+  const left = Math.round((account.balance - amount(values.paid)) * 100) / 100;
+  if (left < 0) return { words: `${account.name} has only ${formatMoney(account.balance, account.currency)}.`, short: true };
+  return { words: `${formatMoney(left, account.currency)} left in it after this.`, short: false };
+}
+
+const reqPayout: SheetKind = {
+  title: (_ctx, values) => (values._no ? `Pay out ${String(values._no)}` : "Pay out"),
+  sub: (_ctx, values) => String(values._purpose ?? SUB),
+  cur: "US$",
+  steps: STEPS,
+  at: 2,
+  stepping: { param: "ids" },
+  load: async (ctx) => {
+    const id = payId(ctx);
+    const [view, context] = await Promise.all([viewOf(id), readJson<PayContext>(`${API}/${id}/pay`)]);
+    const from = view.payFrom ? context.accounts.find((account) => account.id === view.payFrom!.id) ?? null : null;
+    const supplier = view.order?.supplier ?? null;
+    return {
+      _id: id,
+      _no: view.requisitionNo,
+      _purpose: view.purpose,
+      _currency: view.currency,
+      _accounts: context.accounts,
+      amt: formatMoney(view.shown, view.currency),
+      paid: view.shown.toFixed(2),
+      from: view.payFrom ? { id: view.payFrom.id, label: view.payFrom.name, sub: view.payFrom.sub } : null,
+      to: { id: view.asker.id, label: supplier ? `${view.asker.name}, to pay ${firstName(supplier)}` : view.asker.name },
+      how: HOW_OF_KIND[from?.kind ?? "CASH"] ?? "Cash",
+    };
+  },
+  sections: [
+    {
+      fields: [
+        { id: "amt", t: "read", l: "Approved", half: true, mono: true, right: true },
+        { id: "paid", t: "money", l: "Paying", half: true, cur: (values) => (values._currency === "ZWG" ? "ZiG" : "US$"), needed: "Write an amount." },
+        {
+          id: "from",
+          t: "auto",
+          l: "From",
+          noun: "money account",
+          needed: "Choose where the money comes from.",
+          h: (values) => leftHint(values)?.words ?? "",
+          warn: (values) => leftHint(values)?.short === true,
+          follow: async (value, values) => {
+            const picked = value as PickedOption | null;
+            if (!picked) return null;
+            // A new one added from here is not in the list yet: read the accounts again.
+            const known = ((values._accounts as PayContext["accounts"] | undefined) ?? []).some((account) => account.id === picked.id);
+            const accounts = known ? (values._accounts as PayContext["accounts"]) : (await readJson<PayContext>(`${API}/${String(values._id ?? "")}/pay`)).accounts;
+            const kind = accounts.find((account) => account.id === picked.id)?.kind ?? "CASH";
+            return { _accounts: accounts, from: picked, how: HOW_OF_KIND[kind] ?? "Cash" };
+          },
+        },
+        { id: "to", t: "auto", l: "To", noun: "person", needed: "Choose who the money goes to." },
+        { id: "how", t: "seg", l: "How", o: [...HOW], v: "Cash" },
+        { id: "ref", t: "text", l: "Reference", mono: true, opt: true, max: 80, p: "Optional for cash" },
+      ],
+    },
+  ],
+  note: "Receipts are due three days after paying out.",
+  primary: "Record payout",
+  submit: (values, ctx) => {
+    const body = {
+      paid: text(values.paid).replace(/,/g, ""),
+      fromId: one(values, "from")?.id ?? null,
+      toId: one(values, "to")?.id ?? null,
+      how: (values.how as string) || "Cash",
+      reference: text(values.ref) || null,
+    };
+    return ctx.step ? { method: "POST", url: `${API}/bulk/pay`, body: { ...body, id: ctx.step.id } } : { method: "POST", url: `${API}/${idOf(ctx)}/pay`, body };
+  },
+  done: (_result, _values, payload) => said(payload, "Paid out."),
+  invalidate: [...invalidateRequisitions, ["list", "retail-requisition-receipts"], ["lookup", "money account"]],
+  requires: [["retail.requisitions", "update"]],
+};
+
+/* ── 5.23 Account for it ────────────────────────────────────────────────── */
+
+const changeOf = (values: SheetValues) => Math.max(0, Math.round((Number(values._paid ?? 0) - amount(values.spent)) * 100) / 100);
+
+const reqAcquit: SheetKind = {
+  title: (_ctx, values) => (values._no ? `Account for ${String(values._no)}` : "Account for it"),
+  sub: (_ctx, values) => String(values._sub ?? SUB),
+  cur: "US$",
+  steps: STEPS,
+  at: 3,
+  load: async (ctx) => {
+    const view = await viewOf(idOf(ctx));
+    const paid = view.paidAmount ?? view.shown;
+    const to = view.order ? view.order.supplier : (view.payout.to?.name ?? view.asker.name);
+    return {
+      _no: view.requisitionNo,
+      _order: view.order !== null,
+      _supplier: view.order ? firstName(view.order.supplier) : null,
+      _paid: paid,
+      _currency: view.currency,
+      _sub: `${formatMoney(paid, view.currency)} paid out to ${to}`,
+      paidOut: formatMoney(paid, view.currency),
+      spent: paid.toFixed(2),
+      into: view.payFrom ? { id: view.payFrom.id, label: view.payFrom.name, sub: view.payFrom.sub } : null,
+    };
+  },
+  sections: [
+    {
+      fields: [
+        { id: "paidOut", t: "read", l: "Paid out", half: true, mono: true, right: true },
+        { id: "spent", t: "money", l: "Spent", half: true, cur: (values) => (values._currency === "ZWG" ? "ZiG" : "US$"), needed: "Write an amount." },
+        {
+          id: "back",
+          t: "read",
+          l: "Change back",
+          half: true,
+          mono: true,
+          right: true,
+          tone: "ok",
+          derive: (values) => formatMoney(changeOf(values), String(values._currency ?? "USD")),
+        },
+        {
+          id: "into",
+          t: "auto",
+          l: "Change goes to",
+          noun: "money account",
+          half: true,
+          needed: "Choose where the change goes.",
+          show: (values) => changeOf(values) > 0,
+        },
+        {
+          id: "rec",
+          t: "photo",
+          l: "Receipts",
+          keepFile: true,
+          several: true,
+          prompt: (values) => (values._supplier ? `Add the ${String(values._supplier)} invoice and receipt` : "Add the receipt"),
+          accept: "image/*,application/pdf",
+          upload: "/api/v2/retail/buying/attachments",
+          needed: "Add the receipt.",
+        },
+        { id: "note", t: "area", l: "Note", rows: 2, max: 1000, opt: true, p: "Anything the owner should know" },
+      ],
+    },
+  ],
+  note: (values) =>
+    values._order ? "The order, the receipt and the change all link back to this requisition." : "The receipt and the change link back to this requisition.",
+  primary: "Account for it",
+  submit: (values, ctx) => ({
+    method: "POST",
+    url: `${API}/${idOf(ctx)}/acquit`,
+    body: {
+      spent: text(values.spent).replace(/,/g, ""),
+      changeIntoId: changeOf(values) > 0 ? (one(values, "into")?.id ?? null) : null,
+      receipts: Array.isArray(values.rec) ? values.rec : [],
+      note: text(values.note) || null,
+    },
+  }),
+  done: (_result, _values, payload) => said(payload, "Accounted for."),
+  invalidate: [...invalidateRequisitions, ["list", "retail-requisition-receipts"], ["lookup", "money account"]],
+  requires: [
+    ["retail.requisitions", "create"],
+    ["retail.requisitions", "update"],
+  ],
+};
+
 export const REQUISITION_SHEETS: Record<string, SheetKind> = {
   "req-new": reqNew,
   "req-approve": reqApprove,
   "req-reject": reqReject,
   "req-question": reqQuestion,
+  "req-payout": reqPayout,
+  "req-acquit": reqAcquit,
 };

@@ -492,6 +492,18 @@ const WORDS: Record<string, (payload: Payload, eventType: string, seeCost: boole
     tone: "info",
   }),
   [RETAIL_AUDIT_EVENTS.requisitionCancelled]: (payload) => ({ what: payload.automatic === true ? "Cancelled with its order" : "Cancelled", tone: "hollow" }),
+  // "Paid out US$1,940.00 from Office safe to Tafara Nyathi".
+  [RETAIL_AUDIT_EVENTS.requisitionPaid]: (payload) => ({
+    what: `Paid out ${moneyWords(payload.amount, text(payload.currency) ?? "USD")}${text(payload.from) ? ` from ${text(payload.from)}` : ""}${text(payload.to) ? ` to ${text(payload.to)}` : ""}`,
+    tone: "ok",
+  }),
+  // "Accounted for: spent US$1,902.40, US$37.60 back in Office safe".
+  [RETAIL_AUDIT_EVENTS.requisitionAccounted]: (payload) => {
+    const currency = text(payload.currency) ?? "USD";
+    const change = amount(payload.change) ?? 0;
+    const back = change > 0 ? `, ${moneyWords(payload.change, currency)} back${text(payload.into) ? ` in ${text(payload.into)}` : ""}` : "";
+    return { what: `Accounted for: spent ${moneyWords(payload.spent, currency)}${back}`, tone: "ok" };
+  },
   [RETAIL_AUDIT_EVENTS.messageReceived]: (payload) => {
     const body = text(payload.body) ?? "";
     const short = body.length > 80 ? `${body.slice(0, 80).trimEnd()}…` : body;

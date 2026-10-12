@@ -339,6 +339,9 @@ export const RETAIL_SOURCE_TYPES: AccountingSourceType[] = [
   "RETAIL_BOTTLES_BACK",
   "RETAIL_LAYBY_PAYMENT",
   "RETAIL_LAYBY_CANCEL",
+  "RETAIL_REQUISITION_PAYOUT",
+  "RETAIL_REQUISITION_CHANGE",
+  "RETAIL_SUPPLIER_PAYMENT",
 ];
 
 type RunKind = "sales" | "refunds" | "deliveries" | "counts" | "other";

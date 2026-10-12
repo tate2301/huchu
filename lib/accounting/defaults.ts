@@ -98,6 +98,8 @@ export type DefaultPostingRuleLine = {
   accountSource?: PostingRuleLineAccountSource;
   /** With `accountSource: "ROLE_MAPPING"`: the company's account for this role (SET-09). */
   accountRole?: RetailAccountRole;
+  /** With `accountSource: "EVENT_ACCOUNT"`: the key of the account in the event's `accounts` (BUY-05). */
+  eventAccountKey?: "moneyAccount" | "expenseAccount" | "changeAccount";
   valuePath?: string;
   memoTemplate?: string;
   costCenterCode?: string;
@@ -1054,6 +1056,79 @@ export const RETAIL_POSTING_RULES: DefaultPostingRule[] = [
     lines: [
       { accountSource: "ROLE_MAPPING", accountRole: "STOCK", direction: "DEBIT", basis: "AMOUNT", memoTemplate: "{description} / inventory", sortOrder: 10 },
       { accountCode: "2300", direction: "CREDIT", basis: "AMOUNT", memoTemplate: "{description} / GRNI", sortOrder: 20 },
+    ],
+  },
+  // BUY-05: money out of a shop's money accounts. A requisition's cash for an
+  // order is an advance to the supplier (Dr Accounts payable); for an expense
+  // it is expensed as it leaves. The money account, the expense type's account
+  // and where the change went are the event's own (`accounts` in its payload).
+  {
+    name: "Retail requisition paid out for an order",
+    sourceType: "RETAIL_REQUISITION_PAYOUT",
+    description: "Cash handed out to pay a supplier's order: an advance on the supplier's account.",
+    priority: 10,
+    scopeType: "COMPANY",
+    ruleMode: "GUIDED",
+    isFallback: true,
+    conditions: [{ field: "MOVEMENT_TYPE", operator: "EQ", valueString: "ORDER" }],
+    lines: [
+      { accountCode: "2000", direction: "DEBIT", basis: "AMOUNT", memoTemplate: "{description} / supplier advance", sortOrder: 10 },
+      { accountSource: "EVENT_ACCOUNT", eventAccountKey: "moneyAccount", direction: "CREDIT", basis: "AMOUNT", memoTemplate: "{description} / paid out", sortOrder: 20 },
+    ],
+  },
+  {
+    name: "Retail requisition paid out for an expense",
+    sourceType: "RETAIL_REQUISITION_PAYOUT",
+    description: "Cash handed out for an expense, expensed to the expense type's account as it leaves.",
+    priority: 10,
+    scopeType: "COMPANY",
+    ruleMode: "GUIDED",
+    isFallback: true,
+    conditions: [{ field: "MOVEMENT_TYPE", operator: "EQ", valueString: "EXPENSE" }],
+    lines: [
+      { accountSource: "EVENT_ACCOUNT", eventAccountKey: "expenseAccount", direction: "DEBIT", basis: "AMOUNT", memoTemplate: "{description} / expense", sortOrder: 10 },
+      { accountSource: "EVENT_ACCOUNT", eventAccountKey: "moneyAccount", direction: "CREDIT", basis: "AMOUNT", memoTemplate: "{description} / paid out", sortOrder: 20 },
+    ],
+  },
+  {
+    name: "Retail requisition change for an order",
+    sourceType: "RETAIL_REQUISITION_CHANGE",
+    description: "Change brought back from an order's cash: the advance on the supplier's account is that much smaller.",
+    priority: 10,
+    scopeType: "COMPANY",
+    ruleMode: "GUIDED",
+    isFallback: true,
+    conditions: [{ field: "MOVEMENT_TYPE", operator: "EQ", valueString: "ORDER" }],
+    lines: [
+      { accountSource: "EVENT_ACCOUNT", eventAccountKey: "changeAccount", direction: "DEBIT", basis: "AMOUNT", memoTemplate: "{description} / change back", sortOrder: 10 },
+      { accountCode: "2000", direction: "CREDIT", basis: "AMOUNT", memoTemplate: "{description} / supplier advance", sortOrder: 20 },
+    ],
+  },
+  {
+    name: "Retail requisition change for an expense",
+    sourceType: "RETAIL_REQUISITION_CHANGE",
+    description: "Change brought back from an expense's cash: only the difference comes off the expense.",
+    priority: 10,
+    scopeType: "COMPANY",
+    ruleMode: "GUIDED",
+    isFallback: true,
+    conditions: [{ field: "MOVEMENT_TYPE", operator: "EQ", valueString: "EXPENSE" }],
+    lines: [
+      { accountSource: "EVENT_ACCOUNT", eventAccountKey: "changeAccount", direction: "DEBIT", basis: "AMOUNT", memoTemplate: "{description} / change back", sortOrder: 10 },
+      { accountSource: "EVENT_ACCOUNT", eventAccountKey: "expenseAccount", direction: "CREDIT", basis: "AMOUNT", memoTemplate: "{description} / expense", sortOrder: 20 },
+    ],
+  },
+  {
+    name: "Retail supplier payment",
+    sourceType: "RETAIL_SUPPLIER_PAYMENT",
+    description: "A payment to a supplier from a money account, off what the shop owes them.",
+    priority: 10,
+    scopeType: "COMPANY",
+    ruleMode: "GUIDED",
+    isFallback: true,
+    lines: [
+      { accountCode: "2000", direction: "DEBIT", basis: "AMOUNT", memoTemplate: "{description} / paid", sortOrder: 10 },
+      { accountSource: "EVENT_ACCOUNT", eventAccountKey: "moneyAccount", direction: "CREDIT", basis: "AMOUNT", memoTemplate: "{description} / paid out", sortOrder: 20 },
     ],
   },
   {

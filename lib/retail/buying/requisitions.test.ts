@@ -17,13 +17,18 @@ import { addTestProduct, makeTestShop, type TestShop } from "@/lib/retail/produc
 
 import { raiseOrder } from "./orders";
 import { loadRequisitionView } from "./requisition-view";
+import { expectedCashForShift } from "@/lib/retail/cash-up";
+
+import { moneyAccountBalance } from "./money-accounts";
 import {
+  accountFor,
   approveMany,
   approveRequisition,
   askForMoney,
   askQuestion,
   cancelRequisition,
   changeRequisition,
+  payOut,
   rejectRequisition,
   RequisitionRefusal,
 } from "./requisitions";
@@ -77,6 +82,14 @@ beforeAll(async () => {
 afterAll(async () => {
   if (!shop) return;
   const companyId = shop.companyId;
+  await prisma.purchasePayment.deleteMany({ where: { companyId } });
+  await prisma.bankTransaction.deleteMany({ where: { companyId } });
+  await prisma.retailAttachment.deleteMany({ where: { companyId } });
+  await prisma.journalLine.deleteMany({ where: { entry: { companyId } } });
+  await prisma.journalEntry.deleteMany({ where: { companyId } });
+  await prisma.accountingIntegrationEvent.deleteMany({ where: { companyId } });
+  await prisma.retailShift.deleteMany({ where: { companyId } });
+  await prisma.retailRegister.deleteMany({ where: { companyId } });
   await prisma.crmRequisition.deleteMany({ where: { companyId } });
   await prisma.retailMessage.deleteMany({ where: { companyId } });
   await prisma.notification.deleteMany({ where: { companyId } });
@@ -254,5 +267,196 @@ describe("who reads what", () => {
     expect(await refusal(cancelRequisition(cashier, theirs.id, deps))).toMatchObject({ status: 404 });
     const view = await loadRequisitionView(shop.owner(), theirs.id);
     expect(view?.can).toMatchObject({ approve: true, cancel: true, payOut: false });
+  });
+});
+
+/* ── Paying out and accounting for it (BUY-05) ─────────────────────────── */
+
+const RECEIPT = { url: "/demo/receipts/fuel-receipt.png", name: "Fuel receipt.png", contentType: "image/png", size: 683 };
+
+/** A cash account holding `opening`, in US dollars. */
+const cashBox = async (name: string, opening: number) =>
+  (await prisma.bankAccount.create({ data: { companyId: shop.companyId, name, kind: "CASH", currency: "USD", openingBalance: opening }, select: { id: true } })).id;
+
+const approvedExpense = async (amount: string, from: string) => {
+  const asked = await askForMoney(cashier, { for: "expense", expenseTypeId: fuel, whatFor: "Generator diesel", amount, currency: "US$", payFromId: from }, deps);
+  await approveRequisition(shop.owner(), asked.id, {}, deps);
+  return asked;
+};
+
+describe("paying out", () => {
+  it("pays the approved amount or less, from an account in its currency, with a reference unless cash", async () => {
+    const box = await cashBox("Pay box", 500);
+    const asked = await approvedExpense("80.00", box);
+    const pay = (input: Partial<Parameters<typeof payOut>[2]>) =>
+      payOut(shop.manager(), asked.id, { paid: "80.00", fromId: box, toId: cashier.userId, how: "Cash", ...input }, deps);
+    expect(await refusal(pay({ paid: "80.01" }))).toMatchObject({ status: 400, fieldErrors: { paid: "Pay the approved amount or less." } });
+    expect(await refusal(pay({ paid: "0" }))).toMatchObject({ status: 400, fieldErrors: { paid: "Write an amount." } });
+    expect(await refusal(pay({ fromId: zigSafe }))).toMatchObject({ status: 400, fieldErrors: { from: "ZiG box holds ZiG." } });
+    expect(await refusal(pay({ how: "Bank transfer" }))).toMatchObject({ status: 400, fieldErrors: { ref: "Add the reference." } });
+    expect(await refusal(pay({ how: "EcoCash", reference: " " }))).toMatchObject({ status: 400, fieldErrors: { ref: "Add the reference." } });
+    expect(await refusal(payOut(cashier, asked.id, { paid: "80.00", fromId: box, toId: cashier.userId, how: "Cash" }, deps))).toMatchObject({
+      status: 403,
+      message: "Your role cannot change requisitions",
+    });
+  });
+
+  it("refuses more than a cash account holds, saying what it holds", async () => {
+    const box = await cashBox("Small box", 50);
+    const asked = await approvedExpense("62.00", box);
+    expect(await refusal(payOut(shop.manager(), asked.id, { paid: "62.00", fromId: box, toId: cashier.userId, how: "Cash" }, deps))).toEqual({
+      status: 409,
+      message: "Small box has US$50.00.",
+      fieldErrors: { from: "Small box has US$50.00." },
+    });
+    expect((await prisma.crmRequisition.findUniqueOrThrow({ where: { id: asked.id } })).status).toBe("APPROVED");
+    expect(await prisma.bankTransaction.count({ where: { bankAccountId: box } })).toBe(0);
+  });
+
+  it("credits the money account and moves no drawer: an open shift's expected cash stays where it was", async () => {
+    const till = await prisma.retailRegister.create({ data: { companyId: shop.companyId, siteId: shop.mainId, code: `T-${shop.companyId.slice(0, 6)}`, name: "Front till" } });
+    const shift = await prisma.retailShift.create({
+      data: {
+        companyId: shop.companyId,
+        shiftNo: `SH-${Date.now() % 100000}`,
+        registerId: till.id,
+        registerCode: till.code,
+        registerName: "Front till",
+        siteId: shop.mainId,
+        cashierId: cashier.userId,
+        cashierName: "Chipo Dube",
+        openingFloat: "120.00",
+        expectedCash: "120.00",
+      },
+    });
+    const expectedNow = async () => {
+      const row = await prisma.retailShift.findUniqueOrThrow({ where: { id: shift.id } });
+      const movements = await prisma.retailCashMovement.findMany({ where: { shiftId: shift.id } });
+      return { stored: row.expectedCash.toFixed(2), computed: expectedCashForShift({ openingFloat: row.openingFloat, openingFloatZigBase: row.openingFloatZigBase, cashTakings: 0, movements }).toFixed(2) };
+    };
+    const before = await expectedNow();
+    const movementsBefore = await prisma.retailCashMovement.count({ where: { companyId: shop.companyId } });
+
+    const box = await cashBox("Front till float", 120);
+    const asked = await approvedExpense("85.00", box);
+    const done = await payOut(shop.manager(), asked.id, { paid: "85.00", fromId: box, toId: cashier.userId, how: "Cash" }, deps);
+    expect(done.message).toMatch(/^US\$85\.00 paid out\. Receipts due by \d{1,2} [A-Z][a-z]+\.$/);
+
+    expect(await prisma.retailCashMovement.count({ where: { companyId: shop.companyId } })).toBe(movementsBefore);
+    expect(await expectedNow()).toEqual(before);
+    const row = await prisma.crmRequisition.findUniqueOrThrow({ where: { id: asked.id } });
+    expect(row).toMatchObject({ status: "DISBURSED", disbursedById: shop.managerId, paidToId: cashier.userId, payoutMethod: "CASH", bankAccountId: box });
+    expect(row.paidAmount?.toFixed(2)).toBe("85.00");
+    expect(row.receiptsDueAt!.getTime() - row.disbursedAt!.getTime()).toBe(3 * 86_400_000);
+    const moves = await prisma.bankTransaction.findMany({ where: { sourceId: asked.id } });
+    expect(moves.map((move) => [move.direction, move.amount, move.bankAccountId, move.sourceType])).toEqual([["CREDIT", 85, box, "RETAIL_REQUISITION_PAYOUT"]]);
+    expect((await moneyAccountBalance(box)).toFixed(2)).toBe("35.00");
+    // An expense puts nothing on a supplier's account.
+    expect(await prisma.purchasePayment.count({ where: { requisitionId: asked.id } })).toBe(0);
+    expect(await refusal(payOut(shop.manager(), asked.id, { paid: "85.00", fromId: box, toId: cashier.userId, how: "Cash" }, deps))).toMatchObject({
+      status: 409,
+      message: `${asked.requisitionNo} has been paid out.`,
+    });
+  });
+
+  it("puts an order's cash on the supplier's account as a credit with no bill", async () => {
+    const box = await cashBox("Order box", 1000);
+    const draft = await order(10); // US$115.50 with VAT
+    const asked = await askForMoney(shop.manager(), { for: "order", orderId: draft.id, amount: "115.50", currency: "US$", payFromId: box }, deps);
+    await approveRequisition(shop.owner(), asked.id, {}, deps);
+    await payOut(shop.owner(), asked.id, { paid: "115.50", fromId: box, toId: shop.managerId, how: "Cash" }, deps);
+    const credits = await prisma.purchasePayment.findMany({ where: { requisitionId: asked.id } });
+    expect(credits).toHaveLength(1);
+    expect(credits[0]).toMatchObject({ billId: null, vendorId: afdis, method: "Cash", reference: asked.requisitionNo, amount: 115.5, bankAccountId: box });
+    expect(credits[0]!.groupNo).toMatch(/^PAY-\d{4}$/);
+    expect(credits[0]!.paymentNumber).toBe(`${credits[0]!.groupNo}/1`);
+  });
+
+  it("lets only one of two payouts from an account holding enough for one through", async () => {
+    const box = await cashBox("Race box", 100);
+    const first = await approvedExpense("60.00", box);
+    const second = await approvedExpense("60.00", box);
+    const results = await Promise.allSettled(
+      [first, second].map((asked) => payOut(shop.manager(), asked.id, { paid: "60.00", fromId: box, toId: cashier.userId, how: "Cash" }, deps)),
+    );
+    expect(results.filter((result) => result.status === "fulfilled")).toHaveLength(1);
+    const failed = results.find((result) => result.status === "rejected") as PromiseRejectedResult;
+    expect(failed.reason).toBeInstanceOf(RequisitionRefusal);
+    expect((failed.reason as RequisitionRefusal).message).toBe("Race box has US$40.00.");
+    expect((await moneyAccountBalance(box)).toFixed(2)).toBe("40.00");
+  });
+});
+
+describe("accounting for it", () => {
+  it("needs what was spent within what was paid out, and a receipt", async () => {
+    const box = await cashBox("Acquit box", 300);
+    const asked = await approvedExpense("100.00", box);
+    await payOut(shop.manager(), asked.id, { paid: "100.00", fromId: box, toId: cashier.userId, how: "Cash" }, deps);
+    expect(await refusal(accountFor(cashier, asked.id, { spent: "100.01", changeIntoId: box, receipts: [RECEIPT] }, deps))).toMatchObject({
+      fieldErrors: { spent: "Spent is more than was paid out. Ask for the rest as a new requisition." },
+    });
+    expect(await refusal(accountFor(cashier, asked.id, { spent: "90.00", changeIntoId: box, receipts: [] }, deps))).toMatchObject({ fieldErrors: { rec: "Add the receipt." } });
+    const other = await prisma.user.create({ data: { email: `stock-${shop.companyId}@shop.test`, name: "Tendai Sibanda", role: "STOCK_CLERK", companyId: shop.companyId }, select: { id: true } });
+    expect(await refusal(accountFor({ companyId: shop.companyId, userId: other.id, userName: "Tendai Sibanda", userRole: "STOCK_CLERK" }, asked.id, { spent: "90.00", changeIntoId: box, receipts: [RECEIPT] }, deps))).toMatchObject({
+      status: 404,
+    });
+  });
+
+  it("puts the change back, cuts the supplier's credit to what was spent, and leaves the money accounts down by what was spent", async () => {
+    const box = await cashBox("Change box", 1000);
+    const draft = await order(20); // US$231.00 with VAT
+    const asked = await askForMoney(shop.manager(), { for: "order", orderId: draft.id, amount: "231.00", currency: "US$", payFromId: box }, deps);
+    await approveRequisition(shop.owner(), asked.id, {}, deps);
+    await payOut(shop.owner(), asked.id, { paid: "231.00", fromId: box, toId: shop.managerId, how: "Cash" }, deps);
+    const done = await accountFor(shop.manager(), asked.id, { spent: "193.40", changeIntoId: box, receipts: [RECEIPT, { ...RECEIPT, name: "Invoice.png" }], note: "Short delivery." }, deps);
+    expect(done.message).toBe(`${asked.requisitionNo} accounted for. US$37.60 back in the change box.`);
+
+    const row = await prisma.crmRequisition.findUniqueOrThrow({ where: { id: asked.id } });
+    expect(row).toMatchObject({ status: "ACQUITTED", acquittedById: shop.managerId, changeAccountId: box, acquittalNote: "Short delivery." });
+    expect([row.acquittedAmount?.toFixed(2), row.changeAmount?.toFixed(2)]).toEqual(["193.40", "37.60"]);
+    const moves = await prisma.bankTransaction.findMany({ where: { sourceId: asked.id }, orderBy: { createdAt: "asc" } });
+    expect(moves.map((move) => [move.direction, move.amount, move.sourceType])).toEqual([
+      ["CREDIT", 231, "RETAIL_REQUISITION_PAYOUT"],
+      ["DEBIT", 37.6, "RETAIL_REQUISITION_CHANGE"],
+    ]);
+    const net = moves.reduce((sum, move) => sum.plus(new Prisma.Decimal(move.amount).times(move.direction === "DEBIT" ? 1 : -1)), new Prisma.Decimal(0));
+    expect(net.toFixed(2)).toBe("-193.40");
+    const credits = await prisma.purchasePayment.findMany({ where: { requisitionId: asked.id } });
+    expect(credits.map((credit) => credit.amount)).toEqual([193.4]);
+    expect(await prisma.retailAttachment.count({ where: { entityType: "CrmRequisition", entityId: asked.id, kind: "RECEIPT" } })).toBe(2);
+    expect(await refusal(accountFor(shop.manager(), asked.id, { spent: "193.40", changeIntoId: box, receipts: [RECEIPT] }, deps))).toMatchObject({
+      status: 409,
+      message: `${asked.requisitionNo} has been accounted for.`,
+    });
+  });
+
+  it("lets the asker account for her own, spending all of it", async () => {
+    const box = await cashBox("Own box", 200);
+    const asked = await approvedExpense("40.00", box);
+    await payOut(shop.manager(), asked.id, { paid: "40.00", fromId: box, toId: cashier.userId, how: "Cash" }, deps);
+    const done = await accountFor(cashier, asked.id, { spent: "40.00", receipts: [RECEIPT] }, deps);
+    expect(done.message).toBe(`${asked.requisitionNo} accounted for.`);
+    expect(await prisma.bankTransaction.count({ where: { sourceId: asked.id, direction: "DEBIT" } })).toBe(0);
+  });
+});
+
+describe("receipts that are late", () => {
+  it("tells the asker once, the morning after the receipts day", async () => {
+    const { runBuyingFollowUps, receiptsOverdueTitle } = await import("./follow-ups");
+    const box = await cashBox("Late box", 200);
+    const asked = await approvedExpense("30.00", box);
+    const paidAt = new Date(Date.now() - 6 * 86_400_000);
+    await payOut(shop.manager(), asked.id, { paid: "30.00", fromId: box, toId: cashier.userId, how: "Cash" }, { ...deps, now: paidAt });
+    const first = await runBuyingFollowUps(shop.companyId);
+    expect(first.receiptsOverdue).toBeGreaterThanOrEqual(1);
+    const notices = await prisma.notification.findMany({ where: { entityId: asked.id, title: { contains: "receipts were due" } }, include: { recipients: true } });
+    expect(notices).toHaveLength(1);
+    expect(notices[0]!.title).toMatch(new RegExp(`^${asked.requisitionNo}: receipts were due on \\d{1,2} [A-Z][a-z]+\\.$`));
+    expect(notices[0]!.recipients.map((row) => row.userId)).toEqual([cashier.userId]);
+    expect((await runBuyingFollowUps(shop.companyId)).receiptsOverdue).toBe(0);
+
+    const now = new Date("2026-10-03T07:00:00+02:00");
+    expect(receiptsOverdueTitle("REQ-0012", new Date("2026-10-02T09:00:00+02:00"), now)).toBe("REQ-0012: receipts were due yesterday.");
+    expect(receiptsOverdueTitle("REQ-0012", new Date("2026-09-30T09:00:00+02:00"), now)).toBe("REQ-0012: receipts were due on 30 September.");
   });
 });

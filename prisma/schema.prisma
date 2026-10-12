@@ -6738,6 +6738,9 @@ enum AccountingSourceType {
   RETAIL_VOUCHER_EXPIRY
   RETAIL_VOUCHER_VOID
   RETAIL_BOTTLES_BACK
+  RETAIL_REQUISITION_PAYOUT
+  RETAIL_REQUISITION_CHANGE
+  RETAIL_SUPPLIER_PAYMENT
   GOLD_SHIFT_ALLOCATION_COMPANY
   GOLD_SHIFT_ALLOCATION_WORKER
   GOLD_SHIFT_EXPENSE
@@ -6817,6 +6820,8 @@ enum PostingRuleLineAccountSource {
   FIXED_ACCOUNT
   TENDER_MAPPING
   ROLE_MAPPING
+  /// The account the event names in its payload's `accounts` (a money account's ledger, an expense type's account).
+  EVENT_ACCOUNT
 }
 
 enum AccountingSeedExecutionMode {
@@ -7154,6 +7159,8 @@ model PostingRuleLine {
   accountSource   PostingRuleLineAccountSource @default(FIXED_ACCOUNT)
   /// With `accountSource = ROLE_MAPPING`: which of the company's role accounts this line posts to.
   accountRole     RetailAccountRole?
+  /// With `accountSource = EVENT_ACCOUNT`: the key in the event's `accounts` ("moneyAccount", "expenseAccount", "changeAccount").
+  eventAccountKey String?
   valuePath       String?
   memoTemplate    String?
   costCenterId    String?
@@ -7550,6 +7557,7 @@ model Vendor {
   purchaseOrders      RetailPurchaseOrder[]
   goodsReceipts       RetailGoodsReceipt[]
   requisitionsPaid CrmRequisition[]      @relation("CrmRequisitionPayee")
+  payments            PurchasePayment[]
   stoppedBy           User?                @relation("VendorStoppedBy", fields: [stoppedById], references: [id], onDelete: SetNull)
   createdBy           User?                @relation("VendorCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
 
@@ -7858,13 +7866,23 @@ model PurchasePayment {
   bankAccountId String?
   createdById   String?
   createdAt     DateTime @default(now())
+  /// The supplier: always set by retail (a credit row has no bill to say it).
+  vendorId      String?
+  /// "PAY-0019": the rows of one payment.
+  groupNo       String?
+  /// Cash handed out on an order requisition, held as credit until its bill.
+  requisitionId String?
 
   company             Company              @relation(fields: [companyId], references: [id], onDelete: Cascade)
   bill                PurchaseBill?        @relation(fields: [billId], references: [id])
   bankAccount         BankAccount?         @relation(fields: [bankAccountId], references: [id])
   createdBy           User?                @relation("PurchasePaymentCreatedBy", fields: [createdById], references: [id])
+  vendor              Vendor?              @relation(fields: [vendorId], references: [id], onDelete: Restrict)
+  requisition         CrmRequisition?      @relation(fields: [requisitionId], references: [id], onDelete: SetNull)
 
   @@unique([companyId, paymentNumber])
+  @@index([companyId, vendorId, billId])
+  @@index([companyId, groupNo])
 }
 
 model DebitNote {
@@ -15519,6 +15537,7 @@ model CrmRequisition {
   acquittedBy      User?                @relation("CrmRequisitionAcquittedBy", fields: [acquittedById], references: [id], onDelete: SetNull)
   cancelledBy      User?                @relation("CrmRequisitionCancelledBy", fields: [cancelledById], references: [id], onDelete: SetNull)
   changeAccount    BankAccount?         @relation("CrmRequisitionChangeAccount", fields: [changeAccountId], references: [id], onDelete: SetNull)
+  supplierPayments PurchasePayment[]
 
   @@unique([companyId, requisitionNo])
   @@index([companyId, status, createdAt])

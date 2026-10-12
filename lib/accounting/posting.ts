@@ -443,6 +443,30 @@ async function resolveRoleAccounts(companyId: string) {
   return new Map(mappings.map((mapping) => [mapping.role, mapping.account]));
 }
 
+/**
+ * The accounts an event names (BUY-05): its payload's `accounts`, a key per
+ * line with `accountSource = EVENT_ACCOUNT` ("moneyAccount", "expenseAccount",
+ * "changeAccount") to a `ChartOfAccount` id of the company. A key the event
+ * leaves out, or an id that is not the company's, resolves to nothing.
+ */
+async function resolveEventAccounts(companyId: string, envelope: Record<string, unknown>) {
+  const named = envelope.accounts && typeof envelope.accounts === "object" ? (envelope.accounts as Record<string, unknown>) : {};
+  const ids = Object.values(named).filter((value): value is string => typeof value === "string" && value.length > 0);
+  const rows = ids.length
+    ? await prisma.chartOfAccount.findMany({
+        where: { companyId, id: { in: ids } },
+        select: { id: true, code: true, name: true, nodeType: true, isActive: true },
+      })
+    : [];
+  const byId = new Map(rows.map((row) => [row.id, row]));
+  const byKey = new Map<string, (typeof rows)[number]>();
+  for (const [key, value] of Object.entries(named)) {
+    const row = typeof value === "string" ? byId.get(value) : undefined;
+    if (row) byKey.set(key, row);
+  }
+  return byKey;
+}
+
 const ROLE_WORDS: Record<RetailAccountRole, string> = {
   SALES: "sales",
   VAT_OUTPUT: "VAT",
@@ -523,6 +547,9 @@ async function simulatePosting(context: PostingContext): Promise<PostingSimulati
   const roleAccounts = matchedRule.lines.some((line) => line.accountSource === "ROLE_MAPPING")
     ? await resolveRoleAccounts(context.companyId)
     : new Map<RetailAccountRole, never>();
+  const eventAccounts = matchedRule.lines.some((line) => line.accountSource === "EVENT_ACCOUNT")
+    ? await resolveEventAccounts(context.companyId, envelope)
+    : new Map<string, never>();
   const lineRows: PostingSimulationResult["lines"] = [];
   const warnings: string[] = [];
 
@@ -577,6 +604,33 @@ async function simulatePosting(context: PostingContext): Promise<PostingSimulati
             warnings,
             error: `No account is set for ${line.accountRole ? ROLE_WORDS[line.accountRole] : "this line"}`,
             code: "ROLE_MAPPING_MISSING",
+          };
+        }
+        accountId = account.id;
+        accountCode = account.code;
+        accountName = account.name;
+      } else if (line.accountSource === "EVENT_ACCOUNT") {
+        const account = line.eventAccountKey ? eventAccounts.get(line.eventAccountKey) : undefined;
+        if (!account) {
+          return {
+            lines: [],
+            totalDebit: 0,
+            totalCredit: 0,
+            balanced: false,
+            warnings,
+            error: `The event names no ${line.eventAccountKey ?? "account"} to post to`,
+            code: "EVENT_ACCOUNT_MISSING",
+          };
+        }
+        if (!account.isActive || account.nodeType !== "LEDGER") {
+          return {
+            lines: [],
+            totalDebit: 0,
+            totalCredit: 0,
+            balanced: false,
+            warnings,
+            error: "Posting rule contains inactive or non-ledger accounts",
+            code: "POSTING_RULE_INVALID_ACCOUNTS",
           };
         }
         accountId = account.id;
@@ -705,6 +759,19 @@ export async function createJournalEntryFromSource(
     }
 
     const simulation = await simulatePosting(context);
+    if (simulation.code === "EVENT_ACCOUNT_MISSING") {
+      // The event has no account yet (an expense type with none): it waits, PENDING, and is tried again.
+      await prisma.accountingIntegrationEvent.update({
+        where: { id: integrationEvent.id },
+        data: {
+          status: "PENDING",
+          attemptCount: { increment: 1 },
+          lastError: truncateErrorMessage(simulation.error ?? "No account to post to"),
+          nextRetryAt: nextRetryDate(integrationEvent.attemptCount + 1),
+        },
+      });
+      return { error: simulation.error, code: simulation.code };
+    }
     if (simulation.error || simulation.lines.length === 0) {
       const error = simulation.error ?? "Posting rule did not generate journal lines";
       await markIntegrationEventFailure(integrationEvent.id, integrationEvent.attemptCount, error);

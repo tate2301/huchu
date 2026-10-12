@@ -393,6 +393,10 @@ export const RETAIL_AUDIT_EVENTS = {
   requisitionQuestion: "RETAIL_REQUISITION.QUESTION",
   /** A requisition cancelled before it was paid out, by hand or with its order (`automatic`). */
   requisitionCancelled: "RETAIL_REQUISITION.CANCELLED",
+  /** A requisition paid out from a money account (BUY-05). Carries `{ amount, currency, from, to, how }`. */
+  requisitionPaid: "RETAIL_REQUISITION.PAID",
+  /** A paid-out requisition accounted for with its receipts (BUY-05). Carries `{ spent, change, into, currency }`. */
+  requisitionAccounted: "RETAIL_REQUISITION.ACCOUNTED",
 } as const;
 
 export type RetailAuditEvent =

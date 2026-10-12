@@ -250,6 +250,10 @@
 .cx-lf-option__mark svg { width: 16px; height: 16px; }
 
 /* A dot cell: "● Cash" — the dot in the value's tone, the word in ink. */
+.cx-lf-thumbcell { display: inline-flex; align-items: center; gap: 12px; min-width: 0; color: var(--ink); text-decoration: none; }
+.cx-lf-thumb { flex: none; width: 48px; height: 48px; border-radius: 6px; border: 1px solid var(--line); object-fit: cover; background: var(--sunk, var(--line)); }
+.cx-lf-thumb--file { display: inline-flex; align-items: center; justify-content: center; font: 600 11px/1 var(--font-mono, monospace); color: var(--ink-3); }
+.cx-lf-thumbtext { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .cx-lf-dotcell { display: inline-flex; align-items: center; gap: 8px; min-width: 0; color: var(--ink); }
 .cx-lf-dotcell::before { content: ""; flex: none; width: 7px; height: 7px; border-radius: 99px; background: var(--faint); }
 .cx-lf-dotcell--ok::before { background: var(--ok); }

@@ -371,6 +371,9 @@ describe("requisitions gate on their own right", () => {
     { key: "buying/requisitions/[id]/cancel/route.ts POST", action: "update" },
     { key: "buying/requisitions/bulk/approve/route.ts POST", action: "approve" },
     { key: "buying/requisitions/bulk/reject/route.ts POST", action: "approve" },
+    { key: "buying/requisitions/[id]/pay/route.ts POST", action: "update" },
+    { key: "buying/requisitions/bulk/pay/route.ts POST", action: "update" },
+    { key: "buying/requisitions/[id]/acquit/route.ts POST", action: "update" },
   ];
 
   it.each(REQUISITIONS)("$key asks retail.requisitions $action", ({ key, action }) => {

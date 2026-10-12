@@ -249,7 +249,9 @@ export type CellKind =
   | "duration"
   | "edit-money"
   /** A word that does the row menu action named by the column's `action` ("Restore"), in 600 ink. */
-  | "action";
+  | "action"
+  /** A file: its picture (`thumbKey`, else a "PDF" tile) and its name linking to it, with `suffixKey`'s words under. */
+  | "thumb";
 
 export type ListColumn = ReportColumn & {
   cell: CellKind;
@@ -278,8 +280,10 @@ export type ListColumn = ReportColumn & {
   href?: RowTemplate;
   /** text: drawn in 600 ink, a name that is not a link (a supplier's contact, edited from the row ⋯). */
   strong?: boolean;
-  /** link: the row key holding muted words after the link (" · stopped"). */
+  /** link: the row key holding muted words after the link (" · stopped"). thumb: the words under the name. */
   suffixKey?: string;
+  /** thumb: the row key holding the picture's url; none draws a "PDF" tile. */
+  thumbKey?: string;
   /** bar: the fill % key, and the % under which the bar warns. */
   bar?: { pctKey: string; warnBelow: number };
   /** num: the row key holding the unit word printed after the figure ("13 bottles"). */

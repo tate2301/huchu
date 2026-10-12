@@ -43,7 +43,7 @@ import "dotenv/config"
 
 import { execFileSync } from "node:child_process"
 import { createHash, randomUUID } from "node:crypto"
-import { mkdtempSync, readFileSync, rmSync } from "node:fs"
+import { mkdtempSync, readFileSync, rmSync, statSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { Prisma, WorkspaceProfile, type NotificationType, type RetailTenderType } from "@prisma/client"
@@ -62,7 +62,8 @@ import { addContact, createSupplier, type SendsWord, type SupplierInput } from "
 import { receiveDelivery } from "@/lib/retail/buying/deliveries"
 import { orderTotals } from "@/lib/retail/buying/figures"
 import { moneyAccountBalance } from "@/lib/retail/buying/money-accounts"
-import { approveRequisition, askForMoney, cancelRequisition, rejectRequisition } from "@/lib/retail/buying/requisitions"
+import { accountFor, approveRequisition, askForMoney, cancelRequisition, payOut, rejectRequisition } from "@/lib/retail/buying/requisitions"
+import { orderPurpose } from "@/lib/retail/buying/requisition-words"
 import { closeOrder, raiseOrder, sendOrder } from "@/lib/retail/buying/orders"
 import { createProduct } from "@/lib/retail/products/create"
 import { productInput } from "@/lib/retail/products/input"
@@ -8008,13 +8009,27 @@ async function seedExpenseTypes(companyId: string) {
  * times the boards give them — REQ-0014 (Tafara, PO-0005's total, waiting for
  * Tendai Mhlanga), REQ-0015 (Farai, generator diesel, under the limit),
  * REQ-0013 (Tafara, PO-0004, approved by Tendai), and from the history one
- * rejected (REQ-0007) and one cancelled (REQ-0008). The paid-out and
- * accounted-for ones (REQ-0001…0006, REQ-0009…0012) are BUY-05's. Written
- * again on every run: the shop's requisitions, their files and Activity go first.
+ * rejected (REQ-0007) and one cancelled (REQ-0008); and BUY-05's money out
+ * through `payOut` and `accountFor` — six accounted-for ones over the last
+ * eight months (REQ-0001…0006, so "Money asked for, by month" has bars),
+ * REQ-0009 (PO-0023's cash, US$37.60 back in the Office safe), REQ-0011 (the
+ * licence, by bank transfer) and REQ-0012 (Chipo's fridge repair, paid out
+ * from the Front till float, receipts due tomorrow). REQ-0010 is packet 43's.
+ * Written again on every run: the shop's requisitions, their files, money,
+ * books and Activity go first.
  */
 async function seedRequisitions(companyId: string) {
   const old = await prisma.crmRequisition.findMany({ where: { companyId, siteId: { not: null } }, select: { id: true } })
   const oldIds = old.map((row) => row.id)
+  const moneyOut = ["RETAIL_REQUISITION_PAYOUT", "RETAIL_REQUISITION_CHANGE"] as const
+  await prisma.purchasePayment.deleteMany({ where: { companyId, requisitionId: { in: oldIds } } })
+  await prisma.bankTransaction.deleteMany({ where: { companyId, sourceType: { in: [...moneyOut] } } })
+  await prisma.journalLine.deleteMany({ where: { entry: { companyId, sourceType: { in: [...moneyOut] } } } })
+  await prisma.journalEntry.deleteMany({ where: { companyId, sourceType: { in: [...moneyOut] } } })
+  await prisma.accountingIntegrationEvent.deleteMany({ where: { companyId, sourceType: { in: [...moneyOut] } } })
+  if ((await prisma.purchasePayment.count({ where: { companyId, groupNo: { not: null } } })) === 0) {
+    await prisma.idSequence.deleteMany({ where: { companyId, entityKey: "RETAIL_SUPPLIER_PAYMENT" } })
+  }
   await prisma.platformAuditEvent.deleteMany({ where: { companyId, entityType: "CrmRequisition", entityId: { in: oldIds } } })
   await prisma.retailAttachment.deleteMany({ where: { companyId, entityType: "CrmRequisition" } })
   await prisma.retailMessage.deleteMany({ where: { companyId, entityType: "CrmRequisition" } })
@@ -8056,6 +8071,38 @@ async function seedRequisitions(companyId: string) {
     }
   }
   const deps = (now: Date) => ({ now, requestUrl: null })
+  const cbz = await account("CBZ current account")
+  // Enough cash for every payout while they are seeded; the openings are settled to the boards' figures last.
+  await prisma.bankAccount.updateMany({ where: { id: { in: [officeSafe, frontFloat] } }, data: { openingBalance: 100000 } })
+  const receipt = (file: string, name: string) => ({
+    url: `/demo/receipts/${file}`,
+    name,
+    contentType: file.endsWith(".pdf") ? "application/pdf" : "image/png",
+    size: statSync(join(process.cwd(), "public/demo/receipts", file)).size,
+  })
+
+  // History: REQ-0001…0006, asked, approved, paid out from the Front till float and accounted for, one a month.
+  const history: Array<[number, typeof chipo, string, string, string, string, string]> = [
+    [210, farai, "Fuel and transport", "Delivery van fuel", "55.00", "52.80", "fuel-receipt.png"],
+    [180, chipo, "Cleaning", "Cleaning supplies for the month", "38.50", "38.50", "cleaning-receipt.png"],
+    [150, tafara, "Repairs and maintenance", "Cold room door hinge", "120.00", "112.00", "repairs-receipt.png"],
+    [120, farai, "Fuel and transport", "Generator diesel, 40 litres", "62.00", "60.40", "fuel-receipt.png"],
+    [90, chipo, "Cleaning", "Mops and detergent", "24.00", "21.75", "cleaning-receipt.png"],
+    [60, tafara, "Repairs and maintenance", "Till printer repair", "85.00", "85.00", "repairs-receipt.png"],
+  ]
+  for (const [index, [ago, asker, typeName, whatFor, asked, spent, file]] of history.entries()) {
+    await numberFrom(index + 1)
+    const made = await askForMoney(
+      asker,
+      { for: "expense", expenseTypeId: await type(typeName), whatFor, amount: asked, currency: "US$", payFromId: frontFloat, neededBy: day(-(ago - 1)) },
+      deps(when(-ago, 9, 30)),
+    )
+    await approveRequisition(owner, made.id, {}, deps(when(-ago, 11, 0)))
+    const payer = asker.userId === tafara.userId ? owner : tafara
+    await payOut(payer, made.id, { paid: asked, fromId: frontFloat, toId: asker.userId, how: "Cash" }, deps(when(-ago, 14, 0)))
+    await accountFor(asker, made.id, { spent, changeIntoId: frontFloat, receipts: [receipt(file, file.replace(/-/g, " "))] }, deps(when(-(ago - 1), 10, 15)))
+    await dateEvents(made.id, [when(-ago, 9, 30), when(-ago, 11, 0), when(-ago, 14, 0), when(-(ago - 1), 10, 15)])
+  }
 
   // History: REQ-0007 rejected, REQ-0008 cancelled.
   await numberFrom(7)
@@ -8074,6 +8121,89 @@ async function seedRequisitions(companyId: string) {
   )
   await cancelRequisition(tafara, vanFuel.id, deps(when(-25, 8, 10)))
   await dateEvents(vanFuel.id, [when(-26, 15, 40), when(-25, 8, 10)])
+
+  // REQ-0009: PO-0023's cash (the order came on 29 September, so it is asked for as it was then): US$1,940.00 from the
+  // Office safe, US$1,902.40 spent on AF-20931, US$37.60 back in the safe. Its credit pays AF-20931 when packet 41 seeds it.
+  await numberFrom(9)
+  const po23 = await prisma.retailPurchaseOrder.findUniqueOrThrow({
+    where: { companyId_poNo: { companyId, poNo: "PO-0023" } },
+    select: { id: true, siteId: true, vendorId: true, vendor: { select: { name: true } } },
+  })
+  const afdisCash = await prisma.$transaction(async (tx) => {
+    const requisitionNo = await reserveIdentifier(tx, { companyId, entity: "CRM_REQUISITION" })
+    const made = await tx.crmRequisition.create({
+      data: {
+        companyId,
+        requisitionNo,
+        status: "APPROVED",
+        category: "STOCK",
+        purpose: orderPurpose(po23.vendor.name, "PO-0023"),
+        notes: "Afdis take cash on delivery.",
+        purchaseOrderId: po23.id,
+        payeeVendorId: po23.vendorId,
+        siteId: po23.siteId,
+        amount: money("1940.00"),
+        currency: "USD",
+        bankAccountId: officeSafe,
+        requestedById: tafara.userId,
+        submittedAt: when(-6, 10, 0),
+        approvalLimit: money("500.00"),
+        approverId: owner.userId,
+        approvedById: owner.userId,
+        approvedAt: when(-5, 9, 0),
+        neededBy: harareTime(4, 0, 0),
+        createdAt: when(-6, 10, 0),
+      },
+      select: { id: true, requisitionNo: true },
+    })
+    await writeRetailAuditEvent(tx, {
+      actor: tafara,
+      eventType: RETAIL_AUDIT_EVENTS.requisitionAsked,
+      entityType: "CrmRequisition",
+      entityId: made.id,
+      payload: { requisitionNo, amount: "1940.00", currency: "USD", order: "PO-0023", whatFor: null, over: true },
+    })
+    await writeRetailAuditEvent(tx, {
+      actor: owner,
+      eventType: RETAIL_AUDIT_EVENTS.requisitionApproved,
+      entityType: "CrmRequisition",
+      entityId: made.id,
+      payload: { requisitionNo, amount: "1940.00", asked: "1940.00", currency: "USD", note: null },
+    })
+    return made
+  })
+  await payOut(tafara, afdisCash.id, { paid: "1940.00", fromId: officeSafe, toId: tafara.userId, how: "Cash" }, deps(when(-4, 8, 30)))
+  await accountFor(
+    tafara,
+    afdisCash.id,
+    { spent: "1902.40", changeIntoId: officeSafe, receipts: [receipt("afdis-af-20931.pdf", "Afdis AF-20931.pdf")], note: "Afdis billed US$1,902.40; the rest came back." },
+    deps(when(-4, 15, 10)),
+  )
+  await dateEvents(afdisCash.id, [when(-6, 10, 0), when(-5, 9, 0), when(-4, 8, 30), when(-4, 15, 10)])
+
+  // REQ-0011: the liquor licence, paid by the owner from CBZ by bank transfer and accounted for.
+  await numberFrom(11)
+  const licence = await askForMoney(
+    owner,
+    { for: "expense", expenseTypeId: await type("Licences and fees"), whatFor: "Liquor licence renewal", amount: "240.00", currency: "US$", payFromId: cbz, neededBy: day(-3) },
+    deps(when(-3, 8, 45)),
+  )
+  await approveRequisition(owner, licence.id, {}, deps(when(-3, 8, 50)))
+  await payOut(owner, licence.id, { paid: "240.00", fromId: cbz, toId: owner.userId, how: "Bank transfer", reference: "CBZ 7781 2203" }, deps(when(-3, 9, 10)))
+  await accountFor(owner, licence.id, { spent: "240.00", receipts: [receipt("liquor-licence-receipt.pdf", "Liquor licence receipt.pdf")] }, deps(when(-3, 16, 0)))
+  await dateEvents(licence.id, [when(-3, 8, 45), when(-3, 8, 50), when(-3, 9, 10), when(-3, 16, 0)])
+
+  // REQ-0012: Chipo's fridge repair, paid out by Tafara from the Front till float two days ago: receipts due tomorrow.
+  await numberFrom(12)
+  const coolTech = await prisma.vendor.findFirst({ where: { companyId, name: "CoolTech Repairs" }, select: { id: true } })
+  const fridge = await askForMoney(
+    chipo,
+    { for: "expense", expenseTypeId: await type("Repairs and maintenance"), whatFor: "Fridge repair, front till", amount: "85.00", currency: "US$", payFromId: frontFloat, payToId: coolTech?.id ?? null, neededBy: day(-2) },
+    deps(when(-3, 16, 20)),
+  )
+  await approveRequisition(tafara, fridge.id, {}, deps(when(-2, 8, 15)))
+  await payOut(tafara, fridge.id, { paid: "85.00", fromId: frontFloat, toId: chipo.userId, how: "Cash" }, deps(when(-2, 8, 30)))
+  await dateEvents(fridge.id, [when(-3, 16, 20), when(-2, 8, 15), when(-2, 8, 30)])
 
   // REQ-0013: PO-0004's total with VAT, approved by the owner.
   await numberFrom(13)
@@ -8110,7 +8240,9 @@ async function seedRequisitions(companyId: string) {
     where: { companyId, status: "QUEUED", OR: [{ entityType: "CrmRequisition" }, { template: "approval-ask", createdAt: { gte: today } }] },
     data: { status: "SENT", sentAt: today },
   })
-  console.log(`  requisitions: ${afdis.requisitionNo} waits for ${afdis.waitsFor ?? "the managers"}, ${diesel.requisitionNo} for ${diesel.waitsFor ?? "the managers"}, ${pamela.requisitionNo} approved, REQ-0007 rejected, REQ-0008 cancelled`)
+  console.log(
+    `  requisitions: ${afdis.requisitionNo} waits for ${afdis.waitsFor ?? "the managers"}, ${diesel.requisitionNo} for ${diesel.waitsFor ?? "the managers"}, ${pamela.requisitionNo} approved, ${fridge.requisitionNo} paid out, ${afdisCash.requisitionNo} and ${licence.requisitionNo} accounted for, REQ-0001…0006 history, REQ-0007 rejected, REQ-0008 cancelled`,
+  )
 }
 
 /**

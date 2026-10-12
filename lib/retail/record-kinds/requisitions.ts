@@ -10,8 +10,8 @@ import type { Grant, RailGroup, RecordAction, RecordChart, RecordChip, RecordFig
  * The requisition record kind (40-buying 5.9, RequisitionRecord board):
  * what the money is for, its steps from asked to accounted for, who it waits
  * for and what the approver can do now — approve it (or a different amount),
- * reject it, ask a question — and the asker's "Change and ask again" once
- * rejected. Paying out and accounting for it arrive with BUY-05.
+ * reject it, ask a question — the asker's "Change and ask again" once
+ * rejected, "Pay out" once approved and "Account for it" once paid out.
  */
 
 const API = "/api/v2/retail/buying/requisitions";
@@ -132,6 +132,12 @@ function primary(r: RequisitionView): RecordAction | null {
       do: { post: { url: `${API}/${r.id}/approve`, body: {}, done: approvedWords(r.amount, r.currency, r.asker.firstName, r.asker.pays) } },
     };
   }
+  if (r.status === "APPROVED" && r.can.payOut) {
+    return { key: "payout", label: "Pay out", requires: [UPDATE], do: { sheet: "req-payout", id: r.id } };
+  }
+  if (r.status === "DISBURSED" && r.can.acquit) {
+    return { key: "acquit", label: "Account for it", requires: [CREATE, UPDATE], do: { sheet: "req-acquit", id: r.id } };
+  }
   if (r.status === "REJECTED" && r.can.askAgain) {
     return { key: "again", label: "Change and ask again", requires: [CREATE], do: { sheet: "req-new", params: { from: r.id, for: r.for } } };
   }
@@ -163,11 +169,13 @@ function rail(r: RequisitionView): RailGroup[] {
             }
           : {}),
       };
-  const receiptDue = r.receiptsDueAt
-    ? r.status === "ACQUITTED"
-      ? "Came in"
-      : noYear(dayKey(new Date(r.receiptsDueAt)))
-    : "3 days after paying";
+  const receiptDue =
+    r.status === "ACQUITTED" && r.payout.acquittedAt
+      ? `Came ${noYear(dayKey(new Date(r.payout.acquittedAt)))}`
+      : r.receiptsDueAt
+        ? noYear(dayKey(new Date(r.receiptsDueAt)))
+        : "3 days after paying";
+  const paid = r.status === "DISBURSED" || r.status === "ACQUITTED";
   return [
     {
       title: "Request",
@@ -192,10 +200,10 @@ function rail(r: RequisitionView): RailGroup[] {
             ? { edit: { field: "amount", type: "money" as const, initial: r.amount.toFixed(2), parse: (value: string) => value.replace(/,/g, "").trim(), requires: CREATE } }
             : {}),
         },
-        { key: "currency", label: "Currency", value: currencyRailWords(r.currency, null) },
+        { key: "currency", label: "Currency", value: currencyRailWords(r.currency, r.payout.method) },
         {
           key: "from",
-          label: "Pay from",
+          label: paid ? "Paid from" : "Pay from",
           value: r.payFrom?.name ?? "Add",
           muted: !r.payFrom,
           ...(r.can.updatePayFrom
@@ -212,6 +220,11 @@ function rail(r: RequisitionView): RailGroup[] {
             : {}),
         },
         payee,
+        ...(paid && r.payout.to ? [{ key: "paidTo", label: "Paid to", value: r.payout.to.name }] : []),
+        ...(r.payout.reference ? [{ key: "ref", label: "Reference", value: r.payout.reference, mono: true }] : []),
+        ...(r.status === "ACQUITTED" && r.payout.change
+          ? [{ key: "change", label: "Change back", value: `${money(r, r.payout.change)}${r.payout.changeInto ? `, in ${r.payout.changeInto}` : ""}` }]
+          : []),
       ],
     },
     {
@@ -249,6 +262,8 @@ export const requisitionKind: RecordKind<RequisitionView> = {
     ...(r.status !== "ACQUITTED" && r.status !== "CANCELLED" && r.status !== "REJECTED"
       ? [{ key: "sign", label: "Print for signing", requires: [], do: { open: `${pdfOf(r)}?sign=1` } }]
       : []),
+    ...(r.can.payOut ? [{ key: "payout", label: "Pay out", requires: [UPDATE], do: { sheet: "req-payout", id: r.id } }] : []),
+    ...(r.can.acquit ? [{ key: "acquit", label: "Account for it", requires: [CREATE, UPDATE], do: { sheet: "req-acquit", id: r.id } }] : []),
     ...(r.can.cancel
       ? [
           {
@@ -308,5 +323,5 @@ export const requisitionKind: RecordKind<RequisitionView> = {
     { key: "activity", label: "Activity" },
   ],
   rail,
-  invalidates: [["list", "retail-requisitions"], ["list", "retail-requisition-approvals"], ["retail-order"], ["list", "retail-orders"], ["nav-badges"], ["lookup", "order"]],
+  invalidates: [["list", "retail-requisitions"], ["list", "retail-requisition-approvals"], ["list", "retail-requisition-receipts"], ["retail-order"], ["list", "retail-orders"], ["nav-badges"], ["lookup", "order"]],
 };

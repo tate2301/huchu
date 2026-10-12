@@ -44,8 +44,12 @@ export function checkAttachment(bytes: Uint8Array): AttachmentCheck {
 /** `retail/<companyId>/buying/<uuid>.<ext>`. */
 export const attachmentPath = (companyId: string, uuid: string, extension: string) => `retail/${companyId}/buying/${uuid}.${extension}`;
 
-/** Only a file this company uploaded here is kept against its records. */
+/** The receipts the app ships for the demo shop (`public/demo/receipts/`), served from the app itself. */
+export const SHIPPED_RECEIPTS = "/demo/receipts/";
+
+/** Only a file this company uploaded here (or one the app ships, same origin) is kept against its records. */
 export function isOwnUpload(companyId: string, url: string): boolean {
+  if (url.startsWith(SHIPPED_RECEIPTS) && !url.includes("..")) return true;
   try {
     return new URL(url).pathname.replace(/^\/+/, "").startsWith(`retail/${companyId}/buying/`);
   } catch {

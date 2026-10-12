@@ -65,6 +65,24 @@ export const rejectSchema = z.object({
 
 export const questionSchema = z.object({ message: z.string().max(1000) });
 
+export const paySchema = z.object({
+  paid: amount,
+  fromId: z.string().uuid().nullish(),
+  toId: z.string().uuid().nullish(),
+  how: z.enum(["Cash", "Bank transfer", "EcoCash"], { message: "Choose how it is paid." }),
+  reference: z.string().max(200).nullish(),
+});
+
+/** One requisition of the stepping sheet's bulk "Pay out": the same body and its id. */
+export const bulkPaySchema = paySchema.extend({ id: z.string().uuid() });
+
+export const acquitSchema = z.object({
+  spent: amount,
+  changeIntoId: z.string().uuid().nullish(),
+  receipts: z.array(file).max(20, "Add at most 20 files.").default([]),
+  note: z.string().max(2000).nullish(),
+});
+
 export const bulkSchema = z.object({ ids: z.array(z.string().uuid()).min(1, "Tick at least one requisition.").max(100, "Tick at most 100 requisitions.") });
 export const bulkRejectSchema = rejectSchema.extend({ ids: bulkSchema.shape.ids });
 
@@ -84,6 +102,14 @@ const SHEET_FIELD: Record<string, string> = {
   note: "why",
   reason: "why",
   message: "msg",
+  paid: "paid",
+  fromId: "from",
+  toId: "to",
+  how: "how",
+  reference: "ref",
+  spent: "spent",
+  changeIntoId: "into",
+  receipts: "rec",
 };
 
 /** Zod's issues as the sheet's field errors, first message per field. */

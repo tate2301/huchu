@@ -63,7 +63,7 @@ describe("runBuyingFollowUps", () => {
     const cancel = await chased("2026-10-19", "CANCEL_REST");
     const today = await chased("2026-10-20", "REMIND");
 
-    expect(await runBuyingFollowUps(shop.companyId, morning)).toEqual({ reminded: 1, cancelled: 1 });
+    expect(await runBuyingFollowUps(shop.companyId, morning)).toEqual({ reminded: 1, cancelled: 1, receiptsOverdue: 0 });
 
     // Remind me: Tafara is told, and the order is followed up.
     const notices = await followUpNotices(remind.id);
@@ -91,7 +91,7 @@ describe("runBuyingFollowUps", () => {
   });
 
   it("does nothing on a second run", async () => {
-    expect(await runBuyingFollowUps(shop.companyId, morning)).toEqual({ reminded: 0, cancelled: 0 });
-    expect(await runBuyingFollowUps(shop.companyId, new Date(morning.getTime() + 60_000))).toEqual({ reminded: 0, cancelled: 0 });
+    expect(await runBuyingFollowUps(shop.companyId, morning)).toEqual({ reminded: 0, cancelled: 0, receiptsOverdue: 0 });
+    expect(await runBuyingFollowUps(shop.companyId, new Date(morning.getTime() + 60_000))).toEqual({ reminded: 0, cancelled: 0, receiptsOverdue: 0 });
   });
 });

@@ -284,6 +284,7 @@ const REQUISITION_CHIP = {
   SUBMITTED: { label: "Cash asked for", tone: "info" as const },
   APPROVED: { label: "Cash approved", tone: "info" as const },
   DISBURSED: { label: "Cash paid out", tone: "ok" as const },
+  ACQUITTED: { label: "Cash paid out", tone: "ok" as const },
 };
 const pdfOf = (order: OrderView) => `/api/v2/retail/records/RetailPurchaseOrder/${order.id}/pdf`;
 const isOpen = (order: OrderView) => order.status === "DRAFT" || order.status === "SENT" || order.status === "PARTIAL";

@@ -1,6 +1,6 @@
 import { emitRetailNotification } from "@/lib/notifications";
 import { prisma } from "@/lib/prisma";
-import { dayKey } from "@/lib/workspace/format";
+import { addDays, dayKey } from "@/lib/workspace/format";
 
 import { cancelRest, dayStart, OrderRefusal } from "./orders";
 import { dayMonth } from "./words";
@@ -13,9 +13,51 @@ import { dayMonth } from "./words";
  * Each order is followed up once: `followUpDoneAt` is claimed before acting,
  * so a second run (or a second worker) finds nothing. Days are the shop's
  * (Africa/Harare): a promise for today is not late until tomorrow.
+ *
+ * Then the receipts (BUY-05): a requisition paid out and not accounted for
+ * once its receipts day has passed tells the asker, once ("REQ-0012: receipts
+ * were due yesterday."). The notice itself is the mark: one already sent for
+ * the requisition is not sent again.
  */
 
-export type FollowUps = { reminded: number; cancelled: number };
+export type FollowUps = { reminded: number; cancelled: number; receiptsOverdue: number };
+
+/** "REQ-0012: receipts were due yesterday." / "… were due on 2 October." */
+export function receiptsOverdueTitle(requisitionNo: string, due: Date, now: Date): string {
+  const yesterday = addDays(dayKey(now), -1);
+  return dayKey(due) === yesterday ? `${requisitionNo}: receipts were due yesterday.` : `${requisitionNo}: receipts were due on ${dayMonth(due)}.`;
+}
+
+/** Paid-out requisitions past their receipts day: the asker is told once each. */
+async function chaseReceipts(companyId: string, now: Date): Promise<number> {
+  const today = dayStart(dayKey(now));
+  const late = await prisma.crmRequisition.findMany({
+    where: { companyId, siteId: { not: null }, status: "DISBURSED", receiptsDueAt: { lt: today } },
+    orderBy: { requisitionNo: "asc" },
+    select: { id: true, requisitionNo: true, receiptsDueAt: true, requestedById: true },
+  });
+  let told = 0;
+  for (const requisition of late) {
+    const sent = await prisma.notification.findFirst({
+      where: { companyId, type: "CRM_REQUISITION_DECIDED", entityId: requisition.id, title: { contains: "receipts were due" } },
+      select: { id: true },
+    });
+    if (sent) continue;
+    await emitRetailNotification({
+      companyId,
+      recipientIds: [requisition.requestedById],
+      type: "CRM_REQUISITION_DECIDED",
+      title: receiptsOverdueTitle(requisition.requisitionNo, requisition.receiptsDueAt!, now),
+      summary: "Account for it: what was spent, the receipt and any change.",
+      entityType: "CRM_REQUISITION",
+      entityId: requisition.id,
+      viewPath: `/retail/buying/requisitions/${requisition.id}`,
+      severity: "WARNING",
+    });
+    told += 1;
+  }
+  return told;
+}
 
 export async function runBuyingFollowUps(companyId: string, now: Date = new Date()): Promise<FollowUps> {
   const today = dayStart(dayKey(now));
@@ -31,7 +73,7 @@ export async function runBuyingFollowUps(companyId: string, now: Date = new Date
     orderBy: { poNo: "asc" },
     select: { id: true, poNo: true, chaseAction: true, chasedById: true, expectedDate: true, vendor: { select: { name: true } } },
   });
-  const done: FollowUps = { reminded: 0, cancelled: 0 };
+  const done: FollowUps = { reminded: 0, cancelled: 0, receiptsOverdue: 0 };
   for (const order of due) {
     const claimed = await prisma.retailPurchaseOrder.updateMany({
       where: { id: order.id, followUpDoneAt: null, status: { in: ["SENT", "PARTIAL"] } },
@@ -62,21 +104,31 @@ export async function runBuyingFollowUps(companyId: string, now: Date = new Date
     }
     done.reminded += 1;
   }
+  done.receiptsOverdue = await chaseReceipts(companyId, now);
   return done;
 }
 
 /** The worker's job: every shop with a chased order waiting on its follow-up. */
 export async function runBuyingFollowUpsForAll(now: Date = new Date()): Promise<string> {
-  const companies = await prisma.retailPurchaseOrder.findMany({
-    where: { chaseAction: { not: null }, followUpDoneAt: null, status: { in: ["SENT", "PARTIAL"] }, archivedAt: null },
-    distinct: ["companyId"],
-    select: { companyId: true },
-  });
-  const total: FollowUps = { reminded: 0, cancelled: 0 };
-  for (const { companyId } of companies) {
+  const [chased, paidOut] = await Promise.all([
+    prisma.retailPurchaseOrder.findMany({
+      where: { chaseAction: { not: null }, followUpDoneAt: null, status: { in: ["SENT", "PARTIAL"] }, archivedAt: null },
+      distinct: ["companyId"],
+      select: { companyId: true },
+    }),
+    prisma.crmRequisition.findMany({
+      where: { siteId: { not: null }, status: "DISBURSED", receiptsDueAt: { lt: dayStart(dayKey(now)) } },
+      distinct: ["companyId"],
+      select: { companyId: true },
+    }),
+  ]);
+  const companies = [...new Set([...chased, ...paidOut].map((row) => row.companyId))];
+  const total: FollowUps = { reminded: 0, cancelled: 0, receiptsOverdue: 0 };
+  for (const companyId of companies) {
     const done = await runBuyingFollowUps(companyId, now);
     total.reminded += done.reminded;
     total.cancelled += done.cancelled;
+    total.receiptsOverdue += done.receiptsOverdue;
   }
-  return `${total.reminded} reminded, ${total.cancelled} cancelled`;
+  return `${total.reminded} reminded, ${total.cancelled} cancelled, ${total.receiptsOverdue} told their receipts are late`;
 }

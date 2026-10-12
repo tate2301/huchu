@@ -139,6 +139,7 @@ export function SheetField({
   const tone = typeof field.tone === "function" ? field.tone(values) : field.tone;
   const qr = field.qr?.(values) ?? null;
   const link = field.link?.(values) ?? null;
+  const promptText = typeof field.prompt === "function" ? field.prompt(values) : field.prompt;
 
   if (t === "toggle") {
     return (
@@ -350,12 +351,53 @@ export function SheetField({
               />
             );
           case "photo": {
+            if (field.keepFile && field.several) {
+              // Several files: each one added is listed by name with Remove; the drop zone takes the next.
+              const files = Array.isArray(value) ? (value as UploadedFileValue[]) : [];
+              return (
+                <div className="cx-photos">
+                  {files.map((file, index) => (
+                    <div key={`${file.url}-${index}`} className="cx-photos__file">
+                      {file.contentType.startsWith("image/") ? (
+                        // eslint-disable-next-line @next/next/no-img-element -- an uploaded receipt, shown small
+                        <img className="cx-photo__img" src={file.url} alt="" />
+                      ) : (
+                        <span className="cx-photos__pdf" aria-hidden="true">
+                          PDF
+                        </span>
+                      )}
+                      <span className="cx-photos__name">{file.name}</span>
+                      <button
+                        type="button"
+                        className="cx-photo__action"
+                        disabled={disabled}
+                        onClick={() => onChange(files.filter((_, at) => at !== index))}
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  ))}
+                  <PhotoField
+                    {...control}
+                    prompt={files.length ? "Add another" : (promptText ?? field.p ?? "Add a photo")}
+                    accept={field.accept}
+                    value={null}
+                    onValueChange={() => undefined}
+                    upload={async (file) => {
+                      const answer = await uploadFile(file, field.upload);
+                      onChange([...files, answer]);
+                      return answer.url;
+                    }}
+                  />
+                </div>
+              );
+            }
             // `keepFile`: the value is the upload's whole answer ({ url, name, contentType, size }), a PDF shown by its name.
             const kept = field.keepFile && value && typeof value === "object" ? (value as UploadedFileValue) : null;
             return (
               <PhotoField
                 {...control}
-                prompt={field.prompt ?? field.p ?? "Add a photo"}
+                prompt={promptText ?? field.p ?? "Add a photo"}
                 accept={field.accept}
                 added={kept && !kept.contentType.startsWith("image/") ? kept.name : null}
                 value={kept ? kept.url : typeof value === "string" ? value : null}
@@ -375,7 +417,7 @@ export function SheetField({
             return (
               <FileField
                 {...control}
-                prompt={field.prompt ?? field.p ?? "Drop the file here"}
+                prompt={promptText ?? field.p ?? "Drop the file here"}
                 sub={field.fileSub ?? "Or choose a file"}
                 accept={field.accept}
                 value={value instanceof File ? value : null}

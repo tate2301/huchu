@@ -73,8 +73,8 @@ export type OrderView = {
     closedShort: boolean;
   }>;
   deliveries: Array<{ id: string; receiptNo: string; postedAt: string; units: number }>;
-  /** The live requisition for this order (Submitted, Approved, Paid out): its chip and rail row. */
-  requisition: { id: string; requisitionNo: string; status: "SUBMITTED" | "APPROVED" | "DISBURSED"; amount: number } | null;
+  /** The order's requisition (Submitted, Approved, Paid out, Accounted for): its chip and rail row. */
+  requisition: { id: string; requisitionNo: string; status: "SUBMITTED" | "APPROVED" | "DISBURSED" | "ACQUITTED"; amount: number } | null;
   counts: { lines: number; deliveries: number; messages: number };
   can: {
     send: boolean;
@@ -172,8 +172,9 @@ export async function loadOrderView(companyId: string, id: string, now = new Dat
       : null;
   const messages = await prisma.retailMessage.count({ where: { companyId, entityType: "RetailPurchaseOrder", entityId: order.id } });
   const requisition = await prisma.crmRequisition.findFirst({
-    where: { companyId, purchaseOrderId: order.id, status: { in: ["SUBMITTED", "APPROVED", "DISBURSED"] } },
-    select: { id: true, requisitionNo: true, status: true, amount: true, approvedAmount: true },
+    where: { companyId, purchaseOrderId: order.id, status: { in: ["SUBMITTED", "APPROVED", "DISBURSED", "ACQUITTED"] } },
+    orderBy: { createdAt: "desc" },
+    select: { id: true, requisitionNo: true, status: true, amount: true, approvedAmount: true, paidAmount: true, acquittedAmount: true },
   });
   const recipients = orderRecipients(order.vendor);
   const open = state === "DRAFT" || state === "SENT" || state === "PARTIAL";
@@ -249,8 +250,8 @@ export async function loadOrderView(companyId: string, id: string, now = new Dat
       ? {
           id: requisition.id,
           requisitionNo: requisition.requisitionNo,
-          status: requisition.status as "SUBMITTED" | "APPROVED" | "DISBURSED",
-          amount: toNumberOrZero(requisition.approvedAmount ?? requisition.amount),
+          status: requisition.status as "SUBMITTED" | "APPROVED" | "DISBURSED" | "ACQUITTED",
+          amount: toNumberOrZero(requisition.acquittedAmount ?? requisition.paidAmount ?? requisition.approvedAmount ?? requisition.amount),
         }
       : null,
     counts: { lines: order.lines.length, deliveries: order.receipts.length, messages },

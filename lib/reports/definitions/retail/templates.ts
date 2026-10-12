@@ -129,6 +129,19 @@ export const RETAIL_BUILT_INS: readonly BuiltInTemplate[] = [
     },
   },
   {
+    slug: "requisitions-paid",
+    name: "Requisitions paid",
+    summary: "Cash asked for, who approved it and what it was spent on",
+    area: "money",
+    source: "retail-requisitions",
+    audience: "MANAGERS",
+    query: {
+      filters: { asked: "this-year", state: "paid" },
+      cols: ["requisitionNo", "purpose", "askedBy", "approvedBy", "paid", "spent", "back", "paidOn"],
+      sort: "newest",
+    },
+  },
+  {
     slug: "till-shifts",
     name: "Till shifts",
     summary: "Each shift: float, takings, counted, short or over",

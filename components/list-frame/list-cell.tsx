@@ -125,6 +125,27 @@ export function ListCell({
       const tone = toneOf(column, row) ?? "neutral";
       return <StateBadge tone={tone}>{String(value)}</StateBadge>;
     }
+    case "thumb": {
+      const href = column.href ? fillTemplate(column.href, row) : rowHref;
+      const src = column.thumbKey ? row[column.thumbKey] : null;
+      const under = column.suffixKey ? row[column.suffixKey] : null;
+      return (
+        <a href={href ?? undefined} className="cx-lf-thumbcell" target="_blank" rel="noreferrer">
+          {isBlank(src) ? (
+            <span className="cx-lf-thumb cx-lf-thumb--file" aria-hidden="true">
+              PDF
+            </span>
+          ) : (
+            // eslint-disable-next-line @next/next/no-img-element -- an uploaded file, any size, shown small
+            <img className="cx-lf-thumb" src={String(src)} alt="" />
+          )}
+          <span className="cx-lf-thumbtext">
+            <span className="cx-lf-link-cell">{text}</span>
+            {!isBlank(under) ? <span className="cx-lf-muted">{String(under)}</span> : null}
+          </span>
+        </a>
+      );
+    }
     case "dot": {
       const tone = toneOf(column, row) ?? "hollow";
       return <span className={`cx-lf-dotcell cx-lf-dotcell--${tone}`}>{String(value)}</span>;

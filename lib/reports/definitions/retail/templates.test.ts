@@ -19,6 +19,7 @@ describe("the built-in templates", () => {
       "retail-customers",
       "retail-items-sold",
       "retail-payments",
+      "retail-requisitions",
       "retail-shifts",
       "retail-stock-movements",
       "retail-stock-on-hand",

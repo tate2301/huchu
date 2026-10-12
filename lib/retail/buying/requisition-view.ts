@@ -54,6 +54,16 @@ export type RequisitionView = {
   rejectReason: string | null;
   receiptsDueAt: string | null;
   receiptsOverdue: boolean;
+  /** Paid out (BUY-05): to whom, how, when; accounted for: when, the change and where it went. */
+  payout: {
+    to: { id: string; name: string } | null;
+    method: "CASH" | "BANK_TRANSFER" | "ECOCASH" | null;
+    reference: string | null;
+    at: string | null;
+    acquittedAt: string | null;
+    change: number | null;
+    changeInto: string | null;
+  };
   quote: { url: string; name: string; contentType: string } | null;
   /** The asker is told on WhatsApp too ("WhatsApp and the app"). */
   whatsapp: boolean;
@@ -186,6 +196,8 @@ export async function loadRequisitionView(actor: RetailAuditActor, id: string, n
       approver: { select: { id: true, name: true } },
       approvedBy: { select: { name: true } },
       payee: { select: { id: true, name: true } },
+      paidTo: { select: { id: true, name: true } },
+      changeAccount: { select: { name: true } },
       expenseType: { select: { id: true, name: true } },
       purchaseOrder: { select: { id: true, poNo: true, vendor: { select: { name: true } }, lines: { select: { quantity: true, unitCost: true, vatRate: true } } } },
     },
@@ -218,7 +230,8 @@ export async function loadRequisitionView(actor: RetailAuditActor, id: string, n
         where: { companyId: actor.companyId, purchaseOrderId: { not: null }, status: { in: ["DISBURSED", "ACQUITTED"] }, disbursedAt: { gte: from } },
         select: { paidAmount: true, approvedAmount: true, amount: true },
       }),
-      prisma.purchasePayment.findMany({ where: { companyId: actor.companyId, paidAt: { gte: from } }, select: { amount: true } }),
+      // A requisition's cash is its own row on the supplier's account: counted once, as the payout.
+      prisma.purchasePayment.findMany({ where: { companyId: actor.companyId, paidAt: { gte: from }, requisitionId: null }, select: { amount: true } }),
     ]);
     spentThisMonth = sumMoney([...paidOut.map((r) => r.paidAmount ?? r.approvedAmount ?? r.amount), ...payments.map((p) => money(p.amount))]);
   } else {
@@ -286,6 +299,15 @@ export async function loadRequisitionView(actor: RetailAuditActor, id: string, n
     rejectReason: row.rejectReason ? REJECT_REASON_WORD[row.rejectReason] : null,
     receiptsDueAt: row.receiptsDueAt?.toISOString() ?? null,
     receiptsOverdue,
+    payout: {
+      to: row.paidTo,
+      method: row.payoutMethod,
+      reference: row.payoutReference,
+      at: row.disbursedAt?.toISOString() ?? null,
+      acquittedAt: row.acquittedAt?.toISOString() ?? null,
+      change: row.changeAmount ? toNumberOrZero(row.changeAmount) : null,
+      changeInto: row.changeAccount?.name ?? null,
+    },
     quote,
     whatsapp: limits.askBy === "WHATSAPP_AND_APP",
     questionFrom: [...approvals].reverse().find((approval) => approval.what.startsWith("Asked:"))?.by ?? null,
@@ -298,9 +320,8 @@ export async function loadRequisitionView(actor: RetailAuditActor, id: string, n
       reject: decide,
       ask: decide && !mine,
       answer: status === "SUBMITTED" && mine && approvals.some((approval) => approval.what.startsWith("Asked:")),
-      // Paying out and accounting for it arrive with BUY-05.
-      payOut: false,
-      acquit: false,
+      payOut: status === "APPROVED" && updates,
+      acquit: status === "DISBURSED" && (mine || updates),
       cancel: (status === "SUBMITTED" || status === "APPROVED") && mayCancel(actor, row.requestedById),
       askAgain: status === "REJECTED" && mine,
       update: status === "SUBMITTED" && (mine || updates),

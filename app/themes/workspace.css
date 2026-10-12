@@ -168,6 +168,10 @@
 .cx-photo__actions { margin-left: auto; display: flex; gap: 8px; }
 .cx-photo__action { height: 28px; padding: 0 10px; border: 1px solid var(--line-strong); border-radius: 8px; background: var(--surface); color: var(--ink); font: inherit; font-size: 13px; cursor: pointer; }
 .cx-photo input[type="file"] { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+.cx-photos { display: flex; flex-direction: column; gap: 8px; }
+.cx-photos__file { display: flex; align-items: center; gap: 12px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
+.cx-photos__pdf { flex: none; width: 52px; height: 52px; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; background: var(--ground); font: 600 11px/1 var(--font-mono); color: var(--ink-3); }
+.cx-photos__name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* ── Menus (5.2) ─────────────────────────────────────────── */
 .cx-menu { z-index: 60; min-width: 180px; padding: 6px; border-radius: 12px; background: var(--surface); color: var(--ink); box-shadow: var(--shadow-float); display: flex; flex-direction: column; font-family: var(--font-sans); font-size: 13px; }
