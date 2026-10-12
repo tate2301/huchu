@@ -310,6 +310,24 @@ Recorded unit choices:
   - **How people paid splits takings, so it leaves out bottle deposits.** A deposit sale's payments hold the deposit
     (the customer paid goods plus deposit) but takings never do; each sale's deposit comes off its largest payments, so
     the tenders sum to the takings they split.
+- **FLR-02 departs from packet 56 and from PRD-10's entry above in these places.**
+  - **A sale that sold gift vouchers is refunded and voided at the till and in the back office.** PRD-10 refused
+    both ("Void them on Products › Vouchers instead."); FLR-02 lifts that. A void takes the vouchers the sale sold
+    with it: they are voided in the void's transaction, and the VOID's negative `vouchersSoldAmount` takes them off
+    Vouchers owed 2250. A voucher spent from or voided since stops the void ("GV-0019 has been used. Refund it
+    instead.").
+  - **A refund returns only goods lines.** The vouchers a sale sold are not on its refund sheet; a voucher not wanted
+    is voided on Products › Vouchers, where its money is written off as PRD-10 books it.
+  - **No reference is asked at the till.** The money back on a card, wallet or transfer is recorded as "Reversal of
+    <the original reference>" (or the sale number when it had none); the cashier types nothing.
+  - **The "Retail void" posting rule gained a line**: Cr Vouchers owed (role VOUCHERS_OWED) on the DEDUCTIONS basis
+    from `vouchersSoldAmount`, memo "gift vouchers voided", so the vouchers voided with a sale need no journal of
+    their own. The rule lives in `RETAIL_POSTING_RULES` (`lib/accounting/defaults.ts`); a tenant gets it when the
+    accounting seed pack runs again, which rewrites each default rule's lines: Setup › Posting › "Set up the
+    accounts" (`POST /api/v2/retail/posting/setup`, mode APPLY) or Accounting › Setup's seed pack. The demo tenant
+    gets it on every reseed. Until a tenant reruns it, a void of a sale that sold vouchers does not balance and its
+    journal stays FAILED in the posting run, which tries it again once the rule is refreshed; no other void is
+    affected.
 - **FLR-10 departs from packet 63 in these places.**
   - **The till lives in `components/retail/till/*`**, as FLR-09 left it; the packet's `components/retail/portal/*`
     names are older. Its tests sit beside it (`pos-cart-pricing`, `pos-liquor-moments`, `pos-vouchers`). The sale body
