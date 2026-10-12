@@ -339,6 +339,14 @@ export const RETAIL_AUDIT_EVENTS = {
    * `RetailMessageBatch`; carries `{ purpose, audience, count, scheduledFor }`.
    */
   messagesQueued: "RETAIL_MESSAGES.QUEUED",
+  /** A lay-by started with its deposit (FLR-06, W-42). Entity `RetailLayby`; carries `{ laybyNo, total, deposit, dueOn }`. */
+  laybyStarted: "RETAIL_LAYBY.STARTED",
+  /** Money taken towards a lay-by. Entity `RetailLayby`; carries `{ laybyNo, amount, tender, left }`. */
+  laybyPaid: "RETAIL_LAYBY.PAID",
+  /** A paid lay-by handed over as a sale. Entity `RetailLayby`; carries `{ laybyNo, saleNo }`. */
+  laybyHandedOver: "RETAIL_LAYBY.HANDED_OVER",
+  /** A lay-by cancelled: what was paid back, the fee kept, the goods back on the shelf. Entity `RetailLayby`; carries `{ laybyNo, paidBack, fee }`. */
+  laybyCancelled: "RETAIL_LAYBY.CANCELLED",
 } as const;
 
 export type RetailAuditEvent =

@@ -80,7 +80,7 @@ export type PayWay = { key: string; label: string; meta: string | null; choices:
 const isZigCash = (choice: TillTender) => choice.tender === "CASH" && choice.currency === "ZWG";
 
 /** One key per tender and currency: cash US$ and cash ZiG are two. */
-export function tenderKey(choice: Pick<TillTender, "tender" | "currency">) {
+export function tenderKey(choice: Pick<TillTender, "currency"> & { tender: string }) {
   return `${choice.tender}:${choice.currency === "ZWG" ? "ZWG" : ""}`;
 }
 

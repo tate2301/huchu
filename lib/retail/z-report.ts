@@ -138,6 +138,7 @@ export const RETAIL_Z_REPORT_TENDERS = [
   "TRANSFER",
   "ON_ACCOUNT",
   "VOUCHER",
+  "LAYBY",
 ] as const;
 
 /** The schema's vocabulary is this module's. A value added there fails to compile here. */

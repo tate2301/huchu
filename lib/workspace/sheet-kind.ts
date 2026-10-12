@@ -113,6 +113,11 @@ export type FieldSpec = {
   oneLine?: boolean;
   /** `read`: a QR code of this payload beside the value, drawn in the browser (a pairing code for a Kora). */
   qr?: (values: SheetValues) => string | null;
+  /**
+   * `read`: a small table instead of one value (a lay-by's payments: When · How · Amount · By).
+   * `end` holds the columns set to the right, in mono (money). Null or no rows: the field reads `empty`.
+   */
+  table?: (values: SheetValues) => { head: string[]; rows: string[][]; end?: number[]; empty?: string } | null;
   /** The hint in `--warn`, always or while this holds (the default site switched off). */
   warn?: boolean | ((values: SheetValues) => boolean);
   /**
@@ -318,13 +323,14 @@ export type SheetKind = {
   cancel?: (ctx: SheetCtx, values: SheetValues) => SheetRequest | null;
   /**
    * The secondary as an action of its own instead of Cancel ("Resend"): sent on
-   * the click, its toast, the kind's `invalidate`, and the sheet stays open.
+   * the click, its toast, the kind's `invalidate`, and the sheet stays open,
+   * or closes with `closes` (a lay-by's "Hand it over").
    * Drawn but not pressable while `disabled` (a voucher with no one to send to).
    */
   secondaryAction?: (
     ctx: SheetCtx,
     values: SheetValues,
-  ) => { label: string; request: SheetRequest; done: (payload: unknown) => string; disabled?: boolean } | null;
+  ) => { label: string; request: SheetRequest; done: (payload: unknown) => string; disabled?: boolean; closes?: boolean } | null;
   /** The secondary as a way on instead of Cancel ("Pair another device"), while this gives one. */
   secondaryLink?: (ctx: SheetCtx, values: SheetValues) => { label: string; href: string } | null;
   /**

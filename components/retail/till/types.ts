@@ -107,7 +107,7 @@ export type CurrentShift = {
   cashSales: number;
   nonCashSales: number;
   /** What each non-cash way of paying took this shift, in `baseCurrency`, refunds and voids netted off. */
-  nonCashByTender: Record<Exclude<TenderType, "CASH">, number>;
+  nonCashByTender: Record<Exclude<TenderType, "CASH" | "LAYBY">, number>;
   site: { id: string; name: string; code: string } | null;
 };
 

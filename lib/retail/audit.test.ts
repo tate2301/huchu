@@ -531,6 +531,10 @@ describe("the chain", () => {
       customerCreated: "RETAIL_CUSTOMER.CREATED",
       customerConsent: "RETAIL_CUSTOMER.CONSENT_CHANGED",
       messagesQueued: "RETAIL_MESSAGES.QUEUED",
+      laybyStarted: "RETAIL_LAYBY.STARTED",
+      laybyPaid: "RETAIL_LAYBY.PAID",
+      laybyHandedOver: "RETAIL_LAYBY.HANDED_OVER",
+      laybyCancelled: "RETAIL_LAYBY.CANCELLED",
     });
   });
 });

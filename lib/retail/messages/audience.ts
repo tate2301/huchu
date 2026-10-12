@@ -2,6 +2,7 @@ import { Prisma } from "@prisma/client";
 
 import { prisma } from "@/lib/prisma";
 import { figuresSql } from "@/lib/retail/customers/stats";
+import { laybyReminderSource } from "@/lib/retail/floor/layby-reminders";
 import { loadLoyaltySettings, type LoyaltySettings } from "@/lib/retail/loyalty/settings";
 import { sortTiers } from "@/lib/retail/loyalty/tiers";
 import type { RetailAction, RetailResource } from "@/lib/retail/permission-matrix";
@@ -112,7 +113,7 @@ export type ReminderSource = {
 export type ReminderKind = "layby" | "account";
 
 /** Registered by packets 58 (lay-bys) and 69 (accounts). */
-export const REMINDER_SOURCES: Partial<Record<ReminderKind, ReminderSource>> = {};
+export const REMINDER_SOURCES: Partial<Record<ReminderKind, ReminderSource>> = { layby: laybyReminderSource };
 
 export const REMINDER_PURPOSE = { layby: "LAYBY_REMINDER", account: "ACCOUNT_REMINDER" } as const;
 export const REMINDER_TEMPLATE = { layby: "layby-reminder", account: "account-reminder" } as const;

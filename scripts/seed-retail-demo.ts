@@ -80,6 +80,7 @@ import { bookEmptiesReturn, emptiesBalances, inStore, recordEmptiesCredit, recor
 import { postRetailJournal } from "@/app/api/v2/retail/_helpers"
 import { ensureRetailSaleAccountingPosted } from "@/app/api/v2/retail/_services"
 import { expireVouchers } from "@/lib/retail/vouchers/expire"
+import { cancelLayby, payLayby, startLayby } from "@/lib/retail/floor/laybys"
 import { issueCreditNote, issueVoucher, sellGiftVouchers } from "@/lib/retail/vouchers/issue"
 import { postVoucherIssue } from "@/lib/retail/vouchers/posting"
 import { redeemInSale } from "@/lib/retail/vouchers/redeem"
@@ -793,7 +794,7 @@ async function main() {
       where: {
         companyId,
         archivedAt: null,
-        code: { notIn: [...CATALOGUE.map((entry) => entry.code), SPRITE.code, COKE_2L.code, AIRTIME.code] },
+        code: { notIn: [...CATALOGUE.map((entry) => entry.code), SPRITE.code, COKE_2L.code, AIRTIME.code, ...LAYBY_PRODUCTS.map((entry) => entry.code)] },
         inventoryItems: { some: {} },
       },
       data: { archivedAt: new Date() },
@@ -2028,6 +2029,8 @@ async function main() {
   await seedEmpties(companyId, site.id)
   await seedPriceHistory(companyId)
   await seedPriceLists({ companyId, borrowdaleId: borrowdale.id, reset })
+  // FLR-06: before the ledger, which rebalances the lay-bys' movements in with the rest.
+  await seedLaybys(companyId, site.id)
   await seedStockLedger(companyId, site.id)
   await seedBin({ companyId, siteId: site.id, locationId: location.id, wineId: categoryIds.get("Wine") ?? null, reset })
   await seedPayments(companyId)
@@ -4110,6 +4113,8 @@ async function seedStockLedger(companyId: string, mainSiteId: string) {
     where: {
       companyId,
       postedAt: { gte: since },
+      // FLR-06: a lay-by's hand-over moves no stock; its goods left when they were put aside.
+      layby: { is: null },
       OR: [{ status: "POSTED" }, { status: "VOIDED", reversals: { some: { saleType: "VOID" } } }],
     },
     select: {
@@ -5149,6 +5154,8 @@ async function seedPosting(companyId: string) {
     ["TRANSFER", null, "1017"],
     ["ON_ACCOUNT", null, "1100"],
     ["VOUCHER", null, "2250"],
+    // FLR-06: a hand-over is paid by the lay-by's deposits.
+    ["LAYBY", null, "2260"],
   ]
   for (const [tenderType, currency, code] of tenders) {
     const clearingAccountId = byCode.get(code)!
@@ -6981,4 +6988,254 @@ async function seedCustomerHistory(companyId: string, visits: Array<{ customerId
     WHERE s.id = o.id`
   await prisma.idSequence.deleteMany({ where: { companyId, entityKey: "RETAIL_SHIFT" } })
   console.log(`  customer history: ${saleRows.length} visits on ${shiftRows.length} Front till shifts before the floor's history`)
+}
+
+/* ── Lay-bys (FLR-06) ─────────────────────────────────────────────────── */
+
+/** FLR-06: the two products the lay-by boards put aside that the catalogue does not carry. */
+const LAYBY_PRODUCTS = [
+  { code: "HENNESSY-GIFT", name: "Hennessy VS 700ml, gift box", unit: "bottle", price: "46.00", cost: "36.50", stock: 3, category: "Spirits" },
+  { code: "SAVANNA-CASE", name: "Savanna Dry 330ml, case of 24", unit: "case", price: "28.20", cost: "22.40", stock: 6, category: "Ciders and coolers" },
+] as const
+
+type LaybySeed = {
+  no: number
+  /** Days before today it started, and the Harare hour. */
+  started: [days: number, hour: number]
+  customer: string
+  lines: Array<[code: string, quantity: number]>
+  deposit: string
+  tender: "CASH" | "ECOCASH" | "CARD"
+  /** Pay by, days from today (the open ones) or from the day it started (the done ones). */
+  due: number
+  /** Payments after the deposit: [days before today, amount, tender]. */
+  payments?: Array<[days: number, amount: string, tender: "ECOCASH" | "CARD"]>
+  /** Done: handed over (days before today) or cancelled. */
+  end?: { collected: number } | { cancelled: number }
+}
+
+/**
+ * FLR-06 `seedLaybys()`: Harare Main Branch's lay-bys, written through the
+ * lay-by service (deposits, payments, cancels, their stock and journals) at
+ * the days they happened. The four open ones are the board's: LAY-0031
+ * Rutendo Banda (started this morning, US$20.00 cash into the Front till),
+ * LAY-0030 Farai Chikore, LAY-0028 Nyasha Gwenzi (paid, ready to collect) and
+ * LAY-0027 Tinashe Mavhunga (due in three days). Twelve are done over four
+ * months: ten handed over (each a sale paid "Lay-by", written as the hand-over
+ * writes it, without the fiscal receipt a four-month-old sale never had) and
+ * LAY-0019 and LAY-0029 cancelled with no fee. The catalogue's lines are put
+ * back on the shelf first, so what the On hand boards count is unchanged; the
+ * Hennessy gift box (3) and the Savanna case (6) are lay-by products only.
+ * Tabs read Paying 3 · Ready to collect 1 · Done 12 · All 16.
+ */
+async function seedLaybys(companyId: string, mainSiteId: string) {
+  // The lay-bys take cards and post to the books: both are set up before they are written (again later, as before).
+  await seedPayments(companyId)
+  await seedPosting(companyId)
+  // What a run before wrote: its stock movements (the ledger after rebalances), journals, sales, messages and events.
+  const old = await prisma.retailLayby.findMany({ where: { companyId }, select: { id: true, laybyNo: true, saleId: true } })
+  const saleIds = old.map((row) => row.saleId).filter((id): id is string => Boolean(id))
+  await prisma.stockMovement.deleteMany({
+    where: { item: { site: { companyId } }, reason: { in: ["LAYBY_ASIDE", "LAYBY_BACK"] } },
+  })
+  const laybyJournals = { companyId, sourceType: { in: ["RETAIL_LAYBY_PAYMENT", "RETAIL_LAYBY_CANCEL"] as Array<"RETAIL_LAYBY_PAYMENT" | "RETAIL_LAYBY_CANCEL"> } }
+  await prisma.journalEntry.deleteMany({ where: laybyJournals })
+  await prisma.accountingIntegrationEvent.deleteMany({ where: laybyJournals })
+  if (saleIds.length) {
+    await prisma.journalEntry.deleteMany({ where: { companyId, sourceType: "RETAIL_SALE", sourceId: { in: saleIds } } })
+    await prisma.accountingIntegrationEvent.deleteMany({ where: { companyId, sourceType: "RETAIL_SALE", sourceId: { in: saleIds } } })
+    await prisma.retailPointsEntry.deleteMany({ where: { saleId: { in: saleIds } } })
+    await prisma.fiscalReceipt.deleteMany({ where: { saleId: { in: saleIds } } })
+    await prisma.platformAuditEvent.deleteMany({ where: { companyId, entityType: "RetailSale", entityId: { in: saleIds } } })
+    await prisma.retailLayby.updateMany({ where: { id: { in: old.map((row) => row.id) } }, data: { saleId: null } })
+    await prisma.retailSalePayment.deleteMany({ where: { saleId: { in: saleIds } } })
+    await prisma.retailSaleLine.deleteMany({ where: { saleId: { in: saleIds } } })
+    await prisma.retailSale.deleteMany({ where: { id: { in: saleIds } } })
+  }
+  // Cash a lay-by took into a drawer still open comes back off what it should hold.
+  const takenIn = await prisma.retailCashMovement.findMany({
+    where: { companyId, reasonCode: { in: ["LAYBY_PAYMENT", "LAYBY_REFUND"] } },
+    select: { id: true, type: true, baseAmount: true, shiftId: true, shift: { select: { status: true } } },
+  })
+  for (const movement of takenIn) {
+    if (movement.shift.status !== "OPEN") continue
+    const back = movement.type === "TAKEN_IN" ? { decrement: movement.baseAmount } : { increment: movement.baseAmount }
+    await prisma.retailShift.update({ where: { id: movement.shiftId }, data: { expectedCash: back } })
+  }
+  await prisma.retailCashMovement.deleteMany({ where: { id: { in: takenIn.map((row) => row.id) } } })
+  await prisma.retailMessage.deleteMany({ where: { companyId, entityType: "RetailLayby" } })
+  await prisma.platformAuditEvent.deleteMany({ where: { companyId, entityType: "RetailLayby" } })
+  await prisma.retailLayby.deleteMany({ where: { companyId } })
+  await prisma.idSequence.deleteMany({ where: { companyId, entityKey: "RETAIL_LAYBY" } })
+
+  // The two lay-by products, on the shelf at Harare Main Branch.
+  const shelfList = await findDefaultPriceList(prisma, companyId)
+  const location = await prisma.stockLocation.findFirstOrThrow({ where: { siteId: mainSiteId, code: "SHOP" }, select: { id: true } })
+  for (const entry of LAYBY_PRODUCTS) {
+    const levels = { name: entry.name, unit: entry.unit, siteId: mainSiteId, locationId: location.id, currentStock: quantity(entry.stock), minStock: 1, reorderQty: 2, unitCost: Number(entry.cost) }
+    const existing = await prisma.inventoryItem.findFirst({ where: { siteId: mainSiteId, itemCode: entry.code }, select: { id: true } })
+    const item = existing
+      ? await prisma.inventoryItem.update({ where: { id: existing.id }, data: levels, select: { id: true } })
+      : await prisma.inventoryItem.create({ data: { itemCode: entry.code, category: "OTHER", ...levels }, select: { id: true } })
+    const category = await prisma.retailCategory.findFirst({ where: { companyId, name: entry.category, archivedAt: null }, select: { id: true } })
+    await seedShelfLine({
+      companyId,
+      listId: shelfList!.id,
+      code: entry.code,
+      name: entry.name,
+      itemId: item.id,
+      price: entry.price,
+      isActive: true,
+      categoryId: category?.id ?? null,
+      cost: entry.cost,
+      deposit: null,
+    })
+  }
+
+  const [owner, chipo, frontTill] = await Promise.all([
+    prisma.user.findFirstOrThrow({ where: { companyId, email: "owner@bottlestore.test" }, select: { id: true, name: true, role: true } }),
+    prisma.user.findFirstOrThrow({ where: { companyId, email: "chipo.till@bottlestore.test" }, select: { id: true, name: true, role: true } }),
+    prisma.retailRegister.findFirstOrThrow({ where: { companyId, code: "TILL-1" }, select: { id: true } }),
+  ])
+  const actorOf = (user: { id: string; name: string | null; role: string }) => ({ companyId, userId: user.id, userRole: user.role, userName: user.name ?? null })
+  const ownerActor = actorOf(owner)
+
+  // The done ones go to members off the boards: the regulars' figures stay as seeded.
+  const members = await prisma.customer.findMany({
+    where: { companyId, archivedAt: null, mergedIntoId: null, phone: { not: null }, name: { notIn: [...CUSTOMERS, DUPLICATE_TAPIWA.name] } },
+    orderBy: { code: "asc" },
+    take: 8,
+    select: { name: true },
+  })
+  const member = (index: number) => members[index % Math.max(members.length, 1)]?.name ?? "Simba Mutasa"
+
+  const LAYBYS: LaybySeed[] = [
+    { no: 16, started: [124, 10], customer: member(0), lines: [["JAMESON-750", 1]], deposit: "10.00", tender: "ECOCASH", due: 30, payments: [[110, "17.90", "ECOCASH"]], end: { collected: 108 } },
+    { no: 17, started: [118, 11], customer: member(1), lines: [["BLKLABEL-750", 1]], deposit: "15.00", tender: "CARD", due: 30, payments: [[100, "27.00", "CARD"]], end: { collected: 99 } },
+    { no: 18, started: [111, 15], customer: member(2), lines: [["GORDONS-750", 2]], deposit: "10.00", tender: "ECOCASH", due: 30, payments: [[95, "22.80", "ECOCASH"]], end: { collected: 95 } },
+    { no: 19, started: [104, 12], customer: member(3), lines: [["AMARULA-750", 1]], deposit: "5.00", tender: "ECOCASH", due: 21, end: { cancelled: 80 } },
+    { no: 20, started: [97, 10], customer: member(4), lines: [["CASTLE-CASE", 2]], deposit: "15.00", tender: "ECOCASH", due: 30, payments: [[85, "38.00", "ECOCASH"]], end: { collected: 84 } },
+    { no: 21, started: [90, 14], customer: member(5), lines: [["JAMESON-750", 2]], deposit: "12.00", tender: "CARD", due: 30, payments: [[75, "20.00", "CARD"], [66, "23.80", "CARD"]], end: { collected: 66 } },
+    { no: 22, started: [82, 11], customer: member(6), lines: [["NEDERBURG-750", 3]], deposit: "8.00", tender: "ECOCASH", due: 30, payments: [[70, "29.80", "ECOCASH"]], end: { collected: 69 } },
+    { no: 23, started: [74, 16], customer: member(7), lines: [["BLKLABEL-750", 1], ["TONIC-200", 6]], deposit: "10.00", tender: "ECOCASH", due: 30, payments: [[60, "35.60", "ECOCASH"]], end: { collected: 58 } },
+    { no: 24, started: [66, 10], customer: member(0), lines: [["CHIBUKU-12", 2]], deposit: "5.00", tender: "ECOCASH", due: 21, payments: [[55, "20.00", "ECOCASH"]], end: { collected: 54 } },
+    { no: 25, started: [58, 13], customer: member(1), lines: [["TWOKEYS-750", 2]], deposit: "4.00", tender: "CARD", due: 21, payments: [[45, "15.50", "CARD"]], end: { collected: 44 } },
+    { no: 26, started: [50, 12], customer: member(2), lines: [["GORDONS-750", 1]], deposit: "5.00", tender: "ECOCASH", due: 21, payments: [[38, "11.40", "ECOCASH"]], end: { collected: 37 } },
+    { no: 27, started: [40, 11], customer: "Tinashe Mavhunga", lines: [["AMARULA-750", 2]], deposit: "10.00", tender: "ECOCASH", due: 3 },
+    { no: 28, started: [25, 15], customer: "Nyasha Gwenzi", lines: [["BLKLABEL-750", 1]], deposit: "12.00", tender: "ECOCASH", due: 9, payments: [[6, "30.00", "ECOCASH"]] },
+    { no: 29, started: [33, 10], customer: member(3), lines: [["JAMESON-750", 1]], deposit: "6.00", tender: "CARD", due: 30, end: { cancelled: 12 } },
+    { no: 30, started: [30, 11], customer: "Farai Chikore", lines: [["CASTLE-CASE", 4], ["SAVANNA-CASE", 2]], deposit: "40.00", tender: "ECOCASH", due: 14, payments: [[16, "60.00", "ECOCASH"]] },
+    { no: 31, started: [0, 9], customer: "Rutendo Banda", lines: [["HENNESSY-GIFT", 1]], deposit: "20.00", tender: "CASH", due: 17 },
+  ]
+
+  const productByCode = new Map(
+    (await prisma.product.findMany({ where: { companyId, code: { in: LAYBYS.flatMap((row) => row.lines.map(([code]) => code)) } }, select: { id: true, code: true } })).map((row) => [row.code, row.id]),
+  )
+  const customerByName = new Map(
+    (await prisma.customer.findMany({ where: { companyId, archivedAt: null, mergedIntoId: null }, select: { id: true, name: true } })).map((row) => [row.name, row.id]),
+  )
+  const today = dayKey(new Date())
+  const at = (days: number, hour: number) => harareTime(days, hour, 0)
+  let reference = 2410
+  const ref = (tender: string) => (tender === "CASH" ? undefined : `${tender === "CARD" ? "CRD" : "MP"}${(reference += 7)}`)
+
+  for (const row of [...LAYBYS].sort((a, b) => a.no - b.no)) {
+    // The catalogue's goods back on the shelf before they go aside, so on hand ends as the catalogue says.
+    for (const [code, count] of row.lines) {
+      if (LAYBY_PRODUCTS.some((entry) => entry.code === code)) continue
+      await prisma.inventoryItem.updateMany({ where: { siteId: mainSiteId, productId: productByCode.get(code)! }, data: { currentStock: { increment: count } } })
+    }
+    await prisma.idSequence.upsert({
+      where: { companyId_entityKey_scopeKey: { companyId, entityKey: "RETAIL_LAYBY", scopeKey: "GLOBAL" } },
+      create: { companyId, entityKey: "RETAIL_LAYBY", scopeKey: "GLOBAL", lastNumber: row.no - 1 },
+      update: { lastNumber: row.no - 1 },
+    })
+    const startAt = row.started[0] === 0 ? new Date() : at(row.started[0], row.started[1])
+    const done = Boolean(row.end)
+    const startDay = dayKey(startAt)
+    const started = await startLayby(
+      row.tender === "CASH" ? actorOf(chipo) : ownerActor,
+      {
+        customerId: customerByName.get(row.customer)!,
+        lines: row.lines.map(([code, count]) => ({ productId: productByCode.get(code)!, quantity: String(count) })),
+        deposit: row.deposit,
+        depositTender: row.tender,
+        reference: ref(row.tender),
+        dueOn: done ? addDays(startDay, row.due) : addDays(today, row.due),
+        remindWeekly: !done,
+      },
+      { now: startAt, place: row.tender === "CASH" ? { registerId: frontTill.id } : {} },
+    )
+    for (const [days, amount, tender] of row.payments ?? []) {
+      await payLayby(ownerActor, started.id, { amount, tender, reference: ref(tender) }, { now: at(days, 12) })
+    }
+    if (row.end && "cancelled" in row.end) {
+      await cancelLayby(ownerActor, started.id, { tender: row.tender === "CASH" ? "ECOCASH" : row.tender }, { now: at(row.end.cancelled, 11) })
+    }
+    if (row.end && "collected" in row.end) await handOverHistory(ownerActor, started.id, at(row.end.collected, 14))
+  }
+
+  const tabs = await prisma.retailLayby.groupBy({ by: ["status"], where: { companyId }, _count: true })
+  const count = (status: string) => tabs.find((tab) => tab.status === status)?._count ?? 0
+  const open = await prisma.retailLayby.findMany({ where: { companyId, status: { in: ["PAYING", "READY"] } }, orderBy: { laybyNo: "desc" }, select: { laybyNo: true, total: true, paid: true } })
+  console.log(
+    `  lay-bys: Paying ${count("PAYING")} · Ready to collect ${count("READY")} · Done ${count("COLLECTED") + count("CANCELLED")}; ` +
+      open.map((row) => `${row.laybyNo} ${money(row.total).toFixed(2)}/${money(row.paid).toFixed(2)}`).join(", "),
+  )
+}
+
+/**
+ * A lay-by handed over months ago, as `handOver` writes it — the sale at the
+ * held prices paid "Lay-by", no stock movement, the lay-by collected, the
+ * sale's journal — but without points (the members' points are seeded) or a
+ * fiscal receipt (the history's sales have none).
+ */
+async function handOverHistory(actor: { companyId: string; userId: string; userName: string | null; userRole: string }, laybyId: string, collectedAt: Date) {
+  const layby = await prisma.retailLayby.findUniqueOrThrow({ where: { id: laybyId }, include: { lines: true, customer: { select: { name: true } } } })
+  const saleNo = await reserveIdentifier(prisma, { companyId: actor.companyId, entity: "RETAIL_SALE" })
+  const total = money(layby.total)
+  const taxAmount = sumMoney(layby.lines.map((line) => line.taxAmount))
+  const sale = await prisma.retailSale.create({
+    data: {
+      companyId: actor.companyId,
+      saleNo,
+      siteId: layby.siteId,
+      cashierId: actor.userId,
+      cashierName: actor.userName,
+      customerId: layby.customerId,
+      customerName: layby.customer.name,
+      saleType: "SALE",
+      subtotal: total.minus(taxAmount),
+      taxAmount,
+      totalAmount: total,
+      tenderedAmount: total,
+      changeAmount: 0,
+      currency: "USD",
+      baseAmount: total,
+      status: "POSTED",
+      postedAt: collectedAt,
+      createdAt: collectedAt,
+      notes: `Handed over from ${layby.laybyNo}`,
+      tenderSummary: [{ tenderType: "LAYBY", amount: toNumberOrZero(total), currency: "USD" }],
+      lines: {
+        create: layby.lines.map((line) => ({
+          companyId: actor.companyId,
+          inventoryItemId: line.inventoryItemId,
+          productId: line.productId,
+          priceListId: line.priceListId,
+          itemName: line.itemName,
+          quantity: line.quantity,
+          unitPrice: line.unitPrice,
+          taxAmount: line.taxAmount,
+          lineTotal: line.lineTotal,
+          costUnit: line.costUnit,
+          costTotal: multiplyMoney(line.quantity, line.costUnit),
+        })),
+      },
+      payments: { create: { companyId: actor.companyId, tenderType: "LAYBY", amount: total, baseAmount: total, reference: layby.laybyNo } },
+    },
+    include: { lines: true, payments: true },
+  })
+  await prisma.retailLayby.update({ where: { id: layby.id }, data: { status: "COLLECTED", saleId: sale.id, collectedAt, collectedById: actor.userId } })
+  await ensureRetailSaleAccountingPosted({ actor, sale, registerCode: null })
 }

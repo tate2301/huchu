@@ -80,6 +80,39 @@ export function offlineHoursProblem(text: string): string | null {
   return null;
 }
 
+/** FLR-06 Lay-bys: the longest time to pay the page takes, and the fee's ceiling. */
+export const LAYBY_MAX_DAYS_LIMIT = 365;
+export const LAYBY_CANCEL_FEE_MAX = 100_000;
+
+/** "90 days", "1 day". */
+export function daysWords(days: number): string {
+  return `${days} ${days === 1 ? "day" : "days"}`;
+}
+
+/** "90", "90 days", "1 day" → whole days; anything else null. */
+export function parseDays(text: string): number | null {
+  const match = /^\s*(\d{1,3})\s*(?:d|day|days)?\s*$/i.exec(text);
+  return match ? Number(match[1]) : null;
+}
+
+/** The sentence under "Smallest deposit" when it cannot be taken. */
+export function laybyDepositProblem(text: string): string | null {
+  const value = parsePercent(text);
+  if (value === null) return "Type a percentage, like 20%.";
+  if (value < 1) return "Ask for at least 1%.";
+  if (value > 100) return "A deposit cannot be more than 100%.";
+  return null;
+}
+
+/** The sentence under "Longest time to pay" when it cannot be taken. */
+export function laybyDaysProblem(text: string): string | null {
+  const value = parseDays(text);
+  if (value === null) return "Type a number of days, like 90 days.";
+  if (value < 1) return "Allow at least 1 day.";
+  if (value > LAYBY_MAX_DAYS_LIMIT) return `Keep it to ${LAYBY_MAX_DAYS_LIMIT} days or less.`;
+  return null;
+}
+
 /** A reason list as typed: trimmed, no blanks. Repeats are refused by `reasonsProblem`, not dropped. */
 export function cleanReasons(reasons: string[]): string[] {
   return reasons.map((reason) => reason.trim().replace(/\s+/g, " ")).filter(Boolean);

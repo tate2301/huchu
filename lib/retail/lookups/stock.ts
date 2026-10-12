@@ -1,5 +1,7 @@
 import { prisma } from "@/lib/prisma";
+import { calculateRetailCheckout } from "@/lib/retail/checkout";
 import { canRetailSessionDo } from "@/lib/retail/permission-matrix";
+import { resolveShelfPrices } from "@/lib/retail/shelf-pricing";
 import { atSiteWords } from "@/lib/retail/stock/transfer-words";
 import { formatCount } from "@/lib/workspace/format";
 
@@ -25,6 +27,7 @@ const stockLine: LookupNoun = {
     ["retail.transfers", "create"],
     ["retail.counts", "create"],
     ["retail.adjustments", "create"],
+    ["retail.laybys", "create"],
   ],
   quick: [],
   async search(ctx, q, context) {
@@ -66,11 +69,34 @@ const stockLine: LookupNoun = {
         currentStock: true,
         unitCost: true,
         site: { select: { name: true } },
-        product: { select: { id: true, name: true, barcode: true } },
+        product: { select: { id: true, name: true, barcode: true, category: true, retailCategory: { select: { name: true } } } },
       },
     });
     // A scanned barcode is that product and nothing else.
     const scanned = needle ? lines.filter((line) => line.product?.barcode === needle) : [];
+    if (context.for === "layby" && siteId) {
+      const shown = (scanned.length > 0 ? scanned : lines).filter((line) => line.product);
+      const prices = await resolveShelfPrices(
+        ctx.companyId,
+        shown.map((line) => ({ id: line.id, productId: line.product!.id, unitPrice: 0, taxPercent: 0 })),
+        { siteId },
+      );
+      return shown.map((line) => {
+        const shelf = prices.get(line.id);
+        const price = shelf
+          ? calculateRetailCheckout({ lines: [{ id: line.id, quantity: 1, unitPrice: shelf.unitPrice, taxPercent: shelf.taxPercent, taxInclusive: shelf.taxInclusive }] }).total
+          : 0;
+        return {
+          id: line.id,
+          label: line.product!.name,
+          sub: line.product!.retailCategory?.name ?? line.product!.category ?? null,
+          of: line.product!.id,
+          siteId: line.siteId,
+          onHand: line.currentStock.toNumber(),
+          cost: price.toFixed(2),
+        };
+      });
+    }
     const canSeeCost = canRetailSessionDo(ctx.session, "retail.catalog", "view-cost");
     const atSite = context.for === "transfer" || everySite;
     return (scanned.length > 0 ? scanned : lines).map((line) => {

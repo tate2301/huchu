@@ -4,6 +4,7 @@ import { CATEGORY_LOADERS } from "@/lib/reports/loaders/retail/categories";
 import { CUSTOMER_LOADERS } from "@/lib/reports/loaders/retail/customers";
 import { FLOOR_LOADERS } from "@/lib/reports/loaders/retail/floor";
 import { FLOOR_DAY_LOADERS } from "@/lib/reports/loaders/retail/floor-days";
+import { FLOOR_LAYBY_LOADERS } from "@/lib/reports/loaders/retail/floor-laybys";
 import { PEOPLE_LOADERS } from "@/lib/reports/loaders/retail/people";
 import { PRICE_LIST_LOADERS } from "@/lib/reports/loaders/retail/price-lists";
 import { BUNDLE_LOADERS } from "@/lib/reports/loaders/retail/bundles";
@@ -25,4 +26,4 @@ import { REPORT_CATALOG_LOADERS } from "@/lib/reports/loaders/retail/reports-cat
 import type { ReportLoader } from "@/lib/reports/types";
 
 /** Retail's loaders, one file per area, paired by key with `definitions/retail`. */
-export const RETAIL_LOADERS: Record<string, ReportLoader> = { ...FLOOR_LOADERS, ...FLOOR_DAY_LOADERS, ...SHIFT_RECORD_LOADERS, ...SALE_RECORD_LOADERS, ...PRODUCT_LOADERS, ...PRICE_LIST_LOADERS, ...BUNDLE_LOADERS, ...PROMOTION_LOADERS, ...VOUCHER_LOADERS, ...PRODUCT_TAB_LOADERS, ...STOCK_ON_HAND_LOADERS, ...STOCK_MOVEMENT_LOADERS, ...STOCK_TRANSFER_LOADERS, ...STOCK_COUNT_LOADERS, ...EMPTIES_LOADERS, ...CATEGORY_LOADERS, ...BIN_LOADERS, ...SITE_LOADERS, ...TILL_LOADERS, ...PEOPLE_LOADERS, ...BUYING_LOADERS, ...CUSTOMER_LOADERS, ...REPORT_ONLY_LOADERS, ...REPORT_CATALOG_LOADERS };
+export const RETAIL_LOADERS: Record<string, ReportLoader> = { ...FLOOR_LOADERS, ...FLOOR_DAY_LOADERS, ...FLOOR_LAYBY_LOADERS, ...SHIFT_RECORD_LOADERS, ...SALE_RECORD_LOADERS, ...PRODUCT_LOADERS, ...PRICE_LIST_LOADERS, ...BUNDLE_LOADERS, ...PROMOTION_LOADERS, ...VOUCHER_LOADERS, ...PRODUCT_TAB_LOADERS, ...STOCK_ON_HAND_LOADERS, ...STOCK_MOVEMENT_LOADERS, ...STOCK_TRANSFER_LOADERS, ...STOCK_COUNT_LOADERS, ...EMPTIES_LOADERS, ...CATEGORY_LOADERS, ...BIN_LOADERS, ...SITE_LOADERS, ...TILL_LOADERS, ...PEOPLE_LOADERS, ...BUYING_LOADERS, ...CUSTOMER_LOADERS, ...REPORT_ONLY_LOADERS, ...REPORT_CATALOG_LOADERS };

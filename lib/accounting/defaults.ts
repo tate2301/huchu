@@ -197,6 +197,8 @@ const BASE_CHART_OF_ACCOUNTS: DefaultAccount[] = [
   { code: "2240", name: "Bottle Deposits Held", type: "LIABILITY", category: "Payables", systemManaged: true },
   // SET-09: a voucher taken at the till settles what the shop owes its holder.
   { code: "2250", name: "Vouchers issued", type: "LIABILITY", category: "Payables", systemManaged: true },
+  // FLR-06: what customers have paid towards their lay-bys, owed back until the goods are handed over.
+  { code: "2260", name: "Lay-by deposits held", type: "LIABILITY", category: "Payables", systemManaged: true },
   { code: "2210", name: "VAT Input", type: "ASSET", category: "Tax", systemManaged: true },
   { code: "2300", name: "Goods Received Not Invoiced", type: "LIABILITY", category: "Inventory", systemManaged: true },
   ...PAYROLL_CHART_OF_ACCOUNTS,
@@ -1152,6 +1154,36 @@ export const RETAIL_POSTING_RULES: DefaultPostingRule[] = [
       { accountCode: "1000", direction: "CREDIT", basis: "AMOUNT", memoTemplate: "{description} / till cash", sortOrder: 20 },
     ],
   },
+  // FLR-06: money taken for a lay-by is held for the customer (2260) until the
+  // hand-over sells the goods (the sale's LAYBY tender moves it to revenue);
+  // a cancel pays back what was paid, less the fee kept as other income.
+  {
+    name: "Retail lay-by payment",
+    sourceType: "RETAIL_LAYBY_PAYMENT",
+    description: "A lay-by's deposit or payment: the tender against Lay-by deposits held.",
+    priority: 10,
+    scopeType: "COMPANY",
+    ruleMode: "GUIDED",
+    isFallback: true,
+    lines: [
+      { direction: "DEBIT", repeatMode: "TENDER", accountSource: "TENDER_MAPPING", valuePath: "amount", memoTemplate: "{description} / {tenderType}", sortOrder: 10 },
+      { accountCode: "2260", direction: "CREDIT", basis: "AMOUNT", memoTemplate: "{description} / lay-by deposits held", sortOrder: 20 },
+    ],
+  },
+  {
+    name: "Retail lay-by cancel",
+    sourceType: "RETAIL_LAYBY_CANCEL",
+    description: "A cancelled lay-by: what was paid comes off Lay-by deposits held, paid back by its tender, the fee kept as other income.",
+    priority: 10,
+    scopeType: "COMPANY",
+    ruleMode: "GUIDED",
+    isFallback: true,
+    lines: [
+      { accountCode: "2260", direction: "DEBIT", basis: "AMOUNT", valuePath: "paid", memoTemplate: "{description} / lay-by deposits held", sortOrder: 10 },
+      { direction: "CREDIT", repeatMode: "TENDER", accountSource: "TENDER_MAPPING", valuePath: "amount", memoTemplate: "{description} / {tenderType}", sortOrder: 20 },
+      { accountCode: "4200", direction: "CREDIT", basis: "DEDUCTIONS", valuePath: "fee", memoTemplate: "{description} / fee kept", sortOrder: 30 },
+    ],
+  },
   {
     name: "Retail shift variance",
     sourceType: "RETAIL_SHIFT_VARIANCE",
@@ -1346,6 +1378,8 @@ export const RETAIL_TENDER_ACCOUNT_MAPPINGS: DefaultTenderAccountMapping[] = [
   { tenderType: "TRANSFER", clearingAccountCode: "1017", priority: 40 },
   { tenderType: "ON_ACCOUNT", clearingAccountCode: "1100", priority: 45 },
   { tenderType: "VOUCHER", clearingAccountCode: "2250", priority: 50 },
+  // FLR-06: a hand-over is paid by the lay-by's deposits, so the liability becomes the sale.
+  { tenderType: "LAYBY", clearingAccountCode: "2260", priority: 55 },
 ];
 
 /**

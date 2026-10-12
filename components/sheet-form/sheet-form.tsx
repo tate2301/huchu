@@ -472,6 +472,10 @@ export function SheetForm({ kind, ctx, open, onClose }: SheetFormProps) {
       }
       await Promise.all(kind.invalidate.map((key) => queryClient.invalidateQueries({ queryKey: key })));
       toast({ title: secondaryAction.done(answer.payload), variant: "success" });
+      if (secondaryAction.closes) {
+        settle(false);
+        onClose();
+      }
     } catch {
       setFooterError("That did not reach the server. Nothing was sent; try again.");
     } finally {

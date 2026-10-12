@@ -1,3 +1,4 @@
+import { cancelLaybyAsk, cancelledWords, handedOverWords } from "@/lib/retail/floor/layby-words";
 import type { Ask } from "@/lib/workspace/ask";
 import { formatMoney } from "@/lib/workspace/format";
 
@@ -27,6 +28,9 @@ export function sentManyWords(answer: SentMany | null | undefined): string {
   return `${head} ${none} ${none === 1 ? "sale has" : "sales have"} no customer number.`;
 }
 
+/** An answer's `data`. */
+const dataOf = <T,>(answer: unknown) => ((answer as { data?: T } | null)?.data ?? answer) as T;
+
 export const FLOOR_LIST_RUNS: Record<string, ListActionRun> = {
   "send-receipt": {
     body: () => ({}),
@@ -37,6 +41,29 @@ export const FLOOR_LIST_RUNS: Record<string, ListActionRun> = {
       const words = sentManyWords(answer as SentMany);
       return (answer as SentMany | null)?.noNumber ? { title: words, variant: "warning" } : words;
     },
+  },
+  // FLR-06: a paid lay-by handed over from its row; its sale is posted and fiscalised.
+  handoverlayby: {
+    body: () => ({}),
+    done: (_count, _rows, answer) => handedOverWords(dataOf(answer)),
+  },
+  // FLR-06: "Cancel LAY-0031?", the money back by the tender last paid with (out of the drawer the rule finds).
+  cancellayby: {
+    ask: (_count, rows) => {
+      const row = rows[0] ?? {};
+      return cancelLaybyAsk({
+        laybyNo: String(row.laybyNo ?? "the lay-by"),
+        customer: String(row.customer ?? "The customer"),
+        paid: String(row.paid ?? 0),
+        paidBack: String(row.paidBack ?? 0),
+        fee: String(row.cancelFee ?? 0),
+        by: String(row.backBy ?? "Cash"),
+        what: String(row.what ?? "the goods"),
+        many: row.many === "yes",
+      });
+    },
+    body: (_ids, rows) => ({ tender: rows[0]?.backTender ?? "CASH" }),
+    done: (_count, _rows, answer) => cancelledWords(dataOf(answer)),
   },
 };
 

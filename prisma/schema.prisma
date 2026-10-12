@@ -359,6 +359,7 @@ model Company {
   retailMessageBatches          RetailMessageBatch[]
   userSiteAccess     UserSiteAccess[]
   retailStaffInvites RetailStaffInvite[]
+  retailLaybys       RetailLayby[]
 
   @@index([tenantStatus])
   @@index([isProvisioned])
@@ -1182,6 +1183,7 @@ model Site {
   retailBundles         RetailBundle[]         @relation("RetailBundleSite")
   retailPromotions      RetailPromotion[]      @relation("RetailPromotionSite")
   retailVouchers        RetailVoucher[]        @relation("RetailVoucherSite")
+  retailLaybys          RetailLayby[]          @relation("RetailLaybySite")
 
   @@unique([companyId, code])
   @@index([companyId])
@@ -1501,6 +1503,10 @@ model User {
   retailTillPinsIssued              RetailTillPin[]                @relation("RetailTillPinIssuedBy")
   vendorsStopped                    Vendor[]                       @relation("VendorStoppedBy")
   vendorsCreated                    Vendor[]                       @relation("VendorCreatedBy")
+  retailLaybysCreated               RetailLayby[]                  @relation("RetailLaybyCreatedBy")
+  retailLaybysCollected             RetailLayby[]                  @relation("RetailLaybyCollectedBy")
+  retailLaybysCancelled             RetailLayby[]                  @relation("RetailLaybyCancelledBy")
+  retailLaybyPaymentsReceived       RetailLaybyPayment[]           @relation("RetailLaybyPaymentReceivedBy")
 
   @@index([companyId])
   @@index([email])
@@ -4394,6 +4400,7 @@ model InventoryItem {
   retailTransferLinesFrom  RetailStockTransferLine[] @relation("RetailStockTransferLineFrom")
   retailTransferLinesTo    RetailStockTransferLine[] @relation("RetailStockTransferLineTo")
   retailCountLines         RetailStockCountLine[]
+  retailLaybyLines         RetailLaybyLine[]         @relation("RetailLaybyLineItem")
 
   @@unique([siteId, itemCode])
   @@index([siteId])
@@ -4493,6 +4500,9 @@ enum StockMovementReason {
   CASE_BROKEN
   REVERSAL
   PLACE_MOVE
+  /// FLR-06: put aside for a lay-by, off the shelf; LAYBY_BACK puts a cancelled one back.
+  LAYBY_ASIDE
+  LAYBY_BACK
 }
 
 /// Retail's status vocabularies.
@@ -4561,6 +4571,8 @@ enum RetailCashMovementType {
   DROP_TO_SAFE
   FLOAT_TOP_UP
   PAYOUT
+  /// FLR-06: money taken into a drawer that is not a sale (a lay-by, an account payment).
+  TAKEN_IN
 }
 
 /// S-7.1 — why the cash moved, from a fixed list.
@@ -4590,6 +4602,9 @@ enum RetailCashMovementReason {
   OTHER
   /// Cash paid out at the till for empties brought back without a sale.
   BOTTLES_BACK
+  /// FLR-06: a lay-by's deposit or payment in cash, and a cancelled one paid back.
+  LAYBY_PAYMENT
+  LAYBY_REFUND
 }
 
 /// `RELEASED` is the offline runtime's doing and is not reachable online.
@@ -4661,6 +4676,8 @@ enum RetailTenderType {
   TRANSFER
   ON_ACCOUNT
   VOUCHER
+  /// FLR-06: paid by a lay-by's deposits at hand over (Lay-by deposits held, 2260).
+  LAYBY
 }
 
 /// How the ZiG rate is kept: typed in by hand, or the RBZ's daily rate.
@@ -5476,6 +5493,7 @@ model RetailShift {
   heldCarts     RetailHeldCart[]
   sales         RetailSale[]
   cashMovements RetailCashMovement[]
+  laybyPayments RetailLaybyPayment[] @relation("RetailLaybyPaymentShift")
 
   @@unique([companyId, shiftNo])
   @@index([companyId, siteId, status])
@@ -5551,6 +5569,7 @@ model RetailCashMovement {
   shift      RetailShift @relation(fields: [shiftId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   recordedBy User?       @relation("RetailCashMovementRecordedBy", fields: [recordedById], references: [id], onDelete: SetNull, onUpdate: Cascade)
   approvedBy User?       @relation("RetailCashMovementApprovedBy", fields: [approvedById], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  laybyPayment RetailLaybyPayment? @relation("RetailLaybyPaymentCashMovement")
 
   @@index([companyId, shiftId, createdAt])
   @@index([companyId, type])
@@ -5580,12 +5599,131 @@ model RetailTillRules {
   drawerOpenWithoutSale     Boolean           @default(false)
   cashDropPromptOver        Decimal           @default(500) @db.Decimal(14, 2)
   offlineHours              Int               @default(24)
+  /// FLR-06 Lay-bys: the smallest deposit (percent of the total), the fee kept when one is cancelled, and the longest time to pay.
+  laybyMinDepositPercent    Decimal           @default(20) @db.Decimal(5, 2)
+  laybyCancelFee            Decimal           @default(0) @db.Decimal(14, 2)
+  laybyMaxDays              Int               @default(90)
   updatedById               String?
   createdAt                 DateTime          @default(now())
   updatedAt                 DateTime          @updatedAt
 
   company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
   updatedBy User?   @relation("RetailTillRulesUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+}
+
+/// FLR-06 (W-42): where a lay-by stands.
+enum RetailLaybyStatus {
+  PAYING
+  READY
+  COLLECTED
+  CANCELLED
+}
+
+/// FLR-06: money into a lay-by (its deposit, a payment) and a cancelled one's money paid back.
+enum RetailLaybyPaymentKind {
+  DEPOSIT
+  PAYMENT
+  REFUND
+}
+
+/// FLR-06 (W-42): goods put aside for a customer who pays a deposit and the
+/// rest over time. The goods leave the shelf when it starts (LAYBY_ASIDE) and
+/// stay the shop's; what is paid is held as Lay-by deposits held (2260) until
+/// the hand-over sells them (a sale paid "Lay-by") or a cancel pays it back.
+model RetailLayby {
+  id             String            @id @default(uuid())
+  companyId      String
+  /// "LAY-0031", company-wide (`RETAIL_LAYBY`).
+  laybyNo        String
+  siteId         String
+  customerId     String
+  status         RetailLaybyStatus @default(PAYING)
+  /// Held at the price on the day it started.
+  total          Decimal           @db.Decimal(14, 2)
+  /// Σ deposits and payments.
+  paid           Decimal           @default(0) @db.Decimal(14, 2)
+  dueOn          DateTime          @db.Date
+  remindWeekly   Boolean           @default(true)
+  lastRemindedAt DateTime?
+  createdById    String
+  collectedAt    DateTime?
+  collectedById  String?
+  /// The hand-over's sale.
+  saleId         String?           @unique
+  cancelledAt    DateTime?
+  cancelledById  String?
+  /// What a cancel kept as the fee in Till rules.
+  cancelFee      Decimal?          @db.Decimal(14, 2)
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+
+  company     Company              @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  site        Site                 @relation("RetailLaybySite", fields: [siteId], references: [id], onDelete: Restrict)
+  customer    Customer             @relation("RetailLaybyCustomer", fields: [customerId], references: [id], onDelete: Restrict)
+  createdBy   User                 @relation("RetailLaybyCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  collectedBy User?                @relation("RetailLaybyCollectedBy", fields: [collectedById], references: [id], onDelete: SetNull)
+  cancelledBy User?                @relation("RetailLaybyCancelledBy", fields: [cancelledById], references: [id], onDelete: SetNull)
+  sale        RetailSale?          @relation("RetailLaybySale", fields: [saleId], references: [id], onDelete: SetNull)
+  lines       RetailLaybyLine[]
+  payments    RetailLaybyPayment[]
+
+  @@unique([companyId, laybyNo])
+  @@index([companyId, status, dueOn])
+  @@index([customerId])
+}
+
+/// FLR-06: what a lay-by puts aside, at the price held for it.
+model RetailLaybyLine {
+  id              String   @id @default(uuid())
+  companyId       String
+  laybyId         String
+  productId       String
+  inventoryItemId String
+  itemName        String
+  quantity        Decimal  @db.Decimal(12, 4)
+  unitPrice       Decimal  @db.Decimal(14, 2)
+  lineTotal       Decimal  @db.Decimal(14, 2)
+  /// VAT inside `lineTotal` at the product's rate, held for the hand-over sale.
+  taxAmount       Decimal  @db.Decimal(14, 2)
+  /// Cost when put aside, for the hand-over's cost of sales.
+  costUnit        Decimal  @db.Decimal(14, 2)
+  priceListId     String?
+  createdAt       DateTime @default(now())
+
+  layby         RetailLayby   @relation(fields: [laybyId], references: [id], onDelete: Cascade)
+  product       Product       @relation("RetailLaybyLineProduct", fields: [productId], references: [id], onDelete: Restrict)
+  inventoryItem InventoryItem @relation("RetailLaybyLineItem", fields: [inventoryItemId], references: [id], onDelete: Restrict)
+
+  @@index([laybyId])
+  @@index([companyId, productId])
+}
+
+/// FLR-06: money into a lay-by, and back out when it is cancelled.
+model RetailLaybyPayment {
+  id             String                 @id @default(uuid())
+  companyId      String
+  laybyId        String
+  kind           RetailLaybyPaymentKind
+  tenderType     RetailTenderType
+  /// + in, − paid back.
+  amount         Decimal                @db.Decimal(14, 2)
+  currency       String                 @default("USD")
+  exchangeRate   Decimal                @default(1) @db.Decimal(12, 4)
+  baseAmount     Decimal                @db.Decimal(14, 2)
+  reference      String?
+  /// The drawer the cash went into or out of.
+  shiftId        String?
+  cashMovementId String?                @unique
+  receivedById   String
+  createdAt      DateTime               @default(now())
+
+  layby        RetailLayby         @relation(fields: [laybyId], references: [id], onDelete: Cascade)
+  shift        RetailShift?        @relation("RetailLaybyPaymentShift", fields: [shiftId], references: [id], onDelete: SetNull)
+  cashMovement RetailCashMovement? @relation("RetailLaybyPaymentCashMovement", fields: [cashMovementId], references: [id], onDelete: SetNull)
+  receivedBy   User                @relation("RetailLaybyPaymentReceivedBy", fields: [receivedById], references: [id], onDelete: Restrict)
+
+  @@index([laybyId, createdAt])
+  @@index([companyId, shiftId])
 }
 
 enum RetailPriceChangeRule {
@@ -6169,6 +6307,7 @@ model RetailSale {
   vouchersSold    RetailVoucher[]    @relation("RetailVoucherSoldSale")
   voucherUses     RetailVoucherUse[] @relation("RetailVoucherUseSale")
   pointsEntries   RetailPointsEntry[] @relation("RetailPointsEntrySale")
+  layby          RetailLayby?   @relation("RetailLaybySale")
 
   @@unique([companyId, saleNo])
   @@unique([companyId, clientRef])
@@ -6558,6 +6697,8 @@ enum AccountingSourceType {
   /// credit side the system can infer — a customer payment belongs in the
   /// receipt flow, not here — so this stays PENDING for a tenant to map.
   CRM_COST_ENTRY_RECEIPT
+  RETAIL_LAYBY_PAYMENT
+  RETAIL_LAYBY_CANCEL
 }
 
 enum PostingRuleScopeType {
@@ -7155,6 +7296,7 @@ model Customer {
   notes           RetailCustomerNote[]
   pointsEntries   RetailPointsEntry[]
   retailMessages  RetailMessage[]  @relation("RetailMessageCustomer")
+  retailLaybys    RetailLayby[]    @relation("RetailLaybyCustomer")
 
   @@unique([companyId, code])
   @@unique([companyId, cardNo])
@@ -14715,6 +14857,7 @@ model Product {
   promotions          RetailPromotionProduct[]
   crmQuestionSets      CrmQuestionSet[]
   crmSiteVisitSections CrmSiteVisitSection[]
+  retailLaybyLines RetailLaybyLine[] @relation("RetailLaybyLineProduct")
 
   @@unique([companyId, code])
   @@index([companyId, isActive, kind])

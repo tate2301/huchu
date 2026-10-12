@@ -420,7 +420,7 @@ export type ListAction = {
   sites?: "multi-site";
   do:
     /**
-     * A sheet over the list with the rows' ids; `with` adds to its address, its `{key}` holes filled
+     * A sheet over the list with the rows' ids; `with` adds to its address, its `{key}` holes filled (`{ids}`: the ticked rows' ids)
      * from the list's filters (`{ list: "{list}", how: "RAISE" }` on a worksheet).
      */
     | { sheet: string; with?: Record<string, string> }

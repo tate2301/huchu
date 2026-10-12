@@ -1,5 +1,6 @@
 import type { AccountType, RetailAccountRole, RetailPostingSchedule } from "@prisma/client";
 
+import { TENDER_OPTIONS, type TenderKey } from "@/lib/retail/payment-words";
 import { formatDay, formatTime } from "@/lib/workspace/format";
 
 /**
@@ -38,6 +39,25 @@ export const ROLE_TYPES: Record<RetailAccountRole, AccountType[]> = {
 /** A tender settles into an asset (cash, a bank, a debtor), or for vouchers what the shop owes. */
 export const TENDER_TYPES: AccountType[] = ["ASSET"];
 export const VOUCHER_TYPES: AccountType[] = ["ASSET", "LIABILITY"];
+
+/** A tender row on the Posting page: the till's, then those only the books see. */
+export type PostingTenderKey = TenderKey | "layby";
+export type PostingTenderOption = { key: PostingTenderKey; tender: string; currency: string | null; label: string };
+
+/**
+ * "Where each tender goes": every tender the till can take, then "Lay-by"
+ * (FLR-06), the lay-by's deposits paying for its hand-over. It is never on
+ * Payments: the shop does not switch it on, so its row always shows.
+ */
+export const POSTING_TENDER_OPTIONS: readonly PostingTenderOption[] = [
+  ...TENDER_OPTIONS,
+  { key: "layby", tender: "LAYBY", currency: null, label: "Lay-by" },
+];
+
+/** The account types a tender row takes: vouchers and lay-bys settle what the shop owes. */
+export function tenderAccountTypes(key: PostingTenderKey): AccountType[] {
+  return key === "vouchers" || key === "layby" ? VOUCHER_TYPES : TENDER_TYPES;
+}
 
 export const TYPE_WORDS: Record<AccountType, string> = {
   ASSET: "Asset",

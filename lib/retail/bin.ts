@@ -318,8 +318,14 @@ const KINDS: Record<BinKind, BinKindSpec> = {
       return row ? { name: customerBinName(row), archivedAt: row.archivedAt } : null;
     },
     // Off every list, lookup and the till's search; their sales, points and messages stay (CUS-02).
-    // Refusals for an open lay-by (packet 58) and money owed on account (packet 66) join here.
+    // Not while a lay-by of theirs is being paid or waits to be collected (FLR-06); money owed on account (packet 66) joins here.
     move: async (tx, companyId, id, at) => {
+      const layby = await tx.retailLayby.findFirst({
+        where: { companyId, customerId: id, status: { in: ["PAYING", "READY"] } },
+        orderBy: { createdAt: "asc" },
+        select: { laybyNo: true, customer: { select: { name: true } } },
+      });
+      if (layby) return `${layby.customer.name} has lay-by ${layby.laybyNo} still being paid.`;
       await tx.customer.updateMany({ where: { id, companyId }, data: { archivedAt: at, isActive: false } });
       return null;
     },
@@ -337,7 +343,7 @@ const KINDS: Record<BinKind, BinKindSpec> = {
       await tx.customer.updateMany({ where: { id, companyId }, data: { archivedAt: null, isActive: true } });
       return null;
     },
-    // Kept while anything refers to them: a sale, points, a note, a voucher, empties, an invoice, a quotation or a CRM client.
+    // Kept while anything refers to them: a sale, points, a note, a voucher, empties, a lay-by, an invoice, a quotation or a CRM client.
     purge: async (tx, companyId, id) => {
       const counts = await Promise.all([
         tx.retailSale.count({ where: { customerId: id } }),
@@ -345,6 +351,7 @@ const KINDS: Record<BinKind, BinKindSpec> = {
         tx.retailCustomerNote.count({ where: { customerId: id } }),
         tx.retailVoucher.count({ where: { customerId: id } }),
         tx.retailEmptiesEntry.count({ where: { customerId: id } }),
+        tx.retailLayby.count({ where: { customerId: id } }),
         tx.salesInvoice.count({ where: { customerId: id } }),
         tx.salesQuotation.count({ where: { customerId: id } }),
         tx.crmClient.count({ where: { customerId: id } }),

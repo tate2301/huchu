@@ -100,7 +100,10 @@ export async function GET(request: NextRequest) {
   ).abs();
   // `baseAmount` here too. A card or EcoCash tender in ZWG is the same face-value
   // trap as cash, and this figure sits beside the cash total on the same screen.
-  const nonCashPayments = postedSales.flatMap((sale) => sale.payments).filter((payment) => payment.tenderType !== "CASH");
+  // A lay-by's hand-over (FLR-06) brings in no money: its payments were taken, and counted, when they came in.
+  const nonCashPayments = postedSales
+    .flatMap((sale) => sale.payments)
+    .filter((payment) => payment.tenderType !== "CASH" && payment.tenderType !== "LAYBY");
   const nonCashNet = sumMoney(nonCashPayments.map((payment) => money(payment.baseAmount)));
   // The same, tender by tender, net of refunds and voids: what the cash-up checks against each statement.
   const nonCashByTender = Object.fromEntries(

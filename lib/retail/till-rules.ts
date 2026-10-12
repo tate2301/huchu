@@ -54,6 +54,10 @@ export type TillRules = {
   drawerOpenWithoutSale: boolean;
   cashDropPromptOver: Prisma.Decimal;
   offlineHours: number;
+  /** FLR-06 Lay-bys: the smallest deposit as a percent of the total, the fee kept on a cancel, the longest time to pay. */
+  laybyMinDepositPercent: Prisma.Decimal;
+  laybyCancelFee: Prisma.Decimal;
+  laybyMaxDays: number;
   /** The base currency's label ("US$", "ZiG"): what the money limits are in. */
   currency: string;
   updatedById: string | null;
@@ -73,6 +77,9 @@ export function defaultTillRules(): TillRules {
     drawerOpenWithoutSale: false,
     cashDropPromptOver: new Prisma.Decimal(500),
     offlineHours: 24,
+    laybyMinDepositPercent: new Prisma.Decimal(20),
+    laybyCancelFee: new Prisma.Decimal(0),
+    laybyMaxDays: 90,
     currency: "US$",
     updatedById: null,
     updatedAt: null,
@@ -97,6 +104,9 @@ export async function loadTillRules(companyId: string, db: Db = prisma): Promise
     drawerOpenWithoutSale: row.drawerOpenWithoutSale,
     cashDropPromptOver: row.cashDropPromptOver,
     offlineHours: row.offlineHours,
+    laybyMinDepositPercent: row.laybyMinDepositPercent,
+    laybyCancelFee: row.laybyCancelFee,
+    laybyMaxDays: row.laybyMaxDays,
     currency,
     updatedById: row.updatedById,
     updatedAt: row.updatedAt,
@@ -104,10 +114,22 @@ export async function loadTillRules(companyId: string, db: Db = prisma): Promise
 }
 
 export type TillRulesPatch = Partial<
-  Omit<TillRules, "currency" | "updatedById" | "updatedAt" | "refundPinOver" | "maxCashierDiscountPercent" | "cashDropPromptOver"> & {
+  Omit<
+    TillRules,
+    | "currency"
+    | "updatedById"
+    | "updatedAt"
+    | "refundPinOver"
+    | "maxCashierDiscountPercent"
+    | "cashDropPromptOver"
+    | "laybyMinDepositPercent"
+    | "laybyCancelFee"
+  > & {
     refundPinOver: string;
     maxCashierDiscountPercent: string;
     cashDropPromptOver: string;
+    laybyMinDepositPercent: string;
+    laybyCancelFee: string;
   }
 >;
 

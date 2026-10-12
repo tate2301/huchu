@@ -4,6 +4,7 @@ import { BUNDLE_SHEETS } from "./bundles";
 import { BUYING_SHEETS } from "./buying";
 import { CUSTOMER_SHEETS } from "./customers";
 import { FLOOR_SHEETS } from "./floor";
+import { LAYBY_SHEETS } from "./laybys";
 import { PEOPLE_SHEETS } from "./people";
 import { PRICE_SHEETS } from "./prices";
 import { PRODUCT_SHEETS } from "./products";
@@ -21,6 +22,7 @@ import { VOUCHER_SHEETS } from "./vouchers";
  */
 export const SHEET_KINDS: Readonly<Record<string, SheetKind>> = {
   ...FLOOR_SHEETS,
+  ...LAYBY_SHEETS,
   ...PRODUCT_SHEETS,
   ...PRICE_SHEETS,
   ...BUNDLE_SHEETS,

@@ -167,6 +167,34 @@ export function SheetField({
       {(control) => {
         switch (t) {
           case "read": {
+            const table = field.table?.(values) ?? null;
+            if (field.table) {
+              if (!table || table.rows.length === 0) return <ReadValue id={control.id}>{table?.empty ?? "—"}</ReadValue>;
+              return (
+                <table id={control.id} className="sf-read-table">
+                  <thead>
+                    <tr>
+                      {table.head.map((cell, index) => (
+                        <th key={cell} className={table.end?.includes(index) ? "sf-read-table__end" : undefined}>
+                          {cell}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {table.rows.map((row, rowIndex) => (
+                      <tr key={rowIndex}>
+                        {row.map((cell, index) => (
+                          <td key={index} className={table.end?.includes(index) ? "sf-read-table__end cx-mono" : undefined}>
+                            {cell}
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              );
+            }
             const shown = fixed
               ? fixed.shown
               : readOnly || readHere

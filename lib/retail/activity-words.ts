@@ -1,6 +1,7 @@
 import { RETAIL_AUDIT_EVENTS } from "@/lib/retail/audit";
 import { labelsPrintedSentence } from "@/lib/retail/labels/words";
 import { priceWords, productWords, scheduledActivity, undoneActivity } from "@/lib/retail/prices/words";
+import { tenderLabel } from "@/lib/retail/words";
 import { DEFAULT_TIME_ZONE, formatCount, formatMoney, formatPercent, formatSigned, formatTime } from "@/lib/workspace/format";
 
 /**
@@ -490,6 +491,15 @@ const WORDS: Record<string, (payload: Payload, eventType: string, seeCost: boole
     const at = text(payload.scheduledFor);
     return { what: at ? `Scheduled ${what} for ${weekdayTime(new Date(at))}` : `Sent ${what}`, tone: "hollow" };
   },
+  // FLR-06: "Started with a deposit of US$20.00", "Took US$13.00 by EcoCash, US$13.00 left",
+  // "Handed over as SALE-31871", "Cancelled, US$18.00 paid back".
+  [RETAIL_AUDIT_EVENTS.laybyStarted]: (payload) => ({ what: `Started with a deposit of ${moneyWords(payload.deposit)}`, tone: "info" }),
+  [RETAIL_AUDIT_EVENTS.laybyPaid]: (payload) => ({
+    what: `Took ${moneyWords(payload.amount)} by ${tenderLabel(text(payload.tender))}, ${moneyWords(payload.left)} left`,
+    tone: "ok",
+  }),
+  [RETAIL_AUDIT_EVENTS.laybyHandedOver]: (payload) => ({ what: `Handed over as ${text(payload.saleNo) ?? "a sale"}`, tone: "ok" }),
+  [RETAIL_AUDIT_EVENTS.laybyCancelled]: (payload) => ({ what: `Cancelled, ${moneyWords(payload.paidBack)} paid back`, tone: "bad" }),
   // CUS-06: "Replied STOP on WhatsApp" / "Stopped marketing messages" / "Agreed to messages".
   [RETAIL_AUDIT_EVENTS.customerConsent]: (payload) => ({
     what: payload.via === "STOP reply" ? "Replied STOP on WhatsApp" : payload.agreed === true ? "Agreed to messages" : "Stopped marketing messages",

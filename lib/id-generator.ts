@@ -41,6 +41,7 @@ export type ReservableIdEntity =
   | "RETAIL_CREDIT_NOTE"
   | "RETAIL_DISCOUNT_VOUCHER"
   | "RETAIL_CUSTOMER"
+  | "RETAIL_LAYBY"
   | "CRM_CLIENT"
   | "CRM_LEAD"
   | "CRM_APPOINTMENT"
@@ -123,6 +124,8 @@ export const ID_ENTITY_CONFIG: Record<ReservableIdEntity, EntityConfig> = {
   RETAIL_DISCOUNT_VOUCHER: { prefix: "DV", requiresSiteId: false },
   // "CUS-00141": a retail customer (CUS-01), company-wide; the card number follows it.
   RETAIL_CUSTOMER: { prefix: "CUS", requiresSiteId: false, padWidth: 5 },
+  // "LAY-0031": a lay-by (FLR-06), company-wide.
+  RETAIL_LAYBY: { prefix: "LAY", requiresSiteId: false },
   CRM_CLIENT: { prefix: "CLI", requiresSiteId: false },
   CRM_LEAD: { prefix: "CRL", requiresSiteId: false },
   CRM_APPOINTMENT: { prefix: "SVT", requiresSiteId: false },
@@ -504,6 +507,13 @@ async function findEntityMaxExistingCode(
         select: { code: true },
       });
       return extractMaxFromCodes(records.map((record) => record.code), prefix);
+    }
+    case "RETAIL_LAYBY": {
+      const records = await db.retailLayby.findMany({
+        where: { companyId },
+        select: { laybyNo: true },
+      });
+      return extractMaxFromCodes(records.map((record) => record.laybyNo), prefix);
     }
     // CRM entities seed from existing rows so a lost IdSequence row cannot
     // restart the counter at 0001 and collide with the unique constraint.

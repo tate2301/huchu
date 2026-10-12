@@ -370,6 +370,10 @@ describe("saving Till rules", () => {
       drawerOpenWithoutSale: false,
       cashDropPromptOver: "500.00",
       offlineHours: "24 hours",
+      // Lay-bys (FLR-06).
+      laybyMinDepositPercent: "20%",
+      laybyCancelFee: "0.00",
+      laybyMaxDays: "90 days",
       // The money the limits are in: the shop's base currency, read-only.
       currency: "US$",
     });

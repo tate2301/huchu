@@ -16,6 +16,7 @@ const TENDER: Record<string, string> = {
   TRANSFER: "Bank transfer",
   ON_ACCOUNT: "On account",
   VOUCHER: "Voucher",
+  LAYBY: "Lay-by",
 };
 
 const SALE_TYPE: Record<string, string> = {
@@ -39,6 +40,7 @@ const CASH_MOVEMENT: Record<string, string> = {
   DROP_TO_SAFE: "To the safe",
   FLOAT_TOP_UP: "In from the safe",
   PAYOUT: "Paid out",
+  TAKEN_IN: "Taken in",
 };
 
 const ORDER_STATUS: Record<string, string> = {
@@ -239,4 +241,37 @@ export function pointsKindLabel(entry: {
     default:
       return { label: enumLabel(entry.kind), tone: "hollow" };
   }
+}
+
+/** How many days a lay-by may be due in and still read "Due in 3 days" rather than "Paying". */
+export const LAYBY_DUE_SOON_DAYS = 7;
+
+/**
+ * Where a lay-by stands (FLR-06): "Paying", "Due in 3 days" (due within a
+ * week), "Due today", "Overdue", "Ready to collect", "Collected",
+ * "Cancelled". `dueOn` and `today` are shop days, `YYYY-MM-DD`.
+ */
+export function laybyStateLabel(layby: { status: string; dueOn: string }, today: string): string {
+  switch (layby.status) {
+    case "READY":
+      return "Ready to collect";
+    case "COLLECTED":
+      return "Collected";
+    case "CANCELLED":
+      return "Cancelled";
+  }
+  const days = Math.round((Date.parse(`${layby.dueOn}T00:00:00Z`) - Date.parse(`${today}T00:00:00Z`)) / 86_400_000);
+  if (days < 0) return "Overdue";
+  if (days === 0) return "Due today";
+  if (days <= LAYBY_DUE_SOON_DAYS) return `Due in ${days} ${days === 1 ? "day" : "days"}`;
+  return "Paying";
+}
+
+/** The state's badge tone: paying info, due soon or today warn, overdue bad, ready ok, done hollow. */
+export function laybyStateTone(label: string): "info" | "warn" | "bad" | "ok" | "hollow" {
+  if (label === "Paying") return "info";
+  if (label === "Overdue") return "bad";
+  if (label === "Ready to collect") return "ok";
+  if (label === "Collected" || label === "Cancelled") return "hollow";
+  return "warn";
 }
