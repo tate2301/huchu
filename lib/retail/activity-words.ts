@@ -189,6 +189,13 @@ function goodsReceivedWords(payload: Payload): ActivityWords {
   return { what: `Received ${ref}${detail}`, tone: "ok" };
 }
 
+/** "Counted GRN-0005, 20 units, for checking". */
+function goodsCountedWords(payload: Payload): ActivityWords {
+  const ref = text(payload.receiptNo) ?? "a delivery";
+  const units = amount(payload.units);
+  return { what: `Counted ${ref}${units !== null ? `, ${formatCount(units)} ${units === 1 ? "unit" : "units"}` : ""}, for checking`, tone: "info" };
+}
+
 function orderClosedWords(payload: Payload): ActivityWords {
   const owed = Array.isArray(payload.owed) ? (payload.owed as Payload[]) : [];
   const units = owed.reduce((sum, line) => sum + (amount(line.quantity) ?? 0), 0);
@@ -619,6 +626,7 @@ const WORDS: Record<string, (payload: Payload, eventType: string, seeCost: boole
     tone: "ok",
   }),
   [RETAIL_AUDIT_EVENTS.goodsReceived]: goodsReceivedWords,
+  [RETAIL_AUDIT_EVENTS.goodsCounted]: goodsCountedWords,
   [RETAIL_AUDIT_EVENTS.orderClosed]: orderClosedWords,
   [RETAIL_AUDIT_EVENTS.orderReopened]: () => ({ what: "Reopened", tone: "hollow" }),
   [RETAIL_AUDIT_EVENTS.shopProfileChanged]: shopProfileWords,

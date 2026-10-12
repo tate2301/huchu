@@ -234,6 +234,7 @@ describe("Activity's sentences (00-foundations 5.6.9)", () => {
     expect(activityWords("RETAIL_GOODS.RECEIVED", { receiptNo: "GRN-0004", units: 300 }).what).toBe(
       "Received GRN-0004, 300 units",
     );
+    expect(activityWords("RETAIL_GOODS.COUNTED", { receiptNo: "GRN-0005", units: 20 }).what).toBe("Counted GRN-0005, 20 units, for checking");
     expect(
       activityWords("RETAIL_PURCHASE_ORDER.CLOSED", { owed: [{ quantity: "120" }, { quantity: "60" }] }).what,
     ).toBe("Closed with what came, 180 units not delivered");

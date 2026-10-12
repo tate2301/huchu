@@ -105,6 +105,33 @@ export function cancelOrdersAsk(count: number): Ask {
   };
 }
 
+/** Orders' bulk "Mark received" (`markreceived`, **Defined here**): what goes into stock as ordered. */
+export function markReceivedAsk({ count, units, value }: { count: number; units: number; value: number }): Ask {
+  return {
+    title: `Mark ${plural(count, "order", "orders")} received?`,
+    body: `Everything still to come on ${count === 1 ? "it" : "them"} goes into stock as ordered, ${plural(units, "unit", "units")} worth ${formatMoney(value)}, and ${count === 1 ? "it closes" : "each order closes"}. Use Receive a delivery to count what really came.`,
+    keep: count === 1 ? "Keep it open" : "Keep them open",
+    go: "Mark received",
+    fill: "action",
+  };
+}
+
+/** Deliveries' bulk "Post to stock" (`postdeliveries`, **Defined here**). */
+export function postDeliveriesAsk({ count, units }: { count: number; units: number }): Ask {
+  return {
+    title: `Post ${plural(count, "delivery", "deliveries")} to stock?`,
+    body: `${plural(units, "unit goes", "units go")} into stock and their orders are filled. You are recorded as the one who checked them.`,
+    keep: "Not yet",
+    go: "Post to stock",
+    fill: "action",
+  };
+}
+
+/** Leaving Receive with counts typed (`leavereceive`, **Defined here**). */
+export function leaveReceiveAsk(): Ask {
+  return { title: "Leave without posting?", body: "What you counted is not saved.", keep: "Keep counting", go: "Leave", fill: "bad" };
+}
+
 /**
  * A requisition's "Cancel the requisition" (Record board, `ASKS.cancelreq`): for an order, or an expense
  * (`whatFor`); when the asker cancels their own, those who were to approve it are told instead.
@@ -251,6 +278,27 @@ export const BUYING_LIST_RUNS: Record<string, ListActionRun> = {
     done: (count, _rows, answer) => {
       const skipped = (answer as { skipped?: unknown[] } | null)?.skipped ?? [];
       const words = said(answer, `${plural(count, "order", "orders")} cancelled.`);
+      return skipped.length ? { title: words, variant: "warning" } : words;
+    },
+  },
+  markreceived: {
+    ask: (count, rows) =>
+      markReceivedAsk({
+        count,
+        units: rows.reduce((sum, row) => sum + Number(row.stillUnits ?? 0), 0),
+        value: rows.reduce((sum, row) => sum + Number(row.stillToCome ?? 0), 0),
+      }),
+    done: (count, _rows, answer) => {
+      const skipped = (answer as { skipped?: unknown[] } | null)?.skipped ?? [];
+      const words = said(answer, `${plural(count, "order", "orders")} received.`);
+      return skipped.length ? { title: words, variant: "warning" } : words;
+    },
+  },
+  postdeliveries: {
+    ask: (count, rows) => postDeliveriesAsk({ count, units: rows.reduce((sum, row) => sum + Number(row.units ?? 0), 0) }),
+    done: (count, _rows, answer) => {
+      const skipped = (answer as { skipped?: unknown[] } | null)?.skipped ?? [];
+      const words = said(answer, `${plural(count, "delivery", "deliveries")} posted.`);
       return skipped.length ? { title: words, variant: "warning" } : words;
     },
   },

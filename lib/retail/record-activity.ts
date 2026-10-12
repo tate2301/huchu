@@ -96,6 +96,12 @@ const RECORD_TYPES: Record<string, RecordActivityType> = {
       },
     ],
   },
+  // A delivery's story: counted, checked and posted, values changed on its rail.
+  RetailGoodsReceipt: {
+    read: ["retail.purchasing", "view"],
+    exists: async (companyId, id) =>
+      Boolean(await prisma.retailGoodsReceipt.findFirst({ where: { id, companyId }, select: { id: true } })),
+  },
   // A shop's requisition; Activity is for those who read every one (owner, manager, bookkeeper).
   CrmRequisition: {
     read: ["retail.requisitions", "view"],

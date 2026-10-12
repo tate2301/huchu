@@ -14,7 +14,7 @@ import { customerSpendChart } from "@/lib/retail/customers/spend-chart";
 import { loadCustomerRecord } from "@/lib/retail/customers/view";
 import { signedPoints } from "@/lib/retail/loyalty/format";
 import { loadSaleView } from "@/lib/retail/floor/sale-view";
-import { renderOrderPdf, renderRequisitionPdf } from "@/lib/retail/buying/documents";
+import { renderDeliveryNotePdf, renderOrderPdf, renderRequisitionPdf } from "@/lib/retail/buying/documents";
 import { pointsKindLabel } from "@/lib/retail/words";
 import { paidWords, saleStateLabel } from "@/lib/retail/floor/sale-words";
 import { loadShiftRecord } from "@/lib/retail/shift-record";
@@ -75,6 +75,11 @@ const RECORD_PDF: Record<string, RecordPdfType> = {
   RetailPurchaseOrder: {
     read: ["retail.purchasing", "view"],
     render: (caller, id) => renderOrderPdf(caller.companyId, id),
+  },
+  /** A delivery note: what came, what broke and what went into stock (40-buying 4.10). */
+  RetailGoodsReceipt: {
+    read: ["retail.purchasing", "view"],
+    render: (caller, id) => renderDeliveryNotePdf(caller.companyId, id),
   },
   /**
    * A shift: its cash up, how people paid and the takings per hour. Printed

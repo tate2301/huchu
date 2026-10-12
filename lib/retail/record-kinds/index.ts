@@ -6,7 +6,7 @@ export type * from "./types";
 export { bundleKind } from "./bundles";
 export { customerKind } from "./customers";
 export { promotionKind } from "./promotions";
-export { orderKind, supplierKind } from "./buying";
+export { deliveryKind, orderKind, supplierKind } from "./buying";
 export { saleKind, shiftKind } from "./floor";
 export { productKind } from "./products";
 export { requisitionKind } from "./requisitions";

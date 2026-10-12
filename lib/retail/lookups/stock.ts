@@ -28,6 +28,8 @@ const stockLine: LookupNoun = {
     ["retail.counts", "create"],
     ["retail.adjustments", "create"],
     ["retail.laybys", "create"],
+    // Receive's scan box: a product not on the order, added to the delivery.
+    ["retail.purchasing", "receive"],
   ],
   quick: [],
   async search(ctx, q, context) {

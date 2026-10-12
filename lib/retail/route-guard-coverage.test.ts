@@ -403,3 +403,40 @@ describe("requisitions gate on their own right", () => {
     expect(canRetailRoleDo("FINANCE_OFFICER", "retail.requisitions", "view")).toBe(true);
   });
 });
+
+/**
+ * BUY-06's deliveries (40-buying 4.4): reading the order to receive it and
+ * counting a delivery take `receive` (owners, managers, stock clerks);
+ * posting one, Orders' bulk "Mark received" and Deliveries' bulk post take
+ * `approve` (owners, managers); the record reads with `view` and changes
+ * with `update`. `/purchasing/orders` is gone; `/purchasing/receipts` keeps
+ * "No order" only until BUY-08.
+ */
+describe("deliveries gate on their own purchasing right", () => {
+  const DELIVERIES: Array<{ key: string; action: string }> = [
+    { key: "buying/orders/[id]/receiving/route.ts GET", action: "receive" },
+    { key: "buying/deliveries/route.ts POST", action: "receive" },
+    { key: "buying/deliveries/[id]/route.ts GET", action: "view" },
+    { key: "buying/deliveries/[id]/route.ts PATCH", action: "update" },
+    { key: "buying/deliveries/[id]/post/route.ts POST", action: "approve" },
+    { key: "buying/deliveries/bulk/post/route.ts POST", action: "approve" },
+    { key: "buying/orders/bulk/receive/route.ts POST", action: "approve" },
+  ];
+
+  it.each(DELIVERIES)("$key gates on retail.purchasing $action", ({ key, action }) => {
+    const handler = allHandlers.find((candidate) => candidate.key.endsWith(key));
+    expect(handler, `no handler found for ${key}`).toBeDefined();
+    expect(stripComments(handler?.body ?? "")).toContain(`requireRetailPermission(session, "retail.purchasing", "${action}")`);
+  });
+
+  it("has no orders list for the old receive dialog", () => {
+    expect(allHandlers.find((candidate) => candidate.key.endsWith("purchasing/orders/route.ts GET"))).toBeUndefined();
+  });
+
+  it("lets stock clerks count and only owners and managers post", () => {
+    for (const role of ["SUPERADMIN", "MANAGER", "STOCK_CLERK"]) expect(canRetailRoleDo(role, "retail.purchasing", "receive")).toBe(true);
+    for (const role of ["SUPERADMIN", "MANAGER"]) expect(canRetailRoleDo(role, "retail.purchasing", "approve")).toBe(true);
+    for (const role of ["STOCK_CLERK", "CASHIER", "FINANCE_OFFICER"]) expect(canRetailRoleDo(role, "retail.purchasing", "approve")).toBe(false);
+    expect(canRetailRoleDo("CASHIER", "retail.purchasing", "receive")).toBe(false);
+  });
+});

@@ -21,8 +21,12 @@ export function matchesNavHref(href: string, pathname: string, query: QueryLike 
   return true;
 }
 
-/** What matching needs of a nav item. */
-export type NavTarget = { href: string; exact?: boolean };
+/**
+ * What matching needs of a nav item. `also`: pages outside the item's own
+ * path that are still its (Receive a delivery lives under its order but is
+ * Deliveries' work); a page it names is the item's whatever else matches.
+ */
+export type NavTarget = { href: string; exact?: boolean; also?: RegExp };
 
 /**
  * The href that stands for this page: the longest matching path, an item
@@ -30,10 +34,11 @@ export type NavTarget = { href: string; exact?: boolean };
  */
 export function bestNavHref(targets: Iterable<NavTarget>, pathname: string, query: QueryLike | null) {
   let best: { href: string; score: number } | null = null;
-  for (const { href, exact } of targets) {
-    if (!matchesNavHref(href, pathname, query, exact)) continue;
+  for (const { href, exact, also } of targets) {
+    const named = also?.test(pathname) ?? false;
+    if (!named && !matchesNavHref(href, pathname, query, exact)) continue;
     const [path, search] = href.split("?");
-    const score = path.length + (search ? 1000 : 0);
+    const score = named ? 10_000 : path.length + (search ? 1000 : 0);
     if (!best || score > best.score) best = { href, score };
   }
   return best?.href ?? null;

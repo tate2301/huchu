@@ -37,6 +37,8 @@ export type RetailNavCondition = "multi-site" | "liquor-empties";
  */
 export type RetailNavItem = NavItem & {
   requires: Array<[RetailResource, RetailAction]>;
+  /** Pages outside its path that are still this item's (`lib/nav-match.ts`). */
+  also?: RegExp;
   when?: RetailNavCondition;
   onlyWithBadge?: boolean;
 };

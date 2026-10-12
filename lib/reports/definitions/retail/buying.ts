@@ -248,6 +248,7 @@ const ORDER_CREATE: ListGrant[] = [["retail.purchasing", "create"]];
 const ORDER_UPDATE: ListGrant[] = [["retail.purchasing", "update"]];
 const ORDER_DELETE: ListGrant[] = [["retail.purchasing", "delete"]];
 const ORDER_RECEIVE: ListGrant[] = [["retail.purchasing", "receive"]];
+const ORDER_APPROVE: ListGrant[] = [["retail.purchasing", "approve"]];
 const IS = (values: string[]) => [{ column: "status", op: "is" as const, value: values }];
 const OPEN_FOR_DELIVERY = IS(["DRAFT", "SENT", "PARTIAL"]);
 
@@ -363,7 +364,7 @@ const orders: ListSpec = {
       label: "Receive a delivery",
       requires: ORDER_RECEIVE,
       when: OPEN_FOR_DELIVERY,
-      do: { href: "/retail/buying/deliveries?orderId={id}" },
+      do: { href: "/retail/buying/orders/{id}/receive" },
     },
     {
       key: "chase",
@@ -404,6 +405,13 @@ const orders: ListSpec = {
       requires: ORDER_CREATE,
       when: IS(["DRAFT"]),
       do: { run: "sendorders", endpoint: "/api/v2/retail/buying/orders/bulk/send" },
+    },
+    {
+      key: "received",
+      label: "Mark received",
+      requires: ORDER_APPROVE,
+      when: IS(["SENT", "PARTIAL"]),
+      do: { run: "markreceived", endpoint: "/api/v2/retail/buying/orders/bulk/receive" },
     },
     { key: "cancel", label: "Cancel", tone: "bad", requires: ORDER_UPDATE, do: { run: "cancelorders", endpoint: "/api/v2/retail/buying/orders/bulk/cancel" } },
     { key: "export" },
@@ -475,6 +483,43 @@ const orderLinesSource: ReportDefinition = {
   columns: orderLines.columns,
   defaults: { sort: orderLines.sorts[0]!.rules },
   list: orderLines,
+};
+
+/**
+ * A delivery's Lines tab (5.6, `retail-delivery-lines`): on the note, counted
+ * into stock, the difference (a warn pill when short or broken), cost and
+ * value ex VAT. Without a delivery it has no rows.
+ */
+const deliveryLines: ListSpec = {
+  noun: "lines",
+  read: ORDER_VIEW,
+  search: { placeholder: "Product", keys: ["product"] },
+  filters: [{ key: "deliveryId", type: "parent", column: "deliveryId" }],
+  sorts: [{ key: "counted", label: "As counted", rules: [{ column: "order", dir: "asc" }] }],
+  columns: [
+    { key: "product", label: "Product", kind: "text", cell: "text", width: "minmax(0,1fr)", align: "start", priority: 1 },
+    { key: "onNote", label: "On the note", kind: "number", cell: "num", total: "sum", width: "110px", align: "end", priority: 1 },
+    { key: "counted", label: "Counted", kind: "number", cell: "num", total: "sum", width: "90px", align: "end", priority: 1 },
+    { key: "difference", label: "Difference", kind: "number", cell: "num", sign: "plain", pillKey: "differenceTone", total: "sum", width: "110px", align: "end", priority: 1 },
+    { key: "cost", label: "Cost", kind: "money", currency: "USD", cell: "money", toneKey: "costTone", width: "90px", align: "end", priority: 3 },
+    { key: "value", label: "Value", kind: "money", currency: "USD", cell: "money", total: "sum", width: "110px", align: "end", priority: 1 },
+    { key: "order", label: "Order", kind: "number", cell: "num", hidden: true, width: "60px", align: "end", priority: 3 },
+  ],
+  rowHref: "/retail/products/{productId}",
+  card: { title: "product", figure: "counted", meta: "{counted} of {onNote} on the note" },
+  empty: { icon: "TrayArrowDown", title: "Nothing on this delivery", line: "Lines counted on Receive show here." },
+};
+
+const deliveryLinesSource: ReportDefinition = {
+  key: "retail-delivery-lines",
+  title: "Lines on a delivery",
+  area: "Buying",
+  href: "/retail/buying/deliveries",
+  profiles: ["RETAIL"],
+  params: [],
+  columns: deliveryLines.columns,
+  defaults: { sort: deliveryLines.sorts[0]!.rules },
+  list: deliveryLines,
 };
 
 /**
@@ -854,6 +899,7 @@ export const BUYING_REPORTS: ReportDefinition[] = [
   ordersSource,
   orderLinesSource,
   orderMessagesSource,
+  deliveryLinesSource,
   requisitionsSource,
   requisitionApprovalsSource,
   requisitionReceiptsSource,

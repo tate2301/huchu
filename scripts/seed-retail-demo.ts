@@ -59,7 +59,7 @@ import { builtInTemplate, type TemplateQuery } from "@/lib/reports/definitions/r
 import { getReportDefinition } from "@/lib/reports/registry"
 import { fromTemplateQuery } from "@/lib/reports/template-query"
 import { addContact, createSupplier, type SendsWord, type SupplierInput } from "@/lib/retail/buying/suppliers"
-import { receiveDelivery } from "@/lib/retail/buying/deliveries"
+import { postCountedDelivery, receiveDelivery } from "@/lib/retail/buying/deliveries"
 import { orderTotals } from "@/lib/retail/buying/figures"
 import { moneyAccountBalance } from "@/lib/retail/buying/money-accounts"
 import { accountFor, approveRequisition, askForMoney, cancelRequisition, payOut, rejectRequisition } from "@/lib/retail/buying/requisitions"
@@ -4058,6 +4058,8 @@ async function clearPurchasing(companyId: string) {
     },
   })
   await prisma.retailMessage.deleteMany({ where: { companyId, entityType: "RetailPurchaseOrder" } })
+  await prisma.notification.deleteMany({ where: { companyId, type: "RETAIL_DELIVERY_TO_CHECK" } })
+  await prisma.retailAttachment.deleteMany({ where: { companyId, entityType: "RetailGoodsReceipt" } })
   await prisma.retailGoodsReceipt.deleteMany({ where: { companyId } })
   await prisma.retailPurchaseOrder.deleteMany({ where: { companyId } })
   // The next PO and GRN numbers are worked out again from what is left.
@@ -4429,9 +4431,9 @@ async function seedSuppliers(input: { companyId: string; mainSiteId: string; sof
   const actor = { companyId, userId: owner.id, userName: owner.name, userRole: owner.role }
 
   if (input.reset) {
-    // A supplier the books hold a bill against, or the shop holds empties for, stays.
+    // A supplier the books hold a bill or a payment against, or the shop holds empties for, stays.
     const gone = await prisma.vendor.findMany({
-      where: { companyId, bills: { none: {} }, emptiesEntries: { none: {} }, purchaseOrders: { none: {} }, goodsReceipts: { none: {} } },
+      where: { companyId, bills: { none: {} }, payments: { none: {} }, emptiesEntries: { none: {} }, purchaseOrders: { none: {} }, goodsReceipts: { none: {} } },
       select: { id: true },
     })
     const ids = gone.map((vendor) => vendor.id)
@@ -7733,9 +7735,14 @@ async function handOverHistory(actor: { companyId: string; userId: string; userN
  * BUY-02 `seedOrders()` (40-buying 3.6 Orders and Deliveries): PO-0001 to
  * PO-0023, each raised, sent and received through the services the screens
  * use (numbers in this order, so the next is PO-0024), with their deliveries
- * posted through `receiveDelivery` on the days the spec gives: GRN-0001
- * (PO-0002), GRN-0002 (PO-0003, 300 of 780), GRN-0003 (PO-0022) and the
- * history from GRN-0006. PO-0003 carries its three messages and its chase;
+ * received through `receiveDelivery` on the days the spec gives (BUY-06):
+ * GRN-0001 (PO-0002: Coca-Cola 42 on the note, 2 broken, counted by Farai
+ * Moyo and checked by Tafara Nyathi, so a BROKEN difference with a credit
+ * asked), GRN-0002 (PO-0003, 300 of 780, note DB-778104, counted by Tafara
+ * and checked by Tendai Mhlanga), GRN-0003 (PO-0022) and the history from
+ * GRN-0006, posted by Tafara; and GRN-0005, Ice Cold Supplies' 20 bags of
+ * ice with no order, counted this morning by Tendai Sibanda and waiting to
+ * be checked. PO-0003 carries its three messages and its chase;
  * PO-0005's costs make its total with VAT exactly US$1,940.00 at 15.5%
  * (Amarula 13.05, Gordon's 12.39 and Bols Brandy 10.06 instead of the
  * board's 15% figures), which the seed checks. Idempotent: skipped while
@@ -7748,7 +7755,7 @@ async function seedOrders(input: { companyId: string; mainSiteId: string }) {
     return
   }
   const people = await prisma.user.findMany({
-    where: { companyId, email: { in: ["tafara.manager@bottlestore.test", "owner@bottlestore.test", "farai.till@bottlestore.test"] } },
+    where: { companyId, email: { in: ["tafara.manager@bottlestore.test", "owner@bottlestore.test", "farai.till@bottlestore.test", "tendai.stock@bottlestore.test"] } },
     select: { id: true, name: true, role: true, email: true },
   })
   const person = (email: string) => {
@@ -7758,13 +7765,16 @@ async function seedOrders(input: { companyId: string; mainSiteId: string }) {
   }
   const tafara = person("tafara.manager@bottlestore.test")
   const farai = person("farai.till@bottlestore.test")
-  const vendors = await prisma.vendor.findMany({ where: { companyId, code: { in: ["SUP-0001", "SUP-0002", "SUP-0003", "SUP-0004", "SUP-0005"] } }, select: { id: true, code: true } })
+  const owner = person("owner@bottlestore.test")
+  const clerk = person("tendai.stock@bottlestore.test")
+  const vendors = await prisma.vendor.findMany({ where: { companyId, code: { in: ["SUP-0001", "SUP-0002", "SUP-0003", "SUP-0004", "SUP-0005", "SUP-0006"] } }, select: { id: true, code: true } })
   const vendor = (code: string) => vendors.find((row) => row.code === code)!.id
   const DELTA = vendor("SUP-0001")
   const AFDIS = vendor("SUP-0002")
   const MUTARE = vendor("SUP-0003")
   const SCHWEPPES = vendor("SUP-0004")
   const PAMELA = vendor("SUP-0005")
+  const ICE_COLD = vendor("SUP-0006")
   const items = await prisma.inventoryItem.findMany({
     where: { siteId, product: { companyId } },
     select: { id: true, unitCost: true, product: { select: { id: true, code: true } } },
@@ -7791,8 +7801,20 @@ async function seedOrders(input: { companyId: string; mainSiteId: string }) {
     payment?: "ON_ACCOUNT" | "CASH_ON_DELIVERY"
     /** Days back it was sent, and how; none: left a draft. */
     sent?: { at: Date; via: "WHATSAPP" | "BY_HAND" }
-    /** Deliveries: receipt number, days back, and how much of each line (in order). */
-    deliveries?: Array<{ receiptNo: string; at: Date; quantities: number[]; by?: typeof tafara }>
+    /**
+     * Deliveries: receipt number, days back, how much of each line came (in order) and how much of it broke;
+     * counted `by` (Tafara when absent) and, when that is someone else, checked by `checker`.
+     */
+    deliveries?: Array<{
+      receiptNo: string
+      at: Date
+      quantities: number[]
+      damaged?: number[]
+      by?: typeof tafara
+      checker?: typeof tafara
+      noteNumber?: string
+      driver?: string
+    }>
     close?: number
   }
   const lines = (rows: Line[]) => rows.map(([code, quantity, cost]) => ({ productId: product(code).productId, quantity, unitCost: cost ?? product(code).cost }))
@@ -7817,8 +7839,8 @@ async function seedOrders(input: { companyId: string; mainSiteId: string }) {
 
   const plans: Array<[string, Plan]> = [
     ["PO-0001", { supplier: AFDIS, raised: 62, expectedIn: 4, lines: [["GORDONS-750", 24, "12.40"], ["TWOKEYS-750", 24, "7.10"]], sent: { at: dayAt(62, 10, 0), via: "BY_HAND" }, deliveries: [{ receiptNo: "GRN-0006", at: dayAt(58, 11, 0), quantities: [24, 24] }] }],
-    ["PO-0002", { supplier: MUTARE, raised: 56, expectedIn: 8, lines: [["COKE-500", 60, "0.50"], ["ICE-2KG", 40, "0.95"]], sent: { at: dayAt(56, 9, 30), via: "BY_HAND" }, deliveries: [{ receiptNo: "GRN-0001", at: dayAt(52, 9, 50), quantities: [42, 25], by: farai }] }],
-    ["PO-0003", { supplier: DELTA, raised: 54, expectedIn: 6, lines: [["CASTLE-340", 240, "0.86"], ["CHIBUKU-1L", 240, "0.82"], ["COKE-500", 180, "0.52"], ["SPRITE-500", 120, "0.52"]], sent: { at: dayAt(54, 14, 20), via: "WHATSAPP" }, deliveries: [{ receiptNo: "GRN-0002", at: dayAt(51, 10, 42), quantities: [120, 60, 90, 30] }] }],
+    ["PO-0002", { supplier: MUTARE, raised: 56, expectedIn: 8, lines: [["COKE-500", 60, "0.50"], ["ICE-2KG", 40, "0.95"]], sent: { at: dayAt(56, 9, 30), via: "BY_HAND" }, deliveries: [{ receiptNo: "GRN-0001", at: dayAt(52, 9, 50), quantities: [42, 25], damaged: [2, 0], by: farai, checker: tafara }] }],
+    ["PO-0003", { supplier: DELTA, raised: 54, expectedIn: 6, lines: [["CASTLE-340", 240, "0.86"], ["CHIBUKU-1L", 240, "0.82"], ["COKE-500", 180, "0.52"], ["SPRITE-500", 120, "0.52"]], sent: { at: dayAt(54, 14, 20), via: "WHATSAPP" }, deliveries: [{ receiptNo: "GRN-0002", at: dayAt(51, 10, 42), quantities: [120, 60, 90, 30], checker: owner, noteNumber: "DB-778104", driver: "Simon, truck AEZ 4471" }] }],
     ["PO-0004", { supplier: PAMELA, raised: 0, expectedIn: 3, lines: [["JAMESON-750", 12, "22.15"], ["GORDONS-750", 12, "12.40"], ["AMARULA-750", 12, "11.67"]], payment: "CASH_ON_DELIVERY" }],
     ["PO-0005", { supplier: AFDIS, raised: 2, expectedIn: 6, lines: [["AMARULA-750", 24, "13.05"], ["BLKLABEL-750", 24, "33.60"], ["JAMESON-750", 12, "22.15"], ["GORDONS-750", 12, "12.39"], ["TWOKEYS-750", 12, "7.10"], ["BOLS-750", 6, "10.06"]], sent: { at: dayAt(2, 11, 0), via: "BY_HAND" } }],
     ["PO-0006", history(AFDIS, 148, afdisSets[0]!, "GRN-0007")],
@@ -7879,27 +7901,59 @@ async function seedOrders(input: { companyId: string; mainSiteId: string }) {
         orderBy: { sortOrder: "asc" },
         select: { id: true, inventoryItemId: true, unitCost: true },
       })
-      await receiveDelivery(
-        delivery.by ?? tafara,
+      // Counted by one and checked by another: counted first, then posted by the checker.
+      const counter = delivery.by ?? tafara
+      const checker = delivery.checker ?? counter
+      const received = await receiveDelivery(
+        counter,
         {
           receiptNo: delivery.receiptNo,
           purchaseOrderId: raised.id,
           siteId,
+          noteNumber: delivery.noteNumber ?? null,
+          driver: delivery.driver ?? null,
           lines: order
             .map((line, index) => ({
               inventoryItemId: line.inventoryItemId!,
               quantity: delivery.quantities[index] ?? 0,
+              damaged: delivery.damaged?.[index] ?? 0,
               unitCost: Number(line.unitCost),
               purchaseOrderLineId: line.id,
             }))
             .filter((line) => line.quantity > 0),
+          post: checker === counter,
           at: delivery.at,
         },
         post,
       )
+      if (received.status === "COUNTED") {
+        await postCountedDelivery(checker, received.id, post, delivery.at)
+        // Checked the same morning: nobody is still asked to check it.
+        await prisma.notification.deleteMany({ where: { companyId, type: "RETAIL_DELIVERY_TO_CHECK", entityId: received.id } })
+      }
     }
     if (plan.close !== undefined) await closeOrder(tafara, raised.id, "The rest is not coming.", dayAt(plan.close, 11, 30))
   }
+
+  // GRN-0005: Ice Cold Supplies' bags this morning, no order, counted by Tendai Sibanda and waiting to be checked.
+  await receiveDelivery(
+    clerk,
+    {
+      receiptNo: "GRN-0005",
+      siteId,
+      supplierId: ICE_COLD,
+      paying: "ON_ACCOUNT",
+      lines: [{ inventoryItemId: product("ICE-2KG").inventoryItemId, quantity: 20, unitCost: Number(product("ICE-2KG").cost) }],
+      post: false,
+      at: harareTime(0, 9, 15),
+    },
+    post,
+  )
+  // Seeded messages went when they were sent: the outbox does not send the checkers' WhatsApp again.
+  await prisma.retailMessage.updateMany({
+    where: { companyId, template: "approval-ask", status: "QUEUED", body: { contains: "GRN-0005" } },
+    data: { status: "SENT", sentAt: harareTime(0, 9, 15) },
+  })
 
   // PO-0003: Tafara's reminder yesterday, promised for four days on, and Delta's reply.
   const po3 = made.get("PO-0003")!

@@ -78,6 +78,12 @@ export const RETAIL_AUDIT_EVENTS = {
   /** A delivery booked in against a purchase order. */
   goodsReceived: "RETAIL_GOODS.RECEIVED",
   /**
+   * A delivery counted by someone who may not post it (BUY-06): nothing has
+   * moved; an owner or manager checks and posts it. Carries the GRN number,
+   * the units counted and the supplier.
+   */
+  goodsCounted: "RETAIL_GOODS.COUNTED",
+  /**
    * Movements put back by a movement the other way (W-28). One event per
    * product, entity `Product`; carries the references reversed.
    */
@@ -673,6 +679,9 @@ export async function auditGoodsReceived(
     lineCount: number;
     /** Units in: "Received GRN-0004, 300 units". */
     units?: number;
+    /** Units that came short of the note, and units that came broken (BUY-06). */
+    short?: number;
+    damaged?: number;
   },
 ): Promise<void> {
   await writeRetailAuditEvent(client, {
@@ -688,6 +697,8 @@ export async function auditGoodsReceived(
       totalValue: auditAmount(input.totalValue),
       lineCount: input.lineCount,
       ...(input.units === undefined ? {} : { units: input.units }),
+      ...(input.short === undefined ? {} : { short: input.short }),
+      ...(input.damaged === undefined ? {} : { damaged: input.damaged }),
     },
   });
 }

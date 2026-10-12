@@ -4,6 +4,10 @@ import { errorResponse, fieldErrorResponse } from "@/lib/api-response";
 import type { RetailAuditActor } from "@/lib/retail/audit";
 import { canRetailSessionDo } from "@/lib/retail/permission-matrix";
 
+import { OrderRefused } from "@/lib/retail/purchase-orders";
+import { EmptiesRefusal } from "@/lib/retail/stock/empties";
+
+import { AttachmentRefusal } from "./attachments";
 import { DeliveryRefusal } from "./deliveries";
 import { OrderRefusal } from "./orders";
 import { RequisitionRefusal } from "./requisitions";
@@ -47,6 +51,11 @@ export function buyingFailure(error: unknown, where: string): NextResponse {
     return error.fieldErrors ? fieldErrorResponse(error.message, error.fieldErrors, error.status) : errorResponse(error.message, error.status);
   }
   if (error instanceof DeliveryRefusal) return errorResponse(error.message, error.status);
+  if (error instanceof OrderRefused) return errorResponse(error.message, 409);
+  if (error instanceof AttachmentRefusal) return fieldErrorResponse(error.message, { photo: error.message }, 400);
+  if (error instanceof EmptiesRefusal) {
+    return error.fieldErrors ? fieldErrorResponse(error.message, { crates: Object.values(error.fieldErrors)[0]! }, error.status) : errorResponse(error.message, error.status);
+  }
   console.error(`[API] ${where} error:`, error);
   return errorResponse("That did not work. Nothing was saved; try again.");
 }

@@ -349,4 +349,40 @@ const expenseType: LookupNoun = {
   },
 };
 
-export const BUYING_LOOKUPS: LookupNoun[] = [supplier, payee, contact, contactRole, order, moneyAccount, expenseType];
+/**
+ * Receive's "Paid in cash instead?" (40-buying 4.4): requisitions paid out
+ * for `context.supplierId` (or for `context.orderId`) and not yet paying for
+ * a delivery, "REQ-0014", sub "US$1,940.00 paid out"; newest first. None is
+ * added here: "Ask for money" opens the requisition sheet.
+ */
+const requisition: LookupNoun = {
+  noun: "requisition",
+  read: [["retail.purchasing", "receive"]],
+  quick: [],
+  async search(ctx, q, context) {
+    const supplierId = typeof context.supplierId === "string" ? context.supplierId : null;
+    const orderId = typeof context.orderId === "string" ? context.orderId : null;
+    if (!supplierId && !orderId) return [];
+    const needle = q.trim();
+    const rows = await prisma.crmRequisition.findMany({
+      where: {
+        companyId: ctx.companyId,
+        siteId: { not: null },
+        status: "DISBURSED",
+        deliveries: { none: {} },
+        OR: [...(supplierId ? [{ payeeVendorId: supplierId }] : []), ...(orderId ? [{ purchaseOrderId: orderId }] : [])],
+        ...(needle ? { requisitionNo: { contains: needle, mode: "insensitive" as const } } : {}),
+      },
+      orderBy: { disbursedAt: "desc" },
+      take: 50,
+      select: { id: true, requisitionNo: true, amount: true, paidAmount: true, currency: true },
+    });
+    return rows.map((row): LookupOption => ({
+      id: row.id,
+      label: row.requisitionNo,
+      sub: `${formatMoney(toNumberOrZero(row.paidAmount ?? row.amount), row.currency)} paid out`,
+    }));
+  },
+};
+
+export const BUYING_LOOKUPS: LookupNoun[] = [supplier, payee, contact, contactRole, order, moneyAccount, expenseType, requisition];

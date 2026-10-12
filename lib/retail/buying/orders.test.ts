@@ -173,7 +173,7 @@ describe("changing, duplicating, closing and reopening", () => {
     const lines = await prisma.retailPurchaseOrderLine.findMany({ where: { purchaseOrderId: order.id }, orderBy: { sortOrder: "asc" } });
     await receiveDelivery(
       shop.manager(),
-      { purchaseOrderId: order.id, siteId: shop.mainId, lines: [{ inventoryItemId: castle.itemId, quantity: 120, unitCost: 0.86, purchaseOrderLineId: lines[0]!.id }] },
+      { purchaseOrderId: order.id, siteId: shop.mainId, post: true, lines: [{ inventoryItemId: castle.itemId, quantity: 120, unitCost: 0.86, purchaseOrderLineId: lines[0]!.id }] },
       noJournal,
     );
     const [castleLine, cokeLine] = lines;
@@ -223,7 +223,7 @@ describe("changing, duplicating, closing and reopening", () => {
     const lines = await prisma.retailPurchaseOrderLine.findMany({ where: { purchaseOrderId: order.id }, orderBy: { sortOrder: "asc" } });
     await receiveDelivery(
       shop.manager(),
-      { purchaseOrderId: order.id, siteId: shop.mainId, lines: [{ inventoryItemId: coke.itemId, quantity: 180, unitCost: 0.52, purchaseOrderLineId: lines[1]!.id }] },
+      { purchaseOrderId: order.id, siteId: shop.mainId, post: true, lines: [{ inventoryItemId: coke.itemId, quantity: 180, unitCost: 0.52, purchaseOrderLineId: lines[1]!.id }] },
       noJournal,
     );
     await closeOrder(shop.manager(), order.id, null);
@@ -315,6 +315,7 @@ describe("chasing a late order (BUY-03, W-34)", () => {
       {
         purchaseOrderId: order.id,
         siteId: shop.mainId,
+        post: true,
         lines: [
           { inventoryItemId: castle.itemId, quantity: 240, unitCost: 0.86, purchaseOrderLineId: lines[0]!.id },
           { inventoryItemId: coke.itemId, quantity: 180, unitCost: 0.52, purchaseOrderLineId: lines[1]!.id },
@@ -348,7 +349,7 @@ describe("cancelling what is left (BUY-03)", () => {
     const lines = await prisma.retailPurchaseOrderLine.findMany({ where: { purchaseOrderId: order.id }, orderBy: { sortOrder: "asc" } });
     await receiveDelivery(
       shop.manager(),
-      { purchaseOrderId: order.id, siteId: shop.mainId, lines: [{ inventoryItemId: castle.itemId, quantity: 120, unitCost: 0.86, purchaseOrderLineId: lines[0]!.id }] },
+      { purchaseOrderId: order.id, siteId: shop.mainId, post: true, lines: [{ inventoryItemId: castle.itemId, quantity: 120, unitCost: 0.86, purchaseOrderLineId: lines[0]!.id }] },
       noJournal,
     );
     const done = await cancelRest(shop.manager(), order.id);

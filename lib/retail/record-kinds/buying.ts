@@ -1,9 +1,10 @@
 import { fetchJson } from "@/lib/api-client";
 import { cancelRestAsk, closeShortAsk, stopBuyingAsk } from "@/lib/retail/asks/buying";
+import type { DeliveryView } from "@/lib/retail/buying/delivery-view";
 import type { OrderView } from "@/lib/retail/buying/order-view";
 import type { SupplierView } from "@/lib/retail/buying/supplier-view";
 import { firstWord, lateWords, PAYING, PAYING_WORD, PAYMENT_OF, paysRailWords, sentWords } from "@/lib/retail/buying/words";
-import { dayKey, formatCount, formatDay, formatMoney, formatShortDay, formatShortMonth } from "@/lib/workspace/format";
+import { dayKey, formatCount, formatDay, formatMoney, formatShortDay, formatShortMonth, formatTime } from "@/lib/workspace/format";
 
 import type { Grant, RailGroup, RailRow, RecordAction, RecordChart, RecordKind, RecordKpi } from "./types";
 
@@ -352,8 +353,7 @@ function orderPrimary(order: OrderView): RecordAction | null {
     };
   }
   if (order.status === "SENT" || order.status === "PARTIAL") {
-    // The Receive page (BUY-06) takes over; until then the Deliveries page's receive dialog, opened on this order.
-    return { key: "receive", label: "Receive a delivery", requires: [ORDER_RECEIVE], do: { href: `/retail/buying/deliveries?orderId=${order.id}` } };
+    return { key: "receive", label: "Receive a delivery", requires: [ORDER_RECEIVE], do: { href: `/retail/buying/orders/${order.id}/receive` } };
   }
   if (order.status === "CLOSED") {
     return {
@@ -467,11 +467,10 @@ function orderRail(order: OrderView): RailGroup[] {
       title: "Deliveries",
       hint: false,
       rows: [
-        ...order.deliveries.map((delivery) => ({
-          key: delivery.id,
-          label: delivery.receiptNo,
-          value: `${formatDay(delivery.postedAt).replace(/ \d{4}$/, "")}, ${formatCount(delivery.units)} ${unitWords(delivery.units)}`,
-        })),
+        ...order.deliveries.map((delivery) => {
+          const value = `${formatDay(delivery.postedAt).replace(/ \d{4}$/, "")}, ${formatCount(delivery.units)} ${unitWords(delivery.units)}`;
+          return { key: delivery.id, label: delivery.receiptNo, value, links: [{ label: value, href: `/retail/buying/deliveries/${delivery.id}` }] };
+        }),
         ...(order.deliveries.length === 0 ? [{ key: "none", label: "Delivered", value: "Nothing yet", muted: true }] : []),
         ...next,
       ],
@@ -590,4 +589,158 @@ export const orderKind: RecordKind<OrderView> = {
   ],
   rail: orderRail,
   invalidates: [["list", "retail-orders"], ["list", "retail-order-lines"], ["list", "retail-order-messages"], ["retail-supplier"], ["nav-badges"], ["reports"]],
+};
+
+/* ── A delivery (40-buying 5.6) ─────────────────────────────────────────── */
+
+const DELIVERY_API = "/api/v2/retail/buying/deliveries";
+const DELIVERY_POST: Grant = ["retail.purchasing", "approve"];
+const notePdf = (delivery: DeliveryView) => `/api/v2/retail/records/RetailGoodsReceipt/${delivery.id}/pdf`;
+
+function deliveryKpis(delivery: DeliveryView): RecordKpi[] {
+  const f = delivery.figures;
+  const received = delivery.receivedAt;
+  return [
+    { label: "Units", value: formatCount(f.units), lead: formatCount(f.noteUnits), leadTone: "plain", note: "on the note" },
+    f.linesWithDifferences > 0
+      ? { label: "Lines", value: formatCount(f.lines), lead: formatCount(f.linesWithDifferences), leadTone: "warn", note: "with differences" }
+      : { label: "Lines", value: formatCount(f.lines), note: "as on the note" },
+    f.shortValue > 0
+      ? { label: "Value", value: formatMoney(f.value), lead: formatMoney(-f.shortValue), leadTone: "bad", note: "short" }
+      : { label: "Value", value: formatMoney(f.value), note: "Matches" },
+    delivery.order
+      ? { label: "Against", value: delivery.order.poNo, lead: `${delivery.order.deliveredPct}%`, leadTone: "plain", note: "of it delivered" }
+      : { label: "Against", value: "No order", note: "taken in" },
+    {
+      label: "Received",
+      value: formatShortDay(received),
+      lead: formatTime(received),
+      leadTone: "plain",
+      note: delivery.countedBy ? `by ${delivery.countedBy.name}` : "",
+    },
+  ];
+}
+
+function deliveryRail(delivery: DeliveryView): RailGroup[] {
+  const counted = delivery.status === "COUNTED";
+  return [
+    {
+      title: "Delivery",
+      rows: [
+        { key: "supplier", label: "Supplier", value: delivery.supplier.name, links: [{ label: delivery.supplier.name, href: `/retail/buying/suppliers/${delivery.supplier.id}` }] },
+        delivery.order
+          ? { key: "order", label: "Order", value: delivery.order.poNo, mono: true, links: [{ label: delivery.order.poNo, href: `/retail/buying/orders/${delivery.order.id}` }] }
+          : { key: "order", label: "Order", value: "No order", muted: true },
+        {
+          key: "note",
+          label: "Note number",
+          value: delivery.noteNumber ?? "Add",
+          muted: !delivery.noteNumber,
+          mono: Boolean(delivery.noteNumber),
+          edit: { field: "noteNumber", type: "text", initial: delivery.noteNumber ?? "", mono: true, parse: (typed: string) => typed.trim() || null, requires: ORDER_UPDATE },
+        },
+        {
+          key: "driver",
+          label: "Driver",
+          value: delivery.driver ?? "Add",
+          muted: !delivery.driver,
+          edit: { field: "driver", type: "text", initial: delivery.driver ?? "", parse: (typed: string) => typed.trim() || null, requires: ORDER_UPDATE },
+        },
+      ],
+    },
+    {
+      title: "Received",
+      hint: false,
+      rows: [
+        { key: "when", label: "When", value: `${formatDay(delivery.receivedAt)}, ${formatTime(delivery.receivedAt)}`, mono: true },
+        counted
+          ? {
+              key: "by",
+              label: "By",
+              value: delivery.countedBy?.name ?? "—",
+              edit: {
+                field: "countedById",
+                type: "auto",
+                initial: delivery.countedBy?.id ?? "",
+                lookup: { noun: "person", picked: delivery.countedBy ? { id: delivery.countedBy.id, label: delivery.countedBy.name } : null },
+                parse: (value: string) => value || undefined,
+                requires: ORDER_UPDATE,
+              },
+            }
+          : { key: "by", label: "By", value: delivery.countedBy?.name ?? "—" },
+        { key: "checked", label: "Checked by", value: delivery.checkedBy?.name ?? "Not yet", muted: !delivery.checkedBy },
+        { key: "site", label: "Site", value: delivery.site.name },
+      ],
+    },
+    {
+      title: "Differences",
+      hint: false,
+      rows: [
+        {
+          key: "short",
+          label: "Short",
+          value: delivery.figures.short > 0 ? `${formatCount(delivery.figures.short)} ${unitWords(delivery.figures.short)}, ${formatMoney(delivery.figures.shortValue)}` : "None",
+          mono: delivery.figures.short > 0,
+          muted: delivery.figures.short === 0,
+        },
+        ...(delivery.figures.damaged > 0 ? [{ key: "damaged", label: "Damaged", value: `${formatCount(delivery.figures.damaged)} ${unitWords(delivery.figures.damaged)}`, mono: true }] : []),
+        { key: "credit", label: "Credit", value: delivery.rail.credit, muted: delivery.rail.credit === "None" },
+        { key: "photos", label: "Photos", value: delivery.rail.photos, muted: delivery.rail.photos === "None" },
+      ],
+    },
+  ];
+}
+
+export const deliveryKind: RecordKind<DeliveryView> = {
+  type: "RetailGoodsReceipt",
+  back: { label: "Deliveries", href: "/retail/buying/deliveries" },
+  queryKey: (id) => ["retail-delivery", id],
+  load: async (id) => (await fetchJson<{ data: DeliveryView }>(`${DELIVERY_API}/${id}`)).data,
+  endpoint: (id) => `${DELIVERY_API}/${id}`,
+  title: (delivery) => delivery.supplier.name,
+  reference: (delivery) => delivery.receiptNo,
+  actions: (delivery) => [{ key: "print", label: "Print", requires: [], do: { open: `${notePdf(delivery)}?print=1` } }],
+  more: (delivery) => [{ key: "pdf", label: "Export as PDF", requires: [], do: { download: notePdf(delivery) } }],
+  primary: (delivery) =>
+    delivery.can.post
+      ? {
+          key: "post",
+          label: "Post to stock",
+          requires: [DELIVERY_POST],
+          do: {
+            post: {
+              url: `${DELIVERY_API}/${delivery.id}/post`,
+              done: `${delivery.receiptNo} posted. ${formatCount(delivery.figures.units)} ${unitWords(delivery.figures.units)} in stock.`,
+            },
+          },
+        }
+      : null,
+  steps: (delivery) => delivery.steps,
+  chips: (delivery) => delivery.chips,
+  figure: (delivery) => ({ label: "Value", value: formatMoney(delivery.figures.value) }),
+  kpis: deliveryKpis,
+  chart: (delivery) =>
+    delivery.chart.length === 0
+      ? null
+      : {
+          title: "Counted against the delivery note",
+          unit: "% of each line",
+          max: 100,
+          bars: delivery.chart.map((bar) => ({ label: bar.name, tick: bar.label, value: bar.pct, text: `${bar.pct}% of the note` })),
+          tick: (value) => `${value}%`,
+        },
+  tabs: [
+    {
+      key: "lines",
+      label: "Lines",
+      source: "retail-delivery-lines",
+      parent: "deliveryId",
+      requires: ORDER_VIEW,
+      columns: ["product", "onNote", "counted", "difference", "cost", "value"],
+      allLink: { label: "Delivery note PDF", action: "pdf" },
+    },
+    { key: "activity", label: "Activity" },
+  ],
+  rail: deliveryRail,
+  invalidates: [["list", "retail-orders"], ["list", "retail-order-lines"], ["list", "retail-delivery-lines"], ["retail-order"], ["retail-supplier"], ["nav-badges"], ["reports"]],
 };

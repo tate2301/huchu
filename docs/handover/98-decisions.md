@@ -654,6 +654,27 @@ Recorded unit choices:
     cancelled with order PO-0005. Nothing was paid out."), the bin's `move` taking who bins and a hook that runs once
     the move commits.
 
+- **BUY-06 departs from packet 38 in these places.**
+  - **A count sent for checking keeps the lines, the note number, the counter, the photo and the requisition, not the
+    Keep/Close choices or the crates going back.** The schema has nowhere to hold them until it is posted, so whoever
+    posts it from the delivery record posts every line kept on order and books no empties; Close and crates are the
+    poster's when they receive it themselves.
+  - **"Empties going back" says "Crates at US$3.00 each".** The empties settings hold the crate deposit, not a crate
+    product, so the board's "Chibuku crates" has no data behind it; the hint adds how many crates are in the store.
+  - **"Ask for money" is a link under "Paid in cash instead?"**, opening `req-new` for the order over the page, not the
+    lookup's last option (the lookup's inline add takes quick fields, not a sheet).
+  - **The delivery record's Value is the stock value ex VAT** (Σ in stock × cost, §3.2): GRN-0002 reads US$214.80,
+    which is also its Lines Σ; the board's US$216.00 is the bill INV-88120 (packet 41).
+  - **GRN-0002 is seeded at 120 · 60 · 90 · 30 on the note**, counted by Tafara Nyathi and checked by Tendai Mhlanga;
+    the 12 short (66 and 36 on the note) are the differences after posting that packet 43 records.
+  - **Orders' "Mark received" is offered on sent and part-delivered rows** and posts each one's rest at the order's
+    costs; a draft is left to Receive.
+  - **Receive lights Deliveries through a nav item's `also` pattern** (`lib/nav-match.ts`): the page sits under its
+    order, and a prefix match alone would light Orders.
+  - **The product record's "Receive stock" is not wired**: the product record has no such action yet (PRD).
+  - **`--reset` keeps a supplier a payment names** (BUY-05's `PurchasePayment.vendorId`), as it already kept one a bill
+    names; without it the reset stopped on the foreign key.
+
 ## Owner direction, 5 October: sidebar, Management and Setup
 
 These override 00-foundations §5.3 and every spec that disagrees.

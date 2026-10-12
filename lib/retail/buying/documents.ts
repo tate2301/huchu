@@ -140,6 +140,74 @@ ${order.noteToSupplier ? `<p class="rd-note">${esc(order.noteToSupplier)}</p>` :
   };
 }
 
+/**
+ * A delivery note (40-buying 4.10): the shop's names and VAT number, the GRN
+ * number, supplier, order, note number, driver, who counted and checked it,
+ * and each line on the note, counted, broken and in stock at its cost. The
+ * record's "Print", "Export as PDF" and the Lines tab's "Delivery note PDF".
+ * Null when the delivery is not this company's.
+ */
+export async function renderDeliveryNotePdf(companyId: string, id: string) {
+  const receipt = await prisma.retailGoodsReceipt.findFirst({
+    where: { id, companyId },
+    include: {
+      vendor: { select: { name: true } },
+      site: { select: { name: true } },
+      purchaseOrder: { select: { poNo: true } },
+      countedBy: { select: { name: true } },
+      checkedBy: { select: { name: true } },
+      lines: { orderBy: { createdAt: "asc" } },
+    },
+  });
+  if (!receipt) return null;
+  const settings = await prisma.accountingSettings.findUnique({
+    where: { companyId },
+    select: { legalName: true, tradingName: true, vatNumber: true },
+  });
+  const shop = [settings?.tradingName, settings?.legalName && settings.legalName !== settings.tradingName ? settings.legalName : null]
+    .filter(Boolean)
+    .join(" · ");
+  const head = rows([
+    ["Shop", shop || "—"],
+    ["VAT number", settings?.vatNumber ?? "—"],
+    ["Supplier", receipt.vendor.name],
+    ["Order", receipt.purchaseOrder?.poNo ?? "No order"],
+    ["Note number", receipt.noteNumber ?? "—"],
+    ["Driver", receipt.driver ?? "—"],
+  ]);
+  const received = rows([
+    ["Received", formatDay(receipt.createdAt)],
+    ["Site", receipt.site.name],
+    ["Counted by", receipt.countedBy?.name ?? "—"],
+    ["Checked by", receipt.checkedBy?.name ?? "Not yet"],
+  ]);
+  const lines = receipt.lines
+    .map(
+      (line) =>
+        `<tr><td>${esc(line.itemName)}</td><td class="num mono">${esc(Number(line.noteQuantity).toString())}</td><td class="num mono">${esc(
+          Number(line.damagedQuantity).toString(),
+        )}</td><td class="num mono">${esc(Number(line.quantity).toString())}</td><td class="num mono">${esc(formatMoney(Number(line.unitCost)))}</td><td class="num mono">${esc(
+          formatMoney(Number(line.lineTotal)),
+        )}</td></tr>`,
+    )
+    .join("");
+  const total = receipt.lines.reduce((sum, line) => sum + Number(line.lineTotal), 0);
+  return {
+    ref: receipt.receiptNo,
+    title: `Delivery ${receipt.receiptNo}`,
+    subtitle: `${receipt.vendor.name} · ${formatDay(receipt.createdAt)}`,
+    content: `<div class="rd-cols">
+  <table class="rd-table"><caption>Delivery</caption><tbody>${head}</tbody></table>
+  <table class="rd-table"><caption>Received</caption><tbody>${received}</tbody></table>
+</div>
+<table class="rd-table"><caption>Lines</caption>
+  <thead><tr><th>Product</th><th class="num">On the note</th><th class="num">Damaged</th><th class="num">In stock</th><th class="num">Cost</th><th class="num">Value</th></tr></thead>
+  <tbody>${lines}<tr><td>Total</td><td></td><td></td><td></td><td></td><td class="num mono">${esc(formatMoney(total))}</td></tr></tbody>
+</table>
+${receipt.notes ? `<p class="rd-note">${esc(receipt.notes)}</p>` : ""}`,
+  };
+}
+
 const SIGN_BOXES = ["Asked by", "Approved by", "Paid out by", "Received by"];
 
 /**

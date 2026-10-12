@@ -370,8 +370,47 @@ async function loadOrderMessages(ctx: ReportContext, params: ReportParams) {
   );
 }
 
+/* ── A delivery's Lines ──────────────────────────────────────────────────── */
+
+async function loadDeliveryLines(ctx: ReportContext, params: ReportParams) {
+  if (!params.deliveryId) return result([]);
+  const receipt = await prisma.retailGoodsReceipt.findFirst({
+    where: { id: params.deliveryId, companyId: ctx.companyId },
+    select: {
+      id: true,
+      lines: {
+        orderBy: { createdAt: "asc" },
+        select: { id: true, itemName: true, noteQuantity: true, quantity: true, unitCost: true, lineTotal: true, inventoryItem: { select: { productId: true } } },
+      },
+    },
+  });
+  if (!receipt) return result([]);
+  return result(
+    receipt.lines.map((line, index): ReportRow => {
+      const onNote = num(line.noteQuantity) ?? 0;
+      const counted = num(line.quantity) ?? 0;
+      const difference = counted - onNote;
+      return {
+        id: line.id,
+        deliveryId: receipt.id,
+        productId: line.inventoryItem.productId,
+        order: index,
+        product: line.itemName,
+        onNote,
+        counted,
+        difference,
+        differenceTone: difference !== 0 ? "warn" : null,
+        cost: num(line.unitCost) ?? 0,
+        costTone: "ink-3",
+        value: num(line.lineTotal) ?? 0,
+      };
+    }),
+  );
+}
+
 export const BUYING_ORDER_LOADERS: Record<string, ReportLoader> = {
   "retail-orders": { load: loadOrders, page: pageOrders, options: orderOptions },
   "retail-order-lines": { load: loadOrderLines },
   "retail-order-messages": { load: loadOrderMessages },
+  "retail-delivery-lines": { load: loadDeliveryLines },
 };

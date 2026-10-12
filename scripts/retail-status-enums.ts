@@ -83,8 +83,8 @@ const CONVERSIONS: readonly Conversion[] = [
     table: "RetailGoodsReceipt",
     column: "status",
     type: "RetailGoodsReceiptStatus",
-    values: ["POSTED"],
-    defaultValue: "POSTED",
+    values: ["COUNTED", "POSTED", "REVERSED"],
+    defaultValue: "COUNTED",
   },
   {
     table: "RetailCatalogItem",

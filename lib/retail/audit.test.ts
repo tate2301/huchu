@@ -436,6 +436,7 @@ describe("the chain", () => {
       dayClosed: "RETAIL_DAY.CLOSED",
       cashMoved: "RETAIL_CASH.MOVED",
       goodsReceived: "RETAIL_GOODS.RECEIVED",
+      goodsCounted: "RETAIL_GOODS.COUNTED",
       movementsReversed: "RETAIL_STOCK.MOVEMENTS_REVERSED",
       stockAdjusted: "RETAIL_STOCK.ADJUSTED",
       caseBroken: "RETAIL_STOCK.CASE_BROKEN",
