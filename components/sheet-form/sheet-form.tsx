@@ -305,7 +305,7 @@ export function SheetForm({ kind, ctx, open, onClose }: SheetFormProps) {
     const invalidate = () => Promise.all(kind.invalidate.map((key) => queryClient.invalidateQueries({ queryKey: key })));
     toast({
       title: sentence,
-      variant: "success",
+      variant: kind.doneWarn?.(result, values) ? "warning" : "success",
       ...(undo
         ? {
             action: {

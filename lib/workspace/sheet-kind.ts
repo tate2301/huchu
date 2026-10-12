@@ -103,6 +103,8 @@ export type FieldSpec = {
   upper?: boolean;
   /** `text`: typed digits hidden, a number pad on a phone (a manager's PIN). */
   masked?: boolean;
+  /** `text`: the phone's keyboard for it ("numeric": a number pad for a whole count). */
+  inputMode?: "numeric" | "decimal";
   /** `text`: at most this many characters. */
   max?: number;
   /** `photo`: the upload route (`POST` multipart → `{ data: { url } }`); the product image route when absent. */
@@ -252,6 +254,8 @@ export type SheetKind = {
   note: string | ((values: SheetValues) => string);
   /** The toast: fixed, or from the answer's `data` (`result`), the values, and the whole answer (`{ data, message }`). */
   done: string | ((result: unknown, values: SheetValues, payload: unknown) => string);
+  /** The toast in warn instead of success while this holds (some of the ticked were skipped). */
+  doneWarn?: (result: unknown, values: SheetValues) => boolean;
   /**
    * A file the save makes, opened in a new tab: the tab opens on the click
    * while `when` holds (so no popup blocker takes it), then goes to `href`

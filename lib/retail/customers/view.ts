@@ -59,7 +59,8 @@ export type CustomerRecordView = {
   /** Every tier, lowest first (the edit sheet's choices). */
   tiers: string[];
   priceList: { id: string; name: string } | null;
-  points: { balance: number; worth: number; canSpend: boolean; spendFrom: number };
+  /** `pointValue`: what a point is worth in US$; `enabled`: loyalty is on. */
+  points: { balance: number; worth: number; canSpend: boolean; spendFrom: number; pointValue: number; enabled: boolean };
   kpis: CustomerKpi[];
   meter: CustomerMeter;
   usually: UsuallyBuys;
@@ -236,7 +237,14 @@ export async function loadCustomerRecord(
     tier: { name: tier, isTop, heldUntil: liveHold, bySpend },
     tiers: settings.tiers.map((entry) => entry.name),
     priceList: customer.priceList && !customer.priceList.archivedAt ? { id: customer.priceList.id, name: customer.priceList.name } : null,
-    points: { balance, worth, canSpend: settings.enabled && balance >= settings.spendFrom, spendFrom: settings.spendFrom },
+    points: {
+      balance,
+      worth,
+      canSpend: settings.enabled && balance >= settings.spendFrom,
+      spendFrom: settings.spendFrom,
+      pointValue: settings.pointValue,
+      enabled: settings.enabled,
+    },
     kpis: customerKpis({ ...facts, points: balance, worth, spendFrom: settings.spendFrom }, now),
     meter: customerMeter({ tiers: settings.tiers, spend12m: facts.spend12m, tier, heldUntil: liveHold }),
     usually: usuallyBuys({ visits: facts.visits, ...habits }),
@@ -252,7 +260,7 @@ export async function loadCustomerRecord(
     mergedInto: customer.mergedInto,
     can: {
       edit: viewer.update && live,
-      adjustPoints: false,
+      adjustPoints: viewer.update && live && settings.enabled,
       message: viewer.update && live && Boolean(customer.phone),
       merge: false,
       bin: viewer.delete && live,

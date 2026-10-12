@@ -40,3 +40,18 @@ export function pointValueWords(value: number): string {
   const fixed = value.toFixed(4).replace(/0{1,2}$/, "");
   return fixed;
 }
+
+/** Why points were adjusted by hand (CUS-04), as the Adjust points sheet and Activity read them. */
+export const ADJUST_REASONS = [
+  ["MISSED_AT_TILL", "Missed at the till"],
+  ["COMPLAINT", "Make good a complaint"],
+  ["BIRTHDAY", "Birthday"],
+  ["CORRECTION", "Correction"],
+] as const;
+
+export type AdjustReason = (typeof ADJUST_REASONS)[number][0];
+
+/** "Make good a complaint" for COMPLAINT; the code itself for anything else. */
+export function adjustReasonLabel(reason: string | null | undefined): string {
+  return ADJUST_REASONS.find(([code]) => code === reason)?.[1] ?? reason ?? "";
+}

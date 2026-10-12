@@ -1,14 +1,16 @@
 import { binAsk } from "@/lib/retail/asks";
 import type { CustomerRecordView } from "@/lib/retail/customers/view";
-import { formatCount, formatDay } from "@/lib/workspace/format";
+import { ADJUST_REASONS, pointsWords } from "@/lib/retail/loyalty/format";
+import { pointsValue } from "@/lib/retail/loyalty/spend";
+import { formatCount, formatDay, formatMoney } from "@/lib/workspace/format";
 import type { PickedOption, SheetCtx, SheetKind, SheetRequest, SheetValues } from "@/lib/workspace/sheet-kind";
 
 import { readJson } from "./products";
 
 /**
  * Customers' sheets (60-customers): New customer (W-45, CUS-02) and Message
- * on WhatsApp (W-50, CUS-06), Edit everything and Add a note (61, CUS-03).
- * Adjust points (64) joins here.
+ * on WhatsApp (W-50, CUS-06), Edit everything and Add a note (61, CUS-03),
+ * Adjust points, Add points and Change tier (64, CUS-04).
  */
 
 const text = (value: unknown) => (typeof value === "string" ? value.trim() : "");
@@ -353,9 +355,153 @@ const customerNote: SheetKind = {
   requires: [["retail.customers", "update"]],
 };
 
+/* ── Adjust points, Add points, Change tier (64, CUS-04) ──────────────────── */
+
+const ADD = "Add";
+const TAKE = "Take away";
+const REASON_LABELS = ADJUST_REASONS.map(([, label]) => label);
+const many = (ctx: SheetCtx) => Boolean(ctx.params.get("ids"));
+const customerAt = (id: string) => readJson<CustomerRecordView>(`/api/v2/retail/customers/${encodeURIComponent(id)}`);
+
+/** The typed count as a whole number, or 0 while it is not one. */
+function pointsTyped(values: SheetValues): number {
+  const typed = text(values.n).replace(/,/g, "");
+  return /^\d+$/.test(typed) ? Number(typed) : 0;
+}
+
+/** "Nyasha Gwenzi had too few.", "Nyasha Gwenzi and Rudo Chirwa had too few.", "… and 3 others had too few." */
+function tooFewWords(skipped: Array<{ name: string }>): string {
+  const names = skipped.map((entry) => entry.name);
+  if (names.length === 0) return "";
+  if (names.length === 1) return `${names[0]} had too few.`;
+  if (names.length <= 3) return `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]} had too few.`;
+  return `${names.slice(0, 2).join(", ")} and ${formatCount(names.length - 2)} others had too few.`;
+}
+
+type Adjusted = { entryId: string; balance: number };
+type AdjustedMany = { done: number; skipped: Array<{ id: string; name: string }> };
+
+const points: SheetKind = {
+  title: (ctx) => (many(ctx) ? "Add points" : "Adjust points"),
+  sub: (ctx, values) => {
+    if (many(ctx)) return customersWord(idsOf(ctx).length);
+    if (!values._name) return "";
+    const balance = Number(values._balance ?? 0);
+    return `${String(values._name)} · ${formatCount(balance)} ${balance === 1 ? "point" : "points"}, worth ${formatMoney(Number(values._worth ?? 0))}`;
+  },
+  cur: "US$",
+  sections: [
+    {
+      fields: [
+        { id: "dir", t: "seg", l: "Points", o: [ADD, TAKE], v: ADD },
+        {
+          id: "n",
+          t: "text",
+          l: "How many",
+          mono: true,
+          right: true,
+          half: true,
+          inputMode: "numeric",
+          p: "0",
+          needed: "A whole number of points, 1 or more.",
+        },
+        {
+          id: "val",
+          t: "read",
+          l: "Worth",
+          mono: true,
+          right: true,
+          half: true,
+          derive: (values) => formatMoney(pointsValue(pointsTyped(values), Number(values._pointValue ?? 0))),
+        },
+        { id: "why", t: "seg", l: "Why", o: REASON_LABELS, v: REASON_LABELS[0] },
+        { id: "note", t: "area", l: "Note", rows: 2, max: 300, needed: "Say what happened." },
+      ],
+    },
+  ],
+  note: "Adjustments show in their points ledger with your name.",
+  primary: "Save to the ledger",
+  // One customer: their name and points for the sub. Many: the first ticked one's record carries what a point is worth.
+  load: async (ctx) => {
+    const id = many(ctx) ? idsOf(ctx)[0] : ctx.id;
+    if (!id) return {};
+    const customer = await customerAt(id);
+    return {
+      _pointValue: customer.points.pointValue,
+      ...(many(ctx) ? {} : { _name: customer.name, _balance: customer.points.balance, _worth: customer.points.worth }),
+    };
+  },
+  done: (result, values) => {
+    const n = pointsTyped(values);
+    const taking = values.dir === TAKE;
+    const answer = (result ?? {}) as Partial<Adjusted & AdjustedMany>;
+    if (answer.done !== undefined) {
+      const head = `${pointsWords(n)} ${taking ? "taken away from" : "added to"} ${customersWord(answer.done)}.`;
+      const skipped = tooFewWords(answer.skipped ?? []);
+      return skipped ? `${head} ${skipped}` : head;
+    }
+    return `${pointsWords(n)} ${taking ? "taken away" : "added"}. ${pointsWords(Number(answer.balance ?? 0))} now.`;
+  },
+  doneWarn: (result) => ((result as Partial<AdjustedMany> | null)?.skipped?.length ?? 0) > 0,
+  submit: (values, ctx): SheetRequest => {
+    const reason = ADJUST_REASONS.find(([, label]) => label === values.why)?.[0] ?? ADJUST_REASONS[0][0];
+    const body = { direction: values.dir === TAKE ? "TAKE" : "ADD", points: text(values.n).replace(/,/g, ""), reason, note: text(values.note) };
+    return many(ctx)
+      ? { method: "POST", url: "/api/v2/retail/customers/points", body: { ids: idsOf(ctx), ...body } }
+      : { method: "POST", url: `${customerUrl(ctx)}/points`, body };
+  },
+  invalidate: [["retail-customer"], ["list", "retail-points"], ["list", "retail-customers"], ["record-activity"], ["reports"]],
+  requires: [["retail.customers", "update"]],
+};
+
+const customerTier: SheetKind = {
+  title: "Change tier",
+  sub: (ctx) => customersWord(idsOf(ctx).length),
+  cur: "US$",
+  sections: [
+    {
+      fields: [
+        {
+          id: "tier",
+          t: "seg",
+          l: "Tier",
+          o: (values) => (values._tiers as string[] | undefined) ?? [],
+          needed: "Choose a tier.",
+          h: "Set by spend. Changing it here holds it for 12 months.",
+        },
+      ],
+    },
+  ],
+  note: "Each one goes back to their spend tier after 12 months.",
+  primary: (values) => {
+    const count = Number(values._count ?? 0);
+    return `Change ${formatCount(count)} ${count === 1 ? "tier" : "tiers"}`;
+  },
+  // The settings' tiers come with any customer's record: the first ticked one's.
+  load: async (ctx) => {
+    const ids = idsOf(ctx);
+    const first = ids[0];
+    return { _count: ids.length, _tiers: first ? (await customerAt(first)).tiers : [] };
+  },
+  done: (result, values) => {
+    const answer = (result ?? {}) as { count?: number; until?: string };
+    const count = Number(answer.count ?? 0);
+    return `${customersWord(count)} ${count === 1 ? "is" : "are"} ${String(values.tier)}${answer.until ? ` until ${formatDay(answer.until)}` : ""}.`;
+  },
+  submit: (values, ctx): SheetRequest => ({
+    method: "POST",
+    url: "/api/v2/retail/customers/tier",
+    body: { ids: idsOf(ctx), tier: String(values.tier ?? "") },
+  }),
+  invalidate: [["retail-customer"], ["list", "retail-customers"], ["record-activity"], ["reports"]],
+  requires: [["retail.customers", "update"]],
+};
+
 export const CUSTOMER_SHEETS: Record<string, SheetKind> = {
   "customer-new": customerNew,
   "customer-edit": customerEdit,
   "customer-note": customerNote,
+  "customer-tier": customerTier,
   message,
+  points,
 };

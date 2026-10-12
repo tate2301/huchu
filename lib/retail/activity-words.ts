@@ -1,5 +1,6 @@
 import { RETAIL_AUDIT_EVENTS } from "@/lib/retail/audit";
 import { labelsPrintedSentence } from "@/lib/retail/labels/words";
+import { adjustReasonLabel, pointsWords } from "@/lib/retail/loyalty/format";
 import { priceWords, productWords, scheduledActivity, undoneActivity } from "@/lib/retail/prices/words";
 import { tenderLabel } from "@/lib/retail/words";
 import { DEFAULT_TIME_ZONE, formatCount, formatDay, formatMoney, formatPercent, formatSigned, formatTime } from "@/lib/workspace/format";
@@ -479,6 +480,12 @@ const WORDS: Record<string, (payload: Payload, eventType: string, seeCost: boole
     what: `Birthday bonus, ${formatCount(amount(payload.points) ?? 0)} points`,
     tone: "warn",
   }),
+  // "Added 200 points: Make good a complaint" / "Took away 100 points: Correction" (CUS-04).
+  [RETAIL_AUDIT_EVENTS.pointsAdjusted]: (payload) => {
+    const points = pointsWords(amount(payload.points) ?? 0);
+    const why = adjustReasonLabel(text(payload.reason));
+    return { what: `${payload.direction === "TAKE" ? "Took away" : "Added"} ${points}${why ? `: ${why}` : ""}`, tone: "warn" };
+  },
   // "Added, agreed to messages" / "Added at the till" (CUS-02).
   [RETAIL_AUDIT_EVENTS.customerCreated]: (payload) => ({
     what: payload.via === "till" ? "Added at the till" : payload.consent === true ? "Added, agreed to messages" : "Added",

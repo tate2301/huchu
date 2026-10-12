@@ -432,6 +432,7 @@ export function SheetField({
                 right={field.right}
                 placeholder={field.p}
                 maxLength={field.max}
+                {...(field.inputMode ? { inputMode: field.inputMode } : {})}
                 {...(field.masked ? { type: "password", inputMode: "numeric" as const, autoComplete: "off" } : {})}
                 value={typeof value === "string" ? value : ""}
                 onChange={(event) => onChange(field.upper ? event.target.value.toUpperCase() : event.target.value)}

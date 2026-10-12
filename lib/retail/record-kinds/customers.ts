@@ -130,11 +130,15 @@ export const customerKind: RecordKind<CustomerRecord> = {
   endpoint: customerUrl,
   title: (customer) => customer.name,
   reference: (customer) => customer.code,
-  // "Adjust points" (packet 64) and "Take a payment" (packet 67) join this group.
-  actions: (customer) =>
-    customer.can.message
-      ? [{ key: "message", label: "Message on WhatsApp", requires: [UPDATE], do: { sheet: "message", params: { ids: customer.id } } }]
-      : [],
+  // "Take a payment" (packet 67) joins this group.
+  actions: (customer): RecordAction[] => [
+    ...(customer.can.adjustPoints
+      ? [{ key: "points", label: "Adjust points", requires: [UPDATE], do: { sheet: "points", id: customer.id } } satisfies RecordAction]
+      : []),
+    ...(customer.can.message
+      ? [{ key: "message", label: "Message on WhatsApp", requires: [UPDATE], do: { sheet: "message", params: { ids: customer.id } } } satisfies RecordAction]
+      : []),
+  ],
   more: (customer): RecordAction[] => [
     { key: "pdf", label: "Export as PDF", requires: [VIEW], do: { download: `/api/v2/retail/records/Customer/${customer.id}/pdf` } },
     { key: "edit", label: "Edit everything", requires: [UPDATE], do: { sheet: "customer-edit", id: customer.id } },

@@ -325,6 +325,11 @@ export const RETAIL_AUDIT_EVENTS = {
   /** The birthday bonus given by the retail worker (CUS-01). Entity `Customer`; carries `{ points }`. */
   pointsBirthday: "RETAIL_POINTS.BIRTHDAY",
   /**
+   * Points added or taken away by hand (CUS-04, W-47). Entity `Customer`; carries
+   * `{ direction: "ADD" | "TAKE", points, reason, note, balance }` (the balance after).
+   */
+  pointsAdjusted: "RETAIL_POINTS.ADJUSTED",
+  /**
    * A customer added (CUS-02, W-45): from Customers, at the till or from a customer field's quick add.
    * Entity `Customer`; carries `{ code, name, consent, via: "sheet" | "till" | "lookup" }`.
    */

@@ -528,6 +528,7 @@ describe("the chain", () => {
       emptiesCredited: "RETAIL_EMPTIES.CREDITED",
       pointsExpired: "RETAIL_POINTS.EXPIRED",
       pointsBirthday: "RETAIL_POINTS.BIRTHDAY",
+      pointsAdjusted: "RETAIL_POINTS.ADJUSTED",
       customerCreated: "RETAIL_CUSTOMER.CREATED",
       customerConsent: "RETAIL_CUSTOMER.CONSENT_CHANGED",
       customerTierSet: "RETAIL_CUSTOMER.TIER_SET",
