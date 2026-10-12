@@ -281,6 +281,8 @@ export type SheetKind = {
   next?: (result: unknown, values: SheetValues) => string | null;
   /** The primary's words, fixed or from the values ("Save", or "Give access back" for someone without access). */
   primary: string | ((values: SheetValues) => string);
+  /** The note in `--bad` while this holds (what stops a merge, in place of the note). */
+  noteBad?: (values: SheetValues) => boolean;
   /** The primary is drawn but cannot send while this holds (no room on the plan); the note says why. */
   primaryDisabled?: (values: SheetValues) => boolean;
   /** A link after the note ("Plan and billing"), while this gives one. */

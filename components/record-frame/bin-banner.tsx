@@ -1,9 +1,11 @@
 "use client";
 
+import Link from "next/link";
 import * as React from "react";
 
 import { Loader2, Trash } from "@/lib/icons";
 import type { BinState } from "@/lib/retail/bin";
+import type { BinLead } from "@/lib/retail/record-kinds/types";
 import { formatDay, formatTime } from "@/lib/workspace/format";
 
 /** "3 October" — the banner's dates leave the year to the reader. */
@@ -18,12 +20,15 @@ function dayMonth(iso: string) {
  */
 export function BinBanner({
   state,
+  lead,
   meanwhile,
   viewerId,
   canRestore,
   onRestore,
 }: {
   state: BinState;
+  /** A line before the rest ("Merged into Tapiwa Marange."), its link last. */
+  lead?: BinLead | null;
   /** The kind's words for what happens while it is kept ("Off the till and out of lists; …"). */
   meanwhile?: string;
   viewerId: string | null;
@@ -52,6 +57,15 @@ export function BinBanner({
       <Trash aria-hidden="true" />
       <span className="cx-rf-banner__text">
         <b>In the bin</b>{" "}
+        {lead ? (
+          <>
+            {lead.text}{" "}
+            <Link className="cx-rf-banner__link" href={lead.link.href}>
+              {lead.link.label}
+            </Link>
+            .{" "}
+          </>
+        ) : null}
         {state.restorable
           ? `${since} Kept until ${dayMonth(state.keptUntil)}${meanwhile ? `. ${meanwhile}` : ", then gone for good. Nothing sold, paid or counted against it changes."}`
           : state.purged

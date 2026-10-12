@@ -5,6 +5,8 @@ import { prisma } from "@/lib/prisma";
 import { BIN_KEEP_DAYS, restorableUntil } from "@/lib/retail/asks";
 import { auditRecordBin, auditRecordPurged, RETAIL_AUDIT_EVENTS, type RetailAuditActor } from "@/lib/retail/audit";
 import { categoryBinRefusal, restoreCategory } from "@/lib/retail/categories";
+import { CustomerRefusal } from "@/lib/retail/customers/create";
+import { unmergeCustomer } from "@/lib/retail/customers/merge";
 import { phoneDisplay } from "@/lib/retail/people/words";
 import { checkProductUnique, lockProductNames, ProductRefusal } from "@/lib/retail/products/create";
 import type { RetailAction, RetailResource } from "@/lib/retail/permission-matrix";
@@ -37,7 +39,7 @@ type Tx = Prisma.TransactionClient;
 type Found = { name: string; archivedAt: Date | null };
 
 /** A record in the bin, as its kind lists it. */
-export type Binned = { companyId: string; id: string; name: string; reference: string | null; binnedAt: Date };
+export type Binned = { companyId: string; id: string; name: string; reference: string | null; binnedAt: Date; merged?: boolean };
 
 /** Which binned records a kind lists: one company's or every company's, binned in a window. */
 export type BinnedWhere = { companyId?: string; from?: Date; before?: Date };
@@ -65,8 +67,8 @@ export type BinKindSpec = {
   find(tx: Tx, companyId: string, id: string): Promise<Found | null>;
   /** Into the bin. A sentence refuses it (409), passed through as it is. */
   move(tx: Tx, companyId: string, id: string, at: Date): Promise<string | null>;
-  /** Out of the bin. A sentence refuses it (409), passed through as it is. */
-  restore(tx: Tx, companyId: string, id: string): Promise<string | null>;
+  /** Out of the bin, by `actor`. A sentence refuses it (409), passed through as it is. */
+  restore(tx: Tx, companyId: string, id: string, actor: RetailAuditActor): Promise<string | null>;
   /**
    * Gone for good: the row is deleted when nothing sold, paid or counted
    * refers to it; otherwise it is kept, under its name, for that history.
@@ -308,6 +310,7 @@ const KINDS: Record<BinKind, BinKindSpec> = {
   customer: {
     kind: "customer",
     label: "Customer",
+    labelFor: (row) => (row.merged ? "Customer, merged" : "Customer"),
     entityType: "Customer",
     deleteRight: ["retail.customers", "delete"],
     viewRight: ["retail.customers", "view"],
@@ -329,10 +332,19 @@ const KINDS: Record<BinKind, BinKindSpec> = {
       await tx.customer.updateMany({ where: { id, companyId }, data: { archivedAt: at, isActive: false } });
       return null;
     },
-    // Back, unless a live customer has taken their number since.
-    restore: async (tx, companyId, id) => {
-      const customer = await tx.customer.findFirst({ where: { id, companyId }, select: { phone: true } });
+    // Back, unless a live customer has taken their number since. A merged duplicate is taken back out of the one it went into (CUS-05).
+    restore: async (tx, companyId, id, actor) => {
+      const customer = await tx.customer.findFirst({ where: { id, companyId }, select: { phone: true, mergedIntoId: true } });
       if (!customer) return null;
+      if (customer.mergedIntoId) {
+        try {
+          await unmergeCustomer(tx, actor, id);
+          return null;
+        } catch (error) {
+          if (error instanceof CustomerRefusal) return error.message;
+          throw error;
+        }
+      }
       if (customer.phone) {
         const holder = await tx.customer.findFirst({
           where: { companyId, phone: customer.phone, archivedAt: null, mergedIntoId: null, id: { not: id } },
@@ -365,9 +377,16 @@ const KINDS: Record<BinKind, BinKindSpec> = {
       (
         await prisma.customer.findMany({
           where: binnedWhere(where),
-          select: { companyId: true, id: true, name: true, phone: true, code: true, archivedAt: true },
+          select: { companyId: true, id: true, name: true, phone: true, code: true, archivedAt: true, mergedIntoId: true },
         })
-      ).map((row) => ({ companyId: row.companyId, id: row.id, name: customerBinName(row), reference: row.code, binnedAt: row.archivedAt! })),
+      ).map((row) => ({
+        companyId: row.companyId,
+        id: row.id,
+        name: customerBinName(row),
+        reference: row.code,
+        binnedAt: row.archivedAt!,
+        merged: row.mergedIntoId !== null,
+      })),
   },
 };
 
@@ -494,7 +513,7 @@ export async function restoreFromBin(
     if (!stillRestorable(found.archivedAt, now)) {
       throw new BinRefusal(410, "It has been in the bin more than 30 days");
     }
-    const refusal = await spec.restore(tx, actor.companyId, input.id);
+    const refusal = await spec.restore(tx, actor.companyId, input.id, actor);
     if (refusal) throw new BinRefusal(409, refusal);
     await auditRecordBin(tx, {
       actor,

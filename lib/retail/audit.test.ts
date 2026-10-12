@@ -533,6 +533,8 @@ describe("the chain", () => {
       customerConsent: "RETAIL_CUSTOMER.CONSENT_CHANGED",
       customerTierSet: "RETAIL_CUSTOMER.TIER_SET",
       customerNoteAdded: "RETAIL_CUSTOMER.NOTE_ADDED",
+      customerMerged: "RETAIL_CUSTOMER.MERGED",
+      customerUnmerged: "RETAIL_CUSTOMER.UNMERGED",
       messagesQueued: "RETAIL_MESSAGES.QUEUED",
       laybyStarted: "RETAIL_LAYBY.STARTED",
       laybyPaid: "RETAIL_LAYBY.PAID",

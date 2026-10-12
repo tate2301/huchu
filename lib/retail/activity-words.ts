@@ -1,4 +1,5 @@
 import { RETAIL_AUDIT_EVENTS } from "@/lib/retail/audit";
+import { nameAndPhone, pointsAndVisits } from "@/lib/retail/customers/merge-words";
 import { labelsPrintedSentence } from "@/lib/retail/labels/words";
 import { adjustReasonLabel, pointsWords } from "@/lib/retail/loyalty/format";
 import { priceWords, productWords, scheduledActivity, undoneActivity } from "@/lib/retail/prices/words";
@@ -519,6 +520,17 @@ const WORDS: Record<string, (payload: Payload, eventType: string, seeCost: boole
     return { what: until ? `Held at ${tier} until ${formatDay(until)}` : `Back to ${tier}, by spend`, tone: "info" };
   },
   [RETAIL_AUDIT_EVENTS.customerNoteAdded]: () => ({ what: "Added a note", tone: "hollow" }),
+  // CUS-05: "Merged in T. Marange, +263 77 412 3380: 412 points, 9 visits" on the survivor;
+  // "Took T. Marange back out: 412 points, 9 visits" there, "Taken back out of Tapiwa Marange: …" on the duplicate.
+  [RETAIL_AUDIT_EVENTS.customerMerged]: (payload) => {
+    const duplicate = (payload.duplicate ?? {}) as Payload;
+    return { what: `Merged in ${nameAndPhone({ name: text(duplicate.name) ?? "a customer", phone: text(duplicate.phone) })}: ${pointsAndVisits(amount(payload.points) ?? 0, amount(payload.visits) ?? 0)}`, tone: "info" };
+  },
+  [RETAIL_AUDIT_EVENTS.customerUnmerged]: (payload) => {
+    const other = text(((payload.other ?? {}) as Payload).name) ?? "a customer";
+    const figures = pointsAndVisits(amount(payload.points) ?? 0, amount(payload.visits) ?? 0);
+    return { what: payload.role === "duplicate" ? `Taken back out of ${other}: ${figures}` : `Took ${other} back out: ${figures}`, tone: "warn" };
+  },
   [RETAIL_AUDIT_EVENTS.saleReviewed]: (payload) => ({
     what: text(payload.reason) ? `Looked at: ${text(payload.reason)}` : "Looked at",
     tone: "ok",

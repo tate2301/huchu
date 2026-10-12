@@ -43,6 +43,9 @@ export type RecordBanner = {
   action?: { label: string; post: string; method?: "POST" | "DELETE"; body: unknown; done: string; requires: Grant };
 };
 
+/** "Merged into <a>Tapiwa Marange</a>.": the bin banner's lead. */
+export type BinLead = { text: string; link: { label: string; href: string } };
+
 export type RecordAction = {
   key: string;
   label: string;
@@ -240,7 +243,9 @@ export type RecordKind<R> = {
     deleteRight: Grant;
     state: (record: R) => BinState | null;
     /** What the bin banner says happens meanwhile, after "Kept until 2 November." ("Off the till and out of lists; …"). */
-    meanwhile?: string;
+    meanwhile?: string | ((record: R) => string);
+    /** A line the banner leads with, its link last ("Merged into Tapiwa Marange."). */
+    lead?: (record: R) => BinLead | null;
   };
   steps?: (record: R) => RecordStep[];
   chips?: (record: R) => RecordChip[];

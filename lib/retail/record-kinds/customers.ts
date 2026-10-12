@@ -11,8 +11,9 @@ import type { Grant, RailRow, RecordAction, RecordChart, RecordKind } from "./ty
  * their tier, points and five figures, spend per month, the points ledger,
  * purchases and notes as tabs, and their contact and loyalty details on the
  * rail, each contact value changed in place by owners and managers. Binned
- * from ⋯ or Edit everything. "Adjust points" (packet 64), "Take a payment"
- * (packet 67), Merge (packet 65) and the account (packet 66) join here.
+ * from ⋯ or Edit everything; merged into another from ⋯ (packet 65), and
+ * a merged one's banner names who it went into. "Take a payment" (packet 67)
+ * and the account (packet 66) join here.
  *
  * The record is the customer's view and their spend for each range, read
  * side by side.
@@ -142,13 +143,22 @@ export const customerKind: RecordKind<CustomerRecord> = {
   more: (customer): RecordAction[] => [
     { key: "pdf", label: "Export as PDF", requires: [VIEW], do: { download: `/api/v2/retail/records/Customer/${customer.id}/pdf` } },
     { key: "edit", label: "Edit everything", requires: [UPDATE], do: { sheet: "customer-edit", id: customer.id } },
+    ...(customer.can.merge
+      ? [{ key: "merge", label: "Merge with another customer", requires: [UPDATE], do: { sheet: "customer-merge", id: customer.id } } satisfies RecordAction]
+      : []),
     consentAction(customer),
   ],
   bin: {
     kind: "customer",
     deleteRight: ["retail.customers", "delete"],
     state: (customer) => customer.binned,
-    meanwhile: "Off every list and the till’s search; their sales and points stay.",
+    meanwhile: (customer) =>
+      customer.mergedInto
+        ? `Off every list and the till’s search; their sales and points are with ${customer.mergedInto.name} until it is restored.`
+        : "Off every list and the till’s search; their sales and points stay.",
+    // A merged duplicate (CUS-05): Restore takes it back out of the one it went into.
+    lead: (customer) =>
+      customer.mergedInto ? { text: "Merged into", link: { label: customer.mergedInto.name, href: `/retail/customers/${customer.mergedInto.id}` } } : null,
   },
   chips: (customer) => [
     ...(customer.tier.name

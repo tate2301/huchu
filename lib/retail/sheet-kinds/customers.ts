@@ -10,7 +10,8 @@ import { readJson } from "./products";
 /**
  * Customers' sheets (60-customers): New customer (W-45, CUS-02) and Message
  * on WhatsApp (W-50, CUS-06), Edit everything and Add a note (61, CUS-03),
- * Adjust points, Add points and Change tier (64, CUS-04).
+ * Adjust points, Add points and Change tier (64, CUS-04), Merge with another
+ * customer (65, CUS-05).
  */
 
 const text = (value: unknown) => (typeof value === "string" ? value.trim() : "");
@@ -497,7 +498,88 @@ const customerTier: SheetKind = {
   requires: [["retail.customers", "update"]],
 };
 
+/* ── Merge with another customer (65, CUS-05) ───────────────────────────── */
+
+type MergePreviewView = { points: number; visits: number; text: string; phones: [string, string]; blockers: string[] };
+type MergedView = { id: string; points: number; visits: number };
+
+const mergePreviewOf = (values: SheetValues) => (values._preview as MergePreviewView | null | undefined) ?? null;
+const mergeBlocker = (values: SheetValues) => mergePreviewOf(values)?.blockers[0] ?? null;
+
+const customerMerge: SheetKind = {
+  title: "Merge with another customer",
+  sub: (_ctx, values) => (values._name ? [String(values._name), String(values._phone ?? "")].filter(Boolean).join(" · ") : ""),
+  cur: "US$",
+  sections: [
+    {
+      fields: [
+        {
+          id: "other",
+          t: "auto",
+          l: "The duplicate",
+          noun: "customer",
+          context: (ctx) => ({ for: "merge", excludeId: ctx.id }),
+          needed: "Pick the duplicate.",
+          // Another duplicate: what merging comes to, asked again; the record's number kept until changed.
+          follow: async (value, values, ctx) => {
+            const picked = pickedId(value);
+            if (!picked) return { _preview: null, keep: values._phone };
+            try {
+              const preview = await readJson<MergePreviewView>(`${customerUrl(ctx)}/merge-preview?duplicateId=${encodeURIComponent(picked)}`);
+              return { _preview: preview, keep: values._phone };
+            } catch (error) {
+              const sentence = error instanceof Error ? error.message : "That could not be read. Close it and try again.";
+              return { _preview: { points: 0, visits: 0, text: "—", phones: [String(values._phone ?? ""), ""], blockers: [sentence] }, keep: values._phone };
+            }
+          },
+        },
+        {
+          id: "keep",
+          t: "seg",
+          l: "Keep the phone number",
+          o: (values) => {
+            const phones = mergePreviewOf(values)?.phones ?? [String(values._phone ?? ""), ""];
+            return phones.filter((phone, index) => phone && phones.indexOf(phone) === index);
+          },
+        },
+        { id: "res", t: "read", l: "After merging", derive: (values) => mergePreviewOf(values)?.text ?? "—" },
+      ],
+    },
+  ],
+  note: (values) => mergeBlocker(values) ?? "The duplicate goes to the bin. Its sales move across.",
+  noteBad: (values) => mergeBlocker(values) !== null,
+  primary: "Merge",
+  primaryDisabled: (values) => !mergePreviewOf(values) || mergeBlocker(values) !== null,
+  load: async (ctx) => {
+    const customer = await readJson<CustomerRecordView>(customerUrl(ctx));
+    return { _name: customer.name, _phone: customer.phoneDisplay, keep: customer.phoneDisplay, _preview: null };
+  },
+  done: (result, values) => {
+    const points = Number((result as Partial<MergedView> | null)?.points ?? 0);
+    return `Merged. ${String(values._name ?? "The customer")} has ${pointsWords(points)}.`;
+  },
+  submit: (values, ctx): SheetRequest => ({
+    method: "POST",
+    url: `${customerUrl(ctx)}/merge`,
+    body: { duplicateId: pickedId(values.other) ?? "", keepPhone: text(values.keep) },
+  }),
+  invalidate: [
+    ["retail-customer"],
+    ["list", "retail-points"],
+    ["list", "retail-customers"],
+    ["lookup", "customer"],
+    ["list", "retail-bin"],
+    ["record-activity"],
+    ["reports"],
+  ],
+  requires: [
+    ["retail.customers", "update"],
+    ["retail.customers", "delete"],
+  ],
+};
+
 export const CUSTOMER_SHEETS: Record<string, SheetKind> = {
+  "customer-merge": customerMerge,
   "customer-new": customerNew,
   "customer-edit": customerEdit,
   "customer-note": customerNote,

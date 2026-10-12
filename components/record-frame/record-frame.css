@@ -40,6 +40,7 @@
 .cx-rf-banner__restore { flex: none; height: 32px; padding: 0 12px; border: 1px solid var(--bad); border-radius: 8px; background: var(--surface); color: var(--bad); font: inherit; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
 .cx-rf-banner__restore svg { width: 14px; height: 14px; }
 .cx-rf-banner__error { font-size: 12px; }
+.cx-rf-banner__link { color: inherit; font-weight: 600; text-decoration: underline; text-underline-offset: 2px; }
 
 /* ── Strip (5.6.4) ──────────────────────────────────────── */
 .cx-rf-strip { flex: none; height: 48px; box-sizing: border-box; display: flex; align-items: center; gap: 8px; padding: 0 16px; background: var(--ground); border-bottom: 1px solid var(--line); overflow-x: auto; white-space: nowrap; }

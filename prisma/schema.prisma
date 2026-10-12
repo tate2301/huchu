@@ -360,6 +360,7 @@ model Company {
   userSiteAccess     UserSiteAccess[]
   retailStaffInvites RetailStaffInvite[]
   retailLaybys       RetailLayby[]
+  retailCustomerMerges RetailCustomerMerge[]
 
   @@index([tenantStatus])
   @@index([isProvisioned])
@@ -7297,12 +7298,45 @@ model Customer {
   pointsEntries   RetailPointsEntry[]
   retailMessages  RetailMessage[]  @relation("RetailMessageCustomer")
   retailLaybys    RetailLayby[]    @relation("RetailLaybyCustomer")
+  mergesKept      RetailCustomerMerge[] @relation("RetailCustomerMergeSurvivor")
+  mergesAway      RetailCustomerMerge[] @relation("RetailCustomerMergeDuplicate")
 
   @@unique([companyId, code])
   @@unique([companyId, cardNo])
   @@index([companyId, isActive])
   @@index([companyId, phone])
   @@index([companyId, archivedAt])
+}
+
+/// CUS-05 (W-45, W-63): a duplicate customer merged into another; every id it moved, so restoring
+/// the duplicate from the bin moves back exactly those.
+model RetailCustomerMerge {
+  id                  String    @id @default(uuid())
+  companyId           String
+  survivorId          String
+  duplicateId         String    @unique
+  /// The survivor's phone when the duplicate's number was kept.
+  survivorPhoneBefore String?
+  /// Survivor fields the merge filled from the duplicate (email, area, dateOfBirth, whatsapp), cleared on undo.
+  filledFields        String[]  @default([])
+  saleIds             String[]
+  laybyIds            String[]
+  voucherIds          String[]
+  noteIds             String[]
+  /// Set by packet 66 when accounts move.
+  accountMoved        Boolean   @default(false)
+  points              Int
+  visits              Int
+  mergedById          String?
+  createdAt           DateTime  @default(now())
+  undoneAt            DateTime?
+  undoneById          String?
+
+  company   Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  survivor  Customer @relation("RetailCustomerMergeSurvivor", fields: [survivorId], references: [id], onDelete: Cascade)
+  duplicate Customer @relation("RetailCustomerMergeDuplicate", fields: [duplicateId], references: [id], onDelete: Cascade)
+
+  @@index([companyId, survivorId])
 }
 
 /// CUS-01: a note on a customer's record, newest first.

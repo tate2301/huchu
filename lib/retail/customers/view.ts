@@ -262,7 +262,7 @@ export async function loadCustomerRecord(
       edit: viewer.update && live,
       adjustPoints: viewer.update && live && settings.enabled,
       message: viewer.update && live && Boolean(customer.phone),
-      merge: false,
+      merge: viewer.update && viewer.delete && live,
       bin: viewer.delete && live,
       note: viewer.update && live,
       openAccount: false,

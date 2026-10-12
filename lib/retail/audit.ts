@@ -347,6 +347,16 @@ export const RETAIL_AUDIT_EVENTS = {
   /** A note added to a customer (CUS-03). Entity `Customer`; carries `{ noteId }`. */
   customerNoteAdded: "RETAIL_CUSTOMER.NOTE_ADDED",
   /**
+   * A duplicate merged into this customer (CUS-05, W-45). Entity the survivor `Customer`; carries
+   * `{ duplicate: { id, name, phone }, keptPhone, points, visits }` (the duplicate's).
+   */
+  customerMerged: "RETAIL_CUSTOMER.MERGED",
+  /**
+   * A merged duplicate taken back out, restored from the bin (CUS-05, W-63). On both customers; carries
+   * `{ other: { id, name, phone }, role: "survivor" | "duplicate", points, visits }` (what went back).
+   */
+  customerUnmerged: "RETAIL_CUSTOMER.UNMERGED",
+  /**
    * Messages to customers queued (CUS-06, W-50): an offer or a reminder, now or scheduled. Entity
    * `RetailMessageBatch`; carries `{ purpose, audience, count, scheduledFor }`.
    */

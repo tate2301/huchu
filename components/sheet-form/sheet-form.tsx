@@ -506,6 +506,7 @@ export function SheetForm({ kind, ctx, open, onClose }: SheetFormProps) {
   const primaryLabel = typeof kind.primary === "function" ? kind.primary(values) : kind.primary;
   const guide = typeof kind.guide === "function" ? kind.guide(values) : kind.guide;
   const primaryDisabled = kind.primaryDisabled?.(values) ?? false;
+  const noteBad = !readOnly && (kind.noteBad?.(values) ?? false);
   const noteLink = readOnly ? null : (kind.noteLink?.(values) ?? null);
   const steps = kind.steps ?? [];
   const at = kind.at ?? 0;
@@ -679,7 +680,7 @@ export function SheetForm({ kind, ctx, open, onClose }: SheetFormProps) {
                   <span>{savedLine}</span>
                 </span>
               ) : (
-                <span className="sf-foot__note">
+                <span className={noteBad ? "sf-foot__note sf-foot__note--bad" : "sf-foot__note"} role={noteBad ? "alert" : undefined}>
                   {readOnly ? "" : note}
                   {noteLink ? (
                     <>
