@@ -32,6 +32,7 @@ export async function POST(request: NextRequest) {
         message: raised.status === "DRAFT" ? `${raised.poNo} saved as a draft.` : null,
         sentVia: raised.sentVia,
         messages: raised.messages.map((message) => ({ id: message.id, to: message.to, channel: message.channel })),
+        asked: raised.asked ? { requisitionNo: raised.asked.requisitionNo, message: raised.asked.message } : null,
       },
       201,
     );

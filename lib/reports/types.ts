@@ -266,6 +266,8 @@ export type ListColumn = ReportColumn & {
   summary?: { tones: Tone[]; label: string };
   /** variance: − bad, + warn; gain: + ok. */
   diff?: "variance" | "gain";
+  /** money: the row key holding the row's own currency ("ZWG" draws "ZiG 1,250.00"); the column's otherwise. */
+  currencyKey?: string;
   /** date: the row key holding the time of day, drawn after the day and sorted with it. */
   timeKey?: string;
   /** date: "2 Nov 2026" (medium), or "Today", "Yesterday", else medium (relative). Default "15 August 2026". */
@@ -520,6 +522,8 @@ export type ListSpec = {
    * ("Held for customers US$84.30"), in place of its row count.
    */
   tabs?: Array<{ key: string; label: string; where: Condition[]; empty?: string; badge?: { sum: string; currency: string } }>;
+  /** These roles open on `tab` instead of the first ("All" for those who do not approve). */
+  tabFor?: { roles: string[]; tab: string };
   filters: ListFilter[];
   /** The first is the default. */
   sorts: ListSort[];
@@ -599,7 +603,9 @@ export type ListSpec = {
  * scoping rule; only the columns, filters and actions that role has; choice
  * options resolved for the company.
  */
-export type ListSpecPublic = Omit<ListSpec, "read" | "scopeOwn" | "primary" | "exportExtras" | "empty" | "subLink" | "edit"> & {
+export type ListSpecPublic = Omit<ListSpec, "read" | "scopeOwn" | "tabFor" | "primary" | "exportExtras" | "empty" | "subLink" | "edit"> & {
+  /** The tab this caller opens on, when it is not the first. */
+  defaultTab?: string;
   primary:
     | (Omit<NonNullable<ListSpec["primary"]>, "requires" | "menu"> & {
         menu?: Array<{ label: string; sheet: string; params?: Record<string, string> }>;

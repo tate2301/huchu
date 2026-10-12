@@ -5,7 +5,11 @@ import { buildWorkspaceUrl } from "@/lib/platform/tenant-url";
 import { prisma } from "@/lib/prisma";
 import { formatDay, formatMoney } from "@/lib/workspace/format";
 
+import type { RetailAuditActor } from "@/lib/retail/audit";
+
 import { lineValue, lineVat, orderTotals } from "./figures";
+import { requisitionStateBadge, REJECT_REASON_WORD, type RequisitionState } from "./requisition-words";
+import { requisitionScope } from "./requisitions";
 import { paysWord } from "./suppliers";
 
 /**
@@ -133,5 +137,66 @@ export async function renderOrderPdf(companyId: string, id: string) {
   <tbody>${lines}</tbody>
 </table>
 ${order.noteToSupplier ? `<p class="rd-note">${esc(order.noteToSupplier)}</p>` : ""}`,
+  };
+}
+
+const SIGN_BOXES = ["Asked by", "Approved by", "Paid out by", "Received by"];
+
+/**
+ * A requisition on paper (40-buying 4.10): its number, state, who asked and
+ * when, what it is for (the order or the expense), the amount and the money
+ * account, and the decision. With `sign`, four boxes to sign: "Asked by",
+ * "Approved by", "Paid out by", "Received by". Null when this person may not
+ * read it (another's, for a view-own role).
+ */
+export async function renderRequisitionPdf(actor: RetailAuditActor, id: string, sign: boolean) {
+  const requisition = await prisma.crmRequisition.findFirst({
+    where: { id, ...requisitionScope(actor) },
+    include: {
+      requestedBy: { select: { name: true } },
+      approvedBy: { select: { name: true } },
+      disbursedBy: { select: { name: true } },
+      bankAccount: { select: { name: true } },
+      payee: { select: { name: true } },
+      expenseType: { select: { name: true } },
+      purchaseOrder: { select: { poNo: true } },
+      site: { select: { name: true } },
+    },
+  });
+  if (!requisition) return null;
+  const state = requisition.status as RequisitionState;
+  const amount = Number(requisition.approvedAmount ?? requisition.amount);
+  const head = rows([
+    ["State", requisitionStateBadge(state).label],
+    ["Asked by", requisition.requestedBy.name],
+    ["Asked", formatDay(requisition.submittedAt ?? requisition.createdAt)],
+    ["For", requisition.purchaseOrder ? `Order ${requisition.purchaseOrder.poNo}` : (requisition.expenseType?.name ?? "—")],
+    ["Shop", requisition.site?.name ?? "—"],
+    ["Needed by", requisition.neededBy ? formatDay(requisition.neededBy) : "—"],
+  ]);
+  const money = rows([
+    ["Asked for", formatMoney(Number(requisition.amount), requisition.currency)],
+    ...(requisition.approvedAmount ? ([["Approved", formatMoney(amount, requisition.currency)]] as Array<[string, string]>) : []),
+    ["Pay from", requisition.bankAccount?.name ?? "—"],
+    ["Pay to", requisition.payee?.name ?? "—"],
+    ["Decided by", requisition.approvedBy?.name ?? "—"],
+    ...(requisition.rejectReason ? ([["Why not", REJECT_REASON_WORD[requisition.rejectReason]]] as Array<[string, string]>) : []),
+  ]);
+  const boxes = sign
+    ? `<table class="rd-table"><caption>Signatures</caption><tbody>${SIGN_BOXES.map(
+        (label) => `<tr><td style="width:30%">${esc(label)}</td><td style="height:40px"></td><td style="width:25%">Date</td></tr>`,
+      ).join("")}</tbody></table>`
+    : "";
+  return {
+    ref: requisition.requisitionNo,
+    title: `Requisition ${requisition.requisitionNo}`,
+    subtitle: `${requisition.purpose} · ${formatMoney(amount, requisition.currency)}`,
+    content: `<div class="rd-cols">
+  <table class="rd-table"><caption>Request</caption><tbody>${head}</tbody></table>
+  <table class="rd-table"><caption>Money</caption><tbody>${money}</tbody></table>
+</div>
+${requisition.notes ? `<p class="rd-note">${esc(requisition.notes)}</p>` : ""}
+${requisition.decisionNote ? `<p class="rd-note">${esc(requisition.decisionNote)}</p>` : ""}
+${boxes}`,
   };
 }

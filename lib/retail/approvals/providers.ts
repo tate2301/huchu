@@ -4,4 +4,6 @@
  * changes) each add a line here for their own `waiting.ts`. The route imports
  * this file so they are registered before the list runs.
  */
+import "@/lib/retail/buying/waiting";
+
 export { listWaiting } from "./waiting";

@@ -96,6 +96,12 @@ const RECORD_TYPES: Record<string, RecordActivityType> = {
       },
     ],
   },
+  // A shop's requisition; Activity is for those who read every one (owner, manager, bookkeeper).
+  CrmRequisition: {
+    read: ["retail.requisitions", "view"],
+    exists: async (companyId, id) =>
+      Boolean(await prisma.crmRequisition.findFirst({ where: { id, companyId, siteId: { not: null } }, select: { id: true } })),
+  },
   Vendor: {
     read: ["retail.suppliers", "view"],
     exists: async (companyId, id) => Boolean(await prisma.vendor.findFirst({ where: { id, companyId }, select: { id: true } })),

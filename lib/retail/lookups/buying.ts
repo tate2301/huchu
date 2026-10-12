@@ -1,6 +1,8 @@
 import { toNumberOrZero } from "@/lib/money";
 import { prisma } from "@/lib/prisma";
 import { orderTotals } from "@/lib/retail/buying/figures";
+import { addMoneyAccount, listMoneyAccounts, MoneyAccountRefusal, moneyAccountSub } from "@/lib/retail/buying/money-accounts";
+import { LIVE_STATES } from "@/lib/retail/buying/requisition-words";
 import { OrderRefusal, raiseOrder } from "@/lib/retail/buying/orders";
 import { defaultSiteFor } from "@/lib/retail/floor/default-site";
 import { formatMoney, parseDay } from "@/lib/workspace/format";
@@ -102,7 +104,10 @@ const supplier: LookupNoun = {
 /** A requisition's Pay to: the same suppliers. */
 const payee: LookupNoun = {
   noun: "payee",
-  read: [["retail.requisitions", "view"]],
+  read: [
+    ["retail.requisitions", "view"],
+    ["retail.requisitions", "view-own"],
+  ],
   create: ["retail.suppliers", "create"],
   quick: QUICK_SUPPLIER,
   ranked: true,
@@ -213,6 +218,8 @@ const order: LookupNoun = {
         companyId: ctx.companyId,
         archivedAt: null,
         status: { in: ["DRAFT", "SENT", "PARTIAL"] },
+        // One live requisition per order: an order already asked for is not offered.
+        requisitions: { none: { status: { in: LIVE_STATES } } },
         ...(needle
           ? { OR: [{ poNo: { contains: needle, mode: "insensitive" } }, { vendor: { name: { contains: needle, mode: "insensitive" } } }] }
           : {}),
@@ -254,4 +261,92 @@ const order: LookupNoun = {
   },
 };
 
-export const BUYING_LOOKUPS: LookupNoun[] = [supplier, payee, contact, contactRole, order];
+/**
+ * Where money comes from (40-buying 4.5): the live money accounts, cash
+ * first, sub the balance of a cash account or the last four of a number. The
+ * quick add takes a name and "Cash, bank or mobile".
+ */
+const moneyAccount: LookupNoun = {
+  noun: "money account",
+  read: [
+    ["retail.requisitions", "view"],
+    ["retail.requisitions", "view-own"],
+  ],
+  // Owners and managers: the setup right ADM-01 removed stood for them.
+  create: ["retail.requisitions", "approve"],
+  quick: [
+    { key: "name", label: "Name", placeholder: "" },
+    { key: "kind", label: "Kind", placeholder: "Cash, bank or mobile" },
+  ],
+  async search(ctx, q) {
+    const needle = q.trim().toLowerCase();
+    const accounts = await listMoneyAccounts(ctx.companyId);
+    return accounts
+      .filter((account) => !needle || account.name.toLowerCase().includes(needle))
+      .map((account): LookupOption => ({ id: account.id, label: account.name, sub: moneyAccountSub(account) }));
+  },
+  async add(ctx, fields) {
+    try {
+      const created = await addMoneyAccount(ctx.companyId, { name: fields.name ?? "", kind: fields.kind ?? "" });
+      return { id: created.id, label: created.name, sub: moneyAccountSub(created), notice: `${created.name} added.` };
+    } catch (error) {
+      if (error instanceof MoneyAccountRefusal) throw new LookupFieldErrors(error.fieldErrors);
+      throw error;
+    }
+  },
+};
+
+/** "Other expenses" when the account is left empty. */
+const OTHER_EXPENSES = "5590";
+
+/**
+ * What a shop spends on that is not stock (40-buying 4.5): the live expense
+ * types. The quick add takes a name and the expense account, matched to an
+ * active expense ledger account by code or name.
+ */
+const expenseType: LookupNoun = {
+  noun: "expense type",
+  read: [
+    ["retail.requisitions", "view"],
+    ["retail.requisitions", "view-own"],
+  ],
+  create: ["retail.requisitions", "approve"],
+  quick: [
+    { key: "name", label: "Name", placeholder: "" },
+    { key: "account", label: "Account", placeholder: "Expenses" },
+  ],
+  async search(ctx, q) {
+    const needle = q.trim();
+    const rows = await prisma.retailExpenseType.findMany({
+      where: { companyId: ctx.companyId, archivedAt: null, ...(needle ? { name: { contains: needle, mode: "insensitive" } } : {}) },
+      orderBy: { name: "asc" },
+      select: { id: true, name: true, ledgerAccount: { select: { code: true, name: true } } },
+    });
+    return rows.map((row): LookupOption => ({ id: row.id, label: row.name, sub: row.ledgerAccount ? `${row.ledgerAccount.code} ${row.ledgerAccount.name}` : null }));
+  },
+  async add(ctx, fields) {
+    const name = (fields.name ?? "").replace(/\s+/g, " ").trim();
+    if (!name) throw new LookupFieldErrors({ name: "Write its name." });
+    if (name.length > 80) throw new LookupFieldErrors({ name: "Keep the name to 80 characters." });
+    const typed = (fields.account ?? "").trim();
+    const account = await prisma.chartOfAccount.findFirst({
+      where: {
+        companyId: ctx.companyId,
+        type: "EXPENSE",
+        isActive: true,
+        ...(typed ? { OR: [{ code: typed }, { name: { equals: typed, mode: "insensitive" } }] } : { code: OTHER_EXPENSES }),
+      },
+      select: { id: true, code: true, name: true },
+    });
+    if (!account) throw new LookupFieldErrors({ account: `There is no expense account called ${typed || "Other expenses"}.` });
+    const clash = await prisma.retailExpenseType.findFirst({ where: { companyId: ctx.companyId, name: { equals: name, mode: "insensitive" } }, select: { id: true } });
+    if (clash) throw new LookupFieldErrors({ name: `There is already an expense called ${name}.` });
+    const created = await prisma.retailExpenseType.create({
+      data: { companyId: ctx.companyId, name, category: "OTHER", ledgerAccountId: account.id },
+      select: { id: true, name: true },
+    });
+    return { id: created.id, label: created.name, sub: `${account.code} ${account.name}`, notice: `${created.name} added.` };
+  },
+};
+
+export const BUYING_LOOKUPS: LookupNoun[] = [supplier, payee, contact, contactRole, order, moneyAccount, expenseType];

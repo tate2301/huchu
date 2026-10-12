@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { decidableRequisitions } from "@/lib/retail/buying/waiting";
 
 import type { NavBadgeProvider } from "./types";
 
@@ -10,4 +11,12 @@ export const ORDERS_NAV_BADGE: NavBadgeProvider = {
   label: (count) => `${count} open`,
 };
 
-export const BUYING_NAV_BADGES: readonly NavBadgeProvider[] = [ORDERS_NAV_BADGE];
+/** Requisitions: those this person may decide now ("2 to approve"); approvers only. */
+export const REQUISITIONS_NAV_BADGE: NavBadgeProvider = {
+  href: "/retail/buying/requisitions",
+  requires: [["retail.requisitions", "approve"]],
+  count: async ({ companyId, userId, role }) => (await decidableRequisitions({ companyId, userId, role })).length,
+  label: (count) => `${count} to approve`,
+};
+
+export const BUYING_NAV_BADGES: readonly NavBadgeProvider[] = [ORDERS_NAV_BADGE, REQUISITIONS_NAV_BADGE];

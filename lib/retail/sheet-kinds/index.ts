@@ -10,6 +10,7 @@ import { PEOPLE_SHEETS } from "./people";
 import { PRICE_SHEETS } from "./prices";
 import { PRODUCT_SHEETS } from "./products";
 import { PROMOTION_SHEETS } from "./promotions";
+import { REQUISITION_SHEETS } from "./requisitions";
 import { SETUP_SHEETS } from "./setup";
 import { STOCK_SHEETS } from "./stock";
 import { STOCK_ADJUST_SHEETS } from "./stock-adjust";
@@ -37,5 +38,6 @@ export const SHEET_KINDS: Readonly<Record<string, SheetKind>> = {
   ...PEOPLE_SHEETS,
   ...BUYING_SHEETS,
   ...ORDER_SHEETS,
+  ...REQUISITION_SHEETS,
   ...CUSTOMER_SHEETS,
 };

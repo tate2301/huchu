@@ -273,6 +273,8 @@ model Company {
   crmProjects                   CrmProject[]
   crmProjectMembers             CrmProjectMember[]
   crmRequisitions               CrmRequisition[]
+  retailExpenseTypes            RetailExpenseType[]
+  retailAttachments             RetailAttachment[]
   crmDailyLogs                  CrmDailyLog[]
   crmDailyCostEntries           CrmDailyCostEntry[]
   crmDailyReports               CrmDailyReport[]
@@ -1436,6 +1438,11 @@ model User {
   crmRequisitionsApproved           CrmRequisition[]               @relation("CrmRequisitionApprovedBy")
   crmRequisitionsDisbursed          CrmRequisition[]               @relation("CrmRequisitionDisbursedBy")
   crmRequisitionsReceiptsWaived     CrmRequisition[]               @relation("CrmRequisitionReceiptsWaivedBy")
+  crmRequisitionsToApprove        CrmRequisition[]               @relation("CrmRequisitionApprover")
+  crmRequisitionsPaidTo           CrmRequisition[]               @relation("CrmRequisitionPaidTo")
+  crmRequisitionsAcquitted        CrmRequisition[]               @relation("CrmRequisitionAcquittedBy")
+  crmRequisitionsCancelled        CrmRequisition[]               @relation("CrmRequisitionCancelledBy")
+  retailAttachmentsAdded          RetailAttachment[]             @relation("RetailAttachmentAddedBy")
   crmDailyLogs                      CrmDailyLog[]                  @relation("CrmDailyLogUser")
   crmDailyReports                   CrmDailyReport[]               @relation("CrmDailyReportUser")
   productsCreated                   Product[]                      @relation("ProductCreatedBy")
@@ -3187,6 +3194,8 @@ enum NotificationType {
   CRM_COMMENT_ADDED
   CRM_REQUISITION_SUBMITTED
   CRM_REQUISITION_DECIDED
+  CRM_REQUISITION_CANCELLED
+  CRM_REQUISITION_QUESTION
   CRM_DAILY_REPORT_READY
   CRM_RECORD_ACTIVITY
   /// What a school sends its families and staff. The audience is part of the
@@ -5392,6 +5401,7 @@ model RetailPurchaseOrder {
 
   lines    RetailPurchaseOrderLine[]
   receipts RetailGoodsReceipt[]
+  requisitions CrmRequisition[]
 
   company     Company @relation(fields: [companyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   site        Site    @relation(fields: [siteId], references: [id], onDelete: Restrict, onUpdate: Cascade)
@@ -6972,6 +6982,8 @@ model ChartOfAccount {
   tenderClearingMappings TenderAccountMapping[] @relation("TenderClearingAccount")
   tenderOffsetMappings   TenderAccountMapping[]     @relation("TenderOffsetAccount")
   retailRoleMappings     RetailAccountRoleMapping[]
+  retailExpenseTypes     RetailExpenseType[]        @relation("RetailExpenseTypeAccount")
+  moneyAccounts          BankAccount[]              @relation("BankAccountLedger")
 
   @@unique([companyId, code])
   @@index([companyId, type])
@@ -7537,6 +7549,7 @@ model Vendor {
   emptiesEntries      RetailEmptiesEntry[]
   purchaseOrders      RetailPurchaseOrder[]
   goodsReceipts       RetailGoodsReceipt[]
+  requisitionsPaid CrmRequisition[]      @relation("CrmRequisitionPayee")
   stoppedBy           User?                @relation("VendorStoppedBy", fields: [stoppedById], references: [id], onDelete: SetNull)
   createdBy           User?                @relation("VendorCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
 
@@ -7946,6 +7959,12 @@ model PaymentLedgerEntry {
   @@index([companyId, invoiceId, billId])
 }
 
+enum MoneyAccountKind {
+  CASH
+  BANK
+  MOBILE
+}
+
 model BankAccount {
   id             String   @id @default(uuid())
   companyId      String
@@ -7969,11 +7988,17 @@ model BankAccount {
   showOnDocuments  Boolean  @default(false)
   /// Order among the accounts shown, so a tenant can lead with USD or with ZWG.
   documentPosition Int      @default(0)
+  /// "Cash, bank or mobile".
+  kind             MoneyAccountKind @default(BANK)
+  /// The ledger account this money sits in (1005 Cash vault, 1010 Operating bank, 1016 Mobile money clearing …).
+  ledgerAccountId  String?
 
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
   company            Company              @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  ledgerAccount      ChartOfAccount?      @relation("BankAccountLedger", fields: [ledgerAccountId], references: [id], onDelete: SetNull)
+  requisitionChange  CrmRequisition[]     @relation("CrmRequisitionChangeAccount")
   transactions       BankTransaction[]
   salesReceipts      SalesReceipt[]
   purchasePayments   PurchasePayment[]
@@ -10611,11 +10636,11 @@ model SchoolGradingScheme {
   code             String
   name             String
   /// Percent of the term mark carried by class work, tests and practicals.
-  continuousWeight Decimal  @db.Decimal(5, 2) @default(30)
+  continuousWeight Decimal  @default(30) @db.Decimal(5, 2)
   /// Percent carried by the end-of-term paper.
-  examWeight       Decimal  @db.Decimal(5, 2) @default(70)
+  examWeight       Decimal  @default(70) @db.Decimal(5, 2)
   /// The mark at or above which a subject is passed, when the bands do not say.
-  passMark         Decimal  @db.Decimal(5, 2) @default(50)
+  passMark         Decimal  @default(50) @db.Decimal(5, 2)
   isDefault        Boolean  @default(false)
   isActive         Boolean  @default(true)
   createdAt        DateTime @default(now())
@@ -10675,7 +10700,7 @@ model SchoolAssessment {
   maxScore       Decimal                @db.Decimal(6, 2)
   /// Weight relative to other assessments *of the same kind*. Two tests
   /// weighted 1 and 3 make the second count three times as much.
-  weight         Decimal                @db.Decimal(6, 2) @default(1)
+  weight         Decimal                @default(1) @db.Decimal(6, 2)
   assessedOn     DateTime?              @db.Date
   status         SchoolAssessmentStatus @default(OPEN)
   createdById    String?
@@ -11505,7 +11530,6 @@ enum SchoolImportRowStatus {
   FAILED
 }
 
-
 // ============================================
 // CONDUCT AND PASTORAL
 //
@@ -12003,7 +12027,6 @@ model SchoolPastoralAccessRequest {
   @@index([companyId, outcome, requestedAt])
   @@index([noteId])
 }
-
 
 // ============================================
 // PUBLIC EXAMS
@@ -14555,7 +14578,6 @@ model CrmTask {
   subjectType CrmFieldEntity?
   subjectId   String?
 
-
   @@index([companyId, assignedToId, status, dueAt])
   @@index([companyId, status, dueAt])
   @@index([companyId, dealId])
@@ -14611,7 +14633,6 @@ model CrmComment {
   /// change adds and backfills, and drops nothing.
   subjectType CrmFieldEntity?
   subjectId   String?
-
 
   @@index([companyId, dealId, createdAt])
   @@index([companyId, leadId, createdAt])
@@ -14675,7 +14696,6 @@ model CrmRecordFile {
   /// change adds and backfills, and drops nothing.
   subjectType CrmFieldEntity?
   subjectId   String?
-
 
   @@index([companyId, leadId, createdAt])
   @@index([companyId, dealId, createdAt])
@@ -15238,6 +15258,69 @@ enum CrmRequisitionCategory {
   SUBSISTENCE
   ACCOMMODATION
   OTHER
+  /// "Stock purchase": money to pay a purchase order.
+  STOCK
+}
+
+enum CrmRequisitionRejectReason {
+  NOT_NEEDED_NOW
+  TOO_MUCH
+  PAY_ANOTHER_WAY
+  OTHER
+}
+
+enum RetailPayoutMethod {
+  CASH
+  BANK_TRANSFER
+  ECOCASH
+}
+
+/// What a shop spends on that is not stock: "Repairs and maintenance", "Fuel and transport" …
+model RetailExpenseType {
+  id              String                 @id @default(uuid())
+  companyId       String
+  name            String
+  /// The CRM-side grouping its requisitions carry.
+  category        CrmRequisitionCategory @default(OTHER)
+  /// The expense account a payout debits.
+  ledgerAccountId String?
+  archivedAt      DateTime?
+  createdAt       DateTime               @default(now())
+
+  company       Company          @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  ledgerAccount ChartOfAccount?  @relation("RetailExpenseTypeAccount", fields: [ledgerAccountId], references: [id], onDelete: SetNull)
+  requisitions  CrmRequisition[]
+
+  @@unique([companyId, name])
+}
+
+enum RetailAttachmentKind {
+  QUOTE
+  RECEIPT
+  BILL
+  DELIVERY_NOTE
+  PHOTO
+}
+
+/// Files the buying screens keep: quotes, receipts, bills, delivery notes, photos.
+model RetailAttachment {
+  id          String               @id @default(uuid())
+  companyId   String
+  /// "CrmRequisition", "RetailGoodsReceipt", "RetailDeliveryDifference", "PurchaseBill", "RetailSupplierReturn".
+  entityType  String
+  entityId    String
+  kind        RetailAttachmentKind
+  url         String
+  name        String
+  contentType String
+  size        Int
+  addedById   String?
+  createdAt   DateTime             @default(now())
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  addedBy User?   @relation("RetailAttachmentAddedBy", fields: [addedById], references: [id], onDelete: SetNull)
+
+  @@index([companyId, entityType, entityId])
 }
 
 enum CrmCashDirection {
@@ -15392,6 +15475,30 @@ model CrmRequisition {
   receiptsWaivedById String?
   receiptWaiverNote  String?
 
+  /// Retail (BUY-04): `bankAccountId` is "Pay from" when asked and "From" once paid out.
+  purchaseOrderId String?
+  expenseTypeId   String?
+  /// "Pay to": the supplier the money is for.
+  payeeVendorId   String?
+  /// Who it waits for: the owner approver when over the limit; null = any manager.
+  approverId      String?
+  /// The owner limit when it was asked: "Needs approval: Over US$500.00".
+  approvalLimit   Decimal?                    @db.Decimal(14, 2)
+  rejectReason    CrmRequisitionRejectReason?
+  /// "Paying" on Pay out.
+  paidAmount      Decimal?                    @db.Decimal(14, 2)
+  /// "To": the person the money was handed to.
+  paidToId        String?
+  payoutMethod    RetailPayoutMethod?
+  payoutReference String?
+  receiptsDueAt   DateTime?
+  acquittedById   String?
+  changeAmount    Decimal?                    @db.Decimal(14, 2)
+  changeAccountId String?
+  acquittalNote   String?
+  cancelledAt     DateTime?
+  cancelledById   String?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -15404,12 +15511,21 @@ model CrmRequisition {
   receiptsWaivedBy User?          @relation("CrmRequisitionReceiptsWaivedBy", fields: [receiptsWaivedById], references: [id], onDelete: SetNull)
   bankAccount BankAccount?        @relation(fields: [bankAccountId], references: [id], onDelete: SetNull)
   costEntries CrmDailyCostEntry[]
+  purchaseOrder    RetailPurchaseOrder? @relation(fields: [purchaseOrderId], references: [id], onDelete: SetNull)
+  expenseType      RetailExpenseType?   @relation(fields: [expenseTypeId], references: [id], onDelete: SetNull)
+  payee            Vendor?              @relation("CrmRequisitionPayee", fields: [payeeVendorId], references: [id], onDelete: SetNull)
+  approver         User?                @relation("CrmRequisitionApprover", fields: [approverId], references: [id], onDelete: SetNull)
+  paidTo           User?                @relation("CrmRequisitionPaidTo", fields: [paidToId], references: [id], onDelete: SetNull)
+  acquittedBy      User?                @relation("CrmRequisitionAcquittedBy", fields: [acquittedById], references: [id], onDelete: SetNull)
+  cancelledBy      User?                @relation("CrmRequisitionCancelledBy", fields: [cancelledById], references: [id], onDelete: SetNull)
+  changeAccount    BankAccount?         @relation("CrmRequisitionChangeAccount", fields: [changeAccountId], references: [id], onDelete: SetNull)
 
   @@unique([companyId, requisitionNo])
   @@index([companyId, status, createdAt])
   @@index([companyId, requestedById, status])
   @@index([companyId, projectId])
   @@index([companyId, siteId, status])
+  @@index([companyId, purchaseOrderId])
 }
 
 /// One person's money for one day.

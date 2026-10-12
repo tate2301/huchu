@@ -383,6 +383,16 @@ export const RETAIL_AUDIT_EVENTS = {
   orderRestCancelled: "RETAIL_PURCHASE_ORDER.REST_CANCELLED",
   /** A supplier's reply on WhatsApp. Entity the order it is about, else the `Vendor`; carries the supplier and the text. */
   messageReceived: "RETAIL_MESSAGE.RECEIVED",
+  /** Money asked for (W-31, W-32). Entity `CrmRequisition`; carries its number, amount, currency, the order or what for, and whether over the owner limit. */
+  requisitionAsked: "RETAIL_REQUISITION.ASKED",
+  /** A requisition approved, at the amount asked or less. Carries `{ amount, asked, note }`. */
+  requisitionApproved: "RETAIL_REQUISITION.APPROVED",
+  /** A requisition not approved. Carries the reason's words and the message to the asker. */
+  requisitionRejected: "RETAIL_REQUISITION.REJECTED",
+  /** A question on a requisition, or the asker's answer (`answer: true`). Carries the message. */
+  requisitionQuestion: "RETAIL_REQUISITION.QUESTION",
+  /** A requisition cancelled before it was paid out, by hand or with its order (`automatic`). */
+  requisitionCancelled: "RETAIL_REQUISITION.CANCELLED",
 } as const;
 
 export type RetailAuditEvent =

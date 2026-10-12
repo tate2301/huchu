@@ -4,8 +4,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const count = vi.fn();
 const findLines = vi.fn();
 const groupSold = vi.fn();
+const findRequisitions = vi.fn();
 vi.mock("@/lib/prisma", () => ({
   prisma: {
+    crmRequisition: { findMany: (...args: unknown[]) => findRequisitions(...args) },
     retailShift: { count: (...args: unknown[]) => count(...args) },
     inventoryItem: { findMany: (...args: unknown[]) => findLines(...args) },
     stockMovement: { groupBy: (...args: unknown[]) => groupSold(...args) },
@@ -15,6 +17,7 @@ vi.mock("@/lib/prisma", () => ({
 import { computeNavBadges, NAV_BADGE_PROVIDERS, type NavBadgeProvider } from "./index";
 import { canRetailRoleDo } from "@/lib/retail/permission-matrix";
 
+import { REQUISITIONS_NAV_BADGE } from "./buying";
 import { SHIFTS_NAV_BADGE } from "./floor";
 import { ON_HAND_NAV_BADGE } from "./stock";
 
@@ -94,5 +97,34 @@ describe("the On hand badge", () => {
     const sees = (role: string) => ON_HAND_NAV_BADGE.requires.some(([resource, action]) => canRetailRoleDo(role, resource, action));
     expect(["SUPERADMIN", "MANAGER", "STOCK_CLERK", "FINANCE_OFFICER"].every(sees)).toBe(true);
     expect(sees("CASHIER")).toBe(false);
+  });
+});
+
+describe("the Requisitions badge", () => {
+  const waiting = [
+    // REQ-0014: Tafara's, over the US$500.00 limit.
+    { id: "r14", requestedById: "tafara", amount: new Prisma.Decimal("1940.00"), approvalLimit: new Prisma.Decimal("500.00") },
+    // REQ-0015: Farai's, under it.
+    { id: "r15", requestedById: "farai", amount: new Prisma.Decimal("62.00"), approvalLimit: new Prisma.Decimal("500.00") },
+    // Tafara's own, under it.
+    { id: "r16", requestedById: "tafara", amount: new Prisma.Decimal("30.00"), approvalLimit: new Prisma.Decimal("500.00") },
+  ];
+  beforeEach(() => {
+    findRequisitions.mockReset();
+    findRequisitions.mockResolvedValue(waiting);
+  });
+
+  it("counts every one waiting for the owner", async () => {
+    await expect(REQUISITIONS_NAV_BADGE.count({ companyId: "co-1", userId: "owner", role: "SUPERADMIN" })).resolves.toBe(3);
+    expect(REQUISITIONS_NAV_BADGE.label(2)).toBe("2 to approve");
+  });
+
+  it("counts for a manager only those under the limit and not their own", async () => {
+    await expect(REQUISITIONS_NAV_BADGE.count({ companyId: "co-1", userId: "tafara", role: "MANAGER" })).resolves.toBe(1);
+  });
+
+  it("is for approvers only", () => {
+    expect(REQUISITIONS_NAV_BADGE.requires).toEqual([["retail.requisitions", "approve"]]);
+    expect(canRetailRoleDo("CASHIER", "retail.requisitions", "approve")).toBe(false);
   });
 });

@@ -9,5 +9,6 @@ export { promotionKind } from "./promotions";
 export { orderKind, supplierKind } from "./buying";
 export { saleKind, shiftKind } from "./floor";
 export { productKind } from "./products";
+export { requisitionKind } from "./requisitions";
 export { countKind, transferKind } from "./stock";
 export { voucherKind } from "./vouchers";

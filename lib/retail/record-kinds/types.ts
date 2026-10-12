@@ -127,6 +127,8 @@ export type SourceTab<R> = {
   source: string;
   /** The source's `parent` filter key: `shift`. */
   parent: string;
+  /** The parent's value when it is not this record's id (a requisition's order: `orderId`). */
+  parentId?: (record: R) => string | null;
   /** Drawn only for roles holding this (the source refuses everyone else). */
   requires?: Grant;
   /** Drawn only while the record has something here (a sale's Refunds once it has one). */

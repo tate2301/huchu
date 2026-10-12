@@ -284,6 +284,22 @@ const BASE_CHART_OF_ACCOUNTS: DefaultAccount[] = [
     systemManaged: true,
   },
   {
+    code: "5570",
+    name: "Electricity and water",
+    type: "EXPENSE",
+    category: "Operations",
+    description: "A shop's utilities, paid out of a requisition (the retail expense type of the same name).",
+    systemManaged: true,
+  },
+  {
+    code: "5580",
+    name: "Licences and fees",
+    type: "EXPENSE",
+    category: "Operations",
+    description: "Liquor and trading licences, council fees: the retail expense type of the same name.",
+    systemManaged: true,
+  },
+  {
     code: "5590",
     name: "Sundry Expenses",
     type: "EXPENSE",
@@ -481,6 +497,9 @@ export const CRM_EXPENSE_CATEGORY_ACCOUNTS: Record<string, string> = {
   SUBSISTENCE: "5550",
   ACCOMMODATION: "5560",
   OTHER: "5590",
+  // A retail order's cash (BUY-04) posts through the retail rules as an advance
+  // to the supplier; a CRM payout of one would be stock bought and used.
+  STOCK: "5000",
 };
 
 const CRM_CATEGORY_LABELS: Record<string, string> = {
@@ -493,6 +512,7 @@ const CRM_CATEGORY_LABELS: Record<string, string> = {
   SUBSISTENCE: "Subsistence",
   ACCOMMODATION: "Accommodation",
   OTHER: "Other",
+  STOCK: "Stock purchase",
 };
 
 /**

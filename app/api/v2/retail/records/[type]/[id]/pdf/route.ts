@@ -55,10 +55,13 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   const ownShift = path.data.type === "RetailShift" && !seesEveryDrawer;
   const gate = ownShift
     ? requireRetailPermission(session, "retail.sell", "open-shift")
-    : requireRetailPermission(session, spec.read[0], spec.read[1]);
+    : spec.alsoRead && canRetailSessionDo(session, spec.alsoRead[0], spec.alsoRead[1])
+      ? null
+      : requireRetailPermission(session, spec.read[0], spec.read[1]);
   if (gate) return gate;
 
-  const variant = request.nextUrl.searchParams.get("as");
+  // `?sign=1`: "Print for signing" (a requisition with boxes to sign), opened to print.
+  const variant = request.nextUrl.searchParams.get("as") ?? (request.nextUrl.searchParams.get("sign") === "1" ? "sign" : null);
   // The X-report is a till action: cash control, or the cashier selling at the till; the bookkeeper reads the record only.
   if (variant === "x-report" && !canRetailSessionDo(session, "retail.sell", "open-shift")) {
     const xGate = requireRetailPermission(session, "retail.cash-control", "update");
@@ -75,7 +78,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     if (!document) return errorResponse("Record not found", 404);
     if (document === "refused") return errorResponse("An X-report is only for a shift that is still open.", 409);
 
-    const answer = await pdfAnswer(companyId, path.data.type, document, variant === "x-report" || print);
+    const answer = await pdfAnswer(companyId, path.data.type, document, variant === "x-report" || variant === "sign" || print);
     await auditExportDownloaded(prisma, {
       actor: { companyId, userId: session.user.id, userName: session.user.name, userRole: session.user.role },
       key: `record:${path.data.type}`,

@@ -522,4 +522,248 @@ const orderMessagesSource: ReportDefinition = {
   list: orderMessages,
 };
 
-export const BUYING_REPORTS: ReportDefinition[] = [suppliersSource, contactsSource, ordersSource, orderLinesSource, orderMessagesSource];
+/* ── Requisitions (5.8, `retail-requisitions`) ─────────────────────────── */
+
+const REQ_VIEW: ListGrant[] = [
+  ["retail.requisitions", "view"],
+  ["retail.requisitions", "view-own"],
+];
+const REQ_CREATE: ListGrant[] = [["retail.requisitions", "create"]];
+const REQ_APPROVE: ListGrant[] = [["retail.requisitions", "approve"]];
+const REQ_STATES = (values: string[]) => [{ column: "status", op: "is" as const, value: values }];
+const YES = (column: string) => [{ column, op: "is" as const, value: ["yes"] }];
+
+/**
+ * Buying › Requisitions (40-buying 5.8): money asked for, by state. Approvers
+ * open on To approve, everyone else on All. A cashier or stock clerk sees only
+ * what they asked for, and no "Asked by". Amount is the approved amount when
+ * it was cut; Σ adds US dollars only.
+ */
+const requisitions: ListSpec = {
+  noun: "requisitions",
+  read: REQ_VIEW,
+  scopeOwn: { roles: ["CASHIER", "POS_CASHIER", "STOCK_CLERK"], column: "askedById", filter: "asked" },
+  search: { placeholder: "Number, purpose or person", keys: ["requisitionNo", "purpose", "askedBy"] },
+  tabs: [
+    { key: "approve", label: "To approve", where: REQ_STATES(["SUBMITTED"]) },
+    { key: "payout", label: "To pay out", where: REQ_STATES(["APPROVED"]) },
+    { key: "receipts", label: "Receipts due", where: REQ_STATES(["DISBURSED"]) },
+    { key: "all", label: "All", where: [] },
+  ],
+  tabFor: { roles: ["CASHIER", "POS_CASHIER", "STOCK_CLERK", "FINANCE_OFFICER"], tab: "all" },
+  filters: [
+    {
+      key: "purpose",
+      label: "Purpose",
+      type: "choice",
+      any: "Any",
+      primary: true,
+      options: [
+        { value: "order", label: "An order", where: [{ column: "purposeKind", op: "is", value: ["order"] }] },
+        { value: "expense", label: "An expense", where: [{ column: "purposeKind", op: "is", value: ["expense"] }] },
+      ],
+    },
+    { key: "asked", label: "Asked by", type: "choice", any: "Anyone", primary: true, optionsFromLoader: true, column: "askedById" },
+    {
+      key: "state",
+      label: "State",
+      type: "choice",
+      any: "Any",
+      options: [
+        { value: "SUBMITTED", label: "Waiting for approval", where: REQ_STATES(["SUBMITTED"]) },
+        { value: "APPROVED", label: "Approved, to pay", where: REQ_STATES(["APPROVED"]) },
+        { value: "DISBURSED", label: "Paid, receipt due", where: REQ_STATES(["DISBURSED"]) },
+        { value: "ACQUITTED", label: "Accounted for", where: REQ_STATES(["ACQUITTED"]) },
+        { value: "REJECTED", label: "Rejected", where: REQ_STATES(["REJECTED"]) },
+        { value: "CANCELLED", label: "Cancelled", where: REQ_STATES(["CANCELLED"]) },
+        { value: "DRAFT", label: "Draft", where: REQ_STATES(["DRAFT"]) },
+      ],
+    },
+    { key: "needed", label: "Needed", type: "period", any: "Any time", column: "neededBy" },
+  ],
+  sorts: [
+    {
+      key: "needed",
+      label: "Needed soonest",
+      rules: [
+        { column: "neededBy", dir: "asc" },
+        { column: "requisitionNo", dir: "desc" },
+      ],
+    },
+    { key: "asked", label: "Asked, newest", rules: [{ column: "askedAt", dir: "desc" }] },
+    {
+      key: "amount",
+      label: "Amount, highest",
+      rules: [
+        { column: "amount", dir: "desc" },
+        { column: "requisitionNo", dir: "desc" },
+      ],
+    },
+  ],
+  groups: ["state", "askedBy", "purposeWords"],
+  columns: [
+    { key: "requisitionNo", label: "Number", kind: "code", cell: "ref", href: "/retail/buying/requisitions/{id}", width: "110px", align: "start", priority: 1 },
+    { key: "purpose", label: "What for", kind: "text", cell: "text", width: "minmax(200px,1.5fr)", align: "start", priority: 1 },
+    { key: "state", label: "State", kind: "status", cell: "state", toneKey: "tone", width: "150px", align: "start", priority: 1 },
+    {
+      key: "amount",
+      label: "Amount",
+      kind: "money",
+      currency: "USD",
+      currencyKey: "currency",
+      cell: "money",
+      total: "sum",
+      totalOf: "usdAmount",
+      width: "120px",
+      align: "end",
+      priority: 1,
+    },
+    { key: "askedBy", label: "Asked by", kind: "text", cell: "muted", width: "150px", align: "start", priority: 3 },
+    { key: "neededBy", label: "Needed by", kind: "date", cell: "date", width: "120px", align: "start", priority: 2 },
+    {
+      key: "against",
+      label: "Against",
+      kind: "text",
+      cell: "ref",
+      href: "/retail/buying/orders/{orderId}",
+      toneKey: "againstTone",
+      width: "130px",
+      align: "start",
+      priority: 2,
+    },
+    // Not drawn: the state's code, who asked, sorting keys, the purpose's kind, the row's rights and the phone card.
+    { key: "status", label: "Status", kind: "status", cell: "text", hidden: true, width: "90px", align: "start", priority: 3 },
+    { key: "askedAt", label: "Asked at", kind: "date", cell: "when", hidden: true, sortable: true, width: "140px", align: "start", priority: 3 },
+    { key: "purposeWords", label: "Purpose", kind: "text", cell: "text", hidden: true, width: "120px", align: "start", priority: 3 },
+    { key: "usdAmount", label: "US$ amount", kind: "money", currency: "USD", cell: "money", hidden: true, width: "110px", align: "end", priority: 3 },
+    { key: "cardMeta", label: "Card", kind: "text", cell: "text", hidden: true, width: "200px", align: "start", priority: 3 },
+  ],
+  rowHref: "/retail/buying/requisitions/{id}",
+  rowMenu: [
+    { key: "open", label: "Open", requires: REQ_VIEW, do: { href: "/retail/buying/requisitions/{id}" } },
+    {
+      key: "approve",
+      label: "Approve",
+      requires: REQ_APPROVE,
+      when: YES("decidable"),
+      do: { run: "approvereq", endpoint: "/api/v2/retail/buying/requisitions/{id}/approve" },
+    },
+    {
+      key: "reject",
+      label: "Reject",
+      requires: REQ_APPROVE,
+      when: YES("decidable"),
+      do: { href: "/retail/buying/requisitions?sheet=req-reject&id={id}" },
+    },
+    {
+      key: "cancel",
+      label: "Cancel the requisition",
+      tone: "bad",
+      separated: true,
+      requires: REQ_CREATE,
+      when: YES("cancellable"),
+      do: { run: "cancelreq", endpoint: "/api/v2/retail/buying/requisitions/{id}/cancel" },
+    },
+  ],
+  bulk: [
+    { key: "approve", label: "Approve", requires: REQ_APPROVE, when: REQ_STATES(["SUBMITTED"]), do: { run: "approvemany", endpoint: "/api/v2/retail/buying/requisitions/bulk/approve" } },
+    {
+      key: "reject",
+      label: "Reject",
+      tone: "bad",
+      requires: REQ_APPROVE,
+      when: REQ_STATES(["SUBMITTED"]),
+      do: { sheet: "req-reject", with: { ids: "{ids}" } },
+    },
+    { key: "export" },
+  ],
+  primary: { label: "Ask for money", icon: "plus", requires: REQ_CREATE, sheet: "req-new" },
+  card: { title: "purpose", badge: "state", figure: "amount", meta: "{cardMeta}" },
+  empty: {
+    icon: "Money",
+    title: "No requisitions yet",
+    line: "When someone needs money for the shop, they ask here and the owner says yes or no.",
+    primary: { label: "Ask for money", sheet: "req-new", requires: REQ_CREATE },
+  },
+};
+
+const requisitionsSource: ReportDefinition = {
+  key: "retail-requisitions",
+  title: "Requisitions",
+  area: "Buying",
+  href: "/retail/buying/requisitions",
+  profiles: ["RETAIL"],
+  params: [],
+  columns: requisitions.columns,
+  defaults: { sort: requisitions.sorts[0]!.rules },
+  list: requisitions,
+};
+
+/** A requisition's Approvals tab (5.9): who it waits for, each decision, each question and answer. */
+const requisitionApprovals: ListSpec = {
+  noun: "approvals",
+  read: REQ_VIEW,
+  search: { placeholder: "What", keys: ["what", "by"] },
+  filters: [{ key: "requisitionId", type: "parent", column: "requisitionId" }],
+  sorts: [{ key: "when", label: "Oldest first", rules: [{ column: "when", dir: "asc" }] }],
+  columns: [
+    { key: "when", label: "When", kind: "date", cell: "when", width: "150px", align: "start", priority: 1 },
+    { key: "what", label: "What", kind: "status", cell: "state", toneKey: "tone", width: "minmax(0,1fr)", align: "start", priority: 1 },
+    { key: "by", label: "By", kind: "text", cell: "text", width: "180px", align: "start", priority: 1 },
+  ],
+  rowHref: "/retail/buying/requisitions/{requisitionId}",
+  card: { title: "what", figure: "by", meta: "{whenText}" },
+  empty: { icon: "Money", title: "Nothing decided yet", line: "Approvals, rejections and questions show here." },
+};
+
+const requisitionApprovalsSource: ReportDefinition = {
+  key: "retail-requisition-approvals",
+  title: "Approvals of a requisition",
+  area: "Buying",
+  href: "/retail/buying/requisitions",
+  profiles: ["RETAIL"],
+  params: [],
+  columns: requisitionApprovals.columns,
+  defaults: { sort: requisitionApprovals.sorts[0]!.rules },
+  list: requisitionApprovals,
+};
+
+/** A requisition's Receipts tab (5.9): the files kept when it is accounted for (BUY-05 adds them). */
+const requisitionReceipts: ListSpec = {
+  noun: "receipts",
+  read: REQ_VIEW,
+  search: { placeholder: "File", keys: ["name"] },
+  filters: [{ key: "requisitionId", type: "parent", column: "requisitionId" }],
+  sorts: [{ key: "added", label: "Newest first", rules: [{ column: "added", dir: "desc" }] }],
+  columns: [
+    { key: "name", label: "Receipt", kind: "text", cell: "link", href: "{url}", width: "minmax(0,1fr)", align: "start", priority: 1 },
+    { key: "added", label: "Added", kind: "date", cell: "when", width: "150px", align: "start", priority: 1 },
+    { key: "by", label: "By", kind: "text", cell: "muted", width: "160px", align: "start", priority: 2 },
+  ],
+  rowHref: "{url}",
+  card: { title: "name", figure: "by", meta: "{addedText}" },
+  empty: { icon: "Receipt", title: "No receipts yet", line: "Receipts are added when the money is accounted for." },
+};
+
+const requisitionReceiptsSource: ReportDefinition = {
+  key: "retail-requisition-receipts",
+  title: "Receipts of a requisition",
+  area: "Buying",
+  href: "/retail/buying/requisitions",
+  profiles: ["RETAIL"],
+  params: [],
+  columns: requisitionReceipts.columns,
+  defaults: { sort: requisitionReceipts.sorts[0]!.rules },
+  list: requisitionReceipts,
+};
+
+export const BUYING_REPORTS: ReportDefinition[] = [
+  suppliersSource,
+  contactsSource,
+  ordersSource,
+  orderLinesSource,
+  orderMessagesSource,
+  requisitionsSource,
+  requisitionApprovalsSource,
+  requisitionReceiptsSource,
+];

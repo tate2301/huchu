@@ -631,6 +631,29 @@ Recorded unit choices:
     refusing the whole request; owners and managers hold both rights, so nobody sees it today.
   - **"Send to suppliers" is offered only while every ticked order is a draft**; the server still skips one already sent.
 
+- **BUY-04 departs from packet 34 in these places.**
+  - **The requisition sheets and record kind have files of their own**, `lib/retail/sheet-kinds/requisitions.ts` and
+    `lib/retail/record-kinds/requisitions.ts`, beside the order ones; "Ask for money" starts from
+    `GET /api/v2/retail/buying/requisitions/new` (`?orderId=`, `?from=`): the owner limit and approver for the note, the
+    first cash account in US dollars, the order's total and expected day, and a rejected one's values for "Change and ask
+    again".
+  - **An expense requisition has no "What it pays for" block**: its What for is the title, Pay to and Quote are KPIs and
+    the quote is a link on the rail; the tab is drawn for an order only. Approvals, Receipts and Activity follow.
+  - **A quote is a `photo` field that keeps the upload's whole answer** (`keepFile`: `{ url, name, contentType, size }`)
+    and takes PDFs; the service keeps it as a `RetailAttachment` only when it is this company's upload.
+  - **The Σ row adds US dollars only**; a ZiG amount reads "ZiG 1,250.00" in its row (`currencyKey`), and the second Σ
+    line for ZiG is not drawn (no ZiG account is seeded).
+  - **Approvers open on To approve, everyone else on All** through the list spec's `tabFor` (roles), which the public
+    spec answers as `defaultTab`.
+  - **An order's purpose is the service's words**, so the seeded REQ-0013 reads "Cash to pay Pamela for order PO-0004"
+    where the board says "Cash for Pamela order PO-0004". The seed numbers the history it can make now REQ-0007
+    (rejected) and REQ-0008 (cancelled); REQ-0001…0006 and REQ-0009…0012 are BUY-05's.
+  - **The CRM's posting rules gain STOCK on 5000** so every requisition category has an account; a shop's order cash
+    posts through BUY-05's retail rules, never these.
+  - **Cancelling an order's rest, or binning a draft order, cancels its unpaid requisition** with it ("REQ-0014 was
+    cancelled with order PO-0005. Nothing was paid out."), the bin's `move` taking who bins and a hook that runs once
+    the move commits.
+
 ## Owner direction, 5 October: sidebar, Management and Setup
 
 These override 00-foundations §5.3 and every spec that disagrees.

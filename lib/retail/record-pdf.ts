@@ -14,7 +14,7 @@ import { customerSpendChart } from "@/lib/retail/customers/spend-chart";
 import { loadCustomerRecord } from "@/lib/retail/customers/view";
 import { signedPoints } from "@/lib/retail/loyalty/format";
 import { loadSaleView } from "@/lib/retail/floor/sale-view";
-import { renderOrderPdf } from "@/lib/retail/buying/documents";
+import { renderOrderPdf, renderRequisitionPdf } from "@/lib/retail/buying/documents";
 import { pointsKindLabel } from "@/lib/retail/words";
 import { paidWords, saleStateLabel } from "@/lib/retail/floor/sale-words";
 import { loadShiftRecord } from "@/lib/retail/shift-record";
@@ -41,6 +41,8 @@ type Caller = { companyId: string; userId: string; role: string | null; seesEver
 
 export type RecordPdfType = {
   read: [RetailResource, RetailAction];
+  /** A second grant that also reads it, its row rule kept by `render` (a cashier's own requisition). */
+  alsoRead?: [RetailResource, RetailAction];
   /** Null when the record is not this company's (or not the caller's). */
   render(caller: Caller, id: string, variant: string | null): Promise<RecordDocument | null | "refused">;
 };
@@ -62,6 +64,13 @@ export const RECORD_DOCUMENT_CSS = `
 `;
 
 const RECORD_PDF: Record<string, RecordPdfType> = {
+  /** A requisition (40-buying 4.10); `?sign=1` adds the boxes to sign. A cashier or stock clerk reads only their own. */
+  CrmRequisition: {
+    read: ["retail.requisitions", "view"],
+    alsoRead: ["retail.requisitions", "view-own"],
+    render: (caller, id, variant) =>
+      renderRequisitionPdf({ companyId: caller.companyId, userId: caller.userId, userRole: caller.role }, id, variant === "sign"),
+  },
   /** A purchase order as the supplier gets it (40-buying 4.10); also opened by a message's signed link. */
   RetailPurchaseOrder: {
     read: ["retail.purchasing", "view"],

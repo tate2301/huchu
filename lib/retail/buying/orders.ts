@@ -13,6 +13,8 @@ import { dayKey, DEFAULT_TIME_ZONE, formatCount, formatDay, formatMoney } from "
 
 import { orderPdfLink } from "./documents";
 import { lineValue, orderTotals } from "./figures";
+import { listMoneyAccounts } from "./money-accounts";
+import { askForMoneyIn, cancelOrderRequisitionsIn, RequisitionRefusal, tellApprovers, type Asked } from "./requisitions";
 import { e164Of } from "./suppliers";
 import { cancelRestMessage, dayMonth, firstWord, payingWords, type OrderChannel, type OwedLine } from "./words";
 
@@ -44,7 +46,7 @@ export const NOT_FOUND = "Order not found";
 export const QUANTITY_NEEDED = "Each line needs a quantity.";
 export const LINE_NEEDED = "Add at least one line.";
 export const SITE_LOCKED = "Part of this order has been delivered to its branch; it cannot move to another.";
-export const ASK_FOR_CASH_LATER = "Asking for the cash arrives with requisitions.";
+export const NO_CASH_ACCOUNT = "Add a money account in US dollars first.";
 
 export const stoppedSupplier = (name: string) => `You stopped buying from ${name}.`;
 export const alreadySent = (poNo: string) => `${poNo} has already been sent.`;
@@ -287,12 +289,20 @@ function checkLines(lines: LineInput[]): Array<{ id: string | null; productId: s
 
 /* ── Raise ──────────────────────────────────────────────────────────────── */
 
-export type Raised = { id: string; poNo: string; status: string; sentVia: RetailOrderSentVia | null; supplier: string; messages: QueuedMessage[] };
+export type Raised = {
+  id: string;
+  poNo: string;
+  status: string;
+  sentVia: RetailOrderSentVia | null;
+  supplier: string;
+  messages: QueuedMessage[];
+  /** The requisition "Ask for the cash now" made with it. */
+  asked: Asked | null;
+};
 
 export async function raiseOrder(actor: RetailAuditActor, input: RaiseInput, deps: OrderDeps): Promise<Raised> {
   const companyId = actor.companyId;
   const now = deps.now ?? new Date();
-  if (input.askForCash) throw new OrderRefusal(400, ASK_FOR_CASH_LATER, { ask: ASK_FOR_CASH_LATER });
   const vendor = await prisma.vendor.findFirst({ where: { id: input.supplierId, companyId }, select: VENDOR_SELECT });
   if (!vendor) throw new OrderRefusal(400, "Validation failed", { sup: "Choose who you are ordering from." });
   if (vendor.stoppedAt) throw new OrderRefusal(409, stoppedSupplier(vendor.name));
@@ -304,6 +314,14 @@ export async function raiseOrder(actor: RetailAuditActor, input: RaiseInput, dep
   if (note && note.length > 500) throw new OrderRefusal(400, "Validation failed", { msg: "Keep it to 500 characters." });
   const expected = input.expectedDate ? dayStart(input.expectedDate) : null;
   const [shop, slug] = await Promise.all([shopName(companyId), companySlug(companyId)]);
+  // "Ask for the cash now" (W-31): the order total from the first cash account in US dollars, asked in the same transaction.
+  let payFromId: string | null = null;
+  if (input.askForCash) {
+    if (lines.length === 0) throw new OrderRefusal(400, LINE_NEEDED, { lines: LINE_NEEDED });
+    const accounts = (await listMoneyAccounts(companyId)).filter((account) => account.currency.toUpperCase() === "USD");
+    payFromId = (accounts.find((account) => account.kind === "CASH") ?? accounts[0])?.id ?? null;
+    if (!payFromId) throw new OrderRefusal(400, NO_CASH_ACCOUNT, { ask: NO_CASH_ACCOUNT });
+  }
 
   for (let attempt = 0; attempt < 5; attempt += 1) {
     const poNo = await reserveIdentifier(prisma, { companyId, entity: "RETAIL_PURCHASE_ORDER" });
@@ -354,6 +372,20 @@ export async function raiseOrder(actor: RetailAuditActor, input: RaiseInput, dep
           entityId: order.id,
           payload: { poNo, supplier: vendor.name, lines: order.lines.length, value: auditAmount(totals.total) },
         });
+        let asked: Asked | null = null;
+        if (input.askForCash) {
+          try {
+            asked = await askForMoneyIn(
+              tx,
+              actor,
+              { for: "order", orderId: order.id, amount: totals.total.toFixed(2), currency: "US$", payFromId, neededBy: input.expectedDate ?? null },
+              { now, requestUrl: deps.requestUrl },
+            );
+          } catch (error) {
+            if (error instanceof RequisitionRefusal) throw new OrderRefusal(error.status === 403 ? 409 : error.status === 404 ? 409 : error.status, error.message, error.fieldErrors ? { ask: Object.values(error.fieldErrors)[0]! } : null);
+            throw error;
+          }
+        }
         let messages: QueuedMessage[] = [];
         if (input.send) {
           messages = await queueMessages(tx, actor, {
@@ -380,7 +412,10 @@ export async function raiseOrder(actor: RetailAuditActor, input: RaiseInput, dep
           });
           await auditSent(tx, actor, order.id, via!, messages);
         }
-        return { id: order.id, poNo, status: order.status, sentVia: via, supplier: vendor.name, messages };
+        return { id: order.id, poNo, status: order.status, sentVia: via, supplier: vendor.name, messages, asked };
+      }).then(async (raised) => {
+        if (raised.asked) await tellApprovers(actor, raised.asked, { requestUrl: deps.requestUrl });
+        return raised;
       });
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") continue;
@@ -954,9 +989,8 @@ export type RestCancelled = { id: string; poNo: string; supplier: string; status
  * "Cancel what is left": every line comes down to what came, so nothing more
  * is expected; nothing came at all and the order is cancelled, else it is
  * received. The supplier is always asked to cancel the rest (the route's
- * `{ tell: true }`). A requisition for the
- * order not yet paid out is cancelled with it once requisitions exist
- * (BUY-04); until then no order has one.
+ * `{ tell: true }`). A requisition for the order not yet paid out is
+ * cancelled with it, and its asker told.
  */
 export async function cancelRest(
   actor: CancelActor,
@@ -966,7 +1000,7 @@ export async function cancelRest(
   const now = options.now ?? new Date();
   const automatic = options.automatic === true;
   const by = automatic ? null : actor.userId;
-  return prisma.$transaction(async (tx) => {
+  const done = await prisma.$transaction(async (tx) => {
     const order = await liveOrder(tx, actor.companyId, id);
     if (!waiting(order.status)) throw new OrderRefusal(409, notWaiting(order));
     const owed = owedLines(order.lines);
@@ -1013,17 +1047,24 @@ export async function cancelRest(
       },
       tx,
     );
+    // Its money not yet paid out is no longer asked for (W-72).
+    const afters = await cancelOrderRequisitionsIn(tx, actor, order.id, now);
     const short = firstWord(order.vendor.name);
     return {
-      id: order.id,
-      poNo: order.poNo,
-      supplier: order.vendor.name,
-      status,
-      units,
-      told: told.length > 0,
-      message: `What was left of ${order.poNo} is cancelled.${told.length > 0 ? ` ${short} has been told.` : ""}`,
+      afters,
+      result: {
+        id: order.id,
+        poNo: order.poNo,
+        supplier: order.vendor.name,
+        status,
+        units,
+        told: told.length > 0,
+        message: `What was left of ${order.poNo} is cancelled.${told.length > 0 ? ` ${short} has been told.` : ""}`,
+      },
     };
   });
+  for (const after of done.afters) await after();
+  return done.result;
 }
 
 /* ── Several at once (Orders' bulk) ─────────────────────────────────────── */

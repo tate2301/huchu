@@ -40,6 +40,16 @@ async function uploadPicture(file: File, url = "/api/v2/retail/products/image"):
   return answer.data.url;
 }
 
+type UploadedFileValue = { url: string; name: string; contentType: string; size: number };
+
+/** A file to the field's upload route, its whole answer kept: `{ data: { url, name, contentType, size } }`. */
+async function uploadFile(file: File, url = "/api/v2/retail/buying/attachments"): Promise<UploadedFileValue> {
+  const form = new FormData();
+  form.set("file", file);
+  const answer = await fetchJson<{ data: UploadedFileValue }>(url, { method: "POST", body: form });
+  return answer.data;
+}
+
 /** The field's options, fixed or worked out from the values. */
 function optionsOf(field: FieldSpec, values: SheetValues): Array<string | [label: string, sub?: string, badge?: string]> {
   return (typeof field.o === "function" ? field.o(values) : field.o) ?? [];
@@ -339,16 +349,28 @@ export function SheetField({
                 onValueChange={(next) => onChange(field.tagAll ? withAllTag(value, next, field.tagAll) : next)}
               />
             );
-          case "photo":
+          case "photo": {
+            // `keepFile`: the value is the upload's whole answer ({ url, name, contentType, size }), a PDF shown by its name.
+            const kept = field.keepFile && value && typeof value === "object" ? (value as UploadedFileValue) : null;
             return (
               <PhotoField
                 {...control}
                 prompt={field.prompt ?? field.p ?? "Add a photo"}
-                value={typeof value === "string" ? value : null}
-                onValueChange={onChange}
-                upload={(file) => uploadPicture(file, field.upload)}
+                accept={field.accept}
+                added={kept && !kept.contentType.startsWith("image/") ? kept.name : null}
+                value={kept ? kept.url : typeof value === "string" ? value : null}
+                onValueChange={(next) => {
+                  if (!field.keepFile || next === null) onChange(next);
+                }}
+                upload={async (file) => {
+                  if (!field.keepFile) return uploadPicture(file, field.upload);
+                  const answer = await uploadFile(file, field.upload);
+                  onChange(answer);
+                  return answer.url;
+                }}
               />
             );
+          }
           case "file":
             return (
               <FileField

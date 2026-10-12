@@ -190,7 +190,7 @@ export function ListFrame({ source, title, sub, rowFilters, defaultSort, default
   // ── The address ──────────────────────────────────────────────────────
   const defaults = React.useMemo(
     () => ({
-      tab: spec?.tabs?.[0]?.key ?? null,
+      tab: spec?.defaultTab ?? spec?.tabs?.[0]?.key ?? null,
       sort: defaultSort ?? spec?.sorts[0]?.key,
       group: defaultGroup !== undefined ? defaultGroup : (spec?.defaultGroup ?? null),
       // Against the choices made, so a period picked under "Needs sign-off" stays on the address.

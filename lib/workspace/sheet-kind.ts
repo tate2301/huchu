@@ -115,6 +115,8 @@ export type FieldSpec = {
   max?: number;
   /** `photo`: the upload route (`POST` multipart → `{ data: { url } }`); the product image route when absent. */
   upload?: string;
+  /** `photo`: the value is the upload's whole answer (`{ url, name, contentType, size }`), a PDF too (a quote, a receipt). */
+  keepFile?: boolean;
   /** `read`: the value in that tone, always or as the values say ("Paired" ok, "Not paired yet" warn). */
   tone?: "ok" | "warn" | ((values: SheetValues) => "ok" | "warn" | undefined);
   /** `read`: kept to one line a size smaller, cut short with its whole text on hover (a half-width "Cases 22 → 21, singles 26 → 50"). */
@@ -171,7 +173,7 @@ export type FieldSpec = {
   nolabel?: boolean;
   /** `photo` and `file`: the value line while empty ("Add your logo"). */
   prompt?: string;
-  /** `file`: the line under the prompt ("Or choose a file · .xlsx or .csv"), and the types it takes. */
+  /** `file`: the line under the prompt ("Or choose a file · .xlsx or .csv"); `file` and `photo`: the types it takes. */
   fileSub?: string;
   accept?: string;
   /**

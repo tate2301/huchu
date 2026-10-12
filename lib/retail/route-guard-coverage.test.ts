@@ -351,3 +351,52 @@ describe("order follow-ups gate on their own purchasing right", () => {
     }
   });
 });
+
+/**
+ * BUY-04's requisitions (40-buying 4.5): asking needs `create` (everyone on
+ * staff), deciding `approve` (owner, manager), cancelling is the asker's or a
+ * manager's; reads answer `view` or `view-own` (the row rule makes another's
+ * a 404). The buying attachments upload takes any role that keeps a buying
+ * file.
+ */
+describe("requisitions gate on their own right", () => {
+  const REQUISITIONS: Array<{ key: string; action: string }> = [
+    { key: "buying/requisitions/route.ts POST", action: "create" },
+    { key: "buying/requisitions/new/route.ts GET", action: "create" },
+    { key: "buying/requisitions/[id]/route.ts GET", action: "view-own" },
+    { key: "buying/requisitions/[id]/route.ts PATCH", action: "view-own" },
+    { key: "buying/requisitions/[id]/approve/route.ts POST", action: "approve" },
+    { key: "buying/requisitions/[id]/reject/route.ts POST", action: "approve" },
+    { key: "buying/requisitions/[id]/question/route.ts POST", action: "approve" },
+    { key: "buying/requisitions/[id]/cancel/route.ts POST", action: "update" },
+    { key: "buying/requisitions/bulk/approve/route.ts POST", action: "approve" },
+    { key: "buying/requisitions/bulk/reject/route.ts POST", action: "approve" },
+  ];
+
+  it.each(REQUISITIONS)("$key asks retail.requisitions $action", ({ key, action }) => {
+    const handler = allHandlers.find((candidate) => candidate.key.endsWith(key));
+    expect(handler, `no handler found for ${key}`).toBeDefined();
+    const body = stripComments(handler?.body ?? "");
+    expect(body.includes(`"retail.requisitions", "${action}")`)).toBe(true);
+  });
+
+  it("buying attachments take a requisition, a delivery or a bill right", () => {
+    const handler = allHandlers.find((candidate) => candidate.key.endsWith("buying/attachments/route.ts POST"));
+    expect(handler).toBeDefined();
+    const body = stripComments(handler?.body ?? "");
+    expect(body).toContain('canRetailSessionDo(session, "retail.requisitions", "create")');
+    expect(body).toContain('canRetailSessionDo(session, "retail.purchasing", "receive")');
+    expect(body).toContain('canRetailSessionDo(session, "retail.bills", "create")');
+  });
+
+  it("lets every role ask, owners and managers decide, and cashiers and stock clerks read only their own", () => {
+    for (const role of ["SUPERADMIN", "MANAGER", "CASHIER", "STOCK_CLERK"]) expect(canRetailRoleDo(role, "retail.requisitions", "create")).toBe(true);
+    for (const role of ["SUPERADMIN", "MANAGER"]) expect(canRetailRoleDo(role, "retail.requisitions", "approve")).toBe(true);
+    for (const role of ["CASHIER", "STOCK_CLERK", "FINANCE_OFFICER"]) expect(canRetailRoleDo(role, "retail.requisitions", "approve")).toBe(false);
+    for (const role of ["CASHIER", "STOCK_CLERK"]) {
+      expect(canRetailRoleDo(role, "retail.requisitions", "view")).toBe(false);
+      expect(canRetailRoleDo(role, "retail.requisitions", "view-own")).toBe(true);
+    }
+    expect(canRetailRoleDo("FINANCE_OFFICER", "retail.requisitions", "view")).toBe(true);
+  });
+});

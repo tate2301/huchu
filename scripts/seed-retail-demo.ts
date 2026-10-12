@@ -61,6 +61,8 @@ import { fromTemplateQuery } from "@/lib/reports/template-query"
 import { addContact, createSupplier, type SendsWord, type SupplierInput } from "@/lib/retail/buying/suppliers"
 import { receiveDelivery } from "@/lib/retail/buying/deliveries"
 import { orderTotals } from "@/lib/retail/buying/figures"
+import { moneyAccountBalance } from "@/lib/retail/buying/money-accounts"
+import { approveRequisition, askForMoney, cancelRequisition, rejectRequisition } from "@/lib/retail/buying/requisitions"
 import { closeOrder, raiseOrder, sendOrder } from "@/lib/retail/buying/orders"
 import { createProduct } from "@/lib/retail/products/create"
 import { productInput } from "@/lib/retail/products/input"
@@ -2021,6 +2023,9 @@ async function main() {
   await seedFiscal(companyId)
   await seedOverview(companyId)
   await seedApprovals(companyId)
+  await seedMoneyAccounts(companyId)
+  await seedExpenseTypes(companyId)
+  await seedRequisitions(companyId)
   await seedLoyalty(companyId)
   await seedShiftFloor(companyId)
   await seedShiftCounts(companyId)
@@ -2029,6 +2034,7 @@ async function main() {
   await seedDayCloses(companyId)
   await seedImportDemo({ companyId, mainSiteId: site.id, softDrinksId: categoryIds.get("Soft drinks") ?? null })
   await seedReportTemplates(companyId)
+  await settleMoneyAccountOpenings(companyId)
 
   const takings = sumMoney(saleRows.map((row) => row.baseAmount as Prisma.Decimal))
   console.log(
@@ -7943,4 +7949,187 @@ async function seedOrders(input: { companyId: string; mainSiteId: string }) {
   if (!total.equals(money("1940.00"))) throw new Error(`seedOrders: PO-0005 comes to ${total.toFixed(2)} with VAT, not 1,940.00`)
   const counts = await prisma.retailPurchaseOrder.groupBy({ by: ["status"], where: { companyId }, _count: { _all: true } })
   console.log(`  orders: PO-0001 to PO-0023 (${counts.map((row) => `${row._count._all} ${row.status.toLowerCase()}`).join(", ")}); PO-0005 is US$${total.toFixed(2)} with VAT`)
+}
+
+/**
+ * BUY-04 `seedMoneyAccounts()`: the shop's money accounts (40-buying 3.6):
+ * Office safe and Front till float (cash, 1005), CBZ current account (bank,
+ * 1010, "…4471" — the books' "Operating Bank" renamed, or retired beside a
+ * CBZ account a run before made) and EcoCash merchant (mobile, 1016).
+ * Their openings are settled last (`settleMoneyAccountOpenings`).
+ */
+async function seedMoneyAccounts(companyId: string) {
+  const accounts = await prisma.chartOfAccount.findMany({ where: { companyId, code: { in: ["1005", "1010", "1016"] } }, select: { id: true, code: true } })
+  const ledger = (code: string) => accounts.find((account) => account.code === code)?.id ?? null
+  const cbz = await prisma.bankAccount.findFirst({ where: { companyId, name: "CBZ current account" }, select: { id: true } })
+  const operating = await prisma.bankAccount.findFirst({ where: { companyId, name: "Operating Bank" }, select: { id: true } })
+  if (!cbz && operating) {
+    await prisma.bankAccount.update({ where: { id: operating.id }, data: { name: "CBZ current account" } })
+  } else if (cbz && operating) {
+    await prisma.bankAccount.update({ where: { id: operating.id }, data: { isActive: false } })
+  }
+  const wanted: Array<{ name: string; kind: "CASH" | "BANK" | "MOBILE"; code: string; bankName: string | null; accountNumber: string | null }> = [
+    { name: "Office safe", kind: "CASH", code: "1005", bankName: null, accountNumber: null },
+    { name: "Front till float", kind: "CASH", code: "1005", bankName: null, accountNumber: null },
+    { name: "CBZ current account", kind: "BANK", code: "1010", bankName: "CBZ", accountNumber: "0112 3344 4471" },
+    { name: "EcoCash merchant", kind: "MOBILE", code: "1016", bankName: "EcoCash", accountNumber: "0712 550 0921" },
+  ]
+  for (const account of wanted) {
+    const existing = await prisma.bankAccount.findFirst({ where: { companyId, name: account.name }, select: { id: true } })
+    const data = { kind: account.kind, currency: "USD", ledgerAccountId: ledger(account.code), bankName: account.bankName, accountNumber: account.accountNumber, isActive: true }
+    if (existing) await prisma.bankAccount.update({ where: { id: existing.id }, data })
+    else await prisma.bankAccount.create({ data: { companyId, name: account.name, ...data } })
+  }
+  console.log("  money accounts: Office safe, Front till float, CBZ current account (…4471), EcoCash merchant (…0921)")
+}
+
+/** BUY-04: the five expense types (the migration's, for a shop made since) on their accounts. */
+async function seedExpenseTypes(companyId: string) {
+  const types: Array<[string, "EQUIPMENT" | "FUEL" | "MATERIALS" | "OTHER", string]> = [
+    ["Repairs and maintenance", "EQUIPMENT", "5300"],
+    ["Fuel and transport", "FUEL", "5500"],
+    ["Cleaning", "MATERIALS", "5100"],
+    ["Electricity and water", "OTHER", "5570"],
+    ["Licences and fees", "OTHER", "5580"],
+  ]
+  const accounts = await prisma.chartOfAccount.findMany({ where: { companyId, code: { in: types.map(([, , code]) => code) } }, select: { id: true, code: true } })
+  for (const [name, category, code] of types) {
+    const ledgerAccountId = accounts.find((account) => account.code === code)?.id ?? null
+    await prisma.retailExpenseType.upsert({
+      where: { companyId_name: { companyId, name } },
+      create: { companyId, name, category, ledgerAccountId },
+      update: { category, ledgerAccountId, archivedAt: null },
+    })
+  }
+}
+
+/**
+ * BUY-04 `seedRequisitions()` (40-buying 3.6): through the services, at the
+ * times the boards give them — REQ-0014 (Tafara, PO-0005's total, waiting for
+ * Tendai Mhlanga), REQ-0015 (Farai, generator diesel, under the limit),
+ * REQ-0013 (Tafara, PO-0004, approved by Tendai), and from the history one
+ * rejected (REQ-0007) and one cancelled (REQ-0008). The paid-out and
+ * accounted-for ones (REQ-0001…0006, REQ-0009…0012) are BUY-05's. Written
+ * again on every run: the shop's requisitions, their files and Activity go first.
+ */
+async function seedRequisitions(companyId: string) {
+  const old = await prisma.crmRequisition.findMany({ where: { companyId, siteId: { not: null } }, select: { id: true } })
+  const oldIds = old.map((row) => row.id)
+  await prisma.platformAuditEvent.deleteMany({ where: { companyId, entityType: "CrmRequisition", entityId: { in: oldIds } } })
+  await prisma.retailAttachment.deleteMany({ where: { companyId, entityType: "CrmRequisition" } })
+  await prisma.retailMessage.deleteMany({ where: { companyId, entityType: "CrmRequisition" } })
+  await prisma.notification.deleteMany({ where: { companyId, entityType: "CRM_REQUISITION", entityId: { in: oldIds } } })
+  await prisma.crmRequisition.deleteMany({ where: { companyId, id: { in: oldIds } } })
+
+  const people = await prisma.user.findMany({
+    where: { companyId, email: { in: ["owner@bottlestore.test", "tafara.manager@bottlestore.test", "farai.till@bottlestore.test", "chipo.till@bottlestore.test"] } },
+    select: { id: true, name: true, role: true, email: true },
+  })
+  const actor = (email: string) => {
+    const found = people.find((row) => row.email === email)
+    if (!found) throw new Error(`seedRequisitions: ${email} is not seeded`)
+    return { companyId, userId: found.id, userName: found.name, userRole: found.role }
+  }
+  const owner = actor("owner@bottlestore.test")
+  const tafara = actor("tafara.manager@bottlestore.test")
+  const farai = actor("farai.till@bottlestore.test")
+  const chipo = actor("chipo.till@bottlestore.test")
+  const account = async (name: string) => (await prisma.bankAccount.findFirstOrThrow({ where: { companyId, name }, select: { id: true } })).id
+  const officeSafe = await account("Office safe")
+  const frontFloat = await account("Front till float")
+  const type = async (name: string) => (await prisma.retailExpenseType.findUniqueOrThrow({ where: { companyId_name: { companyId, name } }, select: { id: true } })).id
+  const order = async (poNo: string) => prisma.retailPurchaseOrder.findUniqueOrThrow({ where: { companyId_poNo: { companyId, poNo } }, select: { id: true, lines: true } })
+  const sequence = { companyId_entityKey_scopeKey: { companyId, entityKey: "CRM_REQUISITION", scopeKey: "GLOBAL" } }
+  /** The next number the service takes is this one. */
+  const numberFrom = (no: number) =>
+    prisma.idSequence.upsert({ where: sequence, create: { companyId, entityKey: "CRM_REQUISITION", scopeKey: "GLOBAL", lastNumber: no - 1 }, update: { lastNumber: no - 1 } })
+  const today = new Date()
+  /** A shop day `offset` days from today, and a time on it (Harare). */
+  const day = (offset: number) => dayKey(harareTime(-offset, 12, 0))
+  const when = (offset: number, hour: number, minute: number) => harareTime(-offset, hour, minute)
+  /** Its Activity at the time the board gives it. */
+  const dateEvents = async (id: string, times: Date[]) => {
+    const events = await prisma.platformAuditEvent.findMany({ where: { companyId, entityType: "CrmRequisition", entityId: id }, orderBy: { createdAt: "asc" }, select: { id: true } })
+    for (const [index, event] of events.entries()) {
+      const time = times[Math.min(index, times.length - 1)]
+      if (time) await prisma.platformAuditEvent.update({ where: { id: event.id }, data: { createdAt: time } })
+    }
+  }
+  const deps = (now: Date) => ({ now, requestUrl: null })
+
+  // History: REQ-0007 rejected, REQ-0008 cancelled.
+  await numberFrom(7)
+  const polisher = await askForMoney(
+    chipo,
+    { for: "expense", expenseTypeId: await type("Cleaning"), whatFor: "Floor polisher hire for the weekend", amount: "120.00", currency: "US$", payFromId: frontFloat, neededBy: day(-38) },
+    deps(when(-40, 9, 15)),
+  )
+  await rejectRequisition(owner, polisher.id, { reason: "Too much", message: "Mop it this week; we will hire one at month end." }, deps(when(-40, 12, 5)))
+  await dateEvents(polisher.id, [when(-40, 9, 15), when(-40, 12, 5)])
+  await numberFrom(8)
+  const vanFuel = await askForMoney(
+    tafara,
+    { for: "expense", expenseTypeId: await type("Fuel and transport"), whatFor: "Delivery van fuel top-up", amount: "45.00", currency: "US$", payFromId: frontFloat, neededBy: day(-25) },
+    deps(when(-26, 15, 40)),
+  )
+  await cancelRequisition(tafara, vanFuel.id, deps(when(-25, 8, 10)))
+  await dateEvents(vanFuel.id, [when(-26, 15, 40), when(-25, 8, 10)])
+
+  // REQ-0013: PO-0004's total with VAT, approved by the owner.
+  await numberFrom(13)
+  const po4 = await order("PO-0004")
+  const pamela = await askForMoney(
+    tafara,
+    { for: "order", orderId: po4.id, amount: orderTotals(po4.lines).total.toFixed(2), currency: "US$", payFromId: officeSafe, neededBy: day(3), why: "Pamela takes cash on delivery." },
+    deps(when(0, 8, 40)),
+  )
+  await approveRequisition(owner, pamela.id, {}, deps(when(0, 9, 5)))
+  await dateEvents(pamela.id, [when(0, 8, 40), when(0, 9, 5)])
+
+  // REQ-0014: PO-0005's US$1,940.00, over the limit: waiting for Tendai Mhlanga.
+  await numberFrom(14)
+  const po5 = await order("PO-0005")
+  const afdis = await askForMoney(
+    tafara,
+    { for: "order", orderId: po5.id, amount: orderTotals(po5.lines).total.toFixed(2), currency: "US$", payFromId: officeSafe, neededBy: day(3), why: "Afdis deliver on Tuesday and take cash only." },
+    deps(when(0, 11, 20)),
+  )
+  await dateEvents(afdis.id, [when(0, 11, 20)])
+
+  // REQ-0015: Farai's generator diesel, under the limit: any manager.
+  await numberFrom(15)
+  const diesel = await askForMoney(
+    farai,
+    { for: "expense", expenseTypeId: await type("Fuel and transport"), whatFor: "Generator diesel, 40 litres", amount: "62.00", currency: "US$", payFromId: frontFloat, neededBy: day(1) },
+    deps(when(0, 11, 45)),
+  )
+  await dateEvents(diesel.id, [when(0, 11, 45)])
+
+  // The seeded messages went when they were sent: the outbox does not send them again.
+  await prisma.retailMessage.updateMany({
+    where: { companyId, status: "QUEUED", OR: [{ entityType: "CrmRequisition" }, { template: "approval-ask", createdAt: { gte: today } }] },
+    data: { status: "SENT", sentAt: today },
+  })
+  console.log(`  requisitions: ${afdis.requisitionNo} waits for ${afdis.waitsFor ?? "the managers"}, ${diesel.requisitionNo} for ${diesel.waitsFor ?? "the managers"}, ${pamela.requisitionNo} approved, REQ-0007 rejected, REQ-0008 cancelled`)
+}
+
+/**
+ * BUY-04 `settleMoneyAccountOpenings()`, the last seed step: each cash
+ * account's opening balance is what puts it on the boards' figure after the
+ * transactions seeded on it (Office safe US$2,410.00, Front till float
+ * US$120.00), so later packets' payouts keep the targets.
+ */
+async function settleMoneyAccountOpenings(companyId: string) {
+  const targets: Array<[string, string]> = [
+    ["Office safe", "2410.00"],
+    ["Front till float", "120.00"],
+  ]
+  for (const [name, target] of targets) {
+    const account = await prisma.bankAccount.findFirst({ where: { companyId, name }, select: { id: true, openingBalance: true } })
+    if (!account) continue
+    const moved = (await moneyAccountBalance(account.id)).minus(money(account.openingBalance))
+    const opening = money(target).minus(moved)
+    await prisma.bankAccount.update({ where: { id: account.id }, data: { openingBalance: Number(opening.toFixed(2)) } })
+  }
+  console.log("  money accounts: Office safe US$2,410.00, Front till float US$120.00")
 }

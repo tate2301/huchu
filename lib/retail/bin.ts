@@ -4,6 +4,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { BIN_KEEP_DAYS, restorableUntil } from "@/lib/retail/asks";
 import { auditRecordBin, auditRecordPurged, RETAIL_AUDIT_EVENTS, type RetailAuditActor } from "@/lib/retail/audit";
+import { cancelOrderRequisitionsIn } from "@/lib/retail/buying/requisitions";
 import { categoryBinRefusal, restoreCategory } from "@/lib/retail/categories";
 import { CustomerRefusal } from "@/lib/retail/customers/create";
 import { unmergeCustomer } from "@/lib/retail/customers/merge";
@@ -65,8 +66,11 @@ export type BinKindSpec = {
    */
   binEvents: string[];
   find(tx: Tx, companyId: string, id: string): Promise<Found | null>;
-  /** Into the bin. A sentence refuses it (409), passed through as it is. */
-  move(tx: Tx, companyId: string, id: string, at: Date): Promise<string | null>;
+  /**
+   * Into the bin. A sentence refuses it (409), passed through as it is. `by`
+   * is who bins it; `later` runs once the bin move commits (telling people).
+   */
+  move(tx: Tx, companyId: string, id: string, at: Date, by?: { actor: RetailAuditActor; later: (fn: () => Promise<void>) => void }): Promise<string | null>;
   /** Out of the bin, by `actor`. A sentence refuses it (409), passed through as it is. */
   restore(tx: Tx, companyId: string, id: string, actor: RetailAuditActor): Promise<string | null>;
   /**
@@ -107,10 +111,12 @@ const ORDER_KIND: BinKindSpec = {
   },
   // Only a draft, which was never sent and nothing came against, so nothing
   // in stock or the books changes and the supplier is not told.
-  move: async (tx, companyId, id, at) => {
+  move: async (tx, companyId, id, at, by) => {
     const order = await tx.retailPurchaseOrder.findFirstOrThrow({ where: { id, companyId }, select: { poNo: true, status: true } });
     if (order.status !== "DRAFT") return `${order.poNo} has been sent. Cancel what is left instead.`;
     await tx.retailPurchaseOrder.update({ where: { id }, data: { archivedAt: at } });
+    // Its money not yet paid out is no longer asked for (W-72); the asker is told once this commits.
+    if (by) for (const after of await cancelOrderRequisitionsIn(tx, by.actor, id, at)) by.later(after);
     return null;
   },
   restore: async (tx, _companyId, id) => {
@@ -521,12 +527,13 @@ export async function moveToBin(
   now: Date = new Date(),
 ): Promise<{ binnedAt: string; keptUntil: string }> {
   const spec = KINDS[input.kind];
-  return prisma.$transaction(async (tx) => {
+  const afters: Array<() => Promise<void>> = [];
+  const moved = await prisma.$transaction(async (tx) => {
     await lockRecord(tx, spec, input.id);
     const found = await spec.find(tx, actor.companyId, input.id);
     if (!found) throw new BinRefusal(404, "That is not this shop's");
     if (found.archivedAt) throw new BinRefusal(409, "It is already in the bin");
-    const refusal = await spec.move(tx, actor.companyId, input.id, now);
+    const refusal = await spec.move(tx, actor.companyId, input.id, now, { actor, later: (fn) => afters.push(fn) });
     if (refusal) throw new BinRefusal(409, refusal);
     await auditRecordBin(tx, {
       actor,
@@ -538,6 +545,8 @@ export async function moveToBin(
     });
     return { binnedAt: now.toISOString(), keptUntil: restorableUntil(now).toISOString() };
   });
+  for (const after of afters) await after();
+  return moved;
 }
 
 /**

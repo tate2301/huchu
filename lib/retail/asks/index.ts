@@ -14,7 +14,7 @@ import type { ListActionRun } from "./runs";
  */
 export { BIN_KEEP_DAYS, binAsk, restorableUntil } from "./frame";
 export { binItem, deleteForGoodAsk, restoredToast } from "./bin";
-export { cancelRequisitionAsk, closeShortAsk, removeContactAsk, removeOrderAsk, stopBuyingAsk } from "./buying";
+export { approveManyAsk, cancelRequisitionAsk, closeShortAsk, removeContactAsk, removeOrderAsk, stopBuyingAsk } from "./buying";
 export { closeUncountedAsk, sentManyWords, sentWords } from "./floor";
 export { categoryDeleteAsk, categoryMergeAsk } from "./categories";
 export { archiveAsk, archiveManyAsk, bundleStopAsk, priceListDeleteAsk, promotionEndAsk, promotionEndManyAsk, voidVoucherAsk } from "./products";

@@ -48,6 +48,7 @@ export const REQUISITION_CATEGORIES = [
   "SUBSISTENCE",
   "ACCOMMODATION",
   "OTHER",
+  "STOCK",
 ] as const;
 
 export type RequisitionCategory = (typeof REQUISITION_CATEGORIES)[number];

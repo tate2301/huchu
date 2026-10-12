@@ -31,7 +31,7 @@ import type { PickedOption, SheetCtx, SheetKind, SheetLine, SheetRequest, SheetV
 const API = "/api/v2/retail/buying";
 const SUB = "Buying › Orders";
 
-const invalidateOrders = [["list", "retail-orders"], ["retail-order"], ["list", "retail-order-lines"], ["list", "retail-order-messages"], ["nav-badges"], ["retail-supplier"], ["lookup", "order"], ["record-activity"]];
+const invalidateOrders = [["list", "retail-orders"], ["list", "retail-requisitions"], ["retail-order"], ["list", "retail-order-lines"], ["list", "retail-order-messages"], ["nav-badges"], ["retail-supplier"], ["lookup", "order"], ["record-activity"]];
 
 async function readJson<T>(url: string): Promise<T> {
   const response = await fetch(url, { credentials: "include" });
@@ -105,12 +105,19 @@ function raiseRequest(values: SheetValues, send: boolean): SheetRequest {
       lines: linesOf(values).map((line) => ({ productId: line.productId, quantity: line.quantity.trim(), unitCost: line.cost.trim() || "0" })),
       payment: PAYMENT_OF[(values.pay as (typeof PAYING)[number]) ?? "On account"] ?? "ON_ACCOUNT",
       noteToSupplier: text(values.msg) || null,
+      askForCash: values.ask === true,
       send,
     },
   };
 }
 
-type Raised = { data: OrderView; message: string | null; sentVia: OrderChannel | null };
+type Raised = { data: OrderView; message: string | null; sentVia: OrderChannel | null; asked: { requisitionNo: string; message: string } | null };
+
+/** The requisition "Ask for the cash now" made, after the order's own words. */
+const withAsked = (words: string, payload: unknown) => {
+  const asked = (payload as Raised | null)?.asked;
+  return asked ? `${words} ${asked.message}` : words;
+};
 
 /* ── 5.15 New order ─────────────────────────────────────────────────────── */
 
@@ -208,6 +215,14 @@ const orderNew: SheetKind = {
       title: "Paying and sending",
       fields: [
         { id: "pay", t: "seg", l: "Paying", o: [...PAYING], v: PAYING_WORD.ON_ACCOUNT },
+        {
+          id: "ask",
+          t: "toggle",
+          l: "Ask for the cash now",
+          v: false,
+          h: "Creates a requisition for the order total, for the owner to approve before the truck comes.",
+          show: (_values, ctx) => ctx.can("retail.requisitions", "create"),
+        },
         { id: "msg", t: "area", l: "Note to the supplier", opt: true, rows: 2, max: 500, p: "Deliveries at the back door before 10:00" },
       ],
     },
@@ -221,12 +236,12 @@ const orderNew: SheetKind = {
   alt: {
     label: "Save as draft",
     submit: (values) => raiseRequest(values, false),
-    done: (_result, _values, payload) => (payload as Raised).message ?? "Saved as a draft.",
+    done: (_result, _values, payload) => withAsked((payload as Raised).message ?? "Saved as a draft.", payload),
   },
   submit: (values) => raiseRequest(values, true),
-  done: (result, values) => {
+  done: (result, values, payload) => {
     const order = result as OrderView;
-    return sentWords(order.poNo, order.supplier.name, (values._channel as OrderChannel | null | undefined) ?? "BY_HAND");
+    return withAsked(sentWords(order.poNo, order.supplier.name, (values._channel as OrderChannel | null | undefined) ?? "BY_HAND"), payload);
   },
   // "Save and print": the order's PDF opens to print.
   newTab: {

@@ -156,7 +156,8 @@ export const noValue = (column: ListColumn) => column.emptyWords ?? (column.empt
 export function cellText(column: ListColumn, row: ReportRow): string {
   const value = row[column.key];
   if (isBlank(value)) return noValue(column);
-  const currency = column.currency ?? "USD";
+  const own = column.currencyKey ? row[column.currencyKey] : null;
+  const currency = typeof own === "string" && own ? own : (column.currency ?? "USD");
   switch (column.cell) {
     case "money":
     case "zero":

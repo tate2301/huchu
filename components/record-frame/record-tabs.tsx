@@ -27,7 +27,7 @@ const isSource = <R,>(tab: RecordTab<R>): tab is SourceTab<R> => tab.key !== "ac
 
 /** The list query a tab is: the first page of its source, scoped to this record (and any filters the tab adds). */
 function tabQuery(tab: SourceTab<unknown>, record: unknown, id: string, hidden?: string[]) {
-  return { page: 1, size: 25, filters: { ...(tab.filters?.(record) ?? {}), [tab.parent]: id }, ...(hidden ? { hidden } : {}) };
+  return { page: 1, size: 25, filters: { ...(tab.filters?.(record) ?? {}), [tab.parent]: tab.parentId?.(record) ?? id }, ...(hidden ? { hidden } : {}) };
 }
 
 /** A tab that names its columns draws those, in its order, under its own headers. */
@@ -43,7 +43,7 @@ function tabColumns(tab: SourceTab<unknown>, all: ListColumn[]): ListColumn[] {
 }
 
 function tabUrl(tab: SourceTab<unknown>, record: unknown, id: string) {
-  const params = new URLSearchParams({ page: "1", size: "25", ...(tab.filters?.(record) ?? {}), [tab.parent]: id });
+  const params = new URLSearchParams({ page: "1", size: "25", ...(tab.filters?.(record) ?? {}), [tab.parent]: tab.parentId?.(record) ?? id });
   return `/api/v2/reports/${encodeURIComponent(tab.source)}?${params.toString()}`;
 }
 

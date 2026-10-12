@@ -475,6 +475,23 @@ const WORDS: Record<string, (payload: Payload, eventType: string, seeCost: boole
     const automatic = payload.automatic === true ? ", automatically" : "";
     return { what: `Cancelled what was left, ${formatCount(units)} ${units === 1 ? "unit" : "units"}${automatic}`, tone: "bad" };
   },
+  // Requisitions (40-buying 3.4): "Asked for US$1,940.00 for PO-0005"; "Approved US$1,500.00 of US$1,940.00".
+  [RETAIL_AUDIT_EVENTS.requisitionAsked]: (payload) => {
+    const figure = moneyWords(payload.amount, text(payload.currency) ?? "USD");
+    const order = text(payload.order);
+    return { what: order ? `Asked for ${figure} for ${order}` : `Asked for ${figure}${text(payload.whatFor) ? `: ${text(payload.whatFor)}` : ""}`, tone: "info" };
+  },
+  [RETAIL_AUDIT_EVENTS.requisitionApproved]: (payload) => {
+    const currency = text(payload.currency) ?? "USD";
+    const cut = amount(payload.amount) !== null && amount(payload.asked) !== null && amount(payload.amount) !== amount(payload.asked);
+    return { what: `Approved ${moneyWords(payload.amount, currency)}${cut ? ` of ${moneyWords(payload.asked, currency)}` : ""}`, tone: "ok" };
+  },
+  [RETAIL_AUDIT_EVENTS.requisitionRejected]: (payload) => ({ what: `Rejected: ${text(payload.reason) ?? "no reason given"}`, tone: "bad" }),
+  [RETAIL_AUDIT_EVENTS.requisitionQuestion]: (payload) => ({
+    what: `${payload.answer === true ? "Answered" : "Asked"}: “${text(payload.message) ?? ""}”`,
+    tone: "info",
+  }),
+  [RETAIL_AUDIT_EVENTS.requisitionCancelled]: (payload) => ({ what: payload.automatic === true ? "Cancelled with its order" : "Cancelled", tone: "hollow" }),
   [RETAIL_AUDIT_EVENTS.messageReceived]: (payload) => {
     const body = text(payload.body) ?? "";
     const short = body.length > 80 ? `${body.slice(0, 80).trimEnd()}…` : body;

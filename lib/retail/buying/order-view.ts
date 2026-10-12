@@ -73,7 +73,8 @@ export type OrderView = {
     closedShort: boolean;
   }>;
   deliveries: Array<{ id: string; receiptNo: string; postedAt: string; units: number }>;
-  requisition: null;
+  /** The live requisition for this order (Submitted, Approved, Paid out): its chip and rail row. */
+  requisition: { id: string; requisitionNo: string; status: "SUBMITTED" | "APPROVED" | "DISBURSED"; amount: number } | null;
   counts: { lines: number; deliveries: number; messages: number };
   can: {
     send: boolean;
@@ -170,6 +171,10 @@ export async function loadOrderView(companyId: string, id: string, now = new Dat
       ? Math.max(0, Math.round((Date.parse(dayKey(lastDelivery)) - Date.parse(dayKey(order.firstExpectedDate))) / 86_400_000))
       : null;
   const messages = await prisma.retailMessage.count({ where: { companyId, entityType: "RetailPurchaseOrder", entityId: order.id } });
+  const requisition = await prisma.crmRequisition.findFirst({
+    where: { companyId, purchaseOrderId: order.id, status: { in: ["SUBMITTED", "APPROVED", "DISBURSED"] } },
+    select: { id: true, requisitionNo: true, status: true, amount: true, approvedAmount: true },
+  });
   const recipients = orderRecipients(order.vendor);
   const open = state === "DRAFT" || state === "SENT" || state === "PARTIAL";
   const anythingCame = order.lines.some((line) => quantity(line.receivedQuantity).greaterThan(0));
@@ -240,7 +245,14 @@ export async function loadOrderView(companyId: string, id: string, now = new Dat
       postedAt: (receipt.postedAt ?? receipt.createdAt).toISOString(),
       units: toNumberOrZero(sumMoney(receipt.lines.map((line) => line.quantity))),
     })),
-    requisition: null,
+    requisition: requisition
+      ? {
+          id: requisition.id,
+          requisitionNo: requisition.requisitionNo,
+          status: requisition.status as "SUBMITTED" | "APPROVED" | "DISBURSED",
+          amount: toNumberOrZero(requisition.approvedAmount ?? requisition.amount),
+        }
+      : null,
     counts: { lines: order.lines.length, deliveries: order.receipts.length, messages },
     can: {
       send: state === "DRAFT" && order.lines.length > 0 && !order.vendor.stoppedAt,

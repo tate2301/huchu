@@ -329,8 +329,9 @@ export function resolveListQuery(
   const columns = listColumnsFor(shape, ctx.seeCost);
   const scope = scopedFor(spec, ctx.role);
 
+  const opening = spec.tabFor?.roles.includes(ctx.role) ? spec.tabs?.find((candidate) => candidate.key === spec.tabFor!.tab) : undefined;
   const tab = spec.tabs?.length
-    ? (spec.tabs.find((candidate) => candidate.key === query.tab) ?? spec.tabs[0]!).key
+    ? (spec.tabs.find((candidate) => candidate.key === query.tab) ?? opening ?? spec.tabs[0]!).key
     : null;
 
   const defaultSort = shape.sorts[0]?.key ?? "";
@@ -835,7 +836,7 @@ export function publicListSpec(
   const keys = new Set(columns.map((column) => column.key));
   const cost = new Set(spec.columns.filter((column) => !keys.has(column.key)).map((column) => column.key));
   const scope = scopedFor(spec, ctx.role);
-  const { read: _read, scopeOwn: _scopeOwn, primary, exportExtras, empty, subLink, edit, ...rest } = spec;
+  const { read: _read, scopeOwn: _scopeOwn, tabFor, primary, exportExtras, empty, subLink, edit, ...rest } = spec;
   // The cells are inputs only for a caller who may change the values; anyone else reads them.
   const editing = edit && edit.requires.some((grant) => ctx.can(grant)) ? edit : null;
   void _read;
@@ -845,6 +846,7 @@ export function publicListSpec(
     .map((extra) => ({ label: extra.label, href: extra.href }));
   return {
     ...rest,
+    ...(tabFor?.roles.includes(ctx.role) ? { defaultTab: tabFor.tab } : {}),
     columns: editing ? columns : columns.map((column) => (column.cell === "edit-money" ? { ...column, cell: "money" as const } : column)),
     ...(editing
       ? {

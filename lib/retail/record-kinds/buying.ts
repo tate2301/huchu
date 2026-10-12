@@ -278,6 +278,13 @@ const ORDER_DELETE: Grant = ["retail.purchasing", "delete"];
 const ORDER_RECEIVE: Grant = ["retail.purchasing", "receive"];
 const DAY_MS = 86_400_000;
 
+const REQ_CREATE: Grant = ["retail.requisitions", "create"];
+/** The order's cash, from its live requisition: asked for, approved, paid out. */
+const REQUISITION_CHIP = {
+  SUBMITTED: { label: "Cash asked for", tone: "info" as const },
+  APPROVED: { label: "Cash approved", tone: "info" as const },
+  DISBURSED: { label: "Cash paid out", tone: "ok" as const },
+};
 const pdfOf = (order: OrderView) => `/api/v2/retail/records/RetailPurchaseOrder/${order.id}/pdf`;
 const isOpen = (order: OrderView) => order.status === "DRAFT" || order.status === "SENT" || order.status === "PARTIAL";
 const unitWords = (n: number) => (n === 1 ? "unit" : "units");
@@ -411,6 +418,16 @@ function orderRail(order: OrderView): RailGroup[] {
         { key: "lines", label: "Lines", value: formatMoney(order.figures.net), mono: true },
         { key: "vat", label: "VAT", value: formatMoney(order.figures.vat), mono: true },
         { key: "total", label: "Total", value: formatMoney(order.figures.total), mono: true },
+        ...(order.requisition
+          ? [
+              {
+                key: "cash",
+                label: "Cash",
+                value: `${order.requisition.requisitionNo}, ${formatMoney(order.requisition.amount)}`,
+                links: [{ label: `${order.requisition.requisitionNo}, ${formatMoney(order.requisition.amount)}`, href: `/retail/buying/requisitions/${order.requisition.id}` }],
+              },
+            ]
+          : []),
         {
           key: "pays",
           label: "Pays",
@@ -527,6 +544,10 @@ export const orderKind: RecordKind<OrderView> = {
           },
         ]
       : []),
+    // W-31: ask for the money to pay it, while it is open and nothing is asked for it yet.
+    ...(isOpen(order) && !order.requisition
+      ? [{ key: "ask", label: "Ask for money", requires: [REQ_CREATE], do: { sheet: "req-new", params: { for: "order", orderId: order.id } } }]
+      : []),
     ...(order.can.remove ? [{ key: "remove", label: "Remove the order", tone: "bad" as const, requires: [ORDER_DELETE], do: { event: "remove" } }] : []),
   ],
   primary: orderPrimary,
@@ -542,6 +563,7 @@ export const orderKind: RecordKind<OrderView> = {
     ...(order.late ? [{ label: lateWords(order.late.days), tone: "bad" as const }] : []),
     ...(order.status === "DRAFT" ? [{ label: "Not sent", tone: "plain" as const }] : []),
     ...(order.status === "CLOSED" ? [{ label: "Closed short", tone: "plain" as const }] : []),
+    ...(order.requisition ? [REQUISITION_CHIP[order.requisition.status]] : []),
   ],
   figure: (order) =>
     order.status === "DRAFT"

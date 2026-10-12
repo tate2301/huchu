@@ -547,6 +547,11 @@ describe("the chain", () => {
       orderChased: "RETAIL_PURCHASE_ORDER.CHASED",
       orderRestCancelled: "RETAIL_PURCHASE_ORDER.REST_CANCELLED",
       messageReceived: "RETAIL_MESSAGE.RECEIVED",
+      requisitionAsked: "RETAIL_REQUISITION.ASKED",
+      requisitionApproved: "RETAIL_REQUISITION.APPROVED",
+      requisitionRejected: "RETAIL_REQUISITION.REJECTED",
+      requisitionQuestion: "RETAIL_REQUISITION.QUESTION",
+      requisitionCancelled: "RETAIL_REQUISITION.CANCELLED",
     });
   });
 });

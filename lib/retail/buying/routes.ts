@@ -6,6 +6,7 @@ import { canRetailSessionDo } from "@/lib/retail/permission-matrix";
 
 import { DeliveryRefusal } from "./deliveries";
 import { OrderRefusal } from "./orders";
+import { RequisitionRefusal } from "./requisitions";
 import { SupplierRefusal } from "./suppliers";
 import type { SupplierViewer } from "./supplier-view";
 
@@ -42,7 +43,7 @@ export function supplierViewer(session: Session): SupplierViewer {
 
 /** A refusal with its fields (400 "Validation failed", 409 under Name) or its sentence, else a 500 that says nothing was saved. */
 export function buyingFailure(error: unknown, where: string): NextResponse {
-  if (error instanceof SupplierRefusal || error instanceof OrderRefusal) {
+  if (error instanceof SupplierRefusal || error instanceof OrderRefusal || error instanceof RequisitionRefusal) {
     return error.fieldErrors ? fieldErrorResponse(error.message, error.fieldErrors, error.status) : errorResponse(error.message, error.status);
   }
   if (error instanceof DeliveryRefusal) return errorResponse(error.message, error.status);

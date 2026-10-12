@@ -105,26 +105,66 @@ export function cancelOrdersAsk(count: number): Ask {
   };
 }
 
-/** A requisition's "Cancel the requisition" (Record board, `ASKS.cancelreq`). */
+/**
+ * A requisition's "Cancel the requisition" (Record board, `ASKS.cancelreq`): for an order, or an expense
+ * (`whatFor`); when the asker cancels their own, those who were to approve it are told instead.
+ */
 export function cancelRequisitionAsk({
   ref,
   amount,
   currency = "USD",
-  orderRef,
+  orderRef = null,
+  whatFor = null,
   asker,
+  byAsker = false,
+  approver = null,
 }: {
   ref: string;
   amount: number;
   currency?: string;
-  orderRef: string;
+  orderRef?: string | null;
+  whatFor?: string | null;
   asker: string;
+  byAsker?: boolean;
+  /** Who it waits for (the owner approver), or null: the managers. */
+  approver?: string | null;
 }): Ask {
+  const what = orderRef ? `order ${orderRef}` : (whatFor ?? "it");
+  const told = byAsker
+    ? approver
+      ? `${approver}, who was to approve it, gets a message`
+      : "The managers, who were to approve it, get a message"
+    : `${asker}, who asked, gets a message`;
   return {
     title: `Cancel ${ref}?`,
-    body: `${formatMoney(amount, currency)} for order ${orderRef} is no longer asked for. ${asker}, who asked, gets a message, and the order goes back to unpaid. Nothing was paid out, so no cash moves.`,
+    body: `${formatMoney(amount, currency)} for ${what} is no longer asked for. ${told}${orderRef ? ", and the order goes back to unpaid" : ""}. Nothing was paid out, so no cash moves.`,
     keep: "Keep it",
     go: "Cancel the requisition",
     fill: "bad",
+  };
+}
+
+/** Bulk "Approve" on Requisitions (`approvemany`, **Defined here**): each at the amount asked; what a manager cannot approve is said. */
+export function approveManyAsk({
+  count,
+  total,
+  askers,
+  leftFor = [],
+}: {
+  count: number;
+  total: number;
+  askers: string[];
+  /** "REQ-0014 is over US$500.00 and is left for Tendai Mhlanga." */
+  leftFor?: string[];
+}): Ask {
+  const names = [...new Set(askers)];
+  const told = names.length === 0 ? "" : names.length === 1 ? ` ${names[0]} is told.` : ` ${names.slice(0, -1).join(", ")} and ${names.at(-1)} are told.`;
+  return {
+    title: `Approve ${plural(count, "requisition", "requisitions")}?`,
+    body: `${formatMoney(total)} in all, each at the amount asked.${told}${leftFor.length ? ` ${leftFor.join(" ")}` : ""}`,
+    keep: "Not yet",
+    go: `Approve ${formatCount(count)}`,
+    fill: "action",
   };
 }
 
@@ -216,6 +256,41 @@ export const BUYING_LIST_RUNS: Record<string, ListActionRun> = {
   },
   sendagain: {
     done: (_count, _rows, answer) => said(answer, "It is queued to send again."),
+  },
+  // Requisitions (5.8): the row's Approve, Cancel the requisition, and the bulk Approve.
+  approvereq: {
+    done: (_count, rows, answer) => said(answer, `${String(rows[0]?.requisitionNo ?? "It")} approved.`),
+  },
+  cancelreq: {
+    ask: (_count, rows) =>
+      cancelRequisitionAsk({
+        ref: String(rows[0]?.requisitionNo ?? "the requisition"),
+        amount: Number(rows[0]?.amount ?? 0),
+        currency: String(rows[0]?.currency ?? "USD"),
+        orderRef: rows[0]?.orderNo ? String(rows[0].orderNo) : null,
+        whatFor: rows[0]?.orderNo ? null : String(rows[0]?.purpose ?? "it").toLowerCase(),
+        asker: String(rows[0]?.askedBy ?? "The asker"),
+        byAsker: rows[0]?.mine === "yes",
+        approver: rows[0]?.approverName ? String(rows[0].approverName) : null,
+      }),
+    done: (_count, rows, answer) => said(answer, `${String(rows[0]?.requisitionNo ?? "It")} cancelled.`),
+  },
+  approvemany: {
+    ask: (count, rows) => {
+      const left = rows.filter((row) => row.decidable !== "yes");
+      const going = rows.filter((row) => row.decidable === "yes");
+      return approveManyAsk({
+        count: going.length || count,
+        total: going.reduce((sum, row) => sum + Number(row.amount ?? 0), 0),
+        askers: going.map((row) => String(row.askedBy ?? "")).filter(Boolean),
+        leftFor: left.map((row) => `${String(row.requisitionNo)} ${String(row.cannotWhy ?? "cannot be approved by you.")}`),
+      });
+    },
+    done: (_count, _rows, answer) => {
+      const skipped = (answer as { skipped?: unknown[] } | null)?.skipped ?? [];
+      const words = said(answer, "Approved.");
+      return skipped.length ? { title: words, variant: "warning" } : words;
+    },
   },
   removecontact: {
     method: "DELETE",
