@@ -2,6 +2,7 @@ import type { SheetKind } from "@/lib/workspace/sheet-kind";
 
 import { BUNDLE_SHEETS } from "./bundles";
 import { BUYING_SHEETS } from "./buying";
+import { CUSTOMER_SHEETS } from "./customers";
 import { FLOOR_SHEETS } from "./floor";
 import { PEOPLE_SHEETS } from "./people";
 import { PRICE_SHEETS } from "./prices";
@@ -32,4 +33,5 @@ export const SHEET_KINDS: Readonly<Record<string, SheetKind>> = {
   ...TILL_SHEETS,
   ...PEOPLE_SHEETS,
   ...BUYING_SHEETS,
+  ...CUSTOMER_SHEETS,
 };

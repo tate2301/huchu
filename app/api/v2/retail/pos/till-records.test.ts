@@ -30,7 +30,7 @@ const { GET: SALE } = await import("./sales/[id]/route");
 const { POST: REFUND } = await import("./sales/[id]/refund/route");
 const { POST: VOID } = await import("./sales/[id]/void/route");
 const { GET: ACTIVITY } = await import("./activity/route");
-const { GET: CUSTOMERS } = await import("../customers/search/route");
+const { GET: CUSTOMERS } = await import("./customers/route");
 
 const stamp = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 const slug = `tillrec-${stamp}`;
@@ -277,7 +277,7 @@ describe("my activity", () => {
 
 describe("a customer", () => {
   it("comes with their last sale, a voided one left out", async () => {
-    const answer = await CUSTOMERS(request(`customers/search?q=${encodeURIComponent(tapiwa)}`)).then(read);
+    const answer = await CUSTOMERS(request(`pos/customers?q=${encodeURIComponent(tapiwa)}`)).then(read);
     expect(answer.status).toBe(200);
     const [found] = answer.body.data as Array<{ id: string; lastSale: { saleNo: string; total: number; at: string } | null }>;
     expect(found.id).toBe(customerId);

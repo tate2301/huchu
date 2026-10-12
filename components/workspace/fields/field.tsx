@@ -26,6 +26,8 @@ export type FieldProps = Omit<React.ComponentProps<"div">, "children"> & {
   warn?: boolean;
   error?: string | null;
   nolabel?: boolean;
+  /** Under the hint or error: a way on from it ("Open Tapiwa Marange" under a number someone already has). */
+  after?: React.ReactNode;
   /** Use a given id instead of a generated one. */
   id?: string;
   children: (control: FieldControlProps) => React.ReactNode;
@@ -38,6 +40,7 @@ export function Field({
   warn = false,
   error,
   nolabel = false,
+  after,
   id,
   className,
   children,
@@ -70,6 +73,7 @@ export function Field({
           {hint}
         </span>
       ) : null}
+      {after}
     </div>
   );
 }

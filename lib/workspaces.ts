@@ -338,17 +338,8 @@ const WORKSPACE_MODULES: Record<WorkspaceModuleId, WorkspaceModuleDefinition> = 
     id: "crm",
     label: "CRM",
     homeHref: "/crm",
-    /**
-     * Two sections feed this module: the CRM proper and retail's customer
-     * ledger. The ledger is the stand-in for a tenant with `crm.customers` and
-     * no CRM: where the CRM proper is on, its People and Companies are the
-     * customers, and the ledger beside them was a second answer to "who do we
-     * deal with" sitting in an area of its own next to Home.
-     */
     getItems(context) {
-      const crm = context.navSectionById.get("crm")?.items ?? [];
-      if (crm.length > 0) return crm;
-      return context.navSectionById.get("retail-customers")?.items ?? [];
+      return context.navSectionById.get("crm")?.items ?? [];
     },
     getGroups(context) {
       return context.navSectionById.get("crm")?.groups;

@@ -362,27 +362,6 @@ describe("primary quick actions", () => {
 });
 
 describe("workspace sidebar model", () => {
-  it("shows CRM navigation when only CRM customers is enabled", () => {
-    const model = getWorkspaceSidebarModel({
-      role: "MANAGER",
-      enabledFeatures: ["crm.customers"],
-      workspaceProfile: "GENERAL",
-    });
-    const hrefs = model.sections.flatMap((section) => section.items.map((item) => item.href));
-    expect(hrefs).toContain("/retail/customers");
-  });
-
-  it("leaves the retail ledger out once the CRM proper is on", () => {
-    const model = getWorkspaceSidebarModel({
-      role: "MANAGER",
-      enabledFeatures: templateFeatures("TEMPLATE_CORE_STARTER").concat(["crm.customers", "crm.core"]),
-      workspaceProfile: "GENERAL",
-    });
-    const hrefs = model.sections.flatMap((section) => section.items.map((item) => item.href));
-    expect(hrefs).toContain("/crm");
-    expect(hrefs).not.toContain("/retail/customers");
-  });
-
   it("general business sidebar contains no mining hrefs anywhere", () => {
     const model = getWorkspaceSidebarModel({
       role: "MANAGER",
@@ -616,7 +595,7 @@ describe("route gating", () => {
   it("gates retail customer surfaces behind CRM", () => {
     expect(resolveFeatureKeyForPath("/retail/customers")).toBe("crm.customers");
     expect(resolveFeatureKeyForPath("/portal/pos/customers")).toBe("crm.customers");
-    expect(resolveFeatureKeyForPath("/api/v2/retail/customers/search")).toBe("crm.customers");
+    expect(resolveFeatureKeyForPath("/api/v2/retail/customers")).toBe("crm.customers");
   });
 
   /**

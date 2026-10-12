@@ -67,7 +67,7 @@ import type {
   CartItem,
   CompletedSale,
   CurrentShift,
-  CustomerLookupResult,
+  PosCustomer,
   PaymentRow,
   PosCatalogItem,
   SaleRefusal,
@@ -266,7 +266,7 @@ function useTillStateValue({ isPosHost, paired }: { isPosHost: boolean; paired: 
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [customerName, setCustomerNameRaw] = useState("");
-  const [selectedCustomer, setSelectedCustomer] = useState<CustomerLookupResult | null>(null);
+  const [selectedCustomer, setSelectedCustomer] = useState<PosCustomer | null>(null);
   const [pointsToSpend, setPointsToSpend] = useState("");
   const [payments, setPayments] = useState<PaymentRow[]>([CASH_ROW]);
   const [orderDiscountAmount, setOrderDiscountAmount] = useState("");
@@ -278,7 +278,7 @@ function useTillStateValue({ isPosHost, paired }: { isPosHost: boolean; paired: 
   const [saleRefusal, setSaleRefusal] = useState<SaleRefusal | null>(null);
   const [queuedOfflineSales, setQueuedOfflineSales] = useState<PosQueuedSale[]>([]);
   const [syncOfflineSalesPending, setSyncOfflineSalesPending] = useState(false);
-  const [offlineCustomerResults, setOfflineCustomerResults] = useState<CustomerLookupResult[]>([]);
+  const [offlineCustomerResults, setOfflineCustomerResults] = useState<PosCustomer[]>([]);
   const [cashDropAsked, setCashDropAsked] = useState<string | null>(null);
 
   /* ── The device ─────────────────────────────────────────────────────── */
@@ -351,7 +351,7 @@ function useTillStateValue({ isPosHost, paired }: { isPosHost: boolean; paired: 
   const customerSearchQuery = useQuery({
     queryKey: ["retail-pos-customer-search", customerSearch],
     queryFn: () =>
-      fetchJson<{ data: CustomerLookupResult[] }>(`/api/v2/retail/customers/search?q=${encodeURIComponent(customerSearch)}&limit=8`),
+      fetchJson<{ data: PosCustomer[] }>(`/api/v2/retail/pos/customers?q=${encodeURIComponent(customerSearch)}&limit=8`),
     enabled: customerSearch.length >= 2 && !selectedCustomer,
     staleTime: 15_000,
   });
@@ -413,7 +413,7 @@ function useTillStateValue({ isPosHost, paired }: { isPosHost: boolean; paired: 
       siteId,
       orderDiscountAmount: Number(orderDiscountAmount || "0"),
       // A member on the sale while loyalty is on gets the loyalty members' promotions (D-3), as the server does.
-      customer: { loyalty: Boolean(context?.loyalty.on) && Boolean(selectedCustomer) },
+      customer: { loyalty: Boolean(context?.loyalty.on) && Boolean(selectedCustomer), staff: Boolean(selectedCustomer?.staff) },
     });
     // The till rings no fixed set yet (FLR-10), so a bundle refusal cannot arise here.
     if ("error" in sale) throw new Error(sale.error);
@@ -444,7 +444,7 @@ function useTillStateValue({ isPosHost, paired }: { isPosHost: boolean; paired: 
         ? SPENDING_NEEDS_THE_INTERNET
         : spendRefusal({
             enabled: Boolean(loyaltyRules?.on),
-            customer: selectedCustomer ? { name: selectedCustomer.name, balance: selectedCustomer.loyaltyPoints } : null,
+            customer: selectedCustomer ? { name: selectedCustomer.name, balance: selectedCustomer.points } : null,
             points: pointsWanted,
             spendFrom: loyaltyRules?.spendFrom ?? 0,
             pointValue: loyaltyRules?.pointValue ?? 0,
@@ -673,7 +673,6 @@ function useTillStateValue({ isPosHost, paired }: { isPosHost: boolean; paired: 
       customerId: selectedCustomer?.id ?? undefined,
       customerName: selectedCustomer?.name ?? (customerName.trim() || undefined),
       customerPhone: selectedCustomer?.phone ?? undefined,
-      customerEmail: selectedCustomer?.email ?? undefined,
       pointsToSpend: pointsOff > 0 ? pointsWanted : undefined,
       discountAmount: Number(orderDiscountAmount || "0") || undefined,
       overrideReason: reason?.trim() || undefined,
@@ -843,7 +842,7 @@ function useTillStateValue({ isPosHost, paired }: { isPosHost: boolean; paired: 
       if (selectedCustomer) setSelectedCustomer(null);
     },
     selectedCustomer,
-    selectCustomer: (customer: CustomerLookupResult | null) => {
+    selectCustomer: (customer: PosCustomer | null) => {
       setSelectedCustomer(customer);
       setCustomerNameRaw(customer?.name ?? "");
       if (!customer) setPointsToSpend("");

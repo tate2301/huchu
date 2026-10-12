@@ -382,13 +382,30 @@ function saleRail(sale: SaleView): RailGroup[] {
   }
   groups.push({
     title: "Sale",
-    // The board's hint sits here, beside the customer it is for, though Customer is read-only until CUS-02.
+    // The board's hint sits here, beside the customer it is for.
     hint: true,
     rows: [
       { key: "till", label: "Till", value: sale.till.name },
       { key: "cashier", label: "Cashier", value: sale.cashier.name },
-      // Editable once customers land (CUS-02); until then the name as rung.
-      { key: "customer", label: "Customer", value: sale.customer?.name ?? sale.customerName ?? "Walk-in" },
+      // D-5 (CUS-02): picked from the customers; a past sale earns their points when one is added.
+      {
+        key: "customer",
+        label: "Customer",
+        value: sale.customer?.name ?? sale.customerName ?? "Walk-in",
+        muted: !sale.customer && !sale.customerName,
+        ...(sale.can.update
+          ? {
+              edit: {
+                field: "customerId",
+                type: "auto" as const,
+                initial: sale.customer?.id ?? "",
+                lookup: { noun: "customer", picked: sale.customer ? { id: sale.customer.id, label: sale.customer.name } : null },
+                parse: (value: string) => value || null,
+                requires: [...SELL_UPDATE] as ["retail.sell", "update"],
+              },
+            }
+          : {}),
+      },
       { key: "price-list", label: "Price list", value: sale.priceList },
     ],
   });
@@ -487,6 +504,17 @@ export const saleKind: RecordKind<SaleView> = {
     sendAction(sale),
   ],
   more: (sale) => [
+    // D-5 (CUS-02): the sale-customer sheet.
+    ...(sale.can.update
+      ? [
+          {
+            key: "customer",
+            label: sale.customer ? "Change the customer" : "Add a customer to it",
+            requires: [[...SELL_UPDATE] as ["retail.sell", "update"]],
+            do: { sheet: "sale-customer", id: sale.id },
+          },
+        ]
+      : []),
     { key: "pdf", label: "Export as PDF", requires: SALES_READ, do: { download: `/api/v2/retail/records/RetailSale/${sale.id}/pdf` } },
     ...(sale.review && !sale.review.reviewedAt
       ? [

@@ -203,3 +203,4 @@ thead .sf-roles__record { font-size: 13px; color: var(--ink-3); font-weight: 400
 .sf-roles__limit a:hover { text-decoration: underline; }
 /* With a head link the header grows to hold it under the sub. */
 .cx-sheet__head:has(.sf-head__link) { height: auto; min-height: 64px; padding-top: 12px; padding-bottom: 12px; }
+.sf-field-link { color: var(--ink); font-weight: 500; text-decoration: underline; text-decoration-color: var(--line-strong); text-underline-offset: 3px; }

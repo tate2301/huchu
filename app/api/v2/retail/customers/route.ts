@@ -1,282 +1,48 @@
 import { NextRequest, NextResponse } from "next/server";
-import { Prisma } from "@prisma/client";
 import { z } from "zod";
-import { errorResponse, successResponse } from "@/lib/api-response";
-import { money, sumMoney, toNumberOrZero } from "@/lib/money";
+
+import { markActivityFailed } from "@/lib/activity/context";
+import { errorResponse, fieldErrorResponse, successResponse } from "@/lib/api-response";
 import { prisma } from "@/lib/prisma";
-import { newCustomerNumbers } from "@/lib/retail/customers/numbers";
-import { normalizePhone } from "@/lib/retail/customers/phone";
-import { loadLoyaltySettings } from "@/lib/retail/loyalty/settings";
-import { tierFor } from "@/lib/retail/loyalty/tiers";
-import { todayIn } from "@/lib/workspace/format";
+import { createCustomer, CustomerRefusal, customerInput } from "@/lib/retail/customers/create";
 import { requireRetailPermission } from "@/lib/retail/permissions";
-import { parseRetailQuery, retailOffsetQuery, slicePage } from "@/lib/retail/request";
 import { requireRetailSession } from "../_helpers";
 
 /**
- * R-3.1/R-3.2. The list is an aggregate over sales, not a table.
- *
- * So it pages by offset rather than by cursor: there is no row id to cursor on,
- * because the rows do not exist until this handler has built them. `scanLimit`
- * is the window it aggregates over, and it is reported back — a shop looking at
- * page four should be able to tell whether it is seeing the tail of the list or
- * the edge of the scan.
+ * Add a customer (CUS-02, W-45): `{ phone, name, marketingConsent?,
+ * dateOfBirth?, area?, via? }` → 201 `{ data: { id, code, name, phone, cardNo } }`.
+ * The same service the till (`via: "till"`) and a customer field's quick add
+ * use. A number a live customer already has is a 409 naming them
+ * (`existing`), never an update of that customer.
  */
-const customerListQuery = retailOffsetQuery.extend({
-  search: z.string().trim().max(120).optional(),
-  scanLimit: z.coerce.number().int().min(100).max(20_000).optional(),
-});
-
-export async function GET(request: NextRequest) {
-  const { response, session } = await requireRetailSession(request);
-  if (response || !session) {
-    return response as NextResponse;
-  }
-
-  // R-2.3. The customer list is a selling tool: loyalty is applied mid-sale, so
-  // a cashier needs it. A stock clerk does not — knowing who shops here is not
-  // part of counting what is on the shelf.
-  const gate = requireRetailPermission(session, "retail.customers", "view");
-  if (gate) return gate;
-
-  const query = parseRetailQuery(request, customerListQuery);
-  if (query.response) return query.response;
-  const search = query.data.search?.toLowerCase() ?? "";
-  const scanLimit = query.data.scanLimit ?? 2_500;
-
-  const sales = await prisma.retailSale.findMany({
-    where: {
-      companyId: session.user.companyId,
-      status: "POSTED",
-      customerName: { not: null },
-    },
-    select: {
-      saleNo: true,
-      saleType: true,
-      customerName: true,
-      totalAmount: true,
-      postedAt: true,
-      createdAt: true,
-    },
-    orderBy: [{ postedAt: "desc" }, { createdAt: "desc" }],
-    take: scanLimit,
-  });
-
-  /*
-    R-1.1, arriving late.
-
-    `totalSpend` was a `number` accumulated with `+=` and rendered with
-    `Number(x.toFixed(2))` — the exact helper R-1.1 deleted from `_helpers.ts`,
-    reintroduced here where nobody looked. A regular's spend is a sum of
-    hundreds of receipts, which is where float drift shows first, and it feeds
-    `loyaltyPoints` and therefore the tier the counter offers them.
-
-    `Prisma.Decimal` throughout; it becomes a number once, on the way out.
-  */
-  const buckets = new Map<
-    string,
-    {
-      customerId: string | null;
-      customerName: string;
-      visits: number;
-      amounts: Prisma.Decimal[];
-      lastPurchaseAt: Date;
-      lastSaleNo: string;
-    }
-  >();
-
-  for (const sale of sales) {
-    const name = sale.customerName?.trim() ?? "";
-    if (!name || name.toLowerCase() === "walk-in") continue;
-    const key = name.toLowerCase();
-    if (search && !key.includes(search)) continue;
-
-    const postedAt = sale.postedAt ?? sale.createdAt;
-    const current = buckets.get(key);
-    // A reversal already carries a negative `totalAmount`, so netting is a sum.
-    const netDelta = money(sale.totalAmount);
-    if (!current) {
-      buckets.set(key, {
-        customerId: null,
-        customerName: name,
-        visits: sale.saleType === "SALE" ? 1 : 0,
-        amounts: [netDelta],
-        lastPurchaseAt: postedAt,
-        lastSaleNo: sale.saleNo,
-      });
-      continue;
-    }
-    current.amounts.push(netDelta);
-    if (sale.saleType === "SALE") {
-      current.visits += 1;
-    }
-    if (postedAt.getTime() > current.lastPurchaseAt.getTime()) {
-      current.lastPurchaseAt = postedAt;
-      current.lastSaleNo = sale.saleNo;
-    }
-  }
-
-  const customerNames = [...buckets.values()].map((entry) => entry.customerName);
-  if (customerNames.length > 0) {
-    const customers = await prisma.customer.findMany({
-      where: {
-        companyId: session.user.companyId,
-        isActive: true,
-        name: { in: customerNames },
-      },
-      select: { id: true, name: true },
-    });
-    const customerMap = new Map(customers.map((customer) => [customer.name.toLowerCase(), customer.id]));
-    for (const [key, value] of buckets.entries()) {
-      value.customerId = customerMap.get(key) ?? null;
-    }
-  }
-
-  // CUS-01: points off the ledger, the tier by the customer's spend in 12 months.
-  const ids = [...buckets.values()].map((row) => row.customerId).filter((id): id is string => Boolean(id));
-  const now = new Date();
-  const [settings, balances, spends] = await Promise.all([
-    loadLoyaltySettings(session.user.companyId),
-    ids.length
-      ? prisma.retailPointsEntry.groupBy({ by: ["customerId"], where: { customerId: { in: ids } }, _sum: { points: true } })
-      : Promise.resolve([]),
-    ids.length
-      ? prisma.retailSale.groupBy({
-          by: ["customerId"],
-          where: {
-            companyId: session.user.companyId,
-            customerId: { in: ids },
-            saleType: { in: ["SALE", "REFUND", "VOID"] },
-            postedAt: { gte: new Date(now.getTime() - 365 * 86_400_000), lte: now },
-          },
-          _sum: { baseAmount: true },
-        })
-      : Promise.resolve([]),
-  ]);
-  const balanceOf = new Map(balances.map((row) => [row.customerId, row._sum.points ?? 0]));
-  const spendOf = new Map(spends.map((row) => [row.customerId, toNumberOrZero(row._sum.baseAmount)]));
-  const today = todayIn(undefined, now);
-
-  const all = [...buckets.values()]
-    .map((row) => {
-      const totalSpend = sumMoney(row.amounts);
-      const loyaltyPoints = row.customerId ? balanceOf.get(row.customerId) ?? 0 : 0;
-      return {
-        customerId: row.customerId,
-        customerName: row.customerName,
-        visits: row.visits,
-        totalSpend: toNumberOrZero(totalSpend),
-        lastPurchaseAt: row.lastPurchaseAt,
-        lastSaleNo: row.lastSaleNo,
-        loyaltyPoints,
-        loyaltyTier: row.customerId ? tierFor({ spend12m: spendOf.get(row.customerId) ?? 0, settings, held: null, today }) ?? "" : "",
-      };
-    })
-    .sort((a, b) => b.totalSpend - a.totalSpend);
-
-  const page = slicePage(all, query.data, 100);
-
-  return successResponse({
-    data: page.rows,
-    page: {
-      limit: page.limit,
-      offset: page.offset,
-      total: page.total,
-      hasMore: page.hasMore,
-      // What the aggregate was built from. `scanned === scanLimit` means the
-      // window is full and there may be older custom this list has not seen.
-      scanned: sales.length,
-      scanLimit,
-    },
-    summary: {
-      // Across every customer found, not just this page — the count of a shop's
-      // regulars should not change when somebody turns to page two.
-      namedCustomerCount: all.length,
-      totalLoyaltyPoints: all.reduce((sum, row) => sum + row.loyaltyPoints, 0),
-    },
-  });
-}
-
-const createCustomerSchema = z.object({
-  name: z.string().min(1).max(200),
-  phone: z.string().max(40).optional().nullable(),
-  email: z.string().email().max(200).optional().nullable(),
-});
-
 export async function POST(request: NextRequest) {
   const { response, session } = await requireRetailSession(request);
-  if (response || !session) {
-    return response as NextResponse;
-  }
-
+  if (response || !session) return response as NextResponse;
   const gate = requireRetailPermission(session, "retail.customers", "create");
   if (gate) return gate;
 
+  const parsed = customerInput.safeParse(await request.json().catch(() => null));
+  if (!parsed.success) return errorResponse("Validation failed", 400, parsed.error.issues);
+
+  const actor = {
+    companyId: session.user.companyId,
+    userId: session.user.id,
+    userName: session.user.name,
+    userRole: session.user.role,
+  };
   try {
-    const body = await request.json();
-    const input = createCustomerSchema.parse(body);
-    const normalizedName = input.name.trim();
-    const normalizedPhone = normalizePhone(input.phone);
-    const normalizedEmail = input.email?.trim().toLowerCase() || null;
-
-    const existing = await prisma.customer.findFirst({
-      where: {
-        companyId: session.user.companyId,
-        isActive: true,
-        OR: [
-          ...(normalizedPhone ? [{ phone: normalizedPhone }] : []),
-          ...(normalizedEmail ? [{ email: normalizedEmail }] : []),
-          { name: { equals: normalizedName, mode: "insensitive" } },
-        ],
-      },
-      select: {
-        id: true,
-        name: true,
-        phone: true,
-        email: true,
-      },
-    });
-
-    if (existing) {
-      const updated = await prisma.customer.update({
-        where: { id: existing.id },
-        data: {
-          ...(existing.name !== normalizedName ? { name: normalizedName } : {}),
-          ...(normalizedPhone && existing.phone !== normalizedPhone ? { phone: normalizedPhone } : {}),
-          ...(normalizedEmail && existing.email !== normalizedEmail ? { email: normalizedEmail } : {}),
-        },
-        select: {
-          id: true,
-          name: true,
-          phone: true,
-          email: true,
-        },
-      });
-      return successResponse({ data: updated });
-    }
-
-    const created = await prisma.customer.create({
-      data: {
-        companyId: session.user.companyId,
-        ...(await newCustomerNumbers(prisma, session.user.companyId)),
-        name: normalizedName,
-        phone: normalizedPhone,
-        email: normalizedEmail,
-        createdById: session.user.id,
-      },
-      select: {
-        id: true,
-        name: true,
-        phone: true,
-        email: true,
-      },
-    });
-    return successResponse({ data: created }, 201);
+    const data = await prisma.$transaction((tx) => createCustomer(tx, actor, parsed.data));
+    return successResponse({ data }, 201);
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      return errorResponse("Validation failed", 400, error.issues);
+    if (error instanceof CustomerRefusal) {
+      if (!error.existing) return fieldErrorResponse(error.message, error.fieldErrors, error.status);
+      markActivityFailed();
+      return NextResponse.json(
+        { error: error.message, fieldErrors: error.fieldErrors, ...(error.existing ? { existing: error.existing } : {}) },
+        { status: error.status },
+      );
     }
-    if (error instanceof Error && error.message === "Customer phone number looks invalid.") return errorResponse(error.message, 400);
-    return errorResponse("Failed to create customer", 500);
+    if (error instanceof z.ZodError) return errorResponse("Validation failed", 400, error.issues);
+    throw error;
   }
 }

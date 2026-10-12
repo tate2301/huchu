@@ -661,18 +661,6 @@ export const navSections: NavSection[] = [
     items: RETAIL_NAV_ITEMS,
   },
   {
-    // Retail's customer ledger, not the CRM module. It used to share the id
-    // "crm" with it, and since section lookups are built from this array the
-    // later entry silently won.
-    id: "retail-customers",
-    title: "Customers",
-    description: "Customer profiles, loyalty, and ledgers",
-    featureKey: "crm.customers",
-    items: [
-      { href: "/retail/customers", icon: Users, label: "Customers" },
-    ],
-  },
-  {
     id: "gold",
     title: "Gold Operations",
     description: "Production, settlement, and control tasks",

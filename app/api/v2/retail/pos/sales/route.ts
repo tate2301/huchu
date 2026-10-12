@@ -6,6 +6,7 @@ import { atLeast, money, sumMoney, toNumber, toNumberOrZero } from "@/lib/money"
 import { prisma } from "@/lib/prisma";
 import { newCustomerNumbers } from "@/lib/retail/customers/numbers";
 import { normalizePhone } from "@/lib/retail/customers/phone";
+import { isStaffPhone } from "@/lib/retail/customers/stats";
 import { balance } from "@/lib/retail/loyalty/ledger";
 import { loadLoyaltySettings } from "@/lib/retail/loyalty/settings";
 import {
@@ -791,7 +792,11 @@ export async function POST(request: NextRequest) {
       siteId: site.id,
       orderDiscountAmount: input.discountAmount ?? 0,
       voucher: discountVoucher,
-      customer: { loyalty: loyalty.enabled && saleCustomer !== null },
+      customer: {
+        loyalty: loyalty.enabled && saleCustomer !== null,
+        // D-3 (CUS-02): a customer on the number of one of the shop's people buys at staff prices.
+        staff: saleCustomer ? await isStaffPhone(session.user.companyId, saleCustomer.phone) : false,
+      },
     });
     if ("error" in priced) {
       return errorResponse(priced.error, 400);

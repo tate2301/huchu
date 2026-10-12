@@ -128,6 +128,7 @@ export function SheetField({
   const label = field.lw?.(values) ?? field.l;
   const tone = typeof field.tone === "function" ? field.tone(values) : field.tone;
   const qr = field.qr?.(values) ?? null;
+  const link = field.link?.(values) ?? null;
 
   if (t === "toggle") {
     return (
@@ -154,6 +155,13 @@ export function SheetField({
       warn={warn}
       error={error}
       nolabel={nolabel}
+      after={
+        link ? (
+          <a className="cx-hint sf-field-link" href={link.href}>
+            {link.label}
+          </a>
+        ) : null
+      }
       data-field={field.id}
     >
       {(control) => {

@@ -61,6 +61,8 @@ afterAll(async () => {
   await prisma.product.deleteMany({ where: { companyId } });
   await prisma.retailPromotion.deleteMany({ where: { companyId } });
   await prisma.retailCategory.deleteMany({ where: { companyId } });
+  await prisma.retailSale.deleteMany({ where: { companyId } });
+  await prisma.customer.deleteMany({ where: { companyId } });
   await prisma.site.deleteMany({ where: { companyId } });
   await prisma.company.deleteMany({ where: { id: companyId } });
 });
@@ -307,5 +309,48 @@ describe("gone for good", () => {
     expect(
       await prisma.platformAuditEvent.count({ where: { companyId, entityId: id, eventType: "RETAIL_RECORD.PURGED" } }),
     ).toBe(1);
+  });
+});
+
+describe("a customer in the bin (CUS-02)", () => {
+  const customer = async (name: string, phone: string) =>
+    (await prisma.customer.create({ data: { companyId, name, phone }, select: { id: true } })).id;
+
+  it("moves them out of every list, names them by their number, and brings them back", async () => {
+    const id = await customer("Blessing Ncube", "+263736402219");
+    await moveToBin(actor(), { kind: "customer", id });
+    expect(await prisma.customer.findUniqueOrThrow({ where: { id }, select: { archivedAt: true, isActive: true } })).toMatchObject({ isActive: false });
+    expect((await listBinEntries(companyId)).find((entry) => entry.id === id)).toMatchObject({
+      label: "Customer",
+      name: "Blessing Ncube, +263 73 640 2219",
+      binnedBy: "Tafara Nyathi",
+    });
+    await restoreFromBin(actor(), { kind: "customer", id });
+    expect(await prisma.customer.findUniqueOrThrow({ where: { id }, select: { archivedAt: true, isActive: true } })).toEqual({ archivedAt: null, isActive: true });
+  });
+
+  it("keeps them in the bin while another live customer has their number", async () => {
+    const id = await customer("Simba Nkomo", "+263715540912");
+    await moveToBin(actor(), { kind: "customer", id });
+    await customer("Simba N.", "+263715540912");
+    expect(await refusal(restoreFromBin(actor(), { kind: "customer", id }))).toEqual({
+      status: 409,
+      message: "Simba N. has this number now. Change one of them first.",
+    });
+  });
+
+  it("deletes one nothing refers to, and keeps one with a sale", async () => {
+    const owner = { companyId, userId: "00000000-0000-0000-0000-0000000000bb", userName: "Tendai Mhlanga", userRole: "SUPERADMIN" };
+    const nobody = await customer("Kudzai Zhou", "+263771056672");
+    const shopper = await customer("Munashe Chari", "+263779881043");
+    const siteId = (await prisma.site.findFirstOrThrow({ where: { companyId }, select: { id: true } })).id;
+    await prisma.retailSale.create({
+      data: { companyId, saleNo: `T-${stamp}-cus`, siteId, customerId: shopper, totalAmount: "12.00", baseAmount: "12.00", postedAt: new Date() },
+    });
+    await moveToBin(actor(), { kind: "customer", id: nobody });
+    await moveToBin(actor(), { kind: "customer", id: shopper });
+    expect(await deleteFromBinForGood(owner, [{ kind: "customer", id: nobody }, { kind: "customer", id: shopper }])).toEqual({ deleted: 1, kept: 1 });
+    expect(await prisma.customer.count({ where: { id: nobody } })).toBe(0);
+    expect(await prisma.customer.count({ where: { id: shopper } })).toBe(1);
   });
 });

@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { BIN_KEEP_DAYS, restorableUntil } from "@/lib/retail/asks";
 import { auditRecordBin, auditRecordPurged, RETAIL_AUDIT_EVENTS, type RetailAuditActor } from "@/lib/retail/audit";
 import { categoryBinRefusal, restoreCategory } from "@/lib/retail/categories";
+import { phoneDisplay } from "@/lib/retail/people/words";
 import { checkProductUnique, lockProductNames, ProductRefusal } from "@/lib/retail/products/create";
 import type { RetailAction, RetailResource } from "@/lib/retail/permission-matrix";
 
@@ -28,7 +29,7 @@ import type { RetailAction, RetailResource } from "@/lib/retail/permission-matri
  * `KINDS`.
  */
 
-export const BIN_KINDS = ["product", "promotion", "category", "price-list", "bundle"] as const;
+export const BIN_KINDS = ["product", "promotion", "category", "price-list", "bundle", "customer"] as const;
 export type BinKind = (typeof BIN_KINDS)[number];
 
 type Tx = Prisma.TransactionClient;
@@ -304,7 +305,69 @@ const KINDS: Record<BinKind, BinKindSpec> = {
         })
       ).map((row) => ({ companyId: row.companyId, id: row.id, name: row.name, reference: row.code, binnedAt: row.archivedAt! })),
   },
+  customer: {
+    kind: "customer",
+    label: "Customer",
+    entityType: "Customer",
+    deleteRight: ["retail.customers", "delete"],
+    viewRight: ["retail.customers", "view"],
+    openKey: "customerId",
+    binEvents: [RETAIL_AUDIT_EVENTS.recordBinned],
+    find: async (tx, companyId, id) => {
+      const row = await tx.customer.findFirst({ where: { id, companyId }, select: { name: true, phone: true, archivedAt: true } });
+      return row ? { name: customerBinName(row), archivedAt: row.archivedAt } : null;
+    },
+    // Off every list, lookup and the till's search; their sales, points and messages stay (CUS-02).
+    // Refusals for an open lay-by (packet 58) and money owed on account (packet 66) join here.
+    move: async (tx, companyId, id, at) => {
+      await tx.customer.updateMany({ where: { id, companyId }, data: { archivedAt: at, isActive: false } });
+      return null;
+    },
+    // Back, unless a live customer has taken their number since.
+    restore: async (tx, companyId, id) => {
+      const customer = await tx.customer.findFirst({ where: { id, companyId }, select: { phone: true } });
+      if (!customer) return null;
+      if (customer.phone) {
+        const holder = await tx.customer.findFirst({
+          where: { companyId, phone: customer.phone, archivedAt: null, mergedIntoId: null, id: { not: id } },
+          select: { name: true },
+        });
+        if (holder) return `${holder.name} has this number now. Change one of them first.`;
+      }
+      await tx.customer.updateMany({ where: { id, companyId }, data: { archivedAt: null, isActive: true } });
+      return null;
+    },
+    // Kept while anything refers to them: a sale, points, a note, a voucher, empties, an invoice, a quotation or a CRM client.
+    purge: async (tx, companyId, id) => {
+      const counts = await Promise.all([
+        tx.retailSale.count({ where: { customerId: id } }),
+        tx.retailPointsEntry.count({ where: { customerId: id } }),
+        tx.retailCustomerNote.count({ where: { customerId: id } }),
+        tx.retailVoucher.count({ where: { customerId: id } }),
+        tx.retailEmptiesEntry.count({ where: { customerId: id } }),
+        tx.salesInvoice.count({ where: { customerId: id } }),
+        tx.salesQuotation.count({ where: { customerId: id } }),
+        tx.crmClient.count({ where: { customerId: id } }),
+        tx.customer.count({ where: { mergedIntoId: id } }),
+      ]);
+      if (counts.some((count) => count > 0)) return "kept";
+      await tx.customer.deleteMany({ where: { id, companyId } });
+      return "deleted";
+    },
+    listBinned: async (where) =>
+      (
+        await prisma.customer.findMany({
+          where: binnedWhere(where),
+          select: { companyId: true, id: true, name: true, phone: true, code: true, archivedAt: true },
+        })
+      ).map((row) => ({ companyId: row.companyId, id: row.id, name: customerBinName(row), reference: row.code, binnedAt: row.archivedAt! })),
+  },
 };
+
+/** "Tapiwa Marange, +263 77 412 3388": a customer as the bin names them. */
+function customerBinName(row: { name: string; phone: string | null }): string {
+  return row.phone ? `${row.name}, ${phoneDisplay(row.phone)}` : row.name;
+}
 
 export function binKind(kind: BinKind): BinKindSpec {
   return KINDS[kind];

@@ -324,6 +324,11 @@ export const RETAIL_AUDIT_EVENTS = {
   pointsExpired: "RETAIL_POINTS.EXPIRED",
   /** The birthday bonus given by the retail worker (CUS-01). Entity `Customer`; carries `{ points }`. */
   pointsBirthday: "RETAIL_POINTS.BIRTHDAY",
+  /**
+   * A customer added (CUS-02, W-45): from Customers, at the till or from a customer field's quick add.
+   * Entity `Customer`; carries `{ code, name, consent, via: "sheet" | "till" | "lookup" }`.
+   */
+  customerCreated: "RETAIL_CUSTOMER.CREATED",
 } as const;
 
 export type RetailAuditEvent =

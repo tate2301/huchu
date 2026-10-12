@@ -11,17 +11,12 @@ import { useQuery } from "@tanstack/react-query";
 
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { Barcode, MagnifyingGlass, Plus, ShoppingCart, Tag, Users } from "@/lib/icons";
-import { pointsValue } from "@/lib/retail/loyalty/spend";
 import { getPosPortalHref } from "@/lib/retail/pos-host";
 import { count, dayMonth, firstName, qty, usd, whole } from "./format";
 import { Avatar, Empty } from "./parts";
 import { useTill } from "./state";
 import { ProductPreview } from "./tile";
-import type { CustomerLookupResult, PosCatalogItem } from "./types";
-
-
-/** A customer as `customers/search` answers here: with their last sale at the shop, whoever rang it. */
-type CustomerRow = CustomerLookupResult & { lastSale: { saleNo: string; total: number; at: string } | null };
+import type { PosCatalogItem, PosCustomer } from "./types";
 
 /** "today", else "on 3 October". */
 const onDay = (at: string) => (dayMonth(at) === dayMonth(new Date()) ? "today" : `on ${dayMonth(at)}`);
@@ -40,13 +35,13 @@ function useTyped(delay = 250) {
 
 export function CustomersScreen() {
   const router = useRouter();
-  const { selectCustomer, isPosHost, loyaltyRules } = useTill();
+  const { selectCustomer, isPosHost } = useTill();
   const search = useTyped();
   const [selectedId, setSelectedId] = React.useState<string | null>(null);
   const query = useQuery({
     queryKey: ["retail-pos-customer-search", search.value],
     enabled: search.value.length >= 2,
-    queryFn: () => fetchJson<{ data: CustomerRow[] }>(`/api/v2/retail/customers/search?q=${encodeURIComponent(search.value)}&limit=30`),
+    queryFn: () => fetchJson<{ data: PosCustomer[] }>(`/api/v2/retail/pos/customers?q=${encodeURIComponent(search.value)}&limit=30`),
   });
   const rows = query.data?.data ?? [];
   const selected = rows.find((row) => row.id === selectedId) ?? rows[0] ?? null;
@@ -59,7 +54,7 @@ export function CustomersScreen() {
           <div className="end">
             <label className="input-wrap is-search">
               <MagnifyingGlass className="ic" />
-              <input type="search" aria-label="Search customers" placeholder="Name or phone" autoComplete="off" autoFocus value={search.typed} onChange={(event) => search.setTyped(event.target.value)} />
+              <input type="search" aria-label="Search customers" placeholder="Name, phone or card" autoComplete="off" autoFocus value={search.typed} onChange={(event) => search.setTyped(event.target.value)} />
             </label>
           </div>
         </div>
@@ -95,8 +90,8 @@ export function CustomersScreen() {
                     <span className="truncate">
                       <span className="ink">{row.name}</span> <span className="muted num">{row.phone ?? ""}</span>
                     </span>
-                    <span className="muted">{row.loyaltyTier}</span>
-                    <span className="num">{whole(row.loyaltyPoints)}</span>
+                    <span className="muted">{row.tier}</span>
+                    <span className="num">{whole(row.points)}</span>
                   </button>
                 ))}
               </div>
@@ -120,7 +115,7 @@ export function CustomersScreen() {
                 <div>
                   <div className="title-16">{selected.name}</div>
                   <div className="note num text-left">
-                    {selected.phone ?? selected.email ?? ""}
+                    {selected.phone ?? ""}
                   </div>
                 </div>
               </div>
@@ -138,15 +133,15 @@ export function CustomersScreen() {
             </section>
             <section>
               <div className="sec-title">Points</div>
-              <div className="figure">{whole(selected.loyaltyPoints)}</div>
+              <div className="figure">{whole(selected.points)}</div>
               <dl className="attrs">
                 <dt>Worth</dt>
                 <dd className="num text-left">
-                  {usd(pointsValue(selected.loyaltyPoints, loyaltyRules?.pointValue ?? 0))}
+                  {usd(selected.worth)}
                 </dd>
                 <dt>Tier</dt>
                 <dd>
-                  {selected.loyaltyTier || "None"}
+                  {selected.tier || "None"}
                 </dd>
                 <dt>Last sale</dt>
                 <dd>

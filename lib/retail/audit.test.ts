@@ -528,6 +528,7 @@ describe("the chain", () => {
       emptiesCredited: "RETAIL_EMPTIES.CREDITED",
       pointsExpired: "RETAIL_POINTS.EXPIRED",
       pointsBirthday: "RETAIL_POINTS.BIRTHDAY",
+      customerCreated: "RETAIL_CUSTOMER.CREATED",
     });
   });
 });

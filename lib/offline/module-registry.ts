@@ -8,7 +8,7 @@ import {
 } from "@/lib/api";
 import type { QueryClient } from "@tanstack/react-query";
 
-import { fetchJson } from "@/lib/api-client";
+import { ApiError, fetchJson } from "@/lib/api-client";
 import { markOfflineLocalEntitySynced, resolveOfflineEntityServerId } from "@/lib/offline/entity-store";
 import { getOfflineWarmupModuleIds } from "@/lib/offline/workflow-catalog";
 import {
@@ -41,7 +41,7 @@ async function syncRetailCustomer(payload: Record<string, unknown>): Promise<Off
   try {
     const created = await fetchJson<{ data: { id: string } }>("/api/v2/retail/customers", {
       method: "POST",
-      body: JSON.stringify(payload),
+      body: JSON.stringify({ name: payload.name, phone: payload.phone ?? "", via: "till" }),
     });
     return {
       status: "synced",
@@ -49,6 +49,9 @@ async function syncRetailCustomer(payload: Record<string, unknown>): Promise<Off
       invalidateQueryKeys: [["retail-pos-customer-search"]],
     };
   } catch (error) {
+    // Added on another till while this one was offline: the sale goes to them.
+    const existing = error instanceof ApiError && error.status === 409 ? (error.details as { existing?: { id: string } } | null)?.existing : null;
+    if (existing) return { status: "synced", serverEntityId: existing.id, invalidateQueryKeys: [["retail-pos-customer-search"]] };
     const message = asErrorMessage(error);
     return isLikelyNetworkFailure(message)
       ? { status: "retryable", message }
@@ -249,22 +252,9 @@ const retailPreloadQueries: OfflinePreloadQuery[] = [
   {
     key: "retail-pos-customers-default",
     queryKey: ["retail-pos-customers", ""],
-    /*
-      30 is the route's ceiling — `customerSearchQuery` caps `limit` there and
-      zod refuses anything larger. At 40 this 400'd, and because the offline
-      warm-up runs on every page of every tenant, it did so everywhere: the
-      e2e suite saw it eighteen times across the school module alone, on pages
-      with nothing to do with retail.
-
-      Worth knowing the request is thin either way: the route short-circuits an
-      empty `q` to `{ data: [] }`, so this warms the cache with an empty list.
-      Whether the offline bundle should instead pre-cache the customer *list*
-      is a real question and a separate one; this change only stops it failing.
-    */
-    // `/api/v2/retail/customers` is gated on `crm.customers`.
-    featureKey: "crm.customers",
-    fetcher: async () =>
-      fetchJson("/api/v2/retail/customers/search?q=&limit=30"),
+    // The till's customer search (CUS-02); an empty `q` answers `{ data: [] }`.
+    featureKey: "retail.pos",
+    fetcher: async () => fetchJson("/api/v2/retail/pos/customers?q=&limit=30"),
   },
   {
     key: "retail-pos-price-check-default",

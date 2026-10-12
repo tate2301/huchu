@@ -181,14 +181,8 @@ export type SavedSale = {
   at: string;
 };
 
-export type CustomerLookupResult = {
-  id: string;
-  name: string;
-  phone: string | null;
-  email: string | null;
-  loyaltyPoints: number;
-  loyaltyTier: string;
-};
+/** A customer as the till holds them: `GET /api/v2/retail/pos/customers` (CUS-02). */
+export type { PosCustomer } from "@/lib/retail/customers/pos-customer";
 
 /** A category chip above the shelf. `allAgeRestricted`: everything in it stops with the licence hours. */
 export type TillCategory = { name: string; allAgeRestricted: boolean };

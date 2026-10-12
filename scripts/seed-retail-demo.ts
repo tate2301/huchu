@@ -307,13 +307,18 @@ const CUSTOMERS = [
   "Farai Chikore", "Tinashe Mavhunga",
 ]
 
-/** FLR-01: the customers' WhatsApp numbers, E.164 (the customers spec's names, C-44). */
+/** FLR-01, CUS-02: the customers' WhatsApp numbers, E.164 (the customers spec's names, C-44). */
 const CUSTOMER_PHONES: Record<string, string> = {
   "Farai Chikore": "+263775091144",
   "Tinashe Mavhunga": "+263713308826",
   "Tapiwa Marange": "+263774123388",
   "Nyasha Gwenzi": "+263712209014",
   "Rutendo Banda": "+263783015521",
+  "Munashe Chari": "+263779881043",
+  "Blessing Ncube": "+263736402219",
+  "Kudzai Zhou": "+263771056672",
+  "Simba Mutasa": "+263718840397",
+  "Rudo Chirwa": "+263785527710",
 }
 
 /**
@@ -1245,6 +1250,8 @@ async function main() {
       saleType: "VOID",
       status: "POSTED",
       sourceSaleId: sale.id,
+      // A till's client reference is the sale's own; its VOID document has none.
+      clientRef: null,
       customerId: null,
       customerName: null,
       voidReason: null,
@@ -1444,7 +1451,6 @@ async function main() {
                 ? "CARD"
                 : "TRANSFER"
 
-        const named = !isPreviewSale && Math.random() < 0.22 ? pick(customers) : null
         // PRD-10: a voucher paying part or all of an older card, EcoCash or transfer sale (never the drawer's cash).
         const voucherUse =
           !discountRef && !bundleSale && !isPreviewSale && !functionOrder && currency === "USD" && !refundPicks.has(`${slotIndex}|${postedAt.getTime()}`)
@@ -1461,8 +1467,9 @@ async function main() {
           siteId: slotSiteId,
           cashierId: cashier.id,
           cashierName: cashier.name,
-          customerId: named?.id ?? null,
-          customerName: named?.name ?? null,
+          // Walk-ins: `seedCustomers` (CUS-02) puts the shop's customers on the history afterwards.
+          customerId: null,
+          customerName: null,
           saleType: "SALE",
           status: "POSTED",
           subtotal,
@@ -1891,6 +1898,9 @@ async function main() {
 
   // ── Vouchers (PRD-10), through their services, on the sales dealt for them ──
   await seedVouchers(companyId)
+
+  // ── Customers (CUS-02): the board's regulars, the members, their visits and points ──
+  await seedCustomers(companyId)
 
   // ── A cart nobody came back for ──────────────────────────────────────────
   const openShift = shiftRows.find((row) => row.status === "OPEN")
@@ -6335,4 +6345,586 @@ async function seedVouchers(companyId: string) {
   console.log(
     `  vouchers: ${count} (${usedUp.length} used up on the history, ${expired} lapsed), 2250 owes US$${ledger.toFixed(2)} against US$${toNumberOrZero(left._sum.balance ?? 0).toFixed(2)} left on them`,
   )
+}
+
+/* ── CUS-02: the shop's customers, their visits and their points ──────── */
+
+/**
+ * The CustomersList board's eight regulars, in its order: every one Gold by
+ * spend and agreeing to messages, with the board's visits, last visit, spend
+ * in 12 months and points exactly (`seedCustomers`). `last` is the month and
+ * day of the last visit, the most recent one before today.
+ */
+const REGULARS: Array<{
+  name: string
+  visits: number
+  last: string
+  spend: string
+  points: number
+  since: string
+  code?: number
+  area?: string
+  email?: string
+  dob?: string
+}> = [
+  {
+    name: "Tapiwa Marange",
+    visits: 141,
+    last: "08-15",
+    spend: "3021.80",
+    points: 3021,
+    since: "2024-03-12",
+    code: 141,
+    area: "Mbare, Harare",
+    email: "tapiwa.marange@gmail.com",
+    dob: "1988-03-14",
+  },
+  { name: "Nyasha Gwenzi", visits: 149, last: "08-16", spend: "2975.55", points: 2975, since: "2023-11-04" },
+  { name: "Rutendo Banda", visits: 121, last: "08-15", spend: "2768.00", points: 2768, since: "2024-01-20" },
+  { name: "Munashe Chari", visits: 139, last: "08-16", spend: "2515.10", points: 2515, since: "2023-12-02" },
+  { name: "Blessing Ncube", visits: 127, last: "08-17", spend: "2414.10", points: 2414, since: "2024-02-15" },
+  { name: "Kudzai Zhou", visits: 138, last: "08-17", spend: "2345.90", points: 2345, since: "2024-04-08" },
+  { name: "Simba Mutasa", visits: 122, last: "08-16", spend: "2146.50", points: 2146, since: "2024-05-19" },
+  { name: "Rudo Chirwa", visits: 124, last: "08-14", spend: "2051.30", points: 2051, since: "2024-06-30" },
+]
+
+/** C-44: Tapiwa's second card, one digit off his number, never merged. */
+const DUPLICATE_TAPIWA = { name: "T. Marange", phone: "+263774123380", visits: 9, last: "09-02", spend: "412.60", points: 412, since: "2025-09-20" }
+
+const MEMBER_COUNT = 420
+const ACTIVE_MEMBERS = 412
+const MEMBER_FIRST = [
+  "Tendai", "Tatenda", "Rumbidzai", "Chiedza", "Farai", "Nyasha", "Tafadzwa", "Kudakwashe", "Ropafadzo", "Tinotenda",
+  "Vimbai", "Shingai", "Takudzwa", "Anesu", "Panashe", "Fadzai", "Tsitsi", "Rutendo", "Munyaradzi", "Tonderai",
+  "Thandeka", "Sipho", "Nkosana", "Lindiwe", "Sibusiso", "Nomvula", "Themba", "Zodwa", "Mandla", "Sihle",
+  "Bongani", "Nqobile", "Lungile", "Busisiwe", "Thulani", "Nokuthula", "Mthokozisi", "Siphiwe", "Dumisani", "Zanele",
+]
+const MEMBER_LAST = [
+  "Moyo", "Ncube", "Sibanda", "Dube", "Ndlovu", "Mpofu", "Nyoni", "Khumalo", "Mlilo", "Tshuma",
+  "Chikwanha", "Mutasa", "Mapfumo", "Chigumba", "Makoni", "Gumbo", "Mhlanga", "Zvobgo", "Marufu", "Chinamasa",
+  "Machingura", "Nyathi", "Mupfumira", "Chiweshe", "Mushonga", "Mudzingwa", "Hove", "Shumba", "Matanda", "Mavhima",
+  "Chitepo", "Mangwende", "Murwira", "Chirwa", "Zhou", "Kanengoni", "Mabhena", "Gwenzi", "Chari", "Mukandatsama",
+]
+const MEMBER_AREAS = ["Mbare, Harare", "Highfield, Harare", "Avondale, Harare", "Glen View, Harare", "Kuwadzana, Harare", "Mabvuku, Harare"]
+
+/** A small seeded generator, so the members come out the same each run. */
+function seededRandom(seed: number) {
+  let state = seed >>> 0
+  return () => {
+    state = (state + 0x6d2b79f5) >>> 0
+    let t = state
+    t = Math.imul(t ^ (t >>> 15), t | 1)
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61)
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296
+  }
+}
+
+/** The most recent `MM-DD` on or before today in Harare, at noon there. */
+function lastDayOn(monthDay: string): string {
+  const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Harare" }).format(new Date())
+  const year = Number(today.slice(0, 4))
+  const day = `${year}-${monthDay}`
+  return day <= today ? day : `${year - 1}-${monthDay}`
+}
+
+const harareDay = (day: string, time: string) => new Date(`${day}T${time}:00+02:00`)
+
+/**
+ * CUS-02 `seedCustomers()`: the shop's customers on its history.
+ *
+ * - The board's eight regulars and C-44's duplicate, at the exact figures of
+ *   `REGULARS`: their visits inside the floor's history are its own sales
+ *   (on the day of the last visit, then spread back), and the visits before
+ *   it are rung by `seedCustomerHistory` on a closed Front till shift of their
+ *   own day, so the 12-month spend lands to the cent (the last of them tops
+ *   up with airtime) and the shift counts stay true.
+ * - 420 members (Shona and Ndebele names, their own +263 71/73/77/78 numbers,
+ *   85% agreeing to messages, members since across 18 months, three with a
+ *   birthday next week), put on the history's own sales, larger baskets first:
+ *   412 shopped in the last 30 days, and none spent US$1,500 in 12 months.
+ * - Every attached sale earns its points (EARNED, the floor of what it came
+ *   to); a regular's last row lands the board's balance.
+ * - Codes and cards in the order they joined, Tapiwa Marange CUS-00141.
+ *   Simba Nkomo is not seeded: he is added in the acceptance walk.
+ *
+ * Not seeded yet: the members' planned sales spending points (21,400 points)
+ * need the till's points discount on a history sale.
+ */
+async function seedCustomers(companyId: string) {
+  const random = seededRandom(53)
+  const chance = (p: number) => random() < p
+  const within = (low: number, high: number) => low + Math.floor(random() * (high - low + 1))
+  const now = new Date()
+  const yearStart = new Date(now.getTime() - 365 * DAY_MS + 2 * DAY_MS)
+
+  // ── Who they are ──
+  const regularNames = new Set([...REGULARS.map((regular) => regular.name), DUPLICATE_TAPIWA.name])
+  const keep = new Set([...CUSTOMERS, DUPLICATE_TAPIWA.name])
+  const taken = new Set([...Object.values(CUSTOMER_PHONES), DUPLICATE_TAPIWA.phone])
+  for (const user of await prisma.user.findMany({ where: { companyId, phone: { not: null } }, select: { phone: true } })) {
+    if (user.phone) taken.add(user.phone.replace(/[^\d+]/g, ""))
+  }
+  type Plan = {
+    name: string
+    phone: string
+    since: Date
+    consent: boolean
+    area: string | null
+    email: string | null
+    dob: string | null
+  }
+  const plans: Plan[] = []
+  for (const regular of REGULARS) {
+    plans.push({
+      name: regular.name,
+      phone: CUSTOMER_PHONES[regular.name]!,
+      since: harareDay(regular.since, "10:00"),
+      consent: true,
+      area: regular.area ?? null,
+      email: regular.email ?? null,
+      dob: regular.dob ?? null,
+    })
+  }
+  plans.push({ name: DUPLICATE_TAPIWA.name, phone: DUPLICATE_TAPIWA.phone, since: harareDay(DUPLICATE_TAPIWA.since, "11:20"), consent: false, area: null, email: null, dob: null })
+  for (const name of ["Farai Chikore", "Tinashe Mavhunga"]) {
+    plans.push({ name, phone: CUSTOMER_PHONES[name]!, since: new Date(now.getTime() - within(200, 500) * DAY_MS), consent: true, area: null, email: null, dob: null })
+  }
+  const names = new Set(plans.map((plan) => plan.name))
+  const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Harare" }).format(now)
+  while (plans.length < REGULARS.length + 3 + MEMBER_COUNT) {
+    const name = `${MEMBER_FIRST[within(0, MEMBER_FIRST.length - 1)]} ${MEMBER_LAST[within(0, MEMBER_LAST.length - 1)]}`
+    if (names.has(name)) continue
+    let phone = ""
+    do phone = `+2637${["1", "3", "7", "8"][within(0, 3)]}${String(within(0, 9_999_999)).padStart(7, "0")}`
+    while (taken.has(phone))
+    names.add(name)
+    taken.add(phone)
+    const index = plans.length - (REGULARS.length + 3)
+    // Three birthdays next week; a few others known, for the bonus.
+    const dob =
+      index < 3
+        ? `${1980 + within(0, 20)}-${addDays(today, 2 + index * 2).slice(5)}`
+        : chance(0.06)
+          ? `${1970 + within(0, 35)}-${String(within(1, 12)).padStart(2, "0")}-${String(within(1, 28)).padStart(2, "0")}`
+          : null
+    plans.push({
+      name,
+      phone,
+      since: new Date(now.getTime() - within(31, 540) * DAY_MS - within(0, 600) * 60_000),
+      consent: chance(0.85),
+      area: chance(0.08) ? MEMBER_AREAS[within(0, MEMBER_AREAS.length - 1)]! : null,
+      email: null,
+      dob,
+    })
+  }
+
+  // Nobody else: customers a run or a walk added go, with whatever points they had.
+  const others = await prisma.customer.findMany({ where: { companyId, name: { notIn: [...names] } }, select: { id: true } })
+  const otherIds = others.map((row) => row.id)
+  await prisma.retailSale.updateMany({ where: { companyId, customerId: { in: otherIds } }, data: { customerId: null, customerName: null } })
+  await prisma.retailVoucher.updateMany({ where: { companyId, customerId: { in: otherIds } }, data: { customerId: null } })
+  await prisma.retailEmptiesEntry.updateMany({ where: { companyId, customerId: { in: otherIds } }, data: { customerId: null } })
+  await prisma.customer.updateMany({ where: { companyId, mergedIntoId: { in: otherIds } }, data: { mergedIntoId: null } })
+  await prisma.customer.deleteMany({
+    where: { id: { in: otherIds }, invoices: { none: {} }, quotations: { none: {} }, crmClients: { none: {} } },
+  })
+  await prisma.customer.updateMany({ where: { id: { in: otherIds } }, data: { archivedAt: now, isActive: false } })
+  await prisma.retailPointsEntry.deleteMany({ where: { companyId } })
+
+  // Codes and cards in the order they joined; Tapiwa keeps CUS-00141. Moved aside first, as codes are unique.
+  plans.sort((a, b) => a.since.getTime() - b.since.getTime())
+  const existing = new Map((await prisma.customer.findMany({ where: { companyId, name: { in: [...names] } }, select: { id: true, name: true } })).map((row) => [row.name, row.id]))
+  await prisma.customer.updateMany({ where: { companyId }, data: { code: null, cardNo: null } })
+  const ids = new Map<string, string>()
+  let number = 0
+  const rows: Prisma.CustomerCreateManyInput[] = []
+  for (const plan of plans) {
+    const fixed = REGULARS.find((regular) => regular.name === plan.name)?.code
+    if (!fixed) {
+      number += 1
+      if (number === 141) number += 1
+    }
+    const n = fixed ?? number
+    const id = existing.get(plan.name) ?? randomUUID()
+    ids.set(plan.name, id)
+    const data = {
+      name: plan.name,
+      phone: plan.phone,
+      code: `CUS-${String(n).padStart(5, "0")}`,
+      cardNo: `600914${String(n).padStart(6, "0")}`,
+      marketingConsent: plan.consent,
+      consentChangedAt: plan.consent ? plan.since : null,
+      area: plan.area,
+      email: plan.email,
+      dateOfBirth: plan.dob ? new Date(`${plan.dob}T00:00:00Z`) : null,
+      isActive: true,
+      archivedAt: null,
+      mergedIntoId: null,
+      tierHeld: null,
+      tierHeldUntil: null,
+      createdAt: plan.since,
+    }
+    if (existing.has(plan.name)) await prisma.customer.update({ where: { id }, data })
+    else rows.push({ id, companyId, ...data })
+  }
+  if (rows.length) await prisma.customer.createMany({ data: rows })
+  await prisma.idSequence.deleteMany({ where: { companyId, entityKey: "RETAIL_CUSTOMER" } })
+
+  // ── Their visits ──
+  // The floor's own sales stay as rung: the boards' morning and the vouchers' sales keep their customers.
+  await prisma.retailSale.updateMany({
+    where: {
+      companyId,
+      customerId: { not: null },
+      NOT: { saleNo: { gte: "SALE-31858", lte: "SALE-31870" } },
+      OR: [{ clientRef: null }, { NOT: { clientRef: { startsWith: "voucher:" } } }],
+    },
+    data: { customerId: null, customerName: null },
+  })
+  const history = await prisma.retailSale.findMany({
+    where: { companyId, saleType: "SALE", status: "POSTED", postedAt: { not: null } },
+    select: { id: true, saleNo: true, postedAt: true, baseAmount: true, customerId: true, siteId: true, reversals: { select: { id: true } } },
+    orderBy: { postedAt: "asc" },
+  })
+  const floorStart = history[0]?.postedAt ?? now
+  const free = history.filter(
+    (sale) => !sale.customerId && sale.reversals.length === 0 && !(sale.saleNo >= "SALE-31858" && sale.saleNo <= "SALE-31870") && Number(sale.baseAmount) > 0,
+  )
+  const used = new Set<string>()
+  const attach = new Map<string, string[]>()
+  const give = (customerId: string, saleId: string) => {
+    used.add(saleId)
+    attach.set(customerId, [...(attach.get(customerId) ?? []), saleId])
+  }
+
+  // The regulars: their days in the history, the last visit's day first.
+  type Visit = { customerId: string; name: string; at: Date; amount: number | null }
+  const planned: Visit[] = []
+  const exact: Array<{ customerId: string; points: number }> = []
+  for (const regular of [...REGULARS, DUPLICATE_TAPIWA]) {
+    const customerId = ids.get(regular.name)!
+    const last = lastDayOn(regular.last)
+    const lastAt = harareDay(last, "23:59")
+    // Their sales the boards already ring after the last visit are walk-ins now.
+    await prisma.retailSale.updateMany({ where: { companyId, customerId, postedAt: { gt: lastAt } }, data: { customerId: null, customerName: null } })
+    const own = await prisma.retailSale.findMany({
+      where: { companyId, customerId, postedAt: { gte: yearStart } },
+      select: { saleType: true, status: true, baseAmount: true },
+    })
+    const ownSpend = own.reduce((sum, row) => sum + Number(row.baseAmount), 0)
+    const ownVisits = own.filter((row) => row.saleType === "SALE" && row.status !== "VOIDED").length
+    const target = Number(regular.spend) - ownSpend
+    const visits = regular.visits - ownVisits
+    const average = target / visits
+    const span = lastAt.getTime() - yearStart.getTime()
+    const inside = Math.max(1, Math.round((visits * (lastAt.getTime() - floorStart.getTime())) / span))
+    const fits = (sale: (typeof free)[number]) => !used.has(sale.id) && Number(sale.baseAmount) >= average * 0.5 && Number(sale.baseAmount) <= average * 1.8
+    const onLast = free.filter((sale) => dayKey(sale.postedAt!) === last && fits(sale))
+    const chosen: typeof free = []
+    if (onLast.length) chosen.push(onLast[within(0, onLast.length - 1)]!)
+    const days = new Set(chosen.map((sale) => dayKey(sale.postedAt!)))
+    const pool = free.filter((sale) => sale.postedAt! < harareDay(last, "00:00") && fits(sale))
+    for (let tries = 0; chosen.length < inside && tries < pool.length * 2; tries += 1) {
+      const sale = pool[within(0, pool.length - 1)]!
+      const day = dayKey(sale.postedAt!)
+      if (days.has(day) || used.has(sale.id)) continue
+      days.add(day)
+      chosen.push(sale)
+      used.add(sale.id)
+    }
+    for (const sale of chosen) give(customerId, sale.id)
+    let left = target - chosen.reduce((sum, sale) => sum + Number(sale.baseAmount), 0)
+    const before = visits - chosen.length
+    // The days before the history: one visit a day, spread over the year.
+    const firstDay = dayKey(yearStart)
+    const lastBefore = addDays(dayKey(floorStart), -1)
+    const span2 = Math.max(1, Math.round((Date.parse(lastBefore) - Date.parse(firstDay)) / DAY_MS))
+    const picked = new Set<number>()
+    while (picked.size < Math.min(before, span2)) picked.add(within(0, span2 - 1))
+    const dates = [...picked].sort((a, b) => a - b).map((offset) => addDays(firstDay, offset))
+    dates.forEach((day, index) => {
+      // Each at least US$2.00, and enough left for the rest to be too; the last lands the spend.
+      const rest = dates.length - index - 1
+      const share = (left / (dates.length - index)) * (0.6 + random() * 0.8)
+      const amount = rest === 0 ? Math.round(left * 100) / 100 : Math.round(Math.min(Math.max(share, 2), left - rest * 2) * 100) / 100
+      left -= amount
+      planned.push({ customerId, name: regular.name, at: harareDay(day, `${String(within(9, 18)).padStart(2, "0")}:${String(within(0, 59)).padStart(2, "0")}`), amount })
+    })
+    exact.push({ customerId, points: regular.points })
+  }
+
+  // The members: one sale each in the last 30 days for 412 of them, larger baskets first, then a few older ones.
+  const monthAgo = now.getTime() - 30 * DAY_MS
+  const bigFirst = (sales: typeof free) => [...sales].sort((a, b) => Number(b.baseAmount) * (0.5 + random()) - Number(a.baseAmount) * (0.5 + random()))
+  const recent = bigFirst(free.filter((sale) => !used.has(sale.id) && sale.postedAt!.getTime() >= monthAgo))
+  const older = bigFirst(free.filter((sale) => !used.has(sale.id) && sale.postedAt!.getTime() < monthAgo))
+  const members = plans.filter((plan) => !regularNames.has(plan.name)).map((plan) => ({ id: ids.get(plan.name)!, spend: 0 }))
+  let recentAt = 0
+  let olderAt = 0
+  members.forEach((member, index) => {
+    const active = index < ACTIVE_MEMBERS || keep.has(plans.find((plan) => ids.get(plan.name) === member.id)!.name)
+    if (active) {
+      while (recentAt < recent.length && used.has(recent[recentAt]!.id)) recentAt += 1
+      const sale = recent[recentAt]
+      if (sale) {
+        give(member.id, sale.id)
+        member.spend += Number(sale.baseAmount)
+      }
+    }
+    for (let extra = within(active ? 0 : 1, 8); extra > 0 && olderAt < older.length; extra -= 1) {
+      const sale = older[olderAt++]!
+      if (member.spend + Number(sale.baseAmount) >= 1_450) break
+      give(member.id, sale.id)
+      member.spend += Number(sale.baseAmount)
+    }
+  })
+  const nameOf = new Map([...ids].map(([name, id]) => [id, name]))
+  for (const [customerId, saleIds] of attach) {
+    await prisma.retailSale.updateMany({ where: { id: { in: saleIds } }, data: { customerId, customerName: nameOf.get(customerId) ?? null } })
+  }
+
+  // ── The visits before the history, on shifts of their own ──
+  await seedCustomerHistory(companyId, planned)
+
+  // ── Points: EARNED on every sale with a customer, the regulars' last row landing the board's balance ──
+  const earning = await prisma.retailSale.findMany({
+    where: { companyId, customerId: { not: null }, saleType: "SALE", status: "POSTED", baseAmount: { gt: 0 } },
+    select: { id: true, customerId: true, baseAmount: true, postedAt: true, cashierName: true },
+    orderBy: { postedAt: "asc" },
+  })
+  const entries: Prisma.RetailPointsEntryCreateManyInput[] = earning.map((sale) => {
+    const points = Math.floor(Number(sale.baseAmount))
+    return {
+      companyId,
+      customerId: sale.customerId!,
+      kind: "EARNED",
+      points,
+      value: money(points * 0.01).toDecimalPlaces(2),
+      saleId: sale.id,
+      actorName: sale.cashierName,
+      createdAt: sale.postedAt!,
+    }
+  })
+  for (const { customerId, points } of exact) {
+    const own = entries.filter((entry) => entry.customerId === customerId)
+    const lastRow = own[own.length - 1]
+    if (!lastRow) continue
+    const sum = own.reduce((total, entry) => total + entry.points, 0)
+    lastRow.points += points - sum
+    lastRow.value = money(lastRow.points * 0.01).toDecimalPlaces(2)
+  }
+  for (let index = 0; index < entries.length; index += 1000) {
+    await prisma.retailPointsEntry.createMany({ data: entries.slice(index, index + 1000) })
+  }
+
+  const live = await prisma.customer.count({ where: { companyId, archivedAt: null } })
+  const shopped = await prisma.retailSale.groupBy({ by: ["customerId"], where: { companyId, customerId: { not: null }, saleType: "SALE", postedAt: { gte: new Date(monthAgo) } } })
+  console.log(
+    `  customers: ${live} live (the board's 8 regulars, T. Marange, ${members.length} members, ${shopped.length} shopped in 30 days), ` +
+      `${planned.length} visits before the history, ${entries.length} sales earning points`,
+  )
+}
+
+/**
+ * The regulars' visits before the floor's history: one closed Front till shift
+ * a day with a visit (Chipo Dube Monday to Wednesday, Farai Moyo Thursday to
+ * Saturday, Tafara Nyathi on Sunday; a US$100.00 float, counted as expected),
+ * ringing only those visits, each a basket off the shelf's own prices and the
+ * last of a customer's topped up with airtime to their exact spend. Numbered
+ * below the history's lowest SALE number; then every shift is numbered again
+ * in the order it opened, the Front till's open shift last.
+ */
+async function seedCustomerHistory(companyId: string, visits: Array<{ customerId: string; name: string; at: Date; amount: number | null }>) {
+  if (visits.length === 0) return
+  const random = seededRandom(5301)
+  const site = await prisma.site.findFirst({ where: { companyId, code: "HRE" }, select: { id: true } })
+  const front = await prisma.retailRegister.findFirst({ where: { companyId, code: "TILL-1" }, select: { id: true, code: true, name: true, siteId: true } })
+  const people = await prisma.user.findMany({
+    where: { companyId, email: { in: ["chipo.till@bottlestore.test", "farai.till@bottlestore.test", "tafara.manager@bottlestore.test"] } },
+    select: { id: true, name: true, email: true },
+  })
+  const byEmail = (email: string) => people.find((person) => person.email === email)
+  if (!site || !front || people.length < 3) {
+    console.log("  customer history: no Front till or cashiers, skipped")
+    return
+  }
+  const siteId = front.siteId ?? site.id
+  // The shelf as the history rang it: one price per product.
+  const shelf = await prisma.$queryRaw<Array<{ productId: string; inventoryItemId: string; itemName: string; unitPrice: Prisma.Decimal; costUnit: Prisma.Decimal }>>`
+    SELECT DISTINCT ON (l."productId") l."productId", l."inventoryItemId", l."itemName", l."unitPrice", l."costUnit"
+    FROM "RetailSaleLine" l JOIN "RetailSale" s ON s.id = l."saleId"
+    WHERE s."companyId" = ${companyId} AND s."siteId" = ${siteId} AND s."saleType" = 'SALE' AND l."productId" IS NOT NULL
+      AND l."discountAmount" = 0 AND l."promotionId" IS NULL AND l."bundleId" IS NULL AND l."unitPrice" BETWEEN 0.5 AND 30
+    ORDER BY l."productId", s."postedAt" DESC`
+  const airtime = await prisma.inventoryItem.findFirst({
+    where: { siteId, product: { companyId, code: AIRTIME.code } },
+    select: { id: true, productId: true, product: { select: { name: true } } },
+  })
+  if (shelf.length === 0) return
+
+  const lowest = await prisma.$queryRaw<Array<{ n: number | null }>>`
+    SELECT min(substring("saleNo" from 6)::int) AS n FROM "RetailSale" WHERE "companyId" = ${companyId} AND "saleNo" ~ '^SALE-[0-9]+$'`
+  let saleNumber = (lowest[0]?.n ?? 100_000) - visits.length
+
+  const shiftRows: Prisma.RetailShiftCreateManyInput[] = []
+  const saleRows: Prisma.RetailSaleCreateManyInput[] = []
+  const lineRows: Prisma.RetailSaleLineCreateManyInput[] = []
+  const paymentRows: Prisma.RetailSalePaymentCreateManyInput[] = []
+  const byDay = new Map<string, typeof visits>()
+  for (const visit of [...visits].sort((a, b) => a.at.getTime() - b.at.getTime())) {
+    const day = dayKey(visit.at)
+    byDay.set(day, [...(byDay.get(day) ?? []), visit])
+  }
+  for (const [day, dayVisits] of [...byDay].sort(([a], [b]) => a.localeCompare(b))) {
+    const weekday = new Date(`${day}T12:00:00Z`).getUTCDay()
+    const cashier = weekday >= 1 && weekday <= 3 ? byEmail("chipo.till@bottlestore.test")! : weekday === 0 ? byEmail("tafara.manager@bottlestore.test")! : byEmail("farai.till@bottlestore.test")!
+    const shiftId = randomUUID()
+    const openedAt = harareDay(day, "07:55")
+    const closedAt = harareDay(day, "19:05")
+    let cash = money(0)
+    for (const visit of dayVisits) {
+      const saleId = randomUUID()
+      const target = Math.round((visit.amount ?? 10) * 100)
+      const lines: Prisma.RetailSaleLineCreateManyInput[] = []
+      let cents = 0
+      for (let guard = 0; guard < 40; guard += 1) {
+        const item = shelf[Math.floor(random() * shelf.length)]!
+        const price = Math.round(Number(item.unitPrice) * 100)
+        if (cents + price > target) {
+          if (target - cents < 50) break
+          continue
+        }
+        const units = Math.max(1, Math.min(Math.floor((target - cents) / price), 1 + Math.floor(random() * 3)))
+        cents += units * price
+        const gross = money((units * price) / 100)
+        const tax = gross.minus(netOfInclusiveTax(gross, VAT_PERCENT))
+        lines.push({
+          id: randomUUID(),
+          companyId,
+          saleId,
+          inventoryItemId: item.inventoryItemId,
+          productId: item.productId,
+          itemName: item.itemName,
+          quantity: quantity(String(units)),
+          unitPrice: money(item.unitPrice),
+          discountAmount: money(0),
+          taxAmount: tax,
+          lineTotal: gross,
+          costUnit: money(item.costUnit),
+          costTotal: multiplyMoney(quantity(String(units)), money(item.costUnit)),
+          depositAmount: money(0),
+          createdAt: visit.at,
+        })
+        if (target - cents < 50) break
+      }
+      // What the shelf cannot make in whole bottles is airtime, at whatever was typed.
+      if (cents < target && airtime?.productId) {
+        const gross = money((target - cents) / 100)
+        lines.push({
+          id: randomUUID(),
+          companyId,
+          saleId,
+          inventoryItemId: airtime.id,
+          productId: airtime.productId,
+          itemName: airtime.product?.name ?? "Econet airtime",
+          quantity: quantity("1"),
+          unitPrice: gross,
+          discountAmount: money(0),
+          taxAmount: gross.minus(netOfInclusiveTax(gross, VAT_PERCENT)),
+          lineTotal: gross,
+          costUnit: gross,
+          costTotal: gross,
+          depositAmount: money(0),
+          createdAt: visit.at,
+        })
+        cents = target
+      }
+      if (lines.length === 0) continue
+      const total = sumMoney(lines.map((line) => money(line.lineTotal as Prisma.Decimal)))
+      const tax = sumMoney(lines.map((line) => money(line.taxAmount as Prisma.Decimal)))
+      const roll = random()
+      const tender: RetailTenderType = roll < 0.5 ? "CASH" : roll < 0.78 ? "ECOCASH" : "CARD"
+      if (tender === "CASH") cash = cash.plus(total)
+      saleRows.push({
+        id: saleId,
+        companyId,
+        saleNo: `SALE-${String(saleNumber++).padStart(5, "0")}`,
+        shiftId,
+        registerId: front.id,
+        siteId,
+        cashierId: cashier.id,
+        cashierName: cashier.name,
+        customerId: visit.customerId,
+        customerName: visit.name,
+        saleType: "SALE",
+        status: "POSTED",
+        subtotal: total.minus(tax),
+        discountAmount: money(0),
+        taxAmount: tax,
+        totalAmount: total,
+        depositAmount: money(0),
+        tenderedAmount: total,
+        changeAmount: money(0),
+        currency: "USD",
+        exchangeRate: rate("1"),
+        baseAmount: total,
+        postedAt: visit.at,
+        createdAt: visit.at,
+        updatedAt: visit.at,
+      })
+      lineRows.push(...lines)
+      paymentRows.push({
+        id: randomUUID(),
+        companyId,
+        saleId,
+        tenderType: tender,
+        amount: total,
+        currency: "USD",
+        exchangeRate: rate("1"),
+        baseAmount: total,
+        reference: tender === "ECOCASH" ? `EC${100000 + Math.floor(random() * 900000)}` : null,
+        createdAt: visit.at,
+      })
+    }
+    const expected = money("100.00").plus(cash)
+    shiftRows.push({
+      id: shiftId,
+      companyId,
+      shiftNo: `SH-H${day}`,
+      registerCode: front.code,
+      registerName: front.name,
+      registerId: front.id,
+      siteId,
+      cashierId: cashier.id,
+      cashierName: cashier.name,
+      openingFloat: money("100.00"),
+      expectedCash: expected,
+      countedCash: expected,
+      variance: money(0),
+      status: "CLOSED",
+      floatLeft: money("100.00"),
+      openedAt,
+      closedAt,
+      createdAt: openedAt,
+      updatedAt: closedAt,
+    })
+  }
+  await prisma.retailShift.createMany({ data: shiftRows })
+  for (let index = 0; index < saleRows.length; index += 500) await prisma.retailSale.createMany({ data: saleRows.slice(index, index + 500) })
+  for (let index = 0; index < lineRows.length; index += 500) await prisma.retailSaleLine.createMany({ data: lineRows.slice(index, index + 500) })
+  for (let index = 0; index < paymentRows.length; index += 500) await prisma.retailSalePayment.createMany({ data: paymentRows.slice(index, index + 500) })
+
+  // Every shift numbered again in the order it opened, the Front till's open shift last (FLR-03).
+  await prisma.$executeRaw`UPDATE "RetailShift" SET "shiftNo" = 'TMP-' || id WHERE "companyId" = ${companyId}`
+  await prisma.$executeRaw`
+    UPDATE "RetailShift" s SET "shiftNo" = 'SH-' || lpad(o.n::text, 5, '0')
+    FROM (
+      SELECT id, row_number() OVER (
+        ORDER BY (status = 'OPEN' AND "registerId" = ${front.id}), "openedAt", id
+      ) AS n
+      FROM "RetailShift" WHERE "companyId" = ${companyId}
+    ) o
+    WHERE s.id = o.id`
+  await prisma.idSequence.deleteMany({ where: { companyId, entityKey: "RETAIL_SHIFT" } })
+  console.log(`  customer history: ${saleRows.length} visits on ${shiftRows.length} Front till shifts before the floor's history`)
 }

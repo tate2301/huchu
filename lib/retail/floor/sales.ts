@@ -8,6 +8,8 @@ import { isWhatsAppConfigured } from "@/lib/messaging/whatsapp";
 import { prisma } from "@/lib/prisma";
 import { auditRecordEdited, RETAIL_AUDIT_EVENTS, writeRetailAuditEvent, type RetailAuditActor } from "@/lib/retail/audit";
 import { loadSaleView, type SaleView } from "@/lib/retail/floor/sale-view";
+import { earnPoints } from "@/lib/retail/loyalty/earn";
+import { loadLoyaltySettings } from "@/lib/retail/loyalty/settings";
 import { readsEveryCashier } from "@/lib/retail/own-rows";
 import { queueSaleReceipt, saleReceipt } from "@/lib/retail/receipt-settings";
 
@@ -78,7 +80,10 @@ export async function updateSale(
   await prisma.$transaction(async (tx) => {
     if (body.customerId !== undefined) {
       const customer = body.customerId
-        ? await tx.customer.findFirst({ where: { id: body.customerId, companyId, isActive: true }, select: { id: true, name: true } })
+        ? await tx.customer.findFirst({
+            where: { id: body.customerId, companyId, archivedAt: null, mergedIntoId: null },
+            select: { id: true, name: true },
+          })
         : null;
       if (body.customerId && !customer) throw new SaleRefusal("Validation failed", 400, { customer: NOT_THIS_SHOPS_CUSTOMER });
       const from = sale.customer?.name ?? sale.customerName ?? "Walk-in";
@@ -90,6 +95,7 @@ export async function updateSale(
         });
         await auditRecordEdited(tx, { actor, entityType: "RetailSale", entityId: sale.id, field: "customer", label: "Customer", from, to });
         changed.push({ field: "customer", from, to });
+        if (customer) await earnForPastSale(tx, companyId, sale.id, customer.id);
       }
     }
     if (body.paymentReference) {
@@ -118,6 +124,22 @@ export async function updateSale(
   const data = await loadSaleView(companyId, sale.id, { userId: actor.userId, role: actor.userRole });
   if (!data) throw new SaleRefusal(SALE_NOT_FOUND, 404);
   return { data, changed };
+}
+
+/**
+ * A customer added to a sale already rung earns its points then (CUS-02, D-5),
+ * at the sale's own moment, once: never while the sale has an EARNED row.
+ */
+async function earnForPastSale(tx: Prisma.TransactionClient, companyId: string, saleId: string, customerId: string): Promise<void> {
+  const earned = await tx.retailPointsEntry.count({ where: { saleId, kind: "EARNED" } });
+  if (earned > 0) return;
+  const sale = await tx.retailSale.findFirst({
+    where: { id: saleId, companyId, saleType: "SALE", status: "POSTED", postedAt: { not: null } },
+    select: { id: true, postedAt: true, cashierName: true, lines: { select: { lineTotal: true, promotionId: true } } },
+  });
+  if (!sale?.postedAt) return;
+  const settings = await loadLoyaltySettings(companyId, tx);
+  await earnPoints(tx, { id: sale.id, companyId, customerId, postedAt: sale.postedAt, cashierName: sale.cashierName, lines: sale.lines }, settings);
 }
 
 /** The receipt printed again, "COPY" above its header, as an 80 mm PDF. */

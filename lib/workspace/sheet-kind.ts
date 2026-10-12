@@ -85,6 +85,8 @@ export type FieldSpec = {
   p?: string;
   /** Hint under the control. */
   h?: string | ((values: SheetValues) => string);
+  /** A link under the field while this gives one ("Open Tapiwa Marange" under a number they already have). */
+  link?: (values: SheetValues) => { label: string; href: string } | null;
   half?: boolean;
   /** `date`/`datetime`: the first and last day that may be picked, both included. */
   earliest?: DayBound;

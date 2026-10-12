@@ -474,6 +474,11 @@ const WORDS: Record<string, (payload: Payload, eventType: string, seeCost: boole
     what: `Birthday bonus, ${formatCount(amount(payload.points) ?? 0)} points`,
     tone: "warn",
   }),
+  // "Added, agreed to messages" / "Added at the till" (CUS-02).
+  [RETAIL_AUDIT_EVENTS.customerCreated]: (payload) => ({
+    what: payload.via === "till" ? "Added at the till" : payload.consent === true ? "Added, agreed to messages" : "Added",
+    tone: "ok",
+  }),
   [RETAIL_AUDIT_EVENTS.saleReviewed]: (payload) => ({
     what: text(payload.reason) ? `Looked at: ${text(payload.reason)}` : "Looked at",
     tone: "ok",

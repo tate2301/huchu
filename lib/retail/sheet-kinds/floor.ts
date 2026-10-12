@@ -272,8 +272,8 @@ const saleSend: SheetKind = {
 };
 
 /**
- * Add or change the customer a sale was rung for (50-floor). Built, but no
- * menu item opens it until customers land (D-5; CUS-02 switches it on).
+ * Add or change the customer a sale was rung for (50-floor, D-5): the sale
+ * record's ⋯ "Add a customer to it" / "Change the customer" (CUS-02).
  */
 const saleCustomer: SheetKind = {
   title: (_ctx, values) =>

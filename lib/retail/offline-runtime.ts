@@ -5,14 +5,14 @@ import {
   listOfflineOperationsForModule,
 } from "@/lib/offline/outbox";
 import type { OfflineOutboxOperation } from "@/lib/offline/types";
+import { newPosCustomer } from "@/lib/retail/customers/pos-customer";
 import type { PosSaleQueuePayload } from "@/lib/retail/pos-offline-queue";
 
 export const RETAIL_POS_OFFLINE_MODULE_ID = "retail-pos";
 
 export type RetailOfflineCustomerPayload = {
   name: string;
-  phone?: string | null;
-  email?: string | null;
+  phone: string;
 };
 
 export async function createOfflineRetailCustomer(
@@ -24,7 +24,7 @@ export async function createOfflineRetailCustomer(
     moduleId: RETAIL_POS_OFFLINE_MODULE_ID,
     entityType: "customer",
     displayLabel: payload.name,
-    searchableText: [payload.name, payload.phone, payload.email].filter(Boolean).join(" "),
+    searchableText: [payload.name, payload.phone].filter(Boolean).join(" "),
     payload,
   });
 
@@ -59,12 +59,11 @@ export async function searchOfflineRetailCustomers(
     entityType: "customer",
   });
   return searchOfflineLocalEntities(records, search).map((record) => ({
-    id: record.serverId ?? record.tempId,
-    name: String(record.payload.name ?? record.displayLabel),
-    phone: (record.payload.phone as string | null | undefined) ?? null,
-    email: (record.payload.email as string | null | undefined) ?? null,
-    loyaltyPoints: 0,
-    loyaltyTier: "",
+    ...newPosCustomer({
+      id: record.serverId ?? record.tempId,
+      name: String(record.payload.name ?? record.displayLabel),
+      phone: (record.payload.phone as string | null | undefined) ?? null,
+    }),
     isOfflineEntity: true,
     tempId: record.tempId,
     offlineStatus: record.status,

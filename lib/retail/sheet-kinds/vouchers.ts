@@ -3,7 +3,7 @@ import { addMonths } from "@/lib/retail/vouchers/dates";
 import type { VoucherView } from "@/lib/retail/vouchers/service";
 import { ANYONE, FORM_KINDS, SEND_BY_WORDS } from "@/lib/retail/vouchers/words";
 import { formatCount, formatDay, formatMoney, todayIn } from "@/lib/workspace/format";
-import type { SheetCtx, SheetKind, SheetValues } from "@/lib/workspace/sheet-kind";
+import type { PickedOption, SheetCtx, SheetKind, SheetValues } from "@/lib/workspace/sheet-kind";
 
 import { readJson } from "./products";
 
@@ -11,9 +11,7 @@ import { readJson } from "./products";
  * Vouchers' sheets (PRD-10, W-18, `VoucherNew.png`, `VoucherEdit.png`): Issue
  * vouchers (`voucher-new`), a voucher's expiry and holder with Resend and
  * Void it (`voucher-edit`), and Extend for one or many (`voucher-extend`).
- * "For" is typed until the customer lookup lands with the Customers area
- * (packet 53): a customer's name links that customer, anything else is kept
- * as who it is for.
+ * "For" is the `customer` autocomplete (CUS-02), with its inline add.
  */
 
 const invalidateVouchers = [["list", "retail-vouchers"], ["retail-voucher"], ["list", "retail-voucher-uses"], ["reports"]];
@@ -22,7 +20,8 @@ const KIND_LABELS = FORM_KINDS.map((entry) => entry.label);
 const SEND_LABELS = (["PRINT", "WHATSAPP", "BOTH"] as const).map((key) => SEND_BY_WORDS[key]);
 const kindOf = (values: SheetValues) => FORM_KINDS.find((entry) => entry.label === values.kind)?.kind ?? "GIFT";
 const sendOf = (values: SheetValues) => (["PRINT", "WHATSAPP", "BOTH"] as const).find((key) => SEND_BY_WORDS[key] === values.send) ?? "PRINT";
-const holderOf = (values: SheetValues) => String(values.holder ?? "").trim();
+const pickedOf = (values: SheetValues) => (values.customer as PickedOption | null | undefined) ?? null;
+const holderOf = (values: SheetValues) => pickedOf(values)?.label ?? "";
 
 /** A year from today in the shop's zone: "3 October 2027". */
 const aYearOn = () => formatDay(addMonths(todayIn(), 12));
@@ -52,15 +51,7 @@ const voucherNew: SheetKind = {
           needed: "Write 10% or an amount off, like 5.00.",
         },
         { id: "howMany", t: "text", l: "How many", half: true, mono: true, right: true, max: 3, v: "1", needed: "Write how many, like 1." },
-        {
-          id: "holder",
-          t: "text",
-          l: "For",
-          opt: true,
-          max: 120,
-          p: "A customer's name, or who it is for",
-          h: "Leave empty for a voucher anyone can use.",
-        },
+        { id: "customer", t: "auto", l: "For", noun: "customer", opt: true, h: "Leave empty for a voucher anyone can use." },
         { id: "expires", t: "text", l: "Expires", half: true, v: aYearOn, needed: "Write when it expires, like 3 October 2027." },
         { id: "minSale", t: "money", l: "Smallest sale it works on", half: true, opt: true, p: "0.00" },
         {
@@ -89,7 +80,7 @@ const voucherNew: SheetKind = {
       kind: kindOf(values),
       value: String((kindOf(values) === "DISCOUNT" ? values.off : values.value) ?? "").trim(),
       howMany: String(values.howMany ?? "").trim(),
-      holder: holderOf(values) || null,
+      customerId: pickedOf(values)?.id ?? null,
       expires: String(values.expires ?? "").trim(),
       minSale: String(values.minSale ?? "").trim() || null,
       sendBy: holderOf(values) === "" ? "PRINT" : sendOf(values),
@@ -109,7 +100,7 @@ const voucherEdit: SheetKind = {
       fields: [
         { id: "left", t: "read", l: "Left on it", half: true, mono: true, right: true },
         { id: "expiresOn", t: "text", l: "Expires", half: true, needed: "Write when it expires, like 28 September 2027." },
-        { id: "holder", t: "text", l: "For", opt: true, optQuiet: true, max: 120, p: ANYONE },
+        { id: "customer", t: "auto", l: "For", noun: "customer", opt: true, optQuiet: true, p: ANYONE },
         { id: "used", t: "read", l: "Used" },
       ],
     },
@@ -139,7 +130,7 @@ const voucherEdit: SheetKind = {
     return {
       left: view.left !== null && view.value !== null ? `${formatMoney(view.left)} of ${formatMoney(view.value)}` : `${view.leftLabel} of ${formatCount(view.copies)}`,
       expiresOn: formatDay(view.expiresOn),
-      holder: view.holderName ?? "",
+      customer: view.customer ? { id: view.customer.id, label: view.customer.name, sub: view.customer.phone } : null,
       used:
         view.uses === 0
           ? "Not yet"
@@ -156,7 +147,7 @@ const voucherEdit: SheetKind = {
   submit: (values, ctx) => ({
     method: "PATCH",
     url: voucherUrl(ctx.id ?? ""),
-    body: { expiresOn: String(values.expiresOn ?? "").trim(), holder: holderOf(values) || null },
+    body: { expiresOn: String(values.expiresOn ?? "").trim(), customerId: pickedOf(values)?.id ?? null },
   }),
   invalidate: invalidateVouchers,
   requires: [["retail.promotions", "view"]],

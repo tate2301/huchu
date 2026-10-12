@@ -15,7 +15,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 import { useOfflineRuntime } from "@/components/offline/offline-runtime";
 import { useToast } from "@/components/ui/use-toast";
-import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { ApiError, fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import {
   Check,
   IdentificationCard,
@@ -33,16 +33,16 @@ import {
 import { depositsDue, emptiesCounted } from "@/lib/retail/deposits";
 import { clockLabel } from "@/lib/retail/licence-hours";
 import { pointsValue as worthOf, spendRefusal, SPENDING_NEEDS_THE_INTERNET } from "@/lib/retail/loyalty/spend";
+import { newPosCustomer } from "@/lib/retail/customers/pos-customer";
 import { createOfflineRetailCustomer } from "@/lib/retail/offline-runtime";
 import { getPosPortalHref } from "@/lib/retail/pos-host";
 import { discountPinSentence } from "@/lib/retail/till-rule-words";
-import { enumLabel } from "@/lib/retail/words";
 import { emptiesRows, spreadEmpties } from "./empties-words";
 import { count, firstName, MEASURES, qty, usd, whole } from "./format";
 import { Avatar, ErrorLine, TillDialog, TillPopover } from "./parts";
 import { discountApprovalReason } from "./sale-rules";
 import { lineIsChanged, useTill } from "./state";
-import type { Approval, CartItem } from "./types";
+import type { Approval, CartItem, PosCustomer } from "./types";
 
 /** 0.10 → "10c", 1.50 → "US$1.50": a deposit as the shelf says it. */
 const depositWord = (value: number) => (value < 1 ? `${Math.round(value * 100)}c` : usd(value));
@@ -476,38 +476,63 @@ export function CustomerPopover() {
   const query = customerName.trim();
   const showResults = query.length >= 2 && customerSearchResults.length > 0;
   const phoneLike = /^[+\d\s-]{6,}$/.test(query);
+  // The inline add: a number and a name, both needed (CUS-02).
+  const [adding, setAdding] = React.useState<{ phone: string; name: string } | null>(null);
+  const [taken, setTaken] = React.useState<{ id: string; name: string } | null>(null);
+  const [addError, setAddError] = React.useState<string | null>(null);
+  const startAdding = () => {
+    setTaken(null);
+    setAddError(null);
+    setAdding(phoneLike ? { phone: query, name: "" } : { phone: "", name: query });
+  };
 
   const create = useMutation({
-    mutationFn: () =>
-      fetchJson<{ data: { id: string; name: string; phone: string | null; email: string | null } }>("/api/v2/retail/customers", {
+    mutationFn: (input: { phone: string; name: string }) =>
+      fetchJson<{ data: { id: string; code: string; name: string; phone: string; cardNo: string } }>("/api/v2/retail/customers", {
         method: "POST",
-        body: JSON.stringify(phoneLike ? { name: `Customer ${query}`, phone: query } : { name: query }),
+        body: JSON.stringify({ phone: input.phone, name: input.name, via: "till" }),
       }),
     onSuccess: (payload) => {
-      selectCustomer({ ...payload.data, loyaltyPoints: 0, loyaltyTier: "BRONZE" });
+      selectCustomer(newPosCustomer(payload.data));
+      setAdding(null);
       setOpen(false);
     },
-    onError: async (error) => {
+    onError: async (error, input) => {
+      // A number someone already has: offer them instead.
+      const existing = error instanceof ApiError && error.status === 409 ? (error.details as { existing?: { id: string; name: string } } | null)?.existing : null;
+      if (existing) {
+        setTaken(existing);
+        setAddError(getApiErrorMessage(error));
+        return;
+      }
       const message = getApiErrorMessage(error);
       const offline = /network|failed to fetch|load failed/i.test(message) || (typeof navigator !== "undefined" && !navigator.onLine);
       if (offline && tenantKey) {
-        const queued = await createOfflineRetailCustomer(tenantKey, {
-          name: phoneLike ? `Customer ${query}` : query,
-          phone: phoneLike ? query : null,
-          email: null,
-        });
-        selectCustomer({
-          id: queued.record.tempId,
-          name: String(queued.record.payload.name ?? query),
-          phone: (queued.record.payload.phone as string | null | undefined) ?? null,
-          email: null,
-          loyaltyPoints: 0,
-          loyaltyTier: "BRONZE",
-        });
+        const queued = await createOfflineRetailCustomer(tenantKey, { name: input.name, phone: input.phone });
+        selectCustomer(newPosCustomer({ id: queued.record.tempId, name: input.name, phone: input.phone }));
+        setAdding(null);
         setOpen(false);
         return;
       }
+      if (error instanceof ApiError && error.status === 400) {
+        setAddError(message);
+        return;
+      }
       toast({ title: "That customer was not added", description: message, variant: "destructive" });
+    },
+  });
+
+  const pickTaken = useMutation({
+    mutationFn: async (existing: { id: string; name: string }) => {
+      const found = await fetchJson<{ data: PosCustomer[] }>(`/api/v2/retail/pos/customers?q=${encodeURIComponent(adding?.phone ?? existing.name)}&limit=8`);
+      return found.data.find((customer) => customer.id === existing.id) ?? null;
+    },
+    onSuccess: (customer) => {
+      if (!customer) return;
+      selectCustomer(customer);
+      setAdding(null);
+      setTaken(null);
+      setOpen(false);
     },
   });
 
@@ -535,7 +560,7 @@ export function CustomerPopover() {
               <div>
                 <b className="strong">{selectedCustomer.name}</b>
                 <p className="note num text-left">
-                  {[selectedCustomer.phone, enumLabel(selectedCustomer.loyaltyTier), `${whole(selectedCustomer.loyaltyPoints)} points`]
+                  {[selectedCustomer.phone, selectedCustomer.tier, `${whole(selectedCustomer.points)} points`]
                     .filter(Boolean)
                     .join(" · ")}
                 </p>
@@ -603,7 +628,7 @@ export function CustomerPopover() {
                         <span className="text-stack text-left">
                           <span className="ink weight-500">{customer.name}</span>
                           <span className="muted num text-left text-12">
-                            {[customer.phone, enumLabel(customer.loyaltyTier), `${whole(customer.loyaltyPoints)} points`].filter(Boolean).join(" · ")}
+                            {[customer.phone, customer.tier, `${whole(customer.points)} points`].filter(Boolean).join(" · ")}
                           </span>
                         </span>
                       </button>
@@ -616,10 +641,55 @@ export function CustomerPopover() {
                   </p>
                 ) : null}
                 {customerSearchResults.length ? <div className="menu-sep" /> : null}
-                <button type="button" className="menu-item" disabled={create.isPending} aria-busy={create.isPending || undefined} onClick={() => create.mutate()}>
-                  <UserPlus className="ic" />
-                  Add {query} as a new customer
-                </button>
+                {adding ? (
+                  <form
+                    className="pad-8"
+                    onSubmit={(event) => {
+                      event.preventDefault();
+                      setAddError(null);
+                      setTaken(null);
+                      create.mutate(adding);
+                    }}
+                  >
+                    <label className="input-wrap">
+                      <input
+                        aria-label="Phone or WhatsApp"
+                        placeholder="Phone or WhatsApp"
+                        className="num"
+                        inputMode="tel"
+                        value={adding.phone}
+                        autoFocus={!adding.phone}
+                        onChange={(event) => setAdding({ ...adding, phone: event.target.value })}
+                      />
+                    </label>
+                    <label className="input-wrap">
+                      <input
+                        aria-label="Name"
+                        placeholder="Name"
+                        value={adding.name}
+                        autoFocus={Boolean(adding.phone)}
+                        onChange={(event) => setAdding({ ...adding, name: event.target.value })}
+                      />
+                    </label>
+                    {addError ? <ErrorLine>{addError}</ErrorLine> : null}
+                    {taken ? (
+                      <button type="button" className="btn" disabled={pickTaken.isPending} onClick={() => pickTaken.mutate(taken)}>
+                        <Check className="ic" />
+                        Use {taken.name}
+                      </button>
+                    ) : (
+                      <button type="submit" className="btn btn-ink" disabled={create.isPending} aria-busy={create.isPending || undefined}>
+                        <UserPlus className="ic" />
+                        Add customer
+                      </button>
+                    )}
+                  </form>
+                ) : (
+                  <button type="button" className="menu-item" onClick={startAdding}>
+                    <UserPlus className="ic" />
+                    Add {query} as a new customer
+                  </button>
+                )}
               </div>
             ) : (
               <p className="help">Type two letters of a name, or the start of a phone number.</p>
@@ -778,7 +848,7 @@ export function DiscountPopover() {
         ? SPENDING_NEEDS_THE_INTERNET
         : spendRefusal({
             enabled: Boolean(loyaltyRules?.on),
-            customer: selectedCustomer ? { name: selectedCustomer.name, balance: selectedCustomer.loyaltyPoints } : null,
+            customer: selectedCustomer ? { name: selectedCustomer.name, balance: selectedCustomer.points } : null,
             points: pointsWanted,
             spendFrom: loyaltyRules?.spendFrom ?? 0,
             pointValue: loyaltyRules?.pointValue ?? 0,
@@ -836,7 +906,7 @@ export function DiscountPopover() {
                   <ErrorLine id={`${ids}le`}>{refusal}</ErrorLine>
                 ) : (
                   <span className="help">
-                    {whole(selectedCustomer.loyaltyPoints)} points, worth {usd(worthOf(selectedCustomer.loyaltyPoints, loyaltyRules.pointValue))}.
+                    {whole(selectedCustomer.points)} points, worth {usd(worthOf(selectedCustomer.points, loyaltyRules.pointValue))}.
                     {pointsWanted > 0 ? ` These take ${usd(worthOf(pointsWanted, loyaltyRules.pointValue))} off.` : ""}
                   </span>
                 )}

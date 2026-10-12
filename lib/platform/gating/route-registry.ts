@@ -443,7 +443,6 @@ export const API_FEATURE_ROUTES: FeatureRouteEntry[] = [
   { scope: "api", prefix: "/api/v2/schools/portal/teacher", featureKey: "schools.portal.teacher" },
   { scope: "api", prefix: "/api/v2/schools", featureKey: "schools.core" },
 
-  { scope: "api", prefix: "/api/retail/customers", featureKey: "crm.customers" },
   { scope: "api", prefix: "/api/retail/catalog", featureKey: "retail.catalog" },
   { scope: "api", prefix: "/api/retail/purchasing", featureKey: "retail.purchasing" },
   { scope: "api", prefix: "/api/retail/promotions", featureKey: "retail.promotions" },

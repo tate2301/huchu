@@ -1,5 +1,6 @@
 import { canRetailSessionDo, retailPermissionDenial } from "@/lib/retail/permission-matrix";
 
+import { CUSTOMER_LOOKUPS } from "./customers";
 import { FLOOR_LOOKUPS } from "./floor";
 import { PEOPLE_LOOKUPS } from "./people";
 import { BUYING_LOOKUPS } from "./buying";
@@ -14,7 +15,7 @@ import { LookupFieldErrors, type LookupCtx, type LookupNoun, type LookupOption, 
  * line here.
  */
 export const LOOKUP_NOUNS: ReadonlyMap<string, LookupNoun> = new Map(
-  [...BUYING_LOOKUPS, ...FLOOR_LOOKUPS, ...PEOPLE_LOOKUPS, ...PRODUCT_LOOKUPS, ...SETUP_LOOKUPS, ...STOCK_LOOKUPS].map((noun) => [noun.noun, noun]),
+  [...BUYING_LOOKUPS, ...CUSTOMER_LOOKUPS, ...FLOOR_LOOKUPS, ...PEOPLE_LOOKUPS, ...PRODUCT_LOOKUPS, ...SETUP_LOOKUPS, ...STOCK_LOOKUPS].map((noun) => [noun.noun, noun]),
 );
 
 export type { LookupCtx, LookupNoun, LookupOption, QuickField } from "./types";

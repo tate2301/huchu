@@ -1,16 +1,16 @@
+import { normalizePhoneE164 } from "@/lib/crm/phone";
+
 /**
- * A customer's phone written one way (CUS-01), as the retail_customers
- * migration wrote every existing one: no spaces or dashes, and a Zimbabwean
- * number with +263 ("0774 123 388" → "+263774123388"). Anything else keeps
- * its digits and its +. Fewer than seven digits is not a number.
+ * A customer's phone written one way (CUS-01, CUS-02): E.164, a Zimbabwean
+ * number from "0774 123 388", "263…" or "+263…" → "+263774123388"
+ * (`normalizePhoneE164` with Zimbabwe's dial code). Blank is null; anything
+ * that is not a number throws.
  */
+export const NOT_A_PHONE = "That is not a phone number.";
+
 export function normalizePhone(input: string | null | undefined): string | null {
-  if (!input) return null;
-  const compact = input.trim().replace(/[\s-]/g, "");
-  if (!compact) return null;
-  const digits = compact.replace(/[^\d+]/g, "");
-  if (digits.replace(/\D/g, "").length < 7) throw new Error("Customer phone number looks invalid.");
-  if (digits.startsWith("0")) return `+263${digits.slice(1)}`;
-  if (digits.startsWith("263")) return `+${digits}`;
-  return digits;
+  if (!input?.trim()) return null;
+  const e164 = normalizePhoneE164(input, "263");
+  if (!e164) throw new Error(NOT_A_PHONE);
+  return e164;
 }
