@@ -107,7 +107,8 @@ const vouchers: ListSpec = {
       // "US$74.20 + 12": the money left, then the discount vouchers' uses left.
       total: "sum",
       totalParts: { money: "leftMoney", count: "leftUses" },
-      width: "100px",
+      // Room for the Σ "US$188.40 + 12", wider than any row's figure.
+      width: "140px",
       align: "end",
       priority: 1,
     },
