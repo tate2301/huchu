@@ -1760,6 +1760,10 @@
   .tl.tl.tl .side { display: none; }
   .tl.tl.tl .bar, .tl.tl.tl .tools, .tl.tl.tl .row, .tl.tl.tl .group-head { padding-left: var(--space-16); padding-right: var(--space-16); }
   .tl.tl.tl .tools { overflow-x: auto; }
+  /* A bar with a search box: the box takes its own line, so the title, tabs and search never push the page wider than the screen. */
+  .tl.tl.tl .bar:has(.input-wrap.is-search) { height: auto; min-height: var(--layout-navbar); flex-wrap: wrap; padding-block: var(--space-8); }
+  .tl.tl.tl .bar:has(.input-wrap.is-search) .end { flex: 1 1 100%; margin-left: 0; }
+  .tl.tl.tl .bar:has(.input-wrap.is-search) .input-wrap.is-search { width: 100%; max-width: none; }
   .tl.tl.tl .form-sec { grid-template-columns: minmax(0, 1fr); }
   .tl.tl.tl .field-row { grid-template-columns: minmax(0, 1fr); }
   .tl.tl.tl .page { padding: var(--space-24) var(--space-16) var(--space-48); gap: var(--space-32); }
@@ -2043,6 +2047,15 @@
 .tl.tl.tl .row.is-sale { grid-template-columns: 96px minmax(0, 1.4fr) 112px minmax(0, 1.2fr) 96px 16px; color: inherit; text-decoration: none; }
 .tl.tl.tl .row.is-shift-line { grid-template-columns: 96px minmax(0, 1fr) 112px 96px; }
 .tl.tl.tl .row.is-person { grid-template-columns: 32px minmax(0, 1fr) 88px 80px; width: 100%; text-align: left; }
+/* On a phone the five columns do not fit: code and amount on the first line, who and what below, then state and the last cell. */
+@media (max-width: 760px) {
+  .tl.tl.tl .row.is-queued { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "code amount" "who who" "state last"; gap: var(--space-4) var(--space-16); }
+  .tl.tl.tl .row.is-queued > :nth-child(1) { grid-area: code; }
+  .tl.tl.tl .row.is-queued > :nth-child(2) { grid-area: who; text-align: left; }
+  .tl.tl.tl .row.is-queued > :nth-child(3) { grid-area: state; }
+  .tl.tl.tl .row.is-queued > :nth-child(4) { grid-area: amount; justify-self: end; }
+  .tl.tl.tl .row.is-queued > :nth-child(5) { grid-area: last; justify-self: end; }
+}
 .tl.tl.tl .row.is-split { justify-content: space-between; }
 .tl.tl.tl .row.is-flush { padding-left: 0; padding-right: 0; }
 .tl.tl.tl .row.is-inset { padding-left: var(--space-12); padding-right: var(--space-12); }
