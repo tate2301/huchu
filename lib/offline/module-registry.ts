@@ -180,17 +180,9 @@ const retailPreloadQueries: OfflinePreloadQuery[] = [
     fetcher: async () => fetchJson("/api/v2/retail/pos/current-shift"),
   },
   {
-    key: "retail-promotions",
-    queryKey: ["retail-pos-promotions"],
-    // `route-registry.ts:424` gates /api/v2/retail/promotions on
-    // `retail.promotions`. A cashier signing in took a 403 here.
-    featureKey: "retail.promotions",
-    fetcher: async () => fetchJson("/api/v2/retail/promotions?status=ACTIVE&pos=1"),
-  },
-  {
     key: "retail-pos-pricing",
-    // The price snapshot's live bundles and buy-more deals: offline, the till
-    // prices a sale by the same sum `pos/sales` runs (PRD-08).
+    // The price snapshot's live bundles, buy-more deals and promotions:
+    // offline, the till prices a sale by the same sum `pos/sales` runs (PRD-08, PRD-09).
     enabled: onPairedTill,
     queryKey: ["retail-pos-pricing"],
     featureKey: "retail.pos",

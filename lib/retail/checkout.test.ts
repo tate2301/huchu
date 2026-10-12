@@ -238,12 +238,11 @@ describe("discounts come off the shelf price, and the VAT follows", () => {
    *   VAT         1.08 − 0.94  = 0.14
    */
   it("takes a 10% promotion off the shelf price, not off the ex-VAT figure", () => {
+    // The engine works the promotion out on the tag (`applyPromotions`) and hands it over as the line's own discount.
     const checkout = calculateRetailCheckout({
-      lines: [{ id: "castle", quantity: 1, unitPrice: 1.2, taxPercent: 15, taxInclusive: true }],
-      promotion: { id: "promo", type: "PERCENT", value: 10 },
+      lines: [{ id: "castle", quantity: 1, unitPrice: 1.2, taxPercent: 15, taxInclusive: true, lineDiscountAmount: 0.12 }],
     });
 
-    expectExactly(checkout.promotionDiscountAmount, "0.12", "promotion");
     expectExactly(checkout.lines[0].taxAmount, "0.14", "VAT");
     expectExactly(checkout.total, "1.08", "total");
     expectBalances(checkout);

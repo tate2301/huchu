@@ -148,13 +148,16 @@ describe("posting a shop's sales to the books", () => {
       BREAKAGE: "5410",
       DEPOSITS_HELD: "2240",
       OPENING_BALANCES: "3100",
+      VOUCHERS_OWED: "2250",
+      PROMOTIONS_GIVEN: "5450",
+      OTHER_INCOME: "4200",
     });
     const lines = await prisma.postingRuleLine.findMany({
       where: { rule: { companyId, sourceType: "RETAIL_SALE" }, accountSource: "ROLE_MAPPING" },
       select: { accountRole: true, accountId: true },
     });
     expect(lines.map((line) => line.accountRole).sort()).toEqual(
-      ["COST_OF_SALES", "DEPOSITS_HELD", "SALES", "STOCK", "VAT_OUTPUT"].sort(),
+      ["COST_OF_SALES", "DEPOSITS_HELD", "SALES", "STOCK", "VAT_OUTPUT", "VOUCHERS_OWED"].sort(),
     );
     expect(lines.every((line) => line.accountId === null)).toBe(true);
 

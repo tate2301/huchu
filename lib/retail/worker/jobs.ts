@@ -6,6 +6,7 @@ import { runScheduledPosting } from "@/lib/retail/posting-settings";
 import { applyDuePriceChangesForAll } from "@/lib/retail/prices/schedule";
 import { applyRbzRate } from "@/lib/retail/rbz-rate";
 import { closeWaitingFiscalDays } from "@/lib/retail/fiscal-settings";
+import { expireVouchers } from "@/lib/retail/vouchers/expire";
 
 import type { RetailJob } from "./schedule";
 
@@ -16,9 +17,16 @@ import type { RetailJob } from "./schedule";
  * configured), 03:00 the shelf-label jobs no till picked up (PRD-06), 23:00
  * the posting runs (SET-09), every five minutes the
  * message outbox (SET-07, C-03) and the fiscal days left to close (SET-08),
- * every minute the price changes come due (PRD-07).
+ * every minute the price changes come due (PRD-07), 00:10 the vouchers whose
+ * expiry day has passed lapse (PRD-10).
  */
 export const RETAIL_JOBS: RetailJob[] = [
+  {
+    // Vouchers past their expiry day with something left lapse, and what money was left is written off (PRD-10).
+    name: "voucher-expiry",
+    when: { dailyAt: "00:10" },
+    run: async (now) => `${await expireVouchers(now)} expired`,
+  },
   {
     // Everything in every shop's bin more than 30 days goes for good (80-admin 4.5).
     name: "bin-purge",

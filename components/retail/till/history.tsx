@@ -15,7 +15,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useVirtualizer } from "@tanstack/react-virtual";
 
-import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { fetchJson } from "@/lib/api-client";
 import {
   ArrowsCounterClockwise,
   CaretLeft,
@@ -39,7 +39,7 @@ import { getPosPortalHref } from "@/lib/retail/pos-host";
 import { SHOP_TIME_ZONE } from "@/lib/retail/shop-profile-rules";
 import { refundPinSentence, VOID_FREE_MS, voidPinSentence } from "@/lib/retail/till-rule-words";
 import { count, dayMonth, firstName, hhmm, paymentLabel, qty, usd, weekdayDayMonth, whole, zig } from "./format";
-import { Avatar, Empty, ErrorLine, Segmented, TillDialog } from "./parts";
+import { Avatar, Empty, ErrorLine, LoadFailed, Segmented, TillDialog } from "./parts";
 import { ManagerFields, useManagerPin } from "./manager-pin";
 import { printReceipt, tenderKey } from "./pay-tray";
 import { useTill } from "./state";
@@ -92,8 +92,6 @@ type SaleDetail = {
   empties: Array<{ supplierId: string; supplierName: string; quantity: number }>;
   /** The customer, matched by name as loyalty is: points earned on it, taken back by its refunds and voids, and now. Null on a walk-in. */
   customer: { phone: string | null; tier: string; balance: number; earned: number; returned: number } | null;
-  promotionCode: string | null;
-  promotion?: { name: string } | null;
   voidReason: string | null;
   shift: { id: string; shiftNo: string; registerName: string; status: string } | null;
   sourceSale: { id: string; saleNo: string } | null;
@@ -121,6 +119,9 @@ type SaleDetail = {
     unitPrice: Amount;
     lineTotal: Amount;
     discountAmount: Amount;
+    /** What its promotion took off, and which promotion (PRD-09). */
+    promotionDiscount: number;
+    promotion: { code: string; name: string } | null;
     depositAmount: Amount;
     depositRefunded: number;
     refundedQuantity: number;
@@ -373,9 +374,7 @@ export function HistoryScreen() {
           <span className="skeleton is-lede" />
         </div>
       ) : query.isError ? (
-        <Empty icon={Receipt} title="Your sales did not load">
-          {getApiErrorMessage(query.error)}
-        </Empty>
+        <LoadFailed icon={Receipt} title="Your sales did not load" error={query.error} onRetry={() => void query.refetch()} />
       ) : !rows.length ? (
         <Empty icon={Receipt} title={filters.search ? `No sale matches “${filters.search}”` : filtered ? "No sales like that" : "No sales yet"}>
           {filters.search
@@ -481,9 +480,7 @@ export function SaleScreen({ id }: { id: string }) {
   if (!sale) {
     return (
       <div className="main">
-        <Empty icon={Receipt} title="That sale did not load">
-          {getApiErrorMessage(query.error)}
-        </Empty>
+        <LoadFailed icon={Receipt} title="That sale did not load" error={query.error} onRetry={() => void query.refetch()} />
       </div>
     );
   }
@@ -510,22 +507,17 @@ export function SaleScreen({ id }: { id: string }) {
   const dayOf = (value: string | null) => dayMonth(value ?? when);
   const dayHead = (value: string | null) => <div className="feed-day">{dayOf(value) === today ? "Today" : dayOf(value)}</div>;
   const lastReversal = sale.reversals[sale.reversals.length - 1];
-  const promotionName = sale.promotion?.name ?? sale.promotionCode;
-  const discounted = sale.lines.filter((line) => n(line.discountAmount) > 0);
+  const promoted = sale.lines.filter((line) => line.promotion && line.promotionDiscount > 0);
   const discounts: Array<{ id: string; text: React.ReactNode }> = isSale
     ? [
-        ...(promotionName
-          ? discounted.length
-            ? discounted.map((line) => ({
-                id: line.id,
-                text: (
-                  <>
-                    {promotionName} took <b className="nowrap">{usd(n(line.discountAmount))}</b> off {product(line.itemName)}
-                  </>
-                ),
-              }))
-            : [{ id: "promotion", text: `${promotionName} applied` }]
-          : []),
+        ...promoted.map((line) => ({
+          id: line.id,
+          text: (
+            <>
+              {line.promotion!.name} took <b className="nowrap">{usd(line.promotionDiscount)}</b> off {product(line.itemName)}
+            </>
+          ),
+        })),
         ...(sale.overrideReason
           ? [
               {

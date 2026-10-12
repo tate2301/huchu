@@ -1,0 +1,47 @@
+# Typecheck on every push and pull request.
+#
+# This used to run inside the Vercel build (`pnpm run typecheck` before
+# `next build`), where it sat on the deploy's critical path on a 2-core
+# machine: five minutes of typecheck on top of a twenty-minute compile, with
+# the 45-minute build limit at the end of it. Here it runs in parallel with
+# the deploy on a 4-core runner, and a red check blocks the merge rather than
+# the preview.
+#
+# `pnpm lint` is not here yet: it reports eleven React Compiler errors on
+# `main` (set-state-in-effect in the gold forms and the offline banner), so a
+# lint job would be red until those are fixed.
+name: Checks
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: checks-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  typecheck:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+
+      # The generated client is a pure function of the schema and the Prisma
+      # version, and takes four minutes to write. Keep it between runs; the
+      # generate script sees its marker and skips.
+      - uses: actions/cache@v4
+        with:
+          path: node_modules/.pnpm/@prisma+client@*/node_modules/.prisma
+          key: prisma-client-${{ hashFiles('prisma/schema.prisma', 'prisma.config.ts', 'pnpm-lock.yaml') }}
+      - run: node scripts/prisma-generate-if-changed.mjs
+      - run: pnpm run typecheck

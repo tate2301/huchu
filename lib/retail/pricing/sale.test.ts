@@ -1,13 +1,14 @@
 import { describe, expect, it } from "vitest";
 
-import type { SnapshotBundle } from "./engine";
+import type { SnapshotBundle, SnapshotPromotion } from "./engine";
 import { priceSale, type SaleLineInput } from "./sale";
 
 /**
- * PRD-08: the one sum the till shows and `pos/sales` stores. A buy-more deal
- * comes off on its own; the cashier's discount on a line a deal split is
- * shared over its pieces by quantity; a sale promotion takes nothing off a
- * bundled unit.
+ * PRD-08, PRD-09: the one sum the till shows and `pos/sales` stores. A
+ * buy-more deal comes off on its own; the cashier's discount on a line a deal
+ * split is shared over its pieces by quantity; a promotion takes nothing off
+ * a unit in a fixed set, and a unit in a buy-more deal takes the better of
+ * the two.
  */
 
 const WEDNESDAY = "2026-10-07T10:00:00Z";
@@ -61,7 +62,7 @@ const line = (key: string, productId: string, quantity: number, unitPrice: numbe
   ...extra,
 });
 const sell = (lines: SaleLineInput[], extra: Partial<Parameters<typeof priceSale>[0]> = {}) => {
-  const priced = priceSale({ lines, bundles: [braai, ciders], at: WEDNESDAY, siteId: "hre", ...extra });
+  const priced = priceSale({ lines, bundles: [braai, ciders], promotions: [], at: WEDNESDAY, siteId: "hre", ...extra });
   if ("error" in priced) throw new Error(priced.error);
   return priced;
 };
@@ -77,7 +78,7 @@ describe("a buy-more deal", () => {
     expect(priced.checkout.total).toBe(5);
     expect(priced.bundleSaving).toBe(0.55);
     expect(priced.pieces).toEqual([
-      { key: "s", lineKey: "s", quantity: 3, lineDiscount: 0, bundleDiscount: 0.55, bundleId: "ciders", group: 1 },
+      { key: "s", lineKey: "s", quantity: 3, lineDiscount: 0, bundleDiscount: 0.55, bundleId: "ciders", group: 1, promotionId: null, promotionDiscount: 0, voucherDiscount: 0 },
     ]);
   });
 
@@ -98,39 +99,89 @@ describe("a buy-more deal", () => {
   });
 });
 
-describe("a sale promotion beside a bundle", () => {
-  const tenPercent = { id: "promo", type: "PERCENT" as const, value: 10 };
+describe("a promotion beside a bundle", () => {
+  const promotion = (extra: Partial<SnapshotPromotion>): SnapshotPromotion => ({
+    id: "promo",
+    code: "PROMO-TEN",
+    name: "Ten off",
+    type: "PERCENT",
+    value: 10,
+    buyQuantity: null,
+    scope: "EVERYTHING",
+    productIds: [],
+    categoryIds: [],
+    minBasket: null,
+    daysOfWeek: [],
+    fromTime: null,
+    toTime: null,
+    audience: "EVERYONE",
+    stacks: false,
+    siteId: null,
+    startsAt: "2026-10-01T00:00:00Z",
+    endsAt: null,
+    ...extra,
+  });
 
   it("takes nothing off a Braai pack: it stays US$11.00", () => {
-    const priced = sell(braaiLines(), { promotion: tenPercent });
-    expect(priced.checkout.promotionDiscountAmount).toBe(0);
+    const priced = sell(braaiLines(), { promotions: [promotion({})] });
+    expect(priced.promotionSaving).toBe(0);
     expect(priced.checkout.total).toBe(11);
   });
 
   it("takes its 10% off the Coke beside it, and only off the Coke", () => {
-    const priced = sell([...braaiLines(), line("d", "coke", 2, 0.75)], { promotion: tenPercent });
-    expect(priced.checkout.promotionDiscountAmount).toBe(0.15);
+    const priced = sell([...braaiLines(), line("d", "coke", 2, 0.75)], { promotions: [promotion({})] });
+    expect(priced.promotionSaving).toBe(0.15);
     expect(priced.checkout.total).toBe(12.35);
-    const coke = priced.checkout.lines.find((entry) => entry.id === "d")!;
-    expect(coke.lineTotal).toBe(1.35);
+    const coke = priced.pieces.find((piece) => piece.key === "d")!;
+    expect(coke).toMatchObject({ promotionId: "promo", promotionDiscount: 0.15 });
+    expect(priced.checkout.lines.find((entry) => entry.id === "d")!.lineTotal).toBe(1.35);
   });
 
-  it("takes no promotion off three Savanna in the deal", () => {
-    const priced = sell([line("s", "savanna", 4, 1.85)], { promotion: { ...tenPercent, value: 20 } });
-    // The fourth, at its own price, takes the 20%: 5.00 + 1.85 − 0.37.
-    expect(priced.checkout.promotionDiscountAmount).toBe(0.37);
-    expect(priced.checkout.total).toBe(6.48);
+  it("leaves three Savanna in the deal when the deal saves more", () => {
+    const priced = sell([line("s", "savanna", 4, 1.85)], { promotions: [promotion({ value: 5 })] });
+    // The deal's 0.55 beats 5% of 5.55; the fourth takes the 5%: 5.00 + 1.85 − 0.09.
+    expect(priced.bundleSaving).toBe(0.55);
+    expect(priced.promotionSaving).toBe(0.09);
+    expect(priced.checkout.total).toBe(6.76);
   });
 
-  it("caps an amount off at what is sold at its own price", () => {
-    const priced = sell(braaiLines(), { promotion: { id: "promo", type: "AMOUNT", value: 2 } });
-    expect(priced.checkout.total).toBe(11);
+  it("takes the promotion instead of the deal when it saves more", () => {
+    const priced = sell([line("s", "savanna", 4, 1.85)], { promotions: [promotion({ value: 20 })] });
+    // 20% of 7.40 is 1.48, more than the deal's 0.55 and the 20% on the fourth together.
+    expect(priced.bundleSaving).toBe(0);
+    expect(priced.pieces).toHaveLength(1);
+    expect(priced.pieces[0]).toMatchObject({ quantity: 4, bundleId: null, promotionId: "promo", promotionDiscount: 1.48 });
+    expect(priced.checkout.total).toBe(5.92);
+  });
+
+  it("reads the basket minimum off the whole basket on the shelf, the Braai pack and a kept deal included", () => {
+    const winter = promotion({ value: 5, minBasket: 20 });
+    // A Braai pack (US$12.60 on the shelf) and a US$9.00 gin: US$21.60, over the minimum; the 5% is on the gin alone.
+    const braaiAndGin = sell([...braaiLines(), line("g", "gin", 1, 9)], { promotions: [winter] });
+    expect(braaiAndGin.pieces.find((piece) => piece.key === "g")).toMatchObject({ promotionId: "promo", promotionDiscount: 0.45 });
+    expect(braaiAndGin.checkout.total).toBe(19.55);
+    // With three Savanna in their deal as well (US$27.15 on the shelf): the deal stays whole, the gin still takes its 5%.
+    const withDeal = sell([...braaiLines(), line("s", "savanna", 3, 1.85), line("g", "gin", 1, 9)], { promotions: [winter] });
+    expect(withDeal.bundleSaving).toBe(2.15);
+    expect(withDeal.promotionSaving).toBe(0.45);
+    expect(withDeal.checkout.total).toBe(24.55);
+    // A deal and a gin over the minimum only together (US$14.55 against US$14.00): both passes read the same basket.
+    const dealAndGin = sell([line("s", "savanna", 3, 1.85), line("g", "gin", 1, 9)], { promotions: [promotion({ value: 5, minBasket: 14 })] });
+    expect([dealAndGin.bundleSaving, dealAndGin.promotionSaving, dealAndGin.checkout.total]).toEqual([0.55, 0.45, 13.55]);
+    // Under it, nothing comes off.
+    const under = sell([...braaiLines(), line("d", "coke", 1, 0.75)], { promotions: [winter] });
+    expect(under.promotionSaving).toBe(0);
+  });
+
+  it("caps an amount off at the shelf price of the units it is on", () => {
+    const priced = sell([line("i", "ice", 1, 1.5)], { promotions: [promotion({ type: "AMOUNT", value: 2 })] });
+    expect(priced.checkout.total).toBe(0);
   });
 });
 
 describe("refusals", () => {
   it("passes a wrong set's refusal back", () => {
-    const priced = priceSale({ lines: braaiLines().slice(0, 2), bundles: [braai], at: WEDNESDAY, siteId: "hre" });
+    const priced = priceSale({ lines: braaiLines().slice(0, 2), bundles: [braai], promotions: [], at: WEDNESDAY, siteId: "hre" });
     expect(priced).toEqual({ error: "That is not a Braai pack: it needs 6 × Castle Lager 340ml, 1 × Ice 2kg bag, 1 × Charcoal 4kg." });
   });
 });

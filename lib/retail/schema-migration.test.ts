@@ -84,7 +84,6 @@ const ENUM_COLUMNS: Array<[table: string, column: string, type: string]> = [
   ["RetailPurchaseOrder", "status", "RetailPurchaseOrderStatus"],
   ["RetailGoodsReceipt", "status", "RetailGoodsReceiptStatus"],
   ["RetailPromotion", "type", "RetailPromotionType"],
-  ["RetailPromotion", "status", "RetailPromotionStatus"],
   ["RetailSalePayment", "tenderType", "RetailTenderType"],
   ["RetailCashMovement", "type", "RetailCashMovementType"],
   ["RetailCashMovement", "reasonCode", "RetailCashMovementReason"],
@@ -106,8 +105,7 @@ const ENUM_LABELS: Record<string, readonly string[]> = {
   RetailHeldCartStatus: ["HELD", "RECALLED", "RELEASED"],
   RetailPurchaseOrderStatus: ["DRAFT", "PARTIAL", "RECEIVED"],
   RetailGoodsReceiptStatus: ["POSTED"],
-  RetailPromotionType: ["PERCENT", "AMOUNT", "BUY_X_GET_Y", "BUNDLE"],
-  RetailPromotionStatus: ["ACTIVE", "SCHEDULED", "INACTIVE"],
+  RetailPromotionType: ["PERCENT", "AMOUNT", "BUY_X_PAY", "FIXED_PRICE"],
   RetailTenderType: ["CASH", "CARD", "ECOCASH", "INNBUCKS", "TRANSFER", "ON_ACCOUNT", "VOUCHER"],
   RetailCashMovementType: ["DROP_TO_SAFE", "FLOAT_TOP_UP", "PAYOUT"],
   RetailCashMovementReason: [
@@ -143,9 +141,10 @@ async function enumLabels(type: string) {
 describe("retail status columns are enums in the database", () => {
   it("has a column to check for every entry", () => {
     // A silent zero here would make every assertion below vacuously true.
-    // 13 until S-4 dropped `RetailCatalogItem` and its two enums with it.
-    expect(ENUM_COLUMNS.length).toBe(11);
-    expect(Object.keys(ENUM_LABELS).length).toBe(11);
+    // 13 until S-4 dropped `RetailCatalogItem` and its two enums with it; 11
+    // until PRD-09 made a promotion's state the clock's and dropped its status.
+    expect(ENUM_COLUMNS.length).toBe(10);
+    expect(Object.keys(ENUM_LABELS).length).toBe(10);
   });
 
   it.each(ENUM_COLUMNS)('"%s"."%s" is %s', async (table, column, type) => {

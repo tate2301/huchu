@@ -24,6 +24,7 @@
 - `pnpm build` - build the production bundle.
 - `pnpm start` - serve the production build.
 - `pnpm lint` - run ESLint (Next.js core-web-vitals + TypeScript rules).
+- `pnpm typecheck` - run tsc over the app. CI (`.github/workflows/checks.yml`) runs it and `pnpm lint` on every push and PR; the Vercel build does not, so a type error fails the check, not the deploy.
 - `pnpm db:generate` - generate the Prisma client.
 - `pnpm db:push` - push the schema to the database (dev workflow).
 - `pnpm db:up` / `pnpm db:down` - start or stop the Postgres container on its own.

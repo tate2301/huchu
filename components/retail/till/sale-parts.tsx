@@ -12,6 +12,7 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { motion } from "framer-motion";
 
 import { useOfflineRuntime } from "@/components/offline/offline-runtime";
 import { useToast } from "@/components/ui/use-toast";
@@ -39,6 +40,7 @@ import { discountPinSentence } from "@/lib/retail/till-rule-words";
 import { enumLabel } from "@/lib/retail/words";
 import { emptiesRows, spreadEmpties } from "./empties-words";
 import { count, firstName, MEASURES, qty, usd, whole } from "./format";
+import { lineMotion } from "./motion";
 import { Avatar, ErrorLine, TillDialog, TillPopover } from "./parts";
 import { discountApprovalReason } from "./sale-rules";
 import { lineIsChanged, useTill } from "./state";
@@ -149,7 +151,7 @@ export function SaleLine({ item }: { item: CartItem }) {
         .join(" · ") || null;
 
   return (
-    <div className={`line${stopped ? " is-stopped" : ""}`} aria-current={open ? "true" : undefined}>
+    <motion.div {...lineMotion} data-line={item.catalogItemId} className={`line${stopped ? " is-stopped" : ""}`} aria-current={open ? "true" : undefined}>
       <TillPopover
         arrow
         open={open}
@@ -253,13 +255,15 @@ export function SaleLine({ item }: { item: CartItem }) {
         <button type="button" aria-label={`One fewer ${item.name}`} onClick={() => updateQty(item.catalogItemId, item.quantity - 1)}>
           <Minus className="ic" />
         </button>
-        <span>{measured ? item.quantity.toFixed(3) : qty(item.quantity)}</span>
+        <span key={item.quantity} className="tick">
+          {measured ? item.quantity.toFixed(3) : qty(item.quantity)}
+        </span>
         <button type="button" aria-label={`One more ${item.name}`} onClick={() => updateQty(item.catalogItemId, item.quantity + 1)}>
           <Plus className="ic" />
         </button>
       </span>
       <span className="num">{stopped ? "—" : usd(lineAmount)}</span>
-    </div>
+    </motion.div>
   );
 }
 
@@ -651,13 +655,45 @@ export function CustomerPopover() {
 
 /* ─── Hold ───────────────────────────────────────────────────────────── */
 
-export function HoldPopover() {
+/**
+ * Drop: the checkout will not happen, so the sale goes in one press, beside
+ * Hold. It asks nothing; the toast that says what went brings it all back.
+ */
+export function DropSaleButton() {
+  const drop = useDropSale();
+  return (
+    <button type="button" className="btn btn-quiet is-icon-on-phone" aria-label="Drop this sale" onClick={drop}>
+      <Trash className="ic" />
+      <span className="when-wide">Drop</span>
+    </button>
+  );
+}
+
+/** The drop itself, for the button and for Shift Delete: the sale goes, and the toast says what went with Undo. */
+export function useDropSale() {
+  const { cart, amountDue, dropSale } = useTill();
+  const { toast } = useToast();
+  return () => {
+    const items = cart.reduce((sum, item) => sum + (Number.isInteger(item.quantity) ? item.quantity : 1), 0);
+    const words = `Sale dropped: ${count(items, "item")}, ${usd(amountDue)}`;
+    const undo = dropSale();
+    toast({ title: words, duration: 8000, action: { label: "Undo", onClick: undo } });
+  };
+}
+
+/** Opened by its button, or by H on the keyboard (the sell screen holds `open`). */
+export function HoldPopover({ open, onOpenChange: setOpen }: { open: boolean; onOpenChange: (open: boolean) => void }) {
   const { toast } = useToast();
   const router = useRouter();
   const queryClient = useQueryClient();
-  const { cart, shiftHere, customerName, orderDiscountAmount, selectedPromotionId, clearCart, isPosHost } = useTill();
-  const [open, setOpen] = React.useState(false);
+  const { cart, shiftHere, customerName, orderDiscountAmount, clearCart, isPosHost } = useTill();
   const [label, setLabel] = React.useState("");
+  // However it opens, it opens on the customer's name.
+  const [wasOpen, setWasOpen] = React.useState(open);
+  if (open !== wasOpen) {
+    setWasOpen(open);
+    if (open) setLabel(customerName);
+  }
   const id = React.useId();
 
   const hold = useMutation({
@@ -667,7 +703,7 @@ export function HoldPopover() {
         body: JSON.stringify({
           shiftId: shiftHere?.id,
           label: label.trim() || undefined,
-          cartSnapshot: { items: cart, customerName, orderDiscountAmount, selectedPromotionId },
+          cartSnapshot: { items: cart, customerName, orderDiscountAmount },
         }),
       }),
     onSuccess: () => {
@@ -684,10 +720,7 @@ export function HoldPopover() {
     <TillPopover
       arrow
       open={open}
-      onOpenChange={(next) => {
-        setOpen(next);
-        if (next) setLabel(customerName);
-      }}
+      onOpenChange={setOpen}
       label="Hold this sale"
       align="end"
       trigger={
@@ -727,13 +760,10 @@ export function HoldPopover() {
   );
 }
 
-/* ─── Discount, promotion or points ──────────────────────────────────── */
+/* ─── Discount or points ─────────────────────────────────────────────── */
 
 export function DiscountPopover() {
   const {
-    promotions,
-    selectedPromotionId,
-    setSelectedPromotionId,
     orderDiscountAmount,
     setOrderDiscountAmount,
     loyaltyRedemptionPoints,
@@ -744,7 +774,6 @@ export function DiscountPopover() {
   const [open, setOpen] = React.useState(false);
   const [manual, setManual] = React.useState("");
   const [points, setPoints] = React.useState("");
-  const [promotion, setPromotion] = React.useState("");
   const ids = React.useId();
 
   const pointsValue = Math.max(0, Math.floor(Number(points || "0")));
@@ -763,7 +792,6 @@ export function DiscountPopover() {
           const rest = Number(orderDiscountAmount || "0") - used / LOYALTY_REDEEM_POINTS_PER_USD;
           setManual(rest > 0.009 ? rest.toFixed(2) : "");
           setPoints(used ? String(used) : "");
-          setPromotion(selectedPromotionId);
         }
       }}
       label="Discount on the sale"
@@ -772,7 +800,7 @@ export function DiscountPopover() {
       trigger={
         <button type="button" className="btn btn-quiet is-hang">
           <Percent className="ic" />
-          Discount, promotion or points
+          Discount or points
         </button>
       }
     >
@@ -784,25 +812,11 @@ export function DiscountPopover() {
           const total = (amountOf(manual) ?? 0) + fromPoints;
           setLoyaltyRedemptionPoints(pointsValue ? String(pointsValue) : "");
           setOrderDiscountAmount(total > 0 ? total.toFixed(2) : "");
-          setSelectedPromotionId(promotion);
           setOpen(false);
         }}
       >
         <div className="pop-body">
           <MoneyField id={`${ids}m`} label="Off the whole sale" value={manual} onChange={setManual} placeholder="0.00" autoFocus />
-          {promotions.length ? (
-            <div className="field">
-              <label htmlFor={`${ids}p`}>Promotion</label>
-              <select id={`${ids}p`} className="select input-lg" value={promotion} onChange={(event) => setPromotion(event.target.value)}>
-                <option value="">None</option>
-                {promotions.map((entry) => (
-                  <option key={entry.id} value={entry.id}>
-                    {entry.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-          ) : null}
           <div className="field">
             <label htmlFor={`${ids}l`}>Points</label>
             {selectedCustomer ? (

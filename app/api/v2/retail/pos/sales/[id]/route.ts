@@ -102,14 +102,15 @@ export async function GET(
       select: { id: true, name: true, code: true },
     }),
   ]);
-  const [promotion, empties, customer] = await Promise.all([
-    // The promotion by its name, as the shop wrote it; the sale keeps only the code.
-    sale.promotionCode
-      ? prisma.retailPromotion.findFirst({
-          where: { companyId: session.user.companyId, promoCode: sale.promotionCode },
-          select: { name: true },
+  const promotionIds = [...new Set(sale.lines.map((line) => line.promotionId).filter((id): id is string => Boolean(id)))];
+  const [promotions, empties, customer] = await Promise.all([
+    // PRD-09: each line keeps the promotion that took money off it.
+    promotionIds.length
+      ? prisma.retailPromotion.findMany({
+          where: { companyId: session.user.companyId, id: { in: promotionIds } },
+          select: { id: true, promoCode: true, name: true },
         })
-      : Promise.resolve(null),
+      : Promise.resolve([]),
     // The bottles that came back on it, per supplier.
     saleEmpties(prisma, session.user.companyId, sale.id),
     saleCustomer(session.user.companyId, sale, relatedSales),
@@ -146,7 +147,6 @@ export async function GET(
       shift,
       site,
       sourceSale,
-      promotion,
       empties,
       customer,
       reversals: relatedSales,
@@ -156,9 +156,12 @@ export async function GET(
         // margin on it is not. Destructured out rather than deleted after the
         // spread, so a cost field added later is withheld by default.
         const { costUnit, costTotal, ...rest } = line;
+        const promotion = promotions.find((entry) => entry.id === line.promotionId);
         return {
           ...rest,
           ...(showCost ? { costUnit, costTotal } : {}),
+          promotionDiscount: toNumberOrZero(line.promotionDiscount),
+          promotion: promotion ? { code: promotion.promoCode, name: promotion.name } : null,
           refundedQuantity,
           depositRefunded: depositRefundedBySourceLine.get(line.id) ?? 0,
           refundableQuantity: Math.max(toNumberOrZero(line.quantity) - refundedQuantity, 0),

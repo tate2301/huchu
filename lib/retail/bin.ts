@@ -162,20 +162,18 @@ const KINDS: Record<BinKind, BinKindSpec> = {
     binEvents: [RETAIL_AUDIT_EVENTS.recordBinned],
     find: (tx, companyId, id) =>
       tx.retailPromotion.findFirst({ where: { id, companyId }, select: { name: true, archivedAt: true } }),
-    // Off the till at once. Back as inactive: whether it should run again, and
-    // when, is the owner's call.
+    // Off the till at once; back by its own clock (its dates, a pause, an end).
     move: async (tx, _companyId, id, at) => {
-      await tx.retailPromotion.update({ where: { id }, data: { archivedAt: at, status: "INACTIVE" } });
+      await tx.retailPromotion.update({ where: { id }, data: { archivedAt: at } });
       return null;
     },
     restore: async (tx, _companyId, id) => {
-      await tx.retailPromotion.update({ where: { id }, data: { archivedAt: null, status: "INACTIVE" } });
+      await tx.retailPromotion.update({ where: { id }, data: { archivedAt: null } });
       return null;
     },
-    // A sale names it by its code; one that never ran on a sale is deleted.
+    // Sale lines name it (PRD-09); one that never discounted a line is deleted.
     purge: async (tx, companyId, id) => {
-      const promotion = await tx.retailPromotion.findFirstOrThrow({ where: { id, companyId }, select: { promoCode: true } });
-      const sold = await tx.retailSale.count({ where: { companyId, promotionCode: promotion.promoCode } });
+      const sold = await tx.retailSaleLine.count({ where: { companyId, promotionId: id } });
       if (sold > 0) return "kept";
       await tx.retailPromotion.delete({ where: { id } });
       return "deleted";

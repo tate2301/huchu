@@ -299,7 +299,16 @@ const WHOLE_NOTES = "Count whole notes.";
 const NOTE_NEEDED = "Say what happened.";
 
 /** `fiscalDayClosed`: the fiscal day's number when this close was the shop's last shift and closed it (SET-08), so the till can say so. */
-export type CloseResult = { shiftNo: string; closedAt: string; difference: string; state: DrawerState; fiscalDayClosed: number | null };
+export type CloseResult = {
+  shiftNo: string;
+  closedAt: string;
+  difference: string;
+  state: DrawerState;
+  fiscalDayClosed: number | null;
+  /** What the shift took and how many sales, as its record counts them: the sentence the till closes on. */
+  takings: string;
+  sales: number;
+};
 
 type ClosingShift = Prisma.RetailShiftGetPayload<object>;
 
@@ -363,6 +372,7 @@ async function zigBooked(db: Prisma.TransactionClient, shift: { id: string; comp
         saleType: true,
         totalAmount: true,
         depositAmount: true,
+        vouchersSoldAmount: true,
         tenderedAmount: true,
         changeAmount: true,
         changeZig: true,
@@ -567,7 +577,21 @@ export async function closeShift(input: {
   // "Close the fiscal day · With the last shift" (SET-08): the shop's last open shift closing closes its day.
   const fiscalDay = await closeFiscalDayIfLastShift(actor);
 
-  return { shiftNo: closed.shiftNo, closedAt: closedAt.toISOString(), difference: count.difference, state: count.state, fiscalDayClosed: fiscalDay.closed };
+  // Takings and sales as the shift's record counts them (shift-record.ts): every row's base amount; posted sales.
+  const [took, sales] = await Promise.all([
+    prisma.retailSale.aggregate({ where: { companyId, shiftId: closed.id }, _sum: { baseAmount: true } }),
+    prisma.retailSale.count({ where: { companyId, shiftId: closed.id, saleType: "SALE", status: "POSTED" } }),
+  ]);
+
+  return {
+    shiftNo: closed.shiftNo,
+    closedAt: closedAt.toISOString(),
+    difference: count.difference,
+    state: count.state,
+    fiscalDayClosed: fiscalDay.closed,
+    takings: money(took._sum.baseAmount ?? 0).toFixed(2),
+    sales,
+  };
 }
 
 /** A drawer closed out or uncounted: every active owner and manager but the person who closed it. */

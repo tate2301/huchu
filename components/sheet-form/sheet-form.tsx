@@ -398,9 +398,14 @@ export function SheetForm({ kind, ctx, open, onClose }: SheetFormProps) {
     }
   };
 
-  const runDanger = async () => {
+  /** `noted`: what was typed in the ask's field ("Why"), sent under its key beside the request's own body. */
+  const runDanger = async (noted?: string) => {
     if (!kind.danger) return;
-    const answer = await send(kind.danger.request(ctx, values));
+    const request = kind.danger.request(ctx, values);
+    const field = kind.danger.ask(ctx, values)?.field;
+    const answer = await send(
+      field && noted !== undefined ? { ...request, body: { ...((request.body as object | undefined) ?? {}), [field.key]: noted } } : request,
+    );
     if (!answer.ok) {
       const payload = answer.payload as { error?: unknown; fieldErrors?: Record<string, unknown> } | null;
       const fieldMessage = Object.values(payload?.fieldErrors ?? {}).find((value) => typeof value === "string");
@@ -447,6 +452,26 @@ export function SheetForm({ kind, ctx, open, onClose }: SheetFormProps) {
       const handOver = kind.handOver?.(answer.payload, values) ?? null;
       if (handOver) setPanel(handOver);
       else toast({ title: headLink.done(answer.payload), variant: "success" });
+    } catch {
+      setFooterError("That did not reach the server. Nothing was sent; try again.");
+    } finally {
+      setHeadBusy(false);
+    }
+  };
+  // The secondary as an action of its own ("Resend"), in place of Cancel.
+  const secondaryAction = !readOnly && !panel ? (kind.secondaryAction?.(ctx, values) ?? null) : null;
+  const runSecondary = async () => {
+    if (!secondaryAction || headBusy) return;
+    setHeadBusy(true);
+    setFooterError(null);
+    try {
+      const answer = await send(secondaryAction.request);
+      if (!answer.ok) {
+        setFooterError(submitFailure(answer.status, answer.payload, []).footer);
+        return;
+      }
+      await Promise.all(kind.invalidate.map((key) => queryClient.invalidateQueries({ queryKey: key })));
+      toast({ title: secondaryAction.done(answer.payload), variant: "success" });
     } catch {
       setFooterError("That did not reach the server. Nothing was sent; try again.");
     } finally {
@@ -662,17 +687,23 @@ export function SheetForm({ kind, ctx, open, onClose }: SheetFormProps) {
                   ) : null}
                 </span>
               )}
-              <Button
-                size="field"
-                onClick={() => {
-                  if (secondaryLink) requestClose(secondaryLink.href);
-                  else if (again) void submit(true);
-                  else requestClose();
-                }}
-                disabled={saving}
-              >
-                {secondary}
-              </Button>
+              {secondaryAction ? (
+                <Button size="field" onClick={() => void runSecondary()} busy={headBusy} disabled={saving || Boolean(secondaryAction.disabled)}>
+                  {secondaryAction.label}
+                </Button>
+              ) : (
+                <Button
+                  size="field"
+                  onClick={() => {
+                    if (secondaryLink) requestClose(secondaryLink.href);
+                    else if (again) void submit(true);
+                    else requestClose();
+                  }}
+                  disabled={saving}
+                >
+                  {secondary}
+                </Button>
+              )}
               {readOnly ? null : (
                 <Button
                   size="field"
@@ -696,8 +727,8 @@ export function SheetForm({ kind, ctx, open, onClose }: SheetFormProps) {
           onOpenChange={(next) => {
             if (!next) setAsking(null);
           }}
-          onConfirm={async () => {
-            if (asking === "danger") await runDanger();
+          onConfirm={async (noted) => {
+            if (asking === "danger") await runDanger(noted);
             else if (asking === "confirm") {
               setAsking(null);
               await sendChecked(false);

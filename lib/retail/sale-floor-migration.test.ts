@@ -2,8 +2,9 @@
  * Migration witness for `20261007090000_retail_sale_floor` (FLR-01).
  *
  * A sale knows who it was rung for (`customerId`, beside the printed
- * `customerName`), a refund or void knows the manager who approved it, and a
- * refund says whether its goods went back on the shelf. Sales kept before it
+ * `customerName`), and a refund says whether its goods went back on the shelf.
+ * The approver's columns come from the till's migration (see
+ * till-approver-migration.test.ts); this one fills them for older sales. Sales kept before it
  * are linked to a customer only where their name is exactly one live
  * customer's, and the "(approved by …)" a reason carried moves to its own
  * column — run here against sales in the old shape, in a scratch schema,
@@ -83,7 +84,10 @@ async function migrate(sales: OldSale[]) {
         "customerName" TEXT,
         "overrideReason" TEXT,
         "saleType" TEXT NOT NULL DEFAULT 'SALE',
-        "postedAt" TIMESTAMP(3)
+        "postedAt" TIMESTAMP(3),
+        -- Brought by 20261006130000_retail_till_open_price_approver_empties, which runs first.
+        "approvedById" TEXT,
+        "approvedByName" TEXT
       );
       INSERT INTO "Customer" ("id", "companyId", "name", "isActive") VALUES
         ('c-tapiwa', 'shop-a', 'Tapiwa Marange', true),

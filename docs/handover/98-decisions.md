@@ -433,6 +433,89 @@ Recorded unit choices:
   - **A barcode finds one thing**: a product's barcode is refused when a live bundle has it, and a bundle comes back
     from the bin only while its barcode is still free.
 
+- **PRD-09 departs from packet 22 in these places.**
+  - **`promotionDiscount` is shelf money**, what the customer was shown ("US$2.00 a bottle"). On a VAT-inclusive list a
+    line's `discountAmount` is ex-VAT, so the money invariant reads on the shelf's basis: a line's promotion is at most
+    `quantity × unitPrice − lineTotal`, and the sale's total and VAT are worked out after it exactly as before.
+  - **Stacking promotions on one line are attributed to the one that took the most**; the line's `promotionDiscount` is
+    their sum. A fixed set takes no promotion (PRD-08's rule stands); a buy-more group leaves its deal whole when the
+    promotions would save more on its units, and those units take the promotions instead.
+  - **The basket minimum reads the shelf total before any discount**, of the whole basket: units in a bundle or a
+    buy-more deal count towards it though no promotion comes off them, and both of `priceSale`'s passes read the
+    same total. Loyalty members and Staff never match until the
+    customer units pass a customer (D-3), so the seeded PROMO-STAFF has sold nothing under it.
+  - **Dates come from the shared picker** ("2026-10-25T00:00" on the shop's clock); the words "25 October, 00:00" are
+    read too, the year the next time that day comes round. The rail's Ends date ends at 23:59 that day; its Starts at
+    00:00. The rail's Days is a segment, Every day / Weekdays / Weekends; hours stay all day (the engine honours
+    `fromTime`/`toTime` when set).
+  - **pos/sales prices a replay with the promotions that were running when it was rung** (paused or ended after it
+    still apply), **by their rules as they are when it arrives**: a value, scope or kind changed between the ringing
+    and the replay applies to it. Rules are not versioned, and a replay already took the money, so a total that differs
+    from the till's is stored as the server works it out and the change as the tenders give it. A till that still
+    sends `promotionId` is refused (400), queued sales included. Until FLR-10 draws line discounts the till shows
+    their total as "Promotions" under the sale.
+  - **An open till keeps its price snapshot fresh**: it fetches `pos/pricing` again with every heartbeat (a minute;
+    an unchanged snapshot is a 304 off its ETag) and after every sale. A sale rung now sends the total the till
+    showed (`total`); when the server prices it differently (a promotion ended, paused or started inside that
+    minute) it is refused 409 `PRICES_CHANGED` with what it comes to now, and the till fetches the snapshot and
+    re-prices the sale on screen before the cashier takes the money again. "It stops at the next sale on every
+    till" therefore holds: the next sale either sells without it or is re-priced before it is taken.
+  - **A void or refund line carries no promotion**; every figure reads posted sales. The Products tab also lists a
+    product that sold under it and has since left its scope (archived), so its totals match "Sold under it"; its
+    count and its Σ count it, and the Products KPI stays the products in scope with "+1 more sold under it" when
+    every one of them has sold. Its footer link reads "All products" (a record tab's link label is fixed).
+  - **"On the days before" compares like with like**: units of the products it covers while it ran against the same
+    number of days just before it started, and Extra takings their takings the same way. A promotion that has sold
+    nothing under it (Staff, until D-3) shows no change and no extra takings rather than the whole shop's.
+  - **An amount off at or over a product's price gives it away** (never below zero, as the packet says): its Margin
+    now pill reads "Free" in bad, a price at or under cost is a bad pill, and the sheet's value field and the
+    record's Value row warn in words ("Bols Brandy 50ml is US$1.80: it goes free."); a fixed price at or over a
+    price warns that nothing comes off it. The new sheet judges picked products; a category's prices are judged on
+    its record and in Edit rules.
+  - **An ended promotion's rail reads "Ended 11 October 2026, 21:52"** under Ends when End now ended it.
+  - **Two End now (or Pause) at once end it once**, one Ended in its Changes; two copies made at once take the next
+    free codes; two promotions made at once with one code refuse the second under Code.
+  - **The seed discounts its history with the engine itself.** The shop's Spirits are 7 products, not 12; spirits sold
+    a little slower in the days before the festive US$2 (as many as it has run by the seed's day, the window its
+    record compares), Festive has two changes before it started, and Cokes and Savanna sell in pairs while their two-for
+    deals ran. Ciders sold only in the "Any 3 ciders" deal while Heritage ran, so it sold nothing under it. Today's
+    hand-made floor sales carry no promotion.
+- **PRD-10 departs from packet 23 in these places.**
+  - **"For" is typed until the customer lookup lands** (CUS-02, packet 53). A live customer's exact name links that
+    customer, so WhatsApp knows their number; anything else ("Delta reps") is kept on the voucher as who it is for
+    (`holderNote`). Send by stays on Print until something is typed under For, and WhatsApp to someone with no
+    number is refused under Send by ("Tapiwa Marange has no WhatsApp number.").
+  - **The till does not take or sell vouchers yet.** `pos/sales` takes a VOUCHER tender with its code and secret, a
+    discount voucher, and gift vouchers bought (`vouchersSold`, paid on top of the goods, Cr Vouchers owed), and
+    `pos/vouchers/check` reads a typed code or a scanned card; the till's screens for them are FLR-10's, so the
+    Vouchers tender stays off the till's tender list until then. A refund paid as a credit note is FLR-02's
+    (`issueCreditNote`, `restoreVoucherUse` are ready for it).
+  - **A sale that sold gift vouchers is not refunded or voided at the till** ("This sale sold gift vouchers. Void
+    them on Products › Vouchers instead."): the vouchers are live money, voided with a reason here.
+  - **Voiding a sale paid by voucher puts the money back on it**, in the void's transaction (a negative use against
+    the void, the reversed payment naming the voucher, "US$10.00 back from VOID-0012, US$15.00 left" in Activity),
+    and a discount voucher gets its use back. A voucher voided or lapsed since had its money written off, so the
+    sale is not voided ("GV-0019 was voided, so what was paid with it cannot go back on it."). A refund paid back
+    onto a voucher is refused until FLR-02 issues its credit note ("A refund cannot be paid back on a voucher yet.
+    Pay it back another way.").
+  - **Printing is gated as the secret is** (promotions:update, Owner and Manager): the card carries the secret and a
+    barcode of it, so Cashier and Bookkeeper read vouchers but neither print them nor see Print.
+  - **The printed barcode carries the code and its secret** (`GV-0019-K7MQ2X`), so a scan needs no typing; the
+    server still checks the secret, and five wrong secrets in ten minutes lock that code for fifteen.
+  - **A discount voucher comes off after the promotions**, in `priceSale`, shared across the lines by their value;
+    its smallest sale reads the basket after promotions.
+  - **Back-office vouchers are given** (Dr Promotions and gifts 5450 / Cr Vouchers owed 2250). A void or a lapse
+    writes off what was left: to Other income 4200 when it was paid for (sold, or a refund's credit note), back
+    off 5450 when it was given. The VOUCHER tender's clearing account moves from 1018 to 2250, so spending one
+    takes it off what the shop owes.
+  - **A voided or lapsed voucher cannot be extended or changed** ("It was voided.", "It expired on … and was
+    written off."); the worker lapses vouchers at 00:10 the day after they expire, once.
+  - **The Changes tab counts every line of its Activity, uses included** (the board's "1" is a voucher with one
+    change and no use). Sale numbers are the ones the seed's history gives those sales (the board's SALE-29410,
+    GV-0019's sale, is SALE-29888 on the last seed). The board's day is before 9 October; on the seed's day CN-0031 (last day 9 October) reads
+    Expired, so Live 14, Used up 31, Expired 6, All 51 hold with it under Expired. The seed leaves its US$4.20
+    for the worker's next 00:10 run to write off, so that lapse can be watched.
+
 ## Owner direction, 5 October: sidebar, Management and Setup
 
 These override 00-foundations §5.3 and every spec that disagrees.

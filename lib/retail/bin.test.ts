@@ -44,7 +44,7 @@ beforeAll(async () => {
   await prisma.platformAuditEvent.deleteMany({ where: { companyId, eventType: "RETAIL_PRODUCT.CREATED" } });
   promotionId = (
     await prisma.retailPromotion.create({
-      data: { companyId, promoCode: `P-${stamp}`, name: "Case of Castle 5% off", type: "PERCENT", value: money(5) },
+      data: { companyId, promoCode: `P-${stamp}`, name: "Case of Castle 5% off", type: "PERCENT", value: money(5), startsAt: new Date("2026-07-14T00:00:00+02:00") },
       select: { id: true },
     })
   ).id;
@@ -156,11 +156,11 @@ describe("the bin", () => {
     ]);
   });
 
-  it("brings a promotion back inactive, and a category back in use", async () => {
+  it("brings a promotion back to its own clock, and a category back in use", async () => {
     await restoreFromBin(actor(), { kind: "promotion", id: promotionId });
     expect(await prisma.retailPromotion.findUniqueOrThrow({ where: { id: promotionId } })).toMatchObject({
       archivedAt: null,
-      status: "INACTIVE",
+      endedAt: null,
     });
     await restoreFromBin(actor(), { kind: "category", id: categoryId });
     expect(await listBinEntries(companyId)).toEqual([]);
@@ -252,7 +252,7 @@ describe("gone for good", () => {
   it("deletes a promotion never sold, with one PURGED event by the owner", async () => {
     const id = (
       await prisma.retailPromotion.create({
-        data: { companyId, promoCode: `OLD-${stamp}`, name: "Happy hour (old)", type: "PERCENT", value: money(10) },
+        data: { companyId, promoCode: `OLD-${stamp}`, name: "Happy hour (old)", type: "PERCENT", value: money(10), startsAt: new Date("2026-06-01T00:00:00+02:00") },
         select: { id: true },
       })
     ).id;

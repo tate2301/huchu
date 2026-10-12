@@ -9,12 +9,12 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 
-import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { fetchJson } from "@/lib/api-client";
 import { Barcode, MagnifyingGlass, Plus, ShoppingCart, Tag, Users } from "@/lib/icons";
 import { LOYALTY_REDEEM_POINTS_PER_USD } from "@/lib/retail/loyalty-rules";
 import { getPosPortalHref } from "@/lib/retail/pos-host";
 import { count, dayMonth, firstName, qty, usd, whole } from "./format";
-import { Avatar, Empty } from "./parts";
+import { Avatar, Empty, LoadFailed } from "./parts";
 import { useTill } from "./state";
 import { ProductPreview } from "./tile";
 import type { CustomerLookupResult, PosCatalogItem } from "./types";
@@ -75,9 +75,7 @@ export function CustomersScreen() {
             <span className="skeleton is-line" />
           </div>
         ) : query.isError ? (
-          <Empty icon={Users} title="Customers did not load">
-            {getApiErrorMessage(query.error)}
-          </Empty>
+          <LoadFailed icon={Users} title="Customers did not load" error={query.error} onRetry={() => void query.refetch()} />
         ) : !rows.length ? (
           <Empty icon={Users} title={`No customer matches “${search.value}”`}>
             Add them from the till with Add customer, while their sale is on it.
@@ -224,9 +222,7 @@ export function PriceCheckScreen() {
           <span className="skeleton is-lede" />
         </div>
       ) : query.isError ? (
-        <Empty icon={Tag} title="Prices did not load">
-          {getApiErrorMessage(query.error)}
-        </Empty>
+        <LoadFailed icon={Tag} title="Prices did not load" error={query.error} onRetry={() => void query.refetch()} />
       ) : !item ? (
         <Empty icon={Tag} title={`No product called “${search.value}”`}>
           Check the spelling or scan the barcode.
