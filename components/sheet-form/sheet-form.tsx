@@ -529,9 +529,10 @@ export function SheetForm({ kind, ctx, open, onClose }: SheetFormProps) {
               const first = bodyRef.current?.querySelector<HTMLElement>(
                 "input:not([disabled]), textarea:not([disabled]), button:not([disabled])",
               );
-              // A sheet that opens on a choice of cards waits for it: the sheet takes the focus, so no card
-              // reads as chosen before anyone chose (SignOff.png). Tab reaches the cards next.
-              if (first?.matches(".cx-option")) bodyRef.current?.closest<HTMLElement>(".sf-sheet")?.focus();
+              // A sheet that opens on a choice of cards, or whose first control is a switch (the refund's
+              // "Put it back on the shelf" while its lines load), waits for it: the sheet takes the focus, so
+              // nothing reads as chosen before anyone chose (SignOff.png, RefundNew.png). Tab reaches it next.
+              if (first?.matches(".cx-option, [role='switch']")) bodyRef.current?.closest<HTMLElement>(".sf-sheet")?.focus();
               else first?.focus();
             }}
             onEscapeKeyDown={(event) => {
