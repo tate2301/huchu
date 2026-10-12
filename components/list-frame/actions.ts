@@ -85,11 +85,11 @@ export async function runAction(
   if ("sheet" in how) {
     const href = sheetHref(where.pathname, where.search, how.sheet, ids);
     if (!how.with) return { kind: "navigate", href };
-    // More of the sheet's address, from the list's own filters (the worksheet's list).
+    // More of the sheet's address, from the list's own filters (the worksheet's list) and `{ids}`, the ticked rows (lay-bys to remind).
     const [path, query] = href.split("?");
     const params = new URLSearchParams(query);
     for (const [key, template] of Object.entries(how.with)) {
-      const value = fillFromFilters(template, where.filters ?? {});
+      const value = fillFromFilters(template.replaceAll("{ids}", ids.join(",")), where.filters ?? {});
       if (value !== null) params.set(key, value);
     }
     return { kind: "navigate", href: `${path}?${params.toString()}` };

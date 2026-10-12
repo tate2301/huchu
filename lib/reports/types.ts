@@ -249,7 +249,9 @@ export type CellKind =
   | "duration"
   | "edit-money"
   /** A word that does the row menu action named by the column's `action` ("Restore"), in 600 ink. */
-  | "action";
+  | "action"
+  /** A file: its picture (`thumbKey`, else a "PDF" tile) and its name linking to it, with `suffixKey`'s words under. */
+  | "thumb";
 
 export type ListColumn = ReportColumn & {
   cell: CellKind;
@@ -266,6 +268,8 @@ export type ListColumn = ReportColumn & {
   summary?: { tones: Tone[]; label: string };
   /** variance: − bad, + warn; gain: + ok. */
   diff?: "variance" | "gain";
+  /** money: the row key holding the row's own currency ("ZWG" draws "ZiG 1,250.00"); the column's otherwise. */
+  currencyKey?: string;
   /** date: the row key holding the time of day, drawn after the day and sorted with it. */
   timeKey?: string;
   /** date: "2 Nov 2026" (medium), or "Today", "Yesterday", else medium (relative). Default "15 August 2026". */
@@ -276,8 +280,10 @@ export type ListColumn = ReportColumn & {
   href?: RowTemplate;
   /** text: drawn in 600 ink, a name that is not a link (a supplier's contact, edited from the row ⋯). */
   strong?: boolean;
-  /** link: the row key holding muted words after the link (" · stopped"). */
+  /** link: the row key holding muted words after the link (" · stopped"). thumb: the words under the name. */
   suffixKey?: string;
+  /** thumb: the row key holding the picture's url; none draws a "PDF" tile. */
+  thumbKey?: string;
   /** bar: the fill % key, and the % under which the bar warns. */
   bar?: { pctKey: string; warnBelow: number };
   /** num: the row key holding the unit word printed after the figure ("13 bottles"). */
@@ -289,6 +295,7 @@ export type ListColumn = ReportColumn & {
   /**
    * num: the row key holding a tone; when set the figure sits in that tone's pill ("22.4%" under target).
    * date: the day sits in that tone's pill ("31 October 2026" in warn, a voucher in its last month).
+   * owed: only a row that sets it draws the warn pill; another owing something is plain money.
    */
   pillKey?: string;
   /** num: the row key holding words its pill shows when there is no figure ("Free" for a product a promotion gives away). */
@@ -307,6 +314,8 @@ export type ListColumn = ReportColumn & {
    * draws its words in that ink ("Walk-in" in `--faint`), or plain.
    */
   toneKey?: string;
+  /** The row key whose words are the cell's tooltip in place of its own (a points row's note on its What). */
+  titleKey?: string;
   /** action: the key of the row menu action the cell does; drawn only when the row's menu offers it. */
   action?: string;
   /**
@@ -420,7 +429,7 @@ export type ListAction = {
   sites?: "multi-site";
   do:
     /**
-     * A sheet over the list with the rows' ids; `with` adds to its address, its `{key}` holes filled
+     * A sheet over the list with the rows' ids; `with` adds to its address, its `{key}` holes filled (`{ids}`: the ticked rows' ids)
      * from the list's filters (`{ list: "{list}", how: "RAISE" }` on a worksheet).
      */
     | { sheet: string; with?: Record<string, string> }
@@ -511,8 +520,14 @@ export type ListSpec = {
   /** These roles see only the rows where `column` is their own user id; `filter` is hidden from them. */
   scopeOwn?: { roles: string[]; column: string; filter?: string };
   search: { placeholder: string; keys: string[] };
-  /** `empty`: the line drawn while the tab holds nothing at all ("Nothing of yours yet. …"), in place of "No match". */
-  tabs?: Array<{ key: string; label: string; where: Condition[]; empty?: string }>;
+  /**
+   * `empty`: the line drawn while the tab holds nothing at all ("Nothing of yours yet. …"), in place of "No match".
+   * `badge`: the tab's badge is the money sum of this column over its rows, ignoring search and filters
+   * ("Held for customers US$84.30"), in place of its row count.
+   */
+  tabs?: Array<{ key: string; label: string; where: Condition[]; empty?: string; badge?: { sum: string; currency: string } }>;
+  /** These roles open on `tab` instead of the first ("All" for those who do not approve). */
+  tabFor?: { roles: string[]; tab: string };
   filters: ListFilter[];
   /** The first is the default. */
   sorts: ListSort[];
@@ -592,7 +607,9 @@ export type ListSpec = {
  * scoping rule; only the columns, filters and actions that role has; choice
  * options resolved for the company.
  */
-export type ListSpecPublic = Omit<ListSpec, "read" | "scopeOwn" | "primary" | "exportExtras" | "empty" | "subLink" | "edit"> & {
+export type ListSpecPublic = Omit<ListSpec, "read" | "scopeOwn" | "tabFor" | "primary" | "exportExtras" | "empty" | "subLink" | "edit"> & {
+  /** The tab this caller opens on, when it is not the first. */
+  defaultTab?: string;
   primary:
     | (Omit<NonNullable<ListSpec["primary"]>, "requires" | "menu"> & {
         menu?: Array<{ label: string; sheet: string; params?: Record<string, string> }>;
@@ -694,6 +711,8 @@ export type ListPageResult = {
   totals: Record<string, ReportValue>;
   summary: ListSummary;
   tabs: Record<string, number> | null;
+  /** The money badges of tabs that declare one (`badge.sum`), by tab key. */
+  tabSums?: Record<string, number> | null;
   everEmpty: boolean;
   truncated: boolean;
 };

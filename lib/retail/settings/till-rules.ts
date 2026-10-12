@@ -1,7 +1,9 @@
 import { prisma } from "@/lib/prisma";
 import { loadTillRules, saveTillRules, type TillRulesPatch } from "@/lib/retail/till-rules";
 import {
+  daysWords,
   hoursWords,
+  parseDays,
   parseHours,
   parsePercent,
   percentWords,
@@ -35,6 +37,15 @@ export function tillRulesPatch(changes: Record<string, unknown>): TillRulesPatch
     const hours = parseHours(changes.offlineHours);
     if (hours !== null) patch.offlineHours = hours;
   }
+  if (typeof changes.laybyMinDepositPercent === "string") {
+    const percent = parsePercent(changes.laybyMinDepositPercent);
+    if (percent !== null) patch.laybyMinDepositPercent = percent.toFixed(2);
+  }
+  if (typeof changes.laybyCancelFee === "string") patch.laybyCancelFee = changes.laybyCancelFee;
+  if (typeof changes.laybyMaxDays === "string") {
+    const days = parseDays(changes.laybyMaxDays);
+    if (days !== null) patch.laybyMaxDays = days;
+  }
   return patch;
 }
 
@@ -52,6 +63,9 @@ export const tillRulesSettings: SettingsStore = {
       drawerOpenWithoutSale: rules.drawerOpenWithoutSale,
       cashDropPromptOver: rules.cashDropPromptOver.toFixed(2),
       offlineHours: hoursWords(rules.offlineHours),
+      laybyMinDepositPercent: percentWords(rules.laybyMinDepositPercent.toFixed(2)),
+      laybyCancelFee: rules.laybyCancelFee.toFixed(2),
+      laybyMaxDays: daysWords(rules.laybyMaxDays),
       // Read-only: the money the limits are in, which the page labels them with.
       currency: rules.currency,
     };

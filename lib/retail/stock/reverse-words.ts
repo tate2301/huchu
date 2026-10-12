@@ -23,7 +23,7 @@ export const POSTED_REASONS: ReadonlySet<StockMovementReason> = new Set<StockMov
   "CORRECTION",
 ]);
 
-export type SkipKind = "sale" | "delivery" | "count" | "transfer" | "reversed" | "other";
+export type SkipKind = "sale" | "delivery" | "count" | "transfer" | "layby" | "reversed" | "other";
 
 export type Skipped = { id: string; reference: string | null; kind: SkipKind; why: string };
 
@@ -54,6 +54,9 @@ export function skipReason(movement: {
     case "TRANSFER_IN":
     case "TRANSFER_BACK":
       return skip("transfer", `${name} is a transfer: open it instead.`);
+    case "LAYBY_ASIDE":
+    case "LAYBY_BACK":
+      return skip("layby", `${name} is a lay-by: cancel it from Lay-bys.`);
     default:
       return skip("other", `${name} cannot be reversed here.`);
   }
@@ -64,6 +67,7 @@ const SKIP_WORDS: Record<SkipKind, [one: string, many: string]> = {
   delivery: ["was a delivery: open it instead", "were deliveries: open them instead"],
   count: ["was a count: open it instead", "were counts: open them instead"],
   transfer: ["was a transfer: open it instead", "were transfers: open them instead"],
+  layby: ["was a lay-by: cancel it from Lay-bys", "were lay-bys: cancel them from Lay-bys"],
   reversed: ["was already reversed", "were already reversed"],
   other: ["cannot be reversed here", "cannot be reversed here"],
 };

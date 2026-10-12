@@ -16,8 +16,10 @@ import { RETAIL_BUILT_INS } from "./templates";
 describe("the built-in templates", () => {
   it("read exactly the sources built so far", () => {
     expect([...new Set(RETAIL_BUILT_INS.map((template) => template.source))].sort()).toEqual([
+      "retail-customers",
       "retail-items-sold",
       "retail-payments",
+      "retail-requisitions",
       "retail-shifts",
       "retail-stock-movements",
       "retail-stock-on-hand",

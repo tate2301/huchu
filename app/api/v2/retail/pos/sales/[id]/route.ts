@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { errorResponse, successResponse } from "@/lib/api-response";
 import { parseRetailParams, retailIdParams } from "@/lib/retail/request";
-import { money, sumMoney, toNumberOrZero, type MoneyLike } from "@/lib/money";
+import { money, toNumberOrZero } from "@/lib/money";
 import { prisma } from "@/lib/prisma";
 import { canSeeRetailCostPrice, requireRetailPermission, retailRoleKey } from "@/lib/retail/permissions";
-import { saleEmpties } from "@/lib/retail/empties";
-import { getCustomerLoyaltyBalance } from "@/lib/retail/loyalty";
+import { saleBottlesBack } from "@/lib/retail/stock/empties";
+import { balance, customerTier } from "@/lib/retail/loyalty/ledger";
+import { loadLoyaltySettings } from "@/lib/retail/loyalty/settings";
 import { readsEveryCashier } from "@/lib/retail/own-rows";
 import { requireRetailSession } from "../../../_helpers";
 
@@ -111,8 +112,8 @@ export async function GET(
           select: { id: true, promoCode: true, name: true },
         })
       : Promise.resolve([]),
-    // The bottles that came back on it, per supplier.
-    saleEmpties(prisma, session.user.companyId, sale.id),
+    // The bottles that came back on it (STK-09's Empties ledger).
+    saleBottlesBack(prisma, session.user.companyId, sale.id),
     saleCustomer(session.user.companyId, sale, relatedSales),
   ]);
   const reversalLineRows = relatedSales.length
@@ -173,26 +174,33 @@ export async function GET(
 
 /**
  * The customer on a sale, for the rail: their phone and tier, their points
- * now, the points this sale earned and what its refunds and voids took back.
- * A point is earned on each whole dollar of goods (`lib/retail/loyalty.ts`),
- * so what comes back is what the sale earned less what is left of it still
- * earns. Matched by name, as loyalty is; null on a walk-in.
+ * now, the points this sale earned and what its refunds and voids took back
+ * — read off the points ledger (CUS-01). Null on a walk-in.
  */
 async function saleCustomer(
   companyId: string,
-  sale: { customerName: string | null; saleType: string; totalAmount: MoneyLike },
-  reversals: Array<{ totalAmount: MoneyLike }>,
+  sale: { id: string; customerId: string | null; postedAt: Date | null; createdAt: Date },
+  reversals: Array<{ id: string }>,
 ) {
-  const name = sale.customerName?.trim();
-  if (!name || name === "Walk-in") return null;
-  const [record, loyalty] = await Promise.all([
-    prisma.customer.findFirst({ where: { companyId, name }, orderBy: { updatedAt: "desc" }, select: { phone: true } }),
-    getCustomerLoyaltyBalance({ companyId, customerName: name }),
+  if (!sale.customerId) return null;
+  const customerId = sale.customerId;
+  const settings = await loadLoyaltySettings(companyId);
+  const [record, points, moved, tier] = await Promise.all([
+    prisma.customer.findFirst({ where: { id: customerId, companyId }, select: { phone: true } }),
+    balance(prisma, customerId),
+    prisma.retailPointsEntry.findMany({
+      where: {
+        customerId,
+        OR: [
+          { saleId: sale.id, kind: "EARNED" },
+          ...(reversals.length ? [{ saleId: { in: reversals.map((reversal) => reversal.id) }, kind: "REVERSED" as const, points: { lt: 0 } }] : []),
+        ],
+      },
+      select: { kind: true, points: true },
+    }),
+    customerTier(prisma, { companyId, customerId, at: new Date(), settings }),
   ]);
-  const total = money(sale.totalAmount);
-  const earned = sale.saleType === "SALE" && total.greaterThan(0) ? Math.floor(toNumberOrZero(total)) : 0;
-  // Reversals carry negative totals.
-  const left = toNumberOrZero(sumMoney([total, ...reversals.map((reversal) => reversal.totalAmount)]));
-  const returned = earned ? earned - Math.max(Math.floor(left), 0) : 0;
-  return { phone: record?.phone ?? null, tier: loyalty.tier, balance: loyalty.balance, earned, returned };
+  const earned = moved.filter((row) => row.kind === "EARNED").reduce((sum, row) => sum + row.points, 0);
+  const returned = moved.filter((row) => row.kind === "REVERSED").reduce((sum, row) => sum - row.points, 0);
+  return { phone: record?.phone ?? null, tier, balance: points, earned, returned };
 }

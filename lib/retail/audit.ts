@@ -78,6 +78,12 @@ export const RETAIL_AUDIT_EVENTS = {
   /** A delivery booked in against a purchase order. */
   goodsReceived: "RETAIL_GOODS.RECEIVED",
   /**
+   * A delivery counted by someone who may not post it (BUY-06): nothing has
+   * moved; an owner or manager checks and posts it. Carries the GRN number,
+   * the units counted and the supplier.
+   */
+  goodsCounted: "RETAIL_GOODS.COUNTED",
+  /**
    * Movements put back by a movement the other way (W-28). One event per
    * product, entity `Product`; carries the references reversed.
    */
@@ -249,6 +255,14 @@ export const RETAIL_AUDIT_EVENTS = {
   countStarted: "RETAIL_STOCK_COUNT.STARTED",
   /** A count sent for review from the phone. Carries the lines and how many differ. */
   countSubmitted: "RETAIL_STOCK_COUNT.SUBMITTED",
+  /** A figure corrected by an approver while the count waits for approval (STK-06). Carries the product and the figure from and to. */
+  countLineChanged: "RETAIL_STOCK_COUNT.LINE_CHANGED",
+  /** Lines sent back to the counter to count again (STK-06). Carries how many. */
+  countRecountAsked: "RETAIL_STOCK_COUNT.RECOUNT_ASKED",
+  /** The differences approved (W-22 step 4): on hand set to what was counted. Carries lines, differ, net, short and over (money as strings). */
+  countApproved: "RETAIL_STOCK_COUNT.APPROVED",
+  /** A count called off: nothing on hand changes. */
+  countCancelled: "RETAIL_STOCK_COUNT.CANCELLED",
   /** A new ZiG rate (W-05), typed in on Payments. Entity `RetailSettings`, id `payments`; carries the rate and the one it replaced. */
   zigRateSet: "RETAIL_ZIG_RATE.SET",
   /**
@@ -308,6 +322,87 @@ export const RETAIL_AUDIT_EVENTS = {
    * ("Front till printer", or "here").
    */
   labelsPrinted: "RETAIL_LABELS.PRINTED",
+  /** Empties booked back to a supplier for their deposit (STK-09). Entity `RetailEmptiesEntry`; carries `{ supplier, bottles, crates, deposit }`. */
+  emptiesReturned: "RETAIL_EMPTIES.RETURNED",
+  /** A supplier's credit note against a return (STK-09). Entity the return's `RetailEmptiesEntry`; carries `{ creditNote, amount }`. */
+  emptiesCredited: "RETAIL_EMPTIES.CREDITED",
+  /** Points a year old taken off a customer by the retail worker (CUS-01). Entity `Customer`; carries `{ points }`. */
+  pointsExpired: "RETAIL_POINTS.EXPIRED",
+  /** The birthday bonus given by the retail worker (CUS-01). Entity `Customer`; carries `{ points }`. */
+  pointsBirthday: "RETAIL_POINTS.BIRTHDAY",
+  /**
+   * Points added or taken away by hand (CUS-04, W-47). Entity `Customer`; carries
+   * `{ direction: "ADD" | "TAKE", points, reason, note, balance }` (the balance after).
+   */
+  pointsAdjusted: "RETAIL_POINTS.ADJUSTED",
+  /**
+   * A customer added (CUS-02, W-45): from Customers, at the till or from a customer field's quick add.
+   * Entity `Customer`; carries `{ code, name, consent, via: "sheet" | "till" | "lookup" }`.
+   */
+  customerCreated: "RETAIL_CUSTOMER.CREATED",
+  /**
+   * A customer's marketing consent turned on or off (CUS-06): a STOP reply on WhatsApp (by the system), or a change on
+   * the record. Entity `Customer`; carries `{ agreed, via }` ("STOP reply").
+   */
+  customerConsent: "RETAIL_CUSTOMER.CONSENT_CHANGED",
+  /**
+   * A customer's tier set by hand on the record (CUS-03): held until `until` (a year on), or back to what
+   * their spend gives (`until` null). Entity `Customer`; carries `{ tier, until }`.
+   */
+  customerTierSet: "RETAIL_CUSTOMER.TIER_SET",
+  /** A note added to a customer (CUS-03). Entity `Customer`; carries `{ noteId }`. */
+  customerNoteAdded: "RETAIL_CUSTOMER.NOTE_ADDED",
+  /**
+   * A duplicate merged into this customer (CUS-05, W-45). Entity the survivor `Customer`; carries
+   * `{ duplicate: { id, name, phone }, keptPhone, points, visits }` (the duplicate's).
+   */
+  customerMerged: "RETAIL_CUSTOMER.MERGED",
+  /**
+   * A merged duplicate taken back out, restored from the bin (CUS-05, W-63). On both customers; carries
+   * `{ other: { id, name, phone }, role: "survivor" | "duplicate", points, visits }` (what went back).
+   */
+  customerUnmerged: "RETAIL_CUSTOMER.UNMERGED",
+  /**
+   * Messages to customers queued (CUS-06, W-50): an offer or a reminder, now or scheduled. Entity
+   * `RetailMessageBatch`; carries `{ purpose, audience, count, scheduledFor }`.
+   */
+  messagesQueued: "RETAIL_MESSAGES.QUEUED",
+  /** A lay-by started with its deposit (FLR-06, W-42). Entity `RetailLayby`; carries `{ laybyNo, total, deposit, dueOn }`. */
+  laybyStarted: "RETAIL_LAYBY.STARTED",
+  /** Money taken towards a lay-by. Entity `RetailLayby`; carries `{ laybyNo, amount, tender, left }`. */
+  laybyPaid: "RETAIL_LAYBY.PAID",
+  /** A paid lay-by handed over as a sale. Entity `RetailLayby`; carries `{ laybyNo, saleNo }`. */
+  laybyHandedOver: "RETAIL_LAYBY.HANDED_OVER",
+  /** A lay-by cancelled: what was paid back, the fee kept, the goods back on the shelf. Entity `RetailLayby`; carries `{ laybyNo, paidBack, fee }`. */
+  laybyCancelled: "RETAIL_LAYBY.CANCELLED",
+  /** An order raised (W-30). Entity `RetailPurchaseOrder`; carries its number, supplier, lines and value with VAT. */
+  orderCreated: "RETAIL_PURCHASE_ORDER.CREATED",
+  /** An order sent to its supplier, or marked sent by hand. Carries how and to whom. */
+  orderSent: "RETAIL_PURCHASE_ORDER.SENT",
+  /** An order's lines or expected date changed. Carries each line from and to, the expected date and whether the supplier was told. */
+  orderChanged: "RETAIL_PURCHASE_ORDER.CHANGED",
+  /** An order made from another ("Duplicate order"). Entity the new order; carries the one it was made from. */
+  orderDuplicated: "RETAIL_PURCHASE_ORDER.DUPLICATED",
+  /** A reminder sent about a late order (W-34). Carries who it went to, the day promised and what happens if it does not come. */
+  orderChased: "RETAIL_PURCHASE_ORDER.CHASED",
+  /** What was left of an order cancelled, by hand or by the worker (`automatic`). Carries the units and value no longer coming. */
+  orderRestCancelled: "RETAIL_PURCHASE_ORDER.REST_CANCELLED",
+  /** A supplier's reply on WhatsApp. Entity the order it is about, else the `Vendor`; carries the supplier and the text. */
+  messageReceived: "RETAIL_MESSAGE.RECEIVED",
+  /** Money asked for (W-31, W-32). Entity `CrmRequisition`; carries its number, amount, currency, the order or what for, and whether over the owner limit. */
+  requisitionAsked: "RETAIL_REQUISITION.ASKED",
+  /** A requisition approved, at the amount asked or less. Carries `{ amount, asked, note }`. */
+  requisitionApproved: "RETAIL_REQUISITION.APPROVED",
+  /** A requisition not approved. Carries the reason's words and the message to the asker. */
+  requisitionRejected: "RETAIL_REQUISITION.REJECTED",
+  /** A question on a requisition, or the asker's answer (`answer: true`). Carries the message. */
+  requisitionQuestion: "RETAIL_REQUISITION.QUESTION",
+  /** A requisition cancelled before it was paid out, by hand or with its order (`automatic`). */
+  requisitionCancelled: "RETAIL_REQUISITION.CANCELLED",
+  /** A requisition paid out from a money account (BUY-05). Carries `{ amount, currency, from, to, how }`. */
+  requisitionPaid: "RETAIL_REQUISITION.PAID",
+  /** A paid-out requisition accounted for with its receipts (BUY-05). Carries `{ spent, change, into, currency }`. */
+  requisitionAccounted: "RETAIL_REQUISITION.ACCOUNTED",
 } as const;
 
 export type RetailAuditEvent =
@@ -436,6 +531,8 @@ export async function auditSaleReversed(
      * on a mutable sale row is not evidence of anything.
      */
     approvedBy?: { id: string; name: string } | null;
+    /** What else the act decided (FLR-02: how the money went back, whether the goods went back on the shelf). */
+    extra?: Record<string, unknown>;
   },
 ): Promise<void> {
   await writeRetailAuditEvent(client, {
@@ -460,6 +557,7 @@ export async function auditSaleReversed(
       // their own are different acts, and the row should not need the matrix
       // re-read months later to tell them apart.
       selfAuthorised: !input.approvedBy,
+      ...input.extra,
     },
   });
 }
@@ -579,6 +677,11 @@ export async function auditGoodsReceived(
     supplier: string | null;
     totalValue: MoneyLike;
     lineCount: number;
+    /** Units in: "Received GRN-0004, 300 units". */
+    units?: number;
+    /** Units that came short of the note, and units that came broken (BUY-06). */
+    short?: number;
+    damaged?: number;
   },
 ): Promise<void> {
   await writeRetailAuditEvent(client, {
@@ -593,6 +696,9 @@ export async function auditGoodsReceived(
       supplier: input.supplier,
       totalValue: auditAmount(input.totalValue),
       lineCount: input.lineCount,
+      ...(input.units === undefined ? {} : { units: input.units }),
+      ...(input.short === undefined ? {} : { short: input.short }),
+      ...(input.damaged === undefined ? {} : { damaged: input.damaged }),
     },
   });
 }

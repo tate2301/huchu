@@ -234,6 +234,7 @@ describe("Activity's sentences (00-foundations 5.6.9)", () => {
     expect(activityWords("RETAIL_GOODS.RECEIVED", { receiptNo: "GRN-0004", units: 300 }).what).toBe(
       "Received GRN-0004, 300 units",
     );
+    expect(activityWords("RETAIL_GOODS.COUNTED", { receiptNo: "GRN-0005", units: 20 }).what).toBe("Counted GRN-0005, 20 units, for checking");
     expect(
       activityWords("RETAIL_PURCHASE_ORDER.CLOSED", { owed: [{ quantity: "120" }, { quantity: "60" }] }).what,
     ).toBe("Closed with what came, 180 units not delivered");
@@ -291,6 +292,35 @@ describe("Activity's sentences (00-foundations 5.6.9)", () => {
     expect(activityWords("RETAIL_STOCK_COUNT.SUBMITTED", { lines: 38, differ: 3 })).toEqual({
       what: "Counted 38 lines and sent them for review",
       tone: "info",
+    });
+  });
+
+  it("counts corrected, sent back, approved and cancelled (STK-06)", () => {
+    expect(activityWords("RETAIL_STOCK_COUNT.LINE_CHANGED", { product: "Gordon’s Gin 750ml", from: 19, to: 20 })).toEqual({
+      what: "Changed Gordon’s Gin 750ml from 19 to 20",
+      tone: "info",
+    });
+    expect(activityWords("RETAIL_STOCK_COUNT.RECOUNT_ASKED", { lines: 3 })).toEqual({ what: "Asked for 3 lines to be counted again", tone: "warn" });
+    expect(activityWords("RETAIL_STOCK_COUNT.RECOUNT_ASKED", { lines: 1 })).toEqual({ what: "Asked for 1 line to be counted again", tone: "warn" });
+    expect(activityWords("RETAIL_STOCK_COUNT.APPROVED", { lines: 9, differ: 3, net: "-41.20", short: "-43.60", over: "2.40" })).toEqual({
+      what: "Approved: stock set to what was counted, −US$41.20 to Breakage and losses",
+      tone: "ok",
+    });
+    expect(activityWords("RETAIL_STOCK_COUNT.APPROVED", { lines: 9, differ: 0, net: "0.00" })).toEqual({
+      what: "Approved: stock set to what was counted",
+      tone: "ok",
+    });
+    expect(activityWords("RETAIL_STOCK_COUNT.CANCELLED", { countNo: "CNT-0020" })).toEqual({ what: "Cancelled the count", tone: "bad" });
+  });
+
+  it("empties returned to a supplier and credited (STK-09)", () => {
+    expect(activityWords("RETAIL_EMPTIES.RETURNED", { supplier: "Delta Beverages", bottles: 240, crates: 20, deposit: "84.00" })).toEqual({
+      what: "Booked 240 bottles and 20 crates back to Delta Beverages, US$84.00 owed",
+      tone: "info",
+    });
+    expect(activityWords("RETAIL_EMPTIES.CREDITED", { supplier: "Delta Beverages", creditNote: "CN-2210", amount: "84.00" })).toEqual({
+      what: "Delta Beverages credited US$84.00 (CN-2210)",
+      tone: "ok",
     });
   });
 

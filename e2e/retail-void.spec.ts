@@ -10,7 +10,7 @@ import { settle, shooter, VIEWPORT } from "./_support/shots";
  * `docs/retail/pos-production-readiness-2026-08-17.md`. Refund and void share
  * the approval mechanism and the same gate, so the risk left here was small —
  * but small is not none: a void is a different service call
- * (`voidRetailSaleTransaction`, not `refundRetailSaleTransaction`) with its own
+ * (`voidSale` (lib/retail/floor/voids.ts), not `refundSale` (lib/retail/floor/refunds.ts)) with its own
  * stock and ledger behaviour, and its own copy of the role guard that had to
  * learn about approvals.
  *

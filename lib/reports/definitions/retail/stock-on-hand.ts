@@ -168,6 +168,7 @@ const onHand: ListSpec = {
       sites: "multi-site",
       do: { sheet: "transfer-new" },
     },
+    { key: "order", label: "Add to an order", requires: [["retail.purchasing", "create"]], do: { sheet: "order-new", with: { lineIds: "{ids}" } } },
     { key: "reorder", label: "Change reorder level", requires: UPDATE, do: { sheet: "reorder-levels" } },
     { key: "count", label: "Count these", requires: COUNT, do: { sheet: "count-new" } },
     { key: "export" },

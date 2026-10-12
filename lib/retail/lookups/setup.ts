@@ -127,7 +127,12 @@ const priceList: LookupNoun = {
     // `context.notDefault`: a list products can be added to (Add to a price list); every product is on the default.
     const found = options
       .filter((option) => !(context.notDefault === true && option.id === defaultId))
-      .map((option) => ({ id: option.id, label: option.name, sub: option.sub }));
+      // `context.for === "customer"` (a customer's Price list): the default list says so, the others nothing.
+      .map((option) => ({
+        id: option.id,
+        label: option.name,
+        sub: context.for === "customer" ? (option.id === defaultId ? "Default" : null) : option.sub,
+      }));
     if (context.withCost === true) found.push({ id: "cost", label: "Cost", sub: "What each product costs" });
     return found.filter((option) => !needle || option.label.toLowerCase().includes(needle));
   },

@@ -4,6 +4,13 @@ import { errorResponse, fieldErrorResponse } from "@/lib/api-response";
 import type { RetailAuditActor } from "@/lib/retail/audit";
 import { canRetailSessionDo } from "@/lib/retail/permission-matrix";
 
+import { OrderRefused } from "@/lib/retail/purchase-orders";
+import { EmptiesRefusal } from "@/lib/retail/stock/empties";
+
+import { AttachmentRefusal } from "./attachments";
+import { DeliveryRefusal } from "./deliveries";
+import { OrderRefusal } from "./orders";
+import { RequisitionRefusal } from "./requisitions";
 import { SupplierRefusal } from "./suppliers";
 import type { SupplierViewer } from "./supplier-view";
 
@@ -40,8 +47,14 @@ export function supplierViewer(session: Session): SupplierViewer {
 
 /** A refusal with its fields (400 "Validation failed", 409 under Name) or its sentence, else a 500 that says nothing was saved. */
 export function buyingFailure(error: unknown, where: string): NextResponse {
-  if (error instanceof SupplierRefusal) {
+  if (error instanceof SupplierRefusal || error instanceof OrderRefusal || error instanceof RequisitionRefusal) {
     return error.fieldErrors ? fieldErrorResponse(error.message, error.fieldErrors, error.status) : errorResponse(error.message, error.status);
+  }
+  if (error instanceof DeliveryRefusal) return errorResponse(error.message, error.status);
+  if (error instanceof OrderRefused) return errorResponse(error.message, 409);
+  if (error instanceof AttachmentRefusal) return fieldErrorResponse(error.message, { photo: error.message }, 400);
+  if (error instanceof EmptiesRefusal) {
+    return error.fieldErrors ? fieldErrorResponse(error.message, { crates: Object.values(error.fieldErrors)[0]! }, error.status) : errorResponse(error.message, error.status);
   }
   console.error(`[API] ${where} error:`, error);
   return errorResponse("That did not work. Nothing was saved; try again.");

@@ -30,7 +30,7 @@ export function RecordActions({
   return (
     <ButtonGroup aria-label="Actions" className="cx-rf-actions">
       {actions.slice(0, 3).map((action) => (
-        <Button key={action.key} onClick={() => onAction(action)}>
+        <Button key={action.key} disabled={Boolean(action.disabled)} title={action.disabled} onClick={() => onAction(action)}>
           {action.label}
         </Button>
       ))}
@@ -43,7 +43,14 @@ export function RecordActions({
           </MenuTrigger>
           <MenuContent align="end" className="cx-rf-menu">
             {more.map((action) => (
-              <MenuItem key={action.key} danger={action.tone === "bad"} sub={action.sub} onSelect={() => onAction(action)}>
+              <MenuItem
+                key={action.key}
+                danger={action.tone === "bad"}
+                sub={action.sub}
+                disabled={Boolean(action.disabled)}
+                title={action.disabled}
+                onSelect={() => onAction(action)}
+              >
                 {action.label}
               </MenuItem>
             ))}

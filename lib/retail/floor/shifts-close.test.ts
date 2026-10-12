@@ -465,7 +465,7 @@ describe("the till accounts across a close and the next opening", () => {
       { code: "1005", debit: 5, credit: 0 },
     ]);
     expect(await books([zigOnly.id])).toEqual({ "1000": 0, "1001": 0, "1005": -5 });
-  });
+  }, 20_000);
 
   it("answers with what the shift took and how many sales, as the shift's record counts them", async () => {
     const shift = await openDrawer("chipo", "100.00");

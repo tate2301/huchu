@@ -24,6 +24,7 @@ export const RETAIL_CASH_MOVEMENT_TYPES = [
   "DROP_TO_SAFE",
   "FLOAT_TOP_UP",
   "PAYOUT",
+  "TAKEN_IN",
 ] as const;
 
 export type RetailCashMovementTypeName = (typeof RETAIL_CASH_MOVEMENT_TYPES)[number];
@@ -43,6 +44,8 @@ export const RETAIL_CASH_MOVEMENT_DIRECTION: Record<RetailCashMovementTypeName, 
   FLOAT_TOP_UP: 1,
   /** A supplier paid on delivery, or cash handed over outside a reversing sale. Out. */
   PAYOUT: -1,
+  /** Money taken in that is not a sale: a lay-by's deposit or payment (FLR-06). In. */
+  TAKEN_IN: 1,
 };
 
 /** Whether this kind of movement adds to the drawer or takes from it. */
@@ -55,6 +58,7 @@ export const RETAIL_CASH_MOVEMENT_LABELS: Record<RetailCashMovementTypeName, str
   DROP_TO_SAFE: "Drop to safe",
   FLOAT_TOP_UP: "Float top-up",
   PAYOUT: "Payout",
+  TAKEN_IN: "Taken in",
 };
 
 /* ── Reasons ─────────────────────────────────────────────────────────────── */
@@ -77,6 +81,9 @@ export const RETAIL_CASH_MOVEMENT_REASON_CODES = [
   "SUPPLIER_PAYOUT",
   "PETTY_CASH",
   "OTHER",
+  "BOTTLES_BACK",
+  "LAYBY_PAYMENT",
+  "LAYBY_REFUND",
 ] as const;
 
 export type RetailCashMovementReasonCode =
@@ -94,6 +101,11 @@ export const RETAIL_CASH_MOVEMENT_REASON_LABELS: Record<
   SUPPLIER_PAYOUT: "Supplier paid on delivery",
   PETTY_CASH: "Petty cash",
   OTHER: "Other",
+  // STK-09: never offered as a reason; written by the till's bottles-back payout.
+  BOTTLES_BACK: "Bottles back",
+  // FLR-06: never offered; written by a lay-by's cash taken in, and paid back when it is cancelled.
+  LAYBY_PAYMENT: "Lay-by payment",
+  LAYBY_REFUND: "Lay-by paid back",
 };
 
 /**
@@ -116,6 +128,8 @@ export const RETAIL_CASH_MOVEMENT_REASONS: Record<
   ],
   FLOAT_TOP_UP: ["CHANGE_REQUIRED", "MANAGER_REQUEST", "OTHER"],
   PAYOUT: ["SUPPLIER_PAYOUT", "PETTY_CASH", "MANAGER_REQUEST", "OTHER"],
+  // Only lay-bys take money in this way; the till never offers it.
+  TAKEN_IN: [],
 };
 
 /* ── Denominations ───────────────────────────────────────────────────────── */

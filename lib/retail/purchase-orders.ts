@@ -14,35 +14,44 @@ import { quantity, toNumberOrZero, type MoneyLike } from "@/lib/money";
 
 export class OrderRefused extends Error {}
 
-type LineQuantities = { quantity: MoneyLike; receivedQuantity: MoneyLike };
+type LineQuantities = { quantity: MoneyLike; receivedQuantity: MoneyLike; closedShortAt?: Date | null };
 
-/** How much of a line is still to come. Never negative. */
+/** How much of a line is still to come. Never negative; nothing once the line was closed short. */
 export function outstanding(line: LineQuantities): Prisma.Decimal {
+  if (line.closedShortAt) return quantity(0);
   const left = quantity(line.quantity).minus(quantity(line.receivedQuantity));
   return left.isNegative() ? quantity(0) : left;
 }
 
 /**
- * Where an order stands, from its lines.
+ * Where an order stands, from its lines (40-buying 3.3 B).
  *
- * Read off the quantities rather than kept by hand: nothing received is a
- * draft, everything received is received, anything between is part delivered.
- * A closed order stays closed whatever arrives against it later — the shop has
- * said it is not waiting.
+ * Read off the quantities rather than kept by hand: nothing received is sent
+ * (or a draft, when it never was); every line in full or closed short is
+ * received (closed, when any line was closed short); anything between is part
+ * delivered. A closed order stays closed whatever arrives against it later —
+ * the shop has said it is not waiting. `CANCELLED` is never inferred: only
+ * cancelling what is left sets it.
  */
 export function orderStatusFor(
   lines: readonly LineQuantities[],
-  closed: boolean,
+  { closed, sent }: { closed: boolean; sent: boolean },
 ): RetailPurchaseOrderStatus {
   if (closed) return "CLOSED";
   const anyReceived = lines.some((line) => quantity(line.receivedQuantity).greaterThan(0));
-  if (!anyReceived) return "DRAFT";
-  return lines.every((line) => outstanding(line).isZero()) ? "RECEIVED" : "PARTIAL";
+  if (!anyReceived) return sent ? "SENT" : "DRAFT";
+  if (lines.every((line) => outstanding(line).isZero())) {
+    return lines.some((line) => line.closedShortAt) ? "CLOSED" : "RECEIVED";
+  }
+  return "PARTIAL";
 }
 
-/** Whether a delivery can still be booked against an order in this state. */
+/**
+ * Whether a delivery can still be booked against an order in this state. A
+ * draft can: receiving it marks it sent by hand first (the supplier had it).
+ */
 export function isOpenForDelivery(status: RetailPurchaseOrderStatus) {
-  return status === "DRAFT" || status === "PARTIAL";
+  return status === "DRAFT" || status === "SENT" || status === "PARTIAL";
 }
 
 export type ExistingOrderLine = {

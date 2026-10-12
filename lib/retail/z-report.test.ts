@@ -144,7 +144,7 @@ const B4 = ringUp([{ product: COKE, quantity: 24 }]);
 /**
  * The return: one of Faith's three crates, handed back at Tendai's till.
  *
- * Built by hand because `refundRetailSaleTransaction` builds it by hand too —
+ * Built by hand because `refundSale` (lib/retail/floor/refunds.ts) builds it by hand too —
  * apportioning the source sale's tax and line total by `24 ÷ 72` and negating
  * both. `11.27 × ⅓` is 3.756666…, which rounds half-up to `3.76`.
  *
@@ -198,6 +198,7 @@ const report = buildRetailZReportFigures({
       openingFloatZigBase: 0,
       countedCash: "394.00",
       variance: "0.00",
+      laybyPayments: [],
       movements: [
         { type: "FLOAT_TOP_UP", reasonCode: "CHANGE_REQUIRED", baseAmount: "40.00" },
       ],
@@ -219,6 +220,7 @@ const report = buildRetailZReportFigures({
       openingFloatZigBase: 0,
       countedCash: "38.70",
       variance: "-0.50",
+      laybyPayments: [],
       movements: [
         { type: "DROP_TO_SAFE", reasonCode: "BANK_DEPOSIT", baseAmount: "200.00" },
         { type: "PAYOUT", reasonCode: "SUPPLIER_PAYOUT", baseAmount: "24.00" },
@@ -507,6 +509,7 @@ describe("a drawer opened with a ZiG float", () => {
         openingFloatZigBase: "18.66",
         countedCash: "138.66",
         variance: "0.00",
+        laybyPayments: [],
         movements: [],
         sales: [sale(ringUp([{ product: COKE, quantity: 25 }]), [{ tenderType: "CASH", baseAmount: 20 }])],
       },
@@ -581,7 +584,7 @@ describe("the trading day", () => {
 
 describe("why RetailSale.subtotal is not summed", () => {
   /**
-   * A defect in `refundRetailSaleTransaction`, pinned here rather than papered
+   * A defect in `refundSale` (lib/retail/floor/refunds.ts), pinned here rather than papered
    * over. A sale's `subtotal` is ex-VAT; a refund's is rebuilt as
    * `quantity × unitPrice`, which on a tax-inclusive list still has the VAT in it.
    * Summing the two mixes bases.
@@ -671,6 +674,7 @@ describe("bottle deposits", () => {
         openingFloatZigBase: 0,
         countedCash: "81.80",
         variance: "0.00",
+        laybyPayments: [],
         movements: [],
         sales: [withDeposit, crateBack],
       },
@@ -728,7 +732,8 @@ describe("discounts a manager approved", () => {
         movements: [],
         sales: [approved, voided, ownDiscount, priceOnly],
         openingFloatZigBase: 0,
-        variance: 0
+        variance: 0,
+        laybyPayments: [],
       },
     ],
   });
@@ -739,5 +744,47 @@ describe("discounts a manager approved", () => {
 
   it("is none on a day nobody needed a manager for a discount", () => {
     expect(report.approvedDiscountCount).toBe(0);
+  });
+});
+
+describe("lay-by money by card or wallet (FLR-06)", () => {
+  const day = buildRetailZReportFigures({
+    businessDate: FRIDAY,
+    registerCode: "TILL02",
+    registerName: "Till 02",
+    siteId: "site-borrowdale",
+    currency: "USD",
+    shifts: [
+      {
+        id: "shift-l",
+        shiftNo: "S-2870",
+        cashierName: "Faith Moyo",
+        openedAt: new Date("2026-08-14T07:30:00.000Z"),
+        closedAt: new Date("2026-08-14T14:00:00.000Z"),
+        openingFloat: "50.00",
+        openingFloatZigBase: 0,
+        countedCash: "50.00",
+        variance: "0.00",
+        movements: [],
+        sales: [],
+        laybyPayments: [
+          { tenderType: "ECOCASH", baseAmount: "20.00" },
+          { tenderType: "CARD", baseAmount: "40.00" },
+          { tenderType: "ECOCASH", baseAmount: "-5.00" },
+        ],
+      },
+    ],
+  });
+
+  it("is in its tender's row, refunds taken off, so the row matches the statement", () => {
+    expect(day.tenderBreakdown.map((row) => [row.tenderType, row.amount, row.count])).toEqual([
+      ["CARD", "40.00", 1],
+      ["ECOCASH", "15.00", 2],
+    ]);
+  });
+
+  it("is not takings, and leaves the drawer's cash alone", () => {
+    expect(day.grossTakings.toFixed(2)).toBe("0.00");
+    expect(day.expectedCash.toFixed(2)).toBe("50.00");
   });
 });

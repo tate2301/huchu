@@ -1,0 +1,161 @@
+[
+  {
+    "id": "52",
+    "file": "52-customers-loyalty.md",
+    "title": "Loyalty settings and the points ledger",
+    "units": [
+      "CUS-01"
+    ],
+    "dependsOn": [
+      "50",
+      "PRD-05",
+      "PRD-09",
+      "SET-01",
+      "FND-08"
+    ],
+    "risk": "money"
+  },
+  {
+    "id": "53",
+    "file": "53-customers-list.md",
+    "title": "Customers and New customer",
+    "units": [
+      "CUS-02"
+    ],
+    "dependsOn": [
+      "52",
+      "50",
+      "PRD-05"
+    ],
+    "risk": "standard"
+  },
+  {
+    "id": "55",
+    "file": "55-customers-message.md",
+    "title": "Message customers on WhatsApp",
+    "units": [
+      "CUS-06"
+    ],
+    "dependsOn": [
+      "53",
+      "52",
+      "SET-07",
+      "SET-01"
+    ],
+    "risk": "standard"
+  },
+  {
+    "id": "61",
+    "file": "61-customers-record.md",
+    "title": "A customer: the record, edit everything, notes, points movements",
+    "units": [
+      "CUS-03"
+    ],
+    "dependsOn": [
+      "53",
+      "52",
+      "55",
+      "58",
+      "50",
+      "FND-06"
+    ],
+    "risk": "standard"
+  },
+  {
+    "id": "64",
+    "file": "64-customers-points.md",
+    "title": "Adjust points, add points, change tier",
+    "units": [
+      "CUS-04"
+    ],
+    "dependsOn": [
+      "61",
+      "52",
+      "53"
+    ],
+    "risk": "standard"
+  },
+  {
+    "id": "65",
+    "file": "65-customers-merge.md",
+    "title": "Merge a duplicate customer, and undo it from the bin",
+    "units": [
+      "CUS-05"
+    ],
+    "dependsOn": [
+      "61",
+      "58",
+      "53",
+      "PRD-10"
+    ],
+    "risk": "standard"
+  },
+  {
+    "id": "66",
+    "file": "66-customers-accounts.md",
+    "title": "Accounts: list, open, change, hold, close, owner approval",
+    "units": [
+      "CUS-07"
+    ],
+    "dependsOn": [
+      "61",
+      "65",
+      "53",
+      "ADM-04",
+      "BUY-04",
+      "PRD-05",
+      "SET-05"
+    ],
+    "risk": "money"
+  },
+  {
+    "id": "67",
+    "file": "67-customers-payment.md",
+    "title": "Take a payment on account",
+    "units": [
+      "CUS-08"
+    ],
+    "dependsOn": [
+      "66",
+      "56",
+      "58",
+      "50",
+      "BUY-05",
+      "SET-09"
+    ],
+    "risk": "money"
+  },
+  {
+    "id": "68",
+    "file": "68-customers-till.md",
+    "title": "The till: find a customer, spend points, sell on account",
+    "units": [
+      "CUS-10"
+    ],
+    "dependsOn": [
+      "52",
+      "53",
+      "56",
+      "60",
+      "63",
+      "66",
+      "67",
+      "PRD-05"
+    ],
+    "risk": "money"
+  },
+  {
+    "id": "69",
+    "file": "69-customers-statements.md",
+    "title": "Statements and account reminders",
+    "units": [
+      "CUS-09"
+    ],
+    "dependsOn": [
+      "67",
+      "55",
+      "66"
+    ],
+    "risk": "money"
+  }
+]

@@ -1,4 +1,4 @@
-import { CashRegister, Clock, Receipt, SquaresFour, Storefront, Users } from "@/lib/icons";
+import { CashRegister, Clock, Package, Receipt, SquaresFour, Storefront, Users } from "@/lib/icons";
 
 import type { RetailNavModule } from "./types";
 
@@ -21,7 +21,9 @@ export const floorNav: RetailNavModule = {
         ["retail.sell", "open-shift"],
       ],
     },
-    // After Lay-bys (FLR-06) once it lands: the day closes after its last sale and hand-over.
+    // FLR-06: goods put aside and paid off over time.
+    { href: "/retail/laybys", icon: Package, label: "Lay-bys", requires: [["retail.laybys", "view"]] },
+    // After Lay-bys: the day closes after its last sale and hand-over.
     { href: "/retail/end-of-day", icon: Clock, label: "End of day", requires: [["retail.end-of-day", "view"]] },
     { href: "/retail/customers", icon: Users, label: "Customers", requires: [["retail.customers", "view"]] },
   ],

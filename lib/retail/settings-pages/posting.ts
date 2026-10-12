@@ -1,8 +1,7 @@
 import type { AccountType } from "@prisma/client";
 import { z } from "zod";
 
-import { TENDER_OPTIONS } from "@/lib/retail/payment-words";
-import { ROLE_OPTIONS, ROLE_TYPES, SCHEDULE_WORDS, TENDER_TYPES, VOUCHER_TYPES } from "@/lib/retail/posting-words";
+import { POSTING_TENDER_OPTIONS, ROLE_OPTIONS, ROLE_TYPES, SCHEDULE_WORDS, tenderAccountTypes } from "@/lib/retail/posting-words";
 import type { FieldSpec } from "@/lib/workspace/sheet-kind";
 
 import type { SettingsPage } from "./types";
@@ -37,7 +36,7 @@ const accountField = (id: string, label: string, types: AccountType[], show?: Fi
 const listed = (values: Record<string, unknown>, key: string, id: string) =>
   Array.isArray(values[key]) && (values[key] as unknown[]).includes(id);
 
-export const POSTING_TENDER_FIELDS = TENDER_OPTIONS.map((option) => option.key);
+export const POSTING_TENDER_FIELDS = POSTING_TENDER_OPTIONS.map((option) => option.key);
 export const POSTING_ROLE_FIELDS = ROLE_OPTIONS.map((option) => option.field);
 
 export const postingPage: SettingsPage = {
@@ -49,8 +48,8 @@ export const postingPage: SettingsPage = {
     {
       title: "Where each tender goes",
       // One field per tender that is on (Payments), in the till's order.
-      fields: TENDER_OPTIONS.map((option) =>
-        accountField(option.key, option.label, option.key === "vouchers" ? VOUCHER_TYPES : TENDER_TYPES, (values) =>
+      fields: POSTING_TENDER_OPTIONS.map((option) =>
+        accountField(option.key, option.label, tenderAccountTypes(option.key), (values) =>
           listed(values, "tendersOn", option.key),
         ),
       ),

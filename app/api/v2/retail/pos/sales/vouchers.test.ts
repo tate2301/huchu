@@ -8,7 +8,6 @@ import { hashDeviceKey } from "@/lib/retail/devices";
 import { addTestProduct, makeTestShop, type TestShop } from "@/lib/retail/products/test-fixtures";
 import { issueVoucher, type Issued } from "@/lib/retail/vouchers/issue";
 import { barcodeText, WRONG_SECRET } from "@/lib/retail/vouchers/redeem";
-import { VOUCHER_REFUND_REFUSAL } from "../../_services";
 
 /**
  * `pos/sales` with vouchers (PRD-10, W-18) on a paired till, against the test
@@ -214,7 +213,7 @@ describe("paying with a gift voucher", () => {
 });
 
 describe("selling a gift voucher", () => {
-  it("is paid on top of the goods, issued with the sale, owed in its journal, and not voided at the till", async () => {
+  it("is paid on top of the goods, issued with the sale, owed in its journal, and voided with the sale (FLR-02)", async () => {
     const sold = await sell("sells", [{ productId: ids.castle!, quantity: 1, unitPrice: 1.2 }], [cash(21.2)], { vouchersSold: [{ value: "20.00" }], total: 21.2 });
     expect(sold.status).toBe(201);
     expect(sold.body.vouchersSold).toEqual([expect.objectContaining({ code: expect.stringMatching(/^GV-\d{4}$/), value: "US$20.00", secret: expect.any(String) })]);
@@ -227,8 +226,15 @@ describe("selling a gift voucher", () => {
     expect(balanced(journal)).toBe(0);
 
     const voided = await voidSale(sale.id);
-    expect(voided.status).not.toBe(201);
-    expect(voided.body.error).toBe("This sale sold gift vouchers. Void them on Products › Vouchers instead.");
+    expect(voided.status).toBe(201);
+    expect([voided.body.accountingStatus, voided.body.accountingError]).toEqual(["POSTED", null]);
+    const after = await prisma.retailVoucher.findUniqueOrThrow({ where: { id: voucher.id } });
+    expect(after.voidedAt).not.toBeNull();
+    const voidDoc = await prisma.retailSale.findFirstOrThrow({ where: { sourceSaleId: sale.id, saleType: "VOID" } });
+    expect(voidDoc.vouchersSoldAmount.toFixed(2)).toBe("-20.00");
+    const voidBooks = await books(voidDoc.id, "RETAIL_VOID");
+    expect(voidBooks["2250"]).toBe(20);
+    expect(balanced(voidBooks)).toBe(0);
   });
 });
 
@@ -289,7 +295,7 @@ describe("voiding a sale paid by voucher", () => {
     expect(spent.status).toBe(201);
     await prisma.retailVoucher.update({ where: { id: voucher.id }, data: { voidedAt: new Date(), voidReason: "Reported stolen" } });
     expect(await voidSale(spent.body.id!)).toMatchObject({
-      status: 400,
+      status: 409,
       body: { error: `${voucher.code} was voided, so what was paid with it cannot go back on it.` },
     });
     const sale = await prisma.retailSale.findUniqueOrThrow({ where: { id: spent.body.id! } });
@@ -317,27 +323,30 @@ describe("voiding a sale paid by voucher", () => {
   });
 });
 
-describe("refunding onto a voucher", () => {
-  it("is refused until a refund issues its credit note", async () => {
+describe("refunding as a voucher (FLR-02)", () => {
+  it("issues a gift voucher for the value, paid by a VOUCHER tender naming it", async () => {
     const sold = await sell("refund-voucher", brandy(), [cash(10)]);
     const line = await prisma.retailSaleLine.findFirstOrThrow({ where: { saleId: sold.body.id! } });
-    const refused = await REFUND(
+    const refunded = await REFUND(
       new NextRequest(`http://pos.test.localtest.me/api/v2/retail/pos/sales/${sold.body.id}/refund`, {
         method: "POST",
         headers: { cookie: `${DEVICE_COOKIE}=${key}`, "content-type": "application/json" },
         body: JSON.stringify({
-          shiftId,
           reason: "Damaged",
-          lines: [{ saleLineId: line.id, quantity: 1 }],
-          payments: [{ tenderType: "VOUCHER", amount: 10 }],
+          lines: [{ saleLineId: line.id, quantity: "1" }],
+          to: "VOUCHER",
           refundedAt: new Date(Date.now() - 5 * 60_000).toISOString(),
         }),
       }),
       { params: Promise.resolve({ id: sold.body.id! }) },
     );
-    expect(refused.status).toBe(400);
-    expect(((await refused.json()) as { error?: string }).error).toBe(VOUCHER_REFUND_REFUSAL);
-    expect(await prisma.retailSale.count({ where: { companyId: shop.companyId, sourceSaleId: sold.body.id!, saleType: "REFUND" } })).toBe(0);
+    expect(refunded.status).toBe(201);
+    const body = (await refunded.json()) as { id: string; voucherCode: string; value: string };
+    expect(body.voucherCode).toMatch(/^GV-\d{4}$/);
+    const payment = await prisma.retailSalePayment.findFirstOrThrow({ where: { saleId: body.id } });
+    const voucher = await prisma.retailVoucher.findFirstOrThrow({ where: { code: body.voucherCode, companyId: shop.companyId } });
+    expect([payment.tenderType, payment.voucherId, payment.amount.toFixed(2)]).toEqual(["VOUCHER", voucher.id, `-${body.value}`]);
+    expect([voucher.kind, voucher.funding, voucher.balance.toFixed(2)]).toEqual(["GIFT", "REFUND", body.value]);
   });
 });
 

@@ -2,66 +2,46 @@
 
 /**
  * The sale column's parts. Each change is made where the thing is: a line's
- * price on the line, the customer on the customer, bottles back on their tile
- * (counted against the lines that sell them). Only an approval (a reason, and
- * a manager's PIN when the till rules ask for one) and the ID check stop the
- * till with a dialog.
+ * price on the line, the customer on the customer. Only an approval (a
+ * reason, and a manager's PIN when the till rules ask for one) stops the till
+ * with a dialog here; the liquor moments and vouchers are `floor-parts`.
  */
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { useSession } from "next-auth/react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { motion } from "framer-motion";
 
 import { useOfflineRuntime } from "@/components/offline/offline-runtime";
 import { useToast } from "@/components/ui/use-toast";
-import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { ApiError, fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import {
   Check,
-  IdentificationCard,
   MagnifyingGlass,
   Minus,
   Package,
   PauseCircle,
   Percent,
   Plus,
-  Prohibit,
   Trash,
   UserPlus,
   X,
 } from "@/lib/icons";
-import { depositsDue, emptiesCounted } from "@/lib/retail/deposits";
+import { emptiesCounted } from "@/lib/retail/deposits";
 import { clockLabel } from "@/lib/retail/licence-hours";
-import { LOYALTY_MAX_REDEEM_SHARE, LOYALTY_REDEEM_POINTS_PER_USD } from "@/lib/retail/loyalty-rules";
+import { pointsValue as worthOf, spendRefusal, SPENDING_NEEDS_THE_INTERNET } from "@/lib/retail/loyalty/spend";
+import { newPosCustomer } from "@/lib/retail/customers/pos-customer";
 import { createOfflineRetailCustomer } from "@/lib/retail/offline-runtime";
 import { getPosPortalHref } from "@/lib/retail/pos-host";
 import { discountPinSentence } from "@/lib/retail/till-rule-words";
-import { enumLabel } from "@/lib/retail/words";
-import { emptiesRows, spreadEmpties } from "./empties-words";
+import { AdjustStockDialog, DiscountVoucherField } from "./floor-parts";
 import { count, firstName, MEASURES, qty, usd, whole } from "./format";
 import { lineMotion } from "./motion";
 import { Avatar, ErrorLine, TillDialog, TillPopover } from "./parts";
 import { discountApprovalReason } from "./sale-rules";
 import { lineIsChanged, useTill } from "./state";
-import type { Approval, CartItem } from "./types";
+import type { CartItem, PosCustomer } from "./types";
 
-/** 0.10 → "10c", 1.50 → "US$1.50": a deposit as the shelf says it. */
-const depositWord = (value: number) => (value < 1 ? `${Math.round(value * 100)}c` : usd(value));
-
-/** The lines on the sale that take empties back: returnable bottles that sell now. */
-function useReturnables() {
-  const { cart, lineStopped } = useTill();
-  return cart.filter((item) => item.returnable && item.depositAmount && !lineStopped(item));
-}
-
-/**
- * What the empties back take off the sale: each line's deposit before them,
- * less after them. The sale's deposit (`depositTotal`) is already net of it.
- */
-export function bottlesBackCredit(lines: readonly CartItem[]) {
-  return Number((depositsDue(lines.map((item) => ({ ...item, emptiesBack: 0 }))) - depositsDue(lines)).toFixed(2));
-}
 
 const amountOf = (text: string) => {
   const value = Number(text);
@@ -111,8 +91,10 @@ function MoneyField({
 /* ─── A line ─────────────────────────────────────────────────────────── */
 
 export function SaleLine({ item }: { item: CartItem }) {
-  const { updateQty, updateLine, removeFromCart, lineStopped, alcohol, canApprove, rules } = useTill();
+  const { updateQty, updateLine, removeFromCart, lineStopped, alcohol, canApprove, rules, lineSavings, canAdjustStock } = useTill();
   const [open, setOpen] = React.useState(false);
+  const [adjusting, setAdjusting] = React.useState(false);
+  const savings = lineSavings.get(item.id);
   const [price, setPrice] = React.useState("");
   const [discount, setDiscount] = React.useState("");
   const ids = React.useId();
@@ -142,6 +124,9 @@ export function SaleLine({ item }: { item: CartItem }) {
       ? null
       : `Taken off at ${clockLabel(alcohol.stoppedAt)}`
     : [
+        item.bundleName ? item.bundleName : null,
+        item.listName ? item.listName : null,
+        savings?.promotion ? `${savings.promotion.name} ${usd(-savings.promotion.amount)}` : null,
         measured ? `${unit} at ${usd(item.unitPrice)} a ${unit}` : null,
         discounted ? `${usd(item.lineDiscountAmount)} off${managerAtTake ? ", a manager approves at Take" : ""}` : null,
         Math.abs(item.unitPrice - shelf) > 0.009 ? `at ${usd(item.unitPrice)}, shelf ${usd(shelf)}` : null,
@@ -179,7 +164,7 @@ export function SaleLine({ item }: { item: CartItem }) {
           onSubmit={(event) => {
             event.preventDefault();
             if (overCeiling) return;
-            updateLine(item.catalogItemId, { unitPrice: priceValue, lineDiscountAmount: discountValue });
+            updateLine(item.id, { unitPrice: priceValue, lineDiscountAmount: discountValue });
             setOpen(false);
           }}
         >
@@ -187,7 +172,7 @@ export function SaleLine({ item }: { item: CartItem }) {
             <div className="line-split">
               <b className="strong">{item.name}</b>
               <span className="note nowrap">
-                {item.openPrice ? "Open price" : `${usd(shelf)} on the shelf`}
+                {item.openPrice ? "Open price" : `${usd(shelf)} on the shelf${item.listName ? `, ${item.listName}` : ""}`}
                 {item.stock !== undefined ? ` · ${qty(item.stock)} left` : ""}
               </span>
             </div>
@@ -223,13 +208,26 @@ export function SaleLine({ item }: { item: CartItem }) {
               type="button"
               className="btn btn-quiet btn-danger push-left"
               onClick={() => {
-                removeFromCart(item.catalogItemId);
+                removeFromCart(item.id);
                 setOpen(false);
               }}
             >
               <Trash className="ic" />
-              Remove the line
+              {item.bundleRef ? "Remove the bundle" : "Remove the line"}
             </button>
+            {canAdjustStock ? (
+              <button
+                type="button"
+                className="btn btn-quiet"
+                onClick={() => {
+                  setOpen(false);
+                  setAdjusting(true);
+                }}
+              >
+                <Package className="ic" />
+                Adjust stock
+              </button>
+            ) : null}
             {overCeiling && ceiling !== null ? (
               <button
                 type="button"
@@ -252,222 +250,25 @@ export function SaleLine({ item }: { item: CartItem }) {
         </form>
       </TillPopover>
       <span className="qty" role="group" aria-label={`Quantity of ${item.name}`}>
-        <button type="button" aria-label={`One fewer ${item.name}`} onClick={() => updateQty(item.catalogItemId, item.quantity - 1)}>
+        <button type="button" aria-label={`One fewer ${item.name}`} disabled={Boolean(item.bundleRef)} onClick={() => updateQty(item.id, item.quantity - 1)}>
           <Minus className="ic" />
         </button>
         <span key={item.quantity} className="tick">
           {measured ? item.quantity.toFixed(3) : qty(item.quantity)}
         </span>
-        <button type="button" aria-label={`One more ${item.name}`} onClick={() => updateQty(item.catalogItemId, item.quantity + 1)}>
+        <button type="button" aria-label={`One more ${item.name}`} disabled={Boolean(item.bundleRef)} onClick={() => updateQty(item.id, item.quantity + 1)}>
           <Plus className="ic" />
         </button>
       </span>
       <span className="num">{stopped ? "—" : usd(lineAmount)}</span>
+      {adjusting ? (
+        <AdjustStockDialog product={{ id: item.catalogItemId, name: item.name, onHand: item.stock ?? 0 }} onClose={() => setAdjusting(false)} />
+      ) : null}
     </motion.div>
   );
 }
 
 /* ─── Bottles back ───────────────────────────────────────────────────── */
-
-/**
- * The empties on this sale, as one line: how many, and what they take off.
- * Each is counted against a line that sells that bottle, so more go on the
- * first line with room at the same deposit and come off the last one counted.
- */
-export function BottlesBackLine() {
-  const { setEmptiesBack, emptiesBackCount } = useTill();
-  const lines = useReturnables();
-  if (!emptiesBackCount) return null;
-  const values = [...new Set(lines.filter((item) => emptiesCounted(item) > 0).map((item) => item.depositAmount ?? 0))];
-  const per = values.length === 1 ? values[0] : null;
-  const fewer = [...lines].reverse().find((item) => emptiesCounted(item) > 0);
-  const more = per === null ? undefined : lines.find((item) => item.depositAmount === per && emptiesCounted(item) < Math.floor(item.quantity));
-  return (
-    <div className="line">
-      <span className="text-stack">
-        <span className="truncate">Bottles back</span>
-        <span className="meta truncate is-off">{per !== null ? `${depositWord(per)} a bottle, off this sale` : "Off this sale"}</span>
-      </span>
-      <span className="qty" role="group" aria-label="Bottles back">
-        <button
-          type="button"
-          aria-label="One fewer bottle back"
-          disabled={!fewer}
-          onClick={() => fewer && setEmptiesBack(fewer.catalogItemId, emptiesCounted(fewer) - 1)}
-        >
-          <Minus className="ic" />
-        </button>
-        <span>{emptiesBackCount}</span>
-        <button
-          type="button"
-          aria-label="One more bottle back"
-          disabled={!more}
-          onClick={() => more && setEmptiesBack(more.catalogItemId, emptiesCounted(more) + 1)}
-        >
-          <Plus className="ic" />
-        </button>
-      </span>
-      <span className="num">{usd(-bottlesBackCredit(lines))}</span>
-    </div>
-  );
-}
-
-/**
- * The count of empties, on the Bottles back tile: a row for each kind of
- * deposit on the sale, by the name the shop gives it, never more than the
- * sale sells of it. A deposit with no name keeps its product's name.
- */
-export function BottlesBackPopover({ trigger }: { trigger: React.ReactElement }) {
-  const { setEmptiesBack } = useTill();
-  const lines = useReturnables();
-  const [open, setOpen] = React.useState(false);
-  const [draft, setDraft] = React.useState<Record<string, number>>({});
-  const rows = emptiesRows(lines);
-  const perLine = new Map(rows.flatMap((row) => spreadEmpties(row, draft[row.key] ?? 0)));
-  const counted = lines.map((item) => ({ ...item, emptiesBack: perLine.get(item.catalogItemId) ?? 0 }));
-  const total = counted.reduce((sum, item) => sum + emptiesCounted(item), 0);
-  const credit = bottlesBackCredit(counted);
-
-  return (
-    <TillPopover
-      open={open}
-      onOpenChange={(next) => {
-        setOpen(next);
-        if (next) setDraft(Object.fromEntries(rows.map((row) => [row.key, row.lines.reduce((sum, item) => sum + emptiesCounted(item), 0)])));
-      }}
-      label="Bottles back"
-      size="lg"
-      trigger={trigger}
-    >
-      <div className="pop-body">
-        <b className="strong">Bottles back</b>
-        {rows.length ? (
-          <div className="list is-framed">
-            {rows.map((row) => {
-              const n = draft[row.key] ?? 0;
-              return (
-                <div key={row.key} className="row is-split is-inset">
-                  <span className="grow truncate">
-                    {row.label} <span className="muted">{depositWord(row.each)}</span>
-                  </span>
-                  <span className="qty" role="group" aria-label={`Empties back, ${row.label}`}>
-                    <button
-                      type="button"
-                      aria-label={`One fewer back, ${row.label}`}
-                      disabled={n === 0}
-                      onClick={() => setDraft({ ...draft, [row.key]: Math.max(0, n - 1) })}
-                    >
-                      <Minus className="ic" />
-                    </button>
-                    <span>{n}</span>
-                    <button
-                      type="button"
-                      aria-label={`One more back, ${row.label}`}
-                      disabled={n >= row.most}
-                      onClick={() => setDraft({ ...draft, [row.key]: Math.min(row.most, n + 1) })}
-                    >
-                      <Plus className="ic" />
-                    </button>
-                  </span>
-                </div>
-              );
-            })}
-          </div>
-        ) : (
-          <p className="help is-flush">Ring up the bottles first. Empties come off a line that sells them, up to its count.</p>
-        )}
-      </div>
-      <div className="pop-foot">
-        <span className="kbd push-left">
-          Esc
-        </span>
-        <button
-          type="button"
-          className="btn btn-ink"
-          onClick={() => {
-            for (const item of lines) setEmptiesBack(item.catalogItemId, perLine.get(item.catalogItemId) ?? 0);
-            setOpen(false);
-          }}
-        >
-          <Check className="ic" />
-          {total ? `Take ${total} back, ${usd(-credit)}` : "None back"}
-        </button>
-      </div>
-    </TillPopover>
-  );
-}
-
-/* ─── Opening a case where the line is ───────────────────────────────── */
-
-export function CaseBanners() {
-  const { cart } = useTill();
-  const [dismissed, setDismissed] = React.useState<string[]>([]);
-  // Short of singles, and the cases in this branch cover what is missing.
-  const short = cart.filter(
-    (item) =>
-      item.openableCase &&
-      item.stock !== undefined &&
-      item.quantity > item.stock &&
-      item.openableCase.casesOnHand * item.openableCase.unitsPerCase >= item.quantity - Math.max(0, item.stock) &&
-      !dismissed.includes(item.catalogItemId),
-  );
-  return (
-    <>
-      {short.map((item) => (
-        <CaseBanner key={item.catalogItemId} item={item} onDismiss={() => setDismissed((current) => [...current, item.catalogItemId])} />
-      ))}
-    </>
-  );
-}
-
-function CaseBanner({ item, onDismiss }: { item: CartItem; onDismiss: () => void }) {
-  const { toast } = useToast();
-  const queryClient = useQueryClient();
-  const { updateLine } = useTill();
-  const caseInfo = item.openableCase!;
-  const loose = Math.max(0, item.stock ?? 0);
-  const cases = Math.ceil((item.quantity - loose) / caseInfo.unitsPerCase);
-  const name = item.name.split(",")[0];
-  const open = useMutation({
-    mutationFn: () =>
-      fetchJson<{ data: { casesOpened: number; singlesAdded: number; singlesOnHand: number; caseName: string } }>("/api/v2/retail/pos/open-case", {
-        method: "POST",
-        body: JSON.stringify({ productId: item.catalogItemId, wanted: item.quantity }),
-      }),
-    onSuccess: (result) => {
-      updateLine(item.catalogItemId, { stock: result.data.singlesOnHand });
-      void queryClient.invalidateQueries({ queryKey: ["retail-pos-catalog"] });
-    },
-    onError: (error) => toast({ title: "No case was opened", description: getApiErrorMessage(error), variant: "destructive" }),
-  });
-  return (
-    <div className="banner is-in-list wrap">
-      <Package className="ic" />
-      {/* A case breaks at the till only once its singles have run out: the loose ones sell first. */}
-      {loose ? (
-        <span>
-          Only {qty(loose)} singles of {name} left. Sell those first; a case opens once they run out.
-        </span>
-      ) : (
-        <span>
-          No singles of {name} left, {count(caseInfo.casesOnHand, "case")}. Open {cases === 1 ? "one" : cases} for these {qty(item.quantity)}?
-        </span>
-      )}
-      <div className="end">
-        <button type="button" className="btn" onClick={onDismiss}>
-          <X className="ic" />
-          {loose ? "Got it" : "Not now"}
-        </button>
-        {loose ? null : (
-          <button type="button" className="btn btn-ink" disabled={open.isPending} aria-busy={open.isPending || undefined} onClick={() => open.mutate()}>
-            <Check className="ic" />
-            Open {count(cases, "case")}
-          </button>
-        )}
-      </div>
-    </div>
-  );
-}
 
 /* ─── The customer ───────────────────────────────────────────────────── */
 
@@ -480,38 +281,63 @@ export function CustomerPopover() {
   const query = customerName.trim();
   const showResults = query.length >= 2 && customerSearchResults.length > 0;
   const phoneLike = /^[+\d\s-]{6,}$/.test(query);
+  // The inline add: a number and a name, both needed (CUS-02).
+  const [adding, setAdding] = React.useState<{ phone: string; name: string } | null>(null);
+  const [taken, setTaken] = React.useState<{ id: string; name: string } | null>(null);
+  const [addError, setAddError] = React.useState<string | null>(null);
+  const startAdding = () => {
+    setTaken(null);
+    setAddError(null);
+    setAdding(phoneLike ? { phone: query, name: "" } : { phone: "", name: query });
+  };
 
   const create = useMutation({
-    mutationFn: () =>
-      fetchJson<{ data: { id: string; name: string; phone: string | null; email: string | null } }>("/api/v2/retail/customers", {
+    mutationFn: (input: { phone: string; name: string }) =>
+      fetchJson<{ data: { id: string; code: string; name: string; phone: string; cardNo: string } }>("/api/v2/retail/customers", {
         method: "POST",
-        body: JSON.stringify(phoneLike ? { name: `Customer ${query}`, phone: query } : { name: query }),
+        body: JSON.stringify({ phone: input.phone, name: input.name, via: "till" }),
       }),
     onSuccess: (payload) => {
-      selectCustomer({ ...payload.data, loyaltyPoints: 0, loyaltyTier: "BRONZE" });
+      selectCustomer(newPosCustomer(payload.data));
+      setAdding(null);
       setOpen(false);
     },
-    onError: async (error) => {
+    onError: async (error, input) => {
+      // A number someone already has: offer them instead.
+      const existing = error instanceof ApiError && error.status === 409 ? (error.details as { existing?: { id: string; name: string } } | null)?.existing : null;
+      if (existing) {
+        setTaken(existing);
+        setAddError(getApiErrorMessage(error));
+        return;
+      }
       const message = getApiErrorMessage(error);
       const offline = /network|failed to fetch|load failed/i.test(message) || (typeof navigator !== "undefined" && !navigator.onLine);
       if (offline && tenantKey) {
-        const queued = await createOfflineRetailCustomer(tenantKey, {
-          name: phoneLike ? `Customer ${query}` : query,
-          phone: phoneLike ? query : null,
-          email: null,
-        });
-        selectCustomer({
-          id: queued.record.tempId,
-          name: String(queued.record.payload.name ?? query),
-          phone: (queued.record.payload.phone as string | null | undefined) ?? null,
-          email: null,
-          loyaltyPoints: 0,
-          loyaltyTier: "BRONZE",
-        });
+        const queued = await createOfflineRetailCustomer(tenantKey, { name: input.name, phone: input.phone });
+        selectCustomer(newPosCustomer({ id: queued.record.tempId, name: input.name, phone: input.phone }));
+        setAdding(null);
         setOpen(false);
         return;
       }
+      if (error instanceof ApiError && error.status === 400) {
+        setAddError(message);
+        return;
+      }
       toast({ title: "That customer was not added", description: message, variant: "destructive" });
+    },
+  });
+
+  const pickTaken = useMutation({
+    mutationFn: async (existing: { id: string; name: string }) => {
+      const found = await fetchJson<{ data: PosCustomer[] }>(`/api/v2/retail/pos/customers?q=${encodeURIComponent(adding?.phone ?? existing.name)}&limit=8`);
+      return found.data.find((customer) => customer.id === existing.id) ?? null;
+    },
+    onSuccess: (customer) => {
+      if (!customer) return;
+      selectCustomer(customer);
+      setAdding(null);
+      setTaken(null);
+      setOpen(false);
     },
   });
 
@@ -539,7 +365,7 @@ export function CustomerPopover() {
               <div>
                 <b className="strong">{selectedCustomer.name}</b>
                 <p className="note num text-left">
-                  {[selectedCustomer.phone, enumLabel(selectedCustomer.loyaltyTier), `${whole(selectedCustomer.loyaltyPoints)} points`]
+                  {[selectedCustomer.phone, selectedCustomer.tier, `${whole(selectedCustomer.points)} points`]
                     .filter(Boolean)
                     .join(" · ")}
                 </p>
@@ -607,7 +433,7 @@ export function CustomerPopover() {
                         <span className="text-stack text-left">
                           <span className="ink weight-500">{customer.name}</span>
                           <span className="muted num text-left text-12">
-                            {[customer.phone, enumLabel(customer.loyaltyTier), `${whole(customer.loyaltyPoints)} points`].filter(Boolean).join(" · ")}
+                            {[customer.phone, customer.tier, `${whole(customer.points)} points`].filter(Boolean).join(" · ")}
                           </span>
                         </span>
                       </button>
@@ -620,10 +446,55 @@ export function CustomerPopover() {
                   </p>
                 ) : null}
                 {customerSearchResults.length ? <div className="menu-sep" /> : null}
-                <button type="button" className="menu-item" disabled={create.isPending} aria-busy={create.isPending || undefined} onClick={() => create.mutate()}>
-                  <UserPlus className="ic" />
-                  Add {query} as a new customer
-                </button>
+                {adding ? (
+                  <form
+                    className="pad-8"
+                    onSubmit={(event) => {
+                      event.preventDefault();
+                      setAddError(null);
+                      setTaken(null);
+                      create.mutate(adding);
+                    }}
+                  >
+                    <label className="input-wrap">
+                      <input
+                        aria-label="Phone or WhatsApp"
+                        placeholder="Phone or WhatsApp"
+                        className="num"
+                        inputMode="tel"
+                        value={adding.phone}
+                        autoFocus={!adding.phone}
+                        onChange={(event) => setAdding({ ...adding, phone: event.target.value })}
+                      />
+                    </label>
+                    <label className="input-wrap">
+                      <input
+                        aria-label="Name"
+                        placeholder="Name"
+                        value={adding.name}
+                        autoFocus={Boolean(adding.phone)}
+                        onChange={(event) => setAdding({ ...adding, name: event.target.value })}
+                      />
+                    </label>
+                    {addError ? <ErrorLine>{addError}</ErrorLine> : null}
+                    {taken ? (
+                      <button type="button" className="btn" disabled={pickTaken.isPending} onClick={() => pickTaken.mutate(taken)}>
+                        <Check className="ic" />
+                        Use {taken.name}
+                      </button>
+                    ) : (
+                      <button type="submit" className="btn btn-ink" disabled={create.isPending} aria-busy={create.isPending || undefined}>
+                        <UserPlus className="ic" />
+                        Add customer
+                      </button>
+                    )}
+                  </form>
+                ) : (
+                  <button type="button" className="menu-item" onClick={startAdding}>
+                    <UserPlus className="ic" />
+                    Add {query} as a new customer
+                  </button>
+                )}
               </div>
             ) : (
               <p className="help">Type two letters of a name, or the start of a phone number.</p>
@@ -766,21 +637,33 @@ export function DiscountPopover() {
   const {
     orderDiscountAmount,
     setOrderDiscountAmount,
-    loyaltyRedemptionPoints,
-    setLoyaltyRedemptionPoints,
+    pointsToSpend,
+    setPointsToSpend,
     selectedCustomer,
-    goodsTotal,
+    loyaltyRules,
+    pointsPayable,
+    isOffline,
   } = useTill();
   const [open, setOpen] = React.useState(false);
   const [manual, setManual] = React.useState("");
   const [points, setPoints] = React.useState("");
   const ids = React.useId();
 
-  const pointsValue = Math.max(0, Math.floor(Number(points || "0")));
-  const maxPoints = selectedCustomer
-    ? Math.min(selectedCustomer.loyaltyPoints, Math.floor(goodsTotal * LOYALTY_MAX_REDEEM_SHARE * LOYALTY_REDEEM_POINTS_PER_USD))
-    : 0;
-  const tooMany = pointsValue > maxPoints;
+  const pointsWanted = Math.max(0, Math.floor(Number(points || "0")));
+  // CUS-01: the till's sentences, the same the server answers with.
+  const refusal =
+    pointsWanted > 0
+      ? isOffline
+        ? SPENDING_NEEDS_THE_INTERNET
+        : spendRefusal({
+            enabled: Boolean(loyaltyRules?.on),
+            customer: selectedCustomer ? { name: selectedCustomer.name, balance: selectedCustomer.points } : null,
+            points: pointsWanted,
+            spendFrom: loyaltyRules?.spendFrom ?? 0,
+            pointValue: loyaltyRules?.pointValue ?? 0,
+            payable: pointsPayable,
+          })
+      : null;
 
   return (
     <TillPopover
@@ -788,10 +671,8 @@ export function DiscountPopover() {
       onOpenChange={(next) => {
         setOpen(next);
         if (next) {
-          const used = Number(loyaltyRedemptionPoints || "0");
-          const rest = Number(orderDiscountAmount || "0") - used / LOYALTY_REDEEM_POINTS_PER_USD;
-          setManual(rest > 0.009 ? rest.toFixed(2) : "");
-          setPoints(used ? String(used) : "");
+          setManual(Number(orderDiscountAmount || "0") > 0.009 ? Number(orderDiscountAmount).toFixed(2) : "");
+          setPoints(pointsToSpend);
         }
       }}
       label="Discount on the sale"
@@ -807,42 +688,42 @@ export function DiscountPopover() {
       <form
         onSubmit={(event) => {
           event.preventDefault();
-          if (tooMany) return;
-          const fromPoints = pointsValue / LOYALTY_REDEEM_POINTS_PER_USD;
-          const total = (amountOf(manual) ?? 0) + fromPoints;
-          setLoyaltyRedemptionPoints(pointsValue ? String(pointsValue) : "");
-          setOrderDiscountAmount(total > 0 ? total.toFixed(2) : "");
+          if (refusal) return;
+          const off = amountOf(manual) ?? 0;
+          setPointsToSpend(pointsWanted ? String(pointsWanted) : "");
+          setOrderDiscountAmount(off > 0 ? off.toFixed(2) : "");
           setOpen(false);
         }}
       >
         <div className="pop-body">
           <MoneyField id={`${ids}m`} label="Off the whole sale" value={manual} onChange={setManual} placeholder="0.00" autoFocus />
+          <DiscountVoucherField />
           <div className="field">
             <label htmlFor={`${ids}l`}>Points</label>
-            {selectedCustomer ? (
+            {selectedCustomer && loyaltyRules?.on ? (
               <>
                 <input
                   id={`${ids}l`}
                   className="input input-lg num text-left"
                   inputMode="numeric"
                   value={points}
-                  aria-invalid={tooMany || undefined}
-                  aria-describedby={tooMany ? `${ids}le` : undefined}
+                  disabled={isOffline}
+                  aria-invalid={refusal ? true : undefined}
+                  aria-describedby={refusal ? `${ids}le` : undefined}
                   onChange={(event) => setPoints(event.target.value.replace(/\D/g, ""))}
                 />
-                {tooMany ? (
-                  <ErrorLine id={`${ids}le`}>
-                    {firstName(selectedCustomer.name)} can pay with {whole(maxPoints)} points at most on this sale.
-                  </ErrorLine>
+                {refusal ? (
+                  <ErrorLine id={`${ids}le`}>{refusal}</ErrorLine>
                 ) : (
                   <span className="help">
-                    {whole(selectedCustomer.loyaltyPoints)} points. 100 points are US$1.00, up to a fifth of the sale.
+                    {whole(selectedCustomer.points)} points, worth {usd(worthOf(selectedCustomer.points, loyaltyRules.pointValue))}.
+                    {pointsWanted > 0 ? ` These take ${usd(worthOf(pointsWanted, loyaltyRules.pointValue))} off.` : ""}
                   </span>
                 )}
               </>
             ) : (
               <p className="help is-flush">
-                Add a customer to pay with points: 100 points are US$1.00, up to a fifth of the sale.
+                {loyaltyRules?.on ? "Add a customer to pay with points." : "Loyalty is off."}
               </p>
             )}
           </div>
@@ -861,133 +742,36 @@ export function DiscountPopover() {
   );
 }
 
-/* ─── The ID check ───────────────────────────────────────────────────── */
-
-export function IdCheckDialog({ open, onDone }: { open: boolean; onDone: () => void }) {
-  const { data: session } = useSession();
-  const { cart, lineStopped, confirmId, removeAgeRestricted } = useTill();
-  const names = cart.filter((item) => item.ageRestricted && !lineStopped(item)).map((item) => item.name.split(",")[0]);
-  const listed = names.length > 2 ? `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}` : names.join(" and ");
-  return (
-    <TillDialog
-      open={open}
-      onOpenChange={(next) => {
-        if (!next) onDone();
-      }}
-      title="Check ID: 18 or over"
-      description={`${listed || "These products"} ${names.length === 1 ? "is" : "are"} for people 18 or over. Look at the customer’s ID before you go on.`}
-      foot={
-        <>
-          <button
-            type="button"
-            className="btn"
-            onClick={() => {
-              removeAgeRestricted();
-              onDone();
-            }}
-          >
-            <Prohibit className="ic" />
-            Take the 18+ items off
-          </button>
-          <button
-            type="button"
-            className="btn btn-primary"
-            onClick={() => {
-              confirmId();
-              onDone();
-            }}
-          >
-            <IdentificationCard className="ic" />
-            They are 18 or over
-          </button>
-        </>
-      }
-    >
-      <p className="note">
-        Asked once a sale. The answer is kept on the sale with {firstName(session?.user?.name)}’s name.
-      </p>
-    </TillDialog>
-  );
-}
-
-/* ─── A manager approves ─────────────────────────────────────────────── */
+/* ─── Why the price changed ─────────────────────────────────────────── */
 
 /**
- * A changed price or a discount, at Take. The person selling says why; when
- * the till rules want a manager (`approvalReason`), or the server says so
- * (409 `needsApprover`, 423 locked), a manager picks their name and types
- * their four-digit PIN here (C-31). The PIN lives in this dialog only: it is
- * cleared each time it opens and after a refusal, and never queued offline.
+ * A changed price or a discount, at Take: the person selling says why, and
+ * it is kept on the sale. When the till rules want a manager for it, the sale
+ * goes and the server's 409 opens the approval dialog (`useApproval`, FLR-09):
+ * no manager is asked for here.
  */
-export function ApproveDialog({
+export function ReasonDialog({
   open,
   onOpenChange,
   amount,
-  onApprove,
+  onTake,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   amount: number;
-  onApprove: (approval: Approval) => void;
+  onTake: (reason: string) => void;
 }) {
-  const { data: session } = useSession();
-  const {
-    cart,
-    approvers,
-    approvalReason,
-    updateLine,
-    setOrderDiscountAmount,
-    loyaltyRedemptionPoints,
-    lineDiscountTotal,
-    orderDiscountAmount,
-    postSalePending,
-    saleRefusal,
-  } = useTill();
-  const [manager, setManager] = React.useState("");
-  const [pin, setPin] = React.useState("");
+  const { cart, updateLine, setOrderDiscountAmount, lineDiscountTotal, orderDiscountAmount, postSalePending, approvalReason } = useTill();
   const [reason, setReason] = React.useState("");
-  const [problem, setProblem] = React.useState<{ field: "reason" | "manager" | "pin"; text: string } | null>(null);
-  // The server asked for a manager the till did not: kept until the dialog closes.
-  const [serverAsked, setServerAsked] = React.useState<string | null>(null);
+  const [problem, setProblem] = React.useState<string | null>(null);
   const ids = React.useId();
-  const chosen = approvers.find((person) => person.userId === manager) ?? approvers[0] ?? null;
-  const askedFor = approvalReason ?? serverAsked;
-  const managerNeeded = askedFor !== null;
 
   React.useEffect(() => {
-    if (open) {
-      setPin("");
-      setProblem(null);
-    } else {
-      setServerAsked(null);
-    }
+    if (open) setProblem(null);
   }, [open]);
 
-  // A refusal from `pos/sales`: ask for a manager, and clear what was wrong.
-  React.useEffect(() => {
-    if (!saleRefusal || saleRefusal.kind === "refused") return;
-    setPin("");
-    if (saleRefusal.kind === "needs-approver") {
-      if (saleRefusal.field === null) setServerAsked(saleRefusal.message);
-      if (saleRefusal.field === "approver") setManager("");
-    }
-  }, [saleRefusal]);
-
-  // Each refusal shows on the field it is about.
-  const refusedField = !saleRefusal
-    ? null
-    : saleRefusal.kind === "pin-locked"
-      ? "pin"
-      : saleRefusal.kind === "needs-approver"
-        ? saleRefusal.field
-        : "reason";
-  const refusedOn = (field: "reason" | "approver" | "pin") => (saleRefusal && refusedField === field ? saleRefusal.message : null);
-  const pinRefusal = refusedOn("pin");
-  const managerRefusal = refusedOn("approver");
-  const refusal = refusedOn("reason");
-
   const changed = cart.filter(lineIsChanged);
-  const orderOff = Number(orderDiscountAmount || "0") - Number(loyaltyRedemptionPoints || "0") / LOYALTY_REDEEM_POINTS_PER_USD;
+  const orderOff = Number(orderDiscountAmount || "0");
   const what = [
     changed.length === 1
       ? lineDiscountTotal > 0
@@ -1003,46 +787,27 @@ export function ApproveDialog({
 
   const submit = () => {
     if (!reason.trim()) {
-      setProblem({ field: "reason", text: "Say why, in a few words. It is kept on the sale." });
-      return;
-    }
-    if (!managerNeeded) {
-      setProblem(null);
-      onApprove({ reason: reason.trim(), approver: null });
-      return;
-    }
-    if (!chosen) {
-      setProblem({ field: "manager", text: "No manager can approve on this till." });
-      return;
-    }
-    if (!/^\d{4}$/.test(pin)) {
-      setProblem({ field: "pin", text: `${firstName(chosen.name)} types their four-digit PIN.` });
+      setProblem("Say why, in a few words. It is kept on the sale.");
       return;
     }
     setProblem(null);
-    onApprove({ reason: reason.trim(), approver: { userId: chosen.userId, pin } });
+    onTake(reason.trim());
   };
-
-  const errorFor = (field: "reason" | "manager" | "pin", refused: string | null) => (problem?.field === field ? problem.text : refused);
-  const managerError = errorFor("manager", managerRefusal);
-  const pinError = errorFor("pin", pinRefusal);
-  const reasonError = errorFor("reason", refusal);
 
   return (
     <TillDialog
       open={open}
       onOpenChange={onOpenChange}
-      title={managerNeeded ? "A manager has to approve this" : "Say why the price changed"}
-      description={`${what ? `${what[0].toUpperCase()}${what.slice(1)}` : "A changed price"}, so the sale comes to ${usd(amount)}.${managerNeeded ? ` ${firstName(session?.user?.name)} is asking.` : ""}`}
+      title="Say why the price changed"
+      description={`${what ? `${what[0].toUpperCase()}${what.slice(1)}` : "A changed price"}, so the sale comes to ${usd(amount)}.${approvalReason ? ` ${approvalReason}` : ""}`}
       foot={
         <>
           <button
             type="button"
             className="btn"
             onClick={() => {
-              for (const item of changed) updateLine(item.catalogItemId, { unitPrice: item.shelfPrice, lineDiscountAmount: 0 });
-              const points = Number(loyaltyRedemptionPoints || "0") / LOYALTY_REDEEM_POINTS_PER_USD;
-              setOrderDiscountAmount(points > 0 ? points.toFixed(2) : "");
+              for (const item of changed) updateLine(item.id, { unitPrice: item.shelfPrice, lineDiscountAmount: 0 });
+              setOrderDiscountAmount("");
               onOpenChange(false);
             }}
           >
@@ -1051,74 +816,25 @@ export function ApproveDialog({
           </button>
           <button type="button" className="btn btn-primary" disabled={postSalePending} aria-busy={postSalePending || undefined} onClick={submit}>
             <Check className="ic" />
-            {managerNeeded ? `Approve and take ${usd(amount)}` : `Take ${usd(amount)}`}
+            Take {usd(amount)}
           </button>
         </>
       }
     >
-      {managerNeeded ? (
-        <>
-          <p className="note">{askedFor}</p>
-          <div className="field">
-            <label htmlFor={`${ids}m`}>Manager</label>
-            <select
-              id={`${ids}m`}
-              className="select input-lg"
-              value={chosen?.userId ?? ""}
-              aria-invalid={Boolean(managerError) || undefined}
-              aria-describedby={managerError ? `${ids}me` : undefined}
-              onChange={(event) => setManager(event.target.value)}
-            >
-              {approvers.map((person) => (
-                <option key={person.userId} value={person.userId}>
-                  {person.name}
-                </option>
-              ))}
-            </select>
-            {managerError ? <ErrorLine id={`${ids}me`}>{managerError}</ErrorLine> : null}
-          </div>
-          <div className="field">
-            <label htmlFor={`${ids}p`}>{chosen ? `${firstName(chosen.name)}’s PIN` : "PIN"}</label>
-            <input
-              id={`${ids}p`}
-              className="input input-lg num text-left"
-              type="password"
-              inputMode="numeric"
-              autoComplete="off"
-              maxLength={4}
-              value={pin}
-              aria-invalid={Boolean(pinError) || undefined}
-              aria-describedby={pinError ? `${ids}pe` : undefined}
-              onChange={(event) => setPin(event.target.value.replace(/\D/g, "").slice(0, 4))}
-            />
-            {pinError ? (
-              <ErrorLine id={`${ids}pe`}>
-                {pinError === pinRefusal && saleRefusal?.kind === "pin-locked"
-                  ? `${chosen ? `${firstName(chosen.name)}’s PIN is locked until a new one is sent.` : pinError} Another manager can approve it.`
-                  : pinError}
-              </ErrorLine>
-            ) : null}
-          </div>
-        </>
-      ) : null}
       <div className="field">
         <label htmlFor={`${ids}r`}>Reason</label>
         <input
           id={`${ids}r`}
           className="input input-lg"
           value={reason}
-          aria-invalid={Boolean(reasonError) || undefined}
-          aria-describedby={reasonError ? `${ids}e` : undefined}
+          aria-invalid={Boolean(problem) || undefined}
+          aria-describedby={problem ? `${ids}e` : undefined}
           onChange={(event) => setReason(event.target.value)}
         />
-        {reasonError ? (
-          <ErrorLine id={`${ids}e`}>{reasonError}</ErrorLine>
+        {problem ? (
+          <ErrorLine id={`${ids}e`}>{problem}</ErrorLine>
         ) : (
-          <span className="help">
-            {reason.trim()
-              ? `Kept on the sale as “${reason.trim()}${managerNeeded ? ` (approved by ${chosen?.name ?? "the manager"})` : ""}”.`
-              : `Kept on the sale${managerNeeded ? ` with ${chosen?.name ?? "the manager"}’s name` : ""}.`}
-          </span>
+          <span className="help">{reason.trim() ? `Kept on the sale as “${reason.trim()}”.` : "Kept on the sale."}</span>
         )}
       </div>
     </TillDialog>

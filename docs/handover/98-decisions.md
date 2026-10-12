@@ -174,6 +174,26 @@ Recorded unit choices:
 - **STK-05's phone count marks the current line with `--selected`.** The theme has no `--action-soft`; `--selected`
   is the same warm tint the board draws. The phone's counter rule lets a cashier asked to count open
   `/retail/stock/counts/<id>/count` (outside the shell, like the till) while Counts itself stays closed to them.
+- **STK-06 seeds CNT-0023 on four lines CNT-0020 also holds** (for the canvas owner to confirm). Stock is one line per
+  product at a site and every Spirits line at Harare Main Branch is in CNT-0020, so "Spirits, back shelf" cannot avoid
+  them; the seed writes it as rows, past the start's 409. No mix of the shelf's lines at today's costs comes to the
+  packet's −US$141.20 with Johnnie Walker −3 and Jameson −2 (that pair is −US$145.10), and lines CNT-0020 finds
+  different are left alone, so CNT-0023 is Johnnie Walker +1, Jameson −6, Two Keys +2 and Bols Brandy 750ml −5:
+  −US$141.20 to the cent. Starting a count on Spirits now names both counts in its 409.
+- **STK-06 approval posts through the shop's posting run.** The count's one journal (`RETAIL_STOCK_ADJUSTMENT`, keyed
+  by the count, `LOSS` or `GAIN`) is handed to `postRetailJournal` after the commit; a shop that posts at the end of
+  the day (the demo's) holds it PENDING as its accounting event until the run, which writes Dr 5410 / Cr 1200. The
+  approval answers `accountingStatus` as it stands.
+- **STK-06's review page draws "Approve and adjust" as a header action, not the page primary.** The header's primary
+  has no busy state; the board's spinner is the workspace Button's `busy`. The record's ⋯ "Export as PDF" goes
+  through the record-PDF registry (`RetailStockCount`), not a separate `export.pdf` route.
+- **STK-06's review Differ tab lists the matching lines after the differing ones, at 60%** (for the canvas owner to
+  confirm). That is what `CountReview.png` draws; the spec's "Differ" read as the differing lines alone. Match and
+  All stay as they were. Approving waits for every figure still being saved, and a correction or a Why takes the
+  count's lock first, so one that arrives as the count is approved is refused ("This count is closed." / "This
+  count is not waiting for approval.") rather than written beside the approval.
+- **STK-06's count chart drops "CNT-" under the bars past five.** The demo's 12 months hold seven Spirits counts
+  (the four June to August ones matched), which do not fit a phone with the prefix.
 - **Reseeding with `--reset` clears what acceptance walks did to the shop's stock and records.** Every order and
   delivery goes (PO-00001 and GRN-00001 are written again) with the movements, journals and Activity they
   wrote, and so do the products' edit lines in Activity (the seed's own, Amarula's price, is written again).
@@ -290,6 +310,52 @@ Recorded unit choices:
   - **How people paid splits takings, so it leaves out bottle deposits.** A deposit sale's payments hold the deposit
     (the customer paid goods plus deposit) but takings never do; each sale's deposit comes off its largest payments, so
     the tenders sum to the takings they split.
+- **FLR-02 departs from packet 56 and from PRD-10's entry above in these places.**
+  - **A sale that sold gift vouchers is refunded and voided at the till and in the back office.** PRD-10 refused
+    both ("Void them on Products › Vouchers instead."); FLR-02 lifts that. A void takes the vouchers the sale sold
+    with it: they are voided in the void's transaction, and the VOID's negative `vouchersSoldAmount` takes them off
+    Vouchers owed 2250. A voucher spent from or voided since stops the void ("GV-0019 has been used. Refund it
+    instead.").
+  - **A refund returns only goods lines.** The vouchers a sale sold are not on its refund sheet; a voucher not wanted
+    is voided on Products › Vouchers, where its money is written off as PRD-10 books it.
+  - **No reference is asked at the till.** The money back on a card, wallet or transfer is recorded as "Reversal of
+    <the original reference>" (or the sale number when it had none); the cashier types nothing.
+  - **The "Retail void" posting rule gained a line**: Cr Vouchers owed (role VOUCHERS_OWED) on the DEDUCTIONS basis
+    from `vouchersSoldAmount`, memo "gift vouchers voided", so the vouchers voided with a sale need no journal of
+    their own. The rule lives in `RETAIL_POSTING_RULES` (`lib/accounting/defaults.ts`); a tenant gets it when the
+    accounting seed pack runs again, which rewrites each default rule's lines: Setup › Posting › "Set up the
+    accounts" (`POST /api/v2/retail/posting/setup`, mode APPLY) or Accounting › Setup's seed pack. The demo tenant
+    gets it on every reseed. Until a tenant reruns it, a void of a sale that sold vouchers does not balance and its
+    journal stays FAILED in the posting run, which tries it again once the rule is refreshed; no other void is
+    affected.
+- **FLR-06's lay-by money by EcoCash or card counts on the drawer it was taken at.** A lay-by deposit, payment or
+  refund by a tender other than cash carries the till's open shift, and that shift's takings by tender (the till's
+  cash-up, the back office's close page) and its Z-report's tender rows count it, refunds negative, so each
+  tender's row matches its statement. It is not takings: grossTakings, VAT and the hand-over sale are untouched,
+  and the hand-over's LAYBY row stays as how that sale was paid. Cash lay-by money is already the drawer's own
+  cash movement. End of day's "How people paid" tiles stay the sales' own tenders.
+- **FLR-10 departs from packet 63 in these places.**
+  - **The till lives in `components/retail/till/*`**, as FLR-09 left it; the packet's `components/retail/portal/*`
+    names are older. Its tests sit beside it (`pos-cart-pricing`, `pos-liquor-moments`, `pos-vouchers`). The sale body
+    keeps `pos/sales`' own `items` (the packet's `lines`), each with `bundleId`/`bundleRef` when rung as a bundle.
+  - **The till prices a line's shelf with no customer**, as `resolveShelfPrices` does on the server; a customer's list
+    waits for CUS-10 on both sides at once, or the till and the server would disagree.
+  - **Cases open through `POST /stock/case-breaks`; `pos/open-case` is gone.** The shelf's `openableCase` now names a
+    single's case whether or not it breaks at the till, with `breakAtTill`: on, the case opens at once; off, the
+    till asks ("No singles left"). STK-04's rule stands, so a cashier opens one only while the line's singles are at
+    0; past that the sale's own break (Break cases at the till) covers it when it is taken.
+  - **Bottles back on a sale come off the lines that sell those bottles, at most what each sells** (`emptiesCounted`,
+    STK-09's rule): the board's "Bottles back, 12" against 6 sold cannot be rung as one sale. The rest are paid out
+    with "Bottles back · Pay" on an empty cart.
+  - **A gift voucher sells with at least one product** on the sale: `pos/sales` takes no sale without items. Selling
+    one, the VOUCHER tender and a discount voucher are off offline ("Vouchers need the till online."), and a sale
+    holding any of them is never queued.
+  - **A gift voucher's secret prints on the first receipt only** (while the sale has no `printedAt`); a reprint from
+    History says "Secret on the first receipt", so a cashier cannot read off a sold voucher's secret later.
+  - **Pay reads "Pay US$…" beside "Bottles back"** where Empties and deposits is on (Liquor panel 3), else "Take".
+  - **Public holidays wait for ADM-08**: the licence banner reads the weekday's own window until then.
+  - **Two till contracts grew**: `devices/me` names `approvers.adjust` (`retail.adjustments:approve`, for Adjust
+    stock over the limit at the till), and `pos/catalog?ids=` reads a bundle's items by id.
 - **PRD-04 departs from packet 15 in seven places.**
   - **A category that checks ID checks it for every product in it, at the till too.** `ageCheckFor`
     (`lib/retail/products/age-check.ts`) now lets the category win over a product's own No, so every till, the shelf
@@ -515,6 +581,99 @@ Recorded unit choices:
     GV-0019's sale, is SALE-29888 on the last seed). The board's day is before 9 October; on the seed's day CN-0031 (last day 9 October) reads
     Expired, so Live 14, Used up 31, Expired 6, All 51 hold with it under Expired. The seed leaves its US$4.20
     for the worker's next 00:10 run to write off, so that lapse can be watched.
+
+- **STK-09 departs from packet 17 in these places.**
+  - **The Empties ledger replaces the till's per-supplier empties table.** `RetailEmptiesEntry` was a till-era table of
+    bottles back per product's supplier; migration `20261012130100_retail_empties` drops it (and its rows) and makes the
+    packet's ledger. The till's Paid screen and its sale view now say "12 bottles", not "12 bottles on the ledger for
+    Delta": empties go back to whichever supplier the shop books them to.
+  - **Deposit charged is the gross deposit.** A sale's `depositAmount` is already net of its empties back, so its
+    DEPOSIT_CHARGED entry is that plus the empties' deposit, and its BOTTLES_BACK entry takes the empties' deposit off:
+    the two add up to the sale's own deposit, which is what its posting moves on 2240. A refund or void writes
+    DEPOSIT_REFUNDED for the deposit it hands back; the bottles brought back stay in the store.
+  - **The sale hooks write whatever the switch says**; only the Empties endpoints refuse 409 while it is off, so the
+    ledger never drifts from 2240 when the switch is turned off with deposits outstanding. The list shows the ledger
+    as it stands; its page 404s and its nav item hides.
+  - **Bottles back without a sale posts Dr Deposits held / Cr 1000 Till cash** (as petty cash does), not a tender
+    mapping, and refuses more than the drawer should hold ("Only US$12.00 should be in the drawer."). Its entry's
+    reference is the shift number; Who reads the customer, or "A customer".
+  - **"In the store" in the Σ row adds each site's latest afters** over the sites the filters cover; with one site it
+    is that site's own figure.
+  - **The seed brings the ledger forward.** Only the preview sale carries a deposit in the seeded history, so a
+    DEPOSIT_CHARGED "Brought forward from the paper ledger" 40 days back sets Held for customers to US$84.30 (the seed
+    checks it, with Owed US$231.00 and 412 · 31). The board's "Today 12:10 Sale SALE-31870 US$4.20" is not seeded:
+    SALE-31870 charged no deposit. GRN-0005 is the return's reference only until BUY-06's deliveries; Natbrew is added
+    as a supplier for its return.
+
+- **BUY-02 departs from packet 31 in these places.**
+  - **An order line names its product, not its stock line.** `POST/PATCH /api/v2/retail/buying/orders` take
+    `lines: [{ id?, productId, quantity, unitCost }]`; the server finds the product's stock line at the order's site
+    (400 under Lines, "<product> is not kept at <site>.", when there is none), and a draft moved to another site has
+    its lines moved with it. The sheet's Lines field is the `product` lookup, so "add a new one" is PRD-03's quick add.
+  - **PO-0005 is US$1,940.00 with VAT at 15.5% only with three costs moved, not one.** Its lines' quantities are all
+    multiples of six, and no cost for Bols Brandy alone lands the total on 1,940.00 (it reaches 1,939.98 or 1,940.05).
+    The seed prices Amarula 13.05, Gordon's 12.39 and Bols Brandy 10.06 (lines US$1,679.64, VAT US$260.36) and checks the total.
+  - **A message waiting in the outbox reads "Waiting to send"** (pending) on the Messages tab; the spec names only Sent,
+    Delivered, Read, Failed and Reply. Every seeded message went when it was sent, so the drain never sends one again.
+  - **"Receive a delivery" opens the Deliveries page's receive dialog on the order** (`/retail/buying/deliveries?orderId=`)
+    until the Receive page (packet 38) exists, and the rail's Deliveries rows are not links until the delivery record
+    (packet 43) exists.
+  - **On hand's "Add to an order" sends the ticked stock lines** (`lineIds`); the suggestions route turns them into their
+    products. Products' bulk and the product chart's footer send `productIds` (the chart adds `quantity`).
+
+- **BUY-03 departs from packet 33 in these places.**
+  - **The reminder names products by their short name from data**, so PO-0003's prefilled text reads "Coca-Cola 500ml 90"
+    where the board says "Coke 500ml 90"; no product holds a nickname.
+  - **The reminder's and the cancel message's words live in `lib/retail/buying/words.ts`** (`chaseMessage`,
+    `cancelRestMessage`), pure, so the chase sheet writes the message again for a newly chosen person without asking the
+    server; the sheets stay in `lib/retail/sheet-kinds/orders.ts` with the other order sheets.
+  - **Bulk "Cancel" from a role that may change orders but not remove them skips the drafts and says so** instead of
+    refusing the whole request; owners and managers hold both rights, so nobody sees it today.
+  - **"Send to suppliers" is offered only while every ticked order is a draft**; the server still skips one already sent.
+
+- **BUY-04 departs from packet 34 in these places.**
+  - **The requisition sheets and record kind have files of their own**, `lib/retail/sheet-kinds/requisitions.ts` and
+    `lib/retail/record-kinds/requisitions.ts`, beside the order ones; "Ask for money" starts from
+    `GET /api/v2/retail/buying/requisitions/new` (`?orderId=`, `?from=`): the owner limit and approver for the note, the
+    first cash account in US dollars, the order's total and expected day, and a rejected one's values for "Change and ask
+    again".
+  - **An expense requisition has no "What it pays for" block**: its What for is the title, Pay to and Quote are KPIs and
+    the quote is a link on the rail; the tab is drawn for an order only. Approvals, Receipts and Activity follow.
+  - **A quote is a `photo` field that keeps the upload's whole answer** (`keepFile`: `{ url, name, contentType, size }`)
+    and takes PDFs; the service keeps it as a `RetailAttachment` only when it is this company's upload.
+  - **The Σ row adds US dollars only**; a ZiG amount reads "ZiG 1,250.00" in its row (`currencyKey`), and the second Σ
+    line for ZiG is not drawn (no ZiG account is seeded).
+  - **Approvers open on To approve, everyone else on All** through the list spec's `tabFor` (roles), which the public
+    spec answers as `defaultTab`.
+  - **An order's purpose is the service's words**, so the seeded REQ-0013 reads "Cash to pay Pamela for order PO-0004"
+    where the board says "Cash for Pamela order PO-0004". The seed numbers the history it can make now REQ-0007
+    (rejected) and REQ-0008 (cancelled); REQ-0001…0006 and REQ-0009…0012 are BUY-05's.
+  - **The CRM's posting rules gain STOCK on 5000** so every requisition category has an account; a shop's order cash
+    posts through BUY-05's retail rules, never these.
+  - **Cancelling an order's rest, or binning a draft order, cancels its unpaid requisition** with it ("REQ-0014 was
+    cancelled with order PO-0005. Nothing was paid out."), the bin's `move` taking who bins and a hook that runs once
+    the move commits.
+
+- **BUY-06 departs from packet 38 in these places.**
+  - **A count sent for checking keeps the lines, the note number, the counter, the photo and the requisition, not the
+    Keep/Close choices or the crates going back.** The schema has nowhere to hold them until it is posted, so whoever
+    posts it from the delivery record posts every line kept on order and books no empties; Close and crates are the
+    poster's when they receive it themselves.
+  - **"Empties going back" says "Crates at US$3.00 each".** The empties settings hold the crate deposit, not a crate
+    product, so the board's "Chibuku crates" has no data behind it; the hint adds how many crates are in the store.
+  - **"Ask for money" is a link under "Paid in cash instead?"**, opening `req-new` for the order over the page, not the
+    lookup's last option (the lookup's inline add takes quick fields, not a sheet).
+  - **The delivery record's Value is the stock value ex VAT** (Σ in stock × cost, §3.2): GRN-0002 reads US$214.80,
+    which is also its Lines Σ; the board's US$216.00 is the bill INV-88120 (packet 41).
+  - **GRN-0002 is seeded at 120 · 60 · 90 · 30 on the note**, counted by Tafara Nyathi and checked by Tendai Mhlanga;
+    the 12 short (66 and 36 on the note) are the differences after posting that packet 43 records.
+  - **Orders' "Mark received" is offered on sent and part-delivered rows** and posts each one's rest at the order's
+    costs; a draft is left to Receive.
+  - **Receive lights Deliveries through a nav item's `also` pattern** (`lib/nav-match.ts`): the page sits under its
+    order, and a prefix match alone would light Orders.
+  - **The product record's "Receive stock" is not wired**: the product record has no such action yet (PRD).
+  - **`--reset` keeps a supplier a payment names** (BUY-05's `PurchasePayment.vendorId`), as it already kept one a bill
+    names; without it the reset stopped on the foreign key.
 
 ## Owner direction, 5 October: sidebar, Management and Setup
 

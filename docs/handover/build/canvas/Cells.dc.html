@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<title>Cell rules</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Next:wght@400;500;600&amp;family=IBM+Plex+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<style>body{margin:0}</style>
+</helmet>
+<div style="width: 1200px; height: 1040px; box-sizing: border-box; padding: 64px 72px; background: #ffffff; color: #24140e; font-family: 'Atkinson Hyperlegible Next', system-ui, sans-serif; display: flex; flex-direction: column; gap: 32px;">
+  <div style="display: flex; flex-direction: column; gap: 12px;">
+    <span style="font-size: 14px; font-weight: 500; color: #75675f;">Form follows function</span>
+    <h2 style="margin: 0; font-size: 40px; line-height: 1.08; font-weight: 600; letter-spacing: -0.035em;">Draw the value, not the column</h2>
+    <p style="margin: 0; font-size: 16px; line-height: 1.5; color: #4a3a33; max-width: 760px;">One resolver decides how each kind of value looks, so every table in every product answers the same way. Colour is only for things someone has to act on, and it always comes with a word or a sign.</p>
+  </div>
+
+  <div role="table" aria-label="Cell kinds" style="border-top: 1px solid #24140e; font-size: 13px;">
+    <div role="row" style="display: grid; grid-template-columns: 170px 300px minmax(0, 1fr); gap: 24px; padding: 10px 0; border-bottom: 1px solid #ece6e0; color: #75675f; font-weight: 500; font-size: 12.5px;">
+      <span role="columnheader">Kind</span><span role="columnheader">Looks like</span><span role="columnheader">Why</span>
+    </div>
+    <div role="row" style="display: grid; grid-template-columns: 170px 300px minmax(0, 1fr); gap: 24px; align-items: center; min-height: 52px; border-bottom: 1px solid #f3eee9;">
+      <span role="cell" style="font-weight: 600;">Reference</span>
+      <span role="cell"><a href="#" style="font-family: 'IBM Plex Mono', monospace; font-weight: 500; color: #24140e; text-decoration: underline; text-decoration-color: #ddd4cc; text-underline-offset: 3px;">SH-00240</a></span>
+      <span role="cell" style="color: #4a3a33; line-height: 1.5;">The only link in the row. Mono, so the one that differs by a digit is caught. One numbering scheme per record: RSH-0008 and SH-00240 side by side read as two kinds of thing.</span>
+    </div>
+    <div role="row" style="display: grid; grid-template-columns: 170px 300px minmax(0, 1fr); gap: 24px; align-items: center; min-height: 52px; border-bottom: 1px solid #f3eee9;">
+      <span role="cell" style="font-weight: 600;">Person, place</span>
+      <span role="cell">Chipo Dube <span style="color: #4a3a33; margin-left: 16px;">Front till</span></span>
+      <span role="cell" style="color: #4a3a33; line-height: 1.5;">Plain text. Each fact gets its own column so you can sort and group by it; a stacked second line makes every row twice as tall to say what a filter says once.</span>
+    </div>
+    <div role="row" style="display: grid; grid-template-columns: 170px 300px minmax(0, 1fr); gap: 24px; align-items: center; min-height: 64px; border-bottom: 1px solid #f3eee9;">
+      <span role="cell" style="font-weight: 600;">State</span>
+      <span role="cell" style="display: flex; flex-wrap: wrap; gap: 6px; font-size: 12px; font-weight: 500;">
+        <span style="display: inline-flex; align-items: center; gap: 6px; height: 22px; padding: 0 8px; border-radius: 6px; background: #eceefb; color: #3d4fb8;"><span style="width: 6px; height: 6px; border-radius: 99px; background: #3d4fb8;"></span>Open</span>
+        <span style="display: inline-flex; align-items: center; gap: 6px; height: 22px; padding: 0 8px; border-radius: 6px; background: #fbe8ec; color: #a3122f;"><span style="width: 6px; height: 6px; border-radius: 99px; background: #a3122f;"></span>Short</span>
+        <span style="display: inline-flex; align-items: center; gap: 6px; height: 22px; padding: 0 8px; border-radius: 6px; background: #fbf1dc; color: #8a5a10;"><span style="width: 6px; height: 6px; border-radius: 99px; background: #e0a21a;"></span>Over</span>
+        <span style="display: inline-flex; align-items: center; gap: 6px; height: 20px; padding: 0 7px; border-radius: 6px; border: 1px solid #e8cf9a; color: #8a5a10;"><span style="width: 6px; height: 6px; border-radius: 99px; background: #e0a21a;"></span>Not counted</span>
+        <span style="display: inline-flex; align-items: center; gap: 6px; height: 22px; padding: 0 8px; color: #75675f;"><span style="width: 7px; height: 7px; box-sizing: border-box; border-radius: 99px; border: 1.5px solid #75675f;"></span>Balanced</span>
+      </span>
+      <span role="cell" style="color: #4a3a33; line-height: 1.5;">A judgement, so a filled shape: dot, word, soft ground. Crimson is money missing, amber is a difference or a job not done, indigo is still running. Orange is never a state: it marks the one action, and nothing else. The normal state is a hollow circle and a word, so the column is mostly calm and the exceptions jump out.</span>
+    </div>
+    <div role="row" style="display: grid; grid-template-columns: 170px 300px minmax(0, 1fr); gap: 24px; align-items: center; min-height: 52px; border-bottom: 1px solid #f3eee9;">
+      <span role="cell" style="font-weight: 600;">Date and time</span>
+      <span role="cell">15 August 2026 <span style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #75675f;">18:14</span></span>
+      <span role="cell" style="color: #4a3a33; line-height: 1.5;">The day in body text, the time in muted mono after it. You scan by day and read the time only once you have found the day.</span>
+    </div>
+    <div role="row" style="display: grid; grid-template-columns: 170px 300px minmax(0, 1fr); gap: 24px; align-items: center; min-height: 52px; border-bottom: 1px solid #f3eee9;">
+      <span role="cell" style="font-weight: 600;">Duration</span>
+      <span role="cell" style="display: flex; gap: 10px; font-family: 'IBM Plex Mono', monospace; font-size: 12px;"><span>7h 00m</span><span style="display: inline-flex; align-items: center; gap: 5px; color: #3d4fb8;"><span style="width: 6px; height: 6px; border-radius: 99px; background: #3d4fb8; box-shadow: 0 0 0 3px #eceefb;"></span>6h 12m</span><span style="padding: 2px 6px; border-radius: 6px; background: #fbf1dc; color: #8a5a10;">52h 50m</span></span>
+      <span role="cell" style="color: #4a3a33; line-height: 1.5;">Replaces the Closed column. "Still open" told you nothing; a till open for 52 hours is the thing to spot, so past 12 hours it is flagged where you read it. A till still trading carries a live dot.</span>
+    </div>
+    <div role="row" style="display: grid; grid-template-columns: 170px 300px minmax(0, 1fr); gap: 24px; align-items: center; min-height: 52px; border-bottom: 1px solid #f3eee9;">
+      <span role="cell" style="font-weight: 600;">Count</span>
+      <span role="cell" style="font-family: 'IBM Plex Mono', monospace; color: #4a3a33;">96</span>
+      <span role="cell" style="color: #4a3a33; line-height: 1.5;">Mono, body weight, right-aligned. A count next to money is not what the row is about.</span>
+    </div>
+    <div role="row" style="display: grid; grid-template-columns: 170px 300px minmax(0, 1fr); gap: 24px; align-items: center; min-height: 52px; border-bottom: 1px solid #f3eee9;">
+      <span role="cell" style="font-weight: 600;">Money</span>
+      <span role="cell" style="font-family: 'IBM Plex Mono', monospace; font-weight: 500;">US$886.85</span>
+      <span role="cell" style="color: #4a3a33; line-height: 1.5;">The figure the row is about: mono, medium, full ink, right-aligned so the decimal points line up down the column.</span>
+    </div>
+    <div role="row" style="display: grid; grid-template-columns: 170px 300px minmax(0, 1fr); gap: 24px; align-items: center; min-height: 52px; border-bottom: 1px solid #f3eee9;">
+      <span role="cell" style="font-weight: 600;">Signed difference</span>
+      <span role="cell" style="display: flex; gap: 10px; font-family: 'IBM Plex Mono', monospace; font-size: 12.5px; font-weight: 500;"><span style="padding: 2px 6px; border-radius: 6px; background: #fbe8ec; color: #a3122f;">−US$7.15</span><span style="padding: 2px 6px; border-radius: 6px; background: #fbf1dc; color: #8a5a10;">+US$3.17</span><span style="padding: 2px 6px; color: #75675f;">US$0.00</span></span>
+      <span role="cell" style="color: #4a3a33; line-height: 1.5;">Only a difference gets a colour, and always its sign as well. Zero is muted so the differences stand out. In the screenshot $0.00 and $42.80 had the same weight.</span>
+    </div>
+    <div role="row" style="display: grid; grid-template-columns: 170px 300px minmax(0, 1fr); gap: 24px; align-items: center; min-height: 52px; border-bottom: 1px solid #f3eee9;">
+      <span role="cell" style="font-weight: 600;">Nothing yet</span>
+      <span role="cell" style="color: #a89c94;">—</span>
+      <span role="cell" style="color: #4a3a33; line-height: 1.5;">Never blank: a blank cell looks like a table that failed to load. "Not counted" moves into the State column, where it is a judgement, instead of sitting in a money column set in mono.</span>
+    </div>
+    <div role="row" style="display: grid; grid-template-columns: 170px 300px minmax(0, 1fr); gap: 24px; align-items: center; min-height: 64px; border-bottom: 1px solid #f3eee9;">
+      <span role="cell" style="font-weight: 600;">Too long to fit</span>
+      <span role="cell" style="display: flex; gap: 10px; align-items: center;"><span style="width: 120px; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis;" title="Nyasha Chiwenga-Makoni">Nyasha Chiwenga-Makoni</span><span style="font-family: 'IBM Plex Mono', monospace; font-weight: 500;">US$12,886.85</span></span>
+      <span role="cell" style="color: #4a3a33; line-height: 1.5;">Nothing wraps and nothing spills into the next column. Text gets one line, an ellipsis and its full value on hover. Figures, references and states never truncate: their columns are sized for the largest expected value. If the columns no longer fit, the table scrolls sideways in its own box, and the toolbar's filters scroll sideways too.</span>
+    </div>
+  </div>
+
+  <div style="display: flex; flex-direction: column; gap: 12px;">
+    <span style="font-size: 14px; font-weight: 500; color: #75675f;">A row, at rest and in use</span>
+    <div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; font-size: 13px;">
+      <div style="display: flex; flex-direction: column; gap: 6px;"><div style="height: 40px; display: flex; align-items: center; gap: 10px; padding: 0 12px; border: 1px solid #ece6e0; border-radius: 8px; background: #ffffff;"><input type="checkbox" aria-label="Rest example" style="margin: 0; width: 16px; height: 16px;"><span style="font-family: 'IBM Plex Mono', monospace;">SH-00237</span><span>Farai Moyo</span></div><span style="color: #75675f; font-size: 12.5px;">Rest</span></div>
+      <div style="display: flex; flex-direction: column; gap: 6px;"><div style="height: 40px; display: flex; align-items: center; gap: 10px; padding: 0 12px; border: 1px solid #ece6e0; border-radius: 8px; background: #fbf8f5;"><input type="checkbox" aria-label="Hover example" style="margin: 0; width: 16px; height: 16px;"><span style="font-family: 'IBM Plex Mono', monospace;">SH-00237</span><span>Farai Moyo</span><span style="margin-left: auto; color: #75675f;">⋯</span></div><span style="color: #75675f; font-size: 12.5px;">Hover: a tint, and the row menu darkens</span></div>
+      <div style="display: flex; flex-direction: column; gap: 6px;"><div style="height: 40px; display: flex; align-items: center; gap: 10px; padding: 0 12px; border: 1px solid #ddd4cc; border-radius: 8px; background: #fbf7f3;"><input type="checkbox" checked aria-label="Selected example" style="margin: 0; width: 16px; height: 16px; accent-color: #e8620f;"><span style="font-family: 'IBM Plex Mono', monospace;">SH-00237</span><span>Farai Moyo</span></div><span style="color: #75675f; font-size: 12.5px;">Selected: a warm grey and an orange tick. Shift-click ticks a range</span></div>
+      <div style="display: flex; flex-direction: column; gap: 6px;"><div style="height: 40px; display: flex; align-items: center; gap: 10px; padding: 0 12px; border: 1px solid #ece6e0; border-radius: 8px; background: #ffffff; outline: 2px solid #e8620f; outline-offset: 3px;"><input type="checkbox" aria-label="Focused example" style="margin: 0; width: 16px; height: 16px;"><span style="font-family: 'IBM Plex Mono', monospace;">SH-00237</span><span>Farai Moyo</span></div><span style="color: #75675f; font-size: 12.5px;">Keyboard focus: the 2px orange ring, 3px out</span></div>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1200,"height":1040}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

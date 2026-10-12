@@ -1,0 +1,2362 @@
+{
+ "v": 3,
+ "attachments": {},
+ "boards": {
+  "AccountEdit.dc.html": {
+   "expand": "fill",
+   "h": 960,
+   "is_interactive": true,
+   "page": "customers",
+   "title": "Change, hold or close it",
+   "w": 1440,
+   "x": 3040,
+   "y": 3200
+  },
+  "AccountOpen.dc.html": {
+   "expand": "fill",
+   "h": 960,
+   "is_interactive": true,
+   "page": "customers",
+   "title": "Open an account with a limit",
+   "w": 1440,
+   "x": 1520,
+   "y": 3200
+  },
+  "AccountsList.dc.html": {
+   "expand": "fill",
+   "h": 960,
+   "is_interactive": true,
+   "page": "customers",
+   "title": "Accounts",
+   "w": 1440,
+   "x": 0,
+   "y": 3200
+  },
+  "ActivityList.dc.html": {
+   "expand": "fill",
+   "h": 960,
+   "is_interactive": true,
+   "page": "admin",
+   "title": "W-59/60  Activity, overrides included",
+   "w": 1440,
+   "x": 1520,
+   "y": 2332
+  },
+  "AddToList.dc.html": {
+   "expand": "fill",
+   "h": 960,
+   "is_interactive": true,
+   "page": "products",
+   "title": "Add products to a list",
+   "w": 1440,
+   "x": 7600,
+   "y": 1860
+  },
+  "Anatomy.dc.html": {
+   "h": 1040,
+   "page": "tables",
+   "title": "Anatomy of a worksheet",
+   "w": 1440,
+   "x": 0,
+   "y": 1340
+  },
+  "ApprovalSettings.dc.html": {
+   "expand": "fill",
+   "h": 1240,
+   "is_interactive": true,
+   "page": "admin",
+   "title": "W-58  Approvals and limits",
+   "w": 1440,
+   "x": 0,
+   "y": 2332
+  },
+  "BillEdit.dc.html": {
+   "expand": "fill",
+   "h": 960,
+   "is_interactive": true,
+   "page": "buying",
+   "title": "2  Open a bill to change, pay or bin it",
+   "w": 1440,
+   "x": 3040,
+   "y": 6400
+  },
+  "BillNew.dc.html": {
+   "expand": "fill",
+   "h": 1240,
+   "is_interactive": true,
+   "page": "buying",
+   "title": "1  Record a bill against its delivery",
+   "w": 1440,
+   "x": 1520,
+   "y": 6400
+  },
+  "BillingSettings.dc.html": {
+   "expand": "fill",
+   "h": 1040,
+   "is_interactive": true,
+   "page": "setup",
+   "title": "W-67  Plan and billing",
+   "w": 1440,
+   "x": 7600,
+   "y": 4720
+  },
+  "BillsList.dc.html": {
+   "expand": "fill",
+   "h": 960,
+   "is_interactive": true,
+   "page": "buying",
+   "title": "Bills: what is owed and when",
+   "w": 1440,
+   "x": 0,
+   "y": 6400
+  },
+  "BinList.dc.html": {
+   "expand": "fill",
+   "h": 960,
+   "is_interactive": true,
+   "page": "admin",
+   "title": "W-63  The bin: restore within 30 days",
+   "w": 1440,
+   "x": 3040,
+   "y": 2332
+  },
+  "BreakCase.dc.html": {
+   "expand": "fill",
+   "h": 1500,
+   "is_interactive": true,
+   "page": "stock",
+   "title": "W-26  Break a case into singles",
+   "w": 1440,
+   "x": 1520,
+   "y": 3000
+  },
+  "BulkPrice.dc.html": {
+   "expand": "fill",
+   "h": 960,
+   "is_interactive": true,
+   "page": "products",
+   "title": "W-15  Raise, set a margin, round",
+   "w": 1440,
+   "x": 3040,
+   "y": 1860
+  },
+  "BundleEdit.dc.html": {
+   "expand": "fill",
+   "h": 960,
+   "is_interactive": true,
+   "page": "products",
+   "title": "A bundle: change or stop it",
+   "w": 1440,
+   "x": 4560,
+   "y": 3180
+  },
+  "BundleNew.dc.html": {
+   "expand": "fill",
+   "h": 960,
+   "is_interactive": true,
+   "page": "products",
+   "title": "W-13  New bundle",
+   "w": 1440,
+   "x": 3040,
+   "y": 3180
+  },
+  "BundlesList.dc.html": {
+   "expand": "fill",
+   "h": 960,
+   "is_interactive": true,
+   "page": "products",
+   "title": "Bundles and packs",
+   "w": 1440,
+   "x": 0,
+   "y": 3180
+  },
+  "CashMove.dc.html": {
+   "expand": "fill",
+   "h": 1240,
+   "is_interactive": true,
+   "page": "floor",
+   "title": "W-38  Cash in or out, with a PIN",
+   "w": 1440,
+   "x": 3040,
+   "y": 1820
+  },
+  "CategoriesList.dc.html": {
+   "expand": "fill",
+   "h": 960,
+   "is_interactive": true,
+   "page": "products",
+   "title": "Categories, seeded by the shop type",
+   "w": 1440,
+   "x": 0,
+   "y": 6460
+  },
+  "CategoryEdit.dc.html": {
+   "expand": "fill",
+   "h": 960,
+   "is_interactive": true,
+   "page": "products",
+   "title": "A category: change or delete",
+   "w": 1440,
+   "x": 3040,
+   "y": 6460
+  },
+  "CategoryNew.dc.html": {
+   "expand": "fill",
+   "h": 960,
+   "is_interactive": true,
+   "page": "products",
+   "title": "New category: VAT, 18+, margin",
+   "w": 1440,
+   "x": 1520,
+   "y": 6460
+  },
+  "Cells.dc.html": {
+   "h": 1040,
+   "page": "tables",
+   "title": "Form follows function \u2014 cells",
+   "w": 1200,
+   "x": 1520,
+   "y": 1340
+  },
+  "CompanySettings.dc.html": {
+   "expand": "fill",
+   "h": 1720,
+   "is_interactive": true,
+   "page": "setup",
+   "title": "Company: the business type switches liquor features on",
+   "w": 1440,
+   "x": 0,
+   "y": 1320
+  },
+  "ContactNew.dc.html": {
+   "expand": "fill",
+   "h": 1240,
+   "is_interactive": true,
+   "page": "buying",
+   "title": "3  Add a contact: who gets orders, who gets statements",
+   "w": 1440,
+   "x": 4560,
+   "y": 0
+  },
+  "Corelith.dc.html": {
+   "expand": "fill",
+   "h": 960,
+   "is_interactive": true,
+   "page": "tables",
+   "title": "Shifts \u2014 Corelith theme, same layout",
+   "w": 1440,
+   "x": 3040,
+   "y": 2840
+  },
+  "CountNew.dc.html": {
+   "expand": "fill",
+   "h": 960,
+   "is_interactive": true,
+   "page": "stock",
+   "title": "1  Start a count, blind",
+   "w": 1440,
+   "x": 1520,
+   "y": 1320
+  },
+  "CountPhone.dc.html": {
+   "expand": "fill",
+   "h": 844,
+   "is_interactive": true,
+   "page": "stock",
+   "title": "2  Count on a phone",
+   "w": 390,
+   "x": 3040,
+   "y": 1320
+  },
+  "CountReview.dc.html": {
+   "expand": "fill",
+   "h": 960,
+   "is_interactive": true,
+   "page": "stock",
+   "title": "3  Approve the differences",
+   "w": 1440,
+   "x": 3510,
+   "y": 1320
+  },
+  "CountsList.dc.html": {
+   "expand": "fill",
+   "h": 960,
+   "is_interactive": true,
+   "page": "stock",
+   "title": "Counts",
+   "w": 1440,
+   "x": 0,
+   "y": 1320
+  },
+  "CustPayment.dc.html": {
+   "expand": "fill",
+   "h": 1240,
+   "is_interactive": true,
+   "page": "customers",
+   "title": "Take a payment",
+   "w": 1440,
+   "x": 4560,
+   "y": 3200
+  },
+  "CustomerEdit.dc.html": {
+   "expand": "fill",
+   "h": 1240,
+   "is_interactive": true,
+   "page": "customers",
+   "title": "Edit everything, or bin",
+   "w": 1440,
+   "x": 4560,
+   "y": 0
+  },
+  "CustomerNew.dc.html": {
+   "expand": "fill",
+   "h": 960,
+   "is_interactive": true,
+   "page": "customers",
+   "title": "W-45  New customer: phone and name",
+   "w": 1440,
+   "x": 1520,
+   "y": 0
+  },
+  "CustomerRecord.dc.html": {
+   "expand": "fill",
+   "h": 1240,
+   "is_interactive": true,
+   "page": "customers",
+   "title": "W-46  The points ledger",
+   "w": 1440,
+   "x": 3040,
+   "y": 0
+  },
+  "CustomersList.dc.html": {
+   "expand": "fill",
+   "h": 960,
+   "is_interactive": true,
+   "page": "customers",
+   "title": "Customers",
+   "w": 1440,
+   "x": 0,
+   "y": 0
+  },
+  "Dark.dc.html": {
+   "expand": "fill",
+   "h": 960,
+   "is_interactive": true,
+   "page": "tables",
+   "title": "Shifts \u2014 Tender dark",
+   "w": 1440,
+   "x": 1520,
+   "y": 2840
+  },
+  "DaysList.dc.html": {
+   "expand": "fill",
+   "h": 960,
+   "is_interactive": true,
+   "page": "floor",
+   "title": "Past days and Z-reports",
+   "w": 1440,
+   "x": 6080,
+   "y": 5020
+  },
+  "DeliveriesList.dc.html": {
+   "expand": "fill",
+   "h": 960,
+   "is_interactive": true,
+   "page": "buying",
+   "title": "Deliveries",
+   "w": 1440,
+   "x": 1520,
+   "y": 4800
+  },
+  "DeliveryDiff.dc.html": {
+   "expand": "fill",
+   "h": 1240,
+   "is_interactive": true,
+   "page": "buying",
+   "title": "3  Record a difference after posting",
+   "w": 1440,
+   "x": 4560,
+   "y": 4800
+  },
+  "DeliveryRecord.dc.html": {
+   "expand": "fill",
+   "h": 1240,
+   "is_interactive": true,
+   "page": "buying",
+   "title": "2  Delivery record",
+   "w": 1440,
+   "x": 3040,
+   "y": 4800
+  },
+  "EmptiesList.dc.html": {
+   "expand": "fill",
+   "h": 960,
+   "is_interactive": true,
+   "page": "stock",
+   "title": "Empties ledger",
+   "w": 1440,
+   "x": 0,
+   "y": 4860
+  },
+  "EmptiesReturn.dc.html": {
+   "expand": "fill",
+   "h": 960,
+   "is_interactive": true,
+   "page": "stock",
+   "title": "Return empties for a credit",
+   "w": 1440,
+   "x": 1520,
+   "y": 4860
+  },
+  "EndOfDay.dc.html": {
+   "expand": "fill",
+   "h": 960,
+   "is_interactive": true,
+   "page": "floor",
+   "title": "W-43  End of day",
+   "w": 1440,
+   "x": 4560,
+   "y": 5020
+  },
+  "FiscalSettings.dc.html": {
+   "expand": "fill",
+   "h": 1040,
+   "is_interactive": true,
+   "page": "setup",
+   "title": "W-06  Fiscal device",
+   "w": 1440,
+   "x": 3040,
+   "y": 4720
+  },
+  "Floor.dc.html": {
+   "expand": "fill",
+   "h": 1460,
+   "is_interactive": true,
+   "page": "floor",
+   "title": "Overview",
+   "w": 1440,
+   "x": 0,
+   "y": 0
+  },
+  "Grouped.dc.html": {
+   "expand": "fill",
+   "h": 960,
+   "is_interactive": true,
+   "page": "tables",
+   "title": "Shifts \u2014 grouped by state",
+   "w": 1440,
+   "x": 3040,
+   "y": 0
+  },
+  "Guided.dc.html": {
+   "expand": "fill",
+   "h": 900,
+   "is_interactive": true,
+   "page": "setup",
+   "title": "After: the setup checklist and empty-list guides",
+   "w": 1440,
+   "x": 9120,
+   "y": 0
+  },
+  "Import.dc.html": {
+   "expand": "fill",
+   "h": 900,
+   "is_interactive": true,
+   "page": "setup",
+   "title": "W-08  Import: fix flagged rows in place",
+   "w": 1440,
+   "x": 1520,
+   "y": 1320
+  },
+  "InsightsCustomers.dc.html": {
+   "expand": "fill",
+   "h": 1240,
+   "is_interactive": true,
+   "page": "insights",
+   "title": "Who comes back?",
+   "w": 1440,
+   "x": 1520,
+   "y": 1600
+  },
+  "InsightsLosses.dc.html": {
+   "expand": "fill",
+   "h": 1240,
+   "is_interactive": true,
+   "page": "insights",
+   "title": "W-53  Where is money leaking?",
+   "w": 1440,
+   "x": 0,
+   "y": 1600
+  },
+  "InsightsMoney.dc.html": {
+   "expand": "fill",
+   "h": 1240,
+   "is_interactive": true,
+   "page": "insights",
+   "title": "Where is the cash going?",
+   "w": 1440,
+   "x": 3040,
+   "y": 1600
+  },
+  "InsightsProducts.dc.html": {
+   "expand": "fill",
+   "h": 1240,
+   "is_interactive": true,
+   "page": "insights",
+   "title": "W-54  Where is our cash sitting? Dead stock",
+   "w": 1440,
+   "x": 3040,
+   "y": 0
+  },
+  "InsightsProfit.dc.html": {
+   "expand": "fill",
+   "h": 1240,
+   "is_interactive": true,
+   "page": "insights",
+   "title": "What do we actually make?",
+   "w": 1440,
+   "x": 1520,
+   "y": 0
+  },
+  "InsightsSales.dc.html": {
+   "expand": "fill",
+   "h": 1240,
+   "is_interactive": true,
+   "page": "insights",
+   "title": "When do we sell?",
+   "w": 1440,
+   "x": 0,
+   "y": 0
+  },
+  "InsightsStock.dc.html": {
+   "expand": "fill",
+   "h": 1240,
+   "is_interactive": true,
+   "page": "insights",
+   "title": "Are we stocked right?",
+   "w": 1440,
+   "x": 4560,
+   "y": 0
+  },
+  "IntakeNew.dc.html": {
+   "expand": "fill",
+   "h": 960,
+   "is_interactive": true,
+   "page": "buying",
+   "title": "W-25  Take in stock with no order",
+   "w": 1440,
+   "x": 6080,
+   "y": 4800
+  },
+  "Labels.dc.html": {
+   "expand": "fill",
+   "h": 960,
+   "is_interactive": true,
+   "page": "products",
+   "title": "W-20  Print shelf labels",
+   "w": 1440,
+   "x": 9120,
+   "y": 0
+  },
+  "LaybyNew.dc.html": {
+   "expand": "fill",
+   "h": 960,
+   "is_interactive": true,
+   "page": "floor",
+   "title": "Start a lay-by",
+   "w": 1440,
+   "x": 1520,
+   "y": 5020
+  },
+  "LaybyPay.dc.html": {
+   "expand": "fill",
+   "h": 960,
+   "is_interactive": true,
+   "page": "floor",
+   "title": "Take a payment, hand over, cancel",
+   "w": 1440,
+   "x": 3040,
+   "y": 5020
+  },
+  "LaybysList.dc.html": {
+   "expand": "fill",
+   "h": 960,
+   "is_interactive": true,
+   "page": "floor",
+   "title": "W-42  Lay-bys",
+   "w": 1440,
+   "x": 0,
+   "y": 5020
+  },
+  "Liquor.dc.html": {
+   "expand": "fill",
+   "h": 1560,
+   "is_interactive": true,
+   "page": "admin",
+   "title": "W-61  A liquor store, switched on, as the till shows it",
+   "w": 1440,
+   "x": 0,
+   "y": 3932
+  },
+  "List.dc.html": {
+   "expand": "fill",
+   "h": 960,
+   "is_interactive": true,
+   "page": "templates",
+   "title": "List: every working list",
+   "w": 1440,
+   "x": 0,
+   "y": 0
+  },
+  "LoyaltySettings.dc.html": {
+   "expand": "fill",
+   "h": 1240,
+   "is_interactive": true,
+   "page": "customers",
+   "title": "W-48  Loyalty: points, tiers, rules",
+   "w": 1440,
+   "x": 0,
+   "y": 1600
+  },
+  "Main.dc.html": {
+   "expand": "fill",
+   "h": 960,
+   "is_interactive": true,
+   "page": "tables",
+   "title": "Shifts \u2014 live (press Play)",
+   "w": 1440,
+   "x": 0,
+   "y": 0
+  },
+  "MergeCustomer.dc.html": {
+   "expand": "fill",
+   "h": 1240,
+   "is_interactive": true,
+   "page": "customers",
+   "title": "Merge a duplicate",
+   "w": 1440,
+   "x": 6080,
+   "y": 0
+  },
+  "MessageNew.dc.html": {
+   "expand": "fill",
+   "h": 960,
+   "is_interactive": true,
+   "page": "customers",
+   "title": "W-50  Message on WhatsApp",
+   "w": 1440,
+   "x": 1520,
+   "y": 1600
+  },
+  "Mobile.dc.html": {
+   "h": 844,
+   "page": "tables",
+   "title": "Shifts on a phone",
+   "w": 390,
+   "x": 4080,
+   "y": 1340
+  },
+  "MovementsList.dc.html": {
+   "expand": "fill",
+   "h": 960,
+   "is_interactive": true,
+   "page": "stock",
+   "title": "W-28  Movements: every in and out",
+   "w": 1440,
+   "x": 3040,
+   "y": 0
+  },
+  "Narrow.dc.html": {
+   "expand": "fill",
+   "h": 960,
+   "is_interactive": true,
+   "page": "tables",
+   "title": "Shifts at 1024px \u2014 controls folded",
+   "w": 1024,
+   "x": 4560,
+   "y": 0
+  },
+  "OnbDone.dc.html": {
+   "expand": "fill",
+   "h": 960,
+   "is_interactive": true,
+   "page": "setup",
+   "title": "6  A test sale, then the overview",
+   "w": 1440,
+   "x": 7600,
+   "y": 0
+  },
+  "OnbProducts.dc.html": {
+   "expand": "fill",
+   "h": 960,
+   "is_interactive": true,
+   "page": "setup",
+   "title": "3  Products: tick from the catalogue, set the price",
+   "w": 1440,
+   "x": 3040,
+   "y": 0
+  },
+  "OnbShop.dc.html": {
+   "expand": "fill",
+   "h": 960,
+   "is_interactive": true,
+   "page": "setup",
+   "title": "2  Your shop: only the name is needed",
+   "w": 1440,
+   "x": 1520,
+   "y": 0
+  },
+  "OnbStaff.dc.html": {
+   "expand": "fill",
+   "h": 960,
+   "is_interactive": true,
+   "page": "setup",
+   "title": "5  Staff and PINs, sent on WhatsApp",
+   "w": 1440,
+   "x": 6080,
+   "y": 0
+  },
+  "OnbTills.dc.html": {
+   "expand": "fill",
+   "h": 960,
+   "is_interactive": true,
+   "page": "setup",
+   "title": "4  Pair the till, choose how people pay",
+   "w": 1440,
+   "x": 4560,
+   "y": 0
+  },
+  "OnbType.dc.html": {
+   "expand": "fill",
+   "h": 960,
+   "is_interactive": true,
+   "page": "setup",
+   "title": "1  Shop type: sets categories, catalogue and features",
+   "w": 1440,
+   "x": 0,
+   "y": 0
+  },
+  "OrderChase.dc.html": {
+   "expand": "fill",
+   "h": 1240,
+   "is_interactive": true,
+   "page": "buying",
+   "title": "W-34  Chase a late order on WhatsApp",
+   "w": 1440,
+   "x": 6080,
+   "y": 1600
+  },
+  "OrderEdit.dc.html": {
+   "expand": "fill",
+   "h": 1240,
+   "is_interactive": true,
+   "page": "buying",
+   "title": "3  Edit lines, or cancel what is left",
+   "w": 1440,
+   "x": 4560,
+   "y": 1600
+  },
+  "OrderNew.dc.html": {
+   "expand": "fill",
+   "h": 960,
+   "is_interactive": true,
+   "page": "buying",
+   "title": "1  New order: suggested lines from what is low",
+   "w": 1440,
+   "x": 1520,
+   "y": 1600
+  },
+  "OrderRecord.dc.html": {
+   "expand": "fill",
+   "h": 1240,
+   "is_interactive": true,
+   "page": "buying",
+   "title": "2  Order record: part delivered",
+   "w": 1440,
+   "x": 3040,
+   "y": 1600
+  },
+  "OrdersList.dc.html": {
+   "expand": "fill",
+   "h": 960,
+   "is_interactive": true,
+   "page": "buying",
+   "title": "Orders",
+   "w": 1440,
+   "x": 0,
+   "y": 1600
+  },
+  "PackNew.dc.html": {
+   "expand": "fill",
+   "h": 960,
+   "is_interactive": true,
+   "page": "products",
+   "title": "W-12  Sell by the case",
+   "w": 1440,
+   "x": 1520,
+   "y": 3180
+  },
+  "Paging.dc.html": {
+   "h": 1040,
+   "page": "tables",
+   "title": "Pagination, not infinite scroll",
+   "w": 1200,
+   "x": 2800,
+   "y": 1340
+  },
+  "PaymentNew.dc.html": {
+   "expand": "fill",
+   "h": 1240,
+   "is_interactive": true,
+   "page": "buying",
+   "title": "3  Record a payment, oldest bills first",
+   "w": 1440,
+   "x": 4560,
+   "y": 6400
+  },
+  "PaymentsSettings.dc.html": {
+   "expand": "fill",
+   "h": 1240,
+   "is_interactive": true,
+   "page": "setup",
+   "title": "W-05  Payments and the ZiG rate",
+   "w": 1440,
+   "x": 0,
+   "y": 4720
+  },
+  "PeopleList.dc.html": {
+   "expand": "fill",
+   "h": 960,
+   "is_interactive": true,
+   "page": "admin",
+   "title": "People",
+   "w": 1440,
+   "x": 1520,
+   "y": 0
+  },
+  "PersonEdit.dc.html": {
+   "expand": "fill",
+   "h": 960,
+   "is_interactive": true,
+   "page": "admin",
+   "title": "Change a role, reset a PIN, remove access",
+   "w": 1440,
+   "x": 4560,
+   "y": 0
+  },
+  "PersonNew.dc.html": {
+   "expand": "fill",
+   "h": 960,
+   "is_interactive": true,
+   "page": "admin",
+   "title": "Invite someone with a role",
+   "w": 1440,
+   "x": 3040,
+   "y": 0
+  },
+  "PointsAdjust.dc.html": {
+   "expand": "fill",
+   "h": 1240,
+   "is_interactive": true,
+   "page": "customers",
+   "title": "W-47  Adjust points, with a reason",
+   "w": 1440,
+   "x": 7600,
+   "y": 0
+  },
+  "PostingSettings.dc.html": {
+   "expand": "fill",
+   "h": 1240,
+   "is_interactive": true,
+   "page": "setup",
+   "title": "W-65  Posting to the books",
+   "w": 1440,
+   "x": 6080,
+   "y": 4720
+  },
+  "PriceListEdit.dc.html": {
+   "expand": "fill",
+   "h": 960,
+   "is_interactive": true,
+   "page": "products",
+   "title": "A list's rules",
+   "w": 1440,
+   "x": 6080,
+   "y": 1860
+  },
+  "PriceListNew.dc.html": {
+   "expand": "fill",
+   "h": 960,
+   "is_interactive": true,
+   "page": "products",
+   "title": "W-16  New list: who, when, where",
+   "w": 1440,
+   "x": 4560,
+   "y": 1860
+  },
+  "PriceLists.dc.html": {
+   "expand": "fill",
+   "h": 960,
+   "is_interactive": true,
+   "page": "products",
+   "title": "Price lists",
+   "w": 1440,
+   "x": 0,
+   "y": 1860
+  },
+  "PricesList.dc.html": {
+   "expand": "fill",
+   "h": 960,
+   "is_interactive": true,
+   "page": "products",
+   "title": "Retail: type a price, the margin follows",
+   "w": 1440,
+   "x": 1520,
+   "y": 1860
+  },
+  "Product.dc.html": {
+   "expand": "fill",
+   "h": 1500,
+   "is_interactive": true,
+   "page": "products",
+   "title": "2  Product record: click a detail to change it",
+   "w": 1440,
+   "x": 6080,
+   "y": 0
+  },
+  "ProductEdit.dc.html": {
+   "expand": "fill",
+   "h": 960,
+   "is_interactive": true,
+   "page": "products",
+   "title": "W-11  Edit everything, or archive",
+   "w": 1440,
+   "x": 7600,
+   "y": 0
+  },
+  "ProductNew.dc.html": {
+   "expand": "fill",
+   "h": 960,
+   "is_interactive": true,
+   "page": "products",
+   "title": "1  New product: name, category, price",
+   "w": 1440,
+   "x": 3040,
+   "y": 0
+  },
+  "ProductNewStock.dc.html": {
+   "expand": "fill",
+   "h": 960,
+   "is_interactive": true,
+   "page": "products",
+   "title": "The same form from On hand",
+   "w": 1440,
+   "x": 4560,
+   "y": 0
+  },
+  "ProductsList.dc.html": {
+   "expand": "fill",
+   "h": 960,
+   "is_interactive": true,
+   "page": "products",
+   "title": "Products",
+   "w": 1440,
+   "x": 1520,
+   "y": 0
+  },
+  "PromotionEdit.dc.html": {
+   "expand": "fill",
+   "h": 960,
+   "is_interactive": true,
+   "page": "products",
+   "title": "Change or end it",
+   "w": 1440,
+   "x": 4560,
+   "y": 4860
+  },
+  "PromotionNew.dc.html": {
+   "expand": "fill",
+   "h": 960,
+   "is_interactive": true,
+   "page": "products",
+   "title": "1  New promotion",
+   "w": 1440,
+   "x": 1520,
+   "y": 4860
+  },
+  "PromotionRecord.dc.html": {
+   "expand": "fill",
+   "h": 1240,
+   "is_interactive": true,
+   "page": "products",
+   "title": "2  Did it pay?",
+   "w": 1440,
+   "x": 3040,
+   "y": 4860
+  },
+  "PromotionsList.dc.html": {
+   "expand": "fill",
+   "h": 960,
+   "is_interactive": true,
+   "page": "products",
+   "title": "Promotions",
+   "w": 1440,
+   "x": 0,
+   "y": 4860
+  },
+  "ReceiptSettings.dc.html": {
+   "expand": "fill",
+   "h": 1040,
+   "is_interactive": true,
+   "page": "setup",
+   "title": "W-07  Receipts, with a preview",
+   "w": 1440,
+   "x": 4560,
+   "y": 4720
+  },
+  "Receive.dc.html": {
+   "expand": "fill",
+   "h": 1040,
+   "is_interactive": true,
+   "page": "buying",
+   "title": "1  Receive against the order: count, damaged, keep or close the rest",
+   "w": 1440,
+   "x": 0,
+   "y": 4800
+  },
+  "Record.dc.html": {
+   "expand": "fill",
+   "h": 1240,
+   "is_interactive": true,
+   "page": "templates",
+   "title": "Record: every record",
+   "w": 1440,
+   "x": 1520,
+   "y": 0
+  },
+  "RefundNew.dc.html": {
+   "expand": "fill",
+   "h": 1240,
+   "is_interactive": true,
+   "page": "floor",
+   "title": "Refund, with a reason and a PIN",
+   "w": 1440,
+   "x": 3040,
+   "y": 3420
+  },
+  "Reorder.dc.html": {
+   "expand": "fill",
+   "h": 960,
+   "is_interactive": true,
+   "page": "stock",
+   "title": "Reorder levels from what sells",
+   "w": 1440,
+   "x": 1520,
+   "y": 0
+  },
+  "ReqAcquit.dc.html": {
+   "expand": "fill",
+   "h": 1240,
+   "is_interactive": true,
+   "page": "buying",
+   "title": "4  Account for it: receipts and change",
+   "w": 1440,
+   "x": 10640,
+   "y": 3200
+  },
+  "ReqApprove.dc.html": {
+   "expand": "fill",
+   "h": 1240,
+   "is_interactive": true,
+   "page": "buying",
+   "title": "2  Approve a different amount",
+   "w": 1440,
+   "x": 6080,
+   "y": 3200
+  },
+  "ReqExpense.dc.html": {
+   "expand": "fill",
+   "h": 960,
+   "is_interactive": true,
+   "page": "buying",
+   "title": "1  Or for an expense",
+   "w": 1440,
+   "x": 3040,
+   "y": 3200
+  },
+  "ReqOrder.dc.html": {
+   "expand": "fill",
+   "h": 960,
+   "is_interactive": true,
+   "page": "buying",
+   "title": "1  Ask for money for an order",
+   "w": 1440,
+   "x": 1520,
+   "y": 3200
+  },
+  "ReqPayout.dc.html": {
+   "expand": "fill",
+   "h": 1240,
+   "is_interactive": true,
+   "page": "buying",
+   "title": "3  Pay it out",
+   "w": 1440,
+   "x": 9120,
+   "y": 3200
+  },
+  "ReqReject.dc.html": {
+   "expand": "fill",
+   "h": 1240,
+   "is_interactive": true,
+   "page": "buying",
+   "title": "2  Or reject, saying why",
+   "w": 1440,
+   "x": 7600,
+   "y": 3200
+  },
+  "RequisitionRecord.dc.html": {
+   "expand": "fill",
+   "h": 1240,
+   "is_interactive": true,
+   "page": "buying",
+   "title": "2  The owner approves",
+   "w": 1440,
+   "x": 4560,
+   "y": 3200
+  },
+  "RequisitionsList.dc.html": {
+   "expand": "fill",
+   "h": 960,
+   "is_interactive": true,
+   "page": "buying",
+   "title": "Requisitions",
+   "w": 1440,
+   "x": 0,
+   "y": 3200
+  },
+  "ReturnNew.dc.html": {
+   "expand": "fill",
+   "h": 1240,
+   "is_interactive": true,
+   "page": "buying",
+   "title": "W-36  Return goods to the supplier",
+   "w": 1440,
+   "x": 6080,
+   "y": 6400
+  },
+  "Roles.dc.html": {
+   "expand": "fill",
+   "h": 1972,
+   "is_interactive": true,
+   "page": "admin",
+   "title": "Who can do what: superuser, owner, manager and the rest",
+   "w": 1440,
+   "x": 0,
+   "y": 0
+  },
+  "SaleRecord.dc.html": {
+   "expand": "fill",
+   "h": 1240,
+   "is_interactive": true,
+   "page": "floor",
+   "title": "A sale, with its fiscal receipt",
+   "w": 1440,
+   "x": 1520,
+   "y": 3420
+  },
+  "SalesList.dc.html": {
+   "expand": "fill",
+   "h": 960,
+   "is_interactive": true,
+   "page": "floor",
+   "title": "Sales",
+   "w": 1440,
+   "x": 0,
+   "y": 3420
+  },
+  "Selected.dc.html": {
+   "expand": "fill",
+   "h": 960,
+   "is_interactive": true,
+   "page": "tables",
+   "title": "Shifts \u2014 three rows selected",
+   "w": 1440,
+   "x": 1520,
+   "y": 0
+  },
+  "Sheet.dc.html": {
+   "expand": "fill",
+   "h": 960,
+   "is_interactive": true,
+   "page": "templates",
+   "title": "Sheet: every create and edit form",
+   "w": 1440,
+   "x": 3040,
+   "y": 0
+  },
+  "ShiftClose.dc.html": {
+   "expand": "fill",
+   "h": 960,
+   "is_interactive": true,
+   "page": "floor",
+   "title": "W-39  Count by note, then close",
+   "w": 1440,
+   "x": 4560,
+   "y": 1820
+  },
+  "ShiftOpen.dc.html": {
+   "expand": "fill",
+   "h": 960,
+   "is_interactive": true,
+   "page": "floor",
+   "title": "W-37  Open a shift for a cashier",
+   "w": 1440,
+   "x": 0,
+   "y": 1820
+  },
+  "ShiftRecord.dc.html": {
+   "expand": "fill",
+   "h": 1240,
+   "is_interactive": true,
+   "page": "floor",
+   "title": "The shift, live",
+   "w": 1440,
+   "x": 1520,
+   "y": 1820
+  },
+  "SignOff.dc.html": {
+   "expand": "fill",
+   "h": 1240,
+   "is_interactive": true,
+   "page": "floor",
+   "title": "W-40  Sign off what was short",
+   "w": 1440,
+   "x": 6080,
+   "y": 1820
+  },
+  "SiteEdit.dc.html": {
+   "expand": "fill",
+   "h": 960,
+   "is_interactive": true,
+   "page": "setup",
+   "title": "A site: places inside it, close it",
+   "w": 1440,
+   "x": 3040,
+   "y": 3400
+  },
+  "SiteNew.dc.html": {
+   "expand": "fill",
+   "h": 960,
+   "is_interactive": true,
+   "page": "setup",
+   "title": "Add a site",
+   "w": 1440,
+   "x": 1520,
+   "y": 3400
+  },
+  "SitesList.dc.html": {
+   "expand": "fill",
+   "h": 960,
+   "is_interactive": true,
+   "page": "setup",
+   "title": "Sites",
+   "w": 1440,
+   "x": 0,
+   "y": 3400
+  },
+  "StatementSend.dc.html": {
+   "expand": "fill",
+   "h": 960,
+   "is_interactive": true,
+   "page": "customers",
+   "title": "Send statements",
+   "w": 1440,
+   "x": 6080,
+   "y": 3200
+  },
+  "StockAdjust.dc.html": {
+   "expand": "fill",
+   "h": 1500,
+   "is_interactive": true,
+   "page": "stock",
+   "title": "W-23  Adjust stock from the product",
+   "w": 1440,
+   "x": 0,
+   "y": 3000
+  },
+  "StockFlow.dc.html": {
+   "expand": "fill",
+   "h": 960,
+   "is_interactive": true,
+   "page": "products",
+   "title": "Stock to sellable: four steps become one",
+   "w": 1440,
+   "x": 0,
+   "y": 0
+  },
+  "StockList.dc.html": {
+   "expand": "fill",
+   "h": 960,
+   "is_interactive": true,
+   "page": "stock",
+   "title": "On hand: Low, Out, Too much",
+   "w": 1440,
+   "x": 0,
+   "y": 0
+  },
+  "SupplierNew.dc.html": {
+   "expand": "fill",
+   "h": 960,
+   "is_interactive": true,
+   "page": "buying",
+   "title": "1  New supplier: only the name is needed",
+   "w": 1440,
+   "x": 1520,
+   "y": 0
+  },
+  "SupplierRecord.dc.html": {
+   "expand": "fill",
+   "h": 1240,
+   "is_interactive": true,
+   "page": "buying",
+   "title": "2  Supplier record: click any detail to change it",
+   "w": 1440,
+   "x": 3040,
+   "y": 0
+  },
+  "SuppliersList.dc.html": {
+   "expand": "fill",
+   "h": 960,
+   "is_interactive": true,
+   "page": "buying",
+   "title": "Suppliers",
+   "w": 1440,
+   "x": 0,
+   "y": 0
+  },
+  "SupportCompany.dc.html": {
+   "expand": "fill",
+   "h": 1400,
+   "is_interactive": true,
+   "page": "admin",
+   "title": "W-68  Superuser: business type and features for a company",
+   "w": 1440,
+   "x": 1520,
+   "y": 3932
+  },
+  "TenderArt.dc.html": {
+   "h": 2240,
+   "page": "tender",
+   "title": "Tender \u2014 art direction",
+   "w": 1440,
+   "x": 1520,
+   "y": 0
+  },
+  "TenderBrand.dc.html": {
+   "h": 1720,
+   "page": "tender",
+   "title": "Tender \u2014 brand",
+   "w": 1440,
+   "x": 0,
+   "y": 0
+  },
+  "TenderUI.dc.html": {
+   "h": 1640,
+   "page": "tender",
+   "title": "Tender \u2014 in the product",
+   "w": 1440,
+   "x": 3040,
+   "y": 0
+  },
+  "TillEdit.dc.html": {
+   "expand": "fill",
+   "h": 960,
+   "is_interactive": true,
+   "page": "setup",
+   "title": "A till: rename, move, replace or unpair the device",
+   "w": 1440,
+   "x": 7600,
+   "y": 3400
+  },
+  "TillNew.dc.html": {
+   "expand": "fill",
+   "h": 960,
+   "is_interactive": true,
+   "page": "setup",
+   "title": "W-04  Pair a till: a new till and its code",
+   "w": 1440,
+   "x": 6080,
+   "y": 3400
+  },
+  "TillRules.dc.html": {
+   "expand": "fill",
+   "h": 1300,
+   "is_interactive": true,
+   "page": "setup",
+   "title": "W-64  Till rules",
+   "w": 1440,
+   "x": 1520,
+   "y": 4720
+  },
+  "TillsList.dc.html": {
+   "expand": "fill",
+   "h": 960,
+   "is_interactive": true,
+   "page": "setup",
+   "title": "W-04  Tills and devices",
+   "w": 1440,
+   "x": 4560,
+   "y": 3400
+  },
+  "Tokens.dc.html": {
+   "h": 1180,
+   "page": "tables",
+   "title": "Themes per product",
+   "w": 1440,
+   "x": 0,
+   "y": 2840
+  },
+  "TransferNew.dc.html": {
+   "expand": "fill",
+   "h": 960,
+   "is_interactive": true,
+   "page": "stock",
+   "title": "Move stock",
+   "w": 1440,
+   "x": 4560,
+   "y": 3000
+  },
+  "TransferReceive.dc.html": {
+   "expand": "fill",
+   "h": 960,
+   "is_interactive": true,
+   "page": "stock",
+   "title": "The other site receives it",
+   "w": 1440,
+   "x": 6080,
+   "y": 3000
+  },
+  "TransfersList.dc.html": {
+   "expand": "fill",
+   "h": 960,
+   "is_interactive": true,
+   "page": "stock",
+   "title": "W-24  Transfers",
+   "w": 1440,
+   "x": 3040,
+   "y": 3000
+  },
+  "VoidSale.dc.html": {
+   "expand": "fill",
+   "h": 1240,
+   "is_interactive": true,
+   "page": "floor",
+   "title": "Void, same day only",
+   "w": 1440,
+   "x": 4560,
+   "y": 3420
+  },
+  "VoucherEdit.dc.html": {
+   "expand": "fill",
+   "h": 960,
+   "is_interactive": true,
+   "page": "products",
+   "title": "A voucher: extend or void",
+   "w": 1440,
+   "x": 9120,
+   "y": 4860
+  },
+  "VoucherNew.dc.html": {
+   "expand": "fill",
+   "h": 960,
+   "is_interactive": true,
+   "page": "products",
+   "title": "Issue vouchers",
+   "w": 1440,
+   "x": 7600,
+   "y": 4860
+  },
+  "VouchersList.dc.html": {
+   "expand": "fill",
+   "h": 960,
+   "is_interactive": true,
+   "page": "products",
+   "title": "W-18  Vouchers",
+   "w": 1440,
+   "x": 6080,
+   "y": 4860
+  },
+  "WfAdmin.dc.html": {
+   "h": 1244,
+   "is_interactive": true,
+   "page": "workflows",
+   "title": "08 People and controls",
+   "w": 1440,
+   "x": 4560,
+   "y": 3756
+  },
+  "WfBuying.dc.html": {
+   "h": 1636,
+   "is_interactive": true,
+   "page": "workflows",
+   "title": "04 Buying and paying",
+   "w": 1440,
+   "x": 4560,
+   "y": 1660
+  },
+  "WfCustomers.dc.html": {
+   "h": 1008,
+   "is_interactive": true,
+   "page": "workflows",
+   "title": "06 Customers and accounts",
+   "w": 1440,
+   "x": 1520,
+   "y": 3756
+  },
+  "WfFloor.dc.html": {
+   "h": 1244,
+   "is_interactive": true,
+   "page": "workflows",
+   "title": "05 Selling and the floor",
+   "w": 1440,
+   "x": 0,
+   "y": 3756
+  },
+  "WfInsights.dc.html": {
+   "h": 1252,
+   "is_interactive": true,
+   "page": "workflows",
+   "title": "07 Insights",
+   "w": 1440,
+   "x": 3040,
+   "y": 3756
+  },
+  "WfProducts.dc.html": {
+   "h": 1716,
+   "is_interactive": true,
+   "page": "workflows",
+   "title": "02 Products and prices",
+   "w": 1440,
+   "x": 1520,
+   "y": 1660
+  },
+  "WfSetup.dc.html": {
+   "h": 1668,
+   "is_interactive": true,
+   "page": "workflows",
+   "title": "01 Set up the shop",
+   "w": 1440,
+   "x": 0,
+   "y": 1660
+  },
+  "WfStock.dc.html": {
+   "h": 1244,
+   "is_interactive": true,
+   "page": "workflows",
+   "title": "03 Stock",
+   "w": 1440,
+   "x": 3040,
+   "y": 1660
+  },
+  "WorkflowMap.dc.html": {
+   "h": 1400,
+   "w": 1440,
+   "x": 13680,
+   "y": 0
+  },
+  "WorkflowsIndex.dc.html": {
+   "h": 1280,
+   "is_interactive": true,
+   "page": "workflows",
+   "title": "Every workflow, before any screen",
+   "w": 1440,
+   "x": 0,
+   "y": 0
+  },
+  "NavTree.dc.html": {
+   "x": 0,
+   "y": 5440,
+   "w": 2768,
+   "h": 1574,
+   "page": "workflows",
+   "title": "Navigation, as a tree"
+  },
+  "WorkflowTree.dc.html": {
+   "x": 2848,
+   "y": 5440,
+   "w": 3048,
+   "h": 2660,
+   "page": "workflows",
+   "title": "Workflows, as a tree"
+  },
+  "ReportsList.dc.html": {
+   "x": 0,
+   "y": 3200,
+   "w": 1440,
+   "h": 960,
+   "page": "insights",
+   "title": "W-69  Reports: every template, by area, built in or the team\u2019s",
+   "expand": "fill"
+  },
+  "ReportSales.dc.html": {
+   "x": 3040,
+   "y": 3200,
+   "w": 1440,
+   "h": 960,
+   "page": "insights",
+   "title": "W-69  A built-in template, run: narrow, total, export",
+   "expand": "fill"
+  },
+  "OrderCloseShort.dc.html": {
+   "x": 7600,
+   "y": 1600,
+   "w": 1440,
+   "h": 1240,
+   "page": "buying",
+   "title": "W-70  Close an order with what came",
+   "expand": "fill"
+  },
+  "OrderRemove.dc.html": {
+   "x": 9120,
+   "y": 1600,
+   "w": 1440,
+   "h": 1240,
+   "page": "buying",
+   "title": "W-71  Remove a draft order nothing came against",
+   "expand": "fill"
+  },
+  "ReqCancel.dc.html": {
+   "x": 12160,
+   "y": 3200,
+   "w": 1440,
+   "h": 1240,
+   "page": "buying",
+   "title": "W-72  Cancel a requisition",
+   "expand": "fill"
+  },
+  "BundleRecord.dc.html": {
+   "x": 6080,
+   "y": 3180,
+   "w": 1440,
+   "h": 1240,
+   "page": "products",
+   "title": "A bundle: what is in it, how many it can make, how it sells",
+   "expand": "fill"
+  },
+  "VoucherRecord.dc.html": {
+   "x": 10640,
+   "y": 4860,
+   "w": 1440,
+   "h": 1240,
+   "page": "products",
+   "title": "A voucher: what is left and where it was spent",
+   "expand": "fill"
+  },
+  "CountRecord.dc.html": {
+   "x": 5030,
+   "y": 1320,
+   "w": 1440,
+   "h": 1240,
+   "page": "stock",
+   "title": "A count: the lines that differ, then approve",
+   "expand": "fill"
+  },
+  "TransferRecord.dc.html": {
+   "x": 7600,
+   "y": 3000,
+   "w": 1440,
+   "h": 1240,
+   "page": "stock",
+   "title": "A transfer on the way, then received",
+   "expand": "fill"
+  },
+  "ReportsStock.dc.html": {
+   "x": 1520,
+   "y": 3200,
+   "w": 1440,
+   "h": 960,
+   "page": "insights",
+   "title": "An area: the Stock templates",
+   "expand": "fill"
+  },
+  "ReportSaveTemplate.dc.html": {
+   "x": 4560,
+   "y": 3200,
+   "w": 1440,
+   "h": 960,
+   "page": "insights",
+   "title": "W-73  Save what is on screen as a template",
+   "expand": "fill"
+  },
+  "TemplateNew.dc.html": {
+   "x": 6080,
+   "y": 3200,
+   "w": 1440,
+   "h": 960,
+   "page": "insights",
+   "title": "W-74  A template from scratch: what it reads, columns, who sees it",
+   "expand": "fill"
+  },
+  "ReportWeekend.dc.html": {
+   "x": 7600,
+   "y": 3200,
+   "w": 1440,
+   "h": 960,
+   "page": "insights",
+   "title": "A team template, opened",
+   "expand": "fill"
+  },
+  "TemplateEdit.dc.html": {
+   "x": 9120,
+   "y": 3200,
+   "w": 1440,
+   "h": 960,
+   "page": "insights",
+   "title": "W-75  Change, share, email or delete a template",
+   "expand": "fill"
+  },
+  "TillReplace.dc.html": {
+   "x": 9120,
+   "y": 3400,
+   "w": 1440,
+   "h": 960,
+   "page": "setup",
+   "title": "W-76  Pair another device: the old one stops",
+   "expand": "fill"
+  },
+  "TillPairing.dc.html": {
+   "x": 10640,
+   "y": 3400,
+   "w": 1440,
+   "h": 2060,
+   "page": "setup",
+   "title": "W-04  Pairing: one app, any device, one till each"
+  }
+ },
+ "createdOnFiles": {
+  "at": "2026-10-03T12:00:57Z",
+  "v": 1
+ },
+ "designSystems": [
+  {
+   "artifact": "https://claude.ai/artifact/7BH9Y6vk7pGnjvc2MoWQjL",
+   "copiedAt": "2026-10-03T12:00:57Z",
+   "namespace": "corelith",
+   "title": "Corelith Brand Kit",
+   "version": "1790708533-3be9"
+  }
+ ],
+ "launch": {
+  "page": "workflows",
+  "view": "canvas"
+ },
+ "notes": {
+  "admin-r0": {
+   "kind": "title1",
+   "maxW": 6080,
+   "page": "admin",
+   "text": "W-57 Invite staff and set PINs \u00b7 and who can do what",
+   "w": 240,
+   "x": 0,
+   "y": -200
+  },
+  "admin-r1": {
+   "kind": "title1",
+   "maxW": 4560,
+   "page": "admin",
+   "text": "W-58 Approvals and limits \u00b7 W-59 Manager overrides \u00b7 W-60 The audit trail \u00b7 W-62/63 Edit, bin, restore",
+   "w": 240,
+   "x": 0,
+   "y": 2132
+  },
+  "admin-r2": {
+   "kind": "title1",
+   "maxW": 4000,
+   "page": "admin",
+   "text": "W-61 Shop-type features: liquor store \u00b7 W-68 Superuser support",
+   "w": 240,
+   "x": 0,
+   "y": 3732
+  },
+  "buying-r0": {
+   "kind": "title1",
+   "maxW": 6080,
+   "page": "buying",
+   "text": "W-29 Add a supplier",
+   "w": 240,
+   "x": 0,
+   "y": -200
+  },
+  "buying-r1": {
+   "kind": "title1",
+   "maxW": 10560,
+   "page": "buying",
+   "text": "W-30 Raise and send an order \u00b7 W-34 Chase it \u00b7 W-70 Close it with what came \u00b7 W-71 Remove a draft",
+   "w": 240,
+   "x": 0,
+   "y": 1400
+  },
+  "buying-r2": {
+   "kind": "title1",
+   "maxW": 13600,
+   "page": "buying",
+   "text": "W-31 Ask for money to pay an order \u00b7 W-32 For an expense \u00b7 W-72 Cancel it",
+   "w": 240,
+   "x": 0,
+   "y": 3000
+  },
+  "buying-r3": {
+   "kind": "title1",
+   "maxW": 7600,
+   "page": "buying",
+   "text": "W-33 Receive a delivery, whole or part \u00b7 W-25 Take in stock with no order",
+   "w": 240,
+   "x": 0,
+   "y": 4600
+  },
+  "buying-r4": {
+   "kind": "title1",
+   "maxW": 7600,
+   "page": "buying",
+   "text": "W-35 Record the supplier's bill and pay it \u00b7 W-36 Return goods",
+   "w": 240,
+   "x": 0,
+   "y": 6200
+  },
+  "customers-r0": {
+   "kind": "title1",
+   "maxW": 8000,
+   "page": "customers",
+   "text": "W-45 Add a customer \u00b7 W-46 Earn and spend points \u00b7 W-47 Adjust points",
+   "w": 240,
+   "x": 0,
+   "y": -200
+  },
+  "customers-r1": {
+   "kind": "title1",
+   "maxW": 4000,
+   "page": "customers",
+   "text": "W-48 Set up loyalty \u00b7 W-50 Message customers",
+   "w": 240,
+   "x": 0,
+   "y": 1400
+  },
+  "customers-r2": {
+   "kind": "title1",
+   "maxW": 7600,
+   "page": "customers",
+   "text": "W-49 Sell on account and collect",
+   "w": 240,
+   "x": 0,
+   "y": 3000
+  },
+  "floor-r0": {
+   "kind": "title1",
+   "maxW": 4000,
+   "page": "floor",
+   "text": "The morning look: the overview, with what needs action linked to its workflow",
+   "w": 240,
+   "x": 0,
+   "y": -200
+  },
+  "floor-r1": {
+   "kind": "title1",
+   "maxW": 7600,
+   "page": "floor",
+   "text": "W-37 Open a shift \u00b7 W-38 Cash in or out \u00b7 W-39 Count and close \u00b7 W-40 Sign off a short drawer",
+   "w": 240,
+   "x": 0,
+   "y": 1620
+  },
+  "floor-r2": {
+   "kind": "title1",
+   "maxW": 6080,
+   "page": "floor",
+   "text": "W-41 Refund or void a sale",
+   "w": 240,
+   "x": 0,
+   "y": 3220
+  },
+  "floor-r3": {
+   "kind": "title1",
+   "maxW": 7600,
+   "page": "floor",
+   "text": "W-42 Lay-by \u00b7 W-43 End of day \u00b7 W-44 Keep selling offline (on the overview and Tills)",
+   "w": 240,
+   "x": 0,
+   "y": 4820
+  },
+  "howto": {
+   "fill": "blue",
+   "page": "tables",
+   "text": "The Shifts boards are live and drawn in Tender, retail's theme. Press Play on any of them:\n\n\u2022 Tick rows: the toolbar turns into the selection's actions and a tinted line in the footer sums them.\n\u2022 Group: State puts the rows under headings that carry their own subtotals.\n\u2022 Filters opens the filters that are not on the row; its badge counts the ones in use.\n\u2022 Scroll the table: the header and the totals stay pinned, and Back to top appears in the pager.\n\u2022 The 1024px board shows the folding: View holds sort, group and columns; Filters takes Till and Cashier; Till, Duration and Opened step out of the table.\n\u2022 Tweaks \u203a theme switches the live board between Tender, Tender dark and Corelith.\n\nAll figures are sample data.",
+   "w": 360,
+   "x": 5664,
+   "y": 0
+  },
+  "insights-r0": {
+   "kind": "title1",
+   "maxW": 6080,
+   "page": "insights",
+   "text": "W-52 The weekly review: one question a page, one chart, what to do about it \u00b7 W-56 Send me this",
+   "w": 240,
+   "x": 0,
+   "y": -200
+  },
+  "insights-r1": {
+   "kind": "title1",
+   "maxW": 7520,
+   "page": "insights",
+   "text": "W-53 Investigate a loss \u00b7 the customers and money questions",
+   "w": 240,
+   "x": 0,
+   "y": 1400
+  },
+  "products-r0": {
+   "kind": "title1",
+   "maxW": 8000,
+   "page": "products",
+   "text": "W-09 Add a product: one form, anywhere \u00b7 W-11 Edit or archive it",
+   "w": 240,
+   "x": 0,
+   "y": -200
+  },
+  "products-r1": {
+   "kind": "title1",
+   "maxW": 8000,
+   "page": "products",
+   "text": "W-14 Change prices \u00b7 W-15 Many at once \u00b7 W-16 Price lists",
+   "w": 240,
+   "x": 0,
+   "y": 1660
+  },
+  "products-r2": {
+   "kind": "title1",
+   "maxW": 6080,
+   "page": "products",
+   "text": "W-12 Cases and singles \u00b7 W-13 Bundles and buy-more deals",
+   "w": 240,
+   "x": 0,
+   "y": 2980
+  },
+  "products-r3": {
+   "kind": "title1",
+   "maxW": 8000,
+   "page": "products",
+   "text": "W-17 Run a promotion and judge it \u00b7 W-18 Vouchers",
+   "w": 240,
+   "x": 0,
+   "y": 4660
+  },
+  "products-r4": {
+   "kind": "title1",
+   "maxW": 4560,
+   "page": "products",
+   "text": "W-19 Categories, read by every product field",
+   "w": 240,
+   "x": 0,
+   "y": 6260
+  },
+  "row1": {
+   "kind": "title1",
+   "maxW": 5584,
+   "page": "tables",
+   "text": "Shifts, rebuilt as the worksheet every list follows",
+   "w": 240,
+   "x": 0,
+   "y": -300
+  },
+  "row2": {
+   "kind": "title1",
+   "maxW": 4470,
+   "page": "tables",
+   "text": "The rules behind it",
+   "w": 240,
+   "x": 0,
+   "y": 1060
+  },
+  "row3": {
+   "kind": "title1",
+   "maxW": 4480,
+   "page": "tables",
+   "text": "One layout, a theme per product",
+   "w": 240,
+   "x": 0,
+   "y": 2580
+  },
+  "setup-r0": {
+   "kind": "title1",
+   "maxW": 8000,
+   "page": "setup",
+   "text": "W-01 First-time setup, signup to first sale: guided, then quiet",
+   "w": 240,
+   "x": 0,
+   "y": -200
+  },
+  "setup-r1": {
+   "kind": "title1",
+   "maxW": 4000,
+   "page": "setup",
+   "text": "W-02 Company information and business type \u00b7 W-08 Import products",
+   "w": 240,
+   "x": 0,
+   "y": 1120
+  },
+  "setup-r2": {
+   "kind": "title1",
+   "maxW": 12080,
+   "page": "setup",
+   "text": "W-03 Add a second site \u00b7 W-66 Places inside a site \u00b7 W-04 Pair a device to a till \u00b7 W-76 Replace or unpair it",
+   "w": 240,
+   "x": 0,
+   "y": 3200
+  },
+  "setup-r3": {
+   "kind": "title1",
+   "maxW": 8000,
+   "page": "setup",
+   "text": "W-05 Payments \u00b7 W-64 Till rules \u00b7 W-06 Fiscal device \u00b7 W-07 Receipts \u00b7 W-65 Posting \u00b7 W-67 Plan",
+   "w": 240,
+   "x": 0,
+   "y": 4520
+  },
+  "stock-r0": {
+   "kind": "title1",
+   "maxW": 4560,
+   "page": "stock",
+   "text": "W-21 See what is running low and reorder it \u00b7 W-28 Trace a product's stock",
+   "w": 240,
+   "x": 0,
+   "y": -200
+  },
+  "stock-r1": {
+   "kind": "title1",
+   "maxW": 6080,
+   "page": "stock",
+   "text": "W-22 Count stock",
+   "w": 240,
+   "x": 0,
+   "y": 1120
+  },
+  "stock-r2": {
+   "kind": "title1",
+   "maxW": 7600,
+   "page": "stock",
+   "text": "W-23 Breakage, waste or own use \u00b7 W-26 Break a case \u00b7 W-24 Move stock between sites",
+   "w": 240,
+   "x": 0,
+   "y": 2800
+  },
+  "stock-r3": {
+   "kind": "title1",
+   "maxW": 4000,
+   "page": "stock",
+   "text": "W-27 Empties: deposits in and out (liquor store)",
+   "w": 240,
+   "x": 0,
+   "y": 4660
+  },
+  "templates-r0": {
+   "kind": "title1",
+   "maxW": 4560,
+   "page": "templates",
+   "text": "Three templates draw every screen: pick a kind in Tweaks",
+   "w": 240,
+   "x": 0,
+   "y": -200
+  },
+  "tenderTitle": {
+   "kind": "title1",
+   "maxW": 4480,
+   "page": "tender",
+   "text": "Tender, retail's brand and design system",
+   "w": 240,
+   "x": 0,
+   "y": -300
+  },
+  "wHow": {
+   "fill": "blue",
+   "page": "workflows",
+   "text": "Read top to bottom.\n\n1. The index: the golden path from signup to first sale, the eight areas, and the rules every workflow follows.\n2. Areas 01 to 04: everything that gets a shop ready to sell.\n3. Areas 05 to 08: everything that happens once it is selling.\n\nEach card is one workflow: who does it, where it starts, its steps, and links to its screens on the other pages. Grey \"Next\" cards are mapped but not yet drawn.\n\nPress Play on the index to click through.",
+   "w": 440,
+   "x": 1520,
+   "y": 0
+  },
+  "wRow1": {
+   "kind": "title1",
+   "maxW": 5920,
+   "page": "workflows",
+   "text": "Getting the shop ready: 01 set up \u00b7 02 products \u00b7 03 stock \u00b7 04 buying",
+   "w": 240,
+   "x": 0,
+   "y": 1400
+  },
+  "wRow2": {
+   "kind": "title1",
+   "maxW": 5920,
+   "page": "workflows",
+   "text": "Running the shop: 05 selling \u00b7 06 customers \u00b7 07 insights \u00b7 08 controls",
+   "w": 240,
+   "x": 0,
+   "y": 3496
+  },
+  "wTitle": {
+   "kind": "title1",
+   "maxW": 4480,
+   "page": "workflows",
+   "text": "Workflows, start here",
+   "w": 240,
+   "x": 0,
+   "y": -300
+  },
+  "wRow3": {
+   "kind": "title1",
+   "maxW": 5512,
+   "page": "workflows",
+   "text": "The whole map: navigation and workflows as trees",
+   "w": 240,
+   "x": 0,
+   "y": 5200
+  },
+  "insights-r2": {
+   "kind": "title1",
+   "maxW": 10560,
+   "page": "insights",
+   "text": "Reports, its own place in the rail \u00b7 W-69 Run a template \u00b7 W-73 Save as a template \u00b7 W-74 New template \u00b7 W-75 Change, share or delete",
+   "w": 240,
+   "x": 0,
+   "y": 3000
+  }
+ },
+ "order": [
+  "Main.dc.html",
+  "Selected.dc.html",
+  "Grouped.dc.html",
+  "Narrow.dc.html",
+  "Anatomy.dc.html",
+  "Cells.dc.html",
+  "Paging.dc.html",
+  "Mobile.dc.html",
+  "Tokens.dc.html",
+  "Dark.dc.html",
+  "Corelith.dc.html",
+  "TenderBrand.dc.html",
+  "TenderArt.dc.html",
+  "TenderUI.dc.html",
+  "WorkflowsIndex.dc.html",
+  "WfSetup.dc.html",
+  "WfProducts.dc.html",
+  "WfStock.dc.html",
+  "WfBuying.dc.html",
+  "WfFloor.dc.html",
+  "WfCustomers.dc.html",
+  "WfInsights.dc.html",
+  "WfAdmin.dc.html",
+  "WorkflowMap.dc.html",
+  "SuppliersList.dc.html",
+  "SupplierNew.dc.html",
+  "SupplierRecord.dc.html",
+  "ContactNew.dc.html",
+  "OrdersList.dc.html",
+  "OrderNew.dc.html",
+  "OrderRecord.dc.html",
+  "OrderEdit.dc.html",
+  "OrderChase.dc.html",
+  "RequisitionsList.dc.html",
+  "ReqOrder.dc.html",
+  "ReqExpense.dc.html",
+  "RequisitionRecord.dc.html",
+  "ReqApprove.dc.html",
+  "ReqReject.dc.html",
+  "ReqPayout.dc.html",
+  "ReqAcquit.dc.html",
+  "Receive.dc.html",
+  "DeliveriesList.dc.html",
+  "DeliveryRecord.dc.html",
+  "DeliveryDiff.dc.html",
+  "IntakeNew.dc.html",
+  "BillsList.dc.html",
+  "BillNew.dc.html",
+  "BillEdit.dc.html",
+  "PaymentNew.dc.html",
+  "ReturnNew.dc.html",
+  "StockFlow.dc.html",
+  "ProductsList.dc.html",
+  "ProductNew.dc.html",
+  "ProductNewStock.dc.html",
+  "Product.dc.html",
+  "ProductEdit.dc.html",
+  "Labels.dc.html",
+  "PriceLists.dc.html",
+  "PricesList.dc.html",
+  "BulkPrice.dc.html",
+  "PriceListNew.dc.html",
+  "PriceListEdit.dc.html",
+  "AddToList.dc.html",
+  "BundlesList.dc.html",
+  "PackNew.dc.html",
+  "BundleNew.dc.html",
+  "BundleEdit.dc.html",
+  "PromotionsList.dc.html",
+  "PromotionNew.dc.html",
+  "PromotionRecord.dc.html",
+  "PromotionEdit.dc.html",
+  "VouchersList.dc.html",
+  "VoucherNew.dc.html",
+  "VoucherEdit.dc.html",
+  "CategoriesList.dc.html",
+  "CategoryNew.dc.html",
+  "CategoryEdit.dc.html",
+  "StockList.dc.html",
+  "Reorder.dc.html",
+  "MovementsList.dc.html",
+  "CountsList.dc.html",
+  "CountNew.dc.html",
+  "CountPhone.dc.html",
+  "CountReview.dc.html",
+  "StockAdjust.dc.html",
+  "BreakCase.dc.html",
+  "TransfersList.dc.html",
+  "TransferNew.dc.html",
+  "TransferReceive.dc.html",
+  "EmptiesList.dc.html",
+  "EmptiesReturn.dc.html",
+  "Floor.dc.html",
+  "ShiftOpen.dc.html",
+  "ShiftRecord.dc.html",
+  "CashMove.dc.html",
+  "ShiftClose.dc.html",
+  "SignOff.dc.html",
+  "SalesList.dc.html",
+  "SaleRecord.dc.html",
+  "RefundNew.dc.html",
+  "VoidSale.dc.html",
+  "LaybysList.dc.html",
+  "LaybyNew.dc.html",
+  "LaybyPay.dc.html",
+  "EndOfDay.dc.html",
+  "DaysList.dc.html",
+  "CustomersList.dc.html",
+  "CustomerNew.dc.html",
+  "CustomerRecord.dc.html",
+  "CustomerEdit.dc.html",
+  "MergeCustomer.dc.html",
+  "PointsAdjust.dc.html",
+  "LoyaltySettings.dc.html",
+  "MessageNew.dc.html",
+  "AccountsList.dc.html",
+  "AccountOpen.dc.html",
+  "AccountEdit.dc.html",
+  "CustPayment.dc.html",
+  "StatementSend.dc.html",
+  "List.dc.html",
+  "Record.dc.html",
+  "Sheet.dc.html",
+  "OnbType.dc.html",
+  "OnbShop.dc.html",
+  "OnbProducts.dc.html",
+  "OnbTills.dc.html",
+  "OnbStaff.dc.html",
+  "OnbDone.dc.html",
+  "Guided.dc.html",
+  "CompanySettings.dc.html",
+  "Import.dc.html",
+  "SitesList.dc.html",
+  "SiteNew.dc.html",
+  "SiteEdit.dc.html",
+  "TillsList.dc.html",
+  "TillNew.dc.html",
+  "TillEdit.dc.html",
+  "PaymentsSettings.dc.html",
+  "TillRules.dc.html",
+  "FiscalSettings.dc.html",
+  "ReceiptSettings.dc.html",
+  "PostingSettings.dc.html",
+  "BillingSettings.dc.html",
+  "InsightsSales.dc.html",
+  "InsightsProfit.dc.html",
+  "InsightsProducts.dc.html",
+  "InsightsStock.dc.html",
+  "InsightsLosses.dc.html",
+  "InsightsCustomers.dc.html",
+  "InsightsMoney.dc.html",
+  "Roles.dc.html",
+  "PeopleList.dc.html",
+  "PersonNew.dc.html",
+  "PersonEdit.dc.html",
+  "ApprovalSettings.dc.html",
+  "ActivityList.dc.html",
+  "BinList.dc.html",
+  "Liquor.dc.html",
+  "SupportCompany.dc.html",
+  "NavTree.dc.html",
+  "WorkflowTree.dc.html",
+  "ReportsList.dc.html",
+  "ReportSales.dc.html",
+  "OrderCloseShort.dc.html",
+  "OrderRemove.dc.html",
+  "ReqCancel.dc.html",
+  "BundleRecord.dc.html",
+  "VoucherRecord.dc.html",
+  "CountRecord.dc.html",
+  "TransferRecord.dc.html",
+  "ReportsStock.dc.html",
+  "ReportSaveTemplate.dc.html",
+  "TemplateNew.dc.html",
+  "ReportWeekend.dc.html",
+  "TemplateEdit.dc.html",
+  "TillReplace.dc.html",
+  "TillPairing.dc.html"
+ ],
+ "pages": [
+  {
+   "id": "workflows",
+   "name": "Workflows, start here"
+  },
+  {
+   "id": "setup",
+   "name": "01 Set up the shop"
+  },
+  {
+   "id": "products",
+   "name": "02 Products and prices"
+  },
+  {
+   "id": "stock",
+   "name": "03 Stock"
+  },
+  {
+   "id": "buying",
+   "name": "04 Buying and paying"
+  },
+  {
+   "id": "floor",
+   "name": "05 Selling and the floor"
+  },
+  {
+   "id": "customers",
+   "name": "06 Customers and accounts"
+  },
+  {
+   "id": "insights",
+   "name": "07 Insights and reports"
+  },
+  {
+   "id": "admin",
+   "name": "08 People and controls"
+  },
+  {
+   "id": "templates",
+   "name": "Templates: list, record, sheet"
+  },
+  {
+   "id": "tables",
+   "name": "Data tables"
+  },
+  {
+   "id": "tender",
+   "name": "Tender brand and design system"
+  }
+ ],
+ "title": "Corelith data tables"
+}

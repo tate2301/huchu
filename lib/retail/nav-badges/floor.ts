@@ -24,4 +24,12 @@ export const SHIFTS_NAV_BADGE: NavBadgeProvider = {
   label: (count) => `${count} open`,
 };
 
-export const FLOOR_NAV_BADGES: readonly NavBadgeProvider[] = [SHIFTS_NAV_BADGE];
+/** Lay-bys: how many are still being paid, at any site ("3"). */
+export const LAYBYS_NAV_BADGE: NavBadgeProvider = {
+  href: "/retail/laybys",
+  requires: [["retail.laybys", "view"]],
+  count: ({ companyId }) => prisma.retailLayby.count({ where: { companyId, status: "PAYING" } }),
+  label: (count) => String(count),
+};
+
+export const FLOOR_NAV_BADGES: readonly NavBadgeProvider[] = [SHIFTS_NAV_BADGE, LAYBYS_NAV_BADGE];

@@ -40,6 +40,9 @@ const REASONS: Record<StockMovementReason, ReasonWords> = {
   TRANSFER_IN: { short: "Transfer in", tone: "info", kind: "TRANSFERS" },
   TRANSFER_BACK: { short: "Back from a transfer", tone: "info", kind: "TRANSFERS" },
   CASE_BROKEN: { short: "Case broken into singles", tone: "neutral", kind: "CASES" },
+  // FLR-06: off the shelf for a lay-by, and back on it when the lay-by is cancelled.
+  LAYBY_ASIDE: { short: "Put aside", tone: "info", kind: "SALES" },
+  LAYBY_BACK: { short: "Back from a lay-by", tone: "info", kind: "SALES" },
 };
 
 /** The stores module's movements carry no reason; they read by their type. */
@@ -122,6 +125,8 @@ export function movementLabel(movement: MovementForWords, form: "short" | "long"
       return form === "long" && movement.otherSite ? `Transfer from ${movement.otherSite}` : REASONS.TRANSFER_IN.short;
     case "TRANSFER_BACK":
       return form === "long" && movement.reference ? `Back from ${movement.reference}` : REASONS.TRANSFER_BACK.short;
+    case "LAYBY_BACK":
+      return form === "long" && movement.reference ? `Back from ${movement.reference}` : REASONS.LAYBY_BACK.short;
     default:
       return REASONS[reason].short;
   }

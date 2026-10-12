@@ -53,6 +53,8 @@ const person: LookupNoun = {
     ["retail.counts", "create"],
     ["retail.adjustments", "create"],
     ["retail.sell", "view"],
+    // Receive's "Counted by" (BUY-06).
+    ["retail.purchasing", "receive"],
   ],
   create: ["retail.people", "create"],
   // An owner signs in to the admin, so one added inline ("Owner approvals go to") gives an email too.

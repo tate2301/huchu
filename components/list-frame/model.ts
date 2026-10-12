@@ -156,7 +156,8 @@ export const noValue = (column: ListColumn) => column.emptyWords ?? (column.empt
 export function cellText(column: ListColumn, row: ReportRow): string {
   const value = row[column.key];
   if (isBlank(value)) return noValue(column);
-  const currency = column.currency ?? "USD";
+  const own = column.currencyKey ? row[column.currencyKey] : null;
+  const currency = typeof own === "string" && own ? own : (column.currency ?? "USD");
   switch (column.cell) {
     case "money":
     case "zero":
@@ -167,7 +168,8 @@ export function cellText(column: ListColumn, row: ReportRow): string {
       if (column.kind === "number") return formatCount(Number(value));
       return Number(value) < 0 ? `${formatMoney(-Number(value), currency)} credit` : formatMoney(Number(value), currency);
     case "diff":
-      return formatSigned(Number(value), currency);
+      // A difference in units ("−2", "+2"); else money.
+      return column.kind === "number" ? formatSignedCount(Number(value)) : formatSigned(Number(value), currency);
     case "date":
       return column.dayFormat ? dayText(column, String(value)) : String(value);
     case "num": {
@@ -187,7 +189,7 @@ export function cellText(column: ListColumn, row: ReportRow): string {
 export function totalText(column: ListColumn, value: ReportValue | undefined): string {
   if (isBlank(value)) return "";
   const currency = column.currency ?? "USD";
-  if (column.cell === "diff") return formatSigned(Number(value), currency);
+  if (column.cell === "diff") return column.kind === "number" ? formatSignedCount(Number(value)) : formatSigned(Number(value), currency);
   if (column.cell === "num" && column.sign) return formatSignedCount(Number(value));
   if (column.cell === "num") {
     const figure = column.percent ? formatPercent(Number(value)) : formatCount(Number(value));

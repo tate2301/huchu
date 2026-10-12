@@ -56,7 +56,6 @@ const PRODUCT_PRIMARY_ACTIONS: Record<VerticalProductId, NavItem[]> = {
     { href: "/retail/stock", icon: Package, label: "Stock" },
     { href: "/retail/buying/orders", icon: Package, label: "Orders" },
     { href: "/retail/buying/deliveries", icon: LocalShipping, label: "Deliveries" },
-    { href: "/retail/customers", icon: Users, label: "Customers" },
     {
       href: "/retail/shifts",
       icon: ReceiptLong,
@@ -92,7 +91,6 @@ const PRODUCT_PRIMARY_ACTIONS: Record<VerticalProductId, NavItem[]> = {
     { href: "/stores/receive", icon: ArrowDownward, label: "Receive Stock" },
     { href: "/stores/issue", icon: ArrowUpward, label: "Issue Stock" },
     { href: "/stores/inventory", icon: Package, label: "Stock on Hand" },
-    { href: "/retail/customers", icon: Users, label: "Customers" },
     { href: "/people", icon: Users, label: "Employees" },
     { href: "/reports", icon: BarChart3, label: "Reports" },
   ],

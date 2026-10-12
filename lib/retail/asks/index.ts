@@ -1,5 +1,6 @@
 import { BIN_LIST_RUNS } from "./bin";
 import { BUYING_LIST_RUNS } from "./buying";
+import { CUSTOMER_LIST_RUNS } from "./customers";
 import { FLOOR_LIST_RUNS } from "./floor";
 import { PEOPLE_LIST_RUNS } from "./people";
 import { BUNDLE_LIST_RUNS, PRICE_LIST_RUNS, PRODUCT_LIST_RUNS, PROMOTION_LIST_RUNS, VOUCHER_LIST_RUNS } from "./products";
@@ -13,15 +14,15 @@ import type { ListActionRun } from "./runs";
  */
 export { BIN_KEEP_DAYS, binAsk, restorableUntil } from "./frame";
 export { binItem, deleteForGoodAsk, restoredToast } from "./bin";
-export { cancelRequisitionAsk, closeShortAsk, removeContactAsk, removeOrderAsk, stopBuyingAsk } from "./buying";
+export { approveManyAsk, cancelRequisitionAsk, closeShortAsk, removeContactAsk, removeOrderAsk, stopBuyingAsk } from "./buying";
 export { closeUncountedAsk, sentManyWords, sentWords } from "./floor";
 export { categoryDeleteAsk, categoryMergeAsk } from "./categories";
 export { archiveAsk, archiveManyAsk, bundleStopAsk, priceListDeleteAsk, promotionEndAsk, promotionEndManyAsk, voidVoucherAsk } from "./products";
 export { closeSiteAsk } from "./sites";
 export { removeAccessAsk, removedToast } from "./people";
 export { unpairAsk, unpairRowAsk } from "./tills";
-export { cancelTransferAsk, cancelTransfersAsk, reverseMovementsAsk } from "./stock";
+export { approveCountsAsk, cancelCountAsk, cancelTransferAsk, cancelTransfersAsk, reverseMovementsAsk } from "./stock";
 export type { ListActionRun } from "./runs";
 
 /** Every list action that posts, by its `run` key; each area adds its own. */
-export const LIST_ACTION_RUNS: Readonly<Record<string, ListActionRun>> = { ...PRODUCT_LIST_RUNS, ...PRICE_LIST_RUNS, ...BUNDLE_LIST_RUNS, ...PROMOTION_LIST_RUNS, ...VOUCHER_LIST_RUNS, ...STOCK_LIST_RUNS, ...BIN_LIST_RUNS, ...TILL_LIST_RUNS, ...PEOPLE_LIST_RUNS, ...BUYING_LIST_RUNS, ...FLOOR_LIST_RUNS };
+export const LIST_ACTION_RUNS: Readonly<Record<string, ListActionRun>> = { ...PRODUCT_LIST_RUNS, ...PRICE_LIST_RUNS, ...BUNDLE_LIST_RUNS, ...PROMOTION_LIST_RUNS, ...VOUCHER_LIST_RUNS, ...STOCK_LIST_RUNS, ...BIN_LIST_RUNS, ...TILL_LIST_RUNS, ...PEOPLE_LIST_RUNS, ...BUYING_LIST_RUNS, ...FLOOR_LIST_RUNS, ...CUSTOMER_LIST_RUNS };

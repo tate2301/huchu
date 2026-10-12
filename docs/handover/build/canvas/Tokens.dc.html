@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<title>Themes per product</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Next:wght@400;500;600&amp;family=IBM+Plex+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>body{margin:0}</style>
+</helmet>
+<div style="width: 1440px; height: 1180px; box-sizing: border-box; padding: 64px 72px; background: #ffffff; color: #24140e; font-family: 'Atkinson Hyperlegible Next', system-ui, sans-serif; display: flex; flex-direction: column; gap: 36px;">
+  <div style="display: flex; flex-direction: column; gap: 12px; max-width: 900px;">
+    <span style="font-size: 14px; font-weight: 500; color: #75675f;">Theming</span>
+    <h2 style="margin: 0; font-size: 40px; line-height: 1.08; font-weight: 600; letter-spacing: -0.035em;">One layout, a theme per product</h2>
+    <p style="margin: 0; font-size: 16px; line-height: 1.5; color: #4a3a33;">Components only ever ask for a role: ink, line, accent, short. Each product answers those roles in its own file. A retail workspace answers them as Tender, a school as Campus, and the screens do not change.</p>
+  </div>
+
+  <div style="display: grid; grid-template-columns: 340px minmax(0, 1fr); gap: 56px;">
+    <div style="display: flex; flex-direction: column; gap: 20px;">
+      <h3 style="margin: 0; font-size: 20px; font-weight: 600; letter-spacing: -0.02em;">How the workspace picks it</h3>
+      <ol style="margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 14px; font-size: 14.5px; line-height: 1.5; color: #4a3a33;">
+        <li style="display: flex; gap: 12px;"><span style="flex: none; width: 24px; height: 24px; border-radius: 99px; background: #f3eee9; color: #24140e; font-family: 'IBM Plex Mono', monospace; font-size: 12px; font-weight: 600; display: flex; align-items: center; justify-content: center;">1</span><span>The workspace's profile is its primary product: <span style="font-family: 'IBM Plex Mono', monospace; font-size: 13px;">RETAIL</span> is Tender, <span style="font-family: 'IBM Plex Mono', monospace; font-size: 13px;">SCHOOLS</span> is Campus.</span></li>
+        <li style="display: flex; gap: 12px;"><span style="flex: none; width: 24px; height: 24px; border-radius: 99px; background: #f3eee9; color: #24140e; font-family: 'IBM Plex Mono', monospace; font-size: 12px; font-weight: 600; display: flex; align-items: center; justify-content: center;">2</span><span>The root layout reads it on the server and sets <span style="font-family: 'IBM Plex Mono', monospace; font-size: 13px;">data-product</span> and <span style="font-family: 'IBM Plex Mono', monospace; font-size: 13px;">data-theme</span> on the page, so the first paint is already right.</span></li>
+        <li style="display: flex; gap: 12px;"><span style="flex: none; width: 24px; height: 24px; border-radius: 99px; background: #f3eee9; color: #24140e; font-family: 'IBM Plex Mono', monospace; font-size: 12px; font-weight: 600; display: flex; align-items: center; justify-content: center;">3</span><span>One CSS file per product sets every role. A typed list of the role names means a product cannot leave one out.</span></li>
+        <li style="display: flex; gap: 12px;"><span style="flex: none; width: 24px; height: 24px; border-radius: 99px; background: #f3eee9; color: #24140e; font-family: 'IBM Plex Mono', monospace; font-size: 12px; font-weight: 600; display: flex; align-items: center; justify-content: center;">4</span><span>Tailwind's theme maps its utilities onto the same roles, so a class like <span style="font-family: 'IBM Plex Mono', monospace; font-size: 13px;">bg-surface</span> follows the product without knowing which one it is.</span></li>
+      </ol>
+      <h3 style="margin: 12px 0 0; font-size: 20px; font-weight: 600; letter-spacing: -0.02em;">What Tender brings</h3>
+      <ul style="margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 8px; font-size: 14.5px; line-height: 1.5; color: #4a3a33;">
+        <li>Orange, not tomato, in the interface: #E8620F reads as orange where the mark's tomato reads red on a screen. It is spent once per screen, on the primary action, plus the focus ring and the ticks. Selection, active filters and grouping stay in warm neutrals.</li>
+        <li>The button is a deeper orange, #B84A0C, so its white label reads at 5.2:1. The brighter orange is kept for the focus ring and ticks, which only need 3:1.</li>
+        <li>Warm ink, never black. Dark mode takes the greys to warm near-black and keeps the mark, marigold and EcoCash blue as they are.</li>
+        <li>Danger moves to crimson, so a short drawer never reads as a button.</li>
+        <li>Money is written the way the till prints it: US$886.85.</li>
+        <li>The isometric drawings are for empty states and first runs, in their light or dark export to match.</li>
+      </ul>
+    </div>
+
+    <div role="table" aria-label="Role tokens by theme" style="font-size: 13px; border-top: 1px solid #24140e; align-self: start;">
+      <div role="row" style="display: grid; grid-template-columns: 170px repeat(3, minmax(0, 1fr)); gap: 0; align-items: stretch; border-bottom: 1px solid #ece6e0;">
+        <span role="columnheader" style="padding: 14px 0; color: #75675f; font-weight: 500; font-size: 12.5px; align-self: end;">Role</span>
+        <span role="columnheader" style="padding: 14px 16px; display: flex; flex-direction: column; gap: 6px;"><span style="font-size: 20px; font-weight: 600; letter-spacing: -0.02em; color: #0b0c14;">corelith</span><span style="color: #75675f; font-size: 12.5px; font-weight: 500;">Platform default</span></span>
+        <span role="columnheader" style="padding: 14px 16px; display: flex; flex-direction: column; gap: 6px;"><img src="/_blob/b4ec88748456d06f1b1bc11935a99a6f" alt="Tender" style="height: 26px; width: auto; align-self: flex-start;"><span style="color: #75675f; font-size: 12.5px; font-weight: 500;">Retail, light</span></span>
+        <span role="columnheader" style="padding: 14px 16px; display: flex; flex-direction: column; gap: 6px; background: #171310; border-radius: 12px 12px 0 0;"><img src="/_blob/f83d2bd4500f196e4c213491d6d9c62d" alt="Tender" style="height: 26px; width: auto; align-self: flex-start;"><span style="color: #b0a39a; font-size: 12.5px; font-weight: 500;">Retail, dark</span></span>
+      </div>
+      <sc-for list="{{rows}}" as="t" hint-placeholder-count="14">
+        <div role="row" style="display: grid; grid-template-columns: 170px repeat(3, minmax(0, 1fr)); align-items: stretch; border-bottom: 1px solid #f3eee9;">
+          <span role="cell" style="padding: 9px 0; display: flex; flex-direction: column; gap: 2px;"><span style="font-weight: 600;">{{t.role}}</span><span style="font-family: 'IBM Plex Mono', monospace; font-size: 11.5px; color: #75675f;">{{t.token}}</span></span>
+          <span role="cell" style="padding: 9px 16px; display: flex; align-items: center; gap: 10px;"><span style="flex: none; width: 28px; height: 28px; border-radius: 8px; background: {{t.a}}; box-shadow: inset 0 0 0 1px rgba(36,20,14,.12);"></span><span style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #4a3a33;">{{t.a}}</span></span>
+          <span role="cell" style="padding: 9px 16px; display: flex; align-items: center; gap: 10px;"><span style="flex: none; width: 28px; height: 28px; border-radius: 8px; background: {{t.b}}; box-shadow: inset 0 0 0 1px rgba(36,20,14,.12);"></span><span style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #4a3a33;">{{t.b}}</span></span>
+          <span role="cell" style="padding: 9px 16px; display: flex; align-items: center; gap: 10px; background: #171310;"><span style="flex: none; width: 28px; height: 28px; border-radius: 8px; background: {{t.c}}; box-shadow: inset 0 0 0 1px rgba(255,248,241,.14);"></span><span style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #e3d8d0;">{{t.c}}</span></span>
+        </div>
+      </sc-for>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1120}}'>
+class Component extends DCLogic {
+  renderVals() {
+    var t = [
+      ['Page ground', '--ground', '#f6f7f9', '#faf7f4', '#171310'],
+      ['Surface', '--surface', '#ffffff', '#ffffff', '#1e1915'],
+      ['Line', '--line', '#e7e9ef', '#ece6e0', '#352d28'],
+      ['Ink', '--ink', '#0b0c14', '#24140e', '#fff8f1'],
+      ['Secondary ink', '--ink-2', '#3b3d47', '#4a3a33', '#e3d8d0'],
+      ['Muted', '--muted', '#6b6d78', '#75675f', '#b0a39a'],
+      ['Accent: action, focus', '--accent', '#2563eb', '#e8620f', '#f07a2a'],
+      ['Button fill', '--accent-fill', '#2563eb', '#b84a0c', '#b84a0c'],
+      ['Text on the button', '--on-accent', '#ffffff', '#ffffff', '#ffffff'],
+      ['Selection, active filter', '--sel-bg', '#e8effd', '#f3eee9', '#2a231f'],
+      ['Running', '--info', '#1d4ed8', '#3d4fb8', '#9aa7ff'],
+      ['Short, failed', '--bad', '#b42318', '#a3122f', '#ff7a8a'],
+      ['Over, to check', '--warn', '#8a5a10', '#8a5a10', '#f0b44c'],
+      ['Done, balanced', '--ok', '#17734c', '#17734c', '#4cc38a'],
+      ['Device, workspace mark', '--device', '#2a2e37', '#24140e', '#0f0c0a']
+    ];
+    return { rows: t.map(function (r) { return { role: r[0], token: r[1], a: r[2], b: r[3], c: r[4] }; }) };
+  }
+}
+</script>
+</body>
+</html>

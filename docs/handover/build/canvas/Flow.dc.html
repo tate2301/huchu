@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<title>Retail, end to end</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Next:wght@400;500;600&amp;family=IBM+Plex+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>body{margin:0} .fl:hover{border-color:#ddd4cc !important;background:#fbf8f5 !important} .fl:focus-visible{outline:2px solid #e8620f;outline-offset:3px}</style>
+</helmet>
+<div style="width: 3040px; height: 520px; box-sizing: border-box; padding: 56px 64px; background: #ffffff; color: #24140e; font-family: 'Atkinson Hyperlegible Next', system-ui, sans-serif; display: flex; flex-direction: column; gap: 32px;">
+  <div style="display: flex; align-items: baseline; gap: 24px;">
+    <h2 style="margin: 0; font-size: 32px; font-weight: 600; letter-spacing: -0.03em;">From the supplier to the owner's overview</h2>
+    <p style="margin: 0; font-size: 16px; color: #4a3a33;">Every step is a list you can filter and export, and every row opens a record you can act on. Press Play and follow the links.</p>
+  </div>
+  <div style="display: flex; align-items: stretch; gap: 0;">
+    <sc-for list="{{steps}}" as="s" hint-placeholder-count="9">
+      <a href="{{s.href}}" class="fl" style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 10px; padding: 20px; border: 1px solid #ece6e0; border-radius: 12px; background: #ffffff; color: inherit; text-decoration: none;">
+        <span style="display: flex; align-items: center; gap: 10px;"><span style="width: 26px; height: 26px; border-radius: 99px; background: #f3eee9; font-family: 'IBM Plex Mono', monospace; font-size: 12px; font-weight: 600; display: flex; align-items: center; justify-content: center;">{{s.n}}</span><span style="font-size: 12.5px; color: #75675f;">{{s.area}}</span></span>
+        <span style="font-size: 18px; font-weight: 600; letter-spacing: -0.01em;">{{s.title}}</span>
+        <span style="font-size: 14px; line-height: 1.5; color: #4a3a33;">{{s.what}}</span>
+        <span style="flex: 1;"></span>
+        <span style="display: flex; flex-wrap: wrap; gap: 6px;"><sc-for list="{{s.screens}}" as="x" hint-placeholder-count="2"><span style="height: 22px; padding: 0 8px; border-radius: 6px; background: #f3eee9; color: #4a3a33; font-size: 12px; display: flex; align-items: center;">{{x}}</span></sc-for></span>
+        <span style="display: flex; align-items: center; gap: 4px; font-weight: 500; text-decoration: underline; text-decoration-color: #ddd4cc; text-underline-offset: 3px;">Open<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="m9 18 6-6-6-6"></path></svg></span>
+      </a>
+      <sc-if value="{{s.more}}" hint-placeholder-val="{{ true }}"><span aria-hidden="true" style="flex: none; width: 36px; display: flex; align-items: center; justify-content: center; color: #a89c94;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="m9 18 6-6-6-6"></path></svg></span></sc-if>
+    </sc-for>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":3040,"height":520}}'>
+class Component extends DCLogic {
+  renderVals() {
+    var s = [
+      ['Buying', 'Suppliers', 'Who you buy from, what you owe them and how reliably they deliver.', 'SuppliersList.dc.html', ['List', 'Record']],
+      ['Buying', 'Orders', 'Raise, send on WhatsApp, chase the late ones, close with what came.', 'OrdersList.dc.html', ['List', 'Record']],
+      ['Buying', 'Deliveries', 'Count against the note, record what is short or broken, post to stock.', 'DeliveriesList.dc.html', ['List', 'Record']],
+      ['Products', 'Products and stock', 'Every movement in and out, how fast it sells, when to reorder.', 'ProductsList.dc.html', ['List', 'Record']],
+      ['Products', 'Prices', 'Edit prices in the table; margins update as you type; the till picks them up on save.', 'PricesList.dc.html', ['Editable list']],
+      ['Products', 'Promotions', 'Rules, dates and products, and whether the money given away came back.', 'PromotionsList.dc.html', ['List', 'Record']],
+      ['The floor', 'Shifts', 'Who opened which till, what it took, and whether the drawer balanced.', 'Main.dc.html', ['List', 'Record']],
+      ['The floor', 'Customers', 'Spend, visits and a points ledger for every loyal customer.', 'CustomersList.dc.html', ['List', 'Record']],
+      ['The floor', 'Overview', 'Everything the owner needs at a glance, and what needs them today.', 'Floor.dc.html', ['Dashboard']]
+    ];
+    return { steps: s.map(function (r, i) { return { n: String(i + 1), area: r[0], title: r[1], what: r[2], href: r[3], screens: r[4], more: i < s.length - 1 }; }) };
+  }
+}
+</script>
+</body>
+</html>

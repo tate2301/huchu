@@ -116,7 +116,16 @@ function stockChart(product: ProductRecord): RecordChart {
       todayFrom: today,
       ticks: ticks.map((date) => ({ date, label: formatShortDay(`${date}T12:00:00Z`, "UTC") })),
     },
-    footer: chart.advice ? { text: chart.advice.sentence } : undefined,
+    // "Add to an order" opens New order on this product, for the quantity the sentence names.
+    footer: chart.advice
+      ? {
+          text: chart.advice.sentence,
+          link: {
+            label: "Add to an order",
+            href: `/retail/products/${product.id}?sheet=order-new&productIds=${product.id}&quantity=${chart.advice.orderQuantity}`,
+          },
+        }
+      : undefined,
   };
 }
 

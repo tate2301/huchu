@@ -1400,7 +1400,7 @@ describe("a mid-batch failure (invariant 2)", () => {
     await openDay();
     const original = await standardSale();
     const signed = await assign(original.id);
-    // What `voidRetailSaleTransaction` leaves behind: the sale is VOIDED and a
+    // What `voidSale` (lib/retail/floor/voids.ts) leaves behind: the sale is VOIDED and a
     // reversal row stands beside it, settled in the same commit.
     await prisma.retailSale.update({ where: { id: original.id }, data: { status: "VOIDED" } });
     const reversal = await makeSale({

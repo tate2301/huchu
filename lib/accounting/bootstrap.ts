@@ -799,6 +799,7 @@ export async function runAccountingSeedPack(input: SeedPackInput): Promise<Accou
           repeatMode: line.repeatMode ?? "NONE",
           accountSource: line.accountSource ?? "FIXED_ACCOUNT",
           accountRole: line.accountRole ?? null,
+          eventAccountKey: line.eventAccountKey ?? null,
           valuePath: line.valuePath ?? null,
           memoTemplate: line.memoTemplate ?? null,
           costCenterId: null,

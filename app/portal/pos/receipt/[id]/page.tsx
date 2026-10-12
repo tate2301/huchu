@@ -42,6 +42,8 @@ export default async function TillReceiptPage({ params }: { params: Promise<{ id
             lines: { orderBy: { createdAt: "asc" }, include: { product: { select: { depositAmount: true } } } },
             payments: { orderBy: [{ createdAt: "asc" }, { id: "asc" }] },
             fiscalReceipt: { select: { status: true, fiscalNumber: true } },
+            // PRD-10: gift vouchers bought in it, with the secret the customer needs to spend one.
+            vouchersSold: { orderBy: { code: "asc" }, select: { id: true, code: true, secret: true, value: true, expiresOn: true } },
             shift: { select: { registerName: true } },
             site: { select: { name: true } },
           },
@@ -53,7 +55,10 @@ export default async function TillReceiptPage({ params }: { params: Promise<{ id
   const stamp = receiptStamp(sale ? (sale.postedAt ?? sale.createdAt) : new Date());
   const total = sale ? toNumberOrZero(sale.totalAmount) : 1;
   const deposit = sale ? toNumberOrZero(sale.depositAmount) : 0;
-  const due = total + deposit;
+  const vouchersSold = sale ? toNumberOrZero(sale.vouchersSoldAmount) : 0;
+  const due = total + deposit + vouchersSold;
+  // A voucher's secret prints once, on the receipt handed over at the sale: a reprint carries the code only.
+  const showSecrets = Boolean(sale && !sale.printedAt);
   const change = sale ? postedChange(sale) : null;
   const tillLine = sale
     ? [sale.shift?.registerName ?? sale.site.name, sale.cashierName ? firstName(sale.cashierName) : null].filter(Boolean).join(", ")
@@ -107,6 +112,18 @@ export default async function TillReceiptPage({ params }: { params: Promise<{ id
           <span>{figure(1)}</span>
         </div>
       )}
+      {sale?.vouchersSold.map((voucher) => (
+        <React.Fragment key={voucher.id}>
+          <div className="l">
+            <span>Gift voucher {voucher.code}</span>
+            <span>{figure(toNumberOrZero(voucher.value))}</span>
+          </div>
+          <div className="l">
+            <span>{showSecrets ? `Secret ${voucher.secret}` : "Secret on the first receipt"}</span>
+            <span>Until {voucher.expiresOn.toISOString().slice(0, 10)}</span>
+          </div>
+        </React.Fragment>
+      ))}
       <hr />
       {sale && toNumberOrZero(sale.discountAmount) ? (
         <div className="l">

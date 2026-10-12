@@ -2,11 +2,15 @@ import type { SheetKind } from "@/lib/workspace/sheet-kind";
 
 import { BUNDLE_SHEETS } from "./bundles";
 import { BUYING_SHEETS } from "./buying";
+import { ORDER_SHEETS } from "./orders";
+import { CUSTOMER_SHEETS } from "./customers";
 import { FLOOR_SHEETS } from "./floor";
+import { LAYBY_SHEETS } from "./laybys";
 import { PEOPLE_SHEETS } from "./people";
 import { PRICE_SHEETS } from "./prices";
 import { PRODUCT_SHEETS } from "./products";
 import { PROMOTION_SHEETS } from "./promotions";
+import { REQUISITION_SHEETS } from "./requisitions";
 import { SETUP_SHEETS } from "./setup";
 import { STOCK_SHEETS } from "./stock";
 import { STOCK_ADJUST_SHEETS } from "./stock-adjust";
@@ -20,6 +24,7 @@ import { VOUCHER_SHEETS } from "./vouchers";
  */
 export const SHEET_KINDS: Readonly<Record<string, SheetKind>> = {
   ...FLOOR_SHEETS,
+  ...LAYBY_SHEETS,
   ...PRODUCT_SHEETS,
   ...PRICE_SHEETS,
   ...BUNDLE_SHEETS,
@@ -32,4 +37,7 @@ export const SHEET_KINDS: Readonly<Record<string, SheetKind>> = {
   ...TILL_SHEETS,
   ...PEOPLE_SHEETS,
   ...BUYING_SHEETS,
+  ...ORDER_SHEETS,
+  ...REQUISITION_SHEETS,
+  ...CUSTOMER_SHEETS,
 };

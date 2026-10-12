@@ -1533,11 +1533,11 @@ async function moneyInsight(companyId: string, window: InsightWindow): Promise<I
       },
     }),
     prisma.retailPurchaseOrder.findMany({
-      where: { companyId, status: { in: ["DRAFT", "PARTIAL"] } },
+      where: { companyId, archivedAt: null, status: { in: ["DRAFT", "SENT", "PARTIAL"] } },
       select: {
         id: true,
         poNo: true,
-        supplierName: true,
+        vendor: { select: { name: true } },
         expectedDate: true,
         lines: { select: { quantity: true, receivedQuantity: true, unitCost: true } },
       },
@@ -1632,7 +1632,7 @@ async function moneyInsight(companyId: string, window: InsightWindow): Promise<I
               href: `/retail/buying/orders/${order.id}`,
               cells: {
                 what: order.poNo,
-                who: order.supplierName,
+                who: order.vendor.name,
                 due: order.expectedDate ? order.expectedDate.toISOString() : "No date",
                 amount: money(value),
               },

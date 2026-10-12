@@ -24,7 +24,8 @@ export const lineMotion = {
 };
 
 function stillness() {
-  return typeof window === "undefined" || window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  // No window, or no matchMedia to ask (a test page, an old browser): nothing moves.
+  return typeof window === "undefined" || typeof window.matchMedia !== "function" || window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 }
 
 /**

@@ -80,7 +80,8 @@ export function TotalsBand({
                 <span className="mono">{formatCount(entry.count)}</span> {entry.label}
               </span>
             );
-          } else if ((isFigure(column) || column.totalParts) && column.total) {
+          } else if ((isFigure(column) || column.totalParts || column.cell === "mono") && column.total) {
+            // A mono total is the loader's own words for the set ("412 · 31" in the store).
             content = totalText(column, totals[column.key]);
             if (column.cell === "num") tone = "is-count";
             if (column.cell === "diff") {

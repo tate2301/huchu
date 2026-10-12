@@ -7,8 +7,8 @@ import type { ReportArea } from "@/lib/reports/types";
  *
  * A template reaches Reports only when its source is registered with a report
  * face — `templates.test.ts` refuses one that is not — so a built-in on a
- * source still to be built (sales, orders, requisitions, bills, customers,
- * accounts) joins this list with the unit that builds its source:
+ * source still to be built (sales, orders, requisitions, bills, accounts)
+ * joins this list with the unit that builds its source:
  *   1. a `report:` block on the source's definition (5.14);
  *   2. one row here (5.13);
  *   3. its source key in the expected list of `templates.test.ts`.
@@ -100,6 +100,19 @@ export const RETAIL_BUILT_INS: readonly BuiltInTemplate[] = [
     },
   },
   {
+    slug: "customer-spend",
+    name: "Customer spend",
+    summary: "Spend, visits and points for each customer",
+    area: "customers",
+    source: "retail-customers",
+    audience: "EVERYONE",
+    query: {
+      filters: {},
+      cols: ["name", "phone", "tier", "visits", "lastVisit", "points", "spend12"],
+      sort: "spent",
+    },
+  },
+  {
     slug: "takings-by-payment",
     name: "Takings by payment",
     summary: "Cash, EcoCash, card and account, by day and till",
@@ -113,6 +126,19 @@ export const RETAIL_BUILT_INS: readonly BuiltInTemplate[] = [
       cols: ["day", "till", "cash", "ecocash", "card", "zig", "account", "other", "taken"],
       sort: "newest",
       group: "day",
+    },
+  },
+  {
+    slug: "requisitions-paid",
+    name: "Requisitions paid",
+    summary: "Cash asked for, who approved it and what it was spent on",
+    area: "money",
+    source: "retail-requisitions",
+    audience: "MANAGERS",
+    query: {
+      filters: { asked: "this-year", state: "paid" },
+      cols: ["requisitionNo", "purpose", "askedBy", "approvedBy", "paid", "spent", "back", "paidOn"],
+      sort: "newest",
     },
   },
   {

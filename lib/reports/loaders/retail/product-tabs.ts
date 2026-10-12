@@ -122,21 +122,33 @@ async function loadPriceHistory(ctx: ReportContext, params: ReportParams) {
 }
 
 /**
- * The suppliers who deliver it. Deliveries name their supplier once Orders
- * (BUY-02) gives a delivery its `vendorId`; until then the only supplier the
- * product names is its own, `deliveries` has nothing to group, and its
- * delivery figures are left blank: not known, rather than none.
+ * The suppliers who deliver it: each supplier a posted delivery of it came
+ * from, and its own supplier. Last delivered and last cost are the latest
+ * delivery's; Delivered, 12 months the units in the last 365 days.
  */
 type Delivered = { lastDelivered: Date | null; lastCost: number | null; delivered: number };
 
-async function deliveriesByVendor(): Promise<Map<string, Delivered>> {
-  return new Map();
+async function deliveriesByVendor(companyId: string, productId: string): Promise<Map<string, Delivered>> {
+  const yearAgo = new Date(Date.now() - 365 * 86_400_000);
+  const lines = await prisma.retailGoodsReceiptLine.findMany({
+    where: { companyId, inventoryItem: { productId }, receipt: { status: "POSTED" } },
+    orderBy: { receipt: { postedAt: "desc" } },
+    select: { quantity: true, unitCost: true, receipt: { select: { vendorId: true, postedAt: true, createdAt: true } } },
+  });
+  const byVendor = new Map<string, Delivered>();
+  for (const line of lines) {
+    const at = line.receipt.postedAt ?? line.receipt.createdAt;
+    const seen = byVendor.get(line.receipt.vendorId) ?? { lastDelivered: at, lastCost: num(line.unitCost), delivered: 0 };
+    if (at >= yearAgo) seen.delivered += num(line.quantity) ?? 0;
+    byVendor.set(line.receipt.vendorId, seen);
+  }
+  return byVendor;
 }
 
 async function loadSuppliers(ctx: ReportContext, params: ReportParams) {
   const product = await productOf(ctx, params);
   if (!product) return result([]);
-  const delivered = await deliveriesByVendor();
+  const delivered = await deliveriesByVendor(ctx.companyId, product.id);
   const ids = [...new Set([...delivered.keys(), ...(product.supplierId ? [product.supplierId] : [])])];
   const vendors = await prisma.vendor.findMany({ where: { companyId: ctx.companyId, id: { in: ids } }, select: { id: true, name: true } });
   return result(

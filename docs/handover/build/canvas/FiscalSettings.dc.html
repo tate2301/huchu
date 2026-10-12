@@ -1,0 +1,246 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<title>Fiscal device</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Next:wght@400;500;600&amp;family=IBM+Plex+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+.th{--surface:#ffffff;--ground:#faf7f4;--hover:#fbf8f5;--tray:#f3eee9;--active:#efe8e2;--line:#ece6e0;--line-soft:#f3eee9;--line-strong:#ddd4cc;--ink:#24140e;--ink-2:#4a3a33;--muted:#75675f;--faint:#a89c94;--accent:#e8620f;--accent-fill:#b84a0c;--data:#4b5363;--ok:#17734c;--ok-soft:#e7f4ee;--info:#3d4fb8;--info-soft:#eceefb;--warn:#8a5a10;--warn-soft:#fbf1dc;--warn-dot:#e0a21a;--warn-line:#e8cf9a;--bad:#a3122f;--bad-soft:#fbe8ec;--bad-dot:#c8203f;--float:0 0 0 1px #ece6e0,0 14px 30px -18px rgba(36,20,14,.3)}
+.th button:focus-visible,.th a:focus-visible,.th input:focus-visible,.th select:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
+.th input::placeholder{color:var(--faint)}
+.c{min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.lk{color:var(--ink);text-decoration:underline;text-decoration-color:var(--line-strong);text-underline-offset:3px}
+.rw:hover{background:var(--hover)}
+.mi:hover{background:var(--hover)}
+.bg{display:flex}.bg>button{margin-left:-1px;border-radius:0}.bg>button:first-child{margin-left:0;border-radius:8px 0 0 8px}.bg>button:last-child{border-radius:0 8px 8px 0}
+.fld{display:flex;flex-direction:column;gap:6px;min-width:0}
+.fld>span:first-child{font-size:13px;font-weight:500;color:var(--ink)}
+.inp{height:36px;box-sizing:border-box;padding:0 10px;border:1px solid var(--line-strong);border-radius:8px;background:var(--surface);font:inherit;font-size:14px;color:var(--ink);width:100%}
+.hint{font-size:12.5px;color:var(--muted);line-height:1.4}
+</style>
+</helmet>
+<div class="th" style="position: relative; width: 100%; height: 1040px; display: flex; overflow: hidden; background: var(--ground); color: var(--ink); font-family: 'Atkinson Hyperlegible Next', system-ui, sans-serif; font-size: 13px;">
+<nav aria-label="Modules" style="width: 56px; flex: none; display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 8px 0; background: var(--surface); border-right: 1px solid var(--line); box-sizing: border-box;">
+<div style="width: 32px; height: 32px; border-radius: 8px; background: var(--ink); color: #ffffff; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 600; margin-bottom: 8px;">HC</div>
+<a href="Floor.dc.html" aria-label="The floor" style="width: 36px; height: 36px; border-radius: 8px; background: transparent; color: var(--muted); display: flex; align-items: center; justify-content: center;"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M4 4h16l1.2 5a3 3 0 0 1-2.2 2.9V20H5v-8.1A3 3 0 0 1 2.8 9zm6 10v6h4v-6z"></path></svg></a>
+<a href="ProductsList.dc.html" aria-label="Products" style="width: 36px; height: 36px; border-radius: 8px; background: transparent; color: var(--muted); display: flex; align-items: center; justify-content: center;"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M3 3h9l9 9-9 9-9-9zm5 3.5a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3z"></path></svg></a>
+<a href="StockList.dc.html" aria-label="Stock" style="width: 36px; height: 36px; border-radius: 8px; background: transparent; color: var(--muted); display: flex; align-items: center; justify-content: center;"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M12 2 2 7l10 5 10-5zM3.6 11.2 2 12l10 5 10-5-1.6-.8-8.4 4.2zm0 5L2 17l10 5 10-5-1.6-.8-8.4 4.2z"></path></svg></a>
+<a href="OrdersList.dc.html" aria-label="Buying" style="width: 36px; height: 36px; border-radius: 8px; background: transparent; color: var(--muted); display: flex; align-items: center; justify-content: center;"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M4 3h16a1 1 0 0 1 1 1v16a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1zm1 10v6h14v-6h-4l-1.5 2h-3L9 13z"></path></svg></a>
+<a href="InsightsSales.dc.html" aria-label="Insights" style="width: 36px; height: 36px; border-radius: 8px; background: transparent; color: var(--muted); display: flex; align-items: center; justify-content: center;"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M3 20h18v2H3zM5 10h3v8H5zm5.5-6h3v14h-3zM16 13h3v5h-3z"></path></svg></a>
+<a href="ReportsList.dc.html" aria-label="Reports" style="width: 36px; height: 36px; border-radius: 8px; background: transparent; color: var(--muted); display: flex; align-items: center; justify-content: center;"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M5 2h10l4 4v16H5zm9 1.5V7h3.5zM8 11v1.6h8V11zm0 3.4v1.6h8v-1.6zm0 3.4v1.6h5v-1.6z"></path></svg></a>
+<div style="flex: 1;"></div>
+<a href="CompanySettings.dc.html" aria-label="Management" style="width: 36px; height: 36px; border-radius: 8px; background: var(--active); color: var(--ink); display: flex; align-items: center; justify-content: center;"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M10.5 2h3l.5 2.6 2 .9 2.3-1.4 2.1 2.1-1.4 2.3.9 2 2.6.5v3l-2.6.5-.9 2 1.4 2.3-2.1 2.1-2.3-1.4-2 .9-.5 2.6h-3l-.5-2.6-2-.9-2.3 1.4-2.1-2.1 1.4-2.3-.9-2L2 13.5v-3l2.6-.5.9-2-1.4-2.3 2.1-2.1 2.3 1.4 2-.9zM12 8.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7z"></path></svg></a>
+</nav>
+<nav aria-label="Management" style="width: 240px; flex: none; display: flex; flex-direction: column; background: var(--ground); border-right: 1px solid var(--line); box-sizing: border-box;">
+<div style="height: 48px; display: flex; align-items: center; gap: 8px; padding: 0 12px;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" style="color: var(--muted);"><path d="m15 18-6-6 6-6"></path></svg><span style="font-size: 14px; font-weight: 600;">Management</span></div>
+<div style="display: flex; flex-direction: column; gap: 2px; padding: 4px 10px;">
+<a href="CompanySettings.dc.html" style="height: 34px; display: flex; align-items: center; gap: 10px; padding: 0 10px; border-radius: 8px; color: var(--ink); background: transparent; font-weight: 400; text-decoration: none;"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M4 4h16l1.2 5a3 3 0 0 1-2.2 2.9V20H5v-8.1A3 3 0 0 1 2.8 9z"></path></svg>Company</a>
+<a href="SitesList.dc.html" style="height: 34px; display: flex; align-items: center; gap: 10px; padding: 0 10px; border-radius: 8px; color: var(--ink); background: transparent; font-weight: 400; text-decoration: none;"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M4 4h16l1.2 5a3 3 0 0 1-2.2 2.9V20H5v-8.1A3 3 0 0 1 2.8 9zm6 10v6h4v-6z"></path></svg>Sites</a>
+<a href="TillsList.dc.html" style="height: 34px; display: flex; align-items: center; gap: 10px; padding: 0 10px; border-radius: 8px; color: var(--ink); background: transparent; font-weight: 400; text-decoration: none;"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M6 5h12a3 3 0 0 1 3 3v8a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3V8a3 3 0 0 1 3-3z"></path></svg>Tills and devices</a>
+<a href="PaymentsSettings.dc.html" style="height: 34px; display: flex; align-items: center; gap: 10px; padding: 0 10px; border-radius: 8px; color: var(--ink); background: transparent; font-weight: 400; text-decoration: none;"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M2 6h20v12H2zm10 3a3 3 0 1 0 0 6 3 3 0 0 0 0-6z"></path></svg>Payments</a>
+<a href="TillRules.dc.html" style="height: 34px; display: flex; align-items: center; gap: 10px; padding: 0 10px; border-radius: 8px; color: var(--ink); background: transparent; font-weight: 400; text-decoration: none;"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M5 3h14v18H5zm3 4v2h8V7zm0 4v2h8v-2zm0 4v2h5v-2z"></path></svg>Till rules</a>
+<a href="ReceiptSettings.dc.html" style="height: 34px; display: flex; align-items: center; gap: 10px; padding: 0 10px; border-radius: 8px; color: var(--ink); background: transparent; font-weight: 400; text-decoration: none;"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M6 3h12a1 1 0 0 1 1 1v17l-3-2-2 2-2-2-2 2-2-2-3 2V4a1 1 0 0 1 1-1z"></path></svg>Receipts</a>
+<a href="FiscalSettings.dc.html" aria-current="page" style="height: 34px; display: flex; align-items: center; gap: 10px; padding: 0 10px; border-radius: 8px; color: var(--ink); background: var(--active); font-weight: 600; text-decoration: none;"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M6 3h12a1 1 0 0 1 1 1v17l-3-2-2 2-2-2-2 2-2-2-3 2V4a1 1 0 0 1 1-1z"></path></svg>Fiscal device</a>
+<a href="PostingSettings.dc.html" style="height: 34px; display: flex; align-items: center; gap: 10px; padding: 0 10px; border-radius: 8px; color: var(--ink); background: transparent; font-weight: 400; text-decoration: none;"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M3 5h18v4H3zm0 5h18v4H3zm0 5h18v4H3z"></path></svg>Posting to the books</a>
+<a href="PeopleList.dc.html" style="height: 34px; display: flex; align-items: center; gap: 10px; padding: 0 10px; border-radius: 8px; color: var(--ink); background: transparent; font-weight: 400; text-decoration: none;"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M9 4.5a3.5 3.5 0 1 1 0 7 3.5 3.5 0 0 1 0-7zM17 6.5a2.5 2.5 0 1 1 0 5 2.5 2.5 0 0 1 0-5zM2 19a7 7 0 0 1 14 0zm13 0a6 6 0 0 0-1.5-4 5 5 0 0 1 8.5 4z"></path></svg>People</a>
+<a href="ApprovalSettings.dc.html" style="height: 34px; display: flex; align-items: center; gap: 10px; padding: 0 10px; border-radius: 8px; color: var(--ink); background: transparent; font-weight: 400; text-decoration: none;"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M5 3h14v18H5zm3 4v2h8V7zm0 4v2h8v-2zm0 4v2h5v-2z"></path></svg>Approvals</a>
+<a href="LoyaltySettings.dc.html" style="height: 34px; display: flex; align-items: center; gap: 10px; padding: 0 10px; border-radius: 8px; color: var(--ink); background: transparent; font-weight: 400; text-decoration: none;"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M3 6h18v4a2 2 0 0 0 0 4v4H3v-4a2 2 0 0 0 0-4z"></path></svg>Loyalty</a>
+<a href="ActivityList.dc.html" style="height: 34px; display: flex; align-items: center; gap: 10px; padding: 0 10px; border-radius: 8px; color: var(--ink); background: transparent; font-weight: 400; text-decoration: none;"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M12 2a10 10 0 1 1 0 20 10 10 0 0 1 0-20zm-1 5v6l5 3 1-1.7-4-2.3V7z"></path></svg>Activity</a>
+<a href="BinList.dc.html" style="height: 34px; display: flex; align-items: center; gap: 10px; padding: 0 10px; border-radius: 8px; color: var(--ink); background: transparent; font-weight: 400; text-decoration: none;"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M3 5h7l2 2h9v12H3z"></path></svg>Bin</a>
+<a href="BillingSettings.dc.html" style="height: 34px; display: flex; align-items: center; gap: 10px; padding: 0 10px; border-radius: 8px; color: var(--ink); background: transparent; font-weight: 400; text-decoration: none;"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M6 5h12a3 3 0 0 1 3 3v8a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3V8a3 3 0 0 1 3-3z"></path></svg>Plan and billing</a>
+</div></nav>
+<main style="flex: 1; min-width: 0; display: flex; flex-direction: column; background: var(--surface);">
+<header style="height: 48px; flex: none; display: flex; align-items: center; gap: 8px; padding: 0 16px; border-bottom: 1px solid var(--line); box-sizing: border-box;"><h1 style="margin: 0; font-size: 15px; font-weight: 600; white-space: nowrap;">Fiscal device</h1><div style="flex: 1;"></div><button style="height: 32px; display: flex; align-items: center; gap: 6px; padding: 0 12px; border: 1px solid var(--line-strong); border-radius: 8px; background: var(--surface); color: var(--ink); font: inherit; white-space: nowrap;">Test a receipt</button><button style="height: 32px; display: flex; align-items: center; gap: 6px; padding: 0 12px; border: 1px solid var(--line-strong); border-radius: 8px; background: var(--surface); color: var(--ink); font: inherit; white-space: nowrap;">Close day 214</button></header>
+<div style="flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) 320px; grid-template-rows: minmax(0, 1fr);">
+  <div style="min-width: 0; min-height: 0; display: flex; flex-direction: column;">
+    <div style="flex: 1; min-height: 0; overflow: auto; padding: 4px 32px 32px;"><div style="max-width: 680px;">
+    <sc-for list="{{sections}}" as="sec" hint-placeholder-count="3">
+      <div style="padding-top: 20px; margin-top: {{sec.gap}}; border-top: {{sec.rule}}; display: flex; flex-direction: column; gap: 14px;">
+        <sc-if value="{{sec.hasTitle}}" hint-placeholder-val="{{ true }}"><h3 style="margin: 0; font-size: 14px; font-weight: 600;">{{sec.title}}</h3></sc-if>
+        <sc-if value="{{sec.isFolded}}" hint-placeholder-val="{{ false }}">
+          <button onClick="{{sec.unfold}}" aria-expanded="false" style="height: 40px; display: flex; align-items: center; gap: 8px; padding: 0 12px; border: 1px dashed var(--line-strong); border-radius: 10px; background: var(--surface); color: var(--ink); font: inherit; text-align: left;"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M11 4h2v7h7v2h-7v7h-2v-7H4v-2h7z"></path></svg><span style="font-weight: 500;">{{sec.foldLabel}}</span><span class="c" style="flex: 1; color: var(--muted);">{{sec.foldHint}}</span></button>
+        </sc-if>
+        <sc-if value="{{sec.isOpen}}" hint-placeholder-val="{{ true }}">
+        <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 12px;">
+          <sc-for list="{{sec.fields}}" as="f" hint-placeholder-count="3">
+            <div class="fld" style="grid-column: span {{f.span}};">
+              <sc-if value="{{f.hasLabel}}" hint-placeholder-val="{{ true }}"><span>{{f.label}}<span style="font-weight: 400; color: var(--muted);">{{f.optional}}</span></span></sc-if>
+
+              <sc-if value="{{f.isText}}" hint-placeholder-val="{{ true }}"><input class="inp" aria-label="{{f.label}}" value="{{f.value}}" placeholder="{{f.placeholder}}" onChange="{{f.change}}" style="font-family: {{f.font}}; text-align: {{f.align}};"></sc-if>
+
+              <sc-if value="{{f.isMoney}}" hint-placeholder-val="{{ false }}"><span style="height: 36px; display: flex; align-items: center; border: 1px solid var(--line-strong); border-radius: 8px; background: var(--surface); overflow: hidden;"><span style="height: 100%; display: flex; align-items: center; padding: 0 10px; background: var(--tray); color: var(--ink-2); border-right: 1px solid var(--line-strong); font-family: 'IBM Plex Mono', monospace; font-size: 12.5px;">{{f.currency}}</span><input aria-label="{{f.label}}" value="{{f.value}}" placeholder="0.00" onChange="{{f.change}}" inputmode="decimal" style="flex: 1; min-width: 0; height: 100%; padding: 0 10px; border: 0; outline: none; background: transparent; font-family: 'IBM Plex Mono', monospace; font-size: 14px; font-weight: 600; text-align: right; color: var(--ink);"></span></sc-if>
+
+              <sc-if value="{{f.isRead}}" hint-placeholder-val="{{ false }}"><span style="min-height: 36px; display: flex; align-items: center; justify-content: {{f.justify}}; padding: 0 10px; border-radius: 8px; background: var(--tray); font-family: {{f.font}}; font-weight: 600; color: {{f.fg}};">{{f.value}}</span></sc-if>
+
+              <sc-if value="{{f.isArea}}" hint-placeholder-val="{{ false }}"><textarea aria-label="{{f.label}}" placeholder="{{f.placeholder}}" style="min-height: {{f.rows}}; box-sizing: border-box; padding: 8px 10px; border: 1px solid var(--line-strong); border-radius: 8px; font: inherit; font-size: 14px; line-height: 1.45; color: var(--ink); resize: vertical;">{{f.value}}</textarea></sc-if>
+
+              <sc-if value="{{f.isAuto}}" hint-placeholder-val="{{ false }}">
+                <span style="position: relative; display: block;">
+                  <span style="height: 36px; box-sizing: border-box; display: flex; align-items: center; gap: 8px; padding: 0 10px; border: 1px solid {{f.autoLine}}; border-radius: 8px; background: var(--surface);">
+                    <input role="combobox" aria-expanded="{{f.open}}" aria-autocomplete="list" aria-label="{{f.label}}" value="{{f.query}}" placeholder="{{f.placeholder}}" onFocus="{{f.openIt}}" onChange="{{f.type}}" style="flex: 1; min-width: 0; border: 0; outline: none; background: transparent; font: inherit; font-size: 14px; color: var(--ink);">
+                    <span style="color: var(--muted); display: flex;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg></span>
+                  </span>
+                  <sc-if value="{{f.open}}" hint-placeholder-val="{{ false }}">
+                    <span role="listbox" aria-label="{{f.label}}" style="position: absolute; z-index: 5; top: 40px; left: 0; right: 0; padding: 6px; background: var(--surface); border-radius: 10px; box-shadow: var(--float); display: flex; flex-direction: column;">
+                      <sc-for list="{{f.options}}" as="o" hint-placeholder-count="3"><button role="option" class="mi" onClick="{{o.pick}}" style="min-height: 36px; display: flex; align-items: center; gap: 8px; padding: 0 8px; border: 0; border-radius: 8px; background: transparent; font: inherit; color: var(--ink); text-align: left;"><span class="c" style="flex: 1;">{{o.label}}</span><span class="c" style="color: var(--muted); font-size: 12px;">{{o.sub}}</span></button></sc-for>
+                      <sc-if value="{{f.noMatch}}" hint-placeholder-val="{{ false }}"><span style="padding: 6px 8px; color: var(--muted);">Nothing matches.</span></sc-if>
+                      <span style="height: 1px; background: var(--line); margin: 4px 0;"></span>
+                      <button role="option" class="mi" onClick="{{f.startAdd}}" style="height: 36px; display: flex; align-items: center; gap: 8px; padding: 0 8px; border: 0; border-radius: 8px; background: transparent; font: inherit; color: var(--accent-fill); font-weight: 600; text-align: left;"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M11 4h2v7h7v2h-7v7h-2v-7H4v-2h7z"></path></svg>{{f.addLabel}}</button>
+                    </span>
+                  </sc-if>
+                </span>
+                <sc-if value="{{f.adding}}" hint-placeholder-val="{{ false }}">
+                  <span style="display: flex; flex-direction: column; gap: 10px; padding: 12px; border: 1px solid var(--line-strong); border-radius: 10px; background: var(--ground);">
+                    <span style="font-weight: 600;">{{f.quickTitle}}</span>
+                    <sc-for list="{{f.quick}}" as="q" hint-placeholder-count="2"><label class="fld"><span>{{q.label}}</span><input class="inp" value="{{q.value}}" placeholder="{{q.placeholder}}"></label></sc-for>
+                    <span style="display: flex; gap: 8px; justify-content: flex-end;"><button onClick="{{f.cancelAdd}}" style="height: 32px; padding: 0 12px; border: 1px solid var(--line-strong); border-radius: 8px; background: var(--surface); color: var(--ink); font: inherit;">Cancel</button><button onClick="{{f.doAdd}}" style="height: 32px; padding: 0 12px; border: 0; border-radius: 8px; background: var(--ink); color: #ffffff; font: inherit; font-weight: 600;">Add and use</button></span>
+                  </span>
+                </sc-if>
+              </sc-if>
+
+              <sc-if value="{{f.isSeg}}" hint-placeholder-val="{{ false }}"><span class="bg" role="group" aria-label="{{f.label}}"><sc-for list="{{f.opts}}" as="o" hint-placeholder-count="3"><button aria-pressed="{{o.on}}" onClick="{{o.pick}}" style="flex: 1 1 0; min-width: 0; min-height: 36px; padding: 4px 8px; border: 1px solid var(--line-strong); background: {{o.bg}}; color: var(--ink); font: inherit; font-weight: {{o.weight}}; line-height: 1.25;">{{o.label}}</button></sc-for></span></sc-if>
+
+              <sc-if value="{{f.isToggle}}" hint-placeholder-val="{{ false }}"><button role="switch" aria-checked="{{f.on}}" onClick="{{f.flip}}" style="display: flex; align-items: flex-start; gap: 12px; padding: 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); font: inherit; color: var(--ink); text-align: left;"><span style="flex: none; width: 34px; height: 20px; margin-top: 1px; border-radius: 99px; background: {{f.track}}; position: relative;"><span style="position: absolute; top: 2px; left: {{f.knob}}; width: 16px; height: 16px; border-radius: 99px; background: #ffffff; box-shadow: 0 1px 2px rgba(36, 20, 14, 0.3);"></span></span><span style="display: flex; flex-direction: column; gap: 2px;"><span style="font-weight: 500;">{{f.toggleLabel}}</span><span style="font-size: 12.5px; color: var(--muted); line-height: 1.4;">{{f.toggleHint}}</span></span></button></sc-if>
+
+              <sc-if value="{{f.isPhoto}}" hint-placeholder-val="{{ false }}"><span style="height: 76px; border: 1.5px dashed var(--line-strong); border-radius: 10px; background: var(--ground); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;"><span style="font-weight: 500;">{{f.value}}</span><span style="font-size: 12px; color: var(--muted);">Drop it here, or take one on a phone</span></span></sc-if>
+
+              <sc-if value="{{f.isLines}}" hint-placeholder-val="{{ false }}">
+                <span role="table" aria-label="{{f.label}}" style="display: block; border: 1px solid var(--line); border-radius: 10px; overflow: hidden;">
+                  <span role="row" style="display: grid; grid-template-columns: minmax(0, 1fr) 96px 104px 112px 36px; align-items: center; height: 34px; background: var(--ground); border-bottom: 1px solid var(--line); color: var(--muted); font-size: 12.5px; font-weight: 500;"><span role="columnheader" style="padding: 0 12px;">Product</span><span role="columnheader" style="padding: 0 10px; text-align: right;">{{f.qtyLabel}}</span><span role="columnheader" style="padding: 0 10px; text-align: right;">{{f.costLabel}}</span><span role="columnheader" style="padding: 0 10px; text-align: right;">Value</span><span></span></span>
+                  <sc-for list="{{f.rows}}" as="r" hint-placeholder-count="4">
+                    <span role="row" class="rw" style="display: grid; grid-template-columns: minmax(0, 1fr) 96px 104px 112px 36px; align-items: center; height: 48px; border-bottom: 1px solid var(--line-soft);">
+                      <span role="cell" style="padding: 0 12px; min-width: 0; display: flex; flex-direction: column; gap: 1px;"><span class="c" style="font-weight: 500;">{{r.name}}</span><span class="c" style="font-size: 12px; color: {{r.subFg}};">{{r.sub}}</span></span>
+                      <span role="cell" style="padding: 0 6px; display: flex; justify-content: flex-end;"><input aria-label="{{f.qtyLabel}}, {{r.name}}" value="{{r.qty}}" onChange="{{r.setQty}}" inputmode="numeric" style="width: 72px; height: 30px; box-sizing: border-box; padding: 0 8px; border: 1px solid var(--line-strong); border-radius: 8px; font-family: 'IBM Plex Mono', monospace; font-size: 13px; font-weight: 600; text-align: right; color: var(--ink);"></span>
+                      <span role="cell" style="padding: 0 10px; text-align: right; font-family: 'IBM Plex Mono', monospace; color: var(--ink-2);">{{r.cost}}</span>
+                      <span role="cell" style="padding: 0 10px; text-align: right; font-family: 'IBM Plex Mono', monospace;">{{r.value}}</span>
+                      <span role="cell"><button onClick="{{r.remove}}" aria-label="Remove {{r.name}}" style="width: 28px; height: 28px; border: 0; border-radius: 6px; background: transparent; color: var(--faint); display: flex; align-items: center; justify-content: center;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"></path></svg></button></span>
+                    </span>
+                  </sc-for>
+                  <span style="height: 44px; display: flex; align-items: center; gap: 8px; padding: 0 12px; border-bottom: 1px solid var(--line); color: var(--muted);"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M11 4h2v7h7v2h-7v7h-2v-7H4v-2h7z"></path></svg><input aria-label="Add a line" placeholder="{{f.addPlaceholder}}" style="flex: 1; min-width: 0; border: 0; outline: none; font: inherit; color: var(--ink); background: transparent;"></span>
+                  <span role="row" style="display: grid; grid-template-columns: minmax(0, 1fr) 96px 104px 112px 36px; align-items: center; height: 40px; background: var(--ground); font-family: 'IBM Plex Mono', monospace; font-weight: 600;"><span role="cell" style="padding: 0 12px; font-family: 'Atkinson Hyperlegible Next', system-ui, sans-serif; font-weight: 500; color: var(--muted);">Σ <span style="font-family: 'IBM Plex Mono', monospace; color: var(--ink);">{{f.lineCount}}</span> lines</span><span role="cell" style="padding: 0 16px; text-align: right;">{{f.qtyTotal}}</span><span></span><span role="cell" style="padding: 0 10px; text-align: right;">{{f.valueTotal}}</span><span></span></span>
+                </span>
+              </sc-if>
+
+              <sc-if value="{{f.isCards}}" hint-placeholder-val="{{ false }}"><span role="radiogroup" aria-label="{{f.label}}" style="display: grid; grid-template-columns: repeat({{f.cols}}, minmax(0, 1fr)); gap: 10px;"><sc-for list="{{f.cards}}" as="o" hint-placeholder-count="2"><button role="radio" aria-checked="{{o.on}}" onClick="{{o.pick}}" style="display: flex; align-items: flex-start; gap: 10px; padding: 14px; border: 1.5px solid {{o.line}}; border-radius: 12px; background: {{o.bg}}; font: inherit; color: var(--ink); text-align: left; opacity: {{o.opacity}};"><span style="flex: none; width: 18px; height: 18px; margin-top: 1px; box-sizing: border-box; border-radius: 99px; border: {{o.ring}}; background: var(--surface);"></span><span style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px;"><span style="display: flex; align-items: center; gap: 8px; font-weight: 600; font-size: 14px;">{{o.label}}<sc-if value="{{o.hasBadge}}" hint-placeholder-val="{{ false }}"><span style="height: 20px; padding: 0 6px; border-radius: 6px; background: var(--tray); color: var(--ink-2); font-size: 11.5px; font-weight: 500; display: flex; align-items: center;">{{o.badge}}</span></sc-if></span><span style="font-size: 12.5px; line-height: 1.45; color: var(--muted);">{{o.desc}}</span></span></button></sc-for></span></sc-if>
+
+              <sc-if value="{{f.isTags}}" hint-placeholder-val="{{ false }}"><span style="min-height: 40px; box-sizing: border-box; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 6px; border: 1px solid var(--line-strong); border-radius: 8px; background: var(--surface);"><sc-for list="{{f.tags}}" as="g" hint-placeholder-count="3"><span style="height: 26px; display: flex; align-items: center; gap: 4px; padding: 0 4px 0 10px; border-radius: 6px; background: var(--tray); color: var(--ink);">{{g.label}}<button onClick="{{g.remove}}" aria-label="Remove {{g.label}}" style="width: 20px; height: 20px; border: 0; border-radius: 4px; background: transparent; color: var(--muted); display: flex; align-items: center; justify-content: center;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"></path></svg></button></span></sc-for><input aria-label="Add to {{f.label}}" placeholder="{{f.placeholder}}" value="{{f.draft}}" onChange="{{f.typeTag}}" onKeyDown="{{f.addTag}}" style="flex: 1; min-width: 140px; height: 26px; border: 0; outline: none; background: transparent; font: inherit; font-size: 14px; color: var(--ink);"></span></sc-if>
+
+              <sc-if value="{{f.hasHint}}" hint-placeholder-val="{{ false }}"><span class="hint" style="color: {{f.hintFg}};">{{f.hint}}</span></sc-if>
+            </div>
+          </sc-for>
+        </div>
+        </sc-if>
+      </div>
+    </sc-for>
+
+    </div></div>
+    <div style="height: 60px; flex: none; display: flex; align-items: center; gap: 10px; padding: 0 32px; border-top: 1px solid var(--line); background: var(--ground);">
+  <sc-if value="{{dirty}}" hint-placeholder-val="{{ false }}"><span role="status" style="flex: 1; display: flex; align-items: center; gap: 8px; font-weight: 500;"><span style="width: 8px; height: 8px; border-radius: 99px; background: var(--warn-dot);"></span>{{changeText}} not saved</span><button onClick="{{discard}}" style="height: 36px; padding: 0 14px; border: 1px solid var(--line-strong); border-radius: 8px; background: var(--surface); color: var(--ink); font: inherit;">Discard</button><button onClick="{{save}}" style="height: 36px; padding: 0 16px; border: 0; border-radius: 8px; background: var(--accent-fill); color: #ffffff; font: inherit; font-weight: 600;">Save changes</button></sc-if>
+  <sc-if value="{{clean}}" hint-placeholder-val="{{ true }}"><span style="flex: 1; color: var(--muted);">{{cleanText}}</span></sc-if>
+</div>
+  </div>
+  <aside style="border-left: 1px solid var(--line); background: var(--ground); padding: 24px; display: flex; flex-direction: column; gap: 22px; overflow: auto;">
+<section style="display: flex; flex-direction: column; gap: 10px;"><h2 style="margin: 0; font-size: 14px; font-weight: 600;">Fiscal days</h2><ul style="margin: 0; padding: 0; list-style: none; font-size: 12.5px;"><li style="display: grid; grid-template-columns: 52px 1fr auto; gap: 8px; padding: 8px 0; border-bottom: 1px solid var(--line-soft);"><span style="font-family: 'IBM Plex Mono', monospace;">214</span><span style="color: var(--ink-2);">Today, open</span><span style="font-family: 'IBM Plex Mono', monospace;">US$1,284.50</span></li><li style="display: grid; grid-template-columns: 52px 1fr auto; gap: 8px; padding: 8px 0; border-bottom: 1px solid var(--line-soft);"><span style="font-family: 'IBM Plex Mono', monospace;">213</span><span style="color: var(--ink-2);">2 Oct, closed 22:04</span><span style="font-family: 'IBM Plex Mono', monospace;">US$3,912.20</span></li><li style="display: grid; grid-template-columns: 52px 1fr auto; gap: 8px; padding: 8px 0; border-bottom: 1px solid var(--line-soft);"><span style="font-family: 'IBM Plex Mono', monospace;">212</span><span style="color: var(--ink-2);">1 Oct, closed 22:11</span><span style="font-family: 'IBM Plex Mono', monospace;">US$3,488.75</span></li><li style="display: grid; grid-template-columns: 52px 1fr auto; gap: 8px; padding: 8px 0; border-bottom: 1px solid var(--line-soft);"><span style="font-family: 'IBM Plex Mono', monospace;">211</span><span style="color: var(--ink-2);">30 Sep, closed 21:58</span><span style="font-family: 'IBM Plex Mono', monospace;">US$4,102.00</span></li><li style="display: grid; grid-template-columns: 52px 1fr auto; gap: 8px; padding: 8px 0; border-bottom: 1px solid var(--line-soft);"><span style="font-family: 'IBM Plex Mono', monospace;">210</span><span style="color: var(--ink-2);">29 Sep, closed 22:01</span><span style="font-family: 'IBM Plex Mono', monospace;">US$2,977.40</span></li></ul></section>
+<section style="display: flex; flex-direction: column; gap: 10px; padding-top: 22px; border-top: 1px solid var(--line);"><h2 style="margin: 0; font-size: 14px; font-weight: 600;">Who can change this</h2><p style="margin: 0; line-height: 1.5; color: var(--ink-2);">Owners only. Device details come from ZIMRA when you register.</p></section>
+</aside>
+</div>
+</main>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1040}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { vals: {}, qty: {}, removed: {}, open: null, query: {}, adding: null, unfolded: {}, saved: false, tags: {}, draft: {} };
+  }
+  renderVals() {
+    var self = this, st = this.state;
+    var c = {"cur": "US$", "sections": [{"fields": [{"id": "state", "t": "read", "l": "Connection", "v": "Connected to ZIMRA. Day 214 open since 07:58.", "tone": "ok"}, {"id": "dev", "t": "text", "l": "Device ID", "v": "0441-2209", "half": 1, "mono": 1}, {"id": "serial", "t": "text", "l": "Serial number", "v": "HC-FD-88120", "half": 1, "mono": 1}, {"id": "tin", "t": "text", "l": "Taxpayer number", "v": "2000118844", "half": 1, "mono": 1}, {"id": "vat", "t": "text", "l": "VAT number", "v": "10023881", "half": 1, "mono": 1}], "title": "The device"}, {"fields": [{"id": "close", "t": "seg", "l": "Close the fiscal day", "v": "With the last shift", "o": ["With the last shift", "By hand"], "h": "Closing sends the Z-report to ZIMRA. A day left open blocks tomorrow’s sales."}, {"id": "fail", "t": "seg", "l": "If ZIMRA cannot be reached", "v": "Keep selling, sign later", "o": ["Keep selling, sign later", "Stop selling"]}], "title": "Fiscal days"}], "last": "Registered by Tendai Mhlanga, 14 March."};
+    function money(v) { return c.cur + ' ' + v.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ','); }
+    function get(id, d) { return st.vals[id] !== undefined ? st.vals[id] : d; }
+    function put(id, v) { var n = Object.assign({}, st.vals); n[id] = v; return n; }
+    var sections = c.sections.filter(function (sec) { return !sec.when || get(sec.when[0], sec.when[2]) === sec.when[1]; }).map(function (sec, si) {
+      var folded = sec.fold && !st.unfolded[si];
+      return {
+        title: sec.title || '', hasTitle: Boolean(sec.title), gap: si === 0 ? '0' : '20px', rule: si === 0 ? '0' : '1px solid var(--line)',
+        isFolded: Boolean(folded), isOpen: !folded, foldLabel: sec.fold ? sec.fold[0] : '', foldHint: sec.fold ? sec.fold[1] : '',
+        unfold: function () { var u = Object.assign({}, st.unfolded); u[si] = true; self.setState({ unfolded: u }); },
+        fields: sec.fields.map(function (f) {
+          var t = f.t, id = f.id, v = get(id, f.v === undefined ? '' : f.v);
+          var o = { span: f.half ? 1 : 2, label: f.l || '', hasLabel: Boolean(f.l) && t !== 'toggle' && t !== 'lines' && !f.nolabel, optional: f.opt ? '  optional' : '',
+            hint: f.h || '', hasHint: Boolean(f.h), hintFg: f.warn ? 'var(--warn)' : 'var(--muted)',
+            isText: t === 'text', isMoney: t === 'money', isRead: t === 'read', isArea: t === 'area', isAuto: t === 'auto', isSeg: t === 'seg', isToggle: t === 'toggle', isPhoto: t === 'photo', isLines: t === 'lines', isCards: false, isTags: false,
+            value: v, placeholder: f.p || '', font: f.mono ? "'IBM Plex Mono', monospace" : 'inherit', align: f.mono && f.right ? 'right' : 'left',
+            justify: f.right ? 'flex-end' : 'flex-start', fg: f.tone === 'ok' ? 'var(--ok)' : (f.tone === 'warn' ? 'var(--warn)' : 'var(--ink)'),
+            currency: f.cur || c.cur, rows: (f.rows || 3) * 22 + 'px',
+            change: function (e) { self.setState({ vals: put(id, e.target.value), saved: false }); } };
+          if (t === 'auto') {
+            var q = st.query[id] !== undefined ? st.query[id] : v, open = st.open === id;
+            var list = (f.o || []).filter(function (x) { return !q || q === v || x[0].toLowerCase().indexOf(q.toLowerCase()) >= 0; });
+            o.query = q; o.open = open; o.autoLine = open ? 'var(--accent)' : 'var(--line-strong)';
+            o.openIt = function () { self.setState({ open: id, adding: null }); };
+            o.type = function (e) { var n = Object.assign({}, st.query); n[id] = e.target.value; self.setState({ query: n, open: id }); };
+            o.options = list.map(function (x) { return { label: x[0], sub: x[1] || '', pick: function () { var n = Object.assign({}, st.query); delete n[id]; self.setState({ vals: put(id, x[0]), query: n, open: null }); } }; });
+            o.noMatch = list.length === 0;
+            o.addLabel = q && q !== v ? 'Add ‘' + q + '’ as a new ' + f.noun : 'Add a new ' + f.noun;
+            o.startAdd = function () { self.setState({ adding: id, open: null }); };
+            o.adding = st.adding === id;
+            o.quickTitle = 'New ' + f.noun;
+            o.quick = (f.quick || [['Name', '']]).map(function (x, i) { return { label: x[0], placeholder: x[1], value: i === 0 && q !== v ? q : '' }; });
+            o.cancelAdd = function () { self.setState({ adding: null }); };
+            o.doAdd = function () { var n = Object.assign({}, st.query); var name = n[id] && n[id] !== v ? n[id] : 'New ' + f.noun; delete n[id]; self.setState({ vals: put(id, name), query: n, adding: null }); };
+          }
+          if (t === 'seg') {
+            o.opts = f.o.map(function (x) { var on = v === x; return { label: x, on: on, bg: on ? 'var(--active)' : 'var(--surface)', weight: on ? '600' : '400', pick: function () { self.setState({ vals: put(id, x), saved: false }); } }; });
+          }
+          if (t === 'toggle') {
+            var on = v === true || v === 'on';
+            o.on = on; o.toggleLabel = f.l; o.toggleHint = f.h || ''; o.hasHint = false;
+            o.track = on ? 'var(--ok)' : 'var(--line-strong)'; o.knob = on ? '16px' : '2px';
+            o.flip = function () { self.setState({ vals: put(id, !on), saved: false }); };
+          }
+          if (t === 'cards') {
+            o.isCards = true; o.cols = String(f.cols || 2);
+            o.cards = f.o.map(function (x) { var on = v === x[0], soon = x[2] === 'Soon'; return { label: x[0], desc: x[1] || '', badge: x[2] || '', hasBadge: Boolean(x[2]), on: on, opacity: soon ? '0.6' : '1', line: on ? 'var(--ink)' : 'var(--line)', bg: on ? 'var(--ground)' : 'var(--surface)', ring: on ? '5px solid var(--ink)' : '1.5px solid var(--line-strong)', pick: soon ? function () {} : function () { self.setState({ vals: put(id, x[0]), saved: false }); } }; });
+          }
+          if (t === 'tags') {
+            var tg = st.tags && st.tags[id] ? st.tags[id] : f.v;
+            o.isTags = true; o.draft = (st.draft && st.draft[id]) || '';
+            o.tags = tg.map(function (x, i) { return { label: x, remove: function () { var n = Object.assign({}, st.tags || {}); n[id] = tg.filter(function (y, j) { return j !== i; }); self.setState({ tags: n, saved: false }); } }; });
+            o.typeTag = function (e) { var n = Object.assign({}, st.draft || {}); n[id] = e.target.value; self.setState({ draft: n }); };
+            o.addTag = function (e) { if (e.key === 'Enter' && o.draft) { var n = Object.assign({}, st.tags || {}); n[id] = tg.concat([o.draft]); var d = Object.assign({}, st.draft || {}); d[id] = ''; self.setState({ tags: n, draft: d, saved: false }); } };
+          }
+          if (t === 'lines') {
+            var qt = 0, vt = 0, n = 0;
+            o.qtyLabel = f.ql || 'Quantity'; o.costLabel = f.cl || 'Cost'; o.addPlaceholder = f.p || 'Add a product: search, scan, or add a new one';
+            o.rows = f.rows.filter(function (r, i) { return !st.removed[id + i]; }).map(function (r) {
+              var i = f.rows.indexOf(r), key = id + i, q2 = st.qty[key] !== undefined ? st.qty[key] : String(r[2]), qn = parseFloat(q2) || 0, val = qn * r[3];
+              qt += qn; vt += val; n += 1;
+              return { name: r[0], sub: r[1], subFg: r[4] === 'warn' ? 'var(--warn)' : 'var(--muted)', qty: q2, cost: money(r[3]), value: money(val),
+                setQty: function (e) { var m = Object.assign({}, st.qty); m[key] = e.target.value; self.setState({ qty: m }); },
+                remove: function () { var m = Object.assign({}, st.removed); m[key] = true; self.setState({ removed: m }); } };
+            });
+            o.qtyTotal = String(qt); o.valueTotal = money(vt); o.lineCount = String(n);
+          }
+          return o;
+        })
+      };
+    });
+    var changes = Object.keys(st.vals).length + Object.keys(st.tags || {}).length;
+    return {
+      sections: sections, dirty: changes > 0 && !st.saved, clean: !(changes > 0 && !st.saved),
+      changeText: changes === 1 ? '1 change' : changes + ' changes', cleanText: st.saved ? 'Saved just now.' : (c.last || 'All changes saved.'),
+      save: function () { self.setState({ saved: true, vals: {}, tags: {} }); }, discard: function () { self.setState({ vals: {}, tags: {}, saved: false }); }
+    };
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,157 @@
+[
+  {
+    "id": "30",
+    "file": "30-buying-suppliers.md",
+    "title": "Buying \u203a Suppliers: list, record, New supplier, contacts",
+    "units": [
+      "BUY-01"
+    ],
+    "dependsOn": [
+      "PRD-03",
+      "SET-07",
+      "ADM-01"
+    ],
+    "risk": "standard"
+  },
+  {
+    "id": "31",
+    "file": "31-buying-orders.md",
+    "title": "Buying \u203a Orders: list, record, raise and send, close and reopen, remove a draft",
+    "units": [
+      "BUY-02"
+    ],
+    "dependsOn": [
+      "30",
+      "PRD-03",
+      "SET-02",
+      "SET-07",
+      "STK-01"
+    ],
+    "risk": "money"
+  },
+  {
+    "id": "33",
+    "file": "33-buying-order-follow-up.md",
+    "title": "Buying \u203a Orders: chase a late order, cancel what is left, bulk send and cancel",
+    "units": [
+      "BUY-03"
+    ],
+    "dependsOn": [
+      "31"
+    ],
+    "risk": "standard"
+  },
+  {
+    "id": "34",
+    "file": "34-buying-requisitions.md",
+    "title": "Buying \u203a Requisitions: ask for money, decide, cancel (and the money accounts they name)",
+    "units": [
+      "BUY-04"
+    ],
+    "dependsOn": [
+      "31",
+      "30",
+      "ADM-04",
+      "SET-07"
+    ],
+    "risk": "standard"
+  },
+  {
+    "id": "36",
+    "file": "36-buying-money-out.md",
+    "title": "Buying \u203a Requisition record: pay it out, account for it (money out)",
+    "units": [
+      "BUY-05"
+    ],
+    "dependsOn": [
+      "34",
+      "33",
+      "SET-09"
+    ],
+    "risk": "money"
+  },
+  {
+    "id": "38",
+    "file": "38-buying-receive.md",
+    "title": "Buying \u203a Receive a delivery against the order; the delivery record",
+    "units": [
+      "BUY-06"
+    ],
+    "dependsOn": [
+      "31",
+      "34",
+      "36",
+      "PRD-03",
+      "PRD-05",
+      "STK-09"
+    ],
+    "risk": "money"
+  },
+  {
+    "id": "41",
+    "file": "41-buying-bills.md",
+    "title": "Buying \u203a Bills and supplier payments",
+    "units": [
+      "BUY-07"
+    ],
+    "dependsOn": [
+      "38",
+      "36",
+      "31",
+      "30"
+    ],
+    "risk": "money"
+  },
+  {
+    "id": "43",
+    "file": "43-buying-deliveries.md",
+    "title": "Buying \u203a Deliveries: list, differences, photos, reverse, take in stock with no order",
+    "units": [
+      "BUY-08"
+    ],
+    "dependsOn": [
+      "38",
+      "41",
+      "34",
+      "36",
+      "PRD-03"
+    ],
+    "risk": "money"
+  },
+  {
+    "id": "44",
+    "file": "44-buying-returns.md",
+    "title": "Buying \u203a Supplier record: return goods to the supplier",
+    "units": [
+      "BUY-09"
+    ],
+    "dependsOn": [
+      "41",
+      "43",
+      "38",
+      "36",
+      "STK-09"
+    ],
+    "risk": "money"
+  },
+  {
+    "id": "45",
+    "file": "45-buying-retire-and-walk.md",
+    "title": "Buying: retire the old code, and walk buying end to end",
+    "units": [
+      "BUY-10"
+    ],
+    "dependsOn": [
+      "30",
+      "31",
+      "33",
+      "34",
+      "36",
+      "38",
+      "41",
+      "43",
+      "44"
+    ],
+    "risk": "standard"
+  }
+]

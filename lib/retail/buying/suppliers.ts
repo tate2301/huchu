@@ -506,12 +506,18 @@ export function maskBank(details: string | null | undefined): string | null {
 
 /**
  * "Stop buying from them": out of the list and every supplier field; bills and
- * payments stay. The 409 for an order still open with them arrives with the
- * orders that name a supplier (BUY-02, `RetailPurchaseOrder.vendorId`).
+ * payments stay. Refused while an order with them is still open (a draft,
+ * sent or part delivered, not in the bin).
  */
 export async function stopSupplier(tx: Tx, actor: RetailAuditActor, id: string, now = new Date()): Promise<void> {
   const vendor = await liveVendor(tx, actor.companyId, id);
   if (vendor.stoppedAt) return;
+  const open = await tx.retailPurchaseOrder.findFirst({
+    where: { companyId: actor.companyId, vendorId: vendor.id, archivedAt: null, status: { in: ["DRAFT", "SENT", "PARTIAL"] } },
+    orderBy: { poNo: "asc" },
+    select: { poNo: true },
+  });
+  if (open) throw new SupplierRefusal(409, `${open.poNo} is still open with ${vendor.name}. Close or cancel it first.`);
   await tx.vendor.update({ where: { id: vendor.id }, data: { isActive: false, stoppedAt: now, stoppedById: actor.userId } });
   await writeRetailAuditEvent(tx, { actor, eventType: RETAIL_AUDIT_EVENTS.supplierStopped, entityType: "Vendor", entityId: vendor.id });
 }

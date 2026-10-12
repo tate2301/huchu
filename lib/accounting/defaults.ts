@@ -98,6 +98,8 @@ export type DefaultPostingRuleLine = {
   accountSource?: PostingRuleLineAccountSource;
   /** With `accountSource: "ROLE_MAPPING"`: the company's account for this role (SET-09). */
   accountRole?: RetailAccountRole;
+  /** With `accountSource: "EVENT_ACCOUNT"`: the key of the account in the event's `accounts` (BUY-05). */
+  eventAccountKey?: "moneyAccount" | "expenseAccount" | "changeAccount";
   valuePath?: string;
   memoTemplate?: string;
   costCenterCode?: string;
@@ -197,6 +199,8 @@ const BASE_CHART_OF_ACCOUNTS: DefaultAccount[] = [
   { code: "2240", name: "Bottle Deposits Held", type: "LIABILITY", category: "Payables", systemManaged: true },
   // SET-09: a voucher taken at the till settles what the shop owes its holder.
   { code: "2250", name: "Vouchers issued", type: "LIABILITY", category: "Payables", systemManaged: true },
+  // FLR-06: what customers have paid towards their lay-bys, owed back until the goods are handed over.
+  { code: "2260", name: "Lay-by deposits held", type: "LIABILITY", category: "Payables", systemManaged: true },
   { code: "2210", name: "VAT Input", type: "ASSET", category: "Tax", systemManaged: true },
   { code: "2300", name: "Goods Received Not Invoiced", type: "LIABILITY", category: "Inventory", systemManaged: true },
   ...PAYROLL_CHART_OF_ACCOUNTS,
@@ -279,6 +283,22 @@ const BASE_CHART_OF_ACCOUNTS: DefaultAccount[] = [
     name: "Accommodation",
     type: "EXPENSE",
     category: "Operations",
+    systemManaged: true,
+  },
+  {
+    code: "5570",
+    name: "Electricity and water",
+    type: "EXPENSE",
+    category: "Operations",
+    description: "A shop's utilities, paid out of a requisition (the retail expense type of the same name).",
+    systemManaged: true,
+  },
+  {
+    code: "5580",
+    name: "Licences and fees",
+    type: "EXPENSE",
+    category: "Operations",
+    description: "Liquor and trading licences, council fees: the retail expense type of the same name.",
     systemManaged: true,
   },
   {
@@ -479,6 +499,9 @@ export const CRM_EXPENSE_CATEGORY_ACCOUNTS: Record<string, string> = {
   SUBSISTENCE: "5550",
   ACCOMMODATION: "5560",
   OTHER: "5590",
+  // A retail order's cash (BUY-04) posts through the retail rules as an advance
+  // to the supplier; a CRM payout of one would be stock bought and used.
+  STOCK: "5000",
 };
 
 const CRM_CATEGORY_LABELS: Record<string, string> = {
@@ -491,6 +514,7 @@ const CRM_CATEGORY_LABELS: Record<string, string> = {
   SUBSISTENCE: "Subsistence",
   ACCOMMODATION: "Accommodation",
   OTHER: "Other",
+  STOCK: "Stock purchase",
 };
 
 /**
@@ -978,6 +1002,16 @@ export const RETAIL_POSTING_RULES: DefaultPostingRule[] = [
         memoTemplate: "{description} / bottle deposits",
         sortOrder: 35,
       },
+      // FLR-02: the gift vouchers the sale sold, voided with it: the inverted
+      // posting debits Vouchers owed, so they need no journal of their own.
+      {
+        accountSource: "ROLE_MAPPING", accountRole: "VOUCHERS_OWED",
+        direction: "CREDIT",
+        basis: "DEDUCTIONS",
+        valuePath: "vouchersSoldAmount",
+        memoTemplate: "{description} / gift vouchers voided",
+        sortOrder: 38,
+      },
       // A void reverses its sale's change rounding too (SET-05, W-05).
       {
         accountCode: "5420",
@@ -1022,6 +1056,79 @@ export const RETAIL_POSTING_RULES: DefaultPostingRule[] = [
     lines: [
       { accountSource: "ROLE_MAPPING", accountRole: "STOCK", direction: "DEBIT", basis: "AMOUNT", memoTemplate: "{description} / inventory", sortOrder: 10 },
       { accountCode: "2300", direction: "CREDIT", basis: "AMOUNT", memoTemplate: "{description} / GRNI", sortOrder: 20 },
+    ],
+  },
+  // BUY-05: money out of a shop's money accounts. A requisition's cash for an
+  // order is an advance to the supplier (Dr Accounts payable); for an expense
+  // it is expensed as it leaves. The money account, the expense type's account
+  // and where the change went are the event's own (`accounts` in its payload).
+  {
+    name: "Retail requisition paid out for an order",
+    sourceType: "RETAIL_REQUISITION_PAYOUT",
+    description: "Cash handed out to pay a supplier's order: an advance on the supplier's account.",
+    priority: 10,
+    scopeType: "COMPANY",
+    ruleMode: "GUIDED",
+    isFallback: true,
+    conditions: [{ field: "MOVEMENT_TYPE", operator: "EQ", valueString: "ORDER" }],
+    lines: [
+      { accountCode: "2000", direction: "DEBIT", basis: "AMOUNT", memoTemplate: "{description} / supplier advance", sortOrder: 10 },
+      { accountSource: "EVENT_ACCOUNT", eventAccountKey: "moneyAccount", direction: "CREDIT", basis: "AMOUNT", memoTemplate: "{description} / paid out", sortOrder: 20 },
+    ],
+  },
+  {
+    name: "Retail requisition paid out for an expense",
+    sourceType: "RETAIL_REQUISITION_PAYOUT",
+    description: "Cash handed out for an expense, expensed to the expense type's account as it leaves.",
+    priority: 10,
+    scopeType: "COMPANY",
+    ruleMode: "GUIDED",
+    isFallback: true,
+    conditions: [{ field: "MOVEMENT_TYPE", operator: "EQ", valueString: "EXPENSE" }],
+    lines: [
+      { accountSource: "EVENT_ACCOUNT", eventAccountKey: "expenseAccount", direction: "DEBIT", basis: "AMOUNT", memoTemplate: "{description} / expense", sortOrder: 10 },
+      { accountSource: "EVENT_ACCOUNT", eventAccountKey: "moneyAccount", direction: "CREDIT", basis: "AMOUNT", memoTemplate: "{description} / paid out", sortOrder: 20 },
+    ],
+  },
+  {
+    name: "Retail requisition change for an order",
+    sourceType: "RETAIL_REQUISITION_CHANGE",
+    description: "Change brought back from an order's cash: the advance on the supplier's account is that much smaller.",
+    priority: 10,
+    scopeType: "COMPANY",
+    ruleMode: "GUIDED",
+    isFallback: true,
+    conditions: [{ field: "MOVEMENT_TYPE", operator: "EQ", valueString: "ORDER" }],
+    lines: [
+      { accountSource: "EVENT_ACCOUNT", eventAccountKey: "changeAccount", direction: "DEBIT", basis: "AMOUNT", memoTemplate: "{description} / change back", sortOrder: 10 },
+      { accountCode: "2000", direction: "CREDIT", basis: "AMOUNT", memoTemplate: "{description} / supplier advance", sortOrder: 20 },
+    ],
+  },
+  {
+    name: "Retail requisition change for an expense",
+    sourceType: "RETAIL_REQUISITION_CHANGE",
+    description: "Change brought back from an expense's cash: only the difference comes off the expense.",
+    priority: 10,
+    scopeType: "COMPANY",
+    ruleMode: "GUIDED",
+    isFallback: true,
+    conditions: [{ field: "MOVEMENT_TYPE", operator: "EQ", valueString: "EXPENSE" }],
+    lines: [
+      { accountSource: "EVENT_ACCOUNT", eventAccountKey: "changeAccount", direction: "DEBIT", basis: "AMOUNT", memoTemplate: "{description} / change back", sortOrder: 10 },
+      { accountSource: "EVENT_ACCOUNT", eventAccountKey: "expenseAccount", direction: "CREDIT", basis: "AMOUNT", memoTemplate: "{description} / expense", sortOrder: 20 },
+    ],
+  },
+  {
+    name: "Retail supplier payment",
+    sourceType: "RETAIL_SUPPLIER_PAYMENT",
+    description: "A payment to a supplier from a money account, off what the shop owes them.",
+    priority: 10,
+    scopeType: "COMPANY",
+    ruleMode: "GUIDED",
+    isFallback: true,
+    lines: [
+      { accountCode: "2000", direction: "DEBIT", basis: "AMOUNT", memoTemplate: "{description} / paid", sortOrder: 10 },
+      { accountSource: "EVENT_ACCOUNT", eventAccountKey: "moneyAccount", direction: "CREDIT", basis: "AMOUNT", memoTemplate: "{description} / paid out", sortOrder: 20 },
     ],
   },
   {
@@ -1126,6 +1233,50 @@ export const RETAIL_POSTING_RULES: DefaultPostingRule[] = [
       { accountCode: "5110", direction: "DEBIT", basis: "AMOUNT", memoTemplate: "{description} / petty cash", sortOrder: 10 },
       { accountCode: "1000", direction: "CREDIT", basis: "TAX", valuePath: "usd", memoTemplate: "{description} / till cash", sortOrder: 20 },
       { accountCode: "1001", direction: "CREDIT", basis: "TAX", valuePath: "zig", memoTemplate: "{description} / till cash, ZiG", sortOrder: 30 },
+    ],
+  },
+  // STK-09: empties a customer brings back without buying, their deposit paid out of the drawer.
+  {
+    name: "Retail bottles back",
+    sourceType: "RETAIL_BOTTLES_BACK",
+    description: "Deposits paid back out of a till drawer for empties brought back without a sale.",
+    priority: 10,
+    scopeType: "COMPANY",
+    ruleMode: "GUIDED",
+    isFallback: true,
+    lines: [
+      { accountSource: "ROLE_MAPPING", accountRole: "DEPOSITS_HELD", direction: "DEBIT", basis: "AMOUNT", memoTemplate: "{description} / bottle deposits", sortOrder: 10 },
+      { accountCode: "1000", direction: "CREDIT", basis: "AMOUNT", memoTemplate: "{description} / till cash", sortOrder: 20 },
+    ],
+  },
+  // FLR-06: money taken for a lay-by is held for the customer (2260) until the
+  // hand-over sells the goods (the sale's LAYBY tender moves it to revenue);
+  // a cancel pays back what was paid, less the fee kept as other income.
+  {
+    name: "Retail lay-by payment",
+    sourceType: "RETAIL_LAYBY_PAYMENT",
+    description: "A lay-by's deposit or payment: the tender against Lay-by deposits held.",
+    priority: 10,
+    scopeType: "COMPANY",
+    ruleMode: "GUIDED",
+    isFallback: true,
+    lines: [
+      { direction: "DEBIT", repeatMode: "TENDER", accountSource: "TENDER_MAPPING", valuePath: "amount", memoTemplate: "{description} / {tenderType}", sortOrder: 10 },
+      { accountCode: "2260", direction: "CREDIT", basis: "AMOUNT", memoTemplate: "{description} / lay-by deposits held", sortOrder: 20 },
+    ],
+  },
+  {
+    name: "Retail lay-by cancel",
+    sourceType: "RETAIL_LAYBY_CANCEL",
+    description: "A cancelled lay-by: what was paid comes off Lay-by deposits held, paid back by its tender, the fee kept as other income.",
+    priority: 10,
+    scopeType: "COMPANY",
+    ruleMode: "GUIDED",
+    isFallback: true,
+    lines: [
+      { accountCode: "2260", direction: "DEBIT", basis: "AMOUNT", valuePath: "paid", memoTemplate: "{description} / lay-by deposits held", sortOrder: 10 },
+      { direction: "CREDIT", repeatMode: "TENDER", accountSource: "TENDER_MAPPING", valuePath: "amount", memoTemplate: "{description} / {tenderType}", sortOrder: 20 },
+      { accountCode: "4200", direction: "CREDIT", basis: "DEDUCTIONS", valuePath: "fee", memoTemplate: "{description} / fee kept", sortOrder: 30 },
     ],
   },
   {
@@ -1322,6 +1473,8 @@ export const RETAIL_TENDER_ACCOUNT_MAPPINGS: DefaultTenderAccountMapping[] = [
   { tenderType: "TRANSFER", clearingAccountCode: "1017", priority: 40 },
   { tenderType: "ON_ACCOUNT", clearingAccountCode: "1100", priority: 45 },
   { tenderType: "VOUCHER", clearingAccountCode: "2250", priority: 50 },
+  // FLR-06: a hand-over is paid by the lay-by's deposits, so the liability becomes the sale.
+  { tenderType: "LAYBY", clearingAccountCode: "2260", priority: 55 },
 ];
 
 /**

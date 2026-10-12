@@ -255,6 +255,90 @@ export async function adjustStock(input: {
 }
 
 /**
+ * Goods written off inside another act's transaction (FLR-02: a refund of
+ * damaged goods, which does not go back on the shelf). `adjustStock` opens its
+ * own transaction and reserves its own ADJ number, so it cannot be used here:
+ * this writes one ADJUSTMENT of −quantity, reason BROKEN, under the act's own
+ * reference, with no PIN of its own (the act's approval covers it). The
+ * caller posts `adjustmentJournal` of the answer after its commit: the loss at
+ * cost, which is what puts it in Insights › Losses.
+ */
+export async function writeOffInTx(
+  tx: Prisma.TransactionClient,
+  input: {
+    actor: RetailAuditActor;
+    inventoryItemId: string;
+    quantity: Prisma.Decimal.Value;
+    reference: string;
+    note: string;
+    unitCost: Prisma.Decimal.Value | null;
+    approvedBy?: string | null;
+    at?: Date;
+  },
+): Promise<AdjustResult> {
+  const { actor } = input;
+  const item = await tx.inventoryItem.findFirstOrThrow({
+    where: { id: input.inventoryItemId },
+    select: { id: true, unit: true, siteId: true, name: true, unitCost: true, productId: true },
+  });
+  const quantity = toNumberOrZero(input.quantity);
+  const cost = toNumberOrZero(input.unitCost ?? item.unitCost ?? 0);
+  const delta = -Math.abs(quantity);
+  const value = round2(Math.abs(delta) * cost);
+  const id = randomUUID();
+  const { nextStock } = await recordStockMovement({
+    tx,
+    id,
+    companyId: actor.companyId,
+    userId: actor.userId,
+    itemId: item.id,
+    movementType: "ADJUSTMENT",
+    quantity: delta,
+    unit: item.unit,
+    unitCost: cost,
+    notes: input.note,
+    approvedBy: input.approvedBy ?? null,
+    sourceType: "RETAIL_STOCK_ADJUSTMENT",
+    sourceId: id,
+    reason: "BROKEN",
+    reference: input.reference,
+    entryDate: input.at,
+  });
+  const onHand = toNumberOrZero(nextStock);
+  await writeRetailAuditEvent(tx, {
+    actor,
+    eventType: RETAIL_AUDIT_EVENTS.stockAdjusted,
+    entityType: "Product",
+    entityId: item.productId ?? item.id,
+    reason: input.note,
+    payload: {
+      reference: input.reference,
+      movementId: id,
+      why: "BROKEN",
+      delta,
+      from: round2(onHand - delta),
+      to: onHand,
+      value: value.toFixed(2),
+      siteId: item.siteId,
+      approvedBy: input.approvedBy ?? null,
+    },
+  });
+  return {
+    reference: input.reference,
+    movementId: id,
+    lineId: item.id,
+    delta,
+    onHand,
+    value,
+    siteId: item.siteId,
+    itemName: item.name,
+    unitCost: cost,
+    approvedBy: input.approvedBy ?? null,
+    message: adjustedToast("BROKEN", delta, item.name, onHand),
+  };
+}
+
+/**
  * What the adjustment posts, after the commit: a loss Dr Breakage / Cr Stock
  * (`invertDirection`), a gain the other way, at its value; nothing without
  * one. The caller hands it to `postRetailJournal`.

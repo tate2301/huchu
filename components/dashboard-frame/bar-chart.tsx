@@ -64,6 +64,7 @@ export function BarChart({
   tick,
   evenX = false,
   steps,
+  max,
 }: {
   bars: ReadonlyArray<Bar>;
   /** A few dates spread under the plot ("4 Sep" … "3 Oct"), or one per bar with `evenX`. */
@@ -78,9 +79,11 @@ export function BarChart({
   evenX?: boolean;
   /** Grid steps; default four. */
   steps?: number;
+  /** A fixed top instead of the tallest bar's (100 for "% of what was ordered"). */
+  max?: number;
 }) {
   const [hover, setHover] = React.useState<number | null>(null);
-  const scale = niceScale(Math.max(0, ...bars.map((bar) => bar.value)), steps);
+  const scale = niceScale(max ?? Math.max(0, ...bars.map((bar) => bar.value)), steps);
   const tip = hover === null ? null : bars[hover];
   const now = mark ?? (emphasiseLast ? bars.length - 1 : -1);
   const someDark = bars.some((bar) => bar.dark !== undefined);

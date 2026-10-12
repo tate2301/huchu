@@ -62,6 +62,7 @@ const CASH_VERB: Record<NonNullable<TillActivityEntry["cashType"]>, [string, str
   DROP_TO_SAFE: ["moved", " to the safe"],
   FLOAT_TOP_UP: ["added", " to the float"],
   PAYOUT: ["paid out", ""],
+  TAKEN_IN: ["took in", ""],
 };
 
 /** Each comma-led part of a sentence, skipped when it has nothing to say. */

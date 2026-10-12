@@ -278,6 +278,8 @@ model Company {
   crmProjects                   CrmProject[]
   crmProjectMembers             CrmProjectMember[]
   crmRequisitions               CrmRequisition[]
+  retailExpenseTypes            RetailExpenseType[]
+  retailAttachments             RetailAttachment[]
   crmDailyLogs                  CrmDailyLog[]
   crmDailyCostEntries           CrmDailyCostEntry[]
   crmDailyReports               CrmDailyReport[]
@@ -344,6 +346,7 @@ model Company {
   retailImports                 RetailImport[]
   retailGoodsReceipts           RetailGoodsReceipt[]
   retailGoodsReceiptLines       RetailGoodsReceiptLine[]
+  retailDeliveryDifferences     RetailDeliveryDifference[]
   retailShifts                  RetailShift[]
   retailHeldCarts               RetailHeldCart[]
   retailSales                   RetailSale[]
@@ -355,11 +358,17 @@ model Company {
   retailTillPins                RetailTillPin[]
   retailTillRules               RetailTillRules?
   retailApprovalSettings        RetailApprovalSettings?
+  retailLoyaltySettings         RetailLoyaltySettings?
+  retailCustomerNotes           RetailCustomerNote[]
+  retailPointsEntries           RetailPointsEntry[]
   retailReceiptSettings         RetailReceiptSettings?
   retailFiscalSettings          RetailFiscalSettings?
   retailMessages                RetailMessage[]
+  retailMessageBatches          RetailMessageBatch[]
   userSiteAccess     UserSiteAccess[]
   retailStaffInvites RetailStaffInvite[]
+  retailLaybys       RetailLayby[]
+  retailCustomerMerges RetailCustomerMerge[]
 
   @@index([tenantStatus])
   @@index([isProvisioned])
@@ -1183,6 +1192,7 @@ model Site {
   retailBundles         RetailBundle[]         @relation("RetailBundleSite")
   retailPromotions      RetailPromotion[]      @relation("RetailPromotionSite")
   retailVouchers        RetailVoucher[]        @relation("RetailVoucherSite")
+  retailLaybys          RetailLayby[]          @relation("RetailLaybySite")
 
   @@unique([companyId, code])
   @@index([companyId])
@@ -1233,6 +1243,7 @@ enum UserRole {
 }
 
 model User {
+  retailEmptiesEntriesCreated RetailEmptiesEntry[] @relation("RetailEmptiesEntryCreatedBy")
   id                String    @id @default(uuid())
   /// Null for someone who only uses a till: they never sign in to the admin.
   email             String?   @unique
@@ -1433,6 +1444,11 @@ model User {
   crmRequisitionsApproved           CrmRequisition[]               @relation("CrmRequisitionApprovedBy")
   crmRequisitionsDisbursed          CrmRequisition[]               @relation("CrmRequisitionDisbursedBy")
   crmRequisitionsReceiptsWaived     CrmRequisition[]               @relation("CrmRequisitionReceiptsWaivedBy")
+  crmRequisitionsToApprove        CrmRequisition[]               @relation("CrmRequisitionApprover")
+  crmRequisitionsPaidTo           CrmRequisition[]               @relation("CrmRequisitionPaidTo")
+  crmRequisitionsAcquitted        CrmRequisition[]               @relation("CrmRequisitionAcquittedBy")
+  crmRequisitionsCancelled        CrmRequisition[]               @relation("CrmRequisitionCancelledBy")
+  retailAttachmentsAdded          RetailAttachment[]             @relation("RetailAttachmentAddedBy")
   crmDailyLogs                      CrmDailyLog[]                  @relation("CrmDailyLogUser")
   crmDailyReports                   CrmDailyReport[]               @relation("CrmDailyReportUser")
   productsCreated                   Product[]                      @relation("ProductCreatedBy")
@@ -1446,7 +1462,13 @@ model User {
   schoolMessagesSent                SchoolMessage[]
   retailPurchaseOrdersCreated       RetailPurchaseOrder[]          @relation("RetailPurchaseOrderCreatedBy")
   retailPurchaseOrdersClosed        RetailPurchaseOrder[]          @relation("RetailPurchaseOrderClosedBy")
+  retailPurchaseOrdersSent          RetailPurchaseOrder[]          @relation("RetailPurchaseOrderSentBy")
+  retailPurchaseOrdersChased        RetailPurchaseOrder[]          @relation("RetailPurchaseOrderChasedBy")
+  retailPurchaseOrdersCancelled     RetailPurchaseOrder[]          @relation("RetailPurchaseOrderCancelledBy")
   retailGoodsReceiptsReceived       RetailGoodsReceipt[]           @relation("RetailGoodsReceiptReceivedBy")
+  retailGoodsReceiptsCounted        RetailGoodsReceipt[]           @relation("RetailGoodsReceiptCountedBy")
+  retailGoodsReceiptsChecked        RetailGoodsReceipt[]           @relation("RetailGoodsReceiptCheckedBy")
+  retailGoodsReceiptsReversed       RetailGoodsReceipt[]           @relation("RetailGoodsReceiptReversedBy")
   retailSalesRung                   RetailSale[]                   @relation("RetailSaleCashier")
   retailShifts                      RetailShift[]                  @relation("RetailShiftCashier")
   retailShiftsClosed                RetailShift[]                  @relation("RetailShiftClosedBy")
@@ -1461,6 +1483,11 @@ model User {
   retailTillRulesUpdated            RetailTillRules[]              @relation("RetailTillRulesUpdatedBy")
   retailApprovalOwnerOf             RetailApprovalSettings[]       @relation("RetailApprovalOwner")
   retailApprovalSettingsUpdated     RetailApprovalSettings[]       @relation("RetailApprovalSettingsUpdatedBy")
+  retailLoyaltySettingsUpdated      RetailLoyaltySettings[]        @relation("RetailLoyaltySettingsUpdatedBy")
+  customersCreated                  Customer[]                     @relation("CustomerCreatedBy")
+  retailMessageBatchesCreated       RetailMessageBatch[]           @relation("RetailMessageBatchCreatedBy")
+  retailCustomerNotes               RetailCustomerNote[]           @relation("RetailCustomerNoteCreatedBy")
+  retailPointsEntries               RetailPointsEntry[]            @relation("RetailPointsEntryActor")
   retailReceiptSettingsUpdated      RetailReceiptSettings[]        @relation("RetailReceiptSettingsUpdatedBy")
   retailFiscalSettingsUpdated       RetailFiscalSettings[]         @relation("RetailFiscalSettingsUpdatedBy")
   fiscalDevicesRegistered           FiscalisationProviderConfig[]  @relation("FiscalDeviceRegisteredBy")
@@ -1499,6 +1526,10 @@ model User {
   retailTillPinsIssued              RetailTillPin[]                @relation("RetailTillPinIssuedBy")
   vendorsStopped                    Vendor[]                       @relation("VendorStoppedBy")
   vendorsCreated                    Vendor[]                       @relation("VendorCreatedBy")
+  retailLaybysCreated               RetailLayby[]                  @relation("RetailLaybyCreatedBy")
+  retailLaybysCollected             RetailLayby[]                  @relation("RetailLaybyCollectedBy")
+  retailLaybysCancelled             RetailLayby[]                  @relation("RetailLaybyCancelledBy")
+  retailLaybyPaymentsReceived       RetailLaybyPayment[]           @relation("RetailLaybyPaymentReceivedBy")
 
   @@index([companyId])
   @@index([email])
@@ -3175,6 +3206,8 @@ enum NotificationType {
   CRM_COMMENT_ADDED
   CRM_REQUISITION_SUBMITTED
   CRM_REQUISITION_DECIDED
+  CRM_REQUISITION_CANCELLED
+  CRM_REQUISITION_QUESTION
   CRM_DAILY_REPORT_READY
   CRM_RECORD_ACTIVITY
   /// What a school sends its families and staff. The audience is part of the
@@ -3202,6 +3235,10 @@ enum NotificationType {
   RETAIL_SHIFT_DIFFERENCE
   /// A manager signed off the cashier's drawer: accepted, to recover, or being looked into (FLR-05).
   RETAIL_SHIFT_SIGNED_OFF
+  /// Buying (BUY-02): a supplier replied about an order; an order's follow-up is due.
+  RETAIL_ORDER_FOLLOW_UP
+  /// A stock clerk counted a delivery; an owner or manager checks and posts it (BUY-06).
+  RETAIL_DELIVERY_TO_CHECK
 }
 
 enum NotificationSeverity {
@@ -3237,6 +3274,8 @@ enum NotificationEntityType {
   RETAIL_PERSON
   RETAIL_SETTINGS
   RETAIL_SHIFT
+  RETAIL_PURCHASE_ORDER
+  RETAIL_GOODS_RECEIPT
 }
 
 enum HrIncidentCategory {
@@ -4392,6 +4431,7 @@ model InventoryItem {
   retailTransferLinesFrom  RetailStockTransferLine[] @relation("RetailStockTransferLineFrom")
   retailTransferLinesTo    RetailStockTransferLine[] @relation("RetailStockTransferLineTo")
   retailCountLines         RetailStockCountLine[]
+  retailLaybyLines         RetailLaybyLine[]         @relation("RetailLaybyLineItem")
 
   @@unique([siteId, itemCode])
   @@index([siteId])
@@ -4491,6 +4531,9 @@ enum StockMovementReason {
   CASE_BROKEN
   REVERSAL
   PLACE_MOVE
+  /// FLR-06: put aside for a lay-by, off the shelf; LAYBY_BACK puts a cancelled one back.
+  LAYBY_ASIDE
+  LAYBY_BACK
 }
 
 /// Retail's status vocabularies.
@@ -4559,6 +4602,8 @@ enum RetailCashMovementType {
   DROP_TO_SAFE
   FLOAT_TOP_UP
   PAYOUT
+  /// FLR-06: money taken into a drawer that is not a sale (a lay-by, an account payment).
+  TAKEN_IN
 }
 
 /// S-7.1 — why the cash moved, from a fixed list.
@@ -4586,6 +4631,11 @@ enum RetailCashMovementReason {
   SUPPLIER_PAYOUT
   PETTY_CASH
   OTHER
+  /// Cash paid out at the till for empties brought back without a sale.
+  BOTTLES_BACK
+  /// FLR-06: a lay-by's deposit or payment in cash, and a cancelled one paid back.
+  LAYBY_PAYMENT
+  LAYBY_REFUND
 }
 
 /// `RELEASED` is the offline runtime's doing and is not reachable online.
@@ -4606,18 +4656,68 @@ enum RetailHeldCartStatus {
   RELEASED
 }
 
-/// `DRAFT` on creation, then driven by receipts: `PARTIAL` while quantities are
-/// outstanding, `RECEIVED` once they are not. `CLOSED` when the shop stops
-/// waiting for what is left — the supplier ran out, or the rest is not coming.
+/// `DRAFT` until sent, `SENT` once the supplier has it, then driven by
+/// deliveries: `PARTIAL` while quantities are outstanding, `RECEIVED` once they
+/// are not. `CLOSED` when the shop stops waiting for what is left (reopenable
+/// until a bill is recorded). `CANCELLED` when what was left was cancelled
+/// before anything came; set by the cancel service only.
 enum RetailPurchaseOrderStatus {
   DRAFT
+  SENT
   PARTIAL
   RECEIVED
   CLOSED
+  CANCELLED
+}
+
+enum RetailOrderPayment {
+  ON_ACCOUNT
+  CASH_ON_DELIVERY
+}
+
+enum RetailOrderSentVia {
+  WHATSAPP
+  EMAIL
+  BY_HAND
+}
+
+enum RetailOrderChaseAction {
+  REMIND
+  CANCEL_REST
 }
 
 enum RetailGoodsReceiptStatus {
+  /// Counted by a stock clerk; nothing has moved yet.
+  COUNTED
+  /// In stock.
   POSTED
+  /// Reversed after posting.
+  REVERSED
+}
+
+/// BUY-06 — why a delivered line differs from what was paid for.
+enum RetailDeliveryDifferenceKind {
+  SHORT
+  BROKEN
+  WRONG_ITEM
+  EXTRA
+}
+
+/// BUY-06 — how a difference is settled with the supplier.
+enum RetailDeliverySettle {
+  /// "Ask for a credit"
+  CREDIT
+  /// "Bring it next time"
+  NEXT_TIME
+  /// "Write it off"
+  WRITE_OFF
+}
+
+/// BUY-06 — how stock taken in with no order was paid for.
+enum RetailDeliveryPaying {
+  ON_ACCOUNT
+  NOT_YET
+  CASH_NOW
 }
 
 /// PRD-09 — what a promotion takes off each qualifying unit: a percentage, an
@@ -4657,6 +4757,8 @@ enum RetailTenderType {
   TRANSFER
   ON_ACCOUNT
   VOUCHER
+  /// FLR-06: paid by a lay-by's deposits at hand over (Lay-by deposits held, 2260).
+  LAYBY
 }
 
 /// How the ZiG rate is kept: typed in by hand, or the RBZ's daily rate.
@@ -4808,6 +4910,10 @@ model RetailShopProfile {
   emptiesAndDeposits Boolean            @default(true)
   /// Liquor: a case is sold whole or broken into singles.
   casesAndSingles    Boolean            @default(true)
+  /// Liquor: the deposit on one returnable bottle, used to value empties going back to a supplier.
+  bottleDeposit      Decimal            @default(0.10) @db.Decimal(14, 2)
+  /// Liquor: the deposit on one returnable crate.
+  crateDeposit       Decimal            @default(3.00) @db.Decimal(14, 2)
   licenceNumber      String?
   licenceExpiresOn   DateTime?          @db.Date
   /// The shop's WhatsApp number, from onboarding. Shown to customers; nothing is sent from it.
@@ -5304,33 +5410,58 @@ model RetailPromotionCategory {
 }
 
 model RetailPurchaseOrder {
-  id           String    @id @default(uuid())
-  companyId    String
-  poNo         String
-  siteId       String
-  supplierName String
-  status       RetailPurchaseOrderStatus @default(DRAFT)
-  expectedDate DateTime?
-  notes        String?
-  createdById  String?
+  id                String                    @id @default(uuid())
+  companyId         String
+  poNo              String
+  siteId            String
+  vendorId          String
+  status            RetailPurchaseOrderStatus @default(DRAFT)
+  /// Expected now: set when raised or edited, moved by a reminder's "Promised for".
+  expectedDate      DateTime?
+  /// Expected when it was sent. Lateness counts from it; a reminder never moves it.
+  firstExpectedDate DateTime?
+  payment           RetailOrderPayment        @default(ON_ACCOUNT)
+  /// "Note to the supplier".
+  noteToSupplier    String?
+  createdById       String?
+  sentAt            DateTime?
+  sentById          String?
+  sentVia           RetailOrderSentVia?
+  chaseAction       RetailOrderChaseAction?
+  chasedAt          DateTime?
+  chasedById        String?
+  /// The worker acted on chaseAction.
+  followUpDoneAt    DateTime?
   /// Drafted by Vane, not a person. createdById stays empty; a person still issues, sends or receives it.
-  madeByVane Boolean @default(false)
+  madeByVane        Boolean                   @default(false)
   /// Who stopped waiting for the rest, when, and why. Set with `CLOSED`.
-  closedAt     DateTime?
-  closedById   String?
-  closeNote    String?
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+  closedAt          DateTime?
+  closedById        String?
+  closeNote         String?
+  cancelledAt       DateTime?
+  cancelledById     String?
+  duplicatedFromId  String?
+  /// In the bin. Drafts only.
+  archivedAt        DateTime?
+  createdAt         DateTime                  @default(now())
+  updatedAt         DateTime                  @updatedAt
 
-  lines RetailPurchaseOrderLine[]
+  lines    RetailPurchaseOrderLine[]
+  receipts RetailGoodsReceipt[]
+  requisitions CrmRequisition[]
 
-  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  site      Site    @relation(fields: [siteId], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  createdBy User?   @relation("RetailPurchaseOrderCreatedBy", fields: [createdById], references: [id], onDelete: SetNull, onUpdate: Cascade)
-  closedBy  User?   @relation("RetailPurchaseOrderClosedBy", fields: [closedById], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  company     Company @relation(fields: [companyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  site        Site    @relation(fields: [siteId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  vendor      Vendor  @relation(fields: [vendorId], references: [id], onDelete: Restrict)
+  createdBy   User?   @relation("RetailPurchaseOrderCreatedBy", fields: [createdById], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  sentBy      User?   @relation("RetailPurchaseOrderSentBy", fields: [sentById], references: [id], onDelete: SetNull)
+  chasedBy    User?   @relation("RetailPurchaseOrderChasedBy", fields: [chasedById], references: [id], onDelete: SetNull)
+  closedBy    User?   @relation("RetailPurchaseOrderClosedBy", fields: [closedById], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  cancelledBy User?   @relation("RetailPurchaseOrderCancelledBy", fields: [cancelledById], references: [id], onDelete: SetNull)
 
   @@unique([companyId, poNo])
   @@index([companyId, siteId, status])
+  @@index([companyId, vendorId, status])
 }
 
 model RetailPurchaseOrderLine {
@@ -5346,6 +5477,14 @@ model RetailPurchaseOrderLine {
   unitCost         Decimal @default(0) @db.Decimal(14, 2)
   lineTotal        Decimal @default(0) @db.Decimal(14, 2)
   receivedQuantity Decimal @default(0) @db.Decimal(12, 4)
+  /// The product's VAT rate when the line was made.
+  vatRate          Decimal  @default(0) @db.Decimal(5, 2)
+  /// What the supplier was last told to send. Fill rate reads it.
+  sentQuantity     Decimal? @db.Decimal(12, 4)
+  /// "Close with what came": the line stops being expected.
+  closedShortAt    DateTime?
+  closedShortById  String?
+  sortOrder        Int      @default(0)
   createdAt        DateTime @default(now())
 
   purchaseOrder RetailPurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
@@ -5359,27 +5498,52 @@ model RetailPurchaseOrderLine {
 }
 
 model RetailGoodsReceipt {
+  emptiesEntries RetailEmptiesEntry[]
   id              String    @id @default(uuid())
   companyId       String
   receiptNo       String
   purchaseOrderId String?
   siteId          String
-  supplierName    String
-  status          RetailGoodsReceiptStatus @default(POSTED)
+  vendorId        String
+  status          RetailGoodsReceiptStatus @default(COUNTED)
   notes           String?
   receivedById    String?
   createdAt       DateTime  @default(now())
   postedAt        DateTime?
   updatedAt       DateTime  @updatedAt
+  /// "Note number" on the supplier's delivery note.
+  noteNumber      String?
+  /// "Driver".
+  driver          String?
+  /// "Counted by".
+  countedById     String?
+  /// Who posted it ("Checked by"), and when.
+  checkedById     String?
+  checkedAt       DateTime?
+  /// Take in stock with no order: how it was paid.
+  paying          RetailDeliveryPaying?
+  /// "Paid in cash instead?": the paid-out requisition that pays for it.
+  requisitionId   String?
+  reversedAt      DateTime?
+  reversedById    String?
+  reverseReason   String?
 
-  lines RetailGoodsReceiptLine[]
+  lines       RetailGoodsReceiptLine[]
+  differences RetailDeliveryDifference[]
+  countedBy   User?           @relation("RetailGoodsReceiptCountedBy", fields: [countedById], references: [id], onDelete: SetNull)
+  checkedBy   User?           @relation("RetailGoodsReceiptCheckedBy", fields: [checkedById], references: [id], onDelete: SetNull)
+  reversedBy  User?           @relation("RetailGoodsReceiptReversedBy", fields: [reversedById], references: [id], onDelete: SetNull)
+  requisition CrmRequisition? @relation(fields: [requisitionId], references: [id], onDelete: SetNull)
 
   company    Company @relation(fields: [companyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   site       Site    @relation(fields: [siteId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   receivedBy User?   @relation("RetailGoodsReceiptReceivedBy", fields: [receivedById], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  vendor        Vendor               @relation(fields: [vendorId], references: [id], onDelete: Restrict)
+  purchaseOrder RetailPurchaseOrder? @relation(fields: [purchaseOrderId], references: [id], onDelete: SetNull)
 
   @@unique([companyId, receiptNo])
   @@index([companyId, siteId, status])
+  @@index([companyId, vendorId])
 }
 
 model RetailGoodsReceiptLine {
@@ -5397,7 +5561,13 @@ model RetailGoodsReceiptLine {
   /// a line the order did not have.
   purchaseOrderLineId String?
   createdAt       DateTime @default(now())
+  /// "This time" on Receive: what came, damaged included. "On the note" on the record.
+  noteQuantity    Decimal  @default(0) @db.Decimal(12, 4)
+  /// Of what came, broken at the door: claimed, never in stock.
+  damagedQuantity Decimal  @default(0) @db.Decimal(12, 4)
+  vatRate         Decimal  @default(0) @db.Decimal(5, 2)
 
+  differences       RetailDeliveryDifference[]
   receipt           RetailGoodsReceipt       @relation(fields: [receiptId], references: [id], onDelete: Cascade)
   purchaseOrderLine RetailPurchaseOrderLine? @relation(fields: [purchaseOrderLineId], references: [id], onDelete: SetNull)
 
@@ -5407,6 +5577,35 @@ model RetailGoodsReceiptLine {
   @@index([purchaseOrderLineId])
   @@index([receiptId])
   @@index([companyId])
+}
+
+/// BUY-06 — a line that came short, broken, wrong or extra, and how it is settled.
+model RetailDeliveryDifference {
+  id            String                       @id @default(uuid())
+  companyId     String
+  receiptId     String
+  receiptLineId String
+  kind          RetailDeliveryDifferenceKind
+  /// Signed units: −6 short or broken, +2 extra.
+  quantity      Decimal                      @db.Decimal(12, 4)
+  /// |quantity| × the line's cost, ex VAT.
+  value         Decimal                      @db.Decimal(14, 2)
+  /// Null for EXTRA.
+  settle        RetailDeliverySettle?
+  /// Damaged at the door (Receive) rather than found after posting.
+  atReceiving   Boolean                      @default(false)
+  /// The credit came (credit note or return), or the units came back on order.
+  settledAt     DateTime?
+  returnId      String?
+  createdById   String?
+  createdAt     DateTime                     @default(now())
+
+  company Company                @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  receipt RetailGoodsReceipt     @relation(fields: [receiptId], references: [id], onDelete: Cascade)
+  line    RetailGoodsReceiptLine @relation(fields: [receiptLineId], references: [id], onDelete: Cascade)
+
+  @@index([receiptId])
+  @@index([companyId, createdAt])
 }
 
 model RetailShift {
@@ -5469,6 +5668,7 @@ model RetailShift {
   heldCarts     RetailHeldCart[]
   sales         RetailSale[]
   cashMovements RetailCashMovement[]
+  laybyPayments RetailLaybyPayment[] @relation("RetailLaybyPaymentShift")
 
   @@unique([companyId, shiftNo])
   @@index([companyId, siteId, status])
@@ -5544,6 +5744,7 @@ model RetailCashMovement {
   shift      RetailShift @relation(fields: [shiftId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   recordedBy User?       @relation("RetailCashMovementRecordedBy", fields: [recordedById], references: [id], onDelete: SetNull, onUpdate: Cascade)
   approvedBy User?       @relation("RetailCashMovementApprovedBy", fields: [approvedById], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  laybyPayment RetailLaybyPayment? @relation("RetailLaybyPaymentCashMovement")
 
   @@index([companyId, shiftId, createdAt])
   @@index([companyId, type])
@@ -5573,12 +5774,131 @@ model RetailTillRules {
   drawerOpenWithoutSale     Boolean           @default(false)
   cashDropPromptOver        Decimal           @default(500) @db.Decimal(14, 2)
   offlineHours              Int               @default(24)
+  /// FLR-06 Lay-bys: the smallest deposit (percent of the total), the fee kept when one is cancelled, and the longest time to pay.
+  laybyMinDepositPercent    Decimal           @default(20) @db.Decimal(5, 2)
+  laybyCancelFee            Decimal           @default(0) @db.Decimal(14, 2)
+  laybyMaxDays              Int               @default(90)
   updatedById               String?
   createdAt                 DateTime          @default(now())
   updatedAt                 DateTime          @updatedAt
 
   company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
   updatedBy User?   @relation("RetailTillRulesUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+}
+
+/// FLR-06 (W-42): where a lay-by stands.
+enum RetailLaybyStatus {
+  PAYING
+  READY
+  COLLECTED
+  CANCELLED
+}
+
+/// FLR-06: money into a lay-by (its deposit, a payment) and a cancelled one's money paid back.
+enum RetailLaybyPaymentKind {
+  DEPOSIT
+  PAYMENT
+  REFUND
+}
+
+/// FLR-06 (W-42): goods put aside for a customer who pays a deposit and the
+/// rest over time. The goods leave the shelf when it starts (LAYBY_ASIDE) and
+/// stay the shop's; what is paid is held as Lay-by deposits held (2260) until
+/// the hand-over sells them (a sale paid "Lay-by") or a cancel pays it back.
+model RetailLayby {
+  id             String            @id @default(uuid())
+  companyId      String
+  /// "LAY-0031", company-wide (`RETAIL_LAYBY`).
+  laybyNo        String
+  siteId         String
+  customerId     String
+  status         RetailLaybyStatus @default(PAYING)
+  /// Held at the price on the day it started.
+  total          Decimal           @db.Decimal(14, 2)
+  /// Σ deposits and payments.
+  paid           Decimal           @default(0) @db.Decimal(14, 2)
+  dueOn          DateTime          @db.Date
+  remindWeekly   Boolean           @default(true)
+  lastRemindedAt DateTime?
+  createdById    String
+  collectedAt    DateTime?
+  collectedById  String?
+  /// The hand-over's sale.
+  saleId         String?           @unique
+  cancelledAt    DateTime?
+  cancelledById  String?
+  /// What a cancel kept as the fee in Till rules.
+  cancelFee      Decimal?          @db.Decimal(14, 2)
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+
+  company     Company              @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  site        Site                 @relation("RetailLaybySite", fields: [siteId], references: [id], onDelete: Restrict)
+  customer    Customer             @relation("RetailLaybyCustomer", fields: [customerId], references: [id], onDelete: Restrict)
+  createdBy   User                 @relation("RetailLaybyCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  collectedBy User?                @relation("RetailLaybyCollectedBy", fields: [collectedById], references: [id], onDelete: SetNull)
+  cancelledBy User?                @relation("RetailLaybyCancelledBy", fields: [cancelledById], references: [id], onDelete: SetNull)
+  sale        RetailSale?          @relation("RetailLaybySale", fields: [saleId], references: [id], onDelete: SetNull)
+  lines       RetailLaybyLine[]
+  payments    RetailLaybyPayment[]
+
+  @@unique([companyId, laybyNo])
+  @@index([companyId, status, dueOn])
+  @@index([customerId])
+}
+
+/// FLR-06: what a lay-by puts aside, at the price held for it.
+model RetailLaybyLine {
+  id              String   @id @default(uuid())
+  companyId       String
+  laybyId         String
+  productId       String
+  inventoryItemId String
+  itemName        String
+  quantity        Decimal  @db.Decimal(12, 4)
+  unitPrice       Decimal  @db.Decimal(14, 2)
+  lineTotal       Decimal  @db.Decimal(14, 2)
+  /// VAT inside `lineTotal` at the product's rate, held for the hand-over sale.
+  taxAmount       Decimal  @db.Decimal(14, 2)
+  /// Cost when put aside, for the hand-over's cost of sales.
+  costUnit        Decimal  @db.Decimal(14, 2)
+  priceListId     String?
+  createdAt       DateTime @default(now())
+
+  layby         RetailLayby   @relation(fields: [laybyId], references: [id], onDelete: Cascade)
+  product       Product       @relation("RetailLaybyLineProduct", fields: [productId], references: [id], onDelete: Restrict)
+  inventoryItem InventoryItem @relation("RetailLaybyLineItem", fields: [inventoryItemId], references: [id], onDelete: Restrict)
+
+  @@index([laybyId])
+  @@index([companyId, productId])
+}
+
+/// FLR-06: money into a lay-by, and back out when it is cancelled.
+model RetailLaybyPayment {
+  id             String                 @id @default(uuid())
+  companyId      String
+  laybyId        String
+  kind           RetailLaybyPaymentKind
+  tenderType     RetailTenderType
+  /// + in, − paid back.
+  amount         Decimal                @db.Decimal(14, 2)
+  currency       String                 @default("USD")
+  exchangeRate   Decimal                @default(1) @db.Decimal(12, 4)
+  baseAmount     Decimal                @db.Decimal(14, 2)
+  reference      String?
+  /// The drawer the cash went into or out of.
+  shiftId        String?
+  cashMovementId String?                @unique
+  receivedById   String
+  createdAt      DateTime               @default(now())
+
+  layby        RetailLayby         @relation(fields: [laybyId], references: [id], onDelete: Cascade)
+  shift        RetailShift?        @relation("RetailLaybyPaymentShift", fields: [shiftId], references: [id], onDelete: SetNull)
+  cashMovement RetailCashMovement? @relation("RetailLaybyPaymentCashMovement", fields: [cashMovementId], references: [id], onDelete: SetNull)
+  receivedBy   User                @relation("RetailLaybyPaymentReceivedBy", fields: [receivedById], references: [id], onDelete: Restrict)
+
+  @@index([laybyId, createdAt])
+  @@index([companyId, shiftId])
 }
 
 enum RetailPriceChangeRule {
@@ -5742,15 +6062,50 @@ model RetailMessage {
   entityId     String?
   /// A reply's sender.
   fromNumber   String?
+  /// The customer it went to (CUS-06), and the send it was part of.
+  customerId   String?
+  batchId      String?
 
-  company Company     @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  sale    RetailSale? @relation(fields: [saleId], references: [id], onDelete: SetNull)
+  company  Company             @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  sale     RetailSale?         @relation(fields: [saleId], references: [id], onDelete: SetNull)
+  customer Customer?           @relation("RetailMessageCustomer", fields: [customerId], references: [id], onDelete: SetNull)
+  batch    RetailMessageBatch? @relation(fields: [batchId], references: [id], onDelete: SetNull)
 
   @@index([companyId, entityType, entityId, createdAt])
   @@index([companyId, status, createdAt])
   @@index([status, scheduledFor])
   @@index([saleId])
   @@index([externalId])
+  @@index([customerId, createdAt])
+}
+
+/// What a message to customers is for (CUS-06).
+enum RetailMessagePurpose {
+  OFFER
+  ACCOUNT_REMINDER
+  LAYBY_REMINDER
+  STATEMENT
+}
+
+/// One send to many customers (CUS-06): the template as typed, who it went to, and when.
+model RetailMessageBatch {
+  id           String               @id @default(uuid())
+  companyId    String
+  purpose      RetailMessagePurpose
+  /// "ticked" | "top-tier" | "lapsed-30" | "all-agreed"
+  audience     String
+  /// The text as typed, with its placeholders ("Hi {first name}, …").
+  template     String
+  scheduledFor DateTime?
+  total        Int
+  createdById  String?
+  createdAt    DateTime             @default(now())
+
+  company   Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  createdBy User?           @relation("RetailMessageBatchCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  messages  RetailMessage[]
+
+  @@index([companyId, createdAt])
 }
 
 /// S-7.5 — the four digits that unlock a till that is already signed in.
@@ -6126,6 +6481,8 @@ model RetailSale {
   discountVoucher RetailVoucher?     @relation("RetailSaleDiscountVoucher", fields: [discountVoucherId], references: [id], onDelete: SetNull)
   vouchersSold    RetailVoucher[]    @relation("RetailVoucherSoldSale")
   voucherUses     RetailVoucherUse[] @relation("RetailVoucherUseSale")
+  pointsEntries   RetailPointsEntry[] @relation("RetailPointsEntrySale")
+  layby          RetailLayby?   @relation("RetailLaybySale")
 
   @@unique([companyId, saleNo])
   @@unique([companyId, clientRef])
@@ -6217,31 +6574,58 @@ model RetailDepositKind {
   @@unique([companyId, amount])
 }
 
-/// The empties the shop holds for each supplier: bottles brought back at the
-/// till, which go back to the supplier for their deposit. Positive is brought
-/// back to the shop (owed back to the supplier); a void writes the same
-/// bottles negative. Written with the sale, by the product's supplier.
+enum RetailEmptiesKind {
+  DEPOSIT_CHARGED
+  DEPOSIT_REFUNDED
+  BOTTLES_BACK
+  RETURNED_TO_SUPPLIER
+  CREDIT_RECEIVED
+}
+
+/// The Empties ledger (STK-09): every empty bottle and crate in or out of the
+/// store, and every deposit held for customers or owed by suppliers. Written by
+/// `lib/retail/stock/empties.ts` under a per-site advisory lock, so the afters
+/// are a true running balance per site.
 model RetailEmptiesEntry {
-  id            String   @id @default(uuid())
-  companyId     String
-  siteId        String
-  supplierId    String
-  /// The sale they came back on; the entry stays, unlinked, if the sale goes.
-  saleId        String?
-  productId     String
-  quantity      Int
-  /// The deposit on one bottle, the product's at the time.
-  depositAmount Decimal  @db.Decimal(14, 2)
-  createdAt     DateTime @default(now())
+  id             String            @id @default(uuid())
+  companyId      String
+  siteId         String
+  kind           RetailEmptiesKind
+  /// Change to empties in the store at this site, signed.
+  bottles        Int               @default(0)
+  crates         Int               @default(0)
+  /// Signed: + raises what is held for customers (charged) or owed by suppliers (returned); − lowers it.
+  deposit        Decimal           @default(0) @db.Decimal(14, 2)
+  /// "In the store" after this entry, at this site.
+  bottlesAfter   Int
+  cratesAfter    Int
+  saleId         String?
+  customerId     String?
+  supplierId     String?
+  supplierName   String?
+  goodsReceiptId String?
+  /// On a credit: the return it settles.
+  returnId       String?
+  /// SALE-31870, GRN-0005, CN-2210.
+  reference      String?
+  note           String?
+  createdById    String?
+  createdAt      DateTime          @default(now())
 
-  company  Company     @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  site     Site        @relation(fields: [siteId], references: [id], onDelete: Restrict)
-  supplier Vendor      @relation(fields: [supplierId], references: [id], onDelete: Restrict)
-  sale     RetailSale? @relation(fields: [saleId], references: [id], onDelete: SetNull)
-  product  Product     @relation(fields: [productId], references: [id], onDelete: Restrict)
+  company   Company              @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  site      Site                 @relation(fields: [siteId], references: [id], onDelete: Restrict)
+  sale      RetailSale?          @relation(fields: [saleId], references: [id], onDelete: SetNull)
+  customer  Customer?            @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  supplier  Vendor?              @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+  receipt   RetailGoodsReceipt?  @relation(fields: [goodsReceiptId], references: [id], onDelete: SetNull)
+  return    RetailEmptiesEntry?  @relation("RetailEmptiesCredit", fields: [returnId], references: [id], onDelete: Restrict)
+  credits   RetailEmptiesEntry[] @relation("RetailEmptiesCredit")
+  createdBy User?                @relation("RetailEmptiesEntryCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
 
-  @@index([companyId, supplierId])
-  @@index([saleId])
+  @@index([companyId, createdAt])
+  @@index([companyId, kind, createdAt])
+  @@index([siteId, createdAt])
+  @@index([supplierId])
 }
 
 model RetailSalePayment {
@@ -6456,6 +6840,11 @@ enum AccountingSourceType {
   RETAIL_VOUCHER_ISSUE
   RETAIL_VOUCHER_EXPIRY
   RETAIL_VOUCHER_VOID
+  RETAIL_BOTTLES_BACK
+  RETAIL_REQUISITION_PAYOUT
+  RETAIL_REQUISITION_CHANGE
+  RETAIL_SUPPLIER_PAYMENT
+  RETAIL_DELIVERY_DIFFERENCE
   GOLD_SHIFT_ALLOCATION_COMPANY
   GOLD_SHIFT_ALLOCATION_WORKER
   GOLD_SHIFT_EXPENSE
@@ -6487,6 +6876,8 @@ enum AccountingSourceType {
   /// credit side the system can infer — a customer payment belongs in the
   /// receipt flow, not here — so this stays PENDING for a tenant to map.
   CRM_COST_ENTRY_RECEIPT
+  RETAIL_LAYBY_PAYMENT
+  RETAIL_LAYBY_CANCEL
 }
 
 enum PostingRuleScopeType {
@@ -6533,6 +6924,8 @@ enum PostingRuleLineAccountSource {
   FIXED_ACCOUNT
   TENDER_MAPPING
   ROLE_MAPPING
+  /// The account the event names in its payload's `accounts` (a money account's ledger, an expense type's account).
+  EVENT_ACCOUNT
 }
 
 enum AccountingSeedExecutionMode {
@@ -6698,6 +7091,8 @@ model ChartOfAccount {
   tenderClearingMappings TenderAccountMapping[] @relation("TenderClearingAccount")
   tenderOffsetMappings   TenderAccountMapping[]     @relation("TenderOffsetAccount")
   retailRoleMappings     RetailAccountRoleMapping[]
+  retailExpenseTypes     RetailExpenseType[]        @relation("RetailExpenseTypeAccount")
+  moneyAccounts          BankAccount[]              @relation("BankAccountLedger")
 
   @@unique([companyId, code])
   @@index([companyId, type])
@@ -6868,6 +7263,8 @@ model PostingRuleLine {
   accountSource   PostingRuleLineAccountSource @default(FIXED_ACCOUNT)
   /// With `accountSource = ROLE_MAPPING`: which of the company's role accounts this line posts to.
   accountRole     RetailAccountRole?
+  /// With `accountSource = EVENT_ACCOUNT`: the key in the event's `accounts` ("moneyAccount", "expenseAccount", "changeAccount").
+  eventAccountKey String?
   valuePath       String?
   memoTemplate    String?
   costCenterId    String?
@@ -7038,6 +7435,7 @@ model CurrencyDefinition {
 }
 
 model Customer {
+  emptiesEntries      RetailEmptiesEntry[]
   id            String   @id @default(uuid())
   companyId     String
   taxCategoryId String?
@@ -7049,6 +7447,23 @@ model Customer {
   taxNumber     String?
   vatNumber     String?
   isActive      Boolean  @default(true)
+  /// CUS-01: "CUS-00141", company-wide (`RETAIL_CUSTOMER`); the card number follows it.
+  code             String?
+  /// The WhatsApp number when it is not the phone; null reads "Same number".
+  whatsapp         String?
+  area             String?
+  dateOfBirth      DateTime? @db.Date
+  marketingConsent Boolean   @default(false)
+  consentChangedAt DateTime?
+  /// 12 digits, "600914000141".
+  cardNo           String?
+  /// A tier kept until `tierHeldUntil` whatever the spend says.
+  tierHeld         String?
+  tierHeldUntil    DateTime? @db.Date
+  priceListId      String?
+  archivedAt       DateTime?
+  mergedIntoId     String?
+  createdById      String?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
@@ -7059,8 +7474,145 @@ model Customer {
   crmClients      CrmClient[]
   retailSales     RetailSale[]     @relation("RetailSaleCustomer")
   retailVouchers  RetailVoucher[]  @relation("RetailVoucherCustomer")
+  priceList       PriceList?       @relation("CustomerPriceList", fields: [priceListId], references: [id], onDelete: SetNull)
+  mergedInto      Customer?        @relation("CustomerMergedInto", fields: [mergedIntoId], references: [id], onDelete: SetNull)
+  mergedFrom      Customer[]       @relation("CustomerMergedInto")
+  createdBy       User?            @relation("CustomerCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  notes           RetailCustomerNote[]
+  pointsEntries   RetailPointsEntry[]
+  retailMessages  RetailMessage[]  @relation("RetailMessageCustomer")
+  retailLaybys    RetailLayby[]    @relation("RetailLaybyCustomer")
+  mergesKept      RetailCustomerMerge[] @relation("RetailCustomerMergeSurvivor")
+  mergesAway      RetailCustomerMerge[] @relation("RetailCustomerMergeDuplicate")
 
+  @@unique([companyId, code])
+  @@unique([companyId, cardNo])
   @@index([companyId, isActive])
+  @@index([companyId, phone])
+  @@index([companyId, archivedAt])
+}
+
+/// CUS-05 (W-45, W-63): a duplicate customer merged into another; every id it moved, so restoring
+/// the duplicate from the bin moves back exactly those.
+model RetailCustomerMerge {
+  id                  String    @id @default(uuid())
+  companyId           String
+  survivorId          String
+  duplicateId         String    @unique
+  /// The survivor's phone when the duplicate's number was kept.
+  survivorPhoneBefore String?
+  /// Survivor fields the merge filled from the duplicate (email, area, dateOfBirth, whatsapp), cleared on undo.
+  filledFields        String[]  @default([])
+  saleIds             String[]
+  laybyIds            String[]
+  voucherIds          String[]
+  noteIds             String[]
+  /// Set by packet 66 when accounts move.
+  accountMoved        Boolean   @default(false)
+  points              Int
+  visits              Int
+  mergedById          String?
+  createdAt           DateTime  @default(now())
+  undoneAt            DateTime?
+  undoneById          String?
+
+  company   Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  survivor  Customer @relation("RetailCustomerMergeSurvivor", fields: [survivorId], references: [id], onDelete: Cascade)
+  duplicate Customer @relation("RetailCustomerMergeDuplicate", fields: [duplicateId], references: [id], onDelete: Cascade)
+
+  @@index([companyId, survivorId])
+}
+
+/// CUS-01: a note on a customer's record, newest first.
+model RetailCustomerNote {
+  id          String   @id @default(uuid())
+  companyId   String
+  customerId  String
+  body        String
+  createdById String?
+  createdAt   DateTime @default(now())
+
+  company   Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  customer  Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  createdBy User?    @relation("RetailCustomerNoteCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([customerId, createdAt])
+}
+
+enum RetailPointsExpiry {
+  NEVER
+  AFTER_12_MONTHS
+}
+
+/// CUS-01 (W-48): the loyalty scheme, one row per company; none reads as the defaults.
+model RetailLoyaltySettings {
+  companyId            String             @id
+  enabled              Boolean            @default(true)
+  earnPerDollar        Decimal            @default(1) @db.Decimal(6, 2)
+  pointValue           Decimal            @default(0.01) @db.Decimal(8, 4)
+  spendFrom            Int                @default(500)
+  expiry               RetailPointsExpiry @default(AFTER_12_MONTHS)
+  /// Ascending: [{ name, from: "500.00" }], the first from "0.00".
+  tiers                Json               @default("[{\"name\":\"Bronze\",\"from\":\"0.00\"},{\"name\":\"Silver\",\"from\":\"500.00\"},{\"name\":\"Gold\",\"from\":\"1500.00\"}]")
+  topTierEarnPerDollar Decimal            @default(1.5) @db.Decimal(6, 2)
+  earnOnPromotions     Boolean            @default(true)
+  birthdayBonus        Boolean            @default(true)
+  birthdayPoints       Int                @default(200)
+  pointsPayForAlcohol  Boolean            @default(true)
+  updatedById          String?
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
+
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  updatedBy User?   @relation("RetailLoyaltySettingsUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+}
+
+enum RetailPointsKind {
+  EARNED
+  SPENT
+  ADJUSTED
+  BIRTHDAY
+  EXPIRED
+  REVERSED
+}
+
+enum RetailPointsReason {
+  MISSED_AT_TILL
+  COMPLAINT
+  BIRTHDAY
+  CORRECTION
+}
+
+/// CUS-01 (W-46): the points ledger. Rows are never edited or deleted; a
+/// customer's balance is the sum of `points`.
+model RetailPointsEntry {
+  id           String             @id @default(uuid())
+  /// Stable order for the running balance.
+  seq          BigInt             @default(autoincrement())
+  companyId    String
+  customerId   String
+  kind         RetailPointsKind
+  /// Signed.
+  points       Int
+  /// What the points were worth when they moved (SPENT: the discount given).
+  value        Decimal            @default(0) @db.Decimal(14, 2)
+  saleId       String?
+  reason       RetailPointsReason?
+  note         String?
+  /// Null actor reads "Automatic".
+  actorId      String?
+  actorName    String?
+  mergedFromId String?
+  createdAt    DateTime           @default(now())
+
+  company  Company     @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  customer Customer    @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  sale     RetailSale? @relation("RetailPointsEntrySale", fields: [saleId], references: [id], onDelete: SetNull)
+  actor    User?       @relation("RetailPointsEntryActor", fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([companyId, customerId, createdAt])
+  @@index([companyId, kind, createdAt])
+  @@index([saleId])
 }
 
 model Vendor {
@@ -7106,6 +7658,10 @@ model Vendor {
   products            Product[]            @relation("ProductSupplier")
   contacts            VendorContact[]
   emptiesEntries      RetailEmptiesEntry[]
+  purchaseOrders      RetailPurchaseOrder[]
+  goodsReceipts       RetailGoodsReceipt[]
+  requisitionsPaid CrmRequisition[]      @relation("CrmRequisitionPayee")
+  payments            PurchasePayment[]
   stoppedBy           User?                @relation("VendorStoppedBy", fields: [stoppedById], references: [id], onDelete: SetNull)
   createdBy           User?                @relation("VendorCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
 
@@ -7418,13 +7974,23 @@ model PurchasePayment {
   bankAccountId String?
   createdById   String?
   createdAt     DateTime @default(now())
+  /// The supplier: always set by retail (a credit row has no bill to say it).
+  vendorId      String?
+  /// "PAY-0019": the rows of one payment.
+  groupNo       String?
+  /// Cash handed out on an order requisition, held as credit until its bill.
+  requisitionId String?
 
   company             Company              @relation(fields: [companyId], references: [id], onDelete: Cascade)
   bill                PurchaseBill?        @relation(fields: [billId], references: [id])
   bankAccount         BankAccount?         @relation(fields: [bankAccountId], references: [id])
   createdBy           User?                @relation("PurchasePaymentCreatedBy", fields: [createdById], references: [id])
+  vendor              Vendor?              @relation(fields: [vendorId], references: [id], onDelete: Restrict)
+  requisition         CrmRequisition?      @relation(fields: [requisitionId], references: [id], onDelete: SetNull)
 
   @@unique([companyId, paymentNumber])
+  @@index([companyId, vendorId, billId])
+  @@index([companyId, groupNo])
 }
 
 model DebitNote {
@@ -7519,6 +8085,12 @@ model PaymentLedgerEntry {
   @@index([companyId, invoiceId, billId])
 }
 
+enum MoneyAccountKind {
+  CASH
+  BANK
+  MOBILE
+}
+
 model BankAccount {
   id             String   @id @default(uuid())
   companyId      String
@@ -7542,11 +8114,17 @@ model BankAccount {
   showOnDocuments  Boolean  @default(false)
   /// Order among the accounts shown, so a tenant can lead with USD or with ZWG.
   documentPosition Int      @default(0)
+  /// "Cash, bank or mobile".
+  kind             MoneyAccountKind @default(BANK)
+  /// The ledger account this money sits in (1005 Cash vault, 1010 Operating bank, 1016 Mobile money clearing …).
+  ledgerAccountId  String?
 
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
   company            Company              @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  ledgerAccount      ChartOfAccount?      @relation("BankAccountLedger", fields: [ledgerAccountId], references: [id], onDelete: SetNull)
+  requisitionChange  CrmRequisition[]     @relation("CrmRequisitionChangeAccount")
   transactions       BankTransaction[]
   salesReceipts      SalesReceipt[]
   purchasePayments   PurchasePayment[]
@@ -10184,11 +10762,11 @@ model SchoolGradingScheme {
   code             String
   name             String
   /// Percent of the term mark carried by class work, tests and practicals.
-  continuousWeight Decimal  @db.Decimal(5, 2) @default(30)
+  continuousWeight Decimal  @default(30) @db.Decimal(5, 2)
   /// Percent carried by the end-of-term paper.
-  examWeight       Decimal  @db.Decimal(5, 2) @default(70)
+  examWeight       Decimal  @default(70) @db.Decimal(5, 2)
   /// The mark at or above which a subject is passed, when the bands do not say.
-  passMark         Decimal  @db.Decimal(5, 2) @default(50)
+  passMark         Decimal  @default(50) @db.Decimal(5, 2)
   isDefault        Boolean  @default(false)
   isActive         Boolean  @default(true)
   createdAt        DateTime @default(now())
@@ -10248,7 +10826,7 @@ model SchoolAssessment {
   maxScore       Decimal                @db.Decimal(6, 2)
   /// Weight relative to other assessments *of the same kind*. Two tests
   /// weighted 1 and 3 make the second count three times as much.
-  weight         Decimal                @db.Decimal(6, 2) @default(1)
+  weight         Decimal                @default(1) @db.Decimal(6, 2)
   assessedOn     DateTime?              @db.Date
   status         SchoolAssessmentStatus @default(OPEN)
   createdById    String?
@@ -11078,7 +11656,6 @@ enum SchoolImportRowStatus {
   FAILED
 }
 
-
 // ============================================
 // CONDUCT AND PASTORAL
 //
@@ -11576,7 +12153,6 @@ model SchoolPastoralAccessRequest {
   @@index([companyId, outcome, requestedAt])
   @@index([noteId])
 }
-
 
 // ============================================
 // PUBLIC EXAMS
@@ -14128,7 +14704,6 @@ model CrmTask {
   subjectType CrmFieldEntity?
   subjectId   String?
 
-
   @@index([companyId, assignedToId, status, dueAt])
   @@index([companyId, status, dueAt])
   @@index([companyId, dealId])
@@ -14184,7 +14759,6 @@ model CrmComment {
   /// change adds and backfills, and drops nothing.
   subjectType CrmFieldEntity?
   subjectId   String?
-
 
   @@index([companyId, dealId, createdAt])
   @@index([companyId, leadId, createdAt])
@@ -14248,7 +14822,6 @@ model CrmRecordFile {
   /// change adds and backfills, and drops nothing.
   subjectType CrmFieldEntity?
   subjectId   String?
-
 
   @@index([companyId, leadId, createdAt])
   @@index([companyId, dealId, createdAt])
@@ -14524,10 +15097,10 @@ model Product {
   retailTransferLines RetailStockTransferLine[]
   retailCountLines    RetailStockCountLine[]
   bundleItems         RetailBundleItem[]
-  retailEmptiesEntries RetailEmptiesEntry[]
   promotions          RetailPromotionProduct[]
   crmQuestionSets      CrmQuestionSet[]
   crmSiteVisitSections CrmSiteVisitSection[]
+  retailLaybyLines RetailLaybyLine[] @relation("RetailLaybyLineProduct")
 
   @@unique([companyId, code])
   @@index([companyId, isActive, kind])
@@ -14599,6 +15172,7 @@ model PriceList {
   saleLines RetailSaleLine[]
   sites   Site[]         @relation("SitePriceList")
   registers RetailRegister[] @relation("RegisterPriceList")
+  customers Customer[]   @relation("CustomerPriceList")
 
   @@unique([companyId, name])
   /// One default per company among live lists: a partial unique index
@@ -14810,6 +15384,69 @@ enum CrmRequisitionCategory {
   SUBSISTENCE
   ACCOMMODATION
   OTHER
+  /// "Stock purchase": money to pay a purchase order.
+  STOCK
+}
+
+enum CrmRequisitionRejectReason {
+  NOT_NEEDED_NOW
+  TOO_MUCH
+  PAY_ANOTHER_WAY
+  OTHER
+}
+
+enum RetailPayoutMethod {
+  CASH
+  BANK_TRANSFER
+  ECOCASH
+}
+
+/// What a shop spends on that is not stock: "Repairs and maintenance", "Fuel and transport" …
+model RetailExpenseType {
+  id              String                 @id @default(uuid())
+  companyId       String
+  name            String
+  /// The CRM-side grouping its requisitions carry.
+  category        CrmRequisitionCategory @default(OTHER)
+  /// The expense account a payout debits.
+  ledgerAccountId String?
+  archivedAt      DateTime?
+  createdAt       DateTime               @default(now())
+
+  company       Company          @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  ledgerAccount ChartOfAccount?  @relation("RetailExpenseTypeAccount", fields: [ledgerAccountId], references: [id], onDelete: SetNull)
+  requisitions  CrmRequisition[]
+
+  @@unique([companyId, name])
+}
+
+enum RetailAttachmentKind {
+  QUOTE
+  RECEIPT
+  BILL
+  DELIVERY_NOTE
+  PHOTO
+}
+
+/// Files the buying screens keep: quotes, receipts, bills, delivery notes, photos.
+model RetailAttachment {
+  id          String               @id @default(uuid())
+  companyId   String
+  /// "CrmRequisition", "RetailGoodsReceipt", "RetailDeliveryDifference", "PurchaseBill", "RetailSupplierReturn".
+  entityType  String
+  entityId    String
+  kind        RetailAttachmentKind
+  url         String
+  name        String
+  contentType String
+  size        Int
+  addedById   String?
+  createdAt   DateTime             @default(now())
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  addedBy User?   @relation("RetailAttachmentAddedBy", fields: [addedById], references: [id], onDelete: SetNull)
+
+  @@index([companyId, entityType, entityId])
 }
 
 enum CrmCashDirection {
@@ -14964,6 +15601,30 @@ model CrmRequisition {
   receiptsWaivedById String?
   receiptWaiverNote  String?
 
+  /// Retail (BUY-04): `bankAccountId` is "Pay from" when asked and "From" once paid out.
+  purchaseOrderId String?
+  expenseTypeId   String?
+  /// "Pay to": the supplier the money is for.
+  payeeVendorId   String?
+  /// Who it waits for: the owner approver when over the limit; null = any manager.
+  approverId      String?
+  /// The owner limit when it was asked: "Needs approval: Over US$500.00".
+  approvalLimit   Decimal?                    @db.Decimal(14, 2)
+  rejectReason    CrmRequisitionRejectReason?
+  /// "Paying" on Pay out.
+  paidAmount      Decimal?                    @db.Decimal(14, 2)
+  /// "To": the person the money was handed to.
+  paidToId        String?
+  payoutMethod    RetailPayoutMethod?
+  payoutReference String?
+  receiptsDueAt   DateTime?
+  acquittedById   String?
+  changeAmount    Decimal?                    @db.Decimal(14, 2)
+  changeAccountId String?
+  acquittalNote   String?
+  cancelledAt     DateTime?
+  cancelledById   String?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -14976,12 +15637,23 @@ model CrmRequisition {
   receiptsWaivedBy User?          @relation("CrmRequisitionReceiptsWaivedBy", fields: [receiptsWaivedById], references: [id], onDelete: SetNull)
   bankAccount BankAccount?        @relation(fields: [bankAccountId], references: [id], onDelete: SetNull)
   costEntries CrmDailyCostEntry[]
+  purchaseOrder    RetailPurchaseOrder? @relation(fields: [purchaseOrderId], references: [id], onDelete: SetNull)
+  expenseType      RetailExpenseType?   @relation(fields: [expenseTypeId], references: [id], onDelete: SetNull)
+  payee            Vendor?              @relation("CrmRequisitionPayee", fields: [payeeVendorId], references: [id], onDelete: SetNull)
+  approver         User?                @relation("CrmRequisitionApprover", fields: [approverId], references: [id], onDelete: SetNull)
+  paidTo           User?                @relation("CrmRequisitionPaidTo", fields: [paidToId], references: [id], onDelete: SetNull)
+  acquittedBy      User?                @relation("CrmRequisitionAcquittedBy", fields: [acquittedById], references: [id], onDelete: SetNull)
+  cancelledBy      User?                @relation("CrmRequisitionCancelledBy", fields: [cancelledById], references: [id], onDelete: SetNull)
+  changeAccount    BankAccount?         @relation("CrmRequisitionChangeAccount", fields: [changeAccountId], references: [id], onDelete: SetNull)
+  supplierPayments PurchasePayment[]
+  deliveries       RetailGoodsReceipt[]
 
   @@unique([companyId, requisitionNo])
   @@index([companyId, status, createdAt])
   @@index([companyId, requestedById, status])
   @@index([companyId, projectId])
   @@index([companyId, siteId, status])
+  @@index([companyId, purchaseOrderId])
 }
 
 /// One person's money for one day.

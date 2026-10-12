@@ -97,6 +97,7 @@ import {
   GasPump as PhosphorGasPump,
   Gauge as PhosphorGauge,
   Gavel as PhosphorGavel,
+  Gift as PhosphorGift,
   GearSix as PhosphorGearSix,
   GitDiff as PhosphorGitDiff,
   Globe as PhosphorGlobe,
@@ -347,6 +348,7 @@ const iconRegistry = {
   Gauge: PhosphorGauge,
   Gavel: PhosphorGavel,
   GearSix: PhosphorGearSix,
+  Gift: PhosphorGift,
   GitDiff: PhosphorGitDiff,
   Globe: PhosphorGlobe,
   GraduationCap: PhosphorGraduationCap,
@@ -1050,6 +1052,7 @@ export const Folder = createPhosphorIcon("Folder", "Folder");
 export const DeviceMobile = createPhosphorIcon("DeviceMobile", "DeviceMobile");
 export const Stamp = createPhosphorIcon("Stamp", "Stamp");
 export const Ticket = createPhosphorIcon("Ticket", "Ticket");
+export const Gift = createPhosphorIcon("Gift", "Gift");
 export const CreditCard = createPhosphorIcon("CreditCard", "CreditCard");
 export const List = createPhosphorIcon("List", "List");
 /** Phosphor's two-person `Users` (the export named `Users` above is `UsersThree`). */

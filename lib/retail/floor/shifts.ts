@@ -24,6 +24,7 @@ import { countsBlind } from "@/lib/retail/shift-record";
 import { normalizeRetailPostingPayments, postRetailJournal, type RetailAccountingResult } from "@/app/api/v2/retail/_helpers";
 
 import { closedDayRefusal } from "./day-close";
+import { laybyNonCashOnShifts } from "./layby-takings";
 import { countDrawer, DENOMINATIONS, floatLeftProblem, needsExplaining, type CountCurrency, type CountRow, type DrawerState } from "./count";
 
 /**
@@ -738,7 +739,7 @@ export async function closeForm(session: ShiftSession, shiftId: string, now: Dat
   const companyId = session.user.companyId;
   const shift = await shiftToRead(session, shiftId);
   const open = shift.status === "OPEN";
-  const [settings, zig, sales, movements, floatLeft] = await Promise.all([
+  const [settings, zig, sales, movements, floatLeft, laybyMoney] = await Promise.all([
     loadPaymentSettings(companyId),
     latestZigRate(companyId),
     prisma.retailSale.findMany({
@@ -747,6 +748,7 @@ export async function closeForm(session: ShiftSession, shiftId: string, now: Dat
     }),
     prisma.retailCashMovement.findMany({ where: { shiftId: shift.id, companyId }, select: { type: true, baseAmount: true } }),
     open ? floatToLeave(shift) : text2(shift.floatLeft ?? 0),
+    laybyNonCashOnShifts(companyId, [shift.id]),
   ]);
 
   const blind = countsBlind(shift, session);
@@ -768,6 +770,12 @@ export async function closeForm(session: ShiftSession, shiftId: string, now: Dat
       if (!payment.reference?.trim()) entry.missing += 1;
       tenders.set(payment.tenderType, entry);
     }
+  }
+  // Lay-by money by these tenders is on their statements too (FLR-06); the lay-by keeps its own reference.
+  for (const payment of laybyMoney) {
+    const entry = tenders.get(payment.tenderType) ?? { amount: new Prisma.Decimal(0), missing: 0 };
+    entry.amount = entry.amount.plus(money(payment.baseAmount));
+    tenders.set(payment.tenderType, entry);
   }
 
   const minutes = Math.max(0, Math.floor(((shift.closedAt ?? now).getTime() - shift.openedAt.getTime()) / 60_000));

@@ -80,6 +80,34 @@ const RECORD_TYPES: Record<string, RecordActivityType> = {
     exists: async (companyId, id) =>
       Boolean(await prisma.retailVoucher.findFirst({ where: { id, companyId }, select: { id: true } })),
   },
+  Customer: {
+    read: ["retail.customers", "view"],
+    exists: async (companyId, id) => Boolean(await prisma.customer.findFirst({ where: { id, companyId }, select: { id: true } })),
+  },
+  // An order's story includes its deliveries ("Received GRN-0002, 300 units").
+  RetailPurchaseOrder: {
+    read: ["retail.purchasing", "view"],
+    exists: async (companyId, id) =>
+      Boolean(await prisma.retailPurchaseOrder.findFirst({ where: { id, companyId }, select: { id: true } })),
+    related: async (companyId, id) => [
+      {
+        entityType: "RetailGoodsReceipt",
+        ids: (await prisma.retailGoodsReceipt.findMany({ where: { companyId, purchaseOrderId: id }, select: { id: true } })).map((row) => row.id),
+      },
+    ],
+  },
+  // A delivery's story: counted, checked and posted, values changed on its rail.
+  RetailGoodsReceipt: {
+    read: ["retail.purchasing", "view"],
+    exists: async (companyId, id) =>
+      Boolean(await prisma.retailGoodsReceipt.findFirst({ where: { id, companyId }, select: { id: true } })),
+  },
+  // A shop's requisition; Activity is for those who read every one (owner, manager, bookkeeper).
+  CrmRequisition: {
+    read: ["retail.requisitions", "view"],
+    exists: async (companyId, id) =>
+      Boolean(await prisma.crmRequisition.findFirst({ where: { id, companyId, siteId: { not: null } }, select: { id: true } })),
+  },
   Vendor: {
     read: ["retail.suppliers", "view"],
     exists: async (companyId, id) => Boolean(await prisma.vendor.findFirst({ where: { id, companyId }, select: { id: true } })),

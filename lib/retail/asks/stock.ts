@@ -1,6 +1,8 @@
 import type { ReportRow } from "@/lib/reports/types";
 import type { Ask } from "@/lib/workspace/ask";
-import { formatCount } from "@/lib/workspace/format";
+import { formatCount, formatMoney, formatSigned } from "@/lib/workspace/format";
+import type { ApprovedCounts } from "@/lib/retail/stock/count-review";
+import { approvedCountsToast } from "@/lib/retail/stock/count-words";
 import { reversedToast, type Skipped } from "@/lib/retail/stock/reverse-words";
 
 import type { ListActionRun } from "./runs";
@@ -84,6 +86,42 @@ function cancelAsk(count: number, rows: ReportRow[]): Ask {
   return cancelTransfersAsk(count);
 }
 
+/** A count's "Cancel the count" (STK-06 `cancelcount`), on the record, the review page and the Counts row menu. */
+export function cancelCountAsk(input: { countNo: string; counter: string }): Ask {
+  return {
+    title: `Cancel ${input.countNo}?`,
+    body: `Nothing on hand changes. What has been counted stays on the count for the record, and ${input.counter} is told it is off.`,
+    keep: "Keep the count",
+    go: "Cancel the count",
+    fill: "bad",
+  };
+}
+
+/**
+ * Counts › tick rows › Approve the differences (STK-06 `approvecounts`):
+ * "Approve 2 counts?" with the lines and the net of the ticked rows, and the
+ * owner's limit when the shop has one.
+ */
+export function approveCountsAsk(input: { counts: number; lines: number; net: number | null; ownerOver: number | null }): Ask {
+  const counts = input.counts === 1 ? "1 count" : `${formatCount(input.counts)} counts`;
+  const lines = `${formatCount(input.lines)} ${input.lines === 1 ? "line" : "lines"}`;
+  const posted =
+    input.net === null || input.net === 0
+      ? `Stock on hand becomes what was counted for ${lines}.`
+      : `Stock on hand becomes what was counted for ${lines}, and ${formatSigned(input.net)} is posted to Breakage and losses.`;
+  const limit = input.ownerOver === null ? "" : ` A count over ${formatMoney(input.ownerOver)} waits for the owner.`;
+  return {
+    title: `Approve ${counts}?`,
+    body: `${posted}${limit}`,
+    keep: "Not yet",
+    go: "Approve the differences",
+    fill: "action",
+  };
+}
+
+const rowNumber = (row: ReportRow | undefined, key: string): number | null =>
+  row && row[key] !== null && row[key] !== undefined && row[key] !== "" ? Number(row[key]) : null;
+
 type ReverseAnswer = { reversed?: unknown[]; skipped?: Array<Pick<Skipped, "kind">> };
 
 /** The Movements list's actions that post to the server (`do: { run }`). */
@@ -98,5 +136,28 @@ export const STOCK_LIST_RUNS: Record<string, ListActionRun> = {
   canceltransfers: {
     ask: cancelAsk,
     done: (_count, _rows, answer) => cancelledToast((answer ?? {}) as CancelAnswer),
+  },
+  cancelcount: {
+    ask: (_count, rows) => cancelCountAsk({ countNo: String(rows[0]?.countNo ?? "the count"), counter: String(rows[0]?.counter ?? "The counter") }),
+    done: (_count, rows) => `${String(rows[0]?.countNo ?? "The count")} cancelled. Nothing on hand changed.`,
+  },
+  approvecounts: {
+    ask: (count, rows) => {
+      // Only the rows that wait for approval are approved: their lines and their net.
+      const waiting = rows.filter((row) => row.status === "TO_APPROVE");
+      const nets = waiting.map((row) => rowNumber(row, "difference"));
+      return approveCountsAsk({
+        counts: rows.length > 0 ? waiting.length : count,
+        lines: waiting.reduce((sum, row) => sum + (rowNumber(row, "lineCount") ?? 0), 0),
+        net: nets.some((net) => net === null) ? null : Math.round(nets.reduce((sum: number, net) => sum + (net ?? 0), 0) * 100) / 100,
+        ownerOver: rowNumber(rows[0], "ownerOver"),
+      });
+    },
+    done: (_count, _rows, answer) => {
+      const body = (answer ?? {}) as Partial<ApprovedCounts>;
+      const said = approvedCountsToast({ approved: body.approved ?? [], waiting: body.waiting ?? [], skipped: body.skipped ?? [], failed: body.failed ?? [] });
+      const leftOver = (body.waiting?.length ?? 0) + (body.skipped?.length ?? 0) + (body.failed?.length ?? 0);
+      return leftOver > 0 ? { title: said, variant: "warning" } : said;
+    },
   },
 };

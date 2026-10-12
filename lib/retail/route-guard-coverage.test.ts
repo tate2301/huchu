@@ -279,6 +279,8 @@ describe("reversing a sale past the till rules needs a manager unless you approv
   const REVERSALS: Array<{ key: string; action: "refund" | "void" }> = [
     { key: "pos/sales/[id]/refund/route.ts POST", action: "refund" },
     { key: "pos/sales/[id]/void/route.ts POST", action: "void" },
+    { key: "retail/sales/[id]/refund/route.ts POST", action: "refund" },
+    { key: "retail/sales/[id]/void/route.ts POST", action: "void" },
   ];
 
   /** `label()` normalises to forward slashes, so the tail matches as written. */
@@ -293,11 +295,12 @@ describe("reversing a sale past the till rules needs a manager unless you approv
 
     const source = stripComments(handler.body);
     expect(source).toContain(`requireRetailPermission(session, "retail.sell", "${action}")`);
-    // SET-06: the service asks the till rules whether a manager must approve
-    // (\`approvalFor\`, which lets \`approve\` through); the route hands it the
-    // manager's PIN and answers its refusals (409 needsApprover, 400, 423).
-    expect(source).toContain("approver: input.approver");
-    expect(source).toContain("tillRuleResponse(error)");
+    // SET-06, FLR-02: the service asks the till rules whether a manager must
+    // approve (\`approvalFor\`, which lets \`approve\` through); the route hands
+    // it the parsed body, the manager's PIN with it, and answers its refusals
+    // (409 needsApprover, 400, 423) through \`reversalResponse\`.
+    expect(source).toContain("body: input");
+    expect(source).toContain("reversalResponse(error");
   });
 
   it.each(REVERSALS)("$key does not fall back to the role list", ({ key }) => {
@@ -314,5 +317,126 @@ describe("reversing a sale past the till rules needs a manager unless you approv
     expect(canRetailRoleDo("MANAGER", "retail.sell", "approve")).toBe(true);
     expect(canRetailRoleDo("STOCK_CLERK", "retail.sell", "refund")).toBe(false);
     expect(canRetailRoleDo("FINANCE_OFFICER", "retail.sell", "void")).toBe(false);
+  });
+});
+
+/**
+ * BUY-03's order follow-ups (40-buying 4.3): chasing, cancelling what is left
+ * and the bulk cancel change orders; the bulk send creates. A stock clerk and
+ * a bookkeeper hold neither, so each answers them 403 "Your role cannot
+ * change orders and deliveries".
+ */
+describe("order follow-ups gate on their own purchasing right", () => {
+  const FOLLOW_UPS: Array<{ key: string; action: "create" | "update" }> = [
+    { key: "buying/orders/[id]/chase/route.ts POST", action: "update" },
+    { key: "buying/orders/[id]/cancel-rest/route.ts POST", action: "update" },
+    { key: "buying/orders/bulk/send/route.ts POST", action: "create" },
+    { key: "buying/orders/bulk/cancel/route.ts POST", action: "update" },
+  ];
+
+  it.each(FOLLOW_UPS)("$key gates on retail.purchasing $action", ({ key, action }) => {
+    const handler = allHandlers.find((candidate) => candidate.key.endsWith(key));
+    expect(handler, `no handler found for ${key}`).toBeDefined();
+    expect(stripComments(handler?.body ?? "")).toContain(`requireRetailPermission(session, "retail.purchasing", "${action}")`);
+  });
+
+  it("gives owners and managers the follow-ups, and not the stock clerk or the bookkeeper", () => {
+    for (const role of ["SUPERADMIN", "MANAGER"]) {
+      expect(canRetailRoleDo(role, "retail.purchasing", "update")).toBe(true);
+      expect(canRetailRoleDo(role, "retail.purchasing", "create")).toBe(true);
+    }
+    for (const role of ["STOCK_CLERK", "FINANCE_OFFICER"]) {
+      expect(canRetailRoleDo(role, "retail.purchasing", "update")).toBe(false);
+      expect(canRetailRoleDo(role, "retail.purchasing", "create")).toBe(false);
+    }
+  });
+});
+
+/**
+ * BUY-04's requisitions (40-buying 4.5): asking needs `create` (everyone on
+ * staff), deciding `approve` (owner, manager), cancelling is the asker's or a
+ * manager's; reads answer `view` or `view-own` (the row rule makes another's
+ * a 404). The buying attachments upload takes any role that keeps a buying
+ * file.
+ */
+describe("requisitions gate on their own right", () => {
+  const REQUISITIONS: Array<{ key: string; action: string }> = [
+    { key: "buying/requisitions/route.ts POST", action: "create" },
+    { key: "buying/requisitions/new/route.ts GET", action: "create" },
+    { key: "buying/requisitions/[id]/route.ts GET", action: "view-own" },
+    { key: "buying/requisitions/[id]/route.ts PATCH", action: "view-own" },
+    { key: "buying/requisitions/[id]/approve/route.ts POST", action: "approve" },
+    { key: "buying/requisitions/[id]/reject/route.ts POST", action: "approve" },
+    { key: "buying/requisitions/[id]/question/route.ts POST", action: "approve" },
+    { key: "buying/requisitions/[id]/cancel/route.ts POST", action: "update" },
+    { key: "buying/requisitions/bulk/approve/route.ts POST", action: "approve" },
+    { key: "buying/requisitions/bulk/reject/route.ts POST", action: "approve" },
+    { key: "buying/requisitions/[id]/pay/route.ts POST", action: "update" },
+    { key: "buying/requisitions/bulk/pay/route.ts POST", action: "update" },
+    { key: "buying/requisitions/[id]/acquit/route.ts POST", action: "update" },
+  ];
+
+  it.each(REQUISITIONS)("$key asks retail.requisitions $action", ({ key, action }) => {
+    const handler = allHandlers.find((candidate) => candidate.key.endsWith(key));
+    expect(handler, `no handler found for ${key}`).toBeDefined();
+    const body = stripComments(handler?.body ?? "");
+    expect(body.includes(`"retail.requisitions", "${action}")`)).toBe(true);
+  });
+
+  it("buying attachments take a requisition, a delivery or a bill right", () => {
+    const handler = allHandlers.find((candidate) => candidate.key.endsWith("buying/attachments/route.ts POST"));
+    expect(handler).toBeDefined();
+    const body = stripComments(handler?.body ?? "");
+    expect(body).toContain('canRetailSessionDo(session, "retail.requisitions", "create")');
+    expect(body).toContain('canRetailSessionDo(session, "retail.purchasing", "receive")');
+    expect(body).toContain('canRetailSessionDo(session, "retail.bills", "create")');
+  });
+
+  it("lets every role ask, owners and managers decide, and cashiers and stock clerks read only their own", () => {
+    for (const role of ["SUPERADMIN", "MANAGER", "CASHIER", "STOCK_CLERK"]) expect(canRetailRoleDo(role, "retail.requisitions", "create")).toBe(true);
+    for (const role of ["SUPERADMIN", "MANAGER"]) expect(canRetailRoleDo(role, "retail.requisitions", "approve")).toBe(true);
+    for (const role of ["CASHIER", "STOCK_CLERK", "FINANCE_OFFICER"]) expect(canRetailRoleDo(role, "retail.requisitions", "approve")).toBe(false);
+    for (const role of ["CASHIER", "STOCK_CLERK"]) {
+      expect(canRetailRoleDo(role, "retail.requisitions", "view")).toBe(false);
+      expect(canRetailRoleDo(role, "retail.requisitions", "view-own")).toBe(true);
+    }
+    expect(canRetailRoleDo("FINANCE_OFFICER", "retail.requisitions", "view")).toBe(true);
+  });
+});
+
+/**
+ * BUY-06's deliveries (40-buying 4.4): reading the order to receive it and
+ * counting a delivery take `receive` (owners, managers, stock clerks);
+ * posting one, Orders' bulk "Mark received" and Deliveries' bulk post take
+ * `approve` (owners, managers); the record reads with `view` and changes
+ * with `update`. `/purchasing/orders` is gone; `/purchasing/receipts` keeps
+ * "No order" only until BUY-08.
+ */
+describe("deliveries gate on their own purchasing right", () => {
+  const DELIVERIES: Array<{ key: string; action: string }> = [
+    { key: "buying/orders/[id]/receiving/route.ts GET", action: "receive" },
+    { key: "buying/deliveries/route.ts POST", action: "receive" },
+    { key: "buying/deliveries/[id]/route.ts GET", action: "view" },
+    { key: "buying/deliveries/[id]/route.ts PATCH", action: "update" },
+    { key: "buying/deliveries/[id]/post/route.ts POST", action: "approve" },
+    { key: "buying/deliveries/bulk/post/route.ts POST", action: "approve" },
+    { key: "buying/orders/bulk/receive/route.ts POST", action: "approve" },
+  ];
+
+  it.each(DELIVERIES)("$key gates on retail.purchasing $action", ({ key, action }) => {
+    const handler = allHandlers.find((candidate) => candidate.key.endsWith(key));
+    expect(handler, `no handler found for ${key}`).toBeDefined();
+    expect(stripComments(handler?.body ?? "")).toContain(`requireRetailPermission(session, "retail.purchasing", "${action}")`);
+  });
+
+  it("has no orders list for the old receive dialog", () => {
+    expect(allHandlers.find((candidate) => candidate.key.endsWith("purchasing/orders/route.ts GET"))).toBeUndefined();
+  });
+
+  it("lets stock clerks count and only owners and managers post", () => {
+    for (const role of ["SUPERADMIN", "MANAGER", "STOCK_CLERK"]) expect(canRetailRoleDo(role, "retail.purchasing", "receive")).toBe(true);
+    for (const role of ["SUPERADMIN", "MANAGER"]) expect(canRetailRoleDo(role, "retail.purchasing", "approve")).toBe(true);
+    for (const role of ["STOCK_CLERK", "CASHIER", "FINANCE_OFFICER"]) expect(canRetailRoleDo(role, "retail.purchasing", "approve")).toBe(false);
+    expect(canRetailRoleDo("CASHIER", "retail.purchasing", "receive")).toBe(false);
   });
 });

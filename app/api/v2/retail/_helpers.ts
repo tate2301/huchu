@@ -66,6 +66,8 @@ const RETAIL_PENDING_POSTING_CODES = new Set([
   "PERIOD_LOCKED",
   "PERIOD_OVERRIDE_FORBIDDEN",
   "PERIOD_OVERRIDE_REASON_REQUIRED",
+  // An event that names no account yet (BUY-05): it waits and is tried again.
+  "EVENT_ACCOUNT_MISSING",
 ]);
 
 export function normalizeRetailPostingPayments(input: {

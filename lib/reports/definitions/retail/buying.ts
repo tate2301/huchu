@@ -1,4 +1,4 @@
-import type { ListGrant, ListSpec, ReportDefinition } from "@/lib/reports/types";
+import type { ListGrant, ListSpec, ReportDefinition, ReportFace } from "@/lib/reports/types";
 
 /**
  * Buying › Suppliers (40-buying 5.1, `retail-suppliers`): the suppliers the
@@ -119,6 +119,13 @@ const suppliers: ListSpec = {
     { key: "open", label: "Open", requires: VIEW, do: { href: "/retail/buying/suppliers/{id}" } },
     { key: "message", label: "Message on WhatsApp", requires: UPDATE, do: { href: "/retail/buying/suppliers?sheet=supplier-message&ids={id}" } },
     {
+      key: "order",
+      label: "New order",
+      requires: [["retail.purchasing", "create"]],
+      when: [{ column: "state", op: "is", value: ["buying"] }],
+      do: { href: "/retail/buying/suppliers?sheet=order-new&supplierId={id}" },
+    },
+    {
       key: "stop",
       label: "Stop buying from them",
       tone: "bad",
@@ -130,6 +137,13 @@ const suppliers: ListSpec = {
   ],
   bulk: [
     { key: "message", label: "Message on WhatsApp", requires: UPDATE, do: { sheet: "supplier-message" } },
+    {
+      key: "order",
+      label: "New order for each",
+      requires: [["retail.purchasing", "create"]],
+      when: [{ column: "state", op: "is", value: ["buying"] }],
+      do: { sheet: "order-new", with: { supplierIds: "{ids}" } },
+    },
     { key: "export" },
   ],
   primary: { label: "New supplier", icon: "plus", requires: CREATE, sheet: "supplier-new" },
@@ -227,4 +241,666 @@ const contactsSource: ReportDefinition = {
   list: contacts,
 };
 
-export const BUYING_REPORTS: ReportDefinition[] = [suppliersSource, contactsSource];
+/* ── Orders (5.3, `retail-orders`) ─────────────────────────────────────── */
+
+const ORDER_VIEW: ListGrant[] = [["retail.purchasing", "view"]];
+const ORDER_CREATE: ListGrant[] = [["retail.purchasing", "create"]];
+const ORDER_UPDATE: ListGrant[] = [["retail.purchasing", "update"]];
+const ORDER_DELETE: ListGrant[] = [["retail.purchasing", "delete"]];
+const ORDER_RECEIVE: ListGrant[] = [["retail.purchasing", "receive"]];
+const ORDER_APPROVE: ListGrant[] = [["retail.purchasing", "approve"]];
+const IS = (values: string[]) => [{ column: "status", op: "is" as const, value: values }];
+const OPEN_FOR_DELIVERY = IS(["DRAFT", "SENT", "PARTIAL"]);
+
+/**
+ * Buying › Orders (40-buying 5.3): what the shop has ordered and what is still
+ * to come. Opens on Open (sent or part delivered); Drafts, Received (received,
+ * closed short or cancelled) and All beside it. Value and Still to come carry
+ * VAT. The supplier record's Orders tab is this list under its `supplierId`.
+ */
+const orders: ListSpec = {
+  noun: "orders",
+  read: ORDER_VIEW,
+  search: { placeholder: "Order number or supplier", keys: ["poNo", "supplier"] },
+  tabs: [
+    { key: "open", label: "Open", where: IS(["SENT", "PARTIAL"]) },
+    { key: "drafts", label: "Drafts", where: IS(["DRAFT"]) },
+    { key: "received", label: "Received", where: IS(["RECEIVED", "CLOSED", "CANCELLED"]) },
+    { key: "all", label: "All", where: [] },
+  ],
+  filters: [
+    { key: "supplier", label: "Supplier", type: "choice", any: "Any", primary: true, optionsFromLoader: true, column: "supplierId" },
+    { key: "site", label: "Site", type: "choice", any: "Any", primary: true, optionsFromLoader: true, column: "siteId", hideBelow: 2 },
+    // Late (W-34): sent or part delivered, something still to come, and past the day first expected. The loader asks it.
+    {
+      key: "late",
+      label: "Late",
+      type: "choice",
+      any: "Any",
+      options: [
+        { value: "late", label: "Late" },
+        { value: "not-late", label: "Not late" },
+      ],
+    },
+    { key: "raised", label: "Raised", type: "period", any: "Any time", column: "raised" },
+    { key: "supplierId", type: "parent", column: "supplierId" },
+  ],
+  sorts: [
+    {
+      key: "expected",
+      label: "Expected, soonest",
+      rules: [
+        { column: "expected", dir: "asc" },
+        { column: "poNo", dir: "asc" },
+      ],
+    },
+    {
+      key: "raised",
+      label: "Raised, newest",
+      rules: [
+        { column: "raisedAt", dir: "desc" },
+        { column: "poNo", dir: "desc" },
+      ],
+    },
+    {
+      key: "still",
+      label: "Most still to come",
+      rules: [
+        { column: "stillToCome", dir: "desc" },
+        { column: "poNo", dir: "asc" },
+      ],
+    },
+    { key: "number", label: "Order number", rules: [{ column: "poNo", dir: "asc" }] },
+  ],
+  groups: ["state", "supplier", "site"],
+  columns: [
+    { key: "poNo", label: "Order", kind: "code", cell: "ref", href: "/retail/buying/orders/{id}", width: "110px", align: "start", priority: 1 },
+    { key: "supplier", label: "Supplier", kind: "text", cell: "text", width: "minmax(160px,1.3fr)", align: "start", priority: 1 },
+    { key: "state", label: "State", kind: "status", cell: "state", toneKey: "tone", width: "130px", align: "start", priority: 1 },
+    { key: "raised", label: "Raised", kind: "date", cell: "date", width: "120px", align: "start", priority: 3 },
+    { key: "expected", label: "Expected", kind: "date", cell: "date", width: "140px", align: "start", priority: 2 },
+    {
+      key: "delivered",
+      label: "Delivered",
+      kind: "text",
+      cell: "bar",
+      bar: { pctKey: "deliveredPct", warnBelow: 100 },
+      width: "150px",
+      align: "start",
+      priority: 2,
+    },
+    { key: "value", label: "Value", kind: "money", currency: "USD", cell: "money", total: "sum", width: "110px", align: "end", priority: 1 },
+    {
+      key: "stillToCome",
+      label: "Still to come",
+      kind: "money",
+      currency: "USD",
+      cell: "owed",
+      pillKey: "stillPill",
+      total: "sum",
+      width: "120px",
+      align: "end",
+      priority: 1,
+    },
+    // Not drawn: the order state's code (tabs, menus), sorting keys, the site, the record tab's "300 of 780" and the phone card.
+    { key: "status", label: "Status", kind: "status", cell: "text", hidden: true, width: "90px", align: "start", priority: 3 },
+    { key: "site", label: "Site", kind: "text", cell: "muted", hidden: true, requires: "multi-site", width: "140px", align: "start", priority: 3 },
+    { key: "raisedAt", label: "Raised at", kind: "date", cell: "when", hidden: true, sortable: true, width: "140px", align: "start", priority: 3 },
+    { key: "deliveredWords", label: "Delivered", kind: "text", cell: "mono", hidden: true, width: "140px", align: "end", priority: 3 },
+    { key: "title", label: "Order and supplier", kind: "text", cell: "text", hidden: true, width: "minmax(200px,1fr)", align: "start", priority: 3 },
+  ],
+  rowHref: "/retail/buying/orders/{id}",
+  rowMenu: [
+    { key: "open", label: "Open", requires: ORDER_VIEW, do: { href: "/retail/buying/orders/{id}" } },
+    {
+      key: "send",
+      label: "Send to {supplierShort}",
+      requires: ORDER_CREATE,
+      when: IS(["DRAFT"]),
+      do: { run: "sendorder", endpoint: "/api/v2/retail/buying/orders/{id}/send" },
+    },
+    {
+      key: "receive",
+      label: "Receive a delivery",
+      requires: ORDER_RECEIVE,
+      when: OPEN_FOR_DELIVERY,
+      do: { href: "/retail/buying/orders/{id}/receive" },
+    },
+    {
+      key: "chase",
+      label: "Send a reminder",
+      requires: ORDER_UPDATE,
+      when: IS(["SENT", "PARTIAL"]),
+      do: { href: "/retail/buying/orders?sheet=order-chase&id={id}" },
+    },
+    {
+      key: "edit",
+      label: "Edit lines",
+      requires: ORDER_UPDATE,
+      when: OPEN_FOR_DELIVERY,
+      do: { href: "/retail/buying/orders?sheet=order-edit&id={id}" },
+    },
+    { key: "duplicate", label: "Duplicate order", requires: ORDER_CREATE, do: { run: "duplicateorder", endpoint: "/api/v2/retail/buying/orders/{id}/duplicate" } },
+    {
+      key: "close",
+      label: "Close with what came",
+      requires: ORDER_UPDATE,
+      when: [{ column: "closable", op: "is", value: ["yes"] }],
+      do: { run: "closeshort", endpoint: "/api/v2/retail/buying/orders/{id}/close" },
+    },
+    {
+      key: "remove",
+      label: "Remove the order",
+      tone: "bad",
+      separated: true,
+      requires: ORDER_DELETE,
+      when: IS(["DRAFT"]),
+      do: { run: "removeorder", endpoint: "/api/v2/retail/bin" },
+    },
+  ],
+  bulk: [
+    {
+      key: "send",
+      label: "Send to suppliers",
+      requires: ORDER_CREATE,
+      when: IS(["DRAFT"]),
+      do: { run: "sendorders", endpoint: "/api/v2/retail/buying/orders/bulk/send" },
+    },
+    {
+      key: "received",
+      label: "Mark received",
+      requires: ORDER_APPROVE,
+      when: IS(["SENT", "PARTIAL"]),
+      do: { run: "markreceived", endpoint: "/api/v2/retail/buying/orders/bulk/receive" },
+    },
+    { key: "cancel", label: "Cancel", tone: "bad", requires: ORDER_UPDATE, do: { run: "cancelorders", endpoint: "/api/v2/retail/buying/orders/bulk/cancel" } },
+    { key: "export" },
+  ],
+  primary: { label: "New order", icon: "plus", requires: ORDER_CREATE, sheet: "order-new" },
+  card: { title: "title", badge: "state", figure: "stillToCome", meta: "{cardMeta}" },
+  empty: {
+    icon: "TrayArrowDown",
+    title: "No orders yet",
+    line: "Orders you raise, from low stock or by hand, show here.",
+    primary: { label: "New order", sheet: "order-new", requires: ORDER_CREATE },
+  },
+};
+
+const ordersSource: ReportDefinition = {
+  key: "retail-orders",
+  title: "Orders",
+  area: "Buying",
+  href: "/retail/buying/orders",
+  profiles: ["RETAIL"],
+  params: [],
+  columns: orders.columns,
+  defaults: { sort: orders.sorts[0]!.rules.slice(0, 1) },
+  list: orders,
+};
+
+/**
+ * An order's Lines tab (5.4, `retail-order-lines`): ordered, delivered and
+ * still to come a line, at cost ex VAT. Without an order it has no rows.
+ */
+const orderLines: ListSpec = {
+  noun: "lines",
+  read: ORDER_VIEW,
+  search: { placeholder: "Product", keys: ["product"] },
+  filters: [{ key: "orderId", type: "parent", column: "orderId" }],
+  sorts: [{ key: "ordered", label: "As ordered", rules: [{ column: "order", dir: "asc" }] }],
+  columns: [
+    { key: "product", label: "Product", kind: "text", cell: "text", width: "minmax(0,1fr)", align: "start", priority: 1 },
+    { key: "ordered", label: "Ordered", kind: "number", cell: "num", total: "sum", width: "90px", align: "end", priority: 1 },
+    { key: "delivered", label: "Delivered", kind: "number", cell: "num", total: "sum", width: "90px", align: "end", priority: 1 },
+    {
+      key: "stillToCome",
+      label: "Still to come",
+      kind: "number",
+      cell: "num",
+      pillKey: "stillTone",
+      unitKey: "stillUnit",
+      total: "sum",
+      width: "110px",
+      align: "end",
+      priority: 1,
+    },
+    { key: "cost", label: "Cost", kind: "money", currency: "USD", cell: "money", toneKey: "costTone", width: "90px", align: "end", priority: 3 },
+    { key: "value", label: "Value", kind: "money", currency: "USD", cell: "money", total: "sum", width: "110px", align: "end", priority: 1 },
+    { key: "order", label: "Order", kind: "number", cell: "num", hidden: true, width: "60px", align: "end", priority: 3 },
+  ],
+  rowHref: "/retail/products/{productId}",
+  card: { title: "product", figure: "stillToCome", meta: "{delivered} of {ordered} delivered" },
+  empty: { icon: "TrayArrowDown", title: "Nothing on this order", line: "Edit the lines to add what to order." },
+};
+
+const orderLinesSource: ReportDefinition = {
+  key: "retail-order-lines",
+  title: "Lines on an order",
+  area: "Buying",
+  href: "/retail/buying/orders",
+  profiles: ["RETAIL"],
+  params: [],
+  columns: orderLines.columns,
+  defaults: { sort: orderLines.sorts[0]!.rules },
+  list: orderLines,
+};
+
+/**
+ * A delivery's Lines tab (5.6, `retail-delivery-lines`): on the note, counted
+ * into stock, the difference (a warn pill when short or broken), cost and
+ * value ex VAT. Without a delivery it has no rows.
+ */
+const deliveryLines: ListSpec = {
+  noun: "lines",
+  read: ORDER_VIEW,
+  search: { placeholder: "Product", keys: ["product"] },
+  filters: [{ key: "deliveryId", type: "parent", column: "deliveryId" }],
+  sorts: [{ key: "counted", label: "As counted", rules: [{ column: "order", dir: "asc" }] }],
+  columns: [
+    { key: "product", label: "Product", kind: "text", cell: "text", width: "minmax(0,1fr)", align: "start", priority: 1 },
+    { key: "onNote", label: "On the note", kind: "number", cell: "num", total: "sum", width: "110px", align: "end", priority: 1 },
+    { key: "counted", label: "Counted", kind: "number", cell: "num", total: "sum", width: "90px", align: "end", priority: 1 },
+    { key: "difference", label: "Difference", kind: "number", cell: "num", sign: "plain", pillKey: "differenceTone", total: "sum", width: "110px", align: "end", priority: 1 },
+    { key: "cost", label: "Cost", kind: "money", currency: "USD", cell: "money", toneKey: "costTone", width: "90px", align: "end", priority: 3 },
+    { key: "value", label: "Value", kind: "money", currency: "USD", cell: "money", total: "sum", width: "110px", align: "end", priority: 1 },
+    { key: "order", label: "Order", kind: "number", cell: "num", hidden: true, width: "60px", align: "end", priority: 3 },
+  ],
+  rowHref: "/retail/products/{productId}",
+  card: { title: "product", figure: "counted", meta: "{counted} of {onNote} on the note" },
+  empty: { icon: "TrayArrowDown", title: "Nothing on this delivery", line: "Lines counted on Receive show here." },
+};
+
+const deliveryLinesSource: ReportDefinition = {
+  key: "retail-delivery-lines",
+  title: "Lines on a delivery",
+  area: "Buying",
+  href: "/retail/buying/deliveries",
+  profiles: ["RETAIL"],
+  params: [],
+  columns: deliveryLines.columns,
+  defaults: { sort: deliveryLines.sorts[0]!.rules },
+  list: deliveryLines,
+};
+
+/**
+ * An order's Messages tab (5.4, `retail-order-messages`): the order sent,
+ * the changes and reminders, and the supplier's replies, newest first. A
+ * message that failed can be sent again.
+ */
+const orderMessages: ListSpec = {
+  noun: "messages",
+  read: ORDER_VIEW,
+  search: { placeholder: "Message", keys: ["message", "who"] },
+  filters: [{ key: "orderId", type: "parent", column: "orderId" }],
+  sorts: [{ key: "newest", label: "Newest first", rules: [{ column: "when", dir: "desc" }] }],
+  columns: [
+    { key: "when", label: "When", kind: "date", cell: "when", width: "150px", align: "start", priority: 1 },
+    { key: "who", label: "Who", kind: "text", cell: "text", width: "180px", align: "start", priority: 1 },
+    { key: "how", label: "How", kind: "text", cell: "muted", width: "100px", align: "start", priority: 2 },
+    { key: "message", label: "Message", kind: "text", cell: "text", titleKey: "message", width: "minmax(0,1fr)", align: "start", priority: 1 },
+    { key: "state", label: "State", kind: "status", cell: "state", toneKey: "tone", width: "200px", align: "start", priority: 1 },
+    { key: "status", label: "Status", kind: "status", cell: "text", hidden: true, width: "90px", align: "start", priority: 3 },
+  ],
+  rowHref: "/retail/buying/orders/{orderId}",
+  rowMenu: [
+    {
+      key: "again",
+      label: "Send again",
+      requires: ORDER_UPDATE,
+      when: [{ column: "status", op: "is", value: ["FAILED"] }],
+      do: { run: "sendagain", endpoint: "/api/v2/retail/buying/orders/{orderId}/messages/{id}" },
+    },
+  ],
+  card: { title: "who", badge: "state", figure: "how", meta: "{message}" },
+  empty: { icon: "ChatCircle", title: "No messages yet", line: "The order, its changes and the supplier's replies show here once it is sent." },
+};
+
+const orderMessagesSource: ReportDefinition = {
+  key: "retail-order-messages",
+  title: "Messages about an order",
+  area: "Buying",
+  href: "/retail/buying/orders",
+  profiles: ["RETAIL"],
+  params: [],
+  columns: orderMessages.columns,
+  defaults: { sort: orderMessages.sorts[0]!.rules },
+  list: orderMessages,
+};
+
+/* ── Requisitions (5.8, `retail-requisitions`) ─────────────────────────── */
+
+const REQ_VIEW: ListGrant[] = [
+  ["retail.requisitions", "view"],
+  ["retail.requisitions", "view-own"],
+];
+const REQ_CREATE: ListGrant[] = [["retail.requisitions", "create"]];
+const REQ_APPROVE: ListGrant[] = [["retail.requisitions", "approve"]];
+const REQ_UPDATE: ListGrant[] = [["retail.requisitions", "update"]];
+const REQ_STATES = (values: string[]) => [{ column: "status", op: "is" as const, value: values }];
+const YES = (column: string) => [{ column, op: "is" as const, value: ["yes"] }];
+
+/**
+ * Buying › Requisitions (40-buying 5.8): money asked for, by state. Approvers
+ * open on To approve, everyone else on All. A cashier or stock clerk sees only
+ * what they asked for, and no "Asked by". Amount is the approved amount when
+ * it was cut; Σ adds US dollars only.
+ */
+const requisitions: ListSpec = {
+  noun: "requisitions",
+  read: REQ_VIEW,
+  scopeOwn: { roles: ["CASHIER", "POS_CASHIER", "STOCK_CLERK"], column: "askedById", filter: "asked" },
+  search: { placeholder: "Number, purpose or person", keys: ["requisitionNo", "purpose", "askedBy"] },
+  tabs: [
+    { key: "approve", label: "To approve", where: REQ_STATES(["SUBMITTED"]) },
+    { key: "payout", label: "To pay out", where: REQ_STATES(["APPROVED"]) },
+    { key: "receipts", label: "Receipts due", where: REQ_STATES(["DISBURSED"]) },
+    { key: "all", label: "All", where: [] },
+  ],
+  tabFor: { roles: ["CASHIER", "POS_CASHIER", "STOCK_CLERK", "FINANCE_OFFICER"], tab: "all" },
+  filters: [
+    {
+      key: "purpose",
+      label: "Purpose",
+      type: "choice",
+      any: "Any",
+      primary: true,
+      options: [
+        { value: "order", label: "An order", where: [{ column: "purposeKind", op: "is", value: ["order"] }] },
+        { value: "expense", label: "An expense", where: [{ column: "purposeKind", op: "is", value: ["expense"] }] },
+      ],
+    },
+    { key: "asked", label: "Asked by", type: "choice", any: "Anyone", primary: true, optionsFromLoader: true, column: "askedById" },
+    {
+      key: "state",
+      label: "State",
+      type: "choice",
+      any: "Any",
+      options: [
+        { value: "SUBMITTED", label: "Waiting for approval", where: REQ_STATES(["SUBMITTED"]) },
+        { value: "APPROVED", label: "Approved, to pay", where: REQ_STATES(["APPROVED"]) },
+        { value: "DISBURSED", label: "Paid, receipt due", where: REQ_STATES(["DISBURSED"]) },
+        { value: "ACQUITTED", label: "Accounted for", where: REQ_STATES(["ACQUITTED"]) },
+        { value: "REJECTED", label: "Rejected", where: REQ_STATES(["REJECTED"]) },
+        { value: "CANCELLED", label: "Cancelled", where: REQ_STATES(["CANCELLED"]) },
+        { value: "DRAFT", label: "Draft", where: REQ_STATES(["DRAFT"]) },
+      ],
+    },
+    { key: "needed", label: "Needed", type: "period", any: "Any time", column: "neededBy" },
+  ],
+  sorts: [
+    {
+      key: "needed",
+      label: "Needed soonest",
+      rules: [
+        { column: "neededBy", dir: "asc" },
+        { column: "requisitionNo", dir: "desc" },
+      ],
+    },
+    { key: "asked", label: "Asked, newest", rules: [{ column: "askedAt", dir: "desc" }] },
+    {
+      key: "amount",
+      label: "Amount, highest",
+      rules: [
+        { column: "amount", dir: "desc" },
+        { column: "requisitionNo", dir: "desc" },
+      ],
+    },
+  ],
+  groups: ["state", "askedBy", "purposeWords"],
+  columns: [
+    { key: "requisitionNo", label: "Number", kind: "code", cell: "ref", href: "/retail/buying/requisitions/{id}", width: "110px", align: "start", priority: 1 },
+    { key: "purpose", label: "What for", kind: "text", cell: "text", width: "minmax(200px,1.5fr)", align: "start", priority: 1 },
+    { key: "state", label: "State", kind: "status", cell: "state", toneKey: "tone", width: "150px", align: "start", priority: 1 },
+    {
+      key: "amount",
+      label: "Amount",
+      kind: "money",
+      currency: "USD",
+      currencyKey: "currency",
+      cell: "money",
+      total: "sum",
+      totalOf: "usdAmount",
+      width: "120px",
+      align: "end",
+      priority: 1,
+    },
+    { key: "askedBy", label: "Asked by", kind: "text", cell: "muted", width: "150px", align: "start", priority: 3 },
+    { key: "neededBy", label: "Needed by", kind: "date", cell: "date", width: "120px", align: "start", priority: 2 },
+    {
+      key: "against",
+      label: "Against",
+      kind: "text",
+      cell: "ref",
+      href: "/retail/buying/orders/{orderId}",
+      toneKey: "againstTone",
+      width: "130px",
+      align: "start",
+      priority: 2,
+    },
+    // Not drawn: the state's code, who asked, sorting keys, the purpose's kind, the row's rights and the phone card.
+    { key: "status", label: "Status", kind: "status", cell: "text", hidden: true, width: "90px", align: "start", priority: 3 },
+    { key: "askedAt", label: "Asked at", kind: "date", cell: "when", hidden: true, sortable: true, width: "140px", align: "start", priority: 3 },
+    { key: "purposeWords", label: "Purpose", kind: "text", cell: "text", hidden: true, width: "120px", align: "start", priority: 3 },
+    { key: "usdAmount", label: "US$ amount", kind: "money", currency: "USD", cell: "money", hidden: true, width: "110px", align: "end", priority: 3 },
+    { key: "cardMeta", label: "Card", kind: "text", cell: "text", hidden: true, width: "200px", align: "start", priority: 3 },
+  ],
+  rowHref: "/retail/buying/requisitions/{id}",
+  rowMenu: [
+    { key: "open", label: "Open", requires: REQ_VIEW, do: { href: "/retail/buying/requisitions/{id}" } },
+    {
+      key: "approve",
+      label: "Approve",
+      requires: REQ_APPROVE,
+      when: YES("decidable"),
+      do: { run: "approvereq", endpoint: "/api/v2/retail/buying/requisitions/{id}/approve" },
+    },
+    {
+      key: "reject",
+      label: "Reject",
+      requires: REQ_APPROVE,
+      when: YES("decidable"),
+      do: { href: "/retail/buying/requisitions?sheet=req-reject&id={id}" },
+    },
+    {
+      key: "payout",
+      label: "Pay out",
+      requires: REQ_UPDATE,
+      when: YES("payable"),
+      do: { href: "/retail/buying/requisitions?sheet=req-payout&id={id}" },
+    },
+    {
+      key: "acquit",
+      label: "Account for it",
+      requires: [...REQ_CREATE, ...REQ_UPDATE],
+      when: YES("acquittable"),
+      do: { href: "/retail/buying/requisitions?sheet=req-acquit&id={id}" },
+    },
+    {
+      key: "cancel",
+      label: "Cancel the requisition",
+      tone: "bad",
+      separated: true,
+      requires: REQ_CREATE,
+      when: YES("cancellable"),
+      do: { run: "cancelreq", endpoint: "/api/v2/retail/buying/requisitions/{id}/cancel" },
+    },
+  ],
+  bulk: [
+    { key: "approve", label: "Approve", requires: REQ_APPROVE, when: REQ_STATES(["SUBMITTED"]), do: { run: "approvemany", endpoint: "/api/v2/retail/buying/requisitions/bulk/approve" } },
+    {
+      key: "reject",
+      label: "Reject",
+      tone: "bad",
+      requires: REQ_APPROVE,
+      when: REQ_STATES(["SUBMITTED"]),
+      do: { sheet: "req-reject", with: { ids: "{ids}" } },
+    },
+    { key: "payout", label: "Pay out", requires: REQ_UPDATE, when: REQ_STATES(["APPROVED"]), do: { sheet: "req-payout", with: { ids: "{ids}" } } },
+    { key: "export" },
+  ],
+  primary: { label: "Ask for money", icon: "plus", requires: REQ_CREATE, sheet: "req-new" },
+  card: { title: "purpose", badge: "state", figure: "amount", meta: "{cardMeta}" },
+  empty: {
+    icon: "Money",
+    title: "No requisitions yet",
+    line: "When someone needs money for the shop, they ask here and the owner says yes or no.",
+    primary: { label: "Ask for money", sheet: "req-new", requires: REQ_CREATE },
+  },
+};
+
+/**
+ * Requisitions as Reports reads them (70-insights-reports 5.14): cash asked
+ * for, who approved it, what was paid out, spent and brought back.
+ */
+const requisitionsReport: ReportFace = {
+  area: "money",
+  startsFrom: { title: "Requisitions", sub: "Cash asked for, approved and paid" },
+  noun: "requisitions",
+  read: REQ_VIEW,
+  scopeOwn: requisitions.scopeOwn,
+  search: { placeholder: "Requisition, what for or who", keys: ["requisitionNo", "purpose", "whatFor", "askedBy"] },
+  filters: [
+    { key: "asked", label: "Asked", type: "period", any: "Any time", column: "askedAt", primary: true },
+    {
+      key: "state",
+      label: "State",
+      type: "choice",
+      any: "Any",
+      primary: true,
+      options: [
+        { value: "asked", label: "Asked", where: REQ_STATES(["SUBMITTED"]) },
+        { value: "approved", label: "Approved", where: REQ_STATES(["APPROVED"]) },
+        { value: "paid-out", label: "Paid out", where: REQ_STATES(["DISBURSED"]) },
+        { value: "accounted", label: "Accounted for", where: REQ_STATES(["ACQUITTED"]) },
+        { value: "paid", label: "Paid out or accounted for", where: REQ_STATES(["DISBURSED", "ACQUITTED"]) },
+        { value: "rejected", label: "Rejected", where: REQ_STATES(["REJECTED"]) },
+        { value: "cancelled", label: "Cancelled", where: REQ_STATES(["CANCELLED"]) },
+      ],
+    },
+    { key: "askedBy", label: "Asked by", type: "choice", any: "Anyone", primary: true, optionsFromLoader: true, column: "askedById" },
+    { key: "whatFor", label: "What for", type: "choice", any: "Anything", optionsFromLoader: true, column: "whatFor" },
+  ],
+  sorts: [
+    { key: "newest", label: "Newest first", rules: [{ column: "askedAt", dir: "desc" }] },
+    {
+      key: "paid",
+      label: "Most paid",
+      rules: [
+        { column: "paid", dir: "desc" },
+        { column: "askedAt", dir: "desc" },
+      ],
+    },
+  ],
+  groups: ["askedBy", "whatFor", "month"],
+  columns: [
+    { key: "requisitionNo", label: "Requisition", kind: "code", cell: "ref", href: "/retail/buying/requisitions/{id}", width: "120px", align: "start", priority: 1 },
+    { key: "purpose", label: "What for", kind: "text", cell: "text", width: "minmax(180px,1fr)", align: "start", priority: 1 },
+    { key: "whatFor", label: "Kind", kind: "text", cell: "text", hidden: true, width: "160px", align: "start", priority: 3 },
+    { key: "askedBy", label: "Asked by", kind: "text", cell: "text", width: "140px", align: "start", priority: 2 },
+    { key: "approvedBy", label: "Approved by", kind: "text", cell: "muted", width: "140px", align: "start", priority: 3 },
+    { key: "state", label: "State", kind: "status", cell: "state", toneKey: "tone", width: "130px", align: "start", priority: 1 },
+    { key: "amount", label: "Asked", kind: "money", currency: "USD", currencyKey: "currency", cell: "money", hidden: true, width: "110px", align: "end", priority: 3 },
+    { key: "approved", label: "Approved", kind: "money", currency: "USD", currencyKey: "currency", cell: "money", hidden: true, width: "110px", align: "end", priority: 3 },
+    { key: "paid", label: "Paid", kind: "money", currency: "USD", currencyKey: "currency", cell: "money", total: "sum", width: "110px", align: "end", priority: 1 },
+    { key: "spent", label: "Spent", kind: "money", currency: "USD", currencyKey: "currency", cell: "money", total: "sum", width: "110px", align: "end", priority: 1 },
+    { key: "back", label: "Back", kind: "money", currency: "USD", currencyKey: "currency", cell: "money", total: "sum", width: "100px", align: "end", priority: 2 },
+    { key: "paidOn", label: "Paid on", kind: "date", cell: "date", width: "140px", align: "start", priority: 2 },
+    { key: "month", label: "Month", kind: "text", cell: "text", hidden: true, width: "110px", align: "start", priority: 3 },
+    { key: "askedAt", label: "Asked at", kind: "date", cell: "when", hidden: true, width: "140px", align: "start", priority: 3 },
+    { key: "requisitions", label: "Requisitions", kind: "number", cell: "num", total: "sum", width: "110px", align: "end", priority: 1 },
+  ],
+  rowHref: "/retail/buying/requisitions/{id}",
+  bulk: [{ key: "export" }],
+  card: requisitions.card,
+  empty: { icon: "Money", title: "No requisitions", line: "Nothing was asked for in this period." },
+  rollups: [
+    { key: "none", label: "Requisition" },
+    { key: "askedBy", label: "Asked by" },
+    { key: "whatFor", label: "What for" },
+    { key: "month", label: "Month" },
+  ],
+  rollupOnly: "requisitions",
+};
+
+const requisitionsSource: ReportDefinition = {
+  key: "retail-requisitions",
+  title: "Requisitions",
+  area: "Buying",
+  href: "/retail/buying/requisitions",
+  profiles: ["RETAIL"],
+  params: [],
+  columns: requisitions.columns,
+  defaults: { sort: requisitions.sorts[0]!.rules },
+  list: requisitions,
+  report: requisitionsReport,
+};
+
+/** A requisition's Approvals tab (5.9): who it waits for, each decision, each question and answer. */
+const requisitionApprovals: ListSpec = {
+  noun: "approvals",
+  read: REQ_VIEW,
+  search: { placeholder: "What", keys: ["what", "by"] },
+  filters: [{ key: "requisitionId", type: "parent", column: "requisitionId" }],
+  sorts: [{ key: "when", label: "Oldest first", rules: [{ column: "when", dir: "asc" }] }],
+  columns: [
+    { key: "when", label: "When", kind: "date", cell: "when", width: "150px", align: "start", priority: 1 },
+    { key: "what", label: "What", kind: "status", cell: "state", toneKey: "tone", width: "minmax(0,1fr)", align: "start", priority: 1 },
+    { key: "by", label: "By", kind: "text", cell: "text", width: "180px", align: "start", priority: 1 },
+  ],
+  rowHref: "/retail/buying/requisitions/{requisitionId}",
+  card: { title: "what", figure: "by", meta: "{whenText}" },
+  empty: { icon: "Money", title: "Nothing decided yet", line: "Approvals, rejections and questions show here." },
+};
+
+const requisitionApprovalsSource: ReportDefinition = {
+  key: "retail-requisition-approvals",
+  title: "Approvals of a requisition",
+  area: "Buying",
+  href: "/retail/buying/requisitions",
+  profiles: ["RETAIL"],
+  params: [],
+  columns: requisitionApprovals.columns,
+  defaults: { sort: requisitionApprovals.sorts[0]!.rules },
+  list: requisitionApprovals,
+};
+
+/** A requisition's Receipts tab (5.9): the files kept when it is accounted for, as pictures, the spent figure under the first. */
+const requisitionReceipts: ListSpec = {
+  noun: "receipts",
+  read: REQ_VIEW,
+  search: { placeholder: "File", keys: ["name"] },
+  filters: [{ key: "requisitionId", type: "parent", column: "requisitionId" }],
+  sorts: [{ key: "added", label: "Newest first", rules: [{ column: "added", dir: "desc" }] }],
+  columns: [
+    { key: "name", label: "Receipt", kind: "text", cell: "thumb", href: "{url}", thumbKey: "thumb", suffixKey: "under", width: "minmax(0,1fr)", align: "start", priority: 1 },
+    { key: "added", label: "Added", kind: "date", cell: "when", width: "150px", align: "start", priority: 1 },
+    { key: "by", label: "By", kind: "text", cell: "muted", width: "160px", align: "start", priority: 2 },
+  ],
+  rowHref: "{url}",
+  card: { title: "name", figure: "by", meta: "{addedText}" },
+  empty: { icon: "Receipt", title: "No receipts yet", line: "Receipts are added when the money is accounted for." },
+};
+
+const requisitionReceiptsSource: ReportDefinition = {
+  key: "retail-requisition-receipts",
+  title: "Receipts of a requisition",
+  area: "Buying",
+  href: "/retail/buying/requisitions",
+  profiles: ["RETAIL"],
+  params: [],
+  columns: requisitionReceipts.columns,
+  defaults: { sort: requisitionReceipts.sorts[0]!.rules },
+  list: requisitionReceipts,
+};
+
+export const BUYING_REPORTS: ReportDefinition[] = [
+  suppliersSource,
+  contactsSource,
+  ordersSource,
+  orderLinesSource,
+  orderMessagesSource,
+  deliveryLinesSource,
+  requisitionsSource,
+  requisitionApprovalsSource,
+  requisitionReceiptsSource,
+];

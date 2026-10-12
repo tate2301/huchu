@@ -34,6 +34,8 @@ export type LinesFieldProps = {
   onOpenChange?: (open: boolean) => void;
   /** Only the lines given: no add row and no remove. */
   closed?: boolean;
+  /** With `closed`: × still drops a line. */
+  droppable?: boolean;
   /** A line's sub in `--warn` while this holds, as typed. */
   lineWarn?: (line: SheetLine) => boolean;
   /** No quantity column: any of the products count (a buy-more deal). */
@@ -55,6 +57,7 @@ export function LinesField({
   lineErrors = {},
   onOpenChange,
   closed = false,
+  droppable = false,
   lineWarn,
   hideQuantity = false,
 }: LinesFieldProps) {
@@ -127,11 +130,13 @@ export function LinesField({
             </>
           ) : null}
           <span role="cell">
-            {closed ? null : (
+            {closed && !droppable ? null : (
               <button
                 type="button"
                 className="sf-lines__remove"
                 aria-label={`Remove ${line.name}`}
+                disabled={Boolean(line.keep)}
+                title={line.keep}
                 onClick={() => onValueChange(value.filter((row) => row.productId !== line.productId))}
               >
                 <X aria-hidden="true" />

@@ -3,6 +3,7 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { FLOOR_REPORTS } from "@/lib/reports/definitions/retail/floor";
 import { loaderParams, periodInstants, runList, startOfDayIn } from "@/lib/reports/list-query";
+import { customerParentName } from "@/lib/reports/loaders/retail/customer-record";
 import { num, result, TAKE } from "@/lib/reports/loaders/shared";
 import type {
   ListPageResult,
@@ -51,18 +52,33 @@ const FROM = Prisma.sql`
   LEFT JOIN "Customer" c ON c.id = s."customerId"
   LEFT JOIN "FiscalReceipt" f ON f."retailSaleId" = s.id`;
 
-type Scope = { companyId: string; cashierId: string | null; shiftId: string | null; bundleId: string | null; voucherId: string | null };
+type Scope = {
+  companyId: string;
+  cashierId: string | null;
+  shiftId: string | null;
+  bundleId: string | null;
+  voucherId: string | null;
+  customerId: string | null;
+};
 
 /** The rows a caller may see at all: this company's sales and refunds, a cashier's own, a shift's when opened from one. */
 function scopeOf(ctx: ReportContext, filters: Record<string, string>): Scope {
   const own = LIST.scopeOwn && LIST.scopeOwn.roles.includes(ctx.role) ? ctx.userId : null;
-  return { companyId: ctx.companyId, cashierId: own, shiftId: filters.shift || null, bundleId: filters.bundle || null, voucherId: filters.voucher || null };
+  return {
+    companyId: ctx.companyId,
+    cashierId: own,
+    shiftId: filters.shift || null,
+    bundleId: filters.bundle || null,
+    voucherId: filters.voucher || null,
+    customerId: filters.customer || null,
+  };
 }
 
 function scopeSql(scope: Scope): Prisma.Sql[] {
   const parts = [Prisma.sql`s."companyId" = ${scope.companyId}`, Prisma.sql`s."saleType" IN ('SALE', 'REFUND')`];
   if (scope.cashierId) parts.push(Prisma.sql`s."cashierId" = ${scope.cashierId}`);
   if (scope.shiftId) parts.push(Prisma.sql`s."shiftId" = ${scope.shiftId}`);
+  if (scope.customerId) parts.push(Prisma.sql`s."customerId" = ${scope.customerId}`);
   // "Every sale of it" from a bundle's record (PRD-08): the sales with a line sold under it.
   if (scope.bundleId) {
     parts.push(Prisma.sql`EXISTS (SELECT 1 FROM "RetailSaleLine" bl WHERE bl."saleId" = s.id AND bl."bundleId" = ${scope.bundleId})`);
@@ -219,6 +235,9 @@ export function toSaleRow(row: SaleRow, now: Date): ReportRow {
     size: Math.abs(total),
     state: stateOf(row),
     voided: voided ? "yes" : null,
+    // FLR-02's row menu: Refund while something is left, Void the same day with nothing reversed.
+    refundable: row.saleType === "SALE" && row.status === "POSTED" && !row.fullyRefunded ? "yes" : null,
+    voidable: row.saleType === "SALE" && row.status === "POSTED" && !row.refunded && today ? "yes" : null,
     flagged: row.flagged ? "yes" : null,
     siteId: row.siteId,
     shiftId: row.shiftId,
@@ -320,6 +339,12 @@ async function saleOptions(ctx: ReportContext): Promise<Record<string, ReportOpt
   };
 }
 
+/** The record a parent narrows Sales to: a customer's name ("All their purchases"); the other parents' tabs need none. */
+async function saleParent(ctx: ReportContext, filters: Record<string, string>): Promise<string | null> {
+  if (!filters.customer) return null;
+  return customerParentName(ctx, filters);
+}
+
 export const FLOOR_SALES_LOADERS: Record<string, ReportLoader> = {
-  "retail-sales": { load: loadSales, page: pageSales, options: saleOptions },
+  "retail-sales": { load: loadSales, page: pageSales, options: saleOptions, parentLabel: saleParent },
 };

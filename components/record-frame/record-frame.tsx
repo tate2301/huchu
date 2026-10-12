@@ -58,7 +58,7 @@ export function RecordFrame<R>({
   const { data: session } = useSession();
   const [asking, setAsking] = React.useState(false);
   // A `{ post }` action waiting on its ask.
-  const [posting, setPosting] = React.useState<{ url: string; body?: unknown; ask: Ask; done: string } | null>(null);
+  const [posting, setPosting] = React.useState<{ url: string; method?: "PATCH" | "DELETE"; body?: unknown; ask: Ask; done: string } | null>(null);
   const [range, setRange] = React.useState<string | null>(kind.chartRanges?.initial ?? null);
 
   const query = useQuery({ queryKey: kind.queryKey(id), queryFn: () => kind.load(id), enabled: Boolean(id) });
@@ -88,7 +88,7 @@ export function RecordFrame<R>({
 
   // Post, then read the record again and say what happened.
   const post = React.useCallback(
-    async (target: { url: string; method?: "POST" | "DELETE"; body?: unknown; done: string }) => {
+    async (target: { url: string; method?: "POST" | "DELETE" | "PATCH"; body?: unknown; done: string }) => {
       try {
         await fetchJson(target.url, { method: target.method ?? "POST", body: JSON.stringify(target.body ?? {}) });
       } catch (error) {
@@ -165,7 +165,7 @@ export function RecordFrame<R>({
   const primaryAction = record && !binned ? (kind.primary?.(record) ?? null) : null;
   const primary: PagePrimary | null =
     primaryAction && allowed(primaryAction) ? { label: primaryAction.label, onClick: () => run(primaryAction) } : null;
-  const canBin = Boolean(record && kind.bin && !binned && can(kind.bin.deleteRight));
+  const canBin = Boolean(record && kind.bin && !binned && can(kind.bin.deleteRight) && (kind.bin.offer?.(record) ?? true));
 
   const saveField = React.useCallback(
     async (edit: RailEdit, value: unknown) => {
@@ -289,7 +289,7 @@ export function RecordFrame<R>({
     <div className={`cx-rf${binned ? " is-binned" : ""}`}>
       {chrome}
       {bin ? (
-        <BinBanner state={bin} meanwhile={kind.bin?.meanwhile} viewerId={user?.id ?? null} canRestore={can(["retail.bin", "update"])} onRestore={restore} />
+        <BinBanner state={bin} lead={kind.bin?.lead?.(record) ?? null} meanwhile={typeof kind.bin?.meanwhile === "function" ? kind.bin.meanwhile(record) : kind.bin?.meanwhile} viewerId={user?.id ?? null} canRestore={can(["retail.bin", "update"])} onRestore={restore} />
       ) : banner ? (
         <KindBanner banner={banner} canAct={banner.action ? can(banner.action.requires) : false} onAct={(action) => post({ url: action.post, method: action.method, body: action.body, done: action.done })} />
       ) : null}

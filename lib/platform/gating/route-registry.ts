@@ -443,7 +443,6 @@ export const API_FEATURE_ROUTES: FeatureRouteEntry[] = [
   { scope: "api", prefix: "/api/v2/schools/portal/teacher", featureKey: "schools.portal.teacher" },
   { scope: "api", prefix: "/api/v2/schools", featureKey: "schools.core" },
 
-  { scope: "api", prefix: "/api/retail/customers", featureKey: "crm.customers" },
   { scope: "api", prefix: "/api/retail/catalog", featureKey: "retail.catalog" },
   { scope: "api", prefix: "/api/retail/purchasing", featureKey: "retail.purchasing" },
   { scope: "api", prefix: "/api/retail/promotions", featureKey: "retail.promotions" },
@@ -461,7 +460,9 @@ export const API_FEATURE_ROUTES: FeatureRouteEntry[] = [
   // SS-1.1 — "what is in this store" reads the same stock the three entries
   // above gate; it was the one sibling with no entry.
   { scope: "api", prefix: "/api/v2/inventory/locations", featureKey: "stores.inventory" },
-  { scope: "api", prefix: "/api/v2/retail/customers", featureKey: "crm.customers" },
+  // The shop's customer API answers under retail.core, so a retail role without the customer book (a stock
+  // clerk) is refused by the role matrix in its own words, not by the feature gate. The retail suite always
+  // carries crm.customers, and the pages stay on it.
   { scope: "api", prefix: "/api/v2/retail/price-lists", featureKey: "retail.promotions" },
   // Change many prices, its preview and its Undo (PRD-07): the price lists' own.
   { scope: "api", prefix: "/api/v2/retail/price-changes", featureKey: "retail.promotions" },

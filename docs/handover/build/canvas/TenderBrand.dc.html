@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<title>Tender brand</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Next:wght@400;500;600&amp;family=IBM+Plex+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>body{margin:0}</style>
+</helmet>
+<div style="width: 1440px; height: 1720px; box-sizing: border-box; padding: 72px 80px; background: #ffffff; color: #24140e; font-family: 'Atkinson Hyperlegible Next', system-ui, sans-serif; display: flex; flex-direction: column; gap: 64px;">
+
+  <header style="display: grid; grid-template-columns: minmax(0, 1fr) 420px; gap: 48px; align-items: end;">
+    <div style="display: flex; flex-direction: column; gap: 14px;">
+      <span style="font-size: 14px; font-weight: 500; color: #75675f;">Retail and point of sale</span>
+      <h1 style="margin: 0; font-size: 56px; line-height: 1.04; font-weight: 600; letter-spacing: -0.04em;">Tender</h1>
+      <p style="margin: 0; font-size: 18px; line-height: 1.55; color: #4a3a33; max-width: 640px;">How a Corelith shop sells: the till, the handheld and the back office behind them. Warm, plain and quick to read at a counter, with one colour that means "do this".</p>
+    </div>
+    <img src="/_blob/b4ec88748456d06f1b1bc11935a99a6f" alt="Tender lockup" style="width: 300px; height: auto; justify-self: end;">
+  </header>
+
+  <section style="display: flex; flex-direction: column; gap: 20px;">
+    <h2 style="margin: 0; font-size: 24px; font-weight: 600; letter-spacing: -0.02em;">Logo</h2>
+    <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px;">
+      <figure style="margin: 0; display: flex; flex-direction: column; gap: 10px;">
+        <div style="height: 200px; border: 1px solid #ece6e0; border-radius: 12px; background: #ffffff; display: flex; align-items: center; justify-content: center;"><img src="/_blob/b4ec88748456d06f1b1bc11935a99a6f" alt="Lockup on white" style="width: 240px; height: auto;"></div>
+        <figcaption style="font-size: 13px; color: #75675f;">Lockup on white or cream. Sign-in, receipts, documents.</figcaption>
+      </figure>
+      <figure style="margin: 0; display: flex; flex-direction: column; gap: 10px;">
+        <div style="height: 200px; border-radius: 12px; background: #171310; display: flex; align-items: center; justify-content: center;"><img src="/_blob/f83d2bd4500f196e4c213491d6d9c62d" alt="Lockup on warm near-black" style="width: 240px; height: auto;"></div>
+        <figcaption style="font-size: 13px; color: #75675f;">Lockup on warm near-black. The wordmark turns cream; the mark stays.</figcaption>
+      </figure>
+      <figure style="margin: 0; display: flex; flex-direction: column; gap: 10px;">
+        <div style="height: 200px; border: 1px solid #ece6e0; border-radius: 12px; background: #faf7f4; display: flex; align-items: center; justify-content: center; gap: 28px;"><img src="/_blob/b34bcc2cb85385942d1f890826d505c3" alt="Mark, large" style="width: 88px; height: auto;"><img src="/_blob/b34bcc2cb85385942d1f890826d505c3" alt="Mark, small" style="width: 40px; height: auto;"><img src="/_blob/b34bcc2cb85385942d1f890826d505c3" alt="Mark, smallest" style="width: 24px; height: auto;"></div>
+        <figcaption style="font-size: 13px; color: #75675f;">The mark alone: app icon, rail, favicon, the pills in drawings.</figcaption>
+      </figure>
+    </div>
+    <ul style="margin: 0; padding-left: 18px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px 40px; font-size: 14.5px; line-height: 1.5; color: #4a3a33;">
+      <li>The mark is always tomato with a white shop. Never recoloured, outlined or set on a photograph.</li>
+      <li>The wordmark is lower case, warm ink on light grounds and cream on dark. Never black, never white.</li>
+      <li>Use the files as exported. Do not redraw, stretch or add effects.</li>
+      <li>Inside the product the mark appears once per screen at most; the workspace's own mark leads the rail.</li>
+    </ul>
+  </section>
+
+  <section style="display: flex; flex-direction: column; gap: 20px;">
+    <h2 style="margin: 0; font-size: 24px; font-weight: 600; letter-spacing: -0.02em;">Colour</h2>
+    <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 32px;">
+      <div style="display: flex; flex-direction: column; gap: 10px;">
+        <span style="font-size: 14px; font-weight: 600;">Brand</span>
+        <sc-for list="{{brand}}" as="c" hint-placeholder-count="4">
+          <div style="display: flex; align-items: center; gap: 12px; height: 44px; border-bottom: 1px solid #f3eee9;"><span style="flex: none; width: 32px; height: 32px; border-radius: 8px; background: {{c.hex}}; box-shadow: inset 0 0 0 1px rgba(36,20,14,.12);"></span><span style="flex: 1; display: flex; flex-direction: column;"><span style="font-weight: 500; font-size: 14px;">{{c.name}}</span><span style="font-size: 12.5px; color: #75675f;">{{c.use}}</span></span><span style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #4a3a33;">{{c.hex}}</span></div>
+        </sc-for>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 10px;">
+        <span style="font-size: 14px; font-weight: 600;">Interface</span>
+        <sc-for list="{{ui}}" as="c" hint-placeholder-count="6">
+          <div style="display: flex; align-items: center; gap: 12px; height: 44px; border-bottom: 1px solid #f3eee9;"><span style="flex: none; width: 32px; height: 32px; border-radius: 8px; background: {{c.hex}}; box-shadow: inset 0 0 0 1px rgba(36,20,14,.12);"></span><span style="flex: 1; display: flex; flex-direction: column;"><span style="font-weight: 500; font-size: 14px;">{{c.name}}</span><span style="font-size: 12.5px; color: #75675f;">{{c.use}}</span></span><span style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #4a3a33;">{{c.hex}}</span></div>
+        </sc-for>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 10px;">
+        <span style="font-size: 14px; font-weight: 600;">In the drawings</span>
+        <sc-for list="{{art}}" as="c" hint-placeholder-count="5">
+          <div style="display: flex; align-items: center; gap: 12px; height: 44px; border-bottom: 1px solid #f3eee9;"><span style="flex: none; width: 32px; height: 32px; border-radius: 8px; background: {{c.hex}}; box-shadow: inset 0 0 0 1px rgba(36,20,14,.12);"></span><span style="flex: 1; display: flex; flex-direction: column;"><span style="font-weight: 500; font-size: 14px;">{{c.name}}</span><span style="font-size: 12.5px; color: #75675f;">{{c.use}}</span></span><span style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #4a3a33;">{{c.hex}}</span></div>
+        </sc-for>
+      </div>
+    </div>
+    <p style="margin: 0; font-size: 14.5px; line-height: 1.5; color: #4a3a33; max-width: 980px;">Tomato belongs to the mark and the drawings. The interface uses orange, which reads as orange on a screen where tomato reads red, and spends it once per screen. Everything else is warm ink on warm greys. Status colours mean status and always come with a word or a sign.</p>
+  </section>
+
+  <section style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 48px;">
+    <div style="display: flex; flex-direction: column; gap: 16px;">
+      <h2 style="margin: 0; font-size: 24px; font-weight: 600; letter-spacing: -0.02em;">Type</h2>
+      <div style="display: flex; flex-direction: column; gap: 14px; padding: 24px; border: 1px solid #ece6e0; border-radius: 12px;">
+        <div style="display: flex; align-items: baseline; justify-content: space-between; gap: 16px;"><span style="font-size: 28px; font-weight: 600; letter-spacing: -0.02em;">Sale #31863</span><span style="font-family: 'IBM Plex Mono', monospace; font-size: 28px; font-weight: 600;">US$6.20</span></div>
+        <span style="font-size: 15px; color: #4a3a33;">Till 2 · Kora · Tendai · at the door</span>
+        <span style="font-size: 13px; color: #75675f;">Atkinson Hyperlegible Next 400, 500, 600 · IBM Plex Mono for figures</span>
+      </div>
+      <ul style="margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 6px; font-size: 14.5px; line-height: 1.5; color: #4a3a33;">
+        <li>Atkinson Hyperlegible Next for every word: it was drawn to be read at a glance, which is what a counter needs.</li>
+        <li>IBM Plex Mono for money, quantities, references and times, so a column of figures lines up.</li>
+        <li>Weights 400, 500 and 600 only. Hierarchy comes from weight and ink, not from size.</li>
+        <li>Sentence case everywhere. No capitals, eyebrows included.</li>
+      </ul>
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 16px;">
+      <h2 style="margin: 0; font-size: 24px; font-weight: 600; letter-spacing: -0.02em;">Voice</h2>
+      <div style="display: flex; flex-direction: column; border: 1px solid #ece6e0; border-radius: 12px; overflow: hidden; font-size: 14.5px;">
+        <div style="display: grid; grid-template-columns: 1fr 1fr; background: #faf7f4; color: #75675f; font-size: 12.5px; font-weight: 500;"><span style="padding: 10px 16px;">Write</span><span style="padding: 10px 16px; border-left: 1px solid #ece6e0;">Not</span></div>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; border-top: 1px solid #ece6e0;"><span style="padding: 12px 16px;">Change to EcoCash · US$1.80</span><span style="padding: 12px 16px; border-left: 1px solid #ece6e0; color: #75675f;">Transaction completed successfully!</span></div>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; border-top: 1px solid #ece6e0;"><span style="padding: 12px 16px;">Till 2 is short US$7.15</span><span style="padding: 12px 16px; border-left: 1px solid #ece6e0; color: #75675f;">A variance was detected</span></div>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; border-top: 1px solid #ece6e0;"><span style="padding: 12px 16px;">Open shift</span><span style="padding: 12px 16px; border-left: 1px solid #ece6e0; color: #75675f;">Click here to start a new shift</span></div>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; border-top: 1px solid #ece6e0;"><span style="padding: 12px 16px;">Tills keep selling without a signal</span><span style="padding: 12px 16px; border-left: 1px solid #ece6e0; color: #75675f;">A seamless offline experience</span></div>
+      </div>
+      <p style="margin: 0; font-size: 14.5px; line-height: 1.5; color: #4a3a33;">British English. Name the till, the person and the figure. Buttons are verbs. No exclamation marks, no emoji.</p>
+    </div>
+  </section>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1720}}'>
+class Component extends DCLogic {
+  renderVals() {
+    function rows(a) { return a.map(function (r) { return { name: r[0], hex: r[1], use: r[2] }; }); }
+    return {
+      brand: rows([
+        ['Tomato', '#D9381B', 'The mark, and the drawings’ one accent'],
+        ['Warm ink', '#24140E', 'Wordmark, headings, body'],
+        ['Cream', '#FFF8F1', 'Wordmark on dark; warm grounds'],
+        ['Sand', '#F6EAD4', 'Pavements and floors in drawings']
+      ]),
+      ui: rows([
+        ['Orange', '#E8620F', 'Focus ring, ticks, the live marker'],
+        ['Button orange', '#B84A0C', 'The one primary action, white label'],
+        ['Ground', '#FAF7F4', 'Page, sidebar, column heads'],
+        ['Line', '#ECE6E0', 'Hairlines and borders'],
+        ['Muted', '#75675F', 'Captions and labels, 5.4:1'],
+        ['Warm near-black', '#171310', 'Dark mode ground']
+      ]),
+      art: rows([
+        ['Blue-grey', '#3A404C', 'Devices, counters, shade'],
+        ['Pale grey', '#E5E8ED', 'Lit faces of buildings'],
+        ['Marigold', '#F2A33A', 'Awnings, crates; keeps its colour in dark'],
+        ['EcoCash blue', '#2F63DC', 'Only for EcoCash; keeps its colour in dark'],
+        ['Corelith mark', '#0F62FE', 'The Corelith mark on the street, nothing else']
+      ])
+    };
+  }
+}
+</script>
+</body>
+</html>

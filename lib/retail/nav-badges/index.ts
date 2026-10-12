@@ -1,3 +1,4 @@
+import { BUYING_NAV_BADGES } from "./buying";
 import { FLOOR_NAV_BADGES } from "./floor";
 import { PRODUCTS_NAV_BADGES } from "./products";
 import { REPORTS_NAV_BADGES } from "./reports";
@@ -16,6 +17,7 @@ export const NAV_BADGE_PROVIDERS: readonly NavBadgeProvider[] = [
   ...FLOOR_NAV_BADGES,
   ...PRODUCTS_NAV_BADGES,
   ...STOCK_NAV_BADGES,
+  ...BUYING_NAV_BADGES,
   ...REPORTS_NAV_BADGES,
 ];
 

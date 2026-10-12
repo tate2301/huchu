@@ -71,7 +71,7 @@ const bin: ListSpec = {
       requires: VIEW,
       when: [{ column: "openable", op: "notEmpty" }],
       // Each kind with a record page adds its template; the first whose key the row carries wins.
-      do: { href: ["/retail/products/{productId}", "/retail/products/price-lists/{priceListId}", "/retail/products/bundles/{bundleId}"] },
+      do: { href: ["/retail/products/{productId}", "/retail/products/price-lists/{priceListId}", "/retail/products/bundles/{bundleId}", "/retail/customers/{customerId}", "/retail/buying/orders/{orderId}"] },
     },
     {
       key: "delete",

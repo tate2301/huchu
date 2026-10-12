@@ -362,27 +362,6 @@ describe("primary quick actions", () => {
 });
 
 describe("workspace sidebar model", () => {
-  it("shows CRM navigation when only CRM customers is enabled", () => {
-    const model = getWorkspaceSidebarModel({
-      role: "MANAGER",
-      enabledFeatures: ["crm.customers"],
-      workspaceProfile: "GENERAL",
-    });
-    const hrefs = model.sections.flatMap((section) => section.items.map((item) => item.href));
-    expect(hrefs).toContain("/retail/customers");
-  });
-
-  it("leaves the retail ledger out once the CRM proper is on", () => {
-    const model = getWorkspaceSidebarModel({
-      role: "MANAGER",
-      enabledFeatures: templateFeatures("TEMPLATE_CORE_STARTER").concat(["crm.customers", "crm.core"]),
-      workspaceProfile: "GENERAL",
-    });
-    const hrefs = model.sections.flatMap((section) => section.items.map((item) => item.href));
-    expect(hrefs).toContain("/crm");
-    expect(hrefs).not.toContain("/retail/customers");
-  });
-
   it("general business sidebar contains no mining hrefs anywhere", () => {
     const model = getWorkspaceSidebarModel({
       role: "MANAGER",
@@ -440,6 +419,8 @@ describe("workspace sidebar model", () => {
         "/retail/products",
         "/retail/products/price-lists",
         "/retail/products/promotions",
+        "/retail/products/bundles",
+        "/retail/products/vouchers",
         "/retail/products/categories",
       ]);
     });
@@ -449,6 +430,8 @@ describe("workspace sidebar model", () => {
         "/retail",
         "/retail/sales",
         "/retail/shifts",
+        "/retail/laybys",
+        "/retail/end-of-day",
         "/retail/customers",
       ]);
     });
@@ -465,6 +448,7 @@ describe("workspace sidebar model", () => {
         "/retail/manage/posting",
         "/retail/manage/people",
         "/retail/manage/approvals",
+        "/retail/manage/loyalty",
         "/retail/manage/bin",
       ]);
       expect(itemsOf(retailModel(), "retail-setup")).not.toContain("/retail/manage/posting");
@@ -481,8 +465,14 @@ describe("workspace sidebar model", () => {
       const model = retailModel("CASHIER");
       expect(model.homeHref).toBe("/retail/shifts");
       expect(Object.fromEntries(model.sections.map((section) => [section.id, section.items.map((i) => i.href)]))).toEqual({
-        "retail-floor": ["/retail/sales", "/retail/shifts", "/retail/customers"],
-        "retail-products": ["/retail/products", "/retail/products/price-lists", "/retail/products/promotions"],
+        "retail-floor": ["/retail/sales", "/retail/shifts", "/retail/laybys", "/retail/customers"],
+        "retail-products": [
+          "/retail/products",
+          "/retail/products/price-lists",
+          "/retail/products/promotions",
+          "/retail/products/bundles",
+          "/retail/products/vouchers",
+        ],
         "retail-buy": ["/retail/buying/requisitions"],
       });
     });
@@ -492,7 +482,7 @@ describe("workspace sidebar model", () => {
       expect(model.homeHref).toBe("/retail/stock");
       expect(Object.fromEntries(model.sections.map((section) => [section.id, section.items.map((i) => i.href)]))).toEqual({
         "retail-products": ["/retail/products"],
-        "retail-stock": ["/retail/stock", "/retail/stock/movements", "/retail/stock/counts", "/retail/stock/transfers"],
+        "retail-stock": ["/retail/stock", "/retail/stock/movements", "/retail/stock/counts", "/retail/stock/transfers", "/retail/stock/empties"],
         "retail-buy": [
           "/retail/buying/suppliers",
           "/retail/buying/orders",
@@ -510,6 +500,7 @@ describe("workspace sidebar model", () => {
         "/retail/stock/movements",
         "/retail/stock/counts",
         "/retail/stock/transfers",
+        "/retail/stock/empties",
       ]);
     });
 
@@ -615,7 +606,8 @@ describe("route gating", () => {
   it("gates retail customer surfaces behind CRM", () => {
     expect(resolveFeatureKeyForPath("/retail/customers")).toBe("crm.customers");
     expect(resolveFeatureKeyForPath("/portal/pos/customers")).toBe("crm.customers");
-    expect(resolveFeatureKeyForPath("/api/v2/retail/customers/search")).toBe("crm.customers");
+    // The API answers under retail.core: a retail role without the customer book is refused by the role matrix.
+    expect(resolveFeatureKeyForPath("/api/v2/retail/customers")).toBe("retail.core");
   });
 
   /**

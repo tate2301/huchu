@@ -240,12 +240,8 @@ export type { TillEcocash, TillTender };
  */
 export const ON_ACCOUNT_NOT_AT_THE_TILL = "Selling on account needs the customer’s account, which the till cannot take yet.";
 
-/**
- * A voucher is taken with its code and secret (PRD-10), which the till's pay
- * tray cannot ask for yet (FLR-10 draws it); until it can, the tender is kept
- * off it and `pos/sales` refuses a VOUCHER with no voucher behind it.
- */
-const NOT_AT_THE_TILL = new Set(["onAccount", "vouchers"]);
+/** On account waits for CUS-10; a voucher is taken with its code and secret at the till (FLR-10). */
+const NOT_AT_THE_TILL = new Set(["onAccount"]);
 
 /** The tenders that are on, in the board's order, as the till lists them. */
 export function tillTenders(settings: PaymentSettings): TillTender[] {

@@ -32,6 +32,7 @@ const COUNT: CountView = {
   submittedAt: null,
   approvedAt: null,
   approvedBy: null,
+  cancelledAt: null,
   lines: 2,
   counted: 0,
   differ: 0,

@@ -1,6 +1,8 @@
+import { multiplyMoney } from "@/lib/money";
 import { prisma } from "@/lib/prisma";
 import { result, TAKE } from "@/lib/reports/loaders/shared";
-import type { ReportContext, ReportLoader, ReportOption, ReportRow } from "@/lib/reports/types";
+import type { ReportContext, ReportLoader, ReportOption, ReportParams, ReportRow } from "@/lib/reports/types";
+import { getApprovalLimits } from "@/lib/retail/approvals/limits";
 import { canSeeRetailCostPrice } from "@/lib/retail/permission-matrix";
 import { COUNT_STATE, countWhen, linesWords } from "@/lib/retail/stock/count-words";
 import { formatMoney } from "@/lib/workspace/format";
@@ -15,6 +17,8 @@ import { formatMoney } from "@/lib/workspace/format";
 async function loadCounts(ctx: ReportContext) {
   const seeCost = canSeeRetailCostPrice(ctx.role);
   const now = new Date();
+  const limits = await getApprovalLimits(ctx.companyId);
+  const ownerOver = limits.countDifferences === "OWNER_OVER_LIMIT" ? limits.countOwnerOver.toNumber() : null;
   const counts = await prisma.retailStockCount.findMany({
     where: { companyId: ctx.companyId },
     orderBy: [{ createdAt: "desc" }, { countNo: "desc" }],
@@ -66,9 +70,64 @@ async function loadCounts(ctx: ReportContext) {
         figure: seeCost && difference !== null ? formatMoney(difference) : lines,
         state: state.label,
         tone: state.tone,
+        // The bulk ask's "for 41 lines" and "A count over US$100.00 waits for the owner".
+        lineCount: count.lines.length,
+        ownerOver,
       };
     }),
   );
+}
+
+/**
+ * A count's lines (`retail-stock-count-differences`, `retail-stock-count-lines`,
+ * the `count` parent), in the phone's order. Expected is what was on hand
+ * when the line was counted (else when the count started); Differences holds
+ * the lines that differ once the count is in, and nothing while counting.
+ */
+function loadCountLines(differences: boolean) {
+  return async (ctx: ReportContext, params: ReportParams) => {
+    if (!params.count) return result([]);
+    const count = await prisma.retailStockCount.findFirst({
+      where: { id: params.count, companyId: ctx.companyId },
+      select: { id: true, status: true, blind: true, counterId: true },
+    });
+    if (!count) return result([]);
+    if (differences && count.status === "COUNTING") return result([]);
+    const seeCost = canSeeRetailCostPrice(ctx.role);
+    const hideExpected = count.blind && count.status === "COUNTING" && count.counterId === ctx.userId;
+    const lines = await prisma.retailStockCountLine.findMany({
+      where: { countId: count.id, ...(differences ? { difference: { not: 0 } } : {}) },
+      orderBy: [{ sortKey: "asc" }, { id: "asc" }],
+      select: {
+        id: true,
+        productId: true,
+        expected: true,
+        expectedAtCount: true,
+        counted: true,
+        difference: true,
+        unitCost: true,
+        inventoryItem: { select: { name: true, product: { select: { name: true } } } },
+      },
+    });
+    return result(
+      lines.map((line, index): ReportRow => {
+        const difference = hideExpected ? null : (line.difference?.toNumber() ?? null);
+        const counted = line.counted?.toNumber() ?? null;
+        return {
+          id: line.id,
+          countId: count.id,
+          productId: line.productId,
+          order: index,
+          product: line.inventoryItem.product?.name ?? line.inventoryItem.name,
+          expected: hideExpected ? null : (line.expectedAtCount ?? line.expected).toNumber(),
+          counted,
+          difference,
+          value: seeCost && difference !== null ? multiplyMoney(line.difference!, line.unitCost).toNumber() : null,
+          countedWords: counted === null ? "Not counted yet" : `${counted} counted`,
+        };
+      }),
+    );
+  };
 }
 
 /** The Site and Counted by filters: the sites and the people the shop's counts name. */
@@ -93,4 +152,6 @@ async function countOptions(ctx: ReportContext): Promise<Record<string, ReportOp
 
 export const STOCK_COUNT_LOADERS: Record<string, ReportLoader> = {
   "retail-stock-counts": { load: loadCounts, options: countOptions },
+  "retail-stock-count-differences": { load: loadCountLines(true) },
+  "retail-stock-count-lines": { load: loadCountLines(false) },
 };

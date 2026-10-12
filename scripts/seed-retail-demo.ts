@@ -43,7 +43,7 @@ import "dotenv/config"
 
 import { execFileSync } from "node:child_process"
 import { createHash, randomUUID } from "node:crypto"
-import { mkdtempSync, readFileSync, rmSync } from "node:fs"
+import { mkdtempSync, readFileSync, rmSync, statSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { Prisma, WorkspaceProfile, type NotificationType, type RetailTenderType } from "@prisma/client"
@@ -59,6 +59,12 @@ import { builtInTemplate, type TemplateQuery } from "@/lib/reports/definitions/r
 import { getReportDefinition } from "@/lib/reports/registry"
 import { fromTemplateQuery } from "@/lib/reports/template-query"
 import { addContact, createSupplier, type SendsWord, type SupplierInput } from "@/lib/retail/buying/suppliers"
+import { postCountedDelivery, receiveDelivery } from "@/lib/retail/buying/deliveries"
+import { orderTotals } from "@/lib/retail/buying/figures"
+import { moneyAccountBalance } from "@/lib/retail/buying/money-accounts"
+import { accountFor, approveRequisition, askForMoney, cancelRequisition, payOut, rejectRequisition } from "@/lib/retail/buying/requisitions"
+import { orderPurpose } from "@/lib/retail/buying/requisition-words"
+import { closeOrder, raiseOrder, sendOrder } from "@/lib/retail/buying/orders"
 import { createProduct } from "@/lib/retail/products/create"
 import { productInput } from "@/lib/retail/products/input"
 import { deleteFromBinForGood, listBinEntries, moveToBin } from "@/lib/retail/bin"
@@ -76,9 +82,11 @@ import {
   writeRetailAuditEvent,
 } from "@/lib/retail/audit"
 import { closeDay, dayFigures, DayRefused, loadDayRows } from "@/lib/retail/floor/day-close"
+import { bookEmptiesReturn, emptiesBalances, inStore, recordEmptiesCredit, recordEmptiesEntry, recordSaleEmpties } from "@/lib/retail/stock/empties"
 import { postRetailJournal } from "@/app/api/v2/retail/_helpers"
 import { ensureRetailSaleAccountingPosted } from "@/app/api/v2/retail/_services"
 import { expireVouchers } from "@/lib/retail/vouchers/expire"
+import { cancelLayby, payLayby, startLayby } from "@/lib/retail/floor/laybys"
 import { issueCreditNote, issueVoucher, sellGiftVouchers } from "@/lib/retail/vouchers/issue"
 import { postVoucherIssue } from "@/lib/retail/vouchers/posting"
 import { redeemInSale } from "@/lib/retail/vouchers/redeem"
@@ -87,6 +95,7 @@ import { adjustmentJournal, adjustStock, type AdjustWhy } from "@/lib/retail/sto
 import { breakCase } from "@/lib/retail/stock/cases"
 import { applyPromotions, shareCents, type SnapshotPromotion } from "@/lib/retail/pricing/engine"
 import { hashInviteToken, INVITE_DAYS } from "@/lib/retail/people/invite"
+import { offerValues, renderMessage } from "@/lib/retail/messages/render"
 
 function readArg(name: string): string | undefined {
   const prefix = `--${name}=`
@@ -306,13 +315,18 @@ const CUSTOMERS = [
   "Farai Chikore", "Tinashe Mavhunga",
 ]
 
-/** FLR-01: the customers' WhatsApp numbers, E.164 (the customers spec's names, C-44). */
+/** FLR-01, CUS-02: the customers' WhatsApp numbers, E.164 (the customers spec's names, C-44). */
 const CUSTOMER_PHONES: Record<string, string> = {
   "Farai Chikore": "+263775091144",
   "Tinashe Mavhunga": "+263713308826",
   "Tapiwa Marange": "+263774123388",
   "Nyasha Gwenzi": "+263712209014",
   "Rutendo Banda": "+263783015521",
+  "Munashe Chari": "+263779881043",
+  "Blessing Ncube": "+263736402219",
+  "Kudzai Zhou": "+263771056672",
+  "Simba Mutasa": "+263718840397",
+  "Rudo Chirwa": "+263785527710",
 }
 
 /**
@@ -458,17 +472,25 @@ class WindowQuota {
       if (chunk.units === 0) this.chunks.splice(index, 1)
     }
   }
+  /** One line's worth, set aside for a sale that must ring. */
+  takeOne(): Array<{ code: string; units: number }> {
+    return this.merge(this.chunks.splice(0, 1))
+  }
   /** Put units back (a refund or a void in the window). */
   giveBack(code: string, units: number) {
     if (units > 0) this.chunks.push({ code, units })
   }
-  /** One sale's lines, `salesLeft` counting this one. */
-  take(salesLeft: number): Array<{ code: string; units: number }> {
+  /**
+   * One sale's lines, `salesLeft` counting this one. A share under one line a
+   * sale leaves some sales empty, and an empty sale is not rung; `atLeast` is
+   * for a sale that must be (a sale a refund is planned on).
+   */
+  take(salesLeft: number, atLeast = 0): Array<{ code: string; units: number }> {
     if (this.chunks.length === 0) return []
     if (salesLeft <= 1) return this.merge(this.chunks.splice(0))
     const share = this.chunks.length / salesLeft
     const count = Math.floor(share) + (Math.random() < share - Math.floor(share) ? 1 : 0)
-    return this.merge(this.chunks.splice(0, count))
+    return this.merge(this.chunks.splice(0, Math.max(count, atLeast)))
   }
   /** One line per product on a sale. */
   private merge(chunks: Array<{ code: string; units: number }>) {
@@ -653,6 +675,9 @@ async function main() {
     licenceHours: true,
     emptiesAndDeposits: true,
     casesAndSingles: true,
+    // STK-09: what an empty is worth going back to a supplier.
+    bottleDeposit: money("0.10"),
+    crateDeposit: money("3.00"),
     licenceNumber: "HRE/BL/2024/0711",
     licenceExpiresOn: new Date("2026-12-31T00:00:00.000Z"),
     // SET-01: the shop's WhatsApp, registered for VAT, and Harare Main Branch as the default site.
@@ -783,7 +808,7 @@ async function main() {
       where: {
         companyId,
         archivedAt: null,
-        code: { notIn: [...CATALOGUE.map((entry) => entry.code), SPRITE.code, COKE_2L.code, AIRTIME.code] },
+        code: { notIn: [...CATALOGUE.map((entry) => entry.code), SPRITE.code, COKE_2L.code, AIRTIME.code, ...LAYBY_PRODUCTS.map((entry) => entry.code)] },
         inventoryItems: { some: {} },
       },
       data: { archivedAt: new Date() },
@@ -872,6 +897,7 @@ async function main() {
 
   let saleSeq = 0
   let refunds = 0
+  let partRefundId: string | null = null
   let voids = 0
   let zwgSales = 0
 
@@ -1111,9 +1137,8 @@ async function main() {
     Setup › Receipts' preview sale (SET-07).
   */
   const frontSlot = slots.findIndex((slot) => slot.open && slot.register.id === register.id)
-  salePlans[frontSlot]!.push(
-    ...([[11, 0], [11, 4], [11, 8], [11, 20], [11, 27], [11, 33], [11, 46], [11, 56]] as Array<[number, number]>).map(floorAt),
-  )
+  const morningBetween = ([[11, 0], [11, 4], [11, 8], [11, 20], [11, 27], [11, 33], [11, 46], [11, 56]] as Array<[number, number]>).map(floorAt)
+  salePlans[frontSlot]!.push(...morningBetween)
   /*
     FLR-05: the recovered drawer's morning took a function's order in cash —
     fourteen cases of Castle Lager and five bags of ice, US$378.50 — so its
@@ -1166,6 +1191,18 @@ async function main() {
     for (const pickLine of FUNCTION_PICKS) quota.reserve(pickLine.code, pickLine.units)
     windowSalesLeft -= 1
     if (functionOrderAt.getTime() < soldOutBy) soldOutSalesLeft -= 1
+  }
+  /*
+    FLR-01. The Front till's sales between the boards' are the window's last,
+    and a share under one line a sale leaves some sales empty (not rung), most
+    often at the end: each takes its line first, so every one rings and the
+    boards' SALE-31862, -31866 and -31869 land.
+  */
+  const morningPicks = new Map<number, Array<{ code: string; units: number }>>()
+  for (const at of morningBetween) {
+    if (at.getTime() === newestSale?.at || at.getTime() < windowCounts) continue
+    morningPicks.set(at.getTime(), quota.takeOne())
+    windowSalesLeft -= 1
   }
   /*
     PRD-08. The bundles' sales: each is its own sale on a closed drawer, of
@@ -1222,6 +1259,16 @@ async function main() {
   const refundPicks = new Set<string>()
   // Less the vouchers' two refunds paid as credit notes (PRD-10), so the boards' RFD-0044 stays the newest.
   while (refundPicks.size < Math.min(FLOOR_REFUND_NO - 1 - VOUCHER_REFUNDS, refundable.length)) refundPicks.add(pick(refundable))
+  /*
+    FLR-02: the newest refund before the 30-day window takes back one of a
+    line of two, so a refund sheet on that sale reads "Bought 2, 1 back
+    already" (packet 56). Its sale is dealt freely, not from the quotas, so
+    its first line is made two.
+  */
+  const partRefundKey =
+    [...refundPicks]
+      .filter((key) => Number(key.split("|")[1]) + 20 * 60 * 1000 < windowOpens)
+      .sort((a, b) => Number(b.split("|")[1]) - Number(a.split("|")[1]))[0] ?? null
 
   /**
    * A void as the till writes it (FLR-01): the sale VOIDED with its reason, and a
@@ -1241,6 +1288,8 @@ async function main() {
       saleType: "VOID",
       status: "POSTED",
       sourceSaleId: sale.id,
+      // A till's client reference is the sale's own; its VOID document has none.
+      clientRef: null,
       customerId: null,
       customerName: null,
       voidReason: null,
@@ -1337,16 +1386,23 @@ async function main() {
         if (functionOrder) functionOrderSaleId = saleId
         const bundleSale = bundleSales.get(`${slotIndex}|${postedAt.getTime()}`) ?? null
         if (bundleSale) bundleSaleIds.add(saleId)
+        // A sale a refund is planned on rings.
+        const mustRing = refundPicks.has(`${slotIndex}|${postedAt.getTime()}`)
 
         // In the window, this sale's share of the quotas; before it, a weighted pick.
         const picks = bundleSale
           ? bundleSale.picks
           : isPreviewSale
           ? PREVIEW_PICKS
+          : morningPicks.has(postedAt.getTime()) && slotIndex === frontSlot
+          ? morningPicks.get(postedAt.getTime())!
           : functionOrder
           ? FUNCTION_PICKS
           : inWindow
-          ? [...quota.take(windowSalesLeft--), ...(postedAt.getTime() < soldOutBy ? soldOutQuota.take(soldOutSalesLeft--) : [])]
+          ? [
+              ...quota.take(windowSalesLeft--, mustRing ? 1 : 0),
+              ...(postedAt.getTime() < soldOutBy ? soldOutQuota.take(soldOutSalesLeft--) : []),
+            ]
           : Array.from({ length: between(1, 2) }, () => {
               let product = pickProduct()
               // Spirits sold slower in the weeks before the festive US$2 came off them (PRD-09's record compares the two).
@@ -1355,6 +1411,7 @@ async function main() {
               const pairs = pairs2.some((deal) => deal.code === product.code && postedAt >= deal.from && postedAt <= deal.to)
               return { code: product.code, units: product.weight >= 200 || pairs ? between(1, 3) : 1 }
             })
+        if (`${slotIndex}|${postedAt.getTime()}` === partRefundKey && picks[0]) picks[0] = { ...picks[0], units: Math.max(2, picks[0].units) }
         const lines: LineRow[] = []
         for (const pickedLine of picks) {
           const product = byCode.get(pickedLine.code)!
@@ -1440,7 +1497,6 @@ async function main() {
                 ? "CARD"
                 : "TRANSFER"
 
-        const named = !isPreviewSale && Math.random() < 0.22 ? pick(customers) : null
         // PRD-10: a voucher paying part or all of an older card, EcoCash or transfer sale (never the drawer's cash).
         const voucherUse =
           !discountRef && !bundleSale && !isPreviewSale && !functionOrder && currency === "USD" && !refundPicks.has(`${slotIndex}|${postedAt.getTime()}`)
@@ -1457,8 +1513,9 @@ async function main() {
           siteId: slotSiteId,
           cashierId: cashier.id,
           cashierName: cashier.name,
-          customerId: named?.id ?? null,
-          customerName: named?.name ?? null,
+          // Walk-ins: `seedCustomers` (CUS-02) puts the shop's customers on the history afterwards.
+          customerId: null,
+          customerName: null,
           saleType: "SALE",
           status: "POSTED",
           subtotal,
@@ -1504,8 +1561,17 @@ async function main() {
           refunds += 1
           const refundId = randomUUID()
           const refundedAt = new Date(refundAt)
-          const source = lines[0]!
-          if (refundAt >= windowCounts) giveBack(codeOfProduct.get(source.productId as string)!, Number(source.quantity))
+          // The newest refund before the window takes one of a line of two (`partRefundKey`); every other takes the sale's first line whole.
+          const several = lines.find((line) => Number(line.quantity) >= 2)
+          const part = `${slotIndex}|${postedAt.getTime()}` === partRefundKey && Boolean(several)
+          const source = part ? several! : lines[0]!
+          const bought = Number(source.quantity)
+          const backUnits = part ? 1 : bought
+          const backGross = part ? money(source.lineTotal as Prisma.Decimal).dividedBy(bought).toDecimalPlaces(2) : money(source.lineTotal as Prisma.Decimal)
+          const backTax = part ? backGross.minus(netOfInclusiveTax(backGross, VAT_PERCENT)) : money(source.taxAmount as Prisma.Decimal)
+          const backCost = part ? money(source.costUnit as Prisma.Decimal) : money(source.costTotal as Prisma.Decimal)
+          if (part) partRefundId = refundId
+          if (refundAt >= windowCounts) giveBack(codeOfProduct.get(source.productId as string)!, backUnits)
           saleRows.push({
             id: refundId,
             companyId,
@@ -1518,18 +1584,15 @@ async function main() {
             cashierName: cashier.name,
             saleType: "REFUND",
             status: "POSTED",
-            subtotal: multiplyMoney(
-              source.quantity as Prisma.Decimal,
-              source.unitPrice as Prisma.Decimal,
-            ).negated(),
+            subtotal: backGross.minus(backTax).negated(),
             discountAmount: money(0),
-            taxAmount: money(source.taxAmount as Prisma.Decimal).negated(),
-            totalAmount: money(source.lineTotal as Prisma.Decimal).negated(),
-            tenderedAmount: money(source.lineTotal as Prisma.Decimal).negated(),
+            taxAmount: backTax.negated(),
+            totalAmount: backGross.negated(),
+            tenderedAmount: backGross.negated(),
             changeAmount: money(0),
             currency: "USD",
             exchangeRate: rate("1"),
-            baseAmount: money(source.lineTotal as Prisma.Decimal).negated(),
+            baseAmount: backGross.negated(),
             overrideReason: pick([
               "Bottle returned unopened",
               "Wrong item rung up",
@@ -1547,13 +1610,13 @@ async function main() {
             inventoryItemId: source.inventoryItemId,
             productId: source.productId as string | null,
             itemName: source.itemName,
-            quantity: money(source.quantity as Prisma.Decimal).negated(),
+            quantity: rate(String(backUnits)).negated(),
             unitPrice: source.unitPrice,
             discountAmount: money(0),
-            taxAmount: money(source.taxAmount as Prisma.Decimal).negated(),
-            lineTotal: money(source.lineTotal as Prisma.Decimal).negated(),
+            taxAmount: backTax.negated(),
+            lineTotal: backGross.negated(),
             costUnit: source.costUnit,
-            costTotal: money(source.costTotal as Prisma.Decimal).negated(),
+            costTotal: backCost.negated(),
             createdAt: refundedAt,
           })
           paymentRows.push({
@@ -1561,14 +1624,14 @@ async function main() {
             companyId,
             saleId: refundId,
             tenderType: "CASH",
-            amount: money(source.lineTotal as Prisma.Decimal).negated(),
+            amount: backGross.negated(),
             currency: "USD",
             exchangeRate: rate("1"),
-            baseAmount: money(source.lineTotal as Prisma.Decimal).negated(),
+            baseAmount: backGross.negated(),
             reference: null,
             createdAt: refundedAt,
           })
-          cashTaken = cashTaken.minus(money(source.lineTotal as Prisma.Decimal))
+          cashTaken = cashTaken.minus(backGross)
         }
       }
 
@@ -1853,6 +1916,10 @@ async function main() {
     const refundNo = saleRows.find((row) => row.id === refundId)!.saleNo
     if (refundNo !== `RFD-${String(FLOOR_REFUND_NO).padStart(4, "0")}`) console.warn(`  the boards' refund is ${refundNo}, not RFD-0044`)
     console.log(`  the boards' morning: SALE-31858 to SALE-31870, ${refundNo}, ${flaggable.length} sales to look at`)
+    const partRefund = saleRows.find((row) => row.id === partRefundId)
+    const partSource = partRefund ? saleRows.find((row) => row.id === partRefund.sourceSaleId) : null
+    if (partRefund && partSource) console.log(`  ${partRefund.saleNo} took one unit of a line back off ${partSource.saleNo} (Bought 2 or more, 1 back already)`)
+    else console.warn("  no refund of part of a line before the window")
   }
 
   if (quota.left + soldOutQuota.left > 0) {
@@ -1887,6 +1954,11 @@ async function main() {
 
   // ── Vouchers (PRD-10), through their services, on the sales dealt for them ──
   await seedVouchers(companyId)
+
+  // ── Customers (CUS-02): the board's regulars, the members, their visits and points ──
+  await seedCustomers(companyId)
+  await seedCustomerRecord(companyId)
+  await seedCustomerMessages(companyId)
 
   // ── A cart nobody came back for ──────────────────────────────────────────
   const openShift = shiftRows.find((row) => row.status === "OPEN")
@@ -1926,79 +1998,8 @@ async function main() {
     now,
   })
 
-  // ── Purchasing ───────────────────────────────────────────────────────────
+  // ── Purchasing: orders and deliveries are seeded after the suppliers (BUY-02) ──
   if (reset) await clearPurchasing(companyId)
-  const supplier = "Delta Beverages"
-  const poNo = "PO-00001"
-  const existingOrder = await prisma.retailPurchaseOrder.findUnique({
-    where: { companyId_poNo: { companyId, poNo } },
-    select: { id: true },
-  })
-  if (!existingOrder) {
-    const castleSingle = stocked.get("CASTLE-340")
-    const chibuku = stocked.get("CHIBUKU-1L")
-    const order = await prisma.retailPurchaseOrder.create({
-      data: {
-        companyId,
-        poNo,
-        siteId: site.id,
-        supplierName: supplier,
-        // PARTIAL: the scuds landed, the lager did not. That is the status the
-        // receipts screen exists to clear.
-        status: "PARTIAL",
-        expectedDate: daysAgo(-3),
-        createdById: staff[0].id,
-        lines: {
-          create: [
-            {
-              companyId,
-              inventoryItemId: castleSingle?.inventoryItemId ?? null,
-              itemName: "Castle Lager 340ml",
-              quantity: rate("480"),
-              unitCost: money("0.85"),
-              lineTotal: multiplyMoney(rate("480"), "0.85"),
-              receivedQuantity: rate("0"),
-            },
-            {
-              companyId,
-              inventoryItemId: chibuku?.inventoryItemId ?? null,
-              itemName: "Chibuku Scud 1L",
-              quantity: rate("300"),
-              unitCost: money("0.72"),
-              lineTotal: multiplyMoney(rate("300"), "0.72"),
-              receivedQuantity: rate("300"),
-            },
-          ],
-        },
-      },
-      select: { id: true },
-    })
-
-    await prisma.retailGoodsReceipt.create({
-      data: {
-        companyId,
-        receiptNo: "GRN-00001",
-        purchaseOrderId: order.id,
-        siteId: site.id,
-        supplierName: supplier,
-        status: "POSTED",
-        receivedById: staff[3].id,
-        postedAt: daysAgo(2),
-        lines: {
-          create: [
-            {
-              companyId,
-              inventoryItemId: chibuku?.inventoryItemId ?? "",
-              itemName: "Chibuku Scud 1L",
-              quantity: rate("300"),
-              unitCost: money("0.72"),
-              lineTotal: multiplyMoney(rate("300"), "0.72"),
-            },
-          ],
-        },
-      },
-    })
-  }
 
   await seedSites({ companyId, mainSiteId: site.id, borrowdaleId: borrowdale.id, reset })
   await seedTills(companyId)
@@ -2006,11 +2007,15 @@ async function main() {
   await seedPins(companyId, passwordHash)
   await seedPeople({ companyId, mainSiteId: site.id, borrowdaleId: borrowdale.id, passwordHash, reset })
   await seedSuppliers({ companyId, mainSiteId: site.id, softDrinksId: categoryIds.get("Soft drinks") ?? null, reset })
+  await seedOrders({ companyId, mainSiteId: site.id })
   await seedTransfers({ companyId, mainSiteId: site.id, borrowdaleId: borrowdale.id, reset })
   await seedAdjustments({ companyId, mainSiteId: site.id, reset })
   await seedCounts({ companyId, mainSiteId: site.id })
+  await seedEmpties(companyId, site.id)
   await seedPriceHistory(companyId)
   await seedPriceLists({ companyId, borrowdaleId: borrowdale.id, reset })
+  // FLR-06: before the ledger, which rebalances the lay-bys' movements in with the rest.
+  await seedLaybys(companyId, site.id)
   await seedStockLedger(companyId, site.id)
   await seedBin({ companyId, siteId: site.id, locationId: location.id, wineId: categoryIds.get("Wine") ?? null, reset })
   await seedPayments(companyId)
@@ -2019,6 +2024,10 @@ async function main() {
   await seedFiscal(companyId)
   await seedOverview(companyId)
   await seedApprovals(companyId)
+  await seedMoneyAccounts(companyId)
+  await seedExpenseTypes(companyId)
+  await seedRequisitions(companyId)
+  await seedLoyalty(companyId)
   await seedShiftFloor(companyId)
   await seedShiftCounts(companyId)
   await seedShiftVariances(companyId)
@@ -2026,6 +2035,7 @@ async function main() {
   await seedDayCloses(companyId)
   await seedImportDemo({ companyId, mainSiteId: site.id, softDrinksId: categoryIds.get("Soft drinks") ?? null })
   await seedReportTemplates(companyId)
+  await settleMoneyAccountOpenings(companyId)
 
   const takings = sumMoney(saleRows.map((row) => row.baseAmount as Prisma.Decimal))
   console.log(
@@ -2035,6 +2045,130 @@ async function main() {
       `\n\nSign in as any of:\n${STAFF.map((s) => `  ${s.role.padEnd(12)} ${s.email}`).join("\n")}` +
       `\n  password: ${STAFF_PASSWORD}`,
   )
+}
+
+/**
+ * STK-09 `seedEmpties()`: Harare Main Branch's Empties ledger, written through
+ * the service in time order so every entry's "In the store" is the running
+ * balance. A ledger brought forward from the paper book, customers' empties
+ * brought back over five weeks, three returns (Delta twice, Natbrew) and
+ * Delta's credit note CN-2210 on 2 October; then the board's three newest
+ * rows — Delta's GRN-0005 return yesterday 17:40, Tapiwa Marange's 24 bottles
+ * and 2 crates today 11:02 — with a deposit charged for every seeded sale of
+ * the last 30 days that took one. The store holds 628 · 49 before the board's
+ * four rows and 412 · 31 after; Held for customers reads US$84.30 and Owed by
+ * suppliers US$231.00, which the seed checks.
+ */
+async function seedEmpties(companyId: string, mainSiteId: string) {
+  await prisma.platformAuditEvent.deleteMany({ where: { companyId, entityType: "RetailEmptiesEntry" } })
+  await prisma.retailEmptiesEntry.deleteMany({ where: { companyId, returnId: { not: null } } })
+  await prisma.retailEmptiesEntry.deleteMany({ where: { companyId } })
+
+  const tafara = await prisma.user.findFirstOrThrow({ where: { companyId, email: "tafara.manager@bottlestore.test" }, select: { id: true } })
+  const actor = { companyId, userId: tafara.id, userName: "Tafara Nyathi", userRole: "MANAGER" }
+  const delta = await prisma.vendor.findFirstOrThrow({ where: { companyId, name: "Delta Beverages" }, select: { id: true } })
+  const natbrew =
+    (await prisma.vendor.findFirst({ where: { companyId, name: "Natbrew" }, select: { id: true } })) ??
+    (await prisma.vendor.create({ data: { companyId, name: "Natbrew", phone: "+263 24 262 1180" }, select: { id: true } }))
+  const customers = await prisma.customer.findMany({ where: { companyId }, select: { id: true, name: true }, orderBy: { name: "asc" } })
+  const tapiwa = customers.find((customer) => customer.name === "Tapiwa Marange") ?? null
+
+  type Step = { at: Date; run: (tx: Prisma.TransactionClient, at: Date) => Promise<unknown> }
+  const steps: Step[] = []
+  const back = (at: Date, bottles: number, crates: number, customerId: string | null) =>
+    steps.push({
+      at,
+      run: (tx, when) =>
+        recordEmptiesEntry(tx, { companyId, siteId: mainSiteId, kind: "BOTTLES_BACK", bottles, crates, deposit: money(bottles * 0.1 + crates * 3).negated(), customerId, createdById: tafara.id, at: when }),
+    })
+
+  // Customers' empties over five weeks: 40 visits of 12 to 48 bottles and 1 to 4 crates, 1,318 bottles and 103 crates in all.
+  const bottles = Array.from({ length: 40 }, (_, i) => 12 + ((i * 17) % 37))
+  const crates = Array.from({ length: 40 }, (_, i) => 1 + ((i * 3) % 4))
+  const settle = (counts: number[], want: number, low: number, high: number) => {
+    let gap = want - counts.reduce((sum, n) => sum + n, 0)
+    for (let i = 0; gap !== 0 && i < counts.length * 64; i++) {
+      const at = i % counts.length
+      if (gap > 0 && counts[at]! < high) {
+        counts[at]! += 1
+        gap -= 1
+      } else if (gap < 0 && counts[at]! > low) {
+        counts[at]! -= 1
+        gap += 1
+      }
+    }
+  }
+  settle(bottles, 1318, 12, 48)
+  settle(crates, 103, 1, 4)
+  bottles.forEach((count, i) => back(harareTime(38 - Math.floor(i * 0.7), 9 + (i % 8), (i * 13) % 60), count, crates[i]!, customers[i % Math.max(customers.length, 1)]?.id ?? null))
+
+  // Three returns before 2 October; the first is the one CN-2210 credits.
+  let firstReturn = ""
+  const ret = (at: Date, supplierId: string, b: number, c: number, note: string, first = false) =>
+    steps.push({
+      at,
+      run: async (tx, when) => {
+        const booked = await bookEmptiesReturn(tx, { actor, siteId: mainSiteId, supplierId, bottles: b, crates: c, note, at: when })
+        if (first) firstReturn = booked.id
+      },
+    })
+  ret(harareTime(20, 16, 5), delta.id, 240, 20, "The delivery, 22 September", true)
+  ret(harareTime(14, 15, 20), natbrew.id, 300, 20, "Their truck, 28 September")
+  ret(harareTime(11, 17, 0), delta.id, 150, 14, "The delivery, 1 October")
+  const creditAt = harareAt("2026-10-02", "09:30")
+  steps.push({ at: creditAt, run: (tx, when) => recordEmptiesCredit(tx, { actor, returnId: firstReturn, creditNote: "CN-2210", amount: "84.00", at: when }) })
+
+  // The board's newest rows.
+  steps.push({
+    at: harareTime(1, 17, 40),
+    run: (tx, when) => bookEmptiesReturn(tx, { actor, siteId: mainSiteId, supplierId: delta.id, bottles: 240, crates: 20, reference: "GRN-0005", note: "The next delivery, 7 October", at: when }),
+  })
+  back(harareTime(0, 11, 2), 24, 2, tapiwa?.id ?? null)
+
+  // A deposit charged for every seeded sale of the last 30 days that took one.
+  const deposited = await prisma.retailSale.findMany({
+    where: { companyId, saleType: "SALE", depositAmount: { gt: 0 }, postedAt: { gte: daysAgo(30) } },
+    select: { id: true, saleNo: true, siteId: true, customerId: true, cashierId: true, depositAmount: true, postedAt: true },
+  })
+  for (const sale of deposited) {
+    steps.push({
+      at: sale.postedAt ?? new Date(),
+      run: (tx, when) =>
+        recordSaleEmpties(tx, { companyId, siteId: sale.siteId, saleId: sale.id, saleNo: sale.saleNo, customerId: sale.customerId, createdById: sale.cashierId, depositAmount: sale.depositAmount, lines: [], at: when }),
+    })
+  }
+
+  // Brought forward from the paper ledger: what customers' deposits stood at before the history, so Held reads US$84.30.
+  const charged = sumMoney(deposited.map((sale) => sale.depositAmount))
+  const paidBack = money(bottles.reduce((sum, n) => sum + n, 0) * 0.1 + crates.reduce((sum, n) => sum + n, 0) * 3 + 8.4)
+  const forward = money("84.30").plus(paidBack).minus(charged)
+  steps.push({
+    at: harareTime(40, 8, 0),
+    run: (tx, when) =>
+      recordEmptiesEntry(tx, { companyId, siteId: mainSiteId, kind: "DEPOSIT_CHARGED", deposit: forward, note: "Brought forward from the paper ledger", createdById: tafara.id, at: when }),
+  })
+
+  // Nothing after now: inStore() reads the latest entry, so a row stamped later
+  // than the till's next write would hide it. The board's "today 11:02" row
+  // lands a few minutes before now when the seed runs earlier, the rows before
+  // it keeping their order a second apart.
+  steps.sort((a, b) => a.at.getTime() - b.at.getTime())
+  const latest = Date.now() - 3 * 60 * 1000
+  steps.forEach((step, i) => {
+    step.at = new Date(Math.min(step.at.getTime(), latest - (steps.length - 1 - i) * 1000))
+  })
+  for (const step of steps) await prisma.$transaction((tx) => step.run(tx, step.at))
+
+  const balances = await emptiesBalances(prisma, companyId)
+  const store = await inStore(prisma, mainSiteId)
+  const future = await prisma.retailEmptiesEntry.count({ where: { companyId, createdAt: { gt: new Date() } } })
+  if (future > 0) throw new Error(`Empties seed is off: ${future} entries stamped after now`)
+  if (balances.held.toFixed(2) !== "84.30" || balances.owed.toFixed(2) !== "231.00" || store.bottles !== 412 || store.crates !== 31) {
+    throw new Error(
+      `Empties seed is off: held ${balances.held.toFixed(2)} (want 84.30), owed ${balances.owed.toFixed(2)} (want 231.00), in the store ${store.bottles} · ${store.crates} (want 412 · 31)`,
+    )
+  }
+  console.log(`  empties: ${steps.length} entries, held US$84.30, owed US$231.00, 412 · 31 in the store`)
 }
 
 /**
@@ -3485,9 +3619,11 @@ type SeedCountLine = { code: string; counted: number; why?: "BROKEN" | "NOT_KNOW
 type SeedCount = {
   no: string
   name: string
-  scope: "EVERYTHING" | "CATEGORIES" | "PLACE"
+  scope: "EVERYTHING" | "CATEGORIES" | "PLACE" | "PRODUCTS"
   categories?: string[]
   place?: "BACK" | "COLD"
+  /** PRODUCTS: the stock lines it covers, by item code. */
+  codes?: string[]
   counter: string
   startedAt: Date
   submittedAt: Date | null
@@ -3516,19 +3652,26 @@ async function seedCounts(input: { companyId: string; mainSiteId: string }) {
   const people = await prisma.user.findMany({
     where: {
       companyId,
-      email: { in: ["tafara.manager@bottlestore.test", "rudo.stock@bottlestore.test", "kuda.till@bottlestore.test"] },
+      email: {
+        in: ["tafara.manager@bottlestore.test", "rudo.stock@bottlestore.test", "kuda.till@bottlestore.test", "tendai.stock@bottlestore.test"],
+      },
     },
     select: { id: true, email: true, name: true },
   })
   const who = (prefix: string) => people.find((person) => person.email?.startsWith(prefix))
   const tafara = who("tafara")
-  if (!tafara || !who("rudo") || !who("kuda")) {
-    console.log("  counts: Tafara Nyathi, Rudo Moyo or Kuda Banda missing, skipped")
+  if (!tafara || !who("rudo") || !who("kuda") || !who("tendai")) {
+    console.log("  counts: Tafara Nyathi, Rudo Moyo, Kuda Banda or Tendai Sibanda missing, skipped")
     return
   }
 
   // What an earlier run (or an acceptance run) left: the counts, their stock movements, Activity and messages.
   await prisma.stockMovement.deleteMany({ where: { reason: "COUNT", item: { site: { companyId } } } })
+  // What an approval posted (STK-06): one journal per count, keyed by the count.
+  const countIds = (await prisma.retailStockCount.findMany({ where: { companyId }, select: { id: true } })).map((row) => row.id)
+  const countJournals = { companyId, sourceType: "RETAIL_STOCK_ADJUSTMENT" as const, sourceId: { in: countIds } }
+  await prisma.journalEntry.deleteMany({ where: countJournals })
+  await prisma.accountingIntegrationEvent.deleteMany({ where: countJournals })
   await prisma.retailStockCount.deleteMany({ where: { companyId } })
   await prisma.platformAuditEvent.deleteMany({ where: { companyId, entityType: "RetailStockCount" } })
   await prisma.notification.deleteMany({
@@ -3684,6 +3827,25 @@ async function seedCounts(input: { companyId: string; mainSiteId: string }) {
       approvedAt: null,
       counted: 3,
     },
+    // STK-06: over the owner's US$100.00, so a manager's approval waits for the owner. The back
+    // shelf's bottles share their stock lines with the spirits shelf (one line per product at a site).
+    {
+      no: "CNT-0023",
+      name: "Spirits, back shelf",
+      scope: "PRODUCTS",
+      codes: ["BLKLABEL-750", "JAMESON-750", "TWOKEYS-750", "BOLS-750"],
+      counter: "tendai",
+      startedAt: today(8, 30, 130),
+      submittedAt: today(9, 5, 95),
+      approvedAt: null,
+      // −US$141.20 at today's costs: +33.60 − 132.90 + 14.20 − 56.10.
+      differ: [
+        { code: "BLKLABEL-750", counted: 1, why: "FOUND" },
+        { code: "JAMESON-750", counted: -6, why: "NOT_KNOWN" },
+        { code: "TWOKEYS-750", counted: 2, why: "FOUND" },
+        { code: "BOLS-750", counted: -5, why: "BROKEN" },
+      ],
+    },
   )
 
   const placeIds = { BACK: back.id, COLD: cold.id }
@@ -3694,7 +3856,9 @@ async function seedCounts(input: { companyId: string; mainSiteId: string }) {
       .filter((line) =>
         spec.scope === "EVERYTHING"
           ? true
-          : spec.scope === "PLACE"
+          : spec.scope === "PRODUCTS"
+            ? (spec.codes ?? []).includes(line.itemCode)
+            : spec.scope === "PLACE"
             ? line.locationId === placeIds[spec.place!]
             : categoryIds.includes(line.product!.categoryId ?? ""),
       )
@@ -3813,14 +3977,14 @@ async function seedCounts(input: { companyId: string; mainSiteId: string }) {
     }
   }
 
-  // The next count the shop starts is CNT-0022.
+  // The next count the shop starts is CNT-0024.
   const sequence = { companyId_entityKey_scopeKey: { companyId, entityKey: "RETAIL_STOCK_COUNT", scopeKey: "GLOBAL" } }
   await prisma.idSequence.upsert({
     where: sequence,
-    create: { companyId, entityKey: "RETAIL_STOCK_COUNT", scopeKey: "GLOBAL", lastNumber: 21 },
-    update: { lastNumber: 21 },
+    create: { companyId, entityKey: "RETAIL_STOCK_COUNT", scopeKey: "GLOBAL", lastNumber: 23 },
+    update: { lastNumber: 23 },
   })
-  console.log(`  counts: ${counts.length} (CNT-0020 to approve, CNT-0021 counting), ${movements} count movement(s)`)
+  console.log(`  counts: ${counts.length} (CNT-0020 and CNT-0023 to approve, CNT-0021 counting), ${movements} count movement(s)`)
 }
 
 /**
@@ -3864,7 +4028,7 @@ async function clearAdjustments(companyId: string, handMade: Prisma.StockMovemen
 
 /**
  * `--reset`: the buying acceptance runs did goes — every order and delivery
- * (PO-00001 and its GRN-00001 are written again after this), the stock those
+ * (`seedOrders` writes PO-0001 … PO-0023 and their deliveries again after this), the stock those
  * deliveries brought in, their books and their Activity — and with it any
  * movement a smoke run wrote with no reason. The ledger keeps the shop's own
  * movements and works each line's opening back from them, so one left behind
@@ -3893,9 +4057,12 @@ async function clearPurchasing(companyId: string) {
       ],
     },
   })
+  await prisma.retailMessage.deleteMany({ where: { companyId, entityType: "RetailPurchaseOrder" } })
+  await prisma.notification.deleteMany({ where: { companyId, type: "RETAIL_DELIVERY_TO_CHECK" } })
+  await prisma.retailAttachment.deleteMany({ where: { companyId, entityType: "RetailGoodsReceipt" } })
   await prisma.retailGoodsReceipt.deleteMany({ where: { companyId } })
   await prisma.retailPurchaseOrder.deleteMany({ where: { companyId } })
-  // The next RPO and RGR numbers are worked out again from what is left.
+  // The next PO and GRN numbers are worked out again from what is left.
   await prisma.idSequence.deleteMany({ where: { companyId, entityKey: { in: ["RETAIL_PURCHASE_ORDER", "RETAIL_GOODS_RECEIPT"] } } })
   console.log(
     `  reset: cleared ${orders.length} order(s), ${receipts.length} delivery(ies), ${movements.count} stock movement(s), ` +
@@ -3938,6 +4105,8 @@ async function seedStockLedger(companyId: string, mainSiteId: string) {
     where: {
       companyId,
       postedAt: { gte: since },
+      // FLR-06: a lay-by's hand-over moves no stock; its goods left when they were put aside.
+      layby: { is: null },
       OR: [{ status: "POSTED" }, { status: "VOIDED", reversals: { some: { saleType: "VOID" } } }],
     },
     select: {
@@ -4262,8 +4431,11 @@ async function seedSuppliers(input: { companyId: string; mainSiteId: string; sof
   const actor = { companyId, userId: owner.id, userName: owner.name, userRole: owner.role }
 
   if (input.reset) {
-    // A supplier the books hold a bill against, or the shop holds empties for, stays.
-    const gone = await prisma.vendor.findMany({ where: { companyId, bills: { none: {} }, emptiesEntries: { none: {} } }, select: { id: true } })
+    // A supplier the books hold a bill or a payment against, or the shop holds empties for, stays.
+    const gone = await prisma.vendor.findMany({
+      where: { companyId, bills: { none: {} }, payments: { none: {} }, emptiesEntries: { none: {} }, purchaseOrders: { none: {} }, goodsReceipts: { none: {} } },
+      select: { id: true },
+    })
     const ids = gone.map((vendor) => vendor.id)
     await prisma.retailMessage.deleteMany({ where: { companyId, entityType: "Vendor", entityId: { in: ids } } })
     await prisma.platformAuditEvent.deleteMany({ where: { companyId, entityType: "Vendor", entityId: { in: ids } } })
@@ -4977,6 +5149,8 @@ async function seedPosting(companyId: string) {
     ["TRANSFER", null, "1017"],
     ["ON_ACCOUNT", null, "1100"],
     ["VOUCHER", null, "2250"],
+    // FLR-06: a hand-over is paid by the lay-by's deposits.
+    ["LAYBY", null, "2260"],
   ]
   for (const [tenderType, currency, code] of tenders) {
     const clearingAccountId = byCode.get(code)!
@@ -5335,6 +5509,67 @@ async function seedApprovals(companyId: string) {
   })
   if (saved) await prisma.platformAuditEvent.update({ where: { id: saved.id }, data: { createdAt: changedAt } })
   console.log("  approvals: the board's limits, owner approvals to Tendai Mhlanga, last changed on 1 September")
+}
+
+/**
+ * CUS-01: the loyalty scheme with the board's values (1 point for each US$1,
+ * a point worth US$0.01, spend from 500, a year to expire, Bronze, Silver
+ * and Gold with Gold at 1.5), saved by the owner on 1 August at 09:30 —
+ * "Last changed by Tendai Mhlanga, 1 August." Customers and their ledgers
+ * come with the Customers units.
+ */
+async function seedLoyalty(companyId: string) {
+  const owner = await prisma.user.findFirst({
+    where: { companyId, email: "owner@bottlestore.test" },
+    select: { id: true, name: true },
+  })
+  if (!owner) {
+    console.log("  loyalty: no owner, skipped")
+    return
+  }
+  const settings = {
+    enabled: true,
+    earnPerDollar: new Prisma.Decimal("1"),
+    pointValue: new Prisma.Decimal("0.01"),
+    spendFrom: LOYALTY_SPEND_FROM,
+    expiry: "AFTER_12_MONTHS" as const,
+    tiers: [
+      { name: "Bronze", from: "0.00" },
+      { name: "Silver", from: "500.00" },
+      { name: "Gold", from: "1500.00" },
+    ],
+    topTierEarnPerDollar: new Prisma.Decimal("1.5"),
+    earnOnPromotions: true,
+    birthdayBonus: true,
+    birthdayPoints: 200,
+    pointsPayForAlcohol: true,
+    updatedById: owner.id,
+  }
+  await prisma.retailLoyaltySettings.upsert({ where: { companyId }, update: settings, create: { companyId, ...settings } })
+  const year = Number(new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Harare", year: "numeric" }).format(new Date()))
+  const thisYear = new Date(`${year}-08-01T09:30:00+02:00`)
+  const changedAt = thisYear.getTime() <= Date.now() ? thisYear : new Date(`${year - 1}-08-01T09:30:00+02:00`)
+  await prisma.$executeRaw`UPDATE "RetailLoyaltySettings" SET "updatedAt" = ${changedAt} WHERE "companyId" = ${companyId}`
+  await prisma.platformAuditEvent.deleteMany({
+    where: { companyId, entityType: "RetailSettings", entityId: "loyalty", eventType: RETAIL_AUDIT_EVENTS.settingsChanged },
+  })
+  await writeRetailAuditEvent(prisma, {
+    actor: { companyId, userId: owner.id, userName: owner.name, userRole: "SUPERADMIN" },
+    eventType: RETAIL_AUDIT_EVENTS.settingsChanged,
+    entityType: "RetailSettings",
+    entityId: "loyalty",
+    payload: {
+      page: "loyalty",
+      changes: [{ field: "exp", label: "Points expire", from: "Never", to: "After 12 months" }],
+    },
+  })
+  const saved = await prisma.platformAuditEvent.findFirst({
+    where: { companyId, eventType: RETAIL_AUDIT_EVENTS.settingsChanged, entityId: "loyalty" },
+    orderBy: { createdAt: "desc" },
+    select: { id: true },
+  })
+  if (saved) await prisma.platformAuditEvent.update({ where: { id: saved.id }, data: { createdAt: changedAt } })
+  console.log("  loyalty: the board's scheme, last changed by Tendai Mhlanga on 1 August")
 }
 
 /* ── PRD-08: bundles and buy-more deals ───────────────────────────────── */
@@ -6114,4 +6349,1973 @@ async function seedVouchers(companyId: string) {
   console.log(
     `  vouchers: ${count} (${usedUp.length} used up on the history, ${expired} lapsed), 2250 owes US$${ledger.toFixed(2)} against US$${toNumberOrZero(left._sum.balance ?? 0).toFixed(2)} left on them`,
   )
+}
+
+/* ── CUS-02: the shop's customers, their visits and their points ──────── */
+
+/**
+ * The CustomersList board's eight regulars, in its order: every one Gold by
+ * spend and agreeing to messages, with the board's visits, last visit, spend
+ * in 12 months and points exactly (`seedCustomers`). `last` is the month and
+ * day of the last visit, the most recent one before today.
+ */
+const REGULARS: Array<{
+  name: string
+  visits: number
+  last: string
+  spend: string
+  points: number
+  since: string
+  code?: number
+  area?: string
+  email?: string
+  dob?: string
+}> = [
+  {
+    name: "Tapiwa Marange",
+    visits: 141,
+    last: "08-15",
+    spend: "3021.80",
+    points: 3021,
+    since: "2024-03-12",
+    code: 141,
+    area: "Mbare, Harare",
+    email: "tapiwa.marange@gmail.com",
+    dob: "1988-03-14",
+  },
+  { name: "Nyasha Gwenzi", visits: 149, last: "08-16", spend: "2975.55", points: 2975, since: "2023-11-04" },
+  { name: "Rutendo Banda", visits: 121, last: "08-15", spend: "2768.00", points: 2768, since: "2024-01-20" },
+  { name: "Munashe Chari", visits: 139, last: "08-16", spend: "2515.10", points: 2515, since: "2023-12-02" },
+  { name: "Blessing Ncube", visits: 127, last: "08-17", spend: "2414.10", points: 2414, since: "2024-02-15" },
+  { name: "Kudzai Zhou", visits: 138, last: "08-17", spend: "2345.90", points: 2345, since: "2024-04-08" },
+  { name: "Simba Mutasa", visits: 122, last: "08-16", spend: "2146.50", points: 2146, since: "2024-05-19" },
+  { name: "Rudo Chirwa", visits: 124, last: "08-14", spend: "2051.30", points: 2051, since: "2024-06-30" },
+]
+
+/** C-44: Tapiwa's second card, one digit off his number, never merged. */
+const DUPLICATE_TAPIWA = { name: "T. Marange", phone: "+263774123380", visits: 9, last: "09-02", spend: "412.60", points: 412, since: "2025-09-20" }
+
+const MEMBER_COUNT = 420
+/** The Loyalty board's last 30 days: "96 spent 21,400 points", "Members spent 2.3 times more a visit". */
+const SPENDERS_30 = 96
+const SPENT_POINTS_30 = 21_400
+const MEMBERS_TIMES = 2.3
+/** The scheme's "Spend from 500 points" (`seedLoyalty`). */
+const LOYALTY_SPEND_FROM = 500
+const ACTIVE_MEMBERS = 412
+const MEMBER_FIRST = [
+  "Tendai", "Tatenda", "Rumbidzai", "Chiedza", "Farai", "Nyasha", "Tafadzwa", "Kudakwashe", "Ropafadzo", "Tinotenda",
+  "Vimbai", "Shingai", "Takudzwa", "Anesu", "Panashe", "Fadzai", "Tsitsi", "Rutendo", "Munyaradzi", "Tonderai",
+  "Thandeka", "Sipho", "Nkosana", "Lindiwe", "Sibusiso", "Nomvula", "Themba", "Zodwa", "Mandla", "Sihle",
+  "Bongani", "Nqobile", "Lungile", "Busisiwe", "Thulani", "Nokuthula", "Mthokozisi", "Siphiwe", "Dumisani", "Zanele",
+]
+const MEMBER_LAST = [
+  "Moyo", "Ncube", "Sibanda", "Dube", "Ndlovu", "Mpofu", "Nyoni", "Khumalo", "Mlilo", "Tshuma",
+  "Chikwanha", "Mutasa", "Mapfumo", "Chigumba", "Makoni", "Gumbo", "Mhlanga", "Zvobgo", "Marufu", "Chinamasa",
+  "Machingura", "Nyathi", "Mupfumira", "Chiweshe", "Mushonga", "Mudzingwa", "Hove", "Shumba", "Matanda", "Mavhima",
+  "Chitepo", "Mangwende", "Murwira", "Chirwa", "Zhou", "Kanengoni", "Mabhena", "Gwenzi", "Chari", "Mukandatsama",
+]
+const MEMBER_AREAS = ["Mbare, Harare", "Highfield, Harare", "Avondale, Harare", "Glen View, Harare", "Kuwadzana, Harare", "Mabvuku, Harare"]
+
+/** A small seeded generator, so the members come out the same each run. */
+function seededRandom(seed: number) {
+  let state = seed >>> 0
+  return () => {
+    state = (state + 0x6d2b79f5) >>> 0
+    let t = state
+    t = Math.imul(t ^ (t >>> 15), t | 1)
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61)
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296
+  }
+}
+
+/** The most recent `MM-DD` on or before today in Harare, at noon there. */
+function lastDayOn(monthDay: string): string {
+  const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Harare" }).format(new Date())
+  const year = Number(today.slice(0, 4))
+  const day = `${year}-${monthDay}`
+  return day <= today ? day : `${year - 1}-${monthDay}`
+}
+
+const harareDay = (day: string, time: string) => new Date(`${day}T${time}:00+02:00`)
+
+/**
+ * CUS-02 `seedCustomers()`: the shop's customers on its history.
+ *
+ * - The board's eight regulars and C-44's duplicate, at the exact figures of
+ *   `REGULARS`: their visits inside the floor's history are its own sales
+ *   (on the day of the last visit, then spread back), and the visits before
+ *   it are rung by `seedCustomerHistory` on a closed Front till shift of their
+ *   own day, so the 12-month spend lands to the cent (the last of them tops
+ *   up with airtime) and the shift counts stay true.
+ * - 420 members (Shona and Ndebele names, their own +263 71/73/77/78 numbers,
+ *   85% agreeing to messages, members since across 18 months, three with a
+ *   birthday next week), put on the history's own sales, larger baskets first:
+ *   412 shopped in the last 30 days, and none spent US$1,500 in 12 months.
+ * - Every attached sale earns its points (EARNED, the floor of what it came
+ *   to); a regular's last row lands the board's balance.
+ * - Codes and cards in the order they joined, Tapiwa Marange CUS-00141.
+ *   Simba Nkomo is not seeded: he is added in the acceptance walk.
+ *
+ * - 96 customers spend 21,400 points in the last 30 days (Tapiwa's spends,
+ *   then members' extra sales that spend them), and members' visits there
+ *   average 2.3 times a walk-in's: the Loyalty board's aside.
+ */
+async function seedCustomers(companyId: string) {
+  const random = seededRandom(53)
+  const chance = (p: number) => random() < p
+  const within = (low: number, high: number) => low + Math.floor(random() * (high - low + 1))
+  const now = new Date()
+  const yearStart = new Date(now.getTime() - 365 * DAY_MS + 2 * DAY_MS)
+
+  // ── Who they are ──
+  const regularNames = new Set([...REGULARS.map((regular) => regular.name), DUPLICATE_TAPIWA.name])
+  const keep = new Set([...CUSTOMERS, DUPLICATE_TAPIWA.name])
+  const taken = new Set([...Object.values(CUSTOMER_PHONES), DUPLICATE_TAPIWA.phone])
+  for (const user of await prisma.user.findMany({ where: { companyId, phone: { not: null } }, select: { phone: true } })) {
+    if (user.phone) taken.add(user.phone.replace(/[^\d+]/g, ""))
+  }
+  type Plan = {
+    name: string
+    phone: string
+    since: Date
+    consent: boolean
+    area: string | null
+    email: string | null
+    dob: string | null
+  }
+  const plans: Plan[] = []
+  for (const regular of REGULARS) {
+    plans.push({
+      name: regular.name,
+      phone: CUSTOMER_PHONES[regular.name]!,
+      since: harareDay(regular.since, "10:00"),
+      consent: true,
+      area: regular.area ?? null,
+      email: regular.email ?? null,
+      dob: regular.dob ?? null,
+    })
+  }
+  plans.push({ name: DUPLICATE_TAPIWA.name, phone: DUPLICATE_TAPIWA.phone, since: harareDay(DUPLICATE_TAPIWA.since, "11:20"), consent: false, area: null, email: null, dob: null })
+  for (const name of ["Farai Chikore", "Tinashe Mavhunga"]) {
+    plans.push({ name, phone: CUSTOMER_PHONES[name]!, since: new Date(now.getTime() - within(200, 500) * DAY_MS), consent: true, area: null, email: null, dob: null })
+  }
+  const names = new Set(plans.map((plan) => plan.name))
+  const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Harare" }).format(now)
+  while (plans.length < REGULARS.length + 3 + MEMBER_COUNT) {
+    const name = `${MEMBER_FIRST[within(0, MEMBER_FIRST.length - 1)]} ${MEMBER_LAST[within(0, MEMBER_LAST.length - 1)]}`
+    if (names.has(name)) continue
+    let phone = ""
+    do phone = `+2637${["1", "3", "7", "8"][within(0, 3)]}${String(within(0, 9_999_999)).padStart(7, "0")}`
+    while (taken.has(phone))
+    names.add(name)
+    taken.add(phone)
+    const index = plans.length - (REGULARS.length + 3)
+    // Three birthdays next week; a few others known, for the bonus.
+    const dob =
+      index < 3
+        ? `${1980 + within(0, 20)}-${addDays(today, 2 + index * 2).slice(5)}`
+        : chance(0.06)
+          ? `${1970 + within(0, 35)}-${String(within(1, 12)).padStart(2, "0")}-${String(within(1, 28)).padStart(2, "0")}`
+          : null
+    plans.push({
+      name,
+      phone,
+      since: new Date(now.getTime() - within(31, 540) * DAY_MS - within(0, 600) * 60_000),
+      consent: chance(0.85),
+      area: chance(0.08) ? MEMBER_AREAS[within(0, MEMBER_AREAS.length - 1)]! : null,
+      email: null,
+      dob,
+    })
+  }
+
+  // Nobody else: customers a run or a walk added go, with whatever points they had.
+  const others = await prisma.customer.findMany({ where: { companyId, name: { notIn: [...names] } }, select: { id: true } })
+  const otherIds = others.map((row) => row.id)
+  await prisma.retailSale.updateMany({ where: { companyId, customerId: { in: otherIds } }, data: { customerId: null, customerName: null } })
+  await prisma.retailVoucher.updateMany({ where: { companyId, customerId: { in: otherIds } }, data: { customerId: null } })
+  await prisma.retailEmptiesEntry.updateMany({ where: { companyId, customerId: { in: otherIds } }, data: { customerId: null } })
+  await prisma.customer.updateMany({ where: { companyId, mergedIntoId: { in: otherIds } }, data: { mergedIntoId: null } })
+  await prisma.customer.deleteMany({
+    where: { id: { in: otherIds }, invoices: { none: {} }, quotations: { none: {} }, crmClients: { none: {} } },
+  })
+  await prisma.customer.updateMany({ where: { id: { in: otherIds } }, data: { archivedAt: now, isActive: false } })
+  await prisma.retailPointsEntry.deleteMany({ where: { companyId } })
+
+  // Codes and cards in the order they joined; Tapiwa keeps CUS-00141. Moved aside first, as codes are unique.
+  plans.sort((a, b) => a.since.getTime() - b.since.getTime())
+  const existing = new Map((await prisma.customer.findMany({ where: { companyId, name: { in: [...names] } }, select: { id: true, name: true } })).map((row) => [row.name, row.id]))
+  await prisma.customer.updateMany({ where: { companyId }, data: { code: null, cardNo: null } })
+  const ids = new Map<string, string>()
+  let number = 0
+  const rows: Prisma.CustomerCreateManyInput[] = []
+  for (const plan of plans) {
+    const fixed = REGULARS.find((regular) => regular.name === plan.name)?.code
+    if (!fixed) {
+      number += 1
+      if (number === 141) number += 1
+    }
+    const n = fixed ?? number
+    const id = existing.get(plan.name) ?? randomUUID()
+    ids.set(plan.name, id)
+    const data = {
+      name: plan.name,
+      phone: plan.phone,
+      code: `CUS-${String(n).padStart(5, "0")}`,
+      cardNo: `600914${String(n).padStart(6, "0")}`,
+      marketingConsent: plan.consent,
+      consentChangedAt: plan.consent ? plan.since : null,
+      area: plan.area,
+      email: plan.email,
+      dateOfBirth: plan.dob ? new Date(`${plan.dob}T00:00:00Z`) : null,
+      isActive: true,
+      archivedAt: null,
+      mergedIntoId: null,
+      tierHeld: null,
+      tierHeldUntil: null,
+      createdAt: plan.since,
+    }
+    if (existing.has(plan.name)) await prisma.customer.update({ where: { id }, data })
+    else rows.push({ id, companyId, ...data })
+  }
+  if (rows.length) await prisma.customer.createMany({ data: rows })
+  await prisma.idSequence.deleteMany({ where: { companyId, entityKey: "RETAIL_CUSTOMER" } })
+
+  const nameOf = new Map([...ids].map(([name, id]) => [id, name]))
+  const nameOf0 = (customerId: string) => nameOf.get(customerId)!
+
+  // ── Their visits ──
+  // The floor's own sales stay as rung: the boards' morning and the vouchers' sales keep their customers.
+  await prisma.retailSale.updateMany({
+    where: {
+      companyId,
+      customerId: { not: null },
+      NOT: { saleNo: { gte: "SALE-31858", lte: "SALE-31870" } },
+      OR: [{ clientRef: null }, { NOT: { clientRef: { startsWith: "voucher:" } } }],
+    },
+    data: { customerId: null, customerName: null },
+  })
+  const history = await prisma.retailSale.findMany({
+    where: { companyId, saleType: "SALE", status: "POSTED", postedAt: { not: null } },
+    select: { id: true, saleNo: true, postedAt: true, baseAmount: true, customerId: true, siteId: true, reversals: { select: { id: true } } },
+    orderBy: { postedAt: "asc" },
+  })
+  const floorStart = history[0]?.postedAt ?? now
+  const free = history.filter(
+    (sale) => !sale.customerId && sale.reversals.length === 0 && !(sale.saleNo >= "SALE-31858" && sale.saleNo <= "SALE-31870") && Number(sale.baseAmount) > 0,
+  )
+  const used = new Set<string>()
+  const attach = new Map<string, string[]>()
+  const give = (customerId: string, saleId: string) => {
+    used.add(saleId)
+    attach.set(customerId, [...(attach.get(customerId) ?? []), saleId])
+  }
+
+  // The regulars: their days in the history, the last visit's day first.
+  const planned: HistoryVisit[] = []
+  let tapiwa: TapiwaPlan | null = null
+  const exact: Array<{ customerId: string; points: number }> = []
+  for (const regular of [...REGULARS, DUPLICATE_TAPIWA]) {
+    const customerId = ids.get(regular.name)!
+    const last = lastDayOn(regular.last)
+    const lastAt = harareDay(last, "23:59")
+    // Their sales the boards already ring after the last visit are walk-ins now.
+    await prisma.retailSale.updateMany({ where: { companyId, customerId, postedAt: { gt: lastAt } }, data: { customerId: null, customerName: null } })
+    // Tapiwa Marange's two years are the customer record's (CUS-03): `planTapiwa` rings every visit.
+    if (regular.name === TAPIWA.name) {
+      await prisma.retailSale.updateMany({ where: { companyId, customerId }, data: { customerId: null, customerName: null } })
+      tapiwa = planTapiwa(customerId, now, last)
+      planned.push(...tapiwa.visits)
+      continue
+    }
+    const own = await prisma.retailSale.findMany({
+      where: { companyId, customerId, postedAt: { gte: yearStart } },
+      select: { saleType: true, status: true, baseAmount: true },
+    })
+    const ownSpend = own.reduce((sum, row) => sum + Number(row.baseAmount), 0)
+    const ownVisits = own.filter((row) => row.saleType === "SALE" && row.status !== "VOIDED").length
+    const target = Number(regular.spend) - ownSpend
+    const visits = regular.visits - ownVisits
+    const average = target / visits
+    const span = lastAt.getTime() - yearStart.getTime()
+    const inside = Math.max(1, Math.round((visits * (lastAt.getTime() - floorStart.getTime())) / span))
+    const fits = (sale: (typeof free)[number]) => !used.has(sale.id) && Number(sale.baseAmount) >= average * 0.5 && Number(sale.baseAmount) <= average * 1.8
+    const onLast = free.filter((sale) => dayKey(sale.postedAt!) === last && fits(sale))
+    const chosen: typeof free = []
+    if (onLast.length) chosen.push(onLast[within(0, onLast.length - 1)]!)
+    const days = new Set(chosen.map((sale) => dayKey(sale.postedAt!)))
+    const pool = free.filter((sale) => sale.postedAt! < harareDay(last, "00:00") && fits(sale))
+    for (let tries = 0; chosen.length < inside && tries < pool.length * 2; tries += 1) {
+      const sale = pool[within(0, pool.length - 1)]!
+      const day = dayKey(sale.postedAt!)
+      if (days.has(day) || used.has(sale.id)) continue
+      days.add(day)
+      chosen.push(sale)
+      used.add(sale.id)
+    }
+    for (const sale of chosen) give(customerId, sale.id)
+    let left = target - chosen.reduce((sum, sale) => sum + Number(sale.baseAmount), 0)
+    const before = visits - chosen.length
+    // The days before the history: one visit a day, spread over the year.
+    const firstDay = dayKey(yearStart)
+    const lastBefore = addDays(dayKey(floorStart), -1)
+    const span2 = Math.max(1, Math.round((Date.parse(lastBefore) - Date.parse(firstDay)) / DAY_MS))
+    const picked = new Set<number>()
+    while (picked.size < Math.min(before, span2)) picked.add(within(0, span2 - 1))
+    const dates = [...picked].sort((a, b) => a - b).map((offset) => addDays(firstDay, offset))
+    dates.forEach((day, index) => {
+      // Each at least US$2.00, and enough left for the rest to be too; the last lands the spend.
+      const rest = dates.length - index - 1
+      const share = (left / (dates.length - index)) * (0.6 + random() * 0.8)
+      const amount = rest === 0 ? Math.round(left * 100) / 100 : Math.round(Math.min(Math.max(share, 2), left - rest * 2) * 100) / 100
+      left -= amount
+      planned.push({ customerId, name: regular.name, at: harareDay(day, `${String(within(9, 18)).padStart(2, "0")}:${String(within(0, 59)).padStart(2, "0")}`), amount })
+    })
+    exact.push({ customerId, points: regular.points })
+  }
+
+  // The members: one sale each in the last 30 days for 412 of them, larger baskets first, then a few older ones.
+  const monthAgo = now.getTime() - 30 * DAY_MS
+  const bigFirst = (sales: typeof free) => [...sales].sort((a, b) => Number(b.baseAmount) * (0.5 + random()) - Number(a.baseAmount) * (0.5 + random()))
+  const recent = bigFirst(free.filter((sale) => !used.has(sale.id) && sale.postedAt!.getTime() >= monthAgo))
+  const older = bigFirst(free.filter((sale) => !used.has(sale.id) && sale.postedAt!.getTime() < monthAgo))
+  const members = plans
+    .filter((plan) => !regularNames.has(plan.name))
+    .map((plan) => ({ id: ids.get(plan.name)!, named: keep.has(plan.name), spend: 0, olderPoints: 0, recentSale: null as (typeof free)[number] | null }))
+  let recentAt = 0
+  let olderAt = 0
+  members.forEach((member, index) => {
+    const active = index < ACTIVE_MEMBERS || member.named
+    if (active) {
+      while (recentAt < recent.length && used.has(recent[recentAt]!.id)) recentAt += 1
+      const sale = recent[recentAt]
+      if (sale) {
+        give(member.id, sale.id)
+        member.spend += Number(sale.baseAmount)
+        member.recentSale = sale
+      }
+    }
+    for (let extra = within(active ? 0 : 1, 8); extra > 0 && olderAt < older.length; extra -= 1) {
+      const sale = older[olderAt++]!
+      if (member.spend + Number(sale.baseAmount) >= 1_450) break
+      give(member.id, sale.id)
+      member.spend += Number(sale.baseAmount)
+      member.olderPoints += Math.floor(Number(sale.baseAmount))
+    }
+  })
+
+  /*
+    The Loyalty board's last 30 days (packet 52): "96 spent 21,400 points,
+    US$214.00 off." Tapiwa's own spends in the window count first; the rest
+    are members who shopped in the 30 days, each with one more sale on a
+    closed Front till shift of the window that spends points (Econet airtime,
+    so no product's 30-day count moves). A member needs the shop's 500 points
+    before spending, so each first gets the visits before the history that
+    earn them, staying under US$1,500 in 12 months.
+  */
+  const windowStart = now.getTime() - 30 * DAY_MS
+  const tapiwaSpends = (tapiwa?.visits ?? []).filter((visit) => visit.at.getTime() >= windowStart && (visit.pointsOff ?? 0) > 0)
+  const spendPoints = SPENT_POINTS_30 - tapiwaSpends.reduce((sum, visit) => sum + Math.round(visit.pointsOff! * 100), 0)
+  const spenderCount = SPENDERS_30 - (tapiwaSpends.length > 0 ? 1 : 0)
+  const frontTill = await prisma.retailRegister.findFirst({ where: { companyId, code: "TILL-1" }, select: { id: true } })
+  const spendDays = [
+    ...new Set(
+      (
+        await prisma.retailShift.findMany({
+          where: { companyId, registerId: frontTill?.id ?? "", status: "CLOSED", openedAt: { gte: new Date(windowStart + 2 * DAY_MS) } },
+          select: { openedAt: true },
+        })
+      ).map((shift) => dayKey(shift.openedAt)),
+    ),
+  ].filter((day) => day < dayKey(now))
+  const spends = Array.from({ length: spenderCount }, () => within(15, 30) * 10)
+  for (let diff = spendPoints - spends.reduce((sum, value) => sum + value, 0), index = 0; Math.abs(diff) >= 10; index += 1) {
+    const step = diff > 0 ? 10 : -10
+    const at = index % spends.length
+    if (spends[at]! + step < 100 || spends[at]! + step > 400) continue
+    spends[at]! += step
+    diff -= step
+  }
+  if (spends.length) spends[0]! += spendPoints - spends.reduce((sum, value) => sum + value, 0)
+  const spenders: Array<{ customerId: string; points: number; saleId: string }> = []
+  const lastBeforeHistory = addDays(dayKey(floorStart), -1)
+  const beforeDays = Math.max(1, Math.round((Date.parse(lastBeforeHistory) - Date.parse(dayKey(yearStart))) / DAY_MS))
+  for (const member of members) {
+    if (spenders.length >= spends.length || spendDays.length === 0) break
+    if (member.named || !member.recentSale) continue
+    const points = spends[spenders.length]!
+    const net = within(6, 24)
+    const topUp = Math.max(0, LOYALTY_SPEND_FROM - member.olderPoints)
+    const visits = topUp > 0 ? within(3, 6) : 0
+    const topUpSpend = topUp > 0 ? topUp + visits + within(10, 120) : 0
+    if (member.spend + topUpSpend + net >= 1_450) continue
+    const name = nameOf0(member.id)
+    // The visits before the history that bring the balance to 500 or more.
+    let left = topUpSpend
+    for (let visit = 0; visit < visits; visit += 1) {
+      const rest = visits - visit - 1
+      const amount = rest === 0 ? Math.round(left * 100) / 100 : Math.round(Math.max(5, (left / (rest + 1)) * (0.6 + random() * 0.8)) * 100) / 100
+      left -= amount
+      const day = addDays(dayKey(yearStart), within(1, beforeDays - 1))
+      planned.push({ customerId: member.id, name, at: harareDay(day, `${String(within(9, 18)).padStart(2, "0")}:${String(within(0, 59)).padStart(2, "0")}`), amount })
+    }
+    const saleId = randomUUID()
+    const day = spendDays[within(0, spendDays.length - 1)]!
+    planned.push({
+      customerId: member.id,
+      name,
+      at: harareDay(day, `${String(within(10, 17)).padStart(2, "0")}:${String(within(0, 59)).padStart(2, "0")}`),
+      amount: Math.round((net + points / 100) * 100) / 100,
+      saleId,
+      tender: random() < 0.55 ? "ECOCASH" : "CARD",
+      fill: "airtime",
+      pointsOff: points / 100,
+    })
+    member.spend += topUpSpend + net
+    spenders.push({ customerId: member.id, points, saleId })
+  }
+  if (spenders.length < spends.length) console.warn(`  points spent: only ${spenders.length} of ${spends.length} members could spend points`)
+
+  /*
+    "Members spent 2.3 times more a visit": larger baskets went to members
+    first; their biggest sales in the window now go back to walk-ins, each for
+    a smaller walk-in sale, until a member's average visit is 2.3 times a
+    walk-in's (the board's figure, to one decimal).
+  */
+  const inWindow = await prisma.retailSale.findMany({
+    where: { companyId, saleType: "SALE", status: "POSTED", postedAt: { gte: new Date(windowStart) } },
+    select: { id: true, customerId: true, baseAmount: true },
+  })
+  const plannedInWindow = planned.filter((visit) => visit.at.getTime() >= windowStart)
+  let memberSum =
+    inWindow.filter((sale) => sale.customerId || used.has(sale.id)).reduce((sum, sale) => sum + Number(sale.baseAmount), 0) +
+    plannedInWindow.reduce((sum, visit) => sum + (visit.amount ?? 0) - (visit.pointsOff ?? 0), 0)
+  const memberCount = inWindow.filter((sale) => sale.customerId || used.has(sale.id)).length + plannedInWindow.length
+  const walkIns = recent.filter((sale) => !used.has(sale.id)).sort((a, b) => Number(a.baseAmount) - Number(b.baseAmount))
+  let walkInSum = inWindow.filter((sale) => !sale.customerId && !used.has(sale.id)).reduce((sum, sale) => sum + Number(sale.baseAmount), 0)
+  const walkInCount = inWindow.filter((sale) => !sale.customerId && !used.has(sale.id)).length
+  const ratioAfter = (moved: number) => (memberSum - moved) / memberCount / ((walkInSum + moved) / walkInCount)
+  const swappable = members.filter((member) => !member.named && member.recentSale).sort((a, b) => Number(b.recentSale!.baseAmount) - Number(a.recentSale!.baseAmount))
+  for (const member of swappable) {
+    if (walkInCount === 0 || ratioAfter(0) < MEMBERS_TIMES + 0.03) break
+    const mine = member.recentSale!
+    const at = walkIns.findIndex((sale) => Number(sale.baseAmount) < Number(mine.baseAmount) && ratioAfter(Number(mine.baseAmount) - Number(sale.baseAmount)) >= MEMBERS_TIMES - 0.03)
+    if (at < 0) continue
+    const theirs = walkIns.splice(at, 1)[0]!
+    const moved = Number(mine.baseAmount) - Number(theirs.baseAmount)
+    attach.set(member.id, attach.get(member.id)!.map((saleId) => (saleId === mine.id ? theirs.id : saleId)))
+    used.delete(mine.id)
+    used.add(theirs.id)
+    member.recentSale = theirs
+    member.spend -= moved
+    memberSum -= moved
+    walkInSum += moved
+  }
+  for (const [customerId, saleIds] of attach) {
+    await prisma.retailSale.updateMany({ where: { id: { in: saleIds } }, data: { customerId, customerName: nameOf.get(customerId) ?? null } })
+  }
+
+  // ── The visits before the history, on shifts of their own ──
+  await seedCustomerHistory(companyId, planned)
+
+  // ── Points: EARNED on every sale with a customer, the regulars' last row landing the board's balance ──
+  const earning = await prisma.retailSale.findMany({
+    where: { companyId, customerId: { not: null }, saleType: "SALE", status: "POSTED", baseAmount: { gt: 0 } },
+    select: { id: true, customerId: true, baseAmount: true, postedAt: true, cashierName: true },
+    orderBy: { postedAt: "asc" },
+  })
+  const entries: Prisma.RetailPointsEntryCreateManyInput[] = earning.filter((sale) => sale.customerId !== ids.get(TAPIWA.name)).map((sale) => {
+    const points = Math.floor(Number(sale.baseAmount))
+    return {
+      companyId,
+      customerId: sale.customerId!,
+      kind: "EARNED",
+      points,
+      value: money(points * 0.01).toDecimalPlaces(2),
+      saleId: sale.id,
+      actorName: sale.cashierName,
+      createdAt: sale.postedAt!,
+    }
+  })
+  for (const { customerId, points } of exact) {
+    const own = entries.filter((entry) => entry.customerId === customerId)
+    const lastRow = own[own.length - 1]
+    if (!lastRow) continue
+    const sum = own.reduce((total, entry) => total + entry.points, 0)
+    lastRow.points += points - sum
+    lastRow.value = money(lastRow.points * 0.01).toDecimalPlaces(2)
+  }
+  // The members' points spent, each after its sale's earning (`seq` keeps the order they are written in).
+  const spentSales = new Map(
+    (await prisma.retailSale.findMany({ where: { id: { in: spenders.map((row) => row.saleId) } }, select: { id: true, postedAt: true, cashierId: true, cashierName: true } })).map(
+      (sale) => [sale.id, sale],
+    ),
+  )
+  for (const spender of spenders) {
+    const sale = spentSales.get(spender.saleId)
+    if (!sale) continue
+    entries.push({
+      companyId,
+      customerId: spender.customerId,
+      kind: "SPENT",
+      points: -spender.points,
+      value: money(spender.points * 0.01).toDecimalPlaces(2),
+      saleId: sale.id,
+      actorId: sale.cashierId,
+      actorName: sale.cashierName,
+      createdAt: sale.postedAt!,
+    })
+  }
+  entries.sort((a, b) => (a.createdAt as Date).getTime() - (b.createdAt as Date).getTime())
+  for (let index = 0; index < entries.length; index += 1000) {
+    await prisma.retailPointsEntry.createMany({ data: entries.slice(index, index + 1000) })
+  }
+  if (tapiwa) await seedTapiwaLedger(companyId, tapiwa)
+
+  const live = await prisma.customer.count({ where: { companyId, archivedAt: null } })
+  const shopped = await prisma.retailSale.groupBy({ by: ["customerId"], where: { companyId, customerId: { not: null }, saleType: "SALE", postedAt: { gte: new Date(monthAgo) } } })
+  console.log(
+    `  customers: ${live} live (the board's 8 regulars, T. Marange, ${members.length} members, ${shopped.length} shopped in 30 days), ` +
+      `${planned.length} visits before the history, ${entries.length} points rows; ${spenders.length} members spent ${spends.reduce((sum, value) => sum + value, 0)} points ` +
+      `in 30 days, members spent ${(memberSum / memberCount / (walkInSum / Math.max(1, walkInCount))).toFixed(2)} times more a visit`,
+  )
+}
+
+const PAST_OFFER =
+  "Hi {first name}, double points on every Castle Lite this weekend, 26 to 28 September. You have {points} points to spend. Harare Bottle Store."
+
+/**
+ * CUS-06 `seedCustomerMessages()`: one past offer, so the outbox has history.
+ * Tendai Mhlanga sent it on 25 September at 10:00 to the Gold customers
+ * (audience "top-tier"): the board's eight regulars, each message filled for
+ * them and SENT five minutes later. Batches a walk queued go with it.
+ */
+async function seedCustomerMessages(companyId: string) {
+  const batches = await prisma.retailMessageBatch.findMany({ where: { companyId }, select: { id: true } })
+  await prisma.retailMessage.deleteMany({ where: { companyId, batchId: { in: batches.map((batch) => batch.id) } } })
+  await prisma.retailMessageBatch.deleteMany({ where: { companyId } })
+
+  const owner = await prisma.user.findFirst({ where: { companyId, email: "owner@bottlestore.test" }, select: { id: true } })
+  const names = REGULARS.map((regular) => regular.name)
+  const customers = await prisma.customer.findMany({
+    where: { companyId, name: { in: names }, archivedAt: null },
+    select: { id: true, name: true, phone: true, whatsapp: true },
+  })
+  const points = new Map(
+    (
+      await prisma.retailPointsEntry.groupBy({ by: ["customerId"], where: { companyId, customerId: { in: customers.map((row) => row.id) } }, _sum: { points: true } })
+    ).map((row) => [row.customerId, row._sum.points ?? 0]),
+  )
+  const day = lastDayOn("09-25")
+  const createdAt = harareDay(day, "10:00")
+  const sentAt = harareDay(day, "10:05")
+  const batch = await prisma.retailMessageBatch.create({
+    data: { companyId, purpose: "OFFER", audience: "top-tier", template: PAST_OFFER, total: customers.length, createdById: owner?.id ?? null, createdAt },
+    select: { id: true },
+  })
+  await prisma.retailMessage.createMany({
+    data: customers.map((customer, index) => ({
+      companyId,
+      channel: "WHATSAPP" as const,
+      to: customer.whatsapp ?? customer.phone ?? CUSTOMER_PHONES[customer.name]!,
+      template: "customer-offer",
+      body: renderMessage(PAST_OFFER, offerValues({ name: customer.name, points: points.get(customer.id) ?? 0 })),
+      customerId: customer.id,
+      batchId: batch.id,
+      status: "SENT" as const,
+      attempts: 1,
+      externalId: `wamid.seed-offer-${index + 1}`,
+      sentAt,
+      createdById: owner?.id ?? null,
+      createdAt,
+    })),
+  })
+  console.log(`  customer messages: an offer to ${customers.length} Gold customers on ${day}, sent`)
+}
+
+/**
+ * The regulars' visits before the floor's history: one closed Front till shift
+ * a day with a visit (Chipo Dube Monday to Wednesday, Farai Moyo Thursday to
+ * Saturday, Tafara Nyathi on Sunday; a US$100.00 float, counted as expected),
+ * ringing only those visits, each a basket off the shelf's own prices and the
+ * last of a customer's topped up with airtime to their exact spend. Numbered
+ * below the history's lowest SALE number; then every shift is numbered again
+ * in the order it opened, the Front till's open shift last.
+ */
+/* ── CUS-03: Tapiwa Marange's record ──────────────────────────────────── */
+
+const TAPIWA = { name: "Tapiwa Marange", spend: 3021.8, visits: 141, before: { spend: 2561.58, visits: 126, left: 42 } }
+
+/**
+ * The CustomerRecord board's spend per month, from November to July (the
+ * month of the last visit is 0): the total and how many visits. July's is
+ * what is left of it before the board's 20 and 28 July; August is the
+ * board's three August visits alone (US$33.50, not the board's 89: its ledger
+ * has no other visit after 28 July). What is left of US$3,021.80 falls in the
+ * window's first days before November.
+ */
+const TAPIWA_MONTHS: Array<{ offset: number; total: number; visits: number; lastDay?: number }> = [
+  { offset: -9, total: 240, visits: 13 },
+  { offset: -8, total: 196, visits: 10 },
+  { offset: -7, total: 262, visits: 14 },
+  { offset: -6, total: 310, visits: 16 },
+  { offset: -5, total: 228, visits: 12 },
+  { offset: -4, total: 251, visits: 13 },
+  { offset: -3, total: 244, visits: 13 },
+  { offset: -2, total: 290, visits: 15 },
+  { offset: -1, total: 263.4, visits: 13, lastDay: 19 },
+]
+
+/** The board's ledger rows that are visits: the month (0 the last visit's), day, time, what it came to and its points. */
+const TAPIWA_BOARD: Array<{ offset: number; day: number; time: string; net: number; earn: number; spend?: number; lines: Array<[string, number]>; tender: RetailTenderType }> = [
+  { offset: -1, day: 20, time: "12:05", net: 27.4, earn: 41, lines: [["CASTLE-CASE", 1]], tender: "ECOCASH" },
+  { offset: -1, day: 28, time: "16:20", net: 18.2, earn: 27, lines: [["CHIBUKU-1L", 3]], tender: "ECOCASH" },
+  { offset: 0, day: 9, time: "17:15", net: 12.1, earn: 18, lines: [["CHIBUKU-1L", 2]], tender: "CARD" },
+  // US$5.00 paid wholly in points.
+  { offset: 0, day: 14, time: "11:40", net: 0, earn: 0, spend: 500, lines: [["CHIBUKU-1L", 4]], tender: "ECOCASH" },
+  { offset: 0, day: 15, time: "14:02", net: 21.4, earn: 32, lines: [["CHIBUKU-1L", 2]], tender: "ECOCASH" },
+]
+
+type TapiwaRow = { saleId: string | null; kind: "EARNED" | "SPENT" | "EXPIRED" | "ADJUSTED"; points: number; at: Date | null; reason?: "BIRTHDAY"; owner?: boolean }
+type TapiwaPlan = { customerId: string; visits: HistoryVisit[]; rows: TapiwaRow[] }
+
+const monthStart = (day: string, offset: number) => {
+  const at = new Date(Date.UTC(Number(day.slice(0, 4)), Number(day.slice(5, 7)) - 1 + offset, 1))
+  return at.toISOString().slice(0, 10)
+}
+const daysInMonth = (first: string) => new Date(Date.UTC(Number(first.slice(0, 4)), Number(first.slice(5, 7)), 0)).getUTCDate()
+
+/**
+ * `total` over `count` visits to the cent, none under US$3.00. With `cases`,
+ * that many come to a Castle case and a little more (US$28 to US$33) and the
+ * rest share what is left.
+ */
+function splitSpend(total: number, count: number, random: () => number, cases = 0): Array<{ amount: number; kase: boolean }> {
+  let k = Math.min(cases, count)
+  for (;;) {
+    const caseAmounts = Array.from({ length: k }, () => Math.round((28 + random() * 5) * 100) / 100)
+    const rest = Math.round((total - caseAmounts.reduce((sum, value) => sum + value, 0)) * 100) / 100
+    const others = count - k
+    if (others === 0 && k > 0) {
+      // Every visit a case: the total shared, none under a case's price.
+      const even = Math.round((total / count) * 100) / 100
+      const amounts = Array.from({ length: count }, (_, index) => (index === count - 1 ? Math.round((total - even * (count - 1)) * 100) / 100 : even))
+      return amounts.map((amount) => ({ amount, kase: amount >= 27 }))
+    }
+    if (others > 0 && (rest >= others * 4 || k <= 0)) {
+      const share = rest / others
+      const amounts: number[] = []
+      let left = rest
+      for (let index = 0; index < others; index += 1) {
+        const remaining = others - index - 1
+        const amount =
+          remaining === 0 ? Math.round(left * 100) / 100 : Math.round(Math.min(Math.max(share * (0.6 + random() * 0.8), 3), left - remaining * 3) * 100) / 100
+        amounts.push(amount)
+        left = Math.round((left - amount) * 100) / 100
+      }
+      const out = [...caseAmounts.map((amount) => ({ amount, kase: true })), ...amounts.map((amount) => ({ amount, kase: false }))]
+      // Cases spread through the month.
+      return out.sort(() => random() - 0.5)
+    }
+    k -= 1
+  }
+}
+
+/** `count` days spread evenly over `days`. */
+const spreadDays = (days: string[], count: number) => Array.from({ length: count }, (_, index) => days[Math.floor(((index + 0.5) * days.length) / count)]!)
+
+/**
+ * Tapiwa Marange as the CustomerRecord board draws him (packet 61): 141
+ * visits in 12 months at the board's spend per month (US$3,021.80), a Castle
+ * case on most of them and Chibuku Scud 1L next, EcoCash on six in ten; 126
+ * visits worth US$2,561.58 in the 12 months before; and the points that land
+ * the board's ledger: its seven newest rows exactly, 214 rows in 12 months,
+ * earned +4,210 (the birthday bonus with it), spent −1,189, expired −42, a
+ * balance of 3,021.
+ */
+function planTapiwa(customerId: string, now: Date, lastVisit: string): TapiwaPlan {
+  const random = seededRandom(61)
+  const name = TAPIWA.name
+  const visits: HistoryVisit[] = []
+  const rows: TapiwaRow[] = []
+  const at = (day: string, time?: string) =>
+    harareDay(day, time ?? `${String(9 + Math.floor(random() * 9)).padStart(2, "0")}:${String(Math.floor(random() * 60)).padStart(2, "0")}`)
+  const tender = (): RetailTenderType => (random() < 0.6 ? "ECOCASH" : "CARD")
+  const linesFor = (kase: boolean): Array<[string, number]> =>
+    kase ? [["CASTLE-CASE", 1]] : [["CHIBUKU-1L", 2 + Math.floor(random() * 3)]]
+
+  // ── The 12 months before: 126 visits, all but 42 of their points spent ──
+  const beforeFrom = addDays(dayKey(new Date(now.getTime() - 730 * DAY_MS)), 3)
+  const beforeTo = addDays(dayKey(new Date(now.getTime() - 365 * DAY_MS)), -3)
+  const beforeDays = Array.from({ length: Math.round((Date.parse(beforeTo) - Date.parse(beforeFrom)) / DAY_MS) + 1 }, (_, index) => addDays(beforeFrom, index))
+  const beforeAmounts = splitSpend(TAPIWA.before.spend, TAPIWA.before.visits, random)
+  let balance = 0
+  spreadDays(beforeDays, TAPIWA.before.visits).forEach((day, index) => {
+    const net = beforeAmounts[index]!.amount
+    const earn = Math.floor(net)
+    const last = index === TAPIWA.before.visits - 1
+    // Spent three times along the way, and down to 42 on the last visit.
+    const spend = last ? balance + earn - TAPIWA.before.left : [31, 63, 95].includes(index) && balance + earn >= 600 ? 600 : 0
+    const saleId = randomUUID()
+    visits.push({ customerId, name, at: at(day), amount: Math.round((net + spend / 100) * 100) / 100, saleId, tender: tender(), pointsOff: spend / 100 })
+    rows.push({ saleId, kind: "EARNED", points: earn, at: null })
+    if (spend > 0) rows.push({ saleId, kind: "SPENT", points: -spend, at: null })
+    balance += earn - spend
+  })
+
+  // ── The 12 months: the board's months, then its seven rows ──
+  const windowFrom = addDays(dayKey(new Date(now.getTime() - 365 * DAY_MS)), 1)
+  const months = TAPIWA_MONTHS.map((month) => ({ ...month, days: [] as string[] }))
+  for (const month of months) {
+    const first = monthStart(lastVisit, month.offset)
+    const length = month.lastDay ?? daysInMonth(first)
+    month.days = Array.from({ length }, (_, index) => addDays(first, index)).filter((day) => day >= windowFrom)
+  }
+  const restTotal = Math.round((TAPIWA.spend - TAPIWA_MONTHS.reduce((sum, month) => sum + month.total, 0) - TAPIWA_BOARD.reduce((sum, row) => sum + row.net, 0)) * 100) / 100
+  const restCount = TAPIWA.visits - TAPIWA_BOARD.length - TAPIWA_MONTHS.reduce((sum, month) => sum + month.visits, 0)
+  const firstMonth = monthStart(lastVisit, TAPIWA_MONTHS[0]!.offset)
+  const restDays = Array.from({ length: Math.max(0, Math.round((Date.parse(firstMonth) - Date.parse(windowFrom)) / DAY_MS)) }, (_, index) => addDays(windowFrom, index))
+  // Seeded later in the year, the window starts inside November: the rest goes there. A short run of days takes two visits on some.
+  if (restDays.length > 0) months.unshift({ offset: -10, total: restTotal, visits: restCount, days: restDays })
+  else Object.assign(months[0]!, { total: months[0]!.total + restTotal, visits: months[0]!.visits + restCount })
+
+  type Planned = { day: string; net: number; kase: boolean; board?: (typeof TAPIWA_BOARD)[number] }
+  const year: Planned[] = []
+  for (const month of months) {
+    const cases = Math.max(0, Math.round((month.total - 11 * month.visits) / 17))
+    const amounts = splitSpend(month.total, month.visits, random, cases)
+    spreadDays(month.days, month.visits).forEach((day, index) => year.push({ day, net: amounts[index]!.amount, kase: amounts[index]!.kase }))
+  }
+  const boardDay = (row: (typeof TAPIWA_BOARD)[number]) => addDays(monthStart(lastVisit, row.offset), row.day - 1)
+  for (const row of TAPIWA_BOARD) year.push({ day: boardDay(row), net: row.net, kase: false, board: row })
+  year.sort((a, b) => a.day.localeCompare(b.day))
+
+  // Points: the board's rows as drawn; before them 136 EARNED rows coming to 3,992 and 71 small spends (−689): 214 rows.
+  const plain = year.filter((visit) => !visit.board)
+  const netTotal = plain.reduce((sum, visit) => sum + visit.net, 0)
+  const exact = plain.map((visit) => (visit.net * 3992) / netTotal)
+  const earns = exact.map(Math.floor)
+  let short = 3992 - earns.reduce((sum, value) => sum + value, 0)
+  for (const index of exact.map((value, i) => [value - Math.floor(value), i] as const).sort((a, b) => b[0] - a[0]).map(([, i]) => i)) {
+    if (short <= 0) break
+    earns[index]! += 1
+    short -= 1
+  }
+  const spendAt = new Map(Array.from({ length: 71 }, (_, index) => [30 + Math.floor((index * (plain.length - 30)) / 71), index < 50 ? 10 : 9] as const))
+  plain.forEach((visit, index) => Object.assign(visit, { earn: earns[index], spend: spendAt.get(index) ?? 0 }))
+
+  const lastMonth = monthStart(lastVisit, -1)
+  const expiry = harareDay(addDays(lastMonth, daysInMonth(lastMonth) - 1), "00:00")
+  const birthday = harareDay(monthStart(lastVisit, 0), "09:00")
+  for (const visit of year) {
+    const saleId = randomUUID()
+    const board = visit.board
+    const planned = visit as Planned & { earn?: number; spend?: number }
+    const spend = board?.spend ?? planned.spend ?? 0
+    const when = at(visit.day, board?.time)
+    visits.push({
+      customerId,
+      name,
+      at: when,
+      amount: Math.round((visit.net + spend / 100) * 100) / 100,
+      saleId,
+      tender: board?.tender ?? tender(),
+      lines: board?.lines ?? linesFor(visit.kase),
+      // A case and a top-up; else Chibuku and something else from the shelf.
+      fill: visit.kase ? "airtime" : { avoid: ["CASTLE-CASE", "CHIBUKU-1L"] },
+      pointsOff: spend / 100,
+    })
+    const earn = board ? board.earn : (planned.earn ?? 0)
+    if (earn > 0) rows.push({ saleId, kind: "EARNED", points: earn, at: null })
+    if (spend > 0) rows.push({ saleId, kind: "SPENT", points: -spend, at: null })
+  }
+  // A year old on the last day of July; the birthday bonus given by hand on 1 August.
+  rows.push({ saleId: null, kind: "EXPIRED", points: -TAPIWA.before.left, at: expiry })
+  rows.push({ saleId: null, kind: "ADJUSTED", reason: "BIRTHDAY", points: 100, at: birthday, owner: true })
+  return { customerId, visits, rows }
+}
+
+/**
+ * CUS-03 `seedCustomerRecord()`: Tapiwa Marange's notes, both by Tafara
+ * Nyathi (the day he joined, and the last 30 September), and the Retail price
+ * list. His visits and points are `planTapiwa`'s, rung by `seedCustomers`.
+ */
+async function seedCustomerRecord(companyId: string) {
+  const customer = await prisma.customer.findFirst({ where: { companyId, name: TAPIWA.name, archivedAt: null }, select: { id: true, createdAt: true } })
+  const tafara = await prisma.user.findFirst({ where: { companyId, email: "tafara.manager@bottlestore.test" }, select: { id: true } })
+  const retail = await prisma.priceList.findFirst({ where: { companyId, name: "Retail", archivedAt: null }, select: { id: true } })
+  if (!customer) {
+    console.log("  customer record: no Tapiwa Marange, skipped")
+    return
+  }
+  await prisma.customer.update({ where: { id: customer.id }, data: { priceListId: retail?.id ?? null } })
+  await prisma.retailCustomerNote.deleteMany({ where: { companyId, customerId: customer.id } })
+  await prisma.retailCustomerNote.createMany({
+    data: [
+      { companyId, customerId: customer.id, body: "Prefers EcoCash. Ask before charging the card.", createdById: tafara?.id ?? null, createdAt: harareDay(dayKey(customer.createdAt), "11:30") },
+      {
+        companyId,
+        customerId: customer.id,
+        body: "Says the Castle was warm on 30 September. Make it good.",
+        createdById: tafara?.id ?? null,
+        createdAt: harareDay(lastDayOn("09-30"), "17:45"),
+      },
+    ],
+  })
+  console.log("  customer record: Tapiwa Marange's two notes and the Retail price list")
+}
+
+/**
+ * Tapiwa's points, once his visits are rung: each row at its sale's time and
+ * by its cashier; the expiry automatic; the birthday bonus by the owner.
+ */
+async function seedTapiwaLedger(companyId: string, plan: TapiwaPlan) {
+  const owner = await prisma.user.findFirst({ where: { companyId, email: "owner@bottlestore.test" }, select: { id: true, name: true } })
+  const sales = new Map(
+    (
+      await prisma.retailSale.findMany({
+        where: { id: { in: plan.visits.map((visit) => visit.saleId!) } },
+        select: { id: true, postedAt: true, cashierId: true, cashierName: true },
+      })
+    ).map((sale) => [sale.id, sale]),
+  )
+  const data: Prisma.RetailPointsEntryCreateManyInput[] = []
+  for (const row of plan.rows) {
+    const sale = row.saleId ? sales.get(row.saleId) : null
+    if (row.saleId && !sale) continue
+    data.push({
+      companyId,
+      customerId: plan.customerId,
+      kind: row.kind,
+      points: row.points,
+      value: money(Math.abs(row.points) * 0.01).toDecimalPlaces(2),
+      saleId: sale?.id ?? null,
+      reason: row.reason ?? null,
+      actorId: row.owner ? (owner?.id ?? null) : (sale?.cashierId ?? null),
+      actorName: row.owner ? (owner?.name ?? null) : (sale?.cashierName ?? null),
+      createdAt: sale?.postedAt ?? row.at!,
+    })
+  }
+  // In the order they happened, so `seq` keeps a sale's earning before its spending.
+  data.sort((a, b) => (a.createdAt as Date).getTime() - (b.createdAt as Date).getTime())
+  await prisma.retailPointsEntry.createMany({ data })
+  const since = new Date(Date.now() - 365 * DAY_MS)
+  const inYear = data.filter((row) => (row.createdAt as Date) >= since)
+  console.log(
+    `  Tapiwa Marange: ${plan.visits.length} visits, ${data.length} points rows (${inYear.length} in 12 months), balance ${data.reduce((sum, row) => sum + row.points, 0)}`,
+  )
+}
+
+/**
+ * A visit `seedCustomerHistory` rings. Optional, for a customer the boards
+ * draw closely (CUS-03, Tapiwa Marange): the sale's own id, how it was paid,
+ * the products it starts with (code and units), and points spent on it (the
+ * US$ off, spread over its lines).
+ */
+type HistoryVisit = {
+  customerId: string
+  name: string
+  at: Date
+  amount: number | null
+  saleId?: string
+  tender?: RetailTenderType
+  lines?: Array<[code: string, units: number]>
+  /** What the shelf fills the rest with: any product but these, or nothing (the rest is airtime). */
+  fill?: { avoid: string[] } | "airtime"
+  pointsOff?: number
+}
+
+async function seedCustomerHistory(companyId: string, visits: HistoryVisit[]) {
+  if (visits.length === 0) return
+  const random = seededRandom(5301)
+  const site = await prisma.site.findFirst({ where: { companyId, code: "HRE" }, select: { id: true } })
+  const front = await prisma.retailRegister.findFirst({ where: { companyId, code: "TILL-1" }, select: { id: true, code: true, name: true, siteId: true } })
+  const people = await prisma.user.findMany({
+    where: { companyId, email: { in: ["chipo.till@bottlestore.test", "farai.till@bottlestore.test", "tafara.manager@bottlestore.test"] } },
+    select: { id: true, name: true, email: true },
+  })
+  const byEmail = (email: string) => people.find((person) => person.email === email)
+  if (!site || !front || people.length < 3) {
+    console.log("  customer history: no Front till or cashiers, skipped")
+    return
+  }
+  const siteId = front.siteId ?? site.id
+  // The shelf as the history rang it: one price per product.
+  const shelf = await prisma.$queryRaw<Array<{ productId: string; code: string; inventoryItemId: string; itemName: string; unitPrice: Prisma.Decimal; costUnit: Prisma.Decimal }>>`
+    SELECT DISTINCT ON (l."productId") l."productId", pr.code, l."inventoryItemId", l."itemName", l."unitPrice", l."costUnit"
+    FROM "RetailSaleLine" l JOIN "RetailSale" s ON s.id = l."saleId" JOIN "Product" pr ON pr.id = l."productId"
+    WHERE s."companyId" = ${companyId} AND s."siteId" = ${siteId} AND s."saleType" = 'SALE' AND l."productId" IS NOT NULL
+      AND l."discountAmount" = 0 AND l."promotionId" IS NULL AND l."bundleId" IS NULL AND l."unitPrice" BETWEEN 0.5 AND 30
+    ORDER BY l."productId", s."postedAt" DESC`
+  const byCode = new Map(shelf.map((item) => [item.code, item]))
+  // A day the Front till already traded (the floor's own history): its visits ride that closed shift, paid without cash so its drawer stays true.
+  const floorShifts = new Map(
+    (
+      await prisma.retailShift.findMany({
+        where: { companyId, registerId: front.id, status: "CLOSED", closedAt: { not: null } },
+        select: { id: true, openedAt: true, closedAt: true, cashierId: true, cashierName: true },
+      })
+    ).map((shift) => [dayKey(shift.openedAt), shift]),
+  )
+  const airtime = await prisma.inventoryItem.findFirst({
+    where: { siteId, product: { companyId, code: AIRTIME.code } },
+    select: { id: true, productId: true, product: { select: { name: true } } },
+  })
+  if (shelf.length === 0) return
+
+  const lowest = await prisma.$queryRaw<Array<{ n: number | null }>>`
+    SELECT min(substring("saleNo" from 6)::int) AS n FROM "RetailSale" WHERE "companyId" = ${companyId} AND "saleNo" ~ '^SALE-[0-9]+$'`
+  let saleNumber = (lowest[0]?.n ?? 100_000) - visits.length
+
+  const shiftRows: Prisma.RetailShiftCreateManyInput[] = []
+  const saleRows: Prisma.RetailSaleCreateManyInput[] = []
+  const lineRows: Prisma.RetailSaleLineCreateManyInput[] = []
+  const paymentRows: Prisma.RetailSalePaymentCreateManyInput[] = []
+  const byDay = new Map<string, typeof visits>()
+  for (const visit of [...visits].sort((a, b) => a.at.getTime() - b.at.getTime())) {
+    const day = dayKey(visit.at)
+    byDay.set(day, [...(byDay.get(day) ?? []), visit])
+  }
+  for (const [day, dayVisits] of [...byDay].sort(([a], [b]) => a.localeCompare(b))) {
+    const weekday = new Date(`${day}T12:00:00Z`).getUTCDay()
+    const riding = floorShifts.get(day) ?? null
+    const cashier = riding
+      ? { id: riding.cashierId, name: riding.cashierName }
+      : weekday >= 1 && weekday <= 3 ? byEmail("chipo.till@bottlestore.test")! : weekday === 0 ? byEmail("tafara.manager@bottlestore.test")! : byEmail("farai.till@bottlestore.test")!
+    const shiftId = riding?.id ?? randomUUID()
+    const openedAt = riding?.openedAt ?? harareDay(day, "07:55")
+    const closedAt = riding?.closedAt ?? harareDay(day, "19:05")
+    let cash = money(0)
+    for (const visit of dayVisits) {
+      const saleId = visit.saleId ?? randomUUID()
+      // Inside the shift it rides.
+      const at = new Date(Math.min(Math.max(visit.at.getTime(), openedAt.getTime() + 600_000), closedAt.getTime() - 600_000))
+      const target = Math.round((visit.amount ?? 10) * 100)
+      const lines: Prisma.RetailSaleLineCreateManyInput[] = []
+      let cents = 0
+      // The products the visit starts with, while they fit.
+      for (const [code, units] of visit.lines ?? []) {
+        const item = byCode.get(code)
+        if (!item) continue
+        const price = Math.round(Number(item.unitPrice) * 100)
+        if (cents + units * price > target) continue
+        cents += units * price
+        const gross = money((units * price) / 100)
+        lines.push({
+          id: randomUUID(),
+          companyId,
+          saleId,
+          inventoryItemId: item.inventoryItemId,
+          productId: item.productId,
+          itemName: item.itemName,
+          quantity: quantity(String(units)),
+          unitPrice: money(item.unitPrice),
+          discountAmount: money(0),
+          taxAmount: gross.minus(netOfInclusiveTax(gross, VAT_PERCENT)),
+          lineTotal: gross,
+          costUnit: money(item.costUnit),
+          costTotal: multiplyMoney(quantity(String(units)), money(item.costUnit)),
+          depositAmount: money(0),
+          createdAt: at,
+        })
+      }
+      const fillFrom = visit.fill && visit.fill !== "airtime" ? shelf.filter((item) => !(visit.fill as { avoid: string[] }).avoid.includes(item.code)) : shelf
+      for (let guard = 0; guard < 40 && target - cents >= 50 && visit.fill !== "airtime"; guard += 1) {
+        const item = fillFrom[Math.floor(random() * fillFrom.length)]!
+        const price = Math.round(Number(item.unitPrice) * 100)
+        if (cents + price > target) {
+          if (target - cents < 50) break
+          continue
+        }
+        const units = Math.max(1, Math.min(Math.floor((target - cents) / price), 1 + Math.floor(random() * 3)))
+        cents += units * price
+        const gross = money((units * price) / 100)
+        const tax = gross.minus(netOfInclusiveTax(gross, VAT_PERCENT))
+        lines.push({
+          id: randomUUID(),
+          companyId,
+          saleId,
+          inventoryItemId: item.inventoryItemId,
+          productId: item.productId,
+          itemName: item.itemName,
+          quantity: quantity(String(units)),
+          unitPrice: money(item.unitPrice),
+          discountAmount: money(0),
+          taxAmount: tax,
+          lineTotal: gross,
+          costUnit: money(item.costUnit),
+          costTotal: multiplyMoney(quantity(String(units)), money(item.costUnit)),
+          depositAmount: money(0),
+          createdAt: at,
+        })
+        if (target - cents < 50) break
+      }
+      // What the shelf cannot make in whole bottles is airtime, at whatever was typed.
+      if (cents < target && airtime?.productId) {
+        const gross = money((target - cents) / 100)
+        lines.push({
+          id: randomUUID(),
+          companyId,
+          saleId,
+          inventoryItemId: airtime.id,
+          productId: airtime.productId,
+          itemName: airtime.product?.name ?? "Econet airtime",
+          quantity: quantity("1"),
+          unitPrice: gross,
+          discountAmount: money(0),
+          taxAmount: gross.minus(netOfInclusiveTax(gross, VAT_PERCENT)),
+          lineTotal: gross,
+          costUnit: gross,
+          costTotal: gross,
+          depositAmount: money(0),
+          createdAt: at,
+        })
+        cents = target
+      }
+      if (lines.length === 0) continue
+      // Points spent: the US$ off, taken off the lines in order (FLR-01's line discount, ex-VAT).
+      let off = Math.round((visit.pointsOff ?? 0) * 100)
+      let discount = money(0)
+      for (const line of lines) {
+        if (off <= 0) break
+        const gross = money(line.lineTotal as Prisma.Decimal)
+        const take = Math.min(off, Math.round(gross.toNumber() * 100))
+        if (take <= 0) continue
+        off -= take
+        const charged = gross.minus(money(take / 100))
+        const lineDiscount = netOfInclusiveTax(gross, VAT_PERCENT).minus(netOfInclusiveTax(charged, VAT_PERCENT))
+        discount = discount.plus(lineDiscount)
+        line.discountAmount = lineDiscount
+        line.lineTotal = charged
+        line.taxAmount = charged.minus(netOfInclusiveTax(charged, VAT_PERCENT))
+      }
+      const total = sumMoney(lines.map((line) => money(line.lineTotal as Prisma.Decimal)))
+      const tax = sumMoney(lines.map((line) => money(line.taxAmount as Prisma.Decimal)))
+      const roll = random()
+      let tender: RetailTenderType = visit.tender ?? (roll < 0.5 ? "CASH" : roll < 0.78 ? "ECOCASH" : "CARD")
+      if (riding && tender === "CASH") tender = "CARD"
+      if (tender === "CASH") cash = cash.plus(total)
+      saleRows.push({
+        id: saleId,
+        companyId,
+        saleNo: `SALE-${String(saleNumber++).padStart(5, "0")}`,
+        shiftId,
+        registerId: front.id,
+        siteId,
+        cashierId: cashier.id,
+        cashierName: cashier.name,
+        customerId: visit.customerId,
+        customerName: visit.name,
+        saleType: "SALE",
+        status: "POSTED",
+        subtotal: total.minus(tax).plus(discount),
+        discountAmount: discount,
+        taxAmount: tax,
+        totalAmount: total,
+        depositAmount: money(0),
+        tenderedAmount: total,
+        changeAmount: money(0),
+        currency: "USD",
+        exchangeRate: rate("1"),
+        baseAmount: total,
+        postedAt: at,
+        createdAt: at,
+        updatedAt: at,
+      })
+      lineRows.push(...lines)
+      // Paid wholly in points: nothing was tendered.
+      if (total.gt(0)) paymentRows.push({
+        id: randomUUID(),
+        companyId,
+        saleId,
+        tenderType: tender,
+        amount: total,
+        currency: "USD",
+        exchangeRate: rate("1"),
+        baseAmount: total,
+        reference: tender === "ECOCASH" ? `EC${100000 + Math.floor(random() * 900000)}` : null,
+        createdAt: at,
+      })
+    }
+    if (riding) continue
+    const expected = money("100.00").plus(cash)
+    shiftRows.push({
+      id: shiftId,
+      companyId,
+      shiftNo: `SH-H${day}`,
+      registerCode: front.code,
+      registerName: front.name,
+      registerId: front.id,
+      siteId,
+      cashierId: cashier.id,
+      cashierName: cashier.name,
+      openingFloat: money("100.00"),
+      expectedCash: expected,
+      countedCash: expected,
+      variance: money(0),
+      status: "CLOSED",
+      floatLeft: money("100.00"),
+      openedAt,
+      closedAt,
+      createdAt: openedAt,
+      updatedAt: closedAt,
+    })
+  }
+  await prisma.retailShift.createMany({ data: shiftRows })
+  for (let index = 0; index < saleRows.length; index += 500) await prisma.retailSale.createMany({ data: saleRows.slice(index, index + 500) })
+  for (let index = 0; index < lineRows.length; index += 500) await prisma.retailSaleLine.createMany({ data: lineRows.slice(index, index + 500) })
+  for (let index = 0; index < paymentRows.length; index += 500) await prisma.retailSalePayment.createMany({ data: paymentRows.slice(index, index + 500) })
+
+  // Every shift numbered again in the order it opened, the Front till's open shift last (FLR-03).
+  await prisma.$executeRaw`UPDATE "RetailShift" SET "shiftNo" = 'TMP-' || id WHERE "companyId" = ${companyId}`
+  await prisma.$executeRaw`
+    UPDATE "RetailShift" s SET "shiftNo" = 'SH-' || lpad(o.n::text, 5, '0')
+    FROM (
+      SELECT id, row_number() OVER (
+        ORDER BY (status = 'OPEN' AND "registerId" = ${front.id}), "openedAt", id
+      ) AS n
+      FROM "RetailShift" WHERE "companyId" = ${companyId}
+    ) o
+    WHERE s.id = o.id`
+  await prisma.idSequence.deleteMany({ where: { companyId, entityKey: "RETAIL_SHIFT" } })
+  console.log(`  customer history: ${saleRows.length} visits, ${shiftRows.length} on Front till shifts of their own before the floor's history`)
+}
+
+/* ── Lay-bys (FLR-06) ─────────────────────────────────────────────────── */
+
+/** FLR-06: the two products the lay-by boards put aside that the catalogue does not carry. */
+const LAYBY_PRODUCTS = [
+  { code: "HENNESSY-GIFT", name: "Hennessy VS 700ml, gift box", unit: "bottle", price: "46.00", cost: "36.50", stock: 3, category: "Spirits" },
+  { code: "SAVANNA-CASE", name: "Savanna Dry 330ml, case of 24", unit: "case", price: "28.20", cost: "22.40", stock: 6, category: "Ciders and coolers" },
+] as const
+
+type LaybySeed = {
+  no: number
+  /** Days before today it started, and the Harare hour. */
+  started: [days: number, hour: number]
+  customer: string
+  lines: Array<[code: string, quantity: number]>
+  deposit: string
+  tender: "CASH" | "ECOCASH" | "CARD"
+  /** Pay by, days from today (the open ones) or from the day it started (the done ones). */
+  due: number
+  /** Payments after the deposit: [days before today, amount, tender]. */
+  payments?: Array<[days: number, amount: string, tender: "ECOCASH" | "CARD"]>
+  /** Done: handed over (days before today) or cancelled. */
+  end?: { collected: number } | { cancelled: number }
+}
+
+/**
+ * FLR-06 `seedLaybys()`: Harare Main Branch's lay-bys, written through the
+ * lay-by service (deposits, payments, cancels, their stock and journals) at
+ * the days they happened. The four open ones are the board's: LAY-0031
+ * Rutendo Banda (started this morning, US$20.00 cash into the Front till),
+ * LAY-0030 Farai Chikore, LAY-0028 Nyasha Gwenzi (paid, ready to collect) and
+ * LAY-0027 Tinashe Mavhunga (due in three days). Twelve are done over four
+ * months: ten handed over (each a sale paid "Lay-by", written as the hand-over
+ * writes it, without the fiscal receipt a four-month-old sale never had) and
+ * LAY-0019 and LAY-0029 cancelled with no fee. The catalogue's lines are put
+ * back on the shelf first, so what the On hand boards count is unchanged; the
+ * Hennessy gift box (3) and the Savanna case (6) are lay-by products only.
+ * Tabs read Paying 3 · Ready to collect 1 · Done 12 · All 16.
+ */
+async function seedLaybys(companyId: string, mainSiteId: string) {
+  // The lay-bys take cards and post to the books: both are set up before they are written (again later, as before).
+  await seedPayments(companyId)
+  await seedPosting(companyId)
+  // What a run before wrote: its stock movements (the ledger after rebalances), journals, sales, messages and events.
+  const old = await prisma.retailLayby.findMany({ where: { companyId }, select: { id: true, laybyNo: true, saleId: true } })
+  const saleIds = old.map((row) => row.saleId).filter((id): id is string => Boolean(id))
+  await prisma.stockMovement.deleteMany({
+    where: { item: { site: { companyId } }, reason: { in: ["LAYBY_ASIDE", "LAYBY_BACK"] } },
+  })
+  const laybyJournals = { companyId, sourceType: { in: ["RETAIL_LAYBY_PAYMENT", "RETAIL_LAYBY_CANCEL"] as Array<"RETAIL_LAYBY_PAYMENT" | "RETAIL_LAYBY_CANCEL"> } }
+  await prisma.journalEntry.deleteMany({ where: laybyJournals })
+  await prisma.accountingIntegrationEvent.deleteMany({ where: laybyJournals })
+  if (saleIds.length) {
+    await prisma.journalEntry.deleteMany({ where: { companyId, sourceType: "RETAIL_SALE", sourceId: { in: saleIds } } })
+    await prisma.accountingIntegrationEvent.deleteMany({ where: { companyId, sourceType: "RETAIL_SALE", sourceId: { in: saleIds } } })
+    await prisma.retailPointsEntry.deleteMany({ where: { saleId: { in: saleIds } } })
+    await prisma.fiscalReceipt.deleteMany({ where: { saleId: { in: saleIds } } })
+    await prisma.platformAuditEvent.deleteMany({ where: { companyId, entityType: "RetailSale", entityId: { in: saleIds } } })
+    await prisma.retailLayby.updateMany({ where: { id: { in: old.map((row) => row.id) } }, data: { saleId: null } })
+    await prisma.retailSalePayment.deleteMany({ where: { saleId: { in: saleIds } } })
+    await prisma.retailSaleLine.deleteMany({ where: { saleId: { in: saleIds } } })
+    await prisma.retailSale.deleteMany({ where: { id: { in: saleIds } } })
+  }
+  // Cash a lay-by took into a drawer still open comes back off what it should hold.
+  const takenIn = await prisma.retailCashMovement.findMany({
+    where: { companyId, reasonCode: { in: ["LAYBY_PAYMENT", "LAYBY_REFUND"] } },
+    select: { id: true, type: true, baseAmount: true, shiftId: true, shift: { select: { status: true } } },
+  })
+  for (const movement of takenIn) {
+    if (movement.shift.status !== "OPEN") continue
+    const back = movement.type === "TAKEN_IN" ? { decrement: movement.baseAmount } : { increment: movement.baseAmount }
+    await prisma.retailShift.update({ where: { id: movement.shiftId }, data: { expectedCash: back } })
+  }
+  await prisma.retailCashMovement.deleteMany({ where: { id: { in: takenIn.map((row) => row.id) } } })
+  await prisma.retailMessage.deleteMany({ where: { companyId, entityType: "RetailLayby" } })
+  await prisma.platformAuditEvent.deleteMany({ where: { companyId, entityType: "RetailLayby" } })
+  await prisma.retailLayby.deleteMany({ where: { companyId } })
+  await prisma.idSequence.deleteMany({ where: { companyId, entityKey: "RETAIL_LAYBY" } })
+
+  // The two lay-by products, on the shelf at Harare Main Branch.
+  const shelfList = await findDefaultPriceList(prisma, companyId)
+  const location = await prisma.stockLocation.findFirstOrThrow({ where: { siteId: mainSiteId, code: "SHOP" }, select: { id: true } })
+  for (const entry of LAYBY_PRODUCTS) {
+    const levels = { name: entry.name, unit: entry.unit, siteId: mainSiteId, locationId: location.id, currentStock: quantity(entry.stock), minStock: 1, reorderQty: 2, unitCost: Number(entry.cost) }
+    const existing = await prisma.inventoryItem.findFirst({ where: { siteId: mainSiteId, itemCode: entry.code }, select: { id: true } })
+    const item = existing
+      ? await prisma.inventoryItem.update({ where: { id: existing.id }, data: levels, select: { id: true } })
+      : await prisma.inventoryItem.create({ data: { itemCode: entry.code, category: "OTHER", ...levels }, select: { id: true } })
+    const category = await prisma.retailCategory.findFirst({ where: { companyId, name: entry.category, archivedAt: null }, select: { id: true } })
+    await seedShelfLine({
+      companyId,
+      listId: shelfList!.id,
+      code: entry.code,
+      name: entry.name,
+      itemId: item.id,
+      price: entry.price,
+      isActive: true,
+      categoryId: category?.id ?? null,
+      cost: entry.cost,
+      deposit: null,
+    })
+  }
+
+  const [owner, chipo, frontTill] = await Promise.all([
+    prisma.user.findFirstOrThrow({ where: { companyId, email: "owner@bottlestore.test" }, select: { id: true, name: true, role: true } }),
+    prisma.user.findFirstOrThrow({ where: { companyId, email: "chipo.till@bottlestore.test" }, select: { id: true, name: true, role: true } }),
+    prisma.retailRegister.findFirstOrThrow({ where: { companyId, code: "TILL-1" }, select: { id: true } }),
+  ])
+  const actorOf = (user: { id: string; name: string | null; role: string }) => ({ companyId, userId: user.id, userRole: user.role, userName: user.name ?? null })
+  const ownerActor = actorOf(owner)
+
+  // The done ones go to members off the boards: the regulars' figures stay as seeded.
+  const members = await prisma.customer.findMany({
+    where: { companyId, archivedAt: null, mergedIntoId: null, phone: { not: null }, name: { notIn: [...CUSTOMERS, DUPLICATE_TAPIWA.name] } },
+    orderBy: { code: "asc" },
+    take: 8,
+    select: { name: true },
+  })
+  const member = (index: number) => members[index % Math.max(members.length, 1)]?.name ?? "Simba Mutasa"
+
+  const LAYBYS: LaybySeed[] = [
+    { no: 16, started: [124, 10], customer: member(0), lines: [["JAMESON-750", 1]], deposit: "10.00", tender: "ECOCASH", due: 30, payments: [[110, "17.90", "ECOCASH"]], end: { collected: 108 } },
+    { no: 17, started: [118, 11], customer: member(1), lines: [["BLKLABEL-750", 1]], deposit: "15.00", tender: "CARD", due: 30, payments: [[100, "27.00", "CARD"]], end: { collected: 99 } },
+    { no: 18, started: [111, 15], customer: member(2), lines: [["GORDONS-750", 2]], deposit: "10.00", tender: "ECOCASH", due: 30, payments: [[95, "22.80", "ECOCASH"]], end: { collected: 95 } },
+    { no: 19, started: [104, 12], customer: member(3), lines: [["AMARULA-750", 1]], deposit: "5.00", tender: "ECOCASH", due: 21, end: { cancelled: 80 } },
+    { no: 20, started: [97, 10], customer: member(4), lines: [["CASTLE-CASE", 2]], deposit: "15.00", tender: "ECOCASH", due: 30, payments: [[85, "38.00", "ECOCASH"]], end: { collected: 84 } },
+    { no: 21, started: [90, 14], customer: member(5), lines: [["JAMESON-750", 2]], deposit: "12.00", tender: "CARD", due: 30, payments: [[75, "20.00", "CARD"], [66, "23.80", "CARD"]], end: { collected: 66 } },
+    { no: 22, started: [82, 11], customer: member(6), lines: [["NEDERBURG-750", 3]], deposit: "8.00", tender: "ECOCASH", due: 30, payments: [[70, "29.80", "ECOCASH"]], end: { collected: 69 } },
+    { no: 23, started: [74, 16], customer: member(7), lines: [["BLKLABEL-750", 1], ["TONIC-200", 6]], deposit: "10.00", tender: "ECOCASH", due: 30, payments: [[60, "35.60", "ECOCASH"]], end: { collected: 58 } },
+    { no: 24, started: [66, 10], customer: member(0), lines: [["CHIBUKU-12", 2]], deposit: "5.00", tender: "ECOCASH", due: 21, payments: [[55, "20.00", "ECOCASH"]], end: { collected: 54 } },
+    { no: 25, started: [58, 13], customer: member(1), lines: [["TWOKEYS-750", 2]], deposit: "4.00", tender: "CARD", due: 21, payments: [[45, "15.50", "CARD"]], end: { collected: 44 } },
+    { no: 26, started: [50, 12], customer: member(2), lines: [["GORDONS-750", 1]], deposit: "5.00", tender: "ECOCASH", due: 21, payments: [[38, "11.40", "ECOCASH"]], end: { collected: 37 } },
+    { no: 27, started: [40, 11], customer: "Tinashe Mavhunga", lines: [["AMARULA-750", 2]], deposit: "10.00", tender: "ECOCASH", due: 3 },
+    { no: 28, started: [25, 15], customer: "Nyasha Gwenzi", lines: [["BLKLABEL-750", 1]], deposit: "12.00", tender: "ECOCASH", due: 9, payments: [[6, "30.00", "ECOCASH"]] },
+    { no: 29, started: [33, 10], customer: member(3), lines: [["JAMESON-750", 1]], deposit: "6.00", tender: "CARD", due: 30, end: { cancelled: 12 } },
+    { no: 30, started: [30, 11], customer: "Farai Chikore", lines: [["CASTLE-CASE", 4], ["SAVANNA-CASE", 2]], deposit: "40.00", tender: "ECOCASH", due: 14, payments: [[16, "60.00", "ECOCASH"]] },
+    { no: 31, started: [0, 9], customer: "Rutendo Banda", lines: [["HENNESSY-GIFT", 1]], deposit: "20.00", tender: "CASH", due: 17 },
+  ]
+
+  const productByCode = new Map(
+    (await prisma.product.findMany({ where: { companyId, code: { in: LAYBYS.flatMap((row) => row.lines.map(([code]) => code)) } }, select: { id: true, code: true } })).map((row) => [row.code, row.id]),
+  )
+  const customerByName = new Map(
+    (await prisma.customer.findMany({ where: { companyId, archivedAt: null, mergedIntoId: null }, select: { id: true, name: true } })).map((row) => [row.name, row.id]),
+  )
+  const today = dayKey(new Date())
+  const at = (days: number, hour: number) => harareTime(days, hour, 0)
+  let reference = 2410
+  const ref = (tender: string) => (tender === "CASH" ? undefined : `${tender === "CARD" ? "CRD" : "MP"}${(reference += 7)}`)
+
+  for (const row of [...LAYBYS].sort((a, b) => a.no - b.no)) {
+    // The catalogue's goods back on the shelf before they go aside, so on hand ends as the catalogue says.
+    for (const [code, count] of row.lines) {
+      if (LAYBY_PRODUCTS.some((entry) => entry.code === code)) continue
+      await prisma.inventoryItem.updateMany({ where: { siteId: mainSiteId, productId: productByCode.get(code)! }, data: { currentStock: { increment: count } } })
+    }
+    await prisma.idSequence.upsert({
+      where: { companyId_entityKey_scopeKey: { companyId, entityKey: "RETAIL_LAYBY", scopeKey: "GLOBAL" } },
+      create: { companyId, entityKey: "RETAIL_LAYBY", scopeKey: "GLOBAL", lastNumber: row.no - 1 },
+      update: { lastNumber: row.no - 1 },
+    })
+    const startAt = row.started[0] === 0 ? new Date() : at(row.started[0], row.started[1])
+    const done = Boolean(row.end)
+    const startDay = dayKey(startAt)
+    const started = await startLayby(
+      row.tender === "CASH" ? actorOf(chipo) : ownerActor,
+      {
+        customerId: customerByName.get(row.customer)!,
+        lines: row.lines.map(([code, count]) => ({ productId: productByCode.get(code)!, quantity: String(count) })),
+        deposit: row.deposit,
+        depositTender: row.tender,
+        reference: ref(row.tender),
+        dueOn: done ? addDays(startDay, row.due) : addDays(today, row.due),
+        remindWeekly: !done,
+      },
+      { now: startAt, place: row.tender === "CASH" ? { registerId: frontTill.id } : {} },
+    )
+    for (const [days, amount, tender] of row.payments ?? []) {
+      await payLayby(ownerActor, started.id, { amount, tender, reference: ref(tender) }, { now: at(days, 12) })
+    }
+    if (row.end && "cancelled" in row.end) {
+      await cancelLayby(ownerActor, started.id, { tender: row.tender === "CASH" ? "ECOCASH" : row.tender }, { now: at(row.end.cancelled, 11) })
+    }
+    if (row.end && "collected" in row.end) await handOverHistory(ownerActor, started.id, at(row.end.collected, 14))
+  }
+
+  const tabs = await prisma.retailLayby.groupBy({ by: ["status"], where: { companyId }, _count: true })
+  const count = (status: string) => tabs.find((tab) => tab.status === status)?._count ?? 0
+  const open = await prisma.retailLayby.findMany({ where: { companyId, status: { in: ["PAYING", "READY"] } }, orderBy: { laybyNo: "desc" }, select: { laybyNo: true, total: true, paid: true } })
+  console.log(
+    `  lay-bys: Paying ${count("PAYING")} · Ready to collect ${count("READY")} · Done ${count("COLLECTED") + count("CANCELLED")}; ` +
+      open.map((row) => `${row.laybyNo} ${money(row.total).toFixed(2)}/${money(row.paid).toFixed(2)}`).join(", "),
+  )
+}
+
+/**
+ * A lay-by handed over months ago, as `handOver` writes it — the sale at the
+ * held prices paid "Lay-by", no stock movement, the lay-by collected, the
+ * sale's journal — but without points (the members' points are seeded) or a
+ * fiscal receipt (the history's sales have none).
+ */
+async function handOverHistory(actor: { companyId: string; userId: string; userName: string | null; userRole: string }, laybyId: string, collectedAt: Date) {
+  const layby = await prisma.retailLayby.findUniqueOrThrow({ where: { id: laybyId }, include: { lines: true, customer: { select: { name: true } } } })
+  const saleNo = await reserveIdentifier(prisma, { companyId: actor.companyId, entity: "RETAIL_SALE" })
+  const total = money(layby.total)
+  const taxAmount = sumMoney(layby.lines.map((line) => line.taxAmount))
+  const sale = await prisma.retailSale.create({
+    data: {
+      companyId: actor.companyId,
+      saleNo,
+      siteId: layby.siteId,
+      cashierId: actor.userId,
+      cashierName: actor.userName,
+      customerId: layby.customerId,
+      customerName: layby.customer.name,
+      saleType: "SALE",
+      subtotal: total.minus(taxAmount),
+      taxAmount,
+      totalAmount: total,
+      tenderedAmount: total,
+      changeAmount: 0,
+      currency: "USD",
+      baseAmount: total,
+      status: "POSTED",
+      postedAt: collectedAt,
+      createdAt: collectedAt,
+      notes: `Handed over from ${layby.laybyNo}`,
+      tenderSummary: [{ tenderType: "LAYBY", amount: toNumberOrZero(total), currency: "USD" }],
+      lines: {
+        create: layby.lines.map((line) => ({
+          companyId: actor.companyId,
+          inventoryItemId: line.inventoryItemId,
+          productId: line.productId,
+          priceListId: line.priceListId,
+          itemName: line.itemName,
+          quantity: line.quantity,
+          unitPrice: line.unitPrice,
+          taxAmount: line.taxAmount,
+          lineTotal: line.lineTotal,
+          costUnit: line.costUnit,
+          costTotal: multiplyMoney(line.quantity, line.costUnit),
+        })),
+      },
+      payments: { create: { companyId: actor.companyId, tenderType: "LAYBY", amount: total, baseAmount: total, reference: layby.laybyNo } },
+    },
+    include: { lines: true, payments: true },
+  })
+  await prisma.retailLayby.update({ where: { id: layby.id }, data: { status: "COLLECTED", saleId: sale.id, collectedAt, collectedById: actor.userId } })
+  await ensureRetailSaleAccountingPosted({ actor, sale, registerCode: null })
+}
+
+/**
+ * BUY-02 `seedOrders()` (40-buying 3.6 Orders and Deliveries): PO-0001 to
+ * PO-0023, each raised, sent and received through the services the screens
+ * use (numbers in this order, so the next is PO-0024), with their deliveries
+ * received through `receiveDelivery` on the days the spec gives (BUY-06):
+ * GRN-0001 (PO-0002: Coca-Cola 42 on the note, 2 broken, counted by Farai
+ * Moyo and checked by Tafara Nyathi, so a BROKEN difference with a credit
+ * asked), GRN-0002 (PO-0003, 300 of 780, note DB-778104, counted by Tafara
+ * and checked by Tendai Mhlanga), GRN-0003 (PO-0022) and the history from
+ * GRN-0006, posted by Tafara; and GRN-0005, Ice Cold Supplies' 20 bags of
+ * ice with no order, counted this morning by Tendai Sibanda and waiting to
+ * be checked. PO-0003 carries its three messages and its chase;
+ * PO-0005's costs make its total with VAT exactly US$1,940.00 at 15.5%
+ * (Amarula 13.05, Gordon's 12.39 and Bols Brandy 10.06 instead of the
+ * board's 15% figures), which the seed checks. Idempotent: skipped while
+ * PO-0001 is there (run with --reset to write them again).
+ */
+async function seedOrders(input: { companyId: string; mainSiteId: string }) {
+  const { companyId, mainSiteId: siteId } = input
+  if (await prisma.retailPurchaseOrder.findFirst({ where: { companyId, poNo: "PO-0001" }, select: { id: true } })) {
+    console.log("  orders: PO-0001 is there already (run with --reset to write them again)")
+    return
+  }
+  const people = await prisma.user.findMany({
+    where: { companyId, email: { in: ["tafara.manager@bottlestore.test", "owner@bottlestore.test", "farai.till@bottlestore.test", "tendai.stock@bottlestore.test"] } },
+    select: { id: true, name: true, role: true, email: true },
+  })
+  const person = (email: string) => {
+    const found = people.find((row) => row.email === email)
+    if (!found) throw new Error(`seedOrders: ${email} is not seeded`)
+    return { companyId, userId: found.id, userName: found.name, userRole: found.role }
+  }
+  const tafara = person("tafara.manager@bottlestore.test")
+  const farai = person("farai.till@bottlestore.test")
+  const owner = person("owner@bottlestore.test")
+  const clerk = person("tendai.stock@bottlestore.test")
+  const vendors = await prisma.vendor.findMany({ where: { companyId, code: { in: ["SUP-0001", "SUP-0002", "SUP-0003", "SUP-0004", "SUP-0005", "SUP-0006"] } }, select: { id: true, code: true } })
+  const vendor = (code: string) => vendors.find((row) => row.code === code)!.id
+  const DELTA = vendor("SUP-0001")
+  const AFDIS = vendor("SUP-0002")
+  const MUTARE = vendor("SUP-0003")
+  const SCHWEPPES = vendor("SUP-0004")
+  const PAMELA = vendor("SUP-0005")
+  const ICE_COLD = vendor("SUP-0006")
+  const items = await prisma.inventoryItem.findMany({
+    where: { siteId, product: { companyId } },
+    select: { id: true, unitCost: true, product: { select: { id: true, code: true } } },
+  })
+  const product = (code: string) => {
+    const found = items.find((item) => item.product?.code === code)
+    if (!found?.product) throw new Error(`seedOrders: ${code} is not stocked at Harare Main Branch`)
+    return { productId: found.product.id, inventoryItemId: found.id, cost: Number(found.unitCost ?? 0).toFixed(2) }
+  }
+  const deps = (at: Date) => ({ requestUrl: process.env.NEXTAUTH_URL ?? "http://localhost:3000", now: at })
+  const post = async (journal: Parameters<Parameters<typeof receiveDelivery>[2]>[0]) => {
+    await postSeededJournal(journal)
+    return { accountingStatus: "POSTED", accountingError: null }
+  }
+  const dayAt = (daysBack: number, hour = 9, minute = 0) => harareTime(daysBack, hour, minute)
+  const shopDay = (daysBack: number) => dayKey(harareTime(daysBack, 12, 0))
+
+  type Line = [code: string, quantity: number, cost?: string]
+  type Plan = {
+    supplier: string
+    raised: number
+    expectedIn: number
+    lines: Line[]
+    payment?: "ON_ACCOUNT" | "CASH_ON_DELIVERY"
+    /** Days back it was sent, and how; none: left a draft. */
+    sent?: { at: Date; via: "WHATSAPP" | "BY_HAND" }
+    /**
+     * Deliveries: receipt number, days back, how much of each line came (in order) and how much of it broke;
+     * counted `by` (Tafara when absent) and, when that is someone else, checked by `checker`.
+     */
+    deliveries?: Array<{
+      receiptNo: string
+      at: Date
+      quantities: number[]
+      damaged?: number[]
+      by?: typeof tafara
+      checker?: typeof tafara
+      noteNumber?: string
+      driver?: string
+    }>
+    close?: number
+  }
+  const lines = (rows: Line[]) => rows.map(([code, quantity, cost]) => ({ productId: product(code).productId, quantity, unitCost: cost ?? product(code).cost }))
+  const deltaSets: Line[][] = [
+    [["CASTLE-340", 240], ["CHIBUKU-1L", 120], ["COKE-500", 96], ["SPRITE-500", 48]],
+    [["CASTLE-340", 192], ["FANTA-500", 48], ["HUNTERS-330", 48]],
+    [["CHIBUKU-1L", 240], ["COKE-500", 120], ["ICE-2KG", 40], ["SAVANNA-330", 48], ["CASTLE-340", 96]],
+  ]
+  const afdisSets: Line[][] = [
+    [["GORDONS-750", 12], ["TWOKEYS-750", 12], ["AMARULA-750", 12]],
+    [["JAMESON-750", 12], ["BLKLABEL-750", 12], ["GORDONS-750", 12], ["NEDERBURG-750", 12]],
+  ]
+  // Received history: spread from 150 days back; expected two days after it was raised.
+  const history = (supplier: string, raised: number, set: Line[], receiptNo: string, lateDays = 0): Plan => ({
+    supplier,
+    raised,
+    expectedIn: 2,
+    lines: set,
+    sent: { at: dayAt(raised, 10, 5), via: "BY_HAND" },
+    deliveries: [{ receiptNo, at: dayAt(raised - 2 - lateDays, 11, 30), quantities: set.map(([, q]) => q) }],
+  })
+
+  const plans: Array<[string, Plan]> = [
+    ["PO-0001", { supplier: AFDIS, raised: 62, expectedIn: 4, lines: [["GORDONS-750", 24, "12.40"], ["TWOKEYS-750", 24, "7.10"]], sent: { at: dayAt(62, 10, 0), via: "BY_HAND" }, deliveries: [{ receiptNo: "GRN-0006", at: dayAt(58, 11, 0), quantities: [24, 24] }] }],
+    ["PO-0002", { supplier: MUTARE, raised: 56, expectedIn: 8, lines: [["COKE-500", 60, "0.50"], ["ICE-2KG", 40, "0.95"]], sent: { at: dayAt(56, 9, 30), via: "BY_HAND" }, deliveries: [{ receiptNo: "GRN-0001", at: dayAt(52, 9, 50), quantities: [42, 25], damaged: [2, 0], by: farai, checker: tafara }] }],
+    ["PO-0003", { supplier: DELTA, raised: 54, expectedIn: 6, lines: [["CASTLE-340", 240, "0.86"], ["CHIBUKU-1L", 240, "0.82"], ["COKE-500", 180, "0.52"], ["SPRITE-500", 120, "0.52"]], sent: { at: dayAt(54, 14, 20), via: "WHATSAPP" }, deliveries: [{ receiptNo: "GRN-0002", at: dayAt(51, 10, 42), quantities: [120, 60, 90, 30], checker: owner, noteNumber: "DB-778104", driver: "Simon, truck AEZ 4471" }] }],
+    ["PO-0004", { supplier: PAMELA, raised: 0, expectedIn: 3, lines: [["JAMESON-750", 12, "22.15"], ["GORDONS-750", 12, "12.40"], ["AMARULA-750", 12, "11.67"]], payment: "CASH_ON_DELIVERY" }],
+    ["PO-0005", { supplier: AFDIS, raised: 2, expectedIn: 6, lines: [["AMARULA-750", 24, "13.05"], ["BLKLABEL-750", 24, "33.60"], ["JAMESON-750", 12, "22.15"], ["GORDONS-750", 12, "12.39"], ["TWOKEYS-750", 12, "7.10"], ["BOLS-750", 6, "10.06"]], sent: { at: dayAt(2, 11, 0), via: "BY_HAND" } }],
+    ["PO-0006", history(AFDIS, 148, afdisSets[0]!, "GRN-0007")],
+    ["PO-0007", { supplier: DELTA, raised: 0, expectedIn: 6, lines: [["CASTLE-340", 240], ["CHIBUKU-1L", 120], ["COKE-500", 120]] }],
+  ]
+  const deltaDays = [144, 131, 118, 104, 91, 77, 64, 47, 33, 19, 11]
+  deltaDays.forEach((raised, index) => {
+    const poNo = `PO-${String(8 + index).padStart(4, "0")}`
+    // PO-0018 came two days late.
+    plans.push([poNo, history(DELTA, raised, deltaSets[index % deltaSets.length]!, `GRN-${String(8 + index).padStart(4, "0")}`, poNo === "PO-0018" ? 2 : 0)])
+  })
+  plans.push(["PO-0019", history(AFDIS, 40, afdisSets[1]!, "GRN-0019")])
+  plans.push(["PO-0020", history(SCHWEPPES, 26, [["TONIC-200", 96]], "GRN-0020")])
+  // PO-0021: closed with what came, 380 of 384.
+  plans.push([
+    "PO-0021",
+    {
+      supplier: DELTA,
+      raised: 15,
+      expectedIn: 2,
+      lines: [["CASTLE-340", 192], ["CHIBUKU-1L", 192]],
+      sent: { at: dayAt(15, 10, 0), via: "BY_HAND" },
+      deliveries: [{ receiptNo: "GRN-0021", at: dayAt(13, 11, 0), quantities: [192, 188] }],
+      close: 13,
+    },
+  ])
+  plans.push(["PO-0022", { supplier: DELTA, raised: 3, expectedIn: 2, lines: [["CASTLE-CASE", 24, "20.10"]], sent: { at: dayAt(3, 9, 0), via: "BY_HAND" }, deliveries: [{ receiptNo: "GRN-0003", at: dayAt(1, 10, 15), quantities: [24] }] }])
+  plans.push(["PO-0023", history(AFDIS, 6, afdisSets[0]!, "GRN-0023")])
+
+  const made = new Map<string, string>()
+  for (const [poNo, plan] of plans) {
+    const raisedAt = dayAt(plan.raised, plan.raised === 0 ? 8 : 9, 15)
+    const raised = await raiseOrder(
+      tafara,
+      {
+        supplierId: plan.supplier,
+        siteId,
+        expectedDate: shopDay(plan.raised - plan.expectedIn),
+        lines: lines(plan.lines),
+        payment: plan.payment ?? "ON_ACCOUNT",
+        send: false,
+      },
+      deps(raisedAt),
+    )
+    if (raised.poNo !== poNo) throw new Error(`seedOrders: expected ${poNo}, the sequence gave ${raised.poNo}`)
+    made.set(poNo, raised.id)
+    if (plan.sent) {
+      const sent = await sendOrder(tafara, raised.id, plan.sent.via, deps(plan.sent.at))
+      // Seeded messages went when they were sent: the outbox does not send them again.
+      await prisma.retailMessage.updateMany({
+        where: { id: { in: sent.messages.map((message) => message.id) } },
+        data: { status: "SENT", sentAt: plan.sent.at },
+      })
+    }
+    for (const delivery of plan.deliveries ?? []) {
+      const order = await prisma.retailPurchaseOrderLine.findMany({
+        where: { purchaseOrderId: raised.id },
+        orderBy: { sortOrder: "asc" },
+        select: { id: true, inventoryItemId: true, unitCost: true },
+      })
+      // Counted by one and checked by another: counted first, then posted by the checker.
+      const counter = delivery.by ?? tafara
+      const checker = delivery.checker ?? counter
+      const received = await receiveDelivery(
+        counter,
+        {
+          receiptNo: delivery.receiptNo,
+          purchaseOrderId: raised.id,
+          siteId,
+          noteNumber: delivery.noteNumber ?? null,
+          driver: delivery.driver ?? null,
+          lines: order
+            .map((line, index) => ({
+              inventoryItemId: line.inventoryItemId!,
+              quantity: delivery.quantities[index] ?? 0,
+              damaged: delivery.damaged?.[index] ?? 0,
+              unitCost: Number(line.unitCost),
+              purchaseOrderLineId: line.id,
+            }))
+            .filter((line) => line.quantity > 0),
+          post: checker === counter,
+          at: delivery.at,
+        },
+        post,
+      )
+      if (received.status === "COUNTED") {
+        await postCountedDelivery(checker, received.id, post, delivery.at)
+        // Checked the same morning: nobody is still asked to check it.
+        await prisma.notification.deleteMany({ where: { companyId, type: "RETAIL_DELIVERY_TO_CHECK", entityId: received.id } })
+      }
+    }
+    if (plan.close !== undefined) await closeOrder(tafara, raised.id, "The rest is not coming.", dayAt(plan.close, 11, 30))
+  }
+
+  // GRN-0005: Ice Cold Supplies' bags this morning, no order, counted by Tendai Sibanda and waiting to be checked.
+  await receiveDelivery(
+    clerk,
+    {
+      receiptNo: "GRN-0005",
+      siteId,
+      supplierId: ICE_COLD,
+      paying: "ON_ACCOUNT",
+      lines: [{ inventoryItemId: product("ICE-2KG").inventoryItemId, quantity: 20, unitCost: Number(product("ICE-2KG").cost) }],
+      post: false,
+      at: harareTime(0, 9, 15),
+    },
+    post,
+  )
+  // Seeded messages went when they were sent: the outbox does not send the checkers' WhatsApp again.
+  await prisma.retailMessage.updateMany({
+    where: { companyId, template: "approval-ask", status: "QUEUED", body: { contains: "GRN-0005" } },
+    data: { status: "SENT", sentAt: harareTime(0, 9, 15) },
+  })
+
+  // PO-0003: Tafara's reminder yesterday, promised for four days on, and Delta's reply.
+  const po3 = made.get("PO-0003")!
+  const promised = harareTime(-4, 12, 0)
+  const promisedWords = new Intl.DateTimeFormat("en-GB", { weekday: "long", day: "numeric", month: "long", timeZone: "Africa/Harare" }).format(promised)
+  const [weekday, ...rest] = promisedWords.split(" ")
+  await prisma.retailPurchaseOrder.update({
+    where: { id: po3 },
+    data: { chaseAction: "REMIND", chasedAt: dayAt(1, 9, 40), chasedById: tafara.userId, expectedDate: dayAt(-4, 0, 0) },
+  })
+  await prisma.retailMessage.createMany({
+    data: [
+      {
+        companyId,
+        channel: "WHATSAPP",
+        to: "+263772149080",
+        template: "order-reminder",
+        body: "Hello Tinashe, PO-0003 from Harare Bottle Store is still waiting for 480 units. When will the rest come?",
+        direction: "OUT",
+        entityType: "RetailPurchaseOrder",
+        entityId: po3,
+        status: "SENT",
+        sentAt: dayAt(1, 9, 40),
+        createdAt: dayAt(1, 9, 40),
+        createdById: tafara.userId,
+      },
+      {
+        companyId,
+        channel: "WHATSAPP",
+        to: "",
+        fromNumber: "+263772149080",
+        template: "reply",
+        body: `Truck on ${weekday?.replace(/,$/, "")}, ${rest.join(" ")}.`,
+        direction: "IN",
+        entityType: "RetailPurchaseOrder",
+        entityId: po3,
+        externalId: "seed-reply-PO-0003",
+        status: "SENT",
+        sentAt: dayAt(1, 11, 5),
+        createdAt: dayAt(1, 11, 5),
+      },
+    ],
+  })
+
+  // The figure packets 34–36 and the boards hang on.
+  const po5 = await prisma.retailPurchaseOrder.findUniqueOrThrow({ where: { id: made.get("PO-0005")! }, select: { lines: true } })
+  const total = orderTotals(po5.lines).total
+  if (!total.equals(money("1940.00"))) throw new Error(`seedOrders: PO-0005 comes to ${total.toFixed(2)} with VAT, not 1,940.00`)
+  const counts = await prisma.retailPurchaseOrder.groupBy({ by: ["status"], where: { companyId }, _count: { _all: true } })
+  console.log(`  orders: PO-0001 to PO-0023 (${counts.map((row) => `${row._count._all} ${row.status.toLowerCase()}`).join(", ")}); PO-0005 is US$${total.toFixed(2)} with VAT`)
+}
+
+/**
+ * BUY-04 `seedMoneyAccounts()`: the shop's money accounts (40-buying 3.6):
+ * Office safe and Front till float (cash, 1005), CBZ current account (bank,
+ * 1010, "…4471" — the books' "Operating Bank" renamed, or retired beside a
+ * CBZ account a run before made) and EcoCash merchant (mobile, 1016).
+ * Their openings are settled last (`settleMoneyAccountOpenings`).
+ */
+async function seedMoneyAccounts(companyId: string) {
+  const accounts = await prisma.chartOfAccount.findMany({ where: { companyId, code: { in: ["1005", "1010", "1016"] } }, select: { id: true, code: true } })
+  const ledger = (code: string) => accounts.find((account) => account.code === code)?.id ?? null
+  const cbz = await prisma.bankAccount.findFirst({ where: { companyId, name: "CBZ current account" }, select: { id: true } })
+  const operating = await prisma.bankAccount.findFirst({ where: { companyId, name: "Operating Bank" }, select: { id: true } })
+  if (!cbz && operating) {
+    await prisma.bankAccount.update({ where: { id: operating.id }, data: { name: "CBZ current account" } })
+  } else if (cbz && operating) {
+    await prisma.bankAccount.update({ where: { id: operating.id }, data: { isActive: false } })
+  }
+  const wanted: Array<{ name: string; kind: "CASH" | "BANK" | "MOBILE"; code: string; bankName: string | null; accountNumber: string | null }> = [
+    { name: "Office safe", kind: "CASH", code: "1005", bankName: null, accountNumber: null },
+    { name: "Front till float", kind: "CASH", code: "1005", bankName: null, accountNumber: null },
+    { name: "CBZ current account", kind: "BANK", code: "1010", bankName: "CBZ", accountNumber: "0112 3344 4471" },
+    { name: "EcoCash merchant", kind: "MOBILE", code: "1016", bankName: "EcoCash", accountNumber: "0712 550 0921" },
+  ]
+  for (const account of wanted) {
+    const existing = await prisma.bankAccount.findFirst({ where: { companyId, name: account.name }, select: { id: true } })
+    const data = { kind: account.kind, currency: "USD", ledgerAccountId: ledger(account.code), bankName: account.bankName, accountNumber: account.accountNumber, isActive: true }
+    if (existing) await prisma.bankAccount.update({ where: { id: existing.id }, data })
+    else await prisma.bankAccount.create({ data: { companyId, name: account.name, ...data } })
+  }
+  console.log("  money accounts: Office safe, Front till float, CBZ current account (…4471), EcoCash merchant (…0921)")
+}
+
+/** BUY-04: the five expense types (the migration's, for a shop made since) on their accounts. */
+async function seedExpenseTypes(companyId: string) {
+  const types: Array<[string, "EQUIPMENT" | "FUEL" | "MATERIALS" | "OTHER", string]> = [
+    ["Repairs and maintenance", "EQUIPMENT", "5300"],
+    ["Fuel and transport", "FUEL", "5500"],
+    ["Cleaning", "MATERIALS", "5100"],
+    ["Electricity and water", "OTHER", "5570"],
+    ["Licences and fees", "OTHER", "5580"],
+  ]
+  const accounts = await prisma.chartOfAccount.findMany({ where: { companyId, code: { in: types.map(([, , code]) => code) } }, select: { id: true, code: true } })
+  for (const [name, category, code] of types) {
+    const ledgerAccountId = accounts.find((account) => account.code === code)?.id ?? null
+    await prisma.retailExpenseType.upsert({
+      where: { companyId_name: { companyId, name } },
+      create: { companyId, name, category, ledgerAccountId },
+      update: { category, ledgerAccountId, archivedAt: null },
+    })
+  }
+}
+
+/**
+ * BUY-04 `seedRequisitions()` (40-buying 3.6): through the services, at the
+ * times the boards give them — REQ-0014 (Tafara, PO-0005's total, waiting for
+ * Tendai Mhlanga), REQ-0015 (Farai, generator diesel, under the limit),
+ * REQ-0013 (Tafara, PO-0004, approved by Tendai), and from the history one
+ * rejected (REQ-0007) and one cancelled (REQ-0008); and BUY-05's money out
+ * through `payOut` and `accountFor` — six accounted-for ones over the last
+ * eight months (REQ-0001…0006, so "Money asked for, by month" has bars),
+ * REQ-0009 (PO-0023's cash, US$37.60 back in the Office safe), REQ-0011 (the
+ * licence, by bank transfer) and REQ-0012 (Chipo's fridge repair, paid out
+ * from the Front till float, receipts due tomorrow). REQ-0010 is packet 43's.
+ * Written again on every run: the shop's requisitions, their files, money,
+ * books and Activity go first.
+ */
+async function seedRequisitions(companyId: string) {
+  const old = await prisma.crmRequisition.findMany({ where: { companyId, siteId: { not: null } }, select: { id: true } })
+  const oldIds = old.map((row) => row.id)
+  const moneyOut = ["RETAIL_REQUISITION_PAYOUT", "RETAIL_REQUISITION_CHANGE"] as const
+  await prisma.purchasePayment.deleteMany({ where: { companyId, requisitionId: { in: oldIds } } })
+  await prisma.bankTransaction.deleteMany({ where: { companyId, sourceType: { in: [...moneyOut] } } })
+  await prisma.journalLine.deleteMany({ where: { entry: { companyId, sourceType: { in: [...moneyOut] } } } })
+  await prisma.journalEntry.deleteMany({ where: { companyId, sourceType: { in: [...moneyOut] } } })
+  await prisma.accountingIntegrationEvent.deleteMany({ where: { companyId, sourceType: { in: [...moneyOut] } } })
+  if ((await prisma.purchasePayment.count({ where: { companyId, groupNo: { not: null } } })) === 0) {
+    await prisma.idSequence.deleteMany({ where: { companyId, entityKey: "RETAIL_SUPPLIER_PAYMENT" } })
+  }
+  await prisma.platformAuditEvent.deleteMany({ where: { companyId, entityType: "CrmRequisition", entityId: { in: oldIds } } })
+  await prisma.retailAttachment.deleteMany({ where: { companyId, entityType: "CrmRequisition" } })
+  await prisma.retailMessage.deleteMany({ where: { companyId, entityType: "CrmRequisition" } })
+  await prisma.notification.deleteMany({ where: { companyId, entityType: "CRM_REQUISITION", entityId: { in: oldIds } } })
+  await prisma.crmRequisition.deleteMany({ where: { companyId, id: { in: oldIds } } })
+
+  const people = await prisma.user.findMany({
+    where: { companyId, email: { in: ["owner@bottlestore.test", "tafara.manager@bottlestore.test", "farai.till@bottlestore.test", "chipo.till@bottlestore.test"] } },
+    select: { id: true, name: true, role: true, email: true },
+  })
+  const actor = (email: string) => {
+    const found = people.find((row) => row.email === email)
+    if (!found) throw new Error(`seedRequisitions: ${email} is not seeded`)
+    return { companyId, userId: found.id, userName: found.name, userRole: found.role }
+  }
+  const owner = actor("owner@bottlestore.test")
+  const tafara = actor("tafara.manager@bottlestore.test")
+  const farai = actor("farai.till@bottlestore.test")
+  const chipo = actor("chipo.till@bottlestore.test")
+  const account = async (name: string) => (await prisma.bankAccount.findFirstOrThrow({ where: { companyId, name }, select: { id: true } })).id
+  const officeSafe = await account("Office safe")
+  const frontFloat = await account("Front till float")
+  const type = async (name: string) => (await prisma.retailExpenseType.findUniqueOrThrow({ where: { companyId_name: { companyId, name } }, select: { id: true } })).id
+  const order = async (poNo: string) => prisma.retailPurchaseOrder.findUniqueOrThrow({ where: { companyId_poNo: { companyId, poNo } }, select: { id: true, lines: true } })
+  const sequence = { companyId_entityKey_scopeKey: { companyId, entityKey: "CRM_REQUISITION", scopeKey: "GLOBAL" } }
+  /** The next number the service takes is this one. */
+  const numberFrom = (no: number) =>
+    prisma.idSequence.upsert({ where: sequence, create: { companyId, entityKey: "CRM_REQUISITION", scopeKey: "GLOBAL", lastNumber: no - 1 }, update: { lastNumber: no - 1 } })
+  const today = new Date()
+  /** A shop day `offset` days from today, and a time on it (Harare). */
+  const day = (offset: number) => dayKey(harareTime(-offset, 12, 0))
+  const when = (offset: number, hour: number, minute: number) => harareTime(-offset, hour, minute)
+  /** Its Activity at the time the board gives it. */
+  const dateEvents = async (id: string, times: Date[]) => {
+    const events = await prisma.platformAuditEvent.findMany({ where: { companyId, entityType: "CrmRequisition", entityId: id }, orderBy: { createdAt: "asc" }, select: { id: true } })
+    for (const [index, event] of events.entries()) {
+      const time = times[Math.min(index, times.length - 1)]
+      if (time) await prisma.platformAuditEvent.update({ where: { id: event.id }, data: { createdAt: time } })
+    }
+  }
+  const deps = (now: Date) => ({ now, requestUrl: null })
+  const cbz = await account("CBZ current account")
+  // Enough cash for every payout while they are seeded; the openings are settled to the boards' figures last.
+  await prisma.bankAccount.updateMany({ where: { id: { in: [officeSafe, frontFloat] } }, data: { openingBalance: 100000 } })
+  const receipt = (file: string, name: string) => ({
+    url: `/demo/receipts/${file}`,
+    name,
+    contentType: file.endsWith(".pdf") ? "application/pdf" : "image/png",
+    size: statSync(join(process.cwd(), "public/demo/receipts", file)).size,
+  })
+
+  // History: REQ-0001…0006, asked, approved, paid out from the Front till float and accounted for, one a month.
+  const history: Array<[number, typeof chipo, string, string, string, string, string]> = [
+    [210, farai, "Fuel and transport", "Delivery van fuel", "55.00", "52.80", "fuel-receipt.png"],
+    [180, chipo, "Cleaning", "Cleaning supplies for the month", "38.50", "38.50", "cleaning-receipt.png"],
+    [150, tafara, "Repairs and maintenance", "Cold room door hinge", "120.00", "112.00", "repairs-receipt.png"],
+    [120, farai, "Fuel and transport", "Generator diesel, 40 litres", "62.00", "60.40", "fuel-receipt.png"],
+    [90, chipo, "Cleaning", "Mops and detergent", "24.00", "21.75", "cleaning-receipt.png"],
+    [60, tafara, "Repairs and maintenance", "Till printer repair", "85.00", "85.00", "repairs-receipt.png"],
+  ]
+  for (const [index, [ago, asker, typeName, whatFor, asked, spent, file]] of history.entries()) {
+    await numberFrom(index + 1)
+    const made = await askForMoney(
+      asker,
+      { for: "expense", expenseTypeId: await type(typeName), whatFor, amount: asked, currency: "US$", payFromId: frontFloat, neededBy: day(-(ago - 1)) },
+      deps(when(-ago, 9, 30)),
+    )
+    await approveRequisition(owner, made.id, {}, deps(when(-ago, 11, 0)))
+    const payer = asker.userId === tafara.userId ? owner : tafara
+    await payOut(payer, made.id, { paid: asked, fromId: frontFloat, toId: asker.userId, how: "Cash" }, deps(when(-ago, 14, 0)))
+    await accountFor(asker, made.id, { spent, changeIntoId: frontFloat, receipts: [receipt(file, file.replace(/-/g, " "))] }, deps(when(-(ago - 1), 10, 15)))
+    await dateEvents(made.id, [when(-ago, 9, 30), when(-ago, 11, 0), when(-ago, 14, 0), when(-(ago - 1), 10, 15)])
+  }
+
+  // History: REQ-0007 rejected, REQ-0008 cancelled.
+  await numberFrom(7)
+  const polisher = await askForMoney(
+    chipo,
+    { for: "expense", expenseTypeId: await type("Cleaning"), whatFor: "Floor polisher hire for the weekend", amount: "120.00", currency: "US$", payFromId: frontFloat, neededBy: day(-38) },
+    deps(when(-40, 9, 15)),
+  )
+  await rejectRequisition(owner, polisher.id, { reason: "Too much", message: "Mop it this week; we will hire one at month end." }, deps(when(-40, 12, 5)))
+  await dateEvents(polisher.id, [when(-40, 9, 15), when(-40, 12, 5)])
+  await numberFrom(8)
+  const vanFuel = await askForMoney(
+    tafara,
+    { for: "expense", expenseTypeId: await type("Fuel and transport"), whatFor: "Delivery van fuel top-up", amount: "45.00", currency: "US$", payFromId: frontFloat, neededBy: day(-25) },
+    deps(when(-26, 15, 40)),
+  )
+  await cancelRequisition(tafara, vanFuel.id, deps(when(-25, 8, 10)))
+  await dateEvents(vanFuel.id, [when(-26, 15, 40), when(-25, 8, 10)])
+
+  // REQ-0009: PO-0023's cash (the order came on 29 September, so it is asked for as it was then): US$1,940.00 from the
+  // Office safe, US$1,902.40 spent on AF-20931, US$37.60 back in the safe. Its credit pays AF-20931 when packet 41 seeds it.
+  await numberFrom(9)
+  const po23 = await prisma.retailPurchaseOrder.findUniqueOrThrow({
+    where: { companyId_poNo: { companyId, poNo: "PO-0023" } },
+    select: { id: true, siteId: true, vendorId: true, vendor: { select: { name: true } } },
+  })
+  const afdisCash = await prisma.$transaction(async (tx) => {
+    const requisitionNo = await reserveIdentifier(tx, { companyId, entity: "CRM_REQUISITION" })
+    const made = await tx.crmRequisition.create({
+      data: {
+        companyId,
+        requisitionNo,
+        status: "APPROVED",
+        category: "STOCK",
+        purpose: orderPurpose(po23.vendor.name, "PO-0023"),
+        notes: "Afdis take cash on delivery.",
+        purchaseOrderId: po23.id,
+        payeeVendorId: po23.vendorId,
+        siteId: po23.siteId,
+        amount: money("1940.00"),
+        currency: "USD",
+        bankAccountId: officeSafe,
+        requestedById: tafara.userId,
+        submittedAt: when(-6, 10, 0),
+        approvalLimit: money("500.00"),
+        approverId: owner.userId,
+        approvedById: owner.userId,
+        approvedAt: when(-5, 9, 0),
+        neededBy: harareTime(4, 0, 0),
+        createdAt: when(-6, 10, 0),
+      },
+      select: { id: true, requisitionNo: true },
+    })
+    await writeRetailAuditEvent(tx, {
+      actor: tafara,
+      eventType: RETAIL_AUDIT_EVENTS.requisitionAsked,
+      entityType: "CrmRequisition",
+      entityId: made.id,
+      payload: { requisitionNo, amount: "1940.00", currency: "USD", order: "PO-0023", whatFor: null, over: true },
+    })
+    await writeRetailAuditEvent(tx, {
+      actor: owner,
+      eventType: RETAIL_AUDIT_EVENTS.requisitionApproved,
+      entityType: "CrmRequisition",
+      entityId: made.id,
+      payload: { requisitionNo, amount: "1940.00", asked: "1940.00", currency: "USD", note: null },
+    })
+    return made
+  })
+  await payOut(tafara, afdisCash.id, { paid: "1940.00", fromId: officeSafe, toId: tafara.userId, how: "Cash" }, deps(when(-4, 8, 30)))
+  await accountFor(
+    tafara,
+    afdisCash.id,
+    { spent: "1902.40", changeIntoId: officeSafe, receipts: [receipt("afdis-af-20931.pdf", "Afdis AF-20931.pdf")], note: "Afdis billed US$1,902.40; the rest came back." },
+    deps(when(-4, 15, 10)),
+  )
+  await dateEvents(afdisCash.id, [when(-6, 10, 0), when(-5, 9, 0), when(-4, 8, 30), when(-4, 15, 10)])
+
+  // REQ-0011: the liquor licence, paid by the owner from CBZ by bank transfer and accounted for.
+  await numberFrom(11)
+  const licence = await askForMoney(
+    owner,
+    { for: "expense", expenseTypeId: await type("Licences and fees"), whatFor: "Liquor licence renewal", amount: "240.00", currency: "US$", payFromId: cbz, neededBy: day(-3) },
+    deps(when(-3, 8, 45)),
+  )
+  await approveRequisition(owner, licence.id, {}, deps(when(-3, 8, 50)))
+  await payOut(owner, licence.id, { paid: "240.00", fromId: cbz, toId: owner.userId, how: "Bank transfer", reference: "CBZ 7781 2203" }, deps(when(-3, 9, 10)))
+  await accountFor(owner, licence.id, { spent: "240.00", receipts: [receipt("liquor-licence-receipt.pdf", "Liquor licence receipt.pdf")] }, deps(when(-3, 16, 0)))
+  await dateEvents(licence.id, [when(-3, 8, 45), when(-3, 8, 50), when(-3, 9, 10), when(-3, 16, 0)])
+
+  // REQ-0012: Chipo's fridge repair, paid out by Tafara from the Front till float two days ago: receipts due tomorrow.
+  await numberFrom(12)
+  const coolTech = await prisma.vendor.findFirst({ where: { companyId, name: "CoolTech Repairs" }, select: { id: true } })
+  const fridge = await askForMoney(
+    chipo,
+    { for: "expense", expenseTypeId: await type("Repairs and maintenance"), whatFor: "Fridge repair, front till", amount: "85.00", currency: "US$", payFromId: frontFloat, payToId: coolTech?.id ?? null, neededBy: day(-2) },
+    deps(when(-3, 16, 20)),
+  )
+  await approveRequisition(tafara, fridge.id, {}, deps(when(-2, 8, 15)))
+  await payOut(tafara, fridge.id, { paid: "85.00", fromId: frontFloat, toId: chipo.userId, how: "Cash" }, deps(when(-2, 8, 30)))
+  await dateEvents(fridge.id, [when(-3, 16, 20), when(-2, 8, 15), when(-2, 8, 30)])
+
+  // REQ-0013: PO-0004's total with VAT, approved by the owner.
+  await numberFrom(13)
+  const po4 = await order("PO-0004")
+  const pamela = await askForMoney(
+    tafara,
+    { for: "order", orderId: po4.id, amount: orderTotals(po4.lines).total.toFixed(2), currency: "US$", payFromId: officeSafe, neededBy: day(3), why: "Pamela takes cash on delivery." },
+    deps(when(0, 8, 40)),
+  )
+  await approveRequisition(owner, pamela.id, {}, deps(when(0, 9, 5)))
+  await dateEvents(pamela.id, [when(0, 8, 40), when(0, 9, 5)])
+
+  // REQ-0014: PO-0005's US$1,940.00, over the limit: waiting for Tendai Mhlanga.
+  await numberFrom(14)
+  const po5 = await order("PO-0005")
+  const afdis = await askForMoney(
+    tafara,
+    { for: "order", orderId: po5.id, amount: orderTotals(po5.lines).total.toFixed(2), currency: "US$", payFromId: officeSafe, neededBy: day(3), why: "Afdis deliver on Tuesday and take cash only." },
+    deps(when(0, 11, 20)),
+  )
+  await dateEvents(afdis.id, [when(0, 11, 20)])
+
+  // REQ-0015: Farai's generator diesel, under the limit: any manager.
+  await numberFrom(15)
+  const diesel = await askForMoney(
+    farai,
+    { for: "expense", expenseTypeId: await type("Fuel and transport"), whatFor: "Generator diesel, 40 litres", amount: "62.00", currency: "US$", payFromId: frontFloat, neededBy: day(1) },
+    deps(when(0, 11, 45)),
+  )
+  await dateEvents(diesel.id, [when(0, 11, 45)])
+
+  // The seeded messages went when they were sent: the outbox does not send them again.
+  await prisma.retailMessage.updateMany({
+    where: { companyId, status: "QUEUED", OR: [{ entityType: "CrmRequisition" }, { template: "approval-ask", createdAt: { gte: today } }] },
+    data: { status: "SENT", sentAt: today },
+  })
+  console.log(
+    `  requisitions: ${afdis.requisitionNo} waits for ${afdis.waitsFor ?? "the managers"}, ${diesel.requisitionNo} for ${diesel.waitsFor ?? "the managers"}, ${pamela.requisitionNo} approved, ${fridge.requisitionNo} paid out, ${afdisCash.requisitionNo} and ${licence.requisitionNo} accounted for, REQ-0001…0006 history, REQ-0007 rejected, REQ-0008 cancelled`,
+  )
+}
+
+/**
+ * BUY-04 `settleMoneyAccountOpenings()`, the last seed step: each cash
+ * account's opening balance is what puts it on the boards' figure after the
+ * transactions seeded on it (Office safe US$2,410.00, Front till float
+ * US$120.00), so later packets' payouts keep the targets.
+ */
+async function settleMoneyAccountOpenings(companyId: string) {
+  const targets: Array<[string, string]> = [
+    ["Office safe", "2410.00"],
+    ["Front till float", "120.00"],
+  ]
+  for (const [name, target] of targets) {
+    const account = await prisma.bankAccount.findFirst({ where: { companyId, name }, select: { id: true, openingBalance: true } })
+    if (!account) continue
+    const moved = (await moneyAccountBalance(account.id)).minus(money(account.openingBalance))
+    const opening = money(target).minus(moved)
+    await prisma.bankAccount.update({ where: { id: account.id }, data: { openingBalance: Number(opening.toFixed(2)) } })
+  }
+  console.log("  money accounts: Office safe US$2,410.00, Front till float US$120.00")
 }

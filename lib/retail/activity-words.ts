@@ -1,7 +1,11 @@
 import { RETAIL_AUDIT_EVENTS } from "@/lib/retail/audit";
+import { nameAndPhone, pointsAndVisits } from "@/lib/retail/customers/merge-words";
 import { labelsPrintedSentence } from "@/lib/retail/labels/words";
+import { adjustReasonLabel, pointsWords } from "@/lib/retail/loyalty/format";
 import { priceWords, productWords, scheduledActivity, undoneActivity } from "@/lib/retail/prices/words";
-import { formatCount, formatMoney, formatPercent, formatSigned } from "@/lib/workspace/format";
+import { dayMonth } from "@/lib/retail/buying/words";
+import { tenderLabel } from "@/lib/retail/words";
+import { DEFAULT_TIME_ZONE, formatCount, formatDay, formatMoney, formatPercent, formatSigned, formatTime } from "@/lib/workspace/format";
 
 /**
  * What a record's Activity tab says about each event (00-foundations 5.6.9).
@@ -31,6 +35,10 @@ const amount = (value: unknown): number | null => {
   const parsed = Number(raw);
   return Number.isFinite(parsed) ? parsed : null;
 };
+
+/** "Friday 16:00", in the shop's zone. */
+const weekdayTime = (at: Date) =>
+  `${new Intl.DateTimeFormat("en-GB", { weekday: "long", timeZone: DEFAULT_TIME_ZONE }).format(at)} ${formatTime(at)}`;
 
 const currencyOf = (payload: Payload) => text(payload.currency) ?? "USD";
 
@@ -181,6 +189,13 @@ function goodsReceivedWords(payload: Payload): ActivityWords {
   return { what: `Received ${ref}${detail}`, tone: "ok" };
 }
 
+/** "Counted GRN-0005, 20 units, for checking". */
+function goodsCountedWords(payload: Payload): ActivityWords {
+  const ref = text(payload.receiptNo) ?? "a delivery";
+  const units = amount(payload.units);
+  return { what: `Counted ${ref}${units !== null ? `, ${formatCount(units)} ${units === 1 ? "unit" : "units"}` : ""}, for checking`, tone: "info" };
+}
+
 function orderClosedWords(payload: Payload): ActivityWords {
   const owed = Array.isArray(payload.owed) ? (payload.owed as Payload[]) : [];
   const units = owed.reduce((sum, line) => sum + (amount(line.quantity) ?? 0), 0);
@@ -189,6 +204,35 @@ function orderClosedWords(payload: Payload): ActivityWords {
     what: `Closed with what came, ${formatCount(units)} ${units === 1 ? "unit" : "units"} not delivered`,
     tone: "hollow",
   };
+}
+
+/** "Sent on WhatsApp to Tinashe Moyo" / "Sent by email to orders@delta.co.zw" / "Marked sent by hand". */
+function orderSentWords(payload: Payload): ActivityWords {
+  const via = text(payload.via);
+  const to = Array.isArray(payload.to) ? payload.to.map(String).filter(Boolean).join(" and ") : text(payload.to);
+  if (via === "WHATSAPP") return { what: to ? `Sent on WhatsApp to ${to}` : "Sent on WhatsApp", tone: "info" };
+  if (via === "EMAIL") return { what: to ? `Sent by email to ${to}` : "Sent by email", tone: "info" };
+  return { what: "Marked sent by hand", tone: "info" };
+}
+
+/** "Changed the lines: Castle Lager 340ml 240 → 300, told Delta"; an expected date alone: "Changed the expected date to 7 October". */
+function orderChangedWords(payload: Payload): ActivityWords {
+  const changes = Array.isArray(payload.changes) ? (payload.changes as Payload[]) : [];
+  const told = text(payload.toldName);
+  const parts = changes.map((change) => {
+    const from = text(change.from);
+    const to = text(change.to);
+    const item = text(change.item) ?? "a line";
+    if (from === null) return `${item} added, ${to ?? 0}`;
+    if (to === null) return `${item} taken off`;
+    return `${item} ${from} → ${to}`;
+  });
+  const lead = parts.length
+    ? `Changed the lines: ${parts.join(", ")}`
+    : text(payload.expectedWords)
+      ? `Changed the expected date to ${text(payload.expectedWords)}`
+      : "Changed the order";
+  return { what: told ? `${lead}, told ${told}` : lead, tone: "info" };
 }
 
 /** What a supplier's contact is sent (`VendorContactSends`). */
@@ -419,6 +463,59 @@ const WORDS: Record<string, (payload: Payload, eventType: string, seeCost: boole
   [RETAIL_AUDIT_EVENTS.supplierStopped]: () => ({ what: "Stopped buying from them", tone: "bad" }),
   [RETAIL_AUDIT_EVENTS.supplierResumed]: () => ({ what: "Started buying from them again", tone: "ok" }),
   [RETAIL_AUDIT_EVENTS.suppliersMessaged]: () => ({ what: "Sent a message on WhatsApp", tone: "hollow" }),
+  // Orders (40-buying 3.4): "Raised PO-0031 for US$643.08"; "Sent on WhatsApp to Tinashe Moyo".
+  [RETAIL_AUDIT_EVENTS.orderCreated]: (payload) => ({
+    what: `Raised ${text(payload.poNo) ?? "the order"}${amount(payload.value) !== null ? ` for ${moneyWords(payload.value)}` : ""}`,
+    tone: "info",
+  }),
+  [RETAIL_AUDIT_EVENTS.orderSent]: orderSentWords,
+  [RETAIL_AUDIT_EVENTS.orderChanged]: orderChangedWords,
+  [RETAIL_AUDIT_EVENTS.orderDuplicated]: (payload) => ({ what: `Made from ${text(payload.from) ?? "another order"}`, tone: "hollow" }),
+  // "Sent a reminder; promised for 7 October" (W-34).
+  [RETAIL_AUDIT_EVENTS.orderChased]: (payload) => {
+    const day = text(payload.promisedFor);
+    return { what: day ? `Sent a reminder; promised for ${dayMonth(day)}` : "Sent a reminder", tone: "warn" };
+  },
+  // "Cancelled what was left, 480 units" ("…, automatically" when the worker did it).
+  [RETAIL_AUDIT_EVENTS.orderRestCancelled]: (payload) => {
+    const units = amount(payload.units) ?? 0;
+    const automatic = payload.automatic === true ? ", automatically" : "";
+    return { what: `Cancelled what was left, ${formatCount(units)} ${units === 1 ? "unit" : "units"}${automatic}`, tone: "bad" };
+  },
+  // Requisitions (40-buying 3.4): "Asked for US$1,940.00 for PO-0005"; "Approved US$1,500.00 of US$1,940.00".
+  [RETAIL_AUDIT_EVENTS.requisitionAsked]: (payload) => {
+    const figure = moneyWords(payload.amount, text(payload.currency) ?? "USD");
+    const order = text(payload.order);
+    return { what: order ? `Asked for ${figure} for ${order}` : `Asked for ${figure}${text(payload.whatFor) ? `: ${text(payload.whatFor)}` : ""}`, tone: "info" };
+  },
+  [RETAIL_AUDIT_EVENTS.requisitionApproved]: (payload) => {
+    const currency = text(payload.currency) ?? "USD";
+    const cut = amount(payload.amount) !== null && amount(payload.asked) !== null && amount(payload.amount) !== amount(payload.asked);
+    return { what: `Approved ${moneyWords(payload.amount, currency)}${cut ? ` of ${moneyWords(payload.asked, currency)}` : ""}`, tone: "ok" };
+  },
+  [RETAIL_AUDIT_EVENTS.requisitionRejected]: (payload) => ({ what: `Rejected: ${text(payload.reason) ?? "no reason given"}`, tone: "bad" }),
+  [RETAIL_AUDIT_EVENTS.requisitionQuestion]: (payload) => ({
+    what: `${payload.answer === true ? "Answered" : "Asked"}: “${text(payload.message) ?? ""}”`,
+    tone: "info",
+  }),
+  [RETAIL_AUDIT_EVENTS.requisitionCancelled]: (payload) => ({ what: payload.automatic === true ? "Cancelled with its order" : "Cancelled", tone: "hollow" }),
+  // "Paid out US$1,940.00 from Office safe to Tafara Nyathi".
+  [RETAIL_AUDIT_EVENTS.requisitionPaid]: (payload) => ({
+    what: `Paid out ${moneyWords(payload.amount, text(payload.currency) ?? "USD")}${text(payload.from) ? ` from ${text(payload.from)}` : ""}${text(payload.to) ? ` to ${text(payload.to)}` : ""}`,
+    tone: "ok",
+  }),
+  // "Accounted for: spent US$1,902.40, US$37.60 back in Office safe".
+  [RETAIL_AUDIT_EVENTS.requisitionAccounted]: (payload) => {
+    const currency = text(payload.currency) ?? "USD";
+    const change = amount(payload.change) ?? 0;
+    const back = change > 0 ? `, ${moneyWords(payload.change, currency)} back${text(payload.into) ? ` in ${text(payload.into)}` : ""}` : "";
+    return { what: `Accounted for: spent ${moneyWords(payload.spent, currency)}${back}`, tone: "ok" };
+  },
+  [RETAIL_AUDIT_EVENTS.messageReceived]: (payload) => {
+    const body = text(payload.body) ?? "";
+    const short = body.length > 80 ? `${body.slice(0, 80).trimEnd()}…` : body;
+    return { what: `${text(payload.supplier) ?? "The supplier"} replied: “${short}”`, tone: "info" };
+  },
   [RETAIL_AUDIT_EVENTS.shiftOpened]: (payload) => ({
     what: `Opened with a float of ${moneyWords(payload.openingFloat)}`,
     tone: "info",
@@ -443,11 +540,93 @@ const WORDS: Record<string, (payload: Payload, eventType: string, seeCost: boole
   }),
   // PRD-06: "Printed 1 shelf strip on the front till printer", "Printed 2 price tags here".
   [RETAIL_AUDIT_EVENTS.labelsPrinted]: (payload) => ({ what: labelsPrintedSentence(payload), tone: "hollow" }),
+  // "Booked 240 bottles and 20 crates back to Delta Beverages, US$84.00 owed" (STK-09).
+  [RETAIL_AUDIT_EVENTS.emptiesReturned]: (payload) => {
+    const bottles = amount(payload.bottles) ?? 0;
+    const crates = amount(payload.crates) ?? 0;
+    const items = [
+      bottles ? `${bottles} ${bottles === 1 ? "bottle" : "bottles"}` : null,
+      crates ? `${crates} ${crates === 1 ? "crate" : "crates"}` : null,
+    ].filter(Boolean);
+    const supplier = text(payload.supplier);
+    return {
+      what: `Booked ${items.join(" and ") || "empties"} back${supplier ? ` to ${supplier}` : ""}, ${formatMoney(amount(payload.deposit) ?? 0)} owed`,
+      tone: "info",
+    };
+  },
+  // "Delta Beverages credited US$84.00 (CN-2210)" (STK-09).
+  [RETAIL_AUDIT_EVENTS.emptiesCredited]: (payload) => {
+    const note = text(payload.creditNote);
+    return {
+      what: `${text(payload.supplier) ?? "The supplier"} credited ${formatMoney(amount(payload.amount) ?? 0)}${note ? ` (${note})` : ""}`,
+      tone: "ok",
+    };
+  },
+  // "42 points expired, a year old" / "Birthday bonus, 200 points" (CUS-01).
+  [RETAIL_AUDIT_EVENTS.pointsExpired]: (payload) => ({
+    what: `${formatCount(amount(payload.points) ?? 0)} points expired, a year old`,
+    tone: "hollow",
+  }),
+  [RETAIL_AUDIT_EVENTS.pointsBirthday]: (payload) => ({
+    what: `Birthday bonus, ${formatCount(amount(payload.points) ?? 0)} points`,
+    tone: "warn",
+  }),
+  // "Added 200 points: Make good a complaint" / "Took away 100 points: Correction" (CUS-04).
+  [RETAIL_AUDIT_EVENTS.pointsAdjusted]: (payload) => {
+    const points = pointsWords(amount(payload.points) ?? 0);
+    const why = adjustReasonLabel(text(payload.reason));
+    return { what: `${payload.direction === "TAKE" ? "Took away" : "Added"} ${points}${why ? `: ${why}` : ""}`, tone: "warn" };
+  },
+  // "Added, agreed to messages" / "Added at the till" (CUS-02).
+  [RETAIL_AUDIT_EVENTS.customerCreated]: (payload) => ({
+    what: payload.via === "till" ? "Added at the till" : payload.consent === true ? "Added, agreed to messages" : "Added",
+    tone: "ok",
+  }),
+  // CUS-06: "Sent an offer to 8 customers", "Scheduled an offer to 8 customers for Friday 16:00".
+  [RETAIL_AUDIT_EVENTS.messagesQueued]: (payload) => {
+    const count = amount(payload.count) ?? 0;
+    const what = `${payload.purpose === "OFFER" ? "an offer" : "a reminder"} to ${formatCount(count)} ${count === 1 ? "customer" : "customers"}`;
+    const at = text(payload.scheduledFor);
+    return { what: at ? `Scheduled ${what} for ${weekdayTime(new Date(at))}` : `Sent ${what}`, tone: "hollow" };
+  },
+  // FLR-06: "Started with a deposit of US$20.00", "Took US$13.00 by EcoCash, US$13.00 left",
+  // "Handed over as SALE-31871", "Cancelled, US$18.00 paid back".
+  [RETAIL_AUDIT_EVENTS.laybyStarted]: (payload) => ({ what: `Started with a deposit of ${moneyWords(payload.deposit)}`, tone: "info" }),
+  [RETAIL_AUDIT_EVENTS.laybyPaid]: (payload) => ({
+    what: `Took ${moneyWords(payload.amount)} by ${tenderLabel(text(payload.tender))}, ${moneyWords(payload.left)} left`,
+    tone: "ok",
+  }),
+  [RETAIL_AUDIT_EVENTS.laybyHandedOver]: (payload) => ({ what: `Handed over as ${text(payload.saleNo) ?? "a sale"}`, tone: "ok" }),
+  [RETAIL_AUDIT_EVENTS.laybyCancelled]: (payload) => ({ what: `Cancelled, ${moneyWords(payload.paidBack)} paid back`, tone: "bad" }),
+  // CUS-06: "Replied STOP on WhatsApp" / "Stopped marketing messages" / "Agreed to messages".
+  [RETAIL_AUDIT_EVENTS.customerConsent]: (payload) => ({
+    what: payload.via === "STOP reply" ? "Replied STOP on WhatsApp" : payload.agreed === true ? "Agreed to messages" : "Stopped marketing messages",
+    tone: "hollow",
+  }),
+  // CUS-03: "Held at Gold until 3 October 2027" / "Back to Silver, by spend" / "Added a note".
+  [RETAIL_AUDIT_EVENTS.customerTierSet]: (payload) => {
+    const tier = text(payload.tier) ?? "a tier";
+    const until = text(payload.until);
+    return { what: until ? `Held at ${tier} until ${formatDay(until)}` : `Back to ${tier}, by spend`, tone: "info" };
+  },
+  [RETAIL_AUDIT_EVENTS.customerNoteAdded]: () => ({ what: "Added a note", tone: "hollow" }),
+  // CUS-05: "Merged in T. Marange, +263 77 412 3380: 412 points, 9 visits" on the survivor;
+  // "Took T. Marange back out: 412 points, 9 visits" there, "Taken back out of Tapiwa Marange: …" on the duplicate.
+  [RETAIL_AUDIT_EVENTS.customerMerged]: (payload) => {
+    const duplicate = (payload.duplicate ?? {}) as Payload;
+    return { what: `Merged in ${nameAndPhone({ name: text(duplicate.name) ?? "a customer", phone: text(duplicate.phone) })}: ${pointsAndVisits(amount(payload.points) ?? 0, amount(payload.visits) ?? 0)}`, tone: "info" };
+  },
+  [RETAIL_AUDIT_EVENTS.customerUnmerged]: (payload) => {
+    const other = text(((payload.other ?? {}) as Payload).name) ?? "a customer";
+    const figures = pointsAndVisits(amount(payload.points) ?? 0, amount(payload.visits) ?? 0);
+    return { what: payload.role === "duplicate" ? `Taken back out of ${other}: ${figures}` : `Took ${other} back out: ${figures}`, tone: "warn" };
+  },
   [RETAIL_AUDIT_EVENTS.saleReviewed]: (payload) => ({
     what: text(payload.reason) ? `Looked at: ${text(payload.reason)}` : "Looked at",
     tone: "ok",
   }),
   [RETAIL_AUDIT_EVENTS.goodsReceived]: goodsReceivedWords,
+  [RETAIL_AUDIT_EVENTS.goodsCounted]: goodsCountedWords,
   [RETAIL_AUDIT_EVENTS.orderClosed]: orderClosedWords,
   [RETAIL_AUDIT_EVENTS.orderReopened]: () => ({ what: "Reopened", tone: "hollow" }),
   [RETAIL_AUDIT_EVENTS.shopProfileChanged]: shopProfileWords,
@@ -577,6 +756,30 @@ const WORDS: Record<string, (payload: Payload, eventType: string, seeCost: boole
     const lines = amount(payload.lines) ?? 0;
     return { what: `Counted ${lines} ${lines === 1 ? "line and sent it" : "lines and sent them"} for review`, tone: "info" };
   },
+  // "Changed Gordon’s Gin 750ml from 19 to 20": an approver's correction (STK-06).
+  [RETAIL_AUDIT_EVENTS.countLineChanged]: (payload) => {
+    const from = amount(payload.from);
+    const to = amount(payload.to);
+    const product = text(payload.product) ?? "a line";
+    return {
+      what: from === null ? `Changed ${product} to ${countWords(to ?? 0)}` : `Changed ${product} from ${countWords(from)} to ${countWords(to ?? 0)}`,
+      tone: "info",
+    };
+  },
+  // "Asked for 3 lines to be counted again" (STK-06).
+  [RETAIL_AUDIT_EVENTS.countRecountAsked]: (payload) => {
+    const lines = amount(payload.lines) ?? 0;
+    return { what: `Asked for ${formatCount(lines)} ${lines === 1 ? "line" : "lines"} to be counted again`, tone: "warn" };
+  },
+  // "Approved: stock set to what was counted, −US$41.20 to Breakage and losses" (STK-06).
+  [RETAIL_AUDIT_EVENTS.countApproved]: (payload) => {
+    const net = amount(payload.net) ?? 0;
+    return {
+      what: `Approved: stock set to what was counted${net === 0 ? "" : `, ${formatSigned(net)} to Breakage and losses`}`,
+      tone: "ok",
+    };
+  },
+  [RETAIL_AUDIT_EVENTS.countCancelled]: () => ({ what: "Cancelled the count", tone: "bad" }),
   // "Changed the lines: 560 units on the way" (30-stock 3.3).
   [RETAIL_AUDIT_EVENTS.transferChanged]: (payload) => ({
     what: `Changed the lines: ${unitWords(amount(payload.units) ?? 0)} on the way`,

@@ -1,0 +1,81 @@
+[
+  {
+    "id": "11",
+    "file": "11-stock-adjust-and-break-case.md",
+    "title": "Adjust stock and Break a case over the product record",
+    "units": [
+      "STK-04"
+    ],
+    "dependsOn": [
+      "10",
+      "STK-01",
+      "STK-03",
+      "SET-06",
+      "ADM-03",
+      "ADM-04"
+    ],
+    "risk": "money"
+  },
+  {
+    "id": "12",
+    "file": "12-stock-on-hand.md",
+    "title": "Stock › On hand and Change reorder levels",
+    "units": [
+      "STK-02"
+    ],
+    "dependsOn": [
+      "10",
+      "11",
+      "STK-01",
+      "STK-07",
+      "BUY-01"
+    ],
+    "risk": "standard"
+  },
+  {
+    "id": "13",
+    "file": "13-stock-counts.md",
+    "title": "Stock › Counts, Start a count, Count on a phone",
+    "units": [
+      "STK-05"
+    ],
+    "dependsOn": [
+      "12",
+      "STK-01",
+      "SET-02",
+      "SET-07",
+      "ADM-02",
+      "ADM-04"
+    ],
+    "risk": "standard"
+  },
+  {
+    "id": "16",
+    "file": "16-stock-count-record-and-review.md",
+    "title": "Stock › A count and Approve the differences",
+    "units": [
+      "STK-06"
+    ],
+    "dependsOn": [
+      "13",
+      "STK-01",
+      "ADM-04",
+      "SET-09"
+    ],
+    "risk": "money"
+  },
+  {
+    "id": "17",
+    "file": "17-stock-empties.md",
+    "title": "Stock › Empties ledger and returns",
+    "units": [
+      "STK-09"
+    ],
+    "dependsOn": [
+      "STK-01",
+      "BUY-01",
+      "SET-09"
+    ],
+    "risk": "money"
+  }
+]

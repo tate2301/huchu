@@ -7,6 +7,9 @@ import { applyDuePriceChangesForAll } from "@/lib/retail/prices/schedule";
 import { applyRbzRate } from "@/lib/retail/rbz-rate";
 import { closeWaitingFiscalDays } from "@/lib/retail/fiscal-settings";
 import { expireVouchers } from "@/lib/retail/vouchers/expire";
+import { birthdayBonusesForAll, expirePointsForAll } from "@/lib/retail/loyalty/jobs";
+import { sendLaybyRemindersForAll } from "@/lib/retail/floor/layby-reminders";
+import { runBuyingFollowUpsForAll } from "@/lib/retail/buying/follow-ups";
 
 import type { RetailJob } from "./schedule";
 
@@ -18,9 +21,35 @@ import type { RetailJob } from "./schedule";
  * the posting runs (SET-09), every five minutes the
  * message outbox (SET-07, C-03) and the fiscal days left to close (SET-08),
  * every minute the price changes come due (PRD-07), 00:10 the vouchers whose
- * expiry day has passed lapse (PRD-10).
+ * expiry day has passed lapse (PRD-10), 00:05 points a year old expire,
+ * 07:00 on Mondays the birthday bonuses (CUS-01) and 09:00 the weekly lay-by
+ * reminders (FLR-06), 07:00 the order follow-ups (BUY-03).
  */
 export const RETAIL_JOBS: RetailJob[] = [
+  {
+    // A WhatsApp each week to every customer still paying a lay-by who asked for reminders (FLR-06).
+    name: "layby-reminders",
+    when: { dailyAt: "09:00" },
+    run: (now) => sendLaybyRemindersForAll(now),
+  },
+  {
+    // Points earned more than 12 months ago and not spent expire, for shops whose points expire (CUS-01).
+    name: "points-expiry",
+    when: { dailyAt: "00:05" },
+    run: (now) => expirePointsForAll(now),
+  },
+  {
+    // The birthday bonus for the week's birthdays; nothing except on Mondays (CUS-01).
+    name: "birthday-bonus",
+    when: { dailyAt: "07:00" },
+    run: (now) => birthdayBonusesForAll(now),
+  },
+  {
+    // Chased orders whose promised day has passed: "Remind me" tells the chaser, "Cancel the rest" cancels it (BUY-03, W-34).
+    name: "buying-follow-ups",
+    when: { dailyAt: "07:00" },
+    run: (now) => runBuyingFollowUpsForAll(now),
+  },
   {
     // Vouchers past their expiry day with something left lapse, and what money was left is written off (PRD-10).
     name: "voucher-expiry",

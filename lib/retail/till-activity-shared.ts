@@ -118,7 +118,7 @@ export type TillActivityEntry = {
   /** On an override: the lines that came off the shelf price. */
   discounts: TillActivityDiscount[];
   /** On a cash movement: which way, and the reason picked from the list. */
-  cashType: "DROP_TO_SAFE" | "FLOAT_TOP_UP" | "PAYOUT" | null;
+  cashType: "DROP_TO_SAFE" | "FLOAT_TOP_UP" | "PAYOUT" | "TAKEN_IN" | null;
   reasonLabel: string | null;
   /** On a shift event: which, on which till, and what the count came to. */
   shiftEvent: "open" | "close" | null;

@@ -329,8 +329,9 @@ export function resolveListQuery(
   const columns = listColumnsFor(shape, ctx.seeCost);
   const scope = scopedFor(spec, ctx.role);
 
+  const opening = spec.tabFor?.roles.includes(ctx.role) ? spec.tabs?.find((candidate) => candidate.key === spec.tabFor!.tab) : undefined;
   const tab = spec.tabs?.length
-    ? (spec.tabs.find((candidate) => candidate.key === query.tab) ?? spec.tabs[0]!).key
+    ? (spec.tabs.find((candidate) => candidate.key === query.tab) ?? opening ?? spec.tabs[0]!).key
     : null;
 
   const defaultSort = shape.sorts[0]?.key ?? "";
@@ -552,6 +553,26 @@ export function tabCounts(spec: ListSpec, rows: ReportRow[], columns: ReportColu
   return Object.fromEntries(spec.tabs.map((tab) => [tab.key, filterRows(rows, columns, view(tab.where)).length]));
 }
 
+/** Each badged tab's money: its `badge.sum` column added up over the tab's rows, ignoring search and filters. */
+export function tabSums(spec: ListSpec, rows: ReportRow[], columns: ReportColumn[]): Record<string, number> | null {
+  const badged = spec.tabs?.filter((tab) => tab.badge) ?? [];
+  if (!badged.length) return null;
+  const view = (where: Condition[]): ReportView => ({
+    columns: columns.map((column) => ({ key: column.key, hidden: false })),
+    conditions: where,
+    search: "",
+    sort: [],
+    groupBy: null,
+    totals: {},
+  });
+  return Object.fromEntries(
+    badged.map((tab) => {
+      const cents = filterRows(rows, columns, view(tab.where)).reduce((sum, row) => sum + Math.round(Number(row[tab.badge!.sum] ?? 0) * 100), 0);
+      return [tab.key, cents / 100];
+    }),
+  );
+}
+
 /** For each state column with a summary: how many rows need looking at ("23 to check"). */
 export function summaries(spec: ListSpec, rows: ReportRow[]): ListSummary {
   const out: ListSummary = {};
@@ -699,6 +720,7 @@ export function runList(
       totals: strip(applied.totals),
       summary: summaries(spec, applied.rows),
       tabs: tabCounts(spec, base, columns),
+      tabSums: tabSums(spec, base, columns),
       everEmpty: base.length === 0,
       truncated,
     },
@@ -814,7 +836,7 @@ export function publicListSpec(
   const keys = new Set(columns.map((column) => column.key));
   const cost = new Set(spec.columns.filter((column) => !keys.has(column.key)).map((column) => column.key));
   const scope = scopedFor(spec, ctx.role);
-  const { read: _read, scopeOwn: _scopeOwn, primary, exportExtras, empty, subLink, edit, ...rest } = spec;
+  const { read: _read, scopeOwn: _scopeOwn, tabFor, primary, exportExtras, empty, subLink, edit, ...rest } = spec;
   // The cells are inputs only for a caller who may change the values; anyone else reads them.
   const editing = edit && edit.requires.some((grant) => ctx.can(grant)) ? edit : null;
   void _read;
@@ -824,6 +846,7 @@ export function publicListSpec(
     .map((extra) => ({ label: extra.label, href: extra.href }));
   return {
     ...rest,
+    ...(tabFor?.roles.includes(ctx.role) ? { defaultTab: tabFor.tab } : {}),
     columns: editing ? columns : columns.map((column) => (column.cell === "edit-money" ? { ...column, cell: "money" as const } : column)),
     ...(editing
       ? {

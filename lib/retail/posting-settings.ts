@@ -7,19 +7,20 @@ import { writePlatformAuditEvent } from "@/lib/audit/platform";
 import { prisma } from "@/lib/prisma";
 import { RETAIL_AUDIT_EVENTS, writeRetailAuditEvent, type RetailAuditActor } from "@/lib/retail/audit";
 import { loadPaymentSettings } from "@/lib/retail/payment-settings";
-import { TENDER_OPTIONS, tenderKeyOf, type TenderKey } from "@/lib/retail/payment-words";
+import { tenderKeyOf } from "@/lib/retail/payment-words";
 import { DEFAULT_POSTING_SCHEDULE, retailPostingSchedule } from "@/lib/retail/posting-schedule";
 import {
   accountLabel,
   failedWords,
   parseQuickAccount,
+  POSTING_TENDER_OPTIONS,
   runParts,
   ROLE_OPTIONS,
   ROLE_TYPES,
-  TENDER_TYPES,
+  tenderAccountTypes,
   TYPE_WORDS,
-  VOUCHER_TYPES,
   wrongTypeProblem,
+  type PostingTenderKey,
   type RunCounts,
 } from "@/lib/retail/posting-words";
 
@@ -50,8 +51,8 @@ export async function postableAccounts(companyId: string, db: Db = prisma) {
 }
 
 /** The company-level mapping a tender's row reads and writes: cash by its currency. */
-function tenderWhere(companyId: string, key: TenderKey) {
-  const option = TENDER_OPTIONS.find((entry) => entry.key === key)!;
+function tenderWhere(companyId: string, key: PostingTenderKey) {
+  const option = POSTING_TENDER_OPTIONS.find((entry) => entry.key === key)!;
   return {
     companyId,
     tenderType: option.tender,
@@ -62,7 +63,7 @@ function tenderWhere(companyId: string, key: TenderKey) {
 }
 
 export type PostingState = {
-  tenders: Array<{ key: TenderKey; label: string; on: boolean; account: AccountOption | null }>;
+  tenders: Array<{ key: PostingTenderKey; label: string; on: boolean; account: AccountOption | null }>;
   roles: Array<{ role: RetailAccountRole; field: string; label: string; shown: boolean; account: AccountOption | null }>;
   schedule: RetailPostingSchedule;
   lastRun: (RunCounts & { at: Date; other: number; failed: number }) | null;
@@ -82,7 +83,8 @@ async function postingFieldsShown(companyId: string, db: Db = prisma) {
   const deposits = profile?.businessType === "LIQUOR" && profile.emptiesAndDeposits;
   return {
     vatRegistered,
-    tenderOn: (key: TenderKey) => payments.tenders[key],
+    // Lay-by is not on Payments: its row always shows.
+    tenderOn: (key: PostingTenderKey) => key === "layby" || payments.tenders[key],
     roleShown: (role: RetailAccountRole) =>
       role === "VAT_OUTPUT" ? vatRegistered : role === "DEPOSITS_HELD" ? Boolean(deposits) : true,
   };
@@ -125,7 +127,7 @@ export async function loadPostingState(companyId: string): Promise<PostingState>
     }),
   ]);
 
-  const tenders = TENDER_OPTIONS.map((option) => {
+  const tenders = POSTING_TENDER_OPTIONS.map((option) => {
     // As posting resolves it: the tender's own currency first, else a mapping for any currency.
     const mapping =
       mappings.find((row) => row.tenderType === option.tender && (row.currency ?? null) === option.currency) ??
@@ -197,7 +199,7 @@ export class PostingRefused extends Error {
 }
 
 export type PostingPatch = {
-  tenders?: Array<{ key: TenderKey; accountId: string; field: string; label: string }>;
+  tenders?: Array<{ key: PostingTenderKey; accountId: string; field: string; label: string }>;
   roles?: Array<{ role: RetailAccountRole; accountId: string; field: string; label: string }>;
   schedule?: RetailPostingSchedule;
 };
@@ -232,7 +234,7 @@ export async function savePosting(tx: Prisma.TransactionClient, actor: RetailAud
   }
 
   for (const tender of patch.tenders ?? []) {
-    const allowed = tender.key === "vouchers" ? VOUCHER_TYPES : TENDER_TYPES;
+    const allowed = tenderAccountTypes(tender.key);
     const account = await checkedAccount(tx, companyId, tender.accountId, tender.field, tender.label, allowed);
     const where = tenderWhere(companyId, tender.key);
     const existing = await tx.tenderAccountMapping.findFirst({ where, orderBy: { createdAt: "asc" }, select: { id: true } });
@@ -334,6 +336,12 @@ export const RETAIL_SOURCE_TYPES: AccountingSourceType[] = [
   "RETAIL_VOUCHER_ISSUE",
   "RETAIL_VOUCHER_EXPIRY",
   "RETAIL_VOUCHER_VOID",
+  "RETAIL_BOTTLES_BACK",
+  "RETAIL_LAYBY_PAYMENT",
+  "RETAIL_LAYBY_CANCEL",
+  "RETAIL_REQUISITION_PAYOUT",
+  "RETAIL_REQUISITION_CHANGE",
+  "RETAIL_SUPPLIER_PAYMENT",
 ];
 
 type RunKind = "sales" | "refunds" | "deliveries" | "counts" | "other";
@@ -636,7 +644,7 @@ export function setupPreview(result: AccountingSeedPackResult): SetupPreview {
     ...result.preview.missingTenderMappings.map((entry) => {
       const [tender, currency] = entry.split(":");
       const key = tenderKeyOf(tender!, currency ?? null);
-      return TENDER_OPTIONS.find((option) => option.key === key)?.label ?? entry;
+      return POSTING_TENDER_OPTIONS.find((option) => option.key === key || (key === null && option.tender === tender))?.label ?? entry;
     }),
     ...result.preview.missingRoleMappings.map(
       (role) => ROLE_OPTIONS.find((option) => option.role === role)?.label ?? role,

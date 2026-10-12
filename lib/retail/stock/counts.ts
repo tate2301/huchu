@@ -2,9 +2,10 @@ import type { Prisma, RetailStockCountStatus } from "@prisma/client";
 import { z } from "zod";
 
 import { reserveIdentifier } from "@/lib/id-generator";
-import { money, quantity } from "@/lib/money";
+import { money, multiplyMoney, quantity, sumMoney } from "@/lib/money";
 import { emitRetailNotification } from "@/lib/notifications";
 import { prisma } from "@/lib/prisma";
+import { getApprovalLimits, type ApprovalLimits } from "@/lib/retail/approvals/limits";
 import { approvalLink, notifyApprover } from "@/lib/retail/approvals/notify";
 import { RETAIL_AUDIT_EVENTS, writeRetailAuditEvent, type RetailAuditActor } from "@/lib/retail/audit";
 import { canRetailRoleDo } from "@/lib/retail/permission-matrix";
@@ -420,7 +421,7 @@ function mayRead(actor: CountActor, grants: CountGrants, count: CountHead) {
 }
 
 /** Whether `expected` is kept from this reader: the counter of a blind count, while it is theirs to count. */
-const hidesExpected = (actor: CountActor, count: CountHead) =>
+export const hidesExpected = (actor: { userId: string }, count: Pick<CountHead, "blind" | "counterId" | "status">) =>
   count.blind && count.counterId === actor.userId && count.status === "COUNTING";
 
 export type CountView = {
@@ -450,8 +451,10 @@ export type CountView = {
   short?: { value: number; lines: number };
   over?: { value: number; lines: number };
   difference?: number;
+  cancelledAt: string | null;
   approves: "A manager" | "The owner";
-  history: Array<{ id: string; countNo: string; at: string; difference: number }>;
+  /** Approved counts at its site that share a product with it, and itself, oldest first; empty without cost. */
+  history: CountHistoryPoint[];
   /** The reader is the counter: what the phone needs to know. */
   yours: boolean;
   /** Who approves it, as the phone says once it is sent: "Tafara Nyathi or the owner", "The owner". */
@@ -479,6 +482,8 @@ export async function loadCountView(actor: CountActor, grants: CountGrants, id: 
         firstCountedAt: true,
         submittedAt: true,
         approvedAt: true,
+        cancelledAt: true,
+        siteId: true,
         site: { select: { id: true, name: true } },
         place: { select: { id: true, name: true } },
         counter: { select: { id: true, name: true, role: true } },
@@ -489,10 +494,12 @@ export async function loadCountView(actor: CountActor, grants: CountGrants, id: 
     }),
     prisma.site.count({ where: { companyId: actor.companyId, isActive: true } }),
   ]);
+  const limits = await getApprovalLimits(actor.companyId);
   const counted = count.lines.filter((line) => line.counted !== null);
   const differing = counted.filter((line) => line.difference && !line.difference.isZero());
+  // Each line at cost to the cent, then added: the same figure approval posts.
   const value = (lines: typeof count.lines) =>
-    cents(lines.reduce((sum, line) => sum + (line.difference?.toNumber() ?? 0) * line.unitCost.toNumber(), 0));
+    sumMoney(lines.map((line) => multiplyMoney(line.difference ?? 0, line.unitCost))).toNumber();
   const shortLines = differing.filter((line) => line.difference!.isNegative());
   const overLines = differing.filter((line) => !line.difference!.isNegative());
   const short = value(shortLines);
@@ -527,12 +534,73 @@ export async function loadCountView(actor: CountActor, grants: CountGrants, id: 
           difference: cents(short + over),
         }
       : {}),
-    approves: "A manager",
-    // STK-06 fills the chart and the review aside.
-    history: [],
+    cancelledAt: count.cancelledAt?.toISOString() ?? null,
+    approves: needsOwner(limits, short + over) ? "The owner" : "A manager",
+    history: grants.seeCost ? await countHistory(actor.companyId, { id: count.id, siteId: count.siteId }) : [],
     yours: count.counter.id === actor.userId,
     approver: approverWords(count.createdBy, count.counter.id),
   };
+}
+
+/** Whether a net difference waits for the owner: the shop's rule is "over a limit" and it is over it, either way. */
+export function needsOwner(limits: Pick<ApprovalLimits, "countDifferences" | "countOwnerOver">, net: number): boolean {
+  return limits.countDifferences === "OWNER_OVER_LIMIT" && Math.abs(net) > limits.countOwnerOver.toNumber();
+}
+
+export type CountHistoryPoint = { id: string; countNo: string; at: string; difference: number };
+
+/**
+ * The chart and the review aside (STK-06): the approved counts at the same
+ * site that share at least one stock line with this one, and this one,
+ * oldest first. Each figure is at cost on the shared lines only, so an
+ * "Everything" count reads as what it found on this shelf; this count's own
+ * is its net while it waits (blank lines count as nothing).
+ */
+export async function countHistory(companyId: string, count: { id: string; siteId: string }): Promise<CountHistoryPoint[]> {
+  const own = await prisma.retailStockCount.findUniqueOrThrow({
+    where: { id: count.id },
+    select: {
+      countNo: true,
+      createdAt: true,
+      submittedAt: true,
+      approvedAt: true,
+      lines: { select: { inventoryItemId: true, difference: true, unitCost: true } },
+    },
+  });
+  const itemIds = own.lines.map((line) => line.inventoryItemId);
+  const others = await prisma.retailStockCount.findMany({
+    where: {
+      companyId,
+      siteId: count.siteId,
+      status: "APPROVED",
+      id: { not: count.id },
+      lines: { some: { inventoryItemId: { in: itemIds } } },
+    },
+    select: {
+      id: true,
+      countNo: true,
+      approvedAt: true,
+      createdAt: true,
+      lines: { where: { inventoryItemId: { in: itemIds } }, select: { difference: true, unitCost: true } },
+    },
+  });
+  const valueOf = (lines: Array<{ difference: Prisma.Decimal | null; unitCost: Prisma.Decimal }>) =>
+    sumMoney(lines.map((line) => multiplyMoney(line.difference ?? 0, line.unitCost))).toNumber();
+  const points: CountHistoryPoint[] = [
+    ...others.map((other) => ({
+      id: other.id,
+      countNo: other.countNo,
+      at: (other.approvedAt ?? other.createdAt).toISOString(),
+      difference: valueOf(other.lines),
+    })),
+    {
+      id: count.id,
+      countNo: own.countNo,
+      at: (own.approvedAt ?? own.submittedAt ?? own.createdAt).toISOString(),
+      difference: valueOf(own.lines),
+    },
+  ];
+  return points.sort((a, b) => (a.at < b.at ? -1 : a.at > b.at ? 1 : a.countNo < b.countNo ? -1 : 1));
 }
 
 /**
@@ -678,21 +746,38 @@ export async function saveCountLine(
 ): Promise<{ line: CountLine; progress: CountProgress }> {
   const head = await headOf(actor.companyId, countId);
   mayRead(actor, grants, head);
-  if (head.status === "APPROVED" || head.status === "CANCELLED") throw new CountRefusal(409, CLOSED);
-  if (head.status === "COUNTING" && head.counterId !== actor.userId && !grants.update) throw new CountRefusal(403, NOT_YOURS);
-  if (head.status === "TO_APPROVE" && !grants.approve) throw new CountRefusal(409, "This count was sent for review.");
+  const maySave = (status: typeof head.status) => {
+    if (status === "APPROVED" || status === "CANCELLED") throw new CountRefusal(409, CLOSED);
+    if (status === "COUNTING" && head.counterId !== actor.userId && !grants.update) throw new CountRefusal(403, NOT_YOURS);
+    if (status === "TO_APPROVE" && !grants.approve) throw new CountRefusal(409, "This count was sent for review.");
+  };
+  maySave(head.status);
 
   const value = quantity(counted);
   return prisma.$transaction(async (tx) => {
-    const line = await tx.retailStockCountLine.findFirst({ where: { id: lineId, countId }, select: { id: true, inventoryItemId: true, expectedAtCount: true } });
+    // The count first, then the stock line: the order approval takes them in.
+    // A correction either lands before the approval reads the lines, or
+    // finds the count approved and is refused.
+    await tx.$queryRaw`SELECT "id" FROM "RetailStockCount" WHERE "id" = ${countId} FOR UPDATE`;
+    const status = await tx.retailStockCount.findUniqueOrThrow({ where: { id: countId }, select: { status: true, firstCountedAt: true } });
+    maySave(status.status);
+    const line = await tx.retailStockCountLine.findFirst({
+      where: { id: lineId, countId },
+      select: {
+        id: true,
+        inventoryItemId: true,
+        expectedAtCount: true,
+        counted: true,
+        inventoryItem: { select: { name: true, product: { select: { name: true } } } },
+      },
+    });
     if (!line) throw new CountRefusal(404, "That line is not on this count.");
     // Held until the save commits: a sale waits, and lands after the figure.
     const [stock] = await tx.$queryRaw<Array<{ currentStock: Prisma.Decimal }>>`
       SELECT "currentStock" FROM "InventoryItem" WHERE "id" = ${line.inventoryItemId} FOR UPDATE`;
-    const status = await tx.retailStockCount.findUniqueOrThrow({ where: { id: countId }, select: { status: true, firstCountedAt: true } });
-    if (status.status === "APPROVED" || status.status === "CANCELLED") throw new CountRefusal(409, CLOSED);
     // An approver's correction keeps what was on hand when it was counted.
-    const atCount = status.status === "TO_APPROVE" && line.expectedAtCount ? line.expectedAtCount : quantity(stock!.currentStock);
+    const correcting = status.status === "TO_APPROVE";
+    const atCount = correcting && line.expectedAtCount ? line.expectedAtCount : quantity(stock!.currentStock);
     const now = new Date();
     const saved = await tx.retailStockCountLine.update({
       where: { id: line.id },
@@ -707,7 +792,22 @@ export async function saveCountLine(
       select: LINE_SELECT,
     });
     if (!status.firstCountedAt) await tx.retailStockCount.update({ where: { id: countId }, data: { firstCountedAt: now } });
-    const showExpected = !hidesExpected(actor, head);
+    // An approver's correction is the record's Activity: "Changed Gordon’s Gin 750ml from 19 to 20".
+    if (correcting && !(line.counted?.equals(value) ?? false)) {
+      await writeRetailAuditEvent(tx, {
+        actor,
+        eventType: RETAIL_AUDIT_EVENTS.countLineChanged,
+        entityType: "RetailStockCount",
+        entityId: countId,
+        payload: {
+          countNo: head.countNo,
+          product: line.inventoryItem.product?.name ?? line.inventoryItem.name,
+          from: line.counted?.toNumber() ?? null,
+          to: value.toNumber(),
+        },
+      });
+    }
+    const showExpected = !hidesExpected(actor, { ...head, status: status.status });
     return { line: asCountLine(saved, showExpected, grants.seeCost && showExpected), progress: await progressOf(tx, countId) };
   });
 }

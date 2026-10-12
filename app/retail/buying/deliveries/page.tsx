@@ -1,8 +1,8 @@
 "use client";
 
-import { useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useMemo, useState } from "react";
-import { Alert, Button as DsButton, Skeleton } from "@corelithzw/react";
+import Link from "next/link";
+import { useMemo, useState } from "react";
+import { Button as DsButton, Skeleton } from "@corelithzw/react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { RecordDialog } from "@/components/crm/records/record-dialog";
@@ -10,7 +10,6 @@ import { RecordListShell } from "@/components/crm/records/record-list-shell";
 import { ColumnFigure, ColumnList, ColumnName, ColumnText, FormField } from "@/components/management/ui";
 import { retailMoney } from "@/components/retail/money";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { SearchableSelect, type SearchableOption } from "@/components/ui/searchable-select";
 import {
@@ -34,6 +33,7 @@ type Delivery = {
   receiptNo: string;
   siteId: string;
   purchaseOrderId: string | null;
+  poNo: string | null;
   supplierName: string;
   createdAt: string;
   notes: string | null;
@@ -42,87 +42,28 @@ type Delivery = {
   site: { id: string; name: string; code: string } | null;
 };
 
-type OrderLine = {
-  id: string;
-  inventoryItemId: string | null;
-  itemName: string;
-  quantity: number;
-  unitCost: number;
-  receivedQuantity: number;
-};
-
-type Order = {
-  id: string;
-  poNo: string;
-  supplierName: string;
-  siteId: string;
-  status: string;
-  lines: OrderLine[];
-};
-
 type LineForm = {
   inventoryItemId: string;
   quantity: string;
   unitCost: string;
-  /** The order line this row fills, and what that line has had so far. */
-  purchaseOrderLineId: string | null;
-  owed: string | null;
 };
 
 type DeliveryForm = {
   siteId: string;
-  purchaseOrderId: string;
   supplierName: string;
   notes: string;
   lines: LineForm[];
-  /** Nothing more is coming on the order: stop waiting for the rest. */
-  closeRest: boolean;
 };
-
-const NO_ORDER = "";
 
 /** A register's measure: wide enough for its figures, not the whole window. */
 const WIDTH = 960;
 
 function emptyLine(): LineForm {
-  return { inventoryItemId: "", quantity: "1", unitCost: "", purchaseOrderLineId: null, owed: null };
+  return { inventoryItemId: "", quantity: "1", unitCost: "" };
 }
 
 function emptyForm(siteId = ""): DeliveryForm {
-  return { siteId, purchaseOrderId: NO_ORDER, supplierName: "", notes: "", lines: [emptyLine()], closeRest: false };
-}
-
-function outstandingQuantity(order: Order) {
-  return order.lines.reduce((total, line) => total + Math.max(line.quantity - line.receivedQuantity, 0), 0);
-}
-
-/**
- * One row per order line that is still owed. Quantity starts at what is
- * outstanding and cost at what was ordered — both are then the counter's to
- * correct, because a delivery arriving short is the normal case, not the
- * exception.
- */
-function formFromOrder(order: Order, fallbackSiteId: string): DeliveryForm {
-  const lines = order.lines
-    .map((line) => ({ line, outstanding: line.quantity - line.receivedQuantity }))
-    .filter((entry) => entry.outstanding > 0)
-    .map(({ line, outstanding }) => ({
-      inventoryItemId: line.inventoryItemId ?? "",
-      quantity: String(outstanding),
-      unitCost: String(line.unitCost),
-      purchaseOrderLineId: line.id,
-      // Named here because a line ordered by name has no product chosen yet.
-      owed: `${line.inventoryItemId ? "" : `${line.itemName}: `}${line.quantity} ordered · ${line.receivedQuantity} came · ${outstanding} still to come`,
-    }));
-
-  return {
-    siteId: order.siteId || fallbackSiteId,
-    purchaseOrderId: order.id,
-    supplierName: order.supplierName,
-    notes: "",
-    lines: lines.length > 0 ? lines : [emptyLine()],
-    closeRest: false,
-  };
+  return { siteId, supplierName: "", notes: "", lines: [emptyLine()] };
 }
 
 /**
@@ -132,16 +73,13 @@ function formFromOrder(order: Order, fallbackSiteId: string): DeliveryForm {
  * Drawn as the products list is: the name in the app bar with the one verb,
  * search and the count in the toolbar, and a `ColumnList` under it — the GRN-
  * number, the supplier, and the site and order it came against, then when it
- * arrived and what it came to. A delivery has no record page and no verb of
- * its own once received. Arriving from an order's "Receive a delivery" opens
- * the form already filled with what that order is still owed.
+ * arrived and what it came to; each opens its record. A delivery against an
+ * order is received from the order (the Receive page, BUY-06); the dialog
+ * here takes in stock with no order, until BUY-08's intake sheet.
  */
 export default function RetailDeliveriesPage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const router = useRouter();
-  const searchParams = useSearchParams();
-  const orderIdParam = searchParams.get("orderId");
   const [search, setSearch] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [form, setForm] = useState<DeliveryForm>(() => emptyForm(""));
@@ -151,10 +89,6 @@ export default function RetailDeliveriesPage() {
   const inventoryQuery = useQuery({
     queryKey: ["retail-receipt-inventory"],
     queryFn: () => fetchInventoryItems({ limit: 500 }),
-  });
-  const ordersQuery = useQuery({
-    queryKey: ["retail-open-orders-for-receipts"],
-    queryFn: () => fetchJson<{ data: Order[] }>("/api/v2/retail/purchasing/orders"),
   });
   const deliveriesQuery = useQuery({
     queryKey: ["retail-receipts"],
@@ -169,7 +103,6 @@ export default function RetailDeliveriesPage() {
 
   const sites = useMemo(() => sitesQuery.data ?? [], [sitesQuery.data]);
   const inventory = useMemo(() => inventoryQuery.data?.data ?? [], [inventoryQuery.data]);
-  const orders = useMemo(() => ordersQuery.data?.data ?? [], [ordersQuery.data]);
   const deliveries = useMemo(() => deliveriesQuery.data?.data ?? [], [deliveriesQuery.data]);
 
   const rows = useMemo(() => {
@@ -190,42 +123,7 @@ export default function RetailDeliveriesPage() {
       })),
     [inventory],
   );
-  const orderOptions = useMemo<SearchableOption[]>(
-    () => [
-      { value: NO_ORDER, label: "No order" },
-      ...orders
-        .filter((order) => (order.status === "DRAFT" || order.status === "PARTIAL") && outstandingQuantity(order) > 0)
-        .map((order) => ({ value: order.id, label: order.poNo, description: order.supplierName })),
-    ],
-    [orders],
-  );
-
-  const linkedOrder = useMemo(
-    () => orders.find((order) => order.id === form.purchaseOrderId) ?? null,
-    [orders, form.purchaseOrderId],
-  );
-
-  const closeDialog = useCallback(() => {
-    setDialogOpen(false);
-    if (orderIdParam) router.replace("/retail/buying/deliveries");
-  }, [orderIdParam, router]);
-
-  // Arriving from an order: open the form already filled in with what that
-  // order is still owed. Adjusting state during render rather than in an
-  // effect — the prefill is derived from the URL, not synchronised with an
-  // outside system.
-  const [prefilledOrderId, setPrefilledOrderId] = useState<string | null>(null);
-  if (orderIdParam && ordersQuery.isSuccess && prefilledOrderId !== orderIdParam) {
-    setPrefilledOrderId(orderIdParam);
-    const order = orders.find((entry) => entry.id === orderIdParam);
-    if (order) {
-      setForm(formFromOrder(order, sites[0]?.id ?? ""));
-      setErrors([]);
-      setDialogOpen(true);
-    }
-  }
-  const unknownOrderRequested =
-    Boolean(orderIdParam) && ordersQuery.isSuccess && !orders.some((order) => order.id === orderIdParam);
+  const closeDialog = () => setDialogOpen(false);
 
   const setLine = (index: number, patch: Partial<LineForm>) =>
     setForm((current) => ({
@@ -239,7 +137,6 @@ export default function RetailDeliveriesPage() {
         method: "POST",
         body: JSON.stringify({
           receiptNo: receiptNo || undefined,
-          purchaseOrderId: payload.purchaseOrderId || undefined,
           siteId: payload.siteId,
           supplierName: payload.supplierName,
           notes: payload.notes.trim() || undefined,
@@ -247,9 +144,7 @@ export default function RetailDeliveriesPage() {
             inventoryItemId: line.inventoryItemId,
             quantity: Number(line.quantity),
             unitCost: Number(line.unitCost),
-            purchaseOrderLineId: payload.purchaseOrderId ? line.purchaseOrderLineId : null,
           })),
-          ...(payload.purchaseOrderId && payload.closeRest ? { closeRest: true } : {}),
         }),
       }),
     onSuccess: () => {
@@ -259,7 +154,6 @@ export default function RetailDeliveriesPage() {
       void queryClient.invalidateQueries({ queryKey: ["retail-purchase-order"] });
       void queryClient.invalidateQueries({ queryKey: ["inventory-items"] });
       void queryClient.invalidateQueries({ queryKey: ["retail-dashboard"] });
-      void queryClient.invalidateQueries({ queryKey: ["retail-open-orders-for-receipts"] });
       closeDialog();
       setForm(emptyForm(sites[0]?.id ?? ""));
     },
@@ -282,13 +176,10 @@ export default function RetailDeliveriesPage() {
   };
 
   const openBlank = () => {
-    if (orderIdParam) router.replace("/retail/buying/deliveries");
     setForm(emptyForm(sites[0]?.id ?? ""));
     setErrors([]);
     setDialogOpen(true);
   };
-
-  const orderNo = useMemo(() => new Map(orders.map((order) => [order.id, order.poNo])), [orders]);
 
   const narrowed = Boolean(search.trim());
   const empty = narrowed ? "No delivery matches that search." : "No deliveries yet.";
@@ -301,12 +192,9 @@ export default function RetailDeliveriesPage() {
         onSearchChange={setSearch}
         searchPlaceholder="Search by delivery number or supplier"
         count={deliveriesQuery.isSuccess ? `${rows.length} of ${deliveries.length}` : null}
-        createLabel="Receive a delivery"
+        createLabel="Take in stock"
         onCreate={openBlank}
         error={deliveriesQuery.error}
-        notice={
-          unknownOrderRequested ? <Alert tone="warn" title="That order is not on file" /> : null
-        }
       >
         {deliveriesQuery.isPending ? (
           <div className="space-y-1.5" aria-busy="true" style={{ maxWidth: WIDTH }}>
@@ -330,16 +218,13 @@ export default function RetailDeliveriesPage() {
                 id: delivery.id,
                 cells: {
                   delivery: (
-                    <ColumnName
-                      code={delivery.receiptNo}
-                      name={delivery.supplierName}
-                      meta={[
-                        delivery.site?.name ?? "No site",
-                        delivery.purchaseOrderId ? orderNo.get(delivery.purchaseOrderId) : null,
-                      ]
-                        .filter(Boolean)
-                        .join(" · ")}
-                    />
+                    <Link href={`/retail/buying/deliveries/${delivery.id}`}>
+                      <ColumnName
+                        code={delivery.receiptNo}
+                        name={delivery.supplierName}
+                        meta={[delivery.site?.name ?? "No site", delivery.poNo].filter(Boolean).join(" · ")}
+                      />
+                    </Link>
                   ),
                   received: <ColumnText>{formatRetailDate(delivery.createdAt)}</ColumnText>,
                   quantity: <ColumnFigure>{formatQuantity(delivery.totalQuantity)}</ColumnFigure>,
@@ -349,7 +234,7 @@ export default function RetailDeliveriesPage() {
             />
             {rows.length === 0 && !narrowed ? (
               <DsButton variant="primary" size="sm" onClick={openBlank}>
-                Receive a delivery
+                Take in stock
               </DsButton>
             ) : null}
           </div>
@@ -359,7 +244,7 @@ export default function RetailDeliveriesPage() {
       <RecordDialog
         open={dialogOpen}
         onOpenChange={(open) => (open ? setDialogOpen(true) : closeDialog())}
-        title={linkedOrder ? `Receive against ${linkedOrder.poNo}` : "Receive a delivery"}
+        title="Take in stock with no order"
         size="lg"
         onSubmit={submit}
         errors={errors}
@@ -375,20 +260,6 @@ export default function RetailDeliveriesPage() {
         }
       >
         <div className="grid gap-4 sm:grid-cols-2">
-          <FormField label="Order">
-            <SearchableSelect
-              value={form.purchaseOrderId}
-              options={orderOptions}
-              placeholder="No order"
-              searchPlaceholder="Search orders"
-              onValueChange={(value) => {
-                const order = orders.find((entry) => entry.id === value);
-                setForm((current) =>
-                  order ? formFromOrder(order, current.siteId) : { ...current, purchaseOrderId: value },
-                );
-              }}
-            />
-          </FormField>
           <FormField label="Site">
             {(id) => (
               <Select
@@ -463,9 +334,6 @@ export default function RetailDeliveriesPage() {
               >
                 <Trash2 className="h-4 w-4" />
               </Button>
-              {line.owed ? (
-                <p className="col-span-4 text-xs text-[var(--text-muted)]">{line.owed}</p>
-              ) : null}
             </div>
           ))}
           <Button
@@ -478,16 +346,6 @@ export default function RetailDeliveriesPage() {
             Add a product
           </Button>
         </div>
-
-        {linkedOrder ? (
-          <label className="flex items-center gap-2 text-sm text-[var(--text-strong)]">
-            <Checkbox
-              checked={form.closeRest}
-              onCheckedChange={(checked) => setForm((current) => ({ ...current, closeRest: checked === true }))}
-            />
-            Nothing more is coming on {linkedOrder.poNo}: close the rest
-          </label>
-        ) : null}
 
         <FormField label="Notes">
           {(id) => (

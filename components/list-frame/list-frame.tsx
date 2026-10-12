@@ -115,9 +115,14 @@ export type ListFrameProps = {
    * filter, and the header reads the record's name as the title and its words as the sub.
    */
   parent?: { key: string; value: string };
+  /**
+   * With `parent`: the page keeps its own title ("Points movements") and the record's name is the
+   * back link's label ("‹ Tapiwa Marange"); the record's words are still the sub.
+   */
+  keepTitle?: boolean;
 };
 
-export function ListFrame({ source, title, sub, rowFilters, defaultSort, defaultGroup, back, parent: scope }: ListFrameProps) {
+export function ListFrame({ source, title, sub, rowFilters, defaultSort, defaultGroup, back, parent: scope, keepTitle }: ListFrameProps) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -185,7 +190,7 @@ export function ListFrame({ source, title, sub, rowFilters, defaultSort, default
   // ── The address ──────────────────────────────────────────────────────
   const defaults = React.useMemo(
     () => ({
-      tab: spec?.tabs?.[0]?.key ?? null,
+      tab: spec?.defaultTab ?? spec?.tabs?.[0]?.key ?? null,
       sort: defaultSort ?? spec?.sorts[0]?.key,
       group: defaultGroup !== undefined ? defaultGroup : (spec?.defaultGroup ?? null),
       // Against the choices made, so a period picked under "Needs sign-off" stays on the address.
@@ -592,9 +597,9 @@ export function ListFrame({ source, title, sub, rowFilters, defaultSort, default
     : null;
   const chrome = (
     <PageChrome
-      title={scope ? (parent?.label ?? title) : title}
+      title={scope && !keepTitle ? (parent?.label ?? title) : title}
       backHref={back?.href}
-      backLabel={back?.label}
+      backLabel={scope && keepTitle ? (parent?.label ?? back?.label) : back?.label}
       sub={sub ?? (scope ? parent?.sub : parent?.label) ?? definition?.list?.sub ?? null}
       subLink={clearParent ?? (refusal ? null : sheetLink)}
       primary={refusal ? null : primary}
@@ -756,6 +761,7 @@ export function ListFrame({ source, title, sub, rowFilters, defaultSort, default
             spec={spec}
             query={resolved}
             tabCounts={data?.tabs ?? null}
+            tabSums={data?.tabSums ?? null}
             onTab={(tab) => write({ tab })}
             onFilter={(key, value) => write({ filters: { [key]: value } })}
             onSort={(sort) => write({ sort })}
@@ -823,7 +829,7 @@ export function ListFrame({ source, title, sub, rowFilters, defaultSort, default
     <div ref={rootRef} className="cx-lf">
       {chrome}
       {dialogs}
-      {spec && !everEmpty ? <ListTabs spec={spec} tab={resolved?.tab ?? null} counts={data?.tabs ?? null} onTab={(tab) => write({ tab })} /> : null}
+      {spec && !everEmpty ? <ListTabs spec={spec} tab={resolved?.tab ?? null} counts={data?.tabs ?? null} sums={data?.tabSums ?? null} onTab={(tab) => write({ tab })} /> : null}
       {everEmpty ? null : (
         <div className="cx-lf-bar">
           {selectionBar ??

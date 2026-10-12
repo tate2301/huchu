@@ -1,0 +1,230 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<title>The floor overview</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Next:wght@400;500;600&amp;family=IBM+Plex+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+.th{--surface:#ffffff;--ground:#faf7f4;--hover:#fbf8f5;--tray:#f3eee9;--active:#efe8e2;--line:#ece6e0;--line-soft:#f3eee9;--line-strong:#ddd4cc;--ink:#24140e;--ink-2:#4a3a33;--muted:#75675f;--faint:#a89c94;--accent:#e8620f;--accent-fill:#b84a0c;--data:#4b5363;--ok:#17734c;--ok-soft:#e7f4ee;--info:#3d4fb8;--info-soft:#eceefb;--warn:#8a5a10;--warn-soft:#fbf1dc;--warn-dot:#e0a21a;--warn-line:#e8cf9a;--bad:#a3122f;--bad-soft:#fbe8ec;--bad-dot:#c8203f;--s1:#1baf7a;--s2:#2a78d6;--s3:#e87ba4;--s4:#4a3aa7;--float:0 0 0 1px #ece6e0,0 14px 30px -18px rgba(36,20,14,.3)}
+.th button:focus-visible,.th a:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
+.lk{color:var(--ink-2);text-decoration:underline;text-decoration-color:var(--line-strong);text-underline-offset:3px}
+.rw:hover{background:var(--hover)}
+.c{min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+</style>
+</helmet>
+<div class="th" style="width: 100%; height: 1460px; display: flex; overflow: hidden; background: var(--ground); color: var(--ink); font-family: 'Atkinson Hyperlegible Next', system-ui, sans-serif; font-size: 13px;">
+
+  <nav aria-label="Modules" style="width: 56px; flex: none; display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 8px 0; background: var(--surface); border-right: 1px solid var(--line); box-sizing: border-box;">
+<div style="width: 32px; height: 32px; border-radius: 8px; background: var(--ink); color: #ffffff; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 600; margin-bottom: 8px;">HC</div>
+<a href="Floor.dc.html" aria-label="The floor" style="width: 36px; height: 36px; border-radius: 8px; background: var(--active); color: var(--ink); display: flex; align-items: center; justify-content: center;"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M4 4h16l1.2 5a3 3 0 0 1-2.2 2.9V20H5v-8.1A3 3 0 0 1 2.8 9zm6 10v6h4v-6z"></path></svg></a>
+<a href="ProductsList.dc.html" aria-label="Products" style="width: 36px; height: 36px; border-radius: 8px; background: transparent; color: var(--muted); display: flex; align-items: center; justify-content: center;"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M3 3h9l9 9-9 9-9-9zm5 3.5a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3z"></path></svg></a>
+<a href="StockList.dc.html" aria-label="Stock" style="width: 36px; height: 36px; border-radius: 8px; background: transparent; color: var(--muted); display: flex; align-items: center; justify-content: center;"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M12 2 2 7l10 5 10-5zM3.6 11.2 2 12l10 5 10-5-1.6-.8-8.4 4.2zm0 5L2 17l10 5 10-5-1.6-.8-8.4 4.2z"></path></svg></a>
+<a href="OrdersList.dc.html" aria-label="Buying" style="width: 36px; height: 36px; border-radius: 8px; background: transparent; color: var(--muted); display: flex; align-items: center; justify-content: center;"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M4 3h16a1 1 0 0 1 1 1v16a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1zm1 10v6h14v-6h-4l-1.5 2h-3L9 13z"></path></svg></a>
+<a href="InsightsSales.dc.html" aria-label="Insights" style="width: 36px; height: 36px; border-radius: 8px; background: transparent; color: var(--muted); display: flex; align-items: center; justify-content: center;"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M3 20h18v2H3zM5 10h3v8H5zm5.5-6h3v14h-3zM16 13h3v5h-3z"></path></svg></a>
+<a href="ReportsList.dc.html" aria-label="Reports" style="width: 36px; height: 36px; border-radius: 8px; background: transparent; color: var(--muted); display: flex; align-items: center; justify-content: center;"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M5 2h10l4 4v16H5zm9 1.5V7h3.5zM8 11v1.6h8V11zm0 3.4v1.6h8v-1.6zm0 3.4v1.6h5v-1.6z"></path></svg></a>
+<div style="flex: 1;"></div>
+<a href="CompanySettings.dc.html" aria-label="Management" style="width: 36px; height: 36px; border-radius: 8px; background: transparent; color: var(--muted); display: flex; align-items: center; justify-content: center;"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M10.5 2h3l.5 2.6 2 .9 2.3-1.4 2.1 2.1-1.4 2.3.9 2 2.6.5v3l-2.6.5-.9 2 1.4 2.3-2.1 2.1-2.3-1.4-2 .9-.5 2.6h-3l-.5-2.6-2-.9-2.3 1.4-2.1-2.1 1.4-2.3-.9-2L2 13.5v-3l2.6-.5.9-2-1.4-2.3 2.1-2.1 2.3 1.4 2-.9zM12 8.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7z"></path></svg></a>
+</nav>
+<nav aria-label="The floor" style="width: 240px; flex: none; display: flex; flex-direction: column; background: var(--ground); border-right: 1px solid var(--line); box-sizing: border-box;">
+<div style="height: 48px; display: flex; align-items: center; gap: 8px; padding: 0 12px;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" style="color: var(--muted);"><path d="m15 18-6-6 6-6"></path></svg><span style="font-size: 14px; font-weight: 600;">The floor</span></div>
+<div style="display: flex; flex-direction: column; gap: 2px; padding: 4px 10px;">
+<a href="Floor.dc.html" aria-current="page" style="height: 34px; display: flex; align-items: center; gap: 10px; padding: 0 10px; border-radius: 8px; color: var(--ink); background: var(--active); font-weight: 600; text-decoration: none;"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M6 5h12a3 3 0 0 1 3 3v8a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3V8a3 3 0 0 1 3-3z"></path></svg>Overview</a>
+<a href="SalesList.dc.html" style="height: 34px; display: flex; align-items: center; gap: 10px; padding: 0 10px; border-radius: 8px; color: var(--ink); background: transparent; font-weight: 400; text-decoration: none;"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M6 3h12a1 1 0 0 1 1 1v17l-3-2-2 2-2-2-2 2-2-2-3 2V4a1 1 0 0 1 1-1z"></path></svg>Sales</a>
+<a href="Main.dc.html" style="height: 34px; display: flex; align-items: center; gap: 10px; padding: 0 10px; border-radius: 8px; color: var(--ink); background: transparent; font-weight: 400; text-decoration: none;"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M6 5h12a3 3 0 0 1 3 3v8a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3V8a3 3 0 0 1 3-3z"></path></svg>Shifts</a>
+<a href="LaybysList.dc.html" style="height: 34px; display: flex; align-items: center; gap: 10px; padding: 0 10px; border-radius: 8px; color: var(--ink); background: transparent; font-weight: 400; text-decoration: none;"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M12 2 3 6.5v11L12 22l9-4.5v-11zm0 2.2 6.6 3.3L12 10.8 5.4 7.5z"></path></svg>Lay-bys</a>
+<a href="EndOfDay.dc.html" style="height: 34px; display: flex; align-items: center; gap: 10px; padding: 0 10px; border-radius: 8px; color: var(--ink); background: transparent; font-weight: 400; text-decoration: none;"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M12 2a10 10 0 1 1 0 20 10 10 0 0 1 0-20zm-1 5v6l5 3 1-1.7-4-2.3V7z"></path></svg>End of day</a>
+<a href="CustomersList.dc.html" style="height: 34px; display: flex; align-items: center; gap: 10px; padding: 0 10px; border-radius: 8px; color: var(--ink); background: transparent; font-weight: 400; text-decoration: none;"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M9 4.5a3.5 3.5 0 1 1 0 7 3.5 3.5 0 0 1 0-7zM17 6.5a2.5 2.5 0 1 1 0 5 2.5 2.5 0 0 1 0-5zM2 19a7 7 0 0 1 14 0zm13 0a6 6 0 0 0-1.5-4 5 5 0 0 1 8.5 4z"></path></svg>Customers</a>
+<a href="AccountsList.dc.html" style="height: 34px; display: flex; align-items: center; gap: 10px; padding: 0 10px; border-radius: 8px; color: var(--ink); background: transparent; font-weight: 400; text-decoration: none;"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M6 5h12a3 3 0 0 1 3 3v8a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3V8a3 3 0 0 1 3-3z"></path></svg>Accounts</a>
+</div></nav>
+
+  <main style="flex: 1; min-width: 0; display: flex; flex-direction: column; background: var(--ground);">
+    <header style="height: 48px; flex: none; display: flex; align-items: center; gap: 10px; padding: 0 16px; border-bottom: 1px solid var(--line); background: var(--surface); box-sizing: border-box;">
+      <h1 style="margin: 0; font-size: 15px; font-weight: 600;">Overview</h1>
+      <div style="flex: 1;"></div>
+      <a href="ShiftOpen.dc.html" style="text-decoration: none; height: 32px; display: flex; align-items: center; gap: 8px; padding: 0 14px; border: 0; border-radius: 8px; background: var(--accent-fill); color: #ffffff; font-weight: 600;"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M10.75 4h2.5v6.75H20v2.5h-6.75V20h-2.5v-6.75H4v-2.5h6.75z"></path></svg>Open shift</a>
+    </header>
+    <div role="toolbar" aria-label="Overview" style="height: 48px; flex: none; display: flex; align-items: center; gap: 8px; padding: 0 16px; border-bottom: 1px solid var(--line); background: var(--surface); box-sizing: border-box;">
+      <div role="group" aria-label="Period" style="display: flex;">
+        <sc-for list="{{periods}}" as="p" hint-placeholder-count="3">
+          <button onClick="{{p.pick}}" aria-pressed="{{p.on}}" style="height: 32px; padding: 0 12px; margin-left: -1px; border: 1px solid var(--line); border-radius: {{p.radius}}; background: {{p.bg}}; color: {{p.fg}}; font: inherit; font-weight: {{p.weight}};">{{p.label}}</button>
+        </sc-for>
+      </div>
+      <button style="height: 32px; display: flex; align-items: center; gap: 6px; padding: 0 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--ink); font: inherit;"><span style="color: var(--muted);">Site</span><span style="font-weight: 600;">Harare Main Branch</span><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true" style="color: var(--muted);"><path d="m6 9 6 6 6-6"></path></svg></button>
+      <div style="flex: 1;"></div>
+      <span style="display: flex; align-items: center; gap: 6px; color: var(--muted);"><span style="width: 6px; height: 6px; border-radius: 99px; background: var(--ok); box-shadow: 0 0 0 3px var(--ok-soft);"></span>Live · Saturday 3 October 2026 · <span style="font-family: 'IBM Plex Mono', monospace;">14:42</span></span>
+    </div>
+
+    <div style="flex: 1; min-height: 0; overflow: auto; padding: 20px 24px 32px; box-sizing: border-box; display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 16px; align-content: start;">
+
+      <section aria-labelledby="k1" style="grid-column: span 6; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 20px; display: flex; flex-direction: column; gap: 6px;">
+        <h2 id="k1" style="margin: 0; font-size: 13px; font-weight: 500; color: var(--muted);">Takings today <span style="display: block; margin-top: 6px; font-family: 'IBM Plex Mono', monospace; font-size: 34px; font-weight: 600; letter-spacing: -0.02em; color: var(--ink);">US$1,284.60</span></h2>
+        <span style="display: flex; align-items: center; gap: 8px; font-size: 13px;"><span style="font-family: 'IBM Plex Mono', monospace; font-weight: 500; color: var(--ok); background: var(--ok-soft); padding: 1px 6px; border-radius: 6px;">+8.2%</span><span style="color: var(--muted);">on last Saturday by this hour (US$1,187.20)</span></span>
+        <svg viewBox="0 0 520 72" preserveAspectRatio="none" style="width: 100%; height: 72px; margin-top: 8px;" role="img" aria-label="Takings by hour today, rising to a peak at 12:00">
+          <polyline points="{{lastWeek}}" fill="none" stroke="#c9c0b8" stroke-width="1.5" stroke-dasharray="4 4" vector-effect="non-scaling-stroke"></polyline>
+          <polygon points="{{todayArea}}" fill="#4b5363" fill-opacity="0.10"></polygon>
+          <polyline points="{{today}}" fill="none" stroke="#4b5363" stroke-width="2" stroke-linejoin="round" vector-effect="non-scaling-stroke"></polyline>
+        </svg>
+        <div style="display: flex; justify-content: space-between; font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: var(--muted);"><span>07:00</span><span>10:00</span><span>13:00</span><span>16:00</span><span>19:00</span></div>
+        <div style="display: flex; gap: 16px; font-size: 12px; color: var(--muted);"><span style="display: flex; align-items: center; gap: 6px;"><span style="width: 14px; height: 2px; background: #4b5363;"></span>Today</span><span style="display: flex; align-items: center; gap: 6px;"><span style="width: 14px; height: 0; border-top: 2px dashed #c9c0b8;"></span>Last Saturday</span></div>
+      </section>
+      <sc-for list="{{kpis}}" as="k" hint-placeholder-count="3">
+        <section style="grid-column: span 2; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 20px; display: flex; flex-direction: column; gap: 6px;">
+          <h2 style="margin: 0; font-size: 13px; font-weight: 500; color: var(--muted);">{{k.label}} <span style="display: block; margin-top: 6px; font-family: 'IBM Plex Mono', monospace; font-size: 24px; font-weight: 600; letter-spacing: -0.02em; color: var(--ink);">{{k.value}}</span></h2>
+          <span style="font-size: 12.5px; color: var(--muted); line-height: 1.4;"><span style="font-family: 'IBM Plex Mono', monospace; color: {{k.deltaFg}};">{{k.delta}}</span> {{k.note}}</span>
+          <div style="flex: 1;"></div>
+          <div style="display: flex; align-items: flex-end; gap: 3px; height: 40px;" aria-hidden="true">
+            <sc-for list="{{k.bars}}" as="b" hint-placeholder-count="7"><span style="flex: 1; height: {{b.h}}; background: {{b.c}}; border-radius: 3px 3px 0 0;"></span></sc-for>
+          </div>
+          <span style="font-size: 11px; color: var(--muted);">Last 7 days</span>
+        </section>
+      </sc-for>
+
+      <section aria-labelledby="na" style="grid-column: span 7; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; overflow: hidden;">
+        <div style="height: 48px; display: flex; align-items: center; gap: 8px; padding: 0 16px; border-bottom: 1px solid var(--line); background: var(--ground);"><h2 id="na" style="margin: 0; font-size: 14px; font-weight: 600;">Needs action</h2><span style="height: 20px; padding: 0 7px; border-radius: 6px; background: var(--bad-soft); color: var(--bad); font-family: 'IBM Plex Mono', monospace; font-size: 12px; display: flex; align-items: center;">6</span></div>
+        <sc-for list="{{actions}}" as="a" hint-placeholder-count="6">
+          <a href="{{a.href}}" class="rw" style="display: grid; grid-template-columns: 20px minmax(0, 1fr) auto 16px; align-items: center; gap: 12px; min-height: 52px; padding: 8px 16px; border-bottom: 1px solid var(--line-soft); color: inherit; text-decoration: none; box-sizing: border-box;">
+            <span style="width: 8px; height: 8px; border-radius: 99px; background: {{a.dot}}; justify-self: center;"></span>
+            <span style="display: flex; flex-direction: column; gap: 2px; min-width: 0;"><span class="c" style="font-weight: 500;">{{a.title}}</span><span class="c" style="font-size: 12.5px; color: var(--muted);">{{a.meta}}</span></span>
+            <span style="font-family: 'IBM Plex Mono', monospace; font-weight: 500; color: {{a.fg}};">{{a.figure}}</span>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true" style="color: var(--faint);"><path d="m9 18 6-6-6-6"></path></svg>
+          </a>
+        </sc-for>
+      </section>
+
+      <section aria-labelledby="tn" style="grid-column: span 5; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; overflow: hidden;">
+        <div style="height: 48px; display: flex; align-items: center; gap: 8px; padding: 0 16px; border-bottom: 1px solid var(--line); background: var(--ground);"><h2 id="tn" style="margin: 0; font-size: 14px; font-weight: 600;">Tills now</h2><span style="height: 20px; padding: 0 7px; border-radius: 6px; background: var(--tray); color: var(--ink-2); font-family: 'IBM Plex Mono', monospace; font-size: 12px; display: flex; align-items: center;">3</span><span style="flex: 1;"></span><a href="#" class="lk">Shifts</a></div>
+        <sc-for list="{{tills}}" as="t" hint-placeholder-count="3">
+          <div style="display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 12px; padding: 14px 16px; border-bottom: 1px solid var(--line-soft);">
+            <span style="display: flex; align-items: center; gap: 8px; min-width: 0;"><span style="font-weight: 600;">{{t.name}}</span><span style="display: inline-flex; align-items: center; gap: 6px; height: 22px; padding: 0 8px; border-radius: 6px; font-size: 12px; font-weight: 500; background: {{t.bg}}; color: {{t.fg}};"><span style="width: 7px; height: 7px; border-radius: 99px; background: {{t.dot}};"></span>{{t.state}}</span></span>
+            <span style="font-family: 'IBM Plex Mono', monospace; font-weight: 600; text-align: right;">{{t.takings}}</span>
+            <span class="c" style="font-size: 12.5px; color: var(--muted);">{{t.meta}}</span>
+            <span style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: var(--muted); text-align: right;">{{t.sales}}</span>
+          </div>
+        </sc-for>
+      </section>
+
+      <section aria-labelledby="bd" style="grid-column: span 8; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; display: flex; flex-direction: column;">
+        <div style="height: 48px; display: flex; align-items: center; gap: 8px; padding: 0 16px; border-bottom: 1px solid var(--line); background: var(--ground);"><h2 id="bd" style="margin: 0; font-size: 14px; font-weight: 600;">Takings by day</h2><span style="color: var(--muted);">last 30 days</span><span style="flex: 1;"></span><span style="font-family: 'IBM Plex Mono', monospace; font-weight: 600;">US$34,918.40</span></div>
+        <div style="position: relative; padding: 20px 16px 12px 56px; height: 236px; box-sizing: border-box;">
+          <div aria-hidden="true" style="position: absolute; left: 16px; right: 16px; top: 20px; bottom: 36px; display: flex; flex-direction: column; justify-content: space-between; font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: var(--muted);">
+            <span style="border-bottom: 1px dashed var(--line); line-height: 0;">2k</span><span style="border-bottom: 1px dashed var(--line); line-height: 0;">1.5k</span><span style="border-bottom: 1px dashed var(--line); line-height: 0;">1k</span><span style="border-bottom: 1px dashed var(--line); line-height: 0;">500</span><span style="border-bottom: 1px solid var(--line-strong); line-height: 0;">0</span>
+          </div>
+          <div role="img" aria-label="Takings by day for the last 30 days" style="position: relative; height: 180px; display: flex; align-items: flex-end; gap: 2px;">
+            <sc-for list="{{days}}" as="d" hint-placeholder-count="30">
+              <span onMouseEnter="{{d.hover}}" onMouseLeave="{{unhover}}" style="flex: 1; height: 100%; display: flex; align-items: flex-end; cursor: default;"><span style="width: 100%; height: {{d.h}}; background: {{d.c}}; border-radius: 4px 4px 0 0;"></span></span>
+            </sc-for>
+            <sc-if value="{{hasHover}}" hint-placeholder-val="{{ false }}">
+              <div style="position: absolute; top: -8px; left: {{tipLeft}}; transform: translateX(-50%); padding: 8px 10px; background: var(--surface); border-radius: 8px; box-shadow: var(--float); white-space: nowrap; pointer-events: none; display: flex; flex-direction: column; gap: 2px;"><span style="font-size: 12px; color: var(--muted);">{{tip.day}}</span><span style="font-family: 'IBM Plex Mono', monospace; font-weight: 600;">{{tip.value}}</span><span style="font-size: 12px; color: var(--muted);"><span style="font-family: 'IBM Plex Mono', monospace;">{{tip.sales}}</span> sales</span></div>
+            </sc-if>
+          </div>
+          <div style="display: flex; justify-content: space-between; margin-top: 8px; font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: var(--muted);"><span>4 Sep</span><span>11 Sep</span><span>18 Sep</span><span>25 Sep</span><span>3 Oct</span></div>
+        </div>
+      </section>
+
+      <section aria-labelledby="tm" style="grid-column: span 4; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; overflow: hidden;">
+        <div style="height: 48px; display: flex; align-items: center; gap: 8px; padding: 0 16px; border-bottom: 1px solid var(--line); background: var(--ground);"><h2 id="tm" style="margin: 0; font-size: 14px; font-weight: 600;">How people paid today</h2></div>
+        <div style="padding: 20px 16px; display: flex; flex-direction: column; gap: 16px;">
+          <div role="img" aria-label="Cash 41 percent, EcoCash 34 percent, card 15 percent, ZiG 10 percent" style="display: flex; gap: 2px; height: 16px;">
+            <span style="width: 41%; background: var(--s1); border-radius: 4px 0 0 4px;"></span><span style="width: 34%; background: var(--s2);"></span><span style="width: 15%; background: var(--s3);"></span><span style="width: 10%; background: var(--s4); border-radius: 0 4px 4px 0;"></span>
+          </div>
+          <sc-for list="{{mix}}" as="m" hint-placeholder-count="4">
+            <div style="display: grid; grid-template-columns: 12px minmax(0, 1fr) auto 44px; align-items: center; gap: 10px;">
+              <span style="width: 10px; height: 10px; border-radius: 3px; background: {{m.c}};"></span><span>{{m.name}}</span><span style="font-family: 'IBM Plex Mono', monospace; font-weight: 500;">{{m.value}}</span><span style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: var(--muted); text-align: right;">{{m.pct}}</span>
+            </div>
+          </sc-for>
+        </div>
+      </section>
+
+      <sc-for list="{{lists}}" as="l" hint-placeholder-count="3">
+        <section style="grid-column: span 4; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; overflow: hidden;">
+          <div style="height: 48px; display: flex; align-items: center; gap: 8px; padding: 0 16px; border-bottom: 1px solid var(--line); background: var(--ground);"><h2 style="margin: 0; font-size: 14px; font-weight: 600;">{{l.title}}</h2><span style="color: var(--muted);">{{l.when}}</span><span style="flex: 1;"></span><a href="#" class="lk">{{l.link}}</a></div>
+          <div style="display: grid; grid-template-columns: minmax(0, 1fr) auto; padding: 8px 16px 0; font-size: 12px; color: var(--muted);"><span>{{l.h1}}</span><span>{{l.h2}}</span></div>
+          <sc-for list="{{l.rows}}" as="r" hint-placeholder-count="5">
+            <div style="display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 12px; padding: 10px 16px; border-bottom: 1px solid var(--line-soft);">
+              <span class="c" style="font-weight: 500;">{{r.name}}</span>
+              <span style="font-family: 'IBM Plex Mono', monospace; font-weight: 500; text-align: right; color: {{r.fg}};">{{r.value}}</span>
+              <span style="height: 4px; border-radius: 2px; background: var(--tray); overflow: hidden; align-self: center;"><span style="display: block; height: 100%; width: {{r.w}}; background: {{r.bar}}; border-radius: 2px;"></span></span>
+              <span style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: var(--muted); text-align: right;">{{r.meta}}</span>
+            </div>
+          </sc-for>
+        </section>
+      </sc-for>
+    </div>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1460}}'>
+class Component extends DCLogic {
+  constructor(props) { super(props); this.state = { period: 'today', hover: -1 }; }
+  renderVals() {
+    var self = this;
+    function money(n) { return 'US$' + n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+    var hourly = [12, 48, 96, 150, 182, 205, 176, 140, 118, 97];
+    var lastWk = [10, 40, 90, 140, 170, 190, 168, 150, 130, 110, 96, 60, 30];
+    function pts(arr, n) { return arr.map(function (v, i) { return (i * 520 / (n - 1)).toFixed(1) + ',' + (70 - v / 220 * 66).toFixed(1); }).join(' '); }
+    var today = pts(hourly, 13);
+    var area = '0,72 ' + today + ' ' + (9 * 520 / 12).toFixed(1) + ',72';
+    var periods = [['today', 'Today'], ['week', 'This week'], ['month', 'This month']].map(function (p, i) {
+      var on = self.state.period === p[0];
+      return { label: p[1], on: on ? 'true' : 'false', bg: on ? 'var(--active)' : 'var(--surface)', fg: on ? 'var(--ink)' : 'var(--ink-2)', weight: on ? '600' : '400', radius: i === 0 ? '8px 0 0 8px' : (i === 2 ? '0 8px 8px 0' : '0'), pick: function () { self.setState({ period: p[0] }); } };
+    });
+    function bars(arr) { var mx = Math.max.apply(null, arr); return arr.map(function (v, i) { return { h: Math.round(v / mx * 100) + '%', c: i === arr.length - 1 ? '#4b5363' : '#c9c0b8' }; }); }
+    var kpis = [
+      { label: 'Sales', value: '142', delta: '+11', deltaFg: 'var(--ok)', note: 'on last Saturday', bars: bars([118, 96, 104, 121, 133, 160, 142]) },
+      { label: 'Average basket', value: 'US$9.05', delta: '−US$0.31', deltaFg: 'var(--bad)', note: 'on last Saturday', bars: bars([9.4, 9.1, 8.8, 9.2, 9.5, 9.36, 9.05]) },
+      { label: 'Gross margin', value: '31.4%', delta: '+0.6 pts', deltaFg: 'var(--ok)', note: 'on last Saturday', bars: bars([30.2, 30.9, 31.0, 30.4, 30.8, 30.8, 31.4]) }
+    ];
+    var actions = [
+      { href: 'ShiftClose.dc.html', title: 'Back till open for 52 hours', meta: 'SH-00240 · Farai Moyo · not cashed up since 17 Aug', figure: 'US$72.95', fg: 'var(--ink)', dot: 'var(--warn-dot)' },
+      { href: 'SignOff.dc.html', title: 'Three drawers short this week', meta: 'Chipo Dube twice, Farai Moyo once', figure: '−US$15.79', fg: 'var(--bad)', dot: 'var(--bad-dot)' },
+      { href: 'StockList.dc.html', title: 'Seven products below reorder level', meta: 'Jameson 750ml has 9 left, about 2 days', figure: '7', fg: 'var(--ink)', dot: 'var(--warn-dot)' },
+      { href: 'TillsList.dc.html', title: 'Two receipts not yet fiscalised', meta: 'Kora handheld offline since 13:58 · will send on reconnect', figure: '2', fg: 'var(--ink)', dot: 'var(--warn-dot)' },
+      { href: 'Receive.dc.html', title: 'Purchase order PO-0031 due today', meta: 'Delta Beverages · 14 lines · not yet received', figure: 'US$1,940.00', fg: 'var(--ink)', dot: 'var(--info)' },
+      { href: 'PromotionRecord.dc.html', title: 'Promotion ends tomorrow', meta: 'Castle Lager case of 24 at US$24.00', figure: '1', fg: 'var(--ink)', dot: 'var(--info)' }
+    ];
+    var tills = [
+      { name: 'Front till', state: 'Open', bg: 'var(--info-soft)', fg: 'var(--info)', dot: 'var(--info)', meta: 'Chipo Dube · since 07:58 · float US$200.00', takings: money(842.15), sales: '91 sales' },
+      { name: 'Back till', state: 'Open 52h', bg: 'var(--warn-soft)', fg: 'var(--warn)', dot: 'var(--warn-dot)', meta: 'Farai Moyo · since 17 Aug 11:18 · needs closing', takings: money(72.95), sales: '11 sales' },
+      { name: 'Kora handheld', state: 'Offline', bg: 'var(--tray)', fg: 'var(--ink-2)', dot: 'var(--faint)', meta: 'Tendai · at the door · last seen 13:58', takings: money(369.50), sales: '40 sales' }
+    ];
+    var raw = [];
+    for (var i = 0; i < 30; i++) { var dow = (i + 5) % 7; raw.push(Math.round(80000 + ((i * 7919) % 50000) + (dow === 5 || dow === 6 ? 45000 : 0)) / 100); }
+    raw[29] = 1284.6;
+    var mx = 2000;
+    var hv = this.state.hover;
+    var days = raw.map(function (v, i) {
+      var d = new Date(2026, 8, 4 + i);
+      return { h: (v / mx * 100).toFixed(1) + '%', c: i === hv ? 'var(--ink)' : (i === 29 ? '#4b5363' : '#8a93a3'), hover: function () { self.setState({ hover: i }); }, label: d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' }), value: v };
+    });
+    var tip = hv >= 0 ? { day: days[hv].label + (hv === 29 ? ' · so far' : ''), value: money(days[hv].value), sales: String(Math.round(days[hv].value / 9.1)) } : { day: '', value: '', sales: '' };
+    var mix = [
+      { name: 'Cash', c: 'var(--s1)', value: money(526.69), pct: '41%' },
+      { name: 'EcoCash', c: 'var(--s2)', value: money(436.76), pct: '34%' },
+      { name: 'Card', c: 'var(--s3)', value: money(192.69), pct: '15%' },
+      { name: 'ZiG', c: 'var(--s4)', value: money(128.46), pct: '10%' }
+    ];
+    function rows(arr, max, color) { return arr.map(function (r) { return { name: r[0], value: r[1], meta: r[2], w: Math.round(r[3] / max * 100) + '%', bar: r[4] || color, fg: r[5] || 'var(--ink)' }; }); }
+    var lists = [
+      { title: 'Top products', when: 'today', link: 'Sales', h1: 'Product', h2: 'Takings', rows: rows([
+        ['Castle Lager case of 24', money(212.0), '8 cases', 212], ['Johnnie Walker Black 750ml', money(126.0), '3 bottles', 126], ['Chibuku Scud 1L', money(92.4), '84 cartons', 92.4], ['Coca-Cola 500ml', money(54.0), '72 bottles', 54], ['Amarula Cream 750ml', money(54.75), '3 bottles', 54.75]], 212, '#4b5363') },
+      { title: 'Stock to reorder', when: 'below level', link: 'Stock', h1: 'Product', h2: 'On hand', rows: rows([
+        ['Johnnie Walker Black 750ml', '6 left', 'reorder at 12', 6, 'var(--warn-dot)', 'var(--warn)'], ['Jameson Irish Whiskey 750ml', '9 left', 'reorder at 12', 9, 'var(--warn-dot)', 'var(--warn)'], ['Amarula Cream 750ml', '13 left', 'reorder at 12 · 6 days', 13, '#4b5363'], ['Gordon’s Gin 750ml', '18 left', 'reorder at 18', 18, 'var(--warn-dot)', 'var(--warn)'], ['Castle Lager case of 24', '22 left', 'reorder at 20', 22, '#4b5363']], 24, '#4b5363') },
+      { title: 'Cashiers', when: 'this week', link: 'Shifts', h1: 'Cashier', h2: 'Takings', rows: rows([
+        ['Chipo Dube', money(3412.6), '5 shifts · −US$7.65', 3412.6], ['Farai Moyo', money(2780.15), '4 shifts · −US$8.14', 2780.15], ['Tafara Nyathi', money(1690.4), '3 shifts · balanced', 1690.4], ['Tendai Mhlanga', money(1105.0), 'Kora · 2 shifts', 1105]], 3412.6, '#4b5363') }
+    ];
+    return {
+      today: today, todayArea: area, lastWeek: pts(lastWk, 13), periods: periods, kpis: kpis, actions: actions, tills: tills,
+      days: days, hasHover: hv >= 0, tip: tip, tipLeft: ((hv + 0.5) / 30 * 100).toFixed(1) + '%',
+      unhover: function () { self.setState({ hover: -1 }); }, mix: mix, lists: lists
+    };
+  }
+}
+</script>
+</body>
+</html>

@@ -111,12 +111,13 @@ describe("Every template, as each person sees it", () => {
     signIn("tafara");
     const page = await list();
     expect(page.status).toBe(200);
-    expect(page.body.tabs).toEqual({ all: 9, "built-in": 6, team: 3, mine: 1 });
-    expect(page.body.total).toBe(9);
+    expect(page.body.tabs).toEqual({ all: 11, "built-in": 8, team: 3, mine: 1 });
+    expect(page.body.total).toBe(11);
     expect(page.body.groups?.map((group) => [group.label, group.count])).toEqual([
       ["Selling", 1],
       ["Stock", 5],
-      ["Money", 1],
+      ["Customers", 1],
+      ["Money", 2],
       ["The floor", 2],
     ]);
     expect(names(page)).toEqual([
@@ -126,6 +127,8 @@ describe("Every template, as each person sees it", () => {
       "Stock for the weekend",
       "Stock movements",
       "Stock on hand",
+      "Customer spend",
+      "Requisitions paid",
       "Takings by payment",
       "Till shifts",
       "Voids and refunds by cashier",
@@ -152,23 +155,23 @@ describe("Every template, as each person sees it", () => {
     const rufaros = await list(`madeBy=${people.rufaro}&group=none`);
     expect(names(rufaros)).toEqual(["Movements everyone reads"]);
     // The tabs ignore the filter.
-    expect(rufaros.body.tabs.all).toBe(9);
+    expect(rufaros.body.tabs.all).toBe(11);
   });
 
-  it("gives the owner 9 without Tafara's own, and lets him change the shared ones he made", async () => {
+  it("gives the owner 11 without Tafara's own, and lets him change the shared ones he made", async () => {
     signIn("owner");
     const page = await list("group=none");
-    expect(page.body.tabs).toEqual({ all: 9, "built-in": 6, team: 3, mine: 2 });
+    expect(page.body.tabs).toEqual({ all: 11, "built-in": 8, team: 3, mine: 2 });
     expect(names(page)).not.toContain("Voids and refunds by cashier");
     expect(names(page)).toContain("My takings");
     const moves = page.body.rows.find((row) => row.name === "Movements everyone reads");
     expect(moves).toMatchObject({ madeBy: "Rufaro Ndlovu", canChange: true });
   });
 
-  it("gives the bookkeeper the built-ins and the shared templates: 8", async () => {
+  it("gives the bookkeeper the built-ins and the shared templates: 10", async () => {
     signIn("bookkeeper");
     const page = await list();
-    expect(page.body.tabs).toEqual({ all: 8, "built-in": 6, team: 2, mine: 0 });
+    expect(page.body.tabs).toEqual({ all: 10, "built-in": 8, team: 2, mine: 0 });
     expect(names(page)).not.toContain("Voids and refunds by cashier");
   });
 
@@ -187,10 +190,11 @@ describe("Every template, as each person sees it", () => {
   it("counts the panel's badges: every template and each area with any", async () => {
     const badges = await computeNavBadges({ companyId, userId: people.tafara!, role: "MANAGER" }, REPORTS_NAV_BADGES);
     expect(badges).toEqual({
-      "/retail/reports": "9",
+      "/retail/reports": "11",
       "/retail/reports?area=selling": "1",
       "/retail/reports?area=stock": "5",
-      "/retail/reports?area=money": "1",
+      "/retail/reports?area=customers": "1",
+      "/retail/reports?area=money": "2",
       "/retail/reports?area=floor": "2",
     });
   });
@@ -209,7 +213,7 @@ describe("Every template, as each person sees it", () => {
       const page = await list("group=none");
       expect(names(page)).not.toContain("Takings by payment");
       expect(names(page)).not.toContain("My takings");
-      expect(page.body.tabs.all).toBe(7);
+      expect(page.body.tabs.all).toBe(9);
     } finally {
       await prisma.reportSetting.deleteMany({ where: { companyId } });
     }

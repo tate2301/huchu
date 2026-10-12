@@ -16,6 +16,10 @@ export type PhotoFieldProps = {
   upload: (file: File) => Promise<string>;
   /** The value line while empty: "Add your logo", "Add a photo". */
   prompt: string;
+  /** The file types offered (a quote: pictures and PDFs). Default pictures. */
+  accept?: string;
+  /** The line once a file is in, instead of the picture (a PDF has none to show). */
+  added?: string | null;
   disabled?: boolean;
   "aria-describedby"?: string;
   "aria-invalid"?: boolean;
@@ -27,6 +31,8 @@ export function PhotoField({
   onValueChange,
   upload,
   prompt,
+  accept = "image/*",
+  added = null,
   disabled = false,
   ...aria
 }: PhotoFieldProps) {
@@ -85,7 +91,7 @@ export function PhotoField({
         ref={inputRef}
         id={id}
         type="file"
-        accept="image/*"
+        accept={accept}
         capture="environment"
         tabIndex={-1}
         disabled={disabled}
@@ -95,12 +101,12 @@ export function PhotoField({
         }}
         {...aria}
       />
-      {value ? (
+      {value && !added ? (
         // eslint-disable-next-line @next/next/no-img-element -- an uploaded url of any origin, shown at 52px
         <img className="cx-photo__img" src={value} alt="" />
       ) : null}
       <span className="cx-photo__text">
-        <span className="cx-photo__value">{busy ? "Uploading…" : value ? "Picture added" : prompt}</span>
+        <span className="cx-photo__value">{busy ? "Uploading…" : value ? (added ?? "Picture added") : prompt}</span>
         <span className="cx-photo__sub" style={error ? { color: "var(--bad)" } : undefined}>
           {error ?? "Drop it here, or take one on a phone"}
         </span>

@@ -10,9 +10,10 @@
 import * as React from "react";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AnimatePresence } from "framer-motion";
 
+import { useToast } from "@/components/ui/use-toast";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import {
   Barcode,
@@ -21,52 +22,51 @@ import {
   HandCoins,
   IdentificationCard,
   MagnifyingGlass,
-  Moon,
+  Archive,
   Package,
   ShoppingCart,
+  Tray,
   UserSwitch,
   WifiSlash,
   X,
 } from "@/lib/icons";
-import { clockLabel, harareClock } from "@/lib/retail/licence-hours";
-import { LOYALTY_REDEEM_POINTS_PER_USD } from "@/lib/retail/loyalty-rules";
 import { getPosPortalHref } from "@/lib/retail/pos-host";
 import { enumLabel } from "@/lib/retail/words";
+import { percentWords, PRICE_UP_SENTENCE } from "@/lib/retail/till-rule-words";
 import { count, firstName, hhmm, pairedWhen, usd } from "./format";
 import { KeySheet } from "./keys";
 import { RollingFigure } from "./motion";
 import { Avatar, Empty, ErrorLine, GateSide, Keypad, type KeypadKey, LoadFailed, Segmented, typeAmount, useKeypadKeys, useWindowKeys } from "./parts";
 import { PayTray, payWays, TenderMark, type PayWay } from "./pay-tray";
+import { useApproval } from "./approval";
+import { LaybyStartDialog } from "./layby";
+import { bottlesBackCredit } from "./cart-pricing";
 import {
-  ApproveDialog,
-  BottlesBackLine,
-  bottlesBackCredit,
-  BottlesBackPopover,
-  CaseBanners,
-  CustomerPopover,
-  DiscountPopover,
-  DropSaleButton,
-  HoldPopover,
-  IdCheckDialog,
-  SaleLine,
-  useDropSale,
-} from "./sale-parts";
+  AdjustStockDialog,
+  AgeCheckDialog,
+  BottlesBackButton,
+  BundleOffers,
+  BundleTile,
+  CaseDialog,
+  GiftVoucherPopover,
+  LicenceBanner,
+  VoucherSoldLines,
+} from "./floor-parts";
+import { asksForId, caseMoment, licenceEyebrow, licenceSentence } from "./moments";
+import { CustomerPopover, DiscountPopover, DropSaleButton, HoldPopover, ReasonDialog, SaleLine, useDropSale } from "./sale-parts";
 import { saleChangeWords } from "./sale-words";
 import { parseScan } from "./scan-match";
 import { DOORS, PersonMenu } from "./shell";
 import { useSignOut } from "./sign-out";
 import { cue } from "./sound";
 import { useTill } from "./state";
-import { BottlesBackTile, ProductTile, QuickRow } from "./tile";
-import type { Approval, PaymentRow, PosCatalogItem } from "./types";
+import { ProductTile, QuickRow } from "./tile";
+import type { SnapshotBundle } from "@/lib/retail/pricing/engine";
+import type { PaymentRow, PosCatalogItem } from "./types";
 
-const WEEKDAY = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
-
-/** "Soft drinks, ice and snacks": the first word capitalised, the rest as they fall. */
-function groupList(groups: string[]): string {
-  const words = groups.map((group, index) => (index ? enumLabel(group).toLowerCase() : enumLabel(group)));
-  return words.length > 1 ? `${words.slice(0, -1).join(", ")} and ${words[words.length - 1]}` : (words[0] ?? "");
-}
+/** The product as the shelf holds it after a case was opened. */
+const withStock = (item: PosCatalogItem, onHand: number): PosCatalogItem =>
+  item.inventoryItem ? { ...item, inventoryItem: { ...item.inventoryItem, currentStock: onHand } } : item;
 
 /** Whether the line is up, and since when it has been down. */
 export function useConnection() {
@@ -126,13 +126,31 @@ function OpenShiftGate() {
   const { context } = useTill();
   const { requestSignOut } = useSignOut();
   const queryClient = useQueryClient();
-  const [float, setFloat] = React.useState("");
+  // The float the till's last close left, and whether the shop counts a ZiG float (W-37).
+  const defaults = useQuery({
+    queryKey: ["retail-pos-shift-defaults"],
+    queryFn: async () => (await fetchJson<{ data: { float: string; hint: string; takesZig: boolean; zigFloat: string } }>("/api/v2/retail/pos/shifts/new")).data,
+    staleTime: 0,
+  });
+  const [typedUsd, setFloat] = React.useState<string | null>(null);
+  const [zigFloat, setZigFloat] = React.useState("");
+  const [field, setField] = React.useState<"usd" | "zig">("usd");
+  const float = typedUsd ?? (defaults.data?.float ? String(Number(defaults.data.float)) : "");
+  const takesZig = Boolean(defaults.data?.takesZig);
   const value = Number(float || "0");
+  const zigValue = Number(zigFloat || "0");
   const open = useMutation({
-    mutationFn: () => fetchJson("/api/v2/retail/pos/shifts", { method: "POST", body: JSON.stringify({ openingFloat: value }) }),
+    mutationFn: () =>
+      fetchJson("/api/v2/retail/pos/shifts", {
+        method: "POST",
+        body: JSON.stringify({ openingFloat: value, ...(takesZig ? { openingFloatZig: zigValue } : {}) }),
+      }),
     onSuccess: () => void queryClient.invalidateQueries({ queryKey: ["retail-current-shift"] }),
   });
-  const onKey = (key: KeypadKey) => setFloat((current) => typeAmount(current, key));
+  const onKey = (key: KeypadKey) => {
+    if (field === "zig") setZigFloat((current) => typeAmount(current, key));
+    else setFloat(typeAmount(float, key));
+  };
   useKeypadKeys(onKey);
   useWindowKeys((event) => {
     if (event.key === "Enter" && !open.isPending) {
@@ -156,15 +174,23 @@ function OpenShiftGate() {
             . Count the float into the drawer.
           </p>
         </div>
-        <div className="tender">
-          <span className="l">In the drawer</span>
+        <button type="button" className={field === "usd" ? "tender" : "tender is-quiet"} aria-pressed={field === "usd"} onClick={() => setField("usd")}>
+          <span className="l">US$ float</span>
           <span className="tender-figure">{usd(value)}</span>
-        </div>
+        </button>
+        <span className="help">{defaults.data?.hint ?? "Counted in."}</span>
+        {takesZig ? (
+          <button type="button" className={field === "zig" ? "tender" : "tender is-quiet"} aria-pressed={field === "zig"} onClick={() => setField("zig")}>
+            <span className="l">ZiG float</span>
+            <span className="tender-figure">ZiG {zigValue.toFixed(2)}</span>
+          </button>
+        ) : null}
         <Keypad onKey={onKey} left="dot" disabled={open.isPending} />
         {open.isError ? <ErrorLine large>{getApiErrorMessage(open.error)}</ErrorLine> : null}
         <button type="button" className="btn btn-primary btn-touch btn-block" aria-busy={open.isPending || undefined} onClick={() => open.mutate()}>
           <CaretRight className="ic" />
           Open shift with {usd(value)}
+          {takesZig && zigValue > 0 ? ` and ZiG ${zigValue.toFixed(2)}` : ""}
         </button>
         <button
           type="button"
@@ -189,21 +215,32 @@ function OpenShiftGate() {
 
 function Workbench() {
   const till = useTill();
+  const { data: session } = useSession();
+  const { toast } = useToast();
   const {
     cart,
     addToCart,
+    addBundle,
+    openCase,
+    removeFromCart,
+    removeAgeRestricted,
+    confirmId,
+    alcohol,
+    context,
+    isOffline,
+    bundleProblem,
     features,
     idChecked,
     needsIdCheck,
     needsReason,
-    approvalReason,
     discountCeiling,
     offlineStop,
     lineStopped,
     amountDue,
     postSale,
-    saleRefusal,
     resetSaleRefusal,
+    rules,
+    approvers,
     lastCompletedSale,
     lastSavedSale,
     dismissCompletedSale,
@@ -218,27 +255,74 @@ function Workbench() {
   const [wayKey, setWayKey] = React.useState<string | null>(null);
   const way = ways.find((entry) => entry.key === wayKey) ?? ways[0];
   const [trayOpen, setTrayOpen] = React.useState(false);
-  const [idCheck, setIdCheck] = React.useState(false);
+  /* The age check (Liquor panel 1): the lines it is about, and what it says. */
+  const [ageAsk, setAgeAsk] = React.useState<{ lineIds: string[] | null; product: string; category: string | null } | null>(null);
+  const idCheck = ageAsk !== null;
+  /* No singles left (Liquor panel 4): the single whose case is asked about. */
+  const [caseAsk, setCaseAsk] = React.useState<PosCatalogItem | null>(null);
+  const [caseBusy, setCaseBusy] = React.useState(false);
+  const eyebrow = [context?.till.name, session?.user?.name].filter(Boolean).join(" · ");
   const [approve, setApprove] = React.useState(false);
+  // A discount over the till rules' cap: the server's 409 opens the approval (FLR-09).
+  const approval = useApproval({
+    approvers: approvers.sell,
+    reason: (server) => (server === PRICE_UP_SENTENCE || !rules ? server : `Discount over ${percentWords(rules.maxCashierDiscountPercent)}`),
+  });
   // On a phone the sale is its own screen, opened from the row under the shelf.
   const [phoneSale, setPhoneSale] = React.useState(false);
   // Take was pressed before the ID check: the tray opens once the check is answered.
   const [pendingTake, setPendingTake] = React.useState(false);
   const selling = cart.filter((item) => !lineStopped(item)).length;
 
-  const add = (item: PosCatalogItem, typedPrice?: number, quantity = 1) => {
-    const firstAdult = Boolean(features?.ageCheck) && item.ageRestricted && !idChecked && !cart.some((line) => line.ageRestricted);
+  /** The line goes on, and the first 18+ line of the sale asks for an ID. */
+  const put = (item: PosCatalogItem, typedPrice?: number, quantity = 1) => {
+    const ask = asksForId({ ageCheckOn: Boolean(features?.ageCheck), idChecked, cart, item });
     addToCart(item, typedPrice, quantity);
     cue("added");
-    if (firstAdult) setIdCheck(true);
+    if (ask) setAgeAsk({ lineIds: [item.id], product: item.name, category: item.category });
+  };
+
+  /*
+    One more of a product (or as many as "3*" asked for), from a tile, the quick
+    row or a scan. Outside the licence hours an 18+ product says so and adds
+    nothing; a single with none left opens a case first (at once, or after asking).
+  */
+  const add = (item: PosCatalogItem, typedPrice?: number, quantity = 1) => {
+    if (item.ageRestricted && !alcohol.sellable) {
+      toast({ title: licenceSentence(alcohol, new Date()) ?? "Alcohol does not sell now." });
+      return;
+    }
+    // The line's own count once it is on the sale (a case opened since), else the shelf's.
+    const stock = cart.find((line) => line.id === item.id)?.stock ?? item.inventoryItem?.currentStock ?? 0;
+    const moment = caseMoment({ casesAndSingles: Boolean(features?.casesAndSingles), openableCase: item.openableCase, stock });
+    if (moment.kind === "ask") {
+      setCaseAsk(item);
+      return;
+    }
+    // Offline the sale itself opens the case when it arrives (Break cases at the till).
+    if (moment.kind === "break" && !isOffline) {
+      void openCase(item).then((onHand) => put(onHand === null ? item : withStock(item, onHand), typedPrice, quantity));
+      return;
+    }
+    put(item, typedPrice, quantity);
+  };
+
+  /** A bundle's button or barcode: its components as one, and the ID check if they hold an 18+ line. */
+  const addBundleOf = (bundle: SnapshotBundle) => {
+    const firstAdult = Boolean(features?.ageCheck) && !idChecked && !cart.some((line) => line.ageRestricted);
+    void addBundle(bundle).then((lines) => {
+      const adult = lines?.find((line) => line.ageRestricted);
+      if (lines && adult && firstAdult) setAgeAsk({ lineIds: [adult.id], product: adult.name, category: adult.category });
+    });
   };
 
   const openTray = () => {
     // Nothing to sell, or the column says why not yet: a discount past its ceiling, or offline too long.
-    if (!selling || discountCeiling || offlineStop) return;
+    if (!selling || discountCeiling || offlineStop || bundleProblem) return;
     if (needsIdCheck) {
+      const adult = cart.find((line) => line.ageRestricted && !lineStopped(line));
       setPendingTake(true);
-      setIdCheck(true);
+      setAgeAsk({ lineIds: null, product: adult?.name ?? "This sale", category: adult?.category ?? null });
       return;
     }
     resetSaleRefusal();
@@ -247,15 +331,24 @@ function Workbench() {
 
   // The tray's payments wait here while the reason, or a manager, is asked for.
   const rowsRef = React.useRef<PaymentRow[]>([]);
+  // The sale goes; a manager the rules want is asked for by the approval dialog, which sends it again.
+  const send = (rows: PaymentRow[], reason: string | null) => {
+    void approval.run((approver) => postSale(rows, reason, approver)).catch(() => {
+      // The tray shows the server's no; a sale saved offline shows as saved.
+    });
+  };
   const take = (rows: PaymentRow[]) => {
     rowsRef.current = rows;
-    if (needsReason || approvalReason) {
+    if (needsReason) {
       resetSaleRefusal();
       setApprove(true);
-    } else postSale(rows, null);
+    } else send(rows, null);
   };
 
-  const approveAndTake = (approval: Approval) => postSale(rowsRef.current, approval);
+  const takeWithReason = (reason: string) => {
+    setApprove(false);
+    send(rowsRef.current, reason);
+  };
 
   // Read after the answer has rendered, so a confirmed ID (or the 18+ lines taken off) is what it sees.
   React.useEffect(() => {
@@ -270,11 +363,6 @@ function Workbench() {
   React.useEffect(() => {
     if (lastCompletedSale || lastSavedSale) setApprove(false);
   }, [lastCompletedSale, lastSavedSale]);
-
-  // The server wants a manager the till did not ask for: the approval opens with its sentence.
-  React.useEffect(() => {
-    if (saleRefusal && saleRefusal.kind !== "refused") setApprove(true);
-  }, [saleRefusal]);
 
   const next = () => {
     dismissCompletedSale();
@@ -294,7 +382,7 @@ function Workbench() {
   useWindowKeys((event) => {
     const target = event.target as HTMLElement | null;
     const typing = target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.tagName === "SELECT" || target.isContentEditable);
-    if (typing || trayOpen || idCheck || approve || keySheet || holding || event.metaKey || event.ctrlKey || event.altKey) return;
+    if (typing || trayOpen || idCheck || approve || approval.asking || keySheet || holding || event.metaKey || event.ctrlKey || event.altKey) return;
     if (event.key === "/") {
       event.preventDefault();
       searchRef.current?.focus();
@@ -321,7 +409,7 @@ function Workbench() {
 
   return (
     <div className={`bench${phoneSale ? " is-sale" : ""}`}>
-      <Shelf searchRef={searchRef} onAdd={add} onShowSale={() => setPhoneSale(true)} onTake={openTray} />
+      <Shelf searchRef={searchRef} onAdd={add} onAddBundle={addBundleOf} onShowSale={() => setPhoneSale(true)} onTake={openTray} />
       <aside className="bench-side" aria-label="This sale">
         <SaleColumn
           ways={ways}
@@ -334,9 +422,49 @@ function Workbench() {
         />
         {trayOpen ? <PayTray key={way.key} way={way} ways={ways} onClose={() => setTrayOpen(false)} onTake={take} onNext={next} /> : null}
       </aside>
-      <IdCheckDialog open={idCheck} onDone={() => setIdCheck(false)} />
+      <AgeCheckDialog
+        open={idCheck}
+        eyebrow={eyebrow}
+        product={ageAsk?.product ?? ""}
+        category={ageAsk?.category ?? null}
+        onRemove={() => {
+          // "Remove it": the line that asked, or every 18+ line when Take asked.
+          if (ageAsk?.lineIds) for (const id of ageAsk.lineIds) removeFromCart(id);
+          else removeAgeRestricted();
+          setAgeAsk(null);
+        }}
+        onConfirm={() => {
+          confirmId();
+          setAgeAsk(null);
+        }}
+      />
+      {caseAsk?.openableCase ? (
+        <CaseDialog
+          open
+          eyebrow={eyebrow}
+          single={caseAsk.name}
+          casesOnHand={caseAsk.openableCase.casesOnHand}
+          unitsPerCase={caseAsk.openableCase.unitsPerCase}
+          busy={caseBusy}
+          offline={isOffline}
+          onNotNow={() => setCaseAsk(null)}
+          onOpen={() => {
+            const item = caseAsk;
+            setCaseBusy(true);
+            void openCase(item)
+              .then((onHand) => {
+                if (onHand !== null) put(withStock(item, onHand));
+              })
+              .finally(() => {
+                setCaseBusy(false);
+                setCaseAsk(null);
+              });
+          }}
+        />
+      ) : null}
+      <ReasonDialog open={approve} onOpenChange={setApprove} amount={amountDue} onTake={takeWithReason} />
       <KeySheet open={keySheet} onOpenChange={setKeySheet} />
-      <ApproveDialog open={approve} onOpenChange={setApprove} amount={amountDue} onApprove={approveAndTake} />
+      {approval.dialog}
     </div>
   );
 }
@@ -346,11 +474,13 @@ function Workbench() {
 function Shelf({
   searchRef,
   onAdd,
+  onAddBundle,
   onShowSale,
   onTake,
 }: {
   searchRef: React.RefObject<HTMLInputElement | null>;
   onAdd: (item: PosCatalogItem, typedPrice?: number, quantity?: number) => void;
+  onAddBundle: (bundle: SnapshotBundle) => void;
   onShowSale: () => void;
   onTake: () => void;
 }) {
@@ -362,8 +492,14 @@ function Shelf({
   // A code the till does not know: the box shakes once, and the till says so out loud.
   const [unknown, setUnknown] = React.useState(false);
   const { data: session } = useSession();
+  const { toast } = useToast();
+  // The product whose stock is being adjusted from its tile's long press (STK-04).
+  const [adjusting, setAdjusting] = React.useState<PosCatalogItem | null>(null);
   const {
     context,
+    shelfPriceOf,
+    bundlesOnSale,
+    canAdjustStock,
     search,
     setSearch,
     categories,
@@ -376,7 +512,6 @@ function Shelf({
     alcohol,
     features,
     pendingOfflineSales,
-    emptiesBackCount,
     offlineStop,
     isPosHost,
     cart,
@@ -390,13 +525,16 @@ function Shelf({
   const name = session?.user?.name ?? "You";
   const selling = cart.filter((item) => !lineStopped(item)).length;
   const empty = !selling;
-  // The groups that are not all 18+ still sell while alcohol is stopped.
-  const stillSelling = groupList(categories.filter((category) => !category.allAgeRestricted).map((category) => category.name));
   const stoppedUntil = alcohol.sellable ? undefined : alcohol.startsAt;
   const depositsOn = Boolean(features?.emptiesAndDeposits);
-  const showBottles = depositsOn && !search.trim();
-  // The licence's weekday is Harare's, whatever the device's clock says.
-  const today = WEEKDAY[harareClock(new Date()).weekday];
+  // Liquor panel 2: the licence's sentence, on Harare's clock, whatever the device's says.
+  const now = new Date();
+  const licence = licenceSentence(alcohol, now);
+  const tellStopped = () => licence && toast({ title: licence });
+  // A bundle's button sits under its category (PRD-08): the group on show, not a search.
+  const shownCategories = new Set(catalogItems.map((item) => item.categoryId).filter(Boolean));
+  const bundleTiles =
+    selectedCategory && !search.trim() ? bundlesOnSale.filter((bundle) => bundle.tillButton && bundle.categoryId && shownCategories.has(bundle.categoryId)) : [];
   // How many of a product the sale holds now, for the count on its tile.
   const onSaleOf = (item: PosCatalogItem) =>
     cart.filter((line) => line.catalogItemId === item.id).reduce((sum, line) => sum + line.quantity, 0);
@@ -443,16 +581,7 @@ function Shelf({
           </span>
         </div>
       ) : null}
-      {!alcohol.sellable ? (
-        <div className="banner">
-          <Moon className="ic" />
-          <span>
-            <b className="weight-500">Alcohol stopped at {clockLabel(alcohol.stoppedAt)}</b>, the licence hours for a {today}.{" "}
-            {stillSelling ? `${stillSelling} still sell.` : "Everything else still sells."}
-            {alcohol.startsAt !== null ? ` It starts again at ${clockLabel(alcohol.startsAt)}.` : ""}
-          </span>
-        </div>
-      ) : null}
+      {licence ? <LicenceBanner eyebrow={licenceEyebrow(context?.till.name ?? "This till", now)} sentence={licence} /> : null}
       <div className="tools">
         <label className={`input-wrap input-lg grow${unknown ? " is-shake" : ""}`} onAnimationEnd={() => setUnknown(false)}>
           <MagnifyingGlass className="ic" />
@@ -473,6 +602,13 @@ function Shelf({
                 event.preventDefault();
                 const { quantity, code } = parseScan(search);
                 if (!code) return;
+                // A bundle's barcode rings the bundle (PRD-08).
+                const bundle = bundlesOnSale.find((entry) => entry.barcode && entry.barcode === code);
+                if (bundle) {
+                  onAddBundle(bundle);
+                  setSearch("");
+                  return;
+                }
                 // The box is clear for the next scan while this one is found.
                 setSearch("");
                 setFinding((n) => n + 1);
@@ -513,6 +649,7 @@ function Shelf({
           stoppedUntil={stoppedUntil}
           onSaleOf={onSaleOf}
           onAdd={onAdd}
+          priceOf={(item) => shelfPriceOf(item.id)?.price ?? item.unitPrice}
         />
       ) : null}
       {categories.length ? (
@@ -533,7 +670,7 @@ function Shelf({
         </div>
       ) : catalogError && !catalogItems.length ? (
         <LoadFailed icon={WifiSlash} title="The shelf did not load" error={catalogError} onRetry={() => void queryClient.invalidateQueries({ queryKey: ["retail-pos-catalog"] })} />
-      ) : !catalogItems.length && search.trim() ? (
+      ) : !catalogItems.length && search.trim() && !bundlesOnSale.some((bundle) => bundle.barcode === search.trim()) ? (
         <Empty
           icon={Barcode}
           title={`No product called “${search.trim()}”`}
@@ -556,8 +693,11 @@ function Shelf({
             <ProductTile
               key={item.id}
               item={item}
+              shelf={shelfPriceOf(item.id)}
               stoppedUntil={stoppedUntil}
               depositsOn={depositsOn}
+              onStopped={tellStopped}
+              onAdjust={canAdjustStock ? () => setAdjusting(item) : undefined}
               onSale={onSaleOf(item)}
               onAdd={(added, typedPrice) => {
                 onAdd(added, typedPrice);
@@ -572,9 +712,17 @@ function Shelf({
               onPricing={(open) => setPricing(open ? { id: item.id, fromSearch: false } : null)}
             />
           ))}
-          {showBottles ? <BottlesBackPopover trigger={<BottlesBackTile count={emptiesBackCount} />} /> : null}
+          {bundleTiles.map((bundle) => (
+            <BundleTile key={bundle.id} bundle={bundle} onAdd={onAddBundle} />
+          ))}
         </div>
       )}
+      {adjusting ? (
+        <AdjustStockDialog
+          product={{ id: adjusting.id, name: adjusting.name, onHand: adjusting.inventoryItem?.currentStock ?? 0 }}
+          onClose={() => setAdjusting(null)}
+        />
+      ) : null}
       <div className="phone-sale">
         <button type="button" className="btn btn-touch btn-block" disabled={empty} onClick={onShowSale}>
           <ShoppingCart className="ic" />
@@ -648,9 +796,15 @@ function SaleColumn({
     idChecked,
     lineStopped,
     orderDiscountAmount,
-    loyaltyRedemptionPoints,
+    pointsOff,
+    voucherSaving,
+    vouchersSoldTotal,
+    emptiesBackCount,
+    bundleProblem,
+    features,
   } = useTill();
-  const orderOff = Math.max(discountAmount - lineDiscountTotal - bundleSaving - promotionSaving, 0);
+  const orderOff = Math.max(discountAmount - lineDiscountTotal - bundleSaving - promotionSaving - voucherSaving - pointsOff, 0);
+  const depositsOn = Boolean(features?.emptiesAndDeposits);
   // Lines stopped by the licence hours do not sell, so they are not counted.
   const sellingLines = cart.filter((item) => !lineStopped(item));
   const selling = sellingLines.length;
@@ -658,9 +812,10 @@ function SaleColumn({
   // The deposit as the lines charge it, and what the empties back take off: together the sale's deposit.
   const bottlesBack = bottlesBackCredit(sellingLines);
   const deposits = Number((depositTotal + bottlesBack).toFixed(2));
+  // "Deposit, 6 bottles": the bottles the sale charges a deposit on, before any come back.
+  const depositBottles = sellingLines.filter((item) => item.returnable && item.depositAmount).reduce((sum, item) => sum + Math.floor(item.quantity), 0);
   // A manager approves an amount off; a changed price is approved as a change.
-  const offToApprove =
-    lineDiscountTotal + Math.max(Number(orderDiscountAmount || "0") - Number(loyaltyRedemptionPoints || "0") / LOYALTY_REDEEM_POINTS_PER_USD, 0);
+  const offToApprove = lineDiscountTotal + Number(orderDiscountAmount || "0");
   const priceChanged = cart.some((item) => Math.abs(item.unitPrice - item.shelfPrice) > 0.009);
   const approvalLine = approvalReason
     ? !priceChanged && offToApprove > 0.009
@@ -683,8 +838,10 @@ function SaleColumn({
           {selling ? count(selling, "item") : ""}
         </span>
         <div className="end">
+          <OpenDrawerButton />
           {cart.length ? (
             <>
+              <LaybyButton />
               <HoldPopover open={holding} onOpenChange={onHolding} />
               <DropSaleButton />
             </>
@@ -704,11 +861,11 @@ function SaleColumn({
         <div className="list">
           <AnimatePresence initial={false}>
             {cart.map((item) => (
-              <SaleLine key={item.catalogItemId} item={item} />
+              <SaleLine key={item.id} item={item} />
             ))}
           </AnimatePresence>
-          <BottlesBackLine />
-          <CaseBanners />
+          <VoucherSoldLines />
+          <BundleOffers />
           {idChecked ? (
             <div className="banner is-in-list">
               <IdentificationCard className="ic" />
@@ -750,29 +907,54 @@ function SaleColumn({
                 <span className="off-figure">{usd(-orderOff)}</span>
               </div>
             ) : null}
-            {deposits > 0.004 ? (
+            {voucherSaving > 0.004 ? (
               <div className="l">
-                <span>Deposits</span>
-                <span>{usd(deposits)}</span>
+                <span>Discount voucher</span>
+                <span className="off-figure">{usd(-voucherSaving)}</span>
               </div>
             ) : null}
-            {bottlesBack > 0.004 ? (
+            {pointsOff > 0.004 ? (
               <div className="l">
-                <span>Bottles back</span>
-                <span className="off-figure">{usd(-bottlesBack)}</span>
+                <span>Points</span>
+                <span className="off-figure">{usd(-pointsOff)}</span>
               </div>
             ) : null}
             <div className="l">
               <span>{vatIncluded ? "VAT where it applies, included" : "VAT where it applies, added"}</span>
               <span>{usd(taxAmount)}</span>
             </div>
+            {/* Liquor panel 3: deposits and bottles back sit outside the goods, then what is paid. */}
+            {deposits > 0.004 ? (
+              <div className="l">
+                <span>Deposit, {count(depositBottles, "bottle")}</span>
+                <span>{usd(deposits)}</span>
+              </div>
+            ) : null}
+            {bottlesBack > 0.004 ? (
+              <div className="l is-ok">
+                <span>Bottles back, {emptiesBackCount}</span>
+                <span className="ok-figure">{usd(-bottlesBack)}</span>
+              </div>
+            ) : null}
+            {vouchersSoldTotal > 0.004 ? (
+              <div className="l">
+                <span>Gift vouchers</span>
+                <span>{usd(vouchersSoldTotal)}</span>
+              </div>
+            ) : null}
+            {deposits > 0.004 || bottlesBack > 0.004 || vouchersSoldTotal > 0.004 ? <div className="rule" /> : null}
           </>
         ) : null}
         <div className="l total">
-          <span>Total</span>
+          <span>{deposits > 0.004 || bottlesBack > 0.004 ? "To pay" : "Total"}</span>
           <RollingFigure className="figure" value={amountDue} format={usd} />
         </div>
-        {cart.length ? <DiscountPopover /> : null}
+        {cart.length ? (
+          <div className="row">
+            <DiscountPopover />
+            <GiftVoucherPopover />
+          </div>
+        ) : null}
         {!empty ? (
           <div
             role="radiogroup"
@@ -809,16 +991,17 @@ function SaleColumn({
             ))}
           </div>
         ) : null}
-        <div className="pin-bottom">
+        <div className={`pin-bottom${depositsOn ? " side-by-side is-one" : ""}`}>
+          {depositsOn ? <BottlesBackButton emptyCart={!cart.length} /> : null}
           <button
             type="button"
             className="btn btn-primary btn-touch btn-block"
-            disabled={empty || Boolean(discountCeiling) || Boolean(offlineStop)}
+            disabled={empty || Boolean(discountCeiling) || Boolean(offlineStop) || Boolean(bundleProblem)}
             onClick={onTake}
           >
             <HandCoins className="ic" />
-            Take {usd(amountDue)}
-            {!empty && !discountCeiling && !offlineStop ? <span className="kbd on-primary">Enter</span> : null}
+            {depositsOn ? `Pay ${usd(amountDue)}` : `Take ${usd(amountDue)}`}
+            {!empty && !discountCeiling && !offlineStop && !bundleProblem ? <span className="kbd on-primary">Enter</span> : null}
           </button>
         </div>
         {empty ? null : discountCeiling ? (
@@ -829,6 +1012,58 @@ function SaleColumn({
           <p className="help is-centred">{approvalLine}</p>
         ) : null}
       </div>
+    </>
+  );
+}
+
+/* ─── The drawer and lay-bys ──────────────────────────────────────────── */
+
+/** "Open drawer" (SET-06, FLR-09): only on a till with a drawer; a manager approves it when the till rules say so. */
+function OpenDrawerButton() {
+  const { toast } = useToast();
+  const { context, approvers, isOffline } = useTill();
+  const approval = useApproval({ approvers: approvers.sell, reason: "Open the drawer without a sale" });
+  const [busy, setBusy] = React.useState(false);
+  if (!context?.till.hasDrawer) return null;
+  const open = () => {
+    setBusy(true);
+    approval
+      .run((approver) => fetchJson("/api/v2/retail/pos/drawer/open", { method: "POST", body: JSON.stringify(approver ? { approver } : {}) }))
+      .then((done) => {
+        if (done) toast({ title: "Drawer opened.", variant: "success" });
+      })
+      .catch((error: unknown) => toast({ title: "The drawer did not open", description: getApiErrorMessage(error), variant: "destructive" }))
+      .finally(() => setBusy(false));
+  };
+  return (
+    <>
+      <button
+        type="button"
+        className="btn"
+        disabled={busy || isOffline}
+        aria-busy={busy || undefined}
+        title={isOffline ? "Needs the line: no connection now." : undefined}
+        onClick={open}
+      >
+        <Tray className="ic" />
+        Open drawer
+      </button>
+      {approval.dialog}
+    </>
+  );
+}
+
+/** "Lay-by" on the cart: put the lines aside for a customer with a deposit (W-42). */
+function LaybyButton() {
+  const { isOffline } = useTill();
+  const [open, setOpen] = React.useState(false);
+  return (
+    <>
+      <button type="button" className="btn" disabled={isOffline} title={isOffline ? "Needs the line: no connection now." : undefined} onClick={() => setOpen(true)}>
+        <Archive className="ic" />
+        Lay-by
+      </button>
+      {open ? <LaybyStartDialog onClose={() => setOpen(false)} /> : null}
     </>
   );
 }

@@ -3,6 +3,11 @@ import { z } from "zod";
 import {
   CASH_DROP_PROMPT_MAX,
   cleanReasons,
+  daysWords,
+  LAYBY_CANCEL_FEE_MAX,
+  laybyDaysProblem,
+  laybyDepositProblem,
+  parseDays,
   discountProblem,
   hoursWords,
   offlineHoursProblem,
@@ -135,6 +140,14 @@ export const tillRulesPage: SettingsPage = {
         },
       ],
     },
+    {
+      title: "Lay-bys",
+      fields: [
+        { id: "laybyMinDepositPercent", t: "text", l: "Smallest deposit", half: true, mono: true, h: "Of the lay-by's total, paid when it starts." },
+        { id: "laybyCancelFee", t: "money", l: "Fee for cancelling", half: true, h: "Kept from what was paid; the rest goes back." },
+        { id: "laybyMaxDays", t: "text", l: "Longest time to pay", half: true, mono: true, h: "From the day it starts." },
+      ],
+    },
   ],
   aside: [
     {
@@ -157,5 +170,8 @@ export const tillRulesPage: SettingsPage = {
     drawerOpenWithoutSale: onOff,
     cashDropPromptOver: moneyRule("the cash drop amount", CASH_DROP_PROMPT_MAX),
     offlineHours: textRule(offlineHoursProblem, (text) => hoursWords(parseHours(text)!)),
+    laybyMinDepositPercent: textRule(laybyDepositProblem, (text) => percentWords(parsePercent(text)!)),
+    laybyCancelFee: moneyRule("the fee", LAYBY_CANCEL_FEE_MAX),
+    laybyMaxDays: textRule(laybyDaysProblem, (text) => daysWords(parseDays(text)!)),
   }),
 };

@@ -1,0 +1,169 @@
+[
+  {
+    "id": "50",
+    "file": "50-floor-sales.md",
+    "title": "Sales and a sale",
+    "units": [
+      "FLR-01"
+    ],
+    "dependsOn": [
+      "FND-05",
+      "FND-06",
+      "FND-07",
+      "SET-07",
+      "SET-08"
+    ],
+    "risk": "standard"
+  },
+  {
+    "id": "51",
+    "file": "51-floor-shift.md",
+    "title": "A shift: open it, cash in or out",
+    "units": [
+      "FLR-03"
+    ],
+    "dependsOn": [
+      "50",
+      "SET-04",
+      "SET-05",
+      "SET-06",
+      "ADM-02",
+      "ADM-03"
+    ],
+    "risk": "money"
+  },
+  {
+    "id": "54",
+    "file": "54-floor-count-close.md",
+    "title": "Count and close a shift",
+    "units": [
+      "FLR-04"
+    ],
+    "dependsOn": [
+      "51",
+      "SET-08",
+      "SET-05"
+    ],
+    "risk": "money"
+  },
+  {
+    "id": "56",
+    "file": "56-floor-refund-void.md",
+    "title": "Refund and void a sale, with a manager's approval",
+    "units": [
+      "FLR-02"
+    ],
+    "dependsOn": [
+      "50",
+      "51",
+      "52",
+      "PRD-10",
+      "STK-04",
+      "STK-01",
+      "SET-06"
+    ],
+    "risk": "money"
+  },
+  {
+    "id": "57",
+    "file": "57-floor-sign-off.md",
+    "title": "Sign off a short or over drawer",
+    "units": [
+      "FLR-05"
+    ],
+    "dependsOn": [
+      "54",
+      "51"
+    ],
+    "risk": "money"
+  },
+  {
+    "id": "58",
+    "file": "58-floor-laybys.md",
+    "title": "Lay-bys",
+    "units": [
+      "FLR-06"
+    ],
+    "dependsOn": [
+      "50",
+      "51",
+      "52",
+      "55",
+      "56",
+      "STK-01",
+      "PRD-05",
+      "SET-06",
+      "SET-07"
+    ],
+    "risk": "money"
+  },
+  {
+    "id": "59",
+    "file": "59-floor-end-of-day.md",
+    "title": "End of day and Past days",
+    "units": [
+      "FLR-07"
+    ],
+    "dependsOn": [
+      "54",
+      "57",
+      "50",
+      "SET-08"
+    ],
+    "risk": "money"
+  },
+  {
+    "id": "60",
+    "file": "60-floor-till-counter.md",
+    "title": "The till at the counter: approvals, refunds, counts, cash, lay-bys, messages",
+    "units": [
+      "FLR-09"
+    ],
+    "dependsOn": [
+      "56",
+      "54",
+      "58",
+      "51",
+      "SET-04",
+      "SET-06",
+      "ADM-03"
+    ],
+    "risk": "money"
+  },
+  {
+    "id": "62",
+    "file": "62-floor-overview.md",
+    "title": "The Overview",
+    "units": [
+      "FLR-08"
+    ],
+    "dependsOn": [
+      "50",
+      "51",
+      "57",
+      "58",
+      "STK-01",
+      "SET-03",
+      "FND-09"
+    ],
+    "risk": "standard"
+  },
+  {
+    "id": "63",
+    "file": "63-floor-till-catalog.md",
+    "title": "The till: prices, promotions, bundles, vouchers, bottles back, adjust stock, liquor moments",
+    "units": [
+      "FLR-10"
+    ],
+    "dependsOn": [
+      "60",
+      "PRD-05",
+      "PRD-08",
+      "PRD-09",
+      "PRD-10",
+      "STK-04",
+      "STK-09"
+    ],
+    "risk": "money"
+  }
+]

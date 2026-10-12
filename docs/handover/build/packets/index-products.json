@@ -1,0 +1,144 @@
+[
+  {
+    "id": "10",
+    "file": "10-products-new-product.md",
+    "title": "Products › New product, Edit a product, archive; price-change core and opening stock",
+    "units": [
+      "PRD-03"
+    ],
+    "dependsOn": [
+      "PRD-01",
+      "PRD-02",
+      "SET-02",
+      "SET-09",
+      "ADM-04",
+      "STK-01"
+    ],
+    "risk": "money"
+  },
+  {
+    "id": "14",
+    "file": "14-products-import.md",
+    "title": "Products › Import products from a spreadsheet",
+    "units": [
+      "SET-11"
+    ],
+    "dependsOn": [
+      "10",
+      "PRD-02",
+      "SET-02"
+    ],
+    "risk": "money"
+  },
+  {
+    "id": "15",
+    "file": "15-products-product-record.md",
+    "title": "Products › Product record",
+    "units": [
+      "PRD-04"
+    ],
+    "dependsOn": [
+      "10",
+      "11",
+      "STK-03",
+      "BUY-01",
+      "BUY-02"
+    ],
+    "risk": "standard"
+  },
+  {
+    "id": "18",
+    "file": "18-products-price-lists.md",
+    "title": "Products › Price lists, their rules, and the till's price engine",
+    "units": [
+      "PRD-05"
+    ],
+    "dependsOn": [
+      "10",
+      "13",
+      "PRD-02",
+      "SET-02",
+      "SET-03",
+      "SET-06"
+    ],
+    "risk": "money"
+  },
+  {
+    "id": "19",
+    "file": "19-products-labels.md",
+    "title": "Products › Print shelf labels",
+    "units": [
+      "PRD-06"
+    ],
+    "dependsOn": [
+      "10",
+      "PRD-01",
+      "SET-03",
+      "SET-04"
+    ],
+    "risk": "standard"
+  },
+  {
+    "id": "20",
+    "file": "20-products-price-worksheet.md",
+    "title": "Products › A price list's prices: type, add, change many",
+    "units": [
+      "PRD-07"
+    ],
+    "dependsOn": [
+      "18",
+      "19",
+      "10",
+      "SET-01",
+      "ADM-04"
+    ],
+    "risk": "money"
+  },
+  {
+    "id": "21",
+    "file": "21-products-bundles-and-packs.md",
+    "title": "Products › Bundles and packs",
+    "units": [
+      "PRD-08"
+    ],
+    "dependsOn": [
+      "10",
+      "11",
+      "18",
+      "19",
+      "PRD-01"
+    ],
+    "risk": "money"
+  },
+  {
+    "id": "22",
+    "file": "22-products-promotions.md",
+    "title": "Products › Promotions",
+    "units": [
+      "PRD-09"
+    ],
+    "dependsOn": [
+      "18",
+      "19",
+      "21"
+    ],
+    "risk": "money"
+  },
+  {
+    "id": "23",
+    "file": "23-products-vouchers.md",
+    "title": "Products › Vouchers",
+    "units": [
+      "PRD-10"
+    ],
+    "dependsOn": [
+      "18",
+      "19",
+      "SET-01",
+      "SET-07",
+      "SET-09",
+      "CUS-02"
+    ],
+    "risk": "money"
+  }
+]

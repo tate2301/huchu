@@ -72,7 +72,7 @@
  *
  * The obvious way to get revenue before VAT is `Σ subtotal`, and it is wrong on
  * this data. `calculateRetailCheckout` gives a **sale** an ex-VAT `subtotal` on a
- * tax-inclusive list, and `refundRetailSaleTransaction` builds a **refund**'s from
+ * tax-inclusive list, and `refundSale` (lib/retail/floor/refunds.ts) builds a **refund**'s from
  * `quantity × unitPrice` — shelf money, VAT still inside it
  * (`_services.ts`, `baseAmount: multiplyMoney(requestedQuantity, sourceLine.unitPrice)`).
  * The two are in different bases, so on an inclusive list a refund breaks the
@@ -138,6 +138,7 @@ export const RETAIL_Z_REPORT_TENDERS = [
   "TRANSFER",
   "ON_ACCOUNT",
   "VOUCHER",
+  "LAYBY",
 ] as const;
 
 /** The schema's vocabulary is this module's. A value added there fails to compile here. */
@@ -287,6 +288,8 @@ export type ZReportShiftInput = {
   variance: MoneyLike | null;
   movements: ZReportMovementInput[];
   sales: ZReportSaleInput[];
+  /** Lay-by money taken (+) or paid back (−) on this drawer by a tender other than cash (FLR-06). */
+  laybyPayments: Array<{ tenderType: RetailTenderType; baseAmount: MoneyLike }>;
 };
 
 export type ZReportBuildInput = {
@@ -556,6 +559,13 @@ export function buildRetailZReportFigures(
           amount: existing.amount.plus(toBaseAmount(line.lineTotal, fx)),
         });
       }
+    }
+
+    // Lay-by money by card or wallet is on that tender's statement, so its row counts it.
+    // Cash is not here: a cash lay-by payment is the drawer's cash movement below.
+    for (const payment of shift.laybyPayments) {
+      tenderAmounts.set(payment.tenderType, (tenderAmounts.get(payment.tenderType) ?? ZERO).plus(money(payment.baseAmount)));
+      tenderCounts.set(payment.tenderType, (tenderCounts.get(payment.tenderType) ?? 0) + 1);
     }
 
     for (const movement of shift.movements) {

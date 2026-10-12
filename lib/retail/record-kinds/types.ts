@@ -27,7 +27,7 @@ export type RecordDo =
   | { print: string }
   | { download: string }
   | { confirm: "bin" }
-  | { post: { url: string; body?: unknown; ask?: Ask; done: string } }
+  | { post: { url: string; method?: "PATCH" | "DELETE"; body?: unknown; ask?: Ask; done: string } }
   | { event: string };
 
 /**
@@ -43,12 +43,17 @@ export type RecordBanner = {
   action?: { label: string; post: string; method?: "POST" | "DELETE"; body: unknown; done: string; requires: Grant };
 };
 
+/** "Merged into <a>Tapiwa Marange</a>.": the bin banner's lead. */
+export type BinLead = { text: string; link: { label: string; href: string } };
+
 export type RecordAction = {
   key: string;
   label: string;
   tone?: "bad";
   /** A second line under a ⋯ item ("Managers and owners only"). */
   sub?: string;
+  /** Drawn but not pressable, with this as its tooltip ("Only today’s sales can be voided."). */
+  disabled?: string;
   /** Any of these. Empty: everyone who can read the record. */
   requires: Grant[];
   do: RecordDo;
@@ -105,6 +110,8 @@ export type RecordChart = {
   line?: RecordLine;
   /** A y-axis tick: "US$20". */
   tick?: (value: number) => string;
+  /** The axis' fixed top (100: an order's "% of what was ordered"); absent, the tallest bar's. */
+  max?: number;
   /** The one bar drawn dark (a sale's own hour); absent, the last. */
   mark?: number | null;
   footer?: { text: string; link?: { label: string; href: string } };
@@ -120,12 +127,31 @@ export type SourceTab<R> = {
   source: string;
   /** The source's `parent` filter key: `shift`. */
   parent: string;
+  /** The parent's value when it is not this record's id (a requisition's order: `orderId`). */
+  parentId?: (record: R) => string | null;
   /** Drawn only for roles holding this (the source refuses everyone else). */
   requires?: Grant;
   /** Drawn only while the record has something here (a sale's Refunds once it has one). */
   when?: (record: R) => boolean;
-  /** The link to everything, filtered to this record; or one of the record's actions by key ("View the receipt" prints a copy). */
-  allLink?: { label: string; href: (record: R) => string } | { label: string; action: string };
+  /** More of the source's filters, from the record: a customer's ledger over its 12 months (`when`). */
+  filters?: (record: R) => Record<string, string>;
+  /**
+   * The link to everything, filtered to this record; or one of the record's actions by key ("View the receipt" prints a copy);
+   * or another of the record's tabs ("All 38 lines" opens Every line).
+   */
+  allLink?:
+    | {
+        /** Fixed, or from the record ("All 23 orders"). */
+        label: string | ((record: R) => string);
+        /** Null: not drawn (a role that may not add a note). */
+        href: (record: R) => string | null;
+        /** Drawn under an empty table too (the Notes tab's "Add a note"). */
+        evenEmpty?: boolean;
+      }
+    | { label: string; action: string }
+    | { label: (record: R) => string; tab: string };
+  /** What an empty table says instead of the source's empty title ("Nothing to compare until the count is in."). */
+  emptyText?: (record: R) => string | null;
   /**
    * The source's columns this tab draws, in this order, and the header each
    * reads when it differs from the list's. Absent: every column the list shows.
@@ -222,7 +248,11 @@ export type RecordKind<R> = {
     deleteRight: Grant;
     state: (record: R) => BinState | null;
     /** What the bin banner says happens meanwhile, after "Kept until 2 November." ("Off the till and out of lists; …"). */
-    meanwhile?: string;
+    meanwhile?: string | ((record: R) => string);
+    /** A line the banner leads with, its link last ("Merged into Tapiwa Marange."). */
+    lead?: (record: R) => BinLead | null;
+    /** "Move to the bin" is offered only while this holds; false: the kind's own ⋯ item moves it (an order's "Remove the order"). */
+    offer?: (record: R) => boolean;
   };
   steps?: (record: R) => RecordStep[];
   chips?: (record: R) => RecordChip[];

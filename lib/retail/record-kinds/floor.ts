@@ -1,12 +1,13 @@
 import { fetchJson } from "@/lib/api-client";
 import { closeUncountedAsk } from "@/lib/retail/asks";
 import type { SaleView } from "@/lib/retail/floor/sale-view";
+import { VOID_TODAY_TOOLTIP } from "@/lib/retail/floor/reversal-words";
 import { fiscalChip, paidKpi, saleStateChip } from "@/lib/retail/floor/sale-words";
 import type { ShiftRecordView } from "@/lib/retail/shift-record";
 import { salesWords, takingsTitle } from "@/lib/retail/shift-words";
 import { formatDay, formatDuration, formatMediumDay, formatMoney, formatSigned, formatTime, formatWhen, formatCount } from "@/lib/workspace/format";
 
-import type { RailGroup, RecordAction, RecordChip, RecordKind, RecordKpi, RecordStep } from "./types";
+import type { Grant, RailGroup, RecordAction, RecordChip, RecordKind, RecordKpi, RecordStep } from "./types";
 
 /**
  * The shift record kind (00-foundations 5.6.10, ShiftRecord board): the
@@ -382,13 +383,30 @@ function saleRail(sale: SaleView): RailGroup[] {
   }
   groups.push({
     title: "Sale",
-    // The board's hint sits here, beside the customer it is for, though Customer is read-only until CUS-02.
+    // The board's hint sits here, beside the customer it is for.
     hint: true,
     rows: [
       { key: "till", label: "Till", value: sale.till.name },
       { key: "cashier", label: "Cashier", value: sale.cashier.name },
-      // Editable once customers land (CUS-02); until then the name as rung.
-      { key: "customer", label: "Customer", value: sale.customer?.name ?? sale.customerName ?? "Walk-in" },
+      // D-5 (CUS-02): picked from the customers; a past sale earns their points when one is added.
+      {
+        key: "customer",
+        label: "Customer",
+        value: sale.customer?.name ?? sale.customerName ?? "Walk-in",
+        muted: !sale.customer && !sale.customerName,
+        ...(sale.can.update
+          ? {
+              edit: {
+                field: "customerId",
+                type: "auto" as const,
+                initial: sale.customer?.id ?? "",
+                lookup: { noun: "customer", picked: sale.customer ? { id: sale.customer.id, label: sale.customer.name } : null },
+                parse: (value: string) => value || null,
+                requires: [...SELL_UPDATE] as ["retail.sell", "update"],
+              },
+            }
+          : {}),
+      },
       { key: "price-list", label: "Price list", value: sale.priceList },
     ],
   });
@@ -481,12 +499,38 @@ export const saleKind: RecordKind<SaleView> = {
   endpoint: (id) => `/api/v2/retail/sales/${id}`,
   title: (sale) => sale.saleNo,
   reference: (sale) => `${sale.till.name} · ${sale.cashier.name}`,
-  // Refund and Void join with FLR-02 (packet 56).
+  // FLR-02: Refund first, Void (same day only) under ⋯.
   actions: (sale) => [
+    ...(sale.can.refund
+      ? [{ key: "refund", label: "Refund", requires: [["retail.sell", "refund"]] as Grant[], do: { sheet: "refund", id: sale.id } }]
+      : []),
     { key: "reprint", label: "Reprint the receipt", requires: SALES_READ, do: { print: `/api/v2/retail/sales/${sale.id}/receipt` } },
     sendAction(sale),
   ],
   more: (sale) => [
+    ...(sale.can.void
+      ? [
+          {
+            key: "void",
+            label: "Void (same day only)",
+            tone: "bad" as const,
+            requires: [["retail.sell", "void"]] as Grant[],
+            disabled: sale.can.voidableToday ? undefined : VOID_TODAY_TOOLTIP,
+            do: { sheet: "sale-void", id: sale.id },
+          },
+        ]
+      : []),
+    // D-5 (CUS-02): the sale-customer sheet.
+    ...(sale.can.update
+      ? [
+          {
+            key: "customer",
+            label: sale.customer ? "Change the customer" : "Add a customer to it",
+            requires: [[...SELL_UPDATE] as ["retail.sell", "update"]],
+            do: { sheet: "sale-customer", id: sale.id },
+          },
+        ]
+      : []),
     { key: "pdf", label: "Export as PDF", requires: SALES_READ, do: { download: `/api/v2/retail/records/RetailSale/${sale.id}/pdf` } },
     ...(sale.review && !sale.review.reviewedAt
       ? [

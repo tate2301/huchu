@@ -113,7 +113,9 @@ export function ListCell({
     case "zero":
       return <span className="cx-lf-zerocell">{text}</span>;
     case "owed":
-      // Owing nothing is a quiet zero; in credit, a quiet "US$40.00 credit".
+      // Owing nothing is a quiet zero; in credit, a quiet "US$40.00 credit". With `pillKey`, only a row
+      // that sets it draws the pill; the rest is plain money (an order nothing has come against yet).
+      if (Number(value) > 0 && column.pillKey && !row[column.pillKey]) return <span className="cx-lf-moneycell">{text}</span>;
       return Number(value) > 0 ? <span className="cx-lf-pill cx-lf-pill--warn">{text}</span> : <span className="cx-lf-zerocell">{text}</span>;
     case "diff": {
       const tone = diffTone(column, value);
@@ -122,6 +124,27 @@ export function ListCell({
     case "state": {
       const tone = toneOf(column, row) ?? "neutral";
       return <StateBadge tone={tone}>{String(value)}</StateBadge>;
+    }
+    case "thumb": {
+      const href = column.href ? fillTemplate(column.href, row) : rowHref;
+      const src = column.thumbKey ? row[column.thumbKey] : null;
+      const under = column.suffixKey ? row[column.suffixKey] : null;
+      return (
+        <a href={href ?? undefined} className="cx-lf-thumbcell" target="_blank" rel="noreferrer">
+          {isBlank(src) ? (
+            <span className="cx-lf-thumb cx-lf-thumb--file" aria-hidden="true">
+              PDF
+            </span>
+          ) : (
+            // eslint-disable-next-line @next/next/no-img-element -- an uploaded file, any size, shown small
+            <img className="cx-lf-thumb" src={String(src)} alt="" />
+          )}
+          <span className="cx-lf-thumbtext">
+            <span className="cx-lf-link-cell">{text}</span>
+            {!isBlank(under) ? <span className="cx-lf-muted">{String(under)}</span> : null}
+          </span>
+        </a>
+      );
     }
     case "dot": {
       const tone = toneOf(column, row) ?? "hollow";
@@ -179,6 +202,7 @@ export function ListCell({
 
 /** The full value for a cell's `title`: "15 August 2026 18:14", "Chipo Dube". */
 export function cellTitle(column: ListColumn, row: ReportRow): string {
+  if (column.titleKey && !isBlank(row[column.titleKey])) return String(row[column.titleKey]);
   const value = row[column.key];
   if (isBlank(value)) return "";
   if (column.cell === "date") {

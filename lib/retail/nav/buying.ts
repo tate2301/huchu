@@ -10,7 +10,8 @@ export const buyingNav: RetailNavModule = {
   items: [
     { href: "/retail/buying/suppliers", icon: Storefront, label: "Suppliers", requires: [["retail.suppliers", "view"]] },
     { href: "/retail/buying/orders", icon: TrayArrowDown, label: "Orders", requires: [["retail.purchasing", "view"]] },
-    { href: "/retail/buying/deliveries", icon: Truck, label: "Deliveries", requires: [["retail.purchasing", "view"]] },
+    // Receiving against an order is Deliveries' work, though the page sits under the order.
+    { href: "/retail/buying/deliveries", icon: Truck, label: "Deliveries", requires: [["retail.purchasing", "view"]], also: /^\/retail\/buying\/orders\/[^/]+\/receive$/ },
     {
       href: "/retail/buying/requisitions",
       icon: Money,

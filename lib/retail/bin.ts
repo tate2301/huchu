@@ -4,7 +4,11 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { BIN_KEEP_DAYS, restorableUntil } from "@/lib/retail/asks";
 import { auditRecordBin, auditRecordPurged, RETAIL_AUDIT_EVENTS, type RetailAuditActor } from "@/lib/retail/audit";
+import { cancelOrderRequisitionsIn } from "@/lib/retail/buying/requisitions";
 import { categoryBinRefusal, restoreCategory } from "@/lib/retail/categories";
+import { CustomerRefusal } from "@/lib/retail/customers/create";
+import { unmergeCustomer } from "@/lib/retail/customers/merge";
+import { phoneDisplay } from "@/lib/retail/people/words";
 import { checkProductUnique, lockProductNames, ProductRefusal } from "@/lib/retail/products/create";
 import type { RetailAction, RetailResource } from "@/lib/retail/permission-matrix";
 
@@ -28,7 +32,7 @@ import type { RetailAction, RetailResource } from "@/lib/retail/permission-matri
  * `KINDS`.
  */
 
-export const BIN_KINDS = ["product", "promotion", "category", "price-list", "bundle"] as const;
+export const BIN_KINDS = ["product", "promotion", "category", "price-list", "bundle", "customer", "order"] as const;
 export type BinKind = (typeof BIN_KINDS)[number];
 
 type Tx = Prisma.TransactionClient;
@@ -36,7 +40,7 @@ type Tx = Prisma.TransactionClient;
 type Found = { name: string; archivedAt: Date | null };
 
 /** A record in the bin, as its kind lists it. */
-export type Binned = { companyId: string; id: string; name: string; reference: string | null; binnedAt: Date };
+export type Binned = { companyId: string; id: string; name: string; reference: string | null; binnedAt: Date; merged?: boolean };
 
 /** Which binned records a kind lists: one company's or every company's, binned in a window. */
 export type BinnedWhere = { companyId?: string; from?: Date; before?: Date };
@@ -62,10 +66,13 @@ export type BinKindSpec = {
    */
   binEvents: string[];
   find(tx: Tx, companyId: string, id: string): Promise<Found | null>;
-  /** Into the bin. A sentence refuses it (409), passed through as it is. */
-  move(tx: Tx, companyId: string, id: string, at: Date): Promise<string | null>;
-  /** Out of the bin. A sentence refuses it (409), passed through as it is. */
-  restore(tx: Tx, companyId: string, id: string): Promise<string | null>;
+  /**
+   * Into the bin. A sentence refuses it (409), passed through as it is. `by`
+   * is who bins it; `later` runs once the bin move commits (telling people).
+   */
+  move(tx: Tx, companyId: string, id: string, at: Date, by?: { actor: RetailAuditActor; later: (fn: () => Promise<void>) => void }): Promise<string | null>;
+  /** Out of the bin, by `actor`. A sentence refuses it (409), passed through as it is. */
+  restore(tx: Tx, companyId: string, id: string, actor: RetailAuditActor): Promise<string | null>;
   /**
    * Gone for good: the row is deleted when nothing sold, paid or counted
    * refers to it; otherwise it is kept, under its name, for that history.
@@ -83,7 +90,56 @@ function binnedWhere(where: BinnedWhere) {
   };
 }
 
+/** "PO-0007 · Delta Beverages": what the bin and the asks call an order. */
+const orderName = (order: { poNo: string; vendor: { name: string } }) => `${order.poNo} · ${order.vendor.name}`;
+
+/** `RetailPurchaseOrder` rows the bin may hold: drafts only (W-71). */
+const ORDER_KIND: BinKindSpec = {
+  kind: "order",
+  label: "Order, draft",
+  entityType: "RetailPurchaseOrder",
+  deleteRight: ["retail.purchasing", "delete"],
+  viewRight: ["retail.purchasing", "view"],
+  openKey: "orderId",
+  binEvents: [RETAIL_AUDIT_EVENTS.recordBinned],
+  find: async (tx, companyId, id) => {
+    const order = await tx.retailPurchaseOrder.findFirst({
+      where: { id, companyId },
+      select: { poNo: true, archivedAt: true, vendor: { select: { name: true } } },
+    });
+    return order ? { name: orderName(order), archivedAt: order.archivedAt } : null;
+  },
+  // Only a draft, which was never sent and nothing came against, so nothing
+  // in stock or the books changes and the supplier is not told.
+  move: async (tx, companyId, id, at, by) => {
+    const order = await tx.retailPurchaseOrder.findFirstOrThrow({ where: { id, companyId }, select: { poNo: true, status: true } });
+    if (order.status !== "DRAFT") return `${order.poNo} has been sent. Cancel what is left instead.`;
+    await tx.retailPurchaseOrder.update({ where: { id }, data: { archivedAt: at } });
+    // Its money not yet paid out is no longer asked for (W-72); the asker is told once this commits.
+    if (by) for (const after of await cancelOrderRequisitionsIn(tx, by.actor, id, at)) by.later(after);
+    return null;
+  },
+  restore: async (tx, _companyId, id) => {
+    await tx.retailPurchaseOrder.update({ where: { id }, data: { archivedAt: null } });
+    return null;
+  },
+  // A draft has nothing pointing at it: it and its lines go.
+  purge: async (tx, companyId, id) => {
+    await tx.retailPurchaseOrderLine.deleteMany({ where: { companyId, purchaseOrderId: id } });
+    await tx.retailPurchaseOrder.delete({ where: { id } });
+    return "deleted";
+  },
+  listBinned: async (where) =>
+    (
+      await prisma.retailPurchaseOrder.findMany({
+        where: binnedWhere(where),
+        select: { companyId: true, id: true, poNo: true, archivedAt: true, vendor: { select: { name: true } } },
+      })
+    ).map((row) => ({ companyId: row.companyId, id: row.id, name: orderName(row), reference: row.poNo, binnedAt: row.archivedAt! })),
+};
+
 const KINDS: Record<BinKind, BinKindSpec> = {
+  order: ORDER_KIND,
   product: {
     kind: "product",
     label: "Product",
@@ -304,7 +360,93 @@ const KINDS: Record<BinKind, BinKindSpec> = {
         })
       ).map((row) => ({ companyId: row.companyId, id: row.id, name: row.name, reference: row.code, binnedAt: row.archivedAt! })),
   },
+  customer: {
+    kind: "customer",
+    label: "Customer",
+    labelFor: (row) => (row.merged ? "Customer, merged" : "Customer"),
+    entityType: "Customer",
+    deleteRight: ["retail.customers", "delete"],
+    viewRight: ["retail.customers", "view"],
+    openKey: "customerId",
+    binEvents: [RETAIL_AUDIT_EVENTS.recordBinned],
+    find: async (tx, companyId, id) => {
+      const row = await tx.customer.findFirst({ where: { id, companyId }, select: { name: true, phone: true, archivedAt: true } });
+      return row ? { name: customerBinName(row), archivedAt: row.archivedAt } : null;
+    },
+    // Off every list, lookup and the till's search; their sales, points and messages stay (CUS-02).
+    // Not while a lay-by of theirs is being paid or waits to be collected (FLR-06); money owed on account (packet 66) joins here.
+    move: async (tx, companyId, id, at) => {
+      const layby = await tx.retailLayby.findFirst({
+        where: { companyId, customerId: id, status: { in: ["PAYING", "READY"] } },
+        orderBy: { createdAt: "asc" },
+        select: { laybyNo: true, customer: { select: { name: true } } },
+      });
+      if (layby) return `${layby.customer.name} has lay-by ${layby.laybyNo} still being paid.`;
+      await tx.customer.updateMany({ where: { id, companyId }, data: { archivedAt: at, isActive: false } });
+      return null;
+    },
+    // Back, unless a live customer has taken their number since. A merged duplicate is taken back out of the one it went into (CUS-05).
+    restore: async (tx, companyId, id, actor) => {
+      const customer = await tx.customer.findFirst({ where: { id, companyId }, select: { phone: true, mergedIntoId: true } });
+      if (!customer) return null;
+      if (customer.mergedIntoId) {
+        try {
+          await unmergeCustomer(tx, actor, id);
+          return null;
+        } catch (error) {
+          if (error instanceof CustomerRefusal) return error.message;
+          throw error;
+        }
+      }
+      if (customer.phone) {
+        const holder = await tx.customer.findFirst({
+          where: { companyId, phone: customer.phone, archivedAt: null, mergedIntoId: null, id: { not: id } },
+          select: { name: true },
+        });
+        if (holder) return `${holder.name} has this number now. Change one of them first.`;
+      }
+      await tx.customer.updateMany({ where: { id, companyId }, data: { archivedAt: null, isActive: true } });
+      return null;
+    },
+    // Kept while anything refers to them: a sale, points, a note, a voucher, empties, a lay-by, an invoice, a quotation or a CRM client.
+    purge: async (tx, companyId, id) => {
+      const counts = await Promise.all([
+        tx.retailSale.count({ where: { customerId: id } }),
+        tx.retailPointsEntry.count({ where: { customerId: id } }),
+        tx.retailCustomerNote.count({ where: { customerId: id } }),
+        tx.retailVoucher.count({ where: { customerId: id } }),
+        tx.retailEmptiesEntry.count({ where: { customerId: id } }),
+        tx.retailLayby.count({ where: { customerId: id } }),
+        tx.salesInvoice.count({ where: { customerId: id } }),
+        tx.salesQuotation.count({ where: { customerId: id } }),
+        tx.crmClient.count({ where: { customerId: id } }),
+        tx.customer.count({ where: { mergedIntoId: id } }),
+      ]);
+      if (counts.some((count) => count > 0)) return "kept";
+      await tx.customer.deleteMany({ where: { id, companyId } });
+      return "deleted";
+    },
+    listBinned: async (where) =>
+      (
+        await prisma.customer.findMany({
+          where: binnedWhere(where),
+          select: { companyId: true, id: true, name: true, phone: true, code: true, archivedAt: true, mergedIntoId: true },
+        })
+      ).map((row) => ({
+        companyId: row.companyId,
+        id: row.id,
+        name: customerBinName(row),
+        reference: row.code,
+        binnedAt: row.archivedAt!,
+        merged: row.mergedIntoId !== null,
+      })),
+  },
 };
+
+/** "Tapiwa Marange, +263 77 412 3388": a customer as the bin names them. */
+function customerBinName(row: { name: string; phone: string | null }): string {
+  return row.phone ? `${row.name}, ${phoneDisplay(row.phone)}` : row.name;
+}
 
 export function binKind(kind: BinKind): BinKindSpec {
   return KINDS[kind];
@@ -385,12 +527,13 @@ export async function moveToBin(
   now: Date = new Date(),
 ): Promise<{ binnedAt: string; keptUntil: string }> {
   const spec = KINDS[input.kind];
-  return prisma.$transaction(async (tx) => {
+  const afters: Array<() => Promise<void>> = [];
+  const moved = await prisma.$transaction(async (tx) => {
     await lockRecord(tx, spec, input.id);
     const found = await spec.find(tx, actor.companyId, input.id);
     if (!found) throw new BinRefusal(404, "That is not this shop's");
     if (found.archivedAt) throw new BinRefusal(409, "It is already in the bin");
-    const refusal = await spec.move(tx, actor.companyId, input.id, now);
+    const refusal = await spec.move(tx, actor.companyId, input.id, now, { actor, later: (fn) => afters.push(fn) });
     if (refusal) throw new BinRefusal(409, refusal);
     await auditRecordBin(tx, {
       actor,
@@ -402,6 +545,8 @@ export async function moveToBin(
     });
     return { binnedAt: now.toISOString(), keptUntil: restorableUntil(now).toISOString() };
   });
+  for (const after of afters) await after();
+  return moved;
 }
 
 /**
@@ -424,7 +569,7 @@ export async function restoreFromBin(
     if (!stillRestorable(found.archivedAt, now)) {
       throw new BinRefusal(410, "It has been in the bin more than 30 days");
     }
-    const refusal = await spec.restore(tx, actor.companyId, input.id);
+    const refusal = await spec.restore(tx, actor.companyId, input.id, actor);
     if (refusal) throw new BinRefusal(409, refusal);
     await auditRecordBin(tx, {
       actor,

@@ -1,0 +1,207 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<title>Receive delivery</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Next:wght@400;500;600&amp;family=IBM+Plex+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+.th{--surface:#ffffff;--ground:#faf7f4;--hover:#fbf8f5;--tray:#f3eee9;--active:#efe8e2;--line:#ece6e0;--line-soft:#f3eee9;--line-strong:#ddd4cc;--ink:#24140e;--ink-2:#4a3a33;--muted:#75675f;--faint:#a89c94;--accent:#e8620f;--accent-fill:#b84a0c;--data:#4b5363;--ok:#17734c;--ok-soft:#e7f4ee;--info:#3d4fb8;--info-soft:#eceefb;--warn:#8a5a10;--warn-soft:#fbf1dc;--warn-dot:#e0a21a;--warn-line:#e8cf9a;--bad:#a3122f;--bad-soft:#fbe8ec;--bad-dot:#c8203f;--float:0 0 0 1px #ece6e0,0 14px 30px -18px rgba(36,20,14,.3)}
+.th button:focus-visible,.th a:focus-visible,.th input:focus-visible,.th select:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
+.th input::placeholder{color:var(--faint)}
+.c{min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.lk{color:var(--ink);text-decoration:underline;text-decoration-color:var(--line-strong);text-underline-offset:3px}
+.rw:hover{background:var(--hover)}
+.mi:hover{background:var(--hover)}
+.bg{display:flex}.bg>button{margin-left:-1px;border-radius:0}.bg>button:first-child{margin-left:0;border-radius:8px 0 0 8px}.bg>button:last-child{border-radius:0 8px 8px 0}
+.fld{display:flex;flex-direction:column;gap:6px;min-width:0}
+.fld>span:first-child{font-size:13px;font-weight:500;color:var(--ink)}
+.inp{height:36px;box-sizing:border-box;padding:0 10px;border:1px solid var(--line-strong);border-radius:8px;background:var(--surface);font:inherit;font-size:14px;color:var(--ink);width:100%}
+.hint{font-size:12.5px;color:var(--muted);line-height:1.4}
+</style>
+</helmet>
+<div class="th" style="position: relative; width: 100%; height: 1040px; display: flex; overflow: hidden; background: var(--ground); color: var(--ink); font-family: 'Atkinson Hyperlegible Next', system-ui, sans-serif; font-size: 13px;">
+<nav aria-label="Modules" style="width: 56px; flex: none; display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 8px 0; background: var(--surface); border-right: 1px solid var(--line); box-sizing: border-box;">
+<div style="width: 32px; height: 32px; border-radius: 8px; background: var(--ink); color: #ffffff; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 600; margin-bottom: 8px;">HC</div>
+<a href="Floor.dc.html" aria-label="The floor" style="width: 36px; height: 36px; border-radius: 8px; background: transparent; color: var(--muted); display: flex; align-items: center; justify-content: center;"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M4 4h16l1.2 5a3 3 0 0 1-2.2 2.9V20H5v-8.1A3 3 0 0 1 2.8 9zm6 10v6h4v-6z"></path></svg></a>
+<a href="ProductsList.dc.html" aria-label="Products" style="width: 36px; height: 36px; border-radius: 8px; background: transparent; color: var(--muted); display: flex; align-items: center; justify-content: center;"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M3 3h9l9 9-9 9-9-9zm5 3.5a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3z"></path></svg></a>
+<a href="StockList.dc.html" aria-label="Stock" style="width: 36px; height: 36px; border-radius: 8px; background: transparent; color: var(--muted); display: flex; align-items: center; justify-content: center;"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M12 2 2 7l10 5 10-5zM3.6 11.2 2 12l10 5 10-5-1.6-.8-8.4 4.2zm0 5L2 17l10 5 10-5-1.6-.8-8.4 4.2z"></path></svg></a>
+<a href="OrdersList.dc.html" aria-label="Buying" style="width: 36px; height: 36px; border-radius: 8px; background: var(--active); color: var(--ink); display: flex; align-items: center; justify-content: center;"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M4 3h16a1 1 0 0 1 1 1v16a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1zm1 10v6h14v-6h-4l-1.5 2h-3L9 13z"></path></svg></a>
+<a href="InsightsSales.dc.html" aria-label="Insights" style="width: 36px; height: 36px; border-radius: 8px; background: transparent; color: var(--muted); display: flex; align-items: center; justify-content: center;"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M3 20h18v2H3zM5 10h3v8H5zm5.5-6h3v14h-3zM16 13h3v5h-3z"></path></svg></a>
+<a href="ReportsList.dc.html" aria-label="Reports" style="width: 36px; height: 36px; border-radius: 8px; background: transparent; color: var(--muted); display: flex; align-items: center; justify-content: center;"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M5 2h10l4 4v16H5zm9 1.5V7h3.5zM8 11v1.6h8V11zm0 3.4v1.6h8v-1.6zm0 3.4v1.6h5v-1.6z"></path></svg></a>
+<div style="flex: 1;"></div>
+<a href="CompanySettings.dc.html" aria-label="Management" style="width: 36px; height: 36px; border-radius: 8px; background: transparent; color: var(--muted); display: flex; align-items: center; justify-content: center;"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M10.5 2h3l.5 2.6 2 .9 2.3-1.4 2.1 2.1-1.4 2.3.9 2 2.6.5v3l-2.6.5-.9 2 1.4 2.3-2.1 2.1-2.3-1.4-2 .9-.5 2.6h-3l-.5-2.6-2-.9-2.3 1.4-2.1-2.1 1.4-2.3-.9-2L2 13.5v-3l2.6-.5.9-2-1.4-2.3 2.1-2.1 2.3 1.4 2-.9zM12 8.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7z"></path></svg></a>
+</nav>
+<nav aria-label="Buying" style="width: 240px; flex: none; display: flex; flex-direction: column; background: var(--ground); border-right: 1px solid var(--line); box-sizing: border-box;">
+<div style="height: 48px; display: flex; align-items: center; gap: 8px; padding: 0 12px;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" style="color: var(--muted);"><path d="m15 18-6-6 6-6"></path></svg><span style="font-size: 14px; font-weight: 600;">Buying</span></div>
+<div style="display: flex; flex-direction: column; gap: 2px; padding: 4px 10px;">
+<a href="SuppliersList.dc.html" style="height: 34px; display: flex; align-items: center; gap: 10px; padding: 0 10px; border-radius: 8px; color: var(--ink); background: transparent; font-weight: 400; text-decoration: none;"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M4 4h16l1.2 5a3 3 0 0 1-2.2 2.9V20H5v-8.1A3 3 0 0 1 2.8 9z"></path></svg>Suppliers</a>
+<a href="OrdersList.dc.html" style="height: 34px; display: flex; align-items: center; gap: 10px; padding: 0 10px; border-radius: 8px; color: var(--ink); background: transparent; font-weight: 400; text-decoration: none;"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M4 3h16a1 1 0 0 1 1 1v16a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1zm1 10v6h14v-6h-4l-1.5 2h-3L9 13z"></path></svg>Orders</a>
+<a href="DeliveriesList.dc.html" aria-current="page" style="height: 34px; display: flex; align-items: center; gap: 10px; padding: 0 10px; border-radius: 8px; color: var(--ink); background: var(--active); font-weight: 600; text-decoration: none;"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M2 6h12v9H2zm12 3h4l3 3v3h-7zM6 19a2 2 0 1 1 0-4 2 2 0 0 1 0 4zm11 0a2 2 0 1 1 0-4 2 2 0 0 1 0 4z"></path></svg>Deliveries</a>
+<a href="RequisitionsList.dc.html" style="height: 34px; display: flex; align-items: center; gap: 10px; padding: 0 10px; border-radius: 8px; color: var(--ink); background: transparent; font-weight: 400; text-decoration: none;"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M2 6h20v12H2zm10 3a3 3 0 1 0 0 6 3 3 0 0 0 0-6z"></path></svg>Requisitions</a>
+</div></nav>
+<main style="flex: 1; min-width: 0; display: flex; flex-direction: column; background: var(--surface);">
+<header style="height: 48px; flex: none; display: flex; align-items: center; gap: 8px; padding: 0 16px; border-bottom: 1px solid var(--line); box-sizing: border-box;"><a href="OrderRecord.dc.html" style="height: 32px; display: flex; align-items: center; gap: 4px; padding: 0 8px 0 4px; border-radius: 8px; color: var(--muted); text-decoration: none;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"></path></svg>PO-0003</a><span aria-hidden="true" style="color: var(--line-strong);">/</span><h1 style="margin: 0; font-size: 15px; font-weight: 600; white-space: nowrap;">Receive delivery</h1><span style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: var(--muted);">Delta Beverages, second delivery</span><div style="flex: 1;"></div><button onClick="{{fillAll}}" style="height: 32px; display: flex; align-items: center; gap: 6px; padding: 0 12px; border: 1px solid var(--line-strong); border-radius: 8px; background: var(--surface); color: var(--ink); font: inherit; white-space: nowrap;">Fill as ordered</button><button onClick="{{post}}" style="height: 32px; display: flex; align-items: center; gap: 8px; padding: 0 14px; border: 0; border-radius: 8px; background: var(--accent-fill); color: #ffffff; font: inherit; font-weight: 600; white-space: nowrap;">Post to stock</button></header>
+<div role="toolbar" aria-label="Receive delivery" style="height: 48px; flex: none; display: flex; align-items: center; gap: 8px; padding: 0 16px; border-bottom: 1px solid var(--line); background: var(--ground); box-sizing: border-box;">
+  <label style="width: 320px; height: 32px; display: flex; align-items: center; gap: 8px; padding: 0 10px; border: 1px solid var(--line-strong); border-radius: 8px; background: var(--surface); box-sizing: border-box; color: var(--muted);"><svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 5h2v14H3zm4 0h1v14H7zm3 0h2v14h-2zm4 0h1v14h-1zm3 0h1v14h-1zm2 0h2v14h-2z"></path></svg><input aria-label="Scan or type a product" placeholder="Scan or type a product to jump to it" style="flex: 1; min-width: 0; border: 0; outline: none; font: inherit; color: var(--ink); background: transparent;"></label>
+  <span style="display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 8px; border-radius: 6px; font-size: 12px; font-weight: 500; background: var(--bad-soft); color: var(--bad);">48 days late</span><span style="color: var(--muted);">300 of 780 came on 13 August</span>
+  <div style="flex: 1;"></div>
+  <span style="color: var(--muted);">Receiving</span><span style="font-family: 'IBM Plex Mono', monospace; font-size: 15px; font-weight: 600;">{{valueNow}}</span>
+</div>
+
+<div style="flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) 320px;">
+  <div style="min-width: 0; display: flex; flex-direction: column; overflow: hidden;">
+    <sc-if value="{{showHint}}" hint-placeholder-val="{{ true }}">
+      <div role="note" style="flex: none; display: flex; align-items: flex-start; gap: 12px; margin: 16px 24px 0; padding: 14px 16px; border: 1px solid var(--line); border-radius: 12px; background: var(--ground);">
+        <ol style="margin: 0; padding: 0; list-style: none; flex: 1; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px;">
+          <li style="display: flex; gap: 10px;"><span style="flex: none; width: 22px; height: 22px; border-radius: 99px; background: var(--tray); font-family: 'IBM Plex Mono', monospace; font-size: 11px; font-weight: 600; display: flex; align-items: center; justify-content: center;">1</span><span style="line-height: 1.45; color: var(--ink-2);"><strong style="font-weight: 600; color: var(--ink);">Count each line.</strong> Type what came, or scan it. What is already filled is what the order says is due.</span></li>
+          <li style="display: flex; gap: 10px;"><span style="flex: none; width: 22px; height: 22px; border-radius: 99px; background: var(--tray); font-family: 'IBM Plex Mono', monospace; font-size: 11px; font-weight: 600; display: flex; align-items: center; justify-content: center;">2</span><span style="line-height: 1.45; color: var(--ink-2);"><strong style="font-weight: 600; color: var(--ink);">Put breakages aside.</strong> Damaged bottles go in their own column, so they are claimed, not sold.</span></li>
+          <li style="display: flex; gap: 10px;"><span style="flex: none; width: 22px; height: 22px; border-radius: 99px; background: var(--tray); font-family: 'IBM Plex Mono', monospace; font-size: 11px; font-weight: 600; display: flex; align-items: center; justify-content: center;">3</span><span style="line-height: 1.45; color: var(--ink-2);"><strong style="font-weight: 600; color: var(--ink);">Decide on the rest.</strong> Anything short stays on order, unless you close it short.</span></li>
+        </ol>
+        <button onClick="{{hideHint}}" aria-label="Hide the guide" style="flex: none; width: 28px; height: 28px; border: 0; border-radius: 6px; background: transparent; color: var(--muted); display: flex; align-items: center; justify-content: center;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"></path></svg></button>
+      </div>
+    </sc-if>
+    <sc-if value="{{posted}}" hint-placeholder-val="{{ false }}">
+      <div role="status" style="flex: none; display: flex; align-items: center; gap: 10px; margin: 16px 24px 0; padding: 0 16px; height: 48px; border-radius: 12px; background: var(--ok-soft); color: var(--ok);"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2a10 10 0 1 1 0 20 10 10 0 0 1 0-20zm4.3 6.3L10.5 14l-2.8-2.8-1.4 1.4 4.2 4.2 7.2-7.1z"></path></svg><span><strong style="font-weight: 600;">Posted to stock.</strong> {{postedLine}}</span><span style="flex: 1;"></span><a href="DeliveryRecord.dc.html" style="color: var(--ok); text-decoration: underline; text-underline-offset: 3px;">Open GRN-0005</a></div>
+    </sc-if>
+    <div style="flex: 1; min-height: 0; overflow: auto; padding: 16px 24px 0;">
+      <div role="table" aria-label="Lines on this delivery" style="border: 1px solid var(--line); border-radius: 12px; overflow: hidden;">
+        <div role="row" style="display: grid; grid-template-columns: minmax(0, 1fr) 72px 96px 88px 84px 124px 96px; align-items: center; height: 36px; background: var(--ground); border-bottom: 1px solid var(--line); color: var(--muted); font-size: 12.5px; font-weight: 500;">
+          <span role="columnheader" class="c" style="padding: 0 12px;">Product</span>
+          <span role="columnheader" class="c" style="padding: 0 10px; text-align: right;">Ordered</span>
+          <span role="columnheader" class="c" style="padding: 0 10px; text-align: right; color: var(--ink);">This time</span>
+          <span role="columnheader" class="c" style="padding: 0 10px; text-align: right;">Damaged</span>
+          <span role="columnheader" class="c" style="padding: 0 10px; text-align: right;">To come</span>
+          <span role="columnheader" class="c" style="padding: 0 10px;">The rest</span>
+          <span role="columnheader" class="c" style="padding: 0 12px; text-align: right;">Value</span>
+        </div>
+        <sc-for list="{{rows}}" as="r" hint-placeholder-count="4">
+          <div role="row" class="rw" style="display: grid; grid-template-columns: minmax(0, 1fr) 72px 96px 88px 84px 124px 96px; align-items: center; height: 52px; border-bottom: 1px solid var(--line-soft); background: {{r.bg}};">
+            <span role="cell" style="padding: 0 12px; min-width: 0; display: flex; flex-direction: column; gap: 2px;"><span class="c" style="font-weight: 500;">{{r.name}}</span><span class="c" style="font-size: 12px; color: var(--muted);">{{r.before}}</span></span>
+            <span role="cell" style="padding: 0 10px; text-align: right; font-family: 'IBM Plex Mono', monospace;">{{r.ordered}}</span>
+            <span role="cell" style="padding: 0 6px; display: flex; justify-content: flex-end;"><input aria-label="Coming now, {{r.name}}" value="{{r.now}}" onChange="{{r.setNow}}" inputmode="numeric" style="width: 76px; height: 32px; box-sizing: border-box; padding: 0 10px; border: 1px solid {{r.nowLine}}; border-radius: 8px; background: var(--surface); font-family: 'IBM Plex Mono', monospace; font-size: 13px; font-weight: 600; text-align: right; color: var(--ink);"></span>
+            <span role="cell" style="padding: 0 6px; display: flex; justify-content: flex-end;"><input aria-label="Damaged units, {{r.name}}" value="{{r.broken}}" onChange="{{r.setBroken}}" inputmode="numeric" style="width: 64px; height: 32px; box-sizing: border-box; padding: 0 10px; border: 1px solid var(--line-strong); border-radius: 8px; background: var(--surface); font-family: 'IBM Plex Mono', monospace; font-size: 13px; text-align: right; color: {{r.brokenFg}};"></span>
+            <span role="cell" style="padding: 0 10px; text-align: right; font-family: 'IBM Plex Mono', monospace; font-weight: {{r.stillWeight}}; color: {{r.stillFg}};">{{r.still}}</span>
+            <span role="cell" style="padding: 0 10px;">
+              <sc-if value="{{r.hasRest}}" hint-placeholder-val="{{ true }}"><span class="bg" role="group" aria-label="The rest of {{r.name}}" style="display: flex;"><button aria-pressed="{{r.keepOn}}" onClick="{{r.keep}}" style="height: 28px; padding: 0 10px; border: 1px solid var(--line-strong); background: {{r.keepBg}}; color: var(--ink); font: inherit; font-size: 12.5px; font-weight: {{r.keepWeight}};">Keep</button><button aria-pressed="{{r.closeOn}}" onClick="{{r.close}}" style="height: 28px; padding: 0 10px; border: 1px solid var(--line-strong); background: {{r.closeBg}}; color: var(--ink); font: inherit; font-size: 12.5px; font-weight: {{r.closeWeight}};">Close</button></span></sc-if>
+              <sc-if value="{{r.complete}}" hint-placeholder-val="{{ false }}"><span style="display: inline-flex; align-items: center; gap: 6px; color: var(--ok);"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2a10 10 0 1 1 0 20 10 10 0 0 1 0-20zm4.3 6.3L10.5 14l-2.8-2.8-1.4 1.4 4.2 4.2 7.2-7.1z"></path></svg>All in</span></sc-if>
+            </span>
+            <span role="cell" style="padding: 0 12px; text-align: right; font-family: 'IBM Plex Mono', monospace;">{{r.value}}</span>
+          </div>
+        </sc-for>
+        <div role="row" style="position: sticky; bottom: 0; display: grid; grid-template-columns: minmax(0, 1fr) 72px 96px 88px 84px 124px 96px; align-items: center; height: 44px; background: var(--ground); border-top: 1px solid var(--line-strong); font-family: 'IBM Plex Mono', monospace; font-weight: 600;">
+          <span role="cell" style="padding: 0 12px; font-family: 'Atkinson Hyperlegible Next', system-ui, sans-serif; color: var(--muted); font-weight: 500;">Σ <span style="font-family: 'IBM Plex Mono', monospace; color: var(--ink);">{{lineCount}}</span> lines</span>
+          <span role="cell" style="padding: 0 10px; text-align: right;">{{tOrdered}}</span>
+          <span role="cell" style="padding: 0 16px; text-align: right;">{{tNow}}</span>
+          <span role="cell" style="padding: 0 16px; text-align: right; color: {{tBrokenFg}};">{{tBroken}}</span>
+          <span role="cell" style="padding: 0 10px; text-align: right; color: {{tStillFg}};">{{tStill}}</span>
+          <span role="cell"></span>
+          <span role="cell" style="padding: 0 12px; text-align: right;">{{valueNow}}</span>
+        </div>
+      </div>
+      <p style="margin: 12px 0 24px; color: var(--muted);">Quantities are single units. Damaged units are counted in, claimed from the supplier and kept off the shelf.</p>
+    </div>
+  </div>
+
+  <aside aria-label="When you post" style="border-left: 1px solid var(--line); background: var(--ground); padding: 20px; display: flex; flex-direction: column; gap: 20px; overflow: auto;">
+    <section style="display: flex; flex-direction: column; gap: 10px;">
+      <h2 style="margin: 0; font-size: 14px; font-weight: 600;">When you post</h2>
+      <ul style="margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 10px;">
+        <sc-for list="{{outcomes}}" as="o" hint-placeholder-count="4"><li style="display: flex; gap: 10px; line-height: 1.45;"><span style="flex: none; width: 8px; height: 8px; margin-top: 6px; box-sizing: border-box; border-radius: 99px; background: {{o.dot}}; border: 1.5px solid {{o.line}};"></span><span style="color: var(--ink-2);">{{o.text}}</span></li></sc-for>
+      </ul>
+    </section>
+    <section style="display: flex; flex-direction: column; gap: 12px; padding-top: 20px; border-top: 1px solid var(--line);">
+      <h2 style="margin: 0; font-size: 14px; font-weight: 600;">The delivery note</h2>
+      <label class="fld"><span>Note number</span><input class="inp" value="DB-778233" style="font-family: 'IBM Plex Mono', monospace;"></label>
+      <label class="fld"><span>Counted by</span><span style="position: relative;"><input class="inp" value="Tafara Nyathi" aria-autocomplete="list"><span style="position: absolute; right: 10px; top: 10px; color: var(--muted);"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg></span></span></label>
+      <div style="height: 84px; border: 1.5px dashed var(--line-strong); border-radius: 12px; background: var(--surface); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; color: var(--muted);"><span style="color: var(--ink); font-weight: 500;">Add a photo of the signed note</span><span style="font-size: 12px;">Drop it here, or take one on the phone</span></div>
+    </section>
+    <section style="display: flex; flex-direction: column; gap: 12px; padding-top: 20px; border-top: 1px solid var(--line);">
+      <h2 style="margin: 0; font-size: 14px; font-weight: 600; display: flex; align-items: center; gap: 8px;">Empties going back<span style="height: 20px; padding: 0 6px; border-radius: 6px; background: var(--tray); color: var(--ink-2); font-size: 11.5px; font-weight: 500; display: flex; align-items: center;">Liquor store</span></h2>
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+        <label class="fld"><span>Crates</span><input class="inp" value="{{crates}}" onChange="{{setCrates}}" inputmode="numeric" style="font-family: 'IBM Plex Mono', monospace; text-align: right;"></label>
+        <div class="fld"><span>Deposit back</span><span style="height: 36px; display: flex; align-items: center; justify-content: flex-end; padding: 0 10px; border-radius: 8px; background: var(--tray); font-family: 'IBM Plex Mono', monospace; font-weight: 600;">{{deposit}}</span></div>
+      </div>
+      <span class="hint">Chibuku crates at US$3.00 each, credited against this order.</span>
+    </section>
+    <section style="display: flex; flex-direction: column; gap: 8px; padding-top: 20px; border-top: 1px solid var(--line);">
+      <h2 style="margin: 0; font-size: 14px; font-weight: 600;">Paying for it</h2>
+      <span style="line-height: 1.45; color: var(--ink-2);">On account with Delta, 30 days from delivery. The bill for this delivery falls due on <span style="font-family: 'IBM Plex Mono', monospace; color: var(--ink);">2 Nov</span>.</span>
+      <label class="fld" style="margin-top: 4px;"><span>Paid in cash instead?</span><input class="inp" placeholder="Search requisitions, or ask for money" aria-autocomplete="list"></label>
+      <span class="hint">Cash for a supplier comes from a requisition, like <a href="RequisitionRecord.dc.html" class="lk" style="font-family: 'IBM Plex Mono', monospace;">REQ-0014</a>, so the safe always balances.</span>
+    </section>
+  </aside>
+</div>
+
+</main>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1040}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { now: ['120', '144', '90', '72'], broken: ['6', '0', '0', '0'], rest: ['keep', 'keep', 'keep', 'close'], crates: '30', showHint: true, posted: false };
+  }
+  renderVals() {
+    var self = this;
+    var L = [
+      ['Castle Lager 340ml', '6001108', 'sold singly, cases of 24', 240, 120, 0.86],
+      ['Chibuku Scud 1L', '6001020', 'sold singly, crates of 12', 240, 60, 0.82],
+      ['Coca-Cola 500ml', '5449000', 'sold singly, packs of 24', 180, 90, 0.52],
+      ['Sprite 500ml', '5449002', 'sold singly, packs of 24', 120, 30, 0.52]
+    ];
+    function n(v) { var x = parseInt(v, 10); return isNaN(x) || x < 0 ? 0 : x; }
+    function money(v) { return 'US$' + v.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ','); }
+    var st = this.state, tO = 0, tB = 0, tN = 0, tX = 0, tS = 0, val = 0, claim = 0, kept = 0, keptCases = 0, closed = 0;
+    var rows = L.map(function (l, i) {
+      var now = n(st.now[i]), br = n(st.broken[i]), due = l[3] - l[4], still = Math.max(0, due - now);
+      var v = (now - br) * l[5];
+      tO += l[3]; tB += l[4]; tN += now; tX += br; tS += still; val += v; claim += br * l[5];
+      var keep = st.rest[i] === 'keep';
+      if (still > 0 && keep) { kept += 1; keptCases += still; }
+      if (still > 0 && !keep) { closed += 1; }
+      function setRest(k) { return function () { var r = st.rest.slice(); r[i] = k; self.setState({ rest: r }); }; }
+      return {
+        name: l[0], code: l[1], unit: l[2], ordered: String(l[3]), before: l[4] ? l[4] + ' came on 13 Aug' : 'First delivery',
+        now: String(st.now[i]), broken: String(st.broken[i]),
+        setNow: function (e) { var a = st.now.slice(); a[i] = e.target.value; self.setState({ now: a }); },
+        setBroken: function (e) { var a = st.broken.slice(); a[i] = e.target.value; self.setState({ broken: a }); },
+        nowLine: now > due ? 'var(--bad-dot)' : 'var(--line-strong)',
+        brokenFg: br ? 'var(--bad)' : 'var(--ink)',
+        still: still ? String(still) : '–', stillFg: still ? (keep ? 'var(--warn)' : 'var(--muted)') : 'var(--faint)', stillWeight: still ? '600' : '400',
+        hasRest: still > 0, complete: still === 0,
+        keepOn: keep, closeOn: !keep, keep: setRest('keep'), close: setRest('close'),
+        keepBg: keep ? 'var(--active)' : 'var(--surface)', closeBg: keep ? 'var(--surface)' : 'var(--active)',
+        keepWeight: keep ? '600' : '400', closeWeight: keep ? '400' : '600',
+        value: money(v), bg: still > 0 && now === 0 ? 'var(--ground)' : 'transparent'
+      };
+    });
+    var crates = n(st.crates);
+    var out = [
+      { text: (tN - tX) + ' units go into stock at Harare Main Branch, on sale at once.', dot: 'var(--ok)', line: 'var(--ok)' },
+      { text: kept ? kept + (kept === 1 ? ' line stays' : ' lines stay') + ' on order: ' + keptCases + ' units still to come. The order stays part delivered.' : 'Nothing left to come. The order closes.', dot: kept ? 'var(--warn-dot)' : 'var(--ok)', line: kept ? 'var(--warn-dot)' : 'var(--ok)' },
+      { text: closed ? closed + (closed === 1 ? ' line is' : ' lines are') + ' closed short. You pay only for what came.' : 'No lines closed short.', dot: 'transparent', line: 'var(--faint)' },
+      { text: tX ? 'A claim for ' + tX + ' damaged units, ' + money(claim) + ', goes to Delta Beverages.' : 'Nothing damaged, nothing to claim.', dot: tX ? 'var(--bad-dot)' : 'transparent', line: tX ? 'var(--bad-dot)' : 'var(--faint)' }
+    ];
+    return {
+      rows: rows, lineCount: String(L.length),
+      tOrdered: String(tO), tBefore: String(tB), tNow: String(tN), tBroken: String(tX), tStill: String(tS),
+      tBrokenFg: tX ? 'var(--bad)' : 'var(--ink)', tStillFg: tS ? 'var(--warn)' : 'var(--ink)',
+      valueNow: money(val), outcomes: out,
+      crates: st.crates, setCrates: function (e) { self.setState({ crates: e.target.value }); }, deposit: money(crates * 3),
+      showHint: st.showHint && !st.posted, hideHint: function () { self.setState({ showHint: false }); },
+      posted: st.posted, postedLine: (tN - tX) + ' units in stock' + (kept ? ', ' + keptCases + ' still on order.' : ', order closed.'),
+      post: function () { self.setState({ posted: true }); },
+      fillAll: function () { self.setState({ now: L.map(function (l) { return String(l[3] - l[4]); }), posted: false }); }
+    };
+  }
+}
+</script>
+</body>
+</html>

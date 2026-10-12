@@ -47,6 +47,7 @@ afterAll(async () => {
   await prisma.retailCategory.deleteMany({ where: { companyId } });
   await prisma.site.deleteMany({ where: { companyId } });
   await prisma.vendor.deleteMany({ where: { companyId } });
+  await prisma.customer.deleteMany({ where: { companyId } });
   await prisma.platformAuditEvent.deleteMany({ where: { companyId } });
   await prisma.user.deleteMany({ where: { companyId } });
   await prisma.company.deleteMany({ where: { id: companyId } });
@@ -238,6 +239,52 @@ describe("supplier, contact and contact role lookups", () => {
       body: { error: "Your role cannot change suppliers" },
     });
     expect(await prisma.vendor.count({ where: { companyId, name: "Natbrew" } })).toBe(0);
+  });
+});
+
+describe("customer lookup (CUS-02)", () => {
+  let manager: LookupCtx;
+
+  beforeAll(async () => {
+    const user = await prisma.user.create({
+      data: { email: `tafara-cus-${companyId}@lookups.test`, name: "Tafara Nyathi", role: "MANAGER", companyId },
+      select: { id: true },
+    });
+    manager = { ...as("MANAGER"), userId: user.id, userName: "Tafara Nyathi" };
+    await prisma.customer.createMany({
+      data: [
+        { companyId, name: "Tapiwa Marange", phone: "+263774123388", code: "CUS-00141", cardNo: "600914000141" },
+        { companyId, name: "Nyasha Gwenzi", phone: "+263712209014", code: "CUS-00142", cardNo: "600914000142" },
+        { companyId, name: "Tapiwa Binned", phone: "+263774120000", archivedAt: new Date(), isActive: false },
+      ],
+    });
+  });
+
+  it("finds a customer by name, the end of their phone, their card and their code, never one in the bin", async () => {
+    const labels = async (q: string) => {
+      const found = await searchLookup(as("CASHIER"), "customer", { q });
+      return found.status === 200 ? found.body.options.map((option) => `${option.label} · ${option.sub}`) : found;
+    };
+    expect(await labels("tapiwa")).toEqual(["Tapiwa Marange · +263 77 412 3388"]);
+    expect(await labels("3388")).toEqual(["Tapiwa Marange · +263 77 412 3388"]);
+    expect(await labels("600914000142")).toEqual(["Nyasha Gwenzi · +263 71 220 9014"]);
+    expect(await labels("CUS-00142")).toEqual(["Nyasha Gwenzi · +263 71 220 9014"]);
+  });
+
+  it("adds one from the panel without consent, and names who has a number already", async () => {
+    const answer = await addLookupOption(manager, "customer", { name: "Simba Nkomo", phone: "0715540912" });
+    expect(answer.status === 201 && answer.body.option).toMatchObject({ label: "Simba Nkomo", sub: "+263 71 554 0912" });
+    expect(await prisma.customer.findFirstOrThrow({ where: { companyId, name: "Simba Nkomo" }, select: { marketingConsent: true } })).toEqual({ marketingConsent: false });
+    expect(await addLookupOption(manager, "customer", { name: "Simba N.", phone: "+263 71 554 0912" })).toMatchObject({
+      status: 400,
+      body: { fieldErrors: { phone: "Simba Nkomo already has this number." } },
+    });
+  });
+
+  it("lets a cashier read and add, and keeps a stock clerk out", async () => {
+    const cashier = await searchLookup(as("CASHIER"), "customer", { q: "" });
+    expect(cashier.status === 200 && cashier.body.add?.quick.map((field) => field.label)).toEqual(["Name", "Phone or WhatsApp"]);
+    expect((await searchLookup(as("STOCK_CLERK"), "customer", { q: "" })).status).toBe(403);
   });
 });
 

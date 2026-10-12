@@ -4,9 +4,11 @@
  */
 export type * from "./types";
 export { bundleKind } from "./bundles";
+export { customerKind } from "./customers";
 export { promotionKind } from "./promotions";
-export { supplierKind } from "./buying";
+export { deliveryKind, orderKind, supplierKind } from "./buying";
 export { saleKind, shiftKind } from "./floor";
 export { productKind } from "./products";
-export { transferKind } from "./stock";
+export { requisitionKind } from "./requisitions";
+export { countKind, transferKind } from "./stock";
 export { voucherKind } from "./vouchers";

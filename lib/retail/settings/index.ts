@@ -14,6 +14,7 @@ import {
 import { approvalsSettings } from "./approvals";
 import { companySettings } from "./company";
 import { fiscalSettings } from "./fiscal";
+import { loyaltySettings } from "./loyalty";
 import { paymentsSettings } from "./payments";
 import { postingSettings } from "./posting";
 import { receiptsSettings } from "./receipts";
@@ -30,6 +31,7 @@ const STORES: Record<string, SettingsStore> = {
   approvals: approvalsSettings,
   company: companySettings,
   fiscal: fiscalSettings,
+  loyalty: loyaltySettings,
   payments: paymentsSettings,
   posting: postingSettings,
   receipts: receiptsSettings,

@@ -1,11 +1,15 @@
 import { fetchJson } from "@/lib/api-client";
+import { recountToast } from "@/lib/retail/stock/count-words";
+import type { CountView } from "@/lib/retail/stock/counts";
 import type { TransferView } from "@/lib/retail/stock/transfer-record";
 import { routeWords, transferChip, formatDayTime } from "@/lib/retail/stock/transfer-words";
-import { formatCount, formatMoney, formatTime } from "@/lib/workspace/format";
+import { formatCount, formatMoney, formatSigned, formatTime } from "@/lib/workspace/format";
 
 import type { Grant, RecordChart, RecordKind, RecordKpi, RecordStep } from "./types";
 
 /**
+ * The stock record kinds: a transfer and a count.
+ *
  * The transfer record kind (30-stock 5.14, TransferRecord board): stock on
  * its way between two sites, then received. "Receive it" and "Change the
  * lines" open their sheets over the record; "Cancel the transfer" asks
@@ -243,4 +247,242 @@ export const transferKind: RecordKind<TransferView> = {
     ];
   },
   invalidates: [["list", "retail-stock-transfers"], ["list", "retail-stock-on-hand"], ["list", "retail-stock-movements"], ["reports"]],
+};
+
+/* ── A count (STK-06, CountRecord board) ─────────────────────────────────── */
+
+const COUNT_VIEW: Grant = ["retail.counts", "view"];
+const COUNT_UPDATE: Grant = ["retail.counts", "update"];
+const COUNT_APPROVE: Grant = ["retail.counts", "approve"];
+const COUNT_CANCEL: Grant = ["retail.counts", "delete"];
+
+const countBase = (count: CountView) => `/retail/stock/counts/${count.id}`;
+const countApi = (count: CountView) => `/api/v2/retail/stock/counts/${count.id}`;
+const isOpen = (count: CountView) => count.status === "COUNTING" || count.status === "TO_APPROVE";
+const linesNoun = (n: number) => (n === 1 ? "line" : "lines");
+const lineWord = (n: number) => `${formatCount(n)} ${linesNoun(n)}`;
+
+/** Minutes it took, or has taken so far: start to sent. */
+function tookMinutes(count: CountView, now = Date.now()): number {
+  const end = count.submittedAt ? new Date(count.submittedAt).getTime() : now;
+  return Math.max(0, Math.round((end - new Date(count.startedAt).getTime()) / 60000));
+}
+
+function countSteps(count: CountView): RecordStep[] {
+  const sent = count.status === "TO_APPROVE" || count.status === "APPROVED" || Boolean(count.submittedAt);
+  if (count.status === "COUNTING") {
+    return [
+      { label: "Started", state: "done" },
+      { label: "Counted", state: "now" },
+      { label: "To approve", state: "todo" },
+      { label: "Approved", state: "todo" },
+    ];
+  }
+  return [
+    { label: "Started", state: "done" },
+    { label: "Counted", state: sent ? "done" : "todo" },
+    { label: "To approve", state: count.status === "TO_APPROVE" ? "now" : count.status === "APPROVED" ? "done" : "todo" },
+    { label: "Approved", state: count.status === "APPROVED" ? "done" : "todo" },
+  ];
+}
+
+function countKpis(count: CountView): RecordKpi[] {
+  const took = { label: "Took", value: `${formatCount(tookMinutes(count))} min` };
+  if (count.status === "COUNTING") {
+    const after = { value: "—", note: "after the count" };
+    return [
+      { label: "Lines", value: formatCount(count.lines), note: `${formatCount(count.counted)} counted` },
+      { label: "Differ", ...after },
+      { label: "Short", ...after },
+      { label: "Over", ...after },
+      { ...took, note: `so far, ${count.counter.name}` },
+    ];
+  }
+  const share = count.lines === 0 ? 0 : Math.round((count.differ / count.lines) * 100);
+  const short: RecordKpi =
+    count.short === undefined
+      ? { label: "Short", value: "—", note: "at cost" }
+      : count.short.lines === 0
+        ? { label: "Short", value: formatMoney(0), note: "nothing short" }
+        : { label: "Short", value: formatMoney(count.short.value), lead: formatCount(count.short.lines), leadTone: "bad", note: linesNoun(count.short.lines) };
+  const over: RecordKpi =
+    count.over === undefined
+      ? { label: "Over", value: "—", note: "at cost" }
+      : count.over.lines === 0
+        ? { label: "Over", value: formatSigned(count.over.value), note: "nothing over" }
+        : { label: "Over", value: formatSigned(count.over.value), lead: formatCount(count.over.lines), leadTone: "plain", note: linesNoun(count.over.lines) };
+  return [
+    { label: "Lines", value: formatCount(count.lines), note: "counted" },
+    { label: "Differ", value: formatCount(count.differ), lead: `${share}%`, leadTone: count.differ > 0 ? "warn" : "plain", note: "of the lines" },
+    short,
+    over,
+    { ...took, note: count.counter.name },
+  ];
+}
+
+/** The history a range draws: the last 3 or 12 months of counts, or all of them. */
+export function countsInRange(history: CountView["history"], range: string | null, now = Date.now()): CountView["history"] {
+  if (range === "all") return history;
+  const months = range === "3" ? 3 : 12;
+  const from = new Date(now);
+  from.setUTCMonth(from.getUTCMonth() - months);
+  return history.filter((point) => new Date(point.at).getTime() >= from.getTime());
+}
+
+function countChart(count: CountView, range: string | null): RecordChart | null {
+  // Money: only for roles that see cost, and the server sends no history to anyone else.
+  if (count.difference === undefined || count.history.length === 0) return null;
+  const points = countsInRange(count.history, range);
+  const mark = points.findIndex((point) => point.id === count.id);
+  return {
+    title: "Difference at each count",
+    unit: "this shelf",
+    bars: points.map((point) => ({
+      label: point.countNo,
+      // Many bars on a narrow chart: the number alone ("0016") under each.
+      ...(points.length > 5 ? { tick: point.countNo.replace(/^CNT-/, "") } : {}),
+      value: Math.abs(point.difference),
+      text: point.difference === 0 ? "As expected" : formatSigned(point.difference),
+    })),
+    mark: mark < 0 ? null : mark,
+    tick: (value) => (value === 0 ? "0" : formatMoney(value).replace(/\.00$/, "")),
+  };
+}
+
+export const countKind: RecordKind<CountView> = {
+  type: "RetailStockCount",
+  back: { label: "Counts", href: "/retail/stock/counts" },
+  queryKey: (id) => ["retail-stock-count", id],
+  load: async (id) => (await fetchJson<{ data: CountView }>(`/api/v2/retail/stock/counts/${id}`)).data,
+  endpoint: (id) => `/api/v2/retail/stock/counts/${id}`,
+  title: (count) => count.name,
+  reference: (count) => count.countNo,
+  actions: (count) => [
+    { key: "print", label: "Print count sheet", requires: [COUNT_VIEW], do: { download: `${countApi(count)}/sheet.pdf` } },
+    ...(count.status === "TO_APPROVE" && count.differ > 0
+      ? [
+          {
+            key: "recount",
+            label: `Recount ${lineWord(count.differ)}`,
+            requires: [COUNT_APPROVE],
+            do: { post: { url: `${countApi(count)}/recount`, body: {}, done: recountToast(count.differ, count.counter.name) } },
+          },
+        ]
+      : []),
+    ...(count.status === "COUNTING"
+      ? [
+          {
+            key: "remind",
+            label: "Send the link again",
+            requires: [COUNT_UPDATE],
+            do: { post: { url: `${countApi(count)}/remind`, done: `${count.counter.name} has the link again.` } },
+          },
+        ]
+      : []),
+  ],
+  more: (count) => [
+    { key: "pdf", label: "Export as PDF", requires: [COUNT_VIEW], do: { download: `/api/v2/retail/records/RetailStockCount/${count.id}/pdf` } },
+    ...(isOpen(count)
+      ? [{ key: "cancel", label: "Cancel the count", tone: "bad" as const, requires: [COUNT_CANCEL], do: { event: "cancel" } }]
+      : []),
+  ],
+  primary: (count) =>
+    count.status === "TO_APPROVE"
+      ? { key: "approve", label: "Approve the differences", requires: [COUNT_APPROVE], do: { href: `${countBase(count)}/review` } }
+      : count.status === "COUNTING" && count.yours
+        ? { key: "count", label: "Count it", requires: [], do: { href: `${countBase(count)}/count` } }
+        : null,
+  steps: countSteps,
+  chips: (count) => [
+    ...(count.blind ? [{ label: "Blind count", tone: "plain" as const }] : []),
+    ...(count.status === "TO_APPROVE" && count.differ > 0
+      ? [{ label: `${lineWord(count.differ)} ${count.differ === 1 ? "differs" : "differ"}`, tone: "warn" as const }]
+      : []),
+    ...(count.status === "COUNTING"
+      ? [{ label: `${formatCount(count.counted)} of ${formatCount(count.lines)} counted`, tone: "info" as const }]
+      : []),
+    ...(count.status === "APPROVED" ? [{ label: `Approved by ${count.approvedBy ?? "a manager"}`, tone: "ok" as const }] : []),
+    ...(count.status === "CANCELLED" ? [{ label: "Cancelled", tone: "plain" as const }] : []),
+  ],
+  figure: (count) => {
+    if (count.status === "COUNTING") return { label: "Difference", value: "—" };
+    if (count.difference === undefined) return { label: "Differ", value: formatCount(count.differ) };
+    return {
+      label: "Difference",
+      value: formatSigned(count.difference),
+      ...(count.status === "TO_APPROVE" && count.difference !== 0 ? { tone: "warn" as const } : {}),
+    };
+  },
+  kpis: countKpis,
+  chartRanges: { options: TRANSFER_RANGES, initial: "12" },
+  chart: countChart,
+  tabs: [
+    {
+      key: "differences",
+      label: "Differences",
+      source: "retail-stock-count-differences",
+      parent: "count",
+      allLink: { label: (count) => `All ${lineWord(count.lines)}`, tab: "lines" },
+      emptyText: (count) => (count.status === "COUNTING" ? "Nothing to compare until the count is in." : "Every line is as expected."),
+    },
+    {
+      key: "lines",
+      label: "Every line",
+      source: "retail-stock-count-lines",
+      parent: "count",
+    },
+    { key: "activity", label: "Activity" },
+  ],
+  rail: (count) => {
+    const now = new Date();
+    const open = isOpen(count);
+    return [
+      {
+        title: "Count",
+        rows: [
+          {
+            key: "name",
+            label: "Shelf",
+            value: count.name,
+            ...(open
+              ? {
+                  edit: {
+                    field: "name",
+                    type: "text" as const,
+                    initial: count.name,
+                    parse: (typed: string) => {
+                      const name = typed.trim();
+                      if (!name) throw new Error("Name the shelf.");
+                      if (name.length > 80) throw new Error("Keep it to 80 characters.");
+                      return name;
+                    },
+                    requires: COUNT_UPDATE,
+                  },
+                }
+              : {}),
+          },
+          { key: "site", label: "Site", value: count.site.name },
+          { key: "started", label: "Started", value: formatDayTime(count.startedAt, now), mono: true },
+          {
+            key: "finished",
+            label: "Finished",
+            value: count.submittedAt ? formatDayTime(count.submittedAt, now) : "—",
+            mono: Boolean(count.submittedAt),
+            muted: !count.submittedAt,
+          },
+        ],
+      },
+      {
+        title: "People",
+        rows: [
+          { key: "counter", label: "Counted by", value: count.counter.name },
+          { key: "blind", label: "Blind", value: count.blind ? "Yes, expected quantities hidden" : "No, counter sees what is expected" },
+          ...(count.status === "APPROVED"
+            ? [{ key: "approved", label: "Approved by", value: count.approvedBy ?? "—" }]
+            : [{ key: "approves", label: "Approves", value: count.approves }]),
+        ],
+      },
+    ];
+  },
+  invalidates: [["list", "retail-stock-counts"], ["list", "retail-stock-on-hand"], ["list", "retail-stock-movements"], ["reports"], ["nav-badges"]],
 };

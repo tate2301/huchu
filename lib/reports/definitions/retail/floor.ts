@@ -384,7 +384,7 @@ const shiftsSource: ReportDefinition = {
   report,
 };
 
-/** "Paid with": each way of paying, matched against the row's ways ("|Cash|EcoCash|"). Lay-by joins with FLR-06. */
+/** "Paid with": each way of paying, matched against the row's ways ("|Cash|EcoCash|"). */
 const PAID_WITH: Array<[value: string, label: string]> = [
   ["cash", "Cash"],
   ["zig", "ZiG"],
@@ -394,6 +394,7 @@ const PAID_WITH: Array<[value: string, label: string]> = [
   ["innbucks", "InnBucks"],
   ["on-account", "On account"],
   ["voucher", "Voucher"],
+  ["layby", "Lay-by"],
 ];
 
 const SELL_OR_CASH: ListSpec["read"] = [
@@ -449,6 +450,8 @@ const sales: ListSpec = {
     { key: "shift", type: "parent", column: "shiftId" },
     { key: "bundle", type: "parent", column: "bundleId" },
     { key: "voucher", type: "parent", column: "voucherId" },
+    // "All their purchases" from a customer's record (CUS-03).
+    { key: "customer", type: "parent", column: "customerId", all: "All" },
   ],
   sorts: [
     { key: "newest", label: "Newest first", rules: [{ column: "postedAt", dir: "desc" }] },
@@ -521,6 +524,16 @@ const sales: ListSpec = {
       requires: SELL_OR_CASH,
       when: [{ column: "customerPhone", op: "empty" }],
       do: { sheet: "sale-send" },
+    },
+    // FLR-02: sales with something left to come back, and today's untouched sales.
+    { key: "refund", label: "Refund", requires: [["retail.sell", "refund"]], when: [{ column: "refundable", op: "is", value: ["yes"] }], do: { sheet: "refund" } },
+    {
+      key: "void",
+      label: "Void (same day only)",
+      tone: "bad",
+      requires: [["retail.sell", "void"]],
+      when: [{ column: "voidable", op: "is", value: ["yes"] }],
+      do: { sheet: "sale-void" },
     },
   ],
   bulk: [
@@ -654,4 +667,120 @@ const daysSource: ReportDefinition = {
   list: days,
 };
 
-export const FLOOR_REPORTS: ReportDefinition[] = [shiftsSource, salesSource, daysSource];
+const LAYBYS_VIEW: ListSpec["read"] = [["retail.laybys", "view"]];
+const LAYBYS_UPDATE: ListSpec["read"] = [["retail.laybys", "update"]];
+const OPEN_LAYBY = { column: "statusKey", op: "is" as const, value: ["PAYING", "READY"] };
+
+/**
+ * Lay-bys (50-floor W-42, FLR-06, `LaybysList.png`): goods put aside for a
+ * customer paying them off. The tabs part them by status (the board lists
+ * the ready LAY-0028 under Paying; here it is under Ready to collect only);
+ * State narrows inside the tab by how the due day stands.
+ */
+const laybys: ListSpec = {
+  noun: "lay-bys",
+  read: LAYBYS_VIEW,
+  search: { placeholder: "Lay-by or customer", keys: ["laybyNo", "customer"] },
+  tabs: [
+    { key: "paying", label: "Paying", where: [{ column: "statusKey", op: "is", value: ["PAYING"] }] },
+    { key: "ready", label: "Ready to collect", where: [{ column: "statusKey", op: "is", value: ["READY"] }] },
+    { key: "done", label: "Done", where: [{ column: "statusKey", op: "is", value: ["COLLECTED", "CANCELLED"] }] },
+    { key: "all", label: "All", where: [] },
+  ],
+  filters: [
+    {
+      key: "state",
+      label: "State",
+      type: "choice",
+      any: "Any",
+      primary: true,
+      options: [
+        { value: "on-time", label: "On time", where: [{ column: "timing", op: "is", value: ["on-time"] }] },
+        { value: "soon", label: "Due within 7 days", where: [{ column: "timing", op: "is", value: ["soon"] }] },
+        { value: "overdue", label: "Overdue", where: [{ column: "timing", op: "is", value: ["overdue"] }] },
+      ],
+    },
+    { key: "site", label: "Site", type: "choice", any: "All sites", optionsFromLoader: true, column: "siteId", requires: "multi-site" },
+    { key: "due", label: "Due", type: "period", any: "Any time", column: "dueOn" },
+    { key: "customer", type: "parent", column: "customerId", all: "All lay-bys" },
+  ],
+  sorts: [
+    { key: "due", label: "Due soonest", rules: [{ column: "dueOn", dir: "asc" }, { column: "laybyNo", dir: "asc" }] },
+    { key: "newest", label: "Newest first", rules: [{ column: "startedAt", dir: "desc" }] },
+    { key: "left", label: "Most left", rules: [{ column: "left", dir: "desc" }, { column: "laybyNo", dir: "asc" }] },
+  ],
+  groups: ["state", "customer"],
+  columns: [
+    { key: "laybyNo", label: "Lay-by", kind: "code", cell: "ref", href: "/retail/laybys?sheet=layby&id={id}", width: "110px", align: "start", priority: 1 },
+    { key: "customer", label: "Customer", kind: "text", cell: "text", width: "minmax(170px,1.2fr)", align: "start", priority: 1 },
+    { key: "what", label: "What", kind: "text", cell: "muted", width: "minmax(160px,1fr)", align: "start", priority: 2 },
+    money("total", "Total", { width: "110px" }),
+    money("paid", "Paid", { width: "110px", priority: 2 }),
+    money("left", "Left", { width: "110px", sortable: true }),
+    { key: "dueText", label: "Due", kind: "text", cell: "text", width: "130px", align: "start", priority: 1 },
+    {
+      key: "state",
+      label: "State",
+      kind: "status",
+      cell: "state",
+      toneKey: "stateTone",
+      width: "140px",
+      align: "start",
+      priority: 1,
+      tones: { Paying: "info", "Due today": "warn", Overdue: "bad", "Ready to collect": "ok", Collected: "hollow", Cancelled: "hollow" },
+    },
+  ],
+  rowHref: "/retail/laybys?sheet=layby&id={id}",
+  rowMenu: [
+    { key: "open", label: "Open", requires: LAYBYS_VIEW, do: { sheet: "layby" } },
+    { key: "pay", label: "Take a payment", requires: LAYBYS_UPDATE, when: [{ column: "statusKey", op: "is", value: ["PAYING"] }], do: { sheet: "layby" } },
+    {
+      key: "hand-over",
+      label: "Hand it over",
+      requires: LAYBYS_UPDATE,
+      when: [{ column: "statusKey", op: "is", value: ["READY"] }],
+      do: { run: "handoverlayby", endpoint: "/api/v2/retail/laybys/{id}/hand-over" },
+    },
+    {
+      key: "cancel",
+      label: "Cancel the lay-by",
+      tone: "bad",
+      separated: true,
+      requires: [["retail.laybys", "delete"]],
+      when: [OPEN_LAYBY],
+      do: { run: "cancellayby", endpoint: "/api/v2/retail/laybys/{id}/cancel" },
+    },
+  ],
+  bulk: [
+    {
+      key: "remind",
+      label: "Remind on WhatsApp",
+      requires: LAYBYS_UPDATE,
+      when: [{ column: "statusKey", op: "is", value: ["PAYING"] }],
+      do: { sheet: "message", with: { purpose: "reminder", about: "layby:{ids}" } },
+    },
+    { key: "export" },
+  ],
+  primary: { label: "New lay-by", icon: "plus", sheet: "layby-new", requires: [["retail.laybys", "create"]] },
+  card: { title: "customer", badge: "state", figure: "left", meta: "{laybyNo} · due {dueText}", metaMono: ["laybyNo"], figure2: "total" },
+  empty: {
+    icon: "Package",
+    title: "No lay-bys yet",
+    line: "A customer puts goods aside with a deposit and pays the rest over time.",
+    primary: { label: "New lay-by", sheet: "layby-new", requires: [["retail.laybys", "create"]] },
+  },
+};
+
+const laybysSource: ReportDefinition = {
+  key: "retail-laybys",
+  title: "Lay-bys",
+  area: "The floor",
+  href: "/retail/laybys",
+  profiles: ["RETAIL"],
+  params: [],
+  columns: laybys.columns,
+  defaults: { sort: laybys.sorts[0]!.rules },
+  list: laybys,
+};
+
+export const FLOOR_REPORTS: ReportDefinition[] = [shiftsSource, salesSource, daysSource, laybysSource];

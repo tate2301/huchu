@@ -237,10 +237,9 @@ describe("the manager who approved it", () => {
     const line = await prisma.retailSaleLine.findFirstOrThrow({ where: { saleId: sold.body.id! }, select: { id: true } });
     const refunded = await REFUND(
       request(`pos/sales/${sold.body.id}/refund`, {
-        shiftId,
         reason: "Damaged",
-        lines: [{ saleLineId: line.id, quantity: 1 }],
-        payments: [{ tenderType: "CASH", amount: 1.2 }],
+        lines: [{ saleLineId: line.id, quantity: "1" }],
+        to: "CASH",
         approver: approver(),
       }),
       { params: Promise.resolve({ id: sold.body.id! }) },
@@ -254,7 +253,7 @@ describe("the manager who approved it", () => {
 describe("empties brought back", () => {
   let saleId = "";
 
-  it("go on the supplier's ledger with the sale, and on the Paid screen", async () => {
+  it("go on the Empties ledger with the sale: the deposit charged and the bottles back", async () => {
     // Three Castles with two empties back (deposit on one), and a Zambezi, whose product has no supplier, swapped.
     const sold = await sell("empties", {
       items: [
@@ -265,11 +264,12 @@ describe("empties brought back", () => {
     });
     expect(sold.status).toBe(201);
     saleId = sold.body.id!;
-    expect(sold.body.empties).toEqual([{ supplierId: deltaId, supplierName: "Delta Beverages", quantity: 2 }]);
-    const entries = await prisma.retailEmptiesEntry.findMany({ where: { saleId } });
-    expect(entries).toHaveLength(1);
-    expect(entries[0]).toMatchObject({ supplierId: deltaId, productId: castleId, siteId, quantity: 2 });
-    expect(Number(entries[0]!.depositAmount)).toBe(0.1);
+    const entries = await prisma.retailEmptiesEntry.findMany({ where: { saleId }, orderBy: { kind: "asc" } });
+    const back = entries.find((entry) => entry.kind === "BOTTLES_BACK");
+    expect(back).toMatchObject({ siteId, bottles: 3, crates: 0 });
+    // What the ledger holds for the sale is the sale's own deposit, net of the empties back.
+    const sale = await prisma.retailSale.findUniqueOrThrow({ where: { id: saleId }, select: { depositAmount: true } });
+    expect(entries.reduce((sum, entry) => sum + Number(entry.deposit), 0)).toBeCloseTo(Number(sale.depositAmount), 2);
   });
 
   it("come off it again, by the manager who approved the void", async () => {
@@ -280,10 +280,11 @@ describe("empties brought back", () => {
     expect(voided.status).toBe(201);
     expect(voided.body.approvedByName).toBe("Tafara Nyathi");
     expect(await stored(voided.body.id)).toMatchObject({ approvedById: managerId, approvedByName: "Tafara Nyathi" });
+    // The deposit goes back with the void; the bottles brought back stay in the store.
     const back = await prisma.retailEmptiesEntry.findMany({ where: { saleId: voided.body.id! } });
-    expect(back.map((entry) => entry.quantity)).toEqual([-2]);
-    const held = await prisma.retailEmptiesEntry.aggregate({ where: { companyId, supplierId: deltaId }, _sum: { quantity: true } });
-    expect(held._sum.quantity).toBe(0);
+    expect(back.every((entry) => entry.kind === "DEPOSIT_REFUNDED")).toBe(true);
+    const held = await prisma.retailEmptiesEntry.aggregate({ where: { companyId, saleId: { in: [saleId, voided.body.id!] } }, _sum: { deposit: true } });
+    expect(Number(held._sum.deposit ?? 0)).toBeCloseTo(0, 2);
   });
 });
 

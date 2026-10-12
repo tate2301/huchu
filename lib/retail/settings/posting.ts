@@ -1,6 +1,5 @@
-import { TENDER_OPTIONS, type TenderKey } from "@/lib/retail/payment-words";
 import { loadPostingState, PostingRefused, savePosting, type PostingPatch } from "@/lib/retail/posting-settings";
-import { lastPostedWords, ROLE_OPTIONS, scheduleOf, SCHEDULE_WORDS } from "@/lib/retail/posting-words";
+import { lastPostedWords, POSTING_TENDER_OPTIONS, ROLE_OPTIONS, scheduleOf, SCHEDULE_WORDS } from "@/lib/retail/posting-words";
 
 import { SettingsRefused, type SettingsStore } from "./types";
 
@@ -31,10 +30,10 @@ export const postingSettings: SettingsStore = {
 
   async save(tx, actor, changes) {
     const patch: PostingPatch = {};
-    for (const option of TENDER_OPTIONS) {
+    for (const option of POSTING_TENDER_OPTIONS) {
       const accountId = pickedId(changes[option.key]);
       if (accountId) {
-        (patch.tenders ??= []).push({ key: option.key as TenderKey, accountId, field: option.key, label: option.label });
+        (patch.tenders ??= []).push({ key: option.key, accountId, field: option.key, label: option.label });
       }
     }
     for (const option of ROLE_OPTIONS) {

@@ -567,7 +567,116 @@ const reorderLevels: SheetKind = {
   requires: [["retail.stock", "update"]],
 };
 
+/* ── Empties (30-stock 5.18, STK-09) ─────────────────────────────────────── */
+
+type EmptiesSummary = {
+  site: { id: string; name: string };
+  inStore: { bottles: number; crates: number };
+  bottleDeposit: string;
+  crateDeposit: string;
+};
+type EmptiesReturnView = { id: string; supplier: string; owed: string; reference: string | null };
+
+const invalidateEmpties = [["list", "retail-empties"]];
+const wholeCount = (typed: unknown) => (typeof typed === "string" && /^\s*\d+\s*$/.test(typed) ? Number(typed) : 0);
+const WHOLE = z.string().refine((value) => value.trim() === "" || /^\d+$/.test(value.trim()), "Whole numbers only.");
+const usd = (amount: number) => `US$${amount.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ",")}`;
+const plural = (n: number, word: string) => `${n} ${n === 1 ? word : `${word}s`}`;
+/** "Delta" of "Delta Beverages". */
+const firstWord = (name: string) => name.trim().split(/\s+/)[0] ?? name;
+
+/** What the supplier will owe: bottles at the shop's bottle deposit, crates at its crate deposit. */
+export function emptiesDeposit(values: SheetValues): number {
+  const cents =
+    wholeCount(values.bottles) * Math.round(Number(values._bottleDeposit ?? 0) * 100) +
+    wholeCount(values.crates) * Math.round(Number(values._crateDeposit ?? 0) * 100);
+  return cents / 100;
+}
+
+const emptiesReturn: SheetKind = {
+  title: "Return empties to a supplier",
+  sub: (_ctx, values) => `Liquor store · ${plural(Number(values._bottles ?? 0), "bottle")} and ${plural(Number(values._crates ?? 0), "crate")} in the store`,
+  cur: "US$",
+  sections: [
+    {
+      fields: [
+        { id: "supplier", t: "auto", l: "To", noun: "supplier", p: "Search suppliers", needed: "Pick the supplier." },
+        { id: "bottles", t: "text", l: "Bottles", half: true, mono: true, right: true, p: "0", schema: WHOLE },
+        { id: "crates", t: "text", l: "Crates", half: true, mono: true, right: true, p: "0", schema: WHOLE },
+        { id: "deposit", t: "read", l: "Deposit owed to you", half: true, mono: true, right: true, tone: "ok", derive: (values) => usd(emptiesDeposit(values)) },
+        { id: "goingBackWith", t: "text", l: "Going back with", half: true, p: "The next delivery, 7 October", max: 80, needed: "Say what they go back with." },
+      ],
+    },
+  ],
+  note: (values) => {
+    const supplier = (values.supplier as PickedOption | null)?.label;
+    return `The deposit shows as owed by ${supplier ? firstWord(supplier) : "the supplier"} until their credit note arrives.`;
+  },
+  done: (_result, _values, payload) => (payload as { message?: string } | null)?.message ?? "Return booked.",
+  primary: "Book the return",
+  load: async (ctx) => {
+    const summary = await readJson<EmptiesSummary>("/api/v2/retail/empties/summary");
+    const supplierId = ctx.params.get("supplierId");
+    const supplier = supplierId ? ((await lookup("supplier")).find((option) => option.id === supplierId) ?? null) : null;
+    return {
+      supplier: supplier ? picked(supplier) : null,
+      _bottles: summary.inStore.bottles,
+      _crates: summary.inStore.crates,
+      _bottleDeposit: summary.bottleDeposit,
+      _crateDeposit: summary.crateDeposit,
+    };
+  },
+  submit: (values) => ({
+    method: "POST",
+    url: "/api/v2/retail/empties/returns",
+    body: {
+      supplierId: (values.supplier as PickedOption | null)?.id,
+      bottles: wholeCount(values.bottles),
+      crates: wholeCount(values.crates),
+      goingBackWith: typeof values.goingBackWith === "string" ? values.goingBackWith.trim() : "",
+    },
+  }),
+  invalidate: invalidateEmpties,
+  requires: [["retail.empties", "create"]],
+};
+
+const emptiesCredit: SheetKind = {
+  title: "Record their credit note",
+  sub: (_ctx, values) => `${String(values._supplier ?? "The supplier")} · ${usd(Number(values._owed ?? 0))} owed on this return`,
+  cur: "US$",
+  sections: [
+    {
+      fields: [
+        { id: "creditNote", t: "text", l: "Credit note", half: true, mono: true, p: "CN-2210", max: 40, needed: "Give their credit note number." },
+        { id: "amount", t: "money", l: "Amount", half: true, needed: "Give the amount, like 84.00." },
+        { id: "note", t: "area", l: "Note", opt: true },
+      ],
+    },
+  ],
+  note: "What they owe falls by this amount.",
+  done: (_result, _values, payload) => (payload as { message?: string } | null)?.message ?? "Credit note recorded.",
+  primary: "Record it",
+  load: async (ctx) => {
+    if (!ctx.id) throw new Error("Open this from a return.");
+    const found = await readJson<EmptiesReturnView>(`/api/v2/retail/empties/returns/${ctx.id}`);
+    return { _supplier: found.supplier, _owed: found.owed, amount: found.owed };
+  },
+  submit: (values, ctx) => ({
+    method: "POST",
+    url: `/api/v2/retail/empties/returns/${ctx.id}/credit`,
+    body: {
+      creditNote: typeof values.creditNote === "string" ? values.creditNote.trim() : "",
+      amount: typeof values.amount === "string" ? values.amount.trim() : String(values.amount ?? ""),
+      note: typeof values.note === "string" && values.note.trim() ? values.note.trim() : undefined,
+    },
+  }),
+  invalidate: invalidateEmpties,
+  requires: [["retail.empties", "update"]],
+};
+
 export const STOCK_SHEETS: Record<string, SheetKind> = {
+  "empties-return": emptiesReturn,
+  "empties-credit": emptiesCredit,
   "reorder-levels": reorderLevels,
   "transfer-new": transferNew,
   "transfer-receive": transferReceive,

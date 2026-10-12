@@ -45,6 +45,14 @@ import { tillCaseLinks, type CaseLinks } from "../_cases";
 const tillCatalogQuery = z.object({
   search: z.string().trim().max(200).optional(),
   category: z.string().trim().max(120).optional(),
+  /** FLR-10: named products, comma-separated: a bundle's items, rung as one from its button or barcode. */
+  ids: z
+    .string()
+    .trim()
+    .max(40 * 37)
+    .optional()
+    .transform((value) => (value ? value.split(",").map((id) => id.trim()).filter(Boolean) : undefined))
+    .pipe(z.array(z.string().uuid()).max(40).optional()),
 });
 
 export async function GET(request: NextRequest) {
@@ -75,6 +83,7 @@ export async function GET(request: NextRequest) {
       registerId,
       search: query.data.search || null,
       category: query.data.category || null,
+      productIds: query.data.ids,
       activeOnly: true,
       take: 120,
       firstIds: mostSold,

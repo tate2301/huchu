@@ -43,6 +43,9 @@ export function isWhatsAppConfigured(env: Record<string, string | undefined> = p
 
 export const WHATSAPP_NOT_SET_UP = "WhatsApp is not set up";
 
+/** What Meta charges for a marketing message, about, in US$ (the sheet's note: "8 messages, US$0.16"). */
+export const WHATSAPP_COST_PER_MESSAGE = 0.02;
+
 /** The number as Meta takes it: digits only, country code first ("+263 77 212 3456" → "263772123456"). */
 export function whatsAppNumber(to: string): string | null {
   const digits = to.replace(/[^\d]/g, "");

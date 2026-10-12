@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { emptiesRows, emptiesWords, spreadEmpties, type EmptiesLine } from "./empties-words";
+import { emptiesRows, spreadEmpties, type EmptiesLine } from "./empties-words";
 import { depositRowLabel, receiptFigure, receiptStamp } from "./receipt-parts";
 
 const line = (patch: Partial<EmptiesLine> & { catalogItemId: string }): EmptiesLine => ({
@@ -52,26 +52,6 @@ describe("spreadEmpties", () => {
       ["castle", 0],
       ["zambezi", 0],
     ]);
-  });
-});
-
-describe("emptiesWords", () => {
-  it("says whose ledger the bottles went on", () => {
-    expect(emptiesWords(12, [{ supplierId: "d", supplierName: "Delta", quantity: 12 }])).toBe("12 bottles on the ledger for Delta");
-  });
-
-  it("names every supplier, and counts bottles with none", () => {
-    expect(
-      emptiesWords(19, [
-        { supplierId: "d", supplierName: "Delta", quantity: 12 },
-        { supplierId: "s", supplierName: "Schweppes", quantity: 4 },
-      ]),
-    ).toBe("12 bottles on the ledger for Delta and 4 for Schweppes, 3 with no supplier");
-  });
-
-  it("counts the bottles when none went on a ledger", () => {
-    expect(emptiesWords(1, [])).toBe("1 bottle");
-    expect(emptiesWords(5, undefined)).toBe("5 bottles");
   });
 });
 

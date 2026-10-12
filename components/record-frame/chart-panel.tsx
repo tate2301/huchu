@@ -33,7 +33,7 @@ export function ChartPanel({
   const count = bars.length;
   const gap = count <= 8 ? 16 : count <= 16 ? 8 : 3;
   return (
-    <section className="cx-rf-panel" aria-labelledby={id} style={{ "--rf-bar-gap": `${gap}px` } as React.CSSProperties}>
+    <section className={`cx-rf-panel${typeof chart.mark === "number" ? " cx-rf-panel--marked" : ""}`} aria-labelledby={id} style={{ "--rf-bar-gap": `${gap}px` } as React.CSSProperties}>
       <div className="cx-rf-panel__head">
         <h2 id={id} className="cx-rf-panel__title">
           {chart.title}
@@ -64,6 +64,7 @@ export function ChartPanel({
           evenX
           steps={2}
           mark={chart.mark}
+          max={chart.max}
         />
       )}
       {chart.footer ? (

@@ -87,7 +87,7 @@ function ReadField({ field, value, values }: { field: FieldSpec; value: unknown;
   return (
     <Field
       id={controlId(field.id)}
-      label={field.l}
+      label={field.lw?.(values) ?? field.l}
       hint={field.t === "toggle" || field.t === "seg" ? hint : undefined}
       nolabel={field.t === "cards"}
     >

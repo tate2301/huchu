@@ -1760,6 +1760,10 @@
   .tl.tl.tl .side { display: none; }
   .tl.tl.tl .bar, .tl.tl.tl .tools, .tl.tl.tl .row, .tl.tl.tl .group-head { padding-left: var(--space-16); padding-right: var(--space-16); }
   .tl.tl.tl .tools { overflow-x: auto; }
+  /* A bar with a search box: the box takes its own line, so the title, tabs and search never push the page wider than the screen. */
+  .tl.tl.tl .bar:has(.input-wrap.is-search) { height: auto; min-height: var(--layout-navbar); flex-wrap: wrap; padding-block: var(--space-8); }
+  .tl.tl.tl .bar:has(.input-wrap.is-search) .end { flex: 1 1 100%; margin-left: 0; }
+  .tl.tl.tl .bar:has(.input-wrap.is-search) .input-wrap.is-search { width: 100%; max-width: none; }
   .tl.tl.tl .form-sec { grid-template-columns: minmax(0, 1fr); }
   .tl.tl.tl .field-row { grid-template-columns: minmax(0, 1fr); }
   .tl.tl.tl .page { padding: var(--space-24) var(--space-16) var(--space-48); gap: var(--space-32); }
@@ -1812,6 +1816,30 @@
 .tl.tl.tl .pin i { width: 16px; height: 16px; border-radius: var(--radius-pill); box-shadow: inset 0 0 0 2px var(--color-ink-2); }
 .tl.tl.tl .pin i.on { background: var(--color-ink); box-shadow: none; }
 .tl.tl.tl .pin.is-wrong i { background: var(--color-danger); box-shadow: none; }
+.tl.tl.tl .pin.is-wrong { animation: till-shake 320ms var(--motion-ease); }
+@keyframes till-shake { 20%, 60% { transform: translateX(-6px); } 40%, 80% { transform: translateX(6px); } }
+@media (prefers-reduced-motion: reduce) { .tl.tl.tl .pin.is-wrong { animation: none; } }
+/* The approval dialog (FLR-09): who approves as chips, then four dots over the keypad. */
+.tl.tl.tl .approvers { display: flex; flex-wrap: wrap; gap: var(--space-8); }
+.tl.tl.tl .approvers .btn[aria-checked="true"] { color: var(--color-surface); background: var(--color-ink); box-shadow: none; }
+.tl.tl.tl .approve-pin { display: flex; flex-direction: column; align-items: center; gap: var(--space-12); padding-top: var(--space-8); }
+.tl.tl.tl .approve-pin .keypad { width: 100%; max-width: 320px; }
+/* Messages for the person at the till, after their PIN. */
+/* The "N messages for you" dialog after the PIN: one block per message, title and time on a row, the summary below. */
+.tl.tl.tl .note-list { display: flex; flex-direction: column; gap: var(--space-12); margin: 0; padding: 0; list-style: none; }
+.tl.tl.tl .note-item { display: block; padding-bottom: var(--space-12); box-shadow: 0 1px 0 var(--color-line); }
+.tl.tl.tl .note-item:last-child { box-shadow: none; padding-bottom: 0; }
+.tl.tl.tl .note-head { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-12); }
+.tl.tl.tl .note-title { min-width: 0; font-weight: 500; color: var(--color-ink); }
+.tl.tl.tl .note-time { flex: none; white-space: nowrap; font-family: var(--font-mono); font-size: var(--text-13); color: var(--color-muted); }
+.tl.tl.tl .note-text { margin: var(--space-4) 0 0; color: var(--color-ink-2); line-height: var(--leading-reading); text-wrap: pretty; }
+/* Why chips and the way money goes back, on the refund and the cash dialogs. */
+.tl.tl.tl .choice-chips { display: flex; flex-wrap: wrap; gap: var(--space-8); }
+.tl.tl.tl .choice-chips .btn[aria-checked="true"] { box-shadow: 0 0 0 2px var(--color-ink); color: var(--color-ink); }
+.tl.tl.tl .why-cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-8); }
+.tl.tl.tl .why-cards .pay { flex-direction: column; align-items: flex-start; gap: var(--space-4); min-height: 72px; text-align: left; }
+.tl.tl.tl .why-cards .pay[aria-checked="true"] { box-shadow: 0 0 0 2px var(--color-ink); }
+@media (max-width: 640px) { .tl.tl.tl .why-cards { grid-template-columns: 1fr; } }
 /* Choosing a PIN: a row for the new one and a row for typing it again; the row still to come is quiet. */
 .tl.tl.tl .pin-rows { display: flex; flex-direction: column; gap: var(--space-16); }
 .tl.tl.tl .pin-row { display: flex; flex-direction: column; gap: var(--space-8); }
@@ -1975,6 +2003,7 @@
 .tl.tl.tl .weight-500 { font-weight: 500; }
 .tl.tl.tl .status.is-strong { color: var(--color-ink); font-weight: 500; }
 .tl.tl.tl .tender.is-quiet { box-shadow: var(--shadow-ring); }
+.tl.tl.tl button.tender { width: 100%; text-align: left; }
 .tl.tl.tl .list.is-framed { border-radius: var(--radius-card); box-shadow: var(--shadow-ring); }
 .tl.tl.tl .kbd.on-primary { margin-left: var(--space-4); background: transparent; color: inherit; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .32); }
 .tl.tl.tl .due-figure { font-size: var(--text-20); font-weight: 600; color: var(--color-ink); }
@@ -2018,6 +2047,15 @@
 .tl.tl.tl .row.is-sale { grid-template-columns: 96px minmax(0, 1.4fr) 112px minmax(0, 1.2fr) 96px 16px; color: inherit; text-decoration: none; }
 .tl.tl.tl .row.is-shift-line { grid-template-columns: 96px minmax(0, 1fr) 112px 96px; }
 .tl.tl.tl .row.is-person { grid-template-columns: 32px minmax(0, 1fr) 88px 80px; width: 100%; text-align: left; }
+/* On a phone the five columns do not fit: code and amount on the first line, who and what below, then state and the last cell. */
+@media (max-width: 760px) {
+  .tl.tl.tl .row.is-queued { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "code amount" "who who" "state last"; gap: var(--space-4) var(--space-16); }
+  .tl.tl.tl .row.is-queued > :nth-child(1) { grid-area: code; }
+  .tl.tl.tl .row.is-queued > :nth-child(2) { grid-area: who; text-align: left; }
+  .tl.tl.tl .row.is-queued > :nth-child(3) { grid-area: state; }
+  .tl.tl.tl .row.is-queued > :nth-child(4) { grid-area: amount; justify-self: end; }
+  .tl.tl.tl .row.is-queued > :nth-child(5) { grid-area: last; justify-self: end; }
+}
 .tl.tl.tl .row.is-split { justify-content: space-between; }
 .tl.tl.tl .row.is-flush { padding-left: 0; padding-right: 0; }
 .tl.tl.tl .row.is-inset { padding-left: var(--space-12); padding-right: var(--space-12); }
@@ -2120,6 +2158,20 @@
 .tl.tl.tl .receipt .l.is-change { color: var(--color-ink); font-weight: 600; }
 /* A shop's logo at the head of a receipt or an offline slip. */
 .tl.tl.tl .receipt-logo { display: block; margin: 0 auto var(--space-8); max-width: 160px; max-height: 72px; }
+
+/* FLR-10: the liquor till moments (Liquor board) and what rides on the lines. */
+.tl.tl.tl .eyebrow { font-size: 12.5px; color: var(--color-muted); }
+.tl.tl.tl .footnote { font-size: 11.5px; line-height: 1.4; color: var(--color-muted); }
+.tl.tl.tl .banner-licence { flex-direction: column; align-items: flex-start; gap: 2px; background: var(--color-warning-tint); color: var(--color-ink); }
+.tl.tl.tl .tile .p.is-not-sold { font-size: var(--text-13); font-weight: 400; color: var(--color-muted); }
+.tl.tl.tl .tile .p .list { margin-left: var(--space-4); font-size: var(--text-12); font-weight: 400; color: var(--color-warning); }
+.tl.tl.tl .tile.is-bundle .s { color: var(--color-success); }
+.tl.tl.tl .ok-figure { color: var(--color-success); }
+.tl.tl.tl .totals .l.is-ok { color: var(--color-success); }
+.tl.tl.tl .totals .rule { height: 1px; background: var(--color-line); margin: var(--space-4) 0; }
+.tl.tl.tl .side-by-side { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-8); }
+.tl.tl.tl .side-by-side.is-one { grid-template-columns: 1fr 2fr; }
+.tl.tl.tl .voucher-check { display: grid; grid-template-columns: 1fr 1fr auto; gap: var(--space-8); align-items: end; }
 
 /* Motion: one set of movements, from the motion tokens. Each says where a thing came from or went.
    A count that changes pops; a code the till does not know shakes the box once; the tray slides in from

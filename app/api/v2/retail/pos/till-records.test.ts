@@ -5,7 +5,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { prisma } from "@/lib/prisma";
 import { DEVICE_COOKIE } from "@/lib/retail/device-words";
 import { hashDeviceKey } from "@/lib/retail/devices";
-import { getCustomerLoyaltyBalance } from "@/lib/retail/loyalty";
+import { balance } from "@/lib/retail/loyalty/ledger";
 
 /**
  * What the till's records read back (boards Sale, Refunded, Activity,
@@ -30,7 +30,7 @@ const { GET: SALE } = await import("./sales/[id]/route");
 const { POST: REFUND } = await import("./sales/[id]/refund/route");
 const { POST: VOID } = await import("./sales/[id]/void/route");
 const { GET: ACTIVITY } = await import("./activity/route");
-const { GET: CUSTOMERS } = await import("../customers/search/route");
+const { GET: CUSTOMERS } = await import("./customers/route");
 
 const stamp = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 const slug = `tillrec-${stamp}`;
@@ -178,7 +178,7 @@ const params = (id: string) => ({ params: Promise.resolve({ id }) });
 
 type Record_ = {
   approvedByName: string | null;
-  empties: Array<{ supplierName: string; quantity: number }>;
+  empties: number;
   customer: { phone: string | null; tier: string; balance: number; earned: number; returned: number } | null;
   reversals: Array<{ saleType: string; approvedByName: string | null }>;
 };
@@ -207,9 +207,8 @@ describe("a sale's record", () => {
     tapiwaSale = { id: sold.body.id!, saleNo: sold.body.saleNo! };
 
     const sale = await record(tapiwaSale.id);
-    const loyalty = await getCustomerLoyaltyBalance({ companyId, customerName: tapiwa });
-    expect(sale.customer).toEqual({ phone: "0772 418 330", tier: "BRONZE", balance: loyalty.balance, earned: 17, returned: 0 });
-    expect(sale.empties).toEqual([expect.objectContaining({ supplierName: "Delta Beverages", quantity: 2 })]);
+    expect(sale.customer).toEqual({ phone: "0772 418 330", tier: "Bronze", balance: await balance(prisma, customerId), earned: 17, returned: 0 });
+    expect(sale.empties).toBe(2);
     expect(sale.approvedByName).toBeNull();
   });
 
@@ -217,10 +216,9 @@ describe("a sale's record", () => {
     const rice = await prisma.retailSaleLine.findFirstOrThrow({ where: { saleId: tapiwaSale.id, productId: riceId }, select: { id: true } });
     const refunded = await REFUND(
       request(`pos/sales/${tapiwaSale.id}/refund`, {
-        shiftId,
         reason: "Damaged",
-        lines: [{ saleLineId: rice.id, quantity: 1 }],
-        payments: [{ tenderType: "CASH", amount: 2.8 }],
+        lines: [{ saleLineId: rice.id, quantity: "1" }],
+        to: "CASH",
         approver: approver(),
       }),
       params(tapiwaSale.id),
@@ -246,11 +244,11 @@ describe("a sale's record", () => {
     const sale = await record(discountSaleId);
     expect(sale.approvedByName).toBe("Farai Mutasa");
     expect(sale.customer).toBeNull();
-    expect(sale.empties).toEqual([]);
+    expect(sale.empties).toBe(0);
   });
 
   it("names the manager who approved a void, and the void hands back exactly the points the sale earned", async () => {
-    const before = await getCustomerLoyaltyBalance({ companyId, customerName: tapiwa });
+    const before = await balance(prisma, customerId);
     const sold = await sell("to-void", { customerId, items: [{ productId: riceId, quantity: 1 }], payments: [{ tenderType: "CASH", amount: 2.8 }] });
     expect(sold.status).toBe(201);
     voidedId = sold.body.id!;
@@ -260,7 +258,7 @@ describe("a sale's record", () => {
     expect(sale.reversals).toEqual([expect.objectContaining({ saleType: "VOID", approvedByName: "Farai Mutasa" })]);
     expect(sale.customer).toMatchObject({ earned: 2, returned: 2 });
     // The voided sale and its void row come to nothing: the balance is where it was, not 2 lower.
-    expect((await getCustomerLoyaltyBalance({ companyId, customerName: tapiwa })).earnedPoints).toBe(before.earnedPoints);
+    expect(await balance(prisma, customerId)).toBe(before);
   });
 });
 
@@ -278,7 +276,7 @@ describe("my activity", () => {
 
 describe("a customer", () => {
   it("comes with their last sale, a voided one left out", async () => {
-    const answer = await CUSTOMERS(request(`customers/search?q=${encodeURIComponent(tapiwa)}`)).then(read);
+    const answer = await CUSTOMERS(request(`pos/customers?q=${encodeURIComponent(tapiwa)}`)).then(read);
     expect(answer.status).toBe(200);
     const [found] = answer.body.data as Array<{ id: string; lastSale: { saleNo: string; total: number; at: string } | null }>;
     expect(found.id).toBe(customerId);

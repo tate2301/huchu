@@ -22,7 +22,7 @@ const sale: OpenSale = {
   cart: [line],
   customerName: "Rudo",
   selectedCustomer: null,
-  loyaltyRedemptionPoints: "",
+  pointsToSpend: "",
   payments: [{ tenderType: "CASH", amount: "5", reference: "" }],
   orderDiscountAmount: "",
   idChecked: true,

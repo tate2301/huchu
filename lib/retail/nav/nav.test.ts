@@ -94,6 +94,12 @@ describe("the current item", () => {
     expect(getActiveNavHref(owner, "/retail", q(), RETAIL_NAV_ITEMS)).toBe("/retail");
     expect(getActiveNavHref(owner, "/retail/products/abc", q(), RETAIL_NAV_ITEMS)).toBe("/retail/products");
   });
+
+  it("lights Deliveries while receiving against an order, and Orders on the order", () => {
+    const manager = visible(["/retail", "/retail/buying/orders", "/retail/buying/deliveries"]);
+    expect(getActiveNavHref(manager, "/retail/buying/orders/abc/receive", q(), RETAIL_NAV_ITEMS)).toBe("/retail/buying/deliveries");
+    expect(getActiveNavHref(manager, "/retail/buying/orders/abc", q(), RETAIL_NAV_ITEMS)).toBe("/retail/buying/orders");
+  });
 });
 
 describe("the Setup module per role (ADM-01)", () => {

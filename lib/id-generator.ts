@@ -25,6 +25,7 @@ export type ReservableIdEntity =
   | "RETAIL_REGISTER"
   | "RETAIL_PURCHASE_ORDER"
   | "RETAIL_GOODS_RECEIPT"
+  | "RETAIL_SUPPLIER_PAYMENT"
   | "RETAIL_SHIFT"
   | "RETAIL_HELD_CART"
   | "RETAIL_SALE"
@@ -40,6 +41,8 @@ export type ReservableIdEntity =
   | "RETAIL_GIFT_VOUCHER"
   | "RETAIL_CREDIT_NOTE"
   | "RETAIL_DISCOUNT_VOUCHER"
+  | "RETAIL_CUSTOMER"
+  | "RETAIL_LAYBY"
   | "CRM_CLIENT"
   | "CRM_LEAD"
   | "CRM_APPOINTMENT"
@@ -92,8 +95,10 @@ export const ID_ENTITY_CONFIG: Record<ReservableIdEntity, EntityConfig> = {
   // Retail numbers are unique in the company, not the site (`@@unique([companyId, …])`), so they
   // count across every site: a second shop counting from its own SH-00001 met the first shop’s.
   RETAIL_REGISTER: { prefix: "REG", requiresSiteId: false },
-  RETAIL_PURCHASE_ORDER: { prefix: "RPO", requiresSiteId: false },
-  RETAIL_GOODS_RECEIPT: { prefix: "RGR", requiresSiteId: false },
+  RETAIL_PURCHASE_ORDER: { prefix: "PO", requiresSiteId: false },
+  RETAIL_GOODS_RECEIPT: { prefix: "GRN", requiresSiteId: false },
+  // "PAY-0019": one payment to a supplier, however many bills (or none, a credit) it pays.
+  RETAIL_SUPPLIER_PAYMENT: { prefix: "PAY", requiresSiteId: false },
   // "SH-00243", the number the floor, the boards and the seeded history use.
   RETAIL_SHIFT: { prefix: "SH", requiresSiteId: false, padWidth: 5 },
   RETAIL_HELD_CART: { prefix: "RHC", requiresSiteId: false },
@@ -120,6 +125,10 @@ export const ID_ENTITY_CONFIG: Record<ReservableIdEntity, EntityConfig> = {
   RETAIL_GIFT_VOUCHER: { prefix: "GV", requiresSiteId: false },
   RETAIL_CREDIT_NOTE: { prefix: "CN", requiresSiteId: false },
   RETAIL_DISCOUNT_VOUCHER: { prefix: "DV", requiresSiteId: false },
+  // "CUS-00141": a retail customer (CUS-01), company-wide; the card number follows it.
+  RETAIL_CUSTOMER: { prefix: "CUS", requiresSiteId: false, padWidth: 5 },
+  // "LAY-0031": a lay-by (FLR-06), company-wide.
+  RETAIL_LAYBY: { prefix: "LAY", requiresSiteId: false },
   CRM_CLIENT: { prefix: "CLI", requiresSiteId: false },
   CRM_LEAD: { prefix: "CRL", requiresSiteId: false },
   CRM_APPOINTMENT: { prefix: "SVT", requiresSiteId: false },
@@ -419,6 +428,13 @@ async function findEntityMaxExistingCode(
       });
       return extractMaxFromCodes(records.map((record) => record.receiptNo), prefix);
     }
+    case "RETAIL_SUPPLIER_PAYMENT": {
+      const records = await db.purchasePayment.findMany({
+        where: { companyId, groupNo: { not: null } },
+        select: { groupNo: true },
+      });
+      return extractMaxFromCodes(records.map((record) => record.groupNo!), prefix);
+    }
     case "RETAIL_SHIFT": {
       // Company-wide (FLR-03): a per-site counter collides between Harare and Borrowdale.
       const records = await db.retailShift.findMany({
@@ -494,6 +510,20 @@ async function findEntityMaxExistingCode(
         select: { code: true },
       });
       return extractMaxFromCodes(records.map((record) => record.code), prefix);
+    }
+    case "RETAIL_CUSTOMER": {
+      const records = await db.customer.findMany({
+        where: { companyId, code: { not: null } },
+        select: { code: true },
+      });
+      return extractMaxFromCodes(records.map((record) => record.code), prefix);
+    }
+    case "RETAIL_LAYBY": {
+      const records = await db.retailLayby.findMany({
+        where: { companyId },
+        select: { laybyNo: true },
+      });
+      return extractMaxFromCodes(records.map((record) => record.laybyNo), prefix);
     }
     // CRM entities seed from existing rows so a lost IdSequence row cannot
     // restart the counter at 0001 and collide with the unique constraint.

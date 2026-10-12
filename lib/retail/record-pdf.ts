@@ -1,11 +1,21 @@
 import { esc } from "@/lib/documents/html-renderer";
+import { multiplyMoney, sumMoney } from "@/lib/money";
+import { prisma } from "@/lib/prisma";
+import { canSeeRetailCostPrice } from "@/lib/retail/permission-matrix";
+import { COUNT_STATE } from "@/lib/retail/stock/count-words";
+import { hidesExpected } from "@/lib/retail/stock/counts";
 import type { RetailAction, RetailResource } from "@/lib/retail/permission-matrix";
 import { depositWords, idCheckWords, levelWords, priceListsWords, productKpis } from "@/lib/retail/products/record-words";
 import { loadProductView } from "@/lib/retail/products/view";
 import { loadBundleView } from "@/lib/retail/bundles/service";
 import { loadPromotionView, promotionProductRows } from "@/lib/retail/promotions/service";
 import { loadVoucherView, voucherUseRows } from "@/lib/retail/vouchers/service";
+import { customerSpendChart } from "@/lib/retail/customers/spend-chart";
+import { loadCustomerRecord } from "@/lib/retail/customers/view";
+import { signedPoints } from "@/lib/retail/loyalty/format";
 import { loadSaleView } from "@/lib/retail/floor/sale-view";
+import { renderDeliveryNotePdf, renderOrderPdf, renderRequisitionPdf } from "@/lib/retail/buying/documents";
+import { pointsKindLabel } from "@/lib/retail/words";
 import { paidWords, saleStateLabel } from "@/lib/retail/floor/sale-words";
 import { loadShiftRecord } from "@/lib/retail/shift-record";
 import { salesWords, takingsTitle } from "@/lib/retail/shift-words";
@@ -31,6 +41,8 @@ type Caller = { companyId: string; userId: string; role: string | null; seesEver
 
 export type RecordPdfType = {
   read: [RetailResource, RetailAction];
+  /** A second grant that also reads it, its row rule kept by `render` (a cashier's own requisition). */
+  alsoRead?: [RetailResource, RetailAction];
   /** Null when the record is not this company's (or not the caller's). */
   render(caller: Caller, id: string, variant: string | null): Promise<RecordDocument | null | "refused">;
 };
@@ -52,6 +64,23 @@ export const RECORD_DOCUMENT_CSS = `
 `;
 
 const RECORD_PDF: Record<string, RecordPdfType> = {
+  /** A requisition (40-buying 4.10); `?sign=1` adds the boxes to sign. A cashier or stock clerk reads only their own. */
+  CrmRequisition: {
+    read: ["retail.requisitions", "view"],
+    alsoRead: ["retail.requisitions", "view-own"],
+    render: (caller, id, variant) =>
+      renderRequisitionPdf({ companyId: caller.companyId, userId: caller.userId, userRole: caller.role }, id, variant === "sign"),
+  },
+  /** A purchase order as the supplier gets it (40-buying 4.10); also opened by a message's signed link. */
+  RetailPurchaseOrder: {
+    read: ["retail.purchasing", "view"],
+    render: (caller, id) => renderOrderPdf(caller.companyId, id),
+  },
+  /** A delivery note: what came, what broke and what went into stock (40-buying 4.10). */
+  RetailGoodsReceipt: {
+    read: ["retail.purchasing", "view"],
+    render: (caller, id) => renderDeliveryNotePdf(caller.companyId, id),
+  },
   /**
    * A shift: its cash up, how people paid and the takings per hour. Printed
    * for an open shift as `?as=x-report`, it is the X-report: the mid-shift
@@ -295,6 +324,156 @@ const RECORD_PDF: Record<string, RecordPdfType> = {
         subtitle: `${voucher.code} · ${voucher.stateLabel} · ${voucher.leftLabel} left`,
         content: `<table class="rd-table"><caption>Voucher</caption><tbody>${details}</tbody></table>
 <table class="rd-table"><caption>Uses</caption><thead><tr><th>Sale</th><th>When</th><th>Till</th><th class="num">Spent</th><th class="num">Left after</th></tr></thead><tbody>${uses}</tbody></table>`,
+      };
+    },
+  },
+  /**
+   * A customer (CUS-03): who they are, their five figures, spend per month for
+   * 12 months as a table, the points ledger of those 12 months with its
+   * running balance, and the rail's values.
+   */
+  Customer: {
+    read: ["retail.customers", "view"],
+    render: async (caller, id) => {
+      const customer = await loadCustomerRecord(caller.companyId, id, { update: false, delete: false, activity: false });
+      if (!customer) return null;
+      const now = new Date();
+      const from = new Date(now.getTime() - 365 * 86_400_000);
+      const [chart, entries, before] = await Promise.all([
+        customerSpendChart(caller.companyId, id, "12m", now),
+        prisma.retailPointsEntry.findMany({
+          where: { companyId: caller.companyId, customerId: id, createdAt: { gte: from } },
+          orderBy: [{ createdAt: "asc" }, { seq: "asc" }],
+          select: { createdAt: true, kind: true, points: true, reason: true, actorName: true, sale: { select: { saleNo: true } } },
+        }),
+        prisma.retailPointsEntry.aggregate({ where: { companyId: caller.companyId, customerId: id, createdAt: { lt: from } }, _sum: { points: true } }),
+      ]);
+      const chips = [
+        customer.tier.name ? (customer.tier.heldUntil ? `${customer.tier.name}, held` : customer.tier.name) : null,
+        `Member since ${formatDay(customer.memberSince)}`,
+        customer.marketingConsent ? "Agreed to messages" : null,
+        customer.staff ? "Staff" : null,
+      ].filter(Boolean);
+      const figures = rows(
+        customer.kpis.map((kpi): [string, string] => [kpi.label, [kpi.value, [kpi.lead, kpi.note].filter(Boolean).join(" ")].filter(Boolean).join(" · ")]),
+      );
+      const months = rows(chart.bars.map((bar): [string, string] => [bar.tip, formatMoney(bar.value)]));
+      let running = before._sum.points ?? 0;
+      const ledger = entries
+        .map((entry) => {
+          running += entry.points;
+          return `<tr><td class="mono">${esc(formatWhen(entry.createdAt))}</td><td>${esc(pointsKindLabel(entry).label)}</td><td class="mono">${esc(entry.sale?.saleNo ?? "—")}</td><td>${esc(entry.actorName ?? "Automatic")}</td><td class="num mono">${esc(signedPoints(entry.points))}</td><td class="num mono">${running.toLocaleString("en-US")}</td></tr>`;
+        })
+        .reverse()
+        .join("");
+      const contact = rows([
+        ["Phone", customer.phoneDisplay || "—"],
+        ["WhatsApp", customer.whatsappDisplay ?? "Same number"],
+        ["Email", customer.email ?? "—"],
+        ["Area", customer.area ?? "—"],
+      ]);
+      const loyalty = rows([
+        ["Earns", customer.loyalty.earns],
+        ["Worth", customer.loyalty.worth],
+        ["Card", customer.cardNo ?? "—"],
+        ["Expiry", customer.loyalty.expiry],
+        ["Most", customer.usually.most],
+        ["Then", customer.usually.then],
+        ["Pays with", customer.usually.paysWith],
+      ]);
+      return {
+        ref: customer.code ?? customer.name,
+        title: customer.name,
+        subtitle: [customer.code, ...chips, `Points ${customer.points.balance.toLocaleString("en-US")}`].filter(Boolean).join(" · "),
+        content: `<table class="rd-table"><caption>The last 12 months</caption><tbody>${figures}</tbody></table>
+<p class="rd-note">${esc(customer.meter.label)} · ${esc(customer.meter.value)}. ${esc(customer.meter.note)}</p>
+<div class="rd-cols">
+  <table class="rd-table"><caption>Spend per month</caption><tbody>${months}</tbody></table>
+  <div>
+    <table class="rd-table"><caption>Contact</caption><tbody>${contact}</tbody></table>
+    <table class="rd-table"><caption>Loyalty</caption><tbody>${loyalty}</tbody></table>
+  </div>
+</div>
+<table class="rd-table"><caption>Points ledger, 12 months</caption><thead><tr><th>When</th><th>What</th><th>Receipt</th><th>By</th><th class="num">Points</th><th class="num">Balance</th></tr></thead><tbody>${ledger}</tbody></table>`,
+      };
+    },
+  },
+  /**
+   * A stock count (STK-06): its figures and every line, expected, counted and
+   * the difference; the value at cost only for roles that see cost.
+   */
+  RetailStockCount: {
+    read: ["retail.counts", "view"],
+    render: async (caller, id) => {
+      const count = await prisma.retailStockCount.findFirst({
+        where: { id, companyId: caller.companyId },
+        select: {
+          countNo: true,
+          name: true,
+          status: true,
+          blind: true,
+          counterId: true,
+          createdAt: true,
+          submittedAt: true,
+          approvedAt: true,
+          site: { select: { name: true } },
+          counter: { select: { name: true } },
+          approvedBy: { select: { name: true } },
+          lines: {
+            orderBy: [{ sortKey: "asc" }, { id: "asc" }],
+            select: {
+              expected: true,
+              expectedAtCount: true,
+              counted: true,
+              difference: true,
+              unitCost: true,
+              inventoryItem: { select: { name: true, product: { select: { name: true } } } },
+            },
+          },
+        },
+      });
+      if (!count) return null;
+      // The counter of a blind count, while counting, sees what they counted
+      // and nothing to compare it with: no expected, no difference, no value.
+      const blindToCaller = hidesExpected(caller, count);
+      const seeCost = canSeeRetailCostPrice(caller.role ?? "") && !blindToCaller;
+      const valued = count.lines.map((line) => ({
+        line,
+        value: line.difference ? multiplyMoney(line.difference, line.unitCost).toNumber() : 0,
+      }));
+      const differing = valued.filter(({ line }) => line.difference && !line.difference.isZero());
+      const net = sumMoney(differing.map(({ value }) => value)).toNumber();
+      const signed = (n: number) => (n > 0 ? `+${n}` : String(n));
+      const figures = rows([
+        ["Lines", String(count.lines.length)],
+        ...(blindToCaller ? [] : ([["Differ", String(differing.length)]] as Array<[string, string]>)),
+        ...(seeCost ? ([["Difference at cost", formatSigned(net)]] as Array<[string, string]>) : []),
+        ["Site", count.site.name],
+        ["Counted by", count.counter.name],
+        ["Blind", count.blind ? "Yes" : "No"],
+        ["Started", formatWhen(count.createdAt)],
+        ["Finished", count.submittedAt ? formatWhen(count.submittedAt) : "—"],
+        ...(count.approvedAt ? ([["Approved", `${formatWhen(count.approvedAt)}, ${count.approvedBy?.name ?? ""}`]] as Array<[string, string]>) : []),
+      ]);
+      const lines = valued
+        .map(({ line, value }) => {
+          const expected = (line.expectedAtCount ?? line.expected).toNumber();
+          const cells = [
+            `<td>${esc(line.inventoryItem.product?.name ?? line.inventoryItem.name)}</td>`,
+            ...(blindToCaller ? [] : [`<td class="num mono">${expected}</td>`]),
+            `<td class="num mono">${line.counted === null ? "—" : line.counted.toNumber()}</td>`,
+            ...(blindToCaller ? [] : [`<td class="num mono">${line.difference === null ? "—" : esc(signed(line.difference.toNumber()))}</td>`]),
+            ...(seeCost ? [`<td class="num mono">${line.difference === null ? "—" : esc(formatSigned(value))}</td>`] : []),
+          ];
+          return `<tr>${cells.join("")}</tr>`;
+        })
+        .join("");
+      return {
+        ref: count.countNo,
+        title: count.name,
+        subtitle: `${count.countNo} · ${COUNT_STATE[count.status].label} · ${count.site.name}`,
+        content: `<table class="rd-table"><caption>The count</caption><tbody>${figures}</tbody></table>
+<table class="rd-table"><caption>Every line</caption><thead><tr><th>Product</th>${blindToCaller ? "" : '<th class="num">Expected</th>'}<th class="num">Counted</th>${blindToCaller ? "" : '<th class="num">Difference</th>'}${seeCost ? '<th class="num">Value</th>' : ""}</tr></thead><tbody>${lines}</tbody></table>`,
       };
     },
   },

@@ -96,6 +96,7 @@ export const TENDER_LABEL: Record<TenderType, string> = {
   TRANSFER: "Bank transfer",
   ON_ACCOUNT: "On account",
   VOUCHER: "Voucher",
+  LAYBY: "Lay-by",
 };
 
 /** A payment as a sentence or a row names it: "Cash", "Cash ZiG", "EcoCash". */

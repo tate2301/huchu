@@ -1,4 +1,6 @@
 import { prisma } from "@/lib/prisma";
+import { BUYING_ORDER_LOADERS } from "@/lib/reports/loaders/retail/buying-orders";
+import { BUYING_REQUISITION_LOADERS } from "@/lib/reports/loaders/retail/buying-requisitions";
 import { result } from "@/lib/reports/loaders/shared";
 import type { ListOption, ReportContext, ReportLoader, ReportParams, ReportRow } from "@/lib/reports/types";
 import { billBalance, fillRate, lastDelivery, lateOrders, orderCounts, owed, spend12 } from "@/lib/retail/buying/figures";
@@ -133,4 +135,6 @@ async function loadContacts(ctx: ReportContext, params: ReportParams) {
 export const BUYING_LOADERS: Record<string, ReportLoader> = {
   "retail-suppliers": { load: loadSuppliers, options: supplierOptions },
   "retail-supplier-contacts": { load: loadContacts },
+  ...BUYING_ORDER_LOADERS,
+  ...BUYING_REQUISITION_LOADERS,
 };

@@ -19,6 +19,8 @@ export type SheetCtx = {
   id: string | null;
   user: { id: string; name: string; role: string };
   can: (resource: RetailResource, action: RetailAction) => boolean;
+  /** A stepping kind's place in its list: the item now (from `stepping.param`), and where it is ("1 of 3"). */
+  step?: { id: string; at: number; count: number };
 };
 
 /** A picked `auto` option: what it sends and what it reads as. */
@@ -44,6 +46,10 @@ export type SheetLine = {
   of?: string | null;
   /** The person typed this line's figure: values worked out for the sheet leave it alone. */
   touched?: boolean;
+  /** The record's own line this is (an order's line), sent back so the server keeps it. */
+  lineId?: string;
+  /** The line cannot come off: × is drawn but not pressable, with this as its title ("120 have come"). */
+  keep?: string;
 };
 
 export type SheetValues = Record<string, unknown>;
@@ -85,6 +91,8 @@ export type FieldSpec = {
   p?: string;
   /** Hint under the control. */
   h?: string | ((values: SheetValues) => string);
+  /** A link under the field while this gives one ("Open Tapiwa Marange" under a number they already have). */
+  link?: (values: SheetValues) => { label: string; href: string } | null;
   half?: boolean;
   /** `date`/`datetime`: the first and last day that may be picked, both included. */
   earliest?: DayBound;
@@ -101,16 +109,27 @@ export type FieldSpec = {
   upper?: boolean;
   /** `text`: typed digits hidden, a number pad on a phone (a manager's PIN). */
   masked?: boolean;
+  /** `text`: the phone's keyboard for it ("numeric": a number pad for a whole count). */
+  inputMode?: "numeric" | "decimal";
   /** `text`: at most this many characters. */
   max?: number;
   /** `photo`: the upload route (`POST` multipart → `{ data: { url } }`); the product image route when absent. */
   upload?: string;
+  /** `photo`: the value is the upload's whole answer (`{ url, name, contentType, size }`), a PDF too (a quote, a receipt). */
+  keepFile?: boolean;
+  /** `photo` with `keepFile`: several files, the value a list of answers, each listed with Remove (a requisition's receipts). */
+  several?: boolean;
   /** `read`: the value in that tone, always or as the values say ("Paired" ok, "Not paired yet" warn). */
   tone?: "ok" | "warn" | ((values: SheetValues) => "ok" | "warn" | undefined);
   /** `read`: kept to one line a size smaller, cut short with its whole text on hover (a half-width "Cases 22 → 21, singles 26 → 50"). */
   oneLine?: boolean;
   /** `read`: a QR code of this payload beside the value, drawn in the browser (a pairing code for a Kora). */
   qr?: (values: SheetValues) => string | null;
+  /**
+   * `read`: a small table instead of one value (a lay-by's payments: When · How · Amount · By).
+   * `end` holds the columns set to the right, in mono (money). Null or no rows: the field reads `empty`.
+   */
+  table?: (values: SheetValues) => { head: string[]; rows: string[][]; end?: number[]; widths?: string[]; empty?: string } | null;
   /** The hint in `--warn`, always or while this holds (the default site switched off). */
   warn?: boolean | ((values: SheetValues) => boolean);
   /**
@@ -138,6 +157,8 @@ export type FieldSpec = {
   context?: Record<string, unknown> | ((ctx: SheetCtx, values: SheetValues) => Record<string, unknown>);
   /** `lines`: only the lines loaded — no add row, no remove (a receipt: nothing arrives that was not sent). */
   closed?: boolean;
+  /** `lines` with `closed`: × still drops a line (a refund: only what was sold, any of it left out). */
+  drop?: boolean;
   /** `lines`: a line drawn in `--warn` while this holds (Came less than was sent). */
   lineWarn?: (line: SheetLine, values: SheetValues) => boolean;
   /** `lines`: the quantity and cost column labels. */
@@ -152,9 +173,9 @@ export type FieldSpec = {
   /** `money`: decimals kept, two at least (a rate keeps four). */
   decimals?: number;
   nolabel?: boolean;
-  /** `photo` and `file`: the value line while empty ("Add your logo"). */
-  prompt?: string;
-  /** `file`: the line under the prompt ("Or choose a file · .xlsx or .csv"), and the types it takes. */
+  /** `photo` and `file`: the value line while empty ("Add your logo"), fixed or from what was loaded. */
+  prompt?: string | ((values: SheetValues) => string);
+  /** `file`: the line under the prompt ("Or choose a file · .xlsx or .csv"); `file` and `photo`: the types it takes. */
   fileSub?: string;
   accept?: string;
   /**
@@ -243,6 +264,8 @@ export type SheetKind = {
   note: string | ((values: SheetValues) => string);
   /** The toast: fixed, or from the answer's `data` (`result`), the values, and the whole answer (`{ data, message }`). */
   done: string | ((result: unknown, values: SheetValues, payload: unknown) => string);
+  /** The toast in warn instead of success while this holds (some of the ticked were skipped). */
+  doneWarn?: (result: unknown, values: SheetValues) => boolean;
   /**
    * A file the save makes, opened in a new tab: the tab opens on the click
    * while `when` holds (so no popup blocker takes it), then goes to `href`
@@ -268,6 +291,8 @@ export type SheetKind = {
   next?: (result: unknown, values: SheetValues) => string | null;
   /** The primary's words, fixed or from the values ("Save", or "Give access back" for someone without access). */
   primary: string | ((values: SheetValues) => string);
+  /** The note in `--bad` while this holds (what stops a merge, in place of the note). */
+  noteBad?: (values: SheetValues) => boolean;
   /** The primary is drawn but cannot send while this holds (no room on the plan); the note says why. */
   primaryDisabled?: (values: SheetValues) => boolean;
   /** A link after the note ("Plan and billing"), while this gives one. */
@@ -314,13 +339,14 @@ export type SheetKind = {
   cancel?: (ctx: SheetCtx, values: SheetValues) => SheetRequest | null;
   /**
    * The secondary as an action of its own instead of Cancel ("Resend"): sent on
-   * the click, its toast, the kind's `invalidate`, and the sheet stays open.
+   * the click, its toast, the kind's `invalidate`, and the sheet stays open,
+   * or closes with `closes` (a lay-by's "Hand it over").
    * Drawn but not pressable while `disabled` (a voucher with no one to send to).
    */
   secondaryAction?: (
     ctx: SheetCtx,
     values: SheetValues,
-  ) => { label: string; request: SheetRequest; done: (payload: unknown) => string; disabled?: boolean } | null;
+  ) => { label: string; request: SheetRequest; done: (payload: unknown) => string; disabled?: boolean; closes?: boolean } | null;
   /** The secondary as a way on instead of Cancel ("Pair another device"), while this gives one. */
   secondaryLink?: (ctx: SheetCtx, values: SheetValues) => { label: string; href: string } | null;
   /**
@@ -328,6 +354,21 @@ export type SheetKind = {
    * asks for: a 409 `needsApprover` reveals the manager's approval section.
    */
   onRefused?: (payload: unknown, values: SheetValues) => SheetValues | null;
+  /**
+   * A second way to save, drawn as the secondary in place of Cancel ("Save as draft", "Save without telling
+   * them"): checked as the primary is, sent with its own request, its own toast. Offered while `show` holds.
+   */
+  alt?: {
+    label: string | ((values: SheetValues) => string);
+    show?: (values: SheetValues, ctx: SheetCtx) => boolean;
+    submit: (values: SheetValues, ctx: SheetCtx) => SheetRequest | null;
+    done: string | ((result: unknown, values: SheetValues, payload: unknown) => string);
+  };
+  /**
+   * The sheet walks a list held in the address (`supplierIds=a,b,c`): one item at a time (`ctx.step`), the sub
+   * gains " · 1 of 3", Cancel reads "Skip", and each save or skip opens the next.
+   */
+  stepping?: { param: string };
   /** Null: nothing to send; the primary is done at once (a code that paired on its own). */
   submit: (values: SheetValues, ctx: SheetCtx) => SheetRequest | null;
   /** React Query keys to refetch after a save. */

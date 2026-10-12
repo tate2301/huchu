@@ -183,7 +183,7 @@ describe("one barcode, one thing", () => {
     const bundle = binKind("bundle");
     await prisma.$transaction((tx) => bundle.move(tx, shop.companyId, id, new Date()));
     await addTestProduct(shop.companyId, { name: "Firelighters", price: "2.00", barcode: "6001234500051" }, { siteId: shop.mainId });
-    expect(await prisma.$transaction((tx) => bundle.restore(tx, shop.companyId, id))).toBe(
+    expect(await prisma.$transaction((tx) => bundle.restore(tx, shop.companyId, id, shop.manager()))).toBe(
       "Firelighters already has this barcode. Change one of the barcodes first.",
     );
     expect((await prisma.retailBundle.findUniqueOrThrow({ where: { id } })).archivedAt).not.toBeNull();

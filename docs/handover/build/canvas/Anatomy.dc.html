@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<title>Anatomy of a worksheet</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Next:wght@400;500;600&amp;family=IBM+Plex+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<style>body{margin:0}</style>
+</helmet>
+<div style="width: 1440px; height: 1040px; box-sizing: border-box; padding: 64px 72px; background: #ffffff; color: #24140e; font-family: 'Atkinson Hyperlegible Next', system-ui, sans-serif; display: flex; flex-direction: column; gap: 40px;">
+  <div style="display: flex; flex-direction: column; gap: 12px; max-width: 900px;">
+    <span style="font-size: 14px; font-weight: 500; color: #75675f;">One frame for every list</span>
+    <h2 style="margin: 0; font-size: 40px; line-height: 1.08; font-weight: 600; letter-spacing: -0.035em;">Six bands, each with one job</h2>
+    <p style="margin: 0; font-size: 16px; line-height: 1.5; color: #4a3a33;">The page is the table. Everything about the table sits in the strip directly above it or the strip directly below it, and both stay on screen while the rows scroll between them.</p>
+  </div>
+
+  <div style="display: grid; grid-template-columns: 760px minmax(0, 1fr); gap: 56px;">
+    <div style="display: flex; flex-direction: column; border: 1px solid #ece6e0; border-radius: 12px; overflow: hidden; font-size: 12.5px;">
+      <div style="height: 48px; display: flex; align-items: center; gap: 10px; padding: 0 14px; border-bottom: 1px solid #ece6e0;">
+        <span style="width: 22px; height: 22px; border-radius: 99px; background: #24140e; color: #fff; font-size: 11px; font-weight: 600; display: flex; align-items: center; justify-content: center;">1</span>
+        <span style="font-weight: 600; font-size: 13px;">Shifts</span><span style="flex: 1;"></span>
+        <span style="height: 26px; width: 150px; border: 1px solid #ece6e0; border-radius: 6px; background: #faf7f4;"></span>
+        <span style="height: 26px; padding: 0 10px; border-radius: 6px; background: #b84a0c; color: #ffffff; display: flex; align-items: center; font-weight: 600;">Open shift</span>
+        <span style="font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: #75675f; width: 36px; text-align: right;">48</span>
+      </div>
+      <div style="height: 48px; display: flex; align-items: center; gap: 6px; padding: 0 14px; border-bottom: 1px solid #ece6e0;">
+        <span style="width: 22px; height: 22px; border-radius: 99px; background: #24140e; color: #fff; font-size: 11px; font-weight: 600; display: flex; align-items: center; justify-content: center;">2</span>
+        <span style="height: 26px; width: 140px; border: 1px solid #ddd4cc; border-radius: 6px; display: flex; align-items: center; padding: 0 8px; color: #75675f;">Search</span>
+        <span style="height: 26px; padding: 0 8px; border: 1px solid #ece6e0; border-radius: 6px; display: flex; align-items: center;">Till</span>
+        <span style="height: 26px; padding: 0 8px; border: 1px solid #ece6e0; border-radius: 6px; display: flex; align-items: center;">Cashier</span>
+        <span style="height: 26px; padding: 0 8px; border: 1px solid #ddd4cc; background: #f3eee9; color: #24140e; border-radius: 6px; display: flex; align-items: center; gap: 4px;">Filters <span style="font-family: 'IBM Plex Mono', monospace;">1</span></span>
+        <span style="flex: 1;"></span>
+        <span style="font-family: 'IBM Plex Mono', monospace; color: #75675f;">312</span>
+        <span style="width: 1px; height: 18px; background: #ece6e0;"></span>
+        <span style="color: #4a3a33;">Sort</span><span style="color: #4a3a33;">Group</span><span style="color: #4a3a33;">Columns</span>
+        <span style="height: 26px; padding: 0 8px; border: 1px solid #ece6e0; border-radius: 6px; display: flex; align-items: center;">Export</span>
+        <span style="font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: #75675f; width: 36px; text-align: right;">48</span>
+      </div>
+      <div style="height: 34px; display: flex; align-items: center; gap: 10px; padding: 0 14px; background: #faf7f4; border-bottom: 1px solid #ece6e0; color: #75675f; font-weight: 500;">
+        <span style="width: 22px; height: 22px; border-radius: 99px; background: #24140e; color: #fff; font-size: 11px; font-weight: 600; display: flex; align-items: center; justify-content: center;">3</span>
+        <span style="width: 70px;">Shift</span><span style="width: 110px;">Cashier</span><span style="width: 90px;">State</span><span style="flex: 1;">Opened ⌄</span><span style="width: 90px; text-align: right;">Takings</span><span style="width: 80px; text-align: right;">Variance</span>
+        <span style="font-family: 'IBM Plex Mono', monospace; font-size: 11px; width: 36px; text-align: right;">34</span>
+      </div>
+      <div style="height: 36px; display: flex; align-items: center; gap: 10px; padding: 0 14px; background: #faf7f4; border-bottom: 1px solid #ece6e0;">
+        <span style="width: 22px; height: 22px; border-radius: 99px; background: #75675f; color: #fff; font-size: 11px; font-weight: 600; display: flex; align-items: center; justify-content: center;">4</span>
+        <span style="padding: 2px 8px; border-radius: 6px; background: #fbe8ec; color: #a3122f; font-weight: 500;">Short</span><span style="font-family: 'IBM Plex Mono', monospace; color: #75675f;">12</span>
+        <span style="flex: 1;"></span><span style="font-family: 'IBM Plex Mono', monospace; width: 90px; text-align: right;">US$6,190.20</span><span style="font-family: 'IBM Plex Mono', monospace; width: 80px; text-align: right; color: #a3122f;">−US$61.30</span>
+        <span style="font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: #75675f; width: 36px; text-align: right;">36</span>
+      </div>
+      <div style="display: flex; flex-direction: column;">
+        <div style="height: 40px; display: flex; align-items: center; gap: 10px; padding: 0 14px; border-bottom: 1px solid #f3eee9;">
+          <span style="width: 22px; height: 22px; border-radius: 99px; background: #24140e; color: #fff; font-size: 11px; font-weight: 600; display: flex; align-items: center; justify-content: center;">5</span>
+          <span style="width: 70px; font-family: 'IBM Plex Mono', monospace; text-decoration: underline; text-decoration-color: #ddd4cc;">SH-00238</span><span style="width: 110px;">Chipo Dube</span><span style="width: 90px;"><span style="padding: 2px 8px; border-radius: 6px; background: #fbe8ec; color: #a3122f;">Short</span></span><span style="flex: 1;">15 August 2026 <span style="font-family: 'IBM Plex Mono', monospace; color: #75675f;">18:14</span></span><span style="width: 90px; text-align: right; font-family: 'IBM Plex Mono', monospace; font-weight: 500;">US$886.85</span><span style="width: 80px; text-align: right;"><span style="font-family: 'IBM Plex Mono', monospace; padding: 2px 5px; border-radius: 6px; background: #fbe8ec; color: #a3122f;">−US$7.15</span></span>
+          <span style="font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: #75675f; width: 36px; text-align: right;">40</span>
+        </div>
+        <div style="height: 40px; display: flex; align-items: center; gap: 10px; padding: 0 14px 0 46px; border-bottom: 1px solid #f3eee9; color: #4a3a33;">
+          <span style="width: 70px; font-family: 'IBM Plex Mono', monospace;">SH-00237</span><span style="width: 110px;">Farai Moyo</span><span style="width: 90px; color: #75675f;">Balanced</span><span style="flex: 1;">15 August 2026</span><span style="width: 90px; text-align: right; font-family: 'IBM Plex Mono', monospace;">US$655.40</span><span style="width: 80px; text-align: right; font-family: 'IBM Plex Mono', monospace; color: #75675f;">US$0.00</span><span style="width: 36px;"></span>
+        </div>
+        <div style="height: 56px; display: flex; align-items: center; justify-content: center; color: #a89c94; border-bottom: 1px solid #f3eee9; background: #fdfbf9;">rows scroll here, between the pinned bands</div>
+      </div>
+      <div style="height: 36px; display: flex; align-items: center; gap: 10px; padding: 0 14px; background: #f3eee9; color: #24140e; box-shadow: 0 -1px 0 #ddd4cc, 0 -10px 18px -14px rgba(11,12,20,0.35);">
+        <span style="width: 22px; height: 22px; border-radius: 99px; background: #24140e; color: #fff; font-size: 11px; font-weight: 600; display: flex; align-items: center; justify-content: center;">6</span>
+        <span style="font-family: 'IBM Plex Mono', monospace; font-weight: 600;">3</span><span style="flex: 1;"></span><span style="font-family: 'IBM Plex Mono', monospace; width: 90px; text-align: right;">US$1,984.05</span><span style="font-family: 'IBM Plex Mono', monospace; width: 80px; text-align: right;">−US$15.79</span>
+        <span style="font-family: 'IBM Plex Mono', monospace; font-size: 11px; width: 36px; text-align: right;">36</span>
+      </div>
+      <div style="height: 40px; display: flex; align-items: center; gap: 10px; padding: 0 14px 0 46px; background: #faf7f4; border-top: 1px solid #ddd4cc;">
+        <span style="font-family: 'IBM Plex Mono', monospace; font-weight: 600;">312</span><span style="padding: 1px 7px; border: 1px solid #e8cf9a; border-radius: 6px; color: #8a5a10;"><span style="font-family: 'IBM Plex Mono', monospace;">23</span> to check</span><span style="flex: 1;"></span><span style="font-family: 'IBM Plex Mono', monospace; font-weight: 600; width: 90px; text-align: right;">US$71,904.35</span><span style="font-family: 'IBM Plex Mono', monospace; font-weight: 600; width: 80px; text-align: right; color: #a3122f;">−US$186.42</span>
+        <span style="font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: #75675f; width: 36px; text-align: right;">40</span>
+      </div>
+      <div style="height: 48px; display: flex; align-items: center; gap: 10px; padding: 0 14px; border-top: 1px solid #ece6e0;">
+        <span style="width: 22px; height: 22px; border-radius: 99px; background: #24140e; color: #fff; font-size: 11px; font-weight: 600; display: flex; align-items: center; justify-content: center;">7</span>
+        <span style="font-family: 'IBM Plex Mono', monospace;">1–50</span><span style="color: #75675f;">of 312 · Rows 50</span><span style="flex: 1;"></span>
+        <span style="font-family: 'IBM Plex Mono', monospace; display: flex; gap: 4px;"><span style="padding: 3px 8px; border: 1px solid #ece6e0; border-radius: 6px;">‹</span><span style="padding: 3px 8px; border-radius: 6px; background: #24140e; color: #fff;">1</span><span style="padding: 3px 8px; border: 1px solid #ece6e0; border-radius: 6px;">2</span><span style="padding: 3px 8px; border: 1px solid #ece6e0; border-radius: 6px;">3</span><span style="padding: 3px 8px; color: #a89c94;">…</span><span style="padding: 3px 8px; border: 1px solid #ece6e0; border-radius: 6px;">7</span><span style="padding: 3px 8px; border: 1px solid #ece6e0; border-radius: 6px;">›</span></span>
+        <span style="flex: 1;"></span><span style="padding: 3px 8px; border: 1px solid #ece6e0; border-radius: 6px;">Back to top ⌃</span>
+        <span style="font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: #75675f; width: 36px; text-align: right;">48</span>
+      </div>
+    </div>
+
+    <ol style="margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 18px; font-size: 15px; line-height: 1.5; color: #4a3a33;">
+      <li style="display: flex; gap: 14px;"><span style="flex: none; width: 24px; height: 24px; border-radius: 99px; background: #24140e; color: #fff; font-size: 12px; font-weight: 600; display: flex; align-items: center; justify-content: center;">1</span><span><strong style="color: #24140e; font-weight: 600;">App bar, 48.</strong> The page's name and its one primary action. Nothing about the rows lives here.</span></li>
+      <li style="display: flex; gap: 14px;"><span style="flex: none; width: 24px; height: 24px; border-radius: 99px; background: #24140e; color: #fff; font-size: 12px; font-weight: 600; display: flex; align-items: center; justify-content: center;">2</span><span><strong style="color: #24140e; font-weight: 600;">Toolbar, 48 — the same height as the app bar.</strong> Read left to right as one sentence: find (search), narrow (filters, each showing its label and its answer), then the count and Clear, then how the rows are shown (sort, group, columns) and what leaves the page (export). Only the main filters sit on the row; the rest live in Filters, whose badge counts the ones in use. When the row runs out of room, controls fold into menus instead of wrapping or spilling: sort, group and columns into View, then the main filters into Filters. Ticked rows turn the row into the selection's actions, and those fold into ⋯ the same way.</span></li>
+      <li style="display: flex; gap: 14px;"><span style="flex: none; width: 24px; height: 24px; border-radius: 99px; background: #24140e; color: #fff; font-size: 12px; font-weight: 600; display: flex; align-items: center; justify-content: center;">3</span><span><strong style="color: #24140e; font-weight: 600;">Column head, 34.</strong> On the grey ground, sentence case, never capitals. The sorted column is in ink with its arrow; the rest are muted. Pinned under the toolbar.</span></li>
+      <li style="display: flex; gap: 14px;"><span style="flex: none; width: 24px; height: 24px; border-radius: 99px; background: #75675f; color: #fff; font-size: 12px; font-weight: 600; display: flex; align-items: center; justify-content: center;">4</span><span><strong style="color: #24140e; font-weight: 600;">Group heading, 36, when grouped.</strong> The group's count and its own subtotals, in the same columns as the figures under them. Pinned under the column head while its rows pass.</span></li>
+      <li style="display: flex; gap: 14px;"><span style="flex: none; width: 24px; height: 24px; border-radius: 99px; background: #24140e; color: #fff; font-size: 12px; font-weight: 600; display: flex; align-items: center; justify-content: center;">5</span><span><strong style="color: #24140e; font-weight: 600;">Rows, 40 (44 on touch).</strong> One line each. The reference is the link; the rest of the row can be selected and copied. A cell is drawn as what its value is, so exceptions stand out without anyone reading every row.</span></li>
+      <li style="display: flex; gap: 14px;"><span style="flex: none; width: 24px; height: 24px; border-radius: 99px; background: #24140e; color: #fff; font-size: 12px; font-weight: 600; display: flex; align-items: center; justify-content: center;">6</span><span><strong style="color: #24140e; font-weight: 600;">Totals, pinned to the bottom of the rows.</strong> They sum everything the filters let through, not just this page, and sit in the same columns as the figures above them, to the pixel. Tick rows and a line above sums those too, like a spreadsheet's status bar. This is the only band with a shadow, because rows run underneath it.</span></li>
+      <li style="display: flex; gap: 14px;"><span style="flex: none; width: 24px; height: 24px; border-radius: 99px; background: #24140e; color: #fff; font-size: 12px; font-weight: 600; display: flex; align-items: center; justify-content: center;">7</span><span><strong style="color: #24140e; font-weight: 600;">Pager, 48.</strong> Where you are and how much there is on the left, pages in the middle, Back to top on the right once you have scrolled past a screen. It closes the frame at the same height as the bar that opens it.</span></li>
+      <li style="display: flex; gap: 14px; padding-top: 10px; border-top: 1px solid #ece6e0;"><span style="flex: none; width: 24px;"></span><span><strong style="color: #24140e; font-weight: 600;">Depth without decoration.</strong> White for the rows, the grey ground for the strips that frame them, a darker plate for group headings. That is what stops the page reading flat.</span></li>
+    </ol>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1040}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

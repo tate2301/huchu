@@ -9,7 +9,6 @@
 import type { RetailTenderType } from "@prisma/client";
 
 import type { CaseOf, OpenableCase } from "@/app/api/v2/retail/pos/_cases";
-import type { SaleEmpties } from "@/lib/retail/empties";
 import type { TillFiscalStatus } from "@/lib/retail/fiscalisation";
 import type { PriceBreak } from "@/lib/retail/pricing/engine";
 import type { ChangeSplit, TenderCurrency } from "@/lib/retail/payment-words";
@@ -31,7 +30,16 @@ export type PaymentRow = {
   reference: string;
   /** Only ZiG cash says ZWG; anything else is in the sale's money. */
   currency?: TenderCurrency;
+  /** A VOUCHER payment: the voucher's code and secret, checked online first (PRD-10). */
+  voucherCode?: string;
+  voucherSecret?: string;
 };
+
+/** A gift voucher bought in this sale (PRD-10): its value ("10.00"), and who it is for. Outside the goods total. */
+export type VoucherSold = { key: string; value: string; customerId?: string; customerName?: string };
+
+/** A discount voucher on the sale, checked online: what it takes off after the promotions. */
+export type DiscountVoucher = { code: string; secret: string; percentOff: number | null; amountOff: number | null; label: string };
 
 /**
  * One product on the shelf, as `pos/catalog` sends it: the till's offline
@@ -51,11 +59,16 @@ export type PosCatalogItem = ShelfListing & {
   depositName: string | null;
 };
 
-/** A line on the sale. `catalogItemId` is the product's id. */
+/**
+ * A line on the sale. `catalogItemId` is the product's id; `id` is the line's
+ * own: the product's id, or `<bundleRef>:<product>` for a bundle's component.
+ */
 export type CartItem = {
   id: string;
   name: string;
   catalogItemId: string;
+  /** The shop's category ("Spirits"), for the ID check's sentence. */
+  category: string | null;
   quantity: number;
   unitPrice: number;
   /** What the shelf says at this quantity; a different `unitPrice` is a change the till rules may send to a manager. */
@@ -82,6 +95,12 @@ export type CartItem = {
   /** The most off this product, as a percentage of its shelf price; null is no limit. */
   maxDiscountPercent: number | null;
   openableCase: OpenableCase | null;
+  /** The price list the shelf price comes off when it is not the till's own ("Happy hour"); set by the engine. */
+  listName?: string | null;
+  /** A fixed set rung as one (PRD-08): the bundle, and the till's key shared by its component lines. */
+  bundleId?: string | null;
+  bundleRef?: string | null;
+  bundleName?: string | null;
 };
 
 /** The person's open shift on this till, from `pos/current-shift`. */
@@ -108,7 +127,7 @@ export type CurrentShift = {
   cashSales: number;
   nonCashSales: number;
   /** What each non-cash way of paying took this shift, in `baseCurrency`, refunds and voids netted off. */
-  nonCashByTender: Record<Exclude<TenderType, "CASH">, number>;
+  nonCashByTender: Record<Exclude<TenderType, "CASH" | "LAYBY">, number>;
   site: { id: string; name: string; code: string } | null;
 };
 
@@ -129,24 +148,8 @@ export type HeldCart = {
 /** A manager's PIN at this till (C-31): who approves, and their four digits. Never queued offline. */
 export type Approver = { userId: string; pin: string };
 
-/**
- * What goes with a sale that changes a price or gives a discount: the reason,
- * kept on the sale, and the manager approving when the till rules ask for one
- * and the person selling may not approve it themselves.
- */
-export type Approval = { reason: string; approver: Approver | null };
-
-/**
- * Why `pos/sales` did not take the sale.
- * - `needs-approver`: 409 `needsApprover`. The rules want a manager and none, or the wrong one, came;
- *   `field` says which part was wrong ("pin" or "approver"), null when none was given.
- * - `pin-locked`: 423. That manager's PIN is locked; another manager approves.
- * - `refused`: anything else the server said no to, or the offline window has closed. The sale stays on the till.
- */
-export type SaleRefusal =
-  | { kind: "needs-approver"; message: string; field: "pin" | "approver" | null }
-  | { kind: "pin-locked"; message: string }
-  | { kind: "refused"; message: string };
+/** Why `pos/sales` did not take the sale: anything the server said no to (a manager asked for is the approval dialog's), or the offline window has closed. The sale stays on the till. */
+export type SaleRefusal = { kind: "refused"; message: string };
 
 /** A sale `pos/sales` took, as it answers. Money is in the sale's currency. */
 export type CompletedSale = {
@@ -168,8 +171,10 @@ export type CompletedSale = {
   fiscal: TillFiscalStatus | null;
   /** The hold this sale was recalled from, as the receipt names it. Set by the till. */
   heldAs?: string | null;
-  /** Bottles brought back on this sale, owed back to each supplier. */
-  empties: SaleEmpties;
+  /** Gift vouchers bought in it, outside `totalAmount` (PRD-10). */
+  vouchersSoldAmount?: number;
+  /** Each gift voucher it sold, with its secret, to print on the receipt. */
+  vouchersSold?: Array<{ id: string; code: string; secret: string; value: string; expiresOn: string }>;
 };
 
 /** A sale the till could not send, kept in its offline queue until the line is back. */
@@ -184,14 +189,8 @@ export type SavedSale = {
   at: string;
 };
 
-export type CustomerLookupResult = {
-  id: string;
-  name: string;
-  phone: string | null;
-  email: string | null;
-  loyaltyPoints: number;
-  loyaltyTier: string;
-};
+/** A customer as the till holds them: `GET /api/v2/retail/pos/customers` (CUS-02). */
+export type { PosCustomer } from "@/lib/retail/customers/pos-customer";
 
 /** A category chip above the shelf. `allAgeRestricted`: everything in it stops with the licence hours. */
 export type TillCategory = { name: string; allAgeRestricted: boolean };

@@ -1,0 +1,279 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<title>Retail workflows</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Next:wght@400;500;600&amp;family=IBM+Plex+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>body{margin:0} .wl:hover{text-decoration-color:#24140e} .wl:focus-visible{outline:2px solid #e8620f;outline-offset:3px}</style>
+</helmet>
+<div style="width: 1440px; min-height: {{height}}; box-sizing: border-box; padding: 56px 64px; background: #ffffff; color: #24140e; font-family: 'Atkinson Hyperlegible Next', system-ui, sans-serif; display: flex; flex-direction: column; gap: 28px;">
+  <header style="display: flex; align-items: flex-end; gap: 24px;">
+    <div style="display: flex; flex-direction: column; gap: 10px; flex: 1;">
+      <span style="font-size: 14px; font-weight: 500; color: #75675f;">Area <span style="font-family: 'IBM Plex Mono', monospace;">{{num}}</span> of 8</span>
+      <h2 style="margin: 0; font-size: 36px; line-height: 1.08; font-weight: 600; letter-spacing: -0.03em;">{{title}}</h2>
+      <p style="margin: 0; font-size: 16px; line-height: 1.5; color: #4a3a33; max-width: 820px;">{{lede}}</p>
+    </div>
+    <div style="display: flex; gap: 8px; font-size: 13px;">
+      <span style="height: 26px; padding: 0 10px; border-radius: 6px; background: #f3eee9; display: flex; align-items: center; gap: 6px;"><span style="font-family: 'IBM Plex Mono', monospace; font-weight: 600;">{{count}}</span> workflows</span>
+      <span style="height: 26px; padding: 0 10px; border-radius: 6px; background: #f3eee9; display: flex; align-items: center; gap: 6px;"><span style="font-family: 'IBM Plex Mono', monospace; font-weight: 600;">{{guided}}</span> guided</span>
+      <span style="height: 26px; padding: 0 10px; border-radius: 6px; background: #f3eee9; display: flex; align-items: center; gap: 6px;"><span style="font-family: 'IBM Plex Mono', monospace; font-weight: 600;">{{built}}</span> on the canvas</span>
+    </div>
+  </header>
+  <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px;">
+    <sc-for list="{{flows}}" as="w" hint-placeholder-count="8">
+      <article style="border: 1px solid #ece6e0; border-radius: 12px; padding: 18px 20px; display: flex; flex-direction: column; gap: 12px;">
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <span style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #75675f;">{{w.id}}</span>
+          <h3 style="margin: 0; flex: 1; font-size: 16px; font-weight: 600; letter-spacing: -0.01em;">{{w.name}}</h3>
+          <sc-if value="{{w.guided}}" hint-placeholder-val="{{ false }}"><span style="height: 22px; padding: 0 8px; border-radius: 6px; border: 1px solid #f0c7a6; color: #a8420c; font-size: 12px; font-weight: 500; display: flex; align-items: center; gap: 5px;"><svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2 14.6 8.6 21.5 9.2 16.2 13.7 17.9 20.5 12 16.8 6.1 20.5 7.8 13.7 2.5 9.2 9.4 8.6z"></path></svg>Guided</span></sc-if>
+          <span style="height: 22px; padding: 0 8px; border-radius: 6px; background: {{w.stateBg}}; color: {{w.stateFg}}; font-size: 12px; font-weight: 500; display: flex; align-items: center;">{{w.state}}</span>
+        </div>
+        <div style="display: flex; flex-wrap: wrap; gap: 4px 16px; font-size: 13px; color: #75675f;"><span>Who: <span style="color: #24140e;">{{w.who}}</span></span><span>Starts from: <span style="color: #24140e;">{{w.from}}</span></span></div>
+        <ol style="margin: 0; padding: 0; list-style: none; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 13px;">
+          <sc-for list="{{w.steps}}" as="s" hint-placeholder-count="4">
+            <li style="display: flex; align-items: center; gap: 6px;"><span style="height: 26px; padding: 0 10px; border-radius: 99px; background: #faf7f4; border: 1px solid #ece6e0; display: flex; align-items: center; gap: 6px; white-space: nowrap;"><span style="font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: #75675f;">{{s.n}}</span>{{s.label}}</span><sc-if value="{{s.more}}" hint-placeholder-val="{{ true }}"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#a89c94" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="m9 18 6-6-6-6"></path></svg></sc-if></li>
+          </sc-for>
+        </ol>
+        <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px; font-size: 13px; padding-top: 10px; border-top: 1px solid #f3eee9;">
+          <span style="color: #75675f;">Screens</span>
+          <sc-for list="{{w.screens}}" as="x" hint-placeholder-count="2"><a href="{{x.href}}" class="wl" style="color: #24140e; text-decoration: underline; text-decoration-color: #ddd4cc; text-underline-offset: 3px;">{{x.label}}</a></sc-for>
+          <sc-if value="{{w.todo}}" hint-placeholder-val="{{ false }}"><span style="color: #a89c94;">{{w.todoText}}</span></sc-if>
+        </div>
+      </article>
+    </sc-for>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"area":{"editor":"enum","options":["setup","products","stock","buying","floor","customers","insights","admin"],"default":"setup"},"$preview":{"width":1440,"height":1400}}'>
+class Component extends DCLogic {
+  renderVals() {
+    var S = {
+      productrec: ['Product', 'Product.dc.html'],
+      support: ['Superuser console', 'SupportCompany.dc.html'],
+      bin: ['Bin', 'BinList.dc.html'],
+      activity: ['Activity', 'ActivityList.dc.html'],
+      approvals: ['Approvals', 'ApprovalSettings.dc.html'],
+      roles: ['Who can do what', 'Roles.dc.html'],
+      personedit: ['A person', 'PersonEdit.dc.html'],
+      personnew: ['Invite', 'PersonNew.dc.html'],
+      people: ['People', 'PeopleList.dc.html'],
+      imoney: ['Money', 'InsightsMoney.dc.html'],
+      icust: ['Customers', 'InsightsCustomers.dc.html'],
+      istock: ['Stock health', 'InsightsStock.dc.html'],
+      message: ['Message', 'MessageNew.dc.html'],
+      statement: ['Statements', 'StatementSend.dc.html'],
+      custpay: ['Take a payment', 'CustPayment.dc.html'],
+      accountedit: ['Change it', 'AccountEdit.dc.html'],
+      accountnew: ['Open an account', 'AccountOpen.dc.html'],
+      accounts: ['Accounts', 'AccountsList.dc.html'],
+      loyalty: ['Loyalty', 'LoyaltySettings.dc.html'],
+      points: ['Adjust points', 'PointsAdjust.dc.html'],
+      merge: ['Merge', 'MergeCustomer.dc.html'],
+      customeredit: ['Edit', 'CustomerEdit.dc.html'],
+      customernew: ['New customer', 'CustomerNew.dc.html'],
+      days: ['Past days', 'DaysList.dc.html'],
+      eod: ['End of day', 'EndOfDay.dc.html'],
+      laybypay: ['A lay-by', 'LaybyPay.dc.html'],
+      laybynew: ['New lay-by', 'LaybyNew.dc.html'],
+      laybys: ['Lay-bys', 'LaybysList.dc.html'],
+      void: ['Void', 'VoidSale.dc.html'],
+      refund: ['Refund', 'RefundNew.dc.html'],
+      sale: ['Sale', 'SaleRecord.dc.html'],
+      sales: ['Sales', 'SalesList.dc.html'],
+      signoff: ['Sign off', 'SignOff.dc.html'],
+      shiftclose: ['Count and close', 'ShiftClose.dc.html'],
+      cashmove: ['Cash in or out', 'CashMove.dc.html'],
+      shiftopen: ['Open a shift', 'ShiftOpen.dc.html'],
+      emptiesreturn: ['Return empties', 'EmptiesReturn.dc.html'],
+      empties: ['Empties', 'EmptiesList.dc.html'],
+      breakcase: ['Break a case', 'BreakCase.dc.html'],
+      transferreceive: ['Receive', 'TransferReceive.dc.html'],
+      transfernew: ['Move stock', 'TransferNew.dc.html'],
+      transfers: ['Transfers', 'TransfersList.dc.html'],
+      stockadjust: ['Adjust stock', 'StockAdjust.dc.html'],
+      countreview: ['Review', 'CountReview.dc.html'],
+      countphone: ['On a phone', 'CountPhone.dc.html'],
+      countnew: ['Start a count', 'CountNew.dc.html'],
+      counts: ['Counts', 'CountsList.dc.html'],
+      reorder: ['Reorder levels', 'Reorder.dc.html'],
+      labels: ['Labels', 'Labels.dc.html'],
+      catedit: ['A category', 'CategoryEdit.dc.html'],
+      catnew: ['New category', 'CategoryNew.dc.html'],
+      voucheredit: ['A voucher', 'VoucherEdit.dc.html'],
+      vouchernew: ['Issue', 'VoucherNew.dc.html'],
+      promoedit: ['Edit', 'PromotionEdit.dc.html'],
+      promonew: ['New promotion', 'PromotionNew.dc.html'],
+      addtolist: ['Add to a list', 'AddToList.dc.html'],
+      pricelistedit: ['Rules', 'PriceListEdit.dc.html'],
+      pricelistnew: ['New price list', 'PriceListNew.dc.html'],
+      bulkprice: ['Change many', 'BulkPrice.dc.html'],
+      bundleedit: ['A bundle', 'BundleEdit.dc.html'],
+      bundlenew: ['New bundle', 'BundleNew.dc.html'],
+      packnew: ['Sell by the case', 'PackNew.dc.html'],
+      productedit: ['Edit', 'ProductEdit.dc.html'],
+      productnewstock: ['From On hand', 'ProductNewStock.dc.html'],
+      productnew: ['New product', 'ProductNew.dc.html'],
+      onbstaff: ['Staff and PINs', 'OnbStaff.dc.html'],
+      onbproducts: ['Catalogue', 'OnbProducts.dc.html'],
+      billing: ['Plan and billing', 'BillingSettings.dc.html'],
+      posting: ['Posting', 'PostingSettings.dc.html'],
+      tillrules: ['Till rules', 'TillRules.dc.html'],
+      import: ['Import', 'Import.dc.html'],
+      receipts: ['Receipts', 'ReceiptSettings.dc.html'],
+      fiscal: ['Fiscal device', 'FiscalSettings.dc.html'],
+      payments: ['Payments', 'PaymentsSettings.dc.html'],
+      tilledit: ['A till', 'TillEdit.dc.html'],
+      tillnew: ['Pair a till', 'TillNew.dc.html'],
+      tills: ['Tills', 'TillsList.dc.html'],
+      siteedit: ['A site', 'SiteEdit.dc.html'],
+      sitenew: ['Add a site', 'SiteNew.dc.html'],
+      sites: ['Sites', 'SitesList.dc.html'],
+      company: ['Company', 'CompanySettings.dc.html'],
+      intakenew: ['Take in stock', 'IntakeNew.dc.html'],
+      returnnew: ['Return goods', 'ReturnNew.dc.html'],
+      paymentnew: ['Record a payment', 'PaymentNew.dc.html'],
+      billedit: ['A bill', 'BillEdit.dc.html'],
+      billnew: ['Record a bill', 'BillNew.dc.html'],
+      bills: ['Bills', 'BillsList.dc.html'],
+      deliverydiff: ['Record a difference', 'DeliveryDiff.dc.html'],
+      reqacquit: ['Account for it', 'ReqAcquit.dc.html'],
+      reqpayout: ['Pay out', 'ReqPayout.dc.html'],
+      reqreject: ['Reject', 'ReqReject.dc.html'],
+      reqapprove: ['Approve less', 'ReqApprove.dc.html'],
+      reqexpense: ['Ask for an expense', 'ReqExpense.dc.html'],
+      reqorder: ['Ask for money', 'ReqOrder.dc.html'],
+      bundlerec: ['A bundle', 'BundleRecord.dc.html'], voucherrec: ['A voucher', 'VoucherRecord.dc.html'], transferrec: ['A transfer', 'TransferRecord.dc.html'], countrec: ['A count', 'CountRecord.dc.html'],
+      reports: ['Every template', 'ReportsList.dc.html'], reportsstock: ['An area’s templates', 'ReportsStock.dc.html'], report: ['A report', 'ReportSales.dc.html'], templatesave: ['Save as a template', 'ReportSaveTemplate.dc.html'], templatenew: ['New template', 'TemplateNew.dc.html'], weekend: ['A saved template', 'ReportWeekend.dc.html'], templateedit: ['Change the template', 'TemplateEdit.dc.html'], tillreplace: ['Pair another device', 'TillReplace.dc.html'], pairing: ['How pairing works', 'TillPairing.dc.html'], orderclose: ['Close with what came', 'OrderCloseShort.dc.html'], orderdraft: ['Remove a draft', 'OrderRemove.dc.html'], reqcancel: ['Cancel it', 'ReqCancel.dc.html'],
+      orderchase: ['Chase', 'OrderChase.dc.html'],
+      orderedit: ['Edit an order', 'OrderEdit.dc.html'],
+      ordernew: ['New order', 'OrderNew.dc.html'],
+      contactnew: ['Add a contact', 'ContactNew.dc.html'],
+      suppliernew: ['New supplier', 'SupplierNew.dc.html'],
+      list: ['Each list', 'List.dc.html'], onb: ['Onboarding', 'OnbType.dc.html'], form: ['Add a product', 'ProductForm.dc.html'], stockflow: ['Stock to sellable', 'StockFlow.dc.html'],
+      products: ['Products', 'ProductsList.dc.html'], product: ['Product', 'Product.dc.html'], pricelists: ['Price lists', 'PriceLists.dc.html'], prices: ['Price list', 'PricesList.dc.html'], promos: ['Promotions', 'PromotionsList.dc.html'], promo: ['Promotion', 'PromotionRecord.dc.html'], bundles: ['Bundles and packs', 'BundlesList.dc.html'], vouchers: ['Vouchers', 'VouchersList.dc.html'], cats: ['Categories', 'CategoriesList.dc.html'],
+      stock: ['On hand', 'StockList.dc.html'], moves: ['Movements', 'MovementsList.dc.html'],
+      suppliers: ['Suppliers', 'SuppliersList.dc.html'], supplier: ['Supplier', 'SupplierRecord.dc.html'], orders: ['Orders', 'OrdersList.dc.html'], order: ['Order', 'OrderRecord.dc.html'], deliveries: ['Deliveries', 'DeliveriesList.dc.html'], delivery: ['Delivery', 'DeliveryRecord.dc.html'], receive: ['Receive a delivery', 'Receive.dc.html'], reqs: ['Requisitions', 'RequisitionsList.dc.html'], req: ['Requisition', 'RequisitionRecord.dc.html'],
+      shifts: ['Shifts', 'Main.dc.html'], shift: ['Shift', 'ShiftRecord.dc.html'], overview: ['Overview', 'Floor.dc.html'], customers: ['Customers', 'CustomersList.dc.html'], customer: ['Customer', 'CustomerRecord.dc.html'],
+      isales: ['Sales', 'InsightsSales.dc.html'], iprofit: ['Profit', 'InsightsProfit.dc.html'], iproducts: ['Products', 'InsightsProducts.dc.html'], ilosses: ['Losses', 'InsightsLosses.dc.html'], imap: ['All insights', 'InsightsMap.dc.html'], liquor: ['Liquor store', 'Liquor.dc.html'], guided: ['Guided setup', 'Guided.dc.html']
+    };
+    var A = {
+      setup: { title: 'Set up the shop', lede: 'From signing up to the first sale in one sitting. The shop type decides the defaults, so most questions are already answered. Anything skipped waits on a checklist on the overview.', flows: [
+        ['W-01', 'First-time setup, signup to first sale', 'Owner', 'Signing up', ['Pick the shop type', 'Name the shop', 'Add products', 'Tills and payments', 'Staff and PINs', 'Make a test sale'], 1, ['onb', 'onbproducts', 'onbstaff', 'guided']],
+        ['W-02', 'Company information and business type', 'Owner', 'Management › Company', ['Pick the business type', 'See what it switches on', 'Keep or turn off each feature', 'Legal name, VAT, licence'], 1, ['company']],
+        ['W-03', 'Add a second site', 'Owner', 'Management › Sites', ['Name and address', 'Copy prices from a site', 'Move or start stock', 'Pair its tills'], 1, ['sites', 'sitenew', 'siteedit']],
+        ['W-04', 'Pair a device to a till', 'Owner, manager', 'Management › Tills and devices', ['Pair a till: name, site, device', 'A code for 10 minutes', 'Type or scan it on the device', 'Test a sale'], 1, ['pairing', 'tills', 'tillnew', 'tilledit']],
+        ['W-76', 'Replace or unpair a device', 'Owner, manager', 'A till › Device', ['Close the shift on it', 'Pair another device, or Unpair', 'The old one stops at its next request'], 0, ['tilledit', 'tillreplace', 'pairing']],
+        ['W-05', 'Payments and currencies', 'Owner', 'Onboarding, or Management › Payments', ['Tick the tenders you take', 'Set the ZiG rate', 'Connect EcoCash merchant'], 1, ['payments']],
+        ['W-06', 'Connect fiscal receipts', 'Owner', 'Management › Fiscal', ['Enter the FDMS details', 'Seal tests a receipt', 'Tills start signing'], 1, ['fiscal']],
+        ['W-07', 'Receipts', 'Manager', 'Management › Receipts', ['Header and footer', 'Licence number', 'Preview and print'], 0, ['receipts']],
+        ['W-08', 'Import products from a spreadsheet', 'Manager', 'Onboarding, or Products', ['Download the template', 'Upload', 'Fix the rows it flags', 'Import'], 1, ['import']],
+        ['W-64', 'Set the till rules', 'Owner, manager', 'Management › Till rules', ['PIN limits for refunds and voids', 'Reasons', 'Discounts, drawer, offline'], 0, ['tillrules']],
+        ['W-65', 'Post sales and stock to the books', 'Owner, bookkeeper', 'Management › Posting', ['An account for each tender', 'Sales, VAT, stock', 'Post daily'], 0, ['posting']],
+        ['W-66', 'Places inside a site', 'Manager', 'Management › Sites, a site', ['Add the back store or cold room', 'Stock asks where only if there is more than one'], 0, ['sites', 'siteedit']],
+        ['W-67', 'Plan and billing', 'Owner', 'Management › Plan and billing', ['See the plan and what is used', 'Change the plan', 'How it is paid'], 0, ['billing']]
+      ] },
+      products: { title: 'Products and prices', lede: 'One form adds a product, and a product is ready to sell the moment it is saved: it is stock at the default site and has a price on the default price list. Everything else is optional and can come later.', flows: [
+        ['W-09', 'Add a product', 'Manager', 'Anywhere: Products, On hand, an order line, a price list', ['Name', 'Category', 'Price', 'Save, it sells now'], 1, ['productnew', 'productnewstock', 'stockflow']],
+        ['W-10', 'Start from the shop-type catalogue', 'Manager', 'Onboarding, or Products', ['Tick the products you stock', 'Set your prices', 'Add'], 1, ['onbproducts']],
+        ['W-11', 'Edit or archive a product', 'Manager', 'Product record', ['Open', 'Change', 'Save, or archive'], 0, ['product', 'productedit']],
+        ['W-12', 'Sell by the case and by the single', 'Manager', 'Product record or Bundles and packs', ['Pick the single', 'How many in a case', 'Case price'], 1, ['packnew', 'bundles']],
+        ['W-13', 'Make a bundle or a buy-more deal', 'Manager', 'Bundles and packs', ['Pick the products', 'Set the price', 'Choose the days'], 1, ['bundles', 'bundlerec', 'bundlenew', 'bundleedit']],
+        ['W-14', 'Change prices', 'Manager', 'A price list, or the product record', ['Type new prices', 'Watch the margins', 'Save, or schedule for a date'], 0, ['prices', 'productrec']],
+        ['W-15', 'Raise or round many prices at once', 'Manager', 'A price list, tick rows', ['Tick', 'Raise by % or set margin', 'Review', 'Save'], 0, ['prices', 'bulkprice']],
+        ['W-16', 'Add a price list (wholesale, happy hour, staff)', 'Owner', 'Price lists', ['Start from a list', 'Rule: who, when, where', 'Adjust prices', 'Switch on'], 1, ['pricelists', 'pricelistnew', 'pricelistedit', 'addtolist']],
+        ['W-17', 'Run a promotion and judge it', 'Manager', 'Promotions', ['Pick products', 'Discount and dates', 'Runs on its own', 'Read the result'], 1, ['promos', 'promonew', 'promo', 'promoedit']],
+        ['W-18', 'Issue and redeem vouchers', 'Manager, cashier', 'Vouchers, or the till', ['Value and holder', 'Print or send', 'Redeem at the till'], 0, ['vouchers', 'voucherrec', 'vouchernew', 'voucheredit']],
+        ['W-19', 'Set categories', 'Owner', 'Products › Categories', ['Seeded by shop type', 'Add or rename', 'VAT, age check, target margin'], 0, ['cats', 'catnew', 'catedit']],
+        ['W-20', 'Print shelf labels and barcodes', 'Manager', 'Any product list, tick rows', ['Tick', 'Pick the label size', 'Print'], 0, ['products', 'labels']]
+      ] },
+      stock: { title: 'Stock', lede: 'Stock belongs to a site, and a shop with one site never sees the word. Locations inside a site are optional. Every change is a movement with a reason, so the balance always has a story.', flows: [
+        ['W-21', 'See what is running low and reorder it', 'Manager', 'Overview, or On hand › Low', ['Tick the low ones', 'Add to an order', 'Send'], 0, ['stock', 'reorder', 'ordernew']],
+        ['W-22', 'Count stock', 'Manager, staff', 'On hand › Counts', ['Pick what to count', 'Count on a phone', 'Review differences', 'Approve'], 1, ['counts', 'countrec', 'countnew', 'countphone', 'countreview']],
+        ['W-23', 'Record breakage, waste or own use', 'Manager', 'Product record, or the till', ['Pick product', 'How many and why', 'Save'], 0, ['product', 'stockadjust', 'moves']],
+        ['W-24', 'Move stock between sites', 'Manager', 'Stock › Transfers', ['From, to, what', 'Send', 'Other site receives'], 0, ['transfers', 'transferrec', 'transfernew', 'transferreceive']],
+        ['W-25', 'Take in stock with no order', 'Manager', 'Deliveries', ['Supplier', 'What came', 'Post to stock'], 0, ['deliveries', 'intakenew']],
+        ['W-26', 'Break a case into singles', 'Cashier, manager', 'Till, or the product record', ['Pick the case', 'Confirm', 'Singles go up'], 0, ['breakcase', 'moves']],
+        ['W-27', 'Empties: deposits in and out', 'Cashier, manager', 'Till, and the supplier record', ['Charge a deposit', 'Take bottles back', 'Return to supplier for credit'], 0, ['empties', 'emptiesreturn', 'receive']],
+        ['W-28', 'Trace a product’s stock', 'Owner, manager', 'Product record', ['Read the ledger', 'Open the sale, delivery or count'], 0, ['product', 'moves']]
+      ] },
+      buying: { title: 'Buying and paying suppliers', lede: 'An order is raised from what is low, paid for through a requisition when the cash has to be approved, and received in as many deliveries as the supplier needs. Nothing is lost between the steps.', flows: [
+        ['W-29', 'Add a supplier', 'Manager', 'Suppliers, or the supplier field anywhere', ['Name and phone', 'Terms', 'Save'], 0, ['suppliers', 'suppliernew', 'supplier', 'contactnew']],
+        ['W-30', 'Raise and send an order', 'Manager', 'Low stock, a supplier, or Orders', ['Suggested lines', 'Adjust', 'Send on WhatsApp or email'], 1, ['orders', 'ordernew', 'order', 'orderedit']],
+        ['W-31', 'Ask for money to pay an order', 'Manager', 'The order, Ask for money', ['Amount is the order', 'Submit', 'Owner approves', 'Paid out', 'Receipt attached'], 1, ['reqorder', 'req', 'reqapprove', 'reqpayout', 'reqacquit']],
+        ['W-32', 'Ask for money for an expense', 'Anyone', 'Requisitions', ['What for and how much', 'Submit', 'Approve', 'Pay', 'Account for it'], 1, ['reqs', 'reqexpense', 'reqreject']],
+        ['W-33', 'Receive a delivery, whole or part', 'Manager, staff', 'The order, or Deliveries', ['Count what came', 'Note short or broken', 'Keep the rest on order or close', 'Post to stock'], 1, ['receive', 'deliveries', 'delivery', 'deliverydiff']],
+        ['W-34', 'Chase a late order', 'Manager', 'Overview, or Orders › late', ['Send a reminder', 'New date', 'Or cancel the rest'], 0, ['order', 'orderchase']],
+        ['W-35', 'Record the supplier’s bill and pay it', 'Owner, bookkeeper', 'The delivery, or the supplier', ['Match to the delivery', 'Due date', 'Record payment'], 0, ['bills', 'billnew', 'billedit', 'paymentnew']],
+        ['W-36', 'Return goods to a supplier', 'Manager', 'Supplier record', ['Pick products', 'Why', 'Credit note expected'], 0, ['supplier', 'returnnew']],
+        ['W-70', 'Close an order with what came, or reopen it', 'Manager', 'Order record, ⋯ menu', ['Close with what came', 'See what stops being expected', 'Reopen until a bill is recorded'], 0, ['order', 'orderclose', 'orderedit']],
+        ['W-71', 'Remove an order nothing came against', 'Manager', 'Order record, while a draft', ['Remove the order', 'It goes to the bin for 30 days'], 0, ['orderdraft', 'bin']],
+        ['W-72', 'Cancel a requisition', 'Whoever asked, or a manager', 'Requisition record, ⋯ menu', ['Cancel the requisition', 'The asker is told', 'Nothing paid, no cash moves'], 0, ['req', 'reqcancel']]
+      ] },
+      floor: { title: 'Selling and the floor', lede: 'The till sells; the admin watches. Every shift is opened with a float, counted at the end, and any difference is signed off by a person, not left in a report.', flows: [
+        ['W-37', 'Open a shift', 'Cashier', 'Till, or Shifts', ['Pick the till', 'Count the float', 'Start selling'], 0, ['shifts', 'shiftopen', 'shift']],
+        ['W-38', 'Take cash out or put it in', 'Cashier, manager', 'Shift record, or the till', ['Amount', 'Why', 'Manager PIN'], 0, ['shift', 'cashmove']],
+        ['W-39', 'Count and close a shift', 'Cashier, manager', 'Shift record', ['Count by note', 'See the difference', 'Explain it', 'Close'], 1, ['shift', 'shiftclose']],
+        ['W-40', 'Sign off a short or over drawer', 'Manager', 'Overview › Needs action', ['Read the shift', 'Accept or recover', 'Note'], 0, ['overview', 'signoff']],
+        ['W-41', 'Refund or void a sale', 'Cashier with manager PIN', 'The till, or Sales', ['Find the sale', 'Lines to refund', 'Cash, credit note or voucher'], 0, ['sales', 'sale', 'refund', 'void']],
+        ['W-42', 'Lay-by', 'Cashier', 'The till', ['Customer', 'Deposit', 'Pay over time', 'Collect'], 0, ['laybys', 'laybynew', 'laybypay']],
+        ['W-43', 'End of day', 'Manager', 'Overview, after the last shift', ['All shifts closed', 'Z-report', 'Fiscal day closed', 'Bank the cash'], 1, ['eod', 'days']],
+        ['W-44', 'Keep selling offline', 'Cashier', 'Automatic', ['Till keeps selling', 'Receipts queue', 'Sends on reconnect'], 0, ['overview', 'tills']]
+      ] },
+      customers: { title: 'Customers and accounts', lede: 'Loyalty is a ledger, not a number: every point has a sale, a person or a rule behind it. Customers on account get statements and pay like any debtor.', flows: [
+        ['W-45', 'Add a customer at the till or in admin', 'Cashier, manager', 'The till, or Customers', ['Phone number', 'Name', 'Agree to messages'], 0, ['customers', 'customernew', 'customeredit', 'merge']],
+        ['W-46', 'Earn and spend points', 'Cashier', 'The till', ['Find by phone', 'Points earned on the sale', 'Spend at checkout'], 0, ['customer']],
+        ['W-47', 'Adjust points', 'Manager', 'Customer record', ['How many', 'Why', 'Save to the ledger'], 0, ['customer', 'points']],
+        ['W-48', 'Set up loyalty', 'Owner', 'Management › Loyalty', ['Points per US$', 'What a point is worth', 'Tiers', 'Expiry'], 1, ['loyalty']],
+        ['W-49', 'Sell on account and collect', 'Manager', 'The till, and the customer record', ['Approve an account and limit', 'Sell on account', 'Statement', 'Record payment'], 1, ['accounts', 'accountnew', 'accountedit', 'custpay', 'statement']],
+        ['W-50', 'Message customers', 'Owner', 'Customers, tick rows', ['Pick who', 'Write once', 'Send on WhatsApp'], 0, ['customers', 'message']]
+      ] },
+      insights: { title: 'Insights and reports', lede: 'Each insight page answers one question an owner actually asks, in the order they ask it: am I making money, when am I busy, what sells, where is it leaking. Reports are their own place: templates by area, built in or saved by the team.', flows: [
+        ['W-51', 'The morning look', 'Owner', 'Overview', ['Needs action', 'Yesterday against last week', 'Tills now'], 0, ['overview']],
+        ['W-52', 'Weekly review', 'Owner', 'Insights', ['Sales', 'Profit', 'Products', 'Losses'], 0, ['isales', 'iprofit', 'iproducts', 'istock', 'ilosses', 'icust', 'imoney']],
+        ['W-53', 'Investigate a loss', 'Owner', 'Insights › Losses', ['Who and which till', 'Open the shifts', 'Open the sales'], 0, ['ilosses', 'shift', 'countnew']],
+        ['W-54', 'Find dead stock and free the cash', 'Owner, manager', 'Insights › Products', ['Not sold in 60 days', 'Promote, return or write off'], 0, ['iproducts', 'promonew', 'returnnew']],
+        ['W-55', 'Export anything', 'Anyone', 'Any list or record', ['Export', 'Spreadsheet, CSV or PDF'], 0, ['list', 'products']],
+        ['W-56', 'Get a report every week', 'Owner', 'Any insight page, or a report', ['Send me this', 'WhatsApp or email', 'Day and time'], 0, ['isales', 'reports']],
+        ['W-69', 'Run a report and export it', 'Owner, manager, bookkeeper', 'Reports', ['Pick the area, then the template', 'Narrow by period, shop and person', 'Totals follow the filters', 'Spreadsheet, CSV or PDF'], 0, ['reports', 'reportsstock', 'report']],
+        ['W-73', 'Save a report as a template', 'Owner, manager', 'Any report', ['Change columns, filters and period', 'Save as a template', 'Name it, choose who sees it', 'It lists under its area'], 0, ['report', 'templatesave', 'reports']],
+        ['W-74', 'Make a template from scratch', 'Owner, manager', 'Reports › New template', ['Pick what it reads', 'Columns, period, one row for each', 'Who sees it, and a weekly email'], 0, ['reports', 'templatenew', 'weekend']],
+        ['W-75', 'Change, share or delete a template', 'Whoever made it, or an owner', 'A template › Change the template', ['Rename it', 'Who sees it', 'Email it every Monday', 'Delete: no rows are lost'], 0, ['weekend', 'templateedit']]
+      ] },
+      admin: { title: 'People, controls and settings', lede: 'Who may do what, and who has to say yes. Limits are set once and every screen respects them, so the owner approves the exceptions, not everything.', flows: [
+        ['W-57', 'Invite staff and set PINs', 'Owner', 'Onboarding, or Management › People', ['Name and phone', 'Role', 'Till PIN'], 1, ['people', 'personnew', 'personedit', 'roles']],
+        ['W-58', 'Approvals and limits', 'Owner', 'Management › Approvals', ['Requisitions over US$', 'Refunds over US$', 'Price changes', 'Who approves'], 1, ['approvals']],
+        ['W-59', 'Manager override at the till', 'Manager', 'The till', ['Cashier asks', 'Manager PIN', 'Logged'], 0, ['activity', 'tillrules']],
+        ['W-60', 'Read the audit trail', 'Owner', 'Any record › Activity', ['What changed', 'Who', 'When'], 0, ['activity']],
+        ['W-61', 'Shop-type features', 'Owner', 'Management › Shop', ['Liquor: age check, licence hours, empties', 'Turn each on or off'], 1, ['company', 'liquor']],
+        ['W-62', 'Edit a record\u2019s details', 'Anyone allowed to', 'Any record, its details rail', ['Click the value', 'Change it', 'Enter saves, Esc cancels', 'Logged in Activity'], 0, ['customer', 'productrec']],
+        ['W-63', 'Delete and restore', 'Managers and owners', 'Any record, ⋯ menu', ['Move to the bin', 'Gone from lists, kept 30 days', 'Restore from the bin or the record'], 0, ['customer', 'bin']],
+        ['W-68', 'Support a shop (Corelith superuser)', 'Superuser', 'Platform › Companies', ['Set the business type and features', 'Say why: it is logged for the owner', 'Act as the owner, with their yes'], 0, ['support']]
+      ] }
+    };
+    var DONE = ['W-01', 'W-02', 'W-03', 'W-04', 'W-05', 'W-06', 'W-07', 'W-08', 'W-09', 'W-10', 'W-11', 'W-12', 'W-13', 'W-14', 'W-15', 'W-16', 'W-17', 'W-18', 'W-19', 'W-20', 'W-21', 'W-22', 'W-23', 'W-24', 'W-25', 'W-26', 'W-27', 'W-28', 'W-29', 'W-30', 'W-31', 'W-32', 'W-33', 'W-34', 'W-35', 'W-36', 'W-37', 'W-38', 'W-39', 'W-40', 'W-41', 'W-42', 'W-43', 'W-44', 'W-45', 'W-46', 'W-47', 'W-48', 'W-49', 'W-50', 'W-51', 'W-52', 'W-53', 'W-54', 'W-55', 'W-56', 'W-57', 'W-58', 'W-59', 'W-60', 'W-61', 'W-62', 'W-63', 'W-64', 'W-65', 'W-66', 'W-67', 'W-68', 'W-69', 'W-70', 'W-71', 'W-72', 'W-73', 'W-74', 'W-75', 'W-76'];
+    var order = ['setup', 'products', 'stock', 'buying', 'floor', 'customers', 'insights', 'admin'];
+    var key = this.props.area || 'setup';
+    var a = A[key];
+    var built = 0, guided = 0;
+    var flows = a.flows.map(function (f) {
+      var screens = f[6].map(function (k) { return { label: S[k][0], href: S[k][1] }; });
+      var isDone = DONE.indexOf(f[0]) >= 0;
+      if (isDone) built++;
+      if (f[5]) guided++;
+      return { id: f[0], name: f[1], who: f[2], from: f[3], guided: Boolean(f[5]),
+        steps: f[4].map(function (s, i) { return { n: String(i + 1), label: s, more: i < f[4].length - 1 }; }),
+        screens: screens, todo: screens.length === 0, todoText: 'Next to design',
+        state: isDone ? 'On the canvas' : (screens.length ? 'In progress' : 'Next'), stateBg: isDone ? '#e7f4ee' : (screens.length ? '#fbf1dc' : '#f3eee9'), stateFg: isDone ? '#17734c' : (screens.length ? '#8a5a10' : '#4a3a33') };
+    });
+    var rows = Math.ceil(flows.length / 2);
+    return { title: a.title, lede: a.lede, num: String(order.indexOf(key) + 1), count: String(flows.length), guided: String(guided), built: String(built), flows: flows, height: (220 + rows * 236) + 'px' };
+  }
+}
+</script>
+</body>
+</html>

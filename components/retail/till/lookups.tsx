@@ -11,22 +11,16 @@ import { useQuery } from "@tanstack/react-query";
 
 import { fetchJson } from "@/lib/api-client";
 import { Barcode, MagnifyingGlass, Plus, ShoppingCart, Tag, Users } from "@/lib/icons";
-import { LOYALTY_REDEEM_POINTS_PER_USD } from "@/lib/retail/loyalty-rules";
 import { getPosPortalHref } from "@/lib/retail/pos-host";
 import { count, dayMonth, firstName, qty, usd, whole } from "./format";
-import { Avatar, Empty, LoadFailed } from "./parts";
+import { LaybySearch } from "./layby";
+import { Avatar, Empty, LoadFailed, Segmented } from "./parts";
 import { useTill } from "./state";
 import { ProductPreview } from "./tile";
-import type { CustomerLookupResult, PosCatalogItem } from "./types";
-
-const TIER: Record<string, string> = { BRONZE: "Bronze", SILVER: "Silver", GOLD: "Gold" };
-
-/** A customer as `customers/search` answers here: with their last sale at the shop, whoever rang it. */
-type CustomerRow = CustomerLookupResult & { lastSale: { saleNo: string; total: number; at: string } | null };
+import type { PosCatalogItem, PosCustomer } from "./types";
 
 /** "today", else "on 3 October". */
 const onDay = (at: string) => (dayMonth(at) === dayMonth(new Date()) ? "today" : `on ${dayMonth(at)}`);
-const NEXT_TIER: Record<string, [string, number] | null> = { BRONZE: ["Silver", 500], SILVER: ["Gold", 2000], GOLD: null };
 
 function useTyped(delay = 250) {
   const [typed, setTyped] = React.useState("");
@@ -40,7 +34,33 @@ function useTyped(delay = 250) {
 
 /* ─── Customers ──────────────────────────────────────────────────────── */
 
+/** Customers, with their lay-bys a tab away (FLR-09): find one by customer or LAY number. */
 export function CustomersScreen() {
+  const [view, setView] = React.useState<"customers" | "laybys">("customers");
+  const tabs = <Segmented label="Customers or lay-bys" value={view} options={[{ value: "customers", label: "Customers" }, { value: "laybys", label: "Lay-bys" }]} onChange={setView} />;
+  return view === "laybys" ? <LaybysView tabs={tabs} /> : <CustomerList tabs={tabs} />;
+}
+
+function LaybysView({ tabs }: { tabs: React.ReactNode }) {
+  const search = useTyped();
+  return (
+    <div className="main is-fixed">
+      <div className="bar">
+        <h1>Customers</h1>
+        {tabs}
+        <div className="end">
+          <label className="input-wrap is-search">
+            <MagnifyingGlass className="ic" />
+            <input type="search" aria-label="Search lay-bys" placeholder="Customer or LAY number" autoComplete="off" autoFocus value={search.typed} onChange={(event) => search.setTyped(event.target.value)} />
+          </label>
+        </div>
+      </div>
+      <LaybySearch query={search.value} />
+    </div>
+  );
+}
+
+function CustomerList({ tabs }: { tabs: React.ReactNode }) {
   const router = useRouter();
   const { selectCustomer, isPosHost } = useTill();
   const search = useTyped();
@@ -48,21 +68,21 @@ export function CustomersScreen() {
   const query = useQuery({
     queryKey: ["retail-pos-customer-search", search.value],
     enabled: search.value.length >= 2,
-    queryFn: () => fetchJson<{ data: CustomerRow[] }>(`/api/v2/retail/customers/search?q=${encodeURIComponent(search.value)}&limit=30`),
+    queryFn: () => fetchJson<{ data: PosCustomer[] }>(`/api/v2/retail/pos/customers?q=${encodeURIComponent(search.value)}&limit=30`),
   });
   const rows = query.data?.data ?? [];
   const selected = rows.find((row) => row.id === selectedId) ?? rows[0] ?? null;
-  const next = selected ? NEXT_TIER[selected.loyaltyTier] : null;
 
   return (
     <div className="with-rail">
       <main className="main is-fixed">
         <div className="bar">
           <h1>Customers</h1>
+          {tabs}
           <div className="end">
             <label className="input-wrap is-search">
               <MagnifyingGlass className="ic" />
-              <input type="search" aria-label="Search customers" placeholder="Name or phone" autoComplete="off" autoFocus value={search.typed} onChange={(event) => search.setTyped(event.target.value)} />
+              <input type="search" aria-label="Search customers" placeholder="Name, phone or card" autoComplete="off" autoFocus value={search.typed} onChange={(event) => search.setTyped(event.target.value)} />
             </label>
           </div>
         </div>
@@ -96,8 +116,8 @@ export function CustomersScreen() {
                     <span className="truncate">
                       <span className="ink">{row.name}</span> <span className="muted num">{row.phone ?? ""}</span>
                     </span>
-                    <span className="muted">{TIER[row.loyaltyTier] ?? row.loyaltyTier}</span>
-                    <span className="num">{whole(row.loyaltyPoints)}</span>
+                    <span className="muted">{row.tier}</span>
+                    <span className="num">{whole(row.points)}</span>
                   </button>
                 ))}
               </div>
@@ -121,7 +141,7 @@ export function CustomersScreen() {
                 <div>
                   <div className="title-16">{selected.name}</div>
                   <div className="note num text-left">
-                    {selected.phone ?? selected.email ?? ""}
+                    {selected.phone ?? ""}
                   </div>
                 </div>
               </div>
@@ -139,16 +159,15 @@ export function CustomersScreen() {
             </section>
             <section>
               <div className="sec-title">Points</div>
-              <div className="figure">{whole(selected.loyaltyPoints)}</div>
+              <div className="figure">{whole(selected.points)}</div>
               <dl className="attrs">
                 <dt>Worth</dt>
                 <dd className="num text-left">
-                  {usd(selected.loyaltyPoints / LOYALTY_REDEEM_POINTS_PER_USD)}
+                  {usd(selected.worth)}
                 </dd>
                 <dt>Tier</dt>
                 <dd>
-                  {TIER[selected.loyaltyTier] ?? selected.loyaltyTier}
-                  {next ? `, ${whole(next[1] - selected.loyaltyPoints)} to ${next[0]}` : ""}
+                  {selected.tier || "None"}
                 </dd>
                 <dt>Last sale</dt>
                 <dd>

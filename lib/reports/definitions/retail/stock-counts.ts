@@ -10,6 +10,9 @@ import { COUNT_STATE } from "@/lib/retail/stock/count-words";
 
 const VIEW: ListGrant[] = [["retail.counts", "view"]];
 const CREATE: ListGrant[] = [["retail.counts", "create"]];
+const APPROVE: ListGrant[] = [["retail.counts", "approve"]];
+const CANCEL: ListGrant[] = [["retail.counts", "delete"]];
+const OPEN = [{ column: "status", op: "is" as const, value: ["COUNTING", "TO_APPROVE"] }];
 const status = (...values: string[]) => [{ column: "status", op: "is" as const, value: values }];
 const PRINT = { download: "/api/v2/retail/stock/counts/print", open: true } as const;
 const state = (key: keyof typeof COUNT_STATE) => ({
@@ -126,9 +129,34 @@ const counts: ListSpec = {
   rowHref: "/retail/stock/counts/{id}",
   rowMenu: [
     { key: "open", label: "Open", requires: VIEW, do: { href: "/retail/stock/counts/{id}" } },
+    {
+      key: "approve",
+      label: "Approve the differences",
+      requires: APPROVE,
+      when: status("TO_APPROVE"),
+      do: { href: "/retail/stock/counts/{id}/review" },
+    },
     { key: "print", label: "Print count sheet", requires: VIEW, do: PRINT },
+    {
+      key: "cancel",
+      label: "Cancel the count",
+      tone: "bad",
+      separated: true,
+      requires: CANCEL,
+      when: OPEN,
+      do: { run: "cancelcount", endpoint: "/api/v2/retail/stock/counts/{id}/cancel" },
+    },
   ],
-  bulk: [{ key: "print", label: "Print count sheets", requires: VIEW, do: { ...PRINT, cap: 100 } }, { key: "export" }],
+  bulk: [
+    {
+      key: "approve",
+      label: "Approve the differences",
+      requires: APPROVE,
+      do: { run: "approvecounts", endpoint: "/api/v2/retail/stock/counts/approve" },
+    },
+    { key: "print", label: "Print count sheets", requires: VIEW, do: { ...PRINT, cap: 100 } },
+    { key: "export" },
+  ],
   primary: { label: "Start a count", icon: "plus", requires: CREATE, sheet: "count-new" },
   card: { title: "name", badge: "state", figure: "figure", meta: "{countNo} · {counter} · {when}", figure2: "differWords" },
   empty: {
@@ -156,4 +184,95 @@ const countsSource: ReportDefinition = {
   list: counts,
 };
 
-export const STOCK_COUNT_REPORTS: ReportDefinition[] = [countsSource];
+/**
+ * A count's lines (STK-06, the record's "Differences" and "Every line" tabs,
+ * the `count` parent): what was expected when each was counted, what was
+ * counted, the difference and its value at cost (for roles that see cost).
+ * The counter of a blind count does not see what was expected while counting.
+ */
+function lineSpec(differences: boolean): ListSpec {
+  return {
+    noun: "lines",
+    read: VIEW,
+    search: { placeholder: "Product", keys: ["product"] },
+    filters: [{ key: "count", type: "parent", column: "countId" }],
+    // Differences lead with the largest loss (by value where the role sees cost); every line keeps the counted order.
+    sorts: differences
+      ? [
+          {
+            key: "loss",
+            label: "Largest loss first",
+            rules: [
+              { column: "value", dir: "asc" },
+              { column: "difference", dir: "asc" },
+              { column: "product", dir: "asc" },
+            ],
+          },
+        ]
+      : [{ key: "shelf", label: "As counted", rules: [{ column: "order", dir: "asc" }] }],
+    columns: [
+      { key: "product", label: "Product", kind: "text", cell: "text", width: "minmax(0,1fr)", align: "start", priority: 1 },
+      { key: "expected", label: "Expected", kind: "number", cell: "num", total: "sum", width: "100px", align: "end", priority: 2 },
+      { key: "counted", label: "Counted", kind: "number", cell: "num", total: "sum", width: "100px", align: "end", priority: 1 },
+      {
+        key: "difference",
+        label: "Difference",
+        kind: "number",
+        cell: "diff",
+        diff: "variance",
+        total: "sum",
+        width: "110px",
+        align: "end",
+        priority: 1,
+      },
+      {
+        key: "value",
+        label: "Value",
+        kind: "money",
+        currency: "USD",
+        cell: "diff",
+        diff: "variance",
+        total: "sum",
+        requires: "view-cost",
+        width: "110px",
+        align: "end",
+        priority: 1,
+      },
+      { key: "order", label: "Order", kind: "number", cell: "num", hidden: true, width: "60px", align: "end", priority: 3 },
+    ],
+    rowHref: "/retail/products/{productId}",
+    card: { title: "product", figure: "difference", meta: "{countedWords}" },
+    empty: differences
+      ? { icon: "ClipboardText", title: "Every line is as expected", line: "Nothing to approve but the count itself." }
+      : { icon: "ClipboardText", title: "Nothing on this count", line: "A count holds the lines it was started with." },
+  };
+}
+
+const differencesSpec = lineSpec(true);
+const everyLineSpec = lineSpec(false);
+
+const differencesSource: ReportDefinition = {
+  key: "retail-stock-count-differences",
+  title: "Differences on a count",
+  area: "Stock",
+  href: "/retail/stock/counts",
+  profiles: ["RETAIL"],
+  params: [],
+  columns: differencesSpec.columns,
+  defaults: { sort: differencesSpec.sorts[0]!.rules },
+  list: differencesSpec,
+};
+
+const linesSource: ReportDefinition = {
+  key: "retail-stock-count-lines",
+  title: "Lines on a count",
+  area: "Stock",
+  href: "/retail/stock/counts",
+  profiles: ["RETAIL"],
+  params: [],
+  columns: everyLineSpec.columns,
+  defaults: { sort: everyLineSpec.sorts[0]!.rules },
+  list: everyLineSpec,
+};
+
+export const STOCK_COUNT_REPORTS: ReportDefinition[] = [countsSource, differencesSource, linesSource];
