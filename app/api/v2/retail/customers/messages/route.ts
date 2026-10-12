@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { errorResponse, fieldErrorResponse, successResponse } from "@/lib/api-response";
+import { REMINDER_SOURCES } from "@/lib/retail/messages/audience";
 import { MessageRefusal, reminderSourceFor } from "@/lib/retail/messages/preview";
 import { messageInput, queueCustomerMessages } from "@/lib/retail/messages/queue";
+import { retailPermissionDenial } from "@/lib/retail/permission-matrix";
 import { requireRetailPermission } from "@/lib/retail/permissions";
 import { requireRetailSession } from "../../_helpers";
 
@@ -15,18 +17,53 @@ import { requireRetailSession } from "../../_helpers";
  * under `msg`, a time already past 400 under `when`. With WhatsApp not
  * connected the messages wait in the outbox (`waiting`), nothing fails (C-04).
  */
+const FIELD_OF: Record<string, string> = { body: "msg", sendAt: "when" };
+
+function fieldWords(path: string): string {
+  if (path === "body") return "Write the message.";
+  if (path === "sendAt") return "Pick when it goes.";
+  return "Pick who it goes to.";
+}
+
+const OFFER_GRANT = ["retail.customers", "update"] as const;
+const purposeOf = messageInput.pick({ purpose: true, about: true });
+
+type Session = Parameters<typeof requireRetailPermission>[0];
+
+function messageGate(session: Session, raw: unknown): NextResponse | null {
+  const head = purposeOf.safeParse(raw);
+  if (head.success) {
+    if (head.data.purpose === "OFFER") return requireRetailPermission(session, ...OFFER_GRANT);
+    try {
+      return requireRetailPermission(session, ...reminderSourceFor(head.data.about).source.requires);
+    } catch (error) {
+      if (!(error instanceof MessageRefusal)) throw error;
+    }
+  }
+  const grants = [OFFER_GRANT, ...Object.values(REMINDER_SOURCES).map((source) => source!.requires)];
+  return grants.every(([resource, action]) => retailPermissionDenial(session, resource, action)) ? requireRetailPermission(session, ...OFFER_GRANT) : null;
+}
+
 export async function POST(request: NextRequest) {
   const { response, session } = await requireRetailSession(request);
   if (response || !session) return response as NextResponse;
 
-  const parsed = messageInput.safeParse(await request.json().catch(() => null));
-  if (!parsed.success) return errorResponse("Validation failed", 400, parsed.error.issues);
+  // The right is checked before the body is: the purpose names it (an offer's, or its reminder source's),
+  // and with no purpose to read, a role that may message nobody is refused all the same.
+  const raw = await request.json().catch(() => null);
+  const gate = messageGate(session, raw);
+  if (gate) return gate;
+
+  const parsed = messageInput.safeParse(raw);
+  if (!parsed.success) {
+    // The sheet's own fields: the message under `msg`, the time under `when`, the rest under who it goes to.
+    const fieldErrors = Object.fromEntries(
+      parsed.error.issues.map((issue) => [FIELD_OF[String(issue.path[0] ?? "")] ?? "who", fieldWords(String(issue.path[0] ?? ""))]),
+    );
+    return fieldErrorResponse(Object.values(fieldErrors)[0] ?? "Check the message.", fieldErrors);
+  }
 
   try {
-    const grant = parsed.data.purpose === "OFFER" ? (["retail.customers", "update"] as const) : reminderSourceFor(parsed.data.about).source.requires;
-    const gate = requireRetailPermission(session, grant[0], grant[1]);
-    if (gate) return gate;
-
     const actor = {
       companyId: session.user.companyId,
       userId: session.user.id,
