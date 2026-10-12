@@ -6511,8 +6511,9 @@ const harareDay = (day: string, time: string) => new Date(`${day}T${time}:00+02:
  * - Codes and cards in the order they joined, Tapiwa Marange CUS-00141.
  *   Simba Nkomo is not seeded: he is added in the acceptance walk.
  *
- * Not seeded yet: the members' planned sales spending points (21,400 points)
- * need the till's points discount on a history sale.
+ * - 96 customers spend 21,400 points in the last 30 days (Tapiwa's spends,
+ *   then members' extra sales that spend them), and members' visits there
+ *   average 2.3 times a walk-in's: the Loyalty board's aside.
  */
 async function seedCustomers(companyId: string) {
   const random = seededRandom(53)
