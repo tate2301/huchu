@@ -39,7 +39,7 @@ export type SlipSale = {
 /** The lines as the slip prints them: each line's amount after its discount, and its deposit after its empties. */
 export function slipLines(cart: readonly CartItem[]): SlipSale["lines"] {
   return cart.map((item) => ({
-    key: item.catalogItemId,
+    key: item.id,
     name: item.name,
     quantity: item.quantity,
     amount: Math.max(item.unitPrice * item.quantity - item.lineDiscountAmount, 0),

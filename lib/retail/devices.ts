@@ -615,9 +615,10 @@ export type TillContext = {
   /**
    * Who can approve with their PIN at this till, per right: active staff with
    * a till PIN who hold `retail.sell:approve` (refunds, voids, discounts, the
-   * drawer) or `retail.cash-control:approve` (cash in or out). FLR-09.
+   * drawer) or `retail.cash-control:approve` (cash in or out), FLR-09; or
+   * `retail.adjustments:approve` (Adjust stock over the limit at the till), FLR-10.
    */
-  approvers: { sell: TillApprover[]; cashControl: TillApprover[] };
+  approvers: { sell: TillApprover[]; cashControl: TillApprover[]; adjust: TillApprover[] };
   /** The till's own list, else the site's, else the shop's default; null when the shop has none. */
   priceListId: string | null;
   /** The number the next shift opened at this site will take ("SH-00244"): a forecast, not reserved. */
@@ -634,7 +635,7 @@ export type TillApprover = { userId: string; name: string; short: string };
 /** The people holding a right's approve, by name, as the approval dialog's chips. */
 export function approversWith(
   pins: ReadonlyArray<{ user: { id: string; name: string | null; role: string | null } }>,
-  resource: "retail.sell" | "retail.cash-control",
+  resource: "retail.sell" | "retail.cash-control" | "retail.adjustments",
 ): TillApprover[] {
   return pins
     .filter((pin) => canRetailRoleDo(pin.user.role, resource, "approve"))
@@ -690,7 +691,11 @@ export async function tillContext(device: PosDevice, now: Date = new Date()): Pr
     rules: tillRulesForTill(tillRules),
     receipt,
     fiscal,
-    approvers: { sell: approversWith(pins, "retail.sell"), cashControl: approversWith(pins, "retail.cash-control") },
+    approvers: {
+      sell: approversWith(pins, "retail.sell"),
+      cashControl: approversWith(pins, "retail.cash-control"),
+      adjust: approversWith(pins, "retail.adjustments"),
+    },
     priceListId: register.priceListId ?? register.site.priceListId ?? defaultList?.id ?? null,
     nextShiftNo,
     signOff,

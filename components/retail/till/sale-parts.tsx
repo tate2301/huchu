@@ -2,15 +2,13 @@
 
 /**
  * The sale column's parts. Each change is made where the thing is: a line's
- * price on the line, the customer on the customer, bottles back on their tile
- * (counted against the lines that sell them). Only an approval (a reason, and
- * a manager's PIN when the till rules ask for one) and the ID check stop the
- * till with a dialog.
+ * price on the line, the customer on the customer. Only an approval (a
+ * reason, and a manager's PIN when the till rules ask for one) stops the till
+ * with a dialog here; the liquor moments and vouchers are `floor-parts`.
  */
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { useSession } from "next-auth/react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 import { useOfflineRuntime } from "@/components/offline/offline-runtime";
@@ -18,48 +16,30 @@ import { useToast } from "@/components/ui/use-toast";
 import { ApiError, fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import {
   Check,
-  IdentificationCard,
   MagnifyingGlass,
   Minus,
   Package,
   PauseCircle,
   Percent,
   Plus,
-  Prohibit,
   Trash,
   UserPlus,
   X,
 } from "@/lib/icons";
-import { depositsDue, emptiesCounted } from "@/lib/retail/deposits";
+import { emptiesCounted } from "@/lib/retail/deposits";
 import { clockLabel } from "@/lib/retail/licence-hours";
 import { pointsValue as worthOf, spendRefusal, SPENDING_NEEDS_THE_INTERNET } from "@/lib/retail/loyalty/spend";
 import { newPosCustomer } from "@/lib/retail/customers/pos-customer";
 import { createOfflineRetailCustomer } from "@/lib/retail/offline-runtime";
 import { getPosPortalHref } from "@/lib/retail/pos-host";
 import { discountPinSentence } from "@/lib/retail/till-rule-words";
-import { emptiesRows, spreadEmpties } from "./empties-words";
+import { AdjustStockDialog, DiscountVoucherField } from "./floor-parts";
 import { count, firstName, MEASURES, qty, usd, whole } from "./format";
 import { Avatar, ErrorLine, TillDialog, TillPopover } from "./parts";
 import { discountApprovalReason } from "./sale-rules";
 import { lineIsChanged, useTill } from "./state";
 import type { CartItem, PosCustomer } from "./types";
 
-/** 0.10 → "10c", 1.50 → "US$1.50": a deposit as the shelf says it. */
-const depositWord = (value: number) => (value < 1 ? `${Math.round(value * 100)}c` : usd(value));
-
-/** The lines on the sale that take empties back: returnable bottles that sell now. */
-function useReturnables() {
-  const { cart, lineStopped } = useTill();
-  return cart.filter((item) => item.returnable && item.depositAmount && !lineStopped(item));
-}
-
-/**
- * What the empties back take off the sale: each line's deposit before them,
- * less after them. The sale's deposit (`depositTotal`) is already net of it.
- */
-export function bottlesBackCredit(lines: readonly CartItem[]) {
-  return Number((depositsDue(lines.map((item) => ({ ...item, emptiesBack: 0 }))) - depositsDue(lines)).toFixed(2));
-}
 
 const amountOf = (text: string) => {
   const value = Number(text);
@@ -109,8 +89,10 @@ function MoneyField({
 /* ─── A line ─────────────────────────────────────────────────────────── */
 
 export function SaleLine({ item }: { item: CartItem }) {
-  const { updateQty, updateLine, removeFromCart, lineStopped, alcohol, canApprove, rules } = useTill();
+  const { updateQty, updateLine, removeFromCart, lineStopped, alcohol, canApprove, rules, lineSavings, canAdjustStock } = useTill();
   const [open, setOpen] = React.useState(false);
+  const [adjusting, setAdjusting] = React.useState(false);
+  const savings = lineSavings.get(item.id);
   const [price, setPrice] = React.useState("");
   const [discount, setDiscount] = React.useState("");
   const ids = React.useId();
@@ -140,6 +122,9 @@ export function SaleLine({ item }: { item: CartItem }) {
       ? null
       : `Taken off at ${clockLabel(alcohol.stoppedAt)}`
     : [
+        item.bundleName ? item.bundleName : null,
+        item.listName ? item.listName : null,
+        savings?.promotion ? `${savings.promotion.name} ${usd(-savings.promotion.amount)}` : null,
         measured ? `${unit} at ${usd(item.unitPrice)} a ${unit}` : null,
         discounted ? `${usd(item.lineDiscountAmount)} off${managerAtTake ? ", a manager approves at Take" : ""}` : null,
         Math.abs(item.unitPrice - shelf) > 0.009 ? `at ${usd(item.unitPrice)}, shelf ${usd(shelf)}` : null,
@@ -177,7 +162,7 @@ export function SaleLine({ item }: { item: CartItem }) {
           onSubmit={(event) => {
             event.preventDefault();
             if (overCeiling) return;
-            updateLine(item.catalogItemId, { unitPrice: priceValue, lineDiscountAmount: discountValue });
+            updateLine(item.id, { unitPrice: priceValue, lineDiscountAmount: discountValue });
             setOpen(false);
           }}
         >
@@ -185,7 +170,7 @@ export function SaleLine({ item }: { item: CartItem }) {
             <div className="line-split">
               <b className="strong">{item.name}</b>
               <span className="note nowrap">
-                {item.openPrice ? "Open price" : `${usd(shelf)} on the shelf`}
+                {item.openPrice ? "Open price" : `${usd(shelf)} on the shelf${item.listName ? `, ${item.listName}` : ""}`}
                 {item.stock !== undefined ? ` · ${qty(item.stock)} left` : ""}
               </span>
             </div>
@@ -221,13 +206,26 @@ export function SaleLine({ item }: { item: CartItem }) {
               type="button"
               className="btn btn-quiet btn-danger push-left"
               onClick={() => {
-                removeFromCart(item.catalogItemId);
+                removeFromCart(item.id);
                 setOpen(false);
               }}
             >
               <Trash className="ic" />
-              Remove the line
+              {item.bundleRef ? "Remove the bundle" : "Remove the line"}
             </button>
+            {canAdjustStock ? (
+              <button
+                type="button"
+                className="btn btn-quiet"
+                onClick={() => {
+                  setOpen(false);
+                  setAdjusting(true);
+                }}
+              >
+                <Package className="ic" />
+                Adjust stock
+              </button>
+            ) : null}
             {overCeiling && ceiling !== null ? (
               <button
                 type="button"
@@ -250,220 +248,23 @@ export function SaleLine({ item }: { item: CartItem }) {
         </form>
       </TillPopover>
       <span className="qty" role="group" aria-label={`Quantity of ${item.name}`}>
-        <button type="button" aria-label={`One fewer ${item.name}`} onClick={() => updateQty(item.catalogItemId, item.quantity - 1)}>
+        <button type="button" aria-label={`One fewer ${item.name}`} disabled={Boolean(item.bundleRef)} onClick={() => updateQty(item.id, item.quantity - 1)}>
           <Minus className="ic" />
         </button>
         <span>{measured ? item.quantity.toFixed(3) : qty(item.quantity)}</span>
-        <button type="button" aria-label={`One more ${item.name}`} onClick={() => updateQty(item.catalogItemId, item.quantity + 1)}>
+        <button type="button" aria-label={`One more ${item.name}`} disabled={Boolean(item.bundleRef)} onClick={() => updateQty(item.id, item.quantity + 1)}>
           <Plus className="ic" />
         </button>
       </span>
       <span className="num">{stopped ? "—" : usd(lineAmount)}</span>
+      {adjusting ? (
+        <AdjustStockDialog product={{ id: item.catalogItemId, name: item.name, onHand: item.stock ?? 0 }} onClose={() => setAdjusting(false)} />
+      ) : null}
     </div>
   );
 }
 
 /* ─── Bottles back ───────────────────────────────────────────────────── */
-
-/**
- * The empties on this sale, as one line: how many, and what they take off.
- * Each is counted against a line that sells that bottle, so more go on the
- * first line with room at the same deposit and come off the last one counted.
- */
-export function BottlesBackLine() {
-  const { setEmptiesBack, emptiesBackCount } = useTill();
-  const lines = useReturnables();
-  if (!emptiesBackCount) return null;
-  const values = [...new Set(lines.filter((item) => emptiesCounted(item) > 0).map((item) => item.depositAmount ?? 0))];
-  const per = values.length === 1 ? values[0] : null;
-  const fewer = [...lines].reverse().find((item) => emptiesCounted(item) > 0);
-  const more = per === null ? undefined : lines.find((item) => item.depositAmount === per && emptiesCounted(item) < Math.floor(item.quantity));
-  return (
-    <div className="line">
-      <span className="text-stack">
-        <span className="truncate">Bottles back</span>
-        <span className="meta truncate is-off">{per !== null ? `${depositWord(per)} a bottle, off this sale` : "Off this sale"}</span>
-      </span>
-      <span className="qty" role="group" aria-label="Bottles back">
-        <button
-          type="button"
-          aria-label="One fewer bottle back"
-          disabled={!fewer}
-          onClick={() => fewer && setEmptiesBack(fewer.catalogItemId, emptiesCounted(fewer) - 1)}
-        >
-          <Minus className="ic" />
-        </button>
-        <span>{emptiesBackCount}</span>
-        <button
-          type="button"
-          aria-label="One more bottle back"
-          disabled={!more}
-          onClick={() => more && setEmptiesBack(more.catalogItemId, emptiesCounted(more) + 1)}
-        >
-          <Plus className="ic" />
-        </button>
-      </span>
-      <span className="num">{usd(-bottlesBackCredit(lines))}</span>
-    </div>
-  );
-}
-
-/**
- * The count of empties, on the Bottles back tile: a row for each kind of
- * deposit on the sale, by the name the shop gives it, never more than the
- * sale sells of it. A deposit with no name keeps its product's name.
- */
-export function BottlesBackPopover({ trigger }: { trigger: React.ReactElement }) {
-  const { setEmptiesBack } = useTill();
-  const lines = useReturnables();
-  const [open, setOpen] = React.useState(false);
-  const [draft, setDraft] = React.useState<Record<string, number>>({});
-  const rows = emptiesRows(lines);
-  const perLine = new Map(rows.flatMap((row) => spreadEmpties(row, draft[row.key] ?? 0)));
-  const counted = lines.map((item) => ({ ...item, emptiesBack: perLine.get(item.catalogItemId) ?? 0 }));
-  const total = counted.reduce((sum, item) => sum + emptiesCounted(item), 0);
-  const credit = bottlesBackCredit(counted);
-
-  return (
-    <TillPopover
-      open={open}
-      onOpenChange={(next) => {
-        setOpen(next);
-        if (next) setDraft(Object.fromEntries(rows.map((row) => [row.key, row.lines.reduce((sum, item) => sum + emptiesCounted(item), 0)])));
-      }}
-      label="Bottles back"
-      size="lg"
-      trigger={trigger}
-    >
-      <div className="pop-body">
-        <b className="strong">Bottles back</b>
-        {rows.length ? (
-          <div className="list is-framed">
-            {rows.map((row) => {
-              const n = draft[row.key] ?? 0;
-              return (
-                <div key={row.key} className="row is-split is-inset">
-                  <span className="grow truncate">
-                    {row.label} <span className="muted">{depositWord(row.each)}</span>
-                  </span>
-                  <span className="qty" role="group" aria-label={`Empties back, ${row.label}`}>
-                    <button
-                      type="button"
-                      aria-label={`One fewer back, ${row.label}`}
-                      disabled={n === 0}
-                      onClick={() => setDraft({ ...draft, [row.key]: Math.max(0, n - 1) })}
-                    >
-                      <Minus className="ic" />
-                    </button>
-                    <span>{n}</span>
-                    <button
-                      type="button"
-                      aria-label={`One more back, ${row.label}`}
-                      disabled={n >= row.most}
-                      onClick={() => setDraft({ ...draft, [row.key]: Math.min(row.most, n + 1) })}
-                    >
-                      <Plus className="ic" />
-                    </button>
-                  </span>
-                </div>
-              );
-            })}
-          </div>
-        ) : (
-          <p className="help is-flush">Ring up the bottles first. Empties come off a line that sells them, up to its count.</p>
-        )}
-      </div>
-      <div className="pop-foot">
-        <span className="kbd push-left">
-          Esc
-        </span>
-        <button
-          type="button"
-          className="btn btn-ink"
-          onClick={() => {
-            for (const item of lines) setEmptiesBack(item.catalogItemId, perLine.get(item.catalogItemId) ?? 0);
-            setOpen(false);
-          }}
-        >
-          <Check className="ic" />
-          {total ? `Take ${total} back, ${usd(-credit)}` : "None back"}
-        </button>
-      </div>
-    </TillPopover>
-  );
-}
-
-/* ─── Opening a case where the line is ───────────────────────────────── */
-
-export function CaseBanners() {
-  const { cart } = useTill();
-  const [dismissed, setDismissed] = React.useState<string[]>([]);
-  // Short of singles, and the cases in this branch cover what is missing.
-  const short = cart.filter(
-    (item) =>
-      item.openableCase &&
-      item.stock !== undefined &&
-      item.quantity > item.stock &&
-      item.openableCase.casesOnHand * item.openableCase.unitsPerCase >= item.quantity - Math.max(0, item.stock) &&
-      !dismissed.includes(item.catalogItemId),
-  );
-  return (
-    <>
-      {short.map((item) => (
-        <CaseBanner key={item.catalogItemId} item={item} onDismiss={() => setDismissed((current) => [...current, item.catalogItemId])} />
-      ))}
-    </>
-  );
-}
-
-function CaseBanner({ item, onDismiss }: { item: CartItem; onDismiss: () => void }) {
-  const { toast } = useToast();
-  const queryClient = useQueryClient();
-  const { updateLine } = useTill();
-  const caseInfo = item.openableCase!;
-  const loose = Math.max(0, item.stock ?? 0);
-  const cases = Math.ceil((item.quantity - loose) / caseInfo.unitsPerCase);
-  const name = item.name.split(",")[0];
-  const open = useMutation({
-    mutationFn: () =>
-      fetchJson<{ data: { casesOpened: number; singlesAdded: number; singlesOnHand: number; caseName: string } }>("/api/v2/retail/pos/open-case", {
-        method: "POST",
-        body: JSON.stringify({ productId: item.catalogItemId, wanted: item.quantity }),
-      }),
-    onSuccess: (result) => {
-      updateLine(item.catalogItemId, { stock: result.data.singlesOnHand });
-      void queryClient.invalidateQueries({ queryKey: ["retail-pos-catalog"] });
-    },
-    onError: (error) => toast({ title: "No case was opened", description: getApiErrorMessage(error), variant: "destructive" }),
-  });
-  return (
-    <div className="banner is-in-list wrap">
-      <Package className="ic" />
-      {/* A case breaks at the till only once its singles have run out: the loose ones sell first. */}
-      {loose ? (
-        <span>
-          Only {qty(loose)} singles of {name} left. Sell those first; a case opens once they run out.
-        </span>
-      ) : (
-        <span>
-          No singles of {name} left, {count(caseInfo.casesOnHand, "case")}. Open {cases === 1 ? "one" : cases} for these {qty(item.quantity)}?
-        </span>
-      )}
-      <div className="end">
-        <button type="button" className="btn" onClick={onDismiss}>
-          <X className="ic" />
-          {loose ? "Got it" : "Not now"}
-        </button>
-        {loose ? null : (
-          <button type="button" className="btn btn-ink" disabled={open.isPending} aria-busy={open.isPending || undefined} onClick={() => open.mutate()}>
-            <Check className="ic" />
-            Open {count(cases, "case")}
-          </button>
-        )}
-      </div>
-    </div>
-  );
-}
 
 /* ─── The customer ───────────────────────────────────────────────────── */
 
@@ -888,6 +689,7 @@ export function DiscountPopover() {
       >
         <div className="pop-body">
           <MoneyField id={`${ids}m`} label="Off the whole sale" value={manual} onChange={setManual} placeholder="0.00" autoFocus />
+          <DiscountVoucherField />
           <div className="field">
             <label htmlFor={`${ids}l`}>Points</label>
             {selectedCustomer && loyaltyRules?.on ? (
@@ -929,55 +731,6 @@ export function DiscountPopover() {
         </div>
       </form>
     </TillPopover>
-  );
-}
-
-/* ─── The ID check ───────────────────────────────────────────────────── */
-
-export function IdCheckDialog({ open, onDone }: { open: boolean; onDone: () => void }) {
-  const { data: session } = useSession();
-  const { cart, lineStopped, confirmId, removeAgeRestricted } = useTill();
-  const names = cart.filter((item) => item.ageRestricted && !lineStopped(item)).map((item) => item.name.split(",")[0]);
-  const listed = names.length > 2 ? `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}` : names.join(" and ");
-  return (
-    <TillDialog
-      open={open}
-      onOpenChange={(next) => {
-        if (!next) onDone();
-      }}
-      title="Check ID: 18 or over"
-      description={`${listed || "These products"} ${names.length === 1 ? "is" : "are"} for people 18 or over. Look at the customer’s ID before you go on.`}
-      foot={
-        <>
-          <button
-            type="button"
-            className="btn"
-            onClick={() => {
-              removeAgeRestricted();
-              onDone();
-            }}
-          >
-            <Prohibit className="ic" />
-            Take the 18+ items off
-          </button>
-          <button
-            type="button"
-            className="btn btn-primary"
-            onClick={() => {
-              confirmId();
-              onDone();
-            }}
-          >
-            <IdentificationCard className="ic" />
-            They are 18 or over
-          </button>
-        </>
-      }
-    >
-      <p className="note">
-        Asked once a sale. The answer is kept on the sale with {firstName(session?.user?.name)}’s name.
-      </p>
-    </TillDialog>
   );
 }
 
@@ -1045,7 +798,7 @@ export function ReasonDialog({
             type="button"
             className="btn"
             onClick={() => {
-              for (const item of changed) updateLine(item.catalogItemId, { unitPrice: item.shelfPrice, lineDiscountAmount: 0 });
+              for (const item of changed) updateLine(item.id, { unitPrice: item.shelfPrice, lineDiscountAmount: 0 });
               setOrderDiscountAmount("");
               onOpenChange(false);
             }}

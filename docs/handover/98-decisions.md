@@ -310,6 +310,28 @@ Recorded unit choices:
   - **How people paid splits takings, so it leaves out bottle deposits.** A deposit sale's payments hold the deposit
     (the customer paid goods plus deposit) but takings never do; each sale's deposit comes off its largest payments, so
     the tenders sum to the takings they split.
+- **FLR-10 departs from packet 63 in these places.**
+  - **The till lives in `components/retail/till/*`**, as FLR-09 left it; the packet's `components/retail/portal/*`
+    names are older. Its tests sit beside it (`pos-cart-pricing`, `pos-liquor-moments`, `pos-vouchers`). The sale body
+    keeps `pos/sales`' own `items` (the packet's `lines`), each with `bundleId`/`bundleRef` when rung as a bundle.
+  - **The till prices a line's shelf with no customer**, as `resolveShelfPrices` does on the server; a customer's list
+    waits for CUS-10 on both sides at once, or the till and the server would disagree.
+  - **Cases open through `POST /stock/case-breaks`; `pos/open-case` is gone.** The shelf's `openableCase` now names a
+    single's case whether or not it breaks at the till, with `breakAtTill`: on, the case opens at once; off, the
+    till asks ("No singles left"). STK-04's rule stands, so a cashier opens one only while the line's singles are at
+    0; past that the sale's own break (Break cases at the till) covers it when it is taken.
+  - **Bottles back on a sale come off the lines that sell those bottles, at most what each sells** (`emptiesCounted`,
+    STK-09's rule): the board's "Bottles back, 12" against 6 sold cannot be rung as one sale. The rest are paid out
+    with "Bottles back · Pay" on an empty cart.
+  - **A gift voucher sells with at least one product** on the sale: `pos/sales` takes no sale without items. Selling
+    one, the VOUCHER tender and a discount voucher are off offline ("Vouchers need the till online."), and a sale
+    holding any of them is never queued.
+  - **A gift voucher's secret prints on the first receipt only** (while the sale has no `printedAt`); a reprint from
+    History says "Secret on the first receipt", so a cashier cannot read off a sold voucher's secret later.
+  - **Pay reads "Pay US$…" beside "Bottles back"** where Empties and deposits is on (Liquor panel 3), else "Take".
+  - **Public holidays wait for ADM-08**: the licence banner reads the weekday's own window until then.
+  - **Two till contracts grew**: `devices/me` names `approvers.adjust` (`retail.adjustments:approve`, for Adjust
+    stock over the limit at the till), and `pos/catalog?ids=` reads a bundle's items by id.
 - **PRD-04 departs from packet 15 in seven places.**
   - **A category that checks ID checks it for every product in it, at the till too.** `ageCheckFor`
     (`lib/retail/products/age-check.ts`) now lets the category win over a product's own No, so every till, the shelf

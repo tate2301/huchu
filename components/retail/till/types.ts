@@ -30,7 +30,16 @@ export type PaymentRow = {
   reference: string;
   /** Only ZiG cash says ZWG; anything else is in the sale's money. */
   currency?: TenderCurrency;
+  /** A VOUCHER payment: the voucher's code and secret, checked online first (PRD-10). */
+  voucherCode?: string;
+  voucherSecret?: string;
 };
+
+/** A gift voucher bought in this sale (PRD-10): its value ("10.00"), and who it is for. Outside the goods total. */
+export type VoucherSold = { key: string; value: string; customerId?: string; customerName?: string };
+
+/** A discount voucher on the sale, checked online: what it takes off after the promotions. */
+export type DiscountVoucher = { code: string; secret: string; percentOff: number | null; amountOff: number | null; label: string };
 
 /**
  * One product on the shelf, as `pos/catalog` sends it: the till's offline
@@ -50,11 +59,16 @@ export type PosCatalogItem = ShelfListing & {
   depositName: string | null;
 };
 
-/** A line on the sale. `catalogItemId` is the product's id. */
+/**
+ * A line on the sale. `catalogItemId` is the product's id; `id` is the line's
+ * own: the product's id, or `<bundleRef>:<product>` for a bundle's component.
+ */
 export type CartItem = {
   id: string;
   name: string;
   catalogItemId: string;
+  /** The shop's category ("Spirits"), for the ID check's sentence. */
+  category: string | null;
   quantity: number;
   unitPrice: number;
   /** What the shelf says at this quantity; a different `unitPrice` is a change the till rules may send to a manager. */
@@ -81,6 +95,12 @@ export type CartItem = {
   /** The most off this product, as a percentage of its shelf price; null is no limit. */
   maxDiscountPercent: number | null;
   openableCase: OpenableCase | null;
+  /** The price list the shelf price comes off when it is not the till's own ("Happy hour"); set by the engine. */
+  listName?: string | null;
+  /** A fixed set rung as one (PRD-08): the bundle, and the till's key shared by its component lines. */
+  bundleId?: string | null;
+  bundleRef?: string | null;
+  bundleName?: string | null;
 };
 
 /** The person's open shift on this till, from `pos/current-shift`. */
@@ -151,6 +171,10 @@ export type CompletedSale = {
   fiscal: TillFiscalStatus | null;
   /** The hold this sale was recalled from, as the receipt names it. Set by the till. */
   heldAs?: string | null;
+  /** Gift vouchers bought in it, outside `totalAmount` (PRD-10). */
+  vouchersSoldAmount?: number;
+  /** Each gift voucher it sold, with its secret, to print on the receipt. */
+  vouchersSold?: Array<{ id: string; code: string; secret: string; value: string; expiresOn: string }>;
 };
 
 /** A sale the till could not send, kept in its offline queue until the line is back. */

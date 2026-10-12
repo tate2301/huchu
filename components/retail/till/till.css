@@ -2136,3 +2136,17 @@
 .tl.tl.tl .qr-cam video { display: block; width: 100%; height: 100%; object-fit: cover; }
 /* A shop's logo at the head of a receipt or an offline slip. */
 .tl.tl.tl .receipt-logo { display: block; margin: 0 auto var(--space-8); max-width: 160px; max-height: 72px; }
+
+/* FLR-10: the liquor till moments (Liquor board) and what rides on the lines. */
+.tl.tl.tl .eyebrow { font-size: 12.5px; color: var(--color-muted); }
+.tl.tl.tl .footnote { font-size: 11.5px; line-height: 1.4; color: var(--color-muted); }
+.tl.tl.tl .banner-licence { flex-direction: column; align-items: flex-start; gap: 2px; background: var(--color-warning-tint); color: var(--color-ink); }
+.tl.tl.tl .tile .p.is-not-sold { font-size: var(--text-13); font-weight: 400; color: var(--color-muted); }
+.tl.tl.tl .tile .p .list { margin-left: var(--space-4); font-size: var(--text-12); font-weight: 400; color: var(--color-warning); }
+.tl.tl.tl .tile.is-bundle .s { color: var(--color-success); }
+.tl.tl.tl .ok-figure { color: var(--color-success); }
+.tl.tl.tl .totals .l.is-ok { color: var(--color-success); }
+.tl.tl.tl .totals .rule { height: 1px; background: var(--color-line); margin: var(--space-4) 0; }
+.tl.tl.tl .side-by-side { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-8); }
+.tl.tl.tl .side-by-side.is-one { grid-template-columns: 1fr 2fr; }
+.tl.tl.tl .voucher-check { display: grid; grid-template-columns: 1fr 1fr auto; gap: var(--space-8); align-items: end; }

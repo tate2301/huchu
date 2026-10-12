@@ -3,7 +3,6 @@
 import * as React from "react";
 
 import {
-  ArrowsCounterClockwise,
   BeerBottle,
   BeerStein,
   Bread,
@@ -22,6 +21,7 @@ import {
 } from "@/lib/icons";
 import { clockLabel } from "@/lib/retail/licence-hours";
 import { count, MEASURES, qty, usd } from "./format";
+import { NOT_SOLD } from "./moments";
 import { TillPopover } from "./parts";
 import { useTill } from "./state";
 import type { PosCatalogItem } from "./types";
@@ -78,7 +78,48 @@ function depositWord(amount: number) {
 /** Sold and out of reach: none left (and no case to open), or 18+ outside the licence hours. */
 function tileOff(item: PosCatalogItem, stoppedUntil: number | null | undefined) {
   const stock = item.inventoryItem?.currentStock ?? 0;
-  return (item.ageRestricted && stoppedUntil !== undefined) || (stock <= 0 && !item.openableCase);
+  return (item.ageRestricted && stoppedUntil !== undefined) || (stock <= 0 && !(item.openableCase && item.openableCase.casesOnHand > 0));
+}
+
+/**
+ * A press held on a tile, or a right click: the tile's menu (Adjust stock,
+ * STK-04). The click a long press ends in adds nothing.
+ */
+function useLongPress(onLongPress: (() => void) | undefined) {
+  const timer = React.useRef<number | null>(null);
+  const fired = React.useRef(false);
+  const clear = () => {
+    if (timer.current !== null) window.clearTimeout(timer.current);
+    timer.current = null;
+  };
+  React.useEffect(() => clear, []);
+  if (!onLongPress) return { handlers: {}, swallow: () => false };
+  return {
+    handlers: {
+      onPointerDown: () => {
+        fired.current = false;
+        clear();
+        timer.current = window.setTimeout(() => {
+          fired.current = true;
+          onLongPress();
+        }, 550);
+      },
+      onPointerUp: clear,
+      onPointerLeave: clear,
+      onContextMenu: (event: React.MouseEvent) => {
+        event.preventDefault();
+        clear();
+        fired.current = true;
+        onLongPress();
+      },
+    },
+    /** True once for the click a long press ended in. */
+    swallow: () => {
+      const was = fired.current;
+      fired.current = false;
+      return was;
+    },
+  };
 }
 
 function stockLine(item: PosCatalogItem) {
@@ -103,8 +144,17 @@ export function ProductTile({
   onAdd,
   pricing,
   onPricing,
+  shelf,
+  onStopped,
+  onAdjust,
 }: {
   item: PosCatalogItem;
+  /** What one sells at now off the engine, and its list when not the till's own ("Happy hour"). */
+  shelf?: { price: number; list: string | null } | null;
+  /** A tap on an 18+ product outside the licence hours: the banner's sentence again, as a toast. */
+  onStopped?: () => void;
+  /** Long press: Adjust stock, for someone who may (STK-04). */
+  onAdjust?: () => void;
   /** Minutes after midnight when 18+ products sell again, when they are stopped now. */
   stoppedUntil: number | null | undefined;
   /** The shop charges deposits on returnable bottles. */
@@ -120,7 +170,9 @@ export function ProductTile({
   const stock = item.inventoryItem?.currentStock ?? 0;
   const stopped = item.ageRestricted && stoppedUntil !== undefined;
   const off = tileOff(item, stoppedUntil);
-  const was = !item.openPrice && item.wasPrice !== null && item.wasPrice > item.unitPrice ? item.wasPrice : null;
+  const price = shelf?.price ?? item.unitPrice;
+  const press = useLongPress(onAdjust);
+  const was = !item.openPrice && !shelf?.list && item.wasPrice !== null && item.wasPrice > price ? item.wasPrice : null;
   const deposit = depositsOn && item.returnable && item.depositAmount ? depositWord(item.depositAmount) : null;
   const reorderAt = item.openPrice ? null : belowReorder(item);
   const status = stopped
@@ -128,7 +180,7 @@ export function ProductTile({
       ? "Not today"
       : `From ${clockLabel(stoppedUntil)}`
     : stock <= 0
-      ? item.openableCase
+      ? item.openableCase && item.openableCase.casesOnHand > 0
         ? "None loose, a case opens"
         : "None left"
       : item.openPrice
@@ -145,7 +197,8 @@ export function ProductTile({
       className="tile"
       aria-label={[
         item.name,
-        item.openPrice ? "any amount" : usd(item.unitPrice),
+        stopped ? NOT_SOLD : item.openPrice ? "any amount" : usd(price),
+        ...(shelf?.list ? [shelf.list] : []),
         ...(was !== null ? [`was ${usd(was)}`] : []),
         ...(item.ageRestricted ? ["18+"] : []),
         ...(deposit ? [`${deposit} deposit`] : []),
@@ -153,29 +206,36 @@ export function ProductTile({
         ...(inCart ? [`${inCart} on this sale`] : []),
       ].join(", ")}
       aria-disabled={off || undefined}
-      onClick={
-        item.openPrice
-          ? undefined
-          : () => {
-              if (!off) onAdd(item);
-            }
-      }
+      {...press.handlers}
+      onClick={(event) => {
+        if (press.swallow()) {
+          event.preventDefault();
+          return;
+        }
+        if (stopped) onStopped?.();
+        else if (!item.openPrice && !off) onAdd(item);
+      }}
     >
       <ProductPreview name={item.name} imageUrl={item.imageUrl}>
         {item.ageRestricted ? <span className="age">18+</span> : null}
         {inCart ? <span className="in">{inCart}</span> : null}
       </ProductPreview>
-      <span className="p">
-        {item.openPrice ? "Any" : usd(item.unitPrice)}
-        {was !== null ? <s className="was">{usd(was)}</s> : null}
-        {deposit ? <span className="dep">{deposit}</span> : null}
-      </span>
+      {stopped ? (
+        <span className="p is-not-sold">{NOT_SOLD}</span>
+      ) : (
+        <span className="p">
+          {item.openPrice ? "Any" : usd(price)}
+          {shelf?.list ? <span className="list">{shelf.list}</span> : null}
+          {was !== null ? <s className="was">{usd(was)}</s> : null}
+          {deposit ? <span className="dep">{deposit}</span> : null}
+        </span>
+      )}
       <span className="n">{item.name}</span>
       <span className={reorderAt !== null && !off ? "s low" : "s"}>{status}</span>
     </button>
   );
 
-  if (!item.openPrice || off) return tile;
+  if (!item.openPrice || off || stopped) return tile;
   return (
     <AmountPopover item={item} open={pricing} onOpenChange={onPricing} onAdd={(price) => onAdd(item, price)}>
       {tile}
@@ -197,9 +257,12 @@ export function QuickRow({
   stoppedUntil,
   onSaleOf,
   onAdd,
+  priceOf,
 }: {
   /** The shelf, most sold first. */
   ranked: readonly PosCatalogItem[];
+  /** What one sells at now, off the engine. */
+  priceOf: (item: PosCatalogItem) => number;
   stoppedUntil: number | null | undefined;
   onSaleOf: (item: PosCatalogItem) => number;
   onAdd: (item: PosCatalogItem, typedPrice?: number) => void;
@@ -220,7 +283,7 @@ export function QuickRow({
             type="button"
             className="quick-item"
             title={item.name}
-            aria-label={[item.name, item.openPrice ? "any amount" : usd(item.unitPrice), ...(onIt > 0 ? [`${qty(onIt)} on this sale`] : [])].join(", ")}
+            aria-label={[item.name, item.openPrice ? "any amount" : usd(priceOf(item)), ...(onIt > 0 ? [`${qty(onIt)} on this sale`] : [])].join(", ")}
             onClick={item.openPrice ? undefined : () => onAdd(item)}
           >
             <span className="qpic" aria-hidden="true">
@@ -232,7 +295,7 @@ export function QuickRow({
               )}
             </span>
             <span className="qn">{item.name}</span>
-            <span className="qp">{item.openPrice ? "Any" : usd(item.unitPrice)}</span>
+            <span className="qp">{item.openPrice ? "Any" : usd(priceOf(item))}</span>
             {onIt > 0 ? <span className="in">{qty(onIt)}</span> : null}
           </button>
         );
@@ -321,19 +384,5 @@ function AmountPopover({
         </div>
       </form>
     </TillPopover>
-  );
-}
-
-/** The tile that takes empties back: it opens the count, it adds nothing by itself. */
-export function BottlesBackTile({ count, ...props }: React.ComponentProps<"button"> & { count: number }) {
-  return (
-    <button type="button" className="tile" {...props}>
-      <span className="pic" aria-hidden="true">
-        <ArrowsCounterClockwise className="ic" />
-      </span>
-      <span className="p">Count</span>
-      <span className="n">Bottles back</span>
-      <span className="s">{count ? `${count} on this sale` : "Empties for a credit"}</span>
-    </button>
   );
 }

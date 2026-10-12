@@ -37,10 +37,11 @@ import {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { useOfflineRuntime } from "@/components/offline/offline-runtime";
+import { useToast } from "@/components/ui/use-toast";
 import { ApiError, fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { removeOfflineOperation, resetOfflineOperationToQueued } from "@/lib/offline/outbox";
 import type { OfflineOutboxOperation } from "@/lib/offline/types";
-import { depositsDue, emptiesCounted } from "@/lib/retail/deposits";
+import { emptiesCounted } from "@/lib/retail/deposits";
 import { alcoholVerdict, type AlcoholVerdict } from "@/lib/retail/licence-hours";
 import { pointsValue, spendRefusal, SPENDING_NEEDS_THE_INTERNET, spreadPointsDiscount } from "@/lib/retail/loyalty/spend";
 import {
@@ -53,21 +54,24 @@ import {
 } from "@/lib/retail/offline-runtime";
 import { splitChange } from "@/lib/retail/payment-words";
 import { canRetailRoleDo } from "@/lib/retail/permission-matrix";
-import { priceAtQuantity, type PricingSnapshot } from "@/lib/retail/pricing/engine";
-import { priceSale } from "@/lib/retail/pricing/sale";
+import { bundleOnSale, type PricingSnapshot, type SnapshotBundle } from "@/lib/retail/pricing/engine";
 import type { PosReversalQueuePayload, PosSaleQueuePayload } from "@/lib/retail/pos-offline-queue";
 import { getPosPortalHref } from "@/lib/retail/pos-host";
 import { shopFeatures } from "@/lib/retail/shop-profile-rules";
 import { cashDropDue, cashDropSentence, offlineStopSentence, offlineWindowClosed } from "@/lib/retail/till-on-device";
 import { markPairedTill } from "@/lib/retail/till-presence";
 import { referenceSentence } from "@/lib/retail/till-rule-words";
-import { paymentLabel } from "./format";
+import { bundleLineId, bundleOffers, makeBundle, newBundleRef, priceCart, repriceLines, shelfPriceNow } from "./cart-pricing";
+import { paymentLabel, usd } from "./format";
+import { breakOneCase, caseOpenedToast } from "./moments";
+import { holdsVouchers, VOUCHERS_OFFLINE } from "./vouchers";
 import { discountApprovalReason, discountCeilingProblem, paymentSummary, type RuledLine } from "./sale-rules";
 import type {
   Approver,
   CartItem,
   CompletedSale,
   CurrentShift,
+  DiscountVoucher,
   PosCustomer,
   PaymentRow,
   PosCatalogItem,
@@ -76,6 +80,7 @@ import type {
   TillCategory,
   TillContext,
   TillMessage,
+  VoucherSold,
 } from "./types";
 
 type PosQueuedSale = OfflineOutboxOperation<PosSaleQueuePayload>;
@@ -87,6 +92,9 @@ export const TILL_HEARTBEAT_KEY = ["till-heartbeat"] as const;
 const HEARTBEAT_MS = 60_000;
 /** The price snapshot the till prices every sale from (PRD-05, PRD-08, PRD-09). */
 const PRICING_KEY = ["retail-pos-pricing"] as const;
+
+/** The till's words when the server priced the sale differently (PRD-05): the snapshot is fetched and the sale re-priced. */
+export const PRICES_CHANGED_TOAST = "Prices changed. Check the total and charge again.";
 
 /** The till's words while ZIMRA is away and the shop stops selling (SET-08). */
 const FISCAL_STOP = "ZIMRA is not answering, so this shop stops selling until it does. The sale stays here; try again in a few minutes.";
@@ -107,13 +115,18 @@ function savedTag(clientRef: string) {
   return clientRef.replace(/[^a-zA-Z0-9]/g, "").slice(-6).toUpperCase();
 }
 
-/** `typedPrice`: what the cashier typed for an open-price product, which is its shelf price. */
+/**
+ * `typedPrice`: what the cashier typed for an open-price product, which is its
+ * shelf price. The engine re-prices every other line off the snapshot
+ * (`repriceLines`); the catalog's price stands until it has.
+ */
 function lineFromItem(item: PosCatalogItem, depositsOn: boolean, typedPrice?: number): CartItem {
   const price = item.openPrice && typedPrice !== undefined ? typedPrice : item.unitPrice;
   return {
     id: item.id,
     name: item.name,
     catalogItemId: item.id,
+    category: item.category,
     quantity: 1,
     unitPrice: price,
     shelfPrice: price,
@@ -133,17 +146,6 @@ function lineFromItem(item: PosCatalogItem, depositsOn: boolean, typedPrice?: nu
     maxDiscountPercent: item.maxDiscountPercent,
     openableCase: item.openableCase,
   };
-}
-
-/**
- * A line at a new quantity: the shelf price steps through the volume breaks
- * (12 at the 12-break), and a line still at the shelf price moves with it; a
- * price the cashier changed stays theirs.
- */
-function atQuantity(item: CartItem, quantity: number): CartItem {
-  const shelfPrice = priceAtQuantity(item.priceOfOne ?? item.shelfPrice, item.priceBreaks, quantity);
-  const atShelf = Math.abs(item.unitPrice - item.shelfPrice) <= 0.009;
-  return { ...item, quantity, shelfPrice, unitPrice: atShelf ? shelfPrice : item.unitPrice };
 }
 
 /** Whether a line's price or discount differs from the shelf: the sale then keeps a reason. */
@@ -259,6 +261,7 @@ type SaleAttempt = { payload: PosSaleQueuePayload; approver: Approver | null; ha
 function useTillStateValue({ isPosHost, paired }: { isPosHost: boolean; paired: boolean }) {
   const router = useRouter();
   const queryClient = useQueryClient();
+  const { toast } = useToast();
   const { data: session } = useSession();
   const { syncNow, tenantKey, isOffline, lastOnlineAt } = useOfflineRuntime();
   const now = useClockMinute();
@@ -271,6 +274,9 @@ function useTillStateValue({ isPosHost, paired }: { isPosHost: boolean; paired: 
   const [pointsToSpend, setPointsToSpend] = useState("");
   const [payments, setPayments] = useState<PaymentRow[]>([CASH_ROW]);
   const [orderDiscountAmount, setOrderDiscountAmount] = useState("");
+  /** Gift vouchers bought in this sale, and a discount voucher on it (PRD-10): online only. */
+  const [vouchersSold, setVouchersSold] = useState<VoucherSold[]>([]);
+  const [discountVoucher, setDiscountVoucher] = useState<DiscountVoucher | null>(null);
   /** The cashier has looked at this customer's ID. One check covers the sale. */
   const [idChecked, setIdChecked] = useState(false);
   const [heldAs, setHeldAs] = useState<string | null>(null);
@@ -358,28 +364,10 @@ function useTillStateValue({ isPosHost, paired }: { isPosHost: boolean; paired: 
     staleTime: 15_000,
   });
 
-  /* ── Licence hours: 18+ lines stop, the rest of the sale goes on ─────── */
-
-  const licenceHours = context?.licenceHours;
-  const alcohol: AlcoholVerdict = useMemo(
-    () => (features?.licenceHours && licenceHours ? alcoholVerdict(licenceHours, now) : ({ sellable: true } as const)),
-    [features?.licenceHours, licenceHours, now],
-  );
-  const lineStopped = useCallback((item: CartItem) => item.ageRestricted && !alcohol.sellable, [alcohol.sellable]);
-  const sellingLines = useMemo(() => cart.filter((item) => !lineStopped(item)), [cart, lineStopped]);
-
-  /* ── What the sale comes to ─────────────────────────────────────────── */
-
   /*
-    PRD-08, PRD-09. The sale is priced by the sum `pos/sales` runs
-    (`priceSale`) over the price snapshot's live bundles and promotions: a
-    buy-more deal and a running promotion come off here as they will on the
-    server, online and offline (the snapshot is kept with the till's cache),
-    so the total shown, charged and printed is the one stored.
-  */
-  /*
-    The snapshot is fetched again with every heartbeat and after every sale,
-    so an ended, paused or newly started promotion reaches an open till
+    PRD-05, PRD-08, PRD-09. The price snapshot every sale is priced from,
+    fetched again with every heartbeat and after every sale, so an ended,
+    paused or newly started promotion or price list reaches an open till
     within the minute (an unchanged one answers 304 off its ETag). A sale
     rung in that minute is refused `PRICES_CHANGED` and re-priced here.
   */
@@ -391,36 +379,44 @@ function useTillStateValue({ isPosHost, paired }: { isPosHost: boolean; paired: 
     refetchInterval: HEARTBEAT_MS,
     refetchIntervalInBackground: true,
   });
-  const bundles = pricingQuery.data?.bundles;
-  const promotions = pricingQuery.data?.promotions;
-  const productCategory = useMemo(
-    () => new Map((pricingQuery.data?.products ?? []).map((product) => [product.id, product.categoryId])),
-    [pricingQuery.data?.products],
+  const snapshot = pricingQuery.data ?? null;
+  // Every line at the engine's price for its quantity now: Happy hour from 17:00, Wholesale from 6.
+  const pricedCart = useMemo(() => repriceLines(cart, snapshot, now), [cart, snapshot, now]);
+
+  /* ── Licence hours: 18+ lines stop, the rest of the sale goes on ─────── */
+
+  const licenceHours = context?.licenceHours;
+  const alcohol: AlcoholVerdict = useMemo(
+    () => (features?.licenceHours && licenceHours ? alcoholVerdict(licenceHours, now) : ({ sellable: true } as const)),
+    [features?.licenceHours, licenceHours, now],
   );
-  const priced = useMemo(() => {
-    const sale = priceSale({
-      lines: sellingLines.map((item) => ({
-        key: item.catalogItemId,
-        productId: item.catalogItemId,
-        categoryId: productCategory.get(item.catalogItemId) ?? null,
-        quantity: item.quantity,
-        unitPrice: item.unitPrice,
-        taxPercent: item.taxPercent,
-        taxInclusive: item.taxInclusive,
-        lineDiscount: item.lineDiscountAmount,
-      })),
-      bundles: bundles ?? [],
-      promotions: promotions ?? [],
-      at: now,
-      siteId,
-      orderDiscountAmount: Number(orderDiscountAmount || "0"),
-      // A member on the sale while loyalty is on gets the loyalty members' promotions (D-3), as the server does.
-      customer: { loyalty: Boolean(context?.loyalty.on) && Boolean(selectedCustomer), staff: Boolean(selectedCustomer?.staff) },
-    });
-    // The till rings no fixed set yet (FLR-10), so a bundle refusal cannot arise here.
-    if ("error" in sale) throw new Error(sale.error);
-    return sale;
-  }, [bundles, context?.loyalty.on, now, orderDiscountAmount, productCategory, promotions, selectedCustomer, sellingLines, siteId]);
+  const lineStopped = useCallback((item: CartItem) => item.ageRestricted && !alcohol.sellable, [alcohol.sellable]);
+  const sellingLines = useMemo(() => pricedCart.filter((item) => !lineStopped(item)), [pricedCart, lineStopped]);
+
+  /* ── What the sale comes to ─────────────────────────────────────────── */
+
+  /*
+    The sale is priced by the sum `pos/sales` runs (`priceCart` over
+    `priceSale`): fixed sets rung as one, buy-more deals, the cashier's
+    discounts, the promotions on their lines, then a discount voucher, so the
+    total shown, charged and printed is the one stored.
+  */
+  const totals = useMemo(
+    () =>
+      priceCart({
+        lines: sellingLines,
+        snapshot,
+        at: now,
+        siteId,
+        orderDiscountAmount: Number(orderDiscountAmount || "0"),
+        voucher: discountVoucher ? { percentOff: discountVoucher.percentOff, amountOff: discountVoucher.amountOff } : null,
+        vouchersSold,
+        // A member on the sale while loyalty is on gets the loyalty members' promotions (D-3), as the server does.
+        customer: { loyalty: Boolean(context?.loyalty.on) && Boolean(selectedCustomer), staff: Boolean(selectedCustomer?.staff) },
+      }),
+    [context?.loyalty.on, discountVoucher, now, orderDiscountAmount, selectedCustomer, sellingLines, siteId, snapshot, vouchersSold],
+  );
+  const priced = totals.sale;
 
   /*
     CUS-01. Points spent come off after the promotions, spread over the lines
@@ -433,7 +429,7 @@ function useTillStateValue({ isPosHost, paired }: { isPosHost: boolean; paired: 
   const pointsLines = useMemo(() => {
     // A checkout line is a piece of a cart line (a deal splits one); its product is the piece's line.
     const lineOfPiece = new Map(priced.pieces.map((piece) => [piece.key, piece.lineKey]));
-    const restricted = new Set(sellingLines.filter((item) => item.ageRestricted).map((item) => item.catalogItemId));
+    const restricted = new Set(sellingLines.filter((item) => item.ageRestricted).map((item) => item.id));
     return priced.checkout.lines.map((line) => ({
       ...line,
       payable: Boolean(loyaltyRules?.payForAlcohol) || !restricted.has(lineOfPiece.get(line.id) ?? line.id),
@@ -467,14 +463,24 @@ function useTillStateValue({ isPosHost, paired }: { isPosHost: boolean; paired: 
   }, [pointsLines, pointsOff, priced.checkout]);
   const bundleSaving = priced.bundleSaving;
   const promotionSaving = priced.promotionSaving;
-  // Deposits sit outside the goods total; the customer pays both. Net of the empties each line took back.
-  const depositTotal = useMemo(() => depositsDue(sellingLines), [sellingLines]);
+  const voucherSaving = priced.voucherSaving;
+  // Deposits and gift vouchers sold sit outside the goods total; the customer pays all three.
+  const depositTotal = totals.depositTotal;
+  const vouchersSoldTotal = totals.vouchersSoldTotal;
   const emptiesBackCount = sellingLines.reduce((sum, item) => sum + emptiesCounted(item), 0);
   const lineDiscountTotal = round(sellingLines.reduce((sum, item) => sum + item.lineDiscountAmount, 0));
   // The shelf prices as charged, before anything comes off: what "Before discounts" means to a customer.
   const beforeDiscounts = round(sellingLines.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0));
   const vatIncluded = sellingLines.every((item) => item.taxInclusive);
-  const amountDue = round(checkout.total + depositTotal);
+  const amountDue = round(checkout.total + depositTotal + vouchersSoldTotal);
+
+  /* ── Bundles: buttons, barcodes and "Make it a bundle" (PRD-08) ────── */
+
+  const bundlesOnSale = useMemo(
+    () => (snapshot?.bundles ?? []).filter((bundle) => bundle.kind === "FIXED_SET" && bundleOnSale(bundle, now, siteId)),
+    [now, siteId, snapshot?.bundles],
+  );
+  const offers = useMemo(() => bundleOffers(pricedCart, bundlesOnSale, now, siteId), [bundlesOnSale, now, pricedCart, siteId]);
 
   const zigRate = context?.zig ? Number(context.zig.rate) : null;
   const zigChange = useMemo(
@@ -610,6 +616,8 @@ function useTillStateValue({ isPosHost, paired }: { isPosHost: boolean; paired: 
     setPointsToSpend("");
     setPayments([CASH_ROW]);
     setOrderDiscountAmount("");
+    setVouchersSold([]);
+    setDiscountVoucher(null);
     setIdChecked(false);
     setHeldAs(null);
     setSaleRefusal(null);
@@ -628,6 +636,8 @@ function useTillStateValue({ isPosHost, paired }: { isPosHost: boolean; paired: 
       pointsToSpend,
       payments,
       orderDiscountAmount,
+      vouchersSold,
+      discountVoucher,
       idChecked,
       heldAs,
     };
@@ -639,33 +649,112 @@ function useTillStateValue({ isPosHost, paired }: { isPosHost: boolean; paired: 
       setPointsToSpend(kept.pointsToSpend);
       setPayments(kept.payments);
       setOrderDiscountAmount(kept.orderDiscountAmount);
+      setVouchersSold(kept.vouchersSold);
+      setDiscountVoucher(kept.discountVoucher);
       setIdChecked(kept.idChecked);
       setHeldAs(kept.heldAs);
     };
   };
 
-  /** One more of a product; an open-price product comes with the price the cashier typed. */
+  /** One more of a product; an open-price product comes with the price the cashier typed. Loose lines only: a bundle's components stay its own. */
   const addToCart = (item: PosCatalogItem, typedPrice?: number) => {
     setCart((current) => {
-      const existing = current.find((entry) => entry.catalogItemId === item.id);
+      const existing = current.find((entry) => entry.id === item.id);
       // Another amount of an open price already on the sale (airtime for US$5, then US$2):
       // the line is one sale of it, at the two together.
       if (existing && item.openPrice && typedPrice !== undefined && Math.abs(typedPrice - existing.unitPrice) > 0.009) {
         const price = round(existing.unitPrice * existing.quantity + typedPrice);
         return current.map((entry) =>
-          entry.catalogItemId === item.id
-            ? { ...entry, quantity: 1, unitPrice: price, shelfPrice: price, stock: item.inventoryItem?.currentStock }
-            : entry,
+          entry.id === item.id ? { ...entry, quantity: 1, unitPrice: price, shelfPrice: price, stock: item.inventoryItem?.currentStock } : entry,
         );
       }
       if (existing) {
         return current.map((entry) =>
-          entry.catalogItemId === item.id ? { ...atQuantity(entry, entry.quantity + 1), stock: item.inventoryItem?.currentStock } : entry,
+          // The line keeps its own count: a case opened at this till is in it before the shelf is read again.
+          entry.id === item.id ? { ...entry, quantity: entry.quantity + 1, stock: entry.stock ?? item.inventoryItem?.currentStock } : entry,
         );
       }
       return [...current, lineFromItem(item, Boolean(features?.emptiesAndDeposits), typedPrice)];
     });
   };
+
+  /*
+    PRD-08. A bundle's button or barcode rings it as its component lines, one
+    per product, sharing one `bundleRef`: the engine sells them at the
+    bundle's price, shared pro rata. The components come off the shelf the
+    till holds (the whole shelf is cached for offline), else are read by id.
+  */
+  const shelfFor = async (ids: string[]): Promise<Map<string, PosCatalogItem>> => {
+    const found = new Map<string, PosCatalogItem>();
+    for (const [, data] of queryClient.getQueriesData<{ data: PosCatalogItem[] }>({ queryKey: ["retail-pos-catalog"] })) {
+      for (const item of data?.data ?? []) if (ids.includes(item.id)) found.set(item.id, item);
+    }
+    const missing = ids.filter((id) => !found.has(id));
+    if (missing.length && !isOffline) {
+      const read = await fetchJson<{ data: PosCatalogItem[] }>(`/api/v2/retail/pos/catalog?ids=${missing.join(",")}`);
+      for (const item of read.data) found.set(item.id, item);
+    }
+    return found;
+  };
+  const addBundle = async (bundle: SnapshotBundle) => {
+    const shelf = await shelfFor(bundle.items.map((item) => item.productId));
+    const absent = bundle.items.find((item) => !shelf.has(item.productId));
+    if (absent) {
+      toast({ title: `${bundle.name} cannot be rung`, description: `${absent.name} is not on the shelf here.`, variant: "destructive" });
+      return null;
+    }
+    const ref = newBundleRef();
+    const lines = bundle.items.map((part) => ({
+      ...lineFromItem(shelf.get(part.productId)!, Boolean(features?.emptiesAndDeposits)),
+      id: bundleLineId(ref, part.productId),
+      quantity: part.quantity,
+      bundleId: bundle.id,
+      bundleRef: ref,
+      bundleName: bundle.name,
+    }));
+    setCart((current) => [...current, ...lines]);
+    return lines;
+  };
+
+  /*
+    Cases and singles (Liquor panel 4). One case opened at this till's
+    branch: the cases out, their singles in, as STK-04's break. The line's
+    stock follows, and the shelf is read again.
+  */
+  const openCase = async (item: PosCatalogItem): Promise<number | null> => {
+    const pack = item.openableCase;
+    if (!pack) return null;
+    try {
+      const onHand = await breakOneCase(pack.productId, siteId);
+      setCart((current) => current.map((entry) => (entry.catalogItemId === item.id ? { ...entry, stock: onHand } : entry)));
+      void queryClient.invalidateQueries({ queryKey: ["retail-pos-catalog"] });
+      toast({ title: caseOpenedToast(item.name, pack.unitsPerCase), variant: "success" });
+      return onHand;
+    } catch (error) {
+      toast({ title: "No case was opened", description: getApiErrorMessage(error), variant: "destructive" });
+      return null;
+    }
+  };
+
+  /*
+    STK-09, W-29. Bottles back with nothing to sell: their deposit comes out
+    of this shift's drawer (a PAYOUT "Bottles back"), so its expected cash
+    falls by it.
+  */
+  const payBottlesBack = useMutation({
+    mutationFn: (count: { bottles: number; crates: number }) =>
+      fetchJson<{ data: { paid: string } }>("/api/v2/retail/empties/bottles-back", {
+        method: "POST",
+        body: JSON.stringify({ shiftId: shiftHere?.id, ...count, ...(selectedCustomer && !isOfflineRetailCustomerId(selectedCustomer.id) ? { customerId: selectedCustomer.id } : {}) }),
+      }),
+    onSuccess: (result, count) => {
+      const what = [count.bottles ? `${count.bottles} ${count.bottles === 1 ? "bottle" : "bottles"}` : null, count.crates ? `${count.crates} ${count.crates === 1 ? "crate" : "crates"}` : null]
+        .filter(Boolean)
+        .join(" and ");
+      toast({ title: `${usd(Number(result.data.paid))} paid out for ${what}.`, variant: "success" });
+      void queryClient.invalidateQueries({ queryKey: ["retail-current-shift"] });
+    },
+  });
 
   // The payments come in with the post: the tray decides them in the same press that takes the money.
   const buildSalePayload = (rows: PaymentRow[], reason: string | null): PosSaleQueuePayload | null => {
@@ -687,6 +776,7 @@ function useTillStateValue({ isPosHost, paired }: { isPosHost: boolean; paired: 
         unitPrice: item.unitPrice,
         discountAmount: item.lineDiscountAmount,
         ...(emptiesCounted(item) > 0 ? { emptiesBack: emptiesCounted(item) } : {}),
+        ...(item.bundleId && item.bundleRef ? { bundleId: item.bundleId, bundleRef: item.bundleRef } : {}),
       })),
       payments: parsed
         .filter((payment) => payment.amountValue > 0)
@@ -695,8 +785,11 @@ function useTillStateValue({ isPosHost, paired }: { isPosHost: boolean; paired: 
           amount: payment.amountValue,
           ...(payment.currency ? { currency: payment.currency } : {}),
           reference: payment.reference.trim() || undefined,
+          ...(payment.tenderType === "VOUCHER" ? { voucherCode: payment.voucherCode, voucherSecret: payment.voucherSecret } : {}),
         })),
       total: amountDue,
+      ...(vouchersSold.length ? { vouchersSold: vouchersSold.map((voucher) => ({ value: voucher.value, ...(voucher.customerId ? { customerId: voucher.customerId } : {}) })) } : {}),
+      ...(discountVoucher ? { discountVoucher: { code: discountVoucher.code, secret: discountVoucher.secret } } : {}),
     };
   };
 
@@ -730,8 +823,16 @@ function useTillStateValue({ isPosHost, paired }: { isPosHost: boolean; paired: 
         if (code === "PRICES_CHANGED") {
           void queryClient.invalidateQueries({ queryKey: PRICING_KEY });
           void queryClient.invalidateQueries({ queryKey: ["retail-pos-catalog"] });
+          toast({ title: PRICES_CHANGED_TOAST });
+          setSaleRefusal({ kind: "refused", message: PRICES_CHANGED_TOAST });
+          return;
         }
         setSaleRefusal(saleRefusalOf(error));
+        return;
+      }
+      // A voucher is money the server holds: a sale with one is never saved on the till.
+      if (holdsVouchers(payload)) {
+        setSaleRefusal({ kind: "refused", message: VOUCHERS_OFFLINE });
         return;
       }
       const stop = offlineStopAt(Date.now());
@@ -757,6 +858,9 @@ function useTillStateValue({ isPosHost, paired }: { isPosHost: boolean; paired: 
     },
   });
 
+  /** Whoever is signed in may adjust stock from the till (STK-04): owner, manager, stock clerk; never the cashier. */
+  const canAdjustStock = canRetailRoleDo(session?.user?.role, "retail.adjustments", "create");
+
   return {
     /* The device */
     isPosHost,
@@ -779,6 +883,7 @@ function useTillStateValue({ isPosHost, paired }: { isPosHost: boolean; paired: 
 
     /* The shift */
     shiftHere,
+    siteId,
     shiftLoading: currentShiftQuery.isLoading || contextQuery.isLoading,
 
     /* The shelf */
@@ -793,37 +898,88 @@ function useTillStateValue({ isPosHost, paired }: { isPosHost: boolean; paired: 
     alcohol,
     lineStopped,
 
-    /* The lines */
-    cart,
+    /* The lines, each at the engine's price now */
+    cart: pricedCart,
     addToCart,
-    updateQty: (catalogItemId: string, quantity: number) =>
+    updateQty: (id: string, quantity: number) =>
       setCart((current) =>
         quantity <= 0
-          ? current.filter((entry) => entry.catalogItemId !== catalogItemId)
-          : current.map((entry) =>
-              entry.catalogItemId === catalogItemId ? { ...atQuantity(entry, quantity), emptiesBack: Math.min(entry.emptiesBack, Math.floor(quantity)) } : entry,
-            ),
+          ? current.filter((entry) => entry.id !== id)
+          : current.map((entry) => (entry.id === id ? { ...entry, quantity, emptiesBack: Math.min(entry.emptiesBack, Math.floor(quantity)) } : entry)),
       ),
-    // An open price changed on its line is still the shelf price: not a change, no reason, no manager.
-    updateLine: (catalogItemId: string, patch: Partial<Pick<CartItem, "unitPrice" | "lineDiscountAmount" | "stock">>) =>
+    /*
+      A price typed on a line is judged against the engine's shelf price as
+      it stands: the same figure is no change and keeps following the shelf.
+      An open price changed on its line is still the shelf price: not a
+      change, no reason, no manager.
+    */
+    updateLine: (id: string, patch: Partial<Pick<CartItem, "unitPrice" | "lineDiscountAmount" | "stock">>) => {
+      const shelf = pricedCart.find((entry) => entry.id === id)?.shelfPrice;
       setCart((current) =>
-        current.map((entry) =>
-          entry.catalogItemId === catalogItemId
-            ? { ...entry, ...patch, ...(entry.openPrice && patch.unitPrice !== undefined ? { shelfPrice: patch.unitPrice } : {}) }
-            : entry,
-        ),
-      ),
+        current.map((entry) => {
+          if (entry.id !== id) return entry;
+          if (patch.unitPrice === undefined) return { ...entry, ...patch };
+          const shelfPrice = entry.openPrice ? patch.unitPrice : (shelf ?? entry.shelfPrice);
+          return { ...entry, ...patch, shelfPrice };
+        }),
+      );
+    },
     /** Empties back against a returnable line: whole bottles, never more than the line sells. */
-    setEmptiesBack: (catalogItemId: string, emptiesBack: number) =>
+    setEmptiesBack: (id: string, emptiesBack: number) =>
       setCart((current) =>
         current.map((entry) =>
-          entry.catalogItemId === catalogItemId
-            ? { ...entry, emptiesBack: Math.min(Math.max(Math.floor(emptiesBack), 0), Math.floor(entry.quantity)) }
-            : entry,
+          entry.id === id ? { ...entry, emptiesBack: Math.min(Math.max(Math.floor(emptiesBack), 0), Math.floor(entry.quantity)) } : entry,
         ),
       ),
-    removeFromCart: (catalogItemId: string) => setCart((current) => current.filter((entry) => entry.catalogItemId !== catalogItemId)),
+    removeFromCart: (id: string) =>
+      setCart((current) => {
+        const line = current.find((entry) => entry.id === id);
+        // A bundle's component goes with the rest of its bundle: a part of one is not a bundle.
+        return line?.bundleRef ? current.filter((entry) => entry.bundleRef !== line.bundleRef) : current.filter((entry) => entry.id !== id);
+      }),
     removeAgeRestricted: () => setCart((current) => current.filter((entry) => !entry.ageRestricted)),
+    /** The price of one now, and its list when not the till's own, for a tile. */
+    shelfPriceOf: (productId: string) => shelfPriceNow(snapshot, productId, now),
+    /** Per line: the promotion it sold under and its saving, and its bundle's saving. */
+    lineSavings: totals.lineSavings,
+
+    /* Bundles (PRD-08) */
+    bundlesOnSale,
+    addBundle,
+    /** "Make it a bundle: …": fixed sets whose items are all on the sale on loose lines. */
+    bundleOffers: offers,
+    makeBundleOf: (bundle: SnapshotBundle) => setCart((current) => makeBundle(repriceLines(current, snapshot, now), bundle, newBundleRef())),
+    /** A fixed set the engine refuses now, and the way out: ring its items on their own. */
+    bundleProblem: totals.bundleProblem,
+    ringOnTheirOwn: () =>
+      setCart((current) => {
+        const loose = new Map<string, CartItem>();
+        for (const entry of current) {
+          const plain = { ...entry, id: entry.catalogItemId, bundleId: null, bundleRef: null, bundleName: null };
+          const kept = loose.get(plain.id);
+          loose.set(plain.id, kept ? { ...kept, quantity: kept.quantity + plain.quantity, emptiesBack: kept.emptiesBack + plain.emptiesBack } : plain);
+        }
+        return [...loose.values()];
+      }),
+
+    /* Cases and singles, empties */
+    openCase,
+    payBottlesBack: (count: { bottles: number; crates: number }) => payBottlesBack.mutateAsync(count),
+    payBottlesBackPending: payBottlesBack.isPending,
+
+    /* Gift and discount vouchers (PRD-10): online only */
+    vouchersSold,
+    addVoucherSold: (voucher: Omit<VoucherSold, "key">) =>
+      setVouchersSold((current) => [...current, { ...voucher, key: `${Date.now()}-${current.length}` }]),
+    removeVoucherSold: (key: string) => setVouchersSold((current) => current.filter((voucher) => voucher.key !== key)),
+    discountVoucher,
+    setDiscountVoucher,
+    vouchersSoldTotal,
+    voucherSaving,
+
+    /* Adjust stock from the till (STK-04) */
+    canAdjustStock,
+
     replaceCartFromHeld: (input: {
       items?: CartItem[];
       customerName?: string;
@@ -833,7 +989,7 @@ function useTillStateValue({ isPosHost, paired }: { isPosHost: boolean; paired: 
       // A recalled sale may be a different customer: the ID is checked again.
       clearCart();
       setHeldAs(input.heldAs || null);
-      setCart((input.items ?? []).map((item) => ({ ...item })));
+      setCart((input.items ?? []).map((item) => ({ ...item, category: item.category ?? null })));
       setCustomerNameRaw(input.customerName ?? "");
       setOrderDiscountAmount(input.orderDiscountAmount ?? "");
     },
@@ -905,6 +1061,7 @@ function useTillStateValue({ isPosHost, paired }: { isPosHost: boolean; paired: 
     approvers: {
       sell: (context?.approvers.sell ?? []).filter((person) => person.userId !== session?.user?.id),
       cashControl: (context?.approvers.cashControl ?? []).filter((person) => person.userId !== session?.user?.id),
+      adjust: (context?.approvers.adjust ?? []).filter((person) => person.userId !== session?.user?.id),
     },
     discountCeiling,
     isOffline,

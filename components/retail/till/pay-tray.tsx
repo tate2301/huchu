@@ -20,9 +20,11 @@ import { AddressBook, CaretRight, Check, Money, Plus, Printer, Receipt, Ticket, 
 import { count, firstName, hhmm, paymentLabel, usd, whole, zig } from "./format";
 import { printSlip, slipLines, type SlipSale } from "./offline-slip";
 import { ErrorLine, Keypad, Segmented, typeAmount, useKeypadKeys, useReturnFocus, useWindowKeys, type KeypadKey } from "./parts";
+import { useVoucherCheck } from "./floor-parts";
 import { paymentSummary } from "./sale-rules";
 import { useTill } from "./state";
 import type { PaymentRow, TenderType, TillContext, TillTender } from "./types";
+import { voucherPays, voucherProblem, VOUCHERS_OFFLINE } from "./vouchers";
 
 /** Tenders without a reference to read off a slip or a message: one row in the sale column, chosen in the tray. */
 const OTHER_TENDERS = new Set<string>(["TRANSFER", "ON_ACCOUNT", "VOUCHER"]);
@@ -247,6 +249,7 @@ export function PayTray({
     cart,
     lineStopped,
     idChecked,
+    isOffline,
   } = useTill();
   const { data: session } = useSession();
   const [mode, setMode] = React.useState<"single" | "split">("single");
@@ -292,8 +295,13 @@ export function PayTray({
   const split = paymentSummary(rows, amountDue, rate);
   const splitStill = Number(Math.max(amountDue - split.tenderedTotal, 0).toFixed(2));
   const splitRefProblem = rows.map((entry) => (entry.tenderType === "CASH" ? null : referenceProblem(entry))).find(Boolean) ?? null;
+  const voucherShort = rows.some((entry) => entry.tenderType === "VOUCHER" && (isOffline || !entry.voucherCode?.trim() || !entry.voucherSecret?.trim()));
   const splitOk =
-    splitStill < 0.005 && split.nonCashTotal <= amountDue + 0.004 && !splitRefProblem && rows.every((entry) => Number(entry.amount || "0") > 0);
+    splitStill < 0.005 &&
+    split.nonCashTotal <= amountDue + 0.004 &&
+    !splitRefProblem &&
+    !voucherShort &&
+    rows.every((entry) => Number(entry.amount || "0") > 0);
 
   const keep = (payments: PaymentRow[]) => {
     setEmptiesTaken(emptiesBackCount);
@@ -315,6 +323,8 @@ export function PayTray({
       return;
     }
     if (tenderType === "CASH" && !covered) return;
+    // A voucher is checked and taken from its own panel.
+    if (tenderType === "VOUCHER") return;
     if (refProblem) return;
     keep([row]);
     onTake([row]);
@@ -359,7 +369,7 @@ export function PayTray({
       <span className="text-heading strong">
         Total
       </span>
-      <span className="figure">{usd(done ? done.totalAmount + done.depositAmount : saved ? saved.total : amountDue)}</span>
+      <span className="figure">{usd(done ? done.totalAmount + done.depositAmount + (done.vouchersSoldAmount ?? 0) : saved ? saved.total : amountDue)}</span>
     </div>
   );
 
@@ -396,6 +406,14 @@ export function PayTray({
             <React.Fragment key={index}>
               <dt>{refs.length > 1 ? `${paymentLabel(payment.tenderType, payment.currency)} reference` : "Reference"}</dt>
               <dd className="num text-left">{payment.reference}</dd>
+            </React.Fragment>
+          ))}
+          {(done.vouchersSold ?? []).map((voucher) => (
+            <React.Fragment key={voucher.id}>
+              <dt>Gift voucher {usd(Number(voucher.value))}</dt>
+              <dd className="num text-left">
+                {voucher.code} · secret {voucher.secret}
+              </dd>
             </React.Fragment>
           ))}
           {emptiesTaken ? (
@@ -545,7 +563,24 @@ export function PayTray({
                 <button type="button" className="btn btn-quiet btn-icon" aria-label={`Remove way ${index + 1}`} onClick={() => setRows(rows.filter((_, i) => i !== index))}>
                   <Trash className="ic" />
                 </button>
-                {entry.tenderType !== "CASH" ? (
+                {entry.tenderType === "VOUCHER" ? (
+                  <span className="voucher-check w-full">
+                    <input
+                      className="input num text-left"
+                      aria-label={`Way ${index + 1}, voucher code`}
+                      placeholder="GV-0019"
+                      value={entry.voucherCode ?? ""}
+                      onChange={(event) => setRow(index, { voucherCode: event.target.value.toUpperCase(), reference: event.target.value.toUpperCase() })}
+                    />
+                    <input
+                      className="input num text-left"
+                      aria-label={`Way ${index + 1}, voucher secret`}
+                      placeholder="Secret"
+                      value={entry.voucherSecret ?? ""}
+                      onChange={(event) => setRow(index, { voucherSecret: event.target.value.toUpperCase() })}
+                    />
+                  </span>
+                ) : entry.tenderType !== "CASH" ? (
                   <input
                     className="input num w-full text-left"
                     aria-label={`Way ${index + 1}, ${inSentence(entryLabel)} reference`}
@@ -571,7 +606,11 @@ export function PayTray({
         </div>
         {triedTake && !splitOk ? (
           <ErrorLine id={`${refId}s`}>
-            {split.nonCashTotal > amountDue + 0.004
+            {voucherShort
+              ? isOffline
+                ? VOUCHERS_OFFLINE
+                : "Type the voucher's code and secret."
+              : split.nonCashTotal > amountDue + 0.004
               ? "Only cash can come to more than the total."
               : splitRefProblem
                 ? splitRefProblem
@@ -641,6 +680,30 @@ export function PayTray({
         ) : null}
         <div className="grow" />
         <TakeButton label={`Take ${money(handedValue)}`} busy={postSalePending} disabled={!covered} onClick={take} />
+        {refused}
+      </>
+    );
+  } else if (tenderType === "VOUCHER") {
+    label = "Take a voucher";
+    body = (
+      <>
+        {way.choices.length > 1 ? <WhichTender way={way} value={tenderKey(choice)} onChange={setChoiceKey} /> : null}
+        <VoucherTender
+          due={amountDue}
+          offline={isOffline}
+          busy={postSalePending}
+          splitAllowed={splitAllowed}
+          onTake={(voucherRow) => {
+            keep([voucherRow]);
+            onTake([voucherRow]);
+          }}
+          onSplit={(voucherRow) => {
+            const rest = Number(Math.max(amountDue - Number(voucherRow.amount), 0).toFixed(2));
+            setRows([voucherRow, rowFor(otherWay(choice), rest.toFixed(2))]);
+            setMode("split");
+            setTriedTake(false);
+          }}
+        />
         {refused}
       </>
     );
@@ -788,5 +851,102 @@ function TakeButton({ label, busy, disabled, onClick }: { label: string; busy: b
       {/* Enter only shows while it would take the money. */}
       {disabled ? null : <EnterKey />}
     </button>
+  );
+}
+
+/**
+ * The VOUCHER tender (PRD-10, W-18): the voucher's code and secret, checked
+ * online first. It pays what is left on it, at most what is due; less than
+ * the total, the rest goes another way. Offline it is off: a voucher is money
+ * the server holds.
+ */
+export function VoucherTender({
+  due,
+  offline,
+  busy,
+  splitAllowed,
+  onTake,
+  onSplit,
+}: {
+  due: number;
+  offline: boolean;
+  busy: boolean;
+  splitAllowed: boolean;
+  onTake: (row: PaymentRow) => void;
+  onSplit: (row: PaymentRow) => void;
+}) {
+  const [code, setCode] = React.useState("");
+  const [secret, setSecret] = React.useState("");
+  const voucher = useVoucherCheck(due);
+  const ids = React.useId();
+  if (offline) return <p className="help">{VOUCHERS_OFFLINE}</p>;
+  const problem = voucher.failed ?? voucherProblem(voucher.answer, "MONEY");
+  const left = voucher.answer?.usable && !problem ? (voucher.answer.data?.left ?? 0) : null;
+  const pays = left === null ? 0 : voucherPays(left, due);
+  const row: PaymentRow = { tenderType: "VOUCHER", amount: pays.toFixed(2), reference: code.trim(), voucherCode: code.trim(), voucherSecret: secret.trim() };
+  const covers = left !== null && pays >= due - 0.004;
+  return (
+    <>
+      <div className="voucher-check">
+        <div className="field">
+          <label htmlFor={`${ids}c`}>Code</label>
+          <input
+            id={`${ids}c`}
+            className="input input-lg num text-left"
+            autoFocus
+            autoComplete="off"
+            placeholder="GV-0019"
+            value={code}
+            onChange={(event) => {
+              setCode(event.target.value.toUpperCase());
+              voucher.reset();
+            }}
+          />
+        </div>
+        <div className="field">
+          <label htmlFor={`${ids}s`}>Secret</label>
+          <input
+            id={`${ids}s`}
+            className="input input-lg num text-left"
+            autoComplete="off"
+            value={secret}
+            onChange={(event) => {
+              setSecret(event.target.value.toUpperCase());
+              voucher.reset();
+            }}
+          />
+        </div>
+        <button
+          type="button"
+          className="btn btn-lg"
+          disabled={!code.trim() || !secret.trim() || voucher.busy}
+          aria-busy={voucher.busy || undefined}
+          onClick={() => void voucher.check(code, secret)}
+        >
+          Check
+        </button>
+      </div>
+      {problem ? (
+        <ErrorLine>{problem}</ErrorLine>
+      ) : left !== null ? (
+        <div className="wait" role="status" aria-live="polite">
+          <span className="status status-success is-strong">{usd(left)} left on it</span>
+          <span className="num strong">{covers ? "Covers the sale" : `${usd(due - pays)} still due`}</span>
+        </div>
+      ) : (
+        <p className="help">Type the code and the secret printed on it, then Check.</p>
+      )}
+      <div className="grow" />
+      {left !== null && !covers ? (
+        <TakeButton
+          label={splitAllowed ? `Take ${usd(pays)}, the rest another way` : "It does not cover the sale"}
+          busy={busy}
+          disabled={!splitAllowed || pays <= 0}
+          onClick={() => onSplit(row)}
+        />
+      ) : (
+        <TakeButton label={`Take ${usd(due)}`} busy={busy} disabled={!covers} onClick={() => onTake(row)} />
+      )}
+    </>
   );
 }

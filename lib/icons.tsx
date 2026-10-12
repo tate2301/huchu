@@ -594,6 +594,7 @@ export const Folder = createPhosphorIcon("Folder", "Folder");
 export const DeviceMobile = createPhosphorIcon("DeviceMobile", "DeviceMobile");
 export const Stamp = createPhosphorIcon("Stamp", "Stamp");
 export const Ticket = createPhosphorIcon("Ticket", "Ticket");
+export const Gift = createPhosphorIcon("Gift", "Gift");
 export const CreditCard = createPhosphorIcon("CreditCard", "CreditCard");
 export const List = createPhosphorIcon("List", "List");
 /** Phosphor's two-person `Users` (the export named `Users` above is `UsersThree`). */

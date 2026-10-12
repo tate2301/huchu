@@ -365,9 +365,12 @@ export function TillDialog({
   large,
   compact,
   meta,
+  eyebrow,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /** A quiet line over a small dialog's title: which till, who is selling ("Front till · Chipo Dube"). */
+  eyebrow?: string;
   title: string;
   description?: React.ReactNode;
   children?: React.ReactNode;
@@ -414,6 +417,7 @@ export function TillDialog({
               </>
             ) : (
               <div className="dialog-body">
+                {eyebrow ? <span className="eyebrow">{eyebrow}</span> : null}
                 <DialogPrimitive.Title asChild>
                   <h2>{title}</h2>
                 </DialogPrimitive.Title>

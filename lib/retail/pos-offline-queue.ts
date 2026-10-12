@@ -7,6 +7,9 @@ export type PosSalePaymentInput = {
   /** ZiG cash; left out, the sale's currency. The server stamps the rate. */
   currency?: "USD" | "ZWG";
   reference?: string;
+  /** A VOUCHER payment (PRD-10): never queued, a voucher needs the till online. */
+  voucherCode?: string;
+  voucherSecret?: string;
 };
 
 export type PosSaleQueuePayload = {
@@ -47,10 +50,16 @@ export type PosSaleQueuePayload = {
     unitPrice?: number;
     discountAmount?: number;
     emptiesBack?: number;
+    /** A fixed set rung as one (PRD-08): the bundle and the till's key its component lines share. */
+    bundleId?: string;
+    bundleRef?: string;
   }>;
   payments: PosSalePaymentInput[];
   /** What the till showed and charged (PRD-09): `pos/sales` refuses a sale rung now that it prices differently. */
   total?: number;
+  /** PRD-10, online only: gift vouchers bought in the sale and a discount voucher. */
+  vouchersSold?: Array<{ value: string; customerId?: string }>;
+  discountVoucher?: { code: string; secret: string };
 };
 
 /**
