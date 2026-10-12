@@ -111,20 +111,45 @@ function originalTender(payments: ReadonlyArray<{ tenderType: RetailTenderType }
   return (ORIGINAL_TENDERS as readonly string[]).includes(tender) ? tender : null;
 }
 
-type Prior = { saleType: string; totalAmount: Prisma.Decimal; depositAmount: Prisma.Decimal; lines: Array<{ sourceLineId: string | null; quantity: Prisma.Decimal; depositAmount: Prisma.Decimal }> };
+type PriorLine = {
+  sourceLineId: string | null;
+  quantity: Prisma.Decimal;
+  depositAmount: Prisma.Decimal;
+  lineTotal: Prisma.Decimal;
+  taxAmount: Prisma.Decimal;
+  discountAmount: Prisma.Decimal;
+  costTotal: Prisma.Decimal;
+};
+type Prior = { saleType: string; totalAmount: Prisma.Decimal; depositAmount: Prisma.Decimal; lines: PriorLine[] };
+
+/** What earlier refunds and voids took off each source line, by amount. */
+type LineBack = { quantity: Prisma.Decimal; deposit: Prisma.Decimal; lineTotal: Prisma.Decimal; taxAmount: Prisma.Decimal; discountAmount: Prisma.Decimal; costTotal: Prisma.Decimal };
 
 function backSoFar(prior: Prior[]) {
-  const quantity = new Map<string, Prisma.Decimal>();
-  const deposit = new Map<string, Prisma.Decimal>();
+  const lines = new Map<string, LineBack>();
   for (const line of prior.flatMap((sale) => sale.lines)) {
     if (!line.sourceLineId) continue;
-    quantity.set(line.sourceLineId, (quantity.get(line.sourceLineId) ?? ZERO).plus(rate(line.quantity).abs()));
-    deposit.set(line.sourceLineId, (deposit.get(line.sourceLineId) ?? ZERO).plus(money(line.depositAmount).abs()));
+    const so = lines.get(line.sourceLineId) ?? { quantity: ZERO, deposit: ZERO, lineTotal: ZERO, taxAmount: ZERO, discountAmount: ZERO, costTotal: ZERO };
+    lines.set(line.sourceLineId, {
+      quantity: so.quantity.plus(rate(line.quantity).abs()),
+      deposit: so.deposit.plus(money(line.depositAmount).abs()),
+      lineTotal: so.lineTotal.plus(money(line.lineTotal).abs()),
+      taxAmount: so.taxAmount.plus(money(line.taxAmount).abs()),
+      discountAmount: so.discountAmount.plus(money(line.discountAmount).abs()),
+      costTotal: so.costTotal.plus(money(line.costTotal).abs()),
+    });
   }
   const refunded = sumMoney(
     prior.filter((sale) => sale.saleType === "REFUND").map((sale) => money(sale.totalAmount).abs().plus(money(sale.depositAmount).abs())),
   );
-  return { quantity, deposit, refunded };
+  return { lines, refunded };
+}
+
+/** A take's share of a line amount: the ratio for a part, exactly what is left for the rest. */
+function shareOf(whole: Prisma.Decimal, already: Prisma.Decimal, ratio: Prisma.Decimal, takesRest: boolean): Prisma.Decimal {
+  if (!takesRest) return multiplyMoney(whole, ratio);
+  const rest = money(whole.minus(already));
+  return rest.isNegative() ? ZERO : rest;
 }
 
 const priorWhere = (companyId: string, saleId: string) => ({
@@ -181,9 +206,9 @@ export async function refundForm(actor: ReversalActor, saleId: string): Promise<
   const back = backSoFar(prior);
   const lines = sale.lines.flatMap((line) => {
     const bought = rate(line.quantity).abs();
-    const left = bought.minus(back.quantity.get(line.id) ?? ZERO);
+    const left = bought.minus(back.lines.get(line.id)?.quantity ?? ZERO);
     if (left.lessThanOrEqualTo(0)) return [];
-    const depositLeft = money(line.depositAmount).abs().minus(back.deposit.get(line.id) ?? ZERO);
+    const depositLeft = money(line.depositAmount).abs().minus(back.lines.get(line.id)?.deposit ?? ZERO);
     return [
       {
         saleLineId: line.id,
@@ -392,13 +417,17 @@ async function writeRefund(input: {
     const lines = [...input.requested.entries()].map(([saleLineId, quantity]) => {
       const source = sale.lines.find((line) => line.id === saleLineId)!;
       const bought = rate(source.quantity).abs();
-      const leftRaw = bought.minus(back.quantity.get(source.id) ?? ZERO);
+      const so = back.lines.get(source.id);
+      const leftRaw = bought.minus(so?.quantity ?? ZERO);
       const left = leftRaw.isNegative() ? ZERO : leftRaw;
       if (quantity.greaterThan(left)) {
         const message = onlyLeftSentence(source.itemName, left.toNumber());
         throw new ReversalRefused(400, message, { lines: message });
       }
       const ratio = bought.isZero() ? ZERO : quantity.div(bought);
+      // The take that empties the line gets exactly what earlier takes left, so the
+      // sale and all its refunds net to zero in takings, VAT and the journal.
+      const takesRest = quantity.equals(left);
       const costUnit = money(source.costUnit).abs();
       const wholeCost = money(source.costTotal).isZero() ? multiplyMoney(bought, costUnit) : money(source.costTotal).abs();
       // Bottles back with the goods: the line's deposit comes back with them, the last refund exactly what is left.
@@ -406,7 +435,7 @@ async function writeRefund(input: {
         {
           quantity: toNumberOrZero(bought),
           depositAmount: toNumberOrZero(source.depositAmount),
-          depositRefunded: toNumberOrZero(back.deposit.get(source.id) ?? ZERO),
+          depositRefunded: toNumberOrZero(so?.deposit ?? ZERO),
         },
         toNumberOrZero(quantity),
         toNumberOrZero(left),
@@ -414,11 +443,11 @@ async function writeRefund(input: {
       return {
         source,
         quantity,
-        discountAmount: multiplyMoney(money(source.discountAmount).abs(), ratio).negated(),
-        taxAmount: multiplyMoney(money(source.taxAmount).abs(), ratio).negated(),
-        lineTotal: multiplyMoney(money(source.lineTotal).abs(), ratio).negated(),
+        discountAmount: shareOf(money(source.discountAmount).abs(), so?.discountAmount ?? ZERO, ratio, takesRest).negated(),
+        taxAmount: shareOf(money(source.taxAmount).abs(), so?.taxAmount ?? ZERO, ratio, takesRest).negated(),
+        lineTotal: shareOf(money(source.lineTotal).abs(), so?.lineTotal ?? ZERO, ratio, takesRest).negated(),
         costUnit,
-        costTotal: multiplyMoney(wholeCost, ratio),
+        costTotal: shareOf(wholeCost, so?.costTotal ?? ZERO, ratio, takesRest),
         depositAmount: money(deposit).negated(),
       };
     });

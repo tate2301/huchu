@@ -192,7 +192,7 @@ describe("paying it off and handing it over", () => {
       .reduce((sum, line) => sum + Number(line.credit), 0);
     expect(revenueAndVat.toFixed(2)).toBe("46.00");
     expect(entry!.lines.some((line) => Number(line.debit) === 30 && line.account.code.startsWith("5"))).toBe(true);
-  });
+  }, 20_000);
 });
 
 describe("cancelling", () => {

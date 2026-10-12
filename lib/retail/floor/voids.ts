@@ -34,7 +34,7 @@ import {
   type ReversalActor,
   type ReversalDevice,
 } from "./reversal";
-import { hasRefund, paidInSentence, PICK_A_DRAWER, tillShiftClosed, VOID_TODAY_ONLY, voidNote, wasVoided } from "./reversal-words";
+import { hasRefund, paidInSentence, wasLaybyHandOver, PICK_A_DRAWER, tillShiftClosed, VOID_TODAY_ONLY, voidNote, wasVoided } from "./reversal-words";
 
 /**
  * Void a sale (50-floor W-41, FLR-02): the same day only, the whole sale
@@ -74,6 +74,12 @@ async function voidable(actor: ReversalActor, saleId: string, at: Date): Promise
   if (!sale || sale.saleType === "VOID") throw new ReversalRefused(404, SALE_NOT_FOUND);
   await assertSiteOf(actor, sale.siteId);
   refusesState(sale);
+  // A lay-by's hand-over: voiding it would put the customer's money back on
+  // Lay-by deposits held with no lay-by open to pay it out of.
+  const handOver =
+    sale.payments.some((payment) => payment.tenderType === "LAYBY") ||
+    (await prisma.retailLayby.count({ where: { companyId: actor.companyId, saleId: sale.id } })) > 0;
+  if (handOver) throw new ReversalRefused(409, wasLaybyHandOver(sale.saleNo));
   const reversed = await prisma.retailSale.count({ where: { companyId: actor.companyId, sourceSaleId: sale.id, status: "POSTED" } });
   if (reversed > 0) throw new ReversalRefused(409, hasRefund(sale.saleNo));
   if (!sameDay(sale.postedAt ?? sale.createdAt, at)) throw new ReversalRefused(409, VOID_TODAY_ONLY);

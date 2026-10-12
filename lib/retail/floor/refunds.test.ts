@@ -133,6 +133,29 @@ describe("what comes back", () => {
     ).rejects.toMatchObject({ status: 400, fieldErrors: { lines: "All of the Ice 2kg bag has come back already." } });
   });
 
+  it("refunds a line one unit at a time and the last returns exactly what is left", async () => {
+    n += 1;
+    // 3 × US$3.3333 rounds to a US$10.00 line with VAT 1.36: a third of either does not come out even.
+    const sale = await addTestSale(shop, {
+      saleNo: `SALE-R${n}-${shop.companyId.slice(0, 4)}`,
+      at: new Date(Date.now() - 30 * 60 * 1000),
+      lines: [{ item: shop.ice, name: "Ice 2kg bag", quantity: 3, price: "3.3333333", cost: "1.10", tax: "1.36" }],
+      payments: [{ tender: "CARD", amount: "10.00", reference: "4413" }],
+      shiftId: drawer,
+    });
+    await prisma.retailSaleLine.update({ where: { id: sale.lineIds[0]! }, data: { lineTotal: "10.00" } });
+    await prisma.retailSale.update({ where: { id: sale.id }, data: { subtotal: "10.00", totalAmount: "10.00", baseAmount: "10.00" } });
+    const values: string[] = [];
+    for (let unit = 0; unit < 3; unit += 1) {
+      const refund = await refundSale({ actor: tafara(), saleId: sale.id, body: body([{ saleLineId: sale.lineIds[0]!, quantity: "1" }]) });
+      values.push(refund.value);
+    }
+    expect(values).toEqual(["3.33", "3.33", "3.34"]);
+    const docs = await prisma.retailSale.findMany({ where: { sourceSaleId: sale.id, saleType: "REFUND" }, include: { lines: true } });
+    const sum = (pick: (doc: (typeof docs)[number]) => unknown) => docs.reduce((total, doc) => total + Number(pick(doc)), 0).toFixed(2);
+    expect([sum((doc) => doc.totalAmount), sum((doc) => doc.taxAmount), sum((doc) => doc.lines[0]!.costTotal)]).toEqual(["-10.00", "-1.36", "3.30"]);
+  });
+
   it("never lets two refunds at once hand back more than was sold", async () => {
     const sale = await cardSale();
     const one = () => refundSale({ actor: tafara(), saleId: sale.id, body: body([{ saleLineId: sale.lineIds[0]!, quantity: "2" }]) });

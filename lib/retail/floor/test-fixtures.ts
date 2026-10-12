@@ -124,9 +124,12 @@ export async function addTestSale(
         })),
       },
     },
-    select: { id: true, lines: { select: { id: true }, orderBy: { createdAt: "asc" } } },
+    select: { id: true, lines: { select: { id: true, itemName: true } } },
   });
-  return { id: created.id, lineIds: created.lines.map((line) => line.id) };
+  // Lines made in one nested create share a timestamp, so they are matched back to the input by name, in order.
+  const unused = [...created.lines];
+  const lineIds = sale.lines.map((line) => unused.splice(unused.findIndex((made) => made.itemName === line.name), 1)[0]!.id);
+  return { id: created.id, lineIds };
 }
 
 /** The shop and everything written to it: sales first, since their lines hold the stock lines. */

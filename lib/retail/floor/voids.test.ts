@@ -108,6 +108,17 @@ describe("which sales can be voided", () => {
       message: `${saleNo} has a refund against it. Refund the rest instead.`,
     });
   });
+
+  it("refuses a lay-by's hand-over, so its money cannot land back on Lay-by deposits held", async () => {
+    const handedOver = await sale(3, { payments: [{ tender: "LAYBY", amount: "44.20" }] });
+    const saleNo = (await prisma.retailSale.findUniqueOrThrow({ where: { id: handedOver.id } })).saleNo;
+    await expect(voidForm(tafara(), handedOver.id)).rejects.toMatchObject({ status: 409 });
+    await expect(voidSale({ actor: tafara(), saleId: handedOver.id, body: { reason: "Rang up wrong" } })).rejects.toMatchObject({
+      status: 409,
+      message: `${saleNo} was a lay-by's hand-over. Refund it instead.`,
+    });
+    expect(await prisma.retailSale.count({ where: { sourceSaleId: handedOver.id } })).toBe(0);
+  });
 });
 
 describe("Voids need a manager PIN: after 5 minutes", () => {

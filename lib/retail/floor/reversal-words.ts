@@ -53,6 +53,9 @@ export function onlyLeftSentence(name: string, left: number): string {
 /** "SALE-31866 was voided." */
 export const wasVoided = (saleNo: string) => `${saleNo} was voided.`;
 
+/** "SALE-31866 was a lay-by's hand-over. Refund it instead." */
+export const wasLaybyHandOver = (saleNo: string) => `${saleNo} was a lay-by's hand-over. Refund it instead.`;
+
 /** "SALE-31866 has a refund against it. Refund the rest instead." */
 export const hasRefund = (saleNo: string) => `${saleNo} has a refund against it. Refund the rest instead.`;
 
