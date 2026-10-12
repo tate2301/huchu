@@ -1821,9 +1821,14 @@
 .tl.tl.tl .approve-pin { display: flex; flex-direction: column; align-items: center; gap: var(--space-12); padding-top: var(--space-8); }
 .tl.tl.tl .approve-pin .keypad { width: 100%; max-width: 320px; }
 /* Messages for the person at the till, after their PIN. */
-.tl.tl.tl .msg-list { display: flex; flex-direction: column; gap: var(--space-12); }
-.tl.tl.tl .msg-list .msg { display: grid; gap: var(--space-4); padding-bottom: var(--space-12); box-shadow: 0 1px 0 var(--color-line); }
-.tl.tl.tl .msg-list .msg:last-child { box-shadow: none; padding-bottom: 0; }
+/* The "N messages for you" dialog after the PIN: one block per message, title and time on a row, the summary below. */
+.tl.tl.tl .note-list { display: flex; flex-direction: column; gap: var(--space-12); margin: 0; padding: 0; list-style: none; }
+.tl.tl.tl .note-item { display: block; padding-bottom: var(--space-12); box-shadow: 0 1px 0 var(--color-line); }
+.tl.tl.tl .note-item:last-child { box-shadow: none; padding-bottom: 0; }
+.tl.tl.tl .note-head { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-12); }
+.tl.tl.tl .note-title { min-width: 0; font-weight: 500; color: var(--color-ink); }
+.tl.tl.tl .note-time { flex: none; white-space: nowrap; font-family: var(--font-mono); font-size: var(--text-13); color: var(--color-muted); }
+.tl.tl.tl .note-text { margin: var(--space-4) 0 0; color: var(--color-ink-2); line-height: var(--leading-reading); text-wrap: pretty; }
 /* Why chips and the way money goes back, on the refund and the cash dialogs. */
 .tl.tl.tl .choice-chips { display: flex; flex-wrap: wrap; gap: var(--space-8); }
 .tl.tl.tl .choice-chips .btn[aria-checked="true"] { box-shadow: 0 0 0 2px var(--color-ink); color: var(--color-ink); }

@@ -268,17 +268,17 @@ function PersonMessages() {
         </button>
       }
     >
-      <div className="msg-list">
+      <ul className="note-list">
         {list.map((message) => (
-          <div key={message.id} className="msg">
-            <div className="row is-split">
-              <span className="ink weight-500">{message.title}</span>
-              <time>{dayMonth(message.at) === today ? hhmm(message.at) : `${dayMonth(message.at)}, ${hhmm(message.at)}`}</time>
+          <li key={message.id} className="note-item">
+            <div className="note-head">
+              <span className="note-title">{message.title}</span>
+              <time className="note-time">{dayMonth(message.at) === today ? hhmm(message.at) : `${dayMonth(message.at)}, ${hhmm(message.at)}`}</time>
             </div>
-            <p className="pretty">{message.summary}</p>
-          </div>
+            <p className="note-text">{message.summary}</p>
+          </li>
         ))}
-      </div>
+      </ul>
     </TillDialog>
   );
 }
