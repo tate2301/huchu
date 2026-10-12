@@ -95,14 +95,15 @@ export function WaitingScreen() {
     .slice(0, 12);
 
   const row = (entry: (typeof rows)[number], needsSomeone: boolean) => {
-    const { items, customerName } = entry.operation.payload;
+    // The queue carries the customer by id only (CUS-02), so the row says whether there was one.
+    const { items, customerId } = entry.operation.payload;
     // A refused sale reads by the product it is about; the rest by who and how many.
     const first = needsSomeone && items[0] ? names.get(items[0].productId) : undefined;
     const what = first
       ? items.length > 1
         ? `${first} + ${items.length - 1} more`
         : first
-      : `${customerName || "Walk-in"}, ${count(items.length, "item")}`;
+      : `${customerId ? "A customer" : "Walk-in"}, ${count(items.length, "item")}`;
     const { verdict } = entry;
     const status =
       needsSomeone || verdict.kind === "BLOCKED_BY_ANOTHER"
