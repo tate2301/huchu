@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { Prisma } from "@prisma/client";
 
 import { runAccountingSeedPack } from "@/lib/accounting/bootstrap";
 import { prisma } from "@/lib/prisma";
@@ -17,6 +18,7 @@ import {
   inStore,
   payBottlesBack,
   recordEmptiesCredit,
+  recordEmptiesEntry,
   recordRefundEmpties,
   recordSaleEmpties,
 } from "./empties";
@@ -127,6 +129,16 @@ describe("the running balance", () => {
     expect(afters[1]! - afters[0]!).toBe(last.find((entry) => entry.bottlesAfter === afters[1])!.bottles);
   });
 
+  it("refuses an entry dated after now, which would hide every live write", async () => {
+    const before = await inStore(prisma, shop.mainId);
+    await expect(
+      prisma.$transaction((tx) =>
+        recordEmptiesEntry(tx, { companyId: shop.companyId, siteId: shop.mainId, kind: "BOTTLES_BACK", bottles: 1, deposit: new Prisma.Decimal("-0.10"), at: new Date(Date.now() + 60 * 60 * 1000) }),
+      ),
+    ).rejects.toThrow("after now");
+    expect(await inStore(prisma, shop.mainId)).toEqual(before);
+  });
+
   it("refuses more than is in the store, under the field", async () => {
     const now = await inStore(prisma, shop.mainId);
     const refused = await refusal(
@@ -213,6 +225,21 @@ describe("the tabs", () => {
     expect(page.tabSums?.held.toFixed(2)).toBe(balances.held.toFixed(2));
     expect(page.tabSums?.owed.toFixed(2)).toBe(balances.owed.toFixed(2));
     expect(page.rows.every((row) => ["DEPOSIT_CHARGED", "DEPOSIT_REFUNDED", "BOTTLES_BACK"].includes(String(row.kindCode)))).toBe(true);
+  });
+
+  it("say when as Today 18:14, and leave a deposit's empties blank", async () => {
+    const list = EMPTIES_REPORTS[0]!.list!;
+    const query = resolveListQuery(list, { page: 1, size: 50, filters: {} }, {}, { role: "MANAGER", seeCost: true });
+    const page = await EMPTIES_LOADERS["retail-empties"]!.page!({ companyId: shop.companyId, role: "MANAGER", userId: shop.managerId } as never, query);
+    const back = page.rows.find((row) => row.kindCode === "BOTTLES_BACK")!;
+    expect(back.whenText).toBe(`Today ${back.time}`);
+    expect(back.items).toMatch(/^\+\d+/);
+    const charged = page.rows.find((row) => row.kindCode === "DEPOSIT_CHARGED")!;
+    expect(charged.bottles).toBeNull();
+    const columns = Object.fromEntries(list.columns.map((column) => [column.key, column]));
+    expect(columns.bottles).toMatchObject({ empty: "blank" });
+    expect(columns.at).toMatchObject({ cell: "date", dayFormat: "relative", timeKey: "time" });
+    expect(columns[list.card!.figure2!]).toBeDefined();
   });
 });
 

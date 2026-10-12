@@ -30,17 +30,21 @@ export function ListTabs({
       items={spec.tabs.map((entry) => ({
         value: entry.key,
         label: entry.label,
-        count: entry.badge
-          ? sums
-            ? formatMoney(sums[entry.key] ?? 0, entry.badge.currency)
-            : "—"
-          : counts
-            ? formatCount(counts[entry.key] ?? 0)
-            : "—",
+        count: tabBadge(entry, counts ?? null, sums ?? null) ?? "—",
       }))}
       value={tab ?? spec.tabs[0]!.key}
       onValueChange={onTab}
       style={{ flex: "none", background: "var(--surface)" }}
     />
   );
+}
+
+/** A tab's badge: its money sum where it badges one ("US$84.30"), else its row count; null before the page answers. */
+export function tabBadge(
+  entry: NonNullable<ListSpecPublic["tabs"]>[number],
+  counts: Record<string, number> | null,
+  sums: Record<string, number> | null,
+): string | null {
+  if (entry.badge) return sums ? formatMoney(sums[entry.key] ?? 0, entry.badge.currency) : null;
+  return counts ? formatCount(counts[entry.key] ?? 0) : null;
 }

@@ -6,7 +6,7 @@ import { loaderParams, periodInstants, runList } from "@/lib/reports/list-query"
 import { num, TAKE, result } from "@/lib/reports/loaders/shared";
 import type { ListPageResult, ReportContext, ReportLoader, ReportOption, ReportParams, ReportRow, ResolvedListQuery } from "@/lib/reports/types";
 import { HELD_KINDS, OWED_KINDS } from "@/lib/retail/stock/empties";
-import { dayKey, DEFAULT_TIME_ZONE, formatWhen } from "@/lib/workspace/format";
+import { dayKey, DEFAULT_TIME_ZONE, formatRelativeDay, formatTime } from "@/lib/workspace/format";
 
 /**
  * Empties (30-stock 4.6, `retail-empties`): the Empties ledger, newest first.
@@ -133,7 +133,8 @@ export function toListRow(row: EntryRow): ReportRow {
     at,
     when: at,
     day: dayKey(row.at, DEFAULT_TIME_ZONE),
-    whenText: formatWhen(row.at),
+    time: formatTime(row.at),
+    whenText: `${formatRelativeDay(row.at, new Date())} ${formatTime(row.at)}`,
     kind: LABELS[row.kind],
     kindCode: row.kind,
     who: row.who,
@@ -145,7 +146,7 @@ export function toListRow(row: EntryRow): ReportRow {
     crates: row.crates || null,
     deposit,
     inStore: `${row.bottlesAfter} · ${row.cratesAfter}`,
-    items: items || "—",
+    items: items || null,
     reference: row.reference,
     saleId: row.saleId,
     goodsReceiptId: row.goodsReceiptId,

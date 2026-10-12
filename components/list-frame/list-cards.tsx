@@ -13,6 +13,7 @@ import { formatCount } from "@/lib/workspace/format";
 import { CountPill } from "@/components/workspace/count-pill";
 
 import { PeriodPicker } from "./filters-popover";
+import { tabBadge } from "./list-tabs";
 import { PERIOD_LABELS, cellText, countWords, diffTone, drawnFilters, filterValueLabel, groupValue, isBlank, rowMatches, sortLabel, toneOf, totalText, type DrawnFilter } from "./model";
 
 /**
@@ -315,6 +316,7 @@ export function PhoneFiltersSheet({
   spec,
   query,
   tabCounts,
+  tabSums,
   onTab,
   onFilter,
   onSort,
@@ -325,6 +327,7 @@ export function PhoneFiltersSheet({
   spec: ListSpecPublic;
   query: ResolvedListQuery;
   tabCounts: Record<string, number> | null;
+  tabSums: Record<string, number> | null;
   onTab: (tab: string) => void;
   onFilter: (key: string, value: string) => void;
   onSort: (sort: string) => void;
@@ -339,10 +342,10 @@ export function PhoneFiltersSheet({
       key: "tab",
       label: "Show",
       value: spec.tabs.find((tab) => tab.key === query.tab)?.label ?? spec.tabs[0]!.label,
-      options: spec.tabs.map((tab) => ({
-        value: tab.key,
-        label: tabCounts ? `${tab.label} · ${formatCount(tabCounts[tab.key] ?? 0)}` : tab.label,
-      })),
+      options: spec.tabs.map((tab) => {
+        const badge = tabBadge(tab, tabCounts, tabSums);
+        return { value: tab.key, label: badge ? `${tab.label} · ${badge}` : tab.label };
+      }),
       pick: onTab,
     });
   }

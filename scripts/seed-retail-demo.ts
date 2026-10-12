@@ -2143,11 +2143,21 @@ async function seedEmpties(companyId: string, mainSiteId: string) {
       recordEmptiesEntry(tx, { companyId, siteId: mainSiteId, kind: "DEPOSIT_CHARGED", deposit: forward, note: "Brought forward from the paper ledger", createdById: tafara.id, at: when }),
   })
 
+  // Nothing after now: inStore() reads the latest entry, so a row stamped later
+  // than the till's next write would hide it. The board's "today 11:02" row
+  // lands a few minutes before now when the seed runs earlier, the rows before
+  // it keeping their order a second apart.
   steps.sort((a, b) => a.at.getTime() - b.at.getTime())
+  const latest = Date.now() - 3 * 60 * 1000
+  steps.forEach((step, i) => {
+    step.at = new Date(Math.min(step.at.getTime(), latest - (steps.length - 1 - i) * 1000))
+  })
   for (const step of steps) await prisma.$transaction((tx) => step.run(tx, step.at))
 
   const balances = await emptiesBalances(prisma, companyId)
   const store = await inStore(prisma, mainSiteId)
+  const future = await prisma.retailEmptiesEntry.count({ where: { companyId, createdAt: { gt: new Date() } } })
+  if (future > 0) throw new Error(`Empties seed is off: ${future} entries stamped after now`)
   if (balances.held.toFixed(2) !== "84.30" || balances.owed.toFixed(2) !== "231.00" || store.bottles !== 412 || store.crates !== 31) {
     throw new Error(
       `Empties seed is off: held ${balances.held.toFixed(2)} (want 84.30), owed ${balances.owed.toFixed(2)} (want 231.00), in the store ${store.bottles} · ${store.crates} (want 412 · 31)`,

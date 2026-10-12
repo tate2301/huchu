@@ -96,6 +96,8 @@ type EntryInput = {
 
 /** One entry, its afters the site's running balance. The caller holds the site's lock. */
 async function writeEntry(tx: Tx, input: EntryInput) {
+  // The store's figure is the latest entry's: one stamped later than now would hide every write before it.
+  if (input.at && input.at.getTime() > Date.now()) throw new Error("An empties entry cannot be dated after now.");
   const now = await inStore(tx, input.siteId);
   const bottles = input.bottles ?? 0;
   const crates = input.crates ?? 0;

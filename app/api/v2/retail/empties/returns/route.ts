@@ -12,7 +12,8 @@ import { emptiesActor, emptiesRefusal } from "../_answer";
 /**
  * Return empties to a supplier (30-stock W-27 step 3, STK-09): the bottles and
  * crates leave the store and their deposit is owed by the supplier until their
- * credit note arrives. `retail.empties:create`.
+ * credit note arrives. `retail.empties:view` and `create`: a cashier, who
+ * may only take bottles back at the till, cannot book one.
  *
  * `{ supplierId, bottles, crates, goingBackWith, siteId? }` → 201
  * `{ data: { id, deposit }, message: "Return booked. Delta owes US$84.00 in deposits." }`.
@@ -23,7 +24,7 @@ export async function POST(request: NextRequest) {
   const { response, session } = await requireRetailSession(request);
   if (response || !session) return response as NextResponse;
 
-  const gate = requireRetailPermission(session, "retail.empties", "create");
+  const gate = requireRetailPermission(session, "retail.empties", "view") ?? requireRetailPermission(session, "retail.empties", "create");
   if (gate) return gate;
 
   const parsed = returnInput.safeParse(await request.json().catch(() => null));

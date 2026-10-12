@@ -756,6 +756,7 @@ export function ListFrame({ source, title, sub, rowFilters, defaultSort, default
             spec={spec}
             query={resolved}
             tabCounts={data?.tabs ?? null}
+            tabSums={data?.tabSums ?? null}
             onTab={(tab) => write({ tab })}
             onFilter={(key, value) => write({ filters: { [key]: value } })}
             onSort={(sort) => write({ sort })}
