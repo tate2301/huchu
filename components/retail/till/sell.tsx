@@ -10,8 +10,9 @@
 import * as React from "react";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
+import { useToast } from "@/components/ui/use-toast";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import {
   Barcode,
@@ -21,8 +22,10 @@ import {
   IdentificationCard,
   MagnifyingGlass,
   Moon,
+  Archive,
   Package,
   ShoppingCart,
+  Tray,
   UserSwitch,
   WifiSlash,
   X,
@@ -30,11 +33,13 @@ import {
 import { clockLabel, harareClock } from "@/lib/retail/licence-hours";
 import { getPosPortalHref } from "@/lib/retail/pos-host";
 import { enumLabel } from "@/lib/retail/words";
+import { percentWords, PRICE_UP_SENTENCE } from "@/lib/retail/till-rule-words";
 import { count, firstName, hhmm, pairedWhen, usd } from "./format";
 import { Avatar, Empty, ErrorLine, GateSide, Keypad, Segmented, typeAmount, useKeypadKeys, useWindowKeys, type KeypadKey } from "./parts";
 import { PayTray, payWays, TenderMark, type PayWay } from "./pay-tray";
+import { useApproval } from "./approval";
+import { LaybyStartDialog } from "./layby";
 import {
-  ApproveDialog,
   BottlesBackLine,
   bottlesBackCredit,
   BottlesBackPopover,
@@ -44,13 +49,14 @@ import {
   DropSaleButton,
   HoldPopover,
   IdCheckDialog,
+  ReasonDialog,
   SaleLine,
 } from "./sale-parts";
 import { DOORS, PersonMenu } from "./shell";
 import { useSignOut } from "./sign-out";
 import { useTill } from "./state";
 import { BottlesBackTile, ProductTile, QuickRow } from "./tile";
-import type { Approval, PaymentRow, PosCatalogItem } from "./types";
+import type { PaymentRow, PosCatalogItem } from "./types";
 
 const WEEKDAY = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
@@ -118,13 +124,31 @@ function OpenShiftGate() {
   const { context } = useTill();
   const { requestSignOut } = useSignOut();
   const queryClient = useQueryClient();
-  const [float, setFloat] = React.useState("");
+  // The float the till's last close left, and whether the shop counts a ZiG float (W-37).
+  const defaults = useQuery({
+    queryKey: ["retail-pos-shift-defaults"],
+    queryFn: async () => (await fetchJson<{ data: { float: string; hint: string; takesZig: boolean; zigFloat: string } }>("/api/v2/retail/pos/shifts/new")).data,
+    staleTime: 0,
+  });
+  const [typedUsd, setFloat] = React.useState<string | null>(null);
+  const [zigFloat, setZigFloat] = React.useState("");
+  const [field, setField] = React.useState<"usd" | "zig">("usd");
+  const float = typedUsd ?? (defaults.data?.float ? String(Number(defaults.data.float)) : "");
+  const takesZig = Boolean(defaults.data?.takesZig);
   const value = Number(float || "0");
+  const zigValue = Number(zigFloat || "0");
   const open = useMutation({
-    mutationFn: () => fetchJson("/api/v2/retail/pos/shifts", { method: "POST", body: JSON.stringify({ openingFloat: value }) }),
+    mutationFn: () =>
+      fetchJson("/api/v2/retail/pos/shifts", {
+        method: "POST",
+        body: JSON.stringify({ openingFloat: value, ...(takesZig ? { openingFloatZig: zigValue } : {}) }),
+      }),
     onSuccess: () => void queryClient.invalidateQueries({ queryKey: ["retail-current-shift"] }),
   });
-  const onKey = (key: KeypadKey) => setFloat((current) => typeAmount(current, key));
+  const onKey = (key: KeypadKey) => {
+    if (field === "zig") setZigFloat((current) => typeAmount(current, key));
+    else setFloat(typeAmount(float, key));
+  };
   useKeypadKeys(onKey);
   useWindowKeys((event) => {
     if (event.key === "Enter" && !open.isPending) {
@@ -148,15 +172,23 @@ function OpenShiftGate() {
             . Count the float into the drawer.
           </p>
         </div>
-        <div className="tender">
-          <span className="l">In the drawer</span>
+        <button type="button" className={field === "usd" ? "tender" : "tender is-quiet"} aria-pressed={field === "usd"} onClick={() => setField("usd")}>
+          <span className="l">US$ float</span>
           <span className="tender-figure">{usd(value)}</span>
-        </div>
+        </button>
+        <span className="help">{defaults.data?.hint ?? "Counted in."}</span>
+        {takesZig ? (
+          <button type="button" className={field === "zig" ? "tender" : "tender is-quiet"} aria-pressed={field === "zig"} onClick={() => setField("zig")}>
+            <span className="l">ZiG float</span>
+            <span className="tender-figure">ZiG {zigValue.toFixed(2)}</span>
+          </button>
+        ) : null}
         <Keypad onKey={onKey} left="dot" disabled={open.isPending} />
         {open.isError ? <ErrorLine large>{getApiErrorMessage(open.error)}</ErrorLine> : null}
         <button type="button" className="btn btn-primary btn-touch btn-block" aria-busy={open.isPending || undefined} onClick={() => open.mutate()}>
           <CaretRight className="ic" />
           Open shift with {usd(value)}
+          {takesZig && zigValue > 0 ? ` and ZiG ${zigValue.toFixed(2)}` : ""}
         </button>
         <button
           type="button"
@@ -188,14 +220,14 @@ function Workbench() {
     idChecked,
     needsIdCheck,
     needsReason,
-    approvalReason,
     discountCeiling,
     offlineStop,
     lineStopped,
     amountDue,
     postSale,
-    saleRefusal,
     resetSaleRefusal,
+    rules,
+    approvers,
     lastCompletedSale,
     lastSavedSale,
     dismissCompletedSale,
@@ -211,6 +243,11 @@ function Workbench() {
   const [trayOpen, setTrayOpen] = React.useState(false);
   const [idCheck, setIdCheck] = React.useState(false);
   const [approve, setApprove] = React.useState(false);
+  // A discount over the till rules' cap: the server's 409 opens the approval (FLR-09).
+  const approval = useApproval({
+    approvers: approvers.sell,
+    reason: (server) => (server === PRICE_UP_SENTENCE || !rules ? server : `Discount over ${percentWords(rules.maxCashierDiscountPercent)}`),
+  });
   // On a phone the sale is its own screen, opened from the row under the shelf.
   const [phoneSale, setPhoneSale] = React.useState(false);
   // Take was pressed before the ID check: the tray opens once the check is answered.
@@ -237,15 +274,24 @@ function Workbench() {
 
   // The tray's payments wait here while the reason, or a manager, is asked for.
   const rowsRef = React.useRef<PaymentRow[]>([]);
+  // The sale goes; a manager the rules want is asked for by the approval dialog, which sends it again.
+  const send = (rows: PaymentRow[], reason: string | null) => {
+    void approval.run((approver) => postSale(rows, reason, approver)).catch(() => {
+      // The tray shows the server's no; a sale saved offline shows as saved.
+    });
+  };
   const take = (rows: PaymentRow[]) => {
     rowsRef.current = rows;
-    if (needsReason || approvalReason) {
+    if (needsReason) {
       resetSaleRefusal();
       setApprove(true);
-    } else postSale(rows, null);
+    } else send(rows, null);
   };
 
-  const approveAndTake = (approval: Approval) => postSale(rowsRef.current, approval);
+  const takeWithReason = (reason: string) => {
+    setApprove(false);
+    send(rowsRef.current, reason);
+  };
 
   // Read after the answer has rendered, so a confirmed ID (or the 18+ lines taken off) is what it sees.
   React.useEffect(() => {
@@ -261,11 +307,6 @@ function Workbench() {
     if (lastCompletedSale || lastSavedSale) setApprove(false);
   }, [lastCompletedSale, lastSavedSale]);
 
-  // The server wants a manager the till did not ask for: the approval opens with its sentence.
-  React.useEffect(() => {
-    if (saleRefusal && saleRefusal.kind !== "refused") setApprove(true);
-  }, [saleRefusal]);
-
   const next = () => {
     dismissCompletedSale();
     setTrayOpen(false);
@@ -279,7 +320,7 @@ function Workbench() {
   useWindowKeys((event) => {
     const target = event.target as HTMLElement | null;
     const typing = target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.tagName === "SELECT" || target.isContentEditable);
-    if (typing || trayOpen || idCheck || approve) return;
+    if (typing || trayOpen || idCheck || approve || approval.asking) return;
     if (event.key === "/") {
       event.preventDefault();
       searchRef.current?.focus();
@@ -297,7 +338,8 @@ function Workbench() {
         {trayOpen ? <PayTray key={way.key} way={way} ways={ways} onClose={() => setTrayOpen(false)} onTake={take} onNext={next} /> : null}
       </aside>
       <IdCheckDialog open={idCheck} onDone={() => setIdCheck(false)} />
-      <ApproveDialog open={approve} onOpenChange={setApprove} amount={amountDue} onApprove={approveAndTake} />
+      <ReasonDialog open={approve} onOpenChange={setApprove} amount={amountDue} onTake={takeWithReason} />
+      {approval.dialog}
     </div>
   );
 }
@@ -595,8 +637,10 @@ function SaleColumn({
           {selling ? count(selling, "item") : ""}
         </span>
         <div className="end">
+          <OpenDrawerButton />
           {cart.length ? (
             <>
+              <LaybyButton />
               <HoldPopover />
               <DropSaleButton />
             </>
@@ -745,6 +789,58 @@ function SaleColumn({
           <p className="help is-centred">{approvalLine}</p>
         ) : null}
       </div>
+    </>
+  );
+}
+
+/* ─── The drawer and lay-bys ──────────────────────────────────────────── */
+
+/** "Open drawer" (SET-06, FLR-09): only on a till with a drawer; a manager approves it when the till rules say so. */
+function OpenDrawerButton() {
+  const { toast } = useToast();
+  const { context, approvers, isOffline } = useTill();
+  const approval = useApproval({ approvers: approvers.sell, reason: "Open the drawer without a sale" });
+  const [busy, setBusy] = React.useState(false);
+  if (!context?.till.hasDrawer) return null;
+  const open = () => {
+    setBusy(true);
+    approval
+      .run((approver) => fetchJson("/api/v2/retail/pos/drawer/open", { method: "POST", body: JSON.stringify(approver ? { approver } : {}) }))
+      .then((done) => {
+        if (done) toast({ title: "Drawer opened.", variant: "success" });
+      })
+      .catch((error: unknown) => toast({ title: "The drawer did not open", description: getApiErrorMessage(error), variant: "destructive" }))
+      .finally(() => setBusy(false));
+  };
+  return (
+    <>
+      <button
+        type="button"
+        className="btn"
+        disabled={busy || isOffline}
+        aria-busy={busy || undefined}
+        title={isOffline ? "Needs the line: no connection now." : undefined}
+        onClick={open}
+      >
+        <Tray className="ic" />
+        Open drawer
+      </button>
+      {approval.dialog}
+    </>
+  );
+}
+
+/** "Lay-by" on the cart: put the lines aside for a customer with a deposit (W-42). */
+function LaybyButton() {
+  const { isOffline } = useTill();
+  const [open, setOpen] = React.useState(false);
+  return (
+    <>
+      <button type="button" className="btn" disabled={isOffline} title={isOffline ? "Needs the line: no connection now." : undefined} onClick={() => setOpen(true)}>
+        <Archive className="ic" />
+        Lay-by
+      </button>
+      {open ? <LaybyStartDialog onClose={() => setOpen(false)} /> : null}
     </>
   );
 }

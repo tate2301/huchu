@@ -12,10 +12,11 @@
 import * as React from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useVirtualizer } from "@tanstack/react-virtual";
 
-import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { useToast } from "@/components/ui/use-toast";
+import { ApiError, fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import {
   ArrowsCounterClockwise,
   CaretLeft,
@@ -37,11 +38,14 @@ import {
 import { depositBack } from "@/lib/retail/deposits";
 import { getPosPortalHref } from "@/lib/retail/pos-host";
 import { SHOP_TIME_ZONE } from "@/lib/retail/shop-profile-rules";
-import { ORIGINAL_TENDERS } from "@/lib/retail/floor/reversal-words";
-import { refundPinSentence, VOID_FREE_MS, voidPinSentence } from "@/lib/retail/till-rule-words";
+import { ORIGINAL_TENDERS, originalLabel, refundDoneSentence, TO_LABELS, type RefundDone, type RefundTo } from "@/lib/retail/floor/reversal-words";
+import { NEEDS_A_MANAGER, reversalNeedsManager, type PosReversalQueuePayload } from "@/lib/retail/pos-offline-queue";
+import type { PosCustomer } from "@/lib/retail/customers/pos-customer";
+import { refundPinSentence, voidPinSentence } from "@/lib/retail/till-rule-words";
 import { count, dayMonth, firstName, hhmm, paymentLabel, qty, usd, weekdayDayMonth, whole, zig } from "./format";
 import { Avatar, Empty, ErrorLine, Segmented, TillDialog } from "./parts";
-import { ManagerFields, useManagerPin } from "./manager-pin";
+import { useApproval } from "./approval";
+import { CustomerPicker } from "./layby";
 import { printReceipt, tenderKey } from "./pay-tray";
 import { useTill } from "./state";
 import type { TenderType } from "./types";
@@ -489,6 +493,8 @@ export function SaleScreen({ id }: { id: string }) {
   const refundedTotal = refunds.reduce((sum, entry) => sum + Math.abs(paidOn(entry)), 0);
   const voided = sale.status === "VOIDED";
   const refundable = sale.lines.some((line) => line.refundableQuantity > 0);
+  // Only today's sale with nothing reversed off it is voided (FLR-02's `voidableToday`); after that it is a refund.
+  const voidableToday = isSale && !voided && sale.reversals.length === 0 && dayKey.format(new Date(sale.postedAt ?? sale.createdAt)) === dayKey.format(new Date());
   const tenders = paidBy(sale.payments);
   const when = sale.postedAt ?? sale.createdAt;
   const receiptHref = `${isPosHost ? "" : "/portal/pos"}/receipt/${sale.id}`;
@@ -568,7 +574,7 @@ export function SaleScreen({ id }: { id: string }) {
                 <Printer className="ic" />
                 Print receipt
               </button>
-              {isSale && !voided && !refundedTotal ? (
+              {voidableToday ? (
                 <button type="button" className="btn" onClick={() => setVoiding(true)}>
                   <ReceiptX className="ic" />
                   Void
@@ -815,17 +821,47 @@ function invalidateSale(queryClient: ReturnType<typeof useQueryClient>) {
   void queryClient.invalidateQueries({ queryKey: ["retail-current-shift"] });
 }
 
+/** A network failure, not a no from the server: the till holds the act and sends it later. */
+function lineDown(error: unknown) {
+  if (error instanceof ApiError) return false;
+  return /network|failed to fetch|load failed/i.test(getApiErrorMessage(error)) || (typeof navigator !== "undefined" && !navigator.onLine);
+}
+
+const DAMAGED = "Damaged";
+
+/**
+ * Refund lines (W-41): what comes back line by line, Why from the till
+ * rules' list, how the money goes back, and whether the goods go back on the
+ * shelf. Over the refund PIN limit the server asks for a manager and the
+ * approval dialog sends it again with their PIN. With the line down it is
+ * saved on the till and goes in for review when it is sent (SET-06).
+ */
 function RefundDialog({ sale, shiftId, onClose }: { sale: SaleDetail; shiftId: string | null; onClose: () => void }) {
   const queryClient = useQueryClient();
-  const { rules, canApprove } = useTill();
-  const ids = React.useId();
+  const { toast } = useToast();
+  const { rules, approvers, canApprove, queueReversal } = useTill();
   const reasons = rules?.refundReasons ?? [];
   const [back, setBack] = React.useState<Record<string, number>>({});
   const [why, setWhy] = React.useState(reasons[0] ?? "");
-  const [problem, setProblem] = React.useState<string | null>(null);
   // FLR-02: back on the one card, wallet, transfer or voucher it was paid by, else cash from this drawer.
   const only = sale.payments.length === 1 ? sale.payments[0]!.tenderType : null;
-  const tender = only && (ORIGINAL_TENDERS as readonly string[]).includes(only) ? only : "CASH";
+  const original = only && (ORIGINAL_TENDERS as readonly string[]).includes(only) ? only : null;
+  const ways: Array<{ value: RefundTo; label: string }> = [
+    ...(original ? [{ value: "ORIGINAL" as const, label: originalLabel(original) }] : []),
+    { value: "CASH", label: TO_LABELS.CASH },
+    { value: "CREDIT_NOTE", label: TO_LABELS.CREDIT_NOTE },
+    { value: "VOUCHER", label: TO_LABELS.VOUCHER },
+  ];
+  const [to, setTo] = React.useState<RefundTo>(original ? "ORIGINAL" : "CASH");
+  const [shelf, setShelf] = React.useState(true);
+  const [customer, setCustomer] = React.useState<PosCustomer | null>(null);
+  const [problem, setProblem] = React.useState<string | null>(null);
+  const [busy, setBusy] = React.useState(false);
+  const damaged = why === DAMAGED;
+  const restock = shelf && !damaged;
+  const limit = rules ? `${rules.currency}${Number(rules.refundPinOver).toFixed(2)}` : "";
+  const approval = useApproval({ approvers: approvers.sell, reason: limit ? `Refund over ${limit}` : undefined });
+
   // The goods' share of the line and, with them, the bottles' deposit, as the server works it out.
   const lineBack = (line: SaleDetail["lines"][number], quantity: number) => {
     const sold = Math.abs(n(line.quantity));
@@ -840,40 +876,61 @@ function RefundDialog({ sale, shiftId, onClose }: { sale: SaleDetail; shiftId: s
   const amount = cents(sale.lines.reduce((sum, line) => sum + lineBack(line, back[line.id] ?? 0), 0));
   // The rules' limit is on the sale's refunds together.
   const alreadyBack = sale.reversals.filter((entry) => entry.saleType === "REFUND").reduce((sum, entry) => sum + Math.abs(paidOn(entry)), 0);
-  const fields = useManagerPin(
-    !canApprove && rules && amount + alreadyBack > Number(rules.refundPinOver) ? refundPinSentence(rules.refundPinOver, rules.currency) : null,
-  );
   const items = Object.values(back).reduce((sum, value) => sum + value, 0);
   const backNames = sale.lines.filter((line) => (back[line.id] ?? 0) > 0).map((line) => product(line.itemName));
 
-  const refund = useMutation({
-    mutationFn: () =>
-      fetchJson(`/api/v2/retail/pos/sales/${sale.id}/refund`, {
-        method: "POST",
-        body: JSON.stringify({
-          reason: why,
-          lines: Object.entries(back)
-            .filter(([, value]) => value > 0)
-            .map(([saleLineId, quantity]) => ({ saleLineId, quantity: String(quantity) })),
-          to: tender === "CASH" ? "CASH" : "ORIGINAL",
-          restock: true,
-          ...fields.approver(),
-        }),
-      }),
-    onSuccess: () => {
-      invalidateSale(queryClient);
-      onClose();
-    },
-    onError: (error) => setProblem(fields.refused(error)),
+  const body = () => ({
+    reason: why,
+    lines: Object.entries(back)
+      .filter(([, value]) => value > 0)
+      .map(([saleLineId, quantity]) => ({ saleLineId, quantity: String(quantity) })),
+    to,
+    restock,
+    ...(to === "CREDIT_NOTE" && !sale.customer && customer ? { customerId: customer.id } : {}),
   });
 
   const submit = () => {
-    if (!shiftId) return setProblem("Open a shift on this till first: the money comes out of its drawer.");
+    if (!shiftId && to === "CASH") return setProblem("Open a shift on this till first: the money comes out of its drawer.");
     if (!items) return setProblem("Say what comes back: one or more of a line.");
     if (!why) return setProblem("Say why it came back.");
-    if (!fields.ready) return setProblem("A manager types their PIN to approve it.");
+    if (to === "CREDIT_NOTE" && !sale.customer && !customer) return setProblem("A credit note needs a customer.");
     setProblem(null);
-    refund.mutate();
+    setBusy(true);
+    const request = body();
+    approval
+      .run((approver) =>
+        fetchJson<RefundDone>(`/api/v2/retail/pos/sales/${sale.id}/refund`, {
+          method: "POST",
+          body: JSON.stringify({ ...request, ...(approver ? { approver } : {}) }),
+        }),
+      )
+      .then((done) => {
+        if (!done) return;
+        invalidateSale(queryClient);
+        toast({ title: refundDoneSentence(done), variant: "success" });
+        onClose();
+      })
+      .catch(async (error: unknown) => {
+        if (!lineDown(error)) return setProblem(getApiErrorMessage(error));
+        const payload: PosReversalQueuePayload = {
+          kind: "refund",
+          saleId: sale.id,
+          saleNo: sale.saleNo,
+          amount,
+          already: alreadyBack,
+          saleAt: sale.postedAt ?? sale.createdAt,
+          at: new Date().toISOString(),
+          body: request,
+        };
+        if (!(await queueReversal(payload))) return setProblem(getApiErrorMessage(error));
+        const manager = rules && reversalNeedsManager(payload, rules, canApprove);
+        toast({
+          title: `Refund of ${sale.saleNo} saved on this till.`,
+          description: manager ? `${NEEDS_A_MANAGER}: it goes in for a manager to look at unless one approves it in Waiting to send.` : "It goes up when the line is back.",
+        });
+        onClose();
+      })
+      .finally(() => setBusy(false));
   };
 
   return (
@@ -885,17 +942,17 @@ function RefundDialog({ sale, shiftId, onClose }: { sale: SaleDetail; shiftId: s
       meta={`${sale.customerName || "Walk-in"} · paid by ${paidBy(sale.payments).map((label) => label.toLowerCase()).join(" and ") || "cash"}`}
       foot={
         <>
-          {fields.asks ? (
+          {rules && !canApprove && amount + alreadyBack > Number(rules.refundPinOver) ? (
             <span className="start">
               <Key className="ic" />
-              {fields.asks}
+              {refundPinSentence(rules.refundPinOver, rules.currency)}
             </span>
           ) : null}
           <button type="button" className="btn" onClick={onClose}>
             <X className="ic" />
             Cancel
           </button>
-          <button type="button" className="btn btn-primary" disabled={refund.isPending} aria-busy={refund.isPending || undefined} onClick={submit}>
+          <button type="button" className="btn btn-primary" disabled={busy} aria-busy={busy || undefined} onClick={submit}>
             <ArrowsCounterClockwise className="ic" />
             Refund {usd(amount)}
           </button>
@@ -952,59 +1009,114 @@ function RefundDialog({ sale, shiftId, onClose }: { sale: SaleDetail; shiftId: s
           </tr>
         </tfoot>
       </table>
-      <div className="field-row">
-        <div className="field">
-          <label htmlFor={`${ids}w`}>Why</label>
-          <select id={`${ids}w`} className="select input-lg" value={why} onChange={(event) => setWhy(event.target.value)}>
-            {reasons.map((entry) => (
-              <option key={entry}>{entry}</option>
-            ))}
-          </select>
-          <span className="help">
-            {backNames.length ? `The ${backNames.join(" and ")} ${backNames.length > 1 ? "go" : "goes"} back into stock.` : "What comes back goes back into stock."}
-          </span>
-        </div>
-        <div className="field">
-          <span className="label">Back by {tender === "CASH" ? "cash" : paymentLabel(tender).toLowerCase()}</span>
-          <p className="help is-flush">
-            {tender === "CASH" ? "From this till’s drawer." : `Reversed on the ${paymentLabel(tender).toLowerCase()} it was paid by.`}
-          </p>
-        </div>
+      <div className="field">
+        <span className="label">Why</span>
+        <ChoiceChips label="Why" value={why} options={reasons.map((entry) => ({ value: entry, label: entry }))} onChange={setWhy} />
       </div>
-      <ManagerFields fields={fields} ids={ids} />
+      <div className="field">
+        <span className="label">Money goes back as</span>
+        <ChoiceChips label="Money goes back as" value={to} options={ways} onChange={setTo} />
+        <span className="help">
+          {to === "ORIGINAL"
+            ? `Reversed on ${originalLabel(original ?? "").replace(/^The /, "the ")} it was paid by.`
+            : to === "CASH"
+              ? "From this till’s drawer."
+              : to === "CREDIT_NOTE"
+                ? `A credit note for ${sale.customerName || customer?.name || "the customer"} to spend here.`
+                : "A gift voucher anyone can spend here."}
+        </span>
+      </div>
+      {to === "CREDIT_NOTE" && !sale.customer ? <CustomerPicker value={customer} onChange={setCustomer} label="Whose credit note" /> : null}
+      <label className="check">
+        <input type="checkbox" className="switch" checked={restock} disabled={damaged} onChange={(event) => setShelf(event.target.checked)} />
+        <span>Put it back on the shelf</span>
+      </label>
+      <span className="help">
+        {damaged
+          ? "Off for damaged goods: they are written off and show in Losses."
+          : restock
+            ? backNames.length
+              ? `The ${backNames.join(" and ")} ${backNames.length > 1 ? "go" : "goes"} back into stock.`
+              : "What comes back goes back into stock."
+            : "Not back in stock: it is written off and shows in Losses."}
+      </span>
       {problem ? <ErrorLine>{problem}</ErrorLine> : null}
+      {approval.dialog}
     </TillDialog>
   );
 }
 
+/** One of a few as chips: Why, and the way the money goes back. */
+function ChoiceChips<T extends string>({ label, value, options, onChange }: { label: string; value: T; options: Array<{ value: T; label: string }>; onChange: (value: T) => void }) {
+  return (
+    <div className="choice-chips" role="radiogroup" aria-label={label}>
+      {options.map((option) => (
+        <button key={option.value} type="button" role="radio" aria-checked={option.value === value} className="btn btn-lg" onClick={() => onChange(option.value)}>
+          {option.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/**
+ * Void (W-41): only today's sale with nothing reversed off it, for one of the
+ * till rules' reasons. The void rule's manager comes through the approval
+ * dialog; with the line down it is saved on the till for review.
+ */
 function VoidDialog({ sale, shiftId, onClose }: { sale: SaleDetail; shiftId: string | null; onClose: () => void }) {
   const router = useRouter();
   const queryClient = useQueryClient();
-  const { isPosHost, rules, canApprove } = useTill();
-  const ids = React.useId();
+  const { toast } = useToast();
+  const { isPosHost, rules, approvers, canApprove, queueReversal } = useTill();
   const reasons = rules?.voidReasons ?? [];
-  // "After 5 minutes" is judged from when Void was pressed.
-  const [openedAt] = React.useState(() => Date.now());
-  const age = openedAt - new Date(sale.postedAt ?? sale.createdAt).getTime();
-  const locked = rules?.voidPin === "ALWAYS" || (rules?.voidPin === "AFTER_5_MINUTES" && age > VOID_FREE_MS);
-  const fields = useManagerPin(!canApprove && rules && locked ? voidPinSentence(rules.voidPin) : null);
   const [reason, setReason] = React.useState(reasons[0] ?? "");
   const [problem, setProblem] = React.useState<string | null>(null);
+  const [busy, setBusy] = React.useState(false);
   const tenders = paidBy(sale.payments).map((label) => label.toLowerCase());
+  const approval = useApproval({ approvers: approvers.sell, reason: `Void ${sale.saleNo}` });
 
-  const voidSale = useMutation({
-    mutationFn: () =>
-      fetchJson(`/api/v2/retail/pos/sales/${sale.id}/void`, {
-        method: "POST",
-        body: JSON.stringify({ shiftId, reason, ...fields.approver() }),
-      }),
-    onSuccess: () => {
-      invalidateSale(queryClient);
-      onClose();
-      router.push(getPosPortalHref("history", isPosHost));
-    },
-    onError: (error) => setProblem(fields.refused(error)),
-  });
+  const submit = () => {
+    if (!shiftId) return setProblem("Open a shift on this till first: the cash goes back out of its drawer.");
+    if (!reason) return setProblem("Say why it is voided.");
+    setProblem(null);
+    setBusy(true);
+    approval
+      .run((approver) =>
+        fetchJson(`/api/v2/retail/pos/sales/${sale.id}/void`, {
+          method: "POST",
+          body: JSON.stringify({ reason, ...(approver ? { approver } : {}) }),
+        }),
+      )
+      .then((done) => {
+        if (!done) return;
+        invalidateSale(queryClient);
+        toast({ title: `${sale.saleNo} voided.`, variant: "success" });
+        onClose();
+        router.push(getPosPortalHref("history", isPosHost));
+      })
+      .catch(async (error: unknown) => {
+        if (!lineDown(error)) return setProblem(getApiErrorMessage(error));
+        const payload: PosReversalQueuePayload = {
+          kind: "void",
+          saleId: sale.id,
+          saleNo: sale.saleNo,
+          amount: Math.abs(paidOn(sale)),
+          already: 0,
+          saleAt: sale.postedAt ?? sale.createdAt,
+          at: new Date().toISOString(),
+          body: { reason },
+        };
+        if (!(await queueReversal(payload))) return setProblem(getApiErrorMessage(error));
+        const manager = rules && reversalNeedsManager(payload, rules, canApprove);
+        toast({
+          title: `Void of ${sale.saleNo} saved on this till.`,
+          description: manager ? `${NEEDS_A_MANAGER}: it goes in for a manager to look at unless one approves it in Waiting to send.` : "It goes up when the line is back.",
+        });
+        onClose();
+      })
+      .finally(() => setBusy(false));
+  };
 
   return (
     <TillDialog
@@ -1018,19 +1130,7 @@ function VoidDialog({ sale, shiftId, onClose }: { sale: SaleDetail; shiftId: str
             <X className="ic" />
             Keep the sale
           </button>
-          <button
-            type="button"
-            className="btn btn-danger"
-            disabled={voidSale.isPending}
-            aria-busy={voidSale.isPending || undefined}
-            onClick={() => {
-              if (!shiftId) return setProblem("Open a shift on this till first: the cash goes back out of its drawer.");
-              if (!reason) return setProblem("Say why it is voided.");
-              if (!fields.ready) return setProblem("A manager types their PIN to approve it.");
-              setProblem(null);
-              voidSale.mutate();
-            }}
-          >
+          <button type="button" className="btn btn-danger" disabled={busy} aria-busy={busy || undefined} onClick={submit}>
             <Prohibit className="ic" />
             Void {sale.saleNo}
           </button>
@@ -1038,16 +1138,12 @@ function VoidDialog({ sale, shiftId, onClose }: { sale: SaleDetail; shiftId: str
       }
     >
       <div className="field">
-        <label htmlFor={`${ids}r`}>Reason</label>
-        <select id={`${ids}r`} className="select input-lg" value={reason} onChange={(event) => setReason(event.target.value)}>
-          {reasons.map((entry) => (
-            <option key={entry}>{entry}</option>
-          ))}
-        </select>
-        {fields.asks ? <span className="help">{fields.asks}</span> : null}
+        <span className="label">Why</span>
+        <ChoiceChips label="Why" value={reason} options={reasons.map((entry) => ({ value: entry, label: entry }))} onChange={setReason} />
+        {rules && !canApprove && rules.voidPin !== "NEVER" ? <span className="help">{voidPinSentence(rules.voidPin)}</span> : null}
       </div>
-      <ManagerFields fields={fields} ids={ids} />
       {problem ? <ErrorLine>{problem}</ErrorLine> : null}
+      {approval.dialog}
     </TillDialog>
   );
 }

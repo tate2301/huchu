@@ -15,12 +15,14 @@ import {
   refuseShiftElsewhere,
   requirePosDevice,
   salesSentAfterUnpairing,
+  approversWith,
   tillPeople,
   unpairedSaleGate,
   type PosDevice,
 } from "./devices";
 import { DEVICE_COOKIE, UNPAIRED_REVIEW_REASON } from "./device-words";
 import { issuePairingCode } from "./pairing";
+import { readTillMessages, tillMessages } from "./till-messages";
 
 /** W-04 and W-76 on the device side, against the test database, on a shop with a two-till plan. */
 
@@ -370,6 +372,46 @@ describe("every POS request names its device (W-04 step 8)", () => {
 
     await prisma.retailShift.deleteMany({ where: { registerId: side.id } });
     await prisma.retailTillPin.update({ where: { userId: people.farai! }, data: { failedAttempts: 0, lockedAt: null } });
+  });
+
+  it("counts each person's unread till messages for their chip, and gives the text only to them (FLR-09)", async () => {
+    const send = (type: "RETAIL_STAFF_MESSAGE" | "RETAIL_SHIFT_SIGNED_OFF" | "RETAIL_TRANSFER_SENT", to: string, summary: string) =>
+      prisma.notification.create({
+        data: { companyId, type, title: "A message from Tafara Nyathi", summary, recipients: { create: [{ userId: to }] } },
+        select: { id: true },
+      });
+    const message = await send("RETAIL_STAFF_MESSAGE", people.chipo!, "Count the Castle crates before you close.");
+    await send("RETAIL_SHIFT_SIGNED_OFF", people.chipo!, "SH-00310 was signed off.");
+    // Another kind of notification is not a till message.
+    await send("RETAIL_TRANSFER_SENT", people.chipo!, "TRF-0012 is on its way.");
+    await send("RETAIL_STAFF_MESSAGE", people.kuda!, "See me at two.");
+
+    const unread = Object.fromEntries((await tillPeople(device)).map((person) => [person.label, person.unread]));
+    expect(unread).toEqual({ "Chipo D.": 2, "Kuda B.": 1, "Farai M.": 0 });
+
+    const mine = await tillMessages(companyId, people.chipo!);
+    expect(mine.map((entry) => entry.summary).sort()).toEqual(["Count the Castle crates before you close.", "SH-00310 was signed off."]);
+    // Chipo cannot mark Kuda's read, and "Got it" clears her own.
+    const kudas = await tillMessages(companyId, people.kuda!);
+    expect(await readTillMessages(companyId, people.chipo!, kudas.map((entry) => entry.id))).toBe(0);
+    expect(await readTillMessages(companyId, people.chipo!, [message.id])).toBe(1);
+    const after = Object.fromEntries((await tillPeople(device)).map((person) => [person.label, person.unread]));
+    expect(after).toEqual({ "Chipo D.": 1, "Kuda B.": 1, "Farai M.": 0 });
+  });
+
+  it("lists who approves at the till per right, as chips (FLR-09)", () => {
+    const pins = [
+      { user: { id: "c", name: "Chipo Dube", role: "CASHIER" } },
+      { user: { id: "t", name: "Tafara Nyathi", role: "MANAGER" } },
+      { user: { id: "o", name: "Rufaro Ndlovu", role: "SUPERADMIN" } },
+      { user: { id: "s", name: "Tendai Sibanda", role: "STOCK_CLERK" } },
+    ];
+    const chips = [
+      { userId: "o", name: "Rufaro Ndlovu", short: "Rufaro N." },
+      { userId: "t", name: "Tafara Nyathi", short: "Tafara N." },
+    ];
+    expect(approversWith(pins, "retail.sell")).toEqual(chips);
+    expect(approversWith(pins, "retail.cash-control")).toEqual(chips);
   });
 
   it("signs a person in with their PIN at the device, with the till PIN's lockout", async () => {

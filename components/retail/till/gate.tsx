@@ -231,6 +231,8 @@ function WhoSells({
               <Avatar name={person.label} />
               <span>
                 <span className="block">{person.label}</span>
+                {/* How many wait, never what they say: the text shows after their PIN (FLR-09). */}
+                {person.unread ? <span className="block meta">{count(person.unread, "message")}</span> : null}
               </span>
               <span className="push-right">
                 {person.openShift?.here ? (

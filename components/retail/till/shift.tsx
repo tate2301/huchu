@@ -8,7 +8,7 @@
  * has it, and a drawer out by more than US$1.00 comes back asking what
  * happened. Closing ends the session: the till goes back to "Who is
  * selling?" and stays paired. The cash-drop prompt lands here with
- * `?move=drop`, and Move cash opens on "To the safe".
+ * `?move=drop`, and Cash in or out opens on "Drop to the safe".
  */
 
 import * as React from "react";
@@ -16,18 +16,18 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
+import { useToast } from "@/components/ui/use-toast";
 import { ApiError, fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { ArrowsClockwise, CaretLeft, CaretRight, CashRegister, Check, Minus, Money, Plus, Vault, X } from "@/lib/icons";
 import {
-  getCashDenominations,
   cashMovementWhy,
   type RetailCashMovementReasonCode,
   type RetailCashMovementTypeName,
 } from "@/lib/retail/cash-movements";
 import { DENOMINATIONS, floatLeftProblem, rowTotal, type CountCurrency } from "@/lib/retail/floor/count";
-import { count, dayMonth, firstName, hhmm, pairedWhen, paymentLabel, usd, whole } from "./format";
+import { count, dayMonth, firstName, hhmm, pairedWhen, paymentLabel, signedUsd, usd, whole } from "./format";
 import { Empty, ErrorLine, GateSide, Keypad, Segmented, TillDialog, useKeypadKeys, useWindowKeys, type KeypadKey } from "./parts";
-import { ManagerFields, useManagerPin } from "./manager-pin";
+import { useApproval } from "./approval";
 import { useHeldSummary } from "./shell";
 import { useSignOut } from "./sign-out";
 import { useTill } from "./state";
@@ -45,12 +45,12 @@ type Movement = {
   createdAt: string;
 };
 
-/** The till's three: no "Pay a supplier" (98-decisions C-33); packet 60 brings the shared approval dialog. */
+/** The till's three why cards (W-38); no "Pay a supplier" (98-decisions C-33). The enum keeps every reason for the books. */
 type MoveWhy = "DROP" | "TOP_UP" | "PETTY";
-const MOVE_WAYS: Array<{ why: MoveWhy; direction: "OUT" | "IN"; label: string; action: (amount: number) => string }> = [
-  { why: "DROP", direction: "OUT", label: "To the safe", action: (amount) => `Move ${usd(amount)} to the safe` },
-  { why: "TOP_UP", direction: "IN", label: "In from the safe", action: (amount) => `Bring ${usd(amount)} in from the safe` },
-  { why: "PETTY", direction: "OUT", label: "Petty cash", action: (amount) => `Pay out ${usd(amount)}` },
+const MOVE_WAYS: Array<{ why: MoveWhy; direction: "OUT" | "IN"; label: string; meta: string; action: (amount: string) => string; done: (amount: string) => string }> = [
+  { why: "DROP", direction: "OUT", label: "Drop to the safe", meta: "Notes off the counter", action: (amount) => `Move ${amount} to the safe`, done: (amount) => `${amount} moved to the safe` },
+  { why: "PETTY", direction: "OUT", label: "Petty cash", meta: "Paid out for the shop", action: (amount) => `Pay out ${amount}`, done: (amount) => `${amount} paid out` },
+  { why: "TOP_UP", direction: "IN", label: "Float top-up", meta: "Change from the safe", action: (amount) => `Bring ${amount} in`, done: (amount) => `${amount} brought in` },
 ];
 
 function noteLabel(denomination: string) {
@@ -143,10 +143,10 @@ function ShiftRecord({ onCashUp }: { onCashUp: () => void }) {
   const movements = useMovements(shiftHere?.id);
   // From the cash-drop prompt: the drop is the thing to do here.
   const dropAsked = useSearchParams().get("move") === "drop";
-  const [moving, setMoving] = React.useState(dropAsked);
+  const [moving, setMoving] = React.useState<MoveWhy | "ANY" | null>(dropAsked ? "DROP" : null);
   const shift = shiftHere!;
   const closeMove = () => {
-    setMoving(false);
+    setMoving(null);
     router.replace(pathname);
   };
   const name = session?.user?.name ?? "You";
@@ -174,9 +174,9 @@ function ShiftRecord({ onCashUp }: { onCashUp: () => void }) {
           </div>
           <div className="end">
             <div className="btn-group" role="group" aria-label="This shift">
-              <button type="button" className="btn" onClick={() => setMoving(true)}>
+              <button type="button" className="btn" onClick={() => setMoving("ANY")}>
                 <Vault className="ic" />
-                Move cash
+                Cash in or out
               </button>
             </div>
             <button type="button" className="btn btn-primary" onClick={onCashUp}>
@@ -263,49 +263,79 @@ function ShiftRecord({ onCashUp }: { onCashUp: () => void }) {
           </p>
         </section>
       </aside>
-      {moving ? <MoveCashDialog onClose={closeMove} /> : null}
+      {moving ? <MoveCashDialog preset={moving === "ANY" ? null : moving} onClose={closeMove} /> : null}
     </div>
   );
 }
 
-/* ─── Move cash ──────────────────────────────────────────────────────── */
+/* ─── Cash in or out ─────────────────────────────────────────────────── */
 
-function MoveCashDialog({ onClose }: { onClose: () => void }) {
+/**
+ * Cash in or out (W-38): which way, then why (the three cards), the amount in
+ * US$ or ZiG, and optionally the bundle counted by note. Every movement is
+ * approved: someone who holds `retail.cash-control:approve` approves their
+ * own; anyone else's goes through the approval dialog with a manager's PIN.
+ */
+function MoveCashDialog({ preset, onClose }: { preset: MoveWhy | null; onClose: () => void }) {
   const queryClient = useQueryClient();
-  const { shiftHere, context, canApprove } = useTill();
+  const { toast } = useToast();
+  const { shiftHere, context, approvers, isOffline } = useTill();
   const shift = shiftHere!;
-  const notes = getCashDenominations(shift.baseCurrency ?? "USD") ?? [];
-  const [way, setWay] = React.useState<MoveWhy>("DROP");
+  const takesZig = (context?.tenders ?? []).some((choice) => choice.tender === "CASH" && choice.currency === "ZWG");
+  const [direction, setDirection] = React.useState<"OUT" | "IN">(preset === "TOP_UP" ? "IN" : "OUT");
+  const [way, setWay] = React.useState<MoveWhy>(preset ?? "DROP");
+  const [currency, setCurrency] = React.useState<CountCurrency>("USD");
+  const [typed, setTyped] = React.useState("");
+  const [counting, setCounting] = React.useState(false);
   const [bundle, setBundle] = React.useState<Record<string, number>>({});
   const [note, setNote] = React.useState("");
   const [problem, setProblem] = React.useState<string | null>(null);
-  // FLR-03: every movement is approved; someone who cannot approve it picks a manager, who types their PIN.
-  const manager = useManagerPin(canApprove ? null : "A manager has to approve this.");
+  const [busy, setBusy] = React.useState(false);
   const ids = React.useId();
-  const amount = Number(notes.reduce((sum, denomination) => sum + Number(denomination) * (bundle[denomination] ?? 0), 0).toFixed(2));
+  const notes = DENOMINATIONS[currency];
+  const counted = Number(notes.reduce((sum, denomination) => sum + Number(rowTotal({ denomination, count: bundle[denomination] ?? 0 })), 0).toFixed(2));
+  const amount = counting && counted > 0 ? counted : Number(typed || "0");
+  const money = (value: number) => (currency === "ZWG" ? `ZiG ${value.toFixed(2)}` : usd(value));
   const chosen = MOVE_WAYS.find((entry) => entry.why === way)!;
+  const approval = useApproval({ approvers: approvers.cashControl, reason: `Cash ${direction === "OUT" ? "out" : "in"} ${money(amount)}` });
 
-  const save = useMutation({
-    mutationFn: () =>
-      fetchJson(`/api/v2/retail/pos/shifts/${shift.id}/cash-movements`, {
-        method: "POST",
-        body: JSON.stringify({
-          direction: chosen.direction,
-          why: way,
-          amount: amount.toFixed(2),
-          currency: "USD",
-          ...(note.trim() ? { note: note.trim() } : {}),
-          denominations: notes.map((denomination) => ({ denomination, count: bundle[denomination] ?? 0 })).filter((line) => line.count > 0),
-          ...manager.approver(),
+  const pickDirection = (next: "OUT" | "IN") => {
+    setDirection(next);
+    setWay(next === "IN" ? "TOP_UP" : "DROP");
+  };
+
+  const save = () => {
+    if (!amount) return setProblem(counting ? "Count the notes that move." : "Type how much moves.");
+    if (way === "PETTY" && note.trim().length < 3) return setProblem("Say what it was for.");
+    setProblem(null);
+    setBusy(true);
+    const body = {
+      direction,
+      why: way,
+      amount: amount.toFixed(2),
+      currency,
+      ...(note.trim() ? { note: note.trim() } : {}),
+      ...(counting
+        ? { denominations: notes.map((denomination) => ({ denomination, count: bundle[denomination] ?? 0 })).filter((line) => line.count > 0) }
+        : {}),
+    };
+    approval
+      .run((approver) =>
+        fetchJson(`/api/v2/retail/pos/shifts/${shift.id}/cash-movements`, {
+          method: "POST",
+          body: JSON.stringify({ ...body, ...(approver ? { approver } : {}) }),
         }),
-      }),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ["retail-cash-movements"] });
-      void queryClient.invalidateQueries({ queryKey: ["retail-current-shift"] });
-      onClose();
-    },
-    onError: (error) => setProblem(manager.refused(error)),
-  });
+      )
+      .then((done) => {
+        if (!done) return;
+        void queryClient.invalidateQueries({ queryKey: ["retail-cash-movements"] });
+        void queryClient.invalidateQueries({ queryKey: ["retail-current-shift"] });
+        toast({ title: `${chosen.done(money(amount))}.`, variant: "success" });
+        onClose();
+      })
+      .catch((error: unknown) => setProblem(getApiErrorMessage(error)))
+      .finally(() => setBusy(false));
+  };
 
   return (
     <TillDialog
@@ -313,7 +343,7 @@ function MoveCashDialog({ onClose }: { onClose: () => void }) {
       large
       compact
       onOpenChange={(open) => !open && onClose()}
-      title="Move cash"
+      title="Cash in or out"
       meta={
         <>
           <span className="num">{shift.shiftNo}</span> · {context?.till.name}
@@ -322,7 +352,7 @@ function MoveCashDialog({ onClose }: { onClose: () => void }) {
       foot={
         <>
           <span className="start">
-            Comes to <span className="num ink weight-600">{usd(amount)}</span>
+            Comes to <span className="num ink weight-600">{money(amount)}</span>
           </span>
           <button type="button" className="btn" onClick={onClose}>
             <X className="ic" />
@@ -331,17 +361,13 @@ function MoveCashDialog({ onClose }: { onClose: () => void }) {
           <button
             type="button"
             className="btn btn-primary"
-            disabled={save.isPending || !manager.ready}
-            aria-busy={save.isPending || undefined}
-            onClick={() => {
-              if (!amount) return setProblem("Count the notes that move.");
-              if (way === "PETTY" && note.trim().length < 3) return setProblem("Say what it was for.");
-              setProblem(null);
-              save.mutate();
-            }}
+            disabled={busy || isOffline}
+            title={isOffline ? "Needs the line: write it on the safe log and enter it here once it is back." : undefined}
+            aria-busy={busy || undefined}
+            onClick={save}
           >
             <Check className="ic" />
-            {chosen.action(amount)}
+            {chosen.action(money(amount))}
           </button>
         </>
       }
@@ -349,31 +375,79 @@ function MoveCashDialog({ onClose }: { onClose: () => void }) {
       <Segmented
         label="Which way"
         className="self-start"
-        value={way}
-        options={MOVE_WAYS.map((entry) => ({ value: entry.why, label: entry.label }))}
-        onChange={(next) => setWay(next)}
+        value={direction}
+        options={[
+          { value: "OUT", label: "Out of the drawer" },
+          { value: "IN", label: "Into the drawer" },
+        ]}
+        onChange={pickDirection}
       />
-      <div className="list is-framed">
-        {notes.map((denomination) => {
-          const value = bundle[denomination] ?? 0;
-          return (
-            <div key={denomination} className="row is-split">
-              <span className="num text-left ink weight-500">
-                {noteLabel(denomination)}
-              </span>
-              <span className="qty" role="group" aria-label={`${noteLabel(denomination)} notes`}>
-                <button type="button" aria-label={`One fewer ${noteLabel(denomination)}`} disabled={!value} onClick={() => setBundle({ ...bundle, [denomination]: value - 1 })}>
-                  <Minus className="ic" />
-                </button>
-                <span>{value}</span>
-                <button type="button" aria-label={`One more ${noteLabel(denomination)}`} onClick={() => setBundle({ ...bundle, [denomination]: value + 1 })}>
-                  <Plus className="ic" />
-                </button>
-              </span>
-            </div>
-          );
-        })}
+      <div className="why-cards" role="radiogroup" aria-label="Why">
+        {MOVE_WAYS.filter((entry) => entry.direction === direction).map((entry) => (
+          <button key={entry.why} type="button" role="radio" aria-checked={entry.why === way} className="pay" onClick={() => setWay(entry.why)}>
+            <span>{entry.label}</span>
+            <span className="meta">{entry.meta}</span>
+          </button>
+        ))}
       </div>
+      <div className="field-row">
+        <div className="field">
+          <label htmlFor={`${ids}a`}>Amount</label>
+          <input
+            id={`${ids}a`}
+            className="input input-lg num text-left"
+            inputMode="decimal"
+            value={counting && counted > 0 ? counted.toFixed(2) : typed}
+            readOnly={counting && counted > 0}
+            onChange={(event) => setTyped(event.target.value.replace(/[^\d.]/g, ""))}
+          />
+        </div>
+        {takesZig ? (
+          <div className="field">
+            <span className="label">In</span>
+            <Segmented
+              label="Currency"
+              value={currency}
+              options={[
+                { value: "USD", label: "US$" },
+                { value: "ZWG", label: "ZiG" },
+              ]}
+              onChange={(next) => {
+                setCurrency(next);
+                setBundle({});
+              }}
+            />
+          </div>
+        ) : null}
+      </div>
+      <label className="check">
+        <input type="checkbox" className="switch" checked={counting} onChange={(event) => setCounting(event.target.checked)} />
+        <span>
+          Count the bundle by note <span className="opt">optional</span>
+        </span>
+      </label>
+      {counting ? (
+        <div className="list is-framed">
+          {notes.map((denomination) => {
+            const value = bundle[denomination] ?? 0;
+            const label = currency === "ZWG" ? `ZiG ${denomination}` : noteLabel(denomination);
+            return (
+              <div key={denomination} className="row is-split">
+                <span className="num text-left ink weight-500">{label}</span>
+                <span className="qty" role="group" aria-label={`${label} notes`}>
+                  <button type="button" aria-label={`One fewer ${label}`} disabled={!value} onClick={() => setBundle({ ...bundle, [denomination]: value - 1 })}>
+                    <Minus className="ic" />
+                  </button>
+                  <span>{value}</span>
+                  <button type="button" aria-label={`One more ${label}`} onClick={() => setBundle({ ...bundle, [denomination]: value + 1 })}>
+                    <Plus className="ic" />
+                  </button>
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      ) : null}
       <div className="field">
         <label htmlFor={`${ids}n`}>
           {way === "PETTY" ? "What for" : "Note"} {way === "PETTY" ? null : <span className="opt">optional</span>}
@@ -386,8 +460,8 @@ function MoveCashDialog({ onClose }: { onClose: () => void }) {
           onChange={(event) => setNote(event.target.value)}
         />
       </div>
-      <ManagerFields fields={manager} ids={ids} />
       {problem ? <ErrorLine>{problem}</ErrorLine> : null}
+      {approval.dialog}
     </TillDialog>
   );
 }
@@ -624,7 +698,7 @@ function CheckScreen({
             </>
           ) : (
             <>
-              {out < 0 ? "Short by" : "Over by"} <span className="num">{usd(Math.abs(out))}</span>.{" "}
+              It is out by <span className="num">{signedUsd(out)}</span>.{" "}
               <span className="q">Say what happened, then close.</span>
             </>
           )}
@@ -643,9 +717,7 @@ function CheckScreen({
         </div>
         {outBy !== null ? (
           <div className="field">
-            <label htmlFor={id}>
-              What happened, if you know <span className="opt">optional</span>
-            </label>
+            <label htmlFor={id}>What happened</label>
             <input
               ref={noteRef}
               id={id}

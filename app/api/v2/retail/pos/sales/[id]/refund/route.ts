@@ -66,8 +66,12 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         // The manager whose PIN let it through, or whose own right did; null when nobody had to.
         approvedByName: sale.approvedByName,
         notes: sale.notes,
+        // As the back office's toast reads it (refundDoneSentence): "RFD-0045 done. US$42.00 back on the card."
         value: refund.value,
+        currency: refund.currency,
         to: refund.to,
+        tender: refund.tender,
+        till: refund.till,
         voucherCode: refund.voucherCode,
         accountingStatus: refund.accounting.accountingStatus,
         accountingError: refund.accounting.accountingError,

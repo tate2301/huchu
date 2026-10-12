@@ -40,6 +40,7 @@ import { cashUpSignOff, type SignOff } from "@/lib/retail/sign-off";
 import { loadTillRules, tillRulesForTill, type TillRulesForTill } from "@/lib/retail/till-rules";
 import { checkTillPin, type PinPlace } from "@/lib/retail/till-pin-attempt";
 import { deviceWords, type DeviceKind } from "@/lib/retail/till-words";
+import { unreadTillMessages } from "@/lib/retail/till-messages";
 
 /**
  * The device side of a till (10-setup W-04 steps 5–8, W-76, 4.4).
@@ -611,8 +612,12 @@ export type TillContext = {
     dayClose: "WITH_LAST_SHIFT" | "BY_HAND";
     whenUnreachable: "KEEP_SELLING" | "STOP_SELLING";
   };
-  /** Who can approve with their PIN at this till: active staff with a till PIN who hold the approve right. */
-  approvers: Array<{ userId: string; name: string }>;
+  /**
+   * Who can approve with their PIN at this till, per right: active staff with
+   * a till PIN who hold `retail.sell:approve` (refunds, voids, discounts, the
+   * drawer) or `retail.cash-control:approve` (cash in or out). FLR-09.
+   */
+  approvers: { sell: TillApprover[]; cashControl: TillApprover[] };
   /** The till's own list, else the site's, else the shop's default; null when the shop has none. */
   priceListId: string | null;
   /** The number the next shift opened at this site will take ("SH-00244"): a forecast, not reserved. */
@@ -622,6 +627,20 @@ export type TillContext = {
   /** The loyalty scheme as the till spends points (CUS-01): on or off, a point's worth, the balance needed, alcohol. */
   loyalty: { on: boolean; pointValue: number; spendFrom: number; payForAlcohol: boolean };
 };
+
+/** One person who can approve at the till: "Tafara N." is their chip. */
+export type TillApprover = { userId: string; name: string; short: string };
+
+/** The people holding a right's approve, by name, as the approval dialog's chips. */
+export function approversWith(
+  pins: ReadonlyArray<{ user: { id: string; name: string | null; role: string | null } }>,
+  resource: "retail.sell" | "retail.cash-control",
+): TillApprover[] {
+  return pins
+    .filter((pin) => canRetailRoleDo(pin.user.role, resource, "approve"))
+    .map((pin) => ({ userId: pin.user.id, name: pin.user.name ?? "", short: personChip(pin.user.name ?? "") }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+}
 
 export async function tillContext(device: PosDevice, now: Date = new Date()): Promise<TillContext> {
   const { register } = device;
@@ -671,10 +690,7 @@ export async function tillContext(device: PosDevice, now: Date = new Date()): Pr
     rules: tillRulesForTill(tillRules),
     receipt,
     fiscal,
-    approvers: pins
-      .filter((pin) => canRetailRoleDo(pin.user.role, "retail.sell", "approve"))
-      .map((pin) => ({ userId: pin.user.id, name: pin.user.name ?? "" }))
-      .sort((a, b) => a.name.localeCompare(b.name)),
+    approvers: { sell: approversWith(pins, "retail.sell"), cashControl: approversWith(pins, "retail.cash-control") },
     priceListId: register.priceListId ?? register.site.priceListId ?? defaultList?.id ?? null,
     nextShiftNo,
     signOff,
@@ -709,7 +725,10 @@ export type TillPerson = {
   pinLocked: boolean;
   /** Their open shift, on this till (`here`) or on another one. */
   openShift: { shiftNo: string; here: boolean; till: string } | null;
+  /** How many till messages wait for them ("1 message"): a count only, the text shows after their PIN (FLR-09). */
+  unread: number;
 };
+
 
 /**
  * The people who may sell at this till: active staff of the shop whom the
@@ -734,6 +753,7 @@ export async function tillPeople(device: PosDevice): Promise<TillPerson[]> {
   });
   const shiftOf = new Map<string, (typeof open)[number]>();
   for (const shift of open) if (!shiftOf.has(shift.cashierId)) shiftOf.set(shift.cashierId, shift);
+  const unread = await unreadTillMessages(device.companyId, sellers.map((user) => user.id));
   const onThisTill = (userId: string) => shiftOf.get(userId)?.registerId === device.registerId;
   const surname = (name: string) => name.trim().split(/\s+/).at(-1)?.toLowerCase() ?? "";
   return sellers
@@ -755,6 +775,7 @@ export async function tillPeople(device: PosDevice): Promise<TillPerson[]> {
         ),
         pinLocked: lockedIds.has(user.id),
         openShift: shift ? { shiftNo: shift.shiftNo, here: onThisTill(user.id), till: shift.registerName } : null,
+        unread: unread.get(user.id) ?? 0,
       };
     });
 }

@@ -15,7 +15,7 @@ import * as React from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { fetchJson } from "@/lib/api-client";
 import {
@@ -39,7 +39,7 @@ import {
   X,
 } from "@/lib/icons";
 import { getPosPortalHref, type PosPortalNavKey } from "@/lib/retail/pos-host";
-import { ROLE_WORD } from "./format";
+import { dayMonth, hhmm, ROLE_WORD } from "./format";
 import { useTillLock } from "./lock";
 import { Avatar, TillDialog, TillPopover } from "./parts";
 import { useSignOut } from "./sign-out";
@@ -224,6 +224,65 @@ function TillNotes() {
  * goes over (a reload does not ask again), never over the lock. Either answer
  * counts as asked.
  */
+/** A message for the person at the till (`pos/messages`): a staff message or a cash-up sign-off. */
+type PersonMessage = { id: string; title: string; summary: string; at: string };
+
+/**
+ * Messages for the person signed in (FLR-09): "Who is selling?" showed only
+ * how many; their text shows here, once they have typed their PIN. "Got it"
+ * marks them read; closing it any other way leaves them for next time.
+ */
+function PersonMessages() {
+  const queryClient = useQueryClient();
+  const { isOffline } = useTill();
+  const [closed, setClosed] = React.useState(false);
+  const messages = useQuery({
+    queryKey: ["retail-pos-messages"],
+    queryFn: async () => (await fetchJson<{ data: PersonMessage[] }>("/api/v2/retail/pos/messages")).data,
+    enabled: !isOffline,
+    staleTime: Infinity,
+  });
+  const read = useMutation({
+    mutationFn: (ids: string[]) => fetchJson("/api/v2/retail/pos/messages/read", { method: "POST", body: JSON.stringify({ ids }) }),
+    onSettled: () => void queryClient.invalidateQueries({ queryKey: ["retail-pos-messages"] }),
+  });
+  const list = messages.data ?? [];
+  const today = dayMonth(new Date());
+  return (
+    <TillDialog
+      open={!closed && list.length > 0}
+      onOpenChange={(open) => !open && setClosed(true)}
+      title={list.length === 1 ? "A message for you" : `${list.length} messages for you`}
+      foot={
+        <button
+          type="button"
+          className="btn btn-primary"
+          disabled={read.isPending}
+          aria-busy={read.isPending || undefined}
+          onClick={() => {
+            read.mutate(list.map((message) => message.id));
+            setClosed(true);
+          }}
+        >
+          Got it
+        </button>
+      }
+    >
+      <div className="msg-list">
+        {list.map((message) => (
+          <div key={message.id} className="msg">
+            <div className="row is-split">
+              <span className="ink weight-500">{message.title}</span>
+              <time>{dayMonth(message.at) === today ? hhmm(message.at) : `${dayMonth(message.at)}, ${hhmm(message.at)}`}</time>
+            </div>
+            <p className="pretty">{message.summary}</p>
+          </div>
+        ))}
+      </div>
+    </TillDialog>
+  );
+}
+
 function CashDropPrompt() {
   const router = useRouter();
   const { cashDropPrompt, answerCashDrop, isPosHost } = useTill();
@@ -328,6 +387,7 @@ export function TillShell({ children }: { children: React.ReactNode }) {
         {children}
       </div>
       <CashDropPrompt />
+      <PersonMessages />
       <nav className="tabbar" aria-label="Till">
         {DOORS.filter((entry) => entry.phone).map((entry) => door(entry, "tab"))}
         <PersonMenu

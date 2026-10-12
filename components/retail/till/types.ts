@@ -128,24 +128,8 @@ export type HeldCart = {
 /** A manager's PIN at this till (C-31): who approves, and their four digits. Never queued offline. */
 export type Approver = { userId: string; pin: string };
 
-/**
- * What goes with a sale that changes a price or gives a discount: the reason,
- * kept on the sale, and the manager approving when the till rules ask for one
- * and the person selling may not approve it themselves.
- */
-export type Approval = { reason: string; approver: Approver | null };
-
-/**
- * Why `pos/sales` did not take the sale.
- * - `needs-approver`: 409 `needsApprover`. The rules want a manager and none, or the wrong one, came;
- *   `field` says which part was wrong ("pin" or "approver"), null when none was given.
- * - `pin-locked`: 423. That manager's PIN is locked; another manager approves.
- * - `refused`: anything else the server said no to, or the offline window has closed. The sale stays on the till.
- */
-export type SaleRefusal =
-  | { kind: "needs-approver"; message: string; field: "pin" | "approver" | null }
-  | { kind: "pin-locked"; message: string }
-  | { kind: "refused"; message: string };
+/** Why `pos/sales` did not take the sale: anything the server said no to (a manager asked for is the approval dialog's), or the offline window has closed. The sale stays on the till. */
+export type SaleRefusal = { kind: "refused"; message: string };
 
 /** A sale `pos/sales` took, as it answers. Money is in the sale's currency. */
 export type CompletedSale = {

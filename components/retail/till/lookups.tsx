@@ -13,7 +13,8 @@ import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { Barcode, MagnifyingGlass, Plus, ShoppingCart, Tag, Users } from "@/lib/icons";
 import { getPosPortalHref } from "@/lib/retail/pos-host";
 import { count, dayMonth, firstName, qty, usd, whole } from "./format";
-import { Avatar, Empty } from "./parts";
+import { LaybySearch } from "./layby";
+import { Avatar, Empty, Segmented } from "./parts";
 import { useTill } from "./state";
 import { ProductPreview } from "./tile";
 import type { PosCatalogItem, PosCustomer } from "./types";
@@ -33,7 +34,33 @@ function useTyped(delay = 250) {
 
 /* ─── Customers ──────────────────────────────────────────────────────── */
 
+/** Customers, with their lay-bys a tab away (FLR-09): find one by customer or LAY number. */
 export function CustomersScreen() {
+  const [view, setView] = React.useState<"customers" | "laybys">("customers");
+  const tabs = <Segmented label="Customers or lay-bys" value={view} options={[{ value: "customers", label: "Customers" }, { value: "laybys", label: "Lay-bys" }]} onChange={setView} />;
+  return view === "laybys" ? <LaybysView tabs={tabs} /> : <CustomerList tabs={tabs} />;
+}
+
+function LaybysView({ tabs }: { tabs: React.ReactNode }) {
+  const search = useTyped();
+  return (
+    <div className="main is-fixed">
+      <div className="bar">
+        <h1>Customers</h1>
+        {tabs}
+        <div className="end">
+          <label className="input-wrap is-search">
+            <MagnifyingGlass className="ic" />
+            <input type="search" aria-label="Search lay-bys" placeholder="Customer or LAY number" autoComplete="off" autoFocus value={search.typed} onChange={(event) => search.setTyped(event.target.value)} />
+          </label>
+        </div>
+      </div>
+      <LaybySearch query={search.value} />
+    </div>
+  );
+}
+
+function CustomerList({ tabs }: { tabs: React.ReactNode }) {
   const router = useRouter();
   const { selectCustomer, isPosHost } = useTill();
   const search = useTyped();
@@ -51,6 +78,7 @@ export function CustomersScreen() {
       <main className="main is-fixed">
         <div className="bar">
           <h1>Customers</h1>
+          {tabs}
           <div className="end">
             <label className="input-wrap is-search">
               <MagnifyingGlass className="ic" />

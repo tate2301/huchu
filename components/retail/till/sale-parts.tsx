@@ -42,7 +42,7 @@ import { count, firstName, MEASURES, qty, usd, whole } from "./format";
 import { Avatar, ErrorLine, TillDialog, TillPopover } from "./parts";
 import { discountApprovalReason } from "./sale-rules";
 import { lineIsChanged, useTill } from "./state";
-import type { Approval, CartItem, PosCustomer } from "./types";
+import type { CartItem, PosCustomer } from "./types";
 
 /** 0.10 → "10c", 1.50 → "US$1.50": a deposit as the shelf says it. */
 const depositWord = (value: number) => (value < 1 ? `${Math.round(value * 100)}c` : usd(value));
@@ -981,80 +981,33 @@ export function IdCheckDialog({ open, onDone }: { open: boolean; onDone: () => v
   );
 }
 
-/* ─── A manager approves ─────────────────────────────────────────────── */
+/* ─── Why the price changed ─────────────────────────────────────────── */
 
 /**
- * A changed price or a discount, at Take. The person selling says why; when
- * the till rules want a manager (`approvalReason`), or the server says so
- * (409 `needsApprover`, 423 locked), a manager picks their name and types
- * their four-digit PIN here (C-31). The PIN lives in this dialog only: it is
- * cleared each time it opens and after a refusal, and never queued offline.
+ * A changed price or a discount, at Take: the person selling says why, and
+ * it is kept on the sale. When the till rules want a manager for it, the sale
+ * goes and the server's 409 opens the approval dialog (`useApproval`, FLR-09):
+ * no manager is asked for here.
  */
-export function ApproveDialog({
+export function ReasonDialog({
   open,
   onOpenChange,
   amount,
-  onApprove,
+  onTake,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   amount: number;
-  onApprove: (approval: Approval) => void;
+  onTake: (reason: string) => void;
 }) {
-  const { data: session } = useSession();
-  const {
-    cart,
-    approvers,
-    approvalReason,
-    updateLine,
-    setOrderDiscountAmount,
-    lineDiscountTotal,
-    orderDiscountAmount,
-    postSalePending,
-    saleRefusal,
-  } = useTill();
-  const [manager, setManager] = React.useState("");
-  const [pin, setPin] = React.useState("");
+  const { cart, updateLine, setOrderDiscountAmount, lineDiscountTotal, orderDiscountAmount, postSalePending, approvalReason } = useTill();
   const [reason, setReason] = React.useState("");
-  const [problem, setProblem] = React.useState<{ field: "reason" | "manager" | "pin"; text: string } | null>(null);
-  // The server asked for a manager the till did not: kept until the dialog closes.
-  const [serverAsked, setServerAsked] = React.useState<string | null>(null);
+  const [problem, setProblem] = React.useState<string | null>(null);
   const ids = React.useId();
-  const chosen = approvers.find((person) => person.userId === manager) ?? approvers[0] ?? null;
-  const askedFor = approvalReason ?? serverAsked;
-  const managerNeeded = askedFor !== null;
 
   React.useEffect(() => {
-    if (open) {
-      setPin("");
-      setProblem(null);
-    } else {
-      setServerAsked(null);
-    }
+    if (open) setProblem(null);
   }, [open]);
-
-  // A refusal from `pos/sales`: ask for a manager, and clear what was wrong.
-  React.useEffect(() => {
-    if (!saleRefusal || saleRefusal.kind === "refused") return;
-    setPin("");
-    if (saleRefusal.kind === "needs-approver") {
-      if (saleRefusal.field === null) setServerAsked(saleRefusal.message);
-      if (saleRefusal.field === "approver") setManager("");
-    }
-  }, [saleRefusal]);
-
-  // Each refusal shows on the field it is about.
-  const refusedField = !saleRefusal
-    ? null
-    : saleRefusal.kind === "pin-locked"
-      ? "pin"
-      : saleRefusal.kind === "needs-approver"
-        ? saleRefusal.field
-        : "reason";
-  const refusedOn = (field: "reason" | "approver" | "pin") => (saleRefusal && refusedField === field ? saleRefusal.message : null);
-  const pinRefusal = refusedOn("pin");
-  const managerRefusal = refusedOn("approver");
-  const refusal = refusedOn("reason");
 
   const changed = cart.filter(lineIsChanged);
   const orderOff = Number(orderDiscountAmount || "0");
@@ -1073,37 +1026,19 @@ export function ApproveDialog({
 
   const submit = () => {
     if (!reason.trim()) {
-      setProblem({ field: "reason", text: "Say why, in a few words. It is kept on the sale." });
-      return;
-    }
-    if (!managerNeeded) {
-      setProblem(null);
-      onApprove({ reason: reason.trim(), approver: null });
-      return;
-    }
-    if (!chosen) {
-      setProblem({ field: "manager", text: "No manager can approve on this till." });
-      return;
-    }
-    if (!/^\d{4}$/.test(pin)) {
-      setProblem({ field: "pin", text: `${firstName(chosen.name)} types their four-digit PIN.` });
+      setProblem("Say why, in a few words. It is kept on the sale.");
       return;
     }
     setProblem(null);
-    onApprove({ reason: reason.trim(), approver: { userId: chosen.userId, pin } });
+    onTake(reason.trim());
   };
-
-  const errorFor = (field: "reason" | "manager" | "pin", refused: string | null) => (problem?.field === field ? problem.text : refused);
-  const managerError = errorFor("manager", managerRefusal);
-  const pinError = errorFor("pin", pinRefusal);
-  const reasonError = errorFor("reason", refusal);
 
   return (
     <TillDialog
       open={open}
       onOpenChange={onOpenChange}
-      title={managerNeeded ? "A manager has to approve this" : "Say why the price changed"}
-      description={`${what ? `${what[0].toUpperCase()}${what.slice(1)}` : "A changed price"}, so the sale comes to ${usd(amount)}.${managerNeeded ? ` ${firstName(session?.user?.name)} is asking.` : ""}`}
+      title="Say why the price changed"
+      description={`${what ? `${what[0].toUpperCase()}${what.slice(1)}` : "A changed price"}, so the sale comes to ${usd(amount)}.${approvalReason ? ` ${approvalReason}` : ""}`}
       foot={
         <>
           <button
@@ -1120,74 +1055,25 @@ export function ApproveDialog({
           </button>
           <button type="button" className="btn btn-primary" disabled={postSalePending} aria-busy={postSalePending || undefined} onClick={submit}>
             <Check className="ic" />
-            {managerNeeded ? `Approve and take ${usd(amount)}` : `Take ${usd(amount)}`}
+            Take {usd(amount)}
           </button>
         </>
       }
     >
-      {managerNeeded ? (
-        <>
-          <p className="note">{askedFor}</p>
-          <div className="field">
-            <label htmlFor={`${ids}m`}>Manager</label>
-            <select
-              id={`${ids}m`}
-              className="select input-lg"
-              value={chosen?.userId ?? ""}
-              aria-invalid={Boolean(managerError) || undefined}
-              aria-describedby={managerError ? `${ids}me` : undefined}
-              onChange={(event) => setManager(event.target.value)}
-            >
-              {approvers.map((person) => (
-                <option key={person.userId} value={person.userId}>
-                  {person.name}
-                </option>
-              ))}
-            </select>
-            {managerError ? <ErrorLine id={`${ids}me`}>{managerError}</ErrorLine> : null}
-          </div>
-          <div className="field">
-            <label htmlFor={`${ids}p`}>{chosen ? `${firstName(chosen.name)}’s PIN` : "PIN"}</label>
-            <input
-              id={`${ids}p`}
-              className="input input-lg num text-left"
-              type="password"
-              inputMode="numeric"
-              autoComplete="off"
-              maxLength={4}
-              value={pin}
-              aria-invalid={Boolean(pinError) || undefined}
-              aria-describedby={pinError ? `${ids}pe` : undefined}
-              onChange={(event) => setPin(event.target.value.replace(/\D/g, "").slice(0, 4))}
-            />
-            {pinError ? (
-              <ErrorLine id={`${ids}pe`}>
-                {pinError === pinRefusal && saleRefusal?.kind === "pin-locked"
-                  ? `${chosen ? `${firstName(chosen.name)}’s PIN is locked until a new one is sent.` : pinError} Another manager can approve it.`
-                  : pinError}
-              </ErrorLine>
-            ) : null}
-          </div>
-        </>
-      ) : null}
       <div className="field">
         <label htmlFor={`${ids}r`}>Reason</label>
         <input
           id={`${ids}r`}
           className="input input-lg"
           value={reason}
-          aria-invalid={Boolean(reasonError) || undefined}
-          aria-describedby={reasonError ? `${ids}e` : undefined}
+          aria-invalid={Boolean(problem) || undefined}
+          aria-describedby={problem ? `${ids}e` : undefined}
           onChange={(event) => setReason(event.target.value)}
         />
-        {reasonError ? (
-          <ErrorLine id={`${ids}e`}>{reasonError}</ErrorLine>
+        {problem ? (
+          <ErrorLine id={`${ids}e`}>{problem}</ErrorLine>
         ) : (
-          <span className="help">
-            {reason.trim()
-              ? `Kept on the sale as “${reason.trim()}${managerNeeded ? ` (approved by ${chosen?.name ?? "the manager"})` : ""}”.`
-              : `Kept on the sale${managerNeeded ? ` with ${chosen?.name ?? "the manager"}’s name` : ""}.`}
-          </span>
+          <span className="help">{reason.trim() ? `Kept on the sale as “${reason.trim()}”.` : "Kept on the sale."}</span>
         )}
       </div>
     </TillDialog>

@@ -17,7 +17,8 @@ import { fetchJson } from "@/lib/api-client";
 import { ArrowsClockwise, CaretRight, Trash, WifiSlash } from "@/lib/icons";
 import { classifyQueuedSale, classifyReplayedSale } from "@/lib/retail/offline-queue-verdict";
 import { getPosPortalHref } from "@/lib/retail/pos-host";
-import { queuedSaleLabel } from "@/lib/retail/pos-offline-queue";
+import { NEEDS_A_MANAGER, queuedReversalLabel, queuedSaleLabel, reversalNeedsManager, reversalRequest } from "@/lib/retail/pos-offline-queue";
+import { useApproval } from "./approval";
 import { count, hhmm, usd } from "./format";
 import { Empty, TillDialog } from "./parts";
 import { useConnection } from "./sell";
@@ -48,7 +49,10 @@ function useShelfNames() {
 }
 
 export function WaitingScreen() {
-  const { queuedOfflineSales, syncOfflineSales, syncOfflineSalesPending, retryOfflineSale, removeOfflineSale, zig, isPosHost } = useTill();
+  const { queuedOfflineSales, queuedReversals, syncOfflineSales, syncOfflineSalesPending, retryOfflineSale, removeOfflineSale, zig, isPosHost, rules, canApprove, approvers } =
+    useTill();
+  const approval = useApproval({ approvers: approvers.sell });
+  const [approving, setApproving] = React.useState<string | null>(null);
   const { operations } = useOfflineRuntime();
   const { online, since } = useConnection();
   const names = useShelfNames();
@@ -187,6 +191,82 @@ export function WaitingScreen() {
     </section>
   ) : null;
 
+  /*
+    FLR-09, SET-06's replay rule: a refund or void done offline goes in when
+    it is sent, flagged for review if the rules wanted a manager and none
+    approved it, because the money has already moved. "Needs a manager" says
+    so here, and once the line is back a manager can approve it before it goes.
+  */
+  const getApproved = (id: string) => {
+    const entry = queuedReversals.find((operation) => operation.operationId === id);
+    if (!entry) return;
+    setApproving(id);
+    void approval
+      .run((approver) => {
+        const { url, body } = reversalRequest(entry.payload, approver);
+        return fetchJson(url, { method: "POST", body: JSON.stringify(body) });
+      })
+      .then((done) => {
+        if (done) removeOfflineSale(id);
+      })
+      .catch(() => {
+        // Refused for another reason: it stays queued with the sync's own verdict.
+      })
+      .finally(() => setApproving(null));
+  };
+  const reversals = queuedReversals.length ? (
+    <section aria-labelledby="w-reversals">
+      <div className="group-head">
+        <h2 id="w-reversals">Refunds and voids</h2>
+        <span className="sum">{count(queuedReversals.length, "saved")}</span>
+      </div>
+      <div className="list">
+        {queuedReversals.map((entry) => {
+          const label = queuedReversalLabel(entry.payload);
+          const manager = rules ? reversalNeedsManager(entry.payload, rules, canApprove) : false;
+          const status =
+            entry.status === "FAILED_BLOCKING"
+              ? { label: "Refused", tone: "status-danger", title: entry.lastError ?? undefined }
+              : manager
+                ? { label: NEEDS_A_MANAGER, tone: "status-warning", title: "Sent without one, it goes in for a manager to look at." }
+                : entry.status === "SYNCING"
+                  ? { label: "Sending", tone: "status-live" }
+                  : { label: online ? "Saved on this till" : "No connection", tone: online ? "" : "status-warning" };
+          return (
+            <div key={entry.operationId} className="row is-queued">
+              <span className="code num text-left">{entry.payload.saleNo}</span>
+              <span className="truncate">
+                <span className="ink">{label}</span>{" "}
+                <span className="muted">
+                  {String(entry.payload.body.reason ?? "")} {hhmm(entry.payload.at)}
+                </span>
+              </span>
+              <span className={`status ${status.tone} truncate`} title={status.title ?? status.label}>
+                {status.label}
+              </span>
+              <span className="num ink">{usd(entry.payload.amount)}</span>
+              <span>
+                {manager && entry.status !== "SYNCING" ? (
+                  <button
+                    type="button"
+                    className="btn"
+                    disabled={!online || approving === entry.operationId}
+                    aria-busy={approving === entry.operationId || undefined}
+                    title={online ? undefined : "Once the line is back."}
+                    onClick={() => getApproved(entry.operationId)}
+                  >
+                    Get it approved
+                  </button>
+                ) : null}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+      {approval.dialog}
+    </section>
+  ) : null;
+
   return (
     <div className="main is-fixed">
       <div className="bar">
@@ -213,7 +293,7 @@ export function WaitingScreen() {
           </span>
         </div>
       ) : null}
-      {!rows.length && !priceNotes.length ? (
+      {!rows.length && !priceNotes.length && !queuedReversals.length ? (
         <Empty icon={WifiSlash} title="Nothing is waiting">
           Sales taken while the line is down are saved here and sent when it is back.
         </Empty>
@@ -250,6 +330,7 @@ export function WaitingScreen() {
                 <div className="list">{waiting.map((entry) => row(entry, false))}</div>
               </section>
             ) : null}
+            {reversals}
             {sent}
           </div>
           <div className="table-foot">

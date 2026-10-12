@@ -19,6 +19,7 @@ import {
 } from "@/lib/offline/outbox";
 import { hasTokenFeature } from "@/lib/platform/gating/token-check";
 import { onPairedTill } from "@/lib/retail/till-presence";
+import { reversalRequest, type PosReversalQueuePayload } from "@/lib/retail/pos-offline-queue";
 import type {
   OfflineModuleDefinition,
   OfflineMutationAdapter,
@@ -100,6 +101,18 @@ async function syncRetailSale(
     return isLikelyNetworkFailure(message)
       ? { status: "retryable", message }
       : { status: "blocking", message };
+  }
+}
+
+/** A refund or void done offline (FLR-09): sent as it was, dated when it was done; the server takes it for review if a manager is missing. */
+async function syncRetailReversal(payload: Record<string, unknown>): Promise<OfflineSyncOutcome> {
+  try {
+    const { url, body } = reversalRequest(payload as PosReversalQueuePayload);
+    await fetchJson(url, { method: "POST", body: JSON.stringify(body) });
+    return { status: "synced", invalidateQueryKeys: [["retail-current-shift"], ["retail-pos-sales"], ["retail-pos-sale"]] };
+  } catch (error) {
+    const message = asErrorMessage(error);
+    return isLikelyNetworkFailure(message) ? { status: "retryable", message } : { status: "blocking", message };
   }
 }
 
@@ -280,6 +293,10 @@ const retailMutationAdapters: OfflineMutationAdapter[] = [
   {
     operation: "create-sale",
     sync: ({ operation, resolvedPayload }) => syncRetailSale(operation, resolvedPayload),
+  },
+  {
+    operation: "reverse-sale",
+    sync: ({ resolvedPayload }) => syncRetailReversal(resolvedPayload),
   },
 ];
 

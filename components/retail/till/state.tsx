@@ -46,6 +46,8 @@ import { pointsValue, spendRefusal, SPENDING_NEEDS_THE_INTERNET, spreadPointsDis
 import {
   isOfflineRetailCustomerId,
   listOfflineRetailOperations,
+  listOfflineRetailReversals,
+  queueOfflineRetailReversal,
   queueOfflineRetailSale,
   searchOfflineRetailCustomers,
 } from "@/lib/retail/offline-runtime";
@@ -53,7 +55,7 @@ import { splitChange } from "@/lib/retail/payment-words";
 import { canRetailRoleDo } from "@/lib/retail/permission-matrix";
 import { priceAtQuantity, type PricingSnapshot } from "@/lib/retail/pricing/engine";
 import { priceSale } from "@/lib/retail/pricing/sale";
-import type { PosSaleQueuePayload } from "@/lib/retail/pos-offline-queue";
+import type { PosReversalQueuePayload, PosSaleQueuePayload } from "@/lib/retail/pos-offline-queue";
 import { getPosPortalHref } from "@/lib/retail/pos-host";
 import { shopFeatures } from "@/lib/retail/shop-profile-rules";
 import { cashDropDue, cashDropSentence, offlineStopSentence, offlineWindowClosed } from "@/lib/retail/till-on-device";
@@ -62,7 +64,6 @@ import { referenceSentence } from "@/lib/retail/till-rule-words";
 import { paymentLabel } from "./format";
 import { discountApprovalReason, discountCeilingProblem, paymentSummary, type RuledLine } from "./sale-rules";
 import type {
-  Approval,
   Approver,
   CartItem,
   CompletedSale,
@@ -168,16 +169,16 @@ function deviceRefusalOf(error: unknown): "DEVICE_UNPAIRED" | "NOT_A_TILL" | nul
   return null;
 }
 
-/** `pos/sales`'s no, as the screens act on it. */
+/** `pos/sales`'s no, as the screens act on it. A manager asked for is the approval dialog's (`useApproval`), not this. */
 function saleRefusalOf(error: unknown): SaleRefusal {
-  const message = getApiErrorMessage(error, "That sale was not saved.");
-  if (error instanceof ApiError && error.status === 423) return { kind: "pin-locked", message };
-  const details = error instanceof ApiError ? (error.details as { needsApprover?: unknown; fieldErrors?: Record<string, unknown> } | undefined) : undefined;
-  if (error instanceof ApiError && error.status === 409 && details?.needsApprover === true) {
-    const field = details.fieldErrors?.pin ? "pin" : details.fieldErrors?.approver ? "approver" : null;
-    return { kind: "needs-approver", message, field };
-  }
-  return { kind: "refused", message };
+  return { kind: "refused", message: getApiErrorMessage(error, "That sale was not saved.") };
+}
+
+/** A 409 `needsApprover` or a locked PIN (423): the approval dialog answers these. */
+function asksForManager(error: unknown): boolean {
+  if (!(error instanceof ApiError)) return false;
+  if (error.status === 423) return true;
+  return error.status === 409 && (error.details as { needsApprover?: unknown } | undefined)?.needsApprover === true;
 }
 
 function readSession(key: string): string | null {
@@ -277,6 +278,7 @@ function useTillStateValue({ isPosHost, paired }: { isPosHost: boolean; paired: 
   const [lastSavedSale, setLastSavedSale] = useState<SavedSale | null>(null);
   const [saleRefusal, setSaleRefusal] = useState<SaleRefusal | null>(null);
   const [queuedOfflineSales, setQueuedOfflineSales] = useState<PosQueuedSale[]>([]);
+  const [queuedReversals, setQueuedReversals] = useState<Array<OfflineOutboxOperation<PosReversalQueuePayload>>>([]);
   const [syncOfflineSalesPending, setSyncOfflineSalesPending] = useState(false);
   const [offlineCustomerResults, setOfflineCustomerResults] = useState<PosCustomer[]>([]);
   const [cashDropAsked, setCashDropAsked] = useState<string | null>(null);
@@ -509,9 +511,11 @@ function useTillStateValue({ isPosHost, paired }: { isPosHost: boolean; paired: 
   const refreshOfflineQueue = useCallback(async () => {
     if (!tenantKey) {
       setQueuedOfflineSales([]);
+      setQueuedReversals([]);
       return;
     }
     setQueuedOfflineSales(await listOfflineRetailOperations(tenantKey));
+    setQueuedReversals(await listOfflineRetailReversals(tenantKey));
   }, [tenantKey]);
 
   const syncOfflineSales = useCallback(async () => {
@@ -718,6 +722,7 @@ function useTillStateValue({ isPosHost, paired }: { isPosHost: boolean; paired: 
       const isNetworkError = !(error instanceof ApiError) && /network|failed to fetch|load failed/i.test(message);
       const usesOfflineCustomer = isOfflineRetailCustomerId(payload.customerId);
       const offline = isNetworkError || (typeof navigator !== "undefined" && !navigator.onLine) || usesOfflineCustomer;
+      if (asksForManager(error)) return;
       if (!tenantKey || !offline) {
         const code = error instanceof ApiError ? (error.details as { code?: unknown } | undefined)?.code : undefined;
         if (code === "FISCAL_OFFLINE") setFiscalRefused(true);
@@ -896,7 +901,11 @@ function useTillStateValue({ isPosHost, paired }: { isPosHost: boolean; paired: 
     needsReason,
     approvalReason,
     canApprove,
-    approvers: (context?.approvers ?? []).filter((person) => person.userId !== session?.user?.id),
+    /** Who may approve at this till, per right, without the person selling (FLR-09). */
+    approvers: {
+      sell: (context?.approvers.sell ?? []).filter((person) => person.userId !== session?.user?.id),
+      cashControl: (context?.approvers.cashControl ?? []).filter((person) => person.userId !== session?.user?.id),
+    },
     discountCeiling,
     isOffline,
     offlineStop,
@@ -904,13 +913,19 @@ function useTillStateValue({ isPosHost, paired }: { isPosHost: boolean; paired: 
     fiscalStop,
 
     /* Taking it */
-    postSale: (rows: PaymentRow[], approval: Approval | null) => {
+    /**
+     * Takes the money: the sale with its reason, and a manager when the
+     * approval dialog asked for one. Resolves once the server took it or the
+     * queue saved it; rejects with the server's no (the approval dialog reads
+     * a 409 `needsApprover`; anything else shows on the tray).
+     */
+    postSale: async (rows: PaymentRow[], reason: string | null, approver: Approver | null) => {
       setPayments(rows);
       setSaleRefusal(null);
-      const payload = buildSalePayload(rows, approval?.reason ?? null);
+      const payload = buildSalePayload(rows, reason);
       if (!payload) return;
       const paid = paymentSummary(rows, amountDue, zigRate);
-      saleMutation.mutate({ payload, approver: approval?.approver ?? null, handed: paid.cashTotal, changeOwed: paid.changeAmount });
+      await saleMutation.mutateAsync({ payload, approver, handed: paid.cashTotal, changeOwed: paid.changeAmount });
     },
     postSalePending: saleMutation.isPending,
     saleRefusal,
@@ -924,6 +939,15 @@ function useTillStateValue({ isPosHost, paired }: { isPosHost: boolean; paired: 
 
     /* Waiting to send */
     queuedOfflineSales,
+    /** Refunds and voids done offline (FLR-09). */
+    queuedReversals,
+    /** Saves a refund or void the line was down for; false when this till cannot hold it (no offline store). */
+    queueReversal: async (payload: PosReversalQueuePayload) => {
+      if (!tenantKey) return false;
+      await queueOfflineRetailReversal({ tenantKey, payload });
+      await refreshOfflineQueue();
+      return true;
+    },
     pendingOfflineSales: queuedOfflineSales.length,
     retryOfflineSale: (id: string) => {
       void (async () => {

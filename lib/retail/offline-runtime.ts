@@ -6,7 +6,7 @@ import {
 } from "@/lib/offline/outbox";
 import type { OfflineOutboxOperation } from "@/lib/offline/types";
 import { newPosCustomer } from "@/lib/retail/customers/pos-customer";
-import type { PosSaleQueuePayload } from "@/lib/retail/pos-offline-queue";
+import type { PosReversalQueuePayload, PosSaleQueuePayload } from "@/lib/retail/pos-offline-queue";
 
 export const RETAIL_POS_OFFLINE_MODULE_ID = "retail-pos";
 
@@ -112,6 +112,27 @@ export function listOfflineRetailOperations(tenantKey?: string) {
       (operation): operation is OfflineOutboxOperation<PosSaleQueuePayload> =>
         operation.operation === "create-sale",
     ),
+  );
+}
+
+/** A refund or void done while the line was down (FLR-09): it goes in for review if a manager it needed is still missing. */
+export function queueOfflineRetailReversal(input: { tenantKey: string; payload: PosReversalQueuePayload }) {
+  return enqueueOfflineOperation({
+    tenantKey: input.tenantKey,
+    moduleId: RETAIL_POS_OFFLINE_MODULE_ID,
+    clientRequestId: `${input.payload.kind}:${input.payload.saleId}:${input.payload.at}`,
+    entityType: "retail-sale",
+    operation: "reverse-sale",
+    dependsOn: [],
+    payload: input.payload,
+    attachments: [],
+    syncPriority: 30,
+  });
+}
+
+export function listOfflineRetailReversals(tenantKey?: string) {
+  return listOfflineOperationsForModule(RETAIL_POS_OFFLINE_MODULE_ID, tenantKey).then((operations) =>
+    operations.filter((operation): operation is OfflineOutboxOperation<PosReversalQueuePayload> => operation.operation === "reverse-sale"),
   );
 }
 
