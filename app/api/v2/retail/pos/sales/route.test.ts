@@ -28,7 +28,7 @@ vi.mock("@/lib/api-utils", async (importOriginal) => ({
 import { POST as SELL } from "./route";
 import { POST as REFUND } from "./[id]/refund/route";
 import { POST as VOID } from "./[id]/void/route";
-import { voidRetailSaleTransaction } from "../../_services";
+import { voidSale as voidSaleService } from "@/lib/retail/floor/voids";
 
 const stamp = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 const key = `sales-key-${stamp}`;
@@ -209,7 +209,7 @@ function voidSale(saleId: string, body: Record<string, unknown>) {
 async function refundSale(saleId: string, body: Record<string, unknown>) {
   const line = await prisma.retailSaleLine.findFirstOrThrow({ where: { saleId }, select: { id: true } });
   return REFUND(
-    request(`sales/${saleId}/refund`, { shiftId, lines: [{ saleLineId: line.id, quantity: 1 }], ...body }),
+    request(`sales/${saleId}/refund`, { lines: [{ saleLineId: line.id, quantity: "1" }], to: "CASH", ...body }),
     { params: Promise.resolve({ id: saleId }) },
   ).then(result);
 }
@@ -340,11 +340,11 @@ describe("a void of a ZiG cash sale with rounded change", () => {
 
     // The cashier voids on her own: this shop's till rules ask no PIN for a void (SET-06).
     await tillRules("NEVER");
-    const { sale: voided, accounting } = await voidRetailSaleTransaction({
+    // From the back office: the sale's own drawer is the one the cash comes back out of.
+    const { sale: voided, accounting } = await voidSaleService({
       actor: { companyId, userId: cashierId, userRole: "CASHIER", userName: "Chipo Dube", userEmail: null },
       saleId: sold.id,
-      shiftId,
-      reason: "Rang up wrong",
+      body: { reason: "Rang up wrong" },
     });
     expect(accounting.accountingStatus).toBe("POSTED");
     expect(await expectedCash()).toBe(before);
@@ -488,16 +488,14 @@ describe("a product's own most off (maxDiscountPercent)", () => {
 });
 
 describe("a refund or void sent in late that the rules would refuse now (SET-06)", () => {
-  it("takes a card refund without its reference, marked for review", async () => {
+  it("puts a card refund back on the card, naming the sale's slip (FLR-02)", async () => {
     const sold = await sell("card-sale", { tenderType: "CARD", currency: "USD", amount: 3.9, reference: "SLIP-4410" });
     expect(sold.status).toBe(201);
-    const refunded = await refundSale(sold.body.id!, {
-      reason: "Damaged",
-      payments: [{ tenderType: "CARD", amount: 3.9 }],
-      refundedAt: offlineAct(),
-    });
+    const refunded = await refundSale(sold.body.id!, { reason: "Damaged", to: "ORIGINAL", refundedAt: offlineAct() });
     expect(refunded.status).toBe(201);
-    expect(await reviewOf(refunded.body.id)).toBe("Refunded offline without a reference.");
+    const payment = await prisma.retailSalePayment.findFirstOrThrow({ where: { saleId: refunded.body.id! } });
+    expect([payment.tenderType, payment.reference]).toEqual(["CARD", "Reversal of SLIP-4410"]);
+    expect(await reviewOf(refunded.body.id)).toBeNull();
   });
 
   it("takes a void whose reason was taken off the list since, marked for review", async () => {
@@ -521,24 +519,11 @@ describe("a refund or void dated now, not done offline (SET-06)", () => {
     expect(await prisma.retailSale.count({ where: { companyId, sourceSaleId: sold.body.id! } })).toBe(0);
   });
 
-  it("refuses an unlisted reason and a card refund without its reference", async () => {
+  it("refuses an unlisted reason", async () => {
     await tillRules("NEVER");
     const sold = await sell("refund-now-sale", { tenderType: "CARD", currency: "USD", amount: 3.9, reference: "SLIP-5521" });
-    const unlisted = await refundSale(sold.body.id!, {
-      reason: "Gone off list",
-      payments: [{ tenderType: "CARD", amount: 3.9, reference: "SLIP-5521" }],
-      refundedAt: now(),
-    });
-    const noReference = await refundSale(sold.body.id!, {
-      reason: "Damaged",
-      payments: [{ tenderType: "CARD", amount: 3.9 }],
-      refundedAt: now(),
-    });
+    const unlisted = await refundSale(sold.body.id!, { reason: "Gone off list", to: "ORIGINAL", refundedAt: now() });
     expect(unlisted).toMatchObject({ status: 400, body: { error: "Pick a reason from the list." } });
-    expect(noReference).toMatchObject({
-      status: 400,
-      body: { error: "Card needs its slip or confirmation number, 4 characters or more." },
-    });
     expect(await prisma.retailSale.count({ where: { companyId, sourceSaleId: sold.body.id! } })).toBe(0);
   });
 });
@@ -589,11 +574,7 @@ describe("a void from the offline queue and the five free minutes (SET-06, W-64)
   it("enters a refund dated before its sale when it arrives, marked for review", async () => {
     const sold = await sell("refund-before-sale-sale", { tenderType: "CASH", currency: "USD", amount: 3.9 }, new Date(Date.now() - 2 * HOUR));
     const arriving = Date.now();
-    const refunded = await refundSale(sold.body.id!, {
-      reason: "Damaged",
-      payments: [{ tenderType: "CASH", amount: 3.9 }],
-      refundedAt: new Date(Date.now() - 3 * HOUR).toISOString(),
-    });
+    const refunded = await refundSale(sold.body.id!, { reason: "Damaged", refundedAt: new Date(Date.now() - 3 * HOUR).toISOString() });
     expect(refunded.status).toBe(201);
     const stored = await prisma.retailSale.findUniqueOrThrow({ where: { id: refunded.body.id! } });
     expect(stored.reviewReason).toBe("Dated before its sale or its shift; entered when it arrived.");

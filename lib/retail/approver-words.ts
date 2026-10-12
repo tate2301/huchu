@@ -4,7 +4,12 @@
  * named, "or" before the last. No imports, so a sheet kind can use it.
  */
 export function approvalWarn(names: readonly string[]): string {
+  return `Needed. ${approvalAsk(names)}`;
+}
+
+/** "Ask Tafara Nyathi or Tendai Mhlanga.": the second half of a warning, after what makes it needed. */
+export function approvalAsk(names: readonly string[]): string {
   const named = names.slice(0, 2);
-  if (named.length === 0) return "Needed. Nobody here can approve it with a PIN yet.";
-  return `Needed. Ask ${named.length === 1 ? named[0] : `${named[0]} or ${named[1]}`}.`;
+  if (named.length === 0) return "Nobody here can approve it with a PIN yet.";
+  return `Ask ${named.length === 1 ? named[0] : `${named[0]} or ${named[1]}`}.`;
 }

@@ -216,10 +216,9 @@ describe("a sale's record", () => {
     const rice = await prisma.retailSaleLine.findFirstOrThrow({ where: { saleId: tapiwaSale.id, productId: riceId }, select: { id: true } });
     const refunded = await REFUND(
       request(`pos/sales/${tapiwaSale.id}/refund`, {
-        shiftId,
         reason: "Damaged",
-        lines: [{ saleLineId: rice.id, quantity: 1 }],
-        payments: [{ tenderType: "CASH", amount: 2.8 }],
+        lines: [{ saleLineId: rice.id, quantity: "1" }],
+        to: "CASH",
         approver: approver(),
       }),
       params(tapiwaSale.id),

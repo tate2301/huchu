@@ -146,10 +146,9 @@ async function refund(saleId: string, lineId: string, body: Record<string, unkno
       method: "POST",
       headers,
       body: JSON.stringify({
-        shiftId,
         reason: "Changed mind",
-        lines: [{ saleLineId: lineId, quantity: 4 }],
-        payments: [{ tenderType: "CASH", amount: 15.6 }],
+        lines: [{ saleLineId: lineId, quantity: "4" }],
+        to: "CASH",
         ...body,
       }),
     }),

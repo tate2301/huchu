@@ -522,6 +522,16 @@ const sales: ListSpec = {
       when: [{ column: "customerPhone", op: "empty" }],
       do: { sheet: "sale-send" },
     },
+    // FLR-02: sales with something left to come back, and today's untouched sales.
+    { key: "refund", label: "Refund", requires: [["retail.sell", "refund"]], when: [{ column: "refundable", op: "is", value: ["yes"] }], do: { sheet: "refund" } },
+    {
+      key: "void",
+      label: "Void (same day only)",
+      tone: "bad",
+      requires: [["retail.sell", "void"]],
+      when: [{ column: "voidable", op: "is", value: ["yes"] }],
+      do: { sheet: "sale-void" },
+    },
   ],
   bulk: [
     {

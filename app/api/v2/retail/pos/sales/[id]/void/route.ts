@@ -1,107 +1,73 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requirePosDevice } from "@/lib/retail/devices";
 import { z } from "zod";
-import { errorResponse, successResponse } from "@/lib/api-response";
-import { parseRetailParams, retailIdParams } from "@/lib/retail/request";
+
+import { successResponse } from "@/lib/api-response";
+import { requirePosDevice } from "@/lib/retail/devices";
+import { reversalActorOf, reversalResponse } from "@/lib/retail/floor/reversal";
+import { voidInput, voidSale } from "@/lib/retail/floor/voids";
 import { requireRetailPermission } from "@/lib/retail/permissions";
-import { approverSchema, tillRuleResponse } from "@/lib/retail/manager-pin";
+import { parseRetailParams, retailIdParams } from "@/lib/retail/request";
 import { doneOffline } from "@/lib/retail/till-rules";
 import { requireRetailSession } from "../../../../_helpers";
-import { voidRetailSaleTransaction } from "../../../../_services";
-import { fiscaliseAfterPosting } from "@/lib/retail/fiscalisation";
 
-const voidSchema = z.object({
-  shiftId: z.string().uuid(),
-  /** One of the till rules' void reasons (SET-06). */
-  reason: z.string().min(1).max(240),
+/**
+ * A void at the till's History (FLR-02): the back office's body and service,
+ * on a paired till (SET-04), the cash back out of this till's drawer.
+ */
+const tillVoidSchema = voidInput.extend({
   periodOverrideReason: z.string().max(500).optional().nullable(),
-  notes: z.string().max(500).optional().nullable(),
-  /** A manager's till PIN, when "Voids need a manager PIN" asks for one. See the refund route beside this one. */
-  approver: approverSchema.optional().nullable(),
-  /**
-   * When the till voided it, set only by the offline queue. Done offline
-   * (more than a minute before it arrives), it is judged leniently: what the
-   * rules would refuse now goes in, marked for a manager to look at.
-   */
+  /** When the till voided it, set only by the offline queue. See the refund route beside this one. */
   voidedAt: z.string().datetime().optional(),
 });
 
-export async function POST(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
-) {
+export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { response, session } = await requireRetailSession(request);
-  if (response || !session) {
-    return response as NextResponse;
-  }
-
+  if (response || !session) return response as NextResponse;
   const gate = requireRetailPermission(session, "retail.sell", "void");
   if (gate) return gate;
   const { device, response: deviceResponse } = await requirePosDevice(request, session);
   if (deviceResponse) return deviceResponse;
-
-  try {
-    /*
-    R-3.1. The segment, through a schema.
-
-    Prisma is not injectable, so this is not a security fix. It is the
-    difference between a 400 naming the parameter and a 404 that reads, to a
-    shopkeeper, as "the receipt you are holding is not in the system".
-  */
   const path = await parseRetailParams(params, retailIdParams);
   if (path.response) return path.response;
-  const { id } = path.data;
-    const body = await request.json();
-    const input = voidSchema.parse(body);
 
-    const { sale, accounting, fiscal: assigned } = await voidRetailSaleTransaction({
-      actor: {
-        companyId: session.user.companyId,
-        userId: session.user.id,
-        userRole: session.user.role,
-        userName: session.user.name,
-        userEmail: session.user.email,
-      },
-      saleId: id,
-      shiftId: input.shiftId,
-      reason: input.reason,
-      approver: input.approver ?? null,
-      offlineAt: input.voidedAt && doneOffline(new Date(input.voidedAt), new Date()) ? new Date(input.voidedAt) : null,
-      notes: input.notes ?? null,
+  try {
+    const input = tillVoidSchema.parse(await request.json().catch(() => null));
+    const voidedAt = input.voidedAt ? new Date(input.voidedAt) : null;
+    // The manager's PIN rides in the body (`approver: input.approver`); the service asks the till rules.
+    const voided = await voidSale({
+      actor: reversalActorOf(session),
+      saleId: path.data.id,
+      body: input,
+      device: { id: device.id, registerId: device.registerId },
+      offlineAt: voidedAt && doneOffline(voidedAt, new Date()) ? voidedAt : null,
       periodOverrideReason: input.periodOverrideReason ?? null,
-      deviceId: device.id,
     });
-
-    // Its credit note, signed in its commit (SET-08), goes to ZIMRA now.
-    const fiscal = await fiscaliseAfterPosting({ companyId: session.user.companyId, saleId: sale.id, assigned });
-
-    return successResponse({
-      id: sale.id,
-      saleNo: sale.saleNo,
-      saleType: sale.saleType,
-      status: sale.status,
-      shiftId: sale.shiftId,
-      siteId: sale.siteId,
-      sourceSaleId: sale.sourceSaleId,
-      totalAmount: sale.totalAmount,
-      tenderedAmount: sale.tenderedAmount,
-      postedAt: sale.postedAt ?? sale.createdAt,
-      lines: sale.lines,
-      payments: sale.payments,
-      overrideReason: sale.overrideReason,
-      // The manager whose PIN let it through; null when nobody had to.
-      approvedByName: sale.approvedByName,
-      notes: sale.notes,
-      accountingStatus: accounting.accountingStatus,
-      accountingError: accounting.accountingError,
-      fiscal,
-    }, 201);
+    const { sale } = voided;
+    return successResponse(
+      {
+        id: sale.id,
+        saleNo: sale.saleNo,
+        voidNo: voided.voidNo,
+        saleType: sale.saleType,
+        status: sale.status,
+        shiftId: sale.shiftId,
+        siteId: sale.siteId,
+        sourceSaleId: sale.sourceSaleId,
+        totalAmount: sale.totalAmount,
+        tenderedAmount: sale.tenderedAmount,
+        postedAt: sale.postedAt ?? sale.createdAt,
+        lines: sale.lines,
+        payments: sale.payments,
+        overrideReason: sale.overrideReason,
+        approvedByName: sale.approvedByName,
+        notes: sale.notes,
+        accountingStatus: voided.accounting.accountingStatus,
+        accountingError: voided.accounting.accountingError,
+        fiscal: voided.fiscal,
+      },
+      201,
+    );
   } catch (error) {
-    const refused = tillRuleResponse(error);
-    if (refused) return refused;
-    if (error instanceof z.ZodError) {
-      return errorResponse("Validation failed", 400, error.issues);
-    }
-    return errorResponse(error instanceof Error ? error.message : "Failed to void sale", 400);
+    return reversalResponse(error, "POST /api/v2/retail/pos/sales/[id]/void");
   }
 }

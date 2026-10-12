@@ -140,6 +140,8 @@ export type FieldSpec = {
   context?: Record<string, unknown> | ((ctx: SheetCtx, values: SheetValues) => Record<string, unknown>);
   /** `lines`: only the lines loaded — no add row, no remove (a receipt: nothing arrives that was not sent). */
   closed?: boolean;
+  /** `lines` with `closed`: × still drops a line (a refund: only what was sold, any of it left out). */
+  drop?: boolean;
   /** `lines`: a line drawn in `--warn` while this holds (Came less than was sent). */
   lineWarn?: (line: SheetLine, values: SheetValues) => boolean;
   /** `lines`: the quantity and cost column labels. */

@@ -371,6 +371,7 @@ export function SheetField({
                 hideQuantity={field.noQuantity?.(values) ?? false}
                 lineErrors={lineErrors}
                 closed={field.closed}
+                droppable={field.drop}
                 lineWarn={field.lineWarn ? (line) => field.lineWarn!(line, values) : undefined}
                 value={Array.isArray(value) ? (value as SheetLine[]) : []}
                 onValueChange={onChange}

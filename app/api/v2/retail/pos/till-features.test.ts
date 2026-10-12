@@ -237,10 +237,9 @@ describe("the manager who approved it", () => {
     const line = await prisma.retailSaleLine.findFirstOrThrow({ where: { saleId: sold.body.id! }, select: { id: true } });
     const refunded = await REFUND(
       request(`pos/sales/${sold.body.id}/refund`, {
-        shiftId,
         reason: "Damaged",
-        lines: [{ saleLineId: line.id, quantity: 1 }],
-        payments: [{ tenderType: "CASH", amount: 1.2 }],
+        lines: [{ saleLineId: line.id, quantity: "1" }],
+        to: "CASH",
         approver: approver(),
       }),
       { params: Promise.resolve({ id: sold.body.id! }) },

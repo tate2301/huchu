@@ -72,7 +72,7 @@
  *
  * The obvious way to get revenue before VAT is `Σ subtotal`, and it is wrong on
  * this data. `calculateRetailCheckout` gives a **sale** an ex-VAT `subtotal` on a
- * tax-inclusive list, and `refundRetailSaleTransaction` builds a **refund**'s from
+ * tax-inclusive list, and `refundSale` (lib/retail/floor/refunds.ts) builds a **refund**'s from
  * `quantity × unitPrice` — shelf money, VAT still inside it
  * (`_services.ts`, `baseAmount: multiplyMoney(requestedQuantity, sourceLine.unitPrice)`).
  * The two are in different bases, so on an inclusive list a refund breaks the

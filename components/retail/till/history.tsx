@@ -37,6 +37,7 @@ import {
 import { depositBack } from "@/lib/retail/deposits";
 import { getPosPortalHref } from "@/lib/retail/pos-host";
 import { SHOP_TIME_ZONE } from "@/lib/retail/shop-profile-rules";
+import { ORIGINAL_TENDERS } from "@/lib/retail/floor/reversal-words";
 import { refundPinSentence, VOID_FREE_MS, voidPinSentence } from "@/lib/retail/till-rule-words";
 import { count, dayMonth, firstName, hhmm, paymentLabel, qty, usd, weekdayDayMonth, whole, zig } from "./format";
 import { Avatar, Empty, ErrorLine, Segmented, TillDialog } from "./parts";
@@ -816,14 +817,15 @@ function invalidateSale(queryClient: ReturnType<typeof useQueryClient>) {
 
 function RefundDialog({ sale, shiftId, onClose }: { sale: SaleDetail; shiftId: string | null; onClose: () => void }) {
   const queryClient = useQueryClient();
-  const { rules, canApprove, referenceProblem } = useTill();
+  const { rules, canApprove } = useTill();
   const ids = React.useId();
   const reasons = rules?.refundReasons ?? [];
   const [back, setBack] = React.useState<Record<string, number>>({});
   const [why, setWhy] = React.useState(reasons[0] ?? "");
-  const [reference, setReference] = React.useState("");
   const [problem, setProblem] = React.useState<string | null>(null);
-  const tender = sale.payments.find((payment) => payment.tenderType !== "CASH")?.tenderType ?? "CASH";
+  // FLR-02: back on the one card, wallet, transfer or voucher it was paid by, else cash from this drawer.
+  const only = sale.payments.length === 1 ? sale.payments[0]!.tenderType : null;
+  const tender = only && (ORIGINAL_TENDERS as readonly string[]).includes(only) ? only : "CASH";
   // The goods' share of the line and, with them, the bottles' deposit, as the server works it out.
   const lineBack = (line: SaleDetail["lines"][number], quantity: number) => {
     const sold = Math.abs(n(line.quantity));
@@ -849,12 +851,12 @@ function RefundDialog({ sale, shiftId, onClose }: { sale: SaleDetail; shiftId: s
       fetchJson(`/api/v2/retail/pos/sales/${sale.id}/refund`, {
         method: "POST",
         body: JSON.stringify({
-          shiftId,
           reason: why,
           lines: Object.entries(back)
             .filter(([, value]) => value > 0)
-            .map(([saleLineId, quantity]) => ({ saleLineId, quantity })),
-          payments: [{ tenderType: tender, amount, reference: reference.trim() || undefined }],
+            .map(([saleLineId, quantity]) => ({ saleLineId, quantity: String(quantity) })),
+          to: tender === "CASH" ? "CASH" : "ORIGINAL",
+          restock: true,
           ...fields.approver(),
         }),
       }),
@@ -869,8 +871,6 @@ function RefundDialog({ sale, shiftId, onClose }: { sale: SaleDetail; shiftId: s
     if (!shiftId) return setProblem("Open a shift on this till first: the money comes out of its drawer.");
     if (!items) return setProblem("Say what comes back: one or more of a line.");
     if (!why) return setProblem("Say why it came back.");
-    const missing = referenceProblem({ tenderType: tender, amount: String(amount), reference });
-    if (missing) return setProblem(missing);
     if (!fields.ready) return setProblem("A manager types their PIN to approve it.");
     setProblem(null);
     refund.mutate();
@@ -965,26 +965,10 @@ function RefundDialog({ sale, shiftId, onClose }: { sale: SaleDetail; shiftId: s
           </span>
         </div>
         <div className="field">
-          {tender === "CASH" ? <span className="label">Back by cash</span> : <label htmlFor={`${ids}r`}>Back by {paymentLabel(tender).toLowerCase()}</label>}
-          {tender === "CASH" ? (
-            <p className="help is-flush">
-              From this till’s drawer.
-            </p>
-          ) : (
-            <>
-              <input
-                id={`${ids}r`}
-                className="input input-lg num text-left"
-                placeholder="Reference"
-                aria-describedby={`${ids}rh`}
-                value={reference}
-                onChange={(event) => setReference(event.target.value)}
-              />
-              <span id={`${ids}rh`} className="help">
-                From the message confirming the money went to {sale.customerName ? firstName(sale.customerName) : "the customer"}.
-              </span>
-            </>
-          )}
+          <span className="label">Back by {tender === "CASH" ? "cash" : paymentLabel(tender).toLowerCase()}</span>
+          <p className="help is-flush">
+            {tender === "CASH" ? "From this till’s drawer." : `Reversed on the ${paymentLabel(tender).toLowerCase()} it was paid by.`}
+          </p>
         </div>
       </div>
       <ManagerFields fields={fields} ids={ids} />

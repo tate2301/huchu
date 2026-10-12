@@ -467,6 +467,8 @@ export async function auditSaleReversed(
      * on a mutable sale row is not evidence of anything.
      */
     approvedBy?: { id: string; name: string } | null;
+    /** What else the act decided (FLR-02: how the money went back, whether the goods went back on the shelf). */
+    extra?: Record<string, unknown>;
   },
 ): Promise<void> {
   await writeRetailAuditEvent(client, {
@@ -491,6 +493,7 @@ export async function auditSaleReversed(
       // their own are different acts, and the row should not need the matrix
       // re-read months later to tell them apart.
       selfAuthorised: !input.approvedBy,
+      ...input.extra,
     },
   });
 }

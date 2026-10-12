@@ -182,10 +182,9 @@ describe("points at the till", () => {
     const lines = await prisma.retailSaleLine.findMany({ where: { saleId: goldSaleId }, select: { id: true, quantity: true } });
     const refunded = await REFUND(
       request(`pos/sales/${goldSaleId}/refund`, {
-        shiftId,
         reason: "Damaged",
-        lines: lines.map((line) => ({ saleLineId: line.id, quantity: Number(line.quantity) })),
-        payments: [{ tenderType: "CASH", amount: 21.4 }],
+        lines: lines.map((line) => ({ saleLineId: line.id, quantity: String(Number(line.quantity)) })),
+        to: "CASH",
       }),
       { params: Promise.resolve({ id: goldSaleId }) },
     ).then(read);

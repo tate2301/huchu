@@ -22,7 +22,7 @@ import { money, sumMoney, toNumberOrZero, type MoneyLike } from "@/lib/money";
  *
  * ── The defect this replaces ───────────────────────────────────────────────
  *
- * `refundRetailSaleTransaction` built it as `Σ quantity × unitPrice`. That was
+ * `refundSale` (lib/retail/floor/refunds.ts) built it as `Σ quantity × unitPrice`. That was
  * right while the shelf price was ex-VAT, and became wrong the moment S-3 made
  * the shelf price tax-inclusive: a sale's `subtotal` was then the carved-out
  * net, and a refund's was the gross. One column meaning two different things

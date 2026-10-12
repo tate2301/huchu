@@ -384,7 +384,8 @@ export async function loadSaleView(
     hourly,
     can: {
       refund: canRetailRoleDo(role, "retail.sell", "refund") && (state === "SOLD" || state === "PART_REFUNDED"),
-      void: canRetailRoleDo(role, "retail.sell", "void") && voidableToday,
+      // Drawn for any sale still standing; pressable only the same day with nothing reversed (`voidableToday`).
+      void: canRetailRoleDo(role, "retail.sell", "void") && sale.saleType === "SALE" && sale.status === "POSTED",
       voidableToday,
       update,
       send: readsEveryCashier(role) || own,

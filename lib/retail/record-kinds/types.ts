@@ -49,6 +49,8 @@ export type RecordAction = {
   tone?: "bad";
   /** A second line under a ⋯ item ("Managers and owners only"). */
   sub?: string;
+  /** Drawn but not pressable, with this as its tooltip ("Only today’s sales can be voided."). */
+  disabled?: string;
   /** Any of these. Empty: everyone who can read the record. */
   requires: Grant[];
   do: RecordDo;

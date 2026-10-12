@@ -978,6 +978,16 @@ export const RETAIL_POSTING_RULES: DefaultPostingRule[] = [
         memoTemplate: "{description} / bottle deposits",
         sortOrder: 35,
       },
+      // FLR-02: the gift vouchers the sale sold, voided with it: the inverted
+      // posting debits Vouchers owed, so they need no journal of their own.
+      {
+        accountSource: "ROLE_MAPPING", accountRole: "VOUCHERS_OWED",
+        direction: "CREDIT",
+        basis: "DEDUCTIONS",
+        valuePath: "vouchersSoldAmount",
+        memoTemplate: "{description} / gift vouchers voided",
+        sortOrder: 38,
+      },
       // A void reverses its sale's change rounding too (SET-05, W-05).
       {
         accountCode: "5420",

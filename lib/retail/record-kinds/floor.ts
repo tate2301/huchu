@@ -1,12 +1,13 @@
 import { fetchJson } from "@/lib/api-client";
 import { closeUncountedAsk } from "@/lib/retail/asks";
 import type { SaleView } from "@/lib/retail/floor/sale-view";
+import { VOID_TODAY_TOOLTIP } from "@/lib/retail/floor/reversal-words";
 import { fiscalChip, paidKpi, saleStateChip } from "@/lib/retail/floor/sale-words";
 import type { ShiftRecordView } from "@/lib/retail/shift-record";
 import { salesWords, takingsTitle } from "@/lib/retail/shift-words";
 import { formatDay, formatDuration, formatMediumDay, formatMoney, formatSigned, formatTime, formatWhen, formatCount } from "@/lib/workspace/format";
 
-import type { RailGroup, RecordAction, RecordChip, RecordKind, RecordKpi, RecordStep } from "./types";
+import type { Grant, RailGroup, RecordAction, RecordChip, RecordKind, RecordKpi, RecordStep } from "./types";
 
 /**
  * The shift record kind (00-foundations 5.6.10, ShiftRecord board): the
@@ -498,12 +499,27 @@ export const saleKind: RecordKind<SaleView> = {
   endpoint: (id) => `/api/v2/retail/sales/${id}`,
   title: (sale) => sale.saleNo,
   reference: (sale) => `${sale.till.name} · ${sale.cashier.name}`,
-  // Refund and Void join with FLR-02 (packet 56).
+  // FLR-02: Refund first, Void (same day only) under ⋯.
   actions: (sale) => [
+    ...(sale.can.refund
+      ? [{ key: "refund", label: "Refund", requires: [["retail.sell", "refund"]] as Grant[], do: { sheet: "refund", id: sale.id } }]
+      : []),
     { key: "reprint", label: "Reprint the receipt", requires: SALES_READ, do: { print: `/api/v2/retail/sales/${sale.id}/receipt` } },
     sendAction(sale),
   ],
   more: (sale) => [
+    ...(sale.can.void
+      ? [
+          {
+            key: "void",
+            label: "Void (same day only)",
+            tone: "bad" as const,
+            requires: [["retail.sell", "void"]] as Grant[],
+            disabled: sale.can.voidableToday ? undefined : VOID_TODAY_TOOLTIP,
+            do: { sheet: "sale-void", id: sale.id },
+          },
+        ]
+      : []),
     // D-5 (CUS-02): the sale-customer sheet.
     ...(sale.can.update
       ? [

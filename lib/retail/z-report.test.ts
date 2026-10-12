@@ -144,7 +144,7 @@ const B4 = ringUp([{ product: COKE, quantity: 24 }]);
 /**
  * The return: one of Faith's three crates, handed back at Tendai's till.
  *
- * Built by hand because `refundRetailSaleTransaction` builds it by hand too —
+ * Built by hand because `refundSale` (lib/retail/floor/refunds.ts) builds it by hand too —
  * apportioning the source sale's tax and line total by `24 ÷ 72` and negating
  * both. `11.27 × ⅓` is 3.756666…, which rounds half-up to `3.76`.
  *
@@ -581,7 +581,7 @@ describe("the trading day", () => {
 
 describe("why RetailSale.subtotal is not summed", () => {
   /**
-   * A defect in `refundRetailSaleTransaction`, pinned here rather than papered
+   * A defect in `refundSale` (lib/retail/floor/refunds.ts), pinned here rather than papered
    * over. A sale's `subtotal` is ex-VAT; a refund's is rebuilt as
    * `quantity × unitPrice`, which on a tax-inclusive list still has the VAT in it.
    * Summing the two mixes bases.

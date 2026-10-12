@@ -318,7 +318,7 @@ export function doneOffline(at: Date | null | undefined, now: Date): boolean {
  * the sale it reverses, not before the shift it lands on opened, and not after
  * it arrived. Anything else goes in at the time it arrived, with a review line.
  *
- * The till's date never decides a rule: `voidRetailSaleTransaction` judges
+ * The till's date never decides a rule: `voidSale` (lib/retail/floor/voids.ts) judges
  * "Voids need a manager PIN" at arrival, so a void dated back inside the five
  * free minutes is no way round the PIN.
  */

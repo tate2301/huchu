@@ -219,6 +219,9 @@ export function toSaleRow(row: SaleRow, now: Date): ReportRow {
     size: Math.abs(total),
     state: stateOf(row),
     voided: voided ? "yes" : null,
+    // FLR-02's row menu: Refund while something is left, Void the same day with nothing reversed.
+    refundable: row.saleType === "SALE" && row.status === "POSTED" && !row.fullyRefunded ? "yes" : null,
+    voidable: row.saleType === "SALE" && row.status === "POSTED" && !row.refunded && today ? "yes" : null,
     flagged: row.flagged ? "yes" : null,
     siteId: row.siteId,
     shiftId: row.shiftId,

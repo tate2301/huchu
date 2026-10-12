@@ -279,6 +279,8 @@ describe("reversing a sale past the till rules needs a manager unless you approv
   const REVERSALS: Array<{ key: string; action: "refund" | "void" }> = [
     { key: "pos/sales/[id]/refund/route.ts POST", action: "refund" },
     { key: "pos/sales/[id]/void/route.ts POST", action: "void" },
+    { key: "retail/sales/[id]/refund/route.ts POST", action: "refund" },
+    { key: "retail/sales/[id]/void/route.ts POST", action: "void" },
   ];
 
   /** `label()` normalises to forward slashes, so the tail matches as written. */
@@ -293,11 +295,12 @@ describe("reversing a sale past the till rules needs a manager unless you approv
 
     const source = stripComments(handler.body);
     expect(source).toContain(`requireRetailPermission(session, "retail.sell", "${action}")`);
-    // SET-06: the service asks the till rules whether a manager must approve
-    // (\`approvalFor\`, which lets \`approve\` through); the route hands it the
-    // manager's PIN and answers its refusals (409 needsApprover, 400, 423).
-    expect(source).toContain("approver: input.approver");
-    expect(source).toContain("tillRuleResponse(error)");
+    // SET-06, FLR-02: the service asks the till rules whether a manager must
+    // approve (\`approvalFor\`, which lets \`approve\` through); the route hands
+    // it the parsed body, the manager's PIN with it, and answers its refusals
+    // (409 needsApprover, 400, 423) through \`reversalResponse\`.
+    expect(source).toContain("body: input");
+    expect(source).toContain("reversalResponse(error");
   });
 
   it.each(REVERSALS)("$key does not fall back to the role list", ({ key }) => {

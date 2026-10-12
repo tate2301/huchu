@@ -194,8 +194,8 @@ export async function recordSaleEmpties(
 }
 
 /**
- * The deposit a refund or a void hands back (`refundRetailSaleTransaction`,
- * `voidRetailSaleTransaction`): one DEPOSIT_REFUNDED entry, on the refund's
+ * The deposit a refund or a void hands back (`refundSale` (lib/retail/floor/refunds.ts),
+ * `voidSale` (lib/retail/floor/voids.ts)): one DEPOSIT_REFUNDED entry, on the refund's
  * own number. The empties stay where they are: a refund hands back money,
  * and bottles brought back stay in the store.
  */
