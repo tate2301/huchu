@@ -194,3 +194,31 @@ describe("points at the till", () => {
     expect(back).toEqual([expect.objectContaining({ kind: "REVERSED", points: -32 })]);
   });
 });
+
+describe("a sale and its customer (CUS-02)", () => {
+  it("names its customer by id only and never changes or adds one", async () => {
+    const before = await prisma.customer.findMany({ where: { companyId }, orderBy: { name: "asc" }, select: { id: true, name: true, phone: true, email: true } });
+    // The old upsert would have renamed Tapiwa, given Rudo this number, or added a customer.
+    const named = await sell("named", {
+      customerId: rudoId,
+      customerName: "tapiwa marange",
+      customerPhone: "+263774123388",
+      customerEmail: "rudo@example.test",
+      payments: [{ tenderType: "CASH", amount: 21.4 }],
+    });
+    expect(named.status).toBe(201);
+    expect([named.body.customerName, named.body.customerPhone]).toEqual(["Rudo Moyo", null]);
+    const walkIn = await sell("walk-in", { customerName: "Nyasha Gwenzi", customerPhone: "+263774123399", payments: [{ tenderType: "CASH", amount: 21.4 }] });
+    expect(walkIn.status).toBe(201);
+    const sale = await prisma.retailSale.findUniqueOrThrow({ where: { id: walkIn.body.id! }, select: { customerId: true, customerName: true } });
+    expect(sale).toEqual({ customerId: null, customerName: null });
+    const after = await prisma.customer.findMany({ where: { companyId }, orderBy: { name: "asc" }, select: { id: true, name: true, phone: true, email: true } });
+    expect(after).toEqual(before);
+  });
+
+  it("refuses a customer merged away", async () => {
+    const merged = await prisma.customer.create({ data: { companyId, name: "T. Marange", mergedIntoId: tapiwaId, archivedAt: new Date() }, select: { id: true } });
+    const sold = await sell("merged", { customerId: merged.id, payments: [{ tenderType: "CASH", amount: 21.4 }] });
+    expect(sold.status).toBe(400);
+  });
+});

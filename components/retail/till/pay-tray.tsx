@@ -244,7 +244,6 @@ export function PayTray({
     emptiesBackCount,
     isPosHost,
     selectedCustomer,
-    customerName,
     context,
     cart,
     lineStopped,
@@ -307,7 +306,7 @@ export function PayTray({
     setEmptiesTaken(emptiesBackCount);
     setTaken({
       tillLine: [context?.till.name, session?.user?.name ? firstName(session.user.name) : null].filter(Boolean).join(", "),
-      customerName: selectedCustomer?.name ?? (customerName.trim() || null),
+      customerName: selectedCustomer?.name ?? null,
       lines: slipLines(cart.filter((item) => !lineStopped(item))),
       payments,
       idChecked,

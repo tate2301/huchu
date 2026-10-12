@@ -26,9 +26,6 @@ export type PosSaleQueuePayload = {
   clientRef: string;
   shiftId: string;
   customerId?: string;
-  customerName?: string;
-  customerPhone?: string;
-  customerEmail?: string;
   /** CUS-01: refused on a replay ("Spending points needs the internet."); the till spends none offline. */
   pointsToSpend?: number;
   discountAmount?: number;

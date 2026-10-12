@@ -4,8 +4,6 @@ import { z } from "zod";
 import { errorResponse, successResponse } from "@/lib/api-response";
 import { atLeast, money, sumMoney, toNumber, toNumberOrZero } from "@/lib/money";
 import { prisma } from "@/lib/prisma";
-import { newCustomerNumbers } from "@/lib/retail/customers/numbers";
-import { normalizePhone } from "@/lib/retail/customers/phone";
 import { isStaffPhone } from "@/lib/retail/customers/stats";
 import { balance } from "@/lib/retail/loyalty/ledger";
 import { loadLoyaltySettings } from "@/lib/retail/loyalty/settings";
@@ -102,9 +100,6 @@ const saleSchema = z.object({
   clientRef: z.string().min(1).max(80).optional(),
   shiftId: z.string().uuid(),
   customerId: z.string().uuid().optional().nullable(),
-  customerName: z.string().max(200).optional().nullable(),
-  customerPhone: z.string().max(40).optional().nullable(),
-  customerEmail: z.string().email().max(200).optional().nullable(),
   /**
    * CUS-01: points the customer spends on this sale, taken off its payable
    * lines at what a point is worth. Refused on a replay: the till does not
@@ -199,12 +194,6 @@ async function discountCeilingRefusal(
     }
   }
   return null;
-}
-
-function normalizeEmail(input: string | null | undefined) {
-  if (!input) return null;
-  const trimmed = input.trim().toLowerCase();
-  return trimmed || null;
 }
 
 function refundedShare(sale: SaleListItem): "NONE" | "PART" | "ALL" {
@@ -1084,87 +1073,6 @@ export async function POST(request: NextRequest) {
     } catch (error) {
       return errorResponse(error instanceof Error ? error.message : "The payments do not add up.", 400);
     }
-    const customerPhone = normalizePhone(input.customerPhone);
-    const customerEmail = normalizeEmail(input.customerEmail);
-    const requestedCustomerName = input.customerName?.trim() || null;
-    let capturedCustomer:
-      | {
-          id: string;
-          name: string;
-          phone: string | null;
-          email: string | null;
-        }
-      | null = null;
-    let resolvedCustomerName = requestedCustomerName;
-
-    if (saleCustomer) {
-      const selectedCustomer = saleCustomer;
-      capturedCustomer =
-        customerPhone || customerEmail
-          ? await prisma.customer.update({
-              where: { id: selectedCustomer.id },
-              data: {
-                ...(customerPhone && selectedCustomer.phone !== customerPhone
-                  ? { phone: customerPhone }
-                  : {}),
-                ...(customerEmail && selectedCustomer.email !== customerEmail
-                  ? { email: customerEmail }
-                  : {}),
-              },
-              select: { id: true, name: true, phone: true, email: true },
-            })
-          : selectedCustomer;
-      resolvedCustomerName = selectedCustomer.name;
-    } else if (requestedCustomerName || customerPhone || customerEmail) {
-      const fallbackName = customerPhone ? `Customer ${customerPhone}` : customerEmail ?? null;
-      const customerName = requestedCustomerName || fallbackName;
-      if (customerName) {
-        const existingCustomer = await prisma.customer.findFirst({
-          where: {
-            companyId: session.user.companyId,
-            OR: [
-              ...(customerPhone ? [{ phone: customerPhone }] : []),
-              ...(customerEmail ? [{ email: customerEmail }] : []),
-              ...(requestedCustomerName
-                ? [{ name: { equals: requestedCustomerName, mode: "insensitive" as const } }]
-                : []),
-            ],
-          },
-          select: { id: true, name: true, phone: true, email: true },
-        });
-
-        capturedCustomer = existingCustomer
-          ? await prisma.customer.update({
-              where: { id: existingCustomer.id },
-              data: {
-                ...(requestedCustomerName && existingCustomer.name !== requestedCustomerName
-                  ? { name: requestedCustomerName }
-                  : {}),
-                ...(customerPhone && existingCustomer.phone !== customerPhone
-                  ? { phone: customerPhone }
-                  : {}),
-                ...(customerEmail && existingCustomer.email !== customerEmail
-                  ? { email: customerEmail }
-                  : {}),
-              },
-              select: { id: true, name: true, phone: true, email: true },
-            })
-          : await prisma.customer.create({
-              data: {
-                companyId: session.user.companyId,
-                ...(await newCustomerNumbers(prisma, session.user.companyId)),
-                name: customerName,
-                phone: customerPhone,
-                email: customerEmail,
-                contactName: requestedCustomerName || undefined,
-                createdById: session.user.id,
-              },
-              select: { id: true, name: true, phone: true, email: true },
-            });
-        resolvedCustomerName = capturedCustomer.name;
-      }
-    }
-
     // S-7.3. Marks the sale as one the till took while the line was down, so the
     // queue screen and the audit log can tell a replay from a sale rung at the
     // counter without guessing from timestamps.
@@ -1196,8 +1104,9 @@ export async function POST(request: NextRequest) {
       ]
         .filter(Boolean)
         .join(" ") || null,
-      customerName: resolvedCustomerName,
-      customerId: capturedCustomer?.id ?? null,
+      // A sale names its customer by id only: the name is the customer's own (CUS-02).
+      customerName: saleCustomer?.name ?? null,
+      customerId: saleCustomer?.id ?? null,
       loyalty: { settings: loyalty, spend: pointsSpend },
       subtotal,
       discountAmount: totalDiscount,
@@ -1239,8 +1148,8 @@ export async function POST(request: NextRequest) {
       periodOverrideReason: input.periodOverrideReason ?? null,
       idCheckedAt: input.idChecked && ageRestricted.length > 0 ? soldAt : null,
       receiptTo: {
-        phone: capturedCustomer?.phone ?? customerPhone,
-        email: capturedCustomer?.email ?? customerEmail,
+        phone: saleCustomer?.phone ?? null,
+        email: saleCustomer?.email ?? null,
       },
     });
 
@@ -1293,8 +1202,8 @@ export async function POST(request: NextRequest) {
       accountingError: accounting.accountingError,
       fiscal,
       receipt,
-      customerPhone: capturedCustomer?.phone ?? customerPhone,
-      customerEmail: capturedCustomer?.email ?? customerEmail,
+      customerPhone: saleCustomer?.phone ?? null,
+      customerEmail: saleCustomer?.email ?? null,
       // CUS-01: what the sale earned and spent, the balance after it and the tier; null with no customer.
       loyalty: points,
     }, 201);

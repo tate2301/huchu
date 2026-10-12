@@ -764,8 +764,6 @@ function useTillStateValue({ isPosHost, paired }: { isPosHost: boolean; paired: 
       clientRef: createSaleClientRef(),
       shiftId: shiftHere.id,
       customerId: selectedCustomer?.id ?? undefined,
-      customerName: selectedCustomer?.name ?? (customerName.trim() || undefined),
-      customerPhone: selectedCustomer?.phone ?? undefined,
       pointsToSpend: pointsOff > 0 ? pointsWanted : undefined,
       discountAmount: Number(orderDiscountAmount || "0") || undefined,
       overrideReason: reason?.trim() || undefined,
