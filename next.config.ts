@@ -23,29 +23,33 @@ const PDF_RENDERING_ROUTES = [
 
 const nextConfig: NextConfig = {
   /**
-   * Type errors are NOT ignored. `pnpm run typecheck` runs immediately before
-   * `next build` in the build script and fails the deploy on the first error —
-   * this only stops Next running a *second* check inside the build.
+   * Type errors are NOT ignored: `pnpm typecheck` runs on every push and pull
+   * request in `.github/workflows/checks.yml`, and a red check blocks the
+   * merge. This only stops Next running its own check inside the build.
    *
-   * It is here because that second check is what killed the production build.
-   * The 8 GB builder finished compiling, started the check while the compile
-   * still held its memory, and the container was SIGKILLed:
-   *
-   *     ✓ Compiled successfully in 2.5min
-   *       Running TypeScript ...
-   *     Error: Command "pnpm run build" exited with SIGKILL
-   *
-   * The check needs 2.6 GB on its own (measured) and the compile peaks near
-   * 7 GB. Run in sequence they fit; run stacked they do not. Deleting this
-   * line puts the check back inside the build and breaks the deploy again.
+   * The check does not belong in the build. It needs five minutes and 4.5 GB
+   * on its own (the generated Prisma client is a 101 MB `index.d.ts`), the
+   * compile peaks near 7 GB, and the Vercel machine has 8 GB and a 45-minute
+   * limit: run inside the build the two stacked and the container was
+   * SIGKILLed; run in sequence they fit but the deploy ran past the limit.
+   * Deleting this line puts the check back inside the build.
    */
   typescript: { ignoreBuildErrors: true },
   experimental: {
+    // No server source maps. Measured on the same tree (4 cores, 15 GB):
+    // compile 3.2 min -> 2.6 min, peak build memory 7.1 GB -> 6.2 GB, and
+    // `.next` 428 MB -> 199 MB, so Vercel also traces and uploads half as
+    // much. Memory is what matters: the Vercel machine has 8 GB and the
+    // compile was sitting at its ceiling. The cost is that a server stack
+    // trace in the function logs names a chunk and line, not the source file;
+    // delete this line to get the source file back at that price.
+    turbopackSourceMaps: false,
     // Phosphor is not in Next's built-in optimizePackageImports list. Its SSR
-    // barrel re-exports 1,513 modules and lib/icons.tsx imports the barrel, so
-    // every icon-using route (291 of them) otherwise compiles ~4.5k package
-    // files. NOTE: dev cold-compile must be benchmarked when touching this —
-    // hand-rolling deep imports instead measured 3x WORSE (67s -> 3.6min).
+    // barrel re-exports 1,513 modules; with this, lib/icons.tsx's named
+    // imports resolve straight to the 225 icon files the product draws
+    // instead of through the barrel. NOTE: dev cold-compile must be
+    // benchmarked when touching this — hand-rolling deep imports instead
+    // measured 3x WORSE (67s -> 3.6min).
     optimizePackageImports: ["@phosphor-icons/react", "@phosphor-icons/react/ssr"],
   },
   // Chromium is loaded at runtime by path, not by import, so the brotli-packed
