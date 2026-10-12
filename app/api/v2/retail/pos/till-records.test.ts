@@ -178,7 +178,7 @@ const params = (id: string) => ({ params: Promise.resolve({ id }) });
 
 type Record_ = {
   approvedByName: string | null;
-  empties: Array<{ supplierName: string; quantity: number }>;
+  empties: number;
   customer: { phone: string | null; tier: string; balance: number; earned: number; returned: number } | null;
   reversals: Array<{ saleType: string; approvedByName: string | null }>;
 };
@@ -209,7 +209,7 @@ describe("a sale's record", () => {
     const sale = await record(tapiwaSale.id);
     const loyalty = await getCustomerLoyaltyBalance({ companyId, customerName: tapiwa });
     expect(sale.customer).toEqual({ phone: "0772 418 330", tier: "BRONZE", balance: loyalty.balance, earned: 17, returned: 0 });
-    expect(sale.empties).toEqual([expect.objectContaining({ supplierName: "Delta Beverages", quantity: 2 })]);
+    expect(sale.empties).toBe(2);
     expect(sale.approvedByName).toBeNull();
   });
 
@@ -246,7 +246,7 @@ describe("a sale's record", () => {
     const sale = await record(discountSaleId);
     expect(sale.approvedByName).toBe("Farai Mutasa");
     expect(sale.customer).toBeNull();
-    expect(sale.empties).toEqual([]);
+    expect(sale.empties).toBe(0);
   });
 
   it("names the manager who approved a void, and the void hands back exactly the points the sale earned", async () => {

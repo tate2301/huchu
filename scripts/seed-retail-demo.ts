@@ -76,6 +76,7 @@ import {
   writeRetailAuditEvent,
 } from "@/lib/retail/audit"
 import { closeDay, dayFigures, DayRefused, loadDayRows } from "@/lib/retail/floor/day-close"
+import { bookEmptiesReturn, emptiesBalances, inStore, recordEmptiesCredit, recordEmptiesEntry, recordSaleEmpties } from "@/lib/retail/stock/empties"
 import { postRetailJournal } from "@/app/api/v2/retail/_helpers"
 import { ensureRetailSaleAccountingPosted } from "@/app/api/v2/retail/_services"
 import { expireVouchers } from "@/lib/retail/vouchers/expire"
@@ -653,6 +654,9 @@ async function main() {
     licenceHours: true,
     emptiesAndDeposits: true,
     casesAndSingles: true,
+    // STK-09: what an empty is worth going back to a supplier.
+    bottleDeposit: money("0.10"),
+    crateDeposit: money("3.00"),
     licenceNumber: "HRE/BL/2024/0711",
     licenceExpiresOn: new Date("2026-12-31T00:00:00.000Z"),
     // SET-01: the shop's WhatsApp, registered for VAT, and Harare Main Branch as the default site.
@@ -2009,6 +2013,7 @@ async function main() {
   await seedTransfers({ companyId, mainSiteId: site.id, borrowdaleId: borrowdale.id, reset })
   await seedAdjustments({ companyId, mainSiteId: site.id, reset })
   await seedCounts({ companyId, mainSiteId: site.id })
+  await seedEmpties(companyId, site.id)
   await seedPriceHistory(companyId)
   await seedPriceLists({ companyId, borrowdaleId: borrowdale.id, reset })
   await seedStockLedger(companyId, site.id)
@@ -2035,6 +2040,120 @@ async function main() {
       `\n\nSign in as any of:\n${STAFF.map((s) => `  ${s.role.padEnd(12)} ${s.email}`).join("\n")}` +
       `\n  password: ${STAFF_PASSWORD}`,
   )
+}
+
+/**
+ * STK-09 `seedEmpties()`: Harare Main Branch's Empties ledger, written through
+ * the service in time order so every entry's "In the store" is the running
+ * balance. A ledger brought forward from the paper book, customers' empties
+ * brought back over five weeks, three returns (Delta twice, Natbrew) and
+ * Delta's credit note CN-2210 on 2 October; then the board's three newest
+ * rows — Delta's GRN-0005 return yesterday 17:40, Tapiwa Marange's 24 bottles
+ * and 2 crates today 11:02 — with a deposit charged for every seeded sale of
+ * the last 30 days that took one. The store holds 628 · 49 before the board's
+ * four rows and 412 · 31 after; Held for customers reads US$84.30 and Owed by
+ * suppliers US$231.00, which the seed checks.
+ */
+async function seedEmpties(companyId: string, mainSiteId: string) {
+  await prisma.platformAuditEvent.deleteMany({ where: { companyId, entityType: "RetailEmptiesEntry" } })
+  await prisma.retailEmptiesEntry.deleteMany({ where: { companyId, returnId: { not: null } } })
+  await prisma.retailEmptiesEntry.deleteMany({ where: { companyId } })
+
+  const tafara = await prisma.user.findFirstOrThrow({ where: { companyId, email: "tafara.manager@bottlestore.test" }, select: { id: true } })
+  const actor = { companyId, userId: tafara.id, userName: "Tafara Nyathi", userRole: "MANAGER" }
+  const delta = await prisma.vendor.findFirstOrThrow({ where: { companyId, name: "Delta Beverages" }, select: { id: true } })
+  const natbrew =
+    (await prisma.vendor.findFirst({ where: { companyId, name: "Natbrew" }, select: { id: true } })) ??
+    (await prisma.vendor.create({ data: { companyId, name: "Natbrew", phone: "+263 24 262 1180" }, select: { id: true } }))
+  const customers = await prisma.customer.findMany({ where: { companyId }, select: { id: true, name: true }, orderBy: { name: "asc" } })
+  const tapiwa = customers.find((customer) => customer.name === "Tapiwa Marange") ?? null
+
+  type Step = { at: Date; run: (tx: Prisma.TransactionClient, at: Date) => Promise<unknown> }
+  const steps: Step[] = []
+  const back = (at: Date, bottles: number, crates: number, customerId: string | null) =>
+    steps.push({
+      at,
+      run: (tx, when) =>
+        recordEmptiesEntry(tx, { companyId, siteId: mainSiteId, kind: "BOTTLES_BACK", bottles, crates, deposit: money(bottles * 0.1 + crates * 3).negated(), customerId, createdById: tafara.id, at: when }),
+    })
+
+  // Customers' empties over five weeks: 40 visits of 12 to 48 bottles and 1 to 4 crates, 1,318 bottles and 103 crates in all.
+  const bottles = Array.from({ length: 40 }, (_, i) => 12 + ((i * 17) % 37))
+  const crates = Array.from({ length: 40 }, (_, i) => 1 + ((i * 3) % 4))
+  const settle = (counts: number[], want: number, low: number, high: number) => {
+    let gap = want - counts.reduce((sum, n) => sum + n, 0)
+    for (let i = 0; gap !== 0 && i < counts.length * 64; i++) {
+      const at = i % counts.length
+      if (gap > 0 && counts[at]! < high) {
+        counts[at]! += 1
+        gap -= 1
+      } else if (gap < 0 && counts[at]! > low) {
+        counts[at]! -= 1
+        gap += 1
+      }
+    }
+  }
+  settle(bottles, 1318, 12, 48)
+  settle(crates, 103, 1, 4)
+  bottles.forEach((count, i) => back(harareTime(38 - Math.floor(i * 0.7), 9 + (i % 8), (i * 13) % 60), count, crates[i]!, customers[i % Math.max(customers.length, 1)]?.id ?? null))
+
+  // Three returns before 2 October; the first is the one CN-2210 credits.
+  let firstReturn = ""
+  const ret = (at: Date, supplierId: string, b: number, c: number, note: string, first = false) =>
+    steps.push({
+      at,
+      run: async (tx, when) => {
+        const booked = await bookEmptiesReturn(tx, { actor, siteId: mainSiteId, supplierId, bottles: b, crates: c, note, at: when })
+        if (first) firstReturn = booked.id
+      },
+    })
+  ret(harareTime(20, 16, 5), delta.id, 240, 20, "The delivery, 22 September", true)
+  ret(harareTime(14, 15, 20), natbrew.id, 300, 20, "Their truck, 28 September")
+  ret(harareTime(11, 17, 0), delta.id, 150, 14, "The delivery, 1 October")
+  const creditAt = harareAt("2026-10-02", "09:30")
+  steps.push({ at: creditAt, run: (tx, when) => recordEmptiesCredit(tx, { actor, returnId: firstReturn, creditNote: "CN-2210", amount: "84.00", at: when }) })
+
+  // The board's newest rows.
+  steps.push({
+    at: harareTime(1, 17, 40),
+    run: (tx, when) => bookEmptiesReturn(tx, { actor, siteId: mainSiteId, supplierId: delta.id, bottles: 240, crates: 20, reference: "GRN-0005", note: "The next delivery, 7 October", at: when }),
+  })
+  back(harareTime(0, 11, 2), 24, 2, tapiwa?.id ?? null)
+
+  // A deposit charged for every seeded sale of the last 30 days that took one.
+  const deposited = await prisma.retailSale.findMany({
+    where: { companyId, saleType: "SALE", depositAmount: { gt: 0 }, postedAt: { gte: daysAgo(30) } },
+    select: { id: true, saleNo: true, siteId: true, customerId: true, cashierId: true, depositAmount: true, postedAt: true },
+  })
+  for (const sale of deposited) {
+    steps.push({
+      at: sale.postedAt ?? new Date(),
+      run: (tx, when) =>
+        recordSaleEmpties(tx, { companyId, siteId: sale.siteId, saleId: sale.id, saleNo: sale.saleNo, customerId: sale.customerId, createdById: sale.cashierId, depositAmount: sale.depositAmount, lines: [], at: when }),
+    })
+  }
+
+  // Brought forward from the paper ledger: what customers' deposits stood at before the history, so Held reads US$84.30.
+  const charged = sumMoney(deposited.map((sale) => sale.depositAmount))
+  const paidBack = money(bottles.reduce((sum, n) => sum + n, 0) * 0.1 + crates.reduce((sum, n) => sum + n, 0) * 3 + 8.4)
+  const forward = money("84.30").plus(paidBack).minus(charged)
+  steps.push({
+    at: harareTime(40, 8, 0),
+    run: (tx, when) =>
+      recordEmptiesEntry(tx, { companyId, siteId: mainSiteId, kind: "DEPOSIT_CHARGED", deposit: forward, note: "Brought forward from the paper ledger", createdById: tafara.id, at: when }),
+  })
+
+  steps.sort((a, b) => a.at.getTime() - b.at.getTime())
+  for (const step of steps) await prisma.$transaction((tx) => step.run(tx, step.at))
+
+  const balances = await emptiesBalances(prisma, companyId)
+  const store = await inStore(prisma, mainSiteId)
+  if (balances.held.toFixed(2) !== "84.30" || balances.owed.toFixed(2) !== "231.00" || store.bottles !== 412 || store.crates !== 31) {
+    throw new Error(
+      `Empties seed is off: held ${balances.held.toFixed(2)} (want 84.30), owed ${balances.owed.toFixed(2)} (want 231.00), in the store ${store.bottles} · ${store.crates} (want 412 · 31)`,
+    )
+  }
+  console.log(`  empties: ${steps.length} entries, held US$84.30, owed US$231.00, 412 · 31 in the store`)
 }
 
 /**

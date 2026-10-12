@@ -22,7 +22,6 @@ import { OFFLINE_REPLAY_NOTE_MARKER } from "@/lib/retail/offline-queue-verdict";
 import { reviewReplayedPrices } from "@/lib/retail/replay-price-review";
 import { loadSellableProducts } from "@/lib/retail/shelf-listing";
 import { depositsDue, emptiesCounted, lineDeposit } from "@/lib/retail/deposits";
-import { saleEmpties } from "@/lib/retail/empties";
 import { liquorSaleRefusal, loadShopProfile, shopFeatures } from "@/lib/retail/shop-profile";
 import { loadLicenceHours } from "@/lib/retail/site-licence-hours";
 import { cashierFilterFor } from "@/lib/retail/own-rows";
@@ -1199,7 +1198,7 @@ export async function POST(request: NextRequest) {
       replay: Boolean(replaySoldAt),
       lines: normalizedLines.map((line, index) => ({
         depositAmount: lineDeposit(depositLines[index]),
-        // The bottles that counted against the line, for its supplier's empties.
+        // The bottles that counted against the line, for the Empties ledger (STK-09).
         emptiesBack: depositLines[index].returnable ? emptiesCounted(depositLines[index]) : 0,
         inventoryItemId: line.inventoryItem.id,
         inventoryUnit: line.inventoryItem.unit,
@@ -1258,8 +1257,6 @@ export async function POST(request: NextRequest) {
     });
     // The receipt the till prints (SET-07): the settings in force and the fiscal line just signed.
     const receipt = await saleReceipt(session.user.companyId, sale.id);
-    // The bottles that came back, per supplier, for the Paid screen.
-    const empties = await saleEmpties(prisma, session.user.companyId, sale.id);
 
     return successResponse({
       id: sale.id,
@@ -1290,7 +1287,6 @@ export async function POST(request: NextRequest) {
       overrideReason: sale.overrideReason,
       // The manager whose PIN let a discount or price through; null when nobody had to.
       approvedByName: sale.approvedByName,
-      empties,
       notes: sale.notes,
       accountingStatus: accounting.accountingStatus,
       accountingError: accounting.accountingError,

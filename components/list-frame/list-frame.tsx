@@ -823,7 +823,7 @@ export function ListFrame({ source, title, sub, rowFilters, defaultSort, default
     <div ref={rootRef} className="cx-lf">
       {chrome}
       {dialogs}
-      {spec && !everEmpty ? <ListTabs spec={spec} tab={resolved?.tab ?? null} counts={data?.tabs ?? null} onTab={(tab) => write({ tab })} /> : null}
+      {spec && !everEmpty ? <ListTabs spec={spec} tab={resolved?.tab ?? null} counts={data?.tabs ?? null} sums={data?.tabSums ?? null} onTab={(tab) => write({ tab })} /> : null}
       {everEmpty ? null : (
         <div className="cx-lf-bar">
           {selectionBar ??

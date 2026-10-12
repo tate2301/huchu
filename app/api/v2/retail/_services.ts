@@ -31,7 +31,7 @@ import { OFFLINE_REFUND_NO_REFERENCE_REVIEW, offlineReversalReview } from "@/lib
 import { approvalFor, replayApproval, type Approval, type ApproverInput } from "@/lib/retail/manager-pin";
 import { refuseWhileCounted } from "@/lib/retail/stock/counts";
 import { breakCasesForSale, type TillCase } from "@/lib/retail/stock/cases";
-import { recordSaleEmpties, reverseSaleEmpties } from "@/lib/retail/empties";
+import { recordRefundEmpties, recordSaleEmpties } from "@/lib/retail/stock/empties";
 import {
   checkSaleTenders,
   loadPaymentSettings,
@@ -117,7 +117,7 @@ export type RetailSaleLineInput = {
   /**
    * The empties that counted against this line (`emptiesCounted`, on a
    * returnable product at a shop that takes deposits): written to the
-   * product's supplier's empties ledger with the sale.
+   * Empties ledger with the sale (STK-09).
    */
   emptiesBack?: number;
   /** PRD-09 — the promotion that discounted it, and what that took off (shelf money, inside `discountAmount`). */
@@ -711,11 +711,15 @@ export async function createRetailSaleTransaction(input: {
           ? await sellGiftVouchers(tx, { actor: voucherActor, saleId: created.id, vouchers: input.vouchersSold, now: created.postedAt ?? new Date() })
           : [];
 
-        // The empties that came back, on their suppliers' ledger.
+        // STK-09: the deposit charged and the empties swapped back, on the Empties ledger.
         await recordSaleEmpties(tx, {
           companyId: input.actor.companyId,
           siteId: created.siteId,
           saleId: created.id,
+          saleNo: created.saleNo,
+          customerId: created.customerId,
+          createdById: input.actor.userId,
+          depositAmount: created.depositAmount,
           lines: input.lines,
         });
 
@@ -1232,6 +1236,17 @@ export async function refundRetailSaleTransaction(input: {
       }
     }
 
+    // STK-09: the deposit handed back with the goods, on the Empties ledger.
+    await recordRefundEmpties(tx, {
+      companyId: input.actor.companyId,
+      siteId: created.siteId,
+      saleId: created.id,
+      saleNo: created.saleNo,
+      customerId: currentSourceSale.customerId,
+      createdById: input.actor.userId,
+      depositAmount: created.depositAmount,
+    });
+
     /*
       R-3.3, and the single most important audit row in the module.
 
@@ -1539,11 +1554,15 @@ export async function voidRetailSaleTransaction(input: {
       },
     });
 
-    // The empties the sale took back come off their suppliers' ledger with it.
-    await reverseSaleEmpties(tx, {
+    // STK-09: the whole deposit handed back, on the Empties ledger (the bottles stay in the store).
+    await recordRefundEmpties(tx, {
       companyId: input.actor.companyId,
-      sourceSaleId: currentSourceSale.id,
+      siteId: created.siteId,
       saleId: created.id,
+      saleNo: created.saleNo,
+      customerId: currentSourceSale.customerId,
+      createdById: input.actor.userId,
+      depositAmount: created.depositAmount,
     });
 
     // R-3.3. Same reasoning as the refund above; a void is the other half of it.

@@ -9,7 +9,6 @@
 import type { RetailTenderType } from "@prisma/client";
 
 import type { CaseOf, OpenableCase } from "@/app/api/v2/retail/pos/_cases";
-import type { SaleEmpties } from "@/lib/retail/empties";
 import type { TillFiscalStatus } from "@/lib/retail/fiscalisation";
 import type { PriceBreak } from "@/lib/retail/pricing/engine";
 import type { ChangeSplit, TenderCurrency } from "@/lib/retail/payment-words";
@@ -168,8 +167,6 @@ export type CompletedSale = {
   fiscal: TillFiscalStatus | null;
   /** The hold this sale was recalled from, as the receipt names it. Set by the till. */
   heldAs?: string | null;
-  /** Bottles brought back on this sale, owed back to each supplier. */
-  empties: SaleEmpties;
 };
 
 /** A sale the till could not send, kept in its offline queue until the line is back. */

@@ -17,8 +17,7 @@ import { formatZigRate, splitChange, type ChangeSplit } from "@/lib/retail/payme
 import { getPosPortalHref } from "@/lib/retail/pos-host";
 import { fiscalStatusLabel } from "@/lib/retail/words";
 import { AddressBook, CaretRight, Check, Money, Plus, Printer, Receipt, Ticket, Trash, Wallet, WifiSlash, X } from "@/lib/icons";
-import { emptiesWords } from "./empties-words";
-import { firstName, hhmm, paymentLabel, usd, whole, zig } from "./format";
+import { count, firstName, hhmm, paymentLabel, usd, whole, zig } from "./format";
 import { printSlip, slipLines, type SlipSale } from "./offline-slip";
 import { ErrorLine, Keypad, Segmented, typeAmount, useKeypadKeys, useReturnFocus, useWindowKeys, type KeypadKey } from "./parts";
 import { paymentSummary } from "./sale-rules";
@@ -402,7 +401,7 @@ export function PayTray({
           {emptiesTaken ? (
             <>
               <dt>Empties</dt>
-              <dd>{emptiesWords(emptiesTaken, done.empties)}</dd>
+              <dd>{count(emptiesTaken, "bottle")}</dd>
             </>
           ) : null}
           {fiscal ? (

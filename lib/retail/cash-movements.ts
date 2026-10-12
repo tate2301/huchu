@@ -77,6 +77,7 @@ export const RETAIL_CASH_MOVEMENT_REASON_CODES = [
   "SUPPLIER_PAYOUT",
   "PETTY_CASH",
   "OTHER",
+  "BOTTLES_BACK",
 ] as const;
 
 export type RetailCashMovementReasonCode =
@@ -94,6 +95,8 @@ export const RETAIL_CASH_MOVEMENT_REASON_LABELS: Record<
   SUPPLIER_PAYOUT: "Supplier paid on delivery",
   PETTY_CASH: "Petty cash",
   OTHER: "Other",
+  // STK-09: never offered as a reason; written by the till's bottles-back payout.
+  BOTTLES_BACK: "Bottles back",
 };
 
 /**

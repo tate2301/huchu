@@ -1,11 +1,7 @@
 /**
- * Empties at the till, as the cashier counts them and the Paid screen says
- * them. Pure, so the counting is tested without a till around it.
+ * Empties at the till, as the cashier counts them. Pure, so the counting is
+ * tested without a till around it.
  */
-
-import type { SaleEmpties } from "@/lib/retail/empties";
-
-import { count, whole } from "./format";
 
 /** What a row of the count needs from a line on the sale. */
 export type EmptiesLine = {
@@ -51,20 +47,4 @@ export function spreadEmpties(row: EmptiesRow, n: number): Array<[string, number
     left -= here;
     return [item.catalogItemId, here];
   });
-}
-
-/**
- * The empties on the Paid screen, by the supplier whose ledger they went on:
- * "12 bottles on the ledger for Delta", "… and 4 for Schweppes". Bottles of a
- * product with no supplier go on no ledger and are counted on their own.
- */
-export function emptiesWords(taken: number, ledger: SaleEmpties | null | undefined): string {
-  const rows = (ledger ?? []).filter((row) => row.quantity > 0);
-  if (rows.length === 0) return count(taken, "bottle");
-  const parts = rows.map((row, index) =>
-    index === 0 ? `${count(row.quantity, "bottle")} on the ledger for ${row.supplierName}` : `${whole(row.quantity)} for ${row.supplierName}`,
-  );
-  const listed = parts.length > 1 ? `${parts.slice(0, -1).join(", ")} and ${parts[parts.length - 1]}` : parts[0]!;
-  const rest = taken - rows.reduce((sum, row) => sum + row.quantity, 0);
-  return rest > 0 ? `${listed}, ${whole(rest)} with no supplier` : listed;
 }

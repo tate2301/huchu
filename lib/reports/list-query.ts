@@ -552,6 +552,26 @@ export function tabCounts(spec: ListSpec, rows: ReportRow[], columns: ReportColu
   return Object.fromEntries(spec.tabs.map((tab) => [tab.key, filterRows(rows, columns, view(tab.where)).length]));
 }
 
+/** Each badged tab's money: its `badge.sum` column added up over the tab's rows, ignoring search and filters. */
+export function tabSums(spec: ListSpec, rows: ReportRow[], columns: ReportColumn[]): Record<string, number> | null {
+  const badged = spec.tabs?.filter((tab) => tab.badge) ?? [];
+  if (!badged.length) return null;
+  const view = (where: Condition[]): ReportView => ({
+    columns: columns.map((column) => ({ key: column.key, hidden: false })),
+    conditions: where,
+    search: "",
+    sort: [],
+    groupBy: null,
+    totals: {},
+  });
+  return Object.fromEntries(
+    badged.map((tab) => {
+      const cents = filterRows(rows, columns, view(tab.where)).reduce((sum, row) => sum + Math.round(Number(row[tab.badge!.sum] ?? 0) * 100), 0);
+      return [tab.key, cents / 100];
+    }),
+  );
+}
+
 /** For each state column with a summary: how many rows need looking at ("23 to check"). */
 export function summaries(spec: ListSpec, rows: ReportRow[]): ListSummary {
   const out: ListSummary = {};
@@ -699,6 +719,7 @@ export function runList(
       totals: strip(applied.totals),
       summary: summaries(spec, applied.rows),
       tabs: tabCounts(spec, base, columns),
+      tabSums: tabSums(spec, base, columns),
       everEmpty: base.length === 0,
       truncated,
     },

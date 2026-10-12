@@ -3,8 +3,8 @@
  *
  * A product may have an open price, off by default. A sale names the manager
  * who approved it, and keeps the name when the person goes. A shop names each
- * deposit value once. Empties brought back go on a ledger per supplier, which
- * keeps its rows when their sale goes and refuses a zero count.
+ * deposit value once. (Its per-supplier empties table was replaced by STK-09's
+ * Empties ledger, witnessed in `empties-migration.test.ts`.)
  */
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -27,11 +27,6 @@ async function foreignKey(name: string) {
     JOIN information_schema.constraint_column_usage ccu ON ccu.constraint_name = rc.unique_constraint_name
     WHERE rc.constraint_name = ${name}`;
   return fk;
-}
-
-async function indexes(table: string): Promise<string[]> {
-  const rows = await prisma.$queryRaw<Array<{ indexname: string }>>`SELECT indexname FROM pg_indexes WHERE tablename = ${table}`;
-  return rows.map((row) => row.indexname);
 }
 
 const insertKind = (amount: number, name: string) => prisma.$executeRaw`
@@ -75,31 +70,5 @@ describe("a named deposit value, as stored", () => {
     await expect(insertKind(0.1, "Quarts")).rejects.toThrow(/Unique constraint|duplicate key/);
     await expect(insertKind(0, "Nothing")).rejects.toThrow(/RetailDepositKind_amount_positive/);
     expect(await foreignKey("RetailDepositKind_companyId_fkey")).toEqual({ foreign_table: "Company", delete_rule: "CASCADE" });
-  });
-});
-
-describe("the empties ledger, as stored", () => {
-  it("counts whole bottles at a deposit each, never zero", async () => {
-    const cols = await columns("RetailEmptiesEntry");
-    expect(cols.quantity).toMatchObject({ type: "int4", nullable: false });
-    expect(cols.depositAmount).toMatchObject({ type: "numeric", nullable: false });
-    expect(cols.saleId).toMatchObject({ type: "text", nullable: true });
-    const [check] = await prisma.$queryRaw<Array<{ def: string }>>`
-      SELECT pg_get_constraintdef(oid) AS def FROM pg_constraint WHERE conname = 'RetailEmptiesEntry_quantity_nonzero'`;
-    expect(check?.def).toMatch(/quantity <> 0/);
-  });
-
-  it("is kept by supplier, product and site, and outlives its sale", async () => {
-    expect(await foreignKey("RetailEmptiesEntry_supplierId_fkey")).toEqual({ foreign_table: "Vendor", delete_rule: "RESTRICT" });
-    expect(await foreignKey("RetailEmptiesEntry_productId_fkey")).toEqual({ foreign_table: "Product", delete_rule: "RESTRICT" });
-    expect(await foreignKey("RetailEmptiesEntry_siteId_fkey")).toEqual({ foreign_table: "Site", delete_rule: "RESTRICT" });
-    expect(await foreignKey("RetailEmptiesEntry_saleId_fkey")).toEqual({ foreign_table: "RetailSale", delete_rule: "SET NULL" });
-    expect(await foreignKey("RetailEmptiesEntry_companyId_fkey")).toEqual({ foreign_table: "Company", delete_rule: "CASCADE" });
-  });
-
-  it("is read by supplier within a shop", async () => {
-    expect(await indexes("RetailEmptiesEntry")).toEqual(
-      expect.arrayContaining(["RetailEmptiesEntry_companyId_supplierId_idx", "RetailEmptiesEntry_saleId_idx"]),
-    );
   });
 });

@@ -1,8 +1,8 @@
-import { ArrowsLeftRight, ClipboardText, Clock, Stack } from "@/lib/icons";
+import { ArrowsLeftRight, ClipboardText, Clock, Package, Stack } from "@/lib/icons";
 
 import type { RetailNavModule } from "./types";
 
-/** Stock: how much there is, where it went, and counting it. */
+/** Stock: how much there is, where it went, counting it, and the empties. */
 export const stockNav: RetailNavModule = {
   id: "retail-stock",
   title: "Stock",
@@ -18,6 +18,14 @@ export const stockNav: RetailNavModule = {
       requires: [["retail.transfers", "view"]],
       // Only a shop with somewhere to send stock (30-stock 5.12).
       when: "multi-site",
+    },
+    {
+      href: "/retail/stock/empties",
+      icon: Package,
+      label: "Empties",
+      requires: [["retail.empties", "view"]],
+      // Only a liquor store taking deposits on its empties (30-stock 5.17).
+      when: "liquor-empties",
     },
   ],
 };

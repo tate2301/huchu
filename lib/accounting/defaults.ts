@@ -1128,6 +1128,20 @@ export const RETAIL_POSTING_RULES: DefaultPostingRule[] = [
       { accountCode: "1001", direction: "CREDIT", basis: "TAX", valuePath: "zig", memoTemplate: "{description} / till cash, ZiG", sortOrder: 30 },
     ],
   },
+  // STK-09: empties a customer brings back without buying, their deposit paid out of the drawer.
+  {
+    name: "Retail bottles back",
+    sourceType: "RETAIL_BOTTLES_BACK",
+    description: "Deposits paid back out of a till drawer for empties brought back without a sale.",
+    priority: 10,
+    scopeType: "COMPANY",
+    ruleMode: "GUIDED",
+    isFallback: true,
+    lines: [
+      { accountSource: "ROLE_MAPPING", accountRole: "DEPOSITS_HELD", direction: "DEBIT", basis: "AMOUNT", memoTemplate: "{description} / bottle deposits", sortOrder: 10 },
+      { accountCode: "1000", direction: "CREDIT", basis: "AMOUNT", memoTemplate: "{description} / till cash", sortOrder: 20 },
+    ],
+  },
   {
     name: "Retail shift variance",
     sourceType: "RETAIL_SHIFT_VARIANCE",

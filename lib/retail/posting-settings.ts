@@ -334,6 +334,7 @@ export const RETAIL_SOURCE_TYPES: AccountingSourceType[] = [
   "RETAIL_VOUCHER_ISSUE",
   "RETAIL_VOUCHER_EXPIRY",
   "RETAIL_VOUCHER_VOID",
+  "RETAIL_BOTTLES_BACK",
 ];
 
 type RunKind = "sales" | "refunds" | "deliveries" | "counts" | "other";

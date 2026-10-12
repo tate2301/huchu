@@ -88,8 +88,8 @@ type SaleDetail = {
   overrideReason: string | null;
   /** The manager whose PIN let its discount, refund or void through; null when nobody had to. */
   approvedByName: string | null;
-  /** The bottles that came back on it, per supplier. */
-  empties: Array<{ supplierId: string; supplierName: string; quantity: number }>;
+  /** The bottles that came back on it. */
+  empties: number;
   /** The customer, matched by name as loyalty is: points earned on it, taken back by its refunds and voids, and now. Null on a walk-in. */
   customer: { phone: string | null; tier: string; balance: number; earned: number; returned: number } | null;
   voidReason: string | null;
@@ -220,10 +220,6 @@ function pointsWords(customer: NonNullable<SaleDetail["customer"]>) {
   if (!customer.returned) return `+${whole(customer.earned)} on this sale, ${now}`;
   return `+${whole(customer.earned)}, then −${whole(customer.returned)} back, ${now}`;
 }
-
-/** "12 bottles on the ledger for Delta Beverages", a supplier at a time. */
-const emptiesWords = (empties: SaleDetail["empties"]) =>
-  empties.map((entry) => `${count(entry.quantity, "bottle")} on the ledger for ${entry.supplierName}`).join("; ");
 
 /* ─── The list ───────────────────────────────────────────────────────── */
 
@@ -778,10 +774,10 @@ export function SaleScreen({ id }: { id: string }) {
                 </dd>
               </>
             ) : null}
-            {sale.empties.length ? (
+            {sale.empties ? (
               <>
                 <dt>Empties</dt>
-                <dd>{emptiesWords(sale.empties)}</dd>
+                <dd>{count(sale.empties, "bottle")}</dd>
               </>
             ) : null}
           </dl>

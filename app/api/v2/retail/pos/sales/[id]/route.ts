@@ -4,7 +4,7 @@ import { parseRetailParams, retailIdParams } from "@/lib/retail/request";
 import { money, sumMoney, toNumberOrZero, type MoneyLike } from "@/lib/money";
 import { prisma } from "@/lib/prisma";
 import { canSeeRetailCostPrice, requireRetailPermission, retailRoleKey } from "@/lib/retail/permissions";
-import { saleEmpties } from "@/lib/retail/empties";
+import { saleBottlesBack } from "@/lib/retail/stock/empties";
 import { getCustomerLoyaltyBalance } from "@/lib/retail/loyalty";
 import { readsEveryCashier } from "@/lib/retail/own-rows";
 import { requireRetailSession } from "../../../_helpers";
@@ -111,8 +111,8 @@ export async function GET(
           select: { id: true, promoCode: true, name: true },
         })
       : Promise.resolve([]),
-    // The bottles that came back on it, per supplier.
-    saleEmpties(prisma, session.user.companyId, sale.id),
+    // The bottles that came back on it (STK-09's Empties ledger).
+    saleBottlesBack(prisma, session.user.companyId, sale.id),
     saleCustomer(session.user.companyId, sale, relatedSales),
   ]);
   const reversalLineRows = relatedSales.length

@@ -536,6 +536,29 @@ Recorded unit choices:
     Expired, so Live 14, Used up 31, Expired 6, All 51 hold with it under Expired. The seed leaves its US$4.20
     for the worker's next 00:10 run to write off, so that lapse can be watched.
 
+- **STK-09 departs from packet 17 in these places.**
+  - **The Empties ledger replaces the till's per-supplier empties table.** `RetailEmptiesEntry` was a till-era table of
+    bottles back per product's supplier; migration `20261010010000_retail_empties` drops it (and its rows) and makes the
+    packet's ledger. The till's Paid screen and its sale view now say "12 bottles", not "12 bottles on the ledger for
+    Delta": empties go back to whichever supplier the shop books them to.
+  - **Deposit charged is the gross deposit.** A sale's `depositAmount` is already net of its empties back, so its
+    DEPOSIT_CHARGED entry is that plus the empties' deposit, and its BOTTLES_BACK entry takes the empties' deposit off:
+    the two add up to the sale's own deposit, which is what its posting moves on 2240. A refund or void writes
+    DEPOSIT_REFUNDED for the deposit it hands back; the bottles brought back stay in the store.
+  - **The sale hooks write whatever the switch says**; only the Empties endpoints refuse 409 while it is off, so the
+    ledger never drifts from 2240 when the switch is turned off with deposits outstanding. The list shows the ledger
+    as it stands; its page 404s and its nav item hides.
+  - **Bottles back without a sale posts Dr Deposits held / Cr 1000 Till cash** (as petty cash does), not a tender
+    mapping, and refuses more than the drawer should hold ("Only US$12.00 should be in the drawer."). Its entry's
+    reference is the shift number; Who reads the customer, or "A customer".
+  - **"In the store" in the Σ row adds each site's latest afters** over the sites the filters cover; with one site it
+    is that site's own figure.
+  - **The seed brings the ledger forward.** Only the preview sale carries a deposit in the seeded history, so a
+    DEPOSIT_CHARGED "Brought forward from the paper ledger" 40 days back sets Held for customers to US$84.30 (the seed
+    checks it, with Owed US$231.00 and 412 · 31). The board's "Today 12:10 Sale SALE-31870 US$4.20" is not seeded:
+    SALE-31870 charged no deposit. GRN-0005 is the return's reference only until BUY-06's deliveries; Natbrew is added
+    as a supplier for its return.
+
 ## Owner direction, 5 October: sidebar, Management and Setup
 
 These override 00-foundations §5.3 and every spec that disagrees.

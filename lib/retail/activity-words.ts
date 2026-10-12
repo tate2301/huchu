@@ -443,6 +443,28 @@ const WORDS: Record<string, (payload: Payload, eventType: string, seeCost: boole
   }),
   // PRD-06: "Printed 1 shelf strip on the front till printer", "Printed 2 price tags here".
   [RETAIL_AUDIT_EVENTS.labelsPrinted]: (payload) => ({ what: labelsPrintedSentence(payload), tone: "hollow" }),
+  // "Booked 240 bottles and 20 crates back to Delta Beverages, US$84.00 owed" (STK-09).
+  [RETAIL_AUDIT_EVENTS.emptiesReturned]: (payload) => {
+    const bottles = amount(payload.bottles) ?? 0;
+    const crates = amount(payload.crates) ?? 0;
+    const items = [
+      bottles ? `${bottles} ${bottles === 1 ? "bottle" : "bottles"}` : null,
+      crates ? `${crates} ${crates === 1 ? "crate" : "crates"}` : null,
+    ].filter(Boolean);
+    const supplier = text(payload.supplier);
+    return {
+      what: `Booked ${items.join(" and ") || "empties"} back${supplier ? ` to ${supplier}` : ""}, ${formatMoney(amount(payload.deposit) ?? 0)} owed`,
+      tone: "info",
+    };
+  },
+  // "Delta Beverages credited US$84.00 (CN-2210)" (STK-09).
+  [RETAIL_AUDIT_EVENTS.emptiesCredited]: (payload) => {
+    const note = text(payload.creditNote);
+    return {
+      what: `${text(payload.supplier) ?? "The supplier"} credited ${formatMoney(amount(payload.amount) ?? 0)}${note ? ` (${note})` : ""}`,
+      tone: "ok",
+    };
+  },
   [RETAIL_AUDIT_EVENTS.saleReviewed]: (payload) => ({
     what: text(payload.reason) ? `Looked at: ${text(payload.reason)}` : "Looked at",
     tone: "ok",

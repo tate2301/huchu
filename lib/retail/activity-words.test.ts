@@ -312,6 +312,17 @@ describe("Activity's sentences (00-foundations 5.6.9)", () => {
     expect(activityWords("RETAIL_STOCK_COUNT.CANCELLED", { countNo: "CNT-0020" })).toEqual({ what: "Cancelled the count", tone: "bad" });
   });
 
+  it("empties returned to a supplier and credited (STK-09)", () => {
+    expect(activityWords("RETAIL_EMPTIES.RETURNED", { supplier: "Delta Beverages", bottles: 240, crates: 20, deposit: "84.00" })).toEqual({
+      what: "Booked 240 bottles and 20 crates back to Delta Beverages, US$84.00 owed",
+      tone: "info",
+    });
+    expect(activityWords("RETAIL_EMPTIES.CREDITED", { supplier: "Delta Beverages", creditNote: "CN-2210", amount: "84.00" })).toEqual({
+      what: "Delta Beverages credited US$84.00 (CN-2210)",
+      tone: "ok",
+    });
+  });
+
   it("transfers sent, changed, received and cancelled (30-stock 3.3)", () => {
     expect(activityWords("RETAIL_STOCK_TRANSFER.SENT", { units: 540, to: "Borrowdale" })).toEqual({ what: "Sent 540 units to Borrowdale", tone: "info" });
     expect(activityWords("RETAIL_STOCK_TRANSFER.CHANGED", { units: 560 })).toEqual({ what: "Changed the lines: 560 units on the way", tone: "info" });

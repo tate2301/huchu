@@ -1228,6 +1228,7 @@ enum UserRole {
 }
 
 model User {
+  retailEmptiesEntriesCreated RetailEmptiesEntry[] @relation("RetailEmptiesEntryCreatedBy")
   id                String    @id @default(uuid())
   /// Null for someone who only uses a till: they never sign in to the admin.
   email             String?   @unique
@@ -4578,6 +4579,8 @@ enum RetailCashMovementReason {
   SUPPLIER_PAYOUT
   PETTY_CASH
   OTHER
+  /// Cash paid out at the till for empties brought back without a sale.
+  BOTTLES_BACK
 }
 
 /// `RELEASED` is the offline runtime's doing and is not reachable online.
@@ -4800,6 +4803,10 @@ model RetailShopProfile {
   emptiesAndDeposits Boolean            @default(true)
   /// Liquor: a case is sold whole or broken into singles.
   casesAndSingles    Boolean            @default(true)
+  /// Liquor: the deposit on one returnable bottle, used to value empties going back to a supplier.
+  bottleDeposit      Decimal            @default(0.10) @db.Decimal(14, 2)
+  /// Liquor: the deposit on one returnable crate.
+  crateDeposit       Decimal            @default(3.00) @db.Decimal(14, 2)
   licenceNumber      String?
   licenceExpiresOn   DateTime?          @db.Date
   /// The shop's WhatsApp number, from onboarding. Shown to customers; nothing is sent from it.
@@ -5349,6 +5356,7 @@ model RetailPurchaseOrderLine {
 }
 
 model RetailGoodsReceipt {
+  emptiesEntries RetailEmptiesEntry[]
   id              String    @id @default(uuid())
   companyId       String
   receiptNo       String
@@ -6207,31 +6215,58 @@ model RetailDepositKind {
   @@unique([companyId, amount])
 }
 
-/// The empties the shop holds for each supplier: bottles brought back at the
-/// till, which go back to the supplier for their deposit. Positive is brought
-/// back to the shop (owed back to the supplier); a void writes the same
-/// bottles negative. Written with the sale, by the product's supplier.
+enum RetailEmptiesKind {
+  DEPOSIT_CHARGED
+  DEPOSIT_REFUNDED
+  BOTTLES_BACK
+  RETURNED_TO_SUPPLIER
+  CREDIT_RECEIVED
+}
+
+/// The Empties ledger (STK-09): every empty bottle and crate in or out of the
+/// store, and every deposit held for customers or owed by suppliers. Written by
+/// `lib/retail/stock/empties.ts` under a per-site advisory lock, so the afters
+/// are a true running balance per site.
 model RetailEmptiesEntry {
-  id            String   @id @default(uuid())
-  companyId     String
-  siteId        String
-  supplierId    String
-  /// The sale they came back on; the entry stays, unlinked, if the sale goes.
-  saleId        String?
-  productId     String
-  quantity      Int
-  /// The deposit on one bottle, the product's at the time.
-  depositAmount Decimal  @db.Decimal(14, 2)
-  createdAt     DateTime @default(now())
+  id             String            @id @default(uuid())
+  companyId      String
+  siteId         String
+  kind           RetailEmptiesKind
+  /// Change to empties in the store at this site, signed.
+  bottles        Int               @default(0)
+  crates         Int               @default(0)
+  /// Signed: + raises what is held for customers (charged) or owed by suppliers (returned); − lowers it.
+  deposit        Decimal           @default(0) @db.Decimal(14, 2)
+  /// "In the store" after this entry, at this site.
+  bottlesAfter   Int
+  cratesAfter    Int
+  saleId         String?
+  customerId     String?
+  supplierId     String?
+  supplierName   String?
+  goodsReceiptId String?
+  /// On a credit: the return it settles.
+  returnId       String?
+  /// SALE-31870, GRN-0005, CN-2210.
+  reference      String?
+  note           String?
+  createdById    String?
+  createdAt      DateTime          @default(now())
 
-  company  Company     @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  site     Site        @relation(fields: [siteId], references: [id], onDelete: Restrict)
-  supplier Vendor      @relation(fields: [supplierId], references: [id], onDelete: Restrict)
-  sale     RetailSale? @relation(fields: [saleId], references: [id], onDelete: SetNull)
-  product  Product     @relation(fields: [productId], references: [id], onDelete: Restrict)
+  company   Company              @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  site      Site                 @relation(fields: [siteId], references: [id], onDelete: Restrict)
+  sale      RetailSale?          @relation(fields: [saleId], references: [id], onDelete: SetNull)
+  customer  Customer?            @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  supplier  Vendor?              @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+  receipt   RetailGoodsReceipt?  @relation(fields: [goodsReceiptId], references: [id], onDelete: SetNull)
+  return    RetailEmptiesEntry?  @relation("RetailEmptiesCredit", fields: [returnId], references: [id], onDelete: Restrict)
+  credits   RetailEmptiesEntry[] @relation("RetailEmptiesCredit")
+  createdBy User?                @relation("RetailEmptiesEntryCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
 
-  @@index([companyId, supplierId])
-  @@index([saleId])
+  @@index([companyId, createdAt])
+  @@index([companyId, kind, createdAt])
+  @@index([siteId, createdAt])
+  @@index([supplierId])
 }
 
 model RetailSalePayment {
@@ -6446,6 +6481,7 @@ enum AccountingSourceType {
   RETAIL_VOUCHER_ISSUE
   RETAIL_VOUCHER_EXPIRY
   RETAIL_VOUCHER_VOID
+  RETAIL_BOTTLES_BACK
   GOLD_SHIFT_ALLOCATION_COMPANY
   GOLD_SHIFT_ALLOCATION_WORKER
   GOLD_SHIFT_EXPENSE
@@ -7028,6 +7064,7 @@ model CurrencyDefinition {
 }
 
 model Customer {
+  emptiesEntries      RetailEmptiesEntry[]
   id            String   @id @default(uuid())
   companyId     String
   taxCategoryId String?
@@ -14510,7 +14547,6 @@ model Product {
   retailTransferLines RetailStockTransferLine[]
   retailCountLines    RetailStockCountLine[]
   bundleItems         RetailBundleItem[]
-  retailEmptiesEntries RetailEmptiesEntry[]
   promotions          RetailPromotionProduct[]
   crmQuestionSets      CrmQuestionSet[]
   crmSiteVisitSections CrmSiteVisitSection[]

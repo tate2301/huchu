@@ -37,6 +37,7 @@ export const ACCOUNTING_SOURCE_TYPE_OPTIONS: Array<{ value: AccountingSourceType
   { value: "RETAIL_VOUCHER_ISSUE", label: "Retail voucher given" },
   { value: "RETAIL_VOUCHER_EXPIRY", label: "Retail voucher expired" },
   { value: "RETAIL_VOUCHER_VOID", label: "Retail voucher voided" },
+  { value: "RETAIL_BOTTLES_BACK", label: "Retail bottles back paid out" },
   { value: "GOLD_SHIFT_ALLOCATION_COMPANY", label: "Gold Shift — Company Share (Mdara)" },
   { value: "GOLD_SHIFT_ALLOCATION_WORKER", label: "Gold Shift — Worker Share (Boys)" },
   { value: "GOLD_SHIFT_EXPENSE", label: "Gold Shift Expense" },

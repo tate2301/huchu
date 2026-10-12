@@ -511,8 +511,12 @@ export type ListSpec = {
   /** These roles see only the rows where `column` is their own user id; `filter` is hidden from them. */
   scopeOwn?: { roles: string[]; column: string; filter?: string };
   search: { placeholder: string; keys: string[] };
-  /** `empty`: the line drawn while the tab holds nothing at all ("Nothing of yours yet. …"), in place of "No match". */
-  tabs?: Array<{ key: string; label: string; where: Condition[]; empty?: string }>;
+  /**
+   * `empty`: the line drawn while the tab holds nothing at all ("Nothing of yours yet. …"), in place of "No match".
+   * `badge`: the tab's badge is the money sum of this column over its rows, ignoring search and filters
+   * ("Held for customers US$84.30"), in place of its row count.
+   */
+  tabs?: Array<{ key: string; label: string; where: Condition[]; empty?: string; badge?: { sum: string; currency: string } }>;
   filters: ListFilter[];
   /** The first is the default. */
   sorts: ListSort[];
@@ -694,6 +698,8 @@ export type ListPageResult = {
   totals: Record<string, ReportValue>;
   summary: ListSummary;
   tabs: Record<string, number> | null;
+  /** The money badges of tabs that declare one (`badge.sum`), by tab key. */
+  tabSums?: Record<string, number> | null;
   everEmpty: boolean;
   truncated: boolean;
 };

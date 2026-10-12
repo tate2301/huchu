@@ -316,6 +316,10 @@ export const RETAIL_AUDIT_EVENTS = {
    * ("Front till printer", or "here").
    */
   labelsPrinted: "RETAIL_LABELS.PRINTED",
+  /** Empties booked back to a supplier for their deposit (STK-09). Entity `RetailEmptiesEntry`; carries `{ supplier, bottles, crates, deposit }`. */
+  emptiesReturned: "RETAIL_EMPTIES.RETURNED",
+  /** A supplier's credit note against a return (STK-09). Entity the return's `RetailEmptiesEntry`; carries `{ creditNote, amount }`. */
+  emptiesCredited: "RETAIL_EMPTIES.CREDITED",
 } as const;
 
 export type RetailAuditEvent =

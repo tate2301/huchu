@@ -524,6 +524,8 @@ describe("the chain", () => {
       saleSent: "RETAIL_SALE.SENT",
       saleReviewed: "RETAIL_SALE.REVIEWED",
       labelsPrinted: "RETAIL_LABELS.PRINTED",
+      emptiesReturned: "RETAIL_EMPTIES.RETURNED",
+      emptiesCredited: "RETAIL_EMPTIES.CREDITED",
     });
   });
 });

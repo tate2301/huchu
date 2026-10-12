@@ -23,11 +23,12 @@ export type RetailNavModule = {
 
 /**
  * A fact about the shop an item needs before it is shown at all, whoever
- * looks: `multi-site`, two or more open sites (Transfers). Worked out on the
+ * looks: `multi-site`, two or more open sites (Transfers); `liquor-empties`, a
+ * liquor store with "Empties and deposits" on (Empties). Worked out on the
  * server (`navConditions`): by the root layout for the first render, then
  * sent with the badges.
  */
-export type RetailNavCondition = "multi-site";
+export type RetailNavCondition = "multi-site" | "liquor-empties";
 
 /**
  * A retail nav item always says who sees it, and may say what the shop must
