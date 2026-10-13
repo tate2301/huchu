@@ -7,8 +7,8 @@
    to exactly that list, so a product cannot leave one out.
 
    The root layout sets `data-theme` on `<html>` from the workspace's profile:
-   `tender` for retail, `corelith` for everything else, and `tender-dark` when
-   a retail person picks Dark (the inline head script applies it before the
+   `tender` for retail, `corelith` for everything else, and `tender-dark` or
+   `corelith-dark` when a person picks Dark (the inline head script applies it before the
    first paint).
 
    Unlayered, and imported after `corelith-bridge.css`, so it outranks the
@@ -18,51 +18,102 @@
    ═══════════════════════════════════════════════════════════════════════════ */
 
 :root[data-theme="corelith"] {
-  --ground: #f6f7f9;
+  --ground: #faf9f8;
   --surface: #ffffff;
-  --hover: #f9fafb;
-  --tray: #eef0f3;
-  --active: #e7e9ef;
+  --hover: #f6f5f3;
+  --tray: #f4f3f1;
+  --active: #eeedea;
   --selected: #f3f7fe;
-  --line: #e7e9ef;
-  --line-soft: #eef0f3;
-  --line-strong: #d4d9e0;
-  --ink: #0b0c14;
-  --ink-2: #3b3d47;
-  --ink-3: #6b6d78;
-  --faint: #9aa1ad;
+  --line: #e5e4e1;
+  --line-soft: #f4f3f1;
+  --line-strong: #dbd9d5;
+  --ink: #26251f;
+  --ink-2: #5f5d57;
+  --ink-3: #716f69;
+  --faint: #a3a19b;
   --action: #2563eb;
   --action-fill: #2563eb;
   --on-action: #ffffff;
   --action-ink: #1d4ed8;
-  --sel-fill: #0b0c14;
+  --sel-fill: #26251f;
   --on-sel: #ffffff;
-  --sel-bg: #e8effd;
+  --sel-bg: #eef3fe;
   --sel-line: #bfd0f8;
   --sel-ink: #1d4ed8;
   --device: #2a2e37;
-  --info: #1d4ed8;
-  --info-soft: #e8effd;
-  --ok: #17734c;
-  --ok-soft: #e7f4ee;
-  --warn: #8a5a10;
-  --warn-soft: #fbf1dc;
+  --info: #3b5fc4;
+  --info-soft: #ebf0fb;
+  --ok: #17694e;
+  --ok-soft: #e6f4ee;
+  --warn: #8a5200;
+  --warn-soft: #fdf3e1;
   --warn-dot: #c98a1b;
   --warn-line: #e3c58f;
-  --bad: #b42318;
+  --bad: #c2321b;
   --bad-soft: #fdecea;
-  --bad-dot: #b42318;
-  --data: #4b5363;
-  --data-muted: #8a93a3;
-  --data-compare: #c9cdd4;
+  --bad-dot: #c2321b;
+  --data: #4b4a45;
+  --data-muted: #8f8d87;
+  --data-compare: #cfcdc8;
   --s1: #1baf7a;
   --s2: #2a78d6;
   --s3: #e87ba4;
   --s4: #4a3aa7;
-  --scrim: rgba(11, 12, 20, 0.32);
-  --shadow-float: 0 0 0 1px #e7e9ef, 0 14px 30px -18px rgba(11, 12, 20, 0.28);
-  --shadow-pin: 0 -1px 0 #d4d9e0, 0 -10px 18px -14px rgba(11, 12, 20, 0.35);
-  --shadow-sheet: -24px 0 48px -24px rgba(11, 12, 20, 0.35);
+  --scrim: rgba(22, 21, 15, 0.36);
+  --shadow-float: 0 0 0 1px rgba(22, 21, 15, 0.07), 0 2px 4px -1px rgba(22, 21, 15, 0.06), 0 8px 20px -4px rgba(22, 21, 15, 0.1);
+  --shadow-pin: 0 -1px 0 #dbd9d5, 0 -10px 18px -14px rgba(22, 21, 15, 0.35);
+  --shadow-sheet: -24px 0 48px -24px rgba(22, 21, 15, 0.35);
+}
+
+/* Corelith dark: the kit's dark tokens (design/core-modules/spec/tokens.css). Warm near-black,
+   each surface a step lighter; the accent and the status colours lift to keep their contrast. */
+:root[data-theme="corelith-dark"],
+[data-theme="corelith-dark"] {
+  --ground: #141312;
+  --surface: #1b1a18;
+  --hover: #222120;
+  --tray: #252422;
+  --active: #2a2927;
+  --selected: #172036;
+  --line: #2f2e2b;
+  --line-soft: #252422;
+  --line-strong: #3d3b38;
+  --ink: #e9e8e5;
+  --ink-2: #aba9a4;
+  --ink-3: #918f8a;
+  --faint: #6f6d69;
+  --action: #6b9bff;
+  --action-fill: #6b9bff;
+  --on-action: #0b1410;
+  --action-ink: #93b4ff;
+  --sel-fill: #e9e8e5;
+  --on-sel: #141312;
+  --sel-bg: #141d33;
+  --sel-line: #2a3f73;
+  --sel-ink: #93b4ff;
+  --device: #0f0e0d;
+  --info: #93abf3;
+  --info-soft: #172342;
+  --ok: #55c39f;
+  --ok-soft: #12291f;
+  --warn: #e0a548;
+  --warn-soft: #33260e;
+  --warn-dot: #e0a548;
+  --warn-line: #5c4416;
+  --bad: #f2806d;
+  --bad-soft: #3a1b16;
+  --bad-dot: #f2806d;
+  --data: #aba9a4;
+  --data-muted: #6f6d69;
+  --data-compare: #3d3b38;
+  --s1: #199e70;
+  --s2: #3987e5;
+  --s3: #d55181;
+  --s4: #7a6ad6;
+  --scrim: rgba(0, 0, 0, 0.56);
+  --shadow-float: 0 0 0 1px rgba(255, 255, 255, 0.09), 0 8px 20px -4px rgba(0, 0, 0, 0.5);
+  --shadow-pin: 0 -1px 0 #3d3b38, 0 -10px 18px -12px rgba(0, 0, 0, 0.55);
+  --shadow-sheet: -24px 0 48px -24px rgba(0, 0, 0, 0.6);
 }
 
 :root[data-theme="tender"] {
@@ -273,4 +324,14 @@
   --shadow-bar-bottom: var(--shadow-pin);
 
   --font-mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+}
+
+/* ── The product's face ───────────────────────────────────────────────────────
+   Corelith reads in Inter, as the core modules kit is drawn
+   (design/core-modules/spec/tokens.css), with the slashed zero the references
+   render. Tender keeps the package's Atkinson Hyperlegible Next. `--font-inter`
+   is the self-hosted face `app/layout.tsx` puts on <html>. */
+:root[data-product="corelith"] {
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-feature-settings: "zero" 1;
 }

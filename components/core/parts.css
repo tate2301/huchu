@@ -1,0 +1,9 @@
+/* Kit parts the boards draw only at rest. Hand-written, beside the generated kit.css, under the
+   same `.ck` scope and specificity. */
+
+/* Management's switches are ink, so the page keeps its one accent (spec/management.md). */
+.ck.ck.ck .switch.is-ink:checked { background: var(--color-ink); }
+
+/* The drawer and the Vane panel sit over the app, not inside a board. */
+.ck.ck.ck .drawer.is-fixed { position: fixed; z-index: var(--z-overlay); }
+.ck.ck.ck .over.is-fixed { position: fixed; z-index: calc(var(--z-overlay) - 1); background: var(--color-scrim); }

@@ -13,6 +13,10 @@ import "./themes/corelith-bridge.css";
 import "./themes/roles.css";
 // The workspace components read the roles (5.2).
 import "./themes/workspace.css";
+// The core modules kit, scoped to `.ck` (components/core): generated from the
+// canvas's stylesheet, then the parts the boards draw only at rest.
+import "@/components/core/kit.css";
+import "@/components/core/parts.css";
 import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import { cache, Suspense } from "react";
@@ -21,6 +25,7 @@ import { cookies, headers } from "next/headers";
 import { getServerSession } from "next-auth";
 import { AppProviders } from "@/components/providers/app-providers";
 import { AppShell } from "@/components/layout/app-shell";
+import { inter } from "@/components/core/fonts";
 import { PANEL_COOKIE } from "@/lib/rail/panel-cookie";
 import { navConditions } from "@/lib/retail/nav/conditions";
 import { isAdminPortalHost } from "@/lib/admin-portal";
@@ -182,6 +187,7 @@ export default async function RootLayout({
     */
     <html
       lang="en-GB"
+      className={inter.variable}
       data-product={product}
       data-theme={themesForProduct(product).light}
       suppressHydrationWarning
