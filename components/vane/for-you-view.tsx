@@ -6,6 +6,8 @@ import { Button, ButtonLink, Empty, Finding, GroupHead, Icon, type IconName } fr
 import type { VaneCard, VanePanel } from "@/lib/vane/panel";
 
 import { NotNowMenu } from "./not-now-menu";
+import { VaneActionList } from "./vane-action-list";
+import type { ActionDecision } from "./vane-panel-view";
 import { readSummary } from "./vane-card-drawer";
 import { VanePlanCardView } from "./vane-plan-card";
 import { VaneStateNote } from "./vane-state-note";
@@ -67,6 +69,8 @@ export function ForYouView({
   onAct,
   onRead,
   onMute,
+  onDecide,
+  deciding = null,
 }: {
   panel: VanePanel;
   /** A watched module chosen in the panel: only its cards. */
@@ -79,6 +83,10 @@ export function ForYouView({
   onRead: (card: VaneCard) => void;
   /** Not now, with the reason chosen. */
   onMute: (card: VaneCard, reason: string) => void;
+  /** Approve or deny one of the actions Vane proposes on a card. */
+  onDecide: (action: VaneCard["actions"][number], decision: ActionDecision) => void;
+  /** The action being decided now. */
+  deciding?: string | null;
 }) {
   const { status, plans, done, working } = panel;
   const cards = from ? panel.items.filter((card) => card.source === from.name) : panel.items;
@@ -148,6 +156,7 @@ export function ForYouView({
                         What I read
                       </Button>
                     </div>
+                    <VaneActionList actions={card.actions} deciding={deciding} onDecide={onDecide} />
                   </div>
                   <NotNowMenu describedBy={`vane-card-${card.id}`} onMute={(reason) => onMute(card, reason)} />
                 </div>

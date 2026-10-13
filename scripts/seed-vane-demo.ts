@@ -32,6 +32,9 @@ async function main() {
   await prisma.vanePlan.deleteMany({ where: { companyId, title: { in: ["VAT for September", "P2 and NSSA for September"] } } });
   await prisma.vaneJob.deleteMany({ where: { companyId, key: { startsWith: "demo:" } } });
 
+  await prisma.salesInvoice.deleteMany({ where: { companyId, invoiceNumber: { in: ["INV-DEMO-0142", "INV-DEMO-0150"] } } });
+  await prisma.customer.deleteMany({ where: { companyId, name: "Chisipite Dental (demo)" } });
+
   await prisma.vaneSettings.upsert({ where: { companyId }, create: { companyId }, update: { paused: false } });
 
   const job = (key: string, label: string, data: Record<string, unknown> = {}) =>
@@ -128,6 +131,44 @@ async function main() {
     body: "I wrote a by-fitter question that answers it in one table. Let's add it to the board.",
     action: { type: "open", label: "Add to the board", target: "/reports" },
     minutes: 190,
+  });
+
+  // Two drafts with no due date, and the quick fix Vane proposes for each: its customer's usual 21 days.
+  const customer = await prisma.customer.create({ data: { companyId, name: "Chisipite Dental (demo)" } });
+  const dueIn = (days: number) => new Date(now.getTime() + days * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  const invoices = await Promise.all(
+    ["INV-DEMO-0142", "INV-DEMO-0150"].map((invoiceNumber) =>
+      prisma.salesInvoice.create({ data: { companyId, customerId: customer.id, invoiceNumber, invoiceDate: now }, select: { id: true, invoiceNumber: true } }),
+    ),
+  );
+  const noDueDate = await card({
+    kind: "ISSUE",
+    sourceModule: "books",
+    headline: "2 invoices have no due date.",
+    body: "Chisipite Dental usually pays in 21 days, so without one they never show as overdue. Let's set them both to 21 days.",
+    action: { type: "open", label: "Open the invoices", target: `/books/invoices?view=drafts&customer=${customer.id}` },
+    minutes: 185,
+  });
+  await prisma.vaneAction.createMany({
+    data: invoices.map((invoice) => ({
+      companyId,
+      itemId: noDueDate.id,
+      kind: "books.invoice.due_date",
+      title: `Set ${invoice.invoiceNumber} due in 21 days`,
+      params: { invoiceId: invoice.id, invoiceNumber: invoice.invoiceNumber, customerId: customer.id, dueDate: dueIn(21) },
+    })),
+  });
+
+  // A follow-up only a person can do, as a task Vane raises once approved.
+  const quiet = await prisma.vaneItem.findFirstOrThrow({ where: { companyId, headline: "Pomona Offices' quote has waited since Tuesday." } });
+  await prisma.vaneAction.create({
+    data: {
+      companyId,
+      itemId: quiet.id,
+      kind: "crm.task.create",
+      title: "Ring Pomona Offices about the quote",
+      params: { title: "Ring Pomona Offices about the quote", dueOn: dueIn(1), type: "CALL", about: "Pomona Offices" },
+    },
   });
 
   // What James set aside, and why.

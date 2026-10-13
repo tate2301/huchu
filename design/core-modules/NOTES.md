@@ -37,7 +37,8 @@ What the build could not match, decided differently from the boards, or built wi
 - The top bar's sidebar toggle is gone; the panel's own Hide, the rail and Ctrl B hide and show the panel.
 - The panel's search narrows the panel to matching items (/ focuses it). Search everything (Ctrl K) still opens the command palette.
 - Management left the panel's foot; the gear is the way in.
-- The Vane rail mark opens Vane's own module, `/vane` (the tree: "Vane, rail, above Settings: its own module"); the top bar's Vane button opens the panel beside the page. On a Vane page the module panel lists For you, Working on, Plans, Done and Muted with their counts, then Watching.
+- Vane is in the rail only (the owner, 14 Oct: "no need for two triggers", the top bar was crowded): its mark, above the gear, opens and closes the Vane panel, with the count of what waits and a dot while it works; Ctrl J opens it at the chat box. The boards' top bar Vane button, Pause Vane in the top bar and Give Vane a job as a page or dialog are gone. Vane's pages (`/vane`…) open from the panel's head; on them the module panel lists For you, Working on, Plans, Done and Muted with their counts, then Watching.
+- The Vane panel has a chat (the owner, 14 Oct), not drawn on the boards: below the cards, plans and Done, the conversation, then suggestions (always three) and the box. While Vane answers, the panel is held and says what Vane is doing. Cards and answers carry the actions Vane proposes, each approved (with its inputs changed in place) or denied there.
 
 ### Books
 

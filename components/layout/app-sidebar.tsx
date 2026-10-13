@@ -9,6 +9,7 @@ import { useShellNav } from "@/components/layout/shell-nav";
 import { useShell } from "@/components/layout/shell-state";
 import { WorkspaceRail } from "@/components/layout/workspace-rail";
 import { ModuleGroups } from "@/components/layout/workspace-rail/module-groups";
+import { useVaneStatus } from "@/components/vane/use-vane";
 import { VaneModulePanel } from "@/components/vane/vane-module-panel";
 import { isVanePath } from "@/components/vane/vane-nav";
 
@@ -22,6 +23,7 @@ export function AppSidebar({ inDrawer = false }: { inDrawer?: boolean }) {
   const panelShown = inDrawer || shell.panelShown;
   const pathname = usePathname();
   const onVane = isVanePath(pathname);
+  const vaneStatus = useVaneStatus();
 
   return (
     <WorkspaceRail
@@ -32,7 +34,15 @@ export function AppSidebar({ inDrawer = false }: { inDrawer?: boolean }) {
       tile={<AccountMenu />}
       person={<PersonMenu />}
       management={nav.management}
-      vane={{ href: "/vane", current: onVane }}
+      vane={{
+        open: shell.vaneOpen,
+        count: vaneStatus.data?.open ?? 0,
+        working: Boolean(vaneStatus.data?.working),
+        onToggle: () => {
+          if (inDrawer) shell.setDrawerOpen(false);
+          shell.setVaneOpen(!shell.vaneOpen);
+        },
+      }}
       ownPanel={onVane ? { title: "Vane", body: <VaneModulePanel /> } : null}
       supportItems={nav.model.supportItems}
       panelShown={panelShown}

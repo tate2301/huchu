@@ -4,11 +4,10 @@ import * as React from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 
-import { Button } from "@/components/core";
 import { PageChrome } from "@/components/layout/page-chrome";
 import { useToast } from "@/components/ui/use-toast";
 import { ForYouView } from "@/components/vane/for-you-view";
-import { useVaneActions, useVaneForYou, useVaneWatching } from "@/components/vane/use-vane";
+import { useDecideAction, useVaneActions, useVaneForYou, useVaneWatching } from "@/components/vane/use-vane";
 import { VaneCardDrawer } from "@/components/vane/vane-card-drawer";
 import { VaneError, VaneLoading, VanePage } from "@/components/vane/vane-page";
 import { getApiErrorMessage } from "@/lib/api-client";
@@ -25,6 +24,7 @@ function ForYou() {
   const forYou = useVaneForYou();
   const watching = useVaneWatching();
   const { notNow, act: actOn, pause } = useVaneActions();
+  const decide = useDecideAction();
   const canPause = VANE_SETTINGS_ROLES.includes(session?.user?.role ?? "");
 
   const fromKey = params.get("from");
@@ -40,7 +40,6 @@ function ForYou() {
         }),
     });
 
-  const paused = forYou.data?.status.paused ?? false;
 
   // The card open beside the list, by its id in the address (`?card=`), so it can be linked to.
   const openId = params.get("card");
@@ -78,13 +77,7 @@ function ForYou() {
 
   return (
     <>
-      <PageChrome title="For you">
-        {canPause && forYou.data && !paused ? (
-          <Button icon="pause" busy={pause.isPending} onClick={() => setPaused(true)}>
-            Pause Vane
-          </Button>
-        ) : null}
-      </PageChrome>
+      <PageChrome title="For you" />
       <VanePage screen="vane">
         {forYou.data ? (
           <ForYouView
@@ -96,6 +89,20 @@ function ForYou() {
             onAct={act}
             onRead={(card) => showCard(card.id)}
             onMute={mute}
+            deciding={decide.isPending ? (decide.variables?.id ?? null) : null}
+            onDecide={(action, decision) =>
+              decide.mutate(
+                { id: action.id, ...decision },
+                {
+                  onError: (error) =>
+                    toast({
+                      title: decision.approve ? "That did not happen" : "Not recorded",
+                      description: getApiErrorMessage(error, "Check the connection and try again."),
+                      variant: "destructive",
+                    }),
+                },
+              )
+            }
           />
         ) : forYou.isError ? (
           <VaneError what="For you" onRetry={() => forYou.refetch()} />

@@ -18,7 +18,6 @@ import {
   SearchTrigger,
 } from "@/components/layout/app-bar-tools";
 import { Button as KitButton, ButtonLink as KitButtonLink, Kit } from "@/components/core";
-import { VaneButton } from "@/components/vane/vane-button";
 import { usePageChrome, type PagePrimary } from "@/components/layout/page-chrome";
 import { useShellNav } from "@/components/layout/shell-nav";
 import { useShell } from "@/components/layout/shell-state";
@@ -173,9 +172,6 @@ export function PageHeader() {
           <SearchTrigger />
           <DeviceStatus />
           <NotificationsBell />
-          <Kit contents>
-            <VaneButton />
-          </Kit>
         </div>
         {actions ? <div className="flex shrink-0 items-center gap-2">{actions}</div> : null}
         {primary?.menu?.length ? (
@@ -238,9 +234,6 @@ export function PageHeader() {
         <SearchTrigger compact />
         <DeviceStatus compact />
         <NotificationsBell compact />
-        <Kit contents>
-          <VaneButton />
-        </Kit>
         {menuCount > 0 ? (
           <Menu>
             <MenuTrigger asChild>

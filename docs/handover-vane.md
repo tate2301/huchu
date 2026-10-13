@@ -59,6 +59,10 @@ All 25 are on the Core modules canvas, Vane page. Each opens on its own as `desi
 
 Already built from other pages' boards: BooksVane (Books → Money with Vane open) and MgmtVane (Management → Vane, scores 100%).
 
+## Changed on 14 October: Vane acts, with approval
+
+The owner moved Vane to the rail only (its mark opens the panel; no top bar button, no Give Vane a job dialog), gave the panel a chat that holds while Vane works and always offers suggestions, and let Vane carry out what it recommends once a person approves: quick actions on cards (a due date set in place), several at once from one answer, each approved or denied. Built in `lib/vane/actions/` (six kinds so far, see `docs/vane.md`), `lib/vane/chat.ts`, migration `20261014090000_vane_chat_actions`. Next actions, from the inventory: draft an invoice from an accepted quote (extract the DRAFT path from `POST /api/accounting/sales/invoices`, set `madeByVane`), draft a reorder order (`raiseOrder` with `send:false`, set `madeByVane`), move a deal's stage and log a note (extract from their routes), mark a quote sent, assign an owner.
+
 ## The plan for building /vane
 
 Build one workflow at a time, end to end with its states.

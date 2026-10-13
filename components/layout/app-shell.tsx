@@ -25,7 +25,6 @@ import { RecordPeekProvider } from "@/components/records/record-peek";
 import { RecordTrailProvider } from "@/components/records/record-trail";
 import { SheetHost } from "@/components/sheet-form/sheet-host";
 import { LiveStream } from "@/components/layout/live-stream";
-import { GiveJobDialog } from "@/components/vane/give-job-dialog";
 import { VanePanel } from "@/components/vane/vane-panel";
 
 /**
@@ -138,7 +137,6 @@ function ShellFrame({ children }: { children: React.ReactNode }) {
             </RecordTrailProvider>
           </main>
           <VanePanel />
-          <GiveJobDialog />
           <LiveStream />
         </div>
       </div>

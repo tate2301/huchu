@@ -29,7 +29,18 @@ export default function BooksVaneFixture() {
         <MoneyPageView
           data={FIXTURE_MONEY}
           vaneOpen
-          vane={<VanePanelView panel={FIXTURE_BOOKS_VANE} canPause onPause={() => {}} onClose={() => {}} onAct={() => {}} onNotNow={() => {}} onGiveJob={() => {}} />}
+          vane={<VanePanelView
+              panel={FIXTURE_BOOKS_VANE}
+              chat={[]}
+              suggestions={["Which invoices have no due date?", "Who should I chase this week?", "What needs me today?"]}
+              canPause
+              onPause={() => {}}
+              onClose={() => {}}
+              onAct={() => {}}
+              onMute={() => {}}
+              onDecide={() => {}}
+              onAsk={() => {}}
+            />}
         />
       </FixtureShell>
     </KitScreen>

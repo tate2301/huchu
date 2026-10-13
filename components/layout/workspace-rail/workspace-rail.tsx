@@ -75,8 +75,8 @@ export function WorkspaceRail({
   person?: React.ReactNode;
   /** The Management surface: the gear at the foot of the rail, and nowhere else. */
   management: NavItem | null;
-  /** Vane, above the gear: its own module, `/vane`. */
-  vane?: { href: string; current: boolean } | null;
+  /** Vane, above the gear: opens and closes the Vane panel. */
+  vane?: { open: boolean; count: number; working: boolean; onToggle: () => void } | null;
   /**
    * A module in no workspace's sections (Vane): while one of its pages is
    * open, the panel shows its title and its rows instead of the workspace's.

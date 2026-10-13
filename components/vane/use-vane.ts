@@ -1,8 +1,11 @@
 "use client";
 
+import * as React from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { fetchJson } from "@/lib/api-client";
+import type { VaneActionView } from "@/lib/vane/actions/engine";
+import type { ChatEvent, VaneChatMessage } from "@/lib/vane/chat";
 import type { VaneDoneView, VaneMutedRow, VanePlanRow, VaneWorkRow } from "@/lib/vane/lists";
 import type { VanePanel } from "@/lib/vane/panel";
 import type { VaneWatchable } from "@/lib/vane/settings";
@@ -114,10 +117,6 @@ export function useVaneActions() {
     mutationFn: ({ id }: { id: string }) => fetchJson(`/api/vane/items/${id}/act`, { method: "POST" }),
     onSettled: refresh,
   });
-  const giveJob = useMutation({
-    mutationFn: (text: string) => fetchJson("/api/vane/jobs", { method: "POST", body: JSON.stringify({ text }) }),
-    onSettled: refresh,
-  });
   const pause = useMutation({
     mutationFn: (paused: boolean) =>
       fetchJson("/api/vane/settings", { method: "PATCH", body: JSON.stringify({ paused }) }),
@@ -134,5 +133,83 @@ export function useVaneActions() {
       fetchJson(`/api/vane/plans/${planId}/steps/${stepId}`, { method: "PATCH", body: JSON.stringify({ done }) }),
     onSettled: refresh,
   });
-  return { notNow, act, giveJob, pause, unmute, tick };
+  return { notNow, act, pause, unmute, tick };
+}
+
+const CHAT_KEY = ["vane", "chat"] as const;
+
+/** This person's conversation with Vane. */
+export function useVaneChat(enabled = true) {
+  return useQuery({
+    queryKey: CHAT_KEY,
+    queryFn: () => fetchJson<{ messages: VaneChatMessage[] }>("/api/vane/chat").then((data) => data.messages),
+    enabled,
+  });
+}
+
+/**
+ * Asks Vane, and holds the panel while it answers: `working` says what Vane
+ * is doing now, from the turn's stream; the person's words show at once, the
+ * answer when it lands; `error` says why there is none.
+ */
+export function useVaneAsk() {
+  const client = useQueryClient();
+  const [working, setWorking] = React.useState<string | null>(null);
+  const [error, setError] = React.useState<string | null>(null);
+
+  const ask = React.useCallback(
+    async (text: string, module: string | null) => {
+      setError(null);
+      setWorking("Reading your question");
+      const mine: VaneChatMessage = { id: `mine-${Date.now()}`, author: "person", text, createdAt: new Date().toISOString(), actions: [] };
+      client.setQueryData<VaneChatMessage[]>(CHAT_KEY, (messages) => [...(messages ?? []), mine]);
+      try {
+        const response = await fetch("/api/vane/chat", {
+          method: "POST",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ text, module }),
+        });
+        if (!response.ok || !response.body) {
+          const payload = await response.json().catch(() => null);
+          throw new Error((payload as { error?: string } | null)?.error ?? "Vane could not be asked. Try again.");
+        }
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = "";
+        for (;;) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split("\n");
+          buffer = lines.pop() ?? "";
+          for (const line of lines) {
+            if (!line.trim()) continue;
+            const event = JSON.parse(line) as ChatEvent;
+            if (event.type === "working") setWorking(event.label);
+            else if (event.type === "error") setError(event.error);
+            else client.setQueryData<VaneChatMessage[]>(CHAT_KEY, (messages) => [...(messages ?? []), event.message]);
+          }
+        }
+      } catch (failure) {
+        setError(failure instanceof Error ? failure.message : "Vane could not be asked. Try again.");
+      } finally {
+        setWorking(null);
+        void client.invalidateQueries({ queryKey: ["vane"] });
+      }
+    },
+    [client],
+  );
+
+  return { ask, working, error, clearError: () => setError(null) };
+}
+
+/** A person approves one of Vane's actions (with the inputs they changed) or denies it. */
+export function useDecideAction() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...decision }: { id: string } & ({ approve: false } | { approve: true; changes?: Record<string, unknown> })) =>
+      fetchJson<{ action: VaneActionView }>(`/api/vane/actions/${id}`, { method: "POST", body: JSON.stringify(decision) }),
+    onSettled: () => client.invalidateQueries({ queryKey: ["vane"] }),
+  });
 }
