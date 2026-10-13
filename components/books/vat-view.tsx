@@ -6,12 +6,12 @@ import { Button, Icon } from "@/components/core";
 import { money } from "@/lib/books/format";
 import type { VatState, VatView } from "@/lib/books/vat";
 
-const PILL: Record<VatState, { cls: string; label: string }> = {
-  draft: { cls: "pill pill-warn", label: "Draft" },
-  reviewed: { cls: "pill pill-info", label: "Reviewed" },
-  finalised: { cls: "pill pill-info", label: "Finalised" },
-  filed: { cls: "pill pill-ok", label: "Filed" },
-  void: { cls: "pill pill-n", label: "Void" },
+const STATUS: Record<VatState, { cls: string; label: string }> = {
+  draft: { cls: "status status-warning", label: "Draft" },
+  reviewed: { cls: "status status-info", label: "Reviewed" },
+  finalised: { cls: "status status-info", label: "Finalised" },
+  filed: { cls: "status status-success", label: "Filed" },
+  void: { cls: "status", label: "Void" },
 };
 
 /** The next step on a return, as its one primary: Mark reviewed, Finalise, Mark filed. */
@@ -52,7 +52,7 @@ export function VatPageView({
           </p>
         </div>
         {data.rows.length === 0 ? null : (
-          <div className="ws" style={{ flex: "none" }}>
+          <div className="wt" style={{ flex: "none" }}>
             <table className="table" style={{ tableLayout: "fixed" }}>
               <colgroup>
                 <col />
@@ -94,7 +94,7 @@ export function VatPageView({
                       {money(row.net)}
                     </td>
                     <td>
-                      <span className={PILL[row.state].cls}>{PILL[row.state].label}</span>
+                      <span className={STATUS[row.state].cls}>{STATUS[row.state].label}</span>
                     </td>
                   </tr>
                 ))}
@@ -110,7 +110,7 @@ export function VatPageView({
             <p className="muted" style={{ padding: "0 24px 12px" }}>
               {selected.meta}
             </p>
-            <div className="ws" style={{ flex: "none" }}>
+            <div className="wt" style={{ flex: "none" }}>
               <table className="table" style={{ tableLayout: "fixed" }}>
                 <colgroup>
                   <col />
@@ -135,13 +135,15 @@ export function VatPageView({
                       <td className="num">{money(box.vat)}</td>
                     </tr>
                   ))}
+                </tbody>
+                <tfoot>
                   <tr className="tot">
                     <td>{selected.netLabel}</td>
                     <td className="num" />
                     <td className="num" />
                     <td className="num">{money(Math.abs(selected.net))}</td>
                   </tr>
-                </tbody>
+                </tfoot>
               </table>
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "16px 24px" }}>

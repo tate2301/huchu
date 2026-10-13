@@ -228,7 +228,7 @@ export function ReportsSettingsPageView({
           {OFFERED_LABEL[offered]}
         </MenuButton>
         <div className="end">
-          <span className="ws-n" style={{ fontFamily: "var(--font-sans)" }}>
+          <span className="ws-n">
             {rows.length} reports · {off} off
           </span>
         </div>
@@ -238,7 +238,7 @@ export function ReportsSettingsPageView({
           {rows.length ? "No report matches. Clear the search or the filters to see the rest." : "No reports for this workspace."}
         </p>
       ) : (
-        <div className="ws" style={{ flex: "none" }}>
+        <div className="wt" style={{ flex: "none" }}>
           <table className="table" style={{ tableLayout: "fixed" }}>
             <colgroup>
               <col style={{ width: "50%" }} />

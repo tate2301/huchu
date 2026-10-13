@@ -8,10 +8,10 @@ import { POLICY_LABEL, type CloseView } from "@/lib/books/close";
 
 const STATE_COLOUR = { done: "var(--color-success)", open: "var(--color-warning)", failed: "var(--color-danger)" } as const;
 const STATE_ICON = { done: "check", open: "warn", failed: "warn" } as const;
-const PERIOD_PILL = {
-  open: { cls: "pill pill-ok", label: "Open" },
-  closed: { cls: "pill pill-n", label: "Closed" },
-  reopened: { cls: "pill pill-warn", label: "Reopened" },
+const PERIOD_STATUS = {
+  open: { cls: "status status-success", label: "Open" },
+  closed: { cls: "status", label: "Closed" },
+  reopened: { cls: "status status-warning", label: "Reopened" },
 } as const;
 
 export type ClosingControls = { retainedEarningsAccountId: string; freezeBeforeDate: string; policy: CloseView["controls"]["policy"] };
@@ -102,7 +102,7 @@ export function ClosePageView({
             No period yet. Open the first one.
           </p>
         ) : (
-          <div className="ws" style={{ flex: "none" }}>
+          <div className="wt" style={{ flex: "none" }}>
             <table className="table" style={{ tableLayout: "fixed" }}>
               <colgroup>
                 <col />
@@ -129,7 +129,7 @@ export function ClosePageView({
                     <td className="muted">{period.opens}</td>
                     <td className="muted">{period.closes}</td>
                     <td>
-                      <span className={PERIOD_PILL[period.state].cls}>{PERIOD_PILL[period.state].label}</span>
+                      <span className={PERIOD_STATUS[period.state].cls}>{PERIOD_STATUS[period.state].label}</span>
                     </td>
                     <td style={{ textAlign: "right" }}>
                       {period.state === "closed" ? (

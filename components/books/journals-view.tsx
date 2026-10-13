@@ -21,6 +21,14 @@ const PILL: Record<JournalState, { cls: string; label: string }> = {
   voided: { cls: "pill pill-n", label: "Voided" },
 };
 
+/** The same states as a dot and a word, for the table. */
+const STATUS: Record<JournalState, { cls: string; label: string }> = {
+  posted: { cls: "status status-success", label: "Posted" },
+  draft: { cls: "status status-warning", label: "Draft" },
+  reversed: { cls: "status", label: "Reversed" },
+  voided: { cls: "status", label: "Voided" },
+};
+
 const plain = (n: number) => (n ? n.toLocaleString("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "");
 
 /** One journal beside the list: its lines, and Post or Reverse. */
@@ -58,7 +66,7 @@ export function JournalAside({
         <b style={{ fontSize: 16, color: "var(--color-ink)" }}>{journal.memo}</b>
         <span className="muted">{journal.meta}</span>
       </div>
-      <div className="ws" style={{ flex: "none" }}>
+      <div className="wt" style={{ flex: "none" }}>
         <table className="table" style={{ tableLayout: "fixed" }}>
           <colgroup>
             <col style={{ width: 64 }} />
@@ -85,13 +93,15 @@ export function JournalAside({
                 <td className="num">{plain(line.credit)}</td>
               </tr>
             ))}
+          </tbody>
+          <tfoot>
             <tr className="tot">
               <td />
               <td>Totals</td>
               <td className="num">{plain(journal.totals.debit)}</td>
               <td className="num">{plain(journal.totals.credit)}</td>
             </tr>
-          </tbody>
+          </tfoot>
         </table>
       </div>
       {journal.periodNote ? (
@@ -214,7 +224,7 @@ export function JournalsPageView({
             {data.query.q ? "No journal matches. Clear the search to see the rest." : "No journals here."}
           </p>
         ) : (
-          <div className="ws" style={{ flex: "none", display: "block", overflowX: "auto" }}>
+          <div className="wt table-wrap" style={{ flex: "none", display: "block" }}>
             <table className="table" style={{ tableLayout: "fixed", minWidth: 680 }}>
               <colgroup>
                 <col style={{ width: 100 }} />
@@ -256,7 +266,7 @@ export function JournalsPageView({
                     <td className="muted">{row.source}</td>
                     <td className="num">{money(row.amount)}</td>
                     <td>
-                      <span className={PILL[row.state].cls}>{PILL[row.state].label}</span>
+                      <span className={STATUS[row.state].cls}>{STATUS[row.state].label}</span>
                     </td>
                   </tr>
                 ))}

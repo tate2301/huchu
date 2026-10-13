@@ -61,12 +61,12 @@ export function FixtureShell({
   actions?: React.ReactNode;
   vaneCount?: number;
   vaneOpen?: boolean;
-  /** A column on the right of the page, such as the Vane panel. */
+  /** A column on the right of the page: an `aside.cm-vane`, which the kit docks as the shell's fourth column. */
   side?: React.ReactNode;
   children: React.ReactNode;
 }) {
   return (
-    <div className="sh" style={side ? { gridTemplateColumns: "56px 240px minmax(0,1fr) 400px" } : undefined}>
+    <div className="sh">
       <nav className="rail-m" aria-label="Modules">
         <span className="ws-tile" aria-label="Floorcode">
           <Icon name="ws" />

@@ -44,8 +44,8 @@
 .ck.ck.ck .btn-group > .menu-wrap:only-child > .btn { border-radius: var(--radius-button); }
 
 /* Table cells sit in the middle of their row, as the browser draws them: the app's own `.table`
-   rules are reset inside `.ck`, and the kit never sets this itself. */
-.ck.ck.ck .table td, .ck.ck.ck .table th { vertical-align: middle; }
+   rules are reset inside `.ck`. The kit tops only prose tables and `.wrap` cells, so those are left to it. */
+.ck.ck.ck .table:not(.is-prose) td:not(.wrap), .ck.ck.ck .table th { vertical-align: middle; }
 
 /* The kit's attribute lists keep the browser's 1em above and below a <dl>, which the app's base
    styles take away; the boards were drawn with it. */
@@ -75,8 +75,3 @@
   .ck.ck.ck .tl-narrow .seg { order: 3; max-width: 100%; overflow-x: auto; }
   .ck.ck.ck .tl-narrow .tl-lbl { display: none; }
 }
-
-/* A table's fill column (core.css `.table td.fill`, which kit.css predates): the column that takes
-   the room left, its words cut with an ellipsis rather than spilling into the next cell. */
-.ck.ck.ck .table td.fill { max-width: 0; overflow: hidden; text-overflow: ellipsis; }
-.ck.ck.ck .table td.fill .cell-lead { display: block; overflow: hidden; text-overflow: ellipsis; }
