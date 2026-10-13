@@ -1,6 +1,8 @@
 import type { LucideIcon } from "@/lib/icons";
 import {
   VaneIcon,
+  Storefront,
+  Link,
   AlertTriangle,
   Bell,
   Building2,
@@ -569,6 +571,22 @@ export const settingsNavEntries: SettingsNavEntry[] = [
     href: "/preferences/organization/billing",
     icon: Wallet,
     gate: { kind: "preference", itemId: "billing" },
+  },
+  {
+    id: "integrations",
+    group: "apps",
+    label: "Integrations",
+    href: "/management/integrations",
+    icon: Link,
+    gate: { kind: "preference", itemId: "integrations" },
+  },
+  {
+    id: "marketplace",
+    group: "apps",
+    label: "Marketplace",
+    href: "/management/marketplace",
+    icon: Storefront,
+    gate: { kind: "preference", itemId: "marketplace" },
   },
   {
     id: "vane",

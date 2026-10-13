@@ -16,6 +16,7 @@ export function KitPage({
   mark,
   actions,
   width = 1040,
+  flush = false,
   children,
 }: {
   /** The kit screen whose own styles it takes (`.sc-<slug>`), when it is one of the 18. */
@@ -25,6 +26,8 @@ export function KitPage({
   mark?: React.ReactNode;
   actions?: React.ReactNode;
   width?: number;
+  /** A list page: tools, finding and lists edge to edge, with no settings column. */
+  flush?: boolean;
   children: React.ReactNode;
 }) {
   const body = (
@@ -36,9 +39,13 @@ export function KitPage({
         </h1>
         {actions ? <div className="tb-r">{actions}</div> : null}
       </header>
-      <div className="page" style={{ maxWidth: width }}>
-        {children}
-      </div>
+      {flush ? (
+        children
+      ) : (
+        <div className="page" style={{ maxWidth: width }}>
+          {children}
+        </div>
+      )}
     </section>
   );
   return <Kit className="kit-col">{screen ? <KitScreen slug={screen}>{body}</KitScreen> : body}</Kit>;

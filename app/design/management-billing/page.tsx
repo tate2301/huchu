@@ -50,9 +50,9 @@ export default function ManagementBillingFixture() {
             invoiceDocumentsSupported: false,
             methodEditable: false,
             history: [
-              { id: "p10", amount: 96, currency: "USD", status: "PAID", paidAt: "2026-10-01T00:00:00Z", periodMonths: 1, provider: "ECOCASH", reference: null },
-              { id: "p09", amount: 96, currency: "USD", status: "PAID", paidAt: "2026-09-01T00:00:00Z", periodMonths: 1, provider: "ECOCASH", reference: null },
-              { id: "p08", amount: 59, currency: "USD", status: "PAID", paidAt: "2026-08-01T00:00:00Z", periodMonths: 1, provider: "ECOCASH", reference: null },
+              { id: "p10", amount: 96, currency: "USD", status: "PAID", paidAt: "2026-10-01T00:00:00Z", periodMonths: 1, provider: "ECOCASH", reference: "" },
+              { id: "p09", amount: 96, currency: "USD", status: "PAID", paidAt: "2026-09-01T00:00:00Z", periodMonths: 1, provider: "ECOCASH", reference: "" },
+              { id: "p08", amount: 59, currency: "USD", status: "PAID", paidAt: "2026-08-01T00:00:00Z", periodMonths: 1, provider: "ECOCASH", reference: "" },
             ],
           },
         }}
