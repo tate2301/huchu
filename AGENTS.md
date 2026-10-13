@@ -21,7 +21,7 @@
 ## Build, Test, and Development Commands
 - `pnpm dev:up` - start the database (Docker) and the dev server; `pnpm dev:down` kills both.
 - `pnpm dev` - run the dev server on its own, against an already-running database.
-- `pnpm build` - build the production bundle.
+- `pnpm build` - build the production bundle. On a Vercel production build it then runs `prisma migrate deploy` (`scripts/migrate-deploy-production.mjs`), so merging a migration to `main` applies it; previews skip it because they share the production database.
 - `pnpm start` - serve the production build.
 - `pnpm lint` - run ESLint (Next.js core-web-vitals + TypeScript rules).
 - `pnpm typecheck` - run tsc over the app. CI (`.github/workflows/checks.yml`) runs it and `pnpm lint` on every push and PR; the Vercel build does not, so a type error fails the check, not the deploy.
