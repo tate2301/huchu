@@ -1,17 +1,158 @@
 {
-  "BooksInvoices": ["panel: Overdue", "panel: Pomona Offices", "panel: Paid this month", "footer: # selectedOwing #Send remindersPrint sta", "status: Sent"],
-  "BooksMoney": ["panel: Overdue", "panel: Pomona Offices", "panel: Paid this month", "button: Review", "label: CBZ, ZWG", "label: Halsted Builders", "panel: Overdue shared", "panel: Pomona Offices you", "panel: Paid this month shared"],
-  "PageBooksJournals": ["panel: Overdue", "panel: Pomona Offices", "panel: Paid this month", "button: Edit", "button: Post this journal", "panel: Overdue shared", "panel: Pomona Offices you", "panel: Paid this month shared", "button: Close", "primary: Post this journal [Ctrl ↵]", "column: Code", "column: Account", "column: Debit", "column: Credit", "footer: Totals#"],
-  "MgmtVane": ["panel: Tills", "panel: Till rules", "panel: Posting", "panel: Fiscal device"],
-  "ReportsAll": ["panel: Monday meeting", "panel: Fitters", "panel: Money"],
-  "PageReportsSettings": ["panel: Tills", "panel: Till rules", "panel: Posting", "panel: Fiscal device", "label: James arranged the page", "label: James set the starting view", "label: Rudo switched Projects off", "status: Off"],
-  "PageReport": ["heading: Areas", "panel: Team", "panel: Sales and delivery12", "panel: Money in people’s hands2", "panel: Pay4", "panel: People3", "panel: Books8", "heading: Open value, by stagesum of Value", "heading: Open value, by stage", "heading: Value, by expected closeby month, $ thousands"],
-  "PageReportSend": ["heading: Areas", "panel: Team", "panel: Sales and delivery12", "panel: Money in people’s hands2", "panel: Pay4", "panel: People3", "panel: Books8", "heading: Open value, by stagesum of Value", "heading: Open value, by stage", "heading: Value, by expected closeby month, $ thousands"],
-  "PageBuiltReport": ["heading: Areas", "panel: Team", "panel: Sales and delivery12", "panel: Money in people’s hands2", "panel: Pay4", "panel: People3", "panel: Books8", "heading: Measured, by monthsum of Area measured", "heading: Reading it", "column: Quotes", "column: Jobs won", "column: Share won", "footer: Total# m²# m²#%"],
-  "ReportsInsights": ["heading: Timber floors are won more often than concrete.", "heading: Farai's accepted jobs are the largest.", "heading: Monday's cash-up was short for the third time since August.", "button: accepted by subfloor, 4 rows", "button: accepted by fitter, 3 rows", "button: cash-ups that did not balance, 3 rows", "button: Show the sales", "button: Pin to Monday board", "panel: Monday meeting2", "panel: Fitters3", "panel: Money4"],
-  "PageInsightVisits": ["heading: Areas", "panel: Sales and delivery12", "panel: Money in people’s hands2", "panel: Pay4", "panel: People3", "panel: Books8", "panel: Team", "heading: What is won, by Subfloor"],
-  "ReportMonday": ["heading: Accepted, by subfloor", "button: Since 1 July", "button: Every fitter", "button: Every subfloor", "column: Subfloor", "panel: Monday meeting2", "panel: Fitters3", "panel: Money4", "status: Sent", "status: Drafted", "status: Accepted", "footer: # to # of #Quoted #Accepted #PreviousNex"],
-  "ReportBuild": ["heading: Accepted, by subfloor", "heading: Average quote", "button: Sentencetotals", "button: Dates, fitter, subfloor", "button: By subfloorby subfloor", "button: Average quotetotals", "button: Since 1 July", "button: Every fitter", "button: Every subfloor", "button: by subfloor4", "column: visited_on", "column: area_m2", "label: Aream², 2 places", "status: Sent", "status: Drafted", "status: Accepted"],
-  "ReportBuildVane": ["button: Sentencetotals", "button: Dates, fitter, subfloor", "button: By subfloorby subfloor", "button: Since 1 July", "button: Every fitter", "button: Every subfloor", "label: Aream², 2 places"],
-  "PageReportArrange": ["heading: Open value, by stage", "button: Open value, by stage", "column: Owner", "label: TitleOpen value, by stage", "label: Show at most10 bars, the rest as Other"]
+  "BooksInvoices": [
+    "panel: Overdue",
+    "panel: Pomona Offices",
+    "panel: Paid this month",
+    "footer: # selectedOwing #Send remindersPrint sta",
+    "status: Sent"
+  ],
+  "BooksMoney": [
+    "panel: Overdue",
+    "panel: Pomona Offices",
+    "panel: Paid this month",
+    "button: Review",
+    "label: CBZ, ZWG",
+    "label: Halsted Builders",
+    "panel: Overdue shared",
+    "panel: Pomona Offices you",
+    "panel: Paid this month shared"
+  ],
+  "PageBooksJournals": [
+    "panel: Overdue",
+    "panel: Pomona Offices",
+    "panel: Paid this month",
+    "button: Edit",
+    "button: Post this journal",
+    "panel: Overdue shared",
+    "panel: Pomona Offices you",
+    "panel: Paid this month shared",
+    "button: Close",
+    "primary: Post this journal [Ctrl ↵]",
+    "column: Code",
+    "column: Account",
+    "column: Debit",
+    "column: Credit",
+    "footer: Totals#"
+  ],
+  "MgmtVane": [
+    "panel: Tills",
+    "panel: Till rules",
+    "panel: Posting",
+    "panel: Fiscal device"
+  ],
+  "ReportsAll": [
+    "panel: Monday meeting",
+    "panel: Fitters",
+    "panel: Money"
+  ],
+  "PageReportsSettings": [
+    "panel: Tills",
+    "panel: Till rules",
+    "panel: Posting",
+    "panel: Fiscal device",
+    "label: James arranged the page",
+    "label: James set the starting view",
+    "label: Rudo switched Projects off",
+    "status: Off"
+  ],
+  "PageReport": [
+    "heading: Areas",
+    "panel: Team",
+    "panel: Sales and delivery12",
+    "panel: Money in people’s hands2",
+    "panel: Pay4",
+    "panel: People3",
+    "panel: Books8",
+    "heading: Open value, by stagesum of Value",
+    "heading: Open value, by stage",
+    "heading: Value, by expected closeby month, $ thousands"
+  ],
+  "PageReportSend": [
+    "heading: Areas",
+    "panel: Team",
+    "panel: Sales and delivery12",
+    "panel: Money in people’s hands2",
+    "panel: Pay4",
+    "panel: People3",
+    "panel: Books8",
+    "heading: Open value, by stagesum of Value",
+    "heading: Open value, by stage",
+    "heading: Value, by expected closeby month, $ thousands"
+  ],
+  "PageBuiltReport": [
+    "heading: Areas",
+    "panel: Team",
+    "panel: Sales and delivery12",
+    "panel: Money in people’s hands2",
+    "panel: Pay4",
+    "panel: People3",
+    "panel: Books8",
+    "heading: Measured, by monthsum of Area measured",
+    "heading: Reading it",
+    "column: Quotes",
+    "column: Jobs won",
+    "column: Share won",
+    "footer: Total# m²# m²#%"
+  ],
+  "ReportsInsights": [
+    "heading: Timber floors are won more often than concrete.",
+    "heading: Farai's accepted jobs are the largest.",
+    "heading: Monday's cash-up was short for the third time since August.",
+    "button: accepted by subfloor, 4 rows",
+    "button: accepted by fitter, 3 rows",
+    "button: cash-ups that did not balance, 3 rows",
+    "button: Show the sales",
+    "button: Pin to Monday board",
+    "panel: Monday meeting2",
+    "panel: Fitters3",
+    "panel: Money4"
+  ],
+  "PageInsightVisits": [
+    "heading: Areas",
+    "panel: Sales and delivery12",
+    "panel: Money in people’s hands2",
+    "panel: Pay4",
+    "panel: People3",
+    "panel: Books8",
+    "panel: Team",
+    "heading: What is won, by Subfloor"
+  ],
+  "ReportMonday": [
+    "heading: Accepted, by subfloor",
+    "button: Since 1 July",
+    "column: Subfloor",
+    "panel: Monday meeting2",
+    "panel: Fitters3",
+    "panel: Money4",
+    "status: Sent",
+    "status: Drafted",
+    "status: Accepted",
+    "footer: # to # of #Quoted #Accepted #PreviousNex"
+  ],
+  "ReportBuild": [
+    "heading: Accepted, by subfloor",
+    "heading: Average quote",
+    "button: By subfloorby subfloor",
+    "button: Average quotetotals",
+    "button: Since 1 July",
+    "button: by subfloor4",
+    "column: visited_on",
+    "column: area_m2",
+    "label: Aream², 2 places",
+    "status: Sent",
+    "status: Drafted",
+    "status: Accepted"
+  ],
+  "ReportBuildVane": [
+    "button: By subfloorby subfloor",
+    "button: Since 1 July",
+    "label: Aream², 2 places"
+  ],
+  "PageReportArrange": [
+    "heading: Open value, by stage",
+    "button: Open value, by stage",
+    "column: Owner",
+    "label: TitleOpen value, by stage",
+    "label: Show at most10 bars, the rest as Other"
+  ]
 }
