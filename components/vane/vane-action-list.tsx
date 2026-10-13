@@ -147,9 +147,16 @@ export function VaneActionList({
               }}
             >
               <span style={{ display: "flex", gap: "var(--space-8)", alignItems: "baseline" }}>
-                <span style={{ flex: 1, minWidth: 0, color: "var(--color-ink)" }}>{action.title}</span>
+                <span id={`vane-action-${action.id}`} style={{ flex: 1, minWidth: 0, color: "var(--color-ink)" }}>
+                  {action.title}
+                </span>
                 {action.target ? (
-                  <Link href={action.target} className="link" style={{ flex: "none", fontSize: "var(--text-12)" }}>
+                  <Link
+                    href={action.target}
+                    className="link"
+                    aria-describedby={`vane-action-${action.id}`}
+                    style={{ flex: "none", fontSize: "var(--text-12)" }}
+                  >
                     Open
                   </Link>
                 ) : null}
@@ -180,11 +187,18 @@ export function VaneActionList({
                       icon="check"
                       busy={busy}
                       disabled={disabled || (deciding !== null && !busy)}
+                      aria-describedby={`vane-action-${action.id}`}
                       onClick={() => onDecide(action, { approve: true, changes: valuesFor(action) })}
                     >
                       {action.status === "failed" ? "Try again" : action.verb}
                     </Button>
-                    <Button size="sm" variant="quiet" disabled={disabled || deciding !== null} onClick={() => onDecide(action, { approve: false })}>
+                    <Button
+                      size="sm"
+                      variant="quiet"
+                      disabled={disabled || deciding !== null}
+                      aria-describedby={`vane-action-${action.id}`}
+                      onClick={() => onDecide(action, { approve: false })}
+                    >
                       Deny
                     </Button>
                   </span>
