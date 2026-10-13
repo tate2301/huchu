@@ -117,6 +117,11 @@ async function roleFor(companyId: string): Promise<Role> {
   return settings?.readsPeoplePrivate ? "vane_reader_private" : "vane_reader";
 }
 
+/** The tables Vane may read for this company, by its settings: for describing them to Claude. */
+export async function tablesFor(companyId: string): Promise<Map<string, ReadableTable>> {
+  return readableTables(await roleFor(companyId));
+}
+
 /** What a piece of reading work gets: the bound reader connection, and the tables its role may read. */
 export type ReaderSession = { client: PoolClient; tables: Map<string, ReadableTable> };
 

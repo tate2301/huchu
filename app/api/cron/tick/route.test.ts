@@ -6,6 +6,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { prisma } from "@/lib/prisma";
 import { RETAIL_JOBS } from "@/lib/retail/jobs";
+import { VANE_JOBS } from "@/lib/vane/jobs";
 
 import { GET } from "./route";
 
@@ -18,7 +19,7 @@ beforeAll(() => {
 
 afterAll(async () => {
   process.env.CRON_SECRET = previous;
-  await prisma.scheduledJobRun.deleteMany({ where: { name: { in: RETAIL_JOBS.map((job) => job.name) } } });
+  await prisma.scheduledJobRun.deleteMany({ where: { name: { in: [...RETAIL_JOBS, ...VANE_JOBS].map((job) => job.name) } } });
 });
 
 const tick = (authorization?: string) =>
@@ -35,7 +36,7 @@ describe("GET /api/cron/tick", () => {
     expect(response.status).toBe(200);
     const { outcomes } = (await response.json()) as { outcomes: Array<{ job: string; result: string }> };
     // The interval jobs are always due on a first tick; none of them fails on an empty workspace.
-    for (const name of ["price-changes", "message-outbox", "fiscal-days"]) {
+    for (const name of ["price-changes", "message-outbox", "fiscal-days", "vane-jobs"]) {
       expect(outcomes).toContainEqual(expect.objectContaining({ job: name, result: "ran" }));
     }
     expect(outcomes.filter((outcome) => outcome.result === "failed")).toEqual([]);

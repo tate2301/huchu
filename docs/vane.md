@@ -28,6 +28,7 @@ The connection to Claude (`lib/vane/claude.ts`), Vane's tables, the two roles it
 
 | Tool | What it does |
 | --- | --- |
+| `describe_table` | A table's readable columns with their types, and the tables its columns point at. |
 | `run_sql` | One SELECT through the reader (`readWorkspace`). |
 | `get_record` | One record by id, in the columns the role may read, with each record it points at (one level of foreign keys), through the same bound reader. |
 | `propose_item` | A card on For you (`VaneItem`): kind, source module, headline, body, the button's action, the SQL and what it read. An open card with the same headline is not raised twice. |
@@ -36,6 +37,25 @@ The connection to Claude (`lib/vane/claude.ts`), Vane's tables, the two roles it
 `toolDefinitions()` is what Claude is shown: each tool's name, a sentence on what it does, and its input as JSON Schema from the same zod schema the call is checked against. `callTool(context, name, input)` runs one call: an input that does not fit, or a question the reader refused or Postgres turned down, comes back as an error result for Claude to correct; anything else is thrown for the job. `lib/vane/tools.test.ts` covers each tool and those errors.
 
 Drafting invoices, quotations and purchase orders (`madeByVane`) waits for the core modules: it goes through their own create functions.
+
+### Its jobs (`lib/vane/jobs.ts`)
+
+Vane works in `VaneJob`s, run on the scheduled-jobs tick (`docs/scheduled-jobs.md`):
+
+- **vane-nightly**, daily at 06:00: queues the day's look over the workspace (`nightly:<day>`, once a day) for every workspace with Vane on.
+- **vane-jobs**, every minute: runs the oldest due job, one a tick. Claude (`VANE_MODEL`, effort medium) is given Vane's instructions, the tables it may read and its tools, and works turn by turn (at most 12 turns, within a minute) until it stops calling tools. The job keeps the model, tokens in and out, cache reads and writes, each tool call (name, time, whether it worked) and Claude's closing sentence.
+- Claude busy or unreachable: the job waits (2, 4, 8 … up to 60 minutes) and is tried again, up to five tries. Anything else (no `VANE_MODEL`, a refused key, a refusal) fails it with the reason.
+- A paused workspace's jobs wait; so do a workspace's jobs once it has started `monthlyAllowance` jobs this month. A job left running by a tick that died is taken back after ten minutes.
+
+`lib/vane/jobs.test.ts` covers each of these with a stand-in for Claude.
+
+**Turning Vane on for a workspace.** Until Management → Vane exists, a workspace has Vane on when it has a `VaneSettings` row that is not paused:
+
+```sql
+INSERT INTO "VaneSettings" ("companyId", "updatedAt") SELECT id, now() FROM "Company" WHERE slug = 'hurudza-creative';
+```
+
+Its cards land in `VaneItem` and its plans in `VanePlan`; the pages that show them are next.
 
 ## Setting it up
 

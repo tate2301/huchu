@@ -3,7 +3,7 @@ import { z } from "zod";
 
 import { prisma } from "@/lib/prisma";
 
-import { readWorkspace, ReaderError, withReader, type ReadableTable } from "./reader";
+import { readWorkspace, ReaderError, tablesFor, withReader, type ReadableTable } from "./reader";
 
 /**
  * The tools Vane works with (`docs/vane.md`, `docs/handover-core-modules.md`
@@ -62,6 +62,43 @@ function linksOf(table: string): Promise<Link[]> {
 function selectColumns(table: ReadableTable): string {
   return table.columns.map(quote).join(", ");
 }
+
+const typesByTable = new Map<string, Promise<Map<string, string>>>();
+
+/** Each column's Postgres type, for describing a table. */
+function columnTypes(table: string): Promise<Map<string, string>> {
+  let types = typesByTable.get(table);
+  if (!types) {
+    types = prisma
+      .$queryRaw<Array<{ column_name: string; udt_name: string }>>`
+        SELECT column_name, udt_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = ${table}`
+      .then((rows) => new Map(rows.map((row) => [row.column_name, row.udt_name])));
+    types.catch(() => typesByTable.delete(table));
+    typesByTable.set(table, types);
+  }
+  return types;
+}
+
+const describeTable = tool({
+  name: "describe_table",
+  description:
+    "The columns you may read on one table, with their types, and the tables its columns point at. Look a table up " +
+    "before you query it: column names are camelCase and quoted, and columns you may not read are not listed.",
+  input: z.object({
+    table: z.string().min(1).describe('The table, as it is named: "SalesInvoice".'),
+  }),
+  async run({ companyId }, { table }) {
+    const own = (await tablesFor(companyId)).get(table.toLowerCase());
+    if (!own) throw new ReaderError("refused", `There is no table ${table} you can read.`);
+    const types = await columnTypes(own.name);
+    const links = (await linksOf(own.name)).filter((link) => own.columns.includes(link.column));
+    return {
+      table: own.name,
+      columns: own.columns.map((name) => ({ name, type: types.get(name) ?? "unknown" })),
+      links: links.map((link) => ({ column: link.column, table: link.parentTable, on: link.parentColumn })),
+    };
+  },
+});
 
 const runSql = tool({
   name: "run_sql",
@@ -196,7 +233,7 @@ const proposePlan = tool({
   },
 });
 
-export const VANE_TOOLS = [runSql, getRecord, proposeItem, proposePlan] as const;
+export const VANE_TOOLS = [describeTable, runSql, getRecord, proposeItem, proposePlan] as const;
 
 /** The tools as Claude is shown them. */
 export function toolDefinitions(): Anthropic.Tool[] {

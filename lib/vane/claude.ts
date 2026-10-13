@@ -139,3 +139,64 @@ export async function askClaude({ system, messages, maxTokens = 16_000, client =
     },
   };
 }
+
+export type ConverseInput = {
+  system: string;
+  messages: Anthropic.MessageParam[];
+  tools: Anthropic.Tool[];
+  maxTokens?: number;
+  /** How long one request may take before it counts as Claude being unreachable. */
+  timeoutMs?: number;
+  client?: MessagesClient;
+};
+
+export type Usage = AskClaudeResult["usage"];
+
+/**
+ * One turn of a conversation in which Claude may call tools: the whole
+ * response (text, tool calls and thinking, to be sent back unchanged) and
+ * what it cost. A refusal or an answer cut off at `maxTokens` is a
+ * `VaneError`, as with `askClaude`.
+ *
+ * The prompt is cached up to the last message, so each turn of a job pays the
+ * full rate only for what the turn before added.
+ */
+export async function converse({
+  system,
+  messages,
+  tools,
+  maxTokens = 16_000,
+  timeoutMs = 60_000,
+  client = vaneClient(),
+}: ConverseInput): Promise<{ message: Anthropic.Message; usage: Usage }> {
+  const model = vaneModel();
+  let message: Anthropic.Message;
+  try {
+    message = await client.messages.create(
+      {
+        model,
+        max_tokens: maxTokens,
+        system,
+        tools,
+        messages,
+        cache_control: { type: "ephemeral" },
+        // Background work across a handful of tool calls: medium is where quality holds and spend stays low.
+        output_config: { effort: "medium" },
+      },
+      { timeout: timeoutMs },
+    );
+  } catch (error) {
+    throw asVaneError(error);
+  }
+  if (message.stop_reason === "refusal") throw new VaneError("refused", "Claude declined to answer this.");
+  if (message.stop_reason === "max_tokens") throw new VaneError("cut-off", `The answer ran past ${maxTokens} tokens and was cut off.`);
+  return {
+    message,
+    usage: {
+      input: message.usage.input_tokens ?? 0,
+      output: message.usage.output_tokens,
+      cacheRead: message.usage.cache_read_input_tokens ?? 0,
+      cacheWrite: message.usage.cache_creation_input_tokens ?? 0,
+    },
+  };
+}
