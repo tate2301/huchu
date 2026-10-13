@@ -125,6 +125,7 @@ Build one workflow at a time, end to end with its states.
 
 - The button's dot, the count and Working on update without a reload.
 - Use the existing stream (`app/api/notifications/stream/route.ts`). Until then, react-query polls `GET /api/vane/status` every 30 seconds.
+- **Built.** The stream is now the workspace's one live channel, `GET /api/live`: `notifications` with the notification centre, `vane` when Vane's cards, jobs, plan steps or pause change (`lib/vane/live.ts`, tested). `components/layout/live-stream.tsx` in the shell refreshes the queries; the Vane polls are a 60-second fallback.
 
 ### 6. Vane inside the modules
 

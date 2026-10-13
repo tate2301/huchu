@@ -11,7 +11,6 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover";
 import { useToast } from "@/components/ui/use-toast";
-import { useNotificationStream } from "@/hooks/use-notification-stream";
 import {
   archiveNotifications,
   fetchNotifications,
@@ -78,8 +77,8 @@ export function useUnreadNotificationCount(): number {
  * rail from the account menu's "Notifications" (the logo tile), or under the
  * app bar's bell (`side="bottom"`).
  *
- * One instance holds the live stream (`live`); the stream refreshes every
- * `["notifications"]` query, so a second instance stays current without one.
+ * The shell's live stream (`components/layout/live-stream.tsx`) refreshes
+ * every `["notifications"]` query, so each instance stays current.
  */
 export function NotificationCenter({
   open,
@@ -87,14 +86,12 @@ export function NotificationCenter({
   children,
   side = "right",
   align = "start",
-  live = true,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   children: ReactNode;
   side?: "right" | "bottom";
   align?: "start" | "end";
-  live?: boolean;
 }) {
   const centerEnabled = useNotificationsEnabled();
   const [filterMode, setFilterMode] = useState<FilterMode>("unread");
@@ -117,8 +114,6 @@ export function NotificationCenter({
   const invalidateNotifications = useCallback(() => {
     queryClient.invalidateQueries({ queryKey: ["notifications"] });
   }, [queryClient]);
-
-  useNotificationStream(invalidateNotifications, centerEnabled && live);
 
   const items = useMemo(() => data?.data ?? [], [data]);
   const unreadCount = data?.unreadCount ?? 0;

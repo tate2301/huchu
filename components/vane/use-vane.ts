@@ -27,12 +27,15 @@ export function moduleForPath(pathname: string): string | null {
 
 const STATUS_KEY = ["vane", "status"] as const;
 
-/** The button's count and live dot; polled until the live channel carries it. */
+/**
+ * The button's count and live dot. The live stream (`app/api/live`) reads it
+ * again whenever Vane moves; the slow poll is only for a dropped connection.
+ */
 export function useVaneStatus() {
   return useQuery({
     queryKey: STATUS_KEY,
     queryFn: () => fetchJson<VaneStatus>("/api/vane/status"),
-    refetchInterval: 30_000,
+    refetchInterval: 60_000,
     staleTime: 15_000,
   });
 }
@@ -42,7 +45,7 @@ export function useVanePanel(module: string | null, enabled: boolean) {
     queryKey: ["vane", "panel", module],
     queryFn: () => fetchJson<VanePanel>(`/api/vane/panel${module ? `?module=${encodeURIComponent(module)}` : ""}`),
     enabled,
-    refetchInterval: enabled ? 15_000 : false,
+    refetchInterval: enabled ? 60_000 : false,
   });
 }
 
@@ -51,7 +54,7 @@ export function useVaneForYou() {
   return useQuery({
     queryKey: ["vane", "for-you"],
     queryFn: () => fetchJson<VanePanel>("/api/vane/panel?today=1"),
-    refetchInterval: 15_000,
+    refetchInterval: 60_000,
   });
 }
 
@@ -70,7 +73,7 @@ export function useVanePlans() {
   return useQuery({
     queryKey: ["vane", "plans"],
     queryFn: () => fetchJson<{ plans: VanePlanRow[] }>("/api/vane/plans").then((data) => data.plans),
-    refetchInterval: 30_000,
+    refetchInterval: 60_000,
   });
 }
 
@@ -87,7 +90,7 @@ export function useVaneWorking() {
   return useQuery({
     queryKey: ["vane", "working"],
     queryFn: () => fetchJson<{ jobs: VaneWorkRow[] }>("/api/vane/working").then((data) => data.jobs),
-    refetchInterval: (query) => (query.state.data?.some((job) => job.state === "running") ? 5_000 : 30_000),
+    refetchInterval: 60_000,
   });
 }
 

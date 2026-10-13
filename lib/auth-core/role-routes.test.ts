@@ -9,6 +9,7 @@ describe("role route allowlist", () => {
     expect(isRouteAllowedForRole("SALES_REP", "/api/v2/crm/leads")).toBe(true);
     expect(isRouteAllowedForRole("SALES_REP", "/help")).toBe(true);
     expect(isRouteAllowedForRole("SALES_REP", "/api/notifications")).toBe(true);
+    expect(isRouteAllowedForRole("SALES_REP", "/api/live")).toBe(true);
     // Their own exports' progress and files.
     expect(isRouteAllowedForRole("SALES_REP", "/api/documents/render-jobs/abc")).toBe(true);
     expect(isRouteAllowedForRole("SALES_REP", "/api/documents/artifacts/abc")).toBe(true);

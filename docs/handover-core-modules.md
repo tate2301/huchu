@@ -90,7 +90,7 @@ Vane never sends, pays, accepts, saves or publishes. Those stay behind the app's
 - **Costs:** log the model, tokens (in, out, cache read, cache write), tools called, result or error on the job. Count jobs this month against `VaneSettings.monthlyAllowance` (5,000) and stop after the current job when it is used.
 - **Failures:** `rate-limited` and `unavailable` are `retryable`; set `WAITING`, bump `attempts`, push `runAfter` back with backoff. Anything else is `FAILED` with its message.
 - **Paused** stops new jobs. **Quiet hours** (20:00 to 06:00 by default) hold notifications, not work.
-- **Live:** push working state, the current job's label and progress, and the open count over the existing stream (`app/api/notifications/stream/route.ts`).
+- **Live:** push working state, the current job's label and progress, and the open count over the live stream (`app/api/live`, built).
 
 ### 3.4 The screens
 

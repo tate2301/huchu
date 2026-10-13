@@ -44,7 +44,7 @@ const manifest = self.__SW_MANIFEST ?? [];
  * API data is not cached here: TanStack Query persists it per tenant (see
  * `components/providers/app-providers.tsx`), and a second copy in the worker
  * would outlive a sign-out. But "not cached" has to mean "not handled", not
- * `NetworkOnly`: a route that answers `/api/notifications/stream` holds that
+ * `NetworkOnly`: a route that answers `/api/live` (the live stream) holds that
  * fetch open in the worker for as long as the page lives, and a worker with a
  * fetch in flight never hands over — so a downloaded update sat waiting
  * forever and "Apply update" did nothing.

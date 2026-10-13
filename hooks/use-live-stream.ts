@@ -1,10 +1,25 @@
 "use client"
 
-import { useEffect } from "react"
+import { useEffect, useRef } from "react"
 
-type StreamCallback = () => void
+/** What to do when the live channel says something changed (`app/api/live`). */
+export type LiveHandlers = {
+  /** This person's notifications moved. */
+  notifications?: () => void
+  /** Vane's cards, jobs, plans or state moved. */
+  vane?: () => void
+}
 
-export function useNotificationStream(onSnapshot: StreamCallback, enabled = true) {
+/**
+ * Holds one connection to the workspace's live channel open, and reconnects
+ * after a drop, waiting 1 s, then 2, 4 … up to 15 s.
+ */
+export function useLiveStream(handlers: LiveHandlers, enabled = true) {
+  const latest = useRef(handlers)
+  useEffect(() => {
+    latest.current = handlers
+  })
+
   useEffect(() => {
     if (!enabled) {
       return
@@ -29,11 +44,16 @@ export function useNotificationStream(onSnapshot: StreamCallback, enabled = true
     const connect = () => {
       if (closed) return
 
-      eventSource = new EventSource("/api/notifications/stream")
+      eventSource = new EventSource("/api/live")
 
-      eventSource.addEventListener("snapshot", () => {
+      eventSource.addEventListener("notifications", () => {
         retryDelayMs = 1000
-        onSnapshot()
+        latest.current.notifications?.()
+      })
+
+      eventSource.addEventListener("vane", () => {
+        retryDelayMs = 1000
+        latest.current.vane?.()
       })
 
       eventSource.addEventListener("ready", () => {
@@ -57,5 +77,5 @@ export function useNotificationStream(onSnapshot: StreamCallback, enabled = true
       closed = true
       closeConnection()
     }
-  }, [enabled, onSnapshot])
+  }, [enabled])
 }
