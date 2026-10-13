@@ -170,9 +170,15 @@ const proposeItem = tool({
     subjectId: z.string().max(60).optional(),
     sql: z.string().max(20_000).optional(),
     readFrom: z
-      .array(z.object({ table: z.string().min(1), rows: z.number().int().nonnegative() }))
+      .array(
+        z.object({
+          table: z.string().min(1),
+          rows: z.number().int().nonnegative(),
+          about: z.string().max(80).optional().describe('Which of its rows, in a few words: "won, last 7 days", "for those deals".'),
+        }),
+      )
       .max(20)
-      .describe("The tables read and how many rows each answered."),
+      .describe("The tables read, which of their rows, and how many rows each answered."),
     audienceRole: z.string().max(40).optional().describe("Who should see it, by role, when not everyone."),
   }),
   async run({ companyId, jobId }, input) {

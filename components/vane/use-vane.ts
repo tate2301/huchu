@@ -73,6 +73,11 @@ export function useVaneActions() {
       fetchJson(`/api/vane/items/${id}/mute`, { method: "POST", body: JSON.stringify({ reason }) }),
     onSettled: refresh,
   });
+  /** The card's act was pressed: it goes to Done with this person's name. */
+  const act = useMutation({
+    mutationFn: ({ id }: { id: string }) => fetchJson(`/api/vane/items/${id}/act`, { method: "POST" }),
+    onSettled: refresh,
+  });
   const giveJob = useMutation({
     mutationFn: (text: string) => fetchJson("/api/vane/jobs", { method: "POST", body: JSON.stringify({ text }) }),
     onSettled: refresh,
@@ -82,5 +87,5 @@ export function useVaneActions() {
       fetchJson("/api/vane/settings", { method: "PATCH", body: JSON.stringify({ paused }) }),
     onSettled: refresh,
   });
-  return { notNow, giveJob, pause };
+  return { notNow, act, giveJob, pause };
 }

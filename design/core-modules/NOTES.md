@@ -96,6 +96,7 @@ What the build could not match, decided differently from the boards, or built wi
 
 ### Sample data the checks leave out (`tools/check/known.json`)
 
+- PageVaneCard: the board's six cards (Open 3 statements, Open the draft, Open the changes, Save as a template, Open Simba's details), what they read (Deals won in the last 7 days, Invoices for those deals, QT-0398) and the draft INV-0143 (Customer, Lines, Total, Due) are its sample; the workspace's own cards are drawn. Pipeline, Site visits, Showroom, People and pay and Build are Floorcode's names for its modules (see VaneForYou). Invoices is drawn, as a link in the drawer: the check reads links in an `aside`, and the kit's drawer is a dialog.
 - VaneForYou: Watching lists what Management → Vane watches in this workspace, by the product's names (Books, CRM, Tender, Reports…). The board's Pipeline, Site visits and Showroom are Floorcode's own names for its CRM and shop.
 - ReportsInsights: the board's three insights (their headings, the questions they ran, Show the sales) and "Monday board" are its sample; this workspace's insights are its own, and it has chosen no board. Its folders are ReportsAll's.
 - PageInsightVisits: "What is won, by Subfloor" names the board's form's question; the panel's Areas with counts and Team are not drawn (see Reports).
@@ -110,7 +111,9 @@ What the build could not match, decided differently from the boards, or built wi
 
 - For you (`/vane`) reads `vanePanel()` across every module (no module first), with what Vane finished since the workspace's day began. A watched module in the panel opens For you with only that module's cards (`/vane?from=books`).
 - The finding's grey line names where the cards came from ("They came from Books, CRM and Tender."). The board's "It found most of them overnight" is not said: nothing records whether Vane found a card on the night run or later.
-- The first card's act is the page's primary, on S. J, K and N (next, previous, Not now on the focused card) are not wired yet.
+- The first card's act is the page's primary, on S. J, K and N (next, previous, Not now on the focused card) are not wired yet. The PageVaneCard board draws the first three cards' acts as primaries; the page keeps one.
+- A card and what Vane read opens beside the list (`/vane?card=<id>`, the kit's drawer at 460px): the tables it read, what of each (`readFrom[].about`, which `propose_item` now asks for) and how many rows, and the question it ran. "What it drafted" waits for the `draft` tool: no card has a draft behind it yet. The board's "as Rudo could read it" is not said: Vane reads through its own reader role, not as a person (`docs/vane.md`).
+- Not now asks why in one tap (Not mine, Already done, Wrong, Not now, Something else) and keeps the reason on the card for Muted.
 - Paused reads "Paused at 10:20": `VaneSettings` keeps no one's name for the pause, so the board's "Paused by James" needs a `pausedById` column. Proposed, not made.
 - Could not work it out shows the job's error and the tools it tried; the board's Show the rows has no rows behind it, since a failed job keeps none.
 - Over the allowance counts the jobs started this month, which is what holds new jobs back (`lib/vane/jobs.ts`); Management → Vane's "this month" counts the ones that finished.

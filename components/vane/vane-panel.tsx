@@ -20,7 +20,7 @@ export function VanePanel() {
   const pageModule = moduleForPath(pathname);
   const onVane = isVanePath(pathname);
   const { data, isError } = useVanePanel(pageModule, shell.vaneOpen && !onVane);
-  const { notNow, giveJob, pause } = useVaneActions();
+  const { notNow, act, giveJob, pause } = useVaneActions();
   const close = () => shell.setVaneOpen(false);
 
   if (!shell.vaneOpen || onVane) return null;
@@ -33,6 +33,8 @@ export function VanePanel() {
           onPause={(paused) => pause.mutate(paused)}
           onClose={close}
           onAct={(card, target) => {
+            // The card's own act goes to Done with this person's name; "Read them first" only looks.
+            if (!target) act.mutate({ id: card.id });
             const to = target ?? card.action?.target;
             if (to) router.push(to);
           }}

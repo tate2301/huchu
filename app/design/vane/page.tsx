@@ -36,7 +36,7 @@ export default function VaneFixture() {
         titleIcon="foryou"
         actions={<Button icon="pause">Pause Vane</Button>}
       >
-        <ForYouView panel={FIXTURE_FOR_YOU} canResume onResume={() => {}} onAct={() => {}} onNotNow={() => {}} />
+        <ForYouView panel={FIXTURE_FOR_YOU} canResume onResume={() => {}} onAct={() => {}} onRead={() => {}} onMute={() => {}} />
       </FixtureShell>
     </KitScreen>
   );

@@ -41,6 +41,8 @@ export const FIXTURE_FOR_YOU: VanePanel = {
       body: "Chisipite Dental is later than they usually pay. Let's send the 3 reminders I drafted.",
       action: { type: "send", label: "Send 3 reminders", shortcut: "S", target: "/books/invoices?view=overdue", also: { label: "Read them first", target: "/books/invoices?view=overdue" } },
       createdAt: "2026-10-06T06:02:00",
+      read: [],
+      sql: null,
     },
     {
       id: "v2",
@@ -50,6 +52,8 @@ export const FIXTURE_FOR_YOU: VanePanel = {
       body: "Kuda measured 212.40 m² of concrete. The quote is drafted at $8,930.00. Let's send it before the weekend.",
       action: { type: "send", label: "Send the quote", target: "/crm/quotes", also: { label: "Open it", target: "/crm/quotes" } },
       createdAt: "2026-10-06T06:01:30",
+      read: [],
+      sql: null,
     },
     {
       id: "v3",
@@ -59,6 +63,8 @@ export const FIXTURE_FOR_YOU: VanePanel = {
       body: "$12.00 on Till 1, the third time since August, each time on the morning shift. Let's go through that shift's cash sales.",
       action: { type: "review", label: "Show the sales", target: "/retail/sales" },
       createdAt: "2026-10-06T06:01:00",
+      read: [],
+      sql: null,
     },
     {
       id: "v4",
@@ -68,6 +74,8 @@ export const FIXTURE_FOR_YOU: VanePanel = {
       body: "Borrowdale Brooke Clinic. I wrote the invoice from the accepted quote, $6,400.00. Let's check it and send it.",
       action: { type: "open", label: "Open the invoice", target: "/books/invoices" },
       createdAt: "2026-10-06T06:00:00",
+      read: [],
+      sql: null,
     },
     {
       id: "v5",
@@ -77,6 +85,8 @@ export const FIXTURE_FOR_YOU: VanePanel = {
       body: "I wrote a by-fitter question that answers it in one table. Let's add it to the board.",
       action: { type: "open", label: "Add to the board", target: "/reports" },
       createdAt: "2026-10-06T05:58:00",
+      read: [],
+      sql: null,
     },
   ],
   plans: [VAT_PLAN],
@@ -105,6 +115,8 @@ export const FIXTURE_BOOKS_VANE: VanePanel = {
       body: "Chisipite Dental first: 12 days late, which is later than they usually pay. Let's send the 3 reminders I drafted.",
       action: { type: "send", label: "Send 3 reminders", shortcut: "S", target: "/books/invoices?view=overdue", also: { label: "Read them first", target: "/books/invoices?view=overdue" } },
       createdAt: "2026-10-06T06:02:00",
+      read: [],
+      sql: null,
     },
     {
       id: "v2",
@@ -114,6 +126,8 @@ export const FIXTURE_BOOKS_VANE: VanePanel = {
       body: "$12.00 on Till 1, the third time since August, each time on the morning shift. Let's go through that shift's cash sales.",
       action: { type: "review", label: "Show the sales", target: "/retail/sales" },
       createdAt: "2026-10-06T06:01:00",
+      read: [],
+      sql: null,
     },
     {
       id: "v3",
@@ -123,6 +137,8 @@ export const FIXTURE_BOOKS_VANE: VanePanel = {
       body: "Borrowdale Brooke Clinic, vinyl in 3 consulting rooms. I wrote the invoice from the accepted quote, $6,400.00. Let's check it and send it.",
       action: { type: "open", label: "Open the invoice", target: "/books/invoices" },
       createdAt: "2026-10-06T06:00:00",
+      read: [],
+      sql: null,
     },
   ],
   plans: [VAT_PLAN],

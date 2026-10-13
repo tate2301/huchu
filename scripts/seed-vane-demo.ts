@@ -83,7 +83,7 @@ async function main() {
         headline: data.headline,
         body: data.body,
         action: data.action,
-        readFrom: [{ table: "SalesInvoice", rows: 3 }],
+        readFrom: [{ table: "SalesInvoice", rows: 3, about: "past their terms" }],
         sql: 'SELECT "number", "total" FROM "SalesInvoice" WHERE "status" = \'OVERDUE\'',
         createdAt: minutesAgo(now, data.minutes),
       },

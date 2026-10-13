@@ -5,6 +5,8 @@ import * as React from "react";
 import { Button, ButtonLink, Empty, Finding, GroupHead, Icon, type IconName } from "@/components/core";
 import type { VaneCard, VanePanel } from "@/lib/vane/panel";
 
+import { NotNowMenu } from "./not-now-menu";
+import { readSummary } from "./vane-card-drawer";
 import { VanePlanCardView } from "./vane-plan-card";
 import { VaneStateNote } from "./vane-state-note";
 
@@ -63,7 +65,8 @@ export function ForYouView({
   onResume,
   resuming = false,
   onAct,
-  onNotNow,
+  onRead,
+  onMute,
 }: {
   panel: VanePanel;
   /** A watched module chosen in the panel: only its cards. */
@@ -72,7 +75,10 @@ export function ForYouView({
   onResume?: () => void;
   resuming?: boolean;
   onAct: (card: VaneCard, target?: string) => void;
-  onNotNow: (card: VaneCard) => void;
+  /** What I read: opens the card beside the list. */
+  onRead: (card: VaneCard) => void;
+  /** Not now, with the reason chosen. */
+  onMute: (card: VaneCard, reason: string) => void;
 }) {
   const { status, plans, done, working } = panel;
   const cards = from ? panel.items.filter((card) => card.source === from.name) : panel.items;
@@ -112,14 +118,14 @@ export function ForYouView({
                   </span>
                   <div className="t">
                     <span className="k">
-                      {card.kind === "issue" ? "Issue" : "Suggestion"}, {card.source}
+                      {card.kind === "issue" ? "Issue" : "Suggestion"}, {card.source} · {time(card.createdAt)}
                     </span>
                     <span className="lead" id={`vane-card-${card.id}`}>
                       {card.headline}
                     </span>
                     <span className="d">{card.body}</span>
-                    {card.action ? (
-                      <div className="a">
+                    <div className="a">
+                      {card.action ? (
                         <Button
                           variant={index === 0 ? "primary" : "default"}
                           icon={ACTION_ICONS[card.action.type] ?? "chev"}
@@ -128,26 +134,22 @@ export function ForYouView({
                         >
                           {card.action.label}
                         </Button>
-                        {card.action.also ? (
-                          <Button
-                            variant={index === 0 ? "default" : "quiet"}
-                            icon="eye"
-                            onClick={() => onAct(card, card.action?.also?.target)}
-                          >
-                            {card.action.also.label}
-                          </Button>
-                        ) : null}
-                      </div>
-                    ) : null}
+                      ) : null}
+                      {card.action?.also ? (
+                        <Button
+                          variant={index === 0 ? "default" : "quiet"}
+                          icon="eye"
+                          onClick={() => onAct(card, card.action?.also?.target)}
+                        >
+                          {card.action.also.label}
+                        </Button>
+                      ) : null}
+                      <Button variant="quiet" icon="table" title={readSummary(card) || undefined} onClick={() => onRead(card)}>
+                        What I read
+                      </Button>
+                    </div>
                   </div>
-                  <Button
-                    variant="quiet"
-                    iconOnly
-                    icon="x"
-                    label="Not now"
-                    aria-describedby={`vane-card-${card.id}`}
-                    onClick={() => onNotNow(card)}
-                  />
+                  <NotNowMenu describedBy={`vane-card-${card.id}`} onMute={(reason) => onMute(card, reason)} />
                 </div>
               ))}
             </div>

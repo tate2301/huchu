@@ -25,6 +25,10 @@ export type VaneCard = {
   body: string;
   action: VaneAction | null;
   createdAt: string;
+  /** What it read, so a person can check it: each table and how many rows it gave. */
+  read: Array<{ table: string; rows: number; about?: string }>;
+  /** The question it ran. */
+  sql: string | null;
 };
 
 export type VanePlanCard = {
@@ -66,6 +70,15 @@ export function moduleName(source: string): string {
   return MODULE_NAMES[source] ?? source.charAt(0).toUpperCase() + source.slice(1);
 }
 
+const readSchema = z.array(
+  z.object({ table: z.string().min(1), rows: z.number().int().nonnegative(), about: z.string().optional() }),
+);
+
+function parseRead(value: unknown): VaneCard["read"] {
+  const parsed = readSchema.safeParse(value);
+  return parsed.success ? parsed.data : [];
+}
+
 function parseAction(value: unknown): VaneAction | null {
   const parsed = vaneActionSchema.safeParse(value);
   return parsed.success ? parsed.data : null;
@@ -93,7 +106,17 @@ export async function vanePanel(
       where: { companyId, status: "OPEN", kind: { in: FOR_YOU }, ...audienceFilter(userId, role) },
       orderBy: { createdAt: "desc" },
       take: 50,
-      select: { id: true, kind: true, sourceModule: true, headline: true, body: true, action: true, createdAt: true },
+      select: {
+        id: true,
+        kind: true,
+        sourceModule: true,
+        headline: true,
+        body: true,
+        action: true,
+        createdAt: true,
+        readFrom: true,
+        sql: true,
+      },
     }),
     db.vanePlan.findMany({
       where: { companyId, status: "OPEN" },
@@ -128,6 +151,8 @@ export async function vanePanel(
     body: item.body,
     action: parseAction(item.action),
     createdAt: item.createdAt.toISOString(),
+    read: parseRead(item.readFrom),
+    sql: item.sql,
   }));
   // This module's cards first, then the rest, each newest first.
   const here = module ? moduleName(module) : null;
@@ -167,6 +192,22 @@ export async function muteVaneItem(
   const { count } = await db.vaneItem.updateMany({
     where: { id, companyId, status: "OPEN", ...audienceFilter(userId, role) },
     data: { status: "MUTED", mutedReason: reason?.trim() || null, resolvedAt: new Date(), resolvedById: userId },
+  });
+  return count > 0;
+}
+
+/**
+ * A person pressed the card's act: the card is done, with their name, and
+ * they go on to the page where they finish it (send, issue, pay). Vane does
+ * none of that; the card only records who took it further.
+ */
+export async function actOnVaneItem(
+  db: Pick<PrismaClient, "vaneItem">,
+  { companyId, userId, role, id }: { companyId: string; userId: string; role?: string | null; id: string },
+): Promise<boolean> {
+  const { count } = await db.vaneItem.updateMany({
+    where: { id, companyId, status: "OPEN", ...audienceFilter(userId, role) },
+    data: { status: "DONE", resolvedAt: new Date(), resolvedById: userId },
   });
   return count > 0;
 }

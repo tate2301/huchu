@@ -106,7 +106,7 @@ describe("writing to Vane's own tables", () => {
     body: "Three customers are past their due date. Let's send the reminders.",
     action: { type: "send_reminders", label: "Send the reminders" },
     sql: `SELECT "id" FROM "SalesInvoice"`,
-    readFrom: [{ table: "SalesInvoice", rows: 3 }],
+    readFrom: [{ table: "SalesInvoice", rows: 3, about: "past their terms" }],
   };
 
   it("raises a card once, however many times the same fact is found", async () => {
