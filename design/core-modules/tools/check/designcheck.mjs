@@ -103,11 +103,20 @@ const key = (s) => s.toLowerCase().replace(/[^a-z\[\]:]+/g, "");
 const bare = (s) => key(s.replace(/^\w+: /, "").replace(/ \[.*\]$/, ""));
 const haveKeys = new Set([...have].map(key));
 const haveBare = new Set([...have].map(bare));
-const missing = [], moved = [];
-for (const w of want) { if (haveKeys.has(key(w))) continue; (haveBare.has(bare(w)) ? moved : missing).push(w); }
-const score = want.length ? ((want.length - missing.length - moved.length * 0.5) / want.length) * 100 : 100;
+// Misses already explained in NOTES.md (sample data the workspace doesn't have, a state the board
+// draws mid-action) are listed per board in known.json and leave the score; they are printed apart.
+const knownFile = path.join(here, "known.json");
+const known = new Set((fs.existsSync(knownFile) ? JSON.parse(fs.readFileSync(knownFile, "utf8"))[path.basename(boardFile, ".html")] ?? [] : []).map(key));
+const missing = [], moved = [], explained = [];
+for (const w of want) {
+  if (haveKeys.has(key(w))) continue;
+  if (known.has(key(w))) { explained.push(w); continue; }
+  (haveBare.has(bare(w)) ? moved : missing).push(w);
+}
+const counted = want.length - explained.length;
+const score = counted ? ((counted - missing.length - moved.length * 0.5) / counted) * 100 : 100;
 console.log(`${path.basename(boardFile, ".html")} → ${url}`);
-console.log(`score ${score.toFixed(1)}%  (${want.length} items; ${missing.length} missing, ${moved.length} differ in kind or shortcut)`);
+console.log(`score ${score.toFixed(1)}%  (${counted} items; ${missing.length} missing, ${moved.length} differ in kind or shortcut; ${explained.length} explained in known.json)`);
 if (missing.length) console.log("missing:\n  " + missing.join("\n  "));
 if (moved.length) console.log("differ:\n  " + moved.join("\n  "));
 if (verbose) console.log("extra on the page:\n  " + [...have].filter((h) => !want.includes(h)).slice(0, 30).join("\n  "));

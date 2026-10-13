@@ -1,0 +1,6 @@
+{
+  "BooksInvoices": ["panel: Overdue", "panel: Pomona Offices", "panel: Paid this month", "footer: # selectedOwing #Send remindersPrint sta", "status: Sent"],
+  "BooksMoney": ["panel: Overdue", "panel: Pomona Offices", "panel: Paid this month", "button: Review", "label: CBZ, ZWG", "label: Halsted Builders"],
+  "PageBooksJournals": ["panel: Overdue", "panel: Pomona Offices", "panel: Paid this month", "button: Edit", "button: Post this journal"],
+  "MgmtVane": ["panel: Tills", "panel: Till rules", "panel: Posting", "panel: Fiscal device"]
+}

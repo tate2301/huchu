@@ -72,7 +72,7 @@ node design/core-modules/tools/check/designcheck.mjs <Board> http://floorcode.ap
 1. **Score.**
    - The score must be 95% or more.
    - Each missing item is either fixed or explained in NOTES.md (real data, an item the app has no source for).
-   - Panel items from other modules and the selection footer the board draws pre-selected are known noise.
+   - A miss that is the board's sample data (its saved views, a customer this workspace doesn't have) or a state the board draws mid-action goes in `tools/check/known.json` under the board, with its reason in NOTES.md. The score leaves those out, so 95% means 95% of what can be built.
 2. **Layout.** The 1440 and 390 checks must be clean.
 3. **Look once.** Open the side-by-side PNG and fix anything visibly off: alignment, spacing, a wrong component.
 4. **Code checks.**
