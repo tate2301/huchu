@@ -1,3 +1,4 @@
+import { BOOKS_REPORTS } from "@/lib/reports/definitions/books";
 import { CRM_REPORTS } from "@/lib/reports/definitions/crm";
 import { OPERATIONS_REPORTS } from "@/lib/reports/definitions/operations";
 import { PEOPLE_REPORTS } from "@/lib/reports/definitions/people";
@@ -16,6 +17,7 @@ export const REPORT_DEFINITIONS: readonly ReportDefinition[] = [
   ...RETAIL_REPORTS,
   ...CRM_REPORTS,
   ...PEOPLE_REPORTS,
+  ...BOOKS_REPORTS,
 ];
 
 const byKey = new Map(REPORT_DEFINITIONS.map((definition) => [definition.key, definition]));

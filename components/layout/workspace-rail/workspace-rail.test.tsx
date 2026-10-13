@@ -87,7 +87,6 @@ function render({
       panelShown={panelShown}
       onOpenPanel={() => {}}
       onCollapse={() => {}}
-      onSearch={() => {}}
     />,
   );
 }
@@ -107,8 +106,8 @@ describe("WorkspaceRail (00-foundations 5.3.2–5.3.3, 98-decisions 5 October)",
     const html = render();
     expect(html).toContain('<nav aria-label="The floor"');
     expect(html).toContain('aria-label="Back to Retail"');
-    expect(html).toContain('aria-label="Collapse the panel"');
-    expect(html.indexOf('aria-label="Back to Retail"')).toBeLessThan(html.indexOf('aria-label="Collapse the panel"'));
+    expect(html).toContain('aria-label="Hide the panel"');
+    expect(html.indexOf('aria-label="Back to Retail"')).toBeLessThan(html.indexOf('aria-label="Hide the panel"'));
   });
 
   it("lists the module's items with the badge, the current item and a pin each", () => {
@@ -119,12 +118,12 @@ describe("WorkspaceRail (00-foundations 5.3.2–5.3.3, 98-decisions 5 October)",
     expect(html).not.toContain(">On hand<");
   });
 
-  it("keeps Search, Help and Management in the panel", () => {
+  it("keeps the panel's search and Help in the panel, and Management behind the gear only", () => {
     const html = render();
-    expect(html).toContain(">Search<");
-    expect(html).toContain("⌘K");
+    expect(html).toMatch(/<input[^>]*type="search"[^>]*aria-keyshortcuts="\/"/);
     expect(html).toMatch(/href="\/help"[^>]*>.*Help/);
-    expect(html.match(/href="\/management\/master-data"/g)).toHaveLength(2);
+    // Owner, 11 Oct: take Management off the panel foot; the gear opens it.
+    expect(html.match(/href="\/management\/master-data"/g)).toHaveLength(1);
   });
 
   it("shows the module list when the page belongs to none", () => {
@@ -287,3 +286,62 @@ describe("WorkspaceRail, a module read whole", () => {
     expect(container!.querySelector('nav[aria-label="Modules"] a[aria-label="Reports"]')).not.toBeNull();
   });
 });
+
+describe("a module's panel groups (design/core-modules/spec/routes.md §0)", () => {
+  const books: RailArea = {
+    id: "accounting",
+    label: "Books",
+    icon: Receipt,
+    items: [
+      { href: "/books", label: "Money", icon: Receipt },
+      { href: "/books/invoices", label: "Invoices", icon: Receipt },
+      { href: "/books/journals", label: "Journals", icon: FileText, group: "ledger" },
+      { href: "/accounting/fiscalisation", label: "Fiscalisation", icon: FileText, group: "more" },
+    ],
+    bands: [
+      { id: "ledger", label: "Ledger" },
+      { id: "more", label: "More", trailing: true },
+    ],
+  };
+  const booksModel: RailModel = { ...areasModel, areas: [books, floor] };
+
+  function renderBooks(activeHref: string) {
+    return renderToStaticMarkup(
+      <WorkspaceRail
+        model={booksModel}
+        workspaceLabel="Floorcode"
+        activeHref={activeHref}
+        badges={{ "/books/invoices": "3" }}
+        tile={<button type="button">F</button>}
+        management={management}
+        supportItems={[help]}
+        panelShown
+        onOpenPanel={() => {}}
+        moduleGroups={(area) => <li data-testid="module-groups">{`Groups of ${area.label}`}</li>}
+      />,
+    );
+  }
+
+  it("draws the rows, then each headed band, then the module's own groups, then the bands that sit last", () => {
+    const html = renderBooks("/books/invoices");
+    expect(html).toContain('<aside aria-label="Books"');
+    const order = [">Money<", ">Invoices<", ">Ledger<", ">Journals<", "Groups of Books", ">More<", ">Fiscalisation<"].map((text) =>
+      html.indexOf(text),
+    );
+    expect(order.every((index) => index >= 0)).toBe(true);
+    expect([...order].sort((a, b) => a - b)).toEqual(order);
+    expect(html).toMatch(/>Invoices<\/span>.*?>3<\/span>/);
+  });
+
+  it("folds a trailing band until it holds the page", () => {
+    expect(renderBooks("/books/invoices")).toMatch(/aria-expanded="false"[^>]*>.*?<span>More<\/span>/);
+    expect(renderBooks("/accounting/fiscalisation")).toMatch(/aria-expanded="true"[^>]*>.*?<span>More<\/span>/);
+  });
+
+  it("draws the module's own groups only while the panel shows the page's module", () => {
+    const html = renderBooks("/retail/shifts");
+    expect(html).not.toContain("Groups of Books");
+    expect(html).toContain("Groups of The floor");
+  });
+});
+

@@ -126,6 +126,9 @@ model Company {
   documentTemplates             DocumentTemplate[]
   reportSettings                ReportSetting[]
   customReports                 CustomReport[]
+  reportFolders                 ReportFolder[]
+  savedViews                    SavedView[]
+  reportSchedules               ReportSchedule[]
   reportTemplates               ReportTemplate[]
   reportTemplateUses            ReportTemplateUse[]
   vaneItems                     VaneItem[]
@@ -1399,6 +1402,8 @@ model User {
   crmAppointmentsAssigned           CrmAppointment[]               @relation("CrmAppointmentAssignedTo")
   crmAppointmentsCreated            CrmAppointment[]               @relation("CrmAppointmentCreatedBy")
   crmSavedViewsCreated              CrmSavedView[]                 @relation("CrmSavedViewCreatedBy")
+  savedViewsCreated                 SavedView[]                    @relation("SavedViewCreatedBy")
+  reportSchedulesCreated            ReportSchedule[]               @relation("ReportScheduleCreatedBy")
   crmIntakeFormsCreated             CrmIntakeForm[]                @relation("CrmIntakeFormCreatedBy")
   crmIntakeFormsDefaultAssignee     CrmIntakeForm[]                @relation("CrmIntakeFormDefaultAssignee")
   crmApiKeysCreated                 CrmApiKey[]                    @relation("CrmApiKeyCreatedBy")
@@ -8612,14 +8617,110 @@ model CustomReport {
   /// Who sees it besides its maker, the way a report template says it: just
   /// them, the managers, or everyone (`lib/reports/template-access.ts`).
   audience    ReportTemplateAudience @default(JUST_ME)
+  /// The folder it is filed in on Reports' panel; none is "not in a folder".
+  folderId    String?
   createdById String
   updatedById String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  company Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  folder  ReportFolder? @relation(fields: [folderId], references: [id], onDelete: SetNull)
 
   @@index([companyId, createdById])
+  @@index([folderId])
+}
+
+/// A folder on Reports' panel ("Monday meeting", "Fitters", "Money"): the
+/// workspace's own grouping of its reports. Everyone who can read a report sees
+/// it in its folder.
+/// A page's address kept under a name in its module's panel (design/core-modules
+/// spec/routes.md §0): the page (`path`) and what was in its query string, for
+/// the person who saved it or, shared, for everyone in the workspace.
+model SavedView {
+  id          String   @id @default(uuid())
+  companyId   String
+  /// The page's address without its query, like `/books/invoices`.
+  path        String   @db.VarChar(300)
+  name        String   @db.VarChar(120)
+  /// The address's query string without the `?`, like `show=overdue`. Empty for the page as it opens.
+  query       String   @default("") @db.VarChar(2000)
+  isShared    Boolean  @default(false)
+  createdById String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  createdBy User    @relation("SavedViewCreatedBy", fields: [createdById], references: [id], onDelete: Cascade)
+
+  @@index([companyId, path])
+}
+
+/// How often a report is sent (`ReportSchedule`).
+enum ReportScheduleFrequency {
+  DAILY
+  WEEKLY
+  MONTHLY
+}
+
+enum ReportScheduleFormat {
+  PDF
+  CSV
+}
+
+/// A PDF's layout: its key figures and breakdown, or the whole page.
+enum ReportScheduleContent {
+  SUMMARY
+  FULL
+}
+
+/// A report sent by email on a schedule (routes.md §1, Send it; approved 13 Oct).
+/// Only a person makes one or turns it back on; the sender
+/// (`lib/reports/schedule-sender.ts`) renders it the way Export does, for each
+/// recipient under their own role, and moves `nextRunAt` on.
+model ReportSchedule {
+  id           String                  @id @default(uuid())
+  companyId    String
+  /// A built-in report's key (`crm-deals`) or a custom report's id. Not a foreign key: reports are code.
+  reportKey    String                  @db.VarChar(120)
+  frequency    ReportScheduleFrequency
+  /// Weekly: 1 (Monday) to 7 (Sunday). Monthly: 1 to 31, the month's last day when it is shorter. Daily: null.
+  day          Int?
+  /// "HH:MM" on the workspace's clock.
+  time         String                  @db.VarChar(5)
+  /// People in this workspace who can open the report.
+  recipientIds String[]
+  format       ReportScheduleFormat    @default(PDF)
+  content      ReportScheduleContent   @default(SUMMARY)
+  /// The report address's query without the `?` (its choices and view, `v=`), like `v=…`.
+  query        String                  @default("") @db.VarChar(4000)
+  createdById  String
+  active       Boolean                 @default(true)
+  nextRunAt    DateTime?
+  lastSentAt   DateTime?
+  createdAt    DateTime                @default(now())
+  updatedAt    DateTime                @updatedAt
+
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  createdBy User    @relation("ReportScheduleCreatedBy", fields: [createdById], references: [id], onDelete: Cascade)
+
+  @@index([companyId, reportKey])
+  @@index([active, nextRunAt])
+}
+
+model ReportFolder {
+  id          String   @id @default(uuid())
+  companyId   String
+  name        String
+  sortOrder   Int      @default(0)
+  createdById String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  company Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  reports CustomReport[]
+
+  @@unique([companyId, name])
 }
 
 /// A report saved under a name: one of the code's reports, with the columns,
@@ -16128,6 +16229,10 @@ model RetailImportRow {
 enum VaneItemKind {
   ISSUE
   SUGGESTION
+  /// Written by Vane on the insights schedule: a headline fact, the question it
+  /// ran (`sql`) and the rows it drew (`readFrom`). Shown on Reports → Insights,
+  /// never in For you.
+  INSIGHT
 }
 
 enum VaneItemStatus {
@@ -16303,6 +16408,10 @@ model VaneSettings {
   /// { [issue kind]: role[] }: who hears about what.
   routing            Json     @default("{}")
   monthlyAllowance   Int      @default(5000)
+  /// When Vane writes the week's insights: "MON 06:00", in the workspace's time.
+  insightsSchedule   String   @default("MON 06:00") @db.VarChar(9)
+  /// The board "Pin to …" adds an insight's question to; none until one is chosen.
+  insightsBoardId    String?
   updatedAt          DateTime @updatedAt
 
   company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)

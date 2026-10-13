@@ -10,7 +10,7 @@ import { requireRetailSession } from "../../_helpers";
 
 const params = z.object({ topic: z.enum(INSIGHT_TOPICS) });
 const query = z.object({
-  period: z.enum(INSIGHT_PERIODS, { message: "Choose Today, 7 days, 30 days or This month" }).default("30d"),
+  period: z.enum(INSIGHT_PERIODS, { message: "Choose Today, 7 days, 30 days, 90 days or This month" }).default("30d"),
   siteId: z.string().min(1).default("all"),
   from: z.string().optional(),
   to: z.string().optional(),

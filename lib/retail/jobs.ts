@@ -23,7 +23,7 @@ import type { ScheduledJob } from "@/lib/scheduled-jobs/schedule";
  * every minute the price changes come due (PRD-07), 00:10 the vouchers whose
  * expiry day has passed lapse (PRD-10), 00:05 points a year old expire,
  * 07:00 on Mondays the birthday bonuses (CUS-01) and 09:00 the weekly lay-by
- * reminders (FLR-06), 07:00 the order follow-ups (BUY-03).
+ * reminders (FLR-06), and 07:00 the order follow-ups (BUY-03).
  */
 export const RETAIL_JOBS: ScheduledJob[] = [
   {

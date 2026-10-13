@@ -8,20 +8,20 @@ import { areaRows, areasFromSections, type RailArea } from "./areas";
  * A rail you have to scroll hides its own contents, so what it can hold is
  * worked out rather than hoped for, and the shape that fits is the shape it
  * takes. Everything below is that arithmetic, in the units the rail is drawn
- * in (00-foundations 5.3.2–5.3.3).
+ * in (design/core-modules/spec/shell.md).
  */
 
-/** A panel item: 34 tall, 2 of gap. */
-const ROW = 36;
-/** A heading inside the panel: 28 tall, 14 above it. */
-const HEADING = 42;
-/** A mark in the rail: 36 tall, 6 of gap. */
-const SLOT = 42;
+/** A panel item: 36 tall, 2 of gap. */
+const ROW = 38;
+/** A heading inside the panel: 28 tall, 16 above it. */
+const HEADING = 44;
+/** A mark in the rail: 40 tall, 4 of gap. */
+const SLOT = 44;
 
-/** Panel chrome: the header (48), Search (40), the Help and Management shelf (90), air. */
-const PANEL_CHROME = 250;
-/** Rail chrome: the logo tile (48), the Management gear (42) and the person (42), padding. */
-const RAIL_CHROME = 150;
+/** Panel chrome: the header (56), Search (44), the Help shelf (56), air. */
+const PANEL_CHROME = 180;
+/** Rail chrome: the logo tile (52), Vane (44), the Management gear (44) and the person (40), padding (24). */
+const RAIL_CHROME = 204;
 
 /**
  * The shortest window the shape is decided for.
@@ -79,7 +79,10 @@ export function panelBudget(height: number = REFERENCE_HEIGHT): number {
 
 /** What a workspace's whole tree costs if every area were open at once. */
 export function flatCost(areas: RailArea[]): number {
-  return areas.reduce((total, area) => total + HEADING + area.items.length * ROW, 0);
+  return areas.reduce(
+    (total, area) => total + HEADING + (area.bands?.length ?? 0) * HEADING + area.items.length * ROW,
+    0,
+  );
 }
 
 function pinCapacityFor(areaCount: number, shape: RailShape): number {

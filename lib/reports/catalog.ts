@@ -64,6 +64,7 @@ export function reportMeta(
     key: source.key,
     title: source.title,
     area: source.area,
+    ...(source.summary ? { summary: source.summary } : {}),
     columns: source.columns,
     params,
     defaults: source.defaults,

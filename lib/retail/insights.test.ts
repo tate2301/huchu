@@ -219,6 +219,16 @@ describe("a range of days chosen", () => {
     expect(insightWindow("month", now)).toMatchObject({ singleDay: false, range: { from: "2026-10-01", to: "2026-10-06" } });
   });
 
+  it("reads 90 days against the 90 before them (PageRetailSales' period)", () => {
+    expect(insightWindow("90d", now)).toMatchObject({
+      period: "90d",
+      days: 90,
+      words: "last 90 days",
+      compareWords: "Compared with the 90 days before",
+      range: { from: "2026-07-08", to: "2026-10-06" },
+    });
+  });
+
   it("refuses a range it cannot read", () => {
     expect(insightRangeRefusal({ from: "2026-10-05", to: "2026-10-01" }, now)).toBe("That period could not be read");
     expect(insightRangeRefusal({ from: "2026-02-30", to: "2026-03-01" }, now)).toBe("That period could not be read");

@@ -3,6 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 
+import { useShortcut } from "@/components/core/shortcuts";
 import { Plus, Search, SearchX, Warning, X } from "@/lib/icons";
 import { cn } from "@/lib/utils";
 
@@ -256,6 +257,13 @@ function NewButton({
   className?: string;
   showLabel?: boolean;
 }) {
+  // The header's New answers to N and shows it (design/core-modules/spec/shortcuts.md);
+  // the empty state's labelled copy of it does not, so N never fires twice.
+  const shortcut = showLabel ? undefined : "N";
+  const linkRef = React.useRef<HTMLAnchorElement>(null);
+  const buttonRef = React.useRef<HTMLButtonElement>(null);
+  useShortcut(shortcut, () => (linkRef.current ?? buttonRef.current)?.click(), { enabled: Boolean(onNew || href) });
+
   if (!onNew && !href) return null;
 
   const classes = cn(styles.button, styles.buttonPrimary, className);
@@ -263,20 +271,21 @@ function NewButton({
     <>
       <Plus />
       {showLabel ? label : "New"}
+      {shortcut ? <span className={styles.kbdOnPrimary}>{shortcut}</span> : null}
     </>
   );
 
   // `aria-label` names the thing even when the visible label is just "New".
   if (href) {
     return (
-      <Link href={href} aria-label={label} className={classes}>
+      <Link ref={linkRef} href={href} aria-label={label} aria-keyshortcuts={shortcut} className={classes}>
         {body}
       </Link>
     );
   }
 
   return (
-    <button type="button" aria-label={label} className={classes} onClick={onNew}>
+    <button ref={buttonRef} type="button" aria-label={label} aria-keyshortcuts={shortcut} className={classes} onClick={onNew}>
       {body}
     </button>
   );

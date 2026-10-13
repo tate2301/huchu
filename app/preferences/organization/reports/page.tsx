@@ -1,8 +1,6 @@
-import { requirePreferencesAccess } from "@/lib/preferences/server";
+import { redirect } from "next/navigation";
 
-import { ReportsRegister } from "./reports-register";
-
-export default async function PreferencesReportsPage() {
-  await requirePreferencesAccess("reports");
-  return <ReportsRegister />;
+/** Reports moved into Management (PageReportsSettings); old links and bookmarks still land. */
+export default function PreferencesReportsPage() {
+  redirect("/management/reports");
 }

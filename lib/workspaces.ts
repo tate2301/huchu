@@ -1,7 +1,6 @@
-import { ACCOUNTING_OPERATIONS_SECTIONS, ACCOUNTING_TABS } from "@/lib/accounting/tab-config";
-import { filterAccountingTabsByFeatures } from "@/lib/accounting/visibility";
+import { canViewAccountingHref } from "@/lib/accounting/visibility";
 import type { NavGroup, NavItem, NavSection } from "@/lib/navigation";
-import { getNavSectionsForRole, navSections, schoolBandGrant } from "@/lib/navigation";
+import { getNavSectionsForRole, navSections, REPORTS_NAV_HREFS, schoolBandGrant } from "@/lib/navigation";
 import { normalizeFeatureKey } from "@/lib/platform/gating/catalog-utils";
 import { filterNavSectionsByEnabledFeatures } from "@/lib/platform/gating/nav-filter";
 import type { PersonaCode } from "@/lib/platform/personas";
@@ -387,17 +386,23 @@ const WORKSPACE_MODULES: Record<WorkspaceModuleId, WorkspaceModuleDefinition> = 
       );
       return readable.length > 0 ? items : [];
     },
+    // The Insights band; each insight row is behind its page's feature (route registry).
+    getGroups(context) {
+      return context.navSectionById.get("reporting")?.groups;
+    },
   },
   accounting: {
     id: "accounting",
-    label: "Accounting",
-    homeHref: "/accounting",
+    label: "Books",
+    homeHref: "/books",
+    // The panel the boards draw (`lib/navigation.ts`), each page behind its own feature.
     getItems(context) {
-      return filterAccountingTabsByFeatures(ACCOUNTING_TABS, context.enabledFeatures).map((tab) => ({
-        href: tab.href,
-        label: tab.label,
-        icon: tab.icon,
-      }));
+      return (context.navSectionById.get("accounting")?.items ?? []).filter((item) =>
+        canViewAccountingHref(item.href, context.enabledFeatures),
+      );
+    },
+    getGroups(context) {
+      return context.navSectionById.get("accounting")?.groups;
     },
   },
   management: {
@@ -449,7 +454,11 @@ function buildSchoolsProfileSections(): WorkspaceProfileSectionSpec[] {
   // Every report the workspace can open, beside the school's own. Pulled in by
   // the arrangement so a school that is one workspace of several still has it:
   // a split vertical's rail holds only what its arrangement asks for.
-  const reports = { id: "schools-all-reports", title: "Reports", refs: [{ moduleId: "reporting" as const, href: "/reports" }] };
+  const reports = {
+    id: "schools-all-reports",
+    title: "Reports",
+    refs: REPORTS_NAV_HREFS.map((href) => ({ moduleId: "reporting" as const, href })),
+  };
 
   return [...loose, ...bands, reports];
 }
@@ -784,6 +793,7 @@ function buildModuleSection(
     // the trip through the module layer.
     ...(declaredSection(moduleId)?.flattenGroups ? { flattenGroups: true } : {}),
     ...(declaredSection(moduleId)?.ranked ? { ranked: true } : {}),
+    ...(declaredSection(moduleId)?.panelGroups ? { panelGroups: true } : {}),
     items,
     workspaceGroup,
   };
@@ -795,40 +805,6 @@ function buildModuleSections(
   workspaceGroup: WorkspaceSectionGroup,
   excludedHrefs?: Set<string>,
 ): WorkspaceNavSection[] {
-  if (moduleId === "accounting") {
-    const moduleItems = visibleModules.get("accounting") ?? [];
-    // Single consolidated section. Sub-tabs/grouping live inside the
-    // /accounting shell — the global sidebar just lists the entry points.
-    // Overview is intentionally first.
-    const orderedHrefs = [
-      ...ACCOUNTING_OPERATIONS_SECTIONS.overview,
-      ...ACCOUNTING_OPERATIONS_SECTIONS.receivables,
-      ...ACCOUNTING_OPERATIONS_SECTIONS.payables,
-      ...ACCOUNTING_OPERATIONS_SECTIONS.reporting,
-      // The banking section went with the ST-1.2 parking; the route and its
-      // model are untouched, it is simply not a sidebar entry point.
-      ...ACCOUNTING_OPERATIONS_SECTIONS.master,
-    ];
-
-    const items: NavItem[] = [];
-    for (const href of orderedHrefs) {
-      if (excludedHrefs?.has(href)) continue;
-      const item = moduleItems.find((i) => i.href === href);
-      if (item) items.push(item);
-    }
-
-    if (items.length === 0) return [];
-
-    return [
-      {
-        id: "accounting-master",
-        title: "Accounting Master",
-        items,
-        workspaceGroup,
-      },
-    ];
-  }
-
   const section = buildModuleSection(moduleId, visibleModules, workspaceGroup, excludedHrefs);
   return section ? [section] : [];
 }

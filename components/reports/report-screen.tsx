@@ -1,44 +1,32 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { useQueryClient } from "@tanstack/react-query";
 
-import { EmptyState, Skeleton } from "@corelithzw/react";
-import { PageChrome } from "@/components/layout/page-chrome";
-import { Button } from "@/components/ui/button";
-import { DataTableFloatingActions } from "@/components/ui/data-table-floating-actions";
-import { COMMON_PRESETS, DateRangePicker, DayRangeChip } from "@/components/ui/date-picker";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Button, Empty, InputWithIcon, Kit, Pill, TableFoot, type FootSum } from "@/components/core";
+import { MenuButton, type MenuEntry } from "@/components/core/menu";
+import { PageChrome, type PageMenuItem, type PagePrimary } from "@/components/layout/page-chrome";
+import { COMMON_PRESETS, DateRangePicker } from "@/components/ui/date-picker";
 import { useToast } from "@/components/ui/use-toast";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
-import { ChevronDown, Download, MagnifyingGlass, MoreHorizontal } from "@/lib/icons";
-import {
-  EXPORT_TEMPLATE_LABELS,
-  EXPORT_TEMPLATES,
-  type ExportTemplateId,
-} from "@/lib/reports/export-layouts";
+import type { ExportTemplateId } from "@/lib/reports/export-layouts";
 import type { CustomReport } from "@/lib/reports/custom/document";
 import { formatTotal } from "@/lib/reports/format";
+import { defaultLayout } from "@/lib/reports/layout";
+import { scheduleQuery } from "@/lib/reports/schedule";
 import type { TemplateAudience } from "@/lib/reports/template-access";
 import type { ReportColumnKind, ReportParam, ReportRow, ReportView } from "@/lib/reports/types";
-import { aggregate, applyView } from "@/lib/reports/view";
+import { aggregate, applyView, encodeView } from "@/lib/reports/view";
+import { dayRangeWords, formatTime, todayIn } from "@/lib/workspace/format";
 
 import { ReportBlocks } from "./report-blocks";
 import { ReportColumns } from "./report-columns";
-import { ReportFilters } from "./report-filters";
+import { Chip, FilterChips, FiltersButton, QuickChips } from "./report-filters";
+import { ReportOutDrawer, type DownloadFormat, type OutTab } from "./report-out-drawer";
 import { ReportRowActions } from "./report-row-actions";
 import { ReportRowList } from "./report-row-list";
 import { ReportTable } from "./report-table";
@@ -46,19 +34,16 @@ import { TemplateSheet } from "./template-sheet";
 import { useReport } from "./use-report";
 
 /**
- * One report, as a worksheet.
+ * One report, as the kit draws it (PageReport): where it comes from, the
+ * chips that choose which records (the dates and choices, which fetch again)
+ * and how to look at them (search, filters, grouping, columns, which do not),
+ * the key figures and charts, then the table with its footer. Selecting rows
+ * raises the selection into the footer.
  *
- * Two rows above the table, because they are two questions: which records
- * (the dates and choices, which fetch again) and how to look at them (search,
- * filters, grouping and columns, which do not). Export sits with the page's
- * title and writes exactly what the table shows — or just the selected rows.
- *
- * Opened as a template, it starts from the template's view and dates, says
- * whose it is, and can be saved back over it; any report, template or not, can
- * be saved as a new template.
+ * Export (E) and Send it open one drawer with Download and Send it; Save as a
+ * template opens its own. Opened as a template, the page starts from the
+ * template's view and dates and says whose it is.
  */
-
-const NO_GROUP = "__none__";
 
 const SEEN_BY: Record<TemplateAudience, string> = {
   JUST_ME: "only its maker sees it",
@@ -91,26 +76,10 @@ async function download(key: string, body: unknown) {
   URL.revokeObjectURL(url);
 }
 
-/** The files a report can become: each PDF layout, then the data as a workbook or a CSV. */
-function ExportChoices({ onChoose }: { onChoose: (format: "csv" | "xlsx" | "pdf", template?: ExportTemplateId) => void }) {
-  return (
-    <>
-      <DropdownMenuLabel>PDF</DropdownMenuLabel>
-      {EXPORT_TEMPLATES.map((template) => (
-        <DropdownMenuItem key={template} onSelect={() => onChoose("pdf", template)}>
-          {EXPORT_TEMPLATE_LABELS[template]}
-        </DropdownMenuItem>
-      ))}
-      <DropdownMenuSeparator />
-      <DropdownMenuLabel>Data</DropdownMenuLabel>
-      <DropdownMenuItem onSelect={() => onChoose("xlsx")}>Excel workbook</DropdownMenuItem>
-      <DropdownMenuItem onSelect={() => onChoose("csv")}>CSV</DropdownMenuItem>
-    </>
-  );
-}
-
+/** Search: a button until it is pressed or holds words, then the box. */
 function SearchBox({ value, onChange }: { value: string; onChange: (value: string) => void }) {
   const [draft, setDraft] = useState(value);
+  const [opened, setOpened] = useState(Boolean(value));
   // The view changed from elsewhere — back, a reset, a link: take its search.
   const [seen, setSeen] = useState(value);
   if (value !== seen) {
@@ -122,25 +91,29 @@ function SearchBox({ value, onChange }: { value: string; onChange: (value: strin
     const timer = setTimeout(() => onChange(draft), 300);
     return () => clearTimeout(timer);
   }, [draft, value, onChange]);
+  if (!opened && !draft) {
+    return (
+      <Button icon="search" onClick={() => setOpened(true)}>
+        Search
+      </Button>
+    );
+  }
   return (
-    <div className="relative w-full max-w-[16rem]">
-      <MagnifyingGlass
-        className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-[var(--text-subtle)]"
-        aria-hidden="true"
-      />
-      <Input
-        type="search"
-        value={draft}
-        onChange={(event) => setDraft(event.target.value)}
-        placeholder="Search"
-        aria-label="Search this report"
-        className="h-8 pl-8"
-      />
-    </div>
+    <InputWithIcon
+      wrapClassName="ws-find"
+      type="search"
+      autoFocus={!value}
+      value={draft}
+      onChange={(event) => setDraft(event.target.value)}
+      onBlur={() => setOpened(Boolean(draft))}
+      placeholder="Search this report"
+      aria-label="Search this report"
+    />
   );
 }
 
-function ParamControls({
+/** The chips that choose which records: the dates, then each choice. */
+function ParamChips({
   params,
   values,
   onChange,
@@ -153,8 +126,9 @@ function ParamControls({
   const to = params.find((param) => param.key === "to" && param.type === "date");
   const choices = params.filter((param): param is Extract<ReportParam, { type: "choice" }> => param.type === "choice");
   const range = { from: values.from || null, to: to ? values.to || null : null };
+  const words = dayRangeWords(range, todayIn()) || "any time";
   return (
-    <div className="flex flex-wrap items-center gap-2">
+    <>
       {from ? (
         <DateRangePicker
           openEnded
@@ -162,27 +136,66 @@ function ParamControls({
           title={from.label}
           value={range}
           onChange={(next) => onChange({ from: next.from ?? "", ...(to ? { to: next.to ?? "" } : {}) })}
-          trigger={<DayRangeChip label={from.label} range={range} />}
+          trigger={
+            <Chip set={Boolean(range.from || range.to)} icon="calendar" aria-label={`${from.label}: ${words}`}>
+              {from.label} {words}
+            </Chip>
+          }
         />
       ) : null}
-      {choices.map((param) => (
-        <Select
-          key={param.key}
-          value={values[param.key] ?? param.options[0]?.value ?? ""}
-          onValueChange={(value) => onChange({ [param.key]: value })}
-        >
-          <SelectTrigger size="sm" className="w-auto" aria-label={param.label}>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {param.options.map((option) => (
-              <SelectItem key={option.value} value={option.value}>
-                {option.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      ))}
+      {choices.map((param) => {
+        const current = values[param.key] ?? param.options[0]?.value ?? "";
+        const option = param.options.find((candidate) => candidate.value === current);
+        return (
+          <MenuButton
+            key={param.key}
+            className={current === param.options[0]?.value ? "chipsel" : "chipsel is-set"}
+            icon="filter"
+            label={param.label}
+            items={param.options.map((candidate) => ({
+              key: candidate.value,
+              label: candidate.label,
+              checked: candidate.value === current,
+              onSelect: () => onChange({ [param.key]: candidate.value }),
+            }))}
+          >
+            {option?.label ?? param.label}
+          </MenuButton>
+        );
+      })}
+    </>
+  );
+}
+
+/** What each send reads, from the report's own first date: "the year so far". */
+function periodOf(param: ReportParam | undefined): string | null {
+  if (!param || param.type !== "date") return null;
+  const start = param.default;
+  if (start === "yearStart") return "the year so far";
+  if (start === "monthStart") return "the month so far";
+  if (start === "today") return "that day";
+  if (start) return `the last ${start.slice(1, -1)} days`;
+  return "every date";
+}
+
+function Loading() {
+  return (
+    <div className="kbody" aria-busy="true" aria-label="Loading">
+      <div className="rp-src">
+        <div className="skeleton" style={{ height: 16, width: 320 }} />
+      </div>
+      <div className="ws-tools">
+        <div className="skeleton" style={{ height: 32, width: 220 }} />
+        <div className="skeleton" style={{ height: 32, width: 120 }} />
+      </div>
+      <div className="rp-figs">
+        <div className="skeleton" style={{ height: 76 }} />
+      </div>
+      <div style={{ padding: "var(--space-16) var(--space-24)", display: "flex", flexDirection: "column", gap: 8 }}>
+        {Array.from({ length: 8 }, (_, index) => (
+          <div key={index} className="skeleton" style={{ height: 36 }} />
+        ))}
+      </div>
     </div>
   );
 }
@@ -191,17 +204,18 @@ export function ReportScreen({ reportKey }: { reportKey: string }) {
   const { toast } = useToast();
   const { data: session } = useSession();
   const queryClient = useQueryClient();
+  const router = useRouter();
+  const search = useSearchParams();
   const { query, meta, template, view, params, setView, resetView, setParams, customised } = useReport(reportKey);
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
   const [sheet, setSheet] = useState<"save" | "edit" | null>(null);
+  // `?send=1` opens Send it, so a link can lead straight to it.
+  const [out, setOut] = useState<OutTab | null>(() => (search.get("send") ? "send" : null));
   const [exporting, setExporting] = useState(false);
   const isPhone = useIsMobile();
 
   const rows = useMemo<ReportRow[]>(() => query.data?.rows ?? [], [query.data]);
-  const applied = useMemo(
-    () => (meta && view ? applyView(rows, meta.columns, view) : null),
-    [rows, meta, view],
-  );
+  const applied = useMemo(() => (meta && view ? applyView(rows, meta.columns, view) : null), [rows, meta, view]);
 
   // A selection survives a filter only for the rows still on screen.
   const visibleSelection = useMemo(() => {
@@ -210,17 +224,22 @@ export function ReportScreen({ reportKey }: { reportKey: string }) {
     return new Set([...selected].filter((id) => shown.has(id)));
   }, [applied, selected]);
 
-  const runExport = async (format: "csv" | "xlsx" | "pdf", onlySelected: boolean, template: ExportTemplateId = "layout") => {
+  const closeOut = useCallback(() => {
+    setOut(null);
+    if (new URLSearchParams(window.location.search).has("send")) {
+      const next = new URLSearchParams(window.location.search);
+      next.delete("send");
+      const qs = next.toString();
+      window.history.replaceState(null, "", qs ? `${window.location.pathname}?${qs}` : window.location.pathname);
+    }
+  }, []);
+
+  const runExport = async (format: DownloadFormat, template: ExportTemplateId, onlySelected: boolean) => {
     if (!view) return;
     setExporting(true);
     try {
-      await download(reportKey, {
-        format,
-        template,
-        params,
-        view,
-        ...(onlySelected ? { rowIds: [...visibleSelection] } : {}),
-      });
+      await download(reportKey, { format, template, params, view, ...(onlySelected ? { rowIds: [...visibleSelection] } : {}) });
+      closeOut();
     } catch (error) {
       toast({ title: "Export failed", description: getApiErrorMessage(error), variant: "destructive" });
     } finally {
@@ -230,7 +249,6 @@ export function ReportScreen({ reportKey }: { reportKey: string }) {
 
   const refresh = () => void queryClient.invalidateQueries({ queryKey: ["reports", reportKey] });
 
-  const router = useRouter();
   /** This report's page as a report of one's own, every block a query to take further. */
   const buildOn = async () => {
     try {
@@ -256,7 +274,6 @@ export function ReportScreen({ reportKey }: { reportKey: string }) {
         body: JSON.stringify({ view: next }),
       });
       toast({ title: next ? "Everyone now starts from this view" : "Back to the report's own view", variant: "success" });
-      // The saved view is now the default, so this one no longer needs the URL.
       resetView();
       refresh();
     } catch (error) {
@@ -277,113 +294,130 @@ export function ReportScreen({ reportKey }: { reportKey: string }) {
     }
   };
 
+  const more: MenuEntry[] = [];
+  if (template?.canChange && customised) more.push({ key: "save", label: `Save over ${template.name}`, onSelect: () => void saveTemplateView() });
+  if (template?.canChange) more.push({ key: "edit", label: "Change the template", onSelect: () => setSheet("edit") });
+  if (customised) more.push({ key: "reset", label: "Reset the view", onSelect: resetView });
+  more.push({ key: "build", label: "Build a report from this one", onSelect: () => void buildOn() });
+  if (manager && !template && meta) {
+    more.push({ separator: true });
+    more.push({ key: "arrange", label: "Arrange the page", onSelect: () => router.push(`/reports/${reportKey}/arrange`) });
+    if (customised && view) more.push({ key: "start", label: "Make this everyone’s starting view", onSelect: () => void saveStartingView(view) });
+    if (meta.defaultView) more.push({ key: "clear", label: "Clear the starting view", onSelect: () => void saveStartingView(null) });
+  }
+  const moreItems = more.filter((entry): entry is Extract<MenuEntry, { key: string }> => "key" in entry);
+  const moreKey = moreItems.map((item) => item.key).join(",");
+
+  const ready = Boolean(meta && applied);
+  const primary = useMemo<PagePrimary | null>(
+    () => (ready ? { label: "Export", icon: "export", shortcut: "E", onClick: () => setOut("download") } : null),
+    [ready],
+  );
+  const phoneMenu = useMemo<PageMenuItem[] | null>(
+    () =>
+      ready
+        ? [
+            { key: "save-as", label: "Save as a template", onSelect: () => setSheet("save") },
+            { key: "send", label: "Send it", onSelect: () => setOut("send") },
+            ...moreItems.map((item) => ({ key: item.key, label: String(item.label), onSelect: item.onSelect })),
+          ]
+        : null,
+    // The items are rebuilt each render; which ones there are is what changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [ready, moreKey],
+  );
+
   const chrome = (
-    <PageChrome title={template?.name ?? meta?.title ?? "Report"} backHref="/reports" backLabel="Reports">
-      {meta && applied ? (
-        <>
-          {template?.canChange && customised ? (
-            <Button variant="secondary" size="sm" onClick={() => void saveTemplateView()}>
-              Save
-            </Button>
-          ) : null}
-          <Button variant="secondary" size="sm" onClick={() => setSheet("save")}>
+    <PageChrome title={template?.name ?? meta?.title ?? "Report"} primary={primary} phoneMenu={phoneMenu}>
+      {ready ? (
+        <Kit contents>
+          <Button icon="docs" onClick={() => setSheet("save")}>
             Save as a template
           </Button>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button size="sm" disabled={exporting}>
-                <Download className="size-4" aria-hidden="true" />
-                Export
-                <ChevronDown className="size-3.5" aria-hidden="true" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <ExportChoices onChoose={(format, template) => void runExport(format, false, template)} />
-            </DropdownMenuContent>
-          </DropdownMenu>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon-sm" aria-label="More">
-                  <MoreHorizontal className="size-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                {template?.canChange ? (
-                  <DropdownMenuItem onSelect={() => setSheet("edit")}>Change the template</DropdownMenuItem>
-                ) : null}
-                {customised ? <DropdownMenuItem onSelect={resetView}>Reset the view</DropdownMenuItem> : null}
-                <DropdownMenuItem onSelect={() => void buildOn()}>Build a report from this one</DropdownMenuItem>
-                {manager && !template ? (
-                  <>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem asChild>
-                      <Link href={`/reports/${reportKey}/arrange`}>Arrange the page</Link>
-                    </DropdownMenuItem>
-                    {customised && view ? (
-                      <DropdownMenuItem onSelect={() => void saveStartingView(view)}>
-                        Make this everyone&apos;s starting view
-                      </DropdownMenuItem>
-                    ) : null}
-                    {meta.defaultView ? (
-                      <DropdownMenuItem onSelect={() => void saveStartingView(null)}>
-                        Clear the starting view
-                      </DropdownMenuItem>
-                    ) : null}
-                  </>
-                ) : null}
-              </DropdownMenuContent>
-            </DropdownMenu>
-        </>
+          <Button icon="send" onClick={() => setOut("send")}>
+            Send it
+          </Button>
+          <MenuButton variant="quiet" iconOnly icon="more" iconEnd={undefined} align="end" aria-label="More" label="More" items={more}>
+            More
+          </MenuButton>
+        </Kit>
       ) : null}
     </PageChrome>
   );
 
-  if (query.isLoading || (!meta && !query.isError)) {
-    return (
-      <>
-        {chrome}
-        <div className="grid gap-1.5" aria-busy="true" aria-live="polite">
-          <Skeleton height={32} width={280} />
-          <Skeleton height={32} />
-          {Array.from({ length: 8 }, (_, index) => (
-            <Skeleton key={index} height={36} />
-          ))}
+  const frame = (body: React.ReactNode) => (
+    <>
+      {chrome}
+      <Kit className="kit-main">
+        <div className="mn rp-page" style={{ flex: 1, minHeight: 0 }}>
+          {body}
         </div>
-      </>
-    );
-  }
+      </Kit>
+    </>
+  );
+
+  if (query.isLoading || (!meta && !query.isError)) return frame(<Loading />);
 
   if (query.isError && !query.data) {
-    return (
-      <>
-        {chrome}
-        <EmptyState
-          title="This report did not load"
-          body={getApiErrorMessage(query.error)}
-          action={
-            <Button variant="secondary" size="sm" onClick={() => void query.refetch()}>
-              Try again
-            </Button>
-          }
-        />
-      </>
+    return frame(
+      <Empty
+        icon="warn"
+        title={typeof navigator !== "undefined" && !navigator.onLine ? "You are offline" : "This report did not load"}
+        action={
+          <Button icon="history" onClick={() => void query.refetch()}>
+            Try again
+          </Button>
+        }
+      >
+        {getApiErrorMessage(query.error, "Check the connection and try again.")} Reports open to the people who can open the page they are about; a manager can tell you who that is.
+      </Empty>,
     );
   }
 
-  if (!meta || !view || !applied) return chrome;
+  if (!meta || !view || !applied) return frame(<Loading />);
 
   const selectedRows = applied.rows.filter((row) => visibleSelection.has(row.id));
   const rowActionsFor = meta.rowActions?.length
     ? (row: ReportRow) => <ReportRowActions row={row} actions={meta.rowActions!} onChanged={refresh} />
     : null;
+  const groupColumn = view.groupBy ? meta.columns.find((column) => column.key === view.groupBy) ?? null : null;
+  const totalled = applied.columns.filter((column) => view.totals[column.key]);
+  const money = totalled.find((column) => column.kind === "money") ?? totalled[0] ?? null;
+  const count = applied.rows.length;
+
+  const sums: FootSum[] = totalled.map((column) => ({
+    label: column.label,
+    value: formatTotal(applied.totals[column.key], column, view.totals[column.key]!),
+  }));
+  const selectedSum = money
+    ? { label: money.label, value: formatTotal(aggregate(selectedRows, money, "sum"), money, "sum") }
+    : undefined;
+  const code = applied.columns.find((column) => column.kind === "code");
+  const selectedWords = (() => {
+    const refs = code ? selectedRows.slice(0, 3).map((row) => String(row[code.key] ?? "")).filter(Boolean) : [];
+    const list =
+      refs.length === 0
+        ? `${selectedRows.length} rows`
+        : selectedRows.length > 3
+          ? `${refs.join(", ")} and ${selectedRows.length - 3} more`
+          : refs.length > 1
+            ? `${refs.slice(0, -1).join(", ")} and ${refs[refs.length - 1]}`
+            : refs[0]!;
+    return selectedSum ? `${list}, ${selectedSum.value}` : list;
+  })();
+
+  const dateParams = meta.params.filter((param) => param.type === "date");
+  const range = dayRangeWords({ from: params.from || null, to: params.to || null }, todayIn());
+  const dateLabel = dateParams[0]?.label ?? null;
+  const grouping = groupColumn ? `grouped by ${groupColumn.label.toLowerCase()}` : null;
+  const narrowed = view.conditions.length
+    ? `${view.conditions.length === 1 ? "1 filter" : `${view.conditions.length} filters`}`
+    : "every row";
+  const exportSub = [dateLabel && range ? `${dateLabel} ${range}` : null, grouping].filter(Boolean).join(", ");
+  const sendSub = [grouping ? grouping[0]!.toUpperCase() + grouping.slice(1) : "Not grouped", narrowed].join(", ");
+
   const worksheet = isPhone ? (
-    <ReportRowList
-      applied={applied}
-      view={view}
-      selectedIds={visibleSelection}
-      onSelect={setSelected}
-      rowActions={rowActionsFor}
-    />
+    <ReportRowList applied={applied} view={view} selectedIds={visibleSelection} onSelect={setSelected} rowActions={rowActionsFor} />
   ) : (
     <ReportTable
       applied={applied}
@@ -395,112 +429,150 @@ export function ReportScreen({ reportKey }: { reportKey: string }) {
     />
   );
 
-  const figures = applied.columns.filter((column) => column.kind === "money");
+  const table = (
+    <>
+      {rows.length === 0 ? (
+        <Empty icon="calendar" title="Nothing in these dates">
+          Widen the dates to find more.
+        </Empty>
+      ) : count === 0 ? (
+        <Empty
+          icon="search"
+          title="No rows match"
+          action={
+            <Button icon="x" onClick={() => setView({ ...view, search: "", conditions: [] })}>
+              Clear the filters
+            </Button>
+          }
+        >
+          Nothing here matches the search and filters.
+        </Empty>
+      ) : (
+        worksheet
+      )}
+      <TableFoot
+        range={count === 0 ? "No rows" : `1 to ${count.toLocaleString("en-US")}${grouping ? `, ${grouping}` : ""}`}
+        sums={sums}
+        selection={{
+          count: visibleSelection.size,
+          sum: selectedSum,
+          onClear: () => setSelected(new Set()),
+          actions: (
+            <>
+              <Button icon="export" onClick={() => setOut("download")}>
+                Export
+              </Button>
+            </>
+          ),
+        }}
+      />
+    </>
+  );
+
+  const groupItems: MenuEntry[] = [
+    { key: "none", label: "No grouping", checked: !view.groupBy, onSelect: () => setView({ ...view, groupBy: null }) },
+    ...meta.columns
+      .filter((column) => GROUPABLE.has(column.kind))
+      .map((column) => ({
+        key: column.key,
+        label: column.label,
+        checked: view.groupBy === column.key,
+        onSelect: () => setView({ ...view, groupBy: column.key }),
+      })),
+  ];
+
+  const asOf = query.dataUpdatedAt ? formatTime(new Date(query.dataUpdatedAt)) : null;
+  const periodWords = periodOf(dateParams[0]);
 
   return (
     <>
-      {chrome}
-
-      <div className="grid gap-3">
-        {template ? (
-          <p className="text-[13px] text-[var(--text-muted)]">
-            {template.mine ? "Your template" : `${template.madeBy}’s template`} on {template.reportTitle} ·{" "}
-            {SEEN_BY[template.audience]}
-            {template.description ? <> · {template.description}</> : null}
-          </p>
-        ) : null}
-        <ParamControls params={meta.params} values={params} onChange={setParams} />
-
-        <div className="flex flex-wrap items-center gap-2">
-          <SearchBox value={view.search} onChange={(search) => setView({ ...view, search })} />
-          <ReportFilters columns={meta.columns} rows={rows} view={view} onViewChange={setView} />
-          <div className="ml-auto flex items-center gap-2">
-            <Select
-              value={view.groupBy ?? NO_GROUP}
-              onValueChange={(value) => setView({ ...view, groupBy: value === NO_GROUP ? null : value })}
-            >
-              <SelectTrigger size="sm" className="w-auto" aria-label="Group by">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={NO_GROUP}>No grouping</SelectItem>
-                {meta.columns
-                  .filter((column) => GROUPABLE.has(column.kind))
-                  .map((column) => (
-                    <SelectItem key={column.key} value={column.key}>
-                      Group by {column.label.toLowerCase()}
-                    </SelectItem>
-                  ))}
-              </SelectContent>
-            </Select>
-            <ReportColumns columns={meta.columns} view={view} onViewChange={setView} />
-          </div>
-        </div>
-
-        {query.data?.truncated ? (
-          <p className="text-[12px] font-medium text-[var(--status-warning-text)]">
-            The first {rows.length.toLocaleString()} rows are shown. Narrow the dates to see the rest.
-          </p>
-        ) : null}
-
-        <div className={query.isFetching ? "opacity-60 transition-opacity" : undefined}>
-          {rows.length === 0 ? (
-            <EmptyState title="Nothing in these dates" body="Widen the dates to find more." />
-          ) : applied.rows.length === 0 ? (
-            <EmptyState
-              title="No rows match"
-              action={
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  onClick={() => setView({ ...view, search: "", conditions: [] })}
-                >
-                  Clear the filters
-                </Button>
-              }
-            />
-          ) : (
-            <ReportBlocks
-              blocks={meta.layout?.blocks ?? [{ id: "table", type: "table" }]}
-              table={worksheet}
-              meta={meta}
-              view={view}
-              params={params}
-              applied={applied}
-            />
-          )}
-        </div>
-      </div>
-
-      {visibleSelection.size > 0 ? (
-        <DataTableFloatingActions count={visibleSelection.size} onClear={() => setSelected(new Set())}>
-          {figures.map((column) => (
-            <span key={column.key} className="text-sm text-[var(--text-muted)]">
-              {column.label}{" "}
-              <span className="font-mono font-medium tabular-nums text-[var(--text-strong)]">
-                {formatTotal(aggregate(selectedRows, column, "sum"), column, "sum")}
+      {frame(
+        <div className="kbody">
+          <div className="rp-src">
+            {template ? (
+              <span>
+                {template.mine ? "Your template" : `${template.madeBy}’s template`} on{" "}
+                <Link href={`/reports/${reportKey}`}>{template.reportTitle}</Link>, {SEEN_BY[template.audience]}
+                {template.description ? <>. {template.description}</> : null}
               </span>
-            </span>
-          ))}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="secondary" size="sm" disabled={exporting}>
-                Export selected
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <ExportChoices onChoose={(format, template) => void runExport(format, true, template)} />
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </DataTableFloatingActions>
-      ) : null}
+            ) : (
+              <>
+                <Pill tone="info">From Corelith</Pill>
+                <span>{meta.summary ?? `${meta.title}, from ${meta.area}`}</span>
+              </>
+            )}
+          </div>
+
+          <div className="ws-tools rp-tools">
+            <ParamChips params={meta.params} values={params} onChange={setParams} />
+            <QuickChips columns={meta.columns} rows={rows} view={view} onViewChange={setView} />
+            <FilterChips columns={meta.columns} rows={rows} view={view} onViewChange={setView} />
+            <span className="sepv" aria-hidden="true" />
+            <SearchBox value={view.search} onChange={(next) => setView({ ...view, search: next })} />
+            <FiltersButton columns={meta.columns} rows={rows} view={view} onViewChange={setView} />
+            <MenuButton className={groupColumn ? "chipsel is-set" : "chipsel"} icon="list" label="Group by" items={groupItems}>
+              {groupColumn ? `Group by: ${groupColumn.label}` : "Group by"}
+            </MenuButton>
+            <ReportColumns columns={meta.columns} view={view} onViewChange={setView} />
+            {asOf ? (
+              <div className="end">
+                <span className="ws-n">As of {asOf}</span>
+              </div>
+            ) : null}
+          </div>
+
+          {query.data?.truncated ? (
+            <p className="rp-warn" role="status">
+              The first {rows.length.toLocaleString()} rows are shown. Narrow the dates to see the rest.
+            </p>
+          ) : null}
+
+          <div className={query.isFetching ? "rp-blocks is-fetching" : "rp-blocks"}>
+            {count === 0 ? (
+              table
+            ) : (
+              <ReportBlocks
+                blocks={meta.layout?.blocks ?? defaultLayout(meta).blocks}
+                table={table}
+                meta={meta}
+                view={view}
+                params={params}
+                applied={applied}
+              />
+            )}
+          </div>
+        </div>,
+      )}
 
       {sheet === "save" ? (
-        <TemplateSheet mode={{ kind: "save", meta, view, params }} open onOpenChange={(open) => setSheet(open ? "save" : null)} />
+        <TemplateSheet
+          mode={{ kind: "save", meta, view, params, blocks: meta.layout?.blocks ?? defaultLayout(meta).blocks }}
+          open
+          onOpenChange={(open) => setSheet(open ? "save" : null)}
+        />
       ) : null}
       {sheet === "edit" && template ? (
         <TemplateSheet mode={{ kind: "edit", template }} open onOpenChange={(open) => setSheet(open ? "edit" : null)} />
       ) : null}
+
+      <ReportOutDrawer
+        open={out !== null}
+        onOpenChange={(open) => (open ? undefined : closeOut())}
+        tab={out ?? "download"}
+        onTab={setOut}
+        reportKey={reportKey}
+        reportTitle={template?.name ?? meta.title}
+        exportSub={exportSub ? `${exportSub}.` : `${count.toLocaleString("en-US")} rows.`}
+        sendSub={`${sendSub}.`}
+        groupLabel={groupColumn ? groupColumn.label.toLowerCase() : null}
+        selected={visibleSelection.size ? { count: visibleSelection.size, words: selectedWords } : null}
+        total={count}
+        periodWords={periodWords}
+        query={scheduleQuery(params, dateParams.map((param) => param.key), encodeView(view))}
+        exporting={exporting}
+        onDownload={(format, layout, onlySelected) => void runExport(format, layout, onlySelected)}
+      />
     </>
   );
 }
+

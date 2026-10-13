@@ -1,8 +1,9 @@
 "use client";
 
-import { useMemo, useRef, useState, type ReactNode } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 
-import { barsSvg, seriesBy, timeSeries, trendSvg, type ChartColors } from "@/lib/reports/charts";
+import { Kit } from "@/components/core";
+import { seriesBy, timeSeries, type ChartPoint } from "@/lib/reports/charts";
 import { formatTotal, formatValue, totalCaption } from "@/lib/reports/format";
 import {
   breakdownBy,
@@ -18,18 +19,11 @@ import type { ReportColumn, ReportMeta, ReportParams, ReportView } from "@/lib/r
 import { applyView, type AppliedView } from "@/lib/reports/view";
 
 /**
- * A report's layout, drawn: the blocks read the rows the table shows, so a
- * filter set above moves every figure and chart on the page with it.
+ * A report's layout, drawn in the kit (PageReport): the key figures as one
+ * strip, charts as blocks of bars or a line, two half blocks side by side.
+ * The blocks read the rows the table shows, so a filter set above moves every
+ * figure and chart on the page with it.
  */
-
-/** The design system's first chart colour, and its quiet inks. Text never wears the mark. */
-const SCREEN_COLORS: ChartColors = {
-  mark: "var(--chart-1)",
-  grid: "var(--border-subtle)",
-  text: "var(--text-body)",
-  muted: "var(--text-muted)",
-  surface: "var(--surface)",
-};
 
 type Context = {
   meta: ReportMeta;
@@ -50,37 +44,40 @@ function valueFormatter(meta: ReportMeta, block: ChartBlock): (value: number) =>
   return (value) => formatTotal(value, column, block.measure!.fn);
 }
 
+/** "sum of Value", "average of Hours", "how many". */
+function measureWords(block: ChartBlock, meta: ReportMeta): string {
+  const column = columnOf(meta, block.measure?.column);
+  if (!block.measure || !column) return "how many";
+  return `${totalCaption(block.measure.fn).toLowerCase()} of ${column.label}`;
+}
+
 /* ──────────────────────────────────────────────────────────────────────────
    Figures
    ────────────────────────────────────────────────────────────────────────── */
 
 function Figures({ meta, view, applied }: Context) {
+  const count = applied.rows.length;
   const figures = [
-    { key: "rows", label: "Rows", value: applied.rows.length.toLocaleString("en-US") },
+    { key: "rows", label: meta.title || "Rows", value: count.toLocaleString("en-US"), note: count === 1 ? "row" : "rows" },
     ...Object.entries(view.totals).flatMap(([key, fn]) => {
       const column = columnOf(meta, key);
       const value = applied.totals[key];
       if (!column || value === null || value === undefined) return [];
-      return [
-        {
-          key,
-          label: fn === "sum" ? column.label : `${column.label} · ${totalCaption(fn).toLowerCase()}`,
-          value: formatTotal(value, column, fn),
-        },
-      ];
+      return [{ key, label: column.label, value: formatTotal(value, column, fn), note: `${totalCaption(fn).toLowerCase()} of ${count.toLocaleString("en-US")}` }];
     }),
   ];
   return (
-    <dl className="grid grid-cols-[repeat(auto-fill,minmax(10rem,1fr))] gap-x-6 gap-y-3">
-      {figures.map((figure) => (
-        <div key={figure.key} className="border-t border-[var(--border)] pt-2">
-          <dt className="truncate text-[12px] leading-[1.4] font-medium text-[var(--text-muted)]">{figure.label}</dt>
-          <dd className="mt-0.5 truncate text-[17px] leading-[1.25] font-semibold tracking-[-0.012em] text-[var(--text-strong)]">
-            {figure.value}
-          </dd>
-        </div>
-      ))}
-    </dl>
+    <div className="rp-figs">
+      <div className="kstrip" style={{ gridTemplateColumns: `repeat(${figures.length}, minmax(0, 1fr))` }}>
+        {figures.map((figure) => (
+          <div className="kt" key={figure.key}>
+            <span className="kt-l">{figure.label}</span>
+            <span className="kt-v">{figure.value}</span>
+            <span className="kt-n muted">{figure.note}</span>
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }
 
@@ -88,73 +85,103 @@ function Figures({ meta, view, applied }: Context) {
    Charts
    ────────────────────────────────────────────────────────────────────────── */
 
-/** Drawing widths: a chart beside another, and one across the page. */
-const HALF = 520;
-const FULL = 1080;
-
-function Chart({ block, meta, params, applied, width }: Context & { block: ChartBlock; width: number }) {
-  const frame = useRef<HTMLDivElement>(null);
-  const [tip, setTip] = useState<{ x: number; y: number; label: string; value: string } | null>(null);
-  const by = columnOf(meta, block.by);
-
-  const { svg, summary, empty } = useMemo(() => {
-    if (!by) return { svg: "", summary: "", empty: true };
-    const format = valueFormatter(meta, block);
-    if (block.form === "bars") {
-      const points = seriesBy(applied.rows, by, block.measure, meta.columns, block.limit ?? DEFAULT_CHART_LIMIT, (value) => formatValue(value, by));
-      return {
-        svg: barsSvg(points, { width: Math.min(width, 720), colors: SCREEN_COLORS, format }),
-        summary: points.map((point) => `${point.label} ${point.value === null ? "none" : format(point.value)}`).join(", "),
-        empty: points.every((point) => !point.value),
-      };
-    }
-    const { points } = timeSeries(applied.rows, by, block.measure, meta.columns, {
-      from: params.from || undefined,
-      to: params.to || undefined,
-    });
-    const last = [...points].reverse().find((point) => point.value !== null);
-    return {
-      svg: trendSvg(points, { width, height: width > HALF ? 240 : 200, colors: SCREEN_COLORS, format }),
-      summary: last ? `${points.length} points, latest ${last.label} ${format(last.value!)}` : "",
-      empty: points.every((point) => !point.value),
-    };
-  }, [applied.rows, block, by, meta, params.from, params.to, width]);
-
-  if (!by) return null;
-  const title = block.title ?? `${measureLabel(block.measure, meta.columns)} ${block.form === "bars" ? `by ${by.label.toLowerCase()}` : "over time"}`;
-
-  const hover = (event: React.MouseEvent) => {
-    const mark = (event.target as Element).closest?.(".chart-mark");
-    const box = frame.current?.getBoundingClientRect();
-    if (!mark || !box) return setTip(null);
-    // Placed here, from the frame's size now, so it never runs off the right edge.
-    setTip({
-      x: Math.min(event.clientX - box.left + 12, box.width - 150),
-      y: Math.max(0, event.clientY - box.top - 36),
-      label: mark.getAttribute("data-label") ?? "",
-      value: mark.getAttribute("data-value") ?? "",
-    });
-  };
-
+/** Bars, largest first; the largest in the accent and the rest in muted ink. */
+function Bars({ points, format }: { points: ChartPoint[]; format: (value: number) => string }) {
+  const max = Math.max(0, ...points.map((point) => point.value ?? 0));
   return (
-    <section aria-label={title} className="min-w-0">
-      <h2 className="mb-2.5 text-[15px] leading-[1.35] font-semibold text-[var(--text-strong)]">{title}</h2>
+    <>
+      {points.map((point, index) => {
+        const share = max > 0 && point.value ? Math.max(0, point.value / max) : 0;
+        return (
+          <div className="hbar rp-hbar" key={`${point.label}-${index}`}>
+            <span className="truncate">{point.label}</span>
+            <span className="hbar-t">
+              <i style={{ width: `${(share * 100).toFixed(1)}%`, background: index === 0 ? "var(--color-accent)" : "var(--color-muted)" }} />
+            </span>
+            <span className="num">{point.value === null ? "None" : format(point.value)}</span>
+          </div>
+        );
+      })}
+    </>
+  );
+}
+
+/** A line over time with its axis under it, as the board draws it. */
+function Line({ points, format }: { points: ChartPoint[]; format: (value: number) => string }) {
+  const [tip, setTip] = useState<number | null>(null);
+  const width = 520;
+  const height = 150;
+  const values = points.map((point) => point.value ?? 0);
+  const max = Math.max(1, ...values);
+  const x = (index: number) => 8 + (points.length > 1 ? (index / (points.length - 1)) * (width - 16) : (width - 16) / 2);
+  const y = (value: number) => 142 - (value / max) * 134;
+  const line = points.map((point, index) => `${x(index).toFixed(1)},${y(point.value ?? 0).toFixed(1)}`).join(" ");
+  const ticks = Math.min(6, points.length);
+  const axis = Array.from({ length: ticks }, (_, at) => points[Math.round((at * (points.length - 1)) / Math.max(1, ticks - 1))]!.label);
+  const shown = tip !== null ? points[tip] : null;
+  return (
+    <div className="rp-line">
+      <svg
+        viewBox={`0 0 ${width} ${height}`}
+        width="100%"
+        height={height}
+        preserveAspectRatio="none"
+        role="img"
+        aria-label={points.map((point) => `${point.label} ${point.value === null ? "none" : format(point.value)}`).join(", ")}
+        onMouseLeave={() => setTip(null)}
+        onMouseMove={(event) => {
+          const box = event.currentTarget.getBoundingClientRect();
+          const at = Math.round(((event.clientX - box.left) / box.width) * (points.length - 1));
+          setTip(Math.max(0, Math.min(points.length - 1, at)));
+        }}
+      >
+        {[8, 52.7, 97.3, 142].map((line) => (
+          <line key={line} x1="8" x2={width - 8} y1={line} y2={line} stroke="var(--color-line)" strokeWidth="1" />
+        ))}
+        <polygon points={`8,142 ${line} ${x(points.length - 1).toFixed(1)},142`} fill="var(--color-info)" opacity="0.1" />
+        <polyline points={line} fill="none" stroke="var(--color-info)" strokeWidth="2" vectorEffect="non-scaling-stroke" />
+      </svg>
+      {shown ? (
+        <span className="rp-tip" role="status">
+          {shown.label} <b>{shown.value === null ? "None" : format(shown.value)}</b>
+        </span>
+      ) : null}
+      <div className="axis">
+        {axis.map((label, index) => (
+          <span key={`${label}-${index}`}>{label}</span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function Chart({ block, meta, params, applied }: Context & { block: ChartBlock }) {
+  const by = columnOf(meta, block.by);
+  const format = useMemo(() => valueFormatter(meta, block), [meta, block]);
+  const series = useMemo(() => {
+    if (!by) return null;
+    if (block.form === "bars") {
+      return { points: seriesBy(applied.rows, by, block.measure, meta.columns, block.limit ?? DEFAULT_CHART_LIMIT, (value) => formatValue(value, by)), sum: measureWords(block, meta) };
+    }
+    const { points, bucket } = timeSeries(applied.rows, by, block.measure, meta.columns, { from: params.from || undefined, to: params.to || undefined });
+    return { points, sum: `by ${bucket}, ${measureWords(block, meta)}` };
+  }, [applied.rows, block, by, meta, params.from, params.to]);
+  if (!by || !series) return null;
+
+  const title = block.title ?? `${measureLabel(block.measure, meta.columns)}, by ${by.label.toLowerCase()}`;
+  const empty = series.points.every((point) => !point.value);
+  return (
+    <section className="kblock rp-block" aria-label={title}>
+      <div className="kblock-h">
+        <h3>{title}</h3>
+        <span className="sum">{series.sum}</span>
+      </div>
       {empty ? (
-        <p className="text-[13px] text-[var(--text-muted)]">Nothing to chart in these rows.</p>
+        <p className="muted">Nothing to chart in these rows.</p>
+      ) : block.form === "bars" ? (
+        <Bars points={series.points} format={format} />
       ) : (
-        <div ref={frame} className="relative" onMouseMove={hover} onMouseLeave={() => setTip(null)}>
-          <div role="img" aria-label={`${title}: ${summary}`} dangerouslySetInnerHTML={{ __html: svg }} />
-          {tip ? (
-            <div
-              role="status"
-              className="pointer-events-none absolute z-10 rounded-[var(--radius-sm)] border border-[var(--border)] bg-[var(--surface)] px-2 py-1 text-[12px] shadow-[var(--shadow-popover)]"
-              style={{ left: tip.x, top: tip.y }}
-            >
-              <span className="text-[var(--text-muted)]">{tip.label}</span>{" "}
-              <span className="font-mono font-medium tabular-nums text-[var(--text-strong)]">{tip.value}</span>
-            </div>
-          ) : null}
-        </div>
+        <Line points={series.points} format={format} />
       )}
     </section>
   );
@@ -188,54 +215,46 @@ function Breakdown({ block, meta, view, applied }: Context & { block: BreakdownB
     .slice(0, block.limit ?? DEFAULT_BREAKDOWN_LIMIT);
 
   return (
-    <section aria-label={`By ${by.label.toLowerCase()}`} className="min-w-0">
-      <h2 className="mb-2.5 text-[15px] leading-[1.35] font-semibold text-[var(--text-strong)]">
-        By {by.label.toLowerCase()}
-      </h2>
-      <table className="w-full border-separate border-spacing-0 text-left text-[13px]">
-        <thead>
-          <tr className="acct-col-head">
-            <th className="border-b border-[var(--border)] py-1.5 pr-3 font-medium">{by.label}</th>
-            <th className="border-b border-[var(--border)] py-1.5 pr-3 text-right font-medium">Rows</th>
-            {totals.map(({ column, fn }) => (
-              <th key={column.key} className="border-b border-[var(--border)] py-1.5 pr-3 text-right font-medium">
-                {fn === "sum" ? column.label : `${column.label} · ${totalCaption(fn).toLowerCase()}`}
-              </th>
-            ))}
-            <th className="w-40 border-b border-[var(--border)] py-1.5 font-medium">Share</th>
-          </tr>
-        </thead>
-        <tbody>
-          {measured.map((line) => {
-            const share = whole > 0 ? Math.max(0, Math.min(1, line.part / whole)) : 0;
-            return (
-              <tr key={line.name}>
-                <td className="max-w-[16rem] truncate border-b border-[var(--table-divider)] py-1.5 pr-3 font-medium text-[var(--text)]">
-                  {line.name}
-                </td>
-                <td className="border-b border-[var(--table-divider)] py-1.5 pr-3 text-right font-mono tabular-nums">
-                  {line.rows.length.toLocaleString("en-US")}
-                </td>
-                {totals.map(({ column, fn }) => (
-                  <td key={column.key} className="border-b border-[var(--table-divider)] py-1.5 pr-3 text-right font-mono tabular-nums">
-                    {formatTotal(line.totals[column.key], column, fn)}
+    <section className="kblock rp-block" aria-label={`By ${by.label.toLowerCase()}`}>
+      <div className="kblock-h">
+        <h3>By {by.label.toLowerCase()}</h3>
+        <span className="sum">{lead ? `share of ${lead.column.label}` : "share of the rows"}</span>
+      </div>
+      <div className="wt">
+        <table className="table">
+          <thead>
+            <tr>
+              <th>{by.label}</th>
+              <th className="num">Rows</th>
+              {totals.map(({ column, fn }) => (
+                <th key={column.key} className="num">
+                  {fn === "sum" ? column.label : `${column.label}, ${totalCaption(fn).toLowerCase()}`}
+                </th>
+              ))}
+              <th className="num">Share</th>
+            </tr>
+          </thead>
+          <tbody>
+            {measured.map((line) => {
+              const share = whole > 0 ? Math.max(0, Math.min(1, line.part / whole)) : 0;
+              return (
+                <tr key={line.name}>
+                  <td className="fill">
+                    <span className="cell-lead">{line.name}</span>
                   </td>
-                ))}
-                <td className="border-b border-[var(--table-divider)] py-1.5">
-                  <span className="flex items-center gap-2">
-                    <span className="h-1.5 flex-1 overflow-hidden rounded-full bg-[var(--surface-muted)]">
-                      <span className="block h-full rounded-full bg-[var(--chart-1)]" style={{ width: `${share * 100}%` }} />
-                    </span>
-                    <span className="w-12 text-right font-mono text-[12px] tabular-nums text-[var(--text-muted)]">
-                      {(share * 100).toFixed(1)}%
-                    </span>
-                  </span>
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
+                  <td className="num">{line.rows.length.toLocaleString("en-US")}</td>
+                  {totals.map(({ column, fn }) => (
+                    <td key={column.key} className="num">
+                      {formatTotal(line.totals[column.key], column, fn)}
+                    </td>
+                  ))}
+                  <td className="num">{(share * 100).toFixed(1)}%</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
     </section>
   );
 }
@@ -244,26 +263,36 @@ function Breakdown({ block, meta, view, applied }: Context & { block: BreakdownB
    The page
    ────────────────────────────────────────────────────────────────────────── */
 
-/** One block, drawn at a width. The table is drawn by the caller. */
-export function Leaf({ block, width, ...context }: Context & { block: Exclude<LayoutBlock, { type: "table" }>; width: number }) {
+/** One block. The table is drawn by the caller. */
+export function Leaf({
+  block,
+  meta,
+  view,
+  params,
+  applied,
+}: Context & { block: Exclude<LayoutBlock, { type: "table" }>; width?: number }) {
+  return <Kit contents>{leaf(block, { meta, view, params, applied })}</Kit>;
+}
+
+function leaf(block: Exclude<LayoutBlock, { type: "table" }>, context: Context): ReactNode {
   switch (block.type) {
     case "heading":
-      return block.level === 1 ? (
-        <h2 className="text-[17px] leading-[1.25] font-semibold tracking-[-0.012em] text-[var(--text-strong)]">{block.text}</h2>
-      ) : (
-        <h3 className="text-[15px] leading-[1.35] font-semibold text-[var(--text-strong)]">{block.text}</h3>
-      );
+      return <h2 className="rp-heading">{block.text}</h2>;
     case "text":
-      return <p className="max-w-[70ch] text-[13px] leading-[1.5] whitespace-pre-line text-[var(--text-body)]">{block.text}</p>;
+      return <p className="rp-text">{block.text}</p>;
     case "figures":
       return <Figures {...context} />;
     case "chart":
-      return <Chart block={block} width={width} {...context} />;
+      return <Chart block={block} {...context} />;
     case "breakdown":
       return <Breakdown block={block} {...context} />;
   }
 }
 
+/**
+ * The page's blocks in order: two half blocks share a row (`.cm-grid2`), the
+ * rest take the width, and the worksheet is drawn where the layout puts it.
+ */
 export function ReportBlocks({
   blocks,
   table,
@@ -274,24 +303,22 @@ export function ReportBlocks({
   table: ReactNode;
 }) {
   return (
-    <div className="grid gap-8">
+    <>
       {layoutRows(blocks).map((row) =>
         row.length === 2 ? (
-          <div key={row[0]!.id} className="grid gap-8 md:grid-cols-2">
-            {row.map((block) =>
-              block.type === "table" ? null : (
-                <div key={block.id} className="min-w-0">
-                  <Leaf block={block} width={HALF} {...context} />
-                </div>
-              ),
-            )}
+          <div key={row[0]!.id} className="cm-grid2 rp-grid2">
+            {row.map((block) => (block.type === "table" ? null : <div key={block.id}>{leaf(block, context)}</div>))}
           </div>
         ) : row[0]!.type === "table" ? (
-          <div key={row[0]!.id}>{table}</div>
+          <div key={row[0]!.id} className="rp-table">
+            {table}
+          </div>
         ) : (
-          <Leaf key={row[0]!.id} block={row[0]!} width={FULL} {...context} />
+          <div key={row[0]!.id} className="rp-row">
+            {leaf(row[0]! as Exclude<LayoutBlock, { type: "table" }>, context)}
+          </div>
         ),
       )}
-    </div>
+    </>
   );
 }

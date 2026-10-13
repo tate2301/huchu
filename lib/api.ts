@@ -3336,36 +3336,6 @@ export type VatReturnLineRecord = {
   netTax: number;
 };
 
-export type VatReturnRecord = {
-  id: string;
-  companyId: string;
-  periodStart: string;
-  periodEnd: string;
-  status: "DRAFT" | "REVIEWED" | "FINALIZED" | "FILED" | "VOIDED";
-  filingCategory?: string | null;
-  returnDueDate?: string | null;
-  paymentDueDate?: string | null;
-  outputTax: number;
-  inputTax: number;
-  adjustmentsTax: number;
-  netTax: number;
-  vat7BoxesJson?: string | null;
-  schedulesJson?: string | null;
-  vat7Boxes?: Record<string, number> | null;
-  schedules?: Record<string, unknown> | null;
-  referenceNumber?: string | null;
-  notes?: string | null;
-  preparedById?: string | null;
-  reviewedById?: string | null;
-  reviewedAt?: string | null;
-  finalizedById?: string | null;
-  finalizedAt?: string | null;
-  filedById?: string | null;
-  filedAt?: string | null;
-  createdAt: string;
-  updatedAt: string;
-  lines?: VatReturnLineRecord[];
-};
 
 export type PaymentLedgerRecord = {
   id: string;
@@ -3843,59 +3813,11 @@ export async function fetchVatSummary(params: {
   return fetchJson<VatSummaryReport>(`/api/accounting/reports/vat-summary${query}`);
 }
 
-export async function fetchVatReturns(
-  params: {
-    status?: "DRAFT" | "REVIEWED" | "FINALIZED" | "FILED" | "VOIDED";
-    page?: number;
-    limit?: number;
-  } = {},
-) {
-  const query = buildQuery(params);
-  return fetchJson<Pagination<VatReturnRecord>>(`/api/accounting/vat-returns${query}`);
-}
 
-export async function createVatReturnDraft(input: {
-  periodId?: string;
-  periodStart?: string;
-  periodEnd?: string;
-  notes?: string;
-  adjustmentsTax?: number;
-  filingCategory?: string;
-}) {
-  return fetchJson<VatReturnRecord>("/api/accounting/vat-returns", {
-    method: "POST",
-    body: JSON.stringify(input),
-  });
-}
 
-export async function reviewVatReturn(vatReturnId: string) {
-  return fetchJson<VatReturnRecord>(`/api/accounting/vat-returns/${vatReturnId}/review`, {
-    method: "POST",
-  });
-}
 
-export async function finalizeVatReturn(vatReturnId: string) {
-  return fetchJson<VatReturnRecord>(`/api/accounting/vat-returns/${vatReturnId}/finalize`, {
-    method: "POST",
-  });
-}
 
-export async function fileVatReturn(vatReturnId: string, input?: { referenceNumber?: string; notes?: string }) {
-  return fetchJson<VatReturnRecord>(`/api/accounting/vat-returns/${vatReturnId}/file`, {
-    method: "POST",
-    body: JSON.stringify(input ?? {}),
-  });
-}
 
-export async function refreshVatReturn(
-  vatReturnId: string,
-  input?: { notes?: string; adjustmentsTax?: number },
-) {
-  return fetchJson<VatReturnRecord>(`/api/accounting/vat-returns/${vatReturnId}`, {
-    method: "PATCH",
-    body: JSON.stringify(input ?? {}),
-  });
-}
 
 export async function fetchPaymentLedger(
   params: {
@@ -3911,50 +3833,6 @@ export async function fetchPaymentLedger(
   return fetchJson<Pagination<PaymentLedgerRecord>>(`/api/accounting/payment-ledger${query}`);
 }
 
-export async function importOpeningBalances(input: {
-  effectiveDate: string;
-  sourceReference?: string;
-  notes?: string;
-  lines: Array<{
-    accountId: string;
-    debit?: number;
-    credit?: number;
-    memo?: string;
-    costCenterId?: string;
-  }>;
-}) {
-  return fetchJson("/api/accounting/closing/opening-balances", {
-    method: "POST",
-    body: JSON.stringify(input),
-  });
-}
 
-export async function setAccountingFreezeDate(freezeBeforeDate: string | null) {
-  return fetchJson("/api/accounting/closing/freeze", {
-    method: "POST",
-    body: JSON.stringify({ freezeBeforeDate }),
-  });
-}
 
-export async function closeAccountingPeriod(input: {
-  periodId: string;
-  retainedEarningsAccountId?: string;
-  closingDate?: string;
-  notes?: string;
-}) {
-  return fetchJson("/api/accounting/closing/period-close", {
-    method: "POST",
-    body: JSON.stringify(input),
-  });
-}
 
-export async function reopenAccountingPeriod(input: {
-  periodId: string;
-  reason: string;
-  reopenedAt?: string;
-}) {
-  return fetchJson("/api/accounting/closing/period-reopen", {
-    method: "POST",
-    body: JSON.stringify(input),
-  });
-}

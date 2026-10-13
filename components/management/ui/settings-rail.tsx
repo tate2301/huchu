@@ -3,7 +3,8 @@
 import * as React from "react";
 import Link from "next/link";
 
-import { ArrowLeft } from "@/lib/icons";
+import { useShortcut } from "@/components/core/shortcuts";
+import { ArrowLeft, MagnifyingGlass } from "@/lib/icons";
 import { cn } from "@/lib/utils";
 
 import styles from "./settings.module.css";
@@ -92,6 +93,23 @@ export function SettingsRail({
   title = "Settings",
   className,
 }: SettingsRailProps) {
+  // Search narrows the rail to the destinations whose names match; / focuses it.
+  const [query, setQuery] = React.useState("");
+  const findRef = React.useRef<HTMLInputElement>(null);
+  useShortcut("/", () => findRef.current?.focus());
+  const needle = query.trim().toLowerCase();
+  const shown = needle
+    ? groups
+        .map((group) => ({ ...group, items: group.items.filter((item) => item.label.toLowerCase().includes(needle)) }))
+        .filter((group) => group.items.length > 0)
+    : groups;
+
+  // The current destination is scrolled into view when the rail opens.
+  const bodyRef = React.useRef<HTMLDivElement>(null);
+  React.useEffect(() => {
+    bodyRef.current?.querySelector('[aria-current]')?.scrollIntoView({ block: "center" });
+  }, []);
+
   return (
     <nav aria-label={title} className={cn(styles.rail, className)}>
       <div className={styles.railHead}>
@@ -116,8 +134,29 @@ export function SettingsRail({
         <h1 className={styles.railTitle}>{title}</h1>
       </div>
 
-      <div className={styles.railBody}>
-        {groups.map((group) => (
+      <label className={styles.railFind}>
+        <MagnifyingGlass aria-hidden="true" />
+        <input
+          ref={findRef}
+          type="search"
+          placeholder="Search"
+          aria-label={`Search ${title.toLowerCase()}`}
+          aria-keyshortcuts="/"
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === "Escape" && query) {
+              event.preventDefault();
+              setQuery("");
+            }
+          }}
+        />
+        <span className={styles.railFindKey}>/</span>
+      </label>
+
+      <div ref={bodyRef} className={styles.railBody}>
+        {shown.length === 0 ? <p className={styles.railNoMatch}>Nothing here is called “{query.trim()}”.</p> : null}
+        {shown.map((group) => (
           <div key={group.id} className={styles.railGroup}>
             <h2 className={styles.railGroupLabel}>{group.label}</h2>
             {group.items.map((item) => (
@@ -125,6 +164,12 @@ export function SettingsRail({
             ))}
           </div>
         ))}
+      </div>
+
+      <div className={styles.railFoot}>
+        {/* A fixed-size brand mark; next/image adds nothing for a 16px SVG. */}
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/brand/corelith-logo.svg" alt="Corelith" height={16} />
       </div>
     </nav>
   );

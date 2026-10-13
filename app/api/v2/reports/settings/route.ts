@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { errorResponse, successResponse, validateSession } from "@/lib/api-utils";
+import { bestNavHref } from "@/lib/nav-match";
+import { navSections } from "@/lib/navigation";
 import { isOrgAdminRole } from "@/lib/preferences/nav";
 import { canReadReport } from "@/lib/reports/access";
 import { reportCatalog } from "@/lib/reports/catalog";
@@ -8,6 +10,14 @@ import { REPORT_DEFINITIONS } from "@/lib/reports/registry";
 import { readReportSettings } from "@/lib/reports/settings";
 import type { ReportSettingSummary } from "@/lib/reports/types";
 
+const NAV_ITEMS = navSections.flatMap((section) => section.items);
+
+/** The panel's name for the page a report is about: the item that stands for it. */
+function pageLabel(href: string): string | null {
+  const path = href.split("{")[0]!.replace(/\/+$/, "") || "/";
+  const best = bestNavHref(NAV_ITEMS, path, null);
+  return NAV_ITEMS.find((item) => item.href === best)?.label ?? null;
+}
 
 /**
  * Every report this workspace has, switched on or not, for the people who
@@ -40,6 +50,8 @@ export async function GET(request: NextRequest) {
           enabled: saved?.enabled ?? true,
           arranged: Boolean(saved?.layout),
           viewSaved: Boolean(saved?.view),
+          page: pageLabel(byKey.get(entry.key)!.href),
+          changedAt: saved?.updatedAt?.toISOString() ?? null,
         };
       }),
     }));

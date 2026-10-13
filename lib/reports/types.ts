@@ -113,6 +113,8 @@ export type ReportMeta = {
   /** The view someone gets before they change anything. */
   defaults: Partial<Pick<ReportView, "sort" | "groupBy">>;
   rowActions?: ReportRowAction[];
+  /** One line on what it shows, under its title ("Deals closing this year, by stage…"). */
+  summary?: string;
   /** How the report is laid out as a page. Absent, the default for its columns. */
   layout?: ReportLayout;
   /** The view the workspace saved as everyone's starting point, if it saved one. */
@@ -131,6 +133,10 @@ export type ReportSettingSummary = {
   arranged: boolean;
   /** The workspace saved a starting view. */
   viewSaved: boolean;
+  /** The page the report is about, as the panel names it ("Pipeline"): who can open that page can open the report. */
+  page: string | null;
+  /** When the workspace last changed how this report is set up. */
+  changedAt: string | null;
 };
 
 /** What a workspace has saved over a report's own setup. */

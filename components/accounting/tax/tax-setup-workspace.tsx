@@ -45,20 +45,13 @@ import {
   type TaxCodeRecord,
   type TaxRuleRecord,
   type TaxTemplateRecord,
-  type VatReturnRecord,
   type VatSummaryRow,
-  createVatReturnDraft,
   fetchAccountingPeriods,
   fetchTaxCategories,
   fetchTaxCodes,
   fetchTaxRules,
   fetchTaxTemplates,
-  fetchVatReturns,
   fetchVatSummary,
-  fileVatReturn,
-  finalizeVatReturn,
-  refreshVatReturn,
-  reviewVatReturn,
 } from "@/lib/api";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { Plus, X } from "@/lib/icons";
@@ -70,7 +63,6 @@ const TAX_VIEWS = [
   "templates",
   "rules",
   "vat-summary",
-  "vat-returns",
 ] as const;
 
 type TaxView = (typeof TAX_VIEWS)[number];
@@ -229,17 +221,6 @@ const SCHEDULE_LABEL: Record<string, string> = {
  * this list existed cannot silently retype it on save.
  */
 const KNOWN_TAX_CODE_TYPES = ["VAT", "WITHHOLDING", "OTHER"];
-
-const RETURN_STATUS: Record<
-  VatReturnRecord["status"],
-  { label: string; tone: string }
-> = {
-  DRAFT: { label: "Draft", tone: "warn" },
-  REVIEWED: { label: "Reviewed", tone: "info" },
-  FINALIZED: { label: "Finalized", tone: "info" },
-  FILED: { label: "Filed", tone: "ok" },
-  VOIDED: { label: "Voided", tone: "mute" },
-};
 
 function summarizeTemplateLines(template: TaxTemplateRecord): string {
   if (!template.lines?.length) return "No tax codes linked";
@@ -422,7 +403,6 @@ function StatusField({
  */
 function SidePanel({
   chip,
-  chipTone,
   title,
   onSubmit,
   children,
@@ -430,7 +410,6 @@ function SidePanel({
   footer,
 }: {
   chip: string;
-  chipTone: "info" | "warn";
   title: string;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
   children: ReactNode;
@@ -444,7 +423,7 @@ function SidePanel({
     >
       <form onSubmit={onSubmit}>
         <CardHeader className="justify-start gap-2">
-          <span className="acct-badge" data-tone={chipTone}>
+          <span className="acct-badge" data-tone="info">
             {chip}
           </span>
           <CardTitle className="min-w-0 truncate">{title}</CardTitle>
@@ -536,10 +515,6 @@ export function TaxSetupWorkspace() {
   const [summaryPeriodId, setSummaryPeriodId] = useState("");
   const [summaryStartDate, setSummaryStartDate] = useState("");
   const [summaryEndDate, setSummaryEndDate] = useState("");
-  const [vatReturnPeriodId, setVatReturnPeriodId] = useState("");
-  const [vatReturnAdjustmentsTax, setVatReturnAdjustmentsTax] = useState("");
-  const [vatReturnFilingCategory, setVatReturnFilingCategory] =
-    useState("GENERAL");
 
   const {
     reservedId,
@@ -580,25 +555,6 @@ export function TaxSetupWorkspace() {
       }),
     enabled: activeView === "vat-summary",
   });
-  const vatReturnsQuery = useQuery({
-    queryKey: ["accounting", "vat-returns"],
-    queryFn: () => fetchVatReturns({ limit: 200 }),
-    enabled: activeView === "vat-returns",
-  });
-  /*
-    What the draft would come to.
-
-    The same summary the VAT summary view reads, scoped to the period being
-    prepared. It is the figure the server will compute from the same journals,
-    so previewing it here is a read of the real position rather than a guess —
-    and preparing a return you have already seen the bottom line of is the
-    difference between filing and finding out.
-  */
-  const returnPreviewQuery = useQuery({
-    queryKey: ["accounting", "vat-summary", "return-preview", vatReturnPeriodId],
-    queryFn: () => fetchVatSummary({ periodId: vatReturnPeriodId }),
-    enabled: activeView === "vat-returns" && Boolean(vatReturnPeriodId),
-  });
 
   const taxCodes = taxCodesQuery.data ?? [];
   const taxCategories = taxCategoriesQuery.data ?? [];
@@ -611,7 +567,6 @@ export function TaxSetupWorkspace() {
     inputTax: 0,
     netTax: 0,
   };
-  const vatReturns = vatReturnsQuery.data?.data ?? [];
 
   const dataError =
     taxCodesQuery.error ??
@@ -619,8 +574,7 @@ export function TaxSetupWorkspace() {
     taxTemplatesQuery.error ??
     taxRulesQuery.error ??
     periodsQuery.error ??
-    vatSummaryQuery.error ??
-    vatReturnsQuery.error;
+    vatSummaryQuery.error;
 
   const editingCodeId = editor?.kind === "code" ? editor.recordId : undefined;
   const editingCategoryId = editor?.kind === "category" ? editor.recordId : undefined;
@@ -930,68 +884,6 @@ export function TaxSetupWorkspace() {
     },
   });
 
-  const vatReturnActionMutation = useMutation({
-    mutationFn: async (input: {
-      action: "review" | "refresh" | "finalize" | "file";
-      vatReturnId: string;
-    }) => {
-      if (input.action === "review") return reviewVatReturn(input.vatReturnId);
-      if (input.action === "refresh") return refreshVatReturn(input.vatReturnId);
-      if (input.action === "finalize") return finalizeVatReturn(input.vatReturnId);
-      return fileVatReturn(input.vatReturnId);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["accounting", "vat-returns"] });
-      queryClient.invalidateQueries({ queryKey: ["accounting", "vat-summary"] });
-      toast({
-        title: "VAT return updated",
-        description: "The VAT return workflow was updated successfully.",
-        variant: "success",
-      });
-    },
-    onError: (error) => {
-      toast({
-        title: "Unable to update VAT return",
-        description: getApiErrorMessage(error),
-        variant: "destructive",
-      });
-    },
-  });
-
-  const createVatReturnMutation = useMutation({
-    mutationFn: async () => {
-      if (!vatReturnPeriodId) {
-        throw new Error("Select an open period to generate a VAT return draft.");
-      }
-      const period = periods.find((item) => item.id === vatReturnPeriodId);
-      if (!period || period.status !== "OPEN") {
-        throw new Error("VAT return drafts can only be created for OPEN periods.");
-      }
-      return createVatReturnDraft({
-        periodId: vatReturnPeriodId,
-        adjustmentsTax: vatReturnAdjustmentsTax
-          ? Number(vatReturnAdjustmentsTax)
-          : undefined,
-        filingCategory: vatReturnFilingCategory,
-      });
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["accounting", "vat-returns"] });
-      toast({
-        title: "VAT return draft created",
-        description: "The selected period now has a draft VAT return.",
-        variant: "success",
-      });
-    },
-    onError: (error) => {
-      toast({
-        title: "Unable to create VAT return draft",
-        description: getApiErrorMessage(error),
-        variant: "destructive",
-      });
-    },
-  });
-
   function handleTaxCodeSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!editor || editor.kind !== "code") return;
@@ -1212,9 +1104,8 @@ export function TaxSetupWorkspace() {
       { id: "templates", label: "Templates", count: taxTemplates.length },
       { id: "rules", label: "Rules", count: taxRules.length },
       { id: "vat-summary", label: "VAT summary", count: vatRows.length },
-      { id: "vat-returns", label: "VAT returns", count: vatReturns.length },
     ],
-    [taxCodes.length, taxCategories.length, taxTemplates.length, taxRules.length, vatRows.length, vatReturns.length],
+    [taxCodes.length, taxCategories.length, taxTemplates.length, taxRules.length, vatRows.length],
   );
 
   const codeColumns: ColumnDef<TaxCodeRecord>[] = [
@@ -1533,136 +1424,6 @@ export function TaxSetupWorkspace() {
   */
   const canDeactivate = editor?.mode === "edit" && editor.recordId !== undefined;
 
-  const vatReturnColumns: ColumnDef<VatReturnRecord>[] = [
-    {
-      id: "period",
-      header: "Period",
-      cell: ({ row }) => (
-        <span className="font-medium text-[var(--text-strong)]">
-          {formatPeriodLabel(row.original.periodStart, row.original.periodEnd)}
-        </span>
-      ),
-      size: 150,
-      minSize: 150,
-      maxSize: 180,
-    },
-    {
-      id: "category",
-      header: "Category",
-      cell: ({ row }) => row.original.filingCategory ?? "General",
-      size: 110,
-      minSize: 110,
-      maxSize: 110,
-    },
-    {
-      id: "outputTax",
-      header: "Output VAT",
-      cell: ({ row }) => <NumericCell>{formatAmount(row.original.outputTax)}</NumericCell>,
-      size: 120,
-      minSize: 120,
-      maxSize: 120,
-    },
-    {
-      id: "inputTax",
-      header: "Input VAT",
-      cell: ({ row }) => <NumericCell>{formatAmount(row.original.inputTax)}</NumericCell>,
-      size: 120,
-      minSize: 120,
-      maxSize: 120,
-    },
-    {
-      id: "netTax",
-      header: "Net",
-      cell: ({ row }) => <NumericCell>{formatAmount(row.original.netTax)}</NumericCell>,
-      size: 120,
-      minSize: 120,
-      maxSize: 120,
-    },
-    {
-      id: "status",
-      header: "Status",
-      cell: ({ row }) => {
-        const status = RETURN_STATUS[row.original.status];
-        return (
-          <span className="acct-badge" data-tone={status.tone}>
-            {status.label}
-          </span>
-        );
-      },
-      size: 110,
-      minSize: 110,
-      maxSize: 110,
-    },
-    {
-      id: "actions",
-      header: "",
-      cell: ({ row }) => {
-        const vatReturn = row.original;
-        return (
-          <div className="flex items-center justify-end gap-2">
-            {vatReturn.status === "DRAFT" ? (
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() =>
-                  vatReturnActionMutation.mutate({
-                    action: "review",
-                    vatReturnId: vatReturn.id,
-                  })
-                }
-              >
-                Review
-              </Button>
-            ) : null}
-            {vatReturn.status === "REVIEWED" ? (
-              <>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() =>
-                    vatReturnActionMutation.mutate({
-                      action: "refresh",
-                      vatReturnId: vatReturn.id,
-                    })
-                  }
-                >
-                  Refresh
-                </Button>
-                <Button
-                  size="sm"
-                  onClick={() =>
-                    vatReturnActionMutation.mutate({
-                      action: "finalize",
-                      vatReturnId: vatReturn.id,
-                    })
-                  }
-                >
-                  Finalize
-                </Button>
-              </>
-            ) : null}
-            {vatReturn.status === "FINALIZED" ? (
-              <Button
-                size="sm"
-                onClick={() =>
-                  vatReturnActionMutation.mutate({
-                    action: "file",
-                    vatReturnId: vatReturn.id,
-                  })
-                }
-              >
-                Mark Filed
-              </Button>
-            ) : null}
-          </div>
-        );
-      },
-      size: 240,
-      minSize: 220,
-      maxSize: 260,
-    },
-  ];
-
   /*
     The VAT position, the way a return reads it.
 
@@ -1690,13 +1451,6 @@ export function TaxSetupWorkspace() {
 
   const activeCodeCount = countActiveRows(taxCodes);
   const inactiveCodeCount = taxCodes.length - activeCodeCount;
-
-  const selectedReturnPeriod = periods.find(
-    (period: AccountingPeriodRecord) => period.id === vatReturnPeriodId,
-  );
-  const returnPreviewNet = returnPreviewQuery.data
-    ? returnPreviewQuery.data.totals.netTax + (Number(vatReturnAdjustmentsTax) || 0)
-    : null;
 
   const isRecordView =
     activeView === "codes" ||
@@ -1821,7 +1575,6 @@ export function TaxSetupWorkspace() {
           {editor && editor.kind === "code" ? (
             <SidePanel
               chip={editor.mode === "create" ? "NEW" : "EDIT"}
-              chipTone="info"
               title={editorTitle}
               onSubmit={handleTaxCodeSubmit}
               footer={
@@ -1982,7 +1735,6 @@ export function TaxSetupWorkspace() {
           {editor && editor.kind === "category" ? (
             <SidePanel
               chip={editor.mode === "create" ? "NEW" : "EDIT"}
-              chipTone="info"
               title={editorTitle}
               onSubmit={handleCategorySubmit}
               footer={
@@ -2043,7 +1795,6 @@ export function TaxSetupWorkspace() {
           {editor && editor.kind === "template" ? (
             <SidePanel
               chip={editor.mode === "create" ? "NEW" : "EDIT"}
-              chipTone="info"
               title={editorTitle}
               onSubmit={handleTemplateSubmit}
               extra={
@@ -2166,7 +1917,6 @@ export function TaxSetupWorkspace() {
           {editor && editor.kind === "rule" ? (
             <SidePanel
               chip={editor.mode === "create" ? "NEW" : "EDIT"}
-              chipTone="info"
               title={editorTitle}
               onSubmit={handleRuleSubmit}
               footer={
@@ -2419,145 +2169,6 @@ export function TaxSetupWorkspace() {
               />
             </div>
           </div>
-        </div>
-
-        <div
-          className={cn("grid items-start gap-2.5", activeView !== "vat-returns" && "hidden")}
-          style={splitColumns(true)}
-        >
-          <div className="min-w-0">
-            <DataTable
-              data={vatReturns}
-              columns={vatReturnColumns}
-              groupBy="status"
-              searchPlaceholder="Period or category"
-              searchSubmitLabel="Search"
-              pagination={{ enabled: true }}
-              emptyState={
-                vatReturnsQuery.isLoading ? "Loading VAT returns..." : "No VAT returns found."
-              }
-            />
-          </div>
-
-          <SidePanel
-            chip="DUE"
-            chipTone="warn"
-            title={
-              selectedReturnPeriod
-                ? `Prepare ${formatPeriodLabel(selectedReturnPeriod.startDate, selectedReturnPeriod.endDate)}`
-                : "Prepare a return"
-            }
-            onSubmit={(event) => {
-              event.preventDefault();
-              createVatReturnMutation.mutate();
-            }}
-            extra={
-              /*
-                The bottom line before it is committed.
-
-                Read from the same summary the server recomputes the draft
-                from, plus whatever adjustment is typed above it — so what the
-                panel shows and what the draft comes out at are the same
-                arithmetic on the same journals.
-              */
-              <div className="px-[13px] pb-3">
-                <div className="flex items-center gap-2 rounded-[7px] border border-[var(--brand-100)] bg-[var(--brand-soft)] px-[11px] py-2.5">
-                  <span className="text-sm text-[var(--brand-strong)]">Net payable</span>
-                  <span className="ml-auto font-mono text-base font-bold tabular-nums text-[var(--brand-strong)]">
-                    {returnPreviewNet === null
-                      ? returnPreviewQuery.isLoading
-                        ? "…"
-                        : "—"
-                      : formatAmount(returnPreviewNet)}
-                  </span>
-                </div>
-              </div>
-            }
-            footer={
-              <>
-                <Button
-                  type="submit"
-                  size="sm"
-                  disabled={!vatReturnPeriodId || createVatReturnMutation.isPending}
-                >
-                  Prepare return
-                </Button>
-                <div className="ml-auto">
-                  <DestructiveButton
-                    label="Discard"
-                    disabled={!vatReturnPeriodId && !vatReturnAdjustmentsTax}
-                    onClick={() => {
-                      setVatReturnPeriodId("");
-                      setVatReturnAdjustmentsTax("");
-                      setVatReturnFilingCategory("GENERAL");
-                    }}
-                  />
-                </div>
-              </>
-            }
-          >
-            <Field label="Period" required wide hint="Only an open period can be drafted.">
-              <Select value={vatReturnPeriodId} onValueChange={setVatReturnPeriodId}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select period" />
-                </SelectTrigger>
-                <SelectContent>
-                  {periods.map((period: AccountingPeriodRecord) => (
-                    <SelectItem key={period.id} value={period.id}>
-                      {formatPeriodLabel(period.startDate, period.endDate)}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </Field>
-            <Field label="Filing category" required wide>
-              <Select value={vatReturnFilingCategory} onValueChange={setVatReturnFilingCategory}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Filing category" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="GENERAL">General</SelectItem>
-                  <SelectItem value="CATEGORY_A">Category A</SelectItem>
-                  <SelectItem value="CATEGORY_C">Category C</SelectItem>
-                </SelectContent>
-              </Select>
-            </Field>
-            <Field label="Start date">
-              <Input
-                readOnly
-                className="font-mono"
-                value={
-                  selectedReturnPeriod
-                    ? format(new Date(selectedReturnPeriod.startDate), "dd/MM/yyyy")
-                    : ""
-                }
-                placeholder="from the period"
-              />
-            </Field>
-            <Field label="End date">
-              <Input
-                readOnly
-                className="font-mono"
-                value={
-                  selectedReturnPeriod
-                    ? format(new Date(selectedReturnPeriod.endDate), "dd/MM/yyyy")
-                    : ""
-                }
-                placeholder="from the period"
-              />
-            </Field>
-            <Field label="Adjustments tax" wide hint="Credit notes and prior-period corrections.">
-              <Input
-                type="number"
-                min="-999999999"
-                step="0.01"
-                value={vatReturnAdjustmentsTax}
-                onChange={(event) => setVatReturnAdjustmentsTax(event.target.value)}
-                placeholder="0.00"
-                className="text-right font-mono"
-              />
-            </Field>
-          </SidePanel>
         </div>
       </VerticalDataViews>
     </AccountingShell>

@@ -38,7 +38,7 @@ test.use({ tenant: PAYROLL, as: "admin" });
 const ACCOUNTING: readonly Route[] = [
   { path: "/accounting", name: "Accounting overview" },
   { path: "/accounting/chart-of-accounts", name: "Chart of accounts", expect: /\d{4}|Cash|Bank|Payable/i },
-  { path: "/accounting/journals", name: "Journals" },
+  { path: "/books/journals", name: "Journals" },
   { path: "/accounting/trial-balance", name: "Trial balance" },
   { path: "/accounting/financial-statements", name: "Financial statements" },
   { path: "/accounting/financial-reports", name: "Financial reports" },
@@ -47,9 +47,9 @@ const ACCOUNTING: readonly Route[] = [
   // Kariba Payroll Bureau is not entitled to these three. Being turned away
   // is the assertion — see `blocked` in `_support/sweep.ts`.
   { path: "/accounting/banking", name: "Banking", blocked: true },
-  { path: "/accounting/periods", name: "Periods" },
+  { path: "/books/periods", name: "Periods" },
   { path: "/accounting/posting-rules", name: "Posting rules" },
-  { path: "/accounting/tax", name: "Tax" },
+  { path: "/books/vat", name: "Tax" },
   { path: "/accounting/currency", name: "Currency", blocked: true },
   { path: "/accounting/cost-centers", name: "Cost centres", blocked: true },
   { path: "/accounting/fiscalisation", name: "Fiscalisation" },

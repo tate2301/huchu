@@ -19,10 +19,10 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import { useId } from "react";
 
-import { Button } from "@/components/ui/button";
+import { Button as KitButton } from "@/components/core";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { DotsSixVertical, TableRows } from "@/lib/icons";
+import { DotsSixVertical } from "@/lib/icons";
 import type { ReportColumn, ReportView } from "@/lib/reports/types";
 import { cn } from "@/lib/utils";
 
@@ -96,13 +96,9 @@ export function ReportColumns({
   return (
     <Popover>
       <PopoverTrigger asChild>
-        <Button variant="secondary" size="sm">
-          <TableRows className="size-4" aria-hidden="true" />
+        <KitButton icon="columns" aria-label={`Columns, ${shown} of ${view.columns.length} shown`}>
           Columns
-          <span className="font-mono text-[11px] tabular-nums text-[var(--text-muted)]">
-            {shown}/{view.columns.length}
-          </span>
-        </Button>
+        </KitButton>
       </PopoverTrigger>
       <PopoverContent align="end" className="w-64 p-1.5">
         <DndContext id={dndId} sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>

@@ -1,0 +1,231 @@
+/* Kit parts the boards draw only at rest. Hand-written, beside the generated kit.css, under the
+   same `.ck` scope and specificity. */
+
+/* Management's switches are ink, so the page keeps its one accent (spec/management.md). */
+.ck.ck.ck .switch.is-ink:checked { background: var(--color-ink); }
+
+/* The drawer and the Vane panel sit over the app, not inside a board. */
+.ck.ck.ck .drawer.is-fixed { position: fixed; z-index: var(--z-overlay); }
+.ck.ck.ck .over.is-fixed { position: fixed; z-index: calc(var(--z-overlay) - 1); background: var(--color-scrim); }
+
+/* The Vane panel's column: 400px on the right of the page; over it below 1100px. */
+.ck.vane-col { width: 400px; flex: none; display: flex; min-height: 0; height: 100%; }
+.ck.vane-col > .ask { flex: 1; min-width: 0; }
+@media (max-width: 1099px) {
+  .ck.vane-col { position: fixed; top: 0; right: 0; bottom: 0; z-index: 45; max-width: 100vw; box-shadow: var(--shadow-overlay); }
+}
+
+/* A kit page inside Management's content column: it fills the row and scrolls on its own. */
+.ck.kit-col { display: flex; flex-direction: column; min-height: 0; min-width: 0; height: 100%; }
+.ck.kit-col .mn { flex: 1; min-height: 0; }
+
+/* Marketplace's search, 240px as the kit draws it. */
+.ck.ck.ck .mk-find { width: 240px; }
+
+/* A kit page in the app's shell: edge to edge under the top bar, out over main's gutter and lede, and
+   scrolling inside itself so a table's head and footer stay put. On a phone it is a page that scrolls. */
+.ck.kit-main {
+  display: flex; flex-direction: column; min-width: 0;
+  height: var(--content-viewport); overflow: auto;
+  width: calc(100% + (var(--content-gutter-x) * 2));
+  margin-inline: calc(var(--content-gutter-x) * -1);
+  margin-top: calc(var(--content-lede) * -1);
+  background: var(--color-surface);
+}
+@media (max-width: 759px) { .ck.kit-main { height: auto; overflow: visible; } }
+
+/* A menu's button inside a button group: joined to its neighbours like any other button there. */
+.ck.ck.ck .btn-group > .menu-wrap > .btn { border-radius: 0; box-shadow: none; background: transparent; }
+.ck.ck.ck .btn-group > .btn + .menu-wrap > .btn,
+.ck.ck.ck .btn-group > .menu-wrap + .btn,
+.ck.ck.ck .btn-group > .menu-wrap + .menu-wrap > .btn { box-shadow: -1px 0 0 var(--color-line); }
+.ck.ck.ck .btn-group > .menu-wrap:first-child > .btn { border-radius: var(--radius-button) 0 0 var(--radius-button); }
+.ck.ck.ck .btn-group > .menu-wrap:last-child > .btn { border-radius: 0 var(--radius-button) var(--radius-button) 0; }
+.ck.ck.ck .btn-group > .menu-wrap:only-child > .btn { border-radius: var(--radius-button); }
+
+/* Table cells sit in the middle of their row, as the browser draws them: the app's own `.table`
+   rules are reset inside `.ck`. The kit tops only prose tables and `.wrap` cells, so those are left to it. */
+.ck.ck.ck .table:not(.is-prose) td:not(.wrap), .ck.ck.ck .table th { vertical-align: middle; }
+
+/* The kit's attribute lists keep the browser's 1em above and below a <dl>, which the app's base
+   styles take away; the boards were drawn with it. */
+.ck.ck.ck dl.attrs { margin-block: 1em; }
+
+/* Figures in a table line up: every cell takes tabular figures, not only `.num`. */
+.ck.ck .table td {
+  font-variant-numeric: tabular-nums;
+}
+
+/* All reports: a row of ours carries a folder menu over its right edge, outside the row's link. */
+.ck.ck.ck .rr-wrap { position: relative; }
+.ck.ck.ck .list > .rr-wrap:first-child > .row { box-shadow: none; }
+.ck.ck.ck .rr-move { position: absolute; right: var(--space-24); top: 50%; transform: translateY(-50%); }
+.ck.ck.ck .rr-wrap:hover .rr-move .btn, .ck.ck.ck .rr-move .btn[aria-expanded="true"] { background: var(--color-surface); }
+@media (max-width: 760px) {
+  .ck.ck.ck .rr-move { right: var(--space-16); }
+  .ck.ck.ck .rr-wrap:has(.rr-move) > .row { padding-right: 52px; }
+}
+
+/* A list's tools at phone width (Journals): the search takes the row with the end's buttons, which
+   keep only their icons; the segmented control goes under them and scrolls inside itself. */
+@media (max-width: 760px) {
+  .ck.ck.ck .ws-tools.tl-narrow { flex-wrap: wrap; padding-left: var(--space-16); padding-right: var(--space-16); }
+  .ck.ck.ck .tl-narrow .ws-find { width: auto; flex: 1 1 0; min-width: 0; }
+  .ck.ck.ck .tl-narrow .end { order: 2; }
+  .ck.ck.ck .tl-narrow .seg { order: 3; max-width: 100%; overflow-x: auto; }
+  .ck.ck.ck .tl-narrow .tl-lbl { display: none; }
+}
+
+/* A report's page (PageReport, PageBuiltReport): the source line, the chips, the figures, the
+   blocks two to a row, and the table that scrolls sideways inside its own region. */
+.ck.ck.ck .rp-src { display: flex; align-items: center; gap: var(--space-8); padding: 14px 28px 0; color: var(--color-muted); font-size: 12.5px; min-width: 0; }
+.ck.ck.ck .rp-src > span:last-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ck.ck.ck .rp-src a { color: inherit; text-decoration: underline; text-underline-offset: 3px; }
+.ck.ck.ck .rp-tools { flex-wrap: wrap; }
+.ck.ck.ck button.chipsel { border: 0; font-family: inherit; cursor: pointer; }
+.ck.ck.ck .btn.chipsel { height: 32px; gap: var(--space-4); padding: 0 var(--space-8) 0 var(--space-12); border-radius: var(--radius-control); box-shadow: var(--shadow-ring), var(--shadow-raised); background: var(--color-surface); font-size: var(--text-13); font-weight: 400; color: var(--color-muted); }
+.ck.ck.ck .btn.chipsel.is-set, .ck.ck.ck button.chipsel.is-set { background: var(--color-fill); box-shadow: var(--shadow-ring); color: var(--color-ink-2); }
+.ck.ck.ck .btn.chipsel .ic { width: 14px; height: 14px; color: var(--color-muted); }
+.ck.ck.ck .chipsel .truncate { max-width: 18rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ck.ck.ck .rp-blocks { display: flex; flex-direction: column; flex: 1 0 auto; transition: opacity 0.15s; }
+.ck.ck.ck .rp-blocks.is-fetching { opacity: 0.6; }
+.ck.ck.ck .rp-warn { padding: var(--space-8) var(--space-24) 0; font-size: var(--text-12); font-weight: 500; color: var(--color-warning); }
+.ck.ck.ck .rp-figs { padding: 16px 24px 8px; }
+.ck.ck.ck .rp-grid2 { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); box-shadow: inset 0 1px 0 var(--color-line); }
+.ck.ck.ck .rp-grid2 > div { min-width: 0; }
+.ck.ck.ck .rp-grid2 > div:first-child { box-shadow: inset -1px 0 0 var(--color-line); }
+.ck.ck.ck .rp-row { box-shadow: inset 0 1px 0 var(--color-line); min-width: 0; }
+.ck.ck.ck .rp-block { padding: 16px 24px 20px; }
+.ck.ck.ck .rp-hbar { grid-template-columns: 140px minmax(0, 1fr) 96px; }
+.ck.ck.ck .rp-line { position: relative; }
+.ck.ck.ck .rp-tip { position: absolute; top: 0; right: 0; padding: 2px 6px; border-radius: 6px; background: var(--color-surface); box-shadow: var(--shadow-ring); font-size: var(--text-12); color: var(--color-muted); }
+.ck.ck.ck .rp-tip b { color: var(--color-ink); font-variant-numeric: tabular-nums; }
+.ck.ck.ck .rp-heading { padding: 16px 24px 0; font-size: var(--text-16); font-weight: 600; color: var(--color-ink); }
+.ck.ck.ck .rp-text { padding: 8px 24px 16px; max-width: 70ch; white-space: pre-line; color: var(--color-ink-2); }
+.ck.ck.ck .rp-table { flex: none; min-width: 0; }
+.ck.ck.ck .rp-wt { overflow-x: auto; }
+.ck.ck.ck .rp-wt td:not(.fill) { max-width: 22rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ck.ck.ck .rp-wt td[colspan] { max-width: none; }
+.ck.ck.ck .rp-sort { display: inline-flex; align-items: center; gap: 4px; padding: 0; border: 0; background: none; font: inherit; color: inherit; cursor: pointer; }
+.ck.ck.ck .rp-sort .n { font-size: 10px; color: var(--color-muted); }
+.ck.ck.ck .rp-fold { display: inline-flex; padding: 0; margin-right: var(--space-8); border: 0; background: none; color: var(--color-muted); cursor: pointer; vertical-align: -3px; }
+.ck.ck.ck .rp-grp-sum { float: right; display: inline-flex; gap: var(--space-16); font-variant-numeric: tabular-nums; }
+.ck.ck.ck .rp-foot td { height: 36px; }
+.ck.ck.ck .rp-total.is-empty { opacity: 0; }
+.ck.ck.ck .rp-foot:hover .rp-total.is-empty, .ck.ck.ck .rp-total.is-empty:focus-visible, .ck.ck.ck .rp-total.is-empty[aria-expanded="true"] { opacity: 1; }
+.ck.ck.ck .rp-act { width: 40px; }
+.ck.ck.ck .rp-more { display: flex; align-items: center; justify-content: center; gap: var(--space-12); padding: var(--space-12); }
+
+/* The report's drawers: Save as a template, Export and Send it. */
+.ck.ck.ck .drawer-h.has-sub { height: auto; min-height: 56px; padding-top: 14px; padding-bottom: 14px; align-items: flex-start; }
+.ck.ck.ck .drawer-t { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.ck.ck.ck .drawer-sub { font-size: var(--text-13); font-weight: 400; color: var(--color-muted); }
+.ck.ck.ck .rp-drawer { display: flex; flex-direction: column; gap: 20px; }
+.ck.ck.ck .rp-tabs { margin: calc(var(--space-24) * -1) calc(var(--space-24) * -1) 0; padding: 0 var(--space-24); }
+.ck.ck.ck .rp-label { font-weight: 500; color: var(--color-ink); }
+.ck.ck.ck .rp-field { display: flex; flex-direction: column; gap: 6px; }
+.ck.ck.ck .rp-field .seg { display: flex; }
+.ck.ck.ck .rp-field .seg > * { flex: 1 1 0; justify-content: center; }
+.ck.ck.ck .rp-ropts { display: flex; flex-direction: column; gap: var(--space-8); }
+.ck.ck.ck .rp-ropts .ropt { cursor: pointer; }
+.ck.ck.ck .rp-ropts .ropt:focus-within { outline: 2px solid var(--color-focus, var(--color-accent)); outline-offset: 2px; }
+.ck.ck.ck .rp-pair { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-12); }
+.ck.ck.ck .rp-switch { display: flex; align-items: center; gap: var(--space-12); }
+.ck.ck.ck .rp-switch > span { flex: 1; display: flex; flex-direction: column; gap: 2px; }
+.ck.ck.ck .rp-switch b { font-weight: 500; color: var(--color-ink); }
+.ck.ck.ck .rp-switch .muted, .ck.ck.ck .rp-sched-t .muted { font-size: var(--text-13); }
+.ck.ck.ck .rp-kept { display: flex; flex-direction: column; gap: 6px; }
+.ck.ck.ck .rp-note { padding: 12px 14px; border-radius: 8px; background: var(--color-ground); color: var(--color-ink-2); }
+.ck.ck.ck .rp-pick { display: flex; align-items: center; width: 100%; text-align: left; cursor: pointer; }
+.ck.ck.ck .rp-people { display: flex; flex-direction: column; gap: var(--space-4); max-height: 280px; overflow: auto; padding: var(--space-8) var(--space-12); }
+.ck.ck.ck .rp-sched .row { display: flex; align-items: center; gap: var(--space-12); padding: var(--space-8) 0; }
+.ck.ck.ck .rp-sched-t { flex: 1; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.ck.ck.ck .drawer-f .rp-foot-start { margin-right: auto; }
+
+@media (max-width: 759px) {
+  .ck.ck.ck .rp-src { padding: 12px 16px 0; }
+  .ck.ck.ck .rp-tools { padding-left: var(--space-16); padding-right: var(--space-16); }
+  .ck.ck.ck .rp-tools .sepv { display: none; }
+  .ck.ck.ck .rp-figs { padding: 12px 16px 4px; }
+  .ck.ck.ck .rp-figs .kstrip { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+  .ck.ck.ck .rp-figs .kt:nth-child(odd) { box-shadow: none; }
+  .ck.ck.ck .rp-figs .kt:nth-child(n + 3) { border-top: 1px solid var(--color-line); }
+  .ck.ck.ck .rp-grid2 { grid-template-columns: minmax(0, 1fr); }
+  .ck.ck.ck .rp-grid2 > div:first-child { box-shadow: inset 0 -1px 0 var(--color-line); }
+  .ck.ck.ck .rp-block { padding: 16px; }
+  .ck.ck.ck .rp-hbar { grid-template-columns: 88px minmax(0, 1fr) 88px; gap: 10px; }
+  .ck.ck.ck .rp-heading, .ck.ck.ck .rp-text { padding-left: 16px; padding-right: 16px; }
+  .ck.ck.ck .rp-pair { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* A built or custom report: its line of what it reads, with the dates at the end. */
+.ck.ck.ck .rp-head { display: flex; align-items: center; gap: 10px; padding: 16px 28px; box-shadow: inset 0 -1px 0 var(--color-line); min-width: 0; }
+.ck.ck.ck .rp-desc { color: var(--color-ink-2); min-width: 0; }
+.ck.ck.ck .rp-head-end { margin-left: auto; flex: none; }
+.ck.ck.ck .rp-sec { padding: 18px 28px 10px; font-size: var(--text-14); font-weight: 600; color: var(--color-ink); }
+.ck.ck.ck .rp-pad { padding: 16px 24px; }
+.ck.ck.ck .rp-tblock { display: flex; flex-direction: column; min-width: 0; }
+.ck.ck.ck .rp-problem { display: flex; align-items: flex-start; gap: var(--space-8); color: var(--color-danger); }
+.ck.ck.ck .rp-grid2 .rp-figs, .ck.ck.ck .rp-grid2 .rp-sec { padding-left: 24px; padding-right: 24px; }
+@media (max-width: 759px) {
+  .ck.ck.ck .rp-head { flex-wrap: wrap; padding: 12px 16px; }
+  .ck.ck.ck .rp-head-end { margin-left: 0; }
+  .ck.ck.ck .rp-sec { padding: 14px 16px 8px; }
+  .ck.ck.ck .rp-pad { padding: 12px 16px; }
+}
+.ck.ck.ck .rp-foot-l { font-weight: 600; color: var(--color-ink); }
+/* A choice from a menu, drawn as the board's select box: its value, then the chevron at the right. */
+.ck.ck.ck .rp-choice { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.ck.ck.ck .rp-choice .menu-wrap { display: flex !important; }
+.ck.ck.ck .rp-selbox { width: 100%; height: 36px; justify-content: space-between; padding: 0 var(--space-12); font-weight: 400; font-size: var(--text-14); color: var(--color-ink); font-variant-numeric: tabular-nums; }
+.ck.ck.ck .rp-selbox .ic { width: 12px; height: 12px; color: var(--color-muted); }
+.ck.ck.ck .rp-selbox > .truncate { flex: 1; min-width: 0; text-align: left; }
+
+/* An insight page (PageInsightVisits, PageRetailSales, PageRetailLosses): the body, and Do something
+   about it in a 320px column at its right; under the body below 1100px. */
+.ck.ck.ck .ip { flex: 1 1 auto; display: flex; min-height: 0; min-width: 0; }
+.ck.ck.ck .ip > .kbody { padding-bottom: var(--space-24); }
+.ck.ck.ck .ip-tools { flex-wrap: wrap; }
+.ck.ck.ck .ip-tools .ws-n { margin-left: auto; font-size: var(--text-13); color: var(--color-muted); }
+.ck.ck.ck .ip-aside { width: 320px; }
+.ck.ck.ck .ip-card { display: flex; flex-direction: column; gap: 8px; }
+.ck.ck.ck .ip-card b { font-weight: 600; color: var(--color-ink); }
+.ck.ck.ck .ip-card-t { color: var(--color-ink-2); line-height: 1.5; }
+.ck.ck.ck .ip-send { display: flex; flex-direction: column; gap: 8px; padding-top: 16px; box-shadow: inset 0 1px 0 var(--color-line); }
+.ck.ck.ck .ip-hbar { grid-template-columns: 150px minmax(0, 1fr) 96px; }
+.ck.ck.ck .ip-sec { padding: 18px 28px; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.ck.ck.ck .ip-sec > h3, .ck.ck.ck .ip-table-h { margin: 0 0 6px; font-size: var(--text-14); font-weight: 600; color: var(--color-ink); }
+.ck.ck.ck .ip-q { padding: 18px 28px 20px; display: flex; flex-direction: column; gap: 10px; }
+.ck.ck.ck .ip-q-h { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.ck.ck.ck .ip-q-h h3 { margin: 0; font-size: var(--text-14); font-weight: 600; }
+.ck.ck.ck .ip-q-h span { font-size: 12.5px; color: var(--color-muted); }
+.ck.ck.ck .ip-empty { padding: var(--space-16) var(--space-24); }
+.ck.ck.ck .ip-legend { margin-left: auto; display: flex; gap: 14px; flex-wrap: wrap; }
+.ck.ck.ck .ip-lg { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--color-muted); }
+.ck.ck.ck .ip-lg i { display: block; width: 8px; height: 8px; border-radius: 2px; }
+.ck.ck.ck .ip-cols { padding-left: 0; }
+.ck.ck.ck .ip-cols::before { left: 0; }
+.ck.ck.ck .ip-cols + .cols-x { padding-left: 0; }
+.ck.ck.ck .ip-cols + .cols-x span { white-space: nowrap; }
+.ck.ck.ck .ip-cols .col i { width: 70%; min-width: 3px; max-width: 24px; }
+.ck.ck.ck .ip-heat { display: grid; gap: 4px; align-items: center; }
+.ck.ck.ck .ip-heat-x { text-align: center; font-size: 11.5px; font-variant-numeric: tabular-nums; color: var(--color-muted); }
+.ck.ck.ck .ip-heat-y { font-size: 12.5px; color: var(--color-muted); }
+.ck.ck.ck .ip-heat-c { height: 26px; border-radius: 4px; }
+.ck.ck.ck .ip-views { padding-top: var(--space-16); }
+.ck.ck.ck .ip .table th.nowrap { white-space: nowrap; }
+@media (max-width: 1099px) {
+  .ck.ck.ck .ip { flex-direction: column; }
+  .ck.ck.ck .ip > .kbody { overflow: visible; flex: none; }
+  .ck.ck.ck .ip-aside { width: auto; box-shadow: inset 0 1px 0 var(--color-line); overflow: visible; }
+}
+@media (max-width: 759px) {
+  .ck.ck.ck .ip-tools { padding-left: var(--space-16); padding-right: var(--space-16); }
+  .ck.ck.ck .ip-tools .seg { max-width: 100%; overflow-x: auto; }
+  .ck.ck.ck .ip-hbar { grid-template-columns: 96px minmax(0, 1fr) 64px; gap: 10px; }
+  .ck.ck.ck .ip-sec, .ck.ck.ck .ip-q { padding: 14px 16px; }
+  .ck.ck.ck .ip-aside { padding: 16px; }
+  .ck.ck.ck .ip-heat { gap: 2px; }
+  .ck.ck.ck .ip-heat-x { font-size: 9px; }
+  .ck.ck.ck .ip-heat-c { height: 18px; }
+}

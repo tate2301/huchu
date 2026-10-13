@@ -481,13 +481,13 @@ export function GlobalCommandBar() {
       {
         id: "action-sidebar",
         group: "general",
-        label: "Collapse the panel",
+        label: "Hide the panel",
         icon: PanelLeft,
         keywords: "sidebar",
         preview: (
           <ActionPreview
             icon={PanelLeft}
-            title="Collapse the panel"
+            title="Hide the panel"
             body="Gives the page more width. ⌘B brings it back."
           />
         ),

@@ -2,12 +2,6 @@
 
 import * as React from "react";
 
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 
 import styles from "./settings.module.css";
@@ -88,27 +82,14 @@ function useSurfaceScope(open: boolean, scopeClassName: string) {
 }
 
 /**
- * Management and account preferences, as one surface opened over the app.
+ * Management and account preferences, as one surface that takes the whole page
+ * (design/core-modules/spec/shell.md: "a full-page takeover with no rail").
  *
- * Built on `components/ui/dialog.tsx` at `size="full"` so the opening is the
- * component's own — `fade-in-0`, `zoom-in .985`, 200ms, and no zoom at all
- * under `prefers-reduced-motion`, which is exactly what `Opening.dc.html`
- * draws. Nothing is reimplemented here; what the call sites below do is undo
- * the parts of `.modal-card` that disagree with `Main.dc.html`:
- *
- *   - `max-w-none w-full` — `.modal-full` sets `--modal-max-w:
- *     calc(100vw - 64px)`, a 32px horizontal gutter against the board's 24.
- *     Dropping the cap hands the gutter to the viewport's own `sm:p-6`, which
- *     is 24px on every side.
- *   - `p-0` — the card owns the content padding at `inset`, but this surface
- *     is a grid whose columns each scroll separately and set their own.
- *   - `rounded-[var(--radius-2xl)] border-0` — 18px and no border.
- *   - `showClose={false}` — the board's close sits in the record header, where
- *     the other verbs are. The built-in one is absolutely positioned at the
- *     card's corner and would land on top of the list column.
- *
- * The scrim is darkened to `rgba(22,24,29,.55)` from the stylesheet; see the
- * note beside `.modal-scrim` in `settings.module.css` for why it is not a prop.
+ * A page, not a dialog: `AppShell` renders these routes bare
+ * (`isSettingsSurfacePath`), so nothing sits under the surface to dim or trap
+ * focus away from, and a page lets a phone scroll the document. Esc still
+ * leaves, through the same `onOpenChange(false)` the record header's Close
+ * uses.
  *
  * Presentation only: this component opens and closes, and holds nothing else.
  * Which route is behind it, and who may reach it, stay where they are.
@@ -125,43 +106,35 @@ export function SettingsSurface({
 
   const close = React.useCallback(() => onOpenChange(false), [onOpenChange]);
 
+  // Esc leaves Management, as it did when the surface was a dialog, unless a
+  // field, a menu or a dialog of its own has it.
+  React.useEffect(() => {
+    if (!open) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== "Escape" || event.defaultPrevented) return;
+      const target = event.target as HTMLElement | null;
+      if (target?.closest("input, textarea, select, [contenteditable='true']")) return;
+      if (document.querySelector('[role="dialog"][data-state="open"], [role="menu"]')) return;
+      close();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [close, open]);
+
+  if (!open) return null;
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent
-        size="full"
-        tabletBehavior="centered"
-        showClose={false}
-        data-settings-surface=""
-        className={cn(
-          styles.scope,
-          styles.surface,
-          // Utilities sit above `@layer components`, so anything the cva or
-          // `.modal-card` sets as a *utility* has to be answered with one:
-          // the radius (cva's `rounded-2xl` is 16px, the board is 18), the
-          // max-width cap, the card's own padding and gap, its border, its
-          // `overflow-y-auto`, and the tablet height clamp that would leave a
-          // gap under the surface between 768 and 1023px.
-          "h-full w-full max-w-none gap-0 overflow-y-hidden rounded-[var(--radius-2xl)]",
-          "border-0 p-0 sm:p-0 md:max-lg:max-h-[calc(100dvh-3rem)]",
-          className,
-        )}
-      >
-        {/* Both are taken out of flow — `DialogDescription` is `sr-only` by
-            default and the title is given `srOnly` here — so neither becomes
-            a column of the two-column grid. The dialog keeps its accessible
-            name and description; the grid keeps exactly two children, the
-            rail and the content. */}
-        <DialogTitle className={styles.srOnly}>{title}</DialogTitle>
-        <DialogDescription className={styles.srOnly}>
-          {`${title} — management and account preferences`}
-        </DialogDescription>
-        {/* A context provider renders nothing of its own, so the grid still
-            has exactly two children: the rail and the content. */}
-        <SettingsSurfaceCloseContext.Provider value={close}>
-          {rail}
-          {children}
-        </SettingsSurfaceCloseContext.Provider>
-      </DialogContent>
-    </Dialog>
+    <div
+      role="region"
+      aria-label={title}
+      data-settings-surface=""
+      className={cn(styles.scope, styles.surface, className)}
+    >
+      {/* A context provider renders nothing of its own, so the grid still
+          has exactly two children: the rail and the content. */}
+      <SettingsSurfaceCloseContext.Provider value={close}>
+        {rail}
+        {children}
+      </SettingsSurfaceCloseContext.Provider>
+    </div>
   );
 }

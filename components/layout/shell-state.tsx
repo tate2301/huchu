@@ -35,6 +35,9 @@ type ShellState = {
   setCommandOpen: (open: boolean) => void;
   notificationsOpen: boolean;
   setNotificationsOpen: (open: boolean) => void;
+  /** The Vane panel, on the right of the page (400px), open from any module. */
+  vaneOpen: boolean;
+  setVaneOpen: (open: boolean) => void;
 };
 
 const ShellContext = React.createContext<ShellState | null>(null);
@@ -70,6 +73,7 @@ export function ShellProvider({
   const [drawerOpen, setDrawerOpen] = React.useState(false);
   const [commandOpen, setCommandOpen] = React.useState(false);
   const [notificationsOpen, setNotificationsOpen] = React.useState(false);
+  const [vaneOpen, setVaneOpen] = React.useState(false);
 
   const persist = React.useCallback((open: boolean) => {
     setPanelOpen(open);
@@ -129,8 +133,10 @@ export function ShellProvider({
       setCommandOpen,
       notificationsOpen,
       setNotificationsOpen,
+      vaneOpen,
+      setVaneOpen,
     }),
-    [closePanel, commandOpen, drawerOpen, notificationsOpen, openPanel, panelShown, togglePanel, width],
+    [closePanel, commandOpen, drawerOpen, notificationsOpen, openPanel, panelShown, togglePanel, vaneOpen, width],
   );
 
   return <ShellContext.Provider value={value}>{children}</ShellContext.Provider>;

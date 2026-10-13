@@ -1,14 +1,16 @@
 "use client";
 
-import { useId, useMemo, useState } from "react";
+import { forwardRef, useId, useMemo, useState } from "react";
+
+import { Button as KitButton, Icon, type IconName } from "@/components/core";
+import { MenuButton } from "@/components/core/menu";
 
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Funnel, Plus, X } from "@/lib/icons";
-import { describeCondition, opLabel } from "@/lib/reports/format";
+import { describeCondition, formatValue, opLabel } from "@/lib/reports/format";
 import type { Condition, ConditionOp, ReportColumn, ReportRow, ReportView } from "@/lib/reports/types";
 import { compareValues, isNumeric } from "@/lib/reports/view";
 import { cn } from "@/lib/utils";
@@ -206,7 +208,26 @@ function ConditionEditor({
   );
 }
 
-export function ReportFilters({
+/** A filter chip in the kit (`.chipsel`): what it narrows by, and the menu or editor it opens. */
+export const Chip = forwardRef<HTMLButtonElement, React.ButtonHTMLAttributes<HTMLButtonElement> & { set?: boolean; icon?: IconName }>(
+  function Chip({ set = false, icon = "filter", children, className, ...rest }, ref) {
+    return (
+      <button ref={ref} type="button" className={cn("chipsel", set && "is-set", className)} {...rest}>
+        <Icon name={icon} />
+        <span className="truncate">{children}</span>
+        <Icon name="down" />
+      </button>
+    );
+  },
+);
+
+/**
+ * The quick chips: one per state the report has ("Any outcome") and per owner
+ * ("Every owner"), each a menu of the values in the rows. Picking one narrows
+ * the table to it; the first entry clears it. The grouped column has none: the
+ * groups already split it.
+ */
+export function QuickChips({
   columns,
   rows,
   view,
@@ -217,33 +238,80 @@ export function ReportFilters({
   view: ReportView;
   onViewChange: (view: ReportView) => void;
 }) {
-  const [adding, setAdding] = useState(false);
+  const quick = quickColumns(columns, view);
+  return (
+    <>
+      {quick.map((column) => {
+        const at = view.conditions.findIndex((condition) => condition.column === column.key && condition.op === "is");
+        const condition = at >= 0 ? view.conditions[at]! : null;
+        const picked = condition ? (Array.isArray(condition.value) ? condition.value : [condition.value]).filter(Boolean) : [];
+        const any = column.kind === "status" ? `Any ${column.label.toLowerCase()}` : `Every ${column.label.toLowerCase()}`;
+        const set = (value: string | null) => {
+          const rest = view.conditions.filter((_, index) => index !== at);
+          onViewChange({ ...view, conditions: value === null ? rest : [...rest, { column: column.key, op: "is", value: [value] }] });
+        };
+        return (
+          <MenuButton
+            key={column.key}
+            className={cn("chipsel", condition && "is-set")}
+            icon={column.kind === "status" ? "filter" : "person"}
+            label={column.label}
+            items={[
+              { key: "any", label: any, checked: !condition, onSelect: () => set(null) },
+              { separator: true as const },
+              ...distinctValues(rows, column).map((value) => ({
+                key: value,
+                label: formatValue(value, column),
+                checked: picked.includes(value),
+                onSelect: () => set(value),
+              })),
+            ]}
+          >
+            {condition ? describeCondition(condition, column) : any}
+          </MenuButton>
+        );
+      })}
+    </>
+  );
+}
+
+/** States, and the person a row belongs to: what people narrow a report by first. */
+export function quickColumns(columns: ReportColumn[], view: ReportView): ReportColumn[] {
+  return columns.filter(
+    (column) =>
+      !column.hidden &&
+      column.key !== view.groupBy &&
+      (column.kind === "status" || (column.kind === "text" && /^(owner|rep|cashier|teacher)$/i.test(column.key))),
+  );
+}
+
+/** The filters set by hand (not by a quick chip), each a chip that opens its editor. */
+export function FilterChips({
+  columns,
+  rows,
+  view,
+  onViewChange,
+}: {
+  columns: ReportColumn[];
+  rows: ReportRow[];
+  view: ReportView;
+  onViewChange: (view: ReportView) => void;
+}) {
   const [editing, setEditing] = useState<number | null>(null);
   const byKey = new Map(columns.map((column) => [column.key, column]));
+  const quick = new Set(quickColumns(columns, view).map((column) => column.key));
   const setConditions = (conditions: Condition[]) => onViewChange({ ...view, conditions });
 
   return (
-    <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+    <>
       {view.conditions.map((condition, index) => {
         const column = byKey.get(condition.column);
-        if (!column) return null;
+        if (!column || (quick.has(column.key) && condition.op === "is")) return null;
         return (
           <Popover key={`${condition.column}-${index}`} open={editing === index} onOpenChange={(open) => setEditing(open ? index : null)}>
-            <span className="inline-flex h-7 items-center rounded-full border border-[var(--border)] bg-[var(--surface)] text-[12px] font-medium text-[var(--text)]">
-              <PopoverTrigger asChild>
-                <button type="button" className="max-w-[18rem] truncate pl-2.5 pr-1 hover:underline">
-                  {describeCondition(condition, column)}
-                </button>
-              </PopoverTrigger>
-              <button
-                type="button"
-                aria-label={`Remove ${describeCondition(condition, column)}`}
-                onClick={() => setConditions(view.conditions.filter((_, at) => at !== index))}
-                className="mr-1 flex size-5 items-center justify-center rounded-full text-[var(--text-subtle)] hover:bg-[var(--canvas)] hover:text-[var(--text)]"
-              >
-                <X className="size-3" />
-              </button>
-            </span>
+            <PopoverTrigger asChild>
+              <Chip set>{describeCondition(condition, column)}</Chip>
+            </PopoverTrigger>
             <PopoverContent align="start" className="w-80 p-3">
               <ConditionEditor
                 columns={columns}
@@ -262,26 +330,42 @@ export function ReportFilters({
           </Popover>
         );
       })}
+    </>
+  );
+}
 
-      <Popover open={adding} onOpenChange={setAdding}>
-        <PopoverTrigger asChild>
-          <Button variant="secondary" size="sm">
-            {view.conditions.length ? <Plus className="size-4" aria-hidden="true" /> : <Funnel className="size-4" aria-hidden="true" />}
-            {view.conditions.length ? "Add filter" : "Filter"}
-          </Button>
-        </PopoverTrigger>
-        <PopoverContent align="start" className="w-80 p-3">
-          <ConditionEditor
-            columns={columns}
-            rows={rows}
-            initial={null}
-            onApply={(condition) => {
-              setConditions([...view.conditions, condition]);
-              setAdding(false);
-            }}
-          />
-        </PopoverContent>
-      </Popover>
-    </div>
+/** Filters: add a filter on any column. Its count is how many are set. */
+export function FiltersButton({
+  columns,
+  rows,
+  view,
+  onViewChange,
+}: {
+  columns: ReportColumn[];
+  rows: ReportRow[];
+  view: ReportView;
+  onViewChange: (view: ReportView) => void;
+}) {
+  const [adding, setAdding] = useState(false);
+  return (
+    <Popover open={adding} onOpenChange={setAdding}>
+      <PopoverTrigger asChild>
+        <KitButton icon="filter">
+          Filters
+          {view.conditions.length ? <span className="count">{view.conditions.length}</span> : null}
+        </KitButton>
+      </PopoverTrigger>
+      <PopoverContent align="start" className="w-80 p-3">
+        <ConditionEditor
+          columns={columns}
+          rows={rows}
+          initial={null}
+          onApply={(condition) => {
+            onViewChange({ ...view, conditions: [...view.conditions, condition] });
+            setAdding(false);
+          }}
+        />
+      </PopoverContent>
+    </Popover>
   );
 }

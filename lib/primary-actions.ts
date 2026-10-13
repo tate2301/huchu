@@ -70,7 +70,7 @@ const PRODUCT_PRIMARY_ACTIONS: Record<VerticalProductId, NavItem[]> = {
     { href: "/crm/clients", icon: Users, label: "New Client" },
     { href: "/crm/appointments", icon: Calendar, label: "Book Site Visit" },
     { href: "/crm/follow-ups", icon: ClipboardList, label: "Follow-ups" },
-    { href: "/crm/insights", icon: BarChart3, label: "Insights" },
+    { href: "/reports/insights/sales", icon: BarChart3, label: "Insights" },
   ],
   "service-workshop": [
     { href: "/maintenance/breakdown", icon: ReportProblem, label: "Log Breakdown" },

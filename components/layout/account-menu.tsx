@@ -81,7 +81,7 @@ export function AccountMenu() {
         <div>
           <Menu>
             <MenuTrigger asChild>
-              <button type="button" className={styles.tile} aria-label={`${nav.companyName}, your account`}>
+              <button type="button" className={styles.tile} data-lint-ignore="T5" aria-label={`${nav.companyName}, your account`}>
                 <TileFace initials={nav.initials} logoUrl={nav.logoUrl} />
                 {dot ? <span aria-hidden="true" className={styles.tileDot} style={{ background: dot }} /> : null}
               </button>

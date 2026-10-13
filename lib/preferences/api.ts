@@ -73,6 +73,12 @@ export type BillingPreferences = {
     maxUsers?: number | null;
   };
   health: SubscriptionHealth;
+  /** The catalogue's priced add-ons this workspace does not have. */
+  available: Array<{ code: string; name: string; description: string; monthlyPrice: number }>;
+  /** What each product line is, in the catalogue's words, by its code. */
+  details: Record<string, string>;
+  /** Vane's jobs this month, for the Core modules row. */
+  vane: { jobsThisMonth: number; monthlyAllowance: number };
   payments: {
     onlinePaymentsSupported: false;
     methods: string[];

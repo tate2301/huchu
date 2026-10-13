@@ -9,7 +9,13 @@ import { MobileNav } from "@/components/layout/mobile-nav";
 import { PageChromeProvider } from "@/components/layout/page-chrome";
 import { PageHeader } from "@/components/layout/page-header";
 import { RoleRefusal } from "@/components/layout/role-refusal";
-import { ShellNavProvider, useShellNav, type ShopConditions, type WorkspaceBrand } from "@/components/layout/shell-nav";
+import {
+  ShellNavProvider,
+  useShellNav,
+  WorkspaceBrandContext,
+  type ShopConditions,
+  type WorkspaceBrand,
+} from "@/components/layout/shell-nav";
 import { ShellProvider, useShell } from "@/components/layout/shell-state";
 import { OnboardingProvider } from "@/components/onboarding/onboarding-provider";
 import { isPublicPath } from "@/lib/public-routes";
@@ -18,6 +24,7 @@ import { isSettingsSurfacePath } from "@/lib/settings/management-nav";
 import { RecordPeekProvider } from "@/components/records/record-peek";
 import { RecordTrailProvider } from "@/components/records/record-trail";
 import { SheetHost } from "@/components/sheet-form/sheet-host";
+import { VanePanel } from "@/components/vane/vane-panel";
 
 /**
  * The shell every signed-in page sits in (00-foundations 5.3.1):
@@ -74,7 +81,11 @@ export function AppShell({
     isSettingsRoute ||
     isCountPhoneRoute
   ) {
-    return <div className="min-h-screen bg-background">{children}</div>;
+    return (
+      <WorkspaceBrandContext.Provider value={workspaceBrand ?? null}>
+        <div className="min-h-screen bg-background">{children}</div>
+      </WorkspaceBrandContext.Provider>
+    );
   }
 
   return (
@@ -104,24 +115,28 @@ function ShellFrame({ children }: { children: React.ReactNode }) {
       <SheetHost />
       <div className="flex min-w-0 flex-1 flex-col bg-[var(--surface)]">
         <PageHeader />
-        <main className="content-shell min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain [touch-action:pan-y] pb-[env(safe-area-inset-bottom)]">
-          {/* Both live above the page: the trail has to survive the navigation
-              it is recording, and the peek renders over the page it was
-              opened from. */}
-          <RecordTrailProvider>
-            <RecordPeekProvider>
-              <OnboardingProvider>
-                {/* The air under the header for pages not yet on a frame.
-                    Padding on `main` would move the scrollport edge every
-                    sticky band pins to, so it is a wrapper instead; full-bleed
-                    bands cancel it (`globals.css`). */}
-                <div className="pt-[var(--content-lede)]">
-                  {pending ? null : refused ? <RoleRefusal /> : children}
-                </div>
-              </OnboardingProvider>
-            </RecordPeekProvider>
-          </RecordTrailProvider>
-        </main>
+        {/* Vane sits beside the page, under the top bar, as the boards draw it. */}
+        <div className="flex min-h-0 min-w-0 flex-1">
+          <main className="content-shell min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain [touch-action:pan-y] pb-[env(safe-area-inset-bottom)]">
+            {/* Both live above the page: the trail has to survive the navigation
+                it is recording, and the peek renders over the page it was
+                opened from. */}
+            <RecordTrailProvider>
+              <RecordPeekProvider>
+                <OnboardingProvider>
+                  {/* The air under the header for pages not yet on a frame.
+                      Padding on `main` would move the scrollport edge every
+                      sticky band pins to, so it is a wrapper instead; full-bleed
+                      bands cancel it (`globals.css`). */}
+                  <div className="pt-[var(--content-lede)]">
+                    {pending ? null : refused ? <RoleRefusal /> : children}
+                  </div>
+                </OnboardingProvider>
+              </RecordPeekProvider>
+            </RecordTrailProvider>
+          </main>
+          <VanePanel />
+        </div>
       </div>
     </div>
   );

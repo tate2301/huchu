@@ -69,16 +69,16 @@ export type RoleToken = (typeof ROLE_TOKENS)[number];
 
 export type Product = "retail" | "corelith";
 
-export type ThemeName = "corelith" | "tender" | "tender-dark";
+export type ThemeName = "corelith" | "corelith-dark" | "tender" | "tender-dark";
 
-export const THEME_NAMES: readonly ThemeName[] = ["corelith", "tender", "tender-dark"];
+export const THEME_NAMES: readonly ThemeName[] = ["corelith", "corelith-dark", "tender", "tender-dark"];
 
 export type ProductThemes = { light: ThemeName; dark: ThemeName | null };
 
 /** A product's light theme, and its dark one when it has one. */
 export const PRODUCT_THEMES: Record<Product, ProductThemes> = {
   retail: { light: "tender", dark: "tender-dark" },
-  corelith: { light: "corelith", dark: null },
+  corelith: { light: "corelith", dark: "corelith-dark" },
 };
 
 /**
@@ -95,7 +95,7 @@ export function themesForProduct(product: Product): ProductThemes {
 
 /** The browser bar's colour: the product's page ground. */
 export function themeColorForProduct(product: Product): string {
-  return product === "retail" ? "#faf7f4" : "#f6f7f9";
+  return product === "retail" ? "#faf7f4" : "#faf9f8";
 }
 
 /** A person's choice on Appearance. Kept on the device, never on the server. */

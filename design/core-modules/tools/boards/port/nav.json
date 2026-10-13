@@ -1,0 +1,1171 @@
+{
+ "M": {
+  "books": {
+   "title": "Books",
+   "items": [
+    [
+     "Overview",
+     "home"
+    ],
+    [
+     "Invoices",
+     "receipt",
+     "5"
+    ],
+    [
+     "Bills",
+     "package",
+     "2"
+    ],
+    [
+     "Journals",
+     "fileCheck",
+     "2"
+    ],
+    [
+     "VAT returns",
+     "coins",
+     "1"
+    ],
+    [
+     "Periods",
+     "calendar"
+    ]
+   ],
+   "groups": [
+    {
+     "head": "Receivables",
+     "open": true,
+     "items": [
+      [
+       "Receipts",
+       "money"
+      ],
+      [
+       "Credit notes",
+       "file"
+      ],
+      [
+       "Customers",
+       "users"
+      ],
+      [
+       "Statements",
+       "list"
+      ]
+     ]
+    },
+    {
+     "head": "Payables",
+     "items": [
+      [
+       "Payments",
+       "wallet"
+      ],
+      [
+       "Debit notes",
+       "file"
+      ],
+      [
+       "Suppliers",
+       "truck"
+      ]
+     ]
+    },
+    {
+     "head": "Ledger",
+     "items": [
+      [
+       "Chart of accounts",
+       "table"
+      ],
+      [
+       "Posting rules",
+       "checklist",
+       "3"
+      ],
+      [
+       "Fiscalisation",
+       "printer",
+       "1"
+      ],
+      [
+       "Tax codes",
+       "hash"
+      ]
+     ]
+    },
+    {
+     "head": "Reports",
+     "open": true,
+     "items": [
+      [
+       "Profit and loss",
+       "barChart"
+      ],
+      [
+       "Balance sheet",
+       "scale"
+      ],
+      [
+       "Trial balance",
+       "scale"
+      ],
+      [
+       "Ageing",
+       "clock"
+      ]
+     ]
+    }
+   ]
+  },
+  "people": {
+   "title": "People",
+   "items": [
+    [
+     "Employees",
+     "users",
+     "9"
+    ],
+    [
+     "Leave",
+     "sun",
+     "2"
+    ],
+    [
+     "Attendance",
+     "checklist"
+    ],
+    [
+     "Rosters",
+     "calendar"
+    ],
+    [
+     "Incidents",
+     "warning",
+     "1"
+    ],
+    [
+     "History",
+     "clock"
+    ]
+   ],
+   "groups": [
+    {
+     "head": "Payroll",
+     "items": [
+      [
+       "Pay runs",
+       "receipt",
+       "1"
+      ],
+      [
+       "Disbursements",
+       "money"
+      ],
+      [
+       "Salaries",
+       "wallet"
+      ],
+      [
+       "Outstanding",
+       "coins",
+       "2"
+      ],
+      [
+       "Compensation rules",
+       "sliders"
+      ],
+      [
+       "Statutory returns",
+       "fileCheck"
+      ]
+     ]
+    },
+    {
+     "head": "Departments",
+     "open": true,
+     "items": [
+      [
+       "Fitting",
+       null,
+       "5"
+      ],
+      [
+       "Showroom",
+       null,
+       "2"
+      ],
+      [
+       "Office",
+       null,
+       "1"
+      ],
+      [
+       "Management",
+       null,
+       "1"
+      ]
+     ]
+    },
+    {
+     "head": "Reports from People",
+     "items": [
+      [
+       "Payroll cost by department",
+       "barChart"
+      ],
+      [
+       "Leave taken this year",
+       "barChart"
+      ]
+     ]
+    }
+   ]
+  },
+  "build": {
+   "title": "Build",
+   "items": [
+    [
+     "Everything",
+     "grid4",
+     "17"
+    ],
+    [
+     "Forms",
+     "clipboard",
+     "3"
+    ],
+    [
+     "Documents",
+     "file",
+     "7"
+    ],
+    [
+     "Emails",
+     "send",
+     "4"
+    ],
+    [
+     "Reports",
+     "barChart",
+     "3"
+    ]
+   ],
+   "groups": [
+    {
+     "head": "Templates",
+     "open": true,
+     "items": [
+      [
+       "From Corelith",
+       "fileCheck",
+       "24"
+      ],
+      [
+       "Made here",
+       "pencil",
+       "6"
+      ],
+      [
+       "Retired",
+       "package",
+       "2"
+      ]
+     ]
+    },
+    {
+     "head": "Used by",
+     "open": true,
+     "items": [
+      [
+       "Books",
+       "wallet",
+       "5"
+      ],
+      [
+       "People and payroll",
+       "user",
+       "3"
+      ],
+      [
+       "CRM",
+       "funnel",
+       "6"
+      ],
+      [
+       "Tender",
+       "storefront",
+       "3"
+      ]
+     ]
+    }
+   ]
+  },
+  "reports": {
+   "title": "Reports",
+   "items": [
+    [
+     "Overview",
+     "dashboard"
+    ],
+    [
+     "All reports",
+     "list",
+     "34"
+    ],
+    [
+     "From Corelith",
+     "fileCheck",
+     "29"
+    ],
+    [
+     "Shared with you",
+     "users",
+     "3"
+    ],
+    [
+     "Yours",
+     "user",
+     "2"
+    ]
+   ],
+   "groups": [
+    {
+     "head": "Insights",
+     "open": true,
+     "items": [
+      [
+       "Sales",
+       "funnel"
+      ],
+      [
+       "Site visits",
+       "calendar"
+      ],
+      [
+       "Team",
+       "users"
+      ]
+     ]
+    },
+    {
+     "head": "Areas",
+     "open": true,
+     "items": [
+      [
+       "Sales and delivery",
+       "funnel",
+       "12"
+      ],
+      [
+       "Money in people’s hands",
+       "wallet",
+       "2"
+      ],
+      [
+       "Pay",
+       "receipt",
+       "4"
+      ],
+      [
+       "People",
+       "user",
+       "3"
+      ],
+      [
+       "Books",
+       "wallet",
+       "8"
+      ]
+     ]
+    }
+   ]
+  },
+  "retailReports": {
+   "title": "Reports",
+   "items": [
+    [
+     "Overview",
+     "dashboard"
+    ],
+    [
+     "All reports",
+     "list",
+     "33"
+    ],
+    [
+     "From Corelith",
+     "fileCheck",
+     "28"
+    ],
+    [
+     "Shared with you",
+     "users",
+     "4"
+    ],
+    [
+     "Yours",
+     "user",
+     "1"
+    ]
+   ],
+   "groups": [
+    {
+     "head": "Insights",
+     "open": true,
+     "items": [
+      [
+       "Sales",
+       "receipt"
+      ],
+      [
+       "Profit",
+       "coins"
+      ],
+      [
+       "Products",
+       "tag"
+      ],
+      [
+       "Stock health",
+       "stack"
+      ],
+      [
+       "Losses",
+       "warning"
+      ],
+      [
+       "Customers",
+       "users"
+      ],
+      [
+       "Money",
+       "money"
+      ]
+     ]
+    },
+    {
+     "head": "Areas",
+     "open": true,
+     "items": [
+      [
+       "Selling",
+       "receipt",
+       "2"
+      ],
+      [
+       "Stock",
+       "stack",
+       "4"
+      ],
+      [
+       "Buying",
+       "tray",
+       "2"
+      ],
+      [
+       "Customers",
+       "users",
+       "2"
+      ],
+      [
+       "Money",
+       "money",
+       "1"
+      ],
+      [
+       "The floor",
+       "cashRegister",
+       "2"
+      ],
+      [
+       "Pay",
+       "receipt",
+       "4"
+      ],
+      [
+       "People",
+       "user",
+       "3"
+      ],
+      [
+       "Books",
+       "wallet",
+       "8"
+      ]
+     ]
+    }
+   ]
+  },
+  "schoolReports": {
+   "title": "Reports",
+   "items": [
+    [
+     "Overview",
+     "dashboard"
+    ],
+    [
+     "All reports",
+     "list",
+     "25"
+    ],
+    [
+     "From Corelith",
+     "fileCheck",
+     "22"
+    ],
+    [
+     "Shared with you",
+     "users",
+     "2"
+    ],
+    [
+     "Yours",
+     "user",
+     "1"
+    ]
+   ],
+   "groups": [
+    {
+     "head": "Insights",
+     "open": true,
+     "items": [
+      [
+       "Fees",
+       "money"
+      ],
+      [
+       "Attendance",
+       "checklist"
+      ],
+      [
+       "Enrolment",
+       "users"
+      ],
+      [
+       "Boarding",
+       "bed"
+      ]
+     ]
+    },
+    {
+     "head": "Areas",
+     "open": true,
+     "items": [
+      [
+       "Fees",
+       "money",
+       "4"
+      ],
+      [
+       "The school day",
+       "sun",
+       "2"
+      ],
+      [
+       "Pupils",
+       "users",
+       "1"
+      ],
+      [
+       "Pay",
+       "receipt",
+       "4"
+      ],
+      [
+       "People",
+       "user",
+       "3"
+      ],
+      [
+       "Books",
+       "wallet",
+       "8"
+      ]
+     ]
+    }
+   ]
+  },
+  "mineReports": {
+   "title": "Reports",
+   "items": [
+    [
+     "Overview",
+     "dashboard"
+    ],
+    [
+     "All reports",
+     "list",
+     "35"
+    ],
+    [
+     "From Corelith",
+     "fileCheck",
+     "31"
+    ],
+    [
+     "Shared with you",
+     "users",
+     "3"
+    ],
+    [
+     "Yours",
+     "user",
+     "1"
+    ]
+   ],
+   "groups": [
+    {
+     "head": "Insights",
+     "open": true,
+     "items": [
+      [
+       "Production",
+       "factory"
+      ],
+      [
+       "Downtime",
+       "clock"
+      ],
+      [
+       "Gold",
+       "medal"
+      ],
+      [
+       "Stores",
+       "stack"
+      ]
+     ]
+    },
+    {
+     "head": "Areas",
+     "open": true,
+     "items": [
+      [
+       "Production",
+       "factory",
+       "6"
+      ],
+      [
+       "Gold",
+       "medal",
+       "3"
+      ],
+      [
+       "Stores and maintenance",
+       "wrench",
+       "5"
+      ],
+      [
+       "Safety and audit",
+       "shield",
+       "2"
+      ],
+      [
+       "Pay",
+       "receipt",
+       "4"
+      ],
+      [
+       "People",
+       "user",
+       "3"
+      ],
+      [
+       "Books",
+       "wallet",
+       "8"
+      ]
+     ]
+    }
+   ]
+  },
+  "payReports": {
+   "title": "Reports",
+   "items": [
+    [
+     "Overview",
+     "dashboard"
+    ],
+    [
+     "All reports",
+     "list",
+     "16"
+    ],
+    [
+     "From Corelith",
+     "fileCheck",
+     "15"
+    ],
+    [
+     "Shared with you",
+     "users",
+     "1"
+    ],
+    [
+     "Yours",
+     "user",
+     "0"
+    ]
+   ],
+   "groups": [
+    {
+     "head": "Insights",
+     "open": true,
+     "items": [
+      [
+       "Pay cost",
+       "coins"
+      ],
+      [
+       "Statutory",
+       "fileCheck"
+      ]
+     ]
+    },
+    {
+     "head": "Areas",
+     "open": true,
+     "items": [
+      [
+       "Pay",
+       "receipt",
+       "4"
+      ],
+      [
+       "People",
+       "user",
+       "3"
+      ],
+      [
+       "Books",
+       "wallet",
+       "8"
+      ]
+     ]
+    }
+   ]
+  },
+  "shopReports": {
+   "title": "Reports",
+   "items": [
+    [
+     "Overview",
+     "dashboard"
+    ],
+    [
+     "All reports",
+     "list",
+     "23"
+    ],
+    [
+     "From Corelith",
+     "fileCheck",
+     "22"
+    ],
+    [
+     "Shared with you",
+     "users",
+     "1"
+    ],
+    [
+     "Yours",
+     "user",
+     "0"
+    ]
+   ],
+   "groups": [
+    {
+     "head": "Insights",
+     "open": true,
+     "items": [
+      [
+       "Equipment",
+       "wrench"
+      ],
+      [
+       "Stores",
+       "stack"
+      ]
+     ]
+    },
+    {
+     "head": "Areas",
+     "open": true,
+     "items": [
+      [
+       "Stores and maintenance",
+       "wrench",
+       "5"
+      ],
+      [
+       "Safety and audit",
+       "shield",
+       "2"
+      ],
+      [
+       "Pay",
+       "receipt",
+       "4"
+      ],
+      [
+       "People",
+       "user",
+       "3"
+      ],
+      [
+       "Books",
+       "wallet",
+       "8"
+      ]
+     ]
+    }
+   ]
+  },
+  "vane": {
+   "title": "Vane",
+   "items": [
+    [
+     "For you",
+     "pin",
+     "6"
+    ],
+    [
+     "Working on",
+     "spinner",
+     "2"
+    ],
+    [
+     "Plans",
+     "list",
+     "2"
+    ],
+    [
+     "Done",
+     "check",
+     "14 today"
+    ],
+    [
+     "Muted",
+     "bell",
+     "3"
+    ]
+   ],
+   "groups": [
+    {
+     "head": "Watching",
+     "open": true,
+     "items": [
+      [
+       "Books",
+       "wallet"
+      ],
+      [
+       "Pipeline",
+       "funnel"
+      ],
+      [
+       "Site visits",
+       "calendar"
+      ],
+      [
+       "Showroom",
+       "storefront"
+      ],
+      [
+       "People and pay",
+       "user"
+      ],
+      [
+       "Reports",
+       "barChart"
+      ],
+      [
+       "Build",
+       "clipboard"
+      ]
+     ]
+    }
+   ]
+  }
+ },
+ "V": {
+  "crm": {
+   "workspace": "Floorcode",
+   "initials": "FC",
+   "items": [
+    [
+     "pipeline",
+     "Pipeline",
+     "funnel"
+    ],
+    [
+     "visits",
+     "Site visits",
+     "calendar"
+    ],
+    [
+     "showroom",
+     "Showroom",
+     "storefront"
+    ],
+    [
+     "books",
+     "Books",
+     "wallet"
+    ],
+    [
+     "people",
+     "People",
+     "user"
+    ],
+    [
+     "reports",
+     "Reports",
+     "barChart"
+    ],
+    [
+     "explore",
+     "Explore",
+     "explore"
+    ],
+    [
+     "build",
+     "Build",
+     "clipboard"
+    ]
+   ]
+  },
+  "retail": {
+   "workspace": "Avondale Bottle Store",
+   "initials": "AB",
+   "items": [
+    [
+     "floor",
+     "The floor",
+     "storefront"
+    ],
+    [
+     "products",
+     "Products",
+     "tag"
+    ],
+    [
+     "stock",
+     "Stock",
+     "stack"
+    ],
+    [
+     "buying",
+     "Buying",
+     "tray"
+    ],
+    [
+     "books",
+     "Books",
+     "wallet"
+    ],
+    [
+     "people",
+     "People",
+     "user"
+    ],
+    [
+     "reports",
+     "Reports",
+     "barChart"
+    ],
+    [
+     "explore",
+     "Explore",
+     "explore"
+    ],
+    [
+     "build",
+     "Build",
+     "clipboard"
+    ]
+   ]
+  },
+  "schools": {
+   "workspace": "Mazowe High",
+   "initials": "MH",
+   "items": [
+    [
+     "pupils",
+     "Pupils",
+     "users"
+    ],
+    [
+     "today",
+     "Today",
+     "sun"
+    ],
+    [
+     "fees",
+     "Fees",
+     "money"
+    ],
+    [
+     "books",
+     "Books",
+     "wallet"
+    ],
+    [
+     "people",
+     "Staff",
+     "user"
+    ],
+    [
+     "reports",
+     "Reports",
+     "barChart"
+    ],
+    [
+     "explore",
+     "Explore",
+     "explore"
+    ],
+    [
+     "build",
+     "Build",
+     "clipboard"
+    ]
+   ]
+  },
+  "mine": {
+   "workspace": "Shamva Gold",
+   "initials": "SG",
+   "items": [
+    [
+     "today",
+     "Today",
+     "sun"
+    ],
+    [
+     "gold",
+     "Gold",
+     "medal"
+    ],
+    [
+     "stores",
+     "Stores",
+     "stack"
+    ],
+    [
+     "maintenance",
+     "Maintenance",
+     "wrench"
+    ],
+    [
+     "safety",
+     "Safety",
+     "shield"
+    ],
+    [
+     "books",
+     "Books",
+     "wallet"
+    ],
+    [
+     "people",
+     "People",
+     "user"
+    ],
+    [
+     "reports",
+     "Reports",
+     "barChart"
+    ],
+    [
+     "explore",
+     "Explore",
+     "explore"
+    ],
+    [
+     "build",
+     "Build",
+     "clipboard"
+    ]
+   ]
+  },
+  "payroll": {
+   "workspace": "Chando Logistics",
+   "initials": "CL",
+   "items": [
+    [
+     "payroll",
+     "Payroll",
+     "receipt"
+    ],
+    [
+     "people",
+     "People",
+     "user"
+    ],
+    [
+     "books",
+     "Books",
+     "wallet"
+    ],
+    [
+     "reports",
+     "Reports",
+     "barChart"
+    ],
+    [
+     "explore",
+     "Explore",
+     "explore"
+    ],
+    [
+     "build",
+     "Build",
+     "clipboard"
+    ]
+   ]
+  },
+  "workshop": {
+   "workspace": "Msasa Plant Hire",
+   "initials": "MP",
+   "items": [
+    [
+     "maintenance",
+     "Maintenance",
+     "wrench"
+    ],
+    [
+     "stores",
+     "Stores",
+     "stack"
+    ],
+    [
+     "books",
+     "Books",
+     "wallet"
+    ],
+    [
+     "people",
+     "People",
+     "user"
+    ],
+    [
+     "reports",
+     "Reports",
+     "barChart"
+    ],
+    [
+     "explore",
+     "Explore",
+     "explore"
+    ],
+    [
+     "build",
+     "Build",
+     "clipboard"
+    ]
+   ]
+  }
+ }
+}
