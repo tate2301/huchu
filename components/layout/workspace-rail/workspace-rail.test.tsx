@@ -106,8 +106,8 @@ describe("WorkspaceRail (00-foundations 5.3.2–5.3.3, 98-decisions 5 October)",
     const html = render();
     expect(html).toContain('<nav aria-label="The floor"');
     expect(html).toContain('aria-label="Back to Retail"');
-    expect(html).toContain('aria-label="Collapse the panel"');
-    expect(html.indexOf('aria-label="Back to Retail"')).toBeLessThan(html.indexOf('aria-label="Collapse the panel"'));
+    expect(html).toContain('aria-label="Hide the panel"');
+    expect(html.indexOf('aria-label="Back to Retail"')).toBeLessThan(html.indexOf('aria-label="Hide the panel"'));
   });
 
   it("lists the module's items with the badge, the current item and a pin each", () => {

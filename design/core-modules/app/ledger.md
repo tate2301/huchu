@@ -34,3 +34,9 @@ Every correction from the owner, newest first. Where his words were written down
 | Switch | Reason |
 |---|---|
 | None | |
+
+## Lint findings silenced in the markup
+
+| Where | Rule | Reason |
+|---|---|---|
+| The workspace tile in the rail (`components/layout/account-menu.tsx`) | T5 | One letter in a square tile; the lint reads the tile's height as a wrapped label. |

@@ -50,3 +50,8 @@
 /* The kit's attribute lists keep the browser's 1em above and below a <dl>, which the app's base
    styles take away; the boards were drawn with it. */
 .ck.ck.ck dl.attrs { margin-block: 1em; }
+
+/* Figures in a table line up: every cell takes tabular figures, not only `.num`. */
+.ck.ck .table td {
+  font-variant-numeric: tabular-nums;
+}

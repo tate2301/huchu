@@ -53,7 +53,7 @@ export function SearchTrigger({ compact = false }: { compact?: boolean }) {
         aria-label="Search everything"
         aria-keyshortcuts="Meta+K Control+K"
         onClick={() => shell.setCommandOpen(true)}
-        className="flex h-8 w-[240px] shrink-0 items-center gap-2 rounded-[6px] border-0 bg-[var(--surface)] px-3 text-left text-[14px] text-[var(--faint)] shadow-[0_0_0_1px_color-mix(in_oklab,var(--ink)_7%,transparent),0_1px_2px_color-mix(in_oklab,var(--ink)_5%,transparent)] hover:shadow-[0_0_0_1px_var(--line-strong)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--action)] max-[1099px]:hidden"
+        className="flex h-8 w-[240px] shrink-0 items-center gap-2 rounded-[6px] border-0 bg-[var(--surface)] px-3 text-left text-[14px] text-[var(--ink-3)] shadow-[0_0_0_1px_color-mix(in_oklab,var(--ink)_7%,transparent),0_1px_2px_color-mix(in_oklab,var(--ink)_5%,transparent)] hover:shadow-[0_0_0_1px_var(--line-strong)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--action)] max-[1099px]:hidden"
       >
         <MagnifyingGlass className="size-4 shrink-0 text-[var(--ink-3)]" aria-hidden="true" />
         <span className="min-w-0 flex-1 truncate">Search everything</span>

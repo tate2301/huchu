@@ -1,6 +1,6 @@
 # Corelith core modules: build brief
 
-You are building the core modules every Corelith workspace gets, whatever vertical it runs: **Reports & Insights**, **Explore**, **Books**, **People and payroll**, **Notifications**, **Build** (one builder for forms, documents, emails, reports and templates), **Branding**, the redesigned **Management**, and **Vane** (Corelith's helper). They go into the existing app in this repository, inside its shell. The design is on the Huchu Core Modules canvas, version 42, and every board of it is in `design/core-modules/boards/`. Make the app match it at desktop and phone width, with real data and real states. Don't redesign, reword or add features. If something in the design looks wrong, write it in `design/core-modules/NOTES.md` and build it as drawn.
+You are building the core modules every Corelith workspace gets, whatever vertical it runs: **Reports & Insights**, **Explore**, **Books**, **People and payroll**, **Notifications**, **Build** (one builder for forms, documents, emails, reports and templates), **Branding**, the redesigned **Management**, and **Vane** (Corelith's helper). They go into the existing app in this repository, inside its shell. The design is on the Huchu Core Modules canvas, version 44, and every board of it is in `design/core-modules/boards/`. Make the app match it at desktop and phone width, with real data and real states. Don't redesign, reword or add features. If something in the design looks wrong, write it in `design/core-modules/NOTES.md` and build it as drawn.
 
 Already on `main`: Vane's connection to Claude (`lib/vane/claude.ts`, `pnpm vane:ping`) and Vane's tables, the `madeByVane` mark and the reader roles (`20261012120000_vane`, `lib/vane/reader-access.ts`, `pnpm vane:reader-sql`). Where the build stands and what comes next: `docs/handover-core-modules.md`.
 
@@ -64,7 +64,20 @@ Add `/design/<slug>` routes (development only) that render each screen with the 
 - At most 1% of pixels may differ (pixelmatch threshold 0.1). Page height within 8 px.
 - Run: `BASE_URL=http://localhost:3000 npx playwright test design/tests`.
 - When a screen fails, open its `html/` file beside your page and fix the difference. Don't change the test or the references.
-- Also run the saas-design lint on the built pages if the plugin is installed (`app-review/scripts/lint.mjs --tokens design/app/tokens.json --rules design/app/rules.json --lexicon design/app/lexicon.json --world design/app/world.json`). Zero blocks.
+- Also run the saas-design lint on the built pages if the plugin is installed (`app-review/scripts/lint.mjs --tokens design/core-modules/app/tokens.json --rules design/core-modules/app/rules.json --lexicon design/core-modules/app/lexicon.json --world design/core-modules/app/world.json`). Zero blocks.
+
+## Building each screen
+
+Follow `BUILD.md`: the route map in `spec/routes.md`, the board outlines (`tools/check/outline.py`), and the check each screen must pass (`tools/check/designcheck.mjs`, 95% or more, clean at 1440 and 390).
+
+To run the saas-design lint here, map the workspace host (`127.0.0.1 floorcode.apps.pagka.local` in `/etc/hosts`), then:
+
+```
+PLAYWRIGHT_PATH=$PWD/node_modules/@playwright/test PLAYWRIGHT_EXECUTABLE=/opt/pw-browsers/chromium \
+  node <saas-design>/skills/app-review/scripts/lint.mjs --tokens design/core-modules/app/tokens.json \
+  --rules design/core-modules/app/rules.json --lexicon design/core-modules/app/lexicon.json \
+  --world design/core-modules/app/world.json --storage <state.json> --json <out.json> <urls>
+```
 
 ## Working rules
 

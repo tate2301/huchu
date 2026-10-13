@@ -1,6 +1,6 @@
 # Huchu core modules: handover
 
-Everything from the Huchu Core Modules canvas (version 42) and the build so far, to carry on with Claude Code locally. 102 boards across 10 pages, the design kit they follow, the saas-design project files, and the next steps.
+Everything from the Huchu Core Modules canvas (version 44) and the build so far, to carry on with Claude Code locally. 102 boards across 10 pages, the design kit they follow, the saas-design project files, and the next steps.
 
 ## Start here
 

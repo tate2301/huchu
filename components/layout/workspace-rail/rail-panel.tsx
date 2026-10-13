@@ -68,7 +68,7 @@ export function RailPanel({
         {onCollapse ? (
           <button
             type="button"
-            aria-label="Collapse the panel"
+            aria-label="Hide the panel"
             aria-keyshortcuts="Meta+B Control+B"
             className={cn(styles.iconButton, styles.collapse)}
             onClick={onCollapse}
