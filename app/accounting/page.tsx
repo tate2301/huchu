@@ -404,7 +404,7 @@ export default function AccountingOverviewPage() {
     push({
       label: "Journals still in draft",
       where: "Journals",
-      href: "/accounting/journals",
+      href: "/books/journals",
       count: accountingSummary?.draftJournals ?? 0,
     });
     push({
@@ -449,7 +449,7 @@ export default function AccountingOverviewPage() {
     push({
       label: "VAT returns to file",
       where: "Tax",
-      href: "/accounting/tax",
+      href: "/books/vat",
       count: accountingSummary?.pendingVatReturns ?? 0,
     });
 
@@ -497,7 +497,7 @@ export default function AccountingOverviewPage() {
     () =>
       (recentJournals?.data ?? []).map((entry) => ({
         id: entry.id,
-        href: `/accounting/journals?entry=${entry.id}`,
+        href: `/books/journals?journal=${entry.id}`,
         cells: [
           txt(`JE-${entry.entryNumber}`, { mono: true, tone: "strong" }),
           nm(entry.description || "No memo"),
@@ -637,7 +637,7 @@ export default function AccountingOverviewPage() {
         */
         <div className="flex items-center gap-2">
           <Button asChild size="sm">
-            <Link href="/accounting/journals?action=new-journal">
+            <Link href="/books/journals?action=new-journal">
               <Plus className="mr-1.5 size-4" />
               New journal
             </Link>
@@ -852,7 +852,7 @@ export default function AccountingOverviewPage() {
           </div>
           <div className="border-t border-[var(--border-subtle)] p-[13px]">
             <Button asChild size="sm" className="w-full">
-              <Link href="/accounting/periods">Run the close checklist</Link>
+              <Link href="/books/periods">Run the close checklist</Link>
             </Button>
           </div>
         </ReportPanel>

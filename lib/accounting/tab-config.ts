@@ -148,7 +148,7 @@ export const ACCOUNTING_TABS: AccountingTabItem[] = [
   {
     id: "journals",
     label: "Journals",
-    href: "/accounting/journals",
+    href: "/books/journals",
     icon: FileCheck,
     featureKey: "accounting.journals",
     categoryId: "core",
@@ -156,7 +156,7 @@ export const ACCOUNTING_TABS: AccountingTabItem[] = [
   {
     id: "periods",
     label: "Periods",
-    href: "/accounting/periods",
+    href: "/books/periods",
     icon: Calendar,
     featureKey: "accounting.periods",
     categoryId: "core",
@@ -205,7 +205,7 @@ export const ACCOUNTING_TABS: AccountingTabItem[] = [
   {
     id: "tax",
     label: "VAT",
-    href: "/accounting/tax",
+    href: "/books/vat",
     icon: ShieldCheck,
     featureKey: "accounting.tax",
     categoryId: "tax-compliance",
@@ -253,24 +253,3 @@ export const ACCOUNTING_TABS: AccountingTabItem[] = [
   },
 ];
 
-export const ACCOUNTING_OPERATIONS_SECTIONS = {
-  // Money replaced the overview as the module's home; /accounting is still there by its address.
-  overview: ["/books", "/books/invoices", "/books/bank"],
-  // The ledgers people work in. The two summaries moved to `reporting`.
-  receivables: ["/accounting/sales"],
-  payables: ["/accounting/purchases"],
-  reporting: [
-    "/accounting/financial-reports",
-    "/accounting/trial-balance",
-    "/accounting/receivables",
-    "/accounting/payables",
-  ],
-  master: [
-    "/accounting/chart-of-accounts",
-    "/accounting/periods",
-    "/accounting/journals",
-    "/accounting/posting-rules",
-    "/accounting/tax",
-    "/accounting/fiscalisation",
-  ],
-} as const;

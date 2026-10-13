@@ -127,14 +127,14 @@ export async function readClose(db: Db, companyId: string, now = new Date()): Pr
         label: "All journals posted",
         state: drafts.length === 0 ? "done" : "open",
         note: drafts.length === 0 ? "Every journal is posted" : `${drafts.length} still in draft, ${money(draftTotal)}`,
-        action: drafts.length === 0 ? null : { label: "Journals", href: "/accounting/journals?tab=draft" },
+        action: drafts.length === 0 ? null : { label: "Journals", href: "/books/journals?tab=draft" },
       },
       {
         key: "vat",
         label: "VAT return prepared",
         state: vatReady ? "done" : "open",
         note: vatReady ? `${vatWord}${vatDay ? `, ${shortDay(storedDay(vatDay))}` : ""}` : vat ? "In draft, not reviewed" : "Not prepared",
-        action: vatReady ? null : { label: "VAT", href: "/accounting/tax" },
+        action: vatReady ? null : { label: "VAT", href: "/books/vat" },
       },
       {
         key: "fiscal",

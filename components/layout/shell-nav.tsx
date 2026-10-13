@@ -40,6 +40,8 @@ export type WorkspaceBrand = {
 export type ShopConditions = Partial<Record<RetailNavCondition, boolean>>;
 
 export const NAV_BADGES_KEY = ["nav-badges"] as const;
+/** Books' row figures (`GET /api/books/nav`), under the same key so a change refreshes both. */
+const BOOKS_BADGES_KEY = [...NAV_BADGES_KEY, "books"] as const;
 
 const NO_BADGES: Record<string, string> = {};
 
@@ -157,12 +159,26 @@ export function ShellNavProvider({
     refetchOnWindowFocus: true,
   });
 
+  const hasBooks = built.sections.some((section) => section.items.some((item) => item.href.startsWith("/books")));
+  const booksQuery = useQuery({
+    queryKey: BOOKS_BADGES_KEY,
+    queryFn: () => fetchJson<{ badges: Record<string, string> }>("/api/books/nav"),
+    enabled: hasBooks,
+    staleTime: 60_000,
+    refetchOnWindowFocus: true,
+  });
+
   // The query cache outlives the page (it is persisted for offline use), so
   // what it holds is read after hydration rather than diverging from the
   // server's HTML: until then the panel draws the facts the server found.
   const mounted = React.useSyncExternalStore(noopSubscribe, () => true, () => false);
   const conditions = (mounted ? badgesQuery.data?.conditions : undefined) ?? shopConditions;
-  const badges = (mounted && badgesQuery.data?.badges) || NO_BADGES;
+  const retailBadges = mounted ? badgesQuery.data?.badges : undefined;
+  const booksBadges = mounted ? booksQuery.data?.badges : undefined;
+  const badges = React.useMemo(
+    () => (retailBadges || booksBadges ? { ...retailBadges, ...booksBadges } : NO_BADGES),
+    [booksBadges, retailBadges],
+  );
 
   // An item whose shop condition does not hold is not drawn for anyone; one
   // that waits on a badge is not drawn without it.
@@ -215,13 +231,13 @@ export function ShellNavProvider({
   );
 
   React.useEffect(() => {
-    if (!hasRetail) return;
+    if (!hasRetail && !hasBooks) return;
     return queryClient.getMutationCache().subscribe((event) => {
       if (event.type === "updated" && event.action.type === "success") {
         void queryClient.invalidateQueries({ queryKey: NAV_BADGES_KEY });
       }
     });
-  }, [hasRetail, queryClient]);
+  }, [hasBooks, hasRetail, queryClient]);
 
   const companyName = brand?.name ?? model.workspaceLabel;
   const value = React.useMemo<ShellNav>(

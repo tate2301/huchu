@@ -283,7 +283,7 @@ export default function FinancialReportsHomePage() {
       },
       {
         id: "vat",
-        href: "/accounting/tax",
+        href: "/books/vat",
         cells: [nm("VAT return"), txt(periodLabel, { tone: "subtle" }), txt("ZIMRA")],
       },
     ],
@@ -302,7 +302,7 @@ export default function FinancialReportsHomePage() {
             { label: "Balance sheet", icon: Scale, href: "/accounting/financial-statements" },
             { label: "Cash flow", icon: Wallet, href: "/accounting/financial-statements" },
             { label: "Trial balance", icon: Coins, href: "/accounting/trial-balance" },
-            { label: "VAT return", icon: Percent, href: "/accounting/tax" },
+            { label: "VAT return", icon: Percent, href: "/books/vat" },
           ]}
         />
       }

@@ -215,7 +215,7 @@ test.describe("finance", () => {
   journey("accounting — the books", "accounting", "the-books", [
     { path: "/accounting", name: "overview" },
     { path: "/accounting/chart-of-accounts", name: "chart-of-accounts" },
-    { path: "/accounting/journals", name: "journals" },
+    { path: "/books/journals", name: "journals" },
     { path: "/accounting/trial-balance", name: "trial-balance" },
     { path: "/accounting/financial-statements", name: "financial-statements" },
   ]);

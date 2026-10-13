@@ -55,6 +55,10 @@ import {
   Work,
   Wrench,
   Zap,
+  CreditCard,
+  ListBullets,
+  QrCode,
+  ShoppingBag,
   type LucideIcon,
 } from "@/lib/icons";
 import { PEOPLE_TABS } from "@/lib/people/tab-config";
@@ -849,13 +853,37 @@ export const navSections: NavSection[] = [
     title: "Books",
     description: "Money in, owed, the bank and VAT",
     featureKey: "accounting.core",
+    // The boards' panel (design/core-modules, BooksInvoices, PageBooksJournals):
+    // the seven places money is worked on, then the ledger, then every other
+    // accounting page the module already had under More. Bands in the panel,
+    // never marks of their own in the rail.
+    panelGroups: true,
+    groups: [
+      { id: "ledger", label: "Ledger" },
+      { id: "more", label: "More", trailing: true },
+    ],
     items: [
-      { href: "/books", icon: Wallet, label: "Money" },
+      { href: "/books", icon: Home, label: "Money" },
       { href: "/books/invoices", icon: ReceiptLong, label: "Invoices" },
-      { href: "/books/bank", icon: Scale, label: "Bank" },
-      { href: "/accounting/receivables", icon: ReceiptLong, label: "Receivables" },
-      { href: "/accounting/payables", icon: PackageCheck, label: "Payables" },
-      { href: "/accounting/financial-reports", icon: BarChart3, label: "Financial Reports" },
+      { href: "/books/payments", icon: Payments, label: "Payments" },
+      // The tills' takings, counted and banked at the end of the day.
+      { href: "/retail/end-of-day", icon: ShoppingBag, label: "Takings", requires: [["retail.end-of-day", "view"]] },
+      { href: "/books/expenses", icon: Wallet, label: "Expenses" },
+      { href: "/books/bank", icon: CreditCard, label: "Bank" },
+      { href: "/books/vat", icon: Coins, label: "VAT" },
+
+      { href: "/books/journals", icon: Scale, label: "Journals", group: "ledger" },
+      { href: "/books/periods", icon: Calendar, label: "Periods", group: "ledger" },
+      { href: "/accounting/chart-of-accounts", icon: ListBullets, label: "Chart of accounts", group: "ledger" },
+
+      { href: "/accounting/sales", icon: ReceiptLong, label: "Receivables", group: "more" },
+      { href: "/accounting/purchases", icon: PackageCheck, label: "Payables", group: "more" },
+      { href: "/accounting/financial-reports", icon: BarChart3, label: "Financial reports", group: "more" },
+      { href: "/accounting/trial-balance", icon: BarChart3, label: "Trial balance", group: "more" },
+      { href: "/accounting/receivables", icon: BarChart3, label: "Receivables report", group: "more" },
+      { href: "/accounting/payables", icon: BarChart3, label: "Payables report", group: "more" },
+      { href: "/accounting/posting-rules", icon: Checklist, label: "Posting rules", group: "more" },
+      { href: "/accounting/fiscalisation", icon: QrCode, label: "Fiscalisation", group: "more" },
     ],
   },
   {
