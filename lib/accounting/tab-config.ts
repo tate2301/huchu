@@ -204,7 +204,7 @@ export const ACCOUNTING_TABS: AccountingTabItem[] = [
   // ACCOUNTING_TABS.
   {
     id: "tax",
-    label: "Tax",
+    label: "VAT",
     href: "/accounting/tax",
     icon: ShieldCheck,
     featureKey: "accounting.tax",

@@ -340,6 +340,9 @@ export const API_FEATURE_ROUTES: FeatureRouteEntry[] = [
 
   { scope: "api", prefix: "/api/books/invoices", featureKey: "accounting.ar" },
   { scope: "api", prefix: "/api/books/bank", featureKey: "accounting.banking" },
+  { scope: "api", prefix: "/api/books/journals", featureKey: "accounting.journals" },
+  { scope: "api", prefix: "/api/books/vat", featureKey: "accounting.tax" },
+  { scope: "api", prefix: "/api/books/close", featureKey: "accounting.periods" },
   { scope: "api", prefix: "/api/books", featureKey: "accounting.core" },
   { scope: "api", prefix: "/api/accounting/coa", featureKey: "accounting.chart-of-accounts" },
   { scope: "api", prefix: "/api/accounting/journals", featureKey: "accounting.journals" },

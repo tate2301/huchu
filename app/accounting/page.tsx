@@ -449,7 +449,7 @@ export default function AccountingOverviewPage() {
     push({
       label: "VAT returns to file",
       where: "Tax",
-      href: "/accounting/tax?view=vat-returns",
+      href: "/accounting/tax",
       count: accountingSummary?.pendingVatReturns ?? 0,
     });
 
