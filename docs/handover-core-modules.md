@@ -11,7 +11,8 @@ Where the core modules work stands on 12 Oct 2026, and the next steps in order. 
 | Vane's tables, the `madeByVane` mark, the `vane_reader` and `vane_reader_private` roles | Merged in #210, migration `20261012120000_vane`. Not yet applied to production. |
 | Vane's reader (`lib/vane/reader.ts`, step 3.1) | Built: `readWorkspace` runs one question for one workspace as the reader role. |
 | Vane's tools (`lib/vane/tools.ts`, step 3.2): `run_sql`, `get_record`, `propose_item`, `propose_plan` | Built. `draft` waits for the core modules. |
-| Vane's worker, pages, button and Management → Vane | Not started. |
+| Vane's jobs on the scheduled-jobs tick (`lib/vane/jobs.ts`, step 3.3) | Built: nightly queueing for workspaces with Vane on, one job a tick, costs kept, retries. |
+| Vane's pages, button and Management → Vane | Not started. |
 | Reports & Insights redesign | Designed, not built. |
 | Explore | Designed, not built. |
 | Books, People and payroll, Notifications, Management, Branding, Build | Designed, not built. |

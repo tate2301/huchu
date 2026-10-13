@@ -5,8 +5,7 @@ The jobs that run on a clock run inside the app on Vercel. Once a minute, cron-j
 | Jobs | Where they are listed |
 | --- | --- |
 | Retail: price changes, posting runs, the message outbox, buying follow-ups, lay-by reminders, expiries | `lib/retail/jobs.ts` |
-
-Vane's jobs join the tick when its runner exists (`docs/handover-core-modules.md` §3.3).
+| Vane: the nightly look over each workspace with Vane on, and one Vane job a tick | `lib/vane/jobs.ts` |
 
 ## How a tick decides
 

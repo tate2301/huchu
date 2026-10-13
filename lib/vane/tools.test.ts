@@ -50,16 +50,26 @@ afterAll(async () => {
 describe("what Claude is shown", () => {
   it("names each tool, says what it does, and gives its input as JSON Schema", () => {
     const tools = toolDefinitions();
-    expect(tools.map((t) => t.name)).toEqual(["run_sql", "get_record", "propose_item", "propose_plan"]);
+    expect(tools.map((t) => t.name)).toEqual(["describe_table", "run_sql", "get_record", "propose_item", "propose_plan"]);
     for (const t of tools) {
       expect(t.description?.length).toBeGreaterThan(40);
       expect(t.input_schema).toMatchObject({ type: "object" });
     }
-    expect(tools[0]!.input_schema).toMatchObject({ properties: { sql: { type: "string" } }, required: ["sql"] });
+    expect(tools[1]!.input_schema).toMatchObject({ properties: { sql: { type: "string" } }, required: ["sql"] });
   });
 });
 
 describe("reading", () => {
+  it("describes a table in the columns the role may read, with its types and links", async () => {
+    const result = await callTool(context(made.a), "describe_table", { table: "employee" });
+    const described = JSON.parse(result.content);
+    expect(described.table).toBe("Employee");
+    expect(described.columns).toContainEqual({ name: "name", type: "text" });
+    expect(described.columns.map((c: { name: string }) => c.name)).not.toContain("nationalIdNumber");
+    expect(described.links).toContainEqual({ column: "companyId", table: "Company", on: "id" });
+    expect(await callTool(context(made.a), "describe_table", { table: "Session" })).toMatchObject({ ok: false });
+  });
+
   it("runs SQL for the job's workspace only", async () => {
     const result = await callTool(context(made.a), "run_sql", { sql: `SELECT "name" FROM "Employee"` });
     expect(result.ok).toBe(true);
