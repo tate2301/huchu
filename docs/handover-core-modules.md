@@ -9,7 +9,10 @@ Where the core modules work stands on 12 Oct 2026, and the next steps in order. 
 | Canvas: every module, 102 boards | Done. All boards use the reference markup. Not yet checked rendered, board by board. |
 | Vane's connection to Claude (`lib/vane/claude.ts`, `pnpm vane:ping`) | Merged in #208. |
 | Vane's tables, the `madeByVane` mark, the `vane_reader` and `vane_reader_private` roles | Merged in #210, migration `20261012120000_vane`. Not yet applied to production. |
-| Vane's worker, tools, pages, button and Management → Vane | Not started. |
+| Vane's reader (`lib/vane/reader.ts`, step 3.1) | Built: `readWorkspace` runs one question for one workspace as the reader role. |
+| Vane's tools (`lib/vane/tools.ts`, step 3.2): `run_sql`, `get_record`, `propose_item`, `propose_plan` | Built. `draft` waits for the core modules. |
+| Vane's jobs on the scheduled-jobs tick (`lib/vane/jobs.ts`, step 3.3) | Built: nightly queueing for workspaces with Vane on, one job a tick, costs kept, retries. |
+| Vane's pages, button and Management → Vane | Not started. |
 | Reports & Insights redesign | Designed, not built. |
 | Explore | Designed, not built. |
 | Books, People and payroll, Notifications, Management, Branding, Build | Designed, not built. |
@@ -29,7 +32,7 @@ set -a; . ./.env; set +a; DATABASE_URL="$DATABASE_URL_TEST" npx prisma migrate d
 
 # Claude, server only
 #   ANTHROPIC_API_KEY="..."
-#   VANE_MODEL="claude-opus-5-5"
+#   VANE_MODEL="claude-sonnet-5-5"
 pnpm vane:ping                      # prints the model that answered and the tokens, or the error code
 
 pnpm test -- lib/vane/              # 34 tests: the connection, the read rules and the migration witness
@@ -50,7 +53,7 @@ The Vercel build does not run migrations.
    ALTER ROLE vane_reader_private LOGIN PASSWORD '…';
    ```
 
-3. Keep two connection strings with the worker's secrets, for example `VANE_READER_DATABASE_URL` and `VANE_READER_PRIVATE_DATABASE_URL`. Nothing reads them yet; step 3.1 does.
+3. Keep two connection strings with the worker's secrets, for example `VANE_READER_DATABASE_URL` and `VANE_READER_PRIVATE_DATABASE_URL`. `lib/vane/reader.ts` reads them.
 4. Set `ANTHROPIC_API_KEY` and `VANE_MODEL` where the worker runs, never with a `NEXT_PUBLIC_` prefix.
 
 ## 3. Vane, next steps in order

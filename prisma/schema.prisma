@@ -16293,7 +16293,7 @@ model VaneItem {
   body           String
   /// { type, label, shortcut, target }: the button names the act.
   action         Json
-  /// What it read, so a person can check it: [{ template, filters, rows }].
+  /// What it read, so a person can check it: [{ table, rows }].
   readFrom       Json           @default("[]")
   sql            String?
   status         VaneItemStatus @default(OPEN)
@@ -16428,4 +16428,15 @@ model VaneReaderScope {
   company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
 
   @@index([companyId])
+}
+
+/// When each scheduled job last ran (`app/api/cron/tick`, `lib/scheduled-jobs`).
+/// One row per job name. `claimedUntil` is a lease: a tick that claims a job
+/// holds it until then, so two overlapping ticks never run the same job, and a
+/// tick that dies mid-job lets the next one take it over when the lease ends.
+model ScheduledJobRun {
+  name         String    @id
+  lastRunAt    DateTime?
+  claimedUntil DateTime?
+  updatedAt    DateTime  @updatedAt
 }
