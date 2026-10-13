@@ -42,7 +42,7 @@ function collect() {
   const add = (kind, el, text) => { text = norm(text); if (!text || isData(text) || text.length > 80) return; items.push(kind + ": " + text); };
   const inShell = (el) => el.closest("nav.rail-m, .rail, [aria-label=Modules]");
   for (const el of document.querySelectorAll("h1,h2,h3,h4,.kblock-h,.gh,.pg-h,legend")) if (visible(el) && !inShell(el)) add("heading", el, own(el));
-  for (const el of document.querySelectorAll("button, a.btn, [role=button], [role=menuitem]")) {
+  for (const el of document.querySelectorAll("button, a.btn, a[aria-label], [role=button], [role=menuitem]")) {
     if (!visible(el) || inShell(el) || el.closest("td")) continue;
     const t = own(el) || el.getAttribute("aria-label");
     const k = el.querySelector("kbd,.kbd");
@@ -99,8 +99,10 @@ const ap = await open(url, 1440, { state });
 if (/\/login|\/signup/.test(ap.url())) { console.log(`not signed in: landed on ${ap.url()}`); await browser.close(); process.exit(3); }
 const have = new Set(await ap.evaluate(collect));
 // Compare on letters only: counts, spacing and punctuation are data or rendering, not design.
-const key = (s) => s.toLowerCase().replace(/[^a-z\[\]:]+/g, "");
-const bare = (s) => key(s.replace(/^\w+: /, "").replace(/ \[.*\]$/, ""));
+// A link where the board draws a button (or the reverse) is the same thing: kind is left out.
+// A different shortcut is not: it counts half.
+const key = (s) => s.replace(/^\w+: /, "").toLowerCase().replace(/[^a-z\[\]]+/g, "");
+const bare = (s) => key(s.replace(/ \[.*\]$/, ""));
 const haveKeys = new Set([...have].map(key));
 const haveBare = new Set([...have].map(bare));
 // Misses already explained in NOTES.md (sample data the workspace doesn't have, a state the board
@@ -116,7 +118,7 @@ for (const w of want) {
 const counted = want.length - explained.length;
 const score = counted ? ((counted - missing.length - moved.length * 0.5) / counted) * 100 : 100;
 console.log(`${path.basename(boardFile, ".html")} → ${url}`);
-console.log(`score ${score.toFixed(1)}%  (${counted} items; ${missing.length} missing, ${moved.length} differ in kind or shortcut; ${explained.length} explained in known.json)`);
+console.log(`score ${score.toFixed(1)}%  (${counted} items; ${missing.length} missing, ${moved.length} differ in shortcut; ${explained.length} explained in known.json)`);
 if (missing.length) console.log("missing:\n  " + missing.join("\n  "));
 if (moved.length) console.log("differ:\n  " + moved.join("\n  "));
 if (verbose) console.log("extra on the page:\n  " + [...have].filter((h) => !want.includes(h)).slice(0, 30).join("\n  "));
