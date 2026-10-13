@@ -22,6 +22,7 @@ Every correction from the owner, newest first. Where his words were written down
 - Propose the tables and the `vane_reader` role as a migration and wait for a yes (done: yes given 12 Oct). Keep the Anthropic key on the server; read the model from `VANE_MODEL`.
 - British English, sentence case. Every primary button shows its shortcut.
 - Never put a model identifier in commits or pull requests.
+- 13 Oct, on a slug column for custom reports and a column for Send it's "Only when something changed": "no to both". Custom reports keep their id in the address; the switch is not built.
 
 ## Deliberate breaks
 
