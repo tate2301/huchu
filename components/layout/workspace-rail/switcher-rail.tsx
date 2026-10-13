@@ -6,6 +6,7 @@ import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { SidebarSimple, type LucideIcon } from "@/lib/icons";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { VaneMark } from "@/components/core/vane-mark";
 
 import styles from "./workspace-rail.module.css";
 
@@ -22,7 +23,7 @@ export type RailMark = {
 /**
  * The 56px rail (00-foundations 5.3.2): the logo tile, then the module marks
  * (when the panel shows one module at a time), then the pinned items, and at
- * the foot the Management gear and the person.
+ * the foot Vane, the Management gear and the person.
  *
  * Every mark is unlabelled, so each carries an accessible name and a tooltip.
  * The current module's mark, pressed while the panel is hidden, opens the
@@ -32,6 +33,7 @@ export function SwitcherRail({
   tile,
   groups,
   management,
+  vane,
   person,
   panelShown,
   onOpenPanel,
@@ -42,6 +44,8 @@ export function SwitcherRail({
   groups: RailMark[][];
   /** The gear: the Management surface. */
   management: RailMark | null;
+  /** Vane, above the gear: opens and closes its panel. */
+  vane?: { open: boolean; onToggle: () => void } | null;
   /** The person, with their own menu. */
   person?: React.ReactNode;
   panelShown: boolean;
@@ -98,6 +102,22 @@ export function SwitcherRail({
           </React.Fragment>
         ))}
       <div className={styles.spacer} />
+      {vane ? (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              type="button"
+              aria-label="Vane"
+              aria-pressed={vane.open}
+              className={cn(styles.mark, vane.open && styles.markCurrent)}
+              onClick={vane.onToggle}
+            >
+              <VaneMark size={20} />
+            </button>
+          </TooltipTrigger>
+          <TooltipContent side="right">Vane</TooltipContent>
+        </Tooltip>
+      ) : null}
       {management ? markFor(management) : null}
       {person ?? null}
     </nav>

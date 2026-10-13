@@ -7,3 +7,10 @@
 /* The drawer and the Vane panel sit over the app, not inside a board. */
 .ck.ck.ck .drawer.is-fixed { position: fixed; z-index: var(--z-overlay); }
 .ck.ck.ck .over.is-fixed { position: fixed; z-index: calc(var(--z-overlay) - 1); background: var(--color-scrim); }
+
+/* The Vane panel's column: 400px on the right of the page; over it below 1100px. */
+.ck.vane-col { width: 400px; flex: none; display: flex; min-height: 0; height: 100%; }
+.ck.vane-col > .ask { flex: 1; min-width: 0; }
+@media (max-width: 1099px) {
+  .ck.vane-col { position: fixed; top: 0; right: 0; bottom: 0; z-index: 45; max-width: 100vw; box-shadow: var(--shadow-overlay); }
+}

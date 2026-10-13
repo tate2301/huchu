@@ -1,8 +1,13 @@
-/* The shell's navigation (00-foundations 5.3.2–5.3.3, `Main.dc.html`): a 56px
-   rail of module marks and pins, and a 240px panel that lists the workspace's
-   modules or one module's items. Role tokens only. */
+/* The shell's navigation, drawn as the core modules kit draws it
+   (design/core-modules/spec/shell.md; `.rail-m` and `.panel-m` in
+   design/core-modules/boards/assets/core.css): a 56px rail of module marks and
+   pins on the ground colour, and a 240px panel on the surface that lists the
+   workspace's modules or one module's items. Role tokens only, so retail keeps
+   the Tender colours. */
 
 .nav {
+  --ring: 0 0 0 1px color-mix(in oklab, var(--ink) 7%, transparent);
+  --raised: 0 1px 0 color-mix(in oklab, var(--ink) 3%, transparent), 0 1px 2px color-mix(in oklab, var(--ink) 5%, transparent);
   position: relative;
   display: flex;
   flex: none;
@@ -17,10 +22,10 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 6px;
-  padding: 8px 0;
-  background: var(--surface);
-  border-right: 1px solid var(--line);
+  gap: 4px;
+  padding: 12px 0;
+  background: var(--ground);
+  box-shadow: inset -1px 0 0 var(--line);
   box-sizing: border-box;
 }
 
@@ -29,7 +34,7 @@
   width: 32px;
   height: 32px;
   flex: none;
-  margin-bottom: 8px;
+  margin: 4px 0 16px;
   padding: 0;
   border: 0;
   border-radius: 8px;
@@ -60,14 +65,14 @@
   width: 8px;
   height: 8px;
   border-radius: 99px;
-  box-shadow: 0 0 0 2px var(--surface);
+  box-shadow: 0 0 0 2px var(--ground);
 }
 
 .mark {
-  width: 36px;
-  height: 36px;
+  width: 40px;
+  height: 40px;
   flex: none;
-  border-radius: 8px;
+  border-radius: 6px;
   color: var(--ink-3);
   background: transparent;
   display: flex;
@@ -76,19 +81,24 @@
   text-decoration: none;
 }
 
-.mark:hover {
-  background: var(--hover);
+@media (hover: hover) {
+  .mark:hover {
+    background: var(--hover);
+    color: var(--ink-2);
+  }
 }
 
 .markIcon {
-  width: 18px;
-  height: 18px;
+  width: 20px;
+  height: 20px;
 }
 
+/* The current module: a surface tile with a ring and a raised shadow. */
 .markCurrent,
 .markCurrent:hover {
-  background: var(--active);
+  background: var(--surface);
   color: var(--ink);
+  box-shadow: var(--ring), var(--raised);
 }
 
 .spacer {
@@ -101,14 +111,14 @@
   flex: none;
   width: 24px;
   height: 1px;
-  margin: 2px 0;
+  margin: 4px 0;
   background: var(--line);
 }
 
 /* The person at the foot of the rail. */
 .avatarButton {
   flex: none;
-  margin-top: 4px;
+  margin-top: 8px;
   padding: 0;
   border: 0;
   border-radius: 999px;
@@ -117,12 +127,12 @@
 }
 
 .avatar {
-  width: 28px;
-  height: 28px;
+  width: 32px;
+  height: 32px;
   border-radius: 999px;
   background: var(--tray);
-  color: var(--ink-2);
-  font-size: 11px;
+  color: var(--ink-3);
+  font-size: 12px;
   font-weight: 600;
   line-height: 1;
   display: flex;
@@ -141,11 +151,10 @@
 .mark:focus-visible,
 .item:focus-visible,
 .iconButton:focus-visible,
-.find:focus-visible,
 .pin:focus-visible,
 .avatarButton:focus-visible {
-  outline: 2px solid var(--action);
-  outline-offset: 2px;
+  outline: none;
+  box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--action-fill);
 }
 
 /* ── Panel ────────────────────────────────────────────────────────────── */
@@ -156,8 +165,8 @@
   display: flex;
   flex-direction: column;
   min-height: 0;
-  background: var(--ground);
-  border-right: 1px solid var(--line);
+  background: var(--surface);
+  box-shadow: inset -1px 0 0 var(--line);
   box-sizing: border-box;
 }
 
@@ -172,32 +181,34 @@
 }
 
 .panelHead {
-  height: 48px;
+  height: 56px;
   flex: none;
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 0 12px;
+  padding: 0 8px 0 16px;
 }
 
 .iconButton {
-  width: 28px;
-  height: 28px;
+  width: 32px;
+  height: 32px;
   flex: none;
   padding: 0;
   border: 0;
-  border-radius: 6px;
+  border-radius: 7px;
   background: transparent;
-  color: var(--ink-3);
+  color: var(--ink-2);
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
 }
 
-.iconButton:hover {
-  background: var(--hover);
-  color: var(--ink);
+@media (hover: hover) {
+  .iconButton:hover {
+    background: var(--tray);
+    color: var(--ink);
+  }
 }
 
 .iconButtonIcon {
@@ -207,13 +218,8 @@
 
 /* The chevron sits on the title's left edge. */
 .back {
-  margin-left: -6px;
+  margin-left: -10px;
   margin-right: -4px;
-}
-
-/* The canvas's collapse glyph: the panel's strip on the right. */
-.collapse {
-  margin-right: -6px;
 }
 
 .collapse .iconButtonIcon {
@@ -231,10 +237,10 @@
   text-overflow: ellipsis;
 }
 
-/* Search, under the head (`Main.dc.html`). */
+/* Search this panel, under the head: `/` focuses it. */
 .panelTools {
   flex: none;
-  padding: 0 10px 8px;
+  padding: 0 12px 12px;
 }
 
 .find {
@@ -243,36 +249,59 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 0 10px;
-  border: 1px solid var(--line);
-  border-radius: 8px;
+  padding: 0 12px;
+  border-radius: 6px;
   background: var(--surface);
+  box-shadow: var(--ring), var(--raised);
   color: var(--ink-3);
-  font: inherit;
-  text-align: left;
-  text-decoration: none;
-  cursor: pointer;
   box-sizing: border-box;
+  transition: box-shadow 120ms cubic-bezier(0.2, 0, 0, 1);
 }
 
-.find:hover {
-  border-color: var(--line-strong);
+.find:focus-within {
+  box-shadow: 0 0 0 1px var(--action-fill), 0 0 0 4px color-mix(in oklab, var(--action-fill) 18%, transparent);
 }
 
 .findIcon {
-  width: 14px;
-  height: 14px;
+  width: 16px;
+  height: 16px;
   flex: none;
 }
 
-.findLabel {
+.findInput {
   flex: 1;
+  min-width: 0;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  font: inherit;
+  font-size: 14px;
+  color: var(--ink);
+}
+
+.findInput::placeholder {
+  color: var(--faint);
+}
+
+.findInput::-webkit-search-cancel-button {
+  appearance: none;
 }
 
 .findHint {
-  font-family: var(--font-mono);
-  font-size: 11px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 4px;
+  border-radius: 5px;
+  font-size: 12px;
+  line-height: 1;
   color: var(--ink-3);
+  background: var(--surface);
+  box-shadow: var(--ring), 0 1px 0 var(--line);
 }
 
 .panelBody {
@@ -286,19 +315,19 @@
   flex-direction: column;
   gap: 2px;
   margin: 0;
-  padding: 4px 10px;
+  padding: 0 12px;
   list-style: none;
 }
 
-/* A module's title over its items, in the flat panel. */
+/* A module's title over its items, in the flat panel; a group's head. */
 .heading {
   height: 28px;
   display: flex;
   align-items: center;
-  margin-top: 12px;
-  padding: 0 10px;
+  margin-top: 16px;
+  padding: 0 4px;
   font-size: 12px;
-  font-weight: 600;
+  font-weight: 400;
   color: var(--ink-3);
 }
 
@@ -306,27 +335,29 @@
   margin-top: 0;
 }
 
-/* Help and Management, at the foot of the panel. */
+/* Help, at the foot of the panel. Management is behind the gear only. */
 .shelf {
   flex: none;
-  padding: 6px 0;
-  border-top: 1px solid var(--line);
+  padding: 8px 0 12px;
+  box-shadow: inset 0 1px 0 var(--line);
 }
 
 .item {
-  height: 34px;
+  height: 36px;
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 0 10px;
-  border-radius: 8px;
-  color: var(--ink);
-  font-size: 13px;
+  gap: 12px;
+  padding: 0 8px;
+  border-radius: 6px;
+  color: var(--ink-2);
+  font-size: 14px;
   text-decoration: none;
 }
 
-.item:hover {
-  background: var(--active);
+@media (hover: hover) {
+  .item:hover {
+    background: var(--hover);
+  }
 }
 
 .itemIcon {
@@ -344,28 +375,25 @@
   text-overflow: ellipsis;
 }
 
+/* The count of what waits, in muted figures. */
 .badge {
   flex: none;
   white-space: nowrap;
-  font-family: var(--font-mono);
-  font-size: 11px;
-  font-weight: 500;
-  color: var(--ink-2);
-  background: var(--tray);
-  padding: 1px 6px;
-  border-radius: 6px;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-3);
 }
 
-/* G1: the current item is solid ink with white text. */
+/* The current item: a fill with ink, not a solid block. */
 .itemCurrent,
 .itemCurrent:hover {
-  background: var(--sel-fill);
-  color: var(--on-sel);
-  font-weight: 600;
+  background: var(--tray);
+  color: var(--ink);
+  font-weight: 500;
 }
 
 .itemCurrent .itemIcon {
-  color: var(--on-sel);
+  color: var(--ink);
 }
 
 /* The pin appears on hover, and stays while the item is pinned. */
@@ -400,17 +428,16 @@
   color: var(--ink);
 }
 
-.itemCurrent .pin {
-  color: var(--on-sel);
-}
-
-.itemCurrent .badge {
-  background: rgba(255, 255, 255, 0.16);
-  color: var(--on-sel);
-}
-
 .extra {
-  padding: 4px 10px;
+  padding: 4px 12px;
+}
+
+/* Nothing in the panel matches the search. */
+.noMatch {
+  margin: 0;
+  padding: 8px 16px;
+  font-size: 13px;
+  color: var(--ink-3);
 }
 
 /* A workspace with no modules turned on. */
@@ -441,4 +468,19 @@
   font-size: 13px;
   font-weight: 500;
   color: var(--ink-3);
+}
+
+.emptyLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 32px;
+  padding: 0 12px;
+  border-radius: 7px;
+  background: var(--surface);
+  box-shadow: var(--ring), var(--raised);
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 500;
+  text-decoration: none;
 }

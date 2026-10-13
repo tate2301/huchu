@@ -9,34 +9,19 @@ import {
   useNotificationsEnabled,
   useUnreadNotificationCount,
 } from "@/components/notifications/notification-center";
-import { Bell, MagnifyingGlass, SidebarSimple } from "@/lib/icons";
+import { Bell, MagnifyingGlass } from "@/lib/icons";
 import { cn } from "@/lib/utils";
 
-const ICON_BUTTON =
-  "relative flex size-8 shrink-0 items-center justify-center rounded-[8px] border-0 bg-transparent text-[var(--ink-3)] hover:bg-[var(--hover)] hover:text-[var(--ink)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--action)]";
+import { Kbd, Kit } from "@/components/core";
 
-/** Hides or shows the panel beside the rail, as the panel's own button and Cmd/Ctrl+B do. */
-export function SidebarToggle() {
-  const shell = useShell();
-  const label = shell.panelShown ? "Hide the sidebar" : "Show the sidebar";
-  return (
-    <button
-      type="button"
-      aria-label={label}
-      title={label}
-      aria-keyshortcuts="Meta+B Control+B"
-      className={ICON_BUTTON}
-      onClick={shell.togglePanel}
-    >
-      <SidebarSimple className="size-[18px]" aria-hidden="true" />
-    </button>
-  );
-}
+/** The kit's quiet icon button (`.btn-quiet.btn-icon`): 32px, ink 2, a fill on hover. */
+const ICON_BUTTON =
+  "relative flex size-8 shrink-0 items-center justify-center rounded-[7px] border-0 bg-transparent text-[var(--ink-2)] hover:bg-[var(--tray)] hover:text-[var(--ink)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--action)]";
 
 /**
- * The bar's way into search: a field-shaped trigger (an icon on a phone). It
- * opens the one command palette; the panel's Search and Cmd/Ctrl+K open the
- * same one.
+ * Search everything: a field-shaped trigger 240px wide, as the kit draws it
+ * (`.tb-find`), an icon below 1100px and on a phone. It opens the one command
+ * palette, as Ctrl K does.
  */
 export function SearchTrigger({ compact = false }: { compact?: boolean }) {
   const shell = useShell();
@@ -53,19 +38,30 @@ export function SearchTrigger({ compact = false }: { compact?: boolean }) {
     );
   }
   return (
-    <button
-      type="button"
-      aria-label="Search records and actions"
-      aria-keyshortcuts="Meta+K Control+K"
-      onClick={() => shell.setCommandOpen(true)}
-      className="flex h-8 w-36 shrink-0 items-center gap-2 rounded-[8px] border-0 bg-[var(--ground)] px-2.5 text-left text-[13px] text-[var(--ink-3)] hover:text-[var(--ink-2)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--action)] min-[1100px]:w-56"
-    >
-      <MagnifyingGlass className="size-3.5 shrink-0" aria-hidden="true" />
-      <span className="min-w-0 flex-1 truncate">Search</span>
-      <kbd className="shrink-0 font-mono text-[var(--ink-3)]" style={{ fontSize: 11 }}>
-        ⌘K
-      </kbd>
-    </button>
+    <>
+      <button
+        type="button"
+        aria-label="Search everything"
+        aria-keyshortcuts="Meta+K Control+K"
+        className={cn(ICON_BUTTON, "min-[1100px]:hidden")}
+        onClick={() => shell.setCommandOpen(true)}
+      >
+        <MagnifyingGlass className="size-4" aria-hidden="true" />
+      </button>
+      <button
+        type="button"
+        aria-label="Search everything"
+        aria-keyshortcuts="Meta+K Control+K"
+        onClick={() => shell.setCommandOpen(true)}
+        className="flex h-8 w-[240px] shrink-0 items-center gap-2 rounded-[6px] border-0 bg-[var(--surface)] px-3 text-left text-[14px] text-[var(--faint)] shadow-[0_0_0_1px_color-mix(in_oklab,var(--ink)_7%,transparent),0_1px_2px_color-mix(in_oklab,var(--ink)_5%,transparent)] hover:shadow-[0_0_0_1px_var(--line-strong)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--action)] max-[1099px]:hidden"
+      >
+        <MagnifyingGlass className="size-4 shrink-0 text-[var(--ink-3)]" aria-hidden="true" />
+        <span className="min-w-0 flex-1 truncate">Search everything</span>
+        <Kit contents>
+          <Kbd>Ctrl K</Kbd>
+        </Kit>
+      </button>
+    </>
   );
 }
 
@@ -94,7 +90,7 @@ export function NotificationsBell({ compact = false }: { compact?: boolean }) {
         className={cn(ICON_BUTTON, compact && "size-11")}
         onClick={() => setOpen(true)}
       >
-        <Bell className="size-[18px]" aria-hidden="true" />
+        <Bell weight="fill" className="size-4" aria-hidden="true" />
         {count > 0 ? (
           <span
             aria-hidden="true"

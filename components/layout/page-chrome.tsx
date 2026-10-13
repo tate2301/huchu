@@ -42,6 +42,11 @@ export type PagePrimary = {
   disabled?: string;
   /** A menu under it instead of one action ("+ New bundle or pack": a pack, a bundle, a buy-more deal). */
   menu?: Array<{ label: string; href: string }>;
+  /**
+   * The key it shows and answers to (design/core-modules/spec/shortcuts.md).
+   * A New (`icon: "plus"`) takes N unless it names another.
+   */
+  shortcut?: string;
 };
 
 /**

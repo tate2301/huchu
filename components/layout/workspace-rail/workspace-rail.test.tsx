@@ -87,7 +87,6 @@ function render({
       panelShown={panelShown}
       onOpenPanel={() => {}}
       onCollapse={() => {}}
-      onSearch={() => {}}
     />,
   );
 }
@@ -119,12 +118,12 @@ describe("WorkspaceRail (00-foundations 5.3.2–5.3.3, 98-decisions 5 October)",
     expect(html).not.toContain(">On hand<");
   });
 
-  it("keeps Search, Help and Management in the panel", () => {
+  it("keeps the panel's search and Help in the panel, and Management behind the gear only", () => {
     const html = render();
-    expect(html).toContain(">Search<");
-    expect(html).toContain("⌘K");
+    expect(html).toMatch(/<input[^>]*type="search"[^>]*aria-keyshortcuts="\/"/);
     expect(html).toMatch(/href="\/help"[^>]*>.*Help/);
-    expect(html.match(/href="\/management\/master-data"/g)).toHaveLength(2);
+    // Owner, 11 Oct: take Management off the panel foot; the gear opens it.
+    expect(html.match(/href="\/management\/master-data"/g)).toHaveLength(1);
   });
 
   it("shows the module list when the page belongs to none", () => {

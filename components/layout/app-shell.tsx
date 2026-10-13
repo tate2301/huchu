@@ -18,6 +18,7 @@ import { isSettingsSurfacePath } from "@/lib/settings/management-nav";
 import { RecordPeekProvider } from "@/components/records/record-peek";
 import { RecordTrailProvider } from "@/components/records/record-trail";
 import { SheetHost } from "@/components/sheet-form/sheet-host";
+import { VanePanel } from "@/components/vane/vane-panel";
 
 /**
  * The shell every signed-in page sits in (00-foundations 5.3.1):
@@ -123,6 +124,8 @@ function ShellFrame({ children }: { children: React.ReactNode }) {
           </RecordTrailProvider>
         </main>
       </div>
+      {/* Vane, on the right of any page when its button is pressed. */}
+      <VanePanel />
     </div>
   );
 }

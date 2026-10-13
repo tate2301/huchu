@@ -25,15 +25,12 @@ export function AppSidebar({ inDrawer = false }: { inDrawer?: boolean }) {
       tile={<AccountMenu />}
       person={<PersonMenu />}
       management={nav.management}
+      vane={{ open: shell.vaneOpen, onToggle: () => shell.setVaneOpen(!shell.vaneOpen) }}
       supportItems={nav.model.supportItems}
       panelShown={panelShown}
       panelOverlay={!inDrawer && shell.panelOverlay}
       onCollapse={inDrawer ? () => shell.setDrawerOpen(false) : shell.closePanel}
       onOpenPanel={shell.openPanel}
-      onSearch={() => {
-        if (inDrawer) shell.setDrawerOpen(false);
-        shell.setCommandOpen(true);
-      }}
       extra={<SidebarCrmCollections />}
     />
   );

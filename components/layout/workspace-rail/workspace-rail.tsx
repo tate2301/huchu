@@ -53,12 +53,12 @@ export function WorkspaceRail({
   tile,
   person,
   management,
+  vane,
   supportItems = [],
   panelShown,
   panelOverlay,
   onCollapse,
   onOpenPanel,
-  onSearch,
   onNavigate,
   extra,
 }: {
@@ -70,15 +70,16 @@ export function WorkspaceRail({
   tile: React.ReactNode;
   /** The person at the foot of the rail, with their menu. */
   person?: React.ReactNode;
-  /** The Management surface: the gear at the foot of the rail and a shelf row. */
+  /** The Management surface: the gear at the foot of the rail, and nowhere else. */
   management: NavItem | null;
-  /** Help, on the shelf above Management. */
+  /** Vane, above the gear. */
+  vane?: { open: boolean; onToggle: () => void } | null;
+  /** Help, on the shelf at the panel's foot. */
   supportItems?: NavItem[];
   panelShown: boolean;
   panelOverlay?: boolean;
   onCollapse?: () => void;
   onOpenPanel: () => void;
-  onSearch?: () => void;
   onNavigate?: () => void;
   extra?: React.ReactNode;
 }) {
@@ -100,6 +101,10 @@ export function WorkspaceRail({
   }
 
   const { pins, isPinned, toggle } = usePins(workspaceLabel, pinCapacity);
+
+  // The panel's search: the items, across every module, whose names match.
+  const [query, setQuery] = React.useState("");
+  const needle = query.trim().toLowerCase();
 
   const byHref = React.useMemo(() => {
     const map = new Map<string, NavItem>();
@@ -194,11 +199,10 @@ export function WorkspaceRail({
         ? { label: workspaceLabel, go: () => setView({ areaId: null, folderId: null }) }
         : null;
 
-  const shelfItems = management ? [...supportItems, management] : supportItems;
   const shelf =
-    shelfItems.length > 0 ? (
+    supportItems.length > 0 ? (
       <ul className={styles.items}>
-        {shelfItems.map((item) => (
+        {supportItems.map((item) => (
           <RailRow
             key={item.href}
             href={item.href}
@@ -214,17 +218,42 @@ export function WorkspaceRail({
   let panel: React.ReactNode = null;
   if (panelShown && areas.length === 0) {
     panel = (
-      <RailPanel title={workspaceLabel} overlay={panelOverlay} onCollapse={onCollapse} onSearch={onSearch} shelf={shelf}>
+      <RailPanel title={workspaceLabel} overlay={panelOverlay} onCollapse={onCollapse} shelf={shelf}>
         <div className={styles.empty}>
           <span className={styles.emptyMark}>
             <Package className={styles.itemIcon} />
           </span>
           <p className={styles.emptyLabel}>No modules yet</p>
-          <Link href="/management/master-data" className={styles.find}>
-            <MedusaCogSixToothIcon className={styles.findIcon} />
-            <span className={styles.findLabel}>Turn one on</span>
+          <Link href="/management/master-data" className={styles.emptyLink}>
+            <MedusaCogSixToothIcon className={styles.itemIcon} />
+            Turn one on
           </Link>
         </div>
+      </RailPanel>
+    );
+  } else if (panelShown && needle) {
+    const seen = new Set<string>();
+    const matches = areas.flatMap((area) =>
+      area.items.filter((item) => {
+        if (seen.has(item.href) || !item.label.toLowerCase().includes(needle)) return false;
+        seen.add(item.href);
+        return true;
+      }),
+    );
+    panel = (
+      <RailPanel
+        title={workspaceLabel}
+        overlay={panelOverlay}
+        onCollapse={onCollapse}
+        query={query}
+        onQuery={setQuery}
+        shelf={shelf}
+      >
+        {matches.length > 0 ? (
+          <ul className={styles.items}>{matches.map(rowFor)}</ul>
+        ) : (
+          <p className={styles.noMatch}>Nothing here is called “{query.trim()}”.</p>
+        )}
       </RailPanel>
     );
   } else if (panelShown) {
@@ -235,7 +264,8 @@ export function WorkspaceRail({
         onBack={back?.go}
         overlay={panelOverlay}
         onCollapse={onCollapse}
-        onSearch={onSearch}
+        query={query}
+        onQuery={setQuery}
         extra={extra}
         shelf={shelf}
       >
@@ -278,6 +308,7 @@ export function WorkspaceRail({
         tile={tile}
         groups={groups}
         management={managementMark}
+        vane={vane}
         person={person}
         panelShown={panelShown}
         onOpenPanel={onOpenPanel}
