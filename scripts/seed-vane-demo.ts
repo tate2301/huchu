@@ -29,7 +29,7 @@ async function main() {
   // What the last run wrote.
   const old = await prisma.vaneJob.findMany({ where: { companyId, key: { startsWith: "demo:" } }, select: { id: true } });
   await prisma.vaneItem.deleteMany({ where: { companyId, jobId: { in: old.map((job) => job.id) } } });
-  await prisma.vanePlan.deleteMany({ where: { companyId, title: "VAT for September" } });
+  await prisma.vanePlan.deleteMany({ where: { companyId, title: { in: ["VAT for September", "P2 and NSSA for September"] } } });
   await prisma.vaneJob.deleteMany({ where: { companyId, key: { startsWith: "demo:" } } });
 
   await prisma.vaneSettings.upsert({ where: { companyId }, create: { companyId }, update: { paused: false } });
@@ -128,6 +128,48 @@ async function main() {
     body: "I wrote a by-fitter question that answers it in one table. Let's add it to the board.",
     action: { type: "open", label: "Add to the board", target: "/reports" },
     minutes: 190,
+  });
+
+  // What James set aside, and why.
+  const james = await prisma.user.findFirst({ where: { companyId }, orderBy: { createdAt: "asc" }, select: { id: true } });
+  const setAside: Array<[string, string, string, number]> = [
+    ["retail", "Monday's cash-up was short, $12.00", "Already done", 8],
+    ["crm", "Quote for Mrs T. Gumbo has waited 3 days", "Not mine", 11],
+    ["books", "Fuel spend is up 18% on September", "Wrong", 15],
+  ];
+  for (const [sourceModule, headline, reason, daysAgo] of setAside) {
+    await prisma.vaneItem.create({
+      data: {
+        companyId,
+        jobId: nightly.id,
+        kind: "SUGGESTION",
+        sourceModule,
+        headline,
+        body: "Let's look at it.",
+        action: { type: "open", label: "Open it", target: "/vane" },
+        status: "MUTED",
+        mutedReason: reason,
+        resolvedAt: minutesAgo(now, daysAgo * 24 * 60),
+        resolvedById: james?.id,
+        createdAt: minutesAgo(now, daysAgo * 24 * 60 + 60),
+      },
+    });
+  }
+
+  await prisma.vanePlan.create({
+    data: {
+      companyId,
+      title: "P2 and NSSA for September",
+      status: "DONE",
+      doneAt: minutesAgo(now, 4 * 24 * 60),
+      createdAt: minutesAgo(now, 12 * 24 * 60),
+      steps: {
+        create: [
+          { position: 1, label: "Work out P2 from the September run", owner: "VANE", status: "DONE" },
+          { position: 2, label: "File P2 and the NSSA schedule", owner: "PERSON", status: "DONE" },
+        ],
+      },
+    },
   });
 
   const due = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 25));

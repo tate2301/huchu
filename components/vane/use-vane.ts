@@ -3,6 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { fetchJson } from "@/lib/api-client";
+import type { VaneDoneView, VaneMutedRow, VanePlanRow, VaneWorkRow } from "@/lib/vane/lists";
 import type { VanePanel } from "@/lib/vane/panel";
 import type { VaneWatchable } from "@/lib/vane/settings";
 import type { VaneStatus } from "@/lib/vane/status";
@@ -65,6 +66,38 @@ export function useVaneWatching() {
   });
 }
 
+export function useVanePlans() {
+  return useQuery({
+    queryKey: ["vane", "plans"],
+    queryFn: () => fetchJson<{ plans: VanePlanRow[] }>("/api/vane/plans").then((data) => data.plans),
+    refetchInterval: 30_000,
+  });
+}
+
+export function useVaneDone(days: number, template: string | null) {
+  const query = new URLSearchParams({ days: String(days), ...(template ? { template } : {}) });
+  return useQuery({
+    queryKey: ["vane", "done", days, template],
+    queryFn: () => fetchJson<VaneDoneView>(`/api/vane/done?${query.toString()}`),
+    placeholderData: (previous) => previous,
+  });
+}
+
+export function useVaneWorking() {
+  return useQuery({
+    queryKey: ["vane", "working"],
+    queryFn: () => fetchJson<{ jobs: VaneWorkRow[] }>("/api/vane/working").then((data) => data.jobs),
+    refetchInterval: (query) => (query.state.data?.some((job) => job.state === "running") ? 5_000 : 30_000),
+  });
+}
+
+export function useVaneMuted() {
+  return useQuery({
+    queryKey: ["vane", "muted"],
+    queryFn: () => fetchJson<{ cards: VaneMutedRow[] }>("/api/vane/muted").then((data) => data.cards),
+  });
+}
+
 export function useVaneActions() {
   const client = useQueryClient();
   const refresh = () => client.invalidateQueries({ queryKey: ["vane"] });
@@ -87,5 +120,16 @@ export function useVaneActions() {
       fetchJson("/api/vane/settings", { method: "PATCH", body: JSON.stringify({ paused }) }),
     onSettled: refresh,
   });
-  return { notNow, act, giveJob, pause };
+  /** Bring back: a muted card goes back to For you. */
+  const unmute = useMutation({
+    mutationFn: ({ id }: { id: string }) => fetchJson(`/api/vane/items/${id}/unmute`, { method: "POST" }),
+    onSettled: refresh,
+  });
+  /** A person ticks one of their own steps in a plan, or unticks it. */
+  const tick = useMutation({
+    mutationFn: ({ planId, stepId, done }: { planId: string; stepId: string; done: boolean }) =>
+      fetchJson(`/api/vane/plans/${planId}/steps/${stepId}`, { method: "PATCH", body: JSON.stringify({ done }) }),
+    onSettled: refresh,
+  });
+  return { notNow, act, giveJob, pause, unmute, tick };
 }

@@ -23,7 +23,18 @@ export function Count({ urgent = false, children }: { urgent?: boolean; children
 }
 
 /** A thin bar for a share of a whole: 0 to 100. */
-export function Meter({ value, warning = false, label }: { value: number; warning?: boolean; label?: string }) {
+export function Meter({
+  value,
+  warning = false,
+  accent = false,
+  label,
+}: {
+  value: number;
+  warning?: boolean;
+  /** Filled in the accent, as a plan's progress is. */
+  accent?: boolean;
+  label?: string;
+}) {
   const pct = Math.max(0, Math.min(100, value));
   return (
     <div
@@ -34,7 +45,7 @@ export function Meter({ value, warning = false, label }: { value: number; warnin
       aria-valuenow={Math.round(pct)}
       aria-label={label}
     >
-      <i style={{ width: `${pct}%` }} />
+      <i style={{ width: `${pct}%`, background: accent ? "var(--color-accent)" : undefined }} />
     </div>
   );
 }

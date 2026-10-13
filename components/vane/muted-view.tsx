@@ -1,0 +1,96 @@
+"use client";
+
+import { Empty, TableShell } from "@/components/core";
+import type { VaneMutedRow } from "@/lib/vane/lists";
+
+import { NOT_NOW_REASONS } from "./not-now-menu";
+
+const day = (iso: string) => new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+
+/**
+ * Muted (`/vane/muted`, the PageVaneMuted board): the cards set aside with
+ * Not now, the reason given, who set each aside and when, and Bring back.
+ * Then the reasons Not now offers.
+ *
+ * Pure: the page feeds it.
+ */
+export function MutedView({
+  rows,
+  bringing,
+  onBringBack,
+}: {
+  rows: VaneMutedRow[];
+  /** The card being brought back. */
+  bringing: string | null;
+  onBringBack: (row: VaneMutedRow) => void;
+}) {
+  return (
+    <>
+      {rows.length === 0 ? (
+        <Empty icon="muted" title="Nothing set aside">
+          A card you press Not now on comes here with the reason you gave, and Vane reads it before it raises that kind again.
+        </Empty>
+      ) : (
+        <div className="wt" style={{ flex: "none", marginTop: "var(--space-24)" }}>
+          <TableShell label="Muted cards">
+            <table className="table" style={{ minWidth: 760 }}>
+              <colgroup>
+                <col style={{ width: "50%" }} />
+                <col />
+                <col style={{ width: "50%" }} />
+                <col />
+                <col />
+              </colgroup>
+              <thead>
+                <tr>
+                  <th>Card</th>
+                  <th>From</th>
+                  <th>Reason</th>
+                  <th>Set aside</th>
+                  <th>
+                    <span className="sr-only">Bring back</span>
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((row) => (
+                  <tr key={row.id}>
+                    <td className="fill">
+                      <span className="cell-lead">{row.headline}</span>
+                    </td>
+                    <td className="muted">{row.source}</td>
+                    <td className="fill">{row.reason ?? "—"}</td>
+                    <td className="muted">{[row.by, row.at ? day(row.at) : null].filter(Boolean).join(", ") || "—"}</td>
+                    <td>
+                      <button
+                        type="button"
+                        className="link"
+                        style={{ background: "none", border: 0, padding: 0, cursor: "pointer" }}
+                        disabled={bringing === row.id}
+                        aria-label={`Bring back: ${row.headline}`}
+                        onClick={() => onBringBack(row)}
+                      >
+                        Bring back
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </TableShell>
+        </div>
+      )}
+      <div style={{ margin: "var(--space-24) 28px 0", display: "flex", flexDirection: "column", gap: "var(--space-8)" }}>
+        <span className="sec-title">The reasons people give</span>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: "var(--space-8)" }}>
+          {NOT_NOW_REASONS.map((reason) => (
+            <span key={reason} className="pill pill-n">
+              {reason}
+            </span>
+          ))}
+        </div>
+        <span className="muted" style={{ fontSize: "var(--text-12)" }}>Not now asks why in one tap. Vane reads the reason before it raises that kind again.</span>
+      </div>
+    </>
+  );
+}
