@@ -386,6 +386,10 @@ const WORKSPACE_MODULES: Record<WorkspaceModuleId, WorkspaceModuleDefinition> = 
       );
       return readable.length > 0 ? items : [];
     },
+    // The Insights band; each insight row is behind its page's feature (route registry).
+    getGroups(context) {
+      return context.navSectionById.get("reporting")?.groups;
+    },
   },
   accounting: {
     id: "accounting",

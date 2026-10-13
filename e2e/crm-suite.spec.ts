@@ -48,8 +48,9 @@ const ROUTES: readonly Route[] = [
   { path: "/crm/follow-ups", name: "Follow-ups" },
   { path: "/crm/appointments", name: "Appointments" },
   { path: "/crm/reps", name: "Sales reps" },
-  { path: "/crm/insights", name: "Insights" },
-  { path: "/crm/reports", name: "Reports" },
+  // `/crm/insights` and `/crm/reports` forward to Reports → Insights → Sales and Reports.
+  { path: "/reports/insights/sales", name: "Sales insight" },
+  { path: "/reports/insights/site-visits", name: "Site visits insight" },
   { path: "/crm/forms", name: "Intake forms" },
   /*
     Not `/crm/lists` — `app/crm/lists/` holds only `[id]`, so the index 404s.

@@ -90,7 +90,8 @@ describe("areasFromSections", () => {
       "Cost tracker",
       "Daily reports",
     ]);
-    expect(rows("Insights")).toEqual(["My performance", "Insights", "Sales reports", "Team"]);
+    // Insights and Sales reports moved to Reports (Insights → Sales, All reports).
+    expect(rows("Insights")).toEqual(["My performance", "Team"]);
     // Workflow activity and the site-visit questions live on their index pages.
     expect(rows("Setup")).toEqual(["Build", "Import", "Settings", "Workflows"]);
   });

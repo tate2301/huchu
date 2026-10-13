@@ -254,6 +254,10 @@ export const PAGE_FEATURE_ROUTES: FeatureRouteEntry[] = [
   // ST-1.3 — `/reports/cctv-events` left with the surveillance module. It falls
   // back to the bare `/reports` entry at the end of this block, so it answers
   // `reports.dashboard` until ST-2 removes the page.
+  // Reports → Insights: Sales is the CRM's insights moved (`/crm/insights`), Site visits reads the
+  // visits a site-visit form recorded. The week's insights (`/reports/insights`) is gated per insight.
+  { scope: "page", prefix: "/reports/insights/sales", featureKey: "crm.insights" },
+  { scope: "page", prefix: "/reports/insights/site-visits", featureKey: "crm.appointments" },
   { scope: "page", prefix: "/reports/compliance-incidents", featureKey: "reports.compliance-incidents" },
   { scope: "page", prefix: "/reports/downtime", featureKey: "reports.downtime-analytics" },
   { scope: "page", prefix: "/reports/maintenance-work-orders", featureKey: "reports.maintenance-work-orders" },

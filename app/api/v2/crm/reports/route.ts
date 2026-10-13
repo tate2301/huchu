@@ -17,6 +17,8 @@ import {
   type ReportRange,
   type StageChange,
 } from "@/lib/crm/reports";
+import { startOfDayIn } from "@/lib/reports/list-query";
+import { addDays, DEFAULT_TIME_ZONE } from "@/lib/workspace/format";
 
 /**
  * The sales report.
@@ -36,7 +38,11 @@ export async function GET(request: NextRequest) {
     const requested = searchParams.get("range");
     const range: ReportRange =
       REPORT_RANGES.find((value) => value === requested) ?? "90d";
-    const { from, to } = rangeToDates(range);
+    // Days chosen instead of a range (Reports → Insights → Sales): both ends,
+    // in the workspace's clock, win over `range`.
+    const days = chosenDays(searchParams.get("from"), searchParams.get("to"));
+    if (days === "bad") return errorResponse("Those dates could not be read", 400);
+    const { from, to } = days ?? rangeToDates(range);
 
     const isManager = hasCrmFullAccess(session.user.role);
     const ownerScope = isManager ? {} : { assignedToId: session.user.id };
@@ -203,7 +209,13 @@ export async function GET(request: NextRequest) {
     // Ninety daily points is a row of spikes with gaps between them, and a
     // year of them is noise; a week of weekly points is one. The bucket
     // follows the range rather than being a setting nobody would find.
-    const granularity = range === "90d" || range === "12m" ? "week" : "day";
+    const granularity = days
+      ? to.getTime() - from.getTime() > 31 * 86_400_000
+        ? "week"
+        : "day"
+      : range === "90d" || range === "12m"
+        ? "week"
+        : "day";
 
     return successResponse({
       range,
@@ -255,4 +267,16 @@ export async function GET(request: NextRequest) {
     console.error("[API] GET /api/v2/crm/reports error:", error);
     return errorResponse("Failed to build the report");
   }
+}
+
+const DAY = /^\d{4}-\d{2}-\d{2}$/;
+
+/** Both ends as days ("2026-07-01"), from the start of the first to the end of the last; null when not given. */
+function chosenDays(from: string | null, to: string | null): { from: Date; to: Date } | null | "bad" {
+  if (!from && !to) return null;
+  if (!from || !to || !DAY.test(from) || !DAY.test(to) || from > to) return "bad";
+  return {
+    from: startOfDayIn(from, DEFAULT_TIME_ZONE),
+    to: new Date(startOfDayIn(addDays(to, 1), DEFAULT_TIME_ZONE).getTime() - 1),
+  };
 }

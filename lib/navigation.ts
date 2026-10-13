@@ -255,14 +255,22 @@ export const navSections: NavSection[] = [
     // No feature of its own: every report is gated by the page it is about
     // (see lib/reports/access.ts), and the entry shows only when at least one
     // is readable (the reporting module in lib/workspaces.ts).
-    // ReportsAll's panel: All reports and its three views. Its Folders and
-    // Build groups are drawn by the panel (`ReportsGroups`): folders are the
-    // workspace's own, not navigation. Overview and Insights wait for their pages.
+    // The panel PageReport draws: Overview (the week's insights, which
+    // ReportsInsights heads "Insights"), All reports and its three views, then
+    // the Insights band, one row per insight page. Its Folders and Build
+    // groups are drawn by the panel (`ReportsGroups`): folders are the
+    // workspace's own, not navigation. Each insight row shows only where its
+    // page's feature is on (`lib/workspaces.ts`).
+    groups: [{ id: "insights", label: "Insights" }],
+    panelGroups: true,
     items: [
+      { href: "/reports/insights", icon: TrendingUp, label: "Overview", exact: true },
       { href: "/reports", icon: FileCheck, label: "All reports" },
       { href: "/reports?view=yours", icon: UserRound, label: "Yours" },
       { href: "/reports?view=shared", icon: Users, label: "Shared with you" },
       { href: "/reports?view=corelith", icon: Star, label: "From Corelith" },
+      { href: "/reports/insights/sales", icon: BarChart3, label: "Sales", group: "insights" },
+      { href: "/reports/insights/site-visits", icon: MapPin, label: "Site visits", group: "insights" },
     ],
   },
   {
@@ -820,8 +828,8 @@ export const navSections: NavSection[] = [
       { href: "/crm/appointments", icon: CalendarCheck, label: "Site visits", group: "work", rank: "flow" },
       { href: "/crm/follow-ups", icon: Phone, label: "Follow-ups", group: "work" },
 
-      { href: "/crm/insights", icon: BarChart3, label: "Insights", group: "learn" },
-      { href: "/crm/reports", icon: ChartLine, label: "Sales reports", group: "learn" },
+      // Insights and Sales reports moved to Reports (Insights → Sales, and All
+      // reports); `/crm/insights` and `/crm/reports` forward there.
       // The team as a directory of the numbers each member carries, and your
       // own line in it: `/crm/reps/me` redirects to whoever is signed in.
       { href: "/crm/reps", icon: UserRound, label: "Team", group: "learn" },

@@ -1,17 +1,7 @@
-import { getServerSession } from "next-auth";
-import { CrmPage } from "@/components/crm/crm-page";
 import { redirect } from "next/navigation";
-import { PageChrome } from "@/components/layout/page-chrome";
-import { CrmInsightsContent } from "@/components/crm/crm-insights-content";
-import { authOptions } from "@/lib/auth";
 
-export default async function CrmInsightsPage() {
-  const session = await getServerSession(authOptions);
-  if (!session?.user) redirect("/login");
-  return (
-    <CrmPage>
-      <PageChrome title="Insights" />
-      <CrmInsightsContent />
-    </CrmPage>
-  );
+/** The CRM's insights moved to Reports → Insights → Sales; old links still land there. */
+export default async function CrmInsightsPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
+  const range = (await searchParams).range;
+  redirect(typeof range === "string" && ["30d", "90d", "12m"].includes(range) ? `/reports/insights/sales?period=${range}` : "/reports/insights/sales");
 }

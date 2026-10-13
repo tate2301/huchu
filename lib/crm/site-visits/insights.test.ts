@@ -68,3 +68,28 @@ describe("a form's insights", () => {
     expect(formInsights(set, [])).toMatchObject({ visits: 0, since: null, suggestion: null, figures: { measuredPerVisit: null } });
   });
 });
+
+describe("what the Site visits insight adds", () => {
+  const rep = (name: string, section: InsightSection): InsightSection => ({ ...section, appointment: { ...section.appointment, assignedTo: { name } } });
+  const sections = [
+    rep("Kuda", visit({ area_use: "retail_floor", areas: floor(12, 10), moisture: 3.2 }, true)),
+    rep("Kuda", visit({}, false)),
+    rep("Tinashe", visit({}, true)),
+    rep("Kuda", visit({ area_use: "warehouse", areas: floor(20, 10) }, false)),
+  ];
+  const insights = formInsights(set, sections);
+
+  it("ends the breakdown with the visits that left the question blank, so the rows add up", () => {
+    const rows = insights.breakdown!.rows;
+    expect(rows.at(-1)).toMatchObject({ answer: "Not answered", visits: 2, won: 1, blank: true });
+    expect(rows.reduce((sum, row) => sum + row.visits, 0)).toBe(insights.visits);
+  });
+
+  it("counts the wins among the visits that answered each question", () => {
+    expect(insights.questions.find((question) => question.key === "moisture")).toMatchObject({ answered: 1, wonWhenAnswered: 1 });
+  });
+
+  it("names who made the visits that drafted no quote, most first", () => {
+    expect(insights.undrafted).toEqual({ count: 2, byRep: [{ rep: "Kuda", count: 1 }, { rep: "Tinashe", count: 1 }] });
+  });
+});
