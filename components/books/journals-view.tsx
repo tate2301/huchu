@@ -171,7 +171,7 @@ export function JournalsPageView({
   return (
     <div style={{ flex: "1 1 auto", display: "flex", minHeight: 0 }}>
       <div className="kbody">
-        <div className="ws-tools">
+        <div className="ws-tools tl-narrow">
           <label className="input-wrap ws-find">
             <Icon name="search" />
             <input type="search" aria-label="Search journals" placeholder="Search journals" value={q} onChange={(event) => setQ(event.target.value)} />
@@ -197,9 +197,9 @@ export function JournalsPageView({
             ))}
           </div>
           <div className="end">
-            <a className="btn" href={exportHref} download>
+            <a className="btn" href={exportHref} download aria-label="Export">
               <Icon name="export" />
-              Export
+              <span className="tl-lbl">Export</span>
             </a>
           </div>
         </div>
@@ -214,8 +214,8 @@ export function JournalsPageView({
             {data.query.q ? "No journal matches. Clear the search to see the rest." : "No journals here."}
           </p>
         ) : (
-          <div className="ws" style={{ flex: "none" }}>
-            <table className="table" style={{ tableLayout: "fixed" }}>
+          <div className="ws" style={{ flex: "none", display: "block", overflowX: "auto" }}>
+            <table className="table" style={{ tableLayout: "fixed", minWidth: 680 }}>
               <colgroup>
                 <col style={{ width: 100 }} />
                 <col style={{ width: 80 }} />
@@ -250,7 +250,7 @@ export function JournalsPageView({
                       <span className="ref">{row.ref}</span>
                     </td>
                     <td className="muted">{row.date}</td>
-                    <td>
+                    <td className="fill" title={row.memo}>
                       <span className="cell-lead">{row.memo}</span>
                     </td>
                     <td className="muted">{row.source}</td>
@@ -260,24 +260,24 @@ export function JournalsPageView({
                     </td>
                   </tr>
                 ))}
+              </tbody>
+              <tfoot>
                 <tr className="tot">
                   <td>
                     {data.rows.length} of {of}
                   </td>
                   <td />
-                  <td />
+                  <td className="fill" />
                   <td>In draft</td>
                   <td className="num">{money(data.draftTotal)}</td>
                   <td />
                 </tr>
-              </tbody>
+              </tfoot>
             </table>
           </div>
         )}
-        <div className="ws-foot" style={{ marginTop: "auto" }}>
-          <b>
-            {of === 0 ? "None" : `${from}–${to} of ${of}`} · Rows 50
-          </b>
+        <div className="table-foot foot-row" style={{ marginTop: "auto" }}>
+          <span className="num">{of === 0 ? "None" : `${from} to ${to} of ${of}`}</span>
           <span style={{ flex: 1 }} />
           {data.query.page > 1 || to < of ? (
             <>

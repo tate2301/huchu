@@ -33,7 +33,7 @@ What the build could not match, decided differently from the boards, or built wi
 ### The shell
 
 - The module panel draws the boards' groups (`PanelGroup`): a module's rows, its headed groups, then Saved views and Reports from <module> for the module the page is in. Saved views are kept per page address (`SavedView`, approved 13 Oct); in the CRM its lists keep their own saved views instead. The chevron on a group's head folds it.
-- Reports from <module> lists the registry's reports (keyed by the page each is about) and the built-in custom reports (keyed by the reports they read) whose page is one of the module's rows. A module with none has no group. Books has none yet: the boards' "Money this month" and "Owed to you, by age" are not in the registry, so Books shows no Reports from Books until the Reports work adds them (Financial reports is listed there in routes.md §1).
+- Reports from <module> lists the registry's reports (keyed by the page each is about) and the built-in custom reports (keyed by the reports they read) whose page is one of the module's rows. A module with none has no group. Books' two, "Money this month" and "Owed to you, by age", are built-in reports now (see Reports), so Books lists them. Financial reports stays in Books' More group: Reports from Books lists reports, and it is a page of its own; it is listed under From Corelith in All reports.
 - The top bar's sidebar toggle is gone; the panel's own Hide, the rail and Ctrl B hide and show the panel.
 - The panel's search narrows the panel to matching items (/ focuses it). Search everything (Ctrl K) still opens the command palette.
 - Management left the panel's foot; the gear is the way in.
@@ -41,6 +41,7 @@ What the build could not match, decided differently from the boards, or built wi
 
 ### Books
 
+- Journals' memo is the fill column, cut with an ellipsis; at phone width the table scrolls inside itself, Export keeps only its icon, and the view tabs go under the search. The `.table td.fill` rule is in `components/core/parts.css`: `kit.css` predates it in `core.css`, and regenerating `kit.css` now would also rename `.ws` to `.wt` under every Books page.
 - Books is the accounting module, renamed: its rail item and panel say Books, and its home is Money (`/books`). Money, Invoices and Bank are new pages; Journals, VAT returns and Periods are rebuilt from the kit (now at `/books/journals`, `/books/vat`, `/books/periods`). The panel's Tax row reads VAT. The `/accounting` overview left the panel (Money replaced it) and is still there by its address.
 - Books' panel is the boards': Money, Invoices, Payments, Takings, Expenses, Bank, VAT, then Ledger (Journals, Periods, Chart of accounts, as PageBooksJournals draws it; routes.md put Chart of accounts under More, the board wins), Saved views, and More, folded, with Receivables, Payables, Financial reports, Trial balance, the two summaries and Posting rules and Fiscalisation. The boards draw Ledger only on the ledger pages; it is shown on every Books page so Journals is reachable.
 - The summaries' rows read "Receivables report" and "Payables report": "AR" and "AP" are not in the words allowed in capitals.
@@ -64,6 +65,24 @@ What the build could not match, decided differently from the boards, or built wi
 - Periods: the checks are about the oldest open month that has ended; with none, the finding says nothing is due to close. "Before the freeze" sets the period lock policy the app already enforces (nobody / managers with a reason / anyone with a reason); Save controls also saves the retained earnings account. Open a period keeps the optional opening balances the old page took, as JSON lines. A closed period has Reopen, which asks why.
 - Vane's panel now sits under the top bar, beside the page, as the boards draw it. It used to run the full height of the window. A card can carry a second, quieter action ("Read them first").
 - `--app-bar-h` is 56px, the kit's top bar, so pages that fill the screen subtract the right height.
+
+### Reports
+
+- All reports (`/reports`) is the board's: the view menu (All reports, Yours, Shared with you, From Corelith; the same four rows head the panel, with counts), Filter (which area), Anyone (who made it), Newest first, Columns and Export (the list as shown, as CSV). The view, folder, search and filters live in the address.
+- "Yours and shared" holds the custom reports and the templates saved from Corelith's reports, which the old catalogue listed as "Made by your team" and "Just yours". A template reads as a Table and cannot be filed in a folder (only custom reports have a folder). "From Corelith" holds the registry's reports and the built-in custom reports; Make it yours copies one into the builder, as the report's own page did.
+- The old catalogue's New template is not on the page: the board has no place for it, and Save as a template on any report does the same. Build a report became the board's New report (N), which starts the builder; in a folder, the new report is filed there.
+- Folders: Add to Folders names one; each folder's menu renames or deletes it (its maker or a manager). Deleting puts its reports back in no folder. A report moves with the folder button on its row (whoever can change the report). The server checks every folder id against the session's company.
+- The panel's Overview and Insights are not drawn: Insights (ReportsInsights) is its own piece of work and Overview has no board. Both are counted as missing in the check until they exist.
+- Build in Reports' panel opens Templates at its forms and its document layouts, for the managers who can open Templates. The board's counts beside Forms and Documents are not drawn: the panel does not load the templates.
+- Books' reports: "Money this month" is what came in this month by source (the tills, payments on invoices), as Money reads it, and the bills paid as money out, so its Amount total is the month's net. "Owed to you, by age" is every invoice with money owing, grouped Not yet due, 1 to 30, 31 to 60, 61 to 90 and over 90 days late. Both are in the registry, about `/books` and `/books/invoices`.
+- Management → Reports moved to `/management/reports`; `/preferences/organization/reports` forwards there. Go back to its own and Clear the starting view are always drawn, greyed out when there is nothing to undo. "Reads" names the report's source key. On a phone the list and the chosen report take turns, and the Page column is left out.
+- The check of Management → Reports still misses "Back to Floorcode" (the rail's back link is a plain link, which the check does not read as a button) and the rail's Pay and statutory and Explore (not built yet).
+
+### Sample data the checks leave out (`tools/check/known.json`)
+
+- ReportsAll: the folders Monday meeting, Fitters and Money are the board's; this workspace has none until someone makes one.
+- PageReportsSettings: Tills, Till rules, Posting and Fiscal device are Shop rows of Management's rail (this workspace has no shop); the Activity lines (James, Rudo) and an Off report are the board's sample: nothing has been switched off or arranged here.
+- BooksMoney, PageBooksJournals: the board's saved views (Overdue, Pomona Offices, Paid this month) now carry "shared" and "you"; still sample data. PageBooksJournals: the board draws JE-0419 open beside the list (Close, Post this journal, its Code, Account, Debit, Credit and Totals): a state mid-action.
 
 ### Management
 

@@ -1,6 +1,8 @@
 {
   "BooksInvoices": ["panel: Overdue", "panel: Pomona Offices", "panel: Paid this month", "footer: # selectedOwing #Send remindersPrint sta", "status: Sent"],
-  "BooksMoney": ["panel: Overdue", "panel: Pomona Offices", "panel: Paid this month", "button: Review", "label: CBZ, ZWG", "label: Halsted Builders"],
-  "PageBooksJournals": ["panel: Overdue", "panel: Pomona Offices", "panel: Paid this month", "button: Edit", "button: Post this journal"],
-  "MgmtVane": ["panel: Tills", "panel: Till rules", "panel: Posting", "panel: Fiscal device"]
+  "BooksMoney": ["panel: Overdue", "panel: Pomona Offices", "panel: Paid this month", "button: Review", "label: CBZ, ZWG", "label: Halsted Builders", "panel: Overdue shared", "panel: Pomona Offices you", "panel: Paid this month shared"],
+  "PageBooksJournals": ["panel: Overdue", "panel: Pomona Offices", "panel: Paid this month", "button: Edit", "button: Post this journal", "panel: Overdue shared", "panel: Pomona Offices you", "panel: Paid this month shared", "button: Close", "primary: Post this journal [Ctrl ↵]", "column: Code", "column: Account", "column: Debit", "column: Credit", "footer: Totals#"],
+  "MgmtVane": ["panel: Tills", "panel: Till rules", "panel: Posting", "panel: Fiscal device"],
+  "ReportsAll": ["panel: Monday meeting", "panel: Fitters", "panel: Money"],
+  "PageReportsSettings": ["panel: Tills", "panel: Till rules", "panel: Posting", "panel: Fiscal device", "label: James arranged the page", "label: James set the starting view", "label: Rudo switched Projects off", "status: Off"]
 }
