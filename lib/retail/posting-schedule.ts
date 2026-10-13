@@ -1,7 +1,7 @@
 import type { RetailPostingSchedule } from "@prisma/client";
 
 import { prisma } from "@/lib/prisma";
-import { dailySlot } from "@/lib/retail/worker/schedule";
+import { dailySlot } from "@/lib/scheduled-jobs/schedule";
 
 /**
  * When a shop's sales and stock reach the ledger (SET-09, W-65). "With every
