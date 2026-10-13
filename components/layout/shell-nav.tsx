@@ -99,6 +99,20 @@ type ShellNav = {
 const ShellNavContext = React.createContext<ShellNav | null>(null);
 
 /**
+ * The workspace's brand, for surfaces drawn outside the shell's navigation
+ * (Management's full-page surface) that still name the workspace: "Back to
+ * Floorcode". Provided by `AppShell` around every route.
+ */
+export const WorkspaceBrandContext = React.createContext<WorkspaceBrand | null>(null);
+
+/** The workspace's name as the shell shows it, or null where it is not known. */
+export function useWorkspaceName(): string | null {
+  const nav = React.useContext(ShellNavContext);
+  const brand = React.useContext(WorkspaceBrandContext);
+  return nav?.companyName ?? brand?.name ?? null;
+}
+
+/**
  * The navigation every part of the shell reads: the rail, the page header's
  * title fallback and the phone drawer. Worked out once per render of the shell.
  */

@@ -9,7 +9,13 @@ import { MobileNav } from "@/components/layout/mobile-nav";
 import { PageChromeProvider } from "@/components/layout/page-chrome";
 import { PageHeader } from "@/components/layout/page-header";
 import { RoleRefusal } from "@/components/layout/role-refusal";
-import { ShellNavProvider, useShellNav, type ShopConditions, type WorkspaceBrand } from "@/components/layout/shell-nav";
+import {
+  ShellNavProvider,
+  useShellNav,
+  WorkspaceBrandContext,
+  type ShopConditions,
+  type WorkspaceBrand,
+} from "@/components/layout/shell-nav";
 import { ShellProvider, useShell } from "@/components/layout/shell-state";
 import { OnboardingProvider } from "@/components/onboarding/onboarding-provider";
 import { isPublicPath } from "@/lib/public-routes";
@@ -75,7 +81,11 @@ export function AppShell({
     isSettingsRoute ||
     isCountPhoneRoute
   ) {
-    return <div className="min-h-screen bg-background">{children}</div>;
+    return (
+      <WorkspaceBrandContext.Provider value={workspaceBrand ?? null}>
+        <div className="min-h-screen bg-background">{children}</div>
+      </WorkspaceBrandContext.Provider>
+    );
   }
 
   return (

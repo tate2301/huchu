@@ -14,6 +14,7 @@ import {
   SettingsSurface,
   type SettingsRailGroup,
 } from "@/components/management/ui";
+import { useWorkspaceName } from "@/components/layout/shell-nav";
 import { useActiveWorkspace } from "@/components/layout/workspace-rail/use-active-workspace";
 import {
   findActiveSettingsNavEntry,
@@ -113,6 +114,8 @@ export function SettingsFrame({
     "back" from Billing to Job grades is not leaving the surface.
   */
   const { activeWorkspaceId } = useActiveWorkspace(user?.companySlug ?? "default");
+  // The back link names where it goes: "Back to Floorcode".
+  const workspaceName = useWorkspaceName();
   const landingHref = React.useMemo(
     () =>
       getComputedWorkspaceHomeHref({
@@ -168,7 +171,14 @@ export function SettingsFrame({
     <SettingsSurface
       open={open}
       onOpenChange={handleOpenChange}
-      rail={<SettingsRail groups={groups} backHref={landingHref} title="Management" />}
+      rail={
+        <SettingsRail
+          groups={groups}
+          backHref={landingHref}
+          backLabel={workspaceName ? `Back to ${workspaceName}` : undefined}
+          title="Management"
+        />
+      }
     >
       <SettingsContent title={title} actions={actions}>
         {children}

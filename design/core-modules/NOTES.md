@@ -67,6 +67,7 @@ What the build could not match, decided differently from the boards, or built wi
 
 ### Management
 
+- Management's back link names the workspace: "Back to Floorcode".
 - Management is a page, not a dialog over the app. Below 1100px its sidebar hides and the page flows, as the kit draws it: on a phone there is no way to another Management page except Back. Built as drawn.
 - Every register keeps its components; they take the kit's measures through the shared CSS module, so the record's mark tile, the section icons and the uppercase event chip are gone everywhere, not only on job grades.
 - Job grades: no fixture route. The page is the register the other twenty share, restyled; a fixture would only copy the kit's HTML.
