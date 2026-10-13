@@ -19,6 +19,7 @@ import { useToast } from "@/components/ui/use-toast";
 
 import { PanelGroup } from "./panel-group";
 import { RailRow } from "./rail-row";
+import { isReportsArea, ReportsGroups } from "./reports-groups";
 import styles from "./workspace-rail.module.css";
 
 /**
@@ -37,6 +38,8 @@ export function ModuleGroups({
   savedViews?: boolean;
   onNavigate?: () => void;
 }) {
+  // Reports' own panel: its folders and Build, as ReportsAll draws it.
+  if (isReportsArea(area)) return <ReportsGroups onNavigate={onNavigate} />;
   return (
     <>
       {savedViews ? <SavedViewsGroup onNavigate={onNavigate} /> : null}
@@ -53,7 +56,7 @@ const noopSubscribe = () => () => {};
  * The query cache is persisted for offline use, so what it holds is read only
  * after hydration: until then the groups draw what the server drew (nothing).
  */
-function useMounted(): boolean {
+export function useMounted(): boolean {
   return React.useSyncExternalStore(noopSubscribe, () => true, () => false);
 }
 
@@ -189,8 +192,8 @@ function SavedViewsGroup({ onNavigate }: { onNavigate?: () => void }) {
   );
 }
 
-/** Naming a view, where its row goes: Enter saves, Esc puts it away. */
-function ViewForm({
+/** Naming a view (or a folder), where its row goes: Enter saves, Esc puts it away. */
+export function ViewForm({
   label,
   initialName = "",
   share = false,

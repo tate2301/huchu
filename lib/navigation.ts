@@ -255,7 +255,15 @@ export const navSections: NavSection[] = [
     // No feature of its own: every report is gated by the page it is about
     // (see lib/reports/access.ts), and the entry shows only when at least one
     // is readable (the reporting module in lib/workspaces.ts).
-    items: [{ href: "/reports", icon: FileCheck, label: "Reports" }],
+    // ReportsAll's panel: All reports and its three views. Its Folders and
+    // Build groups are drawn by the panel (`ReportsGroups`): folders are the
+    // workspace's own, not navigation. Overview and Insights wait for their pages.
+    items: [
+      { href: "/reports", icon: FileCheck, label: "All reports" },
+      { href: "/reports?view=yours", icon: UserRound, label: "Yours" },
+      { href: "/reports?view=shared", icon: Users, label: "Shared with you" },
+      { href: "/reports?view=corelith", icon: Star, label: "From Corelith" },
+    ],
   },
   {
     id: "people",
@@ -937,6 +945,10 @@ export const navSections: NavSection[] = [
     ],
   },
 ];
+
+/** The Reports panel's rows, for an arrangement that pulls Reports in whole. */
+export const REPORTS_NAV_HREFS: readonly string[] =
+  navSections.find((section) => section.id === "reporting")?.items.map((item) => item.href) ?? ["/reports"];
 
 export function getNavSectionsForRole(role: string | null | undefined) {
   return navSections

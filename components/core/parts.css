@@ -55,3 +55,28 @@
 .ck.ck .table td {
   font-variant-numeric: tabular-nums;
 }
+
+/* All reports: a row of ours carries a folder menu over its right edge, outside the row's link. */
+.ck.ck.ck .rr-wrap { position: relative; }
+.ck.ck.ck .list > .rr-wrap:first-child > .row { box-shadow: none; }
+.ck.ck.ck .rr-move { position: absolute; right: var(--space-24); top: 50%; transform: translateY(-50%); }
+.ck.ck.ck .rr-wrap:hover .rr-move .btn, .ck.ck.ck .rr-move .btn[aria-expanded="true"] { background: var(--color-surface); }
+@media (max-width: 760px) {
+  .ck.ck.ck .rr-move { right: var(--space-16); }
+  .ck.ck.ck .rr-wrap:has(.rr-move) > .row { padding-right: 52px; }
+}
+
+/* A list's tools at phone width (Journals): the search takes the row with the end's buttons, which
+   keep only their icons; the segmented control goes under them and scrolls inside itself. */
+@media (max-width: 760px) {
+  .ck.ck.ck .ws-tools.tl-narrow { flex-wrap: wrap; padding-left: var(--space-16); padding-right: var(--space-16); }
+  .ck.ck.ck .tl-narrow .ws-find { width: auto; flex: 1 1 0; min-width: 0; }
+  .ck.ck.ck .tl-narrow .end { order: 2; }
+  .ck.ck.ck .tl-narrow .seg { order: 3; max-width: 100%; overflow-x: auto; }
+  .ck.ck.ck .tl-narrow .tl-lbl { display: none; }
+}
+
+/* A table's fill column (core.css `.table td.fill`, which kit.css predates): the column that takes
+   the room left, its words cut with an ellipsis rather than spilling into the next cell. */
+.ck.ck.ck .table td.fill { max-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.ck.ck.ck .table td.fill .cell-lead { display: block; overflow: hidden; text-overflow: ellipsis; }

@@ -1,6 +1,6 @@
 import { canViewAccountingHref } from "@/lib/accounting/visibility";
 import type { NavGroup, NavItem, NavSection } from "@/lib/navigation";
-import { getNavSectionsForRole, navSections, schoolBandGrant } from "@/lib/navigation";
+import { getNavSectionsForRole, navSections, REPORTS_NAV_HREFS, schoolBandGrant } from "@/lib/navigation";
 import { normalizeFeatureKey } from "@/lib/platform/gating/catalog-utils";
 import { filterNavSectionsByEnabledFeatures } from "@/lib/platform/gating/nav-filter";
 import type { PersonaCode } from "@/lib/platform/personas";
@@ -450,7 +450,11 @@ function buildSchoolsProfileSections(): WorkspaceProfileSectionSpec[] {
   // Every report the workspace can open, beside the school's own. Pulled in by
   // the arrangement so a school that is one workspace of several still has it:
   // a split vertical's rail holds only what its arrangement asks for.
-  const reports = { id: "schools-all-reports", title: "Reports", refs: [{ moduleId: "reporting" as const, href: "/reports" }] };
+  const reports = {
+    id: "schools-all-reports",
+    title: "Reports",
+    refs: REPORTS_NAV_HREFS.map((href) => ({ moduleId: "reporting" as const, href })),
+  };
 
   return [...loose, ...bands, reports];
 }

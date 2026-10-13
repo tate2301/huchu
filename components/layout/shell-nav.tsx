@@ -12,6 +12,7 @@ import { isRouteAllowedForRole } from "@/lib/auth-core/role-routes";
 import { GearSix } from "@/lib/icons";
 import type { RailArea } from "@/lib/rail/areas";
 import { logoInitials } from "@/lib/rail/initials";
+import { reportBadges, reportCounts, reportEntries } from "@/lib/reports/all";
 import { areaForHref, getRailModel, type RailModel } from "@/lib/rail/model";
 import {
   canRoleOpenRetailPath,
@@ -27,6 +28,7 @@ import {
   type WorkspaceSidebarModel,
 } from "@/lib/workspaces";
 import { useActiveWorkspace } from "@/components/layout/workspace-rail/use-active-workspace";
+import { fetchReportsHome, REPORTS_HOME_KEY } from "@/components/layout/workspace-rail/reports-groups";
 
 /** The workspace's name and branding, resolved on the server by the root layout. */
 export type WorkspaceBrand = {
@@ -182,6 +184,15 @@ export function ShellNavProvider({
     refetchOnWindowFocus: true,
   });
 
+  // Reports' rows count what each view holds, while Reports is the page's module.
+  const onReports = pathname === "/reports" || pathname.startsWith("/reports/");
+  const reportsQuery = useQuery({
+    queryKey: REPORTS_HOME_KEY,
+    queryFn: fetchReportsHome,
+    enabled: onReports,
+    staleTime: 60_000,
+  });
+
   // The query cache outlives the page (it is persisted for offline use), so
   // what it holds is read after hydration rather than diverging from the
   // server's HTML: until then the panel draws the facts the server found.
@@ -189,9 +200,14 @@ export function ShellNavProvider({
   const conditions = (mounted ? badgesQuery.data?.conditions : undefined) ?? shopConditions;
   const retailBadges = mounted ? badgesQuery.data?.badges : undefined;
   const booksBadges = mounted ? booksQuery.data?.badges : undefined;
+  const reportsData = mounted && onReports ? reportsQuery.data : undefined;
+  const reportsBadges = React.useMemo(
+    () => (reportsData ? reportBadges(reportCounts(reportEntries(reportsData))) : undefined),
+    [reportsData],
+  );
   const badges = React.useMemo(
-    () => (retailBadges || booksBadges ? { ...retailBadges, ...booksBadges } : NO_BADGES),
-    [booksBadges, retailBadges],
+    () => (retailBadges || booksBadges || reportsBadges ? { ...retailBadges, ...booksBadges, ...reportsBadges } : NO_BADGES),
+    [booksBadges, retailBadges, reportsBadges],
   );
 
   // An item whose shop condition does not hold is not drawn for anyone; one

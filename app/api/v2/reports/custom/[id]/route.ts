@@ -36,7 +36,9 @@ export async function PATCH(request: NextRequest, { params }: Params) {
     if (!parsed.success) return errorResponse(parsed.error.issues[0]?.message ?? "That change could not be read", 400);
     const outcome = await updateCustomReport(readerOf(sessionResult.session), id, parsed.data);
     if ("error" in outcome) {
-      return outcome.error === "missing" ? errorResponse("Report not found", 404) : errorResponse(NOT_YOURS, 403);
+      if (outcome.error === "missing") return errorResponse("Report not found", 404);
+      if (outcome.error === "folder") return errorResponse("That folder is not in this workspace", 400);
+      return errorResponse(NOT_YOURS, 403);
     }
     return successResponse({ report: outcome.report });
   } catch (error) {

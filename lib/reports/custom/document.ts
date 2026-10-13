@@ -92,6 +92,8 @@ export const customReportInputSchema = z.object({
   description: z.string().trim().max(500).nullable().optional(),
   /** Who sees it besides whoever made it: just them, the managers, or everyone — as a report template says it. */
   audience: z.enum(TEMPLATE_AUDIENCES).default("JUST_ME"),
+  /** The folder it is filed in on Reports' panel; none is "not in a folder". */
+  folderId: z.string().uuid().nullable().optional(),
   document: customDocumentSchema,
 });
 export type CustomReportInput = z.output<typeof customReportInputSchema>;
@@ -113,7 +115,17 @@ export type CustomReportSummary = Pick<CustomReport, "id" | "title" | "descripti
   areaSources: string[];
   /** Whoever made it, by name. */
   madeBy: string | null;
+  /** The folder it is filed in. */
+  folder: { id: string; name: string } | null;
+  /** A board (several blocks) or a table (one table and nothing else). */
+  kind: "board" | "table";
 };
+
+/** A report with one table block and nothing else reads as a table; anything more is a board. */
+export function reportKind(document: Pick<CustomDocument, "blocks">): "board" | "table" {
+  const [only, ...rest] = document.blocks;
+  return only && rest.length === 0 && only.type === "query" && only.display.type === "table" ? "table" : "board";
+}
 
 /** The dates as the params a dated source takes. */
 export function periodParams(period: CustomDocument["period"]): ReportParam[] {

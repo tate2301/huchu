@@ -5,7 +5,7 @@ import { errorResponse, successResponse, validateSession } from "@/lib/api-utils
 import { reportCatalog, reportMeta } from "@/lib/reports/catalog";
 import { customReportInputSchema, documentFromReport, starterDocument } from "@/lib/reports/custom/document";
 import { readableSources, readerOf } from "@/lib/reports/custom/sources";
-import { createCustomReport, listCustomReports, readCustomReport, ShareRefused } from "@/lib/reports/custom/store";
+import { createCustomReport, FolderRefused, listCustomReports, readCustomReport, ShareRefused } from "@/lib/reports/custom/store";
 import { customTemplate, templatesFor } from "@/lib/reports/custom/templates";
 import { readReportSetting } from "@/lib/reports/settings";
 
@@ -110,6 +110,7 @@ export async function POST(request: NextRequest) {
     return successResponse({ report }, 201);
   } catch (error) {
     if (error instanceof ShareRefused) return errorResponse(error.message, 403);
+    if (error instanceof FolderRefused) return errorResponse(error.message, 400);
     console.error("[API] POST /api/v2/reports/custom error:", error);
     return errorResponse("Failed to create the report");
   }
