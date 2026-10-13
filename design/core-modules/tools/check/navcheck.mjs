@@ -43,7 +43,9 @@ for (const start of starts) {
     checked++;
     const landed = await panelOf();
     const current = await currentOf();
-    if (landed === panel && current !== link.text) {
+    // A row's count is part of its text ("All reports48"): compare the names only.
+    const name = (t) => (t ?? "").replace(/\d+$/, "").trim();
+    if (landed === panel && name(current) !== name(link.text)) {
       const line = `${panel} › ${link.text} (${link.href}) → marks "${current ?? "nothing"}" as the page`;
       bad.push(line);
       console.log("  " + line);
