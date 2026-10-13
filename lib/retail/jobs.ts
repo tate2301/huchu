@@ -11,10 +11,10 @@ import { birthdayBonusesForAll, expirePointsForAll } from "@/lib/retail/loyalty/
 import { sendLaybyRemindersForAll } from "@/lib/retail/floor/layby-reminders";
 import { runBuyingFollowUpsForAll } from "@/lib/retail/buying/follow-ups";
 
-import type { RetailJob } from "./schedule";
+import type { ScheduledJob } from "@/lib/scheduled-jobs/schedule";
 
 /**
- * The retail worker's jobs (`scripts/retail-worker.ts`, 10-setup §4.1). Each
+ * The retail jobs the scheduler runs (`app/api/cron/tick`, 10-setup §4.1). Each
  * unit that owns one adds it here: 02:00 the bin's purge (ADM-07), 06:00 the
  * licence reminder (ADM-08, C-05), 07:00 the RBZ rate (SET-05, when
  * configured), 03:00 the shelf-label jobs no till picked up (PRD-06), 23:00
@@ -25,7 +25,7 @@ import type { RetailJob } from "./schedule";
  * 07:00 on Mondays the birthday bonuses (CUS-01) and 09:00 the weekly lay-by
  * reminders (FLR-06), 07:00 the order follow-ups (BUY-03).
  */
-export const RETAIL_JOBS: RetailJob[] = [
+export const RETAIL_JOBS: ScheduledJob[] = [
   {
     // A WhatsApp each week to every customer still paying a lay-by who asked for reminders (FLR-06).
     name: "layby-reminders",

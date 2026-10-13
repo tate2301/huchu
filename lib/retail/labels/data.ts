@@ -2,7 +2,7 @@ import { toNumberOrZero } from "@/lib/money";
 import { prisma } from "@/lib/prisma";
 import { defaultPriceList } from "@/lib/retail/prices/change";
 import { wasPrices } from "@/lib/retail/prices/was";
-import { dailySlot } from "@/lib/retail/worker/schedule";
+import { dailySlot } from "@/lib/scheduled-jobs/schedule";
 import { formatMoney } from "@/lib/workspace/format";
 
 /**

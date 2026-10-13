@@ -10,7 +10,7 @@ import { shopSiteId } from "@/lib/retail/devices";
 import { LabelRefusal, printLabels } from "@/lib/retail/labels/print";
 import { harareMoment } from "@/lib/retail/pricing/engine";
 import { SHOP_TIME_ZONE } from "@/lib/retail/shop-profile-rules";
-import { dailySlot } from "@/lib/retail/worker/schedule";
+import { dailySlot } from "@/lib/scheduled-jobs/schedule";
 
 import { applyDuePriceChanges, changePrices, PriceRefusal } from "./change";
 import { centsOf } from "./figure";

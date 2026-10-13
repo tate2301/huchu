@@ -1,20 +1,24 @@
 import { SHOP_TIME_ZONE } from "@/lib/retail/shop-profile-rules";
 
 /**
- * When the retail worker's jobs run (10-setup §4.1): some once a day at a
- * shop-clock time (Africa/Harare), some every few minutes. The worker keeps
- * each job's last run in memory, so a job whose time passed while the worker
- * was down runs once when it comes back — every job is written to be safe to
- * run twice.
+ * When the scheduled jobs run (`app/api/cron/tick`): some once a day at a
+ * shop-clock time (Africa/Harare), some every few minutes.
+ *
+ * Time is cut into slots: a daily job's slot is today's `HH:MM`, an interval
+ * job's is the `everyMinutes` stretch of the clock `now` falls in. A job is due
+ * when it has not run since its current slot began, so a tick that comes a few
+ * seconds early or late still runs each job once a slot, and a slot missed
+ * while nothing called the tick runs once when the next tick comes. Every job
+ * is written to be safe to run twice.
  */
 
-export type RetailJobWhen = { dailyAt: string } | { everyMinutes: number };
+export type JobWhen = { dailyAt: string } | { everyMinutes: number };
 
-export type RetailJob = {
-  /** "licence-reminder", for the log. */
+export type ScheduledJob = {
+  /** "licence-reminder": the job's row in `ScheduledJobRun`, and its name in the log. */
   name: string;
-  when: RetailJobWhen;
-  /** Does the job for every shop, and says what it did in one line. */
+  when: JobWhen;
+  /** Does the job for every workspace, and says what it did in one line. */
   run(now: Date): Promise<string>;
 };
 
@@ -41,16 +45,12 @@ export function dailySlot(now: Date, at: string, timeZone = SHOP_TIME_ZONE): Dat
   return new Date(slot - offset * 60_000);
 }
 
-/** Whether a job is due at `now`, given when it last ran (null: not since the worker started). */
-export function isJobDue(when: RetailJobWhen, lastRun: Date | null, now: Date): boolean {
+/** When the job's current slot began, or null before a daily job's time today. */
+export function jobSlot(when: JobWhen, now: Date): Date | null {
   if ("everyMinutes" in when) {
-    return lastRun === null || now.getTime() - lastRun.getTime() >= when.everyMinutes * 60_000;
+    const span = when.everyMinutes * 60_000;
+    return new Date(Math.floor(now.getTime() / span) * span);
   }
   const slot = dailySlot(now, when.dailyAt);
-  return now >= slot && (lastRun === null || lastRun < slot);
-}
-
-/** The jobs to run now, in their listed order. */
-export function dueJobs(jobs: readonly RetailJob[], lastRuns: ReadonlyMap<string, Date>, now: Date): RetailJob[] {
-  return jobs.filter((job) => isJobDue(job.when, lastRuns.get(job.name) ?? null, now));
+  return now >= slot ? slot : null;
 }
