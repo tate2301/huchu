@@ -127,6 +127,7 @@ model Company {
   reportSettings                ReportSetting[]
   customReports                 CustomReport[]
   reportFolders                 ReportFolder[]
+  savedViews                    SavedView[]
   reportTemplates               ReportTemplate[]
   reportTemplateUses            ReportTemplateUse[]
   vaneItems                     VaneItem[]
@@ -1400,6 +1401,7 @@ model User {
   crmAppointmentsAssigned           CrmAppointment[]               @relation("CrmAppointmentAssignedTo")
   crmAppointmentsCreated            CrmAppointment[]               @relation("CrmAppointmentCreatedBy")
   crmSavedViewsCreated              CrmSavedView[]                 @relation("CrmSavedViewCreatedBy")
+  savedViewsCreated                 SavedView[]                    @relation("SavedViewCreatedBy")
   crmIntakeFormsCreated             CrmIntakeForm[]                @relation("CrmIntakeFormCreatedBy")
   crmIntakeFormsDefaultAssignee     CrmIntakeForm[]                @relation("CrmIntakeFormDefaultAssignee")
   crmApiKeysCreated                 CrmApiKey[]                    @relation("CrmApiKeyCreatedBy")
@@ -8630,6 +8632,28 @@ model CustomReport {
 /// A folder on Reports' panel ("Monday meeting", "Fitters", "Money"): the
 /// workspace's own grouping of its reports. Everyone who can read a report sees
 /// it in its folder.
+/// A page's address kept under a name in its module's panel (design/core-modules
+/// spec/routes.md §0): the page (`path`) and what was in its query string, for
+/// the person who saved it or, shared, for everyone in the workspace.
+model SavedView {
+  id          String   @id @default(uuid())
+  companyId   String
+  /// The page's address without its query, like `/books/invoices`.
+  path        String   @db.VarChar(300)
+  name        String   @db.VarChar(120)
+  /// The address's query string without the `?`, like `show=overdue`. Empty for the page as it opens.
+  query       String   @default("") @db.VarChar(2000)
+  isShared    Boolean  @default(false)
+  createdById String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  createdBy User    @relation("SavedViewCreatedBy", fields: [createdById], references: [id], onDelete: Cascade)
+
+  @@index([companyId, path])
+}
+
 model ReportFolder {
   id          String   @id @default(uuid())
   companyId   String

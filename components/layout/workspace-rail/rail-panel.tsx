@@ -12,13 +12,15 @@ import styles from "./workspace-rail.module.css";
  * The panel beside the rail (design/core-modules/spec/shell.md): 240px on the
  * surface.
  *
+ * An `aside` named for what it shows ("Books"), as the boards' `aside.panel-m`.
  * Its 56px head is either the workspace (the module list) or the module (or
  * folder in one) you are in, with the chevron before the title going back up
  * one level.
  * Collapsing the panel is its own button at the right of the head (and
  * Cmd/Ctrl+B). Under the head, a search narrows the panel to the items whose
- * names match, across every module; `/` focuses it. The shelf at the foot
- * holds Help. Management is behind the rail's gear, never here.
+ * names match, across every module; `/` focuses it. A module's rows may sit in
+ * headed groups, with its Saved views and its Reports (`PanelGroup`, drawn by
+ * `WorkspaceRail`). The shelf at the foot holds Help. Management is behind the rail's gear, never here.
  */
 export function RailPanel({
   title,
@@ -52,7 +54,7 @@ export function RailPanel({
   const findRef = React.useRef<HTMLInputElement>(null);
   useShortcut("/", () => findRef.current?.focus(), { enabled: Boolean(onQuery) });
   return (
-    <div className={cn(styles.panel, overlay && styles.panelOverlay)}>
+    <aside aria-label={title} className={cn(styles.panel, overlay && styles.panelOverlay)}>
       <div className={styles.panelHead}>
         {onBack ? (
           <button
@@ -109,6 +111,6 @@ export function RailPanel({
       </nav>
 
       {shelf ? <div className={styles.shelf}>{shelf}</div> : null}
-    </div>
+    </aside>
   );
 }

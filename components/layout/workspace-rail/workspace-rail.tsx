@@ -6,10 +6,11 @@ import Link from "next/link";
 import { MedusaCogSixToothIcon, Package } from "@/lib/icons";
 import { isSettingsSurfacePath } from "@/lib/settings/management-nav";
 import type { NavItem } from "@/lib/navigation";
-import { areaRows, folderForHref, type RailArea, type RailFolder } from "@/lib/rail/areas";
+import { areaRows, bandRows, folderForHref, type RailArea, type RailFolder } from "@/lib/rail/areas";
 import { areaForHref, type RailModel } from "@/lib/rail/model";
 import { orderRows } from "@/lib/rail/order";
 
+import { PanelGroup } from "./panel-group";
 import { RailPanel } from "./rail-panel";
 import { RailHeading, RailRow } from "./rail-row";
 import { SwitcherRail, type RailMark } from "./switcher-rail";
@@ -61,6 +62,7 @@ export function WorkspaceRail({
   onOpenPanel,
   onNavigate,
   extra,
+  moduleGroups,
 }: {
   model: RailModel;
   /** The workspace's name: the module list's title ("Retail"). */
@@ -82,6 +84,11 @@ export function WorkspaceRail({
   onOpenPanel: () => void;
   onNavigate?: () => void;
   extra?: React.ReactNode;
+  /**
+   * The groups the page's own module adds under its rows: its Saved views and
+   * its Reports. Drawn only while the panel shows the module the page is in.
+   */
+  moduleGroups?: (area: RailArea) => React.ReactNode;
 }) {
   const { shape, areas, pinCapacity } = model;
   const activeArea = React.useMemo(() => areaForHref(areas, activeHref), [areas, activeHref]);
@@ -171,6 +178,34 @@ export function WorkspaceRail({
       isPinned: (item) => isPinned(item.href),
       alphabetical: area.ranked === true,
     }).map(rowFor);
+
+  // A module's own rows, then its headed bands, then (for the page's module)
+  // its Saved views and Reports, then the bands that sit last ("More").
+  const areaBody = (area: RailArea, folderRows?: React.ReactNode) => {
+    const band = (id: string, label: string, trailing: boolean) => {
+      const items = bandRows(area, id);
+      return (
+        <PanelGroup
+          key={`band:${id}`}
+          label={label}
+          defaultOpen={!trailing}
+          holdsCurrent={items.some((item) => item.href === activeHref)}
+        >
+          {rowsFor(items, area)}
+        </PanelGroup>
+      );
+    };
+    const bands = area.bands ?? [];
+    return (
+      <>
+        {rowsFor(areaRows(area), area)}
+        {bands.filter((b) => !b.trailing).map((b) => band(b.id, b.label, false))}
+        {folderRows}
+        {area.id === activeArea?.id ? moduleGroups?.(area) : null}
+        {bands.filter((b) => b.trailing).map((b) => band(b.id, b.label, true))}
+      </>
+    );
+  };
 
   // A row that opens a level: a module in the module list, or a folder in a
   // module. Following it lands on the level's first page and opens the level;
@@ -274,7 +309,7 @@ export function WorkspaceRail({
             {areas.map((area) => (
               <React.Fragment key={area.id}>
                 <RailHeading>{area.label}</RailHeading>
-                {rowsFor(area.items, area)}
+                {areaBody(area)}
               </React.Fragment>
             ))}
           </ul>
@@ -282,12 +317,14 @@ export function WorkspaceRail({
           <ul className={styles.items}>{rowsFor(shownFolder.items, shownArea)}</ul>
         ) : shownArea ? (
           <ul className={styles.items}>
-            {rowsFor(areaRows(shownArea), shownArea)}
-            {(shownArea.folders ?? []).map((folder) =>
-              levelRow(
-                folder,
-                { areaId: shownArea.id, folderId: folder.id },
-                shownArea.id === activeArea?.id && folder.id === activeFolderId,
+            {areaBody(
+              shownArea,
+              (shownArea.folders ?? []).map((folder) =>
+                levelRow(
+                  folder,
+                  { areaId: shownArea.id, folderId: folder.id },
+                  shownArea.id === activeArea?.id && folder.id === activeFolderId,
+                ),
               ),
             )}
           </ul>

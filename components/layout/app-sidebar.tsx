@@ -6,6 +6,7 @@ import { PersonMenu } from "@/components/layout/person-menu";
 import { useShellNav } from "@/components/layout/shell-nav";
 import { useShell } from "@/components/layout/shell-state";
 import { WorkspaceRail } from "@/components/layout/workspace-rail";
+import { ModuleGroups } from "@/components/layout/workspace-rail/module-groups";
 
 /**
  * The rail and its panel, beside the page (≥720px) or inside the phone drawer
@@ -32,6 +33,14 @@ export function AppSidebar({ inDrawer = false }: { inDrawer?: boolean }) {
       onCollapse={inDrawer ? () => shell.setDrawerOpen(false) : shell.closePanel}
       onOpenPanel={shell.openPanel}
       extra={<SidebarCrmCollections />}
+      moduleGroups={(area) => (
+        <ModuleGroups
+          area={area}
+          areas={nav.rail.areas}
+          // The CRM's lists keep their own saved views (`SidebarCrmCollections`).
+          savedViews={!nav.activeHref?.startsWith("/crm")}
+        />
+      )}
     />
   );
 }

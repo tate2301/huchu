@@ -20,6 +20,7 @@ import {
   Sun,
   Tag,
   UsersThree,
+  Wallet,
 } from "@/lib/icons";
 import type { NavItem, NavRank } from "@/lib/navigation";
 import { RETAIL_NAV_MODULES } from "@/lib/retail/nav";
@@ -55,7 +56,16 @@ export type RailArea = {
    * level and the last; anything deeper is a page's business, not the rail's.
    */
   folders?: RailFolder[];
+  /**
+   * Headed bands inside the area's own panel, after its ungrouped rows: a
+   * section that declares `panelGroups` ("Ledger", "More" in Books). Each
+   * band's rows are the area's items carrying its id as their `group`.
+   */
+  bands?: RailBand[];
 };
+
+/** A labelled band of rows inside an area's panel. */
+export type RailBand = { id: string; label: string; trailing?: boolean };
 
 /** A group inside an area, opened in the panel one level down. */
 export type RailFolder = {
@@ -80,6 +90,8 @@ export type RailFolder = {
  * guessing, so each area below owns its mark outright.
  */
 const AREA_ICONS: Record<string, LucideIcon> = {
+  // Books' first row is Money, drawn as a house on the boards; the module keeps its wallet.
+  accounting: Wallet,
   // Campus
   "school-day": Sun,
   students: UsersThree,
@@ -207,7 +219,7 @@ export function areasFromSections(
     rawId: string,
     label: string,
     items: NavItem[],
-    { rank, ranked, folders }: Pick<RailArea, "rank" | "ranked" | "folders"> = {},
+    { rank, ranked, folders, bands }: Pick<RailArea, "rank" | "ranked" | "folders" | "bands"> = {},
   ) => {
     if (items.length === 0) return;
     const id = keyFor(rawId, items);
@@ -226,6 +238,7 @@ export function areasFromSections(
       ...(rank ? { rank } : {}),
       ...(ranked ? { ranked } : {}),
       ...(folders && folders.length > 0 ? { folders } : {}),
+      ...(bands && bands.length > 0 ? { bands } : {}),
     };
     byId.set(targetId, area);
     areas.push(area);
@@ -242,7 +255,13 @@ export function areasFromSections(
     // items divide — Range & Stock is what we sell *and* what we hold, which
     // is two questions and therefore two areas. One group is just a heading
     // over the whole section, and the section stays whole.
-    if (flatten && (section.flattenGroups || populated.length > 1)) {
+    if (section.panelGroups) {
+      // One place in the rail; its groups are bands inside its own panel.
+      push(section.id, AREA_LABELS[section.id] ?? section.title, section.items, {
+        ranked,
+        bands: populated.map((group) => ({ id: group.id, label: group.label, ...(group.trailing ? { trailing: true } : {}) })),
+      });
+    } else if (flatten && (section.flattenGroups || populated.length > 1)) {
       const ungrouped = section.items.filter((item) => !item.group);
       if (ungrouped.length > 0) {
         push(section.id, AREA_LABELS[section.id] ?? section.title, ungrouped, { ranked });
@@ -290,8 +309,12 @@ export function areasFromSections(
   return areas;
 }
 
-/** The destinations an area shows as rows of its own, outside its folders. */
+/** The destinations an area shows as rows of its own, outside its folders and bands. */
 export function areaRows(area: RailArea): NavItem[] {
+  if (area.bands) {
+    const banded = new Set(area.bands.map((band) => band.id));
+    return area.items.filter((item) => !item.group || !banded.has(item.group));
+  }
   if (!area.folders) return area.items;
   const foldered = new Set(area.folders.flatMap((folder) => folder.items.map((item) => item.href)));
   return area.items.filter((item) => !foldered.has(item.href));
@@ -301,4 +324,9 @@ export function areaRows(area: RailArea): NavItem[] {
 export function folderForHref(area: RailArea, href: string | null): RailFolder | null {
   if (!href || !area.folders) return null;
   return area.folders.find((folder) => folder.items.some((item) => item.href === href)) ?? null;
+}
+
+/** The rows of one band of an area's panel. */
+export function bandRows(area: RailArea, bandId: string): NavItem[] {
+  return area.items.filter((item) => item.group === bandId);
 }

@@ -79,7 +79,10 @@ export function panelBudget(height: number = REFERENCE_HEIGHT): number {
 
 /** What a workspace's whole tree costs if every area were open at once. */
 export function flatCost(areas: RailArea[]): number {
-  return areas.reduce((total, area) => total + HEADING + area.items.length * ROW, 0);
+  return areas.reduce(
+    (total, area) => total + HEADING + (area.bands?.length ?? 0) * HEADING + area.items.length * ROW,
+    0,
+  );
 }
 
 function pinCapacityFor(areaCount: number, shape: RailShape): number {

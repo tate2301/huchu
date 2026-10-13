@@ -32,6 +32,8 @@ What the build could not match, decided differently from the boards, or built wi
 
 ### The shell
 
+- The module panel draws the boards' groups (`PanelGroup`): a module's rows, its headed groups, then Saved views and Reports from <module> for the module the page is in. Saved views are kept per page address (`SavedView`, approved 13 Oct); in the CRM its lists keep their own saved views instead. The chevron on a group's head folds it.
+- Reports from <module> lists the registry's reports (keyed by the page each is about) and the built-in custom reports (keyed by the reports they read) whose page is one of the module's rows. A module with none has no group. Books has none yet: the boards' "Money this month" and "Owed to you, by age" are not in the registry, so Books shows no Reports from Books until the Reports work adds them (Financial reports is listed there in routes.md §1).
 - The top bar's sidebar toggle is gone; the panel's own Hide, the rail and Ctrl B hide and show the panel.
 - The panel's search narrows the panel to matching items (/ focuses it). Search everything (Ctrl K) still opens the command palette.
 - Management left the panel's foot; the gear is the way in.

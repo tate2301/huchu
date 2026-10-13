@@ -484,3 +484,230 @@
   font-weight: 500;
   text-decoration: none;
 }
+
+/* ── Groups inside a module's panel (the boards' .pg) ─────────────────── */
+
+/* A band of rows under a 28px head: Ledger, Saved views, Reports from Books. */
+.group {
+  margin-top: 16px;
+  list-style: none;
+}
+
+.groupHead {
+  height: 28px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin: 0;
+  padding: 0 4px;
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--ink-3);
+}
+
+.groupToggle {
+  flex: 1;
+  min-width: 0;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.groupToggle:focus-visible,
+.groupAdd:focus-visible,
+.rowMenu:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--action-fill);
+  border-radius: 4px;
+}
+
+.groupChevron {
+  width: 12px;
+  height: 12px;
+  flex: none;
+  transition: transform 120ms ease;
+}
+
+.groupClosed .groupChevron {
+  transform: rotate(-90deg);
+}
+
+.groupAdd {
+  width: 24px;
+  height: 24px;
+  flex: none;
+  margin-left: auto;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ink-3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+@media (hover: hover) {
+  .groupAdd:hover {
+    background: var(--tray);
+    color: var(--ink);
+  }
+}
+
+.groupAddIcon {
+  width: 14px;
+  height: 14px;
+}
+
+.groupRows {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* A saved view's mark: a 6px square in the rule's colour, in the icon's 16px. */
+.dot {
+  width: 16px;
+  flex: none;
+  display: grid;
+  place-items: center;
+}
+
+.dot::after {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 2px;
+  background: var(--line-strong);
+}
+
+/* "shared" or "you", where a count would sit. */
+.meta {
+  flex: none;
+  margin-left: auto;
+  white-space: nowrap;
+  font-size: 12px;
+  color: var(--ink-3);
+}
+
+/* A row with its own menu: the menu shows on hover and focus. */
+.rowWrap {
+  position: relative;
+}
+
+.rowMenu {
+  position: absolute;
+  top: 6px;
+  right: 4px;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: var(--tray);
+  color: var(--ink-2);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.rowWrap:hover .rowMenu,
+.rowMenu:focus-visible,
+.rowMenu[data-state="open"] {
+  display: flex;
+}
+
+/* Naming a view: in the group, where the row will be. */
+.viewForm {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 4px 0 8px;
+}
+
+.viewInput {
+  width: 100%;
+  height: 32px;
+  box-sizing: border-box;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 6px;
+  background: var(--surface);
+  box-shadow: var(--ring, 0 0 0 1px var(--line));
+  color: var(--ink);
+  font: inherit;
+  font-size: 14px;
+}
+
+.viewInput:focus {
+  outline: none;
+  box-shadow: 0 0 0 1px var(--action-fill), 0 0 0 4px color-mix(in oklab, var(--action-fill) 18%, transparent);
+}
+
+.viewShare {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--ink-2);
+}
+
+.viewActions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.viewSave,
+.viewCancel {
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 6px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.viewSave {
+  background: var(--action-fill);
+  color: var(--on-action);
+}
+
+.viewSave:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.viewCancel {
+  background: transparent;
+  color: var(--ink-2);
+}
+
+.viewKbd {
+  font-size: 11px;
+  opacity: 0.8;
+}
+
+.viewError {
+  margin: 0;
+  font-size: 12px;
+  color: var(--bad);
+}

@@ -130,6 +130,11 @@ export type NavGroup = {
   label: string;
   /** Where this group sits among its section's groups when it is `ranked`. */
   rank?: NavRank;
+  /**
+   * `panelGroups` only: drawn last, after the module's Saved views and
+   * Reports, and folded until it holds the page being looked at.
+   */
+  trailing?: boolean;
 };
 
 export type NavSection = {
@@ -151,6 +156,12 @@ export type NavSection = {
    * and to the rows inside each.
    */
   ranked?: boolean;
+  /**
+   * Draw the groups as headed bands inside the module's own panel, after its
+   * ungrouped rows (the boards' "Ledger", "More"), rather than as marks or
+   * folders. The module stays one place in the rail.
+   */
+  panelGroups?: boolean;
   items: NavItem[];
 };
 
