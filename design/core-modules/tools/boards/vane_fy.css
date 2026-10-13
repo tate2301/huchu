@@ -1,0 +1,3 @@
+.fy{display:grid;grid-template-columns:24px minmax(0,1fr) 32px;align-items:start;gap:var(--space-12);padding-top:var(--space-16);padding-bottom:var(--space-16)}
+.fy .t{display:flex;flex-direction:column;gap:2px;min-width:0}.fy .k{font-size:var(--text-12);color:var(--color-muted)}.fy .lead{color:var(--color-ink);font-weight:500}.fy .d{font-size:var(--text-13);color:var(--color-ink-2);max-width:64ch}.fy .a{display:flex;flex-wrap:wrap;gap:var(--space-8);margin-top:var(--space-8)}
+.fy .nt{display:grid;place-items:center;width:24px;height:24px;color:var(--color-muted)}.fy .nt .ic{width:20px;height:20px}.fy.is-issue .nt{color:var(--color-warning)}

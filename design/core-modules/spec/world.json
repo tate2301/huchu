@@ -1,0 +1,155 @@
+{
+  "$comment": "Build and reporting, driven by Floorcode: measure the floor once on site and the quote is already written.",
+  "tenancy": {
+    "unit": "workspace",
+    "switcher": "sidebar top"
+  },
+  "roles": [
+    {
+      "role": "owner",
+      "device": "laptop",
+      "can": [
+        "build forms",
+        "set quote lines",
+        "publish",
+        "write reports"
+      ],
+      "cannot": []
+    },
+    {
+      "role": "fitter",
+      "device": "phone, on site",
+      "can": [
+        "run a site visit",
+        "send the drafted quote"
+      ],
+      "cannot": [
+        "change a form",
+        "see other fitters' quotes"
+      ]
+    },
+    {
+      "role": "office",
+      "device": "laptop",
+      "can": [
+        "read insights",
+        "build reports with steps"
+      ],
+      "cannot": [
+        "publish a form"
+      ]
+    }
+  ],
+  "records": [
+    {
+      "record": "form",
+      "written_by": [
+        "builder"
+      ],
+      "shown_on": [
+        "build",
+        "site visit"
+      ]
+    },
+    {
+      "record": "site visit",
+      "written_by": [
+        "fitter"
+      ],
+      "shown_on": [
+        "customer",
+        "deal"
+      ]
+    },
+    {
+      "record": "quote",
+      "written_by": [
+        "drafted from a visit",
+        "owner"
+      ],
+      "shown_on": [
+        "customer",
+        "deal"
+      ]
+    },
+    {
+      "record": "report",
+      "written_by": [
+        "steps",
+        "SQL"
+      ],
+      "shown_on": [
+        "reports"
+      ]
+    }
+  ],
+  "states": {
+    "form": [
+      "Draft",
+      "Live"
+    ],
+    "quote": [
+      "Drafted",
+      "Sent",
+      "Accepted"
+    ]
+  },
+  "transitions": [
+    {
+      "record": "form",
+      "from": "Draft",
+      "to": "Live",
+      "action": "Publish",
+      "decidedBy": "owner",
+      "reversible": true
+    },
+    {
+      "record": "quote",
+      "from": "Drafted",
+      "to": "Sent",
+      "action": "Send it",
+      "decidedBy": "fitter",
+      "reversible": false
+    }
+  ],
+  "failures": [
+    {
+      "when": "building",
+      "what": "a quote line reads a question that is not always asked",
+      "screen": "Problems",
+      "way_out": [
+        "give the line the same condition",
+        "make the question always asked"
+      ]
+    },
+    {
+      "when": "on site",
+      "what": "no connection",
+      "screen": "Saved on this phone",
+      "way_out": [
+        "drafts the quote when back online"
+      ]
+    },
+    {
+      "when": "running a report",
+      "what": "the SQL reads something it may not",
+      "screen": "Not allowed",
+      "way_out": [
+        "names the table and what is allowed"
+      ]
+    },
+    {
+      "when": "running a report",
+      "what": "it takes too long",
+      "screen": "Stopped after 10 seconds",
+      "way_out": [
+        "narrow the dates"
+      ]
+    }
+  ],
+  "entities": [],
+  "clock": {
+    "today": "Wednesday 7 October 2026",
+    "timezone": "Africa/Harare"
+  }
+}
