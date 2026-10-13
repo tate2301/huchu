@@ -12,7 +12,7 @@ import { dsConfirm } from "@/components/ui/ds-confirm";
 import { useToast } from "@/components/ui/use-toast";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
-import { periodParams, type CustomBlock, type CustomReport } from "@/lib/reports/custom/document";
+import { controlsOf, filterParam, periodParams, type CustomBlock, type CustomReport } from "@/lib/reports/custom/document";
 import { TEMPLATE_AUDIENCES, type TemplateAudience } from "@/lib/reports/template-access";
 import { SEEN_BY_WORDS } from "@/lib/reports/template-words";
 import { resolveParams } from "@/lib/reports/params";
@@ -21,6 +21,7 @@ import { dayRangeWords, formatTime, todayIn } from "@/lib/workspace/format";
 
 import { Chip } from "../report-filters";
 import { CustomBlockResult, downloadBlockCsv } from "./custom-block";
+import { ControlsView, SentenceView } from "./report-controls";
 import { useCustomData, useReportSources } from "./use-custom-data";
 
 /**
@@ -101,7 +102,27 @@ export function CustomReportScreen({ id, builtIn }: { id: string; builtIn?: stri
   );
 
   const blocks = useMemo(() => document?.blocks ?? [], [document]);
-  const data = useCustomData(blocks, sources.data?.sources, params);
+  // The report's own controls (ReportMonday): its filters' values are in the address too.
+  const controls = document ? controlsOf(document) : null;
+  const filters = useMemo(() => {
+    const chosen: Record<string, string> = {};
+    for (const filter of controls?.filters ?? []) {
+      const value = search.get(filterParam(filter));
+      if (value) chosen[filter.column] = value;
+    }
+    return chosen;
+  }, [controls, search]);
+  const setFilter = useCallback(
+    (column: string, value: string | null) => {
+      const query = new URLSearchParams(search);
+      if (value === null) query.delete(`f.${column}`);
+      else query.set(`f.${column}`, value);
+      const text = query.toString();
+      window.history.replaceState(null, "", text ? `${pathname}?${text}` : pathname);
+    },
+    [pathname, search],
+  );
+  const data = useCustomData(blocks, sources.data?.sources, params, filters);
 
   const copy = async () => {
     const current = report.data?.report;
@@ -277,6 +298,13 @@ export function CustomReportScreen({ id, builtIn }: { id: string; builtIn?: stri
   const draw = (block: CustomBlock) => {
     if (block.type === "heading") return <h2 className="rp-heading">{block.text}</h2>;
     if (block.type === "text") return <p className="rp-text">{block.text}</p>;
+    // The controls are the page's tools, above it.
+    if (block.type === "controls") return null;
+    if (block.type === "sentence") {
+      const from = blocks.find((candidate) => candidate.type === "query" && candidate.name === block.from);
+      const result = from ? data.results.get(from.id) : undefined;
+      return <SentenceView block={block} result={result} loading={Boolean(from) && (data.pending || (data.running && !result))} />;
+    }
     const check = data.checks.get(block.id);
     const reads = check?.ok ? check.checked.tables : [];
     const result = data.results.get(block.id);
@@ -304,18 +332,30 @@ export function CustomReportScreen({ id, builtIn }: { id: string; builtIn?: stri
   return frame(
     <div className="kbody">
       <div className="ws-tools rp-tools">
-        <DateRangePicker
-          openEnded
-          presets={COMMON_PRESETS}
-          title="Dates"
-          value={range}
-          onChange={(next) => setDates({ from: next.from ?? "", to: next.to ?? "" })}
-          trigger={
-            <Chip set icon="calendar" aria-label={`Dates: ${words}`}>
-              {words}
-            </Chip>
-          }
-        />
+        {controls ? (
+          <ControlsView
+            block={controls}
+            dates={range}
+            datesWords={words}
+            onDates={setDates}
+            values={filters}
+            options={data.options}
+            onFilter={setFilter}
+          />
+        ) : (
+          <DateRangePicker
+            openEnded
+            presets={COMMON_PRESETS}
+            title="Dates"
+            value={range}
+            onChange={(next) => setDates({ from: next.from ?? "", to: next.to ?? "" })}
+            trigger={
+              <Chip set icon="calendar" aria-label={`Dates: ${words}`}>
+                {words}
+              </Chip>
+            }
+          />
+        )}
         {asOf ? (
           <div className="end">
             <span className="ws-n">As of {asOf}</span>
@@ -345,7 +385,7 @@ export function CustomReportScreen({ id, builtIn }: { id: string; builtIn?: stri
         </Empty>
       ) : (
         <div className={data.rows.isFetching || data.running ? "rp-blocks is-fetching" : "rp-blocks"}>
-          {pageRows(blocks).map((row) =>
+          {pageRows(blocks.filter((block) => block.type !== "controls")).map((row) =>
             row.length === 2 ? (
               <div key={row[0]!.id} className="cm-grid2 rp-grid2">
                 {row.map((block) => (

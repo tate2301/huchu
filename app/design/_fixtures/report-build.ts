@@ -38,6 +38,22 @@ export const FIXTURE_REPORT: CustomReportInput = {
     period: { from: "-90d", to: "today" },
     blocks: [
       {
+        id: "sentence-1",
+        type: "sentence",
+        from: "totals",
+        fact: "{visits} site visits drafted {quotes} quotes.",
+        rest: "{accepted} were accepted, {accepted_total} of {quoted} quoted.",
+      },
+      {
+        id: "controls-1",
+        type: "controls",
+        dates: true,
+        filters: [
+          { column: "fitter", label: "fitter" },
+          { column: "subfloor", label: "subfloor" },
+        ],
+      },
+      {
         id: "query-1",
         type: "query",
         name: "by_subfloor",
@@ -51,7 +67,8 @@ export const FIXTURE_REPORT: CustomReportInput = {
         type: "query",
         name: "totals",
         title: "Average quote",
-        query: "select avg(total) as average_quote\nfrom site_visits\n",
+        query:
+          "select\n  avg(total) as average_quote,\n  count(*) as visits,\n  count(total) as quotes,\n  sum(accepted) as accepted,\n  sum(accepted_total) as accepted_total,\n  sum(total) as quoted\nfrom site_visits\n",
         display: { type: "figures" },
         half: true,
       },
@@ -107,7 +124,22 @@ export const FIXTURE_RESULTS = new Map<string, BlockResult>([
       ],
     },
   ],
-  ["query-2", { ok: true, truncated: false, columns: [col("average_quote", "Average quote", "money")], rows: [{ id: "t1", average_quote: 862.54 }] }],
+  [
+    "query-2",
+    {
+      ok: true,
+      truncated: false,
+      columns: [
+        col("average_quote", "Average quote", "money"),
+        col("visits", "Visits", "number"),
+        col("quotes", "Quotes", "number"),
+        col("accepted", "Accepted", "number"),
+        col("accepted_total", "Accepted total", "money"),
+        col("quoted", "Quoted", "money"),
+      ],
+      rows: [{ id: "t1", average_quote: 862.54, visits: 86, quotes: 71, accepted: 42, accepted_total: 38915, quoted: 61240 }],
+    },
+  ],
   [
     "query-3",
     {

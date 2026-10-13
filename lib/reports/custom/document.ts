@@ -61,9 +61,55 @@ const queryBlock = z.object({
   half,
 });
 
-export const customBlockSchema = z.discriminatedUnion("type", [headingBlock, textBlock, queryBlock]);
+/**
+ * The finding a board opens with (ReportMonday): one sentence over the first
+ * row of a question, its fact in ink and the rest in grey. `{column}` in
+ * either part takes that column's value, written the way the column is.
+ */
+const sentenceBlock = z.object({
+  id,
+  type: z.literal("sentence"),
+  /** The question it reads, by block name; "" until one is chosen. */
+  from: z.union([z.literal(""), z.string().regex(BLOCK_NAME)]),
+  fact: z.string().max(400),
+  rest: z.string().max(400).optional(),
+  /** With a title it is a note beside a chart ("Reading it"), not the board's opening finding. */
+  title: z.string().max(120).optional(),
+  half,
+});
+
+/**
+ * One of the report's own filters (Every fitter, Every subfloor): a column the
+ * questions' sources share, by SQL name. Choosing a value keeps only the
+ * source rows that hold it, before any question runs.
+ */
+export const controlFilterSchema = z.object({
+  column: z.string().regex(BLOCK_NAME, "A column is named the SQL way"),
+  /** What it is called on its button: "fitter" reads "Every fitter". */
+  label: z.string().trim().min(1).max(40),
+});
+export type ControlFilter = z.infer<typeof controlFilterSchema>;
+
+/** The report's own controls, where it sits ("Dates, fitter, subfloor"): its dates, then its filters. */
+const controlsBlock = z.object({
+  id,
+  type: z.literal("controls"),
+  /** The date chip; off, the report keeps its own dates. */
+  dates: z.boolean(),
+  filters: z.array(controlFilterSchema).max(4),
+  half,
+});
+
+export const customBlockSchema = z.discriminatedUnion("type", [headingBlock, textBlock, queryBlock, sentenceBlock, controlsBlock]);
 export type CustomBlock = z.infer<typeof customBlockSchema>;
 export type QueryBlock = z.infer<typeof queryBlock>;
+export type SentenceBlock = z.infer<typeof sentenceBlock>;
+export type ControlsBlock = z.infer<typeof controlsBlock>;
+
+/** The report's controls block, when it has one: there is one at most. */
+export function controlsOf(document: Pick<CustomDocument, "blocks">): ControlsBlock | null {
+  return document.blocks.find((block): block is ControlsBlock => block.type === "controls") ?? null;
+}
 
 const dateDefault = z.union([
   z.enum(["today", "monthStart", "yearStart"]),
@@ -84,6 +130,9 @@ export const customDocumentSchema = z
       const name = block.name.toLowerCase();
       if (names.has(name)) issues.addIssue({ code: "custom", message: `Two blocks are named ${block.name}` });
       names.add(name);
+    }
+    if (document.blocks.filter((block) => block.type === "controls").length > 1) {
+      issues.addIssue({ code: "custom", message: "A report has one set of controls" });
     }
   });
 export type CustomDocument = z.infer<typeof customDocumentSchema>;
@@ -240,4 +289,48 @@ export function documentFromReport(meta: Pick<ReportMeta, "key" | "columns" | "l
     return param?.type === "date" ? param.default ?? null : null;
   };
   return { period: { from: dated("from"), to: dated("to") }, blocks };
+}
+
+/* ──────────────────────────────────────────────────────────────────────────
+   Sentences and controls
+   ────────────────────────────────────────────────────────────────────────── */
+
+/** The `{column}` holes a sentence part names, in order. */
+export function sentenceHoles(text: string): string[] {
+  return [...text.matchAll(/\{([A-Za-z_][A-Za-z0-9_]*)\}/g)].map((match) => match[1]!);
+}
+
+/** A sentence part with each hole filled; a hole the row has no column for reads "—". */
+export function fillSentence(text: string, value: (column: string) => string | null): string {
+  return text.replace(/\{([A-Za-z_][A-Za-z0-9_]*)\}/g, (_, column: string) => value(column) ?? "\u2014");
+}
+
+/** How the controls block is named: its controls, "Dates, fitter, subfloor". */
+export function controlsWords(block: Pick<ControlsBlock, "dates" | "filters">): string {
+  const parts = [...(block.dates ? ["dates"] : []), ...block.filters.map((filter) => filter.label.toLowerCase())];
+  const words = parts.join(", ");
+  return words ? words.charAt(0).toUpperCase() + words.slice(1) : "Controls";
+}
+
+/** A filter's place in the address: `f.fitter=Tinashe`. */
+export function filterParam(filter: Pick<ControlFilter, "column">): string {
+  return `f.${filter.column}`;
+}
+
+/**
+ * Source rows narrowed by the chosen filters: a row stays when every filter
+ * its table has a column for holds its value. `columnOf` names the row's key
+ * for a filter's SQL column, or null where the table has none.
+ */
+export function narrowRows<Row extends Record<string, unknown>>(
+  rows: readonly Row[],
+  chosen: Readonly<Record<string, string>>,
+  columnOf: (sqlColumn: string) => string | null,
+): readonly Row[] {
+  const tests = Object.entries(chosen).flatMap(([column, value]) => {
+    const key = columnOf(column);
+    return key ? [{ key, value }] : [];
+  });
+  if (tests.length === 0) return rows;
+  return rows.filter((row) => tests.every(({ key, value }) => String(row[key] ?? "") === value));
 }

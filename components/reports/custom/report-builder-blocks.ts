@@ -1,6 +1,7 @@
 import type { BlockKind } from "@/components/builder/grid";
 import type { IconName } from "@/components/core";
 import {
+  controlsWords,
   freeBlockId,
   freeBlockName,
   sourceStem,
@@ -23,7 +24,7 @@ import type { ReportSource } from "./use-custom-data";
  * block shown another way keeping what still fits its result.
  */
 
-export type ReportBlockKind = "table" | "bars" | "trend" | "figures" | "breakdown" | "heading" | "text";
+export type ReportBlockKind = "table" | "bars" | "trend" | "figures" | "breakdown" | "heading" | "text" | "sentence" | "controls";
 
 export const REPORT_KINDS: Record<ReportBlockKind, BlockKind> = {
   table: { id: "table", label: "Table", icon: "table" },
@@ -33,7 +34,16 @@ export const REPORT_KINDS: Record<ReportBlockKind, BlockKind> = {
   breakdown: { id: "breakdown", label: "Breakdown", icon: "list" },
   heading: { id: "heading", label: "Heading", icon: "sections" },
   text: { id: "text", label: "Text", icon: "sentence" },
+  // ReportBuild: the board's finding over a question's totals, and the report's own dates and filters.
+  sentence: { id: "sentence", label: "Sentence", icon: "bulb" },
+  controls: { id: "controls", label: "Dates and filters", icon: "filter" },
 };
+
+/** The kinds Add (/) offers: a report has one set of controls, so not a second. */
+export function addableKinds(blocks: readonly CustomBlock[]): BlockKind[] {
+  const hasControls = blocks.some((block) => block.type === "controls");
+  return Object.values(REPORT_KINDS).filter((kind) => kind.id !== "controls" || !hasControls);
+}
 
 export function kindOf(block: CustomBlock): ReportBlockKind {
   if (block.type !== "query") return block.type;
@@ -53,7 +63,16 @@ export function questionName(name: string): string {
 export function blockTitle(block: CustomBlock): string {
   if (block.type === "heading") return block.text.trim() || "Heading";
   if (block.type === "text") return block.text.trim().split("\n")[0]!.slice(0, 60) || "Text";
+  if (block.type === "sentence") return "Sentence";
+  if (block.type === "controls") return controlsWords(block);
   return block.title?.trim() || REPORT_KINDS[kindOf(block)].label;
+}
+
+/** The question a block reads, as the outline says it beside the block: "totals". */
+export function blockQuestion(block: CustomBlock): string | undefined {
+  if (block.type === "query") return questionName(block.name);
+  if (block.type === "sentence" && block.from) return questionName(block.from);
+  return undefined;
 }
 
 /** The dates a report can open on, as the person picks them. */
@@ -94,6 +113,13 @@ function defaultSource(blocks: readonly CustomBlock[], sources: readonly ReportS
 export function createReportBlock(kind: string, existing: readonly CustomBlock[], sources: readonly ReportSource[]): CustomBlock {
   if (kind === "heading") return { id: freeBlockId("heading", existing), type: "heading", text: "" };
   if (kind === "text") return { id: freeBlockId("text", existing), type: "text", text: "" };
+  if (kind === "sentence") {
+    // Over the page's headline figures, where it has some: the totals a finding is made of.
+    const queries = existing.filter((block) => block.type === "query");
+    const totals = queries.find((block) => block.type === "query" && block.display.type === "figures") ?? queries[0];
+    return { id: freeBlockId("sentence", existing), type: "sentence", from: totals?.type === "query" ? totals.name : "", fact: "", rest: "" };
+  }
+  if (kind === "controls") return { id: freeBlockId("controls", existing), type: "controls", dates: true, filters: [] };
 
   const source = defaultSource(existing, sources);
   // Results name their columns the SQL way, so the display does too.

@@ -39,9 +39,12 @@ import { isNumeric } from "@/lib/reports/view";
 import type { ReportSuggestion } from "@/lib/vane/status";
 
 import { chartColumns, CustomBlockResult } from "./custom-block";
+import { ControlsView, SentenceView } from "./report-controls";
 import { QueryEditor } from "./query-editor";
 import { QuerySteps } from "./query-steps";
 import {
+  addableKinds,
+  blockQuestion,
   blockTitle,
   createReportBlock,
   duplicateReportBlock,
@@ -84,6 +87,8 @@ export type BuilderData = {
   /** How long the last run took, in milliseconds. */
   ms: number | null;
   rerun: () => void;
+  /** The values each of the report's filters can be set to, by column. */
+  options?: Readonly<Record<string, readonly string[]>>;
 };
 
 export type BuilderSuggestion = {
@@ -98,6 +103,24 @@ export type BuilderSuggestion = {
 
 type InspectorTab = "block" | "look" | "click";
 type QueryView = "steps" | "sql";
+
+const NO_FILTERS: Readonly<Record<string, string>> = {};
+
+/**
+ * The text columns the board's questions read from their sources: what a
+ * filter can narrow by. A column one source has narrows that source's rows.
+ */
+export function filterableColumns(blocks: readonly CustomBlock[], tables: readonly SqlTable[]): Array<{ column: string; label: string }> {
+  const read = new Set(blocks.flatMap((block) => (block.type === "query" ? [...block.query.matchAll(/\bfrom\s+([A-Za-z0-9_]+)|\bjoin\s+([A-Za-z0-9_]+)/gi)].map((match) => (match[1] ?? match[2] ?? "").toLowerCase()) : [])));
+  const seen = new Map<string, string>();
+  for (const table of tables) {
+    if (!read.has(table.name)) continue;
+    for (const column of table.columns) {
+      if ((column.kind === "text" || column.kind === "status") && !seen.has(column.sql)) seen.set(column.sql, column.label);
+    }
+  }
+  return [...seen].map(([column, label]) => ({ column, label }));
+}
 
 /** Drawing widths on the board: a block across it, and beside another. */
 const FULL = 816;
@@ -214,6 +237,8 @@ export function ReportBuilderView({
   onBack,
   onCopy,
   suggestion = null,
+  filters = NO_FILTERS,
+  onFilter,
 }: {
   report: Pick<CustomReport, "id" | "canShare">;
   draft: CustomReportInput;
@@ -232,6 +257,9 @@ export function ReportBuilderView({
   /** Copy a source's or a column's name, for a query. */
   onCopy?: (text: string) => void;
   suggestion?: BuilderSuggestion | null;
+  /** The report's filters as set on this board, by column; they narrow its preview. */
+  filters?: Readonly<Record<string, string>>;
+  onFilter?: (column: string, value: string | null) => void;
 }) {
   const [mode, setMode] = React.useState<BuilderMode>("build");
   const [tab, setTab] = React.useState<InspectorTab>("block");
@@ -352,12 +380,12 @@ export function ReportBuilderView({
         id: block.id,
         icon: kindIcon(block),
         title: blockTitle(block),
-        question: block.type === "query" ? questionName(block.name) : undefined,
+        question: blockQuestion(block),
       }))}
       selected={selected?.id ?? null}
       onSelect={select}
       onMove={list.move}
-      kinds={Object.values(REPORT_KINDS)}
+      kinds={addableKinds(blocks)}
       onAdd={list.add}
       after={<Sources sources={sources} onCopy={onCopy} />}
     />
@@ -379,6 +407,28 @@ export function ReportBuilderView({
       return (
         <CanvasBlock key={block.id} plain preview={preview} selected={selected?.id === block.id} onSelect={() => select(block.id)} tag={tag} label={blockTitle(block)}>
           {block.text.trim() ? <p style={{ margin: 0, whiteSpace: "pre-wrap" }}>{block.text}</p> : <p className="muted">A note. Write it in Block, on the right.</p>}
+        </CanvasBlock>
+      );
+    }
+    if (block.type === "sentence") {
+      const from = queries.find((query) => query.name === block.from);
+      return (
+        <CanvasBlock key={block.id} plain preview={preview} selected={selected?.id === block.id} onSelect={() => select(block.id)} tag={tag} label={blockTitle(block)}>
+          <SentenceView block={block} result={from ? data.results.get(from.id) : undefined} loading={Boolean(from) && (data.pending || (data.running && !data.results.get(from!.id)))} />
+        </CanvasBlock>
+      );
+    }
+    if (block.type === "controls") {
+      return (
+        <CanvasBlock key={block.id} plain preview={preview} selected={selected?.id === block.id} onSelect={() => select(block.id)} tag={tag} label={blockTitle(block)}>
+          <ControlsView
+            block={block}
+            datesWords={periodWords(draft.document.period)}
+            onDatesClick={() => list.select(null)}
+            values={filters}
+            options={data.options ?? {}}
+            onFilter={(column, value) => onFilter?.(column, value)}
+          />
         </CanvasBlock>
       );
     }
@@ -407,11 +457,14 @@ export function ReportBuilderView({
   const canvas = (
     <div className="rb-board">
       {draft.description ? <p className="muted" style={{ margin: 0 }}>{draft.description}</p> : null}
-      <ButtonGroup aria-label="Narrow the board">
-        <Button icon="calendar" onClick={() => list.select(null)}>
-          {periodWords(draft.document.period)}
-        </Button>
-      </ButtonGroup>
+      {/* With its own controls the board narrows where they sit; without, by its dates here. */}
+      {blocks.some((block) => block.type === "controls") ? null : (
+        <ButtonGroup aria-label="Narrow the board">
+          <Button icon="calendar" onClick={() => list.select(null)}>
+            {periodWords(draft.document.period)}
+          </Button>
+        </ButtonGroup>
+      )}
       {blocks.length === 0 ? (
         <Empty
           icon="reports"
@@ -465,6 +518,13 @@ export function ReportBuilderView({
           block={selected}
           update={list.update}
           columns={columnsOf(selected)}
+          queries={queries}
+          resultOf={(name) => {
+            const query = queries.find((candidate) => candidate.name === name);
+            const result = query ? data.results.get(query.id) : undefined;
+            return result?.ok ? result.columns : [];
+          }}
+          filterable={filterableColumns(blocks, data.tables)}
           rows={selected.type === "query" ? rowCount(selected) : null}
           onWriteSql={() => {
             if (selected.type !== "query") return;
@@ -658,12 +718,21 @@ function BlockSettings({
   block,
   update,
   columns,
+  queries,
+  resultOf,
+  filterable,
   rows,
   onWriteSql,
 }: {
   block: CustomBlock;
   update: (next: CustomBlock) => void;
   columns: ReportColumn[];
+  /** The board's questions, for what a sentence reads. */
+  queries: readonly QueryBlock[];
+  /** A question's result columns, by its name. */
+  resultOf: (name: string) => ReportColumn[];
+  /** The columns the board's questions read from their sources, for a filter. */
+  filterable: Array<{ column: string; label: string }>;
   rows: number | null;
   onWriteSql: () => void;
 }) {
@@ -672,6 +741,84 @@ function BlockSettings({
   }
   if (block.type === "text") {
     return <TextField label="Text" long value={block.text} placeholder="A note for whoever opens this report" onChange={(text) => update({ ...block, text })} />;
+  }
+  if (block.type === "sentence") {
+    const holes = resultOf(block.from).map((column) => `{${column.key}}`);
+    return (
+      <>
+        <TextField
+          label="Title"
+          value={block.title ?? ""}
+          placeholder="None: it opens the board as its finding"
+          onChange={(title) => update({ ...block, title: title || undefined })}
+          help="With a title it is a note beside a chart."
+        />
+        <Choice
+          label="Reads"
+          value={block.from}
+          options={[
+            ...(block.from && !queries.some((query) => query.name === block.from) ? ([[block.from, `${questionName(block.from)}, not on the board`]] as Array<[string, string]>) : []),
+            ...(block.from ? [] : ([["", "Choose a question"]] as Array<[string, string]>)),
+            ...queries.map((query): [string, string] => [query.name, questionName(query.name)]),
+          ]}
+          onChange={(from) => update({ ...block, from })}
+          help="Its first row's values fill the sentence."
+        />
+        <TextField
+          label="The finding"
+          long
+          value={block.fact}
+          placeholder="{visits} site visits drafted {quotes} quotes."
+          onChange={(fact) => update({ ...block, fact })}
+          help="In ink. Each {column} takes that column's value."
+        />
+        <TextField
+          label="Then"
+          long
+          value={block.rest ?? ""}
+          placeholder="{accepted} were accepted."
+          onChange={(rest) => update({ ...block, rest })}
+          help={holes.length ? `In grey. It can use ${holes.join(", ")}.` : "In grey."}
+        />
+      </>
+    );
+  }
+  if (block.type === "controls") {
+    const free = filterable.filter((option) => !block.filters.some((filter) => filter.column === option.column));
+    return (
+      <>
+        <SwitchRow label="Dates" help="The report's dates, to change as it is read." checked={block.dates} onChange={(dates) => update({ ...block, dates })} />
+        <div className="pl">
+          <div className="pl-h">Filters</div>
+          {block.filters.map((filter, index) => (
+            <div key={filter.column} className="prow" style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) auto", gap: 8, alignItems: "end" }}>
+              <TextField
+                label={`Every ${filter.label.toLowerCase()}`}
+                value={filter.label}
+                help={`Narrows every question by ${filter.column}.`}
+                onChange={(label) => update({ ...block, filters: block.filters.map((other, at) => (at === index ? { ...other, label: label.slice(0, 40) || filter.label } : other)) })}
+              />
+              <Button variant="quiet" iconOnly icon="x" label={`Remove Every ${filter.label.toLowerCase()}`} onClick={() => update({ ...block, filters: block.filters.filter((_, at) => at !== index) })} />
+            </div>
+          ))}
+          {block.filters.length < 4 && free.length ? (
+            <MenuButton
+              variant="quiet"
+              icon="plus"
+              label="Add a filter"
+              items={free.map((option) => ({
+                key: option.column,
+                label: option.label,
+                onSelect: () => update({ ...block, filters: [...block.filters, { column: option.column, label: option.label.toLowerCase() }] }),
+              }))}
+            >
+              Add a filter
+            </MenuButton>
+          ) : null}
+          {free.length === 0 && block.filters.length === 0 ? <p className="rb-note">Its questions read no column to filter by yet.</p> : null}
+        </div>
+      </>
+    );
   }
   const display = block.display;
   const hidden = new Set(display.type === "table" ? (display.hidden ?? []) : []);
@@ -751,7 +898,7 @@ function LookSettings({ block, update, columns }: { block: CustomBlock; update: 
       </>
     );
   }
-  if (block.type === "text") return half;
+  if (block.type === "text" || block.type === "sentence" || block.type === "controls") return half;
 
   const display = block.display;
   const setDisplay = (next: BlockDisplay) => update({ ...block, display: next });

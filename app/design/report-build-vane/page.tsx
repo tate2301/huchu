@@ -36,6 +36,10 @@ export default function ReportBuildVaneFixture() {
             running: false,
             ms: 40,
             rerun: () => undefined,
+            options: {
+              fitter: ["Farai", "Kuda", "Tinashe"],
+              subfloor: ["Concrete", "Existing tiles", "Not recorded", "Timber boards"],
+            },
           }}
           params={{ from: "2026-07-15", to: "2026-10-13" }}
           saved={draft === FIXTURE_REPORT ? { state: "saved", at: "11:48" } : { state: "dirty" }}

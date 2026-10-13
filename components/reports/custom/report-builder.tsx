@@ -118,7 +118,9 @@ export function ReportBuilder({ id }: { id: string }) {
   const params = React.useMemo(() => (period ? resolveParams(periodParams(period), {}) : {}), [period]);
   // Vane's question runs with the board's, so its rows show before it is kept.
   const running = React.useMemo(() => (pending ? [...blocks, pending] : blocks), [blocks, pending]);
-  const data = useCustomData(running, sources.data?.sources, params);
+  // The board's own filters, set while building, narrow its preview; they are not saved.
+  const [filters, setFilters] = React.useState<Record<string, string>>({});
+  const data = useCustomData(running, sources.data?.sources, params, filters);
 
   const parsed = current ? customReportInputSchema.safeParse(current) : null;
   const problems = [
@@ -248,6 +250,15 @@ export function ReportBuilder({ id }: { id: string }) {
           : undefined
       }
       onBack={() => void back()}
+      filters={filters}
+      onFilter={(column, value) =>
+        setFilters((current) => {
+          const next = { ...current };
+          if (value === null) delete next[column];
+          else next[column] = value;
+          return next;
+        })
+      }
       onCopy={(text) =>
         void navigator.clipboard?.writeText(text).then(
           () => toast({ title: `Copied ${text}` }),

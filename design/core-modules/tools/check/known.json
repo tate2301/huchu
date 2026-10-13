@@ -127,7 +127,8 @@
     "status: Sent",
     "status: Drafted",
     "status: Accepted",
-    "footer: # to # of #Quoted #Accepted #PreviousNex"
+    "footer: # to # of #Quoted #Accepted #PreviousNex",
+    "button: Every subfloor"
   ],
   "ReportBuild": [
     "heading: Accepted, by subfloor",
@@ -141,7 +142,9 @@
     "label: Aream², 2 places",
     "status: Sent",
     "status: Drafted",
-    "status: Accepted"
+    "status: Accepted",
+    "button: Dates, fitter, subfloor",
+    "button: Every subfloor"
   ],
   "ReportBuildVane": [
     "button: By subfloorby subfloor",
