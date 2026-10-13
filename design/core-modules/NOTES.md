@@ -6,7 +6,7 @@ What the build could not match, decided differently from the boards, or built wi
 
 - `tests/visual.spec.ts` compares each `/design/<slug>` fixture with the reference PNGs. The references were rendered on another machine: here, the kit's own HTML for a screen differs from its reference by 0.2% to 1.7% before any app code is involved (books-money at 390 is 1.67%), because text rasterises differently. So the 1% bar sits at this machine's noise floor.
 - `tests/parity.spec.ts` (added) renders the kit's HTML and the fixture in the same browser and compares those, with the same 1% and 8px. It runs every screen whose fixture exists (`app/design/<slug>/page.tsx`).
-- Run both: `BASE_URL=http://localhost:3000 npx playwright test -c design/core-modules/tests`.
+- Run both: `E2E_BROWSER_EXECUTABLE=/opt/pw-browsers/chromium BASE_URL=http://floorcode.apps.pagka.local:3100 npx playwright test -c design/core-modules/tests`.
 
 | Screen | Parity 1440 | Parity 390 | Parity dark | Against the reference (1440 / 390 / dark) |
 |---|---|---|---|---|
