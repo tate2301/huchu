@@ -157,26 +157,28 @@ export const CUSTOM_TEMPLATES: readonly CustomTemplate[] = [
     key: "school-fees-owed",
     audience: "MANAGERS",
     title: "Fees owed, by class",
-    description: "What is billed, paid and still owed, and who owes the most",
+    description: "What each class owes and who has owed longest. Reads Fees owed.",
     profiles: ["SCHOOLS"],
     document: {
       period: { from: null, to: null },
       blocks: [
         query({
           name: "totals",
-          query: "select sum(total) as billed, sum(paid) as paid, sum(balance) as owed\nfrom school_fee_balances",
+          query:
+            "select\n  sum(balance) as owed,\n  count(distinct student) as pupils,\n  coalesce(sum(balance) filter (where days_overdue >= 90), 0) as owed_90_days_and_over,\n  max(days_overdue) as longest_overdue_days\nfrom school_fee_balances\nwhere balance > 0",
           display: figures,
         }),
         query({
           name: "by_class",
-          title: "Owed by class",
-          query: "select class, sum(balance) as owed, count(*) as invoices\nfrom school_fee_balances\nwhere balance > 0\ngroup by 1\norder by owed desc",
+          title: "Owed, by class",
+          query: "select class, sum(balance) as owed, count(*) as invoices\nfrom school_fee_balances\nwhere balance > 0\ngroup by 1\norder by class",
           display: bars("class", "owed"),
         }),
         query({
           name: "longest_overdue",
-          title: "Longest overdue",
-          query: "select student, class, term, days_overdue, balance\nfrom school_fee_balances\nwhere balance > 0\norder by days_overdue desc\nlimit 20",
+          title: "Owed longest",
+          query:
+            "select student as pupil, class, balance as owed, days_overdue, last_paid\nfrom school_fee_balances\nwhere balance > 0\norder by days_overdue desc nulls last\nlimit 20",
           display: table,
         }),
       ],

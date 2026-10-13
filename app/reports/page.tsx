@@ -3,11 +3,13 @@
 import * as React from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useSession } from "next-auth/react";
 
 import { Button, Empty, Kit, KitScreen } from "@/components/core";
 import { PageChrome } from "@/components/layout/page-chrome";
 import { fetchReportsHome, REPORTS_HOME_KEY } from "@/components/layout/workspace-rail/reports-groups";
 import { ReportsAllView } from "@/components/reports/reports-all-view";
+import { ReportsOverviewScreen } from "@/components/reports/reports-overview";
 import { useToast } from "@/components/ui/use-toast";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import {
@@ -18,10 +20,12 @@ import {
   reportEntries,
   reportsCsv,
   reportsFinding,
+  viewHref,
   type ReportEntry,
   type ReportsFilter,
 } from "@/lib/reports/all";
 import type { CustomReport } from "@/lib/reports/custom/document";
+import { verticalOf } from "@/lib/reports/verticals";
 
 /** All reports inside the app's shell, with the reports screen's own rules (`.sc-reports`). */
 function ReportsFrame({ children }: { children: React.ReactNode }) {
@@ -49,7 +53,7 @@ function Loading() {
 }
 
 /** Reports → All reports (ReportsAll). Which reports, the search and the filters live in the address. */
-function ReportsAll() {
+function ReportsAll({ vertical }: { vertical: boolean }) {
   const router = useRouter();
   const pathname = usePathname();
   const params = useSearchParams();
@@ -67,10 +71,12 @@ function ReportsAll() {
         if (empty) merged.delete(key);
         else merged.set(key, String(value));
       }
+      // In a vertical, `/reports` alone is the Overview: All reports keeps its view in the address.
+      if (vertical && merged.size === 0) merged.set("view", "all");
       const query = merged.toString();
       router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
     },
-    [params, pathname, router],
+    [params, pathname, router, vertical],
   );
 
   const [building, setBuilding] = React.useState(false);
@@ -191,6 +197,27 @@ function ReportsAll() {
   );
 }
 
+/**
+ * `/reports`: a vertical's Overview when nothing is asked of it (PageSchoolReports,
+ * PageMineReports, PagePayReports, PageShopReports), else All reports. A
+ * general workspace's Overview is the week's insights, so `/reports` is All
+ * reports there.
+ */
+function ReportsHome() {
+  const params = useSearchParams();
+  const { data: session, status } = useSession();
+  const vertical = verticalOf((session?.user as { workspaceProfile?: string } | undefined)?.workspaceProfile);
+  if (status === "loading") {
+    return (
+      <ReportsFrame>
+        <Loading />
+      </ReportsFrame>
+    );
+  }
+  if (vertical && vertical !== "retail" && params.size === 0) return <ReportsOverviewScreen templatesHref={viewHref("corelith")} />;
+  return <ReportsAll vertical={Boolean(vertical)} />;
+}
+
 export default function ReportsPage() {
   // Which reports are shown is read from the address, which is only known in the browser.
   return (
@@ -201,7 +228,7 @@ export default function ReportsPage() {
         </ReportsFrame>
       }
     >
-      <ReportsAll />
+      <ReportsHome />
     </React.Suspense>
   );
 }

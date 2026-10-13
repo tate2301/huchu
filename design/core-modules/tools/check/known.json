@@ -154,5 +154,38 @@
     "column: Owner",
     "label: TitleOpen value, by stage",
     "label: Show at most10 bars, the rest as Other"
+  ],
+  "PageRetailReports": [
+    "button: Notifications",
+    "panel: Buying2"
+  ],
+  "PageRetailTemplate": [
+    "button: Notifications",
+    "panel: Buying2"
+  ],
+  "PageSchoolReports": [
+    "status: Healthy"
+  ],
+  "PageMineReports": [
+    "status: Managers"
+  ],
+  "PageMineDowntime": [
+    "heading: Hours lost, by cause",
+    "heading: Hours lost, over timeby week",
+    "heading: Hours lost, over time",
+    "column: Site",
+    "column: Code",
+    "column: Hours",
+    "column: Notes",
+    "footer: # to # · grouped by cause# # groupsHours"
+  ],
+  "PageMineProduction": [
+    "button: Open Downtime",
+    "button: See the plant reports",
+    "footer: Total# g#"
+  ],
+  "PagePayCost": [
+    "button: Open the run",
+    "footer: Total#+#"
   ]
 }

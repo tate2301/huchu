@@ -1,6 +1,6 @@
 import { canViewAccountingHref } from "@/lib/accounting/visibility";
 import type { NavGroup, NavItem, NavSection } from "@/lib/navigation";
-import { getNavSectionsForRole, navSections, REPORTS_NAV_HREFS, schoolBandGrant } from "@/lib/navigation";
+import { getNavSectionsForRole, navSections, REPORTS_NAV_GROUPS, REPORTS_NAV_HREFS, schoolBandGrant } from "@/lib/navigation";
 import { normalizeFeatureKey } from "@/lib/platform/gating/catalog-utils";
 import { filterNavSectionsByEnabledFeatures } from "@/lib/platform/gating/nav-filter";
 import type { PersonaCode } from "@/lib/platform/personas";
@@ -101,6 +101,8 @@ type WorkspaceProfileSectionSpec = {
    * gating is dropped, the same way `buildModuleSection` drops one.
    */
   groups?: NavGroup[];
+  /** The groups are bands inside the section's own panel (Reports' Insights), as `NavSection.panelGroups`. */
+  panelGroups?: boolean;
   refs: Array<{
     moduleId: WorkspaceModuleId;
     href: string;
@@ -378,7 +380,12 @@ const WORKSPACE_MODULES: Record<WorkspaceModuleId, WorkspaceModuleDefinition> = 
      * entry asks the catalogue rather than a feature of its own.
      */
     getItems(context) {
-      const items = context.navSectionById.get("reporting")?.items ?? [];
+      // Each row in the workspaces it is drawn in: a school's Overview, a mine's insights.
+      const raw = context.workspaceProfile?.trim().toUpperCase() ?? "";
+      const profile = normalizeWorkspaceProfile(context.workspaceProfile);
+      const items = (context.navSectionById.get("reporting")?.items ?? []).filter(
+        (item) => !item.profiles || item.profiles.includes(raw) || item.profiles.includes(profile),
+      );
       const readable = reportCatalog(
         REPORT_DEFINITIONS,
         { role: context.role ?? "", enabledFeatures: context.enabledFeatures },
@@ -457,6 +464,8 @@ function buildSchoolsProfileSections(): WorkspaceProfileSectionSpec[] {
   const reports = {
     id: "schools-all-reports",
     title: "Reports",
+    groups: REPORTS_NAV_GROUPS,
+    panelGroups: true,
     refs: REPORTS_NAV_HREFS.map((href) => ({ moduleId: "reporting" as const, href })),
   };
 
@@ -503,6 +512,7 @@ const WORKSPACE_PROFILE_RECIPES: Partial<Record<WorkspaceProfile, WorkspaceProfi
           { moduleId: "gold", href: "/gold" },
           { moduleId: "gold", href: "/gold/intake/pours/new" },
           { moduleId: "gold", href: "/gold/intake/purchases/new" },
+          { moduleId: "gold", href: "/gold/allocations" },
         ],
       },
       {
@@ -515,11 +525,12 @@ const WORKSPACE_PROFILE_RECIPES: Partial<Record<WorkspaceProfile, WorkspaceProfi
         ],
       },
       {
+        // Reports' panel, as every vertical draws it (PageMineReports).
         id: "gold-control",
-        title: "Insights",
-        refs: [
-          { moduleId: "reporting", href: "/reports" },
-        ],
+        title: "Reports",
+        groups: REPORTS_NAV_GROUPS,
+        panelGroups: true,
+        refs: REPORTS_NAV_HREFS.map((href) => ({ moduleId: "reporting" as const, href })),
       },
     ],
   },
@@ -550,6 +561,7 @@ const WORKSPACE_PROFILE_RECIPES: Partial<Record<WorkspaceProfile, WorkspaceProfi
     sections: RETAIL_NAV_MODULES.map((module) => ({
       id: module.id,
       title: module.title,
+      ...(module.groups ? { groups: module.groups, panelGroups: true } : {}),
       refs: module.items.map((item) => ({ moduleId: "retail" as const, href: item.href })),
     })),
   },
@@ -721,6 +733,7 @@ function buildProfileSections(
         id: section.id,
         title: section.title,
         ...(groups && groups.length > 0 ? { groups } : {}),
+        ...(section.panelGroups ? { panelGroups: true } : {}),
         items,
         workspaceGroup: "primary" as const,
       };

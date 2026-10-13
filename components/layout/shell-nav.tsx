@@ -13,6 +13,7 @@ import { GearSix } from "@/lib/icons";
 import type { RailArea } from "@/lib/rail/areas";
 import { logoInitials } from "@/lib/rail/initials";
 import { reportBadges, reportCounts, reportEntries } from "@/lib/reports/all";
+import { verticalOf } from "@/lib/reports/verticals";
 import { areaForHref, getRailModel, type RailModel } from "@/lib/rail/model";
 import {
   canRoleOpenRetailPath,
@@ -202,8 +203,8 @@ export function ShellNavProvider({
   const booksBadges = mounted ? booksQuery.data?.badges : undefined;
   const reportsData = mounted && onReports ? reportsQuery.data : undefined;
   const reportsBadges = React.useMemo(
-    () => (reportsData ? reportBadges(reportCounts(reportEntries(reportsData))) : undefined),
-    [reportsData],
+    () => (reportsData ? reportBadges(reportCounts(reportEntries(reportsData)), verticalOf(workspaceProfile) !== null) : undefined),
+    [reportsData, workspaceProfile],
   );
   const badges = React.useMemo(
     () => (retailBadges || booksBadges || reportsBadges ? { ...retailBadges, ...booksBadges, ...reportsBadges } : NO_BADGES),

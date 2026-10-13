@@ -408,7 +408,6 @@ describe("workspace sidebar model", () => {
         "Products",
         "Stock",
         "Buying",
-        "Insights",
         "Reports",
         "Setup",
       ]);
@@ -455,8 +454,8 @@ describe("workspace sidebar model", () => {
     });
 
     it("gives the manager Insights without Money, and the owner Money", () => {
-      expect(itemsOf(retailModel(), "retail-control")).not.toContain("/retail/insights/money");
-      expect(itemsOf(retailModel("SUPERADMIN"), "retail-control")).toContain(
+      expect(itemsOf(retailModel(), "retail-reports")).not.toContain("/retail/insights/money");
+      expect(itemsOf(retailModel("SUPERADMIN"), "retail-reports")).toContain(
         "/retail/insights/money",
       );
     });

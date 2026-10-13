@@ -367,9 +367,7 @@ export function InsightTableView({ table, title }: { table: InsightTable; title?
   return (
     <div className="wt rp-table">
       {title ? <h3 className="ip-table-h">{title}</h3> : null}
-      {table.rows.length === 0 ? (
-        <p className="muted ip-empty">{table.empty}</p>
-      ) : (
+      {/* Empty, the columns stay so it is plain what would be here. */}
         <div className="rp-wt">
           <table className="table">
             <colgroup>
@@ -387,6 +385,13 @@ export function InsightTableView({ table, title }: { table: InsightTable; title?
               </tr>
             </thead>
             <tbody>
+              {table.rows.length === 0 ? (
+                <tr>
+                  <td colSpan={table.columns.length} className="muted ip-empty">
+                    {table.empty}
+                  </td>
+                </tr>
+              ) : null}
               {table.rows.map((row) => (
                 <tr key={row.id}>
                   {table.columns.map((column, index) => {
@@ -410,7 +415,7 @@ export function InsightTableView({ table, title }: { table: InsightTable; title?
                 </tr>
               ))}
             </tbody>
-            {table.total ? (
+            {table.total && table.rows.length > 0 ? (
               <tfoot>
                 <tr>
                   {table.columns.map((column, index) => (
@@ -423,7 +428,6 @@ export function InsightTableView({ table, title }: { table: InsightTable; title?
             ) : null}
           </table>
         </div>
-      )}
     </div>
   );
 }

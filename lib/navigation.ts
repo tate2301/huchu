@@ -55,6 +55,8 @@ import {
   Work,
   Wrench,
   Zap,
+  Bed,
+  Gem,
   CreditCard,
   ListBullets,
   QrCode,
@@ -70,6 +72,17 @@ import type { SchoolAction, SchoolResource } from "@/lib/schools/access";
 
 // Who may reach People and Payroll at all. Mirrored as a Set in `proxy.ts`,
 // which checks it on the route prefix before the page renders.
+/**
+ * The workspaces whose Reports opens on a vertical's Overview at `/reports`
+ * (`lib/reports/verticals.ts`). AUTOS is a stored, retired profile: kept here
+ * so a workshop's panel is the board's if one is ever served.
+ */
+export const REPORT_VERTICAL_PROFILES: readonly string[] = ["SCHOOLS", "GOLD_MINE", "PAYROLL", "AUTOS"];
+
+/** A vertical's report pages under `/reports`, but for the ones its panel names as insights. */
+const VERTICAL_REPORT_PAGES =
+  /^\/reports\/(?!(insights|downtime|gold-chain|stores-movements|maintenance-equipment|school-attendance|school-enrolment|school-boarding|payroll-statutory)(\/|$))[^?]+$/;
+
 const WORKFORCE_MODULE_ALLOWED_ROLES: UserRole[] = ["SUPERADMIN", "MANAGER", "CLERK"];
 
 export type NavItem = {
@@ -106,6 +119,14 @@ export type NavItem = {
    * at its root (`/retail`) is not the parent of every page in the workspace.
    */
   exact?: boolean;
+  /**
+   * The workspace profiles this row is drawn in; every profile when absent.
+   * Reports' panel is one panel in every vertical, with each vertical's own
+   * Overview and insights (`spec/routes.md` §1).
+   */
+  profiles?: readonly string[];
+  /** Pages outside its path that are still this row's (`lib/nav-match.ts`). */
+  also?: RegExp;
 };
 
 /**
@@ -261,16 +282,43 @@ export const navSections: NavSection[] = [
     // groups are drawn by the panel (`ReportsGroups`): folders are the
     // workspace's own, not navigation. Each insight row shows only where its
     // page's feature is on (`lib/workspaces.ts`).
+    //
+    // A vertical's panel (PageSchoolReports, PageMineReports, PagePayReports,
+    // PageShopReports) opens on its Overview at `/reports`, so All reports is
+    // `?view=all`; its insights are its own, and its Areas are drawn by
+    // `ReportsGroups` with their counts.
     groups: [{ id: "insights", label: "Insights" }],
     panelGroups: true,
     items: [
-      { href: "/reports/insights", icon: TrendingUp, label: "Overview", exact: true },
-      { href: "/reports", icon: FileCheck, label: "All reports" },
-      { href: "/reports?view=yours", icon: UserRound, label: "Yours" },
-      { href: "/reports?view=shared", icon: Users, label: "Shared with you" },
-      { href: "/reports?view=corelith", icon: Star, label: "From Corelith" },
-      { href: "/reports/insights/sales", icon: BarChart3, label: "Sales", group: "insights" },
-      { href: "/reports/insights/site-visits", icon: MapPin, label: "Site visits", group: "insights" },
+      // The verticals' rows first: arrangements that pull Reports in whole take its rows in this order.
+      { href: "/reports", icon: Home, label: "Overview", exact: true, profiles: REPORT_VERTICAL_PROFILES },
+      // A report, a built-in or a report made here is one of All reports, unless it is an insight row of its own.
+      { href: "/reports?view=all", icon: FileCheck, label: "All reports", profiles: REPORT_VERTICAL_PROFILES, also: VERTICAL_REPORT_PAGES },
+      { href: "/reports?view=corelith", icon: Star, label: "From Corelith", profiles: REPORT_VERTICAL_PROFILES },
+      { href: "/reports?view=shared", icon: Users, label: "Shared with you", profiles: REPORT_VERTICAL_PROFILES },
+      { href: "/reports?view=yours", icon: UserRound, label: "Yours", profiles: REPORT_VERTICAL_PROFILES },
+      // Schools: Fees is its insight page; Attendance, Enrolment and Boarding open the report that answers them.
+      { href: "/reports/insights/fees", icon: Coins, label: "Fees", group: "insights", profiles: ["SCHOOLS"] },
+      { href: "/reports/school-attendance", icon: CalendarCheck, label: "Attendance", group: "insights", profiles: ["SCHOOLS"] },
+      { href: "/reports/school-enrolment", icon: GraduationCap, label: "Enrolment", group: "insights", profiles: ["SCHOOLS"] },
+      { href: "/reports/school-boarding", icon: Bed, label: "Boarding", group: "insights", profiles: ["SCHOOLS"] },
+      // A gold mine.
+      { href: "/reports/insights/production", icon: Factory, label: "Production", group: "insights", profiles: ["GOLD_MINE"] },
+      { href: "/reports/downtime", icon: Timer, label: "Downtime", group: "insights", profiles: ["GOLD_MINE"] },
+      { href: "/reports/gold-chain", icon: Gem, label: "Gold", group: "insights", profiles: ["GOLD_MINE"] },
+      { href: "/reports/stores-movements", icon: Package, label: "Stores", group: "insights", profiles: ["GOLD_MINE", "AUTOS"] },
+      // Payroll: Pay cost is its insight page; Statutory opens the report of what each run owes.
+      { href: "/reports/insights/pay-cost", icon: Wallet, label: "Pay cost", group: "insights", profiles: ["PAYROLL"] },
+      { href: "/reports/payroll-statutory", icon: ClipboardList, label: "Statutory", group: "insights", profiles: ["PAYROLL"] },
+      // A workshop.
+      { href: "/reports/maintenance-equipment", icon: Wrench, label: "Equipment", group: "insights", profiles: ["AUTOS"] },
+      { href: "/reports/insights", icon: TrendingUp, label: "Overview", exact: true, profiles: ["GENERAL"] },
+      { href: "/reports", icon: FileCheck, label: "All reports", profiles: ["GENERAL"] },
+      { href: "/reports?view=yours", icon: UserRound, label: "Yours", profiles: ["GENERAL"] },
+      { href: "/reports?view=shared", icon: Users, label: "Shared with you", profiles: ["GENERAL"] },
+      { href: "/reports?view=corelith", icon: Star, label: "From Corelith", profiles: ["GENERAL"] },
+      { href: "/reports/insights/sales", icon: BarChart3, label: "Sales", group: "insights", profiles: ["GENERAL"] },
+      { href: "/reports/insights/site-visits", icon: MapPin, label: "Site visits", group: "insights", profiles: ["GENERAL"] },
     ],
   },
   {
@@ -407,15 +455,9 @@ export const navSections: NavSection[] = [
     // front page, which is not one of its siblings.
     items: [
       { href: "/schools", icon: Building2, label: "Overview" },
-      // "School reports", not "Reports": the reporting module's own section is
-      // called that and can appear in the same rail. It stays a root link
-      // because it is one screen drawn four ways, not a category to expand.
-      {
-        href: "/schools/reports",
-        icon: BarChart3,
-        label: "School reports",
-        grant: { resource: "schools.reports" },
-      },
+      // School reports moved to Reports (`spec/routes.md` §1): Fees is its
+      // insight, Enrolment and Boarding are reports; the school's rail pulls
+      // Reports in whole (`lib/workspaces.ts`).
 
       // Everything the office holds about a child: the record, the way in, the
       // family behind it, the medical file, and what the child has out of the
@@ -718,6 +760,7 @@ export const navSections: NavSection[] = [
         icon: ReceiptLong,
         label: "Settlements",
       },
+      { href: "/gold/allocations", icon: Users, label: "Allocations" },
       { href: "/gold/exceptions", icon: ReportProblem, label: "Exceptions" },
       { href: "/reports/gold-chain", icon: ChartLine, label: "Reports" },
     ],
@@ -955,8 +998,12 @@ export const navSections: NavSection[] = [
 ];
 
 /** The Reports panel's rows, for an arrangement that pulls Reports in whole. */
-export const REPORTS_NAV_HREFS: readonly string[] =
-  navSections.find((section) => section.id === "reporting")?.items.map((item) => item.href) ?? ["/reports"];
+export const REPORTS_NAV_HREFS: readonly string[] = [
+  ...new Set(navSections.find((section) => section.id === "reporting")?.items.map((item) => item.href) ?? ["/reports"]),
+];
+
+/** Its bands (Insights), for the same arrangements. */
+export const REPORTS_NAV_GROUPS: NavGroup[] = navSections.find((section) => section.id === "reporting")?.groups ?? [];
 
 export function getNavSectionsForRole(role: string | null | undefined) {
   return navSections

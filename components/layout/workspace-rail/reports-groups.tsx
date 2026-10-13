@@ -14,8 +14,9 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useToast } from "@/components/ui/use-toast";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
-import { ClipboardText, DotsThree, FileText, Plus } from "@/lib/icons";
+import { Bed, MedusaBookOpenIcon, CalendarCheck, ClipboardText, Coins, DotsThree, Factory, FileText, Gem, IdentificationCard, Money, Package, Plus, ShieldCheck, Users, type LucideIcon } from "@/lib/icons";
 import { folderHref, reportCounts, reportEntries, type ReportsHomeData } from "@/lib/reports/all";
+import { areaHref, verticalAreas, verticalOf, type Vertical } from "@/lib/reports/verticals";
 import type { RailArea } from "@/lib/rail/areas";
 import { isOrgAdminRole } from "@/lib/preferences/nav";
 
@@ -43,8 +44,10 @@ export function isReportsArea(area: RailArea): boolean {
  */
 export function ReportsGroups({ onNavigate }: { onNavigate?: () => void }) {
   const { data: session } = useSession();
+  const vertical = verticalOf((session?.user as { workspaceProfile?: string } | undefined)?.workspaceProfile);
   return (
     <>
+      {vertical ? <AreasGroup vertical={vertical} onNavigate={onNavigate} /> : null}
       <FoldersGroup onNavigate={onNavigate} />
       {isOrgAdminRole(session?.user?.role) ? (
         <PanelGroup label="Build">
@@ -182,6 +185,52 @@ function FoldersGroup({ onNavigate }: { onNavigate?: () => void }) {
           />
         </li>
       ) : null}
+    </PanelGroup>
+  );
+}
+
+/** Each area's mark in the panel, as the boards draw them. */
+const AREA_ICONS: Record<string, LucideIcon> = {
+  Fees: Coins,
+  "The school day": CalendarCheck,
+  Pupils: Users,
+  Production: Factory,
+  Gold: Gem,
+  "Stores and maintenance": Package,
+  "Safety and audit": ShieldCheck,
+  Pay: Money,
+  People: IdentificationCard,
+  Books: MedusaBookOpenIcon,
+  Boarding: Bed,
+};
+
+/**
+ * A vertical's Areas (PageSchoolReports, PageMineReports): its own areas, then
+ * pay, people and the books, each with how many reports it holds, opening All
+ * reports on that area.
+ */
+function AreasGroup({ vertical, onNavigate }: { vertical: Vertical; onNavigate?: () => void }) {
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const mounted = useMounted();
+  const home = useQuery({ queryKey: REPORTS_HOME_KEY, queryFn: fetchReportsHome, staleTime: 60_000 });
+  const data = mounted ? home.data : undefined;
+  const areas = React.useMemo(() => (data ? verticalAreas(vertical, reportEntries(data).map((entry) => entry.area)) : []), [data, vertical]);
+  if (areas.length === 0) return null;
+  const current = pathname === "/reports" ? searchParams.get("area") : null;
+  return (
+    <PanelGroup label="Areas" holdsCurrent={Boolean(current)}>
+      {areas.map(({ area, count }) => (
+        <RailRow
+          key={area}
+          href={areaHref(area)}
+          label={area}
+          icon={AREA_ICONS[area] ?? FileText}
+          badge={String(count)}
+          current={current === area}
+          onNavigate={onNavigate}
+        />
+      ))}
     </PanelGroup>
   );
 }

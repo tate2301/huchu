@@ -159,7 +159,7 @@ const AREA_LABELS: Record<string, string> = {
   learn: "Insights",
   "gold-operations": "Production",
   "gold-chain": "Movement",
-  "gold-control": "Insights",
+  "gold-control": "Reports",
 };
 
 /** Retail's module marks are declared with their modules (`lib/retail/nav/`). */

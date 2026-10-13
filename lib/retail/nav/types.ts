@@ -1,5 +1,5 @@
 import type { LucideIcon } from "@/lib/icons";
-import type { NavItem } from "@/lib/navigation";
+import type { NavGroup, NavItem } from "@/lib/navigation";
 import type { RetailAction, RetailResource } from "@/lib/retail/permission-matrix";
 
 /**
@@ -19,6 +19,11 @@ export type RetailNavModule = {
    * exists; each item's `requires` (any of) is who sees it.
    */
   items: RetailNavItem[];
+  /**
+   * Headed bands inside the module's own panel (Reports' Insights and
+   * Areas), as `NavSection.panelGroups`. Each item names its band.
+   */
+  groups?: NavGroup[];
 };
 
 /**

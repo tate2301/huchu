@@ -15,6 +15,8 @@ const querySchema = z.object({
   academicYearId: z.string().uuid().optional(),
   classId: z.string().uuid().optional(),
   feeStructureId: z.string().uuid().optional(),
+  /** "BOARDING" or "DAY". Absent is both. */
+  boarding: z.enum(["BOARDING", "DAY"]).optional(),
 });
 
 export async function GET(request: NextRequest) {
@@ -34,6 +36,7 @@ export async function GET(request: NextRequest) {
       academicYearId: searchParams.get("academicYearId") ?? undefined,
       classId: searchParams.get("classId") ?? undefined,
       feeStructureId: searchParams.get("feeStructureId") ?? undefined,
+      boarding: searchParams.get("boarding") ?? undefined,
     });
 
     const options: Parameters<typeof generateCollectionsReport>[1] = {};
@@ -43,6 +46,7 @@ export async function GET(request: NextRequest) {
     if (query.academicYearId) options.academicYearId = query.academicYearId;
     if (query.classId) options.classId = query.classId;
     if (query.feeStructureId) options.feeStructureId = query.feeStructureId;
+    if (query.boarding) options.isBoarding = query.boarding === "BOARDING";
 
     // Both cuts in one response. The board draws them side by side, and two
     // round trips would let the term table and the year-group panel disagree

@@ -5,7 +5,7 @@ import type { AuthenticatedSession } from "@/lib/auth-core/types";
 import { prisma } from "@/lib/prisma";
 import { canReadReport } from "@/lib/reports/access";
 import { areaOf, type ReportAreaInfo } from "@/lib/reports/areas";
-import { RETAIL_BUILT_INS, type TemplateQuery } from "@/lib/reports/definitions/retail/templates";
+import { builtInTemplate, RETAIL_BUILT_INS, type TemplateQuery, type TemplateRunLayout } from "@/lib/reports/definitions/retail/templates";
 import { canReadList, periodRange } from "@/lib/reports/list-query";
 import { getReportDefinition } from "@/lib/reports/registry";
 import { reportMeta } from "@/lib/reports/catalog";
@@ -379,6 +379,8 @@ export type RunContext = {
   query: TemplateQuery;
   email: ReportTemplateRecord["email"];
   mySend: null;
+  /** A built-in's figures and charts above its table (PageRetailTemplate); none for a saved one. */
+  run: TemplateRunLayout | null;
 };
 
 function viewerOf(session: AuthenticatedSession): TemplateViewer {
@@ -432,6 +434,7 @@ export async function readRunContext(session: AuthenticatedSession, ref: string,
     query: entry.query,
     email: null,
     mySend: null,
+    run: entry.builtIn ? (builtInTemplate(entry.ref)?.run ?? null) : null,
   };
 }
 
