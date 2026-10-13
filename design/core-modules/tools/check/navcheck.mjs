@@ -20,6 +20,8 @@ const browser = await chromium.launch({
 const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 }, ...(state ? { storageState: state } : {}) });
 const page = await ctx.newPage();
 const panelOf = () => page.evaluate(() => document.querySelector("aside[aria-label] nav[aria-label]")?.getAttribute("aria-label") ?? null);
+// The row the panel marks as this page.
+const currentOf = () => page.evaluate(() => (document.querySelector("aside[aria-label] nav[aria-label] [aria-current=page]")?.textContent || "").replace(/\s+/g, " ").trim() || null);
 const visit = async (url) => {
   // The panel is drawn by the shell before the page's data: wait for it, not for the network.
   await page.goto(url, { waitUntil: "domcontentloaded", timeout: 180000 }).catch(() => {});
@@ -40,6 +42,12 @@ for (const start of starts) {
     await visit(origin + link.href);
     checked++;
     const landed = await panelOf();
+    const current = await currentOf();
+    if (landed === panel && current !== link.text) {
+      const line = `${panel} › ${link.text} (${link.href}) → marks "${current ?? "nothing"}" as the page`;
+      bad.push(line);
+      console.log("  " + line);
+    }
     if (landed !== panel) {
       const line = `${panel} › ${link.text} (${link.href}) → lands in ${landed ?? "no panel"} at ${new URL(page.url()).pathname}`;
       bad.push(line);
