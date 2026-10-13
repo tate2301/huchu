@@ -29,7 +29,7 @@ set -a; . ./.env; set +a; DATABASE_URL="$DATABASE_URL_TEST" npx prisma migrate d
 
 # Claude, server only
 #   ANTHROPIC_API_KEY="..."
-#   VANE_MODEL="claude-opus-5-5"
+#   VANE_MODEL="claude-sonnet-5-5"
 pnpm vane:ping                      # prints the model that answered and the tokens, or the error code
 
 pnpm test -- lib/vane/              # 34 tests: the connection, the read rules and the migration witness
