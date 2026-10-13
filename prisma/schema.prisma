@@ -135,6 +135,8 @@ model Company {
   vanePlans                     VanePlan[]
   vaneJobs                      VaneJob[]
   vaneSettings                  VaneSettings?
+  vaneMessages                  VaneMessage[]
+  vaneActions                   VaneAction[]
   vaneReaderScopes              VaneReaderScope[]
   documentRenderJobs            DocumentRenderJob[]
   documentArtifacts             DocumentArtifact[]
@@ -1502,6 +1504,8 @@ model User {
   vaneItemsFor                    VaneItem[]                     @relation("VaneItemAudience")
   vaneItemsResolved               VaneItem[]                     @relation("VaneItemResolvedBy")
   vaneJobsRequested               VaneJob[]                      @relation("VaneJobRequestedBy")
+  vaneMessages                    VaneMessage[]                  @relation("VaneMessageUser")
+  vaneActionsDecided              VaneAction[]                   @relation("VaneActionDecidedBy")
   sitesClosed                       Site[]                         @relation("SiteClosedBy")
   retailRegistersCreated            RetailRegister[]               @relation("RetailRegisterCreatedBy")
   retailDevicesPaired               RetailDevice[]                 @relation("RetailDevicePairedBy")
@@ -16310,6 +16314,7 @@ model VaneItem {
   audienceUser User?    @relation("VaneItemAudience", fields: [audienceUserId], references: [id], onDelete: Cascade)
   resolvedBy   User?    @relation("VaneItemResolvedBy", fields: [resolvedById], references: [id], onDelete: SetNull)
   job          VaneJob? @relation(fields: [jobId], references: [id], onDelete: SetNull)
+  actions      VaneAction[]
 
   @@index([companyId, status, createdAt])
   @@index([companyId, subjectType, subjectId])
@@ -16383,11 +16388,81 @@ model VaneJob {
   company     Company    @relation(fields: [companyId], references: [id], onDelete: Cascade)
   requestedBy User?      @relation("VaneJobRequestedBy", fields: [requestedById], references: [id], onDelete: SetNull)
   items       VaneItem[]
+  messages    VaneMessage[]
 
   @@unique([companyId, key])
   @@index([companyId, status, runAfter])
   @@index([companyId, createdAt])
   @@index([requestedById])
+}
+
+enum VaneMessageAuthor {
+  PERSON
+  VANE
+}
+
+/// One turn of a person's chat with Vane, in the panel. Each person has their own conversation.
+model VaneMessage {
+  id        String            @id @default(uuid())
+  companyId String
+  userId    String
+  author    VaneMessageAuthor
+  text      String
+  /// The job that answered it, with what it cost. On Vane's turns only.
+  jobId     String?
+  createdAt DateTime          @default(now())
+
+  company Company      @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  user    User         @relation("VaneMessageUser", fields: [userId], references: [id], onDelete: Cascade)
+  job     VaneJob?     @relation(fields: [jobId], references: [id], onDelete: SetNull)
+  actions VaneAction[]
+
+  @@index([companyId, userId, createdAt])
+  @@index([userId])
+  @@index([jobId])
+}
+
+enum VaneActionStatus {
+  /// Waiting for a person.
+  PROPOSED
+  /// Approved and running.
+  APPROVED
+  DONE
+  FAILED
+  DENIED
+}
+
+/// Something Vane proposes to do, on a card or in a chat answer. Nothing runs
+/// until a person approves it (and may change its inputs first); then it runs
+/// through the module's own code, as that person. Denied is kept.
+model VaneAction {
+  id          String           @id @default(uuid())
+  companyId   String
+  itemId      String?
+  messageId   String?
+  /// The action's kind in `lib/vane/actions`: "books.invoice.due_date".
+  kind        String
+  /// What it does, in a line: "Set INV-0142 due on 30 October".
+  title       String
+  /// Its inputs, as Vane proposed them or as the person changed them.
+  params      Json
+  status      VaneActionStatus @default(PROPOSED)
+  /// What happened when it ran, in a line, or why it failed.
+  result      String?
+  decidedById String?
+  decidedAt   DateTime?
+  doneAt      DateTime?
+  createdAt   DateTime         @default(now())
+
+  company   Company      @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  item      VaneItem?    @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  message   VaneMessage? @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  decidedBy User?        @relation("VaneActionDecidedBy", fields: [decidedById], references: [id], onDelete: SetNull)
+
+  @@index([companyId, status, createdAt])
+  @@index([itemId])
+  @@index([messageId])
+  @@index([decidedById])
 }
 
 /// Management -> Vane. One row per workspace; no row means the defaults.

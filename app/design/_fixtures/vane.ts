@@ -43,6 +43,7 @@ export const FIXTURE_FOR_YOU: VanePanel = {
       createdAt: "2026-10-06T06:02:00",
       read: [],
       sql: null,
+      actions: [],
     },
     {
       id: "v2",
@@ -54,6 +55,7 @@ export const FIXTURE_FOR_YOU: VanePanel = {
       createdAt: "2026-10-06T06:01:30",
       read: [],
       sql: null,
+      actions: [],
     },
     {
       id: "v3",
@@ -65,6 +67,7 @@ export const FIXTURE_FOR_YOU: VanePanel = {
       createdAt: "2026-10-06T06:01:00",
       read: [],
       sql: null,
+      actions: [],
     },
     {
       id: "v4",
@@ -76,6 +79,7 @@ export const FIXTURE_FOR_YOU: VanePanel = {
       createdAt: "2026-10-06T06:00:00",
       read: [],
       sql: null,
+      actions: [],
     },
     {
       id: "v5",
@@ -87,6 +91,7 @@ export const FIXTURE_FOR_YOU: VanePanel = {
       createdAt: "2026-10-06T05:58:00",
       read: [],
       sql: null,
+      actions: [],
     },
   ],
   plans: [VAT_PLAN],
@@ -117,6 +122,7 @@ export const FIXTURE_BOOKS_VANE: VanePanel = {
       createdAt: "2026-10-06T06:02:00",
       read: [],
       sql: null,
+      actions: [],
     },
     {
       id: "v2",
@@ -128,6 +134,7 @@ export const FIXTURE_BOOKS_VANE: VanePanel = {
       createdAt: "2026-10-06T06:01:00",
       read: [],
       sql: null,
+      actions: [],
     },
     {
       id: "v3",
@@ -139,6 +146,7 @@ export const FIXTURE_BOOKS_VANE: VanePanel = {
       createdAt: "2026-10-06T06:00:00",
       read: [],
       sql: null,
+      actions: [],
     },
   ],
   plans: [VAT_PLAN],

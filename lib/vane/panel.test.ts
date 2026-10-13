@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { giveVaneJob, moduleName, vanePanel } from "./panel";
+import { moduleName, vanePanel } from "./panel";
 import { audienceFilter } from "./status";
 
 function fakeDb(items: Array<Record<string, unknown>>) {
@@ -10,6 +10,7 @@ function fakeDb(items: Array<Record<string, unknown>>) {
     vaneJob: { findFirst: empty, findMany: async () => [], count: async () => 0 },
     vanePlan: { findMany: async () => [], count: async () => 0 },
     vaneSettings: { findUnique: async () => ({ paused: false, updatedAt: new Date(), monthlyAllowance: 5000 }) },
+    vaneAction: { findMany: async () => [] },
   } as unknown as Parameters<typeof vanePanel>[0];
 }
 
@@ -55,21 +56,5 @@ describe("the Vane panel", () => {
       ],
     });
     expect(audienceFilter("u1", null).AND[1]).toEqual({ OR: [{ audienceRole: null }] });
-  });
-
-  it("keeps a person's whole request on the job, for Claude to read", async () => {
-    const long = `Get the October close ready, so we can close on the 3rd. ${"Check every account. ".repeat(12)}`.trim();
-    let written: Record<string, unknown> = {};
-    const db = {
-      vaneJob: {
-        create: async ({ data }: { data: Record<string, unknown> }) => {
-          written = data;
-          return { id: "j1", label: data.label, status: "QUEUED" };
-        },
-      },
-    } as unknown as Parameters<typeof giveVaneJob>[0];
-    await giveVaneJob(db, { companyId: "c", userId: "u", text: long });
-    expect(long.length).toBeGreaterThan(120);
-    expect(written).toMatchObject({ label: long, kind: "person", trigger: "PERSON", requestedById: "u" });
   });
 });

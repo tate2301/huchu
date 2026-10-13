@@ -95,7 +95,17 @@ describe("Vane's tables, as stored", () => {
   it("has every table the spec lists, with the binding table beside them", async () => {
     const rows = await prisma.$queryRaw<Array<{ table_name: string }>>`
       SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_name LIKE 'Vane%' ORDER BY 1`;
-    expect(rows.map((r) => r.table_name)).toEqual(["VaneItem", "VaneJob", "VanePlan", "VanePlanStep", "VaneReaderScope", "VaneSettings"]);
+    // VaneAction and VaneMessage came with 20261014090000_vane_chat_actions.
+    expect(rows.map((r) => r.table_name)).toEqual([
+      "VaneAction",
+      "VaneItem",
+      "VaneJob",
+      "VaneMessage",
+      "VanePlan",
+      "VanePlanStep",
+      "VaneReaderScope",
+      "VaneSettings",
+    ]);
   });
 
   it("keeps the SQL and what it read on every card", async () => {

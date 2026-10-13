@@ -2,7 +2,7 @@
 
 Vane is the product's helper that reads what a person could read, notices what needs doing, and drafts the work. It runs on Claude, made by Anthropic. In the product it is only ever called Vane; Claude is named once, on Management → Vane.
 
-Vane never sends, pays, saves, approves or changes anything on its own. A person presses the button each time.
+Vane never sends, pays, saves, approves or changes anything on its own. It may propose actions; each waits until a person approves it (and may change its inputs first), and then it runs through the module's own code as that person. Denying keeps it, denied.
 
 ## What is built so far
 
@@ -37,6 +37,25 @@ The connection to Claude (`lib/vane/claude.ts`), Vane's tables, the two roles it
 `toolDefinitions()` is what Claude is shown: each tool's name, a sentence on what it does, and its input as JSON Schema from the same zod schema the call is checked against. `callTool(context, name, input)` runs one call: an input that does not fit, or a question the reader refused or Postgres turned down, comes back as an error result for Claude to correct; anything else is thrown for the job. `lib/vane/tools.test.ts` covers each tool and those errors.
 
 Drafting invoices, quotations and purchase orders (`madeByVane`) waits for the core modules: it goes through their own create functions.
+
+### Its actions (`lib/vane/actions/`)
+
+What Vane proposes on a card or in a chat answer is a `VaneAction`: a kind from the registry, its inputs, and a line saying what it does. Nothing runs until a person approves it (`POST /api/vane/actions/[id]`); then the engine (`engine.ts`) checks the inputs again, takes only the changes the kind lets a person make (a due date, a note), checks the approver's role and the workspace's features for the route the app would use (`gate.ts`: an action calls module code directly, so it would otherwise skip both), and runs it as them. Done keeps what happened; a failure keeps why and can be approved again; denied stays denied. When a card's actions are all done, the card is taken further by that person.
+
+| Kind | Runs | As the app's |
+| --- | --- | --- |
+| `books.invoice.due_date` | `setInvoiceDueDate` (`lib/books/due-dates.ts`): a draft or issued invoice, not before its own date | `PATCH /api/accounting/sales/invoices` |
+| `books.invoice.reminders` | `sendInvoiceReminders` (`lib/books/reminders.ts`) | `POST /api/books/invoices/reminders` |
+| `books.bank.accept` | `acceptProposals` (`lib/books/bank.ts`) | `POST /api/books/bank/accept` |
+| `crm.task.create` | `createCrmTask` (`lib/crm/create-task.ts`, now also the route's) | `POST /api/v2/crm/tasks` |
+| `retail.shift.look_into` | `signOffShift` (`lib/retail/floor/sign-off.ts`), which checks cash control itself | `/api/v2/retail/shifts` |
+| `vane.plan.tick_step` | `tickPlanStep` (`lib/vane/lists.ts`) | Vane's own |
+
+A new action is a `VaneActionKind` in its module's file, listed in `registry.ts`. Claude is shown each kind's description and inputs, and the pages it may link to with their filters (`lib/vane/pages.ts`), so its links open filtered to the records it means.
+
+### Its chat (`lib/vane/chat.ts`)
+
+A person asks Vane in the panel; the turn runs while they wait (`POST /api/vane/chat`, up to 90 s), streaming what Vane is doing as JSON lines, and the panel is held until it finishes. Vane answers in words, with any actions it proposes hung on the answer. Each turn is a `VaneJob` of kind `chat` (counted against the allowance, with its cost); the conversation is `VaneMessage`, one per person, which neither reader role can read (`CONVERSATION_TABLE` in `lib/vane/reader-access.ts`). Refused while Vane is paused, past the allowance, or still answering the person's last turn. The nightly job and chat share one conversation loop (`lib/vane/conversation.ts`) and one set of rules (`lib/vane/prompt.ts`).
 
 ### Its jobs (`lib/vane/jobs.ts`)
 

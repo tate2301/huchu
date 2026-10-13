@@ -1,8 +1,7 @@
-import { randomUUID } from "node:crypto";
-
 import type { PrismaClient } from "@prisma/client";
 import { z } from "zod";
 
+import { actionsFor, type VaneActionView } from "./actions/engine";
 import { audienceFilter, FOR_YOU, vaneStatus, type VaneStatus } from "./status";
 
 /** The button on a For you card: it names the act and goes where the act is done. */
@@ -29,6 +28,8 @@ export type VaneCard = {
   read: Array<{ table: string; rows: number; about?: string }>;
   /** The question it ran. */
   sql: string | null;
+  /** What Vane proposes to do about it, each waiting for a person's yes or no. */
+  actions: VaneActionView[];
 };
 
 export type VanePlanCard = {
@@ -52,7 +53,7 @@ export type VanePanel = {
   working: VaneWorking[];
 };
 
-type Db = Pick<PrismaClient, "vaneItem" | "vaneJob" | "vanePlan" | "vaneSettings">;
+type Db = Pick<PrismaClient, "vaneItem" | "vaneJob" | "vanePlan" | "vaneSettings" | "vaneAction">;
 
 /** The modules the product names for a card's source. */
 const MODULE_NAMES: Record<string, string> = {
@@ -143,6 +144,7 @@ export async function vanePanel(
     }),
   ]);
 
+  const { byItem } = await actionsFor(db, companyId, { itemIds: items.map((item) => item.id) });
   const cards = items.map<VaneCard>((item) => ({
     id: item.id,
     kind: item.kind === "ISSUE" ? "issue" : "suggestion",
@@ -153,6 +155,7 @@ export async function vanePanel(
     createdAt: item.createdAt.toISOString(),
     read: parseRead(item.readFrom),
     sql: item.sql,
+    actions: byItem.get(item.id) ?? [],
   }));
   // This module's cards first, then the rest, each newest first.
   const here = module ? moduleName(module) : null;
@@ -210,30 +213,4 @@ export async function actOnVaneItem(
     data: { status: "DONE", resolvedAt: new Date(), resolvedById: userId },
   });
   return count > 0;
-}
-
-export const giveJobSchema = z.object({ text: z.string().trim().min(3).max(2000) });
-
-/**
- * Give Vane a job: queued for the next tick as a person's job. The person's
- * whole request is the job's label, which the tick hands Claude as the
- * instruction (`lib/vane/jobs.ts`); the pages cut it to a line where it shows.
- */
-export async function giveVaneJob(
-  db: Pick<PrismaClient, "vaneJob">,
-  { companyId, userId, text }: { companyId: string; userId: string; text: string },
-) {
-  return db.vaneJob.create({
-    data: {
-      companyId,
-      key: `person:${randomUUID()}`,
-      kind: "person",
-      label: text.trim(),
-      trigger: "PERSON",
-      requestedById: userId,
-      result: null,
-      tools: [],
-    },
-    select: { id: true, label: true, status: true },
-  });
 }
