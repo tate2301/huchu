@@ -6,7 +6,7 @@ Vane never sends, pays, saves, approves or changes anything on its own. A person
 
 ## What is built so far
 
-The connection to Claude (`lib/vane/claude.ts`), Vane's tables, and the two roles it reads the workspace through (`20261012120000_vane`).
+The connection to Claude (`lib/vane/claude.ts`), Vane's tables, the two roles it reads the workspace through (`20261012120000_vane`), and the reader that runs a question through them (`lib/vane/reader.ts`).
 
 | Piece | What it does |
 | --- | --- |
@@ -16,6 +16,13 @@ The connection to Claude (`lib/vane/claude.ts`), Vane's tables, and the two role
 | `VaneError` | Every way a request can fall short, with `code` and `retryable`: `misconfigured` (no model; key or model refused), `rate-limited`, `unavailable` (no connection or a server error), `refused` (Claude declined), `cut-off` (ran past `maxTokens`). |
 
 `lib/vane/claude.test.ts` covers each of these with a stand-in for the SDK client; no test calls Claude.
+
+| Piece | What it does |
+| --- | --- |
+| `readWorkspace(companyId, question)` | Runs one question, as SQL, for one company: as `vane_reader`, or as `vane_reader_private` when the workspace's `readsPeoplePrivate` is on. Returns at most 500 rows, whether there were more, the SQL as it ran and the tables it read, which every card keeps. |
+| `ReaderError` | Why a question did not run, with `code`: `refused` (not one SELECT, a table the role is not granted, or a function off the report list in `lib/reports/sql/guard.ts`, which keeps out `pg_*`, `set_config` and `current_setting`), `timeout` (past five seconds), `failed` (Postgres turned it down: a column that does not exist or one the role may not read), `misconfigured` (its connection string is not set). The message is a sentence Vane can act on. |
+
+`lib/vane/reader.test.ts` signs in as members of the two roles and checks that a question sees one workspace (two at once stay apart), reads personal details only where the workspace allows, runs nothing but one SELECT, stops at 500 rows and at the time limit, and leaves no binding behind.
 
 ## Setting it up
 
@@ -59,7 +66,7 @@ New tables and columns are unreadable to Vane until granted. Run `pnpm vane:read
 1. Put the key in `ANTHROPIC_API_KEY` and the model in `VANE_MODEL` (see `.env.example`). Server only: never prefix either with `NEXT_PUBLIC_`.
 2. Run `pnpm vane:ping`. It sends one short request and prints which model answered and what it cost, or the `VaneError` code and message.
 3. Apply `20261012120000_vane` with `npx prisma migrate deploy`. The role that runs it needs `CREATEROLE`; on Neon the owner role has it.
-4. Give each reader role a password by hand on the server, so none is kept in git, and keep the two connection strings with the worker's secrets:
+4. Give each reader role a password by hand on the server, so none is kept in git, and set the two connection strings, `VANE_READER_DATABASE_URL` and `VANE_READER_PRIVATE_DATABASE_URL`, wherever Vane runs (see `.env.example`):
 
    ```sql
    ALTER ROLE vane_reader LOGIN PASSWORD '…';
