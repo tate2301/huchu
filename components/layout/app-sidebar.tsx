@@ -12,10 +12,11 @@ import { ModuleGroups } from "@/components/layout/workspace-rail/module-groups";
  * The rail and its panel, beside the page (≥720px) or inside the phone drawer
  * (`MobileNav`).
  */
-export function AppSidebar({ inDrawer = false }: { inDrawer?: boolean }) {
+export function AppSidebar({ inDrawer = false, railOnly = false }: { inDrawer?: boolean; railOnly?: boolean }) {
   const nav = useShellNav();
   const shell = useShell();
-  const panelShown = inDrawer || shell.panelShown;
+  // A builder keeps the rail alone; its outline stands where the panel was.
+  const panelShown = inDrawer || (!railOnly && shell.panelShown);
 
   return (
     <WorkspaceRail
@@ -29,7 +30,7 @@ export function AppSidebar({ inDrawer = false }: { inDrawer?: boolean }) {
       vane={{ open: shell.vaneOpen, onToggle: () => shell.setVaneOpen(!shell.vaneOpen) }}
       supportItems={nav.model.supportItems}
       panelShown={panelShown}
-      panelOverlay={!inDrawer && shell.panelOverlay}
+      panelOverlay={!inDrawer && !railOnly && shell.panelOverlay}
       onCollapse={inDrawer ? () => shell.setDrawerOpen(false) : shell.closePanel}
       onOpenPanel={shell.openPanel}
       extra={<SidebarCrmCollections />}

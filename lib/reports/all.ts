@@ -87,7 +87,7 @@ export function reportEntries(data: ReportsHomeData): ReportEntry[] {
   const custom: ReportEntry[] = data.custom.map((report) => ({
     id: report.id,
     title: report.title,
-    href: `/reports/custom/${report.id}`,
+    href: `/reports/c/${report.id}`,
     group: "ours",
     whose: report.mine ? "yours" : "shared",
     kind: report.kind === "table" ? "Table" : "Board",

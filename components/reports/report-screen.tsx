@@ -256,7 +256,7 @@ export function ReportScreen({ reportKey }: { reportKey: string }) {
         method: "POST",
         body: JSON.stringify({ fromReport: reportKey }),
       });
-      router.push(`/reports/custom/${made.report.id}/edit`);
+      router.push(`/reports/c/${made.report.id}/edit`);
     } catch (error) {
       toast({ title: "Report not created", description: getApiErrorMessage(error), variant: "destructive" });
     }

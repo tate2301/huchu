@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { Button, ButtonLink, Empty, Kit, Pill } from "@/components/core";
+import { Button, ButtonGroup, ButtonLink, Empty, Kit, Pill } from "@/components/core";
 import { MenuButton, type MenuEntry } from "@/components/core/menu";
 import { PageChrome, type PagePrimary } from "@/components/layout/page-chrome";
 import { COMMON_PRESETS, DateRangePicker } from "@/components/ui/date-picker";
@@ -13,9 +13,11 @@ import { useToast } from "@/components/ui/use-toast";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { periodParams, type CustomBlock, type CustomReport } from "@/lib/reports/custom/document";
+import { TEMPLATE_AUDIENCES, type TemplateAudience } from "@/lib/reports/template-access";
+import { SEEN_BY_WORDS } from "@/lib/reports/template-words";
 import { resolveParams } from "@/lib/reports/params";
 import type { ReportParams } from "@/lib/reports/types";
-import { dayRangeWords, todayIn } from "@/lib/workspace/format";
+import { dayRangeWords, formatTime, todayIn } from "@/lib/workspace/format";
 
 import { Chip } from "../report-filters";
 import { CustomBlockResult, downloadBlockCsv } from "./custom-block";
@@ -111,7 +113,7 @@ export function CustomReportScreen({ id, builtIn }: { id: string; builtIn?: stri
         body: JSON.stringify(builtIn ? { fromTemplate: builtIn } : { copyOf: current.id }),
       });
       await queryClient.invalidateQueries({ queryKey: ["reports", "catalog"] });
-      router.push(`/reports/custom/${made.report.id}/edit`);
+      router.push(`/reports/c/${made.report.id}/edit`);
     } catch (error) {
       toast({ title: "Not copied", description: getApiErrorMessage(error), variant: "destructive" });
       setBusy(false);
@@ -151,6 +153,32 @@ export function CustomReportScreen({ id, builtIn }: { id: string; builtIn?: stri
   const current = report.data?.report;
   const editable = Boolean(current?.editable && !builtIn);
 
+  /** Share: who sees it besides its maker. Wider than just them is a manager's call, as for a template. */
+  const share = async (audience: TemplateAudience) => {
+    if (!current || audience === current.audience) return;
+    setBusy(true);
+    try {
+      await fetchJson(`/api/v2/reports/custom/${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify({ audience }) });
+      await queryClient.invalidateQueries({ queryKey: ["reports"] });
+      toast({ title: `${current.title}: ${SEEN_BY_WORDS[audience].toLowerCase()}`, variant: "success" });
+    } catch (error) {
+      toast({ title: "Not shared", description: getApiErrorMessage(error), variant: "destructive" });
+    } finally {
+      setBusy(false);
+    }
+  };
+  const shareItems: MenuEntry[] = current
+    ? [
+        { heading: "Seen by" },
+        ...TEMPLATE_AUDIENCES.filter((audience) => audience === "JUST_ME" || current.canShare || audience === current.audience).map((audience) => ({
+          key: audience,
+          label: SEEN_BY_WORDS[audience],
+          checked: current.audience === audience,
+          onSelect: () => void share(audience),
+        })),
+      ]
+    : [];
+
   /** Export: every table on the page, each as its CSV, as it first shows. */
   const exportTables = () => {
     let files = 0;
@@ -167,7 +195,7 @@ export function CustomReportScreen({ id, builtIn }: { id: string; builtIn?: stri
   const primary = useMemo<PagePrimary | null>(() => {
     if (!current) return null;
     if (builtIn) return { label: "Make it yours", icon: "file" as const, shortcut: "M", onClick: () => void copyRef.current(), disabled: busy ? "Copying it" : undefined };
-    if (editable) return { label: "Edit", icon: "edit" as const, shortcut: "E", href: `/reports/custom/${id}/edit` };
+    if (editable) return { label: "Edit", icon: "edit" as const, shortcut: "E", href: `/reports/c/${id}/edit` };
     return { label: "Make a copy", icon: "file" as const, shortcut: "M", onClick: () => void copyRef.current(), disabled: busy ? "Copying it" : undefined };
   }, [current, builtIn, editable, id, busy]);
 
@@ -182,9 +210,16 @@ export function CustomReportScreen({ id, builtIn }: { id: string; builtIn?: stri
     <PageChrome title={current?.title ?? "Report"} primary={primary}>
       {current ? (
         <Kit contents>
-          <Button icon="export" onClick={exportTables}>
-            Export
-          </Button>
+          <ButtonGroup aria-label="This report">
+            {editable ? (
+              <MenuButton icon="share" iconEnd={undefined} label="Share" items={shareItems} disabled={busy}>
+                Share
+              </MenuButton>
+            ) : null}
+            <Button icon="export" onClick={exportTables}>
+              Export
+            </Button>
+          </ButtonGroup>
           {more.length ? (
             <MenuButton variant="quiet" iconOnly icon="more" iconEnd={undefined} align="end" aria-label="More" label="More" items={more} disabled={busy}>
               More
@@ -264,26 +299,35 @@ export function CustomReportScreen({ id, builtIn }: { id: string; builtIn?: stri
   const own = Object.keys(given).length === 0 && document.period.from ? periodName(document.period.from) : null;
   const words = own ? `${own}, ${spelled}` : spelled;
 
+  const asOf = data.rows.dataUpdatedAt ? formatTime(new Date(data.rows.dataUpdatedAt)) : null;
+
   return frame(
     <div className="kbody">
-      <div className="rp-head">
-        {builtIn ? <Pill tone="info">From Corelith</Pill> : null}
-        {current.description ? <span className="rp-desc">{current.description}</span> : <span className="rp-desc" />}
-        <span className="rp-head-end">
-          <DateRangePicker
-            openEnded
-            presets={COMMON_PRESETS}
-            title="Dates"
-            value={range}
-            onChange={(next) => setDates({ from: next.from ?? "", to: next.to ?? "" })}
-            trigger={
-              <Chip set icon="calendar" aria-label={`Dates: ${words}`}>
-                {words}
-              </Chip>
-            }
-          />
-        </span>
+      <div className="ws-tools rp-tools">
+        <DateRangePicker
+          openEnded
+          presets={COMMON_PRESETS}
+          title="Dates"
+          value={range}
+          onChange={(next) => setDates({ from: next.from ?? "", to: next.to ?? "" })}
+          trigger={
+            <Chip set icon="calendar" aria-label={`Dates: ${words}`}>
+              {words}
+            </Chip>
+          }
+        />
+        {asOf ? (
+          <div className="end">
+            <span className="ws-n">As of {asOf}</span>
+          </div>
+        ) : null}
       </div>
+      {builtIn || current.description ? (
+        <div className="rp-head">
+          {builtIn ? <Pill tone="info">From Corelith</Pill> : null}
+          {current.description ? <span className="rp-desc">{current.description}</span> : <span className="rp-desc" />}
+        </div>
+      ) : null}
 
       {blocks.length === 0 ? (
         <Empty
@@ -291,7 +335,7 @@ export function CustomReportScreen({ id, builtIn }: { id: string; builtIn?: stri
           title="Nothing on this report yet"
           action={
             editable ? (
-              <ButtonLink href={`/reports/custom/${id}/edit`} icon="plus">
+              <ButtonLink href={`/reports/c/${id}/edit`} icon="plus">
                 Add the first block
               </ButtonLink>
             ) : undefined

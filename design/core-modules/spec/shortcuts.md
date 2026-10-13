@@ -12,6 +12,8 @@ Every primary action has a shortcut, shown inside its button. Single keys work w
 | U | Upload a statement | Books, Bank |
 | Ctrl ↵ | Upload (the statement chosen) | Books, Bank, Upload a statement |
 | Ctrl ↵ | Publish | Builders |
+| P | Preview, and back to Build | Builders |
+| Ctrl S | Save | Report builder |
 | Esc | Clear the selection, close a panel | Tables, Vane panel |
 
 Rules:

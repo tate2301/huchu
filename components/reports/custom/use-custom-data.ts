@@ -81,19 +81,24 @@ export function useCustomData(blocks: readonly CustomBlock[], sources: readonly 
 
   const run = useQuery({
     queryKey: ["reports", "custom-run", signature, rows.dataUpdatedAt, params],
-    queryFn: () =>
-      runBlocks(deferred, checks, {
+    queryFn: async () => {
+      const started = performance.now();
+      const results = await runBlocks(deferred, checks, {
         runner: reportSql(),
         sources: tables,
         rows: (table) => loadedRows?.[keyOf.get(table) ?? ""]?.rows,
         version: (table) => `${table}:${rows.dataUpdatedAt}`,
         period: { from: params.from || undefined, to: params.to || undefined },
         refused: (table) => refused.has(table),
-      }),
+      });
+      return { results, ms: performance.now() - started };
+    },
     enabled: ready,
     placeholderData: (previous) => previous,
     staleTime: Infinity,
     retry: false,
+    // Its Maps do not survive the offline copy; it is quick to work out again.
+    meta: { persist: false },
   });
 
   /** Sources that came back cut short, for a warning under the blocks that read them. */
@@ -102,7 +107,7 @@ export function useCustomData(blocks: readonly CustomBlock[], sources: readonly 
     [loadedRows],
   );
 
-  const results = run.data ?? new Map<string, BlockResult>();
+  const results = run.data?.results ?? new Map<string, BlockResult>();
   return {
     tables,
     checks,
@@ -113,5 +118,9 @@ export function useCustomData(blocks: readonly CustomBlock[], sources: readonly 
     pending: !ready || run.isPending,
     running: run.isFetching,
     runError: run.error,
+    /** How long the last run of the queries took, in milliseconds. */
+    ms: run.data?.ms ?? null,
+    /** Fetch the rows again and run every query over them. */
+    rerun: () => void rows.refetch(),
   };
 }

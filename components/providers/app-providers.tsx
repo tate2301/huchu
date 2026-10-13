@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import { usePathname } from "next/navigation"
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
+import { defaultShouldDehydrateQuery, QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { createAsyncStoragePersister } from "@tanstack/query-async-storage-persister"
 import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client"
 import { del, get, set } from "idb-keyval"
@@ -23,7 +23,7 @@ const PERSISTED_QUERY_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000
  * Bump when a persisted query's shape changes incompatibly; every device then
  * drops its copy instead of rendering stale shapes.
  */
-const PERSISTED_QUERY_BUSTER = "1"
+const PERSISTED_QUERY_BUSTER = "2"
 
 /**
  * Where a tenant's query results are kept between visits, so the pages a
@@ -117,6 +117,12 @@ export function AppProviders({
             persister: createTenantPersister(tenantKey),
             maxAge: PERSISTED_QUERY_MAX_AGE_MS,
             buster: persistedBuster(userId),
+            // A query marked `meta: { persist: false }` holds what JSON cannot keep (a custom
+            // report's results are Maps, worked out in this tab): it is worked out again instead.
+            dehydrateOptions: {
+              shouldDehydrateQuery: (query: Parameters<typeof defaultShouldDehydrateQuery>[0]) =>
+                defaultShouldDehydrateQuery(query) && query.meta?.persist !== false,
+            },
           }
         : null,
     [tenantKey, userId],

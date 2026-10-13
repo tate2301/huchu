@@ -39,6 +39,38 @@ function Row({ row }: { row: PanelRow }) {
   );
 }
 
+/** The rail alone, beside a screen that takes the rest of the page (a builder). */
+export function FixtureRail({ module }: { module: string }) {
+  return (
+    <nav className="rail-m" aria-label="Modules">
+      <span className="ws-tile" aria-label="Floorcode">
+        <Icon name="ws" />
+      </span>
+      {RAIL.map(([icon, label]) => (
+        <a
+          key={label}
+          className={label === module ? "rm is-on" : "rm"}
+          href={`#${label}`}
+          aria-label={label}
+          aria-current={label === module ? "page" : undefined}
+        >
+          <Icon name={icon} />
+        </a>
+      ))}
+      <span className="grow" />
+      <a className={module === "Vane" ? "rm is-on" : "rm"} href="#vane" aria-label="Vane">
+        <VaneMark size={20} />
+      </a>
+      <a className="rm" href="#settings" aria-label="Management">
+        <Icon name="gear" />
+      </a>
+      <span className="me" aria-label="James Nyabadza">
+        <Icon name="person" />
+      </span>
+    </nav>
+  );
+}
+
 export function FixtureShell({
   module,
   panelTitle,
@@ -67,32 +99,7 @@ export function FixtureShell({
 }) {
   return (
     <div className="sh">
-      <nav className="rail-m" aria-label="Modules">
-        <span className="ws-tile" aria-label="Floorcode">
-          <Icon name="ws" />
-        </span>
-        {RAIL.map(([icon, label]) => (
-          <a
-            key={label}
-            className={label === module ? "rm is-on" : "rm"}
-            href={`#${label}`}
-            aria-label={label}
-            aria-current={label === module ? "page" : undefined}
-          >
-            <Icon name={icon} />
-          </a>
-        ))}
-        <span className="grow" />
-        <a className={module === "Vane" ? "rm is-on" : "rm"} href="#vane" aria-label="Vane">
-          <VaneMark size={20} />
-        </a>
-        <a className="rm" href="#settings" aria-label="Management">
-          <Icon name="gear" />
-        </a>
-        <span className="me" aria-label="James Nyabadza">
-          <Icon name="person" />
-        </span>
-      </nav>
+      <FixtureRail module={module} />
       <aside className="panel-m" aria-label={panelTitle}>
         <div className="pm-h">
           <b>{panelTitle}</b>

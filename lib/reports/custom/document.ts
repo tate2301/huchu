@@ -22,7 +22,8 @@ const half = z.boolean().optional();
 
 /** How a block's rows are read, the way the matching block on a report's page reads them. */
 export const displaySchema = z.discriminatedUnion("type", [
-  z.object({ type: z.literal("table") }),
+  /** `hidden`: the result's columns the table leaves out, by SQL name. */
+  z.object({ type: z.literal("table"), hidden: z.array(columnKey).max(64).optional() }),
   z.object({
     type: z.literal("chart"),
     form: z.enum(["bars", "trend"]),

@@ -245,7 +245,7 @@ export function BuildHome() {
                 </p>
               ) : null}
               {reports.data.custom.map((report) => (
-                <Link key={report.id} href={report.editable ? `/reports/custom/${report.id}/edit` : `/reports/custom/${report.id}`} className={styles.item}>
+                <Link key={report.id} href={report.editable ? `/reports/c/${report.id}/edit` : `/reports/c/${report.id}`} className={styles.item}>
                   <BarChart3 aria-hidden />
                   <span className={styles.itemName}>{report.title}</span>
                   <span className={styles.itemWhere}>{report.description ?? `Seen by ${SEEN_BY[report.audience].toLowerCase()}`}</span>

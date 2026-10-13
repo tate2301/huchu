@@ -85,7 +85,7 @@ function ReportsAll() {
         await fetchJson(`/api/v2/reports/custom/${made.report.id}`, { method: "PATCH", body: JSON.stringify({ folderId: filter.folder }) });
       }
       await queryClient.invalidateQueries({ queryKey: REPORTS_HOME_KEY });
-      router.push(`/reports/custom/${made.report.id}/edit`);
+      router.push(`/reports/c/${made.report.id}/edit`);
     } catch (error) {
       toast({ title: "Report not created", description: getApiErrorMessage(error), variant: "destructive" });
       setBuilding(false);
@@ -99,7 +99,7 @@ function ReportsAll() {
     try {
       const made = await fetchJson<{ report: CustomReport }>("/api/v2/reports/custom", { method: "POST", body: JSON.stringify(entry.copy) });
       await queryClient.invalidateQueries({ queryKey: REPORTS_HOME_KEY });
-      router.push(`/reports/custom/${made.report.id}/edit`);
+      router.push(`/reports/c/${made.report.id}/edit`);
     } catch (error) {
       toast({ title: "Not copied", description: getApiErrorMessage(error), variant: "destructive" });
       setCopying(null);
