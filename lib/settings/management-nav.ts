@@ -550,7 +550,7 @@ export const settingsNavEntries: SettingsNavEntry[] = [
     id: "reports",
     group: "company",
     label: "Reports",
-    href: "/preferences/organization/reports",
+    href: "/management/reports",
     icon: FileCheck,
     gate: { kind: "preference", itemId: "reports" },
   },

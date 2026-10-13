@@ -115,7 +115,7 @@ export const ORGANIZATION_PREFERENCES_ITEMS: PreferencesNavItem[] = [
     id: "reports",
     group: "organization",
     label: "Reports",
-    href: "/preferences/organization/reports",
+    href: "/management/reports",
     description: "Which reports are offered, and how each opens.",
   },
   {

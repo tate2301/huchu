@@ -131,6 +131,10 @@ export type ReportSettingSummary = {
   arranged: boolean;
   /** The workspace saved a starting view. */
   viewSaved: boolean;
+  /** The page the report is about, as the panel names it ("Pipeline"): who can open that page can open the report. */
+  page: string | null;
+  /** When the workspace last changed how this report is set up. */
+  changedAt: string | null;
 };
 
 /** What a workspace has saved over a report's own setup. */
