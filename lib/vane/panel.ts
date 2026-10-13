@@ -215,8 +215,9 @@ export async function actOnVaneItem(
 export const giveJobSchema = z.object({ text: z.string().trim().min(3).max(2000) });
 
 /**
- * Give Vane a job: queued for the worker as a person's job. The words are the
- * job's label until the worker works out a shorter one.
+ * Give Vane a job: queued for the next tick as a person's job. The person's
+ * whole request is the job's label, which the tick hands Claude as the
+ * instruction (`lib/vane/jobs.ts`); the pages cut it to a line where it shows.
  */
 export async function giveVaneJob(
   db: Pick<PrismaClient, "vaneJob">,
@@ -227,7 +228,7 @@ export async function giveVaneJob(
       companyId,
       key: `person:${randomUUID()}`,
       kind: "person",
-      label: text.length > 120 ? `${text.slice(0, 117)}…` : text,
+      label: text.trim(),
       trigger: "PERSON",
       requestedById: userId,
       result: null,

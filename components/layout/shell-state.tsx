@@ -38,6 +38,9 @@ type ShellState = {
   /** The Vane panel, on the right of the page (400px), open from any module. */
   vaneOpen: boolean;
   setVaneOpen: (open: boolean) => void;
+  /** Give Vane a job: the dialog Ctrl J opens from any page. */
+  vaneJobOpen: boolean;
+  setVaneJobOpen: (open: boolean) => void;
 };
 
 const ShellContext = React.createContext<ShellState | null>(null);
@@ -74,6 +77,7 @@ export function ShellProvider({
   const [commandOpen, setCommandOpen] = React.useState(false);
   const [notificationsOpen, setNotificationsOpen] = React.useState(false);
   const [vaneOpen, setVaneOpen] = React.useState(false);
+  const [vaneJobOpen, setVaneJobOpen] = React.useState(false);
 
   const persist = React.useCallback((open: boolean) => {
     setPanelOpen(open);
@@ -135,8 +139,10 @@ export function ShellProvider({
       setNotificationsOpen,
       vaneOpen,
       setVaneOpen,
+      vaneJobOpen,
+      setVaneJobOpen,
     }),
-    [closePanel, commandOpen, drawerOpen, notificationsOpen, openPanel, panelShown, togglePanel, vaneOpen, width],
+    [closePanel, commandOpen, drawerOpen, notificationsOpen, openPanel, panelShown, togglePanel, vaneJobOpen, vaneOpen, width],
   );
 
   return <ShellContext.Provider value={value}>{children}</ShellContext.Provider>;
