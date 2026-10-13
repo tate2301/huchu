@@ -39,11 +39,11 @@ All 25 are on the Core modules canvas, Vane page. Each opens on its own as `desi
 | 6 | VnTree | The tree | reference | |
 | 7 | VnUseCases | Use cases | reference | |
 | 8 | VnTemplates | Vane's templates, with reports and forms | reference | |
-| 9 | PageVaneCard | A card, and what Vane read | a card's "What I read" | to build |
-| 10 | PageVanePlan | Plans | `/vane/plans` | to build |
-| 11 | PageVaneJob | Give Vane a job (Ctrl J) | a dialog from anywhere | the panel's field is built; the dialog and Ctrl J are to build |
-| 12 | PageVaneDone | Done | `/vane/done` | to build |
-| 13 | PageVaneMuted | Muted | `/vane/muted` | to build |
+| 9 | PageVaneCard | A card, and what Vane read | a card's "What I read" | built (`/vane?card=<id>`): 92.9%; What it drafted waits for the `draft` tool |
+| 10 | PageVanePlan | Plans | `/vane/plans` | built: 94.4% (⌘ for Ctrl on a Mac) |
+| 11 | PageVaneJob | Give Vane a job (Ctrl J) | a dialog from anywhere | built: the dialog and Ctrl J from every page; the plan proposed before Start is not |
+| 12 | PageVaneDone | Done | `/vane/done` | built: 97.7% |
+| 13 | PageVaneMuted | Muted | `/vane/muted` | built: 97.9%; "Stop it for me" needs a kind per card |
 | 14 | PageVaneStates | Paused, over the allowance, could not work it out, cannot reach the service | the four states, on `/vane` and in the panel | built (`VaneStateNote`); Show the rows and "Paused by James" wait, see NOTES.md |
 | 15 | PageVaneReport | Explain a figure, on Deals | on a report page | to build |
 | 16 | PageVaneBlock | A block in the builder, waiting to be kept | in the report builder | being built in PR #213's follow-up |
@@ -99,6 +99,7 @@ Build one workflow at a time, end to end with its states.
 - **What I read:** the template or report it came from, the filters, the SQL and the rows, from `VaneItem.sql` and `readFrom`.
 - **Actions:** the card's action button calls the module's own endpoint, which is the person's action. Not useful and Mute ask the reason, and Mute writes it.
 - **Done when:** every card can be traced to the SQL and rows behind it.
+- **Built.** `components/vane/vane-card-drawer.tsx`, `not-now-menu.tsx`; pressing a card's act records who took it further (`POST /api/vane/items/[id]/act`).
 
 ### 3. Plans, Done, Muted (PageVanePlan, PageVaneDone, PageVaneMuted)
 
@@ -108,6 +109,7 @@ Build one workflow at a time, end to end with its states.
 - **`/vane/done`:** finished jobs and kept cards by day, with what each read and cost.
 - **`/vane/muted`:** muted cards with their reason, and Unmute.
 - **Done when:** the three lists match their boards and the counts in the panel agree with them.
+- **Built.** `lib/vane/lists.ts` (tested), `/api/vane/plans`, `/api/vane/plans/[id]/steps/[stepId]`, `/api/vane/done`, `/api/vane/muted`, `/api/vane/items/[id]/unmute`, and `/vane/working` (no board; drawn like Done). Vane's own steps do not tick yet: no tool marks them.
 
 ### 4. Give Vane a job, with Ctrl J (PageVaneJob)
 
@@ -117,6 +119,7 @@ Build one workflow at a time, end to end with its states.
   - Keep the person's whole request. Today `giveVaneJob` writes it into the job's `label`, cut at 120 characters, and the tick reads the label as the instruction. Store the whole text and keep the label short.
 - **After it posts:** the job appears in Working on at once.
 - **Done when:** a long request reaches Claude whole, and the shortcut works from every module.
+- **Built.** `components/vane/give-job-dialog.tsx`; the whole request is the job's label.
 
 ### 5. Live
 
