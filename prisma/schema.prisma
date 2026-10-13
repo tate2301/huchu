@@ -16188,7 +16188,7 @@ model VaneItem {
   body           String
   /// { type, label, shortcut, target }: the button names the act.
   action         Json
-  /// What it read, so a person can check it: [{ template, filters, rows }].
+  /// What it read, so a person can check it: [{ table, rows }].
   readFrom       Json           @default("[]")
   sql            String?
   status         VaneItemStatus @default(OPEN)

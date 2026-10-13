@@ -24,6 +24,19 @@ The connection to Claude (`lib/vane/claude.ts`), Vane's tables, the two roles it
 
 `lib/vane/reader.test.ts` signs in as members of the two roles and checks that a question sees one workspace (two at once stay apart), reads personal details only where the workspace allows, runs nothing but one SELECT, stops at 500 rows and at the time limit, and leaves no binding behind.
 
+### Its tools (`lib/vane/tools.ts`)
+
+| Tool | What it does |
+| --- | --- |
+| `run_sql` | One SELECT through the reader (`readWorkspace`). |
+| `get_record` | One record by id, in the columns the role may read, with each record it points at (one level of foreign keys), through the same bound reader. |
+| `propose_item` | A card on For you (`VaneItem`): kind, source module, headline, body, the button's action, the SQL and what it read. An open card with the same headline is not raised twice. |
+| `propose_plan` | A plan (`VanePlan`) with its steps in order, each owned by Vane or a person. |
+
+`toolDefinitions()` is what Claude is shown: each tool's name, a sentence on what it does, and its input as JSON Schema from the same zod schema the call is checked against. `callTool(context, name, input)` runs one call: an input that does not fit, or a question the reader refused or Postgres turned down, comes back as an error result for Claude to correct; anything else is thrown for the job. `lib/vane/tools.test.ts` covers each tool and those errors.
+
+Drafting invoices, quotations and purchase orders (`madeByVane`) waits for the core modules: it goes through their own create functions.
+
 ## Setting it up
 
 1. Put the key in `ANTHROPIC_API_KEY` and the model in `VANE_MODEL` (see `.env.example`). Server only: never prefix either with `NEXT_PUBLIC_`.

@@ -79,17 +79,33 @@ function poolFor(role: Role): Pool {
   return pool;
 }
 
-const readable = new Map<Role, Promise<Set<string>>>();
+/** A table the role may read: its SQL name and the columns granted on it. */
+export type ReadableTable = { name: string; columns: string[] };
 
-/** The tables the role has been granted any column of, by lower-case SQL name, as the guard compares them. */
-function readableTables(role: Role): Promise<Set<string>> {
+const readable = new Map<Role, Promise<Map<string, ReadableTable>>>();
+
+/**
+ * The tables the role has been granted any column of, keyed by lower-case SQL
+ * name as the guard compares them, with the columns it may select.
+ */
+function readableTables(role: Role): Promise<Map<string, ReadableTable>> {
   let tables = readable.get(role);
   if (!tables) {
     tables = prisma
-      .$queryRaw<Array<{ table_name: string }>>`
-        SELECT DISTINCT table_name FROM information_schema.column_privileges
-        WHERE grantee IN (${role}, 'vane_reader') AND privilege_type = 'SELECT' AND table_schema = 'public'`
-      .then((rows) => new Set(rows.map((row) => row.table_name.toLowerCase())));
+      .$queryRaw<Array<{ table_name: string; column_name: string }>>`
+        SELECT DISTINCT table_name, column_name FROM information_schema.column_privileges
+        WHERE grantee IN (${role}, 'vane_reader') AND privilege_type = 'SELECT' AND table_schema = 'public'
+        ORDER BY table_name, column_name`
+      .then((rows) => {
+        const byName = new Map<string, ReadableTable>();
+        for (const row of rows) {
+          const key = row.table_name.toLowerCase();
+          const table = byName.get(key) ?? { name: row.table_name, columns: [] };
+          table.columns.push(row.column_name);
+          byName.set(key, table);
+        }
+        return byName;
+      });
     tables.catch(() => readable.delete(role));
     readable.set(role, tables);
   }
@@ -101,16 +117,22 @@ async function roleFor(companyId: string): Promise<Role> {
   return settings?.readsPeoplePrivate ? "vane_reader_private" : "vane_reader";
 }
 
-/** Runs one question for one company, as the reader role its settings allow, and returns what it read. */
-export async function readWorkspace(
+/** What a piece of reading work gets: the bound reader connection, and the tables its role may read. */
+export type ReaderSession = { client: PoolClient; tables: Map<string, ReadableTable> };
+
+/**
+ * Runs `work` on a reader connection bound to one company, in one read-only
+ * transaction under the statement timeout, and unbinds afterwards. Postgres's
+ * errors come back as `ReaderError`s.
+ */
+export async function withReader<T>(
   companyId: string,
-  question: string,
+  work: (session: ReaderSession) => Promise<T>,
   options: { timeoutMs?: number } = {},
-): Promise<ReaderAnswer> {
+): Promise<T> {
   const role = await roleFor(companyId);
   const pool = poolFor(role);
-  const checked = checkSql(question, await readableTables(role));
-  if (!checked.ok) throw new ReaderError("refused", checked.problem.message);
+  const tables = await readableTables(role);
 
   const timeoutMs = options.timeoutMs ?? 5_000;
   const client: PoolClient = await pool.connect();
@@ -125,14 +147,9 @@ export async function readWorkspace(
       update: { companyId },
     });
     await client.query(`SET LOCAL statement_timeout = ${Math.trunc(timeoutMs)}`);
-    const result = await client.query(`SELECT * FROM (${checked.body}) AS question LIMIT ${ROW_LIMIT + 1}`);
+    const result = await work({ client, tables });
     await client.query("COMMIT");
-    return {
-      rows: result.rows.slice(0, ROW_LIMIT),
-      moreThanLimit: result.rows.length > ROW_LIMIT,
-      sql: checked.body,
-      readFrom: checked.tables,
-    };
+    return result;
   } catch (error) {
     await client.query("ROLLBACK").catch(() => {});
     if (error instanceof ReaderError) throw error;
@@ -145,4 +162,27 @@ export async function readWorkspace(
     if (pid !== null) await prisma.vaneReaderScope.deleteMany({ where: { pid, companyId } });
     client.release();
   }
+}
+
+/** Runs one question for one company, as the reader role its settings allow, and returns what it read. */
+export async function readWorkspace(
+  companyId: string,
+  question: string,
+  options: { timeoutMs?: number } = {},
+): Promise<ReaderAnswer> {
+  return withReader(
+    companyId,
+    async ({ client, tables }) => {
+      const checked = checkSql(question, new Set(tables.keys()));
+      if (!checked.ok) throw new ReaderError("refused", checked.problem.message);
+      const result = await client.query(`SELECT * FROM (${checked.body}) AS question LIMIT ${ROW_LIMIT + 1}`);
+      return {
+        rows: result.rows.slice(0, ROW_LIMIT),
+        moreThanLimit: result.rows.length > ROW_LIMIT,
+        sql: checked.body,
+        readFrom: checked.tables,
+      };
+    },
+    options,
+  );
 }
