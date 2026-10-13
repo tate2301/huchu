@@ -126,6 +126,7 @@ model Company {
   documentTemplates             DocumentTemplate[]
   reportSettings                ReportSetting[]
   customReports                 CustomReport[]
+  reportFolders                 ReportFolder[]
   reportTemplates               ReportTemplate[]
   reportTemplateUses            ReportTemplateUse[]
   vaneItems                     VaneItem[]
@@ -8612,14 +8613,36 @@ model CustomReport {
   /// Who sees it besides its maker, the way a report template says it: just
   /// them, the managers, or everyone (`lib/reports/template-access.ts`).
   audience    ReportTemplateAudience @default(JUST_ME)
+  /// The folder it is filed in on Reports' panel; none is "not in a folder".
+  folderId    String?
   createdById String
   updatedById String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  company Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  folder  ReportFolder? @relation(fields: [folderId], references: [id], onDelete: SetNull)
 
   @@index([companyId, createdById])
+  @@index([folderId])
+}
+
+/// A folder on Reports' panel ("Monday meeting", "Fitters", "Money"): the
+/// workspace's own grouping of its reports. Everyone who can read a report sees
+/// it in its folder.
+model ReportFolder {
+  id          String   @id @default(uuid())
+  companyId   String
+  name        String
+  sortOrder   Int      @default(0)
+  createdById String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  company Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  reports CustomReport[]
+
+  @@unique([companyId, name])
 }
 
 /// A report saved under a name: one of the code's reports, with the columns,
@@ -16128,6 +16151,10 @@ model RetailImportRow {
 enum VaneItemKind {
   ISSUE
   SUGGESTION
+  /// Written by Vane on the insights schedule: a headline fact, the question it
+  /// ran (`sql`) and the rows it drew (`readFrom`). Shown on Reports → Insights,
+  /// never in For you.
+  INSIGHT
 }
 
 enum VaneItemStatus {
@@ -16303,6 +16330,10 @@ model VaneSettings {
   /// { [issue kind]: role[] }: who hears about what.
   routing            Json     @default("{}")
   monthlyAllowance   Int      @default(5000)
+  /// When Vane writes the week's insights: "MON 06:00", in the workspace's time.
+  insightsSchedule   String   @default("MON 06:00") @db.VarChar(9)
+  /// The board "Pin to …" adds an insight's question to; none until one is chosen.
+  insightsBoardId    String?
   updatedAt          DateTime @updatedAt
 
   company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)

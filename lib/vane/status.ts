@@ -1,6 +1,9 @@
-import type { PrismaClient } from "@prisma/client";
+import type { PrismaClient, VaneItemKind } from "@prisma/client";
 
 /** What the Vane button and the panel's head show. */
+/** What For you holds and the button counts: issues and suggestions. Insights live on Reports → Insights. */
+export const FOR_YOU: VaneItemKind[] = ["ISSUE", "SUGGESTION"];
+
 export type VaneStatus = {
   /** Open For you items this person can see. */
   open: number;
@@ -33,7 +36,7 @@ export async function vaneStatus(
   { companyId, userId, role }: { companyId: string; userId: string; role?: string | null },
 ): Promise<VaneStatus> {
   const [open, running, last, newest, settings] = await Promise.all([
-    db.vaneItem.count({ where: { companyId, status: "OPEN", ...audienceFilter(userId, role) } }),
+    db.vaneItem.count({ where: { companyId, status: "OPEN", kind: { in: FOR_YOU }, ...audienceFilter(userId, role) } }),
     db.vaneJob.findFirst({
       where: { companyId, status: "RUNNING" },
       orderBy: { startedAt: "desc" },

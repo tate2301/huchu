@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import type { PrismaClient } from "@prisma/client";
 import { z } from "zod";
 
-import { audienceFilter, vaneStatus, type VaneStatus } from "./status";
+import { audienceFilter, FOR_YOU, vaneStatus, type VaneStatus } from "./status";
 
 /** The button on a For you card: it names the act and goes where the act is done. */
 export const vaneActionSchema = z.object({
@@ -79,7 +79,7 @@ export async function vanePanel(
   const [status, items, plans, done] = await Promise.all([
     vaneStatus(db, { companyId, userId, role }),
     db.vaneItem.findMany({
-      where: { companyId, status: "OPEN", ...audienceFilter(userId, role) },
+      where: { companyId, status: "OPEN", kind: { in: FOR_YOU }, ...audienceFilter(userId, role) },
       orderBy: { createdAt: "desc" },
       take: 50,
       select: { id: true, kind: true, sourceModule: true, headline: true, body: true, action: true, createdAt: true },
