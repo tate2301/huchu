@@ -1,3 +1,4 @@
+import { BOOKS_LOADERS } from "@/lib/reports/loaders/books";
 import { CRM_LOADERS } from "@/lib/reports/loaders/crm";
 import { OPERATIONS_LOADERS } from "@/lib/reports/loaders/operations";
 import { PEOPLE_LOADERS } from "@/lib/reports/loaders/people";
@@ -12,6 +13,7 @@ const LOADERS: Record<string, ReportLoader> = {
   ...RETAIL_LOADERS,
   ...CRM_LOADERS,
   ...PEOPLE_LOADERS,
+  ...BOOKS_LOADERS,
 };
 
 /** A report with the query behind it. Null for a key nobody defined. */

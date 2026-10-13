@@ -16,8 +16,8 @@ export const FIXTURE_MONEY: MoneyView = {
   },
   period: "1 to 6 October",
   sources: [
-    { key: "tills", label: "Showroom sales", detail: "273 sales on the tills", amount: 6318.4, share: 62, bar: 100 },
-    { key: "invoices", label: "Invoices", detail: "3 payments on quoted jobs", amount: 3910, share: 38, bar: 61.882755127880486 },
+    { key: "tills", label: "Showroom sales", detail: "273 sales on the tills", amount: 6318.4, count: 273, share: 62, bar: 100 },
+    { key: "invoices", label: "Invoices", detail: "3 payments on quoted jobs", amount: 3910, count: 3, share: 38, bar: 61.882755127880486 },
   ],
   needs: [
     {

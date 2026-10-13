@@ -246,3 +246,34 @@ export async function invoicesCsv(db: Db, companyId: string, query: InvoiceQuery
   }
   return `${lines.join("\n")}\n`;
 }
+
+/** How late an open invoice is, in the buckets "Owed to you, by age" groups by. */
+export const AGE_BUCKETS = ["Not yet due", "1 to 30 days", "31 to 60 days", "61 to 90 days", "Over 90 days"] as const;
+export type AgeBucket = (typeof AGE_BUCKETS)[number];
+
+export function ageBucket(daysOverdue: number): AgeBucket {
+  if (daysOverdue <= 0) return "Not yet due";
+  if (daysOverdue <= 30) return "1 to 30 days";
+  if (daysOverdue <= 60) return "31 to 60 days";
+  if (daysOverdue <= 90) return "61 to 90 days";
+  return "Over 90 days";
+}
+
+/** Every invoice with money still owing on it, with how late it is and its age bucket. */
+export async function openInvoicesByAge(db: Db, companyId: string, now = new Date(), take = 5001) {
+  const today = dayOf(now);
+  const records = await db.salesInvoice.findMany({
+    where: { companyId, status: "ISSUED" },
+    select: rowSelect,
+    orderBy: [{ dueDate: "asc" }, { invoiceNumber: "asc" }],
+    take,
+  });
+  return records
+    .map((record) => ({ record, row: toInvoiceRow(record, today) }))
+    .filter(({ row }) => row.balance > 0)
+    .map(({ record, row }) => ({
+      ...row,
+      due: record.dueDate ? storedDay(record.dueDate) : null,
+      bucket: ageBucket(row.daysOverdue),
+    }));
+}

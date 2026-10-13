@@ -15,6 +15,8 @@ export type MoneySource = {
   label: string;
   detail: string;
   amount: number;
+  /** How many sales or payments. */
+  count: number;
   /** Of everything that came in, 0 to 100. */
   share: number;
   /** Of the largest source, 0 to 100: the bar's length. */
@@ -93,7 +95,8 @@ export function moneyFinding(cameIn: number, owed: number, overdue: number, curr
   };
 }
 
-async function cameIn(db: Db, companyId: string, today: string, currency: string): Promise<MoneySource[]> {
+/** What has come in this month, by where it came from: the tills and payments on invoices. */
+export async function cameIn(db: Db, companyId: string, today: string, currency: string): Promise<MoneySource[]> {
   const from = harareStart(monthStart(today));
   const [sales, refunds, sites, receipts] = await Promise.all([
     db.retailSale.aggregate({
@@ -133,6 +136,7 @@ async function cameIn(db: Db, companyId: string, today: string, currency: string
       label: tillsLabel,
       detail: `${count(sales._count, "sale")} on the tills`,
       amount: tills,
+      count: sales._count,
       share: 0,
       bar: 0,
     });
@@ -143,6 +147,7 @@ async function cameIn(db: Db, companyId: string, today: string, currency: string
       label: "Invoices",
       detail: `${count(receipts._count, "payment")} on invoices`,
       amount: invoices,
+      count: receipts._count,
       share: 0,
       bar: 0,
     });
@@ -152,6 +157,23 @@ async function cameIn(db: Db, companyId: string, today: string, currency: string
     source.bar = largest > 0 ? (Math.max(0, source.amount) / largest) * 100 : 0;
   }
   return sources;
+}
+
+/**
+ * What has gone out this month: the bills paid, as Payables records them.
+ * Books keeps no copy.
+ */
+export async function wentOut(
+  db: Pick<PrismaClient, "purchasePayment">,
+  companyId: string,
+  today: string,
+): Promise<{ amount: number; payments: number }> {
+  const paid = await db.purchasePayment.aggregate({
+    where: { companyId, paidAt: { gte: midnight(monthStart(today)) } },
+    _sum: { amount: true },
+    _count: true,
+  });
+  return { amount: round(paid._sum.amount ?? 0), payments: paid._count };
 }
 
 async function cashUpShort(db: Db, companyId: string, today: string): Promise<NeedsYou | null> {
