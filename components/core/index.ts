@@ -1,4 +1,4 @@
-export { Kit } from "./kit-root";
+export { Kit, KitScreen } from "./kit-root";
 export { Icon, type IconName } from "./icon";
 export { VaneMark } from "./vane-mark";
 export { Button, ButtonLink, ButtonGroup, Kbd, type ButtonProps, type ButtonVariant } from "./button";

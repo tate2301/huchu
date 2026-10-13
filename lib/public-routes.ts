@@ -34,6 +34,12 @@ export const PUBLIC_BASE_PATHS = [
    * (80-admin 5.6). They have no password yet, or never will (till only).
    */
   "/join",
+  /**
+   * The core modules' fixture screens — /design/[slug] — which the visual test
+   * opens signed out. They hold only the fixed data they were drawn with, and
+   * are a 404 in production (app/design/layout.tsx).
+   */
+  "/design",
 ] as const;
 
 export function isPublicPath(pathname: string): boolean {

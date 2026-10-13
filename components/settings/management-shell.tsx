@@ -214,7 +214,7 @@ export function SettingsFrame({
     <SettingsSurface
       open={open}
       onOpenChange={handleOpenChange}
-      rail={<SettingsRail groups={groups} backHref={landingHref} />}
+      rail={<SettingsRail groups={groups} backHref={landingHref} title="Management" />}
       /* The surface's single grid row is implicit and therefore `auto`, which
          a tall form would grow past and `overflow: hidden` would then clip.
          Pinning it to the surface's own height is what lets each column below

@@ -88,7 +88,8 @@ function useSurfaceScope(open: boolean, scopeClassName: string) {
 }
 
 /**
- * Management and account preferences, as one surface opened over the app.
+ * Management and account preferences, as one surface that takes the whole page
+ * (design/core-modules/spec/shell.md: "a full-page takeover with no rail").
  *
  * Built on `components/ui/dialog.tsx` at `size="full"` so the opening is the
  * component's own — `fade-in-0`, `zoom-in .985`, 200ms, and no zoom at all
@@ -130,6 +131,7 @@ export function SettingsSurface({
       <DialogContent
         size="full"
         tabletBehavior="centered"
+        inset={false}
         showClose={false}
         data-settings-surface=""
         className={cn(
@@ -141,8 +143,8 @@ export function SettingsSurface({
           // max-width cap, the card's own padding and gap, its border, its
           // `overflow-y-auto`, and the tablet height clamp that would leave a
           // gap under the surface between 768 and 1023px.
-          "h-full w-full max-w-none gap-0 overflow-y-hidden rounded-[var(--radius-2xl)]",
-          "border-0 p-0 sm:p-0 md:max-lg:max-h-[calc(100dvh-3rem)]",
+          "h-[100dvh] max-h-[100dvh] w-full max-w-none gap-0 overflow-y-hidden rounded-none",
+          "border-0 p-0 sm:max-h-[100dvh] sm:p-0",
           className,
         )}
       >

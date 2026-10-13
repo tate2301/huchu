@@ -7,10 +7,13 @@
 // writes components/core/kit.css. Change the source, never the output. The till does the same for
 // Tender (docs/design/till/build-till-css.mjs); this follows it step for step.
 //
-// 1. Scope. Every kit selector is prefixed with `.ck.ck.ck`: the same added specificity everywhere,
-//    so the kit keeps the order its own rules were written to win in. `:root`, `html` and `body`
-//    become the `.ck` element itself, without their backgrounds: a `.ck` wrapper never paints.
-//    The output is unlayered, so it outranks the app's layered sheets.
+// 1. Scope and layer. Every kit selector is prefixed with `.ck.ck.ck`: the same added specificity
+//    everywhere, so the kit keeps the order its own rules were written to win in. `:root`, `html`
+//    and `body` become the `.ck` element itself, without their backgrounds: a `.ck` wrapper never
+//    paints. The rules that style bare elements (button, a, h1…) go in the `base` layer, under the
+//    app's own; the rest go in `components`, over the design-system package and under Tailwind's
+//    utilities. So a page not yet built from the kit keeps its own buttons and links inside a
+//    `.ck` region, and a utility class still overrides a kit part.
 //
 // 2. Reset. The app's global sheets use some of the kit's class names unscoped (.btn, .menu, .row…).
 //    Inside `.ck`, each property one of their kit-named rules sets is first put back to `unset`.
@@ -18,6 +21,11 @@
 // 3. Roles. Every kit colour is a theme role (app/themes/roles.css), so the kit follows the product:
 //    Corelith's roles carry the kit's own values, light and dark, and Tender's carry Tender's. The
 //    build checks the Corelith themes against the kit and lists any colour that differs.
+//
+// 5. Screens. Each of the kit's 18 screens (html/*.html) carries a <style> of its own: rules core.css
+//    lacks, and some core rules restated with the screen's own values. The rules not already in
+//    core.css, word for word, are scoped under `.sc-<slug>` and appended; the page that draws the
+//    screen wraps itself in that class (`KitScreen`), so each screen gets exactly its own values.
 //
 // 4. Theme. Dark is the person's choice, set on <html> before the first paint (`corelith-dark`,
 //    `tender-dark`), so the prefers-color-scheme block is dropped and the kit's dark-only tokens
@@ -190,9 +198,71 @@ css.walkAtRules("media", (rule) => {
 if (firstKitRule) firstKitRule.before(resets.nodes.map((node) => node.clone()));
 else css.append(resets.nodes.map((node) => node.clone()));
 
+/* ── 5. The screens' own rules ─────────────────────────────────────────────── */
+
+const ruleKey = (rule) =>
+  `${rule.parent?.type === "atrule" ? `@${rule.parent.params} ` : ""}${rule.selector}|${rule.nodes.map(String).join(";")}`;
+const coreKeys = new Set();
+postcss.parse(fs.readFileSync(path.join(here, "../boards/assets/core.css"), "utf8")).walkRules((rule) => coreKeys.add(ruleKey(rule)));
+
+const screensDir = path.join(here, "../html");
+const screenCounts = [];
+for (const file of fs.readdirSync(screensDir).filter((name) => name.endsWith(".html")).sort()) {
+  const slug = file.replace(/\.html$/, "");
+  const html = fs.readFileSync(path.join(screensDir, file), "utf8");
+  const own = postcss.root();
+  for (const match of html.matchAll(/<style>([\s\S]*?)<\/style>/g)) {
+    const sheet = postcss.parse(match[1]);
+    sheet.walkAtRules("font-face", (rule) => rule.remove());
+    sheet.walkRules((rule) => {
+      if (rule.parent?.type === "atrule" && /keyframes$/.test(rule.parent.name)) return;
+      if (coreKeys.has(ruleKey(rule))) {
+        rule.remove();
+        return;
+      }
+      rule.selectors = rule.selectors.map((selector) => {
+        const s = selector.trim();
+        if (s === "html" || s === "body" || s === ":root") return `${KIT} .sc-${slug}`;
+        return `${KIT} .sc-${slug} ${s}`;
+      });
+    });
+    sheet.walkAtRules("media", (rule) => {
+      if (!rule.nodes?.length) rule.remove();
+    });
+    sheet.walkAtRules("keyframes", (rule) => rule.remove());
+    own.append(sheet.nodes);
+  }
+  let count = 0;
+  own.walkRules(() => count++);
+  if (count) {
+    css.append(postcss.comment({ text: ` screen: ${slug} ` }));
+    css.append(own.nodes);
+    screenCounts.push(`${slug} ${count}`);
+  }
+}
+
+/* ── 1. Layers ─────────────────────────────────────────────────────────────── */
+
+/** A selector that names no class or attribute besides the `.ck` scope: it styles bare elements. */
+const isElementRule = (rule) =>
+  rule.selectors.every((selector) => !/[.[]/.test(selector.replace(/\.ck\b/g, "").replace(/:(?:where|is|not)\([^)]*\)/g, "")));
+const base = postcss.atRule({ name: "layer", params: "base" });
+const components = postcss.atRule({ name: "layer", params: "components" });
+const keep = [];
+for (const node of [...css.nodes]) {
+  node.remove();
+  if (node.type === "atrule" && /keyframes$/.test(node.name)) keep.push(node);
+  else if (node.type === "comment") components.append(node);
+  else if (node.type === "rule" && isElementRule(node) && !node.selector.trim().startsWith(".ck")) base.append(node);
+  else if (node.type === "rule" && isElementRule(node) && /\s/.test(node.selector.trim())) base.append(node);
+  else components.append(node);
+}
+css.append(base, components, ...keep);
+
 const out = path.join(root, "components/core/kit.css");
 fs.mkdirSync(path.dirname(out), { recursive: true });
 fs.writeFileSync(out, `/* Generated by design/core-modules/build/build-kit-css.mjs from boards/assets/core.css. Do not edit. */\n${css.toString()}`);
 console.log(`wrote ${path.relative(root, out)}`);
 console.log(`reset the kit's class names from: ${resetFrom.join(", ") || "nothing"}`);
+console.log(`screens' own rules: ${screenCounts.join(", ")}`);
 console.log(`Corelith roles that differ from the kit: ${differs.length ? `\n  ${differs.join("\n  ")}` : "none"}`);

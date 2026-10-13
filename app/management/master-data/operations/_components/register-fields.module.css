@@ -14,10 +14,11 @@
  * reviewer who sees a raw `12px` in a class attribute still gets stopped.
  */
 
+/* The kit's key-value label (management-job-grades `.kv label`): 13px, ink 2. */
 .detailLabel {
   align-self: center;
-  font: 400 12px/1.45 var(--font-sans);
-  color: #5e6573;
+  font: 400 13px/1.54 var(--font-sans);
+  color: var(--ink-2);
 }
 
 .createLabel {

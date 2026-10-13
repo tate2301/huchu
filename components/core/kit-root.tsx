@@ -19,3 +19,16 @@ export function Kit({
     </div>
   );
 }
+
+/**
+ * One of the kit's 18 screens: its own rules in kit.css are scoped to
+ * `.sc-<slug>` (design/core-modules/build/build-kit-css.mjs), so the page that
+ * draws the screen sits inside this.
+ */
+export function KitScreen({ slug, children }: { slug: string; children: React.ReactNode }) {
+  return (
+    <div className={`sc-${slug}`} style={{ display: "contents" }}>
+      {children}
+    </div>
+  );
+}

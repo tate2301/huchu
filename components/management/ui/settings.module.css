@@ -119,17 +119,17 @@
     width: 32px;
     height: 32px;
     flex-shrink: 0;
-    border: 1px solid transparent;
-    border-radius: var(--radius-md); /* 8px */
+    border: 0;
+    border-radius: 7px;
     background: transparent;
-    color: var(--s-label);
+    color: var(--s-body);
     cursor: pointer;
     transition: background-color var(--dur-fast) var(--ease-out);
   }
 
   .iconButton svg {
-    width: 17px;
-    height: 17px;
+    width: 16px;
+    height: 16px;
     flex-shrink: 0;
   }
 
@@ -146,70 +146,79 @@
   .button {
     display: inline-flex;
     align-items: center;
-    gap: 7px;
+    gap: 8px;
     height: 32px;
     padding: 0 12px;
-    border: 1px solid var(--s-rule);
-    border-radius: var(--radius-md);
+    border: 0;
+    border-radius: 7px;
     background: var(--s-page);
-    font: 500 13px/1.4 var(--font-sans);
+    box-shadow: 0 0 0 1px color-mix(in oklab, var(--ink) 7%, transparent), 0 1px 0 color-mix(in oklab, var(--ink) 3%, transparent), 0 1px 2px color-mix(in oklab, var(--ink) 5%, transparent);
+    font: 500 13px/1 var(--font-sans);
     color: var(--s-ink);
     white-space: nowrap;
     cursor: pointer;
-    transition:
-      background-color var(--dur-fast) var(--ease-out),
-      border-color var(--dur-fast) var(--ease-out);
+    transition: background-color var(--dur-fast) var(--ease-out);
   }
 
   .button svg {
-    width: 14px;
-    height: 14px;
+    width: 16px;
+    height: 16px;
     flex-shrink: 0;
-    color: var(--s-label);
+    margin-left: -2px;
+    color: var(--s-body);
   }
 
   .button:hover {
-    background: var(--s-tile);
+    background: var(--hover);
   }
 
   .button:focus-visible {
     outline: none;
-    border-color: var(--s-primary);
-    box-shadow: 0 0 0 3px var(--focus-ring-soft);
+    box-shadow: 0 0 0 2px var(--s-page), 0 0 0 4px var(--action-fill);
   }
 
   /* The one primary button paints the product's button fill, not the
      brighter action colour the focus ring uses (00-foundations 5.1.2). */
   .buttonPrimary {
-    border-color: var(--action-primary-bg);
-    background: var(--action-primary-bg);
-    color: var(--action-primary-fg);
-    /* The New button draws its + tighter than a label-led button. */
-    padding: 0 11px 0 9px;
-    gap: 6px;
+    background: var(--action-fill);
+    color: var(--on-action);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.16), inset 0 0 0 1px rgba(0, 0, 0, 0.08), 0 1px 2px color-mix(in oklab, var(--ink) 5%, transparent);
   }
 
   .buttonPrimary svg {
-    width: 15px;
-    height: 15px;
+    width: 16px;
+    height: 16px;
     color: currentcolor;
   }
 
   .buttonPrimary:hover {
-    background: var(--action-primary-hover);
-    border-color: var(--action-primary-hover);
+    background: color-mix(in oklab, var(--action-fill) 90%, var(--surface));
+  }
+
+  /* The shortcut inside the primary: a ring, not a key cap. */
+  .kbdOnPrimary {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 20px;
+    height: 20px;
+    padding: 0 4px;
+    border-radius: 5px;
+    font: 400 12px/1 var(--font-sans);
+    color: inherit;
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.32);
   }
 
   /* Section-level: one rung down, because it sits against a 15px heading. */
   .buttonSection {
-    height: 28px;
-    padding: 0 10px 0 8px;
-    font: 500 12px/1.4 var(--font-sans);
+    height: 32px;
+    padding: 0 12px;
+    font: 500 13px/1 var(--font-sans);
   }
 
   .buttonSection svg {
-    width: 13px;
-    height: 13px;
+    width: 16px;
+    height: 16px;
   }
 
   /* ------------------------------------------------------------------ *
@@ -238,11 +247,29 @@
   /* `.scope`, not `.surface`/`.formPage`/`.field`: a dialog's controls are
      portalled to `document.body` and are in none of those subtrees. See the
      note beside `.scope` at the top of this file. */
+  /* The kit's field (design/core-modules/html/kit.css `.input`): no border,
+     a ring and a raised shadow, 6px corners, 14px words; read-only on the
+     ground colour. */
   .scope :global(.input),
   .scope :global(.select),
   .scope :global(.textarea) {
-    font-size: 13px;
-    line-height: 1.5;
+    border: 0;
+    border-radius: 6px;
+    box-shadow: 0 0 0 1px color-mix(in oklab, var(--ink) 7%, transparent), 0 1px 0 color-mix(in oklab, var(--ink) 3%, transparent), 0 1px 2px color-mix(in oklab, var(--ink) 5%, transparent);
+    font-size: 14px;
+    line-height: 1.43;
+  }
+
+  .scope :global(.input):focus-visible,
+  .scope :global(.select):focus-visible,
+  .scope :global(.textarea):focus-visible {
+    box-shadow: 0 0 0 1px var(--action-fill), 0 0 0 4px color-mix(in oklab, var(--action-fill) 18%, transparent);
+  }
+
+  .scope :global(.input)[readonly] {
+    background: var(--ground);
+    color: var(--ink-3);
+    box-shadow: 0 0 0 1px color-mix(in oklab, var(--ink) 7%, transparent);
   }
 
   .scope .field :global(.btn) {
@@ -278,14 +305,8 @@
 
   .surface {
     display: grid;
-    grid-template-columns: 268px minmax(0, 1fr);
-    /* --radius-2xl is 18px, the board's value. */
-    border-radius: var(--radius-2xl);
+    grid-template-columns: 260px minmax(0, 1fr);
     background: var(--s-page);
-    /* Cooler and deeper than --shadow-modal, which is warm-grey at -12px. */
-    box-shadow:
-      0 24px 64px -24px rgba(17, 17, 17, 0.32),
-      0 4px 12px rgba(17, 17, 17, 0.06);
     overflow: hidden;
   }
 
@@ -310,8 +331,8 @@
     box-sizing: border-box;
     display: flex;
     flex-direction: column;
-    background: var(--s-ground);
-    border-right: 1px solid var(--s-rule);
+    background: var(--s-page);
+    box-shadow: inset -1px 0 0 var(--s-rule);
   }
 
   @media (max-width: 899px) {
@@ -325,49 +346,117 @@
     display: flex;
     align-items: center;
     gap: 8px;
-    /* 44, not a 60px app-bar rung: Rail.dc.html draws the breadcrumb as a row
-       the height of its own 32px back button plus the card's 8px top padding,
-       not as a header band. */
-    height: 44px;
+    height: 56px;
     flex-shrink: 0;
-    /* The board's `0 6px 0 0` measured inside a card already padded 10px
-       inline; this column carries that padding itself. */
-    margin-top: 8px;
-    padding: 0 16px 0 10px;
+    padding: 0 16px 0 8px;
   }
 
   .railTitle {
     margin: 0;
-    /* 600 15/1.3 — the wordmark sits with the group headings, not above them
-       as a page title. The board's own "Scale" annotation card says 22px and
-       is stale; its inline styles and the contract both say 15. `Main.dc.html`
-       draws it at 17, the page-title rung; the rail's internals follow
-       `Rail.dc.html`, so it stays 15. */
-    font: 600 15px/1.3 var(--font-sans);
-    letter-spacing: -0.012em;
+    font: 600 14px/1.43 var(--font-sans);
     color: var(--s-ink);
   }
 
   .railBack svg {
-    width: 18px;
-    height: 18px;
+    width: 16px;
+    height: 16px;
+  }
+
+  /* Search the rail: the kit's input with its icon and `/`. */
+  .railFind {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    height: 32px;
+    flex-shrink: 0;
+    margin: 0 12px 12px;
+    padding: 0 12px;
+    border-radius: 6px;
+    background: var(--s-page);
+    box-shadow: 0 0 0 1px color-mix(in oklab, var(--ink) 7%, transparent), 0 1px 0 color-mix(in oklab, var(--ink) 3%, transparent), 0 1px 2px color-mix(in oklab, var(--ink) 5%, transparent);
+    color: var(--s-meta);
+  }
+
+  .railFind:focus-within {
+    box-shadow: 0 0 0 1px var(--action-fill), 0 0 0 4px color-mix(in oklab, var(--action-fill) 18%, transparent);
+  }
+
+  .railFind svg {
+    width: 16px;
+    height: 16px;
+    flex-shrink: 0;
+  }
+
+  .railFind input {
+    flex: 1;
+    min-width: 0;
+    height: 100%;
+    padding: 0;
+    border: 0;
+    outline: 0;
+    background: transparent;
+    font: 400 14px/1.43 var(--font-sans);
+    color: var(--s-ink);
+  }
+
+  .railFind input::placeholder {
+    color: var(--s-faint);
+  }
+
+  .railFind input::-webkit-search-cancel-button {
+    appearance: none;
+  }
+
+  .railFindKey {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 20px;
+    height: 20px;
+    padding: 0 4px;
+    border-radius: 5px;
+    font: 400 12px/1 var(--font-sans);
+    color: var(--s-meta);
+    background: var(--s-page);
+    box-shadow: 0 0 0 1px color-mix(in oklab, var(--ink) 7%, transparent), 0 1px 0 var(--s-rule);
+  }
+
+  .railNoMatch {
+    margin: 0;
+    padding: 8px;
+    font: 400 13px/1.5 var(--font-sans);
+    color: var(--s-meta);
+  }
+
+  /* The Corelith logo at the foot. */
+  .railFoot {
+    flex-shrink: 0;
+    padding: 16px;
+    box-shadow: inset 0 1px 0 var(--s-rule);
+  }
+
+  .railFoot img {
+    display: block;
+    width: auto;
+    height: 16px;
+    opacity: 0.7;
   }
 
   .railBody {
     flex-grow: 1;
     min-height: 0;
-    padding: 0 10px 16px;
+    padding: 0 12px 12px;
     overflow-y: auto;
   }
 
   .railGroupLabel {
-    margin: 22px 0 4px;
-    padding: 0 10px;
-    /* Sentence case at 600 15/1.35, never uppercase. Not the DS's
-       `.group-label`, which is 12px uppercase #8A91A0 — that reads as a form
-       legend rather than a heading, and fails 4.5:1 on white. */
-    font: 600 15px/1.35 var(--font-sans);
-    color: var(--s-ink);
+    display: flex;
+    align-items: center;
+    height: 28px;
+    margin: 12px 0 0;
+    padding: 0 8px;
+    font: 400 12px/1.33 var(--font-sans);
+    color: var(--s-meta);
     text-transform: none;
     letter-spacing: normal;
   }
@@ -375,21 +464,20 @@
   /* The first group sits under the breadcrumb rather than under a run of
      items, so it takes less air above and a touch more below. */
   .railGroup:first-child .railGroupLabel {
-    margin: 8px 0 6px;
+    margin: 4px 0 0;
   }
 
   .railItem {
     display: flex;
     align-items: center;
-    gap: 10px;
-    height: 34px;
-    padding: 0 10px;
+    gap: 12px;
+    height: 32px;
+    margin-top: 2px;
+    padding: 0 8px;
     border: 0;
-    border-radius: var(--radius-md);
+    border-radius: 6px;
     background: transparent;
-    font: 500 13px/1.4 var(--font-sans);
-    /* Body ink, not label ink: a rail entry is a destination you read, and
-       #565C69 on #F7F8FA reads as already-disabled beside the active row. */
+    font: 400 14px/1.43 var(--font-sans);
     color: var(--s-body);
     text-decoration: none;
     cursor: pointer;
@@ -406,7 +494,7 @@
   }
 
   .railItem:hover {
-    background: var(--s-tile);
+    background: var(--hover);
   }
 
   .railItem:focus-visible {
@@ -415,8 +503,8 @@
   }
 
   .railItem[aria-current] {
-    background: var(--s-selected);
-    font-weight: 600;
+    background: var(--tray);
+    font-weight: 500;
     color: var(--s-ink);
   }
 
@@ -435,7 +523,7 @@
 
   .railCount {
     flex-shrink: 0;
-    font: 500 11px/1.5 var(--s-mono);
+    font: 400 12px/1.33 var(--font-sans);
     font-variant-numeric: tabular-nums;
     color: var(--s-meta);
   }
@@ -456,9 +544,7 @@
     min-width: 0;
     min-height: 0;
     display: grid;
-    /* 34%, not Main.dc.html's 30% — Main's percentage is of a box that still
-       contains the 268px rail. The contract and every register board say 34. */
-    grid-template-columns: clamp(340px, 34%, 460px) minmax(0, 1fr);
+    grid-template-columns: 380px minmax(0, 1fr);
   }
 
   @media (max-width: 899px) {
@@ -471,20 +557,25 @@
     }
   }
 
+  /* A record column with no record header (nothing chosen) keeps its air. */
+  .registerRecord:not(:has(> .recordHeader)) {
+    padding-top: 24px;
+  }
+
   .registerList {
     min-width: 0;
     min-height: 0;
     box-sizing: border-box;
     display: flex;
     flex-direction: column;
-    border-right: 1px solid var(--s-rule);
+    box-shadow: inset -1px 0 0 var(--s-rule);
   }
 
   .registerRecord {
     min-width: 0;
     min-height: 0;
     box-sizing: border-box;
-    padding: 24px 40px 40px;
+    padding: 0 32px 40px;
     overflow-y: auto;
   }
 
@@ -504,19 +595,19 @@
     display: flex;
     align-items: center;
     gap: 8px;
-    height: 60px;
+    height: 56px;
     flex-shrink: 0;
-    padding: 0 12px 0 20px;
+    padding: 0 12px 0 24px;
   }
 
   .listTitle {
     margin: 0;
-    font: 600 15px/1.35 var(--font-sans);
+    font: 600 16px/1.5 var(--font-sans);
     color: var(--s-ink);
   }
 
   .listCount {
-    font: 500 11px/1.5 var(--s-mono);
+    font: 400 12px/1.33 var(--font-sans);
     font-variant-numeric: tabular-nums;
     color: var(--s-meta);
   }
@@ -565,7 +656,7 @@
 
   .listBody {
     margin: 0;
-    padding: 0 10px 12px;
+    padding: 8px 12px 12px;
     list-style: none;
     flex-grow: 1;
     min-height: 0;
@@ -577,22 +668,23 @@
     display: flex;
     align-items: center;
     gap: 12px;
-    padding: 6px 10px 7px;
-    border-bottom: 1px solid var(--s-rule);
+    margin: 0 -12px;
+    padding: 8px 24px;
+    box-shadow: inset 0 -1px 0 var(--s-rule);
   }
 
   .listColumnRow {
     flex-grow: 1;
     min-width: 0;
-    font: 500 11px/1.5 var(--font-sans);
+    font: 400 12px/1.33 var(--font-sans);
     color: var(--s-meta);
   }
 
   .listColumnValue {
     flex-shrink: 0;
-    min-width: 48px;
+    min-width: 32px;
     text-align: right;
-    font: 500 11px/1.5 var(--font-sans);
+    font: 400 12px/1.33 var(--font-sans);
     color: var(--s-meta);
   }
 
@@ -600,13 +692,14 @@
     display: flex;
     align-items: center;
     gap: 12px;
-    min-height: 42px;
-    padding: 0 10px;
+    min-height: 44px;
+    margin-top: 2px;
+    padding: 0 12px;
     border: 0;
     width: 100%;
     text-align: left;
     background: transparent;
-    border-radius: var(--radius-md);
+    border-radius: 6px;
     text-decoration: none;
     cursor: pointer;
     transition: background-color var(--dur-fast) var(--ease-out);
@@ -618,7 +711,7 @@
   }
 
   .listRow:hover {
-    background: var(--s-tile);
+    background: var(--hover);
   }
 
   .listRow:focus-visible {
@@ -627,9 +720,9 @@
   }
 
   .listRowCode {
-    width: 44px;
+    width: 88px;
     flex-shrink: 0;
-    font: 500 11px/1.5 var(--s-mono);
+    font: 400 12px/1.33 var(--s-mono);
     color: var(--s-meta);
   }
 
@@ -649,8 +742,8 @@
 
   .listRowName {
     display: block;
-    font: 500 13px/1.4 var(--font-sans);
-    color: var(--s-ink);
+    font: 400 14px/1.43 var(--font-sans);
+    color: var(--s-body);
     /* Rows are one line and never wrap. */
     white-space: nowrap;
     overflow: hidden;
@@ -659,19 +752,20 @@
 
   .listRowValue {
     flex-shrink: 0;
-    min-width: 48px;
+    min-width: 32px;
     text-align: right;
-    font: 500 11px/1.5 var(--s-mono);
+    font: 400 14px/1.43 var(--font-sans);
     font-variant-numeric: tabular-nums;
     color: var(--s-meta);
   }
 
   .listRow[aria-current] {
-    background: var(--s-selected);
+    background: var(--tray);
   }
 
   .listRow[aria-current] .listRowName {
-    font-weight: 600;
+    font-weight: 500;
+    color: var(--s-ink);
   }
 
   .listRow[aria-current] .listRowCode,
@@ -799,9 +893,11 @@
   .recordHeader {
     display: flex;
     align-items: center;
-    gap: 12px;
-    padding-bottom: 16px;
-    border-bottom: 1px solid var(--s-rule);
+    gap: 4px;
+    height: 56px;
+    margin: 0 -16px 32px -32px;
+    padding: 0 16px 0 32px;
+    box-shadow: inset 0 -1px 0 var(--s-rule);
     /* Measured by the header's own width, not the viewport's: a record pane
        can be phone-narrow on a wide screen too. */
     container: record-header / inline-size;
@@ -827,7 +923,8 @@
   }
 
   .recordMark {
-    display: grid;
+    /* The kit's record bar carries the title alone (management-job-grades). */
+    display: none;
     place-items: center;
     width: 32px;
     height: 32px;
@@ -855,8 +952,7 @@
   .recordTitle {
     margin: 0;
     min-width: 0;
-    font: 600 17px/1.25 var(--font-sans);
-    letter-spacing: -0.012em;
+    font: 600 16px/1.5 var(--font-sans);
     color: var(--s-ink);
     white-space: nowrap;
     overflow: hidden;
@@ -898,8 +994,7 @@
     border: 0;
     border-bottom: 1px solid var(--s-primary);
     background: transparent;
-    font: 600 17px/1.25 var(--font-sans);
-    letter-spacing: -0.012em;
+    font: 600 16px/1.5 var(--font-sans);
     color: var(--s-ink);
   }
 
@@ -911,19 +1006,19 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 22px;
-    height: 22px;
+    width: 32px;
+    height: 32px;
     flex-shrink: 0;
-    border: 1px solid transparent;
-    border-radius: var(--radius-sm);
+    border: 0;
+    border-radius: 7px;
     background: transparent;
-    color: var(--s-faint);
+    color: var(--s-body);
     cursor: pointer;
   }
 
   .recordPencil svg {
-    width: 13px;
-    height: 13px;
+    width: 16px;
+    height: 16px;
   }
 
   .recordPencil:hover {
@@ -940,7 +1035,8 @@
   .recordActions {
     display: flex;
     align-items: center;
-    gap: 6px;
+    gap: 4px;
+    margin-left: auto;
     flex-shrink: 0;
   }
 
@@ -948,6 +1044,7 @@
      `Main.dc.html`: 1×18 of the section rule, inside the 6px action gap. It is
      what keeps the × from reading as one more thing this record can do. */
   .headerDivider {
+    display: none;
     width: 1px;
     height: 18px;
     flex-shrink: 0;
@@ -961,9 +1058,15 @@
   .sectionHeading {
     display: flex;
     align-items: center;
-    gap: 10px;
-    max-width: 470px;
-    margin: 30px 0 10px;
+    justify-content: space-between;
+    gap: 8px;
+    max-width: 640px;
+    margin: 48px 0 12px;
+  }
+
+  /* The first section sits right under the record's bar. */
+  .recordHeader + .sectionHeading {
+    margin-top: 0;
   }
 
   .sectionHeading[data-variant="form"] {
@@ -978,14 +1081,15 @@
   .sectionHeadingText {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 8px;
     margin: 0;
-    font: 600 15px/1.35 var(--font-sans);
+    font: 600 14px/1.43 var(--font-sans);
     color: var(--s-ink);
   }
 
   .sectionTile {
-    display: grid;
+    /* The kit's sections are named in words alone. */
+    display: none;
     place-items: center;
     width: 24px;
     height: 24px;
@@ -1006,7 +1110,7 @@
   }
 
   .sectionCount {
-    font: 500 11px/1.5 var(--s-mono);
+    font: 400 12px/1.33 var(--font-sans);
     font-variant-numeric: tabular-nums;
     color: var(--s-meta);
   }
@@ -1614,7 +1718,7 @@
     margin: 0;
     padding: 0;
     list-style: none;
-    max-width: 470px;
+    max-width: 640px;
   }
 
   /* The trail with nothing in it. A zero-height `<ol>` between a heading and
@@ -1622,13 +1726,14 @@
      trail's own 470px measure and in the meta ink. */
   .activityEmpty {
     margin: 0;
-    max-width: 470px;
-    font: 400 13px/1.5 var(--font-sans);
+    max-width: 640px;
+    font: 400 14px/1.43 var(--font-sans);
     color: var(--s-meta);
   }
 
   .activityRow {
     display: flex;
+    align-items: flex-start;
     gap: 12px;
   }
 
@@ -1642,17 +1747,13 @@
   .activityAvatar {
     display: grid;
     place-items: center;
-    width: 26px;
-    height: 26px;
+    width: 24px;
+    height: 24px;
+    margin-top: 8px;
     flex-shrink: 0;
     border-radius: 9999px;
-    background: var(--s-tile);
-    color: var(--s-label);
-    /* Longhands, not the `font` shorthand. `Main.dc.html` does draw the
-       initials at 10px, so the value is right — but the shorthand is one
-       declaration: if `--font-sans` ever fails to resolve on this element the
-       family is invalid, and the size, the weight and the leading go with it.
-       Written out, a missing family costs the family alone. */
+    background: transparent;
+    color: var(--s-meta);
     font-family: var(--font-sans);
     font-size: 10px;
     font-weight: 600;
@@ -1684,16 +1785,17 @@
   }
 
   .activityLine {
-    flex-grow: 1;
-    width: 1px;
-    min-height: 16px;
-    background: var(--s-rule-soft);
+    display: none;
   }
 
   .activityBody {
     flex-grow: 1;
     min-width: 0;
-    padding-bottom: 14px;
+    min-height: 40px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding-bottom: 0;
   }
 
   .activityRow:last-child .activityBody {
@@ -1703,19 +1805,18 @@
   .activityTop {
     display: flex;
     align-items: baseline;
-    gap: 8px;
+    justify-content: space-between;
+    gap: 12px;
   }
 
   .activitySummary {
-    font: 500 13px/1.4 var(--font-sans);
-    color: var(--s-ink);
+    font: 400 14px/1.43 var(--font-sans);
+    color: var(--s-body);
   }
 
   .activityTime {
-    font: 500 11px/1.5 var(--s-mono);
+    font: 400 14px/1.43 var(--font-sans);
     font-variant-numeric: tabular-nums;
-    /* The date is read, not glanced at, so it takes the meta ink: --s-faint
-       is #8A91A0 and 3.16:1 on white. */
     color: var(--s-meta);
     white-space: nowrap;
   }
@@ -1733,14 +1834,9 @@
   }
 
   .activityChip {
-    display: inline-flex;
-    align-items: center;
-    height: 18px;
-    padding: 0 6px;
-    border-radius: 5px;
-    font: 500 11px/1 var(--s-mono);
-    background: var(--s-tile);
-    color: var(--s-label);
+    /* The owner took the uppercase event chip out (spec/management.md):
+       the sentence says what happened. */
+    display: none;
   }
 
   .activityChip[data-tone="brand"] {
@@ -1766,11 +1862,14 @@
   .activityFoot {
     display: flex;
     align-items: center;
-    gap: 10px;
-    max-width: 470px;
-    margin-top: 14px;
-    padding-top: 12px;
-    border-top: 1px solid var(--s-rule-soft);
+    gap: 12px;
+    max-width: 640px;
+    margin-top: 12px;
+  }
+
+  /* The full log sits under the trail, on its left edge. */
+  .activityFoot .spacer {
+    display: none;
   }
 
   .activityChain {
@@ -1792,15 +1891,17 @@
   .activityLink {
     display: inline-flex;
     align-items: center;
-    gap: 6px;
-    font: 500 13px/1.4 var(--font-sans);
-    color: var(--s-on-tint);
-    text-decoration: none;
+    gap: 8px;
+    font: 400 13px/1.54 var(--font-sans);
+    color: var(--s-ink);
+    text-decoration: underline;
+    text-decoration-color: var(--line-strong);
+    text-underline-offset: 3px;
   }
 
   .activityLink svg {
-    width: 14px;
-    height: 14px;
+    width: 16px;
+    height: 16px;
     flex-shrink: 0;
   }
 
