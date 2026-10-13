@@ -23,7 +23,7 @@ const RAIL: Array<[IconName, string]> = [
 ];
 
 export type PanelRow =
-  | { label: string; icon: IconName; count?: number; on?: boolean }
+  | { label: string; icon: IconName; count?: number; meta?: string; on?: boolean }
   | { label: string; dot: true; meta?: string; on?: boolean };
 
 export type PanelGroup = { title: string; add?: boolean; rows: PanelRow[] };

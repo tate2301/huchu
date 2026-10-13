@@ -26,6 +26,7 @@ import { Button } from "@/components/workspace/button";
 import { Menu, MenuContent, MenuItem, MenuTrigger } from "@/components/workspace/menu";
 import { CrmMembers } from "@/components/crm/crm-members";
 import { CaretLeft, ChevronDown, DotsThree, List, Plus, type LucideIcon } from "@/lib/icons";
+import { VANE_PAGES } from "@/components/vane/vane-nav";
 import { navSections } from "@/lib/navigation";
 
 /**
@@ -34,7 +35,8 @@ import { navSections } from "@/lib/navigation";
  */
 function routeIcon(pathname: string): LucideIcon | undefined {
   let best: { length: number; icon: LucideIcon } | undefined;
-  for (const section of navSections) {
+  // Vane's pages are in every workspace and in no section.
+  for (const section of [...navSections, { items: VANE_PAGES }]) {
     for (const item of section.items) {
       const path = item.href.split("?")[0] ?? item.href;
       if (pathname !== path && !pathname.startsWith(`${path}/`)) continue;

@@ -37,7 +37,7 @@ What the build could not match, decided differently from the boards, or built wi
 - The top bar's sidebar toggle is gone; the panel's own Hide, the rail and Ctrl B hide and show the panel.
 - The panel's search narrows the panel to matching items (/ focuses it). Search everything (Ctrl K) still opens the command palette.
 - Management left the panel's foot; the gear is the way in.
-- The Vane rail mark opens the Vane panel until `/vane` is built.
+- The Vane rail mark opens Vane's own module, `/vane` (the tree: "Vane, rail, above Settings: its own module"); the top bar's Vane button opens the panel beside the page. On a Vane page the module panel lists For you, Working on, Plans, Done and Muted with their counts, then Watching.
 
 ### Books
 
@@ -96,6 +96,7 @@ What the build could not match, decided differently from the boards, or built wi
 
 ### Sample data the checks leave out (`tools/check/known.json`)
 
+- VaneForYou: Watching lists what Management → Vane watches in this workspace, by the product's names (Books, CRM, Tender, Reports…). The board's Pipeline, Site visits and Showroom are Floorcode's own names for its CRM and shop.
 - ReportsInsights: the board's three insights (their headings, the questions they ran, Show the sales) and "Monday board" are its sample; this workspace's insights are its own, and it has chosen no board. Its folders are ReportsAll's.
 - PageInsightVisits: "What is won, by Subfloor" names the board's form's question; the panel's Areas with counts and Team are not drawn (see Reports).
 - PageReport, PageReportSend, PageBuiltReport: Overview and the Insights band are drawn now and left the list; Areas with counts and Team stay.
@@ -104,6 +105,15 @@ What the build could not match, decided differently from the boards, or built wi
 - ReportsAll: the folders Monday meeting, Fitters and Money are the board's; this workspace has none until someone makes one.
 - PageReportsSettings: Tills, Till rules, Posting and Fiscal device are Shop rows of Management's rail (this workspace has no shop); the Activity lines (James, Rudo) and an Off report are the board's sample: nothing has been switched off or arranged here.
 - BooksMoney, PageBooksJournals: the board's saved views (Overdue, Pomona Offices, Paid this month) now carry "shared" and "you"; still sample data. PageBooksJournals: the board draws JE-0419 open beside the list (Close, Post this journal, its Code, Account, Debit, Credit and Totals): a state mid-action.
+
+### Vane
+
+- For you (`/vane`) reads `vanePanel()` across every module (no module first), with what Vane finished since the workspace's day began. A watched module in the panel opens For you with only that module's cards (`/vane?from=books`).
+- The finding's grey line names where the cards came from ("They came from Books, CRM and Tender."). The board's "It found most of them overnight" is not said: nothing records whether Vane found a card on the night run or later.
+- The first card's act is the page's primary, on S. J, K and N (next, previous, Not now on the focused card) are not wired yet.
+- Paused reads "Paused at 10:20": `VaneSettings` keeps no one's name for the pause, so the board's "Paused by James" needs a `pausedById` column. Proposed, not made.
+- Could not work it out shows the job's error and the tools it tried; the board's Show the rows has no rows behind it, since a failed job keeps none.
+- Over the allowance counts the jobs started this month, which is what holds new jobs back (`lib/vane/jobs.ts`); Management → Vane's "this month" counts the ones that finished.
 
 ### Management
 

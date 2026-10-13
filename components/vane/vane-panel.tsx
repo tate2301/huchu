@@ -8,20 +8,22 @@ import { useShell } from "@/components/layout/shell-state";
 import { VANE_SETTINGS_ROLES } from "@/lib/vane/roles";
 
 import { moduleForPath, useVaneActions, useVanePanel } from "./use-vane";
+import { isVanePath } from "./vane-nav";
 import { VanePanelView } from "./vane-panel-view";
 
-/** The Vane panel beside the page, fed from the workspace. */
+/** The Vane panel beside the page, fed from the workspace. Not beside Vane's own pages, which are what it shows. */
 export function VanePanel() {
   const shell = useShell();
   const pathname = usePathname();
   const router = useRouter();
   const { data: session } = useSession();
   const pageModule = moduleForPath(pathname);
-  const { data, isError } = useVanePanel(pageModule, shell.vaneOpen);
+  const onVane = isVanePath(pathname);
+  const { data, isError } = useVanePanel(pageModule, shell.vaneOpen && !onVane);
   const { notNow, giveJob, pause } = useVaneActions();
   const close = () => shell.setVaneOpen(false);
 
-  if (!shell.vaneOpen) return null;
+  if (!shell.vaneOpen || onVane) return null;
   return (
     <Kit className="vane-col">
       {data ? (

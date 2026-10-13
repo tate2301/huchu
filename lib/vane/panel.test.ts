@@ -7,9 +7,9 @@ function fakeDb(items: Array<Record<string, unknown>>) {
   const empty = async () => null;
   return {
     vaneItem: { count: async () => items.length, findMany: async () => items },
-    vaneJob: { findFirst: empty, findMany: async () => [] },
-    vanePlan: { findMany: async () => [] },
-    vaneSettings: { findUnique: async () => ({ paused: false }) },
+    vaneJob: { findFirst: empty, findMany: async () => [], count: async () => 0 },
+    vanePlan: { findMany: async () => [], count: async () => 0 },
+    vaneSettings: { findUnique: async () => ({ paused: false, updatedAt: new Date(), monthlyAllowance: 5000 }) },
   } as unknown as Parameters<typeof vanePanel>[0];
 }
 

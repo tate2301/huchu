@@ -35,7 +35,7 @@ All 25 are on the Core modules canvas, Vane page. Each opens on its own as `desi
 | 2 | VaneTouch | Where people meet Vane | reference | |
 | 3 | VaneComponents | Components and states | reference: the parts list for this work | |
 | 4 | VaneRules | The rules | reference | |
-| 5 | VaneForYou | For you | `/vane` | to build |
+| 5 | VaneForYou | For you | `/vane` | built: designcheck 98%, clean at 1440 and 390 |
 | 6 | VnTree | The tree | reference | |
 | 7 | VnUseCases | Use cases | reference | |
 | 8 | VnTemplates | Vane's templates, with reports and forms | reference | |
@@ -44,7 +44,7 @@ All 25 are on the Core modules canvas, Vane page. Each opens on its own as `desi
 | 11 | PageVaneJob | Give Vane a job (Ctrl J) | a dialog from anywhere | the panel's field is built; the dialog and Ctrl J are to build |
 | 12 | PageVaneDone | Done | `/vane/done` | to build |
 | 13 | PageVaneMuted | Muted | `/vane/muted` | to build |
-| 14 | PageVaneStates | Paused, over the allowance, could not work it out, cannot reach the service | the four states, on `/vane` and in the panel | to build |
+| 14 | PageVaneStates | Paused, over the allowance, could not work it out, cannot reach the service | the four states, on `/vane` and in the panel | built (`VaneStateNote`); Show the rows and "Paused by James" wait, see NOTES.md |
 | 15 | PageVaneReport | Explain a figure, on Deals | on a report page | to build |
 | 16 | PageVaneBlock | A block in the builder, waiting to be kept | in the report builder | being built in PR #213's follow-up |
 | 17 | VnRequirements | Requirements and the migration | reference | |
@@ -91,6 +91,7 @@ Build one workflow at a time, end to end with its states.
   - Cannot reach the service: the last time a job finished.
   - Each reads from `VaneJob` and `VaneSettings` and shows on `/vane` and in the panel.
 - **Done when:** a person can see everything Vane has for them, pause it and resume it, and every state shows when it should.
+- **Built.** `app/vane/page.tsx`, `components/vane/for-you-view.tsx` (fixture `/design/vane`), `components/vane/vane-state-note.tsx`, `components/vane/vane-module-panel.tsx`. `vaneStatus()` now carries the counts beside Vane's pages, when it was paused, over the allowance and could not work it out (`lib/vane/status.test.ts`). The rail's Vane mark opens `/vane`; the top bar's button opens the panel. To see it locally, `npx tsx scripts/seed-vane-demo.ts --slug <workspace>` writes the boards' cards, plan and jobs.
 
 ### 2. A card and what Vane read (PageVaneCard)
 

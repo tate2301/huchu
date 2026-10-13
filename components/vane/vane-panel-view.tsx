@@ -2,14 +2,15 @@
 
 import * as React from "react";
 
-import { Button, Icon, Kbd, Meter, VaneMark } from "@/components/core";
+import { Button, Icon, Kbd, VaneMark } from "@/components/core";
 import type { VaneCard, VanePanel } from "@/lib/vane/panel";
+
+import { VanePlanCardView } from "./vane-plan-card";
+import { vaneStateLabel, VaneStateNote } from "./vane-state-note";
 
 const time = (iso: string) =>
   new Date(iso).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false });
 
-const dueLabel = (date: string) =>
-  `Due ${new Date(`${date}T00:00:00`).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}`;
 
 /**
  * The Vane panel (design/core-modules/spec/vane.md), 400px on the right of any
@@ -65,8 +66,8 @@ export function VanePanelView({
       <div className="ask-h">
         <VaneMark />
         <b>Vane</b>
-        {status.paused ? (
-          <span className="muted">Paused</span>
+        {vaneStateLabel(status) ? (
+          <span className="muted">{vaneStateLabel(status)}</span>
         ) : status.working ? (
           <span className="live">Working</span>
         ) : (
@@ -87,13 +88,8 @@ export function VanePanelView({
       </div>
 
       <div className="ask-b">
-        {status.unreachable ? (
-          <div className="vn-now">
-            <Icon name="warn" />
-            <span className="truncate">Vane cannot reach the service. It will try again.</span>
-            {status.lastWorkedAt ? <span className="muted">Last worked {time(status.lastWorkedAt)}</span> : null}
-          </div>
-        ) : status.now && !status.paused ? (
+        <VaneStateNote status={status} canResume={canPause && Boolean(onPause)} onResume={() => onPause?.(false)} />
+        {status.now && !status.paused ? (
           <div className="vn-now">
             <span className="live-d" aria-hidden="true" />
             <span className="truncate">{status.now.label}</span>
@@ -142,25 +138,7 @@ export function VanePanelView({
 
         {plans.length > 0 ? <div className="vs">Broken down</div> : null}
         {plans.map((plan) => (
-          <article key={plan.id} className="vp">
-            <div className="vp-h">
-              <h3>{plan.title}</h3>
-              {plan.dueOn ? <span className="muted">{dueLabel(plan.dueOn)}</span> : null}
-            </div>
-            <Meter value={plan.steps.length ? (plan.done / plan.steps.length) * 100 : 0} label={`${plan.done} of ${plan.steps.length} steps done`} />
-            <ol>
-              {plan.steps.map((step) => (
-                <li key={step.id} className={`is-${step.status}`}>
-                  <Icon name={`step-${step.status}`} />
-                  <span>{step.label}</span>
-                  <span className="muted">
-                    {step.owner === "vane" ? "Vane" : "You"}
-                    {step.progress ? `, ${step.progress}` : ""}
-                  </span>
-                </li>
-              ))}
-            </ol>
-          </article>
+          <VanePlanCardView key={plan.id} plan={plan} />
         ))}
 
         {done.length > 0 ? <div className="vs">Done while you were away</div> : null}

@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { fetchJson } from "@/lib/api-client";
 import type { VanePanel } from "@/lib/vane/panel";
+import type { VaneWatchable } from "@/lib/vane/settings";
 import type { VaneStatus } from "@/lib/vane/status";
 
 /** The module a path belongs to, for "this module's cards first". */
@@ -41,6 +42,26 @@ export function useVanePanel(module: string | null, enabled: boolean) {
     queryFn: () => fetchJson<VanePanel>(`/api/vane/panel${module ? `?module=${encodeURIComponent(module)}` : ""}`),
     enabled,
     refetchInterval: enabled ? 15_000 : false,
+  });
+}
+
+/** For you (`/vane`): every module's cards, the jobs it is on, its plans and what it finished today. */
+export function useVaneForYou() {
+  return useQuery({
+    queryKey: ["vane", "for-you"],
+    queryFn: () => fetchJson<VanePanel>("/api/vane/panel?today=1"),
+    refetchInterval: 15_000,
+  });
+}
+
+/** What Vane watches in this workspace (Management → Vane), for the panel's Watching. */
+export function useVaneWatching() {
+  return useQuery({
+    queryKey: ["vane", "settings"],
+    queryFn: () =>
+      fetchJson<{ settings: { watches: Record<string, boolean> }; watchables: VaneWatchable[] }>("/api/vane/settings"),
+    staleTime: 60_000,
+    select: (data) => data.watchables.filter((module) => data.settings.watches[module.key] !== false),
   });
 }
 
