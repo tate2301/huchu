@@ -110,6 +110,4 @@ New tables and columns are unreadable to Vane until granted. Run `pnpm vane:read
 
 ## Not built yet
 
-The worker that runs Vane's jobs and binds its reader connections, the tools it reads and drafts with, its pages and the Vane button. The designs are on the Core modules canvas, Vane page.
-
-The next steps, in order, are in `docs/handover-core-modules.md`.
+The pages: `/vane` (For you, Plans, Done, Muted), a card's What I read, the four states, Give Vane a job with Ctrl J, the live updates, the `draft` tool and Vane inside each module. The button, the panel and Management → Vane are built. The boards, what each is, and the order to build the rest are in `docs/handover-vane.md`.
