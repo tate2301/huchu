@@ -1,0 +1,17 @@
+# The workers on Fly.io, one process group per worker, all from this repo's
+# Dockerfile. No [http_service]: workers take no traffic. See docs/workers.md.
+app = "huchu-workers"
+primary_region = "iad"
+
+kill_signal = "SIGTERM"
+kill_timeout = 120
+
+[processes]
+  # tsx directly, not `pnpm worker:retail`: pnpm does not pass SIGTERM on, and
+  # the worker needs it to finish the pass in flight before a deploy stops it.
+  retail = "node_modules/.bin/tsx scripts/retail-worker.ts"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "1gb"
+  processes = ["retail"]
