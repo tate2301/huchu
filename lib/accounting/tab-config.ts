@@ -16,6 +16,9 @@ import {
 } from "@/lib/icons";
 
 export type AccountingTab =
+  | "money"
+  | "invoices"
+  | "bank"
   | "overview"
   | "receivables"
   | "payables"
@@ -100,6 +103,32 @@ export const ACCOUNTING_CATEGORIES: AccountingCategory[] = [
  * question, not a navigation one — it belongs to PR-4 and is recorded there.
  */
 export const ACCOUNTING_TABS: AccountingTabItem[] = [
+  // Books (design/core-modules): Money is the module's home, Invoices and Bank
+  // the two places money is chased and matched.
+  {
+    id: "money",
+    label: "Money",
+    href: "/books",
+    icon: Wallet,
+    featureKey: "accounting.core",
+    categoryId: "hub",
+  },
+  {
+    id: "invoices",
+    label: "Invoices",
+    href: "/books/invoices",
+    icon: ReceiptLong,
+    featureKey: "accounting.ar",
+    categoryId: "receivables",
+  },
+  {
+    id: "bank",
+    label: "Bank",
+    href: "/books/bank",
+    icon: Scale,
+    featureKey: "accounting.banking",
+    categoryId: "treasury",
+  },
   {
     id: "overview",
     label: "Overview",
@@ -225,7 +254,8 @@ export const ACCOUNTING_TABS: AccountingTabItem[] = [
 ];
 
 export const ACCOUNTING_OPERATIONS_SECTIONS = {
-  overview: ["/accounting"],
+  // Money replaced the overview as the module's home; /accounting is still there by its address.
+  overview: ["/books", "/books/invoices", "/books/bank"],
   // The ledgers people work in. The two summaries moved to `reporting`.
   receivables: ["/accounting/sales"],
   payables: ["/accounting/purchases"],

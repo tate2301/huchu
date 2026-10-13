@@ -2,8 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { validateSession, successResponse, errorResponse, getPaginationParams, paginationResponse } from "@/lib/api-utils";
 import { prisma } from "@/lib/prisma";
-import { createJournalEntryFromSource } from "@/lib/accounting/posting";
-import { recalcPurchaseBillBalance } from "@/lib/accounting/balances";
+import { recordPurchasePayment } from "@/lib/accounting/payments";
 
 const paymentSchema = z.object({
   billId: z.string().uuid().optional(),
@@ -13,30 +12,6 @@ const paymentSchema = z.object({
   reference: z.string().max(200).optional(),
   bankAccountId: z.string().uuid().optional(),
 });
-
-function formatTwoDigits(value: number) {
-  return String(value).padStart(2, "0");
-}
-
-function buildPaymentNumberCandidate() {
-  const now = new Date();
-  const datePart = `${now.getFullYear()}${formatTwoDigits(now.getMonth() + 1)}${formatTwoDigits(now.getDate())}`;
-  const timePart = `${formatTwoDigits(now.getHours())}${formatTwoDigits(now.getMinutes())}`;
-  const randomPart = Math.floor(100 + Math.random() * 900);
-  return `PAY-${datePart}-${timePart}-${randomPart}`;
-}
-
-async function generateUniquePaymentNumber() {
-  for (let attempt = 0; attempt < 10; attempt += 1) {
-    const candidate = buildPaymentNumberCandidate();
-    const existing = await prisma.purchasePayment.findFirst({
-      where: { paymentNumber: candidate },
-      select: { id: true },
-    });
-    if (!existing) return candidate;
-  }
-  return `PAY-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`;
-}
 
 export async function GET(request: NextRequest) {
   try {
@@ -88,43 +63,16 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    const paymentNumber = await generateUniquePaymentNumber();
-
-    const payment = await prisma.purchasePayment.create({
-      data: {
-        companyId: session.user.companyId,
-        billId: validated.billId,
-        paymentNumber,
-        paidAt: new Date(validated.paidAt),
-        amount: validated.amount,
-        method: validated.method,
-        reference: validated.reference,
-        bankAccountId: validated.bankAccountId,
-        createdById: session.user.id,
-      },
-      include: { bill: true },
+    const payment = await recordPurchasePayment({
+      companyId: session.user.companyId,
+      userId: session.user.id,
+      billId: validated.billId,
+      paidAt: new Date(validated.paidAt),
+      amount: validated.amount,
+      method: validated.method,
+      reference: validated.reference,
+      bankAccountId: validated.bankAccountId,
     });
-
-    if (payment.billId) {
-      await recalcPurchaseBillBalance(payment.billId);
-    }
-
-    try {
-      await createJournalEntryFromSource({
-        companyId: session.user.companyId,
-        sourceType: "PURCHASE_PAYMENT",
-        sourceId: payment.id,
-        entryDate: payment.paidAt,
-        description: `Purchase payment ${payment.paymentNumber}`,
-        createdById: session.user.id,
-        amount: payment.amount,
-        netAmount: payment.amount,
-        taxAmount: 0,
-        grossAmount: payment.amount,
-      });
-    } catch (error) {
-      console.error("[Accounting] Purchase payment auto-post failed:", error);
-    }
 
     return successResponse(payment, 201);
   } catch (error) {

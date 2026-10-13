@@ -10,6 +10,7 @@ Every primary action has a shortcut, shown inside its button. Single keys work w
 | E | Edit | A report |
 | S | Send (the focused Vane card's send action) | Vane panel, For you |
 | U | Upload a statement | Books, Bank |
+| Ctrl ↵ | Upload (the statement chosen) | Books, Bank, Upload a statement |
 | Ctrl ↵ | Publish | Builders |
 | Esc | Clear the selection, close a panel | Tables, Vane panel |
 

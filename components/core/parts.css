@@ -21,3 +21,32 @@
 
 /* Marketplace's search, 240px as the kit draws it. */
 .ck.ck.ck .mk-find { width: 240px; }
+
+/* A kit page in the app's shell: edge to edge under the top bar, out over main's gutter and lede, and
+   scrolling inside itself so a table's head and footer stay put. On a phone it is a page that scrolls. */
+.ck.kit-main {
+  display: flex; flex-direction: column; min-width: 0;
+  height: var(--content-viewport); overflow: auto;
+  width: calc(100% + (var(--content-gutter-x) * 2));
+  margin-inline: calc(var(--content-gutter-x) * -1);
+  margin-top: calc(var(--content-lede) * -1);
+  background: var(--color-surface);
+}
+@media (max-width: 759px) { .ck.kit-main { height: auto; overflow: visible; } }
+
+/* A menu's button inside a button group: joined to its neighbours like any other button there. */
+.ck.ck.ck .btn-group > .menu-wrap > .btn { border-radius: 0; box-shadow: none; background: transparent; }
+.ck.ck.ck .btn-group > .btn + .menu-wrap > .btn,
+.ck.ck.ck .btn-group > .menu-wrap + .btn,
+.ck.ck.ck .btn-group > .menu-wrap + .menu-wrap > .btn { box-shadow: -1px 0 0 var(--color-line); }
+.ck.ck.ck .btn-group > .menu-wrap:first-child > .btn { border-radius: var(--radius-button) 0 0 var(--radius-button); }
+.ck.ck.ck .btn-group > .menu-wrap:last-child > .btn { border-radius: 0 var(--radius-button) var(--radius-button) 0; }
+.ck.ck.ck .btn-group > .menu-wrap:only-child > .btn { border-radius: var(--radius-button); }
+
+/* Table cells sit in the middle of their row, as the browser draws them: the app's own `.table`
+   rules are reset inside `.ck`, and the kit never sets this itself. */
+.ck.ck.ck .table td, .ck.ck.ck .table th { vertical-align: middle; }
+
+/* The kit's attribute lists keep the browser's 1em above and below a <dl>, which the app's base
+   styles take away; the boards were drawn with it. */
+.ck.ck.ck dl.attrs { margin-block: 1em; }

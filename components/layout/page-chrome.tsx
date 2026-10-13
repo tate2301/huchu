@@ -2,6 +2,8 @@
 
 import * as React from "react";
 
+import type { IconName } from "@/components/core";
+
 /**
  * What the page header says this page is (00-foundations 5.3.5).
  *
@@ -34,7 +36,8 @@ export type PagePicker = { label: string; options: Array<{ key: string; label: s
  */
 export type PagePrimary = {
   label: string;
-  icon?: "plus";
+  /** "plus" for a New; a verb primary names its own (Upload a statement: "upload2"). */
+  icon?: IconName;
   href?: string;
   sheet?: string;
   onClick?: () => void;

@@ -10,6 +10,10 @@ What the build could not match, decided differently from the boards, or built wi
 
 | Screen | Parity 1440 | Parity 390 | Parity dark | Against the reference (1440 / 390 / dark) |
 |---|---|---|---|---|
+| books-money | passes | passes | passes | not run |
+| books-vane | passes | passes | passes | not run |
+| books-invoices | passes | passes | passes | not run |
+| books-bank | passes | passes | passes | not run |
 | management-vane | passes | passes | passes | 1.59% / 2.67% / 1.51% |
 | management-billing | passes | 84px shorter (see Billing) | passes | not run |
 | management-integrations | 1.74% | 333px shorter | 1.95% | not run: lists only what the app connects (see Integrations) |
@@ -33,6 +37,25 @@ What the build could not match, decided differently from the boards, or built wi
 - Management left the panel's foot; the gear is the way in.
 - The Vane rail mark opens the Vane panel until `/vane` is built.
 
+### Books
+
+- Books is the accounting module, renamed: its rail item and panel say Books, and its home is Money (`/books`). Money, Invoices and Bank are new pages; Journals, VAT and the close stay on `/accounting/*` until they are restyled. The `/accounting` overview left the panel (Money replaced it) and is still there by its address.
+- The panel lists Money, Invoices and Bank, then the accounting pages the module already had. The board's Payments, Takings, Expenses and VAT rows, Saved views and Reports from Books are not built yet.
+- Money's two sources are the tills (named after the site when there is one: "Showroom sales") and payments on invoices. The board's "3 payments on quoted jobs" reads "3 payments on invoices": Books does not know which invoices came from quotes.
+- Money's cash-up line reads "Till 1 counted $420.60 against $432.60 expected." The board says "in cash sales", but what a till expects includes its float.
+- In the bank: an account's balance is its opening balance plus what was recorded in and out. Other currencies are added to the total at the latest rate in Currency; with no rate, the total is left out and the accounts are listed.
+- The app records banked till takings as DEBIT and every other deposit as CREDIT. Books reads the till's DEBIT as money in (`isMoneyIn`). The day close is not changed.
+- New invoice, Add a receipt and Record a payment open the existing forms in Receivables and Payables.
+- Invoices: "All invoices ▾" chooses All, Owed to you, Overdue, Paid or Drafts. Filter chooses when it was written (any time, this month, last month, this year). "Any customer ▾" chooses one customer. Columns hides When and Total. Export downloads the filtered list as CSV. The filters live in the address.
+- Selected rows are tinted, as the kit's table does; the board draws them ticked but not tinted.
+- Send reminders sends one WhatsApp to each selected invoice's customer when a person presses it, as the approved UTILITY template "invoice-reminder" ({{1}} the business, {{2}} the reminder), the way the till's messages go. The template has to be approved in WhatsApp Manager before reminders reach anyone. Rows with nothing owing or no phone number are skipped, and the toast lists each one and why.
+- Print statements opens a printable page (`/books/statements`) with each chosen customer's invoices that still have money owing.
+- Bank: Upload a statement (U) takes the CSV that online banking exports (a date, a description, and an amount or credit and debit columns). Lines already uploaded are left out. The lines join the account's open reconciliation.
+- Bank: the matches are Books' matching rules (`lib/books/matching.ts`), worked out each time the page is read, so a match never points at an invoice that was paid since. They are not stored as Vane cards and are not made by the model. The finding says "Vane matched 3 of them"; the board's "overnight" waits for Vane's worker to do it on a schedule.
+- Bank: Accept records the receipt or bill payment the way Receivables and Payables do (`lib/accounting/payments.ts`, which their routes now use too), then the bank transaction, then links the line. An EcoCash settlement and bank charges are recorded as bank transactions. Each match is checked again on the server when it is accepted. "Accept Vane's 3" accepts each match the same way. Choose lists open invoices or bills nearest the amount, recorded transactions for the same amount, and bank charges.
+- Vane's panel now sits under the top bar, beside the page, as the boards draw it. It used to run the full height of the window. A card can carry a second, quieter action ("Read them first").
+- `--app-bar-h` is 56px, the kit's top bar, so pages that fill the screen subtract the right height.
+
 ### Management
 
 - Management is a page, not a dialog over the app. Below 1100px its sidebar hides and the page flows, as the kit draws it: on a phone there is no way to another Management page except Back. Built as drawn.
@@ -54,4 +77,4 @@ What the build could not match, decided differently from the boards, or built wi
 | The real list of reports Corelith ships | (Reports not built yet) |
 | Builder states: empty report, failed SQL, publishing | (Builders not built yet) |
 | Report questions as drafts | (Reports not built yet) |
-| Bank reconciliation | (Books not built yet) |
+| Bank reconciliation | Books → Bank: statement upload, matching rules, Accept |

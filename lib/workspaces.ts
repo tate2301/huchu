@@ -390,8 +390,8 @@ const WORKSPACE_MODULES: Record<WorkspaceModuleId, WorkspaceModuleDefinition> = 
   },
   accounting: {
     id: "accounting",
-    label: "Accounting",
-    homeHref: "/accounting",
+    label: "Books",
+    homeHref: "/books",
     getItems(context) {
       return filterAccountingTabsByFeatures(ACCOUNTING_TABS, context.enabledFeatures).map((tab) => ({
         href: tab.href,
@@ -822,7 +822,7 @@ function buildModuleSections(
     return [
       {
         id: "accounting-master",
-        title: "Accounting Master",
+        title: "Books",
         items,
         workspaceGroup,
       },

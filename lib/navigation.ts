@@ -835,11 +835,13 @@ export const navSections: NavSection[] = [
   },
   {
     id: "accounting",
-    title: "Accounting",
-    description: "Ledger, journals, and finance controls",
+    title: "Books",
+    description: "Money in, owed, the bank and VAT",
     featureKey: "accounting.core",
     items: [
-      { href: "/accounting", icon: Scale, label: "Overview" },
+      { href: "/books", icon: Wallet, label: "Money" },
+      { href: "/books/invoices", icon: ReceiptLong, label: "Invoices" },
+      { href: "/books/bank", icon: Scale, label: "Bank" },
       { href: "/accounting/receivables", icon: ReceiptLong, label: "Receivables" },
       { href: "/accounting/payables", icon: PackageCheck, label: "Payables" },
       { href: "/accounting/financial-reports", icon: BarChart3, label: "Financial Reports" },

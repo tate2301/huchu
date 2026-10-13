@@ -3,7 +3,7 @@ import { z } from "zod";
 import { AccountingSourceType } from "@prisma/client";
 import { validateSession, successResponse, errorResponse, getPaginationParams, paginationResponse } from "@/lib/api-utils";
 import { prisma } from "@/lib/prisma";
-import { createJournalEntryFromSource } from "@/lib/accounting/posting";
+import { recordBankTransaction } from "@/lib/accounting/payments";
 
 const transactionSchema = z.object({
   bankAccountId: z.string().uuid(),
@@ -68,38 +68,18 @@ export async function POST(request: NextRequest) {
       return errorResponse("Invalid bank account", 400);
     }
 
-    const transaction = await prisma.bankTransaction.create({
-      data: {
-        companyId: session.user.companyId,
-        bankAccountId: validated.bankAccountId,
-        txnDate: new Date(validated.txnDate),
-        description: validated.description,
-        reference: validated.reference,
-        amount: validated.amount,
-        direction: validated.direction,
-        sourceType: validated.sourceType ?? "BANK_TRANSACTION",
-        sourceId: validated.sourceId,
-      },
+    const transaction = await recordBankTransaction({
+      companyId: session.user.companyId,
+      userId: session.user.id,
+      role: session.user.role,
+      bankAccountId: validated.bankAccountId,
+      txnDate: new Date(validated.txnDate),
+      description: validated.description,
+      reference: validated.reference,
+      amount: validated.amount,
+      direction: validated.direction,
+      tag: validated.sourceId,
     });
-
-    try {
-      await createJournalEntryFromSource({
-        companyId: session.user.companyId,
-        sourceType: transaction.sourceType ?? "BANK_TRANSACTION",
-        sourceId: transaction.id,
-        entryDate: transaction.txnDate,
-        description: `Bank transaction ${transaction.direction.toLowerCase()} ${transaction.description}`,
-        createdById: session.user.id,
-        amount: transaction.amount,
-        netAmount: transaction.amount,
-        taxAmount: 0,
-        grossAmount: transaction.amount,
-        actorRole: session.user.role,
-        invertDirection: transaction.direction === "CREDIT",
-      });
-    } catch (error) {
-      console.error("[Accounting] Bank transaction auto-post failed:", error);
-    }
 
     return successResponse(transaction, 201);
   } catch (error) {

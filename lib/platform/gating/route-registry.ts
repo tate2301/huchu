@@ -63,6 +63,10 @@ export const PAGE_FEATURE_ROUTES: FeatureRouteEntry[] = [
   { scope: "page", prefix: "/stores/dashboard", featureKey: "stores.dashboard" },
   { scope: "page", prefix: "/stores", featureKey: "stores.dashboard" },
 
+  { scope: "page", prefix: "/books/invoices", featureKey: "accounting.ar" },
+  { scope: "page", prefix: "/books/statements", featureKey: "accounting.ar" },
+  { scope: "page", prefix: "/books/bank", featureKey: "accounting.banking" },
+  { scope: "page", prefix: "/books", featureKey: "accounting.core" },
   { scope: "page", prefix: "/accounting/chart-of-accounts", featureKey: "accounting.chart-of-accounts" },
   { scope: "page", prefix: "/accounting/journals", featureKey: "accounting.journals" },
   { scope: "page", prefix: "/accounting/periods", featureKey: "accounting.periods" },
@@ -334,6 +338,9 @@ export const API_FEATURE_ROUTES: FeatureRouteEntry[] = [
   { scope: "api", prefix: "/api/inventory/movements", featureKey: "stores.movements" },
   { scope: "api", prefix: "/api/stock-locations", featureKey: "stores.inventory" },
 
+  { scope: "api", prefix: "/api/books/invoices", featureKey: "accounting.ar" },
+  { scope: "api", prefix: "/api/books/bank", featureKey: "accounting.banking" },
+  { scope: "api", prefix: "/api/books", featureKey: "accounting.core" },
   { scope: "api", prefix: "/api/accounting/coa", featureKey: "accounting.chart-of-accounts" },
   { scope: "api", prefix: "/api/accounting/journals", featureKey: "accounting.journals" },
   { scope: "api", prefix: "/api/accounting/periods", featureKey: "accounting.periods" },

@@ -12,6 +12,8 @@ export const vaneActionSchema = z.object({
   shortcut: z.string().optional(),
   /** Where a person does it: the page, with the draft open. Vane never does it itself. */
   target: z.string().startsWith("/"),
+  /** A second, quieter way in: "Read them first" beside "Send 3 reminders". */
+  also: z.object({ label: z.string().min(1), target: z.string().startsWith("/") }).optional(),
 });
 export type VaneAction = z.infer<typeof vaneActionSchema>;
 

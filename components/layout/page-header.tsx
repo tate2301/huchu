@@ -203,7 +203,7 @@ export function PageHeader() {
               <KitButtonLink
                 href={primaryHref}
                 variant="primary"
-                icon={primary.icon === "plus" ? "plus" : undefined}
+                icon={primary.icon}
                 shortcut={primaryShortcut(primary)}
               >
                 {primary.label}
@@ -211,7 +211,7 @@ export function PageHeader() {
             ) : (
               <KitButton
                 variant="primary"
-                icon={primary.icon === "plus" ? "plus" : undefined}
+                icon={primary.icon}
                 shortcut={primaryShortcut(primary)}
                 onClick={() => runPrimary(primary)}
               >

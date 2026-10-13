@@ -30,8 +30,9 @@ export function VanePanel() {
           canPause={VANE_SETTINGS_ROLES.includes(session?.user?.role ?? "")}
           onPause={(paused) => pause.mutate(paused)}
           onClose={close}
-          onAct={(card) => {
-            if (card.action) router.push(card.action.target);
+          onAct={(card, target) => {
+            const to = target ?? card.action?.target;
+            if (to) router.push(to);
           }}
           onNotNow={(card) => notNow.mutate({ id: card.id })}
           onGiveJob={(text) => giveJob.mutate(text)}

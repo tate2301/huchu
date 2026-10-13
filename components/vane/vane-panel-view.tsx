@@ -33,7 +33,7 @@ export function VanePanelView({
   canPause: boolean;
   onPause?: (paused: boolean) => void;
   onClose: () => void;
-  onAct: (card: VaneCard) => void;
+  onAct: (card: VaneCard, target?: string) => void;
   onNotNow: (card: VaneCard) => void;
   onGiveJob: (text: string) => void;
   giving?: boolean;
@@ -129,6 +129,11 @@ export function VanePanelView({
                   >
                     {card.action.label}
                   </Button>
+                  {card.action.also ? (
+                    <Button icon="eye" onClick={() => onAct(card, card.action?.also?.target)}>
+                      {card.action.also.label}
+                    </Button>
+                  ) : null}
                 </div>
               ) : null}
             </article>
