@@ -12,9 +12,9 @@ const executablePath = process.env.E2E_BROWSER_EXECUTABLE;
 
 export default defineConfig({
   testDir: ".",
-  testMatch: "visual.spec.ts",
+  testMatch: ["visual.spec.ts", "parity.spec.ts"],
   fullyParallel: true,
-  workers: 2,
+  workers: 1,
   reporter: [["list"]],
   use: executablePath ? { launchOptions: { executablePath } } : {},
 });

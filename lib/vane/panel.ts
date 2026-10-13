@@ -170,14 +170,3 @@ export async function giveVaneJob(
     select: { id: true, label: true, status: true },
   });
 }
-
-export async function setVanePaused(
-  db: Pick<PrismaClient, "vaneSettings">,
-  { companyId, paused }: { companyId: string; paused: boolean },
-) {
-  await db.vaneSettings.upsert({
-    where: { companyId },
-    create: { companyId, paused },
-    update: { paused },
-  });
-}

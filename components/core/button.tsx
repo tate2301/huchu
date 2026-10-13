@@ -36,6 +36,19 @@ function buttonClass({ variant = "default", size = "default", iconOnly, block }:
     .join(" ");
 }
 
+/**
+ * Whether the element sits inside a dialog or drawer: its shortcut belongs to
+ * that dialog, so it fires while the dialog is open (and only then, since the
+ * dialog unmounts it when it closes).
+ */
+function useInDialog(ref: React.RefObject<HTMLElement | null>): boolean {
+  const [inside, setInside] = React.useState(false);
+  React.useEffect(() => {
+    setInside(Boolean(ref.current?.closest('[role="dialog"], [role="alertdialog"]')));
+  }, [ref]);
+  return inside;
+}
+
 /** The shortcut inside a button. On the primary it is a ring, not a key cap. */
 export function Kbd({ children, onPrimary = false }: { children: Shortcut; onPrimary?: boolean }) {
   const label = useShortcutLabel(children);
@@ -77,7 +90,8 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(function 
   const own = React.useRef<HTMLButtonElement>(null);
   React.useImperativeHandle(forwarded, () => own.current as HTMLButtonElement);
   const look = { variant, size, icon, iconEnd, shortcut, iconOnly, busy, block };
-  useShortcut(shortcut, () => own.current?.click(), { enabled: !rest.disabled && !busy });
+  const inDialog = useInDialog(own);
+  useShortcut(shortcut, () => own.current?.click(), { enabled: !rest.disabled && !busy, inDialog });
   return (
     <button
       ref={own}
@@ -117,7 +131,8 @@ export function ButtonLink({
 }: ButtonLinkProps) {
   const own = React.useRef<HTMLAnchorElement>(null);
   const look = { variant, size, icon, iconEnd, shortcut, iconOnly, block };
-  useShortcut(shortcut, () => own.current?.click());
+  const inDialog = useInDialog(own);
+  useShortcut(shortcut, () => own.current?.click(), { inDialog });
   return (
     <Link
       ref={own}

@@ -328,10 +328,19 @@
 
 /* ── The product's face ───────────────────────────────────────────────────────
    Corelith reads in Inter, as the core modules kit is drawn
-   (design/core-modules/spec/tokens.css), with the slashed zero the references
-   render. Tender keeps the package's Atkinson Hyperlegible Next. `--font-inter`
-   is the self-hosted face `app/layout.tsx` puts on <html>. */
+   (design/core-modules/spec/tokens.css). Tender keeps the package's Atkinson
+   Hyperlegible Next. `--font-inter` is the self-hosted face `app/layout.tsx`
+   puts on <html>.
+
+   Inter's optical size follows the type size, as it does in the kit's
+   screens: frappe's theme pins `font-variation-settings: 'opsz' 24` on html,
+   body, button, p, span and div, which sets 28px headings and 12px notes in
+   the same cut. */
 :root[data-product="corelith"] {
   --font-sans: var(--font-inter), ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
-  font-feature-settings: "zero" 1;
+}
+
+:root[data-product="corelith"],
+:root[data-product="corelith"] :is(body, button, p, span, div) {
+  font-variation-settings: normal;
 }

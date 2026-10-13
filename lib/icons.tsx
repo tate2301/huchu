@@ -1090,3 +1090,18 @@ export const UserSwitch = createPhosphorIcon("UserSwitch", "UserSwitch");
 export const Vault = createPhosphorIcon("Vault", "Vault");
 export const WifiSlash = createPhosphorIcon("WifiSlash", "WifiSlash");
 export const Wine = createPhosphorIcon("Wine", "Wine");
+
+/**
+ * Vane's mark (components/core/vane-mark.tsx) as a nav icon: an ink tile with
+ * the vane arrow, sized by the caller's class like any other icon here.
+ */
+export const VaneIcon: LucideIcon = function VaneIcon({ className, style }: MaterialIconProps) {
+  return (
+    <svg className={className} style={style} viewBox="0 0 24 24" aria-hidden="true">
+      <rect width="24" height="24" rx="6" fill="var(--ink)" />
+      <path d="M5 12h10" stroke="var(--surface)" strokeWidth="2.2" strokeLinecap="round" />
+      <path d="M19.5 12 14 8v8z" fill="var(--surface)" />
+      <path d="M5 8.5 7.5 12 5 15.5" stroke="var(--surface)" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+};

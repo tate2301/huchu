@@ -6,6 +6,8 @@ import { useSession } from "next-auth/react";
 
 import {
   FormPage,
+  KitPage,
+  OwnsChrome,
   RecordHeader,
   RegisterLayout,
   SettingsRail,
@@ -17,29 +19,7 @@ import {
   findActiveSettingsNavEntry,
   getSettingsRailGroups,
 } from "@/lib/settings/management-nav";
-import { cn } from "@/lib/utils";
 import { getComputedWorkspaceHomeHref } from "@/lib/workspaces";
-
-/**
- * Whether a settings screen is already on the reader's screen.
- *
- * Module scope, deliberately. Every settings route renders its own
- * `SettingsFrame`, and moving between two of them is a page change, so React
- * tears the whole surface down and builds it again — which replays the
- * dialog's 200ms fade-and-zoom on every single rail click. `Opening.dc.html`
- * annotates that transition as the surface *arriving* over the app; a rail
- * click is movement inside a surface that is already there, and re-running it
- * reads as the screen flinching.
- *
- * The flag survives a client-side navigation because the module is not
- * re-evaluated, and the mount of the incoming page renders before the outgoing
- * one's cleanup runs — so the incoming frame sees `true` and opens without the
- * animation. Leaving the surface altogether clears it on the next task, so the
- * following entry animates again. A full page load re-evaluates the module and
- * the flag starts `false`, which is also correct: that is an arrival.
- */
-let surfaceIsOnScreen = false;
-let surfaceLeavingTimer: ReturnType<typeof setTimeout> | undefined;
 
 export type SettingsFrameProps = {
   /**
@@ -90,16 +70,12 @@ export type SettingsFrameProps = {
  * there is no app bar under the surface, so a title registered into it is a title
  * drawn behind a scrim.
  *
- * ## Why it is a dialog
+ * ## Why it is a page
  *
- * `Opening.dc.html` draws the surface arriving as an inset card over a scrim,
- * and the transition it annotates — `fade-in-0`, `zoom-in .985`, 200ms,
- * no zoom under `prefers-reduced-motion` — is `components/ui/dialog.tsx`'s
- * own at `size="full"`. `SettingsSurface` wraps exactly that.
- *
- * Nothing is drawn under it: `AppShell` renders these routes bare
- * (`isSettingsSurfacePath`), so the dialog is the only UI on screen, and
- * closing it navigates to the workspace's landing screen.
+ * Management is a full-page takeover (design/core-modules/spec/shell.md):
+ * `AppShell` renders these routes bare (`isSettingsSurfacePath`), so the
+ * surface is the only UI on screen, and leaving it (Back, Close or Esc)
+ * navigates to the workspace's landing screen.
  *
  * Presentation only: no query, no mutation and no gate lives here. The rail's
  * entries arrive already filtered by the same two predicates that guarded
@@ -152,28 +128,6 @@ export function SettingsFrame({
   // "closed" state is a different page rather than a different render.
   const [open, setOpen] = React.useState(true);
 
-  // Read once, at the first render of this frame, before the flag is raised:
-  // the outgoing frame has not cleaned up yet, so `true` here means the reader
-  // is moving within the surface rather than opening it.
-  const [arriving] = React.useState(() => !surfaceIsOnScreen);
-  React.useEffect(() => {
-    // Cancels the clear the outgoing frame scheduled a moment ago: the two
-    // frames of a rail click share one commit, cleanup first and mount second,
-    // so a navigation is exactly "a frame left and another arrived before the
-    // task ran". Leaving the surface for the app schedules the same clear and
-    // nothing cancels it, so the next entry animates.
-    clearTimeout(surfaceLeavingTimer);
-    surfaceLeavingTimer = undefined;
-    surfaceIsOnScreen = true;
-
-    return () => {
-      surfaceLeavingTimer = setTimeout(() => {
-        surfaceIsOnScreen = false;
-        surfaceLeavingTimer = undefined;
-      }, 0);
-    };
-  }, []);
-
   const handleOpenChange = React.useCallback(
     (next: boolean) => {
       setOpen(next);
@@ -215,29 +169,6 @@ export function SettingsFrame({
       open={open}
       onOpenChange={handleOpenChange}
       rail={<SettingsRail groups={groups} backHref={landingHref} title="Management" />}
-      /* The surface's single grid row is implicit and therefore `auto`, which
-         a tall form would grow past and `overflow: hidden` would then clip.
-         Pinning it to the surface's own height is what lets each column below
-         own its scrolling — the list and the record separately, as the board
-         draws them. A utility because utilities outrank the module's layer. */
-      className={cn(
-        "grid-rows-[minmax(0,1fr)]",
-        /* `!important`, and an arbitrary property rather than `animate-none`,
-           because the class it has to beat is `animate-in` from
-           `tw-animate-css` — a plugin utility, so tailwind-merge does not
-           know the two conflict and both survive `cn`. Two plain utilities
-           setting `animation` would then be decided by their order in the
-           generated stylesheet, which is not something a call site can rely
-           on. `fade-in-0` and `zoom-in` survive too but only set the
-           `--tw-enter-*` variables the stopped animation read.
-
-           The panel only. The scrim is the dialog's own element with its fade
-           hard-coded in `components/ui/dialog.tsx`, so it still re-fades on a
-           rail click — but the panel covers everything except the 24px gutter,
-           so what is left of the flash is a thin frame, not the whole
-           screen. */
-        arriving ? undefined : "[animation:none]!",
-      )}
     >
       <SettingsContent title={title} actions={actions}>
         {children}
@@ -269,11 +200,11 @@ function SettingsContent({
   const drawsOwnChrome = React.Children.toArray(children).some(
     (child) =>
       React.isValidElement(child) &&
-      (child.type === RegisterLayout || child.type === FormPage),
+      (child.type === RegisterLayout || child.type === FormPage || child.type === KitPage || child.type === OwnsChrome),
   );
 
   return (
-    <div className="grid min-h-0 min-w-0 grid-rows-[minmax(0,1fr)] overflow-y-auto">
+    <div className="grid min-h-0 min-w-0 grid-rows-[minmax(0,1fr)] overflow-y-auto max-[1099px]:block max-[1099px]:overflow-visible">
       {drawsOwnChrome ? (
         children
       ) : (

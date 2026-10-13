@@ -306,16 +306,25 @@
   .surface {
     display: grid;
     grid-template-columns: 260px minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr);
+    height: 100dvh;
     background: var(--s-page);
     overflow: hidden;
   }
 
-  @media (max-width: 899px) {
-    /* Below the rail + two columns, the rail becomes the surface's own top
-       strip and the content takes the rest. `Phone.dc.html` draws this. */
+  /* Below 1100px the sidebar goes and the page flows: the document scrolls,
+     as the kit draws Management on a tablet and a phone (`.mg`). */
+  @media (max-width: 1099px) {
     .surface {
       grid-template-columns: minmax(0, 1fr);
-      grid-template-rows: auto minmax(0, 1fr);
+      grid-template-rows: auto;
+      height: auto;
+      min-height: 100dvh;
+      overflow: visible;
+    }
+
+    .surface > .rail {
+      display: none;
     }
   }
 

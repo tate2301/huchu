@@ -165,6 +165,15 @@ for (const [token, role] of Object.entries(ROLE_OF)) {
 }
 // The face is the product's: Inter on Corelith, Atkinson on Tender (roles.css).
 tokens.walkDecls("--font-sans", (decl) => decl.remove());
+// The canvas boards set the slashed zero on <html>; the kit's 18 screens, which the references
+// (and the visual test) come from, do not. The screens win: noted in design/core-modules/NOTES.md.
+css.walkRules((rule) => {
+  if (rule.selector.trim() !== "html") return;
+  rule.walkDecls("font-feature-settings", (decl) => {
+    if (/"zero"/.test(decl.value)) decl.remove();
+  });
+  if (!rule.nodes.length) rule.remove();
+});
 
 /* ── 1 and 4. Scope, theme ─────────────────────────────────────────────────── */
 
