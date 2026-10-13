@@ -14,6 +14,7 @@ export function Drawer({
   open,
   onOpenChange,
   title,
+  sub,
   children,
   footer,
   width = 560,
@@ -21,6 +22,8 @@ export function Drawer({
   open: boolean;
   onOpenChange: (open: boolean) => void;
   title: React.ReactNode;
+  /** A line under the title: what the drawer acts on ("Closing 1 Jan to 31 Dec 2026, grouped by stage."). */
+  sub?: React.ReactNode;
   children: React.ReactNode;
   footer?: React.ReactNode;
   width?: number;
@@ -31,10 +34,19 @@ export function Drawer({
         <Kit contents>
           <Dialog.Overlay className="over is-fixed" />
           <Dialog.Content className="drawer is-fixed" style={{ width, maxWidth: "100vw" }} aria-describedby={undefined}>
-            <div className="drawer-h">
-              <Dialog.Title asChild>
-                <span>{title}</span>
-              </Dialog.Title>
+            <div className={sub ? "drawer-h has-sub" : "drawer-h"}>
+              {sub ? (
+                <div className="drawer-t">
+                  <Dialog.Title asChild>
+                    <span>{title}</span>
+                  </Dialog.Title>
+                  <span className="drawer-sub">{sub}</span>
+                </div>
+              ) : (
+                <Dialog.Title asChild>
+                  <span>{title}</span>
+                </Dialog.Title>
+              )}
               <Dialog.Close asChild>
                 <Button variant="quiet" iconOnly icon="x" label="Close" />
               </Dialog.Close>

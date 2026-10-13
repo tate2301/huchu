@@ -1,31 +1,24 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
-import Link from "next/link";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { EmptyState, Skeleton } from "@corelithzw/react";
-import { PageChrome } from "@/components/layout/page-chrome";
-import { Button } from "@/components/ui/button";
-import { COMMON_PRESETS, DateRangePicker, DayRangeChip } from "@/components/ui/date-picker";
+import { Button, ButtonLink, Empty, Kit, Pill } from "@/components/core";
+import { MenuButton, type MenuEntry } from "@/components/core/menu";
+import { PageChrome, type PagePrimary } from "@/components/layout/page-chrome";
+import { COMMON_PRESETS, DateRangePicker } from "@/components/ui/date-picker";
 import { dsConfirm } from "@/components/ui/ds-confirm";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { useToast } from "@/components/ui/use-toast";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
-import { MoreHorizontal, Pencil } from "@/lib/icons";
 import { periodParams, type CustomBlock, type CustomReport } from "@/lib/reports/custom/document";
 import { resolveParams } from "@/lib/reports/params";
 import type { ReportParams } from "@/lib/reports/types";
+import { dayRangeWords, todayIn } from "@/lib/workspace/format";
 
-import { CustomBlockResult } from "./custom-block";
+import { Chip } from "../report-filters";
+import { CustomBlockResult, downloadBlockCsv } from "./custom-block";
 import { useCustomData, useReportSources } from "./use-custom-data";
 
 /**
@@ -34,9 +27,8 @@ import { useCustomData, useReportSources } from "./use-custom-data";
  * block reading a source they cannot open says so, and the rest still show.
  */
 
-/** Drawing widths: a block beside another, and one across the page. */
+/** Drawing widths: a block beside another, and on a phone. */
 const HALF = 520;
-const FULL = 1080;
 const PHONE = 360;
 
 /** Two half blocks side by side; anything else on a row of its own. */
@@ -51,6 +43,14 @@ function pageRows(blocks: readonly CustomBlock[]): CustomBlock[][] {
     } else rows.push([block]);
   }
   return rows;
+}
+
+/** The report's own period, named. */
+function periodName(from: string): string | null {
+  if (from === "yearStart") return "This year";
+  if (from === "monthStart") return "This month";
+  const days = /^-(\d+)d$/.exec(from);
+  return days ? `Last ${days[1]} days` : null;
 }
 
 /**
@@ -118,6 +118,12 @@ export function CustomReportScreen({ id, builtIn }: { id: string; builtIn?: stri
     }
   };
 
+  // The primary is kept by value; it calls the copy of this render.
+  const copyRef = useRef(copy);
+  useEffect(() => {
+    copyRef.current = copy;
+  });
+
   const remove = async () => {
     const current = report.data?.report;
     if (!current) return;
@@ -143,85 +149,99 @@ export function CustomReportScreen({ id, builtIn }: { id: string; builtIn?: stri
   };
 
   const current = report.data?.report;
+  const editable = Boolean(current?.editable && !builtIn);
+
+  /** Export: every table on the page, each as its CSV, as it first shows. */
+  const exportTables = () => {
+    let files = 0;
+    for (const block of blocks) {
+      if (block.type !== "query" || block.display.type !== "table") continue;
+      const result = data.results.get(block.id);
+      if (!result?.ok) continue;
+      downloadBlockCsv(block, result.columns, result.rows);
+      files += 1;
+    }
+    if (files === 0) toast({ title: "Nothing to export yet", description: "This report has no table with rows in these dates." });
+  };
+
+  const primary = useMemo<PagePrimary | null>(() => {
+    if (!current) return null;
+    if (builtIn) return { label: "Make it yours", icon: "file" as const, shortcut: "M", onClick: () => void copyRef.current(), disabled: busy ? "Copying it" : undefined };
+    if (editable) return { label: "Edit", icon: "edit" as const, shortcut: "E", href: `/reports/custom/${id}/edit` };
+    return { label: "Make a copy", icon: "file" as const, shortcut: "M", onClick: () => void copyRef.current(), disabled: busy ? "Copying it" : undefined };
+  }, [current, builtIn, editable, id, busy]);
+
+  const more: MenuEntry[] = [];
+  if (current && !builtIn && editable) {
+    more.push({ key: "copy", label: "Make a copy", onSelect: () => void copy() });
+    more.push({ separator: true });
+    more.push({ key: "delete", label: `Delete ${current.title}`, danger: true, onSelect: () => void remove() });
+  }
+
   const chrome = (
-    <PageChrome title={current?.title ?? "Report"} backHref="/reports" backLabel="Reports">
-      {current && builtIn ? (
-        <Button size="sm" onClick={() => void copy()} disabled={busy}>
-          Make it yours
-        </Button>
-      ) : current ? (
-        <>
-          {current.editable ? (
-            <Button variant="secondary" size="sm" asChild>
-              <Link href={`/reports/custom/${id}/edit`}>
-                <Pencil className="size-4" aria-hidden="true" />
-                Edit
-              </Link>
-            </Button>
+    <PageChrome title={current?.title ?? "Report"} primary={primary}>
+      {current ? (
+        <Kit contents>
+          <Button icon="export" onClick={exportTables}>
+            Export
+          </Button>
+          {more.length ? (
+            <MenuButton variant="quiet" iconOnly icon="more" iconEnd={undefined} align="end" aria-label="More" label="More" items={more} disabled={busy}>
+              More
+            </MenuButton>
           ) : null}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon-sm" aria-label="More" disabled={busy}>
-                <MoreHorizontal className="size-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onSelect={() => void copy()}>Make a copy</DropdownMenuItem>
-              {current.editable ? (
-                <>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem onSelect={() => void remove()}>Delete {current.title}</DropdownMenuItem>
-                </>
-              ) : null}
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </>
+        </Kit>
       ) : null}
     </PageChrome>
   );
 
+  const frame = (body: React.ReactNode) => (
+    <>
+      {chrome}
+      <Kit className="kit-main">
+        <div className="mn rp-page" style={{ flex: 1, minHeight: 0 }}>
+          {body}
+        </div>
+      </Kit>
+    </>
+  );
+
   // On the server React Query has not started, so no data and no error is still loading.
   if (report.isLoading || sources.isLoading || (!report.data && !report.isError) || (!sources.data && !sources.isError)) {
-    return (
-      <>
-        {chrome}
-        <div className="grid gap-3" aria-busy="true" aria-live="polite">
-          <Skeleton height={32} width={280} />
-          <Skeleton height={120} />
-          <Skeleton height={240} />
+    return frame(
+      <div className="kbody" aria-busy="true" aria-label="Loading">
+        <div className="rp-head">
+          <div className="skeleton" style={{ height: 20, width: 360 }} />
         </div>
-      </>
+        <div className="rp-figs">
+          <div className="skeleton" style={{ height: 76 }} />
+        </div>
+        <div className="rp-pad">
+          <div className="skeleton" style={{ height: 220 }} />
+        </div>
+      </div>,
     );
   }
 
   if (report.isError || sources.isError || !current || !document) {
-    return (
-      <>
-        {chrome}
-        <EmptyState
-          title="This report did not open"
-          body={getApiErrorMessage(report.error ?? sources.error)}
-          action={
-            <Button variant="secondary" size="sm" onClick={() => void Promise.all([report.refetch(), sources.refetch()])}>
-              Try again
-            </Button>
-          }
-        />
-      </>
+    return frame(
+      <Empty
+        icon="warn"
+        title={typeof navigator !== "undefined" && !navigator.onLine ? "You are offline" : "This report did not open"}
+        action={
+          <Button icon="history" onClick={() => void Promise.all([report.refetch(), sources.refetch()])}>
+            Try again
+          </Button>
+        }
+      >
+        {getApiErrorMessage(report.error ?? sources.error, "Check the connection and try again.")} A report is offered to whoever can open every report it reads.
+      </Empty>,
     );
   }
 
-  const draw = (block: CustomBlock, width: number) => {
-    if (block.type === "heading") {
-      return block.level === 1 ? (
-        <h2 className="text-[17px] leading-[1.25] font-semibold tracking-[-0.012em] text-[var(--text-strong)]">{block.text}</h2>
-      ) : (
-        <h3 className="text-[15px] leading-[1.35] font-semibold text-[var(--text-strong)]">{block.text}</h3>
-      );
-    }
-    if (block.type === "text") {
-      return <p className="max-w-[70ch] text-[13px] leading-[1.5] whitespace-pre-line text-[var(--text-body)]">{block.text}</p>;
-    }
+  const draw = (block: CustomBlock) => {
+    if (block.type === "heading") return <h2 className="rp-heading">{block.text}</h2>;
+    if (block.type === "text") return <p className="rp-text">{block.text}</p>;
     const check = data.checks.get(block.id);
     const reads = check?.ok ? check.checked.tables : [];
     const result = data.results.get(block.id);
@@ -232,62 +252,70 @@ export function CustomReportScreen({ id, builtIn }: { id: string; builtIn?: stri
         result={result}
         loading={data.pending || (data.running && !result)}
         params={params}
-        width={width}
+        width={isPhone ? PHONE : HALF}
         truncated={reads.some((table) => data.truncated.has(table))}
       />
     );
   };
 
-  return (
-    <>
-      {chrome}
-      <div className="grid gap-3">
-        {current.description ? (
-          <p className="max-w-[70ch] text-[13px] leading-[1.5] text-[var(--text-body)]">{current.description}</p>
-        ) : null}
-        <div className="flex flex-wrap items-center gap-2">
+  const range = { from: params.from || null, to: params.to || null };
+  const spelled = dayRangeWords(range, todayIn()) || "Any time";
+  // On the report's own period, the chip names it first: "Last 180 days, 16 April to 13 October".
+  const own = Object.keys(given).length === 0 && document.period.from ? periodName(document.period.from) : null;
+  const words = own ? `${own}, ${spelled}` : spelled;
+
+  return frame(
+    <div className="kbody">
+      <div className="rp-head">
+        {builtIn ? <Pill tone="info">From Corelith</Pill> : null}
+        {current.description ? <span className="rp-desc">{current.description}</span> : <span className="rp-desc" />}
+        <span className="rp-head-end">
           <DateRangePicker
             openEnded
             presets={COMMON_PRESETS}
             title="Dates"
-            value={{ from: params.from || null, to: params.to || null }}
+            value={range}
             onChange={(next) => setDates({ from: next.from ?? "", to: next.to ?? "" })}
-            trigger={<DayRangeChip label="Dates" range={{ from: params.from || null, to: params.to || null }} />}
-          />
-        </div>
-
-        {blocks.length === 0 ? (
-          <EmptyState
-            title="Nothing on this report yet"
-            body="Add a table, a chart or figures, each from a query over the reports you can open."
-            action={
-              current.editable ? (
-                <Button size="sm" asChild>
-                  <Link href={`/reports/custom/${id}/edit`}>Add the first block</Link>
-                </Button>
-              ) : undefined
+            trigger={
+              <Chip set icon="calendar" aria-label={`Dates: ${words}`}>
+                {words}
+              </Chip>
             }
           />
-        ) : (
-          <div className={`grid gap-8 pt-3${data.rows.isFetching || data.running ? " opacity-60 transition-opacity" : ""}`}>
-            {pageRows(blocks).map((row) =>
-              row.length === 2 ? (
-                <div key={row[0]!.id} className="grid gap-8 md:grid-cols-2">
-                  {row.map((block) => (
-                    <div key={block.id} className="min-w-0">
-                      {draw(block, isPhone ? PHONE : HALF)}
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div key={row[0]!.id} className="min-w-0">
-                  {draw(row[0]!, isPhone ? PHONE : FULL)}
-                </div>
-              ),
-            )}
-          </div>
-        )}
+        </span>
       </div>
-    </>
+
+      {blocks.length === 0 ? (
+        <Empty
+          icon="reports"
+          title="Nothing on this report yet"
+          action={
+            editable ? (
+              <ButtonLink href={`/reports/custom/${id}/edit`} icon="plus">
+                Add the first block
+              </ButtonLink>
+            ) : undefined
+          }
+        >
+          Add a table, a chart or figures, each from a query over the reports you can open.
+        </Empty>
+      ) : (
+        <div className={data.rows.isFetching || data.running ? "rp-blocks is-fetching" : "rp-blocks"}>
+          {pageRows(blocks).map((row) =>
+            row.length === 2 ? (
+              <div key={row[0]!.id} className="cm-grid2 rp-grid2">
+                {row.map((block) => (
+                  <div key={block.id}>{draw(block)}</div>
+                ))}
+              </div>
+            ) : (
+              <div key={row[0]!.id} className="rp-row">
+                {draw(row[0]!)}
+              </div>
+            ),
+          )}
+        </div>
+      )}
+    </div>,
   );
 }

@@ -10,6 +10,7 @@ import { expireVouchers } from "@/lib/retail/vouchers/expire";
 import { birthdayBonusesForAll, expirePointsForAll } from "@/lib/retail/loyalty/jobs";
 import { sendLaybyRemindersForAll } from "@/lib/retail/floor/layby-reminders";
 import { runBuyingFollowUpsForAll } from "@/lib/retail/buying/follow-ups";
+import { sendDueReportSchedules } from "@/lib/reports/schedule-sender";
 
 import type { RetailJob } from "./schedule";
 
@@ -23,7 +24,8 @@ import type { RetailJob } from "./schedule";
  * every minute the price changes come due (PRD-07), 00:10 the vouchers whose
  * expiry day has passed lapse (PRD-10), 00:05 points a year old expire,
  * 07:00 on Mondays the birthday bonuses (CUS-01) and 09:00 the weekly lay-by
- * reminders (FLR-06), 07:00 the order follow-ups (BUY-03).
+ * reminders (FLR-06), 07:00 the order follow-ups (BUY-03), and every five
+ * minutes the reports people chose to be sent (Send it, every workspace's).
  */
 export const RETAIL_JOBS: RetailJob[] = [
   {
@@ -100,5 +102,11 @@ export const RETAIL_JOBS: RetailJob[] = [
     name: "price-changes",
     when: { everyMinutes: 1 },
     run: (now) => applyDuePriceChangesForAll(now),
+  },
+  {
+    // Reports a person set to be sent, by email, once their time comes (Send it). Each slot is claimed before it goes.
+    name: "report-schedules",
+    when: { everyMinutes: 5 },
+    run: (now) => sendDueReportSchedules(now),
   },
 ];

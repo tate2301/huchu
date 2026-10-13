@@ -128,6 +128,7 @@ model Company {
   customReports                 CustomReport[]
   reportFolders                 ReportFolder[]
   savedViews                    SavedView[]
+  reportSchedules               ReportSchedule[]
   reportTemplates               ReportTemplate[]
   reportTemplateUses            ReportTemplateUse[]
   vaneItems                     VaneItem[]
@@ -1402,6 +1403,7 @@ model User {
   crmAppointmentsCreated            CrmAppointment[]               @relation("CrmAppointmentCreatedBy")
   crmSavedViewsCreated              CrmSavedView[]                 @relation("CrmSavedViewCreatedBy")
   savedViewsCreated                 SavedView[]                    @relation("SavedViewCreatedBy")
+  reportSchedulesCreated            ReportSchedule[]               @relation("ReportScheduleCreatedBy")
   crmIntakeFormsCreated             CrmIntakeForm[]                @relation("CrmIntakeFormCreatedBy")
   crmIntakeFormsDefaultAssignee     CrmIntakeForm[]                @relation("CrmIntakeFormDefaultAssignee")
   crmApiKeysCreated                 CrmApiKey[]                    @relation("CrmApiKeyCreatedBy")
@@ -8652,6 +8654,58 @@ model SavedView {
   createdBy User    @relation("SavedViewCreatedBy", fields: [createdById], references: [id], onDelete: Cascade)
 
   @@index([companyId, path])
+}
+
+/// How often a report is sent (`ReportSchedule`).
+enum ReportScheduleFrequency {
+  DAILY
+  WEEKLY
+  MONTHLY
+}
+
+enum ReportScheduleFormat {
+  PDF
+  CSV
+}
+
+/// A PDF's layout: its key figures and breakdown, or the whole page.
+enum ReportScheduleContent {
+  SUMMARY
+  FULL
+}
+
+/// A report sent by email on a schedule (routes.md §1, Send it; approved 13 Oct).
+/// Only a person makes one or turns it back on; the sender
+/// (`lib/reports/schedule-sender.ts`) renders it the way Export does, for each
+/// recipient under their own role, and moves `nextRunAt` on.
+model ReportSchedule {
+  id           String                  @id @default(uuid())
+  companyId    String
+  /// A built-in report's key (`crm-deals`) or a custom report's id. Not a foreign key: reports are code.
+  reportKey    String                  @db.VarChar(120)
+  frequency    ReportScheduleFrequency
+  /// Weekly: 1 (Monday) to 7 (Sunday). Monthly: 1 to 31, the month's last day when it is shorter. Daily: null.
+  day          Int?
+  /// "HH:MM" on the workspace's clock.
+  time         String                  @db.VarChar(5)
+  /// People in this workspace who can open the report.
+  recipientIds String[]
+  format       ReportScheduleFormat    @default(PDF)
+  content      ReportScheduleContent   @default(SUMMARY)
+  /// The report address's query without the `?` (its choices and view, `v=`), like `v=…`.
+  query        String                  @default("") @db.VarChar(4000)
+  createdById  String
+  active       Boolean                 @default(true)
+  nextRunAt    DateTime?
+  lastSentAt   DateTime?
+  createdAt    DateTime                @default(now())
+  updatedAt    DateTime                @updatedAt
+
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  createdBy User    @relation("ReportScheduleCreatedBy", fields: [createdById], references: [id], onDelete: Cascade)
+
+  @@index([companyId, reportKey])
+  @@index([active, nextRunAt])
 }
 
 model ReportFolder {
