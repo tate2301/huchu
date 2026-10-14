@@ -11,6 +11,7 @@ import type { VaneDoneView, VaneMutedRow, VanePlanRow, VaneWorkRow } from "@/lib
 import type { VaneCard, VanePanel, VaneSubject } from "@/lib/vane/panel";
 import type { VaneWatchable } from "@/lib/vane/settings";
 import type { VaneStatus } from "@/lib/vane/status";
+import type { StopOffer } from "@/lib/vane/stops";
 
 /** The module a path belongs to, for "this module's cards first". */
 export function moduleForPath(pathname: string): string | null {
@@ -117,7 +118,7 @@ export function useVaneWorking() {
 export function useVaneMuted() {
   return useQuery({
     queryKey: ["vane", "muted"],
-    queryFn: () => fetchJson<{ cards: VaneMutedRow[] }>("/api/vane/muted").then((data) => data.cards),
+    queryFn: () => fetchJson<{ cards: VaneMutedRow[]; offer: StopOffer | null }>("/api/vane/muted"),
   });
 }
 
@@ -150,7 +151,13 @@ export function useVaneActions() {
       fetchJson(`/api/vane/plans/${planId}/steps/${stepId}`, { method: "PATCH", body: JSON.stringify({ done }) }),
     onSettled: refresh,
   });
-  return { notNow, act, pause, unmute, tick };
+  /** Stop it for me (true) or Keep showing it (false), for the kind of a card this person keeps setting aside. */
+  const chooseKind = useMutation({
+    mutationFn: ({ id, stopped }: { id: string; stopped: boolean }) =>
+      fetchJson(`/api/vane/items/${id}/stop`, { method: "PUT", body: JSON.stringify({ stopped }) }),
+    onSettled: refresh,
+  });
+  return { notNow, act, pause, unmute, tick, chooseKind };
 }
 
 const CHAT_KEY = ["vane", "chat"] as const;

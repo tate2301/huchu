@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import { actionsFor, type VaneActionView } from "./actions/engine";
 import { audienceFilter, FOR_YOU, jobLine, vaneStatus, type VaneStatus } from "./status";
+import { notStopped } from "./stops";
 
 /** The button on a For you card: it names the act and goes where the act is done. */
 export const vaneActionSchema = z.object({
@@ -56,7 +57,7 @@ export type VanePanel = {
   working: VaneWorking[];
 };
 
-type Db = Pick<PrismaClient, "vaneItem" | "vaneJob" | "vanePlan" | "vaneSettings" | "vaneAction">;
+type Db = Pick<PrismaClient, "vaneItem" | "vaneJob" | "vanePlan" | "vaneSettings" | "vaneAction" | "vaneCardChoice">;
 
 /** The modules the product names for a card's source. */
 const MODULE_NAMES: Record<string, string> = {
@@ -167,10 +168,12 @@ export async function vanePanel(
   }: { companyId: string; userId: string; role?: string | null; module?: string | null; doneSince?: Date },
 ): Promise<VanePanel> {
   const since = doneSince ?? new Date(Date.now() - 24 * 60 * 60 * 1000);
+  // The kinds this person stopped (Muted's Stop it for me) are not shown to them.
+  const stopped = await notStopped(db, companyId, userId);
   const [status, items, plans, done, working] = await Promise.all([
     vaneStatus(db, { companyId, userId, role }),
     db.vaneItem.findMany({
-      where: { companyId, status: "OPEN", kind: { in: FOR_YOU }, ...audienceFilter(userId, role) },
+      where: { companyId, status: "OPEN", kind: { in: FOR_YOU }, ...audienceFilter(userId, role), ...stopped },
       orderBy: { createdAt: "desc" },
       take: 50,
       select: CARD_SELECT,

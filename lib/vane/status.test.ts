@@ -37,6 +37,7 @@ function fakeDb(jobs: Job[], settings: { paused: boolean; updatedAt: Date; month
     (b[key]?.getTime() ?? 0) - (a[key]?.getTime() ?? 0);
   return {
     vaneItem: { count: async () => 0 },
+    vaneCardChoice: { findMany: async () => [] },
     vanePlan: { count: async () => 1 },
     vaneSettings: { findUnique: async () => settings },
     vaneJob: {

@@ -334,7 +334,8 @@
     "panel: People and pay",
     "panel: Build",
     "button: Keep showing it",
-    "button: Stop it for me"
+    "button: Stop it for me",
+    "button: Vane"
   ],
   "PageVaneReport": [
     "heading: Areas",

@@ -4,6 +4,7 @@ import { z } from "zod";
 import { dayKey } from "@/lib/workspace/format";
 
 import { monthBounds } from "./settings";
+import { notStopped } from "./stops";
 
 /**
  * A job's label as a line: a job keeps its whole instruction in its label
@@ -70,14 +71,16 @@ function toolsTried(value: unknown): string[] {
 }
 
 export async function vaneStatus(
-  db: Pick<PrismaClient, "vaneItem" | "vaneJob" | "vanePlan" | "vaneSettings">,
+  db: Pick<PrismaClient, "vaneItem" | "vaneJob" | "vanePlan" | "vaneSettings" | "vaneCardChoice">,
   { companyId, userId, role }: { companyId: string; userId: string; role?: string | null },
   now: Date = new Date(),
 ): Promise<VaneStatus> {
   const { start: monthStart, next: monthNext } = monthBounds(now);
   const mine = { companyId, kind: { in: FOR_YOU }, ...audienceFilter(userId, role) };
+  // The kinds this person stopped (Muted's Stop it for me) are not counted for them.
+  const stopped = await notStopped(db, companyId, userId);
   const [open, muted, running, last, newest, lastFinished, settings, working, plans, doneToday, used] = await Promise.all([
-    db.vaneItem.count({ where: { ...mine, status: "OPEN" } }),
+    db.vaneItem.count({ where: { ...mine, ...stopped, status: "OPEN" } }),
     db.vaneItem.count({ where: { ...mine, status: "MUTED" } }),
     db.vaneJob.findFirst({
       where: { companyId, status: "RUNNING" },

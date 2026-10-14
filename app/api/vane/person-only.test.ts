@@ -1,10 +1,11 @@
 /**
  * The witness that Vane changes nothing by itself: every Vane route that
- * changes data or asks it something (Not now, Bring back, Explain a figure,
- * ticking a plan step, Pause and Resume) answers only a signed-in person. A request with no person behind
- * it, such as the scheduled-jobs tick calling with its own secret, is refused
- * with 401 and the rows stay as they were. The checks run through the real session guard
- * against the database, nothing mocked.
+ * changes data or asks it something (Not now, Bring back, Stop it for me and
+ * Keep showing it, Explain a figure, ticking a plan step, Pause and Resume)
+ * answers only a signed-in person. A request with no person behind it, such
+ * as the scheduled-jobs tick calling with its own secret, is refused with 401
+ * and the rows stay as they were. The checks run through the real session
+ * guard against the database, nothing mocked.
  */
 import { randomUUID } from "node:crypto";
 
@@ -14,6 +15,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/prisma";
 
 import { POST as mute } from "./items/[id]/mute/route";
+import { PUT as stopKind } from "./items/[id]/stop/route";
 import { POST as bringBack } from "./items/[id]/unmute/route";
 import { POST as explain } from "./jobs/route";
 import { PATCH as tickStep } from "./plans/[id]/steps/[stepId]/route";
@@ -97,6 +99,16 @@ describe("Vane's data changes need a person", () => {
     });
     expect(response.status).toBe(401);
     expect(await prisma.vaneItem.findUniqueOrThrow({ where: { id: aside.id } })).toMatchObject({ status: "MUTED", mutedReason: "Not mine" });
+  });
+
+  it("refuses Stop it for me and Keep showing it without a signed-in person, and keeps no choice", async () => {
+    for (const stopped of [true, false]) {
+      const response = await stopKind(notAPerson(`/api/vane/items/${itemId}/stop`, "PUT", { stopped }), {
+        params: Promise.resolve({ id: itemId }),
+      });
+      expect(response.status).toBe(401);
+    }
+    expect(await prisma.vaneCardChoice.count({ where: { companyId } })).toBe(0);
   });
 
   it("refuses Explain on a report's figure without a signed-in person, and asks Vane nothing", async () => {

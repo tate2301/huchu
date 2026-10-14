@@ -2,6 +2,7 @@ import type { PrismaClient } from "@prisma/client";
 
 import { moduleName } from "./panel";
 import { audienceFilter, FOR_YOU, jobLine, startOfWorkspaceDay } from "./status";
+import { cardKey, showKindAgain, stoppedKeys } from "./stops";
 
 /**
  * Vane's three lists (`/vane/plans`, `/vane/done`, `/vane/muted`): its plans
@@ -255,16 +256,29 @@ export type VaneMutedRow = {
   reason: string | null;
   by: string | null;
   at: string | null;
+  /** This person stopped its kind (Stop it for me): Vane no longer shows it to them. */
+  stopped: boolean;
 };
 
 /** The cards this person can see that someone set aside, last set aside first. */
-export async function listVaneMuted(db: Pick<PrismaClient, "vaneItem">, who: Who): Promise<VaneMutedRow[]> {
-  const rows = await db.vaneItem.findMany({
-    where: { companyId: who.companyId, status: "MUTED", kind: { in: FOR_YOU }, ...audienceFilter(who.userId, who.role) },
-    orderBy: { resolvedAt: "desc" },
-    take: 200,
-    select: { id: true, headline: true, sourceModule: true, mutedReason: true, resolvedAt: true, resolvedBy: { select: { name: true } } },
-  });
+export async function listVaneMuted(db: Pick<PrismaClient, "vaneItem" | "vaneCardChoice">, who: Who): Promise<VaneMutedRow[]> {
+  const [rows, stopped] = await Promise.all([
+    db.vaneItem.findMany({
+      where: { companyId: who.companyId, status: "MUTED", kind: { in: FOR_YOU }, ...audienceFilter(who.userId, who.role) },
+      orderBy: { resolvedAt: "desc" },
+      take: 200,
+      select: {
+        id: true,
+        headline: true,
+        sourceModule: true,
+        action: true,
+        mutedReason: true,
+        resolvedAt: true,
+        resolvedBy: { select: { name: true } },
+      },
+    }),
+    stoppedKeys(db, who.companyId, who.userId).then((keys) => new Set(keys)),
+  ]);
   return rows.map((row) => ({
     id: row.id,
     headline: row.headline,
@@ -272,16 +286,22 @@ export async function listVaneMuted(db: Pick<PrismaClient, "vaneItem">, who: Who
     reason: row.mutedReason,
     by: row.resolvedBy?.name ?? null,
     at: row.resolvedAt?.toISOString() ?? null,
+    stopped: stopped.has(cardKey(row)),
   }));
 }
 
-/** Bring back: a muted card goes back to For you. */
-export async function unmuteVaneItem(db: Pick<PrismaClient, "vaneItem">, who: Who & { id: string }): Promise<boolean> {
+/** Bring back: a muted card goes back to For you, and when this person had stopped its kind, the kind shows again. */
+export async function unmuteVaneItem(db: Pick<PrismaClient, "vaneItem" | "vaneCardChoice">, who: Who & { id: string }): Promise<boolean> {
+  const where = { id: who.id, companyId: who.companyId, status: "MUTED" as const, ...audienceFilter(who.userId, who.role) };
+  const item = await db.vaneItem.findFirst({ where, select: { sourceModule: true, action: true } });
+  if (!item) return false;
   const { count } = await db.vaneItem.updateMany({
-    where: { id: who.id, companyId: who.companyId, status: "MUTED", ...audienceFilter(who.userId, who.role) },
+    where,
     data: { status: "OPEN", mutedReason: null, resolvedAt: null, resolvedById: null },
   });
-  return count > 0;
+  if (count === 0) return false;
+  await showKindAgain(db, { companyId: who.companyId, userId: who.userId, item });
+  return true;
 }
 
 /* ───────────────────────────── Working on ──────────────────────────── */
