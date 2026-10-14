@@ -215,7 +215,7 @@ function BlockBody({
                   Qty
                 </th>
                 <th scope="col" className={styles.th}>
-                  Rate
+                  Price
                 </th>
                 {block.showTax ? (
                   <th scope="col" className={styles.th}>
@@ -295,7 +295,7 @@ function BlockBody({
           className={cn(styles.signatures, block.party === "both" && styles.signaturesPair)}
         >
           {(block.party === "both" ? ["customer", "us"] : [block.party]).map((party) => (
-            <div key={party} className={styles.signature}>
+            <div key={party ?? "customer"} className={styles.signature}>
               <div className={styles.signatureLine} />
               <p className={styles.signatureLabel}>
                 {party === "us" ? "For the company" : block.label}

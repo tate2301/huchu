@@ -2,6 +2,7 @@ import { getServerSession } from "next-auth";
 import { notFound, redirect } from "next/navigation";
 
 import { BuilderRefused } from "@/components/build/builder-states";
+import { DocumentBuilder } from "@/components/build/document-builder";
 import { EnquiryFormBuilder } from "@/components/build/enquiry-form-builder";
 import { VisitFormBuilder } from "@/components/build/visit-form-builder";
 import { authOptions } from "@/lib/auth";
@@ -24,8 +25,7 @@ export default async function BuildFormPage({ params }: { params: Promise<{ id: 
   if (!recordProvisioned(record, user.enabledFeatures)) return <BuilderRefused what="the CRM" backHref="/build?kind=forms" />;
   if (record.source === "visit") return <VisitFormBuilder id={id} />;
   if (record.source === "enquiry") return <EnquiryFormBuilder id={id} />;
-  // A form laid out as blocks still opens in the templates' editor until documents move onto the grid.
-  if (record.source === "block" && record.kind === "FORM") redirect(`/templates/${encodeURIComponent(id)}`);
+  if (record.source === "block" && record.kind === "FORM") return <DocumentBuilder id={id} />;
   if (record.source === "block") redirect(buildHref("block", id, record.kind));
   if (record.source === "report") redirect(buildHref("report", id));
   redirect(`/build/templates/${encodeURIComponent(id)}`);

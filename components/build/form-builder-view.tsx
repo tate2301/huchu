@@ -17,7 +17,7 @@ import { describeRule } from "@/components/builder/grid/rule-editor";
 import { Button, Icon, useShortcut, type IconName } from "@/components/core";
 import { formatMoney } from "@/components/crm/money/money";
 import { FieldInput } from "@/components/forms/field-input";
-import { followLabel, newQuestion } from "@/components/forms/form-builder/form-builder";
+import { followLabel, newQuestion } from "@/lib/forms/questions";
 import {
   DISPLAY_FIELD_TYPES,
   FIELD_TYPE_LABELS,

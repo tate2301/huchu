@@ -237,5 +237,41 @@
     "label: Not sure",
     "label: QuestionWhatsApp number",
     "label: Answered asPhone number, Zimbabwe"
+  ],
+  "BuildDocument": [
+    "button: Showing QUO-0319",
+    "button: Letterhead",
+    "button: Customer",
+    "button: Number and dates",
+    "button: Measured on site"
+  ],
+  "PageTemplateEmail": [
+    "button: Greeting",
+    "button: Amount and due date",
+    "button: Pay button",
+    "button: The invoice PDF",
+    "button: Bank details",
+    "button: Footer",
+    "label: SubjectInvoice {number} from {display name}",
+    "label: Sends byEmail, accounts@floorcode.co.zw"
+  ],
+  "BuildReport": [
+    "heading: Paid, by form",
+    "heading: Still owed",
+    "heading: Most owed",
+    "button: Sentence",
+    "button: Term and house",
+    "button: Paid, by form",
+    "button: Still owed",
+    "button: Most owed",
+    "button: Fees by form",
+    "button: Families owing",
+    "button: Third term",
+    "button: Every house",
+    "column: Family",
+    "column: Pupils",
+    "column: Billed",
+    "column: Paid",
+    "column: Owed"
   ]
 }
