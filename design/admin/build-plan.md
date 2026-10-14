@@ -21,9 +21,9 @@ Neon database is never touched from this branch; the migrations reach it when th
 All seven layers are built and walked in the browser at desktop and phone width,
 with the local seed (`pnpm admin:seed-dev`). Not committed.
 
-- **Migrations:** `20261014090000_operators`, `20261014100000_member_sessions_ended_at`,
-  `20261014110000_sign_in_as` (drops `SupportAccessRequest` and `SupportSession`, and their
-  rows), `20261014120000_operator_invites`. Each has a witness test.
+- **Migrations:** `20261014150000_operators`, `20261014160000_member_sessions_ended_at`,
+  `20261014170000_sign_in_as` (drops `SupportAccessRequest` and `SupportSession`, and their
+  rows), `20261014180000_operator_invites`. Each has a witness test.
 - **Deleted:** the old portal's 22 pages, `components/admin-portal`, every
   `/api/platform-admin/*` route including `execute`, `lib/admin-portal/{auth,server,manifest,chart-series}`,
   the admin magic-link provider and allow-list, `requireAdmin` in the shared guards, and the
