@@ -3,6 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { fetchJson } from "@/lib/api-client";
+import type { VaneCardDetail, VaneDone, VaneForYou, VaneMutedRow, VaneNav, VanePlanDetail } from "@/lib/vane/pages";
 import type { VanePanel } from "@/lib/vane/panel";
 import type { VaneStatus } from "@/lib/vane/status";
 
@@ -41,6 +42,57 @@ export function useVanePanel(module: string | null, enabled: boolean) {
     queryFn: () => fetchJson<VanePanel>(`/api/vane/panel${module ? `?module=${encodeURIComponent(module)}` : ""}`),
     enabled,
     refetchInterval: enabled ? 15_000 : false,
+  });
+}
+
+/** Vane's own panel: the counts beside its rows and what it watches. */
+export function useVaneNav() {
+  return useQuery({
+    queryKey: ["vane", "nav"],
+    queryFn: () => fetchJson<VaneNav>("/api/vane/nav"),
+    refetchInterval: 30_000,
+    staleTime: 15_000,
+  });
+}
+
+/** `/vane`: For you across every module, or one module's with `module`. */
+export function useVaneForYou(module: string | null) {
+  return useQuery({
+    queryKey: ["vane", "home", module],
+    queryFn: () => fetchJson<VaneForYou>(`/api/vane/home${module ? `?module=${encodeURIComponent(module)}` : ""}`),
+    refetchInterval: 30_000,
+  });
+}
+
+/** One card and what Vane read for it. */
+export function useVaneCard(id: string | null) {
+  return useQuery({
+    queryKey: ["vane", "card", id],
+    queryFn: () => fetchJson<VaneCardDetail>(`/api/vane/items/${encodeURIComponent(id ?? "")}`),
+    enabled: Boolean(id),
+  });
+}
+
+export function useVanePlans() {
+  return useQuery({
+    queryKey: ["vane", "plans"],
+    queryFn: () => fetchJson<{ plans: VanePlanDetail[] }>("/api/vane/plans"),
+    refetchInterval: 30_000,
+  });
+}
+
+export function useVaneDone(search: string) {
+  return useQuery({
+    queryKey: ["vane", "done", search],
+    queryFn: () => fetchJson<VaneDone>(`/api/vane/done${search ? `?${search}` : ""}`),
+    placeholderData: (previous) => previous,
+  });
+}
+
+export function useVaneMuted() {
+  return useQuery({
+    queryKey: ["vane", "muted"],
+    queryFn: () => fetchJson<{ rows: VaneMutedRow[] }>("/api/vane/muted"),
   });
 }
 

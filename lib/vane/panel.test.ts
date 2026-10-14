@@ -7,7 +7,7 @@ function fakeDb(items: Array<Record<string, unknown>>) {
   const empty = async () => null;
   return {
     vaneItem: { count: async () => items.length, findMany: async () => items },
-    vaneJob: { findFirst: empty, findMany: async () => [] },
+    vaneJob: { findFirst: empty, findMany: async () => [], count: async () => 0 },
     vanePlan: { findMany: async () => [] },
     vaneSettings: { findUnique: async () => ({ paused: false }) },
   } as unknown as Parameters<typeof vanePanel>[0];

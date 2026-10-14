@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import type { PrismaClient } from "@prisma/client";
 import { z } from "zod";
 
+import { vaneState, type VaneState } from "./state";
 import { audienceFilter, FOR_YOU, vaneStatus, type VaneStatus } from "./status";
 
 /** The button on a For you card: it names the act and goes where the act is done. */
@@ -39,6 +40,8 @@ export type VaneDone = { id: string; text: string; at: string };
 
 export type VanePanel = {
   status: VaneStatus;
+  /** Paused, over the allowance, unable to reach the service or to work out its last job (PageVaneStates). */
+  state: VaneState | null;
   items: VaneCard[];
   plans: VanePlanCard[];
   done: VaneDone[];
@@ -76,8 +79,9 @@ export async function vanePanel(
   { companyId, userId, role, module }: { companyId: string; userId: string; role?: string | null; module?: string | null },
 ): Promise<VanePanel> {
   const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
-  const [status, items, plans, done] = await Promise.all([
+  const [status, state, items, plans, done] = await Promise.all([
     vaneStatus(db, { companyId, userId, role }),
+    vaneState(db, companyId),
     db.vaneItem.findMany({
       where: { companyId, status: "OPEN", kind: { in: FOR_YOU }, ...audienceFilter(userId, role) },
       orderBy: { createdAt: "desc" },
@@ -118,6 +122,7 @@ export async function vanePanel(
 
   return {
     status,
+    state,
     items: cards,
     plans: plans.map((plan) => ({
       id: plan.id,

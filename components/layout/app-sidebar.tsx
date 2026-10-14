@@ -1,5 +1,7 @@
 "use client";
 
+import { usePathname } from "next/navigation";
+
 import { SidebarCrmCollections } from "@/components/layout/app-sidebar/sidebar-crm-collections";
 import { AccountMenu } from "@/components/layout/account-menu";
 import { PersonMenu } from "@/components/layout/person-menu";
@@ -7,6 +9,7 @@ import { useShellNav } from "@/components/layout/shell-nav";
 import { useShell } from "@/components/layout/shell-state";
 import { WorkspaceRail } from "@/components/layout/workspace-rail";
 import { ModuleGroups } from "@/components/layout/workspace-rail/module-groups";
+import { VaneRailPanel } from "@/components/vane/vane-rail-panel";
 
 /**
  * The rail and its panel, beside the page (≥720px) or inside the phone drawer
@@ -17,6 +20,9 @@ export function AppSidebar({ inDrawer = false, railOnly = false }: { inDrawer?: 
   const shell = useShell();
   // A builder keeps the rail alone; its outline stands where the panel was.
   const panelShown = inDrawer || (!railOnly && shell.panelShown);
+  // Vane is a module of its own, beside the workspace's: its pages keep its panel.
+  const pathname = usePathname();
+  const onVane = pathname === "/vane" || pathname.startsWith("/vane/");
 
   return (
     <WorkspaceRail
@@ -28,7 +34,12 @@ export function AppSidebar({ inDrawer = false, railOnly = false }: { inDrawer?: 
       tile={<AccountMenu />}
       person={<PersonMenu />}
       management={nav.management}
-      vane={{ open: shell.vaneOpen, onToggle: () => shell.setVaneOpen(!shell.vaneOpen) }}
+      vane={{ href: "/vane", current: onVane }}
+      panelFor={
+        onVane
+          ? (chrome) => <VaneRailPanel {...chrome} onNavigate={inDrawer ? () => shell.setDrawerOpen(false) : undefined} />
+          : null
+      }
       supportItems={nav.model.supportItems}
       panelShown={panelShown}
       panelOverlay={!inDrawer && !railOnly && shell.panelOverlay}

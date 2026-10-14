@@ -5,6 +5,8 @@ import * as React from "react";
 import { Button, Icon, Kbd, Meter, VaneMark } from "@/components/core";
 import type { VaneCard, VanePanel } from "@/lib/vane/panel";
 
+import { stateWord, VaneStateNotice } from "./vane-state";
+
 const time = (iso: string) =>
   new Date(iso).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false });
 
@@ -39,19 +41,10 @@ export function VanePanelView({
   giving?: boolean;
 }) {
   const { status, items, plans, done } = panel;
+  const state = panel.state ?? null;
+  const word = stateWord(state, status.working);
   const [job, setJob] = React.useState("");
   const jobRef = React.useRef<HTMLInputElement>(null);
-
-  React.useEffect(() => {
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key.toLowerCase() === "j" && (event.ctrlKey || event.metaKey) && !event.altKey) {
-        event.preventDefault();
-        jobRef.current?.focus();
-      }
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, []);
 
   const give = () => {
     const text = job.trim();
@@ -65,13 +58,7 @@ export function VanePanelView({
       <div className="ask-h">
         <VaneMark />
         <b>Vane</b>
-        {status.paused ? (
-          <span className="muted">Paused</span>
-        ) : status.working ? (
-          <span className="live">Working</span>
-        ) : (
-          <span className="muted">Watching</span>
-        )}
+        <span className={word.live ? "live" : "muted"}>{word.text}</span>
         <div className="tb-r">
           {canPause && onPause ? (
             <Button
@@ -87,12 +74,8 @@ export function VanePanelView({
       </div>
 
       <div className="ask-b">
-        {status.unreachable ? (
-          <div className="vn-now">
-            <Icon name="warn" />
-            <span className="truncate">Vane cannot reach the service. It will try again.</span>
-            {status.lastWorkedAt ? <span className="muted">Last worked {time(status.lastWorkedAt)}</span> : null}
-          </div>
+        {state ? (
+          <VaneStateNotice state={state} canPause={canPause} onResume={onPause ? () => onPause(false) : undefined} />
         ) : status.now && !status.paused ? (
           <div className="vn-now">
             <span className="live-d" aria-hidden="true" />

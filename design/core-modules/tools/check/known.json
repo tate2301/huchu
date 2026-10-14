@@ -282,5 +282,77 @@
     "column: Billed",
     "column: Paid",
     "column: Owed"
+  ],
+  "VaneForYou": [
+    "primary: Send 3 reminders [S]",
+    "button: Read them first",
+    "button: Send the quote",
+    "button: Open it",
+    "button: Show the sales",
+    "button: Open the invoice",
+    "button: Add to the board",
+    "heading: VAT for September",
+    "panel: Pipeline",
+    "panel: Site visits",
+    "panel: Showroom"
+  ],
+  "PageVaneCard": [
+    "primary: Open 3 statements [S]",
+    "primary: Open the draft [S]",
+    "primary: Open the changes [S]",
+    "button: Show the sales",
+    "button: Save as a template",
+    "button: Open Simba’s details",
+    "panel: Pipeline",
+    "panel: Site visits",
+    "panel: Showroom",
+    "panel: People and pay",
+    "panel: Build",
+    "panel: Deals",
+    "panel: Quotes",
+    "label: Deals won, last 7 days",
+    "label: Invoices for those deals",
+    "label: Quotes QT-0398, accepted 7 Oct",
+    "label: Customer",
+    "label: Lines",
+    "label: Total",
+    "label: Due"
+  ],
+  "PageVanePlan": [
+    "heading: VAT for September",
+    "panel: Pipeline",
+    "panel: Site visits",
+    "panel: Showroom",
+    "panel: People and pay",
+    "panel: Build"
+  ],
+  "PageVaneDone": [
+    "panel: Pipeline",
+    "panel: Site visits",
+    "panel: Showroom",
+    "panel: People and pay",
+    "panel: Build"
+  ],
+  "PageVaneMuted": [
+    "panel: Pipeline",
+    "panel: Site visits",
+    "panel: Showroom",
+    "panel: People and pay",
+    "panel: Build"
+  ],
+  "PageVaneJob": [
+    "panel: Pipeline",
+    "panel: Site visits",
+    "panel: Showroom",
+    "panel: People and pay",
+    "panel: Build",
+    "label: What should Vane do?Get the October close ready, so we can close on the 3rd."
+  ],
+  "PageVaneStates": [
+    "heading: Vane’s states",
+    "heading: 3 invoices are past their terms.",
+    "button: Close Vane",
+    "button: See this month",
+    "button: Resume Vane"
   ]
 }

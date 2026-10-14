@@ -12,6 +12,7 @@ import { FixtureShell } from "../_fixtures/shell";
 /** Vane's panel over Books → Money, as books-vane.html draws it. */
 const PANEL: VanePanel = {
   status: { open: 5, working: true, now: { label: "Reading the CBZ statement Rudo uploaded", progress: "38 of 61 lines" }, paused: false, lastWorkedAt: null, unreachable: false },
+  state: null,
   items: [
     {
       id: "v1",

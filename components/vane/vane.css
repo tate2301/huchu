@@ -1,0 +1,89 @@
+/* Vane's pages (VaneForYou, PageVaneCard, PageVanePlan, PageVaneDone, PageVaneMuted, PageVaneJob,
+   PageVaneStates), beside the kit: what the boards draw inline. Under `.ck`, as the kit is. */
+
+/* A state, said once at the top of what Vane is doing (PageVaneStates). */
+.ck .vn-st { display: flex; flex-direction: column; gap: 10px; padding: 6px 2px 10px; }
+.ck .vn-st-t { font-size: 15px; font-weight: 600; color: var(--color-ink); }
+.ck .vn-st-d { color: var(--color-ink-2); font-size: var(--text-13); line-height: 1.5; margin: 0; overflow-wrap: anywhere; }
+.ck .vn-st-n { font-size: 12.5px; color: var(--color-muted); }
+.ck .vn-quiet { font-size: var(--text-13); color: var(--color-muted); margin: 0; }
+.ck .vn-now > span:first-child:not(.live-d) { width: 8px; }
+
+/* A drawer's or a page's titled block. */
+.ck .vn-sec { display: flex; flex-direction: column; gap: 8px; }
+.ck .vn-note { font-size: 12.5px; color: var(--color-muted); }
+.ck .vn-callout { padding: 12px 14px; border-radius: 8px; background: var(--color-ground); color: var(--color-ink-2); font-size: var(--text-13); }
+.ck .vn-sql {
+  margin: 0; padding: 12px; border-radius: 8px; background: var(--color-ground); border: 1px solid var(--color-line);
+  font: 12px/1.55 var(--font-mono); color: var(--color-ink-2); white-space: pre-wrap; overflow-wrap: anywhere; max-height: 320px; overflow: auto;
+}
+.ck .drawer-b:has(> .vn-sec) { gap: 20px; }
+
+/* For you: the cards and Working on, Broken down, Done today. */
+.ck .sc-vane .vh-side .ask-b { overflow: visible; }
+.ck .sc-vane .vh-side { overflow: auto; }
+
+/* Plans: the list on the left, the plan on the right; stacked on a phone. */
+.ck .vn-plans { flex: 1 1 auto; display: flex; min-height: 0; }
+.ck .vn-plan-list { flex: none; width: 340px; box-shadow: inset -1px 0 0 var(--color-line); overflow: auto; }
+.ck .vn-plan-item {
+  display: flex; flex-direction: column; gap: 6px; padding: 14px 24px; box-shadow: inset 0 -1px 0 var(--color-line);
+  color: var(--color-ink); text-decoration: none;
+}
+.ck .vn-plan-item:hover { background: var(--color-ground); }
+.ck .vn-plan-item.is-on { background: var(--color-accent-tint); box-shadow: inset 3px 0 0 var(--color-accent), inset 0 -1px 0 var(--color-line); }
+.ck .vn-plan-item .meter > i, .ck .vn-plan .meter > i { background: var(--color-accent); }
+.ck .vn-plan-row { display: flex; gap: 8px; min-width: 0; }
+.ck .vn-plan-name { font-weight: 600; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ck .vn-plan-due { margin-left: auto; font-size: 12.5px; color: var(--color-muted); white-space: nowrap; }
+.ck .vn-plan { flex: 1 1 0; min-width: 0; overflow: auto; padding: 24px 28px; display: flex; flex-direction: column; gap: 16px; }
+.ck .vn-plan-h { display: flex; align-items: baseline; flex-wrap: wrap; gap: 10px; }
+.ck .vn-plan-h h2 { margin: 0; font-size: 19px; font-weight: 600; color: var(--color-ink); }
+.ck .vn-plan-when { margin-left: auto; color: var(--color-muted); font-size: var(--text-13); }
+.ck .vn-plan-steps { box-shadow: inset 0 1px 0 var(--color-line); }
+.ck .vn-plan-steps .vp { box-shadow: none; padding: 0; }
+.ck .vn-plan-steps .vp li { padding: 8px 0; align-items: start; }
+.ck .vn-plan-steps .vp li .ic { margin-top: 2px; }
+.ck .vn-step-d { font-size: 12px; }
+@media (max-width: 759px) {
+  .ck .vn-plans { flex-direction: column; }
+  .ck .vn-plan-list { width: auto; box-shadow: inset 0 -1px 0 var(--color-line); overflow: visible; }
+  .ck .vn-plan { padding: 20px 16px; overflow: visible; }
+  .ck .vn-plan-when { margin-left: 0; flex-basis: 100%; }
+}
+
+/* Done and Muted: the tables' columns, and how they fold on a phone. */
+.ck .vn-done, .ck .vn-muted { table-layout: fixed; width: 100%; }
+.ck .vn-done td, .ck .vn-done th, .ck .vn-muted td, .ck .vn-muted th { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ck .vn-done td .truncate, .ck .vn-muted td .truncate { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ck .vn-done .vn-c-when { width: 88px; }
+.ck .vn-done .vn-c-kind { width: 160px; }
+.ck .vn-done .vn-c-next { width: 30%; }
+.ck .vn-done .vn-c-amount { width: 112px; }
+.ck .vn-muted .vn-c-from { width: 140px; }
+.ck .vn-muted .vn-c-aside { width: 140px; }
+.ck .vn-body .ws-tools { flex-wrap: wrap; }
+.ck .vn-body > .empty { margin: 48px auto; }
+@media (max-width: 759px) {
+  .ck .vn-done .vn-c-kind, .ck .vn-done td:nth-child(3),
+  .ck .vn-done .vn-c-amount, .ck .vn-done td:nth-child(5),
+  .ck .vn-muted .vn-c-from, .ck .vn-muted td:nth-child(2) { display: none; }
+  .ck .vn-done .vn-c-when { width: 64px; }
+  .ck .vn-done .vn-c-next { width: 38%; }
+  .ck .vn-muted .vn-c-aside { width: 96px; }
+  .ck .vn-body .wt { overflow-x: auto; }
+}
+.ck .vn-reasons { padding: 24px; }
+.ck .vn-pills { display: flex; flex-wrap: wrap; gap: 8px; }
+
+/* Give Vane a job: the dialog over any page (PageVaneJob). */
+.ck .vn-dialog-place { position: fixed; inset: 0; z-index: var(--z-overlay); display: grid; place-items: center; padding: 16px; pointer-events: none; }
+.ck .vn-dialog-place > * { pointer-events: auto; }
+.ck .vn-job { max-width: 640px; }
+.ck .vn-job-label { font-weight: 600; color: var(--color-ink); }
+.ck .vn-job-box { width: 100%; min-height: 112px; resize: vertical; padding: 10px 12px; font: inherit; line-height: 1.5; }
+.ck .vn-examples { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; }
+.ck .vn-example { height: auto; min-height: 32px; white-space: normal; text-align: left; justify-content: flex-start; }
+
+/* A table that is one part of a page, not the whole of it: it takes its rows' height. */
+.ck .vn-body > .wt { flex: none; }

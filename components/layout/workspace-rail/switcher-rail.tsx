@@ -44,8 +44,8 @@ export function SwitcherRail({
   groups: RailMark[][];
   /** The gear: the Management surface. */
   management: RailMark | null;
-  /** Vane, above the gear: opens and closes its panel. */
-  vane?: { open: boolean; onToggle: () => void } | null;
+  /** Vane, above the gear: its own module (`/vane`). */
+  vane?: { href: string; current: boolean } | null;
   /** The person, with their own menu. */
   person?: React.ReactNode;
   panelShown: boolean;
@@ -105,15 +105,20 @@ export function SwitcherRail({
       {vane ? (
         <Tooltip>
           <TooltipTrigger asChild>
-            <button
-              type="button"
+            <Link
+              href={vane.href}
               aria-label="Vane"
-              aria-pressed={vane.open}
-              className={cn(styles.mark, vane.open && styles.markCurrent)}
-              onClick={vane.onToggle}
+              aria-current={vane.current ? "page" : undefined}
+              className={cn(styles.mark, vane.current && styles.markCurrent)}
+              onClick={(event) => {
+                if (vane.current && !panelShown) {
+                  event.preventDefault();
+                  onOpenPanel();
+                }
+              }}
             >
               <VaneMark size={20} />
-            </button>
+            </Link>
           </TooltipTrigger>
           <TooltipContent side="right">Vane</TooltipContent>
         </Tooltip>
