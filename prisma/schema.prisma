@@ -135,6 +135,7 @@ model Company {
   vaneJobs                      VaneJob[]
   vaneSettings                  VaneSettings?
   vaneMessages                  VaneMessage[]
+  vaneTopicStops                VaneTopicStop[]
   vaneActions                   VaneAction[]
   vaneReaderScopes              VaneReaderScope[]
   documentRenderJobs            DocumentRenderJob[]
@@ -1577,6 +1578,8 @@ model User {
   vaneItemsResolved               VaneItem[]                     @relation("VaneItemResolvedBy")
   vaneJobsRequested               VaneJob[]                      @relation("VaneJobRequestedBy")
   vaneMessages                    VaneMessage[]                  @relation("VaneMessageUser")
+  vaneTopicStops                  VaneTopicStop[]                @relation("VaneTopicStopUser")
+  vanePausesMade                  VaneSettings[]                 @relation("VaneSettingsPausedBy")
   vaneActionsDecided              VaneAction[]                   @relation("VaneActionDecidedBy")
   sitesClosed                       Site[]                         @relation("SiteClosedBy")
   retailRegistersCreated            RetailRegister[]               @relation("RetailRegisterCreatedBy")
@@ -7890,6 +7893,8 @@ model SalesQuotationLine {
   description String
   quantity    Float    @default(1)
   unitPrice   Float    @default(0)
+  /// The catalogue product the line was picked from, when it was: what the price check compares with.
+  productId   String?
   taxCodeId   String?
   taxRate     Float    @default(0)
   taxAmount   Float    @default(0)
@@ -7898,8 +7903,10 @@ model SalesQuotationLine {
 
   quotation SalesQuotation @relation(fields: [quotationId], references: [id], onDelete: Cascade)
   taxCode   TaxCode?       @relation(fields: [taxCodeId], references: [id])
+  product   Product?       @relation("SalesQuotationLineProduct", fields: [productId], references: [id], onDelete: SetNull)
 
   @@index([quotationId])
+  @@index([productId])
 }
 
 model SalesReceipt {
@@ -15269,6 +15276,7 @@ model Product {
   supplier       Vendor?             @relation("ProductSupplier", fields: [supplierId], references: [id], onDelete: SetNull)
   prices         ProductPrice[]
   priceChanges   ProductPriceChange[]
+  quotationLines SalesQuotationLine[] @relation("SalesQuotationLineProduct")
   inventoryItems InventoryItem[]
   retailSaleLines RetailSaleLine[]
   retailTransferLines RetailStockTransferLine[]
@@ -16361,6 +16369,8 @@ model VaneItem {
   kind           VaneItemKind
   /// The module it came from: "books", "crm", "retail", ...
   sourceModule   String
+  /// What kind of finding it is, in the same words each time ("Short cash-up"), so a person can stop that kind for themselves.
+  topic          String?
   subjectType    String?
   subjectId      String?
   /// The fact, in one line: "$2,480.00 is overdue across 3 invoices".
@@ -16455,6 +16465,8 @@ model VaneJob {
   tools            Json           @default("[]")
   result           String?
   error            String?
+  /// When Vane could not work it out: the question that finds the rows it stopped at, for "Show the rows".
+  problemSql       String?
   createdAt        DateTime       @default(now())
 
   company     Company    @relation(fields: [companyId], references: [id], onDelete: Cascade)
@@ -16492,6 +16504,22 @@ model VaneMessage {
   @@index([companyId, userId, createdAt])
   @@index([userId])
   @@index([jobId])
+}
+
+/// "Stop it for me": a kind of card one person no longer sees. Everyone else who would still gets it.
+model VaneTopicStop {
+  id        String   @id @default(uuid())
+  companyId String
+  userId    String
+  /// The card's topic, as Vane names it: "Short cash-up".
+  topic     String
+  createdAt DateTime @default(now())
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  user    User    @relation("VaneTopicStopUser", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, userId, topic])
+  @@index([userId])
 }
 
 enum VaneActionStatus {
@@ -16541,6 +16569,8 @@ model VaneAction {
 model VaneSettings {
   companyId          String   @id
   paused             Boolean  @default(false)
+  /// Who paused it, for "Paused by James, 10:20"; cleared on Resume.
+  pausedById         String?
   /// { [module]: boolean }: what it watches.
   watches            Json     @default("{}")
   raiseIssues        Boolean  @default(true)
@@ -16561,7 +16591,10 @@ model VaneSettings {
   insightsBoardId    String?
   updatedAt          DateTime @updatedAt
 
-  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  company  Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  pausedBy User?   @relation("VaneSettingsPausedBy", fields: [pausedById], references: [id], onDelete: SetNull)
+
+  @@index([pausedById])
 }
 
 /// Which workspace a vane_reader connection may read, keyed by its backend pid.

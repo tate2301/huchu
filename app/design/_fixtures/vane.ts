@@ -7,6 +7,7 @@ export const FIXTURE_VANE_STATUS: VaneStatus = {
   working: true,
   now: { label: "Reading the CBZ statement Rudo uploaded", progress: "38 of 61 lines" },
   paused: false,
+  pausedBy: null,
   pausedAt: null,
   lastWorkedAt: null,
   unreachable: false,

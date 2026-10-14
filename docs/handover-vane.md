@@ -41,10 +41,10 @@ All 25 are on the Core modules canvas, Vane page. Each opens on its own as `desi
 | 8 | VnTemplates | Vane's templates, with reports and forms | reference | |
 | 9 | PageVaneCard | A card, and what Vane read | a card's "What I read" | built (`/vane?card=<id>`): 92.9%; What it drafted waits for the `draft` tool |
 | 10 | PageVanePlan | Plans | `/vane/plans` | built: 94.4% (⌘ for Ctrl on a Mac) |
-| 11 | PageVaneJob | Give Vane a job (Ctrl J) | a dialog from anywhere | built: the dialog and Ctrl J from every page; the plan proposed before Start is not |
+| 11 | PageVaneJob | Give Vane a job (Ctrl J) | the panel's chat | replaced on 14 October by the panel's chat: Ctrl J opens the panel at its box, from any page |
 | 12 | PageVaneDone | Done | `/vane/done` | built: 97.7% |
-| 13 | PageVaneMuted | Muted | `/vane/muted` | built: 97.9%; "Stop it for me" needs a kind per card |
-| 14 | PageVaneStates | Paused, over the allowance, could not work it out, cannot reach the service | the four states, on `/vane` and in the panel | built (`VaneStateNote`); Show the rows and "Paused by James" wait, see NOTES.md |
+| 13 | PageVaneMuted | Muted | `/vane/muted` | built: 97.9%, with "Stop it for me" (a card's `topic`, `VaneTopicStop`) and Show it again |
+| 14 | PageVaneStates | Paused, over the allowance, could not work it out, cannot reach the service | the four states, on `/vane` and in the panel | built (`VaneStateNote`), with "Paused by James" and Show the rows |
 | 15 | PageVaneReport | Explain a figure, on Deals | on a report page | to build |
 | 16 | PageVaneBlock | A block in the builder, waiting to be kept | in the report builder | being built in PR #213's follow-up |
 | 17 | VnRequirements | Requirements and the migration | reference | |
@@ -115,9 +115,9 @@ Build one workflow at a time, end to end with its states.
 - **`/vane/done`:** finished jobs and kept cards by day, with what each read and cost.
 - **`/vane/muted`:** muted cards with their reason, and Unmute.
 - **Done when:** the three lists match their boards and the counts in the panel agree with them.
-- **Built.** `lib/vane/lists.ts` (tested), `/api/vane/plans`, `/api/vane/plans/[id]/steps/[stepId]`, `/api/vane/done`, `/api/vane/muted`, `/api/vane/items/[id]/unmute`, and `/vane/working` (no board; drawn like Done). Vane's own steps do not tick yet: no tool marks them.
+- **Built.** `lib/vane/lists.ts` (tested), `/api/vane/plans`, `/api/vane/plans/[id]/steps/[stepId]`, `/api/vane/done`, `/api/vane/muted`, `/api/vane/items/[id]/unmute`, and `/vane/working` (no board; drawn like Done). Vane moves its own steps with the `update_plan_step` tool (Now with its progress, then Done).
 
-### 4. Give Vane a job, with Ctrl J (PageVaneJob)
+### 4. Give Vane a job, with Ctrl J (PageVaneJob): replaced by the panel's chat
 
 - **The dialog:** it opens from anywhere with Ctrl J. It shows the box, examples from this module, and Give it to Vane (Ctrl ↵).
 - **The data:**
@@ -125,7 +125,7 @@ Build one workflow at a time, end to end with its states.
   - Keep the person's whole request. Today `giveVaneJob` writes it into the job's `label`, cut at 120 characters, and the tick reads the label as the instruction. Store the whole text and keep the label short.
 - **After it posts:** the job appears in Working on at once.
 - **Done when:** a long request reaches Claude whole, and the shortcut works from every module.
-- **Built.** `components/vane/give-job-dialog.tsx`; the whole request is the job's label.
+- **Replaced** on 14 October: the dialog and `POST /api/vane/jobs` are gone. Ctrl J opens the panel at its chat box from any page, and a request is a chat turn (`lib/vane/chat.ts`), answered while the person waits.
 
 ### 5. Live
 

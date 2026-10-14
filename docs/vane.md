@@ -31,8 +31,10 @@ The connection to Claude (`lib/vane/claude.ts`), Vane's tables, the two roles it
 | `describe_table` | A table's readable columns with their types, and the tables its columns point at. |
 | `run_sql` | One SELECT through the reader (`readWorkspace`). |
 | `get_record` | One record by id, in the columns the role may read, with each record it points at (one level of foreign keys), through the same bound reader. |
-| `propose_item` | A card on For you (`VaneItem`): kind, source module, headline, body, the button's action, the SQL and what it read. An open card with the same headline is not raised twice. |
+| `propose_item` | A card on For you (`VaneItem`): kind, source module, topic, headline, body, the button's action, the SQL and what it read. An open card with the same headline is not raised twice. The topic ("Short cash-up") is the same words for every card of its kind: a person who stops it (`VaneTopicStop`, "Stop it for me" on Muted, offered after three set-asides in a month) no longer sees it; everyone else still does. |
 | `propose_plan` | A plan (`VanePlan`) with its steps in order, each owned by Vane or a person. |
+| `update_plan_step` | Vane moves one of its own steps on: Now, with how far it is ("38 of 61 lines"), then Done; the plan is done with its last step. A person's step is theirs (`vane.plan.tick_step` proposes it). |
+| `report_problem` | What Vane could not work out, in a sentence, with the SELECT that finds the rows it stopped at. The job ends as failed on it (`VaneJob.error`, `problemSql`), and the state "I could not work this out" offers Show the rows, read again through the reader for the people who run Vane (`GET /api/vane/jobs/[id]/rows`). |
 
 `toolDefinitions()` is what Claude is shown: each tool's name, a sentence on what it does, and its input as JSON Schema from the same zod schema the call is checked against. `callTool(context, name, input)` runs one call: an input that does not fit, or a question the reader refused or Postgres turned down, comes back as an error result for Claude to correct; anything else is thrown for the job. `lib/vane/tools.test.ts` covers each tool and those errors.
 

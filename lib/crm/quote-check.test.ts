@@ -14,7 +14,7 @@ import { prisma } from "@/lib/prisma";
 import { changeLineToListedPrice, checkQuoteAgainstPriceList, QuoteCheckRefused } from "./quote-check";
 
 const SLUG = "crm-quote-check-test";
-const ids = { company: "", manager: "", rep: "", lead: "", doc: "" };
+const ids = { company: "", manager: "", rep: "", lead: "", doc: "", underlay: "" };
 
 const session = (userId: string, role: string) =>
   ({ user: { id: userId, companyId: ids.company, role, name: "Tendai" } }) as unknown as AuthenticatedSession;
@@ -57,6 +57,7 @@ beforeAll(async () => {
       { description: "Fitting", quantity: 27.92, unitPrice: 6 },
     ],
   });
+  ids.underlay = (await prisma.product.findFirstOrThrow({ where: { companyId: company.id, code: "UND-1" } })).id;
   ids.doc = quote.leadDocumentId;
 });
 
@@ -67,6 +68,20 @@ afterAll(async () => {
 });
 
 describe("a quote checked against the price list", () => {
+  it("checks a line by the product it was picked from, whatever its words say", async () => {
+    const lead = await prisma.crmLead.create({ data: { companyId: ids.company, leadNo: "LEAD-QC-2", title: "Picked", contactName: "Rudo", assignedToId: ids.manager } });
+    const quote = await createQuotationForLead({
+      companyId: ids.company,
+      userId: ids.manager,
+      leadId: lead.id,
+      lines: [{ description: "Underlay, grey (10% discount applied)", quantity: 2, unitPrice: 44.82, productId: ids.underlay }],
+    });
+    const line = await prisma.salesQuotationLine.findFirstOrThrow({ where: { quotation: { crmLeadDocuments: { some: { id: quote.leadDocumentId } } } } });
+    expect(line.productId).toBe(ids.underlay);
+    const check = await checkQuoteAgainstPriceList(ids.company, quote.leadDocumentId);
+    expect(check).toMatchObject({ checked: 1, unpriced: 0, findings: [{ position: 0, quoted: 44.82, listed: 49.8 }] });
+  });
+
   it("finds the line priced under the list, and counts the rest", async () => {
     const check = await checkQuoteAgainstPriceList(ids.company, ids.doc);
     expect(check).toMatchObject({

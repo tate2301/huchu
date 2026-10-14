@@ -98,6 +98,34 @@ export async function tickPlanStep(
   });
 }
 
+/**
+ * Vane moves one of its own steps on as its work goes: Now while it works
+ * on it, with how far it is ("38 of 61 lines"), and Done when finished. A
+ * person's steps are theirs to tick. When the last step is done the plan is.
+ */
+export async function moveVaneStep(
+  db: Pick<PrismaClient, "$transaction">,
+  { companyId }: { companyId: string },
+  { planId, stepId, status, progress }: { planId: string; stepId: string; status: "NOW" | "DONE"; progress?: string | null },
+  now: Date = new Date(),
+): Promise<"moved" | "not-found" | "person-owns-it"> {
+  return db.$transaction(async (tx) => {
+    const step = await tx.vanePlanStep.findFirst({
+      where: { id: stepId, planId, plan: { companyId, status: { not: "CANCELLED" } } },
+      select: { id: true, owner: true },
+    });
+    if (!step) return "not-found";
+    if (step.owner !== "VANE") return "person-owns-it";
+    await tx.vanePlanStep.update({
+      where: { id: step.id },
+      data: status === "DONE" ? { status: "DONE", doneAt: now, progressLabel: progress ?? null } : { status: "NOW", progressLabel: progress ?? null },
+    });
+    const left = await tx.vanePlanStep.count({ where: { planId, status: { not: "DONE" } } });
+    await tx.vanePlan.update({ where: { id: planId }, data: left === 0 ? { status: "DONE", doneAt: now } : { status: "OPEN", doneAt: null } });
+    return "moved";
+  });
+}
+
 /* ─────────────────────────────── Done ──────────────────────────────── */
 
 export type VaneDoneRow = {
@@ -251,6 +279,8 @@ export async function listVaneDone(
 export type VaneMutedRow = {
   id: string;
   headline: string;
+  /** What kind of card it was, as Vane named it: "Short cash-up". */
+  topic: string | null;
   source: string;
   reason: string | null;
   by: string | null;
@@ -263,11 +293,12 @@ export async function listVaneMuted(db: Pick<PrismaClient, "vaneItem">, who: Who
     where: { companyId: who.companyId, status: "MUTED", kind: { in: FOR_YOU }, ...audienceFilter(who.userId, who.role) },
     orderBy: { resolvedAt: "desc" },
     take: 200,
-    select: { id: true, headline: true, sourceModule: true, mutedReason: true, resolvedAt: true, resolvedBy: { select: { name: true } } },
+    select: { id: true, headline: true, topic: true, sourceModule: true, mutedReason: true, resolvedAt: true, resolvedBy: { select: { name: true } } },
   });
   return rows.map((row) => ({
     id: row.id,
     headline: row.headline,
+    topic: row.topic,
     source: moduleName(row.sourceModule),
     reason: row.mutedReason,
     by: row.resolvedBy?.name ?? null,

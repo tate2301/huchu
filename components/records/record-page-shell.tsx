@@ -17,13 +17,14 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { PageChrome } from "@/components/layout/page-chrome";
 import { IconButton } from "@/components/ui/icon-button";
-import { useIsMobile } from "@/hooks/use-mobile";
+import { useIsBelow, useIsMobile } from "@/hooks/use-mobile";
 import { EntityLink } from "@/components/records/entity-link";
 import { RecordToolbar } from "@/components/records/record-toolbar";
 import { useRecordTrail } from "@/components/records/record-trail";
 import { DotsThree, SidebarRight, type LucideIcon } from "@/lib/icons";
 import type { CanonicalUiStatus } from "@/lib/ui/status-map";
 import { cn } from "@/lib/utils";
+import { useShellIfAny } from "@/components/layout/shell-state";
 
 /** The query parameter that says which section of a record is open. */
 const SECTION_PARAM = "section";
@@ -189,7 +190,16 @@ export function RecordPageShell({
   useEffect(() => {
     setInfoOpen(window.localStorage.getItem(INFO_COLUMN_KEY) !== "closed");
   }, []);
+  // With Vane's panel open on a screen under 1600px there is no room for the
+  // record, its sections and the properties pane at once: the pane folds
+  // while Vane is open, and "Show properties" brings it back regardless.
+  const vaneOpen = useShellIfAny()?.vaneOpen ?? false;
+  const crowded = useIsBelow(1600) && vaneOpen;
+  const [unfolded, setUnfolded] = useState(false);
+  if (!crowded && unfolded) setUnfolded(false);
+  const infoShown = infoOpen && (!crowded || unfolded);
   const toggleInfo = () => {
+    if (crowded && infoOpen && !unfolded) return setUnfolded(true);
     setInfoOpen((open) => {
       window.localStorage.setItem(INFO_COLUMN_KEY, open ? "closed" : "open");
       return !open;
@@ -215,14 +225,14 @@ export function RecordPageShell({
   const railToggle = (
     <IconButton
       size="sm"
-      aria-label={infoOpen ? "Hide properties" : "Show properties"}
+      aria-label={infoShown ? "Hide properties" : "Show properties"}
       onClick={toggleInfo}
       // There is no pane to collapse below `lg` — the same sections are the
       // landing view there — and a control that visibly does nothing is worse
       // than one that is not offered.
       className="-mr-1 hidden lg:inline-flex"
     >
-      <SidebarRight weight={infoOpen ? "fill" : "regular"} />
+      <SidebarRight weight={infoShown ? "fill" : "regular"} />
     </IconButton>
   );
 
@@ -645,7 +655,7 @@ export function RecordPageShell({
             so far strips — and a sticky child only pins against the nearest
             scrolling ancestor. Without the overflow here that ancestor is the
             page, and the headings do nothing. */}
-        {infoOpen ? (
+        {infoShown ? (
           // 340 wide on 14 of padding, against the card hairline rather than
           // the subtle one — this seam separates two panes, where the rail's
           // only separates a rail from its content.
