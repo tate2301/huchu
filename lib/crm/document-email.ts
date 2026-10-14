@@ -26,12 +26,7 @@ import {
 } from "@/lib/crm/resources";
 import { sendEmail } from "@/lib/email/send";
 import { absoluteUrl } from "@/lib/site-url";
-
-const SOURCE_KEYS = {
-  QUOTATION: "accounting.sales.quotation",
-  INVOICE: "accounting.sales.invoice",
-  RECEIPT: "accounting.sales.receipt",
-} as const;
+import { CRM_DOCUMENT_SOURCE_KEYS } from "@/lib/crm/document-sources";
 
 const LABELS = {
   QUOTATION: "Quotation",
@@ -39,7 +34,7 @@ const LABELS = {
   RECEIPT: "Receipt",
 } as const;
 
-type DocumentKind = keyof typeof SOURCE_KEYS;
+type DocumentKind = keyof typeof CRM_DOCUMENT_SOURCE_KEYS;
 
 /** Everywhere a client's address might be recorded, best first. */
 export type RecipientSources = {
@@ -286,7 +281,7 @@ export async function emailDocumentToClient(params: DocumentRef & { subject?: st
 
   const rendered = await renderDocumentSync(params.companyId, {
     target: "RECORD",
-    sourceKey: SOURCE_KEYS[doc.type],
+    sourceKey: CRM_DOCUMENT_SOURCE_KEYS[doc.type],
     recordId,
     format: "pdf",
     mode: "SYNC",
