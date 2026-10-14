@@ -387,5 +387,8 @@
     "button: Notifications",
     "button: Hand it over",
     "placeholder: Give Vane a job"
+  ],
+  "PageVaneSchool": [
+    "button: Vane"
   ]
 }

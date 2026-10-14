@@ -4,13 +4,16 @@
  *
  *   pnpm exec tsx --env-file=.env scripts/vane-draft-seed.ts invoice [workspace-slug]   (default: floorcode)
  *   pnpm exec tsx --env-file=.env scripts/vane-draft-seed.ts orders  [workspace-slug]   (default: acme)
+ *   pnpm exec tsx --env-file=.env scripts/vane-draft-seed.ts fees    [workspace-slug]   (default: stmarys)
  *
  * invoice: the customer accepts one of the workspace's sent quotes for a won
  * deal through its approval link (`respondToApproval`), then Vane's `draft`
  * tool drafts its invoice and `propose_item` raises the card about it, as a
  * job would. orders: Vane drafts one reorder per usual supplier from the
  * products below their reorder point and raises the card with its sends to
- * approve. Nothing is issued or sent: that stays a person's. It refuses to
+ * approve. fees: the reminder for the families who have paid nothing this
+ * term, as a Vane action on a card. Nothing is issued or sent: that stays a
+ * person's. It refuses to
  * run in production.
  */
 import { prisma } from "@/lib/prisma";
@@ -135,6 +138,44 @@ async function orders(slug: string) {
   console.log(`Drafted ${names.join(", ")}: /retail/buying/orders/vane`);
 }
 
+/** The fee reminder for the families who have paid nothing this term, on a card, for a person to send. */
+async function fees(slug: string) {
+  const company = await companyOf(slug);
+  const term =
+    (await prisma.schoolTerm.findFirst({ where: { companyId: company.id, isActive: true }, select: { id: true, name: true } })) ??
+    (await prisma.schoolTerm.findFirst({ where: { companyId: company.id }, orderBy: { startDate: "desc" }, select: { id: true, name: true } }));
+  if (!term) throw new Error(`${company.name} has no term.`);
+  const unpaid = await prisma.schoolFeeInvoice.findMany({
+    where: { companyId: company.id, termId: term.id, status: "ISSUED", paidAmount: 0 },
+    select: { studentId: true, balanceAmount: true },
+  });
+  const studentIds = [...new Set(unpaid.map((invoice) => invoice.studentId))];
+  if (studentIds.length === 0) throw new Error(`Every family at ${company.name} has paid something on ${term.name}.`);
+  const total = unpaid.reduce((sum, invoice) => sum + Number(invoice.balanceAmount), 0);
+  await tool(company.id, "propose_item", {
+    kind: "SUGGESTION",
+    sourceModule: "schools",
+    headline: `${studentIds.length} families have paid nothing on ${term.name}'s fees.`,
+    body: `${money(total)} between them. I drafted a reminder for each; check the words and who it goes to, then send.`,
+    action: { type: "open", label: "Open the reminders", target: "/schools/fees/remind" },
+    sql: `SELECT "studentId", "balanceAmount" FROM "SchoolFeeInvoice" WHERE "termId" = '${term.id}' AND "status" = 'ISSUED' AND "paidAmount" = 0`,
+    readFrom: [{ table: "SchoolFeeInvoice", rows: unpaid.length, about: `${term.name}, nothing paid` }],
+    actions: [
+      {
+        kind: "schools.fees.remind",
+        params: {
+          termId: term.id,
+          term: term.name,
+          studentIds,
+          message: `Dear [family], ${company.name} has not yet received ${term.name} fees for [pupil]: [amount]. You can pay at the bursary, or ask us for a payment plan. Thank you.`,
+          leaveOut: [],
+        },
+      },
+    ],
+  });
+  console.log(`Drafted the ${term.name} reminder for ${studentIds.length} families: /schools/fees/remind`);
+}
+
 const command = process.argv[2];
 const slug = process.argv[3];
 
@@ -142,7 +183,9 @@ const slug = process.argv[3];
   ? invoice(slug ?? "floorcode")
   : command === "orders"
     ? orders(slug ?? "acme")
-    : Promise.reject(new Error("Say what to draft: invoice or orders.")))
+    : command === "fees"
+      ? fees(slug ?? "stmarys")
+      : Promise.reject(new Error("Say what to draft: invoice, orders or fees.")))
   .catch((error) => {
     console.error(error instanceof Error ? error.message : error);
     process.exitCode = 1;

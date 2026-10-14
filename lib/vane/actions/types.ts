@@ -11,7 +11,9 @@ export type VaneActionField =
   | { name: string; label: string; type: "date" }
   | { name: string; label: string; type: "text"; multiline?: boolean }
   | { name: string; label: string; type: "number" }
-  | { name: string; label: string; type: "select"; options: Array<{ value: string; label: string }> };
+  | { name: string; label: string; type: "select"; options: Array<{ value: string; label: string }> }
+  /** Records left out of a list Vane proposed (families unticked): picked on the module's own page, not in the panel. */
+  | { name: string; label: string; type: "pick" };
 
 /** Who approved the action: it runs as them, with their role. */
 export type VaneActionContext = {

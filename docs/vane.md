@@ -55,6 +55,7 @@ What Vane proposes on a card or in a chat answer is a `VaneAction`: a kind from 
 | `retail.order.draft` | `raiseOrder` (`lib/retail/buying/orders.ts`) as a draft, after the retail role check | `POST /api/v2/retail/buying/orders` |
 | `retail.order.send` | `sendOrder`, the way the supplier takes orders | `POST /api/v2/retail/buying/orders/[id]/send` |
 | `retail.order.chase` | `chaseOrder`: the reminder, and the promised day becomes the expected date | `POST /api/v2/retail/buying/orders/[id]/chase` |
+| `schools.fees.remind` | `sendFeeReminders` (`lib/schools/fee-reminders.ts`): each family ticked gets its own notice in the parents' portal, with its name, child and amount, through `sendSchoolNotice`. The words and who is left out (`leaveOut`, a `pick` field set on Remind families, not in the panel) are the person's to change | `POST /api/v2/schools/notices` |
 | `vane.plan.tick_step` | `tickPlanStep` (`lib/vane/lists.ts`) | Vane's own |
 
 Each runs as the approving person: drafts carry their name, not `madeByVane`. `lib/vane/actions/modules.test.ts` runs each module's actions against the test database. A new action is a `VaneActionKind` in its module's file, listed in `registry.ts`. Claude is shown each kind's description and inputs, and the pages it may link to with their filters (`lib/vane/pages.ts`), so its links open filtered to the records it means.
