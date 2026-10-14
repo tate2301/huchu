@@ -17,6 +17,10 @@ describe("Vane's suggestions", () => {
     expect(suggestions[0]).toMatchObject({ module: "crm", icon: "foryou" });
   });
 
+  it("asks what stands out on a report's page", () => {
+    expect(vaneSuggestions([], "reports", "/reports/crm-deals")[0]).toMatchObject({ text: "What stands out in this report?", icon: "reports", module: "reports" });
+  });
+
   it("is always three, from anywhere", () => {
     expect(vaneSuggestions([], null, "/settings/profile")).toHaveLength(3);
     expect(vaneSuggestions([], "crm", "/crm/deals")[0]?.text).toBe("Which quotes have waited more than a week?");

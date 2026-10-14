@@ -2,6 +2,7 @@ import type Anthropic from "@anthropic-ai/sdk";
 import { z } from "zod";
 
 import { prisma } from "@/lib/prisma";
+import { getReportDefinition, REPORT_DEFINITIONS } from "@/lib/reports/registry";
 
 import { proposeActions, type ActionProposal } from "./actions/engine";
 import { VANE_ACTIONS } from "./actions/registry";
@@ -30,6 +31,8 @@ export type ToolContext = {
    * here and hung on its answer when it finishes.
    */
   answerActions?: ActionProposal[];
+  /** In a chat: each question Vane ran this turn, its tables and how many rows answered, for "What I read" under the answer. */
+  read?: Array<{ tables: string[]; rows: number }>;
   /** What Vane could not work out, when it says so (`report_problem`): the job ends on it. */
   problem?: { problem: string; sql: string | null };
 };
@@ -123,8 +126,14 @@ const runSql = tool({
   input: z.object({
     sql: z.string().min(1).describe("One SELECT or WITH query."),
   }),
-  async run({ companyId }, { sql }) {
-    return readWorkspace(companyId, sql);
+  async run(context, { sql }) {
+    const answer = await readWorkspace(context.companyId, sql);
+    if (context.read) {
+      // The reader names tables as the SQL did, lowercased; the answer's "What I read" names them as the app does.
+      const tables = await tablesFor(context.companyId);
+      context.read.push({ tables: answer.readFrom.map((name) => tables.get(name)?.name ?? name), rows: answer.rows.length });
+    }
+    return answer;
   },
 });
 
@@ -272,6 +281,25 @@ const proposePlan = tool({
   },
 });
 
+const describeReport = tool({
+  name: "describe_report",
+  description:
+    "The workspace's reports, as the Reports pages list them: with no key, every report's key, title and area; with a key, that report's columns (key, label, kind) and how it groups by default. " +
+    "Use it to name a report's columns when you propose keeping a view of it (reports.template.save), and to link to /reports/<key>.",
+  input: z.object({ reportKey: z.string().max(64).optional() }),
+  async run(_context, { reportKey }) {
+    if (!reportKey) return { reports: REPORT_DEFINITIONS.map((report) => ({ key: report.key, title: report.title, area: report.area })) };
+    const report = getReportDefinition(reportKey);
+    if (!report) throw new ToolError(`There is no report ${reportKey}. Call describe_report with no key for the list.`);
+    return {
+      key: report.key,
+      title: report.title,
+      columns: report.columns.map((column) => ({ key: column.key, label: column.label, kind: column.kind })),
+      groupBy: report.defaults.groupBy ?? null,
+    };
+  },
+});
+
 const moveStep = tool({
   name: "update_plan_step",
   description:
@@ -350,7 +378,7 @@ const proposeActionsTool = tool({
   },
 });
 
-export const VANE_TOOLS = [describeTable, runSql, getRecord, proposeItem, proposePlan, proposeActionsTool, moveStep, reportProblem] as const;
+export const VANE_TOOLS = [describeTable, runSql, getRecord, proposeItem, proposePlan, proposeActionsTool, moveStep, reportProblem, describeReport] as const;
 
 /** The tools as Claude is shown them. */
 export function toolDefinitions(): Anthropic.Tool[] {

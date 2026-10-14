@@ -91,6 +91,9 @@ describe("chat with Vane", () => {
       message: { author: "vane", actions: [{ kind: "books.invoice.due_date", status: "proposed", title: "Set INV-0142 due on 30 October" }] },
     });
 
+    // What it read to answer: the question it ran, its table and how many rows answered.
+    expect(answer).toMatchObject({ message: { read: [{ tables: ["SalesInvoice"], rows: 0 }] } });
+
     const history = await chatHistory(prisma, { companyId: ids.company, userId: ids.user });
     expect(history.map((message) => [message.author, message.text.slice(0, 24)])).toEqual([
       ["person", "Which invoices have no d"],

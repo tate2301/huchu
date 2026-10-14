@@ -50,7 +50,7 @@ afterAll(async () => {
 describe("what Claude is shown", () => {
   it("names each tool, says what it does, and gives its input as JSON Schema", () => {
     const tools = toolDefinitions();
-    expect(tools.map((t) => t.name)).toEqual(["describe_table", "run_sql", "get_record", "propose_item", "propose_plan", "propose_actions", "update_plan_step", "report_problem"]);
+    expect(tools.map((t) => t.name)).toEqual(["describe_table", "run_sql", "get_record", "propose_item", "propose_plan", "propose_actions", "update_plan_step", "report_problem", "describe_report"]);
     // Claude is shown every action it can propose, and the pages it links to with their filters.
     expect(tools[5]!.description).toContain("books.invoice.due_date");
     expect(tools[5]!.description).toContain("/books/invoices");
