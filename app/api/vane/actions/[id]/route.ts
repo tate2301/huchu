@@ -25,7 +25,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     if (!body.success) return errorResponse("Say whether to approve it", 400);
     const outcome = await decideAction(
       prisma,
-      { companyId: session.user.companyId, userId: session.user.id, role: session.user.role, session },
+      { companyId: session.user.companyId, userId: session.user.id, role: session.user.role, session, requestUrl: request.url },
       (await params).id,
       body.data,
     );

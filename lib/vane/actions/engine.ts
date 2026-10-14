@@ -173,7 +173,7 @@ export async function decideAction(
   const changes = Object.fromEntries(Object.entries(decision.changes ?? {}).filter(([name]) => editable.has(name)));
   const parsed = action.params.safeParse({ ...asParams(row.params), ...changes });
   if (!parsed.success) return { ok: false, status: 400, error: parsed.error.issues[0]?.message ?? "Those inputs are not right." };
-  const refusal = action.refuse(context);
+  const refusal = action.refuse(context, parsed.data);
   if (refusal) return { ok: false, status: 403, error: refusal };
 
   const { count } = await db.vaneAction.updateMany({

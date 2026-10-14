@@ -46,6 +46,7 @@ function claude(...turns: Anthropic.Message[]) {
 const who = () => ({ companyId: ids.company, userId: ids.user, role: "MANAGER", name: "James" });
 
 beforeAll(async () => {
+  vi.stubEnv("VANE_MODEL", "claude-sonnet-5-5");
   await useTestReaderLogins();
   const company = await prisma.company.create({ data: { name: `Vane chat ${suffix}`, slug: `vane-chat-${suffix}` } });
   const user = await prisma.user.create({

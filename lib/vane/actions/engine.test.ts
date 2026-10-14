@@ -49,6 +49,7 @@ const context = (role = "MANAGER"): VaneActionContext => ({
   userId: ids.user,
   role,
   session: { user: { id: ids.user, companyId: ids.company, role } } as unknown as AuthenticatedSession,
+  requestUrl: "http://vane.test/api/vane/actions/x",
 });
 
 beforeAll(async () => {

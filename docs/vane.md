@@ -36,8 +36,6 @@ The connection to Claude (`lib/vane/claude.ts`), Vane's tables, the two roles it
 
 `toolDefinitions()` is what Claude is shown: each tool's name, a sentence on what it does, and its input as JSON Schema from the same zod schema the call is checked against. `callTool(context, name, input)` runs one call: an input that does not fit, or a question the reader refused or Postgres turned down, comes back as an error result for Claude to correct; anything else is thrown for the job. `lib/vane/tools.test.ts` covers each tool and those errors.
 
-Drafting invoices, quotations and purchase orders (`madeByVane`) waits for the core modules: it goes through their own create functions.
-
 ### Its actions (`lib/vane/actions/`)
 
 What Vane proposes on a card or in a chat answer is a `VaneAction`: a kind from the registry, its inputs, and a line saying what it does. Nothing runs until a person approves it (`POST /api/vane/actions/[id]`); then the engine (`engine.ts`) checks the inputs again, takes only the changes the kind lets a person make (a due date, a note), checks the approver's role and the workspace's features for the route the app would use (`gate.ts`: an action calls module code directly, so it would otherwise skip both), and runs it as them. Done keeps what happened; a failure keeps why and can be approved again; denied stays denied. When a card's actions are all done, the card is taken further by that person.
@@ -47,11 +45,19 @@ What Vane proposes on a card or in a chat answer is a `VaneAction`: a kind from 
 | `books.invoice.due_date` | `setInvoiceDueDate` (`lib/books/due-dates.ts`): a draft or issued invoice, not before its own date | `PATCH /api/accounting/sales/invoices` |
 | `books.invoice.reminders` | `sendInvoiceReminders` (`lib/books/reminders.ts`) | `POST /api/books/invoices/reminders` |
 | `books.bank.accept` | `acceptProposals` (`lib/books/bank.ts`) | `POST /api/books/bank/accept` |
+| `books.invoice.from_quote` | `draftInvoiceFromQuote` (`lib/books/quotations.ts`) over `createSalesInvoice` (`lib/books/create-invoice.ts`, now also the route's): an accepted quotation, once, as a draft | `POST /api/accounting/sales/invoices` |
 | `crm.task.create` | `createCrmTask` (`lib/crm/create-task.ts`, now also the route's) | `POST /api/v2/crm/tasks` |
+| `crm.deal.stage` | `moveDealStage` (`lib/crm/deal-stage.ts`, now also the route's): only a deal the person may edit, stopped by the stage's gates with what is missing | `POST /api/v2/crm/deals/[id]/stage` |
+| `crm.lead.stage` | `applyRecordBulk` with `LEAD_BULK` (`lib/crm/registers/server/`), as the leads list's bulk move | `POST /api/v2/crm/leads/bulk` |
+| `crm.owner.assign` | `applyRecordBulk` with `DEAL_BULK` or `LEAD_BULK`: records the person may not edit are left, with why | `POST /api/v2/crm/{deals,leads}/bulk` |
+| `crm.note.log` | `logCrmActivity` (`lib/crm/log-activity.ts`, now also the route's) | `POST /api/v2/crm/activities` |
 | `retail.shift.look_into` | `signOffShift` (`lib/retail/floor/sign-off.ts`), which checks cash control itself | `/api/v2/retail/shifts` |
+| `retail.order.draft` | `raiseOrder` (`lib/retail/buying/orders.ts`) as a draft, after the retail role check | `POST /api/v2/retail/buying/orders` |
+| `retail.order.send` | `sendOrder`, the way the supplier takes orders | `POST /api/v2/retail/buying/orders/[id]/send` |
+| `retail.order.chase` | `chaseOrder`: the reminder, and the promised day becomes the expected date | `POST /api/v2/retail/buying/orders/[id]/chase` |
 | `vane.plan.tick_step` | `tickPlanStep` (`lib/vane/lists.ts`) | Vane's own |
 
-A new action is a `VaneActionKind` in its module's file, listed in `registry.ts`. Claude is shown each kind's description and inputs, and the pages it may link to with their filters (`lib/vane/pages.ts`), so its links open filtered to the records it means.
+Each runs as the approving person: drafts carry their name, not `madeByVane`. `lib/vane/actions/modules.test.ts` runs each module's actions against the test database. A new action is a `VaneActionKind` in its module's file, listed in `registry.ts`. Claude is shown each kind's description and inputs, and the pages it may link to with their filters (`lib/vane/pages.ts`), so its links open filtered to the records it means.
 
 ### Its chat (`lib/vane/chat.ts`)
 

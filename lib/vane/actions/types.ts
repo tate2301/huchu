@@ -20,6 +20,8 @@ export type VaneActionContext = {
   role: string;
   /** The approving person's session, for module code that asks for one. */
   session: AuthenticatedSession;
+  /** The address the approval came to, for links module code builds: an order's PDF. */
+  requestUrl: string;
 };
 
 /**
@@ -45,7 +47,7 @@ export type VaneActionKind<Params extends Record<string, unknown> = Record<strin
   /** The page it acts on, with the filters that show just those records. */
   target: (params: Params) => string;
   /** Why this person cannot, in a sentence, or null when they can. */
-  refuse: (context: VaneActionContext) => string | null;
+  refuse: (context: VaneActionContext, params: Params) => string | null;
   /** Does it, as the approving person, and says what happened in a line. Throws a VaneActionError when it cannot. */
   run: (context: VaneActionContext, params: Params) => Promise<string>;
 };

@@ -1,7 +1,9 @@
 import { z } from "zod";
 
 import { acceptProposals } from "@/lib/books/bank";
+import { InvoiceRefused } from "@/lib/books/create-invoice";
 import { DueDateRefused, setInvoiceDueDate } from "@/lib/books/due-dates";
+import { draftInvoiceFromQuote, QuotationRefused } from "@/lib/books/quotations";
 import { sendInvoiceReminders } from "@/lib/books/reminders";
 import { prisma } from "@/lib/prisma";
 
@@ -83,4 +85,39 @@ const bankMatches = {
   },
 } satisfies VaneActionKind<{ lineIds: string[]; accountId?: string }>;
 
-export const BOOKS_ACTIONS = [dueDate, reminders, bankMatches] as const;
+const fromQuote = {
+  kind: "books.invoice.from_quote",
+  module: "books",
+  description:
+    "Draft the invoice for an accepted quotation that has not been invoiced, line for line. It stays a draft: a person issues it from Books. Propose the customer's usual terms as the due date.",
+  params: z.object({
+    quotationId: z.string().min(1),
+    quotationNumber: z.string().min(1).describe('As the quotation shows it: "QT-0031".'),
+    customerId: z.string().min(1).optional(),
+    customer: z.string().min(1).describe("The customer's name."),
+    invoiceDate: day,
+    dueDate: z.preprocess((value) => (value === "" || value === null ? undefined : value), day.optional()),
+  }),
+  fields: [
+    { name: "invoiceDate", label: "Dated", type: "date" },
+    { name: "dueDate", label: "Due on", type: "date" },
+  ],
+  verb: () => "Draft the invoice",
+  title: (p) => `Draft the invoice for ${p.quotationNumber}, ${p.customer}${p.dueDate ? `, due ${longDay(p.dueDate)}` : ""}`,
+  target: (p) => `/books/invoices?view=drafts${p.customerId ? `&customer=${encodeURIComponent(p.customerId)}` : `&q=${encodeURIComponent(p.customer)}`}`,
+  refuse: (context) => refuseUnlessRoute(context, "/api/accounting/sales/invoices"),
+  async run(context, p) {
+    try {
+      const invoice = await draftInvoiceFromQuote(
+        { companyId: context.companyId, userId: context.userId },
+        { quotationId: p.quotationId, invoiceDate: p.invoiceDate, dueDate: p.dueDate },
+      );
+      return `Drafted ${invoice.invoiceNumber} for ${invoice.customer.name}, ${invoice.currency} ${invoice.total.toFixed(2)}. Issue it from Books when it is right.`;
+    } catch (error) {
+      if (error instanceof QuotationRefused || error instanceof InvoiceRefused) throw new VaneActionError(error.message);
+      throw error;
+    }
+  },
+} satisfies VaneActionKind<{ quotationId: string; quotationNumber: string; customerId?: string; customer: string; invoiceDate: string; dueDate?: string }>;
+
+export const BOOKS_ACTIONS = [dueDate, reminders, bankMatches, fromQuote] as const;
