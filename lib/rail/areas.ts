@@ -3,6 +3,7 @@ import {
   AddressBook,
   Bed,
   CashRegister,
+  ChartBar,
   ChartLineUp,
   ClipboardText,
   Coins,
@@ -129,6 +130,9 @@ const AREA_ICONS: Record<string, LucideIcon> = {
   "payroll-compensation": Coins,
   // Build: every form, document, email and report, one builder.
   build: Grid3x3,
+  // Reports, and the CRM where it is one module: each would otherwise take its first row's house.
+  reporting: ChartBar,
+  crm: Funnel,
 };
 
 /**

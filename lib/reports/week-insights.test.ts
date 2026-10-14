@@ -35,7 +35,7 @@ describe("won most often, by source", () => {
   const rows = input("crm-leads", [...leads("Referral", 6, 2), ...leads("Website", 3, 6, 8), ...leads("Walk-in", 1, 1)]);
   const insight = wonMostOftenBy(rows, { column: "source", noun: "lead", nouns: "leads", outcome: "stage", columnWords: "source" })!;
 
-  it("names the group won most often against the one won least, among those with enough decided", () => {
+  it("names the group won most often against the next best, among those with enough decided", () => {
     expect(insight.headline).toBe("Leads from Referral are won most often.");
     // Walk-in has only two decided, too few to rate.
     expect(insight.body).toBe("75% of decided leads from Referral were won, against 33% from Website. Website brings in the most: 17 of 27 leads.");
@@ -43,6 +43,15 @@ describe("won most often, by source", () => {
       ["Referral", "75%", true],
       ["Website", "33%", false],
     ]);
+    // With a third rated group between them, the next best is named, then the least.
+    const three = wonMostOftenBy(input("crm-leads", [...leads("LinkedIn", 3, 0), ...leads("Trade show", 3, 1), ...leads("Website", 2, 1)]), {
+      column: "source",
+      noun: "lead",
+      nouns: "leads",
+      outcome: "stage",
+      columnWords: "source",
+    })!;
+    expect(three.body).toMatch(/^100% of decided leads from LinkedIn were won, against 75% from Trade show and 67% from Website\./);
   });
 
   it("opens the report as it read it, breaks it down by the column, and pins that breakdown", () => {

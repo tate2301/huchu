@@ -65,10 +65,12 @@
    styles take away; the boards were drawn with it. */
 .ck.ck.ck dl.attrs { margin-block: 1em; }
 
-/* Figures in a table line up: every cell takes tabular figures, not only `.num`. */
-.ck.ck .table td {
+/* Figures in a table line up: every cell takes tabular figures, not only `.num`. A row's name (the
+   filling cell) is words: tabular figures there set its hyphens wide ("follow - up"). */
+.ck.ck .table td:not(.fill) {
   font-variant-numeric: tabular-nums;
 }
+.ck.ck .table td .cell-lead, .ck.ck .table td .bt-name { font-variant-numeric: normal; }
 
 /* All reports: a row of ours carries a folder menu over its right edge, outside the row's link. */
 .ck.ck.ck .rr-wrap { position: relative; }
@@ -128,6 +130,9 @@
 .ck.ck.ck .rp-fold { display: inline-flex; padding: 0; margin-right: var(--space-8); border: 0; background: none; color: var(--color-muted); cursor: pointer; vertical-align: -3px; }
 .ck.ck.ck .rp-grp-sum { float: right; display: inline-flex; gap: var(--space-16); font-variant-numeric: tabular-nums; }
 .ck.ck.ck .rp-foot td { height: 36px; }
+/* A column's total: a full-height target, its sum at the footer's weight (600, as the kit's foot-row). */
+.ck.ck.ck .rp-foot .rp-total { height: 32px; font-size: var(--text-14); }
+.ck.ck.ck .rp-total b { font-weight: 600; color: var(--color-ink); font-variant-numeric: tabular-nums; }
 .ck.ck.ck .rp-total.is-empty { opacity: 0; }
 .ck.ck.ck .rp-foot:hover .rp-total.is-empty, .ck.ck.ck .rp-total.is-empty:focus-visible, .ck.ck.ck .rp-total.is-empty[aria-expanded="true"] { opacity: 1; }
 .ck.ck.ck .rp-act { width: 40px; }
