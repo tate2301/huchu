@@ -61,7 +61,7 @@ const DOWNTIME_KEY = ["management", "master-data", "downtime-codes"] as const;
  */
 const GLOBAL_SENTINEL = "__global__";
 
-const FULL_LOG_HREF = "/preferences/organization/activity";
+const FULL_LOG_HREF = "/activity?view=workspace";
 
 /**
  * Downtime codes — `DowntimeCodes.dc.html`.

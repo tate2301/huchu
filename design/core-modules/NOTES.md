@@ -151,6 +151,10 @@ What the build could not match, decided differently from the boards, or built wi
 - Templates › Made here opens the workspace's own forms, documents and emails in the builder rather than copying them: not every kind has an API that copies.
 - The areas question says rooms (Add a room) and the quote's price column says Price, as drawn.
 
+### Notifications
+
+- 14 Oct: the owner asked for a redesign of Notifications (compact, quiet, rich about what each concerns, detail one level deeper); the quiet row, the bell's Needs you and Everything, /activity with its drawer (which takes in Settings → Activity as its Workspace view) and the per-kind settings replace NotifyBell and NotifyActivity as the target (ledger, 14 Oct).
+
 ### Sample data the checks leave out (`tools/check/known.json`)
 
 - ReportsAll, ReportsInsights, ReportMonday: their panel's Build group (Forms, Documents): the owner moved them to Build, a module of its own (14 Oct, under Reports above).

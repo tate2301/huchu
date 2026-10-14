@@ -129,7 +129,7 @@ export const ORGANIZATION_PREFERENCES_ITEMS: PreferencesNavItem[] = [
     id: "activity",
     group: "organization",
     label: "Activity",
-    href: "/preferences/organization/activity",
+    href: "/activity?view=workspace",
     description: "Who changed what across the workspace.",
   },
 ];

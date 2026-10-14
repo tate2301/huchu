@@ -2,11 +2,10 @@
 
 import * as React from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Switch } from "@corelithzw/react";
 
+import { Button, Empty, Kit, Switch } from "@/components/core";
 import { FormPage } from "@/components/management/ui";
 import { PreferencesShell } from "@/components/preferences/preferences-shell";
-import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { useToast } from "@/components/ui/use-toast";
 import {
   fetchNotificationPreferences,
@@ -14,54 +13,35 @@ import {
   type UserNotificationPreferences,
 } from "@/lib/api";
 import { getApiErrorMessage } from "@/lib/api-client";
-import { Warning } from "@/lib/icons";
 
-import styles from "./account.module.css";
+import styles from "@/components/notifications/inbox.module.css";
 
-type PreferenceKey = keyof Pick<
-  UserNotificationPreferences,
-  "inAppEnabled" | "emailEnabled" | "webPushEnabled" | "hrEnabled" | "opsEnabled" | "crmEnabled"
->;
-
-type PreferenceDraft = Record<PreferenceKey, boolean>;
+type Key = "inAppEnabled" | "emailEnabled" | "webPushEnabled" | "hrEnabled" | "opsEnabled" | "crmEnabled";
+type Draft = Record<Key, boolean>;
 
 /**
- * Every switch the data has, grouped the way the board groups them.
+ * Where notifications reach you, then one row per kind of event. A switch
+ * saves as it is flicked; there is nothing to submit.
  *
- * `lib/notifications.ts` delivers on three channels (`inAppEnabled`,
- * `emailEnabled`, `webPushEnabled`) and sorts everything into three
- * categories — its `NotificationCategory` union is `"HR" | "OPS" | "CRM"`. A
- * topic switch decides whether somebody hears at all, a channel switch where.
- * There is no per-event flag anywhere in the model, so the board's
- * one-row-per-event drawing is reproduced as the rows that actually exist.
- *
- * The labels are the whole row — rule 1 deleted the sentence that used to sit
- * under each one, all five of which restated the label.
+ * The data has the channels once for everything (`inAppEnabled`,
+ * `emailEnabled`, `webPushEnabled`) and one switch per kind
+ * (`hrEnabled`, `opsEnabled`, `crmEnabled`), not a channel per kind. So the
+ * channels are one group and each kind is one switch; an in-app and an email
+ * switch on every kind needs a column per kind and channel (see NOTES.md).
  */
-const groups: Array<{ id: string; label: string; rows: Array<{ key: PreferenceKey; label: string }> }> = [
-  {
-    id: "channels",
-    label: "Channels",
-    rows: [
-      { key: "inAppEnabled", label: "In the app" },
-      { key: "emailEnabled", label: "Email" },
-      { key: "webPushEnabled", label: "Web push" },
-    ],
-  },
-  {
-    id: "topics",
-    label: "Topics",
-    rows: [
-      { key: "hrEnabled", label: "HR and payroll" },
-      { key: "opsEnabled", label: "Operations" },
-      { key: "crmEnabled", label: "Sales and CRM" },
-    ],
-  },
+const CHANNELS: Array<{ key: Key; label: string; note: string }> = [
+  { key: "inAppEnabled", label: "In the app", note: "The bell and Activity." },
+  { key: "emailEnabled", label: "Email", note: "A copy of each one, sent as it happens." },
+  { key: "webPushEnabled", label: "Web push", note: "On this browser, when Corelith is closed." },
 ];
 
-const keys = groups.flatMap((group) => group.rows.map((row) => row.key));
+const KINDS: Array<{ key: Key; label: string; note: string }> = [
+  { key: "hrEnabled", label: "People and payroll", note: "Pay runs, disbursements, leave, incidents and approvals." },
+  { key: "opsEnabled", label: "Operations and the shop", note: "Permits, work orders, counts, transfers and tills." },
+  { key: "crmEnabled", label: "Sales and CRM", note: "Mentions, comments, leads, tasks, quotes and requisitions." },
+];
 
-function createDraft(preferences: UserNotificationPreferences | undefined): PreferenceDraft {
+function draftOf(preferences: UserNotificationPreferences | undefined): Draft {
   return {
     inAppEnabled: preferences?.inAppEnabled ?? true,
     emailEnabled: preferences?.emailEnabled ?? true,
@@ -72,159 +52,92 @@ function createDraft(preferences: UserNotificationPreferences | undefined): Pref
   };
 }
 
-/**
- * Notifications — `Notifications.dc.html`.
- *
- * The board draws Save/Cancel under the switches, so the switches edit a draft
- * and one submit writes the diff. The mutation, its endpoint and the
- * `["preferences", "notifications"]` key are untouched; only *when* it fires
- * moved, from one request per flick to one request per save.
- *
- * The shell is rendered here rather than by the route, for the reason
- * `app/preferences/profile/page.tsx` gives: `FormPage` has to be a direct
- * child of the surface's grid row, and a route that wraps it adds a second
- * title line and a second inset around a page that already draws both.
- */
 export function NotificationPreferences() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  // One stem for the whole form, so each row can name its own switch without
-  // calling a hook inside the map. Declared with the other hooks, above the
-  // loading and failure returns, so the hook order never changes.
   const uid = React.useId();
-  const preferencesQuery = useQuery({
-    queryKey: ["preferences", "notifications"],
-    queryFn: fetchNotificationPreferences,
+  const preferences = useQuery({ queryKey: ["preferences", "notifications"], queryFn: fetchNotificationPreferences });
+
+  const save = useMutation({
+    mutationFn: (change: Partial<Draft>) => updateNotificationPreferences(change),
+    onMutate: async (change) => {
+      await queryClient.cancelQueries({ queryKey: ["preferences", "notifications"] });
+      const before = queryClient.getQueryData<UserNotificationPreferences>(["preferences", "notifications"]);
+      if (before) queryClient.setQueryData(["preferences", "notifications"], { ...before, ...change });
+      return { before };
+    },
+    onError: (error, _change, context) => {
+      if (context?.before) queryClient.setQueryData(["preferences", "notifications"], context.before);
+      toast({ title: "That setting was not saved", description: getApiErrorMessage(error), variant: "destructive" });
+    },
+    onSuccess: (next) => queryClient.setQueryData(["preferences", "notifications"], next),
   });
 
-  const [draft, setDraft] = React.useState<PreferenceDraft>(() => createDraft(undefined));
+  const draft = draftOf(preferences.data);
 
-  React.useEffect(() => {
-    if (preferencesQuery.data) {
-      setDraft(createDraft(preferencesQuery.data));
-    }
-  }, [preferencesQuery.data]);
+  const rows = (items: typeof CHANNELS, disabled = false) =>
+    items.map((row) => {
+      const id = `${uid}-${row.key}`;
+      return (
+        <div className={styles.prefRow} key={row.key}>
+          <label htmlFor={id} className={styles.prefText}>
+            <span className={styles.prefLabel}>{row.label}</span>
+            <span className={styles.prefNote}>{row.note}</span>
+          </label>
+          <Switch id={id} checked={draft[row.key]} disabled={disabled} onCheckedChange={(checked) => save.mutate({ [row.key]: checked })} />
+        </div>
+      );
+    });
 
-  const updateMutation = useMutation({
-    mutationFn: updateNotificationPreferences,
-    onSuccess: (next) => {
-      queryClient.setQueryData(["preferences", "notifications"], next);
-      toast({
-        title: "Notification preferences updated",
-        description: "Your notification settings were saved.",
-        variant: "success",
-      });
-    },
-    onError: (error) => {
-      toast({
-        title: "Unable to update notifications",
-        description: getApiErrorMessage(error),
-        variant: "destructive",
-      });
-    },
-  });
-
-  if (preferencesQuery.isLoading) {
-    return (
-      <PreferencesShell>
-        <FormPage title="Notifications" className={styles.page}>
-          <div
-            className={styles.skeleton}
-            role="status"
-            aria-label="Loading your notification settings"
-          >
-            {[120, 240, 200, 260, 180, 220].map((width, index) => (
-              <span
-                key={index}
-                className={styles.skeletonBar}
-                style={{ width: `${width}px` }}
-              />
-            ))}
+  let body: React.ReactNode;
+  if (preferences.isLoading) {
+    body = (
+      <div aria-busy="true" aria-label="Loading your notification settings">
+        {[0, 1, 2, 3, 4, 5].map((index) => (
+          <div className={styles.skeletonRow} key={index} style={{ gridTemplateColumns: "minmax(0,1fr) 36px" }}>
+            <span style={{ width: `${[40, 30, 36, 44, 38, 42][index]}%`, height: 10, borderRadius: 4 }} />
+            <span style={{ height: 20, borderRadius: 999 }} />
           </div>
-        </FormPage>
-      </PreferencesShell>
+        ))}
+      </div>
+    );
+  } else if (preferences.isError || !preferences.data) {
+    body = (
+      <Empty
+        icon="warn"
+        title="Your notification settings did not load"
+        action={
+          <Button icon="history" onClick={() => void preferences.refetch()}>
+            Try again
+          </Button>
+        }
+      >
+        {getApiErrorMessage(preferences.error, "Check the connection and try again.")}
+      </Empty>
+    );
+  } else {
+    body = (
+      <>
+        <section aria-labelledby={`${uid}-where`}>
+          <h2 id={`${uid}-where`} className={styles.prefHead}>
+            Where they reach you
+          </h2>
+          {rows(CHANNELS)}
+        </section>
+        <section aria-labelledby={`${uid}-what`}>
+          <h2 id={`${uid}-what`} className={styles.prefHead}>
+            What you hear about
+          </h2>
+          {rows(KINDS)}
+        </section>
+      </>
     );
   }
-
-  if (preferencesQuery.error || !preferencesQuery.data) {
-    return (
-      <PreferencesShell>
-        <FormPage title="Notifications" className={styles.page}>
-          <p className={styles.failure}>
-            <Warning />
-            {getApiErrorMessage(preferencesQuery.error)}
-          </p>
-        </FormPage>
-      </PreferencesShell>
-    );
-  }
-
-  const saved = createDraft(preferencesQuery.data);
-  const allOff = keys.every((key) => !draft[key]);
 
   return (
     <PreferencesShell>
-      <FormPage
-        title="Notifications"
-        className={styles.page}
-        busy={updateMutation.isPending}
-        onCancel={() => setDraft(saved)}
-        onSubmit={(event) => {
-          event.preventDefault();
-          updateMutation.mutate(draft);
-        }}
-        overflow={
-          // Rule 3: the rare verb lives in the overflow. Rule 9: only the one
-          // that can do something is drawn.
-          <DropdownMenuItem
-            onSelect={() =>
-              setDraft((current) => {
-                const next = { ...current };
-                for (const key of keys) next[key] = allOff;
-                return next;
-              })
-            }
-          >
-            {allOff ? "Turn everything on" : "Turn everything off"}
-          </DropdownMenuItem>
-        }
-      >
-        {groups.map((group) => (
-          <React.Fragment key={group.id}>
-            <h3 className={styles.heading}>{group.label}</h3>
-            {group.rows.map((row) => {
-              const id = `${uid}-${row.key}`;
-              return (
-                <div className={styles.row} key={row.key}>
-                  {/*
-                    A real `<label>`, not a span with `aria-label` on the
-                    switch. The board draws the name as static text because a
-                    board is a drawing; here the name is the control's only
-                    visible label, so it has to be tied to it — that is what
-                    makes the whole row name clickable and what lets a screen
-                    reader read the switch by the name beside it. `aria-label`
-                    would silently override this text, so it is gone rather
-                    than duplicated. `cursor-pointer` is a Tailwind utility,
-                    which outranks the module's `@layer components`.
-                  */}
-                  <label htmlFor={id} className={`${styles.rowName} cursor-pointer`}>
-                    {row.label}
-                  </label>
-                  <Switch
-                    id={id}
-                    checked={draft[row.key]}
-                    onChange={(event) =>
-                      setDraft((current) => ({
-                        ...current,
-                        [row.key]: event.target.checked,
-                      }))
-                    }
-                  />
-                </div>
-              );
-            })}
-          </React.Fragment>
-        ))}
+      <FormPage title="Notifications" width={620}>
+        <Kit>{body}</Kit>
       </FormPage>
     </PreferencesShell>
   );
