@@ -3,12 +3,14 @@
  * cards, the plan, the jobs and the morning's work the Vane boards draw for
  * Floorcode. For looking at `/vane` and the panel without running Claude.
  *
- *   npx tsx scripts/seed-vane-demo.ts --slug floorcode [--email <who Vane talks with>]
+ *   npx tsx --env-file=.env scripts/seed-vane-demo.ts --slug floorcode [--email <who Vane talks with>]
  *
  * Idempotent: it removes what it wrote last time (jobs keyed `demo:`, and the
  * cards and plan that hang off them) before writing again. Never point it at
  * production.
  */
+import { createQuotationForLead } from "@/lib/crm/accounting-bridge";
+
 import { disconnectPrisma, prisma } from "./platform/prisma";
 
 function readArg(name: string): string | undefined {
@@ -46,11 +48,18 @@ async function main() {
   await prisma.customer.deleteMany({ where: { companyId, name: "Chisipite Dental (demo)" } });
 
   // The demo deal Vane's CRM cards are about, and its pipeline.
+  const demoDocs = await prisma.crmLeadDocument.findMany({ where: { companyId, deal: { title: DEMO_DEAL } }, select: { id: true, quotationId: true } });
   await prisma.crmActivity.deleteMany({ where: { companyId, deal: { title: DEMO_DEAL } } });
+  await prisma.crmLeadDocument.deleteMany({ where: { id: { in: demoDocs.map((doc) => doc.id) } } });
+  await prisma.salesQuotation.deleteMany({ where: { id: { in: demoDocs.flatMap((doc) => (doc.quotationId ? [doc.quotationId] : [])) } } });
+  await prisma.product.deleteMany({ where: { companyId, code: { startsWith: "DEMO-" } } });
   await prisma.crmDeal.deleteMany({ where: { companyId, title: DEMO_DEAL } });
   await prisma.crmClient.deleteMany({ where: { companyId, name: DEMO_CLIENT } });
   await prisma.crmPipelineStage.deleteMany({ where: { companyId, pipeline: { name: DEMO_PIPELINE } } });
   await prisma.crmPipeline.deleteMany({ where: { companyId, name: DEMO_PIPELINE } });
+
+  const email = readArg("email");
+  const talkerId = (email ? await prisma.user.findFirst({ where: { companyId, email }, select: { id: true } }) : await prisma.user.findFirst({ where: { companyId }, orderBy: { createdAt: "asc" }, select: { id: true } }))?.id ?? null;
 
   await prisma.vaneSettings.upsert({ where: { companyId }, create: { companyId }, update: { paused: false } });
 
@@ -127,6 +136,27 @@ async function main() {
   const deal = await prisma.crmDeal.create({
     data: { companyId, dealNo: `DL-DEMO-${now.getTime()}`, title: DEMO_DEAL, pipelineId: pipeline.id, stageId: proposal.id, clientId: client.id, value: 8930 },
   });
+  // Its quote, one line under the price list, for the check on the quote's page.
+  await prisma.product.createMany({
+    data: [
+      { companyId, code: "DEMO-LAM", name: "Laminate planks, oak", standardPrice: 24.5 },
+      { companyId, code: "DEMO-UND", name: "Underlay", standardPrice: 49.8, unit: "OTHER", unitLabel: "roll" },
+      { companyId, code: "DEMO-SKT", name: "Skirting, oak", standardPrice: 4.2, unit: "METRE" },
+    ],
+  });
+  if (talkerId) {
+    await createQuotationForLead({
+      companyId,
+      userId: talkerId,
+      dealId: deal.id,
+      lines: [
+        { description: "Laminate planks, oak", quantity: 13, unitPrice: 24.5 },
+        { description: "Underlay", quantity: 2, unitPrice: 46.5 },
+        { description: "Skirting, oak", quantity: 24, unitPrice: 4.2 },
+        { description: "Fitting", quantity: 27.92, unitPrice: 6 },
+      ],
+    });
+  }
   await card({
     kind: "SUGGESTION",
     sourceModule: "crm",
@@ -268,8 +298,7 @@ async function main() {
   });
 
   // A conversation (with --email's person, else James): what to reorder, answered with actions in three products and three states.
-  const email = readArg("email");
-  const talker = email ? await prisma.user.findFirst({ where: { companyId, email }, select: { id: true } }) : james;
+  const talker = talkerId ? { id: talkerId } : null;
   if (talker) {
     const asked = await prisma.vaneMessage.create({
       data: { companyId, userId: talker.id, author: "PERSON", text: `${DEMO_CHAT}, and is anything else stuck?`, createdAt: minutesAgo(now, 12) },
