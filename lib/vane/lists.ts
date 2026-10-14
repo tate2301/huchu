@@ -1,7 +1,7 @@
 import type { PrismaClient } from "@prisma/client";
 
 import { moduleName } from "./panel";
-import { audienceFilter, FOR_YOU, startOfWorkspaceDay } from "./status";
+import { audienceFilter, FOR_YOU, jobLine, startOfWorkspaceDay } from "./status";
 
 /**
  * Vane's three lists (`/vane/plans`, `/vane/done`, `/vane/muted`): its plans
@@ -222,7 +222,7 @@ export async function listVaneDone(
       return {
         id: job.id,
         at: at.toISOString(),
-        what: job.result?.trim() || job.label,
+        what: job.result?.trim() || jobLine(job.label),
         template: job.kind,
         next: job.requestedBy ? `Done for ${job.requestedBy.name}` : "Nothing to raise",
         taken: false,
@@ -328,7 +328,7 @@ export async function listVaneWorking(db: Pick<PrismaClient, "vaneJob">, { compa
       const state = job.status === "RUNNING" ? "running" : job.status === "WAITING" ? "waiting" : "next";
       return {
         id: job.id,
-        label: job.label,
+        label: jobLine(job.label),
         by: job.trigger === "PERSON" ? (job.requestedBy?.name ?? BY_TRIGGER.PERSON) : BY_TRIGGER[job.trigger],
         state,
         progress: job.progressTotal != null ? `${job.progressDone ?? 0} of ${job.progressTotal}` : null,

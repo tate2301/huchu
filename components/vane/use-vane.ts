@@ -6,6 +6,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { fetchJson } from "@/lib/api-client";
 import type { VaneActionView } from "@/lib/vane/actions/engine";
 import type { ChatEvent, VaneChatMessage } from "@/lib/vane/chat";
+import type { VaneExplainView } from "@/lib/vane/explain";
 import type { VaneDoneView, VaneMutedRow, VanePlanRow, VaneWorkRow } from "@/lib/vane/lists";
 import type { VaneCard, VanePanel, VaneSubject } from "@/lib/vane/panel";
 import type { VaneWatchable } from "@/lib/vane/settings";
@@ -69,6 +70,22 @@ export function useVaneWatching() {
       fetchJson<{ settings: { watches: Record<string, boolean> }; watchables: VaneWatchable[] }>("/api/vane/settings"),
     staleTime: 60_000,
     select: (data) => data.watchables.filter((module) => data.settings.watches[module.key] !== false),
+  });
+}
+
+/**
+ * A figure someone asked Vane to explain (`?explain=<job>`): read every 5
+ * seconds until it has an answer or says why not.
+ */
+export function useVaneExplain(id: string | null) {
+  return useQuery({
+    queryKey: ["vane", "explain", id],
+    queryFn: () => fetchJson<VaneExplainView>(`/api/vane/jobs/${encodeURIComponent(id ?? "")}`),
+    enabled: Boolean(id),
+    refetchInterval: (query) => {
+      const status = query.state.data?.status;
+      return status === "done" || status === "failed" ? false : 5_000;
+    },
   });
 }
 

@@ -2,7 +2,7 @@ import type { PrismaClient } from "@prisma/client";
 import { z } from "zod";
 
 import { actionsFor, type VaneActionView } from "./actions/engine";
-import { audienceFilter, FOR_YOU, vaneStatus, type VaneStatus } from "./status";
+import { audienceFilter, FOR_YOU, jobLine, vaneStatus, type VaneStatus } from "./status";
 
 /** The button on a For you card: it names the act and goes where the act is done. */
 export const vaneActionSchema = z.object({
@@ -221,10 +221,10 @@ export async function vanePanel(
         progress: step.progressLabel,
       })),
     })),
-    done: done.map((job) => ({ id: job.id, text: job.result?.trim() || job.label, at: (job.finishedAt ?? new Date()).toISOString() })),
+    done: done.map((job) => ({ id: job.id, text: job.result?.trim() || jobLine(job.label), at: (job.finishedAt ?? new Date()).toISOString() })),
     working: working.map((job) => ({
       id: job.id,
-      label: job.label,
+      label: jobLine(job.label),
       progress: job.progressTotal != null ? `${job.progressDone ?? 0} of ${job.progressTotal}` : null,
       running: job.status === "RUNNING",
     })),

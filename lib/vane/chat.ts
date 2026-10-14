@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 
 import type Anthropic from "@anthropic-ai/sdk";
-import type { PrismaClient } from "@prisma/client";
+import type { Prisma, PrismaClient } from "@prisma/client";
 
 import { actionsFor, proposeActions, type ActionProposal, type VaneActionView } from "./actions/engine";
 import { VaneError, type MessagesClient } from "./claude";
@@ -188,7 +188,7 @@ export async function chatTurn(
         tokensOut: outcome.usage.output,
         cacheReadTokens: outcome.usage.cacheRead,
         cacheWriteTokens: outcome.usage.cacheWrite,
-        tools: outcome.tools,
+        tools: outcome.tools as Prisma.InputJsonValue,
       },
     });
     const { byMessage } = await actionsFor(db, who.companyId, { messageIds: [answer.id] });

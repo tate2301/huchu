@@ -5,6 +5,15 @@ import { dayKey } from "@/lib/workspace/format";
 
 import { monthBounds } from "./settings";
 
+/**
+ * A job's label as a line: a job keeps its whole instruction in its label
+ * (an explained figure's question, then the report it is about), so the pages
+ * show its first line.
+ */
+export function jobLine(label: string): string {
+  return label.trim().split("\n")[0]!.trim();
+}
+
 /** What For you holds and the button counts: issues and suggestions. Insights live on Reports → Insights. */
 export const FOR_YOU: VaneItemKind[] = ["ISSUE", "SUGGESTION"];
 
@@ -102,7 +111,7 @@ export async function vaneStatus(
   return {
     open,
     working: Boolean(running) && !paused,
-    now: running ? { label: running.label, progress } : null,
+    now: running ? { label: jobLine(running.label), progress } : null,
     paused,
     pausedAt: paused && settings ? settings.updatedAt.toISOString() : null,
     lastWorkedAt: last?.finishedAt?.toISOString() ?? null,
@@ -112,7 +121,7 @@ export async function vaneStatus(
     stuck:
       lastFinished?.status === "FAILED" && lastFinished.finishedAt
         ? {
-            label: lastFinished.label,
+            label: jobLine(lastFinished.label),
             error: lastFinished.error?.trim() || "It stopped without saying why.",
             tried: toolsTried(lastFinished.tools),
             at: lastFinished.finishedAt.toISOString(),

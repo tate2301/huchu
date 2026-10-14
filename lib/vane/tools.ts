@@ -175,9 +175,14 @@ const proposeItem = tool({
       label: z.string().min(1).max(40).describe('The button\'s words: "Send the reminders".'),
       target: z
         .string()
-        .max(400)
+        .max(2000)
         .optional()
         .describe("The page it opens, with the filters that show just these records: \"/books/invoices?view=overdue&customer=<id>\". See the pages list."),
+      shortcut: z.string().max(12).optional().describe('The key that presses it, when it is the card\'s main act: "S", "Ctrl ↵".'),
+      also: z
+        .object({ label: z.string().min(1).max(40), target: z.string().startsWith("/").max(2000) })
+        .optional()
+        .describe('A second, quieter way in: "Open the 11 rows" beside "Save as a template".'),
     }),
     subjectType: z
       .enum(VANE_SUBJECTS)

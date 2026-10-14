@@ -57,6 +57,7 @@ export function VanePanelView({
   onMute,
   onDecide,
   onAsk,
+  explain = null,
 }: {
   panel: VanePanel;
   chat: VaneChatMessage[];
@@ -78,6 +79,8 @@ export function VanePanelView({
   onMute: (card: VaneCard, reason: string) => void;
   onDecide: (action: VaneActionView, decision: ActionDecision) => void;
   onAsk: (text: string) => void;
+  /** Vane's answer to a figure someone asked about on a report (PageVaneReport), first in the panel. */
+  explain?: React.ReactNode;
 }) {
   const { status, items, plans, done } = panel;
   const [text, setText] = React.useState("");
@@ -147,6 +150,8 @@ export function VanePanelView({
               {status.now.progress ? <span className="muted">{status.now.progress}</span> : null}
             </div>
           ) : null}
+
+          {explain}
 
           <div className="vs">
             For you <span className="pn-n">{items.length}</span>

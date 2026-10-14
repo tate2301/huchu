@@ -1,4 +1,4 @@
-import type { PrismaClient, VaneJob } from "@prisma/client";
+import type { Prisma, PrismaClient, VaneJob } from "@prisma/client";
 
 import { prisma } from "@/lib/prisma";
 import { SHOP_TIME_ZONE } from "@/lib/retail/shop-profile-rules";
@@ -102,9 +102,10 @@ async function takeBackStale(now: Date): Promise<void> {
 }
 
 /** The oldest job due now in a workspace that is not paused and has allowance left this month. */
-async function nextDueJob(now: Date, companyId: string | undefined): Promise<VaneJob | null> {
+async function nextDueJob(now: Date, companyId: string | undefined, jobId?: string): Promise<VaneJob | null> {
   const due = await prisma.vaneJob.findMany({
     where: {
+      id: jobId,
       companyId,
       status: { in: ["QUEUED", "WAITING"] },
       runAfter: { lte: now },
@@ -123,14 +124,14 @@ async function nextDueJob(now: Date, companyId: string | undefined): Promise<Van
 
 /**
  * Runs the next due job, if any, and says what happened in one line. With
- * `companyId`, only that workspace's jobs are considered.
+ * `companyId`, only that workspace's jobs are considered; with `jobId`, only that job.
  */
 export async function runNextJob(
   now: Date,
-  options: { client?: MessagesClient; deadlineMs?: number; companyId?: string } = {},
+  options: { client?: MessagesClient; deadlineMs?: number; companyId?: string; jobId?: string } = {},
 ): Promise<string> {
   await takeBackStale(now);
-  const job = await nextDueJob(now, options.companyId);
+  const job = await nextDueJob(now, options.companyId, options.jobId);
   if (!job) return "nothing due";
 
   const { count } = await prisma.vaneJob.updateMany({
@@ -153,7 +154,8 @@ export async function runNextJob(
         tokensOut: outcome.usage.output,
         cacheReadTokens: outcome.usage.cacheRead,
         cacheWriteTokens: outcome.usage.cacheWrite,
-        tools: outcome.tools,
+        // The questions' rows came back from JSON (the tool's answer), so they are JSON again.
+        tools: outcome.tools as Prisma.InputJsonValue,
       },
     });
     return `${job.kind} for ${job.companyId}: done`;
