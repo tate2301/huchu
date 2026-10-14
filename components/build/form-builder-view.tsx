@@ -68,7 +68,7 @@ const ADD_GROUPS: Array<{ title: string; types: FieldType[] }> = [
 const QUOTE_ID = "__quote__";
 
 type Selection = { kind: "field"; index: number } | { kind: "quote"; line: string | null } | null;
-type InspectorTab = "item" | "data" | "settings";
+type InspectorTab = "item" | "data" | "vane" | "settings";
 
 export type FormBuilderViewProps = {
   /** The bar's two lines: the form's name, and what it is ("Form, used on site visits"). */
@@ -103,6 +103,12 @@ export type FormBuilderViewProps = {
   publishing: boolean;
   /** Who may change it is the API's to say: a person who cannot sees it and may preview it. */
   canEdit: boolean;
+  /**
+   * Vane's changes to the form, from its answers (PageVaneForm): the
+   * inspector's Vane tab, opened first while any waits, and the questions
+   * they touch, marked in the outline and on the paper until kept.
+   */
+  vane?: { waiting: number; pending: ReadonlySet<string>; panel: React.ReactNode };
 };
 
 /**
@@ -136,9 +142,18 @@ export function FormBuilderView(props: FormBuilderViewProps) {
     onPublish,
     publishing,
     canEdit,
+    vane,
   } = props;
   const [mode, setMode] = React.useState<BuilderMode>(canEdit ? "build" : "preview");
   const [tab, setTab] = React.useState<InspectorTab>("item");
+  // Vane's changes open first while any waits, once: from then on the tab is the person's.
+  const vaneWaiting = (vane?.waiting ?? 0) > 0;
+  const [vaneOpened, setVaneOpened] = React.useState(false);
+  React.useEffect(() => {
+    if (!vaneWaiting || vaneOpened) return;
+    setVaneOpened(true);
+    setTab("vane");
+  }, [vaneWaiting, vaneOpened]);
   const [selection, setSelection] = React.useState<Selection>(fields.length ? { kind: "field", index: firstAsked(fields) } : null);
   const [answers, setAnswers] = React.useState<Record<string, unknown>>({});
   const [phone, setPhone] = React.useState(false);
@@ -280,7 +295,7 @@ export function FormBuilderView(props: FormBuilderViewProps) {
         ...fields.map((field) => ({
           id: field.key,
           icon: FIELD_ICONS[field.type],
-          title: field.label || FIELD_TYPE_LABELS[field.type],
+          title: `${field.label || FIELD_TYPE_LABELS[field.type]}${vane?.pending.has(field.key) ? " · Vane" : ""}`,
           heading: field.type === "section",
           sub: Boolean(field.showWhen),
         })),
@@ -331,7 +346,13 @@ export function FormBuilderView(props: FormBuilderViewProps) {
         onPointerDownCapture={pick}
         onFocusCapture={pick}
       >
-        {isSelected ? <SelTag icon={FIELD_ICONS[field.type]} label={FIELD_TYPE_LABELS[field.type]} /> : null}
+        {isSelected ? (
+          vane?.pending.has(field.key) ? (
+            <SelTag icon="foryou" label="Vane’s change, not kept" />
+          ) : (
+            <SelTag icon={FIELD_ICONS[field.type]} label={FIELD_TYPE_LABELS[field.type]} />
+          )
+        ) : null}
         {field.type === "checkbox" ? null : (
           <div className="qr-l">
             <label className="qr-q" htmlFor={`canvas-${field.key}`}>
@@ -437,6 +458,7 @@ export function FormBuilderView(props: FormBuilderViewProps) {
       tabs={[
         { value: "item", label: itemTab },
         { value: "data", label: "Data", count: asked.length + (quoting ? 1 : 0) },
+        ...(vane ? [{ value: "vane" as const, label: "Vane", count: vane.waiting }] : []),
         { value: "settings", label: "Settings" },
       ]}
       tab={tab}
@@ -479,6 +501,8 @@ export function FormBuilderView(props: FormBuilderViewProps) {
         ) : (
           <p className="rb-note">Select a question on the form to set it up, or press / to add one.</p>
         )
+      ) : tab === "vane" && vane ? (
+        vane.panel
       ) : tab === "data" ? (
         <DataPanel
           fields={fields}

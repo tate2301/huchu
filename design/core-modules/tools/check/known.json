@@ -390,5 +390,24 @@
   ],
   "PageVaneSchool": [
     "button: Vane"
+  ],
+  "PageVaneForm": [
+    "heading: Floor site visit",
+    "heading: Rooms",
+    "heading: Finishes",
+    "button: Room areas",
+    "button: Subfloor · Vane",
+    "button: Skirting wanted",
+    "button: Doorways",
+    "button: Laminate planks · 13% waste",
+    "button: Underlay",
+    "label: Concrete",
+    "label: Timber boards",
+    "label: Existing tiles",
+    "label: Screed, new",
+    "label: Yes",
+    "label: No",
+    "status: Kept",
+    "button: Back"
   ]
 }

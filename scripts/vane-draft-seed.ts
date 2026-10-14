@@ -5,6 +5,7 @@
  *   pnpm exec tsx --env-file=.env scripts/vane-draft-seed.ts invoice [workspace-slug]   (default: floorcode)
  *   pnpm exec tsx --env-file=.env scripts/vane-draft-seed.ts orders  [workspace-slug]   (default: acme)
  *   pnpm exec tsx --env-file=.env scripts/vane-draft-seed.ts fees    [workspace-slug]   (default: stmarys)
+ *   pnpm exec tsx --env-file=.env scripts/vane-draft-seed.ts form    [workspace-slug]   (default: floorcode)
  *
  * invoice: the customer accepts one of the workspace's sent quotes for a won
  * deal through its approval link (`respondToApproval`), then Vane's `draft`
@@ -12,8 +13,9 @@
  * job would. orders: Vane drafts one reorder per usual supplier from the
  * products below their reorder point and raises the card with its sends to
  * approve. fees: the reminder for the families who have paid nothing this
- * term, as a Vane action on a card. Nothing is issued or sent: that stays a
- * person's. It refuses to
+ * term, as a Vane action on a card. form: changes to a site-visit form from
+ * its answers, the questions reps skip most made required. Nothing is issued,
+ * sent or saved: that stays a person's. It refuses to
  * run in production.
  */
 import { prisma } from "@/lib/prisma";
@@ -176,6 +178,58 @@ async function fees(slug: string) {
   console.log(`Drafted the ${term.name} reminder for ${studentIds.length} families: /schools/fees/remind`);
 }
 
+/** Changes to a site-visit form from its answers: the questions reps skip most, to be made required. */
+async function form(slug: string) {
+  const company = await companyOf(slug);
+  const set = await prisma.crmQuestionSet.findFirst({
+    where: { companyId: company.id, isActive: true },
+    orderBy: { updatedAt: "desc" },
+    select: { id: true, name: true, questions: { where: { archivedAt: null, isRequired: false, type: { in: ["BOOLEAN", "SINGLE_SELECT"] } }, select: { id: true, key: true, label: true } } },
+  });
+  if (!set) throw new Error(`${company.name} has no site-visit form in use.`);
+  const sections = await prisma.crmSiteVisitSection.findMany({ where: { companyId: company.id, questionSetId: set.id }, select: { id: true, createdAt: true } });
+  if (sections.length === 0) throw new Error(`${set.name} has not been asked on a visit yet.`);
+  const since = sections.reduce((first, section) => (section.createdAt < first ? section.createdAt : first), sections[0]!.createdAt);
+  const answered = await prisma.crmSiteVisitAnswer.groupBy({
+    by: ["questionId"],
+    where: { companyId: company.id, sectionId: { in: sections.map((section) => section.id) }, notApplicable: false },
+    _count: { _all: true },
+  });
+  const counts = new Map(answered.map((row) => [row.questionId, row._count._all]));
+  const skipped = set.questions
+    .map((question) => ({ ...question, skipped: sections.length - (counts.get(question.id) ?? 0) }))
+    .filter((question) => question.skipped > 0)
+    .sort((a, b) => b.skipped - a.skipped)
+    .slice(0, 2);
+  if (skipped.length === 0) throw new Error(`Reps answer every question on ${set.name}.`);
+  const basis = `From ${sections.length} visits since ${since.toLocaleDateString("en-GB", { month: "long", timeZone: "Africa/Harare" })}`;
+  await tool(company.id, "propose_item", {
+    kind: "SUGGESTION",
+    sourceModule: "crm",
+    headline: `${skipped.length} changes to ${set.name}, from its answers.`,
+    body: `Reps skip ${skipped.map((question) => question.label).join(" and ")} most. Let’s make ${skipped.length === 1 ? "it" : "them"} required.`,
+    action: { type: "open", label: "Open the form", target: `/build/forms/${set.id}` },
+    sql: `SELECT "questionKey", count(*) FROM "CrmSiteVisitAnswer" WHERE "sectionId" IN (SELECT "id" FROM "CrmSiteVisitSection" WHERE "questionSetId" = '${set.id}') GROUP BY 1`,
+    readFrom: [
+      { table: "CrmSiteVisitSection", rows: sections.length, about: `${set.name} on visits` },
+      { table: "CrmSiteVisitAnswer", rows: [...counts.values()].reduce((sum, count) => sum + count, 0), about: "their answers" },
+    ],
+    actions: skipped.map((question) => ({
+      kind: "build.form.change",
+      params: {
+        setId: set.id,
+        form: set.name,
+        change: { type: "require", key: question.key },
+        headline: `Make ${question.label.replace(/\?$/, "")} required`,
+        reason: `Skipped on ${question.skipped} of ${sections.length} visits.`,
+        read: "Site visit answers",
+        basis,
+      },
+    })),
+  });
+  console.log(`Proposed ${skipped.length} changes to ${set.name}: /build/forms/${set.id}`);
+}
+
 const command = process.argv[2];
 const slug = process.argv[3];
 
@@ -185,7 +239,9 @@ const slug = process.argv[3];
     ? orders(slug ?? "acme")
     : command === "fees"
       ? fees(slug ?? "stmarys")
-      : Promise.reject(new Error("Say what to draft: invoice, orders or fees.")))
+      : command === "form"
+        ? form(slug ?? "floorcode")
+        : Promise.reject(new Error("Say what to draft: invoice, orders, fees or form.")))
   .catch((error) => {
     console.error(error instanceof Error ? error.message : error);
     process.exitCode = 1;
