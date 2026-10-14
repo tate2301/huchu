@@ -50,7 +50,10 @@ afterAll(async () => {
 describe("what Claude is shown", () => {
   it("names each tool, says what it does, and gives its input as JSON Schema", () => {
     const tools = toolDefinitions();
-    expect(tools.map((t) => t.name)).toEqual(["describe_table", "run_sql", "get_record", "propose_item", "propose_plan"]);
+    expect(tools.map((t) => t.name)).toEqual(["describe_table", "run_sql", "get_record", "propose_item", "propose_plan", "propose_actions"]);
+    // Claude is shown every action it can propose, and the pages it links to with their filters.
+    expect(tools[5]!.description).toContain("books.invoice.due_date");
+    expect(tools[5]!.description).toContain("/books/invoices");
     for (const t of tools) {
       expect(t.description?.length).toBeGreaterThan(40);
       expect(t.input_schema).toMatchObject({ type: "object" });
@@ -106,7 +109,7 @@ describe("writing to Vane's own tables", () => {
     body: "Three customers are past their due date. Let's send the reminders.",
     action: { type: "send_reminders", label: "Send the reminders" },
     sql: `SELECT "id" FROM "SalesInvoice"`,
-    readFrom: [{ table: "SalesInvoice", rows: 3 }],
+    readFrom: [{ table: "SalesInvoice", rows: 3, about: "past their terms" }],
   };
 
   it("raises a card once, however many times the same fact is found", async () => {
@@ -139,6 +142,32 @@ describe("writing to Vane's own tables", () => {
       [1, "Match CBZ lines", "VANE", "TODO"],
       [2, "Approve the return", "PERSON", "TODO"],
     ]);
+  });
+
+  it("hangs the actions it proposes on the card, each waiting for a person", async () => {
+    const result = await callTool(context(made.a), "propose_item", {
+      ...card,
+      headline: `2 invoices have no due date ${suffix}`,
+      actions: [
+        { kind: "books.invoice.due_date", params: { invoiceId: "i1", invoiceNumber: "INV-0142", dueDate: "2026-10-30" } },
+        { kind: "books.invoice.due_date", params: { invoiceId: "i2", invoiceNumber: "INV-0150", dueDate: "the 30th" } },
+      ],
+    });
+    const raised = JSON.parse(result.content);
+    expect(raised).toMatchObject({ raised: true, actionsProposed: 1, actionsRefused: [{ kind: "books.invoice.due_date" }] });
+    const actions = await prisma.vaneAction.findMany({ where: { itemId: raised.id } });
+    expect(actions).toMatchObject([{ kind: "books.invoice.due_date", status: "PROPOSED", title: "Set INV-0142 due on 30 October" }]);
+  });
+
+  it("in a chat, gathers the actions for the answer instead of writing them", async () => {
+    const answerActions: Array<{ kind: string; params: Record<string, unknown> }> = [];
+    const result = await callTool({ ...context(made.a), answerActions }, "propose_actions", {
+      actions: [{ kind: "books.invoice.reminders", params: { invoiceIds: ["i1"], invoiceNumbers: ["INV-0142"] } }],
+    });
+    expect(JSON.parse(result.content)).toEqual({ proposed: 1, refused: [] });
+    expect(answerActions).toHaveLength(1);
+    const outside = await callTool(context(made.a), "propose_actions", { actions: answerActions });
+    expect(JSON.parse(outside.content)).toMatchObject({ proposed: 0 });
   });
 
   it("says so when asked for a tool it does not have", async () => {

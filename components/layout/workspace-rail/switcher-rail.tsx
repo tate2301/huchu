@@ -23,7 +23,7 @@ export type RailMark = {
 /**
  * The 56px rail (00-foundations 5.3.2): the logo tile, then the module marks
  * (when the panel shows one module at a time), then the pinned items, and at
- * the foot Vane, the Management gear and the person.
+ * the foot Vane (which opens its panel), the Management gear and the person.
  *
  * Every mark is unlabelled, so each carries an accessible name and a tooltip.
  * The current module's mark, pressed while the panel is hidden, opens the
@@ -44,8 +44,12 @@ export function SwitcherRail({
   groups: RailMark[][];
   /** The gear: the Management surface. */
   management: RailMark | null;
-  /** Vane, above the gear: opens and closes its panel. */
-  vane?: { open: boolean; onToggle: () => void } | null;
+  /**
+   * Vane, above the gear: the one way to Vane. It opens and closes the Vane
+   * panel; the dot pulses while Vane works, and the count is what waits for
+   * this person.
+   */
+  vane?: { open: boolean; count: number; working: boolean; onToggle: () => void } | null;
   /** The person, with their own menu. */
   person?: React.ReactNode;
   panelShown: boolean;
@@ -107,15 +111,22 @@ export function SwitcherRail({
           <TooltipTrigger asChild>
             <button
               type="button"
-              aria-label="Vane"
+              aria-label={vane.count > 0 ? `Vane, ${vane.count} for you` : "Vane"}
               aria-pressed={vane.open}
-              className={cn(styles.mark, vane.open && styles.markCurrent)}
+              aria-keyshortcuts="Control+J Meta+J"
+              className={cn(styles.mark, styles.vaneMark, vane.open && styles.markCurrent)}
               onClick={vane.onToggle}
             >
               <VaneMark size={20} />
+              {vane.count > 0 ? (
+                <span aria-hidden="true" className={styles.vaneCount}>
+                  {vane.count > 99 ? "99+" : vane.count}
+                </span>
+              ) : null}
+              {vane.working ? <span aria-hidden="true" className={styles.vaneLive} /> : null}
             </button>
           </TooltipTrigger>
-          <TooltipContent side="right">Vane</TooltipContent>
+          <TooltipContent side="right">Vane (Ctrl J)</TooltipContent>
         </Tooltip>
       ) : null}
       {management ? markFor(management) : null}

@@ -1,8 +1,7 @@
-import { randomUUID } from "node:crypto";
-
 import type { PrismaClient } from "@prisma/client";
 import { z } from "zod";
 
+import { actionsFor, type VaneActionView } from "./actions/engine";
 import { audienceFilter, FOR_YOU, vaneStatus, type VaneStatus } from "./status";
 
 /** The button on a For you card: it names the act and goes where the act is done. */
@@ -20,11 +19,20 @@ export type VaneAction = z.infer<typeof vaneActionSchema>;
 export type VaneCard = {
   id: string;
   kind: "issue" | "suggestion";
+  /** The module it came from, as the app keys it: "books", "crm", "retail". */
+  module: string;
+  /** That module as the workspace names it: "Books", "Tender". */
   source: string;
   headline: string;
   body: string;
   action: VaneAction | null;
   createdAt: string;
+  /** What it read, so a person can check it: each table and how many rows it gave. */
+  read: Array<{ table: string; rows: number; about?: string }>;
+  /** The question it ran. */
+  sql: string | null;
+  /** What Vane proposes to do about it, each waiting for a person's yes or no. */
+  actions: VaneActionView[];
 };
 
 export type VanePlanCard = {
@@ -37,14 +45,18 @@ export type VanePlanCard = {
 
 export type VaneDone = { id: string; text: string; at: string };
 
+/** A job Vane is on, or has waiting: "Reading the CBZ statement Rudo uploaded", "38 of 61". */
+export type VaneWorking = { id: string; label: string; progress: string | null; running: boolean };
+
 export type VanePanel = {
   status: VaneStatus;
   items: VaneCard[];
   plans: VanePlanCard[];
   done: VaneDone[];
+  working: VaneWorking[];
 };
 
-type Db = Pick<PrismaClient, "vaneItem" | "vaneJob" | "vanePlan" | "vaneSettings">;
+type Db = Pick<PrismaClient, "vaneItem" | "vaneJob" | "vanePlan" | "vaneSettings" | "vaneAction">;
 
 /** The modules the product names for a card's source. */
 const MODULE_NAMES: Record<string, string> = {
@@ -62,27 +74,53 @@ export function moduleName(source: string): string {
   return MODULE_NAMES[source] ?? source.charAt(0).toUpperCase() + source.slice(1);
 }
 
+const readSchema = z.array(
+  z.object({ table: z.string().min(1), rows: z.number().int().nonnegative(), about: z.string().optional() }),
+);
+
+function parseRead(value: unknown): VaneCard["read"] {
+  const parsed = readSchema.safeParse(value);
+  return parsed.success ? parsed.data : [];
+}
+
 function parseAction(value: unknown): VaneAction | null {
   const parsed = vaneActionSchema.safeParse(value);
   return parsed.success ? parsed.data : null;
 }
 
 /**
- * What the Vane panel shows: its state, the open For you cards (this module's
- * first), the plans still open, and what it finished in the last day.
+ * What the Vane panel and `/vane` show: its state, the open For you cards
+ * (this module's first, when there is one), the plans still open, the jobs
+ * it is on, and what it finished since `doneSince` (the last day by default).
  */
 export async function vanePanel(
   db: Db,
-  { companyId, userId, role, module }: { companyId: string; userId: string; role?: string | null; module?: string | null },
+  {
+    companyId,
+    userId,
+    role,
+    module,
+    doneSince,
+  }: { companyId: string; userId: string; role?: string | null; module?: string | null; doneSince?: Date },
 ): Promise<VanePanel> {
-  const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
-  const [status, items, plans, done] = await Promise.all([
+  const since = doneSince ?? new Date(Date.now() - 24 * 60 * 60 * 1000);
+  const [status, items, plans, done, working] = await Promise.all([
     vaneStatus(db, { companyId, userId, role }),
     db.vaneItem.findMany({
       where: { companyId, status: "OPEN", kind: { in: FOR_YOU }, ...audienceFilter(userId, role) },
       orderBy: { createdAt: "desc" },
       take: 50,
-      select: { id: true, kind: true, sourceModule: true, headline: true, body: true, action: true, createdAt: true },
+      select: {
+        id: true,
+        kind: true,
+        sourceModule: true,
+        headline: true,
+        body: true,
+        action: true,
+        createdAt: true,
+        readFrom: true,
+        sql: true,
+      },
     }),
     db.vanePlan.findMany({
       where: { companyId, status: "OPEN" },
@@ -101,16 +139,27 @@ export async function vanePanel(
       take: 8,
       select: { id: true, label: true, result: true, finishedAt: true },
     }),
+    db.vaneJob.findMany({
+      where: { companyId, status: { in: ["RUNNING", "QUEUED", "WAITING"] } },
+      orderBy: [{ startedAt: { sort: "desc", nulls: "last" } }, { runAfter: "asc" }],
+      take: 6,
+      select: { id: true, label: true, status: true, progressDone: true, progressTotal: true },
+    }),
   ]);
 
+  const { byItem } = await actionsFor(db, companyId, { itemIds: items.map((item) => item.id) });
   const cards = items.map<VaneCard>((item) => ({
     id: item.id,
     kind: item.kind === "ISSUE" ? "issue" : "suggestion",
+    module: item.sourceModule,
     source: moduleName(item.sourceModule),
     headline: item.headline,
     body: item.body,
     action: parseAction(item.action),
     createdAt: item.createdAt.toISOString(),
+    read: parseRead(item.readFrom),
+    sql: item.sql,
+    actions: byItem.get(item.id) ?? [],
   }));
   // This module's cards first, then the rest, each newest first.
   const here = module ? moduleName(module) : null;
@@ -133,6 +182,12 @@ export async function vanePanel(
       })),
     })),
     done: done.map((job) => ({ id: job.id, text: job.result?.trim() || job.label, at: (job.finishedAt ?? new Date()).toISOString() })),
+    working: working.map((job) => ({
+      id: job.id,
+      label: job.label,
+      progress: job.progressTotal != null ? `${job.progressDone ?? 0} of ${job.progressTotal}` : null,
+      running: job.status === "RUNNING",
+    })),
   };
 }
 
@@ -148,27 +203,18 @@ export async function muteVaneItem(
   return count > 0;
 }
 
-export const giveJobSchema = z.object({ text: z.string().trim().min(3).max(2000) });
-
 /**
- * Give Vane a job: queued for the worker as a person's job. The words are the
- * job's label until the worker works out a shorter one.
+ * A person pressed the card's act: the card is done, with their name, and
+ * they go on to the page where they finish it (send, issue, pay). Vane does
+ * none of that; the card only records who took it further.
  */
-export async function giveVaneJob(
-  db: Pick<PrismaClient, "vaneJob">,
-  { companyId, userId, text }: { companyId: string; userId: string; text: string },
-) {
-  return db.vaneJob.create({
-    data: {
-      companyId,
-      key: `person:${randomUUID()}`,
-      kind: "person",
-      label: text.length > 120 ? `${text.slice(0, 117)}…` : text,
-      trigger: "PERSON",
-      requestedById: userId,
-      result: null,
-      tools: [],
-    },
-    select: { id: true, label: true, status: true },
+export async function actOnVaneItem(
+  db: Pick<PrismaClient, "vaneItem">,
+  { companyId, userId, role, id }: { companyId: string; userId: string; role?: string | null; id: string },
+): Promise<boolean> {
+  const { count } = await db.vaneItem.updateMany({
+    where: { id, companyId, status: "OPEN", ...audienceFilter(userId, role) },
+    data: { status: "DONE", resolvedAt: new Date(), resolvedById: userId },
   });
+  return count > 0;
 }
