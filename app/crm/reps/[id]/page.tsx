@@ -13,12 +13,14 @@ export default async function CrmRepPage({
   const session = await getServerSession(authOptions);
   if (!session?.user) redirect("/login");
   const { id } = await params;
-  // "My performance" in the navigation is a link to whoever is signed in.
-  if (id === "me") redirect(`/crm/reps/${session.user.id}`);
+  // "My performance" in the navigation is whoever is signed in, shown at its
+  // own address so its row stays the page (a redirect to the person's id
+  // made Team the page instead).
+  const repId = id === "me" ? session.user.id : id;
 
   return (
     <CrmPage width="detail">
-      <RepDetailPage repId={id} />
+      <RepDetailPage repId={repId} />
     </CrmPage>
   );
 }
