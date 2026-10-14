@@ -35,12 +35,15 @@ const toolUse = (id: string, name: string, input: unknown) => ({ type: "tool_use
 const text = (value: string) => ({ type: "text", text: value, citations: null }) as unknown as Anthropic.ContentBlock;
 
 function claude(...turns: Anthropic.Message[]) {
-  const create = vi.fn(async () => {
+  /** Each request as it was sent: the conversation grows after the call, so it is copied then. */
+  const sent: unknown[] = [];
+  const create = vi.fn(async (request: unknown) => {
+    sent.push(structuredClone(request));
     const next = turns.shift();
     if (!next) throw new Error("Claude was asked more than the test expected");
     return next;
   });
-  return { client: { messages: { create } } as unknown as MessagesClient, create };
+  return { client: { messages: { create } } as unknown as MessagesClient, create, sent };
 }
 
 const who = () => ({ companyId: ids.company, userId: ids.user, role: "MANAGER", name: "James" });
@@ -96,6 +99,23 @@ describe("chat with Vane", () => {
     const job = await prisma.vaneJob.findFirstOrThrow({ where: { companyId: ids.company, kind: "chat" } });
     expect(job).toMatchObject({ status: "DONE", trigger: "PERSON", requestedById: ids.user, tokensIn: 2700, tokensOut: 240 });
     expect(await prisma.vaneMessage.findFirstOrThrow({ where: { author: "VANE", userId: ids.user } })).toMatchObject({ jobId: job.id });
+  });
+
+  it("keeps the cached prompt the same on every page: where the person is goes in their message, and the turns before are marked", async () => {
+    const { client, sent } = claude(reply([text("Pomona's quote is still waiting.")], "end_turn"));
+    await chatTurn(prisma, who(), { text: "What next on this deal?", module: "crm", path: "/crm/deals/d1" }, { onEvent: () => {}, client });
+    const [request] = sent as unknown as [
+      { system: Array<{ text: string; cache_control?: unknown }>; messages: Array<{ role: string; content: unknown }> },
+    ];
+    expect(request.system.map((block) => block.cache_control ?? null)).toEqual([{ type: "ephemeral", ttl: "1h" }, null]);
+    expect(request.system[1]!.text).toContain("James");
+    expect(JSON.stringify(request.system)).not.toContain("/crm/deals/d1");
+    expect(request.messages.at(-1)).toEqual({ role: "user", content: "[In CRM, on /crm/deals/d1] What next on this deal?" });
+    // The first turn's answer, the last of the turns before, carries the mark.
+    expect(request.messages.at(-2)).toEqual({
+      role: "assistant",
+      content: [{ type: "text", text: expect.stringContaining("INV-0142 has no due date"), cache_control: { type: "ephemeral" } }],
+    });
   });
 
   it("will not start a second turn while the first still runs", async () => {

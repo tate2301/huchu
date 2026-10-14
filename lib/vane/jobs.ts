@@ -55,9 +55,10 @@ export async function queueNightlyJobs(now: Date): Promise<string> {
   return `${count} queued`;
 }
 
-const SYSTEM = (tables: string[]) => `${vaneRules(tables)}
-
-When you are done, answer in one or two sentences: what you looked at and what you raised.`;
+const SYSTEM = (tables: string[]) => ({
+  shared: vaneRules(tables),
+  context: "When you are done, answer in one or two sentences: what you looked at and what you raised.",
+});
 
 function instructionsFor(job: Pick<VaneJob, "kind" | "label">): string {
   if (job.kind === "nightly") {

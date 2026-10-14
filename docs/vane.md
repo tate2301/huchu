@@ -62,8 +62,19 @@ Each runs as the approving person: drafts carry their name, not `madeByVane`. `l
 ### In the CRM
 
 - **On a record's page.** A deal's, lead's, company's, person's and quote's rail has a Vane section (`components/vane/vane-record-section.tsx`): the open cards Vane raised about that record (`subjectType` and `subjectId` on the card, from `VANE_SUBJECTS` in `lib/vane/panel.ts`; `GET /api/vane/record`), with their actions to approve or deny there, and "Ask Vane about this deal", which opens the panel with the question in its box. People Vane is not open to (a sales rep, whose role is held to the CRM) see no section.
-- **The chat knows the page.** Each turn carries the path the person has open; Vane reads that record first when they say "this". On a record's page the first suggestion is about it.
+- **The chat knows the page.** Each turn carries the path the person has open, at the head of their message; Vane reads that record first when they say "this". On a record's page the first suggestion is about it.
 - **A quote, checked** (the PageVaneDocument board). A CRM quote's rail checks its lines against the price list (`lib/crm/quote-check.ts`, `GET /api/v2/crm/documents/[id]/price-check`): each line matched to a product by name, which is what the quote builder writes when a product is picked, and priced as the catalogue prices it for this customer and quantity. A line priced differently says what the list says and since when, with Leave it and Change the line; Change the line (`POST` on the same route) moves just that line to the list's price through the quote's own update, with the same checks as editing it. Lines typed by hand are counted, not checked. This is the CRM's own code, so it works without Claude and for everyone who can open the quote.
+
+### Its prompt cache (`cachedPrompt` in `lib/vane/claude.ts`)
+
+Laid out as the prompt-caching guide (platform.claude.com/docs/en/build-with-claude/prompt-caching) has it, tools, then system, then messages, with four breakpoints:
+
+1. The last tool, for an hour: the tools are the same for every job and chat.
+2. Vane's shared instructions (`vaneRules`, with the tables it may read), for an hour: the same for every workspace whose role reads the same tables. Written at 2× once an hour, read at 0.05× (Sonnet 5.5).
+3. In a chat, the last of the earlier turns, for five minutes: the next turn reads the conversation so far back from the cache.
+4. The request's own top-level `cache_control`, which follows the last block, so each tool turn of a job pays the full rate only for what the turn before added.
+
+What varies goes after the shared part: a job's closing line and the person a chat is with are a second system block, and where the person is in the app goes at the head of their message (`[In CRM, on /crm/deals/<id>]`), so moving between pages never breaks the cache. Keep it that way: nothing that changes per workspace, person, page or time belongs in `vaneRules` or the tools, and `effort` stays fixed, as changing it drops the cached conversation. Each job keeps its cache reads and writes, so the saving shows in the job's own figures.
 
 ### Its chat (`lib/vane/chat.ts`)
 

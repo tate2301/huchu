@@ -140,8 +140,38 @@ export async function askClaude({ system, messages, maxTokens = 16_000, client =
   };
 }
 
+/**
+ * Vane's instructions in two parts, for the prompt cache: `shared` is the same
+ * for every job and every chat that reads the same tables (who Vane is, its
+ * rules, the tables), so it is cached for an hour and read back at a twentieth
+ * of the price; `context` is this job's or this person's (who they are), after it.
+ */
+export type VaneSystem = { shared: string; context?: string };
+
+/** The 1-hour cache, for what stays the same across workspaces and people. */
+const LONG = { type: "ephemeral", ttl: "1h" } as const;
+
+/**
+ * The request's cache layout (platform.claude.com/docs/en/build-with-claude/prompt-caching):
+ * the tools and the shared instructions are each a 1-hour breakpoint, so a
+ * change of context reuses them; the rest of the prompt is cached by the
+ * request's own top-level `cache_control` (5 minutes), which follows the last
+ * block as the conversation grows. A conversation may mark one more block of
+ * its own (a chat's earlier turns). Four breakpoints at most; the 1-hour ones
+ * come first, as the API requires.
+ */
+export function cachedPrompt(system: VaneSystem, tools: Anthropic.Tool[]) {
+  return {
+    system: [
+      { type: "text" as const, text: system.shared, cache_control: LONG },
+      ...(system.context ? [{ type: "text" as const, text: system.context }] : []),
+    ],
+    tools: tools.map((tool, index) => (index === tools.length - 1 ? { ...tool, cache_control: LONG } : tool)),
+  };
+}
+
 export type ConverseInput = {
-  system: string;
+  system: VaneSystem;
   messages: Anthropic.MessageParam[];
   tools: Anthropic.Tool[];
   maxTokens?: number;
@@ -158,8 +188,9 @@ export type Usage = AskClaudeResult["usage"];
  * what it cost. A refusal or an answer cut off at `maxTokens` is a
  * `VaneError`, as with `askClaude`.
  *
- * The prompt is cached up to the last message, so each turn of a job pays the
- * full rate only for what the turn before added.
+ * The prompt is cached as `cachedPrompt` lays it out: each turn of a job pays
+ * the full rate only for what the turn before added, and a new job or chat
+ * reads the tools and the shared instructions back from the cache.
  */
 export async function converse({
   system,
@@ -176,8 +207,7 @@ export async function converse({
       {
         model,
         max_tokens: maxTokens,
-        system,
-        tools,
+        ...cachedPrompt(system, tools),
         messages,
         cache_control: { type: "ephemeral" },
         // Background work across a handful of tool calls: medium is where quality holds and spend stays low.
