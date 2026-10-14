@@ -5,6 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 import { BuildError, BuildFrame, BuildLoading } from "@/components/build/build-frame";
+import { useMounted } from "@/components/layout/workspace-rail/module-groups";
 import { BUILD_HOME_KEY, fetchBuildHome } from "@/components/build/build-data";
 import { BuildTemplatesView, type TemplatesQuery } from "@/components/build/build-templates-view";
 import { NewDrawer } from "@/components/build/new-drawer";
@@ -24,7 +25,10 @@ function BuildTemplates() {
   const [starting, setStarting] = React.useState<string | null>(null);
 
   const home = useQuery({ queryKey: BUILD_HOME_KEY, queryFn: fetchBuildHome });
-  const taken = React.useMemo(() => home.data?.items.map((item) => item.name) ?? [], [home.data]);
+  // The query cache is kept for offline use: read it after hydration, so the first paint is the server's.
+  const mounted = useMounted();
+  const data = mounted ? home.data : undefined;
+  const taken = React.useMemo(() => data?.items.map((item) => item.name) ?? [], [data]);
   const start = useStartBuild(taken);
 
   const onQuery = React.useCallback(
@@ -48,14 +52,14 @@ function BuildTemplates() {
     [params, pathname, router],
   );
 
-  const canStart = home.data?.canStart ?? false;
+  const canStart = data?.canStart ?? false;
   return (
     <>
       <PageChrome title="Templates" primary={canStart ? { label: "New", icon: "plus", shortcut: "N", onClick: () => setAdding(true) } : null} />
       <BuildFrame>
-        {home.data ? (
+        {data ? (
           <BuildTemplatesView
-            templates={home.data.templates}
+            templates={data.templates}
             query={query}
             onQuery={onQuery}
             canStart={canStart}
@@ -72,7 +76,7 @@ function BuildTemplates() {
           <BuildLoading />
         )}
       </BuildFrame>
-      {home.data ? <NewDrawer open={adding} onOpenChange={setAdding} data={home.data} /> : null}
+      {data ? <NewDrawer open={adding} onOpenChange={setAdding} data={data} /> : null}
     </>
   );
 }

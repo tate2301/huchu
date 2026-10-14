@@ -20,5 +20,5 @@ export default async function BuildReportPage({ params }: { params: Promise<{ sl
   const record = await findBuildRecord(user.companyId, slug);
   if (!record) notFound();
   if (record.source !== "report") redirect(record.source === "catalog" || record.source === "layout" ? `/build/templates/${encodeURIComponent(slug)}` : buildHref(record.source, slug, "kind" in record ? record.kind : undefined));
-  return <ReportBuilder id={slug} back={{ href: "/build?kind=reports", label: "Reports", button: "Back to Reports" }} arrangement="build" />;
+  return <ReportBuilder id={slug} back={{ href: "/build?kind=reports", label: "Build", button: "Back to Build" }} arrangement="build" />;
 }

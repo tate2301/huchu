@@ -5,6 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 import { BuildFrame, BuildError, BuildLoading } from "@/components/build/build-frame";
+import { useMounted } from "@/components/layout/workspace-rail/module-groups";
 import { BuildHomeView } from "@/components/build/build-home-view";
 import { BUILD_HOME_KEY, fetchBuildHome } from "@/components/build/build-data";
 import { NewDrawer } from "@/components/build/new-drawer";
@@ -21,6 +22,9 @@ function BuildHome() {
   const [adding, setAdding] = React.useState(false);
 
   const home = useQuery({ queryKey: BUILD_HOME_KEY, queryFn: fetchBuildHome });
+  // The query cache is kept for offline use: read it after hydration, so the first paint is the server's.
+  const mounted = useMounted();
+  const data = mounted ? home.data : undefined;
 
   const onQuery = React.useCallback(
     (next: Partial<BuildQuery>) => {
@@ -38,7 +42,7 @@ function BuildHome() {
     [params, pathname, router],
   );
 
-  const canStart = home.data?.canStart ?? false;
+  const canStart = data?.canStart ?? false;
   return (
     <>
       <PageChrome
@@ -50,12 +54,12 @@ function BuildHome() {
         </ButtonLink>
       </PageChrome>
       <BuildFrame>
-        {home.data ? (
+        {data ? (
           <BuildHomeView
-            items={home.data.items}
-            counts={home.data.counts}
-            finding={home.data.finding}
-            provisions={home.data.provisions}
+            items={data.items}
+            counts={data.counts}
+            finding={data.finding}
+            provisions={data.provisions}
             query={query}
             onQuery={onQuery}
           />
@@ -65,7 +69,7 @@ function BuildHome() {
           <BuildLoading />
         )}
       </BuildFrame>
-      {home.data ? <NewDrawer open={adding} onOpenChange={setAdding} data={home.data} /> : null}
+      {data ? <NewDrawer open={adding} onOpenChange={setAdding} data={data} /> : null}
     </>
   );
 }

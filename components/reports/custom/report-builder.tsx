@@ -6,6 +6,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { BuilderBar, BuilderGrid } from "@/components/builder/grid";
 import { Button, ButtonLink, Empty } from "@/components/core";
+import { useMounted } from "@/components/layout/workspace-rail/module-groups";
 import { dsConfirm } from "@/components/ui/ds-confirm";
 import { useToast } from "@/components/ui/use-toast";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
@@ -99,6 +100,9 @@ export function ReportBuilder({
   const { toast } = useToast();
   const router = useRouter();
   const queryClient = useQueryClient();
+  // The query cache is kept for offline use: the builder draws from it only after hydration, so
+  // the first paint is the server's (the skeleton) and the two agree.
+  const mounted = useMounted();
 
   const report = useQuery({
     queryKey: ["reports", "custom", id],
@@ -212,7 +216,7 @@ export function ReportBuilder({
   };
 
   // On the server React Query has not started, so no data and no error is still loading.
-  if (report.isLoading || sources.isLoading || (!report.data && !report.isError) || (!sources.data && !sources.isError)) return <Loading />;
+  if (!mounted || report.isLoading || sources.isLoading || (!report.data && !report.isError) || (!sources.data && !sources.isError)) return <Loading />;
 
   if (report.isError || sources.isError || !current || !report.data) {
     return (

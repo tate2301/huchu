@@ -7,6 +7,7 @@ import { useSession } from "next-auth/react";
 
 import { Button, Empty, Kit, KitScreen } from "@/components/core";
 import { PageChrome } from "@/components/layout/page-chrome";
+import { useMounted } from "@/components/layout/workspace-rail/module-groups";
 import { fetchReportsHome, REPORTS_HOME_KEY } from "@/components/layout/workspace-rail/reports-groups";
 import { ReportsAllView } from "@/components/reports/reports-all-view";
 import { ReportsOverviewScreen } from "@/components/reports/reports-overview";
@@ -19,6 +20,7 @@ import {
   reportCounts,
   reportEntries,
   reportsCsv,
+  REPORT_VIEW_LABEL,
   reportsFinding,
   viewHref,
   type ReportEntry,
@@ -62,6 +64,10 @@ function ReportsAll({ vertical }: { vertical: boolean }) {
   const filter = React.useMemo(() => readReportsFilter(params), [params]);
 
   const home = useQuery({ queryKey: REPORTS_HOME_KEY, queryFn: fetchReportsHome });
+  // The query cache is kept for offline use: what it holds is read after hydration, so the first
+  // paint is the server's (the skeleton) and the two agree.
+  const mounted = useMounted();
+  const data = mounted ? home.data : undefined;
 
   const onFilter = React.useCallback(
     (next: Partial<ReportsFilter>) => {
@@ -116,14 +122,14 @@ function ReportsAll({ vertical }: { vertical: boolean }) {
     try {
       await fetchJson(`/api/v2/reports/custom/${entry.id}`, { method: "PATCH", body: JSON.stringify({ folderId }) });
       await queryClient.invalidateQueries({ queryKey: REPORTS_HOME_KEY });
-      const folder = home.data?.folders.find((candidate) => candidate.id === folderId);
+      const folder = data?.folders.find((candidate) => candidate.id === folderId);
       toast({ title: folder ? `${entry.title} is in ${folder.name}` : `${entry.title} is in no folder` });
     } catch (error) {
       toast({ title: "Not moved", description: getApiErrorMessage(error), variant: "destructive" });
     }
   };
 
-  const all = React.useMemo(() => (home.data ? reportEntries(home.data) : []), [home.data]);
+  const all = React.useMemo(() => (data ? reportEntries(data) : []), [data]);
   const shown = React.useMemo(() => filterEntries(all, filter), [all, filter]);
 
   const exportList = () => {
@@ -141,14 +147,14 @@ function ReportsAll({ vertical }: { vertical: boolean }) {
     [build, building],
   );
 
-  const folder = home.data?.folders.find((candidate) => candidate.id === filter.folder) ?? null;
+  const folder = data?.folders.find((candidate) => candidate.id === filter.folder) ?? null;
   const areas = [...new Set(all.map((entry) => entry.area).filter((area): area is string => Boolean(area)))];
 
   return (
     <>
-      <PageChrome title={folder?.name ?? "All reports"} primary={primary} />
+      <PageChrome title={folder?.name ?? REPORT_VIEW_LABEL[filter.view]} primary={primary} />
       <ReportsFrame>
-        {home.data ? (
+        {data ? (
           filter.folder && !folder ? (
             <Empty
               icon="folder"
@@ -167,7 +173,7 @@ function ReportsAll({ vertical }: { vertical: boolean }) {
               finding={reportsFinding(reportCounts(all))}
               filter={filter}
               folder={folder}
-              folders={home.data.folders}
+              folders={data.folders}
               areas={areas}
               makers={makers(all)}
               onFilter={onFilter}
