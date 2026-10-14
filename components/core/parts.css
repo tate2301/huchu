@@ -32,6 +32,14 @@
   margin-top: calc(var(--content-lede) * -1);
   background: var(--color-surface);
 }
+/* A tile's figure on a phone: a step smaller, so a sum in the millions fits a tile two to a row. In the
+   arranger's narrower card the tiles stack. */
+@media (max-width: 759px) {
+  .ck.ck.ck .kt-v { font-size: 18px; }
+  .ck.ck.ck .rb-board .rp-figs .kstrip { grid-template-columns: minmax(0, 1fr) !important; }
+  .ck.ck.ck .rb-board .rp-figs .kt + .kt { box-shadow: inset 0 1px 0 var(--color-line); border-top: 0; }
+}
+
 /* Its page column fills it, and the column's body scrolls. On a phone the page scrolls instead, so the
    column and every body in it take their content's height: a flex body with no basis would measure 0. */
 .ck.ck.ck.kit-main .mn { flex: 1; min-height: 0; }
@@ -103,6 +111,9 @@
 .ck.ck.ck .rp-row { box-shadow: inset 0 1px 0 var(--color-line); min-width: 0; }
 .ck.ck.ck .rp-block { padding: 16px 24px 20px; }
 .ck.ck.ck .rp-hbar { grid-template-columns: 140px minmax(0, 1fr) 96px; }
+/* Half width (two blocks to a row): a narrower label, and the sum takes the room it needs, so the bar keeps a track. */
+.ck.ck.ck .rp-grid2 .rp-hbar, .ck.ck.ck .rb-cols .rp-hbar { grid-template-columns: minmax(0, 104px) minmax(64px, 1fr) max-content; gap: 12px; }
+.ck.ck.ck .rp-line .axis span { white-space: nowrap; }
 .ck.ck.ck .rp-line { position: relative; }
 .ck.ck.ck .rp-tip { position: absolute; top: 0; right: 0; padding: 2px 6px; border-radius: 6px; background: var(--color-surface); box-shadow: var(--shadow-ring); font-size: var(--text-12); color: var(--color-muted); }
 .ck.ck.ck .rp-tip b { color: var(--color-ink); font-variant-numeric: tabular-nums; }
@@ -220,6 +231,10 @@
 .ck.ck.ck .ip-heat-c { height: 26px; border-radius: 4px; }
 .ck.ck.ck .ip-views { padding-top: var(--space-16); }
 .ck.ck.ck .ip .table th.nowrap { white-space: nowrap; }
+/* A table in a half-width section: its figures sit close, so the answer column has the room. */
+.ck.ck.ck .ip-sec .table th, .ck.ck.ck .ip-sec .table td { padding-left: var(--space-8); padding-right: var(--space-8); }
+.ck.ck.ck .ip-sec .table th:first-child, .ck.ck.ck .ip-sec .table td:first-child { padding-left: 0; }
+.ck.ck.ck .ip-sec .table th:last-child, .ck.ck.ck .ip-sec .table td:last-child { padding-right: 0; }
 @media (max-width: 1099px) {
   .ck.ck.ck .ip { flex-direction: column; }
   .ck.ck.ck .ip > .kbody { overflow: visible; flex: none; }
@@ -228,7 +243,9 @@
 @media (max-width: 759px) {
   .ck.ck.ck .ip-tools { padding-left: var(--space-16); padding-right: var(--space-16); }
   .ck.ck.ck .ip-tools .seg { max-width: 100%; overflow-x: auto; }
-  .ck.ck.ck .ip-hbar { grid-template-columns: 96px minmax(0, 1fr) 64px; gap: 10px; }
+  /* A bar's label keeps the board's 150px and wraps rather than losing its words. */
+  .ck.ck.ck .ip-hbar { grid-template-columns: 150px minmax(0, 1fr) 48px; gap: 10px; padding-block: 4px; }
+  .ck.ck.ck .ip-hbar > .truncate { white-space: normal; overflow: visible; text-overflow: clip; line-height: 1.3; }
   .ck.ck.ck .ip-sec, .ck.ck.ck .ip-q { padding: 14px 16px; }
   .ck.ck.ck .ip-aside { padding: 16px; }
   .ck.ck.ck .ip-heat { gap: 2px; }

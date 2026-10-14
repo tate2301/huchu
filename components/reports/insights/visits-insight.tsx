@@ -161,13 +161,6 @@ export function VisitsInsight({ formId }: { formId?: string }) {
           <span className="truncate">{repName ?? "Every rep"}</span>
         </MenuButton>
       ) : null}
-      {!own && shownForm ? (
-        <div className="end">
-          <ButtonLink variant="quiet" icon="edit" href={`/crm/build/visits/${shownForm.id}/insights`}>
-            Open the form
-          </ButtonLink>
-        </div>
-      ) : null}
     </>
   );
 
@@ -230,6 +223,16 @@ export function VisitsInsight({ formId }: { formId?: string }) {
     return { key: card.key, title: card.title, body: card.body, action: { label: "Open the visits", icon: "visits", href: "/reports/crm-visit-forms" } };
   };
 
+  // Open the form lives in Do something about it, as drawn: on the card that asks for a change to
+  // the form, or on a card of its own when none does.
+  const visitCards = insights ? visitsCards(insights) : [];
+  const asideCards = [
+    ...visitCards.map(cardFor),
+    ...(!own && shownForm && !visitCards.some((card) => card.action === "form")
+      ? [{ key: "open-form", title: shownForm.name, action: { label: "Open the form", icon: "edit" as const, href: `/crm/build/visits/${shownForm.id}/insights` } }]
+      : []),
+  ];
+
   if (!shownForm) {
     return (
       <>
@@ -280,7 +283,7 @@ export function VisitsInsight({ formId }: { formId?: string }) {
           tools={tools}
           finding={visitsFinding(insights)}
           figures={visitsFigures(insights, money)}
-          aside={<InsightAside cards={visitsCards(insights).map(cardFor)} send={send} />}
+          aside={<InsightAside cards={asideCards} send={send} />}
         >
           <div className={query.isFetching ? "rp-grid2 is-fetching" : "rp-grid2"}>
             <div>

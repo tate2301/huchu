@@ -277,7 +277,9 @@ export function ReportArranger({ reportKey }: { reportKey: string }) {
   const [mode, setMode] = useState<BuilderMode>("build");
   const [tab, setTab] = useState<"block" | "page">("block");
 
-  const meta = setup.data?.report ?? null;
+  // The page's rows name what their sums are in (`withCurrency`); the settings' columns do not.
+  const loadedColumns = data.data?.report?.columns;
+  const meta = useMemo(() => (setup.data?.report ? { ...setup.data.report, columns: loadedColumns ?? setup.data.report.columns } : null), [setup.data, loadedColumns]);
   const context = useMemo(() => {
     if (!meta) return null;
     const view = defaultView(meta);

@@ -4,7 +4,7 @@ import { useMemo, useState, type ReactNode } from "react";
 
 import { Kit } from "@/components/core";
 import { seriesBy, timeSeries, type ChartPoint } from "@/lib/reports/charts";
-import { formatTotal, formatValue, totalCaption } from "@/lib/reports/format";
+import { formatTotal, formatValue, shortTicks, totalCaption } from "@/lib/reports/format";
 import {
   breakdownBy,
   DEFAULT_BREAKDOWN_LIMIT,
@@ -117,7 +117,7 @@ function Line({ points, format }: { points: ChartPoint[]; format: (value: number
   const y = (value: number) => 142 - (value / max) * 134;
   const line = points.map((point, index) => `${x(index).toFixed(1)},${y(point.value ?? 0).toFixed(1)}`).join(" ");
   const ticks = Math.min(6, points.length);
-  const axis = Array.from({ length: ticks }, (_, at) => points[Math.round((at * (points.length - 1)) / Math.max(1, ticks - 1))]!.label);
+  const axis = shortTicks(Array.from({ length: ticks }, (_, at) => points[Math.round((at * (points.length - 1)) / Math.max(1, ticks - 1))]!.label));
   const shown = tip !== null ? points[tip] : null;
   return (
     <div className="rp-line">

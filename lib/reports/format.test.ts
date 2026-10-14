@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { formatValue, withCurrency } from "./format";
+import { formatValue, shortTicks, withCurrency } from "./format";
 
 describe("a report's sums", () => {
   it("say their currency as the boards write it, two decimals always", () => {
@@ -20,5 +20,13 @@ describe("a report's sums", () => {
     expect(withCurrency(columns, [{ currency: "USD" }, { currency: "USD" }], "ZWG").map((column) => column.currency)).toEqual(["USD", "ZWG", undefined]);
     expect(withCurrency(columns, [{}], "USD").map((column) => column.currency)).toEqual(["USD", "ZWG", undefined]);
     expect(withCurrency(columns, [{ currency: "USD" }, { currency: "ZWG" }], "USD").map((column) => column.currency)).toEqual([undefined, "ZWG", undefined]);
+  });
+});
+
+describe("a chart's month ticks", () => {
+  it("say the year once, and again where it turns", () => {
+    expect(shortTicks(["Jan 2026", "Mar 2026", "May 2026"])).toEqual(["Jan 2026", "Mar", "May"]);
+    expect(shortTicks(["Nov 2025", "Dec 2025", "Jan 2026"])).toEqual(["Nov 2025", "Dec", "Jan 2026"]);
+    expect(shortTicks(["Won", "Lost"])).toEqual(["Won", "Lost"]);
   });
 });

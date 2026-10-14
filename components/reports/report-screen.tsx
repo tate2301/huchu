@@ -126,7 +126,9 @@ function ParamChips({
   const to = params.find((param) => param.key === "to" && param.type === "date");
   const choices = params.filter((param): param is Extract<ReportParam, { type: "choice" }> => param.type === "choice");
   const range = { from: values.from || null, to: to ? values.to || null : null };
-  const words = dayRangeWords(range, todayIn()) || "any time";
+  // Joined to the chip's label the range reads on in sentence case: "Closing from 1 January".
+  const said = dayRangeWords(range, todayIn()) || "any time";
+  const words = /^(January|February|March|April|May|June|July|August|September|October|November|December)\b/.test(said) ? said : `${said.charAt(0).toLowerCase()}${said.slice(1)}`;
   return (
     <>
       {from ? (

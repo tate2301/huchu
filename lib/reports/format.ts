@@ -92,3 +92,10 @@ export function withCurrency<T extends Pick<ReportColumn, "kind" | "currency">>(
   if (!currency) return [...columns];
   return columns.map((column) => (column.kind === "money" && !column.currency ? { ...column, currency } : column));
 }
+
+/** Month ticks ("Jan 2026", "Mar 2026") say the year once, and again where it turns, so they fit a half-width chart. */
+export function shortTicks(labels: string[]): string[] {
+  const parts = labels.map((label) => /^([A-Z][a-z]{2}) (\d{4})$/.exec(label));
+  if (parts.some((part) => !part)) return labels;
+  return parts.map((part, index) => (index === 0 || part![2] !== parts[index - 1]![2] ? `${part![1]} ${part![2]}` : part![1]!));
+}
