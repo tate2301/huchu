@@ -16359,6 +16359,8 @@ model VaneJob {
   kind             String
   /// What the top bar shows while it runs: "Matching CBZ lines".
   label            String
+  /// The person's whole request (Give Vane a job); the worker reads it before the label.
+  request          String?
   trigger          VaneJobTrigger
   requestedById    String?
   status           VaneJobStatus  @default(QUEUED)

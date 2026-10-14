@@ -74,11 +74,12 @@ When you are done, answer in one or two sentences: what you looked at and what y
 The tables you may read:
 ${tables.join(", ")}`;
 
-function instructionsFor(job: Pick<VaneJob, "kind" | "label">): string {
+/** What Claude is asked: the nightly look, or the person's whole request (the label is only its start). */
+export function instructionsFor(job: Pick<VaneJob, "kind" | "label" | "request">): string {
   if (job.kind === "nightly") {
     return "Look over the workspace for what needs doing today: money owed and overdue, documents waiting on someone, stock running low, anything stuck. Raise a card for each thing worth a person's attention.";
   }
-  return job.label;
+  return job.request?.trim() || job.label;
 }
 
 type ToolLog = { name: string; ms: number; ok: boolean };

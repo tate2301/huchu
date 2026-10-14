@@ -153,11 +153,18 @@ export async function muteVaneItem(
   return count > 0;
 }
 
+/** A job's short name: the request's first line, cut at 120 characters. */
+export function jobLabel(text: string): string {
+  const line = text.trim().split(/\n/)[0]!.trim();
+  return line.length > 120 ? `${line.slice(0, 119)}…` : line;
+}
+
 export const giveJobSchema = z.object({ text: z.string().trim().min(3).max(2000) });
 
 /**
- * Give Vane a job: queued for the worker as a person's job. The words are the
- * job's label until the worker works out a shorter one.
+ * Give Vane a job: queued for the worker as a person's job. The whole text is
+ * the job's request, which the worker reads; the label is its first 120
+ * characters, for Working on and the top bar.
  */
 export async function giveVaneJob(
   db: Pick<PrismaClient, "vaneJob">,
@@ -168,7 +175,8 @@ export async function giveVaneJob(
       companyId,
       key: `person:${randomUUID()}`,
       kind: "person",
-      label: text.length > 120 ? `${text.slice(0, 117)}…` : text,
+      label: jobLabel(text),
+      request: text,
       trigger: "PERSON",
       requestedById: userId,
       result: null,
