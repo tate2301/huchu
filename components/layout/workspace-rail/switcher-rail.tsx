@@ -97,15 +97,18 @@ export function SwitcherRail({
           <TooltipContent side="right">Open the panel</TooltipContent>
         </Tooltip>
       )}
-      {groups
-        .filter((group) => group.length > 0)
-        .map((group, index) => (
-          <React.Fragment key={group.map((mark) => mark.id).join("|")}>
-            {index > 0 ? <span aria-hidden="true" className={styles.divider} /> : null}
-            {group.map(markFor)}
-          </React.Fragment>
-        ))}
-      <div className={styles.spacer} />
+      {/* The modules scroll between the tile and the pins, so Vane, Management
+          and the person stay on screen however many modules a workspace has. */}
+      <div className={styles.railMarks}>
+        {groups
+          .filter((group) => group.length > 0)
+          .map((group, index) => (
+            <React.Fragment key={group.map((mark) => mark.id).join("|")}>
+              {index > 0 ? <span aria-hidden="true" className={styles.divider} /> : null}
+              {group.map(markFor)}
+            </React.Fragment>
+          ))}
+      </div>
       {vane ? (
         <Tooltip>
           <TooltipTrigger asChild>
