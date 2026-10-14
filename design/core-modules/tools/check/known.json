@@ -131,8 +131,6 @@
     "panel: Fitters3",
     "panel: Money4",
     "status: Sent",
-    "status: Drafted",
-    "status: Accepted",
     "footer: # to # of #Quoted #Accepted #PreviousNex",
     "button: Every subfloor",
     "heading: Build",
