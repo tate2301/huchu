@@ -67,6 +67,45 @@ export function InsightPage({
   );
 }
 
+/**
+ * Nothing in the period: the kit's Empty in place of the finding, the figures and the charts, which
+ * would only draw zeros. It offers the next wider period when there is one.
+ */
+export function InsightEmpty({
+  icon = "reports",
+  title,
+  children,
+  wider,
+}: {
+  icon?: IconName;
+  title: React.ReactNode;
+  children?: React.ReactNode;
+  wider?: { label: string; onShow: () => void } | null;
+}) {
+  return (
+    <Empty
+      icon={icon}
+      title={title}
+      action={
+        wider ? (
+          <Button icon="calendar" onClick={wider.onShow}>
+            {`Show ${wider.label.charAt(0).toLowerCase()}${wider.label.slice(1)}`}
+          </Button>
+        ) : undefined
+      }
+    >
+      {children}
+    </Empty>
+  );
+}
+
+/** The period after `current` in a page's list, the next wider one; none past the widest or for a range. */
+export function widerPeriod<V extends string>(periods: ReadonlyArray<{ value: V; label: string }>, current: V | null, ranged: boolean): { value: V; label: string } | null {
+  if (ranged) return null;
+  const at = periods.findIndex((entry) => entry.value === current);
+  return at >= 0 ? (periods[at + 1] ?? null) : null;
+}
+
 /** Loading: the page's shape in grey. */
 export function InsightLoading() {
   return (

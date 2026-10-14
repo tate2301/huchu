@@ -29,12 +29,14 @@ import {
   HBars,
   InsightAside,
   InsightBlock,
+  InsightEmpty,
   InsightError,
   InsightFrame,
   InsightLoading,
   InsightPage,
   InsightTables,
   PeriodTools,
+  widerPeriod,
   type InsightCard,
 } from "../insight-page";
 import { useInsightAddress } from "./use-period";
@@ -192,6 +194,23 @@ export function PayCostInsight() {
   }
 
   const view = address.get("view") ?? "department";
+  const aside = <InsightAside cards={cards} send={{ words: "Pay by employee, the report under this page, as a PDF or a spreadsheet, on the days you choose.", href: "/reports/payroll-pay?send=1" }} />;
+  if (now.length === 0) {
+    const empty = payFinding(now, before, label);
+    const wider = widerPeriod(PERIODS, (address.period ?? "month") as Period, Boolean(address.days));
+    return (
+      <>
+        {chrome}
+        <InsightFrame>
+          <InsightPage tools={tools} aside={aside}>
+            <InsightEmpty icon="payments" title={empty.fact} wider={wider ? { label: wider.label, onShow: () => address.setPeriod(wider.value) } : null}>
+              {empty.rest}
+            </InsightEmpty>
+          </InsightPage>
+        </InsightFrame>
+      </>
+    );
+  }
   return (
     <>
       {chrome}
@@ -200,7 +219,7 @@ export function PayCostInsight() {
           tools={tools}
           finding={payFinding(now, before, label)}
           figures={payFigures(now, before, stat, due)}
-          aside={<InsightAside cards={cards} send={{ words: "Pay by employee, the report under this page, as a PDF or a spreadsheet, on the days you choose.", href: "/reports/payroll-pay?send=1" }} />}
+          aside={aside}
         >
           <div className={pay.isFetching ? "rp-blocks is-fetching" : "rp-blocks"}>
             <div className="rp-grid2">

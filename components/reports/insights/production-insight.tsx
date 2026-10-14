@@ -27,12 +27,14 @@ import {
   HBars,
   InsightAside,
   InsightBlock,
+  InsightEmpty,
   InsightError,
   InsightFrame,
   InsightLoading,
   InsightPage,
   InsightTables,
   PeriodTools,
+  widerPeriod,
   type Days,
   type InsightCard,
 } from "../insight-page";
@@ -195,6 +197,23 @@ export function ProductionInsight() {
   }
 
   const view = address.get("view") ?? "site";
+  const aside = <InsightAside cards={cards} send={{ words: "Plant reports, the report under this page, as a PDF or a spreadsheet, on the days you choose.", href: "/reports/plant?send=1" }} />;
+  if (facts.plant.length === 0) {
+    const empty = productionFinding(facts);
+    const wider = widerPeriod(PERIODS, (address.period ?? "30d") as Period, Boolean(address.days));
+    return (
+      <>
+        {chrome}
+        <InsightFrame>
+          <InsightPage tools={tools} aside={aside}>
+            <InsightEmpty icon="reports" title={empty.fact} wider={wider ? { label: wider.label, onShow: () => address.setPeriod(wider.value) } : null}>
+              {empty.rest}
+            </InsightEmpty>
+          </InsightPage>
+        </InsightFrame>
+      </>
+    );
+  }
   return (
     <>
       {chrome}
@@ -203,7 +222,7 @@ export function ProductionInsight() {
           tools={tools}
           finding={productionFinding(facts)}
           figures={productionFigures(facts)}
-          aside={<InsightAside cards={cards} send={{ words: "Plant reports, the report under this page, as a PDF or a spreadsheet, on the days you choose.", href: "/reports/plant?send=1" }} />}
+          aside={aside}
         >
           <div className={plant.isFetching ? "rp-blocks is-fetching" : "rp-blocks"}>
             <div className="rp-grid2">
