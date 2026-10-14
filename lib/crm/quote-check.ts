@@ -71,28 +71,36 @@ async function quoteFor(companyId: string, documentId: string) {
 
 /**
  * Checks a CRM quote's lines against the price list, as the catalogue would
- * price each one for this customer and quantity. A line is matched to a
- * product by name, which is what the quote builder writes when a product is
- * picked; a line typed by hand has no product and is counted, not checked.
+ * price each one for this customer and quantity. A line picked from the
+ * catalogue keeps its product; a line from before that, matched by name; a
+ * line typed by hand has no product and is counted, not checked.
  */
 export async function checkQuoteAgainstPriceList(companyId: string, documentId: string): Promise<QuoteCheck | null> {
   const quote = await quoteFor(companyId, documentId);
   if (!quote) return null;
   const { editable } = quote;
 
-  const names = [...new Set(editable.lines.map((line) => line.description.trim()).filter(Boolean))];
-  const products = names.length
+  // A line picked from the catalogue names its product; an older or hand-typed one is matched by name.
+  const ids = [...new Set(editable.lines.flatMap((line) => (line.productId ? [line.productId] : [])))];
+  const names = [...new Set(editable.lines.filter((line) => !line.productId).map((line) => line.description.trim()).filter(Boolean))];
+  const products = ids.length || names.length
     ? await prisma.product.findMany({
-        where: { companyId, isActive: true, archivedAt: null, OR: names.map((name) => ({ name: { equals: name, mode: "insensitive" as const } })) },
+        where: {
+          companyId,
+          isActive: true,
+          archivedAt: null,
+          OR: [...(ids.length ? [{ id: { in: ids } }] : []), ...names.map((name) => ({ name: { equals: name, mode: "insensitive" as const } }))],
+        },
         select: { id: true, name: true, unit: true, unitLabel: true },
       })
     : [];
+  const byId = new Map(products.map((product) => [product.id, product]));
   const byName = new Map(products.map((product) => [key(product.name), product]));
 
   const findings: QuoteLineFinding[] = [];
   let checked = 0;
   for (const [position, line] of editable.lines.entries()) {
-    const product = byName.get(key(line.description));
+    const product = line.productId ? byId.get(line.productId) : byName.get(key(line.description));
     if (!product) continue;
     const priced = await priceProducts(
       companyId,

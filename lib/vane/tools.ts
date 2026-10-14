@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 
 import { proposeActions, type ActionProposal } from "./actions/engine";
 import { VANE_ACTIONS } from "./actions/registry";
+import { moveVaneStep } from "./lists";
 import { VANE_PAGES_GUIDE } from "./pages";
 import { VANE_SUBJECTS } from "./panel";
 import { readWorkspace, ReaderError, tablesFor, withReader, type ReadableTable } from "./reader";
@@ -29,6 +30,8 @@ export type ToolContext = {
    * here and hung on its answer when it finishes.
    */
   answerActions?: ActionProposal[];
+  /** What Vane could not work out, when it says so (`report_problem`): the job ends on it. */
+  problem?: { problem: string; sql: string | null };
 };
 
 type VaneTool<Input extends z.ZodType> = {
@@ -179,6 +182,12 @@ const proposeItem = tool({
         .optional()
         .describe("The page it opens, with the filters that show just these records: \"/books/invoices?view=overdue&customer=<id>\". See the pages list."),
     }),
+    topic: z
+      .string()
+      .min(1)
+      .max(40)
+      .optional()
+      .describe('What kind of finding this is, in the same two or three words every time you raise one like it ("Short cash-up", "Invoices without a due date"). People can stop a topic for themselves; never raise a card on a topic a person stopped for them alone.'),
     subjectType: z
       .enum(VANE_SUBJECTS)
       .optional()
@@ -217,6 +226,7 @@ const proposeItem = tool({
         headline: input.headline,
         body: input.body,
         action: input.action,
+        topic: input.topic,
         subjectType: input.subjectType,
         subjectId: input.subjectId,
         sql: input.sql,
@@ -259,6 +269,40 @@ const proposePlan = tool({
       select: { id: true },
     });
     return { id: plan.id, steps: steps.length };
+  },
+});
+
+const moveStep = tool({
+  name: "update_plan_step",
+  description:
+    "Move one of your own steps in a plan on as you work: NOW while you work on it, with how far you are (\"38 of 61 lines\"), and DONE when it is finished. " +
+    "A person's steps are theirs to tick; you can propose vane.plan.tick_step for one instead. When every step is done the plan is.",
+  input: z.object({
+    planId: z.string().min(1),
+    stepId: z.string().min(1),
+    status: z.enum(["NOW", "DONE"]),
+    progress: z.string().max(60).optional().describe('How far, in a few words: "38 of 61 lines".'),
+  }),
+  async run({ companyId }, { planId, stepId, status, progress }) {
+    const outcome = await moveVaneStep(prisma, { companyId }, { planId, stepId, status, progress });
+    if (outcome === "not-found") throw new ToolError(`There is no step ${stepId} in plan ${planId}.`);
+    if (outcome === "person-owns-it") throw new ToolError("That step is a person's: propose vane.plan.tick_step for it instead.");
+    return { moved: true, status };
+  },
+});
+
+const reportProblem = tool({
+  name: "report_problem",
+  description:
+    "Say you could not work something out, and stop: what stopped you, in a sentence a person can act on (\"3 receipts have no amount, so the total would be a guess.\"), " +
+    "and the SELECT that finds the rows you stopped at, so they can look at them. Use it rather than guessing; raise no card on what you could not work out.",
+  input: z.object({
+    problem: z.string().min(1).max(300),
+    sql: z.string().max(20_000).optional().describe("One SELECT that returns the rows behind the problem, as run_sql takes it."),
+  }),
+  async run(context, { problem, sql }) {
+    context.problem = { problem, sql: sql?.trim() || null };
+    return { reported: true, next: "Stop here: answer in one sentence that you could not work it out." };
   },
 });
 
@@ -306,7 +350,7 @@ const proposeActionsTool = tool({
   },
 });
 
-export const VANE_TOOLS = [describeTable, runSql, getRecord, proposeItem, proposePlan, proposeActionsTool] as const;
+export const VANE_TOOLS = [describeTable, runSql, getRecord, proposeItem, proposePlan, proposeActionsTool, moveStep, reportProblem] as const;
 
 /** The tools as Claude is shown them. */
 export function toolDefinitions(): Anthropic.Tool[] {
@@ -318,6 +362,14 @@ export function toolDefinitions(): Anthropic.Tool[] {
 }
 
 export type ToolResult = { ok: boolean; content: string };
+
+/** A call Vane can correct, said back to it in a sentence: a step that is not there, or is a person's. */
+export class ToolError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "ToolError";
+  }
+}
 
 /**
  * Runs one tool call from Claude. A call Vane can correct (an input that does
@@ -335,6 +387,7 @@ export async function callTool(context: ToolContext, name: string, input: unknow
     return { ok: true, content: JSON.stringify(result) };
   } catch (error) {
     if (error instanceof ReaderError && error.code !== "misconfigured") return { ok: false, content: error.message };
+    if (error instanceof ToolError) return { ok: false, content: error.message };
     throw error;
   }
 }

@@ -3,6 +3,8 @@ import * as React from "react";
 import { Button, ButtonLink } from "@/components/core";
 import type { VaneStatus } from "@/lib/vane/status";
 
+import { ProblemRows } from "./problem-rows";
+
 const time = (iso: string) => new Date(iso).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false });
 const day = (date: string) =>
   new Date(`${date}T00:00:00`).toLocaleDateString("en-GB", { day: "numeric", month: "long" });
@@ -14,6 +16,8 @@ const TRIED: Record<string, string> = {
   get_record: "read the records",
   propose_item: "drafted a card",
   propose_plan: "drafted a plan",
+  update_plan_step: "moved a plan on",
+  report_problem: "said what stopped it",
 };
 
 function triedLine(tools: string[]): string {
@@ -54,7 +58,11 @@ export function VaneStateNote({
   let action: React.ReactNode = null;
 
   if (status.paused) {
-    title = status.pausedAt ? `Paused at ${time(status.pausedAt)}` : "Vane is paused";
+    title = status.pausedBy
+      ? `Paused by ${status.pausedBy}${status.pausedAt ? `, ${time(status.pausedAt)}` : ""}`
+      : status.pausedAt
+        ? `Paused at ${time(status.pausedAt)}`
+        : "Vane is paused";
     line = "Nothing new is read or drafted until someone resumes.";
     if (canResume && onResume) {
       action = (
@@ -74,7 +82,9 @@ export function VaneStateNote({
     );
   } else if (status.stuck) {
     title = "I could not work this out";
-    line = `${status.stuck.label}: ${status.stuck.error}${triedLine(status.stuck.tried)}`;
+    line = `${status.stuck.label}: ${status.stuck.error}${triedLine(status.stuck.tried)}${status.stuck.rows ? " Let's look at the rows." : ""}`;
+    // The rows are what Vane may read, so they are for the people who run it.
+    if (status.stuck.rows && canResume) action = <ProblemRows jobId={status.stuck.jobId} />;
   } else if (status.unreachable) {
     title = "Vane cannot work just now";
     line = `${status.lastWorkedAt ? `Last worked at ${time(status.lastWorkedAt)}. ` : ""}It tries again on its own every few minutes.`;

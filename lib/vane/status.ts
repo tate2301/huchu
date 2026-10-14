@@ -4,6 +4,7 @@ import { z } from "zod";
 import { dayKey } from "@/lib/workspace/format";
 
 import { monthBounds } from "./settings";
+import { notStopped, stoppedTopics } from "./topics";
 
 /** What For you holds and the button counts: issues and suggestions. Insights live on Reports → Insights. */
 export const FOR_YOU: VaneItemKind[] = ["ISSUE", "SUGGESTION"];
@@ -17,6 +18,8 @@ export type VaneStatus = {
   /** The running job's label and progress ("Matching CBZ lines", "38 of 61 lines"). */
   now: { label: string; progress: string | null } | null;
   paused: boolean;
+  /** Who paused it, when that is known. */
+  pausedBy: string | null;
   /** When Vane was paused (the settings' last change while paused). */
   pausedAt: string | null;
   /** When Vane last finished a job, for "last worked at" when it cannot reach the service. */
@@ -28,7 +31,8 @@ export type VaneStatus = {
   /** This month's jobs are used up: new ones wait for `resetsOn`. */
   overAllowance: { used: number; allowance: number; resetsOn: string } | null;
   /** The last job Vane finished could not be worked out: what it was, why, and the tools it tried. */
-  stuck: { label: string; error: string; tried: string[]; at: string } | null;
+  /** The job Vane could not work out: what stopped it, what it tried, and whether it left the rows' question ("Show the rows"). */
+  stuck: { jobId: string; label: string; error: string; tried: string[]; at: string; rows: boolean } | null;
   /** The counts beside Vane's pages in its panel. */
   counts: { working: number; plans: number; doneToday: number; muted: number };
 };
@@ -61,14 +65,16 @@ function toolsTried(value: unknown): string[] {
 }
 
 export async function vaneStatus(
-  db: Pick<PrismaClient, "vaneItem" | "vaneJob" | "vanePlan" | "vaneSettings">,
+  db: Pick<PrismaClient, "vaneItem" | "vaneJob" | "vanePlan" | "vaneSettings" | "vaneTopicStop">,
   { companyId, userId, role }: { companyId: string; userId: string; role?: string | null },
   now: Date = new Date(),
 ): Promise<VaneStatus> {
   const { start: monthStart, next: monthNext } = monthBounds(now);
   const mine = { companyId, kind: { in: FOR_YOU }, ...audienceFilter(userId, role) };
+  // What this person stopped for themselves is not counted as waiting for them.
+  const stopped = await stoppedTopics(db, { companyId, userId });
   const [open, muted, running, last, newest, lastFinished, settings, working, plans, doneToday, used] = await Promise.all([
-    db.vaneItem.count({ where: { ...mine, status: "OPEN" } }),
+    db.vaneItem.count({ where: { ...mine, ...notStopped(stopped), status: "OPEN" } }),
     db.vaneItem.count({ where: { ...mine, status: "MUTED" } }),
     db.vaneJob.findFirst({
       where: { companyId, status: "RUNNING" },
@@ -85,9 +91,9 @@ export async function vaneStatus(
     db.vaneJob.findFirst({
       where: { companyId, kind: { not: "chat" }, status: { in: ["DONE", "FAILED"] }, finishedAt: { not: null } },
       orderBy: { finishedAt: "desc" },
-      select: { status: true, label: true, error: true, tools: true, finishedAt: true },
+      select: { id: true, status: true, label: true, error: true, tools: true, finishedAt: true, problemSql: true },
     }),
-    db.vaneSettings.findUnique({ where: { companyId }, select: { paused: true, updatedAt: true, monthlyAllowance: true } }),
+    db.vaneSettings.findUnique({ where: { companyId }, select: { paused: true, updatedAt: true, monthlyAllowance: true, pausedBy: { select: { name: true } } } }),
     db.vaneJob.count({ where: { companyId, status: { in: ["RUNNING", "QUEUED", "WAITING"] } } }),
     db.vanePlan.count({ where: { companyId, status: "OPEN" } }),
     db.vaneJob.count({ where: { companyId, status: "DONE", finishedAt: { gte: startOfWorkspaceDay(now) } } }),
@@ -104,6 +110,7 @@ export async function vaneStatus(
     working: Boolean(running) && !paused,
     now: running ? { label: running.label, progress } : null,
     paused,
+    pausedBy: paused ? (settings?.pausedBy?.name ?? null) : null,
     pausedAt: paused && settings ? settings.updatedAt.toISOString() : null,
     lastWorkedAt: last?.finishedAt?.toISOString() ?? null,
     unreachable,
@@ -112,10 +119,12 @@ export async function vaneStatus(
     stuck:
       lastFinished?.status === "FAILED" && lastFinished.finishedAt
         ? {
+            jobId: lastFinished.id,
             label: lastFinished.label,
             error: lastFinished.error?.trim() || "It stopped without saying why.",
             tried: toolsTried(lastFinished.tools),
             at: lastFinished.finishedAt.toISOString(),
+            rows: Boolean(lastFinished.problemSql),
           }
         : null,
     counts: { working, plans, doneToday, muted },

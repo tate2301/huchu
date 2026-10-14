@@ -54,7 +54,7 @@ export async function PATCH(request: NextRequest) {
     }
     const body = settingsPatchSchema.safeParse(await request.json().catch(() => ({})));
     if (!body.success) return errorResponse(body.error.issues[0]?.message ?? "Those settings are not right", 400);
-    await updateVaneSettings(prisma, session.user.companyId, body.data);
+    await updateVaneSettings(prisma, session.user.companyId, body.data, session.user.id);
     return successResponse(await readVaneSettings(prisma, session.user.companyId));
   } catch (error) {
     console.error("[API] PATCH /api/vane/settings error:", error);

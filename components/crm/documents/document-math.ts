@@ -1,6 +1,8 @@
 import type { CrmDocumentLineInput } from "@/lib/crm/accounting-bridge";
 
 export type DocumentLineDraft = {
+  /** The catalogue product picked for it; dropped when the words are typed over. */
+  productId?: string;
   description: string;
   quantity: string;
   unitPrice: string;
@@ -57,6 +59,7 @@ export function draftToLine(
     quantity,
     unitPrice,
     ...(taxRate ? { taxRate } : {}),
+    ...(line.productId ? { productId: line.productId } : {}),
   };
 }
 
