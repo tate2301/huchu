@@ -284,7 +284,9 @@
   "VaneForYou": [
     "panel: Pipeline",
     "panel: Site visits",
-    "panel: Showroom"
+    "panel: Showroom",
+    "button: Vane",
+    "button: Pause Vane"
   ],
   "PageVaneCard": [
     "primary: Open 3 statements [S]",
@@ -317,7 +319,10 @@
     "label: VAT summary",
     "label: Invoices and bills",
     "label: Trial balance",
-    "label: Tax codes"
+    "label: Tax codes",
+    "heading: VAT for September",
+    "button: Vane",
+    "primary: Give Vane a job [Ctrl J]"
   ],
   "PageVaneDone": [
     "panel: Pipeline",

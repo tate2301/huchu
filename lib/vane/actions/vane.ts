@@ -26,6 +26,7 @@ const tickStep = {
     const outcome = await tickPlanStep(prisma, { companyId: context.companyId, userId: context.userId }, { planId: p.planId, stepId: p.stepId, done: true });
     if (outcome === "not-found") throw new VaneActionError("That step is not in the plan any more.");
     if (outcome === "vane-owns-it") throw new VaneActionError("That step is Vane's; it ticks it when its job finishes.");
+    if (outcome === "not-started") throw new VaneActionError("The plan waits for Start; nothing in it moves before then.");
     return `"${p.step}" is done.`;
   },
 } satisfies VaneActionKind<{ planId: string; stepId: string; step: string; plan: string }>;

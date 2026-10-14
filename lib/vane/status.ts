@@ -101,7 +101,8 @@ export async function vaneStatus(
     }),
     db.vaneSettings.findUnique({ where: { companyId }, select: { paused: true, updatedAt: true, monthlyAllowance: true } }),
     db.vaneJob.count({ where: { companyId, status: { in: ["RUNNING", "QUEUED", "WAITING"] } } }),
-    db.vanePlan.count({ where: { companyId, status: "OPEN" } }),
+    // Plans under way and those waiting for Start.
+    db.vanePlan.count({ where: { companyId, status: { in: ["WAITING", "OPEN"] } } }),
     db.vaneJob.count({ where: { companyId, status: "DONE", finishedAt: { gte: startOfWorkspaceDay(now) } } }),
     // What holds new jobs back (`lib/vane/jobs.ts`): the jobs started this month.
     db.vaneJob.count({ where: { companyId, startedAt: { gte: monthStart } } }),
