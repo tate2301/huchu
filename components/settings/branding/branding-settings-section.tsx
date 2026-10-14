@@ -566,7 +566,7 @@ export function BrandingSettingsSection({ section }: { section: BrandingSection 
         width={FORM_WIDTH}
         className={styles.page}
         action={
-          <HeaderAction onClick={() => router.push("/preferences/organization/templates")}>
+          <HeaderAction onClick={() => router.push("/build/templates")}>
             Preview a document
           </HeaderAction>
         }

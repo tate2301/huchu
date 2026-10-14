@@ -853,7 +853,6 @@ export const navSections: NavSection[] = [
 
       { href: "/crm/leads", icon: Funnel, label: "Leads", group: "pipeline", rank: "flow" },
       { href: "/crm/deals", icon: Funnel, label: "Deals", group: "pipeline", rank: "flow" },
-      { href: "/crm/forms", icon: NoteAdd, label: "Intake forms", group: "pipeline" },
 
       { href: "/crm/people", icon: Users, label: "People", group: "contacts" },
       { href: "/crm/companies", icon: Building2, label: "Companies", group: "contacts" },
@@ -913,15 +912,9 @@ export const navSections: NavSection[] = [
         roles: ["SUPERADMIN", "MANAGER"],
         group: "setup",
       },
-      // What reps are asked on site and the quote it drafts, built here; the
-      // enquiry forms and reports made from them are listed beside it.
-      {
-        href: "/crm/build",
-        icon: Grid3x3,
-        label: "Build",
-        roles: ["SUPERADMIN", "MANAGER"],
-        group: "setup",
-      },
+      // What reps are asked on site, the quote it drafts and the enquiry forms
+      // are built in Build, a module of its own (`/build`); `/crm/build` and
+      // `/crm/forms` forward there.
       {
         href: "/crm/workflows",
         icon: Zap,

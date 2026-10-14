@@ -97,7 +97,7 @@ export function VisitsInsight({ formId }: { formId?: string }) {
     () => (
       <Kit contents>
         {own ? (
-          <ButtonLink href={`/crm/build/visits/${formId}`} icon="edit">
+          <ButtonLink href={`/build/forms/${formId}`} icon="edit">
             Edit the form
           </ButtonLink>
         ) : (
@@ -110,7 +110,7 @@ export function VisitsInsight({ formId }: { formId?: string }) {
     [own, formId],
   );
   const chrome = own ? (
-    <PageChrome title={title} backHref="/crm/build" backLabel="Build">
+    <PageChrome title={title} backHref={`/build/forms/${formId}`} backLabel="The form">
       {actions}
     </PageChrome>
   ) : (
@@ -220,7 +220,7 @@ export function VisitsInsight({ formId }: { formId?: string }) {
                 onClick: () => require.mutate({ id: shownForm.id, key: suggestion.key }),
               },
             }
-          : { key: card.key, title: card.title, body: `${card.body} A manager can change the form.`, action: { label: "Open the form", icon: "edit", href: `/crm/build/visits/${shownForm.id}` } };
+          : { key: card.key, title: card.title, body: `${card.body} A manager can change the form.`, action: { label: "Open the form", icon: "edit", href: `/build/forms/${shownForm.id}` } };
       }
       return { key: card.key, title: card.title, body: card.body, action: { label: "Open the form", icon: "edit", href: `/crm/build/visits/${shownForm.id}/insights` } };
     }
@@ -240,7 +240,7 @@ export function VisitsInsight({ formId }: { formId?: string }) {
               icon="visits"
               title="No site-visit forms yet"
               action={
-                <ButtonLink href="/crm/build" icon="plus">
+                <ButtonLink href="/build?kind=forms" icon="plus">
                   Make a form in Build
                 </ButtonLink>
               }

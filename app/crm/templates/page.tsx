@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 
-/** Templates are global, not a CRM feature. They live at the sidebar root. */
+/** Templates are Build's (spec/routes.md §5). */
 export default function CrmTemplatesPage() {
-  redirect("/templates");
+  redirect("/build/templates");
 }

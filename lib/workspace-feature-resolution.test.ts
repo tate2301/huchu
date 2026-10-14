@@ -409,6 +409,8 @@ describe("workspace sidebar model", () => {
         "Stock",
         "Buying",
         "Reports",
+        // Build, in every workspace (spec/routes.md §5), before Setup.
+        "Build",
         "Setup",
       ]);
     });

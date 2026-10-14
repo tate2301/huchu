@@ -12,7 +12,6 @@ import {
   Coins,
   Dataset,
   FileCheck,
-  FileText,
   Grid3x3,
   History,
   IdentificationCard,
@@ -84,13 +83,6 @@ export const managementModuleItems: ManagementModuleItem[] = [
     href: "/preferences/organization/users",
     icon: MedusaIdBadgeIcon,
     matchPrefixes: ["/management/users", "/preferences/organization/users"],
-  },
-  {
-    id: "document-templates",
-    label: "Document templates",
-    href: "/preferences/organization/templates",
-    icon: MedusaBookOpenIcon,
-    matchPrefixes: ["/settings/templates", "/preferences/organization/templates"],
   },
 ];
 
@@ -537,15 +529,8 @@ export const settingsNavEntries: SettingsNavEntry[] = [
     gate: { kind: "preference", itemId: "branding" },
     matchPrefixes: ["/settings/branding"],
   },
-  {
-    id: "templates",
-    group: "company",
-    label: "Templates",
-    href: "/preferences/organization/templates",
-    icon: FileText,
-    gate: { kind: "preference", itemId: "templates" },
-    matchPrefixes: ["/settings/templates"],
-  },
+  // Templates moved to Build (PageBuildTemplates: "Templates moved here from
+  // Management"); `/preferences/organization/templates` forwards there.
   {
     id: "reports",
     group: "company",
