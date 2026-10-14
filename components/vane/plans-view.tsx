@@ -29,9 +29,20 @@ function listNote(plan: VanePlanDetail): string {
 /**
  * Plans (PageVanePlan): every plan Vane broke a job into, on the left with
  * how far along each is; the chosen one on the right, its steps in order,
- * whose each is and what each found.
+ * whose each is and what each found. A person ticks their own steps here.
  */
-export function PlansView({ plans, selectedId }: { plans: VanePlanDetail[]; selectedId: string | null }) {
+export function PlansView({
+  plans,
+  selectedId,
+  onTick,
+  busy = false,
+}: {
+  plans: VanePlanDetail[];
+  selectedId: string | null;
+  /** A person ticks their own step done or not done; Vane's steps tick as its jobs finish. */
+  onTick?: (planId: string, stepId: string, done: boolean) => void;
+  busy?: boolean;
+}) {
   if (plans.length === 0) {
     return (
       <div className="kbody vn-body">
@@ -77,7 +88,21 @@ export function PlansView({ plans, selectedId }: { plans: VanePlanDetail[]; sele
               <ol>
                 {plan.steps.map((step) => (
                   <li key={step.id} className={`is-${step.status}`}>
-                    <Icon name={`step-${step.status}`} />
+                    {step.owner === "person" && onTick && (plan.status === "open" || plan.status === "done") ? (
+                      <button
+                        type="button"
+                        className="vn-tick"
+                        aria-pressed={step.status === "done"}
+                        aria-label={step.status === "done" ? `Mark “${step.label}” not done` : `Mark “${step.label}” done`}
+                        title={step.status === "done" ? "Mark not done" : "Mark done"}
+                        disabled={busy}
+                        onClick={() => onTick(plan.id, step.id, step.status !== "done")}
+                      >
+                        <Icon name={`step-${step.status}`} />
+                      </button>
+                    ) : (
+                      <Icon name={`step-${step.status}`} />
+                    )}
                     <span>
                       {step.label}
                       {step.progress ? (

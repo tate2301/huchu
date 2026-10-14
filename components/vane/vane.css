@@ -45,6 +45,11 @@
 .ck .vn-plan-steps .vp li { padding: 8px 0; align-items: start; }
 .ck .vn-plan-steps .vp li .ic { margin-top: 2px; }
 .ck .vn-step-d { font-size: 12px; }
+.ck .vn-tick { all: unset; display: inline-flex; margin-top: 2px; border-radius: 4px; cursor: pointer; }
+.ck .vn-tick .ic { margin-top: 0; }
+.ck .vn-tick:hover .ic { color: var(--color-accent); }
+.ck .vn-tick:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
+.ck .vn-tick:disabled { cursor: progress; }
 @media (max-width: 759px) {
   .ck .vn-plans { flex-direction: column; }
   .ck .vn-plan-list { width: auto; box-shadow: inset 0 -1px 0 var(--color-line); overflow: visible; }

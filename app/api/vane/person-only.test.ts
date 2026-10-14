@@ -1,9 +1,9 @@
 /**
  * The witness that Vane changes nothing by itself: every Vane route that
- * changes data (Not now, Give Vane a job, Pause and Resume) answers only a
- * signed-in person. A request with no person behind it, such as the
- * scheduled-jobs tick calling with its own secret, is refused with 401 and
- * the rows stay as they were. The checks run through the real session guard
+ * changes data (Not now, Give Vane a job, ticking a plan step, Pause and
+ * Resume) answers only a signed-in person. A request with no person behind
+ * it, such as the scheduled-jobs tick calling with its own secret, is refused
+ * with 401 and the rows stay as they were. The checks run through the real session guard
  * against the database, nothing mocked.
  */
 import { randomUUID } from "node:crypto";
@@ -15,11 +15,13 @@ import { prisma } from "@/lib/prisma";
 
 import { POST as giveJob } from "./jobs/route";
 import { POST as mute } from "./items/[id]/mute/route";
+import { PATCH as tickStep } from "./plans/[id]/steps/[stepId]/route";
 import { PATCH as changeSettings } from "./settings/route";
 
 const suffix = randomUUID().slice(0, 8);
 let companyId = "";
 let itemId = "";
+const plan = { id: "", personStep: "" };
 
 /** A request as something other than a person makes it: no session cookie, only the tick's bearer secret. */
 function notAPerson(path: string, method: string, body: unknown) {
@@ -45,6 +47,21 @@ beforeAll(async () => {
     },
   });
   itemId = item.id;
+  const made = await prisma.vanePlan.create({
+    data: {
+      companyId,
+      title: "Collect what is overdue",
+      steps: {
+        create: [
+          { position: 1, label: "List what each customer owes", owner: "VANE", status: "DONE" },
+          { position: 2, label: "Call the customers who owe the most", owner: "PERSON", status: "NOW" },
+        ],
+      },
+    },
+    include: { steps: true },
+  });
+  plan.id = made.id;
+  plan.personStep = made.steps.find((step) => step.owner === "PERSON")!.id;
 });
 
 afterAll(async () => {
@@ -65,6 +82,15 @@ describe("Vane's data changes need a person", () => {
     const response = await giveJob(notAPerson("/api/vane/jobs", "POST", { text: "Send every overdue customer a reminder" }));
     expect(response.status).toBe(401);
     expect(await prisma.vaneJob.count({ where: { companyId } })).toBe(0);
+  });
+
+  it("refuses ticking a person's plan step without a signed-in person, and the step stays as it was", async () => {
+    const response = await tickStep(notAPerson(`/api/vane/plans/${plan.id}/steps/${plan.personStep}`, "PATCH", { done: true }), {
+      params: Promise.resolve({ id: plan.id, stepId: plan.personStep }),
+    });
+    expect(response.status).toBe(401);
+    expect(await prisma.vanePlanStep.findUniqueOrThrow({ where: { id: plan.personStep } })).toMatchObject({ status: "NOW", doneAt: null });
+    expect(await prisma.vanePlan.findUniqueOrThrow({ where: { id: plan.id } })).toMatchObject({ status: "OPEN" });
   });
 
   it("refuses Pause without a signed-in person, and Vane keeps working", async () => {

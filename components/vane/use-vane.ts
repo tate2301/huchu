@@ -113,5 +113,10 @@ export function useVaneActions() {
       fetchJson("/api/vane/settings", { method: "PATCH", body: JSON.stringify({ paused }) }),
     onSettled: refresh,
   });
-  return { notNow, giveJob, pause };
+  const tickStep = useMutation({
+    mutationFn: ({ planId, stepId, done }: { planId: string; stepId: string; done: boolean }) =>
+      fetchJson(`/api/vane/plans/${planId}/steps/${stepId}`, { method: "PATCH", body: JSON.stringify({ done }) }),
+    onSettled: refresh,
+  });
+  return { notNow, giveJob, pause, tickStep };
 }
