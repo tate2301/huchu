@@ -13,7 +13,7 @@ import { GearSix } from "@/lib/icons";
 import type { RailArea } from "@/lib/rail/areas";
 import { logoInitials } from "@/lib/rail/initials";
 import { reportBadges, reportCounts, reportEntries } from "@/lib/reports/all";
-import { verticalOf } from "@/lib/reports/verticals";
+import { areaHref, verticalOf } from "@/lib/reports/verticals";
 import { areaForHref, getRailModel, type RailModel } from "@/lib/rail/model";
 import { staticPanelReport } from "@/lib/rail/report-lookup";
 import { areaForModuleReport, readModuleReportPath, type PanelReport } from "@/lib/rail/reports";
@@ -31,7 +31,7 @@ import {
   type WorkspaceSidebarModel,
 } from "@/lib/workspaces";
 import { useActiveWorkspace } from "@/components/layout/workspace-rail/use-active-workspace";
-import { fetchReportsHome, REPORTS_HOME_KEY } from "@/components/layout/workspace-rail/reports-groups";
+import { fetchReportsHome, isReportsArea, REPORTS_HOME_KEY } from "@/components/layout/workspace-rail/reports-groups";
 import { BUILD_HOME_KEY, fetchBuildHome } from "@/components/build/build-data";
 
 /** The workspace's name and branding, resolved on the server by the root layout. */
@@ -188,8 +188,9 @@ export function ShellNavProvider({
     refetchOnWindowFocus: true,
   });
 
-  // Reports' rows count what each view holds, while Reports is the page's module.
-  const onReports = pathname === "/reports" || pathname.startsWith("/reports/");
+  // Reports' rows count what each view and area holds, while Reports is the page's module (the
+  // shop's Reports is at /retail/reports).
+  const onReports = /^\/(retail\/)?reports(\/|$)/.test(pathname) || pathname.startsWith("/retail/insights/");
   const reportsQuery = useQuery({
     queryKey: REPORTS_HOME_KEY,
     queryFn: fetchReportsHome,
@@ -277,10 +278,17 @@ export function ShellNavProvider({
   // A path that does not exist names no nav item, even when an item's href is
   // a prefix of it (`/retail/stock/count` is not On hand).
   const [notFound, setNotFound] = React.useState(false);
-  const activeHref = React.useMemo(
-    () => (notFound || moduleReport ? null : getActiveNavHref(model.sections, pathname, searchParams, RETAIL_NAV_ITEMS)),
-    [model.sections, moduleReport, notFound, pathname, searchParams],
-  );
+  // An area of a vertical's Reports (`/reports?area=Pay`) is All reports on that area: the area's
+  // row is the page where the panel lists one, and Reports' panel stays whether or not it does.
+  const reportsArea = pathname === "/reports" && verticalOf(workspaceProfile) ? searchParams.get("area") : null;
+  const activeHref = React.useMemo(() => {
+    if (notFound || moduleReport) return null;
+    if (reportsArea) {
+      const href = areaHref(reportsArea);
+      return model.sections.some((section) => section.items.some((item) => item.href === href)) ? href : null;
+    }
+    return getActiveNavHref(model.sections, pathname, searchParams, RETAIL_NAV_ITEMS);
+  }, [model.sections, moduleReport, notFound, pathname, reportsArea, searchParams]);
   const pageItem = React.useMemo(
     () => (notFound ? null : retailNavItemForPath(pathname, searchParams)),
     [notFound, pathname, searchParams],
@@ -293,8 +301,11 @@ export function ShellNavProvider({
     sessionStatus === "authenticated" && !canRoleOpenRetailPath(role, pathname, searchParams);
   const refusalNoun = pageItem ? RESOURCE_LABELS[pageItem.requires[0][0]] : "this page";
   const currentArea = React.useMemo(
-    () => (moduleReport ? areaForModuleReport(rail.areas, panelReports, moduleReport) : areaForHref(rail.areas, activeHref)),
-    [activeHref, moduleReport, panelReports, rail],
+    () =>
+      moduleReport
+        ? areaForModuleReport(rail.areas, panelReports, moduleReport)
+        : (areaForHref(rail.areas, activeHref) ?? (reportsArea ? (rail.areas.find(isReportsArea) ?? null) : null)),
+    [activeHref, moduleReport, panelReports, rail, reportsArea],
   );
   const activeItem = React.useMemo(
     () => currentArea?.items.find((item) => item.href === activeHref) ?? null,

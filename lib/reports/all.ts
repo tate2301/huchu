@@ -2,6 +2,7 @@ import type { CatalogArea } from "@/lib/reports/catalog";
 import type { CustomReportSummary } from "@/lib/reports/custom/document";
 import type { ReportFolderRecord } from "@/lib/reports/folders";
 import type { ReportTemplateRecord } from "@/lib/reports/template-access";
+import { areaHref } from "@/lib/reports/verticals";
 
 /**
  * Reports → All reports (ReportsAll): every report this person can open, in
@@ -163,11 +164,13 @@ export function inView(entry: ReportEntry, view: ReportsView): boolean {
   return entry.whose === view;
 }
 
-export type ReportsCounts = Record<ReportsView, number> & { books: number; folders: Record<string, number> };
+export type ReportsCounts = Record<ReportsView, number> & { books: number; folders: Record<string, number>; areas: Record<string, number> };
 
 export function reportCounts(entries: readonly ReportEntry[]): ReportsCounts {
   const folders: Record<string, number> = {};
   for (const entry of entries) if (entry.folder) folders[entry.folder.id] = (folders[entry.folder.id] ?? 0) + 1;
+  const areas: Record<string, number> = {};
+  for (const entry of entries) if (entry.area) areas[entry.area] = (areas[entry.area] ?? 0) + 1;
   return {
     all: entries.length,
     yours: entries.filter((entry) => entry.whose === "yours").length,
@@ -175,13 +178,15 @@ export function reportCounts(entries: readonly ReportEntry[]): ReportsCounts {
     corelith: entries.filter((entry) => entry.group === "corelith").length,
     books: entries.filter((entry) => entry.group === "corelith" && entry.area === "Books").length,
     folders,
+    areas,
   };
 }
 
-/** The badges beside Reports' panel rows, keyed by each row's address. */
+/** The badges beside Reports' panel rows, keyed by each row's address; a vertical's area rows too. */
 export function reportBadges(counts: ReportsCounts, vertical = false): Record<string, string> {
   const badges: Record<string, string> = {};
   for (const view of REPORT_VIEWS) if (counts[view] > 0) badges[viewHref(view, vertical)] = String(counts[view]);
+  if (vertical) for (const [area, count] of Object.entries(counts.areas)) badges[areaHref(area)] = String(count);
   return badges;
 }
 

@@ -40,7 +40,7 @@ export function ModuleGroups({
   onNavigate?: () => void;
 }) {
   // Reports' own panel: its folders and Build, as ReportsAll draws it.
-  if (isReportsArea(area)) return <ReportsGroups onNavigate={onNavigate} />;
+  if (isReportsArea(area)) return <ReportsGroups area={area} onNavigate={onNavigate} />;
   return (
     <>
       {savedViews ? <SavedViewsGroup onNavigate={onNavigate} /> : null}

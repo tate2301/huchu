@@ -41,12 +41,12 @@ export function isReportsArea(area: RailArea): boolean {
  * Folders, with Add to Folders and each folder's Rename and Delete. Forms
  * and documents are Build's, a module of its own (`/build`).
  */
-export function ReportsGroups({ onNavigate }: { onNavigate?: () => void }) {
+export function ReportsGroups({ area, onNavigate }: { area: RailArea; onNavigate?: () => void }) {
   const { data: session } = useSession();
   const vertical = verticalOf((session?.user as { workspaceProfile?: string } | undefined)?.workspaceProfile);
   return (
     <>
-      {vertical ? <AreasGroup vertical={vertical} onNavigate={onNavigate} /> : null}
+      {vertical ? <AreasGroup vertical={vertical} listed={area} onNavigate={onNavigate} /> : null}
       <FoldersGroup onNavigate={onNavigate} />
     </>
   );
@@ -200,15 +200,20 @@ const AREA_ICONS: Record<string, LucideIcon> = {
 /**
  * A vertical's Areas (PageSchoolReports, PageMineReports): its own areas, then
  * pay, people and the books, each with how many reports it holds, opening All
- * reports on that area.
+ * reports on that area. An area the panel already lists as a row of its own
+ * (the shop's Areas band holds Pay, People and Books) is not drawn twice.
  */
-function AreasGroup({ vertical, onNavigate }: { vertical: Vertical; onNavigate?: () => void }) {
+function AreasGroup({ vertical, listed, onNavigate }: { vertical: Vertical; listed: RailArea; onNavigate?: () => void }) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const mounted = useMounted();
   const home = useQuery({ queryKey: REPORTS_HOME_KEY, queryFn: fetchReportsHome, staleTime: 60_000 });
   const data = mounted ? home.data : undefined;
-  const areas = React.useMemo(() => (data ? verticalAreas(vertical, reportEntries(data).map((entry) => entry.area)) : []), [data, vertical]);
+  const areas = React.useMemo(() => {
+    if (!data) return [];
+    const rows = new Set(listed.items.map((item) => item.href));
+    return verticalAreas(vertical, reportEntries(data).map((entry) => entry.area)).filter(({ area }) => !rows.has(areaHref(area)));
+  }, [data, listed, vertical]);
   if (areas.length === 0) return null;
   const current = pathname === "/reports" ? searchParams.get("area") : null;
   return (
