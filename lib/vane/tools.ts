@@ -164,7 +164,12 @@ const proposeItem = tool({
     action: z.object({
       type: z.string().min(1).max(40).describe('What the button does: "open", "send_reminders", "review_draft".'),
       label: z.string().min(1).max(40).describe('The button\'s words: "Send the reminders".'),
-      target: z.string().max(400).optional().describe("Where it goes: a path in the app, or the record it acts on."),
+      target: z.string().max(2000).optional().describe("Where it goes: a path in the app, or the record it acts on."),
+      shortcut: z.string().max(12).optional().describe('The key that presses it, when it is the card\'s main act: "S", "Ctrl ↵".'),
+      also: z
+        .object({ label: z.string().min(1).max(40), target: z.string().startsWith("/").max(2000) })
+        .optional()
+        .describe('A second, quieter way in: "Open the 11 rows" beside "Save as a template".'),
     }),
     subjectType: z.string().max(60).optional().describe('The record it is about, if one: "SalesInvoice".'),
     subjectId: z.string().max(60).optional(),

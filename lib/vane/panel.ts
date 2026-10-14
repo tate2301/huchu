@@ -3,13 +3,14 @@ import { randomUUID } from "node:crypto";
 import type { PrismaClient } from "@prisma/client";
 import { z } from "zod";
 
+import { explainAboutSchema, explainQuestion, explainRequest, type ExplainAbout } from "./explain";
 import { vaneState, type VaneState } from "./state";
 import { audienceFilter, FOR_YOU, vaneStatus, type VaneStatus } from "./status";
 import { notStopped } from "./stops";
 
 /** The button on a For you card: it names the act and goes where the act is done. */
 export const vaneActionSchema = z.object({
-  type: z.enum(["open", "send", "review"]).default("open"),
+  type: z.enum(["open", "send", "review"]).default("open").catch("open"),
   label: z.string().min(1),
   shortcut: z.string().optional(),
   /** Where a person does it: the page, with the draft open. Vane never does it itself. */
@@ -161,7 +162,11 @@ export function jobLabel(text: string): string {
   return line.length > 120 ? `${line.slice(0, 119)}…` : line;
 }
 
-export const giveJobSchema = z.object({ text: z.string().trim().min(3).max(2000) });
+export const giveJobSchema = z.object({
+  text: z.string().trim().min(3).max(2000),
+  /** Explain a figure (PageVaneReport): the report and the figure the person pressed Explain on. */
+  about: explainAboutSchema.optional(),
+});
 
 /**
  * Give Vane a job: queued for the worker as a person's job. The whole text is
@@ -170,15 +175,17 @@ export const giveJobSchema = z.object({ text: z.string().trim().min(3).max(2000)
  */
 export async function giveVaneJob(
   db: Pick<PrismaClient, "vaneJob">,
-  { companyId, userId, text }: { companyId: string; userId: string; text: string },
+  { companyId, userId, text, about }: { companyId: string; userId: string; text: string; about?: ExplainAbout },
 ) {
+  // A figure explained is a job of its own kind: its label is the person's question, its request the
+  // question with the report it is about (`explainRequest`).
   return db.vaneJob.create({
     data: {
       companyId,
-      key: `person:${randomUUID()}`,
-      kind: "person",
-      label: jobLabel(text),
-      request: text,
+      key: `${about ? "explain" : "person"}:${randomUUID()}`,
+      kind: about ? "explain" : "person",
+      label: jobLabel(about ? explainQuestion(about) : text),
+      request: about ? explainRequest(about) : text,
       trigger: "PERSON",
       requestedById: userId,
       result: null,

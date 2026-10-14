@@ -363,5 +363,20 @@
     "button: Close Vane",
     "button: See this month",
     "button: Resume Vane"
+  ],
+  "PageVaneReport": [
+    "heading: Areas",
+    "panel: Team",
+    "panel: Sales and delivery12",
+    "panel: Money in people’s hands2",
+    "panel: Pay4",
+    "panel: People3",
+    "panel: Books8",
+    "heading: Open value, by stagesum of Value",
+    "heading: Open value, by stage",
+    "heading: Value, by expected closeby month, $ thousands",
+    "column: Went cold",
+    "column: No call after",
+    "panel: What I read: Deals, lost in Negotiating since 1 Jul · 11 rows; Activity logged"
   ]
 }

@@ -118,6 +118,13 @@ describe("Vane's data changes need a person", () => {
     expect(await prisma.vaneJob.count({ where: { companyId } })).toBe(0);
   });
 
+  it("refuses Explain on a report's figure without a signed-in person, and asks Vane nothing", async () => {
+    const about = { report: "crm-deals", title: "Deals", figure: "Lost", value: "$1,458,600.00", params: {} };
+    const response = await giveJob(notAPerson("/api/vane/jobs", "POST", { text: "Lost, $1,458,600.00", about }));
+    expect(response.status).toBe(401);
+    expect(await prisma.vaneJob.count({ where: { companyId, kind: "explain" } })).toBe(0);
+  });
+
   it("refuses ticking a person's plan step without a signed-in person, and the step stays as it was", async () => {
     const response = await tickStep(notAPerson(`/api/vane/plans/${plan.id}/steps/${plan.personStep}`, "PATCH", { done: true }), {
       params: Promise.resolve({ id: plan.id, stepId: plan.personStep }),

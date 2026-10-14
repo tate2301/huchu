@@ -4,6 +4,8 @@ import { z } from "zod";
 import { SHOP_TIME_ZONE } from "@/lib/retail/shop-profile-rules";
 
 import { moduleName, vaneActionSchema, type VaneAction, type VaneCard, type VanePlanCard } from "./panel";
+import { answerQuestion, parseQuestions } from "./explain";
+import type { AskedQuestion } from "./jobs";
 import { watchablesFor } from "./settings";
 import { parseTools, vaneState, type VaneState } from "./state";
 import { audienceFilter, FOR_YOU, vaneStatus, type VaneStatus } from "./status";
@@ -65,6 +67,8 @@ const TABLES: Record<string, { label: string; href: string | null }> = {
   CrmLead: { label: "Leads", href: "/crm/leads" },
   CrmTask: { label: "Tasks", href: "/crm/tasks" },
   CrmFollowUp: { label: "Follow-ups", href: "/crm/follow-ups" },
+  CrmActivity: { label: "Activity logged", href: null },
+  CrmPipelineStage: { label: "Pipeline stages", href: null },
   CrmSite: { label: "Sites", href: null },
   PurchaseBill: { label: "Bills", href: "/accounting/purchases" },
   BankTransaction: { label: "Bank lines", href: "/books/bank" },
@@ -524,15 +528,47 @@ export type VaneJobView = {
   result: string | null;
   error: string | null;
   plan: VanePlanDetail | null;
+  /** "explain" for a figure explained on a report (PageVaneReport), "person" for a job given. */
+  kind: string;
+  /** The question its answer rests on: the SQL, its columns and the rows it drew. */
+  question: AskedQuestion | null;
+  /** Every question it asked, in order. */
+  questions: AskedQuestion[];
+  /** Each table it read, named as people know it, with the rows it drew. */
+  reads: VanePlanRead[];
+  /** What it tried: each tool it called, and whether it answered. */
+  tried: Array<{ name: string; ok: boolean }>;
+  /** The cards it raised that still wait for a person. */
+  cards: VaneCard[];
+  finishedAt: string | null;
+  /** When it waits to try again (the service could not be reached). */
+  nextTry: string | null;
 };
 
 /** One job given to Vane in this workspace, and the plan it laid out, if any. Null when it is not this workspace's. */
 export async function vaneJobView(db: Db, who: Who & { id: string }): Promise<VaneJobView | null> {
   const job = await db.vaneJob.findFirst({
     where: { id: who.id, companyId: who.companyId },
-    select: { id: true, label: true, request: true, status: true, result: true, error: true },
+    select: {
+      id: true,
+      kind: true,
+      label: true,
+      request: true,
+      status: true,
+      result: true,
+      error: true,
+      tools: true,
+      finishedAt: true,
+      runAfter: true,
+      items: {
+        where: { status: "OPEN", kind: { in: FOR_YOU }, ...audienceFilter(who.userId, who.role) },
+        orderBy: { createdAt: "asc" },
+        select: { id: true, kind: true, sourceModule: true, headline: true, body: true, action: true, createdAt: true },
+      },
+    },
   });
   if (!job) return null;
+  const questions = parseQuestions(job.tools);
   const plans = await db.vanePlan.findMany({
     where: { companyId: who.companyId, jobId: job.id },
     orderBy: { createdAt: "desc" },
@@ -548,6 +584,22 @@ export async function vaneJobView(db: Db, who: Who & { id: string }): Promise<Va
     result: job.result?.trim() || null,
     error: job.error,
     plan: plan ?? null,
+    kind: job.kind,
+    question: answerQuestion(questions),
+    questions,
+    reads: planReads(parseReads(job.tools)),
+    tried: parseTools(job.tools),
+    cards: job.items.map<VaneCard>((item) => ({
+      id: item.id,
+      kind: item.kind === "ISSUE" ? "issue" : "suggestion",
+      source: moduleName(item.sourceModule),
+      headline: item.headline,
+      body: item.body,
+      action: parseAction(item.action),
+      createdAt: item.createdAt.toISOString(),
+    })),
+    finishedAt: job.finishedAt?.toISOString() ?? null,
+    nextTry: job.status === "WAITING" ? job.runAfter.toISOString() : null,
   };
 }
 

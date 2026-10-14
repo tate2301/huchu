@@ -1,5 +1,5 @@
 import type Anthropic from "@anthropic-ai/sdk";
-import type { VaneJob } from "@prisma/client";
+import type { Prisma, VaneJob } from "@prisma/client";
 
 import { prisma } from "@/lib/prisma";
 import { SHOP_TIME_ZONE } from "@/lib/retail/shop-profile-rules";
@@ -85,7 +85,30 @@ export function instructionsFor(job: Pick<VaneJob, "kind" | "label" | "request">
 
 /** What one tool call read: each table and the rows it answered. */
 type Read = { table: string; rows: number };
-type ToolLog = { name: string; ms: number; ok: boolean; reads?: Read[] };
+/**
+ * A question `run_sql` answered, kept so a person can check it (the Reports
+ * rule: only SQL and rows are stored): the SQL, its columns, and its first
+ * rows. `rowCount` is how many came back in all.
+ */
+export type AskedQuestion = { sql: string; columns: string[]; rows: Array<Record<string, unknown>>; rowCount: number };
+type ToolLog = { name: string; ms: number; ok: boolean; reads?: Read[]; question?: AskedQuestion };
+
+/** Rows kept on the job for each question: enough to show and check, not the whole answer. */
+export const KEPT_ROWS = 50;
+
+/** The question a `run_sql` call asked and what it answered, from its answer. */
+export function questionOf(name: string, content: string): AskedQuestion | undefined {
+  if (name !== "run_sql") return undefined;
+  try {
+    const answer = JSON.parse(content) as { sql?: unknown; rows?: unknown };
+    if (typeof answer.sql !== "string" || !Array.isArray(answer.rows)) return undefined;
+    const rows = answer.rows.filter((row): row is Record<string, unknown> => Boolean(row) && typeof row === "object");
+    const columns = [...new Set(rows.flatMap((row) => Object.keys(row)))];
+    return { sql: answer.sql, columns, rows: rows.slice(0, KEPT_ROWS), rowCount: rows.length };
+  } catch {
+    return undefined;
+  }
+}
 
 /** The tables a tool call read, from its answer: `run_sql`'s question and `get_record`'s record. */
 export function readsOf(name: string, content: string): Read[] | undefined {
@@ -143,7 +166,8 @@ async function converseJob(job: VaneJob, client: MessagesClient | undefined, dea
       const started = Date.now();
       const result = await callTool({ companyId: job.companyId, jobId: job.id }, call.name, call.input);
       const reads = result.ok ? readsOf(call.name, result.content) : undefined;
-      log.push({ name: call.name, ms: Date.now() - started, ok: result.ok, ...(reads ? { reads } : {}) });
+      const question = result.ok ? questionOf(call.name, result.content) : undefined;
+      log.push({ name: call.name, ms: Date.now() - started, ok: result.ok, ...(reads ? { reads } : {}), ...(question ? { question } : {}) });
       results.push({ type: "tool_result", tool_use_id: call.id, content: result.content, is_error: !result.ok });
     }
     messages.push({ role: "user", content: results });
@@ -214,7 +238,8 @@ export async function runNextJob(
         tokensOut: outcome.usage.output,
         cacheReadTokens: outcome.usage.cacheRead,
         cacheWriteTokens: outcome.usage.cacheWrite,
-        tools: outcome.tools,
+        // The rows came back from JSON (the tool's answer), so they are JSON again.
+        tools: outcome.tools as Prisma.InputJsonValue,
       },
     });
     return `${job.kind} for ${job.companyId}: done`;

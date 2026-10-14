@@ -17,6 +17,12 @@
  * reader and lays out a plan with `propose_plan`, which waits for the person
  * to press Start (Plans, and Give Vane a job's `?job=<id>`).
  *
+ * Explain a figure (PageVaneReport): James presses Explain on Deals' "Lost"
+ * bar, which gives Vane the question as a job; a scripted explainer runs one
+ * question through the reader, raises a suggestion card with `propose_item`
+ * and answers in two sentences worked out from the rows
+ * (`/reports/crm-deals?explain=<job>`).
+ *
  * Vane's reader signs in with VANE_READER_DATABASE_URL when it is set; on a
  * development database without one it uses the test logins the Vane tests
  * create (lib/vane/test-reader-logins.ts). It refuses to run in production.
@@ -26,7 +32,10 @@ import "dotenv/config";
 import type Anthropic from "@anthropic-ai/sdk";
 
 import { prisma } from "@/lib/prisma";
+import { getReportDefinition } from "@/lib/reports/registry";
+import { defaultView, encodeView } from "@/lib/reports/view";
 import type { MessagesClient } from "@/lib/vane/claude";
+import { explainQuestion } from "@/lib/vane/explain";
 import { runNextJob } from "@/lib/vane/jobs";
 import { shopDay } from "@/lib/vane/pages";
 import { giveVaneJob } from "@/lib/vane/panel";
@@ -272,6 +281,120 @@ function scriptedClaude(): MessagesClient {
   return { messages: { create } } as unknown as MessagesClient;
 }
 
+/** A figure explained on Deals (PageVaneReport): the question a person asks by pressing Explain on the "Lost" bar. */
+function lostQuestion(from: string): string {
+  return `SELECT coalesce(d."lostReason", 'No reason given') AS "Lost because",
+       count(*)::int AS "Deals",
+       round(sum(coalesce(d."value", 0))::numeric, 2) AS "Value",
+       count(*) FILTER (WHERE NOT EXISTS (
+         SELECT 1 FROM "CrmActivity" a
+         WHERE a."dealId" = d."id" AND a."type" = 'CALL' AND a."createdAt" BETWEEN d."lostAt" - interval '30 days' AND d."lostAt"))::int AS "No call, 30 days"
+FROM "CrmDeal" d
+JOIN "CrmPipelineStage" s ON s."id" = d."stageId"
+WHERE s."name" = 'Lost' AND d."archivedAt" IS NULL AND (d."expectedCloseDate" >= '${from}' OR d."expectedCloseDate" IS NULL)
+GROUP BY 1
+ORDER BY 2 DESC`;
+}
+
+/** The report's address with a view: the Lost deals, grouped by why. */
+function lostView(): string {
+  const definition = getReportDefinition("crm-deals");
+  if (!definition) return "/reports/crm-deals";
+  const view = {
+    ...defaultView({ columns: definition.columns, defaults: definition.defaults }),
+    conditions: [{ column: "stage", op: "is" as const, value: ["Lost"] }],
+    groupBy: "lostReason",
+    columns: definition.columns.map((column) => ({ key: column.key, hidden: column.key === "lostReason" ? false : column.hidden === true })),
+  };
+  return `/reports/crm-deals?v=${encodeView(view)}`;
+}
+
+/**
+ * Claude's part for an Explain, scripted: one question through the reader, a
+ * suggestion card when the breakdown is worth keeping, then the answer in two
+ * sentences, every figure in it worked out from the rows the question drew.
+ */
+function scriptedExplainer(from: string): MessagesClient {
+  let answer = "Read the lost deals and found none in these dates.";
+  const create = async (params: { messages: Anthropic.MessageParam[] }) => {
+    const turn = params.messages.filter((message) => message.role === "assistant").length;
+    const last = params.messages[params.messages.length - 1];
+    const results = Array.isArray(last?.content)
+      ? (last.content as Anthropic.ToolResultBlockParam[]).filter((block) => block.type === "tool_result")
+      : [];
+    if (turn === 0) {
+      return reply([{ type: "tool_use", id: "q_lost", name: "run_sql", input: { sql: lostQuestion(from) } } as unknown as Anthropic.ContentBlock], "tool_use");
+    }
+    if (turn === 1) {
+      const read = results[0] && !results[0].is_error ? (JSON.parse(String(results[0].content)) as Answer) : null;
+      const rows = read?.rows ?? [];
+      const deals = rows.reduce((sum, row) => sum + Number(row.Deals), 0);
+      if (!read || deals === 0) return reply([{ type: "text", text: answer, citations: null } as unknown as Anthropic.ContentBlock], "end_turn");
+      const top = rows[0]!;
+      const silent = rows.reduce((sum, row) => sum + Number(row["No call, 30 days"]), 0);
+      const share = Number(top.Deals) === deals ? `All ${deals}` : `${top.Deals} of the ${deals}`;
+      answer =
+        `${share} deals lost this year went one way: “${String(top["Lost because"])}”, ${money("USD", Number(top.Value))} between them. ` +
+        (silent === deals
+          ? `None of the ${deals} had a call logged in the 30 days before it was lost.`
+          : `${silent} of the ${deals} had no call logged in the 30 days before it was lost.`);
+      return reply(
+        [
+          {
+            type: "tool_use",
+            id: "p_keep",
+            name: "propose_item",
+            input: {
+              kind: "SUGGESTION",
+              sourceModule: "reports",
+              headline: "Let’s keep this view.",
+              body: "Deals lost this year, grouped by why they were lost. I would call it “Deals lost, and why”.",
+              action: {
+                type: "open",
+                label: "Save as a template",
+                shortcut: "Ctrl ↵",
+                target: `${lostView()}&save=1`,
+                also: { label: `Open the ${deals} rows`, target: lostView() },
+              },
+              sql: read.sql,
+              readFrom: readFrom(read),
+            },
+          } as unknown as Anthropic.ContentBlock,
+        ],
+        "tool_use",
+      );
+    }
+    return reply([{ type: "text", text: answer, citations: null } as unknown as Anthropic.ContentBlock], "end_turn");
+  };
+  return { messages: { create } } as unknown as MessagesClient;
+}
+
+/** A person presses Explain on Deals' "Lost" bar; the worker runs it with the scripted explainer. */
+async function explainLost(company: { id: string }, owner: { id: string }, now: Date): Promise<void> {
+  const from = `${shopDay(now).slice(0, 4)}-01-01`;
+  const lost = await prisma.crmDeal.aggregate({
+    where: {
+      companyId: company.id,
+      archivedAt: null,
+      stage: { name: "Lost" },
+      OR: [{ expectedCloseDate: { gte: new Date(`${from}T00:00:00Z`) } }, { expectedCloseDate: null }],
+    },
+    _sum: { value: true },
+    _count: true,
+  });
+  if (!lost._count) return;
+  const value = money("USD", Number(lost._sum.value ?? 0));
+  const about = { report: "crm-deals", title: "Deals", figure: "Lost", value, params: { from } };
+  const asked = await prisma.vaneJob.findFirst({ where: { companyId: company.id, kind: "explain", label: explainQuestion(about) }, select: { id: true } });
+  if (asked) {
+    console.log(`[vane-dev-seed] Lost was explained already: /reports/crm-deals?explain=${asked.id}`);
+    return;
+  }
+  const job = await giveVaneJob(prisma, { companyId: company.id, userId: owner.id, text: `Lost, ${value}`, about });
+  console.log(`[vane-dev-seed] ${await runNextJob(new Date(), { client: scriptedExplainer(from), companyId: company.id, jobId: job.id })}`);
+  console.log(`[vane-dev-seed] its answer: /reports/crm-deals?explain=${job.id}`);
+}
+
 async function main() {
   if (process.env.NODE_ENV === "production") throw new Error("vane-dev-seed is for development databases only.");
   const slug = process.argv[2] ?? "floorcode";
@@ -313,6 +436,8 @@ async function main() {
   } else if (planned) {
     console.log(`[vane-dev-seed] the planned job is there already: /vane/plans?job=${planned.id}`);
   }
+
+  if (owner) await explainLost(company, owner, now);
 }
 
 main()
