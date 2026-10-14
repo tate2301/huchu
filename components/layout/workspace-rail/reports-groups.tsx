@@ -14,11 +14,10 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useToast } from "@/components/ui/use-toast";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
-import { Bed, MedusaBookOpenIcon, CalendarCheck, ClipboardText, Coins, DotsThree, Factory, FileText, Gem, IdentificationCard, Money, Package, Plus, ShieldCheck, Users, type LucideIcon } from "@/lib/icons";
+import { Bed, MedusaBookOpenIcon, CalendarCheck, Coins, DotsThree, Factory, FileText, Gem, IdentificationCard, Money, Package, Plus, ShieldCheck, Users, type LucideIcon } from "@/lib/icons";
 import { folderHref, reportCounts, reportEntries, type ReportsHomeData } from "@/lib/reports/all";
 import { areaHref, verticalAreas, verticalOf, type Vertical } from "@/lib/reports/verticals";
 import type { RailArea } from "@/lib/rail/areas";
-import { isOrgAdminRole } from "@/lib/preferences/nav";
 
 import { useMounted, ViewForm } from "./module-groups";
 import { PanelGroup } from "./panel-group";
@@ -39,8 +38,8 @@ export function isReportsArea(area: RailArea): boolean {
 
 /**
  * What Reports' panel adds under its rows (ReportsAll): the workspace's
- * Folders, with Add to Folders and each folder's Rename and Delete, then
- * Build (Forms, Documents).
+ * Folders, with Add to Folders and each folder's Rename and Delete. Forms
+ * and documents are Build's, a module of its own (`/build`).
  */
 export function ReportsGroups({ onNavigate }: { onNavigate?: () => void }) {
   const { data: session } = useSession();
@@ -49,12 +48,6 @@ export function ReportsGroups({ onNavigate }: { onNavigate?: () => void }) {
     <>
       {vertical ? <AreasGroup vertical={vertical} onNavigate={onNavigate} /> : null}
       <FoldersGroup onNavigate={onNavigate} />
-      {isOrgAdminRole(session?.user?.role) ? (
-        <PanelGroup label="Build">
-          <RailRow href="/templates#form" label="Forms" icon={ClipboardText} onNavigate={onNavigate} />
-          <RailRow href="/templates#document" label="Documents" icon={FileText} onNavigate={onNavigate} />
-        </PanelGroup>
-      ) : null}
     </>
   );
 }

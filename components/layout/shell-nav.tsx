@@ -30,6 +30,7 @@ import {
 } from "@/lib/workspaces";
 import { useActiveWorkspace } from "@/components/layout/workspace-rail/use-active-workspace";
 import { fetchReportsHome, REPORTS_HOME_KEY } from "@/components/layout/workspace-rail/reports-groups";
+import { BUILD_HOME_KEY, fetchBuildHome } from "@/components/build/build-data";
 
 /** The workspace's name and branding, resolved on the server by the root layout. */
 export type WorkspaceBrand = {
@@ -194,6 +195,15 @@ export function ShellNavProvider({
     staleTime: 60_000,
   });
 
+  // Build's rows count what each holds, while Build is the page's module.
+  const onBuild = pathname === "/build" || pathname.startsWith("/build/");
+  const buildQuery = useQuery({
+    queryKey: BUILD_HOME_KEY,
+    queryFn: fetchBuildHome,
+    enabled: onBuild,
+    staleTime: 60_000,
+  });
+
   // The query cache outlives the page (it is persisted for offline use), so
   // what it holds is read after hydration rather than diverging from the
   // server's HTML: until then the panel draws the facts the server found.
@@ -206,9 +216,13 @@ export function ShellNavProvider({
     () => (reportsData ? reportBadges(reportCounts(reportEntries(reportsData)), verticalOf(workspaceProfile) !== null) : undefined),
     [reportsData, workspaceProfile],
   );
+  const buildBadges = mounted && onBuild ? buildQuery.data?.badges : undefined;
   const badges = React.useMemo(
-    () => (retailBadges || booksBadges || reportsBadges ? { ...retailBadges, ...booksBadges, ...reportsBadges } : NO_BADGES),
-    [booksBadges, retailBadges, reportsBadges],
+    () =>
+      retailBadges || booksBadges || reportsBadges || buildBadges
+        ? { ...retailBadges, ...booksBadges, ...reportsBadges, ...buildBadges }
+        : NO_BADGES,
+    [booksBadges, buildBadges, retailBadges, reportsBadges],
   );
 
   // An item whose shop condition does not hold is not drawn for anyone; one

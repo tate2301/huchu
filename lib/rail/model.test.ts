@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { FileText, Funnel, Stack, Storefront, Tag, TrayArrowDown, Wrench } from "@/lib/icons";
+import { FileText, Funnel, Grid3x3, Stack, Storefront, Tag, TrayArrowDown, Wrench } from "@/lib/icons";
 import type { NavItem } from "@/lib/navigation";
 import { getClientTemplateFeatureKeys, getClientTemplateWorkspaceProfile } from "@/lib/platform/client-templates";
 import type { WorkspaceNavSection } from "@/lib/workspaces";
@@ -27,6 +27,8 @@ describe("the retail rail (00-foundations 5.3.2, 98-decisions 5 October)", () =>
       "Stock",
       "Buying",
       "Reports",
+      // Build, in every workspace (spec/routes.md §5), before Setup.
+      "Build",
       "Setup",
     ]);
     expect(rail.areas.find((area) => area.id === "retail-setup")?.items.map((item) => item.label)).toEqual([
@@ -101,6 +103,7 @@ describe("the retail rail (00-foundations 5.3.2, 98-decisions 5 October)", () =>
       Stack,
       TrayArrowDown,
       FileText,
+      Grid3x3,
       Wrench,
     ]);
   });

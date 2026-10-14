@@ -10,6 +10,7 @@ import {
   Factory,
   Flag,
   Funnel,
+  Grid3x3,
   IdentificationCard,
   Medal,
   MedusaBookOpenIcon,
@@ -126,6 +127,8 @@ const AREA_ICONS: Record<string, LucideIcon> = {
   "payroll-month-end": Money,
   "payroll-statutory": ClipboardText,
   "payroll-compensation": Coins,
+  // Build: every form, document, email and report, one builder.
+  build: Grid3x3,
 };
 
 /**

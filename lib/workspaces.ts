@@ -1,5 +1,7 @@
 import { canViewAccountingHref } from "@/lib/accounting/visibility";
-import type { NavGroup, NavItem, NavSection } from "@/lib/navigation";
+import { buildProvisions, type BuildProvisions } from "@/lib/build/provision";
+import { hasRole } from "@/lib/roles";
+import type { BuildNavItem, NavGroup, NavItem, NavSection } from "@/lib/navigation";
 import { getNavSectionsForRole, navSections, REPORTS_NAV_GROUPS, REPORTS_NAV_HREFS, schoolBandGrant } from "@/lib/navigation";
 import { normalizeFeatureKey } from "@/lib/platform/gating/catalog-utils";
 import { filterNavSectionsByEnabledFeatures } from "@/lib/platform/gating/nav-filter";
@@ -1149,6 +1151,57 @@ export function getComputedWorkspaceHomeHref(args: WorkspaceModelArgs): string {
   return getWorkspaceSidebarModel(args).homeHref;
 }
 
+/** Whether a Build row's kind or module is one the workspace is provisioned for. */
+function buildRowShown(when: BuildNavItem["when"], provisions: BuildProvisions): boolean {
+  switch (when) {
+    case undefined:
+      return true;
+    case "forms":
+      return provisions.visitForms || provisions.enquiryForms || provisions.blocks;
+    case "documents":
+      return provisions.blocks || provisions.layouts;
+    case "emails":
+      return provisions.blocks;
+    default:
+      return provisions[when];
+  }
+}
+
+/**
+ * Build, in every workspace (spec/routes.md §5): its own module, never inside
+ * the CRM's settings or Reports. It follows the workspace's Reports, as the
+ * boards' rail does, or ends the rail where there is none.
+ */
+function withBuild(sections: WorkspaceNavSection[], context: WorkspaceBuildContext): WorkspaceNavSection[] {
+  const declared = context.navSectionById.get("build");
+  if (!declared || sections.some((section) => section.id === "build")) return sections;
+  const reports = sections.findIndex((section) =>
+    section.items.some((item) => (item.href.split("?")[0] ?? item.href) === "/reports" || item.href.startsWith("/retail/reports")),
+  );
+  // Somebody who builds: whoever reads the workspace's reports, or manages it.
+  // A till's cashier has neither, and no Build.
+  if (reports < 0 && !hasRole(context.role, ["SUPERADMIN", "MANAGER"])) return sections;
+  const provisions = buildProvisions(context.enabledFeatures);
+  const items = (declared.items as BuildNavItem[])
+    .filter((item) => buildRowShown(item.when, provisions))
+    .map((item): NavItem => {
+      const row: BuildNavItem = { ...item };
+      delete row.when;
+      return row;
+    });
+  if (items.length === 0) return sections;
+  const present = new Set(items.map((item) => item.group).filter(Boolean));
+  const build: WorkspaceNavSection = {
+    id: "build",
+    title: declared.title,
+    groups: declared.groups?.filter((group) => present.has(group.id)),
+    panelGroups: true,
+    items,
+    workspaceGroup: "primary",
+  };
+  return reports >= 0 ? [...sections.slice(0, reports + 1), build, ...sections.slice(reports + 1)] : [...sections, build];
+}
+
 export function getWorkspaceSidebarModel(args: WorkspaceModelArgs): WorkspaceSidebarModel {
   const requestedProfile = normalizeWorkspaceProfile(args.workspaceProfile);
   // `normalizeWorkspaceProfileInput` returns null for absent or unrecognised
@@ -1203,7 +1256,7 @@ export function getWorkspaceSidebarModel(args: WorkspaceModelArgs): WorkspaceSid
     recipe === WORKSPACE_PROFILE_RECIPES.RETAIL
       ? []
       : buildAdditionalSections(recipe, visibleModules, usedPrimaryHrefs, verticalProduct);
-  const sections = [...primarySections, ...additionalSections];
+  const sections = withBuild([...primarySections, ...additionalSections], context);
   const homeTarget = getHomeTarget({
     recipe,
     context,

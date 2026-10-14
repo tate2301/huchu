@@ -1,4 +1,5 @@
 import {
+  Archive,
   BarChart3,
   Building2,
   Calendar,
@@ -239,6 +240,30 @@ export function schoolBandGrant(groupId: string): SchoolNavGrant | null {
   const band = SCHOOL_BANDS.find((candidate) => candidate.id === groupId);
   return band ? { resource: band.resource, action: band.action } : null;
 }
+
+/**
+ * Build's panel rows (PageBuildHome). `when` names what the workspace must be
+ * provisioned for (`BuildProvisions`); `lib/workspaces.ts` drops the rest.
+ */
+export type BuildNavItem = NavItem & {
+  when?: "forms" | "documents" | "emails" | "crm" | "books" | "payroll" | "schools" | "retail";
+};
+
+export const BUILD_NAV_ITEMS: BuildNavItem[] = [
+  { href: "/build", icon: Grid3x3, label: "Everything" },
+  { href: "/build?kind=forms", icon: ClipboardList, label: "Forms", when: "forms" },
+  { href: "/build?kind=documents", icon: FileText, label: "Documents", when: "documents" },
+  { href: "/build?kind=emails", icon: Mail, label: "Emails", when: "emails" },
+  { href: "/build?kind=reports", icon: BarChart3, label: "Reports" },
+  { href: "/build/templates", icon: Star, label: "From Corelith", group: "build-templates" },
+  { href: "/build/templates?view=made", icon: UserRound, label: "Made here", group: "build-templates" },
+  { href: "/build/templates?view=retired", icon: Archive, label: "Retired", group: "build-templates" },
+  { href: "/build?used=books", icon: Wallet, label: "Books", group: "build-used", when: "books" },
+  { href: "/build?used=payroll", icon: Users, label: "People and payroll", group: "build-used", when: "payroll" },
+  { href: "/build?used=crm", icon: Funnel, label: "CRM", group: "build-used", when: "crm" },
+  { href: "/build?used=retail", icon: ShoppingBag, label: "Tender", group: "build-used", when: "retail" },
+  { href: "/build?used=schools", icon: GraduationCap, label: "Schools", group: "build-used", when: "schools" },
+];
 
 export const navSections: NavSection[] = [
   {
@@ -982,18 +1007,22 @@ export const navSections: NavSection[] = [
       },
     ],
   },
+  // Build (spec/routes.md §5): one place, and one builder, for every form,
+  // document, email and report the workspace makes, and the templates they
+  // start from. A rail module of its own in every workspace
+  // (`lib/workspaces.ts` appends it); its rows are gated on what the workspace
+  // is provisioned for (`lib/build/provision.ts`). The panel is PageBuildHome's:
+  // the kinds, then Templates and Used by as bands.
   {
-    id: "templates",
-    title: "Templates",
-    description: "Every form, quote layout and document the company sends",
-    items: [
-      {
-        href: "/templates",
-        icon: FileText,
-        label: "Templates",
-        roles: ["SUPERADMIN", "MANAGER"],
-      },
+    id: "build",
+    title: "Build",
+    description: "Every form, document, email and report the workspace makes",
+    panelGroups: true,
+    groups: [
+      { id: "build-templates", label: "Templates" },
+      { id: "build-used", label: "Used by" },
     ],
+    items: BUILD_NAV_ITEMS,
   },
 ];
 

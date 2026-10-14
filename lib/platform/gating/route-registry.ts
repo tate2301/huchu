@@ -10,6 +10,11 @@ export const PAGE_FEATURE_ROUTES: FeatureRouteEntry[] = [
   // both the CRM suite and the branding addon — gating it on branding alone
   // locked the CRM's own template library away from CRM customers.
   { scope: "page", prefix: "/templates", featureKey: "core.templates" },
+  // Build (spec/routes.md §5): open in every workspace. Its forms and its block
+  // documents are the CRM's; the page under each also checks the record it
+  // opens against what the workspace is provisioned for (`lib/build/read.ts`).
+  { scope: "page", prefix: "/build/forms", featureKey: "crm.core" },
+  { scope: "page", prefix: "/build/documents", featureKey: "crm.core" },
   { scope: "page", prefix: "/preferences/organization/departments", featureKey: "hr.employees" },
   { scope: "page", prefix: "/preferences/organization/sites", featureKey: "admin.sites-sections" },
   { scope: "page", prefix: "/preferences/organization/users", featureKey: "admin.user-management.directory" },
