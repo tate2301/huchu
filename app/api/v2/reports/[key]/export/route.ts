@@ -3,15 +3,9 @@ import { z } from "zod";
 
 import { errorResponse, validateSession } from "@/lib/api-utils";
 import type { AuthenticatedSession } from "@/lib/auth-core/types";
-import { getDocumentBranding } from "@/lib/documents/branding-snapshot";
-import { resolveCatalogTemplateEntry } from "@/lib/documents/default-template-catalog";
-import { renderDocumentShell } from "@/lib/documents/html-renderer";
-import { renderPdfFromHtml } from "@/lib/documents/pdf-renderer";
-import { resolveTemplate } from "@/lib/documents/template-resolver";
 import { prisma } from "@/lib/prisma";
-import { exportFileName, exportRows } from "@/lib/reports/export";
-import { EXPORT_TEMPLATES, exportDocument, orientationFor } from "@/lib/reports/export-templates";
-import { buildWorkbook } from "@/lib/reports/export-xlsx";
+import { EXPORT_TEMPLATES } from "@/lib/reports/export-layouts";
+import { renderReportFile } from "@/lib/reports/export-file";
 import { periodRange, publicListSpec } from "@/lib/reports/list-query";
 import { fetchListExport, fetchReport, type ListExport } from "@/lib/reports/request";
 import type { ReportDefinition, ReportMeta, ReportParam, ReportParams, ReportView } from "@/lib/reports/types";
@@ -143,58 +137,19 @@ async function render(
   body: ExportBody,
   prepared: Prepared,
 ): Promise<NextResponse> {
-  const { format, template: layout } = body;
-  const { meta, params, applied, view } = prepared;
-  const fileName = exportFileName(meta, params, format, format === "pdf" ? layout : null);
-  const input = { meta, params, applied, view, selected: Boolean(body.rowIds), generatedAt: new Date() };
-
-  if (format === "xlsx") {
-    const workbook = await buildWorkbook(input);
-    return new NextResponse(new Uint8Array(workbook), {
-      headers: {
-        "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        "Content-Disposition": `attachment; filename="${fileName}"`,
-      },
-    });
-  }
-
-  if (format === "csv") {
-    return new NextResponse(exportRows(applied, view), {
-      headers: {
-        "Content-Type": "text/csv; charset=utf-8",
-        "Content-Disposition": `attachment; filename="${fileName}"`,
-      },
-    });
-  }
-
-  // A report with a template of its own uses it; the rest use the generic
-  // table's, which is landscape and compact.
-  const sourceKey = resolveCatalogTemplateEntry({
-    sourceKey: `reports.${key}`,
-    documentType: "REPORT_TABLE",
-    targetType: "LIST",
-  })
-    ? `reports.${key}`
-    : `ui.table.reports.${key}`;
-  const [template, branding] = await Promise.all([
-    resolveTemplate({ companyId: session.user.companyId, documentType: "REPORT_TABLE", targetType: "LIST", sourceKey }),
-    getDocumentBranding(session.user.companyId),
-  ]);
-  // The tenant's paper — margins, masthead, footer — laid the way this
-  // layout reads, under the report's own name rather than the template's.
-  const schema = {
-    ...template.templateSchema,
-    page: { ...template.templateSchema.page, orientation: orientationFor(layout, applied.columns.length) },
-    labels: { ...template.templateSchema.labels, documentTitle: undefined },
-  };
-  const document = exportDocument(layout, input);
-  const html = renderDocumentShell({ branding, template: schema, ...document });
-  const pdf = await renderPdfFromHtml({ html, template: schema });
-  return new NextResponse(new Uint8Array(pdf), {
-    headers: {
-      "Content-Type": "application/pdf",
-      "Content-Disposition": `attachment; filename="${fileName}"`,
-    },
+  const file = await renderReportFile({
+    companyId: session.user.companyId,
+    key,
+    format: body.format,
+    layout: body.template,
+    meta: prepared.meta,
+    params: prepared.params,
+    applied: prepared.applied,
+    view: prepared.view,
+    selected: Boolean(body.rowIds),
+  });
+  return new NextResponse(new Uint8Array(file.body), {
+    headers: { "Content-Type": file.contentType, "Content-Disposition": `attachment; filename="${file.fileName}"` },
   });
 }
 

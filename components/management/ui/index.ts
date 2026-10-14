@@ -96,3 +96,4 @@ export {
   type ActivityEvent,
   type ActivityTone,
 } from "./activity-trail";
+export { KitPage, OwnsChrome } from "./kit-page";

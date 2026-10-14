@@ -1,0 +1,1420 @@
+{
+ "v": 3,
+ "createdOnFiles": {
+  "v": 1,
+  "at": "2026-10-11T18:20:00Z"
+ },
+ "title": "Huchu Core Modules",
+ "launch": {
+  "view": "canvas",
+  "page": "explore"
+ },
+ "pages": [
+  {
+   "id": "vane",
+   "name": "Vane"
+  },
+  {
+   "id": "explore",
+   "name": "Explore"
+  },
+  {
+   "id": "reports",
+   "name": "Reports & Insights"
+  },
+  {
+   "id": "people",
+   "name": "People and payroll"
+  },
+  {
+   "id": "notify",
+   "name": "Notifications"
+  },
+  {
+   "id": "books",
+   "name": "Books"
+  },
+  {
+   "id": "builders",
+   "name": "Build"
+  },
+  {
+   "id": "management",
+   "name": "Management"
+  },
+  {
+   "id": "branding",
+   "name": "Branding"
+  },
+  {
+   "id": "parts",
+   "name": "The kit"
+  }
+ ],
+ "boards": {
+  "Icon.dc.html": {
+   "x": 1520,
+   "y": 0,
+   "w": 40,
+   "h": 40,
+   "title": "Icon",
+   "page": "parts"
+  },
+  "PageIntakeForm.dc.html": {
+   "x": 1520,
+   "y": 2820,
+   "w": 1440,
+   "h": 900,
+   "title": "Form · Showroom enquiry (intake)",
+   "page": "builders",
+   "expand": "fill"
+  },
+  "PageBooksVat.dc.html": {
+   "x": 6080,
+   "y": 1500,
+   "w": 1440,
+   "h": 900,
+   "title": "Books · VAT returns · /accounting/tax",
+   "expand": "fill",
+   "page": "books"
+  },
+  "PageBooksJournals.dc.html": {
+   "x": 4560,
+   "y": 1500,
+   "w": 1440,
+   "h": 900,
+   "title": "Books · Journals · /accounting/journals",
+   "expand": "fill",
+   "page": "books"
+  },
+  "PageBooksClose.dc.html": {
+   "x": 7600,
+   "y": 1500,
+   "w": 1440,
+   "h": 900,
+   "title": "Books · Periods and the close · /accounting/periods",
+   "expand": "fill",
+   "page": "books"
+  },
+  "PageHrIncidents.dc.html": {
+   "x": 4560,
+   "y": 2600,
+   "w": 1440,
+   "h": 900,
+   "title": "People · Incidents and disciplinary · /people/incidents",
+   "page": "people",
+   "expand": "fill"
+  },
+  "PagePayDisburse.dc.html": {
+   "x": 3040,
+   "y": 3900,
+   "w": 1440,
+   "h": 900,
+   "title": "Payroll · Disbursements · /payroll/disbursements",
+   "page": "people",
+   "expand": "fill"
+  },
+  "PagePayReturns.dc.html": {
+   "x": 4560,
+   "y": 3900,
+   "w": 1440,
+   "h": 900,
+   "title": "Payroll · Statutory returns · /payroll/statutory/returns",
+   "page": "people",
+   "expand": "fill"
+  },
+  "PageBrandIdentity.dc.html": {
+   "x": 0,
+   "y": 0,
+   "w": 1440,
+   "h": 900,
+   "title": "Branding · Identity and theme",
+   "page": "branding",
+   "expand": "fill"
+  },
+  "PageBrandAssets.dc.html": {
+   "x": 1520,
+   "y": 0,
+   "w": 1440,
+   "h": 900,
+   "title": "Branding · Assets and contact",
+   "page": "branding",
+   "expand": "fill"
+  },
+  "PageBrandFinance.dc.html": {
+   "x": 3040,
+   "y": 0,
+   "w": 1440,
+   "h": 900,
+   "title": "Branding · Finance and defaults",
+   "page": "branding",
+   "expand": "fill"
+  },
+  "PageBrandWhere.dc.html": {
+   "x": 4560,
+   "y": 0,
+   "w": 1440,
+   "h": 900,
+   "title": "Branding · Where it shows",
+   "page": "branding"
+  },
+  "PageBuildHome.dc.html": {
+   "x": 0,
+   "y": 1500,
+   "w": 1440,
+   "h": 900,
+   "title": "Build · Everything · /build",
+   "page": "builders",
+   "expand": "fill"
+  },
+  "PageBuildTemplates.dc.html": {
+   "x": 1520,
+   "y": 1500,
+   "w": 1440,
+   "h": 900,
+   "title": "Build · Templates · /build/templates",
+   "page": "builders",
+   "expand": "fill"
+  },
+  "PageTemplatePayslip.dc.html": {
+   "x": 6080,
+   "y": 2820,
+   "w": 1440,
+   "h": 900,
+   "title": "Template · Payslip, in the same builder",
+   "page": "builders",
+   "expand": "fill"
+  },
+  "PageTemplateEmail.dc.html": {
+   "x": 7600,
+   "y": 2820,
+   "w": 1440,
+   "h": 900,
+   "title": "Template · Invoice email, in the same builder",
+   "page": "builders",
+   "expand": "fill"
+  },
+  "RiTree.dc.html": {
+   "x": 0,
+   "y": 1240,
+   "w": 1440,
+   "h": 1500,
+   "title": "The tree",
+   "page": "reports"
+  },
+  "RiRequirements.dc.html": {
+   "x": 0,
+   "y": 2880,
+   "w": 1440,
+   "h": 1700,
+   "title": "Requirements",
+   "page": "reports"
+  },
+  "RiTemplates.dc.html": {
+   "x": 1520,
+   "y": 1240,
+   "w": 1440,
+   "h": 4804,
+   "title": "Templates from Corelith",
+   "page": "reports"
+  },
+  "PageReport.dc.html": {
+   "x": 6240,
+   "y": 1240,
+   "w": 1440,
+   "h": 1040,
+   "title": "A report · Deals · /reports/crm-deals",
+   "page": "reports",
+   "expand": "fill"
+  },
+  "PageReportSave.dc.html": {
+   "x": 7760,
+   "y": 1240,
+   "w": 1440,
+   "h": 1040,
+   "title": "Save as a template",
+   "page": "reports",
+   "expand": "fill"
+  },
+  "PageReportExport.dc.html": {
+   "x": 9280,
+   "y": 1240,
+   "w": 1440,
+   "h": 1040,
+   "title": "Export, 3 rows selected",
+   "page": "reports",
+   "expand": "fill"
+  },
+  "PageReportSend.dc.html": {
+   "x": 10800,
+   "y": 1240,
+   "w": 1440,
+   "h": 1040,
+   "title": "Send it",
+   "page": "reports",
+   "expand": "fill"
+  },
+  "PageReportArrange.dc.html": {
+   "x": 12320,
+   "y": 1240,
+   "w": 1440,
+   "h": 900,
+   "title": "Arrange the page, in the builder · /reports/crm-deals/arrange",
+   "page": "reports",
+   "expand": "fill"
+  },
+  "PageBuiltReport.dc.html": {
+   "x": 13840,
+   "y": 1240,
+   "w": 1440,
+   "h": 900,
+   "title": "A built report from Corelith · /reports/built/crm-measured-to-won",
+   "page": "reports",
+   "expand": "fill"
+  },
+  "PageInsightVisits.dc.html": {
+   "x": 18400,
+   "y": 1240,
+   "w": 1440,
+   "h": 900,
+   "title": "Insights · Site visits · /reports/insights/site-visits",
+   "page": "reports",
+   "expand": "fill"
+  },
+  "PageReportsSettings.dc.html": {
+   "x": 19920,
+   "y": 1240,
+   "w": 1440,
+   "h": 900,
+   "title": "Management · Reports",
+   "page": "reports",
+   "expand": "fill"
+  },
+  "PageRetailReports.dc.html": {
+   "x": 3200,
+   "y": 2680,
+   "w": 1440,
+   "h": 960,
+   "title": "Overview · /retail/reports",
+   "page": "reports",
+   "expand": "fill"
+  },
+  "PageRetailTemplate.dc.html": {
+   "x": 4720,
+   "y": 2680,
+   "w": 1440,
+   "h": 1000,
+   "title": "A template, run · /retail/reports/takings-by-payment",
+   "page": "reports",
+   "expand": "fill"
+  },
+  "PageRetailSales.dc.html": {
+   "x": 6240,
+   "y": 2680,
+   "w": 1440,
+   "h": 1000,
+   "title": "Insights · Sales · /retail/insights/sales",
+   "page": "reports",
+   "expand": "fill"
+  },
+  "PageRetailLosses.dc.html": {
+   "x": 7760,
+   "y": 2680,
+   "w": 1440,
+   "h": 900,
+   "title": "Insights · Losses · /retail/insights/losses",
+   "page": "reports",
+   "expand": "fill"
+  },
+  "PageSchoolReports.dc.html": {
+   "x": 3200,
+   "y": 4080,
+   "w": 1440,
+   "h": 900,
+   "title": "Overview · /reports",
+   "page": "reports",
+   "expand": "fill"
+  },
+  "PageSchoolFees.dc.html": {
+   "x": 4720,
+   "y": 4080,
+   "w": 1440,
+   "h": 980,
+   "title": "Insights · Fees · /reports/insights/fees",
+   "page": "reports",
+   "expand": "fill"
+  },
+  "PageSchoolBuilt.dc.html": {
+   "x": 6240,
+   "y": 4080,
+   "w": 1440,
+   "h": 900,
+   "title": "A built report · Fees owed, by class",
+   "page": "reports",
+   "expand": "fill"
+  },
+  "PageMineReports.dc.html": {
+   "x": 3200,
+   "y": 5460,
+   "w": 1440,
+   "h": 900,
+   "title": "Overview · /reports",
+   "page": "reports",
+   "expand": "fill"
+  },
+  "PageMineProduction.dc.html": {
+   "x": 4720,
+   "y": 5460,
+   "w": 1440,
+   "h": 960,
+   "title": "Insights · Production · /reports/insights/production",
+   "page": "reports",
+   "expand": "fill"
+  },
+  "PageMineDowntime.dc.html": {
+   "x": 6240,
+   "y": 5460,
+   "w": 1440,
+   "h": 1000,
+   "title": "A report · Downtime · /reports/downtime",
+   "page": "reports",
+   "expand": "fill"
+  },
+  "PagePayReports.dc.html": {
+   "x": 3200,
+   "y": 6860,
+   "w": 1440,
+   "h": 900,
+   "title": "Payroll · Overview · /reports",
+   "page": "reports",
+   "expand": "fill"
+  },
+  "PagePayCost.dc.html": {
+   "x": 4720,
+   "y": 6860,
+   "w": 1440,
+   "h": 900,
+   "title": "Payroll · Insights · Pay cost",
+   "page": "reports",
+   "expand": "fill"
+  },
+  "PageShopReports.dc.html": {
+   "x": 6240,
+   "y": 6860,
+   "w": 1440,
+   "h": 900,
+   "title": "Workshop · Overview · /reports",
+   "page": "reports",
+   "expand": "fill"
+  },
+  "VnTree.dc.html": {
+   "x": 0,
+   "y": 3400,
+   "w": 1440,
+   "h": 1240,
+   "title": "The tree",
+   "page": "vane"
+  },
+  "VnInteractions.dc.html": {
+   "x": 0,
+   "y": 4780,
+   "w": 1440,
+   "h": 1500,
+   "title": "Interactions",
+   "page": "vane"
+  },
+  "VnUseCases.dc.html": {
+   "x": 1520,
+   "y": 3400,
+   "w": 1440,
+   "h": 1180,
+   "title": "Use cases",
+   "page": "vane"
+  },
+  "VnRequirements.dc.html": {
+   "x": 1520,
+   "y": 4720,
+   "w": 1440,
+   "h": 1800,
+   "title": "Requirements and the migration",
+   "page": "vane"
+  },
+  "VnTemplates.dc.html": {
+   "x": 3040,
+   "y": 3400,
+   "w": 1440,
+   "h": 3300,
+   "title": "Vane’s templates, with reports and forms",
+   "page": "vane"
+  },
+  "PageVaneCard.dc.html": {
+   "x": 6240,
+   "y": 3400,
+   "w": 1440,
+   "h": 900,
+   "title": "A card, and what Vane read",
+   "page": "vane",
+   "expand": "fill"
+  },
+  "PageVanePlan.dc.html": {
+   "x": 7760,
+   "y": 3400,
+   "w": 1440,
+   "h": 900,
+   "title": "Plans · /vane/plans",
+   "page": "vane",
+   "expand": "fill"
+  },
+  "PageVaneJob.dc.html": {
+   "x": 9280,
+   "y": 3400,
+   "w": 1440,
+   "h": 900,
+   "title": "Give Vane a job · Ctrl J",
+   "page": "vane",
+   "expand": "fill"
+  },
+  "PageVaneDone.dc.html": {
+   "x": 10800,
+   "y": 3400,
+   "w": 1440,
+   "h": 900,
+   "title": "Done · /vane/done",
+   "page": "vane",
+   "expand": "fill"
+  },
+  "PageVaneMuted.dc.html": {
+   "x": 12320,
+   "y": 3400,
+   "w": 1440,
+   "h": 900,
+   "title": "Muted · /vane/muted",
+   "page": "vane",
+   "expand": "fill"
+  },
+  "PageVaneStates.dc.html": {
+   "x": 13840,
+   "y": 3400,
+   "w": 1440,
+   "h": 900,
+   "title": "Paused, over the allowance, could not work it out, cannot reach the service",
+   "page": "vane",
+   "expand": "fill"
+  },
+  "PageVaneReport.dc.html": {
+   "x": 4720,
+   "y": 4700,
+   "w": 1440,
+   "h": 1040,
+   "title": "Explain a figure, on Deals",
+   "page": "vane",
+   "expand": "fill"
+  },
+  "PageVaneBlock.dc.html": {
+   "x": 6240,
+   "y": 4700,
+   "w": 1440,
+   "h": 900,
+   "title": "A block in the builder, waiting to be kept",
+   "page": "vane",
+   "expand": "fill"
+  },
+  "PageVaneForm.dc.html": {
+   "x": 4720,
+   "y": 6140,
+   "w": 1440,
+   "h": 900,
+   "title": "Changes to a form, from its answers",
+   "page": "vane",
+   "expand": "fill"
+  },
+  "PageVaneDocument.dc.html": {
+   "x": 6240,
+   "y": 6140,
+   "w": 1440,
+   "h": 900,
+   "title": "A quote checked, and the message written",
+   "page": "vane",
+   "expand": "fill"
+  },
+  "PageVaneDraft.dc.html": {
+   "x": 7760,
+   "y": 6140,
+   "w": 1440,
+   "h": 900,
+   "title": "Vane’s draft invoice, in Books",
+   "page": "vane",
+   "expand": "fill"
+  },
+  "PageVaneRetail.dc.html": {
+   "x": 4720,
+   "y": 7440,
+   "w": 1440,
+   "h": 900,
+   "title": "Retail: orders drafted from Stock to reorder",
+   "page": "vane",
+   "expand": "fill"
+  },
+  "PageVaneSchool.dc.html": {
+   "x": 6240,
+   "y": 7440,
+   "w": 1440,
+   "h": 900,
+   "title": "Schools: fee reminders drafted",
+   "page": "vane",
+   "expand": "fill"
+  },
+  "PageVaneMine.dc.html": {
+   "x": 7760,
+   "y": 7440,
+   "w": 1440,
+   "h": 900,
+   "title": "Gold mine: a work order drafted from Downtime",
+   "page": "vane",
+   "expand": "fill"
+  },
+  "PageVanePhone.dc.html": {
+   "x": 9280,
+   "y": 7440,
+   "w": 390,
+   "h": 844,
+   "title": "A fitter’s phone: only his own visits",
+   "page": "vane"
+  },
+  "Main.dc.html": {
+   "x": 0,
+   "y": 0,
+   "w": 1440,
+   "h": 1720,
+   "title": "How Vane works",
+   "page": "vane"
+  },
+  "VaneTouch.dc.html": {
+   "x": 1520,
+   "y": 0,
+   "w": 1440,
+   "h": 2920,
+   "title": "Vane · Where people meet Vane",
+   "page": "vane"
+  },
+  "VaneComponents.dc.html": {
+   "x": 3040,
+   "y": 0,
+   "w": 1440,
+   "h": 3000,
+   "title": "Vane · Components and states",
+   "page": "vane"
+  },
+  "VaneRules.dc.html": {
+   "x": 4560,
+   "y": 0,
+   "w": 1440,
+   "h": 1700,
+   "title": "Vane · The rules",
+   "page": "vane"
+  },
+  "VaneForYou.dc.html": {
+   "x": 6080,
+   "y": 0,
+   "w": 1440,
+   "h": 900,
+   "title": "Vane · For you · /vane",
+   "page": "vane"
+  },
+  "ExploreHow.dc.html": {
+   "x": 0,
+   "y": 0,
+   "w": 1440,
+   "h": 2100,
+   "title": "Explore · How it works",
+   "page": "explore"
+  },
+  "ExploreStudio.dc.html": {
+   "x": 1520,
+   "y": 0,
+   "w": 1440,
+   "h": 900,
+   "title": "Explore · A question · /explore/q/open-quotes",
+   "page": "explore"
+  },
+  "ExploreTemplates.dc.html": {
+   "x": 3040,
+   "y": 0,
+   "w": 1440,
+   "h": 900,
+   "title": "Explore · Templates · /explore/templates",
+   "page": "explore"
+  },
+  "ExploreSchedule.dc.html": {
+   "x": 4560,
+   "y": 0,
+   "w": 1440,
+   "h": 900,
+   "title": "Explore · Schedule a question",
+   "page": "explore"
+  },
+  "ExploreGuard.dc.html": {
+   "x": 6080,
+   "y": 0,
+   "w": 1440,
+   "h": 900,
+   "title": "Explore · A change refused, People tables locked for a sales role",
+   "page": "explore"
+  },
+  "ExploreSuggest.dc.html": {
+   "x": 1520,
+   "y": 1100,
+   "w": 1440,
+   "h": 900,
+   "title": "Books · Invoices, with Vane’s suggestions for this list",
+   "page": "explore"
+  },
+  "ExploreAsk.dc.html": {
+   "x": 3040,
+   "y": 1100,
+   "w": 1440,
+   "h": 900,
+   "title": "Ctrl K · Ask anywhere, with Open in Explore",
+   "page": "explore"
+  },
+  "MgmtExplore.dc.html": {
+   "x": 4560,
+   "y": 1100,
+   "w": 1440,
+   "h": 1500,
+   "title": "Management · Explore: who reads what",
+   "page": "explore"
+  },
+  "ReportsAll.dc.html": {
+   "x": 3200,
+   "y": 0,
+   "w": 1440,
+   "h": 900,
+   "title": "Reports · All reports · /reports",
+   "page": "reports"
+  },
+  "ReportsInsights.dc.html": {
+   "x": 4720,
+   "y": 0,
+   "w": 1440,
+   "h": 900,
+   "title": "Reports · Insights · /reports/insights",
+   "page": "reports"
+  },
+  "ReportMonday.dc.html": {
+   "x": 6240,
+   "y": 0,
+   "w": 1440,
+   "h": 900,
+   "title": "Reports · Monday board · /reports/monday-board",
+   "page": "reports"
+  },
+  "ReportBuild.dc.html": {
+   "x": 7760,
+   "y": 0,
+   "w": 1440,
+   "h": 900,
+   "title": "Reports · Monday board, in the builder · /reports/monday-board/edit",
+   "page": "reports"
+  },
+  "ReportBuildVane.dc.html": {
+   "x": 9280,
+   "y": 0,
+   "w": 1440,
+   "h": 900,
+   "title": "Reports · Vane’s suggestion, in the builder",
+   "page": "reports"
+  },
+  "PeopleEveryone.dc.html": {
+   "x": 0,
+   "y": 0,
+   "w": 1440,
+   "h": 900,
+   "title": "People · Everyone · /people",
+   "page": "people"
+  },
+  "PeoplePerson.dc.html": {
+   "x": 1520,
+   "y": 0,
+   "w": 1440,
+   "h": 900,
+   "title": "People · Tinashe Moyo · /people/EMP-0005",
+   "page": "people"
+  },
+  "PeopleTimeOff.dc.html": {
+   "x": 3040,
+   "y": 0,
+   "w": 1440,
+   "h": 900,
+   "title": "People · Time off · /people/time-off",
+   "page": "people"
+  },
+  "MgmtJobGrades.dc.html": {
+   "x": 4560,
+   "y": 0,
+   "w": 1440,
+   "h": 900,
+   "title": "Management · Job grades",
+   "page": "people"
+  },
+  "PayRun.dc.html": {
+   "x": 0,
+   "y": 1100,
+   "w": 1440,
+   "h": 900,
+   "title": "People · Payroll · October pay run · /people/payroll/2026-10",
+   "page": "people"
+  },
+  "PayApprove.dc.html": {
+   "x": 1520,
+   "y": 1100,
+   "w": 1440,
+   "h": 900,
+   "title": "People · Payroll · Approve and pay October",
+   "page": "people"
+  },
+  "MgmtPay.dc.html": {
+   "x": 3040,
+   "y": 1100,
+   "w": 1440,
+   "h": 900,
+   "title": "Management · Pay and statutory",
+   "page": "people"
+  },
+  "PaySlipPhone.dc.html": {
+   "x": 4560,
+   "y": 1100,
+   "w": 390,
+   "h": 844,
+   "title": "People · A payslip, on Tinashe’s phone",
+   "page": "people"
+  },
+  "NotifyHow.dc.html": {
+   "x": 0,
+   "y": 0,
+   "w": 1440,
+   "h": 1960,
+   "title": "Notifications and activity · how they work",
+   "page": "notify"
+  },
+  "NotifyBell.dc.html": {
+   "x": 1520,
+   "y": 0,
+   "w": 1440,
+   "h": 900,
+   "title": "The bell · Needs you, over Books",
+   "page": "notify"
+  },
+  "NotifyActivity.dc.html": {
+   "x": 3040,
+   "y": 0,
+   "w": 1440,
+   "h": 900,
+   "title": "Activity · every event, as a worksheet · /activity",
+   "page": "notify"
+  },
+  "MgmtNotifications.dc.html": {
+   "x": 4560,
+   "y": 0,
+   "w": 1440,
+   "h": 900,
+   "title": "Management · Notifications",
+   "page": "notify"
+  },
+  "BooksMoney.dc.html": {
+   "x": 0,
+   "y": 0,
+   "w": 1440,
+   "h": 900,
+   "title": "Books · Money · /books",
+   "page": "books"
+  },
+  "BooksVane.dc.html": {
+   "x": 1520,
+   "y": 0,
+   "w": 1440,
+   "h": 900,
+   "title": "Books · Money, with Vane open",
+   "page": "books"
+  },
+  "BooksInvoices.dc.html": {
+   "x": 3040,
+   "y": 0,
+   "w": 1440,
+   "h": 900,
+   "title": "Books · Invoices · /books/invoices",
+   "page": "books"
+  },
+  "BooksBank.dc.html": {
+   "x": 4560,
+   "y": 0,
+   "w": 1440,
+   "h": 900,
+   "title": "Books · Bank · /books/bank",
+   "page": "books"
+  },
+  "BuildForm.dc.html": {
+   "x": 0,
+   "y": 0,
+   "w": 1440,
+   "h": 900,
+   "title": "Build · Form · Floor site visit",
+   "page": "builders"
+  },
+  "BuildDocument.dc.html": {
+   "x": 1520,
+   "y": 0,
+   "w": 1440,
+   "h": 900,
+   "title": "Build · Document · Quotation",
+   "page": "builders"
+  },
+  "BuildReport.dc.html": {
+   "x": 3040,
+   "y": 0,
+   "w": 1440,
+   "h": 900,
+   "title": "Build · Report · Fees this term (Schools)",
+   "page": "builders"
+  },
+  "MgmtVane.dc.html": {
+   "x": 0,
+   "y": 0,
+   "w": 1440,
+   "h": 900,
+   "title": "Management · Vane",
+   "page": "management"
+  },
+  "MgmtBilling.dc.html": {
+   "x": 1520,
+   "y": 0,
+   "w": 1440,
+   "h": 900,
+   "title": "Management · Billing",
+   "page": "management"
+  },
+  "MgmtIntegrations.dc.html": {
+   "x": 3040,
+   "y": 0,
+   "w": 1440,
+   "h": 900,
+   "title": "Management · Integrations",
+   "page": "management"
+  },
+  "MgmtMarketplace.dc.html": {
+   "x": 4560,
+   "y": 0,
+   "w": 1440,
+   "h": 900,
+   "title": "Management · Marketplace",
+   "page": "management"
+  },
+  "KitSheet.dc.html": {
+   "x": 0,
+   "y": 0,
+   "w": 1440,
+   "h": 2600,
+   "title": "The kit",
+   "page": "parts"
+  }
+ },
+ "order": [
+  "Main.dc.html",
+  "KitSheet.dc.html",
+  "Icon.dc.html",
+  "PageIntakeForm.dc.html",
+  "PageBooksVat.dc.html",
+  "PageBooksJournals.dc.html",
+  "PageBooksClose.dc.html",
+  "PageHrIncidents.dc.html",
+  "PagePayDisburse.dc.html",
+  "PagePayReturns.dc.html",
+  "PageBrandIdentity.dc.html",
+  "PageBrandAssets.dc.html",
+  "PageBrandFinance.dc.html",
+  "PageBrandWhere.dc.html",
+  "PageBuildHome.dc.html",
+  "PageBuildTemplates.dc.html",
+  "PageTemplatePayslip.dc.html",
+  "PageTemplateEmail.dc.html",
+  "RiTree.dc.html",
+  "RiRequirements.dc.html",
+  "RiTemplates.dc.html",
+  "PageReport.dc.html",
+  "PageReportSave.dc.html",
+  "PageReportExport.dc.html",
+  "PageReportSend.dc.html",
+  "PageReportArrange.dc.html",
+  "PageBuiltReport.dc.html",
+  "PageInsightVisits.dc.html",
+  "PageReportsSettings.dc.html",
+  "PageRetailReports.dc.html",
+  "PageRetailTemplate.dc.html",
+  "PageRetailSales.dc.html",
+  "PageRetailLosses.dc.html",
+  "PageSchoolReports.dc.html",
+  "PageSchoolFees.dc.html",
+  "PageSchoolBuilt.dc.html",
+  "PageMineReports.dc.html",
+  "PageMineProduction.dc.html",
+  "PageMineDowntime.dc.html",
+  "PagePayReports.dc.html",
+  "PagePayCost.dc.html",
+  "PageShopReports.dc.html",
+  "VnTree.dc.html",
+  "VnInteractions.dc.html",
+  "VnUseCases.dc.html",
+  "VnRequirements.dc.html",
+  "VnTemplates.dc.html",
+  "PageVaneCard.dc.html",
+  "PageVanePlan.dc.html",
+  "PageVaneJob.dc.html",
+  "PageVaneDone.dc.html",
+  "PageVaneMuted.dc.html",
+  "PageVaneStates.dc.html",
+  "PageVaneReport.dc.html",
+  "PageVaneBlock.dc.html",
+  "PageVaneForm.dc.html",
+  "PageVaneDocument.dc.html",
+  "PageVaneDraft.dc.html",
+  "PageVaneRetail.dc.html",
+  "PageVaneSchool.dc.html",
+  "PageVaneMine.dc.html",
+  "PageVanePhone.dc.html",
+  "VaneTouch.dc.html",
+  "VaneComponents.dc.html",
+  "VaneRules.dc.html",
+  "VaneForYou.dc.html",
+  "ExploreHow.dc.html",
+  "ExploreStudio.dc.html",
+  "ExploreTemplates.dc.html",
+  "ExploreSchedule.dc.html",
+  "ExploreGuard.dc.html",
+  "ExploreSuggest.dc.html",
+  "ExploreAsk.dc.html",
+  "MgmtExplore.dc.html",
+  "ReportsAll.dc.html",
+  "ReportsInsights.dc.html",
+  "ReportMonday.dc.html",
+  "ReportBuild.dc.html",
+  "ReportBuildVane.dc.html",
+  "PeopleEveryone.dc.html",
+  "PeoplePerson.dc.html",
+  "PeopleTimeOff.dc.html",
+  "MgmtJobGrades.dc.html",
+  "PayRun.dc.html",
+  "PayApprove.dc.html",
+  "MgmtPay.dc.html",
+  "PaySlipPhone.dc.html",
+  "NotifyHow.dc.html",
+  "NotifyBell.dc.html",
+  "NotifyActivity.dc.html",
+  "MgmtNotifications.dc.html",
+  "BooksMoney.dc.html",
+  "BooksVane.dc.html",
+  "BooksInvoices.dc.html",
+  "BooksBank.dc.html",
+  "BuildForm.dc.html",
+  "BuildDocument.dc.html",
+  "BuildReport.dc.html",
+  "MgmtVane.dc.html",
+  "MgmtBilling.dc.html",
+  "MgmtIntegrations.dc.html",
+  "MgmtMarketplace.dc.html"
+ ],
+ "notes": {
+  "coFoundations": {
+   "x": 0,
+   "y": -140,
+   "text": "The kit every board is built from",
+   "kind": "title1",
+   "maxW": 1560,
+   "page": "parts"
+  },
+  "tBooks": {
+   "x": 0,
+   "y": 1200,
+   "text": "Books, on the accounting the app has",
+   "kind": "title1",
+   "maxW": 9040,
+   "page": "books"
+  },
+  "tBuildersHome": {
+   "x": 0,
+   "y": 1200,
+   "text": "Build: forms, documents, reports and templates",
+   "kind": "title1",
+   "maxW": 6000,
+   "page": "builders"
+  },
+  "tBuilders": {
+   "x": 0,
+   "y": 2520,
+   "text": "One builder for all of them",
+   "kind": "title1",
+   "maxW": 9040,
+   "page": "builders"
+  },
+  "tPayroll": {
+   "x": 0,
+   "y": 3600,
+   "text": "Payroll",
+   "kind": "title1",
+   "maxW": 6000,
+   "page": "people"
+  },
+  "tHr": {
+   "x": 0,
+   "y": 2300,
+   "text": "Human resources",
+   "kind": "title1",
+   "maxW": 6000,
+   "page": "people"
+  },
+  "tMgmt": {
+   "x": 0,
+   "y": 1200,
+   "text": "Management",
+   "kind": "title1",
+   "maxW": 9040,
+   "page": "management"
+  },
+  "tBranding": {
+   "x": 0,
+   "y": -300,
+   "text": "Branding",
+   "kind": "title1",
+   "maxW": 6000,
+   "page": "branding"
+  },
+  "nBooks": {
+   "x": 9120,
+   "y": 1500,
+   "w": 420,
+   "text": "Built on what /accounting has today: receivables, payables, journals, periods and the close checklist, posting rules, VAT returns, fiscalisation and the reports.\n\nBank follows the reference design: statement upload and Vane’s proposed matches. Banking reconciliation is parked in the app today, so Bank is new work.",
+   "size": "s",
+   "page": "books"
+  },
+  "nHr": {
+   "x": 6080,
+   "y": 2600,
+   "w": 420,
+   "text": "Built on /people today: employees, rosters, attendance, leave, public holidays, incidents and disciplinary actions, and the approvals history.\n\nNot in the app yet:\n· a page per person (the schools staff list already links to /people/{id}, which is missing)\n· approving or rejecting leave (the leave API only creates requests).",
+   "size": "s",
+   "page": "people"
+  },
+  "nPay": {
+   "x": 6560,
+   "y": 3900,
+   "w": 420,
+   "text": "Built on /payroll today: compensation rules, salaries, runs (draft, submitted, approved, posted), disbursement batches by bank, mobile money or cash, statutory tables, and the P2 and NSSA returns. The run posts one journal to Books (5200 and 5210 against 2100 to 2170).\n\nNot in the app yet: the phone payslip (payslips are a PDF today), and a bank or EcoCash payment file.",
+   "size": "s",
+   "page": "people"
+  },
+  "nMgmt": {
+   "x": 9120,
+   "y": 1500,
+   "w": 420,
+   "text": "Templates moved out of Management into Build.\n\nThe Management tree joins /management (master data, compliance) and /preferences/organization (users, departments, branding, billing).\n\nIntegrations and Marketplace have no page in the app yet. Their rows are what exists in code (WhatsApp, email, Paynow, Pesepay, ContiPay, ZIMRA fiscalisation, Facebook leads) and the real add-on bundles. Billing follows the plan, add-ons and invoices the subscription models hold.",
+   "size": "s",
+   "page": "management"
+  },
+  "nBrand": {
+   "x": 6080,
+   "y": 0,
+   "w": 420,
+   "text": "The three tabs and every field are the ones /preferences/organization/branding has today. The preview is new: it shows a quotation as the fields change.\n\nThe letterhead is put together from these fields; each document template only decides its own body.",
+   "size": "s",
+   "page": "branding"
+  },
+  "nBuild": {
+   "x": 3040,
+   "y": 1500,
+   "w": 420,
+   "text": "Templates now live in Build, not Management. The list joins the Template Library (/templates), document layouts and intake forms, so a template is one row however it is used.\n\nUsing a template makes your own copy. Forms, documents, emails, reports and templates all open in the same builder: the bar, the outline with Add (/), the page, and the inspector.",
+   "size": "s",
+   "page": "builders"
+  },
+  "tReports": {
+   "x": 0,
+   "y": 940,
+   "text": "Reports and insights: the plan",
+   "kind": "title1",
+   "maxW": 2960,
+   "page": "reports"
+  },
+  "tRi0": {
+   "x": 3200,
+   "y": 940,
+   "text": "Sales and CRM · Floorcode",
+   "kind": "title1",
+   "maxW": 18160,
+   "page": "reports"
+  },
+  "nRi0": {
+   "x": 21440,
+   "y": 1240,
+   "w": 420,
+   "text": "One set of pages for every workspace, shown here for Floorcode. “From Corelith” is what the app calls Built in.\n\nIn the app today: the catalogue, a report with its page, templates, export, arranging the page, built reports and Make it yours, and Management → Reports.\n\nNew in this design: the Overview, Insights for Sales and Site visits in one shape (they replace /crm/reports and /crm/insights), Send it (INS-05 and INS-09, not built), and editing a built report in the builder.",
+   "size": "s",
+   "page": "reports"
+  },
+  "tRi1": {
+   "x": 3200,
+   "y": 2380,
+   "text": "Retail · Avondale Bottle Store, in the Tender look",
+   "kind": "title1",
+   "maxW": 6000,
+   "page": "reports"
+  },
+  "nRi1": {
+   "x": 9280,
+   "y": 2680,
+   "w": 420,
+   "text": "/retail/reports/[ref] is the page every template row links to, and it 404s today. This is that page: the same report page in the Tender look.\n\nInsights keeps the seven retail topics as they are. Buying and Customers have no templates yet: they wait on the orders, bills, customers and accounts sources.",
+   "size": "s",
+   "page": "reports"
+  },
+  "tRi2": {
+   "x": 3200,
+   "y": 3780,
+   "text": "Schools · Mazowe High",
+   "kind": "title1",
+   "maxW": 4480,
+   "page": "reports"
+  },
+  "nRi2": {
+   "x": 7760,
+   "y": 4080,
+   "w": 420,
+   "text": "The Fees insight replaces the Collections and Arrears tabs of /schools/reports. Remind the 41 sends a portal notice the bursar chooses to send.\n\nTeachers keep their class page in the teacher portal.",
+   "size": "s",
+   "page": "reports"
+  },
+  "tRi3": {
+   "x": 3200,
+   "y": 5160,
+   "text": "Gold mine · Shamva Gold",
+   "kind": "title1",
+   "maxW": 4480,
+   "page": "reports"
+  },
+  "nRi3": {
+   "x": 7760,
+   "y": 5460,
+   "w": 420,
+   "text": "The Production insight replaces /dashboard, the Production Dashboard filed under Settings. It reads shift reports as well as plant reports.\n\n/gold/insights/allocations is a work queue, so it moves to Gold → Allocations.",
+   "size": "s",
+   "page": "reports"
+  },
+  "tRi4": {
+   "x": 3200,
+   "y": 6560,
+   "text": "Payroll services and the service workshop",
+   "kind": "title1",
+   "maxW": 4480,
+   "page": "reports"
+  },
+  "nRi4": {
+   "x": 7760,
+   "y": 6860,
+   "w": 420,
+   "text": "Payroll has no reports page today. P2 and the NSSA schedule are listed under Pay and open on the returns page, whose Export buttons are not wired yet.\n\nThe workshop gets Stores and maintenance first, because the area order follows the product, not only the profile.",
+   "size": "s",
+   "page": "reports"
+  },
+  "tVane": {
+   "x": 0,
+   "y": 3100,
+   "text": "Vane: the plan",
+   "kind": "title1",
+   "maxW": 4480,
+   "page": "vane"
+  },
+  "tVn0": {
+   "x": 4720,
+   "y": 3100,
+   "text": "Vane’s own module · Floorcode",
+   "kind": "title1",
+   "maxW": 10560,
+   "page": "vane"
+  },
+  "nVn0": {
+   "x": 15360,
+   "y": 3400,
+   "w": 420,
+   "text": "Nothing of Vane is in the app yet: these follow the handover spec, changed where the app differs.\n\nNew here: the full plan (the handover drew only VAT), Give Vane a job with Start, Done with what people did next, Muted with reasons, and the four undrawn states.\n\nEvery card names its template and opens What I read: the report templates and the question Vane ran.",
+   "size": "s",
+   "page": "vane"
+  },
+  "tVn1": {
+   "x": 4720,
+   "y": 4400,
+   "text": "Inside Reports",
+   "kind": "title1",
+   "maxW": 2960,
+   "page": "vane"
+  },
+  "nVn1": {
+   "x": 7760,
+   "y": 4700,
+   "w": 420,
+   "text": "Vane reads through report templates, so What I read always opens a real view.\n\nIn the builder it writes in Steps when it can and in SQL when it needs a join (Steps cannot join). The block carries an accent line until someone keeps it; saving the report is still Save.",
+   "size": "s",
+   "page": "vane"
+  },
+  "tVn2": {
+   "x": 4720,
+   "y": 5840,
+   "text": "Inside forms and documents",
+   "kind": "title1",
+   "maxW": 4480,
+   "page": "vane"
+  },
+  "nVn2": {
+   "x": 9280,
+   "y": 6140,
+   "w": 420,
+   "text": "The handover left Vane inside forms and documents undrawn. Here: changes drafted from answers, kept one by one, joining the form’s draft until someone publishes it.\n\nDraft records need a “made by Vane” mark: createdById points at people today. That is in the migration, waiting for your yes.",
+   "size": "s",
+   "page": "vane"
+  },
+  "tVn3": {
+   "x": 4720,
+   "y": 7140,
+   "text": "In other workspaces",
+   "kind": "title1",
+   "maxW": 6000,
+   "page": "vane"
+  },
+  "nVn3": {
+   "x": 9750,
+   "y": 7440,
+   "w": 420,
+   "text": "Each workspace gets its own templates; every send, order and work order is a person’s press.\n\nFitters see only their own visits and quotes. The CRM lets a rep read the whole pipeline today, so this needs your decision.",
+   "size": "s",
+   "page": "vane"
+  },
+  "k2vane0": {
+   "x": 0,
+   "y": -140,
+   "text": "How Vane works, where people meet it, its parts and its rules",
+   "kind": "title1",
+   "maxW": 6000,
+   "page": "vane"
+  },
+  "k2ex0": {
+   "x": 0,
+   "y": -140,
+   "text": "Explore: the studio for power users, with guarded access to the workspace’s data",
+   "kind": "title1",
+   "maxW": 1440,
+   "page": "explore"
+  },
+  "k2ex1": {
+   "x": 1520,
+   "y": 960,
+   "text": "Explore from other screens, and who may use it",
+   "kind": "title1",
+   "maxW": 4480,
+   "page": "explore"
+  },
+  "k2r0": {
+   "x": 3200,
+   "y": -140,
+   "text": "Reports and Insights, one destination: all reports, insights, a board, and the board in the builder",
+   "kind": "title1",
+   "maxW": 7520,
+   "page": "reports"
+  },
+  "k2p0": {
+   "x": 0,
+   "y": -140,
+   "text": "People: everyone, a person, time off, job grades",
+   "kind": "title1",
+   "maxW": 6000,
+   "page": "people"
+  },
+  "k2p1": {
+   "x": 0,
+   "y": 960,
+   "text": "Payroll: the run with Vane beside it, approving and paying, the settings, a payslip",
+   "kind": "title1",
+   "maxW": 4950,
+   "page": "people"
+  },
+  "k2n0": {
+   "x": 0,
+   "y": -140,
+   "text": "Notifications and activity",
+   "kind": "title1",
+   "maxW": 1440,
+   "page": "notify"
+  },
+  "k2b0": {
+   "x": 0,
+   "y": -140,
+   "text": "Books: money, with Vane open, invoices and the bank",
+   "kind": "title1",
+   "maxW": 6000,
+   "page": "books"
+  },
+  "k2bu0": {
+   "x": 0,
+   "y": -140,
+   "text": "One builder for forms, documents and reports. Every panel resizes.",
+   "kind": "title1",
+   "maxW": 4480,
+   "page": "builders"
+  },
+  "k2m0": {
+   "x": 0,
+   "y": -140,
+   "text": "Management: Vane, billing, integrations and the marketplace",
+   "kind": "title1",
+   "maxW": 6000,
+   "page": "management"
+  },
+  "k2exs": {
+   "x": 7600,
+   "y": 0,
+   "w": 420,
+   "text": "Explore has its own place on the rail, between Reports and Documents, for power users.\n\nEvery panel resizes: drag the tables list’s edge, the line between Steps and SQL, and the editor’s foot to give the rows more room.\n\nGuarded: questions run as explore_reader (select and with only), see only the tables the person’s role reads in the app and only this workspace’s rows, return at most 5,000 rows and stop at 10 s. A change is refused before it runs. Management → Explore sets who may use it.",
+   "size": "s",
+   "page": "explore"
+  },
+  "k2rs": {
+   "x": 10800,
+   "y": 0,
+   "w": 420,
+   "text": "Reports and Insights are one destination: Overview, Insights, All reports, Yours, Shared with you, From Corelith, then Folders and Build. Explore moved out to its own place on the rail.\n\nThe builder’s outline, inspector and question shelf resize from their edges; widths are kept per person.",
+   "size": "s",
+   "page": "reports"
+  },
+  "k2bus": {
+   "x": 4560,
+   "y": 0,
+   "w": 420,
+   "text": "The form, document and report builders share one frame. The outline and the inspector resize from their edges (drag the grip at the panel’s foot), and the canvas takes what is left; each person’s widths are kept.",
+   "size": "s",
+   "page": "builders"
+  },
+  "k2ps": {
+   "x": 6240,
+   "y": 0,
+   "w": 420,
+   "text": "People holds payroll, as in the reference: Everyone, Time off, Payroll, Loans and advances, Documents, Starting and leaving.\n\nManagement stays off the panel’s foot; the gear on the rail opens it.",
+   "size": "s",
+   "page": "people"
+  },
+  "k2kit": {
+   "x": 1640,
+   "y": 0,
+   "w": 420,
+   "text": "Every board on the canvas is now built in the reference markup: the rail, the panel, the top bar, the finding, the worksheet table and the builder, straight from the kit stylesheet. No board imports the older components any more, so they are gone from this page.\n\nIcon renders the filled kit icons by name.",
+   "size": "s",
+   "page": "parts"
+  }
+ },
+ "designSystems": []
+}

@@ -54,7 +54,7 @@ export function DetailGrid({
   return (
     <div
       className={cn(
-        "grid grid-cols-[132px_minmax(0,320px)] items-center gap-x-4 gap-y-3",
+        "grid grid-cols-[160px_minmax(0,320px)] items-center gap-x-4 gap-y-3",
         className,
       )}
     >
@@ -91,7 +91,7 @@ export function DetailRow({
 }
 
 /** The 13px input the boards draw. The DS `.input` is 14px outside the surface. */
-export const DETAIL_CONTROL_CLASS = "h-9 w-full text-[13px] leading-[1.5]";
+export const DETAIL_CONTROL_CLASS = "h-8 w-full text-[14px] leading-[1.43]";
 
 /* ------------------------------------------------------------------ *
  * Controls that commit

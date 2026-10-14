@@ -10,9 +10,10 @@ import type { LucideIcon } from "@/lib/icons";
 import styles from "./workspace-rail.module.css";
 
 /**
- * One panel item (00-foundations 5.3.3): 34px, a 16px icon, the label and, on
- * the right, its badge from `GET /api/v2/retail/nav/badges`. The current item
- * is solid ink (G1). Where the rail has room for pins, a pin shows on hover.
+ * One panel item (00-foundations 5.3.3): 36px, a 16px icon (or a saved view's
+ * square), the label and, on the right, its count (the shell's badges) or a
+ * word ("shared", "you"). The current item is a fill with ink. Where the rail
+ * has room for pins, a pin shows on hover.
  */
 export function RailRow({
   href,
@@ -20,28 +21,35 @@ export function RailRow({
   icon: Icon,
   current,
   badge,
+  meta,
   onNavigate,
   onPin,
   pinned,
+  after,
 }: {
   href: string;
   label: string;
-  icon: LucideIcon;
+  /** No icon: the row is marked with a small square, as a saved view is. */
+  icon?: LucideIcon;
   current?: boolean;
   badge?: string | null;
+  /** A word where a count would sit: "shared", "you". */
+  meta?: string;
   onNavigate?: () => void;
   onPin?: () => void;
   pinned?: boolean;
+  /** Drawn over the row's right edge, outside the link: its own menu. */
+  after?: React.ReactNode;
 }) {
   return (
-    <li>
+    <li className={after ? styles.rowWrap : undefined}>
       <Link
         href={href}
         aria-current={current ? "page" : undefined}
         className={cn(styles.item, current && styles.itemCurrent)}
         onClick={onNavigate}
       >
-        <Icon className={styles.itemIcon} />
+        {Icon ? <Icon className={styles.itemIcon} /> : <span className={styles.dot} aria-hidden="true" />}
         <span className={styles.itemLabel}>{label}</span>
         {onPin ? (
           <button
@@ -60,7 +68,9 @@ export function RailRow({
           </button>
         ) : null}
         {badge ? <span className={styles.badge}>{badge}</span> : null}
+        {meta ? <span className={styles.meta}>{meta}</span> : null}
       </Link>
+      {after}
     </li>
   );
 }

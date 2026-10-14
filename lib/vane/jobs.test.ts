@@ -158,6 +158,20 @@ describe("running a job", () => {
     const toolResult = JSON.stringify(second[0].messages[2]);
     expect(toolResult).toContain("Chipo");
     expect(second[0].tools.map((t) => t.name)).toContain("propose_item");
+
+    // Cached as the prompt-caching guide lays it out: the tools and Vane's shared instructions
+    // for an hour (the same for every workspace reading these tables), then the job's own words,
+    // then the conversation, which the request's own cache_control follows.
+    const sent = create.mock.calls[0] as unknown as [
+      { tools: Array<{ cache_control?: unknown }>; system: Array<{ text: string; cache_control?: unknown }>; cache_control: unknown },
+    ];
+    const { tools, system, cache_control } = sent[0];
+    expect(tools.at(-1)!.cache_control).toEqual({ type: "ephemeral", ttl: "1h" });
+    expect(tools.slice(0, -1).every((tool) => tool.cache_control === undefined)).toBe(true);
+    expect(system.map((block) => block.cache_control ?? null)).toEqual([{ type: "ephemeral", ttl: "1h" }, null]);
+    expect(system[0]!.text).toContain("You are Vane");
+    expect(system[1]!.text).toContain("When you are done");
+    expect(cache_control).toEqual({ type: "ephemeral" });
   });
 
   it("waits and tries again later when Claude cannot be reached", async () => {

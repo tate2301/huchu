@@ -1,5 +1,8 @@
 import type { LucideIcon } from "@/lib/icons";
 import {
+  VaneIcon,
+  Storefront,
+  Link,
   AlertTriangle,
   Bell,
   Building2,
@@ -295,6 +298,7 @@ export type SettingsRailGroupId =
   | "compliance"
   | "company"
   | "school"
+  | "apps"
   | "my-account";
 
 /**
@@ -333,6 +337,7 @@ export const SETTINGS_RAIL_GROUP_LABELS: Record<SettingsRailGroupId, string> = {
   compliance: "Compliance",
   company: "Company",
   school: "School",
+  apps: "Apps",
   "my-account": "My account",
 };
 
@@ -355,6 +360,7 @@ const SETTINGS_RAIL_GROUP_ORDER: SettingsRailGroupId[] = [
   "school",
   "compliance",
   "company",
+  "apps",
   "my-account",
 ];
 
@@ -544,17 +550,9 @@ export const settingsNavEntries: SettingsNavEntry[] = [
     id: "reports",
     group: "company",
     label: "Reports",
-    href: "/preferences/organization/reports",
+    href: "/management/reports",
     icon: FileCheck,
     gate: { kind: "preference", itemId: "reports" },
-  },
-  {
-    id: "billing",
-    group: "company",
-    label: "Billing",
-    href: "/preferences/organization/billing",
-    icon: Wallet,
-    gate: { kind: "preference", itemId: "billing" },
   },
   {
     id: "activity",
@@ -563,6 +561,40 @@ export const settingsNavEntries: SettingsNavEntry[] = [
     href: "/preferences/organization/activity",
     icon: History,
     gate: { kind: "preference", itemId: "activity" },
+  },
+  // Apps: what the workspace pays for, connects to and adds, and Vane
+  // (design/core-modules/spec/management.md). Billing moved here from Company.
+  {
+    id: "billing",
+    group: "apps",
+    label: "Billing",
+    href: "/preferences/organization/billing",
+    icon: Wallet,
+    gate: { kind: "preference", itemId: "billing" },
+  },
+  {
+    id: "integrations",
+    group: "apps",
+    label: "Integrations",
+    href: "/management/integrations",
+    icon: Link,
+    gate: { kind: "preference", itemId: "integrations" },
+  },
+  {
+    id: "marketplace",
+    group: "apps",
+    label: "Marketplace",
+    href: "/management/marketplace",
+    icon: Storefront,
+    gate: { kind: "preference", itemId: "marketplace" },
+  },
+  {
+    id: "vane",
+    group: "apps",
+    label: "Vane",
+    href: "/management/vane",
+    icon: VaneIcon,
+    gate: { kind: "preference", itemId: "vane" },
   },
 
   {

@@ -350,7 +350,7 @@ export const CUSTOM_TEMPLATES: readonly CustomTemplate[] = [
       blocks: [
         query({
           name: "by_month",
-          title: "By month",
+          title: "Measured, by month",
           query: "select\n  cast(date_trunc('month', visited) as date) as month,\n  sum(measured) as measured,\n  sum(drafted) as quoted\nfrom crm_visit_forms\ngroup by 1\norder by 1",
           display: bars("month", "measured"),
         }),

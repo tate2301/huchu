@@ -16,8 +16,8 @@ import {
   DeviceStatus,
   NotificationsBell,
   SearchTrigger,
-  SidebarToggle,
 } from "@/components/layout/app-bar-tools";
+import { Button as KitButton, ButtonLink as KitButtonLink, Kit } from "@/components/core";
 import { usePageChrome, type PagePrimary } from "@/components/layout/page-chrome";
 import { useShellNav } from "@/components/layout/shell-nav";
 import { useShell } from "@/components/layout/shell-state";
@@ -25,6 +25,7 @@ import { Button } from "@/components/workspace/button";
 import { Menu, MenuContent, MenuItem, MenuTrigger } from "@/components/workspace/menu";
 import { CrmMembers } from "@/components/crm/crm-members";
 import { CaretLeft, ChevronDown, DotsThree, List, Plus, type LucideIcon } from "@/lib/icons";
+import { VANE_PAGES } from "@/components/vane/vane-nav";
 import { navSections } from "@/lib/navigation";
 
 /**
@@ -33,7 +34,8 @@ import { navSections } from "@/lib/navigation";
  */
 function routeIcon(pathname: string): LucideIcon | undefined {
   let best: { length: number; icon: LucideIcon } | undefined;
-  for (const section of navSections) {
+  // Vane's pages are in every workspace and in no section.
+  for (const section of [...navSections, { items: VANE_PAGES }]) {
     for (const item of section.items) {
       const path = item.href.split("?")[0] ?? item.href;
       if (pathname !== path && !pathname.startsWith(`${path}/`)) continue;
@@ -50,13 +52,19 @@ function sheetHref(pathname: string, search: string, sheet: string) {
   return `${pathname}?${params.toString()}`;
 }
 
+/** The shortcut a primary shows and answers to: its own, or N for a New. */
+function primaryShortcut(primary: PagePrimary | null): string | undefined {
+  if (!primary || primary.disabled || primary.menu?.length) return undefined;
+  return primary.shortcut ?? (primary.icon === "plus" ? "N" : undefined);
+}
+
 /**
- * The 48px app bar (00-foundations 5.3.5, and the bar the app had before it):
- * the sidebar toggle, back link, the page's icon and title, reference or sub
- * and sub link; then, on the right, the CRM's members, Search (⌘K), the
- * device's sync state, the notifications bell with its unread count, the
- * page's own actions and its one primary. Search and notifications are also in
- * the account menu.
+ * The 56px top bar (design/core-modules/spec/shell.md, `.tb-m`): the back
+ * link, the page's icon and title, reference or sub and sub link; then, on the
+ * right, the CRM's members, search everything (Ctrl K), the device's sync
+ * state, the notifications bell with its unread count, the Vane button, the
+ * page's own actions and its one primary, last, with its shortcut. The panel's
+ * own Hide button and the rail hide and show the panel.
  *
  * Below 720px it is "≡ <title> search, device, bell, ⋯ +": the menu button
  * opens the drawer and a create primary becomes a 44px plus; a verb primary
@@ -89,11 +97,10 @@ export function PageHeader() {
   const showMembers = pathname === "/crm" || pathname.startsWith("/crm/");
 
   return (
-    // 48px with its bottom border (border-box), plus the notch on a phone.
-    <header className="box-border h-[calc(48px+env(safe-area-inset-top))] flex-none border-b border-[var(--line)] bg-[var(--surface)] pt-[env(safe-area-inset-top)]">
+    // 56px with its bottom line, plus the notch on a phone.
+    <header className="box-border h-[calc(56px+env(safe-area-inset-top))] flex-none bg-[var(--surface)] pt-[env(safe-area-inset-top)] shadow-[inset_0_-1px_0_var(--line)]">
       {/* ≥720px */}
-      <div className="flex h-full items-center gap-2.5 pl-2.5 pr-4 max-[719px]:hidden">
-        <SidebarToggle />
+      <div className="flex h-full items-center gap-3 px-6 max-[719px]:hidden">
         {back ? (
           <>
             <Link
@@ -114,7 +121,7 @@ export function PageHeader() {
         {pageIcon && !back
           ? createElement(pageIcon, { className: "size-4 shrink-0 text-[var(--ink-3)]", "aria-hidden": true })
           : null}
-        <h1 className="m-0 min-w-0 truncate text-[15px] font-semibold text-[var(--ink)]">{title}</h1>
+        <h1 className="m-0 -ml-1 min-w-0 truncate text-[16px] font-semibold text-[var(--ink)]">{title}</h1>
         {identity?.reference ? (
           <span className="shrink-0 font-mono text-[var(--ink-3)]" style={{ fontSize: 12 }}>
             {identity.reference}
@@ -160,7 +167,7 @@ export function PageHeader() {
           </Link>
         ) : null}
         <div className="flex-1" />
-        <div className="flex shrink-0 items-center gap-1">
+        <div className="flex shrink-0 items-center gap-2">
           {showMembers ? <CrmMembers className="mr-1" /> : null}
           <SearchTrigger />
           <DeviceStatus />
@@ -189,22 +196,27 @@ export function PageHeader() {
             </Button>
           </span>
         ) : primary ? (
-          primaryHref && !primary.onClick ? (
-            <Button asChild variant="primary">
-              <Link href={primaryHref}>
-                {primary.icon === "plus" ? <Plus className="size-3.5" aria-hidden="true" /> : null}
+          <Kit contents>
+            {primaryHref && !primary.onClick ? (
+              <KitButtonLink
+                href={primaryHref}
+                variant="primary"
+                icon={primary.icon}
+                shortcut={primaryShortcut(primary)}
+              >
                 {primary.label}
-              </Link>
-            </Button>
-          ) : (
-            <Button
-              variant="primary"
-              icon={primary.icon === "plus" ? <Plus className="size-3.5" aria-hidden="true" /> : undefined}
-              onClick={() => runPrimary(primary)}
-            >
-              {primary.label}
-            </Button>
-          )
+              </KitButtonLink>
+            ) : (
+              <KitButton
+                variant="primary"
+                icon={primary.icon}
+                shortcut={primaryShortcut(primary)}
+                onClick={() => runPrimary(primary)}
+              >
+                {primary.label}
+              </KitButton>
+            )}
+          </Kit>
         ) : null}
       </div>
 

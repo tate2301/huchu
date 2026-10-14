@@ -4,19 +4,23 @@ import * as React from "react";
 
 import { cn } from "@/lib/utils";
 import { CaretLeft, MagnifyingGlass, SidebarSimple } from "@/lib/icons";
+import { useShortcut } from "@/components/core/shortcuts";
 
 import styles from "./workspace-rail.module.css";
 
 /**
- * The panel beside the rail (00-foundations 5.3.3, `Main.dc.html`): 240px on
- * `--ground`.
+ * The panel beside the rail (design/core-modules/spec/shell.md): 240px on the
+ * surface.
  *
- * Its 48px head is either the workspace (the module list) or the module (or
+ * An `aside` named for what it shows ("Books"), as the boards' `aside.panel-m`.
+ * Its 56px head is either the workspace (the module list) or the module (or
  * folder in one) you are in, with the chevron before the title going back up
  * one level.
  * Collapsing the panel is its own button at the right of the head (and
- * Cmd/Ctrl+B). Search sits under the head in both, because it is about the
- * whole workspace. The shelf at the foot holds Help and Management.
+ * Cmd/Ctrl+B). Under the head, a search narrows the panel to the items whose
+ * names match, across every module; `/` focuses it. A module's rows may sit in
+ * headed groups, with its Saved views and its Reports (`PanelGroup`, drawn by
+ * `WorkspaceRail`). The shelf at the foot holds Help. Management is behind the rail's gear, never here.
  */
 export function RailPanel({
   title,
@@ -24,7 +28,8 @@ export function RailPanel({
   onBack,
   overlay,
   onCollapse,
-  onSearch,
+  query,
+  onQuery,
   children,
   extra,
   shelf,
@@ -37,15 +42,19 @@ export function RailPanel({
   /** Drawn over the page (720–1099px) rather than beside it. */
   overlay?: boolean;
   onCollapse?: () => void;
-  onSearch?: () => void;
+  /** What is typed in the panel's search; the rows are narrowed by the caller. */
+  query?: string;
+  onQuery?: (query: string) => void;
   children: React.ReactNode;
   /** The module's own extra section (the CRM's saved views). */
   extra?: React.ReactNode;
   /** Help and Management, at the foot. */
   shelf?: React.ReactNode;
 }) {
+  const findRef = React.useRef<HTMLInputElement>(null);
+  useShortcut("/", () => findRef.current?.focus(), { enabled: Boolean(onQuery) });
   return (
-    <div className={cn(styles.panel, overlay && styles.panelOverlay)}>
+    <aside aria-label={title} className={cn(styles.panel, overlay && styles.panelOverlay)}>
       <div className={styles.panelHead}>
         {onBack ? (
           <button
@@ -61,7 +70,7 @@ export function RailPanel({
         {onCollapse ? (
           <button
             type="button"
-            aria-label="Collapse the panel"
+            aria-label="Hide the panel"
             aria-keyshortcuts="Meta+B Control+B"
             className={cn(styles.iconButton, styles.collapse)}
             onClick={onCollapse}
@@ -71,13 +80,28 @@ export function RailPanel({
         ) : null}
       </div>
 
-      {onSearch ? (
+      {onQuery ? (
         <div className={styles.panelTools}>
-          <button type="button" className={styles.find} onClick={onSearch} aria-keyshortcuts="Meta+K Control+K">
+          <label className={styles.find}>
             <MagnifyingGlass className={styles.findIcon} />
-            <span className={styles.findLabel}>Search</span>
-            <span className={styles.findHint}>⌘K</span>
-          </button>
+            <input
+              ref={findRef}
+              type="search"
+              className={styles.findInput}
+              placeholder="Search"
+              aria-label={`Search ${title}`}
+              aria-keyshortcuts="/"
+              value={query ?? ""}
+              onChange={(event) => onQuery(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Escape" && query) {
+                  event.preventDefault();
+                  onQuery("");
+                }
+              }}
+            />
+            <span className={styles.findHint}>/</span>
+          </label>
         </div>
       ) : null}
 
@@ -87,6 +111,6 @@ export function RailPanel({
       </nav>
 
       {shelf ? <div className={styles.shelf}>{shelf}</div> : null}
-    </div>
+    </aside>
   );
 }

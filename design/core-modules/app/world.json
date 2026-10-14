@@ -1,0 +1,364 @@
+{
+ "$comment": "Build and reporting, driven by Floorcode: measure the floor once on site and the quote is already written. Extended for the whole core modules canvas: Vane, Explore, People and payroll, Books.",
+ "tenancy": {
+  "unit": "workspace",
+  "switcher": "sidebar top"
+ },
+ "roles": [
+  {
+   "role": "owner",
+   "device": "laptop",
+   "can": [
+    "build forms",
+    "set quote lines",
+    "publish",
+    "write reports"
+   ],
+   "cannot": []
+  },
+  {
+   "role": "fitter",
+   "device": "phone, on site",
+   "can": [
+    "run a site visit",
+    "send the drafted quote"
+   ],
+   "cannot": [
+    "change a form",
+    "see other fitters' quotes"
+   ]
+  },
+  {
+   "role": "office",
+   "device": "laptop",
+   "can": [
+    "read insights",
+    "build reports with steps"
+   ],
+   "cannot": [
+    "publish a form"
+   ]
+  },
+  {
+   "role": "bursar",
+   "device": "laptop",
+   "can": [
+    "read fees",
+    "send reminders Vane drafted"
+   ],
+   "cannot": [
+    "see pay"
+   ]
+  },
+  {
+   "role": "payroll officer",
+   "device": "laptop",
+   "can": [
+    "run pay",
+    "submit for approval"
+   ],
+   "cannot": [
+    "approve their own run"
+   ]
+  },
+  {
+   "role": "Vane",
+   "device": "server worker",
+   "can": [
+    "read through vane_reader",
+    "draft invoices, quotations and purchase orders",
+    "write issues, suggestions and plans"
+   ],
+   "cannot": [
+    "send",
+    "pay",
+    "accept a match",
+    "save or publish",
+    "change a record",
+    "file a return",
+    "read pay or personal details unless the workspace allows it"
+   ]
+  }
+ ],
+ "records": [
+  {
+   "record": "form",
+   "written_by": [
+    "builder"
+   ],
+   "shown_on": [
+    "build",
+    "site visit"
+   ]
+  },
+  {
+   "record": "site visit",
+   "written_by": [
+    "fitter"
+   ],
+   "shown_on": [
+    "customer",
+    "deal"
+   ]
+  },
+  {
+   "record": "quote",
+   "written_by": [
+    "drafted from a visit",
+    "owner"
+   ],
+   "shown_on": [
+    "customer",
+    "deal"
+   ]
+  },
+  {
+   "record": "report",
+   "written_by": [
+    "steps",
+    "SQL"
+   ],
+   "shown_on": [
+    "reports"
+   ]
+  },
+  {
+   "record": "Vane item",
+   "written_by": [
+    "Vane"
+   ],
+   "shown_on": [
+    "/vane",
+    "the Vane panel",
+    "the module it came from"
+   ]
+  },
+  {
+   "record": "Vane plan",
+   "written_by": [
+    "Vane"
+   ],
+   "shown_on": [
+    "/vane/plans",
+    "the Vane panel"
+   ]
+  },
+  {
+   "record": "Vane job",
+   "written_by": [
+    "Vane worker"
+   ],
+   "shown_on": [
+    "the top bar while working",
+    "Management → Vane, this month"
+   ]
+  },
+  {
+   "record": "draft invoice",
+   "written_by": [
+    "a person",
+    "Vane (made by Vane)"
+   ],
+   "shown_on": [
+    "Books → Invoices"
+   ]
+  },
+  {
+   "record": "pay run",
+   "written_by": [
+    "payroll officer"
+   ],
+   "shown_on": [
+    "People → Payroll"
+   ]
+  },
+  {
+   "record": "Explore question",
+   "written_by": [
+    "power user"
+   ],
+   "shown_on": [
+    "Explore"
+   ]
+  }
+ ],
+ "states": {
+  "form": [
+   "Draft",
+   "Live"
+  ],
+  "quote": [
+   "Drafted",
+   "Sent",
+   "Accepted"
+  ],
+  "Vane item": [
+   "Open",
+   "Done",
+   "Muted"
+  ],
+  "Vane plan step": [
+   "To do",
+   "Now",
+   "Done"
+  ],
+  "Vane job": [
+   "Queued",
+   "Running",
+   "Done",
+   "Waiting",
+   "Failed"
+  ],
+  "Vane": [
+   "Working",
+   "Paused",
+   "Over the allowance",
+   "Could not work it out",
+   "Cannot reach the service"
+  ],
+  "pay run": [
+   "Draft",
+   "Submitted",
+   "Approved",
+   "Posted"
+  ],
+  "invoice": [
+   "Draft",
+   "Issued",
+   "Paid",
+   "Voided"
+  ]
+ },
+ "transitions": [
+  {
+   "record": "form",
+   "from": "Draft",
+   "to": "Live",
+   "action": "Publish",
+   "decidedBy": "owner",
+   "reversible": true
+  },
+  {
+   "record": "quote",
+   "from": "Drafted",
+   "to": "Sent",
+   "action": "Send it",
+   "decidedBy": "fitter",
+   "reversible": false
+  },
+  {
+   "record": "Vane item",
+   "from": "Open",
+   "to": "Done",
+   "action": "the button that names the act (Send 3 reminders)",
+   "decidedBy": "a person",
+   "reversible": false
+  },
+  {
+   "record": "Vane item",
+   "from": "Open",
+   "to": "Muted",
+   "action": "Not now, with a reason",
+   "decidedBy": "a person",
+   "reversible": true
+  },
+  {
+   "record": "invoice",
+   "from": "Draft",
+   "to": "Issued",
+   "action": "Issue",
+   "decidedBy": "a person, never Vane",
+   "reversible": false
+  },
+  {
+   "record": "pay run",
+   "from": "Submitted",
+   "to": "Approved",
+   "action": "Approve",
+   "decidedBy": "approver who did not submit it",
+   "reversible": false
+  }
+ ],
+ "failures": [
+  {
+   "when": "building",
+   "what": "a quote line reads a question that is not always asked",
+   "screen": "Problems",
+   "way_out": [
+    "give the line the same condition",
+    "make the question always asked"
+   ]
+  },
+  {
+   "when": "on site",
+   "what": "no connection",
+   "screen": "Saved on this phone",
+   "way_out": [
+    "drafts the quote when back online"
+   ]
+  },
+  {
+   "when": "running a report",
+   "what": "the SQL reads something it may not",
+   "screen": "Not allowed",
+   "way_out": [
+    "names the table and what is allowed"
+   ]
+  },
+  {
+   "when": "running a report",
+   "what": "it takes too long",
+   "screen": "Stopped after 10 seconds",
+   "way_out": [
+    "narrow the dates"
+   ]
+  },
+  {
+   "when": "Vane works",
+   "what": "Claude cannot be reached",
+   "screen": "Cannot reach the service: last worked at …",
+   "way_out": [
+    "jobs wait and retry with backoff"
+   ]
+  },
+  {
+   "when": "Vane works",
+   "what": "the monthly allowance is used",
+   "screen": "Over the allowance",
+   "way_out": [
+    "Management → Vane shows it full",
+    "work resumes next month"
+   ]
+  },
+  {
+   "when": "Vane works",
+   "what": "records it needs are missing",
+   "screen": "Could not work it out",
+   "way_out": [
+    "says what it tried",
+    "Show the rows"
+   ]
+  },
+  {
+   "when": "Explore",
+   "what": "a question tries to change data",
+   "screen": "Refused before it runs",
+   "way_out": [
+    "names what is allowed: select and with"
+   ]
+  },
+  {
+   "when": "Explore",
+   "what": "more than 5,000 rows or 10 seconds",
+   "screen": "Stopped",
+   "way_out": [
+    "narrow the dates"
+   ]
+  }
+ ],
+ "entities": [],
+ "clock": {
+  "today": "Wednesday 7 October 2026",
+  "timezone": "Africa/Harare"
+ }
+}

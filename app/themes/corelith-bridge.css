@@ -505,7 +505,7 @@
      silently the next time the bar changes. `Navbar` and `AppShell`'s `main`
      read these, so `--content-viewport` cannot drift from what a page
      actually has. */
-  --app-bar-h:        48px;
+  --app-bar-h:        56px;
   /* Zero, and that is the point: `main` no longer pads the page top and
      bottom. Every band that pins to the top of the scrollport — the page
      band, a list toolbar, a table header — has to start at the scrollport's

@@ -1,3 +1,5 @@
+import type { AccountingPeriodLockPolicy } from "@prisma/client";
+
 import { prisma } from "@/lib/prisma";
 import { getNextEntryNumber, toMoney } from "@/lib/accounting/ledger";
 
@@ -173,14 +175,25 @@ export async function importOpeningBalances(input: {
   });
 }
 
-export async function setFreezeBeforeDate(input: {
+/**
+ * The closing controls: the freeze date, who may post before it, and the
+ * retained earnings account the close sweeps into. A field left out is kept.
+ */
+export async function setClosingControls(input: {
   companyId: string;
   freezeBeforeDate?: Date | null;
+  periodLockPolicy?: AccountingPeriodLockPolicy;
+  retainedEarningsAccountId?: string | null;
 }) {
+  const data = {
+    ...(input.freezeBeforeDate !== undefined ? { freezeBeforeDate: input.freezeBeforeDate } : {}),
+    ...(input.periodLockPolicy ? { periodLockPolicy: input.periodLockPolicy } : {}),
+    ...(input.retainedEarningsAccountId !== undefined ? { retainedEarningsAccountId: input.retainedEarningsAccountId } : {}),
+  };
   return prisma.accountingSettings.upsert({
     where: { companyId: input.companyId },
-    update: { freezeBeforeDate: input.freezeBeforeDate ?? null },
-    create: { companyId: input.companyId, freezeBeforeDate: input.freezeBeforeDate ?? null },
+    update: data,
+    create: { companyId: input.companyId, ...data },
   });
 }
 

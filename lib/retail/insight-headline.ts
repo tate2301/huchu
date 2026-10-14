@@ -87,7 +87,7 @@ function inBefore(words: HeadlineWords) {
 
 /** The second sentence when too little sold to say more. */
 export function tooFew(words: HeadlineWords, what = "compare") {
-  return `Too few sales in these dates to ${what}.${words.period === "30d" ? "" : " Widen the period."}`;
+  return `Too few sales in these dates to ${what}.${words.period === "30d" || words.period === "90d" ? "" : " Widen the period."}`;
 }
 
 /** The second sentence when nothing sold: what the period before did. */

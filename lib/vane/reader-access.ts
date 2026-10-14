@@ -96,6 +96,13 @@ function isScalarField(field: SchemaField, enums: Set<string>): boolean {
 export const NEVER_TABLE =
   /^(Account|Session|SessionHandoff|SupportSession|VerificationToken)$|ApiKey|Webhook|Credential|Password|Otp|Token|Secret|Passkey|Authenticator|TwoFactor|Invite|PairingCode|TillPin|EmailCode/;
 
+/**
+ * A person's own conversation with Vane. A job answering one person must not
+ * read what another typed to Vane, so neither role reads it; the chat reads it
+ * through the app, for its own person only.
+ */
+export const CONVERSATION_TABLE = /^VaneMessage$/;
+
 const CREDENTIAL_WORDS = new Set(["password", "secret", "secrets", "token", "hash", "salt", "otp", "pin"]);
 
 /** A column that holds a credential, on any table: a password, secret, token, hash, PIN or key. Neither role may read it. */
@@ -141,7 +148,7 @@ export type ParentLink = { column: string; parentTable: string; parentColumn: st
 export type ReaderAccess = {
   readable: Readable[];
   /** Tables neither role reads, and why. */
-  unreadable: Array<{ table: string; reason: "credentials" | "no workspace link" | "scope" }>;
+  unreadable: Array<{ table: string; reason: "credentials" | "conversation" | "no workspace link" | "scope" }>;
 };
 
 /** Decides, table by table, what each reader role may select and how its rows are scoped. */
@@ -198,6 +205,10 @@ export function readerAccess(models: SchemaModel[]): ReaderAccess {
     }
     if (NEVER_TABLE.test(model.name)) {
       unreadable.push({ table: model.table, reason: "credentials" });
+      continue;
+    }
+    if (CONVERSATION_TABLE.test(model.name)) {
+      unreadable.push({ table: model.table, reason: "conversation" });
       continue;
     }
     const scope = scoped.get(model.name);

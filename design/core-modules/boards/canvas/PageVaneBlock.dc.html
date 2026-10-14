@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<title>Vane · A block in the builder</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&amp;display=swap">
+<link rel="stylesheet" href="/_blob/99852cf059ec2fd037ee27b1340107ec">
+</head>
+<body>
+<x-dc>
+<helmet><style>
+body{margin:0;background:var(--color-surface);font-family:var(--font-sans);color:var(--color-ink)}
+.sh,.rb2,.st,.ex{height:900px}
+
+</style></helmet>
+<div style="min-height: 900px; display: flex; flex-direction: column; background: #ffffff; color: var(--color-ink); font: 400 13.5px/1.4 var(--font-sans);">
+  <header class="st-bar" style="height:56px;flex:none;position:relative"><button class="btn btn-quiet btn-icon" aria-label="Back"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M14.657 17.657L9 12l5.657-5.657"/></svg></button><span style="width:28px;height:28px;border-radius:7px;background:#2563eb;color:#fff;display:grid;place-items:center;flex:none"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" style="width:15px;height:15px;flex:none;"><path fill="currentColor" d="M7 21H4a2 2 0 0 1-2-2v-6a2 2 0 0 1 2-2h3zm6-18a2 2 0 0 1 2 2v16H9V5a2 2 0 0 1 2-2zm7 5a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-3V8z"/></svg></span><div class="st-name"><b class="truncate">Measured to won</b><span>Built report · Just yours</span></div><div class="seg st-mode" role="tablist" aria-label="Mode"><button role="tab" aria-selected="true"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" style="width:14px;height:14px;flex:none;"><path fill="currentColor" d="m17.827 13.241l-7.173 7.174A2 2 0 0 1 9.239 21H4.006a1.01 1.01 0 0 1-1.01-1.011v-5.232a2 2 0 0 1 .586-1.414l7.174-7.174zm-3.931-10.21a2 2 0 0 1 2.828 0l4.243 4.241a2 2 0 0 1 0 2.83l-1.726 1.725l-7.07-7.071z"/></svg>Build</button><button role="tab" aria-selected="false"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" style="width:14px;height:14px;flex:none;"><path fill="currentColor" d="M12 4c2.787 0 5.262 1.257 7.025 2.813c.885.78 1.615 1.658 2.13 2.53c.504.858.845 1.787.845 2.657s-.34 1.799-.846 2.656c-.514.873-1.244 1.75-2.129 2.531C17.263 18.744 14.787 20 12 20s-5.262-1.257-7.025-2.812c-.885-.782-1.615-1.659-2.13-2.532C2.342 13.8 2 12.87 2 12s.34-1.799.846-2.656c.514-.873 1.244-1.75 2.129-2.531C6.738 5.257 9.213 4 12 4m0 5a3 3 0 1 0 2.987 2.737a2 2 0 0 1-2.726-2.726A3 3 0 0 0 12 9"/></svg>Preview</button></div><div class="st-end"><span class="saved"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" style="width:14px;height:14px;flex:none;"><path fill="currentColor" fill-rule="evenodd" d="M21.546 5.112a1.5 1.5 0 0 1 0 2.121L10.232 18.547a1.5 1.5 0 0 1-2.121 0L2.454 12.89a1.5 1.5 0 1 1 2.121-2.121l4.596 4.596L19.424 5.112a1.5 1.5 0 0 1 2.122 0" clip-rule="evenodd"/></svg>Saved; 1 block not kept</span><button class="btn btn-primary"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" style="width:16px;height:16px;flex:none;"><path fill="currentColor" d="M21.432 4.862a1 1 0 0 0-1.181-1.33l-17.5 4.5a1 1 0 0 0-.443 1.691l5.193 4.965v4.52a.5.5 0 0 0 .853.353l2.073-2.073l3.381 3.235a1 1 0 0 0 1.624-.361zM9.768 14.813l-1.735-1.66L19 6z"/></svg>Publish<span class="kbd" style="background:transparent;color:inherit;box-shadow:inset 0 0 0 1px rgba(255,255,255,.32)">Ctrl ↵</span></button></div></header>
+  <div style="flex: 1 1 auto; min-height: 848px; display: flex;">
+    <div class="cm-panel" style="flex: none; display: flex;"><aside class="st-out" aria-label="Outline" style="flex:none;min-height:0"><button class="btn st-add"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" style="width:16px;height:16px;flex:none;"><path fill="currentColor" fill-rule="evenodd" d="M12 3.5A1.5 1.5 0 0 1 13.5 5v5.5H19a1.5 1.5 0 0 1 0 3h-5.5V19a1.5 1.5 0 0 1-3 0v-5.5H5a1.5 1.5 0 0 1 0-3h5.5V5A1.5 1.5 0 0 1 12 3.5" clip-rule="evenodd"/></svg>Add a block<span class="kbd">/</span></button><div class="oh">The page</div><button class="oi"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" style="width:16px;height:16px;flex:none;"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="3" d="M5 8.5h15m-15.5 7h15M9.5 4l-2 16m9-16l-2 16"/></svg><span class="truncate">Figures</span></button><button class="oi"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" style="width:16px;height:16px;flex:none;"><path fill="currentColor" d="M7 21H4a2 2 0 0 1-2-2v-6a2 2 0 0 1 2-2h3zm6-18a2 2 0 0 1 2 2v16H9V5a2 2 0 0 1 2-2zm7 5a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-3V8z"/></svg><span class="truncate">measured</span></button><button class="oi is-on"><svg class="vn" width="16" height="16" viewBox="0 0 24 24" aria-hidden="true" style="flex:none"><rect width="24" height="24" rx="6" fill="var(--color-ink)"/><path d="M5 12h10" stroke="var(--color-surface)" stroke-width="2.2" stroke-linecap="round"/><path d="M19.5 12 14 8v8z" fill="var(--color-surface)"/><path d="M5 8.5 7.5 12 5 15.5" stroke="var(--color-surface)" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="truncate">won_m2 · Vane’s</span></button><button class="oi"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" style="width:16px;height:16px;flex:none;"><path fill="currentColor" fill-rule="evenodd" d="M3 5.5A2.5 2.5 0 0 1 5.5 3h13A2.5 2.5 0 0 1 21 5.5v13a2.5 2.5 0 0 1-2.5 2.5h-13A2.5 2.5 0 0 1 3 18.5zM5 9v3.5h6V9zm8 0v3.5h6V9zm-8 5.5V18.5a.5.5 0 0 0 .5.5H11v-4.5zm8 0V19h5.5a.5.5 0 0 0 .5-.5v-4z" clip-rule="evenodd"/></svg><span class="truncate">By rep</span></button><div class="oh">Reports it can read</div><button class="oi"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" style="width:16px;height:16px;flex:none;"><path fill="currentColor" fill-rule="evenodd" d="M3 5.5A2.5 2.5 0 0 1 5.5 3h13A2.5 2.5 0 0 1 21 5.5v13a2.5 2.5 0 0 1-2.5 2.5h-13A2.5 2.5 0 0 1 3 18.5zM5 9v3.5h6V9zm8 0v3.5h6V9zm-8 5.5V18.5a.5.5 0 0 0 .5.5H11v-4.5zm8 0V19h5.5a.5.5 0 0 0 .5-.5v-4z" clip-rule="evenodd"/></svg><span class="truncate">crm_visit_forms</span></button><button class="oi"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" style="width:16px;height:16px;flex:none;"><path fill="currentColor" fill-rule="evenodd" d="M3 5.5A2.5 2.5 0 0 1 5.5 3h13A2.5 2.5 0 0 1 21 5.5v13a2.5 2.5 0 0 1-2.5 2.5h-13A2.5 2.5 0 0 1 3 18.5zM5 9v3.5h6V9zm8 0v3.5h6V9zm-8 5.5V18.5a.5.5 0 0 0 .5.5H11v-4.5zm8 0V19h5.5a.5.5 0 0 0 .5-.5v-4z" clip-rule="evenodd"/></svg><span class="truncate">crm_deals</span></button></aside></div>
+    <div style="flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; background: var(--color-ground); padding: 28px 32px; box-sizing: border-box;">
+      <div style="background: #ffffff; border: 1px solid var(--color-line); border-radius: 12px; overflow: hidden; display: flex; flex-direction: column;">        <div style="display: flex; align-items: center; gap: 10px; padding: 14px 20px; border-bottom: 1px solid var(--color-line);"><span style="font-size: 17px; font-weight: 600;">Measured to won</span><span class="pill pill-n">Just yours</span></div><div class="cm-grid2" style="display: grid; grid-template-columns: 1fr 1fr;"><div style="border-right: 1px solid var(--color-line);"><section class="kblock" style="padding:18px 18px 14px"><div class="kblock-h"><h3>Measured, by month</h3></div><div class="hbar" style="grid-template-columns:40px minmax(0,1fr) 96px"><span class="truncate">Apr</span><span class="hbar-t"><i style="width:42.5%;background:var(--color-muted)"></i></span><span class="num">312.4</span></div><div class="hbar" style="grid-template-columns:40px minmax(0,1fr) 96px"><span class="truncate">May</span><span class="hbar-t"><i style="width:81.4%;background:var(--color-muted)"></i></span><span class="num">598.0</span></div><div class="hbar" style="grid-template-columns:40px minmax(0,1fr) 96px"><span class="truncate">Jun</span><span class="hbar-t"><i style="width:87.2%;background:var(--color-muted)"></i></span><span class="num">641.2</span></div><div class="hbar" style="grid-template-columns:40px minmax(0,1fr) 96px"><span class="truncate">Jul</span><span class="hbar-t"><i style="width:95.6%;background:var(--color-muted)"></i></span><span class="num">702.8</span></div><div class="hbar" style="grid-template-columns:40px minmax(0,1fr) 96px"><span class="truncate">Aug</span><span class="hbar-t"><i style="width:89.2%;background:var(--color-muted)"></i></span><span class="num">655.3</span></div><div class="hbar" style="grid-template-columns:40px minmax(0,1fr) 96px"><span class="truncate">Sep</span><span class="hbar-t"><i style="width:100.0%;background:var(--color-muted)"></i></span><span class="num">734.9</span></div><div class="hbar" style="grid-template-columns:40px minmax(0,1fr) 96px"><span class="truncate">Oct</span><span class="hbar-t"><i style="width:36.5%;background:var(--color-muted)"></i></span><span class="num">268.0</span></div></section></div><div><div style="position: relative; margin: 6px; border: 2px dashed var(--color-accent); border-left: 4px solid var(--color-accent); border-radius: 8px;"><span style="position: absolute; top: -12px; left: 10px; height: 22px; display: inline-flex; align-items: center; gap: 5px; padding: 0 8px; border-radius: 5px; background: var(--color-ink); color: #ffffff; font-size: 12.5px; font-weight: 500;"><svg class="vn" width="12" height="12" viewBox="0 0 24 24" aria-hidden="true" style="flex:none"><rect width="24" height="24" rx="6" fill="var(--color-ink)"/><path d="M5 12h10" stroke="var(--color-surface)" stroke-width="2.2" stroke-linecap="round"/><path d="M19.5 12 14 8v8z" fill="var(--color-surface)"/><path d="M5 8.5 7.5 12 5 15.5" stroke="var(--color-surface)" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>won_m2 · Vane’s, not kept</span><section class="kblock" style="padding:18px 18px 14px"><div class="kblock-h"><h3>Won, by month</h3></div><div class="hbar" style="grid-template-columns:40px minmax(0,1fr) 96px"><span class="truncate">Apr</span><span class="hbar-t"><i style="width:19.1%;background:var(--color-accent)"></i></span><span class="num">140.2</span></div><div class="hbar" style="grid-template-columns:40px minmax(0,1fr) 96px"><span class="truncate">May</span><span class="hbar-t"><i style="width:41.0%;background:var(--color-accent)"></i></span><span class="num">301.6</span></div><div class="hbar" style="grid-template-columns:40px minmax(0,1fr) 96px"><span class="truncate">Jun</span><span class="hbar-t"><i style="width:43.9%;background:var(--color-accent)"></i></span><span class="num">322.8</span></div><div class="hbar" style="grid-template-columns:40px minmax(0,1fr) 96px"><span class="truncate">Jul</span><span class="hbar-t"><i style="width:49.2%;background:var(--color-accent)"></i></span><span class="num">361.4</span></div><div class="hbar" style="grid-template-columns:40px minmax(0,1fr) 96px"><span class="truncate">Aug</span><span class="hbar-t"><i style="width:44.9%;background:var(--color-accent)"></i></span><span class="num">330.1</span></div><div class="hbar" style="grid-template-columns:40px minmax(0,1fr) 96px"><span class="truncate">Sep</span><span class="hbar-t"><i style="width:50.7%;background:var(--color-accent)"></i></span><span class="num">372.3</span></div><div class="hbar" style="grid-template-columns:40px minmax(0,1fr) 96px"><span class="truncate">Oct</span><span class="hbar-t"><i style="width:17.6%;background:var(--color-accent)"></i></span><span class="num">129.0</span></div></section></div></div></div></div>
+    </div>
+    <aside class="cm-insp" style="flex: none; width: 320px; box-sizing: border-box; border-left: 1px solid var(--color-line); display: flex; flex-direction: column;"><div role="tablist" style="height: 48px; flex: none; display: flex; align-items: stretch; gap: 20px; padding: 0 22px; border-bottom: 1px solid var(--color-line);"><button type="button" role="tab" style="border: 0; background: transparent; padding: 0; box-shadow: inset 0 -2px 0 var(--color-ink); color: var(--color-ink); font: 600 13px/1 var(--font-sans);">Question</button><button type="button" role="tab" style="border: 0; background: transparent; padding: 0; box-shadow: none; color: var(--color-muted); font: 500 13px/1 var(--font-sans);">Show as</button><button type="button" role="tab" style="border: 0; background: transparent; padding: 0; box-shadow: none; color: var(--color-muted); font: 500 13px/1 var(--font-sans);">Size</button></div><div style="padding: 18px 22px; display: flex; flex-direction: column; gap: 14px;">
+  <div style="padding: 12px 14px; border-radius: 10px; background: var(--color-ground); border: 1px solid var(--color-line); display: flex; flex-direction: column; gap: 8px;"><span style="display: flex; align-items: center; gap: 8px; font-weight: 600;"><svg class="vn" width="18" height="18" viewBox="0 0 24 24" aria-hidden="true" style="flex:none"><rect width="24" height="24" rx="6" fill="var(--color-ink)"/><path d="M5 12h10" stroke="var(--color-surface)" stroke-width="2.2" stroke-linecap="round"/><path d="M19.5 12 14 8v8z" fill="var(--color-surface)"/><path d="M5 8.5 7.5 12 5 15.5" stroke="var(--color-surface)" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>Vane wrote this question</span><span style="color: var(--color-ink-2);">You asked for won m² beside measured. It joins Site visit forms to Deals, so it is written in SQL; Steps cannot join.</span><span style="display: flex; gap: 8px;"><button type="button" class="btn btn-sm"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" style="width:16px;height:16px;flex:none;"><path fill="currentColor" fill-rule="evenodd" d="M4.575 4.576a1.5 1.5 0 0 1 2.122 0L12 9.88l5.303-5.303a1.5 1.5 0 0 1 2.122 2.121l-5.304 5.304l5.304 5.303a1.5 1.5 0 1 1-2.122 2.121L12 14.122l-5.303 5.303a1.5 1.5 0 1 1-2.122-2.12L9.88 12L4.575 6.697a1.5 1.5 0 0 1 0-2.12" clip-rule="evenodd"/></svg>Not now</button><button type="button" class="btn btn-primary">Keep<span class="kbd" style="background:transparent;color:inherit;box-shadow:inset 0 0 0 1px rgba(255,255,255,.32)">Ctrl ↵</span></button></span></div>
+  <div role="group" style="display: flex; padding: 2px; border-radius: 8px; background: var(--color-fill);"><button type="button" style="flex: 1; height: 28px; border: 0; background: transparent; font: 500 13px var(--font-sans); color: var(--color-faint);">Steps</button><button type="button" style="flex: 1; height: 28px; border: 0; border-radius: 6px; background: #ffffff; box-shadow: 0 0 0 1px var(--color-line); font: 600 13px var(--font-sans); color: var(--color-ink);">SQL</button></div>
+  <pre style="margin: 0; padding: 12px; border-radius: 8px; background: var(--color-ground); border: 1px solid var(--color-line); border-left: 2px solid var(--color-accent); font: 12px/1.55 var(--font-mono); color: var(--color-ink-2); white-space: pre-wrap;">select date_trunc('month', f.visited) as month,
+       sum(f.area_measured_m2) as won_m2
+from crm_visit_forms f
+join crm_deals d on d.deal_no = f.deal
+where d.outcome = 'Won'
+  and f.visited between period_start() and period_end()
+group by 1 order by 1</pre>
+  <span style="font-size: 12.5px; color: var(--color-muted);">7 rows in 0.04 s, read only. Won m² is 1,957.4 in all, the same as the figure above.</span>
+  <label style="min-height: 38px; box-sizing: border-box; display: flex; align-items: center; padding: 0 12px; border: 1px solid var(--color-rule); border-radius: 8px; color: var(--color-muted);">Give Vane a change to make</label>
+</div></aside>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {
+      "outline": [
+        {
+          "head": "The page",
+          "items": [
+            {
+              "label": "Figures",
+              "glyph": "hash"
+            },
+            {
+              "label": "measured",
+              "glyph": "barChart"
+            },
+            {
+              "label": "won_m2 · Vane’s",
+              "glyph": "vane",
+              "on": true
+            },
+            {
+              "label": "By rep",
+              "glyph": "table"
+            }
+          ]
+        },
+        {
+          "head": "Reports it can read",
+          "items": [
+            {
+              "label": "crm_visit_forms",
+              "glyph": "table"
+            },
+            {
+              "label": "crm_deals",
+              "glyph": "table"
+            }
+          ]
+        }
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>

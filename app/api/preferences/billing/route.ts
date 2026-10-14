@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { errorResponse, successResponse, validateSession } from "@/lib/api-utils";
 import { computeCompanyPricing } from "@/lib/platform/entitlements";
+import { FEATURE_BUNDLES } from "@/lib/platform/feature-catalog";
+import { monthBounds } from "@/lib/vane/settings";
 import { getSubscriptionHealth } from "@/lib/platform/subscription";
 import { prisma } from "@/lib/prisma";
 
@@ -44,6 +46,9 @@ export async function GET(request: NextRequest) {
       totalUsers,
       health,
       paymentHistory,
+      enabledAddons,
+      vaneSettings,
+      vaneJobs,
     ] = await Promise.all([
       prisma.company.findUnique({
         where: { id: companyId },
@@ -89,7 +94,22 @@ export async function GET(request: NextRequest) {
           providerReference: true,
         },
       }),
+      prisma.companySubscriptionAddon.findMany({
+        where: { companyId, isEnabled: true },
+        select: { bundle: { select: { code: true } } },
+      }),
+      prisma.vaneSettings.findUnique({ where: { companyId }, select: { monthlyAllowance: true } }),
+      prisma.vaneJob.count({
+        where: { companyId, status: "DONE", finishedAt: { gte: monthBounds().start, lt: monthBounds().next } },
+      }),
     ]);
+
+    // The add-ons the workspace could take: the catalogue's priced bundles it
+    // does not have. Taking one is still arranged with Corelith (offline).
+    const enabledCodes = new Set(enabledAddons.map((addon) => addon.bundle.code));
+    const available = FEATURE_BUNDLES.filter(
+      (bundle) => bundle.code.startsWith("ADDON_") && bundle.monthlyPrice > 0 && !enabledCodes.has(bundle.code),
+    ).map((bundle) => ({ code: bundle.code, name: bundle.name, description: bundle.description, monthlyPrice: bundle.monthlyPrice }));
 
     if (!company) {
       return errorResponse("Workspace not found", 404);
@@ -137,6 +157,15 @@ export async function GET(request: NextRequest) {
         maxUsers: subscription?.plan.maxUsers ?? null,
       },
       health,
+      available,
+      // What each product line is, in the catalogue's words.
+      details: Object.fromEntries(
+        FEATURE_BUNDLES.filter((bundle) => pricing.lineItems.some((line) => line.code === bundle.code)).map((bundle) => [
+          bundle.code,
+          bundle.description.replace(/\.$/, ""),
+        ]),
+      ),
+      vane: { jobsThisMonth: vaneJobs, monthlyAllowance: vaneSettings?.monthlyAllowance ?? 5000 },
       payments: {
         onlinePaymentsSupported: false,
         methods: ["Cash", "Cheque"],

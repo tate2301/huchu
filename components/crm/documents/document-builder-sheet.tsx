@@ -37,6 +37,7 @@ import { DocumentTemplatePicker } from "./document-template-picker";
 import { ResourcePicker, useResourceLibrary } from "./resource-picker";
 import { refreshAfterDocumentChange } from "@/lib/crm/refresh";
 import { preselectedResourceIds } from "@/lib/crm/resources";
+import { CRM_DOCUMENT_SOURCE_KEYS } from "@/lib/crm/document-sources";
 
 /** A render layout the PDF can be drawn through, from the templates studio. */
 type LayoutOption = {
@@ -151,11 +152,13 @@ export function DocumentBuilderSheet({
   // Which layout the PDF renders through. Distinct from the standing-terms
   // picker below: that fills the notes, this picks the page design.
   const docType = mode === "quotation" ? "SALES_QUOTATION" : "SALES_INVOICE";
+  // This kind of CRM document's own layouts only: a school's fee invoice shares the document type.
+  const sourceKey = CRM_DOCUMENT_SOURCE_KEYS[mode === "quotation" ? "QUOTATION" : "INVOICE"];
   const layouts = useQuery({
-    queryKey: ["crm", "render-layouts", docType],
+    queryKey: ["crm", "render-layouts", docType, sourceKey],
     enabled: open,
     queryFn: () =>
-      fetchJson<LayoutOption[]>(`/api/document-templates?documentType=${docType}`),
+      fetchJson<LayoutOption[]>(`/api/document-templates?documentType=${docType}&sourceKey=${sourceKey}`),
   });
   // What was measured on this record's visits, offered on every line rather
   // than only as a one-shot prefill when a report is completed. basePath is

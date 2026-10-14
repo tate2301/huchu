@@ -35,6 +35,13 @@ type ShellState = {
   setCommandOpen: (open: boolean) => void;
   notificationsOpen: boolean;
   setNotificationsOpen: (open: boolean) => void;
+  /** The Vane panel, on the right of the page (400px), open from any module. */
+  vaneOpen: boolean;
+  setVaneOpen: (open: boolean) => void;
+  /** Words put in Vane's box from a page ("What should I do next on this deal?"); `key` changes with each. */
+  vaneDraft: { text: string; key: number } | null;
+  /** Opens the Vane panel with these words in its box, for the person to send or change. */
+  askVane: (text: string) => void;
 };
 
 const ShellContext = React.createContext<ShellState | null>(null);
@@ -70,6 +77,12 @@ export function ShellProvider({
   const [drawerOpen, setDrawerOpen] = React.useState(false);
   const [commandOpen, setCommandOpen] = React.useState(false);
   const [notificationsOpen, setNotificationsOpen] = React.useState(false);
+  const [vaneOpen, setVaneOpen] = React.useState(false);
+  const [vaneDraft, setVaneDraft] = React.useState<{ text: string; key: number } | null>(null);
+  const askVane = React.useCallback((text: string) => {
+    setVaneDraft({ text, key: Date.now() });
+    setVaneOpen(true);
+  }, []);
 
   const persist = React.useCallback((open: boolean) => {
     setPanelOpen(open);
@@ -129,8 +142,12 @@ export function ShellProvider({
       setCommandOpen,
       notificationsOpen,
       setNotificationsOpen,
+      vaneOpen,
+      setVaneOpen,
+      vaneDraft,
+      askVane,
     }),
-    [closePanel, commandOpen, drawerOpen, notificationsOpen, openPanel, panelShown, togglePanel, width],
+    [askVane, closePanel, commandOpen, drawerOpen, notificationsOpen, openPanel, panelShown, togglePanel, vaneDraft, vaneOpen, width],
   );
 
   return <ShellContext.Provider value={value}>{children}</ShellContext.Provider>;

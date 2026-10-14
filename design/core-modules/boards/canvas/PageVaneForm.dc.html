@@ -1,0 +1,171 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<title>Vane · Changes to a form</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&amp;display=swap">
+<link rel="stylesheet" href="/_blob/99852cf059ec2fd037ee27b1340107ec">
+</head>
+<body>
+<x-dc>
+<helmet><style>
+body{margin:0;background:var(--color-surface);font-family:var(--font-sans);color:var(--color-ink)}
+.sh,.rb2,.st,.ex{height:900px}
+
+</style></helmet>
+<div style="min-height: 900px; display: flex; flex-direction: column; background: #ffffff; color: var(--color-ink); font: 400 13.5px/1.4 var(--font-sans);">
+  <header class="st-bar" style="height:56px;flex:none;position:relative"><button class="btn btn-quiet btn-icon" aria-label="Back"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M14.657 17.657L9 12l5.657-5.657"/></svg></button><span style="width:28px;height:28px;border-radius:7px;background:#cf3d1d;color:#fff;display:grid;place-items:center;flex:none"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" style="width:15px;height:15px;flex:none;"><path fill="currentColor" d="M12 2c5.523 0 10 4.477 10 10q-.002.975-.18 1.9c-.386 2.003-2.398 2.85-4.083 2.57l-1.739-.29a1.29 1.29 0 0 0-1.124.36l-.089.089c-.34.34-.423.858-.209 1.287c.423.846.428 1.812.055 2.604a2.53 2.53 0 0 1-2.222 1.472q-.204.009-.409.008C6.477 22 2 17.523 2 12S6.477 2 12 2m-4.5 9a1.5 1.5 0 1 0 0 3a1.5 1.5 0 0 0 0-3m2-4a1.5 1.5 0 1 0 0 3a1.5 1.5 0 0 0 0-3m5 0a1.5 1.5 0 1 0 0 3a1.5 1.5 0 0 0 0-3"/></svg></span><div class="st-name"><b class="truncate">Floor site visit</b><span>Form · draft, 3 changes from Vane</span></div><div class="seg st-mode" role="tablist" aria-label="Mode"><button role="tab" aria-selected="true"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" style="width:14px;height:14px;flex:none;"><path fill="currentColor" d="m17.827 13.241l-7.173 7.174A2 2 0 0 1 9.239 21H4.006a1.01 1.01 0 0 1-1.01-1.011v-5.232a2 2 0 0 1 .586-1.414l7.174-7.174zm-3.931-10.21a2 2 0 0 1 2.828 0l4.243 4.241a2 2 0 0 1 0 2.83l-1.726 1.725l-7.07-7.071z"/></svg>Build</button><button role="tab" aria-selected="false"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" style="width:14px;height:14px;flex:none;"><path fill="currentColor" d="M12 4c2.787 0 5.262 1.257 7.025 2.813c.885.78 1.615 1.658 2.13 2.53c.504.858.845 1.787.845 2.657s-.34 1.799-.846 2.656c-.514.873-1.244 1.75-2.129 2.531C17.263 18.744 14.787 20 12 20s-5.262-1.257-7.025-2.812c-.885-.782-1.615-1.659-2.13-2.532C2.342 13.8 2 12.87 2 12s.34-1.799.846-2.656c.514-.873 1.244-1.75 2.129-2.531C6.738 5.257 9.213 4 12 4m0 5a3 3 0 1 0 2.987 2.737a2 2 0 0 1-2.726-2.726A3 3 0 0 0 12 9"/></svg>Preview</button></div><div class="st-end"><span class="saved"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" style="width:14px;height:14px;flex:none;"><path fill="currentColor" fill-rule="evenodd" d="M21.546 5.112a1.5 1.5 0 0 1 0 2.121L10.232 18.547a1.5 1.5 0 0 1-2.121 0L2.454 12.89a1.5 1.5 0 1 1 2.121-2.121l4.596 4.596L19.424 5.112a1.5 1.5 0 0 1 2.122 0" clip-rule="evenodd"/></svg>Draft, not published</span><button class="btn btn-primary"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" style="width:16px;height:16px;flex:none;"><path fill="currentColor" d="M21.432 4.862a1 1 0 0 0-1.181-1.33l-17.5 4.5a1 1 0 0 0-.443 1.691l5.193 4.965v4.52a.5.5 0 0 0 .853.353l2.073-2.073l3.381 3.235a1 1 0 0 0 1.624-.361zM9.768 14.813l-1.735-1.66L19 6z"/></svg>Publish<span class="kbd" style="background:transparent;color:inherit;box-shadow:inset 0 0 0 1px rgba(255,255,255,.32)">Ctrl ↵</span></button></div></header>
+  <div style="flex: 1 1 auto; min-height: 848px; display: flex;">
+    <div class="cm-panel" style="flex: none; display: flex;"><aside class="st-out" aria-label="Outline" style="flex:none;min-height:0"><button class="btn st-add"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" style="width:16px;height:16px;flex:none;"><path fill="currentColor" fill-rule="evenodd" d="M12 3.5A1.5 1.5 0 0 1 13.5 5v5.5H19a1.5 1.5 0 0 1 0 3h-5.5V19a1.5 1.5 0 0 1-3 0v-5.5H5a1.5 1.5 0 0 1 0-3h5.5V5A1.5 1.5 0 0 1 12 3.5" clip-rule="evenodd"/></svg>Add<span class="kbd">/</span></button><div class="oh">Rooms</div><button class="oi"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" style="width:16px;height:16px;flex:none;"><path fill="currentColor" fill-rule="evenodd" d="M12 3.5A1.5 1.5 0 0 1 13.5 5v5.5H19a1.5 1.5 0 0 1 0 3h-5.5V19a1.5 1.5 0 0 1-3 0v-5.5H5a1.5 1.5 0 0 1 0-3h5.5V5A1.5 1.5 0 0 1 12 3.5" clip-rule="evenodd"/></svg><span class="truncate">Room areas</span></button><button class="oi is-on"><svg class="vn" width="16" height="16" viewBox="0 0 24 24" aria-hidden="true" style="flex:none"><rect width="24" height="24" rx="6" fill="var(--color-ink)"/><path d="M5 12h10" stroke="var(--color-surface)" stroke-width="2.2" stroke-linecap="round"/><path d="M19.5 12 14 8v8z" fill="var(--color-surface)"/><path d="M5 8.5 7.5 12 5 15.5" stroke="var(--color-surface)" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="truncate">Subfloor · Vane</span></button><button class="oi"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" style="width:16px;height:16px;flex:none;"><path fill="currentColor" d="M12 2a3 3 0 0 1 3 3v7.956q0 .005.01.021a.3.3 0 0 0 .087.097a5 5 0 1 1-6.193 0a.3.3 0 0 0 .086-.097l.01-.02V5a3 3 0 0 1 3-3m-2 15a2.001 2.001 0 0 0 3.414 1.414A2 2 0 0 0 14 17z"/></svg><span class="truncate">Moisture reading</span></button><div class="oh">Finishes</div><button class="oi"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" style="width:16px;height:16px;flex:none;"><path fill="currentColor" d="M12 2c5.523 0 10 4.477 10 10s-4.477 10-10 10S2 17.523 2 12S6.477 2 12 2m4.95 6.38a1 1 0 0 0-1.415 0l-4.95 4.951l-2.121-2.121a1 1 0 1 0-1.414 1.414l2.829 2.828a1 1 0 0 0 1.414 0l5.656-5.657a1 1 0 0 0 0-1.414"/></svg><span class="truncate">Skirting wanted</span></button><button class="oi"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" style="width:16px;height:16px;flex:none;"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="3" d="M5 8.5h15m-15.5 7h15M9.5 4l-2 16m9-16l-2 16"/></svg><span class="truncate">Doorways</span></button><div class="oh">Quote lines</div><button class="oi"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" style="width:16px;height:16px;flex:none;"><path fill="currentColor" fill-rule="evenodd" d="M4 5a3 3 0 0 1 3-3h10a3 3 0 0 1 3 3v16a1 1 0 0 1-1.65.76l-1.683-1.443l-1.683 1.442a1 1 0 0 1-1.302 0L12 20.317l-1.682 1.442a1 1 0 0 1-1.302 0l-1.683-1.442l-1.682 1.442A1 1 0 0 1 4 21zm4 4a1 1 0 0 1 1-1h6a1 1 0 1 1 0 2H9a1 1 0 0 1-1-1m0 4a1 1 0 0 1 1-1h3a1 1 0 1 1 0 2H9a1 1 0 0 1-1-1" clip-rule="evenodd"/></svg><span class="truncate">Laminate planks · 13% waste</span></button><button class="oi"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" style="width:16px;height:16px;flex:none;"><path fill="currentColor" fill-rule="evenodd" d="M4 5a3 3 0 0 1 3-3h10a3 3 0 0 1 3 3v16a1 1 0 0 1-1.65.76l-1.683-1.443l-1.683 1.442a1 1 0 0 1-1.302 0L12 20.317l-1.682 1.442a1 1 0 0 1-1.302 0l-1.683-1.442l-1.682 1.442A1 1 0 0 1 4 21zm4 4a1 1 0 0 1 1-1h6a1 1 0 1 1 0 2H9a1 1 0 0 1-1-1m0 4a1 1 0 0 1 1-1h3a1 1 0 1 1 0 2H9a1 1 0 0 1-1-1" clip-rule="evenodd"/></svg><span class="truncate">Underlay</span></button></aside></div>
+    <div style="flex: 1 1 0; min-width: 0; display: flex; flex-direction: column;"><div style="flex:1;display:flex;flex-direction:column;background:var(--color-ground);overflow:auto"><div class="fpaper"><h1 class="text-title">Floor site visit</h1><section class="fs"><h2>Rooms</h2><div class="qr"><div class="qr-l"><span class="qr-q">Room areas</span><span class="qr-m">Required</span></div><span class="qr-fig num">27.92 m²</span><div class="qr-in"><div class="rooms"><div class="rm"><input class="input" aria-label="Room" value="Lounge"><input class="input num" aria-label="Length, m" value="5.2"><span class="muted">×</span><input class="input num" aria-label="Width, m" value="4.1"><span class="num muted">21.32 m²</span></div><div class="rm"><input class="input" aria-label="Room" value="Passage"><input class="input num" aria-label="Length, m" value="6.0"><span class="muted">×</span><input class="input num" aria-label="Width, m" value="1.1"><span class="num muted">6.60 m²</span></div></div></div></div><div class="qr sel"><span class="sel-tag"><svg class="vn" width="12" height="12" viewBox="0 0 24 24" aria-hidden="true" style="flex:none"><rect width="24" height="24" rx="6" fill="var(--color-ink)"/><path d="M5 12h10" stroke="var(--color-surface)" stroke-width="2.2" stroke-linecap="round"/><path d="M19.5 12 14 8v8z" fill="var(--color-surface)"/><path d="M5 8.5 7.5 12 5 15.5" stroke="var(--color-surface)" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>Vane’s change, not kept</span><div class="qr-l"><span class="qr-q">Subfloor</span><span class="qr-m">Required, was optional</span></div><div class="qr-in"><div style="display:flex;flex-wrap:wrap;gap:8px 24px"><label class="check"><input type="radio" checked aria-label="Concrete">Concrete</label><label class="check"><input type="radio" aria-label="Timber boards">Timber boards</label><label class="check"><input type="radio" aria-label="Existing tiles">Existing tiles</label><label class="check"><input type="radio" aria-label="Screed, new">Screed, new</label></div></div></div><div class="qr is-sub"><div class="qr-l"><span class="qr-q">Moisture reading</span><span class="qr-m">When the subfloor is concrete or screed</span></div><span class="qr-fig num">3.4%</span><div class="qr-in"><div style="display:flex;align-items:center;gap:8px"><input class="input num" style="width:96px" aria-label="Moisture reading" value="3.4"><span class="muted">%</span></div></div></div></section><section class="fs"><h2>Finishes</h2><div class="qr"><div class="qr-l"><span class="qr-q">Skirting wanted</span><span class="qr-m">Optional</span></div><div class="qr-in"><div style="display:flex;flex-wrap:wrap;gap:8px 24px"><label class="check"><input type="radio" checked aria-label="Yes">Yes</label><label class="check"><input type="radio" aria-label="No">No</label></div></div></div></section></div><div style="position:sticky;bottom:0;display:flex;align-items:center;gap:12px;height:64px;padding:0 24px;background:var(--color-surface);box-shadow:inset 0 1px 0 var(--color-line);margin-top:auto"><span style="flex:1;color:var(--color-ink-2)">These answers draft a quote of <b class="num" style="color:var(--color-ink)">$1,041.26</b>, 6 lines</span><button type="button" class="btn"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" style="width:16px;height:16px;flex:none;"><path fill="currentColor" fill-rule="evenodd" d="M4 5a3 3 0 0 1 3-3h10a3 3 0 0 1 3 3v16a1 1 0 0 1-1.65.76l-1.683-1.443l-1.683 1.442a1 1 0 0 1-1.302 0L12 20.317l-1.682 1.442a1 1 0 0 1-1.302 0l-1.683-1.442l-1.682 1.442A1 1 0 0 1 4 21zm4 4a1 1 0 0 1 1-1h6a1 1 0 1 1 0 2H9a1 1 0 0 1-1-1m0 4a1 1 0 0 1 1-1h3a1 1 0 1 1 0 2H9a1 1 0 0 1-1-1" clip-rule="evenodd"/></svg>See the quote</button></div></div></div>
+    <aside class="cm-insp" style="flex: none; width: 340px; box-sizing: border-box; border-left: 1px solid var(--color-line); display: flex; flex-direction: column;"><div style="height: 48px; flex: none; display: flex; align-items: stretch; gap: 20px; padding: 0 22px; border-bottom: 1px solid var(--color-line);"><button type="button" style="border: 0; background: transparent; padding: 0; color: var(--color-muted); font: 500 13px var(--font-sans);">Question</button><button type="button" style="border: 0; background: transparent; padding: 0; box-shadow: inset 0 -2px 0 var(--color-ink); color: var(--color-ink); font: 600 13px var(--font-sans);">Vane 3</button><button type="button" style="border: 0; background: transparent; padding: 0; color: var(--color-muted); font: 500 13px var(--font-sans);">Settings</button></div>
+<div style="padding: 16px 22px; display: flex; flex-direction: column; gap: 12px;">
+  <span style="color: var(--color-ink-2);">From 86 visits since July. Kept changes join this form’s draft; reps see them when you publish.</span>
+  <div style="padding: 12px 14px; border: 1px solid var(--color-line); border-left: 3px solid var(--color-accent); border-radius: 8px; display: flex; flex-direction: column; gap: 6px;"><span style="font-weight: 600;">Make Subfloor required</span><span style="color: var(--color-ink-2);">Skipped on 18 of 86 visits. Those quotes were won 33% of the time, against 53% with it.</span><span style="font-size: 12.5px; color: var(--color-muted);">Read: Site visit answers</span><span style="display: flex; gap: 8px;"><button type="button" class="btn btn-sm"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" style="width:16px;height:16px;flex:none;"><path fill="currentColor" fill-rule="evenodd" d="M4.575 4.576a1.5 1.5 0 0 1 2.122 0L12 9.88l5.303-5.303a1.5 1.5 0 0 1 2.122 2.121l-5.304 5.304l5.304 5.303a1.5 1.5 0 1 1-2.122 2.121L12 14.122l-5.303 5.303a1.5 1.5 0 1 1-2.122-2.12L9.88 12L4.575 6.697a1.5 1.5 0 0 1 0-2.12" clip-rule="evenodd"/></svg>Not now</button><button type="button" class="btn btn-primary">Keep<span class="kbd" style="background:transparent;color:inherit;box-shadow:inset 0 0 0 1px rgba(255,255,255,.32)">Ctrl ↵</span></button></span></div><div style="padding: 12px 14px; border: 1px solid var(--color-line); border-left: 3px solid var(--color-accent); border-radius: 8px; display: flex; flex-direction: column; gap: 6px;"><span style="font-weight: 600;">Add Screed as an option</span><span style="color: var(--color-ink-2);">11 of the 18 skipped visits left a note saying screed. Moisture reading asks for it too.</span><span style="font-size: 12.5px; color: var(--color-muted);">Read: Site visit answers, notes</span><span style="display: flex; gap: 8px;"><button type="button" class="btn btn-sm"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" style="width:16px;height:16px;flex:none;"><path fill="currentColor" fill-rule="evenodd" d="M4.575 4.576a1.5 1.5 0 0 1 2.122 0L12 9.88l5.303-5.303a1.5 1.5 0 0 1 2.122 2.121l-5.304 5.304l5.304 5.303a1.5 1.5 0 1 1-2.122 2.121L12 14.122l-5.303 5.303a1.5 1.5 0 1 1-2.122-2.12L9.88 12L4.575 6.697a1.5 1.5 0 0 1 0-2.12" clip-rule="evenodd"/></svg>Not now</button><button type="button" class="btn btn-primary">Keep<span class="kbd" style="background:transparent;color:inherit;box-shadow:inset 0 0 0 1px rgba(255,255,255,.32)">Ctrl ↵</span></button></span></div><div style="padding: 12px 14px; border: 1px solid var(--color-line); border-left: 3px solid var(--color-success); border-radius: 8px; display: flex; flex-direction: column; gap: 6px;"><span style="font-weight: 600;">Laminate waste 13%, not 10%</span><span style="color: var(--color-ink-2);">On 14 invoiced laminate jobs, the packs used came to 13% over the measured area.</span><span style="font-size: 12.5px; color: var(--color-muted);">Read: Site visit forms, Invoices</span><span style="display: flex; gap: 8px;"><span class="pill pill-ok">Kept</span></span></div>
+</div></aside>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {
+      "outline": [
+        {
+          "head": "Rooms",
+          "items": [
+            {
+              "label": "Room areas",
+              "glyph": "grid4"
+            },
+            {
+              "label": "Subfloor · Vane",
+              "glyph": "vane",
+              "on": true
+            },
+            {
+              "label": "Moisture reading",
+              "glyph": "thermometer",
+              "child": true
+            }
+          ]
+        },
+        {
+          "head": "Finishes",
+          "items": [
+            {
+              "label": "Skirting wanted",
+              "glyph": "checkCircle"
+            },
+            {
+              "label": "Doorways",
+              "glyph": "hash"
+            }
+          ]
+        },
+        {
+          "head": "Quote lines",
+          "items": [
+            {
+              "label": "Laminate planks · 13% waste",
+              "glyph": "receipt"
+            },
+            {
+              "label": "Underlay",
+              "glyph": "receipt"
+            }
+          ]
+        }
+      ],
+      "sections": [
+        {
+          "h": "Rooms",
+          "qs": [
+            {
+              "q": "Room areas",
+              "meta": "Required",
+              "kind": "rooms",
+              "fig": "27.92 m²",
+              "rooms": [
+                {
+                  "name": "Lounge",
+                  "a": "5.2",
+                  "b": "4.1",
+                  "area": "21.32 m²"
+                },
+                {
+                  "name": "Passage",
+                  "a": "6.0",
+                  "b": "1.1",
+                  "area": "6.60 m²"
+                }
+              ]
+            },
+            {
+              "q": "Subfloor",
+              "meta": "Required, was optional",
+              "kind": "choice",
+              "tag": "Vane’s change, not kept",
+              "tagGlyph": "vane",
+              "opts": [
+                {
+                  "l": "Concrete",
+                  "on": true
+                },
+                {
+                  "l": "Timber boards"
+                },
+                {
+                  "l": "Existing tiles"
+                },
+                {
+                  "l": "Screed, new"
+                }
+              ]
+            },
+            {
+              "q": "Moisture reading",
+              "meta": "When the subfloor is concrete or screed",
+              "kind": "one",
+              "value": "3.4",
+              "unit": "%",
+              "fig": "3.4%",
+              "child": true,
+              "num": true
+            }
+          ]
+        },
+        {
+          "h": "Finishes",
+          "qs": [
+            {
+              "q": "Skirting wanted",
+              "meta": "Optional",
+              "kind": "choice",
+              "opts": [
+                {
+                  "l": "Yes",
+                  "on": true
+                },
+                {
+                  "l": "No"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "foot": {
+        "text": "These answers draft a quote of",
+        "strong": "$1,041.26",
+        "rest": ", 6 lines",
+        "button": "See the quote",
+        "glyph": "receipt"
+      }
+    };
+  }
+}
+</script>
+</body>
+</html>

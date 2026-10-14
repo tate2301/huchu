@@ -447,8 +447,8 @@ Accounting is one of the broadest domains in the current system.
 
 - `/accounting`
 - `/accounting/chart-of-accounts`
-- `/accounting/journals`
-- `/accounting/periods`
+- `/books/journals` (`/accounting/journals` forwards there)
+- `/books/periods` (`/accounting/periods` forwards there)
 - `/accounting/posting-rules`
 - `/accounting/receivables`
 - `/accounting/payables`
@@ -459,7 +459,7 @@ Accounting is one of the broadest domains in the current system.
 - `/accounting/budgets`
 - `/accounting/cost-centers`
 - `/accounting/currency`
-- `/accounting/tax`
+- `/books/vat` (`/accounting/tax` forwards there)
 - `/accounting/fiscalisation`
 - `/accounting/trial-balance`
 - `/accounting/financial-reports`

@@ -2,6 +2,8 @@
 
 import * as React from "react";
 
+import type { IconName } from "@/components/core";
+
 /**
  * What the page header says this page is (00-foundations 5.3.5).
  *
@@ -34,7 +36,8 @@ export type PagePicker = { label: string; options: Array<{ key: string; label: s
  */
 export type PagePrimary = {
   label: string;
-  icon?: "plus";
+  /** "plus" for a New; a verb primary names its own (Upload a statement: "upload2"). */
+  icon?: IconName;
   href?: string;
   sheet?: string;
   onClick?: () => void;
@@ -42,6 +45,11 @@ export type PagePrimary = {
   disabled?: string;
   /** A menu under it instead of one action ("+ New bundle or pack": a pack, a bundle, a buy-more deal). */
   menu?: Array<{ label: string; href: string }>;
+  /**
+   * The key it shows and answers to (design/core-modules/spec/shortcuts.md).
+   * A New (`icon: "plus"`) takes N unless it names another.
+   */
+  shortcut?: string;
 };
 
 /**

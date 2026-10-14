@@ -34,19 +34,20 @@ function declarations(body: string): Array<[string, string]> {
   ]);
 }
 
+/** Whether a block's selector list names `:root[data-theme="<theme>"]`. */
+function isThemeBlock(selector: string, theme: string): boolean {
+  return selector.split(",").some((part) => part.trim() === `:root[data-theme="${theme}"]`);
+}
+
 function themeBlock(theme: string) {
-  const found = blocks(ROLES_CSS).filter(
-    (block) => block.selector === `:root[data-theme="${theme}"]`,
-  );
+  const found = blocks(ROLES_CSS).filter((block) => isThemeBlock(block.selector, theme));
   expect(found, `one block for ${theme}`).toHaveLength(1);
   return Object.fromEntries(declarations(found[0].body));
 }
 
 describe("roles.css", () => {
   it.each(THEME_NAMES)("the %s block declares exactly ROLE_TOKENS", (theme) => {
-    const found = blocks(ROLES_CSS).find(
-      (block) => block.selector === `:root[data-theme="${theme}"]`,
-    );
+    const found = blocks(ROLES_CSS).find((block) => isThemeBlock(block.selector, theme));
     expect(found, `a block for ${theme}`).toBeDefined();
     const names = declarations(found!.body).map(([name]) => name);
     // No duplicates, nothing missing, nothing extra.
@@ -62,7 +63,7 @@ describe("roles.css", () => {
 
   it("has no theme block the product table does not name", () => {
     const themed = blocks(ROLES_CSS)
-      .map((block) => block.selector.match(/^:root\[data-theme="([^"]+)"\]$/)?.[1])
+      .map((block) => block.selector.split(",")[0].trim().match(/^:root\[data-theme="([^"]+)"\]$/)?.[1])
       .filter((name): name is string => Boolean(name));
     expect(themed.sort()).toEqual([...THEME_NAMES].sort());
     const named = Object.values(PRODUCT_THEMES).flatMap((pair) =>
@@ -78,7 +79,10 @@ describe("roles.css", () => {
     expect(themeBlock("tender")["--action"]).toBe("#e8620f");
     expect(themeBlock("tender-dark")["--ground"]).toBe("#171310");
     expect(themeBlock("corelith")["--action-fill"]).toBe("#2563eb");
-    expect(themeBlock("corelith")["--ground"]).toBe("#f6f7f9");
+    expect(themeBlock("corelith")["--ground"]).toBe("#faf9f8");
+    expect(themeBlock("corelith")["--ink"]).toBe("#26251f");
+    expect(themeBlock("corelith-dark")["--ground"]).toBe("#141312");
+    expect(themeBlock("corelith-dark")["--action-fill"]).toBe("#6b9bff");
   });
 
   it("points the package's tokens at roles only, in one block", () => {
@@ -142,14 +146,14 @@ describe("productForProfile", () => {
     }
   });
 
-  it("gives retail a dark theme and Corelith none", () => {
+  it("gives retail and Corelith each a dark theme", () => {
     expect(themesForProduct("retail")).toEqual({ light: "tender", dark: "tender-dark" });
-    expect(themesForProduct("corelith")).toEqual({ light: "corelith", dark: null });
+    expect(themesForProduct("corelith")).toEqual({ light: "corelith", dark: "corelith-dark" });
   });
 
   it("colours the browser bar with the product's ground", () => {
     expect(themeColorForProduct("retail")).toBe("#faf7f4");
-    expect(themeColorForProduct("corelith")).toBe("#f6f7f9");
+    expect(themeColorForProduct("corelith")).toBe("#faf9f8");
   });
 });
 
@@ -206,8 +210,14 @@ describe("the head script (first paint)", () => {
     }
   });
 
-  it("never paints dark on a product without a dark theme", () => {
+  it("paints Corelith dark when Dark is chosen", () => {
     const browser = fakeBrowser("corelith", "dark", true);
+    runHeadScript(browser);
+    expect(browser.root.dataset.theme).toBe("corelith-dark");
+  });
+
+  it("leaves the server's theme on a product it has no themes for", () => {
+    const browser = fakeBrowser("unknown", "dark", true);
     runHeadScript(browser);
     expect(browser.root.dataset.theme).toBe("corelith");
   });

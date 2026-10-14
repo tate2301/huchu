@@ -131,7 +131,6 @@ const BY_KEY: Record<string, LucideIcon> = {
   currency: Coins,
   tax: Scale,
   codes: Scale,
-  "vat-returns": FileCheck,
   "vat-summary": FileCheck,
   fiscalisation: FileCheck,
 

@@ -43,7 +43,7 @@ export const INSIGHT_TOPICS = ["sales", "profit", "products", "stock", "losses",
 export type InsightTopic = (typeof INSIGHT_TOPICS)[number];
 
 /** The toolbar's periods, each compared with the same span before it. */
-export const INSIGHT_PERIODS = ["today", "7d", "30d", "month"] as const;
+export const INSIGHT_PERIODS = ["today", "7d", "30d", "90d", "month"] as const;
 export type InsightPeriod = (typeof INSIGHT_PERIODS)[number];
 
 /** A preset period or a range of days the owner chose. */
@@ -258,7 +258,7 @@ function presetWindow(period: InsightPeriod, now: Date): Omit<InsightWindow, "ra
       compareWords: "Compared with the month before",
     };
   }
-  const days = period === "7d" ? 7 : 30;
+  const days = period === "7d" ? 7 : period === "90d" ? 90 : 30;
   const from = new Date(to.getTime() - days * DAY);
   return {
     period,

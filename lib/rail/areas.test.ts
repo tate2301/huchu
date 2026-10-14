@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { Funnel } from "@/lib/icons";
 import { navSections } from "@/lib/navigation";
 
-import { areaRows, areasFromSections, folderForHref } from "./areas";
+import { areaRows, areasFromSections, bandRows, folderForHref } from "./areas";
 import { orderRows } from "./order";
 
 describe("areasFromSections", () => {
@@ -90,7 +90,8 @@ describe("areasFromSections", () => {
       "Cost tracker",
       "Daily reports",
     ]);
-    expect(rows("Insights")).toEqual(["My performance", "Insights", "Sales reports", "Team"]);
+    // Insights and Sales reports moved to Reports (Insights → Sales, All reports).
+    expect(rows("Insights")).toEqual(["My performance", "Team"]);
     // Workflow activity and the site-visit questions live on their index pages.
     expect(rows("Setup")).toEqual(["Build", "Import", "Settings", "Workflows"]);
   });
@@ -141,5 +142,40 @@ describe("a section read whole", () => {
       { flatten: false },
     );
     expect(area.folders).toBeUndefined();
+  });
+});
+
+describe("a section with panel groups (Books)", () => {
+  const section = {
+    id: "accounting",
+    title: "Books",
+    panelGroups: true,
+    groups: [
+      { id: "ledger", label: "Ledger" },
+      { id: "more", label: "More", trailing: true },
+      { id: "empty", label: "Empty" },
+    ],
+    items: [
+      { href: "/books", label: "Money", icon: Funnel },
+      { href: "/books/journals", label: "Journals", icon: Funnel, group: "ledger" },
+      { href: "/accounting/sales", label: "Receivables", icon: Funnel, group: "more" },
+    ],
+  };
+
+  it("stays one place in the rail, its groups headed bands in its panel", () => {
+    const areas = areasFromSections([section, { id: "crm", title: "CRM", items: [{ href: "/crm", label: "Home", icon: Funnel }] }]);
+    const books = areas.find((area) => area.id === "accounting")!;
+    expect(areas.map((area) => area.id)).toEqual(["accounting", "crm"]);
+    expect(books.folders).toBeUndefined();
+    expect(books.bands).toEqual([
+      { id: "ledger", label: "Ledger" },
+      { id: "more", label: "More", trailing: true },
+    ]);
+    expect(areaRows(books).map((item) => item.label)).toEqual(["Money"]);
+    expect(bandRows(books, "ledger").map((item) => item.label)).toEqual(["Journals"]);
+  });
+
+  it("is never flattened into marks, however many groups it has", () => {
+    expect(areasFromSections([section], { flatten: true })).toHaveLength(1);
   });
 });

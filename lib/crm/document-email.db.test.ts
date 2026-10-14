@@ -23,7 +23,7 @@ vi.mock("@/lib/documents/service", () => ({
   renderDocumentSync: vi.fn(async () => ({ fileName: "quote.pdf", data: Buffer.from("pdf") })),
 }));
 
-const { emailDocumentToClient } = await import("./document-email");
+const { draftDocumentEmail, emailDocumentToClient } = await import("./document-email");
 
 const SLUG = "crm-document-email-recipient-test";
 
@@ -87,5 +87,21 @@ describe("emailing a document to the client", () => {
     // The PDF prints the customer under "Prepared For", so the copy moves too.
     const customer = await prisma.customer.findUniqueOrThrow({ where: { id: customerId } });
     expect(customer.email).toBe("accounts@msasa.example");
+  });
+
+  it("drafts the email it would send, to change before sending", async () => {
+    const draft = await draftDocumentEmail({ companyId, leadDocumentId: documentId });
+    expect(draft.to).toBe("accounts@msasa.example");
+    expect(draft.subject).toMatch(/^Quotation .+ from /);
+    expect(draft.message).toMatch(/^Please find our quotation .+ attached\.$/);
+  });
+
+  it("sends the rep's own subject and note, with the record of it under their subject", async () => {
+    sendEmailMock.mockClear();
+    const sent = await emailDocumentToClient({ companyId, leadDocumentId: documentId, subject: "Your floor, as measured", message: "Good afternoon.\n\nHere it is." });
+    expect(sent.subject).toBe("Your floor, as measured");
+    expect(sendEmailMock).toHaveBeenCalledWith(
+      expect.objectContaining({ subject: "Your floor, as measured", text: expect.stringMatching(/^Good afternoon\.\n\nHere it is\./) }),
+    );
   });
 });

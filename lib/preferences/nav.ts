@@ -115,7 +115,7 @@ export const ORGANIZATION_PREFERENCES_ITEMS: PreferencesNavItem[] = [
     id: "reports",
     group: "organization",
     label: "Reports",
-    href: "/preferences/organization/reports",
+    href: "/management/reports",
     description: "Which reports are offered, and how each opens.",
   },
   {
@@ -168,6 +168,10 @@ export function canViewPreferenceItem(
   if (itemId === "departments") {
     return isOrgAdminRole(role) && hasTokenFeature(enabledFeatures, "hr.employees");
   }
+  // The Apps group (design/core-modules/spec/management.md): what the
+  // workspace connects to, what it adds, and how Vane works for it. Decided by
+  // the workspace's admins, as the organisation's own settings are.
+  if (itemId === "integrations" || itemId === "marketplace" || itemId === "vane") return isOrgAdminRole(role);
   if (itemId === "branding" || itemId === "templates") {
     return role === "SUPERADMIN" && hasTokenFeature(enabledFeatures, "core.branding.manage");
   }

@@ -40,6 +40,12 @@ export const PUBLIC_BASE_PATHS = [
    * email they are sent, /sign-in-as/end. Neither has a session to show.
    */
   "/sign-in-as",
+  /**
+   * The core modules' fixture screens — /design/[slug] — which the visual test
+   * opens signed out. They hold only the fixed data they were drawn with, and
+   * are a 404 in production (app/design/layout.tsx).
+   */
+  "/design",
 ] as const;
 
 export function isPublicPath(pathname: string): boolean {

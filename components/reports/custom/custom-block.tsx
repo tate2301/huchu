@@ -2,9 +2,7 @@
 
 import { useMemo, useState } from "react";
 
-import { Skeleton } from "@corelithzw/react";
-import { Button } from "@/components/ui/button";
-import { Download, Warning } from "@/lib/icons";
+import { Button, Icon, Kit, TableFoot } from "@/components/core";
 import type { QueryBlock } from "@/lib/reports/custom/document";
 import type { BlockCheck, BlockResult } from "@/lib/reports/custom/run";
 import { exportRows } from "@/lib/reports/export";
@@ -36,21 +34,17 @@ export function resultMeta(block: QueryBlock, columns: ReportColumn[]): ReportMe
 
 function Problem({ message }: { message: string }) {
   return (
-    <p role="alert" className="flex items-start gap-2 text-[13px] leading-[1.5] text-[var(--status-error-text)]">
-      <Warning className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+    <p role="alert" className="rp-problem">
+      <Icon name="warn" />
       <span>{message}</span>
     </p>
   );
 }
 
-function Title({ text, children }: { text: string | undefined; children?: React.ReactNode }) {
-  if (!text && !children) return null;
-  return (
-    <div className="mb-2.5 flex min-h-7 items-center gap-2">
-      {text ? <h2 className="min-w-0 flex-1 truncate text-[15px] leading-[1.35] font-semibold text-[var(--text-strong)]">{text}</h2> : <span className="flex-1" />}
-      {children}
-    </div>
-  );
+/** A block's name over it, as the board heads the table ("By rep"). */
+function Title({ text }: { text: string | undefined }) {
+  if (!text) return null;
+  return <h3 className="rp-sec">{text}</h3>;
 }
 
 /** One row: each column a headline figure. Many: how many, and what the money and numbers add up to. */
@@ -61,33 +55,29 @@ function Figures({ meta, applied, view }: { meta: ReportMeta; applied: AppliedVi
           key: column.key,
           label: column.label,
           value: formatValue(applied.rows[0]![column.key], column),
+          note: null as string | null,
         }))
       : [
-          { key: "rows", label: "Rows", value: applied.rows.length.toLocaleString("en-US") },
+          { key: "rows", label: "Rows", value: applied.rows.length.toLocaleString("en-US"), note: null as string | null },
           ...Object.entries(view.totals).flatMap(([key, fn]) => {
             const column = meta.columns.find((candidate) => candidate.key === key);
             const value = applied.totals[key];
             if (!column || value === null || value === undefined) return [];
-            return [
-              {
-                key,
-                label: fn === "sum" ? column.label : `${column.label} · ${totalCaption(fn).toLowerCase()}`,
-                value: formatTotal(value, column, fn),
-              },
-            ];
+            return [{ key, label: column.label, value: formatTotal(value, column, fn), note: totalCaption(fn).toLowerCase() }];
           }),
         ];
   return (
-    <dl className="grid grid-cols-[repeat(auto-fill,minmax(10rem,1fr))] gap-x-6 gap-y-3">
-      {figures.map((figure) => (
-        <div key={figure.key} className="border-t border-[var(--border)] pt-2">
-          <dt className="truncate text-[12px] leading-[1.4] font-medium text-[var(--text-muted)]">{figure.label}</dt>
-          <dd className="mt-0.5 truncate font-mono text-[17px] leading-[1.25] font-semibold tracking-[-0.012em] tabular-nums text-[var(--text-strong)]">
-            {figure.value}
-          </dd>
-        </div>
-      ))}
-    </dl>
+    <div className="rp-figs">
+      <div className="kstrip" style={{ gridTemplateColumns: `repeat(${Math.max(1, figures.length)}, minmax(0, 1fr))` }}>
+        {figures.map((figure) => (
+          <div className="kt" key={figure.key}>
+            <span className="kt-l">{figure.label}</span>
+            <span className="kt-v">{figure.value}</span>
+            {figure.note ? <span className="kt-n muted">{figure.note}</span> : null}
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }
 
@@ -98,6 +88,13 @@ function download(name: string, csv: string) {
   anchor.download = `${name}.csv`;
   anchor.click();
   URL.revokeObjectURL(url);
+}
+
+/** A query block's rows as one CSV, as the table first shows them. Export on the page writes each. */
+export function downloadBlockCsv(block: QueryBlock, columns: ReportColumn[], rows: ReportRow[]) {
+  const meta = resultMeta(block, columns);
+  const view = defaultView(meta);
+  download(block.name, exportRows(applyView(rows, meta.columns, view), view));
 }
 
 function Table({ block, meta, rows }: { block: QueryBlock; meta: ReportMeta; rows: ReportRow[] }) {
@@ -111,33 +108,44 @@ function Table({ block, meta, rows }: { block: QueryBlock; meta: ReportMeta; row
   }
   const applied = useMemo(() => applyView(rows, meta.columns, view), [meta.columns, rows, view]);
   return (
-    <section aria-label={block.title ?? block.name} className="min-w-0">
-      <Title text={block.title}>
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => {
-            const shown = selected.size ? { ...applied, rows: applied.rows.filter((row) => selected.has(row.id)), groups: null } : applied;
-            download(block.name, exportRows(shown, view));
-          }}
-        >
-          <Download className="size-4" aria-hidden="true" />
-          {selected.size ? `CSV of ${selected.size.toLocaleString("en-US")}` : "CSV"}
-        </Button>
-      </Title>
-      {rows.length === 0 ? (
-        <p className="text-[13px] text-[var(--text-muted)]">No rows in these dates.</p>
-      ) : (
-        // A wide result scrolls inside its block; the page never scrolls sideways.
-        <div className="min-w-0 overflow-x-auto">
-          <ReportTable applied={applied} view={view} onViewChange={setView} selectedIds={selected} onSelect={setSelected} rowActions={null} />
-        </div>
-      )}
+    <section aria-label={block.title ?? block.name} className="rp-tblock">
+      <Title text={block.title} />
+      <Kit contents>
+        <ReportTable applied={applied} view={view} onViewChange={setView} selectedIds={selected} onSelect={setSelected} rowActions={null} />
+        {rows.length === 0 ? <p className="muted rp-pad">No rows in these dates.</p> : null}
+          {selected.size ? (
+            <TableFoot
+              selection={{
+                count: selected.size,
+                onClear: () => setSelected(new Set()),
+                actions: (
+                  <Button
+                    icon="export"
+                    onClick={() =>
+                      download(block.name, exportRows({ ...applied, rows: applied.rows.filter((row) => selected.has(row.id)), groups: null }, view))
+                    }
+                  >
+                    CSV of these
+                  </Button>
+                ),
+              }}
+            />
+          ) : null}
+      </Kit>
     </section>
   );
 }
 
-export function CustomBlockResult({
+/** One query block's result in the kit, wherever it is drawn: the report, the builder. */
+export function CustomBlockResult(props: React.ComponentProps<typeof ResultView>) {
+  return (
+    <Kit contents>
+      <ResultView {...props} />
+    </Kit>
+  );
+}
+
+function ResultView({
   block,
   check,
   result,
@@ -163,7 +171,7 @@ export function CustomBlockResult({
 
   if (check && !check.ok) {
     return (
-      <div>
+      <div className="rp-pad">
         <Title text={block.title} />
         <Problem message={check.problem.message} />
       </div>
@@ -171,17 +179,17 @@ export function CustomBlockResult({
   }
   if (loading || !result) {
     return (
-      <div aria-busy="true" aria-live="polite" className="grid gap-1.5">
+      <div aria-busy="true" aria-live="polite" className="rp-pad">
         <Title text={block.title} />
-        <Skeleton height={28} />
-        <Skeleton height={28} />
-        <Skeleton height={28} />
+        <div className="skeleton" style={{ height: 28, marginBottom: 6 }} />
+        <div className="skeleton" style={{ height: 28, marginBottom: 6 }} />
+        <div className="skeleton" style={{ height: 28 }} />
       </div>
     );
   }
   if (!result.ok) {
     return (
-      <div>
+      <div className="rp-pad">
         <Title text={block.title} />
         <Problem message={result.problem.message} />
       </div>
@@ -189,9 +197,7 @@ export function CustomBlockResult({
   }
 
   const note = truncated ? (
-    <p className="mt-2 text-[12px] font-medium text-[var(--status-warning-text)]">
-      A source this reads stopped at its row limit. Narrow the dates to count every row.
-    </p>
+    <p className="rp-warn">A source this reads stopped at its row limit. Narrow the dates to count every row.</p>
   ) : null;
 
   const { display } = block;
@@ -210,7 +216,7 @@ export function CustomBlockResult({
 
   if (display.type === "figures") {
     return (
-      <section aria-label={block.title ?? block.name} className="min-w-0">
+      <section aria-label={block.title ?? block.name}>
         <Title text={block.title} />
         <Figures meta={meta!} applied={applied} view={view} />
         {note}
@@ -222,7 +228,7 @@ export function CustomBlockResult({
     const by = meta!.columns.find((column) => column.key === display.by);
     if (!by || (display.measure && !meta!.columns.some((column) => column.key === display.measure!.column))) {
       return (
-        <div>
+        <div className="rp-pad">
           <Title text={block.title} />
           <Problem
             message={
@@ -243,7 +249,7 @@ export function CustomBlockResult({
       by: display.by,
       ...(display.measure ? { measure: display.measure } : {}),
       ...(display.limit ? { limit: display.limit } : {}),
-      title: block.title ?? `${measureLabel(display.measure, meta!.columns)} ${display.form === "bars" ? `by ${by.label.toLowerCase()}` : "over time"}`,
+      title: block.title ?? `${measureLabel(display.measure, meta!.columns)}, by ${by.label.toLowerCase()}`,
     };
     return (
       <>

@@ -44,6 +44,7 @@ const BLOCKED_ROUTES_FOR_PORTAL_USERS = [
   "/schools",
   "/retail",
   "/accounting",
+  "/books",
   "/people",
   "/maintenance",
   "/stores",

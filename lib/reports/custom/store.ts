@@ -1,9 +1,11 @@
 import type { Prisma } from "@prisma/client";
 
 import { prisma } from "@/lib/prisma";
+import { folderInCompany } from "@/lib/reports/folders";
 import { canChangeTemplate, canSeeTemplate, canShareWith } from "@/lib/reports/template-access";
 import {
   customDocumentSchema,
+  reportKind,
   type CustomReport,
   type CustomReportInput,
   type CustomReportSummary,
@@ -31,12 +33,22 @@ export class ShareRefused extends Error {
   }
 }
 
+/** A folder that is not one of this company's. */
+export class FolderRefused extends Error {
+  constructor() {
+    super("That folder is not in this workspace");
+    this.name = "FolderRefused";
+  }
+}
+
 const SELECT = {
   id: true,
   title: true,
   description: true,
   document: true,
   audience: true,
+  folderId: true,
+  folder: { select: { id: true, name: true } },
   createdById: true,
   updatedAt: true,
 } as const;
@@ -70,6 +82,7 @@ function toReport(row: Row, reader: Reader): CustomReport {
     title: row.title,
     description: row.description,
     audience: row.audience,
+    folderId: row.folderId,
     document: document.success ? document.data : { period: { from: "-90d", to: "today" }, blocks: [] },
     mine: row.createdById === reader.userId,
     editable: canEdit(row, reader),
@@ -105,6 +118,8 @@ export async function listCustomReports(reader: Reader): Promise<CustomReportSum
       editable: canEdit(row, reader),
       updatedAt: row.updatedAt.toISOString(),
       areaSources: sourcesOf(row.document),
+      folder: row.folder,
+      kind: kindOf(row.document),
     }));
 }
 
@@ -112,6 +127,12 @@ export async function listCustomReports(reader: Reader): Promise<CustomReportSum
 export async function readCustomReport(reader: Reader, id: string): Promise<CustomReport | null> {
   const row = await prisma.customReport.findFirst({ where: { id, ...candidates(reader) }, select: SELECT });
   return row && canSee(row, reader) ? toReport(row, reader) : null;
+}
+
+/** Board or table, from the stored document. */
+function kindOf(stored: Prisma.JsonValue): "board" | "table" {
+  const document = customDocumentSchema.safeParse(stored);
+  return document.success ? reportKind(document.data) : "board";
 }
 
 /** The tables a stored document's queries name, for where the report lists: the area of the first. */
@@ -129,9 +150,11 @@ function sourcesOf(stored: unknown): string[] {
 /** Refused only when it is shared wider than this person may share. */
 export async function createCustomReport(reader: Reader, input: CustomReportInput): Promise<CustomReport> {
   if (!canShareReport(reader, input.audience)) throw new ShareRefused();
+  if (input.folderId && !(await folderInCompany(reader.companyId, input.folderId))) throw new FolderRefused();
   const row = await prisma.customReport.create({
     data: {
       companyId: reader.companyId,
+      folderId: input.folderId ?? null,
       title: input.title,
       description: input.description ?? null,
       audience: input.audience,
@@ -144,7 +167,7 @@ export async function createCustomReport(reader: Reader, input: CustomReportInpu
   return toReport(row, reader);
 }
 
-export type SaveOutcome = { report: CustomReport } | { error: "missing" | "forbidden" };
+export type SaveOutcome = { report: CustomReport } | { error: "missing" | "forbidden" | "folder" };
 
 export async function updateCustomReport(reader: Reader, id: string, input: Partial<CustomReportInput>): Promise<SaveOutcome> {
   const existing = await prisma.customReport.findFirst({ where: { id, ...candidates(reader) }, select: SELECT });
@@ -154,12 +177,15 @@ export async function updateCustomReport(reader: Reader, id: string, input: Part
   if (input.audience !== undefined && input.audience !== existing.audience && !canShareReport(reader, input.audience)) {
     return { error: "forbidden" };
   }
+  // A folder is checked on the server against the reader's company, whatever the browser sent.
+  if (input.folderId && !(await folderInCompany(reader.companyId, input.folderId))) return { error: "folder" };
   const row = await prisma.customReport.update({
     where: { id },
     data: {
       ...(input.title !== undefined ? { title: input.title } : {}),
       ...(input.description !== undefined ? { description: input.description } : {}),
       ...(input.audience !== undefined ? { audience: input.audience } : {}),
+      ...(input.folderId !== undefined ? { folderId: input.folderId } : {}),
       ...(input.document !== undefined ? { document: input.document as unknown as Prisma.InputJsonValue } : {}),
       updatedById: reader.userId,
     },

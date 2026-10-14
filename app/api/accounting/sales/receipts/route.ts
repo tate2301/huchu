@@ -2,9 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { validateSession, successResponse, errorResponse, getPaginationParams, paginationResponse } from "@/lib/api-utils";
 import { prisma } from "@/lib/prisma";
-import { createJournalEntryFromSource } from "@/lib/accounting/posting";
-import { recalcSalesInvoiceBalance } from "@/lib/accounting/balances";
-import { onAccountingReceiptCreated } from "@/lib/crm/accounting-hooks";
+import { recordSalesReceipt } from "@/lib/accounting/payments";
 
 const receiptSchema = z.object({
   invoiceId: z.string().uuid().optional(),
@@ -14,30 +12,6 @@ const receiptSchema = z.object({
   reference: z.string().max(200).optional(),
   bankAccountId: z.string().uuid().optional(),
 });
-
-function formatTwoDigits(value: number) {
-  return String(value).padStart(2, "0");
-}
-
-function buildReceiptNumberCandidate() {
-  const now = new Date();
-  const datePart = `${now.getFullYear()}${formatTwoDigits(now.getMonth() + 1)}${formatTwoDigits(now.getDate())}`;
-  const timePart = `${formatTwoDigits(now.getHours())}${formatTwoDigits(now.getMinutes())}`;
-  const randomPart = Math.floor(100 + Math.random() * 900);
-  return `REC-${datePart}-${timePart}-${randomPart}`;
-}
-
-async function generateUniqueReceiptNumber() {
-  for (let attempt = 0; attempt < 10; attempt += 1) {
-    const candidate = buildReceiptNumberCandidate();
-    const existing = await prisma.salesReceipt.findFirst({
-      where: { receiptNumber: candidate },
-      select: { id: true },
-    });
-    if (!existing) return candidate;
-  }
-  return `REC-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`;
-}
 
 export async function GET(request: NextRequest) {
   try {
@@ -89,51 +63,15 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    const receiptNumber = await generateUniqueReceiptNumber();
-
-    const receipt = await prisma.salesReceipt.create({
-      data: {
-        companyId: session.user.companyId,
-        invoiceId: validated.invoiceId,
-        receiptNumber,
-        receivedAt: new Date(validated.receivedAt),
-        amount: validated.amount,
-        method: validated.method,
-        reference: validated.reference,
-        bankAccountId: validated.bankAccountId,
-        createdById: session.user.id,
-      },
-      include: { invoice: true },
-    });
-
-    if (receipt.invoiceId) {
-      await recalcSalesInvoiceBalance(receipt.invoiceId);
-    }
-
-    try {
-      await createJournalEntryFromSource({
-        companyId: session.user.companyId,
-        sourceType: "SALES_RECEIPT",
-        sourceId: receipt.id,
-        entryDate: receipt.receivedAt,
-        description: `Sales receipt ${receipt.receiptNumber}`,
-        createdById: session.user.id,
-        amount: receipt.amount,
-        netAmount: receipt.amount,
-        taxAmount: 0,
-        grossAmount: receipt.amount,
-      });
-    } catch (error) {
-      console.error("[Accounting] Sales receipt auto-post failed:", error);
-    }
-
-    // A payment against an invoice the CRM owns closes that record out, the
-    // same as taking the payment in the CRM would.
-    await onAccountingReceiptCreated({
+    const receipt = await recordSalesReceipt({
       companyId: session.user.companyId,
-      receiptId: receipt.id,
-      invoiceId: receipt.invoiceId,
       userId: session.user.id,
+      invoiceId: validated.invoiceId,
+      receivedAt: new Date(validated.receivedAt),
+      amount: validated.amount,
+      method: validated.method,
+      reference: validated.reference,
+      bankAccountId: validated.bankAccountId,
     });
 
     return successResponse(receipt, 201);

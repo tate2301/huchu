@@ -64,6 +64,7 @@ import {
   Tag,
   User,
   Work,
+  Eye,
 } from "@/lib/icons";
 import type { CanonicalUiStatus } from "@/lib/ui/status-map";
 
@@ -78,6 +79,10 @@ import {
   type CrmDocumentKind,
   type LeadDocument,
 } from "./document-types";
+import { VaneQuoteCheck } from "@/components/vane/vane-quote-check";
+import { VaneRecordSection } from "@/components/vane/vane-record-section";
+import { useDocumentBuilder } from "./document-builder";
+import { InvoiceDueDateForm, ReceiptDetailsForm } from "./document-edits";
 
 type Person = { id: string; name: string | null } | null;
 
@@ -250,7 +255,7 @@ export function DocumentRecordContent({
 
 function DocumentRecord({ data }: { data: DocumentResponse }) {
   const { document: doc, detail, basePath } = data;
-  const [tab, setTab] = useState("lines");
+  const [tab, setTab] = useState("document");
   const [chasing, setChasing] = useState<ChaseTarget | null>(null);
   const actions = useDocumentActions({ basePath: basePath ?? "", currency: doc.currency });
 
@@ -760,7 +765,52 @@ function DocumentRecord({ data }: { data: DocumentResponse }) {
       </section>
     ) : null;
 
+  // What can change on it, where changing it makes sense: a quote is edited
+  // until it is answered and revised once declined; an invoice is edited
+  // while nothing stands against it, and its due date moves while money is
+  // owed; a receipt's figures are in the books, so only its labels change.
+  const editVerb = verb("edit");
+  const reviseVerb = verb("revise");
+  const editRefusal = verbs.find((candidate) => candidate.id === "edit" && candidate.refusal)?.refusal ?? null;
+  const edits = !basePath ? null : doc.type === "RECEIPT" ? (
+    doc.receipt ? <ReceiptDetailsForm documentId={doc.id} method={doc.receipt.method} reference={detail.reference} /> : null
+  ) : (
+    <div className="space-y-3">
+      {editVerb || reviseVerb ? (
+        <div className="flex flex-wrap gap-2">
+          {editVerb ? (
+            <Button size="sm" onClick={() => run(editVerb)}>
+              Edit the lines and terms
+            </Button>
+          ) : null}
+          {reviseVerb ? (
+            <Button size="sm" onClick={() => run(reviseVerb)}>
+              Revise it
+            </Button>
+          ) : null}
+        </div>
+      ) : (
+        <p className="text-sm text-[var(--text-muted)]">
+          {editRefusal ??
+            editLock ??
+            (accepted ? "An accepted quote is an agreement: raise a new quote to change it." : "It cannot be changed now.")}
+        </p>
+      )}
+      {doc.type === "INVOICE" && !editVerb && doc.invoice && outstanding > 0 ? (
+        <InvoiceDueDateForm documentId={doc.id} dueDate={doc.invoice.dueDate} />
+      ) : null}
+    </div>
+  );
+
+  const builder = useDocumentBuilder({ documentId: doc.id, pdfHref: basePath ? `${basePath}/documents/${doc.id}/pdf` : null, edits });
+
   const tabs: RecordTab[] = [
+    {
+      value: "document",
+      label: kind.list.replace(/s$/, ""),
+      icon: Eye,
+      content: builder.sheet,
+    },
     {
       value: "lines",
       label: doc.type === "RECEIPT" ? "Payment" : "Lines",
@@ -839,6 +889,17 @@ function DocumentRecord({ data }: { data: DocumentResponse }) {
         />
       }
       attributes={<RecordAttributes attributes={attributes} />}
+      rail={
+        <>
+          {builder.rail}
+          {doc.type === "QUOTATION" ? (
+            <>
+              <VaneQuoteCheck documentId={doc.id} />
+              <VaneRecordSection type="CrmLeadDocument" id={doc.id} noun="quote" />
+            </>
+          ) : null}
+        </>
+      }
       activeTab={tab}
       onTabChange={setTab}
       tabs={tabs}

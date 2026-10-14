@@ -63,6 +63,15 @@ export const PAGE_FEATURE_ROUTES: FeatureRouteEntry[] = [
   { scope: "page", prefix: "/stores/dashboard", featureKey: "stores.dashboard" },
   { scope: "page", prefix: "/stores", featureKey: "stores.dashboard" },
 
+  { scope: "page", prefix: "/books/invoices", featureKey: "accounting.ar" },
+  { scope: "page", prefix: "/books/statements", featureKey: "accounting.ar" },
+  { scope: "page", prefix: "/books/bank", featureKey: "accounting.banking" },
+  { scope: "page", prefix: "/books/payments", featureKey: "accounting.ar" },
+  { scope: "page", prefix: "/books/expenses", featureKey: "accounting.ap" },
+  { scope: "page", prefix: "/books/journals", featureKey: "accounting.journals" },
+  { scope: "page", prefix: "/books/periods", featureKey: "accounting.periods" },
+  { scope: "page", prefix: "/books/vat", featureKey: "accounting.tax" },
+  { scope: "page", prefix: "/books", featureKey: "accounting.core" },
   { scope: "page", prefix: "/accounting/chart-of-accounts", featureKey: "accounting.chart-of-accounts" },
   { scope: "page", prefix: "/accounting/journals", featureKey: "accounting.journals" },
   { scope: "page", prefix: "/accounting/periods", featureKey: "accounting.periods" },
@@ -245,6 +254,10 @@ export const PAGE_FEATURE_ROUTES: FeatureRouteEntry[] = [
   // ST-1.3 — `/reports/cctv-events` left with the surveillance module. It falls
   // back to the bare `/reports` entry at the end of this block, so it answers
   // `reports.dashboard` until ST-2 removes the page.
+  // Reports → Insights: Sales is the CRM's insights moved (`/crm/insights`), Site visits reads the
+  // visits a site-visit form recorded. The week's insights (`/reports/insights`) is gated per insight.
+  { scope: "page", prefix: "/reports/insights/sales", featureKey: "crm.insights" },
+  { scope: "page", prefix: "/reports/insights/site-visits", featureKey: "crm.appointments" },
   { scope: "page", prefix: "/reports/compliance-incidents", featureKey: "reports.compliance-incidents" },
   { scope: "page", prefix: "/reports/downtime", featureKey: "reports.downtime-analytics" },
   { scope: "page", prefix: "/reports/maintenance-work-orders", featureKey: "reports.maintenance-work-orders" },
@@ -334,6 +347,12 @@ export const API_FEATURE_ROUTES: FeatureRouteEntry[] = [
   { scope: "api", prefix: "/api/inventory/movements", featureKey: "stores.movements" },
   { scope: "api", prefix: "/api/stock-locations", featureKey: "stores.inventory" },
 
+  { scope: "api", prefix: "/api/books/invoices", featureKey: "accounting.ar" },
+  { scope: "api", prefix: "/api/books/bank", featureKey: "accounting.banking" },
+  { scope: "api", prefix: "/api/books/journals", featureKey: "accounting.journals" },
+  { scope: "api", prefix: "/api/books/vat", featureKey: "accounting.tax" },
+  { scope: "api", prefix: "/api/books/close", featureKey: "accounting.periods" },
+  { scope: "api", prefix: "/api/books", featureKey: "accounting.core" },
   { scope: "api", prefix: "/api/accounting/coa", featureKey: "accounting.chart-of-accounts" },
   { scope: "api", prefix: "/api/accounting/journals", featureKey: "accounting.journals" },
   { scope: "api", prefix: "/api/accounting/periods", featureKey: "accounting.periods" },

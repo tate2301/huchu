@@ -1,13 +1,13 @@
-import type Anthropic from "@anthropic-ai/sdk";
-import type { VaneJob } from "@prisma/client";
+import type { PrismaClient, VaneJob } from "@prisma/client";
 
 import { prisma } from "@/lib/prisma";
 import { SHOP_TIME_ZONE } from "@/lib/retail/shop-profile-rules";
 import type { ScheduledJob } from "@/lib/scheduled-jobs/schedule";
 
-import { converse, VaneError, type MessagesClient, type Usage } from "./claude";
+import { VaneError, type MessagesClient, type Usage } from "./claude";
+import { runConversation, type ToolLog } from "./conversation";
+import { vaneRules } from "./prompt";
 import { tablesFor } from "./reader";
-import { callTool, toolDefinitions } from "./tools";
 
 /**
  * Vane's jobs (`docs/handover-core-modules.md` §3.3), run on the
@@ -26,8 +26,6 @@ import { callTool, toolDefinitions } from "./tools";
  * next month.
  */
 
-/** Turns of Claude in one job: tool calls, then the closing answer. */
-const MAX_TURNS = 12;
 /** One job's share of a tick (the route's `maxDuration` is 120 s). */
 const JOB_DEADLINE_MS = 60_000;
 /** A RUNNING job older than this lost its tick. */
@@ -57,22 +55,10 @@ export async function queueNightlyJobs(now: Date): Promise<string> {
   return `${count} queued`;
 }
 
-const SYSTEM = (tables: string[]) => `You are Vane, the helper inside Huchu, a business platform used by shops, mines, schools and service firms in Zimbabwe.
-
-You read what a person in this workspace could read, notice what needs doing, and put it in front of them. You never send, pay, save, approve or change anything on your own: a person presses the button each time. The only things you write are cards on the workspace's For you list (propose_item) and plans for larger work (propose_plan).
-
-How you work:
-- Find the facts before you say anything. Look a table up with describe_table, then read it with run_sql. Every figure on a card comes from a query you ran, and the card carries that query.
-- Money is in the record's currency. Dates are in the workspace's time, Africa/Harare.
-- Raise a card only for something a person can act on today. Three good cards beat ten weak ones; never more than five in one job. When nothing needs doing, raise nothing and say so.
-- A card's headline is the fact in one line, with its numbers ("$2,480.00 is overdue across 3 invoices"). Its body gives the reason in a sentence or two and ends with the proposal ("Let's send the three reminders."). Its button names the act ("Send the reminders").
-- Plain words, short sentences. No apologies, no filler.
-- If a query is refused or fails, read the message, correct the query, and go on.
-
-When you are done, answer in one or two sentences: what you looked at and what you raised.
-
-The tables you may read:
-${tables.join(", ")}`;
+const SYSTEM = (tables: string[]) => ({
+  shared: vaneRules(tables),
+  context: "When you are done, answer in one or two sentences: what you looked at and what you raised.",
+});
 
 function instructionsFor(job: Pick<VaneJob, "kind" | "label">): string {
   if (job.kind === "nightly") {
@@ -81,59 +67,37 @@ function instructionsFor(job: Pick<VaneJob, "kind" | "label">): string {
   return job.label;
 }
 
-type ToolLog = { name: string; ms: number; ok: boolean };
-
 type JobOutcome = { result: string; model: string; usage: Usage; tools: ToolLog[] };
 
 /** Runs one job's conversation with Claude to its end. Throws a `VaneError` when Claude falls short. */
 async function converseJob(job: VaneJob, client: MessagesClient | undefined, deadline: number): Promise<JobOutcome> {
   const tables = [...(await tablesFor(job.companyId)).values()].map((table) => table.name).sort();
-  const system = SYSTEM(tables);
-  const tools = toolDefinitions();
-  const messages: Anthropic.MessageParam[] = [{ role: "user", content: instructionsFor(job) }];
-  const usage: Usage = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 };
-  const log: ToolLog[] = [];
-  let model = "";
+  const outcome = await runConversation({
+    system: SYSTEM(tables),
+    messages: [{ role: "user", content: instructionsFor(job) }],
+    context: { companyId: job.companyId, jobId: job.id },
+    deadline,
+    client,
+  });
+  return { result: outcome.text, model: outcome.model, usage: outcome.usage, tools: outcome.tools };
+}
 
-  for (let turn = 0; turn < MAX_TURNS; turn += 1) {
-    const left = deadline - Date.now();
-    if (left <= 5_000) throw new VaneError("unavailable", "The job ran out of time in this tick and will be tried again.");
-    const { message, usage: spent } = await converse({ system, messages, tools, timeoutMs: left, client });
-    model = message.model;
-    usage.input += spent.input;
-    usage.output += spent.output;
-    usage.cacheRead += spent.cacheRead;
-    usage.cacheWrite += spent.cacheWrite;
-
-    // The response goes back unchanged, thinking included.
-    messages.push({ role: "assistant", content: message.content });
-    const calls = message.content.filter((block): block is Anthropic.ToolUseBlock => block.type === "tool_use");
-    if (message.stop_reason !== "tool_use" || calls.length === 0) {
-      const text = message.content
-        .filter((block): block is Anthropic.TextBlock => block.type === "text")
-        .map((block) => block.text)
-        .join("")
-        .trim();
-      return { result: text, model, usage, tools: log };
-    }
-
-    const results: Anthropic.ToolResultBlockParam[] = [];
-    for (const call of calls) {
-      const started = Date.now();
-      const result = await callTool({ companyId: job.companyId, jobId: job.id }, call.name, call.input);
-      log.push({ name: call.name, ms: Date.now() - started, ok: result.ok });
-      results.push({ type: "tool_result", tool_use_id: call.id, content: result.content, is_error: !result.ok });
-    }
-    messages.push({ role: "user", content: results });
-  }
-  throw new VaneError("cut-off", `The job did not finish in ${MAX_TURNS} turns.`);
+/** The jobs a workspace has started this month (UTC): what counts against its allowance, chat turns included. */
+export function jobsStartedThisMonthFor(db: Pick<PrismaClient, "vaneJob">, companyId: string, now: Date): Promise<number> {
+  return db.vaneJob.count({ where: { companyId, startedAt: { gte: new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)) } } });
 }
 
 /** Jobs left RUNNING by a tick that died go back to waiting. */
 async function takeBackStale(now: Date): Promise<void> {
+  const before = new Date(now.getTime() - STALE_MS);
   await prisma.vaneJob.updateMany({
-    where: { status: "RUNNING", startedAt: { lt: new Date(now.getTime() - STALE_MS) } },
+    where: { status: "RUNNING", kind: { not: "chat" }, startedAt: { lt: before } },
     data: { status: "WAITING", runAfter: now, error: "Its tick stopped before it finished." },
+  });
+  // A chat turn belongs to the person who waited for it; one whose request died is over, not retried.
+  await prisma.vaneJob.updateMany({
+    where: { status: "RUNNING", kind: "chat", startedAt: { lt: before } },
+    data: { status: "FAILED", finishedAt: now, error: "The chat stopped before Vane answered." },
   });
 }
 
@@ -149,10 +113,9 @@ async function nextDueJob(now: Date, companyId: string | undefined): Promise<Van
     orderBy: [{ runAfter: "asc" }, { createdAt: "asc" }],
     take: 10,
   });
-  const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
   for (const job of due) {
     const settings = await prisma.vaneSettings.findUnique({ where: { companyId: job.companyId }, select: { monthlyAllowance: true } });
-    const used = await prisma.vaneJob.count({ where: { companyId: job.companyId, startedAt: { gte: monthStart } } });
+    const used = await jobsStartedThisMonthFor(prisma, job.companyId, now);
     if (used < (settings?.monthlyAllowance ?? 5000)) return job;
   }
   return null;

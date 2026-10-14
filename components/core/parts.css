@@ -1,0 +1,340 @@
+/* Kit parts the boards draw only at rest. Hand-written, beside the generated kit.css, under the
+   same `.ck` scope and specificity. */
+
+/* Management's switches are ink, so the page keeps its one accent (spec/management.md). */
+.ck.ck.ck .switch.is-ink:checked { background: var(--color-ink); }
+
+/* The drawer and the Vane panel sit over the app, not inside a board. */
+.ck.ck.ck .drawer.is-fixed { position: fixed; z-index: var(--z-overlay); }
+.ck.ck.ck .over.is-fixed { position: fixed; z-index: calc(var(--z-overlay) - 1); background: var(--color-scrim); }
+
+/* The Vane panel's column: 400px on the right of the page; over it below 1100px. */
+.ck.vane-col { width: 400px; flex: none; display: flex; min-height: 0; height: 100%; }
+.ck.vane-col > .ask { flex: 1; min-width: 0; }
+@media (max-width: 1099px) {
+  .ck.vane-col { position: fixed; top: 0; right: 0; bottom: 0; z-index: 45; max-width: 100vw; box-shadow: var(--shadow-overlay); }
+}
+
+/* A kit page inside Management's content column: it fills the row and scrolls on its own. */
+.ck.kit-col { display: flex; flex-direction: column; min-height: 0; min-width: 0; height: 100%; }
+.ck.kit-col .mn { flex: 1; min-height: 0; }
+
+/* Marketplace's search, 240px as the kit draws it. */
+.ck.ck.ck .mk-find { width: 240px; }
+
+/* A kit page in the app's shell: edge to edge under the top bar, out over main's gutter and lede, and
+   scrolling inside itself so a table's head and footer stay put. On a phone it is a page that scrolls. */
+.ck.kit-main {
+  display: flex; flex-direction: column; min-width: 0;
+  height: var(--content-viewport); overflow: auto;
+  width: calc(100% + (var(--content-gutter-x) * 2));
+  margin-inline: calc(var(--content-gutter-x) * -1);
+  margin-top: calc(var(--content-lede) * -1);
+  background: var(--color-surface);
+}
+@media (max-width: 759px) { .ck.kit-main { height: auto; overflow: visible; } }
+
+/* A menu's button inside a button group: joined to its neighbours like any other button there. */
+.ck.ck.ck .btn-group > .menu-wrap > .btn { border-radius: 0; box-shadow: none; background: transparent; }
+.ck.ck.ck .btn-group > .btn + .menu-wrap > .btn,
+.ck.ck.ck .btn-group > .menu-wrap + .btn,
+.ck.ck.ck .btn-group > .menu-wrap + .menu-wrap > .btn { box-shadow: -1px 0 0 var(--color-line); }
+.ck.ck.ck .btn-group > .menu-wrap:first-child > .btn { border-radius: var(--radius-button) 0 0 var(--radius-button); }
+.ck.ck.ck .btn-group > .menu-wrap:last-child > .btn { border-radius: 0 var(--radius-button) var(--radius-button) 0; }
+.ck.ck.ck .btn-group > .menu-wrap:only-child > .btn { border-radius: var(--radius-button); }
+
+/* Table cells sit in the middle of their row, as the browser draws them: the app's own `.table`
+   rules are reset inside `.ck`. The kit tops only prose tables and `.wrap` cells, so those are left to it. */
+.ck.ck.ck .table:not(.is-prose) td:not(.wrap), .ck.ck.ck .table th { vertical-align: middle; }
+
+/* The kit's attribute lists keep the browser's 1em above and below a <dl>, which the app's base
+   styles take away; the boards were drawn with it. */
+.ck.ck.ck dl.attrs { margin-block: 1em; }
+
+/* Figures in a table line up: every cell takes tabular figures, not only `.num`. */
+.ck.ck .table td {
+  font-variant-numeric: tabular-nums;
+}
+
+/* All reports: a row of ours carries a folder menu over its right edge, outside the row's link. */
+.ck.ck.ck .rr-wrap { position: relative; }
+.ck.ck.ck .list > .rr-wrap:first-child > .row { box-shadow: none; }
+.ck.ck.ck .rr-move { position: absolute; right: var(--space-24); top: 50%; transform: translateY(-50%); }
+.ck.ck.ck .rr-wrap:hover .rr-move .btn, .ck.ck.ck .rr-move .btn[aria-expanded="true"] { background: var(--color-surface); }
+@media (max-width: 760px) {
+  .ck.ck.ck .rr-move { right: var(--space-16); }
+  .ck.ck.ck .rr-wrap:has(.rr-move) > .row { padding-right: 52px; }
+}
+
+/* A list's tools at phone width (Journals): the search takes the row with the end's buttons, which
+   keep only their icons; the segmented control goes under them and scrolls inside itself. */
+@media (max-width: 760px) {
+  .ck.ck.ck .ws-tools.tl-narrow { flex-wrap: wrap; padding-left: var(--space-16); padding-right: var(--space-16); }
+  .ck.ck.ck .tl-narrow .ws-find { width: auto; flex: 1 1 0; min-width: 0; }
+  .ck.ck.ck .tl-narrow .end { order: 2; }
+  .ck.ck.ck .tl-narrow .seg { order: 3; max-width: 100%; overflow-x: auto; }
+  .ck.ck.ck .tl-narrow .tl-lbl { display: none; }
+}
+
+/* A report's page (PageReport, PageBuiltReport): the source line, the chips, the figures, the
+   blocks two to a row, and the table that scrolls sideways inside its own region. */
+.ck.ck.ck .rp-src { display: flex; align-items: center; gap: var(--space-8); padding: 14px 28px 0; color: var(--color-muted); font-size: 12.5px; min-width: 0; }
+.ck.ck.ck .rp-src > span:last-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ck.ck.ck .rp-src a { color: inherit; text-decoration: underline; text-underline-offset: 3px; }
+.ck.ck.ck .rp-tools { flex-wrap: wrap; }
+.ck.ck.ck button.chipsel { border: 0; font-family: inherit; cursor: pointer; }
+.ck.ck.ck .btn.chipsel { height: 32px; gap: var(--space-4); padding: 0 var(--space-8) 0 var(--space-12); border-radius: var(--radius-control); box-shadow: var(--shadow-ring), var(--shadow-raised); background: var(--color-surface); font-size: var(--text-13); font-weight: 400; color: var(--color-muted); }
+.ck.ck.ck .btn.chipsel.is-set, .ck.ck.ck button.chipsel.is-set { background: var(--color-fill); box-shadow: var(--shadow-ring); color: var(--color-ink-2); }
+.ck.ck.ck .btn.chipsel .ic { width: 14px; height: 14px; color: var(--color-muted); }
+.ck.ck.ck .chipsel .truncate { max-width: 18rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ck.ck.ck .rp-blocks { display: flex; flex-direction: column; flex: 1 0 auto; transition: opacity 0.15s; }
+.ck.ck.ck .rp-blocks.is-fetching { opacity: 0.6; }
+.ck.ck.ck .rp-warn { padding: var(--space-8) var(--space-24) 0; font-size: var(--text-12); font-weight: 500; color: var(--color-warning); }
+.ck.ck.ck .rp-figs { padding: 16px 24px 8px; }
+.ck.ck.ck .rp-grid2 { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); box-shadow: inset 0 1px 0 var(--color-line); }
+.ck.ck.ck .rp-grid2 > div { min-width: 0; }
+.ck.ck.ck .rp-grid2 > div:first-child { box-shadow: inset -1px 0 0 var(--color-line); }
+.ck.ck.ck .rp-row { box-shadow: inset 0 1px 0 var(--color-line); min-width: 0; }
+.ck.ck.ck .rp-block { padding: 16px 24px 20px; }
+.ck.ck.ck .rp-hbar { grid-template-columns: 140px minmax(0, 1fr) 96px; }
+.ck.ck.ck .rp-line { position: relative; }
+.ck.ck.ck .rp-tip { position: absolute; top: 0; right: 0; padding: 2px 6px; border-radius: 6px; background: var(--color-surface); box-shadow: var(--shadow-ring); font-size: var(--text-12); color: var(--color-muted); }
+.ck.ck.ck .rp-tip b { color: var(--color-ink); font-variant-numeric: tabular-nums; }
+.ck.ck.ck .rp-heading { padding: 16px 24px 0; font-size: var(--text-16); font-weight: 600; color: var(--color-ink); }
+.ck.ck.ck .rp-text { padding: 8px 24px 16px; max-width: 70ch; white-space: pre-line; color: var(--color-ink-2); }
+.ck.ck.ck .rp-table { flex: none; min-width: 0; }
+.ck.ck.ck .rp-wt { overflow-x: auto; }
+.ck.ck.ck .rp-wt td:not(.fill) { max-width: 22rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ck.ck.ck .rp-wt td[colspan] { max-width: none; }
+.ck.ck.ck .rp-sort { display: inline-flex; align-items: center; gap: 4px; padding: 0; border: 0; background: none; font: inherit; color: inherit; cursor: pointer; }
+.ck.ck.ck .rp-sort .n { font-size: 10px; color: var(--color-muted); }
+.ck.ck.ck .rp-fold { display: inline-flex; padding: 0; margin-right: var(--space-8); border: 0; background: none; color: var(--color-muted); cursor: pointer; vertical-align: -3px; }
+.ck.ck.ck .rp-grp-sum { float: right; display: inline-flex; gap: var(--space-16); font-variant-numeric: tabular-nums; }
+.ck.ck.ck .rp-foot td { height: 36px; }
+.ck.ck.ck .rp-total.is-empty { opacity: 0; }
+.ck.ck.ck .rp-foot:hover .rp-total.is-empty, .ck.ck.ck .rp-total.is-empty:focus-visible, .ck.ck.ck .rp-total.is-empty[aria-expanded="true"] { opacity: 1; }
+.ck.ck.ck .rp-act { width: 40px; }
+.ck.ck.ck .rp-more { display: flex; align-items: center; justify-content: center; gap: var(--space-12); padding: var(--space-12); }
+
+/* The report's drawers: Save as a template, Export and Send it. */
+.ck.ck.ck .drawer-h.has-sub { height: auto; min-height: 56px; padding-top: 14px; padding-bottom: 14px; align-items: flex-start; }
+.ck.ck.ck .drawer-t { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.ck.ck.ck .drawer-sub { font-size: var(--text-13); font-weight: 400; color: var(--color-muted); }
+.ck.ck.ck .rp-drawer { display: flex; flex-direction: column; gap: 20px; }
+.ck.ck.ck .rp-tabs { margin: calc(var(--space-24) * -1) calc(var(--space-24) * -1) 0; padding: 0 var(--space-24); }
+.ck.ck.ck .rp-label { font-weight: 500; color: var(--color-ink); }
+.ck.ck.ck .rp-field { display: flex; flex-direction: column; gap: 6px; }
+.ck.ck.ck .rp-field .seg { display: flex; }
+.ck.ck.ck .rp-field .seg > * { flex: 1 1 0; justify-content: center; }
+.ck.ck.ck .rp-ropts { display: flex; flex-direction: column; gap: var(--space-8); }
+.ck.ck.ck .rp-ropts .ropt { cursor: pointer; }
+.ck.ck.ck .rp-ropts .ropt:focus-within { outline: 2px solid var(--color-focus, var(--color-accent)); outline-offset: 2px; }
+.ck.ck.ck .rp-pair { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-12); }
+.ck.ck.ck .rp-switch { display: flex; align-items: center; gap: var(--space-12); }
+.ck.ck.ck .rp-switch > span { flex: 1; display: flex; flex-direction: column; gap: 2px; }
+.ck.ck.ck .rp-switch b { font-weight: 500; color: var(--color-ink); }
+.ck.ck.ck .rp-switch .muted, .ck.ck.ck .rp-sched-t .muted { font-size: var(--text-13); }
+.ck.ck.ck .rp-kept { display: flex; flex-direction: column; gap: 6px; }
+.ck.ck.ck .rp-note { padding: 12px 14px; border-radius: 8px; background: var(--color-ground); color: var(--color-ink-2); }
+.ck.ck.ck .rp-pick { display: flex; align-items: center; width: 100%; text-align: left; cursor: pointer; }
+.ck.ck.ck .rp-people { display: flex; flex-direction: column; gap: var(--space-4); max-height: 280px; overflow: auto; padding: var(--space-8) var(--space-12); }
+.ck.ck.ck .rp-sched .row { display: flex; align-items: center; gap: var(--space-12); padding: var(--space-8) 0; }
+.ck.ck.ck .rp-sched-t { flex: 1; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.ck.ck.ck .drawer-f .rp-foot-start { margin-right: auto; }
+
+@media (max-width: 759px) {
+  .ck.ck.ck .rp-src { padding: 12px 16px 0; }
+  .ck.ck.ck .rp-tools { padding-left: var(--space-16); padding-right: var(--space-16); }
+  .ck.ck.ck .rp-tools .sepv { display: none; }
+  .ck.ck.ck .rp-figs { padding: 12px 16px 4px; }
+  .ck.ck.ck .rp-figs .kstrip { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+  .ck.ck.ck .rp-figs .kt:nth-child(odd) { box-shadow: none; }
+  .ck.ck.ck .rp-figs .kt:nth-child(n + 3) { border-top: 1px solid var(--color-line); }
+  .ck.ck.ck .rp-grid2 { grid-template-columns: minmax(0, 1fr); }
+  .ck.ck.ck .rp-grid2 > div:first-child { box-shadow: inset 0 -1px 0 var(--color-line); }
+  .ck.ck.ck .rp-block { padding: 16px; }
+  .ck.ck.ck .rp-hbar { grid-template-columns: 88px minmax(0, 1fr) 88px; gap: 10px; }
+  .ck.ck.ck .rp-heading, .ck.ck.ck .rp-text { padding-left: 16px; padding-right: 16px; }
+  .ck.ck.ck .rp-pair { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* A built or custom report: its line of what it reads, with the dates at the end. */
+.ck.ck.ck .rp-head { display: flex; align-items: center; gap: 10px; padding: 16px 28px; box-shadow: inset 0 -1px 0 var(--color-line); min-width: 0; }
+.ck.ck.ck .rp-desc { color: var(--color-ink-2); min-width: 0; }
+.ck.ck.ck .rp-head-end { margin-left: auto; flex: none; }
+.ck.ck.ck .rp-sec { padding: 18px 28px 10px; font-size: var(--text-14); font-weight: 600; color: var(--color-ink); }
+.ck.ck.ck .rp-pad { padding: 16px 24px; }
+.ck.ck.ck .rp-tblock { display: flex; flex-direction: column; min-width: 0; }
+.ck.ck.ck .rp-problem { display: flex; align-items: flex-start; gap: var(--space-8); color: var(--color-danger); }
+.ck.ck.ck .rp-grid2 .rp-figs, .ck.ck.ck .rp-grid2 .rp-sec { padding-left: 24px; padding-right: 24px; }
+@media (max-width: 759px) {
+  .ck.ck.ck .rp-head { flex-wrap: wrap; padding: 12px 16px; }
+  .ck.ck.ck .rp-head-end { margin-left: 0; }
+  .ck.ck.ck .rp-sec { padding: 14px 16px 8px; }
+  .ck.ck.ck .rp-pad { padding: 12px 16px; }
+}
+.ck.ck.ck .rp-foot-l { font-weight: 600; color: var(--color-ink); }
+/* A choice from a menu, drawn as the board's select box: its value, then the chevron at the right. */
+.ck.ck.ck .rp-choice { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.ck.ck.ck .rp-choice .menu-wrap { display: flex !important; }
+.ck.ck.ck .rp-selbox { width: 100%; height: 36px; justify-content: space-between; padding: 0 var(--space-12); font-weight: 400; font-size: var(--text-14); color: var(--color-ink); font-variant-numeric: tabular-nums; }
+.ck.ck.ck .rp-selbox .ic { width: 12px; height: 12px; color: var(--color-muted); }
+.ck.ck.ck .rp-selbox > .truncate { flex: 1; min-width: 0; text-align: left; }
+
+/* An insight page (PageInsightVisits, PageRetailSales, PageRetailLosses): the body, and Do something
+   about it in a 320px column at its right; under the body below 1100px. */
+.ck.ck.ck .ip { flex: 1 1 auto; display: flex; min-height: 0; min-width: 0; }
+.ck.ck.ck .ip > .kbody { padding-bottom: var(--space-24); }
+.ck.ck.ck .ip-tools { flex-wrap: wrap; }
+.ck.ck.ck .ip-tools .ws-n { margin-left: auto; font-size: var(--text-13); color: var(--color-muted); }
+.ck.ck.ck .ip-aside { width: 320px; }
+.ck.ck.ck .ip-card { display: flex; flex-direction: column; gap: 8px; }
+.ck.ck.ck .ip-card b { font-weight: 600; color: var(--color-ink); }
+.ck.ck.ck .ip-card-t { color: var(--color-ink-2); line-height: 1.5; }
+.ck.ck.ck .ip-send { display: flex; flex-direction: column; gap: 8px; padding-top: 16px; box-shadow: inset 0 1px 0 var(--color-line); }
+.ck.ck.ck .ip-hbar { grid-template-columns: 150px minmax(0, 1fr) 96px; }
+.ck.ck.ck .ip-sec { padding: 18px 28px; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.ck.ck.ck .ip-sec > h3, .ck.ck.ck .ip-table-h { margin: 0 0 6px; font-size: var(--text-14); font-weight: 600; color: var(--color-ink); }
+.ck.ck.ck .ip-q { padding: 18px 28px 20px; display: flex; flex-direction: column; gap: 10px; }
+.ck.ck.ck .ip-q-h { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.ck.ck.ck .ip-q-h h3 { margin: 0; font-size: var(--text-14); font-weight: 600; }
+.ck.ck.ck .ip-q-h span { font-size: 12.5px; color: var(--color-muted); }
+.ck.ck.ck .ip-empty { padding: var(--space-16) var(--space-24); }
+.ck.ck.ck .ip-legend { margin-left: auto; display: flex; gap: 14px; flex-wrap: wrap; }
+.ck.ck.ck .ip-lg { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--color-muted); }
+.ck.ck.ck .ip-lg i { display: block; width: 8px; height: 8px; border-radius: 2px; }
+.ck.ck.ck .ip-cols { padding-left: 0; }
+.ck.ck.ck .ip-cols::before { left: 0; }
+.ck.ck.ck .ip-cols + .cols-x { padding-left: 0; }
+.ck.ck.ck .ip-cols + .cols-x span { white-space: nowrap; }
+.ck.ck.ck .ip-cols .col i { width: 70%; min-width: 3px; max-width: 24px; }
+.ck.ck.ck .ip-heat { display: grid; gap: 4px; align-items: center; }
+.ck.ck.ck .ip-heat-x { text-align: center; font-size: 11.5px; font-variant-numeric: tabular-nums; color: var(--color-muted); }
+.ck.ck.ck .ip-heat-y { font-size: 12.5px; color: var(--color-muted); }
+.ck.ck.ck .ip-heat-c { height: 26px; border-radius: 4px; }
+.ck.ck.ck .ip-views { padding-top: var(--space-16); }
+.ck.ck.ck .ip .table th.nowrap { white-space: nowrap; }
+@media (max-width: 1099px) {
+  .ck.ck.ck .ip { flex-direction: column; }
+  .ck.ck.ck .ip > .kbody { overflow: visible; flex: none; }
+  .ck.ck.ck .ip-aside { width: auto; box-shadow: inset 0 1px 0 var(--color-line); overflow: visible; }
+}
+@media (max-width: 759px) {
+  .ck.ck.ck .ip-tools { padding-left: var(--space-16); padding-right: var(--space-16); }
+  .ck.ck.ck .ip-tools .seg { max-width: 100%; overflow-x: auto; }
+  .ck.ck.ck .ip-hbar { grid-template-columns: 96px minmax(0, 1fr) 64px; gap: 10px; }
+  .ck.ck.ck .ip-sec, .ck.ck.ck .ip-q { padding: 14px 16px; }
+  .ck.ck.ck .ip-aside { padding: 16px; }
+  .ck.ck.ck .ip-heat { gap: 2px; }
+  .ck.ck.ck .ip-heat-x { font-size: 9px; }
+  .ck.ck.ck .ip-heat-c { height: 18px; }
+}
+
+/* ---------------------------------------------------------------- Vane, as built
+   Each product's hue, from the kit's categorical hues, so a card, an action or
+   a suggestion says which part of Corelith it is about. State keeps the tone
+   colours: an issue amber, done green, failed red. */
+.ck [data-module] { --mod: var(--color-accent); }
+.ck [data-module="books"] { --mod: var(--hue-3); }
+.ck [data-module="crm"] { --mod: var(--hue-1); }
+.ck [data-module="retail"] { --mod: var(--hue-2); }
+.ck [data-module="gold"] { --mod: var(--hue-4); }
+.ck [data-module="people"], .ck [data-module="payroll"] { --mod: var(--hue-5); }
+.ck [data-module="schools"] { --mod: var(--hue-6); }
+
+/* A product, in a pill: its icon in its hue. */
+.ck.ck.ck .vn-tag { display: inline-flex; align-items: center; gap: var(--space-4); height: 20px; padding: 0 var(--space-8) 0 var(--space-4); border-radius: var(--radius-pill); font-size: var(--text-12); font-weight: 500; color: var(--color-ink-2); background: color-mix(in oklab, var(--mod) 12%, transparent); white-space: nowrap; }
+.ck.ck.ck .vn-tag .ic { width: 14px; height: 14px; color: var(--mod); }
+
+/* The header's state, as a dot in its tone. */
+.ck.ck.ck .ask-h .status { font-size: var(--text-13); margin-left: var(--space-4); }
+
+/* A card: a strip in its product's hue (amber when it is an issue), the kind and the product as pills. */
+.ck.ck.ck .ask .vc { position: relative; overflow: hidden; gap: var(--space-8); padding: var(--space-12) var(--space-16) var(--space-16) var(--space-16); }
+.ck.ck.ck .ask .vc::before, .ck.vr .vc::before { content: ""; position: absolute; inset: 0 auto 0 0; width: 3px; background: var(--mod); }
+.ck.ck.ck .ask .vc.is-issue::before, .ck.ck.ck.vr .vc.is-issue::before { background: var(--color-warning); }
+.ck.ck.ck .ask .vc-k, .ck.ck.ck.vr .vc-k { height: auto; flex-wrap: wrap; gap: var(--space-4); }
+.ck.ck.ck .vn-kind { display: inline-flex; align-items: center; gap: var(--space-4); height: 20px; padding: 0 var(--space-8) 0 var(--space-4); border-radius: var(--radius-pill); font-size: var(--text-12); font-weight: 500; color: var(--color-ink-2); background: var(--color-fill); }
+.ck.ck.ck .vn-kind .ic, .ck.ck.ck .vc .vn-kind > .ic { width: 14px; height: 14px; color: var(--color-muted); }
+.ck.ck.ck .vc.is-issue .vn-kind { background: var(--color-warning-tint); }
+.ck.ck.ck .vc.is-issue .vn-kind > .ic { color: var(--color-warning); }
+.ck.ck.ck .vc .vn-when { font-size: var(--text-12); color: var(--color-muted); font-variant-numeric: tabular-nums; }
+
+/* A quick action: the product it acts in, then what it does; done, failed and denied in their tones. */
+.ck.ck.ck .va-l { display: flex; flex-direction: column; gap: var(--space-8); margin-top: var(--space-4); }
+.ck.ck.ck .va-h { display: flex; align-items: center; gap: var(--space-8); font-size: var(--text-12); color: var(--color-muted); }
+.ck.ck.ck .va-h > span { flex: 1; }
+.ck.ck.ck .va { display: flex; flex-direction: column; gap: var(--space-8); padding: var(--space-8) var(--space-12); border-radius: 8px; background: var(--color-surface); box-shadow: inset 0 0 0 1px var(--color-line); list-style: none; }
+.ck.ck.ck .va-t { display: flex; gap: var(--space-8); align-items: flex-start; font-size: var(--text-13); line-height: 1.45; }
+.ck.ck.ck .va-n { flex: 1; min-width: 0; color: var(--color-ink); }
+.ck.ck.ck .va-i { width: 20px; height: 20px; border-radius: 6px; display: grid; place-items: center; flex: none; margin-top: -1px; background: color-mix(in oklab, var(--mod) 14%, transparent); color: var(--mod); }
+.ck.ck.ck .va-i .ic { width: 14px; height: 14px; }
+.ck.ck.ck .va-f { display: flex; flex-wrap: wrap; gap: var(--space-8); padding-left: 28px; }
+.ck.ck.ck .va-f label { display: flex; flex-direction: column; gap: var(--space-4); flex: 1 1 160px; font-size: var(--text-12); color: var(--color-muted); }
+.ck.ck.ck .va-f label.is-date { flex: none; }
+.ck.ck.ck .va-b { display: flex; gap: var(--space-8); padding-left: 28px; }
+.ck.ck.ck .va-o { padding-left: 28px; font-size: var(--text-12); color: var(--color-ink-2); }
+.ck.ck.ck .va-e { padding-left: 28px; font-size: var(--text-12); color: var(--color-danger); }
+.ck.ck.ck .va[data-status="done"] { background: var(--color-success-tint); box-shadow: none; }
+.ck.ck.ck .va[data-status="done"] .va-i { background: var(--color-success); color: var(--color-surface); }
+.ck.ck.ck .va[data-status="failed"] { background: var(--color-danger-tint); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--color-danger) 28%, transparent); }
+.ck.ck.ck .va[data-status="approved"] { background: var(--color-info-tint); box-shadow: none; }
+.ck.ck.ck .va[data-status="denied"] { background: var(--color-ground); box-shadow: none; }
+.ck.ck.ck .va[data-status="denied"] .va-n { color: var(--color-muted); text-decoration: line-through; text-decoration-color: var(--color-faint); }
+.ck.ck.ck .va[data-status="denied"] .va-i { background: var(--color-fill); color: var(--color-muted); }
+
+/* The conversation, after Claude's: Vane answers in plain reading text beside its mark, no bubble; the
+   person's words sit right in a soft filled bubble; what Vane is doing shimmers in one quiet line. */
+.ck.ck.ck .vm { display: flex; flex-direction: column; gap: var(--space-8); }
+.ck.ck.ck .vm-me { align-self: flex-end; max-width: 85%; margin-top: var(--space-8); }
+.ck.ck.ck .vm-me .vm-b { padding: 10px 14px; border-radius: 18px; background: var(--color-fill); color: var(--color-ink); font-size: var(--text-14); line-height: var(--leading-14); white-space: pre-wrap; overflow-wrap: anywhere; }
+.ck.ck.ck .vm-it { flex-direction: row; align-items: flex-start; gap: var(--space-12); }
+.ck.ck.ck .vm-it > .vn { margin-top: 2px; }
+.ck.ck.ck .vm-it .vm-c { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: var(--space-12); }
+.ck.ck.ck .vm-it .vm-b { color: var(--color-ink); font-size: var(--text-14); line-height: var(--leading-reading); }
+.ck.ck.ck .vm-it .vm-b p, .ck.ck.ck .vm-it .vm-b li { color: var(--color-ink); }
+.ck.ck.ck .vm-w { align-items: center; }
+.ck.ck.ck .vm-w .vm-b { font-size: var(--text-14); color: var(--color-muted); background: linear-gradient(90deg, var(--color-muted) 0%, var(--color-muted) 40%, var(--color-ink) 50%, var(--color-muted) 60%, var(--color-muted) 100%) 0 0 / 300% 100%; -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; animation: vn-shimmer 2.4s linear infinite; }
+@keyframes vn-shimmer { from { background-position: 100% 0; } to { background-position: 0 0; } }
+@media (prefers-reduced-motion: reduce) { .ck.ck.ck .vm-w .vm-b { animation: none; -webkit-text-fill-color: currentColor; background: none; } }
+.ck.ck.ck .vm-err { display: flex; gap: var(--space-8); align-items: flex-start; margin: 0; padding: var(--space-8) var(--space-12); border-radius: 12px; background: var(--color-danger-tint); color: var(--color-ink); font-size: var(--text-13); }
+.ck.ck.ck .vm-err .ic { color: var(--color-danger); margin-top: 2px; }
+
+/* The composer, after Claude's: one rounded box holding the words and the send button. */
+.ck.ck.ck .ask .ask-c { flex-direction: column; gap: var(--space-12); box-shadow: none; padding-top: var(--space-8); }
+.ck.ck.ck .vn-box { display: flex; flex-direction: column; border-radius: 16px; background: var(--color-surface); box-shadow: inset 0 0 0 1px var(--color-rule), var(--shadow-raised); transition: box-shadow var(--motion-fast) var(--motion-ease); }
+.ck.ck.ck .vn-box:focus-within { box-shadow: inset 0 0 0 1px var(--color-accent), 0 0 0 3px var(--color-accent-tint); }
+.ck.ck.ck .vn-box textarea { display: block; width: 100%; min-height: 48px; max-height: 160px; padding: 12px 14px 4px; border: 0; background: transparent; resize: none; outline: none; box-shadow: none; font-size: var(--text-14); line-height: var(--leading-14); color: var(--color-ink); field-sizing: content; }
+.ck.ck.ck .vn-box textarea::placeholder { color: var(--color-muted); }
+.ck.ck.ck .vn-box textarea:focus-visible { box-shadow: none; }
+.ck.ck.ck .vn-box-f { display: flex; align-items: center; gap: var(--space-8); padding: 4px 8px 8px 14px; font-size: var(--text-12); color: var(--color-muted); }
+.ck.ck.ck .vn-box-f > span { flex: 1; min-width: 0; }
+.ck.ck.ck .vn-send { width: 32px; height: 32px; display: grid; place-items: center; flex: none; border-radius: 10px; background: var(--color-accent); color: var(--color-accent-ink); transition: opacity var(--motion-fast) var(--motion-ease); }
+.ck.ck.ck .vn-send .ic { width: 16px; height: 16px; }
+.ck.ck.ck .vn-send:disabled { opacity: 0.35; cursor: default; }
+@media (prefers-reduced-motion: reduce) { .ck.ck.ck .vn-box, .ck.ck.ck .vn-send { transition: none; } }
+
+/* Suggestions: what to ask next, each with its product's icon. */
+.ck.ck.ck .vn-sug { display: flex; flex-wrap: wrap; gap: var(--space-8); }
+.ck.ck.ck .vn-sug button { display: inline-flex; align-items: center; gap: var(--space-8); min-height: 32px; max-width: 100%; padding: var(--space-4) var(--space-12) var(--space-4) 10px; border-radius: 12px; background: var(--color-surface); box-shadow: inset 0 0 0 1px var(--color-line); font-size: var(--text-13); color: var(--color-ink-2); text-align: left; transition: background var(--motion-fast) var(--motion-ease), box-shadow var(--motion-fast) var(--motion-ease); }
+.ck.ck.ck .vn-sug button > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ck.ck.ck .vn-sug button .ic { width: 16px; height: 16px; color: var(--mod); }
+.ck.ck.ck .vn-sug button:hover:not(:disabled) { background: color-mix(in oklab, var(--mod) 8%, var(--color-surface)); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--mod) 40%, var(--color-line)); color: var(--color-ink); }
+.ck.ck.ck .vn-sug button:disabled { opacity: 0.5; cursor: default; }
+@media (prefers-reduced-motion: reduce) { .ck.ck.ck .vn-sug button { transition: none; } }
+
+/* For you's rows: the product's icon on its hue, and the kind's tone as a dot. */
+.ck.ck.ck .fy .nt[data-module] { width: 28px; height: 28px; margin: -2px 0 0 -2px; border-radius: 8px; background: color-mix(in oklab, var(--mod) 12%, transparent); color: var(--mod); }
+.ck.ck.ck .fy .nt[data-module] .ic { width: 16px; height: 16px; }
+.ck.ck.ck .vn-dot { display: inline-block; width: 6px; height: 6px; margin-right: 6px; border-radius: var(--radius-pill); background: var(--color-faint); vertical-align: 1px; }
+.ck.ck.ck .fy.is-issue .vn-dot { background: var(--color-warning); }
+
+/* Vane on a record page's rail (a deal's, a lead's): its cards about this record, then Ask. */
+.ck.vr { display: flex; flex-direction: column; gap: var(--space-8); }
+.ck.ck.ck.vr .vc { position: relative; overflow: hidden; gap: var(--space-4); padding: var(--space-8) var(--space-12) var(--space-12) var(--space-16); }
+.ck.ck.ck.vr .vc h3 { font-size: var(--text-13); }
+.ck.ck.ck.vr .vc p { font-size: var(--text-13); }
+.ck.ck.ck .vr-none { font-size: var(--text-13); color: var(--color-muted); }
+.ck.ck.ck .vr-ask { display: flex; align-items: center; gap: var(--space-8); min-height: 32px; padding: var(--space-4) var(--space-12) var(--space-4) var(--space-8); border-radius: 10px; box-shadow: inset 0 0 0 1px var(--color-line); background: var(--color-surface); font-size: var(--text-13); color: var(--color-ink-2); text-align: left; transition: background var(--motion-fast) var(--motion-ease); }
+.ck.ck.ck .vr-ask:hover { background: var(--color-hover); color: var(--color-ink); }
+@media (prefers-reduced-motion: reduce) { .ck.ck.ck .vr-ask { transition: none; } }

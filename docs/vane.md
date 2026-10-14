@@ -2,7 +2,7 @@
 
 Vane is the product's helper that reads what a person could read, notices what needs doing, and drafts the work. It runs on Claude, made by Anthropic. In the product it is only ever called Vane; Claude is named once, on Management → Vane.
 
-Vane never sends, pays, saves, approves or changes anything on its own. A person presses the button each time.
+Vane never sends, pays, saves, approves or changes anything on its own. It may propose actions; each waits until a person approves it (and may change its inputs first), and then it runs through the module's own code as that person. Denying keeps it, denied.
 
 ## What is built so far
 
@@ -36,7 +36,49 @@ The connection to Claude (`lib/vane/claude.ts`), Vane's tables, the two roles it
 
 `toolDefinitions()` is what Claude is shown: each tool's name, a sentence on what it does, and its input as JSON Schema from the same zod schema the call is checked against. `callTool(context, name, input)` runs one call: an input that does not fit, or a question the reader refused or Postgres turned down, comes back as an error result for Claude to correct; anything else is thrown for the job. `lib/vane/tools.test.ts` covers each tool and those errors.
 
-Drafting invoices, quotations and purchase orders (`madeByVane`) waits for the core modules: it goes through their own create functions.
+### Its actions (`lib/vane/actions/`)
+
+What Vane proposes on a card or in a chat answer is a `VaneAction`: a kind from the registry, its inputs, and a line saying what it does. Nothing runs until a person approves it (`POST /api/vane/actions/[id]`); then the engine (`engine.ts`) checks the inputs again, takes only the changes the kind lets a person make (a due date, a note), checks the approver's role and the workspace's features for the route the app would use (`gate.ts`: an action calls module code directly, so it would otherwise skip both), and runs it as them. Done keeps what happened; a failure keeps why and can be approved again; denied stays denied. When a card's actions are all done, the card is taken further by that person.
+
+| Kind | Runs | As the app's |
+| --- | --- | --- |
+| `books.invoice.due_date` | `setInvoiceDueDate` (`lib/books/due-dates.ts`): a draft or issued invoice, not before its own date | `PATCH /api/accounting/sales/invoices` |
+| `books.invoice.reminders` | `sendInvoiceReminders` (`lib/books/reminders.ts`) | `POST /api/books/invoices/reminders` |
+| `books.bank.accept` | `acceptProposals` (`lib/books/bank.ts`) | `POST /api/books/bank/accept` |
+| `books.invoice.from_quote` | `draftInvoiceFromQuote` (`lib/books/quotations.ts`) over `createSalesInvoice` (`lib/books/create-invoice.ts`, now also the route's): an accepted quotation, once, as a draft | `POST /api/accounting/sales/invoices` |
+| `crm.task.create` | `createCrmTask` (`lib/crm/create-task.ts`, now also the route's) | `POST /api/v2/crm/tasks` |
+| `crm.deal.stage` | `moveDealStage` (`lib/crm/deal-stage.ts`, now also the route's): only a deal the person may edit, stopped by the stage's gates with what is missing | `POST /api/v2/crm/deals/[id]/stage` |
+| `crm.lead.stage` | `applyRecordBulk` with `LEAD_BULK` (`lib/crm/registers/server/`), as the leads list's bulk move | `POST /api/v2/crm/leads/bulk` |
+| `crm.owner.assign` | `applyRecordBulk` with `DEAL_BULK` or `LEAD_BULK`: records the person may not edit are left, with why | `POST /api/v2/crm/{deals,leads}/bulk` |
+| `crm.note.log` | `logCrmActivity` (`lib/crm/log-activity.ts`, now also the route's) | `POST /api/v2/crm/activities` |
+| `retail.shift.look_into` | `signOffShift` (`lib/retail/floor/sign-off.ts`), which checks cash control itself | `/api/v2/retail/shifts` |
+| `retail.order.draft` | `raiseOrder` (`lib/retail/buying/orders.ts`) as a draft, after the retail role check | `POST /api/v2/retail/buying/orders` |
+| `retail.order.send` | `sendOrder`, the way the supplier takes orders | `POST /api/v2/retail/buying/orders/[id]/send` |
+| `retail.order.chase` | `chaseOrder`: the reminder, and the promised day becomes the expected date | `POST /api/v2/retail/buying/orders/[id]/chase` |
+| `vane.plan.tick_step` | `tickPlanStep` (`lib/vane/lists.ts`) | Vane's own |
+
+Each runs as the approving person: drafts carry their name, not `madeByVane`. `lib/vane/actions/modules.test.ts` runs each module's actions against the test database. A new action is a `VaneActionKind` in its module's file, listed in `registry.ts`. Claude is shown each kind's description and inputs, and the pages it may link to with their filters (`lib/vane/pages.ts`), so its links open filtered to the records it means.
+
+### In the CRM
+
+- **On a record's page.** A deal's, lead's, company's, person's and quote's rail has a Vane section (`components/vane/vane-record-section.tsx`): the open cards Vane raised about that record (`subjectType` and `subjectId` on the card, from `VANE_SUBJECTS` in `lib/vane/panel.ts`; `GET /api/vane/record`), with their actions to approve or deny there, and "Ask Vane about this deal", which opens the panel with the question in its box. People Vane is not open to (a sales rep, whose role is held to the CRM) see no section.
+- **The chat knows the page.** Each turn carries the path the person has open, at the head of their message; Vane reads that record first when they say "this". On a record's page the first suggestion is about it.
+- **A quote, checked** (the PageVaneDocument board). A CRM quote's rail checks its lines against the price list (`lib/crm/quote-check.ts`, `GET /api/v2/crm/documents/[id]/price-check`): each line matched to a product by name, which is what the quote builder writes when a product is picked, and priced as the catalogue prices it for this customer and quantity. A line priced differently says what the list says and since when, with Leave it and Change the line; Change the line (`POST` on the same route) moves just that line to the list's price through the quote's own update, with the same checks as editing it. Lines typed by hand are counted, not checked. This is the CRM's own code, so it works without Claude and for everyone who can open the quote.
+
+### Its prompt cache (`cachedPrompt` in `lib/vane/claude.ts`)
+
+Laid out as the prompt-caching guide (platform.claude.com/docs/en/build-with-claude/prompt-caching) has it, tools, then system, then messages, with four breakpoints:
+
+1. The last tool, for an hour: the tools are the same for every job and chat.
+2. Vane's shared instructions (`vaneRules`, with the tables it may read), for an hour: the same for every workspace whose role reads the same tables. Written at 2× once an hour, read at 0.05× (Sonnet 5.5).
+3. In a chat, the last of the earlier turns, for five minutes: the next turn reads the conversation so far back from the cache.
+4. The request's own top-level `cache_control`, which follows the last block, so each tool turn of a job pays the full rate only for what the turn before added.
+
+What varies goes after the shared part: a job's closing line and the person a chat is with are a second system block, and where the person is in the app goes at the head of their message (`[In CRM, on /crm/deals/<id>]`), so moving between pages never breaks the cache. Keep it that way: nothing that changes per workspace, person, page or time belongs in `vaneRules` or the tools, and `effort` stays fixed, as changing it drops the cached conversation. Each job keeps its cache reads and writes, so the saving shows in the job's own figures.
+
+### Its chat (`lib/vane/chat.ts`)
+
+A person asks Vane in the panel; the turn runs while they wait (`POST /api/vane/chat`, up to 90 s), streaming what Vane is doing as JSON lines, and the panel is held until it finishes. Vane answers in words, with any actions it proposes hung on the answer. Each turn is a `VaneJob` of kind `chat` (counted against the allowance, with its cost); the conversation is `VaneMessage`, one per person, which neither reader role can read (`CONVERSATION_TABLE` in `lib/vane/reader-access.ts`). Refused while Vane is paused, past the allowance, or still answering the person's last turn. The nightly job and chat share one conversation loop (`lib/vane/conversation.ts`) and one set of rules (`lib/vane/prompt.ts`).
 
 ### Its jobs (`lib/vane/jobs.ts`)
 
@@ -110,6 +152,4 @@ New tables and columns are unreadable to Vane until granted. Run `pnpm vane:read
 
 ## Not built yet
 
-The worker that runs Vane's jobs and binds its reader connections, the tools it reads and drafts with, its pages and the Vane button. The designs are on the Core modules canvas, Vane page.
-
-The next steps, in order, are in `docs/handover-core-modules.md`.
+The pages: `/vane` (For you, Plans, Done, Muted), a card's What I read, the four states, Give Vane a job with Ctrl J, the live updates, the `draft` tool and Vane inside each module. The button, the panel and Management → Vane are built. The boards, what each is, and the order to build the rest are in `docs/handover-vane.md`.

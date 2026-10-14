@@ -125,12 +125,17 @@ model Company {
   documentTemplates             DocumentTemplate[]
   reportSettings                ReportSetting[]
   customReports                 CustomReport[]
+  reportFolders                 ReportFolder[]
+  savedViews                    SavedView[]
+  reportSchedules               ReportSchedule[]
   reportTemplates               ReportTemplate[]
   reportTemplateUses            ReportTemplateUse[]
   vaneItems                     VaneItem[]
   vanePlans                     VanePlan[]
   vaneJobs                      VaneJob[]
   vaneSettings                  VaneSettings?
+  vaneMessages                  VaneMessage[]
+  vaneActions                   VaneAction[]
   vaneReaderScopes              VaneReaderScope[]
   documentRenderJobs            DocumentRenderJob[]
   documentArtifacts             DocumentArtifact[]
@@ -1470,6 +1475,8 @@ model User {
   crmAppointmentsAssigned           CrmAppointment[]               @relation("CrmAppointmentAssignedTo")
   crmAppointmentsCreated            CrmAppointment[]               @relation("CrmAppointmentCreatedBy")
   crmSavedViewsCreated              CrmSavedView[]                 @relation("CrmSavedViewCreatedBy")
+  savedViewsCreated                 SavedView[]                    @relation("SavedViewCreatedBy")
+  reportSchedulesCreated            ReportSchedule[]               @relation("ReportScheduleCreatedBy")
   crmIntakeFormsCreated             CrmIntakeForm[]                @relation("CrmIntakeFormCreatedBy")
   crmIntakeFormsDefaultAssignee     CrmIntakeForm[]                @relation("CrmIntakeFormDefaultAssignee")
   crmApiKeysCreated                 CrmApiKey[]                    @relation("CrmApiKeyCreatedBy")
@@ -1569,6 +1576,8 @@ model User {
   vaneItemsFor                    VaneItem[]                     @relation("VaneItemAudience")
   vaneItemsResolved               VaneItem[]                     @relation("VaneItemResolvedBy")
   vaneJobsRequested               VaneJob[]                      @relation("VaneJobRequestedBy")
+  vaneMessages                    VaneMessage[]                  @relation("VaneMessageUser")
+  vaneActionsDecided              VaneAction[]                   @relation("VaneActionDecidedBy")
   sitesClosed                       Site[]                         @relation("SiteClosedBy")
   retailRegistersCreated            RetailRegister[]               @relation("RetailRegisterCreatedBy")
   retailDevicesPaired               RetailDevice[]                 @relation("RetailDevicePairedBy")
@@ -8684,14 +8693,110 @@ model CustomReport {
   /// Who sees it besides its maker, the way a report template says it: just
   /// them, the managers, or everyone (`lib/reports/template-access.ts`).
   audience    ReportTemplateAudience @default(JUST_ME)
+  /// The folder it is filed in on Reports' panel; none is "not in a folder".
+  folderId    String?
   createdById String
   updatedById String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  company Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  folder  ReportFolder? @relation(fields: [folderId], references: [id], onDelete: SetNull)
 
   @@index([companyId, createdById])
+  @@index([folderId])
+}
+
+/// A folder on Reports' panel ("Monday meeting", "Fitters", "Money"): the
+/// workspace's own grouping of its reports. Everyone who can read a report sees
+/// it in its folder.
+/// A page's address kept under a name in its module's panel (design/core-modules
+/// spec/routes.md §0): the page (`path`) and what was in its query string, for
+/// the person who saved it or, shared, for everyone in the workspace.
+model SavedView {
+  id          String   @id @default(uuid())
+  companyId   String
+  /// The page's address without its query, like `/books/invoices`.
+  path        String   @db.VarChar(300)
+  name        String   @db.VarChar(120)
+  /// The address's query string without the `?`, like `show=overdue`. Empty for the page as it opens.
+  query       String   @default("") @db.VarChar(2000)
+  isShared    Boolean  @default(false)
+  createdById String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  createdBy User    @relation("SavedViewCreatedBy", fields: [createdById], references: [id], onDelete: Cascade)
+
+  @@index([companyId, path])
+}
+
+/// How often a report is sent (`ReportSchedule`).
+enum ReportScheduleFrequency {
+  DAILY
+  WEEKLY
+  MONTHLY
+}
+
+enum ReportScheduleFormat {
+  PDF
+  CSV
+}
+
+/// A PDF's layout: its key figures and breakdown, or the whole page.
+enum ReportScheduleContent {
+  SUMMARY
+  FULL
+}
+
+/// A report sent by email on a schedule (routes.md §1, Send it; approved 13 Oct).
+/// Only a person makes one or turns it back on; the sender
+/// (`lib/reports/schedule-sender.ts`) renders it the way Export does, for each
+/// recipient under their own role, and moves `nextRunAt` on.
+model ReportSchedule {
+  id           String                  @id @default(uuid())
+  companyId    String
+  /// A built-in report's key (`crm-deals`) or a custom report's id. Not a foreign key: reports are code.
+  reportKey    String                  @db.VarChar(120)
+  frequency    ReportScheduleFrequency
+  /// Weekly: 1 (Monday) to 7 (Sunday). Monthly: 1 to 31, the month's last day when it is shorter. Daily: null.
+  day          Int?
+  /// "HH:MM" on the workspace's clock.
+  time         String                  @db.VarChar(5)
+  /// People in this workspace who can open the report.
+  recipientIds String[]
+  format       ReportScheduleFormat    @default(PDF)
+  content      ReportScheduleContent   @default(SUMMARY)
+  /// The report address's query without the `?` (its choices and view, `v=`), like `v=…`.
+  query        String                  @default("") @db.VarChar(4000)
+  createdById  String
+  active       Boolean                 @default(true)
+  nextRunAt    DateTime?
+  lastSentAt   DateTime?
+  createdAt    DateTime                @default(now())
+  updatedAt    DateTime                @updatedAt
+
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  createdBy User    @relation("ReportScheduleCreatedBy", fields: [createdById], references: [id], onDelete: Cascade)
+
+  @@index([companyId, reportKey])
+  @@index([active, nextRunAt])
+}
+
+model ReportFolder {
+  id          String   @id @default(uuid())
+  companyId   String
+  name        String
+  sortOrder   Int      @default(0)
+  createdById String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  company Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  reports CustomReport[]
+
+  @@unique([companyId, name])
 }
 
 /// A report saved under a name: one of the code's reports, with the columns,
@@ -16200,6 +16305,10 @@ model RetailImportRow {
 enum VaneItemKind {
   ISSUE
   SUGGESTION
+  /// Written by Vane on the insights schedule: a headline fact, the question it
+  /// ran (`sql`) and the rows it drew (`readFrom`). Shown on Reports → Insights,
+  /// never in For you.
+  INSIGHT
 }
 
 enum VaneItemStatus {
@@ -16277,6 +16386,7 @@ model VaneItem {
   audienceUser User?    @relation("VaneItemAudience", fields: [audienceUserId], references: [id], onDelete: Cascade)
   resolvedBy   User?    @relation("VaneItemResolvedBy", fields: [resolvedById], references: [id], onDelete: SetNull)
   job          VaneJob? @relation(fields: [jobId], references: [id], onDelete: SetNull)
+  actions      VaneAction[]
 
   @@index([companyId, status, createdAt])
   @@index([companyId, subjectType, subjectId])
@@ -16350,11 +16460,81 @@ model VaneJob {
   company     Company    @relation(fields: [companyId], references: [id], onDelete: Cascade)
   requestedBy User?      @relation("VaneJobRequestedBy", fields: [requestedById], references: [id], onDelete: SetNull)
   items       VaneItem[]
+  messages    VaneMessage[]
 
   @@unique([companyId, key])
   @@index([companyId, status, runAfter])
   @@index([companyId, createdAt])
   @@index([requestedById])
+}
+
+enum VaneMessageAuthor {
+  PERSON
+  VANE
+}
+
+/// One turn of a person's chat with Vane, in the panel. Each person has their own conversation.
+model VaneMessage {
+  id        String            @id @default(uuid())
+  companyId String
+  userId    String
+  author    VaneMessageAuthor
+  text      String
+  /// The job that answered it, with what it cost. On Vane's turns only.
+  jobId     String?
+  createdAt DateTime          @default(now())
+
+  company Company      @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  user    User         @relation("VaneMessageUser", fields: [userId], references: [id], onDelete: Cascade)
+  job     VaneJob?     @relation(fields: [jobId], references: [id], onDelete: SetNull)
+  actions VaneAction[]
+
+  @@index([companyId, userId, createdAt])
+  @@index([userId])
+  @@index([jobId])
+}
+
+enum VaneActionStatus {
+  /// Waiting for a person.
+  PROPOSED
+  /// Approved and running.
+  APPROVED
+  DONE
+  FAILED
+  DENIED
+}
+
+/// Something Vane proposes to do, on a card or in a chat answer. Nothing runs
+/// until a person approves it (and may change its inputs first); then it runs
+/// through the module's own code, as that person. Denied is kept.
+model VaneAction {
+  id          String           @id @default(uuid())
+  companyId   String
+  itemId      String?
+  messageId   String?
+  /// The action's kind in `lib/vane/actions`: "books.invoice.due_date".
+  kind        String
+  /// What it does, in a line: "Set INV-0142 due on 30 October".
+  title       String
+  /// Its inputs, as Vane proposed them or as the person changed them.
+  params      Json
+  status      VaneActionStatus @default(PROPOSED)
+  /// What happened when it ran, in a line, or why it failed.
+  result      String?
+  decidedById String?
+  decidedAt   DateTime?
+  doneAt      DateTime?
+  createdAt   DateTime         @default(now())
+
+  company   Company      @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  item      VaneItem?    @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  message   VaneMessage? @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  decidedBy User?        @relation("VaneActionDecidedBy", fields: [decidedById], references: [id], onDelete: SetNull)
+
+  @@index([companyId, status, createdAt])
+  @@index([itemId])
+  @@index([messageId])
+  @@index([decidedById])
 }
 
 /// Management -> Vane. One row per workspace; no row means the defaults.
@@ -16375,6 +16555,10 @@ model VaneSettings {
   /// { [issue kind]: role[] }: who hears about what.
   routing            Json     @default("{}")
   monthlyAllowance   Int      @default(5000)
+  /// When Vane writes the week's insights: "MON 06:00", in the workspace's time.
+  insightsSchedule   String   @default("MON 06:00") @db.VarChar(9)
+  /// The board "Pin to …" adds an insight's question to; none until one is chosen.
+  insightsBoardId    String?
   updatedAt          DateTime @updatedAt
 
   company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)

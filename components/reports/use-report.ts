@@ -32,7 +32,8 @@ export function useReport(key: string) {
 
   const given = useMemo(() => {
     const params: ReportParams = {};
-    for (const [name, value] of search) if (name !== "v") params[name] = value;
+    // `send` opens the Send it drawer; it is the page's, not the report's.
+    for (const [name, value] of search) if (name !== "v" && name !== "send") params[name] = value;
     return params;
   }, [search]);
 

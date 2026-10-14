@@ -40,6 +40,7 @@ const leads: ReportDefinition = {
 const deals: ReportDefinition = {
   key: "crm-deals",
   title: "Deals",
+  summary: "Deals by when they are expected to close, with their stage, value and outcome",
   area: AREA,
   href: "/crm/deals",
   profiles: PROFILES,
@@ -61,7 +62,7 @@ const deals: ReportDefinition = {
     { key: "source", label: "Source", kind: "text", hidden: true },
     { key: "lostReason", label: "Lost because", kind: "text", hidden: true },
   ],
-  defaults: { sort: [{ column: "closes", dir: "asc" }] },
+  defaults: { sort: [{ column: "closes", dir: "asc" }], groupBy: "stage" },
   rowActions: [{ id: "open", kind: "open", label: "Open deal", href: "/crm/deals/{id}" }],
 };
 

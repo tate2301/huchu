@@ -20,7 +20,7 @@ if (process.argv.includes("--summary")) {
   console.log(`vane_reader reads ${access.readable.filter((t) => !t.privateTable).length} tables.`);
   console.log(`Only vane_reader_private reads pay: ${pay.join(", ")}`);
   for (const t of personal) console.log(`Only vane_reader_private reads ${t.table}: ${t.privateColumns.join(", ")}`);
-  for (const reason of ["credentials", "no workspace link"] as const) {
+  for (const reason of ["credentials", "conversation", "no workspace link"] as const) {
     console.log(`Neither reads (${reason}): ${access.unreadable.filter((t) => t.reason === reason).map((t) => t.table).join(", ")}`);
   }
 } else {

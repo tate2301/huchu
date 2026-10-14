@@ -16,6 +16,9 @@ import {
 } from "@/lib/icons";
 
 export type AccountingTab =
+  | "money"
+  | "invoices"
+  | "bank"
   | "overview"
   | "receivables"
   | "payables"
@@ -100,6 +103,32 @@ export const ACCOUNTING_CATEGORIES: AccountingCategory[] = [
  * question, not a navigation one — it belongs to PR-4 and is recorded there.
  */
 export const ACCOUNTING_TABS: AccountingTabItem[] = [
+  // Books (design/core-modules): Money is the module's home, Invoices and Bank
+  // the two places money is chased and matched.
+  {
+    id: "money",
+    label: "Money",
+    href: "/books",
+    icon: Wallet,
+    featureKey: "accounting.core",
+    categoryId: "hub",
+  },
+  {
+    id: "invoices",
+    label: "Invoices",
+    href: "/books/invoices",
+    icon: ReceiptLong,
+    featureKey: "accounting.ar",
+    categoryId: "receivables",
+  },
+  {
+    id: "bank",
+    label: "Bank",
+    href: "/books/bank",
+    icon: Scale,
+    featureKey: "accounting.banking",
+    categoryId: "treasury",
+  },
   {
     id: "overview",
     label: "Overview",
@@ -119,7 +148,7 @@ export const ACCOUNTING_TABS: AccountingTabItem[] = [
   {
     id: "journals",
     label: "Journals",
-    href: "/accounting/journals",
+    href: "/books/journals",
     icon: FileCheck,
     featureKey: "accounting.journals",
     categoryId: "core",
@@ -127,7 +156,7 @@ export const ACCOUNTING_TABS: AccountingTabItem[] = [
   {
     id: "periods",
     label: "Periods",
-    href: "/accounting/periods",
+    href: "/books/periods",
     icon: Calendar,
     featureKey: "accounting.periods",
     categoryId: "core",
@@ -175,8 +204,8 @@ export const ACCOUNTING_TABS: AccountingTabItem[] = [
   // ACCOUNTING_TABS.
   {
     id: "tax",
-    label: "Tax",
-    href: "/accounting/tax",
+    label: "VAT",
+    href: "/books/vat",
     icon: ShieldCheck,
     featureKey: "accounting.tax",
     categoryId: "tax-compliance",
@@ -224,23 +253,3 @@ export const ACCOUNTING_TABS: AccountingTabItem[] = [
   },
 ];
 
-export const ACCOUNTING_OPERATIONS_SECTIONS = {
-  overview: ["/accounting"],
-  // The ledgers people work in. The two summaries moved to `reporting`.
-  receivables: ["/accounting/sales"],
-  payables: ["/accounting/purchases"],
-  reporting: [
-    "/accounting/financial-reports",
-    "/accounting/trial-balance",
-    "/accounting/receivables",
-    "/accounting/payables",
-  ],
-  master: [
-    "/accounting/chart-of-accounts",
-    "/accounting/periods",
-    "/accounting/journals",
-    "/accounting/posting-rules",
-    "/accounting/tax",
-    "/accounting/fiscalisation",
-  ],
-} as const;

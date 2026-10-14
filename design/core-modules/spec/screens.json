@@ -1,0 +1,474 @@
+{
+ "product": "Corelith core modules: Vane, Reports, Books, Management",
+ "workspace_in_mocks": "Floorcode (CRM and Tender)",
+ "screens": [
+  {
+   "slug": "vane",
+   "route": "/vane",
+   "module": "Vane",
+   "what": "For you: what Vane raised, what it is working on, its plans and what it finished",
+   "html": "html/vane.html",
+   "fixture_route": "/design/vane",
+   "desktop": {
+    "width": 1440,
+    "height": 900,
+    "scale": 2,
+    "reference": "reference/vane-1440.png"
+   },
+   "phone": {
+    "width": 390,
+    "height": 1902,
+    "scale": 2,
+    "reference": "reference/vane-390.png"
+   },
+   "dark": {
+    "width": 1440,
+    "height": 900,
+    "scale": 2,
+    "reference": "reference/vane-1440-dark.png"
+   }
+  },
+  {
+   "slug": "books-vane",
+   "route": "/books",
+   "module": "Books",
+   "what": "Money, with the Vane panel open",
+   "html": "html/books-vane.html",
+   "fixture_route": "/design/books-vane",
+   "desktop": {
+    "width": 1440,
+    "height": 900,
+    "scale": 2,
+    "reference": "reference/books-vane-1440.png"
+   },
+   "phone": {
+    "width": 390,
+    "height": 1864,
+    "scale": 2,
+    "reference": "reference/books-vane-390.png"
+   },
+   "dark": {
+    "width": 1440,
+    "height": 900,
+    "scale": 2,
+    "reference": "reference/books-vane-1440-dark.png"
+   }
+  },
+  {
+   "slug": "books-bank",
+   "route": "/books/bank",
+   "module": "Books",
+   "what": "Bank lines Vane matched, each waiting to be accepted",
+   "html": "html/books-bank.html",
+   "fixture_route": "/design/books-bank",
+   "desktop": {
+    "width": 1440,
+    "height": 900,
+    "scale": 2,
+    "reference": "reference/books-bank-1440.png"
+   },
+   "phone": {
+    "width": 390,
+    "height": 1281,
+    "scale": 2,
+    "reference": "reference/books-bank-390.png"
+   },
+   "dark": {
+    "width": 1440,
+    "height": 900,
+    "scale": 2,
+    "reference": "reference/books-bank-1440-dark.png"
+   }
+  },
+  {
+   "slug": "reports-insights",
+   "route": "/reports/insights",
+   "module": "Reports",
+   "what": "Insights Vane wrote from last week's rows",
+   "html": "html/reports-insights.html",
+   "fixture_route": "/design/reports-insights",
+   "desktop": {
+    "width": 1440,
+    "height": 900,
+    "scale": 2,
+    "reference": "reference/reports-insights-1440.png"
+   },
+   "phone": {
+    "width": 390,
+    "height": 1417,
+    "scale": 2,
+    "reference": "reference/reports-insights-390.png"
+   },
+   "dark": {
+    "width": 1440,
+    "height": 900,
+    "scale": 2,
+    "reference": "reference/reports-insights-1440-dark.png"
+   }
+  },
+  {
+   "slug": "report-build-vane",
+   "route": "/reports/monday-board/edit",
+   "module": "Reports",
+   "what": "Building a report: Vane suggests a by-fitter question in the shelf",
+   "html": "html/report-build-vane.html",
+   "fixture_route": "/design/report-build-vane",
+   "desktop": {
+    "width": 1440,
+    "height": 900,
+    "scale": 2,
+    "reference": "reference/report-build-vane-1440.png"
+   },
+   "phone": {
+    "width": 390,
+    "height": 1218,
+    "scale": 2,
+    "reference": "reference/report-build-vane-390.png"
+   },
+   "dark": {
+    "width": 1440,
+    "height": 900,
+    "scale": 2,
+    "reference": "reference/report-build-vane-1440-dark.png"
+   }
+  },
+  {
+   "slug": "report-build",
+   "route": "/reports/monday-board/edit",
+   "module": "Reports",
+   "what": "Building a report: outline, canvas, right panel, bottom shelf",
+   "html": "html/report-build.html",
+   "fixture_route": "/design/report-build",
+   "desktop": {
+    "width": 1440,
+    "height": 900,
+    "scale": 2,
+    "reference": "reference/report-build-1440.png"
+   },
+   "phone": {
+    "width": 390,
+    "height": 1046,
+    "scale": 2,
+    "reference": "reference/report-build-390.png"
+   },
+   "dark": {
+    "width": 1440,
+    "height": 900,
+    "scale": 2,
+    "reference": "reference/report-build-1440-dark.png"
+   }
+  },
+  {
+   "slug": "reports",
+   "route": "/reports",
+   "module": "Reports",
+   "what": "All reports",
+   "html": "html/reports.html",
+   "fixture_route": "/design/reports",
+   "desktop": {
+    "width": 1440,
+    "height": 900,
+    "scale": 2,
+    "reference": "reference/reports-1440.png"
+   },
+   "phone": {
+    "width": 390,
+    "height": 844,
+    "scale": 2,
+    "reference": "reference/reports-390.png"
+   },
+   "dark": {
+    "width": 1440,
+    "height": 900,
+    "scale": 2,
+    "reference": "reference/reports-1440-dark.png"
+   }
+  },
+  {
+   "slug": "report",
+   "route": "/reports/monday-board",
+   "module": "Reports",
+   "what": "A report read as a board",
+   "html": "html/report.html",
+   "fixture_route": "/design/report",
+   "desktop": {
+    "width": 1440,
+    "height": 900,
+    "scale": 2,
+    "reference": "reference/report-1440.png"
+   },
+   "phone": {
+    "width": 390,
+    "height": 861,
+    "scale": 2,
+    "reference": "reference/report-390.png"
+   },
+   "dark": {
+    "width": 1440,
+    "height": 900,
+    "scale": 2,
+    "reference": "reference/report-1440-dark.png"
+   }
+  },
+  {
+   "slug": "books-money",
+   "route": "/books",
+   "module": "Books",
+   "what": "Money, Vane panel closed",
+   "html": "html/books-money.html",
+   "fixture_route": "/design/books-money",
+   "desktop": {
+    "width": 1440,
+    "height": 900,
+    "scale": 2,
+    "reference": "reference/books-money-1440.png"
+   },
+   "phone": {
+    "width": 390,
+    "height": 1272,
+    "scale": 2,
+    "reference": "reference/books-money-390.png"
+   },
+   "dark": {
+    "width": 1440,
+    "height": 900,
+    "scale": 2,
+    "reference": "reference/books-money-1440-dark.png"
+   }
+  },
+  {
+   "slug": "books-invoices",
+   "route": "/books/invoices",
+   "module": "Books",
+   "what": "Invoices with selection and the footer",
+   "html": "html/books-invoices.html",
+   "fixture_route": "/design/books-invoices",
+   "desktop": {
+    "width": 1440,
+    "height": 900,
+    "scale": 2,
+    "reference": "reference/books-invoices-1440.png"
+   },
+   "phone": {
+    "width": 390,
+    "height": 844,
+    "scale": 2,
+    "reference": "reference/books-invoices-390.png"
+   },
+   "dark": {
+    "width": 1440,
+    "height": 900,
+    "scale": 2,
+    "reference": "reference/books-invoices-1440-dark.png"
+   }
+  },
+  {
+   "slug": "management-job-grades",
+   "route": "/management/master-data/hr/job-grades",
+   "module": "Management",
+   "what": "Sidebar, list and record",
+   "html": "html/management-job-grades.html",
+   "fixture_route": "/design/management-job-grades",
+   "desktop": {
+    "width": 1440,
+    "height": 900,
+    "scale": 2,
+    "reference": "reference/management-job-grades-1440.png"
+   },
+   "phone": {
+    "width": 390,
+    "height": 910,
+    "scale": 2,
+    "reference": "reference/management-job-grades-390.png"
+   },
+   "dark": {
+    "width": 1440,
+    "height": 900,
+    "scale": 2,
+    "reference": "reference/management-job-grades-1440-dark.png"
+   }
+  },
+  {
+   "slug": "management-billing",
+   "route": "/management/billing",
+   "module": "Management",
+   "what": "Billing: the apps you have and what they cost",
+   "html": "html/management-billing.html",
+   "fixture_route": "/design/management-billing",
+   "desktop": {
+    "width": 1440,
+    "height": 900,
+    "scale": 2,
+    "reference": "reference/management-billing-1440.png"
+   },
+   "phone": {
+    "width": 390,
+    "height": 2007,
+    "scale": 2,
+    "reference": "reference/management-billing-390.png"
+   },
+   "dark": {
+    "width": 1440,
+    "height": 900,
+    "scale": 2,
+    "reference": "reference/management-billing-1440-dark.png"
+   }
+  },
+  {
+   "slug": "management-integrations",
+   "route": "/management/integrations",
+   "module": "Management",
+   "what": "Integrations",
+   "html": "html/management-integrations.html",
+   "fixture_route": "/design/management-integrations",
+   "desktop": {
+    "width": 1440,
+    "height": 900,
+    "scale": 2,
+    "reference": "reference/management-integrations-1440.png"
+   },
+   "phone": {
+    "width": 390,
+    "height": 1305,
+    "scale": 2,
+    "reference": "reference/management-integrations-390.png"
+   },
+   "dark": {
+    "width": 1440,
+    "height": 900,
+    "scale": 2,
+    "reference": "reference/management-integrations-1440-dark.png"
+   }
+  },
+  {
+   "slug": "management-marketplace",
+   "route": "/management/marketplace",
+   "module": "Management",
+   "what": "Marketplace",
+   "html": "html/management-marketplace.html",
+   "fixture_route": "/design/management-marketplace",
+   "desktop": {
+    "width": 1440,
+    "height": 900,
+    "scale": 2,
+    "reference": "reference/management-marketplace-1440.png"
+   },
+   "phone": {
+    "width": 390,
+    "height": 1071,
+    "scale": 2,
+    "reference": "reference/management-marketplace-390.png"
+   },
+   "dark": {
+    "width": 1440,
+    "height": 900,
+    "scale": 2,
+    "reference": "reference/management-marketplace-1440-dark.png"
+   }
+  },
+  {
+   "slug": "management-vane",
+   "route": "/management/vane",
+   "module": "Management",
+   "what": "What Vane watches, does and when",
+   "html": "html/management-vane.html",
+   "fixture_route": "/design/management-vane",
+   "desktop": {
+    "width": 1440,
+    "height": 900,
+    "scale": 2,
+    "reference": "reference/management-vane-1440.png"
+   },
+   "phone": {
+    "width": 390,
+    "height": 1675,
+    "scale": 2,
+    "reference": "reference/management-vane-390.png"
+   },
+   "dark": {
+    "width": 1440,
+    "height": 900,
+    "scale": 2,
+    "reference": "reference/management-vane-1440-dark.png"
+   }
+  },
+  {
+   "slug": "studio-form",
+   "route": "/build/forms/site-visit",
+   "module": "One base",
+   "what": "Form builder on the shared base",
+   "html": "html/studio-form.html",
+   "fixture_route": "/design/studio-form",
+   "desktop": {
+    "width": 1440,
+    "height": 900,
+    "scale": 2,
+    "reference": "reference/studio-form-1440.png"
+   },
+   "phone": {
+    "width": 390,
+    "height": 1127,
+    "scale": 2,
+    "reference": "reference/studio-form-390.png"
+   },
+   "dark": {
+    "width": 1440,
+    "height": 900,
+    "scale": 2,
+    "reference": "reference/studio-form-1440-dark.png"
+   }
+  },
+  {
+   "slug": "studio-document",
+   "route": "/build/documents/quotation",
+   "module": "One base",
+   "what": "Document designer on the shared base",
+   "html": "html/studio-document.html",
+   "fixture_route": "/design/studio-document",
+   "desktop": {
+    "width": 1440,
+    "height": 900,
+    "scale": 2,
+    "reference": "reference/studio-document-1440.png"
+   },
+   "phone": {
+    "width": 390,
+    "height": 844,
+    "scale": 2,
+    "reference": "reference/studio-document-390.png"
+   },
+   "dark": {
+    "width": 1440,
+    "height": 900,
+    "scale": 2,
+    "reference": "reference/studio-document-1440-dark.png"
+   }
+  },
+  {
+   "slug": "studio-report",
+   "route": "/reports/fees-collected/edit",
+   "module": "One base",
+   "what": "Report on the shared base, Campus vertical",
+   "html": "html/studio-report.html",
+   "fixture_route": "/design/studio-report",
+   "desktop": {
+    "width": 1440,
+    "height": 900,
+    "scale": 2,
+    "reference": "reference/studio-report-1440.png"
+   },
+   "phone": {
+    "width": 390,
+    "height": 1074,
+    "scale": 2,
+    "reference": "reference/studio-report-390.png"
+   },
+   "dark": {
+    "width": 1440,
+    "height": 900,
+    "scale": 2,
+    "reference": "reference/studio-report-1440-dark.png"
+   }
+  }
+ ]
+}

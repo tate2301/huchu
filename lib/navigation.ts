@@ -55,6 +55,10 @@ import {
   Work,
   Wrench,
   Zap,
+  CreditCard,
+  ListBullets,
+  QrCode,
+  ShoppingBag,
   type LucideIcon,
 } from "@/lib/icons";
 import { PEOPLE_TABS } from "@/lib/people/tab-config";
@@ -130,6 +134,11 @@ export type NavGroup = {
   label: string;
   /** Where this group sits among its section's groups when it is `ranked`. */
   rank?: NavRank;
+  /**
+   * `panelGroups` only: drawn last, after the module's Saved views and
+   * Reports, and folded until it holds the page being looked at.
+   */
+  trailing?: boolean;
 };
 
 export type NavSection = {
@@ -151,6 +160,12 @@ export type NavSection = {
    * and to the rows inside each.
    */
   ranked?: boolean;
+  /**
+   * Draw the groups as headed bands inside the module's own panel, after its
+   * ungrouped rows (the boards' "Ledger", "More"), rather than as marks or
+   * folders. The module stays one place in the rail.
+   */
+  panelGroups?: boolean;
   items: NavItem[];
 };
 
@@ -240,7 +255,23 @@ export const navSections: NavSection[] = [
     // No feature of its own: every report is gated by the page it is about
     // (see lib/reports/access.ts), and the entry shows only when at least one
     // is readable (the reporting module in lib/workspaces.ts).
-    items: [{ href: "/reports", icon: FileCheck, label: "Reports" }],
+    // The panel PageReport draws: Overview (the week's insights, which
+    // ReportsInsights heads "Insights"), All reports and its three views, then
+    // the Insights band, one row per insight page. Its Folders and Build
+    // groups are drawn by the panel (`ReportsGroups`): folders are the
+    // workspace's own, not navigation. Each insight row shows only where its
+    // page's feature is on (`lib/workspaces.ts`).
+    groups: [{ id: "insights", label: "Insights" }],
+    panelGroups: true,
+    items: [
+      { href: "/reports/insights", icon: TrendingUp, label: "Overview", exact: true },
+      { href: "/reports", icon: FileCheck, label: "All reports" },
+      { href: "/reports?view=yours", icon: UserRound, label: "Yours" },
+      { href: "/reports?view=shared", icon: Users, label: "Shared with you" },
+      { href: "/reports?view=corelith", icon: Star, label: "From Corelith" },
+      { href: "/reports/insights/sales", icon: BarChart3, label: "Sales", group: "insights" },
+      { href: "/reports/insights/site-visits", icon: MapPin, label: "Site visits", group: "insights" },
+    ],
   },
   {
     id: "people",
@@ -797,8 +828,8 @@ export const navSections: NavSection[] = [
       { href: "/crm/appointments", icon: CalendarCheck, label: "Site visits", group: "work", rank: "flow" },
       { href: "/crm/follow-ups", icon: Phone, label: "Follow-ups", group: "work" },
 
-      { href: "/crm/insights", icon: BarChart3, label: "Insights", group: "learn" },
-      { href: "/crm/reports", icon: ChartLine, label: "Sales reports", group: "learn" },
+      // Insights and Sales reports moved to Reports (Insights → Sales, and All
+      // reports); `/crm/insights` and `/crm/reports` forward there.
       // The team as a directory of the numbers each member carries, and your
       // own line in it: `/crm/reps/me` redirects to whoever is signed in.
       { href: "/crm/reps", icon: UserRound, label: "Team", group: "learn" },
@@ -835,14 +866,40 @@ export const navSections: NavSection[] = [
   },
   {
     id: "accounting",
-    title: "Accounting",
-    description: "Ledger, journals, and finance controls",
+    title: "Books",
+    description: "Money in, owed, the bank and VAT",
     featureKey: "accounting.core",
+    // The boards' panel (design/core-modules, BooksInvoices, PageBooksJournals):
+    // the seven places money is worked on, then the ledger, then every other
+    // accounting page the module already had under More. Bands in the panel,
+    // never marks of their own in the rail.
+    panelGroups: true,
+    groups: [
+      { id: "ledger", label: "Ledger" },
+      { id: "more", label: "More", trailing: true },
+    ],
     items: [
-      { href: "/accounting", icon: Scale, label: "Overview" },
-      { href: "/accounting/receivables", icon: ReceiptLong, label: "Receivables" },
-      { href: "/accounting/payables", icon: PackageCheck, label: "Payables" },
-      { href: "/accounting/financial-reports", icon: BarChart3, label: "Financial Reports" },
+      { href: "/books", icon: Home, label: "Money" },
+      { href: "/books/invoices", icon: ReceiptLong, label: "Invoices" },
+      { href: "/books/payments", icon: Payments, label: "Payments" },
+      // The tills' takings, counted and banked at the end of the day.
+      { href: "/retail/end-of-day", icon: ShoppingBag, label: "Takings", requires: [["retail.end-of-day", "view"]] },
+      { href: "/books/expenses", icon: Wallet, label: "Expenses" },
+      { href: "/books/bank", icon: CreditCard, label: "Bank" },
+      { href: "/books/vat", icon: Coins, label: "VAT" },
+
+      { href: "/books/journals", icon: Scale, label: "Journals", group: "ledger" },
+      { href: "/books/periods", icon: Calendar, label: "Periods", group: "ledger" },
+      { href: "/accounting/chart-of-accounts", icon: ListBullets, label: "Chart of accounts", group: "ledger" },
+
+      { href: "/accounting/sales", icon: ReceiptLong, label: "Receivables", group: "more" },
+      { href: "/accounting/purchases", icon: PackageCheck, label: "Payables", group: "more" },
+      { href: "/accounting/financial-reports", icon: BarChart3, label: "Financial reports", group: "more" },
+      { href: "/accounting/trial-balance", icon: BarChart3, label: "Trial balance", group: "more" },
+      { href: "/accounting/receivables", icon: BarChart3, label: "Receivables report", group: "more" },
+      { href: "/accounting/payables", icon: BarChart3, label: "Payables report", group: "more" },
+      { href: "/accounting/posting-rules", icon: Checklist, label: "Posting rules", group: "more" },
+      { href: "/accounting/fiscalisation", icon: QrCode, label: "Fiscalisation", group: "more" },
     ],
   },
   {
@@ -896,6 +953,10 @@ export const navSections: NavSection[] = [
     ],
   },
 ];
+
+/** The Reports panel's rows, for an arrangement that pulls Reports in whole. */
+export const REPORTS_NAV_HREFS: readonly string[] =
+  navSections.find((section) => section.id === "reporting")?.items.map((item) => item.href) ?? ["/reports"];
 
 export function getNavSectionsForRole(role: string | null | undefined) {
   return navSections
