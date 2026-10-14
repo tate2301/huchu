@@ -98,7 +98,9 @@ function geometry() {
   };
   const header = main.querySelector("header");
   const texts = [...main.querySelectorAll("p, h1, h2, h3, td, th, li, a, button, label, span")].filter((el) => !(header && header.contains(el)) && (el.textContent || "").trim());
-  if (!texts.some(shows)) issues.push("the page body is blank: nothing under the top bar shows");
+  // A printed page is drawn in a frame (the payslip, a layout): a frame or a picture that shows counts.
+  const media = [...main.querySelectorAll("iframe, img, canvas")].filter((el) => !(header && header.contains(el)));
+  if (![...texts, ...media].some(shows)) issues.push("the page body is blank: nothing under the top bar shows");
   return [...new Set(issues)].slice(0, 15);
 }
 
