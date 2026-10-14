@@ -63,7 +63,7 @@ export function ReportsOverviewScreen({ templatesHref }: { templatesHref: string
       </PageChrome>
       <Kit className="kit-main">
         <KitScreen slug="reports">
-          <div className="mn" style={{ flex: 1, minHeight: 0 }}>
+          <div className="mn">
             {data ? (
               <ReportsOverviewView overview={data} />
             ) : mounted && overview.isError ? (

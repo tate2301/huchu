@@ -32,7 +32,13 @@
   margin-top: calc(var(--content-lede) * -1);
   background: var(--color-surface);
 }
-@media (max-width: 759px) { .ck.kit-main { height: auto; overflow: visible; } }
+/* Its page column fills it, and the column's body scrolls. On a phone the page scrolls instead, so the
+   column and every body in it take their content's height: a flex body with no basis would measure 0. */
+.ck.ck.ck.kit-main .mn { flex: 1; min-height: 0; }
+@media (max-width: 759px) {
+  .ck.kit-main { height: auto; overflow: visible; }
+  .ck.ck.ck.kit-main .mn, .ck.ck.ck.kit-main .kbody { flex: none; min-height: auto; overflow: visible; }
+}
 
 /* A menu's button inside a button group: joined to its neighbours like any other button there. */
 .ck.ck.ck .btn-group > .menu-wrap > .btn { border-radius: 0; box-shadow: none; background: transparent; }

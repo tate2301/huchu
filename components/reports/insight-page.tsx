@@ -22,7 +22,7 @@ const join = (...names: Array<string | false | null | undefined>) => names.filte
 export function InsightFrame({ children }: { children: React.ReactNode }) {
   return (
     <Kit className="kit-main">
-      <div className="mn" style={{ flex: 1, minHeight: 0 }}>
+      <div className="mn">
         {children}
       </div>
     </Kit>

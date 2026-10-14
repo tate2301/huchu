@@ -313,7 +313,7 @@ export default function FinancialReportsHomePage() {
     <>
       <PageChrome title="Financial reports" primary={primary} />
       <Kit className="kit-main">
-        <div className="mn" style={{ flex: 1, minHeight: 0 }}>
+        <div className="mn">
           <div className="kbody">
             <div className="ws-tools" style={{ flexWrap: "wrap" }}>
               <DateRangePicker

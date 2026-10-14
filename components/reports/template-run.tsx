@@ -166,7 +166,7 @@ export function TemplateRun({ templateRef }: { templateRef: string }) {
     <>
       {chrome}
       <Kit className="kit-main">
-        <div className="mn" style={{ flex: 1, minHeight: 0 }}>
+        <div className="mn">
           {body}
         </div>
       </Kit>

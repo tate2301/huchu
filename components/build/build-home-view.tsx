@@ -149,11 +149,11 @@ export function BuildHomeView({
               <colgroup>
                 <col />
                 <col style={{ width: 110 }} />
-                <col style={{ width: 200 }} />
-                <col style={{ width: 96 }} />
-                <col style={{ width: 84 }} />
+                <col className="bh-used" style={{ width: 200 }} />
+                <col className="bh-wide" style={{ width: 96 }} />
+                <col className="bh-wide" style={{ width: 84 }} />
                 <col style={{ width: 120 }} />
-                <col style={{ width: 112 }} />
+                <col className="bh-wide" style={{ width: 112 }} />
               </colgroup>
               <thead>
                 <tr>

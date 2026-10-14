@@ -255,7 +255,7 @@ export function CustomReportScreen({ id, builtIn }: { id: string; builtIn?: stri
     <>
       {chrome}
       <Kit className="kit-main">
-        <div className="mn rp-page" style={{ flex: 1, minHeight: 0 }}>
+        <div className="mn rp-page">
           {body}
         </div>
       </Kit>
