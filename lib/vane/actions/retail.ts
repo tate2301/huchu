@@ -131,7 +131,7 @@ const sendDraft = {
     supplier: z.string().min(1),
   }),
   fields: [],
-  verb: (p) => `Send to ${p.supplier}`,
+  verb: (p) => `Send ${p.poNo}`,
   title: (p) => `Send ${p.poNo} to ${p.supplier}`,
   target: (p) => `/retail/buying/orders/${p.orderId}`,
   refuse: (context) => refuseOrders(context, "/api/v2/retail/buying/orders", "create"),

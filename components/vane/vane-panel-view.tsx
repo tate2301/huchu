@@ -9,6 +9,7 @@ import type { VaneCard, VanePanel } from "@/lib/vane/panel";
 import type { VaneStatus } from "@/lib/vane/status";
 
 import { NotNowMenu } from "./not-now-menu";
+import { readSummary } from "./vane-card-drawer";
 import { VaneActionList } from "./vane-action-list";
 import { VaneModuleTag } from "./vane-module";
 import type { VaneSuggestion } from "./vane-panel";
@@ -27,6 +28,12 @@ function StateDot({ status, held }: { status: VaneStatus; held: boolean }) {
   if (status.paused || status.overAllowance) return <span className="status status-warning">{vaneStateLabel(status)}</span>;
   if (status.unreachable) return <span className="status status-danger">{vaneStateLabel(status)}</span>;
   return <span className="status status-success">Watching</span>;
+}
+
+/** A card's first send waiting for a person, with nothing to change first: the panel's primary on the first card. */
+function leadSend(actions: VaneActionView[]): VaneActionView | null {
+  const first = actions.find((action) => action.status === "proposed");
+  return first && first.fields.length === 0 && first.verb.startsWith("Send ") ? first : null;
 }
 
 /**
@@ -181,23 +188,54 @@ export function VanePanelView({
                 </div>
                 <h3 id={`vane-panel-${card.id}`}>{card.headline}</h3>
                 <p>{card.body}</p>
-                {card.action ? (
+                {card.action || card.read.length > 0 ? (
                   <div className="vc-a">
-                    <Button
-                      variant={index === 0 && card.actions.every((action) => action.status !== "proposed") ? "primary" : "default"}
-                      icon={card.action.type === "send" ? "send" : card.action.type === "review" ? "eye" : "chev"}
-                      onClick={() => onAct(card)}
-                    >
-                      {card.action.label}
-                    </Button>
-                    {card.action.also ? (
-                      <Button icon="eye" onClick={() => onAct(card, card.action?.also?.target)}>
-                        {card.action.also.label}
+                    {card.action
+                      ? (() => {
+                          // The first card's send, when Vane proposes one, is the panel's primary on S (spec/shortcuts.md).
+                          const send = index === 0 ? leadSend(card.actions) : null;
+                          return (
+                            <>
+                              {send ? (
+                                <Button
+                                  variant="primary"
+                                  shortcut="S"
+                                  busy={deciding === send.id}
+                                  disabled={held || (deciding !== null && deciding !== send.id)}
+                                  onClick={() => onDecide(send, { approve: true, changes: {} })}
+                                >
+                                  {send.verb}
+                                </Button>
+                              ) : null}
+                              <Button
+                                variant={index === 0 && card.actions.every((action) => action.status !== "proposed") ? "primary" : "default"}
+                                icon={card.action.type === "send" ? "send" : card.action.type === "review" ? "eye" : "chev"}
+                                onClick={() => onAct(card)}
+                              >
+                                {card.action.label}
+                              </Button>
+                              {card.action.also ? (
+                                <Button icon="eye" onClick={() => onAct(card, card.action?.also?.target)}>
+                                  {card.action.also.label}
+                                </Button>
+                              ) : null}
+                            </>
+                          );
+                        })()
+                      : null}
+                    {card.read.length > 0 ? (
+                      <Button variant="quiet" icon="table" title={readSummary(card) || undefined} onClick={() => onAct(card, `/vane?card=${card.id}`)}>
+                        What I read
                       </Button>
                     ) : null}
                   </div>
                 ) : null}
-                <VaneActionList actions={card.actions} disabled={held} deciding={deciding} onDecide={onDecide} />
+                <VaneActionList
+                  actions={index === 0 && leadSend(card.actions) ? card.actions.filter((action) => action !== leadSend(card.actions)) : card.actions}
+                  disabled={held}
+                  deciding={deciding}
+                  onDecide={onDecide}
+                />
               </article>
             ))
           )}

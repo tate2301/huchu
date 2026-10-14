@@ -378,5 +378,14 @@
     "panel: Ageing",
     "button: Vane",
     "button: Notifications"
+  ],
+  "PageVaneRetail": [
+    "heading: Till 1 was short $12.50 on Saturday.",
+    "button: Look at the shifts",
+    "status: Received",
+    "button: Vane",
+    "button: Notifications",
+    "button: Hand it over",
+    "placeholder: Give Vane a job"
   ]
 }

@@ -77,7 +77,8 @@ export function vaneSuggestions(cards: VaneCard[], pageModule: string | null, pa
 /**
  * The Vane panel beside the page, fed from the workspace. Ctrl J opens it at
  * the box, from any page. An address with `?explain=<job>` opens it on Vane's
- * answer to a figure someone asked about on a report (PageVaneReport).
+ * answer to a figure someone asked about on a report (PageVaneReport), and
+ * one with `?vane=open` opens it beside the page.
  */
 export function VanePanel() {
   const shell = useShell();
@@ -85,10 +86,12 @@ export function VanePanel() {
   const search = useSearchParams();
   const router = useRouter();
   const explainId = search.get("explain");
+  // `?vane=open`: a link that opens the page with Vane beside it (Vane's drafts, PageVaneRetail).
+  const openedByLink = search.get("vane") === "open";
   const { setVaneOpen } = shell;
   React.useEffect(() => {
-    if (explainId) setVaneOpen(true);
-  }, [explainId, setVaneOpen]);
+    if (explainId || openedByLink) setVaneOpen(true);
+  }, [explainId, openedByLink, setVaneOpen]);
   const explained = useVaneExplain(explainId);
   const { toast } = useToast();
   const { data: session } = useSession();
@@ -103,9 +106,10 @@ export function VanePanel() {
   const close = () => {
     shell.setVaneOpen(false);
     // Closed, the answer leaves the address too, so it does not open again on its own.
-    if (explainId) {
+    if (explainId || openedByLink) {
       const next = new URLSearchParams(search.toString());
       next.delete("explain");
+      next.delete("vane");
       const query = next.toString();
       router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
     }
