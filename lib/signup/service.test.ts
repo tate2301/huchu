@@ -197,7 +197,7 @@ describe("createWorkspaceFromSignup", () => {
       expect(features["crm.core"]).toBe(true);
       expect(features["retail.pos"]).toBe(false);
 
-      expect(await consumeSessionHandoff(result.handoffToken, at(3_000))).toBe(company.users[0].id);
+      expect((await consumeSessionHandoff(result.handoffToken, at(3_000)))?.userId).toBe(company.users[0].id);
     },
     120_000,
   );

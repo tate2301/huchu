@@ -37,14 +37,6 @@ export async function searchGlobal(query: string, limit = 20): Promise<SearchInd
       keywords: ["admin", "user"],
     },
     {
-      id: "mod:support",
-      kind: "module",
-      label: "Support",
-      detail: "Support access and sessions",
-      moduleId: "support",
-      keywords: ["support", "impersonate", "shadow"],
-    },
-    {
       id: "mod:runbooks",
       kind: "module",
       label: "Runbooks",

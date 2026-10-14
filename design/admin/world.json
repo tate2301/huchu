@@ -1,0 +1,1123 @@
+{
+  "$comment": "The admin portal's model. Every screen is a view of this. Names, codes, figures and times here are the only ones screens may use.",
+  "tenancy": {
+    "unit": "workspace",
+    "sub": [],
+    "contexts": {
+      "global": {
+        "name": "All workspaces",
+        "holds": [
+          "Home: the queue of what waits on staff",
+          "Workspaces",
+          "People",
+          "Payments",
+          "Audit log",
+          "Operators (owners)"
+        ],
+        "may_change": [
+          "set up a new workspace",
+          "operators and their roles",
+          "the queue: each queue item acts on its own workspace and wears that workspace’s scope"
+        ],
+        "never": "changes to one workspace outside the queue"
+      },
+      "workspace": {
+        "name": "the workspace’s own name",
+        "holds": [
+          "Overview",
+          "Members",
+          "Plan and billing",
+          "Audit log, this workspace only",
+          "Settings"
+        ],
+        "may_change": [
+          "everything about this workspace, and nothing else"
+        ],
+        "enforced": "the server takes the workspace from the URL (/admin/w/<slug>/...) and refuses an action naming any other workspace"
+      },
+      "switching": "The switcher at the top of the sidebar. Enter: open any workspace, from a row, a search result, a queue item or the switcher. Leave: Esc, the switcher, or Leave workspace on the scope bar.",
+      "indicators": [
+        "the switcher at the top of the sidebar names the context",
+        "a scope bar across the top of every page: neutral for all workspaces, tinted with the workspace’s name, address and standing inside one",
+        "the sidebar shows that context’s items only",
+        "search inside a workspace searches that workspace, with Search all workspaces as the way out",
+        "every confirmation names the workspace it acts on"
+      ]
+    }
+  },
+  "roles": [
+    {
+      "role": "owner",
+      "device": "laptop",
+      "conditions": "between sales calls, a customer on WhatsApp at the same time",
+      "can": [
+        "everything support and billing can",
+        "close a workspace",
+        "invite, change and remove operators",
+        "reset an operator's second factor",
+        "export a workspace's access record"
+      ],
+      "cannot": [
+        "see a member's password or an operator's authenticator secret"
+      ]
+    },
+    {
+      "role": "support",
+      "device": "laptop",
+      "conditions": "all day, WhatsApp and email open beside it, someone waiting",
+      "can": [
+        "find anyone",
+        "sign in as a member, read-only or with changes",
+        "send a password reset, resend an invite, unlock, suspend or restore a member, change a member's role, move ownership",
+        "set up a workspace and retry a failed step",
+        "suspend and restore a workspace"
+      ],
+      "cannot": [
+        "confirm or reject a payment",
+        "change a plan, a trial or an add-on",
+        "close a workspace",
+        "manage operators"
+      ]
+    },
+    {
+      "role": "billing",
+      "device": "laptop",
+      "conditions": "month end, and when a proof lands; merchant statements open in another tab",
+      "can": [
+        "find anyone",
+        "sign in as a member, read-only only",
+        "confirm or reject a proof of payment",
+        "record a payment",
+        "extend a trial",
+        "change a plan or seats",
+        "turn an add-on on or off",
+        "refund a payment"
+      ],
+      "cannot": [
+        "sign in as a member with changes",
+        "change a member's access",
+        "suspend a workspace",
+        "manage operators"
+      ]
+    }
+  ],
+  "never": [
+    "No operator sees a member's password, a payment card number or an authenticator secret.",
+    "No operator can sign in as another operator.",
+    "While signed in as a member, an operator cannot change that member's password, second factor, email or payment method."
+  ],
+  "records": [
+    {
+      "record": "workspace",
+      "code": "slug, e.g. chikuru-motors",
+      "written_by": [
+        "setup",
+        "billing",
+        "operators",
+        "the tenant app"
+      ],
+      "shown_on": [
+        "home queue",
+        "workspaces",
+        "people",
+        "payments",
+        "audit log"
+      ]
+    },
+    {
+      "record": "member",
+      "code": "email",
+      "written_by": [
+        "invites",
+        "the tenant app",
+        "support"
+      ],
+      "shown_on": [
+        "workspace",
+        "people",
+        "sign-in-as sessions"
+      ]
+    },
+    {
+      "record": "payment",
+      "code": "PAY-0000",
+      "written_by": [
+        "Pesepay webhook",
+        "proof upload in the tenant app",
+        "billing"
+      ],
+      "shown_on": [
+        "home queue",
+        "payments",
+        "workspace"
+      ]
+    },
+    {
+      "record": "sign-in-as session",
+      "code": "SA-000",
+      "written_by": [
+        "operators"
+      ],
+      "shown_on": [
+        "home queue",
+        "workspace activity",
+        "member",
+        "audit log",
+        "the owner's email"
+      ]
+    },
+    {
+      "record": "setup",
+      "code": "the workspace slug",
+      "written_by": [
+        "operators",
+        "self-serve signup"
+      ],
+      "shown_on": [
+        "home queue",
+        "workspace"
+      ]
+    },
+    {
+      "record": "operator",
+      "code": "email",
+      "written_by": [
+        "owner"
+      ],
+      "shown_on": [
+        "operators",
+        "audit log"
+      ]
+    },
+    {
+      "record": "audit event",
+      "code": "hash, shown as its first 8 characters",
+      "written_by": [
+        "every operator action",
+        "the system"
+      ],
+      "shown_on": [
+        "the record it concerns",
+        "audit log"
+      ]
+    }
+  ],
+  "states": {
+    "workspace": [
+      "Setting up",
+      "Trial",
+      "Active",
+      "Past due",
+      "Read-only",
+      "Suspended",
+      "Closed"
+    ],
+    "member": [
+      "Invited",
+      "Active",
+      "Locked",
+      "Suspended"
+    ],
+    "payment": [
+      "Waiting on the customer",
+      "Not confirmed",
+      "Proof to check",
+      "Paid",
+      "Rejected",
+      "Failed",
+      "Refunded"
+    ],
+    "sign-in-as session": [
+      "Open, read-only",
+      "Open, can make changes",
+      "Ended",
+      "Ended by the owner",
+      "Timed out"
+    ],
+    "setup": [
+      "Running",
+      "Failed",
+      "Done"
+    ],
+    "operator": [
+      "Invited",
+      "Needs a second factor",
+      "Active",
+      "Removed"
+    ]
+  },
+  "state_notes": {
+    "workspace": {
+      "Setting up": "Setup is running or a step failed. Nobody can sign in yet.",
+      "Trial": "Full plan, no payment yet. Sub-line: days left and the plan it drops to.",
+      "Active": "Paid up, or on Free.",
+      "Past due": "The period ended unpaid. Everything works for 7 days of grace. Sub-line: the date it goes read-only.",
+      "Read-only": "Grace is over. Members can read and export, not write. Paying restores it at once.",
+      "Suspended": "An operator stopped all sign-ins, with a reason. Data is untouched.",
+      "Closed": "The customer left or an owner closed it. Data kept 90 days, then deleted."
+    },
+    "replaces": "TenantStatus, SubscriptionStatus and ContractAccessState collapse into this one list."
+  },
+  "transitions": [
+    {
+      "record": "workspace",
+      "from": "Setting up",
+      "to": "Trial",
+      "action": "Setup finishes",
+      "decidedBy": "system",
+      "reversible": false
+    },
+    {
+      "record": "workspace",
+      "from": "Trial",
+      "to": "Active",
+      "action": "Payment confirmed",
+      "decidedBy": "system or billing",
+      "reversible": true
+    },
+    {
+      "record": "workspace",
+      "from": "Trial",
+      "to": "Active",
+      "action": "Trial ends, drops to Free",
+      "decidedBy": "system",
+      "reversible": true
+    },
+    {
+      "record": "workspace",
+      "from": "Trial",
+      "to": "Trial",
+      "action": "Extend trial",
+      "decidedBy": "billing",
+      "reversible": true
+    },
+    {
+      "record": "workspace",
+      "from": "Active",
+      "to": "Past due",
+      "action": "Period ends unpaid",
+      "decidedBy": "system",
+      "reversible": true
+    },
+    {
+      "record": "workspace",
+      "from": "Past due",
+      "to": "Read-only",
+      "action": "Grace ends",
+      "decidedBy": "system",
+      "reversible": true
+    },
+    {
+      "record": "workspace",
+      "from": "Past due",
+      "to": "Active",
+      "action": "Payment confirmed",
+      "decidedBy": "system or billing",
+      "reversible": true
+    },
+    {
+      "record": "workspace",
+      "from": "Read-only",
+      "to": "Active",
+      "action": "Payment confirmed",
+      "decidedBy": "system or billing",
+      "reversible": true
+    },
+    {
+      "record": "workspace",
+      "from": "any",
+      "to": "Suspended",
+      "action": "Suspend workspace",
+      "decidedBy": "support or owner",
+      "reversible": true
+    },
+    {
+      "record": "workspace",
+      "from": "Suspended",
+      "to": "the state before",
+      "action": "Restore workspace",
+      "decidedBy": "support or owner",
+      "reversible": true
+    },
+    {
+      "record": "workspace",
+      "from": "any",
+      "to": "Closed",
+      "action": "Close workspace",
+      "decidedBy": "owner",
+      "reversible": false
+    },
+    {
+      "record": "member",
+      "from": "Invited",
+      "to": "Active",
+      "action": "Accepts the invite",
+      "decidedBy": "the member",
+      "reversible": false
+    },
+    {
+      "record": "member",
+      "from": "Invited",
+      "to": "Invited",
+      "action": "Resend invite",
+      "decidedBy": "support",
+      "reversible": false
+    },
+    {
+      "record": "member",
+      "from": "Active",
+      "to": "Locked",
+      "action": "Five wrong passwords or codes",
+      "decidedBy": "system",
+      "reversible": true
+    },
+    {
+      "record": "member",
+      "from": "Locked",
+      "to": "Active",
+      "action": "Unlock",
+      "decidedBy": "support",
+      "reversible": true
+    },
+    {
+      "record": "member",
+      "from": "Active",
+      "to": "Active",
+      "action": "Send password reset",
+      "decidedBy": "support",
+      "reversible": false
+    },
+    {
+      "record": "member",
+      "from": "Active",
+      "to": "Suspended",
+      "action": "Suspend member",
+      "decidedBy": "support or the workspace owner",
+      "reversible": true
+    },
+    {
+      "record": "member",
+      "from": "Active",
+      "to": "Active",
+      "action": "Make owner",
+      "decidedBy": "support",
+      "reversible": true
+    },
+    {
+      "record": "payment",
+      "from": "Waiting on the customer",
+      "to": "Paid",
+      "action": "Gateway confirms",
+      "decidedBy": "Pesepay",
+      "reversible": false
+    },
+    {
+      "record": "payment",
+      "from": "Waiting on the customer",
+      "to": "Not confirmed",
+      "action": "No answer after 10 minutes",
+      "decidedBy": "system",
+      "reversible": true
+    },
+    {
+      "record": "payment",
+      "from": "Not confirmed",
+      "to": "Paid",
+      "action": "Check with Pesepay",
+      "decidedBy": "billing",
+      "reversible": false
+    },
+    {
+      "record": "payment",
+      "from": "Proof to check",
+      "to": "Paid",
+      "action": "Confirm payment",
+      "decidedBy": "billing",
+      "reversible": false
+    },
+    {
+      "record": "payment",
+      "from": "Proof to check",
+      "to": "Rejected",
+      "action": "Reject proof",
+      "decidedBy": "billing",
+      "reversible": false
+    },
+    {
+      "record": "payment",
+      "from": "Paid",
+      "to": "Refunded",
+      "action": "Refund payment",
+      "decidedBy": "billing",
+      "reversible": false
+    },
+    {
+      "record": "sign-in-as session",
+      "from": "none",
+      "to": "Open, read-only",
+      "action": "Sign in as",
+      "decidedBy": "support or billing",
+      "reversible": true
+    },
+    {
+      "record": "sign-in-as session",
+      "from": "none",
+      "to": "Open, can make changes",
+      "action": "Sign in as, with changes",
+      "decidedBy": "support or owner",
+      "reversible": true
+    },
+    {
+      "record": "sign-in-as session",
+      "from": "Open",
+      "to": "Ended",
+      "action": "End session",
+      "decidedBy": "the operator",
+      "reversible": false
+    },
+    {
+      "record": "sign-in-as session",
+      "from": "Open",
+      "to": "Ended by the owner",
+      "action": "End it from the email",
+      "decidedBy": "the workspace owner",
+      "reversible": false
+    },
+    {
+      "record": "sign-in-as session",
+      "from": "Open",
+      "to": "Timed out",
+      "action": "30 minutes pass",
+      "decidedBy": "system",
+      "reversible": false
+    },
+    {
+      "record": "setup",
+      "from": "Failed",
+      "to": "Running",
+      "action": "Retry step",
+      "decidedBy": "support",
+      "reversible": true
+    },
+    {
+      "record": "operator",
+      "from": "Invited",
+      "to": "Needs a second factor",
+      "action": "Sets a password",
+      "decidedBy": "the operator",
+      "reversible": false
+    },
+    {
+      "record": "operator",
+      "from": "Needs a second factor",
+      "to": "Active",
+      "action": "Adds an authenticator",
+      "decidedBy": "the operator",
+      "reversible": false
+    },
+    {
+      "record": "operator",
+      "from": "Active",
+      "to": "Needs a second factor",
+      "action": "Reset second factor",
+      "decidedBy": "owner",
+      "reversible": false
+    },
+    {
+      "record": "operator",
+      "from": "Active",
+      "to": "Removed",
+      "action": "Remove operator",
+      "decidedBy": "owner",
+      "reversible": true
+    }
+  ],
+  "failures": [
+    {
+      "when": "Sign in",
+      "what": "wrong password or code",
+      "screen": "Sign in, with the field marked",
+      "way_out": [
+        "Try again",
+        "Reset password by email"
+      ]
+    },
+    {
+      "when": "Sign in",
+      "what": "five wrong attempts",
+      "screen": "Locked for 15 minutes",
+      "way_out": [
+        "Wait",
+        "Ask an owner"
+      ]
+    },
+    {
+      "when": "Sign in as",
+      "what": "the workspace is suspended or closed",
+      "screen": "Refusal on the member, with the reason",
+      "way_out": [
+        "Restore workspace first",
+        "Read the member's record instead"
+      ]
+    },
+    {
+      "when": "Sign in as",
+      "what": "the operator's role cannot make changes",
+      "screen": "The with-changes option is absent; read-only stays",
+      "way_out": [
+        "Ask a support operator"
+      ]
+    },
+    {
+      "when": "Confirm payment",
+      "what": "the amount on the proof differs from the plan price",
+      "screen": "Proof, with both figures side by side",
+      "way_out": [
+        "Confirm as part payment",
+        "Reject with a reason"
+      ]
+    },
+    {
+      "when": "Confirm payment",
+      "what": "the transaction ID was already used",
+      "screen": "Proof, naming the payment that used it",
+      "way_out": [
+        "Open that payment",
+        "Reject as a repeat"
+      ]
+    },
+    {
+      "when": "Gateway payment",
+      "what": "Pesepay did not answer",
+      "screen": "Payment not confirmed",
+      "way_out": [
+        "Check with Pesepay",
+        "Ask the customer for proof"
+      ]
+    },
+    {
+      "when": "Setup",
+      "what": "the slug is taken",
+      "screen": "Setup failed at the address step",
+      "way_out": [
+        "Choose another address",
+        "Open the workspace that has it"
+      ]
+    },
+    {
+      "when": "Setup",
+      "what": "the owner's invite bounced",
+      "screen": "Setup failed at the invite step",
+      "way_out": [
+        "Correct the email and resend"
+      ]
+    },
+    {
+      "when": "Any action",
+      "what": "the operator's session timed out",
+      "screen": "Sign in again, returning to the same place",
+      "way_out": [
+        "Sign in"
+      ]
+    }
+  ],
+  "operators": [
+    {
+      "name": "Tafadzwa Mhlanga",
+      "email": "tafadzwa@corelith.co.zw",
+      "role": "owner",
+      "state": "Active",
+      "last": "Today 13:58"
+    },
+    {
+      "name": "Farai Moyo",
+      "email": "farai@corelith.co.zw",
+      "role": "support",
+      "state": "Active",
+      "last": "Today 14:02"
+    },
+    {
+      "name": "Chipo Ndoro",
+      "email": "chipo@corelith.co.zw",
+      "role": "support",
+      "state": "Active",
+      "last": "Yesterday 17:40"
+    },
+    {
+      "name": "Rumbidzai Sithole",
+      "email": "rumbi@corelith.co.zw",
+      "role": "billing",
+      "state": "Active",
+      "last": "Today 11:15"
+    },
+    {
+      "name": "Kudakwashe Dube",
+      "email": "kuda@corelith.co.zw",
+      "role": "support",
+      "state": "Needs a second factor",
+      "last": "Invited 12 Oct"
+    }
+  ],
+  "signed_in": "Farai Moyo, support",
+  "entities": [
+    {
+      "code": "chikuru-motors",
+      "name": "Chikuru Motors",
+      "product": "Flare",
+      "plan": "Business",
+      "state": "Trial",
+      "sub": "4 days left, then Free",
+      "owner": "Tendai Chikuru",
+      "members": 6,
+      "last": "Today 14:05",
+      "since": "29 Sep 2026",
+      "trialEnds": "17 Oct 2026"
+    },
+    {
+      "code": "mazowe-gold",
+      "name": "Mazowe Gold Holdings",
+      "product": "Corelith",
+      "profile": "Gold mine",
+      "plan": "Gold Edition",
+      "state": "Active",
+      "sub": "Paid to 31 Oct",
+      "owner": "Simbarashe Nhari",
+      "members": 41,
+      "last": "Today 14:11",
+      "since": "12 Mar 2026",
+      "monthly": 299
+    },
+    {
+      "code": "st-faiths",
+      "name": "St Faith's College",
+      "product": "Corelith",
+      "profile": "School",
+      "plan": "Scale",
+      "state": "Active",
+      "sub": "Paid to 30 Nov",
+      "owner": "Mrs Grace Mupfumi",
+      "members": 63,
+      "last": "Today 13:47",
+      "since": "6 Jan 2026",
+      "monthly": 199
+    },
+    {
+      "code": "zuva-solar",
+      "name": "Zuva Solar",
+      "product": "Flare",
+      "plan": "Business",
+      "state": "Past due",
+      "sub": "Proof sent today, grace held",
+      "owner": "Tsitsi Banda",
+      "members": 9,
+      "last": "Today 12:30",
+      "since": "2 Jun 2026",
+      "monthly": 79
+    },
+    {
+      "code": "kopje-scrap",
+      "name": "Kopje Scrap Metals",
+      "product": "Corelith",
+      "profile": "Scrap metal",
+      "plan": "Grow",
+      "state": "Past due",
+      "sub": "Read-only from 15 Oct",
+      "owner": "Brian Mutasa",
+      "members": 12,
+      "last": "Today 09:20",
+      "since": "18 Feb 2026",
+      "monthly": 99
+    },
+    {
+      "code": "avondale-thrift",
+      "name": "Avondale Thrift",
+      "product": "Corelith",
+      "profile": "Retail",
+      "plan": "Start",
+      "state": "Read-only",
+      "sub": "Since 2 Oct, $39.00 owed",
+      "owner": "Nokuthula Ndlovu",
+      "members": 4,
+      "last": "8 Oct",
+      "since": "21 Apr 2026",
+      "monthly": 39
+    },
+    {
+      "code": "pomona-hardware",
+      "name": "Pomona Hardware",
+      "product": "Corelith",
+      "profile": "Retail",
+      "plan": "Grow",
+      "state": "Setting up",
+      "sub": "Failed at the address step",
+      "owner": "Kelvin Chari",
+      "members": 0,
+      "last": "never",
+      "since": "13 Oct 2026"
+    },
+    {
+      "code": "greenline-payroll",
+      "name": "Greenline Payroll Services",
+      "product": "Corelith",
+      "profile": "Payroll",
+      "plan": "Start",
+      "state": "Suspended",
+      "sub": "Owner's phone stolen, 11 Oct",
+      "owner": "Ruvimbo Gumbo",
+      "members": 3,
+      "last": "11 Oct",
+      "since": "3 Aug 2026",
+      "monthly": 39
+    },
+    {
+      "code": "marula-lodge",
+      "name": "Marula Lodge",
+      "product": "Flare",
+      "plan": "Free",
+      "state": "Active",
+      "sub": "On Free since 22 Sep",
+      "owner": "Anesu Chirwa",
+      "members": 1,
+      "last": "Yesterday",
+      "since": "8 Sep 2026",
+      "monthly": 0
+    }
+  ],
+  "members": {
+    "chikuru-motors": [
+      {
+        "name": "Tendai Chikuru",
+        "email": "tendai@chikurumotors.co.zw",
+        "role": "Owner",
+        "state": "Active",
+        "last": "Today 14:05"
+      },
+      {
+        "name": "Rutendo Nyathi",
+        "email": "rutendo@chikurumotors.co.zw",
+        "role": "Sales rep",
+        "state": "Locked",
+        "last": "Today 13:51, five wrong codes"
+      },
+      {
+        "name": "Blessing Mapfumo",
+        "email": "blessing@chikurumotors.co.zw",
+        "role": "Sales rep",
+        "state": "Active",
+        "last": "Today 11:02"
+      },
+      {
+        "name": "Panashe Zhou",
+        "email": "panashe@chikurumotors.co.zw",
+        "role": "Sales rep",
+        "state": "Active",
+        "last": "Yesterday"
+      },
+      {
+        "name": "Memory Chiweshe",
+        "email": "memory@chikurumotors.co.zw",
+        "role": "Finance officer",
+        "state": "Active",
+        "last": "12 Oct"
+      },
+      {
+        "name": "Takudzwa Banda",
+        "email": "taku@chikurumotors.co.zw",
+        "role": "Sales rep",
+        "state": "Invited",
+        "last": "Invited 10 Oct, not opened"
+      }
+    ]
+  },
+  "payments": [
+    {
+      "code": "PAY-1093",
+      "workspace": "zuva-solar",
+      "method": "EcoCash",
+      "kind": "proof",
+      "amount": 79,
+      "currency": "USD",
+      "state": "Proof to check",
+      "ref": "MP261013.1142.C40817",
+      "from": "077 412 6630",
+      "at": "Today 11:44",
+      "for": "Business, October"
+    },
+    {
+      "code": "PAY-1092",
+      "workspace": "chikuru-motors",
+      "method": "InnBucks",
+      "kind": "proof",
+      "amount": 758.4,
+      "currency": "USD",
+      "state": "Proof to check",
+      "ref": "IB-5521-90433",
+      "from": "078 230 1194",
+      "at": "Today 10:12",
+      "for": "Business, a year at 20% off"
+    },
+    {
+      "code": "PAY-1091",
+      "workspace": "kopje-scrap",
+      "method": "EcoCash",
+      "kind": "gateway",
+      "amount": 99,
+      "currency": "USD",
+      "state": "Not confirmed",
+      "ref": "Pesepay 8f21c0",
+      "from": "071 998 0042",
+      "at": "Today 09:31",
+      "for": "Grow, October"
+    },
+    {
+      "code": "PAY-1090",
+      "workspace": "mazowe-gold",
+      "method": "Visa",
+      "kind": "gateway",
+      "amount": 299,
+      "currency": "USD",
+      "state": "Paid",
+      "ref": "Pesepay 7d03aa",
+      "from": "Visa ending 4410",
+      "at": "1 Oct 08:02",
+      "for": "Gold Edition, October"
+    },
+    {
+      "code": "PAY-1089",
+      "workspace": "st-faiths",
+      "method": "Zimswitch",
+      "kind": "gateway",
+      "amount": 398,
+      "currency": "USD",
+      "state": "Paid",
+      "ref": "Pesepay 6b9e11",
+      "from": "CBZ card",
+      "at": "30 Sep 15:20",
+      "for": "Scale, October and November"
+    }
+  ],
+  "sessions": [
+    {
+      "code": "SA-214",
+      "operator": "Farai Moyo",
+      "workspace": "chikuru-motors",
+      "member": "Rutendo Nyathi",
+      "mode": "Open, read-only",
+      "reason": "WhatsApp from Tendai: Rutendo cannot sign in",
+      "started": "Today 14:02",
+      "ends": "14:32"
+    },
+    {
+      "code": "SA-213",
+      "operator": "Chipo Ndoro",
+      "workspace": "st-faiths",
+      "member": "Mr Tapiwa Gora (Bursar)",
+      "mode": "Ended",
+      "reason": "Fee statement shows Term 2 twice, ticket from Mrs Mupfumi",
+      "started": "Yesterday 16:10",
+      "ends": "Ended 16:31"
+    }
+  ],
+  "home_queue": {
+    "payments": [
+      "PAY-1093",
+      "PAY-1092",
+      "PAY-1091"
+    ],
+    "setup": [
+      "pomona-hardware"
+    ],
+    "sessions": [
+      "SA-214"
+    ],
+    "operators": [
+      "Kudakwashe Dube needs a second factor"
+    ]
+  },
+  "totals": {
+    "proofs_to_check": 2,
+    "proofs_value": 837.4,
+    "queue_items": 6
+  },
+  "clock": {
+    "today": "Tuesday 13 October 2026, 14:20",
+    "timezone": "Africa/Harare"
+  },
+  "money": {
+    "currency": "USD",
+    "symbol": "$",
+    "decimals": 2,
+    "others": [
+      "ZiG on EcoCash"
+    ]
+  },
+  "housekeeping": {
+    "standing": [
+      "Suspend workspace",
+      "Restore workspace",
+      "Close workspace (owner)",
+      "Reopen within 90 days (owner)"
+    ],
+    "plan and billing": [
+      "Change plan",
+      "Change seats",
+      "Extend trial",
+      "Turn an add-on on or off",
+      "Record a payment",
+      "Confirm or reject a proof",
+      "Refund a payment"
+    ],
+    "members": [
+      "Invite member",
+      "Resend invite",
+      "Change role",
+      "Make owner",
+      "Unlock",
+      "Send password reset",
+      "Sign out everywhere",
+      "Suspend member",
+      "Restore member",
+      "Remove from workspace",
+      "Sign in as"
+    ],
+    "name and address": [
+      "Rename",
+      "Change address",
+      "Add or remove a custom domain"
+    ],
+    "security": [
+      "Sign every member out",
+      "Ask every member for a new password",
+      "End open sign-in-as sessions"
+    ],
+    "data": [
+      "Export everything",
+      "Export the access record",
+      "Remove sample data"
+    ],
+    "setup": [
+      "Retry a failed step",
+      "Resend the owner’s invite"
+    ],
+    "left to sign in as": "Anything inside the product itself: records, settings the customer owns, sites, templates, imports. Support signs in as a member and does it there, on the record."
+  },
+  "addons": {
+    "chikuru-motors": [
+      {
+        "name": "Employees",
+        "price": "Included",
+        "state": "On"
+      },
+      {
+        "name": "Books",
+        "price": 39,
+        "state": "Off",
+        "note": "Invoices post to a ledger they can read"
+      },
+      {
+        "name": "Fiscal invoices",
+        "price": 19,
+        "state": "Not yet available",
+        "note": "ZIMRA fiscal invoices, needs Books"
+      }
+    ]
+  },
+  "audit": [
+    {
+      "at": "Today 14:02",
+      "who": "Farai Moyo",
+      "did": "Signed in as Rutendo Nyathi, look only",
+      "ws": "chikuru-motors",
+      "rec": "SA-214",
+      "hash": "9c41e07a"
+    },
+    {
+      "at": "Today 13:58",
+      "who": "Tafadzwa Mhlanga",
+      "did": "Signed in to the portal",
+      "ws": "",
+      "rec": "",
+      "hash": "2be95d10"
+    },
+    {
+      "at": "Today 13:51",
+      "who": "System",
+      "did": "Locked Rutendo Nyathi after five wrong codes",
+      "ws": "chikuru-motors",
+      "rec": "",
+      "hash": "f07a3c62"
+    },
+    {
+      "at": "Today 11:44",
+      "who": "Tsitsi Banda",
+      "did": "Sent proof of an EcoCash payment, $79.00",
+      "ws": "zuva-solar",
+      "rec": "PAY-1093",
+      "hash": "61d8b2e4"
+    },
+    {
+      "at": "Today 10:12",
+      "who": "Tendai Chikuru",
+      "did": "Sent proof of an InnBucks payment, $758.40",
+      "ws": "chikuru-motors",
+      "rec": "PAY-1092",
+      "hash": "a3e1907f"
+    },
+    {
+      "at": "Today 09:31",
+      "who": "Pesepay",
+      "did": "Did not confirm an EcoCash payment, $99.00",
+      "ws": "kopje-scrap",
+      "rec": "PAY-1091",
+      "hash": "5d27c8aa"
+    },
+    {
+      "at": "Today 08:40",
+      "who": "System",
+      "did": "Stopped setup at the address step",
+      "ws": "pomona-hardware",
+      "rec": "",
+      "hash": "0e6f4b91"
+    },
+    {
+      "at": "Today 08:38",
+      "who": "Farai Moyo",
+      "did": "Set up a workspace: Corelith, retail, Grow",
+      "ws": "pomona-hardware",
+      "rec": "",
+      "hash": "c8b0d35e"
+    },
+    {
+      "at": "Yesterday 16:31",
+      "who": "Chipo Ndoro",
+      "did": "Ended sign-in as Mr Tapiwa Gora",
+      "ws": "st-faiths",
+      "rec": "SA-213",
+      "hash": "7741ae02"
+    },
+    {
+      "at": "Yesterday 16:10",
+      "who": "Chipo Ndoro",
+      "did": "Signed in as Mr Tapiwa Gora, look only",
+      "ws": "st-faiths",
+      "rec": "SA-213",
+      "hash": "e5c2f9b3"
+    },
+    {
+      "at": "11 Oct 19:05",
+      "who": "Tafadzwa Mhlanga",
+      "did": "Suspended the workspace: owner’s phone stolen",
+      "ws": "greenline-payroll",
+      "rec": "",
+      "hash": "b19d6c47"
+    },
+    {
+      "at": "10 Oct 15:22",
+      "who": "Tendai Chikuru",
+      "did": "Invited Takudzwa Banda as a sales rep",
+      "ws": "chikuru-motors",
+      "rec": "",
+      "hash": "4a8e0f13"
+    }
+  ]
+}

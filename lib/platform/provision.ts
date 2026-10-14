@@ -152,7 +152,7 @@ export function bundlesToGrant(templateCode: string | null, tierCode: string): s
  * key. Upserting the figures on every provision keeps a row created by an older
  * price list from quietly billing the old price.
  */
-async function ensureTierPlan(tierCode: string) {
+export async function ensureTierPlan(tierCode: string) {
   const tier = getTierDefinition(tierCode);
   if (!tier) throw new Error(`Unknown tier code "${tierCode}".`);
 

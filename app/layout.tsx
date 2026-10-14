@@ -68,11 +68,14 @@ import {
 const resolveRequestWorkspace = cache(async () => {
   const requestHeaders = await headers();
   const hostHeader = getHostHeaderFromRequestHeaders(requestHeaders);
+  // The admin host answers to operators, who have no workspace session; a
+  // workspace cookie left on it (localhost is both in development) is not read.
+  const adminHost = isAdminPortalHost(hostHeader);
   const [identity, session] = await Promise.all([
     resolveWorkspaceIdentityForHost(hostHeader),
-    getServerSession(authOptions),
+    adminHost ? null : getServerSession(authOptions),
   ]);
-  const product: Product = isAdminPortalHost(hostHeader)
+  const product: Product = adminHost
     ? "corelith"
     : productForProfile(session?.user?.workspaceProfile ?? identity.workspaceProfile);
   return { hostHeader, identity, session, product };

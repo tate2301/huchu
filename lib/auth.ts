@@ -1,7 +1,5 @@
 import { NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
-import { PrismaAdapter } from "@auth/prisma-adapter";
-import type { Adapter } from "next-auth/adapters";
 import {
   decode as defaultJwtDecode,
   encode as defaultJwtEncode,
@@ -9,7 +7,6 @@ import {
 import { UserRole } from "@prisma/client";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
-import { getAdminPortalHost, isAdminPortalHost } from "@/lib/admin-portal";
 import { hasFeature } from "@/lib/platform/features";
 import {
   getHostHeaderFromRequestHeaders,
@@ -19,6 +16,8 @@ import {
 } from "@/lib/platform/tenant";
 import { verifyEmailCode } from "@/lib/auth-core/email-code";
 import { consumeSessionHandoff } from "@/lib/auth-core/session-handoff";
+import type { SignInAsClaim } from "@/lib/sign-in-as/limits";
+import { openSignInAs } from "@/lib/sign-in-as/sessions";
 import { resolveSignInScope } from "@/lib/auth-core/sign-in-scope";
 import { canAccessPosPortal } from "@/lib/retail/pos-host";
 import { checkTillPasswordSignIn, checkTillPinSignIn } from "@/lib/retail/devices";
@@ -64,6 +63,7 @@ type AuthenticatedUserLike = {
   deviceId?: string;
   registerId?: string;
   pinMustChange?: boolean;
+  signInAs?: SignInAsClaim;
 };
 
 /** One cookie out of a request's `Cookie` header. */
@@ -80,96 +80,6 @@ function readRequestCookie(
 }
 
 const AUTH_RUNTIME_CONFIG = getAuthRuntimeConfig();
-
-function getAdminPortalAllowedEmails() {
-  return AUTH_RUNTIME_CONFIG.adminPortalAllowedEmails;
-}
-
-function isAllowedAdminPortalEmail(email: string) {
-  return getAdminPortalAllowedEmails().includes(email.trim().toLowerCase());
-}
-
-async function resolveAdminPortalCompanyId() {
-  const configuredCompanyId = AUTH_RUNTIME_CONFIG.adminPortalCompanyId;
-  if (configuredCompanyId) {
-    const company = await prisma.company.findUnique({
-      where: { id: configuredCompanyId },
-      select: { id: true },
-    });
-    if (!company) {
-      throw new Error(
-        "ADMIN_PORTAL_COMPANY_ID is set but does not match any company.",
-      );
-    }
-    return configuredCompanyId;
-  }
-
-  const firstCompany = await prisma.company.findFirst({
-    select: { id: true },
-    orderBy: { createdAt: "asc" },
-  });
-  if (!firstCompany) {
-    throw new Error("No company available to attach admin portal identity.");
-  }
-  return firstCompany.id;
-}
-
-async function upsertAdminPortalUser(email: string) {
-  const normalizedEmail = email.trim().toLowerCase();
-  if (!isAllowedAdminPortalEmail(normalizedEmail)) {
-    return null;
-  }
-
-  const companyId = await resolveAdminPortalCompanyId();
-  const emailName = normalizedEmail
-    .split("@")[0]
-    ?.replace(/[._-]+/g, " ")
-    .trim();
-  const name =
-    AUTH_RUNTIME_CONFIG.adminPortalActorName ||
-    emailName ||
-    "Platform Superuser";
-
-  return prisma.user.upsert({
-    where: { email: normalizedEmail },
-    update: {
-      role: UserRole.SUPERADMIN,
-      companyId,
-      isActive: true,
-      name,
-    },
-    create: {
-      email: normalizedEmail,
-      name,
-      role: UserRole.SUPERADMIN,
-      companyId,
-      isActive: true,
-      emailVerified: new Date(),
-    },
-  });
-}
-
-const baseAdapter = PrismaAdapter(prisma) as Adapter;
-
-const adminPortalAdapter = {
-  ...baseAdapter,
-  async getUserByEmail(email: string) {
-    const baseUser = await baseAdapter.getUserByEmail?.(email);
-    if (baseUser) return baseUser;
-    const adminUser = await upsertAdminPortalUser(email);
-    return adminUser ?? null;
-  },
-  async createUser(user: Parameters<NonNullable<Adapter["createUser"]>>[0]) {
-    const typedUser = user as { email?: string };
-    const normalized = typedUser.email?.trim().toLowerCase();
-    if (normalized && isAllowedAdminPortalEmail(normalized)) {
-      const adminUser = await upsertAdminPortalUser(normalized);
-      if (adminUser) return adminUser;
-    }
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    return baseAdapter.createUser!(user as any);
-  },
-} as Adapter;
 
 function toTenantStatus(
   rawStatus: string | undefined,
@@ -254,54 +164,6 @@ function getClientAddressFromHeaders(
     if (value) picked.set(name, value);
   }
   return trustedClientAddress(picked);
-}
-
-function isAdminRoutePath(pathname: string): boolean {
-  return (
-    pathname === "/admin" ||
-    pathname.startsWith("/admin/") ||
-    pathname === "/portal/admin" ||
-    pathname.startsWith("/portal/admin/")
-  );
-}
-
-function isLoopbackHostname(hostname: string): boolean {
-  const normalized = hostname.trim().toLowerCase();
-
-  return (
-    normalized === "localhost" ||
-    normalized.endsWith(".localhost") ||
-    normalized === "127.0.0.1" ||
-    normalized === "::1" ||
-    normalized === "[::1]"
-  );
-}
-
-function shouldPreserveAdminOriginInDev(baseUrl: string): boolean {
-  if (process.env.NODE_ENV === "production") {
-    return false;
-  }
-
-  try {
-    const parsedBaseUrl = new URL(baseUrl);
-    return isLoopbackHostname(parsedBaseUrl.hostname);
-  } catch {
-    return false;
-  }
-}
-
-function buildAdminPortalRedirectBaseUrl(baseUrl: string): string {
-  try {
-    const parsedBaseUrl = new URL(baseUrl);
-    if (shouldPreserveAdminOriginInDev(baseUrl)) {
-      return parsedBaseUrl.origin;
-    }
-
-    parsedBaseUrl.hostname = getAdminPortalHost();
-    return parsedBaseUrl.origin;
-  } catch {
-    return baseUrl;
-  }
 }
 
 type SignInContext = {
@@ -466,138 +328,7 @@ async function completeSignIn(user: SignInUserRecord, ctx: SignInContext, rememb
 validateAuthConfiguration();
 
 export const authOptions: NextAuthOptions = {
-  adapter: adminPortalAdapter,
   providers: [
-    {
-      id: "email",
-      type: "email",
-      name: "Email",
-      server: "",
-      from: AUTH_RUNTIME_CONFIG.adminMagicLinkFrom,
-      maxAge: 10 * 60,
-      async sendVerificationRequest({
-        identifier,
-        url,
-      }: {
-        identifier: string;
-        url: string;
-      }) {
-        assertStrategyEnabled("admin-email-link");
-
-        const normalizedIdentifier = identifier.trim().toLowerCase();
-        if (!isAllowedAdminPortalEmail(normalizedIdentifier)) {
-          await logAuthEvent({
-            eventType: "auth.email-link.rejected",
-            actor: normalizedIdentifier,
-            reason: "ADMIN_EMAIL_NOT_ALLOWED",
-            entityType: "auth-strategy",
-            entityId: "admin-email-link",
-          });
-          throw new Error("This email is not allowed for admin sign-in.");
-        }
-
-        const parsedUrl = new URL(url);
-        if (!isAdminPortalHost(parsedUrl.host)) {
-          await logAuthEvent({
-            eventType: "auth.email-link.rejected",
-            actor: identifier,
-            reason: "ADMIN_HOST_MISMATCH",
-            entityType: "auth-strategy",
-            entityId: "admin-email-link",
-            payload: { host: parsedUrl.host },
-          });
-          // throw new Error(
-          //   `Magic links are restricted to the admin host (${getAdminRootDomain()}).`,
-          // );
-        }
-
-        const rateLimit = checkRateLimit({
-          key: `auth:admin-email-link:${identifier.trim().toLowerCase()}`,
-          limit: 5,
-          windowMs: 15 * 60 * 1000,
-        });
-        if (!rateLimit.allowed) {
-          await logAuthEvent({
-            eventType: "auth.email-link.rate-limited",
-            actor: identifier,
-            reason: `Retry after ${rateLimit.retryAfterSeconds}s`,
-            entityType: "auth-strategy",
-            entityId: "admin-email-link",
-          });
-          throw new Error("AUTH_RATE_LIMITED");
-        }
-
-        const subject = "Your Pagka superuser magic link";
-        const text = `Use this secure link to sign in: ${url}`;
-        const html = `<p>Use this secure link to sign in:</p><p><a href="${url}">Sign in to Superuser Portal</a></p>`;
-
-        const resendApiKey = AUTH_RUNTIME_CONFIG.adminMagicLinkResendApiKey;
-        if (resendApiKey) {
-          const response = await fetch("https://api.resend.com/emails", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${resendApiKey}`,
-            },
-            body: JSON.stringify({
-              from: AUTH_RUNTIME_CONFIG.adminMagicLinkFrom,
-              to: [normalizedIdentifier],
-              subject,
-              text,
-              html,
-            }),
-          });
-
-          if (!response.ok) {
-            await logAuthEvent({
-              eventType: "auth.email-link.delivery-failed",
-              actor: identifier,
-              reason: `Resend status ${response.status}`,
-              entityType: "auth-strategy",
-              entityId: "admin-email-link",
-            });
-            throw new Error(
-              `Resend delivery failed with status ${response.status}.`,
-            );
-          }
-
-          await logAuthEvent({
-            eventType: "auth.email-link.sent",
-            actor: identifier,
-            entityType: "auth-strategy",
-            entityId: "admin-email-link",
-          });
-          return;
-        }
-
-        const webhookUrl = AUTH_RUNTIME_CONFIG.adminMagicLinkWebhookUrl;
-        if (webhookUrl) {
-          await fetch(webhookUrl, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              to: normalizedIdentifier,
-              subject,
-              text,
-              html,
-            }),
-          });
-
-          await logAuthEvent({
-            eventType: "auth.email-link.sent",
-            actor: identifier,
-            entityType: "auth-strategy",
-            entityId: "admin-email-link",
-          });
-          return;
-        }
-
-        throw new Error(
-          "No magic-link delivery provider configured. Set ADMIN_MAGIC_LINK_RESEND_API_KEY or ADMIN_MAGIC_LINK_WEBHOOK_URL.",
-        );
-      },
-      options: {},
-    },
     CredentialsProvider({
       name: "credentials",
       credentials: {
@@ -780,6 +511,11 @@ export const authOptions: NextAuthOptions = {
       // their workspace host with a one-use ticket, because sessions are per
       // host. The ticket is spent here, on the workspace host, and only for
       // the workspace it names.
+      //
+      // The admin portal hands an operator signing in as a member the same
+      // kind of ticket, naming a sign-in-as session. That session's limits
+      // and end ride on the token, and the member's own sign-in record is
+      // left alone: they did not sign in.
       id: "handoff",
       name: "handoff",
       credentials: {
@@ -788,10 +524,11 @@ export const authOptions: NextAuthOptions = {
       async authorize(credentials, req) {
         assertStrategyEnabled("handoff");
 
-        const userId = await consumeSessionHandoff(credentials?.token ?? "");
-        if (!userId) {
+        const ticket = await consumeSessionHandoff(credentials?.token ?? "");
+        if (!ticket) {
           throw new Error("HANDOFF_INVALID");
         }
+        const { userId } = ticket;
 
         const account = await prisma.user.findUnique({ where: { id: userId }, select: { email: true } });
         if (!account) {
@@ -806,46 +543,37 @@ export const authOptions: NextAuthOptions = {
         }
 
         await assertAccountUsable(user, ctx);
+
+        if (ticket.signInAsSessionId) {
+          const open = await openSignInAs(ticket.signInAsSessionId);
+          if (!open || open.memberId !== user.id) {
+            throw new Error("HANDOFF_INVALID");
+          }
+          const signInAs = { id: open.id, number: open.number, operatorName: open.operatorName, mode: open.mode, until: open.until };
+          return {
+            id: user.id,
+            email: user.email,
+            name: user.name,
+            role: user.role,
+            companyId: user.companyId,
+            image: user.image,
+            authStrategy: "handoff" as const,
+            rememberMe: false,
+            signInAs,
+          };
+        }
+
         return completeSignIn(user, ctx, true);
       },
     }),
   ],
   callbacks: {
-    async signIn({ user, account }) {
-      if (account?.provider !== "email") {
-        return true;
-      }
-
-      const normalizedEmail = user.email?.trim().toLowerCase();
-      if (!normalizedEmail || !isAllowedAdminPortalEmail(normalizedEmail)) {
-        await logAuthEvent({
-          eventType: "auth.login.failed",
-          actor: normalizedEmail ?? user.email ?? null,
-          reason: "ADMIN_EMAIL_NOT_ALLOWED",
-          entityType: "auth-strategy",
-          entityId: "admin-email-link",
-        });
-        return false;
-      }
-
-      await logAuthEvent({
-        eventType: "auth.login.success",
-        actor: normalizedEmail,
-        companyId: (user as { companyId?: string }).companyId ?? null,
-        entityType: "auth-strategy",
-        entityId: "admin-email-link",
-      });
-      return true;
-    },
-    async jwt({ token, user, account }) {
+    async jwt({ token, user }) {
       const extendedToken = token as PlatformJwtClaims;
 
       if (user) {
         const typedUser = user as AuthenticatedUserLike;
-        const authStrategy =
-          account?.provider === "email"
-            ? "admin-email-link"
-            : (typedUser.authStrategy ?? "credentials");
+        const authStrategy = typedUser.authStrategy ?? "credentials";
         Object.assign(
           extendedToken,
           buildInitialTokenClaims({
@@ -857,6 +585,7 @@ export const authOptions: NextAuthOptions = {
             deviceId: typedUser.deviceId,
             registerId: typedUser.registerId,
             pinMustChange: typedUser.pinMustChange,
+            signInAs: typedUser.signInAs,
           }),
         );
       } else {
@@ -880,23 +609,13 @@ export const authOptions: NextAuthOptions = {
     },
     async redirect({ url, baseUrl }) {
       if (url.startsWith("/")) {
-        const normalizedPath = normalizeCallbackUrl(url, "/");
-
-        if (isAdminRoutePath(normalizedPath)) {
-          return `${buildAdminPortalRedirectBaseUrl(baseUrl)}${normalizedPath}`;
-        }
-
-        return `${baseUrl}${normalizedPath}`;
+        return `${baseUrl}${normalizeCallbackUrl(url, "/")}`;
       }
 
       try {
         const targetUrl = new URL(url);
         if (targetUrl.origin === baseUrl) {
           return url;
-        }
-
-        if (isAdminPortalHost(targetUrl.host)) {
-          return targetUrl.toString();
         }
       } catch {
         return baseUrl;

@@ -35,6 +35,12 @@ export const PUBLIC_BASE_PATHS = [
    */
   "/join",
   /**
+   * Corelith support signing in as a member — /sign-in-as, holding a one-use
+   * ticket from the admin portal — and the owner's "end it" link from the
+   * email they are sent, /sign-in-as/end. Neither has a session to show.
+   */
+  "/sign-in-as",
+  /**
    * The core modules' fixture screens — /design/[slug] — which the visual test
    * opens signed out. They hold only the fixed data they were drawn with, and
    * are a 404 in production (app/design/layout.tsx).

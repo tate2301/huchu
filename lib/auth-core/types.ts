@@ -1,8 +1,10 @@
 import type { Session } from "next-auth";
 import type { JWT } from "next-auth/jwt";
 
-export type AuthStrategyId = "credentials" | "admin-email-link" | "email-link" | "email-code" | "handoff" | "till-pin";
-export type AuthSurface = "primary-login" | "portal-login" | "admin-login";
+import type { SignInAsClaim } from "@/lib/sign-in-as/limits";
+
+export type AuthStrategyId = "credentials" | "email-link" | "email-code" | "handoff" | "till-pin";
+export type AuthSurface = "primary-login" | "portal-login";
 export type SessionPolicy = "standard" | "remember" | "admin";
 
 export type AuthFailureReason =
@@ -13,8 +15,7 @@ export type AuthFailureReason =
   | "TENANT_HOST_MISMATCH"
   | "FEATURE_DISABLED"
   | "ROLE_ROUTE_RESTRICTED"
-  | "SUPERUSER_REQUIRED"
-  | "ADMIN_HOST_REQUIRED"
+  | "SIGN_IN_AS_LIMIT"
   | "RATE_LIMITED"
   | "STRATEGY_DISABLED"
   | "INVALID_CALLBACK_URL";
@@ -35,6 +36,10 @@ export type AuthSessionClaims = {
   enabledFeatures?: string[];
   subscriptionHealth?: string;
   allowedHosts?: string[];
+  /** Set while an operator is signed in as this member: who, how far, until when. */
+  signInAs?: SignInAsClaim;
+  /** When this session was signed in. A member signed out everywhere after it has no session. */
+  signedInAt?: string;
   /** A `till-pin` session (10-setup W-04 step 7): the device it was signed in on, and its till. */
   deviceId?: string;
   registerId?: string;
