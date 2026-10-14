@@ -3,7 +3,7 @@
  * cards, the plan, the jobs and the morning's work the Vane boards draw for
  * Floorcode. For looking at `/vane` and the panel without running Claude.
  *
- *   npx tsx scripts/seed-vane-demo.ts --slug floorcode
+ *   npx tsx scripts/seed-vane-demo.ts --slug floorcode [--email <who Vane talks with>]
  *
  * Idempotent: it removes what it wrote last time (jobs keyed `demo:`, and the
  * cards and plan that hang off them) before writing again. Never point it at
@@ -18,6 +18,12 @@ function readArg(name: string): string | undefined {
 
 const minutesAgo = (now: Date, minutes: number) => new Date(now.getTime() - minutes * 60_000);
 
+/** The demo conversation's first words, so the next run finds and replaces it. */
+const DEMO_CHAT = "What should we reorder this week";
+const DEMO_ANSWER = "Castle Lager and Coca-Cola are running low";
+/** Stands in for a record the demo's actions name; approving one says it is not found. */
+const NO_RECORD = "00000000-0000-4000-8000-000000000000";
+
 async function main() {
   const slug = readArg("slug");
   if (!slug) throw new Error("--slug is required.");
@@ -29,6 +35,7 @@ async function main() {
   // What the last run wrote.
   const old = await prisma.vaneJob.findMany({ where: { companyId, key: { startsWith: "demo:" } }, select: { id: true } });
   await prisma.vaneItem.deleteMany({ where: { companyId, jobId: { in: old.map((job) => job.id) } } });
+  await prisma.vaneMessage.deleteMany({ where: { companyId, OR: [{ text: { startsWith: DEMO_CHAT } }, { text: { startsWith: DEMO_ANSWER } }] } });
   await prisma.vanePlan.deleteMany({ where: { companyId, title: { in: ["VAT for September", "P2 and NSSA for September"] } } });
   await prisma.vaneJob.deleteMany({ where: { companyId, key: { startsWith: "demo:" } } });
 
@@ -229,6 +236,83 @@ async function main() {
       },
     },
   });
+
+  // A conversation (with --email's person, else James): what to reorder, answered with actions in three products and three states.
+  const email = readArg("email");
+  const talker = email ? await prisma.user.findFirst({ where: { companyId, email }, select: { id: true } }) : james;
+  if (talker) {
+    const asked = await prisma.vaneMessage.create({
+      data: { companyId, userId: talker.id, author: "PERSON", text: `${DEMO_CHAT}, and is anything else stuck?`, createdAt: minutesAgo(now, 12) },
+    });
+    const answer = await prisma.vaneMessage.create({
+      data: {
+        companyId,
+        userId: talker.id,
+        author: "VANE",
+        text: [
+          `${DEMO_ANSWER} at Harare Main; at last week's rate they run out on Friday. I drafted the order from Delta with two weeks' stock.`,
+          "- PO-0412 from Mazoe Citrus is four days late. I wrote them a reminder.",
+          "- Pomona Offices signed the quote yesterday, so the deal can move to Won.",
+          "[See the late orders](/retail/buying/orders?tab=open&late=late)",
+        ].join("\n"),
+        createdAt: minutesAgo(now, 11),
+      },
+    });
+    await prisma.vaneAction.createMany({
+      data: [
+        {
+          companyId,
+          messageId: answer.id,
+          kind: "retail.order.draft",
+          title: "Draft an order from Delta Beverages for Harare Main: 240 Castle Lager 340ml and 180 Coca-Cola 500ml",
+          params: {
+            supplierId: "demo",
+            supplier: "Delta Beverages",
+            siteId: "demo",
+            site: "Harare Main",
+            expectedDate: dueIn(2),
+            lines: [
+              { productId: "demo-castle", name: "Castle Lager 340ml", quantity: 240, unitCost: 0.86 },
+              { productId: "demo-coke", name: "Coca-Cola 500ml", quantity: 180, unitCost: 0.52 },
+            ],
+          },
+          createdAt: asked.createdAt,
+        },
+        {
+          companyId,
+          messageId: answer.id,
+          kind: "retail.order.chase",
+          title: "Chase PO-0412 with Mazoe Citrus, expected 17 October",
+          params: { orderId: "demo", poNo: "PO-0412", supplier: "Mazoe Citrus", message: "Hi Rudo, PO-0412 was due on Friday. When can we expect it?", promisedFor: dueIn(3) },
+          createdAt: asked.createdAt,
+        },
+        {
+          companyId,
+          messageId: answer.id,
+          kind: "crm.deal.stage",
+          title: "Move Pomona Offices, fit-out to Won",
+          params: { dealId: "demo", deal: "Pomona Offices, fit-out", stageId: "demo", stage: "Won" },
+          status: "DONE",
+          result: "Pomona Offices, fit-out moved from Proposal to Won.",
+          decidedById: talker.id,
+          decidedAt: minutesAgo(now, 9),
+          doneAt: minutesAgo(now, 9),
+          createdAt: asked.createdAt,
+        },
+        {
+          companyId,
+          messageId: answer.id,
+          kind: "crm.note.log",
+          title: "Log a note on Pomona Offices: Signed the quote on the phone",
+          params: { subject: "Signed the quote on the phone", about: "Pomona Offices", dealId: NO_RECORD },
+          status: "DENIED",
+          decidedById: talker.id,
+          decidedAt: minutesAgo(now, 8),
+          createdAt: asked.createdAt,
+        },
+      ],
+    });
+  }
 
   console.log(`Vane's demo work is in ${company.name}.`);
 }

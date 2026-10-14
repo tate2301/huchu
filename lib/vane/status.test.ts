@@ -4,6 +4,7 @@ import { startOfWorkspaceDay, vaneStatus } from "./status";
 
 type Job = {
   status: "QUEUED" | "RUNNING" | "WAITING" | "DONE" | "FAILED";
+  kind?: string;
   label?: string;
   error?: string | null;
   tools?: unknown;
@@ -28,6 +29,8 @@ function fakeDb(jobs: Job[], settings: { paused: boolean; updatedAt: Date; month
     const finishedAt = where.finishedAt as { gte?: Date; not?: null } | undefined;
     if (finishedAt?.gte && !(job.finishedAt && job.finishedAt >= finishedAt.gte)) return false;
     if (finishedAt && "not" in finishedAt && !job.finishedAt) return false;
+    const kind = where.kind as { not: string } | undefined;
+    if (kind && job.kind === kind.not) return false;
     return true;
   };
   const newest = (key: "createdAt" | "startedAt" | "finishedAt") => (a: (typeof full)[number], b: (typeof full)[number]) =>
@@ -126,6 +129,21 @@ describe("Vane's state", () => {
         [
           { status: "FAILED", createdAt: at("2026-10-13T05:00:00Z"), finishedAt: at("2026-10-13T05:01:00Z"), error: "No." },
           { status: "DONE", createdAt: at("2026-10-13T06:00:00Z"), finishedAt: at("2026-10-13T06:01:00Z") },
+        ],
+        on,
+      ),
+      who,
+      NOW,
+    );
+    expect(status.stuck).toBeNull();
+  });
+
+  it("is not stuck over a chat turn that failed; the conversation said why", async () => {
+    const status = await vaneStatus(
+      fakeDb(
+        [
+          { status: "DONE", createdAt: at("2026-10-13T05:00:00Z"), finishedAt: at("2026-10-13T05:01:00Z") },
+          { status: "FAILED", kind: "chat", createdAt: at("2026-10-13T06:00:00Z"), finishedAt: at("2026-10-13T06:01:00Z"), error: "VANE_MODEL is not set." },
         ],
         on,
       ),

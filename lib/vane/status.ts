@@ -80,9 +80,10 @@ export async function vaneStatus(
       orderBy: { finishedAt: "desc" },
       select: { finishedAt: true },
     }),
-    db.vaneJob.findFirst({ where: { companyId }, orderBy: { createdAt: "desc" }, select: { status: true, runAfter: true } }),
+    // A chat turn that failed has said why in the conversation; Vane's state is about its own jobs.
+    db.vaneJob.findFirst({ where: { companyId, kind: { not: "chat" } }, orderBy: { createdAt: "desc" }, select: { status: true, runAfter: true } }),
     db.vaneJob.findFirst({
-      where: { companyId, status: { in: ["DONE", "FAILED"] }, finishedAt: { not: null } },
+      where: { companyId, kind: { not: "chat" }, status: { in: ["DONE", "FAILED"] }, finishedAt: { not: null } },
       orderBy: { finishedAt: "desc" },
       select: { status: true, label: true, error: true, tools: true, finishedAt: true },
     }),

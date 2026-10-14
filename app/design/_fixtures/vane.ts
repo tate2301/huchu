@@ -36,6 +36,7 @@ export const FIXTURE_FOR_YOU: VanePanel = {
     {
       id: "v1",
       kind: "suggestion",
+      module: "books",
       source: "Books",
       headline: "3 invoices are overdue, $2,480.00.",
       body: "Chisipite Dental is later than they usually pay. Let's send the 3 reminders I drafted.",
@@ -48,6 +49,7 @@ export const FIXTURE_FOR_YOU: VanePanel = {
     {
       id: "v2",
       kind: "suggestion",
+      module: "crm",
       source: "Site visits",
       headline: "Pomona Offices' quote has waited since Tuesday.",
       body: "Kuda measured 212.40 m² of concrete. The quote is drafted at $8,930.00. Let's send it before the weekend.",
@@ -60,6 +62,7 @@ export const FIXTURE_FOR_YOU: VanePanel = {
     {
       id: "v3",
       kind: "issue",
+      module: "retail",
       source: "Showroom",
       headline: "Monday's cash-up was short again.",
       body: "$12.00 on Till 1, the third time since August, each time on the morning shift. Let's go through that shift's cash sales.",
@@ -72,6 +75,7 @@ export const FIXTURE_FOR_YOU: VanePanel = {
     {
       id: "v4",
       kind: "suggestion",
+      module: "crm",
       source: "Pipeline",
       headline: "A deal was won 4 days ago with no invoice.",
       body: "Borrowdale Brooke Clinic. I wrote the invoice from the accepted quote, $6,400.00. Let's check it and send it.",
@@ -84,6 +88,7 @@ export const FIXTURE_FOR_YOU: VanePanel = {
     {
       id: "v5",
       kind: "suggestion",
+      module: "reports",
       source: "Reports",
       headline: "You narrow the Monday board by fitter every week.",
       body: "I wrote a by-fitter question that answers it in one table. Let's add it to the board.",
@@ -115,6 +120,7 @@ export const FIXTURE_BOOKS_VANE: VanePanel = {
     {
       id: "v1",
       kind: "suggestion",
+      module: "books",
       source: "Books",
       headline: "3 invoices are overdue, $2,480.00.",
       body: "Chisipite Dental first: 12 days late, which is later than they usually pay. Let's send the 3 reminders I drafted.",
@@ -127,6 +133,7 @@ export const FIXTURE_BOOKS_VANE: VanePanel = {
     {
       id: "v2",
       kind: "issue",
+      module: "retail",
       source: "Tender",
       headline: "Monday's cash-up was short again.",
       body: "$12.00 on Till 1, the third time since August, each time on the morning shift. Let's go through that shift's cash sales.",
@@ -139,6 +146,7 @@ export const FIXTURE_BOOKS_VANE: VanePanel = {
     {
       id: "v3",
       kind: "suggestion",
+      module: "crm",
       source: "CRM",
       headline: "A deal was won 4 days ago with no invoice.",
       body: "Borrowdale Brooke Clinic, vinyl in 3 consulting rooms. I wrote the invoice from the accepted quote, $6,400.00. Let's check it and send it.",

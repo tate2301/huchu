@@ -19,6 +19,9 @@ export type VaneAction = z.infer<typeof vaneActionSchema>;
 export type VaneCard = {
   id: string;
   kind: "issue" | "suggestion";
+  /** The module it came from, as the app keys it: "books", "crm", "retail". */
+  module: string;
+  /** That module as the workspace names it: "Books", "Tender". */
   source: string;
   headline: string;
   body: string;
@@ -148,6 +151,7 @@ export async function vanePanel(
   const cards = items.map<VaneCard>((item) => ({
     id: item.id,
     kind: item.kind === "ISSUE" ? "issue" : "suggestion",
+    module: item.sourceModule,
     source: moduleName(item.sourceModule),
     headline: item.headline,
     body: item.body,

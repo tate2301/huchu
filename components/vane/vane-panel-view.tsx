@@ -2,13 +2,16 @@
 
 import * as React from "react";
 
-import { Button, ButtonLink, Icon, TextArea, VaneMark } from "@/components/core";
+import { Button, ButtonLink, Icon, VaneMark } from "@/components/core";
 import type { VaneActionView } from "@/lib/vane/actions/engine";
 import type { VaneChatMessage } from "@/lib/vane/chat";
 import type { VaneCard, VanePanel } from "@/lib/vane/panel";
+import type { VaneStatus } from "@/lib/vane/status";
 
 import { NotNowMenu } from "./not-now-menu";
 import { VaneActionList } from "./vane-action-list";
+import { VaneModuleTag } from "./vane-module";
+import type { VaneSuggestion } from "./vane-panel";
 import { VanePlanCardView } from "./vane-plan-card";
 import { vaneStateLabel, VaneStateNote } from "./vane-state-note";
 import { VaneText } from "./vane-text";
@@ -17,6 +20,14 @@ const time = (iso: string) =>
   new Date(iso).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false });
 
 export type ActionDecision = { approve: false } | { approve: true; changes: Record<string, unknown> };
+
+/** Vane's state in the header, as a dot in its tone: working (pulsing), watching, or why not. */
+function StateDot({ status, held }: { status: VaneStatus; held: boolean }) {
+  if (held || (status.working && !vaneStateLabel(status))) return <span className="live">Working</span>;
+  if (status.paused || status.overAllowance) return <span className="status status-warning">{vaneStateLabel(status)}</span>;
+  if (status.unreachable) return <span className="status status-danger">{vaneStateLabel(status)}</span>;
+  return <span className="status status-success">Watching</span>;
+}
 
 /**
  * The Vane panel (design/core-modules/spec/vane.md), 400px on the right of any
@@ -49,7 +60,7 @@ export function VanePanelView({
   panel: VanePanel;
   chat: VaneChatMessage[];
   /** What to ask next: always some. */
-  suggestions: string[];
+  suggestions: VaneSuggestion[];
   /** What Vane is doing while it answers; the panel is held while it is set. */
   working?: string | null;
   askError?: string | null;
@@ -93,17 +104,9 @@ export function VanePanelView({
   return (
     <aside className="ask" aria-label="Vane" aria-busy={held}>
       <div className="ask-h">
-        <VaneMark />
+        <VaneMark size={20} />
         <b>Vane</b>
-        {held ? (
-          <span className="live">Working</span>
-        ) : vaneStateLabel(status) ? (
-          <span className="muted">{vaneStateLabel(status)}</span>
-        ) : status.working ? (
-          <span className="live">Working</span>
-        ) : (
-          <span className="muted">Watching</span>
-        )}
+        <StateDot status={status} held={held} />
         <div className="tb-r">
           <ButtonLink href="/vane" variant="quiet" iconOnly icon="foryou" label="Open Vane's pages" />
           {canPause && onPause ? (
@@ -143,11 +146,19 @@ export function VanePanelView({
             </p>
           ) : (
             items.map((card, index) => (
-              <article key={card.id} className={card.kind === "issue" ? "vc is-issue" : "vc"} aria-labelledby={`vane-panel-${card.id}`}>
+              <article
+                key={card.id}
+                className={card.kind === "issue" ? "vc is-issue" : "vc"}
+                data-module={card.module}
+                aria-labelledby={`vane-panel-${card.id}`}
+              >
                 <div className="vc-k">
-                  <Icon name={card.kind === "issue" ? "issue" : "suggestion"} />
-                  <span>{card.kind === "issue" ? "Issue" : "Suggestion"}</span>
-                  <span className="muted">{card.source}</span>
+                  <span className="vn-kind">
+                    <Icon name={card.kind === "issue" ? "issue" : "suggestion"} />
+                    {card.kind === "issue" ? "Issue" : "Suggestion"}
+                  </span>
+                  <VaneModuleTag module={card.module} name={card.source} />
+                  <span className="vn-when">{time(card.createdAt)}</span>
                   <span style={{ marginLeft: "auto" }}>
                     <NotNowMenu describedBy={`vane-panel-${card.id}`} onMute={(reason) => onMute(card, reason)} />
                   </span>
@@ -192,27 +203,16 @@ export function VanePanelView({
           {chat.length > 0 ? <div className="vs">You and Vane</div> : null}
           {chat.map((message) =>
             message.author === "person" ? (
-              <div
-                key={message.id}
-                style={{
-                  alignSelf: "flex-end",
-                  maxWidth: "85%",
-                  padding: "var(--space-8) var(--space-12)",
-                  borderRadius: 12,
-                  background: "var(--color-ground)",
-                  color: "var(--color-ink)",
-                  whiteSpace: "pre-wrap",
-                }}
-              >
-                {message.text}
+              <div key={message.id} className="vm vm-me" title={`You, ${time(message.createdAt)}`}>
+                <div className="vm-b">{message.text}</div>
               </div>
             ) : (
-              <div key={message.id} style={{ display: "flex", gap: "var(--space-8)", alignItems: "flex-start" }}>
-                <span style={{ flex: "none", marginTop: 2 }}>
-                  <VaneMark />
-                </span>
-                <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: "var(--space-8)", color: "var(--color-ink-2)" }}>
-                  <VaneText text={message.text} />
+              <div key={message.id} className="vm vm-it" title={`Vane, ${time(message.createdAt)}`}>
+                <VaneMark size={20} />
+                <div className="vm-c">
+                  <div className="vm-b">
+                    <VaneText text={message.text} />
+                  </div>
                   <VaneActionList actions={message.actions} disabled={held} deciding={deciding} onDecide={onDecide} />
                 </div>
               </div>
@@ -221,45 +221,50 @@ export function VanePanelView({
         </fieldset>
 
         {held ? (
-          <div className="vn-now" role="status" aria-live="polite">
-            <span className="live-d" aria-hidden="true" />
-            <span className="truncate">{working}</span>
-            <span className="muted">Wait for Vane</span>
+          <div className="vm vm-it vm-w" role="status" aria-live="polite">
+            <VaneMark size={20} />
+            <span className="vm-b">{working}…</span>
           </div>
         ) : null}
         {askError ? (
-          <p role="alert" style={{ margin: 0, color: "var(--color-danger)", fontSize: "var(--text-13)" }}>
-            {askError}
+          <p role="alert" className="vm-err">
+            <Icon name="warn" />
+            <span>{askError}</span>
           </p>
         ) : null}
       </div>
 
       <form
         className="ask-c"
-        style={{ flexDirection: "column" }}
         onSubmit={(event) => {
           event.preventDefault();
           ask(text);
         }}
       >
-        <div style={{ display: "flex", flexWrap: "wrap", gap: "var(--space-8)" }} aria-label="Suggestions">
+        <div className="vn-sug" role="group" aria-label="Suggestions">
           {suggestions.map((suggestion) => (
-            <Button key={suggestion} size="sm" disabled={held} onClick={() => ask(suggestion)}>
-              {suggestion}
-            </Button>
+            <button
+              key={suggestion.text}
+              type="button"
+              data-module={suggestion.module ?? "vane"}
+              disabled={held}
+              title={suggestion.text}
+              onClick={() => ask(suggestion.text)}
+            >
+              <Icon name={suggestion.icon} />
+              <span>{suggestion.text}</span>
+            </button>
           ))}
         </div>
-        <div style={{ display: "flex", gap: "var(--space-8)", alignItems: "flex-end" }}>
-          <TextArea
+        <div className="vn-box">
+          <textarea
             ref={box}
-            rows={2}
-            className="ask-in"
+            rows={1}
             aria-label="Ask Vane or give it a job"
             aria-keyshortcuts="Control+J Meta+J"
-            placeholder="Ask Vane or give it a job (Ctrl J)"
+            placeholder="Ask Vane or give it a job"
             value={text}
             disabled={held}
-            style={{ resize: "none" }}
             onChange={(event) => setText(event.target.value)}
             onKeyDown={(event) => {
               if (event.key === "Enter" && !event.shiftKey) {
@@ -268,7 +273,12 @@ export function VanePanelView({
               }
             }}
           />
-          <Button iconOnly icon="send" label="Ask Vane" type="submit" busy={held} disabled={held || !text.trim()} />
+          <div className="vn-box-f">
+            <span>{held ? "Wait for Vane" : "Vane asks before it changes anything. Ctrl J"}</span>
+            <button type="submit" className="vn-send" aria-label="Ask Vane" aria-keyshortcuts="Enter" disabled={held || !text.trim()}>
+              <Icon name="send" />
+            </button>
+          </div>
         </div>
       </form>
     </aside>

@@ -6,6 +6,8 @@ import Link from "next/link";
 import { Button, Icon, Input, TextArea } from "@/components/core";
 import type { VaneActionView } from "@/lib/vane/actions/engine";
 
+import { moduleIcon } from "./vane-module";
+
 type Values = Record<string, unknown>;
 
 const time = (iso: string) => new Date(iso).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false });
@@ -52,10 +54,8 @@ function FieldInput({
     );
   }
   return (
-    <label htmlFor={id} style={{ display: "flex", flexDirection: "column", gap: "var(--space-4)", flex: field.type === "date" ? "none" : "1 1 160px" }}>
-      <span className="muted" style={{ fontSize: "var(--text-12)" }}>
-        {field.label}
-      </span>
+    <label htmlFor={id} className={field.type === "date" ? "is-date" : undefined}>
+      <span>{field.label}</span>
       {control}
     </label>
   );
@@ -66,22 +66,25 @@ function Outcome({ action }: { action: VaneActionView }) {
   const who = action.decidedBy ? `${action.decidedBy}${action.decidedAt ? `, ${time(action.decidedAt)}` : ""}` : null;
   if (action.status === "done") {
     return (
-      <span style={{ display: "flex", gap: "var(--space-8)", alignItems: "baseline", color: "var(--color-ink-2)" }}>
-        <span style={{ color: "var(--color-success)", flex: "none", display: "inline-flex" }}>
-          <Icon name="done" />
-        </span>
-        <span>
-          {action.result ?? "Done."}
-          {who ? <span className="muted"> Approved by {who}.</span> : null}
-        </span>
-      </span>
+      <p className="va-o">
+        {action.result ?? "Done."}
+        {who ? <span className="muted"> Approved by {who}.</span> : null}
+      </p>
     );
   }
-  if (action.status === "denied") {
-    return <span className="muted">Denied{who ? ` by ${who}` : ""}.</span>;
-  }
-  if (action.status === "approved") return <span className="muted">Doing it…</span>;
+  if (action.status === "denied") return <p className="va-o muted">Denied{who ? ` by ${who}` : ""}.</p>;
+  if (action.status === "approved") return <p className="va-o">Doing it now…</p>;
   return null;
+}
+
+/** The square before an action: the module it acts in, or what became of it. */
+function Mark({ action }: { action: VaneActionView }) {
+  const name = action.status === "done" ? "done" : action.status === "failed" ? "warn" : action.status === "denied" ? "x" : moduleIcon(action.module);
+  return (
+    <span className="va-i">
+      <Icon name={name} />
+    </span>
+  );
 }
 
 /**
@@ -113,12 +116,10 @@ export function VaneActionList({
   const open = actions.filter((action) => action.status === "proposed" || action.status === "failed");
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-8)", marginTop: "var(--space-8)" }}>
+    <div className="va-l">
       {open.length > 1 ? (
-        <div style={{ display: "flex", alignItems: "center", gap: "var(--space-8)" }}>
-          <span className="muted" style={{ flex: 1, fontSize: "var(--text-12)" }}>
-            Vane proposes {open.length} things. Nothing happens until you approve.
-          </span>
+        <div className="va-h">
+          <span>Vane proposes {open.length} things. Nothing happens until you approve.</span>
           <Button
             size="sm"
             icon="check"
@@ -129,34 +130,19 @@ export function VaneActionList({
           </Button>
         </div>
       ) : null}
-      <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "flex", flexDirection: "column", gap: "var(--space-8)" }}>
+      <ul style={{ margin: 0, padding: 0, display: "flex", flexDirection: "column", gap: "var(--space-8)" }}>
         {actions.map((action) => {
           const waiting = action.status === "proposed" || action.status === "failed";
           const busy = deciding === action.id;
           return (
-            <li
-              key={action.id}
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                gap: "var(--space-8)",
-                padding: "var(--space-8) var(--space-12)",
-                borderRadius: 8,
-                boxShadow: "inset 0 0 0 1px var(--color-line)",
-                background: waiting ? "var(--color-surface)" : "var(--color-ground)",
-              }}
-            >
-              <span style={{ display: "flex", gap: "var(--space-8)", alignItems: "baseline" }}>
-                <span id={`vane-action-${action.id}`} style={{ flex: 1, minWidth: 0, color: "var(--color-ink)" }}>
+            <li key={action.id} className="va" data-module={action.module} data-status={action.status}>
+              <span className="va-t">
+                <Mark action={action} />
+                <span id={`vane-action-${action.id}`} className="va-n">
                   {action.title}
                 </span>
                 {action.target ? (
-                  <Link
-                    href={action.target}
-                    className="link"
-                    aria-describedby={`vane-action-${action.id}`}
-                    style={{ flex: "none", fontSize: "var(--text-12)" }}
-                  >
+                  <Link href={action.target} className="link" aria-describedby={`vane-action-${action.id}`} style={{ flex: "none", fontSize: "var(--text-12)" }}>
                     Open
                   </Link>
                 ) : null}
@@ -164,12 +150,12 @@ export function VaneActionList({
               {waiting ? (
                 <>
                   {action.status === "failed" && action.result ? (
-                    <span role="alert" style={{ color: "var(--color-danger)", fontSize: "var(--text-12)" }}>
+                    <p role="alert" className="va-e">
                       {action.result}
-                    </span>
+                    </p>
                   ) : null}
                   {action.fields.length > 0 ? (
-                    <div style={{ display: "flex", flexWrap: "wrap", gap: "var(--space-8)" }}>
+                    <div className="va-f">
                       {action.fields.map((field) => (
                         <FieldInput
                           key={field.name}
@@ -181,7 +167,7 @@ export function VaneActionList({
                       ))}
                     </div>
                   ) : null}
-                  <span style={{ display: "flex", gap: "var(--space-8)" }}>
+                  <span className="va-b">
                     <Button
                       size="sm"
                       icon="check"

@@ -32,7 +32,11 @@ export default function BooksVaneFixture() {
           vane={<VanePanelView
               panel={FIXTURE_BOOKS_VANE}
               chat={[]}
-              suggestions={["Which invoices have no due date?", "Who should I chase this week?", "What needs me today?"]}
+              suggestions={[
+                { text: "Which invoices have no due date?", icon: "invoice", module: "books" },
+                { text: "Who should I chase this week?", icon: "remind", module: "books" },
+                { text: "What needs me today?", icon: "foryou", module: null },
+              ]}
               canPause
               onPause={() => {}}
               onClose={() => {}}

@@ -4,7 +4,7 @@ import * as React from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 
-import { Empty, Kit, useShortcut } from "@/components/core";
+import { Empty, Kit, useShortcut, type IconName } from "@/components/core";
 import { useShell } from "@/components/layout/shell-state";
 import { useToast } from "@/components/ui/use-toast";
 import { getApiErrorMessage } from "@/lib/api-client";
@@ -14,27 +14,48 @@ import { VANE_SETTINGS_ROLES } from "@/lib/vane/roles";
 import { moduleForPath, useDecideAction, useVaneActions, useVaneAsk, useVaneChat, useVanePanel } from "./use-vane";
 import { VanePanelView } from "./vane-panel-view";
 
+/** A suggestion: what to ask, the icon it shows, and the module whose hue it takes (none: Vane's own). */
+export type VaneSuggestion = { text: string; icon: IconName; module: string | null };
+
 /** What a person might ask from the module they are in. */
-const MODULE_SUGGESTIONS: Record<string, string[]> = {
-  books: ["Which invoices have no due date?", "Who should I chase this week?"],
-  crm: ["Which quotes have waited more than a week?", "Which deals went quiet this month?"],
-  retail: ["Check last week's cash-ups for shortfalls", "What should we reorder this week?"],
-  reports: ["What changed in sales since last month?"],
-  people: ["Who has leave due before December?"],
-  payroll: ["Check this month's pay run against last month's"],
-  schools: ["Which families have paid nothing this term?"],
-  gold: ["Why was Mill 1 down this month?"],
+const MODULE_SUGGESTIONS: Record<string, Array<{ text: string; icon: IconName }>> = {
+  books: [
+    { text: "Which invoices have no due date?", icon: "invoice" },
+    { text: "Who should I chase this week?", icon: "remind" },
+  ],
+  crm: [
+    { text: "Which quotes have waited more than a week?", icon: "docs" },
+    { text: "Which deals went quiet this month?", icon: "pipeline" },
+  ],
+  retail: [
+    { text: "Check last week's cash-ups for shortfalls", icon: "takings" },
+    { text: "What should we reorder this week?", icon: "store" },
+  ],
+  reports: [{ text: "What changed in sales since last month?", icon: "reports" }],
+  people: [{ text: "Who has leave due before December?", icon: "calendar" }],
+  payroll: [{ text: "Check this month's pay run against last month's", icon: "money" }],
+  schools: [{ text: "Which families have paid nothing this term?", icon: "users" }],
+  gold: [{ text: "Why was Mill 1 down this month?", icon: "insights" }],
 };
-const ANYWHERE = ["What needs me today?", "What should I do first?", "Get the month's close ready"];
+const ANYWHERE: Array<{ text: string; icon: IconName }> = [
+  { text: "What needs me today?", icon: "foryou" },
+  { text: "What should I do first?", icon: "list" },
+  { text: "Get the month's close ready", icon: "calendar" },
+];
 
 /**
  * What to ask next, always three: about the first card when there is one,
  * then from the module the person is in, then what any page can ask.
  */
-export function vaneSuggestions(cards: VaneCard[], pageModule: string | null): string[] {
-  const fromCards = cards.slice(0, 1).map((card) => `Help me with: ${card.headline.replace(/\.$/, "")}`);
-  const fromModule = pageModule ? (MODULE_SUGGESTIONS[pageModule] ?? []) : [];
-  return [...new Set([...fromCards, ...fromModule, ...ANYWHERE])].slice(0, 3);
+export function vaneSuggestions(cards: VaneCard[], pageModule: string | null): VaneSuggestion[] {
+  const fromCards = cards.slice(0, 1).map<VaneSuggestion>((card) => ({
+    text: `Help me with: ${card.headline.replace(/\.$/, "")}`,
+    icon: card.kind === "issue" ? "issue" : "suggestion",
+    module: card.module,
+  }));
+  const fromModule = (pageModule ? (MODULE_SUGGESTIONS[pageModule] ?? []) : []).map((row) => ({ ...row, module: pageModule }));
+  const all = [...fromCards, ...fromModule, ...ANYWHERE.map((row) => ({ ...row, module: null }))];
+  return all.filter((row, index) => all.findIndex((other) => other.text === row.text) === index).slice(0, 3);
 }
 
 /** The Vane panel beside the page, fed from the workspace. Ctrl J opens it at the box, from any page. */

@@ -20,39 +20,53 @@ function Line({ text }: { text: string }) {
   return <>{parts}</>;
 }
 
+const ITEM = /^\s*[-•]\s+/;
+
+/** The text in runs: consecutive "- " lines make one list, the rest paragraphs; a blank line always starts a new run. */
+function runs(text: string): Array<{ list: boolean; lines: string[] }> {
+  const out: Array<{ list: boolean; lines: string[] }> = [];
+  for (const block of text.trim().split(/\n{2,}/)) {
+    let current: { list: boolean; lines: string[] } | null = null;
+    for (const line of block.split("\n")) {
+      const list = ITEM.test(line);
+      if (!current || current.list !== list) {
+        current = { list, lines: [] };
+        out.push(current);
+      }
+      current.lines.push(list ? line.replace(ITEM, "") : line);
+    }
+  }
+  return out;
+}
+
 /**
- * Vane's answer as it wrote it: paragraphs, and "- " lines as a list. Links
- * only ever lead inside the app (a path), so nothing it writes sends anyone
- * elsewhere.
+ * Vane's answer as it wrote it: paragraphs, and "- " lines as a list, even
+ * straight after a sentence. Links only ever lead inside the app (a path), so
+ * nothing it writes sends anyone elsewhere.
  */
 export function VaneText({ text }: { text: string }) {
-  const blocks = text.trim().split(/\n{2,}/);
   return (
-    <>
-      {blocks.map((block, index) => {
-        const lines = block.split("\n");
-        if (lines.every((line) => /^\s*[-•]\s+/.test(line))) {
-          return (
-            <ul key={index} style={{ margin: 0, paddingLeft: "var(--space-16)" }}>
-              {lines.map((line, at) => (
-                <li key={at}>
-                  <Line text={line.replace(/^\s*[-•]\s+/, "")} />
-                </li>
-              ))}
-            </ul>
-          );
-        }
-        return (
+    <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-8)" }}>
+      {runs(text).map((run, index) =>
+        run.list ? (
+          <ul key={index} style={{ margin: 0, paddingLeft: "var(--space-24)", listStyle: "disc", display: "flex", flexDirection: "column", gap: "var(--space-4)" }}>
+            {run.lines.map((line, at) => (
+              <li key={at}>
+                <Line text={line} />
+              </li>
+            ))}
+          </ul>
+        ) : (
           <p key={index} style={{ margin: 0 }}>
-            {lines.map((line, at) => (
+            {run.lines.map((line, at) => (
               <React.Fragment key={at}>
                 {at > 0 ? <br /> : null}
                 <Line text={line} />
               </React.Fragment>
             ))}
           </p>
-        );
-      })}
-    </>
+        ),
+      )}
+    </div>
   );
 }

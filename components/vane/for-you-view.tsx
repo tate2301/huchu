@@ -121,11 +121,12 @@ export function ForYouView({
             <div className="list">
               {cards.map((card, index) => (
                 <div key={card.id} className={card.kind === "issue" ? "row fy is-issue" : "row fy"}>
-                  <span className="nt">
+                  <span className="nt" data-module={card.module}>
                     <Icon name={SOURCE_ICONS[card.source] ?? "foryou"} />
                   </span>
                   <div className="t">
                     <span className="k">
+                      <span className="vn-dot" aria-hidden="true" />
                       {card.kind === "issue" ? "Issue" : "Suggestion"}, {card.source} · {time(card.createdAt)}
                     </span>
                     <span className="lead" id={`vane-card-${card.id}`}>
