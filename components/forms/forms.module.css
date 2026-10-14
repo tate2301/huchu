@@ -537,4 +537,60 @@
     line-height: 1.5;
     color: var(--text-body);
   }
+
+  /*
+    Inside a kit page (Build's form builder, a site visit) the kit owns `.check`: it is the
+    label that holds a box, and its reset strips the design system's `.check` box to nothing.
+    So a question's box takes the kit's box here, and the words take the kit's inks, light and dark.
+  */
+  :global(.ck.ck.ck) .choice > .box {
+    appearance: none;
+    flex: none;
+    display: grid;
+    place-items: center;
+    width: 16px;
+    height: 16px;
+    margin: 0;
+    border-radius: 4px;
+    background: var(--color-surface);
+    box-shadow: 0 0 0 1px var(--color-rule), var(--shadow-raised);
+    cursor: pointer;
+  }
+
+  :global(.ck.ck.ck) .choice > .box:checked {
+    background: var(--color-accent);
+    box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.08);
+  }
+
+  :global(.ck.ck.ck) .choice > .box:checked::after {
+    content: "";
+    width: 9px;
+    height: 5px;
+    border: solid var(--color-accent-ink);
+    border-width: 0 0 2px 2px;
+    transform: translateY(-1px) rotate(-45deg);
+  }
+
+  :global(.ck.ck.ck) .choice > .box:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 2px var(--color-surface), 0 0 0 4px var(--color-accent);
+  }
+
+  :global(.ck) .label,
+  :global(.ck) .checkLabel {
+    color: var(--color-ink);
+  }
+
+  :global(.ck) .choice {
+    color: var(--color-ink-2);
+  }
+
+  :global(.ck) .help {
+    color: var(--color-muted);
+  }
+
+  :global(.ck) .required,
+  :global(.ck) .error {
+    color: var(--color-danger);
+  }
 }

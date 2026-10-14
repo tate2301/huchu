@@ -212,6 +212,7 @@ function Control({
             return (
               <label key={choice.value} className={styles.choice}>
                 <Checkbox
+                  className={styles.box}
                   checked={on}
                   onCheckedChange={() =>
                     set(on ? picked.filter((entry) => entry !== choice.value) : [...picked, choice.value])
@@ -230,6 +231,7 @@ function Control({
         <label className={styles.choice}>
           <Checkbox
             id={id}
+            className={styles.box}
             checked={value === true}
             onCheckedChange={(next) => set(next === true)}
             {...aria}
