@@ -90,7 +90,7 @@ export type VaneCounts = {
   forYou: number;
   /** Jobs queued, running or waiting. */
   working: number;
-  /** Plans still open. */
+  /** Plans under way or waiting for Start. */
   plans: number;
   /** Jobs finished since midnight on the shop clock. */
   doneToday: number;
@@ -116,7 +116,7 @@ export async function vaneCounts(db: Db, { companyId, userId, role }: Who, now: 
   const [forYou, working, plans, doneToday, muted] = await Promise.all([
     db.vaneItem.count({ where: { companyId, status: "OPEN", kind: { in: FOR_YOU }, ...audience, ...stopped } }),
     db.vaneJob.count({ where: { companyId, status: { in: [...UNFINISHED] } } }),
-    db.vanePlan.count({ where: { companyId, status: "OPEN" } }),
+    db.vanePlan.count({ where: { companyId, status: { in: ["OPEN", "WAITING"] } } }),
     db.vaneJob.count({ where: { companyId, status: "DONE", finishedAt: { gte: startOfShopDay(now) } } }),
     db.vaneItem.count({ where: { companyId, status: "MUTED", kind: { in: FOR_YOU }, ...audience } }),
   ]);
@@ -395,12 +395,24 @@ export async function vaneCardDetail(db: Db & DraftDb, who: Who & { id: string }
 // ---------------------------------------------------------------------------
 // Plans (PageVanePlan).
 
+/** A table a plan's jobs read, named as people know it, and the most rows one question drew from it. */
+export type VanePlanRead = { table: string; label: string; rows: number };
+
 export type VanePlanDetail = VanePlanCard & {
-  status: "open" | "done" | "cancelled";
+  /** Waiting: Vane laid it out and nothing runs until a person presses Start. */
+  status: "waiting" | "open" | "done" | "cancelled";
   createdAt: string;
   doneAt: string | null;
   /** The step that is next: the first not done, and whose it is. */
   current: { position: number; owner: "vane" | "person" } | null;
+  /** Whose plan it is: the person who gave Vane the job, or anyone's when no person did. */
+  person: { name: string | null; you: boolean };
+  /** The job that laid it out, and what the person asked. */
+  job: { id: string; request: string } | null;
+  /** What it reads: the tables its job and its steps' jobs read. */
+  reads: VanePlanRead[];
+  /** Cards its job and its steps' jobs raised so far. */
+  cards: number;
 };
 
 export function currentStep(steps: VanePlanCard["steps"]): VanePlanDetail["current"] {
@@ -408,28 +420,135 @@ export function currentStep(steps: VanePlanCard["steps"]): VanePlanDetail["curre
   return index < 0 ? null : { position: index + 1, owner: steps[index]!.owner };
 }
 
-/** Every open plan, due soonest first, then the ones finished in the last 30 days. */
-export async function vanePlans(db: Db, companyId: string, now: Date = new Date()): Promise<VanePlanDetail[]> {
-  const plans = await db.vanePlan.findMany({
-    where: {
-      companyId,
-      OR: [{ status: "OPEN" }, { status: "DONE", doneAt: { gte: new Date(now.getTime() - 30 * DAY_MS) } }],
+const readsSchema = z.array(
+  z.object({ reads: z.array(z.object({ table: z.string(), rows: z.number().int().nonnegative() })).optional() }).passthrough(),
+);
+
+/** What a job's tool calls read, as the worker logged them (`[{ name, ms, ok, reads }]`). */
+export function parseReads(tools: unknown): Array<{ table: string; rows: number }> {
+  const parsed = readsSchema.safeParse(tools);
+  return parsed.success ? parsed.data.flatMap((call) => call.reads ?? []) : [];
+}
+
+/** Each table once, by the name people know it, with the most rows one question drew from it. */
+export function planReads(reads: Array<{ table: string; rows: number }>): VanePlanRead[] {
+  const byTable = new Map<string, VanePlanRead>();
+  for (const read of reads) {
+    const key = read.table.toLowerCase();
+    const known = byTable.get(key);
+    if (known) known.rows = Math.max(known.rows, read.rows);
+    else byTable.set(key, { table: read.table, label: tableLabel(read.table).label, rows: read.rows });
+  }
+  return [...byTable.values()];
+}
+
+const PLAN_SELECT = {
+  id: true,
+  title: true,
+  dueOn: true,
+  status: true,
+  createdAt: true,
+  doneAt: true,
+  steps: STEP_SELECT,
+  job: {
+    select: {
+      id: true,
+      label: true,
+      request: true,
+      tools: true,
+      requestedById: true,
+      requestedBy: { select: { name: true } },
+      _count: { select: { items: true } },
     },
-    orderBy: [{ dueOn: { sort: "asc", nulls: "last" } }, { createdAt: "desc" }],
-    take: 50,
-    select: { id: true, title: true, dueOn: true, status: true, createdAt: true, doneAt: true, steps: STEP_SELECT },
-  });
-  const shaped = plans.map<VanePlanDetail>((plan) => {
+  },
+} as const satisfies Prisma.VanePlanSelect;
+
+type PlanRow = Prisma.VanePlanGetPayload<{ select: typeof PLAN_SELECT }>;
+
+const PLAN_STATUS = { WAITING: "waiting", OPEN: "open", DONE: "done", CANCELLED: "cancelled" } as const;
+
+/** Plans as the pages show them, with what their jobs and their steps' jobs read and raised. */
+async function shapePlans(db: Db, { companyId, userId }: Who, plans: PlanRow[]): Promise<VanePlanDetail[]> {
+  const stepKeys = plans.flatMap((plan) => plan.steps.filter((step) => step.owner === "VANE").map((step) => `plan-step:${step.id}`));
+  const stepJobs = stepKeys.length
+    ? await db.vaneJob.findMany({
+        where: { companyId, key: { in: stepKeys } },
+        select: { key: true, tools: true, _count: { select: { items: true } } },
+      })
+    : [];
+  const byKey = new Map(stepJobs.map((job) => [job.key, job]));
+  return plans.map<VanePlanDetail>((plan) => {
     const card = planCard(plan);
+    const own = plan.steps.flatMap((step) => byKey.get(`plan-step:${step.id}`) ?? []);
+    const owner = plan.job?.requestedById ?? null;
     return {
       ...card,
-      status: plan.status === "DONE" ? "done" : plan.status === "CANCELLED" ? "cancelled" : "open",
+      status: PLAN_STATUS[plan.status],
       createdAt: plan.createdAt.toISOString(),
       doneAt: plan.doneAt?.toISOString() ?? null,
       current: plan.status === "OPEN" ? currentStep(card.steps) : null,
+      person: { name: owner && owner !== userId ? firstName(plan.job?.requestedBy?.name) : null, you: !owner || owner === userId },
+      job: plan.job ? { id: plan.job.id, request: plan.job.request?.trim() || plan.job.label } : null,
+      reads: planReads([...parseReads(plan.job?.tools), ...own.flatMap((job) => parseReads(job.tools))]),
+      cards: (plan.job?._count.items ?? 0) + own.reduce((sum, job) => sum + job._count.items, 0),
     };
   });
-  return [...shaped.filter((plan) => plan.status === "open"), ...shaped.filter((plan) => plan.status !== "open")];
+}
+
+const PLAN_ORDER: Record<VanePlanDetail["status"], number> = { open: 0, waiting: 1, done: 2, cancelled: 3 };
+
+/** Every plan under way, then the ones waiting for Start, due soonest first; then the ones finished in the last 30 days. */
+export async function vanePlans(db: Db, who: Who, now: Date = new Date()): Promise<VanePlanDetail[]> {
+  const plans = await db.vanePlan.findMany({
+    where: {
+      companyId: who.companyId,
+      OR: [{ status: { in: ["OPEN", "WAITING"] } }, { status: "DONE", doneAt: { gte: new Date(now.getTime() - 30 * DAY_MS) } }],
+    },
+    orderBy: [{ dueOn: { sort: "asc", nulls: "last" } }, { createdAt: "desc" }],
+    take: 50,
+    select: PLAN_SELECT,
+  });
+  const shaped = await shapePlans(db, who, plans);
+  return shaped.sort((a, b) => PLAN_ORDER[a.status] - PLAN_ORDER[b.status]);
+}
+
+// ---------------------------------------------------------------------------
+// Give Vane a job, after it is given (PageVaneJob): the job and the plan it laid out.
+
+export type VaneJobView = {
+  id: string;
+  label: string;
+  request: string;
+  status: "queued" | "running" | "waiting" | "done" | "failed";
+  /** Its answer, when it finished without a plan. */
+  result: string | null;
+  error: string | null;
+  plan: VanePlanDetail | null;
+};
+
+/** One job given to Vane in this workspace, and the plan it laid out, if any. Null when it is not this workspace's. */
+export async function vaneJobView(db: Db, who: Who & { id: string }): Promise<VaneJobView | null> {
+  const job = await db.vaneJob.findFirst({
+    where: { id: who.id, companyId: who.companyId },
+    select: { id: true, label: true, request: true, status: true, result: true, error: true },
+  });
+  if (!job) return null;
+  const plans = await db.vanePlan.findMany({
+    where: { companyId: who.companyId, jobId: job.id },
+    orderBy: { createdAt: "desc" },
+    take: 1,
+    select: PLAN_SELECT,
+  });
+  const [plan] = await shapePlans(db, who, plans);
+  return {
+    id: job.id,
+    label: job.label,
+    request: job.request?.trim() || job.label,
+    status: job.status.toLowerCase() as VaneJobView["status"],
+    result: job.result?.trim() || null,
+    error: job.error,
+    plan: plan ?? null,
+  };
 }
 
 // ---------------------------------------------------------------------------

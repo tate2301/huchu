@@ -16244,6 +16244,8 @@ enum VaneItemStatus {
 }
 
 enum VanePlanStatus {
+  /// Drafted by Vane: nothing in it runs until a person presses Start.
+  WAITING
   OPEN
   DONE
   CANCELLED
@@ -16327,13 +16329,17 @@ model VanePlan {
   title     String
   dueOn     DateTime?      @db.Date
   status    VanePlanStatus @default(OPEN)
+  /// The job that laid the plan out: what it read, and whose request it was.
+  jobId     String?
   createdAt DateTime       @default(now())
   doneAt    DateTime?
 
   company Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  job     VaneJob?       @relation(fields: [jobId], references: [id], onDelete: SetNull)
   steps   VanePlanStep[]
 
   @@index([companyId, status])
+  @@index([jobId])
 }
 
 model VanePlanStep {
@@ -16387,6 +16393,7 @@ model VaneJob {
   company     Company    @relation(fields: [companyId], references: [id], onDelete: Cascade)
   requestedBy User?      @relation("VaneJobRequestedBy", fields: [requestedById], references: [id], onDelete: SetNull)
   items       VaneItem[]
+  plans       VanePlan[]
 
   @@unique([companyId, key])
   @@index([companyId, status, runAfter])

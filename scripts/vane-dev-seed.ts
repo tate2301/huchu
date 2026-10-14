@@ -12,7 +12,10 @@
  * The only stand-in is Claude's part: a fixed script that asks four
  * questions and raises a card for each that found something. The job records
  * its model as "scripted (dev seed)". Then it gives Vane one person's job,
- * which stays queued until a real key runs it.
+ * which stays queued until a real key runs it, and a second, larger one that
+ * the worker runs with a scripted planner: it reads the quotes through the
+ * reader and lays out a plan with `propose_plan`, which waits for the person
+ * to press Start (Plans, and Give Vane a job's `?job=<id>`).
  *
  * Vane's reader signs in with VANE_READER_DATABASE_URL when it is set; on a
  * development database without one it uses the test logins the Vane tests
@@ -169,6 +172,62 @@ function reply(content: Anthropic.ContentBlock[], stop: Anthropic.Message["stop_
   } as unknown as Anthropic.Message;
 }
 
+/** A person's job too large for one look: it becomes a plan that waits for Start. */
+const PLAN_REQUEST =
+  "Get every quote that has waited more than two weeks answered or closed by Friday, so the pipeline is honest for Monday's meeting.";
+
+/** The Friday after `now`, YYYY-MM-DD. */
+function nextFriday(now: Date): string {
+  const day = new Date(`${shopDay(now)}T00:00:00Z`);
+  day.setUTCDate(day.getUTCDate() + (((5 - day.getUTCDay() + 7) % 7) || 7));
+  return day.toISOString().slice(0, 10);
+}
+
+/** Claude's part for the person's job, scripted: read the waiting quotes, then lay the work out as a plan. */
+function scriptedPlanner(now: Date): MessagesClient {
+  const create = async (params: { messages: Anthropic.MessageParam[] }) => {
+    const turn = params.messages.filter((message) => message.role === "assistant").length;
+    const last = params.messages[params.messages.length - 1];
+    const results = Array.isArray(last?.content)
+      ? (last.content as Anthropic.ToolResultBlockParam[]).filter((block) => block.type === "tool_result")
+      : [];
+    if (turn === 0) {
+      return reply([{ type: "tool_use", id: "q_quotes", name: "run_sql", input: { sql: QUESTIONS.quotes } } as unknown as Anthropic.ContentBlock], "tool_use");
+    }
+    if (turn === 1) {
+      const answer = results[0] && !results[0].is_error ? (JSON.parse(String(results[0].content)) as Answer) : null;
+      const quotes = answer?.rows.length ?? 0;
+      const customers = new Set(answer?.rows.map((row) => row.customer)).size;
+      return reply(
+        [
+          {
+            type: "tool_use",
+            id: "p_plan",
+            name: "propose_plan",
+            input: {
+              title: "Answer or close the quotes waiting over two weeks",
+              dueOn: nextFriday(now),
+              steps: [
+                { label: `List the ${quotes} quotes with their customer, value and the day each went out`, owner: "VANE" },
+                { label: `Find which of the ${customers} customers have been in touch since their quote`, owner: "VANE" },
+                { label: "Call the customers with the five largest quotes", owner: "PERSON" },
+                { label: "Close the quotes that are gone, with the reason", owner: "PERSON" },
+                { label: "On Friday, raise a card for each quote still waiting", owner: "VANE" },
+              ],
+            },
+          } as unknown as Anthropic.ContentBlock,
+        ],
+        "tool_use",
+      );
+    }
+    return reply(
+      [{ type: "text", text: "Read the quotes waiting over two weeks and laid out a plan in five steps; it waits for Start.", citations: null } as unknown as Anthropic.ContentBlock],
+      "end_turn",
+    );
+  };
+  return { messages: { create } } as unknown as MessagesClient;
+}
+
 /** Claude's part, scripted: ask the four questions, raise what they found, then say what it did. */
 function scriptedClaude(): MessagesClient {
   const order = Object.keys(QUESTIONS) as Question[];
@@ -243,6 +302,16 @@ async function main() {
       text: "Which site visits from the last two weeks have no quote yet?",
     });
     console.log(`[vane-dev-seed] queued a person's job: ${job.label}`);
+  }
+
+  // A person's larger job, run now: the plan it lays out waits for that person to press Start.
+  const planned = await prisma.vaneJob.findFirst({ where: { companyId: company.id, request: PLAN_REQUEST }, select: { id: true } });
+  if (owner && !planned) {
+    const job = await giveVaneJob(prisma, { companyId: company.id, userId: owner.id, text: PLAN_REQUEST });
+    console.log(`[vane-dev-seed] ${await runNextJob(new Date(), { client: scriptedPlanner(now), companyId: company.id, jobId: job.id })}`);
+    console.log(`[vane-dev-seed] its plan waits for Start: /vane/plans?job=${job.id}`);
+  } else if (planned) {
+    console.log(`[vane-dev-seed] the planned job is there already: /vane/plans?job=${planned.id}`);
   }
 }
 

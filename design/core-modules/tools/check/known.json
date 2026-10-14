@@ -324,7 +324,11 @@
     "panel: Site visits",
     "panel: Showroom",
     "panel: People and pay",
-    "panel: Build"
+    "panel: Build",
+    "label: VAT summary",
+    "label: Invoices and bills",
+    "label: Trial balance",
+    "label: Tax codes"
   ],
   "PageVaneDone": [
     "panel: Pipeline",
@@ -348,7 +352,12 @@
     "panel: Showroom",
     "panel: People and pay",
     "panel: Build",
-    "label: What should Vane do?Get the October close ready, so we can close on the 3rd."
+    "label: What should Vane do?Get the October close ready, so we can close on the 3rd.",
+    "label: Trial balance",
+    "label: Journals",
+    "label: Posting rules",
+    "label: Fiscalisation",
+    "label: A journal"
   ],
   "PageVaneStates": [
     "heading: Vane’s states",

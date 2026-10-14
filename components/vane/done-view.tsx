@@ -18,6 +18,7 @@ const PERIODS: Array<{ key: DoneQuery["period"]; label: string }> = [
 export function kindLabel(kind: string): string {
   if (kind === "person") return "Jobs people gave";
   if (kind === "nightly") return "The nightly look";
+  if (kind === "plan-step") return "Steps of a plan";
   return kind.charAt(0).toUpperCase() + kind.slice(1);
 }
 

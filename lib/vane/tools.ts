@@ -206,7 +206,8 @@ const proposePlan = tool({
   name: "propose_plan",
   description:
     "Lay out a larger piece of work as a plan: a title, when it is due, and its steps in order, each owned by Vane (work you " +
-    "will do) or by a person (a decision or an act only they can take).",
+    "will do) or by a person (a decision or an act only they can take). The plan waits until a person presses Start; then " +
+    "each of your steps runs as a job of its own, in order, and each of theirs waits for them.",
   input: z.object({
     title: z.string().min(1).max(120).describe('"VAT return for September".'),
     dueOn: z
@@ -219,17 +220,20 @@ const proposePlan = tool({
       .min(1)
       .max(20),
   }),
-  async run({ companyId }, { title, dueOn, steps }) {
+  async run({ companyId, jobId }, { title, dueOn, steps }) {
     const plan = await prisma.vanePlan.create({
       data: {
         companyId,
+        jobId,
+        // Nothing in a plan Vane drafts runs until a person presses Start (`startPlan`).
+        status: "WAITING",
         title,
         dueOn: dueOn ? new Date(`${dueOn}T00:00:00Z`) : undefined,
         steps: { create: steps.map((step, index) => ({ position: index + 1, label: step.label, owner: step.owner })) },
       },
       select: { id: true },
     });
-    return { id: plan.id, steps: steps.length };
+    return { id: plan.id, steps: steps.length, waiting: "for a person to press Start" };
   },
 });
 

@@ -3,7 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { fetchJson } from "@/lib/api-client";
-import type { VaneCardDetail, VaneDone, VaneForYou, VaneMuted, VaneNav, VanePlanDetail } from "@/lib/vane/pages";
+import type { VaneCardDetail, VaneDone, VaneForYou, VaneJobView, VaneMuted, VaneNav, VanePlanDetail } from "@/lib/vane/pages";
 import type { VanePanel } from "@/lib/vane/panel";
 import type { VaneStatus } from "@/lib/vane/status";
 
@@ -81,6 +81,19 @@ export function useVanePlans() {
   });
 }
 
+/** A job given to Vane, polled until it has finished and laid out its plan. */
+export function useVaneJob(id: string | null) {
+  return useQuery({
+    queryKey: ["vane", "job", id],
+    queryFn: () => fetchJson<VaneJobView>(`/api/vane/jobs/${encodeURIComponent(id ?? "")}`),
+    enabled: Boolean(id),
+    refetchInterval: (query) => {
+      const status = query.state.data?.status;
+      return status === "done" || status === "failed" ? false : 5_000;
+    },
+  });
+}
+
 export function useVaneDone(search: string) {
   return useQuery({
     queryKey: ["vane", "done", search],
@@ -127,5 +140,10 @@ export function useVaneActions() {
       fetchJson(`/api/vane/items/${id}/stop`, { method: "PUT", body: JSON.stringify({ stopped }) }),
     onSettled: refresh,
   });
-  return { notNow, giveJob, pause, tickStep, bringBack, chooseKind };
+  const startPlan = useMutation({
+    mutationFn: ({ planId, steps }: { planId: string; steps?: Array<{ id: string; label: string }> }) =>
+      fetchJson(`/api/vane/plans/${planId}/start`, { method: "POST", body: JSON.stringify(steps ? { steps } : {}) }),
+    onSettled: refresh,
+  });
+  return { notNow, giveJob, pause, tickStep, bringBack, chooseKind, startPlan };
 }

@@ -1,8 +1,8 @@
 /**
  * The witness that Vane changes nothing by itself: every Vane route that
  * changes data (Not now, Bring back, Stop it for me and Keep showing it,
- * Give Vane a job, ticking a plan step, Pause and Resume) answers only a
- * signed-in person. A request with no person behind
+ * Give Vane a job, Start on a plan, ticking a plan step, Pause and Resume)
+ * answers only a signed-in person. A request with no person behind
  * it, such as the scheduled-jobs tick calling with its own secret, is refused
  * with 401 and the rows stay as they were. The checks run through the real session guard
  * against the database, nothing mocked.
@@ -18,6 +18,7 @@ import { POST as giveJob } from "./jobs/route";
 import { POST as bringBack } from "./items/[id]/bring-back/route";
 import { POST as mute } from "./items/[id]/mute/route";
 import { PUT as stopKind } from "./items/[id]/stop/route";
+import { POST as startPlan } from "./plans/[id]/start/route";
 import { PATCH as tickStep } from "./plans/[id]/steps/[stepId]/route";
 import { PATCH as changeSettings } from "./settings/route";
 
@@ -124,6 +125,28 @@ describe("Vane's data changes need a person", () => {
     expect(response.status).toBe(401);
     expect(await prisma.vanePlanStep.findUniqueOrThrow({ where: { id: plan.personStep } })).toMatchObject({ status: "NOW", doneAt: null });
     expect(await prisma.vanePlan.findUniqueOrThrow({ where: { id: plan.id } })).toMatchObject({ status: "OPEN" });
+  });
+
+  it("refuses Start without a signed-in person, and the plan keeps waiting with its steps", async () => {
+    const waiting = await prisma.vanePlan.create({
+      data: {
+        companyId,
+        title: "Answer or close the old quotes",
+        status: "WAITING",
+        steps: { create: [{ position: 1, label: "List each quote that has waited more than two weeks", owner: "VANE" }] },
+      },
+      include: { steps: true },
+    });
+    const response = await startPlan(
+      notAPerson(`/api/vane/plans/${waiting.id}/start`, "POST", { steps: [{ id: waiting.steps[0]!.id, label: "Send every customer a reminder" }] }),
+      { params: Promise.resolve({ id: waiting.id }) },
+    );
+    expect(response.status).toBe(401);
+    expect(await prisma.vanePlan.findUniqueOrThrow({ where: { id: waiting.id }, include: { steps: true } })).toMatchObject({
+      status: "WAITING",
+      steps: [{ label: "List each quote that has waited more than two weeks", status: "TODO" }],
+    });
+    expect(await prisma.vaneJob.count({ where: { companyId } })).toBe(0);
   });
 
   it("refuses Pause without a signed-in person, and Vane keeps working", async () => {

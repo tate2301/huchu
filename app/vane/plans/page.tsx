@@ -17,7 +17,7 @@ const GIVE_JOB = { label: "Give Vane a job", icon: "plus" as const, shortcut: "C
 function PlansPage() {
   const params = useSearchParams();
   const plans = useVanePlans();
-  const { tickStep } = useVaneActions();
+  const { tickStep, startPlan } = useVaneActions();
   const { toast } = useToast();
   const tick = (planId: string, stepId: string, done: boolean) =>
     tickStep.mutate(
@@ -32,7 +32,22 @@ function PlansPage() {
       <PageChrome title="Plans" primary={GIVE_JOB} />
       <VaneFrame>
         {plans.data ? (
-          <PlansView plans={plans.data.plans} selectedId={params.get("plan")} onTick={tick} busy={tickStep.isPending} />
+          <PlansView
+            plans={plans.data.plans}
+            selectedId={params.get("plan")}
+            onTick={tick}
+            onStart={(planId) =>
+              startPlan.mutate(
+                { planId },
+                {
+                  onSuccess: () => toast({ title: "The plan has started", description: "Vane takes its first step on the next tick." }),
+                  onError: (error) =>
+                    toast({ title: "The plan did not start", description: getApiErrorMessage(error, "Try again."), variant: "destructive" }),
+                },
+              )
+            }
+            busy={tickStep.isPending || startPlan.isPending}
+          />
         ) : plans.isError ? (
           <VaneError what="Plans" onRetry={() => plans.refetch()} />
         ) : (

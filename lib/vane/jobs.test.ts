@@ -150,6 +150,8 @@ describe("running a job", () => {
       ["run_sql", true],
       ["propose_item", true],
     ]);
+    // What each question read is kept with it, for a plan's It reads.
+    expect((done.tools as Array<{ reads?: unknown }>)[0]!.reads).toEqual([{ table: "employee", rows: 1 }]);
     const card = await prisma.vaneItem.findFirstOrThrow({ where: { jobId: queued.id } });
     expect(card).toMatchObject({ companyId: made.on, kind: "SUGGESTION" });
 

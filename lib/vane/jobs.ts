@@ -6,6 +6,7 @@ import { SHOP_TIME_ZONE } from "@/lib/retail/shop-profile-rules";
 import type { ScheduledJob } from "@/lib/scheduled-jobs/schedule";
 
 import { converse, VaneError, type MessagesClient, type Usage } from "./claude";
+import { advancePlans } from "./plans";
 import { tablesFor } from "./reader";
 import { callTool, toolDefinitions } from "./tools";
 
@@ -82,7 +83,26 @@ export function instructionsFor(job: Pick<VaneJob, "kind" | "label" | "request">
   return job.request?.trim() || job.label;
 }
 
-type ToolLog = { name: string; ms: number; ok: boolean };
+/** What one tool call read: each table and the rows it answered. */
+type Read = { table: string; rows: number };
+type ToolLog = { name: string; ms: number; ok: boolean; reads?: Read[] };
+
+/** The tables a tool call read, from its answer: `run_sql`'s question and `get_record`'s record. */
+export function readsOf(name: string, content: string): Read[] | undefined {
+  try {
+    const answer = JSON.parse(content) as Record<string, unknown>;
+    if (name === "run_sql" && Array.isArray(answer.readFrom) && Array.isArray(answer.rows)) {
+      const rows = answer.rows.length;
+      return answer.readFrom.filter((table): table is string => typeof table === "string").map((table) => ({ table, rows }));
+    }
+    if (name === "get_record" && typeof answer.table === "string") {
+      return [{ table: answer.table, rows: answer.record ? 1 : 0 }];
+    }
+  } catch {
+    // An answer that is not JSON read nothing worth listing.
+  }
+  return undefined;
+}
 
 type JobOutcome = { result: string; model: string; usage: Usage; tools: ToolLog[] };
 
@@ -122,7 +142,8 @@ async function converseJob(job: VaneJob, client: MessagesClient | undefined, dea
     for (const call of calls) {
       const started = Date.now();
       const result = await callTool({ companyId: job.companyId, jobId: job.id }, call.name, call.input);
-      log.push({ name: call.name, ms: Date.now() - started, ok: result.ok });
+      const reads = result.ok ? readsOf(call.name, result.content) : undefined;
+      log.push({ name: call.name, ms: Date.now() - started, ok: result.ok, ...(reads ? { reads } : {}) });
       results.push({ type: "tool_result", tool_use_id: call.id, content: result.content, is_error: !result.ok });
     }
     messages.push({ role: "user", content: results });
@@ -139,10 +160,11 @@ async function takeBackStale(now: Date): Promise<void> {
 }
 
 /** The oldest job due now in a workspace that is not paused and has allowance left this month. */
-async function nextDueJob(now: Date, companyId: string | undefined): Promise<VaneJob | null> {
+async function nextDueJob(now: Date, companyId: string | undefined, jobId: string | undefined): Promise<VaneJob | null> {
   const due = await prisma.vaneJob.findMany({
     where: {
       companyId,
+      id: jobId,
       status: { in: ["QUEUED", "WAITING"] },
       runAfter: { lte: now },
       company: { OR: [{ vaneSettings: null }, { vaneSettings: { paused: false } }] },
@@ -161,14 +183,15 @@ async function nextDueJob(now: Date, companyId: string | undefined): Promise<Van
 
 /**
  * Runs the next due job, if any, and says what happened in one line. With
- * `companyId`, only that workspace's jobs are considered.
+ * `companyId`, only that workspace's jobs are considered; with `jobId`, only
+ * that job.
  */
 export async function runNextJob(
   now: Date,
-  options: { client?: MessagesClient; deadlineMs?: number; companyId?: string } = {},
+  options: { client?: MessagesClient; deadlineMs?: number; companyId?: string; jobId?: string } = {},
 ): Promise<string> {
   await takeBackStale(now);
-  const job = await nextDueJob(now, options.companyId);
+  const job = await nextDueJob(now, options.companyId, options.jobId);
   if (!job) return "nothing due";
 
   const { count } = await prisma.vaneJob.updateMany({
@@ -218,6 +241,13 @@ export const VANE_JOBS: ScheduledJob[] = [
     name: "vane-nightly",
     when: { dailyAt: "06:00" },
     run: (now) => queueNightlyJobs(now),
+  },
+  {
+    // Started plans move on: a finished step job ticks its step, Vane's next step is queued as a
+    // job, a person's step waits for them. Before the jobs, so a queued step can run this tick.
+    name: "vane-plans",
+    when: { everyMinutes: 1 },
+    run: (now) => advancePlans(prisma, now),
   },
   {
     // One Vane job a tick; listed last, so the quick jobs run first.

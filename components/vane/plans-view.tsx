@@ -3,19 +3,22 @@
 import * as React from "react";
 import Link from "next/link";
 
-import { Empty, Icon, Meter, Pill } from "@/components/core";
+import { Button, Empty, Meter, Pill } from "@/components/core";
 import type { VanePlanDetail } from "@/lib/vane/pages";
 
 import { dueLabel, longDate, shortDate, when } from "./format";
+import { PlanFacts, PlanSteps } from "./plan-parts";
 
 /** The pill beside a plan's title: whose step is next, or that it is done. */
-export function planPill(plan: Pick<VanePlanDetail, "status" | "current">): { text: string; tone: "info" | "ok" | "plain" } {
+export function planPill(plan: Pick<VanePlanDetail, "status" | "current" | "person">): { text: string; tone: "info" | "ok" | "plain" } {
+  if (plan.status === "waiting") return { text: "Waiting for Start", tone: "plain" };
   if (plan.status === "done") return { text: "Done", tone: "ok" };
   if (plan.status === "cancelled") return { text: "Stopped", tone: "plain" };
   if (!plan.current) return { text: "Every step done", tone: "ok" };
-  return plan.current.owner === "vane"
-    ? { text: `Vane is on step ${plan.current.position}`, tone: "info" }
-    : { text: `Your turn, step ${plan.current.position}`, tone: "info" };
+  if (plan.current.owner === "vane") return { text: `Vane is on step ${plan.current.position}`, tone: "info" };
+  return plan.person.you
+    ? { text: `Your turn, step ${plan.current.position}`, tone: "info" }
+    : { text: `${plan.person.name ?? "A person"}’s turn, step ${plan.current.position}`, tone: "info" };
 }
 
 const share = (plan: VanePlanDetail) => (plan.steps.length ? (plan.done / plan.steps.length) * 100 : 0);
@@ -23,24 +26,29 @@ const share = (plan: VanePlanDetail) => (plan.steps.length ? (plan.done / plan.s
 /** The note under a plan's name in the list: when it is due, or when it was done. */
 function listNote(plan: VanePlanDetail): string {
   if (plan.status === "done" && plan.doneAt) return `Done ${shortDate(plan.doneAt)}`;
-  return plan.dueOn ? dueLabel(plan.dueOn) : "No due date";
+  const due = plan.dueOn ? dueLabel(plan.dueOn) : "No due date";
+  return plan.status === "waiting" ? `${due} · waiting for Start` : due;
 }
 
 /**
  * Plans (PageVanePlan): every plan Vane broke a job into, on the left with
  * how far along each is; the chosen one on the right, its steps in order,
- * whose each is and what each found. A person ticks their own steps here.
+ * whose each is and what each found, then what it reads and may write. A
+ * person ticks their own steps here, and presses Start on a plan that waits.
  */
 export function PlansView({
   plans,
   selectedId,
   onTick,
+  onStart,
   busy = false,
 }: {
   plans: VanePlanDetail[];
   selectedId: string | null;
   /** A person ticks their own step done or not done; Vane's steps tick as its jobs finish. */
   onTick?: (planId: string, stepId: string, done: boolean) => void;
+  /** Start: a waiting plan begins. */
+  onStart?: (planId: string) => void;
   busy?: boolean;
 }) {
   if (plans.length === 0) {
@@ -79,45 +87,30 @@ export function PlansView({
             <h2 id="vn-plan-title">{plan.title}</h2>
             <Pill tone={pill.tone}>{pill.text}</Pill>
             <span className="vn-plan-when">
-              {plan.dueOn ? `Due ${longDate(plan.dueOn)} · ` : ""}started by Vane, {when(plan.createdAt)}
+              {plan.dueOn ? `Due ${longDate(plan.dueOn)} · ` : ""}
+              {plan.status === "waiting" ? "laid out" : "started"} by Vane, {when(plan.createdAt)}
             </span>
           </div>
           <Meter value={share(plan)} label={`${plan.done} of ${plan.steps.length} steps done`} />
+          {plan.job ? <p className="vn-plan-ask">{plan.job.request}</p> : null}
           <div className="vn-plan-steps">
-            <div className="vp">
-              <ol>
-                {plan.steps.map((step) => (
-                  <li key={step.id} className={`is-${step.status}`}>
-                    {step.owner === "person" && onTick && (plan.status === "open" || plan.status === "done") ? (
-                      <button
-                        type="button"
-                        className="vn-tick"
-                        aria-pressed={step.status === "done"}
-                        aria-label={step.status === "done" ? `Mark “${step.label}” not done` : `Mark “${step.label}” done`}
-                        title={step.status === "done" ? "Mark not done" : "Mark done"}
-                        disabled={busy}
-                        onClick={() => onTick(plan.id, step.id, step.status !== "done")}
-                      >
-                        <Icon name={`step-${step.status}`} />
-                      </button>
-                    ) : (
-                      <Icon name={`step-${step.status}`} />
-                    )}
-                    <span>
-                      {step.label}
-                      {step.progress ? (
-                        <>
-                          <br />
-                          <span className="muted vn-step-d">{step.progress}</span>
-                        </>
-                      ) : null}
-                    </span>
-                    <span className="muted">{step.owner === "vane" ? "Vane" : "You"}</span>
-                  </li>
-                ))}
-              </ol>
-            </div>
+            <PlanSteps plan={plan} onTick={onTick} busy={busy} />
           </div>
+          <PlanFacts plan={plan} />
+          {plan.status === "waiting" ? (
+            <div className="vn-plan-start">
+              <span className="vn-note">
+                {plan.person.you
+                  ? "Nothing starts until you press Start."
+                  : `Nothing starts until ${plan.person.name ?? "the person who asked"} presses Start.`}
+              </span>
+              {plan.person.you && onStart ? (
+                <Button variant="primary" shortcut="Ctrl ↵" busy={busy} onClick={() => onStart(plan.id)}>
+                  Start
+                </Button>
+              ) : null}
+            </div>
+          ) : null}
         </section>
       </div>
     </div>

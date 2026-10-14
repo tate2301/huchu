@@ -4,6 +4,8 @@
  * - `20261014120000_vane_job_request`: a job keeps the person's whole request.
  * - `20261014130000_vane_card_choices`: what one person chose for a kind of
  *   card they keep setting aside (Stop it for me, Keep showing it).
+ * - `20261014140000_vane_plans_wait_for_start`: a plan waits for Start, and
+ *   keeps the job that laid it out.
  *
  * Each checks the column or table as Postgres stores it, and that Vane's
  * reader can read it (the lines `pnpm vane:reader-sql` prints).
@@ -68,5 +70,26 @@ describe("a person's choice for a kind of card", () => {
     const policies = await prisma.$queryRaw<Array<{ policyname: string }>>`
       SELECT policyname FROM pg_policies WHERE tablename = 'VaneCardChoice' ORDER BY policyname`;
     expect(policies.map((row) => row.policyname)).toEqual(["app_all", "vane_workspace"]);
+  });
+});
+
+describe("a plan waits for Start, and keeps its job", () => {
+  it("has a waiting state before open", async () => {
+    const rows = await prisma.$queryRaw<Array<{ value: string }>>`SELECT unnest(enum_range(NULL::"VanePlanStatus"))::text AS value`;
+    expect(rows.map((row) => row.value)).toEqual(["WAITING", "OPEN", "DONE", "CANCELLED"]);
+  });
+
+  it("points at the job that laid it out, and keeps the plan when the job goes", async () => {
+    expect((await columns("VanePlan")).jobId).toMatchObject({ data_type: "text", is_nullable: "YES" });
+    const keys = await prisma.$queryRaw<Array<{ on_delete: string }>>`
+      SELECT rc.delete_rule AS on_delete
+      FROM information_schema.referential_constraints rc
+      JOIN information_schema.key_column_usage kcu ON kcu.constraint_name = rc.constraint_name
+      WHERE kcu.table_name = 'VanePlan' AND kcu.column_name = 'jobId'`;
+    expect(keys).toEqual([{ on_delete: "SET NULL" }]);
+  });
+
+  it("lets Vane's reader read it", async () => {
+    expect(await readerColumns("VanePlan")).toContain("jobId");
   });
 });
