@@ -6,7 +6,6 @@ import type { ScheduledJob } from "@/lib/scheduled-jobs/schedule";
 
 import { VaneError, type MessagesClient, type Usage } from "./claude";
 import { runConversation, type ToolLog } from "./conversation";
-import { advancePlans } from "./plans";
 import { vaneRules } from "./prompt";
 import { tablesFor } from "./reader";
 
@@ -183,12 +182,6 @@ export const VANE_JOBS: ScheduledJob[] = [
     name: "vane-nightly",
     when: { dailyAt: "06:00" },
     run: (now) => queueNightlyJobs(now),
-  },
-  {
-    // Started plans move on: a finished step's job ticks it, and Vane's next step is queued as a job.
-    name: "vane-plans",
-    when: { everyMinutes: 1 },
-    run: (now) => advancePlans(prisma, now),
   },
   {
     // One Vane job a tick; listed last, so the quick jobs run first.

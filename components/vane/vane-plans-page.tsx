@@ -12,7 +12,7 @@ import { VaneError, VaneLoading, VanePage } from "./vane-page";
 export function VanePlansPage({ planId }: { planId: string | null }) {
   const { toast } = useToast();
   const plans = useVanePlans();
-  const { tick, start } = useVaneActions();
+  const { tick } = useVaneActions();
   const chosen = plans.data?.find((plan) => plan.id === planId) ?? null;
 
   return (
@@ -29,21 +29,6 @@ export function VanePlansPage({ planId }: { planId: string | null }) {
             chosenId={planId}
             showList={!planId}
             ticking={tick.isPending}
-            starting={start.isPending}
-            onStart={(plan) =>
-              start.mutate(
-                { planId: plan.id },
-                {
-                  onSuccess: () => toast({ title: "Started", description: "Vane takes the first step on its next tick." }),
-                  onError: (error) =>
-                    toast({
-                      title: "The plan did not start",
-                      description: getApiErrorMessage(error, "Check the connection and try again."),
-                      variant: "destructive",
-                    }),
-                },
-              )
-            }
             onTick={(plan, step, done) =>
               tick.mutate(
                 { planId: plan.id, stepId: step.id, done },

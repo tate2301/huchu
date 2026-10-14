@@ -29,12 +29,7 @@ export type VanePlanRow = {
   id: string;
   title: string;
   dueOn: string | null;
-  /** "waiting": laid out by Vane, nothing runs until a person presses Start. */
-  status: "waiting" | "open" | "done";
-  /** This person may press Start: it is their plan, or one no person asked for. */
-  canStart: boolean;
-  /** Whose plan it is, when someone else's: "Rudo". */
-  whose: string | null;
+  status: "open" | "done";
   createdAt: string;
   doneAt: string | null;
   done: number;
@@ -43,80 +38,54 @@ export type VanePlanRow = {
 
 const STEP_STATUS = { TODO: "todo", NOW: "now", DONE: "done" } as const;
 
-const PLAN_ORDER = { open: 0, waiting: 1, done: 2 } as const;
-
-/**
- * Plans under way first, soonest due; then those waiting for Start; then the
- * finished ones of the last 30 days, newest first.
- */
-export async function listVanePlans(
-  db: Pick<PrismaClient, "vanePlan">,
-  { companyId, userId }: Who,
-  now: Date = new Date(),
-): Promise<VanePlanRow[]> {
+/** Open plans first, soonest due; then the finished ones of the last 30 days, newest first. */
+export async function listVanePlans(db: Pick<PrismaClient, "vanePlan">, { companyId }: Who, now: Date = new Date()): Promise<VanePlanRow[]> {
   const rows = await db.vanePlan.findMany({
     where: {
       companyId,
-      OR: [
-        { status: { in: ["OPEN", "WAITING"] } },
-        { status: "DONE", doneAt: { gte: new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000) } },
-      ],
+      OR: [{ status: "OPEN" }, { status: "DONE", doneAt: { gte: new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000) } }],
     },
-    orderBy: [{ dueOn: { sort: "asc", nulls: "last" } }, { createdAt: "desc" }],
+    orderBy: [{ status: "asc" }, { dueOn: { sort: "asc", nulls: "last" } }, { createdAt: "desc" }],
     take: 50,
-    include: {
-      steps: { orderBy: { position: "asc" } },
-      job: { select: { requestedById: true, requestedBy: { select: { name: true } } } },
-    },
+    include: { steps: { orderBy: { position: "asc" } } },
   });
-  const plans = rows.map<VanePlanRow>((plan) => {
-    const owner = plan.job?.requestedById ?? null;
-    return {
-      id: plan.id,
-      title: plan.title,
-      dueOn: plan.dueOn ? plan.dueOn.toISOString().slice(0, 10) : null,
-      status: plan.status === "DONE" ? "done" : plan.status === "WAITING" ? "waiting" : "open",
-      canStart: plan.status === "WAITING" && (!owner || owner === userId),
-      whose: owner && owner !== userId ? (plan.job?.requestedBy?.name.trim().split(/\s+/)[0] ?? null) : null,
-      createdAt: plan.createdAt.toISOString(),
-      doneAt: plan.doneAt?.toISOString() ?? null,
-      done: plan.steps.filter((step) => step.status === "DONE").length,
-      steps: plan.steps.map((step) => ({
-        id: step.id,
-        position: step.position,
-        label: step.label,
-        owner: step.owner === "VANE" ? "vane" : "person",
-        status: STEP_STATUS[step.status],
-        progress: step.progressLabel,
-      })),
-    };
-  });
-  // Finished plans newest first; the rest keep the soonest due first.
-  return plans.sort(
-    (a, b) => PLAN_ORDER[a.status] - PLAN_ORDER[b.status] || (a.status === "done" ? (b.doneAt ?? "").localeCompare(a.doneAt ?? "") : 0),
-  );
+  return rows.map((plan) => ({
+    id: plan.id,
+    title: plan.title,
+    dueOn: plan.dueOn ? plan.dueOn.toISOString().slice(0, 10) : null,
+    status: plan.status === "DONE" ? "done" : "open",
+    createdAt: plan.createdAt.toISOString(),
+    doneAt: plan.doneAt?.toISOString() ?? null,
+    done: plan.steps.filter((step) => step.status === "DONE").length,
+    steps: plan.steps.map((step) => ({
+      id: step.id,
+      position: step.position,
+      label: step.label,
+      owner: step.owner === "VANE" ? "vane" : "person",
+      status: STEP_STATUS[step.status],
+      progress: step.progressLabel,
+    })),
+  }));
 }
 
 /**
  * A person ticks one of their own steps, or unticks it. Vane's steps are
- * Vane's: a person cannot tick them, and no step moves before Start. When the
- * last step is ticked the plan is done; unticking one opens it again.
+ * Vane's: a person cannot tick them. When the last step is ticked the plan is
+ * done; unticking one opens it again.
  */
 export async function tickPlanStep(
   db: Pick<PrismaClient, "$transaction">,
   { companyId }: Who,
   { planId, stepId, done }: { planId: string; stepId: string; done: boolean },
   now: Date = new Date(),
-): Promise<"ticked" | "not-found" | "vane-owns-it" | "not-started"> {
+): Promise<"ticked" | "not-found" | "vane-owns-it"> {
   return db.$transaction(async (tx) => {
     const step = await tx.vanePlanStep.findFirst({
       where: { id: stepId, planId, plan: { companyId, status: { not: "CANCELLED" } } },
-      select: { id: true, owner: true, plan: { select: { status: true } } },
+      select: { id: true, owner: true },
     });
     if (!step) return "not-found";
     if (step.owner === "VANE") return "vane-owns-it";
-    // Nothing in a plan moves before a person presses Start.
-    if (step.plan.status === "WAITING") return "not-started";
     await tx.vanePlanStep.update({
       where: { id: step.id },
       data: done ? { status: "DONE", doneAt: now } : { status: "TODO", doneAt: null },

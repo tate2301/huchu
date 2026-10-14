@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 
-import { Button, Empty, Icon, Meter } from "@/components/core";
+import { Empty, Icon, Meter } from "@/components/core";
 import type { VanePlanRow, VanePlanStepRow } from "@/lib/vane/lists";
 
 const shortDay = (date: string) => new Date(`${date}T00:00:00`).toLocaleDateString("en-GB", { day: "numeric", month: "short" });
@@ -15,18 +15,15 @@ const when = (iso: string) => {
 
 const share = (plan: VanePlanRow) => (plan.steps.length ? (plan.done / plan.steps.length) * 100 : 0);
 
-/** "Due 25 Oct", "Done 9 Oct", "Due 3 Nov · waiting for Start". */
+/** "Due 25 Oct", "Done 9 Oct". */
 function planWhen(plan: VanePlanRow): string | null {
   if (plan.status === "done" && plan.doneAt) return `Done ${shortDay(plan.doneAt.slice(0, 10))}`;
-  const due = plan.dueOn ? `Due ${shortDay(plan.dueOn)}` : null;
-  if (plan.status === "waiting") return due ? `${due} · waiting for Start` : "Waiting for Start";
-  return due;
+  return plan.dueOn ? `Due ${shortDay(plan.dueOn)}` : null;
 }
 
-/** Where a plan stands: "Vane is on step 2", "Step 3 waits for you", "Waiting for Start". */
+/** Where a plan stands: "Vane is on step 2", "Step 3 waits for you". */
 function standing(plan: VanePlanRow): string {
   if (plan.status === "done") return "Done";
-  if (plan.status === "waiting") return "Waiting for Start";
   const now = plan.steps.find((step) => step.status === "now");
   if (now) return now.owner === "vane" ? `Vane is on step ${now.position}` : `Step ${now.position} waits for you`;
   const next = plan.steps.find((step) => step.status !== "done");
@@ -39,7 +36,6 @@ function Step({
   onTick,
 }: {
   step: VanePlanStepRow;
-  /** Nothing can be ticked now: a tick is on its way, or the plan waits for Start. */
   ticking: boolean;
   onTick: (step: VanePlanStepRow, done: boolean) => void;
 }) {
@@ -81,10 +77,8 @@ function Step({
 /**
  * Plans (`/vane/plans`, the PageVanePlan board): each plan with its meter on
  * the left, and the chosen plan on the right, its steps in order, who owns
- * each and how far along it is. A plan Vane lays out waits for Start
- * (Ctrl ↵): nothing in it runs or ticks before then. Started, Vane's steps
- * run one at a time and tick as their jobs finish; a person ticks their own.
- * On a phone the list and the plan are separate pages.
+ * each and how far along it is. A person ticks their own steps; Vane's tick
+ * as its jobs finish. On a phone the list and the plan are separate pages.
  *
  * Pure: the page feeds it.
  */
@@ -94,8 +88,6 @@ export function PlansView({
   showList,
   ticking,
   onTick,
-  starting = false,
-  onStart,
 }: {
   plans: VanePlanRow[];
   chosenId: string | null;
@@ -103,9 +95,6 @@ export function PlansView({
   showList: boolean;
   ticking: boolean;
   onTick: (plan: VanePlanRow, step: VanePlanStepRow, done: boolean) => void;
-  starting?: boolean;
-  /** Start: a waiting plan begins. */
-  onStart?: (plan: VanePlanRow) => void;
 }) {
   if (plans.length === 0) {
     return (
@@ -171,39 +160,15 @@ export function PlansView({
             </h2>
             <span className={chosen.status === "done" ? "pill" : "pill pill-info"}>{standing(chosen)}</span>
             <span style={{ marginLeft: "auto", color: "var(--color-muted)" }}>
-              {[
-                chosen.dueOn ? `Due ${longDay(chosen.dueOn)}` : null,
-                `${chosen.status === "waiting" ? "laid out by Vane" : "started"} ${when(chosen.createdAt)}`,
-              ]
-                .filter(Boolean)
-                .join(" · ")}
+              {[chosen.dueOn ? `Due ${longDay(chosen.dueOn)}` : null, `started ${when(chosen.createdAt)}`].filter(Boolean).join(" · ")}
             </span>
           </div>
-          {chosen.status === "waiting" ? (
-            <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "var(--space-12)" }}>
-              <span style={{ flex: "1 1 240px", color: "var(--color-ink-2)" }}>
-                {chosen.canStart
-                  ? "Nothing in it runs until you press Start. Then Vane takes its steps one at a time, and yours wait for you."
-                  : `It waits for ${chosen.whose ?? "the person who asked for it"} to press Start.`}
-              </span>
-              {chosen.canStart && onStart ? (
-                <Button variant="primary" icon="run" shortcut="Ctrl ↵" busy={starting} onClick={() => onStart(chosen)}>
-                  Start
-                </Button>
-              ) : null}
-            </div>
-          ) : null}
           <Meter accent value={share(chosen)} label={`${chosen.done} of ${chosen.steps.length} steps done`} />
           <div style={{ borderTop: "1px solid var(--color-line)" }}>
             <div className="vp" style={{ boxShadow: "none", padding: 0 }}>
               <ol>
                 {chosen.steps.map((step) => (
-                  <Step
-                    key={step.id}
-                    step={step}
-                    ticking={ticking || chosen.status === "waiting"}
-                    onTick={(row, done) => onTick(chosen, row, done)}
-                  />
+                  <Step key={step.id} step={step} ticking={ticking} onTick={(row, done) => onTick(chosen, row, done)} />
                 ))}
               </ol>
             </div>

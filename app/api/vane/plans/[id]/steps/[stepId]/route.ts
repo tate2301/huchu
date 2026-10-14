@@ -23,7 +23,6 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     );
     if (outcome === "not-found") return errorResponse("That step is not in this plan", 404);
     if (outcome === "vane-owns-it") return errorResponse("Vane ticks its own steps as its jobs finish", 403);
-    if (outcome === "not-started") return errorResponse("Press Start first: nothing in the plan moves before then", 409);
     return successResponse({ id: stepId, done: body.data.done });
   } catch (error) {
     console.error("[API] PATCH /api/vane/plans/[id]/steps/[stepId] error:", error);

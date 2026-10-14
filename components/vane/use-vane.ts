@@ -157,12 +157,7 @@ export function useVaneActions() {
       fetchJson(`/api/vane/items/${id}/stop`, { method: "PUT", body: JSON.stringify({ stopped }) }),
     onSettled: refresh,
   });
-  /** Start: a plan Vane laid out begins. */
-  const start = useMutation({
-    mutationFn: ({ planId }: { planId: string }) => fetchJson(`/api/vane/plans/${planId}/start`, { method: "POST", body: "{}" }),
-    onSettled: refresh,
-  });
-  return { notNow, act, pause, unmute, tick, chooseKind, start };
+  return { notNow, act, pause, unmute, tick, chooseKind };
 }
 
 const CHAT_KEY = ["vane", "chat"] as const;
