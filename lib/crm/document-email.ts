@@ -91,6 +91,24 @@ function money(currency: string, amount: number): string {
 
 export type DocumentEmailBody = { subject: string; text: string; html: string };
 
+/** The note a document goes with unless the person writes their own: "Please find our quotation QT-0402 for USD 919.17 attached." */
+export function defaultDocumentMessage(input: { kind: DocumentKind; number: string; amount: string }): string {
+  return `Please find our ${LABELS[input.kind].toLowerCase()} ${input.number} for ${input.amount} attached.`;
+}
+
+export function defaultDocumentSubject(input: { kind: DocumentKind; number: string; companyName: string }): string {
+  return `${LABELS[input.kind]} ${input.number} from ${input.companyName}`;
+}
+
+/** The person's note as HTML: a blank line starts a paragraph, a single break stays a break. */
+function messageHtml(message: string): string {
+  return message
+    .trim()
+    .split(/\n{2,}/)
+    .map((paragraph) => `<p>${escapeHtml(paragraph).replace(/\n/g, "<br>")}</p>`)
+    .join("\n  ");
+}
+
 /**
  * The covering note. Deliberately plain: it is a business letter, not a
  * newsletter, and an HTML mail that renders as a marketing blast is the one a
@@ -99,6 +117,10 @@ export type DocumentEmailBody = { subject: string; text: string; html: string };
  * The resources the rep ticked — the brochure, the data sheet — follow the
  * link, as a plain list with their addresses written out, so a client whose
  * mail client strips links can still copy one.
+ *
+ * The note and the subject are the rep's when they wrote their own; the link
+ * and the resources always follow, so no edit can leave the client without a
+ * way to answer.
  */
 export function buildDocumentEmail(input: {
   kind: DocumentKind;
@@ -107,15 +129,18 @@ export function buildDocumentEmail(input: {
   amount: string;
   approvalUrl: string;
   resources?: ResourceLink[];
+  subject?: string;
+  message?: string;
 }): DocumentEmailBody {
   const label = LABELS[input.kind];
   const noun = label.toLowerCase();
-  const subject = `${label} ${input.number} from ${input.companyName}`;
+  const subject = input.subject?.trim() || defaultDocumentSubject(input);
+  const message = input.message?.trim() || defaultDocumentMessage(input);
   const resources = input.resources ?? [];
   const heading = resourcesHeading(input.kind);
 
   const lines = [
-    `Please find our ${noun} ${input.number} for ${input.amount} attached.`,
+    message,
     "",
     input.kind === "RECEIPT"
       ? `You can view it here: ${input.approvalUrl}`
@@ -149,7 +174,7 @@ export function buildDocumentEmail(input: {
       : "";
 
   const html = `<div style="font-family:-apple-system,Segoe UI,Helvetica,Arial,sans-serif;font-size:15px;line-height:1.6;color:#18181b">
-  <p>Please find our ${escapeHtml(noun)} <strong>${escapeHtml(input.number)}</strong> for ${escapeHtml(input.amount)} attached.</p>
+  ${messageHtml(message)}
   <p><a href="${escapeHtml(input.approvalUrl)}">${input.kind === "RECEIPT" ? "View the " + escapeHtml(noun) : "Review and respond to the " + escapeHtml(noun)}</a></p>${resourceHtml}
   <p>${escapeHtml(input.companyName)}</p>
 </div>`;
@@ -168,13 +193,10 @@ export class NoRecipientError extends Error {
 
 export type SentDocument = { to: string; subject: string };
 
-/**
- * Render, attach, send, and log it against the record.
- */
-export async function emailDocumentToClient(params: {
-  companyId: string;
-  leadDocumentId: string;
-}): Promise<SentDocument> {
+type DocumentRef = { companyId: string; leadDocumentId: string };
+
+/** The document, its number and amount, and who it goes to: what the draft shows and the send uses. */
+async function documentForEmail(params: DocumentRef) {
   // The customer on the document is a copy of the company, made when it was
   // first billed. Bring it up to date before reading the address off it and
   // printing it under "Bill To", or an edited company email never arrives.
@@ -225,6 +247,39 @@ export async function emailDocumentToClient(params: {
     primaryContactEmail: doc.deal?.primaryContact?.email,
     contactEmail: doc.lead?.contactEmail,
   });
+  const number =
+    doc.quotation?.quotationNumber ??
+    doc.invoice?.invoiceNumber ??
+    doc.receipt?.receiptNumber ??
+    "";
+  return { doc, recordId, to, number, amount: money(doc.currency, doc.amount) };
+}
+
+export type DocumentEmailDraft = { to: string | null; subject: string; message: string };
+
+/**
+ * What "Email to the client" opens with: who it goes to, and the subject and
+ * note it would carry, for the rep to change before sending. No address is
+ * said, not refused: the rep sees the draft and what to add. It brings the
+ * billed customer up to date first, as the send does, so the address shown
+ * is the one the send uses.
+ */
+export async function draftDocumentEmail(params: DocumentRef): Promise<DocumentEmailDraft> {
+  const { doc, to, number, amount } = await documentForEmail(params);
+  const branding = await getDocumentBranding(params.companyId);
+  return {
+    to,
+    subject: defaultDocumentSubject({ kind: doc.type, number, companyName: branding.displayName }),
+    message: defaultDocumentMessage({ kind: doc.type, number, amount }),
+  };
+}
+
+/**
+ * Render, attach, send, and log it against the record, with the rep's own
+ * subject and note when they wrote them.
+ */
+export async function emailDocumentToClient(params: DocumentRef & { subject?: string; message?: string }): Promise<SentDocument> {
+  const { doc, recordId, to, number, amount } = await documentForEmail(params);
   if (!to) throw new NoRecipientError();
 
   const branding = await getDocumentBranding(params.companyId);
@@ -245,17 +300,13 @@ export async function emailDocumentToClient(params: {
     getOrCreateApproval(tx, { companyId: params.companyId, leadDocumentId: doc.id }),
   );
 
-  const number =
-    doc.quotation?.quotationNumber ??
-    doc.invoice?.invoiceNumber ??
-    doc.receipt?.receiptNumber ??
-    "";
-
   const { subject, text, html } = buildDocumentEmail({
     kind: doc.type,
     number,
     companyName: branding.displayName,
-    amount: money(doc.currency, doc.amount),
+    amount,
+    subject: params.subject,
+    message: params.message,
     // Absolute, from the configured site URL: mail is read long after the
     // request that sent it, on a device that never saw it.
     approvalUrl: absoluteUrl(`/a/${token}`),

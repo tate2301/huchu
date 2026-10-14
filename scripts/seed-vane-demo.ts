@@ -132,7 +132,7 @@ async function main() {
   const pipeline = await prisma.crmPipeline.create({ data: { companyId, name: DEMO_PIPELINE } });
   const proposal = await prisma.crmPipelineStage.create({ data: { companyId, pipelineId: pipeline.id, name: "Proposal", status: "OPEN" } });
   await prisma.crmPipelineStage.create({ data: { companyId, pipelineId: pipeline.id, name: "Won", status: "WON" } });
-  const client = await prisma.crmClient.create({ data: { companyId, name: DEMO_CLIENT, clientNo: `CL-DEMO-${now.getTime()}` } });
+  const client = await prisma.crmClient.create({ data: { companyId, name: DEMO_CLIENT, clientNo: `CL-DEMO-${now.getTime()}`, email: "accounts@pomona.example" } });
   const deal = await prisma.crmDeal.create({
     data: { companyId, dealNo: `DL-DEMO-${now.getTime()}`, title: DEMO_DEAL, pipelineId: pipeline.id, stageId: proposal.id, clientId: client.id, value: 8930 },
   });
