@@ -35,16 +35,16 @@ All 25 are on the Core modules canvas, Vane page. Each opens on its own as `desi
 | 2 | VaneTouch | Where people meet Vane | reference | |
 | 3 | VaneComponents | Components and states | reference: the parts list for this work | |
 | 4 | VaneRules | The rules | reference | |
-| 5 | VaneForYou | For you | `/vane` | to build |
+| 5 | VaneForYou | For you | `/vane` | built: designcheck 98%, clean at 1440 and 390 |
 | 6 | VnTree | The tree | reference | |
 | 7 | VnUseCases | Use cases | reference | |
 | 8 | VnTemplates | Vane's templates, with reports and forms | reference | |
-| 9 | PageVaneCard | A card, and what Vane read | a card's "What I read" | to build |
-| 10 | PageVanePlan | Plans | `/vane/plans` | to build |
-| 11 | PageVaneJob | Give Vane a job (Ctrl J) | a dialog from anywhere | the panel's field is built; the dialog and Ctrl J are to build |
-| 12 | PageVaneDone | Done | `/vane/done` | to build |
-| 13 | PageVaneMuted | Muted | `/vane/muted` | to build |
-| 14 | PageVaneStates | Paused, over the allowance, could not work it out, cannot reach the service | the four states, on `/vane` and in the panel | to build |
+| 9 | PageVaneCard | A card, and what Vane read | a card's "What I read" | built (`/vane?card=<id>`): 92.9%; What it drafted waits for the `draft` tool |
+| 10 | PageVanePlan | Plans | `/vane/plans` | built: 94.4% (⌘ for Ctrl on a Mac) |
+| 11 | PageVaneJob | Give Vane a job (Ctrl J) | a dialog from anywhere | built: the dialog and Ctrl J from every page; the plan proposed before Start is not |
+| 12 | PageVaneDone | Done | `/vane/done` | built: 97.7% |
+| 13 | PageVaneMuted | Muted | `/vane/muted` | built: 97.9%; "Stop it for me" needs a kind per card |
+| 14 | PageVaneStates | Paused, over the allowance, could not work it out, cannot reach the service | the four states, on `/vane` and in the panel | built (`VaneStateNote`); Show the rows and "Paused by James" wait, see NOTES.md |
 | 15 | PageVaneReport | Explain a figure, on Deals | on a report page | to build |
 | 16 | PageVaneBlock | A block in the builder, waiting to be kept | in the report builder | being built in PR #213's follow-up |
 | 17 | VnRequirements | Requirements and the migration | reference | |
@@ -58,6 +58,12 @@ All 25 are on the Core modules canvas, Vane page. Each opens on its own as `desi
 | 25 | PageVanePhone | A fitter's phone, only his own visits | the panel at 390 | the scope needs a decision (below) |
 
 Already built from other pages' boards: BooksVane (Books → Money with Vane open) and MgmtVane (Management → Vane, scores 100%).
+
+## Changed on 14 October: Vane acts, with approval
+
+The owner moved Vane to the rail only (its mark opens the panel; no top bar button, no Give Vane a job dialog), gave the panel a chat that holds while Vane works and always offers suggestions, and let Vane carry out what it recommends once a person approves: quick actions on cards (a due date set in place), several at once from one answer, each approved or denied. Built in `lib/vane/actions/` (fourteen kinds across Books, CRM, Retail and Vane's plans, see `docs/vane.md`), `lib/vane/chat.ts`, migration `20261014090000_vane_chat_actions`. The module code each runs was taken out of its route first (deal stage, CRM activity, the lists' bulk changes, sales invoice and quotation), so the route and Vane share it.
+
+The panel's look follows Claude's chat inside the kit: Vane's answers in plain reading text beside its mark, the person's words in a soft bubble, a shimmering line while it works, one rounded composer with the send button inside. Each product has its hue from the kit's categorical hues (Books `--hue-3`, CRM `--hue-1`, Tender `--hue-2`; `components/core/parts.css`): a card's strip, its product pill, an action's square and a suggestion's icon take it. Tone stays for state: an issue amber, done green, failed red, denied struck through.
 
 ## The plan for building /vane
 
@@ -91,6 +97,7 @@ Build one workflow at a time, end to end with its states.
   - Cannot reach the service: the last time a job finished.
   - Each reads from `VaneJob` and `VaneSettings` and shows on `/vane` and in the panel.
 - **Done when:** a person can see everything Vane has for them, pause it and resume it, and every state shows when it should.
+- **Built.** `app/vane/page.tsx`, `components/vane/for-you-view.tsx` (fixture `/design/vane`), `components/vane/vane-state-note.tsx`, `components/vane/vane-module-panel.tsx`. `vaneStatus()` now carries the counts beside Vane's pages, when it was paused, over the allowance and could not work it out (`lib/vane/status.test.ts`). The rail's Vane mark opens `/vane`; the top bar's button opens the panel. To see it locally, `npx tsx scripts/seed-vane-demo.ts --slug <workspace>` writes the boards' cards, plan and jobs.
 
 ### 2. A card and what Vane read (PageVaneCard)
 
@@ -98,6 +105,7 @@ Build one workflow at a time, end to end with its states.
 - **What I read:** the template or report it came from, the filters, the SQL and the rows, from `VaneItem.sql` and `readFrom`.
 - **Actions:** the card's action button calls the module's own endpoint, which is the person's action. Not useful and Mute ask the reason, and Mute writes it.
 - **Done when:** every card can be traced to the SQL and rows behind it.
+- **Built.** `components/vane/vane-card-drawer.tsx`, `not-now-menu.tsx`; pressing a card's act records who took it further (`POST /api/vane/items/[id]/act`).
 
 ### 3. Plans, Done, Muted (PageVanePlan, PageVaneDone, PageVaneMuted)
 
@@ -107,6 +115,7 @@ Build one workflow at a time, end to end with its states.
 - **`/vane/done`:** finished jobs and kept cards by day, with what each read and cost.
 - **`/vane/muted`:** muted cards with their reason, and Unmute.
 - **Done when:** the three lists match their boards and the counts in the panel agree with them.
+- **Built.** `lib/vane/lists.ts` (tested), `/api/vane/plans`, `/api/vane/plans/[id]/steps/[stepId]`, `/api/vane/done`, `/api/vane/muted`, `/api/vane/items/[id]/unmute`, and `/vane/working` (no board; drawn like Done). Vane's own steps do not tick yet: no tool marks them.
 
 ### 4. Give Vane a job, with Ctrl J (PageVaneJob)
 
@@ -116,11 +125,13 @@ Build one workflow at a time, end to end with its states.
   - Keep the person's whole request. Today `giveVaneJob` writes it into the job's `label`, cut at 120 characters, and the tick reads the label as the instruction. Store the whole text and keep the label short.
 - **After it posts:** the job appears in Working on at once.
 - **Done when:** a long request reaches Claude whole, and the shortcut works from every module.
+- **Built.** `components/vane/give-job-dialog.tsx`; the whole request is the job's label.
 
 ### 5. Live
 
 - The button's dot, the count and Working on update without a reload.
 - Use the existing stream (`app/api/notifications/stream/route.ts`). Until then, react-query polls `GET /api/vane/status` every 30 seconds.
+- **Built.** The stream is now the workspace's one live channel, `GET /api/live`: `notifications` with the notification centre, `vane` when Vane's cards, jobs, plan steps or pause change (`lib/vane/live.ts`, tested). `components/layout/live-stream.tsx` in the shell refreshes the queries; the Vane polls are a 60-second fallback.
 
 ### 6. Vane inside the modules
 

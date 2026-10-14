@@ -14,7 +14,6 @@ import { prisma } from "@/lib/prisma";
 
 import type { MessagesClient } from "./claude";
 import { queueNightlyJobs, runNextJob } from "./jobs";
-import { giveVaneJob } from "./panel";
 import { useTestReaderLogins } from "./test-reader-logins";
 
 const suffix = randomUUID().slice(0, 8);
@@ -97,7 +96,6 @@ afterEach(async () => {
 
 afterAll(async () => {
   const companies = { slug: { startsWith: "vane-jobs-" } };
-  await prisma.user.deleteMany({ where: { company: companies } });
   await prisma.employee.deleteMany({ where: { company: companies } });
   await prisma.company.deleteMany({ where: companies });
 });
@@ -150,8 +148,6 @@ describe("running a job", () => {
       ["run_sql", true],
       ["propose_item", true],
     ]);
-    // What each question read is kept with it, for a plan's It reads.
-    expect((done.tools as Array<{ reads?: unknown }>)[0]!.reads).toEqual([{ table: "employee", rows: 1 }]);
     const card = await prisma.vaneItem.findFirstOrThrow({ where: { jobId: queued.id } });
     expect(card).toMatchObject({ companyId: made.on, kind: "SUGGESTION" });
 
@@ -162,20 +158,20 @@ describe("running a job", () => {
     const toolResult = JSON.stringify(second[0].messages[2]);
     expect(toolResult).toContain("Chipo");
     expect(second[0].tools.map((t) => t.name)).toContain("propose_item");
-  });
 
-  it("hands Claude a person's whole request, however long, while the label stays short", async () => {
-    const long = `Go through every quote we sent in September ${"and check each line against the site visit, ".repeat(6)}then tell me which ones to chase first.`;
-    const person = await prisma.user.create({
-      data: { companyId: made.on, name: "Rudo", email: `rudo-${suffix}@vane-jobs.test`, password: "x", role: "MANAGER" },
-    });
-    const given = await giveVaneJob(prisma, { companyId: made.on, userId: person.id, text: long });
-    expect(given.label.length).toBeLessThanOrEqual(120);
-    const { client, create } = claude(reply([text("Nothing to chase.")], "end_turn"));
-    expect(await runNextJob(new Date(), { client, companyId: made.on })).toMatch(/done/);
-    const first = create.mock.calls[0] as unknown as [{ messages: Anthropic.MessageParam[] }];
-    expect(first[0].messages[0]).toEqual({ role: "user", content: long });
-    expect(await prisma.vaneJob.findUniqueOrThrow({ where: { id: given.id } })).toMatchObject({ request: long, status: "DONE" });
+    // Cached as the prompt-caching guide lays it out: the tools and Vane's shared instructions
+    // for an hour (the same for every workspace reading these tables), then the job's own words,
+    // then the conversation, which the request's own cache_control follows.
+    const sent = create.mock.calls[0] as unknown as [
+      { tools: Array<{ cache_control?: unknown }>; system: Array<{ text: string; cache_control?: unknown }>; cache_control: unknown },
+    ];
+    const { tools, system, cache_control } = sent[0];
+    expect(tools.at(-1)!.cache_control).toEqual({ type: "ephemeral", ttl: "1h" });
+    expect(tools.slice(0, -1).every((tool) => tool.cache_control === undefined)).toBe(true);
+    expect(system.map((block) => block.cache_control ?? null)).toEqual([{ type: "ephemeral", ttl: "1h" }, null]);
+    expect(system[0]!.text).toContain("You are Vane");
+    expect(system[1]!.text).toContain("When you are done");
+    expect(cache_control).toEqual({ type: "ephemeral" });
   });
 
   it("waits and tries again later when Claude cannot be reached", async () => {

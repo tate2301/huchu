@@ -18,7 +18,6 @@ import {
   SearchTrigger,
 } from "@/components/layout/app-bar-tools";
 import { Button as KitButton, ButtonLink as KitButtonLink, Kit } from "@/components/core";
-import { VaneButton } from "@/components/vane/vane-button";
 import { usePageChrome, type PagePrimary } from "@/components/layout/page-chrome";
 import { useShellNav } from "@/components/layout/shell-nav";
 import { useShell } from "@/components/layout/shell-state";
@@ -26,6 +25,7 @@ import { Button } from "@/components/workspace/button";
 import { Menu, MenuContent, MenuItem, MenuTrigger } from "@/components/workspace/menu";
 import { CrmMembers } from "@/components/crm/crm-members";
 import { CaretLeft, ChevronDown, DotsThree, List, Plus, type LucideIcon } from "@/lib/icons";
+import { VANE_PAGES } from "@/components/vane/vane-nav";
 import { navSections } from "@/lib/navigation";
 
 /**
@@ -34,7 +34,8 @@ import { navSections } from "@/lib/navigation";
  */
 function routeIcon(pathname: string): LucideIcon | undefined {
   let best: { length: number; icon: LucideIcon } | undefined;
-  for (const section of navSections) {
+  // Vane's pages are in every workspace and in no section.
+  for (const section of [...navSections, { items: VANE_PAGES }]) {
     for (const item of section.items) {
       const path = item.href.split("?")[0] ?? item.href;
       if (pathname !== path && !pathname.startsWith(`${path}/`)) continue;
@@ -171,9 +172,6 @@ export function PageHeader() {
           <SearchTrigger />
           <DeviceStatus />
           <NotificationsBell />
-          <Kit contents>
-            <VaneButton />
-          </Kit>
         </div>
         {actions ? <div className="flex shrink-0 items-center gap-2">{actions}</div> : null}
         {primary?.menu?.length ? (
@@ -236,9 +234,6 @@ export function PageHeader() {
         <SearchTrigger compact />
         <DeviceStatus compact />
         <NotificationsBell compact />
-        <Kit contents>
-          <VaneButton />
-        </Kit>
         {menuCount > 0 ? (
           <Menu>
             <MenuTrigger asChild>

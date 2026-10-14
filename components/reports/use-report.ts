@@ -26,17 +26,14 @@ export type ReportResponse = {
  * Both in the URL means a report is linked exactly as it was seen, and the
  * back button undoes a filter.
  */
-/** Address keys the page reads itself; every other key is one of the report's dates or choices. */
-const PAGE_KEYS = new Set(["v", "send", "save", "explain", "vane"]);
-
 export function useReport(key: string) {
   const pathname = usePathname();
   const search = useSearchParams();
 
   const given = useMemo(() => {
     const params: ReportParams = {};
-    // `send` and `save` open the page's drawers, `explain` and `vane` open Vane beside it: the page's, not the report's.
-    for (const [name, value] of search) if (!PAGE_KEYS.has(name)) params[name] = value;
+    // `send` opens the Send it drawer; it is the page's, not the report's.
+    for (const [name, value] of search) if (name !== "v" && name !== "send") params[name] = value;
     return params;
   }, [search]);
 

@@ -113,14 +113,6 @@
 .ck.ck.ck .rp-row { box-shadow: inset 0 1px 0 var(--color-line); min-width: 0; }
 .ck.ck.ck .rp-block { padding: 16px 24px 20px; }
 .ck.ck.ck .rp-hbar { grid-template-columns: 140px minmax(0, 1fr) 96px; }
-/* Explain a figure (PageVaneReport): a quiet button on each key figure and bar, shown on hover or focus; always on touch. */
-.ck.ck.ck .rp-kt { position: relative; }
-.ck.ck.ck .rp-kt .rp-explain { position: absolute; top: 8px; right: 8px; }
-.ck.ck.ck .rp-bar-l { display: flex; align-items: center; gap: 2px; min-width: 0; }
-.ck.ck.ck .rp-bar-l .rp-explain { flex: none; width: 22px; height: 22px; }
-.ck.ck.ck .rp-explain { opacity: 0; transition: opacity 0.12s; }
-.ck.ck.ck .rp-kt:hover .rp-explain, .ck.ck.ck .rp-hbar:hover .rp-explain, .ck.ck.ck .rp-explain:focus-visible { opacity: 1; }
-@media (hover: none) { .ck.ck.ck .rp-explain { opacity: 1; } }
 /* Half width (two blocks to a row): a narrower label, and the sum takes the room it needs, so the bar keeps a track. */
 .ck.ck.ck .rp-grid2 .rp-hbar, .ck.ck.ck .rb-cols .rp-hbar { grid-template-columns: minmax(0, 104px) minmax(64px, 1fr) max-content; gap: 12px; }
 .ck.ck.ck .rp-line .axis span { white-space: nowrap; }
@@ -265,3 +257,112 @@
   .ck.ck.ck .ip-heat-x { font-size: 9px; }
   .ck.ck.ck .ip-heat-c { height: 18px; }
 }
+
+/* ---------------------------------------------------------------- Vane, as built
+   Each product's hue, from the kit's categorical hues, so a card, an action or
+   a suggestion says which part of Corelith it is about. State keeps the tone
+   colours: an issue amber, done green, failed red. */
+.ck [data-module] { --mod: var(--color-accent); }
+.ck [data-module="books"] { --mod: var(--hue-3); }
+.ck [data-module="crm"] { --mod: var(--hue-1); }
+.ck [data-module="retail"] { --mod: var(--hue-2); }
+.ck [data-module="gold"] { --mod: var(--hue-4); }
+.ck [data-module="people"], .ck [data-module="payroll"] { --mod: var(--hue-5); }
+.ck [data-module="schools"] { --mod: var(--hue-6); }
+
+/* A product, in a pill: its icon in its hue. */
+.ck.ck.ck .vn-tag { display: inline-flex; align-items: center; gap: var(--space-4); height: 20px; padding: 0 var(--space-8) 0 var(--space-4); border-radius: var(--radius-pill); font-size: var(--text-12); font-weight: 500; color: var(--color-ink-2); background: color-mix(in oklab, var(--mod) 12%, transparent); white-space: nowrap; }
+.ck.ck.ck .vn-tag .ic { width: 14px; height: 14px; color: var(--mod); }
+
+/* The header's state, as a dot in its tone. */
+.ck.ck.ck .ask-h .status { font-size: var(--text-13); margin-left: var(--space-4); }
+
+/* A card: a strip in its product's hue (amber when it is an issue), the kind and the product as pills. */
+.ck.ck.ck .ask .vc { position: relative; overflow: hidden; gap: var(--space-8); padding: var(--space-12) var(--space-16) var(--space-16) var(--space-16); }
+.ck.ck.ck .ask .vc::before, .ck.vr .vc::before { content: ""; position: absolute; inset: 0 auto 0 0; width: 3px; background: var(--mod); }
+.ck.ck.ck .ask .vc.is-issue::before, .ck.ck.ck.vr .vc.is-issue::before { background: var(--color-warning); }
+.ck.ck.ck .ask .vc-k, .ck.ck.ck.vr .vc-k { height: auto; flex-wrap: wrap; gap: var(--space-4); }
+.ck.ck.ck .vn-kind { display: inline-flex; align-items: center; gap: var(--space-4); height: 20px; padding: 0 var(--space-8) 0 var(--space-4); border-radius: var(--radius-pill); font-size: var(--text-12); font-weight: 500; color: var(--color-ink-2); background: var(--color-fill); }
+.ck.ck.ck .vn-kind .ic, .ck.ck.ck .vc .vn-kind > .ic { width: 14px; height: 14px; color: var(--color-muted); }
+.ck.ck.ck .vc.is-issue .vn-kind { background: var(--color-warning-tint); }
+.ck.ck.ck .vc.is-issue .vn-kind > .ic { color: var(--color-warning); }
+.ck.ck.ck .vc .vn-when { font-size: var(--text-12); color: var(--color-muted); font-variant-numeric: tabular-nums; }
+
+/* A quick action: the product it acts in, then what it does; done, failed and denied in their tones. */
+.ck.ck.ck .va-l { display: flex; flex-direction: column; gap: var(--space-8); margin-top: var(--space-4); }
+.ck.ck.ck .va-h { display: flex; align-items: center; gap: var(--space-8); font-size: var(--text-12); color: var(--color-muted); }
+.ck.ck.ck .va-h > span { flex: 1; }
+.ck.ck.ck .va { display: flex; flex-direction: column; gap: var(--space-8); padding: var(--space-8) var(--space-12); border-radius: 8px; background: var(--color-surface); box-shadow: inset 0 0 0 1px var(--color-line); list-style: none; }
+.ck.ck.ck .va-t { display: flex; gap: var(--space-8); align-items: flex-start; font-size: var(--text-13); line-height: 1.45; }
+.ck.ck.ck .va-n { flex: 1; min-width: 0; color: var(--color-ink); }
+.ck.ck.ck .va-i { width: 20px; height: 20px; border-radius: 6px; display: grid; place-items: center; flex: none; margin-top: -1px; background: color-mix(in oklab, var(--mod) 14%, transparent); color: var(--mod); }
+.ck.ck.ck .va-i .ic { width: 14px; height: 14px; }
+.ck.ck.ck .va-f { display: flex; flex-wrap: wrap; gap: var(--space-8); padding-left: 28px; }
+.ck.ck.ck .va-f label { display: flex; flex-direction: column; gap: var(--space-4); flex: 1 1 160px; font-size: var(--text-12); color: var(--color-muted); }
+.ck.ck.ck .va-f label.is-date { flex: none; }
+.ck.ck.ck .va-b { display: flex; gap: var(--space-8); padding-left: 28px; }
+.ck.ck.ck .va-o { padding-left: 28px; font-size: var(--text-12); color: var(--color-ink-2); }
+.ck.ck.ck .va-e { padding-left: 28px; font-size: var(--text-12); color: var(--color-danger); }
+.ck.ck.ck .va[data-status="done"] { background: var(--color-success-tint); box-shadow: none; }
+.ck.ck.ck .va[data-status="done"] .va-i { background: var(--color-success); color: var(--color-surface); }
+.ck.ck.ck .va[data-status="failed"] { background: var(--color-danger-tint); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--color-danger) 28%, transparent); }
+.ck.ck.ck .va[data-status="approved"] { background: var(--color-info-tint); box-shadow: none; }
+.ck.ck.ck .va[data-status="denied"] { background: var(--color-ground); box-shadow: none; }
+.ck.ck.ck .va[data-status="denied"] .va-n { color: var(--color-muted); text-decoration: line-through; text-decoration-color: var(--color-faint); }
+.ck.ck.ck .va[data-status="denied"] .va-i { background: var(--color-fill); color: var(--color-muted); }
+
+/* The conversation, after Claude's: Vane answers in plain reading text beside its mark, no bubble; the
+   person's words sit right in a soft filled bubble; what Vane is doing shimmers in one quiet line. */
+.ck.ck.ck .vm { display: flex; flex-direction: column; gap: var(--space-8); }
+.ck.ck.ck .vm-me { align-self: flex-end; max-width: 85%; margin-top: var(--space-8); }
+.ck.ck.ck .vm-me .vm-b { padding: 10px 14px; border-radius: 18px; background: var(--color-fill); color: var(--color-ink); font-size: var(--text-14); line-height: var(--leading-14); white-space: pre-wrap; overflow-wrap: anywhere; }
+.ck.ck.ck .vm-it { flex-direction: row; align-items: flex-start; gap: var(--space-12); }
+.ck.ck.ck .vm-it > .vn { margin-top: 2px; }
+.ck.ck.ck .vm-it .vm-c { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: var(--space-12); }
+.ck.ck.ck .vm-it .vm-b { color: var(--color-ink); font-size: var(--text-14); line-height: var(--leading-reading); }
+.ck.ck.ck .vm-it .vm-b p, .ck.ck.ck .vm-it .vm-b li { color: var(--color-ink); }
+.ck.ck.ck .vm-w { align-items: center; }
+.ck.ck.ck .vm-w .vm-b { font-size: var(--text-14); color: var(--color-muted); background: linear-gradient(90deg, var(--color-muted) 0%, var(--color-muted) 40%, var(--color-ink) 50%, var(--color-muted) 60%, var(--color-muted) 100%) 0 0 / 300% 100%; -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; animation: vn-shimmer 2.4s linear infinite; }
+@keyframes vn-shimmer { from { background-position: 100% 0; } to { background-position: 0 0; } }
+@media (prefers-reduced-motion: reduce) { .ck.ck.ck .vm-w .vm-b { animation: none; -webkit-text-fill-color: currentColor; background: none; } }
+.ck.ck.ck .vm-err { display: flex; gap: var(--space-8); align-items: flex-start; margin: 0; padding: var(--space-8) var(--space-12); border-radius: 12px; background: var(--color-danger-tint); color: var(--color-ink); font-size: var(--text-13); }
+.ck.ck.ck .vm-err .ic { color: var(--color-danger); margin-top: 2px; }
+
+/* The composer, after Claude's: one rounded box holding the words and the send button. */
+.ck.ck.ck .ask .ask-c { flex-direction: column; gap: var(--space-12); box-shadow: none; padding-top: var(--space-8); }
+.ck.ck.ck .vn-box { display: flex; flex-direction: column; border-radius: 16px; background: var(--color-surface); box-shadow: inset 0 0 0 1px var(--color-rule), var(--shadow-raised); transition: box-shadow var(--motion-fast) var(--motion-ease); }
+.ck.ck.ck .vn-box:focus-within { box-shadow: inset 0 0 0 1px var(--color-accent), 0 0 0 3px var(--color-accent-tint); }
+.ck.ck.ck .vn-box textarea { display: block; width: 100%; min-height: 48px; max-height: 160px; padding: 12px 14px 4px; border: 0; background: transparent; resize: none; outline: none; box-shadow: none; font-size: var(--text-14); line-height: var(--leading-14); color: var(--color-ink); field-sizing: content; }
+.ck.ck.ck .vn-box textarea::placeholder { color: var(--color-muted); }
+.ck.ck.ck .vn-box textarea:focus-visible { box-shadow: none; }
+.ck.ck.ck .vn-box-f { display: flex; align-items: center; gap: var(--space-8); padding: 4px 8px 8px 14px; font-size: var(--text-12); color: var(--color-muted); }
+.ck.ck.ck .vn-box-f > span { flex: 1; min-width: 0; }
+.ck.ck.ck .vn-send { width: 32px; height: 32px; display: grid; place-items: center; flex: none; border-radius: 10px; background: var(--color-accent); color: var(--color-accent-ink); transition: opacity var(--motion-fast) var(--motion-ease); }
+.ck.ck.ck .vn-send .ic { width: 16px; height: 16px; }
+.ck.ck.ck .vn-send:disabled { opacity: 0.35; cursor: default; }
+@media (prefers-reduced-motion: reduce) { .ck.ck.ck .vn-box, .ck.ck.ck .vn-send { transition: none; } }
+
+/* Suggestions: what to ask next, each with its product's icon. */
+.ck.ck.ck .vn-sug { display: flex; flex-wrap: wrap; gap: var(--space-8); }
+.ck.ck.ck .vn-sug button { display: inline-flex; align-items: center; gap: var(--space-8); min-height: 32px; max-width: 100%; padding: var(--space-4) var(--space-12) var(--space-4) 10px; border-radius: 12px; background: var(--color-surface); box-shadow: inset 0 0 0 1px var(--color-line); font-size: var(--text-13); color: var(--color-ink-2); text-align: left; transition: background var(--motion-fast) var(--motion-ease), box-shadow var(--motion-fast) var(--motion-ease); }
+.ck.ck.ck .vn-sug button > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ck.ck.ck .vn-sug button .ic { width: 16px; height: 16px; color: var(--mod); }
+.ck.ck.ck .vn-sug button:hover:not(:disabled) { background: color-mix(in oklab, var(--mod) 8%, var(--color-surface)); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--mod) 40%, var(--color-line)); color: var(--color-ink); }
+.ck.ck.ck .vn-sug button:disabled { opacity: 0.5; cursor: default; }
+@media (prefers-reduced-motion: reduce) { .ck.ck.ck .vn-sug button { transition: none; } }
+
+/* For you's rows: the product's icon on its hue, and the kind's tone as a dot. */
+.ck.ck.ck .fy .nt[data-module] { width: 28px; height: 28px; margin: -2px 0 0 -2px; border-radius: 8px; background: color-mix(in oklab, var(--mod) 12%, transparent); color: var(--mod); }
+.ck.ck.ck .fy .nt[data-module] .ic { width: 16px; height: 16px; }
+.ck.ck.ck .vn-dot { display: inline-block; width: 6px; height: 6px; margin-right: 6px; border-radius: var(--radius-pill); background: var(--color-faint); vertical-align: 1px; }
+.ck.ck.ck .fy.is-issue .vn-dot { background: var(--color-warning); }
+
+/* Vane on a record page's rail (a deal's, a lead's): its cards about this record, then Ask. */
+.ck.vr { display: flex; flex-direction: column; gap: var(--space-8); }
+.ck.ck.ck.vr .vc { position: relative; overflow: hidden; gap: var(--space-4); padding: var(--space-8) var(--space-12) var(--space-12) var(--space-16); }
+.ck.ck.ck.vr .vc h3 { font-size: var(--text-13); }
+.ck.ck.ck.vr .vc p { font-size: var(--text-13); }
+.ck.ck.ck .vr-none { font-size: var(--text-13); color: var(--color-muted); }
+.ck.ck.ck .vr-ask { display: flex; align-items: center; gap: var(--space-8); min-height: 32px; padding: var(--space-4) var(--space-12) var(--space-4) var(--space-8); border-radius: 10px; box-shadow: inset 0 0 0 1px var(--color-line); background: var(--color-surface); font-size: var(--text-13); color: var(--color-ink-2); text-align: left; transition: background var(--motion-fast) var(--motion-ease); }
+.ck.ck.ck .vr-ask:hover { background: var(--color-hover); color: var(--color-ink); }
+@media (prefers-reduced-motion: reduce) { .ck.ck.ck .vr-ask { transition: none; } }

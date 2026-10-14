@@ -12,7 +12,6 @@ type PageAuthOptions = {
   pathname?: string;
   callbackUrl?: string;
   loginPath?: string;
-  requireAdmin?: boolean;
   accessBlockedPath?: string;
   requireTenantContext?: boolean;
   enforceRouteFeatureCheck?: boolean;
@@ -21,7 +20,6 @@ type PageAuthOptions = {
 
 type ApiAuthOptions = {
   request: Request;
-  requireAdmin?: boolean;
   requireTenantContext?: boolean;
   enforceRouteFeatureCheck?: boolean;
   enforceTenantHost?: boolean;
@@ -35,8 +33,7 @@ export async function requirePageAuth(options: PageAuthOptions = {}): Promise<Au
   const {
     pathname,
     callbackUrl,
-    loginPath = options.requireAdmin ? "/admin/login" : "/login",
-    requireAdmin = false,
+    loginPath = "/login",
     accessBlockedPath = "/access-blocked",
     requireTenantContext = true,
     enforceRouteFeatureCheck = true,
@@ -50,7 +47,6 @@ export async function requirePageAuth(options: PageAuthOptions = {}): Promise<Au
     session,
     pathname,
     hostHeader,
-    requireAdmin,
     requireTenantContext,
     enforceRouteFeatureCheck,
     enforceTenantHost,
@@ -84,10 +80,9 @@ export async function requirePageAuth(options: PageAuthOptions = {}): Promise<Au
 export async function requireApiAuth(options: ApiAuthOptions): Promise<{ session: AuthenticatedSession } | NextResponse> {
   const {
     request,
-    requireAdmin = false,
-    requireTenantContext = !requireAdmin,
-    enforceRouteFeatureCheck = !requireAdmin,
-    enforceTenantHost = !requireAdmin,
+    requireTenantContext = true,
+    enforceRouteFeatureCheck = true,
+    enforceTenantHost = true,
   } = options;
 
   const session = await getCurrentAuthSession();
@@ -98,7 +93,6 @@ export async function requireApiAuth(options: ApiAuthOptions): Promise<{ session
     pathname,
     method: request.method,
     hostHeader,
-    requireAdmin,
     requireTenantContext,
     enforceRouteFeatureCheck,
     enforceTenantHost,

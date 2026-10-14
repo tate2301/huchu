@@ -1,10 +1,9 @@
 /**
  * Migration witnesses for the Vane changes the owner approved on 14 October:
  *
- * - `20261014120000_vane_job_request`: a job keeps the person's whole request.
- * - `20261014130000_vane_card_choices`: what one person chose for a kind of
+ * - `20261014190000_vane_card_choices`: what one person chose for a kind of
  *   card they keep setting aside (Stop it for me, Keep showing it).
- * - `20261014140000_vane_plans_wait_for_start`: a plan waits for Start, and
+ * - `20261014200000_vane_plans_wait_for_start`: a plan waits for Start, and
  *   keeps the job that laid it out.
  *
  * Each checks the column or table as Postgres stores it, and that Vane's
@@ -33,16 +32,6 @@ const readerColumns = async (table: string) => {
     ORDER BY column_name`;
   return rows.map((row) => row.column_name);
 };
-
-describe("a job keeps the person's whole request", () => {
-  it("stores the request as text of any length, empty for jobs no person gave", async () => {
-    expect((await columns("VaneJob")).request).toMatchObject({ data_type: "text", is_nullable: "YES", column_default: null });
-  });
-
-  it("lets Vane's reader read it", async () => {
-    expect(await readerColumns("VaneJob")).toContain("request");
-  });
-});
 
 describe("a person's choice for a kind of card", () => {
   it("keeps one choice per person and kind in a workspace, and goes with the workspace or the person", async () => {

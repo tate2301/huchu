@@ -3,6 +3,10 @@ import { z } from "zod";
 
 import { prisma } from "@/lib/prisma";
 
+import { proposeActions, type ActionProposal } from "./actions/engine";
+import { VANE_ACTIONS } from "./actions/registry";
+import { VANE_PAGES_GUIDE } from "./pages";
+import { VANE_SUBJECTS } from "./panel";
 import { readWorkspace, ReaderError, tablesFor, withReader, type ReadableTable } from "./reader";
 
 /**
@@ -20,6 +24,11 @@ export type ToolContext = {
   companyId: string;
   /** The job the call is part of, kept on what it writes. */
   jobId: string | null;
+  /**
+   * In a person's chat: the actions Vane proposes without a card, gathered
+   * here and hung on its answer when it finishes.
+   */
+  answerActions?: ActionProposal[];
 };
 
 type VaneTool<Input extends z.ZodType> = {
@@ -164,23 +173,36 @@ const proposeItem = tool({
     action: z.object({
       type: z.string().min(1).max(40).describe('What the button does: "open", "send_reminders", "review_draft".'),
       label: z.string().min(1).max(40).describe('The button\'s words: "Send the reminders".'),
-      target: z.string().max(2000).optional().describe("Where it goes: a path in the app, or the record it acts on."),
-      shortcut: z.string().max(12).optional().describe('The key that presses it, when it is the card\'s main act: "S", "Ctrl ↵".'),
-      also: z
-        .object({ label: z.string().min(1).max(40), target: z.string().startsWith("/").max(2000) })
+      target: z
+        .string()
+        .max(400)
         .optional()
-        .describe('A second, quieter way in: "Open the 11 rows" beside "Save as a template".'),
+        .describe("The page it opens, with the filters that show just these records: \"/books/invoices?view=overdue&customer=<id>\". See the pages list."),
     }),
-    subjectType: z.string().max(60).optional().describe('The record it is about, if one: "SalesInvoice".'),
+    subjectType: z
+      .enum(VANE_SUBJECTS)
+      .optional()
+      .describe("The one record it is about, when there is one; the card then shows on that record's page too (a deal's, a lead's, a company's)."),
     subjectId: z.string().max(60).optional(),
     sql: z.string().max(20_000).optional(),
     readFrom: z
-      .array(z.object({ table: z.string().min(1), rows: z.number().int().nonnegative() }))
+      .array(
+        z.object({
+          table: z.string().min(1),
+          rows: z.number().int().nonnegative(),
+          about: z.string().max(80).optional().describe('Which of its rows, in a few words: "won, last 7 days", "for those deals".'),
+        }),
+      )
       .max(20)
-      .describe("The tables read and how many rows each answered."),
+      .describe("The tables read, which of their rows, and how many rows each answered."),
     audienceRole: z.string().max(40).optional().describe("Who should see it, by role, when not everyone."),
+    actions: z
+      .array(z.object({ kind: z.string().min(1), params: z.record(z.string(), z.unknown()) }))
+      .max(20)
+      .optional()
+      .describe("What you can do about it once a person approves, from the actions list (propose_actions). One per record where the action is one record's."),
   }),
-  async run({ companyId, jobId }, input) {
+  async run({ companyId, jobId }, { actions, ...input }) {
     const open = await prisma.vaneItem.findFirst({
       where: { companyId, status: "OPEN", headline: input.headline },
       select: { id: true },
@@ -203,7 +225,9 @@ const proposeItem = tool({
       },
       select: { id: true },
     });
-    return { id: item.id, raised: true };
+    if (!actions?.length) return { id: item.id, raised: true };
+    const { proposed, refused } = await proposeActions(prisma, { companyId, itemId: item.id }, actions);
+    return { id: item.id, raised: true, actionsProposed: proposed.length, actionsRefused: refused };
   },
 });
 
@@ -211,8 +235,7 @@ const proposePlan = tool({
   name: "propose_plan",
   description:
     "Lay out a larger piece of work as a plan: a title, when it is due, and its steps in order, each owned by Vane (work you " +
-    "will do) or by a person (a decision or an act only they can take). The plan waits until a person presses Start; then " +
-    "each of your steps runs as a job of its own, in order, and each of theirs waits for them.",
+    "will do) or by a person (a decision or an act only they can take).",
   input: z.object({
     title: z.string().min(1).max(120).describe('"VAT return for September".'),
     dueOn: z
@@ -225,24 +248,65 @@ const proposePlan = tool({
       .min(1)
       .max(20),
   }),
-  async run({ companyId, jobId }, { title, dueOn, steps }) {
+  async run({ companyId }, { title, dueOn, steps }) {
     const plan = await prisma.vanePlan.create({
       data: {
         companyId,
-        jobId,
-        // Nothing in a plan Vane drafts runs until a person presses Start (`startPlan`).
-        status: "WAITING",
         title,
         dueOn: dueOn ? new Date(`${dueOn}T00:00:00Z`) : undefined,
         steps: { create: steps.map((step, index) => ({ position: index + 1, label: step.label, owner: step.owner })) },
       },
       select: { id: true },
     });
-    return { id: plan.id, steps: steps.length, waiting: "for a person to press Start" };
+    return { id: plan.id, steps: steps.length };
   },
 });
 
-export const VANE_TOOLS = [describeTable, runSql, getRecord, proposeItem, proposePlan] as const;
+/** The actions a person can approve, as Claude is shown them. */
+function actionCatalogue(): string {
+  return VANE_ACTIONS.map(
+    (action) => `- ${action.kind}: ${action.description} Inputs: ${JSON.stringify(z.toJSONSchema(action.params as z.ZodType))}`,
+  ).join("\n");
+}
+
+const proposeActionsTool = tool({
+  name: "propose_actions",
+  description:
+    "Propose things you can do, for a person to approve or deny one by one. Nothing runs until they approve; they may change some inputs first (a date, a note). " +
+    "Use it when what you found can be fixed: a due date to set, reminders to send, a task to raise. Several at once is fine: one per record. " +
+    "With itemId they hang on that card (one you raised in this job); in a chat they hang on your answer. Never propose what the person did not need, " +
+    "and never one that was denied before for the same record.\n\nThe actions:\n" +
+    actionCatalogue() +
+    "\n\n" +
+    VANE_PAGES_GUIDE,
+  input: z.object({
+    itemId: z.string().min(1).optional().describe("The card they belong to, when they are about one you raised."),
+    actions: z.array(z.object({ kind: z.string().min(1), params: z.record(z.string(), z.unknown()) })).min(1).max(20),
+  }),
+  async run({ companyId, answerActions }, { itemId, actions }) {
+    if (itemId) {
+      const card = await prisma.vaneItem.findFirst({ where: { id: itemId, companyId }, select: { id: true } });
+      if (!card) return { proposed: 0, refused: [{ kind: "", why: `There is no card ${itemId} in this workspace.` }] };
+      const { proposed, refused } = await proposeActions(prisma, { companyId, itemId }, actions);
+      return { proposed: proposed.length, refused };
+    }
+    if (!answerActions) {
+      return { proposed: 0, refused: [{ kind: "", why: "Outside a chat, actions hang on a card: give its itemId." }] };
+    }
+    // Checked now, written with the answer.
+    const refused: Array<{ kind: string; why: string }> = [];
+    for (const proposal of actions) {
+      const action = VANE_ACTIONS.find((candidate) => candidate.kind === proposal.kind);
+      const parsed = action?.params.safeParse(proposal.params);
+      if (!action) refused.push({ kind: proposal.kind, why: `There is no action ${proposal.kind}.` });
+      else if (!parsed?.success) refused.push({ kind: proposal.kind, why: z.prettifyError(parsed!.error) });
+      else answerActions.push(proposal);
+    }
+    return { proposed: actions.length - refused.length, refused };
+  },
+});
+
+export const VANE_TOOLS = [describeTable, runSql, getRecord, proposeItem, proposePlan, proposeActionsTool] as const;
 
 /** The tools as Claude is shown them. */
 export function toolDefinitions(): Anthropic.Tool[] {

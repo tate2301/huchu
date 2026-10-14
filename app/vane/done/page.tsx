@@ -4,25 +4,29 @@ import * as React from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 import { PageChrome } from "@/components/layout/page-chrome";
-import { DoneView } from "@/components/vane/done-view";
+import { DONE_PERIODS, DoneView } from "@/components/vane/done-view";
 import { useVaneDone } from "@/components/vane/use-vane";
-import { VaneError, VaneFrame, VaneLoading } from "@/components/vane/vane-frame";
-import type { DoneQuery } from "@/lib/vane/pages";
+import { VaneError, VaneLoading, VanePage } from "@/components/vane/vane-page";
 
-/** `/vane/done` (PageVaneDone): what Vane finished, by day, with what a person did next. The filters live in the address. */
-function DonePage() {
+/** Done (design/core-modules/boards/view/PageVaneDone.html). The period and the template live in the address. */
+function Done() {
   const router = useRouter();
   const pathname = usePathname();
   const params = useSearchParams();
-  const search = params.toString();
-  const done = useVaneDone(search);
+  const asked = Number(params.get("days"));
+  const days = DONE_PERIODS.some((period) => period.days === asked) ? asked : 7;
+  const template = params.get("template");
+  const done = useVaneDone(days, template);
 
-  const onQuery = (next: Partial<DoneQuery>) => {
-    const merged = new URLSearchParams(search);
-    for (const [key, value] of Object.entries(next)) {
-      const fallback = (key === "period" && value === "7d") || (key === "who" && value === "everyone");
-      if (value === null || value === undefined || value === "" || fallback) merged.delete(key);
-      else merged.set(key, String(value));
+  const onQuery = (next: { days?: number; template?: string | null }) => {
+    const merged = new URLSearchParams(params.toString());
+    if (next.days !== undefined) {
+      if (next.days === 7) merged.delete("days");
+      else merged.set("days", String(next.days));
+    }
+    if (next.template !== undefined) {
+      if (next.template) merged.set("template", next.template);
+      else merged.delete("template");
     }
     const query = merged.toString();
     router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
@@ -31,23 +35,23 @@ function DonePage() {
   return (
     <>
       <PageChrome title="Done" />
-      <VaneFrame>
+      <VanePage screen="vane">
         {done.data ? (
-          <DoneView data={done.data} onQuery={onQuery} />
+          <DoneView data={done.data} days={days} template={template} onQuery={onQuery} />
         ) : done.isError ? (
           <VaneError what="Done" onRetry={() => done.refetch()} />
         ) : (
           <VaneLoading />
         )}
-      </VaneFrame>
+      </VanePage>
     </>
   );
 }
 
 export default function VaneDonePage() {
   return (
-    <React.Suspense fallback={<VaneFrame><VaneLoading /></VaneFrame>}>
-      <DonePage />
+    <React.Suspense fallback={<VanePage screen="vane"><VaneLoading /></VanePage>}>
+      <Done />
     </React.Suspense>
   );
 }

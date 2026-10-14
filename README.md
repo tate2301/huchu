@@ -470,7 +470,7 @@ See `.env.example` for a copyable template. Important variables include
 | `PLATFORM_ROOT_HOSTS` | Comma-separated central/root hosts allowed for the platform. |
 | `ADMIN_ROOT_DOMAIN` | Admin wildcard/root domain. |
 | `ADMIN_PORTAL_HOST` | Optional exact admin portal host override. |
-| `ADMIN_PORTAL_EMAIL` / `ADMIN_PORTAL_ALLOWED_EMAILS` | Admin magic-link allowlist. |
+| `OPERATOR_SECRET_KEY` | 32 bytes (`openssl rand -base64 32`). Seals operators' authenticator secrets; required wherever the admin host is served. |
 | `ADMIN_MAGIC_LINK_RESEND_API_KEY` / `ADMIN_MAGIC_LINK_WEBHOOK_URL` | Admin magic-link delivery. |
 | `RESEND_API_KEY` / `EMAIL_FROM_ADDRESS` | Outbound mail. Both are required before a quotation or invoice can be emailed to a client; `EMAIL_FROM_ADDRESS` must be on a domain verified with Resend. The tenant's name is the display name and their own address is Reply-To. |
 | `BLOB_READ_WRITE_TOKEN` | Required for Vercel Blob uploads/artifacts. |
@@ -576,7 +576,7 @@ Check `PLATFORM_ROOT_DOMAIN`, `PLATFORM_ROOT_HOSTS`, `NEXTAUTH_URL`, hosts-file 
 
 ### Admin portal is blocked
 
-Use the admin host configured by `ADMIN_ROOT_DOMAIN` or `ADMIN_PORTAL_HOST`, and confirm the email is allowed by `ADMIN_PORTAL_EMAIL` or `ADMIN_PORTAL_ALLOWED_EMAILS`.
+Use the admin host configured by `ADMIN_ROOT_DOMAIN` or `ADMIN_PORTAL_HOST`. Operators sign in with a password and an authenticator code; the first owner is invited with `pnpm operator:add`, everyone else from the portal's Operators page. A lost phone or password is reset by an owner there. Locally, `pnpm admin:seed-dev` seeds operators and workspaces into a local database, and `pnpm admin:seed-dev --code` prints the current authenticator code.
 
 ### PDF rendering fails
 

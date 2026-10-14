@@ -17,7 +17,7 @@ const byTable = new Map(access.readable.map((t) => [t.table, t]));
 describe("what Vane may read", () => {
   it("reads every table that carries a workspace, except credentials", () => {
     const withCompany = models.filter((m) => m.fields.some((f) => f.name === "companyId") && m.name !== "VaneReaderScope");
-    const missing = withCompany.filter((m) => !byTable.has(m.table) && !access.unreadable.some((u) => u.table === m.table && u.reason === "credentials"));
+    const missing = withCompany.filter((m) => !byTable.has(m.table) && !access.unreadable.some((u) => u.table === m.table && (u.reason === "credentials" || u.reason === "conversation")));
     expect(missing.map((m) => m.name)).toEqual([]);
   });
 
@@ -73,5 +73,11 @@ describe("what Vane may read", () => {
     const missingFromMigration = now.filter((line) => line.trim() && !part2.includes(line));
     // A later schema change can add lines (new tables to grant); it must not have changed the old ones silently.
     for (const line of missingFromMigration) expect(line).toMatch(/^(ALTER TABLE|CREATE POLICY|GRANT SELECT)/);
+  });
+
+  it("keeps a person's conversation with Vane out of both roles", () => {
+    expect(byTable.has("VaneMessage")).toBe(false);
+    expect(access.unreadable).toContainEqual({ table: "VaneMessage", reason: "conversation" });
+    expect(byTable.get("VaneAction")?.columns).toContain("status");
   });
 });

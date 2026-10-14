@@ -27,6 +27,8 @@ import {
   type DocumentOwnerRef,
 } from "@/lib/crm/accounting-bridge";
 import { documentResourceIdsSchema, ResourceNotAvailableError } from "@/lib/crm/resources";
+import { draftDocumentEmail, emailDocumentToClient, NoRecipientError } from "@/lib/crm/document-email";
+import { EmailNotConfiguredError } from "@/lib/email/send";
 import { crmDocumentLineSchema } from "./_helpers";
 
 type Owner = { kind: "lead" | "deal"; id: string };
@@ -127,5 +129,71 @@ export async function patchDocument(request: NextRequest, owner: Owner, docId: s
     if (error instanceof ResourceNotAvailableError) return errorResponse(error.message, 409);
     console.error(`[API] PATCH /api/v2/crm/${owner.kind}s/[id]/documents/[docId] error:`, error);
     return errorResponse(error instanceof Error ? error.message : "Failed to edit the document", 400);
+  }
+}
+
+/** Who may send this document: the record is theirs to edit, and they may put prices in front of the client. */
+async function mayEmail(request: NextRequest, owner: Owner, docId: string) {
+  const sessionResult = await validateSession(request);
+  if (sessionResult instanceof NextResponse) return { response: sessionResult };
+  const { session } = sessionResult;
+  const doc = await prisma.crmLeadDocument.findFirst({
+    where: { id: docId, companyId: session.user.companyId, ...ownerRef(owner) },
+    select: {
+      lead: { select: { assignedToId: true } },
+      deal: { select: { assignedToId: true } },
+    },
+  });
+  if (!doc) return { response: errorResponse("Document not found", 404) };
+
+  const ownerId = doc.deal?.assignedToId ?? doc.lead?.assignedToId ?? null;
+  if (!(await canEditRecord(session, ownerId))) {
+    return { response: errorResponse("You can only send documents on records assigned to you", 403) };
+  }
+  // Sending a document to the customer is the same permission as sharing a
+  // link to it: both put the price in front of the client.
+  if (!(await canUser(session, "documents.approve"))) {
+    return { response: errorResponse(denialMessage("documents.approve"), 403) };
+  }
+  return { session };
+}
+
+/** The email "Email to the client" opens with: who it goes to, its subject and its note, for the rep to change. */
+export async function getDocumentEmail(request: NextRequest, owner: Owner, docId: string) {
+  try {
+    const allowed = await mayEmail(request, owner, docId);
+    if (!allowed.session) return allowed.response;
+    return successResponse(await draftDocumentEmail({ companyId: allowed.session.user.companyId, leadDocumentId: docId }));
+  } catch (error) {
+    console.error(`[API] GET /api/v2/crm/${owner.kind}s/[id]/documents/[docId]/email error:`, error);
+    return errorResponse("Could not draft the email");
+  }
+}
+
+const emailSchema = z.object({
+  subject: z.string().trim().min(1, "Write a subject").max(200, "Keep the subject to 200 characters").optional(),
+  message: z.string().trim().min(1, "Write the message").max(5000, "Keep the message to 5,000 characters").optional(),
+});
+
+/**
+ * Email this document to the client, with the PDF attached and the approval
+ * link in the body, under the rep's own subject and note when they wrote them.
+ */
+export async function sendDocumentEmail(request: NextRequest, owner: Owner, docId: string) {
+  try {
+    const allowed = await mayEmail(request, owner, docId);
+    if (!allowed.session) return allowed.response;
+    const body = emailSchema.parse(await request.json().catch(() => ({})));
+    const sent = await emailDocumentToClient({ companyId: allowed.session.user.companyId, leadDocumentId: docId, ...body });
+    return successResponse(sent, 201);
+  } catch (error) {
+    console.error(`[API] POST /api/v2/crm/${owner.kind}s/[id]/documents/[docId]/email error:`, error);
+    if (error instanceof z.ZodError) return errorResponse(error.issues[0]?.message ?? "Validation failed", 400, error.issues);
+    // A missing address and an unconfigured provider are both things the
+    // person pressing send can act on, so they are answered rather than
+    // flattened into a server error.
+    if (error instanceof NoRecipientError) return errorResponse(error.message, 422);
+    if (error instanceof EmailNotConfiguredError) return errorResponse(error.message, 503);
+    return errorResponse(error instanceof Error ? error.message : "Failed to email the document", 500);
   }
 }

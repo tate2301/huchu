@@ -26,7 +26,7 @@ interface ScopeItem {
 
 const GLOBAL_SCOPE_ID = "__GLOBAL__";
 const CUSTOM_ACTION_TYPE = "__CUSTOM_ACTION_TYPE__";
-const ACTION_TYPE_OPTIONS = ["support.expire-sessions", "contract.enforce", CUSTOM_ACTION_TYPE] as const;
+const ACTION_TYPE_OPTIONS = ["contract.enforce", CUSTOM_ACTION_TYPE] as const;
 const EXECUTION_MODE_OPTIONS = ["DRY_RUN", "LIVE"] as const;
 const ENABLED_OPTIONS = ["ENABLED", "DISABLED"] as const;
 

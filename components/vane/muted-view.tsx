@@ -1,114 +1,96 @@
 "use client";
 
-import { Button, Empty, Pill, VaneMark } from "@/components/core";
-import type { VaneMuted } from "@/lib/vane/pages";
-import { MUTE_REASONS } from "@/lib/vane/reasons";
+import { Empty, TableShell } from "@/components/core";
+import type { VaneMutedRow } from "@/lib/vane/lists";
 
-import { shortDate } from "./format";
+import { NOT_NOW_REASONS } from "./not-now-menu";
+
+const day = (iso: string) => new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "short" });
 
 /**
- * Muted (PageVaneMuted): every card a person set aside, where it came from,
- * the reason they gave, and who and when, each with Bring back; above them,
- * when one kind keeps being set aside, Vane asks whether to stop showing it
- * to this person; then the reasons people pick from.
+ * Muted (`/vane/muted`, the PageVaneMuted board): the cards set aside with
+ * Not now, the reason given, who set each aside and when, and Bring back.
+ * Then the reasons Not now offers.
+ *
+ * Pure: the page feeds it.
  */
 export function MutedView({
-  muted: { rows, offer },
+  rows,
+  bringing,
   onBringBack,
-  onChoose,
-  busy = false,
 }: {
-  muted: VaneMuted;
-  /** Bring back: the card goes back to For you. */
-  onBringBack?: (id: string) => void;
-  /** Stop it for me (true) or Keep showing it (false), for the offer's kind. */
-  onChoose?: (itemId: string, stopped: boolean) => void;
-  busy?: boolean;
+  rows: VaneMutedRow[];
+  /** The card being brought back. */
+  bringing: string | null;
+  onBringBack: (row: VaneMutedRow) => void;
 }) {
   return (
-    <div className="kbody vn-body">
-      {offer && onChoose ? (
-        <div className="vn-offer" role="group" aria-label="Stop showing this kind of card">
-          <VaneMark size={16} />
-          <span className="vn-offer-t">
-            <b>
-              You set aside “{offer.headline}” {offer.times} times this month.
-            </b>
-            <br />
-            <span className="vn-offer-d">Shall I stop showing it to you? Everyone else who gets it still will.</span>
-          </span>
-          <span className="vn-offer-a">
-            <Button disabled={busy} onClick={() => onChoose(offer.itemId, false)}>
-              Keep showing it
-            </Button>
-            <Button icon="bell" disabled={busy} onClick={() => onChoose(offer.itemId, true)}>
-              Stop it for me
-            </Button>
-          </span>
-        </div>
-      ) : null}
+    <>
       {rows.length === 0 ? (
-        <Empty icon="muted" title="Nothing is set aside">
-          A card you press Not now on comes here, with the reason you gave.
+        <Empty icon="muted" title="Nothing set aside">
+          A card you press Not now on comes here with the reason you gave, and Vane reads it before it raises that kind again.
         </Empty>
       ) : (
-        <div className="wt">
-          <table className="table vn-muted">
-            <thead>
-              <tr>
-                <th>Card</th>
-                <th className="vn-c-from">From</th>
-                <th>Reason</th>
-                <th className="vn-c-aside">Set aside</th>
-                <th className="vn-c-back">
-                  <span className="sr-only">Bring back</span>
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((row) => (
-                <tr key={row.id}>
-                  <td className="fill">
-                    <span className="truncate">{row.headline}</span>
-                  </td>
-                  <td className="muted">{row.source}</td>
-                  <td className="fill">
-                    <span className="truncate">
-                      {row.reason ?? "No reason given"}
-                      {row.stopped ? " · stopped for you" : ""}
-                    </span>
-                  </td>
-                  <td className="muted">{[row.by, row.at ? shortDate(row.at) : null].filter(Boolean).join(", ")}</td>
-                  <td>
-                    {onBringBack ? (
+        <div className="wt" style={{ flex: "none", marginTop: "var(--space-24)" }}>
+          <TableShell label="Muted cards">
+            <table className="table" style={{ minWidth: 760 }}>
+              <colgroup>
+                <col style={{ width: "50%" }} />
+                <col />
+                <col style={{ width: "50%" }} />
+                <col />
+                <col />
+              </colgroup>
+              <thead>
+                <tr>
+                  <th>Card</th>
+                  <th>From</th>
+                  <th>Reason</th>
+                  <th>Set aside</th>
+                  <th>
+                    <span className="sr-only">Bring back</span>
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((row) => (
+                  <tr key={row.id}>
+                    <td className="fill">
+                      <span className="cell-lead">{row.headline}</span>
+                    </td>
+                    <td className="muted">{row.source}</td>
+                    <td className="fill">{row.reason ?? "—"}</td>
+                    <td className="muted">{[row.by, row.at ? day(row.at) : null].filter(Boolean).join(", ") || "—"}</td>
+                    <td>
                       <button
                         type="button"
-                        className="link vn-linkbtn"
-                        disabled={busy}
-                        aria-label={`Bring back “${row.headline}”`}
-                        onClick={() => onBringBack(row.id)}
+                        className="link"
+                        style={{ background: "none", border: 0, padding: 0, cursor: "pointer" }}
+                        disabled={bringing === row.id}
+                        aria-label={`Bring back: ${row.headline}`}
+                        onClick={() => onBringBack(row)}
                       >
                         Bring back
                       </button>
-                    ) : null}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </TableShell>
         </div>
       )}
-      <div className="vn-sec vn-reasons">
+      <div style={{ margin: "var(--space-24) 28px 0", display: "flex", flexDirection: "column", gap: "var(--space-8)" }}>
         <span className="sec-title">The reasons people give</span>
-        <div className="vn-pills">
-          {MUTE_REASONS.map((reason) => (
-            <Pill key={reason} tone="n">
+        <div style={{ display: "flex", flexWrap: "wrap", gap: "var(--space-8)" }}>
+          {NOT_NOW_REASONS.map((reason) => (
+            <span key={reason} className="pill pill-n">
               {reason}
-            </Pill>
+            </span>
           ))}
         </div>
-        <span className="vn-note">Not now asks why in one tap, and the reason stays with the card.</span>
+        <span className="muted" style={{ fontSize: "var(--text-12)" }}>Not now asks why in one tap. Vane reads the reason before it raises that kind again.</span>
       </div>
-    </div>
+    </>
   );
 }

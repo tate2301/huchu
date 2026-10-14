@@ -35,6 +35,7 @@ import {
   type LeadDocument,
 } from "./document-types";
 import { RecordPaymentSheet } from "./record-payment-sheet";
+import { DocumentEmailDialog, type DocumentEmail } from "./document-email-dialog";
 
 type ApprovalLink = { token: string; path: string; issued: boolean };
 
@@ -161,13 +162,16 @@ export function useDocumentActions({
    * the company. The two refusals a rep can act on come back as their own
    * messages — no address on the record, and no mail provider configured.
    */
+  // "Email to the client" opens the email to read and change first; Send in it sends.
+  const [emailing, setEmailing] = useState<LeadDocument | null>(null);
   const emailToClient = useMutation({
-    mutationFn: (doc: LeadDocument) =>
+    mutationFn: ({ doc, email }: { doc: LeadDocument; email: DocumentEmail }) =>
       fetchJson<{ to: string; subject: string }>(`${basePath}/documents/${doc.id}/email`, {
         method: "POST",
-        body: JSON.stringify({}),
+        body: JSON.stringify(email),
       }),
     onSuccess: (sent) => {
+      setEmailing(null);
       toast({ title: "Sent", description: `Emailed to ${sent.to}` });
       refreshAfterDocumentChange(queryClient);
     },
@@ -289,7 +293,7 @@ export function useDocumentActions({
         icon: Mail,
         group: "send",
         tone: "primary",
-        onSelect: () => emailToClient.mutate(doc),
+        onSelect: () => setEmailing(doc),
       });
     }
 
@@ -344,6 +348,13 @@ export function useDocumentActions({
 
   const surfaces = (
     <>
+      <DocumentEmailDialog
+        basePath={basePath}
+        doc={emailing}
+        sending={emailToClient.isPending}
+        onOpenChange={(open) => (!open ? setEmailing(null) : undefined)}
+        onSend={(doc, email) => emailToClient.mutate({ doc, email })}
+      />
       <DocumentBuilderSheet
         open={Boolean(builder)}
         onOpenChange={(next) => {

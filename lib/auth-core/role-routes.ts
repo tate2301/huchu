@@ -12,11 +12,16 @@
 const SHARED_ALLOWED_PREFIXES = [
   "/api/auth",
   "/api/notifications",
+  // The live channel: notifications, and Vane where the role may open it.
+  "/api/live",
   "/api/uploads",
   // An export started from anywhere a role may work is fetched through these.
   // Both answer only to the person who asked for the export.
   "/api/documents/render-jobs",
   "/api/documents/artifacts",
+  // Corelith support signed in as this member ends the session from the
+  // banner, whatever the member's role reaches.
+  "/api/sign-in-as",
   "/help",
   "/access-blocked",
   "/notifications",

@@ -13,6 +13,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
 import { errorResponse, successResponse, validateSession } from "@/lib/api-utils";
+import type { AuthenticatedSession } from "@/lib/auth-core/types";
 import { recordEditor } from "@/lib/crm/permissions";
 import { prisma } from "@/lib/prisma";
 
@@ -74,99 +75,121 @@ export type RecordBulkSpec<Row extends BulkRow = BulkRow> = {
   refuse?(row: Row, action: BulkChange["action"]): string | null;
 };
 
+/** Why a bulk change was refused outright, with the status the route answers. */
+export class BulkRefused extends Error {
+  constructor(
+    readonly status: 400 | 403,
+    message: string,
+  ) {
+    super(message);
+    this.name = "BulkRefused";
+  }
+}
+
+/** Keeps a list's spec typed by its rows, for the route and Vane's actions to share. */
+export function bulkSpec<Row extends BulkRow>(spec: RecordBulkSpec<Row>): RecordBulkSpec<Row> {
+  return spec;
+}
+
 /**
- * The handler for one list's bulk route. The records a reader may not edit,
- * or that the list's own rules keep as they are, are skipped (and counted,
- * with why), never failed; records already in the asked-for state are
- * counted as unchanged rather than written again.
+ * One bulk change, as the signed-in person: a list's bulk route and Vane's
+ * approved "assign an owner" both come here. The records a reader may not
+ * edit, or that the list's own rules keep as they are, are skipped (and
+ * counted, with why), never failed; records already in the asked-for state
+ * are counted as unchanged rather than written again.
  */
+export async function applyRecordBulk<Row extends BulkRow>(
+  spec: RecordBulkSpec<Row>,
+  session: AuthenticatedSession,
+  body: BulkRequest,
+): Promise<BulkResult> {
+  const companyId = session.user.companyId;
+  if (!spec.actions.includes(body.action)) throw new BulkRefused(400, `${spec.noun.many} cannot be changed that way`);
+
+  let data: Record<string, unknown>;
+  let value: string | null = null;
+  let same: (row: BulkRow) => boolean;
+  switch (body.action) {
+    case "assign": {
+      const ownerId = body.value === "me" ? session.user.id : body.value || null;
+      // A real member of this company, or a bad id would quietly detach
+      // every one of these records from anybody.
+      if (ownerId) {
+        const owner = await prisma.user.findFirst({ where: { id: ownerId, companyId }, select: { id: true } });
+        if (!owner) throw new BulkRefused(400, "That person is not on this team");
+      }
+      data = { assignedToId: ownerId };
+      value = ownerId;
+      same = (row) => (row.assignedToId ?? null) === ownerId;
+      break;
+    }
+    case "status": {
+      if (!spec.status || !body.value || !spec.status.values.includes(body.value)) {
+        throw new BulkRefused(400, "That is not a status these records can have");
+      }
+      if (spec.status.needsReason?.includes(body.value) && !body.reason) {
+        throw new BulkRefused(400, "Say why, so the reason stays with the records");
+      }
+      data = { [spec.status.field]: body.value };
+      value = body.value;
+      same = (row) => row.status === body.value;
+      break;
+    }
+    case "archive":
+      data = { archivedAt: new Date() };
+      same = (row) => row.archivedAt !== null;
+      break;
+    case "restore":
+      data = { archivedAt: null };
+      same = (row) => row.archivedAt === null;
+      break;
+  }
+
+  const rows = await spec.load(companyId, [...new Set(body.ids)]);
+  const mayEdit = await recordEditor(session);
+  const editable = rows.filter((row) => mayEdit(row.assignedToId ?? null));
+  if (rows.length > 0 && editable.length === 0) {
+    throw new BulkRefused(403, `None of the selected ${spec.noun.many} can be changed by you`);
+  }
+
+  // Why each record was left alone: somebody else's, or the list's own rule.
+  const reasons = new Set<string>();
+  if (editable.length < rows.length) reasons.add("they belong to someone else");
+  const allowed = editable.filter((row) => {
+    const refusal = spec.refuse?.(row, body.action) ?? null;
+    if (refusal) reasons.add(refusal);
+    return !refusal;
+  });
+  const skipped = rows.length - allowed.length;
+
+  const changing = allowed.filter((row) => !same(row));
+  if (changing.length > 0) {
+    await spec.update(
+      changing,
+      { action: body.action, data, value, ...(body.reason ? { reason: body.reason } : {}) },
+      { companyId, userId: session.user.id },
+    );
+  }
+
+  return {
+    updated: changing.length,
+    unchanged: allowed.length - changing.length,
+    skipped,
+    notFound: body.ids.length - rows.length,
+    ...(skipped > 0 ? { skippedReason: [...reasons].join("; ") } : {}),
+  };
+}
+
+/** The handler for one list's bulk route. */
 export function recordBulkHandler<Row extends BulkRow>(spec: RecordBulkSpec<Row>) {
   return async function POST(request: NextRequest) {
     try {
       const sessionResult = await validateSession(request);
       if (sessionResult instanceof NextResponse) return sessionResult;
-      const { session } = sessionResult;
-      const companyId = session.user.companyId;
-
       const body = bulkRequestSchema.parse(await request.json());
-      if (!spec.actions.includes(body.action)) {
-        return errorResponse(`${spec.noun.many} cannot be changed that way`, 400);
-      }
-
-      let data: Record<string, unknown>;
-      let value: string | null = null;
-      let same: (row: BulkRow) => boolean;
-      switch (body.action) {
-        case "assign": {
-          const ownerId = body.value === "me" ? session.user.id : body.value || null;
-          // A real member of this company, or a bad id would quietly detach
-          // every one of these records from anybody.
-          if (ownerId) {
-            const owner = await prisma.user.findFirst({ where: { id: ownerId, companyId }, select: { id: true } });
-            if (!owner) return errorResponse("That person is not on this team", 400);
-          }
-          data = { assignedToId: ownerId };
-          value = ownerId;
-          same = (row) => (row.assignedToId ?? null) === ownerId;
-          break;
-        }
-        case "status": {
-          if (!spec.status || !body.value || !spec.status.values.includes(body.value)) {
-            return errorResponse("That is not a status these records can have", 400);
-          }
-          if (spec.status.needsReason?.includes(body.value) && !body.reason) {
-            return errorResponse("Say why, so the reason stays with the records", 400);
-          }
-          data = { [spec.status.field]: body.value };
-          value = body.value;
-          same = (row) => row.status === body.value;
-          break;
-        }
-        case "archive":
-          data = { archivedAt: new Date() };
-          same = (row) => row.archivedAt !== null;
-          break;
-        case "restore":
-          data = { archivedAt: null };
-          same = (row) => row.archivedAt === null;
-          break;
-      }
-
-      const rows = await spec.load(companyId, [...new Set(body.ids)]);
-      const mayEdit = await recordEditor(session);
-      const editable = rows.filter((row) => mayEdit(row.assignedToId ?? null));
-      if (rows.length > 0 && editable.length === 0) {
-        return errorResponse(`None of the selected ${spec.noun.many} can be changed by you`, 403);
-      }
-
-      // Why each record was left alone: somebody else's, or the list's own rule.
-      const reasons = new Set<string>();
-      if (editable.length < rows.length) reasons.add("they belong to someone else");
-      const allowed = editable.filter((row) => {
-        const refusal = spec.refuse?.(row, body.action) ?? null;
-        if (refusal) reasons.add(refusal);
-        return !refusal;
-      });
-      const skipped = rows.length - allowed.length;
-
-      const changing = allowed.filter((row) => !same(row));
-      if (changing.length > 0) {
-        await spec.update(
-          changing,
-          { action: body.action, data, value, ...(body.reason ? { reason: body.reason } : {}) },
-          { companyId, userId: session.user.id },
-        );
-      }
-
-      const result: BulkResult = {
-        updated: changing.length,
-        unchanged: allowed.length - changing.length,
-        skipped,
-        notFound: body.ids.length - rows.length,
-        ...(skipped > 0 ? { skippedReason: [...reasons].join("; ") } : {}),
-      };
-      return successResponse(result);
+      return successResponse(await applyRecordBulk(spec, sessionResult.session, body));
     } catch (error) {
+      if (error instanceof BulkRefused) return errorResponse(error.message, error.status);
       if (error instanceof z.ZodError) return errorResponse("Invalid request", 400, error.issues);
       console.error(`[API] bulk ${spec.noun.many} error:`, error);
       return errorResponse(`Failed to update the selected ${spec.noun.many}`);

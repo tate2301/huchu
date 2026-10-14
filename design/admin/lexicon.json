@@ -1,0 +1,183 @@
+{
+  "$comment": "One term per concept, product-wide. 'use' is the winner; 'banned' are the alternatives found in the current admin portal, its routes or the platform services. The lint blocks a banned term on any screen.",
+  "concepts": [
+    {
+      "concept": "a customer's account on Corelith",
+      "use": [
+        "workspace"
+      ],
+      "banned": [
+        "client",
+        "company",
+        "tenant",
+        "organization",
+        "org"
+      ]
+    },
+    {
+      "concept": "a person who signs in to a workspace",
+      "use": [
+        "member"
+      ],
+      "banned": [
+        "user",
+        "identity",
+        "account holder"
+      ]
+    },
+    {
+      "concept": "the member who owns a workspace",
+      "use": [
+        "owner"
+      ],
+      "banned": [
+        "workspace admin",
+        "superadmin",
+        "primary contact"
+      ]
+    },
+    {
+      "concept": "Corelith staff who use this portal",
+      "use": [
+        "operator"
+      ],
+      "banned": [
+        "superuser",
+        "platform admin",
+        "admin",
+        "agent"
+      ]
+    },
+    {
+      "concept": "seeing the app as a member does, inside their session",
+      "use": [
+        "sign in as"
+      ],
+      "banned": [
+        "impersonate",
+        "shadow",
+        "support session",
+        "support access",
+        "launch"
+      ]
+    },
+    {
+      "concept": "what a workspace pays for",
+      "use": [
+        "plan"
+      ],
+      "banned": [
+        "subscription",
+        "tier",
+        "commercial",
+        "contract"
+      ]
+    },
+    {
+      "concept": "an extra paid module on top of a plan",
+      "use": [
+        "add-on"
+      ],
+      "banned": [
+        "bundle",
+        "feature bundle",
+        "addon"
+      ]
+    },
+    {
+      "concept": "money received from a workspace",
+      "use": [
+        "payment"
+      ],
+      "banned": [
+        "transaction",
+        "charge"
+      ]
+    },
+    {
+      "concept": "a screenshot and reference sent in place of a gateway payment",
+      "use": [
+        "proof of payment"
+      ],
+      "banned": [
+        "receipt upload",
+        "manual payment"
+      ]
+    },
+    {
+      "concept": "setting up a new workspace",
+      "use": [
+        "set up"
+      ],
+      "banned": [
+        "provision",
+        "onboard",
+        "launch client"
+      ]
+    },
+    {
+      "concept": "the record of who did what",
+      "use": [
+        "audit log"
+      ],
+      "banned": [
+        "ledger",
+        "events",
+        "reliability"
+      ]
+    },
+    {
+      "concept": "the context that spans every workspace",
+      "use": [
+        "all workspaces"
+      ],
+      "banned": [
+        "global",
+        "platform",
+        "everywhere"
+      ]
+    },
+    {
+      "concept": "going into or out of one workspace’s context",
+      "use": [
+        "open a workspace",
+        "leave workspace"
+      ],
+      "banned": [
+        "switch tenant",
+        "enter org",
+        "impersonate workspace"
+      ]
+    }
+  ],
+  "plain": [
+    {
+      "use": "use",
+      "banned": [
+        "utilise",
+        "leverage"
+      ]
+    },
+    {
+      "use": "start",
+      "banned": [
+        "get started",
+        "kick off"
+      ]
+    },
+    {
+      "use": "turn on",
+      "banned": [
+        "enable",
+        "activate"
+      ]
+    },
+    {
+      "use": "turn off",
+      "banned": [
+        "disable",
+        "deactivate"
+      ]
+    }
+  ]
+}

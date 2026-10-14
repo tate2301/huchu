@@ -75,8 +75,7 @@ model Company {
   subdomainReservations         SubdomainReservation[]
   branding                      CompanyBranding?
   domains                       CompanyDomain[]
-  supportAccessRequests         SupportAccessRequest[]
-  supportSessions               SupportSession[]
+  signInAsSessions              SignInAsSession[]
   runbookDefinitions            RunbookDefinition[]
   runbookExecutions             RunbookExecution[]
   sloMetricSnapshots            TenantSloMetricSnapshot[]
@@ -136,6 +135,8 @@ model Company {
   vaneJobs                      VaneJob[]
   vaneSettings                  VaneSettings?
   vaneCardChoices               VaneCardChoice[]
+  vaneMessages                  VaneMessage[]
+  vaneActions                   VaneAction[]
   vaneReaderScopes              VaneReaderScope[]
   documentRenderJobs            DocumentRenderJob[]
   documentArtifacts             DocumentArtifact[]
@@ -477,16 +478,21 @@ model EmailCode {
 /// workspace. It hands them this instead: a random token, valid for two
 /// minutes, that the workspace host exchanges for a session exactly once.
 model SessionHandoff {
-  id         String    @id @default(uuid())
-  userId     String
-  tokenHash  String    @unique
-  expiresAt  DateTime
-  consumedAt DateTime?
-  createdAt  DateTime  @default(now())
+  id                String    @id @default(uuid())
+  userId            String
+  tokenHash         String    @unique
+  expiresAt         DateTime
+  consumedAt        DateTime?
+  /// Set when the ticket signs an operator in as this member: the session it
+  /// opens is that one, with its limits, and ends when it does.
+  signInAsSessionId String?
+  createdAt         DateTime  @default(now())
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user            User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  signInAsSession SignInAsSession? @relation(fields: [signInAsSessionId], references: [id], onDelete: Cascade)
 
   @@index([userId])
+  @@index([signInAsSessionId])
 }
 
 enum WorkspaceProfile {
@@ -922,67 +928,6 @@ model CompanyDomain {
   @@index([status])
 }
 
-enum SupportAccessStatus {
-  REQUESTED
-  APPROVED
-  ACTIVE
-  EXPIRED
-  REVOKED
-  DENIED
-}
-
-enum SupportAccessScope {
-  READ_ONLY
-  READ_WRITE
-}
-
-enum SupportSessionMode {
-  IMPERSONATE
-  SHADOW
-}
-
-model SupportAccessRequest {
-  id          String              @id @default(uuid())
-  companyId   String
-  requestedBy String
-  approvedBy  String?
-  reason      String
-  scope       SupportAccessScope  @default(READ_ONLY)
-  status      SupportAccessStatus @default(REQUESTED)
-  requestedAt DateTime            @default(now())
-  approvedAt  DateTime?
-  expiresAt   DateTime?
-  createdAt   DateTime            @default(now())
-  updatedAt   DateTime            @updatedAt
-
-  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
-
-  @@index([companyId, status])
-  @@index([requestedBy])
-}
-
-model SupportSession {
-  id        String              @id @default(uuid())
-  requestId String?
-  companyId String
-  actor     String
-  mode      SupportSessionMode  @default(IMPERSONATE)
-  scope     SupportAccessScope  @default(READ_ONLY)
-  status    SupportAccessStatus @default(ACTIVE)
-  reason    String
-  startedAt DateTime            @default(now())
-  endedAt   DateTime?
-  expiresAt DateTime?
-  createdAt DateTime            @default(now())
-  updatedAt DateTime            @updatedAt
-
-  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
-
-  @@index([companyId, status])
-  @@index([requestId])
-  @@index([actor])
-}
-
 enum RunbookRiskLevel {
   LOW
   MEDIUM
@@ -1100,6 +1045,130 @@ model ContractEnforcementEvent {
   company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
 
   @@index([companyId, createdAt])
+}
+
+/// What an operator may do in the admin portal. Checked on every write by
+/// `lib/operators/roles.ts`; the role names are the words the portal shows.
+enum OperatorRole {
+  /// Everything, including operators, closing a workspace and changing an owner.
+  OWNER
+  /// Members, sign in as, and a workspace's settings short of closing it.
+  SUPPORT
+  /// Plans, add-ons, trials, payments and proofs of payment.
+  BILLING
+}
+
+/// A person who works the admin portal.
+///
+/// Not a member of any workspace, and not a `User`: an operator used to be a
+/// tenant SUPERADMIN on an email allow-list, attached to whichever company came
+/// first, which made "who did this" and "who may do this" the same question as
+/// "which workspace owner is this". An operator signs in with a password and an
+/// authenticator code, and nothing else.
+model Operator {
+  id              String       @id @default(uuid())
+  email           String       @unique
+  name            String
+  role            OperatorRole
+  /// bcrypt. Null until the operator chooses one from their invite.
+  passwordHash    String?
+  /// The authenticator secret, encrypted (`lib/operators/secret-box.ts`).
+  /// Null until it is set up; set but unconfirmed while the operator is
+  /// scanning it, and only trusted once `totpConfirmedAt` is set.
+  totpSecret      String?
+  totpConfirmedAt DateTime?
+  /// The last 30-second step a code was accepted for. A code is good once:
+  /// a code read over a shoulder cannot be replayed inside its own window.
+  totpLastStep    Int?
+  /// Wrong passwords and wrong codes in a row. Five locks the sign-in for
+  /// fifteen minutes (`lockedUntil`); a right answer resets it.
+  failedAttempts  Int          @default(0)
+  lockedUntil     DateTime?
+  lastSignInAt    DateTime?
+  /// Set when an owner removes the operator. Their sessions end with it.
+  deactivatedAt   DateTime?
+  /// SHA-256 of the token in their invite link, which sets their password.
+  /// An owner sending a new one is also how a forgotten password is reset.
+  inviteTokenHash String?      @unique
+  inviteExpiresAt DateTime?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  sessions         OperatorSession[]
+  signInAsSessions SignInAsSession[]
+}
+
+/// One signed-in browser of one operator. The cookie holds a random token;
+/// only its SHA-256 is here, and every request checks it, so ending a session
+/// takes effect on the next click rather than when a token expires.
+model OperatorSession {
+  id         String    @id @default(uuid())
+  operatorId String
+  tokenHash  String    @unique
+  /// Null between the password and the authenticator code. Such a session
+  /// reaches the code screen and nothing else, and lives five minutes.
+  verifiedAt DateTime?
+  expiresAt  DateTime
+  lastSeenAt DateTime  @default(now())
+  revokedAt  DateTime?
+  ipAddress  String?
+  userAgent  String?
+  createdAt  DateTime  @default(now())
+
+  operator Operator @relation(fields: [operatorId], references: [id], onDelete: Cascade)
+
+  @@index([operatorId, revokedAt])
+}
+
+/// How far an operator signed in as a member may go.
+enum SignInAsMode {
+  /// Reading only. The proxy refuses every write the session makes.
+  LOOK
+  /// What the member could do, except change their own password or email.
+  CHANGE
+}
+
+/// Who ended a sign-in-as session before its time ran out.
+enum SignInAsEnd {
+  OPERATOR
+  /// The workspace's owner, from the link in the email they were sent.
+  OWNER
+  /// Ended because the member was signed out everywhere or lost access.
+  SIGNED_OUT
+}
+
+/// An operator in a workspace as one of its members, for support.
+///
+/// One step: the operator gives a reason and chooses look only or make
+/// changes; the session lasts 30 minutes; the owner is emailed at once with a
+/// link that ends it. No customer approval is asked for — the reason, the
+/// email and this row are the record. Replaces the support access request and
+/// support session pair, which asked the same operator to approve themselves
+/// and never signed anyone in.
+model SignInAsSession {
+  id                String       @id @default(uuid())
+  /// "SA-214": what operators and owners call it.
+  number            Int          @unique @default(autoincrement())
+  companyId         String
+  operatorId        String
+  memberId          String
+  mode              SignInAsMode
+  reason            String
+  startedAt         DateTime     @default(now())
+  expiresAt         DateTime
+  endedAt           DateTime?
+  endedBy           SignInAsEnd?
+  /// SHA-256 of the token in the owner's "end it" link.
+  ownerEndTokenHash String       @unique
+  createdAt         DateTime     @default(now())
+
+  company  Company          @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  operator Operator         @relation(fields: [operatorId], references: [id], onDelete: Restrict)
+  member   User             @relation("SignInAsMember", fields: [memberId], references: [id], onDelete: Cascade)
+  handoffs SessionHandoff[]
+
+  @@index([companyId, startedAt])
+  @@index([operatorId, endedAt])
 }
 
 model PlatformAuditEvent {
@@ -1271,6 +1340,10 @@ model User {
   /// When the password was last set. Null means it has never been changed since
   /// the account was made — there is no backfill, and `createdAt` is not it.
   passwordChangedAt DateTime?
+  /// Every session signed in before this moment is over: "sign out
+  /// everywhere". `enrichTokenClaims` compares it with the token's
+  /// `signedInAt` on every request, so it takes effect on the next click.
+  sessionsEndedAt   DateTime?
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
 
@@ -1498,12 +1571,15 @@ model User {
   retailFiscalSettingsUpdated       RetailFiscalSettings[]         @relation("RetailFiscalSettingsUpdatedBy")
   fiscalDevicesRegistered           FiscalisationProviderConfig[]  @relation("FiscalDeviceRegisteredBy")
   sessionHandoffs                   SessionHandoff[]
+  signedInAsBy                      SignInAsSession[]              @relation("SignInAsMember")
   reportTemplates                   ReportTemplate[]
   reportTemplatesOpened             ReportTemplateUse[]            @relation("ReportTemplateUseLastOpenedBy")
   vaneItemsFor                    VaneItem[]                     @relation("VaneItemAudience")
   vaneItemsResolved               VaneItem[]                     @relation("VaneItemResolvedBy")
   vaneJobsRequested               VaneJob[]                      @relation("VaneJobRequestedBy")
   vaneCardChoices                 VaneCardChoice[]
+  vaneMessages                    VaneMessage[]                  @relation("VaneMessageUser")
+  vaneActionsDecided              VaneAction[]                   @relation("VaneActionDecidedBy")
   sitesClosed                       Site[]                         @relation("SiteClosedBy")
   retailRegistersCreated            RetailRegister[]               @relation("RetailRegisterCreatedBy")
   retailDevicesPaired               RetailDevice[]                 @relation("RetailDevicePairedBy")
@@ -16314,6 +16390,7 @@ model VaneItem {
   audienceUser User?    @relation("VaneItemAudience", fields: [audienceUserId], references: [id], onDelete: Cascade)
   resolvedBy   User?    @relation("VaneItemResolvedBy", fields: [resolvedById], references: [id], onDelete: SetNull)
   job          VaneJob? @relation(fields: [jobId], references: [id], onDelete: SetNull)
+  actions      VaneAction[]
 
   @@index([companyId, status, createdAt])
   @@index([companyId, subjectType, subjectId])
@@ -16367,8 +16444,6 @@ model VaneJob {
   kind             String
   /// What the top bar shows while it runs: "Matching CBZ lines".
   label            String
-  /// The person's whole request (Give Vane a job); the worker reads it before the label.
-  request          String?
   trigger          VaneJobTrigger
   requestedById    String?
   status           VaneJobStatus  @default(QUEUED)
@@ -16394,11 +16469,81 @@ model VaneJob {
   requestedBy User?      @relation("VaneJobRequestedBy", fields: [requestedById], references: [id], onDelete: SetNull)
   items       VaneItem[]
   plans       VanePlan[]
+  messages    VaneMessage[]
 
   @@unique([companyId, key])
   @@index([companyId, status, runAfter])
   @@index([companyId, createdAt])
   @@index([requestedById])
+}
+
+enum VaneMessageAuthor {
+  PERSON
+  VANE
+}
+
+/// One turn of a person's chat with Vane, in the panel. Each person has their own conversation.
+model VaneMessage {
+  id        String            @id @default(uuid())
+  companyId String
+  userId    String
+  author    VaneMessageAuthor
+  text      String
+  /// The job that answered it, with what it cost. On Vane's turns only.
+  jobId     String?
+  createdAt DateTime          @default(now())
+
+  company Company      @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  user    User         @relation("VaneMessageUser", fields: [userId], references: [id], onDelete: Cascade)
+  job     VaneJob?     @relation(fields: [jobId], references: [id], onDelete: SetNull)
+  actions VaneAction[]
+
+  @@index([companyId, userId, createdAt])
+  @@index([userId])
+  @@index([jobId])
+}
+
+enum VaneActionStatus {
+  /// Waiting for a person.
+  PROPOSED
+  /// Approved and running.
+  APPROVED
+  DONE
+  FAILED
+  DENIED
+}
+
+/// Something Vane proposes to do, on a card or in a chat answer. Nothing runs
+/// until a person approves it (and may change its inputs first); then it runs
+/// through the module's own code, as that person. Denied is kept.
+model VaneAction {
+  id          String           @id @default(uuid())
+  companyId   String
+  itemId      String?
+  messageId   String?
+  /// The action's kind in `lib/vane/actions`: "books.invoice.due_date".
+  kind        String
+  /// What it does, in a line: "Set INV-0142 due on 30 October".
+  title       String
+  /// Its inputs, as Vane proposed them or as the person changed them.
+  params      Json
+  status      VaneActionStatus @default(PROPOSED)
+  /// What happened when it ran, in a line, or why it failed.
+  result      String?
+  decidedById String?
+  decidedAt   DateTime?
+  doneAt      DateTime?
+  createdAt   DateTime         @default(now())
+
+  company   Company      @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  item      VaneItem?    @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  message   VaneMessage? @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  decidedBy User?        @relation("VaneActionDecidedBy", fields: [decidedById], references: [id], onDelete: SetNull)
+
+  @@index([companyId, status, createdAt])
+  @@index([itemId])
+  @@index([messageId])
+  @@index([decidedById])
 }
 
 /// Management -> Vane. One row per workspace; no row means the defaults.

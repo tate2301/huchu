@@ -80,7 +80,7 @@ export function NotificationsBell({ compact = false }: { compact?: boolean }) {
   const count = mounted ? unread : 0;
   const label = count > 0 ? `Notifications, ${count} unread` : "Notifications";
   return (
-    <NotificationCenter open={open} onOpenChange={setOpen} side="bottom" align="end" live={false}>
+    <NotificationCenter open={open} onOpenChange={setOpen} side="bottom" align="end">
       <button
         type="button"
         aria-label={label}

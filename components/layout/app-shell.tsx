@@ -20,12 +20,13 @@ import { ShellProvider, useShell } from "@/components/layout/shell-state";
 import { OnboardingProvider } from "@/components/onboarding/onboarding-provider";
 import { builderSurface, type BuilderSurface } from "@/lib/builder/paths";
 import { isPublicPath } from "@/lib/public-routes";
+import { SignInAsBanner } from "@/components/sign-in-as/sign-in-as-banner";
 import { isCountPhonePath } from "@/lib/retail/stock/count-paths";
 import { isSettingsSurfacePath } from "@/lib/settings/management-nav";
 import { RecordPeekProvider } from "@/components/records/record-peek";
 import { RecordTrailProvider } from "@/components/records/record-trail";
 import { SheetHost } from "@/components/sheet-form/sheet-host";
-import { VaneJobHost } from "@/components/vane/vane-job";
+import { LiveStream } from "@/components/layout/live-stream";
 import { VanePanel } from "@/components/vane/vane-panel";
 
 /**
@@ -118,13 +119,12 @@ function ShellFrame({ children, builder }: { children: React.ReactNode; builder:
         ) : null}
         <MobileNav />
         <GlobalCommandBar />
-        {/* Give Vane a job, from anywhere with Ctrl J. */}
-        <VaneJobHost />
         <div className="flex min-w-0 flex-1 bg-[var(--surface)]">
           <main className="min-h-0 min-w-0 flex-1 overflow-hidden">
             {pending ? null : refused ? <RoleRefusal /> : children}
           </main>
           <VanePanel />
+          <LiveStream />
         </div>
       </div>
     );
@@ -138,11 +138,11 @@ function ShellFrame({ children, builder }: { children: React.ReactNode; builder:
       ) : null}
       <MobileNav />
       <GlobalCommandBar />
-      {/* Give Vane a job, from anywhere with Ctrl J. */}
-      <VaneJobHost />
       {/* `?sheet=<kind>` over whatever page is open (00-foundations 5.7.1). */}
       <SheetHost />
       <div className="flex min-w-0 flex-1 flex-col bg-[var(--surface)]">
+        {/* Corelith support signed in as this member: who, how far, until when. */}
+        <SignInAsBanner />
         <PageHeader />
         {/* Vane sits beside the page, under the top bar, as the boards draw it. */}
         <div className="flex min-h-0 min-w-0 flex-1">
@@ -165,6 +165,7 @@ function ShellFrame({ children, builder }: { children: React.ReactNode; builder:
             </RecordTrailProvider>
           </main>
           <VanePanel />
+          <LiveStream />
         </div>
       </div>
     </div>

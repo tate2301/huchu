@@ -2,208 +2,203 @@
 
 import * as React from "react";
 
-import { Button, Empty, Finding, GroupHead, Icon, Meter } from "@/components/core";
-import type { VaneForYou, VaneForYouCard } from "@/lib/vane/pages";
+import { Button, ButtonLink, Empty, Finding, GroupHead, Icon, type IconName } from "@/components/core";
+import type { VaneCard, VanePanel } from "@/lib/vane/panel";
 
-import { clock, dueLabel, listOf, plural, when } from "./format";
-import { NotNow } from "./not-now";
-import { VaneStateNotice } from "./vane-state";
+import { NotNowMenu } from "./not-now-menu";
+import { VaneActionList } from "./vane-action-list";
+import type { ActionDecision } from "./vane-panel-view";
+import { readSummary } from "./vane-card-drawer";
+import { VanePlanCardView } from "./vane-plan-card";
+import { VaneStateNote } from "./vane-state-note";
 
-/** The kind and source over a card's headline: "Issue, Books · 06:04". */
-export function cardKicker(card: Pick<VaneForYouCard, "kind" | "source" | "createdAt">): string {
-  return `${card.kind === "issue" ? "Issue" : "Suggestion"}, ${card.source} · ${when(card.createdAt)}`;
+const time = (iso: string) => new Date(iso).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false });
+
+/** The mark beside a card: the module it came from (`moduleName`). */
+const SOURCE_ICONS: Record<string, IconName> = {
+  Books: "books",
+  CRM: "pipeline",
+  Tender: "store",
+  Reports: "reports",
+  People: "person",
+  Payroll: "money",
+  Schools: "users",
+  Gold: "grade",
+  // A workspace's own names for its CRM and shop.
+  Pipeline: "pipeline",
+  "Site visits": "visits",
+  Showroom: "showroom",
+};
+
+const ACTION_ICONS: Record<string, IconName> = { send: "send", review: "eye", open: "chev" };
+
+/** "Books, CRM and Tender". */
+function listOf(names: string[]): string {
+  return names.length <= 1 ? (names[0] ?? "") : `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
 }
 
-/** The finding over For you: how many things, how many jobs, and where they came from. */
-export function forYouFinding(data: Pick<VaneForYou, "items" | "working" | "sources">, moduleLabel: string | null): { fact: string; rest: string | null } {
-  const things = data.items.length;
-  const jobs = data.working.length;
-  const from = moduleLabel ? ` from ${moduleLabel}` : "";
-  const fact =
-    things === 0
-      ? `Nothing${from} waits for you${jobs ? `, and Vane is working on ${jobs}.` : "."}`
-      : `Vane has ${plural(things, "thing")} for you${from}${jobs ? ` and is working on ${jobs}` : ""}.`;
-  const sources = moduleLabel ? [] : data.sources;
-  const rest =
-    things === 0
-      ? "It puts what needs you here, with the question behind each card."
-      : sources.length > 1
-        ? `They came from ${listOf(sources)}.`
-        : sources.length === 1
-          ? `They all came from ${sources[0]}.`
-          : null;
-  return { fact, rest };
+/** The finding the page opens with: what waits and what Vane is on, then where it came from. */
+function finding(cards: VaneCard[], working: number, lastWorkedAt: string | null) {
+  if (cards.length === 0) {
+    return {
+      fact: working > 0 ? `Nothing waits for you. Vane is working on ${working}.` : "Nothing waits for you.",
+      rest: lastWorkedAt ? `Vane is up to date. It last checked at ${time(lastWorkedAt)}.` : "Vane puts what needs you here.",
+    };
+  }
+  const things = `${cards.length} ${cards.length === 1 ? "thing" : "things"}`;
+  return {
+    fact: working > 0 ? `Vane has ${things} for you and is working on ${working}.` : `Vane has ${things} for you.`,
+    rest: `${cards.length === 1 ? "It came" : "They came"} from ${listOf([...new Set(cards.map((card) => card.source))])}.`,
+  };
 }
 
 /**
- * For you (VaneForYou): every card Vane has for this person across the
- * modules, each with its button, What I read and Not now; beside it, what
- * Vane is working on, the plan it broke down and what it did today, under
- * the state it is in. Pure: the page feeds it.
+ * For you (`/vane`, the VaneForYou board): the finding, every card Vane has
+ * for this person across the workspace, and beside them what Vane is working
+ * on, the plan it has broken down and what it did today. The first card's
+ * act is the page's primary, on S.
+ *
+ * Pure: the page feeds it, and the fixture route feeds it the drawn data.
  */
 export function ForYouView({
-  data,
-  moduleLabel,
-  canPause,
+  panel,
+  from,
+  canResume,
   onResume,
-  resuming,
+  resuming = false,
   onAct,
   onRead,
-  onNotNow,
-  muting,
+  onMute,
+  onDecide,
+  deciding = null,
 }: {
-  data: VaneForYou;
-  /** The module the cards are narrowed to, from Watching. */
-  moduleLabel: string | null;
-  canPause: boolean;
-  onResume: () => void;
-  resuming: boolean;
-  onAct: (card: VaneForYouCard, target?: string) => void;
-  onRead: (card: VaneForYouCard) => void;
-  onNotNow: (card: VaneForYouCard, reason: string) => void;
-  muting: string | null;
+  panel: VanePanel;
+  /** A watched module chosen in the panel: only its cards. */
+  from?: { key: string; name: string } | null;
+  canResume: boolean;
+  onResume?: () => void;
+  resuming?: boolean;
+  onAct: (card: VaneCard, target?: string) => void;
+  /** What I read: opens the card beside the list. */
+  onRead: (card: VaneCard) => void;
+  /** Not now, with the reason chosen. */
+  onMute: (card: VaneCard, reason: string) => void;
+  /** Approve or deny one of the actions Vane proposes on a card. */
+  onDecide: (action: VaneCard["actions"][number], decision: ActionDecision) => void;
+  /** The action being decided now. */
+  deciding?: string | null;
 }) {
-  const finding = forYouFinding(data, moduleLabel);
-  // The first card with a button is the one S presses.
-  const first = data.items.find((card) => card.action)?.id ?? null;
+  const { status, plans, done, working } = panel;
+  const cards = from ? panel.items.filter((card) => card.source === from.name) : panel.items;
+  const lede = finding(cards, status.counts.working, status.lastWorkedAt);
+
   return (
     <div className="vh">
       <div className="vh-main">
-        <Finding fact={finding.fact} rest={finding.rest} />
-        <section aria-labelledby="vn-for-you">
-          <GroupHead id="vn-for-you" title="For you" sum={data.items.length} />
-          {data.items.length === 0 ? (
-            <Empty icon="foryou" title={moduleLabel ? `Nothing from ${moduleLabel} waits for you` : "Nothing waits for you"}>
-              When Vane finds something you can act on, it puts it here with the question behind it. Give it a job with Ctrl J.
+        <VaneStateNote status={status} canResume={canResume} onResume={onResume} resuming={resuming} />
+        <Finding fact={lede.fact} rest={lede.rest} />
+        <section aria-labelledby="vane-for-you">
+          <GroupHead id="vane-for-you" title={from ? `For you, from ${from.name}` : "For you"} sum={cards.length} />
+          {cards.length === 0 ? (
+            <Empty
+              icon="foryou"
+              title="Nothing for you"
+              action={
+                from ? (
+                  <ButtonLink href="/vane" icon="foryou">
+                    Every module
+                  </ButtonLink>
+                ) : undefined
+              }
+            >
+              {from
+                ? `Vane has nothing from ${from.name} for you just now.`
+                : status.lastWorkedAt
+                  ? `Vane is up to date. It last checked at ${time(status.lastWorkedAt)}.`
+                  : "When Vane finds something that needs you, it puts it here."}
             </Empty>
           ) : (
             <div className="list">
-              {data.items.map((card) => (
-                <ForYouRow
-                  key={card.id}
-                  card={card}
-                  primary={card.id === first}
-                  onAct={onAct}
-                  onRead={onRead}
-                  onNotNow={onNotNow}
-                  muting={muting === card.id}
-                />
+              {cards.map((card, index) => (
+                <div key={card.id} className={card.kind === "issue" ? "row fy is-issue" : "row fy"}>
+                  <span className="nt" data-module={card.module}>
+                    <Icon name={SOURCE_ICONS[card.source] ?? "foryou"} />
+                  </span>
+                  <div className="t">
+                    <span className="k">
+                      <span className="vn-dot" aria-hidden="true" />
+                      {card.kind === "issue" ? "Issue" : "Suggestion"}, {card.source} · {time(card.createdAt)}
+                    </span>
+                    <span className="lead" id={`vane-card-${card.id}`}>
+                      {card.headline}
+                    </span>
+                    <span className="d">{card.body}</span>
+                    <div className="a">
+                      {card.action ? (
+                        <Button
+                          variant={index === 0 ? "primary" : "default"}
+                          icon={ACTION_ICONS[card.action.type] ?? "chev"}
+                          shortcut={index === 0 ? (card.action.shortcut ?? "S") : undefined}
+                          onClick={() => onAct(card)}
+                        >
+                          {card.action.label}
+                        </Button>
+                      ) : null}
+                      {card.action?.also ? (
+                        <Button
+                          variant={index === 0 ? "default" : "quiet"}
+                          icon="eye"
+                          onClick={() => onAct(card, card.action?.also?.target)}
+                        >
+                          {card.action.also.label}
+                        </Button>
+                      ) : null}
+                      <Button variant="quiet" icon="table" title={readSummary(card) || undefined} onClick={() => onRead(card)}>
+                        What I read
+                      </Button>
+                    </div>
+                    <VaneActionList actions={card.actions} deciding={deciding} onDecide={onDecide} />
+                  </div>
+                  <NotNowMenu describedBy={`vane-card-${card.id}`} onMute={(reason) => onMute(card, reason)} />
+                </div>
               ))}
             </div>
           )}
         </section>
       </div>
+
       <aside className="ask vh-side" aria-label="What Vane is doing">
         <div className="ask-b">
-          {data.state ? <VaneStateNotice state={data.state} canPause={canPause} onResume={onResume} resuming={resuming} /> : null}
-          <div className="vs" id="vn-working" style={data.state ? undefined : { marginTop: 0 }}>
-            Working on <span className="pn-n">{data.working.length}</span>
+          <div className="vs" style={{ marginTop: 0 }}>
+            Working on <span className="pn-n">{status.counts.working}</span>
           </div>
-          {data.working.length === 0 ? (
-            <p className="vn-quiet">Nothing is running. Give Vane a job with Ctrl J.</p>
-          ) : (
-            data.working.map((job) => (
-              <div key={job.id} className="vn-now">
-                {job.status === "running" ? <span className="live-d" aria-hidden="true" /> : <span aria-hidden="true" />}
-                <span className="truncate">{job.label}</span>
-                <span className="muted">{job.progress ?? (job.status === "waiting" ? "Waiting" : job.status === "queued" ? "Queued" : "")}</span>
-              </div>
-            ))
-          )}
-          {data.plan ? (
-            <>
-              <div className="vs">Broken down</div>
-              <article className="vp">
-                <div className="vp-h">
-                  <h3>{data.plan.title}</h3>
-                  {data.plan.dueOn ? <span className="muted">{dueLabel(data.plan.dueOn)}</span> : null}
-                </div>
-                <Meter
-                  value={data.plan.steps.length ? (data.plan.done / data.plan.steps.length) * 100 : 0}
-                  label={`${data.plan.done} of ${data.plan.steps.length} steps done`}
-                />
-                <ol>
-                  {data.plan.steps.map((step) => (
-                    <li key={step.id} className={`is-${step.status}`}>
-                      <Icon name={`step-${step.status}`} />
-                      <span>{step.label}</span>
-                      <span className="muted">
-                        {step.owner === "vane" ? "Vane" : "You"}
-                        {step.progress ? `, ${step.progress}` : ""}
-                      </span>
-                    </li>
-                  ))}
-                </ol>
-              </article>
-            </>
-          ) : null}
+          {working.length === 0 ? <p className="muted">Nothing right now.</p> : null}
+          {working.map((job) => (
+            <div key={job.id} className="vn-now">
+              {job.running ? <span className="live-d" aria-hidden="true" /> : <span aria-hidden="true" />}
+              <span className="truncate">{job.label}</span>
+              <span className="muted">{job.progress ?? (job.running ? "" : "Next")}</span>
+            </div>
+          ))}
+
+          {plans.length > 0 ? <div className="vs">Broken down</div> : null}
+          {plans.slice(0, 1).map((plan) => (
+            <VanePlanCardView key={plan.id} plan={plan} />
+          ))}
+
           <div className="vs">
-            Done today <span className="pn-n">{data.counts.doneToday}</span>
+            Done today <span className="pn-n">{status.counts.doneToday}</span>
           </div>
-          {data.doneToday.length === 0 ? (
-            <p className="vn-quiet">Nothing finished yet today.</p>
-          ) : (
-            data.doneToday.map((entry) => (
-              <div key={entry.id} className="vd">
-                <Icon name="done" />
-                <span className="truncate">{entry.text}</span>
-                <span className="muted">{clock(entry.at)}</span>
-              </div>
-            ))
-          )}
+          {done.length === 0 ? <p className="muted">Nothing yet today.</p> : null}
+          {done.map((entry) => (
+            <div key={entry.id} className="vd">
+              <Icon name="done" />
+              <span className="truncate">{entry.text}</span>
+              <span className="muted">{time(entry.at)}</span>
+            </div>
+          ))}
         </div>
       </aside>
-    </div>
-  );
-}
-
-function ForYouRow({
-  card,
-  primary,
-  onAct,
-  onRead,
-  onNotNow,
-  muting,
-}: {
-  card: VaneForYouCard;
-  primary: boolean;
-  onAct: (card: VaneForYouCard, target?: string) => void;
-  onRead: (card: VaneForYouCard) => void;
-  onNotNow: (card: VaneForYouCard, reason: string) => void;
-  muting: boolean;
-}) {
-  const action = card.action;
-  return (
-    <div className={card.kind === "issue" ? "row fy is-issue" : "row fy"}>
-      <span className="nt">
-        <Icon name={card.kind === "issue" ? "issue" : "suggestion"} size={20} />
-      </span>
-      <div className="t">
-        <span className="k">{cardKicker(card)}</span>
-        <span className="lead">{card.headline}</span>
-        <span className="d">{card.body}</span>
-        <div className="a">
-          {action ? (
-            <Button
-              variant={primary ? "primary" : "default"}
-              icon={action.type === "send" ? "send" : action.type === "review" ? "eye" : "chev"}
-              shortcut={primary ? "S" : undefined}
-              onClick={() => onAct(card)}
-            >
-              {action.label}
-            </Button>
-          ) : null}
-          {action?.also ? (
-            <Button icon="eye" onClick={() => onAct(card, action.also?.target)}>
-              {action.also.label}
-            </Button>
-          ) : null}
-          <Button variant="quiet" icon="sql" title="The tables it read and the question it ran" onClick={() => onRead(card)}>
-            What I read
-          </Button>
-        </div>
-      </div>
-      <NotNow busy={muting} onPick={(reason) => onNotNow(card, reason)} />
     </div>
   );
 }

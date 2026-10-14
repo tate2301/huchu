@@ -1,41 +1,22 @@
 import { redirect } from "next/navigation";
-import { headers } from "next/headers";
-import { AdminMagicLinkLogin } from "@/components/admin-portal/admin-magic-link-login";
-import { getCurrentAuthSession } from "@/lib/auth-core/guards";
-import { normalizeCallbackUrl } from "@/lib/auth-core/redirects";
-import { getAuthStrategiesForSurface } from "@/lib/auth-core/strategy-registry";
-import { ADMIN_PORTAL_HOST, isAdminPortalHost } from "@/lib/admin-portal";
-import { getHostHeaderFromRequestHeaders } from "@/lib/platform/tenant";
 
-export default async function AdminLoginPage({
+import { PasswordForm } from "@/components/admin/sign-in/password-form";
+import { SignInFrame } from "@/components/admin/sign-in/sign-in-frame";
+import { getSignedInOperator, safeAdminPath } from "@/lib/operators/guards";
+
+export const metadata = { title: "Sign in · Corelith admin" };
+
+export default async function AdminSignInPage({
   searchParams,
 }: {
   searchParams: Promise<{ callbackUrl?: string }>;
 }) {
-  const headersList = await headers();
-  const host = getHostHeaderFromRequestHeaders(headersList);
-  const { callbackUrl } = await searchParams;
-  const resolvedCallbackUrl = normalizeCallbackUrl(callbackUrl, "/admin/dashboard");
-  const strategies = getAuthStrategiesForSurface("admin-login");
-  const adminStrategy = strategies.find((strategy) => strategy.id === "admin-email-link");
-
-  if (!isAdminPortalHost(host)) {
-    redirect("/access-blocked");
-  }
-
-  if (!adminStrategy) {
-    redirect("/access-blocked");
-  }
-
-  const session = await getCurrentAuthSession();
-  if (session?.user?.role === "SUPERADMIN") {
-    redirect(resolvedCallbackUrl);
-  }
+  const callbackUrl = safeAdminPath((await searchParams).callbackUrl);
+  if (await getSignedInOperator()) redirect(callbackUrl);
 
   return (
-    <>
-      <AdminMagicLinkLogin callbackUrl={resolvedCallbackUrl} />
-      <p className="sr-only">Restricted host: {ADMIN_PORTAL_HOST}</p>
-    </>
+    <SignInFrame eyebrow="Corelith admin" title="Sign in">
+      <PasswordForm callbackUrl={callbackUrl} />
+    </SignInFrame>
   );
 }

@@ -17,17 +17,6 @@ function buildStrategyRegistry(): AuthStrategyDescriptor[] {
       supportsRememberMe: true,
     },
     {
-      id: "admin-email-link",
-      providerId: "email",
-      label: "Admin magic link",
-      description: "Restricted magic-link sign-in for the admin portal superuser mailbox.",
-      surfaces: ["admin-login"],
-      enabled: true,
-      live: true,
-      kind: "magic-link",
-      supportsRememberMe: false,
-    },
-    {
       id: "email-link",
       providerId: "email-link",
       label: "Email link",

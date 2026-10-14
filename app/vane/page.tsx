@@ -4,133 +4,122 @@ import * as React from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 
-import { Button } from "@/components/core";
 import { PageChrome } from "@/components/layout/page-chrome";
 import { useToast } from "@/components/ui/use-toast";
-import { CardDrawer } from "@/components/vane/card-drawer";
 import { ForYouView } from "@/components/vane/for-you-view";
-import { useVaneActions, useVaneCard, useVaneForYou, useVaneNav } from "@/components/vane/use-vane";
-import { VaneError, VaneFrame, VaneLoading } from "@/components/vane/vane-frame";
+import { useDecideAction, useVaneActions, useVaneForYou, useVaneWatching } from "@/components/vane/use-vane";
+import { VaneCardDrawer } from "@/components/vane/vane-card-drawer";
+import { VaneError, VaneLoading, VanePage } from "@/components/vane/vane-page";
 import { getApiErrorMessage } from "@/lib/api-client";
+import type { VaneCard } from "@/lib/vane/panel";
 import { VANE_SETTINGS_ROLES } from "@/lib/vane/roles";
 
-/**
- * `/vane`: For you (VaneForYou) with Vane's states (PageVaneStates), and a
- * card's What I read (PageVaneCard, `?card=`). `?module=` narrows For you to
- * one module Vane watches; `?view=working` goes to Working on.
- */
-function ForYouPage() {
+/** For you (design/core-modules/html/vane.html): everything Vane has for this person, across the workspace. */
+function ForYou() {
   const router = useRouter();
   const pathname = usePathname();
   const params = useSearchParams();
   const { toast } = useToast();
   const { data: session } = useSession();
-  const watched = params.get("module");
-  const cardId = params.get("card");
-  const view = params.get("view");
-
-  const home = useVaneForYou(watched);
-  const nav = useVaneNav();
-  const card = useVaneCard(cardId);
-  const { notNow, pause } = useVaneActions();
+  const forYou = useVaneForYou();
+  const watching = useVaneWatching();
+  const { notNow, act: actOn, pause } = useVaneActions();
+  const decide = useDecideAction();
   const canPause = VANE_SETTINGS_ROLES.includes(session?.user?.role ?? "");
-  const paused = home.data?.status.paused ?? false;
-  const moduleLabel = watched ? (nav.data?.watching.find((watch) => watch.key === watched)?.name ?? watched) : null;
 
-  const go = React.useCallback(
-    (next: Record<string, string | null>) => {
-      const merged = new URLSearchParams(params.toString());
-      for (const [key, value] of Object.entries(next)) {
-        if (value === null) merged.delete(key);
-        else merged.set(key, value);
-      }
-      const query = merged.toString();
-      router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
-    },
-    [params, pathname, router],
-  );
+  const fromKey = params.get("from");
+  const from = fromKey ? (watching.data?.find((module) => module.key === fromKey) ?? null) : null;
 
-  // Working on is the column beside the cards: the panel's row goes to it.
-  const loaded = Boolean(home.data);
-  React.useEffect(() => {
-    if (view === "working" && loaded) document.getElementById("vn-working")?.scrollIntoView({ block: "start" });
-  }, [view, loaded]);
-
-  const setPaused = (next: boolean) =>
-    pause.mutate(next, {
-      onSuccess: () => toast({ title: next ? "Vane is paused" : "Vane is working again" }),
+  const setPaused = (paused: boolean) =>
+    pause.mutate(paused, {
       onError: (error) =>
         toast({
-          title: next ? "Vane did not pause" : "Vane did not resume",
+          title: paused ? "Vane did not pause" : "Vane did not resume",
           description: getApiErrorMessage(error, "Check the connection and try again."),
           variant: "destructive",
         }),
     });
 
-  const mute = (id: string, reason: string) =>
+
+  // The card open beside the list, by its id in the address (`?card=`), so it can be linked to.
+  const openId = params.get("card");
+  const openCard = forYou.data?.items.find((card) => card.id === openId) ?? null;
+  const showCard = (id: string | null) => {
+    const next = new URLSearchParams(params.toString());
+    if (id) next.set("card", id);
+    else next.delete("card");
+    const query = next.toString();
+    router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
+  };
+
+  // The card's own act goes to Done with this person's name; its second, quieter
+  // way in ("Read them first") only looks.
+  const act = (card: VaneCard, target?: string) => {
+    if (!target) actOn.mutate({ id: card.id });
+    const to = target ?? card.action?.target;
+    if (to) router.push(to);
+  };
+
+  const mute = (card: VaneCard, reason: string) => {
+    if (openId === card.id) showCard(null);
     notNow.mutate(
-      { id, reason },
+      { id: card.id, reason },
       {
-        onSuccess: () => {
-          toast({ title: "Moved to Muted", description: `Reason: ${reason}.` });
-          if (cardId === id) go({ card: null });
-        },
         onError: (error) =>
-          toast({ title: "The card did not move", description: getApiErrorMessage(error, "Try again."), variant: "destructive" }),
+          toast({
+            title: "The card is still here",
+            description: getApiErrorMessage(error, "Check the connection and try again."),
+            variant: "destructive",
+          }),
       },
     );
-
-  const act = (target: string | undefined) => {
-    if (target) router.push(target);
   };
 
   return (
     <>
-      <PageChrome title="For you" sub={moduleLabel ? `From ${moduleLabel}` : null}>
-        {canPause && home.data ? (
-          <Button icon={paused ? "run" : "pause"} busy={pause.isPending} onClick={() => setPaused(!paused)}>
-            {paused ? "Resume Vane" : "Pause Vane"}
-          </Button>
-        ) : null}
-      </PageChrome>
-      <VaneFrame screen="vane">
-        {home.data ? (
+      <PageChrome title="For you" />
+      <VanePage screen="vane">
+        {forYou.data ? (
           <ForYouView
-            data={home.data}
-            moduleLabel={moduleLabel}
-            canPause={canPause}
+            panel={forYou.data}
+            from={from ? { key: from.key, name: from.name } : null}
+            canResume={canPause}
             onResume={() => setPaused(false)}
             resuming={pause.isPending}
-            onAct={(item, target) => act(target ?? item.action?.target)}
-            onRead={(item) => go({ card: item.id })}
-            onNotNow={(item, reason) => mute(item.id, reason)}
-            muting={notNow.isPending ? (notNow.variables?.id ?? null) : null}
+            onAct={act}
+            onRead={(card) => showCard(card.id)}
+            onMute={mute}
+            deciding={decide.isPending ? (decide.variables?.id ?? null) : null}
+            onDecide={(action, decision) =>
+              decide.mutate(
+                { id: action.id, ...decision },
+                {
+                  onError: (error) =>
+                    toast({
+                      title: decision.approve ? "That did not happen" : "Not recorded",
+                      description: getApiErrorMessage(error, "Check the connection and try again."),
+                      variant: "destructive",
+                    }),
+                },
+              )
+            }
           />
-        ) : home.isError ? (
-          <VaneError what="For you" onRetry={() => home.refetch()} />
+        ) : forYou.isError ? (
+          <VaneError what="For you" onRetry={() => forYou.refetch()} />
         ) : (
           <VaneLoading />
         )}
-      </VaneFrame>
-      <CardDrawer
-        open={Boolean(cardId)}
-        onOpenChange={(open) => (open ? null : go({ card: null }))}
-        card={card.data ?? null}
-        loading={card.isLoading}
-        failed={card.isError}
-        onAct={(item) => act(item.action?.target)}
-        onNotNow={(item, reason) => mute(item.id, reason)}
-        muting={notNow.isPending}
-      />
+      </VanePage>
+      <VaneCardDrawer card={openCard} onClose={() => showCard(null)} onAct={(card) => act(card)} onMute={mute} />
     </>
   );
 }
 
-export default function VanePage() {
-  // The card and the module are read from the address, which is only known in the browser.
+export default function VaneForYouPage() {
+  // The module filter is read from the address, which is only known in the browser.
   return (
-    <React.Suspense fallback={<VaneFrame screen="vane"><VaneLoading /></VaneFrame>}>
-      <ForYouPage />
+    <React.Suspense fallback={<VanePage screen="vane"><VaneLoading /></VanePage>}>
+      <ForYou />
     </React.Suspense>
   );
 }

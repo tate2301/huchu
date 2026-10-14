@@ -116,6 +116,48 @@ describe("buildDocumentEmail", () => {
   });
 });
 
+describe("buildDocumentEmail with the rep's own words", () => {
+  const base = {
+    kind: "QUOTATION" as const,
+    number: "QT-0402",
+    companyName: "Floorcode Zimbabwe",
+    amount: "USD 919.17",
+    approvalUrl: "https://app.test/a/tok",
+  };
+
+  it("says what the document is, for what, when the rep writes nothing", () => {
+    const mail = buildDocumentEmail(base);
+    expect(mail.text.split("\n")[0]).toBe("Please find our quotation QT-0402 for USD 919.17 attached.");
+  });
+
+  it("sends their subject and note, and the link to answer still follows", () => {
+    const mail = buildDocumentEmail({
+      ...base,
+      subject: "Your lounge and passage, fitted",
+      message: "Good afternoon.\n\nHere is the quote for 27.92 m² of oak laminate, fitted.\nIt holds for 30 days.",
+    });
+    expect(mail.subject).toBe("Your lounge and passage, fitted");
+    expect(mail.text.startsWith("Good afternoon.\n\nHere is the quote")).toBe(true);
+    expect(mail.text).not.toContain("Please find our");
+    expect(mail.text).toContain("https://app.test/a/tok");
+    expect(mail.html).toContain("<p>Good afternoon.</p>");
+    expect(mail.html).toContain("fitted.<br>It holds for 30 days.</p>");
+    expect(mail.html).toContain('href="https://app.test/a/tok"');
+  });
+
+  it("escapes what they wrote in the HTML part", () => {
+    const mail = buildDocumentEmail({ ...base, message: "See <a href=x>here</a>" });
+    expect(mail.html).not.toContain("<a href=x>");
+    expect(mail.html).toContain("&lt;a href=x&gt;");
+  });
+
+  it("falls back to the usual subject and note when theirs is blank", () => {
+    const mail = buildDocumentEmail({ ...base, subject: "  ", message: "\n" });
+    expect(mail.subject).toBe("Quotation QT-0402 from Floorcode Zimbabwe");
+    expect(mail.text).toContain("Please find our quotation QT-0402");
+  });
+});
+
 describe("buildDocumentEmail with resources to review", () => {
   const base = {
     number: "QUO-2026-0088",

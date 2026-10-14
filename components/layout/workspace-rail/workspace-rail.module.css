@@ -101,8 +101,25 @@
   box-shadow: var(--ring), var(--raised);
 }
 
-.spacer {
-  flex: 1;
+/* The module marks: they take the rail's free height and scroll in it, so the
+   pins under them (Vane, Management, the person) are never pushed off screen. */
+.railMarks {
+  flex: 1 1 auto;
+  min-height: 0;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: none;
+  /* Room for a mark's focus ring at the scroll edges. */
+  padding: 4px 0;
+}
+
+.railMarks::-webkit-scrollbar {
+  display: none;
 }
 
 /* Between the module marks and the pins. */
@@ -710,4 +727,49 @@
   margin: 0;
   font-size: 12px;
   color: var(--bad);
+}
+
+/* Vane's mark: what waits for this person on its corner, and a pulse while it works. */
+.vaneMark {
+  position: relative;
+}
+
+.vaneCount {
+  position: absolute;
+  top: 1px;
+  right: 1px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 99px;
+  background: var(--ink);
+  color: var(--surface);
+  font: 600 10px/16px var(--font-sans, inherit);
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+  box-shadow: 0 0 0 2px var(--ground);
+}
+
+.vaneLive {
+  position: absolute;
+  bottom: 4px;
+  right: 4px;
+  width: 7px;
+  height: 7px;
+  border-radius: 99px;
+  background: var(--action);
+  box-shadow: 0 0 0 2px var(--ground);
+  animation: vane-pulse 1.6s ease-in-out infinite;
+}
+
+@keyframes vane-pulse {
+  50% {
+    opacity: 0.35;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .vaneLive {
+    animation: none;
+  }
 }

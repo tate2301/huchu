@@ -30,7 +30,8 @@ import {
   isSubscriptionOnlyTenantStatus,
   isSubscriptionReadOnly,
 } from "@/lib/platform/subscription";
-import { getAdminRootDomain, isAdminPortalHost, isPlatformSuperuser } from "@/lib/admin-portal";
+import { getAdminRootDomain, isAdminPortalHost } from "@/lib/admin-portal";
+import { OPERATOR_COOKIE } from "@/lib/operators/cookie";
 import { buildCallbackLoginPath } from "@/lib/auth-core/redirects";
 import { isAuthExpired } from "@/lib/auth-core/session-policy";
 import {
@@ -50,7 +51,6 @@ const CRM_PUBLIC_BASE_PATHS = PUBLIC_BASE_PATHS;
 const ADMIN_BASE_PATH = "/admin";
 const ADMIN_LOGIN_PATH = `${ADMIN_BASE_PATH}/login`;
 const ADMIN_INTERNAL_BASE_PATH = "/portal/admin";
-const ADMIN_LOGIN_API_PATH = "/api/platform-admin/login-link";
 const PORTAL_BASE_PATHS = ["/portal/parent", "/portal/student", "/portal/teacher", "/portal/pos", "/portal/admin"] as const;
 // `.xml` covers /sitemap.xml — without it the proxy redirects crawlers to the
 // admin host and the sitemap is unreachable.
@@ -396,33 +396,31 @@ export default withAuth(
         const adminRootDomain = getAdminRootDomain();
         return denyAccess(request, `Admin portal is only available on *.${adminRootDomain}`);
       }
-
-      // A tenant owner is SUPERADMIN too; only the allow-listed identity
-      // gets in. Signed-out requests fall through to the admin sign-in below.
-      if (token && !isPlatformSuperuser(token)) {
-        return denyAccess(request, "Superuser access required");
-      }
     }
 
+    // The admin host answers to operators, who are not NextAuth users: a
+    // workspace session on this host (localhost in development is both) is
+    // ignored here. The proxy only checks the operator cookie is present;
+    // whether the session behind it is good is checked against the database
+    // by every page and action (`lib/operators/guards.ts`).
     if (isAdminHost) {
+      const hasOperatorCookie = Boolean(request.cookies.get(OPERATOR_COOKIE)?.value);
+
       if (isApiRequest) {
-        if (pathname === ADMIN_LOGIN_API_PATH) {
-          return NextResponse.next();
+        if (!isPathWithinRoute(pathname, "/api/platform-admin")) {
+          return denyAccess(request, "Only admin APIs are available on this host");
         }
-        if (!token) {
+        if (!hasOperatorCookie) {
           return NextResponse.json({ error: "Unauthorized", code: "UNAUTHORIZED" }, { status: 401 });
         }
-        if (isPathWithinRoute(pathname, "/api/platform-admin")) {
-          return NextResponse.next();
-        }
-        return denyAccess(request, "Only admin APIs are available on this host");
+        return NextResponse.next();
       }
 
       if (pathname === LOGIN_PATH) {
         return redirectToPath(request, ADMIN_LOGIN_PATH);
       }
 
-      if (pathname === ADMIN_LOGIN_PATH) {
+      if (isPathWithinRoute(pathname, ADMIN_LOGIN_PATH)) {
         return NextResponse.next();
       }
 
@@ -433,7 +431,7 @@ export default withAuth(
 
       const internalAdminPath = toInternalAdminPath(pathname);
       if (internalAdminPath) {
-        if (!token && pathname !== ADMIN_LOGIN_PATH) {
+        if (!hasOperatorCookie) {
           return redirectToLoginWithCallback(request, ADMIN_LOGIN_PATH);
         }
         const rewriteUrl = request.nextUrl.clone();

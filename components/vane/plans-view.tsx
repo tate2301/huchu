@@ -3,116 +3,178 @@
 import * as React from "react";
 import Link from "next/link";
 
-import { Button, Empty, Meter, Pill } from "@/components/core";
-import type { VanePlanDetail } from "@/lib/vane/pages";
+import { Empty, Icon, Meter } from "@/components/core";
+import type { VanePlanRow, VanePlanStepRow } from "@/lib/vane/lists";
 
-import { dueLabel, longDate, shortDate, when } from "./format";
-import { PlanFacts, PlanSteps } from "./plan-parts";
+const shortDay = (date: string) => new Date(`${date}T00:00:00`).toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+const longDay = (date: string) => new Date(`${date}T00:00:00`).toLocaleDateString("en-GB", { day: "numeric", month: "long" });
+const when = (iso: string) => {
+  const date = new Date(iso);
+  return `${date.toLocaleDateString("en-GB", { day: "numeric", month: "short" })} ${date.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false })}`;
+};
 
-/** The pill beside a plan's title: whose step is next, or that it is done. */
-export function planPill(plan: Pick<VanePlanDetail, "status" | "current" | "person">): { text: string; tone: "info" | "ok" | "plain" } {
-  if (plan.status === "waiting") return { text: "Waiting for Start", tone: "plain" };
-  if (plan.status === "done") return { text: "Done", tone: "ok" };
-  if (plan.status === "cancelled") return { text: "Stopped", tone: "plain" };
-  if (!plan.current) return { text: "Every step done", tone: "ok" };
-  if (plan.current.owner === "vane") return { text: `Vane is on step ${plan.current.position}`, tone: "info" };
-  return plan.person.you
-    ? { text: `Your turn, step ${plan.current.position}`, tone: "info" }
-    : { text: `${plan.person.name ?? "A person"}’s turn, step ${plan.current.position}`, tone: "info" };
+const share = (plan: VanePlanRow) => (plan.steps.length ? (plan.done / plan.steps.length) * 100 : 0);
+
+/** "Due 25 Oct", "Done 9 Oct". */
+function planWhen(plan: VanePlanRow): string | null {
+  if (plan.status === "done" && plan.doneAt) return `Done ${shortDay(plan.doneAt.slice(0, 10))}`;
+  return plan.dueOn ? `Due ${shortDay(plan.dueOn)}` : null;
 }
 
-const share = (plan: VanePlanDetail) => (plan.steps.length ? (plan.done / plan.steps.length) * 100 : 0);
+/** Where a plan stands: "Vane is on step 2", "Step 3 waits for you". */
+function standing(plan: VanePlanRow): string {
+  if (plan.status === "done") return "Done";
+  const now = plan.steps.find((step) => step.status === "now");
+  if (now) return now.owner === "vane" ? `Vane is on step ${now.position}` : `Step ${now.position} waits for you`;
+  const next = plan.steps.find((step) => step.status !== "done");
+  return next ? (next.owner === "vane" ? `Vane does step ${next.position} next` : `Step ${next.position} waits for you`) : "Every step is done";
+}
 
-/** The note under a plan's name in the list: when it is due, or when it was done. */
-function listNote(plan: VanePlanDetail): string {
-  if (plan.status === "done" && plan.doneAt) return `Done ${shortDate(plan.doneAt)}`;
-  const due = plan.dueOn ? dueLabel(plan.dueOn) : "No due date";
-  return plan.status === "waiting" ? `${due} · waiting for Start` : due;
+function Step({
+  step,
+  ticking,
+  onTick,
+}: {
+  step: VanePlanStepRow;
+  ticking: boolean;
+  onTick: (step: VanePlanStepRow, done: boolean) => void;
+}) {
+  const icon = <Icon name={`step-${step.status}`} />;
+  return (
+    <li className={`is-${step.status}`}>
+      {step.owner === "person" ? (
+        // A person's own step: they tick it here once it is done.
+        <button
+          type="button"
+          className="btn btn-quiet btn-icon"
+          style={{ width: 16, height: 16, minHeight: 0, padding: 0 }}
+          aria-pressed={step.status === "done"}
+          aria-label={step.status === "done" ? `Not done yet: ${step.label}` : `Mark done: ${step.label}`}
+          disabled={ticking}
+          onClick={() => onTick(step, step.status !== "done")}
+        >
+          {icon}
+        </button>
+      ) : (
+        icon
+      )}
+      <span>
+        {step.label}
+        {step.progress ? (
+          <>
+            <br />
+            <span className="muted" style={{ fontSize: "var(--text-12)" }}>
+              {step.progress}
+            </span>
+          </>
+        ) : null}
+      </span>
+      <span className="muted">{step.owner === "vane" ? "Vane" : "You"}</span>
+    </li>
+  );
 }
 
 /**
- * Plans (PageVanePlan): every plan Vane broke a job into, on the left with
- * how far along each is; the chosen one on the right, its steps in order,
- * whose each is and what each found, then what it reads and may write. A
- * person ticks their own steps here, and presses Start on a plan that waits.
+ * Plans (`/vane/plans`, the PageVanePlan board): each plan with its meter on
+ * the left, and the chosen plan on the right, its steps in order, who owns
+ * each and how far along it is. A person ticks their own steps; Vane's tick
+ * as its jobs finish. On a phone the list and the plan are separate pages.
+ *
+ * Pure: the page feeds it.
  */
 export function PlansView({
   plans,
-  selectedId,
+  chosenId,
+  showList,
+  ticking,
   onTick,
-  onStart,
-  busy = false,
 }: {
-  plans: VanePlanDetail[];
-  selectedId: string | null;
-  /** A person ticks their own step done or not done; Vane's steps tick as its jobs finish. */
-  onTick?: (planId: string, stepId: string, done: boolean) => void;
-  /** Start: a waiting plan begins. */
-  onStart?: (planId: string) => void;
-  busy?: boolean;
+  plans: VanePlanRow[];
+  chosenId: string | null;
+  /** On a phone, the list (`/vane/plans`) or the plan (`/vane/plans/<id>`). */
+  showList: boolean;
+  ticking: boolean;
+  onTick: (plan: VanePlanRow, step: VanePlanStepRow, done: boolean) => void;
 }) {
   if (plans.length === 0) {
     return (
-      <div className="kbody vn-body">
-        <Empty icon="step" title="No plans yet">
-          When a job is bigger than one look, Vane breaks it into steps here, each owned by Vane or by a person. Give it one with Ctrl J.
-        </Empty>
-      </div>
+      <Empty icon="list" title="No plans yet">
+        When a job is bigger than one card (VAT, the close, a pay run), Vane breaks it into steps and shows here which are its
+        own and which wait for you.
+      </Empty>
     );
   }
-  const plan = plans.find((candidate) => candidate.id === selectedId) ?? plans[0]!;
-  const pill = planPill(plan);
+  const chosen = plans.find((plan) => plan.id === chosenId) ?? plans[0];
+
   return (
-    <div className="kbody">
-      <div className="vn-plans">
-        <nav className="vn-plan-list" aria-label="Plans">
-          {plans.map((candidate) => (
+    <div style={{ flex: "1 1 auto", display: "flex", minHeight: 0 }}>
+      <nav
+        aria-label="Plans"
+        className={showList ? "max-[719px]:!w-full max-[719px]:!border-r-0" : "max-[719px]:hidden"}
+        style={{ flex: "none", width: 340, borderRight: "1px solid var(--color-line)" }}
+      >
+        {plans.map((plan) => {
+          const on = plan.id === chosen.id;
+          return (
             <Link
-              key={candidate.id}
-              href={`/vane/plans?plan=${candidate.id}`}
-              scroll={false}
-              aria-current={candidate.id === plan.id ? "true" : undefined}
-              className={candidate.id === plan.id ? "vn-plan-item is-on" : "vn-plan-item"}
+              key={plan.id}
+              href={`/vane/plans/${plan.id}`}
+              aria-current={on ? "page" : undefined}
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: 6,
+                padding: "14px var(--space-24)",
+                borderBottom: "1px solid var(--color-line)",
+                background: on ? "var(--color-accent-tint)" : "var(--color-surface)",
+                boxShadow: on ? "inset 3px 0 0 var(--color-accent)" : "none",
+                color: "var(--color-ink)",
+                textDecoration: "none",
+              }}
             >
-              <span className="vn-plan-row">
-                <span className="vn-plan-name">{candidate.title}</span>
-                <span className="vn-plan-due">{listNote(candidate)}</span>
+              <span style={{ display: "flex", gap: "var(--space-8)" }}>
+                <span className="truncate" style={{ fontWeight: 600 }}>
+                  {plan.title}
+                </span>
+                {planWhen(plan) ? (
+                  <span style={{ marginLeft: "auto", flex: "none", fontSize: "var(--text-12)", color: "var(--color-muted)" }}>
+                    {planWhen(plan)}
+                  </span>
+                ) : null}
               </span>
-              <Meter value={share(candidate)} label={`${candidate.done} of ${candidate.steps.length} steps done`} />
+              <Meter accent value={share(plan)} label={`${plan.title}: ${plan.done} of ${plan.steps.length} steps done`} />
             </Link>
-          ))}
-        </nav>
-        <section className="vn-plan" aria-labelledby="vn-plan-title">
-          <div className="vn-plan-h">
-            <h2 id="vn-plan-title">{plan.title}</h2>
-            <Pill tone={pill.tone}>{pill.text}</Pill>
-            <span className="vn-plan-when">
-              {plan.dueOn ? `Due ${longDate(plan.dueOn)} · ` : ""}
-              {plan.status === "waiting" ? "laid out" : "started"} by Vane, {when(plan.createdAt)}
+          );
+        })}
+      </nav>
+
+      <article
+        aria-labelledby="vane-plan-title"
+        className={showList ? "max-[719px]:hidden" : undefined}
+        style={{ flex: "1 1 0", minWidth: 0 }}
+      >
+        <div style={{ padding: "var(--space-24) 28px", display: "flex", flexDirection: "column", gap: "var(--space-16)" }}>
+          <div style={{ display: "flex", flexWrap: "wrap", alignItems: "baseline", gap: 10 }}>
+            <h2 id="vane-plan-title" style={{ margin: 0, fontSize: 19, fontWeight: 600 }}>
+              {chosen.title}
+            </h2>
+            <span className={chosen.status === "done" ? "pill" : "pill pill-info"}>{standing(chosen)}</span>
+            <span style={{ marginLeft: "auto", color: "var(--color-muted)" }}>
+              {[chosen.dueOn ? `Due ${longDay(chosen.dueOn)}` : null, `started ${when(chosen.createdAt)}`].filter(Boolean).join(" · ")}
             </span>
           </div>
-          <Meter value={share(plan)} label={`${plan.done} of ${plan.steps.length} steps done`} />
-          {plan.job ? <p className="vn-plan-ask">{plan.job.request}</p> : null}
-          <div className="vn-plan-steps">
-            <PlanSteps plan={plan} onTick={onTick} busy={busy} />
-          </div>
-          <PlanFacts plan={plan} />
-          {plan.status === "waiting" ? (
-            <div className="vn-plan-start">
-              <span className="vn-note">
-                {plan.person.you
-                  ? "Nothing starts until you press Start."
-                  : `Nothing starts until ${plan.person.name ?? "the person who asked"} presses Start.`}
-              </span>
-              {plan.person.you && onStart ? (
-                <Button variant="primary" shortcut="Ctrl ↵" busy={busy} onClick={() => onStart(plan.id)}>
-                  Start
-                </Button>
-              ) : null}
+          <Meter accent value={share(chosen)} label={`${chosen.done} of ${chosen.steps.length} steps done`} />
+          <div style={{ borderTop: "1px solid var(--color-line)" }}>
+            <div className="vp" style={{ boxShadow: "none", padding: 0 }}>
+              <ol>
+                {chosen.steps.map((step) => (
+                  <Step key={step.id} step={step} ticking={ticking} onTick={(row, done) => onTick(chosen, row, done)} />
+                ))}
+              </ol>
             </div>
-          ) : null}
-        </section>
-      </div>
+          </div>
+        </div>
+      </article>
     </div>
   );
 }

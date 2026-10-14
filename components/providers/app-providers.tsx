@@ -142,14 +142,14 @@ export function AppProviders({
     pathname?.startsWith("/admin/") ||
     pathname === "/portal/admin" ||
     pathname?.startsWith("/portal/admin/")
-  const disableAdminSessionRefetchInDev =
-    process.env.NODE_ENV !== "production" && isAdminRoute
 
   return (
+    // The admin portal signs operators in on its own session, not NextAuth's,
+    // so there is no workspace session on its routes to keep fresh.
     <SessionProvider
       session={session}
-      refetchInterval={disableAdminSessionRefetchInDev ? 0 : 5 * 60}
-      refetchOnWindowFocus={!disableAdminSessionRefetchInDev}
+      refetchInterval={isAdminRoute ? 0 : 5 * 60}
+      refetchOnWindowFocus={!isAdminRoute}
       refetchWhenOffline={false}
     >
       <QueryProvider client={queryClient} persistOptions={persistOptions}>

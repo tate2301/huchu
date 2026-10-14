@@ -9,7 +9,9 @@ import { useShellNav } from "@/components/layout/shell-nav";
 import { useShell } from "@/components/layout/shell-state";
 import { WorkspaceRail } from "@/components/layout/workspace-rail";
 import { ModuleGroups } from "@/components/layout/workspace-rail/module-groups";
-import { VaneRailPanel } from "@/components/vane/vane-rail-panel";
+import { useVaneStatus } from "@/components/vane/use-vane";
+import { VaneModulePanel } from "@/components/vane/vane-module-panel";
+import { isVanePath } from "@/components/vane/vane-nav";
 
 /**
  * The rail and its panel, beside the page (≥720px) or inside the phone drawer
@@ -20,9 +22,9 @@ export function AppSidebar({ inDrawer = false, railOnly = false }: { inDrawer?: 
   const shell = useShell();
   // A builder keeps the rail alone; its outline stands where the panel was.
   const panelShown = inDrawer || (!railOnly && shell.panelShown);
-  // Vane is a module of its own, beside the workspace's: its pages keep its panel.
   const pathname = usePathname();
-  const onVane = pathname === "/vane" || pathname.startsWith("/vane/");
+  const onVane = isVanePath(pathname);
+  const vaneStatus = useVaneStatus();
 
   return (
     <WorkspaceRail
@@ -34,12 +36,16 @@ export function AppSidebar({ inDrawer = false, railOnly = false }: { inDrawer?: 
       tile={<AccountMenu />}
       person={<PersonMenu />}
       management={nav.management}
-      vane={{ href: "/vane", current: onVane }}
-      panelFor={
-        onVane
-          ? (chrome) => <VaneRailPanel {...chrome} onNavigate={inDrawer ? () => shell.setDrawerOpen(false) : undefined} />
-          : null
-      }
+      vane={{
+        open: shell.vaneOpen,
+        count: vaneStatus.data?.open ?? 0,
+        working: Boolean(vaneStatus.data?.working),
+        onToggle: () => {
+          if (inDrawer) shell.setDrawerOpen(false);
+          shell.setVaneOpen(!shell.vaneOpen);
+        },
+      }}
+      ownPanel={onVane ? { title: "Vane", body: <VaneModulePanel /> } : null}
       supportItems={nav.model.supportItems}
       panelShown={panelShown}
       panelOverlay={!inDrawer && !railOnly && shell.panelOverlay}

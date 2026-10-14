@@ -23,7 +23,7 @@ export type RailMark = {
 /**
  * The 56px rail (00-foundations 5.3.2): the logo tile, then the module marks
  * (when the panel shows one module at a time), then the pinned items, and at
- * the foot Vane, the Management gear and the person.
+ * the foot Vane (which opens its panel), the Management gear and the person.
  *
  * Every mark is unlabelled, so each carries an accessible name and a tooltip.
  * The current module's mark, pressed while the panel is hidden, opens the
@@ -44,8 +44,12 @@ export function SwitcherRail({
   groups: RailMark[][];
   /** The gear: the Management surface. */
   management: RailMark | null;
-  /** Vane, above the gear: its own module (`/vane`). */
-  vane?: { href: string; current: boolean } | null;
+  /**
+   * Vane, above the gear: the one way to Vane. It opens and closes the Vane
+   * panel; the dot pulses while Vane works, and the count is what waits for
+   * this person.
+   */
+  vane?: { open: boolean; count: number; working: boolean; onToggle: () => void } | null;
   /** The person, with their own menu. */
   person?: React.ReactNode;
   panelShown: boolean;
@@ -93,34 +97,39 @@ export function SwitcherRail({
           <TooltipContent side="right">Open the panel</TooltipContent>
         </Tooltip>
       )}
-      {groups
-        .filter((group) => group.length > 0)
-        .map((group, index) => (
-          <React.Fragment key={group.map((mark) => mark.id).join("|")}>
-            {index > 0 ? <span aria-hidden="true" className={styles.divider} /> : null}
-            {group.map(markFor)}
-          </React.Fragment>
-        ))}
-      <div className={styles.spacer} />
+      {/* The modules scroll between the tile and the pins, so Vane, Management
+          and the person stay on screen however many modules a workspace has. */}
+      <div className={styles.railMarks}>
+        {groups
+          .filter((group) => group.length > 0)
+          .map((group, index) => (
+            <React.Fragment key={group.map((mark) => mark.id).join("|")}>
+              {index > 0 ? <span aria-hidden="true" className={styles.divider} /> : null}
+              {group.map(markFor)}
+            </React.Fragment>
+          ))}
+      </div>
       {vane ? (
         <Tooltip>
           <TooltipTrigger asChild>
-            <Link
-              href={vane.href}
-              aria-label="Vane"
-              aria-current={vane.current ? "page" : undefined}
-              className={cn(styles.mark, vane.current && styles.markCurrent)}
-              onClick={(event) => {
-                if (vane.current && !panelShown) {
-                  event.preventDefault();
-                  onOpenPanel();
-                }
-              }}
+            <button
+              type="button"
+              aria-label={vane.count > 0 ? `Vane, ${vane.count} for you` : "Vane"}
+              aria-pressed={vane.open}
+              aria-keyshortcuts="Control+J Meta+J"
+              className={cn(styles.mark, styles.vaneMark, vane.open && styles.markCurrent)}
+              onClick={vane.onToggle}
             >
               <VaneMark size={20} />
-            </Link>
+              {vane.count > 0 ? (
+                <span aria-hidden="true" className={styles.vaneCount}>
+                  {vane.count > 99 ? "99+" : vane.count}
+                </span>
+              ) : null}
+              {vane.working ? <span aria-hidden="true" className={styles.vaneLive} /> : null}
+            </button>
           </TooltipTrigger>
-          <TooltipContent side="right">Vane</TooltipContent>
+          <TooltipContent side="right">Vane (Ctrl J)</TooltipContent>
         </Tooltip>
       ) : null}
       {management ? markFor(management) : null}

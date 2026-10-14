@@ -56,6 +56,7 @@ export function WorkspaceRail({
   person,
   management,
   vane,
+  ownPanel = null,
   supportItems = [],
   panelShown,
   panelOverlay,
@@ -64,7 +65,6 @@ export function WorkspaceRail({
   onNavigate,
   extra,
   moduleGroups,
-  panelFor,
 }: {
   model: RailModel;
   /** The workspace's name: the module list's title ("Retail"). */
@@ -81,8 +81,13 @@ export function WorkspaceRail({
   person?: React.ReactNode;
   /** The Management surface: the gear at the foot of the rail, and nowhere else. */
   management: NavItem | null;
-  /** Vane, above the gear: its own module, current while the page is one of Vane's. */
-  vane?: { href: string; current: boolean } | null;
+  /** Vane, above the gear: opens and closes the Vane panel. */
+  vane?: { open: boolean; count: number; working: boolean; onToggle: () => void } | null;
+  /**
+   * A module in no workspace's sections (Vane): while one of its pages is
+   * open, the panel shows its title and its rows instead of the workspace's.
+   */
+  ownPanel?: { title: string; body: React.ReactNode } | null;
   /** Help, on the shelf at the panel's foot. */
   supportItems?: NavItem[];
   panelShown: boolean;
@@ -96,11 +101,6 @@ export function WorkspaceRail({
    * its Reports. Drawn only while the panel shows the module the page is in.
    */
   moduleGroups?: (area: RailArea) => React.ReactNode;
-  /**
-   * A module that is not one of the workspace's sections draws its own panel
-   * here (Vane's: For you, Working on, Plans…), with the panel's chrome.
-   */
-  panelFor?: ((chrome: { overlay?: boolean; onCollapse?: () => void; shelf: React.ReactNode }) => React.ReactNode) | null;
 }) {
   const { shape, areas, pinCapacity } = model;
   const activeArea = React.useMemo(
@@ -266,8 +266,19 @@ export function WorkspaceRail({
     ) : null;
 
   let panel: React.ReactNode = null;
-  if (panelShown && panelFor) {
-    panel = panelFor({ overlay: panelOverlay, onCollapse, shelf });
+  if (panelShown && ownPanel && !needle) {
+    panel = (
+      <RailPanel
+        title={ownPanel.title}
+        overlay={panelOverlay}
+        onCollapse={onCollapse}
+        query={query}
+        onQuery={setQuery}
+        shelf={shelf}
+      >
+        <ul className={styles.items}>{ownPanel.body}</ul>
+      </RailPanel>
+    );
   } else if (panelShown && areas.length === 0) {
     panel = (
       <RailPanel title={workspaceLabel} overlay={panelOverlay} onCollapse={onCollapse} shelf={shelf}>

@@ -6,8 +6,10 @@ import {
 import { getEnabledFeatureKeys } from "@/lib/platform/entitlements";
 import { getEffectiveFeaturesForUser } from "@/lib/platform/user-entitlements";
 import { getSubscriptionHealth } from "@/lib/platform/subscription";
-import { buildAuthExpiresAt, resolvePolicyForStrategy } from "@/lib/auth-core/session-policy";
+import { buildAuthExpiresAt, resolvePolicyForRememberMe } from "@/lib/auth-core/session-policy";
 import type { AuthStrategyId, AuthenticatedSession, PlatformJwtClaims } from "@/lib/auth-core/types";
+import type { SignInAsClaim } from "@/lib/sign-in-as/limits";
+import { openSignInAs } from "@/lib/sign-in-as/sessions";
 import {
   inferWorkspaceProfileFromEnabledFeatures,
   normalizeWorkspaceProfileInput,
@@ -80,8 +82,10 @@ export function buildInitialTokenClaims(input: {
   deviceId?: string;
   registerId?: string;
   pinMustChange?: boolean;
+  /** An operator signed in as this member: the session lasts exactly as long as theirs. */
+  signInAs?: SignInAsClaim;
 }): PlatformJwtClaims {
-  const sessionPolicy = resolvePolicyForStrategy(input.authStrategy, input.rememberMe === true);
+  const sessionPolicy = resolvePolicyForRememberMe(input.rememberMe === true);
 
   return {
     id: input.id,
@@ -93,8 +97,21 @@ export function buildInitialTokenClaims(input: {
     ...(input.pinMustChange ? { pinMustChange: true } : {}),
     sessionPolicy,
     rememberMe: sessionPolicy === "remember",
-    authExpiresAt: buildAuthExpiresAt(sessionPolicy),
+    authExpiresAt: input.signInAs?.until ?? buildAuthExpiresAt(sessionPolicy),
+    signedInAt: new Date().toISOString(),
+    ...(input.signInAs ? { signInAs: input.signInAs } : {}),
   };
+}
+
+/**
+ * Whether a session outlived "sign out everywhere": signed in before the
+ * member's sessions were ended. A token with no sign-in time predates the
+ * claim, and is over once anyone has ended this member's sessions.
+ */
+export function signedInBeforeSessionsEnded(signedInAt: string | undefined, sessionsEndedAt: Date | null): boolean {
+  if (!sessionsEndedAt) return false;
+  const at = signedInAt ? Date.parse(signedInAt) : Number.NaN;
+  return !Number.isFinite(at) || at < sessionsEndedAt.getTime();
 }
 
 export async function enrichTokenClaims(token: PlatformJwtClaims): Promise<PlatformJwtClaims> {
@@ -108,9 +125,13 @@ export async function enrichTokenClaims(token: PlatformJwtClaims): Promise<Platf
   if (token.id) {
     const user = await prisma.user.findUnique({
       where: { id: token.id },
-      select: { role: true, isActive: true, name: true },
+      select: { role: true, isActive: true, name: true, sessionsEndedAt: true },
     });
     if (!user || !user.isActive) return {} as PlatformJwtClaims;
+    if (signedInBeforeSessionsEnded(token.signedInAt, user.sessionsEndedAt)) return {} as PlatformJwtClaims;
+    // Signed in as this member by an operator: over the moment that session
+    // is — ended by the operator, by the owner's link, or by its 30 minutes.
+    if (token.signInAs && !(await openSignInAs(token.signInAs.id))) return {} as PlatformJwtClaims;
     token.role = user.role;
     token.name = user.name;
   }
@@ -169,6 +190,7 @@ export function applyTokenToSessionClaims(
     deviceId: token.deviceId,
     registerId: token.registerId,
     pinMustChange: token.pinMustChange,
+    signInAs: token.signInAs,
   };
 
   return session;
