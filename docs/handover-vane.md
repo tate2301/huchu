@@ -45,15 +45,15 @@ All 25 are on the Core modules canvas, Vane page. Each opens on its own as `desi
 | 12 | PageVaneDone | Done | `/vane/done` | built: 97.7% |
 | 13 | PageVaneMuted | Muted | `/vane/muted` | built: 97.9%, with "Stop it for me" (a card's `topic`, `VaneTopicStop`) and Show it again |
 | 14 | PageVaneStates | Paused, over the allowance, could not work it out, cannot reach the service | the four states, on `/vane` and in the panel | built (`VaneStateNote`), with "Paused by James" and Show the rows |
-| 15 | PageVaneReport | Explain a figure, on Deals | on a report page | to build |
-| 16 | PageVaneBlock | A block in the builder, waiting to be kept | in the report builder | being built in PR #213's follow-up |
+| 15 | PageVaneReport | Explain a figure, on Deals | on a report page | built: the panel on a report asks about it; answers carry a table and What I read; Keep this view (`reports.template.save`) |
+| 16 | PageVaneBlock | A block in the builder, waiting to be kept | in the report builder | built: "Give Vane a change to make" in a custom report's builder; Vane's block is checked, shown as not kept, saved once kept |
 | 17 | VnRequirements | Requirements and the migration | reference | |
 | 18 | VnInteractions | Interactions | reference | |
-| 19 | PageVaneForm | Changes to a form, from its answers | in Build | to build, after Build |
-| 20 | PageVaneDocument | A quote checked, and the message written | on a quotation | to build |
-| 21 | PageVaneDraft | Vane's draft invoice, in Books | in Books → Invoices | to build: needs the `draft` tool |
-| 22 | PageVaneRetail | Retail: orders drafted from Stock to reorder | in Retail → Buying | to build: needs the `draft` tool |
-| 23 | PageVaneSchool | Schools: fee reminders drafted | in Schools → Fees | to build |
+| 19 | PageVaneForm | Changes to a form, from its answers | in Build | built: "Read the answers for changes" in a site-visit form's settings; require, add an option, a quote line's waste; Keep joins the draft |
+| 20 | PageVaneDocument | A quote checked, and the message written | on a quotation | built: the quote's rail checks its lines against the price list; Write it with Vane in its email |
+| 21 | PageVaneDraft | Vane's draft invoice, in Books | in Books → Invoices | built: the `draft` tool drafts an accepted quote's invoice as Vane's ("Vane's draft" in the list); Issue it and Delete the draft are approvable actions. No invoice page of its own: Books has none |
+| 22 | PageVaneRetail | Retail: orders drafted from Stock to reorder | in Retail → Buying | built: the `draft` tool drafts a reorder as Vane's ("Vane's draft" in Orders); retail.order.send sends it |
+| 23 | PageVaneSchool | Schools: fee reminders drafted | in Schools → Fees | built as an approvable action (`schools.fees.remind`): one notice per family with its own name, pupil and amount, the words changeable before it goes. The board's per-family ticks are not a page yet |
 | 24 | PageVaneMine | Gold mine: a work order drafted from Downtime | in Gold → Work orders | needs a decision (below) |
 | 25 | PageVanePhone | A fitter's phone, only his own visits | the panel at 390 | the scope needs a decision (below) |
 

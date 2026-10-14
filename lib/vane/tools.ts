@@ -2,6 +2,10 @@ import type Anthropic from "@anthropic-ai/sdk";
 import { z } from "zod";
 
 import { prisma } from "@/lib/prisma";
+import { InvoiceRefused } from "@/lib/books/create-invoice";
+import { draftInvoiceFromQuote, QuotationRefused } from "@/lib/books/quotations";
+import { getReportDefinition, REPORT_DEFINITIONS } from "@/lib/reports/registry";
+import { draftOrderForVane, OrderRefusal } from "@/lib/retail/buying/orders";
 
 import { proposeActions, type ActionProposal } from "./actions/engine";
 import { VANE_ACTIONS } from "./actions/registry";
@@ -30,6 +34,8 @@ export type ToolContext = {
    * here and hung on its answer when it finishes.
    */
   answerActions?: ActionProposal[];
+  /** In a chat: each question Vane ran this turn, its tables and how many rows answered, for "What I read" under the answer. */
+  read?: Array<{ tables: string[]; rows: number }>;
   /** What Vane could not work out, when it says so (`report_problem`): the job ends on it. */
   problem?: { problem: string; sql: string | null };
 };
@@ -123,8 +129,14 @@ const runSql = tool({
   input: z.object({
     sql: z.string().min(1).describe("One SELECT or WITH query."),
   }),
-  async run({ companyId }, { sql }) {
-    return readWorkspace(companyId, sql);
+  async run(context, { sql }) {
+    const answer = await readWorkspace(context.companyId, sql);
+    if (context.read) {
+      // The reader names tables as the SQL did, lowercased; the answer's "What I read" names them as the app does.
+      const tables = await tablesFor(context.companyId);
+      context.read.push({ tables: answer.readFrom.map((name) => tables.get(name)?.name ?? name), rows: answer.rows.length });
+    }
+    return answer;
   },
 });
 
@@ -272,6 +284,79 @@ const proposePlan = tool({
   },
 });
 
+const draftTool = tool({
+  name: "draft",
+  description:
+    "Draft work through the module's own code, as Vane's draft (made by Vane, no person as its maker), for a person to check and send, issue or delete. It never sends, posts or issues anything. " +
+    "invoice_from_quote: the invoice for an accepted quotation not yet invoiced, line for line, dated today, due on the customer's usual terms (dueDate). " +
+    "reorder: a purchase order for one supplier and one branch, for products running low there, each with whole units and the cost last paid. " +
+    "After drafting, raise a card (propose_item) about it, with actions to issue or send it (books.invoice.issue, retail.order.send) and to delete it (books.invoice.discard), and link it.",
+  // One object, not a union: a tool's input has to be a JSON object schema for Claude.
+  input: z
+    .object({
+      kind: z.enum(["invoice_from_quote", "reorder"]),
+      quotationId: z.string().min(1).optional().describe("invoice_from_quote: the accepted quotation."),
+      dueDate: z
+        .string()
+        .regex(/^\d{4}-\d{2}-\d{2}$/)
+        .optional()
+        .describe("invoice_from_quote: when it falls due."),
+      supplierId: z.string().min(1).optional().describe("reorder: who it is ordered from."),
+      siteId: z.string().min(1).optional().describe("reorder: the branch it is delivered to."),
+      expectedDate: z
+        .string()
+        .regex(/^\d{4}-\d{2}-\d{2}$/)
+        .optional()
+        .describe("reorder: when it should come."),
+      lines: z
+        .array(z.object({ productId: z.string().min(1), quantity: z.number().int().positive(), unitCost: z.number().min(0) }))
+        .max(100)
+        .optional()
+        .describe("reorder: each product, whole units, at the cost last paid."),
+    })
+    .refine((input) => (input.kind === "invoice_from_quote" ? Boolean(input.quotationId) : Boolean(input.supplierId && input.siteId && input.lines?.length)), {
+      message: "invoice_from_quote needs quotationId; reorder needs supplierId, siteId and at least one line",
+    }),
+  async run({ companyId }, input) {
+    const settings = await prisma.vaneSettings.findUnique({ where: { companyId }, select: { drafts: true } });
+    if (settings && !settings.drafts) throw new ToolError("This workspace has Vane's drafts switched off (Management → Vane): raise a card instead.");
+    try {
+      if (input.kind === "invoice_from_quote") {
+        const invoice = await draftInvoiceFromQuote(
+          { companyId, userId: null, madeByVane: true },
+          { quotationId: input.quotationId!, invoiceDate: new Date().toISOString().slice(0, 10), dueDate: input.dueDate },
+        );
+        return { drafted: "invoice", invoiceId: invoice.id, invoiceNumber: invoice.invoiceNumber, customer: invoice.customer.name, total: invoice.total, link: `/books/invoices?view=drafts&q=${encodeURIComponent(invoice.invoiceNumber)}` };
+      }
+      const order = await draftOrderForVane(companyId, { supplierId: input.supplierId!, siteId: input.siteId!, expectedDate: input.expectedDate ?? null, lines: input.lines ?? [] });
+      return { drafted: "order", orderId: order.id, poNo: order.poNo, supplier: order.supplier, site: order.site, lines: order.lines, value: order.value, link: `/retail/buying/orders/${order.id}` };
+    } catch (error) {
+      if (error instanceof QuotationRefused || error instanceof InvoiceRefused) throw new ToolError(error.message);
+      if (error instanceof OrderRefusal) throw new ToolError(error.fieldErrors ? Object.values(error.fieldErrors)[0]! : error.message);
+      throw error;
+    }
+  },
+});
+
+const describeReport = tool({
+  name: "describe_report",
+  description:
+    "The workspace's reports, as the Reports pages list them: with no key, every report's key, title and area; with a key, that report's columns (key, label, kind) and how it groups by default. " +
+    "Use it to name a report's columns when you propose keeping a view of it (reports.template.save), and to link to /reports/<key>.",
+  input: z.object({ reportKey: z.string().max(64).optional() }),
+  async run(_context, { reportKey }) {
+    if (!reportKey) return { reports: REPORT_DEFINITIONS.map((report) => ({ key: report.key, title: report.title, area: report.area })) };
+    const report = getReportDefinition(reportKey);
+    if (!report) throw new ToolError(`There is no report ${reportKey}. Call describe_report with no key for the list.`);
+    return {
+      key: report.key,
+      title: report.title,
+      columns: report.columns.map((column) => ({ key: column.key, label: column.label, kind: column.kind })),
+      groupBy: report.defaults.groupBy ?? null,
+    };
+  },
+});
+
 const moveStep = tool({
   name: "update_plan_step",
   description:
@@ -350,7 +435,7 @@ const proposeActionsTool = tool({
   },
 });
 
-export const VANE_TOOLS = [describeTable, runSql, getRecord, proposeItem, proposePlan, proposeActionsTool, moveStep, reportProblem] as const;
+export const VANE_TOOLS = [describeTable, runSql, getRecord, proposeItem, proposePlan, proposeActionsTool, moveStep, reportProblem, describeReport, draftTool] as const;
 
 /** The tools as Claude is shown them. */
 export function toolDefinitions(): Anthropic.Tool[] {

@@ -1,12 +1,11 @@
 import { z } from "zod";
 
-import { issueFiscalReceipt } from "@/lib/accounting/fiscalisation";
-import { createJournalEntryFromSource } from "@/lib/accounting/posting";
 import { findTaxCodesOutsideEffectiveWindow } from "@/lib/accounting/tax-selection";
 import { resolveDefaultTaxTemplate } from "@/lib/accounting/tax-rules";
 import { onAccountingInvoiceCreated } from "@/lib/crm/accounting-hooks";
-import { hasFeature } from "@/lib/platform/features";
 import { prisma } from "@/lib/prisma";
+
+import { postIssuedInvoice } from "./issue-invoice";
 
 export const invoiceSchema = z.object({
   customerId: z.string().uuid(),
@@ -79,7 +78,12 @@ export class InvoiceRefused extends Error {
  * or the customer's default; issued, it is posted and fiscalised; raised off
  * a CRM quote, the CRM hears of it.
  */
-export async function createSalesInvoice(actor: { companyId: string; userId: string }, validated: InvoiceInput) {
+export async function createSalesInvoice(
+  /** No person, with `madeByVane`: Vane's own draft, which a person issues. */
+  actor: { companyId: string; userId: string | null; madeByVane?: boolean },
+  validated: InvoiceInput,
+) {
+  if (!actor.userId && validated.issueNow) throw new InvoiceRefused("Only a person issues an invoice.");
   const customer = await prisma.customer.findUnique({
     where: { id: validated.customerId },
     select: { companyId: true },
@@ -162,6 +166,7 @@ export async function createSalesInvoice(actor: { companyId: string; userId: str
       notes: validated.notes,
       quotationId: validated.quotationId,
       createdById: actor.userId,
+      madeByVane: actor.madeByVane ?? false,
       issuedById: validated.issueNow ? actor.userId : undefined,
       issuedAt: validated.issueNow ? new Date() : undefined,
       lines: { create: computedLines },
@@ -172,41 +177,18 @@ export async function createSalesInvoice(actor: { companyId: string; userId: str
     },
   });
 
-  if (invoice.status === "ISSUED") {
-    try {
-      await createJournalEntryFromSource({
-        companyId: actor.companyId,
-        sourceType: "SALES_INVOICE",
-        sourceId: invoice.id,
-        entryDate: invoice.invoiceDate,
-        description: `Sales invoice ${invoice.invoiceNumber}`,
-        createdById: actor.userId,
-        amount: invoice.total,
-        netAmount: invoice.subTotal,
-        taxAmount: invoice.taxTotal,
-        grossAmount: invoice.total,
-      });
-    } catch (error) {
-      console.error("[Accounting] Sales invoice auto-post failed:", error);
-    }
-
-    const fiscalEnabled = await hasFeature(actor.companyId, "accounting.zimra.fiscalisation");
-    if (fiscalEnabled) {
-      try {
-        await issueFiscalReceipt(actor.companyId, invoice.id, actor.userId);
-      } catch (error) {
-        console.error("[Accounting] Fiscalisation issue failed:", error);
-      }
-    }
-  }
+  if (invoice.status === "ISSUED" && actor.userId) await postIssuedInvoice(actor.companyId, invoice, actor.userId);
 
   // If this came off a CRM quote, let the CRM know its work has been
   // invoiced. Never throws — the invoice is already real either way.
-  await onAccountingInvoiceCreated({
-    companyId: actor.companyId,
-    invoiceId: invoice.id,
-    userId: actor.userId,
-  });
+  // Vane's draft is not the CRM's work invoiced until a person issues it.
+  if (actor.userId) {
+    await onAccountingInvoiceCreated({
+      companyId: actor.companyId,
+      invoiceId: invoice.id,
+      userId: actor.userId,
+    });
+  }
 
   return invoice;
 }

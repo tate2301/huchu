@@ -19,6 +19,19 @@ import { VaneText } from "./vane-text";
 const time = (iso: string) =>
   new Date(iso).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false });
 
+/** "CrmDeal" → "deals": a table as a person names it. */
+function tableWords(table: string): string {
+  const words = table.replace(/^(Crm|Sales|Retail|Vane)(?=[A-Z])/, "").replace(/([a-z])([A-Z])/g, "$1 $2").toLowerCase();
+  return words.endsWith("y") ? `${words.slice(0, -1)}ies` : words.endsWith("s") ? words : `${words}s`;
+}
+
+/** "deals, activities · 11 rows; customers · 3 rows". */
+function readLine(read: VaneChatMessage["read"]): string {
+  return read
+    .map((question) => `${question.tables.map(tableWords).join(", ")} · ${question.rows.toLocaleString("en-GB")} ${question.rows === 1 ? "row" : "rows"}`)
+    .join("; ");
+}
+
 export type ActionDecision = { approve: false } | { approve: true; changes: Record<string, unknown> };
 
 /** Vane's state in the header, as a dot in its tone: working (pulsing), watching, or why not. */
@@ -225,6 +238,7 @@ export function VanePanelView({
                     <VaneText text={message.text} />
                   </div>
                   <VaneActionList actions={message.actions} disabled={held} deciding={deciding} onDecide={onDecide} />
+                  {message.read.length > 0 ? <p className="vm-read">What I read: {readLine(message.read)}</p> : null}
                 </div>
               </div>
             ),

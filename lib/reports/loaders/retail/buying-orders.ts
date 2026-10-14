@@ -32,7 +32,7 @@ type Filters = { supplier?: string; site?: string; raised?: string; supplierId?:
 
 /** One order and its line sums. Money with VAT, line by line to the cent, as `orderTotals` does. */
 const ORDERS = Prisma.sql`
-  SELECT po.id, po."poNo" AS "poNo", po.status::text AS status, po."vendorId" AS "supplierId", v.name AS supplier,
+  SELECT po.id, po."poNo" AS "poNo", po.status::text AS status, po."madeByVane" AS "madeByVane", po."vendorId" AS "supplierId", v.name AS supplier,
          po."siteId" AS "siteId", s.name AS site, po."createdAt" AS "raisedAt",
          po."firstExpectedDate" AS "firstExpectedDate", po."expectedDate" AS "expectedDate",
          coalesce(l.ordered, 0) AS ordered, coalesce(l.received, 0) AS received,
@@ -104,6 +104,8 @@ type OrderRow = {
   id: string;
   poNo: string;
   status: OrderState;
+  /** Drafted by Vane from Stock to reorder, for a person to send. */
+  madeByVane: boolean;
   supplierId: string;
   supplier: string;
   siteId: string;
@@ -152,7 +154,7 @@ export function toOrderRow(row: OrderRow, now: Date): ReportRow {
     { state: row.status, firstExpectedDate: row.firstExpectedDate, lines: stillUnits > 0 ? [{ quantity: stillUnits, unitCost: 0, vatRate: 0 }] : [] },
     now,
   );
-  const badge = orderBadge(row.status, late.late ? late.days : null);
+  const badge = row.madeByVane && row.status === "DRAFT" ? { label: "Vane's draft", tone: "neutral" as const } : orderBadge(row.status, late.late ? late.days : null);
   const expected = row.firstExpectedDate ?? row.expectedDate;
   const deliveredWords = `${formatCount(received)} of ${formatCount(ordered)}`;
   const stillValue = num(row.stillValue) ?? 0;

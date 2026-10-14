@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 
 import { Alert } from "@corelithzw/react";
 import { Button } from "@/components/ui/button";
@@ -10,6 +10,8 @@ import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { RecordDialog } from "@/components/crm/records/record-dialog";
+import { VaneMark } from "@/components/core/vane-mark";
+import { useVaneStatus } from "@/components/vane/use-vane";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import type { DocumentEmailDraft } from "@/lib/crm/document-email";
 
@@ -48,6 +50,19 @@ export function DocumentEmailDialog({
   const [subject, setSubject] = useState("");
   const [message, setMessage] = useState("");
   const [errors, setErrors] = useState<string[]>([]);
+  // Vane writes the note when asked, for people Vane is open to; what it wrote stays theirs to change.
+  const vane = useVaneStatus();
+  const [vaneWrote, setVaneWrote] = useState(false);
+  const write = useMutation({
+    mutationFn: () => fetchJson<DocumentEmail>("/api/vane/write/document-email", { method: "POST", body: JSON.stringify({ documentId: doc!.id }) }),
+    onSuccess: (email) => {
+      setSubject(email.subject);
+      setMessage(email.message);
+      setVaneWrote(true);
+      setErrors([]);
+    },
+    onError: (failure) => setErrors([getApiErrorMessage(failure, "Vane could not write it. Write it yourself, or try again.")]),
+  });
 
   // A fresh draft for each document opened; what the rep typed is theirs until then.
   const loaded = draft.data;
@@ -57,6 +72,7 @@ export function DocumentEmailDialog({
     setSubject(loaded.subject);
     setMessage(loaded.message);
     setErrors([]);
+    setVaneWrote(false);
   }
 
   const noun = doc ? (LABEL[doc.type] ?? "document") : "document";
@@ -120,14 +136,28 @@ export function DocumentEmailDialog({
             />
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="document-email-message">Message</Label>
+            <div className="flex items-center gap-2">
+              <Label htmlFor="document-email-message" className="flex-1">
+                Message
+              </Label>
+              {vane.data && !vane.data.paused ? (
+                <Button type="button" size="sm" variant="outline" disabled={write.isPending || sending} onClick={() => write.mutate()}>
+                  <VaneMark size={16} />
+                  {write.isPending ? "Vane is writing…" : vaneWrote ? "Write it again" : "Write it with Vane"}
+                </Button>
+              ) : null}
+            </div>
             <Textarea
               id="document-email-message"
               rows={8}
               value={message}
               maxLength={5000}
+              disabled={write.isPending}
               onChange={(event) => setMessage(event.target.value)}
             />
+            {vaneWrote ? (
+              <p className="text-sm text-[var(--text-muted)]">Vane wrote this. Change anything; it goes only when you press Send.</p>
+            ) : null}
             <p className="text-sm text-[var(--text-muted)]">
               Under your message: the link to review and answer the {noun}, then any resources you added. The PDF is attached.
             </p>

@@ -16492,6 +16492,8 @@ model VaneMessage {
   userId    String
   author    VaneMessageAuthor
   text      String
+  /// On Vane's turns: each question it ran to answer, [{ tables, rows }], for "What I read".
+  readFrom  Json              @default("[]")
   /// The job that answered it, with what it cost. On Vane's turns only.
   jobId     String?
   createdAt DateTime          @default(now())

@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 
 import type Anthropic from "@anthropic-ai/sdk";
 import type { PrismaClient } from "@prisma/client";
+import { z } from "zod";
 
 import { actionsFor, proposeActions, type ActionProposal, type VaneActionView } from "./actions/engine";
 import { VaneError, type MessagesClient } from "./claude";
@@ -27,7 +28,14 @@ export type VaneChatMessage = {
   text: string;
   createdAt: string;
   actions: VaneActionView[];
+  /** On Vane's answers: each question it ran, its tables and how many rows answered ("What I read"). */
+  read: VaneChatRead[];
 };
+
+export type VaneChatRead = { tables: string[]; rows: number };
+
+const readSchema = z.array(z.object({ tables: z.array(z.string()), rows: z.number().int().nonnegative() }));
+const asRead = (value: unknown): VaneChatRead[] => readSchema.safeParse(value).data ?? [];
 
 export type ChatEvent =
   /** What Vane is doing now: "Reading the workspace". */
@@ -65,7 +73,7 @@ function workingLabel(tool: string, input: unknown): string {
   }
 }
 
-const CHAT = (who: Who) => `You are talking with ${who.name ?? "a person"} (${who.role.toLowerCase().replace(/_/g, " ")}) in the Vane panel. Each of their messages may start with where they are in the app, in brackets: a record id in that address is what they mean by "this", so read that record first when they ask about it. Answer what they ask, in a few short sentences, first person, with names and exact amounts. When what you find can be done, propose it with propose_actions, one per record, so they approve or deny each; then say in a sentence what you proposed. When they ask for something only they can do, say where. Write every link as [words](/path?filters), never a bare path. Never say you did something you only proposed.`;
+const CHAT = (who: Who) => `You are talking with ${who.name ?? "a person"} (${who.role.toLowerCase().replace(/_/g, " ")}) in the Vane panel. Each of their messages may start with where they are in the app, in brackets: a record id in that address is what they mean by "this", so read that record first when they ask about it. Answer what they ask, in a few short sentences, first person, with names and exact amounts. When what you find can be done, propose it with propose_actions, one per record, so they approve or deny each; then say in a sentence what you proposed. When they ask for something only they can do, say where. Write every link as [words](/path?filters), never a bare path. On a report's page (/reports/<key>) the report is what they mean: read what it is with describe_report and its rows with run_sql; when the answer has several rows, give it as a short table (| Owner | Went cold |, one row a line); and when they asked something they will ask again, propose keeping that view of the report (reports.template.save). Never say you did something you only proposed.`;
 
 /** Where the person is, ahead of their words: "[In CRM, on /crm/deals/9f1c] ". In the message, not the instructions, so the cached prompt is the same on every page. */
 function whereabouts(module: string | null, path: string | null): string {
@@ -83,7 +91,7 @@ export async function chatHistory(
     where: { companyId, userId },
     orderBy: { createdAt: "desc" },
     take,
-    select: { id: true, author: true, text: true, createdAt: true },
+    select: { id: true, author: true, text: true, createdAt: true, readFrom: true },
   });
   rows.reverse();
   const { byMessage } = await actionsFor(db, companyId, { messageIds: rows.map((row) => row.id) });
@@ -93,6 +101,7 @@ export async function chatHistory(
     text: row.text,
     createdAt: row.createdAt.toISOString(),
     actions: byMessage.get(row.id) ?? [],
+    read: asRead(row.readFrom),
   }));
 }
 
@@ -162,18 +171,19 @@ export async function chatTurn(
 
   onEvent({ type: "working", label: "Reading your question" });
   const answerActions: ActionProposal[] = [];
+  const read: VaneChatRead[] = [];
   try {
     const tables = [...(await tablesFor(who.companyId)).values()].map((table) => table.name).sort();
     const outcome = await runConversation({
       system: { shared: vaneRules(tables), context: CHAT(who) },
       messages: asMessages(earlier.reverse(), `${whereabouts(module ? moduleName(module) : null, path ?? null)}${text}`),
-      context: { companyId: who.companyId, jobId: job.id, answerActions },
+      context: { companyId: who.companyId, jobId: job.id, answerActions, read },
       deadline: Date.now() + TURN_MS,
       client,
       onTool: (tool, input) => onEvent({ type: "working", label: workingLabel(tool, input) }),
     });
     const answer = await db.vaneMessage.create({
-      data: { companyId: who.companyId, userId: who.userId, author: "VANE", text: outcome.text || "Done.", jobId: job.id },
+      data: { companyId: who.companyId, userId: who.userId, author: "VANE", text: outcome.text || "Done.", jobId: job.id, readFrom: read },
       select: { id: true, text: true, createdAt: true },
     });
     if (answerActions.length) await proposeActions(db, { companyId: who.companyId, messageId: answer.id }, answerActions);
@@ -194,7 +204,7 @@ export async function chatTurn(
     const { byMessage } = await actionsFor(db, who.companyId, { messageIds: [answer.id] });
     onEvent({
       type: "answer",
-      message: { id: answer.id, author: "vane", text: answer.text, createdAt: answer.createdAt.toISOString(), actions: byMessage.get(answer.id) ?? [] },
+      message: { id: answer.id, author: "vane", text: answer.text, createdAt: answer.createdAt.toISOString(), actions: byMessage.get(answer.id) ?? [], read },
     });
   } catch (error) {
     const why =
