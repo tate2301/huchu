@@ -84,7 +84,7 @@ export function goldColumns(plant: readonly ReportRow[], from: string, to: strin
     const span = days.slice(index, index + step);
     columns.push({ label: formatShortDay(span[0]!), value: sum(plant.filter((row) => span.includes(String(row.date))), "gold") });
   }
-  return { title: step === 2 ? "Gold recovered, by two days" : "Gold recovered, by day", columns };
+  return { title: step === 2 ? "Gold recovered, every other day" : "Gold recovered, by day", columns };
 }
 
 export function siteBars(plant: readonly ReportRow[]) {
