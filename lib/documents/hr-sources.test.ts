@@ -21,7 +21,6 @@ import { deleteTestCompany } from "@/lib/schools/test-support";
 import { seedZimbabweStatutoryPack } from "@/lib/hr/statutory/zimbabwe-pack";
 import { assembleSalaryRun } from "@/lib/hr/payroll/assemble";
 import { canRenderPayslip, resolvePayslip } from "./hr-sources";
-import { PAYSLIP_PENALTY_NOTE } from "./payslip-rows";
 
 let companyId: string;
 let actorId: string;
@@ -364,7 +363,7 @@ describe("the payslip shows the working, not just the net figure", () => {
     expect(leave?.rows).toEqual([{ label: "Annual leave", value: "11.67 of 14.67 days" }]);
   });
 
-  it("lists a penalty HR recorded as deducted in the period, outside every total", async () => {
+  it("prints a penalty payroll took that period among the deductions, in the totals", async () => {
     const ada = await prisma.employee.findFirstOrThrow({ where: { companyId, employeeId: "EMP-PS-1" }, select: { id: true } });
     const action = (summary: string, appliedAt: string, penaltyStatus: "DEDUCTED" | "WAIVED") => ({
       companyId,
@@ -379,16 +378,67 @@ describe("the payslip shows the working, not just the net figure", () => {
     });
     await prisma.disciplinaryAction.createMany({
       data: [
-        action("Late for shift", "2026-08-12T00:00:00.000Z", "DEDUCTED"),
-        action("Waived", "2026-08-13T00:00:00.000Z", "WAIVED"),
-        action("July's", "2026-07-13T00:00:00.000Z", "DEDUCTED"),
+        action("Late for shift", "2026-09-12T00:00:00.000Z", "DEDUCTED"),
+        action("Waived", "2026-09-13T00:00:00.000Z", "WAIVED"),
+        action("August's", "2026-08-13T00:00:00.000Z", "DEDUCTED"),
       ],
     });
 
-    const doc = await resolvePayslip(companyId, adaLineId);
+    // September's run, computed after HR marked the penalty.
+    const start = new Date("2026-09-01T00:00:00.000Z");
+    const end = new Date("2026-09-30T23:59:59.999Z");
+    const period = await prisma.payrollPeriod.create({
+      data: { companyId, periodKey: "2026-09", startDate: start, endDate: end, dueDate: end, createdById: actorId },
+      select: { id: true },
+    });
+    const assembled = await assembleSalaryRun({ companyId, periodStart: start, periodEnd: end, employeeScopeIds: [ada.id], appliesToContractorsOnly: false });
+    const slice = assembled.lines[0].payroll.slices[0];
+    const september = await prisma.payrollRun.create({
+      data: {
+        companyId,
+        periodId: period.id,
+        status: "DRAFT",
+        createdById: actorId,
+        lineItems: {
+          create: {
+            employeeId: ada.id,
+            baseAmount: assembled.lines[0].profile.baseAmount,
+            grossAmount: slice.grossAmount,
+            deductionsTotal: slice.deductionsTotal,
+            netAmount: slice.netAmount,
+            taxableGross: slice.taxableGross,
+            currency: slice.currency,
+            components: {
+              create: slice.components.map((component) => ({
+                name: component.name,
+                type: component.type,
+                calcMethod: component.calcMethod,
+                rateOrAmount: component.rateOrAmount,
+                amount: component.amount,
+                statutoryKey: component.statutoryKey ?? undefined,
+                sequence: component.sequence,
+                basis: component.basis ?? undefined,
+              })),
+            },
+          },
+        },
+      },
+      select: { lineItems: { select: { id: true } } },
+    });
+
+    const doc = await resolvePayslip(companyId, september.lineItems[0].id);
     const penalties = doc.payload.record!.lines!.filter((line) => line.kind === "Penalty");
     expect(penalties).toEqual([expect.objectContaining({ stage: "Late for shift", amount: "(20.00)" })]);
-    expect(doc.payload.notes).toContain(PAYSLIP_PENALTY_NOTE);
+    const totals = new Map(doc.payload.totals!.map((t) => [t.label, t.value]));
+    // 755.16 less the 20.00 penalty; the PAYE it was struck on is unchanged.
+    expect(totals.get("Net pay")).toBe("US$735.16");
+    expect(totals.get("Total deductions")).toBe("US$264.84");
+    expect(doc.payload.record!.lines!.find((line) => String(line.stage).startsWith("PAYE"))?.amount).toBe("(207.13)");
+    expect(doc.payload.notes!.some((note) => /penalt/i.test(note))).toBe(false);
+
+    // August's payslip, computed before, is as payroll paid it: no penalty.
+    const august = await resolvePayslip(companyId, adaLineId);
+    expect(august.payload.record!.lines!.some((line) => line.kind === "Penalty")).toBe(false);
   });
 
   it("names the file after the employee and the period", async () => {

@@ -39,8 +39,16 @@
  *     payeAfterCredits = max(paye − credits, 0)
  *     aidsLevy         = 3% of payeAfterCredits
  *     postTax          = NEC employee dues, union subscriptions, …
+ *     penalties        = disciplinary penalties HR marked deducted in the
+ *                        period, each capped at what net pay has left
  *     net              = gross − nssaEmployee − preTax − payeAfterCredits
- *                        − aidsLevy − postTax
+ *                        − aidsLevy − postTax − penalties
+ *
+ * Penalties come last on purpose: nothing statutory is struck on a figure they
+ * have touched, and capping them at what is left means they never take net pay
+ * below zero. What a cap leaves undeducted is reported (`penaltiesShort`), not
+ * silently dropped, unlike a deduction that overruns gross, where net simply
+ * clamps at zero.
  *
  * Employer contributions — NSSA employer, APWCS, ZIMDEF, the Standards
  * Development Levy, NEC employer dues — are computed alongside and touch net
@@ -92,6 +100,7 @@ import {
   type ResolvedStatutoryRate,
   type ResolvedTaxCredit,
 } from "@/lib/hr/statutory/tables";
+import { PENALTY_SEQUENCE } from "./penalties";
 
 /**
  * Where each stage sits on the payslip.
@@ -112,6 +121,7 @@ export const STAGE = {
   AIDS_LEVY: 90,
   POST_TAX_DEDUCTION: 100,
   NEC_EMPLOYEE: 110,
+  DISCIPLINARY_PENALTY: PENALTY_SEQUENCE,
   NSSA_EMPLOYER: 200,
   NSSA_APWCS: 210,
   ZIMDEF: 220,
@@ -153,6 +163,12 @@ export type EngineDeduction = {
   ruleId?: string;
 };
 
+/** A disciplinary penalty HR marked deducted in the period (`penalties.ts`). */
+export type EnginePenalty = {
+  name: string;
+  amount: MoneyLike;
+};
+
 export type NecSide = {
   ratePercent: Prisma.Decimal | null;
   fixedAmount: Prisma.Decimal | null;
@@ -169,6 +185,8 @@ export type EngineSlice = {
   preTaxDeductions: EngineDeduction[];
   /** Union subscriptions and anything else that comes off after. */
   postTaxDeductions: EngineDeduction[];
+  /** Taken last, after every statutory figure is struck, and never past net pay. */
+  penalties?: EnginePenalty[];
   payeTable: ResolvedPayeTable;
   /** The employee's own medical aid contribution, for the 50% credit. */
   medicalAidContribution?: MoneyLike;
@@ -210,6 +228,10 @@ export type ComputedSlice = {
   paye: Prisma.Decimal;
   aidsLevy: Prisma.Decimal;
   netAmount: Prisma.Decimal;
+  /** Disciplinary penalties actually taken. Part of `deductionsTotal`. */
+  penaltiesTotal: Prisma.Decimal;
+  /** Penalties net pay could not cover in full: what HR marked, and what was taken. */
+  penaltiesShort: Array<{ name: string; marked: Prisma.Decimal; deducted: Prisma.Decimal }>;
   /** Employer cost. In neither gross nor deductions. */
   employerCost: Prisma.Decimal;
   components: ComputedComponent[];
@@ -557,6 +579,36 @@ export function computePayroll(input: EngineInput): ComputedPayroll {
       }
     }
 
+    // ── Disciplinary penalties. After every statutory figure, so none of them
+    // moves; each one capped at what net pay still has, so net never goes below
+    // zero. `rateOrAmount` keeps what HR marked, `amount` what was taken.
+    let room = clampAtZero(
+      gross.minus(sumMoney([nssaEmployee, preTaxTotal, paye, aidsLevy, postTaxTotal])),
+    );
+    let penaltiesTotal = ZERO;
+    const penaltiesShort: ComputedSlice["penaltiesShort"] = [];
+    for (const penalty of slice.penalties ?? []) {
+      const marked = money(penalty.amount);
+      if (!marked.greaterThan(0)) continue;
+      const taken = minMoney(marked, room);
+      room = clampAtZero(room.minus(taken));
+      penaltiesTotal = sumMoney([penaltiesTotal, taken]);
+      components.push({
+        name: penalty.name,
+        type: "DEDUCTION",
+        calcMethod: "FIXED",
+        rateOrAmount: marked,
+        amount: taken,
+        isTaxable: false,
+        statutoryKey: null,
+        sequence: STAGE.DISCIPLINARY_PENALTY,
+        basis: null,
+      });
+      if (taken.lessThan(marked)) {
+        penaltiesShort.push({ name: penalty.name, marked, deducted: taken });
+      }
+    }
+
     // ── Employer side. Cost to the company, liability to an authority, and
     // absent from both gross and net.
     let employerCost = ZERO;
@@ -634,6 +686,7 @@ export function computePayroll(input: EngineInput): ComputedPayroll {
       paye,
       aidsLevy,
       postTaxTotal,
+      penaltiesTotal,
     ]);
     const netAmount = clampAtZero(gross.minus(deductionsTotal));
 
@@ -649,6 +702,8 @@ export function computePayroll(input: EngineInput): ComputedPayroll {
       paye,
       aidsLevy,
       netAmount,
+      penaltiesTotal,
+      penaltiesShort,
       employerCost,
       components,
     };

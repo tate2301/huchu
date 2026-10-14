@@ -23,12 +23,13 @@
  * their behalf; they should not be able to mistake it for money they were paid.
  *
  * So is the leave left as at the period's end, the one place most employees
- * see it. The shaping is pure, in `payslip-payload.ts`; rows a layout adds in
+ * see it, and any disciplinary penalty payroll took that period, among the
+ * deductions. The shaping is pure, in `payslip-payload.ts`; rows a layout adds in
  * Build are put on by `payslip-rows.ts` when it prints.
  */
 
 import { prisma } from "@/lib/prisma";
-import { payslipLeave, payslipPayload, type PayslipLeave, type PayslipPenalty } from "@/lib/documents/payslip-payload";
+import { payslipLeave, payslipPayload, type PayslipLeave } from "@/lib/documents/payslip-payload";
 import type { UniversalDocumentPayload } from "@/lib/documents/types";
 import { computeLeaveBalances } from "@/lib/people/leave/balances";
 
@@ -119,28 +120,6 @@ async function leaveAsAt(companyId: string, employeeId: string, asAt: Date): Pro
   });
 }
 
-/**
- * Disciplinary penalties HR recorded as deducted in the period (applied in
- * it, or effective in it when the application date is missing). The payroll
- * engine does not take them off pay; the payslip lists them so the employee
- * sees what HR recorded, and its layout can leave them out.
- */
-async function penaltiesIn(companyId: string, employeeId: string, period: { startDate: Date; endDate: Date }): Promise<PayslipPenalty[]> {
-  const inPeriod = { gte: period.startDate, lte: period.endDate };
-  const actions = await prisma.disciplinaryAction.findMany({
-    where: {
-      companyId,
-      employeeId,
-      penaltyStatus: "DEDUCTED",
-      penaltyAmount: { gt: 0 },
-      OR: [{ appliedAt: inPeriod }, { appliedAt: null, effectiveDate: inPeriod }],
-    },
-    orderBy: [{ appliedAt: "asc" }, { createdAt: "asc" }],
-    select: { summary: true, penaltyAmount: true, penaltyCurrency: true },
-  });
-  return actions.map((action) => ({ summary: action.summary, amount: action.penaltyAmount, currency: action.penaltyCurrency }));
-}
-
 /** One employee's payslip for one run. */
 export async function resolvePayslip(
   companyId: string,
@@ -192,6 +171,7 @@ export async function resolvePayslip(
           isTaxable: true,
           statutoryKey: true,
           basis: true,
+          sequence: true,
         },
       },
     },
@@ -199,11 +179,10 @@ export async function resolvePayslip(
 
   if (!line) throw new Error("Payslip not found");
 
-  const [leave, penalties] = await Promise.all([
-    leaveAsAt(companyId, line.employeeId, line.run.period.endDate),
-    penaltiesIn(companyId, line.employeeId, line.run.period),
-  ]);
-  const shaped = payslipPayload(line, leave, penalties);
+  // Disciplinary penalties are among the line's components: what payroll
+  // took, in Deductions and net pay (`lib/hr/payroll/penalties.ts`).
+  const leave = await leaveAsAt(companyId, line.employeeId, line.run.period.endDate);
+  const shaped = payslipPayload(line, leave);
 
   return {
     targetType: "RECORD",

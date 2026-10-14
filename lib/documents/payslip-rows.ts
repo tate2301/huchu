@@ -14,9 +14,20 @@ import type { PayslipShow, TemplateRow } from "@/lib/documents/template-schema";
 export const PAYSLIP_LEAVE_TITLE = "Leave left";
 export const PAYSLIP_EMPLOYER_TITLE = "Paid by your employer on your behalf";
 export const PAYSLIP_EMPLOYER_TOTAL = "Total employer contributions";
-/** Printed under a payslip that lists a penalty, because payroll does not take penalties off pay. */
-export const PAYSLIP_PENALTY_NOTE =
-  "Disciplinary penalties are shown as HR recorded them as deducted in this period. They are not part of this run\u2019s deductions or net pay.";
+const PENALTY_NOTE_START = "Of the disciplinary penalty";
+
+/**
+ * Printed under a payslip when net pay could not cover a penalty HR marked
+ * deducted: payroll takes what net pay has and no more.
+ */
+export function payslipPenaltyShortNote(input: { summary: string; marked: string; deducted: string }): string {
+  return `${PENALTY_NOTE_START} \u201c${input.summary}\u201d (${input.marked}), only ${input.deducted} came off this pay, because net pay cannot go below zero. Ask HR about the rest.`;
+}
+
+/** A note about a penalty, left out with the penalties when a layout hides them. */
+export function isPayslipPenaltyNote(note: string): boolean {
+  return note.startsWith(PENALTY_NOTE_START);
+}
 
 /** The parts of the payslip a row can be added to (the outline's ids in `layoutParts`). */
 export const PAYSLIP_ROW_PARTS = ["employee", "earnings", "deductions", "net", "leave", "employer"] as const;
@@ -97,7 +108,7 @@ export function applyPayslipRows(payload: UniversalDocumentPayload, rows: readon
         lines.splice(lineAfter(lines, ["Earning"]), 0, { stage: label, kind: "Earning", rate: "", calculatedOn: "", amount: value(row), taxable: "" });
         break;
       case "deductions":
-        lines.splice(lineAfter(lines, ["Earning", "Statutory", "Deduction"]), 0, { stage: label, kind: "Deduction", rate: "", calculatedOn: "", amount: value(row), taxable: "" });
+        lines.splice(lineAfter(lines, ["Earning", "Statutory", "Deduction", "Penalty"]), 0, { stage: label, kind: "Deduction", rate: "", calculatedOn: "", amount: value(row), taxable: "" });
         break;
       case "net": {
         const net = totals.findIndex((total) => total.emphasis);
@@ -143,7 +154,7 @@ export function applyPayslipLayout(
             )
           : record.sections,
       },
-      notes: show.penalties ? payload.notes : payload.notes?.filter((note) => note !== PAYSLIP_PENALTY_NOTE),
+      notes: show.penalties ? payload.notes : payload.notes?.filter((note) => !isPayslipPenaltyNote(note)),
     };
   }
   return applyPayslipRows(shown, layout.rows);

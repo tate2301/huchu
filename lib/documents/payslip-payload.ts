@@ -11,7 +11,8 @@
 import { Prisma } from "@prisma/client";
 
 import type { LeaveBalance } from "@/lib/people/leave/balances";
-import { PAYSLIP_EMPLOYER_TITLE, PAYSLIP_EMPLOYER_TOTAL, PAYSLIP_LEAVE_TITLE, PAYSLIP_PENALTY_NOTE } from "@/lib/documents/payslip-rows";
+import { PAYSLIP_EMPLOYER_TITLE, PAYSLIP_EMPLOYER_TOTAL, PAYSLIP_LEAVE_TITLE, payslipPenaltyShortNote } from "@/lib/documents/payslip-rows";
+import { isPenaltyComponent, penaltySummary } from "@/lib/hr/payroll/penalties";
 import type { UniversalDocumentPayload } from "@/lib/documents/types";
 import { formatDay, formatMoney } from "@/lib/workspace/format";
 
@@ -26,6 +27,8 @@ export type PayslipComponent = {
   isTaxable: boolean;
   statutoryKey: string | null;
   basis: Money | null;
+  /** The stage's place in the working; a disciplinary penalty is known by it. */
+  sequence?: number | null;
 };
 
 export type PayslipLine = {
@@ -55,13 +58,6 @@ export type PayslipLine = {
   };
   components: PayslipComponent[];
 };
-
-/**
- * A disciplinary penalty HR recorded as deducted in the run's period. Payroll
- * does not take it off pay, so it prints as a line of its own and is in no
- * total.
- */
-export type PayslipPenalty = { summary: string; amount: number; currency: string };
 
 /** One kind of leave as the payslip prints it: what is left of what has built up, at the period's end. */
 export type PayslipLeave = { name: string; remaining: Money; entitled: Money };
@@ -151,7 +147,6 @@ function isCredit(statutoryKey: string | null) {
 export function payslipPayload(
   line: PayslipLine,
   leave: readonly PayslipLeave[],
-  penalties: readonly PayslipPenalty[] = [],
 ): { fileName: string; payload: UniversalDocumentPayload; rows: Array<Record<string, unknown>> } {
   const { employee, run } = line;
 
@@ -161,7 +156,12 @@ export function payslipPayload(
   // Three groups, because they mean three different things and a single list
   // would let an employer contribution read as a deduction from the wage.
   const earnings = line.components.filter((component) => component.type === "ALLOWANCE" && !isCredit(component.statutoryKey));
-  const deductions = line.components.filter((component) => component.type === "DEDUCTION" || component.type === "STATUTORY_DEDUCTION");
+  // A disciplinary penalty payroll took is a deduction like any other, in the
+  // total and in net pay; it has its own type so a layout can leave it out.
+  const penalties = line.components.filter(isPenaltyComponent);
+  const deductions = line.components.filter(
+    (component) => (component.type === "DEDUCTION" || component.type === "STATUTORY_DEDUCTION") && !isPenaltyComponent(component),
+  );
   const credits = line.components.filter((component) => isCredit(component.statutoryKey));
   const employerContributions = line.components.filter((component) => component.type === "EMPLOYER_CONTRIBUTION");
 
@@ -185,11 +185,11 @@ export function payslipPayload(
       taxable: "",
     })),
     ...penalties.map((penalty) => ({
-      stage: penalty.summary,
+      stage: penaltySummary(penalty.name),
       kind: "Penalty",
       rate: "",
       calculatedOn: "",
-      amount: `(${penalty.amount.toFixed(2)}${penalty.currency === line.currency ? "" : ` ${penalty.currency}`})`,
+      amount: `(${money(penalty.amount)})`,
       taxable: "",
     })),
     ...credits.map((component) => ({
@@ -233,7 +233,12 @@ export function payslipPayload(
   if (run.status !== "APPROVED") {
     notes.push(`This payroll run is ${run.status.toLowerCase()} and not yet approved. The figures may change.`);
   }
-  if (penalties.length > 0) notes.push(PAYSLIP_PENALTY_NOTE);
+  // `rateOrAmount` is what HR marked; `amount` what net pay could cover.
+  for (const penalty of penalties) {
+    if (penalty.amount.lessThan(penalty.rateOrAmount)) {
+      notes.push(payslipPenaltyShortNote({ summary: penaltySummary(penalty.name), marked: cash(penalty.rateOrAmount), deducted: cash(penalty.amount) }));
+    }
+  }
 
   return {
     fileName: `payslip-${slug(employee.employeeId)}-${slug(run.period.periodKey)}.pdf`,
@@ -324,11 +329,8 @@ export function payslipPayload(
 
 const d = (value: string) => new Prisma.Decimal(value);
 
-/**
- * The payslip the layout's page shows when the workspace has no run line to
- * show, or the person looking may not see one: one fitter's October.
- */
-export function samplePayslipPayload(): UniversalDocumentPayload {
+/** One fitter's October, as a run line: the sample below, and the tests' starting point. */
+export function samplePayslipLine(): PayslipLine {
   const component = (name: string, type: string, amount: string, extra: Partial<PayslipComponent> = {}): PayslipComponent => ({
     name,
     type,
@@ -340,46 +342,51 @@ export function samplePayslipPayload(): UniversalDocumentPayload {
     basis: null,
     ...extra,
   });
-  return payslipPayload(
-    {
-      baseAmount: d("780"),
-      grossAmount: d("780"),
-      allowancesTotal: d("0"),
-      deductionsTotal: d("188.19"),
-      netAmount: d("591.81"),
-      taxableGross: d("748.50"),
-      employerCost: d("39.30"),
-      currency: "USD",
-      exchangeRate: d("1"),
-      netBaseAmount: d("591.81"),
-      employee: {
-        name: "Tinashe Moyo",
-        employeeId: "EMP-0005",
-        jobTitle: "Fitter",
-        taxNumber: "2000441093",
-        nssaNumber: "NSSA-0005",
-        taxStatus: "STANDARD",
-        department: { name: "Fitting" },
-      },
-      run: {
-        runNumber: 1,
-        status: "APPROVED",
-        period: {
-          periodKey: "2026-10",
-          startDate: new Date("2026-10-01T00:00:00.000Z"),
-          endDate: new Date("2026-10-31T23:59:59.999Z"),
-          dueDate: new Date("2026-10-23T00:00:00.000Z"),
-        },
-      },
-      components: [
-        component("Basic pay", "ALLOWANCE", "780"),
-        component("NSSA", "STATUTORY_DEDUCTION", "31.50", { calcMethod: "PERCENT", rateOrAmount: d("4.5"), basis: d("700") }),
-        component("PAYE", "STATUTORY_DEDUCTION", "152.13", { basis: d("748.50") }),
-        component("AIDS levy", "STATUTORY_DEDUCTION", "4.56", { calcMethod: "PERCENT", rateOrAmount: d("3"), basis: d("152.13") }),
-        component("NSSA", "EMPLOYER_CONTRIBUTION", "31.50", { calcMethod: "PERCENT", rateOrAmount: d("4.5"), basis: d("700") }),
-        component("ZIMDEF", "EMPLOYER_CONTRIBUTION", "7.80", { calcMethod: "PERCENT", rateOrAmount: d("1"), basis: d("780") }),
-      ],
+  return {
+    baseAmount: d("780"),
+    grossAmount: d("780"),
+    allowancesTotal: d("0"),
+    deductionsTotal: d("188.19"),
+    netAmount: d("591.81"),
+    taxableGross: d("748.50"),
+    employerCost: d("39.30"),
+    currency: "USD",
+    exchangeRate: d("1"),
+    netBaseAmount: d("591.81"),
+    employee: {
+      name: "Tinashe Moyo",
+      employeeId: "EMP-0005",
+      jobTitle: "Fitter",
+      taxNumber: "2000441093",
+      nssaNumber: "NSSA-0005",
+      taxStatus: "STANDARD",
+      department: { name: "Fitting" },
     },
-    [{ name: "Annual leave", remaining: d("11"), entitled: d("22") }],
-  ).payload;
+    run: {
+      runNumber: 1,
+      status: "APPROVED",
+      period: {
+        periodKey: "2026-10",
+        startDate: new Date("2026-10-01T00:00:00.000Z"),
+        endDate: new Date("2026-10-31T23:59:59.999Z"),
+        dueDate: new Date("2026-10-23T00:00:00.000Z"),
+      },
+    },
+    components: [
+      component("Basic pay", "ALLOWANCE", "780"),
+      component("NSSA", "STATUTORY_DEDUCTION", "31.50", { calcMethod: "PERCENT", rateOrAmount: d("4.5"), basis: d("700") }),
+      component("PAYE", "STATUTORY_DEDUCTION", "152.13", { basis: d("748.50") }),
+      component("AIDS levy", "STATUTORY_DEDUCTION", "4.56", { calcMethod: "PERCENT", rateOrAmount: d("3"), basis: d("152.13") }),
+      component("NSSA", "EMPLOYER_CONTRIBUTION", "31.50", { calcMethod: "PERCENT", rateOrAmount: d("4.5"), basis: d("700") }),
+      component("ZIMDEF", "EMPLOYER_CONTRIBUTION", "7.80", { calcMethod: "PERCENT", rateOrAmount: d("1"), basis: d("780") }),
+    ],
+  };
+}
+
+/**
+ * The payslip the layout's page shows when the workspace has no run line to
+ * show, or the person looking may not see one: one fitter's October.
+ */
+export function samplePayslipPayload(): UniversalDocumentPayload {
+  return payslipPayload(samplePayslipLine(), [{ name: "Annual leave", remaining: d("11"), entitled: d("22") }]).payload;
 }

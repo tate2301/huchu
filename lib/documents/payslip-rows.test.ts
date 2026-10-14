@@ -6,15 +6,16 @@
 import { describe, expect, it } from "vitest";
 import { Prisma } from "@prisma/client";
 
-import { leaveLeftValue, payslipLeave, samplePayslipPayload } from "./payslip-payload";
+import { leaveLeftValue, payslipLeave, payslipPayload, samplePayslipLine, samplePayslipPayload } from "./payslip-payload";
 import {
   applyPayslipLayout,
   applyPayslipRows,
   newPayslipRow,
   PAYSLIP_EMPLOYER_TITLE,
   PAYSLIP_LEAVE_TITLE,
-  PAYSLIP_PENALTY_NOTE,
+  payslipPenaltyShortNote,
 } from "./payslip-rows";
+import { PENALTY_SEQUENCE } from "@/lib/hr/payroll/penalties";
 import type { UniversalDocumentPayload } from "./types";
 import { getSamplePayload } from "./sample-payloads";
 import { templateSchema } from "./template-schema";
@@ -123,9 +124,10 @@ describe("rows a person adds to the payslip layout", () => {
 describe("what a payslip layout shows", () => {
   // The sample, with a deduction from a rule, a penalty, and a zero line in each table.
   const base = samplePayslipPayload();
+  const penaltyNote = payslipPenaltyShortNote({ summary: "Late for shift", marked: "US$50.00", deducted: "US$20.00" });
   const payslip: UniversalDocumentPayload = {
     ...base,
-    notes: [...(base.notes ?? []), PAYSLIP_PENALTY_NOTE],
+    notes: [...(base.notes ?? []), penaltyNote],
     record: {
       ...base.record!,
       lines: [
@@ -147,15 +149,15 @@ describe("what a payslip layout shows", () => {
     expect(stages(out)).toEqual(["Basic pay", "NSSA", "PAYE", "AIDS levy", "Union dues", "Late for shift"]);
     const employer = out.record!.sections.find((section) => section.title === PAYSLIP_EMPLOYER_TITLE)!;
     expect(employer.rows.map((row) => row.label)).not.toContain("SDL (0.50% of 0.00)");
-    expect(out.notes).toContain(PAYSLIP_PENALTY_NOTE);
+    expect(out.notes).toContain(penaltyNote);
   });
 
-  it("leaves out the kinds a person unticks, and the penalty note with the penalties", () => {
+  it("leaves out the kinds a person unticks, and a penalty's note with the penalties", () => {
     expect(stages(applyPayslipLayout(payslip, { payslip: { statutory: false } }))).toEqual(["Basic pay", "Union dues", "Late for shift"]);
     expect(stages(applyPayslipLayout(payslip, { payslip: { otherDeductions: false } }))).toEqual(["Basic pay", "NSSA", "PAYE", "AIDS levy", "Late for shift"]);
     const noPenalties = applyPayslipLayout(payslip, { payslip: { penalties: false } });
     expect(stages(noPenalties)).not.toContain("Late for shift");
-    expect(noPenalties.notes).not.toContain(PAYSLIP_PENALTY_NOTE);
+    expect(noPenalties.notes).not.toContain(penaltyNote);
   });
 
   it("keeps zero rows when told to, and never drops a total or the figures that add up", () => {
@@ -188,5 +190,50 @@ describe("the payslip layout's page", () => {
       PAYSLIP_EMPLOYER_TITLE,
     ]);
     expect(sample.totals!.at(-1)).toEqual({ label: "Net pay", value: "US$591.81", emphasis: true });
+  });
+});
+
+describe("a disciplinary penalty payroll took", () => {
+  const line = samplePayslipLine();
+  const penalty = (summary: string, marked: string, taken: string) => ({
+    name: `Disciplinary penalty \u2014 ${summary}`,
+    type: "DEDUCTION",
+    calcMethod: "FIXED",
+    rateOrAmount: d(marked),
+    amount: d(taken),
+    isTaxable: false,
+    statutoryKey: null,
+    basis: null,
+    sequence: PENALTY_SEQUENCE,
+  });
+  // The sample's 188.19 of deductions and 591.81 net, with a 20.00 penalty taken.
+  const withPenalty = payslipPayload(
+    { ...line, deductionsTotal: d("208.19"), netAmount: d("571.81"), components: [...line.components, penalty("Late for shift", "20", "20")] },
+    [],
+  ).payload;
+
+  it("prints among the deductions, and in Total deductions and Net pay", () => {
+    const lines = withPenalty.record!.lines!;
+    expect(lines.map((row) => [row.stage, row.kind, row.amount])).toContainEqual(["Late for shift", "Penalty", "(20.00)"]);
+    // After the statutory lines, never among the earnings or the employer's.
+    expect(lines.findIndex((row) => row.kind === "Penalty")).toBeGreaterThan(lines.findIndex((row) => row.stage === "AIDS levy"));
+    expect(withPenalty.totals).toEqual([
+      { label: "Gross pay", value: "US$780.00" },
+      { label: "Total deductions", value: "US$208.19" },
+      { label: "Net pay", value: "US$571.81", emphasis: true },
+    ]);
+    expect(withPenalty.notes!.some((note) => /penalt/i.test(note))).toBe(false);
+  });
+
+  it("is hidden by the Show penalties tick while the totals keep it", () => {
+    const hidden = applyPayslipLayout(withPenalty, { payslip: { penalties: false } });
+    expect(hidden.record!.lines!.some((row) => row.kind === "Penalty")).toBe(false);
+    expect(hidden.totals).toEqual(withPenalty.totals);
+  });
+
+  it("says how much net pay could not cover", () => {
+    const capped = payslipPayload({ ...line, components: [...line.components, penalty("Damaged tools", "800", "591.81")] }, []).payload;
+    expect(capped.notes).toContain(payslipPenaltyShortNote({ summary: "Damaged tools", marked: "US$800.00", deducted: "US$591.81" }));
+    expect(applyPayslipLayout(capped, { payslip: { penalties: false } }).notes!.some((note) => note.includes("Damaged tools"))).toBe(false);
   });
 });
