@@ -1067,10 +1067,10 @@ function Sources({ sources, onCopy }: { sources: readonly ReportSource[]; onCopy
   const [shown, setShown] = React.useState(false);
   if (!sources.length) return null;
   return (
-    <nav className="rb-sources" aria-label="Sources you can query">
+    <nav className="rb-sources" aria-label="Sources your questions can read">
       <button type="button" className="pg-h" style={{ width: "100%" }} aria-expanded={shown} onClick={() => setShown(!shown)}>
         <Icon name={shown ? "down" : "chev"} />
-        Sources you can query
+        Sources your questions can read
       </button>
       {shown ? (
         <ul>
