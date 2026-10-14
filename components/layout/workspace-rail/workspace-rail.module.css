@@ -101,8 +101,25 @@
   box-shadow: var(--ring), var(--raised);
 }
 
-.spacer {
-  flex: 1;
+/* The module marks: they take the rail's free height and scroll in it, so the
+   pins under them (Vane, Management, the person) are never pushed off screen. */
+.railMarks {
+  flex: 1 1 auto;
+  min-height: 0;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: none;
+  /* Room for a mark's focus ring at the scroll edges. */
+  padding: 4px 0;
+}
+
+.railMarks::-webkit-scrollbar {
+  display: none;
 }
 
 /* Between the module marks and the pins. */
