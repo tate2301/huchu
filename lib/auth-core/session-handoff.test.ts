@@ -34,7 +34,7 @@ afterAll(async () => {
 describe("session handoff", () => {
   it("signs in the user it was issued to, once", async () => {
     const token = await createSessionHandoff(userId, T0);
-    expect(await consumeSessionHandoff(token, new Date(T0.getTime() + 1_000))).toBe(userId);
+    expect(await consumeSessionHandoff(token, new Date(T0.getTime() + 1_000))).toEqual({ userId, signInAsSessionId: null });
     expect(await consumeSessionHandoff(token, new Date(T0.getTime() + 2_000))).toBeNull();
   });
 
@@ -58,6 +58,6 @@ describe("session handoff", () => {
     const token = await createSessionHandoff(userId, T0);
     const later = new Date(T0.getTime() + 1_000);
     const results = await Promise.all([consumeSessionHandoff(token, later), consumeSessionHandoff(token, later)]);
-    expect(results.filter(Boolean)).toEqual([userId]);
+    expect(results.filter(Boolean)).toEqual([{ userId, signInAsSessionId: null }]);
   });
 });

@@ -1,4 +1,4 @@
-import type { AuthStrategyId, AuthenticatedSession, PlatformJwtClaims, SessionPolicy } from "@/lib/auth-core/types";
+import type { AuthenticatedSession, PlatformJwtClaims, SessionPolicy } from "@/lib/auth-core/types";
 
 export const ONE_DAY_IN_SECONDS = 24 * 60 * 60;
 export const THIRTY_DAYS_IN_SECONDS = 30 * ONE_DAY_IN_SECONDS;
@@ -56,10 +56,7 @@ export function isSessionExpired(session: AuthenticatedSession | null | undefine
   return isAuthExpired(session?.user?.authExpiresAt);
 }
 
-export function resolvePolicyForStrategy(strategyId: AuthStrategyId | undefined, rememberMe: boolean): SessionPolicy {
-  if (strategyId === "admin-email-link") {
-    return "admin";
-  }
+export function resolvePolicyForRememberMe(rememberMe: boolean): SessionPolicy {
   return rememberMe ? "remember" : "standard";
 }
 

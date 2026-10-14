@@ -8,8 +8,8 @@ import {
   isAllowedHost,
   isTenantStatusActive,
 } from "@/lib/platform/tenant";
-import { isAdminPortalHost, isPlatformSuperuser } from "@/lib/admin-portal";
 import { isAuthExpired } from "@/lib/auth-core/session-policy";
+import { signInAsRefusal } from "@/lib/sign-in-as/limits";
 import { isRouteAllowedForRole } from "@/lib/auth-core/role-routes";
 import type { AuthGuardResult, AuthenticatedSession } from "@/lib/auth-core/types";
 
@@ -19,7 +19,6 @@ type ResolveAccessContextOptions = {
   /** The request's method; a page is a read. */
   method?: string;
   hostHeader?: string | null;
-  requireAdmin?: boolean;
   requireTenantContext?: boolean;
   enforceRouteFeatureCheck?: boolean;
   enforceTenantHost?: boolean;
@@ -31,7 +30,6 @@ export async function resolveAccessContext(options: ResolveAccessContextOptions)
     pathname,
     method,
     hostHeader,
-    requireAdmin = false,
     requireTenantContext = true,
     enforceRouteFeatureCheck = true,
     enforceTenantHost = true,
@@ -69,26 +67,10 @@ export async function resolveAccessContext(options: ResolveAccessContextOptions)
     };
   }
 
-  if (requireAdmin) {
-    if (!isAdminPortalHost(hostHeader)) {
-      return {
-        ok: false,
-        reason: "ADMIN_HOST_REQUIRED",
-        status: 403,
-        message: "Admin portal host required",
-        path: pathname,
-      };
-    }
-
-    if (!isPlatformSuperuser(session.user)) {
-      return {
-        ok: false,
-        reason: "SUPERUSER_REQUIRED",
-        status: 403,
-        message: "Superuser access required",
-        path: pathname,
-      };
-    }
+  // An operator signed in as this member: the same limits the lean API guard applies.
+  const signInAsRefused = signInAsRefusal(session.user.signInAs, method, pathname);
+  if (signInAsRefused) {
+    return { ok: false, reason: "SIGN_IN_AS_LIMIT", status: 403, message: signInAsRefused, path: pathname };
   }
 
   if (requireTenantContext && !session.user.companyId) {

@@ -112,8 +112,11 @@ async function findWorkspaceProfile(companyId: string | null): Promise<string | 
 
 export async function resolveWorkspaceIdentityForHost(hostHeader?: string | null) {
   let branding = await getEffectiveBrandingForHost(hostHeader ?? null);
+  const adminHost = isAdminPortalHost(hostHeader);
 
-  if (!branding.companyId) {
+  // The admin host has no workspace session to fall back on: operators sign
+  // in on their own, and a workspace cookie left on it names nobody here.
+  if (!branding.companyId && !adminHost) {
     const session = await getCurrentAuthSession().catch(() => null);
     const companyId = session?.user?.companyId?.trim();
     if (companyId) {
@@ -121,7 +124,7 @@ export async function resolveWorkspaceIdentityForHost(hostHeader?: string | null
     }
   }
 
-  const workspaceProfile = isAdminPortalHost(hostHeader)
+  const workspaceProfile = adminHost
     ? null
     : await findWorkspaceProfile(branding.companyId);
 

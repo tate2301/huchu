@@ -1,0 +1,316 @@
+/* The admin portal's frame: a 240px sidebar, the scope bar across the top of
+   everything right of it, and the page. Role tokens only, the same ones the
+   product's own sidebar is drawn with, so the portal reads as the product.
+
+   Below 760px the sidebar goes and a tab bar takes its place at the foot. */
+
+.app {
+  display: grid;
+  grid-template-columns: 240px minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr);
+  min-height: 100dvh;
+  background: var(--surface);
+  color: var(--ink);
+}
+
+/* ── Sidebar ─────────────────────────────────────────────────────────── */
+
+.side {
+  grid-row: 1 / -1;
+  position: sticky;
+  top: 0;
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px;
+  background: var(--ground);
+  border-right: 1px solid var(--line);
+  box-sizing: border-box;
+  overflow-y: auto;
+}
+
+.navList {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.item {
+  height: 34px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 10px;
+  border-radius: 8px;
+  color: var(--ink);
+  font-size: 13px;
+  text-decoration: none;
+}
+
+.item:hover {
+  background: var(--active);
+}
+
+.item:focus-visible,
+.switcher:focus-visible {
+  outline: 2px solid var(--action);
+  outline-offset: 2px;
+}
+
+.itemIcon {
+  width: 16px;
+  height: 16px;
+  flex: none;
+  color: var(--ink-3);
+}
+
+.itemLabel {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.itemCurrent,
+.itemCurrent:hover {
+  background: var(--sel-fill);
+  color: var(--on-sel);
+  font-weight: 600;
+}
+
+.itemCurrent .itemIcon {
+  color: var(--on-sel);
+}
+
+.kbd {
+  flex: none;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--ink-3);
+  padding: 1px 5px;
+  border-radius: 5px;
+  box-shadow: inset 0 0 0 1px var(--line-strong);
+}
+
+.leave {
+  margin-top: 8px;
+  border-top: 1px solid var(--line);
+  padding-top: 8px;
+}
+
+/* The context, named at the top of the sidebar. A workspace sits on the
+   selection tint; all workspaces on the ground, like everything else. */
+.switcher {
+  width: 100%;
+  min-height: 48px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.switcher:hover {
+  background: var(--active);
+}
+
+.switcherInWorkspace,
+.switcherInWorkspace:hover {
+  background: var(--sel-bg);
+  box-shadow: inset 0 0 0 1px var(--sel-line);
+}
+
+.switcherText {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.switcherName {
+  font-size: 13px;
+  font-weight: 600;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.switcherSub {
+  font-size: 12px;
+  color: var(--ink-3);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.globe {
+  width: 32px;
+  height: 32px;
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1px var(--line);
+  color: var(--ink-2);
+}
+
+.foot {
+  margin-top: auto;
+  padding: 10px;
+  border-top: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 12px;
+  color: var(--ink-3);
+}
+
+.footWho {
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.footRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+/* ── Scope bar ───────────────────────────────────────────────────────── */
+
+.scope {
+  grid-column: 2;
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  height: var(--h-control-lg);
+  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 16px 0 24px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--line);
+  font-size: 13px;
+  color: var(--ink-2);
+}
+
+.scopeWorkspace {
+  background: var(--sel-bg);
+  border-bottom-color: var(--sel-line);
+  box-shadow: inset 3px 0 0 var(--action);
+  color: var(--ink);
+}
+
+.scopeName {
+  font-weight: 600;
+  color: var(--ink);
+  white-space: nowrap;
+}
+
+.scopeNote {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.scopeEnd {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+}
+
+.main {
+  grid-column: 2;
+  min-width: 0;
+}
+
+/* ── Phone ───────────────────────────────────────────────────────────── */
+
+.tabbar {
+  display: none;
+}
+
+@media (max-width: 759px) {
+  .app {
+    grid-template-columns: minmax(0, 1fr);
+    padding-bottom: calc(56px + env(safe-area-inset-bottom));
+  }
+
+  .side {
+    display: none;
+  }
+
+  .scope,
+  .main {
+    grid-column: 1;
+  }
+
+  .scope {
+    padding: 0 8px 0 16px;
+  }
+
+  .hideOnPhone {
+    display: none;
+  }
+
+  .tabbar {
+    position: fixed;
+    inset: auto 0 0 0;
+    z-index: 30;
+    display: grid;
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(0, 1fr);
+    height: calc(56px + env(safe-area-inset-bottom));
+    padding-bottom: env(safe-area-inset-bottom);
+    background: var(--surface);
+    border-top: 1px solid var(--line);
+  }
+
+  .tab {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    min-width: 0;
+    color: var(--ink-3);
+    font-size: 11px;
+    text-decoration: none;
+  }
+
+  .tab svg {
+    width: 20px;
+    height: 20px;
+  }
+
+  .tab span {
+    max-width: 100%;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+
+  .tabCurrent {
+    color: var(--ink);
+    font-weight: 600;
+  }
+}

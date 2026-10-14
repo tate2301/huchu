@@ -108,6 +108,7 @@ Keep `DataTable`. Replace the cell rendering with `RecordCell` and set
 |---|---|---|
 | CRM — companies, leads, deals, people, sites, work orders | `RecordTable` | Standard |
 | People directory | `RecordTable` | Standard |
+| Admin portal — workspaces, members, payments, people, operators, audit log | `RecordTable` | Standard |
 | Schools — students, teachers, guardians, results, boarding, attendance | `DataTable` | Row verbs on the standard (22 tables); cells still to migrate |
 | Gold — pours, dispatches, receipts, prices, exceptions | `DataTable` | **To migrate** |
 | HR — people | `DataTable` | Columns and verbs on the standard; cells still to migrate |

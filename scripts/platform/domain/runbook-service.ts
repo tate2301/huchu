@@ -10,7 +10,6 @@ import type {
 import { appendAuditEvent } from "./audit-ledger";
 import { normalizeEnum } from "./helpers";
 import { enforceContract } from "./contract-service";
-import { expireSupportSessions } from "./support-service";
 
 function normalizeRisk(value?: string): RiskLevel {
   if (!value) return "LOW";
@@ -166,9 +165,7 @@ export async function executeRunbook(input: ExecuteRunbookInput): Promise<Runboo
     };
 
     if (!input.dryRun) {
-      if (runbook.actionType === "support.expire-sessions") {
-        resultPayload = await expireSupportSessions();
-      } else if (runbook.actionType === "contract.enforce") {
+      if (runbook.actionType === "contract.enforce") {
         if (!runbook.companyId) throw new Error("Runbook action contract.enforce requires companyId.");
         const result = await enforceContract({
           companyId: runbook.companyId,

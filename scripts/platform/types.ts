@@ -59,9 +59,6 @@ export const SITE_MEASUREMENT_UNITS = [
   "wheelbarrows",
 ] as const;
 export const SUBDOMAIN_RESERVATION_STATUSES = ["RESERVED", "ACTIVE", "RELEASED"] as const;
-export const SUPPORT_ACCESS_STATUSES = ["REQUESTED", "APPROVED", "ACTIVE", "EXPIRED", "REVOKED", "DENIED"] as const;
-export const SUPPORT_ACCESS_SCOPES = ["READ_ONLY", "READ_WRITE"] as const;
-export const SUPPORT_SESSION_MODES = ["IMPERSONATE", "SHADOW"] as const;
 export const RUNBOOK_EXECUTION_STATUSES = ["QUEUED", "RUNNING", "SUCCESS", "FAILED", "CANCELED"] as const;
 export const RISK_LEVELS = ["LOW", "MEDIUM", "HIGH"] as const;
 export const HEALTH_INCIDENT_STATUSES = ["OPEN", "ACKNOWLEDGED", "RESOLVED"] as const;
@@ -77,9 +74,6 @@ export type UserRole = (typeof USER_ROLES)[number];
 export type UserManagementRole = (typeof USER_MANAGEMENT_ROLES)[number];
 export type SiteMeasurementUnit = (typeof SITE_MEASUREMENT_UNITS)[number];
 export type SubdomainReservationStatus = (typeof SUBDOMAIN_RESERVATION_STATUSES)[number];
-export type SupportAccessStatus = (typeof SUPPORT_ACCESS_STATUSES)[number];
-export type SupportAccessScope = (typeof SUPPORT_ACCESS_SCOPES)[number];
-export type SupportSessionMode = (typeof SUPPORT_SESSION_MODES)[number];
 export type RunbookExecutionStatus = (typeof RUNBOOK_EXECUTION_STATUSES)[number];
 export type RiskLevel = (typeof RISK_LEVELS)[number];
 export type HealthIncidentStatus = (typeof HEALTH_INCIDENT_STATUSES)[number];
@@ -259,7 +253,7 @@ export interface ProvisionBundleResult {
 
 export interface SearchIndexEntry {
   id: string;
-  kind: "module" | "organization" | "admin" | "action" | "support" | "runbook" | "incident";
+  kind: "module" | "organization" | "admin" | "action" | "runbook" | "incident";
   label: string;
   detail: string;
   moduleId: string;
@@ -320,7 +314,7 @@ export interface WorkspaceResetPreview {
   selectedGroupIds: string[];
   availableGroups: WorkspaceResetGroupSummary[];
   confirmationToken: string;
-  activeSupportSessionCount: number;
+  openSignInAsSessionCount: number;
   preservedAdminCount: number;
   activePreservedAdminCount: number;
   tablesToDelete: WorkspaceResetTableStat[];
@@ -704,41 +698,6 @@ export interface AuditVerifyChainResult {
   message: string;
 }
 
-export interface SupportAccessRequestRecord {
-  id: string;
-  companyId: string;
-  companyName: string | null;
-  companySlug: string | null;
-  requestedBy: string;
-  approvedBy: string | null;
-  reason: string;
-  scope: SupportAccessScope;
-  status: SupportAccessStatus;
-  requestedAt: string | null;
-  approvedAt: string | null;
-  expiresAt: string | null;
-  createdAt: string | null;
-  updatedAt: string | null;
-}
-
-export interface SupportSessionRecord {
-  id: string;
-  requestId: string | null;
-  companyId: string;
-  companyName: string | null;
-  companySlug: string | null;
-  actor: string;
-  mode: SupportSessionMode;
-  scope: SupportAccessScope;
-  status: SupportAccessStatus;
-  reason: string;
-  startedAt: string | null;
-  endedAt: string | null;
-  expiresAt: string | null;
-  createdAt: string | null;
-  updatedAt: string | null;
-}
-
 export interface RunbookDefinitionRecord {
   id: string;
   name: string;
@@ -1061,39 +1020,6 @@ export interface AddAuditNoteInput {
   companyId: string;
 }
 
-export interface ListSupportRequestsInput {
-  companyId?: string;
-  status?: SupportAccessStatus | string;
-  limit?: number;
-}
-
-export interface RequestSupportAccessInput {
-  companyId: string;
-  requestedBy: string;
-  reason: string;
-  scope?: SupportAccessScope;
-  ttlMinutes?: number;
-}
-
-export interface ApproveSupportAccessInput {
-  requestId: string;
-  approvedBy: string;
-  approve: boolean;
-  reason?: string;
-}
-
-export interface StartSupportSessionInput {
-  requestId: string;
-  actor: string;
-  mode?: SupportSessionMode;
-}
-
-export interface EndSupportSessionInput {
-  sessionId: string;
-  actor: string;
-  reason?: string;
-}
-
 export interface UpsertRunbookInput {
   id?: string;
   name: string;
@@ -1228,16 +1154,6 @@ export interface AuditService {
   verifyChain(companyId?: string): Promise<MutationResult<AuditVerifyChainResult>>;
 }
 
-export interface SupportService {
-  listRequests(input?: ListSupportRequestsInput): Promise<SupportAccessRequestRecord[]>;
-  listSessions(companyId?: string): Promise<SupportSessionRecord[]>;
-  requestAccess(input: RequestSupportAccessInput): Promise<MutationResult<SupportAccessRequestRecord>>;
-  approveRequest(input: ApproveSupportAccessInput): Promise<MutationResult<SupportAccessRequestRecord>>;
-  startSession(input: StartSupportSessionInput): Promise<MutationResult<SupportSessionRecord>>;
-  endSession(input: EndSupportSessionInput): Promise<MutationResult<SupportSessionRecord>>;
-  expireSessions(nowIso?: string): Promise<MutationResult<{ expiredCount: number }>>;
-}
-
 export interface RunbookService {
   listDefinitions(companyId?: string): Promise<RunbookDefinitionRecord[]>;
   upsertDefinition(input: UpsertRunbookInput): Promise<MutationResult<RunbookDefinitionRecord>>;
@@ -1268,7 +1184,6 @@ export interface PlatformServices {
   admin: AdminService;
   user: UserManagementService;
   audit: AuditService;
-  support: SupportService;
   runbook: RunbookService;
   health: HealthService;
   contract: ContractService;

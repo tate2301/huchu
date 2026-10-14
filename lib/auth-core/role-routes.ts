@@ -17,6 +17,9 @@ const SHARED_ALLOWED_PREFIXES = [
   // Both answer only to the person who asked for the export.
   "/api/documents/render-jobs",
   "/api/documents/artifacts",
+  // Corelith support signed in as this member ends the session from the
+  // banner, whatever the member's role reaches.
+  "/api/sign-in-as",
   "/help",
   "/access-blocked",
   "/notifications",

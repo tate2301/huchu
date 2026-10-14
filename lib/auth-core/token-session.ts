@@ -83,6 +83,7 @@ export function tokenToSession(token: PlatformJwtClaims): AuthenticatedSession {
       deviceId: token.deviceId,
       registerId: token.registerId,
       pinMustChange: token.pinMustChange,
+      signInAs: token.signInAs,
     },
   } as AuthenticatedSession;
 }

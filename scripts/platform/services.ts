@@ -19,15 +19,6 @@ import {
   verifyAuditChain,
 } from "./domain/audit-ledger";
 import {
-  approveSupportAccess,
-  endSupportSession,
-  expireSupportSessions,
-  listSupportRequests,
-  listSupportSessions,
-  requestSupportAccess,
-  startSupportSession,
-} from "./domain/support-service";
-import {
   executeRunbook,
   listRunbookDefinitions,
   listRunbookExecutions,
@@ -262,7 +253,7 @@ type WorkspaceResetBasePlan = {
   companySlug: string;
   workspaceProfile: string | null;
   confirmationToken: string;
-  activeSupportSessionCount: number;
+  openSignInAsSessionCount: number;
   preservedAdminCount: number;
   activePreservedAdminCount: number;
   globalDeletionOrder: string[];
@@ -297,9 +288,8 @@ const WORKSPACE_RESET_PRESERVED_TABLES = new Set([
   "ProvisioningEvent",
   "RunbookDefinition",
   "RunbookExecution",
+  "SignInAsSession",
   "SubdomainReservation",
-  "SupportAccessRequest",
-  "SupportSession",
   "TenantSloMetricSnapshot",
 ]);
 
@@ -307,7 +297,7 @@ const WORKSPACE_RESET_PRESERVED_SCOPES = [
   "Company record and portal access shell",
   "SUPERADMIN accounts and their login sessions",
   "Branding, domains, subscriptions, add-ons, and feature flags",
-  "Platform audit, support, runbook, and reliability records",
+  "Platform audit, sign-in-as, runbook, and reliability records",
 ];
 
 const WORKSPACE_RESET_ROOT_PREDICATES: Record<string, DeletePredicateBuilder> = {
@@ -725,7 +715,7 @@ async function buildWorkspaceResetBasePlan(
   }
 
   const [
-    activeSupportSessionCount,
+    openSignInAsSessionCount,
     preservedAdminCount,
     activePreservedAdminCount,
     companyScopedTables,
@@ -734,10 +724,11 @@ async function buildWorkspaceResetBasePlan(
     entitledBySubscription,
   ] =
     await Promise.all([
-      tx.supportSession.count({
+      tx.signInAsSession.count({
         where: {
           companyId: input.companyId,
-          status: "ACTIVE",
+          endedAt: null,
+          expiresAt: { gt: new Date() },
         },
       }),
       tx.user.count({
@@ -860,7 +851,7 @@ async function buildWorkspaceResetBasePlan(
     companySlug: company.slug,
     workspaceProfile: company.workspaceProfile,
     confirmationToken: `RESET ${company.slug}`,
-    activeSupportSessionCount,
+    openSignInAsSessionCount,
     preservedAdminCount,
     activePreservedAdminCount,
     globalDeletionOrder,
@@ -964,7 +955,7 @@ async function previewWorkspaceReset(
     selectedGroupIds: plan.selectedGroupIds,
     availableGroups: plan.availableGroups,
     confirmationToken: plan.confirmationToken,
-    activeSupportSessionCount: plan.activeSupportSessionCount,
+    openSignInAsSessionCount: plan.openSignInAsSessionCount,
     preservedAdminCount: plan.preservedAdminCount,
     activePreservedAdminCount: plan.activePreservedAdminCount,
     tablesToDelete: plan.tableStats,
@@ -997,9 +988,9 @@ async function resetWorkspace(input: WorkspaceResetInput): Promise<WorkspaceRese
     selectedGroupIds = plan.selectedGroupIds;
     selectedGroupLabels = plan.selectedGroupLabels;
 
-    if (plan.activeSupportSessionCount > 0) {
+    if (plan.openSignInAsSessionCount > 0) {
       throw new Error(
-        `Workspace ${plan.companySlug} has ${plan.activeSupportSessionCount} active support session(s). End those sessions before resetting the workspace.`,
+        `Workspace ${plan.companySlug} has ${plan.openSignInAsSessionCount} open sign-in-as session(s). End them from the admin portal before resetting the workspace.`,
       );
     }
 
@@ -2515,15 +2506,6 @@ export function createPlatformServices(): PlatformServices {
       addNote: (input) => toMutation(() => addAuditNote(input)),
       export: (input) => toMutation(() => exportAudit(input)),
       verifyChain: (companyId?: string) => toMutation(() => verifyAuditChain(companyId)),
-    },
-    support: {
-      listRequests: listSupportRequests,
-      listSessions: listSupportSessions,
-      requestAccess: (input) => toMutation(() => requestSupportAccess(input)),
-      approveRequest: (input) => toMutation(() => approveSupportAccess(input)),
-      startSession: (input) => toMutation(() => startSupportSession(input)),
-      endSession: (input) => toMutation(() => endSupportSession(input)),
-      expireSessions: (nowIso?: string) => toMutation(() => expireSupportSessions(nowIso)),
     },
     runbook: {
       listDefinitions: listRunbookDefinitions,

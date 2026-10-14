@@ -13,6 +13,7 @@ import { ShellNavProvider, useShellNav, type ShopConditions, type WorkspaceBrand
 import { ShellProvider, useShell } from "@/components/layout/shell-state";
 import { OnboardingProvider } from "@/components/onboarding/onboarding-provider";
 import { isPublicPath } from "@/lib/public-routes";
+import { SignInAsBanner } from "@/components/sign-in-as/sign-in-as-banner";
 import { isCountPhonePath } from "@/lib/retail/stock/count-paths";
 import { isSettingsSurfacePath } from "@/lib/settings/management-nav";
 import { RecordPeekProvider } from "@/components/records/record-peek";
@@ -103,6 +104,8 @@ function ShellFrame({ children }: { children: React.ReactNode }) {
       {/* `?sheet=<kind>` over whatever page is open (00-foundations 5.7.1). */}
       <SheetHost />
       <div className="flex min-w-0 flex-1 flex-col bg-[var(--surface)]">
+        {/* Corelith support signed in as this member: who, how far, until when. */}
+        <SignInAsBanner />
         <PageHeader />
         <main className="content-shell min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain [touch-action:pan-y] pb-[env(safe-area-inset-bottom)]">
           {/* Both live above the page: the trail has to survive the navigation

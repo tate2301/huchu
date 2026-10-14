@@ -299,51 +299,6 @@ export const ACTION_TREE: ActionDomain[] = [
     ],
   },
   {
-    id: "support",
-    label: "Support Access",
-    description: "Support request and session workflows.",
-    tasks: [
-      {
-        id: "support-requests",
-        label: "Support Requests",
-        description: "Request/approve/deny support access.",
-        operations: [
-          {
-            id: "support.request",
-            label: "Create Support Request",
-            description: "Create a support access request.",
-            moduleId: "support",
-          },
-          {
-            id: "support.approve",
-            label: "Approve or Deny Request",
-            description: "Review and approve/deny pending requests.",
-            moduleId: "support",
-          },
-        ],
-      },
-      {
-        id: "support-sessions",
-        label: "Support Sessions",
-        description: "Start or end support sessions.",
-        operations: [
-          {
-            id: "support.start-session",
-            label: "Start Session",
-            description: "Start an approved support session.",
-            moduleId: "support",
-          },
-          {
-            id: "support.end-session",
-            label: "End Session",
-            description: "End an active support session.",
-            moduleId: "support",
-          },
-        ],
-      },
-    ],
-  },
-  {
     id: "reliability",
     label: "Reliability & Remediation",
     description: "Health monitoring and runbook automation.",

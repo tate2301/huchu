@@ -1,7 +1,7 @@
 import "../../themes/admin.css";
-import { requireAdminPortalSession } from "@/lib/admin-portal/server";
+import { requireOperator } from "@/lib/operators/guards";
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
-  await requireAdminPortalSession();
+  await requireOperator();
   return <div data-portal="admin">{children}</div>;
 }

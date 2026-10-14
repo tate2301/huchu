@@ -7,7 +7,6 @@ export type PlatformModuleId =
   | 'admins'
   | 'user-management'
   | 'sites'
-  | 'support'
   | 'runbooks'
   | 'health'
   | 'contracts'

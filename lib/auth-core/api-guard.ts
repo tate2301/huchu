@@ -25,7 +25,7 @@ import {
   isTenantStatusActive,
 } from "@/lib/platform/tenant";
 import { canAccessRouteWithToken } from "@/lib/platform/gating/enforcer";
-import { isAdminPortalHost, isPlatformSuperuser } from "@/lib/admin-portal";
+import { signInAsRefusal } from "@/lib/sign-in-as/limits";
 import type {
   AuthenticatedSession,
   AuthFailureReason,
@@ -33,7 +33,6 @@ import type {
 
 type ApiAuthOptions = {
   request: Request;
-  requireAdmin?: boolean;
   requireTenantContext?: boolean;
   enforceRouteFeatureCheck?: boolean;
   enforceTenantHost?: boolean;
@@ -96,10 +95,9 @@ export async function requireApiAuthLean(
 ): Promise<{ session: AuthenticatedSession } | NextResponse> {
   const {
     request,
-    requireAdmin = false,
-    requireTenantContext = !requireAdmin,
-    enforceRouteFeatureCheck = !requireAdmin,
-    enforceTenantHost = !requireAdmin,
+    requireTenantContext = true,
+    enforceRouteFeatureCheck = true,
+    enforceTenantHost = true,
   } = options;
 
   const session = await getTokenAuthSession(request as NextRequest);
@@ -119,6 +117,13 @@ export async function requireApiAuthLean(
     });
   }
 
+  // An operator signed in as this member: look only refuses every write, and
+  // making changes still stops at the member's own password, email and payment.
+  const signInAsRefused = signInAsRefusal(session.user.signInAs, request.method, pathname);
+  if (signInAsRefused) {
+    return deny(session, pathname, hostHeader, { reason: "SIGN_IN_AS_LIMIT", status: 403, message: signInAsRefused });
+  }
+
   // Same rule as resolveAccessContext: a till PIN session is good on the POS host only.
   if (session.user.authStrategy === "till-pin" && getPlatformHostContext(hostHeader).portalCanonicalPrefix !== "pos") {
     return deny(session, pathname, hostHeader, {
@@ -126,24 +131,6 @@ export async function requireApiAuthLean(
       status: 401,
       message: "Unauthorized",
     });
-  }
-
-  if (requireAdmin) {
-    if (!isAdminPortalHost(hostHeader)) {
-      return deny(session, pathname, hostHeader, {
-        reason: "ADMIN_HOST_REQUIRED",
-        status: 403,
-        message: "Admin portal host required",
-      });
-    }
-
-    if (!isPlatformSuperuser(session.user)) {
-      return deny(session, pathname, hostHeader, {
-        reason: "SUPERUSER_REQUIRED",
-        status: 403,
-        message: "Superuser access required",
-      });
-    }
   }
 
   if (requireTenantContext && !session.user.companyId) {

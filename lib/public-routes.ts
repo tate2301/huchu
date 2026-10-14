@@ -34,6 +34,12 @@ export const PUBLIC_BASE_PATHS = [
    * (80-admin 5.6). They have no password yet, or never will (till only).
    */
   "/join",
+  /**
+   * Corelith support signing in as a member — /sign-in-as, holding a one-use
+   * ticket from the admin portal — and the owner's "end it" link from the
+   * email they are sent, /sign-in-as/end. Neither has a session to show.
+   */
+  "/sign-in-as",
 ] as const;
 
 export function isPublicPath(pathname: string): boolean {

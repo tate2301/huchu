@@ -26,7 +26,8 @@ import { prisma } from "@/lib/prisma"
 export type AuditClient = Pick<Prisma.TransactionClient, "platformAuditEvent">
 
 export type PlatformAuditArgs = {
-  companyId: string
+  /** Null for the portal's own chain: an operator signing in, an operator invited. */
+  companyId: string | null
   /** Null when nobody acted: a scheduled job (the bin's nightly purge). */
   actorId: string | null
   eventType: string
@@ -37,7 +38,7 @@ export type PlatformAuditArgs = {
 }
 
 export function buildAuditEventHash(args: {
-  companyId: string
+  companyId: string | null
   actorId: string | null
   eventType: string
   entityType?: string

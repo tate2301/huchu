@@ -14,7 +14,6 @@ import { OrganizationsModule } from "./modules/organizations";
 import { SubscriptionsModule } from "./modules/subscriptions";
 import { UserManagementModule } from "./modules/user-management";
 import { SitesModule } from "./modules/sites";
-import { SupportModule } from "./modules/support";
 import { RunbooksModule } from "./modules/runbooks";
 import { HealthModule } from "./modules/health";
 import { ContractsModule } from "./modules/contracts";
@@ -42,7 +41,6 @@ function readPositionalActor() {
     "provision",
     "subdomain",
     "action",
-    "support",
     "site",
     "runbook",
     "health",
@@ -174,17 +172,6 @@ export function runPlatformInkShell(overrides: Partial<PlatformAppProps> = {}) {
     ),
     audit: (props: ModuleRenderProps) => (
       <AuditModule
-        actor={resolvedActor}
-        services={services}
-        focusCompanyId={props.focusCompanyId}
-        readOnly={props.readOnly}
-        operationId={props.operationId}
-        setInputLocked={props.setInputLocked}
-        onBackToTree={props.onBackToTree}
-      />
-    ),
-    support: (props: ModuleRenderProps) => (
-      <SupportModule
         actor={resolvedActor}
         services={services}
         focusCompanyId={props.focusCompanyId}

@@ -226,6 +226,10 @@ import {
   Wrench as PhosphorWrench,
   X as PhosphorX,
   XCircle as PhosphorXCircle,
+  CaretUpDown as PhosphorCaretUpDown,
+  Scroll as PhosphorScroll,
+  SignIn as PhosphorSignIn,
+  ClockCountdown as PhosphorClockCountdown,
 } from "@phosphor-icons/react/ssr";
 
 import { cn } from "@/lib/utils";
@@ -250,6 +254,10 @@ export type LucideIcon = React.ComponentType<MaterialIconProps>;
  * client bundle, because nothing could tell at build time which were used.
  */
 const iconRegistry = {
+  ClockCountdown: PhosphorClockCountdown,
+  SignIn: PhosphorSignIn,
+  Scroll: PhosphorScroll,
+  CaretUpDown: PhosphorCaretUpDown,
   AddressBook: PhosphorAddressBook,
   Archive: PhosphorArchive,
   ArrowBendUpLeft: PhosphorArrowBendUpLeft,
@@ -556,6 +564,10 @@ function createPhosphorIcon(iconName: PhosphorIconName, displayName: string): Lu
   return Icon;
 }
 
+export const CaretUpDown = createPhosphorIcon("CaretUpDown", "CaretUpDown");
+export const Scroll = createPhosphorIcon("Scroll", "Scroll");
+export const SignIn = createPhosphorIcon("SignIn", "SignIn");
+export const ClockCountdown = createPhosphorIcon("ClockCountdown", "ClockCountdown");
 export const Share = createPhosphorIcon("ShareNetwork", "Share");
 export const Plug = createPhosphorIcon("PlugsConnected", "Plug");
 export const Smiley = createPhosphorIcon("Smiley", "Smiley");
