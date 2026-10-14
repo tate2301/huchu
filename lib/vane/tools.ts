@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 
 import { proposeActions, type ActionProposal } from "./actions/engine";
 import { VANE_ACTIONS } from "./actions/registry";
+import { draftInput, writeDraft } from "./draft-tool";
 import { VANE_PAGES_GUIDE } from "./pages";
 import { VANE_SUBJECTS } from "./panel";
 import { readWorkspace, ReaderError, tablesFor, withReader, type ReadableTable } from "./reader";
@@ -16,8 +17,9 @@ import { readWorkspace, ReaderError, tablesFor, withReader, type ReadableTable }
  * and every call is checked against it before the handler runs.
  *
  * Reading goes through the reader roles (`reader.ts`); writing is limited to
- * Vane's own tables: cards (`VaneItem`) and plans (`VanePlan`). Drafts of
- * invoices, quotations and purchase orders are the next tool.
+ * Vane's own tables, cards (`VaneItem`) and plans (`VanePlan`), and to drafts
+ * (`draft`): an invoice or a purchase order written through the module's own
+ * create code, marked `madeByVane`, which only a person issues or sends.
  */
 
 export type ToolContext = {
@@ -315,7 +317,21 @@ const proposeActionsTool = tool({
   },
 });
 
-export const VANE_TOOLS = [describeTable, runSql, getRecord, proposeItem, proposePlan, proposeActionsTool] as const;
+const draft = tool({
+  name: "draft",
+  description:
+    "Write a draft for a person to check: an invoice from an accepted quotation not yet invoiced (dated the day it is issued, due " +
+    "the customer's usual terms after), or a purchase order from one supplier for one branch. It is written through the module's " +
+    "own code and stays a draft marked as yours: you never issue, send, post or pay it, and the module refuses to until a person " +
+    "confirms it as theirs. Then raise a card about it with propose_item (subjectType SalesInvoice or RetailPurchaseOrder, " +
+    "subjectId the draft's id, the action opening the target returned here) saying what you drafted and from what.",
+  input: draftInput,
+  async run({ companyId }, input) {
+    return writeDraft(companyId, input);
+  },
+});
+
+export const VANE_TOOLS = [describeTable, runSql, getRecord, proposeItem, proposePlan, proposeActionsTool, draft] as const;
 
 /** The tools as Claude is shown them. */
 export function toolDefinitions(): Anthropic.Tool[] {

@@ -49,7 +49,11 @@ export const changeSchema = z.object({
   payment: z.enum(["ON_ACCOUNT", "CASH_ON_DELIVERY"]).optional(),
 });
 
-export const sendSchema = z.object({ via: z.enum(["WHATSAPP", "EMAIL", "BY_HAND"]).optional() });
+export const sendSchema = z.object({
+  via: z.enum(["WHATSAPP", "EMAIL", "BY_HAND"]).optional(),
+  /** Confirms Vane's draft as the sender's own: they become its maker as it goes (`lib/vane/drafts.ts`). */
+  asMine: z.boolean().optional(),
+});
 
 export const closeSchema = z.object({ note: z.string().trim().max(500).nullish() });
 

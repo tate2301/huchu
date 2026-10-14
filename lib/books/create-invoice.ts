@@ -73,13 +73,23 @@ export class InvoiceRefused extends Error {
 }
 
 /**
+ * Who makes the invoice: the signed-in person, or Vane (`userId` null), whose
+ * invoice is only ever a draft, marked `madeByVane` with no maker, until a
+ * person confirms it as theirs on issue (`lib/vane/drafts.ts`).
+ */
+export type InvoiceMaker = { companyId: string; userId: string } | { companyId: string; userId: null };
+
+/**
  * Creates a sales invoice as the signed-in person, a draft or issued:
  * `POST /api/accounting/sales/invoices` and Vane's approved "draft the
- * invoice from the quote" both come here. Each line's tax comes from its code
- * or the customer's default; issued, it is posted and fiscalised; raised off
- * a CRM quote, the CRM hears of it.
+ * invoice from the quote" both come here, and so does Vane's draft tool.
+ * Each line's tax comes from its code or the customer's default; issued, it
+ * is posted and fiscalised; raised off a CRM quote, the CRM hears of it (a
+ * draft of Vane's, when a person takes it on).
  */
-export async function createSalesInvoice(actor: { companyId: string; userId: string }, validated: InvoiceInput) {
+export async function createSalesInvoice(actor: InvoiceMaker, validated: InvoiceInput) {
+  const byVane = actor.userId === null;
+  if (byVane && validated.issueNow) throw new InvoiceRefused("Vane only drafts: a person issues the invoice.");
   const customer = await prisma.customer.findUnique({
     where: { id: validated.customerId },
     select: { companyId: true },
@@ -162,6 +172,7 @@ export async function createSalesInvoice(actor: { companyId: string; userId: str
       notes: validated.notes,
       quotationId: validated.quotationId,
       createdById: actor.userId,
+      madeByVane: byVane,
       issuedById: validated.issueNow ? actor.userId : undefined,
       issuedAt: validated.issueNow ? new Date() : undefined,
       lines: { create: computedLines },
@@ -171,6 +182,8 @@ export async function createSalesInvoice(actor: { companyId: string; userId: str
       lines: true,
     },
   });
+
+  if (actor.userId === null) return invoice;
 
   if (invoice.status === "ISSUED") {
     try {

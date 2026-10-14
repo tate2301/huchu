@@ -27,6 +27,7 @@ import {
 import { sendEmail } from "@/lib/email/send";
 import { absoluteUrl } from "@/lib/site-url";
 import { CRM_DOCUMENT_SOURCE_KEYS } from "@/lib/crm/document-sources";
+import { VaneDraftNotTakenOn, waitsForAPerson } from "@/lib/vane/drafts";
 
 const LABELS = {
   QUOTATION: "Quotation",
@@ -217,8 +218,8 @@ async function documentForEmail(params: DocumentRef) {
       invoiceId: true,
       receiptId: true,
       renderTemplateId: true,
-      quotation: { select: { quotationNumber: true, customer: { select: { email: true } } } },
-      invoice: { select: { invoiceNumber: true, customer: { select: { email: true } } } },
+      quotation: { select: { quotationNumber: true, madeByVane: true, createdById: true, customer: { select: { email: true } } } },
+      invoice: { select: { invoiceNumber: true, madeByVane: true, createdById: true, customer: { select: { email: true } } } },
       receipt: { select: { receiptNumber: true } },
       lead: { select: { id: true, contactEmail: true, client: { select: { email: true } } } },
       deal: {
@@ -275,6 +276,9 @@ export async function draftDocumentEmail(params: DocumentRef): Promise<DocumentE
  */
 export async function emailDocumentToClient(params: DocumentRef & { subject?: string; message?: string }): Promise<SentDocument> {
   const { doc, recordId, to, number, amount } = await documentForEmail(params);
+  // Vane's draft goes to nobody until a person has confirmed it as theirs (`lib/vane/drafts.ts`).
+  const made = doc.quotation ?? doc.invoice;
+  if (made && waitsForAPerson(made)) throw new VaneDraftNotTakenOn(number, "send");
   if (!to) throw new NoRecipientError();
 
   const branding = await getDocumentBranding(params.companyId);

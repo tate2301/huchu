@@ -360,5 +360,23 @@
     "placeholder: Give Vane a job",
     "button: Hand it over",
     "primary: Save as a template [Ctrl ↵]"
+  ],
+  "PageVaneDraft": [
+    "heading: Receivables",
+    "heading: Payables",
+    "heading: Reports",
+    "panel: Overview",
+    "panel: Bills2",
+    "panel: VAT returns1",
+    "panel: Receipts",
+    "panel: Credit notes",
+    "panel: Customers",
+    "panel: Statements",
+    "panel: Profit and loss",
+    "panel: Balance sheet",
+    "panel: Trial balance",
+    "panel: Ageing",
+    "button: Vane",
+    "button: Notifications"
   ]
 }

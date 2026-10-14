@@ -30,6 +30,7 @@ import { documentResourceIdsSchema, ResourceNotAvailableError } from "@/lib/crm/
 import { draftDocumentEmail, emailDocumentToClient, NoRecipientError } from "@/lib/crm/document-email";
 import { EmailNotConfiguredError } from "@/lib/email/send";
 import { crmDocumentLineSchema } from "./_helpers";
+import { VaneDraftNotTakenOn } from "@/lib/vane/drafts";
 
 type Owner = { kind: "lead" | "deal"; id: string };
 
@@ -193,6 +194,7 @@ export async function sendDocumentEmail(request: NextRequest, owner: Owner, docI
     // person pressing send can act on, so they are answered rather than
     // flattened into a server error.
     if (error instanceof NoRecipientError) return errorResponse(error.message, 422);
+    if (error instanceof VaneDraftNotTakenOn) return errorResponse(error.message, error.status);
     if (error instanceof EmailNotConfiguredError) return errorResponse(error.message, 503);
     return errorResponse(error instanceof Error ? error.message : "Failed to email the document", 500);
   }

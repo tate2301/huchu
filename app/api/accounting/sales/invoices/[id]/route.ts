@@ -5,10 +5,14 @@ import { prisma } from "@/lib/prisma";
 import { createJournalEntryFromSource } from "@/lib/accounting/posting";
 import { issueFiscalReceipt } from "@/lib/accounting/fiscalisation";
 import { hasFeature } from "@/lib/platform/features";
+import { onAccountingInvoiceCreated } from "@/lib/crm/accounting-hooks";
+import { asMineSchema, datesOnIssue, takeOn, VaneDraftNotTakenOn, waitsForAPerson } from "@/lib/vane/drafts";
 
 const updateSchema = z.object({
   status: z.enum(["DRAFT", "ISSUED", "PAID", "VOIDED"]).optional(),
   notes: z.string().max(1000).optional(),
+  /** Confirms Vane's draft as the person's own as it is issued: they become its maker in the same write. */
+  asMine: asMineSchema,
 });
 
 type RouteParams = { params: Promise<{ id: string }> };
@@ -36,16 +40,34 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
       return errorResponse("Invoice not found", 404);
     }
 
+    // Issued or paid is the invoice leaving the drafts and being posted. Vane's
+    // draft goes only once a person confirms it as theirs; then it is theirs,
+    // dated the day they issue it, in this same write.
+    const leaving =
+      existing.status === "DRAFT" && (validated.status === "ISSUED" || validated.status === "PAID");
+    const takingOn = leaving && waitsForAPerson(existing);
+    const maker = leaving
+      ? takeOn(existing, { asMine: validated.asMine, userId: session.user.id, what: existing.invoiceNumber, verb: "issue" })
+      : {};
+    const now = new Date();
+
     const updated = await prisma.salesInvoice.update({
       where: { id },
       data: {
         status: validated.status,
         notes: validated.notes,
         issuedById: validated.status === "ISSUED" ? session.user.id : existing.issuedById,
-        issuedAt: validated.status === "ISSUED" ? new Date() : existing.issuedAt,
+        issuedAt: validated.status === "ISSUED" ? now : existing.issuedAt,
+        ...maker,
+        ...(takingOn ? datesOnIssue(existing, now) : {}),
       },
       include: { customer: true, lines: true },
     });
+
+    // The CRM hears of an invoice raised off its quote when it is made; Vane's draft, when a person takes it on.
+    if (takingOn) {
+      await onAccountingInvoiceCreated({ companyId: session.user.companyId, invoiceId: updated.id, userId: session.user.id });
+    }
 
     if (validated.status === "ISSUED" && existing.status !== "ISSUED") {
       try {
@@ -112,6 +134,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
 
     return successResponse(updated);
   } catch (error) {
+    if (error instanceof VaneDraftNotTakenOn) return errorResponse(error.message, error.status);
     if (error instanceof z.ZodError) {
       return errorResponse("Validation failed", 400, error.issues);
     }

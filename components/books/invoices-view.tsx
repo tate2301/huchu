@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 
 import { Button, ButtonGroup, Icon, SelectCell, TableFoot, TableShell, useSelection } from "@/components/core";
 import { MenuButton } from "@/components/core/menu";
@@ -208,7 +209,9 @@ export function InvoicesPageView({
                 <tr key={row.id} aria-selected={selection.isSelected(row.id) || undefined}>
                   <SelectCell checked={selection.isSelected(row.id)} onChange={() => selection.toggle(row.id)} label={`Select ${row.number}`} />
                   <td>
-                    <span className="code">{row.number}</span>
+                    <Link className="code" href={`/books/invoices/${row.id}`} style={{ color: "inherit", textDecoration: "none" }}>
+                      {row.number}
+                    </Link>
                   </td>
                   <td>
                     <span className="cell-lead">{row.customer.name}</span>

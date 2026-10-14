@@ -116,6 +116,8 @@ Its cards land in `VaneItem` and its plans in `VanePlan`; the pages that show th
 
 Drafts Vane writes go in the normal tables with `madeByVane = true` and no `createdById`: `SalesInvoice`, `SalesQuotation` and `RetailPurchaseOrder`, always as drafts. A person issues, sends or receives them through the normal screens.
 
+The `draft` tool writes them (`lib/vane/draft-tool.ts`): an invoice from an accepted quotation (`draftInvoiceFromQuote`, due on the customer's usual terms) or a purchase order (`raiseOrder` with `madeByVane`), through the module's own code. It never issues, sends or asks for cash. Every route that issues, sends or posts one asks `takeOn` (`lib/vane/drafts.ts`) first: Vane's draft that no person has taken on is refused with 409 unless the request carries `asMine: true` from a signed-in person, which writes them as its maker (`createdById`) in the same update. They are: `PATCH /api/accounting/sales/invoices/[id]` (Issued or Paid; the draft is then dated the day it is issued, its terms kept), `POST /api/accounting/fiscalisation/issue`, `PATCH /api/accounting/sales/quotations/[id]` (Sent or Accepted), the CRM documents' email routes, and `POST /api/v2/retail/buying/orders/[id]/send` (and the bulk send, which skips it with why). Approving `retail.order.send` is the person's confirmation, so it sends with `asMine`. Witnessed in `app/api/accounting/sales/vane-drafts.test.ts`.
+
 ## What Vane may read
 
 Vane never reads as the app. It reads as one of two database roles:

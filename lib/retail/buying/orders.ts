@@ -4,6 +4,7 @@ import { writePlatformAuditEvent } from "@/lib/audit/platform";
 import { reserveIdentifier } from "@/lib/id-generator";
 import { money, quantity, sumMoney, toNumberOrZero } from "@/lib/money";
 import { prisma } from "@/lib/prisma";
+import { takeOn, VaneDraftNotTakenOn } from "@/lib/vane/drafts";
 import { auditAmount, auditRecordEdited, RETAIL_AUDIT_EVENTS, writeRetailAuditEvent, type RetailAuditActor } from "@/lib/retail/audit";
 import { BinRefusal, moveToBin } from "@/lib/retail/bin";
 import { shopName } from "@/lib/retail/messages/send-now";
@@ -67,6 +68,12 @@ export type RaiseInput = {
   askForCash?: boolean;
   noteToSupplier?: string | null;
   send: boolean;
+  /**
+   * Vane's draft (`lib/vane/draft-tool.ts`): marked `madeByVane`, with no
+   * maker, and never sent or paid for as it is raised. A person confirms it as
+   * theirs when they send it.
+   */
+  madeByVane?: boolean;
 };
 
 export type QueuedMessage = { id: string; to: string; channel: "WHATSAPP" | "EMAIL"; name: string };
@@ -309,6 +316,7 @@ export async function raiseOrder(actor: RetailAuditActor, input: RaiseInput, dep
   const site = await prisma.site.findFirst({ where: { id: input.siteId, companyId, isActive: true }, select: { id: true, name: true } });
   if (!site) throw new OrderRefusal(400, "Validation failed", { site: "Choose where it is delivered." });
   const lines = checkLines(input.lines);
+  if (input.madeByVane && (input.send || input.askForCash)) throw new OrderRefusal(409, "Vane only drafts: a person sends the order and asks for the cash.");
   if (input.send && lines.length === 0) throw new OrderRefusal(400, LINE_NEEDED, { lines: LINE_NEEDED });
   const note = input.noteToSupplier?.trim() || null;
   if (note && note.length > 500) throw new OrderRefusal(400, "Validation failed", { msg: "Keep it to 500 characters." });
@@ -341,7 +349,8 @@ export async function raiseOrder(actor: RetailAuditActor, input: RaiseInput, dep
             firstExpectedDate: input.send ? expected : null,
             payment: input.payment,
             noteToSupplier: note,
-            createdById: actor.userId,
+            createdById: input.madeByVane ? null : actor.userId,
+            madeByVane: input.madeByVane === true,
             createdAt: now,
             ...(input.send ? { sentAt: now, sentById: actor.userId, sentVia: via } : {}),
             lines: {
@@ -452,12 +461,30 @@ async function liveOrder(tx: Tx, companyId: string, id: string) {
 
 export type Sent = { id: string; poNo: string; supplier: string; sentVia: RetailOrderSentVia; messages: QueuedMessage[] };
 
-export async function sendOrder(actor: RetailAuditActor, id: string, via: RetailOrderSentVia | null, deps: OrderDeps): Promise<Sent> {
+/**
+ * Sends a draft to its supplier. Vane's draft goes only when the person
+ * sending confirms it as theirs (`asMine`), which makes them its maker in the
+ * same transaction; without it, it is refused (409).
+ */
+export async function sendOrder(
+  actor: RetailAuditActor,
+  id: string,
+  via: RetailOrderSentVia | null,
+  deps: OrderDeps,
+  confirm: { asMine?: boolean } = {},
+): Promise<Sent> {
   const now = deps.now ?? new Date();
   const [shop, slug] = await Promise.all([shopName(actor.companyId), companySlug(actor.companyId)]);
   return prisma.$transaction(async (tx) => {
     const order = await liveOrder(tx, actor.companyId, id);
     if (order.status !== "DRAFT") throw new OrderRefusal(409, alreadySent(order.poNo));
+    let maker: { createdById?: string };
+    try {
+      maker = takeOn(order, { asMine: confirm.asMine, userId: actor.userId, what: order.poNo, verb: "send" });
+    } catch (error) {
+      if (error instanceof VaneDraftNotTakenOn) throw new OrderRefusal(409, error.message);
+      throw error;
+    }
     if (order.lines.length === 0) throw new OrderRefusal(400, LINE_NEEDED);
     if (order.vendor.stoppedAt) throw new OrderRefusal(409, stoppedSupplier(order.vendor.name));
     const recipients = via === "BY_HAND" ? [] : orderRecipients(order.vendor).filter((r) => !via || r.channel === via);
@@ -465,7 +492,7 @@ export async function sendOrder(actor: RetailAuditActor, id: string, via: Retail
     // Claimed first: a second send of the same draft finds it sent.
     const claimed = await tx.retailPurchaseOrder.updateMany({
       where: { id: order.id, status: "DRAFT" },
-      data: { status: "SENT", sentAt: now, sentById: actor.userId, sentVia, firstExpectedDate: order.expectedDate },
+      data: { status: "SENT", sentAt: now, sentById: actor.userId, sentVia, firstExpectedDate: order.expectedDate, ...maker },
     });
     if (claimed.count === 0) throw new OrderRefusal(409, alreadySent(order.poNo));
     for (const line of order.lines) {
