@@ -36,7 +36,7 @@ type Version = { id: string; version: number; schemaJson: string; isPublished: b
 type Element = "page" | "header" | "labels" | "table" | "totals" | "leave" | "footer" | "notes";
 type Part = { id: string; label: string; icon: IconName; element: Element; rows?: string };
 
-const ELEMENT_ICON: Record<Element, IconName> = { page: "docs", header: "brand", labels: "sentence", table: "table", totals: "money", leave: "sun", footer: "signature", notes: "log" };
+const ELEMENT_ICON: Record<Element, IconName> = { page: "docs", header: "ws", labels: "sentence", table: "tablegrid", totals: "figure", leave: "sun", footer: "pen", notes: "docs" };
 
 /**
  * The parts a source's document is made of, in the order they print. The
@@ -56,7 +56,7 @@ export function layoutParts(sourceKey: string): Part[] {
       { id: "deductions", label: "Deductions", icon: ELEMENT_ICON.table, element: "table", rows: "The run line’s deductions" },
       { id: "net", label: "Net pay", icon: ELEMENT_ICON.totals, element: "totals", rows: "Gross, deductions and net, from the run line" },
       { id: "leave", label: "Leave left", icon: ELEMENT_ICON.leave, element: "leave", rows: "The employee’s leave, as at the period’s end" },
-      { id: "employer", label: "Employer paid", icon: ELEMENT_ICON.table, element: "table", rows: "What the company paid on their behalf" },
+      { id: "employer", label: "Employer paid", icon: "inspections", element: "table", rows: "What the company paid on their behalf" },
       { id: "notes", label: "Notes", icon: ELEMENT_ICON.notes, element: "notes" },
       foot,
     ];
@@ -366,14 +366,10 @@ function LayoutBuilderView({
       actions={
         <>
           <span className="muted rb-sample">{rendered.of ? `Showing ${rendered.of}` : "Showing a sample record"}</span>
-          {onUse ? (
-            <Button icon="file" busy={using} onClick={onUse}>
-              Use this template
-            </Button>
-          ) : null}
         </>
       }
-      publish={{ onPublish, disabled: readOnly, busy: publishing }}
+      // Corelith's own cannot be published: making it yours is the page's one action.
+      publish={onUse ? { label: "Use this template", icon: "file", onPublish: onUse, busy: using } : { onPublish, disabled: readOnly, busy: publishing }}
     />
   );
 

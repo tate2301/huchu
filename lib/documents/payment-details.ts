@@ -29,8 +29,8 @@ export function buildPaymentRows(branding: CompanyBrandingSnapshot): PaymentRow[
   const rows: Array<PaymentRow | null> = [
     branding.bankName ? { label: "Bank", value: branding.bankName } : null,
     branding.bankBranch ? { label: "Branch", value: branding.bankBranch } : null,
-    branding.bankBranchCode ? { label: "Branch Code", value: branding.bankBranchCode } : null,
-    branding.bankAddress ? { label: "Bank Address", value: branding.bankAddress } : null,
+    branding.bankBranchCode ? { label: "Branch code", value: branding.bankBranchCode } : null,
+    branding.bankAddress ? { label: "Bank address", value: branding.bankAddress } : null,
     branding.bankSwiftCode ? { label: "SWIFT/BIC", value: branding.bankSwiftCode } : null,
   ];
 
@@ -38,7 +38,7 @@ export function buildPaymentRows(branding: CompanyBrandingSnapshot): PaymentRow[
   if (accounts.length > 0) {
     for (const account of accounts) {
       if (account.accountName) {
-        rows.push({ label: `${account.currency} Account Name`, value: account.accountName });
+        rows.push({ label: `${account.currency} account name`, value: account.accountName });
       }
       if (account.accountNumber) {
         rows.push({ label: `${account.currency} Account No.`, value: account.accountNumber });
@@ -50,7 +50,7 @@ export function buildPaymentRows(branding: CompanyBrandingSnapshot): PaymentRow[
     // second account to confuse it with.
     rows.push(
       branding.bankAccountName
-        ? { label: "Account Name", value: branding.bankAccountName }
+        ? { label: "Account name", value: branding.bankAccountName }
         : null,
     );
     rows.push(

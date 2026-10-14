@@ -165,7 +165,7 @@ function customerParty(title: string, customer: CustomerParty) {
 const FINANCIAL_LINE_COLUMNS = [
   { key: "description", label: "Description" },
   { key: "quantity", label: "Qty" },
-  { key: "unitPrice", label: "Unit Price" },
+  { key: "unitPrice", label: "Unit price" },
   { key: "taxRate", label: "Tax" },
   { key: "lineTotal", label: "Amount" },
 ];
@@ -262,11 +262,11 @@ async function resolveInvoice(companyId: string, recordId: string): Promise<Sour
       badge,
       meta: [
         { label: "Invoice No.", value: invoice.invoiceNumber },
-        { label: "Issue Date", value: isoDate(invoice.invoiceDate) },
-        { label: "Due Date", value: isoDate(invoice.dueDate) },
+        { label: "Issue date", value: isoDate(invoice.invoiceDate) },
+        { label: "Due date", value: isoDate(invoice.dueDate) },
         { label: "Currency", value: invoice.currency },
       ],
-      parties: [customerParty("Bill To", invoice.customer)],
+      parties: [customerParty("Bill to", invoice.customer)],
       totals,
       notes: invoice.notes ? [invoice.notes] : [],
       links: crmResourceBlock("INVOICE", invoice.crmLeadDocuments),
@@ -316,10 +316,10 @@ async function resolveQuotation(companyId: string, recordId: string): Promise<So
       meta: [
         { label: "Quotation No.", value: quotation.quotationNumber },
         { label: "Date", value: isoDate(quotation.quotationDate) },
-        { label: "Valid Until", value: isoDate(quotation.validUntil) },
+        { label: "Valid until", value: isoDate(quotation.validUntil) },
         { label: "Currency", value: quotation.currency },
       ],
-      parties: [customerParty("Prepared For", quotation.customer)],
+      parties: [customerParty("Prepared for", quotation.customer)],
       totals: [
         { label: "Subtotal", value: `${quotation.currency} ${fmtMoney(quotation.subTotal)}` },
         ...(quotation.taxTotal > 0
@@ -390,7 +390,7 @@ async function resolveReceipt(companyId: string, recordId: string): Promise<Sour
     sourceKey: "accounting.sales.receipt",
     fileName: `receipt-${receipt.receiptNumber}.pdf`,
     payload: {
-      title: "Payment Receipt",
+      title: "Payment receipt",
       subtitle: receipt.receiptNumber,
       badge: { label: "Payment received", tone: "positive" },
       meta: [
@@ -400,7 +400,7 @@ async function resolveReceipt(companyId: string, recordId: string): Promise<Sour
         ...(receipt.bankAccount?.name ? [{ label: "Bank", value: receipt.bankAccount.name }] : []),
       ],
       parties: receipt.invoice?.customer
-        ? [customerParty("Received From", receipt.invoice.customer)]
+        ? [customerParty("Received from", receipt.invoice.customer)]
         : [],
       totals: [
         { label: "Amount received", value: `${currency} ${fmtMoney(receipt.amount)}`, emphasis: true },
@@ -450,7 +450,7 @@ async function resolveCreditNote(companyId: string, recordId: string): Promise<S
     sourceKey: "accounting.sales.credit-note",
     fileName: `credit-note-${note.noteNumber}.pdf`,
     payload: {
-      title: "Credit Note",
+      title: "Credit note",
       subtitle: note.noteNumber,
       badge:
         note.status === "ISSUED"
@@ -459,10 +459,10 @@ async function resolveCreditNote(companyId: string, recordId: string): Promise<S
       meta: [
         { label: "Credit Note No.", value: note.noteNumber },
         { label: "Date", value: isoDate(note.noteDate) },
-        { label: "Against Invoice", value: note.invoice?.invoiceNumber ?? "—" },
+        { label: "Against invoice", value: note.invoice?.invoiceNumber ?? "—" },
         { label: "Currency", value: currency },
       ],
-      parties: note.invoice?.customer ? [customerParty("Credited To", note.invoice.customer)] : [],
+      parties: note.invoice?.customer ? [customerParty("Credited to", note.invoice.customer)] : [],
       totals: [{ label: "Total credited", value: `${currency} ${fmtMoney(note.total)}`, emphasis: true }],
       notes: note.reason ? [note.reason] : [],
       record: {
@@ -470,7 +470,7 @@ async function resolveCreditNote(companyId: string, recordId: string): Promise<S
         lineColumns: [
           { key: "description", label: "Description" },
           { key: "quantity", label: "Qty" },
-          { key: "unitPrice", label: "Unit Price" },
+          { key: "unitPrice", label: "Unit price" },
           { key: "lineTotal", label: "Amount" },
         ],
         lines: lineRows,
@@ -515,7 +515,7 @@ async function resolveShiftList(companyId: string, filters: Record<string, strin
     sourceKey: "reports.shift",
     fileName: "shift-report.pdf",
     payload: {
-      title: "Shift Report",
+      title: "Shift report",
       subtitle: "Operational shift entries",
       list: {
         columns: [
@@ -524,7 +524,7 @@ async function resolveShiftList(companyId: string, filters: Record<string, strin
           { key: "site", label: "Site" },
           { key: "section", label: "Section" },
           { key: "crewCount", label: "Crew" },
-          { key: "workType", label: "Work Type" },
+          { key: "workType", label: "Work type" },
           { key: "outputTonnes", label: "Tonnes" },
           { key: "outputTrips", label: "Trips" },
           { key: "status", label: "Status" },
@@ -573,7 +573,7 @@ async function resolveAttendanceList(companyId: string, filters: Record<string, 
     sourceKey: "reports.attendance",
     fileName: "attendance-report.pdf",
     payload: {
-      title: "Attendance Report",
+      title: "Attendance report",
       subtitle: "Attendance and shift status",
       list: {
         rows: exportRows,
@@ -613,7 +613,7 @@ async function resolvePlantList(companyId: string, filters: Record<string, strin
     sourceKey: "reports.plant",
     fileName: "plant-report.pdf",
     payload: {
-      title: "Plant Report",
+      title: "Plant report",
       subtitle: "Processing and output history",
       list: {
         rows: exportRows,
@@ -643,13 +643,13 @@ async function resolveDashboardSummary(companyId: string): Promise<SourceResolut
     sourceKey: "dashboard.executive-summary",
     fileName: "dashboard-summary.pdf",
     payload: {
-      title: "Executive Dashboard Summary",
+      title: "Executive dashboard summary",
       dashboard: {
         metrics: [
           { label: "Users", value: users.toLocaleString() },
-          { label: "Active Workers", value: employees.toLocaleString() },
-          { label: "Open Work Orders", value: openWorkOrders.toLocaleString() },
-          { label: "Draft Invoices", value: draftInvoices.toLocaleString() },
+          { label: "Active workers", value: employees.toLocaleString() },
+          { label: "Open work orders", value: openWorkOrders.toLocaleString() },
+          { label: "Draft invoices", value: draftInvoices.toLocaleString() },
           { label: "Shift Reports (30d)", value: reports.toLocaleString() },
         ],
       },

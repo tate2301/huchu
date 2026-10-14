@@ -72,9 +72,9 @@ const BLOCK_ICONS: Record<BlockType, IconName> = {
   image: "brand",
   table: "table",
   lineItems: "tablegrid",
-  totals: "money",
+  totals: "figure",
   signature: "signature",
-  terms: "log",
+  terms: "docs",
   columns: "columns",
 };
 

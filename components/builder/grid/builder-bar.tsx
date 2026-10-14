@@ -2,7 +2,7 @@
 
 import * as React from "react";
 
-import { Button, Icon, Kbd, Segmented, useShortcut } from "@/components/core";
+import { Button, Icon, Kbd, Segmented, useShortcut, type IconName } from "@/components/core";
 
 import type { BuilderMode } from "./builder-grid";
 
@@ -29,7 +29,8 @@ export function BuilderBar({
   onMode: (mode: BuilderMode) => void;
   saved: SavedState;
   actions?: React.ReactNode;
-  publish: { label?: string; onPublish: () => void; disabled?: boolean; busy?: boolean };
+  /** The bar's primary: Publish, or what stands for it where nothing can be published (Use this template). */
+  publish: { label?: string; icon?: IconName; onPublish: () => void; disabled?: boolean; busy?: boolean };
 }) {
   useShortcut("P", () => onMode(mode === "build" ? "preview" : "build"));
   return (
@@ -77,7 +78,7 @@ export function BuilderBar({
         {actions}
         <Button
           variant="primary"
-          icon="publish"
+          icon={publish.icon ?? "publish"}
           shortcut="Ctrl ↵"
           onClick={publish.onPublish}
           disabled={publish.disabled}

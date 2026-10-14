@@ -225,7 +225,7 @@ describe("the payslip shows the working, not just the net figure", () => {
     expect(meta.get("Employee number")).toBe("EMP-PS-1");
     expect(meta.get("Position")).toBe("Accounts Clerk");
     expect(meta.get("Department")).toBe("Finance");
-    expect(meta.get("Pay period")).toBe("2026-08");
+    expect(meta.get("Pay period")).toBe("August 2026");
     // On the payslip because ZIMRA and NSSA identify her by these.
     expect(meta.get("Tax (BP) number")).toBe("BP1234567");
     expect(meta.get("NSSA number")).toBe("NSSA-0001");
@@ -238,11 +238,11 @@ describe("the payslip shows the working, not just the net figure", () => {
     )!;
     const rows = new Map(section.rows.map((r) => [r.label, r.value]));
 
-    expect(rows.get("Gross pay")).toBe("1000.00");
+    expect(rows.get("Gross pay")).toBe("US$1,000.00");
     // Not the same as gross: NSSA came off first. Without this line an employee
     // cannot check their own PAYE against the ZIMRA table.
-    expect(rows.get("Taxable gross")).toBe("968.50");
-    expect(rows.get("Net pay")).toBe("755.16");
+    expect(rows.get("Taxable gross")).toBe("US$968.50");
+    expect(rows.get("Net pay")).toBe("US$755.16");
   });
 
   it("shows the CEILING NSSA was capped at, not the salary", async () => {
@@ -276,8 +276,8 @@ describe("the payslip shows the working, not just the net figure", () => {
 
     // And they are in no total the employee could mistake for their own money.
     const totals = new Map(doc.payload.totals!.map((t) => [t.label, t.value]));
-    expect(totals.get("Gross pay")).toBe("1000.00");
-    expect(totals.get("Net pay")).toBe("755.16");
+    expect(totals.get("Gross pay")).toBe("US$1,000.00");
+    expect(totals.get("Net pay")).toBe("US$755.16");
 
     expect(
       doc.payload.notes!.some((note) => note.includes("not deducted from your pay")),
@@ -314,7 +314,7 @@ describe("the payslip shows the working, not just the net figure", () => {
       doc.payload.notes!.some((note) => note.includes("yours to declare")),
     ).toBe(true);
     const totals = new Map(doc.payload.totals!.map((t) => [t.label, t.value]));
-    expect(totals.get("Net pay")).toBe("1500.00");
+    expect(totals.get("Net pay")).toBe("US$1,500.00");
   });
 
   it("asks an employee with no BP number for it", async () => {

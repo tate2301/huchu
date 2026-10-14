@@ -15,13 +15,13 @@ const SAMPLE_LINES = [
 const SAMPLE_LINE_COLUMNS = [
   { key: "description", label: "Description" },
   { key: "quantity", label: "Qty" },
-  { key: "unitPrice", label: "Unit Price" },
+  { key: "unitPrice", label: "Unit price" },
   { key: "taxRate", label: "Tax" },
   { key: "lineTotal", label: "Amount" },
 ];
 
 const SAMPLE_PARTY = {
-  title: "Bill To",
+  title: "Bill to",
   lines: ["Acme Retail (Pvt) Ltd", "Jane Moyo", "12 Samora Machel Ave, Harare", "+263 77 123 4567", "accounts@acme.co.zw"],
 };
 
@@ -32,8 +32,8 @@ function invoiceSample(): UniversalDocumentPayload {
     badge: { label: "Awaiting payment", tone: "warning" },
     meta: [
       { label: "Invoice No.", value: "INV-20260724-1015-482" },
-      { label: "Issue Date", value: "2026-07-24" },
-      { label: "Due Date", value: "2026-08-07" },
+      { label: "Issue date", value: "2026-07-24" },
+      { label: "Due date", value: "2026-08-07" },
       { label: "Currency", value: "USD" },
     ],
     parties: [SAMPLE_PARTY],
@@ -58,10 +58,10 @@ function quotationSample(): UniversalDocumentPayload {
     meta: [
       { label: "Quotation No.", value: "QTN-20260724-0930-217" },
       { label: "Date", value: "2026-07-24" },
-      { label: "Valid Until", value: "2026-08-24" },
+      { label: "Valid until", value: "2026-08-24" },
       { label: "Currency", value: "USD" },
     ],
-    parties: [{ ...SAMPLE_PARTY, title: "Prepared For" }],
+    parties: [{ ...SAMPLE_PARTY, title: "Prepared for" }],
     totals: [
       { label: "Subtotal", value: "USD 670.00" },
       { label: "Tax", value: "USD 93.00" },
@@ -73,7 +73,7 @@ function quotationSample(): UniversalDocumentPayload {
 
 function receiptSample(): UniversalDocumentPayload {
   return {
-    title: "Payment Receipt",
+    title: "Payment receipt",
     subtitle: "REC-20260724-1130-664",
     badge: { label: "Payment received", tone: "positive" },
     meta: [
@@ -81,7 +81,7 @@ function receiptSample(): UniversalDocumentPayload {
       { label: "Date", value: "2026-07-24" },
       { label: "Method", value: "Bank transfer" },
     ],
-    parties: [{ ...SAMPLE_PARTY, title: "Received From" }],
+    parties: [{ ...SAMPLE_PARTY, title: "Received from" }],
     totals: [{ label: "Amount received", value: "USD 300.00", emphasis: true }],
     notes: ["Thank you for your payment. Applied to invoice INV-20260724-1015-482."],
     record: {
@@ -125,12 +125,12 @@ function reportSample(): UniversalDocumentPayload {
 
 function dashboardSample(): UniversalDocumentPayload {
   return {
-    title: "Executive Summary",
+    title: "Executive summary",
     subtitle: "Sample export",
     dashboard: {
       metrics: [
         { label: "Revenue", value: "USD 12,480", detail: "+8% vs last period" },
-        { label: "Open Orders", value: "23" },
+        { label: "Open orders", value: "23" },
         { label: "Collections", value: "USD 9,210" },
       ],
       notes: ["Figures shown are sample data for template preview."],
@@ -263,7 +263,7 @@ export function getSamplePayload(sourceKey: string): UniversalDocumentPayload {
     case "accounting.sales.credit-note":
       return {
         ...quotationSample(),
-        title: "Credit Note",
+        title: "Credit note",
         subtitle: "CRN-20260724-002",
         badge: { label: "Issued", tone: "positive" },
         totals: [{ label: "Total credited", value: "USD 120.00", emphasis: true }],

@@ -1,13 +1,15 @@
 import { prisma } from "@/lib/prisma";
 import {
+  DEFAULT_FONT_KEY,
   DOCUMENT_MONO_FONT_FAMILY,
   getDocumentFontByKey,
   getEffectiveBrandingForCompany,
 } from "@/lib/platform/branding";
 import type { CompanyBrandingSnapshot } from "@/lib/documents/types";
+import { productForProfile } from "@/lib/theme/products";
 
 export async function getDocumentBranding(companyId: string): Promise<CompanyBrandingSnapshot> {
-  const [effective, raw, bankAccounts] = await Promise.all([
+  const [effective, raw, bankAccounts, company] = await Promise.all([
     getEffectiveBrandingForCompany(companyId),
     prisma.companyBranding.findUnique({
       where: { companyId },
@@ -59,11 +61,15 @@ export async function getDocumentBranding(companyId: string): Promise<CompanyBra
       orderBy: [{ documentPosition: "asc" }, { currency: "asc" }],
       select: { currency: true, accountName: true, accountNumber: true },
     }),
+    prisma.company.findUnique({ where: { id: companyId }, select: { workspaceProfile: true } }),
   ]);
 
   // `effective.fontFamily` is the app's value and is built on CSS variables
   // that only exist inside the app. A document needs the resolved face.
-  const documentFont = getDocumentFontByKey(effective.fontFamilyKey);
+  // The product's own face is the default: Corelith's paper reads in Inter, as the Build boards
+  // draw it; the shop's (Tender) keeps Atkinson Hyperlegible Next. A face the workspace chose wins.
+  const corelithDefault = effective.fontFamilyKey === DEFAULT_FONT_KEY && productForProfile(company?.workspaceProfile) === "corelith";
+  const documentFont = getDocumentFontByKey(corelithDefault ? "inter" : effective.fontFamilyKey);
 
   return {
     displayName: effective.displayName,

@@ -4,8 +4,8 @@
   The board draws an A4 sheet at 540px, so its own numbers are a ~0.7 scale of
   the real page: 9px body, 8px column headers. What is scale-free is the
   *ratio* between them and the rules they sit on, so this file restates the
-  board at 1x against the contract's type ladder — 13px body, 11px uppercase
-  micro label, mono tabular figures — rather than copying a thumbnail's
+  board at 1x against the contract's type ladder — 13px body, 12px
+  sentence-case label, tabular figures in the body's face — rather than copying a thumbnail's
   font-size into a page somebody will read at arm's length.
 
   One sheet, three audiences: the builder's preview, the public form somebody
@@ -29,7 +29,6 @@
     --d-rule-strong: var(--border-strong); /* #D2D7E0 */
     --d-tile: var(--canvas); /* #F7F8FA */
     --d-brand: var(--brand); /* #0B5DF0 */
-    --d-mono: var(--font-mono);
 
     display: flex;
     flex-direction: column;
@@ -69,19 +68,14 @@
   }
 
   /*
-    The document's micro label — BILLED TO, DUE, ITEM, PAYMENT DETAILS.
-
-    Uppercase with .08em tracking is the one place the contract allows it: a
-    printed document's column captions are a typographic convention older than
-    the screen, and the board draws them that way. It is not the register list
-    header, which stays sentence case.
+    The document's label — Billed to, Due, Item, Payment details. Sentence
+    case in the body's face, a step quieter than the body: the Build boards
+    draw the paper's captions that way (BuildDocument's "Item, Qty, Price").
   */
   .micro {
     display: block;
-    font: 500 11px/1 var(--font-sans);
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    color: var(--d-faint);
+    font: 500 12px/1.2 var(--font-sans);
+    color: var(--d-label);
   }
 
   .muted {
@@ -219,15 +213,18 @@
     padding: 0 0 7px;
     text-align: left;
     border-bottom: 1px solid var(--d-rule-strong);
-    font: 500 11px/1 var(--font-sans);
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    color: var(--d-faint);
+    font: 500 12px/1.2 var(--font-sans);
+    color: var(--d-label);
     white-space: nowrap;
   }
   .th + .th,
   .thNum {
     text-align: right;
+  }
+  /* Figures keep apart from the column before them, however narrow the paper. */
+  .th + .th,
+  .td + .td {
+    padding-left: 12px;
   }
   .td {
     padding: 10px 0;
@@ -242,7 +239,7 @@
   */
   .tdNum {
     text-align: right;
-    font: 400 13px/1.4 var(--d-mono);
+    font: 400 13px/1.4 var(--font-sans);
     font-variant-numeric: tabular-nums;
     white-space: nowrap;
   }
@@ -286,7 +283,6 @@
     margin: 0;
   }
   .totalsRow dd {
-    font-family: var(--d-mono);
     font-variant-numeric: tabular-nums;
     color: var(--d-body);
   }
@@ -305,7 +301,6 @@
     margin: 0;
   }
   .totalsGrand dd {
-    font-family: var(--d-mono);
     font-variant-numeric: tabular-nums;
   }
 

@@ -13,6 +13,7 @@ import { Prisma } from "@prisma/client";
 import type { LeaveBalance } from "@/lib/people/leave/balances";
 import { PAYSLIP_EMPLOYER_TITLE, PAYSLIP_EMPLOYER_TOTAL, PAYSLIP_LEAVE_TITLE, PAYSLIP_PENALTY_NOTE } from "@/lib/documents/payslip-rows";
 import type { UniversalDocumentPayload } from "@/lib/documents/types";
+import { formatDay, formatMoney } from "@/lib/workspace/format";
 
 type Money = Prisma.Decimal;
 
@@ -67,13 +68,33 @@ export type PayslipLeave = { name: string; remaining: Money; entitled: Money };
 
 const ZERO = new Prisma.Decimal(0);
 
+const figures = new Intl.NumberFormat("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+/** A figure in the working's table: "1,450.00". */
 function money(value: Money | null | undefined): string {
-  return (value ?? ZERO).toFixed(2);
+  return figures.format(Number((value ?? ZERO).toFixed(2)));
 }
 
+/** "23 October 2026". */
 function day(value: Date | null | undefined): string {
   if (!value) return "—";
-  return value.toISOString().slice(0, 10);
+  // A pay period's days are calendar days, stored at UTC; read them there.
+  return formatDay(value, "UTC");
+}
+
+/** A run's status as a word: "SUBMITTED" is "Submitted". */
+function sentence(status: string): string {
+  const lower = status.replace(/_/g, " ").toLowerCase();
+  return lower.charAt(0).toUpperCase() + lower.slice(1);
+}
+
+const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+
+/** A pay period's key as it reads: "2026-10" is "October 2026"; any other key prints as it is. */
+function periodLabel(key: string): string {
+  const match = /^(\d{4})-(\d{2})$/.exec(key);
+  const month = match ? MONTHS[Number(match[2]) - 1] : undefined;
+  return match && month ? `${month} ${match[1]}` : key;
 }
 
 function slug(value: string): string {
@@ -134,6 +155,9 @@ export function payslipPayload(
 ): { fileName: string; payload: UniversalDocumentPayload; rows: Array<Record<string, unknown>> } {
   const { employee, run } = line;
 
+  // A figure that stands on its own (a total, a section's row) carries the line's currency.
+  const cash = (value: Money | null | undefined) => formatMoney(Number((value ?? ZERO).toFixed(2)), line.currency);
+
   // Three groups, because they mean three different things and a single list
   // would let an employer contribution read as a deduction from the wage.
   const earnings = line.components.filter((component) => component.type === "ALLOWANCE" && !isCredit(component.statutoryKey));
@@ -183,7 +207,7 @@ export function payslipPayload(
     stage: component.name,
     rate: rateLabel(component),
     calculatedOn: component.basis ? money(component.basis) : "",
-    amount: money(component.amount),
+    amount: cash(component.amount),
   }));
 
   const isForeignCurrency = !line.exchangeRate.equals(1);
@@ -216,13 +240,13 @@ export function payslipPayload(
     rows,
     payload: {
       title: "Payslip",
-      subtitle: `${employee.name} — ${run.period.periodKey}`,
+      subtitle: `${employee.name}, ${periodLabel(run.period.periodKey)}`,
       meta: [
         { label: "Employee", value: employee.name },
         { label: "Employee number", value: employee.employeeId },
         ...(employee.jobTitle ? [{ label: "Position", value: employee.jobTitle }] : []),
         ...(employee.department?.name ? [{ label: "Department", value: employee.department.name }] : []),
-        { label: "Pay period", value: run.period.periodKey },
+        { label: "Pay period", value: periodLabel(run.period.periodKey) },
         { label: "Period", value: `${day(run.period.startDate)} to ${day(run.period.endDate)}` },
         { label: "Currency", value: line.currency },
         // On the payslip because ZIMRA and NSSA identify the person by these,
@@ -230,19 +254,19 @@ export function payslipPayload(
         { label: "Tax (BP) number", value: employee.taxNumber?.trim() || "Not on file" },
         { label: "NSSA number", value: employee.nssaNumber?.trim() || "Not on file" },
       ],
-      badge: run.status === "APPROVED" ? { label: "APPROVED", tone: "positive" } : { label: run.status, tone: "warning" },
+      badge: run.status === "APPROVED" ? { label: "Approved", tone: "positive" } : { label: sentence(run.status), tone: "warning" },
       record: {
         sections: [
           {
             title: "How your pay was worked out",
             rows: [
-              { label: "Basic salary", value: money(line.baseAmount) },
-              { label: "Gross pay", value: money(line.grossAmount) },
+              { label: "Basic salary", value: cash(line.baseAmount) },
+              { label: "Gross pay", value: cash(line.grossAmount) },
               // The slice PAYE was actually struck on — gross less the
               // non-taxable allowances, NSSA and the pre-tax deductions.
-              { label: "Taxable gross", value: money(line.taxableGross) },
-              { label: "Total deductions", value: money(line.deductionsTotal) },
-              { label: "Net pay", value: money(line.netAmount) },
+              { label: "Taxable gross", value: cash(line.taxableGross) },
+              { label: "Total deductions", value: cash(line.deductionsTotal) },
+              { label: "Net pay", value: cash(line.netAmount) },
             ],
           },
           ...(leave.length > 0 ? [{ title: PAYSLIP_LEAVE_TITLE, rows: leave.map((entry) => ({ label: entry.name, value: leaveLeftValue(entry) })) }] : []),
@@ -255,7 +279,7 @@ export function payslipPayload(
                       label: row.calculatedOn ? `${row.stage} (${row.rate || "fixed"} of ${row.calculatedOn})` : row.stage,
                       value: row.amount,
                     })),
-                    { label: PAYSLIP_EMPLOYER_TOTAL, value: money(line.employerCost) },
+                    { label: PAYSLIP_EMPLOYER_TOTAL, value: cash(line.employerCost) },
                   ],
                 },
               ]
@@ -272,9 +296,9 @@ export function payslipPayload(
         ],
       },
       totals: [
-        { label: "Gross pay", value: money(line.grossAmount) },
-        { label: "Total deductions", value: money(line.deductionsTotal) },
-        { label: "Net pay", value: money(line.netAmount), emphasis: true },
+        { label: "Gross pay", value: cash(line.grossAmount) },
+        { label: "Total deductions", value: cash(line.deductionsTotal) },
+        { label: "Net pay", value: cash(line.netAmount), emphasis: true },
       ],
       notes,
       // What a row added in Build can be filled from (`payslip-rows.ts`).

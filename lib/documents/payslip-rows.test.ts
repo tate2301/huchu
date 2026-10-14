@@ -187,6 +187,6 @@ describe("the payslip layout's page", () => {
       PAYSLIP_LEAVE_TITLE,
       PAYSLIP_EMPLOYER_TITLE,
     ]);
-    expect(sample.totals!.at(-1)).toEqual({ label: "Net pay", value: "591.81", emphasis: true });
+    expect(sample.totals!.at(-1)).toEqual({ label: "Net pay", value: "US$591.81", emphasis: true });
   });
 });
