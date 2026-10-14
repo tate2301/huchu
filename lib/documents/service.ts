@@ -11,6 +11,7 @@ import {
   type SourceResolutionInput,
 } from "@/lib/documents/source-registry";
 import { resolveTemplate } from "@/lib/documents/template-resolver";
+import type { DocumentTemplateSchema } from "@/lib/documents/template-schema";
 import { getDocumentBranding } from "@/lib/documents/branding-snapshot";
 import { renderXlsx } from "@/lib/documents/xlsx-renderer";
 
@@ -87,6 +88,32 @@ function shouldQueueJob(input: DocumentRenderRequest, rowCount: number): boolean
 export function attachmentDisposition(fileName: string): string {
   const plain = fileName.replace(/[^\x20-\x7e]/g, "_").replace(/["\\]/g, "_");
   return `attachment; filename="${plain}"; filename*=UTF-8''${encodeURIComponent(fileName)}`;
+}
+
+/**
+ * A record as its PDF would print it, as HTML, for a page to show without
+ * starting Chromium: the same source, template and branding as
+ * `renderDocumentSync`'s PDF. A `schema` given in place of the stored one
+ * previews a layout before it is saved.
+ */
+export async function renderDocumentPreview(
+  companyId: string,
+  input: SourceResolutionInput & { templateId?: string; templateVersionId?: string; schema?: DocumentTemplateSchema },
+  context: SourceContext = { actorId: null },
+): Promise<string> {
+  const source = await resolveSourcePayload(companyId, input, context);
+  const template = input.schema
+    ? { templateSchema: input.schema }
+    : await resolveTemplate({
+        companyId,
+        documentType: source.documentType,
+        targetType: source.targetType,
+        sourceKey: source.sourceKey,
+        templateId: input.templateId,
+        templateVersionId: input.templateVersionId,
+      });
+  const branding = await getDocumentBranding(companyId);
+  return renderDocumentHtml({ payload: source.payload, branding, template: template.templateSchema });
 }
 
 export async function renderDocumentSync(

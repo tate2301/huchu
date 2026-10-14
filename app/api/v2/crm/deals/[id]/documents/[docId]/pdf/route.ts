@@ -3,18 +3,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { errorResponse, validateSession } from "@/lib/api-utils";
 import { prisma } from "@/lib/prisma";
 import { renderDocumentSync } from "@/lib/documents/service";
+import { CRM_DOCUMENT_SOURCE_KEYS } from "@/lib/crm/document-sources";
 
 export const runtime = "nodejs";
 // Rendering spins up Chromium. A cold start plus the render itself runs well
 // past the platform's default function budget, and the timeout surfaced as an
 // unexplained failure with nothing in the logs.
 export const maxDuration = 120;
-
-const SOURCE_KEYS = {
-  QUOTATION: "accounting.sales.quotation",
-  INVOICE: "accounting.sales.invoice",
-  RECEIPT: "accounting.sales.receipt",
-} as const;
 
 /**
  * Render a lead's quotation, invoice, or receipt as a branded PDF.
@@ -48,7 +43,7 @@ export async function GET(
 
     const rendered = await renderDocumentSync(session.user.companyId, {
       target: "RECORD",
-      sourceKey: SOURCE_KEYS[doc.type],
+      sourceKey: CRM_DOCUMENT_SOURCE_KEYS[doc.type],
       recordId,
       format: "pdf",
       mode: "SYNC",
