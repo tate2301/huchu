@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { proposeActions, type ActionProposal } from "./actions/engine";
 import { VANE_ACTIONS } from "./actions/registry";
 import { VANE_PAGES_GUIDE } from "./pages";
+import { VANE_SUBJECTS } from "./panel";
 import { readWorkspace, ReaderError, tablesFor, withReader, type ReadableTable } from "./reader";
 
 /**
@@ -178,7 +179,10 @@ const proposeItem = tool({
         .optional()
         .describe("The page it opens, with the filters that show just these records: \"/books/invoices?view=overdue&customer=<id>\". See the pages list."),
     }),
-    subjectType: z.string().max(60).optional().describe('The record it is about, if one: "SalesInvoice".'),
+    subjectType: z
+      .enum(VANE_SUBJECTS)
+      .optional()
+      .describe("The one record it is about, when there is one; the card then shows on that record's page too (a deal's, a lead's, a company's)."),
     subjectId: z.string().max(60).optional(),
     sql: z.string().max(20_000).optional(),
     readFrom: z

@@ -87,6 +87,7 @@ import { VisitsTab } from "./visits-tab";
 import { LeadScoreCard } from "./lead-score-card";
 import type { LeadAppointment, LeadDetail } from "./lead-types";
 import { RecordGroupsControl } from "@/components/crm/registers/record-groups-control";
+import { VaneRecordSection } from "@/components/vane/vane-record-section";
 
 /** Measurements captured on site, shaped into quotation lines for the builder. */
 function draftsToLines(drafts: MeasurementDraft[]): CrmDocumentLineInput[] {
@@ -685,6 +686,8 @@ export function LeadDetailPage({ leadId }: { leadId: string }) {
               </p>
             )}
           </RailSection>
+
+          <VaneRecordSection type="CrmLead" id={leadId} noun="lead" />
 
           {nextVisit ? (
             <RailSection title="Next visit">

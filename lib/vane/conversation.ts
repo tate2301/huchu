@@ -1,6 +1,6 @@
 import type Anthropic from "@anthropic-ai/sdk";
 
-import { converse, VaneError, type MessagesClient, type Usage } from "./claude";
+import { converse, VaneError, type MessagesClient, type Usage, type VaneSystem } from "./claude";
 import { callTool, toolDefinitions, type ToolContext } from "./tools";
 
 /** Turns of Claude in one conversation: tool calls, then the closing answer. */
@@ -25,7 +25,7 @@ export async function runConversation({
   client,
   onTool,
 }: {
-  system: string;
+  system: VaneSystem;
   messages: Anthropic.MessageParam[];
   context: ToolContext;
   /** Epoch ms by which it must finish. */

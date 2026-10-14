@@ -7,7 +7,7 @@ import { fetchJson } from "@/lib/api-client";
 import type { VaneActionView } from "@/lib/vane/actions/engine";
 import type { ChatEvent, VaneChatMessage } from "@/lib/vane/chat";
 import type { VaneDoneView, VaneMutedRow, VanePlanRow, VaneWorkRow } from "@/lib/vane/lists";
-import type { VanePanel } from "@/lib/vane/panel";
+import type { VaneCard, VanePanel, VaneSubject } from "@/lib/vane/panel";
 import type { VaneWatchable } from "@/lib/vane/settings";
 import type { VaneStatus } from "@/lib/vane/status";
 
@@ -158,7 +158,7 @@ export function useVaneAsk() {
   const [error, setError] = React.useState<string | null>(null);
 
   const ask = React.useCallback(
-    async (text: string, module: string | null) => {
+    async (text: string, module: string | null, path: string | null = null) => {
       setError(null);
       setWorking("Reading your question");
       const mine: VaneChatMessage = { id: `mine-${Date.now()}`, author: "person", text, createdAt: new Date().toISOString(), actions: [] };
@@ -168,7 +168,7 @@ export function useVaneAsk() {
           method: "POST",
           credentials: "include",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ text, module }),
+          body: JSON.stringify({ text, module, path }),
         });
         if (!response.ok || !response.body) {
           const payload = await response.json().catch(() => null);
@@ -202,6 +202,17 @@ export function useVaneAsk() {
   );
 
   return { ask, working, error, clearError: () => setError(null) };
+}
+
+/** Vane's open cards about one record, for its page; nothing for a person Vane is not open to. */
+export function useVaneRecord(type: VaneSubject, id: string | null) {
+  return useQuery({
+    queryKey: ["vane", "record", type, id],
+    queryFn: () => fetchJson<VaneCard[]>(`/api/vane/record?type=${type}&id=${encodeURIComponent(id ?? "")}`),
+    enabled: Boolean(id),
+    retry: false,
+    refetchInterval: 60_000,
+  });
 }
 
 /** A person approves one of Vane's actions (with the inputs they changed) or denies it. */

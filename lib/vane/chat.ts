@@ -65,9 +65,13 @@ function workingLabel(tool: string, input: unknown): string {
   }
 }
 
-const CHAT = (who: Who, page: string | null) => `
+const CHAT = (who: Who) => `You are talking with ${who.name ?? "a person"} (${who.role.toLowerCase().replace(/_/g, " ")}) in the Vane panel. Each of their messages may start with where they are in the app, in brackets: a record id in that address is what they mean by "this", so read that record first when they ask about it. Answer what they ask, in a few short sentences, first person, with names and exact amounts. When what you find can be done, propose it with propose_actions, one per record, so they approve or deny each; then say in a sentence what you proposed. When they ask for something only they can do, say where. Write every link as [words](/path?filters), never a bare path. Never say you did something you only proposed.`;
 
-You are talking with ${who.name ?? "a person"} (${who.role.toLowerCase().replace(/_/g, " ")}) in the Vane panel${page ? `, on ${page}` : ""}. Answer what they ask, in a few short sentences, first person, with names and exact amounts. When what you find can be done, propose it with propose_actions, one per record, so they approve or deny each; then say in a sentence what you proposed. When they ask for something only they can do, say where. Write every link as [words](/path?filters), never a bare path. Never say you did something you only proposed.`;
+/** Where the person is, ahead of their words: "[In CRM, on /crm/deals/9f1c] ". In the message, not the instructions, so the cached prompt is the same on every page. */
+function whereabouts(module: string | null, path: string | null): string {
+  const parts = [module ? `in ${module}` : null, path ? `on ${path}` : null].filter(Boolean);
+  return parts.length ? `[${parts.join(", ").replace(/^./, (first) => first.toUpperCase())}] ` : "";
+}
 
 /** This person's conversation, oldest first, with the actions on each answer. */
 export async function chatHistory(
@@ -93,7 +97,7 @@ export async function chatHistory(
 }
 
 /** The conversation as Claude reads it: alternating turns, starting with the person's. */
-function asMessages(history: Array<{ author: "PERSON" | "VANE"; text: string }>): Anthropic.MessageParam[] {
+function asMessages(history: Array<{ author: "PERSON" | "VANE"; text: string }>, question: string): Anthropic.MessageParam[] {
   const messages: Anthropic.MessageParam[] = [];
   for (const turn of history) {
     const role = turn.author === "PERSON" ? "user" : "assistant";
@@ -101,6 +105,13 @@ function asMessages(history: Array<{ author: "PERSON" | "VANE"; text: string }>)
     if (last?.role === role && typeof last.content === "string") last.content = `${last.content}\n\n${turn.text}`;
     else if (messages.length > 0 || role === "user") messages.push({ role, content: turn.text });
   }
+  // The conversation so far is the same next turn: marked, it is read back from the cache, not paid for again.
+  const last = messages[messages.length - 1];
+  if (!last || typeof last.content !== "string") return [...messages, { role: "user", content: question }];
+  const marked: Anthropic.TextBlockParam = { type: "text", text: last.content, cache_control: { type: "ephemeral" } };
+  // A turn that went unanswered: the new words join it, after the mark.
+  last.content = last.role === "user" ? [marked, { type: "text", text: question }] : [marked];
+  if (last.role === "assistant") messages.push({ role: "user", content: question });
   return messages;
 }
 
@@ -113,7 +124,7 @@ function asMessages(history: Array<{ author: "PERSON" | "VANE"; text: string }>)
 export async function chatTurn(
   db: PrismaClient,
   who: Who,
-  { text, module }: { text: string; module?: string | null },
+  { text, module, path }: { text: string; module?: string | null; /** The page they have open: "/crm/deals/<id>". */ path?: string | null },
   { onEvent, client, now = () => new Date() }: { onEvent: (event: ChatEvent) => void; client?: MessagesClient; now?: () => Date },
 ): Promise<void> {
   const settings = await db.vaneSettings.findUnique({ where: { companyId: who.companyId }, select: { paused: true, monthlyAllowance: true } });
@@ -154,8 +165,8 @@ export async function chatTurn(
   try {
     const tables = [...(await tablesFor(who.companyId)).values()].map((table) => table.name).sort();
     const outcome = await runConversation({
-      system: vaneRules(tables) + CHAT(who, module ? moduleName(module) : null),
-      messages: asMessages([...earlier.reverse(), { author: "PERSON", text }]),
+      system: { shared: vaneRules(tables), context: CHAT(who) },
+      messages: asMessages(earlier.reverse(), `${whereabouts(module ? moduleName(module) : null, path ?? null)}${text}`),
       context: { companyId: who.companyId, jobId: job.id, answerActions },
       deadline: Date.now() + TURN_MS,
       client,

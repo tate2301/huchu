@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { moduleName, vanePanel } from "./panel";
+import { moduleName, vaneOnRecord, vanePanel } from "./panel";
 import { audienceFilter } from "./status";
 
 function fakeDb(items: Array<Record<string, unknown>>) {
@@ -56,5 +56,21 @@ describe("the Vane panel", () => {
       ],
     });
     expect(audienceFilter("u1", null).AND[1]).toEqual({ OR: [{ audienceRole: null }] });
+  });
+
+  it("shows a record's page only the open cards about that record, to the people who see them", async () => {
+    let asked: Record<string, unknown> | null = null;
+    const db = {
+      vaneItem: {
+        findMany: async ({ where }: { where: Record<string, unknown> }) => {
+          asked = where;
+          return [item("pomona", "crm", { label: "Open it", target: "/crm/deals/d1" }, 3)];
+        },
+      },
+      vaneAction: { findMany: async () => [] },
+    } as unknown as Parameters<typeof vaneOnRecord>[0];
+    const cards = await vaneOnRecord(db, { companyId: "c", userId: "u1", role: "MANAGER", subjectType: "CrmDeal", subjectId: "d1" });
+    expect(cards.map((card) => [card.id, card.module, card.source])).toEqual([["pomona", "crm", "CRM"]]);
+    expect(asked).toMatchObject({ companyId: "c", status: "OPEN", subjectType: "CrmDeal", subjectId: "d1", ...audienceFilter("u1", "MANAGER") });
   });
 });

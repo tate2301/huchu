@@ -80,6 +80,7 @@ import { RailSection, RecordPageShell, RecordRelated } from "@/components/record
 import { Stack } from "@corelithzw/react";
 import { RecordGroupsControl } from "@/components/crm/registers/record-groups-control";
 import { useListHref } from "@/components/crm/registers/list-href";
+import { VaneRecordSection } from "@/components/vane/vane-record-section";
 
 const ROLE_LABELS: Record<string, string> = {
   PRIMARY: "Primary contact",
@@ -731,6 +732,8 @@ export function DealDetailPage({ dealId }: { dealId: string }) {
                 </p>
               )}
             </RailSection>
+
+            <VaneRecordSection type="CrmDeal" id={dealId} noun="deal" />
 
             {nextVisit ? (
               <RailSection title="Next visit">

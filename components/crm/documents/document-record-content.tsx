@@ -78,6 +78,8 @@ import {
   type CrmDocumentKind,
   type LeadDocument,
 } from "./document-types";
+import { VaneQuoteCheck } from "@/components/vane/vane-quote-check";
+import { VaneRecordSection } from "@/components/vane/vane-record-section";
 
 type Person = { id: string; name: string | null } | null;
 
@@ -839,6 +841,14 @@ function DocumentRecord({ data }: { data: DocumentResponse }) {
         />
       }
       attributes={<RecordAttributes attributes={attributes} />}
+      rail={
+        doc.type === "QUOTATION" ? (
+          <>
+            <VaneQuoteCheck documentId={doc.id} />
+            <VaneRecordSection type="CrmLeadDocument" id={doc.id} noun="quote" />
+          </>
+        ) : undefined
+      }
       activeTab={tab}
       onTabChange={setTab}
       tabs={tabs}

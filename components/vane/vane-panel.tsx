@@ -43,18 +43,33 @@ const ANYWHERE: Array<{ text: string; icon: IconName }> = [
   { text: "Get the month's close ready", icon: "calendar" },
 ];
 
+/** On one CRM record's page, the first thing to ask is about it. */
+const RECORD_PAGES: Array<[RegExp, string]> = [
+  [/^\/crm\/deals\/[^/]+$/, "What should I do next on this deal?"],
+  [/^\/crm\/leads\/[^/]+$/, "What should I do next with this lead?"],
+  [/^\/crm\/companies\/[^/]+$/, "What is open with this company?"],
+  [/^\/crm\/people\/[^/]+$/, "When did we last hear from this person?"],
+  [/^\/crm\/quotes\/[^/]+$/, "Check this quote before it goes"],
+];
+
+function recordSuggestion(path: string): VaneSuggestion | null {
+  const found = RECORD_PAGES.find(([pattern]) => pattern.test(path));
+  return found ? { text: found[1], icon: "foryou", module: "crm" } : null;
+}
+
 /**
- * What to ask next, always three: about the first card when there is one,
+ * What to ask next, always three: about the record on screen, then the first card,
  * then from the module the person is in, then what any page can ask.
  */
-export function vaneSuggestions(cards: VaneCard[], pageModule: string | null): VaneSuggestion[] {
+export function vaneSuggestions(cards: VaneCard[], pageModule: string | null, path: string | null = null): VaneSuggestion[] {
+  const record = path ? recordSuggestion(path) : null;
   const fromCards = cards.slice(0, 1).map<VaneSuggestion>((card) => ({
     text: `Help me with: ${card.headline.replace(/\.$/, "")}`,
     icon: card.kind === "issue" ? "issue" : "suggestion",
     module: card.module,
   }));
   const fromModule = (pageModule ? (MODULE_SUGGESTIONS[pageModule] ?? []) : []).map((row) => ({ ...row, module: pageModule }));
-  const all = [...fromCards, ...fromModule, ...ANYWHERE.map((row) => ({ ...row, module: null }))];
+  const all = [...(record ? [record] : []), ...fromCards, ...fromModule, ...ANYWHERE.map((row) => ({ ...row, module: null }))];
   return all.filter((row, index) => all.findIndex((other) => other.text === row.text) === index).slice(0, 3);
 }
 
@@ -86,7 +101,7 @@ export function VanePanel() {
         <VanePanelView
           panel={data}
           chat={chat.data ?? []}
-          suggestions={vaneSuggestions(data.items, pageModule)}
+          suggestions={vaneSuggestions(data.items, pageModule, pathname)}
           working={working}
           askError={error}
           focusKey={focusKey}
@@ -114,7 +129,8 @@ export function VanePanel() {
               },
             )
           }
-          onAsk={(text) => void ask(text, pageModule)}
+          draft={shell.vaneDraft}
+          onAsk={(text) => void ask(text, pageModule, pathname)}
         />
       ) : (
         <aside className="ask" aria-label="Vane" aria-busy={!isError}>
