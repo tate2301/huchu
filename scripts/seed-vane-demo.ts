@@ -20,6 +20,9 @@ const minutesAgo = (now: Date, minutes: number) => new Date(now.getTime() - minu
 
 /** The demo conversation's first words, so the next run finds and replaces it. */
 const DEMO_CHAT = "What should we reorder this week";
+const DEMO_PIPELINE = "Sales (demo)";
+const DEMO_CLIENT = "Pomona Offices (demo)";
+const DEMO_DEAL = "Pomona Offices, fit-out (demo)";
 const DEMO_ANSWER = "Castle Lager and Coca-Cola are running low";
 /** Stands in for a record the demo's actions name; approving one says it is not found. */
 const NO_RECORD = "00000000-0000-4000-8000-000000000000";
@@ -41,6 +44,13 @@ async function main() {
 
   await prisma.salesInvoice.deleteMany({ where: { companyId, invoiceNumber: { in: ["INV-DEMO-0142", "INV-DEMO-0150"] } } });
   await prisma.customer.deleteMany({ where: { companyId, name: "Chisipite Dental (demo)" } });
+
+  // The demo deal Vane's CRM cards are about, and its pipeline.
+  await prisma.crmActivity.deleteMany({ where: { companyId, deal: { title: DEMO_DEAL } } });
+  await prisma.crmDeal.deleteMany({ where: { companyId, title: DEMO_DEAL } });
+  await prisma.crmClient.deleteMany({ where: { companyId, name: DEMO_CLIENT } });
+  await prisma.crmPipelineStage.deleteMany({ where: { companyId, pipeline: { name: DEMO_PIPELINE } } });
+  await prisma.crmPipeline.deleteMany({ where: { companyId, name: DEMO_PIPELINE } });
 
   await prisma.vaneSettings.upsert({ where: { companyId }, create: { companyId }, update: { paused: false } });
 
@@ -83,6 +93,7 @@ async function main() {
     body: string;
     action: Record<string, unknown>;
     minutes: number;
+    subject?: { type: string; id: string };
   }) =>
     prisma.vaneItem.create({
       data: {
@@ -93,6 +104,8 @@ async function main() {
         headline: data.headline,
         body: data.body,
         action: data.action,
+        subjectType: data.subject?.type,
+        subjectId: data.subject?.id,
         readFrom: [{ table: "SalesInvoice", rows: 3, about: "past their terms" }],
         sql: 'SELECT "number", "total" FROM "SalesInvoice" WHERE "status" = \'OVERDUE\'',
         createdAt: minutesAgo(now, data.minutes),
@@ -107,9 +120,17 @@ async function main() {
     action: { type: "send", label: "Send 3 reminders", shortcut: "S", target: "/books/invoices?view=overdue", also: { label: "Read them first", target: "/books/invoices?view=overdue" } },
     minutes: 186,
   });
+  const pipeline = await prisma.crmPipeline.create({ data: { companyId, name: DEMO_PIPELINE } });
+  const proposal = await prisma.crmPipelineStage.create({ data: { companyId, pipelineId: pipeline.id, name: "Proposal", status: "OPEN" } });
+  await prisma.crmPipelineStage.create({ data: { companyId, pipelineId: pipeline.id, name: "Won", status: "WON" } });
+  const client = await prisma.crmClient.create({ data: { companyId, name: DEMO_CLIENT, clientNo: `CL-DEMO-${now.getTime()}` } });
+  const deal = await prisma.crmDeal.create({
+    data: { companyId, dealNo: `DL-DEMO-${now.getTime()}`, title: DEMO_DEAL, pipelineId: pipeline.id, stageId: proposal.id, clientId: client.id, value: 8930 },
+  });
   await card({
     kind: "SUGGESTION",
     sourceModule: "crm",
+    subject: { type: "CrmDeal", id: deal.id },
     headline: "Pomona Offices' quote has waited since Tuesday.",
     body: "Kuda measured 212.40 m² of concrete. The quote is drafted at $8,930.00. Let's send it before the weekend.",
     action: { type: "send", label: "Send the quote", target: "/crm/quotes", also: { label: "Open it", target: "/crm/quotes" } },
@@ -174,7 +195,16 @@ async function main() {
       itemId: quiet.id,
       kind: "crm.task.create",
       title: "Ring Pomona Offices about the quote",
-      params: { title: "Ring Pomona Offices about the quote", dueOn: dueIn(1), type: "CALL", about: "Pomona Offices" },
+      params: { title: "Ring Pomona Offices about the quote", dueOn: dueIn(1), type: "CALL", about: "Pomona Offices", dealId: deal.id },
+    },
+  });
+  await prisma.vaneAction.create({
+    data: {
+      companyId,
+      itemId: quiet.id,
+      kind: "crm.note.log",
+      title: "Log a call on Pomona Offices: asked for the quote by Friday",
+      params: { type: "CALL", subject: "Asked for the quote by Friday", about: "Pomona Offices", dealId: deal.id },
     },
   });
 

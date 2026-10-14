@@ -13,6 +13,8 @@ const turnSchema = z.object({
   text: z.string().trim().min(1, "Say what you would like Vane to do").max(4000, "Keep it to 4,000 characters"),
   /** The module the person is in ("books"), for the answer's bearings. */
   module: z.string().max(40).nullable().optional(),
+  /** The page they have open, so "this deal" means the one on screen. */
+  path: z.string().max(300).regex(/^\/[^\s]*$/).nullable().optional(),
 });
 
 /** This person's conversation with Vane, oldest first. */
@@ -49,7 +51,7 @@ export async function POST(request: NextRequest) {
           await chatTurn(
             prisma,
             { companyId: session.user.companyId, userId: session.user.id, role: session.user.role, name: session.user.name ?? null },
-            { text: body.data.text, module: body.data.module },
+            { text: body.data.text, module: body.data.module, path: body.data.path },
             { onEvent: send },
           );
         } catch (error) {

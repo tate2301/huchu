@@ -57,6 +57,7 @@ import { MergeDialog } from "./merge-dialog";
 import { Stack } from "@corelithzw/react";
 import { RecordGroupsControl } from "@/components/crm/registers/record-groups-control";
 import { useListHref } from "@/components/crm/registers/list-href";
+import { VaneRecordSection } from "@/components/vane/vane-record-section";
 
 const ROLE_LABELS: Record<string, string> = {
   PRIMARY: "Primary contact",
@@ -287,6 +288,7 @@ export function PersonDetailPage({ personId }: { personId: string }) {
     definitions.length > 0 ? (
       <CustomFieldDisplay key="custom" definitions={definitions} values={person.customFields} />
     ) : null,
+    <VaneRecordSection key="vane" type="CrmPerson" id={personId} noun="person" />,
   ].filter(Boolean);
 
   const rail = railSections.length > 0 ? <>{railSections}</> : undefined;

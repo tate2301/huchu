@@ -48,6 +48,7 @@ export function VanePanelView({
   working = null,
   askError = null,
   focusKey = 0,
+  draft = null,
   canPause,
   deciding = null,
   onPause,
@@ -66,6 +67,8 @@ export function VanePanelView({
   askError?: string | null;
   /** Bumped by Ctrl J: the box takes the focus. */
   focusKey?: number;
+  /** Words a page put in the box ("Ask Vane about this deal"): they replace what is there, for the person to send. */
+  draft?: { text: string; key: number } | null;
   canPause: boolean;
   /** The action being decided now. */
   deciding?: string | null;
@@ -85,6 +88,14 @@ export function VanePanelView({
   React.useEffect(() => {
     if (focusKey > 0) box.current?.focus();
   }, [focusKey]);
+
+  const draftKey = draft?.key ?? 0;
+  const draftText = draft?.text ?? "";
+  React.useEffect(() => {
+    if (!draftKey) return;
+    setText(draftText);
+    box.current?.focus();
+  }, [draftKey, draftText]);
 
   // The newest turn, or what Vane is doing, in view; not on opening, which starts at the cards.
   const seen = React.useRef(chat.length);

@@ -59,6 +59,7 @@ import { MergeDialog } from "./merge-dialog";
 import { useJobsTab } from "@/components/crm/work-orders/jobs-tab";
 import { RecordGroupsControl } from "@/components/crm/registers/record-groups-control";
 import { useListHref } from "@/components/crm/registers/list-href";
+import { VaneRecordSection } from "@/components/vane/vane-record-section";
 
 const ACCOUNT_STATUS_PRESENTATION: Record<string, { label: string; status: CanonicalUiStatus }> = {
   ACTIVE: { label: "Active", status: "passing" },
@@ -465,6 +466,8 @@ export function CompanyDetailPage({ companyId }: { companyId: string }) {
               <NextStepCard step={nextStep} onAct={() => setDealOpen(true)} />
             </RailSection>
           ) : null}
+
+          <VaneRecordSection type="CrmClient" id={companyId} noun="company" />
 
           {hasHierarchy ? (
             <RailSection title="Hierarchy">

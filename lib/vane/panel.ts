@@ -88,6 +88,69 @@ function parseAction(value: unknown): VaneAction | null {
   return parsed.success ? parsed.data : null;
 }
 
+const CARD_SELECT = {
+  id: true,
+  kind: true,
+  sourceModule: true,
+  headline: true,
+  body: true,
+  action: true,
+  createdAt: true,
+  readFrom: true,
+  sql: true,
+} as const;
+
+type CardRow = {
+  id: string;
+  kind: string;
+  sourceModule: string;
+  headline: string;
+  body: string;
+  action: unknown;
+  createdAt: Date;
+  readFrom: unknown;
+  sql: string | null;
+};
+
+/** Cards as the panel and the pages show them, each with the actions Vane proposes on it. */
+async function toCards(db: Db, companyId: string, items: CardRow[]): Promise<VaneCard[]> {
+  const { byItem } = await actionsFor(db, companyId, { itemIds: items.map((item) => item.id) });
+  return items.map<VaneCard>((item) => ({
+    id: item.id,
+    kind: item.kind === "ISSUE" ? "issue" : "suggestion",
+    module: item.sourceModule,
+    source: moduleName(item.sourceModule),
+    headline: item.headline,
+    body: item.body,
+    action: parseAction(item.action),
+    createdAt: item.createdAt.toISOString(),
+    read: parseRead(item.readFrom),
+    sql: item.sql,
+    actions: byItem.get(item.id) ?? [],
+  }));
+}
+
+/** The records a card can be about, as Vane names them on the card (`subjectType`). */
+export const VANE_SUBJECTS = ["CrmDeal", "CrmLead", "CrmClient", "CrmPerson", "SalesInvoice", "SalesQuotation", "CrmLeadDocument", "RetailPurchaseOrder"] as const;
+export type VaneSubject = (typeof VANE_SUBJECTS)[number];
+
+/**
+ * Vane's open cards about one record, for that record's page: a deal's, a
+ * lead's, a company's. The same cards For you shows, to the same people.
+ */
+export async function vaneOnRecord(
+  db: Db,
+  { companyId, userId, role, subjectType, subjectId }: { companyId: string; userId: string; role?: string | null; subjectType: VaneSubject; subjectId: string },
+): Promise<VaneCard[]> {
+  const items = await db.vaneItem.findMany({
+    where: { companyId, status: "OPEN", kind: { in: FOR_YOU }, subjectType, subjectId, ...audienceFilter(userId, role) },
+    orderBy: { createdAt: "desc" },
+    take: 10,
+    select: CARD_SELECT,
+  });
+  return toCards(db, companyId, items);
+}
+
 /**
  * What the Vane panel and `/vane` show: its state, the open For you cards
  * (this module's first, when there is one), the plans still open, the jobs
@@ -110,17 +173,7 @@ export async function vanePanel(
       where: { companyId, status: "OPEN", kind: { in: FOR_YOU }, ...audienceFilter(userId, role) },
       orderBy: { createdAt: "desc" },
       take: 50,
-      select: {
-        id: true,
-        kind: true,
-        sourceModule: true,
-        headline: true,
-        body: true,
-        action: true,
-        createdAt: true,
-        readFrom: true,
-        sql: true,
-      },
+      select: CARD_SELECT,
     }),
     db.vanePlan.findMany({
       where: { companyId, status: "OPEN" },
@@ -147,20 +200,7 @@ export async function vanePanel(
     }),
   ]);
 
-  const { byItem } = await actionsFor(db, companyId, { itemIds: items.map((item) => item.id) });
-  const cards = items.map<VaneCard>((item) => ({
-    id: item.id,
-    kind: item.kind === "ISSUE" ? "issue" : "suggestion",
-    module: item.sourceModule,
-    source: moduleName(item.sourceModule),
-    headline: item.headline,
-    body: item.body,
-    action: parseAction(item.action),
-    createdAt: item.createdAt.toISOString(),
-    read: parseRead(item.readFrom),
-    sql: item.sql,
-    actions: byItem.get(item.id) ?? [],
-  }));
+  const cards = await toCards(db, companyId, items);
   // This module's cards first, then the rest, each newest first.
   const here = module ? moduleName(module) : null;
   cards.sort((a, b) => Number(b.source === here) - Number(a.source === here));

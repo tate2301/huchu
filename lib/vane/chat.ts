@@ -65,9 +65,11 @@ function workingLabel(tool: string, input: unknown): string {
   }
 }
 
-const CHAT = (who: Who, page: string | null) => `
+const CHAT = (who: Who, module: string | null, path: string | null) => `
 
-You are talking with ${who.name ?? "a person"} (${who.role.toLowerCase().replace(/_/g, " ")}) in the Vane panel${page ? `, on ${page}` : ""}. Answer what they ask, in a few short sentences, first person, with names and exact amounts. When what you find can be done, propose it with propose_actions, one per record, so they approve or deny each; then say in a sentence what you proposed. When they ask for something only they can do, say where. Write every link as [words](/path?filters), never a bare path. Never say you did something you only proposed.`;
+You are talking with ${who.name ?? "a person"} (${who.role.toLowerCase().replace(/_/g, " ")}) in the Vane panel${module ? `, in ${module}` : ""}.${
+  path ? ` They have ${path} open: a record id in that address is what they mean by "this", so read that record first when they ask about it.` : ""
+} Answer what they ask, in a few short sentences, first person, with names and exact amounts. When what you find can be done, propose it with propose_actions, one per record, so they approve or deny each; then say in a sentence what you proposed. When they ask for something only they can do, say where. Write every link as [words](/path?filters), never a bare path. Never say you did something you only proposed.`;
 
 /** This person's conversation, oldest first, with the actions on each answer. */
 export async function chatHistory(
@@ -113,7 +115,7 @@ function asMessages(history: Array<{ author: "PERSON" | "VANE"; text: string }>)
 export async function chatTurn(
   db: PrismaClient,
   who: Who,
-  { text, module }: { text: string; module?: string | null },
+  { text, module, path }: { text: string; module?: string | null; /** The page they have open: "/crm/deals/<id>". */ path?: string | null },
   { onEvent, client, now = () => new Date() }: { onEvent: (event: ChatEvent) => void; client?: MessagesClient; now?: () => Date },
 ): Promise<void> {
   const settings = await db.vaneSettings.findUnique({ where: { companyId: who.companyId }, select: { paused: true, monthlyAllowance: true } });
@@ -154,7 +156,7 @@ export async function chatTurn(
   try {
     const tables = [...(await tablesFor(who.companyId)).values()].map((table) => table.name).sort();
     const outcome = await runConversation({
-      system: vaneRules(tables) + CHAT(who, module ? moduleName(module) : null),
+      system: vaneRules(tables) + CHAT(who, module ? moduleName(module) : null, path ?? null),
       messages: asMessages([...earlier.reverse(), { author: "PERSON", text }]),
       context: { companyId: who.companyId, jobId: job.id, answerActions },
       deadline: Date.now() + TURN_MS,

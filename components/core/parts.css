@@ -251,9 +251,9 @@
 
 /* A card: a strip in its product's hue (amber when it is an issue), the kind and the product as pills. */
 .ck.ck.ck .ask .vc { position: relative; overflow: hidden; gap: var(--space-8); padding: var(--space-12) var(--space-16) var(--space-16) var(--space-16); }
-.ck.ck.ck .ask .vc::before { content: ""; position: absolute; inset: 0 auto 0 0; width: 3px; background: var(--mod); }
-.ck.ck.ck .ask .vc.is-issue::before { background: var(--color-warning); }
-.ck.ck.ck .ask .vc-k { height: auto; flex-wrap: wrap; gap: var(--space-4); }
+.ck.ck.ck .ask .vc::before, .ck.vr .vc::before { content: ""; position: absolute; inset: 0 auto 0 0; width: 3px; background: var(--mod); }
+.ck.ck.ck .ask .vc.is-issue::before, .ck.ck.ck.vr .vc.is-issue::before { background: var(--color-warning); }
+.ck.ck.ck .ask .vc-k, .ck.ck.ck.vr .vc-k { height: auto; flex-wrap: wrap; gap: var(--space-4); }
 .ck.ck.ck .vn-kind { display: inline-flex; align-items: center; gap: var(--space-4); height: 20px; padding: 0 var(--space-8) 0 var(--space-4); border-radius: var(--radius-pill); font-size: var(--text-12); font-weight: 500; color: var(--color-ink-2); background: var(--color-fill); }
 .ck.ck.ck .vn-kind .ic, .ck.ck.ck .vc .vn-kind > .ic { width: 14px; height: 14px; color: var(--color-muted); }
 .ck.ck.ck .vc.is-issue .vn-kind { background: var(--color-warning-tint); }
@@ -328,3 +328,13 @@
 .ck.ck.ck .fy .nt[data-module] .ic { width: 16px; height: 16px; }
 .ck.ck.ck .vn-dot { display: inline-block; width: 6px; height: 6px; margin-right: 6px; border-radius: var(--radius-pill); background: var(--color-faint); vertical-align: 1px; }
 .ck.ck.ck .fy.is-issue .vn-dot { background: var(--color-warning); }
+
+/* Vane on a record page's rail (a deal's, a lead's): its cards about this record, then Ask. */
+.ck.vr { display: flex; flex-direction: column; gap: var(--space-8); }
+.ck.ck.ck.vr .vc { position: relative; overflow: hidden; gap: var(--space-4); padding: var(--space-8) var(--space-12) var(--space-12) var(--space-16); }
+.ck.ck.ck.vr .vc h3 { font-size: var(--text-13); }
+.ck.ck.ck.vr .vc p { font-size: var(--text-13); }
+.ck.ck.ck .vr-none { font-size: var(--text-13); color: var(--color-muted); }
+.ck.ck.ck .vr-ask { display: flex; align-items: center; gap: var(--space-8); min-height: 32px; padding: var(--space-4) var(--space-12) var(--space-4) var(--space-8); border-radius: 10px; box-shadow: inset 0 0 0 1px var(--color-line); background: var(--color-surface); font-size: var(--text-13); color: var(--color-ink-2); text-align: left; transition: background var(--motion-fast) var(--motion-ease); }
+.ck.ck.ck .vr-ask:hover { background: var(--color-hover); color: var(--color-ink); }
+@media (prefers-reduced-motion: reduce) { .ck.ck.ck .vr-ask { transition: none; } }
