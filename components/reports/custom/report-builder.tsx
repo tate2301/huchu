@@ -69,19 +69,33 @@ function Loading() {
   );
 }
 
-function Frame({ children }: { children: React.ReactNode }) {
+/** Where the builder goes back to: All reports, or Build when it was opened there (`/build/reports/[slug]`). */
+export type BuilderBack = { href: string; label: string; button: string };
+
+const ALL_REPORTS: BuilderBack = { href: "/reports", label: "All reports", button: "Back to all reports" };
+
+function Frame({ children, back = ALL_REPORTS }: { children: React.ReactNode; back?: BuilderBack }) {
   return (
     <BuilderGrid
       scope="report"
       mode="preview"
-      bar={<ButtonLink href="/reports" variant="quiet" icon="back">All reports</ButtonLink>}
+      bar={<ButtonLink href={back.href} variant="quiet" icon="back">{back.label}</ButtonLink>}
       canvas={<div className="rb-board">{children}</div>}
       canvasLabel="The board"
     />
   );
 }
 
-export function ReportBuilder({ id }: { id: string }) {
+export function ReportBuilder({
+  id,
+  back: backTo = ALL_REPORTS,
+  arrangement = "reports",
+}: {
+  id: string;
+  back?: BuilderBack;
+  /** Build files the inspector as BuildReport draws it (Block, Data, Settings). */
+  arrangement?: "reports" | "build";
+}) {
   const { toast } = useToast();
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -180,7 +194,7 @@ export function ReportBuilder({ id }: { id: string }) {
       });
       if (!leave) return;
     }
-    router.push("/reports");
+    router.push(backTo.href);
   };
 
   const dismiss = async () => {
@@ -202,7 +216,7 @@ export function ReportBuilder({ id }: { id: string }) {
 
   if (report.isError || sources.isError || !current || !report.data) {
     return (
-      <Frame>
+      <Frame back={backTo}>
         <Empty
           icon="warn"
           title={typeof navigator !== "undefined" && !navigator.onLine ? "You are offline" : "This report did not open"}
@@ -220,7 +234,7 @@ export function ReportBuilder({ id }: { id: string }) {
 
   if (!report.data.report.editable) {
     return (
-      <Frame>
+      <Frame back={backTo}>
         <Empty icon="lock" title="You can open this report, not change it" action={<ButtonLink href={`/reports/c/${encodeURIComponent(id)}`} icon="reports">Open the report</ButtonLink>}>
           Only whoever made it, or the owner once it is shared, can change it. Make a copy to build on it.
         </Empty>
@@ -250,6 +264,8 @@ export function ReportBuilder({ id }: { id: string }) {
           : undefined
       }
       onBack={() => void back()}
+      backLabel={backTo.button}
+      arrangement={arrangement}
       filters={filters}
       onFilter={(column, value) =>
         setFilters((current) => {

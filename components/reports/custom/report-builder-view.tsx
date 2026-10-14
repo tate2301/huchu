@@ -101,7 +101,7 @@ export type BuilderSuggestion = {
   onDismiss: () => void;
 };
 
-type InspectorTab = "block" | "look" | "click";
+type InspectorTab = "block" | "look" | "click" | "data" | "settings";
 type QueryView = "steps" | "sql";
 
 const NO_FILTERS: Readonly<Record<string, string>> = {};
@@ -235,6 +235,8 @@ export function ReportBuilderView({
   publishing = false,
   onDiscard,
   onBack,
+  backLabel = "Back to all reports",
+  arrangement = "reports",
   onCopy,
   suggestion = null,
   filters = NO_FILTERS,
@@ -254,6 +256,15 @@ export function ReportBuilderView({
   /** Offered while there is something to throw away. */
   onDiscard?: () => void;
   onBack: () => void;
+  /** The way back's name: All reports, or Build. */
+  backLabel?: string;
+  /**
+   * The inspector's tabs as each board draws them: Reports' builder (ReportBuild)
+   * splits a block into Block, Look and When clicked; Build's (BuildReport) into
+   * Block, Data (its steps, its SQL, its last run) and Settings. Same builder,
+   * same settings, filed two ways.
+   */
+  arrangement?: "reports" | "build";
   /** Copy a source's or a column's name, for a query. */
   onCopy?: (text: string) => void;
   suggestion?: BuilderSuggestion | null;
@@ -372,10 +383,11 @@ export function ReportBuilderView({
       head={
         <div className="pm-h">
           <h1 className="truncate">{draft.title || "Untitled report"}</h1>
-          <Button variant="quiet" iconOnly icon="back" label="Back to all reports" onClick={onBack} />
+          <Button variant="quiet" iconOnly icon="back" label={backLabel} onClick={onBack} />
         </div>
       }
       heading="On the board"
+      addLabel={arrangement === "build" ? "Add" : undefined}
       entries={blocks.map((block) => ({
         id: block.id,
         icon: kindIcon(block),
@@ -503,51 +515,8 @@ export function ReportBuilderView({
 
   /* ── The inspector ───────────────────────────────────────────────────── */
 
-  const inspector = selected ? (
-    <BuilderInspector<InspectorTab>
-      tabs={[
-        { value: "block", label: "Block" },
-        { value: "look", label: "Look" },
-        { value: "click", label: "When clicked" },
-      ]}
-      tab={tab}
-      onTab={setTab}
-    >
-      {tab === "block" ? (
-        <BlockSettings
-          block={selected}
-          update={list.update}
-          columns={columnsOf(selected)}
-          queries={queries}
-          resultOf={(name) => {
-            const query = queries.find((candidate) => candidate.name === name);
-            const result = query ? data.results.get(query.id) : undefined;
-            return result?.ok ? result.columns : [];
-          }}
-          filterable={filterableColumns(blocks, data.tables)}
-          rows={selected.type === "query" ? rowCount(selected) : null}
-          onWriteSql={() => {
-            if (selected.type !== "query") return;
-            setPicked(selected.id);
-            setViews((current) => ({ ...current, [selected.id]: "sql" }));
-          }}
-        />
-      ) : tab === "look" ? (
-        <LookSettings block={selected} update={list.update} columns={columnsOf(selected)} />
-      ) : (
-        <p className="rb-note">Rows on this report open nothing when clicked.</p>
-      )}
-      <div className="rb-acts">
-        <Button icon="docs" onClick={() => list.duplicate(selected)}>
-          Duplicate
-        </Button>
-        <Button variant="quiet" icon="x" onClick={() => list.remove(selected)}>
-          Delete
-        </Button>
-      </div>
-    </BuilderInspector>
-  ) : (
-    <BuilderInspector heading="This report">
+  const reportSettings = (
+    <>
       <TextField label="Name" value={draft.title} placeholder="Name this report" onChange={(title) => change({ title })} />
       <TextField
         label="Description"
@@ -575,6 +544,140 @@ export function ReportBuilderView({
         options={TEMPLATE_AUDIENCES.filter((audience) => audience === "JUST_ME" || report.canShare || audience === draft.audience).map((audience): [string, string] => [audience, SEEN_BY_WORDS[audience]])}
         onChange={(audience) => change({ audience: audience as CustomReportInput["audience"] })}
       />
+    </>
+  );
+
+  // Build's Data tab: the selected block's question, as steps and as SQL, and its last run.
+  const dataOf = (block: CustomBlock) => {
+    const asked = block.type === "query" ? block : null;
+    if (!asked) return <p className="rb-note">This block reads no question of its own.</p>;
+    const tables = tablesFor(asked);
+    const parsed = stepsFromSql(asked.query, tables);
+    const run = data.results.get(asked.id);
+    const lines = asked.query.split("\n").filter((line) => line.trim()).length;
+    const showIn = (next: QueryView) => {
+      setPicked(asked.id);
+      setViews((current) => ({ ...current, [asked.id]: next }));
+    };
+    return (
+      <>
+        <div className="ph">{questionName(asked.name)}</div>
+        <div className="pl">
+          <div className="pl-h">Steps</div>
+          {parsed ? (
+            <ol className="psteps">
+              {stepSentences(parsed, tables).map((sentence, index) => (
+                <li key={index}>
+                  <Icon name="step" />
+                  <span>{sentence}</span>
+                </li>
+              ))}
+            </ol>
+          ) : (
+            <p className="rb-note">Written as SQL that steps cannot show.</p>
+          )}
+          <Button variant="quiet" icon="plus" onClick={() => showIn("steps")}>
+            Add a step
+          </Button>
+        </div>
+        <div className="pl">
+          <div className="prow">
+            <b>Written as SQL</b>
+            <span>
+              {lines} {lines === 1 ? "line" : "lines"}
+            </span>
+          </div>
+          <Button icon="sql" onClick={() => showIn("sql")}>
+            Show the SQL
+          </Button>
+        </div>
+        <div className="pl">
+          <div className="pl-h">Last run</div>
+          <div className="prow">
+            <b>{run?.ok ? `${run.rows.length.toLocaleString("en-US")} ${run.rows.length === 1 ? "row" : "rows"}` : data.running ? "Running" : "Not run yet"}</b>
+            <span>{data.ms !== null && run?.ok ? `${(data.ms / 1000).toFixed(2)} s, read only` : "read only"}</span>
+          </div>
+        </div>
+      </>
+    );
+  };
+
+  const inspector = selected ? (
+    <BuilderInspector<InspectorTab>
+      tabs={
+        arrangement === "build"
+          ? [
+              { value: "block", label: "Block" },
+              { value: "data", label: "Data" },
+              { value: "settings", label: "Settings" },
+            ]
+          : [
+              { value: "block", label: "Block" },
+              { value: "look", label: "Look" },
+              { value: "click", label: "When clicked" },
+            ]
+      }
+      tab={arrangement === "build" ? (tab === "look" || tab === "click" ? "block" : tab) : tab === "data" || tab === "settings" ? "block" : tab}
+      onTab={setTab}
+    >
+      {tab === "block" && arrangement === "build" ? dataOf(selected) : null}
+      {tab === "block" ? (
+        <BlockSettings
+          block={selected}
+          update={list.update}
+          columns={columnsOf(selected)}
+          queries={queries}
+          resultOf={(name) => {
+            const query = queries.find((candidate) => candidate.name === name);
+            const result = query ? data.results.get(query.id) : undefined;
+            return result?.ok ? result.columns : [];
+          }}
+          filterable={filterableColumns(blocks, data.tables)}
+          rows={selected.type === "query" ? rowCount(selected) : null}
+          onWriteSql={() => {
+            if (selected.type !== "query") return;
+            setPicked(selected.id);
+            setViews((current) => ({ ...current, [selected.id]: "sql" }));
+          }}
+        />
+      ) : tab === "look" ? (
+        <LookSettings block={selected} update={list.update} columns={columnsOf(selected)} />
+      ) : tab === "data" ? (
+        <div className="pl">
+          <div className="pl-h">What it returns</div>
+          {columnsOf(selected).length ? (
+            columnsOf(selected).map((column) => (
+              <div key={column.key} className="prow">
+                <b>{column.label}</b>
+                <span>{column.kind}</span>
+              </div>
+            ))
+          ) : (
+            <p className="rb-note">Nothing yet: its question has not run.</p>
+          )}
+        </div>
+      ) : tab === "settings" ? (
+        <>
+          <LookSettings block={selected} update={list.update} columns={columnsOf(selected)} />
+          <p className="rb-note">Rows on this report open nothing when clicked.</p>
+          <div className="pl-h">This report</div>
+          {reportSettings}
+        </>
+      ) : (
+        <p className="rb-note">Rows on this report open nothing when clicked.</p>
+      )}
+      <div className="rb-acts">
+        <Button icon="docs" onClick={() => list.duplicate(selected)}>
+          Duplicate
+        </Button>
+        <Button variant="quiet" icon="x" onClick={() => list.remove(selected)}>
+          Delete
+        </Button>
+      </div>
+    </BuilderInspector>
+  ) : (
+    <BuilderInspector heading="This report">
+      {reportSettings}
     </BuilderInspector>
   );
 
