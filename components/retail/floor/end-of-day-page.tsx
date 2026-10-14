@@ -45,14 +45,19 @@ function differenceWords(row: TillRow): { text: string; tone: "warn" | null } {
   return { text: formatSigned(value), tone: value < 0 ? "warn" : null };
 }
 
-function pathFor(siteId: string, date: string, today: string) {
+function pathFor(base: string, siteId: string, date: string, today: string) {
   const params = new URLSearchParams();
   params.set("site", siteId);
   if (date !== today) params.set("date", date);
-  return `/retail/end-of-day?${params.toString()}`;
+  return `${base}?${params.toString()}`;
 }
 
-export function EndOfDayPage() {
+/**
+ * End of day. `basePath` is the address it is shown at: the floor's
+ * (`/retail/end-of-day`), or Books' Takings (`/books/takings`), so moving
+ * between sites and days keeps the panel it was opened from.
+ */
+export function EndOfDayPage({ basePath = "/retail/end-of-day" }: { basePath?: string } = {}) {
   const searchParams = useSearchParams();
   const site = searchParams.get("site");
   const date = searchParams.get("date");
@@ -83,10 +88,10 @@ export function EndOfDayPage() {
       </>
     );
   }
-  return <EndOfDay view={query.data} key={`${query.data.site.id}|${query.data.date}`} />;
+  return <EndOfDay view={query.data} basePath={basePath} key={`${query.data.site.id}|${query.data.date}`} />;
 }
 
-function EndOfDay({ view }: { view: EndOfDayView }) {
+function EndOfDay({ view, basePath }: { view: EndOfDayView; basePath: string }) {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const [banked, setBanked] = React.useState(view.banked.default);
@@ -171,11 +176,11 @@ function EndOfDay({ view }: { view: EndOfDayView }) {
   return (
     <>
       <PageChrome
-        title="End of day"
+        title={basePath.startsWith("/books") ? "Takings" : "End of day"}
         reference={view.dateLabel}
         picker={{
           label: view.site.name,
-          options: view.sites.map((entry) => ({ key: entry.id, label: entry.name, href: pathFor(entry.id, view.date, view.today) })),
+          options: view.sites.map((entry) => ({ key: entry.id, label: entry.name, href: pathFor(basePath, entry.id, view.date, view.today) })),
         }}
         primary={primary}
       >

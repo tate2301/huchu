@@ -43,8 +43,9 @@ for (const start of starts) {
     checked++;
     const landed = await panelOf();
     const current = await currentOf();
-    // A row's count is part of its text ("All reports48"): compare the names only.
-    const name = (t) => (t ?? "").replace(/\d+$/, "").trim();
+    // A row's count is part of its text ("All reports48", "Shifts3 open", "Counts2 to approve"),
+    // and arrives when the panel's figures load: compare the names only.
+    const name = (t) => (t ?? "").replace(/\d+( [a-z][a-z ]*)?$/, "").trim();
     if (landed === panel && name(current) !== name(link.text)) {
       const line = `${panel} › ${link.text} (${link.href}) → marks "${current ?? "nothing"}" as the page`;
       bad.push(line);

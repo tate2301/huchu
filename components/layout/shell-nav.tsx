@@ -15,6 +15,8 @@ import { logoInitials } from "@/lib/rail/initials";
 import { reportBadges, reportCounts, reportEntries } from "@/lib/reports/all";
 import { verticalOf } from "@/lib/reports/verticals";
 import { areaForHref, getRailModel, type RailModel } from "@/lib/rail/model";
+import { staticPanelReport } from "@/lib/rail/report-lookup";
+import { areaForModuleReport, readModuleReportPath, type PanelReport } from "@/lib/rail/reports";
 import {
   canRoleOpenRetailPath,
   hiddenRetailNavHrefs,
@@ -229,6 +231,10 @@ export function ShellNavProvider({
   // that waits on a badge is not drawn without it.
   const model = React.useMemo(() => {
     const hidden = hiddenRetailNavHrefs(conditions, badges);
+    // The row that is this page stays, whatever its badge says: a panel that
+    // loses the page's own row has nothing to keep it open on.
+    const here = getActiveNavHref(built.sections, pathname, searchParams, RETAIL_NAV_ITEMS);
+    if (here) hidden.delete(here);
     if (hidden.size === 0) return built;
     return {
       ...built,
@@ -237,7 +243,7 @@ export function ShellNavProvider({
         items: section.items.filter((item) => !hidden.has(item.href)),
       })),
     };
-  }, [badges, built, conditions]);
+  }, [badges, built, conditions, pathname, searchParams]);
 
   const selectWorkspace = React.useCallback(
     (id: string) => {
@@ -249,14 +255,31 @@ export function ShellNavProvider({
   );
 
   const rail = React.useMemo(() => getRailModel(model.sections), [model.sections]);
+  // A report opened from a module's panel is at the module's address
+  // (`/books/reports/{key}`): it keeps that module's panel, the one that lists
+  // it, and marks the report's own row there rather than any of the module's.
+  const moduleReport = React.useMemo(() => readModuleReportPath(pathname), [pathname]);
+  const panelReportsQuery = useQuery({
+    queryKey: ["reports", "panel"],
+    queryFn: () => fetchJson<{ reports: PanelReport[] }>("/api/v2/reports/panel"),
+    enabled: Boolean(moduleReport),
+    staleTime: 5 * 60_000,
+  });
+  // Until the list arrives, the one report this page is, read from the registry.
+  const panelReports = React.useMemo(() => {
+    const loaded = mounted ? panelReportsQuery.data?.reports : undefined;
+    if (loaded || !moduleReport) return loaded;
+    const report = staticPanelReport(moduleReport.key);
+    return report ? [report] : undefined;
+  }, [moduleReport, mounted, panelReportsQuery.data]);
   // Every retail page is known, visible or not, so a page whose item this
   // role cannot see lights nothing rather than its nearest visible ancestor.
   // A path that does not exist names no nav item, even when an item's href is
   // a prefix of it (`/retail/stock/count` is not On hand).
   const [notFound, setNotFound] = React.useState(false);
   const activeHref = React.useMemo(
-    () => (notFound ? null : getActiveNavHref(model.sections, pathname, searchParams, RETAIL_NAV_ITEMS)),
-    [model.sections, notFound, pathname, searchParams],
+    () => (notFound || moduleReport ? null : getActiveNavHref(model.sections, pathname, searchParams, RETAIL_NAV_ITEMS)),
+    [model.sections, moduleReport, notFound, pathname, searchParams],
   );
   const pageItem = React.useMemo(
     () => (notFound ? null : retailNavItemForPath(pathname, searchParams)),
@@ -269,7 +292,10 @@ export function ShellNavProvider({
   const refused =
     sessionStatus === "authenticated" && !canRoleOpenRetailPath(role, pathname, searchParams);
   const refusalNoun = pageItem ? RESOURCE_LABELS[pageItem.requires[0][0]] : "this page";
-  const currentArea = React.useMemo(() => areaForHref(rail.areas, activeHref), [activeHref, rail]);
+  const currentArea = React.useMemo(
+    () => (moduleReport ? areaForModuleReport(rail.areas, panelReports, moduleReport) : areaForHref(rail.areas, activeHref)),
+    [activeHref, moduleReport, panelReports, rail],
+  );
   const activeItem = React.useMemo(
     () => currentArea?.items.find((item) => item.href === activeHref) ?? null,
     [activeHref, currentArea],

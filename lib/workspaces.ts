@@ -30,7 +30,7 @@ import {
   Payments,
   type LucideIcon,
 } from "@/lib/icons";
-import { getVisibleManagementModuleItems } from "@/lib/settings/management-nav";
+import { getVisibleManagementModuleItems, isSettingsSurfacePath } from "@/lib/settings/management-nav";
 import { reportCatalog } from "@/lib/reports/catalog";
 import { REPORT_DEFINITIONS } from "@/lib/reports/registry";
 import { isRouteAllowedForRole } from "@/lib/auth-core/role-routes";
@@ -416,14 +416,21 @@ const WORKSPACE_MODULES: Record<WorkspaceModuleId, WorkspaceModuleDefinition> = 
   },
   management: {
     id: "management",
-    label: "Management",
+    // What is left in the panel once Management's own pages are behind the gear.
+    label: "Compliance",
     homeHref: "/management/master-data",
     getItems(context) {
-      return getVisibleManagementModuleItems(context.enabledFeatures).map((item) => ({
-        href: item.href,
-        label: item.label,
-        icon: item.icon ?? FileText,
-      }));
+      // Management's full-page surface (Branding, Master data, Users) is
+      // reached from the rail's gear, never from a panel (spec/shell.md): a
+      // panel row into it left the panel it was clicked in. What stays is
+      // the page in the shell, Compliance.
+      return getVisibleManagementModuleItems(context.enabledFeatures)
+        .filter((item) => !isSettingsSurfacePath(item.href.split("?")[0] ?? item.href))
+        .map((item) => ({
+          href: item.href,
+          label: item.label,
+          icon: item.icon ?? FileText,
+        }));
     },
   },
 };
@@ -512,8 +519,8 @@ const WORKSPACE_PROFILE_RECIPES: Partial<Record<WorkspaceProfile, WorkspaceProfi
         title: "Production",
         refs: [
           { moduleId: "gold", href: "/gold" },
-          { moduleId: "gold", href: "/gold/intake/pours/new" },
-          { moduleId: "gold", href: "/gold/intake/purchases/new" },
+          { moduleId: "gold", href: "/gold/intake/pours" },
+          { moduleId: "gold", href: "/gold/intake/purchases" },
           { moduleId: "gold", href: "/gold/allocations" },
         ],
       },
@@ -521,8 +528,8 @@ const WORKSPACE_PROFILE_RECIPES: Partial<Record<WorkspaceProfile, WorkspaceProfi
         id: "gold-chain",
         title: "Movement & Settlement",
         refs: [
-          { moduleId: "gold", href: "/gold/transit/dispatches/new" },
-          { moduleId: "gold", href: "/gold/settlement/receipts/new" },
+          { moduleId: "gold", href: "/gold/transit/dispatches" },
+          { moduleId: "gold", href: "/gold/settlement/receipts" },
           { moduleId: "gold", href: "/gold/settlement/approvals" },
         ],
       },
@@ -1256,7 +1263,19 @@ export function getWorkspaceSidebarModel(args: WorkspaceModelArgs): WorkspaceSid
     recipe === WORKSPACE_PROFILE_RECIPES.RETAIL
       ? []
       : buildAdditionalSections(recipe, visibleModules, usedPrimaryHrefs, verticalProduct);
-  const sections = withBuild([...primarySections, ...additionalSections], context);
+  // Management's full-page surface is behind the rail's gear, never a panel's
+  // row (spec/shell.md): a row into it left the panel it was clicked in.
+  const sections = withBuild(
+    [...primarySections, ...additionalSections]
+      .map((section) => {
+        const items = section.items.filter((item) => !isSettingsSurfacePath(item.href.split("?")[0] ?? item.href));
+        if (items.length === section.items.length) return section;
+        const present = new Set(items.map((item) => item.group).filter(Boolean));
+        return { ...section, items, ...(section.groups ? { groups: section.groups.filter((group) => present.has(group.id)) } : {}) };
+      })
+      .filter((section) => section.items.length > 0),
+    context,
+  );
   const homeTarget = getHomeTarget({
     recipe,
     context,

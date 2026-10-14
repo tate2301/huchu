@@ -23,6 +23,7 @@ export function AppSidebar({ inDrawer = false, railOnly = false }: { inDrawer?: 
       model={nav.rail}
       workspaceLabel={nav.model.workspaceLabel}
       activeHref={nav.activeHref}
+      activeAreaId={nav.currentArea?.id ?? null}
       badges={nav.badges}
       tile={<AccountMenu />}
       person={<PersonMenu />}

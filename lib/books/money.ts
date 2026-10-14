@@ -202,7 +202,7 @@ async function cashUpShort(db: Db, companyId: string, today: string): Promise<Ne
       worst && worst.countedCash !== null
         ? `${worst.registerName} counted ${money(Number(worst.countedCash))} against ${money(Number(worst.expectedCash))} expected.`
         : `The tills counted ${money(short)} less than they should have.`,
-    action: { label: "Review", href: "/retail/end-of-day" },
+    action: { label: "Review", href: "/books/takings" },
   };
 }
 

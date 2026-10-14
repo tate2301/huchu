@@ -50,6 +50,7 @@ export function WorkspaceRail({
   model,
   workspaceLabel,
   activeHref,
+  activeAreaId = null,
   badges,
   tile,
   person,
@@ -68,6 +69,11 @@ export function WorkspaceRail({
   /** The workspace's name: the module list's title ("Retail"). */
   workspaceLabel: string;
   activeHref: string | null;
+  /**
+   * The page's module when no row of it is the page: a report opened from a
+   * module's panel (`/books/reports/{key}`) stays in that module's panel.
+   */
+  activeAreaId?: string | null;
   badges: Record<string, string>;
   tile: React.ReactNode;
   /** The person at the foot of the rail, with their menu. */
@@ -91,14 +97,17 @@ export function WorkspaceRail({
   moduleGroups?: (area: RailArea) => React.ReactNode;
 }) {
   const { shape, areas, pinCapacity } = model;
-  const activeArea = React.useMemo(() => areaForHref(areas, activeHref), [areas, activeHref]);
+  const activeArea = React.useMemo(
+    () => areaForHref(areas, activeHref) ?? (activeAreaId ? (areas.find((area) => area.id === activeAreaId) ?? null) : null),
+    [areas, activeAreaId, activeHref],
+  );
   const activeFolderId = activeArea ? (folderForHref(activeArea, activeHref)?.id ?? null) : null;
 
   // Where the panel is standing. The module list (`areaId` null) is a
   // legitimate place to stand: you are looking at the workspace, not inside
   // one of its modules. It follows the page whenever the page's module, or
   // the folder it sits in, changes.
-  const pageView: RailView = { areaId: activeArea?.id ?? null, folderId: activeFolderId };
+  const pageView: RailView = { areaId: activeArea?.id ?? null, folderId: null };
   const pageViewKey = `${pageView.areaId ?? ""}/${pageView.folderId ?? ""}`;
   const [view, setView] = React.useState<RailView>(pageView);
   const [followedViewKey, setFollowedViewKey] = React.useState(pageViewKey);
@@ -319,13 +328,17 @@ export function WorkspaceRail({
           <ul className={styles.items}>
             {areaBody(
               shownArea,
-              (shownArea.folders ?? []).map((folder) =>
-                levelRow(
-                  folder,
-                  { areaId: shownArea.id, folderId: folder.id },
-                  shownArea.id === activeArea?.id && folder.id === activeFolderId,
-                ),
-              ),
+              // A module read whole keeps its groups as headed bands in its own
+              // panel, folded but for the one holding the page: a row in one
+              // opens its page without leaving the module's panel.
+              (shownArea.folders ?? []).map((folder) => {
+                const holds = shownArea.id === activeArea?.id && folder.id === activeFolderId;
+                return (
+                  <PanelGroup key={`folder:${folder.id}`} label={folder.label} defaultOpen={holds} holdsCurrent={holds}>
+                    {rowsFor(folder.items, shownArea)}
+                  </PanelGroup>
+                );
+              }),
             )}
           </ul>
         ) : (

@@ -766,22 +766,22 @@ export const navSections: NavSection[] = [
     items: [
       { href: "/gold", icon: Coins, label: "Overview" },
       {
-        href: "/gold/intake/pours/new",
+        href: "/gold/intake/pours",
         icon: Dataset,
         label: "Pours",
       },
       {
-        href: "/gold/intake/purchases/new",
+        href: "/gold/intake/purchases",
         icon: Payments,
         label: "Purchases",
       },
       {
-        href: "/gold/transit/dispatches/new",
+        href: "/gold/transit/dispatches",
         icon: LocalShipping,
         label: "Dispatches",
       },
       {
-        href: "/gold/settlement/receipts/new",
+        href: "/gold/settlement/receipts",
         icon: ReceiptLong,
         label: "Settlements",
       },
@@ -944,7 +944,8 @@ export const navSections: NavSection[] = [
       { href: "/books/invoices", icon: ReceiptLong, label: "Invoices" },
       { href: "/books/payments", icon: Payments, label: "Payments" },
       // The tills' takings, counted and banked at the end of the day.
-      { href: "/retail/end-of-day", icon: ShoppingBag, label: "Takings", requires: [["retail.end-of-day", "view"]] },
+      // At a Books address (the floor's End of day, rendered here), so it keeps Books' panel.
+      { href: "/books/takings", icon: ShoppingBag, label: "Takings", requires: [["retail.end-of-day", "view"]] },
       { href: "/books/expenses", icon: Wallet, label: "Expenses" },
       { href: "/books/bank", icon: CreditCard, label: "Bank" },
       { href: "/books/vat", icon: Coins, label: "VAT" },
