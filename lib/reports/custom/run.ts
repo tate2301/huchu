@@ -94,6 +94,18 @@ function fingerprint(text: string): string {
  * Every query block run, by block id. `rows(table)` gives a source's rows and
  * `version(table)` what they are, so a table is loaded only when it changed.
  */
+/** A question that runs longer than this is stopped, and says so (world.json's failure). */
+export const RUN_LIMIT_MS = 10_000;
+export const STOPPED = "Stopped after 10 seconds. Narrow the dates.";
+
+function withinLimit<T>(running: Promise<T>, ms: number): Promise<T | "stopped"> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const stop = new Promise<"stopped">((resolve) => {
+    timer = setTimeout(() => resolve("stopped"), ms);
+  });
+  return Promise.race([running, stop]).finally(() => clearTimeout(timer));
+}
+
 export async function runBlocks(
   blocks: readonly CustomBlock[],
   checks: ReadonlyMap<string, BlockCheck>,
@@ -105,6 +117,8 @@ export async function runBlocks(
     period: { from?: string; to?: string };
     /** Sources whose rows were refused this person: a block reading one says so, rather than showing nothing as if it were empty. */
     refused?: (table: string) => boolean;
+    /** How long one question may run before it is stopped (10 seconds). */
+    limitMs?: number;
   },
 ): Promise<Map<string, BlockResult>> {
   const own = queryBlocks(blocks);
@@ -150,9 +164,11 @@ export async function runBlocks(
       used.push(loaded.table);
     }
 
-    const ran = await inputs.runner.run(check.checked.body, inputs.period);
+    const ran = await withinLimit(inputs.runner.run(check.checked.body, inputs.period), inputs.limitMs ?? RUN_LIMIT_MS);
     let result: BlockResult;
-    if (!ran.ok) {
+    if (ran === "stopped") {
+      result = { ok: false, problem: { message: STOPPED, from: 0, to: 0 }, running: true };
+    } else if (!ran.ok) {
       const from = ran.error.position ?? 0;
       result = { ok: false, problem: { message: ran.error.message, from, to: from + 1 }, running: true };
     } else {
