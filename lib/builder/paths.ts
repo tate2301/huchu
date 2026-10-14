@@ -6,7 +6,11 @@
  */
 export type BuilderSurface = "rail" | "full";
 
-const RAIL: RegExp[] = [/^\/reports\/c\/[^/]+\/edit\/?$/];
+const RAIL: RegExp[] = [
+  /^\/reports\/c\/[^/]+\/edit\/?$/,
+  // Build's builders: a form, a document, a template and a report, on the one grid (spec/routes.md §5).
+  /^\/build\/(forms|documents|templates|reports)\/[^/]+\/?$/,
+];
 const FULL: RegExp[] = [/^\/reports\/(?!c\/|custom\/|built\/|insights\/)[^/]+\/arrange\/?$/];
 
 /** Which builder surface a path is, or null for a page in the shell. */

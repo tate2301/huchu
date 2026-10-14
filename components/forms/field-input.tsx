@@ -48,6 +48,11 @@ export type FieldInputProps = {
   error?: string;
   /** Where a file answer is uploaded. Without one, a file question cannot be answered here. */
   uploadUrl?: string;
+  /**
+   * The control alone, without its label and help: the builder's paper draws
+   * the question's own label row beside its figure (BuildForm's `.qr`).
+   */
+  bare?: boolean;
 };
 
 export function FieldInput({
@@ -58,6 +63,7 @@ export function FieldInput({
   idPrefix = "field",
   error,
   uploadUrl,
+  bare = false,
 }: FieldInputProps) {
   const id = `${idPrefix}-${field.key}`;
   const describedBy = [field.help ? `${id}-help` : null, error ? `${id}-error` : null]
@@ -102,7 +108,7 @@ export function FieldInput({
   return (
     <div className={styles.field} inert={mode === "preview"}>
       {/* A single yes-or-no carries its own label beside the box. */}
-      {field.type === "checkbox" ? null : (
+      {field.type === "checkbox" || bare ? null : (
         <label htmlFor={id} className={styles.label}>
           {field.label}
           {field.required ? (
@@ -113,7 +119,7 @@ export function FieldInput({
         </label>
       )}
 
-      {field.help ? (
+      {field.help && !bare ? (
         <p id={`${id}-help`} className={styles.help}>
           {field.help}
         </p>

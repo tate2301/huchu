@@ -140,7 +140,7 @@ export function AreasInput({ field, id, value, set, aria }: { field: FieldDefini
   const unit = field.unit ?? "m";
   return (
     <div id={id} role="group" aria-label={field.label} className={styles.areas} {...aria}>
-      {rooms.length === 0 ? <p className={styles.areasEmpty}>No areas yet. Add the first as you walk in.</p> : null}
+      {rooms.length === 0 ? <p className={styles.areasEmpty}>No rooms yet. Add the first as you walk in.</p> : null}
       {rooms.map((room, index) => {
         const area = measureOf({ ...field, type: "area", shape: "rect" }, room);
         return (
@@ -148,8 +148,8 @@ export function AreasInput({ field, id, value, set, aria }: { field: FieldDefini
             <Input
               className={styles.areaName}
               value={room.name}
-              placeholder={`Area ${index + 1}`}
-              aria-label={`Area ${index + 1}: name`}
+              placeholder={`Room ${index + 1}`}
+              aria-label={`Room ${index + 1}: name`}
               onChange={(event) => update(index, { name: event.target.value })}
             />
             <span className={styles.area}>
@@ -158,7 +158,7 @@ export function AreasInput({ field, id, value, set, aria }: { field: FieldDefini
               <Figure label={`${room.name || `Area ${index + 1}`}: width`} value={room.width} unit={unit} size="sm" onChange={(next) => update(index, { width: next })} />
             </span>
             <span className={styles.areaFigure}>{area !== null ? formatMeasure({ ...field, type: "area" }, area) : "—"}</span>
-            <button type="button" className={styles.areaRemove} aria-label={`Remove ${room.name || `area ${index + 1}`}`} onClick={() => set(rooms.filter((_, at) => at !== index))}>
+            <button type="button" className={styles.areaRemove} aria-label={`Remove ${room.name || `room ${index + 1}`}`} onClick={() => set(rooms.filter((_, at) => at !== index))}>
               <Trash2 className="size-4" aria-hidden="true" />
             </button>
           </div>
@@ -167,7 +167,7 @@ export function AreasInput({ field, id, value, set, aria }: { field: FieldDefini
       <div className={styles.areasFoot}>
         <button type="button" className={styles.addLine} onClick={() => set([...rooms, { name: "", length: "", width: "" }])}>
           <Plus className="size-4" aria-hidden="true" />
-          Add an area
+          Add a room
         </button>
         {rooms.length ? (
           <span className={styles.measureTotal}>

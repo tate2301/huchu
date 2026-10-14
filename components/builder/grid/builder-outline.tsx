@@ -8,11 +8,15 @@ import { CSS } from "@dnd-kit/utilities";
 import { Icon, type IconName } from "@/components/core";
 import { MenuButton } from "@/components/core/menu";
 
-/** A kind of block the outline can add. */
-export type BlockKind = { id: string; label: string; icon: IconName };
+/** A kind of block the outline can add; `group` heads the menu's next run of kinds ("Measure"). */
+export type BlockKind = { id: string; label: string; icon: IconName; group?: string };
 
-/** How a block is listed: its icon, its name, and the question it reads, if any. */
-export type OutlineEntry = { id: string; icon: IconName; title: string; question?: string };
+/**
+ * How a block is listed: its icon, its name, and the question it reads, if
+ * any. A `heading` (a form's section) is drawn as the outline's own heading;
+ * a `sub` row (a question asked only when another answer says so) is indented.
+ */
+export type OutlineEntry = { id: string; icon: IconName; title: string; question?: string; heading?: boolean; sub?: boolean };
 
 function OutlineRow({
   entry,
@@ -30,7 +34,7 @@ function OutlineRow({
     <button
       ref={setNodeRef}
       type="button"
-      className={["oi", selected && "is-on", isDragging && "is-dragging"].filter(Boolean).join(" ")}
+      className={[entry.heading ? "oh oi-sec" : "oi", entry.sub && "is-sub", selected && "is-on", isDragging && "is-dragging"].filter(Boolean).join(" ")}
       aria-current={selected ? "true" : undefined}
       aria-roledescription={attributes["aria-roledescription"]}
       aria-describedby={attributes["aria-describedby"]}
@@ -44,7 +48,8 @@ function OutlineRow({
       }}
       {...listeners}
     >
-      <Icon name={entry.icon} />
+      {entry.heading ? null : entry.sub ? <Icon name="caret" className="oi-b" /> : null}
+      {entry.heading ? null : <Icon name={entry.icon} />}
       <span className="oi-t">{entry.title}</span>
       {entry.question ? <span className="oi-q">{entry.question}</span> : null}
     </button>
@@ -69,10 +74,11 @@ export function BuilderOutline({
   onAdd,
   catalogue,
   after,
+  addLabel = "Add a block",
 }: {
   head?: React.ReactNode;
-  /** Over the blocks: "On the board", "The page". */
-  heading: string;
+  /** Over the blocks: "On the board", "The page". A form's sections head its own rows instead. */
+  heading?: string;
   entries: OutlineEntry[];
   selected: string | null;
   onSelect: (id: string) => void;
@@ -82,6 +88,8 @@ export function BuilderOutline({
   /** Kinds listed again under Add, one click each (the page arranger). */
   catalogue?: readonly BlockKind[];
   after?: React.ReactNode;
+  /** The Add button's words: "Add a block" on a board, "Add" on a form or a document. */
+  addLabel?: string;
 }) {
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
   const ids = entries.map((entry) => entry.id);
@@ -100,17 +108,22 @@ export function BuilderOutline({
           icon="plus"
           iconEnd={undefined}
           shortcut="/"
-          label="Add a block"
-          items={kinds.map((kind) => ({ key: kind.id, label: kind.label, icon: kind.icon, onSelect: () => onAdd(kind.id) }))}
+          label={addLabel}
+          items={kinds.flatMap((kind) => [
+            ...(kind.group ? [{ heading: kind.group }] : []),
+            { key: kind.id, label: kind.label, icon: kind.icon, onSelect: () => onAdd(kind.id) },
+          ])}
         >
-          Add a block
+          {addLabel}
         </MenuButton>
       </div>
       <div className="pm-body">
-        <div className={catalogue ? "oh" : "pg-h"}>
-          {catalogue ? null : <Icon name="down" />}
-          {heading}
-        </div>
+        {heading ? (
+          <div className={catalogue ? "oh" : "pg-h"}>
+            {catalogue ? null : <Icon name="down" />}
+            {heading}
+          </div>
+        ) : null}
         <DndContext id={domId} sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
           <SortableContext items={ids} strategy={verticalListSortingStrategy}>
             {entries.map((entry, index) => (

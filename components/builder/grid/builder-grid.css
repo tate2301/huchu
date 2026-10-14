@@ -162,3 +162,93 @@
 .ck .rb-pick .selbox { font-weight: 400; gap: var(--space-8); }
 .ck .rb-pick > select { position: absolute; left: 0; right: 0; bottom: 0; height: 36px; width: 100%; opacity: 0; cursor: pointer; }
 .ck .rb-pick > select:focus-visible + label .selbox, .ck .rb-pick:focus-within .selbox { outline: 2px solid var(--color-primary); outline-offset: 1px; }
+
+/* ── Forms and documents on the grid (BuildForm, PageIntakeForm, BuildDocument, PageTemplateEmail,
+      PageTemplatePayslip): the paper in the middle, its rows selectable, the foot that says what it drafts. ── */
+.ck .rb-sheet { min-height: 100%; display: flex; flex-direction: column; }
+.ck .rb-sheet .fpaper { flex: 1 0 auto; }
+.ck .rb-sheet .fpaper.is-phone { max-width: 390px; padding-left: var(--space-16); padding-right: var(--space-16); }
+.ck .fpaper .text-title { margin: 0; }
+.ck .fpaper .rb-title { width: 100%; border: 0; background: transparent; font: inherit; font-size: var(--text-24, 24px); font-weight: 600; color: var(--color-ink); padding: 0; letter-spacing: var(--tracking-title); }
+.ck .fpaper .rb-title:focus { outline: 2px solid var(--color-primary); outline-offset: 4px; border-radius: 2px; }
+.ck .fpaper .rb-meta { margin: calc(var(--space-40, 40px) * -1) 0 0; color: var(--color-muted); font-size: var(--text-14); }
+.ck .fpaper .fs { gap: var(--space-32); }
+.ck .fpaper .qr { position: relative; cursor: default; }
+.ck .fpaper .qr.sel { cursor: auto; }
+.ck .fpaper .qr.is-hidden { opacity: .55; }
+.ck .fpaper .qr .qr-note { grid-column: 1; margin: 0; font-size: var(--text-12); color: var(--color-muted); }
+.ck .fpaper .qr .qr-warn { grid-column: 1; margin: 0; font-size: var(--text-12); color: var(--color-warn, #b45309); }
+.ck .fpaper .qr-feeds { display: inline-flex; align-items: center; gap: var(--space-4); font-size: var(--text-12); color: var(--color-accent); }
+.ck .fpaper .qr-feeds .ic { width: 12px; height: 12px; }
+.ck .fpaper .fs h2.sel, .ck .fpaper .rb-sec.sel { outline-offset: 8px; }
+.ck .fpaper .rb-sec { position: relative; display: flex; flex-direction: column; gap: var(--space-4); }
+.ck .fpaper .rb-sec h2 { margin: 0; }
+.ck .fpaper .rb-sec p { margin: 0; color: var(--color-muted); font-size: var(--text-13); }
+.ck .fpaper .rb-note-q { margin: 0; color: var(--color-ink-2); font-size: var(--text-14); line-height: 1.5; }
+.ck .fpaper .rb-fixed { display: flex; flex-direction: column; gap: var(--space-24); padding: var(--space-16) var(--space-24); border-radius: var(--radius-card); box-shadow: var(--shadow-ring); background: var(--color-surface); }
+.ck .fpaper .rb-fixed .pl-h { font-size: var(--text-12); color: var(--color-muted); }
+.ck .fpaper .rb-quote { position: relative; display: flex; flex-direction: column; gap: var(--space-12); padding: var(--space-16) var(--space-24); border-radius: var(--radius-card); box-shadow: var(--shadow-ring); background: var(--color-surface); }
+.ck .fpaper .rb-quote h2 { margin: 0; font-size: var(--text-16); font-weight: 600; }
+.ck .fpaper .rb-quote table { width: 100%; border-collapse: collapse; font-size: var(--text-13); font-variant-numeric: tabular-nums; table-layout: fixed; }
+.ck .fpaper .rb-quote th { text-align: left; font-weight: 500; color: var(--color-muted); padding: var(--space-8) 0; box-shadow: inset 0 -1px 0 var(--color-rule); }
+.ck .fpaper .rb-quote td { padding: var(--space-8) 0; box-shadow: inset 0 -1px 0 var(--color-line); overflow: hidden; text-overflow: ellipsis; }
+.ck .fpaper .rb-quote .r { text-align: right; }
+.ck .fpaper .rb-quote small { display: block; color: var(--color-muted); font-size: var(--text-12); }
+.ck .fpaper .rb-quote tfoot td { font-weight: 600; color: var(--color-ink); box-shadow: none; }
+.ck .rb-sheet .cfoot { position: sticky; bottom: 0; margin-top: auto; display: flex; align-items: center; justify-content: space-between; gap: var(--space-16); padding: var(--space-12) var(--space-24); background: var(--color-surface); box-shadow: 0 -1px 0 var(--color-line); font-size: var(--text-14); z-index: 2; }
+.ck .rb-sheet .cfoot b { font-weight: 600; color: var(--color-ink); }
+.ck .rb-sheet .cfoot > span { min-width: 0; }
+.ck .oh.oi-sec { display: flex; align-items: center; width: 100%; text-align: left; border-radius: var(--radius-control); cursor: pointer; }
+.ck .oh.oi-sec.is-on { color: var(--color-ink); font-weight: 600; }
+.ck .oi .oi-b { width: 14px; height: 14px; color: var(--color-faint); flex: none; }
+
+/* The inspector's parts for forms, quotes and documents. */
+.ck .rb-pan .ph { font-size: var(--text-16); font-weight: 600; color: var(--color-ink); letter-spacing: var(--tracking-heading); }
+.ck .rb-pan .rb-pair { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--space-8); align-items: center; }
+.ck .rb-pan .rb-pair.rb-choice { grid-template-columns: minmax(0, 1fr) auto; }
+.ck .rb-pan .rb-unit { display: flex; align-items: center; gap: var(--space-8); }
+.ck .rb-pan .rb-unit .input { min-width: 0; }
+.ck .rb-pan button.prow { width: 100%; text-align: left; background: transparent; cursor: pointer; }
+.ck .rb-pan button.prow:hover { background: var(--color-hover); }
+.ck .rb-pan .prow b { font-weight: 500; color: var(--color-ink); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ck .rb-pan .rb-line-b { display: flex; flex-direction: column; gap: var(--space-16); padding: var(--space-12) 0 var(--space-16); }
+.ck .rb-pan .setting { box-shadow: none; padding: 0; }
+.ck .rb-pan .mono { font-family: var(--font-mono); }
+.ck .rb-pan .rb-answers { width: 100%; border-collapse: collapse; font-size: var(--text-13); table-layout: fixed; }
+.ck .rb-pan .rb-answers td { padding: var(--space-8) 0; box-shadow: inset 0 -1px 0 var(--color-line); vertical-align: top; overflow: hidden; text-overflow: ellipsis; }
+.ck .rb-pan .rb-answers td:first-child { font-family: var(--font-mono); font-size: var(--text-12); color: var(--color-muted); width: 40%; padding-right: var(--space-8); }
+.ck .rb-pan .rb-answers tr[aria-current="true"] td { background: var(--color-accent-tint); }
+.ck .rb-pan .rb-pills { display: flex; flex-wrap: wrap; gap: var(--space-8); }
+.ck .rb-pan .rb-pills .pill { display: inline-flex; align-items: center; gap: var(--space-4); }
+.ck .rb-pan .rb-pills .pill button { display: grid; place-items: center; width: 16px; height: 16px; border-radius: 999px; color: var(--color-muted); }
+.ck .rb-pan .rb-pills .pill button .ic { width: 10px; height: 10px; }
+.ck .rb-pan .rb-vars { display: flex; flex-direction: column; gap: 2px; }
+.ck .rb-pan .rb-vars button { display: flex; justify-content: space-between; gap: var(--space-8); width: 100%; min-height: 32px; padding: 0 var(--space-8); border-radius: var(--radius-control); font-size: var(--text-13); text-align: left; }
+.ck .rb-pan .rb-vars button:hover { background: var(--color-hover); }
+.ck .rb-pan .rb-vars code { font-size: var(--text-12); color: var(--color-muted); }
+
+/* A document on the desk (BuildDocument, PageTemplatePayslip): A4, with its parts selectable. */
+.ck .desk2 { padding: var(--space-48); display: flex; justify-content: center; }
+.ck .a4 { width: 620px; min-height: 877px; padding: var(--space-48); background: var(--color-surface); box-shadow: var(--shadow-ring), 0 16px 32px -16px rgba(38, 37, 31, .16); font-size: var(--text-12); color: var(--color-ink-2); display: flex; flex-direction: column; gap: var(--space-24); }
+.ck .a4 .rbk { box-shadow: none; padding: 0; background: transparent; border-radius: 0; gap: var(--space-4); font-size: var(--text-13); }
+.ck .a4 .rbk.rb-sel { outline-offset: 6px; border-radius: 2px; }
+.ck .a4 .rbk .sel-tag { left: -8px; top: -34px; }
+.ck .a4 table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+.ck .a4 th { text-align: left; font-weight: 500; color: var(--color-muted); font-size: var(--text-12); padding: var(--space-8) 0; box-shadow: inset 0 -1px 0 var(--color-rule); }
+.ck .a4 td { padding: var(--space-8) 0; box-shadow: inset 0 -1px 0 var(--color-line); }
+.ck .a4 .r { text-align: right; }
+.ck .a4 iframe { width: 100%; min-height: 820px; border: 0; background: #fff; }
+.ck .email-desk { max-width: 600px; margin: 0 auto; padding: var(--space-48) var(--space-16); display: flex; flex-direction: column; gap: var(--space-16); }
+.ck .email-desk .card { padding: var(--space-16) var(--space-24); background: var(--color-surface); border-radius: var(--radius-card); box-shadow: var(--shadow-ring); display: flex; flex-direction: column; gap: var(--space-8); font-size: var(--text-14); }
+.ck .email-desk .card .rbk { box-shadow: none; padding: 0; background: transparent; }
+
+@media (max-width: 1099px) {
+  .ck .rb-sheet .fpaper { padding: var(--space-24) var(--space-16); }
+  .ck .rb-sheet .cfoot > span { font-size: var(--text-13); }
+  .ck .desk2 { padding: var(--space-16); }
+  .ck .a4 { width: 100%; min-height: 0; padding: var(--space-24); }
+}
+/* The form's own controls keep their box inside the kit's reset. */
+.ck .fpaper button[role="checkbox"] { width: 18px; height: 18px; flex: none; border-radius: 4px; box-shadow: inset 0 0 0 1.5px var(--color-rule); background: var(--color-surface); display: grid; place-items: center; color: var(--color-primary-ink); }
+.ck .fpaper button[role="checkbox"][data-state="checked"] { background: var(--color-primary); box-shadow: none; }
+.ck .fpaper button[role="checkbox"] svg { width: 12px; height: 12px; }
