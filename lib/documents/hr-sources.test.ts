@@ -21,6 +21,7 @@ import { deleteTestCompany } from "@/lib/schools/test-support";
 import { seedZimbabweStatutoryPack } from "@/lib/hr/statutory/zimbabwe-pack";
 import { assembleSalaryRun } from "@/lib/hr/payroll/assemble";
 import { canRenderPayslip, resolvePayslip } from "./hr-sources";
+import { PAYSLIP_PENALTY_NOTE } from "./payslip-rows";
 
 let companyId: string;
 let actorId: string;
@@ -194,6 +195,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
   if (!companyId) return;
+  await prisma.disciplinaryAction.deleteMany({ where: { companyId } });
   await prisma.leaveRequest.deleteMany({ where: { companyId } });
   await prisma.leaveEntitlement.deleteMany({ where: { companyId } });
   await prisma.leaveType.deleteMany({ where: { companyId } });
@@ -360,6 +362,33 @@ describe("the payslip shows the working, not just the net figure", () => {
     // Eight months of 22 days have built up by 31 August: 14.67, less July's 3.
     // Sick leave is granted on need and none was taken, so it is not printed.
     expect(leave?.rows).toEqual([{ label: "Annual leave", value: "11.67 of 14.67 days" }]);
+  });
+
+  it("lists a penalty HR recorded as deducted in the period, outside every total", async () => {
+    const ada = await prisma.employee.findFirstOrThrow({ where: { companyId, employeeId: "EMP-PS-1" }, select: { id: true } });
+    const action = (summary: string, appliedAt: string, penaltyStatus: "DEDUCTED" | "WAIVED") => ({
+      companyId,
+      employeeId: ada.id,
+      actionType: "PENALTY" as const,
+      status: "APPLIED" as const,
+      summary,
+      penaltyAmount: 20,
+      penaltyStatus,
+      appliedAt: new Date(appliedAt),
+      createdById: actorId,
+    });
+    await prisma.disciplinaryAction.createMany({
+      data: [
+        action("Late for shift", "2026-08-12T00:00:00.000Z", "DEDUCTED"),
+        action("Waived", "2026-08-13T00:00:00.000Z", "WAIVED"),
+        action("July's", "2026-07-13T00:00:00.000Z", "DEDUCTED"),
+      ],
+    });
+
+    const doc = await resolvePayslip(companyId, adaLineId);
+    const penalties = doc.payload.record!.lines!.filter((line) => line.kind === "Penalty");
+    expect(penalties).toEqual([expect.objectContaining({ stage: "Late for shift", amount: "(20.00)" })]);
+    expect(doc.payload.notes).toContain(PAYSLIP_PENALTY_NOTE);
   });
 
   it("names the file after the employee and the period", async () => {

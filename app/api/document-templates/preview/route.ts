@@ -5,7 +5,7 @@ import { errorResponse, validateSession } from "@/lib/api-utils";
 import { getDocumentBranding } from "@/lib/documents/branding-snapshot";
 import { HR_DOCUMENT_ACCESS, latestPayslipLine, resolvePayslip } from "@/lib/documents/hr-sources";
 import { renderDocumentHtml } from "@/lib/documents/html-renderer";
-import { applyPayslipRows } from "@/lib/documents/payslip-rows";
+import { applyPayslipLayout } from "@/lib/documents/payslip-rows";
 import { getSamplePayload } from "@/lib/documents/sample-payloads";
 import { templateSchema } from "@/lib/documents/template-schema";
 import type { UniversalDocumentPayload } from "@/lib/documents/types";
@@ -47,7 +47,7 @@ export async function POST(request: NextRequest) {
         payload = (await resolvePayslip(companyId, latest.id)).payload;
         showing = `${latest.name}, ${latest.periodEnd.toLocaleDateString("en-GB", { month: "long", timeZone: "UTC" })}`;
       }
-      payload = applyPayslipRows(payload, parsedSchema.rows);
+      payload = applyPayslipLayout(payload, parsedSchema);
     }
 
     const html = renderDocumentHtml({ payload, branding, template: parsedSchema });

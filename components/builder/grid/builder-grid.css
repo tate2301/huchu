@@ -261,3 +261,6 @@
 /* A row added to a payslip part (PageTemplatePayslip): its label, the figure that fills it, remove. */
 .ck .rb-pan .rb-pair.rb-row { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto; }
 .ck .rb-pan .rb-addrow { align-self: flex-start; }
+/* The payslip's Show (PageTemplatePayslip): the kind on one line, what it holds to its right. */
+.ck .rb-pan .prow > .check { flex: none; white-space: nowrap; }
+.ck .rb-pan .prow > .check + span { text-align: right; }

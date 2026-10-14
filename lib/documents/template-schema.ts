@@ -24,6 +24,19 @@ export const templateRowSchema = z.object({
 
 export type TemplateRow = z.infer<typeof templateRowSchema>;
 
+/**
+ * What a payslip layout shows (PageTemplatePayslip's Show and Hide rows that
+ * are zero). Read by `lib/documents/payslip-rows.ts`; other documents ignore it.
+ */
+export const payslipShowSchema = z.object({
+  statutory: z.boolean().default(true),
+  otherDeductions: z.boolean().default(true),
+  penalties: z.boolean().default(true),
+  hideZero: z.boolean().default(true),
+});
+
+export type PayslipShow = z.infer<typeof payslipShowSchema>;
+
 export const templateSchema = z.object({
   page: z
     .object({
@@ -82,6 +95,7 @@ export const templateSchema = z.object({
       customer: "Customer",
     }),
   rows: z.array(templateRowSchema).max(40).default([]),
+  payslip: payslipShowSchema.default({ statutory: true, otherDeductions: true, penalties: true, hideZero: true }),
 });
 
 export type DocumentTemplateSchema = z.infer<typeof templateSchema>;

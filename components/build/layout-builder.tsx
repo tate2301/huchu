@@ -4,7 +4,7 @@ import * as React from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { BuilderBar, BuilderGrid, BuilderInspector, BuilderOutline, type BlockKind, type BuilderMode } from "@/components/builder/grid";
-import { Button, Field, Icon, Input, Select, Setting, Switch, TextArea, type IconName } from "@/components/core";
+import { Button, Check, Field, Icon, Input, Select, Setting, Switch, TextArea, type IconName } from "@/components/core";
 import { RecordActivityTrail } from "@/components/activity/record-activity-trail";
 import { useToast } from "@/components/ui/use-toast";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
@@ -448,6 +448,26 @@ function LayoutBuilderView({
       </Button>
     </>
   ) : null;
+  // The payslip's own Show (the Deductions part) and Hide rows that are zero (every table of it).
+  const payslip = sourceKey === "hr.payslip";
+  const setShow = (patch: Partial<DocumentTemplateSchema["payslip"]>) => onSchema({ ...schema, payslip: { ...schema.payslip, ...patch } });
+  const showKinds =
+    payslip && selected.id === "deductions" ? (
+      <div>
+        <div className="prow">
+          <Check label="Statutory deductions" checked={schema.payslip.statutory} disabled={disabled} onCheckedChange={(statutory) => setShow({ statutory })} />
+          <span>PAYE, AIDS levy, NSSA</span>
+        </div>
+        <div className="prow">
+          <Check label="Other deductions" checked={schema.payslip.otherDeductions} disabled={disabled} onCheckedChange={(otherDeductions) => setShow({ otherDeductions })} />
+          <span>from compensation rules</span>
+        </div>
+        <div className="prow">
+          <Check label="Disciplinary penalties" checked={schema.payslip.penalties} disabled={disabled} onCheckedChange={(penalties) => setShow({ penalties })} />
+          <span>when applied</span>
+        </div>
+      </div>
+    ) : null;
   const element = (
     <>
       <h2 className="text-heading">{selected.label}</h2>
@@ -505,10 +525,14 @@ function LayoutBuilderView({
         <>
           <div className="pl">
             <div className="pl-h">Show</div>
+            {showKinds}
             <Toggle id="compact" title="Compact rows" note="More rows on a page" on={schema.table.compact} disabled={disabled} onChange={(compact) => set("table", { compact })} />
             <Toggle id="zebra" title="Banded rows" note="Every other row shaded" on={schema.table.zebra} disabled={disabled} onChange={(zebra) => set("table", { zebra })} />
             {addedRows}
           </div>
+          {payslip ? (
+            <Toggle id="zero" title="Hide rows that are zero" note="Keeps short payslips short" on={schema.payslip.hideZero} disabled={disabled} onChange={(hideZero) => setShow({ hideZero })} />
+          ) : null}
           <div className="pl">
             <div className="pl-h">Columns</div>
             {schema.table.columns.length === 0 ? <p className="rb-note">The source&apos;s own columns, in its order.</p> : null}

@@ -1,5 +1,5 @@
 import type { UniversalDocumentPayload } from "@/lib/documents/types";
-import type { TemplateRow } from "@/lib/documents/template-schema";
+import type { PayslipShow, TemplateRow } from "@/lib/documents/template-schema";
 
 /**
  * The rows a person adds to a payslip layout in Build (PageTemplatePayslip):
@@ -13,6 +13,10 @@ import type { TemplateRow } from "@/lib/documents/template-schema";
 /** Section titles the payslip prints, shared with `payslip-payload.ts` so added rows land in the right one. */
 export const PAYSLIP_LEAVE_TITLE = "Leave left";
 export const PAYSLIP_EMPLOYER_TITLE = "Paid by your employer on your behalf";
+export const PAYSLIP_EMPLOYER_TOTAL = "Total employer contributions";
+/** Printed under a payslip that lists a penalty, because payroll does not take penalties off pay. */
+export const PAYSLIP_PENALTY_NOTE =
+  "Disciplinary penalties are shown as HR recorded them as deducted in this period. They are not part of this run\u2019s deductions or net pay.";
 
 /** The parts of the payslip a row can be added to (the outline's ids in `layoutParts`). */
 export const PAYSLIP_ROW_PARTS = ["employee", "earnings", "deductions", "net", "leave", "employer"] as const;
@@ -110,4 +114,37 @@ export function applyPayslipRows(payload: UniversalDocumentPayload, rows: readon
   }
 
   return { ...payload, meta, totals, record: { ...record, sections, lines } };
+}
+
+const isZero = (value: unknown) => !/[1-9]/.test(String(value ?? ""));
+
+/**
+ * The payslip as its layout prints it: the kinds of deduction the layout
+ * shows (statutory, other, disciplinary penalties), rows that are zero left
+ * out when it hides them (never a total), then the rows it adds.
+ */
+export function applyPayslipLayout(
+  payload: UniversalDocumentPayload,
+  layout: { rows?: readonly TemplateRow[]; payslip?: Partial<PayslipShow> },
+): UniversalDocumentPayload {
+  const show: PayslipShow = { statutory: true, otherDeductions: true, penalties: true, hideZero: true, ...layout.payslip };
+  const hidden = new Set<string>([...(show.statutory ? [] : ["Statutory"]), ...(show.otherDeductions ? [] : ["Deduction"]), ...(show.penalties ? [] : ["Penalty"])]);
+  let shown = payload;
+  if (payload.record && (hidden.size > 0 || show.hideZero)) {
+    const record = payload.record;
+    shown = {
+      ...payload,
+      record: {
+        ...record,
+        lines: record.lines?.filter((line) => !hidden.has(String(line.kind ?? "")) && !(show.hideZero && isZero(line.amount))),
+        sections: show.hideZero
+          ? record.sections.map((section) =>
+              section.title === PAYSLIP_EMPLOYER_TITLE ? { ...section, rows: section.rows.filter((row) => row.label === PAYSLIP_EMPLOYER_TOTAL || !isZero(row.value)) } : section,
+            )
+          : record.sections,
+      },
+      notes: show.penalties ? payload.notes : payload.notes?.filter((note) => note !== PAYSLIP_PENALTY_NOTE),
+    };
+  }
+  return applyPayslipRows(shown, layout.rows);
 }

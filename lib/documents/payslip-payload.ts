@@ -11,7 +11,7 @@
 import { Prisma } from "@prisma/client";
 
 import type { LeaveBalance } from "@/lib/people/leave/balances";
-import { PAYSLIP_EMPLOYER_TITLE, PAYSLIP_LEAVE_TITLE } from "@/lib/documents/payslip-rows";
+import { PAYSLIP_EMPLOYER_TITLE, PAYSLIP_EMPLOYER_TOTAL, PAYSLIP_LEAVE_TITLE, PAYSLIP_PENALTY_NOTE } from "@/lib/documents/payslip-rows";
 import type { UniversalDocumentPayload } from "@/lib/documents/types";
 
 type Money = Prisma.Decimal;
@@ -54,6 +54,13 @@ export type PayslipLine = {
   };
   components: PayslipComponent[];
 };
+
+/**
+ * A disciplinary penalty HR recorded as deducted in the run's period. Payroll
+ * does not take it off pay, so it prints as a line of its own and is in no
+ * total.
+ */
+export type PayslipPenalty = { summary: string; amount: number; currency: string };
 
 /** One kind of leave as the payslip prints it: what is left of what has built up, at the period's end. */
 export type PayslipLeave = { name: string; remaining: Money; entitled: Money };
@@ -123,6 +130,7 @@ function isCredit(statutoryKey: string | null) {
 export function payslipPayload(
   line: PayslipLine,
   leave: readonly PayslipLeave[],
+  penalties: readonly PayslipPenalty[] = [],
 ): { fileName: string; payload: UniversalDocumentPayload; rows: Array<Record<string, unknown>> } {
   const { employee, run } = line;
 
@@ -150,6 +158,14 @@ export function payslipPayload(
       // "why is my NSSA only 31.50" — it shows the capped 700, not the salary.
       calculatedOn: component.basis ? money(component.basis) : "",
       amount: `(${money(component.amount)})`,
+      taxable: "",
+    })),
+    ...penalties.map((penalty) => ({
+      stage: penalty.summary,
+      kind: "Penalty",
+      rate: "",
+      calculatedOn: "",
+      amount: `(${penalty.amount.toFixed(2)}${penalty.currency === line.currency ? "" : ` ${penalty.currency}`})`,
       taxable: "",
     })),
     ...credits.map((component) => ({
@@ -193,6 +209,7 @@ export function payslipPayload(
   if (run.status !== "APPROVED") {
     notes.push(`This payroll run is ${run.status.toLowerCase()} and not yet approved. The figures may change.`);
   }
+  if (penalties.length > 0) notes.push(PAYSLIP_PENALTY_NOTE);
 
   return {
     fileName: `payslip-${slug(employee.employeeId)}-${slug(run.period.periodKey)}.pdf`,
@@ -238,7 +255,7 @@ export function payslipPayload(
                       label: row.calculatedOn ? `${row.stage} (${row.rate || "fixed"} of ${row.calculatedOn})` : row.stage,
                       value: row.amount,
                     })),
-                    { label: "Total employer contributions", value: money(line.employerCost) },
+                    { label: PAYSLIP_EMPLOYER_TOTAL, value: money(line.employerCost) },
                   ],
                 },
               ]

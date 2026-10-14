@@ -7,7 +7,15 @@ import { describe, expect, it } from "vitest";
 import { Prisma } from "@prisma/client";
 
 import { leaveLeftValue, payslipLeave, samplePayslipPayload } from "./payslip-payload";
-import { applyPayslipRows, newPayslipRow, PAYSLIP_EMPLOYER_TITLE, PAYSLIP_LEAVE_TITLE } from "./payslip-rows";
+import {
+  applyPayslipLayout,
+  applyPayslipRows,
+  newPayslipRow,
+  PAYSLIP_EMPLOYER_TITLE,
+  PAYSLIP_LEAVE_TITLE,
+  PAYSLIP_PENALTY_NOTE,
+} from "./payslip-rows";
+import type { UniversalDocumentPayload } from "./types";
 import { getSamplePayload } from "./sample-payloads";
 import { templateSchema } from "./template-schema";
 import type { LeaveBalance } from "@/lib/people/leave/balances";
@@ -109,6 +117,64 @@ describe("rows a person adds to the payslip layout", () => {
     const parsed = templateSchema.parse({ rows: [row] });
     expect(parsed.rows).toEqual([{ part: "deductions", label: "Taxable gross", from: "line.taxableGross" }]);
     expect(templateSchema.parse({}).rows).toEqual([]);
+  });
+});
+
+describe("what a payslip layout shows", () => {
+  // The sample, with a deduction from a rule, a penalty, and a zero line in each table.
+  const base = samplePayslipPayload();
+  const payslip: UniversalDocumentPayload = {
+    ...base,
+    notes: [...(base.notes ?? []), PAYSLIP_PENALTY_NOTE],
+    record: {
+      ...base.record!,
+      lines: [
+        ...base.record!.lines!,
+        { stage: "Union dues", kind: "Deduction", amount: "(12.00)" },
+        { stage: "Late for shift", kind: "Penalty", amount: "(20.00)" },
+        { stage: "Overtime", kind: "Earning", amount: "0.00" },
+        { stage: "Funeral cover", kind: "Deduction", amount: "(0.00)" },
+      ],
+      sections: base.record!.sections.map((section) =>
+        section.title === PAYSLIP_EMPLOYER_TITLE ? { ...section, rows: [{ label: "SDL (0.50% of 0.00)", value: "0.00" }, ...section.rows] } : section,
+      ),
+    },
+  };
+  const stages = (out: UniversalDocumentPayload) => out.record!.lines!.map((line) => String(line.stage));
+
+  it("shows every kind of deduction, and hides rows that are zero, by default", () => {
+    const out = applyPayslipLayout(payslip, templateSchema.parse({}));
+    expect(stages(out)).toEqual(["Basic pay", "NSSA", "PAYE", "AIDS levy", "Union dues", "Late for shift"]);
+    const employer = out.record!.sections.find((section) => section.title === PAYSLIP_EMPLOYER_TITLE)!;
+    expect(employer.rows.map((row) => row.label)).not.toContain("SDL (0.50% of 0.00)");
+    expect(out.notes).toContain(PAYSLIP_PENALTY_NOTE);
+  });
+
+  it("leaves out the kinds a person unticks, and the penalty note with the penalties", () => {
+    expect(stages(applyPayslipLayout(payslip, { payslip: { statutory: false } }))).toEqual(["Basic pay", "Union dues", "Late for shift"]);
+    expect(stages(applyPayslipLayout(payslip, { payslip: { otherDeductions: false } }))).toEqual(["Basic pay", "NSSA", "PAYE", "AIDS levy", "Late for shift"]);
+    const noPenalties = applyPayslipLayout(payslip, { payslip: { penalties: false } });
+    expect(stages(noPenalties)).not.toContain("Late for shift");
+    expect(noPenalties.notes).not.toContain(PAYSLIP_PENALTY_NOTE);
+  });
+
+  it("keeps zero rows when told to, and never drops a total or the figures that add up", () => {
+    const out = applyPayslipLayout(payslip, { payslip: { hideZero: false, statutory: false } });
+    expect(stages(out)).toContain("Overtime");
+    expect(stages(out)).toContain("Funeral cover");
+    expect(out.totals).toEqual(payslip.totals);
+    const employer = applyPayslipLayout(payslip, {}).record!.sections.find((section) => section.title === PAYSLIP_EMPLOYER_TITLE)!;
+    expect(employer.rows.at(-1)!.label).toBe("Total employer contributions");
+  });
+
+  it("adds a person's rows after it has hidden the rest", () => {
+    const out = applyPayslipLayout(payslip, { payslip: { otherDeductions: false }, rows: [{ part: "deductions", label: "Taxed on", from: "line.taxableGross" }] });
+    expect(stages(out)).toContain("Taxed on");
+  });
+
+  it("keeps the choices in the layout's own JSON", () => {
+    expect(templateSchema.parse({}).payslip).toEqual({ statutory: true, otherDeductions: true, penalties: true, hideZero: true });
+    expect(templateSchema.parse({ payslip: { penalties: false } }).payslip.penalties).toBe(false);
   });
 });
 
