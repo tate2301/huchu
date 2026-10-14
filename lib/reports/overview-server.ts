@@ -288,7 +288,10 @@ async function schools(reader: Reader): Promise<Omit<ReportsOverview, "opened" |
     }
   }
 
-  const roll = await rows(reader, "school-roll", {});
+  // On the roll: every pupil still enrolled, a suspended one too. Fees bills them all, so the
+  // tile and Fees count the same pupils.
+  const everyone = await rows(reader, "school-roll", { status: "all" });
+  const roll = everyone?.filter((row) => row.status === "Active" || row.status === "Suspended") ?? null;
   if (roll) {
     const joined = term ? roll.filter((row) => typeof row.admitted === "string" && row.admitted >= term.startDate.toISOString().slice(0, 10)).length : 0;
     kpis.push({
