@@ -7,16 +7,17 @@ import { useSession } from "next-auth/react";
 import { Button } from "@/components/core";
 import { PageChrome } from "@/components/layout/page-chrome";
 import { useToast } from "@/components/ui/use-toast";
+import { CardDrawer } from "@/components/vane/card-drawer";
 import { ForYouView } from "@/components/vane/for-you-view";
-import { useVaneActions, useVaneForYou, useVaneNav } from "@/components/vane/use-vane";
+import { useVaneActions, useVaneCard, useVaneForYou, useVaneNav } from "@/components/vane/use-vane";
 import { VaneError, VaneFrame, VaneLoading } from "@/components/vane/vane-frame";
 import { getApiErrorMessage } from "@/lib/api-client";
 import { VANE_SETTINGS_ROLES } from "@/lib/vane/roles";
 
 /**
- * `/vane`: For you (VaneForYou) with Vane's states (PageVaneStates).
- * `?module=` narrows For you to one module Vane watches; `?view=working` goes
- * to Working on.
+ * `/vane`: For you (VaneForYou) with Vane's states (PageVaneStates), and a
+ * card's What I read (PageVaneCard, `?card=`). `?module=` narrows For you to
+ * one module Vane watches; `?view=working` goes to Working on.
  */
 function ForYouPage() {
   const router = useRouter();
@@ -30,6 +31,7 @@ function ForYouPage() {
 
   const home = useVaneForYou(watched);
   const nav = useVaneNav();
+  const card = useVaneCard(cardId);
   const { notNow, pause } = useVaneActions();
   const canPause = VANE_SETTINGS_ROLES.includes(session?.user?.role ?? "");
   const paused = home.data?.status.paused ?? false;
@@ -100,7 +102,7 @@ function ForYouPage() {
             onResume={() => setPaused(false)}
             resuming={pause.isPending}
             onAct={(item, target) => act(target ?? item.action?.target)}
-            onRead={() => {}}
+            onRead={(item) => go({ card: item.id })}
             onNotNow={(item, reason) => mute(item.id, reason)}
             muting={notNow.isPending ? (notNow.variables?.id ?? null) : null}
           />
@@ -110,6 +112,16 @@ function ForYouPage() {
           <VaneLoading />
         )}
       </VaneFrame>
+      <CardDrawer
+        open={Boolean(cardId)}
+        onOpenChange={(open) => (open ? null : go({ card: null }))}
+        card={card.data ?? null}
+        loading={card.isLoading}
+        failed={card.isError}
+        onAct={(item) => act(item.action?.target)}
+        onNotNow={(item, reason) => mute(item.id, reason)}
+        muting={notNow.isPending}
+      />
     </>
   );
 }
