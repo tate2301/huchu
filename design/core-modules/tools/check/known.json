@@ -43,7 +43,10 @@
   "ReportsAll": [
     "panel: Monday meeting",
     "panel: Fitters",
-    "panel: Money"
+    "panel: Money",
+    "heading: Build",
+    "panel: Forms",
+    "panel: Documents"
   ],
   "PageReportsSettings": [
     "panel: Tills",
@@ -105,7 +108,10 @@
     "button: Pin to Monday board",
     "panel: Monday meeting2",
     "panel: Fitters3",
-    "panel: Money4"
+    "panel: Money4",
+    "heading: Build",
+    "panel: Forms",
+    "panel: Documents"
   ],
   "PageInsightVisits": [
     "heading: Areas",
@@ -128,7 +134,10 @@
     "status: Drafted",
     "status: Accepted",
     "footer: # to # of #Quoted #Accepted #PreviousNex",
-    "button: Every subfloor"
+    "button: Every subfloor",
+    "heading: Build",
+    "panel: Forms",
+    "panel: Documents"
   ],
   "ReportBuild": [
     "heading: Accepted, by subfloor",

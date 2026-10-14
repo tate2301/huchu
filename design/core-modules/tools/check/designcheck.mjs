@@ -80,7 +80,8 @@ function geometry() {
   for (const el of main.querySelectorAll("*")) {
     const cs = getComputedStyle(el);
     const box = el.getBoundingClientRect();
-    if (!clips(cs) || box.width < 1 || box.height >= 2) continue;
+    // A part folded away on purpose (the selection footer with nothing selected) is hidden from everyone.
+    if (!clips(cs) || box.width < 1 || box.height >= 2 || el.closest("[aria-hidden=true]")) continue;
     const chars = (el.innerText || "").trim().length;
     if (chars > 20) issues.push(`collapses to 0px and hides ${chars} characters: ${el.tagName.toLowerCase()}.${String(el.className).split(" ").slice(0, 3).join(".")}`);
   }

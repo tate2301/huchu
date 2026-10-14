@@ -150,6 +150,7 @@ What the build could not match, decided differently from the boards, or built wi
 
 ### Sample data the checks leave out (`tools/check/known.json`)
 
+- ReportsAll, ReportsInsights, ReportMonday: their panel's Build group (Forms, Documents): the owner moved them to Build, a module of its own (14 Oct, under Reports above).
 - BuildForm, PageIntakeForm, BuildDocument, PageTemplateEmail, BuildReport: the boards' forms, documents, email and report are their sample (Floor site visit, Showroom enquiry, the Quotation's letterhead and Measured on site, the invoice email, Fees this term): their questions, choices, blocks and figures. Each is checked on one of Floorcode's own (Epoxy flooring survey, Request a quote, Standard quotation, a Quote follow-up email made from Corelith's template, Monday board).
 - PageRetailReports, PageRetailTemplate: the bell's name carries this workspace's unread count ("Notifications, 33 unread"); Buying 2 is the board's (no template here reads buying, so the area is not drawn).
 - PageSchoolReports: Healthy: St Mary's keeps no closed month, pay run or staff record, so the one module it reports on reads Watch.
