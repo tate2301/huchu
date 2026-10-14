@@ -2,13 +2,15 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { EmptyState, Skeleton, Switch } from "@corelithzw/react";
 import { PageEditor, type EditorKind } from "@/components/editor/page-editor";
 import editor from "@/components/editor/page-editor.module.css";
 import { PageChrome } from "@/components/layout/page-chrome";
+import { Button as KitButton, Kit, VaneMark } from "@/components/core";
 import { Button } from "@/components/ui/button";
+import { useVaneStatus } from "@/components/vane/use-vane";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/components/ui/use-toast";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
@@ -438,6 +440,12 @@ function QueryMode({
   );
 }
 
+function withoutKey(record: Record<string, string>, key: string): Record<string, string> {
+  const next = { ...record };
+  delete next[key];
+  return next;
+}
+
 export function CustomReportEditor({ id }: { id: string }) {
   const { toast } = useToast();
   const [modes, setModes] = useState<Record<string, QueryView>>({});
@@ -456,6 +464,22 @@ export function CustomReportEditor({ id }: { id: string }) {
   const current = draft ?? saved;
   const dirty = draft !== null && JSON.stringify(draft) !== JSON.stringify(saved);
   const [saving, setSaving] = useState(false);
+
+  // Blocks Vane wrote that are not kept yet, with its note on each: on the page and running, but not saved until Keep.
+  const [vaneNotes, setVaneNotes] = useState<Record<string, string>>({});
+  const vaneStatus = useVaneStatus();
+  const [vaneAsk, setVaneAsk] = useState("");
+  const vaneWrite = useMutation({
+    mutationFn: (request: string) =>
+      fetchJson<{ block: CustomBlock; note: string }>("/api/vane/write/report-block", { method: "POST", body: JSON.stringify({ request, blocks }) }),
+    onSuccess: ({ block, note }) => {
+      setBlocks([...blocks, block]);
+      setVaneNotes((notes) => ({ ...notes, [block.id]: note }));
+      setVaneAsk("");
+    },
+    onError: (failure) => toast({ title: "Vane wrote nothing", description: getApiErrorMessage(failure, "Try asking another way."), variant: "destructive" }),
+  });
+  const notKept = Object.keys(vaneNotes).length;
 
   const change = (patch: Partial<CustomReportInput>) => current && setDraft({ ...current, ...patch });
   const setBlocks = (blocks: CustomBlock[]) => current && setDraft({ ...current, document: { ...current.document, blocks } });
@@ -479,10 +503,12 @@ export function CustomReportEditor({ id }: { id: string }) {
     if (!current || !parsed?.success) return;
     setSaving(true);
     try {
-      await fetchJson(`/api/v2/reports/custom/${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify(parsed.data) });
+      // A block Vane wrote is saved once it is kept.
+      const kept = { ...parsed.data, document: { ...parsed.data.document, blocks: parsed.data.document.blocks.filter((block) => !vaneNotes[block.id]) } };
+      await fetchJson(`/api/v2/reports/custom/${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify(kept) });
       await queryClient.invalidateQueries({ queryKey: ["reports"] });
-      setDraft(null);
-      toast({ title: `${current.title} saved`, variant: "success" });
+      setDraft(notKept ? { ...current, document: { ...current.document } } : null);
+      toast({ title: `${current.title} saved${notKept ? `; ${notKept} ${notKept === 1 ? "block" : "blocks"} not kept` : ""}`, variant: "success" });
     } catch (error) {
       toast({ title: "Not saved", description: getApiErrorMessage(error), variant: "destructive" });
     } finally {
@@ -715,8 +741,34 @@ export function CustomReportEditor({ id }: { id: string }) {
             const result = data.results.get(block.id);
             const problem = problemOf(check, result);
             const reads = check?.ok ? check.checked.tables : [];
+            const vaneNote = vaneNotes[block.id];
             return (
               <div>
+                {vaneNote ? (
+                  <Kit className="vr" style={{ marginBottom: "var(--space-12)" }}>
+                    <article className="vc" data-module="reports" aria-label="Vane's block, not kept">
+                      <div className="vc-k">
+                        <VaneMark size={16} />
+                        <span>Vane wrote this question</span>
+                      </div>
+                      <p>{vaneNote}</p>
+                      <div className="vc-a">
+                        <KitButton
+                          size="sm"
+                          onClick={() => {
+                            setBlocks(blocks.filter((other) => other.id !== block.id));
+                            setVaneNotes((notes) => withoutKey(notes, block.id));
+                          }}
+                        >
+                          Not now
+                        </KitButton>
+                        <KitButton size="sm" variant="primary" icon="check" onClick={() => setVaneNotes((notes) => withoutKey(notes, block.id))}>
+                          Keep
+                        </KitButton>
+                      </div>
+                    </article>
+                  </Kit>
+                ) : null}
                 <div className={styles.blockHead}>
                   <input
                     className={styles.blockTitle}
@@ -777,6 +829,33 @@ export function CustomReportEditor({ id }: { id: string }) {
           problems={problems}
         />
         <aside className={styles.aside}>
+          {vaneStatus.data && !vaneStatus.data.paused ? (
+            <form
+              className="mb-4 space-y-2"
+              onSubmit={(event) => {
+                event.preventDefault();
+                if (vaneAsk.trim() && !vaneWrite.isPending) vaneWrite.mutate(vaneAsk.trim());
+              }}
+            >
+              <label htmlFor="vane-report-change" className="flex items-center gap-2 text-sm font-medium text-[var(--text-strong)]">
+                <VaneMark size={16} />
+                Give Vane a change to make
+              </label>
+              <textarea
+                id="vane-report-change"
+                className={arranger.textInput}
+                rows={3}
+                value={vaneAsk}
+                maxLength={1000}
+                disabled={vaneWrite.isPending}
+                placeholder="Add won m² beside measured, by month"
+                onChange={(event) => setVaneAsk(event.target.value)}
+              />
+              <Button type="submit" size="sm" disabled={!vaneAsk.trim() || vaneWrite.isPending}>
+                {vaneWrite.isPending ? "Vane is writing it…" : "Give it to Vane"}
+              </Button>
+            </form>
+          ) : null}
           <SourceList sources={sourceList} onCopy={copy} />
         </aside>
       </div>

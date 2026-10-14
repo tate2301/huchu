@@ -425,6 +425,86 @@ export async function raiseOrder(actor: RetailAuditActor, input: RaiseInput, dep
   throw new OrderRefusal(409, "No order number could be given. Try again.");
 }
 
+/* ── Vane's reorder ──────────────────────────────────────────────────── */
+
+export type VaneDraft = { id: string; poNo: string; supplier: string; site: string; lines: number; value: string };
+
+/**
+ * Vane's reorder (the PageVaneRetail board): a draft for one supplier and one
+ * branch, made by nobody (`madeByVane`, no creator), with the same lines a
+ * person's draft takes. It is never sent here: a person checks and sends it.
+ */
+export async function draftOrderForVane(
+  companyId: string,
+  input: { supplierId: string; siteId: string; expectedDate?: string | null; lines: LineInput[] },
+  now = new Date(),
+): Promise<VaneDraft> {
+  const vendor = await prisma.vendor.findFirst({ where: { id: input.supplierId, companyId }, select: VENDOR_SELECT });
+  if (!vendor) throw new OrderRefusal(400, "Validation failed", { sup: "Choose who you are ordering from." });
+  if (vendor.stoppedAt) throw new OrderRefusal(409, stoppedSupplier(vendor.name));
+  const site = await prisma.site.findFirst({ where: { id: input.siteId, companyId, isActive: true }, select: { id: true, name: true } });
+  if (!site) throw new OrderRefusal(400, "Validation failed", { site: "Choose where it is delivered." });
+  const lines = checkLines(input.lines);
+  if (lines.length === 0) throw new OrderRefusal(400, LINE_NEEDED, { lines: LINE_NEEDED });
+  const expected = input.expectedDate ? dayStart(input.expectedDate) : null;
+
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    const poNo = await reserveIdentifier(prisma, { companyId, entity: "RETAIL_PURCHASE_ORDER" });
+    try {
+      return await prisma.$transaction(async (tx) => {
+        const resolved = await linesAt(tx, companyId, site.id, site.name, lines.map((line) => line.productId));
+        const order = await tx.retailPurchaseOrder.create({
+          data: {
+            companyId,
+            poNo,
+            siteId: site.id,
+            vendorId: vendor.id,
+            status: "DRAFT",
+            expectedDate: expected,
+            payment: "ON_ACCOUNT",
+            madeByVane: true,
+            createdAt: now,
+            lines: {
+              create: lines.map((line, index) => {
+                const item = resolved.get(line.productId)!;
+                return {
+                  companyId,
+                  inventoryItemId: item.inventoryItemId,
+                  itemName: item.itemName,
+                  quantity: line.quantity,
+                  unitCost: line.unitCost,
+                  lineTotal: lineValue(line.quantity, line.unitCost),
+                  vatRate: item.vatRate,
+                  sortOrder: index,
+                  createdAt: now,
+                };
+              }),
+            },
+          },
+          include: { lines: true },
+        });
+        const totals = orderTotals(order.lines);
+        await writePlatformAuditEvent(
+          {
+            companyId,
+            actorId: null,
+            eventType: RETAIL_AUDIT_EVENTS.orderCreated,
+            entityType: "RetailPurchaseOrder",
+            entityId: order.id,
+            payload: { poNo, supplier: vendor.name, lines: order.lines.length, value: auditAmount(totals.total), by: "Vane" },
+          },
+          tx,
+        );
+        return { id: order.id, poNo, supplier: vendor.name, site: site.name, lines: order.lines.length, value: totals.total.toFixed(2) };
+      });
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") continue;
+      throw error;
+    }
+  }
+  throw new OrderRefusal(409, "No order number could be given. Try again.");
+}
+
 async function auditSent(tx: Tx, actor: RetailAuditActor, orderId: string, via: RetailOrderSentVia, messages: QueuedMessage[]) {
   await writeRetailAuditEvent(tx, {
     actor,

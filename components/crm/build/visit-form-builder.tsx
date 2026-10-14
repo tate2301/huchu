@@ -18,6 +18,8 @@ import { fieldFromQuestion, questionFromField, quoteLinesOf, SITE_VISIT_FIELD_TY
 import { ChartLine, ClipboardText } from "@/lib/icons";
 import { DISPLAY_FIELD_TYPES, type FieldDefinition } from "@/lib/forms/fields";
 import type { QuoteLine } from "@/lib/forms/quote";
+import { VaneFormChanges } from "@/components/vane/vane-form-changes";
+import type { FormChange } from "@/lib/vane/form-changes";
 
 type Kind = "PRODUCT" | "EVIDENCE" | "CLOSEOUT";
 
@@ -145,6 +147,28 @@ export function VisitFormBuilder({ id }: { id: string }) {
     );
   }
 
+  // A change Vane read from the answers, kept into the draft: saved with the form.
+  const keepVaneChange = (change: FormChange) => {
+    if (!draft) return;
+    if (change.kind === "quote_factor") {
+      set({
+        quoteLines: draft.quoteLines.map((line) =>
+          line.id === change.lineId && line.quantity.from === "field" ? { ...line, quantity: { ...line.quantity, factor: change.factor } } : line,
+        ),
+      });
+      return;
+    }
+    set({
+      fields: draft.fields.map((field) =>
+        field.key !== change.key
+          ? field
+          : change.kind === "require"
+            ? { ...field, required: true }
+            : { ...field, options: [...(field.options ?? []), change.option] },
+      ),
+    });
+  };
+
   const set = (patch: Partial<Draft>) => setDraft((current) => (current ? { ...current, ...patch } : current));
   const product = data.products.find((entry) => entry.id === draft.productId);
   const asked = draft.fields.filter((field) => !DISPLAY_FIELD_TYPES.includes(field.type)).length;
@@ -242,6 +266,7 @@ export function VisitFormBuilder({ id }: { id: string }) {
                   Select a question to set it up, or the quote at the foot of the form to price it.
                 </p>
               </div>
+              {data.canEdit ? <VaneFormChanges questionSetId={id} onKeep={keepVaneChange} /> : null}
             </div>
           </>
         }

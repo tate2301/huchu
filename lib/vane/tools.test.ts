@@ -50,13 +50,16 @@ afterAll(async () => {
 describe("what Claude is shown", () => {
   it("names each tool, says what it does, and gives its input as JSON Schema", () => {
     const tools = toolDefinitions();
-    expect(tools.map((t) => t.name)).toEqual(["describe_table", "run_sql", "get_record", "propose_item", "propose_plan", "propose_actions", "update_plan_step", "report_problem", "describe_report"]);
+    expect(tools.map((t) => t.name)).toEqual(["describe_table", "run_sql", "get_record", "propose_item", "propose_plan", "propose_actions", "update_plan_step", "report_problem", "describe_report", "draft"]);
     // Claude is shown every action it can propose, and the pages it links to with their filters.
     expect(tools[5]!.description).toContain("books.invoice.due_date");
     expect(tools[5]!.description).toContain("/books/invoices");
+    // Claude takes only an object schema as a tool's input: a union at the top would be refused.
     for (const t of tools) {
       expect(t.description?.length).toBeGreaterThan(40);
       expect(t.input_schema).toMatchObject({ type: "object" });
+      expect(t.input_schema).not.toHaveProperty("oneOf");
+      expect(t.input_schema).not.toHaveProperty("anyOf");
     }
     expect(tools[1]!.input_schema).toMatchObject({ properties: { sql: { type: "string" } }, required: ["sql"] });
   });

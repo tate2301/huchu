@@ -26,11 +26,22 @@ export class VaneWriteRefused extends Error {
   }
 }
 
-type Who = { companyId: string; userId: string; name: string | null };
+export type Who = { companyId: string; userId: string; name: string | null };
 
 const VOICE = `You are Vane, the helper inside Corelith, a business platform used by shops, mines, schools and service firms in Zimbabwe. You write what a person at the business will send to a client, in their voice: plain, warm, short, specific. Use the client's first name when you have it, the exact figures and dates given, and nothing you were not given. No marketing words, no exclamation marks, no emoji. Never mention Vane, Claude or anything automatic.`;
 
-async function writeAsJob(db: PrismaClient, who: Who, label: string, prompt: string, client?: MessagesClient): Promise<string> {
+/**
+ * One piece of writing as one job: the guards, the job and its cost, around
+ * `work`, which may ask Claude more than once (to correct what did not check).
+ */
+export async function writeAsJob<T>(
+  db: PrismaClient,
+  who: Who,
+  label: string,
+  work: (ask: (prompt: string) => Promise<string>) => Promise<T>,
+  client?: MessagesClient,
+  system: string = VOICE,
+): Promise<T> {
   const settings = await db.vaneSettings.findUnique({ where: { companyId: who.companyId }, select: { paused: true, monthlyAllowance: true } });
   if (settings?.paused) throw new VaneWriteRefused(409, "Vane is paused. Resume it to have it write anything new.");
   if ((await jobsStartedThisMonthFor(db, who.companyId, new Date())) >= (settings?.monthlyAllowance ?? 5000)) {
@@ -50,46 +61,64 @@ async function writeAsJob(db: PrismaClient, who: Who, label: string, prompt: str
     },
     select: { id: true },
   });
+  const usage = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 };
+  let model: string | null = null;
+  const ask = async (prompt: string) => {
+    const answer = await askClaude({ system, messages: [{ role: "user", content: prompt }], maxTokens: 2_000, client });
+    model = answer.model;
+    usage.input += answer.usage.input;
+    usage.output += answer.usage.output;
+    usage.cacheRead += answer.usage.cacheRead;
+    usage.cacheWrite += answer.usage.cacheWrite;
+    return answer.text;
+  };
   try {
-    const answer = await askClaude({ system: VOICE, messages: [{ role: "user", content: prompt }], maxTokens: 1_500, client });
+    const result = await work(ask);
     await db.vaneJob.update({
       where: { id: job.id },
       data: {
         status: "DONE",
         finishedAt: new Date(),
         result: label,
-        model: answer.model,
-        tokensIn: answer.usage.input,
-        tokensOut: answer.usage.output,
-        cacheReadTokens: answer.usage.cacheRead,
-        cacheWriteTokens: answer.usage.cacheWrite,
+        model,
+        tokensIn: usage.input,
+        tokensOut: usage.output,
+        cacheReadTokens: usage.cacheRead,
+        cacheWriteTokens: usage.cacheWrite,
       },
     });
-    return answer.text;
+    return result;
   } catch (error) {
-    await db.vaneJob.update({ where: { id: job.id }, data: { status: "FAILED", finishedAt: new Date(), error: error instanceof Error ? error.message : String(error) } });
+    await db.vaneJob.update({
+      where: { id: job.id },
+      data: { status: "FAILED", finishedAt: new Date(), error: error instanceof Error ? error.message : String(error), tokensIn: usage.input, tokensOut: usage.output },
+    });
     if (error instanceof VaneError) {
       throw new VaneWriteRefused(
         503,
-        error.code === "misconfigured" ? "Vane is not set up on this server yet." : error.retryable ? "Vane cannot be reached just now. Try again in a minute." : "Vane could not write it. Write it yourself, or try again.",
+        error.code === "misconfigured" ? "Vane is not set up on this server yet." : error.retryable ? "Vane cannot be reached just now. Try again in a minute." : "Vane could not write it. Try again.",
       );
     }
     throw error;
   }
 }
 
-const emailSchema = z.object({ subject: z.string().trim().min(1).max(200), message: z.string().trim().min(1).max(5000) });
-
 /** The JSON object in Claude's answer, whatever it wrapped it in. */
-function parseEmail(text: string) {
+export function jsonIn(text: string): unknown {
   const start = text.indexOf("{");
   const end = text.lastIndexOf("}");
   if (start < 0 || end <= start) return null;
   try {
-    return emailSchema.safeParse(JSON.parse(text.slice(start, end + 1))).data ?? null;
+    return JSON.parse(text.slice(start, end + 1));
   } catch {
     return null;
   }
+}
+
+const emailSchema = z.object({ subject: z.string().trim().min(1).max(200), message: z.string().trim().min(1).max(5000) });
+
+function parseEmail(text: string) {
+  return emailSchema.safeParse(jsonIn(text)).data ?? null;
 }
 
 const money = (currency: string, amount: number) => `${currency} ${amount.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -148,8 +177,15 @@ export async function writeDocumentEmail(db: PrismaClient, who: Who, documentId:
 
 ${facts.join("\n")}`;
 
-  const text = await writeAsJob(db, who, `Wrote the email for ${number}`, prompt, client);
-  const email = parseEmail(text);
-  if (!email) throw new VaneWriteRefused(503, "Vane's email did not come back whole. Try again, or write it yourself.");
-  return email;
+  return writeAsJob(
+    db,
+    who,
+    `Wrote the email for ${number}`,
+    async (ask) => {
+      const email = parseEmail(await ask(prompt));
+      if (!email) throw new VaneWriteRefused(503, "Vane's email did not come back whole. Try again, or write it yourself.");
+      return email;
+    },
+    client,
+  );
 }
