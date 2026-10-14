@@ -111,6 +111,11 @@ export type UniversalDocumentPayload = {
   list?: ListPayload;
   record?: RecordPayload;
   dashboard?: DashboardPayload;
+  /**
+   * Named figures the source offers to rows a layout adds (`TemplateRow.from`),
+   * already written as they print. Not printed by themselves.
+   */
+  fields?: Record<string, string>;
 };
 
 export type DocumentBankAccount = {

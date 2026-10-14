@@ -194,6 +194,9 @@ beforeAll(async () => {
 
 afterAll(async () => {
   if (!companyId) return;
+  await prisma.leaveRequest.deleteMany({ where: { companyId } });
+  await prisma.leaveEntitlement.deleteMany({ where: { companyId } });
+  await prisma.leaveType.deleteMany({ where: { companyId } });
   await prisma.payrollLineComponent.deleteMany({
     where: { lineItem: { run: { companyId } } },
   });
@@ -322,6 +325,41 @@ describe("the payslip shows the working, not just the net figure", () => {
     expect(
       contractor.payload.notes!.some((n) => n.includes("No tax (BP) number")),
     ).toBe(false);
+  });
+
+  it("prints the leave left as at the end of the period, not as at today", async () => {
+    const ada = await prisma.employee.findFirstOrThrow({ where: { companyId, employeeId: "EMP-PS-1" }, select: { id: true } });
+    const [annual] = await Promise.all([
+      prisma.leaveType.create({
+        data: { companyId, code: "ANNUAL", name: "Annual leave", accrualMethod: "MONTHLY_ACCRUAL", defaultEntitlement: "22", effectiveFrom: new Date("2026-01-01T00:00:00.000Z") },
+        select: { id: true },
+      }),
+      prisma.leaveType.create({
+        data: { companyId, code: "SICK", name: "Sick leave", accrualMethod: "ANNUAL_GRANT", defaultEntitlement: "12", effectiveFrom: new Date("2026-01-01T00:00:00.000Z") },
+        select: { id: true },
+      }),
+    ]);
+    const request = (startDate: string, workingDays: string) => ({
+      companyId,
+      employeeId: ada.id,
+      leaveTypeId: annual.id,
+      startDate: new Date(startDate),
+      endDate: new Date(startDate),
+      workingDays,
+      reason: "Rest",
+      status: "APPROVED" as const,
+      createdById: actorId,
+    });
+    await prisma.leaveRequest.createMany({
+      // July's is spent by the end of August; September's is not yet.
+      data: [request("2026-07-10T00:00:00.000Z", "3"), request("2026-09-14T00:00:00.000Z", "2")],
+    });
+
+    const doc = await resolvePayslip(companyId, adaLineId);
+    const leave = doc.payload.record!.sections.find((section) => section.title === "Leave left");
+    // Eight months of 22 days have built up by 31 August: 14.67, less July's 3.
+    // Sick leave is granted on need and none was taken, so it is not printed.
+    expect(leave?.rows).toEqual([{ label: "Annual leave", value: "11.67 of 14.67 days" }]);
   });
 
   it("names the file after the employee and the period", async () => {

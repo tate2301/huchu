@@ -21,12 +21,16 @@
  * The employer's own contributions are shown too, in their own section and
  * excluded from every total. An employee should be able to see what was paid on
  * their behalf; they should not be able to mistake it for money they were paid.
+ *
+ * So is the leave left as at the period's end, the one place most employees
+ * see it. The shaping is pure, in `payslip-payload.ts`; rows a layout adds in
+ * Build are put on by `payslip-rows.ts` when it prints.
  */
 
-import { Prisma } from "@prisma/client";
-
 import { prisma } from "@/lib/prisma";
+import { payslipLeave, payslipPayload, type PayslipLeave } from "@/lib/documents/payslip-payload";
 import type { UniversalDocumentPayload } from "@/lib/documents/types";
+import { computeLeaveBalances } from "@/lib/people/leave/balances";
 
 type Resolution = {
   targetType: "LIST" | "RECORD" | "DASHBOARD";
@@ -71,50 +75,48 @@ export const HR_DOCUMENT_ACCESS: Record<
   },
 };
 
-const ZERO = new Prisma.Decimal(0);
-
-function money(value: Prisma.Decimal | null | undefined): string {
-  return (value ?? ZERO).toFixed(2);
-}
-
-function day(value: Date | null | undefined): string {
-  if (!value) return "—";
-  return value.toISOString().slice(0, 10);
-}
-
-function slug(value: string): string {
-  return value
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/(^-|-$)/g, "");
-}
-
 /**
- * How a rate reads on the payslip.
- *
- * A percentage stage shows its rate; a fixed one shows nothing, because "4.50"
- * in a rate column next to a $4.50 deduction invites the reader to think the two
- * are related.
+ * The employee's leave as at the end of the run's period: the leave year that
+ * period ends in, accrued to its month, less what was approved or asked for
+ * by then. A payslip reprinted next year still says what was left that month.
  */
-function rateLabel(component: {
-  calcMethod: string;
-  rateOrAmount: Prisma.Decimal;
-}): string {
-  if (component.calcMethod === "PERCENT") {
-    return `${component.rateOrAmount.toFixed(2)}%`;
-  }
-  return "";
-}
-
-/**
- * Which side of the payslip a component belongs on.
- *
- * A tax credit is stored as an `ALLOWANCE` so the payslip can show it, but it is
- * not an earning — it is a reduction in tax. Putting it in the earnings column
- * would make gross look larger than the employee was paid.
- */
-function isCredit(statutoryKey: string | null) {
-  return Boolean(statutoryKey?.startsWith("TAX_CREDIT_"));
+async function leaveAsAt(companyId: string, employeeId: string, asAt: Date): Promise<PayslipLeave[]> {
+  const year = asAt.getUTCFullYear();
+  const yearStart = new Date(Date.UTC(year, 0, 1));
+  const yearEnd = new Date(Date.UTC(year, 11, 31, 23, 59, 59, 999));
+  const [types, entitlements, requests] = await Promise.all([
+    prisma.leaveType.findMany({
+      where: {
+        companyId,
+        isActive: true,
+        effectiveFrom: { lte: asAt },
+        OR: [{ effectiveTo: null }, { effectiveTo: { gte: yearStart } }],
+      },
+      orderBy: [{ code: "asc" }, { effectiveFrom: "desc" }],
+    }),
+    prisma.leaveEntitlement.findMany({ where: { companyId, employeeId, year } }),
+    prisma.leaveRequest.findMany({
+      where: { companyId, employeeId, startDate: { gte: yearStart, lte: asAt < yearEnd ? asAt : yearEnd } },
+      select: { leaveTypeId: true, status: true, workingDays: true, startDate: true },
+    }),
+  ]);
+  // The newest version of each type, as the leave balances read them.
+  const newest = new Map<string, (typeof types)[number]>();
+  for (const type of types) if (!newest.has(type.code)) newest.set(type.code, type);
+  const leaveTypes = [...newest.values()];
+  const balances = computeLeaveBalances({
+    year,
+    leaveTypes,
+    entitlements,
+    requests,
+    // The period's month counts, as it does on the leave page.
+    monthsElapsed: asAt.getUTCMonth() + 1,
+  });
+  return payslipLeave({
+    balances,
+    accruing: new Set(leaveTypes.filter((type) => type.accrualMethod === "MONTHLY_ACCRUAL").map((type) => type.id)),
+    granted: new Set(entitlements.map((entitlement) => entitlement.leaveTypeId)),
+  });
 }
 
 /** One employee's payslip for one run. */
@@ -126,6 +128,7 @@ export async function resolvePayslip(
     where: { id: lineItemId, run: { companyId } },
     select: {
       id: true,
+      employeeId: true,
       baseAmount: true,
       grossAmount: true,
       allowancesTotal: true,
@@ -136,7 +139,6 @@ export async function resolvePayslip(
       currency: true,
       exchangeRate: true,
       netBaseAmount: true,
-      notes: true,
       employee: {
         select: {
           name: true,
@@ -152,9 +154,6 @@ export async function resolvePayslip(
         select: {
           runNumber: true,
           status: true,
-          approvedAt: true,
-          journalEntryId: true,
-          postingSkippedReason: true,
           period: {
             select: { periodKey: true, startDate: true, endDate: true, dueDate: true },
           },
@@ -178,168 +177,30 @@ export async function resolvePayslip(
 
   if (!line) throw new Error("Payslip not found");
 
-  const { employee, run } = line;
-
-  // Three groups, because they mean three different things and a single list
-  // would let an employer contribution read as a deduction from the wage.
-  const earnings = line.components.filter(
-    (component) => component.type === "ALLOWANCE" && !isCredit(component.statutoryKey),
-  );
-  const deductions = line.components.filter(
-    (component) =>
-      component.type === "DEDUCTION" || component.type === "STATUTORY_DEDUCTION",
-  );
-  const credits = line.components.filter((component) => isCredit(component.statutoryKey));
-  const employerContributions = line.components.filter(
-    (component) => component.type === "EMPLOYER_CONTRIBUTION",
-  );
-
-  const rows = [
-    ...earnings.map((component) => ({
-      stage: component.name,
-      kind: "Earning",
-      rate: rateLabel(component),
-      calculatedOn: component.basis ? money(component.basis) : "",
-      amount: money(component.amount),
-      taxable: component.isTaxable ? "Yes" : "No",
-    })),
-    ...deductions.map((component) => ({
-      stage: component.name,
-      kind: component.type === "STATUTORY_DEDUCTION" ? "Statutory" : "Deduction",
-      rate: rateLabel(component),
-      // The figure the stage was struck on. This is the column that answers
-      // "why is my NSSA only 31.50" — it shows the capped 700, not the salary.
-      calculatedOn: component.basis ? money(component.basis) : "",
-      amount: `(${money(component.amount)})`,
-      taxable: "",
-    })),
-    ...credits.map((component) => ({
-      stage: component.name,
-      kind: "Tax credit",
-      rate: rateLabel(component),
-      calculatedOn: component.basis ? money(component.basis) : "",
-      // Shown as a reduction in the tax, not as money received.
-      amount: `−${money(component.amount)} tax`,
-      taxable: "",
-    })),
-  ];
-
-  const employerRows = employerContributions.map((component) => ({
-    stage: component.name,
-    rate: rateLabel(component),
-    calculatedOn: component.basis ? money(component.basis) : "",
-    amount: money(component.amount),
-  }));
-
-  const isForeignCurrency = !line.exchangeRate.equals(1);
-
-  const notes: string[] = [];
-  if (line.employee.taxStatus === "CONTRACTOR") {
-    notes.push(
-      "Paid gross as a contractor. No PAYE has been withheld and no NSSA contribution made — this income is yours to declare.",
-    );
-  }
-  if (line.employee.taxStatus === "EXEMPT") {
-    notes.push("Recorded as exempt from PAYE.");
-  }
-  if (isForeignCurrency) {
-    notes.push(
-      `Paid in ${line.currency} at ${line.exchangeRate.toFixed(4)} per unit of the company's reporting currency, the rate in force at ${day(run.period.endDate)}. That is ${money(line.netBaseAmount)} in reporting currency.`,
-    );
-  }
-  if (employerRows.length > 0) {
-    notes.push(
-      "Employer contributions are paid by the company on your behalf. They are not deducted from your pay and are not part of your gross.",
-    );
-  }
-  if (!employee.taxNumber?.trim() && employee.taxStatus !== "CONTRACTOR") {
-    notes.push(
-      "No tax (BP) number is on file for you. Please give it to HR — the monthly PAYE return cannot report you without it.",
-    );
-  }
-  if (run.status !== "APPROVED") {
-    notes.push(
-      `This payroll run is ${run.status.toLowerCase()} and not yet approved. The figures may change.`,
-    );
-  }
+  const leave = await leaveAsAt(companyId, line.employeeId, line.run.period.endDate);
+  const shaped = payslipPayload(line, leave);
 
   return {
     targetType: "RECORD",
     documentType: "GENERIC_RECORD",
     sourceKey: "hr.payslip",
-    fileName: `payslip-${slug(employee.employeeId)}-${slug(run.period.periodKey)}.pdf`,
-    payload: {
-      title: "Payslip",
-      subtitle: `${employee.name} — ${run.period.periodKey}`,
-      meta: [
-        { label: "Employee", value: employee.name },
-        { label: "Employee number", value: employee.employeeId },
-        ...(employee.jobTitle ? [{ label: "Position", value: employee.jobTitle }] : []),
-        ...(employee.department?.name
-          ? [{ label: "Department", value: employee.department.name }]
-          : []),
-        { label: "Pay period", value: run.period.periodKey },
-        { label: "Period", value: `${day(run.period.startDate)} to ${day(run.period.endDate)}` },
-        { label: "Currency", value: line.currency },
-        // On the payslip because ZIMRA and NSSA identify the person by these,
-        // and an employee checking their own record should be able to see them.
-        { label: "Tax (BP) number", value: employee.taxNumber?.trim() || "Not on file" },
-        { label: "NSSA number", value: employee.nssaNumber?.trim() || "Not on file" },
-      ],
-      badge:
-        run.status === "APPROVED"
-          ? { label: "APPROVED", tone: "positive" }
-          : { label: run.status, tone: "warning" },
-      record: {
-        sections: [
-          {
-            title: "How your pay was worked out",
-            rows: [
-              { label: "Basic salary", value: money(line.baseAmount) },
-              { label: "Gross pay", value: money(line.grossAmount) },
-              // The slice PAYE was actually struck on — gross less the
-              // non-taxable allowances, NSSA and the pre-tax deductions.
-              { label: "Taxable gross", value: money(line.taxableGross) },
-              { label: "Total deductions", value: money(line.deductionsTotal) },
-              { label: "Net pay", value: money(line.netAmount) },
-            ],
-          },
-          ...(employerRows.length > 0
-            ? [
-                {
-                  title: "Paid by your employer on your behalf",
-                  rows: [
-                    ...employerRows.map((row) => ({
-                      label: row.calculatedOn
-                        ? `${row.stage} (${row.rate || "fixed"} of ${row.calculatedOn})`
-                        : row.stage,
-                      value: row.amount,
-                    })),
-                    { label: "Total employer contributions", value: money(line.employerCost) },
-                  ],
-                },
-              ]
-            : []),
-        ],
-        lines: rows,
-        lineColumns: [
-          { key: "stage", label: "Item" },
-          { key: "kind", label: "Type" },
-          { key: "rate", label: "Rate" },
-          { key: "calculatedOn", label: "Calculated on" },
-          { key: "amount", label: "Amount" },
-          { key: "taxable", label: "Taxable" },
-        ],
-      },
-      totals: [
-        { label: "Gross pay", value: money(line.grossAmount) },
-        { label: "Total deductions", value: money(line.deductionsTotal) },
-        { label: "Net pay", value: money(line.netAmount), emphasis: true },
-      ],
-      notes,
-    },
-    rowsForCsv: rows,
+    fileName: shaped.fileName,
+    payload: shaped.payload,
+    rowsForCsv: shaped.rows,
   };
+}
+
+/**
+ * The run line the payslip layout's page shows: the newest period's first
+ * employee, or null when the workspace has run no payroll yet.
+ */
+export async function latestPayslipLine(companyId: string): Promise<{ id: string; name: string; periodEnd: Date } | null> {
+  const line = await prisma.payrollLineItem.findFirst({
+    where: { run: { companyId } },
+    orderBy: [{ run: { period: { endDate: "desc" } } }, { run: { runNumber: "desc" } }, { employee: { name: "asc" } }],
+    select: { id: true, employee: { select: { name: true } }, run: { select: { period: { select: { endDate: true } } } } },
+  });
+  return line ? { id: line.id, name: line.employee.name, periodEnd: line.run.period.endDate } : null;
 }
 
 /** Dispatch for the shared source registry. */

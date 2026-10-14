@@ -1,3 +1,4 @@
+import { samplePayslipPayload } from "@/lib/documents/payslip-payload";
 import type { UniversalDocumentPayload } from "@/lib/documents/types";
 
 /**
@@ -251,6 +252,8 @@ function classListSample(): UniversalDocumentPayload {
 
 export function getSamplePayload(sourceKey: string): UniversalDocumentPayload {
   switch (sourceKey) {
+    case "hr.payslip":
+      return samplePayslipPayload();
     case "accounting.sales.invoice":
       return invoiceSample();
     case "accounting.sales.quotation":

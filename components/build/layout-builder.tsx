@@ -10,6 +10,7 @@ import { useToast } from "@/components/ui/use-toast";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { layoutUse } from "@/lib/build/items";
 import { DEFAULT_TEMPLATE_CATALOG, resolveCatalogTemplateEntry } from "@/lib/documents/default-template-catalog";
+import { isPayslipRowPart, newPayslipRow, PAYSLIP_ROW_SOURCES, payslipRowSourceLabel } from "@/lib/documents/payslip-rows";
 import { defaultTemplateSchema, templateSchema, type DocumentTemplateSchema } from "@/lib/documents/template-schema";
 
 import { BuilderError, BuilderLoading, BuilderMessage } from "./builder-states";
@@ -32,10 +33,10 @@ type LayoutRow = {
 type Version = { id: string; version: number; schemaJson: string; isPublished: boolean; createdAt: string; publishedAt?: string | null };
 
 /** What the layout's outline lists: the parts of the printed page, and which settings each has. */
-type Element = "page" | "header" | "labels" | "table" | "totals" | "footer" | "notes";
+type Element = "page" | "header" | "labels" | "table" | "totals" | "leave" | "footer" | "notes";
 type Part = { id: string; label: string; icon: IconName; element: Element; rows?: string };
 
-const ELEMENT_ICON: Record<Element, IconName> = { page: "docs", header: "brand", labels: "sentence", table: "table", totals: "money", footer: "signature", notes: "log" };
+const ELEMENT_ICON: Record<Element, IconName> = { page: "docs", header: "brand", labels: "sentence", table: "table", totals: "money", leave: "sun", footer: "signature", notes: "log" };
 
 /**
  * The parts a source's document is made of, in the order they print. The
@@ -54,6 +55,7 @@ export function layoutParts(sourceKey: string): Part[] {
       { id: "earnings", label: "Earnings", icon: ELEMENT_ICON.table, element: "table", rows: "The run line’s earnings" },
       { id: "deductions", label: "Deductions", icon: ELEMENT_ICON.table, element: "table", rows: "The run line’s deductions" },
       { id: "net", label: "Net pay", icon: ELEMENT_ICON.totals, element: "totals", rows: "Gross, deductions and net, from the run line" },
+      { id: "leave", label: "Leave left", icon: ELEMENT_ICON.leave, element: "leave", rows: "The employee’s leave, as at the period’s end" },
       { id: "employer", label: "Employer paid", icon: ELEMENT_ICON.table, element: "table", rows: "What the company paid on their behalf" },
       { id: "notes", label: "Notes", icon: ELEMENT_ICON.notes, element: "notes" },
       foot,
@@ -307,7 +309,7 @@ function LayoutBuilderView({
   const [json, setJson] = React.useState<string | null>(null);
 
   // The page as it prints: rendered by the server with this workspace's branding and a sample record.
-  const [rendered, setRendered] = React.useState<{ html: string | null; failed: boolean }>({ html: null, failed: false });
+  const [rendered, setRendered] = React.useState<{ html: string | null; failed: boolean; of?: string | null }>({ html: null, failed: false });
   const schemaJson = JSON.stringify(schema);
   React.useEffect(() => {
     let cancelled = false;
@@ -316,9 +318,10 @@ function LayoutBuilderView({
         .then(async (response) => {
           if (!response.ok) throw new Error("preview");
           const html = await response.text();
-          if (!cancelled) setRendered({ html, failed: false });
+          const of = response.headers.get("X-Preview-Of");
+          if (!cancelled) setRendered({ html, failed: false, of: of ? decodeURIComponent(of) : null });
         })
-        .catch(() => !cancelled && setRendered((current) => ({ html: current.html, failed: true })));
+        .catch(() => !cancelled && setRendered((current) => ({ ...current, failed: true })));
     }, 350);
     return () => {
       cancelled = true;
@@ -362,7 +365,7 @@ function LayoutBuilderView({
       saved={saved}
       actions={
         <>
-          <span className="muted rb-sample">Showing a sample record</span>
+          <span className="muted rb-sample">{rendered.of ? `Showing ${rendered.of}` : "Showing a sample record"}</span>
           {onUse ? (
             <Button icon="file" busy={using} onClick={onUse}>
               Use this template
@@ -392,9 +395,9 @@ function LayoutBuilderView({
 
   const canvas = (
     <div className="desk2">
-      <article className="a4" aria-label={name}>
+      <article className={rendered.html ? "a4 a4-page" : "a4"} aria-label={name}>
         {rendered.html ? (
-          <iframe title={`${name}, as it prints`} sandbox="" srcDoc={rendered.html} />
+          <PrintedPage title={`${name}, as it prints`} html={rendered.html} page={schema.page} />
         ) : rendered.failed ? (
           <p className="muted">The page could not be drawn. Check the connection; the template is unchanged.</p>
         ) : (
@@ -405,6 +408,46 @@ function LayoutBuilderView({
   );
 
   const disabled = readOnly;
+  // Rows a person adds to this part of the payslip (`payslip-rows.ts`): a label, and the run line's figure that fills it.
+  const addable = sourceKey === "hr.payslip" && isPayslipRowPart(selected.id);
+  const setRows = (rows: DocumentTemplateSchema["rows"]) => onSchema({ ...schema, rows });
+  const addedRows = addable ? (
+    <>
+      {schema.rows.map((row, index) =>
+        row.part === selected.id ? (
+          <span key={index} className="rb-pair rb-row">
+            <Input
+              aria-label={`Row ${index + 1}, label`}
+              value={row.label}
+              disabled={disabled}
+              onChange={(event) => setRows(schema.rows.map((existing, at) => (at === index ? { ...existing, label: event.target.value } : existing)))}
+            />
+            <Select
+              aria-label={`Row ${index + 1}, from`}
+              value={row.from}
+              disabled={disabled}
+              onChange={(event) => {
+                const from = event.target.value;
+                // A label still naming the old figure follows the new one.
+                const label = row.label === payslipRowSourceLabel(row.from) ? payslipRowSourceLabel(from) : row.label;
+                setRows(schema.rows.map((existing, at) => (at === index ? { ...existing, from, label } : existing)));
+              }}
+            >
+              {PAYSLIP_ROW_SOURCES.map((source) => (
+                <option key={source.key} value={source.key}>
+                  {source.label}
+                </option>
+              ))}
+            </Select>
+            <Button variant="quiet" iconOnly icon="x" label={`Remove ${row.label || "the row"}`} disabled={disabled} onClick={() => setRows(schema.rows.filter((_, at) => at !== index))} />
+          </span>
+        ) : null,
+      )}
+      <Button variant="quiet" icon="plus" className="rb-addrow" disabled={disabled} onClick={() => isPayslipRowPart(selected.id) && setRows([...schema.rows, newPayslipRow(selected.id)])}>
+        Add a row
+      </Button>
+    </>
+  ) : null;
   const element = (
     <>
       <h2 className="text-heading">{selected.label}</h2>
@@ -464,6 +507,7 @@ function LayoutBuilderView({
             <div className="pl-h">Show</div>
             <Toggle id="compact" title="Compact rows" note="More rows on a page" on={schema.table.compact} disabled={disabled} onChange={(compact) => set("table", { compact })} />
             <Toggle id="zebra" title="Banded rows" note="Every other row shaded" on={schema.table.zebra} disabled={disabled} onChange={(zebra) => set("table", { zebra })} />
+            {addedRows}
           </div>
           <div className="pl">
             <div className="pl-h">Columns</div>
@@ -481,6 +525,15 @@ function LayoutBuilderView({
             ))}
           </div>
         </>
+      ) : null}
+      {addable && selected.element !== "table" ? (
+        <div className="pl">
+          <div className="pl-h">Show</div>
+          {addedRows}
+        </div>
+      ) : null}
+      {selected.element === "leave" ? (
+        <p className="rb-note">Leave that builds up month by month, and any other kind the employee has been granted or has taken this year: what is left of it at the end of the run&apos;s period.</p>
       ) : null}
       {selected.element === "totals" ? <p className="rb-note">{selected.rows ?? "The document's totals, as the record adds them up."} They print under the table, and are never typed in.</p> : null}
       {selected.element === "notes" ? <p className="rb-note">What the payslip explains, written by payroll as it is worked out: a contractor paid gross, a foreign currency, a missing tax number.</p> : null}
@@ -552,6 +605,34 @@ function LayoutBuilderView({
 
   return (
     <BuilderGrid scope="layout" mode={mode} wideBar bar={bar} outline={outline} canvas={canvas} canvasLabel={name} inspector={inspector} inspectorLabel="Inspector" />
+  );
+}
+
+/** The page's size on screen at 96 dpi, as the PDF lays it out. */
+const PAPER_PX = { A4: [794, 1123], LETTER: [816, 1056] } as const;
+
+/**
+ * The printed page drawn at its own width and scaled to the desk, so it wraps
+ * where the PDF wraps rather than reflowing into a narrower column.
+ */
+function PrintedPage({ title, html, page }: { title: string; html: string; page: DocumentTemplateSchema["page"] }) {
+  const [short, long] = PAPER_PX[page.size];
+  const [width, height] = page.orientation === "landscape" ? [long, short] : [short, long];
+  const box = React.useRef<HTMLDivElement>(null);
+  const [scale, setScale] = React.useState(0);
+  React.useLayoutEffect(() => {
+    const node = box.current;
+    if (!node) return;
+    const fit = () => setScale(Math.min(1, node.clientWidth / width));
+    fit();
+    const observer = new ResizeObserver(fit);
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [width]);
+  return (
+    <div ref={box} className="a4-fit" style={{ height: scale ? height * scale : undefined }}>
+      <iframe title={title} sandbox="" srcDoc={html} style={{ width, height, transform: `scale(${scale || 1})`, visibility: scale ? undefined : "hidden" }} />
+    </div>
   );
 }
 

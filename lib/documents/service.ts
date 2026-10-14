@@ -11,6 +11,7 @@ import {
   type SourceResolutionInput,
 } from "@/lib/documents/source-registry";
 import { resolveTemplate } from "@/lib/documents/template-resolver";
+import { applyPayslipRows } from "@/lib/documents/payslip-rows";
 import { getDocumentBranding } from "@/lib/documents/branding-snapshot";
 import { renderXlsx } from "@/lib/documents/xlsx-renderer";
 
@@ -127,7 +128,8 @@ export async function renderDocumentSync(
 
   const branding = await getDocumentBranding(companyId);
   const html = renderDocumentHtml({
-    payload: source.payload,
+    // Rows the layout adds in Build, filled from the source's own figures.
+    payload: source.sourceKey === "hr.payslip" ? applyPayslipRows(source.payload, template.templateSchema.rows) : source.payload,
     branding,
     template: template.templateSchema,
   });

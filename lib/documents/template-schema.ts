@@ -10,6 +10,20 @@ export const templateColumnSchema = z.object({
   mono: z.boolean().optional(),
 });
 
+/**
+ * A row a person adds to a layout in Build: printed in `part` (an outline id),
+ * labelled `label`, and filled from `from`, a field the document's source
+ * offers (`payload.fields`). Only the payslip offers fields today
+ * (`lib/documents/payslip-rows.ts`).
+ */
+export const templateRowSchema = z.object({
+  part: z.string().min(1).max(40),
+  label: z.string().max(80),
+  from: z.string().min(1).max(80),
+});
+
+export type TemplateRow = z.infer<typeof templateRowSchema>;
+
 export const templateSchema = z.object({
   page: z
     .object({
@@ -67,6 +81,7 @@ export const templateSchema = z.object({
       documentDate: "Date",
       customer: "Customer",
     }),
+  rows: z.array(templateRowSchema).max(40).default([]),
 });
 
 export type DocumentTemplateSchema = z.infer<typeof templateSchema>;
