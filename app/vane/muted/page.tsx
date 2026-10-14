@@ -11,7 +11,7 @@ import { getApiErrorMessage } from "@/lib/api-client";
 export default function VaneMutedPage() {
   const { toast } = useToast();
   const muted = useVaneMuted();
-  const { unmute, chooseKind } = useVaneActions();
+  const { unmute } = useVaneActions();
 
   return (
     <>
@@ -19,23 +19,7 @@ export default function VaneMutedPage() {
       <VanePage screen="vane">
         {muted.data ? (
           <MutedView
-            rows={muted.data.cards}
-            offer={muted.data.offer}
-            choosing={chooseKind.isPending}
-            onChoose={(offer, stopped) =>
-              chooseKind.mutate(
-                { id: offer.itemId, stopped },
-                {
-                  onSuccess: () => toast({ title: stopped ? "Vane will stop showing it to you" : "Vane will keep showing it to you" }),
-                  onError: (error) =>
-                    toast({
-                      title: "Your choice was not kept",
-                      description: getApiErrorMessage(error, "Check the connection and try again."),
-                      variant: "destructive",
-                    }),
-                },
-              )
-            }
+            rows={muted.data}
             bringing={unmute.isPending ? (unmute.variables?.id ?? null) : null}
             onBringBack={(row) =>
               unmute.mutate(
