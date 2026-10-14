@@ -10,6 +10,7 @@ function fakeDb(items: Array<Record<string, unknown>>) {
     vaneJob: { findFirst: empty, findMany: async () => [], count: async () => 0 },
     vanePlan: { findMany: async () => [] },
     vaneSettings: { findUnique: async () => ({ paused: false }) },
+    vaneCardChoice: { findMany: async () => [] },
   } as unknown as Parameters<typeof vanePanel>[0];
 }
 

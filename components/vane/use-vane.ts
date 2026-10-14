@@ -3,7 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { fetchJson } from "@/lib/api-client";
-import type { VaneCardDetail, VaneDone, VaneForYou, VaneMutedRow, VaneNav, VanePlanDetail } from "@/lib/vane/pages";
+import type { VaneCardDetail, VaneDone, VaneForYou, VaneMuted, VaneNav, VanePlanDetail } from "@/lib/vane/pages";
 import type { VanePanel } from "@/lib/vane/panel";
 import type { VaneStatus } from "@/lib/vane/status";
 
@@ -92,7 +92,7 @@ export function useVaneDone(search: string) {
 export function useVaneMuted() {
   return useQuery({
     queryKey: ["vane", "muted"],
-    queryFn: () => fetchJson<{ rows: VaneMutedRow[] }>("/api/vane/muted"),
+    queryFn: () => fetchJson<VaneMuted>("/api/vane/muted"),
   });
 }
 
@@ -118,5 +118,14 @@ export function useVaneActions() {
       fetchJson(`/api/vane/plans/${planId}/steps/${stepId}`, { method: "PATCH", body: JSON.stringify({ done }) }),
     onSettled: refresh,
   });
-  return { notNow, giveJob, pause, tickStep };
+  const bringBack = useMutation({
+    mutationFn: (id: string) => fetchJson(`/api/vane/items/${id}/bring-back`, { method: "POST" }),
+    onSettled: refresh,
+  });
+  const chooseKind = useMutation({
+    mutationFn: ({ id, stopped }: { id: string; stopped: boolean }) =>
+      fetchJson(`/api/vane/items/${id}/stop`, { method: "PUT", body: JSON.stringify({ stopped }) }),
+    onSettled: refresh,
+  });
+  return { notNow, giveJob, pause, tickStep, bringBack, chooseKind };
 }

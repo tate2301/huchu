@@ -5,6 +5,7 @@ import { z } from "zod";
 
 import { vaneState, type VaneState } from "./state";
 import { audienceFilter, FOR_YOU, vaneStatus, type VaneStatus } from "./status";
+import { notStopped } from "./stops";
 
 /** The button on a For you card: it names the act and goes where the act is done. */
 export const vaneActionSchema = z.object({
@@ -47,7 +48,7 @@ export type VanePanel = {
   done: VaneDone[];
 };
 
-type Db = Pick<PrismaClient, "vaneItem" | "vaneJob" | "vanePlan" | "vaneSettings">;
+type Db = Pick<PrismaClient, "vaneItem" | "vaneJob" | "vanePlan" | "vaneSettings" | "vaneCardChoice">;
 
 /** The modules the product names for a card's source. */
 const MODULE_NAMES: Record<string, string> = {
@@ -79,11 +80,12 @@ export async function vanePanel(
   { companyId, userId, role, module }: { companyId: string; userId: string; role?: string | null; module?: string | null },
 ): Promise<VanePanel> {
   const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
+  const stopped = await notStopped(db, companyId, userId);
   const [status, state, items, plans, done] = await Promise.all([
     vaneStatus(db, { companyId, userId, role }),
     vaneState(db, companyId),
     db.vaneItem.findMany({
-      where: { companyId, status: "OPEN", kind: { in: FOR_YOU }, ...audienceFilter(userId, role) },
+      where: { companyId, status: "OPEN", kind: { in: FOR_YOU }, ...audienceFilter(userId, role), ...stopped },
       orderBy: { createdAt: "desc" },
       take: 50,
       select: { id: true, kind: true, sourceModule: true, headline: true, body: true, action: true, createdAt: true },

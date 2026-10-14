@@ -1,7 +1,8 @@
 /**
  * The witness that Vane changes nothing by itself: every Vane route that
- * changes data (Not now, Give Vane a job, ticking a plan step, Pause and
- * Resume) answers only a signed-in person. A request with no person behind
+ * changes data (Not now, Bring back, Stop it for me and Keep showing it,
+ * Give Vane a job, ticking a plan step, Pause and Resume) answers only a
+ * signed-in person. A request with no person behind
  * it, such as the scheduled-jobs tick calling with its own secret, is refused
  * with 401 and the rows stay as they were. The checks run through the real session guard
  * against the database, nothing mocked.
@@ -14,7 +15,9 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/prisma";
 
 import { POST as giveJob } from "./jobs/route";
+import { POST as bringBack } from "./items/[id]/bring-back/route";
 import { POST as mute } from "./items/[id]/mute/route";
+import { PUT as stopKind } from "./items/[id]/stop/route";
 import { PATCH as tickStep } from "./plans/[id]/steps/[stepId]/route";
 import { PATCH as changeSettings } from "./settings/route";
 
@@ -76,6 +79,36 @@ describe("Vane's data changes need a person", () => {
     expect(response.status).toBe(401);
     const item = await prisma.vaneItem.findUniqueOrThrow({ where: { id: itemId } });
     expect(item).toMatchObject({ status: "OPEN", mutedReason: null, resolvedById: null, resolvedAt: null });
+  });
+
+  it("refuses Bring back without a signed-in person, and the card stays set aside", async () => {
+    const aside = await prisma.vaneItem.create({
+      data: {
+        companyId,
+        kind: "SUGGESTION",
+        sourceModule: "crm",
+        headline: "11 follow-ups are overdue.",
+        body: "Let's make the calls today.",
+        action: { type: "open", label: "Open the follow-ups", target: "/crm/follow-ups" },
+        status: "MUTED",
+        mutedReason: "Not mine",
+      },
+    });
+    const response = await bringBack(notAPerson(`/api/vane/items/${aside.id}/bring-back`, "POST", {}), {
+      params: Promise.resolve({ id: aside.id }),
+    });
+    expect(response.status).toBe(401);
+    expect(await prisma.vaneItem.findUniqueOrThrow({ where: { id: aside.id } })).toMatchObject({ status: "MUTED", mutedReason: "Not mine" });
+  });
+
+  it("refuses Stop it for me and Keep showing it without a signed-in person, and keeps no choice", async () => {
+    for (const stopped of [true, false]) {
+      const response = await stopKind(notAPerson(`/api/vane/items/${itemId}/stop`, "PUT", { stopped }), {
+        params: Promise.resolve({ id: itemId }),
+      });
+      expect(response.status).toBe(401);
+    }
+    expect(await prisma.vaneCardChoice.count({ where: { companyId } })).toBe(0);
   });
 
   it("refuses a job given without a signed-in person, and queues nothing", async () => {

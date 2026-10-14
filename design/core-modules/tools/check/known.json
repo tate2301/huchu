@@ -338,7 +338,9 @@
     "panel: Site visits",
     "panel: Showroom",
     "panel: People and pay",
-    "panel: Build"
+    "panel: Build",
+    "button: Keep showing it",
+    "button: Stop it for me"
   ],
   "PageVaneJob": [
     "panel: Pipeline",

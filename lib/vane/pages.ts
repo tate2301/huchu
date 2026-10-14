@@ -7,6 +7,7 @@ import { moduleName, vaneActionSchema, type VaneAction, type VaneCard, type Vane
 import { watchablesFor } from "./settings";
 import { parseTools, vaneState, type VaneState } from "./state";
 import { audienceFilter, FOR_YOU, vaneStatus, type VaneStatus } from "./status";
+import { cardKey, notStopped, stopOffer, type StopOffer } from "./stops";
 
 export { parseTools, vaneState, type VaneState };
 
@@ -18,7 +19,7 @@ export { parseTools, vaneState, type VaneState };
  * `…/jobs`).
  */
 
-type Db = Pick<PrismaClient, "vaneItem" | "vaneJob" | "vanePlan" | "vaneSettings">;
+type Db = Pick<PrismaClient, "vaneItem" | "vaneJob" | "vanePlan" | "vaneSettings" | "vaneCardChoice">;
 type Who = { companyId: string; userId: string; role?: string | null };
 
 /** The jobs Vane has not finished: queued, running, or waiting to try again. */
@@ -111,8 +112,9 @@ export function watchingFor(enabledFeatures: readonly string[] | undefined, watc
 
 export async function vaneCounts(db: Db, { companyId, userId, role }: Who, now: Date = new Date()): Promise<VaneCounts> {
   const audience = audienceFilter(userId, role);
+  const stopped = await notStopped(db, companyId, userId);
   const [forYou, working, plans, doneToday, muted] = await Promise.all([
-    db.vaneItem.count({ where: { companyId, status: "OPEN", kind: { in: FOR_YOU }, ...audience } }),
+    db.vaneItem.count({ where: { companyId, status: "OPEN", kind: { in: FOR_YOU }, ...audience, ...stopped } }),
     db.vaneJob.count({ where: { companyId, status: { in: [...UNFINISHED] } } }),
     db.vanePlan.count({ where: { companyId, status: "OPEN" } }),
     db.vaneJob.count({ where: { companyId, status: "DONE", finishedAt: { gte: startOfShopDay(now) } } }),
@@ -204,12 +206,13 @@ export async function vaneForYou(
   now: Date = new Date(),
 ): Promise<VaneForYou> {
   const { companyId, userId, role, module } = who;
+  const stopped = await notStopped(db, companyId, userId);
   const [status, state, counts, items, working, plan, done] = await Promise.all([
     vaneStatus(db, { companyId, userId, role }),
     vaneState(db, companyId, now),
     vaneCounts(db, who, now),
     db.vaneItem.findMany({
-      where: { companyId, status: "OPEN", kind: { in: FOR_YOU }, ...audienceFilter(userId, role) },
+      where: { companyId, status: "OPEN", kind: { in: FOR_YOU }, ...audienceFilter(userId, role), ...stopped },
       orderBy: { createdAt: "desc" },
       take: 100,
       select: { id: true, kind: true, sourceModule: true, headline: true, body: true, action: true, createdAt: true, sql: true },
@@ -559,22 +562,51 @@ export type VaneMutedRow = {
   reason: string | null;
   by: string | null;
   at: string | null;
+  /** This person stopped its kind: Vane no longer shows it to them. */
+  stopped: boolean;
 };
 
-/** The cards set aside that this person can see, newest first, with the reason given. */
-export async function vaneMuted(db: Db, { companyId, userId, role }: Who): Promise<VaneMutedRow[]> {
-  const items = await db.vaneItem.findMany({
-    where: { companyId, status: "MUTED", kind: { in: FOR_YOU }, ...audienceFilter(userId, role) },
-    orderBy: { resolvedAt: { sort: "desc", nulls: "last" } },
-    take: 200,
-    select: { id: true, headline: true, sourceModule: true, mutedReason: true, resolvedAt: true, resolvedBy: { select: { name: true } } },
-  });
-  return items.map((item) => ({
+export type VaneMuted = {
+  rows: VaneMutedRow[];
+  /** The kind this person set aside often this month, when Vane may ask to stop showing it to them. */
+  offer: StopOffer | null;
+};
+
+/**
+ * The cards set aside that this person can see, newest first, with the
+ * reason given; and the kind they set aside often enough this month that Vane
+ * asks whether to stop showing it to them.
+ */
+export async function vaneMuted(db: Db, { companyId, userId, role }: Who, now: Date = new Date()): Promise<VaneMuted> {
+  const [items, answered] = await Promise.all([
+    db.vaneItem.findMany({
+      where: { companyId, status: "MUTED", kind: { in: FOR_YOU }, ...audienceFilter(userId, role) },
+      orderBy: { resolvedAt: { sort: "desc", nulls: "last" } },
+      take: 200,
+      select: {
+        id: true,
+        headline: true,
+        sourceModule: true,
+        action: true,
+        mutedReason: true,
+        resolvedAt: true,
+        resolvedById: true,
+        resolvedBy: { select: { name: true } },
+      },
+    }),
+    db.vaneCardChoice.findMany({ where: { companyId, userId }, select: { cardKey: true, stopped: true } }),
+  ]);
+  const mine = items.filter((item) => item.resolvedById === userId);
+  const offer = stopOffer(mine, new Set(answered.map((row) => row.cardKey)), monthStart(now));
+  const stopped = new Set(answered.filter((row) => row.stopped).map((row) => row.cardKey));
+  const rows = items.map((item) => ({
     id: item.id,
     headline: item.headline,
     source: moduleName(item.sourceModule),
     reason: item.mutedReason,
     by: item.resolvedBy ? firstName(item.resolvedBy.name) : null,
     at: item.resolvedAt?.toISOString() ?? null,
+    stopped: stopped.has(cardKey(item)),
   }));
+  return { rows, offer };
 }

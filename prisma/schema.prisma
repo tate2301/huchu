@@ -135,6 +135,7 @@ model Company {
   vanePlans                     VanePlan[]
   vaneJobs                      VaneJob[]
   vaneSettings                  VaneSettings?
+  vaneCardChoices               VaneCardChoice[]
   vaneReaderScopes              VaneReaderScope[]
   documentRenderJobs            DocumentRenderJob[]
   documentArtifacts             DocumentArtifact[]
@@ -1502,6 +1503,7 @@ model User {
   vaneItemsFor                    VaneItem[]                     @relation("VaneItemAudience")
   vaneItemsResolved               VaneItem[]                     @relation("VaneItemResolvedBy")
   vaneJobsRequested               VaneJob[]                      @relation("VaneJobRequestedBy")
+  vaneCardChoices                 VaneCardChoice[]
   sitesClosed                       Site[]                         @relation("SiteClosedBy")
   retailRegistersCreated            RetailRegister[]               @relation("RetailRegisterCreatedBy")
   retailDevicesPaired               RetailDevice[]                 @relation("RetailDevicePairedBy")
@@ -16422,6 +16424,27 @@ model VaneSettings {
 /// Which workspace a vane_reader connection may read, keyed by its backend pid.
 /// Written by the app, inside the reading transaction; vane_reader can read it
 /// but never write it, so its SQL cannot move itself to another workspace.
+/// Muted (PageVaneMuted): what one person chose for a kind of card they keep setting aside.
+/// "Stop it for me" hides that kind from their For you; "Keep showing it" stops the asking.
+model VaneCardChoice {
+  id        String   @id @default(uuid())
+  companyId String
+  userId    String
+  /// The kind of card: its module and where its button goes ("crm|target|/crm/follow-ups"),
+  /// or its button's words when it goes nowhere ("crm|label|Call them"). See lib/vane/stops.ts.
+  cardKey   String
+  /// True for Stop it for me, false for Keep showing it.
+  stopped   Boolean
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, userId, cardKey])
+  @@index([userId])
+}
+
 model VaneReaderScope {
   pid       Int      @id
   companyId String

@@ -28,6 +28,7 @@ type Rows = {
 function stateDb({ settings = null, used = 0, newest = null, lastFinished = null, lastDone = null }: Rows) {
   return {
     vaneSettings: { findUnique: async () => settings },
+    vaneCardChoice: { findMany: async () => [] },
     vaneJob: {
       count: async () => used,
       findFirst: async ({ where, orderBy }: { where: { status?: unknown }; orderBy: Record<string, string> }) => {
@@ -117,6 +118,7 @@ describe("For you", () => {
     vaneJob: { count: async () => 0, findFirst: async () => null, findMany: async () => [] },
     vanePlan: { count: async () => 0, findFirst: async () => null },
     vaneSettings: { findUnique: async () => null },
+    vaneCardChoice: { findMany: async () => [] },
   } as unknown as Parameters<typeof vaneForYou>[0];
 
   it("lists every module's cards, and names the sources by how many came from each", async () => {

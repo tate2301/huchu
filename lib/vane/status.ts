@@ -1,5 +1,7 @@
 import type { PrismaClient, VaneItemKind } from "@prisma/client";
 
+import { notStopped } from "./stops";
+
 /** What the Vane button and the panel's head show. */
 /** What For you holds and the button counts: issues and suggestions. Insights live on Reports → Insights. */
 export const FOR_YOU: VaneItemKind[] = ["ISSUE", "SUGGESTION"];
@@ -32,11 +34,12 @@ export function audienceFilter(userId: string, role: string | null | undefined) 
 }
 
 export async function vaneStatus(
-  db: Pick<PrismaClient, "vaneItem" | "vaneJob" | "vaneSettings">,
+  db: Pick<PrismaClient, "vaneItem" | "vaneJob" | "vaneSettings" | "vaneCardChoice">,
   { companyId, userId, role }: { companyId: string; userId: string; role?: string | null },
 ): Promise<VaneStatus> {
+  const stopped = await notStopped(db, companyId, userId);
   const [open, running, last, newest, settings] = await Promise.all([
-    db.vaneItem.count({ where: { companyId, status: "OPEN", kind: { in: FOR_YOU }, ...audienceFilter(userId, role) } }),
+    db.vaneItem.count({ where: { companyId, status: "OPEN", kind: { in: FOR_YOU }, ...audienceFilter(userId, role), ...stopped } }),
     db.vaneJob.findFirst({
       where: { companyId, status: "RUNNING" },
       orderBy: { startedAt: "desc" },

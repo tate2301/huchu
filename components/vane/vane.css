@@ -67,6 +67,17 @@
 .ck .vn-done .vn-c-amount { width: 112px; }
 .ck .vn-muted .vn-c-from { width: 140px; }
 .ck .vn-muted .vn-c-aside { width: 140px; }
+.ck .vn-muted .vn-c-back { width: 112px; }
+.ck.ck.ck .vn-linkbtn { background: none; border: 0; box-shadow: none; padding: 0; height: auto; font: inherit; cursor: pointer; }
+.ck.ck.ck .vn-linkbtn:disabled { cursor: progress; }
+
+/* Muted: Vane asks once whether to stop showing a kind of card a person keeps setting aside. */
+.ck .vn-offer { margin: 20px 28px 0; padding: 14px 16px; border: 1px solid var(--color-line); border-radius: 10px; display: flex; align-items: center; gap: 12px; }
+.ck .vn-offer > svg { flex: none; }
+.ck .vn-offer-t { flex: 1 1 auto; min-width: 0; line-height: 1.45; }
+.ck .vn-offer-t b { font-weight: 600; }
+.ck .vn-offer-d { color: var(--color-ink-2); }
+.ck .vn-offer-a { display: flex; gap: 8px; flex: none; }
 .ck .vn-body .ws-tools { flex-wrap: wrap; }
 .ck .vn-body > .empty { margin: 48px auto; }
 @media (max-width: 759px) {
@@ -76,6 +87,10 @@
   .ck .vn-done .vn-c-when { width: 64px; }
   .ck .vn-done .vn-c-next { width: 38%; }
   .ck .vn-muted .vn-c-aside { width: 96px; }
+  .ck .vn-muted .vn-c-back { width: 92px; }
+  .ck .vn-offer { margin: 16px 16px 0; flex-wrap: wrap; align-items: flex-start; }
+  .ck .vn-offer-t { flex-basis: calc(100% - 30px); }
+  .ck .vn-offer-a { flex-wrap: wrap; }
   .ck .vn-body .wt { overflow-x: auto; }
 }
 .ck .vn-reasons { padding: 24px; }
