@@ -143,7 +143,9 @@
     "panel: Money4",
     "heading: Build",
     "panel: Forms",
-    "panel: Documents"
+    "panel: Documents",
+    "button: Notifications",
+    "button: Vane"
   ],
   "PageInsightVisits": [
     "heading: Areas",
