@@ -40,7 +40,13 @@ export function InvoicesPageView({
   sending = false,
   initialSelection = [],
   initialColumns = { when: true, total: true },
+  explore = null,
+  vane = null,
 }: {
+  /** After Export, in its group: Explore this list (ExploreSuggest). */
+  explore?: React.ReactNode;
+  /** Last in the row: Vane's suggestions for this list (ExploreSuggest). */
+  vane?: React.ReactNode;
   data: InvoicesView;
   onQuery: (next: Partial<InvoiceQuery>) => void;
   onSendReminders: (rows: InvoiceRow[]) => void;
@@ -90,7 +96,7 @@ export function InvoicesPageView({
         >
           {INVOICE_VIEW_LABEL[query.view]}
         </MenuButton>
-        <label className="input-wrap tl-find">
+        <label className="input-wrap tl-find" style={{ flex: "0 1 240px", minWidth: 140 }}>
           <Icon name="search" />
           <input type="search" aria-label="Search this list" placeholder="Search this list" value={q} onChange={(event) => setQ(event.target.value)} />
         </label>
@@ -146,7 +152,9 @@ export function InvoicesPageView({
               <Icon name="export" />
               Export
             </a>
+            {explore}
           </ButtonGroup>
+          {vane}
         </div>
       </div>
       <TableShell

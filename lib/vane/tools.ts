@@ -203,7 +203,7 @@ const proposeItem = tool({
     subjectType: z
       .enum(VANE_SUBJECTS)
       .optional()
-      .describe("The one record it is about, when there is one; the card then shows on that record's page too (a deal's, a lead's, a company's)."),
+      .describe("The one record it is about, when there is one; the card then shows on that record's page too (a deal's, a lead's, a company's). For a suggestion about a list itself (send it on a schedule, add a column), use List with the list's path as subjectId (\"/books/invoices\")."),
     subjectId: z.string().max(60).optional(),
     sql: z.string().max(20_000).optional(),
     readFrom: z

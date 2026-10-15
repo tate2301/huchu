@@ -81,7 +81,7 @@ export function WorkspaceRail({
    * A module in no workspace's sections (Vane): while one of its pages is
    * open, the panel shows its title and its rows instead of the workspace's.
    */
-  ownPanel?: { title: string; body: React.ReactNode } | null;
+  ownPanel?: { title: string; body: React.ReactNode; bare?: boolean } | null;
   /** Help, on the shelf at the panel's foot. */
   supportItems?: NavItem[];
   panelShown: boolean;
@@ -257,7 +257,14 @@ export function WorkspaceRail({
     ) : null;
 
   let panel: React.ReactNode = null;
-  if (panelShown && ownPanel && !needle) {
+  if (panelShown && ownPanel?.bare) {
+    // A panel with its own search and rows (Explore's tables), drawn as it is.
+    panel = (
+      <RailPanel title={ownPanel.title} overlay={panelOverlay} onCollapse={onCollapse} shelf={shelf}>
+        {ownPanel.body}
+      </RailPanel>
+    );
+  } else if (panelShown && ownPanel && !needle) {
     panel = (
       <RailPanel
         title={ownPanel.title}

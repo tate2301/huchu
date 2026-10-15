@@ -596,6 +596,14 @@ export const settingsNavEntries: SettingsNavEntry[] = [
     icon: VaneIcon,
     gate: { kind: "preference", itemId: "vane" },
   },
+  {
+    id: "explore",
+    group: "apps",
+    label: "Explore",
+    href: "/management/explore",
+    icon: Dataset,
+    gate: { kind: "preference", itemId: "explore" },
+  },
 
   {
     id: "profile",

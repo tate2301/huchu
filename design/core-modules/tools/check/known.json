@@ -14,5 +14,12 @@
   "PageVaneCard": ["primary: Open 3 statements [S]", "primary: Open the draft [S]", "primary: Open the changes [S]", "button: Save as a template", "button: Open Simba’s details", "panel: Pipeline", "panel: Site visits", "panel: Showroom", "panel: People and pay", "panel: Build", "panel: Deals", "panel: Quotes", "label: Deals won, last 7 days", "label: Invoices for those deals", "label: Quotes QT-0398, accepted 7 Oct", "label: Customer", "label: Lines", "label: Total", "label: Due", "panel: Invoices"],
   "PageVanePlan": ["panel: Pipeline", "panel: Site visits", "panel: Showroom", "panel: People and pay", "panel: Build", "label: VAT summary", "label: Invoices and bills", "label: Trial balance", "label: Tax codes"],
   "PageVaneDone": ["panel: Pipeline", "panel: Site visits", "panel: Showroom", "panel: People and pay", "panel: Build", "filter: Everyone"],
-  "PageVaneMuted": ["panel: Pipeline", "panel: Site visits", "panel: Showroom", "panel: People and pay", "panel: Build", "button: Keep showing it", "button: Stop it for me"]
+  "PageVaneMuted": ["panel: Pipeline", "panel: Site visits", "panel: Showroom", "panel: People and pay", "panel: Build", "button: Keep showing it", "button: Stop it for me"],
+  "ExploreStudio": ["button: Notifications", "button: Vane", "button: Earlier versions", "button: Useful", "button: Not useful", "status: drafted", "status: sent", "status: no quote", "footer: # visits# with no quote"],
+  "ExploreTemplates": ["button: Notifications", "button: Vane"],
+  "ExploreSchedule": ["button: Notifications", "button: Vane", "button: Earlier versions", "button: Useful", "button: Not useful", "status: drafted", "status: sent", "status: no quote", "footer: # visits# with no quote", "heading: Watch it", "button: Remove Rudo Mapfumo", "button: A link", "tab: A link"],
+  "ExploreGuard": ["button: Notifications", "button: Vane", "button: Match it"],
+  "ExploreSuggest": ["button: Vane", "button: Filters", "button: View", "button: Vane, 2 for this list", "primary: Schedule it [S]", "button: Not now", "button: Add the column", "panel: Overdue shared", "panel: Pomona Offices you", "panel: Paid this month shared", "placeholder: Search invoices", "footer: # invoices# overdue#", "footer: # to # of #PreviousNext", "placeholder: Search everything"],
+  "ExploreAsk": ["heading: Go to", "button: Notifications", "button: Pin to Monday board", "panel: Overdue shared", "panel: Pomona Offices you", "panel: Paid this month shared", "placeholder: Search everything"],
+  "MgmtExplore": ["panel: Pay and statutory", "panel: Tills", "panel: Till rules", "panel: Posting", "panel: Fiscal device", "status: refused, a change"]
 }

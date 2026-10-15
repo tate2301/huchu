@@ -25,6 +25,7 @@ const ASK: Record<VaneSubject, string> = {
   SalesQuotation: "Check this quote before it goes",
   CrmLeadDocument: "Check this quote before it goes",
   RetailPurchaseOrder: "Is this order late, and what is still owed?",
+  List: "What could this list do for me?",
 };
 
 /**

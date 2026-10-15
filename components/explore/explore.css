@@ -1,0 +1,100 @@
+/* Explore (design/core-modules/boards/view/Explore*.html): what the kit's
+   `.ex-*` rules leave to the page — the studio filling the shell's main
+   column, the panel's rows as buttons and links, the guard's notice, the bar
+   chart, and the phone. */
+
+.ck.ck.ck .kit-main > .sc-explore,
+.ck.ck.ck.kit-main .ex-main { flex: 1; min-height: 0; height: 100%; overflow: hidden; }
+.ck.ck.ck .ex-main { display: flex; flex-direction: column; }
+
+/* The panel: the boards draw rows as text; here they open and link. */
+.ck.ck.ck .ex-tabs { margin: 0 var(--space-12) var(--space-12); }
+.ck.ck.ck .ex-find { margin: 0 var(--space-12) var(--space-8); }
+.ck.ck.ck .ex-body { padding: 0 var(--space-12) var(--space-16); }
+.ck.ck.ck button.ex-t { width: 100%; border: 0; background: none; text-align: left; cursor: pointer; }
+.ck.ck.ck button.ex-t:hover, .ck.ck.ck a.ex-t:hover { background: var(--color-fill); color: var(--color-ink); }
+.ck.ck.ck button.ex-t.is-on { background: var(--color-fill); color: var(--color-ink); }
+.ck.ck.ck a.ex-link { text-decoration: none; }
+.ck.ck.ck .ex-t .ex-tn { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ck.ck.ck .ex-t .ex-sans { font-family: var(--font-sans); font-size: var(--text-14); }
+.ck.ck.ck .ex-t.is-locked .n { flex: none; max-width: 50%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ck.ck.ck .ex-cols { overflow-wrap: anywhere; }
+.ck.ck.ck .ex-start { display: block; margin-top: var(--space-4); font-family: var(--font-sans); color: var(--color-accent); text-decoration: none; }
+.ck.ck.ck .ex-start:hover { text-decoration: underline; }
+.ck.ck.ck .ex-none { padding: var(--space-12) var(--space-4); font-size: var(--text-13); line-height: 1.5; }
+
+/* The studio. */
+.ck.ck.ck .ex-ask .seg { flex: none; }
+.ck.ck.ck .ex-ask .vn-mark, .ck.ck.ck .ex-note .vn-mark { flex: none; }
+.ck.ck.ck .ex-h-l { display: inline-flex; align-items: center; gap: var(--space-8); }
+.ck.ck.ck .ex-h-l .ic { width: 14px; height: 14px; }
+.ck.ck.ck .ex-steps li.is-refused .ic { color: var(--color-warning); }
+.ck.ck.ck .ex-steps li span { min-width: 0; overflow-wrap: anywhere; }
+.ck.ck.ck .ex-problem { margin-top: var(--space-8); font-size: var(--text-13); color: var(--color-danger); }
+.ck.ck.ck .ex-rows { display: flex; flex-direction: column; flex: 1; min-height: 0; transition: opacity 120ms ease; }
+.ck.ck.ck .ex-rows.is-stale { opacity: 0.6; }
+.ck.ck.ck .ex-rows .wt { min-height: 0; }
+.ck.ck.ck .ex-rows .ws-scroll { flex: 1; min-height: 0; overflow: auto; }
+.ck.ck.ck .ex-rows td.ex-norows { padding: var(--space-32) var(--space-24); text-align: center; white-space: normal; }
+.ck.ck.ck .ex-cut { padding: var(--space-8) var(--space-24); font-size: var(--text-13); color: var(--color-muted); box-shadow: inset 0 1px 0 var(--color-line); }
+.ck.ck.ck .ex-loading { display: flex; flex-direction: column; gap: var(--space-12); padding: var(--space-16) var(--space-24); }
+.ck.ck.ck .ex-main > .empty { margin: auto; }
+
+/* A question refused before it ran. */
+.ck.ck.ck .ex-guard { display: flex; flex-direction: column; gap: var(--space-16); max-width: 880px; padding: var(--space-24); overflow: auto; }
+.ck.ck.ck .ex-guard .banner { display: flex; gap: var(--space-12); align-items: flex-start; padding: var(--space-16); border-radius: 10px; background: var(--color-warning-tint); }
+.ck.ck.ck .ex-guard .banner b { color: var(--color-ink); }
+.ck.ck.ck .ex-guard .banner p { margin-top: 2px; line-height: 1.6; color: var(--color-ink-2); }
+.ck.ck.ck .ex-guard-acts { display: flex; flex-wrap: wrap; gap: var(--space-8); margin-top: var(--space-12); }
+.ck.ck.ck .ex-limits { display: flex; flex-direction: column; gap: var(--space-8); }
+.ck.ck.ck .ex-limits b { color: var(--color-ink); }
+.ck.ck.ck .ex-limits .prow { display: flex; justify-content: space-between; gap: var(--space-16); min-height: 36px; align-items: center; box-shadow: inset 0 -1px 0 var(--color-line); }
+.ck.ck.ck .ex-limits .prow:last-child { box-shadow: none; }
+
+/* The rows as bars. */
+.ck.ck.ck .ex-bars { display: flex; flex-direction: column; gap: var(--space-8); margin: 0; padding: var(--space-16) var(--space-24); }
+.ck.ck.ck .ex-bar { display: grid; grid-template-columns: minmax(0, 200px) minmax(0, 1fr) auto; align-items: center; gap: var(--space-12); font-size: var(--text-13); }
+.ck.ck.ck .ex-bar-l { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--color-ink-2); }
+.ck.ck.ck .ex-bar-t { height: 12px; border-radius: 3px; background: var(--color-fill); overflow: hidden; }
+.ck.ck.ck .ex-bar-f { display: block; height: 100%; background: var(--color-accent); border-radius: 3px; }
+.ck.ck.ck .ex-bar-v { color: var(--color-ink); }
+
+/* Templates. */
+.ck.ck.ck .ex-maker { display: inline-flex; align-items: center; gap: var(--space-8); }
+.ck.ck.ck .ex-maker .ic { width: 14px; height: 14px; color: var(--color-muted); }
+.ck.ck.ck .ex-templates td.muted, .ck.ck.ck .ex-templates td.mono { max-width: 320px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ck.ck.ck .ex-templates .grp td .ic { width: 14px; height: 14px; margin-right: var(--space-8); vertical-align: -2px; color: var(--color-muted); }
+
+/* Vane's suggestions for a list (ExploreSuggest), from the toolbar's Vane slot. */
+.ck.ck.ck .ex-listvane { position: relative; display: inline-flex; }
+.ck.ck.ck .ex-listvane > .btn.is-vane { gap: var(--space-4); }
+.ck.ck.ck .ex-pop { position: fixed; z-index: var(--z-popover, 60); width: 370px; max-width: calc(100vw - 32px); padding: 0; display: flex; flex-direction: column; }
+.ck.ck.ck .ex-pop-h { display: flex; align-items: center; gap: var(--space-8); height: 48px; padding: 0 var(--space-16); box-shadow: inset 0 -1px 0 var(--color-line); }
+.ck.ck.ck .ex-pop-h b { font-weight: 600; color: var(--color-ink); }
+.ck.ck.ck .ex-pop-card { display: flex; flex-direction: column; gap: var(--space-4); padding: var(--space-16); box-shadow: inset 0 -1px 0 var(--color-line); }
+.ck.ck.ck .ex-pop-card b { font-weight: 500; color: var(--color-ink); line-height: 1.5; }
+.ck.ck.ck .ex-pop-card p { font-size: var(--text-13); line-height: 1.6; color: var(--color-ink-2); }
+.ck.ck.ck .ex-pop-acts { display: flex; gap: var(--space-8); margin-top: var(--space-8); }
+.ck.ck.ck .ex-pop-none { padding: var(--space-16); font-size: var(--text-13); line-height: 1.6; }
+.ck.ck.ck .ex-pop-foot { display: flex; align-items: center; gap: var(--space-8); padding: var(--space-12) var(--space-16); font-size: var(--text-13); }
+.ck.ck.ck .ex-pop-foot .ic { width: 14px; height: 14px; color: var(--color-muted); }
+.ck.ck.ck .ex-pop-foot a { color: var(--color-ink-2); text-decoration: none; }
+
+/* A phone: one column, the steps above the SQL, the tools wrapping. */
+@media (max-width: 719px) {
+  .ck.ck.ck .ex-main { overflow: auto; }
+  .ck.ck.ck .ex-ask { flex-wrap: wrap; padding: var(--space-12) var(--space-16); }
+  .ck.ck.ck .ex-ask .input-wrap { flex: 1 1 100%; }
+  .ck.ck.ck .ex-edit { grid-template-columns: minmax(0, 1fr); height: auto; max-height: none; resize: none; }
+  .ck.ck.ck .ex-steps { width: auto; resize: none; box-shadow: inset 0 -1px 0 var(--color-line); padding: var(--space-16); }
+  .ck.ck.ck .ex-sql { padding: var(--space-16); }
+  .ck.ck.ck .ex-note { flex-wrap: wrap; padding: var(--space-12) var(--space-16); }
+  .ck.ck.ck .ex-rows .ws-tools { flex-wrap: wrap; padding: var(--space-12) var(--space-16); }
+  .ck.ck.ck .ex-rows .ws-tools .ws-find, .ck.ck.ck .ex-main > .wt .ws-tools .ws-find { width: 100%; }
+  .ck.ck.ck .ex-main > .wt .ws-tools { flex-wrap: wrap; padding: var(--space-12) var(--space-16); }
+  .ck.ck.ck .ex-main .ws-tools .end { flex-wrap: wrap; margin-left: 0; gap: var(--space-4); }
+  .ck.ck.ck .ex-main .ws-tools .sepv { display: none; }
+  .ck.ck.ck .ex-guard { padding: var(--space-16); }
+  .ck.ck.ck .ex-bar { grid-template-columns: minmax(0, 110px) minmax(0, 1fr) auto; }
+  .ck.ck.ck .ex-templates td.muted, .ck.ck.ck .ex-templates td.mono { max-width: 160px; }
+}
