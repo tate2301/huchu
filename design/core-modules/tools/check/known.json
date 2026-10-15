@@ -515,6 +515,7 @@
     "placeholder: Search everything"
   ],
   "MgmtExplore": [
+    "panel: Templates",
     "panel: Pay and statutory",
     "panel: Tills",
     "panel: Till rules",

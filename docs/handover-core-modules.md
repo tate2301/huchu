@@ -12,10 +12,10 @@ Every module is built except People and payroll, which the owner skipped for now
 | Reports & Insights | Built: Overview, Insights (Sales, Site visits, and each vertical's: Fees, Production, Pay cost, the shop's), All reports with folders, a report with Save as a template, Export and Send it (`ReportSchedule`, sent on the cron tick), built and custom reports, the builder on the resizable grid, Arrange, Management → Reports. |
 | Books | Built: Money, Invoices (and an invoice's page), Payments, Takings, Expenses, Bank (statement upload and matching), Journals, VAT, Periods, the close. |
 | Build | Built: the home, Templates, and one builder grid for forms, documents, emails, printed layouts and reports. |
-| Notifications | Built to the owner's redesign (14 Oct): quiet rows, the bell's Needs you and Everything, `/activity` with its drawer, Management → Notifications reading who heard about what. Per-kind × channel settings wait for approval (below). |
+| Notifications | Built to the owner's redesign (14 Oct): quiet rows, the bell's Needs you and Everything, `/activity` with its drawer, Management → Notifications and My account → Notifications setting each kind on each channel (approved 15 Oct), honoured by every sender, with the actor kept and shown. |
 | Branding | Built: Identity, Assets, Finance on one page with the live quotation, and Where it shows. |
 | Management | Built: Billing, Integrations, Marketplace, Vane, Reports, Notifications, Explore, Job grades and the other registers on the kit. Pay and statutory belongs to People and payroll and is not built. |
-| Explore | Built: the studio, templates, saved questions (custom reports with one block), the guard, Ask in plain words, Ctrl K's Open in Explore, Explore this list on Invoices, Management → Explore. Questions run in the person's tab (PGlite) until `explore_reader` is approved; Schedule it stays greyed until then. |
+| Explore | Built: the studio, templates, saved questions (custom reports with one block), the guard, Ask in plain words, Ctrl K's Open in Explore, Explore this list on Invoices, Management → Explore. With `explore_reader` set up (approved 15 Oct; its password and connection string are set by hand), questions run on the server over the real tables, are logged, show in History and in Management → Explore, and Schedule it sends; without it they run in the person's tab (PGlite). |
 | Vane engine | Built: the reader (`lib/vane/reader.ts`, its own logins), the tools (`run_sql`, `get_record`, `propose_item`, `propose_plan`, `update_plan_step`, `draft`), jobs on the scheduled-jobs tick (`vane-jobs`, every minute, allowance and retries), the live channel, write jobs (a document's email, a report block, a form's changes). Draft-only, enforced on the server: every route that issues, sends or posts refuses a Vane draft no person has taken on (409). |
 | Vane screens | Built: the rail's mark and the panel with its chat (Ctrl J), `/vane` (For you, Working on, Plans, Done, Muted), a card and what Vane read, the four states, Explain a figure on a report, and Vane inside the modules: the draft invoice, the retail reorders, fee reminders, changes to a form, a quote's message. The top-bar Vane button is gone (the owner, 14 Oct). |
 | Shortcuts | Every row of `design/core-modules/spec/shortcuts.md` is bound and `components/core/shortcuts.test.ts` checks it, with every kit primary on the built routes showing its key. |
@@ -29,10 +29,9 @@ The merge of `origin/main` (15 Oct) kept main's Vane engine and one page per job
 
 ## Next steps, in order
 
-1. **Two approvals.** Neither is applied; each is a migration with its witness test, waiting for the owner's yes.
-   - **Explore's login:** `prisma/proposed/20261015120000_explore_reader/` (`explore_reader`, `ExploreReaderScope`, `ExploreSettings`, `ExploreQuestionRun`), witnessed by `lib/explore/explore-reader-migration.test.ts`. Its grants were regenerated after `vane_finish` changed `WorkOrder`; if the schema changes again before it moves, run `pnpm explore:reader-sql` (`lib/explore/explore.test.ts` fails until it matches). Once approved: move it to `prisma/migrations/`, deploy, give the role a password by hand and set `EXPLORE_READER_DATABASE_URL`. Explore then reads Postgres through its own login, Schedule it sends, and Management → Explore saves its choices.
-   - **Notification routing:** `prisma/proposed/20261015130000_notification_routing/` (`NotificationSetting` per person, kind and channel; `NotificationPolicy` per workspace; `NotificationChannel`; the NotificationType values for Books, leave, reports and Vane; `Notification.actorId`), with the schema change in `schema.diff` beside it and its witness test as `notification-routing-migration.test.ts.proposed` (it moves to `lib/inbox/` with the migration). Nothing deploys it from `prisma/proposed/`. Once approved, Management → Notifications sets who hears about what by kind and channel, and the morning message and grouping can be built.
-   - Both share the timestamp `20261015120000`; Prisma orders them by name. Give the second a later one when it moves into `prisma/migrations/`.
+1. **Two approvals, given 15 Oct and built.** Both are in `prisma/migrations/` and deploy with the build.
+   - **Explore's login** (`20261015120000_explore_reader`: `explore_reader`, `ExploreReaderScope`, `ExploreSettings`, `ExploreQuestionRun`, witnessed by `lib/explore/explore-reader-migration.test.ts`). One step is by hand on production: the role's password and `EXPLORE_READER_DATABASE_URL` (section 2, step 4). Until then Explore runs questions in the browser as before. A later migration that adds tables Explore should read pastes their lines from `pnpm explore:reader-sql` (`lib/explore/explore.test.ts` fails until it does).
+   - **Notification routing** (`20261015130000_notification_routing`, witnessed by `lib/inbox/notification-routing-migration.test.ts`): Management → Notifications and My account → Notifications set who hears about what by kind and channel, the senders honour it, Books, leave, reports and Vane raise their own types, and the actor is kept and shown. The morning message and grouping repeats are not built (NOTES.md, Notifications).
 2. **People and payroll** (section 2 of `design/core-modules/spec/routes.md`): Everyone, a person (`/people/[id]`, linked from the schools staff list and missing), Time off (approve and reject need the leave API, **approval**), Incidents, the pay run and its approve-and-pay drawer, disbursements, returns, the phone payslip (a PDF only today), Management → Pay and statutory. Add its keys to `spec/shortcuts.md` and the shortcut test as each screen is built.
 3. **Smaller waits**, each noted in NOTES.md: Vane's templates (Done's template names, Muted's kinds), counting every report's opens (a write on every open), `ReportSchedule` for built and custom reports (they run in the browser today), and a fitter's phone scoped to their own visits (an open decision).
 
@@ -71,7 +70,14 @@ A Vercel production build runs `prisma migrate deploy` (`scripts/migrate-deploy-
 
 2. Keep the two connection strings with the worker's secrets, `VANE_READER_DATABASE_URL` and `VANE_READER_PRIVATE_DATABASE_URL`. `lib/vane/reader.ts` reads them.
 3. Set `ANTHROPIC_API_KEY` and `VANE_MODEL` where the worker runs, never with a `NEXT_PUBLIC_` prefix.
-4. Once `explore_reader` is approved, the same for it: a password by hand and `EXPLORE_READER_DATABASE_URL`.
+4. Explore's login (`20261015120000_explore_reader`, approved 15 Oct), the same way. The migration deploys with the build and creates `explore_reader` without a login; the database user it runs as needs `CREATEROLE`, as for Vane's. Then, by hand on the server:
+
+   ```sql
+   ALTER ROLE explore_reader LOGIN PASSWORD '…';
+   ```
+
+   and add `EXPLORE_READER_DATABASE_URL` (`postgresql://explore_reader:…@<host>/<database>`, the host, database and `sslmode` of `DATABASE_URL`) in the deployment's environment settings, then redeploy. Until it is set Explore runs questions in the person's browser and Schedule it cannot send; once set, Explore reads the real tables, logs each question and sends scheduled ones (docs/vane.md, Setting it up, step 5).
+5. Notification routing (`20261015130000_notification_routing`, approved 15 Oct) needs nothing by hand: it deploys with the build.
 
 ## 3. Decisions still open
 
