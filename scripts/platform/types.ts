@@ -1,3 +1,5 @@
+import type { CompanyPricingResult } from "../../lib/platform/entitlements";
+
 export const ORGANIZATION_STATUSES = ["PROVISIONING", "ACTIVE", "SUSPENDED", "DISABLED"] as const;
 export const SUBSCRIPTION_STATUSES = ["TRIALING", "ACTIVE", "PAST_DUE", "CANCELED", "EXPIRED"] as const;
 export const ADMIN_ACCOUNT_STATUSES = ["ACTIVE", "INACTIVE"] as const;
@@ -412,10 +414,6 @@ export interface TierPlanSummary {
   code: string;
   name: string;
   description: string | null;
-  monthlyPrice: number;
-  annualPrice: number | null;
-  includedSites: number;
-  additionalSiteMonthlyPrice: number;
   warningDays: number;
   graceDays: number;
   isActive: boolean;
@@ -434,8 +432,6 @@ export interface AddonBundleSummary {
   code: string;
   name: string;
   description: string | null;
-  monthlyPrice: number;
-  additionalSiteMonthlyPrice: number;
   isActive: boolean;
   enabled: boolean;
   reason: string | null;
@@ -455,8 +451,6 @@ export interface BundleCatalogSummary {
   code: string;
   name: string;
   description: string | null;
-  monthlyPrice: number;
-  additionalSiteMonthlyPrice: number;
   isActive: boolean;
   featureKeys: string[];
   source: "SYSTEM" | "CUSTOM";
@@ -488,34 +482,8 @@ export interface ApplySubscriptionTemplateResult {
   auditEventId: string;
 }
 
-export interface SubscriptionPricingLineItem {
-  code: string;
-  label: string;
-  amount: number;
-  type: "tier" | "site-overage" | "addon" | "addon-site" | "feature";
-}
-
-export interface SubscriptionPricingSummary {
-  companyId: string;
-  companyName: string;
-  companySlug: string;
-  planCode: string | null;
-  planName: string | null;
-  currency: string;
-  siteCount: number;
-  tierIncludedSites: number;
-  tierSiteOverageRate: number;
-  tierSiteOverageCount: number;
-  tierSiteOverageAmount: number;
-  baseAmount: number;
-  addonBaseAmount: number;
-  addonSiteAmount: number;
-  addonAmount: number;
-  featureAmount: number;
-  totalAmount: number;
-  lineItems: SubscriptionPricingLineItem[];
-  computedAt: string;
-}
+/** The platform's one price (`computeCompanyPricing`): verticals at the rate the member count sets. */
+export type SubscriptionPricingSummary = CompanyPricingResult;
 
 export interface SubscriptionHealthSummary {
   companyId: string;
@@ -904,8 +872,6 @@ export interface UpsertBundleCatalogInput {
   code: string;
   name: string;
   description?: string;
-  monthlyPrice?: number;
-  additionalSiteMonthlyPrice?: number;
   isActive?: boolean;
   actor: string;
   reason?: string;

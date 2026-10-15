@@ -293,9 +293,9 @@ export type SheetKind = {
   primary: string | ((values: SheetValues) => string);
   /** The note in `--bad` while this holds (what stops a merge, in place of the note). */
   noteBad?: (values: SheetValues) => boolean;
-  /** The primary is drawn but cannot send while this holds (no room on the plan); the note says why. */
+  /** The primary is drawn but cannot send while this holds; the note says why. */
   primaryDisabled?: (values: SheetValues) => boolean;
-  /** A link after the note ("Plan and billing"), while this gives one. */
+  /** A link after the note ("Download the template"), while this gives one. */
   noteLink?: (values: SheetValues) => { label: string; href: string } | null;
   /** "danger": the primary is the danger outline — a sheet whose one job is a delete, asked before it sends. */
   primaryTone?: "danger";

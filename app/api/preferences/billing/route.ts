@@ -2,10 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { errorResponse, successResponse, validateSession } from "@/lib/api-utils";
 import { computeCompanyPricing } from "@/lib/platform/entitlements";
-import { FEATURE_BUNDLES } from "@/lib/platform/feature-catalog";
-import { monthBounds } from "@/lib/vane/settings";
 import { getSubscriptionHealth } from "@/lib/platform/subscription";
+import { VERTICAL_ORDER, VERTICALS } from "@/lib/platform/verticals";
 import { prisma } from "@/lib/prisma";
+import { monthBounds } from "@/lib/vane/settings";
 
 const BILLING_VIEW_ROLES = new Set(["SUPERADMIN", "MANAGER", "FINANCE_OFFICER"]);
 
@@ -36,20 +36,7 @@ export async function GET(request: NextRequest) {
 
     const companyId = session.user.companyId;
 
-    const [
-      company,
-      subscription,
-      pricing,
-      activeSites,
-      totalSites,
-      activeUsers,
-      totalUsers,
-      health,
-      paymentHistory,
-      enabledAddons,
-      vaneSettings,
-      vaneJobs,
-    ] = await Promise.all([
+    const [company, subscription, pricing, health, paymentHistory, vaneSettings, vaneJobs] = await Promise.all([
       prisma.company.findUnique({
         where: { id: companyId },
         select: {
@@ -62,17 +49,18 @@ export async function GET(request: NextRequest) {
       }),
       prisma.companySubscription.findFirst({
         where: { companyId },
-        include: { plan: true },
         orderBy: { updatedAt: "desc" },
+        select: {
+          id: true,
+          status: true,
+          startedAt: true,
+          trialEndsAt: true,
+          currentPeriodStart: true,
+          currentPeriodEnd: true,
+        },
       }),
-      // Priced live rather than read off `effectiveMonthlyAmount`: that column
-      // is a snapshot written when somebody last recomputed, and a site opened
-      // since then is already on the bill.
+      // Priced live: its verticals at the rate its member count sets today.
       computeCompanyPricing(companyId),
-      prisma.site.count({ where: { companyId, isActive: true } }),
-      prisma.site.count({ where: { companyId } }),
-      prisma.user.count({ where: { companyId, isActive: true } }),
-      prisma.user.count({ where: { companyId } }),
       getSubscriptionHealth(companyId),
       // Settled charges only. An INITIATED or FAILED attempt is not a thing a
       // tenant is owed a record of on a settings page, and the index this
@@ -94,22 +82,19 @@ export async function GET(request: NextRequest) {
           providerReference: true,
         },
       }),
-      prisma.companySubscriptionAddon.findMany({
-        where: { companyId, isEnabled: true },
-        select: { bundle: { select: { code: true } } },
-      }),
       prisma.vaneSettings.findUnique({ where: { companyId }, select: { monthlyAllowance: true } }),
       prisma.vaneJob.count({
         where: { companyId, status: "DONE", finishedAt: { gte: monthBounds().start, lt: monthBounds().next } },
       }),
     ]);
 
-    // The add-ons the workspace could take: the catalogue's priced bundles it
-    // does not have. Taking one is still arranged with Corelith (offline).
-    const enabledCodes = new Set(enabledAddons.map((addon) => addon.bundle.code));
-    const available = FEATURE_BUNDLES.filter(
-      (bundle) => bundle.code.startsWith("ADDON_") && bundle.monthlyPrice > 0 && !enabledCodes.has(bundle.code),
-    ).map((bundle) => ({ code: bundle.code, name: bundle.name, description: bundle.description, monthlyPrice: bundle.monthlyPrice }));
+    // The verticals it could add, each at the rate it pays today. Adding one
+    // is arranged with Corelith.
+    const held = new Set(pricing.lines.map((line) => line.vertical));
+    const available = VERTICAL_ORDER.filter((vertical) => !held.has(vertical)).map((vertical) => ({
+      vertical,
+      label: VERTICALS[vertical].label,
+    }));
 
     if (!company) {
       return errorResponse("Workspace not found", 404);
@@ -117,54 +102,21 @@ export async function GET(request: NextRequest) {
 
     return successResponse({
       company,
-      subscription: subscription
-        ? {
-            id: subscription.id,
-            status: subscription.status,
-            startedAt: subscription.startedAt,
-            trialEndsAt: subscription.trialEndsAt,
-            currentPeriodStart: subscription.currentPeriodStart,
-            currentPeriodEnd: subscription.currentPeriodEnd,
-          }
-        : null,
-      plan: subscription?.plan
-        ? {
-            id: subscription.plan.id,
-            code: subscription.plan.code,
-            name: subscription.plan.name,
-            description: subscription.plan.description,
-            monthlyPrice: subscription.plan.monthlyPrice,
-            annualPrice: subscription.plan.annualPrice,
-            currency: subscription.plan.currency,
-            maxSites: subscription.plan.maxSites,
-            maxUsers: subscription.plan.maxUsers,
-          }
-        : null,
-      // What the workspace is billed each month, line by line — the plan, any
-      // site overage, add-ons and their site charges, and features switched on
-      // outside the plan — and the total those lines come to.
+      subscription,
+      // What the workspace pays each month: one line per vertical at the rate
+      // its member count sets, why that rate, and what one more would come to.
       charges: {
         currency: pricing.currency,
-        lineItems: pricing.lineItems,
-        total: pricing.totalAmount,
-      },
-      usage: {
-        activeSites,
-        totalSites,
-        activeUsers,
-        totalUsers,
-        maxSites: subscription?.plan.maxSites ?? null,
-        maxUsers: subscription?.plan.maxUsers ?? null,
+        lines: pricing.lines,
+        total: pricing.total,
+        each: pricing.each,
+        members: pricing.members,
+        over: pricing.over,
+        why: pricing.why,
+        withOneMore: pricing.withOneMore,
       },
       health,
       available,
-      // What each product line is, in the catalogue's words.
-      details: Object.fromEntries(
-        FEATURE_BUNDLES.filter((bundle) => pricing.lineItems.some((line) => line.code === bundle.code)).map((bundle) => [
-          bundle.code,
-          bundle.description.replace(/\.$/, ""),
-        ]),
-      ),
       vane: { jobsThisMonth: vaneJobs, monthlyAllowance: vaneSettings?.monthlyAllowance ?? 5000 },
       payments: {
         onlinePaymentsSupported: false,

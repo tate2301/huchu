@@ -32,7 +32,13 @@ import {
   whatsappHref,
 } from "@/app/home/site-data";
 import styles from "@/app/home/marketing.module.css";
-import { ENTRY_TIER, MONEY_BACK_DAYS, formatUsd, getMarketingTier } from "@/lib/marketing/pricing";
+import {
+  INCLUDED_MEMBERS,
+  MONEY_BACK_DAYS,
+  SMALL_PRICE,
+  STARTING_PRICE_LABEL,
+  formatUsd,
+} from "@/lib/marketing/pricing";
 import {
   breadcrumbJsonLd,
   buildMarketingMetadata,
@@ -44,9 +50,6 @@ import {
 import { ArrowRight, ExternalLink, Info, ShieldCheck } from "@/lib/icons";
 
 export const metadata: Metadata = buildMarketingMetadata(seoPages.home);
-
-/** The fiscal SKU leads every price on this page. Read, never typed. */
-const fiscalTier = getMarketingTier("FISCAL") ?? ENTRY_TIER;
 
 /**
  * The landing page argues the compliance layer first (MK-1.1).
@@ -68,7 +71,7 @@ const fiscalTier = getMarketingTier("FISCAL") ?? ENTRY_TIER;
  *   what do I actually get           → modules
  *   why not the cheaper option       → comparison and differentiators
  *   will the rollout finish          → Launch Sprint
- *   what does it cost                → pricing preview, fiscal tier first
+ *   what does it cost                → pricing preview, the vertical rate
  *   why should I believe you         → honest proof framing
  *   what is still bothering me       → FAQ
  *   do the thing                     → CTA
@@ -115,11 +118,8 @@ export default function HomePage() {
               </Link>
             </div>
             <div className={styles.assuranceGrid}>
-              <span>
-                {fiscalTier.name} from {formatUsd(fiscalTier.annualMonthlyPrice)}/month billed
-                annually
-              </span>
-              <span>{formatUsd(fiscalTier.monthlyPrice)}/month month to month</span>
+              <span>{STARTING_PRICE_LABEL} per vertical</span>
+              <span>Up to {INCLUDED_MEMBERS} people at that rate</span>
               <span>{MONEY_BACK_DAYS}-day money-back guarantee</span>
             </div>
           </div>
@@ -210,7 +210,7 @@ export default function HomePage() {
       <CtaBand
         eyebrow="Next step"
         title="Start with the obligation, then close the gaps behind it."
-        copy={`Fiscalise your tills on ${fiscalTier.name} from ${formatUsd(fiscalTier.annualMonthlyPrice)} a month billed annually, and switch on stock, books and payroll when they pay for themselves. Tell us how many tills and sites you run and we will tell you what it costs.`}
+        copy={`Fiscalise your tills from ${formatUsd(SMALL_PRICE)} a month, and switch on stock, books and payroll when they pay for themselves. Tell us how many tills you run and how many people would use it.`}
       />
     </SiteChrome>
   );

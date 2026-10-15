@@ -5,7 +5,9 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
   accessRecordCsv,
   closeWorkspace,
+  deleteWorkspaceForGood,
   reinstateWorkspace,
+  reopenWorkspace,
   renameWorkspace,
   signEveryoneOut,
   suspendWorkspace,
@@ -28,10 +30,7 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  await prisma.signInAsSession.deleteMany({ where: { companyId: workspace.id } });
-  await prisma.platformAuditEvent.deleteMany({ where: { companyId: workspace.id } });
-  await prisma.user.deleteMany({ where: { companyId: workspace.id } });
-  await prisma.company.delete({ where: { id: workspace.id } });
+  await prisma.platformAuditEvent.deleteMany({ where: { OR: [{ companyId: workspace.id }, { entityId: workspace.id }] } });
   await prisma.operator.deleteMany({ where: { id: owner.id } });
 });
 
@@ -65,9 +64,21 @@ describe("a workspace's settings", () => {
     expect((await prisma.company.findUniqueOrThrow({ where: { id: workspace.id } })).tenantStatus).toBe("ACTIVE");
   });
 
-  it("closes only when the address is typed exactly", async () => {
-    await expect(closeWorkspace(owner, workspace, "kopje", "Closed down")).rejects.toThrow(/Type kopje-/);
-    await closeWorkspace(owner, workspace, workspace.slug.toUpperCase(), "Business closed down");
+  it("closes, reopens and closes again, with a reason each time", async () => {
+    await expect(deleteWorkspaceForGood(owner, workspace, "Gone")).rejects.toThrow(/Close it first/);
+    await closeWorkspace(owner, workspace, "Business closed down");
+    await expect(closeWorkspace(owner, workspace, "again")).rejects.toThrow(/already closed/);
     expect((await prisma.company.findUniqueOrThrow({ where: { id: workspace.id } })).tenantStatus).toBe("DISABLED");
+    await reopenWorkspace(owner, workspace, "Opened by mistake");
+    expect((await prisma.company.findUniqueOrThrow({ where: { id: workspace.id } })).tenantStatus).toBe("ACTIVE");
+    await closeWorkspace(owner, workspace, "Business closed down");
+  });
+
+  it("deletes a closed workspace for good, keeping the line that says who did it", async () => {
+    await deleteWorkspaceForGood(owner, workspace, "Owner asked for their data to be deleted");
+    expect(await prisma.company.findUnique({ where: { id: workspace.id } })).toBeNull();
+    expect(await prisma.user.count({ where: { companyId: workspace.id } })).toBe(0);
+    const line = await prisma.platformAuditEvent.findFirst({ where: { eventType: "operator.workspace.deleted", entityId: workspace.id } });
+    expect(line?.reason).toBe("Owner asked for their data to be deleted");
   });
 });

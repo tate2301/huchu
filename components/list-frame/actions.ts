@@ -169,8 +169,9 @@ export async function exportList(
   format: "xlsx" | "csv" | "pdf",
   query: Record<string, unknown>,
   rowIds?: string[],
+  base = "/api/v2/reports",
 ): Promise<{ title: string; variant: "destructive" | "warning" } | null> {
-  const response = await fetch(`/api/v2/reports/${encodeURIComponent(source)}/export`, {
+  const response = await fetch(`${base}/${encodeURIComponent(source)}/export`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ format, query, ...(rowIds ? { rowIds } : {}) }),

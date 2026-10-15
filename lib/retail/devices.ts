@@ -26,7 +26,7 @@ import {
   type UnpairReason,
 } from "@/lib/retail/device-words";
 import { tillFiscal } from "@/lib/retail/fiscal-settings";
-import { PAIRING_TTL_MS, PairingRefusal, checkTillRoom, hashCode } from "@/lib/retail/pairing";
+import { PAIRING_TTL_MS, hashCode } from "@/lib/retail/pairing";
 import { tillPayments, type TillTender } from "@/lib/retail/payment-settings";
 import { canAccessPosPortal } from "@/lib/retail/pos-host";
 import { canRetailRoleDo } from "@/lib/retail/permission-matrix";
@@ -416,9 +416,9 @@ async function countShopWrongCode(companyId: string, now: Date): Promise<void> {
  * tries left, and twenty across the shop end its live codes. A device that is
  * already one of the shop's tills is refused (409): it is unpaired first. In
  * one transaction: the code is used; a REPLACE code unpairs the till's current
- * device (REPLACED, by whoever made the code); a PAIR code checks the plan;
- * the new device is made with the key's hash; audited. Returns the key for
- * the cookie, and the till and site.
+ * device (REPLACED, by whoever made the code); the new device is made with
+ * the key's hash; audited. Returns the key for the cookie, and the till and
+ * site.
  */
 export async function pairDevice(
   input: PairInput,
@@ -512,13 +512,6 @@ export async function pairDevice(
         where: { id: current.id },
         data: { unpairedAt: now, unpairedById: live.createdById, unpairReason: "REPLACED" },
       });
-    } else {
-      try {
-        await checkTillRoom(tx, input.companyId);
-      } catch (error) {
-        if (error instanceof PairingRefusal) throw new PairRefusal(409, error.message, { code: "PLAN_LIMIT" });
-        throw error;
-      }
     }
 
     const device = await tx.retailDevice.create({

@@ -1,0 +1,13 @@
+/* An admin list fills what is left under the scope bar and the page header,
+   and scrolls inside itself, as the product's lists do under its app bar. */
+.cx-admin-list {
+  --content-lede: 0px;
+  --content-viewport: calc(100dvh - var(--h-control-lg) - 56px);
+}
+
+/* On a phone the tab bar takes the foot. */
+@media (max-width: 759px) {
+  .cx-admin-list {
+    --content-viewport: calc(100dvh - var(--h-control-lg) - 112px - env(safe-area-inset-bottom));
+  }
+}

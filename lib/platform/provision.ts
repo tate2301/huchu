@@ -1,11 +1,11 @@
 import bcrypt from "bcryptjs";
-import { Prisma, type WorkspaceProduct } from "@prisma/client";
+import { Prisma, type Vertical, type WorkspaceProduct } from "@prisma/client";
 
 import { prisma } from "@/lib/prisma";
 import { writePlatformAuditEvent } from "@/lib/audit/platform";
 import { slugifyTenant } from "@/lib/platform/tenant-slug";
 import { ensureAccountingDefaults } from "@/lib/accounting/bootstrap";
-import { denyFeaturesToCompany, grantBundleToCompany } from "@/lib/platform/entitlements";
+import { denyFeaturesToCompany, grantBundleToCompany, repriceCompany } from "@/lib/platform/entitlements";
 import { getBundleDefinition, getTierDefinition } from "@/lib/platform/feature-catalog";
 import {
   getClientTemplateBundleCodes,
@@ -13,6 +13,7 @@ import {
   getClientTemplateWorkspaceProfile,
   resolveClientTemplateCode,
 } from "@/lib/platform/client-templates";
+import { VERTICAL_ORDER, VERTICALS } from "@/lib/platform/verticals";
 
 /**
  * Standing a tenant up, from one function call.
@@ -58,8 +59,17 @@ export type ProvisionTenantInput = {
   slug?: string;
   /** A `CLIENT_BUNDLE_TEMPLATES` code; aliases resolve. */
   templateCode?: string;
-  /** A tier code or any of its `TIER_CODE_ALIASES`. */
+  /**
+   * A tier code or any of its `TIER_CODE_ALIASES`. The tier decides which
+   * features the plan switches on and the site and till limits; it sets no
+   * price. The price is the verticals'.
+   */
   tierCode?: string;
+  /**
+   * What the workspace pays for. Without them, the one its product or
+   * template is: a Flare workspace is a CRM, a gold template is gold.
+   */
+  verticals?: Vertical[];
   adminEmail: string;
   adminName?: string;
   /**
@@ -100,6 +110,8 @@ export type ProvisionTenantResult = {
   company: { id: string; name: string; slug: string };
   admin: { id: string; email: string; created: boolean };
   subscription: { id: string; status: string; planCode: string; created: boolean };
+  /** The verticals it has once provisioned, in the catalogue's order. */
+  verticals: Vertical[];
   subdomain: { value: string; created: boolean };
   /** Template bundles granted on top of the tier. See `bundlesToGrant`. */
   bundlesGranted: string[];
@@ -129,11 +141,8 @@ function isUniqueViolation(error: unknown, target: string): boolean {
  * The bundles a template adds *beyond* what the tier already carries.
  *
  * `getCompanyFeatureMap` entitles a tenant to everything in its tier's
- * `includedBundles` from the plan code alone, while `computeCompanyPricing`
- * charges every enabled `CompanySubscriptionAddon` on top of the tier's base
- * price. Granting a bundle the tier already includes therefore buys no feature
- * and adds its list price to the invoice — a silent overcharge that looks like
- * a correctly provisioned tenant from every screen.
+ * `includedBundles` from the plan code alone, so granting one of those again
+ * as an add-on buys nothing and leaves a row that reads as a separate grant.
  */
 export function bundlesToGrant(templateCode: string | null, tierCode: string): string[] {
   const tier = getTierDefinition(tierCode);
@@ -145,12 +154,13 @@ export function bundlesToGrant(templateCode: string | null, tierCode: string): s
 }
 
 /**
- * The `SubscriptionPlan` row the tier is billed through.
+ * The tier's `SubscriptionPlan` row.
  *
- * The catalogue in `feature-catalog.ts` is the source of truth for price and
- * limits; this table exists because `CompanySubscription.planId` is a foreign
- * key. Upserting the figures on every provision keeps a row created by an older
- * price list from quietly billing the old price.
+ * The table exists because `CompanySubscription.planId` is a foreign key. A
+ * plan carries no price: a workspace pays for its verticals
+ * (`lib/platform/verticals.ts`), so the price columns are written as zero and
+ * nothing reads them. Nor does a plan cap sites or tills: a workspace opens and
+ * pairs as many as it needs.
  */
 export async function ensureTierPlan(tierCode: string) {
   const tier = getTierDefinition(tierCode);
@@ -161,11 +171,6 @@ export async function ensureTierPlan(tierCode: string) {
     update: {
       name: tier.name,
       description: tier.description,
-      monthlyPrice: tier.monthlyPrice,
-      annualPrice: tier.annualMonthlyPrice * 12,
-      maxSites: tier.includedSites,
-      maxTills: tier.includedTills,
-      maxUsers: tier.includedUsers,
       warningDays: tier.warningDays,
       graceDays: tier.graceDays,
       isActive: true,
@@ -174,11 +179,6 @@ export async function ensureTierPlan(tierCode: string) {
       code: tier.code,
       name: tier.name,
       description: tier.description,
-      monthlyPrice: tier.monthlyPrice,
-      annualPrice: tier.annualMonthlyPrice * 12,
-      maxSites: tier.includedSites,
-      maxTills: tier.includedTills,
-      maxUsers: tier.includedUsers,
       warningDays: tier.warningDays,
       graceDays: tier.graceDays,
       currency: "USD",
@@ -186,6 +186,13 @@ export async function ensureTierPlan(tierCode: string) {
     },
     select: { id: true, code: true },
   });
+}
+
+/** The vertical a workspace is when nobody chose: a Flare workspace is a CRM; otherwise its template's. */
+export function defaultVerticals(product: WorkspaceProduct | undefined, templateCode: string | null): Vertical[] {
+  if (product === "FLARE") return ["CRM"];
+  const match = VERTICAL_ORDER.find((vertical) => VERTICALS[vertical].templateCode === templateCode);
+  return [match ?? "GENERAL"];
 }
 
 export async function provisionTenant(
@@ -343,6 +350,16 @@ export async function provisionTenant(
       select: { id: true, status: true, plan: { select: { code: true } } },
     }));
 
+  // What it pays for. A retry adds what is missing and takes nothing away.
+  const chosenVerticals = input.verticals?.length ? input.verticals : defaultVerticals(input.product, templateCode);
+  await prisma.companyVertical.createMany({
+    data: [...new Set(chosenVerticals)].map((vertical) => ({ companyId, vertical })),
+    skipDuplicates: true,
+  });
+  const verticals = (await prisma.companyVertical.findMany({ where: { companyId }, select: { vertical: true } })).map(
+    (row) => row.vertical,
+  );
+
   const reservation = await prisma.subdomainReservation.findUnique({
     where: { subdomain },
     select: { id: true },
@@ -409,6 +426,9 @@ export async function provisionTenant(
     );
   }
 
+  // Priced last, once its verticals and its owner are there.
+  await repriceCompany(companyId);
+
   // A retry is a real event and is recorded as one. Collapsing both onto a
   // single event type would make "this tenant was provisioned twice" invisible
   // in the ledger that exists to answer exactly that kind of question.
@@ -423,6 +443,7 @@ export async function provisionTenant(
       slug,
       subdomain,
       tierCode: tier.code,
+      verticals,
       templateCode,
       adminEmail,
       adminCreated: !existingAdmin,
@@ -443,6 +464,7 @@ export async function provisionTenant(
       planCode: subscription.plan.code,
       created: !existingSubscription,
     },
+    verticals: VERTICAL_ORDER.filter((vertical) => verticals.includes(vertical)),
     subdomain: { value: subdomain, created: !reservation },
     bundlesGranted,
     featuresEnabled,

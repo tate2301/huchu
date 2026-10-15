@@ -559,8 +559,6 @@ export async function setManagedUserFeatureOverride(input: {
         catalog?.description ?? `Feature flag for ${normalizedFeatureKey}`,
       domain: catalog?.domain ?? null,
       defaultEnabled: catalog?.defaultEnabled ?? false,
-      isBillable: catalog?.isBillable ?? false,
-      monthlyPrice: catalog?.monthlyPrice ?? null,
       isActive: true,
     },
     select: { id: true },

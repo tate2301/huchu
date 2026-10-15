@@ -161,7 +161,7 @@ export function SubscriptionTierWizard({
                 selectedIndex={planIndex}
                 emptyMessage="No tiers available."
                 render={(item) =>
-                  `${item.code} | ${item.monthlyPrice.toFixed(2)} base | includes ${item.includedSites} site(s) | +${item.additionalSiteMonthlyPrice.toFixed(2)}/site ${item.isActive ? "" : "(inactive)"}`
+                  `${item.code} | ${item.name}${item.isActive ? "" : " (inactive)"}`
                 }
               />
             </>

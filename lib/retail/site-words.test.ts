@@ -2,10 +2,8 @@ import { describe, expect, it } from "vitest";
 
 import {
   cleanSiteCode,
-  countWord,
   placeCode,
   placesWords,
-  siteNewNote,
   siteSub,
   suggestSiteCode,
   zimbabwePhone,
@@ -40,17 +38,5 @@ describe("site words", () => {
     expect(siteSub({ isDefault: true, tills: 3, stockValue: 41280 })).toBe("Default site · 3 tills · US$41,280.00 in stock");
     expect(siteSub({ isDefault: false, tills: 1, stockValue: 12904.5 })).toBe("1 till · US$12,904.50 in stock");
     expect(siteSub({ isDefault: false, tills: 1, stockValue: null })).toBe("1 till");
-  });
-
-  it("says how much room the plan has", () => {
-    expect(siteNewNote({ name: "Grow", maxSites: 3, openSites: 2 })).toBe(
-      "Then pair its tills. Your Grow plan has room for one more site.",
-    );
-    expect(siteNewNote({ name: "Scale", maxSites: 25, openSites: 2 })).toBe(
-      "Then pair its tills. Your Scale plan has room for 23 more sites.",
-    );
-    expect(siteNewNote({ name: "Grow", maxSites: 3, openSites: 3 })).toBe("Your Grow plan has no room for another site.");
-    expect(siteNewNote(null)).toBe("Then pair its tills.");
-    expect(countWord(2)).toBe("two");
   });
 });

@@ -1428,6 +1428,17 @@
   border-bottom: 0;
 }
 
+/* Money and counts in a table column. */
+.tableNumeric {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.table th.tableNumeric,
+.table td.tableNumeric {
+  text-align: right;
+}
+
 /* The Corelith column in the comparison table. */
 .tableOwn {
   background: var(--mk-surface-subtle);

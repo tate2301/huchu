@@ -22,9 +22,9 @@ import { expectHealthyPage } from "./_support/assert";
  *
  * ## The one school screen deliberately absent
  *
- * `/schools/exams`. It is gated on `schools.exams`, which is billable and which
- * **no tier and no addon bundle in `feature-catalog.ts` carries** — so the route
- * redirects to `/access-blocked` on every tenant, and a test of it would assert
+ * `/schools/exams`. It is gated on `schools.exams`, which is off by default and
+ * which **no tier and no addon bundle in `feature-catalog.ts` carries** — so the
+ * route redirects to `/access-blocked` on every tenant without its own flag, and a test of it would assert
  * a catalogue gap rather than a page. `scripts/seed-school-demo.ts` seeds the
  * ZIMSEC sitting regardless and says why; add a journey here on the day the key
  * becomes sellable.

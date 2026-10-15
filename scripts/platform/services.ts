@@ -42,7 +42,6 @@ import {
   getSubscriptionHealthSummary,
   listAddOnBundles,
   listTierPlans,
-  recomputeSubscriptionPricing,
   setAddOnBundle,
   syncCommercialCatalog,
 } from "./domain/commercial-service";
@@ -61,6 +60,7 @@ import {
 } from "./domain/user-management-service";
 import { searchGlobal } from "./domain/search-service";
 import { FEATURE_CATALOG, getTierDefinition } from "../../lib/platform/feature-catalog";
+import { recomputeAndPersistCompanyPricing } from "../../lib/platform/entitlements";
 import {
   CLIENT_BUNDLE_TEMPLATES,
   getClientTemplateBundleCodes,
@@ -615,19 +615,22 @@ function buildWorkspaceResetPredicates(
         continue;
       }
 
+      // Each level of the chain gets its own alias (t, t_p, t_p_p…): a grandchild's
+      // EXISTS inside its parent's must not shadow the parent's row.
       predicates.set(foreignKey.child_table, (alias) => {
+        const parentAlias = `${alias}_p`;
         const joinConditions = foreignKey.child_columns
           .map((childColumn, index) => {
             const parentColumn = foreignKey.parent_columns[index];
-            return `p.${quoteIdent(parentColumn)} = ${alias}.${quoteIdent(childColumn)}`;
+            return `${parentAlias}.${quoteIdent(parentColumn)} = ${alias}.${quoteIdent(childColumn)}`;
           })
           .join(" AND ");
 
         return `EXISTS (
           SELECT 1
-          FROM ${quoteIdent(foreignKey.parent_table)} AS p
+          FROM ${quoteIdent(foreignKey.parent_table)} AS ${parentAlias}
           WHERE ${joinConditions}
-            AND ${parentPredicate("p")}
+            AND ${parentPredicate(parentAlias)}
         )`;
       });
       changed = true;
@@ -721,7 +724,7 @@ async function buildWorkspaceResetBasePlan(
     companyScopedTables,
     foreignKeys,
     featureFlags,
-    entitledBySubscription,
+    carriedFeatures,
   ] =
     await Promise.all([
       tx.signInAsSession.count({
@@ -760,7 +763,7 @@ async function buildWorkspaceResetBasePlan(
           },
         },
       }),
-      getSubscriptionEntitledFeatureSet(input.companyId),
+      getCarriedFeatureSet(input.companyId),
     ]);
 
   if (preservedAdminCount === 0) {
@@ -800,12 +803,9 @@ async function buildWorkspaceResetBasePlan(
   const activeFeatureDomains = new Set(
     FEATURE_CATALOG.flatMap((feature) => {
       const key = normalizeResetFeatureKey(feature.key);
-      const requested = flagByFeatureKey.has(key)
+      const enabled = flagByFeatureKey.has(key)
         ? flagByFeatureKey.get(key) === true
-        : feature.defaultEnabled;
-      const enabled = feature.isBillable
-        ? entitledBySubscription.has(key) && requested
-        : requested;
+        : carriedFeatures.has(key) || feature.defaultEnabled;
       return enabled ? [feature.domain] : [];
     }),
   );
@@ -1127,8 +1127,6 @@ async function ensureDefaultPlan() {
       code: "CUSTOM",
       name: "Custom",
       description: "Default manually managed plan",
-      monthlyPrice: 0,
-      annualPrice: 0,
       currency: "USD",
       isActive: true,
     },
@@ -2064,7 +2062,8 @@ function getFeatureDefinition(featureKey: string) {
   };
 }
 
-async function getSubscriptionEntitledFeatureSet(companyId: string): Promise<Set<string>> {
+/** The features a company's tier and enabled bundles carry. */
+async function getCarriedFeatureSet(companyId: string): Promise<Set<string>> {
   const [subscription, enabledAddons] = await Promise.all([
     prisma.companySubscription.findFirst({
       where: { companyId },
@@ -2095,7 +2094,7 @@ async function getSubscriptionEntitledFeatureSet(companyId: string): Promise<Set
 
 async function listFeatures(input?: ListFeaturesInput): Promise<FeatureSummary[]> {
   const dbFeatures = await prisma.platformFeature.findMany({
-    select: { id: true, key: true, name: true, defaultEnabled: true, isBillable: true, isActive: true, updatedAt: true },
+    select: { id: true, key: true, name: true, defaultEnabled: true, isActive: true, updatedAt: true },
     orderBy: { key: "asc" },
   });
   const catalogByKey = new Map(FEATURE_CATALOG.map((feature) => [feature.key.trim().toLowerCase(), feature]));
@@ -2108,7 +2107,6 @@ async function listFeatures(input?: ListFeaturesInput): Promise<FeatureSummary[]
         key: catalog.key,
         name: catalog.name,
         defaultEnabled: catalog.defaultEnabled,
-        isBillable: catalog.isBillable,
         isActive: true,
         updatedAt: dbFeature?.updatedAt ?? null,
       };
@@ -2141,23 +2139,19 @@ async function listFeatures(input?: ListFeaturesInput): Promise<FeatureSummary[]
   });
   const flagByFeatureId = new Map(flags.map((flag) => [flag.featureId, flag]));
   const flagByFeatureKey = new Map(flags.map((flag) => [flag.feature.key.trim().toLowerCase(), flag]));
-  const entitledBySubscription = await getSubscriptionEntitledFeatureSet(input.companyId);
+  const carriedFeatures = await getCarriedFeatureSet(input.companyId);
 
+  // As `getCompanyFeatureMap`: the catalogue default, then what the tier and
+  // bundles carry, then the company's own flag, which wins either way.
   return features.map((feature) => {
     const flag = feature.id ? flagByFeatureId.get(feature.id) : flagByFeatureKey.get(feature.key.trim().toLowerCase());
-    const normalizedKey = feature.key.trim().toLowerCase();
-    const subscriptionEntitled = entitledBySubscription.has(normalizedKey);
-    const requested = flag ? flag.isEnabled : feature.defaultEnabled;
-    const effectiveEnabled = feature.isBillable ? (subscriptionEntitled ? requested : false) : requested;
-    const restrictionReason = feature.isBillable && !subscriptionEntitled
-      ? "Not included in active tier/add-ons."
-      : null;
+    const carried = carriedFeatures.has(feature.key.trim().toLowerCase());
     return {
       feature: feature.key,
       featureLabel: feature.name,
       platformActive: feature.isActive,
-      enabled: effectiveEnabled,
-      reason: restrictionReason ? (flag?.reason ? `${flag.reason} | ${restrictionReason}` : restrictionReason) : (flag?.reason ?? null),
+      enabled: flag ? flag.isEnabled : carried || feature.defaultEnabled,
+      reason: flag?.reason ?? null,
       updatedAt: formatDate(flag?.updatedAt ?? feature.updatedAt),
     };
   });
@@ -2176,8 +2170,6 @@ async function setFeature(input: SetFeatureInput): Promise<FeatureSetResult> {
       description: catalog?.description ?? `Feature flag for ${definition.key}`,
       domain: catalog?.domain ?? null,
       defaultEnabled: catalog?.defaultEnabled ?? false,
-      isBillable: catalog?.isBillable ?? false,
-      monthlyPrice: catalog?.monthlyPrice ?? null,
       isActive: true,
     },
     create: {
@@ -2186,40 +2178,10 @@ async function setFeature(input: SetFeatureInput): Promise<FeatureSetResult> {
       description: catalog?.description ?? `Feature flag for ${definition.key}`,
       domain: catalog?.domain ?? null,
       defaultEnabled: catalog?.defaultEnabled ?? false,
-      isBillable: catalog?.isBillable ?? false,
-      monthlyPrice: catalog?.monthlyPrice ?? null,
       isActive: true,
     },
-    select: { id: true, key: true, isBillable: true },
+    select: { id: true, key: true },
   });
-
-  if (input.enabled && feature.isBillable) {
-    const entitledBySubscription = await getSubscriptionEntitledFeatureSet(input.companyId);
-    if (!entitledBySubscription.has(feature.key.toLowerCase())) {
-      const suggestedBundles = (
-        await prisma.featureBundle.findMany({
-          where: {
-            isActive: true,
-            items: {
-              some: {
-                feature: {
-                  key: feature.key,
-                },
-              },
-            },
-          },
-          select: { code: true },
-          orderBy: [{ code: "asc" }],
-        })
-      ).map((bundle) => bundle.code);
-      const bundleHint = suggestedBundles.length > 0
-        ? ` Enable an add-on bundle first: ${suggestedBundles.join(", ")}.`
-        : "";
-      throw new Error(
-        `Cannot enable "${feature.key}" because it is not included in the company's active tier/add-ons.${bundleHint}`,
-      );
-    }
-  }
 
   const before = await prisma.companyFeatureFlag.findUnique({
     where: { companyId_featureId: { companyId: input.companyId, featureId: feature.id } },
@@ -2475,7 +2437,7 @@ export function createPlatformServices(): PlatformServices {
       setBundleFeatures: (input) => toMutation(() => setSubscriptionBundleFeatures(input as SetBundleFeaturesInput)),
       listAddons: (input) => listAddOnBundles((input as ListAddonsInput).companyId),
       setAddon: (input) => toMutation(() => setAddOnBundle(input as SetAddonInput)),
-      recomputePricing: (companyId) => toMutation(() => recomputeSubscriptionPricing(companyId) as Promise<SubscriptionPricingSummary>),
+      recomputePricing: (companyId) => toMutation(() => recomputeAndPersistCompanyPricing(companyId) as Promise<SubscriptionPricingSummary>),
       health: (companyId) => getSubscriptionHealthSummary(companyId) as Promise<SubscriptionHealthSummary>,
       syncCatalog: (actor: string) => {
         void actor;

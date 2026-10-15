@@ -7,6 +7,7 @@ import type { Ask } from "@/lib/workspace/ask";
 import { Button } from "./button";
 import { Field } from "./fields/field";
 import { TextArea } from "./fields/text-area";
+import { TextInput } from "./fields/text-input";
 
 /**
  * ConfirmDialog — the confirmation before anything hard to undo (5.8).
@@ -34,7 +35,9 @@ export function ConfirmDialog({ ask, open, onOpenChange, onConfirm }: ConfirmDia
   const [error, setError] = React.useState<string | null>(null);
   const [value, setValue] = React.useState("");
   const [fieldError, setFieldError] = React.useState<string | null>(null);
+  const [typedText, setTypedText] = React.useState("");
   const field = ask.field;
+  const typedOk = !ask.typed || typedText.trim().toLowerCase() === ask.typed.text.toLowerCase();
 
   const change = (next: boolean) => {
     if (busy) return;
@@ -42,11 +45,13 @@ export function ConfirmDialog({ ask, open, onOpenChange, onConfirm }: ConfirmDia
       setError(null);
       setFieldError(null);
       setValue("");
+      setTypedText("");
     }
     onOpenChange(next);
   };
 
   const go = async () => {
+    if (!typedOk) return;
     const typed = value.trim();
     if (field && typed.length < field.min) {
       setFieldError(field.needed);
@@ -101,6 +106,21 @@ export function ConfirmDialog({ ask, open, onOpenChange, onConfirm }: ConfirmDia
                 )}
               </Field>
             ) : null}
+            {ask.typed ? (
+              <Field label={ask.typed.label}>
+                {(control) => (
+                  <TextInput
+                    {...control}
+                    autoComplete="off"
+                    spellCheck={false}
+                    placeholder={ask.typed!.text}
+                    value={typedText}
+                    disabled={busy}
+                    onChange={(event) => setTypedText(event.target.value)}
+                  />
+                )}
+              </Field>
+            ) : null}
             {error ? (
               <p role="alert" className="cx-confirm__error">
                 {error}
@@ -117,6 +137,7 @@ export function ConfirmDialog({ ask, open, onOpenChange, onConfirm }: ConfirmDia
                   size="field"
                   variant={ask.fill === "bad" ? "danger-fill" : "primary"}
                   busy={busy}
+                  disabled={!typedOk}
                   onClick={go}
                 >
                   {ask.go}

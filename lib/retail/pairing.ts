@@ -2,17 +2,12 @@ import { createHash, randomInt } from "node:crypto";
 
 import type { Prisma, PrismaClient, RetailPairingPurpose } from "@prisma/client";
 
-import { planLimitSentence } from "@/lib/retail/till-words";
-
 /**
  * Pairing codes (10-setup W-04 step 3, W-76): six random digits a manager
  * makes for one till, good once, for 10 minutes. Only
  * `sha256(companyId + ":" + code)` is stored, so the database never holds a
  * code anyone could type. A new code for a till expires its older unused
  * ones, and no two live codes of one company are the same.
- *
- * The plan sets how many tills may be paired at once
- * (`SubscriptionPlan.maxTills`, C-07); `checkTillRoom` refuses one more.
  */
 
 export const PAIRING_TTL_MS = 10 * 60 * 1000;
@@ -30,7 +25,7 @@ export class PairingRefusal extends Error {
     message: string,
     readonly opts: {
       field?: string;
-      code?: "PLAN_LIMIT" | "SHIFT_OPEN" | "TILL_USED" | "PAIRED" | "NOT_PAIRED" | "NO_SITE";
+      code?: "SHIFT_OPEN" | "TILL_USED" | "PAIRED" | "NOT_PAIRED" | "NO_SITE";
     } = {},
   ) {
     super(message);
@@ -47,36 +42,9 @@ export function hashCode(companyId: string, code: string): string {
   return createHash("sha256").update(`${companyId}:${code}`).digest("hex");
 }
 
-/** The shop's plan and how many tills are paired now; null when it has no plan. */
-export async function tillRoom(
-  tx: Db,
-  companyId: string,
-): Promise<{ plan: string; maxTills: number | null; paired: number } | null> {
-  const [subscription, paired] = await Promise.all([
-    tx.companySubscription.findFirst({
-      where: { companyId, status: { in: ["ACTIVE", "TRIALING", "PAST_DUE"] } },
-      orderBy: { createdAt: "desc" },
-      select: { plan: { select: { name: true, maxTills: true } } },
-    }),
-    tx.retailDevice.count({ where: { companyId, unpairedAt: null } }),
-  ]);
-  if (!subscription) return null;
-  return { plan: subscription.plan.name, maxTills: subscription.plan.maxTills, paired };
-}
-
-/** 409 PLAN_LIMIT when one more paired till would pass the plan's limit. */
-export async function checkTillRoom(tx: Db, companyId: string): Promise<void> {
-  const room = await tillRoom(tx, companyId);
-  if (room && room.maxTills !== null && room.paired >= room.maxTills) {
-    throw new PairingRefusal(409, planLimitSentence(room.plan, room.maxTills), { code: "PLAN_LIMIT" });
-  }
-}
-
 /**
  * Issue a code for a till: its older unused codes stop now, and the new one
- * is unique among the company's live codes. The caller checks the plan
- * (`checkTillRoom`) before a `PAIR` code; a `REPLACE` code swaps one paired
- * device for another, so the count stays.
+ * is unique among the company's live codes.
  */
 export async function issuePairingCode(
   tx: Tx,

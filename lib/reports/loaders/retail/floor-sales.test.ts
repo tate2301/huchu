@@ -96,7 +96,7 @@ describe("retail-sales paged in the database", () => {
   });
 
   it("is read by owners, managers, bookkeepers and cashiers, never a stock clerk", () => {
-    const reads = (role: string) => canReadList(LIST, { can: ([resource, action]) => canRetailRoleDo(role, resource, action) });
+    const reads = (role: string) => canReadList(LIST, { can: (grant) => grant[0] !== "admin" && canRetailRoleDo(role, grant[0], grant[1]) });
     expect(["SUPERADMIN", "MANAGER", "FINANCE_OFFICER", "CASHIER"].map(reads)).toEqual([true, true, true, true]);
     expect(reads("STOCK_CLERK")).toBe(false);
     expect(LIST.refusal ?? `Your role cannot view ${LIST.noun}`).toBe("Your role cannot view sales");

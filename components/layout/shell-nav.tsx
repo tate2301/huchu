@@ -58,7 +58,7 @@ export const MANAGEMENT_NAV_ITEM: NavItem = {
 };
 const noopSubscribe = () => () => {};
 
-type ShellNav = {
+export type ShellNav = {
   model: WorkspaceSidebarModel;
   rail: RailModel;
   currentArea: RailArea | null;
@@ -328,6 +328,11 @@ export function useNotFoundPage() {
 
 /** The shell's navigation, or null outside the shell (sign-in, portals). */
 export function useOptionalShellNav(): ShellNav | null {
+  return React.useContext(ShellNavContext);
+}
+
+/** The shell's nav, or null outside the workspace shell (the admin portal). */
+export function useShellNavIfAny(): ShellNav | null {
   return React.useContext(ShellNavContext);
 }
 

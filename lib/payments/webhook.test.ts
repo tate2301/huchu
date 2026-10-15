@@ -123,7 +123,7 @@ beforeAll(async () => {
   companyId = company.id;
 
   const plan = await prisma.subscriptionPlan.create({
-    data: { code: `ss4-hook-${suite}`, name: "SS-4 Webhook Test Plan", monthlyPrice: 39 },
+    data: { code: `ss4-hook-${suite}`, name: "SS-4 Webhook Test Plan" },
   });
   planId = plan.id;
 });

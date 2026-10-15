@@ -226,6 +226,9 @@ function tickIndices(total: number, interval: number | "preserveStartEnd" | unde
     const step = Math.max(Math.ceil(total / 6), 1);
     const indices = new Set<number>();
     for (let index = 0; index < total; index += step) indices.add(index);
+    // The last label always shows; one a step's width before it would sit on top of it.
+    const lastStepped = Math.floor((total - 1) / step) * step;
+    if (lastStepped !== total - 1 && total - 1 - lastStepped < step) indices.delete(lastStepped);
     indices.add(0);
     indices.add(total - 1);
     return indices;

@@ -10,8 +10,8 @@ import { SiteRefusal, siteFieldErrors, type SiteActor } from "@/lib/retail/sites
  * What every `/api/v2/retail/sites/**` route shares: the actor off the
  * session (with whether it may see cost), the body checked into
  * `{ error, fieldErrors }`, and refusals answered with their status — under a
- * field, or as `{ error, code }` for a rule (PLAN_LIMIT, DEFAULT_SITE,
- * HAS_STOCK, SHIFT_OPEN).
+ * field, or as `{ error, code }` for a rule (DEFAULT_SITE, HAS_STOCK,
+ * SHIFT_OPEN).
  */
 
 type RouteSession = SessionLike & {

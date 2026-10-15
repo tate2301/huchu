@@ -1,3 +1,5 @@
+import type { Vertical } from "@prisma/client";
+
 import { fetchJson } from "@/lib/api-client";
 import type { SubscriptionHealth } from "@/lib/platform/subscription";
 import type { DisplayPreference } from "@/lib/preferences/display";
@@ -43,40 +45,24 @@ export type BillingPreferences = {
     currentPeriodStart?: string | null;
     currentPeriodEnd?: string | null;
   } | null;
-  plan: {
-    id: string;
-    code: string;
-    name: string;
-    description?: string | null;
-    monthlyPrice: number;
-    annualPrice?: number | null;
-    currency: string;
-    maxSites?: number | null;
-    maxUsers?: number | null;
-  } | null;
+  /** What the workspace pays a month: its verticals at the rate its member count sets. */
   charges: {
     currency: string;
-    lineItems: Array<{
-      code: string;
-      label: string;
-      amount: number;
-      type: "tier" | "site-overage" | "addon" | "addon-site" | "feature";
-    }>;
+    lines: Array<{ vertical: Vertical; label: string; detail: string; amount: number }>;
     total: number;
-  };
-  usage: {
-    activeSites: number;
-    totalSites: number;
-    activeUsers: number;
-    totalUsers: number;
-    maxSites?: number | null;
-    maxUsers?: number | null;
+    /** Each vertical's charge at this member count. */
+    each: number;
+    members: number;
+    /** Over the included members, so every vertical is at the larger rate. */
+    over: boolean;
+    /** Why each vertical costs what it does, in a sentence. */
+    why: string;
+    /** What it would pay with one more vertical. */
+    withOneMore: number;
   };
   health: SubscriptionHealth;
-  /** The catalogue's priced add-ons this workspace does not have. */
-  available: Array<{ code: string; name: string; description: string; monthlyPrice: number }>;
-  /** What each product line is, in the catalogue's words, by its code. */
-  details: Record<string, string>;
+  /** The verticals it does not have; each would add `charges.each`. */
+  available: Array<{ vertical: Vertical; label: string }>;
   /** Vane's jobs this month, for the Core modules row. */
   vane: { jobsThisMonth: number; monthlyAllowance: number };
   payments: {

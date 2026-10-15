@@ -83,6 +83,7 @@ model Company {
   contractEnforcementEvents     ContractEnforcementEvent[]
   auditLedgerEvents             PlatformAuditEvent[]
   subscriptionAddons            CompanySubscriptionAddon[]
+  verticals                     CompanyVertical[]
   subscriptionPayments          SubscriptionPayment[]
   accountingSettings            AccountingSettings?
   chartOfAccounts               ChartOfAccount[]
@@ -421,6 +422,31 @@ enum WorkspaceProduct {
   FLARE
 }
 
+/// A line of business a workspace pays for, one monthly charge each
+/// (`lib/platform/verticals.ts`): the rate is the same for every vertical and
+/// steps up once the workspace has more members than the rate includes.
+enum Vertical {
+  GOLD
+  SCHOOLS
+  RETAIL
+  CRM
+  WORKSHOP
+  PAYROLL
+  GENERAL
+}
+
+/// One vertical a workspace has. Adding one turns its features on and adds a
+/// charge; removing one takes the charge away and leaves the data.
+model CompanyVertical {
+  id        String   @id @default(uuid())
+  companyId String
+  vertical  Vertical
+  addedAt   DateTime @default(now())
+  company   Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, vertical])
+}
+
 enum EmailCodePurpose {
   SIGNUP
   SIGN_IN
@@ -534,13 +560,7 @@ model SubscriptionPlan {
   code         String   @unique
   name         String
   description  String?
-  monthlyPrice Float
-  annualPrice  Float?
   currency     String   @default("USD")
-  maxSites     Int?
-  maxUsers     Int?
-  /// Paired tills the plan allows (SET-03). Null = any number.
-  maxTills     Int?
   warningDays  Int      @default(14)
   graceDays    Int      @default(7)
   isActive     Boolean  @default(true)
@@ -586,8 +606,6 @@ model PlatformFeature {
   description    String?
   domain         String?
   defaultEnabled Boolean  @default(false)
-  isBillable     Boolean  @default(false)
-  monthlyPrice   Float?
   isActive       Boolean  @default(true)
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
@@ -661,8 +679,6 @@ model FeatureBundle {
   code                       String   @unique
   name                       String
   description                String?
-  monthlyPrice               Float    @default(0)
-  additionalSiteMonthlyPrice Float    @default(0)
   isActive                   Boolean  @default(true)
   createdAt                  DateTime @default(now())
   updatedAt                  DateTime @updatedAt

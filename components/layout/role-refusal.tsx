@@ -1,11 +1,20 @@
 "use client";
 
 import { Refusal } from "@/components/list-frame/list-states";
-import { useShellNav } from "@/components/layout/shell-nav";
+import { useShellNav, useShellNavIfAny, type ShellNav } from "@/components/layout/shell-nav";
 
 /** Where this person's workspace starts, named as its nav item is: "Back to Shifts". */
 export function useHomeLink(): { href: string; label: string } {
-  const nav = useShellNav();
+  return homeLink(useShellNav());
+}
+
+/** The same, or null outside the workspace shell. */
+export function useHomeLinkIfAny(): { href: string; label: string } | null {
+  const nav = useShellNavIfAny();
+  return nav ? homeLink(nav) : null;
+}
+
+function homeLink(nav: ShellNav): { href: string; label: string } {
   const home = nav.rail.areas
     .flatMap((area) => area.items)
     .find((item) => item.href === nav.homeHref);

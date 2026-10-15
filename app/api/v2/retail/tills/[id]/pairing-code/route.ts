@@ -10,8 +10,8 @@ type Context = { params: Promise<{ id: string }> };
 
 /**
  * A fresh six-digit code for the till, good once for 10 minutes; its older
- * codes stop. `PAIR` for a till with no device (409 PLAN_LIMIT when the plan
- * is full), `REPLACE` to swap the one it has. `retail.tills:update`.
+ * codes stop. `PAIR` for a till with no device, `REPLACE` to swap the one it
+ * has. `retail.tills:update`.
  * `{ code, expiresAt }`.
  */
 export async function POST(request: NextRequest, context: Context) {

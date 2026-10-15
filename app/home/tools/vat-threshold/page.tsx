@@ -20,7 +20,7 @@ import {
   VAT_THRESHOLD_USD,
   VAT_THRESHOLD_WINDOW_MONTHS,
 } from "@/lib/marketing/penalty";
-import { ENTRY_TIER, formatUsd, getMarketingTier } from "@/lib/marketing/pricing";
+import { SMALL_PRICE, formatUsd } from "@/lib/marketing/pricing";
 import {
   breadcrumbJsonLd,
   buildMarketingMetadata,
@@ -30,8 +30,6 @@ import {
 import { ArrowRight, ExternalLink, Info } from "@/lib/icons";
 
 export const metadata: Metadata = buildMarketingMetadata(seoPages.vatThreshold);
-
-const fiscalTier = getMarketingTier("FISCAL") ?? ENTRY_TIER;
 
 const VAT_PERCENT = Math.round(VAT_STANDARD_RATE * 100);
 
@@ -145,7 +143,7 @@ export default function VatThresholdPage() {
           <h3 className={styles.cardTitle}>{FDMS_STATUS_HEADLINE}</h3>
           <p className={styles.body}>{FDMS_STATUS_COPY}</p>
           <Link href="/home/pricing" className={styles.inlineAction}>
-            {fiscalTier.name} from {formatUsd(fiscalTier.annualMonthlyPrice)} a month
+            Fiscalisation from {formatUsd(SMALL_PRICE)} a month
             <ArrowRight className={styles.icon} weight="regular" />
           </Link>
         </div>
@@ -185,7 +183,7 @@ export default function VatThresholdPage() {
       <CtaBand
         eyebrow="Next step"
         title="Registered for VAT? The receipts are the next problem."
-        copy={`${fiscalTier.name} covers ZIMRA fiscalisation from ${formatUsd(fiscalTier.annualMonthlyPrice)} a month billed annually, across as many tills as you run.`}
+        copy={`ZIMRA fiscalisation comes inside your vertical, from ${formatUsd(SMALL_PRICE)} a month, across as many tills as you run.`}
       />
     </SiteChrome>
   );

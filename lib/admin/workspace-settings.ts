@@ -1,7 +1,11 @@
+import { Prisma } from "@prisma/client";
+
 import { AdminRefusal } from "@/lib/admin/refusal";
 import { LOGIN_SUCCESS_EVENT } from "@/lib/auth-core/last-sign-in";
+import { checkWorkspaceSlug, describeWorkspaceSlugProblem } from "@/lib/signup/workspace-address";
 import { recordOperatorEvent } from "@/lib/operators/audit";
 import type { SignedInOperator } from "@/lib/operators/guards";
+import { purgeWorkspace } from "@/lib/admin/workspace-purge";
 import { prisma } from "@/lib/prisma";
 import { endSignInAs, signInAsCode } from "@/lib/sign-in-as/sessions";
 
@@ -37,6 +41,51 @@ export async function renameWorkspace(operator: SignedInOperator, workspace: Wor
       tx,
     );
   });
+}
+
+/**
+ * A new address. Members sign in there from now on, and the old one stops
+ * answering at once. The rules are signup's (`lib/signup/workspace-address`):
+ * 3 to 40 lowercase letters, figures and single hyphens, none the platform
+ * keeps for itself, and no other workspace's, held or in use. The address the
+ * workspace holds moves with it. Answers false when nothing changed.
+ */
+export async function changeWorkspaceAddress(operator: SignedInOperator, workspace: Workspace, address: string) {
+  const next = address.trim().toLowerCase();
+  if (next === workspace.slug) return false;
+  const problem = checkWorkspaceSlug(next);
+  if (problem === "RESERVED") throw new AdminRefusal("That address is kept for the platform itself. Choose another.");
+  if (problem) throw new AdminRefusal(describeWorkspaceSlugProblem(problem));
+  const [taken, held] = await Promise.all([
+    prisma.company.findUnique({ where: { slug: next }, select: { id: true } }),
+    prisma.subdomainReservation.findUnique({ where: { subdomain: next }, select: { companyId: true } }),
+  ]);
+  if (taken || (held && held.companyId !== workspace.id)) throw new AdminRefusal(`${next} is another workspace's address.`);
+  try {
+    await prisma.$transaction(async (tx) => {
+      await tx.company.update({ where: { id: workspace.id }, data: { slug: next } });
+      // The address it held moves with it; one it already held under the new name stays as it is.
+      if (held) await tx.subdomainReservation.deleteMany({ where: { companyId: workspace.id, subdomain: workspace.slug } });
+      else await tx.subdomainReservation.updateMany({ where: { companyId: workspace.id, subdomain: workspace.slug }, data: { subdomain: next } });
+      await recordOperatorEvent(
+        {
+          operatorId: operator.id,
+          companyId: workspace.id,
+          eventType: "operator.workspace.address_changed",
+          entityType: "company",
+          entityId: workspace.id,
+          payload: { from: workspace.slug, to: next },
+        },
+        tx,
+      );
+    });
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+      throw new AdminRefusal(`${next} is another workspace's address.`);
+    }
+    throw error;
+  }
+  return true;
 }
 
 /** Every member's sessions end on their next click, and so does any sign-in-as. */
@@ -104,14 +153,13 @@ export async function reinstateWorkspace(operator: SignedInOperator, workspace: 
 }
 
 /**
- * Closed: nobody gets in again from the portal. The data is kept; reopening
- * is an engineer's job, on purpose. The address has to be typed to do it.
+ * Closed: nobody gets in again until an owner operator reopens it. The data is
+ * kept, so a closed workspace is the only kind that can be deleted for good.
  */
-export async function closeWorkspace(operator: SignedInOperator, workspace: Workspace, typedAddress: string, reason: string, now = new Date()) {
-  if (typedAddress.trim().toLowerCase() !== workspace.slug) {
-    throw new AdminRefusal(`Type ${workspace.slug} exactly to close ${workspace.name}.`);
-  }
+export async function closeWorkspace(operator: SignedInOperator, workspace: Workspace, reason: string, now = new Date()) {
   const why = reasonOf(reason);
+  const company = await prisma.company.findUniqueOrThrow({ where: { id: workspace.id }, select: { tenantStatus: true } });
+  if (company.tenantStatus === "DISABLED") throw new AdminRefusal(`${workspace.name} is already closed.`);
   await prisma.$transaction(async (tx) => {
     await tx.company.update({ where: { id: workspace.id }, data: { tenantStatus: "DISABLED", disabledAt: now } });
     await tx.user.updateMany({ where: { companyId: workspace.id }, data: { sessionsEndedAt: now } });
@@ -119,6 +167,42 @@ export async function closeWorkspace(operator: SignedInOperator, workspace: Work
       { operatorId: operator.id, companyId: workspace.id, eventType: "operator.workspace.closed", entityType: "company", entityId: workspace.id, reason: why },
       tx,
     );
+  });
+}
+
+/** A closed workspace open again, as it was before it closed: its members sign in, its subscription says the rest. */
+export async function reopenWorkspace(operator: SignedInOperator, workspace: Workspace, reason: string) {
+  const why = reasonOf(reason);
+  const company = await prisma.company.findUniqueOrThrow({ where: { id: workspace.id }, select: { tenantStatus: true } });
+  if (company.tenantStatus !== "DISABLED") throw new AdminRefusal(`${workspace.name} is not closed.`);
+  await prisma.$transaction(async (tx) => {
+    await tx.company.update({ where: { id: workspace.id }, data: { tenantStatus: "ACTIVE", disabledAt: null, suspendedAt: null } });
+    await recordOperatorEvent(
+      { operatorId: operator.id, companyId: workspace.id, eventType: "operator.workspace.reopened", entityType: "company", entityId: workspace.id, reason: why },
+      tx,
+    );
+  });
+}
+
+/**
+ * Every record of a closed workspace, deleted, and its address freed. Only a
+ * closed one: closing first is what makes this two decisions, not one click.
+ * The audit log keeps the line that says who and why.
+ */
+export async function deleteWorkspaceForGood(operator: SignedInOperator, workspace: Workspace, reason: string) {
+  const why = reasonOf(reason);
+  const company = await prisma.company.findUniqueOrThrow({ where: { id: workspace.id }, select: { tenantStatus: true } });
+  if (company.tenantStatus !== "DISABLED") throw new AdminRefusal(`${workspace.name} is not closed. Close it first.`);
+  const open = await prisma.signInAsSession.count({ where: { companyId: workspace.id, endedAt: null, expiresAt: { gt: new Date() } } });
+  if (open > 0) throw new AdminRefusal(`Someone from support is signed in to ${workspace.name}. End that first.`);
+  const deleted = await purgeWorkspace(workspace.id);
+  await recordOperatorEvent({
+    operatorId: operator.id,
+    eventType: "operator.workspace.deleted",
+    entityType: "company",
+    entityId: workspace.id,
+    reason: why,
+    payload: { name: workspace.name, slug: workspace.slug, rows: Object.values(deleted).reduce((sum, count) => sum + count, 0) },
   });
 }
 

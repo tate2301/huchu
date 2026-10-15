@@ -1,10 +1,13 @@
 "use server";
 
-import { changePlan, extendTrial, recordManualPayment, setAddOn, settlePayment } from "@/lib/admin/billing";
+import type { SubscriptionStatus } from "@prisma/client";
+
+import { extendTrial, recordManualPayment, setSubscriptionStatus, settlePayment } from "@/lib/admin/billing";
+import { SUBSCRIPTION_STATUS_LABEL } from "@/lib/admin/billing-words";
 import { formatDate, formatMoney } from "@/lib/admin/format";
 import { asResult, workspaceWrite } from "@/lib/admin/workspace-context";
 
-/** Plan and billing, bound to the page's workspace. Billing and owners only. */
+/** Billing, bound to the page's workspace. Billing and owners only. */
 
 export async function extendTrialBy(slug: string, days: number) {
   return asResult(async () => {
@@ -14,19 +17,11 @@ export async function extendTrialBy(slug: string, days: number) {
   });
 }
 
-export async function changePlanTo(slug: string, tierCode: string) {
+export async function setStatusTo(slug: string, status: SubscriptionStatus, reason: string) {
   return asResult(async () => {
     const { operator, workspace } = await workspaceWrite(slug, "billing.manage");
-    const tier = await changePlan(operator, workspace, tierCode);
-    return `${workspace.name} is on ${tier.name} now.`;
-  });
-}
-
-export async function turnAddOn(slug: string, bundleCode: string, on: boolean) {
-  return asResult(async () => {
-    const { operator, workspace } = await workspaceWrite(slug, "billing.manage");
-    await setAddOn(operator, workspace, bundleCode, on);
-    return on ? "Add-on turned on." : "Add-on turned off.";
+    await setSubscriptionStatus(operator, workspace, status, reason);
+    return `${workspace.name}'s subscription is ${SUBSCRIPTION_STATUS_LABEL[status].toLowerCase()} now.`;
   });
 }
 

@@ -270,7 +270,7 @@ export function templateUseRef(ref: string, builtIn: boolean): string {
 function readableFace(key: string, role: string, disabled: ReadonlySet<string>): (ReportDefinition & { report: ReportFace }) | null {
   const definition = getReportDefinition(key);
   if (!definition?.report || disabled.has(key)) return null;
-  return canReadList(definition.report, { can: ([resource, action]: ListGrant) => canRetailRoleDo(role, resource, action) }) ? (definition as ReportDefinition & { report: ReportFace }) : null;
+  return canReadList(definition.report, { can: (grant: ListGrant) => grant[0] !== "admin" && canRetailRoleDo(role, grant[0], grant[1]) }) ? (definition as ReportDefinition & { report: ReportFace }) : null;
 }
 
 /**

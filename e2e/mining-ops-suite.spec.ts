@@ -28,11 +28,10 @@ import { visitSettled } from "./_support/nav";
  * upgrade roughly twenty of these assertions from "the empty state is correct"
  * to "the figures are correct", which is where they should end up.
  *
- * ## Fuel is billable, and this tenant has not bought it
+ * ## Fuel is an addon, and this tenant does not have it
  *
  * `stores.fuel-ledger` and `reports.fuel-ledger` are addons — `defaultEnabled:
- * false, isBillable: true` in the feature catalogue — and Huchu's plan does not
- * include them. Both routes are therefore `blocked`, which turns two red lines
+ * false` in the feature catalogue — and Huchu's plan does not include them. Both routes are therefore `blocked`, which turns two red lines
  * into two assertions that the paywall holds.
  */
 
