@@ -19,7 +19,7 @@ The connection to Claude (`lib/vane/claude.ts`), Vane's tables, the two roles it
 
 | Piece | What it does |
 | --- | --- |
-| `readWorkspace(companyId, question)` | Runs one question, as SQL, for one company: as `vane_reader`, or as `vane_reader_private` when the workspace's `readsPeoplePrivate` is on. Returns at most 500 rows, whether there were more, the SQL as it ran and the tables it read, which every card keeps. |
+| `readWorkspace(companyId, question, { rep })` | Runs one question, as SQL, for one company: as `vane_reader`, or as `vane_reader_private` when the workspace's `readsPeoplePrivate` is on, or, for a sales rep (`rep`, their user id), as `vane_reader_rep`: their own visits and quotes only. Returns at most 500 rows, whether there were more, the SQL as it ran and the tables it read, which every card keeps. |
 | `ReaderError` | Why a question did not run, with `code`: `refused` (not one SELECT, a table the role is not granted, or a function off the report list in `lib/reports/sql/guard.ts`, which keeps out `pg_*`, `set_config` and `current_setting`), `timeout` (past five seconds), `failed` (Postgres turned it down: a column that does not exist or one the role may not read), `misconfigured` (its connection string is not set). The message is a sentence Vane can act on. |
 
 `lib/vane/reader.test.ts` signs in as members of the two roles and checks that a question sees one workspace (two at once stay apart), reads personal details only where the workspace allows, runs nothing but one SELECT, stops at 500 rows and at the time limit, and leaves no binding behind.
@@ -35,7 +35,7 @@ The connection to Claude (`lib/vane/claude.ts`), Vane's tables, the two roles it
 | `propose_plan` | A plan (`VanePlan`) with its steps in order, each owned by Vane or a person. |
 | `update_plan_step` | Vane moves one of its own steps on: Now, with how far it is ("38 of 61 lines"), then Done; the plan is done with its last step. A person's step is theirs (`vane.plan.tick_step` proposes it). |
 | `describe_report` | The workspace's reports, or one report's columns: for linking to a report and keeping a view of it (`reports.template.save`). |
-| `draft` | Vane's own draft, through the module's code, with `madeByVane` and no person as its maker: an accepted quote's invoice (Books), or a reorder for one supplier and branch (Retail). Never sends, posts or issues; refused while the workspace has drafts off. A person issues (`books.invoice.issue`), sends (`retail.order.send`) or deletes (`books.invoice.discard`) it. |
+| `draft` | Vane's own draft, through the module's code, with `madeByVane` and no person as its maker: an accepted quote's invoice (Books), a reorder for one supplier and branch (Retail), or a work order for equipment that keeps breaking down the same way (Assets, `lib/maintenance/work-orders.ts`). Never sends, posts, issues or raises; refused while the workspace has drafts off, and in a sales rep's chat. A person issues (`books.invoice.issue`), sends (`retail.order.send`) or raises (`assets.work_order.raise`) it, or deletes it (`books.invoice.discard`, `assets.work_order.discard`). Each has a page: `/books/invoices/[id]`, `/retail/buying/orders/[id]`, `/maintenance/work-orders/[id]`. |
 | `report_problem` | What Vane could not work out, in a sentence, with the SELECT that finds the rows it stopped at. The job ends as failed on it (`VaneJob.error`, `problemSql`), and the state "I could not work this out" offers Show the rows, read again through the reader for the people who run Vane (`GET /api/vane/jobs/[id]/rows`). |
 
 `toolDefinitions()` is what Claude is shown: each tool's name, a sentence on what it does, and its input as JSON Schema from the same zod schema the call is checked against. `callTool(context, name, input)` runs one call: an input that does not fit, or a question the reader refused or Postgres turned down, comes back as an error result for Claude to correct; anything else is thrown for the job. `lib/vane/tools.test.ts` covers each tool and those errors.
@@ -59,6 +59,9 @@ What Vane proposes on a card or in a chat answer is a `VaneAction`: a kind from 
 | `retail.order.draft` | `raiseOrder` (`lib/retail/buying/orders.ts`) as a draft, after the retail role check | `POST /api/v2/retail/buying/orders` |
 | `retail.order.send` | `sendOrder`, the way the supplier takes orders | `POST /api/v2/retail/buying/orders/[id]/send` |
 | `retail.order.chase` | `chaseOrder`: the reminder, and the promised day becomes the expected date | `POST /api/v2/retail/buying/orders/[id]/chase` |
+| `books.invoice.issue`, `books.invoice.discard` | `issueDraftInvoice`, `deleteVaneDraftInvoice` (`lib/books/issue-invoice.ts`); the invoice's page issues and deletes through `/api/books/invoices/[id]` | `PATCH /api/accounting/sales/invoices` |
+| `assets.work_order.raise`, `assets.work_order.discard` | `raiseWorkOrder` (the workshop is told), `deleteVaneDraftWorkOrder` (`lib/maintenance/work-orders.ts`) | `POST /api/work-orders` |
+| `schools.fees.remind` | `sendSchoolNotice`, one per ticked family, each with its own name, pupil and amount. The card changes the words; its page (`/schools/finance/reminders/[id]`) also ticks and unticks families (`pageFields: ["skip"]`) | `POST /api/v2/schools/notices` |
 | `vane.plan.tick_step` | `tickPlanStep` (`lib/vane/lists.ts`) | Vane's own |
 
 Each runs as the approving person: drafts carry their name, not `madeByVane`. `lib/vane/actions/modules.test.ts` runs each module's actions against the test database. A new action is a `VaneActionKind` in its module's file, listed in `registry.ts`. Claude is shown each kind's description and inputs, and the pages it may link to with their filters (`lib/vane/pages.ts`), so its links open filtered to the records it means.
@@ -135,6 +138,10 @@ Vane never reads as the app. It reads as one of two database roles:
 - `vane_reader`: SELECT on the workspace's records, without people's pay and personal details.
 - `vane_reader_private`: the same, plus pay and personal details. Only when the workspace has turned on "People's pay and personal details".
 
+- `vane_reader_rep`: a sales rep's reading (the PageVanePhone board). No sign-in of its own: `vane_reader` switches to it (`SET LOCAL ROLE`, on the reader's own connection, inside the reading transaction) when the person asking is a `SALES_REP`, and binds the rep's user id in `VaneReaderScope.userId`. It is granted only the CRM tables a visit and its quote need (`REP_TABLES` in `lib/vane/reader-access.ts`), and a `vane_rep` policy on each narrows them to the rep's own: visits, deals and leads assigned to them, the quotes and answers on those, the client, site and form tables whole. The SQL guard lets through one SELECT and its listed functions only (no `SET`, `RESET` or `set_config`), so a question cannot switch back.
+
+A rep's panel says "Only your own visits and quotes", shows only the cards addressed to them (`audienceUserId`; a card raised in their chat is theirs), and none of the workspace's jobs or plans. Vane drafts nothing in a rep's chat.
+
 Neither role can write anything, Vane's own tables included. `lib/vane/reader-access.ts` holds the rules and `pnpm vane:reader-sql --summary` prints what they give:
 
 - **Rows.** Every readable table has a restrictive `vane_workspace` policy: a reader sees only the workspace its connection is bound to in `VaneReaderScope`. A table without `companyId` is scoped through its links to tables that have one (any link that reaches a visible row). A connection bound to nothing sees nothing. A reader can see only its own binding and cannot change it.
@@ -146,7 +153,7 @@ Row security changes nothing for the app. Every table that has it also has a per
 
 ### When a migration adds tables
 
-New tables and columns are unreadable to Vane until granted. Run `pnpm vane:reader-sql`, copy the lines for the new tables into the same migration, and check `pnpm vane:reader-sql --summary` puts anything private in the private role.
+New tables and columns are unreadable to Vane until granted. Run `pnpm vane:reader-sql`, copy the lines for the new tables into the same migration, and check `pnpm vane:reader-sql --summary` puts anything private in the private role. A table a rep's Vane should read goes in `REP_TABLES`, with its policy and grants from `pnpm vane:reader-sql --rep`.
 
 ## Setting it up
 
@@ -164,4 +171,4 @@ New tables and columns are unreadable to Vane until granted. Run `pnpm vane:read
 
 ## Not built yet
 
-The pages: `/vane` (For you, Plans, Done, Muted), a card's What I read, the four states, Give Vane a job with Ctrl J, the live updates, the `draft` tool and Vane inside each module. The button, the panel and Management → Vane are built. The boards, what each is, and the order to build the rest are in `docs/handover-vane.md`.
+Every board is built (`docs/handover-vane.md`). What none of it has had is a run against Claude itself: each tool, job and write is tested with a stand-in.

@@ -15,6 +15,7 @@ export const FIXTURE_VANE_STATUS: VaneStatus = {
   overAllowance: null,
   stuck: null,
   counts: { working: 2, plans: 1, doneToday: 12, muted: 0 },
+  own: false,
 };
 
 const VAT_PLAN: VanePanel["plans"][number] = {

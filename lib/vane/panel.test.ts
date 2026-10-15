@@ -56,7 +56,11 @@ describe("the Vane panel", () => {
         { OR: [{ audienceRole: null }, { audienceRole: "MANAGER" }] },
       ],
     });
-    expect(audienceFilter("u1", null).AND[1]).toEqual({ OR: [{ audienceRole: null }] });
+    expect(audienceFilter("u1", null)).toMatchObject({ AND: [{}, { OR: [{ audienceRole: null }] }] });
+  });
+
+  it("shows a sales rep only the cards addressed to them", () => {
+    expect(audienceFilter("u1", "SALES_REP")).toEqual({ audienceUserId: "u1" });
   });
 
   it("shows a record's page only the open cards about that record, to the people who see them", async () => {

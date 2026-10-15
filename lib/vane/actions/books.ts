@@ -135,7 +135,7 @@ const issue = {
   fields: [],
   verb: () => "Issue it",
   title: (p) => `Issue ${p.invoiceNumber} to ${p.customer}, ${p.total}`,
-  target: (p) => `/books/invoices?q=${encodeURIComponent(p.invoiceNumber)}`,
+  target: (p) => `/books/invoices/${p.invoiceId}`,
   refuse: (context) => refuseUnlessRoute(context, "/api/accounting/sales/invoices", "PATCH"),
   async run(context, p) {
     try {
@@ -156,7 +156,7 @@ const discard = {
   fields: [],
   verb: () => "Delete the draft",
   title: (p) => `Delete Vane's draft ${p.invoiceNumber}`,
-  target: () => "/books/invoices?view=drafts",
+  target: (p) => `/books/invoices/${p.invoiceId}`,
   refuse: (context) => refuseUnlessRoute(context, "/api/accounting/sales/invoices", "PATCH"),
   async run(context, p) {
     try {
