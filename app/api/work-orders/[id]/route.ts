@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { validateSession, successResponse, errorResponse } from "@/lib/api-utils";
 import { captureAccountingEvent } from "@/lib/accounting/integration";
+import { readWorkOrderRecord } from "@/lib/maintenance/work-order-record";
+import { partSchema } from "@/lib/maintenance/work-orders";
 import { emitWorkOrderStatusNotification } from "@/lib/notifications";
 import { prisma } from "@/lib/prisma";
 import { createJournalEntryFromSource } from "@/lib/accounting/posting";
@@ -20,18 +22,19 @@ const updateWorkOrderSchema = z.object({
     .nullable()
     .optional(),
   workDone: z.string().max(2000).nullable().optional(),
-  partsUsed: z.array(z.string().max(200)).optional(),
+  partsUsed: z.array(partSchema).optional(),
   partsCost: z.number().min(0).optional(),
   laborCost: z.number().min(0).optional(),
   technicianId: z.string().uuid().nullable().optional(),
   status: z.enum(["OPEN", "IN_PROGRESS", "COMPLETED", "CANCELLED"]).optional(),
+  priority: z.enum(["NORMAL", "HIGH", "URGENT"]).optional(),
 });
 
 type RouteParams = { params: Promise<{ id: string }> };
 
 async function getWorkOrderForCompany(id: string, companyId: string) {
-  const workOrder = await prisma.workOrder.findUnique({
-    where: { id },
+  const workOrder = await prisma.workOrder.findFirst({
+    where: { id, companyId },
     include: {
       equipment: {
         include: {
@@ -42,38 +45,17 @@ async function getWorkOrderForCompany(id: string, companyId: string) {
     },
   });
 
-  if (!workOrder || workOrder.equipment.site.companyId !== companyId) {
-    return null;
-  }
-
   return workOrder;
 }
 
+/** One work order as its page shows it: the equipment's history, the parts against stores, who can fix it. */
 export async function GET(request: NextRequest, { params }: RouteParams) {
   try {
     const sessionResult = await validateSession(request);
     if (sessionResult instanceof NextResponse) return sessionResult;
-    const { session } = sessionResult;
-    const { id } = await params;
-
-    const existing = await getWorkOrderForCompany(id, session.user.companyId);
-    if (!existing) {
-      return errorResponse("Work order not found", 404);
-    }
-
-    const workOrder = await prisma.workOrder.findUnique({
-      where: { id },
-      include: {
-        equipment: {
-          include: {
-            site: { select: { name: true, code: true } },
-          },
-        },
-        technician: { select: { id: true, name: true, employeeId: true } },
-      },
-    });
-
-    return successResponse(workOrder);
+    const record = await readWorkOrderRecord(prisma, sessionResult.session.user.companyId, (await params).id);
+    if (!record) return errorResponse("Work order not found", 404);
+    return successResponse(record);
   } catch (error) {
     console.error("[API] GET /api/work-orders/[id] error:", error);
     return errorResponse("Failed to fetch work order");
@@ -134,6 +116,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
         technicianId:
           validated.technicianId !== undefined ? validated.technicianId : undefined,
         status: validated.status,
+        priority: validated.priority,
       },
       include: {
         equipment: {

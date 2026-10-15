@@ -164,6 +164,11 @@ export function VanePanelView({
           <div className="vs">
             For you <span className="pn-n">{items.length}</span>
           </div>
+          {status.own ? (
+            <p className="muted" style={{ fontSize: "var(--text-12)", margin: 0 }}>
+              Only your own visits and quotes.
+            </p>
+          ) : null}
           {items.length === 0 ? (
             <p className="muted" style={{ fontSize: "var(--text-13)", margin: 0 }}>
               Nothing waits for you. Ask Vane below, or pick one of its suggestions.

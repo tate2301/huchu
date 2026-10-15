@@ -8,7 +8,7 @@ import path from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-import { isCredentialColumn, parseSchema, readerAccess, readerSql } from "@/lib/vane/reader-access";
+import { isCredentialColumn, parseSchema, readerAccess, readerSql, REP_TABLES, repReaderSql } from "@/lib/vane/reader-access";
 
 const models = parseSchema(readFileSync(path.join(process.cwd(), "prisma/schema.prisma"), "utf8"));
 const access = readerAccess(models);
@@ -73,6 +73,15 @@ describe("what Vane may read", () => {
     const missingFromMigration = now.filter((line) => line.trim() && !part2.includes(line));
     // A later schema change can add lines (new tables to grant); it must not have changed the old ones silently.
     for (const line of missingFromMigration) expect(line).toMatch(/^(ALTER TABLE|CREATE POLICY|GRANT SELECT)/);
+  });
+
+  it("is the sales rep's role the finishing migration ships: the CRM tables a visit and its quote need, each narrowed", () => {
+    const shipped = readFileSync(path.join(process.cwd(), "prisma/migrations/20261015100000_vane_finish/migration.sql"), "utf8");
+    const sql = repReaderSql(access);
+    for (const line of sql.split("\n").filter((row) => row.trim())) expect(shipped).toContain(line);
+    expect(sql.match(/CREATE POLICY "vane_rep" ON/g)).toHaveLength(Object.keys(REP_TABLES).length);
+    for (const table of ["SalesInvoice", "Employee", "PayrollRun", "Company"]) expect(sql).not.toContain(`ON "${table}" TO vane_reader_rep`);
+    expect(sql).toContain(`"CrmDeal"."assignedToId" = (SELECT s."userId"`);
   });
 
   it("keeps a person's conversation with Vane out of both roles", () => {

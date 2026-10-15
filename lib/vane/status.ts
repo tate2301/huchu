@@ -11,6 +11,8 @@ export const FOR_YOU: VaneItemKind[] = ["ISSUE", "SUGGESTION"];
 
 /** What the Vane button, the panel's head and `/vane` show. */
 export type VaneStatus = {
+  /** A sales rep's Vane: only their own visits and quotes, without the workspace's jobs and plans (PageVanePhone). */
+  own: boolean;
   /** Open For you items this person can see. */
   open: number;
   /** A job is running now. */
@@ -39,9 +41,11 @@ export type VaneStatus = {
 
 /**
  * The items a person sees: everyone's, their role's, and their own. An item
- * for another role or another person is not theirs.
+ * for another role or another person is not theirs. A sales rep sees only the
+ * cards addressed to them: their own visits and quotes (PageVanePhone).
  */
 export function audienceFilter(userId: string, role: string | null | undefined) {
+  if (role === "SALES_REP") return { audienceUserId: userId };
   return {
     AND: [
       { OR: [{ audienceUserId: null }, { audienceUserId: userId }] },
@@ -105,10 +109,13 @@ export async function vaneStatus(
   const progress =
     running && running.progressTotal != null ? `${running.progressDone ?? 0} of ${running.progressTotal}` : null;
   const unreachable = newest?.status === "WAITING";
+  // A rep's Vane is about their own visits and quotes: the workspace's jobs and plans are not theirs to see.
+  const own = role === "SALES_REP";
   return {
+    own,
     open,
     working: Boolean(running) && !paused,
-    now: running ? { label: running.label, progress } : null,
+    now: running && !own ? { label: running.label, progress } : null,
     paused,
     pausedBy: paused ? (settings?.pausedBy?.name ?? null) : null,
     pausedAt: paused && settings ? settings.updatedAt.toISOString() : null,
@@ -117,7 +124,7 @@ export async function vaneStatus(
     nextTryAt: unreachable && newest ? newest.runAfter.toISOString() : null,
     overAllowance: used >= allowance ? { used, allowance, resetsOn: monthNext.toISOString().slice(0, 10) } : null,
     stuck:
-      lastFinished?.status === "FAILED" && lastFinished.finishedAt
+      !own && lastFinished?.status === "FAILED" && lastFinished.finishedAt
         ? {
             jobId: lastFinished.id,
             label: lastFinished.label,
@@ -127,6 +134,6 @@ export async function vaneStatus(
             rows: Boolean(lastFinished.problemSql),
           }
         : null,
-    counts: { working, plans, doneToday, muted },
+    counts: own ? { working: 0, plans: 0, doneToday: 0, muted } : { working, plans, doneToday, muted },
   };
 }

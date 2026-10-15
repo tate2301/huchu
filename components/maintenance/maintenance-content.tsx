@@ -2,6 +2,7 @@
 
 import { useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { differenceInMinutes, format } from "date-fns";
@@ -836,8 +837,10 @@ export function MaintenanceContent({
     printWindow.document.close();
   };
 
-  const workOrderStatusInfo = (status: string) => {
+  const workOrderStatusInfo = (status: string, madeByVane = false) => {
     switch (status) {
+      case "DRAFT":
+        return { label: madeByVane ? "Vane's draft" : "Draft", variant: "outline" as const };
       case "OPEN":
         return { label: "Open", variant: "destructive" as const };
       case "IN_PROGRESS":
@@ -1229,7 +1232,7 @@ export function MaintenanceContent({
                       </div>
                     ) : (
                       activeWorkOrders.slice(0, 6).map((order) => {
-                        const statusInfo = workOrderStatusInfo(order.status);
+                        const statusInfo = workOrderStatusInfo(order.status, order.madeByVane);
                         return (
                           <div
                             key={order.id}
@@ -2068,7 +2071,7 @@ export function MaintenanceContent({
                       </TableRow>
                     ) : (
                       workOrders.map((order) => {
-                        const statusInfo = workOrderStatusInfo(order.status);
+                        const statusInfo = workOrderStatusInfo(order.status, order.madeByVane);
                         return (
                           <TableRow
                             key={order.id}
@@ -2087,7 +2090,11 @@ export function MaintenanceContent({
                                 {order.equipment.site.code}
                               </div>
                             </TableCell>
-                            <TableCell className="p-3 text-sm">{order.issue}</TableCell>
+                            <TableCell className="p-3 text-sm">
+                              <Link href={`/maintenance/work-orders/${order.id}`} className="hover:underline">
+                                {order.issue}
+                              </Link>
+                            </TableCell>
                             <TableCell className="p-3 text-sm">
                               {order.technician?.name || "-"}
                             </TableCell>
@@ -2108,6 +2115,12 @@ export function MaintenanceContent({
                             </TableCell>
                             <TableCell className="p-3 text-right">
                               <div className="flex flex-wrap justify-end gap-2">
+                                {order.status === "DRAFT" ? (
+                                  <Link href={`/maintenance/work-orders/${order.id}`} className="text-sm font-medium hover:underline">
+                                    Review the draft
+                                  </Link>
+                                ) : (
+                                <>
                                 {order.status === "OPEN" ? (
                                   <Button
                                     type="button"
@@ -2179,6 +2192,8 @@ export function MaintenanceContent({
                                 >
                                   Delete
                                 </Button>
+                                </>
+                                )}
                               </div>
                             </TableCell>
                           </TableRow>
@@ -2448,7 +2463,7 @@ export function MaintenanceContent({
               </thead>
               <tbody>
                 {workOrders.map((order) => {
-                  const statusInfo = workOrderStatusInfo(order.status);
+                  const statusInfo = workOrderStatusInfo(order.status, order.madeByVane);
                   return (
                     <tr key={order.id} className="border-b border-gray-100">
                       <td className="py-2">

@@ -15,6 +15,8 @@ import { destroyProvisionedTenant } from "@/lib/platform/tenant-teardown";
 import { createSupplier } from "@/lib/retail/buying/suppliers";
 import { addTestProduct, makeTestShop, type TestShop } from "@/lib/retail/products/test-fixtures";
 
+import { readInvoiceRecord } from "@/lib/books/invoice-record";
+
 import { VANE_ACTIONS } from "./actions/registry";
 import type { VaneActionContext } from "./actions/types";
 import { callTool } from "./tools";
@@ -72,6 +74,11 @@ describe("Vane's own drafts", () => {
     expect(drafted.ok).toBe(true);
     const { invoiceId, invoiceNumber } = JSON.parse(drafted.content);
     expect(await prisma.salesInvoice.findUniqueOrThrow({ where: { id: invoiceId } })).toMatchObject({ status: "DRAFT", madeByVane: true, createdById: null, quotationId: ids.quote });
+
+    // Its page says it is Vane's, what it was made from, and that nothing changed since the quote.
+    const record = await readInvoiceRecord(prisma, shop.companyId, invoiceId);
+    expect(record).toMatchObject({ status: "DRAFT", stateLabel: "Vane's draft", madeByVane: true, date: "On issue", quote: { number: expect.stringMatching(/^QT-/) }, changes: [] });
+    expect(record!.fact).toMatch(/^\$620\.00 to Borrowdale Brooke Clinic, due \d+ days after you issue it\.$/);
 
     const issued = await action("books.invoice.issue").run(context(), action("books.invoice.issue").params.parse({ invoiceId, invoiceNumber, customer: "Borrowdale Brooke Clinic", total: "USD 620.00" }) as never);
     expect(issued).toBe(`${invoiceNumber} is issued to Borrowdale Brooke Clinic. Send it from Books.`);

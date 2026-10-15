@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { validateSession, successResponse, errorResponse, getPaginationParams, paginationResponse } from '@/lib/api-utils';
 import { captureAccountingEvent } from "@/lib/accounting/integration";
+import { partSchema } from '@/lib/maintenance/work-orders';
 import { emitWorkOrderStatusNotification } from '@/lib/notifications';
 import { prisma } from '@/lib/prisma';
 import { z } from 'zod';
@@ -11,11 +12,12 @@ const workOrderSchema = z.object({
   downtimeStart: z.string().datetime().or(z.string().regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/)),
   downtimeEnd: z.string().datetime().or(z.string().regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/)).optional(),
   workDone: z.string().max(2000).optional(),
-  partsUsed: z.array(z.string().max(200)).optional(),
+  partsUsed: z.array(partSchema).optional(),
   partsCost: z.number().min(0).optional(),
   laborCost: z.number().min(0).optional(),
   technicianId: z.string().uuid().optional(),
   status: z.enum(['OPEN', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED']).optional(),
+  priority: z.enum(['NORMAL', 'HIGH', 'URGENT']).optional(),
 });
 
 export async function GET(request: NextRequest) {
@@ -30,18 +32,10 @@ export async function GET(request: NextRequest) {
     const status = searchParams.get('status');
     const { page, limit, skip } = getPaginationParams(request);
 
-    const where: Record<string, unknown> = {
-      equipment: {
-        site: { companyId: session.user.companyId },
-      },
-    };
+    const where: Record<string, unknown> = { companyId: session.user.companyId };
 
     if (equipmentId) where.equipmentId = equipmentId;
-    if (siteId) {
-      const equipmentWhere =
-        (where.equipment as Record<string, unknown> | undefined) ?? {};
-      where.equipment = { ...equipmentWhere, siteId };
-    }
+    if (siteId) where.equipment = { siteId };
     if (status) where.status = status;
     const [workOrders, total] = await Promise.all([
       prisma.workOrder.findMany({
@@ -108,6 +102,8 @@ export async function POST(request: NextRequest) {
     // Create work order
     const workOrder = await prisma.workOrder.create({
       data: {
+        companyId: session.user.companyId,
+        createdById: session.user.id,
         equipmentId: validated.equipmentId,
         issue: validated.issue,
         downtimeStart: new Date(validated.downtimeStart),
@@ -118,6 +114,7 @@ export async function POST(request: NextRequest) {
         laborCost: validated.laborCost,
         technicianId: validated.technicianId,
         status: validated.status ?? 'OPEN',
+        priority: validated.priority,
       },
       include: {
         equipment: {
