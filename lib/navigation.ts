@@ -57,6 +57,10 @@ import {
   Wrench,
   Zap,
   Bed,
+  Bell,
+  Check,
+  CircleDottedLine,
+  PushPin,
   Gem,
   CreditCard,
   ListBullets,
@@ -79,6 +83,12 @@ import type { SchoolAction, SchoolResource } from "@/lib/schools/access";
  * so a workshop's panel is the board's if one is ever served.
  */
 export const REPORT_VERTICAL_PROFILES: readonly string[] = ["SCHOOLS", "GOLD_MINE", "PAYROLL", "AUTOS"];
+
+/**
+ * Every other workspace's Reports (a general business, a CRM, a shop's back
+ * office): Overview at `/reports/insights`, All reports at `/reports`.
+ */
+const GENERAL_REPORT_PROFILES: readonly string[] = ["GENERAL", "RETAIL"];
 
 /** A vertical's report pages under `/reports`, but for the ones its panel names as insights. */
 const VERTICAL_REPORT_PAGES =
@@ -337,22 +347,17 @@ export const navSections: NavSection[] = [
       { href: "/reports/payroll-statutory", icon: ClipboardList, label: "Statutory", group: "insights", profiles: ["PAYROLL"] },
       // A workshop.
       { href: "/reports/maintenance-equipment", icon: Wrench, label: "Equipment", group: "insights", profiles: ["AUTOS"] },
-      { href: "/reports/insights", icon: TrendingUp, label: "Overview", exact: true, profiles: ["GENERAL"] },
-      { href: "/reports", icon: FileCheck, label: "All reports", profiles: ["GENERAL"] },
-      { href: "/reports?view=yours", icon: UserRound, label: "Yours", profiles: ["GENERAL"] },
-      { href: "/reports?view=shared", icon: Users, label: "Shared with you", profiles: ["GENERAL"] },
-      { href: "/reports?view=corelith", icon: Star, label: "From Corelith", profiles: ["GENERAL"] },
-      { href: "/reports/insights/sales", icon: BarChart3, label: "Sales", group: "insights", profiles: ["GENERAL"] },
-      { href: "/reports/insights/site-visits", icon: MapPin, label: "Site visits", group: "insights", profiles: ["GENERAL"] },
-      { href: "/reports/insights", icon: TrendingUp, label: "Overview", exact: true },
-      { href: "/reports", icon: FileCheck, label: "All reports" },
-      { href: "/reports?view=yours", icon: UserRound, label: "Yours" },
-      { href: "/reports?view=shared", icon: Users, label: "Shared with you" },
-      { href: "/reports?view=corelith", icon: Star, label: "From Corelith" },
-      // Explore (routes.md §7): the workspace's data as questions, for owners and managers (`lib/explore/access.ts`).
-      { href: "/explore", icon: Dataset, label: "Explore", roles: ["SUPERADMIN", "MANAGER"] },
-      { href: "/reports/insights/sales", icon: BarChart3, label: "Sales", group: "insights" },
-      { href: "/reports/insights/site-visits", icon: MapPin, label: "Site visits", group: "insights" },
+      { href: "/reports/insights", icon: TrendingUp, label: "Overview", exact: true, profiles: GENERAL_REPORT_PROFILES },
+      { href: "/reports", icon: FileCheck, label: "All reports", profiles: GENERAL_REPORT_PROFILES },
+      { href: "/reports?view=yours", icon: UserRound, label: "Yours", profiles: GENERAL_REPORT_PROFILES },
+      { href: "/reports?view=shared", icon: Users, label: "Shared with you", profiles: GENERAL_REPORT_PROFILES },
+      { href: "/reports?view=corelith", icon: Star, label: "From Corelith", profiles: GENERAL_REPORT_PROFILES },
+      { href: "/reports/insights/sales", icon: BarChart3, label: "Sales", group: "insights", profiles: GENERAL_REPORT_PROFILES },
+      { href: "/reports/insights/site-visits", icon: MapPin, label: "Site visits", group: "insights", profiles: GENERAL_REPORT_PROFILES },
+      // Every row names its profiles: a row with none is drawn in every
+      // workspace, beside the rows above (the merge of #213 brought back the
+      // general rows without them, and every Reports panel listed its rows
+      // twice). Explore is a module of its own (`EXPLORE_NAV_ITEMS`).
     ],
   },
   {
@@ -1027,6 +1032,29 @@ export const navSections: NavSection[] = [
     ],
     items: BUILD_NAV_ITEMS,
   },
+];
+
+/**
+ * Explore (spec/routes.md §7): the workspace's data as questions, a module of
+ * its own beside Reports, as the boards' rail draws it (ExploreStudio). Its
+ * panel is Explore's own (Your data, Templates, Saved). Owners and managers
+ * only (`lib/explore/roles.ts`); `lib/workspaces.ts` places it.
+ */
+export const EXPLORE_NAV_ITEMS: NavItem[] = [
+  { href: "/explore", icon: Dataset, label: "Explore", roles: ["SUPERADMIN", "MANAGER"] },
+];
+
+/**
+ * Vane's own pages (VaneForYou): a module of its own in every workspace, its
+ * mark among the modules, its panel For you, Working on, Plans, Done and
+ * Muted. The Vane mark at the rail's foot opens Vane's chat (Ctrl J).
+ */
+export const VANE_NAV_ITEMS: NavItem[] = [
+  { href: "/vane", label: "For you", icon: PushPin, exact: true },
+  { href: "/vane/working", label: "Working on", icon: CircleDottedLine },
+  { href: "/vane/plans", label: "Plans", icon: ListBullets },
+  { href: "/vane/done", label: "Done", icon: Check },
+  { href: "/vane/muted", label: "Muted", icon: Bell },
 ];
 
 /** The Reports panel's rows, for an arrangement that pulls Reports in whole. */

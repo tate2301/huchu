@@ -7,8 +7,9 @@ import { useShell } from "@/components/layout/shell-state";
 
 /**
  * The phone drawer (00-foundations 5.3.8): below 720px the rail and the module
- * panel slide in from the left, 296px wide over `--scrim`, from the header's
- * menu button. It closes on navigation.
+ * panel slide in from the left, 296px wide over `--scrim` (wider for a wider
+ * panel, Explore's, up to 48px short of the screen), from the header's menu
+ * button. It closes on navigation.
  */
 export function MobileNav() {
   const { width, drawerOpen, setDrawerOpen } = useShell();
@@ -20,7 +21,7 @@ export function MobileNav() {
         <Dialog.Overlay className="fixed inset-0 z-[var(--z-overlay)] bg-[var(--scrim)]" />
         <Dialog.Content
           aria-describedby={undefined}
-          className="fixed inset-y-0 left-0 z-[var(--z-overlay)] flex h-[100dvh] w-[296px] max-w-[calc(100vw-48px)] overflow-hidden bg-[var(--ground)] shadow-[var(--shadow-float)] outline-none"
+          className="fixed inset-y-0 left-0 z-[var(--z-overlay)] flex h-[100dvh] w-max min-w-[296px] max-w-[calc(100vw-48px)] overflow-hidden bg-[var(--ground)] shadow-[var(--shadow-float)] outline-none"
         >
           <Dialog.Title className="sr-only">Menu</Dialog.Title>
           <AppSidebar inDrawer />

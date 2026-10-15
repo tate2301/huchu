@@ -33,6 +33,7 @@ export function RailPanel({
   children,
   extra,
   shelf,
+  resize,
 }: {
   title: string;
   /** What the chevron goes back to: the workspace's name, or the module a folder sits in. */
@@ -50,11 +51,21 @@ export function RailPanel({
   extra?: React.ReactNode;
   /** Help and Management, at the foot. */
   shelf?: React.ReactNode;
+  /**
+   * A panel wider than the module panel's 240 (Explore's, whose tabs and
+   * table names need the room), resized from its right edge.
+   */
+  resize?: PanelResize;
 }) {
   const findRef = React.useRef<HTMLInputElement>(null);
   useShortcut("/", () => findRef.current?.focus(), { enabled: Boolean(onQuery) });
   return (
-    <aside aria-label={title} className={cn(styles.panel, overlay && styles.panelOverlay)}>
+    <aside
+      aria-label={title}
+      className={cn(styles.panel, overlay && styles.panelOverlay, resize && styles.panelSized)}
+      style={resize ? ({ "--panel-w": `${resize.width}px` } as React.CSSProperties) : undefined}
+    >
+      {resize ? <PanelEdge title={title} {...resize} /> : null}
       <div className={styles.panelHead}>
         {onBack ? (
           <button
@@ -112,5 +123,60 @@ export function RailPanel({
 
       {shelf ? <div className={styles.shelf}>{shelf}</div> : null}
     </aside>
+  );
+}
+
+export type PanelResize = {
+  width: number;
+  min: number;
+  max: number;
+  /** While dragging. */
+  onResize: (width: number) => void;
+  /** On letting go: keep the width as this person's. */
+  onDone: () => void;
+};
+
+/**
+ * The panel's right edge: drag it, or focus it and use the arrow keys (Shift
+ * for bigger steps), as a builder's panels resize (`resize-edge.tsx`).
+ */
+function PanelEdge({ title, width, min, max, onResize, onDone }: PanelResize & { title: string }) {
+  const [moving, setMoving] = React.useState(false);
+  const start = React.useRef<{ at: number; width: number } | null>(null);
+  return (
+    <div
+      role="separator"
+      aria-orientation="vertical"
+      aria-label={`Resize ${title}`}
+      aria-valuenow={width}
+      aria-valuemin={min}
+      aria-valuemax={max}
+      tabIndex={0}
+      className={cn(styles.panelEdge, moving && styles.panelEdgeMoving)}
+      onPointerDown={(event) => {
+        if (event.button !== 0) return;
+        event.preventDefault();
+        event.currentTarget.setPointerCapture(event.pointerId);
+        start.current = { at: event.clientX, width };
+        setMoving(true);
+      }}
+      onPointerMove={(event) => {
+        if (start.current) onResize(start.current.width + event.clientX - start.current.at);
+      }}
+      onPointerUp={(event) => {
+        if (!start.current) return;
+        start.current = null;
+        setMoving(false);
+        event.currentTarget.releasePointerCapture(event.pointerId);
+        onDone();
+      }}
+      onKeyDown={(event) => {
+        if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+        event.preventDefault();
+        const step = event.shiftKey ? 64 : 16;
+        onResize(width + (event.key === "ArrowRight" ? step : -step));
+        onDone();
+      }}
+    />
   );
 }

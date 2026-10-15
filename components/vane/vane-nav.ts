@@ -1,18 +1,11 @@
-import { Bell, Check, CircleDottedLine, ListBullets, PushPin } from "@/lib/icons";
-import type { NavItem } from "@/lib/navigation";
+import { VANE_NAV_ITEMS, type NavItem } from "@/lib/navigation";
 
 /**
- * Vane's own pages (the tree board, `/vane`). Vane is in every workspace and
- * in none of their sections: its mark sits at the foot of the rail, above
- * the gear, and while one of these pages is open the module panel lists them.
+ * Vane's own pages (the tree board, `/vane`): a module of its own in every
+ * workspace (`VANE_NAV_ITEMS`), its mark among the rail's modules; while one
+ * of these pages is open the module panel lists them.
  */
-export const VANE_PAGES: NavItem[] = [
-  { href: "/vane", label: "For you", icon: PushPin, exact: true },
-  { href: "/vane/working", label: "Working on", icon: CircleDottedLine },
-  { href: "/vane/plans", label: "Plans", icon: ListBullets },
-  { href: "/vane/done", label: "Done", icon: Check },
-  { href: "/vane/muted", label: "Muted", icon: Bell },
-];
+export const VANE_PAGES: NavItem[] = VANE_NAV_ITEMS;
 
 export function isVanePath(pathname: string): boolean {
   return pathname === "/vane" || pathname.startsWith("/vane/");

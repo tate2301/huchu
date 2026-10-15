@@ -243,15 +243,22 @@ describe("WorkspaceRail, a module read whole", () => {
     container = null;
   });
 
-  it("keeps the module's groups as bands in its own panel, the page's open, and goes back up to the module list", () => {
+  it("opens a deep page at its group's level, with a back row up to the module, then the module list", () => {
     mount("/g2/1");
-    // The page stays in the module's panel: no level is opened under it.
-    expect(title()).toBe("CRM");
+    // The page's level: the group, its rows only, the page current.
+    expect(title()).toBe("Group 2");
+    expect(rowLabels()).toEqual(["g2 0", "g2 1", "g2 2", "g2 3"]);
     expect(rowNamed("g2 1").getAttribute("aria-current")).toBe("page");
-    const bands = Array.from(panel().querySelectorAll("button[aria-expanded]"));
-    expect(bands.map((band) => band.textContent)).toEqual(groups.map((group) => group.label));
-    expect(bands.find((band) => band.textContent === "Group 2")!.getAttribute("aria-expanded")).toBe("true");
-    expect(bands.find((band) => band.textContent === "Group 0")!.getAttribute("aria-expanded")).toBe("false");
+    expect(back()!.getAttribute("aria-label")).toBe("Back to CRM");
+
+    click(back());
+    expect(title()).toBe("CRM");
+    // No group unfolds in place: each is a row that opens its level, the page's marked.
+    expect(panel().querySelectorAll("[aria-expanded]")).toHaveLength(0);
+    const levels = Array.from(panel().querySelectorAll("li > button"));
+    expect(levels.map((level) => level.textContent)).toEqual(groups.map((group) => group.label));
+    expect(levels.find((level) => level.textContent === "Group 2")!.getAttribute("aria-current")).toBe("true");
+    expect(rowLabels()).toEqual(["Home"]);
 
     expect(back()!.getAttribute("aria-label")).toBe("Back to Sales & CRM");
     click(back());
@@ -261,12 +268,38 @@ describe("WorkspaceRail, a module read whole", () => {
     expect(rowLabels()).toEqual(["CRM", "Module 0", "Module 1", "Module 2", "Module 3", "Module 4", "Reports"]);
   });
 
-  it("opens a module from the module list, with every row of its groups reachable in its own panel", () => {
+  it("opens a module from the module list, then a group's level from its row", () => {
     mount("/g2/0");
+    click(back());
     click(back());
     click(rowNamed("CRM"));
     expect(title()).toBe("CRM");
+    const group5 = Array.from(panel().querySelectorAll("li > button")).find((level) => level.textContent === "Group 5")!;
+    click(group5);
+    expect(title()).toBe("Group 5");
     expect(rowNamed("g5 3")).toBeDefined();
+    expect(back()!.getAttribute("aria-label")).toBe("Back to CRM");
+  });
+
+  it("follows the page: a page in another group opens that group's level", () => {
+    mount("/g2/0");
+    act(() => {
+      root!.render(
+        <WorkspaceRail
+          model={getRailModel(SECTIONS)}
+          workspaceLabel="Sales & CRM"
+          activeHref="/g4/1"
+          badges={{}}
+          tile={<button type="button">HC</button>}
+          management={management}
+          panelShown
+          onOpenPanel={() => {}}
+          onCollapse={() => {}}
+        />,
+      );
+    });
+    expect(title()).toBe("Group 4");
+    expect(rowNamed("g4 1").getAttribute("aria-current")).toBe("page");
   });
 
   it("opens the module, not a folder, on a page outside its folders", () => {
@@ -342,3 +375,60 @@ describe("a module's panel groups (design/core-modules/spec/routes.md §0)", () 
   });
 });
 
+
+describe("modules with a panel of their own (Explore, Vane)", () => {
+  const vane: RailArea = {
+    id: "vane",
+    label: "Vane",
+    icon: Funnel,
+    items: [
+      { href: "/vane", label: "For you", icon: Funnel, exact: true },
+      { href: "/vane/plans", label: "Plans", icon: Funnel },
+    ],
+  };
+  const explore: RailArea = { id: "explore", label: "Explore", icon: Funnel, items: [{ href: "/explore", label: "Explore", icon: Funnel }] };
+  const model: RailModel = { ...areasModel, areas: [floor, explore, vane] };
+  const draw = (activeHref: string, holdAtModule = false) =>
+    renderToStaticMarkup(
+      <WorkspaceRail
+        model={model}
+        workspaceLabel="Floorcode"
+        activeHref={activeHref}
+        badges={{}}
+        tile={<button type="button">F</button>}
+        management={management}
+        panelShown
+        onOpenPanel={() => {}}
+        holdAtModule={holdAtModule}
+        areaPanels={{
+          vane: { body: <li>Vane rows with counts</li> },
+          explore: {
+            body: <div>Your data, Templates, Saved</div>,
+            bare: true,
+            resize: { width: 320, min: 240, max: 480, onResize: () => {}, onDone: () => {} },
+          },
+        }}
+      />,
+    );
+
+  it("gives each a mark in the rail, current on its pages", () => {
+    const html = draw("/vane/plans");
+    expect(html).toMatch(/aria-label="Vane"[^>]*aria-current="page"/);
+    expect(html).toMatch(/<a[^>]*aria-label="Explore"/);
+  });
+
+  it("draws Vane's own panel at its level, with the way back to the module list", () => {
+    const html = draw("/vane/plans");
+    expect(html).toContain('<nav aria-label="Vane"');
+    expect(html).toContain("Vane rows with counts");
+    expect(html).toContain('aria-label="Back to Floorcode"');
+  });
+
+  it("draws Explore's panel wider, resizable from its edge", () => {
+    const html = draw("/explore");
+    expect(html).toContain('<aside aria-label="Explore"');
+    expect(html).toContain("--panel-w:320px");
+    expect(html).toMatch(/role="separator"[^>]*aria-label="Resize Explore"/);
+    expect(html).toContain("Your data, Templates, Saved");
+  });
+});

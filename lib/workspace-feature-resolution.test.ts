@@ -409,9 +409,12 @@ describe("workspace sidebar model", () => {
         "Stock",
         "Buying",
         "Reports",
-        // Build, in every workspace (spec/routes.md §5), before Setup.
+        // Explore beside Reports, for the owner (routes.md §7); Build, in every workspace (§5), before Setup.
+        "Explore",
         "Build",
         "Setup",
+        // Vane's place closes the modules (VaneForYou).
+        "Vane",
       ]);
     });
 
@@ -475,6 +478,7 @@ describe("workspace sidebar model", () => {
           "/retail/products/vouchers",
         ],
         "retail-buy": ["/retail/buying/requisitions"],
+        vane: ["/vane", "/vane/working", "/vane/plans", "/vane/done", "/vane/muted"],
       });
     });
 
@@ -491,6 +495,7 @@ describe("workspace sidebar model", () => {
           "/retail/buying/requisitions",
         ],
         "retail-setup": ["/retail/manage/sites"],
+        vane: ["/vane", "/vane/working", "/vane/plans", "/vane/done", "/vane/muted"],
       });
     });
 

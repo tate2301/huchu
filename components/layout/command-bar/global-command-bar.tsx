@@ -9,7 +9,7 @@ import { useShell } from "@/components/layout/shell-state";
 import { fetchJson } from "@/lib/api-client";
 import { canUseExplore } from "@/lib/explore/roles";
 import { exploreHref } from "@/lib/explore/questions";
-import { navSections } from "@/lib/navigation";
+import { EXPLORE_NAV_ITEMS, navSections } from "@/lib/navigation";
 import { filterNavSectionsByEnabledFeatures } from "@/lib/platform/gating/nav-filter";
 import { resolveViewIcon } from "@/lib/ui/view-icons";
 import {
@@ -473,7 +473,9 @@ export function GlobalCommandBar() {
     }
 
     // 5. Everywhere they may go.
-    const destinations = filterNavSectionsByEnabledFeatures(navSections, enabledFeatures)
+    // Explore is a module of its own, for those who may use it.
+    const exploreSection = { id: "explore", title: "Explore", items: EXPLORE_NAV_ITEMS };
+    const destinations = filterNavSectionsByEnabledFeatures([...navSections, ...(canExplore ? [exploreSection] : [])], enabledFeatures)
       .flatMap((section) =>
         section.items.map((item) => ({
           href: item.href,
