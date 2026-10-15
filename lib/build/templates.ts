@@ -1,9 +1,10 @@
 import { BUILDER_TEMPLATES } from "@/lib/crm/site-visits/builder-templates";
 import { STARTER_TEMPLATES } from "@/lib/crm/starter-templates";
 import { DEFAULT_TEMPLATE_CATALOG } from "@/lib/documents/default-template-catalog";
-import { DISPLAY_FIELD_TYPES } from "@/lib/forms/fields";
+import { DISPLAY_FIELD_TYPES, type FieldType } from "@/lib/forms/fields";
+import type { BuildLibraryKind, WorkspaceLibrary } from "@/lib/library/workspace";
 
-import type { BuildItem } from "./items";
+import { buildHref, type BuildItem } from "./items";
 import { layoutProvisioned, layoutUser, type BuildProvisions, type BuildUser } from "./provision";
 
 /**
@@ -32,7 +33,9 @@ export type TemplateStart =
   | { type: "visit"; template: string }
   | { type: "enquiry" }
   | { type: "block"; starter: string; kind: string; name: string }
-  | { type: "layout"; sourceKey: string; documentType: string; targetType: string; name: string };
+  | { type: "layout"; sourceKey: string; documentType: string; targetType: string; name: string }
+  /** One of Corelith's library, by its address: the type's own API copies it. */
+  | { type: "library"; kind: BuildLibraryKind; key: string; name: string };
 
 export type BuildTemplate = {
   key: string;
@@ -50,6 +53,32 @@ export type BuildTemplate = {
 
 const blockGroup = (kind: string): TemplateGroup => (kind === "FORM" ? "forms" : kind === "EMAIL" ? "emails" : "documents");
 
+const EMPTY_LIBRARY: WorkspaceLibrary = { visitForms: [], enquiryForms: [], blockTemplates: [], layouts: [] };
+
+/** Where one of the library's opens, read-only, by its address: the builder its kind opens in. */
+export function libraryHref(kind: BuildLibraryKind, key: string, blockKind?: string): string {
+  if (kind === "VISIT_FORM") return buildHref("visit", key);
+  if (kind === "ENQUIRY_FORM") return buildHref("enquiry", key);
+  if (kind === "LAYOUT") return buildHref("layout", key);
+  return buildHref("block", key, blockKind);
+}
+
+const asked = (fields: ReadonlyArray<{ type: FieldType }>) => fields.filter((field) => !DISPLAY_FIELD_TYPES.includes(field.type)).length;
+const questions = (count: number) => `${count} ${count === 1 ? "question" : "questions"}`;
+
+/** The layout of the library's a source prints with, by default, when the workspace has none: the newest for it. */
+export function libraryDefaultLayouts(library: WorkspaceLibrary): Set<string> {
+  const seen = new Set<string>();
+  const ids = new Set<string>();
+  for (const entry of library.layouts) {
+    const at = `${entry.payload.sourceKey}|${entry.payload.documentType}|${entry.payload.targetType}`;
+    if (seen.has(at)) continue;
+    seen.add(at);
+    ids.add(entry.id);
+  }
+  return ids;
+}
+
 /**
  * Corelith's starting points this workspace may use. A printed layout of
  * Corelith's is the default its documents print with until the workspace makes
@@ -59,8 +88,18 @@ export function corelithTemplates(
   provisions: BuildProvisions,
   enabledFeatures: readonly string[] | undefined,
   ownDefaults: ReadonlySet<string> = new Set(),
+  library: WorkspaceLibrary = EMPTY_LIBRARY,
 ): BuildTemplate[] {
   const out: BuildTemplate[] = [];
+  const libraryDefaults = libraryDefaultLayouts(library);
+  const libraryLayoutFor = (entry: { sourceKey: string; documentType: string; targetType: string }) =>
+    library.layouts.some(
+      (layout) =>
+        libraryDefaults.has(layout.id) &&
+        layout.payload.sourceKey === entry.sourceKey &&
+        layout.payload.documentType === entry.documentType &&
+        layout.payload.targetType === entry.targetType,
+    );
   if (provisions.enquiryForms) {
     out.push({
       key: "enquiry",
@@ -113,12 +152,60 @@ export function corelithTemplates(
       description: entry.description,
       group: "documents",
       usedBy: layoutUser(entry.sourceKey),
-      badge: ownDefaults.has(entry.sourceKey) ? "Built in" : "Default",
+      // A layout of the library's for the same source stands in for it, as the workspace's own does.
+      badge: ownDefaults.has(entry.sourceKey) || libraryLayoutFor(entry) ? "Built in" : "Default",
       start: { type: "layout", sourceKey: entry.sourceKey, documentType: entry.documentType, targetType: entry.targetType, name: entry.name.replace(/ Default$/, "") },
       href: `/build/templates/${encodeURIComponent(entry.key)}`,
     });
   }
-  return out;
+  return [...out, ...libraryTemplates(library, ownDefaults, libraryDefaults)];
+}
+
+/** Corelith's library as starting points, beside the ones in code; each opens read-only and is used the same way. */
+function libraryTemplates(library: WorkspaceLibrary, ownDefaults: ReadonlySet<string>, libraryDefaults: ReadonlySet<string>): BuildTemplate[] {
+  const start = (kind: BuildLibraryKind, entry: { key: string; title: string }): TemplateStart => ({ type: "library", kind, key: entry.key, name: entry.title });
+  return [
+    ...library.visitForms.map((entry) => ({
+      key: `library:${entry.key}`,
+      name: entry.title,
+      description: entry.summary ?? `${questions(asked(entry.payload.fields))}${entry.payload.quoteLines.length ? "; drafts the quote" : ""}`,
+      group: "forms" as const,
+      usedBy: "crm" as const,
+      badge: null,
+      start: start("VISIT_FORM", entry),
+      href: libraryHref("VISIT_FORM", entry.key),
+    })),
+    ...library.enquiryForms.map((entry) => ({
+      key: `library:${entry.key}`,
+      name: entry.title,
+      description: entry.summary ?? `Who, the job and ${questions(asked(entry.payload.fields))}; each answer makes a lead`,
+      group: "forms" as const,
+      usedBy: "crm" as const,
+      badge: null,
+      start: start("ENQUIRY_FORM", entry),
+      href: libraryHref("ENQUIRY_FORM", entry.key),
+    })),
+    ...library.blockTemplates.map((entry) => ({
+      key: `library:${entry.key}`,
+      name: entry.title,
+      description: entry.summary ?? entry.payload.attributes.description ?? "",
+      group: blockGroup(entry.payload.kind),
+      usedBy: "crm" as const,
+      badge: null,
+      start: start("BLOCK_TEMPLATE", entry),
+      href: libraryHref("BLOCK_TEMPLATE", entry.key, entry.payload.kind),
+    })),
+    ...library.layouts.map((entry) => ({
+      key: `library:${entry.key}`,
+      name: entry.title,
+      description: entry.summary ?? "",
+      group: "documents" as const,
+      usedBy: layoutUser(entry.payload.sourceKey),
+      badge: libraryDefaults.has(entry.id) && !ownDefaults.has(entry.payload.sourceKey) ? "Default" : null,
+      start: start("LAYOUT", entry),
+      href: libraryHref("LAYOUT", entry.key),
+    })),
+  ];
 }
 
 /** The workspace's own forms, documents and emails, as templates to open. */
@@ -143,12 +230,18 @@ export type TemplatesView = {
   retired: BuildTemplate[];
 };
 
-export function templatesView(items: readonly BuildItem[], provisions: BuildProvisions, enabledFeatures: readonly string[] | undefined): TemplatesView {
+export function templatesView(
+  items: readonly BuildItem[],
+  provisions: BuildProvisions,
+  enabledFeatures: readonly string[] | undefined,
+  library: WorkspaceLibrary = EMPTY_LIBRARY,
+): TemplatesView {
   return {
     corelith: corelithTemplates(
       provisions,
       enabledFeatures,
       new Set(items.filter((item) => item.source === "layout" && item.isDefault && item.status !== "retired" && item.sourceKey).map((item) => item.sourceKey!)),
+      library,
     ),
     made: ownTemplates(items.filter((item) => item.status !== "retired")),
     retired: ownTemplates(items.filter((item) => item.status === "retired")),

@@ -1,6 +1,6 @@
 import type { OperatorRole } from "@prisma/client";
 
-import { Buildings, GearSix, Badge as IdentificationBadge, MapPin, Receipt, Scroll, SquaresFour, Stack, ToggleRight, Tray, Users, type LucideIcon } from "@/lib/icons";
+import { Buildings, GearSix, Badge as IdentificationBadge, BookOpen, MapPin, Receipt, Scroll, SquaresFour, Stack, ToggleRight, Tray, Users, type LucideIcon } from "@/lib/icons";
 
 export type AdminContext =
   | { kind: "all" }
@@ -35,6 +35,7 @@ export function adminNavItems(context: AdminContext, role: OperatorRole): AdminN
     { href: "/admin/people", label: "People", icon: Users },
     { href: "/admin/payments", label: "Payments", icon: Receipt },
     { href: "/admin/catalogue", label: "Catalogue", icon: Stack },
+    { href: "/admin/library", label: "Library", icon: BookOpen },
     { href: "/admin/audit", label: "Audit log", short: "Audit", icon: Scroll },
     ...(role === "OWNER" ? [{ href: "/admin/operators", label: "Operators", icon: IdentificationBadge }] : []),
   ];

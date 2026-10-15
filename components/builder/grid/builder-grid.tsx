@@ -35,6 +35,7 @@ export function BuilderGrid({
   shelf,
   shelfLabel = "Questions this board asks",
   shelfTall = false,
+  framed = false,
 }: {
   /** Whose sizes these are among the builders: "report", "arrange", "form"… */
   scope: string;
@@ -52,6 +53,8 @@ export function BuilderGrid({
   shelfLabel?: string;
   /** Vane has a note in the shelf: it opens taller (340 rather than 272). */
   shelfTall?: boolean;
+  /** The grid fills the frame it is put in, rather than the window. */
+  framed?: boolean;
 }) {
   const { sizes, resize, keep } = usePanelSizes(scope);
   const shelfHeight = shelfTall ? Math.max(sizes.shelf, 340) : sizes.shelf;
@@ -78,7 +81,7 @@ export function BuilderGrid({
   } as React.CSSProperties;
 
   return (
-    <Kit className="rb-root">
+    <Kit className={framed ? "rb-root is-framed" : "rb-root"}>
       <div className={classes} style={style}>
         {outline ? (
           <aside className="panel-m rb-out" aria-label="Outline">

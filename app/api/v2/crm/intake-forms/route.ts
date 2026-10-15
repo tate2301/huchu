@@ -9,6 +9,7 @@ import {
   crmIntakeFormConfigSchema,
   crmIntakeServicesSchema,
 } from "@/lib/crm/intake-schema";
+import { copyLibraryEnquiryForm } from "@/lib/library/copy";
 import { isCompanyUser, requireCrmCapability } from "../_helpers";
 
 const createSchema = z.object({
@@ -22,6 +23,9 @@ const createSchema = z.object({
   fields: crmIntakeFieldsSchema,
   services: crmIntakeServicesSchema,
 });
+
+/** A copy of one of Corelith's library, by its address: named and kept paused here. */
+const librarySchema = z.object({ library: z.string().min(1).max(120) }).strict();
 
 function generatePublicToken(): string {
   return randomBytes(9).toString("base64url");
@@ -80,7 +84,14 @@ export async function POST(request: NextRequest) {
     const { session } = sessionResult;
     if (!await requireCrmCapability(session, "settings.manage")) return errorResponse("Manager access required", 403);
 
-    const data = createSchema.parse(await request.json());
+    const body = await request.json();
+    const fromLibrary = librarySchema.safeParse(body);
+    if (fromLibrary.success) {
+      const copy = await copyLibraryEnquiryForm(session.user.companyId, session.user.id, fromLibrary.data.library);
+      if (!copy) return errorResponse("That form is not in Corelith's library for this workspace", 404);
+      return successResponse(copy, 201);
+    }
+    const data = createSchema.parse(body);
     // Cross-field rules (duplicate field keys / service ids).
     crmIntakeFormConfigSchema.parse({ fields: data.fields, services: data.services });
     if (!(await isCompanyUser(session.user.companyId, data.defaultAssigneeId))) {

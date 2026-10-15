@@ -27,10 +27,11 @@ export function BuilderBar({
   lead?: React.ReactNode;
   mode: BuilderMode;
   onMode: (mode: BuilderMode) => void;
-  saved: SavedState;
+  /** Left out where the page around the builder saves it (the admin portal's library). */
+  saved?: SavedState;
   actions?: React.ReactNode;
-  /** The bar's primary: Publish, or what stands for it where nothing can be published (Use this template). */
-  publish: { label?: string; icon?: IconName; onPublish: () => void; disabled?: boolean; busy?: boolean };
+  /** The bar's primary: Publish, or what stands for it where nothing can be published (Use this template). Left out, the bar has none. */
+  publish?: { label?: string; icon?: IconName; onPublish: () => void; disabled?: boolean; busy?: boolean };
 }) {
   useShortcut("P", () => onMode(mode === "build" ? "preview" : "build"));
   return (
@@ -64,7 +65,7 @@ export function BuilderBar({
         ]}
       />
       <div className="tb-r">
-        {saved.state === "saved" ? (
+        {!saved ? null : saved.state === "saved" ? (
           <span className="saved">
             <Icon name="check" />
             {saved.at ? `Saved ${saved.at}` : "Saved"}
@@ -76,16 +77,18 @@ export function BuilderBar({
           </span>
         )}
         {actions}
-        <Button
-          variant="primary"
-          icon={publish.icon ?? "publish"}
-          shortcut="Ctrl ↵"
-          onClick={publish.onPublish}
-          disabled={publish.disabled}
-          busy={publish.busy}
-        >
-          {publish.label ?? "Publish"}
-        </Button>
+        {publish ? (
+          <Button
+            variant="primary"
+            icon={publish.icon ?? "publish"}
+            shortcut="Ctrl ↵"
+            onClick={publish.onPublish}
+            disabled={publish.disabled}
+            busy={publish.busy}
+          >
+            {publish.label ?? "Publish"}
+          </Button>
+        ) : null}
       </div>
     </>
   );

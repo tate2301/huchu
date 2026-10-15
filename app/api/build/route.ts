@@ -4,6 +4,7 @@ import { errorResponse, successResponse, validateSession } from "@/lib/api-utils
 import { buildBadges, buildCounts, buildFinding } from "@/lib/build/items";
 import { readBuildItems } from "@/lib/build/read";
 import { templatesView } from "@/lib/build/templates";
+import { readWorkspaceLibrary } from "@/lib/library/workspace";
 
 /**
  * Everything this workspace has built, the templates it can start from, and
@@ -15,13 +16,16 @@ export async function GET(request: NextRequest) {
     const sessionResult = await validateSession(request);
     if (sessionResult instanceof NextResponse) return sessionResult;
     const { user } = sessionResult.session;
-    const { items, provisions } = await readBuildItems({
-      companyId: user.companyId,
-      userId: user.id,
-      role: user.role,
-      enabledFeatures: user.enabledFeatures,
-    });
-    const templates = templatesView(items, provisions, user.enabledFeatures);
+    const [{ items, provisions }, library] = await Promise.all([
+      readBuildItems({
+        companyId: user.companyId,
+        userId: user.id,
+        role: user.role,
+        enabledFeatures: user.enabledFeatures,
+      }),
+      readWorkspaceLibrary(user.companyId, user.enabledFeatures),
+    ]);
+    const templates = templatesView(items, provisions, user.enabledFeatures, library);
     const counts = buildCounts(items);
     return successResponse({
       items,

@@ -1,9 +1,9 @@
 import type { AuthenticatedSession } from "@/lib/auth-core/types";
 import { formatFigure } from "@/components/retail/insights/format";
+import { offeredTemplates } from "@/lib/library/reports";
 import { prisma } from "@/lib/prisma";
 import { readableSources } from "@/lib/reports/custom/sources";
 import { listCustomReports } from "@/lib/reports/custom/store";
-import { templateReads, templatesFor } from "@/lib/reports/custom/templates";
 import { readerOf } from "@/lib/reports/custom/sources";
 import {
   between,
@@ -84,7 +84,6 @@ async function verticalReports(reader: Reader, vertical: Vertical, sources: Awai
   };
   const areaOfKey = new Map(sources.map((source) => [source.key, source.area]));
   const areaOfTable = new Map(sources.map((source) => [sqlName(source.key), source.area]));
-  const reads = templateReads();
   const corelith: OpenedSource[] = sources
     .filter((source) => !source.list && !source.report && areas.includes(source.area))
     .map((source) => ({
@@ -98,12 +97,12 @@ async function verticalReports(reader: Reader, vertical: Vertical, sources: Awai
       lastOpenedAt: null,
       lastOpenedBy: null,
     }));
-  const built: OpenedSource[] = templatesFor(sources, { id: session.user.id, role: session.user.role }, session.user.workspaceProfile)
+  const built: OpenedSource[] = (await offeredTemplates(session, sources))
     .map((template) => ({
       id: `built-${template.key}`,
       title: template.title,
       href: `/reports/built/${template.key}`,
-      area: (reads.get(template.key) ?? []).map((key) => areaOfKey.get(key)).find(Boolean) ?? null,
+      area: template.reads.map((key) => areaOfKey.get(key)).find(Boolean) ?? null,
       madeBy: null,
       seenBy: template.audience === "MANAGERS" ? ("Managers" as const) : ("Everyone" as const),
       opens: 0,

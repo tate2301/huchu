@@ -175,54 +175,8 @@ export function EnquiryFormBuilder({ id }: { id: string }) {
       onPublish={() => save.mutate({ next: { ...draft, isActive: true }, published: true })}
       publishing={save.isPending}
       canEdit
-      before={
-        <section className="fs">
-          {draft.headline || draft.description ? (
-            <div className="rb-sec">
-              {draft.headline ? <h2>{draft.headline}</h2> : null}
-              {draft.description ? <p>{draft.description}</p> : null}
-            </div>
-          ) : null}
-          <div className="rb-fixed" inert>
-            <div className="pl-h">Asked on every enquiry</div>
-            {CONTACT.map((field) => (
-              <FieldInput key={field.key} field={field} mode="preview" idPrefix="contact" />
-            ))}
-            {draft.services.length ? (
-              <div className="qr">
-                <div className="qr-l">
-                  <span className="qr-q">What are you interested in?</span>
-                </div>
-                <div className="qr-in rb-pills">
-                  {draft.services.map((service) => (
-                    <span key={service.id} className="pill pill-plain">
-                      {service.label || "Service"}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            ) : null}
-          </div>
-        </section>
-      }
-      after={
-        <div className="rb-fixed" inert>
-          {draft.allowPhotos ? (
-            <div className="qr">
-              <div className="qr-l">
-                <span className="qr-q">Photos</span>
-                <span className="qr-m">Up to {draft.maxPhotos}</span>
-              </div>
-            </div>
-          ) : null}
-          <FieldInput field={MESSAGE} mode="preview" idPrefix="fixed" />
-          <span className="btn" style={{ alignSelf: "flex-start" }}>
-            Send
-          </span>
-          <div className="pl-h">After it is sent</div>
-          <p className="rb-note-q">{draft.successMessage || "Thank you. We will be in touch."}</p>
-        </div>
-      }
+      before={<EnquiryBefore draft={draft} />}
+      after={<EnquiryAfter draft={draft} />}
       foot={
         <>
           <span>
@@ -240,39 +194,14 @@ export function EnquiryFormBuilder({ id }: { id: string }) {
           <Field label="Name" htmlFor="enquiry-name">
             <Input id="enquiry-name" value={draft.name} onChange={(event) => set({ name: event.target.value })} />
           </Field>
-          <Field label="Headline" htmlFor="enquiry-headline" optional help="The title the customer sees; the name is used when there is none.">
-            <Input id="enquiry-headline" value={draft.headline} placeholder={draft.name} onChange={(event) => set({ headline: event.target.value })} />
-          </Field>
-          <Field label="Under the title" htmlFor="enquiry-description" optional>
-            <TextArea id="enquiry-description" value={draft.description} placeholder="We reply within a working day" onChange={(event) => set({ description: event.target.value })} />
-          </Field>
-          <Field label="After sending" htmlFor="enquiry-thanks" optional>
-            <TextArea id="enquiry-thanks" value={draft.successMessage} placeholder="Thank you. We will be in touch." onChange={(event) => set({ successMessage: event.target.value })} />
-          </Field>
+          <EnquiryWords draft={draft} name={draft.name} onChange={set} />
           <Setting
             htmlFor="enquiry-active"
             title="Taking enquiries"
             description={draft.isActive ? "The public link takes enquiries" : "Paused: the link says so"}
             control={<Switch id="enquiry-active" checked={draft.isActive} onCheckedChange={(isActive) => set({ isActive })} />}
           />
-          <Setting
-            htmlFor="enquiry-photos"
-            title="Photos"
-            description={draft.allowPhotos ? `Up to ${draft.maxPhotos}` : "Not asked for"}
-            control={<Switch id="enquiry-photos" checked={draft.allowPhotos} onCheckedChange={(allowPhotos) => set({ allowPhotos })} />}
-          />
-          {draft.allowPhotos ? (
-            <Field label="How many photos" htmlFor="enquiry-max">
-              <Select id="enquiry-max" value={String(draft.maxPhotos)} onChange={(event) => set({ maxPhotos: Number(event.target.value) })}>
-                {PHOTO_LIMITS.map((count) => (
-                  <option key={count} value={count}>
-                    Up to {count}
-                  </option>
-                ))}
-              </Select>
-            </Field>
-          ) : null}
-          <Services services={draft.services} onChange={(services) => set({ services })} />
+          <EnquiryAsks draft={draft} onChange={set} />
           <Field label="Public link" htmlFor="enquiry-link">
             <Input id="enquiry-link" className="mono" readOnly value={publicPath} onFocus={(event) => event.currentTarget.select()} />
           </Field>
@@ -320,6 +249,108 @@ export function EnquiryFormBuilder({ id }: { id: string }) {
         </>
       }
     />
+  );
+}
+
+/** What an enquiry form says and asks beyond its questions: the part a library item carries too. */
+export type EnquiryContent = Pick<Draft, "headline" | "description" | "successMessage" | "allowPhotos" | "maxPhotos" | "services">;
+
+/** On the paper above the form's questions: its headline, and what every enquiry asks. */
+export function EnquiryBefore({ draft }: { draft: EnquiryContent }) {
+  return (
+    <section className="fs">
+      {draft.headline || draft.description ? (
+        <div className="rb-sec">
+          {draft.headline ? <h2>{draft.headline}</h2> : null}
+          {draft.description ? <p>{draft.description}</p> : null}
+        </div>
+      ) : null}
+      <div className="rb-fixed" inert>
+        <div className="pl-h">Asked on every enquiry</div>
+        {CONTACT.map((field) => (
+          <FieldInput key={field.key} field={field} mode="preview" idPrefix="contact" />
+        ))}
+        {draft.services.length ? (
+          <div className="qr">
+            <div className="qr-l">
+              <span className="qr-q">What are you interested in?</span>
+            </div>
+            <div className="qr-in rb-pills">
+              {draft.services.map((service) => (
+                <span key={service.id} className="pill pill-plain">
+                  {service.label || "Service"}
+                </span>
+              ))}
+            </div>
+          </div>
+        ) : null}
+      </div>
+    </section>
+  );
+}
+
+/** On the paper under the form's questions: photos, the message, Send, and what the customer is told. */
+export function EnquiryAfter({ draft }: { draft: EnquiryContent }) {
+  return (
+    <div className="rb-fixed" inert>
+      {draft.allowPhotos ? (
+        <div className="qr">
+          <div className="qr-l">
+            <span className="qr-q">Photos</span>
+            <span className="qr-m">Up to {draft.maxPhotos}</span>
+          </div>
+        </div>
+      ) : null}
+      <FieldInput field={MESSAGE} mode="preview" idPrefix="fixed" />
+      <span className="btn" style={{ alignSelf: "flex-start" }}>
+        Send
+      </span>
+      <div className="pl-h">After it is sent</div>
+      <p className="rb-note-q">{draft.successMessage || "Thank you. We will be in touch."}</p>
+    </div>
+  );
+}
+
+/** The words around the form: its headline, the line under it, and what is said after sending. */
+export function EnquiryWords({ draft, name, onChange }: { draft: EnquiryContent; name: string; onChange: (patch: Partial<EnquiryContent>) => void }) {
+  return (
+    <>
+      <Field label="Headline" htmlFor="enquiry-headline" optional help="The title the customer sees; the name is used when there is none.">
+        <Input id="enquiry-headline" value={draft.headline} placeholder={name} onChange={(event) => onChange({ headline: event.target.value })} />
+      </Field>
+      <Field label="Under the title" htmlFor="enquiry-description" optional>
+        <TextArea id="enquiry-description" value={draft.description} placeholder="We reply within a working day" onChange={(event) => onChange({ description: event.target.value })} />
+      </Field>
+      <Field label="After sending" htmlFor="enquiry-thanks" optional>
+        <TextArea id="enquiry-thanks" value={draft.successMessage} placeholder="Thank you. We will be in touch." onChange={(event) => onChange({ successMessage: event.target.value })} />
+      </Field>
+    </>
+  );
+}
+
+/** What it asks besides the questions: photos, and the services a customer can pick. */
+export function EnquiryAsks({ draft, onChange }: { draft: EnquiryContent; onChange: (patch: Partial<EnquiryContent>) => void }) {
+  return (
+    <>
+      <Setting
+        htmlFor="enquiry-photos"
+        title="Photos"
+        description={draft.allowPhotos ? `Up to ${draft.maxPhotos}` : "Not asked for"}
+        control={<Switch id="enquiry-photos" checked={draft.allowPhotos} onCheckedChange={(allowPhotos) => onChange({ allowPhotos })} />}
+      />
+      {draft.allowPhotos ? (
+        <Field label="How many photos" htmlFor="enquiry-max">
+          <Select id="enquiry-max" value={String(draft.maxPhotos)} onChange={(event) => onChange({ maxPhotos: Number(event.target.value) })}>
+            {PHOTO_LIMITS.map((count) => (
+              <option key={count} value={count}>
+                Up to {count}
+              </option>
+            ))}
+          </Select>
+        </Field>
+      ) : null}
+      <Services services={draft.services} onChange={(services) => onChange({ services })} />
+    </>
   );
 }
 

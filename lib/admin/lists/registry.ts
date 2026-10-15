@@ -2,6 +2,7 @@ import { auditSource, workspaceAuditSource } from "./audit";
 import { catalogueBundlesSource, catalogueFeaturesSource, catalogueTemplatesSource } from "./catalogue";
 import type { AdminListSource } from "./engine";
 import { workspaceBundlesSource, workspaceFeaturesSource, workspaceVerticalsSource } from "./features";
+import { librarySource } from "./library";
 import { membersSource } from "./members";
 import { operatorsSource } from "./operators";
 import { paymentsSource } from "./payments";
@@ -25,6 +26,7 @@ const SOURCES: AdminListSource[] = [
   operatorsSource,
   auditSource,
   workspaceAuditSource,
+  librarySource,
 ];
 
 const BY_KEY = new Map(SOURCES.map((source) => [source.key, source]));

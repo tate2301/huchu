@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { defaultTemplateSchema, parseTemplateSchema, type DocumentTemplateSchema } from "@/lib/documents/template-schema";
 import { resolveCatalogTemplateEntry } from "@/lib/documents/default-template-catalog";
+import { libraryLayoutById, libraryLayoutFor } from "@/lib/library/workspace";
 
 export type TemplateResolutionInput = {
   companyId: string;
@@ -22,20 +23,24 @@ function chooseVersion(versions: Array<{ id: string; schemaJson: string; isPubli
   return published ?? versions[0] ?? null;
 }
 
-async function findDefaultTemplate(input: {
+type DefaultLookup = {
   companyId: string;
   documentType: TemplateResolutionInput["documentType"];
   targetType: TemplateResolutionInput["targetType"];
   sourceKey: string;
-}) {
-  const whereBase = {
+};
+
+const defaultWhere = (input: DefaultLookup) =>
+  ({
     documentType: input.documentType,
     targetType: input.targetType,
     isDefault: true,
     isActive: true,
-  } as const;
+  }) as const;
 
-  const companyDefault = await prisma.documentTemplate.findFirst({
+function findCompanyDefault(input: DefaultLookup) {
+  const whereBase = defaultWhere(input);
+  return prisma.documentTemplate.findFirst({
     where: {
       ...whereBase,
       companyId: input.companyId,
@@ -49,8 +54,10 @@ async function findDefaultTemplate(input: {
     },
     orderBy: [{ updatedAt: "desc" }],
   });
-  if (companyDefault) return companyDefault;
+}
 
+async function findSystemDefault(input: DefaultLookup) {
+  const whereBase = defaultWhere(input);
   const systemExact = await prisma.documentTemplate.findFirst({
     where: {
       ...whereBase,
@@ -135,14 +142,25 @@ export async function resolveTemplate(input: TemplateResolutionInput): Promise<T
         templateSchema: chosen ? parseTemplateSchema(chosen.schemaJson) : defaultTemplateSchema,
       };
     }
+
+    // A layout of Corelith's library chosen for the document: no row of its own, so no id to record.
+    const fromLibrary = template ? null : await libraryLayoutById(input.companyId, input.templateId);
+    if (fromLibrary) return { templateId: null, templateVersionId: null, templateSchema: fromLibrary.payload.schema };
   }
 
-  const selected = await findDefaultTemplate({
+  const lookup: DefaultLookup = {
     companyId: input.companyId,
     documentType: input.documentType,
     targetType: input.targetType,
     sourceKey: input.sourceKey,
-  });
+  };
+  const companyDefault = await findCompanyDefault(lookup);
+  // The workspace's own default first; then the layout Corelith's library publishes to it; then the system's and the catalogue.
+  if (!companyDefault) {
+    const fromLibrary = await libraryLayoutFor(input.companyId, lookup);
+    if (fromLibrary) return { templateId: null, templateVersionId: null, templateSchema: fromLibrary.payload.schema };
+  }
+  const selected = companyDefault ?? (await findSystemDefault(lookup));
   if (!selected) {
     const catalogFallback = resolveCatalogTemplateEntry({
       sourceKey: input.sourceKey,
