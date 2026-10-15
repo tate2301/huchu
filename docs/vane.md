@@ -40,9 +40,9 @@ The connection to Claude (`lib/vane/claude.ts`), Vane's tables, the two roles it
 
 `toolDefinitions()` is what Claude is shown: each tool's name, a sentence on what it does, and its input as JSON Schema from the same zod schema the call is checked against. `callTool(context, name, input)` runs one call: an input that does not fit, or a question the reader refused or Postgres turned down, comes back as an error result for Claude to correct; anything else is thrown for the job. `lib/vane/tools.test.ts` covers each tool and those errors.
 
-### Its actions (`lib/vane/actions/`)
+### Its actions (`lib/vane/actions/`, over operations)
 
-What Vane proposes on a card or in a chat answer is a `VaneAction`: a kind from the registry, its inputs, and a line saying what it does. Nothing runs until a person approves it (`POST /api/vane/actions/[id]`); then the engine (`engine.ts`) checks the inputs again, takes only the changes the kind lets a person make (a due date, a note), checks the approver's role and the workspace's features for the route the app would use (`gate.ts`: an action calls module code directly, so it would otherwise skip both), and runs it as them. Done keeps what happened; a failure keeps why and can be approved again; denied stays denied. When a card's actions are all done, the card is taken further by that person.
+Vane is an integration (`lib/vane/integration.ts`, `docs/platform/integrations.md`): what it proposes is an [operation](platform/operations.md), published by the product it acts in (`lib/<product>/operations.ts`), from those its integration names (`vaneOperations()`, every one). What Vane proposes on a card or in a chat answer is a `VaneAction`: the operation's key, its inputs, and a line saying what it does. Nothing runs until a person approves it (`POST /api/vane/actions/[id]`); then the engine (`engine.ts`) checks the inputs again, takes only the changes the operation lets a person make (a due date, a note), runs the operation's own checks as the approver (`authorize`: the route's role and feature gate, `routeGate` in `lib/operations/gate.ts`, and the product's own, such as who owns the record and the CRM capability), and runs it as them, through Vane. Done keeps what happened; a failure keeps why and can be approved again; denied stays denied. When a card's actions are all done, the card is taken further by that person.
 
 | Kind | Runs | As the app's |
 | --- | --- | --- |
@@ -64,9 +64,17 @@ What Vane proposes on a card or in a chat answer is a `VaneAction`: a kind from 
 | `assets.work_order.raise`, `assets.work_order.discard` | `raiseWorkOrder` (the workshop is told), `deleteVaneDraftWorkOrder` (`lib/maintenance/work-orders.ts`) | `POST /api/work-orders` |
 | `schools.fees.remind` | `sendSchoolNotice`, one per ticked family, each with its own name, pupil and amount. The card changes the words; its page (`/schools/finance/reminders/[id]`) also ticks and unticks families (`pageFields: ["skip"]`) | `POST /api/v2/schools/notices` |
 | `reports.template.save` | `createTemplate` (`lib/reports/templates.ts`): a report as it opens, with Vane's grouping, filters and search, kept as a template just for the approver | Reports' own |
+| `crm.quote.create` | `createQuotationForLead` (`lib/crm/accounting-bridge.ts`): a quote on a deal or lead, issued as the approver's; only on a record they may change, with Issue quotes and invoices | `POST /api/v2/crm/{deals,leads}/[id]/quotation` |
+| `crm.invoice.create` | `createInvoiceForLead`: from one of the record's quotes or line by line, issued and posted | `POST /api/v2/crm/{deals,leads}/[id]/invoice` |
+| `crm.receipt.record` | `recordReceiptForLead`: money against one of the record's invoices, never more than is owed; a record paid in full is won | `POST /api/v2/crm/{deals,leads}/[id]/receipt` |
+| `crm.lead.create` | `createLead` (`lib/crm/create-lead.ts`, now also the route's): numbered, scored, assigned, the lead rules run | `POST /api/v2/crm/leads` |
+| `crm.email.send` | `sendCrmEmail` (`lib/crm/send-email.ts`): an email to an address the record holds, from the workspace's name, logged on the record | `POST /api/v2/crm/activities` |
+| `crm.document.email` | `emailDocumentToClient`: a quote or invoice with its PDF and its link, as the document's Send; refuses Vane's draft nobody has taken on | `POST /api/v2/crm/{deals,leads}/[id]/documents/[docId]/email` |
+| `people.permission.set` | `changeUserPermission` (`lib/platform/change-permission.ts`, now also the route's): a feature or CRM capability allowed, denied or back to the role's default; a manager or admin, never one's own | `POST /api/users/permissions` |
+| `retail.promotion.create` | `createPromotion` (`lib/retail/promotions/service.ts`), checked as the Promotions page checks it | `POST /api/v2/retail/promotions` |
 | `vane.plan.tick_step` | `tickPlanStep` (`lib/vane/lists.ts`) | Vane's own |
 
-Each runs as the approving person: drafts carry their name, not `madeByVane`. `lib/vane/actions/modules.test.ts` runs each module's actions against the test database. A new action is a `VaneActionKind` in its module's file, listed in `registry.ts`. Claude is shown each kind's description and inputs, and the pages it may link to with their filters (`lib/vane/pages.ts`), so its links open filtered to the records it means.
+Each runs as the approving person: drafts carry their name, not `madeByVane`. `lib/operations/modules.test.ts` and `lib/operations/new-operations.db.test.ts` run them against the test database. A new one is an operation in its product's `operations.ts`, listed in `lib/operations/registry.ts` (`docs/platform/operations.md`). Claude is shown each operation's key, name, description and inputs, and the pages it may link to with their filters (`lib/vane/pages.ts`), so its links open filtered to the records it means.
 
 ### In the CRM
 

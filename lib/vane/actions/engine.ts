@@ -1,18 +1,34 @@
 import type { Prisma, PrismaClient, VaneActionStatus } from "@prisma/client";
 
-import { VANE_ACTIONS } from "./registry";
-import { VaneActionError, type VaneActionContext, type VaneActionField, type VaneActionKind } from "./types";
+import { operationsFor } from "@/lib/integrations/types";
+import { findOperation } from "@/lib/operations/registry";
+import { OperationRefused, outcomeWords, type Operation, type OperationActor, type OperationField } from "@/lib/operations/types";
+
+import { VANE_INTEGRATION } from "../integration";
 
 /**
- * Vane's actions (`VaneAction`): what it proposes on a card or in a chat
- * answer, and a person's decision. Nothing runs until a person approves it,
- * and then it runs through the module's own code as that person (the request
- * that approves it carries their session, so the app's activity log records
- * it as theirs). Denied actions are kept, so Vane does not ask again.
+ * Vane's actions (`VaneAction`): the operations it proposes on a card or in a
+ * chat answer (`lib/operations`), and a person's decision. Nothing runs until
+ * a person approves it, and then the operation runs through the module's own
+ * code as that person, through Vane (the request that approves it carries
+ * their session, so the app's activity log records it as theirs). Denied
+ * actions are kept, so Vane does not ask again.
  */
 
 type Db = Pick<PrismaClient, "vaneAction" | "vaneItem">;
-type Registry = readonly VaneActionKind<never>[];
+type Registry = readonly Operation<never>[];
+
+/**
+ * The operations Vane may propose: those its integration names. Read when
+ * asked, not when this file loads: the registry imports Vane's own operation,
+ * which comes back here.
+ */
+export function vaneOperations(): Registry {
+  return operationsFor(VANE_INTEGRATION);
+}
+
+/** Who an approved action runs as: the person who approved it, through Vane. */
+export type ApproverContext = Omit<OperationActor, "via">;
 
 export type VaneActionView = {
   id: string;
@@ -24,7 +40,7 @@ export type VaneActionView = {
   /** The page it acts on, filtered to its records. */
   target: string | null;
   /** What a person may change before approving, with the values Vane proposed. */
-  fields: Array<VaneActionField & { value: unknown }>;
+  fields: Array<OperationField & { value: unknown }>;
   status: "proposed" | "approved" | "done" | "failed" | "denied";
   result: string | null;
   decidedBy: string | null;
@@ -39,9 +55,7 @@ const STATUS: Record<VaneActionStatus, VaneActionView["status"]> = {
   DENIED: "denied",
 };
 
-function find(registry: Registry, kind: string): VaneActionKind | null {
-  return (registry.find((action) => action.kind === kind) as VaneActionKind | undefined) ?? null;
-}
+const find = (registry: Registry, key: string) => findOperation(key, registry);
 
 const asParams = (value: Prisma.JsonValue): Record<string, unknown> =>
   value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
@@ -57,14 +71,14 @@ type ActionRow = {
   decidedBy: { name: string } | null;
 };
 
-export function toActionView(row: ActionRow, registry: Registry = VANE_ACTIONS): VaneActionView {
+export function toActionView(row: ActionRow, registry: Registry = vaneOperations()): VaneActionView {
   const action = find(registry, row.kind);
   const params = asParams(row.params);
-  const parsed = action?.params.safeParse(params);
+  const parsed = action?.input.safeParse(params);
   return {
     id: row.id,
     kind: row.kind,
-    module: action?.module ?? row.kind.split(".")[0] ?? "vane",
+    module: action?.product ?? row.kind.split(".")[0] ?? "vane",
     title: row.title,
     verb: action && parsed?.success ? action.verb(parsed.data) : "Approve",
     target: action && parsed?.success ? action.target(parsed.data, row.id) : null,
@@ -100,17 +114,17 @@ export async function proposeActions(
   db: Pick<PrismaClient, "vaneAction">,
   where: { companyId: string; itemId?: string | null; messageId?: string | null },
   proposals: ActionProposal[],
-  registry: Registry = VANE_ACTIONS,
+  registry: Registry = vaneOperations(),
 ): Promise<{ proposed: Array<{ id: string; title: string }>; refused: Array<{ kind: string; why: string }> }> {
   const proposed: Array<{ id: string; title: string }> = [];
   const refused: Array<{ kind: string; why: string }> = [];
   for (const proposal of proposals) {
     const action = find(registry, proposal.kind);
     if (!action) {
-      refused.push({ kind: proposal.kind, why: `There is no action ${proposal.kind}.` });
+      refused.push({ kind: proposal.kind, why: `There is no operation ${proposal.kind} that Vane may use.` });
       continue;
     }
-    const parsed = action.params.safeParse(proposal.params);
+    const parsed = action.input.safeParse(proposal.params);
     if (!parsed.success) {
       refused.push({ kind: proposal.kind, why: parsed.error.issues.map((issue) => `${issue.path.join(".")}: ${issue.message}`).join("; ") });
       continue;
@@ -120,7 +134,7 @@ export async function proposeActions(
         companyId: where.companyId,
         itemId: where.itemId ?? null,
         messageId: where.messageId ?? null,
-        kind: action.kind,
+        kind: action.key,
         title: action.title(parsed.data),
         params: parsed.data as Prisma.InputJsonValue,
       },
@@ -146,13 +160,13 @@ export type DecisionOutcome =
  */
 export async function decideAction(
   db: Db,
-  context: VaneActionContext,
+  approver: ApproverContext,
   id: string,
   decision: ActionDecision,
-  registry: Registry = VANE_ACTIONS,
+  registry: Registry = vaneOperations(),
   now: () => Date = () => new Date(),
 ): Promise<DecisionOutcome> {
-  const row = await db.vaneAction.findFirst({ where: { id, companyId: context.companyId }, select: ACTION_SELECT });
+  const row = await db.vaneAction.findFirst({ where: { id, companyId: approver.companyId }, select: ACTION_SELECT });
   if (!row) return { ok: false, status: 404, error: "There is no such action in this workspace." };
   const view = () => db.vaneAction.findUniqueOrThrow({ where: { id }, select: ACTION_SELECT }).then((fresh) => toActionView(fresh, registry));
   // A failed action can be approved again (the module refused it; the person may have fixed why).
@@ -162,7 +176,7 @@ export async function decideAction(
   if (!decision.approve) {
     await db.vaneAction.updateMany({
       where: { id, status: "PROPOSED" },
-      data: { status: "DENIED", decidedById: context.userId, decidedAt: now() },
+      data: { status: "DENIED", decidedById: approver.userId, decidedAt: now() },
     });
     return { ok: true, action: await view() };
   }
@@ -171,9 +185,10 @@ export async function decideAction(
   if (!action) return { ok: false, status: 400, error: "Vane no longer knows how to do this." };
   const editable = new Set([...action.fields.map((field) => field.name), ...(action.pageFields ?? [])]);
   const changes = Object.fromEntries(Object.entries(decision.changes ?? {}).filter(([name]) => editable.has(name)));
-  const parsed = action.params.safeParse({ ...asParams(row.params), ...changes });
+  const parsed = action.input.safeParse({ ...asParams(row.params), ...changes });
   if (!parsed.success) return { ok: false, status: 400, error: parsed.error.issues[0]?.message ?? "Those inputs are not right." };
-  const refusal = action.refuse(context, parsed.data);
+  const context: OperationActor = { ...approver, via: { kind: "integration", integration: VANE_INTEGRATION.key } };
+  const refusal = await action.authorize(context, parsed.data);
   if (refusal) return { ok: false, status: 403, error: refusal };
 
   const { count } = await db.vaneAction.updateMany({
@@ -189,14 +204,14 @@ export async function decideAction(
   if (count === 0) return { ok: false, status: 409, error: "Someone has already decided on this." };
 
   try {
-    const result = await action.run(context, parsed.data);
+    const result = outcomeWords(await action.run(context, parsed.data));
     await db.vaneAction.update({ where: { id }, data: { status: "DONE", result, doneAt: now() } });
   } catch (error) {
     const why =
-      error instanceof VaneActionError
+      error instanceof OperationRefused
         ? error.message
         : `It did not work: ${error instanceof Error ? error.message : "the module refused it"}.`;
-    if (!(error instanceof VaneActionError)) console.error(`[vane] action ${row.kind} failed`, error);
+    if (!(error instanceof OperationRefused)) console.error(`[vane] action ${row.kind} failed`, error);
     await db.vaneAction.update({ where: { id }, data: { status: "FAILED", result: why } });
   }
 
@@ -217,7 +232,7 @@ export async function actionsFor(
   db: Pick<PrismaClient, "vaneAction">,
   companyId: string,
   where: { itemIds?: string[]; messageIds?: string[] },
-  registry: Registry = VANE_ACTIONS,
+  registry: Registry = vaneOperations(),
 ): Promise<{ byItem: Map<string, VaneActionView[]>; byMessage: Map<string, VaneActionView[]> }> {
   const byItem = new Map<string, VaneActionView[]>();
   const byMessage = new Map<string, VaneActionView[]>();

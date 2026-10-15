@@ -1,17 +1,18 @@
 import { isRouteAllowedForRole } from "@/lib/auth-core/role-routes";
 import { canAccessRouteWithToken } from "@/lib/platform/gating/enforcer";
 
-import type { VaneActionContext } from "./types";
+import type { OperationActor } from "./types";
 
 /**
  * The checks the app's own route makes before it does this, made again for
- * the person approving: their role may use the route, and the workspace (and
- * this person) has the part of Corelith it belongs to. An action runs module
- * code directly, so without this it would skip both.
+ * the person it runs as: their role may use the route, and the workspace (and
+ * this person) has the part of Corelith it belongs to. An operation runs
+ * module code directly, so without this it would skip both. The route's own
+ * further checks (record ownership, capabilities) are the operation's to add.
  */
-export function refuseUnlessRoute(context: VaneActionContext, path: string, method = "POST"): string | null {
-  if (!isRouteAllowedForRole(context.role, path, method)) return "Your role cannot do this in the app, so Vane cannot do it for you.";
-  if (!canAccessRouteWithToken(path, context.session.user.enabledFeatures).allowed) {
+export function routeGate(actor: OperationActor, path: string, method = "POST"): string | null {
+  if (!isRouteAllowedForRole(actor.role, path, method)) return "Your role cannot do this in the app.";
+  if (!canAccessRouteWithToken(path, actor.session.user.enabledFeatures).allowed) {
     return "This part of Corelith is not on for you in this workspace.";
   }
   return null;

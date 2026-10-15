@@ -1,7 +1,7 @@
 import type { PrismaClient } from "@prisma/client";
 
 import { ACTION_SELECT, toActionView, type VaneActionView } from "@/lib/vane/actions/engine";
-import { remindParams, type ReminderParams } from "@/lib/vane/actions/schools";
+import { remindParams, type ReminderParams } from "@/lib/schools/operations";
 
 /**
  * The fee reminders Vane drafted, on their own page (the PageVaneSchool

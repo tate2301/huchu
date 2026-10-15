@@ -5,13 +5,8 @@ import { errorResponse, successResponse, validateSession } from "@/lib/api-utils
 import { clearUserFeatureOverrides } from "@/lib/platform/user-entitlements";
 import { prisma } from "@/lib/prisma";
 
-import {
-  appendUserManagementEvent,
-  canMutateUserManagement,
-  getManagedRolesForSession,
-  isManagedRole,
-  managedRoleSchema,
-} from "../_helpers";
+import { canMutateUserManagement, getManagedRolesForSession, isManagedRole, managedRoleSchema } from "../_helpers";
+import { appendUserManagementEvent } from "@/lib/platform/user-management-events";
 
 const roleChangeSchema = z.object({
   userId: z.string().uuid(),

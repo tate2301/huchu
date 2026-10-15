@@ -5,12 +5,8 @@ import { prisma } from "@/lib/prisma";
 import { countOverrides, getUserPermissionCatalog } from "@/lib/platform/permission-catalog";
 import { findLastSignInAt } from "@/lib/auth-core/last-sign-in";
 
-import {
-  appendUserManagementEvent,
-  canManageUserPermissions,
-  canMutateUserManagement,
-  canViewUserManagement,
-} from "../_helpers";
+import { canManageUserPermissions, canMutateUserManagement, canViewUserManagement } from "../_helpers";
+import { appendUserManagementEvent } from "@/lib/platform/user-management-events";
 
 /**
  * Everything about one person, in one place.
