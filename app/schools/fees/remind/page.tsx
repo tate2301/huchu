@@ -40,7 +40,7 @@ export default function RemindFamiliesPage() {
     mutationFn: (approve: boolean) =>
       fetchJson<{ action: VaneActionView }>(`/api/vane/actions/${draft!.actionId}`, {
         method: "POST",
-        body: JSON.stringify(approve ? { approve: true, changes: { message: words, leaveOut: left } } : { approve: false }),
+        body: JSON.stringify(approve ? { approve: true, changes: { body: words, leaveOut: left } } : { approve: false }),
       }),
     onSuccess: ({ action }, approve) => {
       void queryClient.invalidateQueries({ queryKey: ["schools", "fees", "reminders"] });

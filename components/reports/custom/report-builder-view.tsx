@@ -97,9 +97,14 @@ export type BuilderSuggestion = {
   block: QueryBlock;
   state: SuggestionState;
   busy?: boolean;
+  /** Vane wrote it on request ("Give Vane a change to make"): kept with its own title and look. */
+  written?: boolean;
   onKept: () => void;
   onDismiss: () => void;
 };
+
+/** "Give Vane a change to make": Vane writes one block, checked, shown as its suggestion until kept (`/api/vane/write/report-block`). */
+export type BuilderAsk = { onAsk: (request: string) => void; busy: boolean };
 
 type InspectorTab = "block" | "look" | "click" | "data" | "settings";
 type QueryView = "steps" | "sql";
@@ -239,6 +244,7 @@ export function ReportBuilderView({
   arrangement = "reports",
   onCopy,
   suggestion = null,
+  ask = null,
   filters = NO_FILTERS,
   onFilter,
 }: {
@@ -268,6 +274,8 @@ export function ReportBuilderView({
   /** Copy a source's or a column's name, for a query. */
   onCopy?: (text: string) => void;
   suggestion?: BuilderSuggestion | null;
+  /** Offered while Vane works for this workspace; absent while it is paused. */
+  ask?: BuilderAsk | null;
   /** The report's filters as set on this board, by column; they narrow its preview. */
   filters?: Readonly<Record<string, string>>;
   onFilter?: (column: string, value: string | null) => void;
@@ -275,6 +283,7 @@ export function ReportBuilderView({
   const [mode, setMode] = React.useState<BuilderMode>("build");
   const [tab, setTab] = React.useState<InspectorTab>("block");
   const [views, setViews] = React.useState<Record<string, QueryView>>({});
+  const [asked, setAsked] = React.useState("");
   const blocks = draft.document.blocks;
   const setBlocks = (next: CustomBlock[]) => onDraft({ ...draft, document: { ...draft.document, blocks: next } });
   const change = (patch: Partial<CustomReportInput>) => onDraft({ ...draft, ...patch });
@@ -330,13 +339,15 @@ export function ReportBuilderView({
 
   const keep = () => {
     if (!waiting) return;
-    const kept: QueryBlock = {
-      ...waiting.block,
-      id: freeBlockId("query", blocks),
-      name: freeBlockName(waiting.block.name, blocks),
-      title: waiting.item.name.charAt(0).toUpperCase() + waiting.item.name.slice(1),
-      display: { type: "table" },
-    };
+    const kept: QueryBlock = waiting.written
+      ? { ...waiting.block, id: freeBlockId("query", blocks), name: freeBlockName(waiting.block.name, blocks) }
+      : {
+          ...waiting.block,
+          id: freeBlockId("query", blocks),
+          name: freeBlockName(waiting.block.name, blocks),
+          title: waiting.item.name.charAt(0).toUpperCase() + waiting.item.name.slice(1),
+          display: { type: "table" },
+        };
     list.insert(kept);
     setPicked(kept.id);
     waiting.onKept();
@@ -786,13 +797,30 @@ export function ReportBuilderView({
         {result?.ok && result.rows.length > SHELF_ROWS ? <span className="muted">Showing {SHELF_ROWS}</span> : null}
       </div>
       {problem ? <p className="rb-problem" role="alert">{problem.message}</p> : result?.ok ? <ResultRows result={result} /> : null}
-      {waiting ? (
-        <div className="cl-in">
+      {ask ? (
+        <form
+          className="cl-in"
+          onSubmit={(event) => {
+            event.preventDefault();
+            const request = asked.trim();
+            if (!request || ask.busy) return;
+            ask.onAsk(request);
+            setAsked("");
+          }}
+        >
           <label className="input-wrap">
             <Icon name="suggestion" />
-            <input type="text" aria-label="Give Vane a change to make" placeholder="Give Vane a change to make" disabled title="Vane takes changes here once its engine runs" />
+            <input
+              type="text"
+              aria-label="Give Vane a change to make"
+              placeholder={ask.busy ? "Vane is writing it…" : "Give Vane a change to make"}
+              value={asked}
+              maxLength={1000}
+              disabled={ask.busy}
+              onChange={(event) => setAsked(event.target.value)}
+            />
           </label>
-        </div>
+        </form>
       ) : null}
     </>
   );

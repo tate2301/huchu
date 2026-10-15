@@ -113,7 +113,7 @@ export function RemindPageView({
                   </td>
                   <td className="num">{money(family.owed)}</td>
                   <td className="muted">{family.goesBy}</td>
-                  <td className="muted">{!on && vaneLeft && draft.leaveOutWhy ? sentence(draft.leaveOutWhy) : ""}</td>
+                  <td className="muted">{!on && vaneLeft && draft.leftOutWhy[family.studentId] ? sentence(draft.leftOutWhy[family.studentId]!) : ""}</td>
                 </tr>
               );
             })}

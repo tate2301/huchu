@@ -3,6 +3,7 @@ import { z } from "zod";
 import { acceptProposals } from "@/lib/books/bank";
 import { InvoiceRefused } from "@/lib/books/create-invoice";
 import { DueDateRefused, setInvoiceDueDate } from "@/lib/books/due-dates";
+import { deleteVaneDraftInvoice, DraftInvoiceRefused, issueDraftInvoice } from "@/lib/books/issue-invoice";
 import { draftInvoiceFromQuote, QuotationRefused } from "@/lib/books/quotations";
 import { sendInvoiceReminders } from "@/lib/books/reminders";
 import { prisma } from "@/lib/prisma";
@@ -120,4 +121,52 @@ const fromQuote = {
   },
 } satisfies VaneActionKind<{ quotationId: string; quotationNumber: string; customerId?: string; customer: string; invoiceDate: string; dueDate?: string }>;
 
-export const BOOKS_ACTIONS = [dueDate, reminders, bankMatches, fromQuote] as const;
+const issue = {
+  kind: "books.invoice.issue",
+  module: "books",
+  description:
+    "Issue a draft invoice (Vane's or a person's) once the person has checked it: it is posted to the books and fiscalised where the workspace does, and can then be sent. Use for an invoice you drafted.",
+  params: z.object({
+    invoiceId: z.string().min(1),
+    invoiceNumber: z.string().min(1),
+    customer: z.string().min(1),
+    total: z.string().min(1).describe('As it reads: "USD 6,400.18".'),
+  }),
+  fields: [],
+  verb: () => "Issue it",
+  title: (p) => `Issue ${p.invoiceNumber} to ${p.customer}, ${p.total}`,
+  target: (p) => `/books/invoices/${p.invoiceId}`,
+  refuse: (context) => refuseUnlessRoute(context, "/api/accounting/sales/invoices", "PATCH"),
+  async run(context, p) {
+    try {
+      const issued = await issueDraftInvoice({ companyId: context.companyId, userId: context.userId }, p.invoiceId);
+      return `${issued.invoiceNumber} is issued to ${issued.customer.name}. Send it from Books.`;
+    } catch (error) {
+      if (error instanceof DraftInvoiceRefused) throw new VaneActionError(error.message);
+      throw error;
+    }
+  },
+} satisfies VaneActionKind<{ invoiceId: string; invoiceNumber: string; customer: string; total: string }>;
+
+const discard = {
+  kind: "books.invoice.discard",
+  module: "books",
+  description: "Delete a draft invoice Vane made that nobody issued, when it is not wanted. A person's own drafts are not Vane's to delete.",
+  params: z.object({ invoiceId: z.string().min(1), invoiceNumber: z.string().min(1) }),
+  fields: [],
+  verb: () => "Delete the draft",
+  title: (p) => `Delete Vane's draft ${p.invoiceNumber}`,
+  target: () => "/books/invoices?view=drafts",
+  refuse: (context) => refuseUnlessRoute(context, "/api/accounting/sales/invoices", "PATCH"),
+  async run(context, p) {
+    try {
+      const gone = await deleteVaneDraftInvoice(context.companyId, p.invoiceId);
+      return `${gone.invoiceNumber} is deleted.`;
+    } catch (error) {
+      if (error instanceof DraftInvoiceRefused) throw new VaneActionError(error.message);
+      throw error;
+    }
+  },
+} satisfies VaneActionKind<{ invoiceId: string; invoiceNumber: string }>;
+
+export const BOOKS_ACTIONS = [dueDate, reminders, bankMatches, fromQuote, issue, discard] as const;

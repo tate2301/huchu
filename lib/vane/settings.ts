@@ -138,10 +138,13 @@ export async function updateVaneSettings(
   db: Pick<PrismaClient, "vaneSettings">,
   companyId: string,
   patch: VaneSettingsPatch,
+  /** Who is changing them: kept as who paused Vane, and cleared on Resume. */
+  by: string | null = null,
 ) {
   const current = await db.vaneSettings.findUnique({ where: { companyId }, select: { watches: true, routing: true } });
   const data = {
     ...patch,
+    ...(patch.paused === undefined ? {} : { pausedById: patch.paused ? by : null }),
     ...(patch.watches ? { watches: { ...asRecord(current?.watches, z.boolean()), ...patch.watches } } : {}),
     ...(patch.routing ? { routing: { ...asRecord(current?.routing, z.array(z.string())), ...patch.routing } } : {}),
   };

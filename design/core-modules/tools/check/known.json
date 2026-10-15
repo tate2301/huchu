@@ -402,6 +402,8 @@
     "label: Yes",
     "label: No",
     "status: Kept",
-    "button: Back"
+    "button: Back",
+    "button: Not now",
+    "primary: Keep [Ctrl ↵]"
   ]
 }

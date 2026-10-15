@@ -52,7 +52,7 @@ export function explainRequest(about: ExplainAbout): string {
     `A person asked this on the report “${about.title}” (${about.report})${params ? `, read with ${params}` : ""}, where the figure “${about.figure}” reads ${about.value}.`,
     "Find out what is behind the figure: read the rows with run_sql, and break them down the way that explains it best (by reason, owner, stage, customer or month).",
     "Answer in one or two sentences with the numbers. The last question you ran is shown under your answer as a table, so make it the breakdown, with plain column names.",
-    "If the breakdown is worth keeping as a view of its own, raise one suggestion card that says so; otherwise raise nothing. Do not propose actions.",
+    "If the breakdown is worth keeping as a view of its own, raise one suggestion card that says so and hang reports.template.save on it (propose_actions with the card's itemId; describe_report names the report's columns); otherwise raise nothing and propose nothing.",
   ].join("\n");
 }
 

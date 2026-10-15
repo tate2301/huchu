@@ -1,15 +1,13 @@
 import { prisma } from "@/lib/prisma";
-
-import { sendSchoolNotice, NoticeError } from "./notices";
+import { VANE_ACTIONS } from "@/lib/vane/actions/registry";
 
 /**
- * Fee reminders Vane drafts and a person sends (the PageVaneSchool board).
- * Vane drafts one reminder in the school's words for the families who have
- * paid nothing this term, with [family], [pupil] and [amount] for each to see
- * their own; it is a Vane action (`schools.fees.remind`) that waits for a
- * person. They may change the words and untick families, then send: each
- * family gets its own notice in the parents' portal, through the school's own
- * notices, as that person.
+ * Remind families (the PageVaneSchool board): the fee reminder Vane drafted
+ * as a `schools.fees.remind` action (`lib/vane/actions/schools.ts`), read for
+ * the page. The words are the school's, with [family], [pupil] and [amount]
+ * for each to read their own; the person changes them and unticks families
+ * here, then Send approves the action, which sends each family its own notice
+ * in the parents' portal as them.
  */
 
 export type ReminderFamily = {
@@ -18,111 +16,33 @@ export type ReminderFamily = {
   family: string;
   /** "Rumbidzai, Form 3B". */
   pupil: string;
-  /** What the family owes on this term's fees now. */
+  /** What Vane read the family owes on this term's fees. */
   owed: number;
   /** How it reaches them: "Portal", or why it cannot. */
   goesBy: string;
   reachable: boolean;
 };
 
-const PLACEHOLDERS = /\[(family|pupil|amount)\]/gi;
-
 const money = (amount: number) => `$${amount.toLocaleString("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
-/** The reminder as one family reads it: their name, their child and what they owe. */
-export function mergeReminder(template: string, family: { family: string; firstName: string; owed: number }): string {
-  return template.replace(PLACEHOLDERS, (_, word: string) => {
-    const key = word.toLowerCase();
-    if (key === "family") return family.family;
-    if (key === "pupil") return family.firstName;
-    return money(family.owed);
-  });
+/** "USD 1,420.00" as a number: the amount Vane wrote for the family. */
+export function amountOf(words: string): number {
+  const figure = Number(words.replace(/[^0-9.-]/g, ""));
+  return Number.isFinite(figure) ? Math.round(figure * 100) / 100 : 0;
 }
 
-/** The families of these pupils as the page lists them, with what each owes on the term now. */
-export async function reminderFamilies(companyId: string, termId: string, studentIds: string[]): Promise<ReminderFamily[]> {
-  const [students, invoices] = await Promise.all([
-    prisma.schoolStudent.findMany({
-      where: { companyId, id: { in: studentIds } },
-      select: {
-        id: true,
-        firstName: true,
-        lastName: true,
-        currentClass: { select: { name: true } },
-        guardianLinks: { select: { guardian: { select: { userId: true } } } },
-      },
-    }),
-    prisma.schoolFeeInvoice.findMany({
-      where: { companyId, termId, studentId: { in: studentIds }, status: { in: ["ISSUED", "PART_PAID"] } },
-      select: { studentId: true, balanceAmount: true },
-    }),
-  ]);
-  const owed = new Map<string, number>();
-  for (const invoice of invoices) owed.set(invoice.studentId, (owed.get(invoice.studentId) ?? 0) + Number(invoice.balanceAmount));
-  const byId = new Map(students.map((student) => [student.id, student]));
-  return studentIds.flatMap((id) => {
-    const student = byId.get(id);
-    if (!student) return [];
-    const reachable = student.guardianLinks.some((link) => Boolean(link.guardian.userId));
-    return [
-      {
-        studentId: id,
-        family: `The ${student.lastName} family`,
-        pupil: student.currentClass ? `${student.firstName}, ${student.currentClass.name}` : student.firstName,
-        owed: Math.round((owed.get(id) ?? 0) * 100) / 100,
-        goesBy: reachable ? "Portal" : student.guardianLinks.length ? "No portal account" : "No guardian on record",
-        reachable,
-      },
-    ];
-  });
-}
-
-export type RemindersSent = { sent: string[]; skipped: Array<{ family: string; why: string }> };
-
-/**
- * Sends each family its own reminder, as the person who pressed Send: a
- * notice in the parents' portal with their name, child and amount. A family
- * that owes nothing now, or that no guardian's account reaches, is skipped
- * and said.
- */
-export async function sendFeeReminders(
-  actor: { companyId: string; userId: string },
-  input: { termId: string; term: string; studentIds: string[]; message: string },
-): Promise<RemindersSent> {
-  const families = await reminderFamilies(actor.companyId, input.termId, input.studentIds);
+/** How each of these pupils' families is reached today: the parents' portal, or why not. */
+async function reachOf(companyId: string, studentIds: string[]) {
   const students = await prisma.schoolStudent.findMany({
-    where: { companyId: actor.companyId, id: { in: input.studentIds } },
-    select: { id: true, firstName: true },
+    where: { companyId, id: { in: studentIds } },
+    select: { id: true, guardianLinks: { select: { guardian: { select: { userId: true } } } } },
   });
-  const firstName = new Map(students.map((student) => [student.id, student.firstName]));
-  const sent: string[] = [];
-  const skipped: RemindersSent["skipped"] = [];
-  for (const family of families) {
-    if (family.owed <= 0) {
-      skipped.push({ family: family.family, why: "has paid since" });
-      continue;
-    }
-    if (!family.reachable) {
-      skipped.push({ family: family.family, why: family.goesBy.toLowerCase() });
-      continue;
-    }
-    try {
-      await sendSchoolNotice({
-        companyId: actor.companyId,
-        senderUserId: actor.userId,
-        title: `Fees for ${input.term}`,
-        body: mergeReminder(input.message, { family: family.family, firstName: firstName.get(family.studentId) ?? "", owed: family.owed }),
-        audience: "PARENTS",
-        studentIds: [family.studentId],
-        severity: "INFO",
-      });
-      sent.push(family.family);
-    } catch (error) {
-      if (!(error instanceof NoticeError)) throw error;
-      skipped.push({ family: family.family, why: error.message });
-    }
-  }
-  return { sent, skipped };
+  return new Map(
+    students.map((student) => {
+      const reachable = student.guardianLinks.some((link) => Boolean(link.guardian.userId));
+      return [student.id, { reachable, goesBy: reachable ? "Portal" : student.guardianLinks.length ? "No portal account" : "No guardian on record" }];
+    }),
+  );
 }
 
 export type RemindersPage = {
@@ -132,11 +52,12 @@ export type RemindersPage = {
     status: "proposed" | "failed";
     /** Why the last send did not go, when it failed. */
     failed: string | null;
-    termId: string;
     term: string;
+    subject: string;
     message: string;
     leaveOut: string[];
-    leaveOutWhy: string | null;
+    /** Why Vane left a family unticked, by studentId. */
+    leftOutWhy: Record<string, string>;
     families: ReminderFamily[];
     total: number;
     finding: { fact: string; rest: string };
@@ -159,7 +80,7 @@ export function remindersFinding(families: ReminderFamily[], leaveOut: string[],
   return { fact, rest };
 }
 
-const asStrings = (value: unknown): string[] => (Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : []);
+const remind = VANE_ACTIONS.find((action) => action.kind === "schools.fees.remind")!;
 
 /** Remind families (`/schools/fees/remind`): the newest reminder Vane drafted that waits for a person. */
 export async function remindersPage(companyId: string): Promise<RemindersPage> {
@@ -169,25 +90,36 @@ export async function remindersPage(companyId: string): Promise<RemindersPage> {
     select: { id: true, status: true, result: true, params: true },
   });
   if (!action) return { draft: null };
-  const params = (action.params ?? {}) as Record<string, unknown>;
-  const studentIds = asStrings(params.studentIds);
-  const leaveOut = asStrings(params.leaveOut);
-  const why = typeof params.leaveOutWhy === "string" && params.leaveOutWhy ? params.leaveOutWhy : null;
-  const termId = String(params.termId ?? "");
-  const families = await reminderFamilies(companyId, termId, studentIds);
+  const parsed = remind.params.safeParse(action.params);
+  if (!parsed.success) return { draft: null };
+  const params = parsed.data as {
+    term: string;
+    subject: string;
+    body: string;
+    families: Array<{ studentId: string; family: string; pupil: string; amount: string }>;
+    leftOut?: Array<{ studentId?: string; family: string; why: string }>;
+    leaveOut: string[];
+  };
+  const reach = await reachOf(companyId, params.families.map((family) => family.studentId));
+  const families: ReminderFamily[] = params.families.map((family) => {
+    const way = reach.get(family.studentId) ?? { reachable: false, goesBy: "No guardian on record" };
+    return { studentId: family.studentId, family: family.family, pupil: family.pupil, owed: amountOf(family.amount), ...way };
+  });
+  const leftOutWhy = Object.fromEntries((params.leftOut ?? []).flatMap((row) => (row.studentId ? [[row.studentId, row.why]] : [])));
+  const firstWhy = params.leftOut?.find((row) => row.studentId && params.leaveOut.includes(row.studentId))?.why ?? null;
   return {
     draft: {
       actionId: action.id,
       status: action.status === "FAILED" ? "failed" : "proposed",
       failed: action.status === "FAILED" ? action.result : null,
-      termId,
-      term: String(params.term ?? ""),
-      message: String(params.message ?? ""),
-      leaveOut,
-      leaveOutWhy: why,
+      term: params.term,
+      subject: params.subject,
+      message: params.body,
+      leaveOut: params.leaveOut,
+      leftOutWhy,
       families,
       total: Math.round(families.reduce((sum, family) => sum + family.owed, 0) * 100) / 100,
-      finding: remindersFinding(families, leaveOut, why),
+      finding: remindersFinding(families, params.leaveOut, firstWhy),
     },
   };
 }

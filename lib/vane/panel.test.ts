@@ -11,6 +11,7 @@ function fakeDb(items: Array<Record<string, unknown>>) {
     vanePlan: { findMany: async () => [], count: async () => 0 },
     vaneSettings: { findUnique: async () => ({ paused: false, updatedAt: new Date(), monthlyAllowance: 5000 }) },
     vaneAction: { findMany: async () => [] },
+    vaneTopicStop: { findMany: async () => [] },
   } as unknown as Parameters<typeof vanePanel>[0];
 }
 
@@ -68,6 +69,7 @@ describe("the Vane panel", () => {
         },
       },
       vaneAction: { findMany: async () => [] },
+      vaneTopicStop: { findMany: async () => [] },
     } as unknown as Parameters<typeof vaneOnRecord>[0];
     const cards = await vaneOnRecord(db, { companyId: "c", userId: "u1", role: "MANAGER", subjectType: "CrmDeal", subjectId: "d1" });
     expect(cards.map((card) => [card.id, card.module, card.source])).toEqual([["pomona", "crm", "CRM"]]);

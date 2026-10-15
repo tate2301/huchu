@@ -1,12 +1,11 @@
 import { z } from "zod";
 
-import { issueFiscalReceipt } from "@/lib/accounting/fiscalisation";
-import { createJournalEntryFromSource } from "@/lib/accounting/posting";
 import { findTaxCodesOutsideEffectiveWindow } from "@/lib/accounting/tax-selection";
 import { resolveDefaultTaxTemplate } from "@/lib/accounting/tax-rules";
 import { onAccountingInvoiceCreated } from "@/lib/crm/accounting-hooks";
-import { hasFeature } from "@/lib/platform/features";
 import { prisma } from "@/lib/prisma";
+
+import { postIssuedInvoice } from "./issue-invoice";
 
 export const invoiceSchema = z.object({
   customerId: z.string().uuid(),
@@ -73,13 +72,6 @@ export class InvoiceRefused extends Error {
 }
 
 /**
- * Who makes the invoice: the signed-in person, or Vane (`userId` null), whose
- * invoice is only ever a draft, marked `madeByVane` with no maker, until a
- * person confirms it as theirs on issue (`lib/vane/drafts.ts`).
- */
-export type InvoiceMaker = { companyId: string; userId: string } | { companyId: string; userId: null };
-
-/**
  * Creates a sales invoice as the signed-in person, a draft or issued:
  * `POST /api/accounting/sales/invoices` and Vane's approved "draft the
  * invoice from the quote" both come here, and so does Vane's draft tool.
@@ -87,9 +79,12 @@ export type InvoiceMaker = { companyId: string; userId: string } | { companyId: 
  * is posted and fiscalised; raised off a CRM quote, the CRM hears of it (a
  * draft of Vane's, when a person takes it on).
  */
-export async function createSalesInvoice(actor: InvoiceMaker, validated: InvoiceInput) {
-  const byVane = actor.userId === null;
-  if (byVane && validated.issueNow) throw new InvoiceRefused("Vane only drafts: a person issues the invoice.");
+export async function createSalesInvoice(
+  /** No person, with `madeByVane`: Vane's own draft, which a person issues. */
+  actor: { companyId: string; userId: string | null; madeByVane?: boolean },
+  validated: InvoiceInput,
+) {
+  if (!actor.userId && validated.issueNow) throw new InvoiceRefused("Only a person issues an invoice.");
   const customer = await prisma.customer.findUnique({
     where: { id: validated.customerId },
     select: { companyId: true },
@@ -172,7 +167,7 @@ export async function createSalesInvoice(actor: InvoiceMaker, validated: Invoice
       notes: validated.notes,
       quotationId: validated.quotationId,
       createdById: actor.userId,
-      madeByVane: byVane,
+      madeByVane: actor.madeByVane ?? false,
       issuedById: validated.issueNow ? actor.userId : undefined,
       issuedAt: validated.issueNow ? new Date() : undefined,
       lines: { create: computedLines },
@@ -183,43 +178,18 @@ export async function createSalesInvoice(actor: InvoiceMaker, validated: Invoice
     },
   });
 
-  if (actor.userId === null) return invoice;
-
-  if (invoice.status === "ISSUED") {
-    try {
-      await createJournalEntryFromSource({
-        companyId: actor.companyId,
-        sourceType: "SALES_INVOICE",
-        sourceId: invoice.id,
-        entryDate: invoice.invoiceDate,
-        description: `Sales invoice ${invoice.invoiceNumber}`,
-        createdById: actor.userId,
-        amount: invoice.total,
-        netAmount: invoice.subTotal,
-        taxAmount: invoice.taxTotal,
-        grossAmount: invoice.total,
-      });
-    } catch (error) {
-      console.error("[Accounting] Sales invoice auto-post failed:", error);
-    }
-
-    const fiscalEnabled = await hasFeature(actor.companyId, "accounting.zimra.fiscalisation");
-    if (fiscalEnabled) {
-      try {
-        await issueFiscalReceipt(actor.companyId, invoice.id, actor.userId);
-      } catch (error) {
-        console.error("[Accounting] Fiscalisation issue failed:", error);
-      }
-    }
-  }
+  if (invoice.status === "ISSUED" && actor.userId) await postIssuedInvoice(actor.companyId, invoice, actor.userId);
 
   // If this came off a CRM quote, let the CRM know its work has been
   // invoiced. Never throws — the invoice is already real either way.
-  await onAccountingInvoiceCreated({
-    companyId: actor.companyId,
-    invoiceId: invoice.id,
-    userId: actor.userId,
-  });
+  // Vane's draft is not the CRM's work invoiced until a person issues it.
+  if (actor.userId) {
+    await onAccountingInvoiceCreated({
+      companyId: actor.companyId,
+      invoiceId: invoice.id,
+      userId: actor.userId,
+    });
+  }
 
   return invoice;
 }

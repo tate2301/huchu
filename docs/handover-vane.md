@@ -41,19 +41,19 @@ All 25 are on the Core modules canvas, Vane page. Each opens on its own as `desi
 | 8 | VnTemplates | Vane's templates, with reports and forms | reference | |
 | 9 | PageVaneCard | A card, and what Vane read | a card's "What I read" | built (`/vane?card=<id>`): 92.9%; What it drafted waits for the `draft` tool |
 | 10 | PageVanePlan | Plans | `/vane/plans` | built: 94.4% (⌘ for Ctrl on a Mac) |
-| 11 | PageVaneJob | Give Vane a job (Ctrl J) | a dialog from anywhere | built: the dialog and Ctrl J from every page; the plan proposed before Start is not |
+| 11 | PageVaneJob | Give Vane a job (Ctrl J) | the panel's chat | replaced on 14 October by the panel's chat: Ctrl J opens the panel at its box, from any page |
 | 12 | PageVaneDone | Done | `/vane/done` | built: 97.7% |
-| 13 | PageVaneMuted | Muted | `/vane/muted` | built: 97.9%; "Stop it for me" needs a kind per card |
-| 14 | PageVaneStates | Paused, over the allowance, could not work it out, cannot reach the service | the four states, on `/vane` and in the panel | built (`VaneStateNote`); Show the rows and "Paused by James" wait, see NOTES.md |
-| 15 | PageVaneReport | Explain a figure, on Deals | on a report page | to build |
-| 16 | PageVaneBlock | A block in the builder, waiting to be kept | in the report builder | being built in PR #213's follow-up |
+| 13 | PageVaneMuted | Muted | `/vane/muted` | built: 97.9%, with "Stop it for me" (a card's `topic`, `VaneTopicStop`) and Show it again |
+| 14 | PageVaneStates | Paused, over the allowance, could not work it out, cannot reach the service | the four states, on `/vane` and in the panel | built (`VaneStateNote`), with "Paused by James" and Show the rows |
+| 15 | PageVaneReport | Explain a figure, on Deals | on a report page | built: the panel on a report asks about it; answers carry a table and What I read; Keep this view (`reports.template.save`) |
+| 16 | PageVaneBlock | A block in the builder, waiting to be kept | in the report builder | built: "Give Vane a change to make" in a custom report's builder; Vane's block is checked, shown as not kept, saved once kept |
 | 17 | VnRequirements | Requirements and the migration | reference | |
 | 18 | VnInteractions | Interactions | reference | |
-| 19 | PageVaneForm | Changes to a form, from its answers | in Build | to build, after Build |
-| 20 | PageVaneDocument | A quote checked, and the message written | on a quotation | to build |
-| 21 | PageVaneDraft | Vane's draft invoice, in Books | in Books → Invoices | to build: needs the `draft` tool |
-| 22 | PageVaneRetail | Retail: orders drafted from Stock to reorder | in Retail → Buying | to build: needs the `draft` tool |
-| 23 | PageVaneSchool | Schools: fee reminders drafted | in Schools → Fees | to build |
+| 19 | PageVaneForm | Changes to a form, from its answers | in Build | built: "Read the answers for changes" in a site-visit form's settings; require, add an option, a quote line's waste; Keep joins the draft |
+| 20 | PageVaneDocument | A quote checked, and the message written | on a quotation | built: the quote's rail checks its lines against the price list; Write it with Vane in its email |
+| 21 | PageVaneDraft | Vane's draft invoice, in Books | in Books → Invoices | built: the `draft` tool drafts an accepted quote's invoice as Vane's ("Vane's draft" in the list); Issue it and Delete the draft are approvable actions. No invoice page of its own: Books has none |
+| 22 | PageVaneRetail | Retail: orders drafted from Stock to reorder | in Retail → Buying | built: the `draft` tool drafts a reorder as Vane's ("Vane's draft" in Orders); retail.order.send sends it |
+| 23 | PageVaneSchool | Schools: fee reminders drafted | in Schools → Fees | built as an approvable action (`schools.fees.remind`): one notice per family with its own name, pupil and amount, the words changeable before it goes. The board's per-family ticks are not a page yet |
 | 24 | PageVaneMine | Gold mine: a work order drafted from Downtime | in Gold → Work orders | needs a decision (below) |
 | 25 | PageVanePhone | A fitter's phone, only his own visits | the panel at 390 | the scope needs a decision (below) |
 
@@ -115,9 +115,9 @@ Build one workflow at a time, end to end with its states.
 - **`/vane/done`:** finished jobs and kept cards by day, with what each read and cost.
 - **`/vane/muted`:** muted cards with their reason, and Unmute.
 - **Done when:** the three lists match their boards and the counts in the panel agree with them.
-- **Built.** `lib/vane/lists.ts` (tested), `/api/vane/plans`, `/api/vane/plans/[id]/steps/[stepId]`, `/api/vane/done`, `/api/vane/muted`, `/api/vane/items/[id]/unmute`, and `/vane/working` (no board; drawn like Done). Vane's own steps do not tick yet: no tool marks them.
+- **Built.** `lib/vane/lists.ts` (tested), `/api/vane/plans`, `/api/vane/plans/[id]/steps/[stepId]`, `/api/vane/done`, `/api/vane/muted`, `/api/vane/items/[id]/unmute`, and `/vane/working` (no board; drawn like Done). Vane moves its own steps with the `update_plan_step` tool (Now with its progress, then Done).
 
-### 4. Give Vane a job, with Ctrl J (PageVaneJob)
+### 4. Give Vane a job, with Ctrl J (PageVaneJob): replaced by the panel's chat
 
 - **The dialog:** it opens from anywhere with Ctrl J. It shows the box, examples from this module, and Give it to Vane (Ctrl ↵).
 - **The data:**
@@ -125,7 +125,7 @@ Build one workflow at a time, end to end with its states.
   - Keep the person's whole request. Today `giveVaneJob` writes it into the job's `label`, cut at 120 characters, and the tick reads the label as the instruction. Store the whole text and keep the label short.
 - **After it posts:** the job appears in Working on at once.
 - **Done when:** a long request reaches Claude whole, and the shortcut works from every module.
-- **Built.** `components/vane/give-job-dialog.tsx`; the whole request is the job's label.
+- **Replaced** on 14 October: the dialog and `POST /api/vane/jobs` are gone. Ctrl J opens the panel at its chat box from any page, and a request is a chat turn (`lib/vane/chat.ts`), answered while the person waits.
 
 ### 5. Live
 

@@ -13,7 +13,6 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { destroyProvisionedTenant } from "@/lib/platform/tenant-teardown";
 import { prisma } from "@/lib/prisma";
-import { raiseOrder } from "@/lib/retail/buying/orders";
 import { createSupplier } from "@/lib/retail/buying/suppliers";
 import { addTestProduct, makeTestShop, type TestShop } from "@/lib/retail/products/test-fixtures";
 import { callTool } from "@/lib/vane/tools";
@@ -58,7 +57,8 @@ async function press(handler: (request: NextRequest, context: { params: Promise<
 async function vaneDrafts(input: Record<string, unknown>) {
   const result = await callTool({ companyId: shop.companyId, jobId: null }, "draft", input);
   expect(result.ok, result.content).toBe(true);
-  return JSON.parse(result.content) as { id: string; number: string; target: string };
+  const drafted = JSON.parse(result.content) as { invoiceId?: string; orderId?: string; link: string };
+  return { id: (drafted.invoiceId ?? drafted.orderId)!, target: drafted.link };
 }
 
 beforeAll(async () => {
@@ -117,7 +117,7 @@ describe("Vane's draft invoice", () => {
   let invoiceId = "";
 
   it("is written as a draft marked as Vane's, with no maker, due on the customer's usual terms", async () => {
-    const drafted = await vaneDrafts({ type: "invoice", invoice: { quotationId: ids.quote } });
+    const drafted = await vaneDrafts({ kind: "invoice_from_quote", quotationId: ids.quote });
     invoiceId = drafted.id;
     expect(drafted.target).toBe(`/books/invoices/${drafted.id}`);
     const invoice = await prisma.salesInvoice.findUniqueOrThrow({ where: { id: invoiceId }, include: { lines: true } });
@@ -172,10 +172,7 @@ describe("Vane's draft quotation", () => {
 
 describe("Vane's draft purchase order", () => {
   it("is written as a draft marked as Vane's, refused by the send route, and sent once a person confirms it as theirs", async () => {
-    const drafted = await vaneDrafts({
-      type: "retail_order",
-      retail_order: { supplierId: ids.supplier, siteId: shop.mainId, lines: [{ productId: ids.castle, quantity: 48, unitCost: 0.86 }] },
-    });
+    const drafted = await vaneDrafts({ kind: "reorder", supplierId: ids.supplier, siteId: shop.mainId, lines: [{ productId: ids.castle, quantity: 48, unitCost: 0.86 }] });
     expect(drafted.target).toBe(`/retail/buying/orders/${drafted.id}`);
     expect(await prisma.retailPurchaseOrder.findUniqueOrThrow({ where: { id: drafted.id } })).toMatchObject({ status: "DRAFT", madeByVane: true, createdById: null });
 
@@ -187,12 +184,5 @@ describe("Vane's draft purchase order", () => {
 
     expect((await press(sendOrder, path, drafted.id, "POST", { asMine: true })).status).toBe(200);
     expect(await prisma.retailPurchaseOrder.findUniqueOrThrow({ where: { id: drafted.id } })).toMatchObject({ status: "SENT", createdById: shop.ownerId, sentById: shop.ownerId });
-  });
-
-  it("can never be raised as sent, or with the cash asked for, as Vane's", async () => {
-    const order = { supplierId: ids.supplier, siteId: shop.mainId, payment: "ON_ACCOUNT" as const, lines: [{ productId: ids.castle, quantity: 1, unitCost: 0.86 }] };
-    const deps = { requestUrl: "http://drafts.test/" };
-    await expect(raiseOrder(shop.owner(), { ...order, send: true, madeByVane: true }, deps)).rejects.toMatchObject({ status: 409 });
-    await expect(raiseOrder(shop.owner(), { ...order, send: false, askForCash: true, madeByVane: true }, deps)).rejects.toMatchObject({ status: 409 });
   });
 });

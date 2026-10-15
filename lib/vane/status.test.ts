@@ -39,6 +39,7 @@ function fakeDb(jobs: Job[], settings: { paused: boolean; updatedAt: Date; month
     vaneItem: { count: async () => 0 },
     vanePlan: { count: async () => 1 },
     vaneSettings: { findUnique: async () => settings },
+    vaneTopicStop: { findMany: async () => [] },
     vaneJob: {
       count: async ({ where }: { where: Record<string, unknown> }) => full.filter((job) => matches(job, where)).length,
       findFirst: async ({ where, orderBy }: { where: Record<string, unknown>; orderBy: Record<string, string> }) => {
@@ -116,6 +117,8 @@ describe("Vane's state", () => {
       NOW,
     );
     expect(status.stuck).toEqual({
+      jobId: undefined,
+      rows: false,
       label: "Fuel spend in September",
       error: "3 receipts have no amount, so the total would be a guess.",
       tried: ["describe_table", "run_sql"],

@@ -121,6 +121,7 @@ const rowSelect = {
   amountPaid: true,
   creditTotal: true,
   writeOffTotal: true,
+  madeByVane: true,
   customer: { select: { id: true, name: true } },
   receipts: { select: { receivedAt: true, method: true }, orderBy: { receivedAt: "desc" as const }, take: 1 },
 } satisfies Prisma.SalesInvoiceSelect;
@@ -146,7 +147,8 @@ export function toInvoiceRow(record: RowRecord, today: string): InvoiceRow {
     number: record.invoiceNumber,
     customer: record.customer,
     state: read.state,
-    stateLabel: INVOICE_STATE_LABEL[read.state],
+    // Vane's own draft says so until a person issues or deletes it.
+    stateLabel: record.madeByVane && read.state === "draft" ? "Vane's draft" : INVOICE_STATE_LABEL[read.state],
     when: read.when,
     total: record.total,
     balance: read.balance,

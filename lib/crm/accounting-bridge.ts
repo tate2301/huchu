@@ -27,9 +27,12 @@ export type CrmDocumentLineInput = {
   quantity: number;
   unitPrice: number;
   taxRate?: number;
+  /** The catalogue product the line was picked from. Kept on a quote's line, for its price check; an invoice's line has no column for it. */
+  productId?: string;
 };
 
 type ComputedLine = {
+  productId?: string;
   description: string;
   quantity: number;
   unitPrice: number;
@@ -49,12 +52,22 @@ function round2(value: number): number {
   return Math.round(value * 100) / 100;
 }
 
+/** An invoice's lines keep no product: the column is a quote line's. */
+function invoiceLines(lines: ComputedLine[]): Array<Omit<ComputedLine, "productId">> {
+  return lines.map((line) => {
+    const rest: Omit<ComputedLine, "productId"> & { productId?: string } = { ...line };
+    delete rest.productId;
+    return rest;
+  });
+}
+
 function computeTotals(lines: CrmDocumentLineInput[]): DocTotals {
   const computed = lines.map((line) => {
     const taxRate = line.taxRate ?? 0;
     const net = line.quantity * line.unitPrice;
     const taxAmount = round2((net * taxRate) / 100);
     return {
+      ...(line.productId ? { productId: line.productId } : {}),
       description: line.description,
       quantity: line.quantity,
       unitPrice: line.unitPrice,
@@ -562,7 +575,7 @@ export async function createInvoiceForLead(input: CreateInvoiceInput) {
         createdById: input.userId,
         issuedById: input.userId,
         issuedAt: invoiceDate,
-        lines: { create: totals.lines },
+        lines: { create: invoiceLines(totals.lines) },
       },
       select: { id: true, invoiceNumber: true, total: true },
     });
@@ -774,6 +787,7 @@ export async function loadEditableDocument(input: DocumentOwnerRef & {
       quantity: line.quantity,
       unitPrice: line.unitPrice,
       ...(line.taxRate ? { taxRate: line.taxRate } : {}),
+      ...("productId" in line && line.productId ? { productId: line.productId } : {}),
     })),
     notes: source.notes ?? null,
     validUntil: doc.quotation?.validUntil?.toISOString() ?? null,
@@ -1040,7 +1054,7 @@ export async function updateInvoiceForDocument(input: UpdateInvoiceInput) {
           notes: input.notes ?? null,
           dueDate: input.dueDate ?? null,
           revision,
-          lines: { deleteMany: {}, create: totals.lines },
+          lines: { deleteMany: {}, create: invoiceLines(totals.lines) },
         },
       });
       await tx.crmLeadDocument.update({

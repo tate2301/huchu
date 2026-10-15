@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { mergeReminder, remindersFinding, type ReminderFamily } from "./fee-reminders";
+import { amountOf, remindersFinding, type ReminderFamily } from "./fee-reminders";
 
 const family = (studentId: string, owed: number): ReminderFamily => ({
   studentId,
@@ -12,12 +12,10 @@ const family = (studentId: string, owed: number): ReminderFamily => ({
 });
 
 describe("fee reminders Vane drafts", () => {
-  it("read as each family's own: their name, their child and what they owe", () => {
-    const words = "Dear [family], Mazowe High has not yet received third-term fees for [pupil]: [amount]. Thank you.";
-    expect(mergeReminder(words, { family: "The Moyo family", firstName: "Rumbidzai", owed: 1420 })).toBe(
-      "Dear The Moyo family, Mazowe High has not yet received third-term fees for Rumbidzai: $1,420.00. Thank you.",
-    );
-    expect(mergeReminder("[Family] owes [AMOUNT]", { family: "The Zhou family", firstName: "Nyasha", owed: 870.5 })).toBe("The Zhou family owes $870.50");
+  it("read the amount Vane wrote for each family as a figure", () => {
+    expect(amountOf("USD 1,420.00")).toBe(1420);
+    expect(amountOf("$870.50")).toBe(870.5);
+    expect(amountOf("—")).toBe(0);
   });
 
   it("say how many families, what they owe between them, and who Vane left unticked", () => {

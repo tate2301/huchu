@@ -8,6 +8,7 @@ import { VaneError, type MessagesClient, type Usage } from "./claude";
 import { runConversation, type ToolLog } from "./conversation";
 import { vaneRules } from "./prompt";
 import { tablesFor } from "./reader";
+import type { ToolContext } from "./tools";
 
 /**
  * Vane's jobs (`docs/handover-core-modules.md` §3.3), run on the
@@ -67,19 +68,20 @@ function instructionsFor(job: Pick<VaneJob, "kind" | "label">): string {
   return job.label;
 }
 
-type JobOutcome = { result: string; model: string; usage: Usage; tools: ToolLog[] };
+type JobOutcome = { result: string; model: string; usage: Usage; tools: ToolLog[]; problem: ToolContext["problem"] };
 
 /** Runs one job's conversation with Claude to its end. Throws a `VaneError` when Claude falls short. */
 async function converseJob(job: VaneJob, client: MessagesClient | undefined, deadline: number): Promise<JobOutcome> {
   const tables = [...(await tablesFor(job.companyId)).values()].map((table) => table.name).sort();
+  const context: ToolContext = { companyId: job.companyId, jobId: job.id };
   const outcome = await runConversation({
     system: SYSTEM(tables),
     messages: [{ role: "user", content: instructionsFor(job) }],
-    context: { companyId: job.companyId, jobId: job.id },
+    context,
     deadline,
     client,
   });
-  return { result: outcome.text, model: outcome.model, usage: outcome.usage, tools: outcome.tools };
+  return { result: outcome.text, model: outcome.model, usage: outcome.usage, tools: outcome.tools, problem: context.problem };
 }
 
 /** The jobs a workspace has started this month (UTC): what counts against its allowance, chat turns included. */
@@ -143,11 +145,14 @@ export async function runNextJob(
   const deadline = Date.now() + (options.deadlineMs ?? JOB_DEADLINE_MS);
   try {
     const outcome = await converseJob(job, options.client, deadline);
+    // Vane said it could not work it out: the job ends there, with what stopped it and the rows' question.
+    const problem = outcome.problem;
     await prisma.vaneJob.update({
       where: { id: job.id },
       data: {
-        status: "DONE",
+        status: problem ? "FAILED" : "DONE",
         finishedAt: new Date(),
+        ...(problem ? { error: problem.problem, problemSql: problem.sql } : {}),
         result: outcome.result,
         model: outcome.model,
         tokensIn: outcome.usage.input,
@@ -158,7 +163,7 @@ export async function runNextJob(
         tools: outcome.tools as Prisma.InputJsonValue,
       },
     });
-    return `${job.kind} for ${job.companyId}: done`;
+    return `${job.kind} for ${job.companyId}: ${problem ? `could not work it out (${problem.problem})` : "done"}`;
   } catch (error) {
     const attempts = job.attempts + 1;
     if (error instanceof VaneError && error.retryable && attempts < MAX_ATTEMPTS) {

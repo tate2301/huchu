@@ -3,7 +3,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { asMineSchema, takeOn, VaneDraftNotTakenOn } from "@/lib/vane/drafts";
 
-import { createSalesInvoice, type InvoiceMaker } from "./create-invoice";
+import { createSalesInvoice } from "./create-invoice";
 
 export const updateQuotationSchema = z.object({
   status: z.enum(["DRAFT", "SENT", "ACCEPTED", "EXPIRED", "VOIDED"]).optional(),
@@ -27,6 +27,8 @@ export class QuotationRefused extends Error {
 }
 
 type Actor = { companyId: string; userId: string };
+/** Who drafts an invoice from a quote: a person, or Vane (no person, `madeByVane`). */
+type Drafter = { companyId: string; userId: string | null; madeByVane?: boolean };
 
 /**
  * Changes a quotation's status, validity or notes as the signed-in person:
@@ -70,7 +72,7 @@ export async function updateQuotation(actor: Actor, id: string, changes: Quotati
  * is posted until someone issues it. A quotation already
  * invoiced (by an invoice not voided) is not invoiced twice.
  */
-export async function draftInvoiceFromQuote(actor: InvoiceMaker, input: { quotationId: string; invoiceDate: string; dueDate?: string | null }) {
+export async function draftInvoiceFromQuote(actor: Drafter, input: { quotationId: string; invoiceDate: string; dueDate?: string | null }) {
   const quotation = await prisma.salesQuotation.findFirst({
     where: { id: input.quotationId, companyId: actor.companyId },
     include: { lines: { orderBy: { createdAt: "asc" } }, invoicesRaised: { where: { status: { not: "VOIDED" } }, select: { invoiceNumber: true } } },

@@ -2,10 +2,15 @@ import type Anthropic from "@anthropic-ai/sdk";
 import { z } from "zod";
 
 import { prisma } from "@/lib/prisma";
+import { InvoiceRefused } from "@/lib/books/create-invoice";
+import { draftInvoiceFromQuote, QuotationRefused } from "@/lib/books/quotations";
+import { getReportDefinition, REPORT_DEFINITIONS } from "@/lib/reports/registry";
+import { draftOrderForVane, OrderRefusal } from "@/lib/retail/buying/orders";
 
 import { proposeActions, type ActionProposal } from "./actions/engine";
 import { VANE_ACTIONS } from "./actions/registry";
-import { draftInput, writeDraft } from "./draft-tool";
+import { usualTerms } from "./drafts";
+import { moveVaneStep } from "./lists";
 import { VANE_PAGES_GUIDE } from "./pages";
 import { VANE_SUBJECTS } from "./panel";
 import { readWorkspace, ReaderError, tablesFor, withReader, type ReadableTable } from "./reader";
@@ -31,6 +36,10 @@ export type ToolContext = {
    * here and hung on its answer when it finishes.
    */
   answerActions?: ActionProposal[];
+  /** In a chat: each question Vane ran this turn, its tables and how many rows answered, for "What I read" under the answer. */
+  read?: Array<{ tables: string[]; rows: number }>;
+  /** What Vane could not work out, when it says so (`report_problem`): the job ends on it. */
+  problem?: { problem: string; sql: string | null };
 };
 
 type VaneTool<Input extends z.ZodType> = {
@@ -122,8 +131,14 @@ const runSql = tool({
   input: z.object({
     sql: z.string().min(1).describe("One SELECT or WITH query."),
   }),
-  async run({ companyId }, { sql }) {
-    return readWorkspace(companyId, sql);
+  async run(context, { sql }) {
+    const answer = await readWorkspace(context.companyId, sql);
+    if (context.read) {
+      // The reader names tables as the SQL did, lowercased; the answer's "What I read" names them as the app does.
+      const tables = await tablesFor(context.companyId);
+      context.read.push({ tables: answer.readFrom.map((name) => tables.get(name)?.name ?? name), rows: answer.rows.length });
+    }
+    return answer;
   },
 });
 
@@ -186,6 +201,12 @@ const proposeItem = tool({
         .optional()
         .describe('A second, quieter way in: "Open the 11 rows" beside "Save as a template".'),
     }),
+    topic: z
+      .string()
+      .min(1)
+      .max(40)
+      .optional()
+      .describe('What kind of finding this is, in the same two or three words every time you raise one like it ("Short cash-up", "Invoices without a due date"). People can stop a topic for themselves; never raise a card on a topic a person stopped for them alone.'),
     subjectType: z
       .enum(VANE_SUBJECTS)
       .optional()
@@ -224,6 +245,7 @@ const proposeItem = tool({
         headline: input.headline,
         body: input.body,
         action: input.action,
+        topic: input.topic,
         subjectType: input.subjectType,
         subjectId: input.subjectId,
         sql: input.sql,
@@ -266,6 +288,129 @@ const proposePlan = tool({
       select: { id: true },
     });
     return { id: plan.id, steps: steps.length };
+  },
+});
+
+const draftTool = tool({
+  name: "draft",
+  description:
+    "Draft work through the module's own code, as Vane's draft (made by Vane, no person as its maker), for a person to check and send, issue or delete. It never sends, posts or issues anything. " +
+    "invoice_from_quote: the invoice for an accepted quotation not yet invoiced, line for line, dated the day a person issues it, due on the customer's usual terms (leave dueDate out and they are read from the customer's past invoices). " +
+    "reorder: a purchase order for one supplier and one branch, for products running low there, each with whole units and the cost last paid. " +
+    "After drafting, raise a card (propose_item) about it, with actions to issue or send it (books.invoice.issue, retail.order.send) and to delete it (books.invoice.discard), and link it.",
+  // One object, not a union: a tool's input has to be a JSON object schema for Claude.
+  input: z
+    .object({
+      kind: z.enum(["invoice_from_quote", "reorder"]),
+      quotationId: z.string().min(1).optional().describe("invoice_from_quote: the accepted quotation."),
+      dueDate: z
+        .string()
+        .regex(/^\d{4}-\d{2}-\d{2}$/)
+        .optional()
+        .describe("invoice_from_quote: when it falls due, when you know better than the customer's usual terms."),
+      supplierId: z.string().min(1).optional().describe("reorder: who it is ordered from."),
+      siteId: z.string().min(1).optional().describe("reorder: the branch it is delivered to."),
+      expectedDate: z
+        .string()
+        .regex(/^\d{4}-\d{2}-\d{2}$/)
+        .optional()
+        .describe("reorder: when it should come."),
+      lines: z
+        .array(z.object({ productId: z.string().min(1), quantity: z.number().int().positive(), unitCost: z.number().min(0) }))
+        .max(100)
+        .optional()
+        .describe("reorder: each product, whole units, at the cost last paid."),
+    })
+    .refine((input) => (input.kind === "invoice_from_quote" ? Boolean(input.quotationId) : Boolean(input.supplierId && input.siteId && input.lines?.length)), {
+      message: "invoice_from_quote needs quotationId; reorder needs supplierId, siteId and at least one line",
+    }),
+  async run({ companyId }, input) {
+    const settings = await prisma.vaneSettings.findUnique({ where: { companyId }, select: { drafts: true } });
+    if (settings && !settings.drafts) throw new ToolError("This workspace has Vane's drafts switched off (Management → Vane): raise a card instead.");
+    try {
+      if (input.kind === "invoice_from_quote") {
+        const today = new Date();
+        const invoice = await draftInvoiceFromQuote(
+          { companyId, userId: null, madeByVane: true },
+          { quotationId: input.quotationId!, invoiceDate: today.toISOString().slice(0, 10), dueDate: input.dueDate ?? (await usualDueDate(companyId, input.quotationId!, today)) },
+        );
+        // Its page (PageVaneDraft) is where a person checks it, takes it on and issues it.
+        return { drafted: "invoice", invoiceId: invoice.id, invoiceNumber: invoice.invoiceNumber, customer: invoice.customer.name, total: invoice.total, link: `/books/invoices/${invoice.id}` };
+      }
+      const order = await draftOrderForVane(companyId, { supplierId: input.supplierId!, siteId: input.siteId!, expectedDate: input.expectedDate ?? null, lines: input.lines ?? [] });
+      return { drafted: "order", orderId: order.id, poNo: order.poNo, supplier: order.supplier, site: order.site, lines: order.lines, value: order.value, link: `/retail/buying/orders/${order.id}` };
+    } catch (error) {
+      if (error instanceof QuotationRefused || error instanceof InvoiceRefused) throw new ToolError(error.message);
+      if (error instanceof OrderRefusal) throw new ToolError(error.fieldErrors ? Object.values(error.fieldErrors)[0]! : error.message);
+      throw error;
+    }
+  },
+});
+
+/** Due on the customer's usual terms from today, read off their issued invoices; null when they have none. */
+async function usualDueDate(companyId: string, quotationId: string, today: Date): Promise<string | null> {
+  const quote = await prisma.salesQuotation.findFirst({ where: { id: quotationId, companyId }, select: { customerId: true } });
+  if (!quote) return null;
+  const past = await prisma.salesInvoice.findMany({
+    where: { companyId, customerId: quote.customerId, status: { in: ["ISSUED", "PAID"] }, dueDate: { not: null } },
+    orderBy: { invoiceDate: "desc" },
+    take: 20,
+    select: { invoiceDate: true, dueDate: true },
+  });
+  const terms = usualTerms(past);
+  return terms === null ? null : new Date(today.getTime() + terms * 86_400_000).toISOString().slice(0, 10);
+}
+
+const describeReport = tool({
+  name: "describe_report",
+  description:
+    "The workspace's reports, as the Reports pages list them: with no key, every report's key, title and area; with a key, that report's columns (key, label, kind) and how it groups by default. " +
+    "Use it to name a report's columns when you propose keeping a view of it (reports.template.save), and to link to /reports/<key>.",
+  input: z.object({ reportKey: z.string().max(64).optional() }),
+  async run(_context, { reportKey }) {
+    if (!reportKey) return { reports: REPORT_DEFINITIONS.map((report) => ({ key: report.key, title: report.title, area: report.area })) };
+    const report = getReportDefinition(reportKey);
+    if (!report) throw new ToolError(`There is no report ${reportKey}. Call describe_report with no key for the list.`);
+    return {
+      key: report.key,
+      title: report.title,
+      columns: report.columns.map((column) => ({ key: column.key, label: column.label, kind: column.kind })),
+      groupBy: report.defaults.groupBy ?? null,
+    };
+  },
+});
+
+const moveStep = tool({
+  name: "update_plan_step",
+  description:
+    "Move one of your own steps in a plan on as you work: NOW while you work on it, with how far you are (\"38 of 61 lines\"), and DONE when it is finished. " +
+    "A person's steps are theirs to tick; you can propose vane.plan.tick_step for one instead. When every step is done the plan is.",
+  input: z.object({
+    planId: z.string().min(1),
+    stepId: z.string().min(1),
+    status: z.enum(["NOW", "DONE"]),
+    progress: z.string().max(60).optional().describe('How far, in a few words: "38 of 61 lines".'),
+  }),
+  async run({ companyId }, { planId, stepId, status, progress }) {
+    const outcome = await moveVaneStep(prisma, { companyId }, { planId, stepId, status, progress });
+    if (outcome === "not-found") throw new ToolError(`There is no step ${stepId} in plan ${planId}.`);
+    if (outcome === "person-owns-it") throw new ToolError("That step is a person's: propose vane.plan.tick_step for it instead.");
+    return { moved: true, status };
+  },
+});
+
+const reportProblem = tool({
+  name: "report_problem",
+  description:
+    "Say you could not work something out, and stop: what stopped you, in a sentence a person can act on (\"3 receipts have no amount, so the total would be a guess.\"), " +
+    "and the SELECT that finds the rows you stopped at, so they can look at them. Use it rather than guessing; raise no card on what you could not work out.",
+  input: z.object({
+    problem: z.string().min(1).max(300),
+    sql: z.string().max(20_000).optional().describe("One SELECT that returns the rows behind the problem, as run_sql takes it."),
+  }),
+  async run(context, { problem, sql }) {
+    context.problem = { problem, sql: sql?.trim() || null };
+    return { reported: true, next: "Stop here: answer in one sentence that you could not work it out." };
   },
 });
 
@@ -313,21 +458,7 @@ const proposeActionsTool = tool({
   },
 });
 
-const draft = tool({
-  name: "draft",
-  description:
-    "Write a draft for a person to check: an invoice from an accepted quotation not yet invoiced (dated the day it is issued, due " +
-    "the customer's usual terms after), or a purchase order from one supplier for one branch. It is written through the module's " +
-    "own code and stays a draft marked as yours: you never issue, send, post or pay it, and the module refuses to until a person " +
-    "confirms it as theirs. Then raise a card about it with propose_item (subjectType SalesInvoice or RetailPurchaseOrder, " +
-    "subjectId the draft's id, the action opening the target returned here) saying what you drafted and from what.",
-  input: draftInput,
-  async run({ companyId }, input) {
-    return writeDraft(companyId, input);
-  },
-});
-
-export const VANE_TOOLS = [describeTable, runSql, getRecord, proposeItem, proposePlan, proposeActionsTool, draft] as const;
+export const VANE_TOOLS = [describeTable, runSql, getRecord, proposeItem, proposePlan, proposeActionsTool, moveStep, reportProblem, describeReport, draftTool] as const;
 
 /** The tools as Claude is shown them. */
 export function toolDefinitions(): Anthropic.Tool[] {
@@ -339,6 +470,14 @@ export function toolDefinitions(): Anthropic.Tool[] {
 }
 
 export type ToolResult = { ok: boolean; content: string };
+
+/** A call Vane can correct, said back to it in a sentence: a step that is not there, or is a person's. */
+export class ToolError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "ToolError";
+  }
+}
 
 /**
  * Runs one tool call from Claude. A call Vane can correct (an input that does
@@ -356,6 +495,7 @@ export async function callTool(context: ToolContext, name: string, input: unknow
     return { ok: true, content: JSON.stringify(result) };
   } catch (error) {
     if (error instanceof ReaderError && error.code !== "misconfigured") return { ok: false, content: error.message };
+    if (error instanceof ToolError) return { ok: false, content: error.message };
     throw error;
   }
 }

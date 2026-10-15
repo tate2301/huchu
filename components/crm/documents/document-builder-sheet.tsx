@@ -218,6 +218,7 @@ export function DocumentBuilderSheet({
     setLines(
       editDoc.lines.length > 0
         ? editDoc.lines.map((line) => ({
+            productId: line.productId,
             description: line.description,
             quantity: String(line.quantity),
             unitPrice: String(line.unitPrice),
@@ -475,9 +476,10 @@ export function DocumentBuilderSheet({
                   value={line.description}
                   visitItems={visitItems}
                   aria-label={`Line ${index + 1} description`}
-                  onChange={(value) => patchLine(index, { description: value })}
+                  onChange={(value) => patchLine(index, { description: value, productId: undefined })}
                   onPick={(pick) =>
                     patchLine(index, {
+                      productId: pick.productId,
                       description: pick.description,
                       // A measured item may carry no price — somebody wrote
                       // down a size and left the pricing for later. Filling

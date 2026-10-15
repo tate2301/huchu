@@ -6,7 +6,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ButtonLink, Field, Input, Select, Setting, Switch } from "@/components/core";
 import { useToast } from "@/components/ui/use-toast";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
-import { applyFormChange, changedKey, type FormProposal } from "@/lib/build/form-changes";
+import { applyFormChange, changedKey } from "@/lib/build/form-changes";
 import { fieldFromQuestion, questionFromField, quoteLinesOf, SITE_VISIT_FIELD_TYPES, type QuestionRow } from "@/lib/crm/site-visits/fields";
 import { DISPLAY_FIELD_TYPES, type FieldDefinition } from "@/lib/forms/fields";
 import type { QuoteLine } from "@/lib/forms/quote";
@@ -15,7 +15,10 @@ import { formatTime } from "@/lib/workspace/format";
 import { BuilderError, BuilderLoading } from "./builder-states";
 import { FormBuilderView } from "./form-builder-view";
 import { useBuilderKeys } from "./use-builder-keys";
-import { VaneFormChanges } from "./vane-form-changes";
+import { useVaneStatus } from "@/components/vane/use-vane";
+import type { FormChange } from "@/lib/vane/form-changes";
+
+import { VaneFormChanges, type HeldChange } from "./vane-form-changes";
 
 type Kind = "PRODUCT" | "EVIDENCE" | "CLOSEOUT";
 
@@ -85,16 +88,13 @@ export function VisitFormBuilder({ id }: { id: string }) {
   }
   const dirty = draft !== null && JSON.stringify(draft) !== savedJson;
 
-  // Vane's changes to the form, from its answers (PageVaneForm). Keep puts one in this draft; publishing (or
-  // saving) the draft is the person's, and only then is the change recorded as kept, by them.
-  const vaneKey = ["build", "form", id, "vane"];
-  const vane = useQuery({ queryKey: vaneKey, queryFn: () => fetchJson<{ proposals: FormProposal[] }>(`/api/build/forms/${id}/vane`) });
-  const [kept, setKept] = React.useState<ReadonlySet<string>>(new Set());
-  const decide = useMutation({
-    mutationFn: ({ actionId, approve }: { actionId: string; approve: boolean }) =>
-      fetchJson(`/api/vane/actions/${actionId}`, { method: "POST", body: JSON.stringify(approve ? { approve: true, changes: {} } : { approve: false }) }),
-    onSettled: () => queryClient.invalidateQueries({ queryKey: vaneKey }),
-    onError: (failure) => toast({ title: "Vane’s change was not recorded", description: getApiErrorMessage(failure), variant: "destructive" }),
+  // Vane's changes to the form, from its answers (PageVaneForm): Read the answers for changes is a job of kind
+  // write (`lib/vane/form-changes.ts`). Keep puts one in this draft; publishing the draft is the person's.
+  const vaneStatus = useVaneStatus();
+  const [changes, setChanges] = React.useState<HeldChange[] | null>(null);
+  const readChanges = useMutation({
+    mutationFn: () => fetchJson<{ changes: FormChange[] }>("/api/vane/write/form-changes", { method: "POST", body: JSON.stringify({ questionSetId: id }) }),
+    onSuccess: ({ changes: found }) => setChanges(found.map((change, index) => ({ ...change, id: `${Date.now()}-${index}`, kept: false }))),
   });
 
   // A saved question keeps its key: answers are stored against it.
@@ -133,9 +133,6 @@ export function VisitFormBuilder({ id }: { id: string }) {
     onSuccess: async ({ next, published }) => {
       setDraft(next);
       setSavedJson(JSON.stringify(next));
-      // The changes kept from Vane are in the saved form now: recorded as kept, by this person.
-      for (const actionId of kept) decide.mutate({ actionId, approve: true });
-      setKept(new Set());
       await queryClient.invalidateQueries({ queryKey });
       await queryClient.invalidateQueries({ queryKey: ["build"] });
       toast({ title: `${next.name} ${published ? "published" : "saved"}`, variant: "success" });
@@ -151,10 +148,9 @@ export function VisitFormBuilder({ id }: { id: string }) {
 
   const data = detail.data;
   const set = (patch: Partial<Draft>) => setDraft((current) => (current ? { ...current, ...patch } : current));
-  const proposals = vane.data?.proposals ?? [];
-  const waiting = proposals.filter((proposal) => proposal.status !== "kept" && !kept.has(proposal.id));
-  const pending = new Set(waiting.map((proposal) => changedKey(proposal.change)).filter((key): key is string => key !== null));
-  const changesFromVane = proposals.filter((proposal) => proposal.status !== "kept").length;
+  const waiting = (changes ?? []).filter((change) => !change.kept);
+  const pending = new Set(waiting.map(changedKey).filter((key): key is string => key !== null));
+  const changesFromVane = waiting.length;
   const asked = draft.fields.filter((field) => !DISPLAY_FIELD_TYPES.includes(field.type)).length;
   const product = data.products.find((entry) => entry.id === draft.productId);
 
@@ -183,22 +179,22 @@ export function VisitFormBuilder({ id }: { id: string }) {
       publishing={save.isPending}
       canEdit={data.canEdit}
       vane={
-        proposals.length
+        vaneStatus.data && !vaneStatus.data.paused
           ? {
               waiting: waiting.length,
               pending,
               panel: (
                 <VaneFormChanges
-                  proposals={proposals}
-                  kept={kept}
-                  basis={proposals.find((proposal) => proposal.basis)?.basis ?? null}
+                  changes={changes}
                   canEdit={data.canEdit}
-                  busy={decide.isPending ? (decide.variables?.actionId ?? null) : null}
-                  onKeep={(proposal) => {
-                    setDraft((current) => (current ? { ...current, ...applyFormChange(current, proposal.change) } : current));
-                    setKept((current) => new Set([...current, proposal.id]));
+                  reading={readChanges.isPending}
+                  failed={readChanges.error ? getApiErrorMessage(readChanges.error, "Vane could not read the answers. Try again.") : null}
+                  onRead={() => readChanges.mutate()}
+                  onKeep={(change) => {
+                    setDraft((current) => (current ? { ...current, ...applyFormChange(current, change) } : current));
+                    setChanges((current) => current?.map((row) => (row.id === change.id ? { ...row, kept: true } : row)) ?? null);
                   }}
-                  onNotNow={(proposal) => decide.mutate({ actionId: proposal.id, approve: false })}
+                  onNotNow={(change) => setChanges((current) => current?.filter((row) => row.id !== change.id) ?? null)}
                 />
               ),
             }

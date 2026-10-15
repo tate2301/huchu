@@ -1,62 +1,106 @@
 import { z } from "zod";
 
-import { sendFeeReminders } from "@/lib/schools/fee-reminders";
+import { NoticeError, sendSchoolNotice } from "@/lib/schools/notices";
 import { schoolPermissionDenial } from "@/lib/schools/permissions";
 
-import { listOf, refuseUnlessRoute } from "./gate";
+import { refuseUnlessRoute } from "./gate";
 import { VaneActionError, type VaneActionKind } from "./types";
 
-type Remind = { termId: string; term: string; studentIds: string[]; message: string; leaveOut: string[]; leaveOutWhy?: string };
+type Family = { studentId: string; family: string; pupil: string; amount: string };
+type Params = {
+  term: string;
+  subject: string;
+  body: string;
+  families: Family[];
+  leftOut?: Array<{ studentId?: string; family: string; why: string }>;
+  /** The families of `families` not reminded now: Vane's own leftOut to start with, then the person's ticks on Remind families. */
+  leaveOut: string[];
+};
 
-/**
- * Fee reminders (PageVaneSchool): Vane drafts one reminder for the families
- * who have paid nothing this term; a person changes the words and who it goes
- * to on Remind families (`/schools/fees/remind`), then sends it. Each family
- * gets its own, through the school's notices, as that person.
- */
+/** The families the reminder goes to: every one listed, less those left out. */
+export function goingTo(p: Pick<Params, "families" | "leaveOut">): Family[] {
+  return p.families.filter((family) => !p.leaveOut.includes(family.studentId));
+}
+
+const families = (count: number, one: string, many: string) => `${count} ${count === 1 ? one : many}`;
+
+/** The wording with one family's own name, pupil and amount in it. */
+export function reminderFor(body: string, family: Family): string {
+  return body.replaceAll("[family]", family.family).replaceAll("[pupil]", family.pupil).replaceAll("[amount]", family.amount);
+}
+
 const remind = {
   kind: "schools.fees.remind",
   module: "schools",
   description:
-    "Remind the families who have paid nothing on this term's fees: one reminder in the school's words, with [family], [pupil] and [amount] where each family sees its own " +
-    "(\"Dear [family], … for [pupil]: [amount]. You can pay at the bursary …\"). List every such pupil; put in leaveOut the ones the school should not remind now " +
-    "(a payment plan, a bursary case) and say why in leaveOutWhy. A person checks the words and the list, then sends.",
+    "Send this term's fee reminder to the families who owe (the PageVaneSchool board): one notice per family, each with its own name, pupil and amount, written once with [family], [pupil] and [amount] in it. " +
+    "Leave out a family that has agreed a payment plan or paid since, and say why in leftOut; list it in families too, with its studentId in leaveOut and on its leftOut row, so the person can tick it back. " +
+    "The person may change the words before it goes (it changes them for every family) and untick families on Remind families (/schools/fees/remind).",
   params: z.object({
-    termId: z.string().min(1),
-    term: z.string().min(1).describe('As the school names it: "Term 3".'),
-    studentIds: z.array(z.string().min(1)).min(1).max(1000),
-    message: z.string().trim().min(1).max(2000),
-    leaveOut: z.array(z.string().min(1)).max(1000).default([]),
-    leaveOutWhy: z.string().max(120).optional().describe('Why the families left out are: "they have a payment plan".'),
+    term: z.string().min(1).max(60).describe('"Third term".'),
+    subject: z.string().trim().min(1).max(120),
+    body: z.string().trim().min(1).max(1500),
+    families: z
+      .array(
+        z.object({
+          studentId: z.string().min(1),
+          family: z.string().min(1).max(80).describe('"The Moyo family".'),
+          pupil: z.string().min(1).max(80).describe('"Rumbidzai, Form 3B".'),
+          amount: z.string().min(1).max(40).describe('"USD 1,420.00".'),
+        }),
+      )
+      .min(1)
+      .max(500),
+    leftOut: z
+      .array(z.object({ studentId: z.string().min(1).optional(), family: z.string().min(1).max(80), why: z.string().min(1).max(120) }))
+      .max(500)
+      .optional(),
+    leaveOut: z.array(z.string().min(1)).max(500).default([]).describe("The studentIds of families listed but not reminded now."),
   }),
   fields: [
-    { name: "message", label: "The reminder", type: "text", multiline: true },
+    { name: "subject", label: "Subject", type: "text" },
+    { name: "body", label: "The reminder ([family], [pupil] and [amount] are each family's own)", type: "text", multiline: true },
+    // Unticked on Remind families, the school's own page, not in the panel.
     { name: "leaveOut", label: "Left out", type: "pick" },
   ],
-  verb: (p) => {
-    const count = p.studentIds.filter((id) => !p.leaveOut.includes(id)).length;
-    return count === 1 ? "Send 1 reminder" : `Send ${count} reminders`;
-  },
-  title: (p) => {
-    const count = p.studentIds.filter((id) => !p.leaveOut.includes(id)).length;
-    return `Remind ${count === 1 ? "1 family" : `${count} families`} about ${p.term}'s fees`;
-  },
+  verb: (p) => `Send ${families(goingTo(p).length, "reminder", "reminders")}`,
+  title: (p) =>
+    `Remind ${families(goingTo(p).length, "family", "families")} of ${p.term} fees${p.leftOut?.length ? `; ${p.leftOut.length} left out (${p.leftOut[0]!.why})` : ""}`,
   target: () => "/schools/fees/remind",
-  refuse: (context) =>
-    refuseUnlessRoute(context, "/api/v2/schools/notices") ??
-    (schoolPermissionDenial(context.session, "schools.reports", "notify-families") ? "Your role cannot write to families, so Vane cannot do it for you." : null),
+  refuse: (context) => refuseUnlessRoute(context, "/api/v2/schools/notices") ?? schoolPermissionDenial(context.session, "schools.reports", "notify-families"),
   async run(context, p) {
-    const going = p.studentIds.filter((id) => !p.leaveOut.includes(id));
+    let sent = 0;
+    let unreached = 0;
+    const failed: string[] = [];
+    const going = goingTo(p);
     if (going.length === 0) throw new VaneActionError("Every family is unticked, so no reminder went.");
-    const outcome = await sendFeeReminders({ companyId: context.companyId, userId: context.userId }, { termId: p.termId, term: p.term, studentIds: going, message: p.message });
-    if (outcome.sent.length === 0) {
-      throw new VaneActionError(`No reminder went: ${outcome.skipped.map((row) => `${row.family} ${row.why}`).join("; ") || "nobody owes now"}.`);
+    for (const family of going) {
+      try {
+        const notice = await sendSchoolNotice({
+          companyId: context.companyId,
+          senderUserId: context.userId,
+          title: p.subject,
+          body: reminderFor(p.body, family),
+          audience: "PARENTS",
+          studentIds: [family.studentId],
+          severity: "WARNING",
+        });
+        sent += 1;
+        unreached += notice.withoutAccount;
+      } catch (error) {
+        if (!(error instanceof NoticeError)) throw error;
+        failed.push(family.family);
+      }
     }
-    const skipped = outcome.skipped.length
-      ? ` Not sent: ${listOf(outcome.skipped.slice(0, 3).map((row) => `${row.family} (${row.why})`))}${outcome.skipped.length > 3 ? ` and ${outcome.skipped.length - 3} more` : ""}.`
-      : "";
-    return `Sent ${outcome.sent.length === 1 ? "1 reminder" : `${outcome.sent.length} reminders`} to the parents' portal.${skipped}`;
+    if (sent === 0) throw new VaneActionError(`No reminder went: ${failed.length ? `${failed.slice(0, 3).join(", ")}${failed.length > 3 ? " and others" : ""} have nobody on the portal` : "nobody to write to"}.`);
+    return [
+      `Sent ${sent} ${sent === 1 ? "reminder" : "reminders"}.`,
+      failed.length ? `${failed.length} could not be: nobody in the family is on the portal.` : null,
+      unreached ? `${unreached} ${unreached === 1 ? "guardian has" : "guardians have"} no portal account yet.` : null,
+    ]
+      .filter(Boolean)
+      .join(" ");
   },
-} satisfies VaneActionKind<Remind>;
+} satisfies VaneActionKind<Params>;
 
 export const SCHOOLS_ACTIONS = [remind] as const;

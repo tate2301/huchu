@@ -51,11 +51,12 @@ const RECORD_PAGES: Array<[RegExp, string]> = [
   [/^\/crm\/companies\/[^/]+$/, "What is open with this company?"],
   [/^\/crm\/people\/[^/]+$/, "When did we last hear from this person?"],
   [/^\/crm\/quotes\/[^/]+$/, "Check this quote before it goes"],
+  [/^\/reports\/(built\/|custom\/)?[^/]+$/, "What stands out in this report?"],
 ];
 
 function recordSuggestion(path: string): VaneSuggestion | null {
   const found = RECORD_PAGES.find(([pattern]) => pattern.test(path));
-  return found ? { text: found[1], icon: "foryou", module: "crm" } : null;
+  return found ? { text: found[1], icon: path.startsWith("/reports") ? "reports" : "foryou", module: path.startsWith("/reports") ? "reports" : "crm" } : null;
 }
 
 /**

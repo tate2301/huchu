@@ -153,6 +153,11 @@ export function ShellProvider({
   return <ShellContext.Provider value={value}>{children}</ShellContext.Provider>;
 }
 
+/** The shell's state where there may be no shell (a page drawn outside the app's frame). */
+export function useShellIfAny(): ShellState | null {
+  return React.useContext(ShellContext);
+}
+
 export function useShell(): ShellState {
   const context = React.useContext(ShellContext);
   if (!context) throw new Error("useShell must be used within ShellProvider");

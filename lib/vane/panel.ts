@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import { actionsFor, type VaneActionView } from "./actions/engine";
 import { audienceFilter, FOR_YOU, jobLine, vaneStatus, type VaneStatus } from "./status";
+import { notStopped, stoppedTopics } from "./topics";
 
 /** The button on a For you card: it names the act and goes where the act is done. */
 export const vaneActionSchema = z.object({
@@ -56,7 +57,7 @@ export type VanePanel = {
   working: VaneWorking[];
 };
 
-type Db = Pick<PrismaClient, "vaneItem" | "vaneJob" | "vanePlan" | "vaneSettings" | "vaneAction">;
+type Db = Pick<PrismaClient, "vaneItem" | "vaneJob" | "vanePlan" | "vaneSettings" | "vaneAction" | "vaneTopicStop">;
 
 /** The modules the product names for a card's source. */
 const MODULE_NAMES: Record<string, string> = {
@@ -143,7 +144,15 @@ export async function vaneOnRecord(
   { companyId, userId, role, subjectType, subjectId }: { companyId: string; userId: string; role?: string | null; subjectType: VaneSubject; subjectId: string },
 ): Promise<VaneCard[]> {
   const items = await db.vaneItem.findMany({
-    where: { companyId, status: "OPEN", kind: { in: FOR_YOU }, subjectType, subjectId, ...audienceFilter(userId, role) },
+    where: {
+      companyId,
+      status: "OPEN",
+      kind: { in: FOR_YOU },
+      subjectType,
+      subjectId,
+      ...audienceFilter(userId, role),
+      ...notStopped(await stoppedTopics(db, { companyId, userId })),
+    },
     orderBy: { createdAt: "desc" },
     take: 10,
     select: CARD_SELECT,
@@ -167,10 +176,11 @@ export async function vanePanel(
   }: { companyId: string; userId: string; role?: string | null; module?: string | null; doneSince?: Date },
 ): Promise<VanePanel> {
   const since = doneSince ?? new Date(Date.now() - 24 * 60 * 60 * 1000);
+  const stopped = await stoppedTopics(db, { companyId, userId });
   const [status, items, plans, done, working] = await Promise.all([
     vaneStatus(db, { companyId, userId, role }),
     db.vaneItem.findMany({
-      where: { companyId, status: "OPEN", kind: { in: FOR_YOU }, ...audienceFilter(userId, role) },
+      where: { companyId, status: "OPEN", kind: { in: FOR_YOU }, ...audienceFilter(userId, role), ...notStopped(stopped) },
       orderBy: { createdAt: "desc" },
       take: 50,
       select: CARD_SELECT,

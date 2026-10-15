@@ -1,6 +1,6 @@
 import { BOOKS_ACTIONS } from "./books";
-import { BUILD_ACTIONS } from "./build";
 import { CRM_ACTIONS } from "./crm";
+import { REPORTS_ACTIONS } from "./reports";
 import { RETAIL_ACTIONS } from "./retail";
 import { SCHOOLS_ACTIONS } from "./schools";
 import type { VaneActionKind } from "./types";
@@ -15,7 +15,7 @@ export const VANE_ACTIONS: readonly VaneActionKind<never>[] = [
   ...BOOKS_ACTIONS,
   ...CRM_ACTIONS,
   ...RETAIL_ACTIONS,
+  ...REPORTS_ACTIONS,
   ...SCHOOLS_ACTIONS,
-  ...BUILD_ACTIONS,
   ...VANE_OWN_ACTIONS,
 ] as unknown as readonly VaneActionKind<never>[];

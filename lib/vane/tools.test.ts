@@ -50,13 +50,16 @@ afterAll(async () => {
 describe("what Claude is shown", () => {
   it("names each tool, says what it does, and gives its input as JSON Schema", () => {
     const tools = toolDefinitions();
-    expect(tools.map((t) => t.name)).toEqual(["describe_table", "run_sql", "get_record", "propose_item", "propose_plan", "propose_actions", "draft"]);
+    expect(tools.map((t) => t.name)).toEqual(["describe_table", "run_sql", "get_record", "propose_item", "propose_plan", "propose_actions", "update_plan_step", "report_problem", "describe_report", "draft"]);
     // Claude is shown every action it can propose, and the pages it links to with their filters.
     expect(tools[5]!.description).toContain("books.invoice.due_date");
     expect(tools[5]!.description).toContain("/books/invoices");
+    // Claude takes only an object schema as a tool's input: a union at the top would be refused.
     for (const t of tools) {
       expect(t.description?.length).toBeGreaterThan(40);
       expect(t.input_schema).toMatchObject({ type: "object" });
+      expect(t.input_schema).not.toHaveProperty("oneOf");
+      expect(t.input_schema).not.toHaveProperty("anyOf");
     }
     expect(tools[1]!.input_schema).toMatchObject({ properties: { sql: { type: "string" } }, required: ["sql"] });
   });
@@ -168,6 +171,28 @@ describe("writing to Vane's own tables", () => {
     expect(answerActions).toHaveLength(1);
     const outside = await callTool(context(made.a), "propose_actions", { actions: answerActions });
     expect(JSON.parse(outside.content)).toMatchObject({ proposed: 0 });
+  });
+
+  it("moves its own plan steps on, and leaves a person's to them", async () => {
+    const plan = await prisma.vanePlan.create({
+      data: {
+        companyId: made.a,
+        title: `Match the bank ${suffix}`,
+        steps: { create: [{ position: 1, label: "Match the CBZ lines", owner: "VANE" }, { position: 2, label: "Approve the matches", owner: "PERSON" }] },
+      },
+      include: { steps: { orderBy: { position: "asc" } } },
+    });
+    const [mine, theirs] = plan.steps;
+    const now = await callTool(context(made.a), "update_plan_step", { planId: plan.id, stepId: mine!.id, status: "NOW", progress: "38 of 61 lines" });
+    expect(now.ok).toBe(true);
+    expect(await prisma.vanePlanStep.findUniqueOrThrow({ where: { id: mine!.id } })).toMatchObject({ status: "NOW", progressLabel: "38 of 61 lines" });
+    expect(await callTool(context(made.a), "update_plan_step", { planId: plan.id, stepId: theirs!.id, status: "DONE" })).toMatchObject({
+      ok: false,
+      content: expect.stringContaining("vane.plan.tick_step"),
+    });
+    await callTool(context(made.a), "update_plan_step", { planId: plan.id, stepId: mine!.id, status: "DONE" });
+    expect((await prisma.vanePlan.findUniqueOrThrow({ where: { id: plan.id } })).status).toBe("OPEN");
+    await prisma.vanePlan.delete({ where: { id: plan.id } });
   });
 
   it("says so when asked for a tool it does not have", async () => {

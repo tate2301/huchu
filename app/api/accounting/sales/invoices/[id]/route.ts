@@ -3,8 +3,7 @@ import { z } from "zod";
 import { validateSession, successResponse, errorResponse } from "@/lib/api-utils";
 import { prisma } from "@/lib/prisma";
 import { createJournalEntryFromSource } from "@/lib/accounting/posting";
-import { issueFiscalReceipt } from "@/lib/accounting/fiscalisation";
-import { hasFeature } from "@/lib/platform/features";
+import { postIssuedInvoice } from "@/lib/books/issue-invoice";
 import { onAccountingInvoiceCreated } from "@/lib/crm/accounting-hooks";
 import { asMineSchema, datesOnIssue, takeOn, VaneDraftNotTakenOn, waitsForAPerson } from "@/lib/vane/drafts";
 
@@ -70,31 +69,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     }
 
     if (validated.status === "ISSUED" && existing.status !== "ISSUED") {
-      try {
-        await createJournalEntryFromSource({
-          companyId: session.user.companyId,
-          sourceType: "SALES_INVOICE",
-          sourceId: updated.id,
-          entryDate: updated.invoiceDate,
-          description: `Sales invoice ${updated.invoiceNumber}`,
-          createdById: session.user.id,
-          amount: updated.total,
-          netAmount: updated.subTotal,
-          taxAmount: updated.taxTotal,
-          grossAmount: updated.total,
-        });
-      } catch (error) {
-        console.error("[Accounting] Sales invoice auto-post failed:", error);
-      }
-
-      const fiscalEnabled = await hasFeature(session.user.companyId, "accounting.zimra.fiscalisation");
-      if (fiscalEnabled) {
-        try {
-          await issueFiscalReceipt(session.user.companyId, updated.id, session.user.id);
-        } catch (error) {
-          console.error("[Accounting] Fiscalisation issue failed:", error);
-        }
-      }
+      await postIssuedInvoice(session.user.companyId, updated, session.user.id);
     }
 
     if (

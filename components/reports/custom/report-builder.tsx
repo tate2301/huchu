@@ -2,13 +2,14 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { BuilderBar, BuilderGrid } from "@/components/builder/grid";
 import { Button, ButtonLink, Empty } from "@/components/core";
 import { useMounted } from "@/components/layout/workspace-rail/module-groups";
 import { dsConfirm } from "@/components/ui/ds-confirm";
 import { useToast } from "@/components/ui/use-toast";
+import { useVaneStatus } from "@/components/vane/use-vane";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import {
   customReportInputSchema,
@@ -126,11 +127,26 @@ export function ReportBuilder({
   // Vane's newest suggestion that is not already on the page.
   const [states, setStates] = React.useState<Record<string, SuggestionState>>({});
   const [muting, setMuting] = React.useState(false);
-  const item = (suggestions.data?.suggestions ?? []).find(
-    (candidate) => states[candidate.id] !== "dismissed" && (states[candidate.id] === "kept" || !blocks.some((block) => block.type === "query" && sameSql(block.query, candidate.sql))),
-  );
+  // A block Vane wrote on request ("Give Vane a change to make"): its suggestion first, until kept or not.
+  const [written, setWritten] = React.useState<{ item: ReportSuggestion; block: QueryBlock } | null>(null);
+  const vaneStatus = useVaneStatus();
+  const write = useMutation({
+    mutationFn: (request: string) =>
+      fetchJson<{ block: QueryBlock; note: string }>("/api/vane/write/report-block", { method: "POST", body: JSON.stringify({ request, blocks }) }),
+    onSuccess: ({ block, note }) => setWritten({ item: { id: `write:${block.id}`, name: block.title ?? block.name, note, sql: block.query }, block }),
+    onError: (failure) => toast({ title: "Vane wrote nothing", description: getApiErrorMessage(failure, "Try asking another way."), variant: "destructive" }),
+  });
+  const ownWritten = written && states[written.item.id] !== "dismissed" ? written : null;
+  const item =
+    ownWritten?.item ??
+    (suggestions.data?.suggestions ?? []).find(
+      (candidate) => states[candidate.id] !== "dismissed" && (states[candidate.id] === "kept" || !blocks.some((block) => block.type === "query" && sameSql(block.query, candidate.sql))),
+    );
   const state: SuggestionState = item ? (states[item.id] ?? "waiting") : "dismissed";
-  const pending = React.useMemo(() => (item && state === "waiting" ? suggestionBlock(item, blocks) : null), [item, state, blocks]);
+  const pending = React.useMemo(
+    () => (item && state === "waiting" ? (ownWritten && ownWritten.item.id === item.id ? ownWritten.block : suggestionBlock(item, blocks)) : null),
+    [item, state, blocks, ownWritten],
+  );
 
   const period = current?.document.period;
   const params = React.useMemo(() => (period ? resolveParams(periodParams(period), {}) : {}), [period]);
@@ -203,6 +219,11 @@ export function ReportBuilder({
 
   const dismiss = async () => {
     if (!item) return;
+    // A block written on request is only on this page: Not now drops it.
+    if (ownWritten && item.id === ownWritten.item.id) {
+      setStates((current) => ({ ...current, [item.id]: "dismissed" }));
+      return;
+    }
     setMuting(true);
     try {
       await fetchJson(`/api/vane/items/${encodeURIComponent(item.id)}/mute`, { method: "POST", body: JSON.stringify({}) });
@@ -287,11 +308,20 @@ export function ReportBuilder({
       }
       suggestion={
         item && pending
-          ? { item, block: pending, state, busy: muting, onKept: () => setStates((current) => ({ ...current, [item.id]: "kept" })), onDismiss: () => void dismiss() }
+          ? {
+              item,
+              block: pending,
+              state,
+              busy: muting,
+              written: Boolean(ownWritten && item.id === ownWritten.item.id),
+              onKept: () => setStates((current) => ({ ...current, [item.id]: "kept" })),
+              onDismiss: () => void dismiss(),
+            }
           : item && state === "kept"
             ? { item, block: suggestionBlock(item, blocks), state, onKept: () => undefined, onDismiss: () => undefined }
             : null
       }
+      ask={vaneStatus.data && !vaneStatus.data.paused ? { onAsk: (request) => write.mutate(request), busy: write.isPending } : null}
     />
   );
 }

@@ -11,6 +11,7 @@ import type { VaneDoneView, VaneMutedRow, VanePlanRow, VaneWorkRow } from "@/lib
 import type { VaneCard, VanePanel, VaneSubject } from "@/lib/vane/panel";
 import type { VaneWatchable } from "@/lib/vane/settings";
 import type { VaneStatus } from "@/lib/vane/status";
+import type { StopOffer } from "@/lib/vane/topics";
 
 /** The module a path belongs to, for "this module's cards first". */
 export function moduleForPath(pathname: string): string | null {
@@ -114,10 +115,21 @@ export function useVaneWorking() {
   });
 }
 
+export type VaneMutedData = { cards: VaneMutedRow[]; offers: StopOffer[]; stopped: string[] };
+
 export function useVaneMuted() {
   return useQuery({
     queryKey: ["vane", "muted"],
-    queryFn: () => fetchJson<{ cards: VaneMutedRow[] }>("/api/vane/muted").then((data) => data.cards),
+    queryFn: () => fetchJson<VaneMutedData>("/api/vane/muted"),
+  });
+}
+
+/** "Stop it for me" and "Show it again": a topic this person no longer sees, or sees again. */
+export function useVaneTopic() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (body: { topic: string; stopped: boolean }) => fetchJson("/api/vane/topics", { method: "PUT", body: JSON.stringify(body) }),
+    onSettled: () => client.invalidateQueries({ queryKey: ["vane"] }),
   });
 }
 
@@ -178,7 +190,7 @@ export function useVaneAsk() {
     async (text: string, module: string | null, path: string | null = null) => {
       setError(null);
       setWorking("Reading your question");
-      const mine: VaneChatMessage = { id: `mine-${Date.now()}`, author: "person", text, createdAt: new Date().toISOString(), actions: [] };
+      const mine: VaneChatMessage = { id: `mine-${Date.now()}`, author: "person", text, createdAt: new Date().toISOString(), actions: [], read: [] };
       client.setQueryData<VaneChatMessage[]>(CHAT_KEY, (messages) => [...(messages ?? []), mine]);
       try {
         const response = await fetch("/api/vane/chat", {

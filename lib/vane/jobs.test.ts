@@ -174,6 +174,26 @@ describe("running a job", () => {
     expect(cache_control).toEqual({ type: "ephemeral" });
   });
 
+  it("ends the job on what Vane could not work out, keeping the question behind it", async () => {
+    const queued = await job(made.on);
+    const { client } = claude(
+      reply(
+        [
+          toolUse("p1", "report_problem", {
+            problem: "3 receipts have no amount, so the total would be a guess.",
+            sql: `SELECT "id" FROM "Employee"`,
+          }),
+        ],
+        "tool_use",
+      ),
+      reply([text("I could not work out September's fuel spend.")], "end_turn"),
+    );
+    expect(await runNextJob(NOW, { client, companyId: made.on })).toMatch(/could not work it out/);
+    const failed = await prisma.vaneJob.findUniqueOrThrow({ where: { id: queued.id } });
+    expect(failed).toMatchObject({ status: "FAILED", error: "3 receipts have no amount, so the total would be a guess.", problemSql: `SELECT "id" FROM "Employee"` });
+    await prisma.vaneJob.delete({ where: { id: queued.id } });
+  });
+
   it("waits and tries again later when Claude cannot be reached", async () => {
     const queued = await job(made.on);
     const { client } = claude(new Anthropic.APIConnectionError({ message: "socket hang up" }));

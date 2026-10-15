@@ -12,6 +12,8 @@ export const crmDocumentLineSchema = z.object({
   quantity: z.number().finite().positive(),
   unitPrice: z.number().finite().nonnegative(),
   taxRate: z.number().finite().min(0).max(100).optional(),
+  /** The catalogue product it was picked from: kept on a quote's line for its price check. */
+  productId: z.string().uuid().optional(),
 });
 
 /**

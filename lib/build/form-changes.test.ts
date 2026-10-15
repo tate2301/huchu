@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { FieldDefinition } from "@/lib/forms/fields";
 import type { QuoteLine } from "@/lib/forms/quote";
 
-import { applyFormChange, changeRefusal, hasChange, proposalOf, type FormDraft } from "./form-changes";
+import { applyFormChange, changedKey, hasChange, type FormDraft } from "./form-changes";
 
 const draft: FormDraft = {
   fields: [
@@ -15,44 +15,29 @@ const draft: FormDraft = {
     { id: "callout", description: "Call-out", unitPrice: 20, quantity: { from: "fixed", value: 1 } } as QuoteLine,
   ],
 };
+const said = { title: "", why: "", read: "Site visit answers" };
 
-describe("Vane's changes to a form", () => {
+describe("keeping Vane's changes to a form", () => {
   it("make a question required, add a choice, or change a line's waste, in the draft only", () => {
-    const required = applyFormChange(draft, { type: "require", key: "subfloor" });
+    const required = applyFormChange(draft, { kind: "require", key: "subfloor", ...said });
     expect(required.fields[0]!.required).toBe(true);
     expect(draft.fields[0]!.required).toBe(false);
 
-    const screed = applyFormChange(draft, { type: "add_option", key: "subfloor", option: { value: "screed", label: "Screed, new" } });
+    const screed = applyFormChange(draft, { kind: "add_option", key: "subfloor", option: { value: "screed", label: "Screed" }, ...said });
     expect(screed.fields[0]!.options).toEqual([
       { value: "concrete", label: "Concrete" },
-      { value: "screed", label: "Screed, new" },
+      { value: "screed", label: "Screed" },
     ]);
 
-    const waste = applyFormChange(draft, { type: "waste", lineId: "laminate", factor: 1.13 });
+    const waste = applyFormChange(draft, { kind: "quote_factor", lineId: "laminate", factor: 1.13, ...said });
     expect(waste.quoteLines[0]!.quantity).toEqual({ from: "field", key: "areas", factor: 1.13 });
-    expect(hasChange(waste, { type: "waste", lineId: "laminate", factor: 1.13 })).toBe(true);
+    expect(hasChange(waste, { kind: "quote_factor", lineId: "laminate", factor: 1.13, ...said })).toBe(true);
   });
 
-  it("say why one no longer fits, and change nothing", () => {
-    expect(changeRefusal(draft, { type: "require", key: "gone" })).toBe("That question is no longer on the form.");
-    expect(changeRefusal(draft, { type: "add_option", key: "notes", option: { value: "x", label: "X" } })).toBe("Notes is not a list to pick from.");
-    expect(changeRefusal(draft, { type: "waste", lineId: "callout", factor: 1.1 })).toBe("Call-out is a fixed quantity, with no waste to change.");
-    expect(applyFormChange(draft, { type: "require", key: "gone" })).toBe(draft);
-  });
-
-  it("read a Vane action as the builder's proposal", () => {
-    const params = { setId: "s", form: "Floor site visit", change: { type: "require", key: "subfloor" }, headline: "Make Subfloor required", reason: "Skipped on 18 of 86 visits.", read: "Site visit answers", basis: "From 86 visits since July" };
-    expect(proposalOf({ id: "a", status: "PROPOSED", params, result: null })).toEqual({
-      id: "a",
-      status: "proposed",
-      headline: "Make Subfloor required",
-      reason: "Skipped on 18 of 86 visits.",
-      read: "Site visit answers",
-      basis: "From 86 visits since July",
-      change: { type: "require", key: "subfloor" },
-      failed: null,
-    });
-    expect(proposalOf({ id: "a", status: "DONE", params, result: "Kept" })?.status).toBe("kept");
-    expect(proposalOf({ id: "a", status: "DENIED", params, result: null })).toBeNull();
+  it("change nothing when its question or line has gone, or it is already so", () => {
+    expect(applyFormChange(draft, { kind: "require", key: "gone", ...said })).toBe(draft);
+    expect(applyFormChange(draft, { kind: "quote_factor", lineId: "callout", factor: 1.1, ...said })).toBe(draft);
+    expect(applyFormChange(draft, { kind: "add_option", key: "subfloor", option: { value: "concrete", label: "Concrete" }, ...said })).toBe(draft);
+    expect(changedKey({ kind: "quote_factor", lineId: "laminate", factor: 1.13, ...said })).toBeNull();
   });
 });

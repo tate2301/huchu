@@ -107,6 +107,7 @@ describe("Vane's tables, as stored", () => {
       "VanePlanStep",
       "VaneReaderScope",
       "VaneSettings",
+      "VaneTopicStop",
     ]);
   });
 
