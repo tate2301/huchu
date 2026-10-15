@@ -11,7 +11,7 @@ import type { AuthenticatedSession } from "@/lib/auth-core/types";
 import { createQuotationForLead } from "@/lib/crm/accounting-bridge";
 import { prisma } from "@/lib/prisma";
 
-import { changeLineToListedPrice, checkQuoteAgainstPriceList, QuoteCheckRefused } from "./quote-check";
+import { changeLineToListedPrice, checkQuoteAgainstPriceList, QuoteCheckRefused, vaneQuoteMessageSent } from "./quote-check";
 
 const SLUG = "crm-quote-check-test";
 const ids = { company: "", manager: "", rep: "", lead: "", doc: "", underlay: "" };
@@ -20,6 +20,7 @@ const session = (userId: string, role: string) =>
   ({ user: { id: userId, companyId: ids.company, role, name: "Tendai" } }) as unknown as AuthenticatedSession;
 
 async function clear() {
+  await prisma.vaneItem.deleteMany({ where: { companyId: ids.company } });
   await prisma.crmActivity.deleteMany({ where: { companyId: ids.company } });
   await prisma.crmLeadDocument.deleteMany({ where: { companyId: ids.company } });
   await prisma.salesQuotation.deleteMany({ where: { companyId: ids.company } });
@@ -112,5 +113,27 @@ describe("a quote checked against the price list", () => {
     ]);
     expect((await checkQuoteAgainstPriceList(ids.company, ids.doc))?.findings).toEqual([]);
     await expect(changeLineToListedPrice(session(ids.manager, "MANAGER"), ids.doc, 1)).rejects.toThrow("already matches");
+  });
+});
+
+describe("the message Vane wrote to go with the quote", () => {
+  it("is its open card about the quote whose button sends, done by the person who sends it", async () => {
+    const card = (body: string, type: string, subjectId = ids.doc) =>
+      prisma.vaneItem.create({
+        data: { companyId: ids.company, kind: "SUGGESTION", sourceModule: "crm", headline: "The quote is ready to go", body, action: { type, label: "Send the quote" }, subjectType: "CrmLeadDocument", subjectId },
+      });
+    const other = await card("Not about this quote.", "send", "00000000-0000-4000-8000-000000000000");
+    await card("Ring them first.", "open");
+    const message = await card("Good afternoon. Here is the quote for the lounge and passage.", "send");
+
+    const check = await checkQuoteAgainstPriceList(ids.company, ids.doc);
+    expect(check?.message).toEqual({ itemId: message.id, text: "Good afternoon. Here is the quote for the lounge and passage." });
+    expect(check?.basePath).toBe(`/api/v2/crm/leads/${ids.lead}`);
+
+    // Only that card, about this quote, is taken further, and by the sender.
+    expect(await vaneQuoteMessageSent({ companyId: ids.company, userId: ids.manager, itemId: other.id, documentId: ids.doc })).toBe(false);
+    expect(await vaneQuoteMessageSent({ companyId: ids.company, userId: ids.manager, itemId: message.id, documentId: ids.doc })).toBe(true);
+    expect(await prisma.vaneItem.findUniqueOrThrow({ where: { id: message.id } })).toMatchObject({ status: "DONE", resolvedById: ids.manager });
+    expect((await checkQuoteAgainstPriceList(ids.company, ids.doc))?.message).toBeNull();
   });
 });

@@ -30,6 +30,8 @@ import { documentResourceIdsSchema, ResourceNotAvailableError } from "@/lib/crm/
 import { draftDocumentEmail, emailDocumentToClient, NoRecipientError } from "@/lib/crm/document-email";
 import { EmailNotConfiguredError } from "@/lib/email/send";
 import { crmDocumentLineSchema } from "./_helpers";
+import { VaneDraftNotTakenOn } from "@/lib/vane/drafts";
+import { vaneQuoteMessageSent } from "@/lib/crm/quote-check";
 
 type Owner = { kind: "lead" | "deal"; id: string };
 
@@ -173,6 +175,8 @@ export async function getDocumentEmail(request: NextRequest, owner: Owner, docId
 const emailSchema = z.object({
   subject: z.string().trim().min(1, "Write a subject").max(200, "Keep the subject to 200 characters").optional(),
   message: z.string().trim().min(1, "Write the message").max(5000, "Keep the message to 5,000 characters").optional(),
+  /** The card Vane's message came from (PageVaneDocument): done once the person has sent it. */
+  vaneItemId: z.string().uuid().optional(),
 });
 
 /**
@@ -183,8 +187,12 @@ export async function sendDocumentEmail(request: NextRequest, owner: Owner, docI
   try {
     const allowed = await mayEmail(request, owner, docId);
     if (!allowed.session) return allowed.response;
-    const body = emailSchema.parse(await request.json().catch(() => ({})));
+    const { vaneItemId, ...body } = emailSchema.parse(await request.json().catch(() => ({})));
     const sent = await emailDocumentToClient({ companyId: allowed.session.user.companyId, leadDocumentId: docId, ...body });
+    // The words this person checked and sent were Vane's: its card is done, and theirs.
+    if (vaneItemId) {
+      await vaneQuoteMessageSent({ companyId: allowed.session.user.companyId, userId: allowed.session.user.id, itemId: vaneItemId, documentId: docId });
+    }
     return successResponse(sent, 201);
   } catch (error) {
     console.error(`[API] POST /api/v2/crm/${owner.kind}s/[id]/documents/[docId]/email error:`, error);
@@ -193,6 +201,7 @@ export async function sendDocumentEmail(request: NextRequest, owner: Owner, docI
     // person pressing send can act on, so they are answered rather than
     // flattened into a server error.
     if (error instanceof NoRecipientError) return errorResponse(error.message, 422);
+    if (error instanceof VaneDraftNotTakenOn) return errorResponse(error.message, error.status);
     if (error instanceof EmailNotConfiguredError) return errorResponse(error.message, 503);
     return errorResponse(error instanceof Error ? error.message : "Failed to email the document", 500);
   }

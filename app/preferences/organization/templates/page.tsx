@@ -1,7 +1,6 @@
-import TemplateSettingsPage from "@/components/settings/templates/template-settings-page";
-import { requirePreferencesAccess } from "@/lib/preferences/server";
+import { redirect } from "next/navigation";
 
-export default async function PreferencesTemplatesPage() {
-  await requirePreferencesAccess("templates");
-  return <TemplateSettingsPage />;
+/** Document templates moved from Management to Build (PageBuildTemplates, spec/routes.md §5). */
+export default function PreferencesTemplatesPage() {
+  redirect("/build/templates");
 }

@@ -850,7 +850,11 @@ async function main() {
   // ── Promotions (PRD-09): the nine on the boards; the history's lines carry what they took off.
   const promotions = await seedPromotions({ companyId, productIds: new Map([...stocked].map(([code, line]) => [code, line.productId])), categoryIds })
 
-  if (reset) {
+  // The history is written fresh every run: its ids are new each time, so a run
+  // over an earlier one's shifts would collide on their numbers (SH-00001…),
+  // skip them and leave the drops and sales pointing at shifts never written.
+  const hadHistory = (await prisma.retailShift.count({ where: { companyId } })) > 0
+  if (reset || hadHistory) {
     // Only the trading history, never the shelf or the staff. A reset that wiped
     // the catalogue would take the demo's barcodes with it.
     const sales = await prisma.retailSale.findMany({ where: { companyId }, select: { id: true } })
@@ -2766,7 +2770,15 @@ async function seedPeople(input: {
     { email: "rufaro.manager@bottlestore.test", name: "Rufaro Ndlovu", role: "MANAGER", sites: [mainSiteId], phone: "+263713305521", removedDaysAgo: 19 },
     { email: null, name: "Tatenda Gumbo", role: "CASHIER", sites: [borrowdaleId], phone: "+263782206614" },
   ]
-  const owner = await prisma.user.findFirstOrThrow({ where: { companyId, email: "owner@bottlestore.test" }, select: { id: true } })
+  // The owner signs off everyone else's removal and invite, so is there before the loop
+  // reaches them (on a workspace seed-staging-tenant.ts made, only its admin is).
+  const ownerSeed = PEOPLE[0]
+  const owner =
+    (await prisma.user.findFirst({ where: { email: ownerSeed.email! }, select: { id: true } })) ??
+    (await prisma.user.create({
+      data: { email: ownerSeed.email, name: ownerSeed.name, role: ownerSeed.role, companyId, phone: ownerSeed.phone, allSites: true, password: passwordHash },
+      select: { id: true },
+    }))
   const ownerActor = { companyId, userId: owner.id, userName: "Tendai Mhlanga", userRole: "SUPERADMIN" }
   const personRole: Record<Seeded["role"], string> = {
     SUPERADMIN: "OWNER",

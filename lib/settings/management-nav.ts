@@ -12,7 +12,6 @@ import {
   Coins,
   Dataset,
   FileCheck,
-  FileText,
   Grid3x3,
   History,
   IdentificationCard,
@@ -84,13 +83,6 @@ export const managementModuleItems: ManagementModuleItem[] = [
     href: "/preferences/organization/users",
     icon: MedusaIdBadgeIcon,
     matchPrefixes: ["/management/users", "/preferences/organization/users"],
-  },
-  {
-    id: "document-templates",
-    label: "Document templates",
-    href: "/preferences/organization/templates",
-    icon: MedusaBookOpenIcon,
-    matchPrefixes: ["/settings/templates", "/preferences/organization/templates"],
   },
 ];
 
@@ -329,6 +321,11 @@ export type SettingsNavEntry = {
    * belongs to Users). The href itself is always matched; these are additions.
    */
   matchPrefixes?: string[];
+  /**
+   * The saas-design lint rules this row breaks on purpose (`data-lint-ignore`),
+   * with the reason in design/core-modules/app/ledger.md.
+   */
+  lintIgnore?: string;
 };
 
 export const SETTINGS_RAIL_GROUP_LABELS: Record<SettingsRailGroupId, string> = {
@@ -502,6 +499,8 @@ export const settingsNavEntries: SettingsNavEntry[] = [
     href: "/compliance/inspections",
     icon: ShieldCheck,
     gate: { kind: "feature" },
+    // Safety inspections, not the lexicon's banned word for a site visit (ledger, 15 Oct).
+    lintIgnore: "W1",
   },
   {
     id: "incidents",
@@ -537,15 +536,8 @@ export const settingsNavEntries: SettingsNavEntry[] = [
     gate: { kind: "preference", itemId: "branding" },
     matchPrefixes: ["/settings/branding"],
   },
-  {
-    id: "templates",
-    group: "company",
-    label: "Templates",
-    href: "/preferences/organization/templates",
-    icon: FileText,
-    gate: { kind: "preference", itemId: "templates" },
-    matchPrefixes: ["/settings/templates"],
-  },
+  // Templates moved to Build (PageBuildTemplates: "Templates moved here from
+  // Management"); `/preferences/organization/templates` forwards there.
   {
     id: "reports",
     group: "company",
@@ -558,9 +550,17 @@ export const settingsNavEntries: SettingsNavEntry[] = [
     id: "activity",
     group: "company",
     label: "Activity",
-    href: "/preferences/organization/activity",
+    href: "/activity?view=workspace",
     icon: History,
     gate: { kind: "preference", itemId: "activity" },
+  },
+  {
+    id: "notification-routing",
+    group: "company",
+    label: "Notifications",
+    href: "/management/notifications",
+    icon: Bell,
+    gate: { kind: "preference", itemId: "notification-routing" },
   },
   // Apps: what the workspace pays for, connects to and adds, and Vane
   // (design/core-modules/spec/management.md). Billing moved here from Company.
@@ -595,6 +595,14 @@ export const settingsNavEntries: SettingsNavEntry[] = [
     href: "/management/vane",
     icon: VaneIcon,
     gate: { kind: "preference", itemId: "vane" },
+  },
+  {
+    id: "explore",
+    group: "apps",
+    label: "Explore",
+    href: "/management/explore",
+    icon: Dataset,
+    gate: { kind: "preference", itemId: "explore" },
   },
 
   {

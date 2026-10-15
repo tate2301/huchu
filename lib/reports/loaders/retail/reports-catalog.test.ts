@@ -187,10 +187,13 @@ describe("Every template, as each person sees it", () => {
     expect(names(seen)).toEqual(["Voids and refunds by cashier"]);
   });
 
-  it("counts the panel's badges: every template and each area with any", async () => {
+  it("counts the panel's badges: every template, its views, and each area with any", async () => {
     const badges = await computeNavBadges({ companyId, userId: people.tafara!, role: "MANAGER" }, REPORTS_NAV_BADGES);
     expect(badges).toEqual({
-      "/retail/reports": "11",
+      "/retail/reports?view=all": "11",
+      "/retail/reports?view=all&tab=built-in": "8",
+      "/retail/reports?view=all&tab=team": "3",
+      "/retail/reports?view=all&tab=mine": "1",
       "/retail/reports?area=selling": "1",
       "/retail/reports?area=stock": "5",
       "/retail/reports?area=customers": "1",

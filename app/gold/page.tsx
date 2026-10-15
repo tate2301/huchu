@@ -204,7 +204,7 @@ export default function GoldPage() {
             </Button>
           ) : null}
           <Button asChild size="sm" variant="outline">
-            <Link href="/gold/insights/allocations">Allocations</Link>
+            <Link href="/gold/allocations">Allocations</Link>
           </Button>
           <Button asChild size="sm" variant="outline">
             <Link href="/gold/import">Import Ledger</Link>

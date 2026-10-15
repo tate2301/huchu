@@ -22,9 +22,11 @@ import { aggregatesFor, AGGREGATE_LABELS, isNumeric, rowsWithin, type AppliedVie
 /** How many rows are drawn before "Show more". Totals always cover every row. */
 const PAGE = 400;
 
-const DONE = /^(won|paid|done|complete|completed|approved|closed|delivered|posted|present|active|in stock)$/i;
-const BAD = /^(lost|cancelled|canceled|failed|overdue|rejected|void|absent|declined|out of stock)$/i;
-const WAITING = /^(pending|draft|waiting|on hold|late|due|partly paid|part paid|scheduled)$/i;
+const DONE = /^(won|accepted|paid|done|complete|completed|approved|closed|delivered|posted|present|active|in stock)$/i;
+// Red is for what went wrong and wants a hand. An outcome somebody chose (a deal lost, a quote
+// declined, an order cancelled) is an ending, not an error: its dot is neutral.
+const BAD = /^(failed|overdue|absent|out of stock)$/i;
+const WAITING = /^(pending|draft|drafted|waiting|on hold|late|due|partly paid|part paid|scheduled)$/i;
 const OPEN = /^(open|new|in progress|sent|quoted|booked)$/i;
 
 /** A state's dot: done, gone wrong, waiting, or still going. */

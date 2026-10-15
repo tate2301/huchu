@@ -1,8 +1,6 @@
-import { ActivityPreferences } from "@/components/preferences/organization/activity-preferences";
-import { requirePreferencesAccess } from "@/lib/preferences/server";
+import { redirect } from "next/navigation";
 
-export default async function PreferencesActivityPage() {
-  await requirePreferencesAccess("activity");
-
-  return <ActivityPreferences />;
+/** Settings → Activity moved to /activity, where the workspace's trail is the Workspace view. */
+export default function PreferencesActivityPage() {
+  redirect("/activity?view=workspace");
 }

@@ -6,6 +6,15 @@ import { dayKey } from "@/lib/workspace/format";
 import { monthBounds } from "./settings";
 import { notStopped, stoppedTopics } from "./topics";
 
+/**
+ * A job's label as a line: a job keeps its whole instruction in its label
+ * (an explained figure's question, then the report it is about), so the pages
+ * show its first line.
+ */
+export function jobLine(label: string): string {
+  return label.trim().split("\n")[0]!.trim();
+}
+
 /** What For you holds and the button counts: issues and suggestions. Insights live on Reports → Insights. */
 export const FOR_YOU: VaneItemKind[] = ["ISSUE", "SUGGESTION"];
 
@@ -115,7 +124,7 @@ export async function vaneStatus(
     own,
     open,
     working: Boolean(running) && !paused,
-    now: running && !own ? { label: running.label, progress } : null,
+    now: running && !own ? { label: jobLine(running.label), progress } : null,
     paused,
     pausedBy: paused ? (settings?.pausedBy?.name ?? null) : null,
     pausedAt: paused && settings ? settings.updatedAt.toISOString() : null,
@@ -127,7 +136,7 @@ export async function vaneStatus(
       !own && lastFinished?.status === "FAILED" && lastFinished.finishedAt
         ? {
             jobId: lastFinished.id,
-            label: lastFinished.label,
+            label: jobLine(lastFinished.label),
             error: lastFinished.error?.trim() || "It stopped without saying why.",
             tried: toolsTried(lastFinished.tools),
             at: lastFinished.finishedAt.toISOString(),
@@ -136,4 +145,53 @@ export async function vaneStatus(
         : null,
     counts: own ? { working: 0, plans: 0, doneToday: 0, muted } : { working, plans, doneToday, muted },
   };
+}
+
+/**
+ * A question Vane wrote for a custom report, waiting in its builder to be kept
+ * (ReportBuildVane). It is a For you suggestion whose action points at the
+ * report (`/reports/c/<id>` or its builder) and which carries the SQL it wrote.
+ * Vane only drafts it: a person keeps it, and it is saved when they publish.
+ */
+export type ReportSuggestion = {
+  id: string;
+  /** The question's name, as the builder lists questions ("by fitter"). */
+  name: string;
+  /** Why, and the closing "let's …". */
+  note: string;
+  sql: string;
+};
+
+/** The report a Vane action points at, by id, or null when it points elsewhere. */
+export function reportTarget(action: unknown): string | null {
+  const target = action && typeof action === "object" ? (action as { target?: unknown }).target : null;
+  if (typeof target !== "string") return null;
+  const match = /^\/reports\/c\/([^/?#]+)(?:\/edit)?(?:[?#].*)?$/.exec(target);
+  return match ? decodeURIComponent(match[1]!) : null;
+}
+
+/** An open suggestion as the builder shows it, when it is one for this report. */
+export function toReportSuggestion(
+  item: { id: string; headline: string; body: string; sql: string | null; action: unknown },
+  reportId: string,
+): ReportSuggestion | null {
+  if (!item.sql?.trim() || reportTarget(item.action) !== reportId) return null;
+  return { id: item.id, name: item.headline.trim(), note: item.body.trim(), sql: item.sql };
+}
+
+/** The open suggestions for one custom report that this person can see, newest first. */
+export async function reportSuggestions(
+  db: Pick<PrismaClient, "vaneItem">,
+  { companyId, userId, role, reportId }: { companyId: string; userId: string; role?: string | null; reportId: string },
+): Promise<ReportSuggestion[]> {
+  const items = await db.vaneItem.findMany({
+    where: { companyId, status: "OPEN", kind: "SUGGESTION", sql: { not: null }, ...audienceFilter(userId, role) },
+    orderBy: { createdAt: "desc" },
+    take: 50,
+    select: { id: true, headline: true, body: true, sql: true, action: true },
+  });
+  return items.flatMap((item) => {
+    const suggestion = toReportSuggestion(item, reportId);
+    return suggestion ? [suggestion] : [];
+  });
 }

@@ -297,9 +297,7 @@ export function CommandBar({
           {active?.primary ? (
             <Button type="button" size="sm" onClick={() => run(active)}>
               {active.primary.label}
-              <span className="ml-1.5 opacity-70" aria-hidden="true">
-                ⏎
-              </span>
+              <kbd className="ml-1.5 font-sans opacity-70">↵</kbd>
             </Button>
           ) : (
             <span className="flex items-center gap-1.5 text-sm text-[var(--text-muted)]">

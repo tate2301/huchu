@@ -1,12 +1,10 @@
-import { getServerSession } from "next-auth";
 import { redirect } from "next/navigation";
 
-import { EnquiryFormBuilder } from "@/components/crm/build/enquiry-form-builder";
-import { authOptions } from "@/lib/auth";
-
+/**
+ * An enquiry form's builder is Build's form builder now, keeping the id. The
+ * enquiries sent with it are listed in its Settings, each opening its lead.
+ */
 export default async function EnquiryFormBuilderPage({ params }: { params: Promise<{ id: string }> }) {
-  const session = await getServerSession(authOptions);
-  if (!session?.user) redirect("/login");
   const { id } = await params;
-  return <EnquiryFormBuilder id={id} />;
+  redirect(`/build/forms/${encodeURIComponent(id)}`);
 }

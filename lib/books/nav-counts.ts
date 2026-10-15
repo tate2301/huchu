@@ -16,7 +16,7 @@ type Db = Pick<PrismaClient, "salesInvoice" | "bankStatementLine" | "$queryRaw">
 export const BOOKS_COUNT_HREFS = {
   invoices: "/books/invoices",
   bank: "/books/bank",
-  takings: "/retail/end-of-day",
+  takings: "/books/takings",
 } as const;
 
 export type BooksCounts = { invoices: number; bank: number; takings: number };

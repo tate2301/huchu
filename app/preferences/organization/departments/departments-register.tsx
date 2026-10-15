@@ -67,7 +67,7 @@ const QUERY_KEY = ["preferences", "organization", "departments"] as const;
  */
 const OPTIONS_KEY = ["preferences", "organization", "department-options"] as const;
 
-const FULL_LOG_HREF = "/preferences/organization/activity";
+const FULL_LOG_HREF = "/activity?view=workspace";
 
 /**
  * Radix `Select` has no empty item — `value=""` is how it says "nothing

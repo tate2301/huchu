@@ -75,12 +75,12 @@ describe("the rendered document", () => {
     expect(html).toContain("Poppins");
   });
 
-  it("sets figures in the same monospace face the app uses", () => {
+  it("sets figures in the document's own face, with tabular figures, as the boards draw the paper", () => {
     const html = render(branding("huchu"));
-    expect(html).toContain("IBM Plex Mono");
-    // The old hard-coded face was never loaded, so it only ever resolved to
-    // whatever monospace the container happened to have.
-    expect(html).not.toContain("JetBrains Mono");
+    expect(html).toContain(".mono { font-variant-numeric: tabular-nums; }");
+    expect(html).not.toMatch(/font-family: [^;]*(IBM Plex Mono|JetBrains Mono|monospace)/);
+    // No letterspaced capitals on the paper: its labels are sentence case.
+    expect(html).not.toContain("text-transform: uppercase");
   });
 
   it("still renders when a tenant has no font configured", () => {

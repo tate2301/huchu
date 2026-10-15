@@ -129,7 +129,7 @@ export const ORGANIZATION_PREFERENCES_ITEMS: PreferencesNavItem[] = [
     id: "activity",
     group: "organization",
     label: "Activity",
-    href: "/preferences/organization/activity",
+    href: "/activity?view=workspace",
     description: "Who changed what across the workspace.",
   },
 ];
@@ -155,6 +155,9 @@ export function canViewPreferenceItem(
   // The log covers every module, so it answers to the workspace's admins on
   // every plan — the same people `/api/activity` serves.
   if (itemId === "activity") return isOrgAdminRole(role);
+  // Who hears about what across the workspace (Management → Notifications):
+  // the same people, since it reads everyone's notifications.
+  if (itemId === "notification-routing") return isOrgAdminRole(role);
   // Which reports are offered and how they open is a workspace decision, made
   // by the same people who decide who works here.
   if (itemId === "reports") return isOrgAdminRole(role);
@@ -171,7 +174,7 @@ export function canViewPreferenceItem(
   // The Apps group (design/core-modules/spec/management.md): what the
   // workspace connects to, what it adds, and how Vane works for it. Decided by
   // the workspace's admins, as the organisation's own settings are.
-  if (itemId === "integrations" || itemId === "marketplace" || itemId === "vane") return isOrgAdminRole(role);
+  if (itemId === "integrations" || itemId === "marketplace" || itemId === "vane" || itemId === "explore") return isOrgAdminRole(role);
   if (itemId === "branding" || itemId === "templates") {
     return role === "SUPERADMIN" && hasTokenFeature(enabledFeatures, "core.branding.manage");
   }

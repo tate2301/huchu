@@ -3,7 +3,7 @@
 /**
  * The site-visit questions, from CRM settings.
  *
- * They are built in the builder (`/crm/build`), where a question is filled in
+ * They are built in Build (`/build/forms/[id]`), where a question is filled in
  * as it is made and the quote it drafts is priced beside it. Settings lists
  * them so they can still be found from here, and opens each in the builder
  * rather than keeping a second editor that could disagree with the first.
@@ -49,7 +49,7 @@ export function QuestionSetsContent() {
       <p className="text-sm text-[var(--text-muted)]">
         What a rep is asked on site. A visit opens a section per product being
         quoted, so only the questions that apply are asked. Each opens in{" "}
-        <Link href="/crm/build" className="font-medium text-[var(--text-strong)] underline underline-offset-2">
+        <Link href="/build?kind=forms" className="font-medium text-[var(--text-strong)] underline underline-offset-2">
           Build
         </Link>
         {data.canEdit ? ", where new ones start from a template." : ", read-only for you."}
@@ -58,7 +58,7 @@ export function QuestionSetsContent() {
       <ul className="divide-y divide-[var(--border-subtle)]">
         {data.data.map((set) => (
           <li key={set.id}>
-            <Link href={`/crm/build/visits/${set.id}`} className="flex w-full items-center justify-between gap-3 py-3 text-left">
+            <Link href={`/build/forms/${set.id}`} className="flex w-full items-center justify-between gap-3 py-3 text-left">
               <div className="min-w-0">
                 <p className="truncate font-medium text-[var(--text-strong)]">{set.name}</p>
                 <p className="text-sm text-[var(--text-muted)]">

@@ -2,6 +2,7 @@ import type { CatalogArea } from "@/lib/reports/catalog";
 import type { CustomReportSummary } from "@/lib/reports/custom/document";
 import type { ReportFolderRecord } from "@/lib/reports/folders";
 import type { ReportTemplateRecord } from "@/lib/reports/template-access";
+import { areaHref } from "@/lib/reports/verticals";
 
 /**
  * Reports → All reports (ReportsAll): every report this person can open, in
@@ -23,9 +24,13 @@ export const REPORT_VIEW_LABEL: Record<ReportsView, string> = {
   corelith: "From Corelith",
 };
 
-/** Each view's address: the panel's rows and the page's view menu go to the same place. */
-export function viewHref(view: ReportsView): string {
-  return view === "all" ? "/reports" : `/reports?view=${view}`;
+/**
+ * Each view's address: the panel's rows and the page's view menu go to the
+ * same place. In a vertical, `/reports` is its Overview, so All reports says
+ * so in the address.
+ */
+export function viewHref(view: ReportsView, vertical = false): string {
+  return view === "all" && !vertical ? "/reports" : `/reports?view=${view}`;
 }
 
 export function folderHref(folderId: string): string {
@@ -87,7 +92,7 @@ export function reportEntries(data: ReportsHomeData): ReportEntry[] {
   const custom: ReportEntry[] = data.custom.map((report) => ({
     id: report.id,
     title: report.title,
-    href: `/reports/custom/${report.id}`,
+    href: `/reports/c/${report.id}`,
     group: "ours",
     whose: report.mine ? "yours" : "shared",
     kind: report.kind === "table" ? "Table" : "Board",
@@ -159,11 +164,13 @@ export function inView(entry: ReportEntry, view: ReportsView): boolean {
   return entry.whose === view;
 }
 
-export type ReportsCounts = Record<ReportsView, number> & { books: number; folders: Record<string, number> };
+export type ReportsCounts = Record<ReportsView, number> & { books: number; folders: Record<string, number>; areas: Record<string, number> };
 
 export function reportCounts(entries: readonly ReportEntry[]): ReportsCounts {
   const folders: Record<string, number> = {};
   for (const entry of entries) if (entry.folder) folders[entry.folder.id] = (folders[entry.folder.id] ?? 0) + 1;
+  const areas: Record<string, number> = {};
+  for (const entry of entries) if (entry.area) areas[entry.area] = (areas[entry.area] ?? 0) + 1;
   return {
     all: entries.length,
     yours: entries.filter((entry) => entry.whose === "yours").length,
@@ -171,13 +178,15 @@ export function reportCounts(entries: readonly ReportEntry[]): ReportsCounts {
     corelith: entries.filter((entry) => entry.group === "corelith").length,
     books: entries.filter((entry) => entry.group === "corelith" && entry.area === "Books").length,
     folders,
+    areas,
   };
 }
 
-/** The badges beside Reports' panel rows, keyed by each row's address. */
-export function reportBadges(counts: ReportsCounts): Record<string, string> {
+/** The badges beside Reports' panel rows, keyed by each row's address; a vertical's area rows too. */
+export function reportBadges(counts: ReportsCounts, vertical = false): Record<string, string> {
   const badges: Record<string, string> = {};
-  for (const view of REPORT_VIEWS) if (counts[view] > 0) badges[viewHref(view)] = String(counts[view]);
+  for (const view of REPORT_VIEWS) if (counts[view] > 0) badges[viewHref(view, vertical)] = String(counts[view]);
+  if (vertical) for (const [area, count] of Object.entries(counts.areas)) badges[areaHref(area)] = String(count);
   return badges;
 }
 

@@ -2,20 +2,24 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { errorResponse, successResponse, validateSession } from "@/lib/api-utils";
 import { isRouteAllowedForRole } from "@/lib/auth-core/role-routes";
-import { readInvoiceRecord } from "@/lib/books/invoice-record";
+import { readInvoiceRecord, type InvoiceRecordPage } from "@/lib/books/invoice-record";
 import { deleteVaneDraftInvoice, DraftInvoiceRefused } from "@/lib/books/issue-invoice";
 import { prisma } from "@/lib/prisma";
 
 type Params = { params: Promise<{ id: string }> };
 
-/** One invoice in Books, with its lines and the quote it came from. */
+/** One invoice in Books, with its lines and the quote it came from (PageVaneDraft), and what this person may do with it there. */
 export async function GET(request: NextRequest, { params }: Params) {
   try {
     const sessionResult = await validateSession(request);
     if (sessionResult instanceof NextResponse) return sessionResult;
-    const record = await readInvoiceRecord(prisma, sessionResult.session.user.companyId, (await params).id);
+    const { session } = sessionResult;
+    const record = await readInvoiceRecord(prisma, session.user.companyId, (await params).id);
     if (!record) return errorResponse("There is no such invoice in this workspace", 404);
-    return successResponse(record);
+    const mayChange = isRouteAllowedForRole(session.user.role, "/api/accounting/sales/invoices", "PATCH");
+    const draft = record.status === "DRAFT";
+    const page: InvoiceRecordPage = { ...record, can: { issue: mayChange && draft, delete: mayChange && draft && record.madeByVane } };
+    return successResponse(page);
   } catch (error) {
     console.error("[API] GET /api/books/invoices/[id] error:", error);
     return errorResponse("Could not read the invoice");

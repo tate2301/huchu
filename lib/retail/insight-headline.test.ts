@@ -37,32 +37,32 @@ describe("the window's words for a headline", () => {
     expect([month.over, month.beforeWords]).toEqual(["this month", "the month before"]);
   });
 
-  it("writes money whole from a hundred dollars, in cents below it", () => {
-    expect(headlineMoney(11_732.4)).toBe("US$11,732");
-    expect(headlineMoney(42.5)).toBe("US$42.50");
-    expect(headlineMoney(-310.2)).toBe("US$310");
+  it("writes money with two decimals always", () => {
+    expect(headlineMoney(11_732.4)).toBe("$11,732.40");
+    expect(headlineMoney(42.5)).toBe("$42.50");
+    expect(headlineMoney(-310.2)).toBe("$310.20");
   });
 });
 
 describe("Sales headline", () => {
   it("states what was taken, then the busiest hour and the change on before", () => {
     expect(salesHeadline(sales)).toEqual({
-      fact: "US$11,732 taken in the last 30 days across two shops.",
+      fact: "$11,732.40 taken in the last 30 days across two shops.",
       notice: "Fri 17:00 is the busiest hour; takings are 17% down on the 30 days before.",
     });
   });
 
   it("names the one site it reads, and says nothing of shops for a business with one", () => {
-    expect(salesHeadline({ ...sales, site: "Borrowdale", tradedAt: [] }).fact).toBe("US$11,732 taken in the last 30 days at Borrowdale.");
-    expect(salesHeadline({ ...sales, tradedAt: [] }).fact).toBe("US$11,732 taken in the last 30 days.");
+    expect(salesHeadline({ ...sales, site: "Borrowdale", tradedAt: [] }).fact).toBe("$11,732.40 taken in the last 30 days at Borrowdale.");
+    expect(salesHeadline({ ...sales, tradedAt: [] }).fact).toBe("$11,732.40 taken in the last 30 days.");
   });
 
   it("says which shop took it all when only one of several traded", () => {
     expect(salesHeadline({ ...sales, tradedAt: ["Harare Main Branch"] }).fact).toBe(
-      "US$11,732 taken in the last 30 days, all at Harare Main Branch.",
+      "$11,732.40 taken in the last 30 days, all at Harare Main Branch.",
     );
     expect(salesHeadline({ ...sales, words: today, takings: 94.5, baskets: 6, tradedAt: ["Harare Main Branch"] }).fact).toBe(
-      "US$94.50 taken today from 6 sales, all at Harare Main Branch.",
+      "$94.50 taken today from 6 sales, all at Harare Main Branch.",
     );
   });
 
@@ -81,7 +81,7 @@ describe("Sales headline", () => {
   it("says so in a sentence when nothing sold", () => {
     expect(salesHeadline({ ...sales, words: today, takings: 0, baskets: 0, takingsBefore: 640 })).toEqual({
       fact: "No sales yet today.",
-      notice: "The day before took US$640.",
+      notice: "The day before took $640.00.",
     });
     expect(salesHeadline({ ...sales, takings: 0, baskets: 0, takingsBefore: 0, site: "Borrowdale" })).toEqual({
       fact: "No sales at Borrowdale in the last 30 days.",
@@ -91,11 +91,11 @@ describe("Sales headline", () => {
 
   it("says too few sold to compare, and to widen the period where it can be widened", () => {
     expect(salesHeadline({ ...sales, words: today, takings: 42.5, baskets: 3 })).toEqual({
-      fact: "US$42.50 taken today across two shops from 3 sales.",
+      fact: "$42.50 taken today across two shops from 3 sales.",
       notice: "Too few sales in these dates to compare. Widen the period.",
     });
     expect(salesHeadline({ ...sales, takings: 120, baskets: 1, tradedAt: [] })).toEqual({
-      fact: "US$120 taken in the last 30 days from 1 sale.",
+      fact: "$120.00 taken in the last 30 days from 1 sale.",
       notice: "Too few sales in these dates to compare.",
     });
   });
@@ -117,7 +117,7 @@ describe("Profit headline", () => {
 
   it("states the profit and margin, then the category below its aim and the change", () => {
     expect(profitHeadline(profit)).toEqual({
-      fact: "US$3,211 gross profit in the last 30 days, 24.1% of sales.",
+      fact: "$3,210.55 gross profit in the last 30 days, 24.1% of sales.",
       notice: "Spirits earns 18.2%, below the 25% you aim for; profit is 12% up on the 30 days before.",
     });
   });
@@ -131,7 +131,7 @@ describe("Profit headline", () => {
   it("reads as a sentence with nothing or too little sold", () => {
     expect(profitHeadline({ ...profit, words: month, profit: 0, revenue: 0, baskets: 0 })).toEqual({
       fact: "No sales yet this month.",
-      notice: "The month before made US$2,870 gross profit.",
+      notice: "The month before made $2,870.00 gross profit.",
     });
     expect(profitHeadline({ ...profit, words: today, baskets: 4 }).notice).toBe("Too few sales in these dates to compare. Widen the period.");
   });
@@ -143,7 +143,7 @@ describe("Products headline", () => {
   it("states how many products sold, then the cash sitting idle and the top 20's share", () => {
     expect(productsHeadline(products)).toEqual({
       fact: "214 of 320 products sold in the last 30 days.",
-      notice: "US$4,210 is sitting in 38 products not sold in 60 days; the top 20 make 64% of the profit.",
+      notice: "$4,210.00 is sitting in 38 products not sold in 60 days; the top 20 make 64% of the profit.",
     });
   });
 
@@ -174,21 +174,21 @@ describe("Stock headline", () => {
 
   it("states the stock and its cover, then the shortest category and what empty shelves cost", () => {
     expect(stockHeadline(stock)).toEqual({
-      fact: "US$48,200 of stock at cost, about 34 days of cover.",
-      notice: "Beer has 6 days of cover against the 14 you aim for; about US$320 of sales were missed with shelves empty.",
+      fact: "$48,200.00 of stock at cost, about 34 days of cover.",
+      notice: "Beer has 6 days of cover against the 14 you aim for; about $320.00 of sales were missed with shelves empty.",
     });
     expect(stockHeadline({ ...stock, short: null, missed: { value: 85, product: "Castle Lite 340ml" } }).notice).toBe(
-      "About US$85.00 of sales were missed with Castle Lite 340ml empty; 9 products are at or below the reorder level.",
+      "About $85.00 of sales were missed with Castle Lite 340ml empty; 9 products are at or below the reorder level.",
     );
   });
 
   it("will not measure cover on too few sales", () => {
     expect(stockHeadline({ ...stock, words: today, cover: null, baskets: 0 })).toEqual({
-      fact: "US$48,200 of stock at cost; nothing sold today.",
+      fact: "$48,200.00 of stock at cost; nothing sold today.",
       notice: "Too few sales in these dates to measure cover. Widen the period.",
     });
     expect(stockHeadline({ ...stock, words: today, baskets: 3 })).toEqual({
-      fact: "US$48,200 of stock at cost.",
+      fact: "$48,200.00 of stock at cost.",
       notice: "Too few sales in these dates to measure cover. Widen the period.",
     });
   });
@@ -207,14 +207,14 @@ describe("Losses headline", () => {
 
   it("states what was lost against takings, then where most of it went and the change", () => {
     expect(lossesHeadline(losses)).toEqual({
-      fact: "US$412 lost in the last 30 days, 1.2% of takings.",
-      notice: "Most of it is drawer differences, US$210; losses are 21% up on the 30 days before.",
+      fact: "$412.00 lost in the last 30 days, 1.2% of takings.",
+      notice: "Most of it is drawer differences, $210.00; losses are 21% up on the 30 days before.",
     });
   });
 
   it("says all of it when one kind is the whole, and leaves out a change under 10%", () => {
     expect(lossesHeadline({ ...losses, change: 0.04, biggest: { label: "refunds and voids", value: 412 } }).notice).toBe(
-      "All of it is refunds and voids, US$412; Tendai Moyo was short 3 times, US$45.00 in all.",
+      "All of it is refunds and voids, $412.00; Tendai Moyo was short 3 times, $45.00 in all.",
     );
   });
 
@@ -222,8 +222,8 @@ describe("Losses headline", () => {
     expect(
       lossesHeadline({ ...losses, words: today, total: 1, takings: 94.5, baskets: 6, change: -0.91, biggest: { label: "stock counts", value: 1 }, shortest: null }),
     ).toEqual({
-      fact: "US$1.00 lost today, 1.1% of takings.",
-      notice: "All of it is stock counts, US$1.00.",
+      fact: "$1.00 lost today, 1.1% of takings.",
+      notice: "All of it is stock counts, $1.00.",
     });
   });
 
@@ -263,15 +263,15 @@ describe("Money headline", () => {
 
   it("states what came in over what went out, then what waits for a decision", () => {
     expect(moneyHeadline(money)).toEqual({
-      fact: "US$12,400 more came in than went out in the last 30 days.",
+      fact: "$12,400.00 more came in than went out in the last 30 days.",
       notice: "3 requisitions are waiting for a decision; the week of 14 Sept spent more than it took.",
     });
   });
 
   it("says when spending ran ahead, and when nothing moved", () => {
     expect(moneyHeadline({ ...money, in: 1_000, out: 2_200, waiting: 0 })).toEqual({
-      fact: "Spending ran US$1,200 ahead of takings in the last 30 days.",
-      notice: "The week of 14 Sept spent more than it took; US$2,300 is on order from suppliers.",
+      fact: "Spending ran $1,200.00 ahead of takings in the last 30 days.",
+      notice: "The week of 14 Sept spent more than it took; $2,300.00 is on order from suppliers.",
     });
     expect(moneyHeadline({ ...money, words: today, in: 0, out: 0, waiting: 0, heaviestWeek: null, onOrder: 0 })).toEqual({
       fact: "No money came in or went out today.",

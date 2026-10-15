@@ -1,7 +1,13 @@
-import { BrandingSettingsSection } from "@/components/settings/branding/branding-settings-section";
+import type { Metadata } from "next";
+
 import { requirePreferencesAccess } from "@/lib/preferences/server";
 
-export default async function PreferencesBrandingFinancePage() {
+import { BrandingPage } from "../branding-page";
+
+export const metadata: Metadata = { title: "Branding" };
+
+/** Management → Branding, Finance and defaults (PageBrandFinance). */
+export default async function BrandingFinancePage() {
   await requirePreferencesAccess("branding");
-  return <BrandingSettingsSection section="finance" />;
+  return <BrandingPage initialTab="finance" />;
 }

@@ -1,7 +1,7 @@
 /** What an invoice's page says changed since the quote it came from. */
 import { describe, expect, it } from "vitest";
 
-import { changesFromQuote } from "./invoice-record";
+import { changesFromQuote, dueTerms, madeByLine } from "./invoice-record";
 
 const quote = [
   { description: "Vinyl sheet, 3 consulting rooms", quantity: 58.4, unitPrice: 62 },
@@ -26,5 +26,20 @@ describe("what changed since the quote", () => {
       "Door bars: added",
       "Levelling compound: left out",
     ]);
+  });
+});
+
+describe("the aside of Vane's draft", () => {
+  it("gives a draft's terms, and says when they are the customer's usual", () => {
+    expect(dueTerms(21, 21)).toBe("21 days, their usual");
+    expect(dueTerms(30, 21)).toBe("30 days");
+    expect(dueTerms(1, null)).toBe("1 day");
+  });
+
+  it("says Vane made it, and who took it on once someone has", () => {
+    const createdAt = new Date("2026-10-14T07:12:00Z");
+    expect(madeByLine({ madeByVane: true, createdBy: null, createdAt })).toBe("Vane, 09:12 on 14 Oct");
+    expect(madeByLine({ madeByVane: true, createdBy: "James Banda", createdAt })).toBe("Vane, taken on by James Banda");
+    expect(madeByLine({ madeByVane: false, createdBy: "Rudo Moyo", createdAt })).toBe("Rudo Moyo");
   });
 });

@@ -55,6 +55,8 @@ export function DocumentEmailDialog({
   const [vaneWrote, setVaneWrote] = useState(false);
   const write = useMutation({
     mutationFn: () => fetchJson<DocumentEmail>("/api/vane/write/document-email", { method: "POST", body: JSON.stringify({ documentId: doc!.id }) }),
+    // Each writing is a job counted against the month's allowance: a failure is said, not tried again unasked.
+    retry: false,
     onSuccess: (email) => {
       setSubject(email.subject);
       setMessage(email.message);

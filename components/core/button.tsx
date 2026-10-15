@@ -6,6 +6,9 @@ import Link from "next/link";
 import { Icon, type IconName } from "./icon";
 import { ariaKeyShortcuts, useShortcut, useShortcutLabel, type Shortcut } from "./shortcuts";
 
+/** Whether an element is laid out on the page: not under `display: none`. */
+const isShown = (element: HTMLElement | null) => Boolean(element && element.getClientRects().length > 0);
+
 export type ButtonVariant = "default" | "primary" | "quiet" | "ink" | "danger";
 
 type ButtonLook = {
@@ -91,7 +94,8 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(function 
   React.useImperativeHandle(forwarded, () => own.current as HTMLButtonElement);
   const look = { variant, size, icon, iconEnd, shortcut, iconOnly, busy, block };
   const inDialog = useInDialog(own);
-  useShortcut(shortcut, () => own.current?.click(), { enabled: !rest.disabled && !busy, inDialog });
+  // A button drawn twice for two widths (a record's rail is) answers only where it shows, so its shortcut presses it once.
+  useShortcut(shortcut, () => own.current?.click(), { enabled: !rest.disabled && !busy, inDialog, shown: () => isShown(own.current) });
   return (
     <button
       ref={own}
@@ -132,7 +136,7 @@ export function ButtonLink({
   const own = React.useRef<HTMLAnchorElement>(null);
   const look = { variant, size, icon, iconEnd, shortcut, iconOnly, block };
   const inDialog = useInDialog(own);
-  useShortcut(shortcut, () => own.current?.click(), { inDialog });
+  useShortcut(shortcut, () => own.current?.click(), { inDialog, shown: () => isShown(own.current) });
   return (
     <Link
       ref={own}

@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 
-import { Banner, Button, Field, Finding, Input, Kit, KitScreen, SelectCell, TableFoot, TableShell, TextArea, VaneMark } from "@/components/core";
+import { Banner, Button, Empty, Field, Finding, Input, Kit, KitScreen, SelectCell, TableFoot, TableShell, TextArea, VaneMark } from "@/components/core";
 import { PageChrome } from "@/components/layout/page-chrome";
 import { useToast } from "@/components/ui/use-toast";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
@@ -15,6 +15,7 @@ import type { VaneActionView } from "@/lib/vane/actions/engine";
 const NUM = { width: "9rem" } as const;
 
 const plural = (count: number, one: string, many: string) => `${count} ${count === 1 ? one : many}`;
+const sentence = (text: string) => (text ? `${text.charAt(0).toUpperCase()}${text.slice(1)}` : text);
 
 /**
  * Fee reminders Vane drafted (the PageVaneSchool board). Every family who
@@ -25,7 +26,7 @@ const plural = (count: number, one: string, many: string) => `${count} ${count =
 export function VaneRemindersContent({ draft }: { draft: ReminderDraft }) {
   const router = useRouter();
   const { toast } = useToast();
-  const { params, unreachable } = draft;
+  const { params, unreachable, noGuardian } = draft;
   const [action, setAction] = React.useState<VaneActionView>(draft.action);
   const [subject, setSubject] = React.useState(params.subject);
   const [body, setBody] = React.useState(params.body);
@@ -41,6 +42,9 @@ export function VaneRemindersContent({ draft }: { draft: ReminderDraft }) {
   const left = params.families.filter((family) => skip.has(family.studentId));
   const why = left.find((family) => family.why)?.why;
   const noPortal = new Set(unreachable);
+  const noOne = new Set(noGuardian);
+  // Who owes most first, then by name.
+  const families = React.useMemo(() => [...params.families].sort((a, b) => b.owed - a.owed || a.family.localeCompare(b.family)), [params.families]);
 
   const toggle = (studentId: string) =>
     setSkip((current) => {
@@ -146,7 +150,7 @@ export function VaneRemindersContent({ draft }: { draft: ReminderDraft }) {
                     </tr>
                   </thead>
                   <tbody>
-                    {params.families.map((family) => {
+                    {families.map((family) => {
                       const on = !skip.has(family.studentId);
                       return (
                         <tr key={family.studentId} aria-selected={on || undefined}>
@@ -157,11 +161,19 @@ export function VaneRemindersContent({ draft }: { draft: ReminderDraft }) {
                             }}
                             label={`Remind ${family.family}`}
                           />
-                          <td className="fill">{family.family}</td>
-                          <td className="fill muted">{family.pupil}</td>
+                          <td className="fill">
+                            <span className="cell-lead truncate" title={family.family}>
+                              {family.family}
+                            </span>
+                          </td>
+                          <td className="fill muted">
+                            <span className="truncate" title={family.pupil}>
+                              {family.pupil}
+                            </span>
+                          </td>
                           <td className="num">{money(family.owed)}</td>
-                          <td className="muted">{noPortal.has(family.studentId) ? "Nobody on the portal yet" : "Portal"}</td>
-                          <td className="muted">{on ? "" : (family.why ?? "Unticked")}</td>
+                          <td className="muted">{noOne.has(family.studentId) ? "No guardian on record" : noPortal.has(family.studentId) ? "Nobody on the portal yet" : "Portal"}</td>
+                          <td className="muted">{on ? "" : family.why ? sentence(family.why) : "Unticked"}</td>
                         </tr>
                       );
                     })}
@@ -169,6 +181,24 @@ export function VaneRemindersContent({ draft }: { draft: ReminderDraft }) {
                 </table>
               </TableShell>
             </div>
+          </div>
+        </KitScreen>
+      </Kit>
+    </>
+  );
+}
+
+/** A role that cannot write to families: who can. */
+export function VaneRemindersRefused() {
+  return (
+    <>
+      <PageChrome title="Remind families" backHref="/schools/finance/arrears" backLabel="Arrears" />
+      <Kit className="kit-main">
+        <KitScreen slug="schools-vane-reminders">
+          <div className="mn" style={{ flex: 1, minHeight: 0 }}>
+            <Empty icon="lock" title="Reminders are the bursary’s">
+              Your role cannot write to families. The bursar or the head can.
+            </Empty>
           </div>
         </KitScreen>
       </Kit>

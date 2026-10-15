@@ -38,7 +38,10 @@ export function bestNavHref(targets: Iterable<NavTarget>, pathname: string, quer
     const named = also?.test(pathname) ?? false;
     if (!named && !matchesNavHref(href, pathname, query, exact)) continue;
     const [path, search] = href.split("?");
-    const score = named ? 10_000 : path.length + (search ? 1000 : 0);
+    // An item naming more of the page's params is the closer match: From
+    // Corelith (`?view=all&tab=built-in`) beats All reports (`?view=all`).
+    const params = search ? [...new URLSearchParams(search).keys()].length : 0;
+    const score = named ? 10_000 : path.length + (search ? 1000 + params : 0);
     if (!best || score > best.score) best = { href, score };
   }
   return best?.href ?? null;

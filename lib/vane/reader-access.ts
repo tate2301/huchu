@@ -124,6 +124,8 @@ export const PRIVATE_COLUMN =
 
 /** Vane's own bookkeeping that the reader roles handle separately. */
 const SCOPE_TABLE = "VaneReaderScope";
+/** Reader bindings, Vane's and Explore's (`lib/explore/reader-access.ts`): neither reader reads them as records. */
+const isScopeTable = (name: string) => name === SCOPE_TABLE || name === "ExploreReaderScope";
 
 export type Readable = {
   model: string;
@@ -158,7 +160,7 @@ export function readerAccess(models: SchemaModel[]): ReaderAccess {
   const unreadable: ReaderAccess["unreadable"] = [];
 
   for (const model of models) {
-    if (model.name === SCOPE_TABLE) continue;
+    if (isScopeTable(model.name)) continue;
     if (NEVER_TABLE.test(model.name)) continue;
     const companyId = model.fields.find((f) => f.name === "companyId" && f.type === "String");
     if (model.name === "Company") scoped.set(model.name, { kind: "company", column: "id" });
@@ -177,7 +179,7 @@ export function readerAccess(models: SchemaModel[]): ReaderAccess {
   for (let level = 1, changed = true; changed; level += 1) {
     changed = false;
     for (const model of models) {
-      if (depth.has(model.name) || model.name === SCOPE_TABLE || NEVER_TABLE.test(model.name)) continue;
+      if (depth.has(model.name) || isScopeTable(model.name) || NEVER_TABLE.test(model.name)) continue;
       if (linkable(model).some((f) => (depth.get(f.type) ?? Infinity) < level)) {
         depth.set(model.name, level);
         changed = true;
@@ -199,7 +201,7 @@ export function readerAccess(models: SchemaModel[]): ReaderAccess {
 
   const readable: Readable[] = [];
   for (const model of models) {
-    if (model.name === SCOPE_TABLE) {
+    if (isScopeTable(model.name)) {
       unreadable.push({ table: model.table, reason: "scope" });
       continue;
     }

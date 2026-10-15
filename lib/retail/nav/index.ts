@@ -4,7 +4,6 @@ import { isCountPhonePath } from "@/lib/retail/stock/count-paths";
 
 import { buyingNav } from "./buying";
 import { floorNav } from "./floor";
-import { insightsNav } from "./insights";
 import { setupNav } from "./setup";
 import { productsNav } from "./products";
 import { reportsNav } from "./reports";
@@ -39,7 +38,6 @@ export const RETAIL_NAV_MODULES: RetailNavModule[] = [
   productsNav,
   stockNav,
   buyingNav,
-  insightsNav,
   reportsNav,
   setupNav,
 ];

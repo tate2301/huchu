@@ -216,7 +216,7 @@ export default function NewShiftOutputPage() {
           : "Allocation, attendance, and pour created.",
         variant: "success",
       });
-      router.push(`/gold/insights/allocations/${result.allocationId}`);
+      router.push(`/gold/allocations/${result.allocationId}`);
     },
   });
 

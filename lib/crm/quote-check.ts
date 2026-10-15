@@ -28,6 +28,15 @@ export type QuoteCheck = {
   findings: QuoteLineFinding[];
   /** Whether the quote can still be changed, and why not when it cannot. */
   editLock: string | null;
+  /**
+   * The message Vane wrote to go with the quote (PageVaneDocument): its open
+   * card about this quote whose button sends, the card's body the message.
+   * A person changes it and sends the quote through the CRM's own email;
+   * Vane sends nothing. Null when Vane has written none.
+   */
+  message: { itemId: string; text: string } | null;
+  /** The deal or lead the quote hangs off, where its PDF and email routes are. */
+  basePath: string;
 };
 
 /** Why a line was not changed, in a sentence, with the status the route answers. */
@@ -51,6 +60,7 @@ async function quoteFor(companyId: string, documentId: string) {
       id: true,
       leadId: true,
       dealId: true,
+      quotationId: true,
       lead: { select: { assignedToId: true } },
       deal: { select: { assignedToId: true } },
       quotation: { select: { customer: { select: { priceListId: true } } } },
@@ -63,6 +73,7 @@ async function quoteFor(companyId: string, documentId: string) {
   if (!editable) return null;
   return {
     owner,
+    quotationId: doc.quotationId,
     editable,
     assignedToId: doc.deal?.assignedToId ?? doc.lead?.assignedToId ?? null,
     customerPriceListId: doc.quotation?.customer.priceListId ?? null,
@@ -132,7 +143,41 @@ export async function checkQuoteAgainstPriceList(companyId: string, documentId: 
     unpriced: editable.lines.length - checked,
     findings,
     editLock: editable.editLock,
+    message: await vaneQuoteMessage(companyId, documentId, quote.quotationId),
+    basePath: quote.owner.dealId ? `/api/v2/crm/deals/${quote.owner.dealId}` : `/api/v2/crm/leads/${quote.owner.leadId}`,
   };
+}
+
+/** Vane's cards about this quote whose button sends it: the message it wrote to go with it. */
+const sendCardsFor = (companyId: string, documentId: string, quotationId: string | null) => ({
+  companyId,
+  status: "OPEN" as const,
+  action: { path: ["type"], equals: "send" },
+  OR: [{ subjectType: "CrmLeadDocument", subjectId: documentId }, ...(quotationId ? [{ subjectType: "SalesQuotation", subjectId: quotationId }] : [])],
+});
+
+async function vaneQuoteMessage(companyId: string, documentId: string, quotationId: string | null): Promise<QuoteCheck["message"]> {
+  const card = await prisma.vaneItem.findFirst({
+    where: sendCardsFor(companyId, documentId, quotationId),
+    orderBy: { createdAt: "desc" },
+    select: { id: true, body: true },
+  });
+  return card ? { itemId: card.id, text: card.body } : null;
+}
+
+/**
+ * The quote went with Vane's message, sent by this person through the CRM's
+ * email: Vane's card is done, and theirs. Only a card about this quote whose
+ * button sends; anything else is left as it is.
+ */
+export async function vaneQuoteMessageSent({ companyId, userId, itemId, documentId }: { companyId: string; userId: string; itemId: string; documentId: string }): Promise<boolean> {
+  const doc = await prisma.crmLeadDocument.findFirst({ where: { id: documentId, companyId }, select: { quotationId: true } });
+  if (!doc) return false;
+  const { count } = await prisma.vaneItem.updateMany({
+    where: { id: itemId, ...sendCardsFor(companyId, documentId, doc.quotationId) },
+    data: { status: "DONE", resolvedAt: new Date(), resolvedById: userId },
+  });
+  return count > 0;
 }
 
 /**

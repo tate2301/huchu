@@ -1,34 +1,20 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
-import { AccountingShell } from "@/components/accounting/accounting-shell";
-import { MetricTile } from "@/components/accounting/hubs/metric-tile";
-import { ReportPanel } from "@/components/ui/breakdown-panel";
-import {
-  ReportTable,
-  amt,
-  dim,
-  nm,
-  num,
-  txt,
-  type ReportRow,
-} from "@/components/accounting/report-table";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { AccountingNewButton } from "@/components/accounting/accounting-new-button";
-import { Coins, Percent, Scale, TrendingUp, Wallet } from "@/lib/icons";
-import { Card, CardContent } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+
+import { Button, Empty, FigureStrip, Kit } from "@/components/core";
+import { MenuButton } from "@/components/core/menu";
+import { PageChrome } from "@/components/layout/page-chrome";
+import { COMMON_PRESETS, DateRangePicker } from "@/components/ui/date-picker";
 import { formatAmount, formatHeadline } from "@/lib/accounting/format";
 import { fetchFinancialReportsHubSummary, fetchSites } from "@/lib/api";
 import { getApiErrorMessage } from "@/lib/api-client";
+import { dayRangeWords, todayIn } from "@/lib/workspace/format";
+
+/** A statement's line: its name, its amount, and (the P&L) its share of income. */
+type Line = { id: string; name: string; amount: string; share?: string | null; total?: boolean; bad?: boolean };
 
 /**
  * Money the way a statement prints it: negatives in brackets, no minus sign.
@@ -46,6 +32,11 @@ function accountingFigure(value: number) {
   return value < 0 ? `(${magnitude})` : magnitude;
 }
 
+/**
+ * Books → Financial reports, on the kit: the period and branch, the six
+ * figures, the three statements as statements, and the reports to run.
+ * Listed under From Corelith and in Books' Reports from Books.
+ */
 export default function FinancialReportsHomePage() {
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
@@ -56,7 +47,7 @@ export default function FinancialReportsHomePage() {
     queryFn: fetchSites,
   });
 
-  const { data: summary, error } = useQuery({
+  const { data: summary, error, isPending, refetch } = useQuery({
     queryKey: ["accounting", "hubs", "financial-reports", startDate, endDate, branchId],
     queryFn: () =>
       fetchFinancialReportsHubSummary({
@@ -83,7 +74,7 @@ export default function FinancialReportsHomePage() {
    * it printed every figure on this table twice. Three honest lines beat six
    * lines that are three facts wearing two hats each.
    */
-  const pnlRows = useMemo<ReportRow[]>(() => {
+  const pnlRows = useMemo<Line[]>(() => {
     const k = summary?.kpis;
     const income = k?.income ?? 0;
     const expenses = k?.expenses ?? 0;
@@ -91,22 +82,18 @@ export default function FinancialReportsHomePage() {
     // The API returns expenses as a negative. Share-of-income is drawn from
     // the magnitude so the percentage column reads as a proportion rather
     // than as a negative share.
-    const share = (value: number) =>
-      income === 0 ? dim() : num(`${Math.round((Math.abs(value) / income) * 100)}`, { tone: "subtle" });
+    const share = (value: number) => (income === 0 ? null : `${Math.round((Math.abs(value) / income) * 100)}`);
 
     return [
-      { id: "income", cells: [nm("Income"), amt(accountingFigure(income)), share(income)] },
-      { id: "expenses", cells: [nm("Expenses"), amt(accountingFigure(expenses)), share(expenses)] },
+      { id: "income", name: "Income", amount: accountingFigure(income), share: share(income) },
+      { id: "expenses", name: "Expenses", amount: accountingFigure(expenses), share: share(expenses) },
       {
         id: "net-income",
-        emphasis: true,
-        cells: [
-          nm("Net income", { tone: net < 0 ? "bad" : "total" }),
-          amt(accountingFigure(net), { tone: net < 0 ? "bad" : "total" }),
-          income === 0
-            ? dim()
-            : num(`${Math.round((net / income) * 100)}`, { tone: net < 0 ? "bad" : "total", bold: true }),
-        ],
+        name: "Net income",
+        amount: accountingFigure(net),
+        share: income === 0 ? null : `${Math.round((net / income) * 100)}`,
+        total: true,
+        bad: net < 0,
       },
     ];
   }, [summary]);
@@ -120,20 +107,16 @@ export default function FinancialReportsHomePage() {
    * above the totals printed each figure twice under two names, which on a
    * balance sheet reads as a ledger that does not add up.
    */
-  const balanceRows = useMemo<ReportRow[]>(() => {
+  const balanceRows = useMemo<Line[]>(() => {
     const k = summary?.kpis;
     const assets = k?.assets ?? 0;
     const liabilities = k?.liabilities ?? 0;
     const equity = k?.equity ?? 0;
 
     return [
-      { id: "assets", cells: [nm("Total assets"), amt(accountingFigure(assets))] },
-      { id: "liabilities", cells: [nm("Total liabilities"), amt(accountingFigure(liabilities))] },
-      {
-        id: "equity",
-        emphasis: true,
-        cells: [nm("Equity", { tone: "total" }), amt(accountingFigure(equity), { tone: "total" })],
-      },
+      { id: "assets", name: "Total assets", amount: accountingFigure(assets) },
+      { id: "liabilities", name: "Total liabilities", amount: accountingFigure(liabilities) },
+      { id: "equity", name: "Equity", amount: accountingFigure(equity), total: true },
     ];
   }, [summary]);
 
@@ -150,23 +133,13 @@ export default function FinancialReportsHomePage() {
    * movement from the period alone and never looks up a balance brought
    * forward.
    */
-  const cashRows = useMemo<ReportRow[]>(() => {
+  const cashRows = useMemo<Line[]>(() => {
     const net = summary?.kpis.netCash ?? 0;
     const movements = (summary?.charts.cashFlowComposition ?? []).filter(
       (item) => item.label.trim().toLowerCase() !== "net cash",
     );
-    const lines: ReportRow[] = movements.map((item) => ({
-      id: `cf-${item.label}`,
-      cells: [nm(item.label), amt(accountingFigure(item.amount))],
-    }));
-    lines.push({
-      id: "net-cash",
-      emphasis: true,
-      cells: [
-        nm("Net movement", { tone: net < 0 ? "bad" : "total" }),
-        amt(accountingFigure(net), { tone: net < 0 ? "bad" : "total" }),
-      ],
-    });
+    const lines: Line[] = movements.map((item) => ({ id: `cf-${item.label}`, name: item.label, amount: accountingFigure(item.amount) }));
+    lines.push({ id: "net-cash", name: "Net movement", amount: accountingFigure(net), total: true, bad: net < 0 });
     return lines;
   }, [summary]);
 
@@ -259,198 +232,181 @@ export default function FinancialReportsHomePage() {
    * `Format` advertised "PDF · XLSX" against an export capability that exists
    * nowhere in the app — a promise the shelf cannot keep.
    */
-  const reportRows = useMemo<ReportRow[]>(
-    () => [
-      {
-        id: "profit-and-loss",
-        href: "/accounting/financial-statements",
-        cells: [nm("Profit and loss"), txt(periodLabel, { tone: "subtle" }), txt("Accrual")],
-      },
-      {
-        id: "balance-sheet",
-        href: "/accounting/financial-statements",
-        cells: [nm("Balance sheet"), txt(`At ${asAtDate}`, { tone: "subtle" }), txt("Accrual")],
-      },
-      {
-        id: "cash-flow",
-        href: "/accounting/financial-statements",
-        cells: [nm("Cash flow"), txt(periodLabel, { tone: "subtle" }), txt("Indirect")],
-      },
-      {
-        id: "trial-balance",
-        href: "/accounting/trial-balance",
-        cells: [nm("Trial balance"), txt(`At ${asAtDate}`, { tone: "subtle" }), txt("All accounts")],
-      },
-      {
-        id: "vat",
-        href: "/books/vat",
-        cells: [nm("VAT return"), txt(periodLabel, { tone: "subtle" }), txt("ZIMRA")],
-      },
-    ],
-    [asAtDate, periodLabel],
+  const reports = [
+    { id: "profit-and-loss", name: "Profit and loss", href: "/accounting/financial-statements", covers: periodLabel, basis: "Accrual" },
+    { id: "balance-sheet", name: "Balance sheet", href: "/accounting/financial-statements", covers: `At ${asAtDate}`, basis: "Accrual" },
+    { id: "cash-flow", name: "Cash flow", href: "/accounting/financial-statements", covers: periodLabel, basis: "Indirect" },
+    { id: "trial-balance", name: "Trial balance", href: "/accounting/trial-balance", covers: `At ${asAtDate}`, basis: "All accounts" },
+    { id: "vat", name: "VAT return", href: "/books/vat", covers: periodLabel, basis: "ZIMRA" },
+  ];
+
+  const primary = useMemo(
+    () => ({ label: "Run a report", icon: "run" as const, menu: reports.map((report) => ({ label: report.name, href: report.href })) }),
+    // The shelf's addresses never change; only its words do.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [],
   );
 
+  const range = { from: startDate || null, to: endDate || null };
+  const words = dayRangeWords(range, todayIn()) || "Any time";
+  const branch = (branches ?? []).find((entry) => entry.id === branchId) ?? null;
+
+  const statement = (title: string, note: string, lines: Line[], share: boolean, empty: string) => (
+    <section className="kblock rp-block">
+      <div className="kblock-h">
+        <h3>{title}</h3>
+        <span className="sum">{note}</span>
+      </div>
+      {lines.length === 0 ? (
+        <p className="muted">{empty}</p>
+      ) : (
+        <div className="wt" style={{ flex: "none" }}>
+          <table className="table">
+            <colgroup>
+              <col style={{ width: "100%" }} />
+              <col />
+              {share ? <col /> : null}
+            </colgroup>
+            <thead>
+              <tr>
+                <th>Line</th>
+                <th className="num">Amount</th>
+                {share ? <th className="num">%</th> : null}
+              </tr>
+            </thead>
+            <tbody>
+              {lines.map((line) => (
+                <tr key={line.id} style={line.total ? { fontWeight: 600 } : undefined}>
+                  <td className="fill" style={line.bad ? { color: "var(--color-danger)" } : undefined}>
+                    {line.name}
+                  </td>
+                  <td className="num mono" style={line.bad ? { color: "var(--color-danger)" } : undefined}>
+                    {line.amount}
+                  </td>
+                  {share ? <td className="num muted">{line.share ?? "—"}</td> : null}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </section>
+  );
+
+  const k = summary?.kpis;
+  const figures = [
+    { label: "Net income", value: formatHeadline(k?.netIncome ?? 0), note: margin === null ? periodLabel : `${margin}% margin`, tone: (k?.netIncome ?? 0) < 0 ? ("danger" as const) : undefined },
+    { label: "Total assets", value: formatHeadline(k?.assets ?? 0), note: `at ${asAtDate}` },
+    { label: "Total liabilities", value: formatHeadline(k?.liabilities ?? 0), note: gearing === null ? "what it owes" : `${gearing}% of assets` },
+    { label: "Total equity", value: formatHeadline(k?.equity ?? 0), note: "assets less liabilities", tone: (k?.equity ?? 0) < 0 ? ("danger" as const) : undefined },
+    { label: "Net cash", value: formatHeadline(k?.netCash ?? 0), note: (k?.netCash ?? 0) < 0 ? "cash went out" : "cash came in" },
+    {
+      label: "Trial balance",
+      // The one figure that is a verdict: the word when it balances, the difference to the cent when it does not.
+      value: trialBalanceDifference === 0 ? "Balanced" : accountingFigure(trialBalanceDifference),
+      note: trialBalanceDifference === 0 ? "debits equal credits" : "debits less credits",
+      tone: trialBalanceDifference === 0 ? ("success" as const) : ("danger" as const),
+    },
+  ];
+
   return (
-    <AccountingShell
-      activeTab="financial-reports"
-      title="Financial Reports"
-      actions={
-        <AccountingNewButton
-          label="Run a report"
-          items={[
-            { label: "Profit and loss", icon: TrendingUp, href: "/accounting/financial-statements" },
-            { label: "Balance sheet", icon: Scale, href: "/accounting/financial-statements" },
-            { label: "Cash flow", icon: Wallet, href: "/accounting/financial-statements" },
-            { label: "Trial balance", icon: Coins, href: "/accounting/trial-balance" },
-            { label: "VAT return", icon: Percent, href: "/books/vat" },
-          ]}
-        />
-      }
-    >
-      {error ? (
-        <Alert variant="destructive">
-          <AlertTitle>Unable to load financial reports summary</AlertTitle>
-          <AlertDescription>{getApiErrorMessage(error)}</AlertDescription>
-        </Alert>
-      ) : null}
-
-      <Card>
-        <CardContent className="pt-4">
-          <div className="grid gap-2.5 md:grid-cols-3">
-            <Input type="date" value={startDate} onChange={(event) => setStartDate(event.target.value)} />
-            <Input type="date" value={endDate} onChange={(event) => setEndDate(event.target.value)} />
-            <Select value={branchId} onValueChange={setBranchId}>
-              <SelectTrigger>
-                <SelectValue placeholder="Filter by Branch" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Branches</SelectItem>
-                {(branches ?? []).map((branch) => (
-                  <SelectItem key={branch.id} value={branch.id}>
-                    {branch.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+    <>
+      <PageChrome title="Financial reports" primary={primary} />
+      <Kit className="kit-main">
+        <div className="mn">
+          <div className="kbody">
+            <div className="ws-tools" style={{ flexWrap: "wrap" }}>
+              <DateRangePicker
+                openEnded
+                presets={COMMON_PRESETS}
+                title="Period"
+                value={range}
+                onChange={(next) => {
+                  setStartDate(next.from ?? "");
+                  setEndDate(next.to ?? "");
+                }}
+                trigger={
+                  <Button icon="calendar" className={startDate || endDate ? "chipsel is-set" : "chipsel"} aria-label={`Period: ${words}`}>
+                    {words}
+                  </Button>
+                }
+              />
+              <MenuButton
+                className={branch ? "chipsel is-set" : "chipsel"}
+                icon="filter"
+                label="Branch"
+                items={[
+                  { key: "all", label: "Every branch", checked: !branch, onSelect: () => setBranchId("all") },
+                  ...(branches ?? []).map((entry) => ({ key: entry.id, label: entry.name, checked: entry.id === branchId, onSelect: () => setBranchId(entry.id) })),
+                ]}
+              >
+                {branch?.name ?? "Every branch"}
+              </MenuButton>
+              <span className="ws-n">The totals are the whole company&rsquo;s; a branch does not narrow them yet.</span>
+            </div>
+            {error ? (
+              <Empty
+                icon="warn"
+                title={typeof navigator !== "undefined" && !navigator.onLine ? "You are offline" : "The statements did not load"}
+                action={
+                  <Button icon="history" onClick={() => void refetch()}>
+                    Try again
+                  </Button>
+                }
+              >
+                {getApiErrorMessage(error)} The statements are for whoever keeps the books; the owner can tell you who that is.
+              </Empty>
+            ) : isPending ? (
+              <div aria-busy="true" aria-label="Loading" style={{ padding: "16px 24px", display: "grid", gap: 12 }}>
+                <div className="skeleton" style={{ height: 76 }} />
+                <div className="skeleton" style={{ height: 220 }} />
+              </div>
+            ) : (
+              <>
+                <div style={{ padding: "16px 24px 8px" }}>
+                  <FigureStrip figures={figures} />
+                </div>
+                <div className="cm-grid2 rp-grid2" style={{ boxShadow: "inset 0 1px 0 var(--color-line)" }}>
+                  <div>{statement("Profit and loss", periodLabel, pnlRows, true, "No income or expense posted in this period.")}</div>
+                  <div>
+                    {statement("Balance sheet", `at ${asAtDate}`, balanceRows, false, "No balances to report.")}
+                    {statement("Cash flow", periodLabel, cashRows, false, "No cash movement in this period.")}
+                  </div>
+                </div>
+                <div className="wt" style={{ flex: "none" }}>
+                  <table className="table">
+                    <colgroup>
+                      <col style={{ width: "100%" }} />
+                      <col />
+                      <col />
+                    </colgroup>
+                    <thead>
+                      <tr>
+                        <th>Report</th>
+                        <th>Covers</th>
+                        <th>Basis</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {reports.map((report) => (
+                        <tr key={report.id}>
+                          <td className="fill">
+                            <Link href={report.href} className="link">
+                              {report.name}
+                            </Link>
+                          </td>
+                          <td className="muted nowrap">{report.covers}</td>
+                          <td className="nowrap">{report.basis}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </>
+            )}
           </div>
-          <p className="mt-2 acct-caption">
-            Branch filter is shown for planning consistency. Current accounting totals remain company-wide.
-          </p>
-        </CardContent>
-      </Card>
-
-      {/* Six figures, one strip — the whole position at a glance. */}
-      <div className="grid gap-2.5 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
-        <MetricTile
-          title="Net income"
-          value={summary?.kpis.netIncome ?? 0}
-          valueLabel={formatHeadline(summary?.kpis.netIncome ?? 0)}
-          delta={margin === null ? undefined : `${margin}% margin`}
-          detail={periodLabel}
-          tone={(summary?.kpis.netIncome ?? 0) < 0 ? "danger" : "good"}
-        />
-        <MetricTile
-          title="Total assets"
-          value={summary?.kpis.assets ?? 0}
-          valueLabel={formatHeadline(summary?.kpis.assets ?? 0)}
-          delta={`at ${asAtDate}`}
-          detail="what the business holds"
-          tone="neutral"
-        />
-        <MetricTile
-          title="Total liabilities"
-          value={summary?.kpis.liabilities ?? 0}
-          valueLabel={formatHeadline(summary?.kpis.liabilities ?? 0)}
-          delta={gearing === null ? undefined : `${gearing}% of assets`}
-          detail="what it owes"
-          tone="warn"
-        />
-        <MetricTile
-          title="Total equity"
-          value={summary?.kpis.equity ?? 0}
-          valueLabel={formatHeadline(summary?.kpis.equity ?? 0)}
-          delta="assets less liabilities"
-          detail="the owners' share"
-          tone={(summary?.kpis.equity ?? 0) < 0 ? "danger" : "good"}
-        />
-        <MetricTile
-          title="Net cash"
-          value={summary?.kpis.netCash ?? 0}
-          valueLabel={formatHeadline(summary?.kpis.netCash ?? 0)}
-          delta={(summary?.kpis.netCash ?? 0) < 0 ? "cash went out" : "cash came in"}
-          detail="movement over the period"
-          tone={(summary?.kpis.netCash ?? 0) < 0 ? "warn" : "good"}
-        />
-        {/*
-          The one tile that is a verdict rather than a figure.
-
-          A trial balance difference is only ever interesting as "is it zero" —
-          the number itself tells you nothing until it is not zero, and then
-          the number is exactly what you need. So it prints the word when it
-          balances and the difference when it does not, to the cent, because a
-          difference rounded to the dollar can round itself out of existence.
-        */}
-        <MetricTile
-          title="Trial balance"
-          value={trialBalanceDifference}
-          valueLabel={trialBalanceDifference === 0 ? "Balanced" : accountingFigure(trialBalanceDifference)}
-          delta={trialBalanceDifference === 0 ? "0.00" : "out by"}
-          detail={trialBalanceDifference === 0 ? "debits equal credits" : "debits less credits"}
-          tone={trialBalanceDifference === 0 ? "good" : "danger"}
-          href="/accounting/trial-balance"
-        />
-      </div>
-
-      {/*
-        The three statements, as statements.
-
-        These were two donuts and an axis chart. A balance sheet is a set of
-        figures that must add up, and a donut is the one shape that makes
-        adding up impossible to check: you cannot read 184,620 off an arc, and
-        with `--chart-*` unresolved every slice painted the same colour, so the
-        ring showed nothing at all. Read as rows, each of these is the report
-        it is named after.
-      */}
-      <div className="grid gap-2.5 xl:grid-cols-12">
-        <ReportPanel className="xl:col-span-5" title="Profit and loss" note={periodLabel}>
-          <ReportTable
-            label="Profit and loss"
-            tracks="minmax(0,1fr) 120px 90px"
-            columns={[{ label: "" }, { label: "Amount", align: "right" }, { label: "%", align: "right" }]}
-            rows={pnlRows}
-            emptyLabel="No income or expense posted in this period."
-          />
-        </ReportPanel>
-
-        <ReportPanel className="xl:col-span-4" title="Balance sheet" note={`at ${asAtDate}`}>
-          <ReportTable
-            label="Balance sheet"
-            tracks="minmax(0,1fr) 120px"
-            columns={[{ label: "" }, { label: "Amount", align: "right" }]}
-            rows={balanceRows}
-            emptyLabel="No balances to report."
-          />
-        </ReportPanel>
-
-        <ReportPanel className="xl:col-span-3" title="Cash flow" note={periodLabel}>
-          <ReportTable
-            label="Cash flow"
-            tracks="minmax(0,1fr) 110px"
-            columns={[{ label: "" }, { label: "Amount", align: "right" }]}
-            rows={cashRows}
-            emptyLabel="No cash movement in this period."
-          />
-        </ReportPanel>
-      </div>
-
-      <ReportPanel title="Reports you can run">
-        <ReportTable
-          label="Available reports"
-          tracks="minmax(0,1fr) 180px 160px"
-          columns={[{ label: "Report" }, { label: "Covers" }, { label: "Basis" }]}
-          rows={reportRows}
-        />
-      </ReportPanel>
-    </AccountingShell>
+        </div>
+      </Kit>
+    </>
   );
 }

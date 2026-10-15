@@ -50,7 +50,7 @@ export function BooksPage({ screen, children }: { screen: string; children: Reac
   return (
     <Kit className="kit-main">
       <KitScreen slug={screen}>
-        <div className="mn" style={{ flex: 1, minHeight: 0 }}>
+        <div className="mn">
           {children}
         </div>
       </KitScreen>

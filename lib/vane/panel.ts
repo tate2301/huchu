@@ -2,7 +2,7 @@ import type { PrismaClient } from "@prisma/client";
 import { z } from "zod";
 
 import { actionsFor, type VaneActionView } from "./actions/engine";
-import { audienceFilter, FOR_YOU, vaneStatus, type VaneStatus } from "./status";
+import { audienceFilter, FOR_YOU, jobLine, vaneStatus, type VaneStatus } from "./status";
 import { notStopped, stoppedTopics } from "./topics";
 
 /** The button on a For you card: it names the act and goes where the act is done. */
@@ -132,8 +132,8 @@ async function toCards(db: Db, companyId: string, items: CardRow[]): Promise<Van
   }));
 }
 
-/** The records a card can be about, as Vane names them on the card (`subjectType`). */
-export const VANE_SUBJECTS = ["CrmDeal", "CrmLead", "CrmClient", "CrmPerson", "SalesInvoice", "SalesQuotation", "CrmLeadDocument", "RetailPurchaseOrder"] as const;
+/** The records a card can be about, as Vane names them on the card (`subjectType`); `List` is a list page, by its path (`/books/invoices`), for a suggestion about that list (ExploreSuggest). */
+export const VANE_SUBJECTS = ["CrmDeal", "CrmLead", "CrmClient", "CrmPerson", "SalesInvoice", "SalesQuotation", "CrmLeadDocument", "RetailPurchaseOrder", "List"] as const;
 export type VaneSubject = (typeof VANE_SUBJECTS)[number];
 
 /**
@@ -234,10 +234,10 @@ export async function vanePanel(
         progress: step.progressLabel,
       })),
     })),
-    done: done.map((job) => ({ id: job.id, text: job.result?.trim() || job.label, at: (job.finishedAt ?? new Date()).toISOString() })),
+    done: done.map((job) => ({ id: job.id, text: job.result?.trim() || jobLine(job.label), at: (job.finishedAt ?? new Date()).toISOString() })),
     working: working.map((job) => ({
       id: job.id,
-      label: job.label,
+      label: jobLine(job.label),
       progress: job.progressTotal != null ? `${job.progressDone ?? 0} of ${job.progressTotal}` : null,
       running: job.status === "RUNNING",
     })),
