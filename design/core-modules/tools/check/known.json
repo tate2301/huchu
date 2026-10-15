@@ -40,6 +40,33 @@
     "panel: Posting",
     "panel: Fiscal device"
   ],
+  "PageBrandIdentity": [
+    "panel: Tills",
+    "panel: Till rules",
+    "panel: Posting",
+    "panel: Fiscal device",
+    "panel: Templates",
+    "panel: Pay and statutory",
+    "panel: Explore"
+  ],
+  "PageBrandAssets": [
+    "panel: Tills",
+    "panel: Till rules",
+    "panel: Posting",
+    "panel: Fiscal device",
+    "panel: Templates",
+    "panel: Pay and statutory",
+    "panel: Explore"
+  ],
+  "PageBrandFinance": [
+    "panel: Tills",
+    "panel: Till rules",
+    "panel: Posting",
+    "panel: Fiscal device",
+    "panel: Templates",
+    "panel: Pay and statutory",
+    "panel: Explore"
+  ],
   "ReportsAll": [
     "panel: Monday meeting",
     "panel: Fitters",

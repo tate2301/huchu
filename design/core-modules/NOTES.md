@@ -151,6 +151,15 @@ What the build could not match, decided differently from the boards, or built wi
 - Templates › Made here opens the workspace's own forms, documents and emails in the builder rather than copying them: not every kind has an API that copies.
 - The areas question says rooms (Add a room) and the quote's price column says Price, as drawn.
 
+### Branding
+
+- Branding (PageBrandIdentity, PageBrandAssets, PageBrandFinance) is one page over `CompanyBranding`, read and saved through `/api/settings/branding` as before: the tabs change the address without leaving the page, so a change on one tab is still there on the next and Save (Ctrl S) saves all of them. The quotation beside it is the workspace's draft on the sample quote every template preview uses (`lib/documents/sample-payloads.ts`), drawn as the renderer prints it: the logo or the lettered tile, the primary colour on the title, rule and total, the face the paper uses (Inter for a Corelith workspace on the default face), the masthead's address, the bank rows `buildPaymentRows` prints, the terms and the footer. A saved colour, face and logo reach a quote's printed HTML (checked on Floorcode's QUO preview).
+- Kept from the old page though the boards do not draw them: the custom domain's Save the domain and Check DNS with the record to add, IBAN and Bank address under Bank details, Disclaimer, Privacy policy and Terms under Document defaults, and Other ways to pay as the drawer of the ledger's accounts (print or not, drag or arrow keys to order, Add an account opens the ledger). "Preview a document" became Where it shows (PageBrandWhere), whose cards open Build's templates.
+- Secondary ("Body text on documents") and Accent ("Highlights and charts") are built as drawn, but no document reads them yet: the paper prints in the primary colour and ink, so the preview does too. The formats (Date, Time, Numbers, Money, Language) are kept with the brand; the renderer does not apply them yet, so the preview does not change with them.
+- The images are addresses, not files: there is no upload context for branding (`lib/uploads/policies.ts`), so the file box opens the address to edit (Enter keeps it, Esc leaves it) and shows the file's name and size as the board does.
+- Where it shows (`/preferences/organization/branding/where`) draws the four templates with the workspace's mark, colour, bank, VAT and footer; their lines and figures are the template previews' sample.
+- The checks leave out the Management sidebar's Tills, Till rules, Posting and Fiscal device (Floorcode has no shop, as for MgmtVane), Templates (moved to Build, see Build) and Pay and statutory and Explore: they are other rows of routes.md (MgmtPay, MgmtExplore), not built on this branch; Explore is being built beside it.
+
 ### Notifications
 
 - 14 Oct: the owner asked for a redesign of Notifications (compact, quiet, rich about what each concerns, detail one level deeper); the quiet row, the bell's Needs you and Everything, /activity with its drawer (which takes in Settings → Activity as its Workspace view) and the per-kind settings replace NotifyBell and NotifyActivity as the target (ledger, 14 Oct).
