@@ -94,6 +94,8 @@ export function VisitFormBuilder({ id }: { id: string }) {
   const [changes, setChanges] = React.useState<HeldChange[] | null>(null);
   const readChanges = useMutation({
     mutationFn: () => fetchJson<{ changes: FormChange[] }>("/api/vane/write/form-changes", { method: "POST", body: JSON.stringify({ questionSetId: id }) }),
+    // Each reading is a job counted against the month's allowance: a failure is said, not tried again unasked.
+    retry: false,
     onSuccess: ({ changes: found }) => setChanges(found.map((change, index) => ({ ...change, id: `${Date.now()}-${index}`, kept: false }))),
   });
 

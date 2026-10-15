@@ -133,6 +133,8 @@ export function ReportBuilder({
   const write = useMutation({
     mutationFn: (request: string) =>
       fetchJson<{ block: QueryBlock; note: string }>("/api/vane/write/report-block", { method: "POST", body: JSON.stringify({ request, blocks }) }),
+    // Each writing is a job counted against the month's allowance: a failure is said, not tried again unasked.
+    retry: false,
     onSuccess: ({ block, note }) => setWritten({ item: { id: `write:${block.id}`, name: block.title ?? block.name, note, sql: block.query }, block }),
     onError: (failure) => toast({ title: "Vane wrote nothing", description: getApiErrorMessage(failure, "Try asking another way."), variant: "destructive" }),
   });
