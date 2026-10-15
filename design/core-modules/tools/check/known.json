@@ -405,5 +405,13 @@
     "button: Back",
     "button: Not now",
     "primary: Keep [Ctrl ↵]"
+  ],
+  "PageVaneDocument": [
+    "button: Back",
+    "button: Build",
+    "button: Preview",
+    "primary: Publish [Ctrl ↵]",
+    "tab: Build",
+    "tab: Preview"
   ]
 }

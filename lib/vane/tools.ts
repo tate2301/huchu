@@ -188,7 +188,13 @@ const proposeItem = tool({
     headline: z.string().min(1).max(160),
     body: z.string().min(1).max(2000),
     action: z.object({
-      type: z.string().min(1).max(40).describe('What the button does: "open", "send_reminders", "review_draft".'),
+      type: z
+        .string()
+        .min(1)
+        .max(40)
+        .describe(
+          'What the button does: "open", "send_reminders", "review_draft". "send" for the message you wrote to go with a quote (subjectType CrmLeadDocument, subjectId the quote\'s document): the body is the message itself, which a person changes and sends with the quote from its page.',
+        ),
       label: z.string().min(1).max(40).describe('The button\'s words: "Send the reminders".'),
       target: z
         .string()

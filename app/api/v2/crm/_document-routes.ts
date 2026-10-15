@@ -31,6 +31,7 @@ import { draftDocumentEmail, emailDocumentToClient, NoRecipientError } from "@/l
 import { EmailNotConfiguredError } from "@/lib/email/send";
 import { crmDocumentLineSchema } from "./_helpers";
 import { VaneDraftNotTakenOn } from "@/lib/vane/drafts";
+import { vaneQuoteMessageSent } from "@/lib/crm/quote-check";
 
 type Owner = { kind: "lead" | "deal"; id: string };
 
@@ -174,6 +175,8 @@ export async function getDocumentEmail(request: NextRequest, owner: Owner, docId
 const emailSchema = z.object({
   subject: z.string().trim().min(1, "Write a subject").max(200, "Keep the subject to 200 characters").optional(),
   message: z.string().trim().min(1, "Write the message").max(5000, "Keep the message to 5,000 characters").optional(),
+  /** The card Vane's message came from (PageVaneDocument): done once the person has sent it. */
+  vaneItemId: z.string().uuid().optional(),
 });
 
 /**
@@ -184,8 +187,12 @@ export async function sendDocumentEmail(request: NextRequest, owner: Owner, docI
   try {
     const allowed = await mayEmail(request, owner, docId);
     if (!allowed.session) return allowed.response;
-    const body = emailSchema.parse(await request.json().catch(() => ({})));
+    const { vaneItemId, ...body } = emailSchema.parse(await request.json().catch(() => ({})));
     const sent = await emailDocumentToClient({ companyId: allowed.session.user.companyId, leadDocumentId: docId, ...body });
+    // The words this person checked and sent were Vane's: its card is done, and theirs.
+    if (vaneItemId) {
+      await vaneQuoteMessageSent({ companyId: allowed.session.user.companyId, userId: allowed.session.user.id, itemId: vaneItemId, documentId: docId });
+    }
     return successResponse(sent, 201);
   } catch (error) {
     console.error(`[API] POST /api/v2/crm/${owner.kind}s/[id]/documents/[docId]/email error:`, error);
