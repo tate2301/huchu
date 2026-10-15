@@ -46,8 +46,7 @@
     "panel: Posting",
     "panel: Fiscal device",
     "panel: Templates",
-    "panel: Pay and statutory",
-    "panel: Explore"
+    "panel: Pay and statutory"
   ],
   "PageBrandIdentity": [
     "panel: Tills",
@@ -55,8 +54,7 @@
     "panel: Posting",
     "panel: Fiscal device",
     "panel: Templates",
-    "panel: Pay and statutory",
-    "panel: Explore"
+    "panel: Pay and statutory"
   ],
   "PageBrandAssets": [
     "panel: Tills",
@@ -64,8 +62,7 @@
     "panel: Posting",
     "panel: Fiscal device",
     "panel: Templates",
-    "panel: Pay and statutory",
-    "panel: Explore"
+    "panel: Pay and statutory"
   ],
   "PageBrandFinance": [
     "panel: Tills",
@@ -73,8 +70,7 @@
     "panel: Posting",
     "panel: Fiscal device",
     "panel: Templates",
-    "panel: Pay and statutory",
-    "panel: Explore"
+    "panel: Pay and statutory"
   ],
   "ReportsAll": [
     "panel: Monday meeting",
@@ -457,5 +453,73 @@
     "primary: Publish [Ctrl ↵]",
     "tab: Build",
     "tab: Preview"
+  ],
+  "ExploreStudio": [
+    "button: Notifications",
+    "button: Vane",
+    "button: Earlier versions",
+    "button: Useful",
+    "button: Not useful",
+    "status: drafted",
+    "status: sent",
+    "status: no quote",
+    "footer: # visits# with no quote"
+  ],
+  "ExploreTemplates": [
+    "button: Notifications",
+    "button: Vane"
+  ],
+  "ExploreSchedule": [
+    "button: Notifications",
+    "button: Vane",
+    "button: Earlier versions",
+    "button: Useful",
+    "button: Not useful",
+    "status: drafted",
+    "status: sent",
+    "status: no quote",
+    "footer: # visits# with no quote",
+    "heading: Watch it",
+    "button: Remove Rudo Mapfumo",
+    "button: A link",
+    "tab: A link"
+  ],
+  "ExploreGuard": [
+    "button: Notifications",
+    "button: Vane",
+    "button: Match it"
+  ],
+  "ExploreSuggest": [
+    "button: Vane",
+    "button: Filters",
+    "button: View",
+    "button: Vane, 2 for this list",
+    "primary: Schedule it [S]",
+    "button: Not now",
+    "button: Add the column",
+    "panel: Overdue shared",
+    "panel: Pomona Offices you",
+    "panel: Paid this month shared",
+    "placeholder: Search invoices",
+    "footer: # invoices# overdue#",
+    "footer: # to # of #PreviousNext",
+    "placeholder: Search everything"
+  ],
+  "ExploreAsk": [
+    "heading: Go to",
+    "button: Notifications",
+    "button: Pin to Monday board",
+    "panel: Overdue shared",
+    "panel: Pomona Offices you",
+    "panel: Paid this month shared",
+    "placeholder: Search everything"
+  ],
+  "MgmtExplore": [
+    "panel: Pay and statutory",
+    "panel: Tills",
+    "panel: Till rules",
+    "panel: Posting",
+    "panel: Fiscal device",
+    "status: refused, a change"
   ]
 }

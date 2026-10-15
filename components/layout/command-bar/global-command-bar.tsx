@@ -7,6 +7,8 @@ import { useSession } from "next-auth/react";
 
 import { useShell } from "@/components/layout/shell-state";
 import { fetchJson } from "@/lib/api-client";
+import { canUseExplore } from "@/lib/explore/roles";
+import { exploreHref } from "@/lib/explore/questions";
 import { navSections } from "@/lib/navigation";
 import { filterNavSectionsByEnabledFeatures } from "@/lib/platform/gating/nav-filter";
 import { resolveViewIcon } from "@/lib/ui/view-icons";
@@ -31,6 +33,7 @@ import {
   Settings2,
   TableRows,
   Users,
+  VaneIcon,
   Wallet,
   Wrench,
   type LucideIcon,
@@ -258,10 +261,40 @@ export function GlobalCommandBar() {
 
   const needle = debounced.toLowerCase();
 
+  // Ask anywhere (the ExploreAsk board): a question typed here opens in
+  // Explore, where Vane writes it over the tables the person's role reads.
+  const canExplore = canUseExplore(session?.user?.role);
+
   const groups = React.useMemo<CommandGroup[]>(() => {
     const built: CommandGroup[] = [];
     const matches = (text: string) =>
       needle.length < 2 || text.toLowerCase().includes(needle);
+
+    // 0. Vane: the words as a question, opened in Explore. Enter does it.
+    if (canExplore && debounced.trim().split(/\s+/).length >= 3) {
+      const asked = debounced.trim();
+      built.push({
+        id: "vane",
+        label: "Vane",
+        items: [
+          {
+            id: "vane-explore",
+            group: "vane",
+            label: `Ask Vane: “${asked}”`,
+            icon: VaneIcon,
+            hint: "Explore",
+            preview: (
+              <ActionPreview
+                icon={VaneIcon}
+                title="Open in Explore"
+                body="Vane writes it as a question over the tables your role reads, runs it in Explore and says what it did. Nothing is changed."
+              />
+            ),
+            primary: { label: "Open in Explore", run: () => go(exploreHref({ ask: asked })) },
+          },
+        ],
+      });
+    }
 
     // 1. What is happening now.
     const upcoming = (todayQuery.data?.data ?? [])
@@ -534,6 +567,8 @@ export function GlobalCommandBar() {
 
     return built;
   }, [
+    canExplore,
+    debounced,
     enabledFeatures,
     go,
     hasCrm,

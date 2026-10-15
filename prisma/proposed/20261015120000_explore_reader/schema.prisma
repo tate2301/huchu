@@ -1,0 +1,72 @@
+// NEEDS APPROVAL (design/core-modules/spec/routes.md §7). On approval these
+// models go into prisma/schema.prisma (with `exploreReaderScopes`,
+// `exploreSettings` and `exploreQuestionRuns` back-relations on Company and
+// User), the migration beside this file moves to prisma/migrations, and
+// `pnpm db:generate` runs. Until then nothing reads or writes them:
+// `lib/explore/reader.ts` is the only caller, behind `exploreReaderReady()`.
+
+enum ExploreRunResult {
+  OK
+  REFUSED
+  TIMEOUT
+  FAILED
+}
+
+/// Which workspace, person and tables an `explore_reader` connection is bound
+/// to, by backend pid, for one reading transaction (`lib/explore/reader.ts`).
+model ExploreReaderScope {
+  pid       Int      @id
+  companyId String
+  userId    String
+  /// The real tables the person's role reads (`lib/explore/reader-access.ts` scopeTables).
+  tables    String[] @default([])
+  boundAt   DateTime @default(now())
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId])
+}
+
+/// Management → Explore: who may use it, what each product shows, the limits.
+/// No row means the defaults: owners and managers, by role, 5,000 rows, 10 s.
+model ExploreSettings {
+  companyId        String   @id
+  /// The roles that may use Explore.
+  roles            String[] @default(["SUPERADMIN", "MANAGER"])
+  /// Per product ("crm", "people"…): "role" (by role) or a list of roles.
+  productScopes    Json     @default("{}")
+  rowLimit         Int      @default(5000)
+  timeLimitSeconds Int      @default(10)
+  /// Personal details show as ••• unless the role reads them in People.
+  maskPersonal     Boolean  @default(true)
+  updatedById      String?
+  updatedAt        DateTime @updatedAt
+
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  updatedBy User?   @relation("ExploreSettingsUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+
+  @@index([updatedById])
+}
+
+/// One question run as `explore_reader`: kept a year, with the SQL and who ran
+/// it (Management → Explore, "Questions run today").
+model ExploreQuestionRun {
+  id        String           @id @default(uuid())
+  companyId String
+  userId    String?
+  title     String?
+  sql       String
+  readFrom  String[]         @default([])
+  rows      Int?
+  ms        Int?
+  result    ExploreRunResult
+  /// Why it was refused or failed, in the words the person saw.
+  reason    String?
+  createdAt DateTime         @default(now())
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  user    User?   @relation("ExploreQuestionRunBy", fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([companyId, createdAt])
+  @@index([userId])
+}

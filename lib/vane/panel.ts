@@ -131,8 +131,8 @@ async function toCards(db: Db, companyId: string, items: CardRow[]): Promise<Van
   }));
 }
 
-/** The records a card can be about, as Vane names them on the card (`subjectType`). */
-export const VANE_SUBJECTS = ["CrmDeal", "CrmLead", "CrmClient", "CrmPerson", "SalesInvoice", "SalesQuotation", "CrmLeadDocument", "RetailPurchaseOrder"] as const;
+/** The records a card can be about, as Vane names them on the card (`subjectType`); `List` is a list page, by its path (`/books/invoices`), for a suggestion about that list (ExploreSuggest). */
+export const VANE_SUBJECTS = ["CrmDeal", "CrmLead", "CrmClient", "CrmPerson", "SalesInvoice", "SalesQuotation", "CrmLeadDocument", "RetailPurchaseOrder", "List"] as const;
 export type VaneSubject = (typeof VANE_SUBJECTS)[number];
 
 /**

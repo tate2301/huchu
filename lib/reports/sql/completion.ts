@@ -34,7 +34,8 @@ const FUNCTIONS: Completion[] = Object.entries(SQL_FUNCTIONS).map(([name, help])
   type: "function",
   detail: help.split(":")[0],
   info: help.includes(":") ? help.slice(help.indexOf(":") + 1).trim() : undefined,
-  apply: `${name}(`,
+  // `current_date` is written without brackets.
+  apply: name.startsWith("current_") ? name : `${name}(`,
 }));
 
 /** Functions, offered wherever a word is being typed outside a string or comment. */

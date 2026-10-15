@@ -2,6 +2,7 @@
 
 import { usePathname } from "next/navigation";
 
+import { ExplorePanel, isExplorePath } from "@/components/explore/explore-panel";
 import { SidebarCrmCollections } from "@/components/layout/app-sidebar/sidebar-crm-collections";
 import { AccountMenu } from "@/components/layout/account-menu";
 import { PersonMenu } from "@/components/layout/person-menu";
@@ -45,7 +46,13 @@ export function AppSidebar({ inDrawer = false, railOnly = false }: { inDrawer?: 
           shell.setVaneOpen(!shell.vaneOpen);
         },
       }}
-      ownPanel={onVane ? { title: "Vane", body: <VaneModulePanel /> } : null}
+      ownPanel={
+        onVane
+          ? { title: "Vane", body: <VaneModulePanel /> }
+          : isExplorePath(pathname)
+            ? { title: "Explore", body: <ExplorePanel />, bare: true }
+            : null
+      }
       supportItems={nav.model.supportItems}
       panelShown={panelShown}
       panelOverlay={!inDrawer && !railOnly && shell.panelOverlay}

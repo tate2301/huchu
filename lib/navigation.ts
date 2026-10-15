@@ -344,6 +344,15 @@ export const navSections: NavSection[] = [
       { href: "/reports?view=corelith", icon: Star, label: "From Corelith", profiles: ["GENERAL"] },
       { href: "/reports/insights/sales", icon: BarChart3, label: "Sales", group: "insights", profiles: ["GENERAL"] },
       { href: "/reports/insights/site-visits", icon: MapPin, label: "Site visits", group: "insights", profiles: ["GENERAL"] },
+      { href: "/reports/insights", icon: TrendingUp, label: "Overview", exact: true },
+      { href: "/reports", icon: FileCheck, label: "All reports" },
+      { href: "/reports?view=yours", icon: UserRound, label: "Yours" },
+      { href: "/reports?view=shared", icon: Users, label: "Shared with you" },
+      { href: "/reports?view=corelith", icon: Star, label: "From Corelith" },
+      // Explore (routes.md §7): the workspace's data as questions, for owners and managers (`lib/explore/access.ts`).
+      { href: "/explore", icon: Dataset, label: "Explore", roles: ["SUPERADMIN", "MANAGER"] },
+      { href: "/reports/insights/sales", icon: BarChart3, label: "Sales", group: "insights" },
+      { href: "/reports/insights/site-visits", icon: MapPin, label: "Site visits", group: "insights" },
     ],
   },
   {
