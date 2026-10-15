@@ -75,7 +75,7 @@ export async function readMarketplace(
       detail: template.description ?? `A ${template.documentType.toLowerCase().replace(/_/g, " ")} to send out`,
       maker: "Corelith",
       price: "Free",
-      href: "/preferences/organization/templates",
+      href: "/build/templates",
     })),
   ];
 

@@ -40,12 +40,14 @@ export type VaneActionKind<Params extends Record<string, unknown> = Record<strin
   params: z.ZodType<Params>;
   /** The inputs a person may change before approving. */
   fields: VaneActionField[];
+  /** Inputs changed only on the action's own page (its target), not on the card: the families a reminder goes to. */
+  pageFields?: readonly string[];
   /** The button: "Set the due date", "Send 3 reminders". */
   verb: (params: Params) => string;
   /** What it does, in a line: "Set INV-0142 due on 30 October". */
   title: (params: Params) => string;
-  /** The page it acts on, with the filters that show just those records. */
-  target: (params: Params) => string;
+  /** The page it acts on, with the filters that show just those records, or the action's own page. */
+  target: (params: Params, id: string) => string;
   /** Why this person cannot, in a sentence, or null when they can. */
   refuse: (context: VaneActionContext, params: Params) => string | null;
   /** Does it, as the approving person, and says what happened in a line. Throws a VaneActionError when it cannot. */

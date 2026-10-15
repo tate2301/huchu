@@ -58,6 +58,13 @@ export class ReaderError extends Error {
 
 type Role = "vane_reader" | "vane_reader_private";
 
+/**
+ * Who a reading is for. A sales rep's reading (`rep`, their user id) runs as
+ * `vane_reader_rep`: only the CRM tables of a visit and its quote, narrowed to
+ * their own. Everyone else's reads the whole workspace.
+ */
+export type ReadingFor = { rep?: string | null };
+
 const ROLE_URL: Record<Role, string> = {
   vane_reader: "VANE_READER_DATABASE_URL",
   vane_reader_private: "VANE_READER_PRIVATE_DATABASE_URL",
@@ -82,19 +89,29 @@ function poolFor(role: Role): Pool {
 /** A table the role may read: its SQL name and the columns granted on it. */
 export type ReadableTable = { name: string; columns: string[] };
 
-const readable = new Map<Role, Promise<Map<string, ReadableTable>>>();
+type Grantee = Role | "vane_reader_rep";
+
+const readable = new Map<Grantee, Promise<Map<string, ReadableTable>>>();
+
+/** The roles whose grants a reading has: its own, and `vane_reader`'s for the private role, which is a member of it. */
+const GRANTEES: Record<Grantee, string[]> = {
+  vane_reader: ["vane_reader"],
+  vane_reader_private: ["vane_reader_private", "vane_reader"],
+  vane_reader_rep: ["vane_reader_rep"],
+};
 
 /**
  * The tables the role has been granted any column of, keyed by lower-case SQL
  * name as the guard compares them, with the columns it may select.
  */
-function readableTables(role: Role): Promise<Map<string, ReadableTable>> {
+function readableTables(role: Grantee): Promise<Map<string, ReadableTable>> {
   let tables = readable.get(role);
   if (!tables) {
     tables = prisma
       .$queryRaw<Array<{ table_name: string; column_name: string }>>`
         SELECT DISTINCT table_name, column_name FROM information_schema.column_privileges
-        WHERE grantee IN (${role}, 'vane_reader') AND privilege_type = 'SELECT' AND table_schema = 'public'
+        WHERE grantee = ANY(${GRANTEES[role]}) AND privilege_type = 'SELECT' AND table_schema = 'public'
+        AND table_name <> 'VaneReaderScope'
         ORDER BY table_name, column_name`
       .then((rows) => {
         const byName = new Map<string, ReadableTable>();
@@ -117,9 +134,9 @@ async function roleFor(companyId: string): Promise<Role> {
   return settings?.readsPeoplePrivate ? "vane_reader_private" : "vane_reader";
 }
 
-/** The tables Vane may read for this company, by its settings: for describing them to Claude. */
-export async function tablesFor(companyId: string): Promise<Map<string, ReadableTable>> {
-  return readableTables(await roleFor(companyId));
+/** The tables Vane may read for this company, by its settings, or for a rep: for describing them to Claude. */
+export async function tablesFor(companyId: string, reading: ReadingFor = {}): Promise<Map<string, ReadableTable>> {
+  return readableTables(reading.rep ? "vane_reader_rep" : await roleFor(companyId));
 }
 
 /** What a piece of reading work gets: the bound reader connection, and the tables its role may read. */
@@ -133,11 +150,13 @@ export type ReaderSession = { client: PoolClient; tables: Map<string, ReadableTa
 export async function withReader<T>(
   companyId: string,
   work: (session: ReaderSession) => Promise<T>,
-  options: { timeoutMs?: number } = {},
+  options: { timeoutMs?: number } & ReadingFor = {},
 ): Promise<T> {
-  const role = await roleFor(companyId);
+  const rep = options.rep ?? null;
+  // A rep's reading signs in as vane_reader and narrows to vane_reader_rep; it never reads people's private details.
+  const role = rep ? "vane_reader" : await roleFor(companyId);
   const pool = poolFor(role);
-  const tables = await readableTables(role);
+  const tables = await readableTables(rep ? "vane_reader_rep" : role);
 
   const timeoutMs = options.timeoutMs ?? 5_000;
   const client: PoolClient = await pool.connect();
@@ -148,9 +167,10 @@ export async function withReader<T>(
     pid = backend!.pid;
     await prisma.vaneReaderScope.upsert({
       where: { pid },
-      create: { pid, companyId },
-      update: { companyId },
+      create: { pid, companyId, userId: rep },
+      update: { companyId, userId: rep },
     });
+    if (rep) await client.query("SET LOCAL ROLE vane_reader_rep");
     await client.query(`SET LOCAL statement_timeout = ${Math.trunc(timeoutMs)}`);
     const result = await work({ client, tables });
     await client.query("COMMIT");
@@ -173,7 +193,7 @@ export async function withReader<T>(
 export async function readWorkspace(
   companyId: string,
   question: string,
-  options: { timeoutMs?: number } = {},
+  options: { timeoutMs?: number } & ReadingFor = {},
 ): Promise<ReaderAnswer> {
   return withReader(
     companyId,

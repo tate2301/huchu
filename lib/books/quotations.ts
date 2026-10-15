@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { prisma } from "@/lib/prisma";
+import { asMineSchema, takeOn, VaneDraftNotTakenOn } from "@/lib/vane/drafts";
 
 import { createSalesInvoice } from "./create-invoice";
 
@@ -8,6 +9,8 @@ export const updateQuotationSchema = z.object({
   status: z.enum(["DRAFT", "SENT", "ACCEPTED", "EXPIRED", "VOIDED"]).optional(),
   validUntil: z.string().datetime().or(z.string().regex(/^\d{4}-\d{2}-\d{2}$/)).nullable().optional(),
   notes: z.string().max(1000).nullable().optional(),
+  /** Confirms Vane's draft as the person's own, as it is sent (`lib/vane/drafts.ts`). */
+  asMine: asMineSchema,
 });
 
 export type QuotationChanges = z.infer<typeof updateQuotationSchema>;
@@ -33,8 +36,22 @@ type Drafter = { companyId: string; userId: string | null; madeByVane?: boolean 
  * the quote" both come here. Sent or accepted, it is stamped as issued by them.
  */
 export async function updateQuotation(actor: Actor, id: string, changes: QuotationChanges) {
-  const existing = await prisma.salesQuotation.findUnique({ where: { id }, select: { id: true, companyId: true } });
+  const existing = await prisma.salesQuotation.findUnique({
+    where: { id },
+    select: { id: true, companyId: true, quotationNumber: true, status: true, madeByVane: true, createdById: true },
+  });
   if (!existing || existing.companyId !== actor.companyId) throw new QuotationRefused(404, "Quotation not found");
+  // Sent or accepted is the quote leaving the drafts: Vane's draft goes only once a person confirms it as theirs.
+  const leaving = (changes.status === "SENT" || changes.status === "ACCEPTED") && existing.status === "DRAFT";
+  let maker: { createdById?: string } = {};
+  if (leaving) {
+    try {
+      maker = takeOn(existing, { asMine: changes.asMine, userId: actor.userId, what: existing.quotationNumber, verb: "send" });
+    } catch (error) {
+      if (error instanceof VaneDraftNotTakenOn) throw new QuotationRefused(409, error.message);
+      throw error;
+    }
+  }
 
   return prisma.salesQuotation.update({
     where: { id },
@@ -43,6 +60,7 @@ export async function updateQuotation(actor: Actor, id: string, changes: Quotati
       ...(changes.validUntil !== undefined ? { validUntil: changes.validUntil ? new Date(changes.validUntil) : null } : {}),
       ...(changes.notes !== undefined ? { notes: changes.notes } : {}),
       ...(changes.status === "SENT" || changes.status === "ACCEPTED" ? { issuedById: actor.userId, issuedAt: new Date() } : {}),
+      ...maker,
     },
     include: { customer: true, lines: true },
   });
@@ -50,7 +68,8 @@ export async function updateQuotation(actor: Actor, id: string, changes: Quotati
 
 /**
  * Drafts the invoice for an accepted quotation, line for line, as the person
- * approving: nothing is posted until someone issues it. A quotation already
+ * approving, or as Vane's own draft (`userId` null, the draft tool): nothing
+ * is posted until someone issues it. A quotation already
  * invoiced (by an invoice not voided) is not invoiced twice.
  */
 export async function draftInvoiceFromQuote(actor: Drafter, input: { quotationId: string; invoiceDate: string; dueDate?: string | null }) {

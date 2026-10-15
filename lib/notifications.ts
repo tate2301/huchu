@@ -956,7 +956,7 @@ export async function emitWorkOrderStatusNotification(
         status: input.workOrder.status,
         equipmentCode: input.workOrder.equipment?.equipmentCode ?? null,
         equipmentName: input.workOrder.equipment?.name ?? null,
-        viewPath: `/maintenance/work-orders?workOrderId=${input.workOrder.id}`,
+        viewPath: `/maintenance/work-orders/${input.workOrder.id}`,
       },
       entityType: NotificationEntityType.WORK_ORDER,
       entityId: input.workOrder.id,
@@ -988,7 +988,7 @@ function defaultViewPath(entityType?: NotificationEntityType | null, entityId?: 
   if (entityType === "HR_INCIDENT") return `/people/incidents?incidentId=${entityId}`
   if (entityType === "INCIDENT") return `/compliance/incidents?createdId=${entityId}`
   if (entityType === "PERMIT") return `/compliance/permits?createdId=${entityId}`
-  if (entityType === "WORK_ORDER") return `/maintenance/work-orders?workOrderId=${entityId}`
+  if (entityType === "WORK_ORDER") return `/maintenance/work-orders/${entityId}`
   return undefined
 }
 

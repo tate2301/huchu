@@ -215,7 +215,7 @@ function BlockBody({
                   Qty
                 </th>
                 <th scope="col" className={styles.th}>
-                  Rate
+                  Price
                 </th>
                 {block.showTax ? (
                   <th scope="col" className={styles.th}>
@@ -261,6 +261,10 @@ function BlockBody({
 
     case "totals": {
       const totals = context.totals ?? { subtotal: 0, tax: 0, total: 0 };
+      // A total has to add up on the paper: when it carries tax, the tax row prints whether or not
+      // it was asked for. It is VAT at the lines' rate when they share one.
+      const rates = [...new Set((context.lines ?? []).map((line) => line.taxRate).filter((rate): rate is number => Boolean(rate)))];
+      const taxLabel = rates.length === 1 ? `VAT ${rates[0]}%` : "VAT";
       return (
         <div className={styles.totals}>
           <dl className={styles.totalsStack}>
@@ -268,9 +272,9 @@ function BlockBody({
               <dt>Subtotal</dt>
               <dd>{money(totals.subtotal, currency)}</dd>
             </div>
-            {block.showTax ? (
+            {block.showTax || totals.tax !== 0 ? (
               <div className={styles.totalsRow}>
-                <dt>Tax</dt>
+                <dt>{taxLabel}</dt>
                 <dd>{money(totals.tax, currency)}</dd>
               </div>
             ) : null}
@@ -295,7 +299,7 @@ function BlockBody({
           className={cn(styles.signatures, block.party === "both" && styles.signaturesPair)}
         >
           {(block.party === "both" ? ["customer", "us"] : [block.party]).map((party) => (
-            <div key={party} className={styles.signature}>
+            <div key={party ?? "customer"} className={styles.signature}>
               <div className={styles.signatureLine} />
               <p className={styles.signatureLabel}>
                 {party === "us" ? "For the company" : block.label}

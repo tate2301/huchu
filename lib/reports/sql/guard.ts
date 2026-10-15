@@ -125,6 +125,7 @@ export const SQL_FUNCTIONS: Readonly<Record<string, string>> = {
   extract: "extract(year from date)",
   age: "age(a, b): the time between two dates",
   now: "now(): this moment",
+  current_date: "current_date: today, as a date — for days since or until",
   make_date: "make_date(year, month, day)",
   to_date: "to_date(text, 'YYYY-MM-DD')",
   generate_series: "generate_series(start, stop, step): one row per step — for a calendar",

@@ -91,14 +91,12 @@ export function NotificationsBell({ compact = false }: { compact?: boolean }) {
         onClick={() => setOpen(true)}
       >
         <Bell weight="fill" className="size-4" aria-hidden="true" />
+        {/* A quiet dot, not a count: the panel's Needs you says how many. The name carries the number. */}
         {count > 0 ? (
           <span
             aria-hidden="true"
-            className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-[var(--action)] px-1 font-mono font-semibold leading-none text-white"
-            style={{ fontSize: 10 }}
-          >
-            {count > 99 ? "99+" : count}
-          </span>
+            className="absolute right-1.5 top-1.5 size-2 rounded-full bg-[var(--action)] shadow-[0_0_0_2px_var(--surface)]"
+          />
         ) : null}
       </button>
     </NotificationCenter>

@@ -110,7 +110,9 @@ export function wonMostOftenBy(
     vaneItemId: null,
     headline: `${nouns[0]!.toUpperCase()}${nouns.slice(1)} from ${best.label} are won most often.`,
     body:
-      `${pct(best.rate)} of decided ${nouns} from ${best.label} were won, against ${pct(worst.rate)} from ${worst.label}.` +
+      // Against the next best, so no group sits unspoken between the two; the least too when it is another.
+      `${pct(best.rate)} of decided ${nouns} from ${best.label} were won, against ${pct(rated[1]!.rate)} from ${rated[1]!.label}` +
+      (rated.length > 2 ? ` and ${pct(worst.rate)} from ${worst.label}.` : ".") +
       (largest[0] !== best.label ? ` ${largest[0]} brings in the most: ${largest[1].all} of ${plural(all, noun)}.` : ""),
     bars: shown.map((entry) => ({ label: entry.label, share: entry.rate, text: pct(entry.rate), key: entry === best })),
     question: { words: `decided ${nouns} by ${columnWords}, ${rowsWords(decided)}`, href: input.hrefGroupedBy(null) },

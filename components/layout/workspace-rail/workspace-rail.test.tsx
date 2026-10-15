@@ -243,16 +243,15 @@ describe("WorkspaceRail, a module read whole", () => {
     container = null;
   });
 
-  it("opens at the folder of the page you are on, and goes back up one level at a time", () => {
+  it("keeps the module's groups as bands in its own panel, the page's open, and goes back up to the module list", () => {
     mount("/g2/1");
-    expect(title()).toBe("Group 2");
-    expect(rowLabels()).toEqual(["g2 0", "g2 1", "g2 2", "g2 3"]);
-
-    expect(back()!.getAttribute("aria-label")).toBe("Back to CRM");
-    click(back());
+    // The page stays in the module's panel: no level is opened under it.
     expect(title()).toBe("CRM");
-    expect(rowLabels()).toEqual(["Home", ...groups.map((group) => group.label)]);
-    expect(rowNamed("Group 2").getAttribute("aria-current")).toBe("page");
+    expect(rowNamed("g2 1").getAttribute("aria-current")).toBe("page");
+    const bands = Array.from(panel().querySelectorAll("button[aria-expanded]"));
+    expect(bands.map((band) => band.textContent)).toEqual(groups.map((group) => group.label));
+    expect(bands.find((band) => band.textContent === "Group 2")!.getAttribute("aria-expanded")).toBe("true");
+    expect(bands.find((band) => band.textContent === "Group 0")!.getAttribute("aria-expanded")).toBe("false");
 
     expect(back()!.getAttribute("aria-label")).toBe("Back to Sales & CRM");
     click(back());
@@ -262,14 +261,12 @@ describe("WorkspaceRail, a module read whole", () => {
     expect(rowLabels()).toEqual(["CRM", "Module 0", "Module 1", "Module 2", "Module 3", "Module 4", "Reports"]);
   });
 
-  it("goes down a level from a row, even into the page already open", () => {
+  it("opens a module from the module list, with every row of its groups reachable in its own panel", () => {
     mount("/g2/0");
-    click(back());
     click(back());
     click(rowNamed("CRM"));
     expect(title()).toBe("CRM");
-    click(rowNamed("Group 2"));
-    expect(title()).toBe("Group 2");
+    expect(rowNamed("g5 3")).toBeDefined();
   });
 
   it("opens the module, not a folder, on a page outside its folders", () => {

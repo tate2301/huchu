@@ -4,11 +4,13 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { InvoiceRefused } from "@/lib/books/create-invoice";
 import { draftInvoiceFromQuote, QuotationRefused } from "@/lib/books/quotations";
+import { draftWorkOrderForVane, WorkOrderRefused } from "@/lib/maintenance/work-orders";
 import { getReportDefinition, REPORT_DEFINITIONS } from "@/lib/reports/registry";
 import { draftOrderForVane, OrderRefusal } from "@/lib/retail/buying/orders";
 
 import { proposeActions, type ActionProposal } from "./actions/engine";
 import { VANE_ACTIONS } from "./actions/registry";
+import { usualTerms } from "./drafts";
 import { moveVaneStep } from "./lists";
 import { VANE_PAGES_GUIDE } from "./pages";
 import { VANE_SUBJECTS } from "./panel";
@@ -21,8 +23,9 @@ import { readWorkspace, ReaderError, tablesFor, withReader, type ReadableTable }
  * and every call is checked against it before the handler runs.
  *
  * Reading goes through the reader roles (`reader.ts`); writing is limited to
- * Vane's own tables: cards (`VaneItem`) and plans (`VanePlan`). Drafts of
- * invoices, quotations and purchase orders are the next tool.
+ * Vane's own tables, cards (`VaneItem`) and plans (`VanePlan`), and to drafts
+ * (`draft`): an invoice or a purchase order written through the module's own
+ * create code, marked `madeByVane`, which only a person issues or sends.
  */
 
 export type ToolContext = {
@@ -38,6 +41,12 @@ export type ToolContext = {
   read?: Array<{ tables: string[]; rows: number }>;
   /** What Vane could not work out, when it says so (`report_problem`): the job ends on it. */
   problem?: { problem: string; sql: string | null };
+  /**
+   * In a sales rep's chat: their user id. Vane reads only their own visits,
+   * deals, leads and quotes (`vane_reader_rep`), drafts nothing, and its
+   * cards are for them alone.
+   */
+  rep?: string | null;
 };
 
 type VaneTool<Input extends z.ZodType> = {
@@ -105,8 +114,8 @@ const describeTable = tool({
   input: z.object({
     table: z.string().min(1).describe('The table, as it is named: "SalesInvoice".'),
   }),
-  async run({ companyId }, { table }) {
-    const own = (await tablesFor(companyId)).get(table.toLowerCase());
+  async run({ companyId, rep }, { table }) {
+    const own = (await tablesFor(companyId, { rep })).get(table.toLowerCase());
     if (!own) throw new ReaderError("refused", `There is no table ${table} you can read.`);
     const types = await columnTypes(own.name);
     const links = (await linksOf(own.name)).filter((link) => own.columns.includes(link.column));
@@ -130,10 +139,10 @@ const runSql = tool({
     sql: z.string().min(1).describe("One SELECT or WITH query."),
   }),
   async run(context, { sql }) {
-    const answer = await readWorkspace(context.companyId, sql);
+    const answer = await readWorkspace(context.companyId, sql, { rep: context.rep });
     if (context.read) {
       // The reader names tables as the SQL did, lowercased; the answer's "What I read" names them as the app does.
-      const tables = await tablesFor(context.companyId);
+      const tables = await tablesFor(context.companyId, { rep: context.rep });
       context.read.push({ tables: answer.readFrom.map((name) => tables.get(name)?.name ?? name), rows: answer.rows.length });
     }
     return answer;
@@ -149,7 +158,7 @@ const getRecord = tool({
     table: z.string().min(1).describe('The table, as it is named: "SalesInvoice", "Customer", "RetailPurchaseOrder".'),
     id: z.string().min(1).describe("The record's id."),
   }),
-  async run({ companyId }, { table, id }) {
+  async run({ companyId, rep }, { table, id }) {
     return withReader(companyId, async ({ client, tables }) => {
       const own = tables.get(table.toLowerCase());
       if (!own || !own.columns.includes("id")) {
@@ -169,7 +178,7 @@ const getRecord = tool({
         links[link.column] = { table: parent.name, record: linked ?? null };
       }
       return { table: own.name, id, record, links };
-    });
+    }, { rep });
   },
 });
 
@@ -186,13 +195,24 @@ const proposeItem = tool({
     headline: z.string().min(1).max(160),
     body: z.string().min(1).max(2000),
     action: z.object({
-      type: z.string().min(1).max(40).describe('What the button does: "open", "send_reminders", "review_draft".'),
+      type: z
+        .string()
+        .min(1)
+        .max(40)
+        .describe(
+          'What the button does: "open", "send_reminders", "review_draft". "send" for the message you wrote to go with a quote (subjectType CrmLeadDocument, subjectId the quote\'s document): the body is the message itself, which a person changes and sends with the quote from its page.',
+        ),
       label: z.string().min(1).max(40).describe('The button\'s words: "Send the reminders".'),
       target: z
         .string()
-        .max(400)
+        .max(2000)
         .optional()
         .describe("The page it opens, with the filters that show just these records: \"/books/invoices?view=overdue&customer=<id>\". See the pages list."),
+      shortcut: z.string().max(12).optional().describe('The key that presses it, when it is the card\'s main act: "S", "Ctrl ↵".'),
+      also: z
+        .object({ label: z.string().min(1).max(40), target: z.string().startsWith("/").max(2000) })
+        .optional()
+        .describe('A second, quieter way in: "Open the 11 rows" beside "Save as a template".'),
     }),
     topic: z
       .string()
@@ -203,7 +223,7 @@ const proposeItem = tool({
     subjectType: z
       .enum(VANE_SUBJECTS)
       .optional()
-      .describe("The one record it is about, when there is one; the card then shows on that record's page too (a deal's, a lead's, a company's)."),
+      .describe("The one record it is about, when there is one; the card then shows on that record's page too (a deal's, a lead's, a company's). For a suggestion about a list itself (send it on a schedule, add a column), use List with the list's path as subjectId (\"/books/invoices\")."),
     subjectId: z.string().max(60).optional(),
     sql: z.string().max(20_000).optional(),
     readFrom: z
@@ -217,13 +237,18 @@ const proposeItem = tool({
       .max(20)
       .describe("The tables read, which of their rows, and how many rows each answered."),
     audienceRole: z.string().max(40).optional().describe("Who should see it, by role, when not everyone."),
+    audienceUserId: z
+      .string()
+      .max(60)
+      .optional()
+      .describe("Who should see it, when it is one person's: a sales rep's own visit or quote is theirs (the record's assignedToId). A rep sees only cards addressed to them."),
     actions: z
       .array(z.object({ kind: z.string().min(1), params: z.record(z.string(), z.unknown()) }))
       .max(20)
       .optional()
       .describe("What you can do about it once a person approves, from the actions list (propose_actions). One per record where the action is one record's."),
   }),
-  async run({ companyId, jobId }, { actions, ...input }) {
+  async run({ companyId, jobId, rep }, { actions, ...input }) {
     const open = await prisma.vaneItem.findFirst({
       where: { companyId, status: "OPEN", headline: input.headline },
       select: { id: true },
@@ -243,7 +268,9 @@ const proposeItem = tool({
         subjectId: input.subjectId,
         sql: input.sql,
         readFrom: input.readFrom,
-        audienceRole: input.audienceRole,
+        // A card raised in a rep's chat is theirs alone.
+        audienceRole: rep ? null : input.audienceRole,
+        audienceUserId: rep ?? input.audienceUserId,
       },
       select: { id: true },
     });
@@ -288,19 +315,20 @@ const draftTool = tool({
   name: "draft",
   description:
     "Draft work through the module's own code, as Vane's draft (made by Vane, no person as its maker), for a person to check and send, issue or delete. It never sends, posts or issues anything. " +
-    "invoice_from_quote: the invoice for an accepted quotation not yet invoiced, line for line, dated today, due on the customer's usual terms (dueDate). " +
+    "invoice_from_quote: the invoice for an accepted quotation not yet invoiced, line for line, dated the day a person issues it, due on the customer's usual terms (leave dueDate out and they are read from the customer's past invoices). " +
     "reorder: a purchase order for one supplier and one branch, for products running low there, each with whole units and the cost last paid. " +
-    "After drafting, raise a card (propose_item) about it, with actions to issue or send it (books.invoice.issue, retail.order.send) and to delete it (books.invoice.discard), and link it.",
+    "work_order: when one machine keeps breaking down the same way (WorkOrder history on that Equipment), a work order to fix the cause: the equipment, the issue, a note with the figures that show it (how many times, hours lost, since when), the priority, a technician when one is the obvious one, and the parts it needs from stores (InventoryItem at the equipment's site) by itemId. " +
+    "After drafting, raise a card (propose_item) about it, with actions to issue, send or raise it (books.invoice.issue, retail.order.send, assets.work_order.raise) and to delete it (books.invoice.discard, assets.work_order.discard), and link it.",
   // One object, not a union: a tool's input has to be a JSON object schema for Claude.
   input: z
     .object({
-      kind: z.enum(["invoice_from_quote", "reorder"]),
+      kind: z.enum(["invoice_from_quote", "reorder", "work_order"]),
       quotationId: z.string().min(1).optional().describe("invoice_from_quote: the accepted quotation."),
       dueDate: z
         .string()
         .regex(/^\d{4}-\d{2}-\d{2}$/)
         .optional()
-        .describe("invoice_from_quote: when it falls due."),
+        .describe("invoice_from_quote: when it falls due, when you know better than the customer's usual terms."),
       supplierId: z.string().min(1).optional().describe("reorder: who it is ordered from."),
       siteId: z.string().min(1).optional().describe("reorder: the branch it is delivered to."),
       expectedDate: z
@@ -313,30 +341,83 @@ const draftTool = tool({
         .max(100)
         .optional()
         .describe("reorder: each product, whole units, at the cost last paid."),
+      equipmentId: z.string().min(1).optional().describe("work_order: the equipment."),
+      issue: z.string().trim().min(1).max(1000).optional().describe('work_order: what to do, in a line: "Rebuild the feed pump; the seal has failed three times".'),
+      note: z
+        .string()
+        .trim()
+        .min(1)
+        .max(600)
+        .optional()
+        .describe('work_order: what you found, with the figures: "The seal failed 3 times in 30 days, 11 hours lost since 14 September. The seal kit is in stores; the impeller is not."'),
+      priority: z.enum(["NORMAL", "HIGH", "URGENT"]).optional().describe("work_order: HIGH when it has cost hours, URGENT when the machine is down now."),
+      technicianId: z.string().min(1).optional().describe("work_order: the Employee who fixes it, when there is an obvious one."),
+      downtimeStart: z.string().datetime().optional().describe("work_order: when the latest breakdown began."),
+      parts: z
+        .array(z.object({ name: z.string().min(1).max(200), itemId: z.string().min(1).optional(), quantity: z.number().positive() }))
+        .max(30)
+        .optional()
+        .describe("work_order: the parts it needs, each a stores item by itemId where there is one."),
     })
-    .refine((input) => (input.kind === "invoice_from_quote" ? Boolean(input.quotationId) : Boolean(input.supplierId && input.siteId && input.lines?.length)), {
-      message: "invoice_from_quote needs quotationId; reorder needs supplierId, siteId and at least one line",
+    .refine(
+      (input) =>
+        input.kind === "invoice_from_quote"
+          ? Boolean(input.quotationId)
+          : input.kind === "reorder"
+            ? Boolean(input.supplierId && input.siteId && input.lines?.length)
+            : Boolean(input.equipmentId && input.issue && input.note),
+      {
+        message: "invoice_from_quote needs quotationId; reorder needs supplierId, siteId and at least one line; work_order needs equipmentId, issue and note",
     }),
-  async run({ companyId }, input) {
+  async run({ companyId, rep }, input) {
+    if (rep) throw new ToolError("Drafting is not something a sales rep's Vane does: say what you found instead.");
     const settings = await prisma.vaneSettings.findUnique({ where: { companyId }, select: { drafts: true } });
     if (settings && !settings.drafts) throw new ToolError("This workspace has Vane's drafts switched off (Management → Vane): raise a card instead.");
     try {
       if (input.kind === "invoice_from_quote") {
+        const today = new Date();
         const invoice = await draftInvoiceFromQuote(
           { companyId, userId: null, madeByVane: true },
-          { quotationId: input.quotationId!, invoiceDate: new Date().toISOString().slice(0, 10), dueDate: input.dueDate },
+          { quotationId: input.quotationId!, invoiceDate: today.toISOString().slice(0, 10), dueDate: input.dueDate ?? (await usualDueDate(companyId, input.quotationId!, today)) },
         );
-        return { drafted: "invoice", invoiceId: invoice.id, invoiceNumber: invoice.invoiceNumber, customer: invoice.customer.name, total: invoice.total, link: `/books/invoices?view=drafts&q=${encodeURIComponent(invoice.invoiceNumber)}` };
+        // Its page (PageVaneDraft) is where a person checks it, takes it on and issues it.
+        return { drafted: "invoice", invoiceId: invoice.id, invoiceNumber: invoice.invoiceNumber, customer: invoice.customer.name, total: invoice.total, link: `/books/invoices/${invoice.id}` };
+      }
+      if (input.kind === "work_order") {
+        const order = await draftWorkOrderForVane(companyId, {
+          equipmentId: input.equipmentId!,
+          issue: input.issue!,
+          note: input.note!,
+          priority: input.priority ?? "NORMAL",
+          technicianId: input.technicianId ?? null,
+          downtimeStart: input.downtimeStart ? new Date(input.downtimeStart) : undefined,
+          parts: input.parts ?? [],
+        });
+        return { drafted: "work_order", workOrderId: order.id, equipment: `${order.equipment.name}, ${order.equipment.equipmentCode}`, issue: order.issue, link: `/maintenance/work-orders/${order.id}` };
       }
       const order = await draftOrderForVane(companyId, { supplierId: input.supplierId!, siteId: input.siteId!, expectedDate: input.expectedDate ?? null, lines: input.lines ?? [] });
       return { drafted: "order", orderId: order.id, poNo: order.poNo, supplier: order.supplier, site: order.site, lines: order.lines, value: order.value, link: `/retail/buying/orders/${order.id}` };
     } catch (error) {
-      if (error instanceof QuotationRefused || error instanceof InvoiceRefused) throw new ToolError(error.message);
+      if (error instanceof QuotationRefused || error instanceof InvoiceRefused || error instanceof WorkOrderRefused) throw new ToolError(error.message);
       if (error instanceof OrderRefusal) throw new ToolError(error.fieldErrors ? Object.values(error.fieldErrors)[0]! : error.message);
       throw error;
     }
   },
 });
+
+/** Due on the customer's usual terms from today, read off their issued invoices; null when they have none. */
+async function usualDueDate(companyId: string, quotationId: string, today: Date): Promise<string | null> {
+  const quote = await prisma.salesQuotation.findFirst({ where: { id: quotationId, companyId }, select: { customerId: true } });
+  if (!quote) return null;
+  const past = await prisma.salesInvoice.findMany({
+    where: { companyId, customerId: quote.customerId, status: { in: ["ISSUED", "PAID"] }, dueDate: { not: null } },
+    orderBy: { invoiceDate: "desc" },
+    take: 20,
+    select: { invoiceDate: true, dueDate: true },
+  });
+  const terms = usualTerms(past);
+  return terms === null ? null : new Date(today.getTime() + terms * 86_400_000).toISOString().slice(0, 10);
+}
 
 const describeReport = tool({
   name: "describe_report",

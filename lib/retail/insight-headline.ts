@@ -33,11 +33,10 @@ export function numberWord(value: number) {
   return Number.isInteger(value) && value >= 0 && value < NUMBER_WORDS.length ? NUMBER_WORDS[value] : value.toLocaleString("en-US");
 }
 
-/** "US$11,732" from a hundred dollars up; "US$42.50" below it. */
+/** "$11,732.40": two decimals always, as the tiles beside the sentence write it (the brief). */
 export function headlineMoney(value: number) {
   const amount = Math.abs(value);
-  const digits = amount >= 100 ? 0 : 2;
-  return `US$${amount.toLocaleString("en-US", { minimumFractionDigits: digits, maximumFractionDigits: digits })}`;
+  return `$${amount.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
 function percent(value: number) {

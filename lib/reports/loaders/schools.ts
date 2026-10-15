@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { dateRange } from "@/lib/reports/params";
 import { day, label, num, result, TAKE } from "@/lib/reports/loaders/shared";
+import { generateEnrollmentStatsReport, generateOccupancyReport } from "@/lib/schools/reports";
 import type { ReportContext, ReportLoader, ReportParams } from "@/lib/reports/types";
 
 function pupil(student: { firstName: string; lastName: string }): string {
@@ -31,6 +32,13 @@ async function loadFeeBalances(ctx: ReportContext, params: ReportParams) {
       student: {
         select: { firstName: true, lastName: true, studentNo: true, currentClass: { select: { name: true } } },
       },
+      // The latest receipt that paid something off it.
+      receiptAllocations: {
+        where: { receipt: { status: { not: "VOIDED" } } },
+        select: { receipt: { select: { receiptDate: true } } },
+        orderBy: { receipt: { receiptDate: "desc" } },
+        take: 1,
+      },
     },
     orderBy: { dueDate: "asc" },
     take: TAKE,
@@ -52,6 +60,7 @@ async function loadFeeBalances(ctx: ReportContext, params: ReportParams) {
         issued: day(invoice.issueDate),
         due: day(invoice.dueDate),
         daysOverdue: balance > 0 && late > 0 ? late : null,
+        lastPaid: day(invoice.receiptAllocations[0]?.receipt.receiptDate),
         total: num(invoice.totalAmount),
         paid: num(invoice.paidAmount),
         waived: num(invoice.waivedAmount),
@@ -166,7 +175,42 @@ async function loadRoll(ctx: ReportContext, params: ReportParams) {
   );
 }
 
+async function loadEnrolment(ctx: ReportContext) {
+  const terms = await generateEnrollmentStatsReport(ctx.companyId);
+  return result(
+    terms.map((term) => ({
+      id: term.termId,
+      term: term.termName,
+      starts: term.period === "Unknown" ? null : `${term.period}-01`,
+      enrolled: term.totalEnrolled,
+      boarders: term.boardingCount,
+      day: term.dayCount,
+      girls: term.femaleCount,
+      boys: term.maleCount,
+    })),
+  );
+}
+
+async function loadBoarding(ctx: ReportContext) {
+  const hostels = await generateOccupancyReport(ctx.companyId);
+  return result(
+    hostels.map((hostel) => ({
+      id: hostel.hostelId,
+      hostel: hostel.hostelName,
+      code: hostel.hostelCode,
+      policy: label(hostel.genderPolicy),
+      rooms: hostel.roomCount,
+      beds: hostel.totalBeds,
+      taken: hostel.occupiedBeds,
+      free: hostel.totalBeds - hostel.occupiedBeds,
+      occupancy: Math.round(hostel.occupancyRate * 10) / 10,
+    })),
+  );
+}
+
 export const SCHOOL_LOADERS: Record<string, ReportLoader> = {
+  "school-enrolment": { load: loadEnrolment },
+  "school-boarding": { load: loadBoarding },
   "school-fee-balances": { load: loadFeeBalances },
   "school-fee-receipts": { load: loadFeeReceipts },
   "school-attendance": { load: loadRegisters },

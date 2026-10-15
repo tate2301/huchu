@@ -1,0 +1,29 @@
+/* Build's pages (PageBuildHome, PageBuildTemplates), beside the kit: the list's column widths and how it
+   folds on a phone. Scoped under `.sc-build` (`BuildFrame`). */
+
+.ck .sc-build .ws-tools, .sc-build .ws-tools { flex-wrap: wrap; }
+.sc-build .ws-find { flex: 0 1 280px; min-width: 0; }
+.sc-build .table { table-layout: fixed; width: 100%; }
+.sc-build .table td, .sc-build .table th { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sc-build .table td .truncate { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sc-build .table a.cell-lead { color: var(--color-ink); text-decoration: none; font-weight: 500; }
+.sc-build .table a.cell-lead:hover { text-decoration: underline; }
+.sc-build .table tr.grp td { background: var(--color-ground); color: var(--color-muted); font-size: var(--text-13); height: 40px; }
+.sc-build .table tr.grp td b { color: var(--color-ink); font-weight: 600; margin-right: var(--space-8); }
+.sc-build .table tr.grp td .n { margin-left: var(--space-8); }
+.sc-build .bt-name { display: inline-flex; align-items: center; gap: var(--space-8); min-width: 0; max-width: 100%; }
+.sc-build .bt-name .ic { width: 16px; height: 16px; color: var(--color-muted); flex: none; }
+.sc-build .bt-act { text-align: right; }
+.sc-build .bt-act .btn { height: 32px; }
+.sc-build .finding { padding-left: var(--space-24); padding-right: var(--space-24); }
+
+@media (max-width: 899px) {
+  .sc-build .bh-wide { display: none; }
+}
+@media (max-width: 599px) {
+  .sc-build .bh-used, .sc-build .bt-what { display: none; }
+  .sc-build .ws-tools { padding: var(--space-12) var(--space-16); }
+  .sc-build .ws-find { flex: 1 1 100%; }
+  .sc-build .finding { padding-left: var(--space-16); padding-right: var(--space-16); }
+  .sc-build .bt-act .btn .btn-l { display: none; }
+}

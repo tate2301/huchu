@@ -22,11 +22,16 @@ import { ReportTable } from "../report-table";
 
 /** The result as a report the page's blocks can read. Money is totalled unless the source says otherwise. */
 export function resultMeta(block: QueryBlock, columns: ReportColumn[]): ReportMeta {
+  const hidden = new Set(block.display.type === "table" ? (block.display.hidden ?? []) : []);
   return {
     key: block.name,
     title: block.title ?? "",
     area: "",
-    columns: columns.map((column) => (column.total || column.kind !== "money" ? column : { ...column, total: "sum" })),
+    columns: columns.map((column) => {
+      const totalled = column.total || column.kind !== "money" ? column : { ...column, total: "sum" as const };
+      // A column the table leaves out keeps its place, hidden, as a report's own does.
+      return hidden.has(column.key) ? { ...totalled, hidden: true } : totalled;
+    }),
     params: [],
     defaults: {},
   };
@@ -97,40 +102,61 @@ export function downloadBlockCsv(block: QueryBlock, columns: ReportColumn[], row
   download(block.name, exportRows(applyView(rows, meta.columns, view), view));
 }
 
-function Table({ block, meta, rows }: { block: QueryBlock; meta: ReportMeta; rows: ReportRow[] }) {
+/** Rows a table shows at a time; Previous and Next turn the pages. */
+const PAGE_ROWS = 50;
+
+function Table({ block, meta, rows, foot }: { block: QueryBlock; meta: ReportMeta; rows: ReportRow[]; foot: boolean }) {
   const [view, setView] = useState<ReportView>(() => defaultView(meta));
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
+  const [page, setPage] = useState(0);
   // Rows are numbered by position, so new rows — other dates, an edited query — are a new selection.
   const [seenRows, setSeenRows] = useState(rows);
   if (rows !== seenRows) {
     setSeenRows(rows);
     setSelected(new Set());
+    setPage(0);
   }
   const applied = useMemo(() => applyView(rows, meta.columns, view), [meta.columns, rows, view]);
+  // Grouped, the groups are the page; otherwise the rows go 50 to a page.
+  const count = applied.rows.length;
+  const pages = applied.groups ? 1 : Math.max(1, Math.ceil(count / PAGE_ROWS));
+  const at = Math.min(page, pages - 1);
+  const shown = applied.groups ? applied : { ...applied, rows: applied.rows.slice(at * PAGE_ROWS, (at + 1) * PAGE_ROWS) };
+  const first = count === 0 ? 0 : at * PAGE_ROWS + 1;
+  const last = applied.groups ? count : Math.min(count, (at + 1) * PAGE_ROWS);
+  const sums = applied.columns.flatMap((column) => {
+    const fn = view.totals[column.key];
+    const value = applied.totals[column.key];
+    return fn && value !== null && value !== undefined ? [{ label: column.label, value: formatTotal(value, column, fn) }] : [];
+  });
+  const selection = {
+    count: selected.size,
+    onClear: () => setSelected(new Set()),
+    actions: (
+      <Button
+        icon="export"
+        onClick={() => download(block.name, exportRows({ ...applied, rows: applied.rows.filter((row) => selected.has(row.id)), groups: null }, view))}
+      >
+        CSV of these
+      </Button>
+    ),
+  };
   return (
     <section aria-label={block.title ?? block.name} className="rp-tblock">
       <Title text={block.title} />
       <Kit contents>
-        <ReportTable applied={applied} view={view} onViewChange={setView} selectedIds={selected} onSelect={setSelected} rowActions={null} />
+        <ReportTable applied={shown} view={view} onViewChange={setView} selectedIds={selected} onSelect={setSelected} rowActions={null} />
         {rows.length === 0 ? <p className="muted rp-pad">No rows in these dates.</p> : null}
-          {selected.size ? (
-            <TableFoot
-              selection={{
-                count: selected.size,
-                onClear: () => setSelected(new Set()),
-                actions: (
-                  <Button
-                    icon="export"
-                    onClick={() =>
-                      download(block.name, exportRows({ ...applied, rows: applied.rows.filter((row) => selected.has(row.id)), groups: null }, view))
-                    }
-                  >
-                    CSV of these
-                  </Button>
-                ),
-              }}
-            />
-          ) : null}
+        {foot ? (
+          <TableFoot
+            range={count === 0 ? "No rows" : `${first.toLocaleString("en-US")} to ${last.toLocaleString("en-US")} of ${count.toLocaleString("en-US")}`}
+            sums={sums}
+            page={{ onPrevious: at > 0 ? () => setPage(at - 1) : undefined, onNext: at < pages - 1 ? () => setPage(at + 1) : undefined }}
+            selection={selection}
+          />
+        ) : selected.size ? (
+          <TableFoot selection={selection} />
+        ) : null}
       </Kit>
     </section>
   );
@@ -153,6 +179,7 @@ function ResultView({
   params,
   width,
   truncated,
+  foot = true,
 }: {
   block: QueryBlock;
   check: BlockCheck | undefined;
@@ -163,10 +190,13 @@ function ResultView({
   width: number;
   /** A source it reads came back cut short. */
   truncated: boolean;
+  /** A table's footer: its count, sums and pages. The builder's page leaves it off. */
+  foot?: boolean;
 }) {
   const columns = result?.ok ? result.columns : null;
   // A new set of columns is a new result: the table's own sort and totals start over.
-  const signature = columns?.map((column) => `${column.key}:${column.kind}`).join("|") ?? "";
+  const hiddenKey = block.display.type === "table" ? (block.display.hidden ?? []).join(",") : "";
+  const signature = `${columns?.map((column) => `${column.key}:${column.kind}`).join("|") ?? ""}/${hiddenKey}`;
   const meta = useMemo(() => (columns ? resultMeta(block, columns) : null), [block, columns]);
 
   if (check && !check.ok) {
@@ -204,7 +234,7 @@ function ResultView({
   if (display.type === "table") {
     return (
       <>
-        <Table key={signature} block={block} meta={meta!} rows={result.rows} />
+        <Table key={signature} block={block} meta={meta!} rows={result.rows} foot={foot} />
         {note}
       </>
     );

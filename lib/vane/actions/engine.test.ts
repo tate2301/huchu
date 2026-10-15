@@ -26,8 +26,9 @@ const stamp = {
   kind: "test.stamp",
   module: "test",
   description: "Stamps a record.",
-  params: z.object({ recordId: z.string(), label: z.string(), on: z.string().regex(/^\d{4}-\d{2}-\d{2}$/) }),
+  params: z.object({ recordId: z.string(), label: z.string(), on: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), note: z.string().optional() }),
   fields: [{ name: "on", label: "On", type: "date" }],
+  pageFields: ["note"],
   verb: () => "Stamp it",
   title: (p) => `Stamp ${p.label} on ${p.on}`,
   target: (p) => `/records?q=${p.label}`,
@@ -40,7 +41,7 @@ const stamp = {
     ran.push({ by: context.userId, params: p });
     return `Stamped ${p.label}.`;
   },
-} satisfies VaneActionKind<{ recordId: string; label: string; on: string }>;
+} satisfies VaneActionKind<{ recordId: string; label: string; on: string; note?: string }>;
 
 const registry = [stamp] as unknown as readonly VaneActionKind<never>[];
 
@@ -95,11 +96,11 @@ describe("Vane's actions", () => {
     expect((await prisma.vaneAction.findUniqueOrThrow({ where: { id: first.id } })).status).toBe("PROPOSED");
   });
 
-  it("runs it as the person once approved, with only the inputs they may change", async () => {
+  it("runs it as the person once approved, with only the inputs they may change, on the card or its page", async () => {
     const [first] = await prisma.vaneAction.findMany({ where: { itemId: ids.item }, orderBy: { createdAt: "asc" } });
-    const outcome = await decideAction(prisma, context(), first.id, { approve: true, changes: { on: "2026-11-15", recordId: "someone-else" } }, registry);
+    const outcome = await decideAction(prisma, context(), first.id, { approve: true, changes: { on: "2026-11-15", recordId: "someone-else", note: "From its page" } }, registry);
     expect(outcome.ok && outcome.action).toMatchObject({ status: "done", result: "Stamped INV-0142.", title: "Stamp INV-0142 on 2026-11-15", decidedBy: "Rudo" });
-    expect(ran).toEqual([{ by: ids.user, params: { recordId: "r1", label: "INV-0142", on: "2026-11-15" } }]);
+    expect(ran).toEqual([{ by: ids.user, params: { recordId: "r1", label: "INV-0142", on: "2026-11-15", note: "From its page" } }]);
     expect(await decideAction(prisma, context(), first.id, { approve: true }, registry)).toMatchObject({ ok: false, status: 409 });
   });
 

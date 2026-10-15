@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 
 import type Anthropic from "@anthropic-ai/sdk";
-import type { PrismaClient } from "@prisma/client";
+import type { Prisma, PrismaClient } from "@prisma/client";
 import { z } from "zod";
 
 import { actionsFor, proposeActions, type ActionProposal, type VaneActionView } from "./actions/engine";
@@ -73,7 +73,12 @@ function workingLabel(tool: string, input: unknown): string {
   }
 }
 
-const CHAT = (who: Who) => `You are talking with ${who.name ?? "a person"} (${who.role.toLowerCase().replace(/_/g, " ")}) in the Vane panel. Each of their messages may start with where they are in the app, in brackets: a record id in that address is what they mean by "this", so read that record first when they ask about it. Answer what they ask, in a few short sentences, first person, with names and exact amounts. When what you find can be done, propose it with propose_actions, one per record, so they approve or deny each; then say in a sentence what you proposed. When they ask for something only they can do, say where. Write every link as [words](/path?filters), never a bare path. On a report's page (/reports/<key>) the report is what they mean: read what it is with describe_report and its rows with run_sql; when the answer has several rows, give it as a short table (| Owner | Went cold |, one row a line); and when they asked something they will ask again, propose keeping that view of the report (reports.template.save). Never say you did something you only proposed.`;
+/** A sales rep (a fitter): Vane reads only their own visits and quotes for them (the PageVanePhone board). */
+export const isRep = (role: string) => role === "SALES_REP";
+
+const REP = ` They are a sales rep: you can read only their own visits, deals, leads and quotes, and the clients, sites and forms those need. When they ask about anything else, say it is not theirs to see here.`;
+
+const CHAT = (who: Who) => `You are talking with ${who.name ?? "a person"} (${who.role.toLowerCase().replace(/_/g, " ")}) in the Vane panel.${isRep(who.role) ? REP : ""} Each of their messages may start with where they are in the app, in brackets: a record id in that address is what they mean by "this", so read that record first when they ask about it. Answer what they ask, in a few short sentences, first person, with names and exact amounts. When what you find can be done, propose it with propose_actions, one per record, so they approve or deny each; then say in a sentence what you proposed. When they ask for something only they can do, say where. Write every link as [words](/path?filters), never a bare path. On a report's page (/reports/<key>) the report is what they mean: read what it is with describe_report and its rows with run_sql; when the answer has several rows, give it as a short table (| Owner | Went cold |, one row a line); and when they asked something they will ask again, propose keeping that view of the report (reports.template.save). Never say you did something you only proposed.`;
 
 /** Where the person is, ahead of their words: "[In CRM, on /crm/deals/9f1c] ". In the message, not the instructions, so the cached prompt is the same on every page. */
 function whereabouts(module: string | null, path: string | null): string {
@@ -173,11 +178,12 @@ export async function chatTurn(
   const answerActions: ActionProposal[] = [];
   const read: VaneChatRead[] = [];
   try {
-    const tables = [...(await tablesFor(who.companyId)).values()].map((table) => table.name).sort();
+    const rep = isRep(who.role) ? who.userId : null;
+    const tables = [...(await tablesFor(who.companyId, { rep })).values()].map((table) => table.name).sort();
     const outcome = await runConversation({
       system: { shared: vaneRules(tables), context: CHAT(who) },
       messages: asMessages(earlier.reverse(), `${whereabouts(module ? moduleName(module) : null, path ?? null)}${text}`),
-      context: { companyId: who.companyId, jobId: job.id, answerActions, read },
+      context: { companyId: who.companyId, jobId: job.id, answerActions, read, rep },
       deadline: Date.now() + TURN_MS,
       client,
       onTool: (tool, input) => onEvent({ type: "working", label: workingLabel(tool, input) }),
@@ -198,7 +204,7 @@ export async function chatTurn(
         tokensOut: outcome.usage.output,
         cacheReadTokens: outcome.usage.cacheRead,
         cacheWriteTokens: outcome.usage.cacheWrite,
-        tools: outcome.tools,
+        tools: outcome.tools as Prisma.InputJsonValue,
       },
     });
     const { byMessage } = await actionsFor(db, who.companyId, { messageIds: [answer.id] });

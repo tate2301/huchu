@@ -96,6 +96,10 @@ describe("All reports", () => {
       "/reports?view=shared": "1",
       "/reports?view=corelith": "5",
     });
+    // A vertical's panel also counts each area's reports, on the rows that open All reports on it.
+    const vertical = reportBadges(counts, true);
+    for (const [area, count] of Object.entries(counts.areas)) expect(vertical[`/reports?area=${encodeURIComponent(area)}`]).toBe(String(count));
+    expect(counts.areas.Books).toBe(3);
     expect(reportsFinding(counts)).toEqual({
       fact: "7 reports read this workspace.",
       rest: "1 is yours, 1 is shared with you, 5 come from Corelith, and 3 are kept up to date by Books.",

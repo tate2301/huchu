@@ -50,6 +50,7 @@ export function WorkspaceRail({
   model,
   workspaceLabel,
   activeHref,
+  activeAreaId = null,
   badges,
   tile,
   person,
@@ -69,6 +70,11 @@ export function WorkspaceRail({
   /** The workspace's name: the module list's title ("Retail"). */
   workspaceLabel: string;
   activeHref: string | null;
+  /**
+   * The page's module when no row of it is the page: a report opened from a
+   * module's panel (`/books/reports/{key}`) stays in that module's panel.
+   */
+  activeAreaId?: string | null;
   badges: Record<string, string>;
   tile: React.ReactNode;
   /** The person at the foot of the rail, with their menu. */
@@ -81,7 +87,7 @@ export function WorkspaceRail({
    * A module in no workspace's sections (Vane): while one of its pages is
    * open, the panel shows its title and its rows instead of the workspace's.
    */
-  ownPanel?: { title: string; body: React.ReactNode } | null;
+  ownPanel?: { title: string; body: React.ReactNode; bare?: boolean } | null;
   /** Help, on the shelf at the panel's foot. */
   supportItems?: NavItem[];
   panelShown: boolean;
@@ -97,14 +103,17 @@ export function WorkspaceRail({
   moduleGroups?: (area: RailArea) => React.ReactNode;
 }) {
   const { shape, areas, pinCapacity } = model;
-  const activeArea = React.useMemo(() => areaForHref(areas, activeHref), [areas, activeHref]);
+  const activeArea = React.useMemo(
+    () => areaForHref(areas, activeHref) ?? (activeAreaId ? (areas.find((area) => area.id === activeAreaId) ?? null) : null),
+    [areas, activeAreaId, activeHref],
+  );
   const activeFolderId = activeArea ? (folderForHref(activeArea, activeHref)?.id ?? null) : null;
 
   // Where the panel is standing. The module list (`areaId` null) is a
   // legitimate place to stand: you are looking at the workspace, not inside
   // one of its modules. It follows the page whenever the page's module, or
   // the folder it sits in, changes.
-  const pageView: RailView = { areaId: activeArea?.id ?? null, folderId: activeFolderId };
+  const pageView: RailView = { areaId: activeArea?.id ?? null, folderId: null };
   const pageViewKey = `${pageView.areaId ?? ""}/${pageView.folderId ?? ""}`;
   const [view, setView] = React.useState<RailView>(pageView);
   const [followedViewKey, setFollowedViewKey] = React.useState(pageViewKey);
@@ -257,7 +266,14 @@ export function WorkspaceRail({
     ) : null;
 
   let panel: React.ReactNode = null;
-  if (panelShown && ownPanel && !needle) {
+  if (panelShown && ownPanel?.bare) {
+    // A panel with its own search and rows (Explore's tables), drawn as it is.
+    panel = (
+      <RailPanel title={ownPanel.title} overlay={panelOverlay} onCollapse={onCollapse} shelf={shelf}>
+        {ownPanel.body}
+      </RailPanel>
+    );
+  } else if (panelShown && ownPanel && !needle) {
     panel = (
       <RailPanel
         title={ownPanel.title}
@@ -338,13 +354,17 @@ export function WorkspaceRail({
           <ul className={styles.items}>
             {areaBody(
               shownArea,
-              (shownArea.folders ?? []).map((folder) =>
-                levelRow(
-                  folder,
-                  { areaId: shownArea.id, folderId: folder.id },
-                  shownArea.id === activeArea?.id && folder.id === activeFolderId,
-                ),
-              ),
+              // A module read whole keeps its groups as headed bands in its own
+              // panel, folded but for the one holding the page: a row in one
+              // opens its page without leaving the module's panel.
+              (shownArea.folders ?? []).map((folder) => {
+                const holds = shownArea.id === activeArea?.id && folder.id === activeFolderId;
+                return (
+                  <PanelGroup key={`folder:${folder.id}`} label={folder.label} defaultOpen={holds} holdsCurrent={holds}>
+                    {rowsFor(folder.items, shownArea)}
+                  </PanelGroup>
+                );
+              }),
             )}
           </ul>
         ) : (

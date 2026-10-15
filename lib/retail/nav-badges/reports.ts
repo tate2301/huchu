@@ -16,7 +16,12 @@ function countsFor(ctx: NavBadgeContext): Promise<Map<string, number>> {
   let counts = counted.get(ctx);
   if (!counts) {
     counts = retailTemplates(ctx).then((entries) => {
-      const byArea = new Map<string, number>([["all", entries.length]]);
+      const byArea = new Map<string, number>([
+        ["all", entries.length],
+        ["built-in", entries.filter((entry) => entry.builtIn).length],
+        ["team", entries.filter((entry) => !entry.builtIn).length],
+        ["mine", entries.filter((entry) => !entry.builtIn && entry.madeById === ctx.userId).length],
+      ]);
       for (const entry of entries) byArea.set(entry.area.slug, (byArea.get(entry.area.slug) ?? 0) + 1);
       return byArea;
     });
@@ -28,12 +33,20 @@ function countsFor(ctx: NavBadgeContext): Promise<Map<string, number>> {
 const plain = (count: number) => String(count);
 
 export const REPORTS_NAV_BADGES: readonly NavBadgeProvider[] = [
-  {
-    href: "/retail/reports",
-    requires: [["retail.reports", "view"]],
-    count: async (ctx) => (await countsFor(ctx)).get("all") ?? 0,
-    label: plain,
-  },
+  // All reports and its views: the list's tabs (`retail-report-templates`).
+  ...([
+    ["/retail/reports?view=all", "all"],
+    ["/retail/reports?view=all&tab=built-in", "built-in"],
+    ["/retail/reports?view=all&tab=team", "team"],
+    ["/retail/reports?view=all&tab=mine", "mine"],
+  ] as const).map(
+    ([href, key]): NavBadgeProvider => ({
+      href,
+      requires: [["retail.reports", "view"]],
+      count: async (ctx) => (await countsFor(ctx)).get(key) ?? 0,
+      label: plain,
+    }),
+  ),
   ...REPORT_AREAS.map(
     (area): NavBadgeProvider => ({
       href: `/retail/reports?area=${area.slug}`,

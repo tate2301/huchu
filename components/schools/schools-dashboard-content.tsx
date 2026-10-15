@@ -709,7 +709,7 @@ export function SchoolsDashboardContent() {
             label: "Collected",
             value: collections ? `${collectionRate}%` : "—",
             tone: collectionRate >= 90 ? "success" : "warn",
-            href: "/schools/reports",
+            href: "/reports/insights/fees",
           },
           {
             label: "Owing",
@@ -1035,7 +1035,7 @@ export function SchoolsDashboardContent() {
             title={`Fees, ${term?.name ?? "this term"}`}
             actions={
               <Button asChild variant="quiet" size="sm">
-                <Link href="/schools/reports">Reports</Link>
+                <Link href="/reports/insights/fees">Reports</Link>
               </Button>
             }
           >

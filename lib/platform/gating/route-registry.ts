@@ -10,6 +10,11 @@ export const PAGE_FEATURE_ROUTES: FeatureRouteEntry[] = [
   // both the CRM suite and the branding addon — gating it on branding alone
   // locked the CRM's own template library away from CRM customers.
   { scope: "page", prefix: "/templates", featureKey: "core.templates" },
+  // Build (spec/routes.md §5): open in every workspace. Its forms and its block
+  // documents are the CRM's; the page under each also checks the record it
+  // opens against what the workspace is provisioned for (`lib/build/read.ts`).
+  { scope: "page", prefix: "/build/forms", featureKey: "crm.core" },
+  { scope: "page", prefix: "/build/documents", featureKey: "crm.core" },
   { scope: "page", prefix: "/preferences/organization/departments", featureKey: "hr.employees" },
   { scope: "page", prefix: "/preferences/organization/sites", featureKey: "admin.sites-sections" },
   { scope: "page", prefix: "/preferences/organization/users", featureKey: "admin.user-management.directory" },
@@ -71,6 +76,8 @@ export const PAGE_FEATURE_ROUTES: FeatureRouteEntry[] = [
   { scope: "page", prefix: "/books/journals", featureKey: "accounting.journals" },
   { scope: "page", prefix: "/books/periods", featureKey: "accounting.periods" },
   { scope: "page", prefix: "/books/vat", featureKey: "accounting.tax" },
+  // The floor's End of day, at Books' address: the tills' feature, as on the floor.
+  { scope: "page", prefix: "/books/takings", featureKey: "retail.shifts" },
   { scope: "page", prefix: "/books", featureKey: "accounting.core" },
   { scope: "page", prefix: "/accounting/chart-of-accounts", featureKey: "accounting.chart-of-accounts" },
   { scope: "page", prefix: "/accounting/journals", featureKey: "accounting.journals" },
@@ -209,6 +216,8 @@ export const PAGE_FEATURE_ROUTES: FeatureRouteEntry[] = [
   { scope: "page", prefix: "/crm/follow-ups", featureKey: "crm.core" },
   { scope: "page", prefix: "/crm/forms", featureKey: "crm.intake" },
   { scope: "page", prefix: "/crm/insights", featureKey: "crm.insights" },
+  // A report opened from a CRM panel (`/crm/reports/{key}`): the report page, each report gated by its own API.
+  { scope: "page", prefix: "/crm/reports/", featureKey: "crm.core" },
   { scope: "page", prefix: "/crm/reports", featureKey: "crm.insights" },
   { scope: "page", prefix: "/crm/collections", featureKey: "crm.documents" },
   { scope: "page", prefix: "/crm/quotes", featureKey: "crm.documents" },

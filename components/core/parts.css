@@ -32,7 +32,21 @@
   margin-top: calc(var(--content-lede) * -1);
   background: var(--color-surface);
 }
-@media (max-width: 759px) { .ck.kit-main { height: auto; overflow: visible; } }
+/* A tile's figure on a phone: a step smaller, so a sum in the millions fits a tile two to a row. In the
+   arranger's narrower card the tiles stack. */
+@media (max-width: 759px) {
+  .ck.ck.ck .kt-v { font-size: 18px; }
+  .ck.ck.ck .rb-board .rp-figs .kstrip { grid-template-columns: minmax(0, 1fr) !important; }
+  .ck.ck.ck .rb-board .rp-figs .kt + .kt { box-shadow: inset 0 1px 0 var(--color-line); border-top: 0; }
+}
+
+/* Its page column fills it, and the column's body scrolls. On a phone the page scrolls instead, so the
+   column and every body in it take their content's height: a flex body with no basis would measure 0. */
+.ck.ck.ck.kit-main .mn { flex: 1; min-height: 0; }
+@media (max-width: 759px) {
+  .ck.kit-main { height: auto; overflow: visible; }
+  .ck.ck.ck.kit-main .mn, .ck.ck.ck.kit-main .kbody { flex: none; min-height: auto; overflow: visible; }
+}
 
 /* A menu's button inside a button group: joined to its neighbours like any other button there. */
 .ck.ck.ck .btn-group > .menu-wrap > .btn { border-radius: 0; box-shadow: none; background: transparent; }
@@ -51,10 +65,12 @@
    styles take away; the boards were drawn with it. */
 .ck.ck.ck dl.attrs { margin-block: 1em; }
 
-/* Figures in a table line up: every cell takes tabular figures, not only `.num`. */
-.ck.ck .table td {
+/* Figures in a table line up: every cell takes tabular figures, not only `.num`. A row's name (the
+   filling cell) is words: tabular figures there set its hyphens wide ("follow - up"). */
+.ck.ck .table td:not(.fill) {
   font-variant-numeric: tabular-nums;
 }
+.ck.ck .table td .cell-lead, .ck.ck .table td .bt-name { font-variant-numeric: normal; }
 
 /* All reports: a row of ours carries a folder menu over its right edge, outside the row's link. */
 .ck.ck.ck .rr-wrap { position: relative; }
@@ -97,6 +113,17 @@
 .ck.ck.ck .rp-row { box-shadow: inset 0 1px 0 var(--color-line); min-width: 0; }
 .ck.ck.ck .rp-block { padding: 16px 24px 20px; }
 .ck.ck.ck .rp-hbar { grid-template-columns: 140px minmax(0, 1fr) 96px; }
+/* Explain a figure (PageVaneReport): a quiet button on each key figure and bar, shown on hover or focus; always on touch. */
+.ck.ck.ck .rp-kt { position: relative; }
+.ck.ck.ck .rp-kt .rp-explain { position: absolute; top: 8px; right: 8px; }
+.ck.ck.ck .rp-bar-l { display: flex; align-items: center; gap: 2px; min-width: 0; }
+.ck.ck.ck .rp-bar-l .rp-explain { flex: none; width: 22px; height: 22px; }
+.ck.ck.ck .rp-explain { opacity: 0; transition: opacity 0.12s; }
+.ck.ck.ck .rp-kt:hover .rp-explain, .ck.ck.ck .rp-hbar:hover .rp-explain, .ck.ck.ck .rp-explain:focus-visible { opacity: 1; }
+@media (hover: none) { .ck.ck.ck .rp-explain { opacity: 1; } }
+/* Half width (two blocks to a row): a narrower label, and the sum takes the room it needs, so the bar keeps a track. */
+.ck.ck.ck .rp-grid2 .rp-hbar, .ck.ck.ck .rb-cols .rp-hbar { grid-template-columns: minmax(0, 104px) minmax(64px, 1fr) max-content; gap: 12px; }
+.ck.ck.ck .rp-line .axis span { white-space: nowrap; }
 .ck.ck.ck .rp-line { position: relative; }
 .ck.ck.ck .rp-tip { position: absolute; top: 0; right: 0; padding: 2px 6px; border-radius: 6px; background: var(--color-surface); box-shadow: var(--shadow-ring); font-size: var(--text-12); color: var(--color-muted); }
 .ck.ck.ck .rp-tip b { color: var(--color-ink); font-variant-numeric: tabular-nums; }
@@ -111,6 +138,9 @@
 .ck.ck.ck .rp-fold { display: inline-flex; padding: 0; margin-right: var(--space-8); border: 0; background: none; color: var(--color-muted); cursor: pointer; vertical-align: -3px; }
 .ck.ck.ck .rp-grp-sum { float: right; display: inline-flex; gap: var(--space-16); font-variant-numeric: tabular-nums; }
 .ck.ck.ck .rp-foot td { height: 36px; }
+/* A column's total: a full-height target, its sum at the footer's weight (600, as the kit's foot-row). */
+.ck.ck.ck .rp-foot .rp-total { height: 32px; font-size: var(--text-14); }
+.ck.ck.ck .rp-total b { font-weight: 600; color: var(--color-ink); font-variant-numeric: tabular-nums; }
 .ck.ck.ck .rp-total.is-empty { opacity: 0; }
 .ck.ck.ck .rp-foot:hover .rp-total.is-empty, .ck.ck.ck .rp-total.is-empty:focus-visible, .ck.ck.ck .rp-total.is-empty[aria-expanded="true"] { opacity: 1; }
 .ck.ck.ck .rp-act { width: 40px; }
@@ -214,6 +244,10 @@
 .ck.ck.ck .ip-heat-c { height: 26px; border-radius: 4px; }
 .ck.ck.ck .ip-views { padding-top: var(--space-16); }
 .ck.ck.ck .ip .table th.nowrap { white-space: nowrap; }
+/* A table in a half-width section: its figures sit close, so the answer column has the room. */
+.ck.ck.ck .ip-sec .table th, .ck.ck.ck .ip-sec .table td { padding-left: var(--space-8); padding-right: var(--space-8); }
+.ck.ck.ck .ip-sec .table th:first-child, .ck.ck.ck .ip-sec .table td:first-child { padding-left: 0; }
+.ck.ck.ck .ip-sec .table th:last-child, .ck.ck.ck .ip-sec .table td:last-child { padding-right: 0; }
 @media (max-width: 1099px) {
   .ck.ck.ck .ip { flex-direction: column; }
   .ck.ck.ck .ip > .kbody { overflow: visible; flex: none; }
@@ -222,7 +256,9 @@
 @media (max-width: 759px) {
   .ck.ck.ck .ip-tools { padding-left: var(--space-16); padding-right: var(--space-16); }
   .ck.ck.ck .ip-tools .seg { max-width: 100%; overflow-x: auto; }
-  .ck.ck.ck .ip-hbar { grid-template-columns: 96px minmax(0, 1fr) 64px; gap: 10px; }
+  /* A bar's label keeps the board's 150px and wraps rather than losing its words. */
+  .ck.ck.ck .ip-hbar { grid-template-columns: 150px minmax(0, 1fr) 48px; gap: 10px; padding-block: 4px; }
+  .ck.ck.ck .ip-hbar > .truncate { white-space: normal; overflow: visible; text-overflow: clip; line-height: 1.3; }
   .ck.ck.ck .ip-sec, .ck.ck.ck .ip-q { padding: 14px 16px; }
   .ck.ck.ck .ip-aside { padding: 16px; }
   .ck.ck.ck .ip-heat { gap: 2px; }
@@ -238,7 +274,7 @@
 .ck [data-module="books"] { --mod: var(--hue-3); }
 .ck [data-module="crm"] { --mod: var(--hue-1); }
 .ck [data-module="retail"] { --mod: var(--hue-2); }
-.ck [data-module="gold"] { --mod: var(--hue-4); }
+.ck [data-module="gold"], .ck [data-module="assets"] { --mod: var(--hue-4); }
 .ck [data-module="people"], .ck [data-module="payroll"] { --mod: var(--hue-5); }
 .ck [data-module="schools"] { --mod: var(--hue-6); }
 
@@ -304,6 +340,16 @@
 .ck.ck.ck .vm-it .vm-b td.num, .ck.ck.ck .vm-it .vm-b th.num { text-align: right; padding-right: 0; }
 .ck.ck.ck .vm-err { display: flex; gap: var(--space-8); align-items: flex-start; margin: 0; padding: var(--space-8) var(--space-12); border-radius: 12px; background: var(--color-danger-tint); color: var(--color-ink); font-size: var(--text-13); }
 .ck.ck.ck .vm-err .ic { color: var(--color-danger); margin-top: 2px; }
+/* Explain a figure (PageVaneReport): the person's question and Vane's answer, first in the panel, with the rows and the SQL. */
+.ck.ck.ck .vx { display: flex; flex-direction: column; gap: var(--space-12); }
+.ck.ck.ck .vx-lede { display: block; font-weight: 600; margin-bottom: var(--space-4); }
+.ck.ck.ck .vx-rows { overflow-x: auto; border: 1px solid var(--color-line); border-radius: 8px; }
+.ck.ck.ck .vx-rows .table { min-width: 0; width: 100%; table-layout: auto; font-size: var(--text-13); }
+.ck.ck.ck .vx-rows .table th, .ck.ck.ck .vx-rows .table td { padding: 6px 8px; white-space: nowrap; }
+.ck.ck.ck .vx-rows .table td.fill { height: auto; white-space: normal; overflow-wrap: anywhere; min-width: 96px; }
+.ck.ck.ck .vx-note { font-size: var(--text-12); }
+.ck.ck.ck .vx-read { display: inline-flex; align-items: center; gap: 6px; align-self: flex-start; padding: 0; border: 0; background: none; font: inherit; font-size: var(--text-13); text-align: left; cursor: pointer; }
+.ck.ck.ck .vx-sql { margin: 0; padding: var(--space-12); border-radius: 8px; border: 1px solid var(--color-line); background: var(--color-ground); font: var(--text-12)/1.55 var(--font-mono); color: var(--color-ink-2); white-space: pre-wrap; overflow-wrap: anywhere; }
 
 /* The composer, after Claude's: one rounded box holding the words and the send button. */
 .ck.ck.ck .ask .ask-c { flex-direction: column; gap: var(--space-12); box-shadow: none; padding-top: var(--space-8); }
@@ -343,3 +389,8 @@
 .ck.ck.ck .vr-ask { display: flex; align-items: center; gap: var(--space-8); min-height: 32px; padding: var(--space-4) var(--space-12) var(--space-4) var(--space-8); border-radius: 10px; box-shadow: inset 0 0 0 1px var(--color-line); background: var(--color-surface); font-size: var(--text-13); color: var(--color-ink-2); text-align: left; transition: background var(--motion-fast) var(--motion-ease); }
 .ck.ck.ck .vr-ask:hover { background: var(--color-hover); color: var(--color-ink); }
 @media (prefers-reduced-motion: reduce) { .ck.ck.ck .vr-ask { transition: none; } }
+
+/* Vane's draft (PageVaneDraft, PageVaneMine): the line across the top of a record Vane made. */
+.ck .vn-draft { display: flex; align-items: center; gap: var(--space-8); padding: var(--space-12) var(--space-24); background: color-mix(in oklab, var(--color-accent) 7%, var(--color-surface)); box-shadow: inset 0 -1px 0 var(--color-line); font-size: var(--text-13); color: var(--color-ink); flex: none; }
+.ck .vn-draft .t { flex: 1; min-width: 0; }
+.ck .vn-draft .end { flex: none; }

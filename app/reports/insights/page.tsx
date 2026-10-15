@@ -59,7 +59,7 @@ function Frame({ children }: { children: React.ReactNode }) {
   return (
     <Kit className="kit-main">
       <KitScreen slug="reports-insights">
-        <div className="mn" style={{ flex: 1, minHeight: 0 }}>
+        <div className="mn">
           {children}
         </div>
       </KitScreen>

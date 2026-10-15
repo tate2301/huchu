@@ -1,6 +1,7 @@
 "use client";
 
 import { useId, useState } from "react";
+import { newClientPhotoId } from "@/lib/crm/site-visits";
 import { useMutation, useQuery } from "@tanstack/react-query";
 
 import { RecordDialog } from "@/components/crm/records/record-dialog";
@@ -115,7 +116,7 @@ export function CostEntryFormDialog({
   const [requisitionId, setRequisitionId] = useState(NONE);
   const [invoiceId, setInvoiceId] = useState(NONE);
   const [receipt, setReceipt] = useState<UploadedReceipt | null>(null);
-  const [clientEntryId, setClientEntryId] = useState(() => crypto.randomUUID());
+  const [clientEntryId, setClientEntryId] = useState(() => newClientPhotoId());
   const [errors, setErrors] = useState<string[]>([]);
 
   // Every opening is a new line: nothing half-typed follows somebody from the
@@ -133,7 +134,7 @@ export function CostEntryFormDialog({
       setRequisitionId(NONE);
       setInvoiceId(NONE);
       setReceipt(null);
-      setClientEntryId(crypto.randomUUID());
+      setClientEntryId(newClientPhotoId());
       setErrors([]);
     }
   }

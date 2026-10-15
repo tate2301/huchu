@@ -12,7 +12,9 @@ import { authOptions } from "@/lib/auth";
  * is gated on the signed-in person's grants and its count is whatever the
  * filters left on screen — neither of which a server component can answer.
  */
-export default async function SchoolsArrearsPage() {
+export default async function SchoolsArrearsPage({ searchParams }: { searchParams: Promise<{ class?: string | string[] }> }) {
+  // `?class=` opens on one class, as Fees' "See Form 3's arrears" does.
+  const asked = (await searchParams).class;
   const session = await getServerSession(authOptions);
   if (!session?.user) {
     redirect("/login");
@@ -20,7 +22,7 @@ export default async function SchoolsArrearsPage() {
 
   return (
     <div className="mx-auto w-full max-w-7xl space-y-6">
-      <ReportsArrearsContent />
+      <ReportsArrearsContent initialClassId={typeof asked === "string" ? asked : ""} />
     </div>
   );
 }

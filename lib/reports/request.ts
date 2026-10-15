@@ -16,6 +16,7 @@ import {
 } from "@/lib/reports/list-query";
 import { resolveParams } from "@/lib/reports/params";
 import { getReport } from "@/lib/reports/server";
+import { withCurrency } from "@/lib/reports/format";
 import { readReportSetting } from "@/lib/reports/settings";
 import { layTemplate, templateQueryFor } from "@/lib/reports/template-query";
 import { visibleColumns } from "@/lib/reports/view";
@@ -85,7 +86,14 @@ export async function fetchReport(
   const params = resolveParams(declared, given);
   const loaded = await loader.load(ctx, params);
   const meta = reportMeta(definition, session.user.role, declared, saved);
-  return { ...loaded, params, definition, meta };
+  const columns = withCurrency(meta.columns, loaded.rows, await workspaceCurrency(ctx.companyId));
+  return { ...loaded, params, definition, meta: { ...meta, columns } };
+}
+
+/** The currency the workspace keeps its books in: what a sum with no currency of its own is in. */
+export async function workspaceCurrency(companyId: string): Promise<string> {
+  const settings = await prisma.accountingSettings.findUnique({ where: { companyId }, select: { baseCurrency: true } });
+  return settings?.baseCurrency ?? "USD";
 }
 
 /** The params a request carries: everything in its query string but the view. */

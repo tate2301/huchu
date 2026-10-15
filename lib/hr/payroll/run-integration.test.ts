@@ -12,7 +12,7 @@
  * salary path, and why the salary cases moved here.
  */
 
-import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { describe, it, expect, beforeAll, afterAll, afterEach } from "vitest";
 
 import { prisma } from "@/lib/prisma";
 import { seedZimbabweStatutoryPack } from "@/lib/hr/statutory/zimbabwe-pack";
@@ -643,5 +643,160 @@ describe("the elderly credit turns on age", () => {
 
     await prisma.compensationProfile.deleteMany({ where: { employeeId: youngId } });
     await prisma.employee.delete({ where: { id: youngId } });
+  });
+});
+
+describe("disciplinary penalties HR marked deducted come off the period's net pay", () => {
+  const penalty = (
+    employeeId: string,
+    summary: string,
+    amount: number,
+    penaltyStatus: "DEDUCTED" | "WAIVED" | "PENDING",
+    dates: { appliedAt?: string; effectiveDate?: string },
+    penaltyCurrency = "USD",
+  ) => ({
+    companyId,
+    employeeId,
+    actionType: "PENALTY" as const,
+    status: "APPLIED" as const,
+    summary,
+    penaltyAmount: amount,
+    penaltyCurrency,
+    penaltyStatus,
+    appliedAt: dates.appliedAt ? new Date(dates.appliedAt) : null,
+    effectiveDate: dates.effectiveDate ? new Date(dates.effectiveDate) : null,
+    createdById: actorId,
+  });
+
+  /** Store an assembled run for the period, as the generate route does. */
+  async function storeRun(result: Awaited<ReturnType<typeof run>>, runNumber: number, status: "DRAFT" | "SUBMITTED" | "REJECTED") {
+    let period = await prisma.payrollPeriod.findFirst({ where: { companyId, periodKey: "2026-08" }, select: { id: true } });
+    period ??= await prisma.payrollPeriod.create({
+      data: { companyId, periodKey: "2026-08", startDate: PERIOD_START, endDate: PERIOD_END, dueDate: PERIOD_END, createdById: actorId },
+      select: { id: true },
+    });
+    await prisma.payrollRun.create({
+      data: {
+        companyId,
+        periodId: period.id,
+        runNumber,
+        status,
+        createdById: actorId,
+        lineItems: {
+          create: result.lines.map((line) => {
+            const slice = line.payroll.slices[0];
+            return {
+              employeeId: line.employee.id,
+              grossAmount: slice.grossAmount,
+              deductionsTotal: slice.deductionsTotal,
+              netAmount: slice.netAmount,
+              currency: slice.currency,
+              components: {
+                create: slice.components.map((component) => ({
+                  name: component.name,
+                  type: component.type,
+                  calcMethod: component.calcMethod,
+                  rateOrAmount: component.rateOrAmount,
+                  amount: component.amount,
+                  statutoryKey: component.statutoryKey ?? undefined,
+                  sequence: component.sequence,
+                })),
+              },
+            };
+          }),
+        },
+      },
+    });
+  }
+
+  async function cleanUp() {
+    await prisma.payrollRun.deleteMany({ where: { companyId } });
+    await prisma.payrollPeriod.deleteMany({ where: { companyId } });
+    await prisma.disciplinaryAction.deleteMany({ where: { companyId } });
+  }
+  afterEach(cleanUp);
+
+  it("takes a deducted penalty in its period and nothing else, leaving every statutory figure alone", async () => {
+    await prisma.disciplinaryAction.createMany({
+      data: [
+        penalty(adaId, "Late for shift", 20, "DEDUCTED", { appliedAt: "2026-08-12T00:00:00.000Z" }),
+        penalty(adaId, "No application date", 5, "DEDUCTED", { effectiveDate: "2026-08-20T00:00:00.000Z" }),
+        penalty(adaId, "Waived", 40, "WAIVED", { appliedAt: "2026-08-13T00:00:00.000Z" }),
+        penalty(adaId, "Not yet deducted", 40, "PENDING", { appliedAt: "2026-08-14T00:00:00.000Z" }),
+        penalty(adaId, "July's", 40, "DEDUCTED", { appliedAt: "2026-07-13T00:00:00.000Z" }),
+      ],
+    });
+
+    const slice = (await run({ employeeScopeIds: [adaId] })).lines[0].payroll.slices[0];
+    // 755.16 less 20 and 5. The waived, the pending and July's are untouched.
+    expect(slice.netAmount.toString()).toBe("730.16");
+    expect(slice.penaltiesTotal.toString()).toBe("25");
+    expect(slice.components.filter((component) => component.sequence === 120).map((component) => component.name)).toEqual([
+      "Disciplinary penalty — Late for shift",
+      "Disciplinary penalty — No application date",
+    ]);
+    expect(slice.taxableGross.toString()).toBe("968.5");
+    expect(slice.paye.toString()).toBe("207.13");
+    expect(slice.aidsLevy.toString()).toBe("6.21");
+    expect(slice.components.find((component) => component.statutoryKey === "NSSA_POBS_EMPLOYEE")?.amount.toString()).toBe("31.5");
+    expect(netIdentityHolds(slice)).toBe(true);
+
+  });
+
+  it("deducts a penalty once, however often the period's run is recalculated", async () => {
+    await prisma.disciplinaryAction.create({
+      data: penalty(adaId, "Late for shift", 20, "DEDUCTED", { appliedAt: "2026-08-12T00:00:00.000Z" }),
+    });
+
+    // Recalculating a draft: the draft is about to be replaced, so it counts for nothing.
+    const first = await run({ employeeScopeIds: [adaId] });
+    await storeRun(first, 1, "DRAFT");
+    const again = await run({ employeeScopeIds: [adaId] });
+    expect(again.lines[0].payroll.slices[0].netAmount.toString()).toBe("735.16");
+
+    // A rejected run paid nobody, so it took nothing either.
+    await prisma.payrollRun.updateMany({ where: { companyId }, data: { status: "REJECTED" } });
+    expect((await run({ employeeScopeIds: [adaId] })).lines[0].payroll.slices[0].netAmount.toString()).toBe("735.16");
+
+    // Once a run that took it is submitted, a second run in the period does not take it again.
+    await storeRun(again, 2, "SUBMITTED");
+    const second = (await run({ employeeScopeIds: [adaId] })).lines[0].payroll.slices[0];
+    expect(second.netAmount.toString()).toBe("755.16");
+    expect(second.penaltiesTotal.toString()).toBe("0");
+
+  });
+
+  it("never takes net pay below zero, and says how much it could not take", async () => {
+    const lowId = await makeEmployee({ name: "Farai Dube", employeeId: "EMP-LOW" });
+    await giveProfile(lowId, "100");
+    await prisma.disciplinaryAction.create({
+      data: penalty(lowId, "Damaged tools", 500, "DEDUCTED", { appliedAt: "2026-08-12T00:00:00.000Z" }),
+    });
+
+    const result = await run({ employeeScopeIds: [lowId] });
+    const slice = result.lines[0].payroll.slices[0];
+    // 100 less NSSA 4.50, no PAYE in the bottom band: 95.50 to spare.
+    expect(slice.penaltiesTotal.toString()).toBe("95.5");
+    expect(slice.netAmount.toString()).toBe("0");
+    expect(netIdentityHolds(slice)).toBe(true);
+    expect(result.warnings).toContainEqual(expect.stringContaining('404.50 USD of "Disciplinary penalty — Damaged tools" was not deducted'));
+
+    // A later run in the period may take the rest, never more.
+    await storeRun(result, 1, "SUBMITTED");
+    const later = (await run({ employeeScopeIds: [lowId] })).lines[0].payroll.slices[0];
+    expect(later.components.find((component) => component.sequence === 120)?.rateOrAmount.toString()).toBe("404.5");
+
+    await cleanUp();
+    await prisma.compensationProfile.deleteMany({ where: { employeeId: lowId } });
+    await prisma.employee.delete({ where: { id: lowId } });
+  });
+
+  it("leaves a penalty set in another currency for HR, and says so", async () => {
+    await prisma.disciplinaryAction.create({
+      data: penalty(adaId, "Lost radio", 500, "DEDUCTED", { appliedAt: "2026-08-12T00:00:00.000Z" }, "ZWG"),
+    });
+    const result = await run({ employeeScopeIds: [adaId] });
+    expect(result.lines[0].payroll.slices[0].netAmount.toString()).toBe("755.16");
+    expect(result.warnings).toContainEqual(expect.stringContaining('"Lost radio" is in ZWG'));
   });
 });

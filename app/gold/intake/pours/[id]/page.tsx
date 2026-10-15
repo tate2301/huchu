@@ -167,7 +167,7 @@ export default function PourDetailPage() {
               description={`${data.goldShiftAllocation.shift} · ${data.goldShiftAllocation.date.slice(0, 10)} · ${data.goldShiftAllocation.workflowStatus}`}
               actions={
                 <Link
-                  href={`/gold/insights/allocations/${data.goldShiftAllocation.id}`}
+                  href={`/gold/allocations/${data.goldShiftAllocation.id}`}
                   className="text-xs text-primary hover:underline"
                 >
                   Open allocation →

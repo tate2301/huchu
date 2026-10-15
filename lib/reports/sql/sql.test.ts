@@ -159,6 +159,17 @@ describe("the report database", () => {
     ]);
   });
 
+  it("reads a CASE that answers in fixed words as a state, and any other CASE as text", async () => {
+    const ran = await run(
+      "select deal_no, case when value > 1000 then 'Big' else 'Small' end as size, case when value > 1000 then owner end as big_owner from crm_deals order by deal_no",
+    );
+    expect(ran.ok && ran.columns.map((column) => [column.key, column.kind])).toEqual([
+      ["deal_no", "code"],
+      ["size", "status"],
+      ["big_owner", "text"],
+    ]);
+  });
+
   it("says where Postgres found a problem, in the query as written", async () => {
     const ran = await run("select valu from crm_deals");
     expect(ran.ok).toBe(false);

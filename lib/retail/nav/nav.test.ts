@@ -25,7 +25,6 @@ describe("the retail nav registry (00-foundations 5.3.4)", () => {
       "Products",
       "Stock",
       "Buying",
-      "Insights",
       "Reports",
       "Setup",
     ]);
@@ -193,8 +192,17 @@ describe("the Reports module (70-insights-reports 5.9, C-35)", () => {
   const panel = (role: string) =>
     reportsNav.items.filter((item) => roleMeetsRetailRequires(role, item.requires)).map((item) => item.label);
 
-  it.each(["SUPERADMIN", "MANAGER", "FINANCE_OFFICER"])("gives the %s Every template and the six areas", (role) => {
-    expect(panel(role)).toEqual(["Every template", "Selling", "Stock", "Buying", "Customers", "Money", "The floor"]);
+  // PageRetailReports: the Overview and every template's views, the insights, then the areas and the core modules'.
+  const views = ["Overview", "All reports", "From Corelith", "Shared with you", "Yours"];
+  const insights = ["Sales", "Profit", "Products", "Stock health", "Losses", "Customers"];
+  const areas = ["Selling", "Stock", "Buying", "Customers", "Money", "The floor", "Pay", "People", "Books"];
+
+  it.each(["SUPERADMIN", "FINANCE_OFFICER"])("gives the %s the views, the seven insights and every area", (role) => {
+    expect(panel(role)).toEqual([...views, ...insights, "Money", ...areas]);
+  });
+
+  it("gives the MANAGER the insights without Money (the Roles board)", () => {
+    expect(panel("MANAGER")).toEqual([...views, ...insights, ...areas]);
   });
 
   it.each(["CASHIER", "STOCK_CLERK"])("gives the %s no Reports at all", (role) => {
@@ -204,9 +212,10 @@ describe("the Reports module (70-insights-reports 5.9, C-35)", () => {
   });
 
   it("files a run page under Reports, and an area's address under its area", () => {
-    expect(retailNavItemForPath("/retail/reports/stock-on-hand", q())?.label).toBe("Every template");
+    expect(retailNavItemForPath("/retail/reports/stock-on-hand", q())?.label).toBe("All reports");
     expect(retailNavItemForPath("/retail/reports", q("area=stock"))?.label).toBe("Stock");
-    expect(retailNavItemForPath("/retail/reports", q())?.label).toBe("Every template");
+    expect(retailNavItemForPath("/retail/reports", q("view=all"))?.label).toBe("All reports");
+    expect(retailNavItemForPath("/retail/reports", q())?.label).toBe("Overview");
     expect(canRoleOpenRetailPath("FINANCE_OFFICER", "/retail/reports/stock-on-hand", q())).toBe(true);
   });
 

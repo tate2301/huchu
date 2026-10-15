@@ -23,7 +23,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
   const actor = buyingActor(session);
   try {
-    const sent = await sendOrder(actor, path.data.id, parsed.data.via ?? null, { requestUrl: request.url });
+    const sent = await sendOrder(actor, path.data.id, parsed.data.via ?? null, { requestUrl: request.url }, { asMine: parsed.data.asMine });
     const data = await loadOrderView(actor.companyId, sent.id);
     return successResponse({
       data,

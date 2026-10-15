@@ -32,6 +32,19 @@ export type TemplateQuery = {
 /** Who a built-in is offered to: everyone who opens Reports, or the managers (owner, manager, bookkeeper). */
 export type BuiltInAudience = "EVERYONE" | "MANAGERS";
 
+/**
+ * How a template's run page draws its rows above the table (PageRetailTemplate):
+ * the figures, the parts of one whole as bars, and one column by another as
+ * columns. Column keys of the source's face; a template without it draws the
+ * figures of its summed columns and no chart.
+ */
+export type TemplateRunLayout = {
+  /** The figures, in order; the first is the whole the others are a share of. */
+  figures?: string[];
+  parts?: { title: string; columns: string[] };
+  trend?: { title: string; sum: string; by: string; column: string };
+};
+
 export type BuiltInTemplate = {
   slug: string;
   name: string;
@@ -41,6 +54,7 @@ export type BuiltInTemplate = {
   source: string;
   audience: BuiltInAudience;
   query: TemplateQuery;
+  run?: TemplateRunLayout;
 };
 
 export const RETAIL_BUILT_INS: readonly BuiltInTemplate[] = [
@@ -123,9 +137,14 @@ export const RETAIL_BUILT_INS: readonly BuiltInTemplate[] = [
       filters: { when: "this-month" },
       rows: ["day", "till"],
       // ZiG after Card: the shop takes ZiG, and a row's tenders must add up to Taken.
-      cols: ["day", "till", "cash", "ecocash", "card", "zig", "account", "other", "taken"],
+      cols: ["day", "till", "cash", "ecocash", "card", "zig", "account", "other", "taken", "payments"],
       sort: "newest",
       group: "day",
+    },
+    run: {
+      figures: ["taken", "cash", "ecocash", "card", "zig"],
+      parts: { title: "Taken, by how people paid", columns: ["cash", "ecocash", "card", "zig", "account", "other"] },
+      trend: { title: "Taken, by day", sum: "every till", by: "day", column: "taken" },
     },
   },
   {

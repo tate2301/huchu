@@ -95,10 +95,10 @@ type EnrollmentResponse = {
  * "Hostel occupancy" were doors that opened into Collections.
  */
 const REPORT_VIEWS = [
-  { id: "collections", label: "Collections", href: "/schools/reports" },
+  { id: "collections", label: "Collections", href: "/reports/insights/fees" },
   { id: "arrears", label: "Arrears ageing", href: "/schools/finance/arrears" },
-  { id: "enrollment", label: "Enrolment", href: "/schools/reports?view=enrollment" },
-  { id: "occupancy", label: "Hostel occupancy", href: "/schools/reports?view=occupancy" },
+  { id: "enrollment", label: "Enrolment", href: "/reports/school-enrolment" },
+  { id: "occupancy", label: "Hostel occupancy", href: "/reports/school-boarding" },
 ];
 
 const AGE_OPTIONS = [
@@ -149,7 +149,7 @@ function AgedMoney({ amount, tone }: { amount: number; tone: AgeingTone }) {
   return <NumericCell className={ink}>{formatSchoolMoney(amount)}</NumericCell>;
 }
 
-export function ReportsArrearsContent() {
+export function ReportsArrearsContent({ initialClassId = "" }: { initialClassId?: string } = {}) {
   const router = useRouter();
   const access = useSchoolAccess();
 
@@ -158,7 +158,7 @@ export function ReportsArrearsContent() {
   // group" — but a stream only means anything inside its class, and chaining
   // two selects to reach "Form 2 Green" is one decision more than the question
   // has. `ClassFilter` offers the streams inline beneath their class.
-  const [classFilter, setClassFilter] = useState<ClassFilterValue>(ALL_CLASSES);
+  const [classFilter, setClassFilter] = useState<ClassFilterValue>(initialClassId ? { classId: initialClassId, streamId: "" } : ALL_CLASSES);
   const [oldestAtLeast, setOldestAtLeast] = useState("");
   const [minOutstanding, setMinOutstanding] = useState("");
   const [boarding, setBoarding] = useState("");

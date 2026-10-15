@@ -558,9 +558,6 @@ export function renderDocumentShell(input: {
   // in the browser's default face, whatever the tenant chose.
   const fontFamily =
     branding.fontFamily || '"Inter", "Segoe UI", "Helvetica Neue", Arial, sans-serif';
-  const monoFontFamily =
-    branding.monoFontFamily ||
-    '"IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace';
   // Fetched by the renderer before it prints. Without it the container has
   // almost no fonts installed and the stack falls through to a default.
   const fontImport = branding.fontImportUrl
@@ -599,12 +596,12 @@ export function renderDocumentShell(input: {
       --ink-muted: #71717a;
       --rule: #e4e4e7;
     }
-    body { margin: 0; color: var(--ink); font-family: ${fontFamily}; font-size: 11px; line-height: 1.55; -webkit-print-color-adjust: exact; print-color-adjust: exact; font-feature-settings: "kern", "liga"; }
+    body { margin: 0; color: var(--ink); font-family: ${fontFamily}; font-size: 11px; line-height: 1.55; -webkit-print-color-adjust: exact; print-color-adjust: exact; font-feature-settings: "kern", "liga"; font-variant-numeric: tabular-nums; }
     /* @page only takes effect when printing, so a preview on screen ran the
        text to the sheet's edge. The same margin as padding on screen makes the
        preview the page that prints; in print @page supplies it instead. */
     @media screen { body { padding: ${margin}mm; } }
-    .mono { font-family: ${monoFontFamily}; font-size: 0.95em; font-variant-numeric: tabular-nums; }
+    .mono { font-variant-numeric: tabular-nums; }
     .muted { color: var(--ink-muted); }
 
     /* ── Masthead: mark and issuer left, number and date right ── */
@@ -616,7 +613,7 @@ export function renderDocumentShell(input: {
     .issuer-name { font-weight: 700; font-size: 12px; }
     .issuer-line { font-size: 10px; color: var(--ink-muted); }
     .doc-stamp { text-align: right; display: flex; flex-direction: column; gap: 6px; }
-    .stamp-label { font-size: 8.5px; text-transform: uppercase; letter-spacing: 0.12em; color: var(--ink-muted); font-weight: 600; }
+    .stamp-label { font-size: 10px; font-weight: 500; color: var(--ink-muted); }
     .stamp-value { font-size: 11.5px; font-weight: 600; color: var(--ink); }
 
     /* ── The one heavy rule the reference hangs everything off ── */
@@ -626,19 +623,19 @@ export function renderDocumentShell(input: {
     .title-row { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
     .doc-title { margin: 0; font-size: 27px; font-weight: 700; letter-spacing: -0.02em; color: var(--ink); }
     .doc-subtitle { margin-top: 2px; font-size: 12px; color: var(--ink-muted); }
-    .badge { display: inline-block; border: 1px solid; padding: 1px 8px; border-radius: 3px; font-size: 8.5px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; }
+    .badge { display: inline-block; border: 1px solid; padding: 1px 8px; border-radius: 3px; font-size: 10px; font-weight: 600; }
 
     /* ── Bill To / Details / Payment ─────────────────────────── */
     .summary { display: flex; gap: 32px; margin-top: 34px; }
     .summary-col { flex: 1 1 0; min-width: 0; border-top: 1px solid var(--rule); padding-top: 9px; }
-    .summary-title { font-size: 8.5px; text-transform: uppercase; letter-spacing: 0.12em; color: var(--ink-muted); font-weight: 700; margin-bottom: 6px; }
+    .summary-title { font-size: 10px; font-weight: 500; color: var(--ink-muted); margin-bottom: 6px; }
     .summary-line { color: var(--ink-soft); }
     .summary-lead { font-weight: 600; color: var(--ink); }
 
     /* ── Key/value sections (record exports) ────────────────── */
     .kv-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px 40px; margin-top: 22px; }
     .kv-card { padding: 9px 0; border-top: 1px solid var(--rule); }
-    .kv-card h3 { margin: 0 0 6px; font-size: 8.5px; text-transform: uppercase; letter-spacing: 0.12em; color: var(--ink-muted); font-weight: 700; }
+    .kv-card h3 { margin: 0 0 6px; font-size: 10px; font-weight: 500; color: var(--ink-muted); }
     .kv-row { display: grid; grid-template-columns: 130px 1fr; gap: 12px; padding: 1.5px 0; }
     .kv-label { color: var(--ink-muted); }
     .kv-value { font-weight: 500; }
@@ -646,14 +643,14 @@ export function renderDocumentShell(input: {
     /* ── Dashboard metrics ──────────────────────────────────── */
     .metric-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0 28px; margin-top: 22px; }
     .metric { padding: 9px 0; border-top: 1px solid var(--rule); }
-    .metric-label { color: var(--ink-muted); font-size: 8.5px; text-transform: uppercase; letter-spacing: 0.12em; font-weight: 700; }
+    .metric-label { font-size: 10px; font-weight: 500; color: var(--ink-muted); }
     .metric-value { margin-top: 4px; font-size: 18px; font-weight: 600; letter-spacing: -0.01em; }
     .metric-detail { margin-top: 2px; color: var(--ink-muted); font-size: 10px; }
     .dashboard-notes { margin: 10px 0 0 16px; color: var(--ink-soft); }
 
     /* ── Line items: airy rows on hairlines, no filled header ── */
     table { width: 100%; border-collapse: collapse; margin-top: 30px; }
-    th { text-align: left; font-size: 8.5px; text-transform: uppercase; letter-spacing: 0.12em; color: var(--ink-muted); font-weight: 700; padding: 0 10px 9px; border-bottom: 1px solid var(--rule); }
+    th { text-align: left; font-size: 10px; font-weight: 500; color: var(--ink-muted); padding: 0 10px 9px; border-bottom: 1px solid var(--rule); }
     th:first-child { padding-left: 0; }
     th:last-child { padding-right: 0; }
     td { border-bottom: 1px solid var(--rule); padding: 12px 10px; vertical-align: top; color: var(--ink-soft); }
@@ -678,7 +675,7 @@ export function renderDocumentShell(input: {
 
     /* ── Notes ──────────────────────────────────────────────── */
     .notes-block { margin-top: 30px; border-left: 2px solid var(--accent); background: var(--accent-wash); padding: 9px 12px; border-radius: 0 4px 4px 0; }
-    .notes-title { font-size: 8.5px; text-transform: uppercase; letter-spacing: 0.12em; color: var(--ink-muted); font-weight: 700; margin-bottom: 3px; }
+    .notes-title { font-size: 10px; font-weight: 500; color: var(--ink-muted); margin-bottom: 3px; }
     .notes-line { color: var(--ink-soft); font-size: 10.5px; }
 
     /* ── Links to review: on hairlines, like the summary band ── */
@@ -692,12 +689,12 @@ export function renderDocumentShell(input: {
     .footer { margin-top: 38px; border-top: 1px solid var(--rule); padding-top: 12px; color: var(--ink-muted); }
     .footer-grid { display: flex; justify-content: space-between; gap: 24px; margin-bottom: 8px; }
     .footer-col { flex: 0 1 auto; min-width: 190px; max-width: 300px; }
-    .footer-title { font-size: 8.5px; text-transform: uppercase; letter-spacing: 0.12em; color: var(--ink-muted); font-weight: 700; margin-bottom: 4px; }
+    .footer-title { font-size: 10px; font-weight: 500; color: var(--ink-muted); margin-bottom: 4px; }
     .footer-kv { display: flex; justify-content: space-between; gap: 16px; padding: 1px 0; font-size: 10px; }
     .footer-kv span:first-child { color: var(--ink-muted); }
     .footer-sign { display: flex; align-items: flex-end; gap: 14px; }
     .signature { max-height: 40px; max-width: 150px; object-fit: contain; }
-    .sig-caption { border-top: 1px solid #a1a1aa; margin-top: 4px; padding-top: 2px; font-size: 8.5px; color: var(--ink-muted); text-align: center; letter-spacing: 0.06em; }
+    .sig-caption { border-top: 1px solid #a1a1aa; margin-top: 4px; padding-top: 2px; font-size: 9px; color: var(--ink-muted); text-align: center; }
     .stamp { max-height: 60px; max-width: 100px; object-fit: contain; opacity: 0.85; }
     .footer-text { font-size: 10px; margin-top: 4px; }
     .footer-disclaimer { font-size: 8.5px; color: #a1a1aa; margin-top: 6px; }

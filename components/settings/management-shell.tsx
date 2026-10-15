@@ -163,6 +163,7 @@ export function SettingsFrame({
            attention" twice with nothing to tell the two apart. */
         attentionLabel: `${entry.label} needs attention`,
         active: entry.id === active?.id,
+        lintIgnore: entry.lintIgnore,
       })),
     }));
   }, [enabledFeatures, pathname, railAttention, railCounts, role, user?.workspaceProfile]);

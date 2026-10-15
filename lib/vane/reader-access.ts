@@ -124,6 +124,8 @@ export const PRIVATE_COLUMN =
 
 /** Vane's own bookkeeping that the reader roles handle separately. */
 const SCOPE_TABLE = "VaneReaderScope";
+/** Reader bindings, Vane's and Explore's (`lib/explore/reader-access.ts`): neither reader reads them as records. */
+const isScopeTable = (name: string) => name === SCOPE_TABLE || name === "ExploreReaderScope";
 
 export type Readable = {
   model: string;
@@ -158,7 +160,7 @@ export function readerAccess(models: SchemaModel[]): ReaderAccess {
   const unreadable: ReaderAccess["unreadable"] = [];
 
   for (const model of models) {
-    if (model.name === SCOPE_TABLE) continue;
+    if (isScopeTable(model.name)) continue;
     if (NEVER_TABLE.test(model.name)) continue;
     const companyId = model.fields.find((f) => f.name === "companyId" && f.type === "String");
     if (model.name === "Company") scoped.set(model.name, { kind: "company", column: "id" });
@@ -177,7 +179,7 @@ export function readerAccess(models: SchemaModel[]): ReaderAccess {
   for (let level = 1, changed = true; changed; level += 1) {
     changed = false;
     for (const model of models) {
-      if (depth.has(model.name) || model.name === SCOPE_TABLE || NEVER_TABLE.test(model.name)) continue;
+      if (depth.has(model.name) || isScopeTable(model.name) || NEVER_TABLE.test(model.name)) continue;
       if (linkable(model).some((f) => (depth.get(f.type) ?? Infinity) < level)) {
         depth.set(model.name, level);
         changed = true;
@@ -199,7 +201,7 @@ export function readerAccess(models: SchemaModel[]): ReaderAccess {
 
   const readable: Readable[] = [];
   for (const model of models) {
-    if (model.name === SCOPE_TABLE) {
+    if (isScopeTable(model.name)) {
       unreadable.push({ table: model.table, reason: "scope" });
       continue;
     }
@@ -274,6 +276,101 @@ export function readerSql(access: ReaderAccess): string {
     if (t.privateColumns.length) {
       out.push(`GRANT SELECT (${t.privateColumns.map(ident).join(", ")}) ON ${ident(t.table)} TO vane_reader_private;`);
     }
+  }
+  return out.join("\n") + "\n";
+}
+
+/**
+ * A sales rep's reading (`vane_reader_rep`, the PageVanePhone board): a
+ * fitter asks Vane about their own visits and quotes, so Vane reads as a role
+ * granted only the CRM tables a visit and its quote need, whose rows narrow
+ * to the rep bound to the connection. The rest of the workspace (Books, pay,
+ * stock, other reps' deals) it is not granted at all.
+ *
+ * Each table is one of:
+ * - `own`: the rep's own rows, by the column naming them;
+ * - `through`: rows of one of the rep's own parents (a visit's answers);
+ * - `linkedFrom`: rows one of the rep's own rows points at (a quote's quotation);
+ * - `workspace`: the whole workspace's (the client's name, the form's questions).
+ *
+ * `vane_reader` is a member of this role (it switches to it with SET ROLE for a
+ * rep), so these policies apply to its own readings too: with no rep bound,
+ * they let every row of the workspace through.
+ */
+export type RepRule =
+  | { own: string }
+  | { through: Array<{ column: string; parent: string }> }
+  | { linkedFrom: { model: string; column: string } }
+  | "workspace";
+
+export const REP_TABLES: Record<string, RepRule> = {
+  CrmAppointment: { own: "assignedToId" },
+  CrmDeal: { own: "assignedToId" },
+  CrmLead: { own: "assignedToId" },
+  CrmLeadDocument: { through: [{ column: "dealId", parent: "CrmDeal" }, { column: "leadId", parent: "CrmLead" }] },
+  CrmSiteVisitSection: { through: [{ column: "appointmentId", parent: "CrmAppointment" }] },
+  CrmSiteVisitAnswer: { through: [{ column: "sectionId", parent: "CrmSiteVisitSection" }] },
+  CrmSiteVisitPhoto: { through: [{ column: "appointmentId", parent: "CrmAppointment" }] },
+  CrmSiteVisitItem: { through: [{ column: "appointmentId", parent: "CrmAppointment" }] },
+  SalesQuotation: { linkedFrom: { model: "CrmLeadDocument", column: "quotationId" } },
+  SalesQuotationLine: { through: [{ column: "quotationId", parent: "SalesQuotation" }] },
+  CrmClient: "workspace",
+  CrmPerson: "workspace",
+  CrmSite: "workspace",
+  CrmPipelineStage: "workspace",
+  CrmQuestionSet: "workspace",
+  CrmQuestion: "workspace",
+  Product: "workspace",
+};
+
+/** The rep bound to a reader connection; null when it reads for the whole workspace. */
+const BOUND_USER = `(SELECT s."userId" FROM ${ident(SCOPE_TABLE)} s WHERE s."pid" = pg_backend_pid())`;
+
+/** The SQL that makes `vane_reader_rep`: its grants, and a row policy on each of its tables. Re-runnable on a fresh database. */
+export function repReaderSql(access: ReaderAccess): string {
+  const byModel = new Map(access.readable.map((t) => [t.model, t]));
+  const table = (model: string) => {
+    const found = byModel.get(model);
+    if (!found) throw new Error(`${model} is not readable by vane_reader, so a rep cannot read it either.`);
+    return found;
+  };
+  const column = (model: string, name: string) => {
+    if (!table(model).columns.includes(name)) throw new Error(`${model}.${name} is not a column vane_reader reads.`);
+    return ident(name);
+  };
+  const out: string[] = [
+    `-- A sales rep's reading: vane_reader switches to this role (SET LOCAL ROLE) when the person asking is a rep.`,
+    `DO $$`,
+    `BEGIN`,
+    `  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'vane_reader_rep') THEN CREATE ROLE vane_reader_rep NOLOGIN; END IF;`,
+    `END $$;`,
+    `GRANT vane_reader_rep TO vane_reader;`,
+    `GRANT USAGE ON SCHEMA public TO vane_reader_rep;`,
+    `CREATE POLICY "vane_rep_own_pid" ON ${ident(SCOPE_TABLE)} AS RESTRICTIVE FOR SELECT TO vane_reader_rep USING ("pid" = pg_backend_pid());`,
+    `GRANT SELECT ("pid", "companyId", "userId") ON ${ident(SCOPE_TABLE)} TO vane_reader_rep;`,
+  ];
+  for (const [model, rule] of Object.entries(REP_TABLES)) {
+    const t = table(model);
+    const self = ident(t.table);
+    const workspace =
+      t.scope.kind === "company"
+        ? `${ident(t.scope.column)} = ${BOUND_COMPANY}`
+        : t.scope.links.map((l) => `EXISTS (SELECT 1 FROM ${ident(l.parentTable)} p WHERE p.${ident(l.parentColumn)} = ${self}.${ident(l.column)})`).join(" OR ");
+    const narrowed =
+      rule === "workspace"
+        ? null
+        : "own" in rule
+          ? `${self}.${column(model, rule.own)} = ${BOUND_USER}`
+          : "through" in rule
+            ? rule.through
+                .map((link) => `EXISTS (SELECT 1 FROM ${ident(table(link.parent).table)} p WHERE p."id" = ${self}.${column(model, link.column)})`)
+                .join(" OR ")
+            : `EXISTS (SELECT 1 FROM ${ident(table(rule.linkedFrom.model).table)} d WHERE d.${column(rule.linkedFrom.model, rule.linkedFrom.column)} = ${self}."id")`;
+    const where = narrowed ? `(${workspace}) AND (${BOUND_USER} IS NULL OR ${narrowed})` : workspace;
+    out.push(
+      `CREATE POLICY "vane_rep" ON ${self} AS RESTRICTIVE FOR SELECT TO vane_reader_rep USING (${where});`,
+      `GRANT SELECT (${t.columns.map(ident).join(", ")}) ON ${self} TO vane_reader_rep;`,
+    );
   }
   return out.join("\n") + "\n";
 }

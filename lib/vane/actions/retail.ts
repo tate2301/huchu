@@ -123,19 +123,23 @@ const draftOrder = {
 const sendDraft = {
   kind: "retail.order.send",
   module: "retail",
-  description: "Send a draft order to its supplier, the way the supplier takes orders (WhatsApp or email, with the PDF).",
+  description:
+    "Send a draft order to its supplier, the way the supplier takes orders (WhatsApp or email, with the PDF). A draft you wrote goes as the approving person's: approving it confirms it as theirs.",
   params: z.object({
     orderId: z.string().min(1),
     poNo: z.string().min(1),
     supplier: z.string().min(1),
   }),
   fields: [],
-  verb: (p) => `Send to ${p.supplier}`,
+  verb: (p) => `Send ${p.poNo}`,
   title: (p) => `Send ${p.poNo} to ${p.supplier}`,
   target: (p) => `/retail/buying/orders/${p.orderId}`,
   refuse: (context) => refuseOrders(context, "/api/v2/retail/buying/orders", "create"),
   async run(context, p) {
-    const sent = await asRetail(() => sendOrder(buyingActor(context.session), p.orderId, null, { requestUrl: context.requestUrl }));
+    // The person approving the send is the one confirming Vane's draft as theirs.
+    const sent = await asRetail(() =>
+      sendOrder(buyingActor(context.session), p.orderId, null, { requestUrl: context.requestUrl }, { asMine: true }),
+    );
     return sentWords(sent.poNo, sent.supplier, sent.sentVia);
   },
 } satisfies VaneActionKind<{ orderId: string; poNo: string; supplier: string }>;

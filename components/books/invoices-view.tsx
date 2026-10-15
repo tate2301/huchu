@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 
 import { Button, ButtonGroup, Icon, SelectCell, TableFoot, TableShell, useSelection } from "@/components/core";
 import { MenuButton } from "@/components/core/menu";
@@ -40,7 +41,13 @@ export function InvoicesPageView({
   sending = false,
   initialSelection = [],
   initialColumns = { when: true, total: true },
+  explore = null,
+  vane = null,
 }: {
+  /** After Export, in its group: Explore this list (ExploreSuggest). */
+  explore?: React.ReactNode;
+  /** Last in the row: Vane's suggestions for this list (ExploreSuggest). */
+  vane?: React.ReactNode;
   data: InvoicesView;
   onQuery: (next: Partial<InvoiceQuery>) => void;
   onSendReminders: (rows: InvoiceRow[]) => void;
@@ -90,7 +97,7 @@ export function InvoicesPageView({
         >
           {INVOICE_VIEW_LABEL[query.view]}
         </MenuButton>
-        <label className="input-wrap tl-find">
+        <label className="input-wrap tl-find" style={{ flex: "0 1 240px", minWidth: 140 }}>
           <Icon name="search" />
           <input type="search" aria-label="Search this list" placeholder="Search this list" value={q} onChange={(event) => setQ(event.target.value)} />
         </label>
@@ -146,7 +153,9 @@ export function InvoicesPageView({
               <Icon name="export" />
               Export
             </a>
+            {explore}
           </ButtonGroup>
+          {vane}
         </div>
       </div>
       <TableShell
@@ -208,7 +217,9 @@ export function InvoicesPageView({
                 <tr key={row.id} aria-selected={selection.isSelected(row.id) || undefined}>
                   <SelectCell checked={selection.isSelected(row.id)} onChange={() => selection.toggle(row.id)} label={`Select ${row.number}`} />
                   <td>
-                    <span className="code">{row.number}</span>
+                    <Link className="code link" href={`/books/invoices/${row.id}`}>
+                      {row.number}
+                    </Link>
                   </td>
                   <td>
                     <span className="cell-lead">{row.customer.name}</span>

@@ -12,6 +12,9 @@
 const SHARED_ALLOWED_PREFIXES = [
   "/api/auth",
   "/api/notifications",
+  // The reader's own notifications as rows, and the page that lists them.
+  "/api/inbox",
+  "/activity",
   // The live channel: notifications, and Vane where the role may open it.
   "/api/live",
   "/api/uploads",

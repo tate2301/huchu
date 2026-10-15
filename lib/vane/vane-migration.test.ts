@@ -95,7 +95,7 @@ describe("Vane's tables, as stored", () => {
   it("has every table the spec lists, with the binding table beside them", async () => {
     const rows = await prisma.$queryRaw<Array<{ table_name: string }>>`
       SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_name LIKE 'Vane%' ORDER BY 1`;
-    // VaneAction and VaneMessage came with 20261014090000_vane_chat_actions.
+    // VaneAction and VaneMessage came with 20261014090000_vane_chat_actions, VaneTopicStop with 20261014150000_vane_gaps.
     expect(rows.map((r) => r.table_name)).toEqual([
       "VaneAction",
       "VaneItem",
@@ -124,11 +124,11 @@ describe("Vane's tables, as stored", () => {
     expect(indexes[0]?.indexdef).toContain('UNIQUE INDEX "VaneJob_companyId_key_key" ON public."VaneJob" USING btree ("companyId", key)');
   });
 
-  it("marks drafts Vane wrote, and nothing else, on invoices, quotations and purchase orders", async () => {
+  it("marks drafts Vane wrote, and nothing else, on invoices, quotations, purchase orders and (since vane_finish) work orders", async () => {
     const rows = await prisma.$queryRaw<Array<{ table_name: string; column_default: string; is_nullable: string }>>`
       SELECT table_name, column_default, is_nullable FROM information_schema.columns WHERE column_name = 'madeByVane' ORDER BY 1`;
     expect(rows).toEqual(
-      ["RetailPurchaseOrder", "SalesInvoice", "SalesQuotation"].map((table_name) => ({ table_name, column_default: "false", is_nullable: "NO" })),
+      ["RetailPurchaseOrder", "SalesInvoice", "SalesQuotation", "WorkOrder"].map((table_name) => ({ table_name, column_default: "false", is_nullable: "NO" })),
     );
   });
 
@@ -145,6 +145,8 @@ describe("the reader roles", () => {
     expect(roles).toEqual([
       { rolname: "vane_reader", rolcanlogin: false, rolsuper: false, rolbypassrls: false },
       { rolname: "vane_reader_private", rolcanlogin: false, rolsuper: false, rolbypassrls: false },
+      // A sales rep's reading, from vane_finish.
+      { rolname: "vane_reader_rep", rolcanlogin: false, rolsuper: false, rolbypassrls: false },
     ]);
     const [member] = await prisma.$queryRaw<Array<{ ok: boolean }>>`SELECT pg_has_role('vane_reader_private', 'vane_reader', 'USAGE') AS ok`;
     expect(member!.ok).toBe(true);

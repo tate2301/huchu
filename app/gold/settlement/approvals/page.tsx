@@ -1020,7 +1020,7 @@ export default function SettlementApprovalsPage() {
           <AlertTitle>Gold does not have an intake</AlertTitle>
           <AlertDescription>
             Gold quantities come from shift allocations, which are approved in{" "}
-            <Link className="underline" href="/gold/insights/allocations">
+            <Link className="underline" href="/gold/allocations">
               allocations
             </Link>
             . Entering a second set of gram figures here would give two answers to

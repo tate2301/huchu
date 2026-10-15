@@ -322,6 +322,7 @@ model Company {
   crmDiscountApprovals          CrmDiscountApproval[]
   crmCollectionNotes            CrmCollectionNote[]
   crmWorkOrders                 CrmWorkOrder[]
+  workOrders                    WorkOrder[]
   crmWorkOrderItems             CrmWorkOrderItem[]
   products                      Product[]
   priceLists                    PriceList[]
@@ -1529,6 +1530,7 @@ model User {
   crmCollectionNotesCreated         CrmCollectionNote[]            @relation("CrmCollectionNoteCreatedBy")
   crmWorkOrdersAssigned             CrmWorkOrder[]                 @relation("CrmWorkOrderAssignedTo")
   crmWorkOrdersCreated              CrmWorkOrder[]                 @relation("CrmWorkOrderCreatedBy")
+  workOrdersCreated                 WorkOrder[]                    @relation("WorkOrderCreatedBy")
   crmQuestionSetsCreated            CrmQuestionSet[]               @relation("CrmQuestionSetCreatedBy")
   crmSiteVisitAnswers               CrmSiteVisitAnswer[]           @relation("CrmSiteVisitAnswerBy")
   crmSiteVisitPhotos                CrmSiteVisitPhoto[]            @relation("CrmSiteVisitPhotoBy")
@@ -6793,33 +6795,53 @@ model Equipment {
 }
 
 enum WorkOrderStatus {
+  /// Vane's draft: nobody has raised it, and the workshop does not see it.
+  DRAFT
   OPEN
   IN_PROGRESS
   COMPLETED
   CANCELLED
 }
 
+enum WorkOrderPriority {
+  NORMAL
+  HIGH
+  URGENT
+}
+
 model WorkOrder {
-  id            String          @id @default(uuid())
+  id            String            @id @default(uuid())
+  companyId     String
   equipmentId   String
   issue         String
   downtimeStart DateTime
   downtimeEnd   DateTime?
   workDone      String?
-  partsUsed     String? // JSON array
-  partsCost     Float?          @default(0)
-  laborCost     Float?          @default(0)
+  partsUsed     String? // JSON array of { name, itemId?, quantity }
+  partsCost     Float?            @default(0)
+  laborCost     Float?            @default(0)
   technicianId  String?
-  status        WorkOrderStatus @default(OPEN)
+  status        WorkOrderStatus   @default(OPEN)
+  priority      WorkOrderPriority @default(NORMAL)
+  /// Drafted by Vane from the breakdowns it read; a person raises it or deletes it.
+  madeByVane    Boolean           @default(false)
+  /// What Vane found, in a sentence: "Rebuild the Mill 1 feed pump, not the seal again."
+  vaneNote      String?
+  /// Null on Vane's drafts.
+  createdById   String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  company    Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
   equipment  Equipment @relation(fields: [equipmentId], references: [id])
   technician Employee? @relation("WorkOrderTechnicians", fields: [technicianId], references: [id])
+  createdBy  User?     @relation("WorkOrderCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
 
+  @@index([companyId, status])
   @@index([equipmentId])
   @@index([status])
+  @@index([createdById])
 }
 
 // ============================================
@@ -16621,6 +16643,8 @@ model VaneSettings {
 model VaneReaderScope {
   pid       Int      @id
   companyId String
+  /// A sales rep's reading: the role narrows to their own visits and quotes (`vane_reader_rep`). Null for everyone else.
+  userId    String?
   createdAt DateTime @default(now())
 
   company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)

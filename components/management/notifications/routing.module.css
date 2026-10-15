@@ -1,0 +1,70 @@
+/*
+ * Management → Notifications (MgmtNotifications): the board's matrix and its
+ * When section. Unlayered, so it wins over the kit's `components` layer.
+ */
+
+.finding :global(.finding) {
+  padding: 0;
+}
+
+.matrix {
+  margin-top: 40px;
+}
+
+.matrix th {
+  white-space: nowrap;
+  padding: 0 var(--space-12);
+}
+
+.matrix td:not(:first-child) {
+  white-space: nowrap;
+  padding: 0 var(--space-12);
+  font-variant-numeric: tabular-nums;
+}
+
+.none {
+  color: var(--color-muted);
+}
+
+.foot {
+  margin-top: var(--space-12);
+  font-size: var(--text-13);
+  color: var(--color-muted);
+}
+
+.when {
+  box-shadow: none;
+}
+
+.quiet {
+  width: 280px;
+}
+
+@media (max-width: 760px) {
+  .scroll {
+    overflow-x: auto;
+  }
+
+  .matrix {
+    margin-top: var(--space-24);
+  }
+
+  .matrix table {
+    min-width: 640px;
+  }
+
+  .when {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-8);
+  }
+
+  .when :global(.srow) {
+    grid-template-columns: 28px minmax(0, 1fr);
+    padding: var(--space-12) 0;
+  }
+
+  .quiet {
+    grid-column: 2;
+    width: 100%;
+  }
+}

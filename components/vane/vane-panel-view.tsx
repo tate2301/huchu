@@ -9,6 +9,7 @@ import type { VaneCard, VanePanel } from "@/lib/vane/panel";
 import type { VaneStatus } from "@/lib/vane/status";
 
 import { NotNowMenu } from "./not-now-menu";
+import { readSummary } from "./vane-card-drawer";
 import { VaneActionList } from "./vane-action-list";
 import { VaneModuleTag } from "./vane-module";
 import type { VaneSuggestion } from "./vane-panel";
@@ -42,6 +43,12 @@ function StateDot({ status, held }: { status: VaneStatus; held: boolean }) {
   return <span className="status status-success">Watching</span>;
 }
 
+/** A card's first send waiting for a person, with nothing to change first: the panel's primary on the first card. */
+function leadSend(actions: VaneActionView[]): VaneActionView | null {
+  const first = actions.find((action) => action.status === "proposed");
+  return first && first.fields.length === 0 && first.verb.startsWith("Send ") ? first : null;
+}
+
 /**
  * The Vane panel (design/core-modules/spec/vane.md), 400px on the right of any
  * page, opened from Vane's mark in the rail or with Ctrl J. Top to bottom:
@@ -70,6 +77,7 @@ export function VanePanelView({
   onMute,
   onDecide,
   onAsk,
+  explain = null,
 }: {
   panel: VanePanel;
   chat: VaneChatMessage[];
@@ -91,6 +99,8 @@ export function VanePanelView({
   onMute: (card: VaneCard, reason: string) => void;
   onDecide: (action: VaneActionView, decision: ActionDecision) => void;
   onAsk: (text: string) => void;
+  /** Vane's answer to a figure someone asked about on a report (PageVaneReport), first in the panel. */
+  explain?: React.ReactNode;
 }) {
   const { status, items, plans, done } = panel;
   const [text, setText] = React.useState("");
@@ -161,9 +171,16 @@ export function VanePanelView({
             </div>
           ) : null}
 
+          {explain}
+
           <div className="vs">
             For you <span className="pn-n">{items.length}</span>
           </div>
+          {status.own ? (
+            <p className="muted" style={{ fontSize: "var(--text-12)", margin: 0 }}>
+              Only your own visits and quotes.
+            </p>
+          ) : null}
           {items.length === 0 ? (
             <p className="muted" style={{ fontSize: "var(--text-13)", margin: 0 }}>
               Nothing waits for you. Ask Vane below, or pick one of its suggestions.
@@ -189,23 +206,57 @@ export function VanePanelView({
                 </div>
                 <h3 id={`vane-panel-${card.id}`}>{card.headline}</h3>
                 <p>{card.body}</p>
-                {card.action ? (
+                {card.action || card.read.length > 0 ? (
                   <div className="vc-a">
-                    <Button
-                      variant={index === 0 && card.actions.every((action) => action.status !== "proposed") ? "primary" : "default"}
-                      icon={card.action.type === "send" ? "send" : card.action.type === "review" ? "eye" : "chev"}
-                      onClick={() => onAct(card)}
-                    >
-                      {card.action.label}
-                    </Button>
-                    {card.action.also ? (
-                      <Button icon="eye" onClick={() => onAct(card, card.action?.also?.target)}>
-                        {card.action.also.label}
+                    {card.action
+                      ? (() => {
+                          // The first card's send, when Vane proposes one, is the panel's primary on S (spec/shortcuts.md).
+                          const send = index === 0 ? leadSend(card.actions) : null;
+                          // With nothing proposed, the first card's own act is the primary, on its key or S (PageVaneCard).
+                          const lead = index === 0 && card.actions.every((action) => action.status !== "proposed");
+                          return (
+                            <>
+                              {send ? (
+                                <Button
+                                  variant="primary"
+                                  shortcut="S"
+                                  busy={deciding === send.id}
+                                  disabled={held || (deciding !== null && deciding !== send.id)}
+                                  onClick={() => onDecide(send, { approve: true, changes: {} })}
+                                >
+                                  {send.verb}
+                                </Button>
+                              ) : null}
+                              <Button
+                                variant={lead ? "primary" : "default"}
+                                shortcut={lead ? (card.action.shortcut ?? "S") : undefined}
+                                icon={card.action.type === "send" ? "send" : card.action.type === "review" ? "eye" : "chev"}
+                                onClick={() => onAct(card)}
+                              >
+                                {card.action.label}
+                              </Button>
+                              {card.action.also ? (
+                                <Button icon="eye" onClick={() => onAct(card, card.action?.also?.target)}>
+                                  {card.action.also.label}
+                                </Button>
+                              ) : null}
+                            </>
+                          );
+                        })()
+                      : null}
+                    {card.read.length > 0 ? (
+                      <Button variant="quiet" icon="table" title={readSummary(card) || undefined} onClick={() => onAct(card, `/vane?card=${card.id}`)}>
+                        What I read
                       </Button>
                     ) : null}
                   </div>
                 ) : null}
-                <VaneActionList actions={card.actions} disabled={held} deciding={deciding} onDecide={onDecide} />
+                <VaneActionList
+                  actions={index === 0 && leadSend(card.actions) ? card.actions.filter((action) => action !== leadSend(card.actions)) : card.actions}
+                  disabled={held}
+                  deciding={deciding}
+                  onDecide={onDecide}
+                />
               </article>
             ))
           )}

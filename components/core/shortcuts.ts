@@ -72,11 +72,22 @@ function dialogOpen(): boolean {
 export function useShortcut(
   shortcut: Shortcut | null | undefined,
   handler: (event: KeyboardEvent) => void,
-  { enabled = true, inDialog = false }: { enabled?: boolean; inDialog?: boolean } = {},
+  {
+    enabled = true,
+    inDialog = false,
+    shown,
+  }: {
+    enabled?: boolean;
+    inDialog?: boolean;
+    /** Asked as the key is pressed: false leaves the key to another holder (the same button drawn for another width). */
+    shown?: () => boolean;
+  } = {},
 ) {
   const latest = React.useRef(handler);
+  const isShown = React.useRef(shown);
   React.useEffect(() => {
     latest.current = handler;
+    isShown.current = shown;
   });
   React.useEffect(() => {
     if (!shortcut || !enabled) return;
@@ -84,6 +95,7 @@ export function useShortcut(
       if (event.defaultPrevented || event.repeat) return;
       if (!matchesShortcut(event, shortcut)) return;
       if (!inDialog && dialogOpen()) return;
+      if (isShown.current && !isShown.current()) return;
       event.preventDefault();
       latest.current(event);
     };

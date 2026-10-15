@@ -13,7 +13,10 @@ import { GearSix } from "@/lib/icons";
 import type { RailArea } from "@/lib/rail/areas";
 import { logoInitials } from "@/lib/rail/initials";
 import { reportBadges, reportCounts, reportEntries } from "@/lib/reports/all";
+import { areaHref, verticalOf } from "@/lib/reports/verticals";
 import { areaForHref, getRailModel, type RailModel } from "@/lib/rail/model";
+import { staticPanelReport } from "@/lib/rail/report-lookup";
+import { areaForModuleReport, readModuleReportPath, type PanelReport } from "@/lib/rail/reports";
 import {
   canRoleOpenRetailPath,
   hiddenRetailNavHrefs,
@@ -28,7 +31,8 @@ import {
   type WorkspaceSidebarModel,
 } from "@/lib/workspaces";
 import { useActiveWorkspace } from "@/components/layout/workspace-rail/use-active-workspace";
-import { fetchReportsHome, REPORTS_HOME_KEY } from "@/components/layout/workspace-rail/reports-groups";
+import { fetchReportsHome, isReportsArea, REPORTS_HOME_KEY } from "@/components/layout/workspace-rail/reports-groups";
+import { BUILD_HOME_KEY, fetchBuildHome } from "@/components/build/build-data";
 
 /** The workspace's name and branding, resolved on the server by the root layout. */
 export type WorkspaceBrand = {
@@ -184,12 +188,22 @@ export function ShellNavProvider({
     refetchOnWindowFocus: true,
   });
 
-  // Reports' rows count what each view holds, while Reports is the page's module.
-  const onReports = pathname === "/reports" || pathname.startsWith("/reports/");
+  // Reports' rows count what each view and area holds, while Reports is the page's module (the
+  // shop's Reports is at /retail/reports).
+  const onReports = /^\/(retail\/)?reports(\/|$)/.test(pathname) || pathname.startsWith("/retail/insights/");
   const reportsQuery = useQuery({
     queryKey: REPORTS_HOME_KEY,
     queryFn: fetchReportsHome,
     enabled: onReports,
+    staleTime: 60_000,
+  });
+
+  // Build's rows count what each holds, while Build is the page's module.
+  const onBuild = pathname === "/build" || pathname.startsWith("/build/");
+  const buildQuery = useQuery({
+    queryKey: BUILD_HOME_KEY,
+    queryFn: fetchBuildHome,
+    enabled: onBuild,
     staleTime: 60_000,
   });
 
@@ -202,18 +216,26 @@ export function ShellNavProvider({
   const booksBadges = mounted ? booksQuery.data?.badges : undefined;
   const reportsData = mounted && onReports ? reportsQuery.data : undefined;
   const reportsBadges = React.useMemo(
-    () => (reportsData ? reportBadges(reportCounts(reportEntries(reportsData))) : undefined),
-    [reportsData],
+    () => (reportsData ? reportBadges(reportCounts(reportEntries(reportsData)), verticalOf(workspaceProfile) !== null) : undefined),
+    [reportsData, workspaceProfile],
   );
+  const buildBadges = mounted && onBuild ? buildQuery.data?.badges : undefined;
   const badges = React.useMemo(
-    () => (retailBadges || booksBadges || reportsBadges ? { ...retailBadges, ...booksBadges, ...reportsBadges } : NO_BADGES),
-    [booksBadges, retailBadges, reportsBadges],
+    () =>
+      retailBadges || booksBadges || reportsBadges || buildBadges
+        ? { ...retailBadges, ...booksBadges, ...reportsBadges, ...buildBadges }
+        : NO_BADGES,
+    [booksBadges, buildBadges, retailBadges, reportsBadges],
   );
 
   // An item whose shop condition does not hold is not drawn for anyone; one
   // that waits on a badge is not drawn without it.
   const model = React.useMemo(() => {
     const hidden = hiddenRetailNavHrefs(conditions, badges);
+    // The row that is this page stays, whatever its badge says: a panel that
+    // loses the page's own row has nothing to keep it open on.
+    const here = getActiveNavHref(built.sections, pathname, searchParams, RETAIL_NAV_ITEMS);
+    if (here) hidden.delete(here);
     if (hidden.size === 0) return built;
     return {
       ...built,
@@ -222,7 +244,7 @@ export function ShellNavProvider({
         items: section.items.filter((item) => !hidden.has(item.href)),
       })),
     };
-  }, [badges, built, conditions]);
+  }, [badges, built, conditions, pathname, searchParams]);
 
   const selectWorkspace = React.useCallback(
     (id: string) => {
@@ -234,15 +256,39 @@ export function ShellNavProvider({
   );
 
   const rail = React.useMemo(() => getRailModel(model.sections), [model.sections]);
+  // A report opened from a module's panel is at the module's address
+  // (`/books/reports/{key}`): it keeps that module's panel, the one that lists
+  // it, and marks the report's own row there rather than any of the module's.
+  const moduleReport = React.useMemo(() => readModuleReportPath(pathname), [pathname]);
+  const panelReportsQuery = useQuery({
+    queryKey: ["reports", "panel"],
+    queryFn: () => fetchJson<{ reports: PanelReport[] }>("/api/v2/reports/panel"),
+    enabled: Boolean(moduleReport),
+    staleTime: 5 * 60_000,
+  });
+  // Until the list arrives, the one report this page is, read from the registry.
+  const panelReports = React.useMemo(() => {
+    const loaded = mounted ? panelReportsQuery.data?.reports : undefined;
+    if (loaded || !moduleReport) return loaded;
+    const report = staticPanelReport(moduleReport.key);
+    return report ? [report] : undefined;
+  }, [moduleReport, mounted, panelReportsQuery.data]);
   // Every retail page is known, visible or not, so a page whose item this
   // role cannot see lights nothing rather than its nearest visible ancestor.
   // A path that does not exist names no nav item, even when an item's href is
   // a prefix of it (`/retail/stock/count` is not On hand).
   const [notFound, setNotFound] = React.useState(false);
-  const activeHref = React.useMemo(
-    () => (notFound ? null : getActiveNavHref(model.sections, pathname, searchParams, RETAIL_NAV_ITEMS)),
-    [model.sections, notFound, pathname, searchParams],
-  );
+  // An area of a vertical's Reports (`/reports?area=Pay`) is All reports on that area: the area's
+  // row is the page where the panel lists one, and Reports' panel stays whether or not it does.
+  const reportsArea = pathname === "/reports" && verticalOf(workspaceProfile) ? searchParams.get("area") : null;
+  const activeHref = React.useMemo(() => {
+    if (notFound || moduleReport) return null;
+    if (reportsArea) {
+      const href = areaHref(reportsArea);
+      return model.sections.some((section) => section.items.some((item) => item.href === href)) ? href : null;
+    }
+    return getActiveNavHref(model.sections, pathname, searchParams, RETAIL_NAV_ITEMS);
+  }, [model.sections, moduleReport, notFound, pathname, reportsArea, searchParams]);
   const pageItem = React.useMemo(
     () => (notFound ? null : retailNavItemForPath(pathname, searchParams)),
     [notFound, pathname, searchParams],
@@ -254,7 +300,13 @@ export function ShellNavProvider({
   const refused =
     sessionStatus === "authenticated" && !canRoleOpenRetailPath(role, pathname, searchParams);
   const refusalNoun = pageItem ? RESOURCE_LABELS[pageItem.requires[0][0]] : "this page";
-  const currentArea = React.useMemo(() => areaForHref(rail.areas, activeHref), [activeHref, rail]);
+  const currentArea = React.useMemo(
+    () =>
+      moduleReport
+        ? areaForModuleReport(rail.areas, panelReports, moduleReport)
+        : (areaForHref(rail.areas, activeHref) ?? (reportsArea ? (rail.areas.find(isReportsArea) ?? null) : null)),
+    [activeHref, moduleReport, panelReports, rail, reportsArea],
+  );
   const activeItem = React.useMemo(
     () => currentArea?.items.find((item) => item.href === activeHref) ?? null,
     [activeHref, currentArea],

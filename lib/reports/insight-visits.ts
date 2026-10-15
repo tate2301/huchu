@@ -87,7 +87,8 @@ export function breakdownTable(insights: FormInsights) {
   const rated = rows.filter((row) => row.visits > 0).map((row) => row.won / row.visits);
   const best = rated.length > 1 ? Math.max(...rated) : null;
   const worst = rated.length > 1 ? Math.min(...rated) : null;
-  const measured = (value: number | null) => (value === null ? "—" : figure(value));
+  // Every row and the total to one place, so 104.0 sits over 82.2.
+  const measured = (value: number | null) => (value === null ? "—" : value.toLocaleString("en-GB", { minimumFractionDigits: 1, maximumFractionDigits: 1 }));
   return {
     title: breakdown ? breakdownTitle(breakdown.question) : null,
     table: {

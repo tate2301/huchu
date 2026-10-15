@@ -1,10 +1,10 @@
 "use client";
 
-import { useMemo, useState, type ReactNode } from "react";
+import { createContext, useContext, useMemo, useState, type ReactNode } from "react";
 
-import { Kit } from "@/components/core";
+import { Button, Kit } from "@/components/core";
 import { seriesBy, timeSeries, type ChartPoint } from "@/lib/reports/charts";
-import { formatTotal, formatValue, totalCaption } from "@/lib/reports/format";
+import { formatTotal, formatValue, shortTicks, totalCaption } from "@/lib/reports/format";
 import {
   breakdownBy,
   DEFAULT_BREAKDOWN_LIMIT,
@@ -31,6 +31,30 @@ type Context = {
   params: ReportParams;
   applied: AppliedView;
 };
+
+/**
+ * Explain a figure (PageVaneReport): when the page offers it, each key figure
+ * and each bar has an Explain button that gives Vane the question.
+ */
+export type ExplainFigure = (figure: string, value: string) => void;
+const ExplainContext = createContext<ExplainFigure | null>(null);
+export const ExplainProvider = ExplainContext.Provider;
+
+function ExplainButton({ figure, value }: { figure: string; value: string }) {
+  const explain = useContext(ExplainContext);
+  if (!explain) return null;
+  return (
+    <Button
+      variant="quiet"
+      iconOnly
+      icon="help"
+      size="sm"
+      className="rp-explain"
+      label={`Explain ${figure}, ${value}`}
+      onClick={() => explain(figure, value)}
+    />
+  );
+}
 
 function columnOf(meta: ReportMeta, key: string | undefined): ReportColumn | null {
   return key ? meta.columns.find((column) => column.key === key) ?? null : null;
@@ -70,8 +94,9 @@ function Figures({ meta, view, applied }: Context) {
     <div className="rp-figs">
       <div className="kstrip" style={{ gridTemplateColumns: `repeat(${figures.length}, minmax(0, 1fr))` }}>
         {figures.map((figure) => (
-          <div className="kt" key={figure.key}>
+          <div className="kt rp-kt" key={figure.key}>
             <span className="kt-l">{figure.label}</span>
+            <ExplainButton figure={figure.label} value={figure.value} />
             <span className="kt-v">{figure.value}</span>
             <span className="kt-n muted">{figure.note}</span>
           </div>
@@ -94,7 +119,10 @@ function Bars({ points, format }: { points: ChartPoint[]; format: (value: number
         const share = max > 0 && point.value ? Math.max(0, point.value / max) : 0;
         return (
           <div className="hbar rp-hbar" key={`${point.label}-${index}`}>
-            <span className="truncate">{point.label}</span>
+            <span className="truncate rp-bar-l">
+              <span className="truncate">{point.label}</span>
+              <ExplainButton figure={point.label} value={point.value === null ? "None" : format(point.value)} />
+            </span>
             <span className="hbar-t">
               <i style={{ width: `${(share * 100).toFixed(1)}%`, background: index === 0 ? "var(--color-accent)" : "var(--color-muted)" }} />
             </span>
@@ -117,7 +145,7 @@ function Line({ points, format }: { points: ChartPoint[]; format: (value: number
   const y = (value: number) => 142 - (value / max) * 134;
   const line = points.map((point, index) => `${x(index).toFixed(1)},${y(point.value ?? 0).toFixed(1)}`).join(" ");
   const ticks = Math.min(6, points.length);
-  const axis = Array.from({ length: ticks }, (_, at) => points[Math.round((at * (points.length - 1)) / Math.max(1, ticks - 1))]!.label);
+  const axis = shortTicks(Array.from({ length: ticks }, (_, at) => points[Math.round((at * (points.length - 1)) / Math.max(1, ticks - 1))]!.label));
   const shown = tip !== null ? points[tip] : null;
   return (
     <div className="rp-line">

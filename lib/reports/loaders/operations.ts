@@ -14,7 +14,7 @@ async function siteOptions(ctx: ReportContext): Promise<Record<string, ReportOpt
     select: { id: true, name: true },
     orderBy: { name: "asc" },
   });
-  return { site: [{ value: "all", label: "All sites" }, ...sites.map((site) => ({ value: site.id, label: site.name }))] };
+  return { site: [{ value: "all", label: "Every site" }, ...sites.map((site) => ({ value: site.id, label: site.name }))] };
 }
 
 /** A site filter, or none for "all". */

@@ -8,7 +8,7 @@
 // panel items, field labels and status words, finds each on the page, and prints the score.
 // Data (figures, dates, names in table cells) is left out: the page shows real data.
 // Then it checks the page at 1440 (and 390 with --390) for tables that overflow, headers that wrap,
-// cells that spill and a page that scrolls sideways. --shot writes board | page side by side.
+// cells that spill, a page that scrolls sideways and a body that shows nothing (collapsed to 0px). --shot writes board | page side by side.
 import { createRequire } from "node:module";
 import fs from "node:fs";
 import path from "node:path";
@@ -73,6 +73,35 @@ function geometry() {
   for (const th of document.querySelectorAll("th")) if (th.getBoundingClientRect().height > 40) issues.push(`header wraps: ${txt(th)}`);
   for (const td of document.querySelectorAll("td, th")) if (td.scrollWidth > td.clientWidth + 2 && getComputedStyle(td).textOverflow !== "ellipsis") issues.push(`cell spills ${td.scrollWidth - td.clientWidth}px: ${txt(td)}`);
   for (const el of document.querySelectorAll(".tb-m, .ws-tools, .btn-group, header")) if (el.scrollWidth > el.clientWidth + 2 && getComputedStyle(el).overflowX === "visible") issues.push(`row overflows ${el.scrollWidth - el.clientWidth}px: ${el.className}`);
+  // A body can be in the page and still show nothing: a box that clips its overflow and measures 0
+  // tall hides every row inside it, though the rows are still there to be read. Look at what shows.
+  const main = document.querySelector("main") || document.body;
+  const clips = (cs) => cs.overflowX !== "visible" || cs.overflowY !== "visible";
+  for (const el of main.querySelectorAll("*")) {
+    const cs = getComputedStyle(el);
+    const box = el.getBoundingClientRect();
+    // A part folded away on purpose (the selection footer with nothing selected) is hidden from everyone.
+    if (!clips(cs) || box.width <= 1 || box.height >= 2 || el.closest("[aria-hidden=true], .sr-only")) continue;
+    const chars = (el.innerText || "").trim().length;
+    if (chars > 20) issues.push(`collapses to 0px and hides ${chars} characters: ${el.tagName.toLowerCase()}.${String(el.className).split(" ").slice(0, 3).join(".")}`);
+  }
+  const shows = (el) => {
+    let r = el.getBoundingClientRect();
+    if (r.width < 1 || r.height < 1 || r.bottom <= 0 || r.top >= innerHeight) return false;
+    for (let p = el.parentElement; p && p !== document.documentElement; p = p.parentElement) {
+      if (!clips(getComputedStyle(p))) continue;
+      const pr = p.getBoundingClientRect();
+      const top = Math.max(r.top, pr.top), bottom = Math.min(r.bottom, pr.bottom), left = Math.max(r.left, pr.left), right = Math.min(r.right, pr.right);
+      if (bottom - top < 1 || right - left < 1) return false;
+      r = { top, bottom, left, right };
+    }
+    return true;
+  };
+  const header = main.querySelector("header");
+  const texts = [...main.querySelectorAll("p, h1, h2, h3, td, th, li, a, button, label, span")].filter((el) => !(header && header.contains(el)) && (el.textContent || "").trim());
+  // A printed page is drawn in a frame (the payslip, a layout): a frame or a picture that shows counts.
+  const media = [...main.querySelectorAll("iframe, img, canvas")].filter((el) => !(header && header.contains(el)));
+  if (![...texts, ...media].some(shows)) issues.push("the page body is blank: nothing under the top bar shows");
   return [...new Set(issues)].slice(0, 15);
 }
 

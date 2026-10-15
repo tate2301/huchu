@@ -88,7 +88,7 @@ function ReportAside({
         </span>
       )}
       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-        <span className="truncate" style={{ fontSize: 17, fontWeight: 600, color: "var(--color-ink)" }}>
+        <span className="truncate" style={{ fontSize: 16, fontWeight: 600, color: "var(--color-ink)" }}>
           {row.title}
         </span>
         <span style={{ marginLeft: "auto" }}>
@@ -99,14 +99,16 @@ function ReportAside({
       </div>
       <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
         <span style={{ flex: 1, display: "flex", flexDirection: "column", gap: 2 }}>
-          <b style={{ fontWeight: 500, color: "var(--color-ink)" }}>Offered</b>
+          <b id={`offered-${row.key}`} style={{ fontWeight: 500, color: "var(--color-ink)" }}>
+            Offered
+          </b>
           <span className="muted" style={{ fontSize: 13 }}>
             {row.enabled
               ? `Off: nobody here sees ${row.title} in Reports.${row.page ? ` Its page in ${row.page} stays.` : ""}`
               : `On: ${row.title} is listed in Reports again.`}
           </span>
         </span>
-        <Switch ink checked={row.enabled} disabled={saving} label={undefined} onCheckedChange={(enabled) => onChange({ enabled })} />
+        <Switch ink checked={row.enabled} disabled={saving} labelledBy={`offered-${row.key}`} onCheckedChange={(enabled) => onChange({ enabled })} />
       </div>
       <dl className="attrs">
         <dt>Area</dt>

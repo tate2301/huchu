@@ -79,6 +79,8 @@ export type CollectionsReportOptions = {
   classId?: string;
   /** Only the bills raised off one fee structure. */
   feeStructureId?: string;
+  /** True for boarders' bills, false for day pupils', absent for both. */
+  isBoarding?: boolean;
 };
 
 /**
@@ -93,7 +95,12 @@ function collectionsScope(options: CollectionsReportOptions) {
   const scope: Prisma.SchoolFeeInvoiceWhereInput = {};
   if (options.termId) scope.termId = options.termId;
   if (options.academicYearId) scope.term = { academicYearId: options.academicYearId };
-  if (options.classId) scope.student = { currentClassId: options.classId };
+  if (options.classId || options.isBoarding !== undefined) {
+    scope.student = {
+      ...(options.classId ? { currentClassId: options.classId } : {}),
+      ...(options.isBoarding !== undefined ? { isBoarding: options.isBoarding } : {}),
+    };
+  }
   if (options.feeStructureId) scope.feeStructureId = options.feeStructureId;
   return Object.keys(scope).length > 0 ? scope : null;
 }
@@ -220,6 +227,13 @@ export type CollectionsByYearGroupRow = {
   invoiced: number;
   collected: number;
   collectionRate: number;
+  /** Pupils billed. */
+  pupils: number;
+  /** Pupils with something still owed on these bills. */
+  owing: number;
+  /** Pupils billed who have paid nothing on these bills, and what they owe between them. */
+  paidNothing: number;
+  paidNothingOwed: number;
 };
 
 /**
@@ -255,15 +269,25 @@ export async function collectionsByYearGroup(
     select: {
       totalAmount: true,
       paidAmount: true,
+      studentId: true,
       student: {
         select: { currentClass: { select: { id: true, name: true, level: true } } },
       },
     },
   });
 
+  // Each pupil's bills in the scope, for who owes and who has paid nothing.
+  const pupils = new Map<string, { classKey: string; billed: number; paid: number }>();
+  for (const invoice of invoices) {
+    const entry = pupils.get(invoice.studentId) ?? { classKey: invoice.student.currentClass?.id ?? "", billed: 0, paid: 0 };
+    entry.billed += Number(invoice.totalAmount);
+    entry.paid += Number(invoice.paidAmount);
+    pupils.set(invoice.studentId, entry);
+  }
+
   const byClass = new Map<
     string,
-    CollectionsByYearGroupRow & { level: number | null }
+    Omit<CollectionsByYearGroupRow, "pupils" | "owing" | "paidNothing" | "paidNothingOwed"> & { level: number | null }
   >();
   for (const invoice of invoices) {
     const schoolClass = invoice.student.currentClass;
@@ -279,7 +303,7 @@ export async function collectionsByYearGroup(
         invoiced: 0,
         collected: 0,
         collectionRate: 0,
-      } satisfies CollectionsByYearGroupRow & { level: number | null });
+      } satisfies Omit<CollectionsByYearGroupRow, "pupils" | "owing" | "paidNothing" | "paidNothingOwed"> & { level: number | null });
     row.invoiced += Number(invoice.totalAmount);
     row.collected += Number(invoice.paidAmount);
     byClass.set(key, row);
@@ -292,13 +316,21 @@ export async function collectionsByYearGroup(
       (a.level ?? 99) - (b.level ?? 99) || a.className.localeCompare(b.className),
   );
 
-  return ordered.map((row) => ({
-    classId: row.classId,
-    className: row.className,
-    invoiced: row.invoiced,
-    collected: row.collected,
-    collectionRate: row.invoiced > 0 ? (row.collected / row.invoiced) * 100 : 0,
-  }));
+  return ordered.map((row) => {
+    const billed = [...pupils.values()].filter((pupil) => pupil.classKey === row.classId);
+    const nothing = billed.filter((pupil) => pupil.billed > 0 && pupil.paid <= 0);
+    return {
+      classId: row.classId,
+      className: row.className,
+      invoiced: row.invoiced,
+      collected: row.collected,
+      collectionRate: row.invoiced > 0 ? (row.collected / row.invoiced) * 100 : 0,
+      pupils: billed.length,
+      owing: billed.filter((pupil) => pupil.billed - pupil.paid > 0.005).length,
+      paidNothing: nothing.length,
+      paidNothingOwed: nothing.reduce((total, pupil) => total + pupil.billed, 0),
+    };
+  });
 }
 
 // ============================================================================

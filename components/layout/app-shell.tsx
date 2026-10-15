@@ -18,6 +18,7 @@ import {
 } from "@/components/layout/shell-nav";
 import { ShellProvider, useShell } from "@/components/layout/shell-state";
 import { OnboardingProvider } from "@/components/onboarding/onboarding-provider";
+import { builderSurface, type BuilderSurface } from "@/lib/builder/paths";
 import { isPublicPath } from "@/lib/public-routes";
 import { SignInAsBanner } from "@/components/sign-in-as/sign-in-as-banner";
 import { isCountPhonePath } from "@/lib/retail/stock/count-paths";
@@ -72,6 +73,8 @@ export function AppShell({
   const isSettingsRoute = isSettingsSurfacePath(pathname);
   // The phone count, full screen like the till: the counter's, whatever their role.
   const isCountPhoneRoute = isCountPhonePath(pathname);
+  // A builder takes the page: the whole window, or all of it but the rail.
+  const builder = builderSurface(pathname);
 
   if (
     isAuthRoute ||
@@ -81,7 +84,8 @@ export function AppShell({
     isPublicRoute ||
     isPreviewHostRoute ||
     isSettingsRoute ||
-    isCountPhoneRoute
+    isCountPhoneRoute ||
+    builder === "full"
   ) {
     return (
       <WorkspaceBrandContext.Provider value={workspaceBrand ?? null}>
@@ -94,16 +98,37 @@ export function AppShell({
     <ShellProvider defaultPanelOpen={defaultPanelOpen}>
       <ShellNavProvider brand={workspaceBrand} shopConditions={shopConditions}>
         <PageChromeProvider>
-          <ShellFrame>{children}</ShellFrame>
+          <ShellFrame builder={builder}>{children}</ShellFrame>
         </PageChromeProvider>
       </ShellNavProvider>
     </ShellProvider>
   );
 }
 
-function ShellFrame({ children }: { children: React.ReactNode }) {
+function ShellFrame({ children, builder }: { children: React.ReactNode; builder: BuilderSurface | null }) {
   const { width } = useShell();
   const { pending, refused } = useShellNav();
+  if (builder === "rail") {
+    // The builder's outline and bar stand where the module panel and the top bar are.
+    return (
+      <div className="shell-frame flex h-[100dvh] overflow-hidden bg-[var(--ground)] text-[13px] text-[var(--ink)]">
+        {width !== "phone" ? (
+          <div className="flex h-full flex-none max-[719px]:hidden">
+            <AppSidebar railOnly />
+          </div>
+        ) : null}
+        <MobileNav />
+        <GlobalCommandBar />
+        <div className="flex min-w-0 flex-1 bg-[var(--surface)]">
+          <main className="min-h-0 min-w-0 flex-1 overflow-hidden">
+            {pending ? null : refused ? <RoleRefusal /> : children}
+          </main>
+          <VanePanel />
+          <LiveStream />
+        </div>
+      </div>
+    );
+  }
   return (
     <div className="shell-frame flex h-[100dvh] overflow-hidden bg-[var(--ground)] text-[13px] text-[var(--ink)]">
       {width !== "phone" ? (

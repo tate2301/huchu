@@ -127,7 +127,7 @@ export const BRANDING_FONT_OPTIONS: BrandingFontOption[] = [
 ];
 
 /** The option whose family defers to the design system's `--font-sans`. */
-const DEFAULT_FONT_KEY: BrandingFontKey = "huchu";
+export const DEFAULT_FONT_KEY: BrandingFontKey = "huchu";
 
 /**
  * The unbranded baseline. Colours mirror `@corelithzw/react`'s `--brand`,

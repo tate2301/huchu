@@ -23,7 +23,7 @@ import type { ReportColumnKind, ReportParam, ReportRow, ReportView } from "@/lib
 import { aggregate, applyView, encodeView } from "@/lib/reports/view";
 import { dayRangeWords, formatTime, todayIn } from "@/lib/workspace/format";
 
-import { ReportBlocks } from "./report-blocks";
+import { ExplainProvider, ReportBlocks, type ExplainFigure } from "./report-blocks";
 import { ReportColumns } from "./report-columns";
 import { Chip, FilterChips, FiltersButton, QuickChips } from "./report-filters";
 import { ReportOutDrawer, type DownloadFormat, type OutTab } from "./report-out-drawer";
@@ -126,7 +126,9 @@ function ParamChips({
   const to = params.find((param) => param.key === "to" && param.type === "date");
   const choices = params.filter((param): param is Extract<ReportParam, { type: "choice" }> => param.type === "choice");
   const range = { from: values.from || null, to: to ? values.to || null : null };
-  const words = dayRangeWords(range, todayIn()) || "any time";
+  // Joined to the chip's label the range reads on in sentence case: "Closing from 1 January".
+  const said = dayRangeWords(range, todayIn()) || "any time";
+  const words = /^(January|February|March|April|May|June|July|August|September|October|November|December)\b/.test(said) ? said : `${said.charAt(0).toLowerCase()}${said.slice(1)}`;
   return (
     <>
       {from ? (
@@ -208,7 +210,8 @@ export function ReportScreen({ reportKey }: { reportKey: string }) {
   const search = useSearchParams();
   const { query, meta, template, view, params, setView, resetView, setParams, customised } = useReport(reportKey);
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
-  const [sheet, setSheet] = useState<"save" | "edit" | null>(null);
+  // `?save=1` opens Save as a template, as a card of Vane's ("Let's keep this view") leads to it.
+  const [sheet, setSheet] = useState<"save" | "edit" | null>(() => (search.get("save") ? "save" : null));
   // `?send=1` opens Send it, so a link can lead straight to it.
   const [out, setOut] = useState<OutTab | null>(() => (search.get("send") ? "send" : null));
   const [exporting, setExporting] = useState(false);
@@ -249,6 +252,25 @@ export function ReportScreen({ reportKey }: { reportKey: string }) {
 
   const refresh = () => void queryClient.invalidateQueries({ queryKey: ["reports", reportKey] });
 
+  /**
+   * Explain a figure (PageVaneReport): the press gives Vane the question as a job of
+   * its own, and the answer opens beside the report (`?explain=<job>`).
+   */
+  const explain = useCallback<ExplainFigure>(
+    (figure, value) => {
+      const title = template?.name ?? meta?.title ?? reportKey;
+      const about = { report: reportKey, title, figure, value, params: Object.fromEntries(Object.entries(params).filter(([, given]) => given)) };
+      void fetchJson<{ id: string }>("/api/vane/jobs", { method: "POST", body: JSON.stringify({ about }) })
+        .then((job) => {
+          const next = new URLSearchParams(window.location.search);
+          next.set("explain", job.id);
+          router.replace(`${window.location.pathname}?${next.toString()}`, { scroll: false });
+        })
+        .catch((error) => toast({ title: "Vane did not get the question", description: getApiErrorMessage(error), variant: "destructive" }));
+    },
+    [meta?.title, params, reportKey, router, template?.name, toast],
+  );
+
   /** This report's page as a report of one's own, every block a query to take further. */
   const buildOn = async () => {
     try {
@@ -256,7 +278,7 @@ export function ReportScreen({ reportKey }: { reportKey: string }) {
         method: "POST",
         body: JSON.stringify({ fromReport: reportKey }),
       });
-      router.push(`/reports/custom/${made.report.id}/edit`);
+      router.push(`/reports/c/${made.report.id}/edit`);
     } catch (error) {
       toast({ title: "Report not created", description: getApiErrorMessage(error), variant: "destructive" });
     }
@@ -349,7 +371,7 @@ export function ReportScreen({ reportKey }: { reportKey: string }) {
     <>
       {chrome}
       <Kit className="kit-main">
-        <div className="mn rp-page" style={{ flex: 1, minHeight: 0 }}>
+        <div className="mn rp-page">
           {body}
         </div>
       </Kit>
@@ -531,14 +553,16 @@ export function ReportScreen({ reportKey }: { reportKey: string }) {
             {count === 0 ? (
               table
             ) : (
-              <ReportBlocks
-                blocks={meta.layout?.blocks ?? defaultLayout(meta).blocks}
-                table={table}
-                meta={meta}
-                view={view}
-                params={params}
-                applied={applied}
-              />
+              <ExplainProvider value={explain}>
+                <ReportBlocks
+                  blocks={meta.layout?.blocks ?? defaultLayout(meta).blocks}
+                  table={table}
+                  meta={meta}
+                  view={view}
+                  params={params}
+                  applied={applied}
+                />
+              </ExplainProvider>
             )}
           </div>
         </div>,

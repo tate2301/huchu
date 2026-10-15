@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { ChartBar, FileText, Funnel, Stack, Storefront, Tag, TrayArrowDown, Wrench } from "@/lib/icons";
+import { FileText, Funnel, Grid3x3, Stack, Storefront, Tag, TrayArrowDown, Wrench } from "@/lib/icons";
 import type { NavItem } from "@/lib/navigation";
 import { getClientTemplateFeatureKeys, getClientTemplateWorkspaceProfile } from "@/lib/platform/client-templates";
 import type { WorkspaceNavSection } from "@/lib/workspaces";
@@ -26,8 +26,9 @@ describe("the retail rail (00-foundations 5.3.2, 98-decisions 5 October)", () =>
       "Products",
       "Stock",
       "Buying",
-      "Insights",
       "Reports",
+      // Build, in every workspace (spec/routes.md §5), before Setup.
+      "Build",
       "Setup",
     ]);
     expect(rail.areas.find((area) => area.id === "retail-setup")?.items.map((item) => item.label)).toEqual([
@@ -45,20 +46,36 @@ describe("the retail rail (00-foundations 5.3.2, 98-decisions 5 October)", () =>
     ]);
   });
 
-  it("opens Reports on Every template, then one item per area (INS-07)", () => {
+  it("opens Reports on its Overview, every template's views, the insights, then one item per area (INS-07)", () => {
     const reports = retailRail("SUPERADMIN").areas.find((area) => area.id === "retail-reports");
     expect(reports?.items.map((item) => item.href)).toEqual([
       "/retail/reports",
+      "/retail/reports?view=all",
+      "/retail/reports?view=all&tab=built-in",
+      "/retail/reports?view=all&tab=team",
+      "/retail/reports?view=all&tab=mine",
+      "/retail/insights/sales",
+      "/retail/insights/profit",
+      "/retail/insights/products",
+      "/retail/insights/stock",
+      "/retail/insights/losses",
+      "/retail/insights/customers",
+      "/retail/insights/money",
       "/retail/reports?area=selling",
       "/retail/reports?area=stock",
       "/retail/reports?area=buying",
       "/retail/reports?area=customers",
       "/retail/reports?area=money",
       "/retail/reports?area=floor",
+      "/reports?area=Pay",
+      "/reports?area=People",
+      "/reports?area=Books",
     ]);
+    // The insights and the areas are bands in Reports' own panel.
+    expect(reports?.bands?.map((band) => band.label)).toEqual(["Insights", "Areas"]);
   });
 
-  it("gives the cashier no Setup, no Stock and no Insights", () => {
+  it("gives the cashier no Setup, no Stock and no Reports", () => {
     const rail = retailRail("CASHIER");
     expect(rail.areas.map((area) => area.label)).toEqual(["The floor", "Products", "Buying"]);
   });
@@ -85,8 +102,8 @@ describe("the retail rail (00-foundations 5.3.2, 98-decisions 5 October)", () =>
       Tag,
       Stack,
       TrayArrowDown,
-      ChartBar,
       FileText,
+      Grid3x3,
       Wrench,
     ]);
   });

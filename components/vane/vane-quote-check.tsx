@@ -3,12 +3,38 @@
 import * as React from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { Button, Kit, VaneMark } from "@/components/core";
+import { Button, ButtonLink, Kit, TextArea, VaneMark } from "@/components/core";
 import { formatMoney } from "@/components/crm/documents/document-types";
 import { RailSection } from "@/components/records/record-page-shell";
 import { useToast } from "@/components/ui/use-toast";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import type { QuoteCheck, QuoteLineFinding } from "@/lib/crm/quote-check";
+import type { DocumentEmailDraft } from "@/lib/crm/document-email";
+
+import { useVaneStatus } from "./use-vane";
+
+/**
+ * The message to go with the quote, under the check (PageVaneDocument): the
+ * words Vane wrote (its card about the quote, or "Write it with Vane" here),
+ * else the CRM's own, for the person to change. Send the quote is the CRM's
+ * email, pressed by the person; Vane sends nothing.
+ */
+export type QuoteMessage = {
+  /** Who it goes to, as the send would address it; null when the record has no address. */
+  to: string | null;
+  text: string;
+  /** Vane wrote the words now in the box. */
+  byVane: boolean;
+  pdfHref: string;
+  sending: boolean;
+  writing: boolean;
+  /** Why Vane wrote nothing, when it could not. */
+  failed: string | null;
+  onText: (text: string) => void;
+  onSend: () => void;
+  /** Offered while Vane works and has not written these words. */
+  onWrite?: () => void;
+};
 
 const day = (value: string) =>
   new Date(`${value}T00:00:00Z`).toLocaleDateString("en-GB", { day: "numeric", month: "long", timeZone: "UTC" });
@@ -29,11 +55,13 @@ export function VaneQuoteCheckView({
   check,
   changing = null,
   onChange,
+  message = null,
 }: {
   check: QuoteCheck;
   /** The line being changed now. */
   changing?: number | null;
   onChange: (finding: QuoteLineFinding) => void;
+  message?: QuoteMessage | null;
 }) {
   const [left, setLeft] = React.useState<number[]>([]);
   const open = check.findings.filter((finding) => !left.includes(finding.position));
@@ -86,15 +114,52 @@ export function VaneQuoteCheckView({
             </span>
           </p>
         ) : null}
+        {message ? (
+          <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-8)", marginTop: "var(--space-12)" }}>
+            <label htmlFor="vane-quote-message" className="sec-title">
+              {message.to ? `The message, to ${message.to} by email` : "The message"}
+            </label>
+            <TextArea id="vane-quote-message" rows={6} value={message.text} disabled={message.sending} onChange={(event) => message.onText(event.target.value)} />
+            {message.byVane ? <span className="vr-none">Vane wrote this. Change anything; it goes only when you press Send.</span> : null}
+            {message.failed ? (
+              <span role="alert" className="vr-none" style={{ color: "var(--color-danger)" }}>
+                {message.failed}
+              </span>
+            ) : null}
+            {message.to ? null : <span className="vr-none">Add the customer’s email address to send it.</span>}
+            <div className="vc-a">
+              {message.onWrite ? (
+                <Button size="sm" variant="quiet" busy={message.writing} disabled={message.sending} onClick={message.onWrite}>
+                  <VaneMark size={16} />
+                  Write it with Vane
+                </Button>
+              ) : null}
+              <ButtonLink icon="file" href={message.pdfHref} target="_blank" rel="noopener">
+                Download PDF
+              </ButtonLink>
+              <Button
+                variant="primary"
+                icon="send"
+                shortcut="S"
+                busy={message.sending}
+                disabled={message.sending || !message.to || !message.text.trim()}
+                onClick={message.onSend}
+              >
+                Send the quote
+              </Button>
+            </div>
+          </div>
+        ) : null}
       </Kit>
     </RailSection>
   );
 }
 
-/** The quote check in a CRM quote's rail, fed from `/api/v2/crm/documents/[id]/price-check`. */
+/** The quote check in a CRM quote's rail, fed from `/api/v2/crm/documents/[id]/price-check`, with the message to send it with. */
 export function VaneQuoteCheck({ documentId }: { documentId: string }) {
   const client = useQueryClient();
   const { toast } = useToast();
+  const vane = useVaneStatus();
   const key = ["crm", "documents", "price-check", documentId];
   const { data } = useQuery({
     queryKey: key,
@@ -116,6 +181,71 @@ export function VaneQuoteCheck({ documentId }: { documentId: string }) {
       void client.invalidateQueries({ queryKey: ["crm", "documents", "record", documentId] });
     },
   });
+
+  // The CRM's own email for the quote (main's draft and send): who it goes to and its subject. A person who may not
+  // send documents gets a refusal, and the message is not offered to them.
+  const emailHref = data ? `${data.basePath}/documents/${documentId}/email` : null;
+  const draft = useQuery({
+    queryKey: ["crm", "documents", "email", documentId],
+    queryFn: () => fetchJson<DocumentEmailDraft>(emailHref!),
+    enabled: Boolean(emailHref),
+    retry: false,
+  });
+  const [words, setWords] = React.useState<{ subject?: string; text: string; byVane: boolean } | null>(null);
+  const write = useMutation({
+    mutationFn: () => fetchJson<{ subject: string; message: string }>("/api/vane/write/document-email", { method: "POST", body: JSON.stringify({ documentId }) }),
+    // Each writing is a job counted against the month's allowance: a failure is said, not tried again unasked.
+    retry: false,
+    onSuccess: (email) => setWords({ subject: email.subject, text: email.message, byVane: true }),
+  });
+  const card = data?.message ?? null;
+  const shown = words ?? (card ? { text: card.text, byVane: true } : draft.data ? { text: draft.data.message, byVane: false } : null);
+  const send = useMutation({
+    mutationFn: () =>
+      fetchJson<{ to: string }>(emailHref!, {
+        method: "POST",
+        body: JSON.stringify({
+          subject: words?.subject ?? draft.data?.subject,
+          message: shown!.text.trim(),
+          // Vane's card about the quote is done once the person sends its words, changed or not.
+          ...(card ? { vaneItemId: card.itemId } : {}),
+        }),
+      }),
+    retry: false,
+    onSuccess: (sent) => {
+      setWords(null);
+      toast({ title: `The quote went to ${sent.to}` });
+    },
+    onError: (failure) => toast({ title: "The quote did not go", description: getApiErrorMessage(failure, "Try again."), variant: "destructive" }),
+    onSettled: () => {
+      void client.invalidateQueries({ queryKey: key });
+      void client.invalidateQueries({ queryKey: ["crm", "documents", "record", documentId] });
+      void client.invalidateQueries({ queryKey: ["vane"] });
+    },
+  });
   if (!data) return null;
-  return <VaneQuoteCheckView check={data} changing={change.isPending ? (change.variables?.position ?? null) : null} onChange={(finding) => change.mutate(finding)} />;
+  const message: QuoteMessage | null =
+    draft.data && shown
+      ? {
+          to: draft.data.to,
+          text: shown.text,
+          byVane: shown.byVane,
+          pdfHref: `${data.basePath}/documents/${documentId}/pdf`,
+          sending: send.isPending,
+          writing: write.isPending,
+          failed: write.error ? getApiErrorMessage(write.error, "Vane could not write it. Write it yourself, or try again.") : null,
+          // Changed, the words are still the ones Vane wrote, now the person's.
+          onText: (text) => setWords((current) => ({ subject: current?.subject, text, byVane: shown.byVane })),
+          onSend: () => (send.isPending ? undefined : send.mutate()),
+          onWrite: vane.data && !vane.data.paused && !shown.byVane ? () => write.mutate() : undefined,
+        }
+      : null;
+  return (
+    <VaneQuoteCheckView
+      check={data}
+      changing={change.isPending ? (change.variables?.position ?? null) : null}
+      onChange={(finding) => change.mutate(finding)}
+      message={message}
+    />
+  );
 }
