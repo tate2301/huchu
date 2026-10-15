@@ -29,6 +29,8 @@ export type SettingsRailItem = {
   /** Accessible name for the attention dot. */
   attentionLabel?: string;
   active?: boolean;
+  /** The saas-design lint rules this row breaks on purpose, with the reason in the ledger. */
+  lintIgnore?: string;
 };
 
 export type SettingsRailGroup = {
@@ -203,6 +205,7 @@ function RailItem({ item }: { item: SettingsRailItem }) {
         href={item.href}
         aria-current={item.active ? "page" : undefined}
         className={styles.railItem}
+        data-lint-ignore={item.lintIgnore}
       >
         {body}
       </Link>
@@ -215,6 +218,7 @@ function RailItem({ item }: { item: SettingsRailItem }) {
       onClick={item.onSelect}
       aria-current={item.active ? "true" : undefined}
       className={styles.railItem}
+      data-lint-ignore={item.lintIgnore}
     >
       {body}
     </button>

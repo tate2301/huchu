@@ -321,6 +321,11 @@ export type SettingsNavEntry = {
    * belongs to Users). The href itself is always matched; these are additions.
    */
   matchPrefixes?: string[];
+  /**
+   * The saas-design lint rules this row breaks on purpose (`data-lint-ignore`),
+   * with the reason in design/core-modules/app/ledger.md.
+   */
+  lintIgnore?: string;
 };
 
 export const SETTINGS_RAIL_GROUP_LABELS: Record<SettingsRailGroupId, string> = {
@@ -494,6 +499,8 @@ export const settingsNavEntries: SettingsNavEntry[] = [
     href: "/compliance/inspections",
     icon: ShieldCheck,
     gate: { kind: "feature" },
+    // Safety inspections, not the lexicon's banned word for a site visit (ledger, 15 Oct).
+    lintIgnore: "W1",
   },
   {
     id: "incidents",

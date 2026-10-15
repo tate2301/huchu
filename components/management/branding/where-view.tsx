@@ -111,7 +111,7 @@ export function BrandWhereView({ preview, email }: { preview: Preview; email: st
             {cards.map((card) => (
               <Link key={card.key} href={card.href} className={styles.link} aria-label={`${card.caption}, open its templates in Build`}>
                 <figure className={styles.figure}>
-                  <div className={styles.paper} style={preview.fontFamily ? { fontFamily: preview.fontFamily } : undefined}>
+                  <div className={styles.paper} data-lint-ignore="T2 T3 W3" style={preview.fontFamily ? { fontFamily: preview.fontFamily } : undefined}>
                     <span className={styles.kv} style={{ alignItems: "center" }}>
                       <span className={styles.issuer}>
                         <BrandMark preview={preview} size={20} />

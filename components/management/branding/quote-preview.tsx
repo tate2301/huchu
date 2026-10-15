@@ -39,7 +39,8 @@ export function QuotePreview({ preview, show }: { preview: Preview; show: "ident
         <span>Preview, a quotation</span>
         <span>Updates as you type</span>
       </span>
-      <div className={styles.paper} style={preview.fontFamily ? { fontFamily: preview.fontFamily } : undefined}>
+      {/* The paper as the renderer prints it, on the sample quote: its sizes are the document's, not the app's (ledger, 15 Oct). */}
+      <div className={styles.paper} data-lint-ignore="T2 T3 W3" style={preview.fontFamily ? { fontFamily: preview.fontFamily } : undefined}>
         <div className={styles.paperHead}>
           <span className={styles.issuer}>
             <BrandMark preview={preview} />
