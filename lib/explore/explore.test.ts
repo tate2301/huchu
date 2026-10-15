@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 
 import { describe, expect, it } from "vitest";
@@ -144,10 +144,9 @@ describe("saved questions", () => {
   });
 });
 
-describe("explore_reader's access (waiting for approval)", () => {
+describe("explore_reader's access", () => {
   const schema = readFileSync(path.join(process.cwd(), "prisma/schema.prisma"), "utf8");
-  const proposal = readFileSync(path.join(process.cwd(), "prisma/proposed/20261015120000_explore_reader/schema.prisma"), "utf8");
-  const access = readerAccess(parseSchema(`${schema}\n${proposal}`));
+  const access = readerAccess(parseSchema(schema));
 
   it("reads what Vane's reader reads, less pay and Vane's and Explore's own tables", () => {
     const tables = new Set(exploreReadable(access).map((table) => table.table));
@@ -166,9 +165,23 @@ describe("explore_reader's access (waiting for approval)", () => {
     expect(sql).not.toMatch(/GRANT (INSERT|UPDATE|DELETE)/);
   });
 
-  it("is the SQL in the proposed migration", () => {
-    const migration = readFileSync(path.join(process.cwd(), "prisma/proposed/20261015120000_explore_reader/migration.sql"), "utf8");
-    expect(migration).toContain(exploreReaderSql(access));
+  it("is the SQL in the migrations: its own, and the tables and columns added since", () => {
+    const migrations = readdirSync(path.join(process.cwd(), "prisma/migrations"))
+      .filter((name) => name >= "20261015120000_explore_reader" && !name.endsWith(".toml"))
+      .map((name) => readFileSync(path.join(process.cwd(), "prisma/migrations", name, "migration.sql"), "utf8"))
+      .join("\n");
+    const granted = (sql: string) => {
+      const columns = new Map<string, Set<string>>();
+      for (const [, list, table] of sql.matchAll(/^GRANT SELECT \((.+)\) ON "(\w+)" TO explore_reader;$/gm)) {
+        const own = columns.get(table!) ?? new Set<string>();
+        for (const column of list!.split(", ")) own.add(column);
+        columns.set(table!, own);
+      }
+      return Object.fromEntries([...columns].map(([table, own]) => [table, [...own].sort()]));
+    };
+    const wanted = exploreReaderSql(access);
+    expect(granted(migrations)).toEqual(granted(wanted));
+    for (const policy of wanted.split("\n").filter((line) => line.startsWith("CREATE POLICY"))) expect(migrations).toContain(policy);
   });
 
   it("scopes a role to its products' tables", () => {

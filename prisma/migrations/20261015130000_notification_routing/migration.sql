@@ -1,4 +1,4 @@
--- Notifications (MgmtNotifications, NotifyHow): NEEDS APPROVAL, not applied.
+-- Notifications (MgmtNotifications, NotifyHow): approved 15 Oct.
 -- Who hears about what, per kind and channel, for the workspace and for each person;
 -- when they go (quiet hours, Vane's morning message, repeats grouped); who did the thing;
 -- and types for the kinds that until now carried their record as payload.subject.
@@ -66,3 +66,10 @@ ALTER TABLE "NotificationPolicy" ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "app_all" ON "NotificationPolicy" AS PERMISSIVE FOR ALL TO PUBLIC USING (true) WITH CHECK (true);
 CREATE POLICY "vane_workspace" ON "NotificationPolicy" AS RESTRICTIVE FOR SELECT TO vane_reader USING ("companyId" = (SELECT s."companyId" FROM "VaneReaderScope" s WHERE s."pid" = pg_backend_pid()));
 GRANT SELECT ("companyId", "quietFrom", "quietTo", "morningMessage", "groupRepeats", "updatedById", "updatedAt") ON "NotificationPolicy" TO vane_reader;
+
+-- Explore's reader reaches them too, as `pnpm explore:reader-sql` prints them (20261015120000_explore_reader, approved with this).
+GRANT SELECT ("actorId") ON "Notification" TO explore_reader;
+CREATE POLICY "explore_workspace" ON "NotificationSetting" AS RESTRICTIVE FOR SELECT TO explore_reader USING ('NotificationSetting' = ANY (COALESCE((SELECT s."tables" FROM "ExploreReaderScope" s WHERE s."pid" = pg_backend_pid()), ARRAY[]::text[])) AND "companyId" = (SELECT s."companyId" FROM "ExploreReaderScope" s WHERE s."pid" = pg_backend_pid()));
+GRANT SELECT ("id", "companyId", "userId", "kind", "channel", "enabled", "updatedById", "createdAt", "updatedAt") ON "NotificationSetting" TO explore_reader;
+CREATE POLICY "explore_workspace" ON "NotificationPolicy" AS RESTRICTIVE FOR SELECT TO explore_reader USING ('NotificationPolicy' = ANY (COALESCE((SELECT s."tables" FROM "ExploreReaderScope" s WHERE s."pid" = pg_backend_pid()), ARRAY[]::text[])) AND "companyId" = (SELECT s."companyId" FROM "ExploreReaderScope" s WHERE s."pid" = pg_backend_pid()));
+GRANT SELECT ("companyId", "quietFrom", "quietTo", "morningMessage", "groupRepeats", "updatedById", "updatedAt") ON "NotificationPolicy" TO explore_reader;

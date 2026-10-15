@@ -1,9 +1,7 @@
 /**
- * Migration witness for `20261015120000_explore_reader` — NEEDS APPROVAL.
+ * Migration witness for `20261015120000_explore_reader` (approved 15 Oct).
  *
- * The migration waits in prisma/proposed/ and is not applied, so this suite
- * skips itself until `ExploreReaderScope` exists. Once the migration is
- * approved and applied it checks, as the role itself: a connection bound to
+ * It checks, as the role itself: a connection bound to
  * one workspace and a list of tables reads that workspace's rows of those
  * tables and nothing else, never pay or personal details or a credential,
  * never Vane's or Explore's own tables, and cannot write; Vane's reader reads
@@ -15,11 +13,6 @@ import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { prisma } from "@/lib/prisma";
-
-const applied = await prisma
-  .$queryRaw<Array<{ ok: boolean }>>`SELECT to_regclass('"ExploreReaderScope"') IS NOT NULL AS ok`
-  .then((rows) => rows[0]?.ok === true)
-  .catch(() => false);
 
 class Rollback extends Error {
   constructor(readonly rows: unknown[]) {
@@ -57,7 +50,7 @@ async function asReader<T = Record<string, unknown>>(
 const suffix = randomUUID().slice(0, 8);
 const made = { a: "", b: "" };
 
-describe.runIf(applied)("explore_reader, as stored (20261015120000_explore_reader)", () => {
+describe("explore_reader, as stored (20261015120000_explore_reader)", () => {
   beforeAll(async () => {
     const [a, b] = await Promise.all(
       ["a", "b"].map((which) => prisma.company.create({ data: { name: `Explore witness ${which} ${suffix}`, slug: `explore-witness-${which}-${suffix}` } })),
@@ -116,11 +109,5 @@ describe.runIf(applied)("explore_reader, as stored (20261015120000_explore_reade
     expect(granted.map((row) => row.table_name)).toEqual(["ExploreQuestionRun", "ExploreSettings"]);
     const settings = await asReader("vane_reader", { companyId: made.a }, `SELECT "companyId" FROM "ExploreSettings"`);
     expect(settings).toEqual([]);
-  });
-});
-
-describe("explore_reader before approval", () => {
-  it("is not applied: the migration waits in prisma/proposed", () => {
-    expect(typeof applied).toBe("boolean");
   });
 });
