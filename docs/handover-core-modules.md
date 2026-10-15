@@ -21,18 +21,20 @@ Every module is built except People and payroll, which the owner skipped for now
 | Shortcuts | Every row of `design/core-modules/spec/shortcuts.md` is bound and `components/core/shortcuts.test.ts` checks it, with every kit primary on the built routes showing its key. |
 | People and payroll | Skipped for now (the owner, 15 Oct). Only the engine work for disciplinary penalties (off net pay) shipped. |
 
-Migrations on this branch since main's `20261012120000_vane`: `20261013120000_reports_folders_insights`, `20261013130000_saved_views`, `20261013140000_report_schedules`, and main's Vane follow-ups (`vane_chat_actions`, `vane_gaps`, `vane_message_read`). Each has its witness test and Vane's reader lines.
+Migrations on this branch since main's `20261012120000_vane`: `20261013120000_reports_folders_insights`, `20261013130000_saved_views`, `20261013140000_report_schedules`, and main's Vane follow-ups (`vane_chat_actions`, `vane_gaps`, `vane_message_read`, and `20261015100000_vane_finish` from the merge of PR #228 on 15 Oct). Each has its witness test and Vane's reader lines.
+
+The merge of `origin/main` (15 Oct) kept main's Vane engine and one page per job: the invoice page (`/books/invoices/[id]`) and fee reminders (`/schools/finance/reminders/[id]`; `/schools/fees/remind` redirects). NOTES.md (Vane) says what of ours went as duplicate.
 
 `docs/vane.md` describes what Vane is, its tables, tools and actions, what it may read and how it is set up.
 
 ## Next steps, in order
 
 1. **Two approvals.** Neither is applied; each is a migration with its witness test, waiting for the owner's yes.
-   - **Explore's login:** `prisma/proposed/20261015120000_explore_reader/` (`explore_reader`, `ExploreReaderScope`, `ExploreSettings`, `ExploreQuestionRun`), witnessed by `lib/explore/explore-reader-migration.test.ts`. Once approved: move it to `prisma/migrations/`, deploy, give the role a password by hand and set `EXPLORE_READER_DATABASE_URL`. Explore then reads Postgres through its own login, Schedule it sends, and Management → Explore saves its choices.
+   - **Explore's login:** `prisma/proposed/20261015120000_explore_reader/` (`explore_reader`, `ExploreReaderScope`, `ExploreSettings`, `ExploreQuestionRun`), witnessed by `lib/explore/explore-reader-migration.test.ts`. Since `vane_finish` changed `WorkOrder`, its grants are stale (`lib/explore/explore.test.ts` says so): regenerate them with `pnpm explore:reader-sql` before it moves. Once approved: move it to `prisma/migrations/`, deploy, give the role a password by hand and set `EXPLORE_READER_DATABASE_URL`. Explore then reads Postgres through its own login, Schedule it sends, and Management → Explore saves its choices.
    - **Notification routing:** `prisma/proposed/20261015130000_notification_routing/` (`NotificationSetting` per person, kind and channel; `NotificationPolicy` per workspace; `NotificationChannel`; the NotificationType values for Books, leave, reports and Vane; `Notification.actorId`), with the schema change in `schema.diff` beside it and its witness test as `notification-routing-migration.test.ts.proposed` (it moves to `lib/inbox/` with the migration). Nothing deploys it from `prisma/proposed/`. Once approved, Management → Notifications sets who hears about what by kind and channel, and the morning message and grouping can be built.
    - Both share the timestamp `20261015120000`; Prisma orders them by name. Give the second a later one when it moves into `prisma/migrations/`.
 2. **People and payroll** (section 2 of `design/core-modules/spec/routes.md`): Everyone, a person (`/people/[id]`, linked from the schools staff list and missing), Time off (approve and reject need the leave API, **approval**), Incidents, the pay run and its approve-and-pay drawer, disbursements, returns, the phone payslip (a PDF only today), Management → Pay and statutory. Add its keys to `spec/shortcuts.md` and the shortcut test as each screen is built.
-3. **Smaller waits**, each noted in NOTES.md: Vane's templates (Done's template names, Muted's kinds), counting every report's opens (a write on every open), `ReportSchedule` for built and custom reports (they run in the browser today), mine work orders as drafts (`WorkOrder` has no `companyId`: **approval**), and a fitter's phone scoped to their own visits (an open decision).
+3. **Smaller waits**, each noted in NOTES.md: Vane's templates (Done's template names, Muted's kinds), counting every report's opens (a write on every open), `ReportSchedule` for built and custom reports (they run in the browser today), and a fitter's phone scoped to their own visits (an open decision).
 
 ## 1. Get it running locally
 
