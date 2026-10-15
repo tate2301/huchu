@@ -284,7 +284,11 @@
   "VaneForYou": [
     "panel: Pipeline",
     "panel: Site visits",
-    "panel: Showroom"
+    "panel: Showroom",
+    "button: Notifications",
+    "button: Vane",
+    "button: Pause Vane",
+    "panel: Done12 today"
   ],
   "PageVaneCard": [
     "primary: Open 3 statements [S]",
@@ -334,7 +338,10 @@
     "panel: People and pay",
     "panel: Build",
     "button: Keep showing it",
-    "button: Stop it for me"
+    "button: Stop it for me",
+    "button: Notifications",
+    "button: Vane",
+    "panel: Done14 today"
   ],
   "PageVaneReport": [
     "heading: Areas",
@@ -353,7 +360,8 @@
     "button: Vane",
     "placeholder: Give Vane a job",
     "button: Hand it over",
-    "primary: Save as a template [Ctrl ↵]"
+    "primary: Save as a template [Ctrl ↵]",
+    "button: Notifications"
   ],
   "PageVaneDraft": [
     "heading: Receivables",
