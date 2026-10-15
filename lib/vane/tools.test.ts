@@ -44,6 +44,8 @@ beforeAll(async () => {
 afterAll(async () => {
   const companies = { slug: { startsWith: "vane-tools-" } };
   await prisma.employee.deleteMany({ where: { company: companies } });
+  await prisma.vaneItem.deleteMany({ where: { company: companies } });
+  await prisma.user.deleteMany({ where: { company: companies } });
   await prisma.company.deleteMany({ where: companies });
 });
 
@@ -124,7 +126,13 @@ describe("writing to Vane's own tables", () => {
     expect(stored).toMatchObject({ companyId: made.a, kind: "ISSUE", status: "OPEN", readFrom: card.readFrom, sql: card.sql });
   });
 
-  it("turns a card that does not fit back to Claude", async () => {
+  it("addresses a card raised in a sales rep's chat to that rep alone", async () => {
+    const rep = (await prisma.user.create({ data: { email: `rudo-${suffix}@vane.test`, name: "Rudo", role: "SALES_REP", companyId: made.a }, select: { id: true } })).id;
+    const raised = JSON.parse((await callTool({ ...context(made.a), rep }, "propose_item", { ...card, headline: `Pomona's quote has waited ${suffix}`, audienceRole: "MANAGER" })).content);
+    expect(await prisma.vaneItem.findUniqueOrThrow({ where: { id: raised.id } })).toMatchObject({ audienceUserId: rep, audienceRole: null });
+  });
+
+    it("turns a card that does not fit back to Claude", async () => {
     const result = await callTool(context(made.a), "propose_item", { ...card, headline: "" });
     expect(result).toMatchObject({ ok: false, content: expect.stringContaining("headline") });
   });

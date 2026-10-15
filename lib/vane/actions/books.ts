@@ -139,7 +139,8 @@ const issue = {
   refuse: (context) => refuseUnlessRoute(context, "/api/accounting/sales/invoices", "PATCH"),
   async run(context, p) {
     try {
-      const issued = await issueDraftInvoice({ companyId: context.companyId, userId: context.userId }, p.invoiceId);
+      // Approving is the person taking Vane's draft on as theirs.
+      const issued = await issueDraftInvoice({ companyId: context.companyId, userId: context.userId }, p.invoiceId, { asMine: true });
       return `${issued.invoiceNumber} is issued to ${issued.customer.name}. Send it from Books.`;
     } catch (error) {
       if (error instanceof DraftInvoiceRefused) throw new VaneActionError(error.message);
@@ -156,7 +157,7 @@ const discard = {
   fields: [],
   verb: () => "Delete the draft",
   title: (p) => `Delete Vane's draft ${p.invoiceNumber}`,
-  target: () => "/books/invoices?view=drafts",
+  target: (p) => `/books/invoices/${p.invoiceId}`,
   refuse: (context) => refuseUnlessRoute(context, "/api/accounting/sales/invoices", "PATCH"),
   async run(context, p) {
     try {

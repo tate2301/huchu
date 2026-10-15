@@ -47,26 +47,29 @@ export class DraftInvoiceRefused extends Error {
 }
 
 /**
- * Issues a draft as the person, posted and fiscalised. Approving it is the
- * person confirming the draft as theirs: Vane's draft (`madeByVane`, no
- * maker) is taken on in the same write (`lib/vane/drafts.ts`), dated the day
- * it is issued with its terms kept, and the CRM hears of it then.
+ * Issues a draft as the person, posted and fiscalised. Vane's draft
+ * (`madeByVane`, no maker) is issued only when the person confirms it as
+ * theirs (`asMine`; approving `books.invoice.issue` is that confirmation),
+ * else `VaneDraftNotTakenOn` (409). Taken on in the same write
+ * (`lib/vane/drafts.ts`), it is dated the day it is issued with its terms
+ * kept, and the CRM hears of it then.
  */
-export async function issueDraftInvoice(actor: { companyId: string; userId: string }, invoiceId: string) {
+export async function issueDraftInvoice(actor: { companyId: string; userId: string }, invoiceId: string, confirm: { asMine?: boolean } = {}) {
   const now = new Date();
   const draft = await prisma.salesInvoice.findFirst({
     where: { id: invoiceId, companyId: actor.companyId },
     select: { invoiceNumber: true, status: true, madeByVane: true, createdById: true, invoiceDate: true, dueDate: true },
   });
   if (!draft) throw new DraftInvoiceRefused("That invoice is not here any more.");
-  const takingOn = waitsForAPerson(draft);
+  const takingOn = draft.status === "DRAFT" && waitsForAPerson(draft);
+  const maker = takingOn ? takeOn(draft, { asMine: confirm.asMine, userId: actor.userId, what: draft.invoiceNumber, verb: "issue" }) : {};
   const { count } = await prisma.salesInvoice.updateMany({
     where: { id: invoiceId, companyId: actor.companyId, status: "DRAFT" },
     data: {
       status: "ISSUED",
       issuedById: actor.userId,
       issuedAt: now,
-      ...(takingOn ? { ...takeOn(draft, { asMine: true, userId: actor.userId, what: draft.invoiceNumber, verb: "issue" }), ...datesOnIssue(draft, now) } : {}),
+      ...(takingOn ? { ...maker, ...datesOnIssue(draft, now) } : {}),
     },
   });
   const invoice = await prisma.salesInvoice.findFirst({

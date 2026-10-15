@@ -637,6 +637,8 @@ export type WorkOrder = {
   id: string;
   issue: string;
   status: string;
+  /** Vane's draft, not yet raised by a person. */
+  madeByVane: boolean;
   downtimeStart: string;
   downtimeEnd?: string | null;
   workDone?: string | null;

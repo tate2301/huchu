@@ -5,11 +5,12 @@
  *
  *   pnpm vane:reader-sql > grants.sql          everything, as in 20261012120000_vane
  *   pnpm vane:reader-sql --summary             what each role reads, by table
+ *   pnpm vane:reader-sql --rep                 the sales rep's role, as in 20261015100000_vane_finish
  */
 import { readFileSync } from "node:fs";
 import path from "node:path";
 
-import { parseSchema, readerAccess, readerSql } from "@/lib/vane/reader-access";
+import { parseSchema, readerAccess, readerSql, repReaderSql } from "@/lib/vane/reader-access";
 
 const schema = readFileSync(path.join(process.cwd(), "prisma/schema.prisma"), "utf8");
 const access = readerAccess(parseSchema(schema));
@@ -23,6 +24,8 @@ if (process.argv.includes("--summary")) {
   for (const reason of ["credentials", "conversation", "no workspace link"] as const) {
     console.log(`Neither reads (${reason}): ${access.unreadable.filter((t) => t.reason === reason).map((t) => t.table).join(", ")}`);
   }
+} else if (process.argv.includes("--rep")) {
+  process.stdout.write(repReaderSql(access));
 } else {
   process.stdout.write(readerSql(access));
 }

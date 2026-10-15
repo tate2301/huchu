@@ -1,37 +1,47 @@
-/** Fee reminders drafted by Vane: each family's own words, and what the approval says it will do. */
+/** Fee reminders drafted by Vane: each family's own words, who is ticked, and what the approval says it will do. */
 import { describe, expect, it } from "vitest";
 
+import { formatSchoolMoney } from "@/lib/schools/format";
+
 import { VANE_ACTIONS } from "./registry";
-import { goingTo, reminderFor } from "./schools";
+import { reminderFor, remindedFamilies, remindParams } from "./schools";
 
 const remind = VANE_ACTIONS.find((action) => action.kind === "schools.fees.remind")!;
-const params = remind.params.parse({
+const draft = {
   term: "Third term",
+  currency: "USD",
   subject: "Third-term fees",
   body: "Dear [family], Mazowe High has not yet received third-term fees for [pupil]: [amount].",
   families: [
-    { studentId: "s1", family: "The Moyo family", pupil: "Rumbidzai, Form 3B", amount: "USD 1,420.00" },
-    { studentId: "s2", family: "The Ncube family", pupil: "Tafadzwa, Form 4A", amount: "USD 1,180.00" },
+    { studentId: "s1", family: "The Moyo family", pupil: "Rumbidzai, Form 3B", owed: 1420 },
+    { studentId: "s2", family: "The Ncube family", pupil: "Tafadzwa, Form 4A", owed: 1180 },
+    { studentId: "s3", family: "The Zhou family", pupil: "Tinashe, Form 2C", owed: 640, why: "payment plan agreed" },
   ],
-  leftOut: [{ family: "The Zhou family", why: "payment plan agreed" }],
-}) as never;
+  skip: ["s3"],
+};
+const params = remind.params.parse(draft) as never;
 
 describe("Vane's fee reminders", () => {
   it("fills in each family's own name, pupil and amount", () => {
-    expect(reminderFor("Dear [family], [pupil] owes [amount]. [amount] in all.", { studentId: "s1", family: "The Moyo family", pupil: "Rumbidzai", amount: "USD 1,420.00" })).toBe(
-      "Dear The Moyo family, Rumbidzai owes USD 1,420.00. USD 1,420.00 in all.",
+    expect(reminderFor("Dear [family], [pupil] owes [amount]. [amount] in all.", draft.families[0]!, "USD")).toBe(
+      `Dear The Moyo family, Rumbidzai, Form 3B owes ${formatSchoolMoney(1420, "USD")}. ${formatSchoolMoney(1420, "USD")} in all.`,
     );
   });
 
-  it("says how many it sends and who it leaves out, and lets the words be changed", () => {
+  it("reminds the ticked families, and says who it leaves out and why", () => {
+    expect(remindedFamilies(draft).map((family) => family.studentId)).toEqual(["s1", "s2"]);
     expect(remind.verb(params)).toBe("Send 2 reminders");
     expect(remind.title(params)).toBe("Remind 2 families of Third term fees; 1 left out (payment plan agreed)");
-    expect(remind.fields.map((field) => field.name)).toEqual(["subject", "body", "leaveOut"]);
   });
 
-  it("goes only to the families still ticked", () => {
-    const unticked = remind.params.parse({ ...(params as object), leaveOut: ["s2"] }) as never;
-    expect(remind.verb(unticked)).toBe("Send 1 reminder");
-    expect(goingTo(unticked).map((family) => family.studentId)).toEqual(["s1"]);
+  it("lets the words change on the card, and the ticks only on its own page", () => {
+    expect(remind.fields.map((field) => field.name)).toEqual(["subject", "body"]);
+    expect(remind.pageFields).toEqual(["skip"]);
+    expect(remind.target(params, "a1")).toBe("/schools/finance/reminders/a1");
+  });
+
+  it("leaves out only a family on the list, and sends to at least one", () => {
+    expect(remindParams.safeParse({ ...draft, skip: ["someone-else"] }).success).toBe(false);
+    expect(remindParams.safeParse({ ...draft, skip: ["s1", "s2", "s3"] }).success).toBe(false);
   });
 });

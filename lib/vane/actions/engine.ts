@@ -67,7 +67,7 @@ export function toActionView(row: ActionRow, registry: Registry = VANE_ACTIONS):
     module: action?.module ?? row.kind.split(".")[0] ?? "vane",
     title: row.title,
     verb: action && parsed?.success ? action.verb(parsed.data) : "Approve",
-    target: action && parsed?.success ? action.target(parsed.data) : null,
+    target: action && parsed?.success ? action.target(parsed.data, row.id) : null,
     fields: (action?.fields ?? []).map((field) => ({ ...field, value: params[field.name] ?? null })),
     status: STATUS[row.status],
     result: row.result,
@@ -169,7 +169,7 @@ export async function decideAction(
 
   const action = find(registry, row.kind);
   if (!action) return { ok: false, status: 400, error: "Vane no longer knows how to do this." };
-  const editable = new Set(action.fields.map((field) => field.name));
+  const editable = new Set([...action.fields.map((field) => field.name), ...(action.pageFields ?? [])]);
   const changes = Object.fromEntries(Object.entries(decision.changes ?? {}).filter(([name]) => editable.has(name)));
   const parsed = action.params.safeParse({ ...asParams(row.params), ...changes });
   if (!parsed.success) return { ok: false, status: 400, error: parsed.error.issues[0]?.message ?? "Those inputs are not right." };

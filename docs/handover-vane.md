@@ -51,11 +51,11 @@ All 25 are on the Core modules canvas, Vane page. Each opens on its own as `desi
 | 18 | VnInteractions | Interactions | reference | |
 | 19 | PageVaneForm | Changes to a form, from its answers | in Build | built: "Read the answers for changes" in a site-visit form's settings; require, add an option, a quote line's waste; Keep joins the draft |
 | 20 | PageVaneDocument | A quote checked, and the message written | on a quotation | built: the quote's rail checks its lines against the price list; Write it with Vane in its email |
-| 21 | PageVaneDraft | Vane's draft invoice, in Books | in Books → Invoices | built: the `draft` tool drafts an accepted quote's invoice as Vane's ("Vane's draft" in the list); Issue it and Delete the draft are approvable actions. No invoice page of its own: Books has none |
+| 21 | PageVaneDraft | Vane's draft invoice, in Books | `/books/invoices/[id]` | built: the `draft` tool drafts an accepted quote's invoice as Vane's ("Vane's draft" in the list). The invoice's page shows Vane's note, the lines, and what changed since the quote; Issue and Delete the draft there or as approvable actions |
 | 22 | PageVaneRetail | Retail: orders drafted from Stock to reorder | in Retail → Buying | built: the `draft` tool drafts a reorder as Vane's ("Vane's draft" in Orders); retail.order.send sends it |
-| 23 | PageVaneSchool | Schools: fee reminders drafted | in Schools → Fees | built as an approvable action (`schools.fees.remind`): one notice per family with its own name, pupil and amount, the words changeable before it goes. The board's per-family ticks are not a page yet |
-| 24 | PageVaneMine | Gold mine: a work order drafted from Downtime | in Gold → Work orders | needs a decision (below) |
-| 25 | PageVanePhone | A fitter's phone, only his own visits | the panel at 390 | the scope needs a decision (below) |
+| 23 | PageVaneSchool | Schools: fee reminders drafted | `/schools/finance/reminders/[id]` | built: `schools.fees.remind` lists every family who owes, unticked where Vane left them out with why; its page ticks families, changes the words for all, says who has nobody on the portal, and sends or discards |
+| 24 | PageVaneMine | Gold mine: a work order drafted from Downtime | `/maintenance/work-orders/[id]` | built: the `draft` tool drafts a work order from the equipment's history (migration `20261015100000_vane_finish` gave work orders a workspace, maker, priority and Vane's mark); its page shows the history and parts against stores; Raise the work order or Delete the draft. Downtime events have no equipment, so the history is the equipment's earlier work orders |
+| 25 | PageVanePhone | A fitter's phone, only his own visits | the panel at 390 | built: a rep's Vane reads as `vane_reader_rep`, their own visits and quotes only; their panel shows only cards addressed to them |
 
 Already built from other pages' boards: BooksVane (Books → Money with Vane open) and MgmtVane (Management → Vane, scores 100%).
 
@@ -150,14 +150,12 @@ In this order, each on the module's own page, each a person's action to keep:
 
 | Decision | Until it is made |
 |---|---|
-| Fitters' questions: only their own visits and quotes? (PageVanePhone; a rep reads the whole pipeline in the CRM today) | The panel at 390 is built unscoped, and the gap is noted |
-| Gold work orders have no `companyId` or `createdById`, so Vane can't mark them as its drafts (PageVaneMine) | Not built. Making it needs a migration, proposed first |
-| Vane's monthly allowance | 5,000 jobs (`VaneSettings.monthlyAllowance`) |
+| Vane's monthly allowance | 5,000 jobs (`VaneSettings.monthlyAllowance`); Management → Vane shows it against the month, and nobody can change it there |
 | Report questions as drafts (a `CustomReport` block has no draft flag) | Vane keeps the question on its card until someone presses Keep |
 
 ## Rules that never bend
 
-- Vane reads through its own login, never `SET ROLE` on the app's connection.
+- Vane reads through its own login, never `SET ROLE` on the app's connection. (A rep's reading switches the reader's own connection to `vane_reader_rep`, which narrows it further.)
 - New tables are unreadable to Vane until granted: paste the lines from `pnpm vane:reader-sql` into the migration that adds them.
 - Vane never sends, pays, saves or changes anything by itself. A person presses the button, and the server enforces it.
 - Claude is named once, on Management → Vane.

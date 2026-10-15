@@ -69,6 +69,7 @@ const MODULE_NAMES: Record<string, string> = {
   payroll: "Payroll",
   schools: "Schools",
   gold: "Gold",
+  assets: "Assets",
 };
 
 export function moduleName(source: string): string {
@@ -211,6 +212,8 @@ export async function vanePanel(
   ]);
 
   const cards = await toCards(db, companyId, items);
+  // A rep's Vane shows their own cards and nothing of the workspace's work.
+  if (status.own) return { status, items: cards, plans: [], done: [], working: [] };
   // This module's cards first, then the rest, each newest first.
   const here = module ? moduleName(module) : null;
   cards.sort((a, b) => Number(b.source === here) - Number(a.source === here));

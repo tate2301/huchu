@@ -154,9 +154,9 @@ export function VaneActionList({
                       {action.result}
                     </p>
                   ) : null}
-                  {action.fields.some((field) => field.type !== "pick") ? (
+                  {action.fields.length > 0 ? (
                     <div className="va-f">
-                      {action.fields.filter((field) => field.type !== "pick").map((field) => (
+                      {action.fields.map((field) => (
                         <FieldInput
                           key={field.name}
                           field={field}

@@ -10,6 +10,7 @@ const MODULE_ICONS: Record<string, IconName> = {
   payroll: "money",
   schools: "users",
   gold: "grade",
+  assets: "inspections",
   vane: "foryou",
 };
 

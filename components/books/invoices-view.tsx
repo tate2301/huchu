@@ -217,7 +217,7 @@ export function InvoicesPageView({
                 <tr key={row.id} aria-selected={selection.isSelected(row.id) || undefined}>
                   <SelectCell checked={selection.isSelected(row.id)} onChange={() => selection.toggle(row.id)} label={`Select ${row.number}`} />
                   <td>
-                    <Link className="code" href={`/books/invoices/${row.id}`} style={{ color: "inherit", textDecoration: "none" }}>
+                    <Link className="code link" href={`/books/invoices/${row.id}`}>
                       {row.number}
                     </Link>
                   </td>

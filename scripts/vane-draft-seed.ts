@@ -300,7 +300,7 @@ async function fees(slug: string) {
     pupil: student.currentClass
       ? `${student.firstName}, ${student.currentClass.name}`
       : student.firstName,
-    amount: `USD ${(owed.get(student.id) ?? 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+    owed: Math.round((owed.get(student.id) ?? 0) * 100) / 100,
   }));
   await tool(company.id, "propose_item", {
     kind: "SUGGESTION",
@@ -325,10 +325,11 @@ async function fees(slug: string) {
         kind: "schools.fees.remind",
         params: {
           term: term.name,
+          currency: "USD",
           subject: `Fees for ${term.name}`,
           body: `Dear [family], ${company.name} has not yet received ${term.name} fees for [pupil]: [amount]. You can pay at the bursary, or ask us for a payment plan. Thank you.`,
           families,
-          leaveOut: [],
+          skip: [],
         },
       },
     ],

@@ -274,7 +274,7 @@
 .ck [data-module="books"] { --mod: var(--hue-3); }
 .ck [data-module="crm"] { --mod: var(--hue-1); }
 .ck [data-module="retail"] { --mod: var(--hue-2); }
-.ck [data-module="gold"] { --mod: var(--hue-4); }
+.ck [data-module="gold"], .ck [data-module="assets"] { --mod: var(--hue-4); }
 .ck [data-module="people"], .ck [data-module="payroll"] { --mod: var(--hue-5); }
 .ck [data-module="schools"] { --mod: var(--hue-6); }
 
@@ -389,3 +389,8 @@
 .ck.ck.ck .vr-ask { display: flex; align-items: center; gap: var(--space-8); min-height: 32px; padding: var(--space-4) var(--space-12) var(--space-4) var(--space-8); border-radius: 10px; box-shadow: inset 0 0 0 1px var(--color-line); background: var(--color-surface); font-size: var(--text-13); color: var(--color-ink-2); text-align: left; transition: background var(--motion-fast) var(--motion-ease); }
 .ck.ck.ck .vr-ask:hover { background: var(--color-hover); color: var(--color-ink); }
 @media (prefers-reduced-motion: reduce) { .ck.ck.ck .vr-ask { transition: none; } }
+
+/* Vane's draft (PageVaneDraft, PageVaneMine): the line across the top of a record Vane made. */
+.ck .vn-draft { display: flex; align-items: center; gap: var(--space-8); padding: var(--space-12) var(--space-24); background: color-mix(in oklab, var(--color-accent) 7%, var(--color-surface)); box-shadow: inset 0 -1px 0 var(--color-line); font-size: var(--text-13); color: var(--color-ink); flex: none; }
+.ck .vn-draft .t { flex: 1; min-width: 0; }
+.ck .vn-draft .end { flex: none; }
