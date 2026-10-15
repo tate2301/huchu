@@ -265,7 +265,7 @@ export function LayoutBuilder({ id }: { id: string }) {
             </div>
           ) : null}
           <p className="rb-note">Colours, the logo and the payment accounts come from Branding. Changing them there changes every document.</p>
-          {row ? <RecordActivityTrail entityType="DocumentTemplate" entityId={row.id} fullLogHref="/preferences/organization/activity" /> : null}
+          {row ? <RecordActivityTrail entityType="DocumentTemplate" entityId={row.id} fullLogHref="/activity?view=workspace" /> : null}
         </>
       }
     />

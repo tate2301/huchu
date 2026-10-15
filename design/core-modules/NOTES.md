@@ -151,6 +151,10 @@ What the build could not match, decided differently from the boards, or built wi
 - Templates › Made here opens the workspace's own forms, documents and emails in the builder rather than copying them: not every kind has an API that copies.
 - The areas question says rooms (Add a room) and the quote's price column says Price, as drawn.
 
+### Notifications
+
+- 14 Oct: the owner asked for a redesign of Notifications (compact, quiet, rich about what each concerns, detail one level deeper); the quiet row, the bell's Needs you and Everything, /activity with its drawer (which takes in Settings → Activity as its Workspace view) and the per-kind settings replace NotifyBell and NotifyActivity as the target (ledger, 14 Oct).
+
 ### Sample data the checks leave out (`tools/check/known.json`)
 
 - PageVaneForm: the board's Floor site visit is its sample (Rooms, Finishes, its questions, choices and quote lines), as for BuildForm; it is checked on Floorcode's Epoxy flooring survey. Kept is a change a person has kept, drawn mid-way; the builder's back button says where it goes (Back to Build). Its Not now and Keep are the changes Vane has read, drawn after Read the answers for changes was pressed: since the merge with `claude/vane-modules` they come from a job of kind write when asked, not on open, and this server has no model key to answer it.

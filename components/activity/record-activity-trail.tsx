@@ -9,7 +9,7 @@ import { humanizeField } from "@/lib/activity/describe";
 /** The trail under a record is its latest changes; the full log has the rest. */
 const TRAIL_LENGTH = 10;
 
-const FULL_LOG_HREF = "/preferences/organization/activity";
+const FULL_LOG_HREF = "/activity?view=workspace";
 
 /**
  * A record's Activity section, filled from the activity log.

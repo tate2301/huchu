@@ -543,7 +543,7 @@ export const settingsNavEntries: SettingsNavEntry[] = [
     id: "activity",
     group: "company",
     label: "Activity",
-    href: "/preferences/organization/activity",
+    href: "/activity?view=workspace",
     icon: History,
     gate: { kind: "preference", itemId: "activity" },
   },

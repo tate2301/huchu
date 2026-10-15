@@ -56,7 +56,7 @@ import {
 /** The register's query key. Unchanged — invalidation elsewhere depends on it. */
 const QUERY_KEY = ["management", "master-data", "job-grades"] as const;
 
-const FULL_LOG_HREF = "/preferences/organization/activity";
+const FULL_LOG_HREF = "/activity?view=workspace";
 
 /**
  * Job grades — `JobGrades.dc.html`: the list beside the record.
