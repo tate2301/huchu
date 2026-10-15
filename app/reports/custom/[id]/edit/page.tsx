@@ -1,7 +1,7 @@
-import { CustomReportEditor } from "@/components/reports/custom/custom-report-editor";
+import { redirect } from "next/navigation";
 
-/** Who may change the report is the API's to say; the editor shows its answer. */
-export default async function EditCustomReportPage({ params }: { params: Promise<{ id: string }> }) {
+/** A custom report's builder moved to `/reports/c/[slug]/edit`; old links keep working. */
+export default async function OldEditCustomReportPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  return <CustomReportEditor id={id} />;
+  redirect(`/reports/c/${encodeURIComponent(id)}/edit`);
 }

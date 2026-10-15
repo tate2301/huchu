@@ -4,10 +4,14 @@ import { z } from "zod"
 import { errorResponse, successResponse, validateSession } from "@/lib/api-utils"
 import { prisma } from "@/lib/prisma"
 
-const readSchema = z.object({
-  recipientIds: z.array(z.string().uuid()).min(1).max(200),
-  actionTaken: z.string().max(100).optional(),
-})
+/** Some of the reader's notifications by id, or `all: true` for every unread one of theirs. */
+const readSchema = z.union([
+  z.object({
+    recipientIds: z.array(z.string().uuid()).min(1).max(200),
+    actionTaken: z.string().max(100).optional(),
+  }),
+  z.object({ all: z.literal(true) }),
+])
 
 export async function POST(request: NextRequest) {
   try {
@@ -18,6 +22,14 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const validated = readSchema.parse(body)
     const now = new Date()
+
+    if ("all" in validated) {
+      const result = await prisma.notificationRecipient.updateMany({
+        where: { userId: session.user.id, isRead: false, isArchived: false },
+        data: { isRead: true, readAt: now },
+      })
+      return successResponse({ updated: result.count })
+    }
 
     const result = await prisma.notificationRecipient.updateMany({
       where: {

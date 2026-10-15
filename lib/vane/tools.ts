@@ -13,6 +13,7 @@ import { draftOrderForVane, OrderRefusal } from "@/lib/retail/buying/orders";
 import { proposeActions, type ActionProposal } from "./actions/engine";
 import { VANE_ACTIONS } from "./actions/registry";
 import { blockSchema, type VaneBlock } from "./blocks";
+import { usualTerms } from "./drafts";
 import { moveVaneStep } from "./lists";
 import { VANE_PAGES_GUIDE } from "./pages";
 import { VANE_SUBJECTS } from "./panel";
@@ -25,8 +26,9 @@ import { readWorkspace, ReaderError, tablesFor, withReader, type ReadableTable }
  * and every call is checked against it before the handler runs.
  *
  * Reading goes through the reader roles (`reader.ts`); writing is limited to
- * Vane's own tables: cards (`VaneItem`) and plans (`VanePlan`). Drafts of
- * invoices, quotations and purchase orders are the next tool.
+ * Vane's own tables, cards (`VaneItem`) and plans (`VanePlan`), and to drafts
+ * (`draft`): an invoice or a purchase order written through the module's own
+ * create code, marked `madeByVane`, which only a person issues or sends.
  */
 
 export type ToolContext = {
@@ -198,13 +200,24 @@ const proposeItem = tool({
     headline: z.string().min(1).max(160),
     body: z.string().min(1).max(2000),
     action: z.object({
-      type: z.string().min(1).max(40).describe('What the button does: "open", "send_reminders", "review_draft".'),
+      type: z
+        .string()
+        .min(1)
+        .max(40)
+        .describe(
+          'What the button does: "open", "send_reminders", "review_draft". "send" for the message you wrote to go with a quote (subjectType CrmLeadDocument, subjectId the quote\'s document): the body is the message itself, which a person changes and sends with the quote from its page.',
+        ),
       label: z.string().min(1).max(40).describe('The button\'s words: "Send the reminders".'),
       target: z
         .string()
-        .max(400)
+        .max(2000)
         .optional()
         .describe("The page it opens, with the filters that show just these records: \"/books/invoices?view=overdue&customer=<id>\". See the pages list."),
+      shortcut: z.string().max(12).optional().describe('The key that presses it, when it is the card\'s main act: "S", "Ctrl ↵".'),
+      also: z
+        .object({ label: z.string().min(1).max(40), target: z.string().startsWith("/").max(2000) })
+        .optional()
+        .describe('A second, quieter way in: "Open the 11 rows" beside "Save as a template".'),
     }),
     topic: z
       .string()
@@ -215,7 +228,7 @@ const proposeItem = tool({
     subjectType: z
       .enum(VANE_SUBJECTS)
       .optional()
-      .describe("The one record it is about, when there is one; the card then shows on that record's page too (a deal's, a lead's, a company's)."),
+      .describe("The one record it is about, when there is one; the card then shows on that record's page too (a deal's, a lead's, a company's). For a suggestion about a list itself (send it on a schedule, add a column), use List with the list's path as subjectId (\"/books/invoices\")."),
     subjectId: z.string().max(60).optional(),
     sql: z.string().max(20_000).optional(),
     readFrom: z
@@ -307,7 +320,7 @@ const draftTool = tool({
   name: "draft",
   description:
     "Draft work through the module's own code, as Vane's draft (made by Vane, no person as its maker), for a person to check and send, issue or delete. It never sends, posts or issues anything. " +
-    "invoice_from_quote: the invoice for an accepted quotation not yet invoiced, line for line, dated today, due on the customer's usual terms (dueDate). " +
+    "invoice_from_quote: the invoice for an accepted quotation not yet invoiced, line for line, dated the day a person issues it, due on the customer's usual terms (leave dueDate out and they are read from the customer's past invoices). " +
     "reorder: a purchase order for one supplier and one branch, for products running low there, each with whole units and the cost last paid. " +
     "work_order: when one machine keeps breaking down the same way (WorkOrder history on that Equipment), a work order to fix the cause: the equipment, the issue, a note with the figures that show it (how many times, hours lost, since when), the priority, a technician when one is the obvious one, and the parts it needs from stores (InventoryItem at the equipment's site) by itemId. " +
     "quote: a quote on one deal or lead, priced from the knowledge base. Find each thing in it with search_knowledge first and give that price's knowledgePriceId: the line takes the price exactly as kept. Work out quantities from what you were told or read (a site visit's measurements, the deal's notes), with any allowance the knowledge base states. A line nothing in the knowledge base prices takes your estimate (unitPrice) and is marked for a person to check; say which and why. In a chat, show the quote you drafted (show, a quote block) and say in a sentence what it holds and what to check. A sales rep may quote only on their own deals and leads. " +
@@ -321,7 +334,7 @@ const draftTool = tool({
         .string()
         .regex(/^\d{4}-\d{2}-\d{2}$/)
         .optional()
-        .describe("invoice_from_quote: when it falls due."),
+        .describe("invoice_from_quote: when it falls due, when you know better than the customer's usual terms."),
       supplierId: z.string().min(1).optional().describe("reorder: who it is ordered from."),
       siteId: z.string().min(1).optional().describe("reorder: the branch it is delivered to."),
       expectedDate: z
@@ -407,10 +420,12 @@ const draftTool = tool({
         };
       }
       if (input.kind === "invoice_from_quote") {
+        const today = new Date();
         const invoice = await draftInvoiceFromQuote(
           { companyId, userId: null, madeByVane: true },
-          { quotationId: input.quotationId!, invoiceDate: new Date().toISOString().slice(0, 10), dueDate: input.dueDate },
+          { quotationId: input.quotationId!, invoiceDate: today.toISOString().slice(0, 10), dueDate: input.dueDate ?? (await usualDueDate(companyId, input.quotationId!, today)) },
         );
+        // Its page (PageVaneDraft) is where a person checks it, takes it on and issues it.
         return { drafted: "invoice", invoiceId: invoice.id, invoiceNumber: invoice.invoiceNumber, customer: invoice.customer.name, total: invoice.total, link: `/books/invoices/${invoice.id}` };
       }
       if (input.kind === "work_order") {
@@ -434,6 +449,20 @@ const draftTool = tool({
     }
   },
 });
+
+/** Due on the customer's usual terms from today, read off their issued invoices; null when they have none. */
+async function usualDueDate(companyId: string, quotationId: string, today: Date): Promise<string | null> {
+  const quote = await prisma.salesQuotation.findFirst({ where: { id: quotationId, companyId }, select: { customerId: true } });
+  if (!quote) return null;
+  const past = await prisma.salesInvoice.findMany({
+    where: { companyId, customerId: quote.customerId, status: { in: ["ISSUED", "PAID"] }, dueDate: { not: null } },
+    orderBy: { invoiceDate: "desc" },
+    take: 20,
+    select: { invoiceDate: true, dueDate: true },
+  });
+  const terms = usualTerms(past);
+  return terms === null ? null : new Date(today.getTime() + terms * 86_400_000).toISOString().slice(0, 10);
+}
 
 const describeReport = tool({
   name: "describe_report",

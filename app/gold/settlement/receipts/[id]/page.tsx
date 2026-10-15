@@ -212,7 +212,7 @@ export default function ReceiptDetailPage() {
                     {grams(data.goldPour.goldShiftAllocation.workerShareWeight)}
                   </p>
                   <Link
-                    href={`/gold/insights/allocations/${data.goldPour.goldShiftAllocation.id}`}
+                    href={`/gold/allocations/${data.goldPour.goldShiftAllocation.id}`}
                     className="text-xs text-primary hover:underline"
                   >
                     Open allocation →

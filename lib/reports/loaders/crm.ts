@@ -162,6 +162,7 @@ async function loadDeals(ctx: ReportContext, params: ReportParams): Promise<Repo
       title: true,
       status: true,
       value: true,
+      currency: true,
       probability: true,
       expectedCloseDate: true,
       wonAt: true,
@@ -184,6 +185,8 @@ async function loadDeals(ctx: ReportContext, params: ReportParams): Promise<Repo
       status: label(deal.status),
       owner: personName(deal.assignedTo),
       value: deal.value,
+      // Not a column: it names what Value is in (`withCurrency`).
+      currency: deal.currency,
       probability: deal.probability,
       closes: day(deal.expectedCloseDate),
       wonAt: day(deal.wonAt),

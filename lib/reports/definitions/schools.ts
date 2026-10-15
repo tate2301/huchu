@@ -38,6 +38,7 @@ const feeBalances: ReportDefinition = {
     { key: "issued", label: "Issued", kind: "date", hidden: true },
     { key: "due", label: "Due", kind: "date" },
     { key: "daysOverdue", label: "Days overdue", kind: "number", total: "max" },
+    { key: "lastPaid", label: "Last paid", kind: "date", hidden: true },
     { key: "total", label: "Billed", kind: "money", total: "sum" },
     { key: "paid", label: "Paid", kind: "money", total: "sum" },
     { key: "waived", label: "Waived", kind: "money", hidden: true, total: "sum" },
@@ -120,4 +121,47 @@ const roll: ReportDefinition = {
   rowActions: [{ id: "open", kind: "open", label: "Open pupil", href: "/schools/students/{id}" }],
 };
 
-export const SCHOOL_REPORTS: ReportDefinition[] = [feeBalances, feeReceipts, registers, roll];
+/** Who was on the roll each term, by boarding and gender (the Enrolment tab of the old School reports). */
+const enrolment: ReportDefinition = {
+  key: "school-enrolment",
+  title: "Enrolment",
+  area: "Pupils",
+  summary: "Pupils on the roll each term, boarders and day, girls and boys",
+  href: "/schools/students",
+  profiles: PROFILES,
+  params: [],
+  columns: [
+    { key: "term", label: "Term", kind: "text" },
+    { key: "starts", label: "Starts", kind: "date" },
+    { key: "enrolled", label: "Enrolled", kind: "number", total: "max" },
+    { key: "boarders", label: "Boarders", kind: "number" },
+    { key: "day", label: "Day", kind: "number" },
+    { key: "girls", label: "Girls", kind: "number" },
+    { key: "boys", label: "Boys", kind: "number" },
+  ],
+  defaults: { sort: [{ column: "starts", dir: "desc" }] },
+};
+
+/** How full each hostel is (the Occupancy tab of the old School reports). */
+const boarding: ReportDefinition = {
+  key: "school-boarding",
+  title: "Boarding",
+  area: "Pupils",
+  summary: "Beds, beds taken and beds free in each hostel",
+  href: "/schools/boarding",
+  profiles: PROFILES,
+  params: [],
+  columns: [
+    { key: "hostel", label: "Hostel", kind: "text" },
+    { key: "code", label: "Code", kind: "code", hidden: true },
+    { key: "policy", label: "For", kind: "status" },
+    { key: "rooms", label: "Rooms", kind: "number", total: "sum" },
+    { key: "beds", label: "Beds", kind: "number", total: "sum" },
+    { key: "taken", label: "Taken", kind: "number", total: "sum" },
+    { key: "free", label: "Free", kind: "number", total: "sum" },
+    { key: "occupancy", label: "Occupancy, %", kind: "number" },
+  ],
+  defaults: { sort: [{ column: "hostel", dir: "asc" }] },
+};
+
+export const SCHOOL_REPORTS: ReportDefinition[] = [feeBalances, feeReceipts, registers, roll, enrolment, boarding];

@@ -1,6 +1,8 @@
 import { canViewAccountingHref } from "@/lib/accounting/visibility";
-import type { NavGroup, NavItem, NavSection } from "@/lib/navigation";
-import { getNavSectionsForRole, navSections, REPORTS_NAV_HREFS, schoolBandGrant } from "@/lib/navigation";
+import { buildProvisions, type BuildProvisions } from "@/lib/build/provision";
+import { hasRole } from "@/lib/roles";
+import type { BuildNavItem, NavGroup, NavItem, NavSection } from "@/lib/navigation";
+import { getNavSectionsForRole, navSections, REPORTS_NAV_GROUPS, REPORTS_NAV_HREFS, schoolBandGrant } from "@/lib/navigation";
 import { normalizeFeatureKey } from "@/lib/platform/gating/catalog-utils";
 import { filterNavSectionsByEnabledFeatures } from "@/lib/platform/gating/nav-filter";
 import type { PersonaCode } from "@/lib/platform/personas";
@@ -28,7 +30,7 @@ import {
   Payments,
   type LucideIcon,
 } from "@/lib/icons";
-import { getVisibleManagementModuleItems } from "@/lib/settings/management-nav";
+import { getVisibleManagementModuleItems, isSettingsSurfacePath } from "@/lib/settings/management-nav";
 import { reportCatalog } from "@/lib/reports/catalog";
 import { REPORT_DEFINITIONS } from "@/lib/reports/registry";
 import { isRouteAllowedForRole } from "@/lib/auth-core/role-routes";
@@ -101,6 +103,8 @@ type WorkspaceProfileSectionSpec = {
    * gating is dropped, the same way `buildModuleSection` drops one.
    */
   groups?: NavGroup[];
+  /** The groups are bands inside the section's own panel (Reports' Insights), as `NavSection.panelGroups`. */
+  panelGroups?: boolean;
   refs: Array<{
     moduleId: WorkspaceModuleId;
     href: string;
@@ -378,7 +382,12 @@ const WORKSPACE_MODULES: Record<WorkspaceModuleId, WorkspaceModuleDefinition> = 
      * entry asks the catalogue rather than a feature of its own.
      */
     getItems(context) {
-      const items = context.navSectionById.get("reporting")?.items ?? [];
+      // Each row in the workspaces it is drawn in: a school's Overview, a mine's insights.
+      const raw = context.workspaceProfile?.trim().toUpperCase() ?? "";
+      const profile = normalizeWorkspaceProfile(context.workspaceProfile);
+      const items = (context.navSectionById.get("reporting")?.items ?? []).filter(
+        (item) => !item.profiles || item.profiles.includes(raw) || item.profiles.includes(profile),
+      );
       const readable = reportCatalog(
         REPORT_DEFINITIONS,
         { role: context.role ?? "", enabledFeatures: context.enabledFeatures },
@@ -407,14 +416,21 @@ const WORKSPACE_MODULES: Record<WorkspaceModuleId, WorkspaceModuleDefinition> = 
   },
   management: {
     id: "management",
-    label: "Management",
+    // What is left in the panel once Management's own pages are behind the gear.
+    label: "Compliance",
     homeHref: "/management/master-data",
     getItems(context) {
-      return getVisibleManagementModuleItems(context.enabledFeatures).map((item) => ({
-        href: item.href,
-        label: item.label,
-        icon: item.icon ?? FileText,
-      }));
+      // Management's full-page surface (Branding, Master data, Users) is
+      // reached from the rail's gear, never from a panel (spec/shell.md): a
+      // panel row into it left the panel it was clicked in. What stays is
+      // the page in the shell, Compliance.
+      return getVisibleManagementModuleItems(context.enabledFeatures)
+        .filter((item) => !isSettingsSurfacePath(item.href.split("?")[0] ?? item.href))
+        .map((item) => ({
+          href: item.href,
+          label: item.label,
+          icon: item.icon ?? FileText,
+        }));
     },
   },
 };
@@ -457,6 +473,8 @@ function buildSchoolsProfileSections(): WorkspaceProfileSectionSpec[] {
   const reports = {
     id: "schools-all-reports",
     title: "Reports",
+    groups: REPORTS_NAV_GROUPS,
+    panelGroups: true,
     refs: REPORTS_NAV_HREFS.map((href) => ({ moduleId: "reporting" as const, href })),
   };
 
@@ -501,25 +519,27 @@ const WORKSPACE_PROFILE_RECIPES: Partial<Record<WorkspaceProfile, WorkspaceProfi
         title: "Production",
         refs: [
           { moduleId: "gold", href: "/gold" },
-          { moduleId: "gold", href: "/gold/intake/pours/new" },
-          { moduleId: "gold", href: "/gold/intake/purchases/new" },
+          { moduleId: "gold", href: "/gold/intake/pours" },
+          { moduleId: "gold", href: "/gold/intake/purchases" },
+          { moduleId: "gold", href: "/gold/allocations" },
         ],
       },
       {
         id: "gold-chain",
         title: "Movement & Settlement",
         refs: [
-          { moduleId: "gold", href: "/gold/transit/dispatches/new" },
-          { moduleId: "gold", href: "/gold/settlement/receipts/new" },
+          { moduleId: "gold", href: "/gold/transit/dispatches" },
+          { moduleId: "gold", href: "/gold/settlement/receipts" },
           { moduleId: "gold", href: "/gold/settlement/approvals" },
         ],
       },
       {
+        // Reports' panel, as every vertical draws it (PageMineReports).
         id: "gold-control",
-        title: "Insights",
-        refs: [
-          { moduleId: "reporting", href: "/reports" },
-        ],
+        title: "Reports",
+        groups: REPORTS_NAV_GROUPS,
+        panelGroups: true,
+        refs: REPORTS_NAV_HREFS.map((href) => ({ moduleId: "reporting" as const, href })),
       },
     ],
   },
@@ -550,6 +570,7 @@ const WORKSPACE_PROFILE_RECIPES: Partial<Record<WorkspaceProfile, WorkspaceProfi
     sections: RETAIL_NAV_MODULES.map((module) => ({
       id: module.id,
       title: module.title,
+      ...(module.groups ? { groups: module.groups, panelGroups: true } : {}),
       refs: module.items.map((item) => ({ moduleId: "retail" as const, href: item.href })),
     })),
   },
@@ -721,6 +742,7 @@ function buildProfileSections(
         id: section.id,
         title: section.title,
         ...(groups && groups.length > 0 ? { groups } : {}),
+        ...(section.panelGroups ? { panelGroups: true } : {}),
         items,
         workspaceGroup: "primary" as const,
       };
@@ -1136,6 +1158,57 @@ export function getComputedWorkspaceHomeHref(args: WorkspaceModelArgs): string {
   return getWorkspaceSidebarModel(args).homeHref;
 }
 
+/** Whether a Build row's kind or module is one the workspace is provisioned for. */
+function buildRowShown(when: BuildNavItem["when"], provisions: BuildProvisions): boolean {
+  switch (when) {
+    case undefined:
+      return true;
+    case "forms":
+      return provisions.visitForms || provisions.enquiryForms || provisions.blocks;
+    case "documents":
+      return provisions.blocks || provisions.layouts;
+    case "emails":
+      return provisions.blocks;
+    default:
+      return provisions[when];
+  }
+}
+
+/**
+ * Build, in every workspace (spec/routes.md §5): its own module, never inside
+ * the CRM's settings or Reports. It follows the workspace's Reports, as the
+ * boards' rail does, or ends the rail where there is none.
+ */
+function withBuild(sections: WorkspaceNavSection[], context: WorkspaceBuildContext): WorkspaceNavSection[] {
+  const declared = context.navSectionById.get("build");
+  if (!declared || sections.some((section) => section.id === "build")) return sections;
+  const reports = sections.findIndex((section) =>
+    section.items.some((item) => (item.href.split("?")[0] ?? item.href) === "/reports" || item.href.startsWith("/retail/reports")),
+  );
+  // Somebody who builds: whoever reads the workspace's reports, or manages it.
+  // A till's cashier has neither, and no Build.
+  if (reports < 0 && !hasRole(context.role, ["SUPERADMIN", "MANAGER"])) return sections;
+  const provisions = buildProvisions(context.enabledFeatures);
+  const items = (declared.items as BuildNavItem[])
+    .filter((item) => buildRowShown(item.when, provisions))
+    .map((item): NavItem => {
+      const row: BuildNavItem = { ...item };
+      delete row.when;
+      return row;
+    });
+  if (items.length === 0) return sections;
+  const present = new Set(items.map((item) => item.group).filter(Boolean));
+  const build: WorkspaceNavSection = {
+    id: "build",
+    title: declared.title,
+    groups: declared.groups?.filter((group) => present.has(group.id)),
+    panelGroups: true,
+    items,
+    workspaceGroup: "primary",
+  };
+  return reports >= 0 ? [...sections.slice(0, reports + 1), build, ...sections.slice(reports + 1)] : [...sections, build];
+}
+
 export function getWorkspaceSidebarModel(args: WorkspaceModelArgs): WorkspaceSidebarModel {
   const requestedProfile = normalizeWorkspaceProfile(args.workspaceProfile);
   // `normalizeWorkspaceProfileInput` returns null for absent or unrecognised
@@ -1190,7 +1263,19 @@ export function getWorkspaceSidebarModel(args: WorkspaceModelArgs): WorkspaceSid
     recipe === WORKSPACE_PROFILE_RECIPES.RETAIL
       ? []
       : buildAdditionalSections(recipe, visibleModules, usedPrimaryHrefs, verticalProduct);
-  const sections = [...primarySections, ...additionalSections];
+  // Management's full-page surface is behind the rail's gear, never a panel's
+  // row (spec/shell.md): a row into it left the panel it was clicked in.
+  const sections = withBuild(
+    [...primarySections, ...additionalSections]
+      .map((section) => {
+        const items = section.items.filter((item) => !isSettingsSurfacePath(item.href.split("?")[0] ?? item.href));
+        if (items.length === section.items.length) return section;
+        const present = new Set(items.map((item) => item.group).filter(Boolean));
+        return { ...section, items, ...(section.groups ? { groups: section.groups.filter((group) => present.has(group.id)) } : {}) };
+      })
+      .filter((section) => section.items.length > 0),
+    context,
+  );
   const homeTarget = getHomeTarget({
     recipe,
     context,

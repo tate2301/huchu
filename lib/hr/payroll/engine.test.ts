@@ -19,6 +19,7 @@ import {
   computePayroll,
   netIdentityHolds,
   runTotals,
+  STAGE,
   type EngineInput,
   type EngineSlice,
 } from "./engine";
@@ -611,5 +612,70 @@ describe("runTotals", () => {
     expect(totals.grossTotal.minus(totals.deductionsTotal).toString()).toBe(
       totals.netTotal.toString(),
     );
+  });
+});
+
+describe("disciplinary penalties come off net pay, after everything statutory", () => {
+  const without = computePayroll(input()).slices[0];
+  const withPenalty = computePayroll(
+    input({ slices: [usdSlice({ penalties: [{ name: "Disciplinary penalty — Late for shift", amount: 20 }] })] }),
+  ).slices[0];
+
+  it("drops net pay by the penalty and puts it in the deductions", () => {
+    // 755.16 from the hand-worked salary above, less 20.
+    expect(withPenalty.netAmount.toString()).toBe("735.16");
+    expect(withPenalty.deductionsTotal.minus(without.deductionsTotal).toString()).toBe("20");
+    expect(withPenalty.penaltiesTotal.toString()).toBe("20");
+    expect(netIdentityHolds(withPenalty)).toBe(true);
+  });
+
+  it("leaves taxable gross, PAYE, the levy, NSSA and employer cost exactly as they were", () => {
+    expect(withPenalty.grossAmount.toString()).toBe(without.grossAmount.toString());
+    expect(withPenalty.taxableGross.toString()).toBe("968.5");
+    expect(withPenalty.paye.toString()).toBe(without.paye.toString());
+    expect(withPenalty.aidsLevy.toString()).toBe(without.aidsLevy.toString());
+    expect(withPenalty.employerCost.toString()).toBe(without.employerCost.toString());
+    const statutory = (slice: typeof without) =>
+      slice.components.filter((component) => component.statutoryKey).map((component) => [component.statutoryKey, component.amount.toString()]);
+    expect(statutory(withPenalty)).toEqual(statutory(without));
+  });
+
+  it("is an ordinary deduction with no statutory key, after the post-tax ones", () => {
+    const penalty = withPenalty.components.find((component) => component.name.includes("Late for shift"))!;
+    expect(penalty).toMatchObject({ type: "DEDUCTION", statutoryKey: null, sequence: STAGE.DISCIPLINARY_PENALTY });
+    expect(STAGE.DISCIPLINARY_PENALTY).toBeGreaterThan(STAGE.NEC_EMPLOYEE);
+    expect(STAGE.DISCIPLINARY_PENALTY).toBeLessThan(STAGE.NSSA_EMPLOYER);
+  });
+
+  it("takes no more than net pay has, and says what it could not take", () => {
+    const capped = computePayroll(
+      input({
+        slices: [
+          usdSlice({
+            penalties: [
+              { name: "Disciplinary penalty — Damaged tools", amount: 700 },
+              { name: "Disciplinary penalty — Absent", amount: 100 },
+            ],
+          }),
+        ],
+      }),
+    ).slices[0];
+    // 755.16 to spare: the first takes 700, the second the 55.16 left.
+    expect(capped.netAmount.toString()).toBe("0");
+    expect(capped.penaltiesTotal.toString()).toBe("755.16");
+    expect(netIdentityHolds(capped)).toBe(true);
+    const absent = capped.components.find((component) => component.name.endsWith("Absent"))!;
+    expect(absent.amount.toString()).toBe("55.16");
+    expect(absent.rateOrAmount.toString()).toBe("100");
+    expect(capped.penaltiesShort.map((short) => [short.name, short.marked.toString(), short.deducted.toString()])).toEqual([
+      ["Disciplinary penalty — Absent", "100", "55.16"],
+    ]);
+    // Still nothing statutory moves.
+    expect(capped.paye.toString()).toBe(without.paye.toString());
+  });
+
+  it("changes nothing when there is no penalty", () => {
+    expect(without.penaltiesTotal.toString()).toBe("0");
+    expect(without.penaltiesShort).toEqual([]);
   });
 });

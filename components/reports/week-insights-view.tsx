@@ -48,7 +48,7 @@ export function WeekInsightsView({
           <article key={insight.id} className="ins">
             <h2>{insight.headline}</h2>
             <p>{insight.body}</p>
-            {insight.bars.length > 0 ? (
+            {insight.bars.length > 1 ? (
               <div className="ins-v">
                 {insight.bars.map((bar) => (
                   <div key={bar.label} className="hb">

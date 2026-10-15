@@ -1,0 +1,17 @@
+/* The overview's tiles and panels on the kit's 12-column grid (.kgrid), full width on a phone. */
+.tile[data-span="3"] { grid-column: span 3; }
+.tile[data-span="4"] { grid-column: span 4; }
+.tile[data-span="6"] { grid-column: span 6; }
+.tile[data-span="12"] { grid-column: span 12; }
+.wide { grid-column: span 8; }
+.side { grid-column: span 4; }
+
+@media (max-width: 1100px) {
+  .tile[data-span] { grid-column: span 6; }
+  .wide, .side { grid-column: span 12; }
+}
+
+@media (max-width: 760px) {
+  .grid { padding-left: 16px; padding-right: 16px; }
+  .tile[data-span] { grid-column: span 12; }
+}

@@ -94,6 +94,7 @@ export function Switch({
   ink = false,
   disabled,
   id,
+  labelledBy,
 }: {
   checked: boolean;
   onCheckedChange?: (checked: boolean) => void;
@@ -101,12 +102,15 @@ export function Switch({
   ink?: boolean;
   disabled?: boolean;
   id?: string;
+  /** The id of the text that names a switch drawn without its own label. */
+  labelledBy?: string;
 }) {
   const input = (
     <input
       id={id}
       type="checkbox"
       role="switch"
+      aria-labelledby={labelledBy}
       className={join("switch", ink && "is-ink")}
       checked={checked}
       disabled={disabled}

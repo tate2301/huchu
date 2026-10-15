@@ -2,6 +2,7 @@
 
 import { usePathname } from "next/navigation";
 
+import { ExplorePanel, isExplorePath } from "@/components/explore/explore-panel";
 import { SidebarCrmCollections } from "@/components/layout/app-sidebar/sidebar-crm-collections";
 import { AccountMenu } from "@/components/layout/account-menu";
 import { PersonMenu } from "@/components/layout/person-menu";
@@ -17,10 +18,11 @@ import { isVanePath } from "@/components/vane/vane-nav";
  * The rail and its panel, beside the page (≥720px) or inside the phone drawer
  * (`MobileNav`).
  */
-export function AppSidebar({ inDrawer = false }: { inDrawer?: boolean }) {
+export function AppSidebar({ inDrawer = false, railOnly = false }: { inDrawer?: boolean; railOnly?: boolean }) {
   const nav = useShellNav();
   const shell = useShell();
-  const panelShown = inDrawer || shell.panelShown;
+  // A builder keeps the rail alone; its outline stands where the panel was.
+  const panelShown = inDrawer || (!railOnly && shell.panelShown);
   const pathname = usePathname();
   const onVane = isVanePath(pathname);
   const vaneStatus = useVaneStatus();
@@ -30,6 +32,7 @@ export function AppSidebar({ inDrawer = false }: { inDrawer?: boolean }) {
       model={nav.rail}
       workspaceLabel={nav.model.workspaceLabel}
       activeHref={nav.activeHref}
+      activeAreaId={nav.currentArea?.id ?? null}
       badges={nav.badges}
       tile={<AccountMenu />}
       person={<PersonMenu />}
@@ -43,10 +46,16 @@ export function AppSidebar({ inDrawer = false }: { inDrawer?: boolean }) {
           shell.setVaneOpen(!shell.vaneOpen);
         },
       }}
-      ownPanel={onVane ? { title: "Vane", body: <VaneModulePanel /> } : null}
+      ownPanel={
+        onVane
+          ? { title: "Vane", body: <VaneModulePanel /> }
+          : isExplorePath(pathname)
+            ? { title: "Explore", body: <ExplorePanel />, bare: true }
+            : null
+      }
       supportItems={nav.model.supportItems}
       panelShown={panelShown}
-      panelOverlay={!inDrawer && shell.panelOverlay}
+      panelOverlay={!inDrawer && !railOnly && shell.panelOverlay}
       onCollapse={inDrawer ? () => shell.setDrawerOpen(false) : shell.closePanel}
       onOpenPanel={shell.openPanel}
       extra={<SidebarCrmCollections />}

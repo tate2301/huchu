@@ -1,7 +1,9 @@
 import { issueFiscalReceipt } from "@/lib/accounting/fiscalisation";
 import { createJournalEntryFromSource } from "@/lib/accounting/posting";
+import { onAccountingInvoiceCreated } from "@/lib/crm/accounting-hooks";
 import { hasFeature } from "@/lib/platform/features";
 import { prisma } from "@/lib/prisma";
+import { datesOnIssue, takeOn, waitsForAPerson } from "@/lib/vane/drafts";
 
 type Issued = { id: string; invoiceNumber: string; invoiceDate: Date; total: number; subTotal: number; taxTotal: number };
 
@@ -44,12 +46,31 @@ export class DraftInvoiceRefused extends Error {
   }
 }
 
-/** Issues a draft as the person: dated today if it carried no date of its own, posted and fiscalised. */
-export async function issueDraftInvoice(actor: { companyId: string; userId: string }, invoiceId: string) {
+/**
+ * Issues a draft as the person, posted and fiscalised. Vane's draft
+ * (`madeByVane`, no maker) is issued only when the person confirms it as
+ * theirs (`asMine`; approving `books.invoice.issue` is that confirmation),
+ * else `VaneDraftNotTakenOn` (409). Taken on in the same write
+ * (`lib/vane/drafts.ts`), it is dated the day it is issued with its terms
+ * kept, and the CRM hears of it then.
+ */
+export async function issueDraftInvoice(actor: { companyId: string; userId: string }, invoiceId: string, confirm: { asMine?: boolean } = {}) {
   const now = new Date();
+  const draft = await prisma.salesInvoice.findFirst({
+    where: { id: invoiceId, companyId: actor.companyId },
+    select: { invoiceNumber: true, status: true, madeByVane: true, createdById: true, invoiceDate: true, dueDate: true },
+  });
+  if (!draft) throw new DraftInvoiceRefused("That invoice is not here any more.");
+  const takingOn = draft.status === "DRAFT" && waitsForAPerson(draft);
+  const maker = takingOn ? takeOn(draft, { asMine: confirm.asMine, userId: actor.userId, what: draft.invoiceNumber, verb: "issue" }) : {};
   const { count } = await prisma.salesInvoice.updateMany({
     where: { id: invoiceId, companyId: actor.companyId, status: "DRAFT" },
-    data: { status: "ISSUED", issuedById: actor.userId, issuedAt: now },
+    data: {
+      status: "ISSUED",
+      issuedById: actor.userId,
+      issuedAt: now,
+      ...(takingOn ? { ...maker, ...datesOnIssue(draft, now) } : {}),
+    },
   });
   const invoice = await prisma.salesInvoice.findFirst({
     where: { id: invoiceId, companyId: actor.companyId },
@@ -57,6 +78,8 @@ export async function issueDraftInvoice(actor: { companyId: string; userId: stri
   });
   if (!invoice) throw new DraftInvoiceRefused("That invoice is not here any more.");
   if (count === 0) throw new DraftInvoiceRefused(`${invoice.invoiceNumber} is not a draft: it was issued already.`);
+  // Vane's draft is the CRM's work invoiced only now a person has issued it (`createSalesInvoice` held it back).
+  if (takingOn) await onAccountingInvoiceCreated({ companyId: actor.companyId, invoiceId: invoice.id, userId: actor.userId });
   await postIssuedInvoice(actor.companyId, invoice, actor.userId);
   return invoice;
 }

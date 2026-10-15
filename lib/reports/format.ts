@@ -19,11 +19,16 @@ export function formatDate(iso: string): string {
 const money = new Intl.NumberFormat("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const figure = new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 });
 
+/** What goes before a sum, as the boards write it: "$1,180.00", "ZiG 1,180.00", "R 1,180.00". */
+const PREFIX: Record<string, string> = { USD: "$", ZWG: "ZiG ", ZIG: "ZiG ", ZAR: "R " };
+
 export function formatValue(value: ReportValue | undefined, column: Pick<ReportColumn, "kind" | "currency">): string {
   if (value === null || value === undefined || value === "") return "—";
   if (typeof value === "boolean") return value ? "Yes" : "No";
   if (column.kind === "money" && typeof value === "number") {
-    return column.currency ? `${column.currency} ${money.format(value)}` : money.format(value);
+    if (!column.currency) return money.format(value);
+    const prefix = PREFIX[column.currency.toUpperCase()] ?? `${column.currency.toUpperCase()} `;
+    return `${value < 0 ? "−" : ""}${prefix}${money.format(Math.abs(value))}`;
   }
   if (column.kind === "number" && typeof value === "number") return figure.format(value);
   if (column.kind === "date" && typeof value === "string") return formatDate(value);
@@ -71,3 +76,26 @@ export function describeCondition(condition: Condition, column: ReportColumn): s
   return `${column.label} ${op} ${list}`;
 }
 
+
+/**
+ * Money columns that do not name their currency, given the one their sums are in: the rows' own
+ * when every row carries the same (`currency`), or the workspace's when the rows carry none.
+ * Rows in several currencies leave the columns as they are.
+ */
+export function withCurrency<T extends Pick<ReportColumn, "kind" | "currency">>(
+  columns: readonly T[],
+  rows: ReadonlyArray<Record<string, ReportValue | undefined>>,
+  workspace: string,
+): T[] {
+  const given = new Set(rows.map((row) => row.currency).filter((value): value is string => typeof value === "string" && value.length > 0));
+  const currency = given.size === 0 ? workspace : given.size === 1 ? [...given][0]! : null;
+  if (!currency) return [...columns];
+  return columns.map((column) => (column.kind === "money" && !column.currency ? { ...column, currency } : column));
+}
+
+/** Month ticks ("Jan 2026", "Mar 2026") say the year once, and again where it turns, so they fit a half-width chart. */
+export function shortTicks(labels: string[]): string[] {
+  const parts = labels.map((label) => /^([A-Z][a-z]{2}) (\d{4})$/.exec(label));
+  if (parts.some((part) => !part)) return labels;
+  return parts.map((part, index) => (index === 0 || part![2] !== parts[index - 1]![2] ? `${part![1]} ${part![2]}` : part![1]!));
+}

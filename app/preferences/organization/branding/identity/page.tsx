@@ -1,7 +1,13 @@
-import { BrandingSettingsSection } from "@/components/settings/branding/branding-settings-section";
+import type { Metadata } from "next";
+
 import { requirePreferencesAccess } from "@/lib/preferences/server";
 
-export default async function PreferencesBrandingIdentityPage() {
+import { BrandingPage } from "../branding-page";
+
+export const metadata: Metadata = { title: "Branding" };
+
+/** Management → Branding, Identity and theme (PageBrandIdentity). */
+export default async function BrandingIdentityPage() {
   await requirePreferencesAccess("branding");
-  return <BrandingSettingsSection section="identity" />;
+  return <BrandingPage initialTab="identity" />;
 }

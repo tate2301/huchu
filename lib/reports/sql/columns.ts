@@ -56,6 +56,18 @@ function sourceOf(node: AstNode | null, find: (table: string | null, column: str
   return null;
 }
 
+/**
+ * A CASE whose every answer is a fixed word ("No quote", "Drafted",
+ * "Accepted") names a state, as a status column does: it takes a status's dot.
+ */
+function namesAState(node: AstNode | undefined): boolean {
+  if (!node || node.type !== "case" || !Array.isArray(node.args) || node.args.length === 0) return false;
+  return (node.args as Array<{ result?: AstNode }>).every((branch) => {
+    const result = branch.result;
+    return Boolean(result) && (result!.type === "single_quote_string" || result!.type === "string") && typeof result!.value === "string";
+  });
+}
+
 export function resultColumns(
   ast: SelectAst | null,
   fields: Array<{ name: string; dataTypeID: number }>,
@@ -91,7 +103,9 @@ export function resultColumns(
         ? "number"
         : isDateType(field.dataTypeID)
           ? "date"
-          : "text";
+          : namesAState(entry?.expr)
+            ? "status"
+            : "text";
 
     return {
       key: field.name,

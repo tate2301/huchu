@@ -1,47 +1,27 @@
 "use client";
 
+import * as React from "react";
 import Link from "next/link";
-import { formatDistanceToNow } from "date-fns";
-import { useCallback, useMemo, useState, type ReactNode } from "react";
+import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
 
-import { NotificationRichBody } from "@/components/notifications/notification-renderers";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { Icon, Kit, Segmented } from "@/components/core";
+import { InboxRow, InboxSkeleton, rowFromItem } from "@/components/notifications/inbox-row";
 import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover";
 import { useToast } from "@/components/ui/use-toast";
-import {
-  archiveNotifications,
-  fetchNotifications,
-  markNotificationsRead,
-  type NotificationAction,
-  type NotificationListItem,
-  type NotificationSeverity,
-} from "@/lib/api";
-import { ApiError, fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { fetchNotifications } from "@/lib/api";
+import { ApiError, getApiErrorMessage } from "@/lib/api-client";
+import { fetchInbox, markAllInboxRead, markInboxRead, type InboxItem } from "@/lib/inbox/api";
+import { todayAndEarlier } from "@/lib/inbox/describe";
 import { canAccessCapabilityWithToken } from "@/lib/platform/gating/token-check";
-import { CheckCircle2, Loader2 } from "@/lib/icons";
-import { cn } from "@/lib/utils";
 
-type FilterMode = "unread" | "all";
+import styles from "./inbox.module.css";
 
-function severityBadgeVariant(severity: NotificationSeverity) {
-  if (severity === "CRITICAL") return "destructive";
-  if (severity === "WARNING") return "secondary";
-  return "outline";
-}
+/** How many rows the bell shows before "See all". */
+const BELL_ROWS = 8;
 
-function formatType(type: string) {
-  return type
-    .replace(/^HR_/, "HR ")
-    .replace(/^OPS_/, "OPS ")
-    .replace(/_/g, " ");
-}
-
-function actionButtonVariant(action: NotificationAction) {
-  return action.variant ?? "outline";
-}
+type BellView = "needs" | "all";
 
 /** Whether this workspace has the notification centre at all. */
 export function useNotificationsEnabled() {
@@ -72,13 +52,38 @@ export function useUnreadNotificationCount(): number {
   return enabled ? (data?.unreadCount ?? 0) : 0;
 }
 
+/** Mark read, mark all read: both refresh every `["notifications"]` query, the bell's count with them. */
+export function useInboxMutations() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  const refresh = React.useCallback(() => queryClient.invalidateQueries({ queryKey: ["notifications"] }), [queryClient]);
+  const onError = (error: unknown) =>
+    toast({ title: "The notifications did not update", description: getApiErrorMessage(error), variant: "destructive" });
+
+  const markRead = useMutation({
+    mutationFn: (ids: string[]) => markInboxRead(ids),
+    onMutate: async (ids) => {
+      // Read at once: the dot goes before the server answers.
+      queryClient.setQueriesData<{ items: InboxItem[] } | undefined>({ queryKey: ["notifications", "inbox"] }, (data) =>
+        data && Array.isArray(data.items)
+          ? { ...data, items: data.items.map((item) => (ids.includes(item.id) ? { ...item, isRead: true } : item)) }
+          : data,
+      );
+    },
+    onSettled: refresh,
+    onError,
+  });
+  const markAll = useMutation({ mutationFn: markAllInboxRead, onSettled: refresh, onError });
+  return { markRead, markAll };
+}
+
 /**
- * The notification panel, anchored to `children`: drawn to the right of the
- * rail from the account menu's "Notifications" (the logo tile), or under the
- * app bar's bell (`side="bottom"`).
+ * The bell's panel, anchored to `children`: under the app bar's bell
+ * (`side="bottom"`), or to the right of the rail from the account menu.
  *
- * The shell's live stream (`components/layout/live-stream.tsx`) refreshes
- * every `["notifications"]` query, so each instance stays current.
+ * Needs you, or everything; up to eight rows by today and earlier. A row goes
+ * to its record and is read. See all opens /activity, where each one opens
+ * one level deeper.
  */
 export function NotificationCenter({
   open,
@@ -89,289 +94,137 @@ export function NotificationCenter({
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  children: ReactNode;
+  children: React.ReactNode;
   side?: "right" | "bottom";
   align?: "start" | "end";
 }) {
   const centerEnabled = useNotificationsEnabled();
-  const [filterMode, setFilterMode] = useState<FilterMode>("unread");
+  if (!centerEnabled) return <>{children}</>;
 
-  const queryClient = useQueryClient();
-  const { toast } = useToast();
+  return (
+    <Popover open={open} onOpenChange={onOpenChange}>
+      <PopoverAnchor asChild>{children}</PopoverAnchor>
+      <PopoverContent side={side} align={align} sideOffset={side === "right" ? 12 : 6} className="w-auto p-0">
+        {open ? <BellPanel onClose={() => onOpenChange(false)} /> : null}
+      </PopoverContent>
+    </Popover>
+  );
+}
 
-  const { data, isLoading, error } = useQuery({
-    queryKey: ["notifications", filterMode],
-    enabled: centerEnabled && open,
-    queryFn: () =>
-      fetchNotifications({
-        unreadOnly: filterMode === "unread",
-        limit: 30,
-      }),
+function BellPanel({ onClose }: { onClose: () => void }) {
+  const router = useRouter();
+  const [view, setView] = React.useState<BellView>("needs");
+  const { markRead, markAll } = useInboxMutations();
+  const now = useNow();
+
+  const inbox = useQuery({
+    queryKey: ["notifications", "inbox", "bell", view],
+    queryFn: () => fetchInbox({ view, limit: BELL_ROWS }),
     staleTime: 5000,
     refetchInterval: 30000,
   });
 
-  const invalidateNotifications = useCallback(() => {
-    queryClient.invalidateQueries({ queryKey: ["notifications"] });
-  }, [queryClient]);
-
-  const items = useMemo(() => data?.data ?? [], [data]);
-  const unreadCount = data?.unreadCount ?? 0;
-  const featureDisabled =
-    error instanceof ApiError &&
-    error.status === 403 &&
-    /feature disabled/i.test(error.message);
-  const unreadIds = useMemo(
-    () => items.filter((item) => !item.isRead).map((item) => item.recipientId),
-    [items],
-  );
-
-  const markReadMutation = useMutation({
-    mutationFn: (input: { recipientIds: string[]; actionTaken?: string }) =>
-      markNotificationsRead(input),
-    onSuccess: invalidateNotifications,
-    onError: (mutationError) => {
-      toast({
-        title: "Unable to update notifications",
-        description: getApiErrorMessage(mutationError),
-        variant: "destructive",
-      });
-    },
-  });
-
-  const archiveMutation = useMutation({
-    mutationFn: (input: { recipientIds: string[] }) =>
-      archiveNotifications(input),
-    onSuccess: invalidateNotifications,
-    onError: (mutationError) => {
-      toast({
-        title: "Unable to archive notifications",
-        description: getApiErrorMessage(mutationError),
-        variant: "destructive",
-      });
-    },
-  });
-
-  const quickActionMutation = useMutation({
-    mutationFn: async (input: {
-      item: NotificationListItem;
-      action: NotificationAction;
-    }) => {
-      await fetchJson(input.action.href, {
-        method: input.action.method ?? "POST",
-      });
-      await markNotificationsRead({
-        recipientIds: [input.item.recipientId],
-        actionTaken: input.action.key,
-      });
-    },
-    onSuccess: () => {
-      const queryPrefixes = [
-        ["notifications"],
-        ["payroll-runs"],
-        ["payroll-periods"],
-        ["disbursement-batches"],
-        ["compensation-profiles"],
-        ["compensation-rules"],
-        ["gold-shift-allocations"],
-        ["employee-payments"],
-        ["approval-history"],
-        ["work-orders"],
-        ["compliance", "permits"],
-        ["compliance", "incidents"],
-      ];
-      queryPrefixes.forEach((queryKey) => {
-        queryClient.invalidateQueries({ queryKey });
-      });
-      toast({
-        title: "Action completed",
-        description: "The workflow has been updated.",
-      });
-    },
-    onError: (mutationError) => {
-      toast({
-        title: "Unable to complete action",
-        description: getApiErrorMessage(mutationError),
-        variant: "destructive",
-      });
-    },
-  });
-
-  const runQuickAction = (
-    item: NotificationListItem,
-    action: NotificationAction,
-  ) => {
-    if (action.kind !== "api") return;
-    if (action.confirmMessage && !window.confirm(action.confirmMessage)) {
-      return;
-    }
-    quickActionMutation.mutate({ item, action });
-  };
-
-  if (!centerEnabled || featureDisabled) {
-    return <>{children}</>;
-  }
+  const items = inbox.data?.items ?? [];
+  const groups = todayAndEarlier(items, now);
+  const needs = inbox.data?.counts.needs ?? 0;
+  const unread = inbox.data?.counts.unread ?? 0;
+  const featureOff = inbox.error instanceof ApiError && inbox.error.status === 403;
 
   return (
-    <Popover
-      open={open}
-      onOpenChange={(nextOpen) => {
-        onOpenChange(nextOpen);
-        if (nextOpen) invalidateNotifications();
-      }}
-    >
-      <PopoverAnchor asChild>{children}</PopoverAnchor>
-      <PopoverContent side={side} align={align} sideOffset={side === "right" ? 12 : 6} className="w-[min(96vw,520px)] p-0">
-        <div className="flex items-center justify-between px-3 py-2">
-          <p className="m-0 text-[13px] font-semibold">Notifications</p>
-          <div className="flex items-center gap-1">
-            <Button
-              size="sm"
-              variant={filterMode === "unread" ? "secondary" : "ghost"}
-              onClick={() => setFilterMode("unread")}
-            >
-              Unread
-            </Button>
-            <Button
-              size="sm"
-              variant={filterMode === "all" ? "secondary" : "ghost"}
-              onClick={() => setFilterMode("all")}
-            >
-              All
-            </Button>
-          </div>
-        </div>
-        <div className="h-px bg-[var(--line)]" />
+    <Kit className={styles.bell}>
+      <div className={styles.bellHead}>
+        <Segmented<BellView>
+          label="Show"
+          value={view}
+          onChange={setView}
+          items={[
+            { value: "needs", label: "Needs you", count: needs > 0 ? needs : undefined },
+            { value: "all", label: "Everything" },
+          ]}
+        />
+        <Link
+          href="/preferences/notifications"
+          className={`${styles.link} ${styles.iconLink} end`}
+          style={{ marginLeft: "auto" }}
+          aria-label="Notification settings"
+          title="Notification settings"
+          onClick={onClose}
+        >
+          <Icon name="gear" />
+        </Link>
+      </div>
 
-        <div className="flex items-center justify-between px-3 py-2">
-          <span className="text-muted-foreground">
-            {unreadCount} unread notification{unreadCount === 1 ? "" : "s"}
-          </span>
-          <Button
-            size="sm"
-            variant="ghost"
-            disabled={unreadIds.length === 0 || markReadMutation.isPending}
-            onClick={() => markReadMutation.mutate({ recipientIds: unreadIds })}
-          >
-            Mark all read
-          </Button>
-        </div>
+      <div className={styles.bellList}>
+        {inbox.isLoading ? (
+          <InboxSkeleton rows={4} />
+        ) : featureOff ? (
+          <p className={styles.quiet}>Notifications are off for this workspace.</p>
+        ) : inbox.isError ? (
+          <p className={styles.quiet} role="alert">
+            The notifications did not load.{" "}
+            <button type="button" className={styles.link} style={{ height: "auto", padding: 0, textDecoration: "underline" }} onClick={() => void inbox.refetch()}>
+              Try again
+            </button>
+          </p>
+        ) : items.length === 0 ? (
+          <p className={styles.quiet}>{view === "needs" ? "Nothing needs you." : "No notifications yet."}</p>
+        ) : (
+          groups.map((group) => (
+            <section key={group.key} aria-labelledby={`bell-${group.key}`}>
+              <div className={styles.day}>
+                <h3 id={`bell-${group.key}`}>{group.label}</h3>
+              </div>
+              <ul className={styles.list}>
+                {group.items.map((item) => {
+                  const row = rowFromItem(item);
+                  const read = () => {
+                    if (!item.isRead) markRead.mutate([item.id]);
+                    onClose();
+                  };
+                  return (
+                    <InboxRow
+                      key={item.id}
+                      row={row.href ? row : { ...row, href: `/activity?view=all&n=${item.id}` }}
+                      now={now}
+                      as="link"
+                      onActivate={read}
+                      onOpen={read}
+                      onMarkRead={() => markRead.mutate([item.id])}
+                    />
+                  );
+                })}
+              </ul>
+            </section>
+          ))
+        )}
+      </div>
 
-        <div className="max-h-[70vh] overflow-y-auto px-3 pb-3">
-          {isLoading ? (
-            <div className="flex items-center justify-center py-6 text-sm text-muted-foreground">
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              Loading notifications...
-            </div>
-          ) : error ? (
-            <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
-              {getApiErrorMessage(error)}
-            </div>
-          ) : items.length === 0 ? null : (
-            <div className="space-y-2">
-              {items.map((item) => (
-                <div
-                  key={item.recipientId}
-                  className={cn(
-                    "rounded-md border p-3",
-                    item.isRead ? "bg-card" : "bg-primary/5 border-primary/30",
-                  )}
-                >
-                  <div className="mb-2 flex items-center gap-2">
-                    <Badge variant={severityBadgeVariant(item.severity)}>
-                      {item.severity}
-                    </Badge>
-                    <Badge variant="outline">{formatType(item.type)}</Badge>
-                    {!item.isRead ? (
-                      <span className="ml-auto h-2 w-2 rounded-full bg-primary" />
-                    ) : null}
-                  </div>
-
-                  <div className="space-y-1">
-                    <p className="text-sm font-semibold">{item.title}</p>
-                    <NotificationRichBody item={item} />
-                    <p className="text-xs text-muted-foreground">
-                      {formatDistanceToNow(new Date(item.createdAt), {
-                        addSuffix: true,
-                      })}
-                    </p>
-                  </div>
-
-                  <div className="mt-3 flex flex-wrap items-center gap-2">
-                    {item.actions.map((action) => {
-                      if (action.kind === "link") {
-                        return (
-                          <Button
-                            key={action.key}
-                            size="sm"
-                            variant={actionButtonVariant(action)}
-                            asChild
-                          >
-                            <Link
-                              href={action.href}
-                              onClick={() => {
-                                if (!item.isRead) {
-                                  markReadMutation.mutate({
-                                    recipientIds: [item.recipientId],
-                                    actionTaken: action.key,
-                                  });
-                                }
-                              }}
-                            >
-                              {action.label}
-                            </Link>
-                          </Button>
-                        );
-                      }
-
-                      return (
-                        <Button
-                          key={action.key}
-                          size="sm"
-                          variant={actionButtonVariant(action)}
-                          disabled={quickActionMutation.isPending}
-                          onClick={() => runQuickAction(item, action)}
-                        >
-                          {action.label}
-                        </Button>
-                      );
-                    })}
-
-                    {!item.isRead ? (
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        disabled={markReadMutation.isPending}
-                        onClick={() =>
-                          markReadMutation.mutate({
-                            recipientIds: [item.recipientId],
-                          })
-                        }
-                      >
-                        <CheckCircle2 className="h-4 w-4" />
-                        Mark read
-                      </Button>
-                    ) : null}
-
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      disabled={archiveMutation.isPending}
-                      onClick={() =>
-                        archiveMutation.mutate({
-                          recipientIds: [item.recipientId],
-                        })
-                      }
-                    >
-                      Archive
-                    </Button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      </PopoverContent>
-    </Popover>
+      <div className={styles.bellFoot}>
+        <button
+          type="button"
+          className={styles.link}
+          onClick={() => {
+            onClose();
+            router.push(view === "needs" ? "/activity" : "/activity?view=all");
+          }}
+        >
+          See all
+          <Icon name="chev" />
+        </button>
+        <button type="button" className={styles.link} disabled={unread === 0 || markAll.isPending} onClick={() => markAll.mutate()}>
+          Mark all read
+        </button>
+      </div>
+    </Kit>
   );
+}
+
+/** "Now", for relative times; moves once a minute. */
+export function useNow(): Date {
+  const [now, setNow] = React.useState(() => new Date());
+  React.useEffect(() => {
+    const timer = window.setInterval(() => setNow(new Date()), 60_000);
+    return () => window.clearInterval(timer);
+  }, []);
+  return now;
 }

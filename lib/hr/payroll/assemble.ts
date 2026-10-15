@@ -39,8 +39,15 @@ import {
   type ComputedPayroll,
   type EngineDeduction,
   type EngineEarning,
+  type EnginePenalty,
   type EngineSlice,
 } from "./engine";
+import {
+  outstandingPenalties,
+  penaltiesInPeriodWhere,
+  penaltyComponentName,
+  PENALTY_SEQUENCE,
+} from "./penalties";
 
 type Db = typeof prisma | Prisma.TransactionClient;
 
@@ -175,6 +182,79 @@ async function overtimePayByEmployee(
   return byEmployee;
 }
 
+type MarkedPenalty = { summary: string; amount: number; currency: string };
+
+/**
+ * The disciplinary penalties each employee's line in this period still has to
+ * take: what HR marked deducted in the period, less what a submitted, approved
+ * or posted run of the same period already took. A draft being regenerated is
+ * not counted (it is about to be replaced), nor is a rejected run (it paid
+ * nobody), so a penalty comes off once however often a run is recalculated.
+ */
+async function penaltiesOwedByEmployee(
+  input: {
+    companyId: string;
+    employeeIds: string[];
+    periodStart: Date;
+    periodEnd: Date;
+  },
+  db: Db = prisma,
+): Promise<Map<string, MarkedPenalty[]>> {
+  const actions = await db.disciplinaryAction.findMany({
+    where: penaltiesInPeriodWhere(input),
+    orderBy: [{ appliedAt: "asc" }, { createdAt: "asc" }],
+    select: { employeeId: true, summary: true, penaltyAmount: true, penaltyCurrency: true },
+  });
+  if (actions.length === 0) return new Map();
+
+  const taken = await db.payrollLineComponent.findMany({
+    where: {
+      type: "DEDUCTION",
+      sequence: PENALTY_SEQUENCE,
+      lineItem: {
+        employeeId: { in: [...new Set(actions.map((action) => action.employeeId))] },
+        run: {
+          companyId: input.companyId,
+          status: { in: ["SUBMITTED", "APPROVED", "POSTED"] },
+          period: { startDate: input.periodStart, endDate: input.periodEnd },
+        },
+      },
+    },
+    select: { amount: true, lineItem: { select: { employeeId: true, currency: true } } },
+  });
+  const takenBy = new Map<string, number>();
+  for (const row of taken) {
+    const key = `${row.lineItem.employeeId}:${row.lineItem.currency.toUpperCase()}`;
+    takenBy.set(key, (takenBy.get(key) ?? 0) + Number(row.amount));
+  }
+
+  const marked = new Map<string, MarkedPenalty[]>();
+  for (const action of actions) {
+    const list = marked.get(action.employeeId) ?? [];
+    list.push({
+      summary: action.summary,
+      amount: action.penaltyAmount,
+      currency: action.penaltyCurrency.trim().toUpperCase(),
+    });
+    marked.set(action.employeeId, list);
+  }
+
+  const owed = new Map<string, MarkedPenalty[]>();
+  for (const [employeeId, list] of marked) {
+    const left: MarkedPenalty[] = [];
+    for (const currency of new Set(list.map((penalty) => penalty.currency))) {
+      left.push(
+        ...outstandingPenalties(
+          list.filter((penalty) => penalty.currency === currency),
+          takenBy.get(`${employeeId}:${currency}`) ?? 0,
+        ),
+      );
+    }
+    if (left.length > 0) owed.set(employeeId, left);
+  }
+  return owed;
+}
+
 /**
  * Assemble and compute a salary run for a period.
  *
@@ -272,6 +352,16 @@ export async function assembleSalaryRun(
 
   const overtimeByEmployee = await overtimePayByEmployee(
     { employees, periodStart: input.periodStart, periodEnd: input.periodEnd },
+    db,
+  );
+
+  const penaltiesByEmployee = await penaltiesOwedByEmployee(
+    {
+      companyId: input.companyId,
+      employeeIds,
+      periodStart: input.periodStart,
+      periodEnd: input.periodEnd,
+    },
     db,
   );
 
@@ -457,6 +547,19 @@ export async function assembleSalaryRun(
       target.push({ name: rule.name, amount, ruleId: rule.id });
     }
 
+    // A penalty comes off the pay it was set in. One HR set in another
+    // currency is not converted at a guessed rate: it is left for HR, and said.
+    const penalties: EnginePenalty[] = [];
+    for (const penalty of penaltiesByEmployee.get(employee.id) ?? []) {
+      if (penalty.currency !== currency) {
+        warnings.push(
+          `${employee.name} (${employee.employeeId}): the disciplinary penalty "${penalty.summary}" is in ${penalty.currency} and their pay is in ${currency}, so it was not deducted.`,
+        );
+        continue;
+      }
+      penalties.push({ name: penaltyComponentName(penalty.summary), amount: penalty.amount });
+    }
+
     const nec = necByCurrency.get(currency);
 
     const slice: EngineSlice = {
@@ -465,6 +568,7 @@ export async function assembleSalaryRun(
       earnings,
       preTaxDeductions,
       postTaxDeductions,
+      penalties,
       payeTable,
       credits: creditsByCurrency.get(currency) ?? [],
       medicalAidContribution,
@@ -498,6 +602,12 @@ export async function assembleSalaryRun(
       zimdef,
       standardsDevelopmentLevy,
     });
+
+    for (const short of payroll.slices.flatMap((computed) => computed.penaltiesShort)) {
+      warnings.push(
+        `${employee.name} (${employee.employeeId}): ${short.marked.minus(short.deducted).toFixed(2)} ${currency} of "${short.name}" was not deducted, because it would have taken net pay below zero.`,
+      );
+    }
 
     // Surface the identity gaps a statutory return will trip over, as warnings
     // rather than refusals — an employee can be paid before their BP number

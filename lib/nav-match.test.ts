@@ -39,4 +39,16 @@ describe("getActiveNavHref", () => {
     expect(getActiveNavHref(sections, "/reports", q("area=selling"))).toBe("/reports?area=selling");
     expect(getActiveNavHref(sections, "/reports", q(""))).toBe("/reports");
   });
+
+  it("prefers the item naming more of the page's params", () => {
+    const lists = [
+      {
+        id: "reports",
+        title: "Reports",
+        items: ["/retail/reports?view=all", "/retail/reports?view=all&tab=built-in"].map((href) => ({ href, label: href, icon: Receipt })),
+      },
+    ];
+    expect(getActiveNavHref(lists, "/retail/reports", q("view=all&tab=built-in"))).toBe("/retail/reports?view=all&tab=built-in");
+    expect(getActiveNavHref(lists, "/retail/reports", q("view=all"))).toBe("/retail/reports?view=all");
+  });
 });

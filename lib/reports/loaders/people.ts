@@ -21,7 +21,7 @@ async function loadPay(ctx: ReportContext, params: ReportParams) {
       netAmount: true,
       employerCost: true,
       run: { select: { runNumber: true, status: true, period: { select: { periodKey: true } } } },
-      employee: { select: { name: true, employeeId: true, department: { select: { name: true } } } },
+      employee: { select: { name: true, employeeId: true, department: { select: { name: true } }, grade: { select: { name: true } } } },
     },
     orderBy: { createdAt: "desc" },
     take: TAKE,
@@ -33,12 +33,50 @@ async function loadPay(ctx: ReportContext, params: ReportParams) {
       employee: line.employee.name,
       employeeNo: line.employee.employeeId,
       department: line.employee.department?.name ?? null,
+      grade: line.employee.grade?.name ?? null,
       run: `${label(line.run.status)} · run ${line.run.runNumber}`,
       gross: num(line.grossAmount),
       allowances: num(line.allowancesTotal),
       deductions: num(line.deductionsTotal),
       net: num(line.netAmount),
       employerCost: num(line.employerCost),
+    })),
+  );
+}
+
+/** Statutory lines of every run in the dates; a tax credit is part of PAYE, not a line of its own. */
+async function loadStatutory(ctx: ReportContext, params: ReportParams) {
+  const found = await prisma.payrollLineComponent.findMany({
+    where: {
+      statutoryKey: { not: null },
+      NOT: { statutoryKey: { startsWith: "TAX_CREDIT" } },
+      lineItem: { run: { companyId: ctx.companyId, status: { not: "REJECTED" }, period: { startDate: dateRange(params) } } },
+    },
+    select: {
+      id: true,
+      name: true,
+      statutoryKey: true,
+      amount: true,
+      lineItem: {
+        select: {
+          run: { select: { period: { select: { periodKey: true } } } },
+          employee: { select: { name: true, department: { select: { name: true } } } },
+        },
+      },
+    },
+    orderBy: { createdAt: "desc" },
+    take: TAKE,
+  });
+  return result(
+    found.map((component) => ({
+      id: component.id,
+      period: component.lineItem.run.period.periodKey,
+      employee: component.lineItem.employee.name,
+      department: component.lineItem.employee.department?.name ?? null,
+      // "PAYE (Monthly USD PAYE …)" is PAYE.
+      item: component.name.replace(/\s*\(.*\)$/, "").replace(/\s+—.*$/, ""),
+      paidBy: /EMPLOYER|ZIMDEF|STANDARDS_DEVELOPMENT|APWCS/.test(component.statutoryKey ?? "") ? "Employer" : "Employee",
+      amount: num(component.amount),
     })),
   );
 }
@@ -55,6 +93,7 @@ async function loadPeople(ctx: ReportContext, params: ReportParams) {
       phone: true,
       hireDate: true,
       isActive: true,
+      nssaNumber: true,
       department: { select: { name: true } },
     },
     orderBy: { name: "asc" },
@@ -71,6 +110,7 @@ async function loadPeople(ctx: ReportContext, params: ReportParams) {
       phone: employee.phone,
       hired: day(employee.hireDate),
       status: employee.isActive ? "Working" : "Left",
+      nssa: employee.nssaNumber ? "On file" : "Missing",
     })),
   );
 }
@@ -107,6 +147,7 @@ async function loadLeave(ctx: ReportContext, params: ReportParams) {
 
 export const PEOPLE_LOADERS: Record<string, ReportLoader> = {
   "payroll-pay": { load: loadPay },
+  "payroll-statutory": { load: loadStatutory },
   "people-register": { load: loadPeople },
   "people-leave": { load: loadLeave },
 };

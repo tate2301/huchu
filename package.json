@@ -40,6 +40,7 @@
     "worker:fiscal": "tsx scripts/fiscal-worker.ts",
     "vane:ping": "tsx scripts/vane-ping.ts",
     "vane:reader-sql": "tsx scripts/vane-reader-sql.ts",
+    "explore:reader-sql": "tsx scripts/explore-reader-sql.ts",
     "brand:ascii-logo": "tsx scripts/brand/ascii-logo.ts",
     "db:generate": "prisma generate",
     "db:up": "docker compose up -d --wait",

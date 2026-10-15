@@ -51,7 +51,7 @@ const SETTLEMENT_TYPES_KEY = [
   "gold-expense-types",
 ] as const;
 
-const FULL_LOG_HREF = "/preferences/organization/activity";
+const FULL_LOG_HREF = "/activity?view=workspace";
 
 /**
  * Settlement types — `SettlementTypes.dc.html`.

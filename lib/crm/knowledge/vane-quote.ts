@@ -179,15 +179,17 @@ async function vaneDraftOf(companyId: string, documentId: string) {
   return { ...doc, clientId: doc.deal?.clientId ?? doc.lead?.clientId ?? null, quotation: doc.quotation };
 }
 
-/** A person issues Vane's draft quote: it is theirs from now, sent as any quote is, and a lead moves to Quoted. */
+/** A person issues Vane's draft quote: pressing Issue it confirms it as theirs, so they become its maker; it is sent as any quote is, and a lead moves to Quoted. */
 export async function issueVaneQuote(actor: { companyId: string; userId: string }, documentId: string) {
   const doc = await vaneDraftOf(actor.companyId, documentId);
   return prisma.$transaction(async (tx) => {
     const { count } = await tx.salesQuotation.updateMany({
       where: { id: doc.quotation.id, status: "DRAFT", madeByVane: true },
-      data: { status: "SENT", issuedById: actor.userId, issuedAt: new Date(), quotationDate: new Date() },
+      // Issuing it is confirming it as theirs (`lib/vane/drafts.ts`): they become its maker in the same write.
+      data: { status: "SENT", createdById: actor.userId, issuedById: actor.userId, issuedAt: new Date(), quotationDate: new Date() },
     });
     if (count === 0) throw new VaneQuoteRefused(`${doc.quotation.quotationNumber} was issued already.`);
+    await tx.crmLeadDocument.updateMany({ where: { id: doc.id, createdById: null }, data: { createdById: actor.userId } });
     await tx.crmActivity.create({
       data: {
         companyId: actor.companyId,

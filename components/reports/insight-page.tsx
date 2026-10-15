@@ -22,7 +22,7 @@ const join = (...names: Array<string | false | null | undefined>) => names.filte
 export function InsightFrame({ children }: { children: React.ReactNode }) {
   return (
     <Kit className="kit-main">
-      <div className="mn" style={{ flex: 1, minHeight: 0 }}>
+      <div className="mn">
         {children}
       </div>
     </Kit>
@@ -65,6 +65,45 @@ export function InsightPage({
       {aside ? <aside className="kaside ip-aside">{aside}</aside> : null}
     </div>
   );
+}
+
+/**
+ * Nothing in the period: the kit's Empty in place of the finding, the figures and the charts, which
+ * would only draw zeros. It offers the next wider period when there is one.
+ */
+export function InsightEmpty({
+  icon = "reports",
+  title,
+  children,
+  wider,
+}: {
+  icon?: IconName;
+  title: React.ReactNode;
+  children?: React.ReactNode;
+  wider?: { label: string; onShow: () => void } | null;
+}) {
+  return (
+    <Empty
+      icon={icon}
+      title={title}
+      action={
+        wider ? (
+          <Button icon="calendar" onClick={wider.onShow}>
+            {`Show ${wider.label.charAt(0).toLowerCase()}${wider.label.slice(1)}`}
+          </Button>
+        ) : undefined
+      }
+    >
+      {children}
+    </Empty>
+  );
+}
+
+/** The period after `current` in a page's list, the next wider one; none past the widest or for a range. */
+export function widerPeriod<V extends string>(periods: ReadonlyArray<{ value: V; label: string }>, current: V | null, ranged: boolean): { value: V; label: string } | null {
+  if (ranged) return null;
+  const at = periods.findIndex((entry) => entry.value === current);
+  return at >= 0 ? (periods[at + 1] ?? null) : null;
 }
 
 /** Loading: the page's shape in grey. */
@@ -367,9 +406,7 @@ export function InsightTableView({ table, title }: { table: InsightTable; title?
   return (
     <div className="wt rp-table">
       {title ? <h3 className="ip-table-h">{title}</h3> : null}
-      {table.rows.length === 0 ? (
-        <p className="muted ip-empty">{table.empty}</p>
-      ) : (
+      {/* Empty, the columns stay so it is plain what would be here. */}
         <div className="rp-wt">
           <table className="table">
             <colgroup>
@@ -387,6 +424,13 @@ export function InsightTableView({ table, title }: { table: InsightTable; title?
               </tr>
             </thead>
             <tbody>
+              {table.rows.length === 0 ? (
+                <tr>
+                  <td colSpan={table.columns.length} className="muted ip-empty">
+                    {table.empty}
+                  </td>
+                </tr>
+              ) : null}
               {table.rows.map((row) => (
                 <tr key={row.id}>
                   {table.columns.map((column, index) => {
@@ -410,7 +454,7 @@ export function InsightTableView({ table, title }: { table: InsightTable; title?
                 </tr>
               ))}
             </tbody>
-            {table.total ? (
+            {table.total && table.rows.length > 0 ? (
               <tfoot>
                 <tr>
                   {table.columns.map((column, index) => (
@@ -423,7 +467,6 @@ export function InsightTableView({ table, title }: { table: InsightTable; title?
             ) : null}
           </table>
         </div>
-      )}
     </div>
   );
 }

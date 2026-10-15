@@ -74,6 +74,14 @@ describe("a custom report's blocks", () => {
     expect(result?.ok === false && result.problem.message).toMatch(/Deals could not be read here/);
   });
 
+  it("stop a question that runs too long, and say to narrow the dates", async () => {
+    const blocks = [query("a", "a", "select count(*) as deals from crm_deals")];
+    const slow = { ...runner, load: runner.load.bind(runner), loadResult: runner.loadResult.bind(runner), run: () => new Promise<never>(() => {}) };
+    const results = await runBlocks(blocks, checkBlocks(blocks, sources), { ...inputs(), runner: slow, limitMs: 20 });
+    const result = results.get("a");
+    expect(result?.ok === false && result.problem.message).toBe("Stopped after 10 seconds. Narrow the dates.");
+  });
+
   it("say what went wrong when Postgres refuses the query", async () => {
     const blocks = [query("a", "a", "select owner from crm_deals group by stage")];
     const results = await runBlocks(blocks, checkBlocks(blocks, sources), inputs());

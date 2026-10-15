@@ -11,6 +11,7 @@ import {
   type SourceResolutionInput,
 } from "@/lib/documents/source-registry";
 import { resolveTemplate } from "@/lib/documents/template-resolver";
+import { applyPayslipLayout } from "@/lib/documents/payslip-rows";
 import type { DocumentTemplateSchema } from "@/lib/documents/template-schema";
 import { getDocumentBranding } from "@/lib/documents/branding-snapshot";
 import { renderXlsx } from "@/lib/documents/xlsx-renderer";
@@ -113,7 +114,12 @@ export async function renderDocumentPreview(
         templateVersionId: input.templateVersionId,
       });
   const branding = await getDocumentBranding(companyId);
-  return renderDocumentHtml({ payload: source.payload, branding, template: template.templateSchema });
+  return renderDocumentHtml({
+    // A payslip previews as its layout shows it (`payslip-rows.ts`), as it prints.
+    payload: source.sourceKey === "hr.payslip" ? applyPayslipLayout(source.payload, template.templateSchema) : source.payload,
+    branding,
+    template: template.templateSchema,
+  });
 }
 
 export async function renderDocumentSync(
@@ -154,7 +160,8 @@ export async function renderDocumentSync(
 
   const branding = await getDocumentBranding(companyId);
   const html = renderDocumentHtml({
-    payload: source.payload,
+    // What a payslip layout shows, hides and adds in Build (`payslip-rows.ts`).
+    payload: source.sourceKey === "hr.payslip" ? applyPayslipLayout(source.payload, template.templateSchema) : source.payload,
     branding,
     template: template.templateSchema,
   });

@@ -97,7 +97,7 @@ export function VisitsInsight({ formId }: { formId?: string }) {
     () => (
       <Kit contents>
         {own ? (
-          <ButtonLink href={`/crm/build/visits/${formId}`} icon="edit">
+          <ButtonLink href={`/build/forms/${formId}`} icon="edit">
             Edit the form
           </ButtonLink>
         ) : (
@@ -110,7 +110,7 @@ export function VisitsInsight({ formId }: { formId?: string }) {
     [own, formId],
   );
   const chrome = own ? (
-    <PageChrome title={title} backHref="/crm/build" backLabel="Build">
+    <PageChrome title={title} backHref={`/build/forms/${formId}`} backLabel="The form">
       {actions}
     </PageChrome>
   ) : (
@@ -160,13 +160,6 @@ export function VisitsInsight({ formId }: { formId?: string }) {
         >
           <span className="truncate">{repName ?? "Every rep"}</span>
         </MenuButton>
-      ) : null}
-      {!own && shownForm ? (
-        <div className="end">
-          <ButtonLink variant="quiet" icon="edit" href={`/crm/build/visits/${shownForm.id}/insights`}>
-            Open the form
-          </ButtonLink>
-        </div>
       ) : null}
     </>
   );
@@ -220,7 +213,7 @@ export function VisitsInsight({ formId }: { formId?: string }) {
                 onClick: () => require.mutate({ id: shownForm.id, key: suggestion.key }),
               },
             }
-          : { key: card.key, title: card.title, body: `${card.body} A manager can change the form.`, action: { label: "Open the form", icon: "edit", href: `/crm/build/visits/${shownForm.id}` } };
+          : { key: card.key, title: card.title, body: `${card.body} A manager can change the form.`, action: { label: "Open the form", icon: "edit", href: `/build/forms/${shownForm.id}` } };
       }
       return { key: card.key, title: card.title, body: card.body, action: { label: "Open the form", icon: "edit", href: `/crm/build/visits/${shownForm.id}/insights` } };
     }
@@ -229,6 +222,16 @@ export function VisitsInsight({ formId }: { formId?: string }) {
     }
     return { key: card.key, title: card.title, body: card.body, action: { label: "Open the visits", icon: "visits", href: "/reports/crm-visit-forms" } };
   };
+
+  // Open the form lives in Do something about it, as drawn: on the card that asks for a change to
+  // the form, or on a card of its own when none does.
+  const visitCards = insights ? visitsCards(insights) : [];
+  const asideCards = [
+    ...visitCards.map(cardFor),
+    ...(!own && shownForm && !visitCards.some((card) => card.action === "form")
+      ? [{ key: "open-form", title: shownForm.name, action: { label: "Open the form", icon: "edit" as const, href: `/crm/build/visits/${shownForm.id}/insights` } }]
+      : []),
+  ];
 
   if (!shownForm) {
     return (
@@ -240,7 +243,7 @@ export function VisitsInsight({ formId }: { formId?: string }) {
               icon="visits"
               title="No site-visit forms yet"
               action={
-                <ButtonLink href="/crm/build" icon="plus">
+                <ButtonLink href="/build?kind=forms" icon="plus">
                   Make a form in Build
                 </ButtonLink>
               }
@@ -280,7 +283,7 @@ export function VisitsInsight({ formId }: { formId?: string }) {
           tools={tools}
           finding={visitsFinding(insights)}
           figures={visitsFigures(insights, money)}
-          aside={<InsightAside cards={visitsCards(insights).map(cardFor)} send={send} />}
+          aside={<InsightAside cards={asideCards} send={send} />}
         >
           <div className={query.isFetching ? "rp-grid2 is-fetching" : "rp-grid2"}>
             <div>

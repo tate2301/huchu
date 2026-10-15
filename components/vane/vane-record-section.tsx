@@ -25,6 +25,7 @@ const ASK: Record<VaneSubject, string> = {
   SalesQuotation: "Check this quote before it goes",
   CrmLeadDocument: "Check this quote before it goes",
   RetailPurchaseOrder: "Is this order late, and what is still owed?",
+  List: "What could this list do for me?",
 };
 
 /**
@@ -89,9 +90,11 @@ export function VaneRecordSection({ type, id, noun }: { type: VaneSubject; id: s
   const { notNow } = useVaneActions();
   const decide = useDecideAction();
   if (isError || !data) return null;
+  // On a quote, the message Vane wrote to go with it is in the quote check, beside Send the quote, not again here.
+  const quote = type === "CrmLeadDocument" || type === "SalesQuotation";
   return (
     <VaneRecordSectionView
-      cards={data}
+      cards={quote ? data.filter((card) => card.action?.type !== "send") : data}
       noun={noun}
       deciding={decide.isPending ? (decide.variables?.id ?? null) : null}
       onAsk={() => shell.askVane(ASK[type])}

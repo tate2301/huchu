@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 
 import { Empty, Kit, useShortcut, type IconName } from "@/components/core";
@@ -11,7 +11,8 @@ import { getApiErrorMessage } from "@/lib/api-client";
 import type { VaneCard } from "@/lib/vane/panel";
 import { VANE_SETTINGS_ROLES } from "@/lib/vane/roles";
 
-import { moduleForPath, useDecideAction, useVaneActions, useVaneAsk, useVaneChat, useVanePanel } from "./use-vane";
+import { moduleForPath, useDecideAction, useVaneActions, useVaneAsk, useVaneChat, useVaneExplain, useVanePanel } from "./use-vane";
+import { VaneExplainAnswer } from "./vane-explain";
 import { VanePanelView } from "./vane-panel-view";
 
 /** A suggestion: what to ask, the icon it shows, and the module whose hue it takes (none: Vane's own). */
@@ -90,28 +91,62 @@ export function vaneSuggestions(cards: VaneCard[], pageModule: string | null, pa
   return all.filter((row, index) => all.findIndex((other) => other.text === row.text) === index).slice(0, 3);
 }
 
-/** The Vane panel beside the page, fed from the workspace. Ctrl J opens it at the box, from any page. */
+/**
+ * The Vane panel beside the page, fed from the workspace. Ctrl J opens it at
+ * the box, from any page. An address with `?explain=<job>` opens it on Vane's
+ * answer to a figure someone asked about on a report (PageVaneReport), and
+ * one with `?vane=open` opens it beside the page.
+ */
 export function VanePanel() {
   const shell = useShell();
   const pathname = usePathname();
+  const search = useSearchParams();
   const router = useRouter();
+  const explainId = search.get("explain");
+  // `?vane=open`: a link that opens the page with Vane beside it (Vane's drafts, PageVaneRetail).
+  const openedByLink = search.get("vane") === "open";
+  const { setVaneOpen } = shell;
+  React.useEffect(() => {
+    if (explainId || openedByLink) setVaneOpen(true);
+  }, [explainId, openedByLink, setVaneOpen]);
+  const explained = useVaneExplain(explainId);
   const { toast } = useToast();
   const { data: session } = useSession();
   const pageModule = moduleForPath(pathname);
-  const { data, isError } = useVanePanel(pageModule, shell.vaneOpen);
-  const chat = useVaneChat(shell.vaneOpen);
+  const open = shell.vaneOpen || Boolean(explainId);
+  const { data, isError } = useVanePanel(pageModule, open);
+  const chat = useVaneChat(open);
   const { ask, working, error } = useVaneAsk();
   const { notNow, act, pause } = useVaneActions();
   const decide = useDecideAction();
   const [focusKey, setFocusKey] = React.useState(0);
-  const close = () => shell.setVaneOpen(false);
+  const close = () => {
+    shell.setVaneOpen(false);
+    // Closed, the answer leaves the address too, so it does not open again on its own.
+    if (explainId || openedByLink) {
+      const next = new URLSearchParams(search.toString());
+      next.delete("explain");
+      next.delete("vane");
+      const query = next.toString();
+      router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
+    }
+  };
 
   useShortcut("Ctrl J", () => {
     shell.setVaneOpen(true);
     setFocusKey((key) => key + 1);
   });
+  // Esc closes the panel (spec/shortcuts.md); a menu open inside it closes first.
+  useShortcut(
+    "Esc",
+    (event) => {
+      if (event.target instanceof Element && event.target.closest('[role="menu"]')) return;
+      close();
+    },
+    { enabled: open },
+  );
 
-  if (!shell.vaneOpen) return null;
+  if (!open) return null;
   return (
     <Kit className="vane-col">
       {data ? (
@@ -147,6 +182,11 @@ export function VanePanel() {
             )
           }
           draft={shell.vaneDraft}
+          explain={
+            explainId ? (
+              <VaneExplainAnswer job={explained.data} failed={explained.isError} onRetry={() => void explained.refetch()} />
+            ) : null
+          }
           onAsk={(text) => void ask(text, pageModule, pathname)}
         />
       ) : (

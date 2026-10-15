@@ -1,14 +1,23 @@
 "use client";
 
-import { Finding, GroupHead } from "@/components/core";
+import Link from "next/link";
+
+import { Pill } from "@/components/core";
 import { VaneDraftNote } from "@/components/vane/vane-draft-note";
 import { money } from "@/lib/books/format";
 import type { InvoiceRecord } from "@/lib/books/invoice-record";
-
-/** Figures keep their width; the name column takes the rest. */
-const NUM = { width: "9rem" } as const;
+import type { InvoiceState } from "@/lib/books/invoice-state";
 
 const qty = (n: number) => (Number.isInteger(n) ? String(n) : n.toFixed(2).replace(/0+$/, ""));
+
+const TONE: Record<InvoiceState, "warn" | "ok" | "bad" | "plain"> = {
+  draft: "warn",
+  sent: "plain",
+  "part-paid": "plain",
+  overdue: "bad",
+  paid: "ok",
+  void: "bad",
+};
 
 /**
  * One invoice (PageVaneDraft): Vane's note when the draft is Vane's, the
@@ -17,32 +26,58 @@ const qty = (n: number) => (Number.isInteger(n) ? String(n) : n.toFixed(2).repla
  */
 export function InvoiceRecordView({ invoice }: { invoice: InvoiceRecord }) {
   const vaneDraft = invoice.madeByVane && invoice.status === "DRAFT";
+  const quote = invoice.quote;
   return (
     <div style={{ flex: "1 1 auto", display: "flex", minHeight: 0 }}>
       <div className="kbody">
         {vaneDraft ? (
-          <VaneDraftNote>
-            Vane&rsquo;s draft.{" "}
-            {invoice.quote ? `Made from ${invoice.quote.number}${invoice.quote.accepted ? `, accepted on ${invoice.quote.accepted}` : ""}. ` : ""}
-            Check it, then issue it; nothing is sent or posted until you do.
+          <VaneDraftNote
+            end={
+              invoice.cardId ? (
+                <Link href={`/vane?card=${invoice.cardId}`} style={{ color: "var(--color-muted)", fontSize: "var(--text-13)", whiteSpace: "nowrap" }}>
+                  What I read
+                </Link>
+              ) : null
+            }
+          >
+            <b style={{ fontWeight: 600 }}>Vane&rsquo;s draft.</b>{" "}
+            {quote ? `Made from ${quote.number}${quote.accepted ? `, accepted on ${quote.accepted}` : ""}. ` : ""}
+            {invoice.waiting ? "Check it, then issue it; nothing is sent or posted until you do." : "A person has taken it on; it is theirs now."}
           </VaneDraftNote>
         ) : null}
-        <Finding fact={invoice.fact} rest={invoice.rest ?? undefined} />
-        <GroupHead title="Lines" sum={`${invoice.lines.length}`} />
-        <div className="wt">
+        <div className="finding">
+          <p className="lede-figure">
+            {invoice.fact}
+            {invoice.rest ? <span className="q"> {invoice.rest}</span> : null}
+          </p>
+        </div>
+        <div className="group-head" style={{ paddingTop: 16 }}>
+          <h2>Lines</h2>
+        </div>
+        <div className="wt" style={{ flex: "none" }}>
           <table className="table">
+            <colgroup>
+              <col style={{ width: "100%" }} />
+              <col />
+              <col />
+              <col />
+            </colgroup>
             <thead>
               <tr>
                 <th>Item</th>
-                <th className="num" style={NUM}>Quantity</th>
-                <th className="num" style={NUM}>Price</th>
-                <th className="num" style={NUM}>Amount</th>
+                <th className="num">Quantity</th>
+                <th className="num">Price</th>
+                <th className="num">Amount</th>
               </tr>
             </thead>
             <tbody>
               {invoice.lines.map((line) => (
                 <tr key={line.id}>
-                  <td className="fill">{line.description}</td>
+                  <td className="fill">
+                    <span className="cell-lead truncate" title={line.description}>
+                      {line.description}
+                    </span>
+                  </td>
                   <td className="num">{qty(line.quantity)}</td>
                   <td className="num">{money(line.unitPrice, invoice.currency)}</td>
                   <td className="num">{money(line.amount, invoice.currency)}</td>
@@ -56,62 +91,42 @@ export function InvoiceRecordView({ invoice }: { invoice: InvoiceRecord }) {
                 <td className="num" />
                 <td className="num">{money(invoice.subTotal, invoice.currency)}</td>
               </tr>
-              <tr>
-                <td className="fill">VAT</td>
-                <td className="num" />
-                <td className="num" />
-                <td className="num">{money(invoice.taxTotal, invoice.currency)}</td>
-              </tr>
-              <tr>
-                <td className="fill">
-                  <b>Total</b>
-                </td>
-                <td className="num" />
-                <td className="num" />
-                <td className="num">
-                  <b>{money(invoice.total, invoice.currency)}</b>
-                </td>
-              </tr>
             </tfoot>
           </table>
         </div>
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4, padding: "14px 28px", fontVariantNumeric: "tabular-nums" }}>
+          <span style={{ color: "var(--color-muted)" }}>
+            {invoice.taxLabel} {money(invoice.taxTotal, invoice.currency)}
+          </span>
+          <span style={{ fontWeight: 600, fontSize: 15 }}>Total {money(invoice.total, invoice.currency)}</span>
+        </div>
       </div>
-      <aside className="kaside" aria-label="Invoice" style={{ width: 320 }}>
+      <aside className="kaside" style={{ width: 320 }} aria-label={`Invoice ${invoice.number}`}>
         <span className="sec-title">Invoice</span>
         <dl className="attrs">
-          <dt>Customer</dt>
-          <dd>{invoice.customer.name}</dd>
-          {invoice.quote ? (
-            <>
-              <dt>For</dt>
-              <dd>
-                {invoice.quote.number}
-                {invoice.quote.accepted ? `, accepted ${invoice.quote.accepted}` : ""}
-              </dd>
-            </>
-          ) : null}
-          <dt>Date</dt>
-          <dd>{invoice.date}</dd>
-          <dt>Due</dt>
-          <dd>{invoice.due}</dd>
-          <dt>Status</dt>
-          <dd>{invoice.stateLabel}</dd>
-          <dt>Made by</dt>
-          <dd>{invoice.madeBy}</dd>
+          <Attr term="Customer">{invoice.customer.name}</Attr>
+          {invoice.deal ? <Attr term="For">{invoice.deal}</Attr> : quote ? <Attr term="For">{quote.number}</Attr> : null}
+          <Attr term="Date">{invoice.date}</Attr>
+          <Attr term="Due">{invoice.dueTerms}</Attr>
+          <Attr term="Status">
+            <Pill tone={TONE[invoice.state.key]}>{invoice.state.label}</Pill>
+          </Attr>
+          <Attr term="Made by">{invoice.madeBy}</Attr>
+          {invoice.issuedBy ? <Attr term="Issued by">{invoice.issuedBy}</Attr> : null}
           {invoice.status !== "DRAFT" ? (
-            <>
-              <dt>Owed</dt>
-              <dd className="mono">{money(invoice.balance, invoice.currency)}</dd>
-            </>
+            <Attr term="Owed">
+              <span className="mono">{money(invoice.balance, invoice.currency)}</span>
+            </Attr>
           ) : null}
         </dl>
-        {invoice.quote ? (
+        {quote ? (
           <>
-            <span className="sec-title">What changed since the quote</span>
+            <span style={{ marginTop: 8 }}>
+              <span className="sec-title">What changed since the quote</span>
+            </span>
             {invoice.changes.length === 0 ? (
               <dl className="attrs">
-                <dt>Nothing</dt>
-                <dd>Lines and prices as accepted</dd>
+                <Attr term="Nothing">Lines and prices as accepted</Attr>
               </dl>
             ) : (
               <ul style={{ margin: 0, paddingLeft: "var(--space-16)", display: "flex", flexDirection: "column", gap: "var(--space-4)" }}>
@@ -124,5 +139,14 @@ export function InvoiceRecordView({ invoice }: { invoice: InvoiceRecord }) {
         ) : null}
       </aside>
     </div>
+  );
+}
+
+function Attr({ term, children }: { term: string; children: React.ReactNode }) {
+  return (
+    <>
+      <dt>{term}</dt>
+      <dd>{children}</dd>
+    </>
   );
 }

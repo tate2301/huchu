@@ -1,11 +1,7 @@
 import { redirect } from "next/navigation";
 
-/** Templates are global, not a CRM feature. They live at the sidebar root. */
-export default async function CrmTemplatePage({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
+/** Templates are Build's (spec/routes.md §5); the id is kept. */
+export default async function CrmTemplatePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  redirect(`/templates/${id}`);
+  redirect(`/build/documents/${encodeURIComponent(id)}`);
 }

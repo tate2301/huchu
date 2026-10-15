@@ -76,7 +76,7 @@ describe("banking block", () => {
     it(`carries the bank-level details on a ${name}`, () => {
       const html = render(template);
       expect(html).toContain("Test Bank");
-      expect(html).toContain("Branch Code");
+      expect(html).toContain("Branch code");
       expect(html).toContain("00000");
       expect(html).toContain("1 Test Street, Harare");
       expect(html).toContain("TESTZWHX");

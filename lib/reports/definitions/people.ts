@@ -20,6 +20,7 @@ const pay: ReportDefinition = {
     { key: "employee", label: "Employee", kind: "text" },
     { key: "employeeNo", label: "Employee no.", kind: "code", hidden: true },
     { key: "department", label: "Department", kind: "text" },
+    { key: "grade", label: "Job grade", kind: "text", hidden: true },
     { key: "run", label: "Run", kind: "status" },
     { key: "gross", label: "Gross", kind: "money", total: "sum" },
     { key: "allowances", label: "Allowances", kind: "money", hidden: true, total: "sum" },
@@ -28,6 +29,29 @@ const pay: ReportDefinition = {
     { key: "employerCost", label: "Employer cost", kind: "money", total: "sum" },
   ],
   defaults: { sort: [{ column: "period", dir: "desc" }, { column: "employee", dir: "asc" }], groupBy: "period" },
+};
+
+/** What each run withheld and owes the state: PAYE, the AIDS levy, NSSA and the levies, person by person. */
+const statutory: ReportDefinition = {
+  key: "payroll-statutory",
+  title: "Statutory",
+  area: "Pay",
+  summary: "PAYE, AIDS levy, NSSA and the levies each run owes, by person",
+  href: "/payroll/statutory",
+  profiles: PROFILES,
+  params: [
+    { key: "from", label: "Periods", type: "date", default: "-90d" },
+    { key: "to", label: "To", type: "date", default: "today" },
+  ],
+  columns: [
+    { key: "period", label: "Period", kind: "code" },
+    { key: "employee", label: "Employee", kind: "text" },
+    { key: "department", label: "Department", kind: "text", hidden: true },
+    { key: "item", label: "Item", kind: "status" },
+    { key: "paidBy", label: "Paid by", kind: "status" },
+    { key: "amount", label: "Amount", kind: "money", total: "sum" },
+  ],
+  defaults: { sort: [{ column: "period", dir: "desc" }, { column: "employee", dir: "asc" }], groupBy: "item" },
 };
 
 const people: ReportDefinition = {
@@ -55,6 +79,7 @@ const people: ReportDefinition = {
     { key: "position", label: "Role", kind: "status", hidden: true },
     { key: "phone", label: "Phone", kind: "phone" },
     { key: "hired", label: "Joined", kind: "date" },
+    { key: "nssa", label: "NSSA number", kind: "status", hidden: true },
     { key: "status", label: "Status", kind: "status", hidden: true },
   ],
   defaults: { sort: [{ column: "name", dir: "asc" }] },
@@ -79,4 +104,4 @@ const leave: ReportDefinition = {
   defaults: { sort: [{ column: "start", dir: "desc" }] },
 };
 
-export const PEOPLE_REPORTS: ReportDefinition[] = [pay, people, leave];
+export const PEOPLE_REPORTS: ReportDefinition[] = [pay, statutory, people, leave];

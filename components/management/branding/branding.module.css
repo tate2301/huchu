@@ -1,0 +1,536 @@
+/*
+ * Branding (PageBrandIdentity, PageBrandAssets, PageBrandFinance, PageBrandWhere).
+ * The kit draws the parts (`.lset`, `.srow`, `.kaside`, `.selbox`); this file
+ * sets the boards' measures for them and how they fold below 1100 and 760px.
+ * Unlayered, so it wins over the kit's `components` layer without !important.
+ */
+
+.split {
+  flex: 1 1 auto;
+  display: flex;
+  min-height: 0;
+}
+
+.sections {
+  padding: 0 var(--space-24) var(--space-32);
+  max-width: 860px;
+}
+
+.set {
+  grid-template-columns: 220px minmax(0, 1fr);
+  gap: var(--space-32);
+  padding: var(--space-24) 0;
+}
+
+.set:last-child {
+  box-shadow: none;
+}
+
+.row {
+  grid-template-columns: 200px minmax(0, 1fr);
+  min-height: 56px;
+  padding: var(--space-8) 0;
+}
+
+.what {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.what b {
+  font-weight: 500;
+  color: var(--color-ink);
+}
+
+.what span {
+  font-size: var(--text-12);
+  color: var(--color-muted);
+}
+
+.control {
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+  min-width: 0;
+}
+
+.control > :global(.input),
+.control > :global(.select) {
+  flex: 1;
+  min-width: 0;
+}
+
+.pair {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 120px;
+  gap: var(--space-8);
+  flex: 1;
+  min-width: 0;
+}
+
+.num {
+  font-variant-numeric: tabular-nums;
+}
+
+.swatch {
+  width: 34px;
+  height: 34px;
+  flex: none;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.1);
+  cursor: pointer;
+  overflow: hidden;
+  background: none;
+}
+
+.swatch::-webkit-color-swatch-wrapper {
+  padding: 0;
+}
+
+.swatch::-webkit-color-swatch {
+  border: 0;
+  border-radius: 8px;
+}
+
+.swatch::-moz-color-swatch {
+  border: 0;
+  border-radius: 8px;
+}
+
+.tile {
+  width: 120px;
+  height: 40px;
+  flex: none;
+  border-radius: 8px;
+  box-shadow: inset 0 0 0 1px var(--color-rule);
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  font-weight: 700;
+  font-size: var(--text-13);
+  background: #fff;
+  color: var(--color-muted);
+}
+
+.tile img {
+  max-width: 112px;
+  max-height: 34px;
+  object-fit: contain;
+}
+
+.file {
+  flex: 1;
+  min-width: 0;
+}
+
+.file > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.empty {
+  color: var(--color-muted);
+}
+
+.pick {
+  flex: 1;
+  min-width: 0;
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+}
+
+.note {
+  grid-column: 2;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4) var(--space-16);
+  padding-bottom: var(--space-8);
+  font-size: var(--text-12);
+  color: var(--color-muted);
+}
+
+.note code {
+  font-family: var(--font-mono);
+  color: var(--color-ink-2);
+  word-break: break-all;
+}
+
+.problem {
+  margin: var(--space-16) var(--space-24) 0;
+}
+
+/* The preview beside the form: the quotation as it prints. */
+
+.aside {
+  width: 440px;
+  background: var(--color-ground);
+}
+
+.asideHead {
+  display: flex;
+  justify-content: space-between;
+  font-size: var(--text-13);
+  color: var(--color-muted);
+}
+
+.paper {
+  padding: 26px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  font-size: 11px;
+  line-height: 1.45;
+  color: #1f2937;
+  background: #fff;
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-ring), var(--shadow-raised);
+}
+
+.paperHead {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.issuer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.issuer > span:last-child {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.issuer b {
+  font-size: 14px;
+  overflow-wrap: anywhere;
+}
+
+.mark {
+  width: 26px;
+  height: 26px;
+  flex: none;
+  border-radius: 6px;
+  display: grid;
+  place-items: center;
+  font-weight: 700;
+}
+
+.logo {
+  max-width: 96px;
+  max-height: 32px;
+  object-fit: contain;
+  flex: none;
+}
+
+.title {
+  text-align: right;
+  flex: none;
+}
+
+.title b {
+  font-size: 15px;
+}
+
+.rule {
+  height: 3px;
+}
+
+.two {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.paperMuted {
+  color: #6b7280;
+}
+
+.line {
+  display: grid;
+  grid-template-columns: 1fr 60px 70px;
+  padding: 5px 0;
+  box-shadow: inset 0 -1px 0 #e5e7eb;
+}
+
+.line > span:not(:first-child) {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.lineHead {
+  box-shadow: inset 0 -1px 0 #1f2937;
+  font-weight: 600;
+}
+
+.total {
+  display: flex;
+  justify-content: flex-end;
+  gap: 18px;
+  padding-top: 8px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.sign {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 12px;
+}
+
+.sign img {
+  max-height: 40px;
+  max-width: 150px;
+  object-fit: contain;
+}
+
+.sign img + img {
+  max-height: 54px;
+  max-width: 80px;
+  opacity: 0.85;
+}
+
+.pay {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  color: #6b7280;
+}
+
+.pay b {
+  color: #1f2937;
+  font-weight: 600;
+}
+
+.legal {
+  padding-top: 6px;
+  box-shadow: inset 0 1px 0 #e5e7eb;
+  color: #6b7280;
+}
+
+/* Where it shows (PageBrandWhere) */
+
+.where {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.cards {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-16);
+  margin-top: 40px;
+}
+
+.figure {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-12);
+  margin: 0;
+  color: inherit;
+  text-decoration: none;
+}
+
+.figure .paper {
+  padding: 18px;
+  gap: 8px;
+  min-height: 260px;
+}
+
+.link {
+  color: inherit;
+  text-decoration: none;
+  min-width: 0;
+}
+
+.link:hover .paper,
+.link:focus-visible .paper {
+  box-shadow: 0 0 0 2px var(--color-accent), var(--shadow-raised);
+}
+
+.link:focus-visible {
+  outline: none;
+}
+
+.kv {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-variant-numeric: tabular-nums;
+}
+
+.kv > span:first-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.caption {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: var(--text-13);
+  color: var(--color-muted);
+}
+
+.caption b {
+  font-weight: 500;
+  color: var(--color-ink);
+}
+
+/* Payment accounts in their drawer */
+
+.accounts {
+  display: flex;
+  flex-direction: column;
+}
+
+.account {
+  display: grid;
+  grid-template-columns: 24px 20px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-12);
+  min-height: 56px;
+  box-shadow: inset 0 -1px 0 var(--color-line);
+}
+
+.account[data-drop="true"] {
+  box-shadow: inset 0 2px 0 var(--color-accent), inset 0 -1px 0 var(--color-line);
+}
+
+.account[data-dragging="true"] {
+  opacity: 0.5;
+}
+
+.grip {
+  width: 24px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  background: none;
+  color: var(--color-muted);
+  cursor: grab;
+  border-radius: 4px;
+}
+
+.grip svg {
+  width: 14px;
+  height: 14px;
+}
+
+.grip:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--color-accent);
+}
+
+.accountBody {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.accountBody b {
+  font-weight: 500;
+  color: var(--color-ink);
+}
+
+.accountBody b[data-off="true"] {
+  color: var(--color-muted);
+}
+
+.accountBody span {
+  font-size: var(--text-13);
+  color: var(--color-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 1100px) {
+  .split {
+    flex-direction: column;
+  }
+
+  .split > :global(.kbody) {
+    flex: none;
+    overflow: visible;
+  }
+
+  .aside {
+    width: 100%;
+    box-shadow: inset 0 1px 0 var(--color-line);
+    overflow: visible;
+  }
+
+  .cards {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 760px) {
+  .sections {
+    padding: 0 var(--space-16) var(--space-24);
+  }
+
+  .tools {
+    flex-wrap: wrap;
+    padding-left: var(--space-16);
+    padding-right: var(--space-16);
+  }
+
+  .tools > :global(.seg) {
+    max-width: 100%;
+    overflow-x: auto;
+  }
+
+  .set {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-8);
+  }
+
+  .row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-8);
+    padding: var(--space-12) 0;
+  }
+
+  .note {
+    grid-column: 1;
+  }
+
+  .tile {
+    width: 72px;
+  }
+
+  .aside {
+    padding: var(--space-16);
+  }
+
+  .paper {
+    padding: 18px;
+  }
+
+  .cards {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .where {
+    padding: var(--space-24) var(--space-16) var(--space-48);
+  }
+
+  .problem {
+    margin: var(--space-12) var(--space-16) 0;
+  }
+}

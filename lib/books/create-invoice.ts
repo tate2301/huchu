@@ -74,9 +74,10 @@ export class InvoiceRefused extends Error {
 /**
  * Creates a sales invoice as the signed-in person, a draft or issued:
  * `POST /api/accounting/sales/invoices` and Vane's approved "draft the
- * invoice from the quote" both come here. Each line's tax comes from its code
- * or the customer's default; issued, it is posted and fiscalised; raised off
- * a CRM quote, the CRM hears of it.
+ * invoice from the quote" both come here, and so does Vane's draft tool.
+ * Each line's tax comes from its code or the customer's default; issued, it
+ * is posted and fiscalised; raised off a CRM quote, the CRM hears of it (a
+ * draft of Vane's, when a person takes it on).
  */
 export async function createSalesInvoice(
   /** No person, with `madeByVane`: Vane's own draft, which a person issues. */

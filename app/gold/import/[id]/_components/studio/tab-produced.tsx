@@ -225,7 +225,7 @@ export function TabProducedAllocations({
                     <td className="px-4 py-3">
                       {e.goldShiftAllocationId && (
                         <Link
-                          href={`/gold/insights/allocations/${e.goldShiftAllocationId}`}
+                          href={`/gold/allocations/${e.goldShiftAllocationId}`}
                           className="inline-flex items-center gap-1 text-xs text-[--action-primary-bg] hover:underline"
                         >
                           View allocation

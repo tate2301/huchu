@@ -1,22 +1,13 @@
-import { getServerSession } from "next-auth";
 import { redirect } from "next/navigation";
-import { PageChrome } from "@/components/layout/page-chrome";
-import { SchoolsReportsEnhancedContent } from "@/components/schools/reports/schools-reports-enhanced-content";
-import { authOptions } from "@/lib/auth";
 
-export default async function SchoolsReportsPage() {
-  const session = await getServerSession(authOptions);
-  if (!session?.user) {
-    redirect("/login");
-  }
-
-  return (
-    <div className="mx-auto w-full max-w-7xl space-y-6">
-      <PageChrome
-        title="School Reports"
-      />
-      <SchoolsReportsEnhancedContent />
-    </div>
-  );
+/**
+ * School reports moved to Reports: Collections and Arrears are the Fees
+ * insight; Enrolment and Hostel occupancy are reports of their own
+ * (`/reports/school-enrolment`, `/reports/school-boarding`).
+ */
+export default async function SchoolsReportsPage({ searchParams }: { searchParams: Promise<{ view?: string }> }) {
+  const { view } = await searchParams;
+  if (view === "enrollment") redirect("/reports/school-enrolment");
+  if (view === "occupancy") redirect("/reports/school-boarding");
+  redirect("/reports/insights/fees");
 }
-

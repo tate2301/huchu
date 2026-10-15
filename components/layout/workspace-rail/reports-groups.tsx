@@ -14,10 +14,10 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useToast } from "@/components/ui/use-toast";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
-import { ClipboardText, DotsThree, FileText, Plus } from "@/lib/icons";
+import { Bed, MedusaBookOpenIcon, CalendarCheck, Coins, DotsThree, Factory, FileText, Gem, IdentificationCard, Money, Package, Plus, ShieldCheck, Users, type LucideIcon } from "@/lib/icons";
 import { folderHref, reportCounts, reportEntries, type ReportsHomeData } from "@/lib/reports/all";
+import { areaHref, verticalAreas, verticalOf, type Vertical } from "@/lib/reports/verticals";
 import type { RailArea } from "@/lib/rail/areas";
-import { isOrgAdminRole } from "@/lib/preferences/nav";
 
 import { useMounted, ViewForm } from "./module-groups";
 import { PanelGroup } from "./panel-group";
@@ -38,20 +38,16 @@ export function isReportsArea(area: RailArea): boolean {
 
 /**
  * What Reports' panel adds under its rows (ReportsAll): the workspace's
- * Folders, with Add to Folders and each folder's Rename and Delete, then
- * Build (Forms, Documents).
+ * Folders, with Add to Folders and each folder's Rename and Delete. Forms
+ * and documents are Build's, a module of its own (`/build`).
  */
-export function ReportsGroups({ onNavigate }: { onNavigate?: () => void }) {
+export function ReportsGroups({ area, onNavigate }: { area: RailArea; onNavigate?: () => void }) {
   const { data: session } = useSession();
+  const vertical = verticalOf((session?.user as { workspaceProfile?: string } | undefined)?.workspaceProfile);
   return (
     <>
+      {vertical ? <AreasGroup vertical={vertical} listed={area} onNavigate={onNavigate} /> : null}
       <FoldersGroup onNavigate={onNavigate} />
-      {isOrgAdminRole(session?.user?.role) ? (
-        <PanelGroup label="Build">
-          <RailRow href="/templates#form" label="Forms" icon={ClipboardText} onNavigate={onNavigate} />
-          <RailRow href="/templates#document" label="Documents" icon={FileText} onNavigate={onNavigate} />
-        </PanelGroup>
-      ) : null}
     </>
   );
 }
@@ -182,6 +178,57 @@ function FoldersGroup({ onNavigate }: { onNavigate?: () => void }) {
           />
         </li>
       ) : null}
+    </PanelGroup>
+  );
+}
+
+/** Each area's mark in the panel, as the boards draw them. */
+const AREA_ICONS: Record<string, LucideIcon> = {
+  Fees: Coins,
+  "The school day": CalendarCheck,
+  Pupils: Users,
+  Production: Factory,
+  Gold: Gem,
+  "Stores and maintenance": Package,
+  "Safety and audit": ShieldCheck,
+  Pay: Money,
+  People: IdentificationCard,
+  Books: MedusaBookOpenIcon,
+  Boarding: Bed,
+};
+
+/**
+ * A vertical's Areas (PageSchoolReports, PageMineReports): its own areas, then
+ * pay, people and the books, each with how many reports it holds, opening All
+ * reports on that area. An area the panel already lists as a row of its own
+ * (the shop's Areas band holds Pay, People and Books) is not drawn twice.
+ */
+function AreasGroup({ vertical, listed, onNavigate }: { vertical: Vertical; listed: RailArea; onNavigate?: () => void }) {
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const mounted = useMounted();
+  const home = useQuery({ queryKey: REPORTS_HOME_KEY, queryFn: fetchReportsHome, staleTime: 60_000 });
+  const data = mounted ? home.data : undefined;
+  const areas = React.useMemo(() => {
+    if (!data) return [];
+    const rows = new Set(listed.items.map((item) => item.href));
+    return verticalAreas(vertical, reportEntries(data).map((entry) => entry.area)).filter(({ area }) => !rows.has(areaHref(area)));
+  }, [data, listed, vertical]);
+  if (areas.length === 0) return null;
+  const current = pathname === "/reports" ? searchParams.get("area") : null;
+  return (
+    <PanelGroup label="Areas" holdsCurrent={Boolean(current)}>
+      {areas.map(({ area, count }) => (
+        <RailRow
+          key={area}
+          href={areaHref(area)}
+          label={area}
+          icon={AREA_ICONS[area] ?? FileText}
+          badge={String(count)}
+          current={current === area}
+          onNavigate={onNavigate}
+        />
+      ))}
     </PanelGroup>
   );
 }

@@ -51,7 +51,7 @@ import {
 
 const SECTIONS_KEY = ["management", "master-data", "sections"] as const;
 
-const FULL_LOG_HREF = "/preferences/organization/activity";
+const FULL_LOG_HREF = "/activity?view=workspace";
 
 /**
  * One muted line, on the record's 470px measure.

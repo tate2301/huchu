@@ -7,7 +7,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { ChartBar, DotsThree, Plus } from "@/lib/icons";
 import type { RailArea } from "@/lib/rail/areas";
-import { reportsForArea, type PanelReport } from "@/lib/rail/reports";
+import { staticPanelReport } from "@/lib/rail/report-lookup";
+import { moduleReportHref, readModuleReportPath, reportsForArea, type PanelReport } from "@/lib/rail/reports";
 import { currentView, viewHref, viewPath, type SavedViewRecord } from "@/lib/saved-views/view";
 import {
   DropdownMenu,
@@ -39,7 +40,7 @@ export function ModuleGroups({
   onNavigate?: () => void;
 }) {
   // Reports' own panel: its folders and Build, as ReportsAll draws it.
-  if (isReportsArea(area)) return <ReportsGroups onNavigate={onNavigate} />;
+  if (isReportsArea(area)) return <ReportsGroups area={area} onNavigate={onNavigate} />;
   return (
     <>
       {savedViews ? <SavedViewsGroup onNavigate={onNavigate} /> : null}
@@ -281,12 +282,20 @@ function ReportsGroup({
   });
   const mounted = useMounted();
   const data = mounted ? reportsQuery.data : undefined;
-  const reports = React.useMemo(() => reportsForArea(data?.reports ?? [], areas, area.id), [area.id, areas, data]);
+  const pathname = usePathname();
+  // Until the list arrives, the report this page is (from the registry), so its row is marked at once.
+  const reports = React.useMemo(() => {
+    const here = readModuleReportPath(pathname);
+    const known = data?.reports ?? (here ? [staticPanelReport(here.key)].filter((report): report is PanelReport => Boolean(report)) : []);
+    return reportsForArea(known, areas, area.id);
+  }, [area.id, areas, data, pathname]);
   if (reports.length === 0) return null;
+  // Each opens at the module's own address, so this panel stays (`moduleReportHref`).
+  const rows = reports.map((report) => ({ report, href: moduleReportHref(report) }));
   return (
-    <PanelGroup label={`Reports from ${area.label}`}>
-      {reports.map((report) => (
-        <RailRow key={report.key} href={report.href} label={report.title} icon={ChartBar} onNavigate={onNavigate} />
+    <PanelGroup label={`Reports from ${area.label}`} holdsCurrent={rows.some((row) => row.href === pathname)}>
+      {rows.map(({ report, href }) => (
+        <RailRow key={report.key} href={href} label={report.title} icon={ChartBar} current={href === pathname} onNavigate={onNavigate} />
       ))}
     </PanelGroup>
   );

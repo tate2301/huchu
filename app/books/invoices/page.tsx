@@ -6,6 +6,9 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 import { BooksError, BooksLoading } from "@/components/books/books-state";
 import { BooksPage } from "@/components/books/figures";
+import { ExploreThisList, ListVane } from "@/components/explore/list-vane";
+import { canUseExplore } from "@/lib/explore/roles";
+import { useSession } from "next-auth/react";
 import { InvoicesPageView } from "@/components/books/invoices-view";
 import { PageChrome } from "@/components/layout/page-chrome";
 import { useToast } from "@/components/ui/use-toast";
@@ -15,12 +18,18 @@ import type { ReminderOutcome } from "@/lib/books/reminders";
 
 const NEW_INVOICE = { label: "New invoice", icon: "plus" as const, href: "/accounting/sales?action=new-invoice" };
 
+/** The list as a question (Explore this list): what is still owed, from the report Books → Invoices feeds. */
+const INVOICES_QUESTION = `select invoice, customer, due, days_late, currency, balance
+from books_owed_by_age
+order by days_late desc;`;
+
 /** Books → Invoices (design/core-modules/html/books-invoices.html). The list's filters live in the address. */
 function BooksInvoices() {
   const router = useRouter();
   const pathname = usePathname();
   const params = useSearchParams();
   const { toast } = useToast();
+  const { data: session } = useSession();
   const search = params.toString();
 
   const invoices = useQuery({
@@ -78,6 +87,8 @@ function BooksInvoices() {
               window.open(`/books/statements?customers=${customers.join(",")}`, "_blank", "noopener");
             }}
             exportHref={`/api/books/invoices?${new URLSearchParams([...params.entries(), ["format", "csv"]]).toString()}`}
+            explore={canUseExplore(session?.user?.role) ? <ExploreThisList sql={INVOICES_QUESTION} title="Invoices still owed" /> : null}
+            vane={<ListVane path="/books/invoices" />}
           />
         ) : invoices.isError ? (
           <BooksError what="Invoices" onRetry={() => invoices.refetch()} />

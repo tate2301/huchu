@@ -76,7 +76,8 @@ describe("areasFromSections", () => {
         alphabetical: area.ranked,
       }).map((item) => item.label);
     };
-    expect(rows("Pipeline")).toEqual(["Leads", "Deals", "Intake forms"]);
+    // Intake forms are Build's (spec/routes.md §5).
+    expect(rows("Pipeline")).toEqual(["Leads", "Deals"]);
     expect(rows("Contacts")).toEqual(["Companies", "People", "Sites"]);
     expect(rows("Work")).toEqual(["Site visits", "Follow-ups", "Tasks"]);
     // The index heads the group, then billing, then spending.
@@ -93,7 +94,8 @@ describe("areasFromSections", () => {
     // Insights and Sales reports moved to Reports (Insights → Sales, All reports).
     expect(rows("Insights")).toEqual(["My performance", "Team"]);
     // Workflow activity and the site-visit questions live on their index pages.
-    expect(rows("Setup")).toEqual(["Build", "Import", "Settings", "Workflows"]);
+    // The CRM's Build is Build, a module of its own (spec/routes.md §5).
+    expect(rows("Setup")).toEqual(["Import", "Settings", "Workflows"]);
   });
 
   it("keeps the CRM's Home out of every area", () => {
