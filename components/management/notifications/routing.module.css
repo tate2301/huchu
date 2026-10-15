@@ -68,3 +68,15 @@
     width: 100%;
   }
 }
+
+/* The board ticks a kind on a channel in ink (`.cb.on`), not the kit's accent. */
+.matrix :global(.check) input:checked {
+  background: var(--color-ink);
+}
+.matrix :global(.check) input:checked::after {
+  border-color: var(--color-surface);
+}
+.matrix :global(.check) input:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}

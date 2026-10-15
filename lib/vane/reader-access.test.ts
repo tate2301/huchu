@@ -16,7 +16,8 @@ const byTable = new Map(access.readable.map((t) => [t.table, t]));
 
 describe("what Vane may read", () => {
   it("reads every table that carries a workspace, except credentials", () => {
-    const withCompany = models.filter((m) => m.fields.some((f) => f.name === "companyId") && m.name !== "VaneReaderScope");
+    // The readers' own bindings, Vane's and Explore's, are not records.
+    const withCompany = models.filter((m) => m.fields.some((f) => f.name === "companyId") && m.name !== "VaneReaderScope" && m.name !== "ExploreReaderScope");
     const missing = withCompany.filter((m) => !byTable.has(m.table) && !access.unreadable.some((u) => u.table === m.table && (u.reason === "credentials" || u.reason === "conversation")));
     expect(missing.map((m) => m.name)).toEqual([]);
   });

@@ -7,14 +7,14 @@ import {
   PrismaClient,
   type ApprovalActionType,
   type ApprovalTargetType,
-  type UserNotificationPreference,
+  type UserRole,
 } from "@prisma/client"
+import { kindOf } from "@/lib/inbox/routing"
+import { allows, readSettings } from "@/lib/inbox/settings"
 import { emailNotificationAfterResponse } from "@/lib/notification-email"
 import { prisma } from "@/lib/prisma"
 
 type DbClient = Prisma.TransactionClient | PrismaClient
-
-type NotificationCategory = "HR" | "OPS" | "CRM"
 
 export type NotificationActionDescriptor = {
   key: string
@@ -40,39 +40,34 @@ type CreateNotificationInput = {
   title: string
   summary: string
   severity: NotificationSeverity
-  category: NotificationCategory
   recipientIds: string[]
   payload?: Record<string, unknown>
   entityType?: NotificationEntityType
   entityId?: string
   sourceAction?: NotificationSourceAction
   expiresAt?: Date | null
+  /** Who did the thing it is about; null for the system or Vane. They are never told about it themselves. */
+  actorId?: string | null
 }
 
 function isApproverRole(role: string | undefined) {
   return role === "MANAGER" || role === "SUPERADMIN"
 }
 
-function isCategoryEnabled(pref: UserNotificationPreference | undefined, category: NotificationCategory) {
-  if (!pref) return true
-  // Each category reads its own switch. CRM notices previously followed the
-  // ops switch, so turning ops off silently killed them too.
-  if (category === "HR") return pref.hrEnabled
-  if (category === "CRM") return pref.crmEnabled
-  return pref.opsEnabled
-}
-
 /**
- * Who hears about it, and how. The topic switches decide whether somebody
- * hears at all; the channel switches decide where. The two channels are
- * independent: email off still shows it in the app, and in-app off still
- * emails it.
+ * Who hears about it, and how. A kind on a channel reaches a person unless
+ * the workspace turned it off (Management → Notifications) or they did (My
+ * account → Notifications), both in `NotificationSetting`; and each person's
+ * channel switches (`UserNotificationPreference`: in the app, email) still
+ * turn a channel off for everything. The channels are independent: email off
+ * still shows it in the app, and in-app off still emails it. Whoever did the
+ * thing is never told about it.
  */
 async function recipientsByChannel(
   db: DbClient,
-  input: { companyId: string; userIds: string[]; category: NotificationCategory },
+  input: { companyId: string; userIds: string[]; kind: string; actorId?: string | null },
 ): Promise<{ inApp: string[]; email: string[] }> {
-  const dedupedUserIds = Array.from(new Set(input.userIds.filter(Boolean)))
+  const dedupedUserIds = Array.from(new Set(input.userIds.filter((userId) => userId && userId !== input.actorId)))
   if (dedupedUserIds.length === 0) return { inApp: [], email: [] }
 
   const activeUsers = await db.user.findMany({
@@ -86,17 +81,22 @@ async function recipientsByChannel(
   const activeUserIds = activeUsers.map((user) => user.id)
   if (activeUserIds.length === 0) return { inApp: [], email: [] }
 
-  const preferences = await db.userNotificationPreference.findMany({
-    where: { userId: { in: activeUserIds } },
-  })
+  const [preferences, settings] = await Promise.all([
+    db.userNotificationPreference.findMany({
+      where: { userId: { in: activeUserIds } },
+      select: { userId: true, inAppEnabled: true, emailEnabled: true },
+    }),
+    readSettings(db, input.companyId, activeUserIds),
+  ])
   const preferenceByUserId = new Map(preferences.map((pref) => [pref.userId, pref]))
 
-  const wanted = activeUserIds.filter((userId) =>
-    isCategoryEnabled(preferenceByUserId.get(userId), input.category),
-  )
   return {
-    inApp: wanted.filter((userId) => preferenceByUserId.get(userId)?.inAppEnabled ?? true),
-    email: wanted.filter((userId) => preferenceByUserId.get(userId)?.emailEnabled ?? true),
+    inApp: activeUserIds.filter(
+      (userId) => (preferenceByUserId.get(userId)?.inAppEnabled ?? true) && allows(settings, userId, input.kind, "IN_APP"),
+    ),
+    email: activeUserIds.filter(
+      (userId) => (preferenceByUserId.get(userId)?.emailEnabled ?? true) && allows(settings, userId, input.kind, "EMAIL"),
+    ),
   }
 }
 
@@ -107,7 +107,8 @@ async function createNotification(
   const recipients = await recipientsByChannel(db, {
     companyId: input.companyId,
     userIds: input.recipientIds,
-    category: input.category,
+    kind: kindOf({ type: input.type, payload: input.payload ?? null }),
+    actorId: input.actorId,
   })
 
   emailNotificationAfterResponse({
@@ -132,6 +133,7 @@ async function createNotification(
       entityId: input.entityId,
       sourceAction: input.sourceAction,
       expiresAt: input.expiresAt ?? undefined,
+      actorId: input.actorId ?? undefined,
     },
   })
 
@@ -185,6 +187,11 @@ function mapApprovalToNotificationType(
     if (action === "APPROVE") return NotificationType.HR_DISCIPLINARY_APPROVED
     if (action === "REJECT") return NotificationType.HR_DISCIPLINARY_REJECTED
   }
+  if (entityType === "LEAVE_REQUEST") {
+    if (action === "SUBMIT") return NotificationType.HR_LEAVE_SUBMITTED
+    if (action === "APPROVE") return NotificationType.HR_LEAVE_APPROVED
+    if (action === "REJECT") return NotificationType.HR_LEAVE_REJECTED
+  }
   return null
 }
 
@@ -204,6 +211,7 @@ function toNotificationEntityType(entityType: ApprovalTargetType): NotificationE
     return NotificationEntityType.GOLD_SHIFT_ALLOCATION
   }
   if (entityType === "DISCIPLINARY_ACTION") return NotificationEntityType.DISCIPLINARY_ACTION
+  if (entityType === "LEAVE_REQUEST") return NotificationEntityType.LEAVE_REQUEST
   return NotificationEntityType.COMPENSATION_RULE
 }
 
@@ -399,6 +407,29 @@ async function getWorkflowEntityContext(
     }
   }
 
+  if (input.entityType === "LEAVE_REQUEST") {
+    const leave = await db.leaveRequest.findUnique({
+      where: { id: input.entityId },
+      select: {
+        id: true,
+        createdById: true,
+        workingDays: true,
+        startDate: true,
+        employee: { select: { name: true } },
+        leaveType: { select: { name: true } },
+      },
+    })
+    if (!leave) return null
+    const days = Number(leave.workingDays)
+    const label = `${leave.employee.name}’s ${leave.leaveType.name.toLowerCase()} (${days} ${days === 1 ? "day" : "days"})`
+    return {
+      createdById: leave.createdById,
+      label,
+      viewPath: "/people/leave",
+      payload: { employeeName: leave.employee.name, leaveType: leave.leaveType.name, startDate: leave.startDate.toISOString().slice(0, 10) },
+    }
+  }
+
   const rule = await db.compensationRule.findUnique({
     where: { id: input.entityId },
     select: {
@@ -531,6 +562,21 @@ function buildWorkflowCopy(input: {
         title: "Disciplinary action rejected",
         summary: `${input.actorName} rejected ${input.label}.`,
       }
+    case NotificationType.HR_LEAVE_SUBMITTED:
+      return {
+        title: "Leave waiting for approval",
+        summary: `${input.actorName} asked for ${input.label}.`,
+      }
+    case NotificationType.HR_LEAVE_APPROVED:
+      return {
+        title: "Leave approved",
+        summary: `${input.actorName} approved ${input.label}.`,
+      }
+    case NotificationType.HR_LEAVE_REJECTED:
+      return {
+        title: "Leave rejected",
+        summary: `${input.actorName} rejected ${input.label}.`,
+      }
     default:
       return {
         title: "Workflow update",
@@ -607,11 +653,11 @@ export async function emitWorkflowNotificationFromApprovalAction(
 
     return createNotification(db, {
       companyId: input.companyId,
+      actorId: actor.id,
       type: notificationType,
       title: copy.title,
       summary: copy.summary,
       severity: buildWorkflowSeverity(notificationType),
-      category: "HR",
       recipientIds,
       payload: {
         actorId: actor.id,
@@ -740,11 +786,11 @@ export async function emitHrIncidentNotification(
 
     return createNotification(db, {
       companyId: input.companyId,
+      actorId: input.actorId,
       type,
       title,
       summary,
       severity,
-      category: "HR",
       recipientIds,
       payload: {
         incidentTitle: input.incident.title,
@@ -812,11 +858,11 @@ export async function emitIncidentNotification(
 
     return createNotification(db, {
       companyId: input.companyId,
+      actorId: input.actorId,
       type,
       title,
       summary,
       severity,
-      category: "OPS",
       recipientIds,
       payload: {
         incidentType: input.incident.incidentType,
@@ -881,11 +927,11 @@ export async function emitPermitRiskNotification(
 
     return createNotification(db, {
       companyId: input.companyId,
+      actorId: input.actorId,
       type,
       title,
       summary,
       severity,
-      category: "OPS",
       recipientIds,
       payload: {
         permitNumber: input.permit.permitNumber,
@@ -945,11 +991,11 @@ export async function emitWorkOrderStatusNotification(
 
     return createNotification(db, {
       companyId: input.companyId,
+      actorId: input.actorId,
       type,
       title,
       summary,
       severity,
-      category: "OPS",
       recipientIds,
       payload: {
         issue: input.workOrder.issue,
@@ -1212,7 +1258,6 @@ export async function emitGoldExceptionNotification(args: {
       title: `Gold exception: ${args.category}`,
       summary: `A critical gold exception (${args.category}) requires attention.`,
       severity: NotificationSeverity.CRITICAL,
-      category: "OPS",
       recipientIds,
       payload: {
         exceptionId: args.exceptionId,
@@ -1246,7 +1291,6 @@ export async function emitGoldImportFailedNotification(args: {
       title: "Gold import completed with failures",
       summary: `Import finished with ${args.rowsFailed} failed row${args.rowsFailed !== 1 ? "s" : ""}. Review and retry the failed entries.`,
       severity: NotificationSeverity.WARNING,
-      category: "OPS",
       recipientIds: allIds,
       payload: {
         importId: args.importId,
@@ -1276,7 +1320,6 @@ export async function emitGoldDispatchReceiptedNotification(args: {
       title: "Gold dispatch receipted",
       summary: "A gold dispatch has been receipted by the buyer.",
       severity: NotificationSeverity.INFO,
-      category: "OPS",
       recipientIds,
       payload: {
         dispatchId: args.dispatchId,
@@ -1310,17 +1353,19 @@ export async function emitCrmNotification(args: {
   entityId?: string
   viewPath: string
   severity?: NotificationSeverity
+  /** Who did it: shown on the row, and never told about it themselves. */
+  actorId?: string | null
 }): Promise<void> {
   try {
     const recipientIds = args.recipientIds.filter(Boolean)
     if (recipientIds.length === 0) return
     await createNotification(prisma, {
       companyId: args.companyId,
+      actorId: args.actorId,
       type: args.type,
       title: args.title,
       summary: args.summary,
       severity: args.severity ?? NotificationSeverity.INFO,
-      category: "CRM",
       recipientIds,
       payload: { leadId: args.leadId, viewPath: args.viewPath },
       entityType: args.entityType ?? NotificationEntityType.CRM_LEAD,
@@ -1357,7 +1402,6 @@ export async function emitRetailNotification(args: {
       title: args.title,
       summary: args.summary,
       severity: args.severity ?? NotificationSeverity.INFO,
-      category: "OPS",
       recipientIds,
       payload: { viewPath: args.viewPath },
       entityType: args.entityType,
@@ -1392,7 +1436,6 @@ export async function emitRetailTransferSentNotification(args: {
       title: `${args.transferNo} is on the way to ${args.toName}`,
       summary: `Sent from ${args.fromName}. Receive it when it arrives.`,
       severity: NotificationSeverity.INFO,
-      category: "OPS",
       recipientIds: args.recipientIds,
       payload: { transferNo: args.transferNo, viewPath: `/retail/stock/transfers/${args.transferId}` },
       entityType: NotificationEntityType.RETAIL_STOCK_TRANSFER,
@@ -1426,7 +1469,6 @@ export async function emitRetailTransferCancelledNotification(args: {
           ? `It was cancelled and ${args.units} ${args.units === 1 ? "unit went" : "units went"} back to ${args.fromName}.`
           : "It was cancelled.",
       severity: NotificationSeverity.INFO,
-      category: "OPS",
       recipientIds: args.recipientIds,
       payload: { transferNo: args.transferNo, viewPath: `/retail/stock/transfers/${args.transferId}` },
       entityType: NotificationEntityType.RETAIL_STOCK_TRANSFER,
@@ -1435,5 +1477,82 @@ export async function emitRetailTransferCancelledNotification(args: {
     })
   } catch (error) {
     console.error("[Notifications] emitRetailTransferCancelledNotification failed:", error)
+  }
+}
+
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+/**
+ * A scheduled report or question went out (`REPORT_SENT`): the person who
+ * scheduled it hears that it did, and to how many. The cron sent it, so it
+ * has no actor.
+ */
+export async function emitReportSentNotification(args: {
+  companyId: string
+  recipientId: string | null
+  reportKey: string
+  title: string
+  reached: number
+  viewPath: string
+}): Promise<void> {
+  try {
+    if (!args.recipientId) return
+    await createNotification(prisma, {
+      companyId: args.companyId,
+      type: NotificationType.REPORT_SENT,
+      title: `${args.title} was sent`,
+      summary: `It went to ${args.reached} ${args.reached === 1 ? "person" : "people"} on its schedule.`,
+      severity: NotificationSeverity.INFO,
+      recipientIds: [args.recipientId],
+      payload: { viewPath: args.viewPath, label: args.title },
+      // A custom report or a question resolves to its record; a built-in report is named by its key.
+      ...(UUID_PATTERN.test(args.reportKey) ? { entityType: NotificationEntityType.REPORT, entityId: args.reportKey } : {}),
+      sourceAction: NotificationSourceAction.STATUS_CHANGE,
+    })
+  } catch (error) {
+    console.error("[Notifications] emitReportSentNotification failed:", error)
+  }
+}
+
+/**
+ * Vane raised an issue that needs a person (`VANE_ISSUE_RAISED`): the person
+ * it is addressed to, else the role it names, else the workspace's managers
+ * and owners. Vane did it, so it has no actor; it only tells, and the card's
+ * own button is still pressed by a person.
+ */
+export async function emitVaneIssueNotification(args: {
+  companyId: string
+  itemId: string
+  headline: string
+  body: string
+  audienceUserId?: string | null
+  audienceRole?: string | null
+}): Promise<void> {
+  try {
+    const recipientIds = args.audienceUserId
+      ? [args.audienceUserId]
+      : args.audienceRole
+        ? (
+            await prisma.user.findMany({
+              where: { companyId: args.companyId, role: args.audienceRole as UserRole, isActive: true },
+              select: { id: true },
+            })
+          ).map((user) => user.id)
+        : await getManagerIds(args.companyId)
+    if (recipientIds.length === 0) return
+    await createNotification(prisma, {
+      companyId: args.companyId,
+      type: NotificationType.VANE_ISSUE_RAISED,
+      title: args.headline,
+      summary: args.body.length > 240 ? `${args.body.slice(0, 237)}…` : args.body,
+      severity: NotificationSeverity.INFO,
+      recipientIds,
+      payload: { viewPath: `/vane?card=${args.itemId}` },
+      entityType: NotificationEntityType.VANE_ITEM,
+      entityId: args.itemId,
+      sourceAction: NotificationSourceAction.CREATE,
+    })
+  } catch (error) {
+    console.error("[Notifications] emitVaneIssueNotification failed:", error)
   }
 }

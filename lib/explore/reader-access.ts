@@ -1,10 +1,8 @@
 import type { ReaderAccess } from "@/lib/vane/reader-access";
 
-import type { ProductKey } from "./products";
-
 /**
- * What `explore_reader` may read — WAITING FOR APPROVAL with
- * `prisma/proposed/20261015120000_explore_reader`.
+ * What `explore_reader` may read (`prisma/migrations/20261015120000_explore_reader`,
+ * approved 15 Oct).
  *
  * Built on Vane's rules (`lib/vane/reader-access.ts`) so the two can never
  * drift: the same tables and the same per-column grants as `vane_reader`
@@ -71,17 +69,4 @@ export function exploreReaderSql(access: ReaderAccess): string {
   return out.join("\n") + "\n";
 }
 
-/** The real tables behind each product, by name: what a role that reads the product's reports may read in Postgres. */
-const PRODUCT_TABLES: Record<ProductKey, RegExp> = {
-  crm: /^Crm/,
-  books: /^(Sales|Journal|Bank|Customer$|Accounting|Tax|Purchase|Supplier|Fiscal|Expense|ChartOfAccount)/,
-  tender: /^Retail/,
-  people: /^(Employee|Payroll|Leave|Department|JobGrade|Position)/,
-  schools: /^School/,
-  operations: /^(Gold|Shift|Plant|Downtime|Equipment|WorkOrder|Stock|Inventory|Fuel|Compliance|Incident|Site|Section)/,
-};
-
-/** The tables to bind for a person whose role reads these products, out of what `explore_reader` is granted. */
-export function scopeTables(products: readonly ProductKey[], readable: readonly string[]): string[] {
-  return readable.filter((table) => products.some((product) => PRODUCT_TABLES[product].test(table))).sort();
-}
+export { scopeTables } from "./tables";

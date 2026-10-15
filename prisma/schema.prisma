@@ -63,6 +63,8 @@ model Company {
   approvalActions               ApprovalAction[]
   adjustmentEntries             AdjustmentEntry[]
   notifications                 Notification[]
+  notificationSettings          NotificationSetting[]
+  notificationPolicy            NotificationPolicy?
   hrIncidents                   HrIncident[]
   disciplinaryActions           DisciplinaryAction[]
   subscriptions                 CompanySubscription[]
@@ -136,6 +138,9 @@ model Company {
   vaneSettings                  VaneSettings?
   vaneMessages                  VaneMessage[]
   vaneTopicStops                VaneTopicStop[]
+  exploreReaderScopes           ExploreReaderScope[]
+  exploreSettings               ExploreSettings?
+  exploreQuestionRuns           ExploreQuestionRun[]
   vaneActions                   VaneAction[]
   vaneReaderScopes              VaneReaderScope[]
   documentRenderJobs            DocumentRenderJob[]
@@ -1416,6 +1421,8 @@ model User {
   closedBankReconciliations         BankReconciliation[]           @relation("BankReconciliationClosedBy")
   createdVatReturns                 VatReturnSummary[]             @relation("VatReturnCreatedBy")
   notificationRecipients            NotificationRecipient[]
+  notificationsActed                Notification[]          @relation("NotificationActor")
+  notificationSettings              NotificationSetting[]   @relation("NotificationSettingUser")
   notificationPreference            UserNotificationPreference?
   displayPreference               UserDisplayPreference?
   webPushSubscriptions              WebPushSubscription[]
@@ -1581,6 +1588,8 @@ model User {
   vaneJobsRequested               VaneJob[]                      @relation("VaneJobRequestedBy")
   vaneMessages                    VaneMessage[]                  @relation("VaneMessageUser")
   vaneTopicStops                  VaneTopicStop[]                @relation("VaneTopicStopUser")
+  exploreSettingsUpdated          ExploreSettings[]              @relation("ExploreSettingsUpdatedBy")
+  exploreQuestionRuns             ExploreQuestionRun[]           @relation("ExploreQuestionRunBy")
   vanePausesMade                  VaneSettings[]                 @relation("VaneSettingsPausedBy")
   vaneActionsDecided              VaneAction[]                   @relation("VaneActionDecidedBy")
   sitesClosed                       Site[]                         @relation("SiteClosedBy")
@@ -2253,12 +2262,17 @@ model Notification {
   entityType   NotificationEntityType?
   entityId     String?
   sourceAction NotificationSourceAction?
+  /// Who did the thing the notification is about; null for the system or Vane.
+  actorId      String?
   expiresAt    DateTime?
   createdAt    DateTime                  @default(now())
   updatedAt    DateTime                  @updatedAt
 
   company    Company                 @relation(fields: [companyId], references: [id])
+  actor      User?                   @relation("NotificationActor", fields: [actorId], references: [id], onDelete: SetNull)
   recipients NotificationRecipient[]
+
+  @@index([actorId])
 
   @@index([companyId, createdAt])
   @@index([companyId, type, createdAt])
@@ -2285,6 +2299,48 @@ model NotificationRecipient {
   @@unique([notificationId, userId])
   @@index([userId, createdAt])
   @@index([userId, isRead, isArchived, createdAt])
+}
+
+/// Who hears about a kind of notification, and where: the workspace's rule
+/// (userId null, set in Management → Notifications) or one person's own
+/// (set in My account → Notifications), per kind and channel.
+model NotificationSetting {
+  id          String              @id @default(uuid())
+  companyId   String
+  userId      String?
+  kind        String              @db.VarChar(32)
+  channel     NotificationChannel
+  enabled     Boolean
+  updatedById String?
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  user    User?   @relation("NotificationSettingUser", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, userId, kind, channel])
+  @@index([userId])
+}
+
+/// When notifications go: quiet hours for the phone and WhatsApp, the morning
+/// message from Vane, and repeats grouped into one.
+model NotificationPolicy {
+  companyId      String   @id
+  quietFrom      String   @default("20:00") @db.VarChar(5)
+  quietTo        String   @default("06:00") @db.VarChar(5)
+  morningMessage Boolean  @default(false)
+  groupRepeats   Boolean  @default(true)
+  updatedById    String?
+  updatedAt      DateTime @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+}
+
+enum NotificationChannel {
+  IN_APP
+  EMAIL
+  WHATSAPP
+  PHONE
 }
 
 model UserNotificationPreference {
@@ -3325,6 +3381,14 @@ enum NotificationType {
   RETAIL_ORDER_FOLLOW_UP
   /// A stock clerk counted a delivery; an owner or manager checks and posts it (BUY-06).
   RETAIL_DELIVERY_TO_CHECK
+  /// Books, leave, reports and Vane, which until now carried their record as payload.subject.
+  BOOKS_INVOICE_PAID
+  BOOKS_PAYMENT_RECEIVED
+  HR_LEAVE_SUBMITTED
+  HR_LEAVE_APPROVED
+  HR_LEAVE_REJECTED
+  REPORT_SENT
+  VANE_ISSUE_RAISED
 }
 
 enum NotificationSeverity {
@@ -3362,6 +3426,11 @@ enum NotificationEntityType {
   RETAIL_SHIFT
   RETAIL_PURCHASE_ORDER
   RETAIL_GOODS_RECEIPT
+  INVOICE
+  PAYMENT
+  LEAVE_REQUEST
+  REPORT
+  VANE_ITEM
 }
 
 enum HrIncidentCategory {
@@ -16645,4 +16714,74 @@ model ScheduledJobRun {
   lastRunAt    DateTime?
   claimedUntil DateTime?
   updatedAt    DateTime  @updatedAt
+}
+
+// Explore's own login (20261015120000_explore_reader, approved 15 Oct): the
+// binding, Management → Explore's settings and the questions-run log.
+// `lib/explore/reader.ts` is the only writer of the binding.
+
+enum ExploreRunResult {
+  OK
+  REFUSED
+  TIMEOUT
+  FAILED
+}
+
+/// Which workspace, person and tables an `explore_reader` connection is bound
+/// to, by backend pid, for one reading transaction (`lib/explore/reader.ts`).
+model ExploreReaderScope {
+  pid       Int      @id
+  companyId String
+  userId    String
+  /// The real tables the person's role reads (`lib/explore/reader-access.ts` scopeTables).
+  tables    String[] @default([])
+  boundAt   DateTime @default(now())
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId])
+}
+
+/// Management → Explore: who may use it, what each product shows, the limits.
+/// No row means the defaults: owners and managers, by role, 5,000 rows, 10 s.
+model ExploreSettings {
+  companyId        String   @id
+  /// The roles that may use Explore.
+  roles            String[] @default(["SUPERADMIN", "MANAGER"])
+  /// Per product ("crm", "people"…): "role" (by role) or a list of roles.
+  productScopes    Json     @default("{}")
+  rowLimit         Int      @default(5000)
+  timeLimitSeconds Int      @default(10)
+  /// Personal details show as ••• unless the role reads them in People.
+  maskPersonal     Boolean  @default(true)
+  updatedById      String?
+  updatedAt        DateTime @updatedAt
+
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  updatedBy User?   @relation("ExploreSettingsUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+
+  @@index([updatedById])
+}
+
+/// One question run as `explore_reader`: kept a year, with the SQL and who ran
+/// it (Management → Explore, "Questions run today").
+model ExploreQuestionRun {
+  id        String           @id @default(uuid())
+  companyId String
+  userId    String?
+  title     String?
+  sql       String
+  readFrom  String[]         @default([])
+  rows      Int?
+  ms        Int?
+  result    ExploreRunResult
+  /// Why it was refused or failed, in the words the person saw.
+  reason    String?
+  createdAt DateTime         @default(now())
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  user    User?   @relation("ExploreQuestionRunBy", fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([companyId, createdAt])
+  @@index([userId])
 }

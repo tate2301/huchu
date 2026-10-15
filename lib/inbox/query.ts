@@ -117,6 +117,8 @@ type Row = {
     entityType: string | null;
     entityId: string | null;
     createdAt: Date;
+    /** Who did it (`Notification.actorId`), since 15 Oct. */
+    actor: { name: string } | null;
   };
 };
 
@@ -136,7 +138,7 @@ async function shape(rows: Row[], companyId: string, viewerName: string | null, 
   return prepared.map(({ row, n, payload, subject }) => {
     const concern = subject ? (concerns.get(concernKey(subject)) ?? null) : null;
     const payloadActor = typeof payload?.actorName === "string" ? payload.actorName : null;
-    const actorName = payloadActor ?? concern?.actorName ?? null;
+    const actorName = row.notification.actor?.name ?? payloadActor ?? concern?.actorName ?? null;
     const fallbackRef = typeof payload?.label === "string" ? payload.label : null;
     const ref = concern?.ref ?? fallbackRef;
     const { segments, used } = sentenceFor({ title: n.title, summary: n.summary, actorName, refLabel: ref, type: n.type });
@@ -192,7 +194,7 @@ export async function listInbox(args: {
         id: true,
         isRead: true,
         notification: {
-          select: { type: true, severity: true, title: true, summary: true, payloadJson: true, entityType: true, entityId: true, createdAt: true },
+          select: { type: true, severity: true, title: true, summary: true, payloadJson: true, entityType: true, entityId: true, createdAt: true, actor: { select: { name: true } } },
         },
       },
       orderBy: [{ notification: { createdAt: "desc" } }, { createdAt: "desc" }],
@@ -227,7 +229,7 @@ export async function getInboxDetail(args: {
       id: true,
       isRead: true,
       notification: {
-        select: { type: true, severity: true, title: true, summary: true, payloadJson: true, entityType: true, entityId: true, createdAt: true },
+        select: { type: true, severity: true, title: true, summary: true, payloadJson: true, entityType: true, entityId: true, createdAt: true, actor: { select: { name: true } } },
       },
     },
   });

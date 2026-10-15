@@ -23,6 +23,16 @@ const INVOICES_QUESTION = `select invoice, customer, due, days_late, currency, b
 from books_owed_by_age
 order by days_late desc;`;
 
+/** The same question over Books' own tables, when Explore reads them through its own login. */
+const INVOICES_TABLES_QUESTION = `select i.invoice_number as invoice, c.name as customer, i.due_date as due,
+  current_date - i.due_date::date as days_late, i.currency,
+  i.total - i.amount_paid - i.credit_total - i.write_off_total as balance
+from sales_invoice i
+left join customer c on c.id = i.customer_id
+where i.status = 'ISSUED'
+  and i.total - i.amount_paid - i.credit_total - i.write_off_total > 0
+order by days_late desc;`;
+
 /** Books → Invoices (design/core-modules/html/books-invoices.html). The list's filters live in the address. */
 function BooksInvoices() {
   const router = useRouter();
@@ -87,7 +97,7 @@ function BooksInvoices() {
               window.open(`/books/statements?customers=${customers.join(",")}`, "_blank", "noopener");
             }}
             exportHref={`/api/books/invoices?${new URLSearchParams([...params.entries(), ["format", "csv"]]).toString()}`}
-            explore={canUseExplore(session?.user?.role) ? <ExploreThisList sql={INVOICES_QUESTION} title="Invoices still owed" /> : null}
+            explore={canUseExplore(session?.user?.role) ? <ExploreThisList sql={INVOICES_QUESTION} tablesSql={INVOICES_TABLES_QUESTION} title="Invoices still owed" /> : null}
             vane={<ListVane path="/books/invoices" />}
           />
         ) : invoices.isError ? (

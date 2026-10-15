@@ -547,9 +547,6 @@ export type UserNotificationPreferences = {
   inAppEnabled: boolean;
   webPushEnabled: boolean;
   emailEnabled: boolean;
-  hrEnabled: boolean;
-  opsEnabled: boolean;
-  crmEnabled: boolean;
 };
 
 export type EmployeePayment = {
@@ -1923,7 +1920,7 @@ export async function updateNotificationPreferences(
   input: Partial<
     Pick<
       UserNotificationPreferences,
-      "inAppEnabled" | "webPushEnabled" | "emailEnabled" | "hrEnabled" | "opsEnabled" | "crmEnabled"
+      "inAppEnabled" | "webPushEnabled" | "emailEnabled"
     >
   >,
 ) {

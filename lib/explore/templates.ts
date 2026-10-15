@@ -209,6 +209,159 @@ order by hours desc;`,
   }),
 ];
 
+/**
+ * The same questions over the workspace's real tables, for when Explore reads
+ * Postgres through its own login (`lib/explore/reader.ts`, `tables.ts`): the
+ * same slugs, so `/explore/q/{slug}` opens either. Only the ones the tables
+ * can answer are here; a report source that works a figure out (a quote's
+ * outcome on a visit form, a shop's stock on hand, pay) has no table that
+ * holds it.
+ */
+export const TABLE_TEMPLATES: readonly ExploreTemplate[] = [
+  t({
+    slug: "quotes-waiting",
+    title: "Quotes waiting more than 7 days",
+    answers: "Which quotes have had no answer for a week",
+    product: "books",
+    sql: `select q.quotation_number, c.name as customer, q.status, q.quotation_date, q.total,
+  current_date - q.quotation_date::date as days_waiting
+from sales_quotation q
+left join customer c on c.id = q.customer_id
+where q.status in ('DRAFT', 'SENT')
+  and q.quotation_date <= current_date - 7
+order by days_waiting desc;`,
+  }),
+  t({
+    slug: "quotes-open",
+    title: "Quotes not yet accepted",
+    answers: "What is quoted and not yet accepted, biggest first",
+    product: "books",
+    sql: `select q.quotation_number, c.name as customer, q.status, q.quotation_date, q.total
+from sales_quotation q
+left join customer c on c.id = q.customer_id
+where q.status in ('DRAFT', 'SENT')
+order by q.total desc nulls last;`,
+  }),
+  t({
+    slug: "quoted-by-month",
+    title: "Quoted by month",
+    answers: "How much was quoted each month, and how many quotes",
+    product: "books",
+    sql: `select date_trunc('month', quotation_date) as month, count(*) as quotes, sum(total) as quoted
+from sales_quotation
+where status <> 'VOIDED'
+group by date_trunc('month', quotation_date)
+order by month desc;`,
+  }),
+  t({
+    slug: "deals-by-stage",
+    title: "Open deals by stage",
+    answers: "Where the open deals are, and what they are worth",
+    product: "crm",
+    sql: `select s.name as stage, count(*) as deals, sum(d.value) as value
+from crm_deal d
+left join crm_pipeline_stage s on s.id = d.stage_id
+where d.status = 'OPEN' and d.archived_at is null
+group by s.name, s.position
+order by s.position;`,
+  }),
+  t({
+    slug: "crm-invoices-owed",
+    title: "Invoices still owed, oldest first",
+    answers: "Which invoices are past due, and by how long",
+    product: "books",
+    sql: `select i.invoice_number, c.name as customer, i.due_date, i.total,
+  i.total - i.amount_paid - i.credit_total - i.write_off_total as balance,
+  current_date - i.due_date::date as days_late
+from sales_invoice i
+left join customer c on c.id = i.customer_id
+where i.status = 'ISSUED'
+  and i.total - i.amount_paid - i.credit_total - i.write_off_total > 0
+order by days_late desc nulls last;`,
+  }),
+  t({
+    slug: "owed-by-customer",
+    title: "Owed to you, by customer",
+    answers: "Who owes the most, and how late the oldest invoice is",
+    product: "books",
+    sql: `select c.name as customer, count(*) as invoices,
+  sum(i.total - i.amount_paid - i.credit_total - i.write_off_total) as owed,
+  max(current_date - i.due_date::date) as oldest_days
+from sales_invoice i
+left join customer c on c.id = i.customer_id
+where i.status = 'ISSUED'
+  and i.total - i.amount_paid - i.credit_total - i.write_off_total > 0
+group by c.name
+order by owed desc;`,
+  }),
+  t({
+    slug: "cash-ups-short",
+    title: "Shifts that didn't balance, by till",
+    answers: "Which tills and cashiers end shifts short or over",
+    product: "tender",
+    sql: `select register_name as till, cashier_name as cashier, count(*) as shifts, sum(variance) as variance
+from retail_shift
+where status = 'CLOSED' and variance <> 0
+group by register_name, cashier_name
+order by variance;`,
+  }),
+  t({
+    slug: "sales-by-till",
+    title: "Sales by till",
+    answers: "How much each till took, and how many sales",
+    product: "tender",
+    sql: `select coalesce(r.name, 'No till') as till, count(*) as sales, sum(s.total_amount) as total
+from retail_sale s
+left join retail_register r on r.id = s.register_id
+where s.status = 'POSTED'
+group by r.name
+order by total desc;`,
+  }),
+  t({
+    slug: "people-by-department",
+    title: "People by department",
+    answers: "How many people work in each department",
+    product: "people",
+    sql: `select coalesce(d.name, 'No department') as department, count(*) as people
+from employee e
+left join department d on d.id = e.department_id
+where e.is_active
+group by d.name
+order by people desc;`,
+  }),
+  t({
+    slug: "leave-by-person",
+    title: "Leave taken, by person and type",
+    answers: "Who has taken how many days, of which leave",
+    product: "people",
+    sql: `select e.name as employee, t.name as type, sum(l.working_days) as days
+from leave_request l
+join employee e on e.id = l.employee_id
+left join leave_type t on t.id = l.leave_type_id
+where l.status = 'APPROVED'
+group by e.name, t.name
+order by days desc;`,
+  }),
+  t({
+    slug: "downtime-by-cause",
+    title: "Downtime by cause",
+    answers: "What stops the plant, and for how long",
+    product: "operations",
+    sql: `select coalesce(c.description, 'No cause given') as cause, count(*) as stops, sum(d.duration_hours) as hours
+from downtime_event d
+left join downtime_code c on c.id = d.downtime_code_id
+group by c.description
+order by hours desc nulls last;`,
+  }),
+];
+
+/** Where a question runs: over the report sources in the person's tab, or over the real tables as `explore_reader`. */
+export type ExploreEngine = "sources" | "tables";
+
+export function templatesOf(engine: ExploreEngine): readonly ExploreTemplate[] {
+  return engine === "tables" ? TABLE_TEMPLATES : EXPLORE_TEMPLATES;
+}
+
 /** The tables a template reads, by SQL name. */
 export function templateReads(template: Pick<ExploreTemplate, "sql">, tables: ReadonlySet<string>): string[] {
   const checked = checkSql(template.sql, tables);
@@ -216,8 +369,8 @@ export function templateReads(template: Pick<ExploreTemplate, "sql">, tables: Re
 }
 
 /** The templates this person can open: every table each reads is one of theirs. */
-export function templatesFor(readable: ReadonlySet<string>): Array<ExploreTemplate & { reads: string[] }> {
-  return EXPLORE_TEMPLATES.flatMap((template) => {
+export function templatesFor(readable: ReadonlySet<string>, engine: ExploreEngine = "sources"): Array<ExploreTemplate & { reads: string[] }> {
+  return templatesOf(engine).flatMap((template) => {
     const checked = checkSql(template.sql, readable);
     return checked.ok ? [{ ...template, reads: checked.tables }] : [];
   });
@@ -230,6 +383,6 @@ export function templateTitle(template: Pick<ExploreTemplate, "title">, now = ne
   return template.title.replace("{lastMonth}", MONTHS[(now.getMonth() + 11) % 12]!);
 }
 
-export function templateBySlug(slug: string): ExploreTemplate | null {
-  return EXPLORE_TEMPLATES.find((template) => template.slug === slug) ?? null;
+export function templateBySlug(slug: string, engine: ExploreEngine = "sources"): ExploreTemplate | null {
+  return templatesOf(engine).find((template) => template.slug === slug) ?? null;
 }

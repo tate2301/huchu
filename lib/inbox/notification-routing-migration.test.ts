@@ -1,5 +1,5 @@
 /**
- * Migration witness for `20261015120000_notification_routing` (NEEDS APPROVAL, not applied).
+ * Migration witness for `20261015130000_notification_routing` (approved 15 Oct).
  *
  * A kind on a channel is on or off once per workspace and once per person; a
  * notification remembers who did it and outlives them; Books, leave, reports

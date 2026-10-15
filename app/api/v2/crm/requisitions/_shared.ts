@@ -21,6 +21,7 @@ export async function notifyApprovers(
 ) {
   const recipientIds = await getCrmManagerRecipients(companyId, requesterId);
   await emitCrmNotification({
+    actorId: requesterId,
     companyId,
     recipientIds,
     type: "CRM_REQUISITION_SUBMITTED",

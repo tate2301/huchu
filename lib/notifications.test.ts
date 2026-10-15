@@ -23,6 +23,10 @@ vi.mock("@/lib/prisma", () => ({
     userNotificationPreference: {
       findMany: mockUserFindManyPreferences,
     },
+    // Who hears about what (`NotificationSetting`): no rule, so every kind is on.
+    notificationSetting: {
+      findMany: vi.fn(async () => []),
+    },
   },
 }))
 

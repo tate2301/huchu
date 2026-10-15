@@ -90,6 +90,7 @@ export async function POST(request: NextRequest) {
 
     const managers = await getCrmManagerRecipients(companyId, session.user.id);
     await emitCrmNotification({
+      actorId: session.user.id,
       companyId,
       recipientIds: managers,
       type: "CRM_DOCUMENT_APPROVED",

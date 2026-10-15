@@ -1,47 +1,56 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { z } from "zod";
 
-import { errorResponse, successResponse, validateSession } from "@/lib/api-utils";
-import { canUseExplore, sourcesFor } from "@/lib/explore/access";
+import { errorResponse, successResponse } from "@/lib/api-utils";
+import { canUseExplore } from "@/lib/explore/access";
+import { exploreGate } from "@/lib/explore/gate";
 import { checkQuestion } from "@/lib/explore/guard";
-import { questionSql } from "@/lib/explore/questions";
-import { exploreReaderReady, READER_WAITING } from "@/lib/explore/reader";
+import { questionReads, questionSql } from "@/lib/explore/questions";
+import { exploreReaderReady, exploreScope, READER_WAITING } from "@/lib/explore/reader";
+import { exploreRoles } from "@/lib/explore/runs";
 import { prisma } from "@/lib/prisma";
 import { readerOf } from "@/lib/reports/custom/sources";
 import { readCustomReport } from "@/lib/reports/custom/store";
 import { nextRunAt, scheduleInputSchema } from "@/lib/reports/schedule";
-import { REPORT_DEFINITIONS } from "@/lib/reports/registry";
-import { sqlName } from "@/lib/reports/sql/schema";
 
 /**
  * A saved question's schedule (the ExploreSchedule drawer): who it may go to,
  * and making one. It is stored as a report's schedule is (`ReportSchedule`,
- * keyed by the question's id), but sending it means running its SQL with
- * nobody's browser open, which needs Explore's own login: until that is
- * approved, `ready` is false and nothing is made.
+ * keyed by the question's id) and sent by the same cron
+ * (`lib/explore/schedule-send.ts`), which runs it as `explore_reader` for each
+ * recipient. A question saved over the report sources, rather than the
+ * tables, runs only in a browser, so it cannot be sent; nor can anything
+ * before Explore's own login is set up on this server.
  */
 
+const SOURCES_WAITING = "This question reads reports, which run only in your browser. Save it again over your tables to send it.";
+
 async function questionFor(request: NextRequest, id: string) {
-  const sessionResult = await validateSession(request);
-  if (sessionResult instanceof NextResponse) return { response: sessionResult } as const;
-  const { session } = sessionResult;
-  if (!canUseExplore(session.user.role)) return { response: errorResponse("Only owners and managers use Explore", 403) } as const;
+  const gate = await exploreGate(request);
+  if ("response" in gate) return gate;
+  const { session } = gate;
   const report = await readCustomReport(readerOf(session), id);
   const sql = report ? questionSql(report) : null;
   if (!report || !sql) return { response: errorResponse("Question not found", 404) } as const;
-  return { session, report, sql } as const;
+  return { session, report, sql, reads: questionReads(report) } as const;
 }
 
-/** The people in the workspace whose role reads every table the question reads. */
-async function readersOf(companyId: string, enabledFeatures: string[] | undefined, sql: string) {
-  const every = new Set(REPORT_DEFINITIONS.map((definition) => sqlName(definition.key)));
-  const checked = checkQuestion(sql, every);
-  const reads = checked.ok ? checked.tables : [];
-  const users = await prisma.user.findMany({ where: { companyId, isActive: true }, select: { id: true, name: true, role: true }, orderBy: { name: "asc" } });
-  return users.filter((user) => {
-    const own = new Set(sourcesFor({ role: user.role, enabledFeatures }).map((definition) => sqlName(definition.key)));
-    return reads.every((table) => own.has(table));
-  }).map((user) => ({ id: user.id, name: user.name }));
+/** The people in the workspace who may use Explore and whose role reads every table the question reads. */
+async function readersOf(companyId: string, enabledFeatures: string[] | undefined, workspaceProfile: string | null | undefined, sql: string) {
+  const [users, roles] = await Promise.all([
+    prisma.user.findMany({ where: { companyId, isActive: true }, select: { id: true, name: true, role: true }, orderBy: { name: "asc" } }),
+    exploreRoles(prisma, companyId),
+  ]);
+  const reads = new Map<string, boolean>();
+  for (const role of new Set(users.map((user) => user.role))) {
+    if (!canUseExplore(role, roles)) {
+      reads.set(role, false);
+      continue;
+    }
+    const scope = await exploreScope({ role, enabledFeatures, workspaceProfile });
+    reads.set(role, checkQuestion(sql, new Set(scope.tables.map((table) => table.name))).ok);
+  }
+  return users.filter((user) => reads.get(user.role)).map((user) => ({ id: user.id, name: user.name }));
 }
 
 export async function GET(request: NextRequest) {
@@ -50,11 +59,12 @@ export async function GET(request: NextRequest) {
     if (!z.string().uuid().safeParse(id).success) return errorResponse("Name the question", 400);
     const found = await questionFor(request, id);
     if ("response" in found) return found.response;
-    const { session, sql } = found;
+    const { session, sql, reads } = found;
+    const ready = exploreReaderReady() && reads === "tables";
     return successResponse({
-      ready: exploreReaderReady(),
-      waiting: exploreReaderReady() ? null : READER_WAITING,
-      people: await readersOf(session.user.companyId, session.user.enabledFeatures, sql),
+      ready,
+      waiting: ready ? null : exploreReaderReady() ? SOURCES_WAITING : READER_WAITING,
+      people: ready ? await readersOf(session.user.companyId, session.user.enabledFeatures, session.user.workspaceProfile, sql) : [],
     });
   } catch (error) {
     console.error("[API] GET /api/explore/schedules error:", error);
@@ -71,9 +81,10 @@ export async function POST(request: NextRequest) {
     const found = await questionFor(request, body.data.question);
     if ("response" in found) return found.response;
     if (!exploreReaderReady()) return errorResponse(READER_WAITING, 503);
-    const { session, report, sql } = found;
+    const { session, report, sql, reads } = found;
+    if (reads !== "tables") return errorResponse(SOURCES_WAITING, 409);
     const input = body.data.schedule;
-    const readers = new Set((await readersOf(session.user.companyId, session.user.enabledFeatures, sql)).map((person) => person.id));
+    const readers = new Set((await readersOf(session.user.companyId, session.user.enabledFeatures, session.user.workspaceProfile, sql)).map((person) => person.id));
     if (input.recipientIds.some((id) => !readers.has(id))) {
       return errorResponse("Only people whose role reads every table in the question can be sent it", 400);
     }

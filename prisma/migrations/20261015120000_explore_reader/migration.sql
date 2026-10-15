@@ -1,7 +1,7 @@
--- NEEDS APPROVAL — not applied. Explore's own database login (design/core-modules/spec/routes.md §7):
+-- Approved 15 Oct. Explore's own database login (design/core-modules/spec/routes.md §7):
 -- `explore_reader`, its binding table, Management → Explore's settings and the questions-run log.
--- On approval this folder moves to prisma/migrations, the models in schema.prisma beside it go into
--- prisma/schema.prisma, and `pnpm db:generate` runs. The role that applies it needs CREATEROLE.
+-- Its models are in prisma/schema.prisma (ExploreReaderScope, ExploreSettings, ExploreQuestionRun).
+-- The role that applies it needs CREATEROLE; the login gets its password by hand (docs/vane.md).
 -- Saved questions need no table: a question is a custom report with one table block (lib/explore/questions.ts).
 -- The grants below are `pnpm explore:reader-sql` and `pnpm explore:reader-sql --vane-new`.
 

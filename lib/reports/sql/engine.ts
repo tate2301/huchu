@@ -42,7 +42,8 @@ const NUMERIC_TYPES = new Set([20, 21, 23, 700, 701, 1700]);
 const DATE_TYPES = new Set([1082, 1114, 1184]);
 const ISO_DAY = /^\d{4}-\d{2}-\d{2}$/;
 
-function plain(value: unknown, typeId: number): ReportValue {
+/** A value as Postgres gave it, the way a report reads it: dates as days, numbers as numbers. */
+export function plain(value: unknown, typeId: number): ReportValue {
   if (value === null || value === undefined) return null;
   if (value instanceof Date) {
     const iso = value.toISOString();
