@@ -134,7 +134,6 @@ model Company {
   vanePlans                     VanePlan[]
   vaneJobs                      VaneJob[]
   vaneSettings                  VaneSettings?
-  vaneCardChoices               VaneCardChoice[]
   vaneMessages                  VaneMessage[]
   vaneTopicStops                VaneTopicStop[]
   vaneActions                   VaneAction[]
@@ -1578,7 +1577,6 @@ model User {
   vaneItemsFor                    VaneItem[]                     @relation("VaneItemAudience")
   vaneItemsResolved               VaneItem[]                     @relation("VaneItemResolvedBy")
   vaneJobsRequested               VaneJob[]                      @relation("VaneJobRequestedBy")
-  vaneCardChoices                 VaneCardChoice[]
   vaneMessages                    VaneMessage[]                  @relation("VaneMessageUser")
   vaneTopicStops                  VaneTopicStop[]                @relation("VaneTopicStopUser")
   vanePausesMade                  VaneSettings[]                 @relation("VaneSettingsPausedBy")
@@ -16328,8 +16326,6 @@ enum VaneItemStatus {
 }
 
 enum VanePlanStatus {
-  /// Drafted by Vane: nothing in it runs until a person presses Start.
-  WAITING
   OPEN
   DONE
   CANCELLED
@@ -16416,17 +16412,13 @@ model VanePlan {
   title     String
   dueOn     DateTime?      @db.Date
   status    VanePlanStatus @default(OPEN)
-  /// The job that laid the plan out: what it read, and whose request it was.
-  jobId     String?
   createdAt DateTime       @default(now())
   doneAt    DateTime?
 
   company Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  job     VaneJob?       @relation(fields: [jobId], references: [id], onDelete: SetNull)
   steps   VanePlanStep[]
 
   @@index([companyId, status])
-  @@index([jobId])
 }
 
 model VanePlanStep {
@@ -16480,7 +16472,6 @@ model VaneJob {
   company     Company    @relation(fields: [companyId], references: [id], onDelete: Cascade)
   requestedBy User?      @relation("VaneJobRequestedBy", fields: [requestedById], references: [id], onDelete: SetNull)
   items       VaneItem[]
-  plans       VanePlan[]
   messages    VaneMessage[]
 
   @@unique([companyId, key])
@@ -16611,27 +16602,6 @@ model VaneSettings {
 /// Which workspace a vane_reader connection may read, keyed by its backend pid.
 /// Written by the app, inside the reading transaction; vane_reader can read it
 /// but never write it, so its SQL cannot move itself to another workspace.
-/// Muted (PageVaneMuted): what one person chose for a kind of card they keep setting aside.
-/// "Stop it for me" hides that kind from their For you; "Keep showing it" stops the asking.
-model VaneCardChoice {
-  id        String   @id @default(uuid())
-  companyId String
-  userId    String
-  /// The kind of card: its module and where its button goes ("crm|target|/crm/follow-ups"),
-  /// or its button's words when it goes nowhere ("crm|label|Call them"). See lib/vane/stops.ts.
-  cardKey   String
-  /// True for Stop it for me, false for Keep showing it.
-  stopped   Boolean
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@unique([companyId, userId, cardKey])
-  @@index([userId])
-}
-
 model VaneReaderScope {
   pid       Int      @id
   companyId String
