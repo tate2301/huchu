@@ -9,7 +9,7 @@ export type HeldChange = FormChange & { id: string; kept: boolean };
 /**
  * The builder's Vane tab (the PageVaneForm board): Read the answers for
  * changes asks Vane to read this form's answers (a job of kind write); each
- * change it finds comes with why and what it read. Keep puts one in the
+ * change it finds comes with why and what it read. Keep (K) puts one in the
  * person's draft of the form; Publish sends it to reps. Not now sets it
  * aside. Pure: the builder holds the draft and the changes.
  */
@@ -80,7 +80,8 @@ export function VaneFormChanges({
                 <Button size="sm" icon="x" onClick={() => onNotNow(change)}>
                   Not now
                 </Button>
-                <Button variant="primary" onClick={() => onKeep(change)}>
+                {/* The board draws Keep on Ctrl ↵, which is Publish on this screen; K keeps the first change waiting (NOTES.md). */}
+                <Button variant="primary" shortcut="K" onClick={() => onKeep(change)}>
                   Keep
                 </Button>
               </>

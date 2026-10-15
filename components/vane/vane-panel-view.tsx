@@ -207,6 +207,8 @@ export function VanePanelView({
                       ? (() => {
                           // The first card's send, when Vane proposes one, is the panel's primary on S (spec/shortcuts.md).
                           const send = index === 0 ? leadSend(card.actions) : null;
+                          // With nothing proposed, the first card's own act is the primary, on its key or S (PageVaneCard).
+                          const lead = index === 0 && card.actions.every((action) => action.status !== "proposed");
                           return (
                             <>
                               {send ? (
@@ -221,7 +223,8 @@ export function VanePanelView({
                                 </Button>
                               ) : null}
                               <Button
-                                variant={index === 0 && card.actions.every((action) => action.status !== "proposed") ? "primary" : "default"}
+                                variant={lead ? "primary" : "default"}
+                                shortcut={lead ? (card.action.shortcut ?? "S") : undefined}
                                 icon={card.action.type === "send" ? "send" : card.action.type === "review" ? "eye" : "chev"}
                                 onClick={() => onAct(card)}
                               >

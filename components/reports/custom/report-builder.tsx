@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { BuilderBar, BuilderGrid } from "@/components/builder/grid";
-import { Button, ButtonLink, Empty } from "@/components/core";
+import { Button, ButtonLink, Empty, useShortcut } from "@/components/core";
 import { useMounted } from "@/components/layout/workspace-rail/module-groups";
 import { dsConfirm } from "@/components/ui/ds-confirm";
 import { useToast } from "@/components/ui/use-toast";
@@ -187,21 +187,16 @@ export function ReportBuilder({
     }
   };
 
-  // Ctrl S saves as Publish does; leaving with changes not saved asks first.
+  // Ctrl S saves as Publish does (spec/shortcuts.md); leaving with changes not saved asks first.
+  useShortcut("Ctrl S", () => {
+    if (dirty && problems.length === 0) void save();
+  });
   React.useEffect(() => {
-    const onKey = (event: KeyboardEvent) => {
-      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "s") {
-        event.preventDefault();
-        if (dirty && problems.length === 0) void save();
-      }
-    };
     const onLeave = (event: BeforeUnloadEvent) => {
       if (dirty) event.preventDefault();
     };
-    window.addEventListener("keydown", onKey);
     window.addEventListener("beforeunload", onLeave);
     return () => {
-      window.removeEventListener("keydown", onKey);
       window.removeEventListener("beforeunload", onLeave);
     };
   });

@@ -3,6 +3,7 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 
+import { useShortcut } from "@/components/core";
 import { dsConfirm } from "@/components/ui/ds-confirm";
 
 /**
@@ -17,22 +18,13 @@ export function useBuilderKeys({ dirty, onSave, backHref }: { dirty: boolean; on
     save.current = onSave;
   });
 
+  useShortcut("Ctrl S", () => save.current());
   React.useEffect(() => {
-    const onKey = (event: KeyboardEvent) => {
-      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "s") {
-        event.preventDefault();
-        save.current();
-      }
-    };
     const onLeave = (event: BeforeUnloadEvent) => {
       if (dirty) event.preventDefault();
     };
-    window.addEventListener("keydown", onKey);
     window.addEventListener("beforeunload", onLeave);
-    return () => {
-      window.removeEventListener("keydown", onKey);
-      window.removeEventListener("beforeunload", onLeave);
-    };
+    return () => window.removeEventListener("beforeunload", onLeave);
   }, [dirty]);
 
   return React.useCallback(async () => {

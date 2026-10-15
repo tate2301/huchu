@@ -120,6 +120,15 @@ export function VanePanel() {
     shell.setVaneOpen(true);
     setFocusKey((key) => key + 1);
   });
+  // Esc closes the panel (spec/shortcuts.md); a menu open inside it closes first.
+  useShortcut(
+    "Esc",
+    (event) => {
+      if (event.target instanceof Element && event.target.closest('[role="menu"]')) return;
+      close();
+    },
+    { enabled: open },
+  );
 
   if (!open) return null;
   return (
