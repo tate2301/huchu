@@ -29,10 +29,13 @@ export type CrmDocumentLineInput = {
   taxRate?: number;
   /** The catalogue product the line was picked from. Kept on a quote's line, for its price check; an invoice's line has no column for it. */
   productId?: string;
+  /** The knowledge-base price it was priced from, when Vane drafted it (CRM → Knowledge). A quote's line only. */
+  knowledgePriceId?: string;
 };
 
 type ComputedLine = {
   productId?: string;
+  knowledgePriceId?: string;
   description: string;
   quantity: number;
   unitPrice: number;
@@ -52,11 +55,12 @@ function round2(value: number): number {
   return Math.round(value * 100) / 100;
 }
 
-/** An invoice's lines keep no product: the column is a quote line's. */
-function invoiceLines(lines: ComputedLine[]): Array<Omit<ComputedLine, "productId">> {
+/** An invoice's lines keep no product or knowledge price: the columns are a quote line's. */
+function invoiceLines(lines: ComputedLine[]): Array<Omit<ComputedLine, "productId" | "knowledgePriceId">> {
   return lines.map((line) => {
-    const rest: Omit<ComputedLine, "productId"> & { productId?: string } = { ...line };
+    const rest: Omit<ComputedLine, "productId" | "knowledgePriceId"> & { productId?: string; knowledgePriceId?: string } = { ...line };
     delete rest.productId;
+    delete rest.knowledgePriceId;
     return rest;
   });
 }
@@ -68,6 +72,7 @@ function computeTotals(lines: CrmDocumentLineInput[]): DocTotals {
     const taxAmount = round2((net * taxRate) / 100);
     return {
       ...(line.productId ? { productId: line.productId } : {}),
+      ...(line.knowledgePriceId ? { knowledgePriceId: line.knowledgePriceId } : {}),
       description: line.description,
       quantity: line.quantity,
       unitPrice: line.unitPrice,
@@ -325,7 +330,13 @@ function stageAtLeast(current: string, target: string): boolean {
 
 export type CreateQuotationInput = DocumentOwnerRef & {
   companyId: string;
-  userId: string;
+  /** Who made it; null for Vane's draft. */
+  userId: string | null;
+  /**
+   * Vane drafted it (from the knowledge base): a draft nobody has issued, with
+   * no person as its maker. A person issues it (`issueVaneQuote`) or deletes it.
+   */
+  madeByVane?: boolean;
   lines: CrmDocumentLineInput[];
   currency?: string;
   validUntil?: Date | null;
@@ -395,15 +406,16 @@ export async function createQuotationForLead(input: CreateQuotationInput) {
         quotationNumber,
         quotationDate: new Date(),
         validUntil: input.validUntil ?? undefined,
-        status: "SENT",
+        status: input.madeByVane ? "DRAFT" : "SENT",
         currency,
         subTotal: totals.subTotal,
         taxTotal: totals.taxTotal,
         total: totals.total,
         notes: input.notes ?? undefined,
-        createdById: input.userId,
-        issuedById: input.userId,
-        issuedAt: new Date(),
+        createdById: input.madeByVane ? null : input.userId,
+        madeByVane: Boolean(input.madeByVane),
+        issuedById: input.madeByVane ? null : input.userId,
+        issuedAt: input.madeByVane ? null : new Date(),
         lines: { create: totals.lines },
       },
       select: { id: true, quotationNumber: true, total: true },
@@ -421,7 +433,7 @@ export async function createQuotationForLead(input: CreateQuotationInput) {
         supersedesId: previous?.id ?? undefined,
         revisionNote: previous ? input.revisionNote?.trim() || undefined : undefined,
         renderTemplateId: input.renderTemplateId ?? undefined,
-        createdById: input.userId,
+        createdById: input.madeByVane ? null : input.userId,
       },
       select: { id: true },
     });
@@ -468,21 +480,24 @@ export async function createQuotationForLead(input: CreateQuotationInput) {
         clientId: owner.clientId,
         subject: previous
           ? `Quotation ${quotation.quotationNumber} issued as version ${previous.version + 1}`
-          : `Quotation ${quotation.quotationNumber} created`,
+          : input.madeByVane
+            ? `Vane drafted quotation ${quotation.quotationNumber}`
+            : `Quotation ${quotation.quotationNumber} created`,
         body: previous ? input.revisionNote?.trim() || undefined : undefined,
         metadata: {
           documentId: doc.id,
           quotationId: quotation.id,
           ...(previous ? { supersedesId: previous.id } : {}),
         },
-        createdById: input.userId,
+        createdById: input.madeByVane ? null : input.userId,
       },
     });
 
     // Only a lead auto-advances: its stages are a fixed enum this module can
     // reason about. A deal's stages are configurable per pipeline, so moving it
-    // is the user's call through the stage bar.
-    if (owner.kind === "lead" && !stageAtLeast(owner.stage, "QUOTED")) {
+    // is the user's call through the stage bar. Vane's draft has not been
+    // issued, so it moves nothing until a person issues it.
+    if (!input.madeByVane && owner.kind === "lead" && !stageAtLeast(owner.stage, "QUOTED")) {
       await tx.crmLead.update({ where: { id: owner.id }, data: { stage: "QUOTED" } });
     }
 
@@ -869,7 +884,16 @@ export async function updateQuotationForDocument(input: UpdateQuotationInput) {
     const lock = quoteEditLock({ status: quotation.status, approvalStatus });
     if (lock) throw new DocumentLockedError(`${quotation.quotationNumber} cannot be edited. ${lock}.`);
 
-    const totals = computeTotals(input.lines);
+    // A line left as it was keeps the knowledge price it was priced from.
+    const before = await tx.salesQuotationLine.findMany({
+      where: { quotationId: quotation.id, knowledgePriceId: { not: null } },
+      select: { description: true, unitPrice: true, knowledgePriceId: true },
+    });
+    const sameLine = (line: CrmDocumentLineInput) =>
+      before.find((old) => old.description.trim().toLowerCase() === line.description.trim().toLowerCase() && Math.abs(old.unitPrice - line.unitPrice) < 0.005);
+    const totals = computeTotals(
+      input.lines.map((line) => (line.knowledgePriceId ? line : { ...line, knowledgePriceId: sameLine(line)?.knowledgePriceId ?? undefined })),
+    );
     await tx.salesQuotation.update({
       where: { id: quotation.id },
       data: {

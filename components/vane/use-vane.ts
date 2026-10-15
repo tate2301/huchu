@@ -173,7 +173,7 @@ export function useVaneAsk() {
     async (text: string, module: string | null, path: string | null = null) => {
       setError(null);
       setWorking("Reading your question");
-      const mine: VaneChatMessage = { id: `mine-${Date.now()}`, author: "person", text, createdAt: new Date().toISOString(), actions: [], read: [] };
+      const mine: VaneChatMessage = { id: `mine-${Date.now()}`, author: "person", text, createdAt: new Date().toISOString(), actions: [], read: [], blocks: [] };
       client.setQueryData<VaneChatMessage[]>(CHAT_KEY, (messages) => [...(messages ?? []), mine]);
       try {
         const response = await fetch("/api/vane/chat", {

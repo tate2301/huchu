@@ -5,6 +5,8 @@ import type { PrismaClient } from "@prisma/client";
 import { z } from "zod";
 
 import { actionsFor, proposeActions, type ActionProposal, type VaneActionView } from "./actions/engine";
+import { blockViews } from "./block-views";
+import { asBlocks, type VaneBlock, type VaneBlockView } from "./blocks";
 import { VaneError, type MessagesClient } from "./claude";
 import { runConversation } from "./conversation";
 import { jobsStartedThisMonthFor } from "./jobs";
@@ -30,6 +32,8 @@ export type VaneChatMessage = {
   actions: VaneActionView[];
   /** On Vane's answers: each question it ran, its tables and how many rows answered ("What I read"). */
   read: VaneChatRead[];
+  /** On Vane's answers: what it showed besides its words: figures, a chart, a record, a quote it drafted, what it went by. */
+  blocks: VaneBlockView[];
 };
 
 export type VaneChatRead = { tables: string[]; rows: number };
@@ -60,6 +64,12 @@ function workingLabel(tool: string, input: unknown): string {
       return table ? `Looking at ${table.replace(/([a-z])([A-Z])/g, "$1 $2").toLowerCase()}` : "Looking at the tables";
     case "run_sql":
       return "Reading the workspace";
+    case "search_knowledge":
+      return "Looking it up in your knowledge";
+    case "draft":
+      return "Drafting it";
+    case "show":
+      return "Laying it out";
     case "get_record":
       return "Reading a record";
     case "propose_item":
@@ -78,7 +88,7 @@ export const isRep = (role: string) => role === "SALES_REP";
 
 const REP = ` They are a sales rep: you can read only their own visits, deals, leads and quotes, and the clients, sites and forms those need. When they ask about anything else, say it is not theirs to see here.`;
 
-const CHAT = (who: Who) => `You are talking with ${who.name ?? "a person"} (${who.role.toLowerCase().replace(/_/g, " ")}) in the Vane panel.${isRep(who.role) ? REP : ""} Each of their messages may start with where they are in the app, in brackets: a record id in that address is what they mean by "this", so read that record first when they ask about it. Answer what they ask, in a few short sentences, first person, with names and exact amounts. When what you find can be done, propose it with propose_actions, one per record, so they approve or deny each; then say in a sentence what you proposed. When they ask for something only they can do, say where. Write every link as [words](/path?filters), never a bare path. On a report's page (/reports/<key>) the report is what they mean: read what it is with describe_report and its rows with run_sql; when the answer has several rows, give it as a short table (| Owner | Went cold |, one row a line); and when they asked something they will ask again, propose keeping that view of the report (reports.template.save). Never say you did something you only proposed.`;
+const CHAT = (who: Who) => `You are talking with ${who.name ?? "a person"} (${who.role.toLowerCase().replace(/_/g, " ")}) in the Vane panel.${isRep(who.role) ? REP : ""} Each of their messages may start with where they are in the app, in brackets: a record id in that address is what they mean by "this", so read that record first when they ask about it. Answer what they ask, in a few short sentences, first person, with names and exact amounts. When what you find can be done, propose it with propose_actions, one per record, so they approve or deny each; then say in a sentence what you proposed. When they ask for something only they can do, say where. Write every link as [words](/path?filters), never a bare path. On a report's page (/reports/<key>) the report is what they mean: read what it is with describe_report and its rows with run_sql; when the answer has several rows, give it as a short table (| Owner | Went cold |, one row a line); and when they asked something they will ask again, propose keeping that view of the report (reports.template.save). When they ask what the business charges, offers or promises, or ask you to quote, go by the knowledge base (search_knowledge) and name the document. To draft a quote: find the deal or lead (the page they are on, or by name), work out what goes in it from what they said and what the record holds (a site visit's measurements), search_knowledge for each thing, draft it (draft, kind quote), then show it (show, a quote block) and say in a sentence what to check. When figures, a chart or a record read better seen, show them. Never say you did something you only proposed.`;
 
 /** Where the person is, ahead of their words: "[In CRM, on /crm/deals/9f1c] ". In the message, not the instructions, so the cached prompt is the same on every page. */
 function whereabouts(module: string | null, path: string | null): string {
@@ -88,7 +98,7 @@ function whereabouts(module: string | null, path: string | null): string {
 
 /** This person's conversation, oldest first, with the actions on each answer. */
 export async function chatHistory(
-  db: Pick<PrismaClient, "vaneMessage" | "vaneAction">,
+  db: Pick<PrismaClient, "vaneMessage" | "vaneAction" | "salesQuotation" | "crmLeadDocument">,
   { companyId, userId }: { companyId: string; userId: string },
   take = 40,
 ): Promise<VaneChatMessage[]> {
@@ -96,18 +106,19 @@ export async function chatHistory(
     where: { companyId, userId },
     orderBy: { createdAt: "desc" },
     take,
-    select: { id: true, author: true, text: true, createdAt: true, readFrom: true },
+    select: { id: true, author: true, text: true, createdAt: true, readFrom: true, blocks: true },
   });
   rows.reverse();
   const { byMessage } = await actionsFor(db, companyId, { messageIds: rows.map((row) => row.id) });
-  return rows.map((row) => ({
+  return Promise.all(rows.map(async (row) => ({
     id: row.id,
     author: row.author === "PERSON" ? "person" : "vane",
     text: row.text,
     createdAt: row.createdAt.toISOString(),
     actions: byMessage.get(row.id) ?? [],
     read: asRead(row.readFrom),
-  }));
+    blocks: await blockViews(db, companyId, asBlocks(row.blocks)),
+  })));
 }
 
 /** The conversation as Claude reads it: alternating turns, starting with the person's. */
@@ -177,19 +188,20 @@ export async function chatTurn(
   onEvent({ type: "working", label: "Reading your question" });
   const answerActions: ActionProposal[] = [];
   const read: VaneChatRead[] = [];
+  const blocks: VaneBlock[] = [];
   try {
     const rep = isRep(who.role) ? who.userId : null;
     const tables = [...(await tablesFor(who.companyId, { rep })).values()].map((table) => table.name).sort();
     const outcome = await runConversation({
       system: { shared: vaneRules(tables), context: CHAT(who) },
       messages: asMessages(earlier.reverse(), `${whereabouts(module ? moduleName(module) : null, path ?? null)}${text}`),
-      context: { companyId: who.companyId, jobId: job.id, answerActions, read, rep },
+      context: { companyId: who.companyId, jobId: job.id, answerActions, read, blocks, rep },
       deadline: Date.now() + TURN_MS,
       client,
       onTool: (tool, input) => onEvent({ type: "working", label: workingLabel(tool, input) }),
     });
     const answer = await db.vaneMessage.create({
-      data: { companyId: who.companyId, userId: who.userId, author: "VANE", text: outcome.text || "Done.", jobId: job.id, readFrom: read },
+      data: { companyId: who.companyId, userId: who.userId, author: "VANE", text: outcome.text || "Done.", jobId: job.id, readFrom: read, blocks },
       select: { id: true, text: true, createdAt: true },
     });
     if (answerActions.length) await proposeActions(db, { companyId: who.companyId, messageId: answer.id }, answerActions);
@@ -210,7 +222,15 @@ export async function chatTurn(
     const { byMessage } = await actionsFor(db, who.companyId, { messageIds: [answer.id] });
     onEvent({
       type: "answer",
-      message: { id: answer.id, author: "vane", text: answer.text, createdAt: answer.createdAt.toISOString(), actions: byMessage.get(answer.id) ?? [], read },
+      message: {
+        id: answer.id,
+        author: "vane",
+        text: answer.text,
+        createdAt: answer.createdAt.toISOString(),
+        actions: byMessage.get(answer.id) ?? [],
+        read,
+        blocks: await blockViews(db, who.companyId, blocks),
+      },
     });
   } catch (error) {
     const why =

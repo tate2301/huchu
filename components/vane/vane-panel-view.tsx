@@ -14,6 +14,7 @@ import { VaneModuleTag } from "./vane-module";
 import type { VaneSuggestion } from "./vane-panel";
 import { VanePlanCardView } from "./vane-plan-card";
 import { vaneStateLabel, VaneStateNote } from "./vane-state-note";
+import { VaneBlocks } from "./vane-blocks";
 import { VaneText } from "./vane-text";
 
 const time = (iso: string) =>
@@ -242,6 +243,7 @@ export function VanePanelView({
                   <div className="vm-b">
                     <VaneText text={message.text} />
                   </div>
+                  <VaneBlocks blocks={message.blocks} />
                   <VaneActionList actions={message.actions} disabled={held} deciding={deciding} onDecide={onDecide} />
                   {message.read.length > 0 ? <p className="vm-read">What I read: {readLine(message.read)}</p> : null}
                 </div>

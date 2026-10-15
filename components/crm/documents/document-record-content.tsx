@@ -80,6 +80,7 @@ import {
   type LeadDocument,
 } from "./document-types";
 import { VaneQuoteCheck } from "@/components/vane/vane-quote-check";
+import { VaneQuoteDraft } from "@/components/vane/vane-quote-draft";
 import { VaneRecordSection } from "@/components/vane/vane-record-section";
 import { useDocumentBuilder } from "./document-builder";
 import { InvoiceDueDateForm, ReceiptDetailsForm } from "./document-edits";
@@ -891,6 +892,8 @@ function DocumentRecord({ data }: { data: DocumentResponse }) {
       attributes={<RecordAttributes attributes={attributes} />}
       rail={
         <>
+          {/* Vane's draft first: until someone issues it, that is the thing to decide. */}
+          {doc.type === "QUOTATION" ? <VaneQuoteDraft documentId={doc.id} /> : null}
           {builder.rail}
           {doc.type === "QUOTATION" ? (
             <>

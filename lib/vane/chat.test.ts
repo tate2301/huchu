@@ -121,6 +121,18 @@ describe("chat with Vane", () => {
     });
   });
 
+  it("keeps what Vane showed beside its words on the answer, and in the conversation", async () => {
+    const figures = { kind: "figures", figures: [{ label: "Overdue", value: "$2,480.00", note: "3 invoices" }] };
+    const { client } = claude(
+      reply([toolUse("t1", "show", { blocks: [figures] })], "tool_use"),
+      reply([text("Three invoices are overdue, mostly Pomona's.")], "end_turn"),
+    );
+    const events: ChatEvent[] = [];
+    await chatTurn(prisma, who(), { text: "How much is overdue?" }, { onEvent: (event) => events.push(event), client });
+    expect(events.at(-1)).toMatchObject({ type: "answer", message: { blocks: [figures] } });
+    expect((await chatHistory(prisma, { companyId: ids.company, userId: ids.user })).at(-1)).toMatchObject({ text: "Three invoices are overdue, mostly Pomona's.", blocks: [figures] });
+  });
+
   it("will not start a second turn while the first still runs", async () => {
     const running = await prisma.vaneJob.create({
       data: { companyId: ids.company, key: `chat:${randomUUID()}`, kind: "chat", label: "x", trigger: "PERSON", requestedById: ids.user, status: "RUNNING", startedAt: new Date() },

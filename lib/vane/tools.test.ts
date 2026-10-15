@@ -52,10 +52,24 @@ afterAll(async () => {
 describe("what Claude is shown", () => {
   it("names each tool, says what it does, and gives its input as JSON Schema", () => {
     const tools = toolDefinitions();
-    expect(tools.map((t) => t.name)).toEqual(["describe_table", "run_sql", "get_record", "propose_item", "propose_plan", "propose_actions", "update_plan_step", "report_problem", "describe_report", "draft"]);
+    expect(tools.map((t) => t.name)).toEqual([
+      "describe_table",
+      "run_sql",
+      "get_record",
+      "search_knowledge",
+      "propose_item",
+      "propose_plan",
+      "propose_actions",
+      "update_plan_step",
+      "report_problem",
+      "describe_report",
+      "draft",
+      "show",
+    ]);
     // Claude is shown every action it can propose, and the pages it links to with their filters.
-    expect(tools[5]!.description).toContain("books.invoice.due_date");
-    expect(tools[5]!.description).toContain("/books/invoices");
+    const propose = tools.find((t) => t.name === "propose_actions")!;
+    expect(propose.description).toContain("books.invoice.due_date");
+    expect(propose.description).toContain("/books/invoices");
     // Claude takes only an object schema as a tool's input: a union at the top would be refused.
     for (const t of tools) {
       expect(t.description?.length).toBeGreaterThan(40);

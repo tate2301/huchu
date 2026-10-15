@@ -4,12 +4,15 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { InvoiceRefused } from "@/lib/books/create-invoice";
 import { draftInvoiceFromQuote, QuotationRefused } from "@/lib/books/quotations";
+import { searchKnowledge } from "@/lib/crm/knowledge/store";
+import { draftQuoteForVane, VaneQuoteRefused } from "@/lib/crm/knowledge/vane-quote";
 import { draftWorkOrderForVane, WorkOrderRefused } from "@/lib/maintenance/work-orders";
 import { getReportDefinition, REPORT_DEFINITIONS } from "@/lib/reports/registry";
 import { draftOrderForVane, OrderRefusal } from "@/lib/retail/buying/orders";
 
 import { proposeActions, type ActionProposal } from "./actions/engine";
 import { VANE_ACTIONS } from "./actions/registry";
+import { blockSchema, type VaneBlock } from "./blocks";
 import { moveVaneStep } from "./lists";
 import { VANE_PAGES_GUIDE } from "./pages";
 import { VANE_SUBJECTS } from "./panel";
@@ -39,6 +42,8 @@ export type ToolContext = {
   read?: Array<{ tables: string[]; rows: number }>;
   /** What Vane could not work out, when it says so (`report_problem`): the job ends on it. */
   problem?: { problem: string; sql: string | null };
+  /** In a chat: what Vane shows beside its words (`show`), kept on its answer. */
+  blocks?: VaneBlock[];
   /**
    * In a sales rep's chat: their user id. Vane reads only their own visits,
    * deals, leads and quotes (`vane_reader_rep`), drafts nothing, and its
@@ -305,11 +310,12 @@ const draftTool = tool({
     "invoice_from_quote: the invoice for an accepted quotation not yet invoiced, line for line, dated today, due on the customer's usual terms (dueDate). " +
     "reorder: a purchase order for one supplier and one branch, for products running low there, each with whole units and the cost last paid. " +
     "work_order: when one machine keeps breaking down the same way (WorkOrder history on that Equipment), a work order to fix the cause: the equipment, the issue, a note with the figures that show it (how many times, hours lost, since when), the priority, a technician when one is the obvious one, and the parts it needs from stores (InventoryItem at the equipment's site) by itemId. " +
-    "After drafting, raise a card (propose_item) about it, with actions to issue, send or raise it (books.invoice.issue, retail.order.send, assets.work_order.raise) and to delete it (books.invoice.discard, assets.work_order.discard), and link it.",
+    "quote: a quote on one deal or lead, priced from the knowledge base. Find each thing in it with search_knowledge first and give that price's knowledgePriceId: the line takes the price exactly as kept. Work out quantities from what you were told or read (a site visit's measurements, the deal's notes), with any allowance the knowledge base states. A line nothing in the knowledge base prices takes your estimate (unitPrice) and is marked for a person to check; say which and why. In a chat, show the quote you drafted (show, a quote block) and say in a sentence what it holds and what to check. A sales rep may quote only on their own deals and leads. " +
+    "After drafting anything but a quote in a chat, raise a card (propose_item) about it, with actions to issue, send or raise it (books.invoice.issue, retail.order.send, assets.work_order.raise) and to delete it (books.invoice.discard, assets.work_order.discard), and link it.",
   // One object, not a union: a tool's input has to be a JSON object schema for Claude.
   input: z
     .object({
-      kind: z.enum(["invoice_from_quote", "reorder", "work_order"]),
+      kind: z.enum(["invoice_from_quote", "reorder", "work_order", "quote"]),
       quotationId: z.string().min(1).optional().describe("invoice_from_quote: the accepted quotation."),
       dueDate: z
         .string()
@@ -345,6 +351,23 @@ const draftTool = tool({
         .max(30)
         .optional()
         .describe("work_order: the parts it needs, each a stores item by itemId where there is one."),
+      dealId: z.string().min(1).optional().describe("quote: the deal it is for (or leadId)."),
+      leadId: z.string().min(1).optional().describe("quote: the lead it is for (or dealId)."),
+      quoteLines: z
+        .array(
+          z.object({
+            knowledgePriceId: z.string().min(1).optional().describe("The kept knowledge price it is priced from (search_knowledge)."),
+            description: z.string().trim().min(1).max(300).optional().describe("As the client reads it; the price's name and unit when left out."),
+            quantity: z.number().positive(),
+            unitPrice: z.number().min(0).optional().describe("Only for a line no knowledge price covers: your estimate."),
+            taxRate: z.number().min(0).max(100).optional(),
+          }),
+        )
+        .max(60)
+        .optional()
+        .describe("quote: its lines."),
+      notes: z.string().trim().max(1000).optional().describe("quote: what the client should know: what it assumes, what it leaves out."),
+      validDays: z.number().int().min(1).max(180).optional().describe("quote: how long it holds; 30 when left out."),
     })
     .refine(
       (input) =>
@@ -352,15 +375,37 @@ const draftTool = tool({
           ? Boolean(input.quotationId)
           : input.kind === "reorder"
             ? Boolean(input.supplierId && input.siteId && input.lines?.length)
-            : Boolean(input.equipmentId && input.issue && input.note),
+            : input.kind === "quote"
+              ? Boolean((input.dealId || input.leadId) && input.quoteLines?.length)
+              : Boolean(input.equipmentId && input.issue && input.note),
       {
-        message: "invoice_from_quote needs quotationId; reorder needs supplierId, siteId and at least one line; work_order needs equipmentId, issue and note",
+        message: "invoice_from_quote needs quotationId; reorder needs supplierId, siteId and at least one line; work_order needs equipmentId, issue and note; quote needs dealId or leadId and at least one of quoteLines",
     }),
   async run({ companyId, rep }, input) {
-    if (rep) throw new ToolError("Drafting is not something a sales rep's Vane does: say what you found instead.");
+    // A rep quotes on their own deals; the rest of drafting is not a rep's.
+    if (rep && input.kind !== "quote") throw new ToolError("Drafting that is not something a sales rep's Vane does: say what you found instead.");
     const settings = await prisma.vaneSettings.findUnique({ where: { companyId }, select: { drafts: true } });
     if (settings && !settings.drafts) throw new ToolError("This workspace has Vane's drafts switched off (Management → Vane): raise a card instead.");
     try {
+      if (input.kind === "quote") {
+        const quote = await draftQuoteForVane(companyId, {
+          dealId: input.dealId,
+          leadId: input.leadId,
+          lines: input.quoteLines ?? [],
+          notes: input.notes ?? null,
+          validDays: input.validDays,
+          rep,
+        });
+        return {
+          drafted: "quote",
+          quotationId: quote.quotationId,
+          quotationNumber: quote.quotationNumber,
+          total: quote.total,
+          currency: quote.currency,
+          estimatedLines: quote.unpriced,
+          link: quote.href,
+        };
+      }
       if (input.kind === "invoice_from_quote") {
         const invoice = await draftInvoiceFromQuote(
           { companyId, userId: null, madeByVane: true },
@@ -383,7 +428,7 @@ const draftTool = tool({
       const order = await draftOrderForVane(companyId, { supplierId: input.supplierId!, siteId: input.siteId!, expectedDate: input.expectedDate ?? null, lines: input.lines ?? [] });
       return { drafted: "order", orderId: order.id, poNo: order.poNo, supplier: order.supplier, site: order.site, lines: order.lines, value: order.value, link: `/retail/buying/orders/${order.id}` };
     } catch (error) {
-      if (error instanceof QuotationRefused || error instanceof InvoiceRefused || error instanceof WorkOrderRefused) throw new ToolError(error.message);
+      if (error instanceof QuotationRefused || error instanceof InvoiceRefused || error instanceof WorkOrderRefused || error instanceof VaneQuoteRefused) throw new ToolError(error.message);
       if (error instanceof OrderRefusal) throw new ToolError(error.fieldErrors ? Object.values(error.fieldErrors)[0]! : error.message);
       throw error;
     }
@@ -487,7 +532,58 @@ const proposeActionsTool = tool({
   },
 });
 
-export const VANE_TOOLS = [describeTable, runSql, getRecord, proposeItem, proposePlan, proposeActionsTool, moveStep, reportProblem, describeReport, draftTool] as const;
+const searchKnowledgeTool = tool({
+  name: "search_knowledge",
+  description:
+    "Search the workspace's knowledge base (CRM → Knowledge): the price lists, rate cards, product sheets and terms its people uploaded. " +
+    "Returns the passages that match best, with their document, and the kept prices that match (id, name, unit, price, where in the document it is). " +
+    "Search it before you answer what the business charges, offers or promises, and before you price a quote: the knowledge base is the business's own word, so go by it over anything else you know. " +
+    "Search with the words a price list would use (\"vinyl sheet\", \"screed\", \"call-out fee\"), one thing at a time. Name the document you went by, as a link: [Rate card 2026](/crm/knowledge/<docId>).",
+  input: z.object({
+    query: z.string().trim().min(1).max(200),
+    limit: z.number().int().min(1).max(20).optional(),
+  }),
+  async run({ companyId }, { query, limit }) {
+    const hit = await searchKnowledge(prisma, companyId, query, limit ?? 8);
+    return {
+      passages: hit.passages.map((passage) => ({ docId: passage.docId, document: passage.title, link: `/crm/knowledge/${passage.docId}`, text: passage.text })),
+      prices: hit.prices.map((price) => ({
+        knowledgePriceId: price.id,
+        name: price.name,
+        description: price.description,
+        code: price.code,
+        unit: price.unit,
+        unitPrice: price.unitPrice,
+        currency: price.currency,
+        document: price.title,
+        link: `/crm/knowledge/${price.docId}`,
+        where: price.source,
+      })),
+      ...(hit.passages.length === 0 && hit.prices.length === 0 ? { note: "Nothing in the knowledge base matches. Try other words, or say it is not there." } : {}),
+    };
+  },
+});
+
+const show = tool({
+  name: "show",
+  description:
+    "In a chat, put something beside your words that reads better seen than said: figures to read at a glance (up to four), a chart (bars by category, or a trend over time), a card for one record that opens it, a quote you drafted (by its quotationId: it is drawn from the quote as it stands, each line with the knowledge price behind it), or what you went by (the knowledge documents, as links). " +
+    "Your words stay short and say what the reader should take from it; do not repeat in words what a block shows. Links are paths inside the app.",
+  input: z.object({ blocks: z.array(blockSchema).min(1).max(6) }),
+  async run(context, { blocks }) {
+    if (!context.blocks) throw new ToolError("show is for a chat answer; on a card, say it in the card's words.");
+    for (const block of blocks) {
+      if (block.kind === "quote") {
+        const exists = await prisma.salesQuotation.count({ where: { id: block.quotationId, companyId: context.companyId } });
+        if (!exists) throw new ToolError(`There is no quote ${block.quotationId} here: show the quotationId the draft tool gave you.`);
+      }
+    }
+    context.blocks.push(...blocks);
+    return { shown: blocks.length };
+  },
+});
+
+export const VANE_TOOLS = [describeTable, runSql, getRecord, searchKnowledgeTool, proposeItem, proposePlan, proposeActionsTool, moveStep, reportProblem, describeReport, draftTool, show] as const;
 
 /** The tools as Claude is shown them. */
 export function toolDefinitions(): Anthropic.Tool[] {
