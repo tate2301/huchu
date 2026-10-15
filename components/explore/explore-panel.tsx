@@ -8,9 +8,10 @@ import { Icon, Kit } from "@/components/core";
 import { useShortcut } from "@/components/core/shortcuts";
 import { byProduct, exploreTable, searchTables, PRODUCTS, type ExploreTable, type LockedTable } from "@/lib/explore/products";
 import { exploreHref, questionHref } from "@/lib/explore/questions";
+import type { HistoryEntry } from "@/lib/explore/runs";
 
 import { useExploreReads } from "./explore-focus";
-import { useExploreCatalog } from "./use-explore";
+import { useExploreCatalog, useExploreHistory } from "./use-explore";
 
 import "./explore.css";
 
@@ -26,8 +27,8 @@ export function isExplorePath(pathname: string): boolean {
   return pathname === "/explore" || pathname.startsWith("/explore/");
 }
 
-/** A table in the panel: its name, and its columns under it while it is open. */
-function TableRow({ table, open, onToggle, columnsHit }: { table: ExploreTable; open: boolean; onToggle: () => void; columnsHit: string[] }) {
+/** A table in the panel: its name and rows, and its columns under it while it is open. */
+function TableRow({ table, open, onToggle, columnsHit }: { table: ExploreTable & { rows?: number }; open: boolean; onToggle: () => void; columnsHit: string[] }) {
   const shown = open || columnsHit.length > 0;
   return (
     <>
@@ -40,6 +41,7 @@ function TableRow({ table, open, onToggle, columnsHit }: { table: ExploreTable; 
       >
         <Icon name="table" />
         <span className="ex-tn">{table.name}</span>
+        {table.rows === undefined ? null : <span className="n">{table.rows.toLocaleString("en-GB")}</span>}
       </button>
       {shown ? (
         <div className="ex-cols">
@@ -50,6 +52,41 @@ function TableRow({ table, open, onToggle, columnsHit }: { table: ExploreTable; 
         </div>
       ) : null}
     </>
+  );
+}
+
+/** When a question ran, as the History lists it: "11:48" today, "Yesterday", or "14 Oct". */
+function ranAt(iso: string, now = new Date()): string {
+  const at = new Date(iso);
+  const day = (date: Date) => new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
+  const days = Math.round((day(now) - day(at)) / 86_400_000);
+  if (days === 0) return at.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+  if (days === 1) return "Yesterday";
+  return at.toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+}
+
+function rowsLabel(entry: HistoryEntry): string {
+  if (entry.result === "TIMEOUT") return "stopped";
+  if (entry.result === "FAILED" || entry.rows === null) return "did not run";
+  return entry.rows === 1 ? "1 row" : `${entry.rows.toLocaleString("en-GB")} rows`;
+}
+
+/** A question the person ran: its words or first line, when, and how many rows. Opens it in the studio. */
+function HistoryRow({ entry }: { entry: HistoryEntry }) {
+  return (
+    <Link
+      className="ex-t ex-link ex-hist"
+      href={exploreHref({ sql: entry.sql, title: entry.title && entry.title !== "Untitled question" ? entry.title : undefined })}
+      title={entry.sql}
+    >
+      <Icon name="history" />
+      <span className="ex-hist-b">
+        <span className="ex-tn ex-sans">{entry.line}</span>
+        <span className="ex-hist-m">
+          {ranAt(entry.at)} · {rowsLabel(entry)}
+        </span>
+      </span>
+    </Link>
   );
 }
 
@@ -66,8 +103,10 @@ function LockedRow({ table }: { table: LockedTable }) {
 /**
  * Explore's own panel (the ExploreStudio board's `aside.ex-nav`), in the
  * shell's place for a module panel: Your data (the tables by product, the
- * ones this person's role does not read marked with who does), Templates and
- * Saved. The search finds tables and columns; `/` focuses it.
+ * ones this person's role does not read marked with who does, and each one's
+ * rows once Explore reads the real tables), Templates, and Saved with the
+ * person's own History under it (the questions they ran here, newest first).
+ * The search finds tables and columns; `/` focuses it.
  */
 export function ExplorePanel() {
   const pathname = usePathname();
@@ -86,7 +125,12 @@ export function ExplorePanel() {
   }, [onTemplates]);
 
   const data = catalog.data?.canUse ? catalog.data : null;
-  const tables = React.useMemo(() => (data ? data.sources.map(exploreTable) : []), [data]);
+  const history = useExploreHistory(Boolean(data) && tab === "saved");
+  // The workspace's real tables with their rows, through Explore's own login; until it is set up, the report sources.
+  const tables = React.useMemo<Array<ExploreTable & { rows?: number }>>(
+    () => (data ? (data.engine === "tables" ? (data.tables ?? []) : data.sources.map(exploreTable)) : []),
+    [data],
+  );
   const hits = React.useMemo(() => searchTables(tables, query), [tables, query]);
   const hitColumns = new Map(hits.map((hit) => [hit.table.name, hit.columns]));
   const locked = (data?.locked ?? []).filter((table) => !query.trim() || table.name.includes(query.trim().toLowerCase()));
@@ -135,7 +179,7 @@ export function ExplorePanel() {
         ) : catalog.isError ? (
           <p className="muted ex-none">The tables did not load.</p>
         ) : !data ? (
-          <p className="muted ex-none">Explore is for owners and managers.</p>
+          <p className="muted ex-none">Explore is for {catalog.data && !catalog.data.canUse ? catalog.data.who.toLowerCase() : "owners and managers"}.</p>
         ) : tab === "data" ? (
           groups.length ? (
             groups.map((group) => (
@@ -178,19 +222,49 @@ export function ExplorePanel() {
               );
             })}
           </>
-        ) : data.saved.length ? (
-          data.saved.map((question) => (
-            <Link
-              key={question.id}
-              className={pathname === questionHref(question.id) ? "ex-t ex-link is-on" : "ex-t ex-link"}
-              href={questionHref(question.id)}
-            >
-              <Icon name="sql" />
-              <span className="ex-tn ex-sans">{question.title}</span>
-            </Link>
-          ))
         ) : (
-          <p className="muted ex-none">Questions you save are kept here, and in All reports.</p>
+          <>
+            {data.saved.length ? (
+              data.saved.map((question) => (
+                <Link
+                  key={question.id}
+                  className={pathname === questionHref(question.id) ? "ex-t ex-link is-on" : "ex-t ex-link"}
+                  href={questionHref(question.id)}
+                >
+                  <Icon name="sql" />
+                  <span className="ex-tn ex-sans">{question.title}</span>
+                </Link>
+              ))
+            ) : (
+              <p className="muted ex-none">Questions you save are kept here, and in All reports.</p>
+            )}
+            <div className="ex-prod">
+              <Icon name="history" />
+              <span>History</span>
+            </div>
+            {history.isPending ? (
+              <div aria-busy="true" className="ex-hist-wait">
+                {[0, 1, 2].map((n) => (
+                  <div key={n} className="skeleton" style={{ height: 36 }} />
+                ))}
+              </div>
+            ) : history.isError ? (
+              <p className="muted ex-none">
+                The questions you ran did not load.{" "}
+                <button type="button" className="ex-again" onClick={() => void history.refetch()}>
+                  Try again
+                </button>
+              </p>
+            ) : history.data?.runs.length ? (
+              history.data.runs.map((entry) => <HistoryRow key={entry.id} entry={entry} />)
+            ) : (
+              <p className="muted ex-none">
+                {history.data?.ready
+                  ? "The questions you run are listed here, newest first. Only you see them."
+                  : "Questions run in your browser for now, so none is kept. They are listed here once Explore’s own login is set up."}
+              </p>
+            )}
+          </>
         )}
       </div>
     </Kit>

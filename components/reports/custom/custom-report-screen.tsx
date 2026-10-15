@@ -81,6 +81,12 @@ export function CustomReportScreen({ id, builtIn }: { id: string; builtIn?: stri
   const sources = useReportSources();
   const document = report.data?.report.document;
 
+  // A question saved in Explore over the real tables runs only through Explore's own login: it opens there.
+  const inExplore = document?.reads === "tables" ? report.data!.report.id : null;
+  useEffect(() => {
+    if (inExplore) router.replace(`/explore/q/${inExplore}`);
+  }, [inExplore, router]);
+
   // The dates are in the URL, so a report is linked as it was seen; absent, the report's own.
   const given = useMemo(() => {
     const params: ReportParams = {};

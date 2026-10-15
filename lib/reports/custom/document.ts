@@ -122,6 +122,13 @@ export const customDocumentSchema = z
     /** The dates the report opens with, passed to every source that is dated. Null leaves an end open. */
     period: z.object({ from: dateDefault.nullable(), to: dateDefault.nullable() }),
     blocks: z.array(customBlockSchema).max(40),
+    /**
+     * What its queries read. Absent or "sources": the report sources, run in
+     * the reader's tab. "tables": a question saved in Explore over the real
+     * tables, which runs only through Explore's own login
+     * (`lib/explore/reader.ts`), so it opens in Explore.
+     */
+    reads: z.enum(["sources", "tables"]).optional(),
   })
   .superRefine((document, issues) => {
     const names = new Set<string>();

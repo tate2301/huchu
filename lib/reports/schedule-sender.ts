@@ -1,6 +1,7 @@
 import { enrichTokenClaims } from "@/lib/auth-core/session-claims";
 import type { AuthenticatedSession } from "@/lib/auth-core/types";
 import { isEmailConfigured, sendEmail } from "@/lib/email/send";
+import { questionFile, scheduledQuestion, type ScheduledQuestion } from "@/lib/explore/schedule-send";
 import { buildNotificationEmail } from "@/lib/notification-email";
 import { buildWorkspaceUrl } from "@/lib/platform/tenant-url";
 import { prisma } from "@/lib/prisma";
@@ -52,8 +53,47 @@ function readDue(now: Date) {
   });
 }
 
+/** A saved question from Explore to each of its recipients, each answered as them. How many it reached. */
+async function sendQuestion(schedule: Due, question: ScheduledQuestion, now: Date): Promise<number> {
+  const path = `/explore/q/${question.id}`;
+  const link = schedule.company.slug
+    ? buildWorkspaceUrl({ slug: schedule.company.slug, path, currentUrl: getSiteUrl() }).toString()
+    : new URL(path, getSiteUrl()).toString();
+  let reached = 0;
+  for (const recipientId of schedule.recipientIds) {
+    try {
+      const session = await sessionFor(recipientId, schedule.companyId);
+      if (!session?.user.email) continue;
+      const answered = await questionFile(session, question, schedule.format === "CSV" ? "csv" : "pdf", layoutFor(schedule.content));
+      if (!answered) continue; // They can no longer use Explore, or it did not run for them: they are sent nothing.
+      const { subject, text, html } = buildNotificationEmail({
+        title: `${question.title}, ${formatMediumDay(now)}`,
+        summary: `${answered.rows.toLocaleString("en-US")} ${answered.rows === 1 ? "row" : "rows"}, attached as ${answered.file.fileName}. Sent ${describeWhen(schedule).toLowerCase()}.`,
+        link,
+        workspaceName: schedule.company.name,
+      });
+      await sendEmail({
+        to: session.user.email,
+        subject,
+        text,
+        html,
+        sender: { name: schedule.company.name },
+        attachments: [{ filename: answered.file.fileName, content: answered.file.body }],
+      });
+      reached += 1;
+    } catch (error) {
+      console.error("[report-schedules] question send failed", { schedule: schedule.id, recipientId, error });
+    }
+  }
+  return reached;
+}
+
 /** One schedule to each of its recipients. How many it reached. */
 async function sendOne(schedule: Due, now: Date): Promise<number> {
+  // A saved question from Explore runs as `explore_reader`, not as a report.
+  const question = await scheduledQuestion(schedule.companyId, schedule.reportKey);
+  if (question) return sendQuestion(schedule, question, now);
+
   const search = new URLSearchParams(schedule.query);
   const params = paramsFromSearch(search);
   const path = `/reports/${schedule.reportKey}${schedule.query ? `?${schedule.query}` : ""}`;

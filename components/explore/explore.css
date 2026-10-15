@@ -22,6 +22,12 @@
 .ck.ck.ck .ex-start { display: block; margin-top: var(--space-4); font-family: var(--font-sans); color: var(--color-accent); text-decoration: none; }
 .ck.ck.ck .ex-start:hover { text-decoration: underline; }
 .ck.ck.ck .ex-none { padding: var(--space-12) var(--space-4); font-size: var(--text-13); line-height: 1.5; }
+/* History: a question on its first line, when it ran and its rows under it. */
+.ck.ck.ck a.ex-hist { height: auto; min-height: 44px; padding-top: var(--space-4); padding-bottom: var(--space-4); }
+.ck.ck.ck .ex-hist-b { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.ck.ck.ck .ex-hist-m { font-family: var(--font-sans); font-size: var(--text-12); color: var(--color-muted); }
+.ck.ck.ck .ex-hist-wait { display: flex; flex-direction: column; gap: var(--space-8); }
+.ck.ck.ck .ex-again { border: 0; background: none; padding: 0; font: inherit; color: var(--color-accent); cursor: pointer; }
 
 /* The studio. */
 .ck.ck.ck .ex-ask .seg { flex: none; }

@@ -14,11 +14,17 @@ export const QUESTION_BLOCK = "question";
 /** The dates a question's sources are read over: a year back to today, unless the SQL narrows them. */
 export const QUESTION_PERIOD: CustomDocument["period"] = { from: "-365d", to: "today" };
 
-export function questionDocument(sql: string): CustomDocument {
+export function questionDocument(sql: string, reads: "sources" | "tables" = "sources"): CustomDocument {
   return {
     period: QUESTION_PERIOD,
     blocks: [{ id: "query-1", type: "query", name: QUESTION_BLOCK, query: sql, display: { type: "table" } }],
+    ...(reads === "tables" ? { reads } : {}),
   };
+}
+
+/** What a saved question reads: the real tables (saved with Explore's own login) or the report sources. */
+export function questionReads(report: { document: Pick<CustomDocument, "reads"> }): "sources" | "tables" {
+  return report.document.reads === "tables" ? "tables" : "sources";
 }
 
 /** The SQL of a report that is a question (one table block and nothing else); null for a board. */
@@ -52,11 +58,17 @@ export function questionHref(id: string): string {
   return `/explore/q/${id}`;
 }
 
-/** A Ctrl K answer, or any page's list, opened in Explore: `/explore?ask=…` or `/explore?sql=…&title=…`. */
-export function exploreHref(input: { ask?: string; sql?: string; title?: string }): string {
+/**
+ * A Ctrl K answer, or any page's list, opened in Explore: `/explore?ask=…` or
+ * `/explore?sql=…&title=…`. A list can name its question twice, over the
+ * report sources (`sql`) and over the real tables (`tablesSql`); the studio
+ * takes the one the workspace's Explore runs on.
+ */
+export function exploreHref(input: { ask?: string; sql?: string; tablesSql?: string; title?: string }): string {
   const params = new URLSearchParams();
   if (input.ask) params.set("ask", input.ask);
   if (input.sql) params.set("sql", input.sql);
+  if (input.tablesSql) params.set("tables_sql", input.tablesSql);
   if (input.title) params.set("title", input.title);
   const query = params.toString();
   return query ? `/explore?${query}` : "/explore";

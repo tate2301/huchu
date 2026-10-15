@@ -13,10 +13,10 @@ import type { VaneCard } from "@/lib/vane/panel";
 
 import "./explore.css";
 
-/** "Explore this list": the list's own question, opened in Explore. */
-export function ExploreThisList({ sql, title }: { sql: string; title: string }) {
+/** "Explore this list": the list's own question, opened in Explore, over the reports or the real tables. */
+export function ExploreThisList({ sql, tablesSql, title }: { sql: string; tablesSql?: string; title: string }) {
   return (
-    <ButtonLink href={exploreHref({ sql, title })} icon="explore">
+    <ButtonLink href={exploreHref({ sql, tablesSql, title })} icon="explore">
       Explore this list
     </ButtonLink>
   );
