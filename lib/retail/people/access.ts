@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { repriceCompany } from "@/lib/platform/entitlements";
 import { RETAIL_AUDIT_EVENTS, writeRetailAuditEvent } from "@/lib/retail/audit";
 import { closeFiscalDayIfLastShift } from "@/lib/retail/fiscal-settings";
 import type { Sent } from "@/lib/retail/messages/send-now";
@@ -69,6 +70,7 @@ async function remove(actor: PeopleActor, person: PersonView, now: Date): Promis
     });
     return closedNos;
   });
+  await repriceCompany(actor.companyId);
   // A shift closed here may have been the shop's last: its fiscal day closes with it (SET-08).
   if (closed.length > 0) await closeFiscalDayIfLastShift(actor, now);
   return closed;
@@ -139,6 +141,7 @@ export async function giveAccessBack(
     });
     return issued;
   });
+  await repriceCompany(actor.companyId);
 
   const delivery = pin ? await sendPin({ companyId: actor.companyId, phone: person.phone, pin, createdById: actor.userId }) : {};
   const data = await loadPerson(actor.companyId, viewerOf(actor), id, { now });

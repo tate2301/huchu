@@ -231,13 +231,10 @@ describe("the Sites sheets (SET-02)", () => {
     expect(withDerived(siteNew, { ...named, code: "AVD", name: "Avondale East" }, new Set(["code"])).code).toBe("AVD");
   });
 
-  it("says the plan's room in the note and holds the primary when there is none", () => {
-    const note = (plan: unknown) => (typeof siteNew.note === "function" ? siteNew.note({ _plan: plan }) : siteNew.note);
-    expect(note({ name: "Grow", maxSites: 3, openSites: 2 })).toBe("Then pair its tills. Your Grow plan has room for one more site.");
-    expect(note({ name: "Grow", maxSites: 3, openSites: 3 })).toBe("Your Grow plan has no room for another site.");
-    expect(siteNew.primaryDisabled?.({ _plan: { name: "Grow", maxSites: 3, openSites: 3 } })).toBe(true);
-    expect(siteNew.noteLink?.({ _plan: { name: "Grow", maxSites: 3, openSites: 3 } })?.label).toBe("Plan and billing");
-    expect(siteNew.primaryDisabled?.({ _plan: null })).toBe(false);
+  it("says what comes next in the note, and never holds the primary", () => {
+    expect(siteNew.note).toBe("Then pair its tills.");
+    expect(siteNew.primaryDisabled).toBeUndefined();
+    expect(siteNew.noteLink).toBeUndefined();
   });
 
   it("offers Move some from the default site only when there is one, and opens the transfer after", () => {

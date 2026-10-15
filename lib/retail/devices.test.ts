@@ -24,12 +24,11 @@ import { DEVICE_COOKIE, UNPAIRED_REVIEW_REASON } from "./device-words";
 import { issuePairingCode } from "./pairing";
 import { readTillMessages, tillMessages } from "./till-messages";
 
-/** W-04 and W-76 on the device side, against the test database, on a shop with a two-till plan. */
+/** W-04 and W-76 on the device side, against the test database. */
 
 const stamp = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 let companyId = "";
 let ownerId = "";
-let planId = "";
 let siteId = "";
 const people: Record<string, string> = {};
 
@@ -91,13 +90,6 @@ beforeAll(async () => {
       select: { id: true },
     })
   ).id;
-  planId = (
-    await prisma.subscriptionPlan.create({
-      data: { code: `TEST-START-${stamp}`, name: "Start", monthlyPrice: 19, maxSites: 1, maxTills: 2 },
-      select: { id: true },
-    })
-  ).id;
-  await prisma.companySubscription.create({ data: { companyId, planId, status: "ACTIVE" } });
   siteId = (await prisma.site.create({ data: { companyId, name: "Harare Main Branch", code: "HRE" }, select: { id: true } })).id;
   const pinHash = await bcrypt.hash("2580", 4);
   for (const [key, name, role, pin] of [
@@ -129,8 +121,6 @@ afterAll(async () => {
   await prisma.notificationRecipient.deleteMany({ where: { notification: { companyId } } });
   await prisma.notification.deleteMany({ where: { companyId } });
   await prisma.site.deleteMany({ where: { companyId } });
-  await prisma.companySubscription.deleteMany({ where: { companyId } });
-  if (planId) await prisma.subscriptionPlan.delete({ where: { id: planId } });
   await prisma.user.deleteMany({ where: { companyId } });
   await prisma.company.delete({ where: { id: companyId } });
 });
@@ -215,7 +205,7 @@ describe("pairing a device with a code (W-04 step 6)", () => {
 
   it("tells a replaced device which device took its till, who paired it, and whose shift carried on", async () => {
     const side = await till("Side till");
-    // Made directly: the plan's two tills are taken, and a replace code does not ask for room.
+    // Made directly: the first device is already on the till when the replace code comes.
     const first = { key: `side-key-${stamp}` };
     await prisma.retailDevice.create({
       data: { companyId, registerId: side.id, kind: "COUNTER_MINI", keyHash: hashDeviceKey(first.key), pairedById: ownerId },
@@ -257,11 +247,10 @@ describe("pairing a device with a code (W-04 step 6)", () => {
     await prisma.retailRegister.update({ where: { id: side.id }, data: { isActive: false } });
   });
 
-  it("refuses a third paired till on a two-till plan", async () => {
+  it("pairs a third till: nothing caps how many", async () => {
     const third = await till("Cold room till");
-    const refused = await refusal(pair((await code(third.id)).code, `third-${stamp}`));
-    expect(refused).toMatchObject({ status: 409, body: { code: "PLAN_LIMIT" } });
-    expect(await prisma.retailDevice.count({ where: { registerId: third.id } })).toBe(0);
+    await pair((await code(third.id)).code, `third-${stamp}`);
+    expect(await prisma.retailDevice.count({ where: { registerId: third.id, unpairedAt: null } })).toBe(1);
   });
 
   it("forgets an install's and an address's wrong codes once none has come for 15 minutes", async () => {

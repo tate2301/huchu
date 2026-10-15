@@ -7,8 +7,6 @@ import type {
   AddonSetResult,
   CatalogSyncResult,
   SubscriptionHealthSummary,
-  SubscriptionPricingLineItem,
-  SubscriptionPricingSummary,
   TierAssignResult,
   TierPlanSummary,
 } from "../types";
@@ -22,27 +20,6 @@ function normalizeTier(value: string): string {
   return String(value || "").trim().toUpperCase();
 }
 
-function money(value: unknown): number {
-  const parsed = Number(value ?? 0);
-  return Number.isFinite(parsed) ? Math.max(0, parsed) : 0;
-}
-
-function resolveBundleMonthlyPrice(bundleCode: string, value: unknown): number {
-  const normalized = money(value);
-  if (normalized > 0) return normalized;
-  return money(getBundleDefinition(bundleCode)?.monthlyPrice ?? 0);
-}
-
-function resolveBundleAdditionalSiteMonthlyPrice(bundleCode: string, value: unknown): number {
-  const normalized = money(value);
-  if (normalized > 0) return normalized;
-  return money(getBundleDefinition(bundleCode)?.additionalSiteMonthlyPrice ?? 0);
-}
-
-function tierAnnualPrice(tier: (typeof TIERS)[number]): number {
-  return tier.annualMonthlyPrice * 12;
-}
-
 async function ensureSubscriptionPlan(planCode: string) {
   const tier = getTierDefinition(planCode);
   if (!tier) return null;
@@ -52,10 +29,6 @@ async function ensureSubscriptionPlan(planCode: string) {
     update: {
       name: tier.name,
       description: tier.description,
-      monthlyPrice: tier.monthlyPrice,
-      annualPrice: tierAnnualPrice(tier),
-      maxSites: tier.includedSites,
-      maxUsers: tier.includedUsers,
       warningDays: tier.warningDays,
       graceDays: tier.graceDays,
       isActive: true,
@@ -64,10 +37,6 @@ async function ensureSubscriptionPlan(planCode: string) {
       code: tier.code,
       name: tier.name,
       description: tier.description,
-      monthlyPrice: tier.monthlyPrice,
-      annualPrice: tierAnnualPrice(tier),
-      maxSites: tier.includedSites,
-      maxUsers: tier.includedUsers,
       warningDays: tier.warningDays,
       graceDays: tier.graceDays,
       currency: "USD",
@@ -86,16 +55,12 @@ async function ensureFeatureBundle(bundleCode: string) {
     update: {
       name: bundle.name,
       description: bundle.description,
-      monthlyPrice: bundle.monthlyPrice,
-      additionalSiteMonthlyPrice: bundle.additionalSiteMonthlyPrice,
       isActive: true,
     },
     create: {
       code: bundle.code,
       name: bundle.name,
       description: bundle.description,
-      monthlyPrice: bundle.monthlyPrice,
-      additionalSiteMonthlyPrice: bundle.additionalSiteMonthlyPrice,
       isActive: true,
     },
     select: { id: true, code: true, name: true },
@@ -135,8 +100,6 @@ async function enableBundleFeatureFlags(input: {
         description: catalog?.description ?? `Feature flag for ${normalizedKey}`,
         domain: catalog?.domain ?? null,
         defaultEnabled: catalog?.defaultEnabled ?? false,
-        isBillable: catalog?.isBillable ?? false,
-        monthlyPrice: catalog?.monthlyPrice ?? null,
         isActive: true,
       },
       create: {
@@ -145,8 +108,6 @@ async function enableBundleFeatureFlags(input: {
         description: catalog?.description ?? `Feature flag for ${normalizedKey}`,
         domain: catalog?.domain ?? null,
         defaultEnabled: catalog?.defaultEnabled ?? false,
-        isBillable: catalog?.isBillable ?? false,
-        monthlyPrice: catalog?.monthlyPrice ?? null,
         isActive: true,
       },
       select: { id: true },
@@ -214,8 +175,6 @@ export async function syncCommercialCatalog(): Promise<CatalogSyncResult> {
       description: entry.description,
       domain: entry.domain ?? null,
       defaultEnabled: entry.defaultEnabled ?? false,
-      isBillable: entry.isBillable ?? false,
-      monthlyPrice: entry.monthlyPrice ?? null,
       isActive: true,
     };
     await prisma.platformFeature.upsert({
@@ -234,10 +193,10 @@ export async function syncCommercialCatalog(): Promise<CatalogSyncResult> {
   };
 }
 
+/** Tiers in the order `TIERS` declares them. */
 export async function listTierPlans(): Promise<TierPlanSummary[]> {
   const rows = await prisma.subscriptionPlan.findMany({
     where: { isActive: true },
-    orderBy: [{ monthlyPrice: "asc" }, { code: "asc" }],
   });
   const rowByCode = new Map(rows.map((row) => [row.code, row]));
 
@@ -247,15 +206,11 @@ export async function listTierPlans(): Promise<TierPlanSummary[]> {
       code: tier.code,
       name: tier.name,
       description: tier.description,
-      monthlyPrice: tier.monthlyPrice,
-      annualPrice: tierAnnualPrice(tier),
-      includedSites: tier.includedSites,
-      additionalSiteMonthlyPrice: tier.additionalSiteMonthlyPrice,
       warningDays: row?.warningDays ?? tier.warningDays,
       graceDays: row?.graceDays ?? tier.graceDays,
       isActive: row?.isActive ?? true,
     };
-  }).sort((left, right) => left.monthlyPrice - right.monthlyPrice || left.code.localeCompare(right.code));
+  });
 }
 
 export async function assignTier(input: {
@@ -344,8 +299,6 @@ export async function listAddOnBundles(companyId: string): Promise<AddonBundleSu
       code: bundle.code,
       name: bundle.name,
       description: bundle.description,
-      monthlyPrice: bundle.monthlyPrice,
-      additionalSiteMonthlyPrice: bundle.additionalSiteMonthlyPrice,
       isActive: true,
       enabled: state?.isEnabled ?? false,
       reason: state?.reason ?? null,
@@ -359,8 +312,6 @@ export async function listAddOnBundles(companyId: string): Promise<AddonBundleSu
       code: bundle.code,
       name: bundle.name,
       description: bundle.description ?? null,
-      monthlyPrice: resolveBundleMonthlyPrice(bundle.code, bundle.monthlyPrice),
-      additionalSiteMonthlyPrice: resolveBundleAdditionalSiteMonthlyPrice(bundle.code, bundle.additionalSiteMonthlyPrice),
       isActive: bundle.isActive,
       enabled: state?.isEnabled ?? false,
       reason: state?.reason ?? null,
@@ -539,149 +490,6 @@ async function buildIncludedFeatureSet(planCode: string | null, addonCodes: stri
   const addonBundleFeatures = await getBundleFeatureKeysByCodes(addonCodes);
   for (const key of addonBundleFeatures) set.add(key.toLowerCase());
   return set;
-}
-
-export async function computeSubscriptionPricing(companyId: string): Promise<SubscriptionPricingSummary> {
-  const company = await prisma.company.findUnique({
-    where: { id: companyId },
-    select: { id: true, name: true, slug: true },
-  });
-  if (!company) throw new Error(`Organization not found for id: ${companyId}`);
-
-  const subscription = await prisma.companySubscription.findFirst({
-    where: { companyId },
-    include: { plan: true },
-    orderBy: [{ updatedAt: "desc" }],
-  });
-  const siteCount = await prisma.site.count({
-    where: { companyId, isActive: true },
-  });
-
-  const baseAmount = money(subscription?.plan?.monthlyPrice ?? 0);
-  const planCode = subscription?.plan?.code ?? null;
-  const planName = subscription?.plan?.name ?? null;
-  const currency = subscription?.plan?.currency ?? "USD";
-  const tier = getTierDefinition(planCode);
-  const tierIncludedSites = Math.max(0, tier?.includedSites ?? 0);
-  const tierSiteOverageRate = money(tier?.additionalSiteMonthlyPrice ?? 0);
-  const tierSiteOverageCount = Math.max(0, siteCount - tierIncludedSites);
-  const tierSiteOverageAmount = tierSiteOverageCount * tierSiteOverageRate;
-  const lineItems: SubscriptionPricingLineItem[] = [
-    {
-      code: planCode ?? "NO_PLAN",
-      label: planName ?? "No Tier",
-      amount: baseAmount,
-      type: "tier",
-    },
-  ];
-  if (tierSiteOverageAmount > 0) {
-    lineItems.push({
-      code: `${planCode ?? "NO_PLAN"}:SITE_OVERAGE`,
-      label: `Tier site overage (${tierSiteOverageCount} x ${tierSiteOverageRate.toFixed(2)})`,
-      amount: tierSiteOverageAmount,
-      type: "site-overage",
-    });
-  }
-
-  const addons = await prisma.companySubscriptionAddon.findMany({
-    where: { companyId, isEnabled: true },
-    include: { bundle: true },
-    orderBy: [{ bundle: { code: "asc" } }],
-  });
-  const addonCodes = addons.map((row) => row.bundle.code);
-  let addonBaseAmount = 0;
-  let addonSiteAmount = 0;
-  for (const addon of addons) {
-    const base = resolveBundleMonthlyPrice(addon.bundle.code, addon.bundle.monthlyPrice);
-    const perSite = resolveBundleAdditionalSiteMonthlyPrice(
-      addon.bundle.code,
-      addon.bundle.additionalSiteMonthlyPrice,
-    );
-    const siteCharge = perSite * siteCount;
-    addonBaseAmount += base;
-    addonSiteAmount += siteCharge;
-    lineItems.push({
-      code: addon.bundle.code,
-      label: addon.bundle.name,
-      amount: base,
-      type: "addon",
-    });
-    if (siteCharge > 0) {
-      lineItems.push({
-        code: `${addon.bundle.code}:SITE`,
-        label: `${addon.bundle.name} site charge (${siteCount} x ${perSite.toFixed(2)})`,
-        amount: siteCharge,
-        type: "addon-site",
-      });
-    }
-  }
-  const addonAmount = addonBaseAmount + addonSiteAmount;
-
-  const includedFeatures = await buildIncludedFeatureSet(planCode, addonCodes);
-  const manualBillable = await prisma.companyFeatureFlag.findMany({
-    where: { companyId, isEnabled: true, OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }] },
-    select: {
-      feature: { select: { key: true, name: true, isBillable: true, monthlyPrice: true, isActive: true } },
-    },
-  });
-
-  let featureAmount = 0;
-  for (const row of manualBillable) {
-    const key = row.feature.key.toLowerCase();
-    if (!row.feature.isActive || !row.feature.isBillable || includedFeatures.has(key)) continue;
-    const amount = money(row.feature.monthlyPrice);
-    if (amount <= 0) continue;
-    featureAmount += amount;
-    lineItems.push({
-      code: row.feature.key,
-      label: row.feature.name,
-      amount,
-      type: "feature",
-    });
-  }
-
-  const totalAmount = baseAmount + tierSiteOverageAmount + addonAmount + featureAmount;
-  return {
-    companyId,
-    companyName: company.name,
-    companySlug: company.slug,
-    planCode,
-    planName,
-    currency,
-    siteCount,
-    tierIncludedSites,
-    tierSiteOverageRate,
-    tierSiteOverageCount,
-    tierSiteOverageAmount,
-    baseAmount,
-    addonBaseAmount,
-    addonSiteAmount,
-    addonAmount,
-    featureAmount,
-    totalAmount,
-    lineItems,
-    computedAt: new Date().toISOString(),
-  };
-}
-
-export async function recomputeSubscriptionPricing(companyId: string): Promise<SubscriptionPricingSummary> {
-  const summary = await computeSubscriptionPricing(companyId);
-  const latest = await prisma.companySubscription.findFirst({
-    where: { companyId },
-    orderBy: [{ updatedAt: "desc" }],
-    select: { id: true },
-  });
-  if (latest) {
-    await prisma.companySubscription.update({
-      where: { id: latest.id },
-      data: {
-        effectiveMonthlyAmount: summary.totalAmount,
-        priceSnapshotJson: JSON.stringify(summary),
-        lastPriceComputedAt: new Date(),
-      },
-    });
-  }
-  return summary;
 }
 
 export async function getSubscriptionHealthSummary(companyId: string): Promise<SubscriptionHealthSummary> {

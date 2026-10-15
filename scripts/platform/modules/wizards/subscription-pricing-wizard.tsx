@@ -146,7 +146,7 @@ export function SubscriptionPricingWizard({
   return (
     <WizardFrame
       title="Recompute Subscription Pricing Wizard"
-      description="Recalculate tier + add-ons + billable feature total and persist snapshot."
+      description="Recalculate the workspace's price from its verticals and members, and persist the snapshot."
       step={step}
       steps={["Select Company", "Preview & Run"]}
       statusMessage={statusMessage}
@@ -173,19 +173,14 @@ export function SubscriptionPricingWizard({
               {summary ? (
                 <>
                   <Text>
-                    sites: {summary.siteCount} | included: {summary.tierIncludedSites} | overage:{" "}
-                    {summary.tierSiteOverageCount} x {summary.tierSiteOverageRate.toFixed(2)} ={" "}
-                    {summary.tierSiteOverageAmount.toFixed(2)}
+                    {summary.verticals} verticals x {summary.each.toFixed(2)} at {summary.members} members = {summary.total.toFixed(2)}{" "}
+                    {summary.currency}/month
                   </Text>
-                  <Text>
-                    addons: base {summary.addonBaseAmount.toFixed(2)} + site {summary.addonSiteAmount.toFixed(2)} ={" "}
-                    {summary.addonAmount.toFixed(2)}
-                  </Text>
-                  <Text>last computed total: {summary.totalAmount.toFixed(2)} {summary.currency}/month</Text>
+                  <Text dimColor>{summary.why}</Text>
                   <Text dimColor>line items:</Text>
-                  {summary.lineItems.slice(0, 8).map((item) => (
-                    <Text key={`${item.type}:${item.code}`} dimColor>
-                      - {item.type}: {item.code} ({item.amount.toFixed(2)})
+                  {summary.lines.map((line) => (
+                    <Text key={line.vertical} dimColor>
+                      - {line.detail} ({line.amount.toFixed(2)})
                     </Text>
                   ))}
                 </>

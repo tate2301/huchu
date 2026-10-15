@@ -145,11 +145,6 @@ export function codeShown(code: string): string {
 /** The QR's payload (W-04 step 3). */
 export const pairingPayload = (code: string) => `tender-pair:${code}`;
 
-/** 409 PLAN_LIMIT: "Your Grow plan has 8 tills, all paired." */
-export function planLimitSentence(plan: string, maxTills: number): string {
-  return `Your ${plan} plan has ${maxTills} ${maxTills === 1 ? "till" : "tills"}, all paired.`;
-}
-
 /** "There is already a till called Front till at Harare Main Branch." */
 export const nameTakenSentence = (name: string, site: string) => `There is already a till called ${name} at ${site}.`;
 

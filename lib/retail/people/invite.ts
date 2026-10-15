@@ -3,6 +3,7 @@ import { createHash, randomBytes } from "node:crypto";
 import type { Prisma } from "@prisma/client";
 
 import { prisma } from "@/lib/prisma";
+import { repriceCompany } from "@/lib/platform/entitlements";
 import { buildWorkspaceUrl } from "@/lib/platform/tenant-url";
 import { clearUserFeatureOverrides } from "@/lib/platform/user-entitlements";
 import { RETAIL_AUDIT_EVENTS, writeRetailAuditEvent } from "@/lib/retail/audit";
@@ -168,6 +169,7 @@ export async function invitePerson(actor: PeopleActor, input: InviteInput, now =
     return { userId: user.id, token: inviteToken, pin: issued };
   });
   await clearUserFeatureOverrides(userId);
+  await repriceCompany(actor.companyId);
 
   const delivery = await sendInvite({ actor, userId, role: input.role, phone: e164, token, pin });
   const data = await loadPerson(actor.companyId, viewerOf(actor), userId, { now });

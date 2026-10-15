@@ -7,6 +7,14 @@ function escape(value: string) {
 }
 
 /**
+ * Whether the owner can be told before anyone is let in: a mail provider, or
+ * development, where the email goes to the server log instead.
+ */
+export function canTellOwner(): boolean {
+  return isEmailConfigured() || process.env.NODE_ENV !== "production";
+}
+
+/**
  * The email a workspace's owner gets the moment Corelith support signs in as
  * one of their members: who, as whom, why, how far and until when, and a
  * link that ends it. Sent before anyone is let in.

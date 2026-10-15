@@ -118,10 +118,10 @@ export function resolveDefaultSettlementSource(
  *
  * Only GOLD has screens of its own. `settlements.scrap` used to gate
  * `/scrap-metal/settlements`, and left the catalogue with the vertical (ST-3.4)
- * — a billable key granting access to a page that is off disk is a feature we
- * would be charging for and not delivering. A legacy SCRAP run therefore
- * resolves to `settlements.core`, which is the shared surface it can actually
- * be read on, rather than to a key no tenant can be sold.
+ * — a key granting access to a page that is off disk is a feature promised
+ * and not delivered. A legacy SCRAP run therefore resolves to
+ * `settlements.core`, the shared surface it can actually be read on, rather
+ * than to a key no tenant can hold.
  */
 export function settlementSourceFeatureKey(source: SettlementSource): string {
   switch (source) {

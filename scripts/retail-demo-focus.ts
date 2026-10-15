@@ -171,7 +171,7 @@ async function main() {
 
   // A key on the keep list with no `CompanyFeatureFlag` row at all is not simply
   // "off" — it is absent, and flipping rows would never reach it. `crm.customers`
-  // is the case that matters: it gates `/retail/customers`, it is billable and
+  // is the case that matters: it gates `/retail/customers`, it is
   // `defaultEnabled: false`, and a tenant seeded before CRM existed has no row for
   // it. So the missing rows are created here rather than silently skipped.
   const present = new Set(flags.map((flag) => flag.feature.key))

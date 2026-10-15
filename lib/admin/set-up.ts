@@ -1,13 +1,14 @@
-import type { WorkspaceProduct } from "@prisma/client";
+import type { Vertical, WorkspaceProduct } from "@prisma/client";
 
 import { AdminRefusal } from "@/lib/admin/refusal";
+import { applyVerticalFeatures } from "@/lib/admin/verticals";
 import { operatorActor } from "@/lib/operators/audit";
 import type { SignedInOperator } from "@/lib/operators/guards";
-import { CLIENT_BUNDLE_TEMPLATES } from "@/lib/platform/client-templates";
-import { getTierDefinition, TIERS } from "@/lib/platform/feature-catalog";
+import { getClientTemplateDefinition } from "@/lib/platform/client-templates";
 import { getProduct } from "@/lib/platform/products";
 import { provisionTenant, SlugTakenError } from "@/lib/platform/provision";
 import { slugifyTenant } from "@/lib/platform/tenant-slug";
+import { VERTICAL_ORDER, VERTICALS } from "@/lib/platform/verticals";
 
 /**
  * Setting up a workspace for a customer who did not sign up themselves.
@@ -15,25 +16,27 @@ import { slugifyTenant } from "@/lib/platform/tenant-slug";
  * The same provisioning a self-serve signup runs, so an operator's workspace
  * and a stranger's are built the same way. The owner has no password: they
  * sign in with a code sent to their email, and choose one if they want.
+ *
+ * The operator chooses what it runs — its verticals — and that is what it
+ * pays for. A Flare workspace is a CRM.
  */
-
-/** What a Corelith workspace can be set up to run, newest offering first. Flare is one thing. */
-export const SET_UP_TEMPLATES = CLIENT_BUNDLE_TEMPLATES.filter((template) => template.code !== "TEMPLATE_ALL_FEATURES" && template.code !== "TEMPLATE_CRM").map(
-  (template) => ({ code: template.code, label: template.label, tier: template.recommendedTierCode }),
-);
-
-export const SET_UP_TIERS = TIERS.map((tier) => ({ code: tier.code, name: tier.name, monthlyPrice: tier.monthlyPrice }));
 
 export type SetUpInput = {
   name: string;
   slug: string;
   product: WorkspaceProduct;
-  templateCode: string;
-  tierCode: string;
+  /** Corelith only; a Flare workspace is a CRM. */
+  verticals: Vertical[];
   ownerName: string;
   ownerEmail: string;
   start: "TRIAL" | "PAID";
 };
+
+/** The verticals a set-up runs, in the catalogue's order. Flare is one thing. */
+export function setUpVerticals(product: WorkspaceProduct, chosen: readonly Vertical[]): Vertical[] {
+  if (product === "FLARE") return ["CRM"];
+  return VERTICAL_ORDER.filter((vertical) => chosen.includes(vertical));
+}
 
 export async function setUpWorkspace(operator: SignedInOperator, input: SetUpInput) {
   const name = input.name.trim();
@@ -43,10 +46,12 @@ export async function setUpWorkspace(operator: SignedInOperator, input: SetUpInp
   if (input.ownerName.trim().length < 2) throw new AdminRefusal("Enter the owner's name.");
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(input.ownerEmail.trim())) throw new AdminRefusal("Enter the owner's email. They sign in with a code sent to it.");
 
-  const flare = input.product === "FLARE";
-  const templateCode = flare ? getProduct("FLARE").templateCode! : input.templateCode;
-  if (!flare && !SET_UP_TEMPLATES.some((template) => template.code === templateCode)) throw new AdminRefusal("Choose what the business runs.");
-  if (!getTierDefinition(input.tierCode)) throw new AdminRefusal("Choose a plan.");
+  const verticals = setUpVerticals(input.product, input.verticals);
+  if (verticals.length === 0) throw new AdminRefusal("Choose at least one thing the business runs.");
+  // The first vertical lays the workspace out; the rest are switched on after.
+  const [first, ...rest] = verticals;
+  const templateCode = input.product === "FLARE" ? getProduct("FLARE").templateCode! : VERTICALS[first].templateCode;
+  const tierCode = getClientTemplateDefinition(templateCode)?.recommendedTierCode;
 
   try {
     const result = await provisionTenant({
@@ -54,7 +59,8 @@ export async function setUpWorkspace(operator: SignedInOperator, input: SetUpInp
       slug,
       product: input.product,
       templateCode,
-      tierCode: input.tierCode,
+      tierCode,
+      verticals,
       adminEmail: input.ownerEmail,
       adminName: input.ownerName.trim(),
       subscriptionStatus: input.start === "TRIAL" ? "TRIALING" : "ACTIVE",
@@ -62,9 +68,12 @@ export async function setUpWorkspace(operator: SignedInOperator, input: SetUpInp
       actor: operatorActor(operator.id),
       // The provisioning event carries the operator as its actor, so the
       // workspace's feed reads "<operator> set up the workspace".
-      reason: `For ${input.ownerName.trim()}, on ${getTierDefinition(input.tierCode)?.name ?? input.tierCode}`,
+      reason: `For ${input.ownerName.trim()}, running ${verticals.map((vertical) => VERTICALS[vertical].label).join(", ")}`,
       onExistingSlug: "refuse",
     });
+    // Provisioning wrote every vertical's row and priced them; these switch the
+    // rest's features on.
+    for (const vertical of rest) await applyVerticalFeatures(result.company.id, vertical);
     return result.company;
   } catch (error) {
     if (error instanceof SlugTakenError) throw new AdminRefusal(`${slug} is taken. Choose another address.`);

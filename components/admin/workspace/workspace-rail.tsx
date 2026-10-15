@@ -5,6 +5,7 @@ import { standingDetail } from "@/lib/admin/standing";
 import { formatDate, formatMoney, formatWhen } from "@/lib/admin/format";
 import type { WorkspaceSummary } from "@/lib/admin/workspaces";
 import { getPlatformRootDomain } from "@/lib/admin/hosts";
+import { verticalCharge } from "@/lib/platform/verticals";
 
 function Facts({ rows }: { rows: Array<[string, ReactNode]> }) {
   return (
@@ -28,10 +29,19 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
   );
 }
 
-/** Where a workspace stands, who owns it, and what it is: the facts beside its history. */
+/** Where a workspace stands, what it pays and when, who owns it, and what it is: the facts beside its history. */
 export function WorkspaceRail({ workspace }: { workspace: WorkspaceSummary }) {
   const detail = standingDetail(workspace.standing);
   const root = getPlatformRootDomain();
+  const price = verticalCharge(workspace.verticals.length, workspace.members);
+  const { standing, until } = workspace.standing;
+  // When the money next turns: a renewal, a trial's end, or the day grace runs out.
+  const renewal: [string, ReactNode] =
+    standing === "Trial"
+      ? ["Trial ends", formatDate(until)]
+      : standing === "Past due"
+        ? ["Read-only from", formatDate(until)]
+        : ["Renews", standing === "Active" ? formatDate(until) : null];
   return (
     <aside aria-label={`About ${workspace.name}`} className="space-y-5">
       <Section title="Standing">
@@ -41,8 +51,21 @@ export function WorkspaceRail({ workspace }: { workspace: WorkspaceSummary }) {
         </div>
         <Facts
           rows={[
-            ["Plan", workspace.plan ? `${workspace.plan.name}, ${formatMoney(workspace.plan.monthlyPrice)} a month` : null],
-            ["Members", <span key="m" className="font-mono tabular-nums">{workspace.members}{workspace.plan?.maxUsers ? ` of ${workspace.plan.maxUsers}` : ""}</span>],
+            [
+              "Pays",
+              <span key="p">
+                <span className="font-mono tabular-nums">{formatMoney(price.total)}</span> a month
+                {price.verticals > 0 ? (
+                  <span className="block text-[var(--text-muted)]">
+                    {price.verticals} {price.verticals === 1 ? "vertical" : "verticals"} at{" "}
+                    <span className="font-mono tabular-nums">{formatMoney(price.each)}</span>
+                  </span>
+                ) : null}
+              </span>,
+            ],
+            renewal,
+            ["Verticals", workspace.verticals.length > 0 ? workspace.verticals.map((vertical) => vertical.label).join(", ") : null],
+            ["Members", <span key="m" className="font-mono tabular-nums">{workspace.members}</span>],
             ["Last sign-in", formatWhen(workspace.lastSignInAt)],
           ]}
         />

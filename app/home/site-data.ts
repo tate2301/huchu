@@ -33,32 +33,25 @@ import {
   type LucideIcon,
 } from "@/lib/icons";
 import {
-  ANNUAL_DISCOUNT_LABEL,
-  ANNUAL_PREPAY_COPY,
-  MARKETING_TIERS,
-  SCHOOL_STARTING_TERM_PRICE,
-  STARTING_ANNUAL_MONTHLY_PRICE,
-  STARTING_MONTHLY_PRICE,
+  INCLUDED_MEMBERS,
+  LARGE_PRICE,
+  LAUNCH_SPRINT_DAYS,
+  MARKETING_VERTICALS,
+  MONEY_BACK_DAYS,
+  PRICE_RULE_COPY,
+  SMALL_PRICE,
+  STARTING_PRICE_LABEL,
+  TRIAL_DAYS,
+  buildQuote,
   formatUsd,
-  getMarketingTier,
-  productPriceLabel,
 } from "@/lib/marketing/pricing";
 
-// Prices in copy are read from the billing catalog through
-// `lib/marketing/pricing.ts` rather than typed out, so a tier change never
-// leaves a stale figure in a headline or a meta description. Annual is the ask
-// (PR-2.1), so copy quotes the annual rate first and the monthly rate second.
+// Prices in copy are read from `lib/marketing/pricing.ts` rather than typed
+// out, so a change to the vertical rate never leaves a stale figure in a
+// headline or a meta description.
 
-/** Fails the build rather than rendering a page with a missing plan in it. */
-function tierByCode(code: string) {
-  const tier = getMarketingTier(code);
-  if (!tier) throw new Error(`Marketing copy references unknown tier ${code}`);
-  return tier;
-}
-
-const fiscalTier = tierByCode("FISCAL");
-const startTier = tierByCode("START");
-const scaleTier = tierByCode("SCALE");
+/** One line every trade page can reuse for what its people cost. */
+const MEMBERS_COPY = `${formatUsd(SMALL_PRICE)} a month for up to ${INCLUDED_MEMBERS} people, ${formatUsd(LARGE_PRICE)} a month however many more you add`;
 
 export type SeoEntry = {
   title: string;
@@ -88,7 +81,7 @@ export type ProductVisual = {
  * Every segment runs the same order-to-cash loop — the landing page sells that
  * loop once, and these entries only describe how each business shapes the
  * `deliver` step in the middle of it. Schools are deliberately not a segment:
- * they buy per term against enrolment and live at `/home/schools`.
+ * they decide through a board, not an owner, and live at `/home/schools`.
  */
 export type MarketingSegment = {
   slug: string;
@@ -197,7 +190,7 @@ export const footerGroups = [
 // buyer is under an obligation with a daily price on it, so the meta
 // description names the regulation before it names a benefit.
 const HOME_DESCRIPTION =
-  `The ZIMRA-compliant way to run a Zimbabwean business: fiscal invoicing built against ZIMRA's FDMS specification, on top of the POS, stock, books and payroll that produce the numbers on the invoice. Works offline, priced per site from ${formatUsd(STARTING_ANNUAL_MONTHLY_PRICE)} a month paid annually.`;
+  `The ZIMRA-compliant way to run a Zimbabwean business: fiscal invoicing built against ZIMRA's FDMS specification, on top of the POS, stock, books and payroll that produce the numbers on the invoice. Works offline, from ${formatUsd(SMALL_PRICE)} a month per vertical.`;
 
 export const seoPages = {
   home: {
@@ -262,20 +255,20 @@ export const seoPages = {
   pricing: {
     title: "Corelith pricing",
     description:
-      `Priced per site, never per user. From ${formatUsd(STARTING_ANNUAL_MONTHLY_PRICE)} a month paid annually, ${formatUsd(STARTING_MONTHLY_PRICE)} month to month, with every seat included up to your ceiling. Onboarding is a published one-off. 30-day money-back guarantee.`,
+      `${PRICE_RULE_COPY} Every feature and add-on inside a vertical is included. ${TRIAL_DAYS}-day trial and a ${MONEY_BACK_DAYS}-day money-back guarantee.`,
     path: "/home/pricing",
     keywords: [
       "Corelith pricing",
       "ERP pricing Zimbabwe",
       "business software cost Zimbabwe",
-      "per site pricing software",
+      "business software monthly price Zimbabwe",
       "ZIMRA fiscalisation pricing Zimbabwe",
     ],
   },
   schools: {
     title: "Corelith for schools",
     description:
-      `Collect the fees you are owed and keep one record of every child. Admissions, fees, academics, boarding and parent portals, priced per campus per term from ${formatUsd(SCHOOL_STARTING_TERM_PRICE)}.`,
+      `Collect the fees you are owed and keep one record of every child. Admissions, fees, academics, boarding and parent portals from ${formatUsd(SMALL_PRICE)} a month. Parents and students are not counted.`,
     path: "/home/schools",
     keywords: [
       "school management software Zimbabwe",
@@ -347,7 +340,7 @@ export const seoPages = {
   faq: {
     title: "Corelith FAQ",
     description:
-      "Straight answers on price, per-site billing, migration, offline use, ZIMRA fiscalisation, staff adoption and what happens the week after go-live.",
+      "Straight answers on price, per-vertical billing, migration, offline use, ZIMRA fiscalisation, staff adoption and what happens the week after go-live.",
     path: "/home/faq",
     keywords: [
       "Corelith FAQ",
@@ -618,7 +611,7 @@ export const COUNTER_TRADE = {
 export const trustSignals = [
   { label: "Built against ZIMRA's FDMS specification", icon: ShieldCheck },
   { label: "Keeps selling and signing when the line drops", icon: WifiOff },
-  { label: "Priced per site, never per user", icon: Users },
+  { label: "Every feature in a vertical included", icon: Users },
   { label: "Built and supported in Zimbabwe", icon: Building2 },
 ];
 
@@ -700,15 +693,15 @@ export const fiscalWedge = [
 export const paymentMethods = [
   {
     title: "Invoiced in US dollars",
-    copy: "Every plan, add-on and onboarding fee is quoted and invoiced in USD, so the figure on the pricing page is the figure on the invoice.",
+    copy: "Every vertical is quoted and invoiced in USD, so the figure on the pricing page is the figure on the invoice.",
   },
   {
     title: "Bank transfer or mobile money",
-    copy: "USD bank transfer for annual prepay, bank transfer or EcoCash month to month. No card is required and no card is stored.",
+    copy: "USD bank transfer or EcoCash. No card is required and no card is stored.",
   },
   {
-    title: "Annual is the default ask",
-    copy: `Paying for the year up front is ${ANNUAL_DISCOUNT_LABEL.replace(" off", "")} cheaper than paying monthly, and the monthly rate stays available with no commitment.`,
+    title: "Billed by the month",
+    copy: "You pay each month for the verticals you run, at the rate your number of people sets. There is no annual contract to sign.",
   },
   {
     title: "Card and self-checkout are not live yet",
@@ -818,7 +811,7 @@ export const segments: MarketingSegment[] = [
       commercials: {
         eyebrow: "What it costs",
         title: "The price is on the table before you spend an hour on a demo.",
-        copy: `Priced per site, with every cashier and clerk included up to your seat ceiling. ${ANNUAL_PREPAY_COPY}. Onboarding is a published one-off fee, so you can see what you are buying.`,
+        copy: `Retail is one vertical: ${MEMBERS_COPY}. The till, stock, receiving and fiscal receipts are all inside it.`,
       },
     },
     seo: {
@@ -893,10 +886,10 @@ export const segments: MarketingSegment[] = [
     ],
     proofMetrics: [
       {
-        value: `${formatUsd(startTier.annualMonthlyPrice)}/mo`,
-        label: `Where one till and ${startTier.includedUsers} staff accounts start, paid annually`,
+        value: formatUsd(SMALL_PRICE),
+        label: `A month for a shop with up to ${INCLUDED_MEMBERS} people`,
       },
-      { value: "$0", label: "What adding another cashier costs, up to your seat ceiling" },
+      { value: "$0", label: `What adding another cashier costs once you are past ${INCLUDED_MEMBERS} people` },
       { value: "Offline", label: "Keeps selling through load-shedding, syncs after" },
     ],
     modules: ["Core platform", "Sell", "Stock", "Books", "Retail pack"],
@@ -952,7 +945,7 @@ export const segments: MarketingSegment[] = [
       commercials: {
         eyebrow: "What it costs",
         title: "You know the price before the proposal.",
-        copy: `Priced per site with staff accounts included up to your ceiling, so putting every supervisor on it costs you nothing. ${ANNUAL_PREPAY_COPY} — annual is the ask.`,
+        copy: `One vertical, ${MEMBERS_COPY}. Putting every supervisor on it does not change the bill.`,
       },
     },
     seo: {
@@ -1025,8 +1018,8 @@ export const segments: MarketingSegment[] = [
       "Renewals get repriced before they lapse.",
     ],
     proofMetrics: [
-      { value: "$0", label: "What adding a supervisor or a cleaner costs you" },
-      { value: "Per site", label: "Priced by depots and offices, never by headcount" },
+      { value: "$0", label: `What adding a supervisor or a cleaner costs past ${INCLUDED_MEMBERS} people` },
+      { value: formatUsd(LARGE_PRICE), label: `A month above ${INCLUDED_MEMBERS} people, however many depots you run` },
       { value: "Offline", label: "Site sign-off works where there is no signal" },
     ],
     modules: ["Core platform", "Sell", "Work", "Books", "People", "CRM pack"],
@@ -1081,8 +1074,8 @@ export const segments: MarketingSegment[] = [
       },
       commercials: {
         eyebrow: "What it costs",
-        title: "Priced per workshop, not per technician.",
-        copy: `Put every technician, storeman and service adviser on it up to your seat ceiling and pay nothing extra. ${ANNUAL_PREPAY_COPY}.`,
+        title: "Priced per vertical, not per technician.",
+        copy: `Service workshop is one vertical: ${MEMBERS_COPY}. Put every technician, storeman and service adviser on it.`,
       },
     },
     seo: {
@@ -1156,8 +1149,8 @@ export const segments: MarketingSegment[] = [
     ],
     proofMetrics: [
       {
-        value: productPriceLabel("workshops") ?? `${formatUsd(startTier.annualMonthlyPrice)}/mo`,
-        label: "Where a single-bay workshop starts",
+        value: formatUsd(SMALL_PRICE),
+        label: `A month for a workshop with up to ${INCLUDED_MEMBERS} people`,
       },
       { value: "One job card", label: "Parts, hours, approval and invoice on the same record" },
       { value: "30 days", label: "Scoped setup from workflow mapping to go-live" },
@@ -1214,8 +1207,8 @@ export const segments: MarketingSegment[] = [
       },
       commercials: {
         eyebrow: "What it costs",
-        title: "Priced by plant and store, not by how many people work there.",
-        copy: `Every operator, storeman and supervisor is included up to your seat ceiling. ${ANNUAL_PREPAY_COPY}. Onboarding is a published one-off, scoped against your actual lines.`,
+        title: "One price for the plant, not one per operator.",
+        copy: `One vertical, ${MEMBERS_COPY}. Every operator, storeman and supervisor goes on it.`,
       },
     },
     seo: {
@@ -1290,8 +1283,8 @@ export const segments: MarketingSegment[] = [
     proofMetrics: [
       { value: "Per run", label: "Materials in, output and wastage out, costed" },
       {
-        value: `${formatUsd(scaleTier.annualMonthlyPrice)}/mo`,
-        label: `${scaleTier.includedSites} sites and ${scaleTier.includedUsers} staff accounts on ${scaleTier.name}, paid annually`,
+        value: formatUsd(LARGE_PRICE),
+        label: `A month for a plant with more than ${INCLUDED_MEMBERS} people`,
       },
       { value: "30 days", label: "From workflow mapping to your first costed run" },
     ],
@@ -1347,8 +1340,8 @@ export const segments: MarketingSegment[] = [
       },
       commercials: {
         eyebrow: "What it costs",
-        title: "Priced per site, so growing the team does not grow the bill.",
-        copy: `Add every rep up to your seat ceiling for nothing. ${ANNUAL_PREPAY_COPY}. Onboarding is a published one-off, agreed before you commit.`,
+        title: "Priced per vertical, so growing the team does not grow the bill.",
+        copy: `Sales and CRM is one vertical: ${MEMBERS_COPY}. Add every rep you have.`,
       },
     },
     seo: {
@@ -1421,7 +1414,7 @@ export const segments: MarketingSegment[] = [
       "Commission is paid off collected cash, which protects margin and ends the monthly argument.",
     ],
     proofMetrics: [
-      { value: "$0", label: "What adding a rep costs, up to your seat ceiling" },
+      { value: "$0", label: `What adding a rep costs once you are past ${INCLUDED_MEMBERS} people` },
       { value: "Live stock", label: "Behind every quote a rep sends" },
       { value: "On a phone", label: "Built for people who are not at a desk" },
     ],
@@ -1461,7 +1454,7 @@ export const getCanonicalSolutionSlug = getCanonicalSegmentSlug;
 
 /**
  * Schools sit outside `segments` on purpose. They do not run order-to-cash,
- * they buy per term against enrolment, and the decision goes through a board
+ * their money arrives by the term, and the decision goes through a board
  * rather than an owner. Mixing them into the main funnel weakens both stories.
  */
 export const schoolsTrack = {
@@ -1477,10 +1470,8 @@ export const schoolsTrack = {
     "Hi Corelith, I am from a school and would like to talk about Corelith Schools.",
   icon: Building2,
   assurances: [
-    // Schools stay on per-term enrolment bands; PR-4.2 reconciles them with the
-    // monthly tier ladder.
-    `From ${formatUsd(SCHOOL_STARTING_TERM_PRICE)} per campus, per term`,
-    "Unlimited staff and teacher accounts",
+    STARTING_PRICE_LABEL,
+    "Parents and students are not counted",
     "Your records migrated before you open",
   ],
   workflow: ["Application", "Admission", "Fee schedule", "Payment", "Academics", "Parent portal"],
@@ -1488,7 +1479,7 @@ export const schoolsTrack = {
     why: {
       eyebrow: "Why schools are different",
       title: "A school does not run on invoices and stock. It runs on a term.",
-      copy: "The money arrives three times a year. The decision goes through a board, not an owner. The records you keep answer to the ministry. So a system sold as a monthly subscription against an order book was never built for you.",
+      copy: "The money arrives three times a year. The decision goes through a board, not an owner. The records you keep answer to the ministry. So a system built around an order book was never built for you.",
     },
     year: {
       eyebrow: "The school year",
@@ -1502,13 +1493,8 @@ export const schoolsTrack = {
     },
     pricing: {
       eyebrow: "Schools pricing",
-      title: "Per campus, per term, set by enrolment.",
-      copy: "Three terms a year, so each band covers roughly four months. Bands are flat, so growing inside yours never costs more, and every band carries unlimited staff and teacher accounts.",
-    },
-    addOns: {
-      eyebrow: "School add-ons",
-      title: "Transport, fiscalisation, branding and migration.",
-      copy: "Priced per term alongside your band. Data migration is the exception: one charge at the start of the rollout and nothing after it.",
+      title: "The same rate as any other business.",
+      copy: `Schools is one vertical. ${PRICE_RULE_COPY} The people counted are your staff and teachers. Parent and student portal accounts are never counted, however many pupils you enrol.`,
     },
     outcomes: {
       eyebrow: "What should change",
@@ -1567,12 +1553,12 @@ export const schoolsTrack = {
   ],
   faqs: [
     {
-      q: "Why are you priced per term instead of per month?",
-      a: "Because that is how a school's money arrives. Fees come in three times a year, so a monthly debit hits an account that is empty for large parts of it. A term price sits inside the same budget line the board already approves, and there are three of them a year.",
+      q: "What does a school pay, and do pupils count?",
+      a: `${PRICE_RULE_COPY} Only staff and teachers count. Parent and student portal accounts are free however many pupils you enrol, so a school of 1,200 with ten staff pays the same as any business with ten people.`,
     },
     {
       q: "What happens to the records we already have?",
-      a: "They come with you. Data migration is a scoped, one-off item at $199: students, guardians, classes, fee structures and outstanding balances are imported so you open the new term with correct opening figures rather than a blank system and a backlog.",
+      a: "They come with you. Students, guardians, classes, fee structures and outstanding balances are imported during setup, so you open the new term with correct opening figures rather than a blank system and a backlog.",
     },
     {
       q: "Our internet is unreliable and the power goes. Will registers and receipts still work?",
@@ -1584,7 +1570,7 @@ export const schoolsTrack = {
     },
     {
       q: "We are a group with several campuses. Does each one keep its own registers?",
-      a: "Yes. Every campus keeps its own registers, fee structure and staff, while the group consolidates into one set of books and one reporting line. The Group band is quoted, and the per-student rate stays below the Premier band so growing never costs you more per head.",
+      a: "Yes. Every campus keeps its own registers, fee structure and staff, while the group consolidates into one set of books and one reporting line. The group still pays for one Schools vertical, at the rate its total staff sets.",
     },
   ],
 } as const;
@@ -1717,7 +1703,7 @@ export const launchSprintDone = [
   "The next module identified only when there is a number saying it will pay for itself",
 ];
 
-/** What the onboarding fee buys, shown on the pricing page. */
+/** What getting live involves, shown on the pricing page. There is no onboarding fee. */
 export const onboardingCovers = [
   "Mapping how orders, stock, jobs, invoices and approvals actually move through your business today",
   "Configuring the platform, your industry pack, your sites and who is allowed to do what",
@@ -1737,12 +1723,54 @@ export const firstRollout = [
 ];
 
 export const pricingPrinciples = [
-  "The plan covers sites and capacity. It never counts heads.",
-  "Add every cashier, clerk, rep and technician you need up to your seat ceiling, at no extra cost.",
-  "Extra seats come in packs of five. Extra sites bill at your plan's per-site rate.",
-  `Annual is the price we quote, and it is ${ANNUAL_DISCOUNT_LABEL}. Month to month is there if you want it.`,
-  `Onboarding is a published one-off fee — nothing on ${fiscalTier.name} or ${startTier.name} — because migration and training are real work by real people.`,
-  "Start with the one pack fixing this month's problem. Add depth when it pays for itself.",
+  `You pay for each vertical you run: ${formatUsd(SMALL_PRICE)} a month for up to ${INCLUDED_MEMBERS} people, ${formatUsd(LARGE_PRICE)} a month above that.`,
+  "Every vertical is charged at the same rate. A second vertical adds the same again.",
+  "Features, add-ons and bundles inside a vertical carry no charge of their own.",
+  "A school's parent and student portal accounts are never counted.",
+  "No onboarding fee, no per-site charge and no annual contract.",
+  "Start with the one vertical fixing this month's problem. Add another when it pays for itself.",
+];
+
+/** Who the price counts. Mirrors `billedMemberWhere` in `lib/platform/verticals.ts`. */
+export const memberRules = [
+  "Everyone with access to your workspace counts: owners, managers, cashiers, clerks, technicians and teachers.",
+  "A school's parent and student portal accounts never count.",
+  "An account you switch off stops counting.",
+  "People are counted once for the whole workspace, not once for each vertical.",
+];
+
+const twoVerticalsSmall = buildQuote({ verticals: 2, members: 4 });
+const twoVerticalsLarge = buildQuote({ verticals: 2, members: 12 });
+
+export const pricingFaqs = [
+  {
+    q: "What is a vertical?",
+    a: `A line of business you run on Corelith. There are ${MARKETING_VERTICALS.length}: ${MARKETING_VERTICALS.map((vertical) => vertical.label.toLowerCase()).join(", ")}. Each one switches on the screens, features and reports that trade needs.`,
+  },
+  {
+    q: `What happens when I add a person number ${INCLUDED_MEMBERS + 1}?`,
+    a: `Every vertical moves from ${formatUsd(SMALL_PRICE)} to ${formatUsd(LARGE_PRICE)} a month. After that, adding people costs nothing more.`,
+  },
+  {
+    q: "I run a shop and a workshop. What do I pay?",
+    a: `Two verticals, each at the same rate. With ${twoVerticalsSmall.members} people that is ${formatUsd(twoVerticalsSmall.total)} a month. With ${twoVerticalsLarge.members} people it is ${formatUsd(twoVerticalsLarge.total)}.`,
+  },
+  {
+    q: "Do add-ons cost extra?",
+    a: "No. Features, add-ons and bundles are switched on within a vertical and carry no charge of their own.",
+  },
+  {
+    q: "Do parents and students count?",
+    a: "No. A school pays for its staff and teachers. Parent and student portal accounts are never counted, however many pupils you enrol.",
+  },
+  {
+    q: "Is there an onboarding fee or an annual contract?",
+    a: `No. You pay month by month for the verticals you run. The ${LAUNCH_SPRINT_DAYS}-day Launch Sprint that gets you live carries no fee of its own.`,
+  },
+  {
+    q: "Can I try it first?",
+    a: `Yes. A new workspace starts on a ${TRIAL_DAYS}-day trial, and if you pay and change your mind within ${MONEY_BACK_DAYS} days, you get your money back.`,
+  },
 ];
 
 export const proofFrames = [
@@ -1811,7 +1839,6 @@ export const contactChecklist = [
 
 export const foundingPartnerItems = [
   "Selected businesses only, across selling, service, workshop and production",
-  "Discounted, scoped onboarding",
   "Your rate held for the first twelve months",
   "Workflow mapping done directly with the people who build the product",
   "Data migration within a defined scope",
@@ -1827,25 +1854,6 @@ export const foundingPartnerQuestions = [
   "Will you tell us plainly when something does not work, instead of quietly going back to the notebook?",
 ];
 
-/**
- * The plan ladder written out for the FAQ, annual first. Derived so the answer
- * cannot drift from the catalog the invoice is cut from.
- */
-const tierLadderCopy = MARKETING_TIERS.map((tier) => {
-  const sites =
-    tier.includedSites >= 100
-      ? "unlimited sites"
-      : `${tier.includedSites} ${tier.includedSites === 1 ? "site" : "sites"}`;
-  const users = tier.includedUsers === null ? "unlimited users" : `${tier.includedUsers} users`;
-  return `${tier.name} ${tier.isQuoted ? "from" : "at"} ${formatUsd(tier.annualMonthlyPrice)} (${sites}, ${users})`;
-}).join(", ");
-
-const onboardingLadderCopy = MARKETING_TIERS.map((tier) =>
-  tier.isQuoted
-    ? `${tier.name} scoped with you`
-    : `${tier.name} ${tier.onboardingFee > 0 ? formatUsd(tier.onboardingFee) : "nothing"}`,
-).join(", ");
-
 export const faqs = [
   {
     q: "I already have a POS. Why would I change?",
@@ -1857,7 +1865,7 @@ export const faqs = [
   },
   {
     q: "What does this cost, and do you charge per user?",
-    a: `Paid annually, which is what we quote: ${tierLadderCopy}. Month to month costs the full rate, so paying for the year is ${ANNUAL_DISCOUNT_LABEL}. There is no per-user charge until you pass your seat ceiling, so adding a cashier or a technician costs nothing. Onboarding is a published one-off: ${onboardingLadderCopy}.`,
+    a: `You pay for each vertical you run. ${PRICE_RULE_COPY} There is no per-user charge beyond that one step, so once you are past ${INCLUDED_MEMBERS} people, adding a cashier or a technician costs nothing. Features and add-ons inside a vertical are included, and there is no onboarding fee.`,
   },
   {
     q: "My staff will not use it.",
@@ -1881,11 +1889,11 @@ export const faqs = [
   },
   {
     q: "What happens if I stop paying?",
-    a: "Your data stays yours and exports at any time. Cancel within the first 30 days and you get your money back. After that, access runs to the end of the period you have paid for, and you take an export of your records with you.",
+    a: `Your data stays yours and exports at any time. Cancel within the first ${MONEY_BACK_DAYS} days and you get your money back. After that, access runs to the end of the month you have paid for, and you take an export of your records with you.`,
   },
   {
     q: "Can I try it before I commit?",
-    a: "A blank account tells you very little about software like this, because the value only shows up once your own stock, customers and prices are in it. What works is a demo running your own workflow, then a scoped Launch Sprint with targets agreed in writing, backed by the 30-day money-back guarantee.",
+    a: `Yes. A new workspace starts on a ${TRIAL_DAYS}-day trial. A blank account tells you little, though, because the value shows up once your own stock, customers and prices are in it, so we would rather run the demo on your own workflow. After that you have the ${MONEY_BACK_DAYS}-day money-back guarantee.`,
   },
 ];
 
@@ -1914,7 +1922,7 @@ export const companyPrinciples = [
   {
     title: "Getting it live is the hard part",
     copy:
-      "The job is not done when a login exists. It is done when your storeman uses it on a Tuesday without being reminded. Which is why rollout is scoped, priced and owned rather than left to hope.",
+      "The job is not done when a login exists. It is done when your storeman uses it on a Tuesday without being reminded. Which is why rollout is scoped and owned rather than left to hope.",
     icon: LifeBuoy,
   },
   {

@@ -142,12 +142,10 @@ async function main() {
     seeded tenant.
 
     A flag is still the right lever, but it has to be created rather than
-    edited. `getCompanyFeatureMap` resolves each key as
-    `requested && (!isBillable || subscriptionEntitled.has(key))`, so an
-    explicit row set to `false` turns a feature off even where the subscription
-    entitles it. Switching a feature *on* this way does nothing unless the
-    subscription already allows it, which is correct: this script narrows a
-    demo, it does not sell anything.
+    edited. In `getCompanyFeatureMap` an explicit flag wins over the catalogue
+    default and over whatever the tier and bundles carry, so a row set to
+    `false` turns a feature off even where the subscription carries it. This
+    script only writes `false` rows: it narrows a demo.
   */
   const catalogue = await prisma.platformFeature.findMany({
     select: { id: true, key: true },

@@ -18,4 +18,9 @@ export type Ask = {
    * `needed` is the error while it is shorter than `min`.
    */
   field?: { key: string; label: string; placeholder?: string; min: number; max: number; needed: string };
+  /**
+   * For what cannot be undone at all: go stays refused until `text` is typed
+   * exactly ("delete 3 workspaces"), under the label.
+   */
+  typed?: { label: string; text: string };
 };

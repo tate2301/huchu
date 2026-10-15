@@ -25,7 +25,7 @@ const sections = [
   {
     title: "Pricing and proposals",
     copy:
-      "Published prices are starting points. Final implementation scope, onboarding work, add-ons and enterprise requirements are confirmed in a written proposal.",
+      "Published prices are what a workspace pays: each vertical at the monthly rate its number of people sets. Implementation scope is confirmed in writing before go-live.",
   },
   {
     title: "Demo requests",
@@ -35,7 +35,7 @@ const sections = [
   {
     title: "Product availability",
     copy:
-      "Features may vary by plan, industry pack, implementation scope and rollout stage. Corelith should confirm exact availability before a customer commits.",
+      "Features may vary by vertical, industry pack, implementation scope and rollout stage. Corelith should confirm exact availability before a customer commits.",
   },
 ];
 

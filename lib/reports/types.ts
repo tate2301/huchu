@@ -1,5 +1,6 @@
 import type { FieldDefinition } from "@/lib/forms/fields";
 import type { ReportLayout } from "@/lib/reports/layout";
+import type { OperatorAction } from "@/lib/operators/roles";
 import type { RetailAction, RetailResource } from "@/lib/retail/permissions";
 
 /**
@@ -230,7 +231,10 @@ export type ReportView = {
    ────────────────────────────────────────────────────────────────────────── */
 
 /** A grant from the retail matrix. Type-only, so this file stays importable in the browser. */
-export type ListGrant = [RetailResource, RetailAction];
+export type RetailListGrant = [RetailResource, RetailAction];
+/** A grant from the admin portal's operator roles (`lib/operators/roles`), for the admin's lists. */
+export type AdminListGrant = ["admin", OperatorAction];
+export type ListGrant = RetailListGrant | AdminListGrant;
 
 /** How a judgement is coloured. Colour always comes with a word. */
 export type Tone = "ok" | "warn" | "bad" | "info" | "neutral" | "hollow" | "pending" | "gold";

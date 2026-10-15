@@ -7,8 +7,8 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { PageChrome, type PagePrimary } from "@/components/layout/page-chrome";
-import { useHomeLink } from "@/components/layout/role-refusal";
-import { useShell } from "@/components/layout/shell-state";
+import { useHomeLinkIfAny } from "@/components/layout/role-refusal";
+import { useShellIfAny } from "@/components/layout/shell-state";
 import { useToast } from "@/components/ui/use-toast";
 import { ConfirmDialog } from "@/components/workspace/confirm-dialog";
 import { EmptyGuide } from "@/components/workspace/empty-guide";
@@ -25,11 +25,11 @@ import type {
   ReportRow,
   ReportValue,
 } from "@/lib/reports/types";
-import { LIST_ACTION_RUNS } from "@/lib/retail/asks";
 import type { Ask } from "@/lib/workspace/ask";
 import { formatCount } from "@/lib/workspace/format";
 
 import { exportList, runAction, sheetHref } from "./actions";
+import { useListHost } from "./host";
 import type { ExportFormat } from "./export-menu";
 import { ListCards, PhoneFiltersSheet, PhoneFooter, PhoneToolbar } from "./list-cards";
 import { ListPager } from "./list-pager";
@@ -90,6 +90,20 @@ function useElementWidth(ref: React.RefObject<HTMLElement | null>): number | nul
   return width;
 }
 
+/** Outside the workspace shell, which says it for the page: whether the window is phone-wide (720px, as the shell has it). */
+function usePhoneWidth(enabled: boolean): boolean {
+  const [phone, setPhone] = React.useState(false);
+  React.useEffect(() => {
+    if (!enabled) return;
+    const query = window.matchMedia("(max-width: 719px)");
+    const update = () => setPhone(query.matches);
+    update();
+    query.addEventListener("change", update);
+    return () => query.removeEventListener("change", update);
+  }, [enabled]);
+  return phone;
+}
+
 function isTyping(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) return false;
   return Boolean(target.closest("input, textarea, select, [contenteditable='true'], [role='menu'], [role='dialog']"));
@@ -128,9 +142,12 @@ export function ListFrame({ source, title, sub, rowFilters, defaultSort, default
   const searchParams = useSearchParams();
   const queryClient = useQueryClient();
   const { toast } = useToast();
-  const shell = useShell();
-  const home = useHomeLink();
-  const phone = shell.width === "phone";
+  const host = useListHost();
+  const runs = host.runs;
+  const shell = useShellIfAny();
+  const home = useHomeLinkIfAny();
+  const phoneWidth = usePhoneWidth(shell === null);
+  const phone = shell ? shell.width === "phone" : phoneWidth;
 
   const scopeKey = scope?.key;
   const scopeValue = scope?.value;
@@ -139,7 +156,7 @@ export function ListFrame({ source, title, sub, rowFilters, defaultSort, default
   const apiQuery = address.listParams.toString();
   const listQuery = useQuery({
     queryKey: ["list", source, apiQuery],
-    queryFn: () => fetchJson<ListPageResponse>(`/api/v2/reports/${encodeURIComponent(source)}?${apiQuery}`),
+    queryFn: () => fetchJson<ListPageResponse>(`${host.base}/${encodeURIComponent(source)}?${apiQuery}`),
     placeholderData: keepPreviousData,
     enabled: address.ready,
     retry: (count, error) => !(error instanceof ApiError && error.status < 500) && count < 2,
@@ -303,7 +320,7 @@ export function ListFrame({ source, title, sub, rowFilters, defaultSort, default
       params.set("idsOnly", "1");
       const keys = bulkKeys(spec);
       if (keys.length) params.set("pick", keys.join(","));
-      const answer = await fetchJson<ListIdsResponse>(`/api/v2/reports/${encodeURIComponent(source)}?${params.toString()}`);
+      const answer = await fetchJson<ListIdsResponse>(`${host.base}/${encodeURIComponent(source)}?${params.toString()}`);
       const picks = answer.picked ?? {};
       setAllSelected({
         key: filterKey,
@@ -437,7 +454,7 @@ export function ListFrame({ source, title, sub, rowFilters, defaultSort, default
   const post = async (action: ListAction, ids: string[], targetRows: ReportRow[], noted?: { key: string; value: string }) => {
     const how = action.do;
     if (!("endpoint" in how)) return;
-    const run = "run" in how ? LIST_ACTION_RUNS[how.run] : undefined;
+    const run = "run" in how ? runs[how.run] : undefined;
     const endpoint = runEndpoint(fillFromFilters(how.endpoint, resolved?.filters ?? {}) ?? how.endpoint, targetRows);
     if (!endpoint) throw new Error("That did not work. Nothing was changed; try again.");
     const body = run?.body ? run.body(ids, targetRows) : { ids };
@@ -468,7 +485,7 @@ export function ListFrame({ source, title, sub, rowFilters, defaultSort, default
       await doExport(action.do.export, ids);
       return;
     }
-    const run = "run" in action.do ? LIST_ACTION_RUNS[action.do.run] : undefined;
+    const run = "run" in action.do ? runs[action.do.run] : undefined;
     if ("confirm" in action.do || run?.ask) {
       setConfirming({ action, ids, rows: targetRows });
       return;
@@ -497,7 +514,7 @@ export function ListFrame({ source, title, sub, rowFilters, defaultSort, default
   const doExport = async (format: ExportFormat, rowIds?: string[]) => {
     if (!resolved) return;
     const query = { ...resolved, tab: resolved.tab ?? undefined, group: resolved.group ?? "none", page: 1 };
-    const said = await exportList(source, format, query, rowIds);
+    const said = await exportList(source, format, query, rowIds, host.base);
     if (said) toast(said);
   };
 
@@ -595,7 +612,7 @@ export function ListFrame({ source, title, sub, rowFilters, defaultSort, default
   const sheetLink = listSubLink
     ? { href: sheetHref(pathname, searchParams.toString(), listSubLink.sheet, subLinkId ? [subLinkId] : []), label: listSubLink.label }
     : null;
-  const chrome = (
+  const chrome = host.chrome === "page" ? null : (
     <PageChrome
       title={scope && !keepTitle ? (parent?.label ?? title) : title}
       backHref={back?.href}
@@ -611,7 +628,7 @@ export function ListFrame({ source, title, sub, rowFilters, defaultSort, default
     return (
       <>
         {chrome}
-        <Refusal noun={noun} back={home.href && home.href !== pathname ? home : null} />
+        <Refusal noun={noun} back={home?.href && home.href !== pathname ? home : null} />
       </>
     );
   }
@@ -674,7 +691,7 @@ export function ListFrame({ source, title, sub, rowFilters, defaultSort, default
       />
     ) : null;
 
-  const confirmRun = confirming && "run" in confirming.action.do ? LIST_ACTION_RUNS[confirming.action.do.run] : undefined;
+  const confirmRun = confirming && "run" in confirming.action.do ? runs[confirming.action.do.run] : undefined;
   const confirmAsk: Ask | null =
     confirming && "confirm" in confirming.action.do
       ? {

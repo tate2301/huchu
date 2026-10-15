@@ -7,7 +7,9 @@ import { FEATURE_BUNDLES } from "@/lib/platform/feature-catalog";
  * what a workspace can add, by kind, each with who makes it, its price and
  * where Add takes it. Built from what exists: Corelith's report templates,
  * its document templates, and the add-ons the workspace does not have yet.
- * There are no partner apps in the product, so none are listed.
+ * Add-ons carry no charge of their own: a workspace pays for its verticals
+ * (`lib/platform/verticals.ts`), and Corelith switches an add-on on within
+ * them. There are no partner apps in the product, so none are listed.
  */
 
 export type MarketKind = "forms" | "reports" | "documents" | "apps";
@@ -32,8 +34,6 @@ const ADDON_MARKS: Record<string, string> = {
   ADDON_ADVANCED_PAYROLL: "/brand/shift-mark.svg",
   ADDON_STORES_CORE: "/brand/silo-mark.svg",
 };
-
-const usd = (value: number) => `$${value.toLocaleString("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} a month`;
 
 export async function readMarketplace(
   db: Pick<PrismaClient, "documentTemplate" | "companySubscriptionAddon">,
@@ -80,14 +80,15 @@ export async function readMarketplace(
   ];
 
   const addons: MarketItem[] = FEATURE_BUNDLES.filter(
-    (bundle) => bundle.code.startsWith("ADDON_") && bundle.monthlyPrice > 0 && !have.has(bundle.code),
+    // Base bundles come with every workspace of their kind; the rest can be added, at no charge.
+    (bundle) => bundle.code.startsWith("ADDON_") && !bundle.base && !have.has(bundle.code),
   ).map((bundle) => ({
     key: `addon:${bundle.code}`,
     kind: "apps",
     name: bundle.name,
     detail: bundle.description.replace(/\.$/, ""),
     maker: "Corelith",
-    price: usd(bundle.monthlyPrice),
+    price: "Included",
     href: "/preferences/organization/billing",
     mark: ADDON_MARKS[bundle.code],
   }));

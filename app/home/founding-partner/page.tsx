@@ -39,7 +39,7 @@ export default function FoundingPartnerPage() {
       <PageHero
         eyebrow="Founding Partner Programme"
         title="Better terms, in exchange for a rollout that goes properly."
-        copy="A limited number of sellers, service providers, workshops and manufacturers who will put one real workflow live, tell us the truth about how it went, and agree up front how we will both judge whether it worked. You get discounted setup and your rate held for twelve months. We get the thing we cannot buy, which is evidence."
+        copy="A limited number of sellers, service providers, workshops and manufacturers who will put one real workflow live, tell us the truth about how it went, and agree up front how we will both judge whether it worked. You get setup done with the people who build the product and your rate held for twelve months. We get the thing we cannot buy, which is evidence."
       />
 
       <section className={styles.section}>

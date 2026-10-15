@@ -49,7 +49,7 @@ const MARKETING: readonly Route[] = [
   { path: "/home/products", name: "Products", expect: /One record\. Every part of the business/i },
   { path: "/home/solutions", name: "Solutions", expect: /Six trades\. Six different holes/i },
   { path: "/home/schools", name: "Schools", expect: /Collect the fees you are owed/i },
-  { path: "/home/pricing", name: "Pricing", expect: /Fiscalise from \$15 a month/i },
+  { path: "/home/pricing", name: "Pricing", expect: /\$39 a month per vertical/i },
   { path: "/home/faq", name: "FAQ", expect: /Straight answers, including the ones that might rule us out/i },
   { path: "/home/contact", name: "Contact", expect: /hello@pagka\.dev/i },
   { path: "/home/book-demo", name: "Book a demo", expect: /Tell us where the money goes/i },

@@ -20,7 +20,7 @@
  */
 import bcrypt from "bcryptjs";
 import { Prisma, type UserRole } from "@prisma/client";
-import { FEATURE_BUNDLES, TIERS } from "../lib/platform/feature-catalog";
+import { FEATURE_BUNDLES, LADDER_TIERS } from "../lib/platform/feature-catalog";
 import { WORKSPACE_PROFILES } from "../lib/workspace-products";
 import { disconnectPrisma, prisma } from "./platform/prisma";
 
@@ -112,17 +112,11 @@ async function main() {
     select: { id: true, email: true, role: true },
   });
 
-  // Entitlements come from the subscription, not from feature flags.
-  // getCompanyFeatureMap builds the map from the in-code FEATURE_CATALOG, sets
-  // every billable feature to false, and only turns one back on if the tier or
-  // an addon bundle entitles it — a CompanyFeatureFlag on a billable feature
-  // that nothing entitles is ignored (see entitlements.ts, `requested &&
-  // (!isBillable || subscriptionEntitled.has(key))`). So the lever here is the
-  // top tier plus every addon bundle, which is what makes the whole product
-  // reachable on a staging tenant.
-  const topTier = TIERS.reduce((highest, tier) =>
-    tier.monthlyPrice > highest.monthlyPrice ? tier : highest,
-  );
+  // getCompanyFeatureMap turns a feature on by its catalogue default, then by
+  // what the tier and the addon bundles carry. So the lever here is the top of
+  // the ladder — each rung carries everything below it — plus every addon
+  // bundle, which is what makes the whole product reachable on a staging tenant.
+  const topTier = LADDER_TIERS[LADDER_TIERS.length - 1];
 
   const plan = await prisma.subscriptionPlan.upsert({
     where: { code: topTier.code },
@@ -131,7 +125,6 @@ async function main() {
       code: topTier.code,
       name: topTier.name,
       description: topTier.description,
-      monthlyPrice: topTier.monthlyPrice,
       currency: "USD",
       warningDays: topTier.warningDays,
       graceDays: topTier.graceDays,
@@ -168,8 +161,6 @@ async function main() {
         code: definition.code,
         name: definition.name,
         description: definition.description,
-        monthlyPrice: definition.monthlyPrice,
-        additionalSiteMonthlyPrice: definition.additionalSiteMonthlyPrice,
         isActive: true,
       },
       select: { id: true },

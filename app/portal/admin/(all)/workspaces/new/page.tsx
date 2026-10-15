@@ -3,7 +3,6 @@ import { notFound } from "next/navigation";
 import { AdminPage, AdminPageHeader } from "@/components/admin/page-header";
 import { SetUpForm } from "@/components/admin/workspaces/set-up-form";
 import { getPlatformRootDomain } from "@/lib/admin/hosts";
-import { SET_UP_TEMPLATES, SET_UP_TIERS } from "@/lib/admin/set-up";
 import { requireOperator } from "@/lib/operators/guards";
 import { operatorCan } from "@/lib/operators/roles";
 
@@ -17,7 +16,7 @@ export default async function SetUpWorkspacePage() {
   return (
     <AdminPage>
       <AdminPageHeader title="Set up a workspace" />
-      <SetUpForm root={getPlatformRootDomain()} templates={SET_UP_TEMPLATES} tiers={SET_UP_TIERS} setUp={setUp} />
+      <SetUpForm root={getPlatformRootDomain()} setUp={setUp} />
     </AdminPage>
   );
 }

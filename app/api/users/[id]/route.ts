@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { errorResponse, successResponse, validateSession } from "@/lib/api-utils";
+import { repriceCompany } from "@/lib/platform/entitlements";
 import { prisma } from "@/lib/prisma";
 import { countOverrides, getUserPermissionCatalog } from "@/lib/platform/permission-catalog";
 import { findLastSignInAt } from "@/lib/auth-core/last-sign-in";
@@ -161,6 +162,7 @@ export async function DELETE(
         409,
       );
     }
+    await repriceCompany(session.user.companyId);
 
     await appendUserManagementEvent({
       companyId: session.user.companyId,

@@ -2004,19 +2004,11 @@ async function main() {
   /* ── Public examinations ──────────────────────────────────────────── */
 
   /*
-    `schools.exams` is billable, and `getCompanyFeatureMap` resolves a billable
-    feature as `requested && subscriptionEntitled.has(key)`. Entitlement has to
-    come from a tier or an addon bundle, and no tier and no bundle in
-    `feature-catalog.ts` carries `schools.exams`: `ADDON_SCHOOLS_SUITE` lists
-    the other eleven `schools.*` keys and not this one. So `/schools/exams`
-    redirects to `/access-blocked` for every tenant there is, this ENTERPRISE
-    one included, until the catalogue puts the key in something sellable.
-    Read on 2026-09-22.
-
-    The flag is written anyway, because it is the half of the answer this seed
-    legitimately owns — the same flag `provisionSchool` writes for the eleven —
-    and because the day the catalogue carries the key, St Mary's has the module
-    on and a sitting already in it rather than an empty screen.
+    No tier and no bundle in `feature-catalog.ts` carries `schools.exams`
+    (`ADDON_SCHOOLS_SUITE` lists the other eleven `schools.*` keys and not this
+    one), and it is off by default. `getCompanyFeatureMap` lets an explicit
+    flag win either way, so this flag is what turns `/schools/exams` on for
+    St Mary's — the same flag `provisionSchool` writes for the eleven.
   */
   const examsFeature = await prisma.platformFeature.findUnique({
     where: { key: "schools.exams" },

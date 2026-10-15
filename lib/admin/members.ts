@@ -1,6 +1,6 @@
-import type { UserRole } from "@prisma/client";
+import type { UserRole, WorkspaceProduct } from "@prisma/client";
 
-import { findLastSignInByEmail } from "@/lib/auth-core/last-sign-in";
+import { LOGIN_SUCCESS_EVENT } from "@/lib/auth-core/last-sign-in";
 import { getEnabledFeatureKeys } from "@/lib/platform/entitlements";
 import { getAllowedUserRoleOptionsForWorkspace, USER_ROLE_LABELS } from "@/lib/platform/vertical-roles";
 import { prisma } from "@/lib/prisma";
@@ -34,9 +34,24 @@ export function roleLabel(role: UserRole): string {
   return USER_ROLE_LABELS[role] ?? role.charAt(0) + role.slice(1).toLowerCase().replace(/_/g, " ");
 }
 
+export type MemberWorkspace = { id: string; name: string; slug: string; product: WorkspaceProduct };
+
+/** One workspace's members, owners first among equals: those with access before those without, by name. */
 export async function listMembers(companyId: string, now = new Date()): Promise<MemberRow[]> {
+  return readMembers({ companyId }, now);
+}
+
+/**
+ * Members as rows, for one workspace or (no `companyId`) every workspace:
+ * each with their state, their last sign-in and whether they are the owner.
+ * Three queries however many workspaces there are.
+ */
+export async function readMembers(
+  scope: { companyId?: string },
+  now = new Date(),
+): Promise<Array<MemberRow & { workspace: MemberWorkspace }>> {
   const users = await prisma.user.findMany({
-    where: { companyId },
+    where: scope.companyId ? { companyId: scope.companyId } : {},
     select: {
       id: true,
       name: true,
@@ -45,24 +60,45 @@ export async function listMembers(companyId: string, now = new Date()): Promise<
       role: true,
       isActive: true,
       createdAt: true,
+      companyId: true,
+      company: { select: { id: true, name: true, slug: true, product: true } },
       retailTillPin: { select: { lockedAt: true } },
     },
     orderBy: [{ isActive: "desc" }, { name: "asc" }],
   });
-  const [lastSignIn, invites] = await Promise.all([
-    findLastSignInByEmail({ companyId, emails: users.flatMap((user) => (user.email ? [user.email] : [])) }),
+  const emails = Array.from(new Set(users.flatMap((user) => (user.email ? [user.email.trim().toLowerCase()] : []))));
+  const [signIns, invites] = await Promise.all([
+    emails.length
+      ? prisma.platformAuditEvent.groupBy({
+          by: ["companyId", "actor"],
+          where: {
+            ...(scope.companyId ? { companyId: scope.companyId } : {}),
+            eventType: LOGIN_SUCCESS_EVENT,
+            actor: { in: emails },
+          },
+          _max: { createdAt: true },
+        })
+      : Promise.resolve([]),
     prisma.retailStaffInvite.findMany({
-      where: { companyId, acceptedAt: null, revokedAt: null, expiresAt: { gt: now } },
+      where: { ...(scope.companyId ? { companyId: scope.companyId } : {}), acceptedAt: null, revokedAt: null, expiresAt: { gt: now } },
       select: { userId: true },
     }),
   ]);
+  const lastSignIn = new Map<string, Date>();
+  for (const row of signIns) {
+    if (row.actor && row._max.createdAt) lastSignIn.set(`${row.companyId}:${row.actor}`, row._max.createdAt);
+  }
   const invited = new Set(invites.map((invite) => invite.userId));
-  const owner = users
-    .filter((user) => user.isActive && user.role === "SUPERADMIN")
-    .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())[0];
+  // The owner is the first active top-role holder: the one who signed up, or whom the workspace was set up for.
+  const owners = new Map<string, { id: string; at: number }>();
+  for (const user of users) {
+    if (!user.isActive || user.role !== "SUPERADMIN") continue;
+    const held = owners.get(user.companyId);
+    if (!held || user.createdAt.getTime() < held.at) owners.set(user.companyId, { id: user.id, at: user.createdAt.getTime() });
+  }
 
   return users.map((user) => {
-    const signedIn = user.email ? (lastSignIn.get(user.email.toLowerCase()) ?? null) : null;
+    const signedIn = user.email ? (lastSignIn.get(`${user.companyId}:${user.email.trim().toLowerCase()}`) ?? null) : null;
     const state: MemberState = !user.isActive
       ? "Access removed"
       : user.retailTillPin?.lockedAt
@@ -79,10 +115,11 @@ export async function listMembers(companyId: string, now = new Date()): Promise<
       phone: user.phone,
       role: user.role,
       roleLabel: roleLabel(user.role),
-      isOwner: user.id === owner?.id,
+      isOwner: user.id === owners.get(user.companyId)?.id,
       state,
       lastSignInAt: signedIn,
       addedAt: user.createdAt,
+      workspace: user.company,
     };
   });
 }

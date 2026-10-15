@@ -7,7 +7,6 @@ import {
   lastSeenWords,
   offlineFor,
   pairedWords,
-  planLimitSentence,
   shiftSinceWords,
   siteHint,
   suggestTillName,
@@ -87,8 +86,6 @@ describe("tills in words", () => {
   });
 
   it("words the refusals and the hints", () => {
-    expect(planLimitSentence("Grow", 8)).toBe("Your Grow plan has 8 tills, all paired.");
-    expect(planLimitSentence("Fiscal", 1)).toBe("Your Fiscal plan has 1 till, all paired.");
     expect(unpairShiftOpen("Front till", "Chipo Dube")).toBe("Close Chipo Dube’s shift on Front till first.");
     expect(siteHint(2)).toBe("Only asked because you have two sites.");
     expect(suggestTillName(["Front till", "Back till", "Till 3"])).toBe("Till 4");

@@ -7,6 +7,7 @@ import { CodeForm } from "@/components/admin/sign-in/code-form";
 import { SignInFrame } from "@/components/admin/sign-in/sign-in-frame";
 import { getSignedInOperator, safeAdminPath } from "@/lib/operators/guards";
 import { OPERATOR_COOKIE } from "@/lib/operators/session";
+import { OperatorSecretError } from "@/lib/operators/secret-box";
 import { authenticatorToSetUp } from "@/lib/operators/sign-in";
 import { formatSecretForTyping } from "@/lib/operators/totp";
 
@@ -20,7 +21,20 @@ export default async function AdminSetUpPage({
   const callbackUrl = safeAdminPath((await searchParams).callbackUrl);
   if (await getSignedInOperator()) redirect(callbackUrl);
 
-  const setUp = await authenticatorToSetUp((await cookies()).get(OPERATOR_COOKIE)?.value);
+  let setUp: Awaited<ReturnType<typeof authenticatorToSetUp>>;
+  try {
+    setUp = await authenticatorToSetUp((await cookies()).get(OPERATOR_COOKIE)?.value);
+  } catch (error) {
+    if (!(error instanceof OperatorSecretError)) throw error;
+    return (
+      <SignInFrame eyebrow="Corelith admin" title="The portal is not set up yet">
+        <p role="alert" className="t-body text-[var(--text-body)]">
+          {error.message} An engineer sets it where the portal is deployed and deploys again; your password is
+          already saved.
+        </p>
+      </SignInFrame>
+    );
+  }
   if (!setUp) redirect("/admin/login");
 
   const qr = await QRCode.toString(setUp.uri, { type: "svg", margin: 0, errorCorrectionLevel: "M" });
