@@ -3,18 +3,14 @@ import type { NotificationType } from "@prisma/client";
 import { isInboxModule, needsYou, type InboxModule } from "./describe";
 
 /**
- * Management → Notifications (MgmtNotifications): who hears about what, for
- * the whole workspace. Who is told is decided where each notification is sent
- * (managers and owners for approvals, the person named or given the work, the
- * people on a record); each person then turns kinds and email off for
- * themselves (`UserNotificationPreference`). So this reads what happened: the
- * people each kind reached in the app in the last 30 days, and which of them
- * also get it by email today. Nothing here is a setting yet: a kind × channel
- * setting needs a table (see NOTES.md, Notifications).
+ * The kinds of notification, as Management → Notifications and My account →
+ * Notifications list them (MgmtNotifications), and the kind each notification
+ * is. Who is told is decided where each notification is sent (managers and
+ * owners for approvals, the person named or given the work, the people on a
+ * record); whether a kind reaches them, and where, is `settings.ts`.
  */
 
 export type RoutingGroup = "needs" | "updates";
-export type Category = "HR" | "OPS" | "CRM";
 
 export type RoutingKind = {
   key: string;
@@ -38,6 +34,7 @@ export const ROUTING_KINDS: RoutingKind[] = [
   { key: "tills", group: "updates", label: "Tills and cash-ups", note: "A till closes short or over, and its sign-off", features: ["retail."] },
   { key: "stock", group: "updates", label: "Stock and staff", note: "Transfers on their way, and messages to staff", features: ["retail."] },
   { key: "notices", group: "updates", label: "School notices", note: "Notices to parents, pupils and teachers", features: ["schools."] },
+  { key: "reports", group: "updates", label: "Reports sent", note: "A scheduled report or question went out", features: null },
 ];
 
 const KIND_OF_TYPE: Record<NotificationType, string> = {
@@ -102,6 +99,13 @@ const KIND_OF_TYPE: Record<NotificationType, string> = {
   RETAIL_SHIFT_SIGNED_OFF: "tills",
   RETAIL_ORDER_FOLLOW_UP: "assigned",
   RETAIL_DELIVERY_TO_CHECK: "approvals",
+  BOOKS_INVOICE_PAID: "payments",
+  BOOKS_PAYMENT_RECEIVED: "payments",
+  HR_LEAVE_SUBMITTED: "approvals",
+  HR_LEAVE_APPROVED: "decisions",
+  HR_LEAVE_REJECTED: "decisions",
+  REPORT_SENT: "reports",
+  VANE_ISSUE_RAISED: "vane",
 };
 
 /** Kinds the NotificationType enum has no value for carry their module in the payload. */
@@ -117,96 +121,4 @@ export function kindOf(n: Pick<Received, "type" | "payload">): string {
   const byType = (KIND_OF_TYPE as Record<string, string | undefined>)[n.type];
   if (byType) return byType;
   return needsYou({ type: n.type, payload: n.payload }) ? "approvals" : "records";
-}
-
-/** The switch a type answers to (`lib/notifications.ts`): HR, operations (the shop's too) or CRM. */
-export function categoryOf(type: string): Category {
-  if (type.startsWith("HR_")) return "HR";
-  if (type.startsWith("CRM_")) return "CRM";
-  return "OPS";
-}
-
-export type Preference = {
-  emailEnabled: boolean;
-  hrEnabled: boolean;
-  opsEnabled: boolean;
-  crmEnabled: boolean;
-};
-
-const DEFAULT_PREFERENCE: Preference = { emailEnabled: true, hrEnabled: true, opsEnabled: true, crmEnabled: true };
-
-function emails(preference: Preference | undefined, type: string) {
-  const pref = preference ?? DEFAULT_PREFERENCE;
-  if (!pref.emailEnabled) return false;
-  const category = categoryOf(type);
-  return category === "HR" ? pref.hrEnabled : category === "CRM" ? pref.crmEnabled : pref.opsEnabled;
-}
-
-export type Reach = { count: number; names: string[] };
-
-export type RoutingRow = {
-  key: string;
-  group: RoutingGroup;
-  label: string;
-  note: string;
-  /** Who it reached in the app in the period. */
-  inApp: Reach;
-  /** Of those, who has it emailed too, by their own switches today. */
-  email: Reach;
-};
-
-export type Routing = {
-  rows: RoutingRow[];
-  /** Kinds that reached anyone in the period. */
-  heard: number;
-  days: number;
-};
-
-const runs = (features: readonly string[], prefixes: string[] | null) =>
-  prefixes === null || prefixes.some((prefix) => features.some((feature) => feature.startsWith(prefix)));
-
-/**
- * The rows the page lists: every kind the workspace can have, and any other
- * kind that reached someone anyway, each with the people it reached.
- */
-export function buildRouting(input: {
-  received: Received[];
-  names: Map<string, string>;
-  preferences: Map<string, Preference>;
-  enabledFeatures: readonly string[];
-  days: number;
-}): Routing {
-  const byKind = new Map<string, { inApp: Set<string>; email: Set<string> }>();
-  for (const n of input.received) {
-    const kind = kindOf(n);
-    const entry = byKind.get(kind) ?? { inApp: new Set<string>(), email: new Set<string>() };
-    entry.inApp.add(n.userId);
-    if (emails(input.preferences.get(n.userId), n.type)) entry.email.add(n.userId);
-    byKind.set(kind, entry);
-  }
-  const reach = (ids: Set<string> | undefined): Reach => {
-    const names = [...(ids ?? [])].map((id) => input.names.get(id) ?? "Someone who has left").sort((a, b) => a.localeCompare(b));
-    return { count: names.length, names };
-  };
-  const rows = ROUTING_KINDS.filter((kind) => byKind.has(kind.key) || runs(input.enabledFeatures, kind.features)).map((kind) => ({
-    key: kind.key,
-    group: kind.group,
-    label: kind.label,
-    note: kind.note,
-    inApp: reach(byKind.get(kind.key)?.inApp),
-    email: reach(byKind.get(kind.key)?.email),
-  }));
-  return { rows, heard: rows.filter((row) => row.inApp.count > 0).length, days: input.days };
-}
-
-/** "Floorcode heard about 6 kinds of thing in the last 30 days, in up to 2 places." */
-export function routingFinding(routing: Routing, workspace: string): string {
-  if (routing.heard === 0) return `Nobody at ${workspace} was notified in the last ${routing.days} days.`;
-  const kinds = routing.heard === 1 ? "1 kind of thing" : `${routing.heard} kinds of thing`;
-  return `${workspace} heard about ${kinds} in the last ${routing.days} days, in up to 2 places.`;
-}
-
-/** "4 people", "1 person". */
-export function peopleLabel(count: number): string {
-  return count === 1 ? "1 person" : `${count} people`;
 }

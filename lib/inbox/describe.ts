@@ -5,9 +5,10 @@
  * `lib/inbox/concern.ts`; nothing here touches the database.
  *
  * The schema's `NotificationType` names the event and `entityType`/`entityId`
- * the record, for the kinds it has. Kinds it has no value for yet (an
- * invoice, a receipt, leave, a report, a Vane card) carry the record in the
- * payload instead, as `subject: { kind, id }` and `module`.
+ * the record. Books, leave, reports and Vane have their own types and entity
+ * types since 15 Oct (`BOOKS_PAYMENT_RECEIVED`, `INVOICE`…); a notification
+ * from before then carries its record in the payload, as `subject: { kind, id }`
+ * and `module`, which is still read first.
  */
 
 export type InboxModule =
@@ -99,6 +100,9 @@ const PAYROLL_PREFIXES = ["HR_PAYROLL_", "HR_DISBURSEMENT_", "HR_ADJUSTMENT_", "
 /** The module a notification type belongs to, before any payload override. */
 export function moduleForType(type: string): InboxModule {
   if (PAYROLL_PREFIXES.some((prefix) => type.startsWith(prefix))) return "payroll";
+  if (type.startsWith("BOOKS_")) return "books";
+  if (type.startsWith("REPORT_")) return "reports";
+  if (type.startsWith("VANE_")) return "vane";
   if (type.startsWith("HR_GOLD_")) return "gold";
   if (type.startsWith("HR_")) return "people";
   if (type.startsWith("OPS_")) return "operations";
@@ -130,6 +134,8 @@ export const NEEDS_YOU_TYPES: readonly string[] = [
   "HR_COMP_RULE_SUBMITTED",
   "HR_GOLD_PAYOUT_SUBMITTED",
   "HR_DISCIPLINARY_SUBMITTED",
+  "HR_LEAVE_SUBMITTED",
+  "VANE_ISSUE_RAISED",
   "OPS_PERMIT_EXPIRING",
   "OPS_PERMIT_EXPIRED",
   "CRM_LEAD_ASSIGNED",
@@ -175,6 +181,11 @@ const ENTITY_SUBJECT: Record<string, SubjectKind> = {
   CRM_COMMENT: "comment",
   CRM_TASK: "task",
   CRM_REQUISITION: "requisition",
+  INVOICE: "invoice",
+  PAYMENT: "receipt",
+  LEAVE_REQUEST: "leave",
+  REPORT: "report",
+  VANE_ITEM: "vane",
 };
 
 const UUID = "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}";
@@ -238,7 +249,8 @@ export function sentenceFor(input: {
 
   let text = title;
   let used: "title" | "summary" = "title";
-  if (summaryNamesRef && (summaryIsAct || !titleNamesRef)) {
+  // Who did it leads when the summary says so ("James approved…") and the title does not name the record instead.
+  if ((summaryNamesRef && (summaryIsAct || !titleNamesRef)) || (summaryIsAct && !titleNamesRef)) {
     text = summary;
     used = "summary";
   }

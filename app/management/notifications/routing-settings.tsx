@@ -4,7 +4,7 @@ import * as React from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { Button, Empty, Icon } from "@/components/core";
-import { RoutingPageView, type RoutingData } from "@/components/management/notifications/routing-view";
+import { RoutingPageView, type KindChange, type RoutingData } from "@/components/management/notifications/routing-view";
 import { KitPage, OwnsChrome } from "@/components/management/ui";
 import { ManagementShell } from "@/components/settings/management-shell";
 import { useToast } from "@/components/ui/use-toast";
@@ -12,7 +12,7 @@ import { ApiError, fetchJson, getApiErrorMessage } from "@/lib/api-client";
 
 const QUERY_KEY = ["notifications", "routing"] as const;
 
-/** Management → Notifications, on what reached whom in the last 30 days. */
+/** Management → Notifications: each kind on each channel for the workspace, saved as it is ticked. */
 export function RoutingSettings() {
   const client = useQueryClient();
   const { toast } = useToast();
@@ -37,9 +37,36 @@ export function RoutingSettings() {
     },
   });
 
+  const change = useMutation({
+    mutationFn: (next: KindChange) => fetchJson<RoutingData>("/api/notifications/routing", { method: "PATCH", body: JSON.stringify(next) }),
+    onMutate: async (next) => {
+      await client.cancelQueries({ queryKey: QUERY_KEY });
+      const before = client.getQueryData<RoutingData>(QUERY_KEY);
+      if (before) {
+        client.setQueryData<RoutingData>(QUERY_KEY, {
+          ...before,
+          kinds: before.kinds.map((row) => (row.key === next.kind ? { ...row, on: { ...row.on, [next.channel]: next.enabled } } : row)),
+        });
+      }
+      return { before };
+    },
+    onSuccess: (view) => client.setQueryData(QUERY_KEY, view),
+    onError: (error, _next, context) => {
+      if (context?.before) client.setQueryData(QUERY_KEY, context.before);
+      toast({ title: "That setting was not saved", description: getApiErrorMessage(error), variant: "destructive" });
+    },
+  });
+
   let body: React.ReactNode;
   if (query.data) {
-    body = <RoutingPageView data={query.data} saving={quiet.isPending} onQuiet={(from, to) => quiet.mutate({ from, to })} />;
+    body = (
+      <RoutingPageView
+        data={query.data}
+        saving={quiet.isPending || change.isPending}
+        onChange={(next) => change.mutate(next)}
+        onQuiet={(from, to) => quiet.mutate({ from, to })}
+      />
+    );
   } else if (query.isError) {
     const refused = query.error instanceof ApiError && query.error.status === 403;
     body = (

@@ -192,6 +192,7 @@ export async function onAccountingInvoiceCreated(input: {
       await emitCrmNotification({
         companyId: input.companyId,
         recipientIds: [assignee],
+        actorId: input.userId,
         type: "CRM_DOCUMENT_APPROVED",
         title: `Invoice ${invoice.invoiceNumber} was raised for your ${quoteDoc.dealId ? "deal" : "lead"}`,
         summary: "Accounting raised it from your quote.",
@@ -292,7 +293,8 @@ export async function onAccountingReceiptCreated(input: {
       await emitCrmNotification({
         companyId: input.companyId,
         recipientIds: [assignee],
-        type: "CRM_DOCUMENT_APPROVED",
+        actorId: input.userId,
+        type: settled ? "BOOKS_INVOICE_PAID" : "BOOKS_PAYMENT_RECEIVED",
         title: settled
           ? `Paid in full — ${receipt.receiptNumber}`
           : `Payment ${receipt.receiptNumber} received`,
@@ -300,6 +302,8 @@ export async function onAccountingReceiptCreated(input: {
           ? "The invoice is settled and the record is closed as won."
           : `${receipt.amount} received against your invoice.`,
         leadId: invoiceDoc.leadId ?? undefined,
+        entityType: settled ? "INVOICE" : "PAYMENT",
+        entityId: settled ? input.invoiceId : receipt.id,
         viewPath: ownerPath(owner),
       });
     }

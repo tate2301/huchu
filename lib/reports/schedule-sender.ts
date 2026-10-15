@@ -2,6 +2,8 @@ import { enrichTokenClaims } from "@/lib/auth-core/session-claims";
 import type { AuthenticatedSession } from "@/lib/auth-core/types";
 import { isEmailConfigured, sendEmail } from "@/lib/email/send";
 import { questionFile, scheduledQuestion, type ScheduledQuestion } from "@/lib/explore/schedule-send";
+import { emitReportSentNotification } from "@/lib/notifications";
+import { getReportDefinition } from "@/lib/reports/registry";
 import { buildNotificationEmail } from "@/lib/notification-email";
 import { buildWorkspaceUrl } from "@/lib/platform/tenant-url";
 import { prisma } from "@/lib/prisma";
@@ -145,6 +147,17 @@ async function sendOne(schedule: Due, now: Date): Promise<number> {
   return reached;
 }
 
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** What a schedule sends, by name: a custom report's or question's title, or a built-in report's. */
+async function scheduleTitle(companyId: string, reportKey: string): Promise<string> {
+  if (UUID.test(reportKey)) {
+    const report = await prisma.customReport.findFirst({ where: { id: reportKey, companyId }, select: { title: true } });
+    if (report) return report.title;
+  }
+  return getReportDefinition(reportKey)?.title ?? "A report";
+}
+
 /** Sends every due schedule once and says what it did, in one line. */
 export async function sendDueReportSchedules(now: Date = new Date()): Promise<string> {
   if (!isEmailConfigured()) return "email is not set up; nothing sent";
@@ -165,6 +178,14 @@ export async function sendDueReportSchedules(now: Date = new Date()): Promise<st
     if (reached > 0) {
       await prisma.reportSchedule.update({ where: { id: schedule.id }, data: { lastSentAt: now } });
       sent += 1;
+      await emitReportSentNotification({
+        companyId: schedule.companyId,
+        recipientId: schedule.createdById,
+        reportKey: schedule.reportKey,
+        title: await scheduleTitle(schedule.companyId, schedule.reportKey),
+        reached,
+        viewPath: UUID.test(schedule.reportKey) ? `/reports/c/${schedule.reportKey}` : `/reports/${schedule.reportKey}`,
+      });
     }
   }
   return `${sent} of ${due.length} due sent${skipped ? `, ${skipped} already taken by another run` : ""}`;

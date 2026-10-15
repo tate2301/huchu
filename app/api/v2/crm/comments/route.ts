@@ -162,6 +162,7 @@ export async function POST(request: NextRequest) {
 
     if (validMentions.length) {
       await emitCrmNotification({
+        actorId: session.user.id,
         companyId,
         recipientIds: validMentions.filter((id) => id !== session.user.id),
         type: "CRM_MENTIONED",
@@ -194,6 +195,7 @@ export async function POST(request: NextRequest) {
 
     if (audience.length) {
       await emitCrmNotification({
+        actorId: session.user.id,
         companyId,
         recipientIds: audience,
         type: "CRM_COMMENT_ADDED",
