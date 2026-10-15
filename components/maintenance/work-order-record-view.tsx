@@ -7,6 +7,9 @@ import { Field, Finding, GroupHead, Select } from "@/components/core";
 import { VaneDraftNote } from "@/components/vane/vane-draft-note";
 import type { WorkOrderRecord } from "@/lib/maintenance/work-order-record";
 
+/** Figures keep their width; the name column takes the rest. */
+const NUM = { width: "9rem" } as const;
+
 export const PRIORITY_LABEL = { NORMAL: "Normal", HIGH: "High", URGENT: "Urgent" } as const;
 const STATUS_LABEL = { DRAFT: "Draft", OPEN: "Open", IN_PROGRESS: "In progress", COMPLETED: "Done", CANCELLED: "Cancelled" } as const;
 
@@ -69,13 +72,13 @@ export function WorkOrderRecordView({
           No earlier work orders on this equipment.
         </p>
       ) : (
-        <div className="wt">
+        <div className="wt" style={{ flex: "none" }}>
           <table className="table">
             <thead>
               <tr>
-                <th>Date</th>
+                <th style={{ width: "7rem" }}>Date</th>
                 <th>Issue</th>
-                <th className="num">Hours</th>
+                <th className="num" style={NUM}>Hours</th>
                 <th>Work done</th>
               </tr>
             </thead>
@@ -103,13 +106,13 @@ export function WorkOrderRecordView({
           No parts named.
         </p>
       ) : (
-        <div className="wt">
+        <div className="wt" style={{ flex: "none" }}>
           <table className="table">
             <thead>
               <tr>
                 <th>Part</th>
-                <th className="num">On hand</th>
-                <th className="num">Needed</th>
+                <th className="num" style={NUM}>On hand</th>
+                <th className="num" style={NUM}>Needed</th>
               </tr>
             </thead>
             <tbody>

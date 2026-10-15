@@ -11,6 +11,9 @@ import { formatSchoolMoney } from "@/lib/schools/format";
 import type { ReminderDraft } from "@/lib/schools/vane-reminders";
 import type { VaneActionView } from "@/lib/vane/actions/engine";
 
+/** Figures keep their width; the name column takes the rest. */
+const NUM = { width: "9rem" } as const;
+
 const plural = (count: number, one: string, many: string) => `${count} ${count === 1 ? one : many}`;
 
 /**
@@ -137,9 +140,9 @@ export function VaneRemindersContent({ draft }: { draft: ReminderDraft }) {
                       />
                       <th>Family</th>
                       <th>Pupil</th>
-                      <th className="num">Owed</th>
-                      <th>Goes by</th>
-                      <th>Left out because</th>
+                      <th className="num" style={NUM}>Owed</th>
+                      <th style={{ width: "13rem" }}>Goes by</th>
+                      <th style={{ width: "13rem" }}>Left out because</th>
                     </tr>
                   </thead>
                   <tbody>

@@ -5,6 +5,9 @@ import { VaneDraftNote } from "@/components/vane/vane-draft-note";
 import { money } from "@/lib/books/format";
 import type { InvoiceRecord } from "@/lib/books/invoice-record";
 
+/** Figures keep their width; the name column takes the rest. */
+const NUM = { width: "9rem" } as const;
+
 const qty = (n: number) => (Number.isInteger(n) ? String(n) : n.toFixed(2).replace(/0+$/, ""));
 
 /**
@@ -31,9 +34,9 @@ export function InvoiceRecordView({ invoice }: { invoice: InvoiceRecord }) {
             <thead>
               <tr>
                 <th>Item</th>
-                <th className="num">Quantity</th>
-                <th className="num">Price</th>
-                <th className="num">Amount</th>
+                <th className="num" style={NUM}>Quantity</th>
+                <th className="num" style={NUM}>Price</th>
+                <th className="num" style={NUM}>Amount</th>
               </tr>
             </thead>
             <tbody>

@@ -57,7 +57,6 @@ export default function WorkOrderPage() {
     <>
       <PageChrome
         title={draft ? "Work order · draft" : "Work order"}
-        reference={record?.equipment.label ?? null}
         backHref="/maintenance/work-orders"
         backLabel="Work orders"
         primary={draft ? { label: "Raise the work order", icon: "send", onClick: () => raise.mutate(), shortcut: "R", disabled: busy ? "Saving" : undefined } : null}
