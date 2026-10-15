@@ -40,6 +40,15 @@
     "panel: Posting",
     "panel: Fiscal device"
   ],
+  "MgmtNotifications": [
+    "panel: Tills",
+    "panel: Till rules",
+    "panel: Posting",
+    "panel: Fiscal device",
+    "panel: Templates",
+    "panel: Pay and statutory",
+    "panel: Explore"
+  ],
   "PageBrandIdentity": [
     "panel: Tills",
     "panel: Till rules",

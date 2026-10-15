@@ -547,6 +547,14 @@ export const settingsNavEntries: SettingsNavEntry[] = [
     icon: History,
     gate: { kind: "preference", itemId: "activity" },
   },
+  {
+    id: "notification-routing",
+    group: "company",
+    label: "Notifications",
+    href: "/management/notifications",
+    icon: Bell,
+    gate: { kind: "preference", itemId: "notification-routing" },
+  },
   // Apps: what the workspace pays for, connects to and adds, and Vane
   // (design/core-modules/spec/management.md). Billing moved here from Company.
   {

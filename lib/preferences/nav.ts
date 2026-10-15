@@ -155,6 +155,9 @@ export function canViewPreferenceItem(
   // The log covers every module, so it answers to the workspace's admins on
   // every plan — the same people `/api/activity` serves.
   if (itemId === "activity") return isOrgAdminRole(role);
+  // Who hears about what across the workspace (Management → Notifications):
+  // the same people, since it reads everyone's notifications.
+  if (itemId === "notification-routing") return isOrgAdminRole(role);
   // Which reports are offered and how they open is a workspace decision, made
   // by the same people who decide who works here.
   if (itemId === "reports") return isOrgAdminRole(role);
