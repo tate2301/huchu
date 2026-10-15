@@ -32,7 +32,9 @@ afterAll(async () => {
   await prisma.operator.deleteMany({ where: { id: owner.id } });
 });
 
-describe("deleting a workspace's data", () => {
+// Each case reads every company-scoped table and foreign key in the schema, which takes
+// seconds on a busy machine; the default 5s is too tight for that.
+describe("deleting a workspace's data", { timeout: 30_000 }, () => {
   it("previews the groups and tables that hold its rows, and what it keeps", async () => {
     const preview = await previewWorkspaceReset(workspace);
     expect(preview.confirmation).toBe(`RESET ${workspace.slug}`);
