@@ -143,7 +143,7 @@ export function ScheduleDrawer({
           </div>
         ))}
         {info.data && people.length === 0 ? (
-          <p className="muted">No one else’s role reads every table this question reads.</p>
+          <p className="muted">{ready ? "No one else’s role reads every table this question reads." : "Who it can go to shows once it can be sent."}</p>
         ) : (
           <MenuButton
             variant="quiet"

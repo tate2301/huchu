@@ -181,6 +181,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
           },
         });
         await emitCrmNotification({
+          actorId: session.user.id,
           companyId,
           recipientIds: [existing.requestedById],
           type: "CRM_REQUISITION_DECIDED",
@@ -227,6 +228,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         }
 
         await emitCrmNotification({
+          actorId: session.user.id,
           companyId,
           recipientIds: [existing.requestedById],
           type: "CRM_REQUISITION_DECIDED",

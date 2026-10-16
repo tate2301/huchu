@@ -31,20 +31,23 @@ export function ModuleGroups({
   area,
   areas,
   savedViews = true,
+  reports = true,
   onNavigate,
 }: {
   area: RailArea;
   areas: readonly RailArea[];
-  /** False where the module keeps its own saved views (the CRM's lists). */
+  /** False where the module keeps its own saved views (the CRM's lists), or the page is not at this level. */
   savedViews?: boolean;
+  /** The module's Reports: at the module's own level, not in one of its groups' levels. */
+  reports?: boolean;
   onNavigate?: () => void;
 }) {
   // Reports' own panel: its folders and Build, as ReportsAll draws it.
-  if (isReportsArea(area)) return <ReportsGroups area={area} onNavigate={onNavigate} />;
+  if (isReportsArea(area)) return reports ? <ReportsGroups area={area} onNavigate={onNavigate} /> : null;
   return (
     <>
       {savedViews ? <SavedViewsGroup onNavigate={onNavigate} /> : null}
-      <ReportsGroup area={area} areas={areas} onNavigate={onNavigate} />
+      {reports ? <ReportsGroup area={area} areas={areas} onNavigate={onNavigate} /> : null}
     </>
   );
 }

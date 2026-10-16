@@ -45,6 +45,9 @@ afterAll(async () => {
   const companies = { slug: { startsWith: "vane-tools-" } };
   await prisma.employee.deleteMany({ where: { company: companies } });
   await prisma.vaneItem.deleteMany({ where: { company: companies } });
+  // An issue Vane raises tells its people (`VANE_ISSUE_RAISED`).
+  await prisma.notificationRecipient.deleteMany({ where: { notification: { company: companies } } });
+  await prisma.notification.deleteMany({ where: { company: companies } });
   await prisma.user.deleteMany({ where: { company: companies } });
   await prisma.company.deleteMany({ where: companies });
 });
@@ -144,6 +147,12 @@ describe("writing to Vane's own tables", () => {
     const rep = (await prisma.user.create({ data: { email: `rudo-${suffix}@vane.test`, name: "Rudo", role: "SALES_REP", companyId: made.a }, select: { id: true } })).id;
     const raised = JSON.parse((await callTool({ ...context(made.a), rep }, "propose_item", { ...card, headline: `Pomona's quote has waited ${suffix}`, audienceRole: "MANAGER" })).content);
     expect(await prisma.vaneItem.findUniqueOrThrow({ where: { id: raised.id } })).toMatchObject({ audienceUserId: rep, audienceRole: null });
+    // The issue tells that rep, as Vane's (no actor), pointing at the card.
+    const told = await prisma.notification.findFirstOrThrow({
+      where: { companyId: made.a, type: "VANE_ISSUE_RAISED", entityId: raised.id },
+      select: { entityType: true, actorId: true, recipients: { select: { userId: true } } },
+    });
+    expect(told).toEqual({ entityType: "VANE_ITEM", actorId: null, recipients: [{ userId: rep }] });
   });
 
     it("turns a card that does not fit back to Claude", async () => {

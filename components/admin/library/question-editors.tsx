@@ -53,11 +53,20 @@ function Studio({
   const catalog = useMemo<ExploreCatalog | undefined>(
     () =>
       sources.data
-        ? { canUse: true, workspaceName: workspace?.name ?? "No workspace", sources: sources.data.sources as Extract<ExploreCatalog, { canUse: true }>["sources"], locked: [], templates: [], saved: [] }
+        ? {
+            canUse: true,
+            engine: "sources",
+            workspaceName: workspace?.name ?? "No workspace",
+            sources: sources.data.sources as Extract<ExploreCatalog, { canUse: true }>["sources"],
+            tables: null,
+            locked: [],
+            templates: [],
+            saved: [],
+          }
         : undefined,
     [sources.data, workspace],
   );
-  const question = useQuestion(sql, catalog);
+  const question = useQuestion(sql, catalog, "sources");
   const steps = useMemo(() => describeSteps(sql), [sql]);
   return (
     <div className="space-y-4">

@@ -143,7 +143,9 @@
     "panel: Money4",
     "heading: Build",
     "panel: Forms",
-    "panel: Documents"
+    "panel: Documents",
+    "button: Notifications",
+    "button: Vane"
   ],
   "PageInsightVisits": [
     "heading: Areas",
@@ -515,6 +517,7 @@
     "placeholder: Search everything"
   ],
   "MgmtExplore": [
+    "panel: Templates",
     "panel: Pay and statutory",
     "panel: Tills",
     "panel: Till rules",

@@ -10,9 +10,9 @@ import { PageChrome } from "@/components/layout/page-chrome";
 import { useToast } from "@/components/ui/use-toast";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import type { AskAnswer } from "@/lib/explore/ask";
-import { questionDocument, questionHref, questionSql, readSlug } from "@/lib/explore/questions";
+import { questionDocument, questionHref, questionReads, questionSql, readSlug } from "@/lib/explore/questions";
 import { describeSteps } from "@/lib/explore/steps";
-import { templateBySlug, templateTitle } from "@/lib/explore/templates";
+import { templateBySlug, templateTitle, type ExploreEngine } from "@/lib/explore/templates";
 import type { CustomReport } from "@/lib/reports/custom/document";
 
 import { setExploreReads } from "./explore-focus";
@@ -29,6 +29,17 @@ const AUDIENCE_LABEL: Record<CustomReport["audience"], string> = {
   EVERYONE: "Everyone",
 };
 
+/**
+ * `/explore` itself: a new question for each address it is opened with. A
+ * link from the panel (History, Start from a table) changes only the query
+ * string, so the studio is keyed by the question the address carries.
+ */
+export function NewQuestionStudio() {
+  const params = useSearchParams();
+  const key = ["sql", "tables_sql", "title", "ask"].map((name) => params.get(name) ?? "").join("\u0000");
+  return <Studio key={key} />;
+}
+
 /** The SQL's own order, for the arrow on the worksheet's header: `order by total desc`. */
 function sqlSort(sql: string): { key: string; dir: "asc" | "desc" } | null {
   const match = /order\s+by\s+(?:[a-z_]+\.)?([a-z_][a-z0-9_]*)\s*(desc|asc)?/i.exec(sql);
@@ -41,8 +52,9 @@ function clock(): string {
 
 /**
  * The studio (`/explore`, `/explore/q/{slug}`): one question, asked in plain
- * words, read as steps, written as SQL, run in this tab over the person's own
- * report sources, and saved as a report. `slug` is a saved question's id or a
+ * words, read as steps, written as SQL, run over the workspace's tables as
+ * Explore's own login (or, without it, in this tab over the person's report
+ * sources), and saved as a report. `slug` is a saved question's id or a
  * template's slug; without one, `?sql=`, `?title=` and `?ask=` start it.
  */
 export function Studio({ slug }: { slug?: string }) {
@@ -54,16 +66,29 @@ export function Studio({ slug }: { slug?: string }) {
   const catalog = useExploreCatalog();
 
   const target = slug ? readSlug(slug) : null;
-  // One in code opens at once; one from Corelith's library is in the catalog, so it waits for it (undefined).
-  const template =
-    target?.kind === "template"
-      ? (templateBySlug(target.slug) ?? (catalog.data ? ((catalog.data.canUse && catalog.data.templates.find((entry) => entry.slug === target.slug)) || null) : undefined))
-      : null;
   const report = useQuery({
     queryKey: ["reports", "custom", target?.kind === "saved" ? target.id : null],
     queryFn: () => fetchJson<{ report: CustomReport }>(`/api/v2/reports/custom/${target!.kind === "saved" ? target!.id : ""}`),
     enabled: target?.kind === "saved",
   });
+
+  // Where the question runs: a saved one where it was saved; a template where
+  // the workspace's tables answer it, else over the reports; anything new as
+  // the workspace runs Explore (`ExploreCatalog.engine`).
+  const catalogEngine: ExploreEngine = catalog.data?.canUse ? catalog.data.engine : "sources";
+  // One in code opens over the engine that has it; one from Corelith's
+  // library is in the catalog, with the engine it is written over.
+  const library = target?.kind === "template" && catalog.data?.canUse ? (catalog.data.templates.find((entry) => entry.slug === target.slug) ?? null) : null;
+  const templateEngine: ExploreEngine =
+    target?.kind !== "template"
+      ? catalogEngine
+      : templateBySlug(target.slug, catalogEngine)
+        ? catalogEngine
+        : templateBySlug(target.slug, "sources")
+          ? "sources"
+          : (library?.engine ?? catalogEngine);
+  const template = target?.kind === "template" ? (templateBySlug(target.slug, templateEngine) ?? library) : null;
+  const engine: ExploreEngine = target?.kind === "saved" ? (report.data ? questionReads(report.data.report) : catalogEngine) : templateEngine;
 
   // The question as it opens: a saved one's SQL, a template's, or the address's.
   const opening = React.useMemo(() => {
@@ -71,14 +96,14 @@ export function Studio({ slug }: { slug?: string }) {
       const loaded = report.data?.report;
       return loaded ? { sql: questionSql(loaded) ?? "", title: loaded.title } : null;
     }
-    if (target?.kind === "template") {
-      if (template === undefined) return null;
-      return template ? { sql: template.sql, title: templateTitle(template) } : { sql: "", title: "Untitled question" };
-    }
-    return { sql: params.get("sql") ?? "", title: params.get("title") || "Untitled question" };
+    // A template or a new question waits for the catalog: it says which tables answer.
+    if (!catalog.data) return null;
+    if (target?.kind === "template") return template ? { sql: template.sql, title: templateTitle(template) } : { sql: "", title: "Untitled question" };
+    const sql = (catalogEngine === "tables" ? params.get("tables_sql") : null) ?? params.get("sql") ?? "";
+    return { sql, title: params.get("title") || "Untitled question" };
     // The address is read once, as the question opens.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [target?.kind, report.data, template]);
+  }, [target?.kind, report.data, template, catalog.data]);
 
   const [sql, setSql] = React.useState<string | null>(null);
   const [title, setTitle] = React.useState("Untitled question");
@@ -91,7 +116,7 @@ export function Studio({ slug }: { slug?: string }) {
   }, [opening, sql, report.data]);
 
   const text = sql ?? "";
-  const question = useQuestion(text, catalog.data);
+  const question = useQuestion(text, catalog.data, engine, title);
   const steps = React.useMemo(() => describeSteps(text), [text]);
   React.useEffect(() => {
     setExploreReads(question.reads);
@@ -104,7 +129,7 @@ export function Studio({ slug }: { slug?: string }) {
   const [versions, setVersions] = React.useState<StudioNote["versions"]>([]);
   const [note, setNote] = React.useState<string | null>(null);
   const ask = useMutation({
-    mutationFn: () => fetchJson<AskAnswer>("/api/explore/ask", { method: "POST", body: JSON.stringify({ question: askText, mode, sql: text || undefined }) }),
+    mutationFn: () => fetchJson<AskAnswer>("/api/explore/ask", { method: "POST", body: JSON.stringify({ question: askText, mode, sql: text || undefined, engine }) }),
     onSuccess: (answer) => {
       if (text.trim()) setVersions((list) => [{ sql: text, note: note ?? "As it was opened", at: clock() }, ...list].slice(0, 10));
       setSql(answer.sql);
@@ -131,12 +156,12 @@ export function Studio({ slug }: { slug?: string }) {
       if (saved) {
         return fetchJson<{ report: CustomReport }>(`/api/v2/reports/custom/${saved.id}`, {
           method: "PATCH",
-          body: JSON.stringify({ ...(input.audience ? { audience: input.audience } : { document: questionDocument(text) }), ...(input.title ? { title: input.title } : {}) }),
+          body: JSON.stringify({ ...(input.audience ? { audience: input.audience } : { document: questionDocument(text, engine) }), ...(input.title ? { title: input.title } : {}) }),
         });
       }
       return fetchJson<{ report: CustomReport }>("/api/v2/reports/custom", {
         method: "POST",
-        body: JSON.stringify({ title: input.title ?? title, audience: "JUST_ME", document: questionDocument(text) }),
+        body: JSON.stringify({ title: input.title ?? title, audience: "JUST_ME", document: questionDocument(text, engine) }),
       });
     },
     onSuccess: ({ report: next }, input) => {

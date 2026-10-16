@@ -195,6 +195,14 @@ New tables and columns are unreadable to Vane until granted. Run `pnpm vane:read
 
    Vane reads through its own connection as one of these roles, never by `SET ROLE` on the app's connection: from the app's connection a statement could switch the role back. The worker binds the connection inside the reading transaction (the app writes the `VaneReaderScope` row for that connection's `pg_backend_pid()`), runs the question read-only with a 5 s statement timeout and a 500-row cap, and deletes the binding.
 
+5. Explore has a login of its own, `explore_reader`, made by `20261016100000_explore_reader` (approved 15 Oct; the same `CREATEROLE` applies). It is created `NOLOGIN`. Give it a password by hand on the server and set `EXPLORE_READER_DATABASE_URL` in the deployment's environment settings, beside Vane's two:
+
+   ```sql
+   ALTER ROLE explore_reader LOGIN PASSWORD '…';
+   ```
+
+   `postgresql://explore_reader:…@<host>/<database>` is the connection string, with the same host, database and `sslmode` as `DATABASE_URL`. Until it is set, Explore runs each question in the person's browser over the reports they can open, and Schedule it cannot send. Once set (and the app redeployed so it reads it), Explore reads the workspace's real tables through it (`lib/explore/reader.ts`): bound per question to the workspace, the person and the tables their role reads (`ExploreReaderScope`), read-only, 10 s and 5,000 rows, each question logged in `ExploreQuestionRun`. Its grants are Vane's reader's less pay, personal details and Vane's and Explore's own tables; a migration that adds tables Explore should read pastes their lines from `pnpm explore:reader-sql`, as it does Vane's.
+
 ## Not built yet
 
 Every board is built (`docs/handover-vane.md`). What none of it has had is a run against Claude itself: each tool, job and write is tested with a stand-in.

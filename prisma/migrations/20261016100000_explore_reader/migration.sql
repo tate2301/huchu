@@ -1,7 +1,7 @@
--- NEEDS APPROVAL — not applied. Explore's own database login (design/core-modules/spec/routes.md §7):
+-- Approved 15 Oct. Explore's own database login (design/core-modules/spec/routes.md §7):
 -- `explore_reader`, its binding table, Management → Explore's settings and the questions-run log.
--- On approval this folder moves to prisma/migrations, the models in schema.prisma beside it go into
--- prisma/schema.prisma, and `pnpm db:generate` runs. The role that applies it needs CREATEROLE.
+-- Its models are in prisma/schema.prisma (ExploreReaderScope, ExploreSettings, ExploreQuestionRun).
+-- The role that applies it needs CREATEROLE; the login gets its password by hand (docs/vane.md).
 -- Saved questions need no table: a question is a custom report with one table block (lib/explore/questions.ts).
 -- The grants below are `pnpm explore:reader-sql` and `pnpm explore:reader-sql --vane-new`.
 
@@ -74,6 +74,15 @@ CREATE POLICY "app_all" ON "ExploreQuestionRun" AS PERMISSIVE FOR ALL TO PUBLIC 
 CREATE POLICY "vane_workspace" ON "ExploreQuestionRun" AS RESTRICTIVE FOR SELECT TO vane_reader USING ("companyId" = (SELECT s."companyId" FROM "VaneReaderScope" s WHERE s."pid" = pg_backend_pid()));
 GRANT SELECT ("id", "companyId", "userId", "title", "sql", "readFrom", "rows", "ms", "result", "reason", "createdAt") ON "ExploreQuestionRun" TO vane_reader;
 
+
+-- Row security on the tables made since Vane's reader (20261012120000_vane) without it of their own,
+-- so the explore_workspace policies below bind on them too; app_all keeps every other login as it was.
+ALTER TABLE "SignInAsSession" ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "app_all" ON "SignInAsSession" AS PERMISSIVE FOR ALL TO PUBLIC USING (true) WITH CHECK (true);
+ALTER TABLE "CompanyVertical" ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "app_all" ON "CompanyVertical" AS PERMISSIVE FOR ALL TO PUBLIC USING (true) WITH CHECK (true);
+ALTER TABLE "LibraryItemWorkspace" ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "app_all" ON "LibraryItemWorkspace" AS PERMISSIVE FOR ALL TO PUBLIC USING (true) WITH CHECK (true);
 
 -- explore_reader (pnpm explore:reader-sql)
 -- The login. NOLOGIN here: give it a password by hand on the server (docs/vane.md, "Setting it up"); none is kept in git.

@@ -1,12 +1,13 @@
 import { describe, expect, it } from "vitest";
 
-import { FileText, Funnel, Grid3x3, Stack, Storefront, Tag, TrayArrowDown, Wrench } from "@/lib/icons";
+import { Dataset, FileText, Funnel, Grid3x3, Stack, Storefront, Tag, TrayArrowDown, Wrench } from "@/lib/icons";
 import type { NavItem } from "@/lib/navigation";
 import { getClientTemplateFeatureKeys, getClientTemplateWorkspaceProfile } from "@/lib/platform/client-templates";
 import type { WorkspaceNavSection } from "@/lib/workspaces";
 import { getWorkspaceSidebarModel } from "@/lib/workspaces";
 
 import { areaForHref, getRailModel } from "./model";
+import { VaneGlyph } from "./vane-glyph";
 
 function retailRail(role: string) {
   const model = getWorkspaceSidebarModel({
@@ -27,9 +28,12 @@ describe("the retail rail (00-foundations 5.3.2, 98-decisions 5 October)", () =>
       "Stock",
       "Buying",
       "Reports",
-      // Build, in every workspace (spec/routes.md §5), before Setup.
+      // Explore beside Reports, for the owner (routes.md §7); Build, in every workspace (§5), before Setup.
+      "Explore",
       "Build",
       "Setup",
+      // Vane's place closes the modules (VaneForYou); its chat is the tile at the rail's foot.
+      "Vane",
     ]);
     expect(rail.areas.find((area) => area.id === "retail-setup")?.items.map((item) => item.label)).toEqual([
       "Shop",
@@ -42,6 +46,8 @@ describe("the retail rail (00-foundations 5.3.2, 98-decisions 5 October)", () =>
       "Posting to the books",
       "Staff and PINs",
       "Approvals",
+      // The loyalty settings (CUS-01).
+      "Loyalty",
       "Bin",
     ]);
   });
@@ -77,7 +83,7 @@ describe("the retail rail (00-foundations 5.3.2, 98-decisions 5 October)", () =>
 
   it("gives the cashier no Setup, no Stock and no Reports", () => {
     const rail = retailRail("CASHIER");
-    expect(rail.areas.map((area) => area.label)).toEqual(["The floor", "Products", "Buying"]);
+    expect(rail.areas.map((area) => area.label)).toEqual(["The floor", "Products", "Buying", "Vane"]);
   });
 
   it("leaves Posting to the books out of the manager's Setup (5.3.4: M column blank)", () => {
@@ -92,6 +98,8 @@ describe("the retail rail (00-foundations 5.3.2, 98-decisions 5 October)", () =>
       "Fiscal device",
       "Staff and PINs",
       "Approvals",
+      // The loyalty settings (CUS-01).
+      "Loyalty",
       "Bin",
     ]);
   });
@@ -103,8 +111,10 @@ describe("the retail rail (00-foundations 5.3.2, 98-decisions 5 October)", () =>
       Stack,
       TrayArrowDown,
       FileText,
+      Dataset,
       Grid3x3,
       Wrench,
+      VaneGlyph,
     ]);
   });
 

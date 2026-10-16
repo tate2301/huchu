@@ -2,7 +2,15 @@ import { canViewAccountingHref } from "@/lib/accounting/visibility";
 import { buildProvisions, type BuildProvisions } from "@/lib/build/provision";
 import { hasRole } from "@/lib/roles";
 import type { BuildNavItem, NavGroup, NavItem, NavSection } from "@/lib/navigation";
-import { getNavSectionsForRole, navSections, REPORTS_NAV_GROUPS, REPORTS_NAV_HREFS, schoolBandGrant } from "@/lib/navigation";
+import {
+  EXPLORE_NAV_ITEMS,
+  getNavSectionsForRole,
+  navSections,
+  REPORTS_NAV_GROUPS,
+  REPORTS_NAV_HREFS,
+  schoolBandGrant,
+  VANE_NAV_ITEMS,
+} from "@/lib/navigation";
 import { normalizeFeatureKey } from "@/lib/platform/gating/catalog-utils";
 import { filterNavSectionsByEnabledFeatures } from "@/lib/platform/gating/nav-filter";
 import type { PersonaCode } from "@/lib/platform/personas";
@@ -1182,9 +1190,7 @@ function buildRowShown(when: BuildNavItem["when"], provisions: BuildProvisions):
 function withBuild(sections: WorkspaceNavSection[], context: WorkspaceBuildContext): WorkspaceNavSection[] {
   const declared = context.navSectionById.get("build");
   if (!declared || sections.some((section) => section.id === "build")) return sections;
-  const reports = sections.findIndex((section) =>
-    section.items.some((item) => (item.href.split("?")[0] ?? item.href) === "/reports" || item.href.startsWith("/retail/reports")),
-  );
+  const reports = reportsSectionIndex(sections);
   // Somebody who builds: whoever reads the workspace's reports, or manages it.
   // A till's cashier has neither, and no Build.
   if (reports < 0 && !hasRole(context.role, ["SUPERADMIN", "MANAGER"])) return sections;
@@ -1207,6 +1213,40 @@ function withBuild(sections: WorkspaceNavSection[], context: WorkspaceBuildConte
     workspaceGroup: "primary",
   };
   return reports >= 0 ? [...sections.slice(0, reports + 1), build, ...sections.slice(reports + 1)] : [...sections, build];
+}
+
+/** The section that holds the workspace's Reports (`/reports`, or the shop's `/retail/reports`). */
+function reportsSectionIndex(sections: WorkspaceNavSection[]): number {
+  return sections.findIndex((section) =>
+    section.items.some((item) => (item.href.split("?")[0] ?? item.href) === "/reports" || item.href.startsWith("/retail/reports")),
+  );
+}
+
+/** The rows of a module of its own that this role may open. */
+function rowsForRole(items: NavItem[], role: string | null | undefined): NavItem[] {
+  return items.filter((item) => (!item.roles || hasRole(role, item.roles)) && isRouteAllowedForRole(role, item.href));
+}
+
+/**
+ * Explore and Vane, modules of their own (the boards' rail: … Reports,
+ * Explore, Documents … and Vane). Explore follows the workspace's Reports,
+ * for the owners and managers who may use it, where the workspace has Reports;
+ * Vane's pages close the modules in every workspace that has any.
+ */
+function withExploreAndVane(sections: WorkspaceNavSection[], role: string | null | undefined): WorkspaceNavSection[] {
+  if (sections.length === 0) return sections;
+  let next = sections;
+  const reports = reportsSectionIndex(next);
+  const explore = rowsForRole(EXPLORE_NAV_ITEMS, role);
+  if (reports >= 0 && explore.length > 0 && !next.some((section) => section.id === "explore")) {
+    const section: WorkspaceNavSection = { id: "explore", title: "Explore", items: explore, workspaceGroup: "primary" };
+    next = [...next.slice(0, reports + 1), section, ...next.slice(reports + 1)];
+  }
+  const vane = rowsForRole(VANE_NAV_ITEMS, role);
+  if (vane.length > 0 && !next.some((section) => section.id === "vane")) {
+    next = [...next, { id: "vane", title: "Vane", items: vane, workspaceGroup: "primary" }];
+  }
+  return next;
 }
 
 export function getWorkspaceSidebarModel(args: WorkspaceModelArgs): WorkspaceSidebarModel {
@@ -1265,7 +1305,7 @@ export function getWorkspaceSidebarModel(args: WorkspaceModelArgs): WorkspaceSid
       : buildAdditionalSections(recipe, visibleModules, usedPrimaryHrefs, verticalProduct);
   // Management's full-page surface is behind the rail's gear, never a panel's
   // row (spec/shell.md): a row into it left the panel it was clicked in.
-  const sections = withBuild(
+  const sections = withExploreAndVane(withBuild(
     [...primarySections, ...additionalSections]
       .map((section) => {
         const items = section.items.filter((item) => !isSettingsSurfacePath(item.href.split("?")[0] ?? item.href));
@@ -1275,7 +1315,7 @@ export function getWorkspaceSidebarModel(args: WorkspaceModelArgs): WorkspaceSid
       })
       .filter((section) => section.items.length > 0),
     context,
-  );
+  ), args.role);
   const homeTarget = getHomeTarget({
     recipe,
     context,

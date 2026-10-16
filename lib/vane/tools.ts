@@ -2,6 +2,7 @@ import type Anthropic from "@anthropic-ai/sdk";
 import { z } from "zod";
 
 import { prisma } from "@/lib/prisma";
+import { emitVaneIssueNotification } from "@/lib/notifications";
 import { InvoiceRefused } from "@/lib/books/create-invoice";
 import { draftInvoiceFromQuote, QuotationRefused } from "@/lib/books/quotations";
 import { searchKnowledge } from "@/lib/crm/knowledge/store";
@@ -279,6 +280,17 @@ const proposeItem = tool({
       },
       select: { id: true },
     });
+    // An issue tells the people it is for, by the workspace's and their own settings (`VANE_ISSUE_RAISED`).
+    if (input.kind === "ISSUE") {
+      await emitVaneIssueNotification({
+        companyId,
+        itemId: item.id,
+        headline: input.headline,
+        body: input.body,
+        audienceUserId: rep ?? input.audienceUserId,
+        audienceRole: rep ? null : input.audienceRole,
+      });
+    }
     if (!actions?.length) return { id: item.id, raised: true };
     const { proposed, refused } = await proposeActions(prisma, { companyId, itemId: item.id }, actions);
     return { id: item.id, raised: true, actionsProposed: proposed.length, actionsRefused: refused };

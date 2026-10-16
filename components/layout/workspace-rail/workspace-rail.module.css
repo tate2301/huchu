@@ -197,6 +197,49 @@
   box-shadow: var(--shadow-float);
 }
 
+/* A wider panel (Explore's), resized from its right edge; never wider than
+   the phone drawer leaves it. */
+.panelSized {
+  width: var(--panel-w, 240px);
+  max-width: calc(100vw - 104px);
+}
+
+.panelSized:not(.panelOverlay) {
+  position: relative;
+}
+
+.panelEdge {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: -3px;
+  z-index: 3;
+  width: 6px;
+  cursor: col-resize;
+  touch-action: none;
+}
+
+.panelEdge::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 2px;
+  width: 2px;
+  background: transparent;
+  transition: background-color 120ms;
+}
+
+.panelEdge:hover::after,
+.panelEdge:focus-visible::after,
+.panelEdgeMoving::after {
+  background: var(--action-fill);
+}
+
+.panelEdge:focus-visible {
+  outline: none;
+}
+
 .panelHead {
   height: 56px;
   flex: none;
@@ -443,6 +486,24 @@
 
 .pinOn {
   color: var(--ink);
+}
+
+/* A row that opens a level of the panel: its caret, where a count would sit. */
+.levelRow {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  font-size: 14px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.levelCaret {
+  width: 14px;
+  height: 14px;
+  flex: none;
+  color: var(--ink-3);
 }
 
 .extra {

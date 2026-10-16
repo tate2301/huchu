@@ -4,7 +4,7 @@ import * as React from "react";
 import Link from "next/link";
 
 import { cn } from "@/lib/utils";
-import { PushPin } from "@/lib/icons";
+import { CaretRight, PushPin } from "@/lib/icons";
 import type { LucideIcon } from "@/lib/icons";
 
 import styles from "./workspace-rail.module.css";
@@ -71,6 +71,39 @@ export function RailRow({
         {meta ? <span className={styles.meta}>{meta}</span> : null}
       </Link>
       {after}
+    </li>
+  );
+}
+
+/**
+ * A row with children (a CRM's Pipeline, a store's Stock): pressing it opens
+ * its level of the panel, with a back chevron at the head; it never unfolds
+ * in place. A button, not a link: it goes down a level, not to a page.
+ */
+export function LevelRow({
+  label,
+  icon: Icon,
+  holdsPage,
+  onOpen,
+}: {
+  label: string;
+  icon: LucideIcon;
+  /** The page being looked at is somewhere in this level. */
+  holdsPage?: boolean;
+  onOpen: () => void;
+}) {
+  return (
+    <li>
+      <button
+        type="button"
+        className={cn(styles.item, styles.levelRow, holdsPage && styles.itemCurrent)}
+        aria-current={holdsPage ? "true" : undefined}
+        onClick={onOpen}
+      >
+        <Icon className={styles.itemIcon} />
+        <span className={styles.itemLabel}>{label}</span>
+        <CaretRight className={styles.levelCaret} aria-hidden="true" />
+      </button>
     </li>
   );
 }

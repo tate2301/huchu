@@ -2,10 +2,11 @@
 
 import * as React from "react";
 
-import { ButtonLink, Icon, type IconName } from "@/components/core";
+import { ButtonLink, Icon, Select, Status, type IconName } from "@/components/core";
 import { KitPage } from "@/components/management/ui";
 import { productInfo, type ProductKey } from "@/lib/explore/products";
-import type { ExploreSettingsView } from "@/lib/explore/settings";
+import { runResult } from "@/lib/explore/runs";
+import { monthLine, type ExploreSettingsView } from "@/lib/explore/settings";
 
 function Guard({ icon, title, detail, children }: { icon: IconName; title: string; detail: React.ReactNode; children: React.ReactNode }) {
   return (
@@ -20,15 +21,33 @@ function Guard({ icon, title, detail, children }: { icon: IconName; title: strin
   );
 }
 
+const CAN = "Can use Explore";
+const CANNOT = "Ask Vane and reports only";
+
+function clock(iso: string): string {
+  return new Date(iso).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+}
+
 /**
- * Management → Explore (the MgmtExplore board): who can use Explore, what
- * each product shows, the guards every question runs inside, and the
- * questions run. It reads what exists today; choosing roles and limits, and
- * the questions-run log, wait for Explore's own settings and log tables
- * (`lib/explore/reader.ts`, waiting for approval). Pure: the page feeds it.
+ * Management → Explore (the MgmtExplore board): who can use Explore (owners
+ * and managers choose, by role; owners always can), what each product shows,
+ * the guards every question runs inside, and the questions run today. Pure:
+ * the page feeds it and saves a change.
  */
-export function ExploreSettingsPageView({ data }: { data: ExploreSettingsView }) {
+export function ExploreSettingsPageView({
+  data,
+  saving = false,
+  onRoles,
+}: {
+  data: ExploreSettingsView;
+  saving?: boolean;
+  onRoles?: (roles: string[]) => void;
+}) {
   const using = data.roles.filter((role) => role.canUse);
+  const setRole = (role: string, can: boolean) => {
+    const next = data.roles.filter((row) => (row.role === role ? can : row.canUse)).map((row) => row.role);
+    onRoles?.(next);
+  };
   return (
     <KitPage
       title="Explore"
@@ -43,7 +62,7 @@ export function ExploreSettingsPageView({ data }: { data: ExploreSettingsView })
       <div className="finding" style={{ padding: "0 0 16px" }}>
         <p className="lede-figure">
           {using.length} {using.length === 1 ? "role can" : "roles can"} use Explore, and none of them can change a record.{" "}
-          <span className="q">Every question reads only what its role reads in the app.</span>
+          <span className="q">{data.runLog ? monthLine(data.month) : "Every question reads only what its role reads in the app."}</span>
         </p>
       </div>
 
@@ -71,7 +90,26 @@ export function ExploreSettingsPageView({ data }: { data: ExploreSettingsView })
                     </td>
                     <td>{role.people}</td>
                     <td className="wrap">{role.reads}</td>
-                    <td>{role.canUse ? <span className="ok-dot">Can use Explore</span> : <span className="muted">Ask Vane and reports only</span>}</td>
+                    <td>
+                      {data.canChange && !role.fixed && onRoles ? (
+                        <Select
+                          aria-label={`${role.label}: Explore`}
+                          value={role.canUse ? "yes" : "no"}
+                          style={{ minWidth: 210 }}
+                          disabled={saving}
+                          onChange={(event) => setRole(role.role, event.target.value === "yes")}
+                        >
+                          <option value="yes">{CAN}</option>
+                          <option value="no">{CANNOT}</option>
+                        </Select>
+                      ) : role.canUse ? (
+                        <span className="ok-dot" title={role.fixed ? "Owners always can" : undefined}>
+                          {CAN}
+                        </span>
+                      ) : (
+                        <span className="muted">{CANNOT}</span>
+                      )}
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -109,7 +147,19 @@ export function ExploreSettingsPageView({ data }: { data: ExploreSettingsView })
           <p className="aside">The same for every question, from a person, a report or Vane.</p>
         </div>
         <div>
-          <Guard icon="lock" title="Read only, always" detail="Questions run read-only: select and with only. A change, a delete or a second statement is refused before it runs.">
+          <Guard
+            icon="lock"
+            title="Read only, always"
+            detail={
+              data.runLog ? (
+                <>
+                  Questions run as <span className="mono">explore_reader</span>: select and with only. A change, a delete or a second statement is refused before it runs.
+                </>
+              ) : (
+                "Questions run read-only: select and with only. A change, a delete or a second statement is refused before it runs."
+              )
+            }
+          >
             <span className="ok-dot">On, cannot be turned off</span>
           </Guard>
           <Guard icon="sites" title="This workspace’s rows" detail={`Every table is filtered to ${data.workspaceName} before the question sees it`}>
@@ -149,13 +199,32 @@ export function ExploreSettingsPageView({ data }: { data: ExploreSettingsView })
                 </tr>
               </thead>
               <tbody>
-                <tr>
-                  <td colSpan={5} className="wrap muted" style={{ padding: "var(--space-24)" }}>
-                    {data.runLog
-                      ? "No question has run today."
-                      : "Questions run in each person’s own browser for now, so none is logged. The log starts with Explore’s own database login, which is waiting for approval."}
-                  </td>
-                </tr>
+                {data.runs.length ? (
+                  data.runs.map((run) => {
+                    const result = runResult(run);
+                    return (
+                      <tr key={run.id}>
+                        <td className="num muted">{clock(run.at)}</td>
+                        <td>
+                          <span className="cell-lead">{run.who}</span>
+                        </td>
+                        <td className="wrap" title={run.reason ?? undefined}>
+                          {run.line}
+                        </td>
+                        <td className="wrap mono muted">{run.readFrom.join(", ") || "—"}</td>
+                        <td>{result.tone === "plain" ? result.text : <Status tone={result.tone}>{result.text}</Status>}</td>
+                      </tr>
+                    );
+                  })
+                ) : (
+                  <tr>
+                    <td colSpan={5} className="wrap muted" style={{ padding: "var(--space-24)" }}>
+                      {data.runLog
+                        ? "No question has run today."
+                        : "Questions run in each person’s own browser on this server, so none is logged. The log starts once Explore’s own database login is set up here."}
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>

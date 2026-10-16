@@ -54,6 +54,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
     const approved = data.decision === "APPROVED";
     await emitCrmNotification({
+      actorId: session.user.id,
       companyId,
       recipientIds: [existing.requestedById],
       type: approved ? "CRM_DOCUMENT_APPROVED" : "CRM_DOCUMENT_DECLINED",

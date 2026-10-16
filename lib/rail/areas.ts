@@ -7,6 +7,7 @@ import {
   ChartLineUp,
   ClipboardText,
   Coins,
+  Dataset,
   Drop,
   Factory,
   Flag,
@@ -29,6 +30,7 @@ import { RETAIL_NAV_MODULES } from "@/lib/retail/nav";
 import type { WorkspaceNavSection } from "@/lib/workspaces";
 
 import { orderRows } from "./order";
+import { VaneGlyph } from "./vane-glyph";
 
 /**
  * An area: one mark in tier one, one panel of destinations in tier two.
@@ -133,6 +135,9 @@ const AREA_ICONS: Record<string, LucideIcon> = {
   // Reports, and the CRM where it is one module: each would otherwise take its first row's house.
   reporting: ChartBar,
   crm: Funnel,
+  // Modules of their own beside Reports: Explore's tables, and Vane's place (its chat is the tile at the foot).
+  explore: Dataset,
+  vane: VaneGlyph,
 };
 
 /**

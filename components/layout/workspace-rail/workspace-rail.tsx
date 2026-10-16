@@ -11,8 +11,8 @@ import { areaForHref, type RailModel } from "@/lib/rail/model";
 import { orderRows } from "@/lib/rail/order";
 
 import { PanelGroup } from "./panel-group";
-import { RailPanel } from "./rail-panel";
-import { RailHeading, RailRow } from "./rail-row";
+import { RailPanel, type PanelResize } from "./rail-panel";
+import { LevelRow, RailHeading, RailRow } from "./rail-row";
 import { SwitcherRail, type RailMark } from "./switcher-rail";
 import { usePins } from "./use-pins";
 import styles from "./workspace-rail.module.css";
@@ -34,17 +34,34 @@ function landingHref(level: RailArea | RailFolder): string {
 type RailView = { areaId: string | null; folderId: string | null };
 
 /**
+ * A module that draws its own panel at its level (Explore's tables, Vane's
+ * pages with their counts) instead of rows from the navigation model.
+ */
+export type AreaPanel = {
+  body: React.ReactNode;
+  /** Its own search and rows (Explore's), drawn as they are, outside the panel's list. */
+  bare?: boolean;
+  /** Wider than 240 and resized from its edge, each person's width kept (`usePanelWidth`). */
+  resize?: PanelResize;
+};
+
+/** What a module's own groups draw at a level: Saved views of the page, and the module's Reports. */
+export type ModuleGroupsAt = { savedViews: boolean; reports: boolean };
+
+/**
  * The rail and its panel, side by side (00-foundations 5.3.1–5.3.3).
  *
- * The panel has two levels when the workspace is too big to show at once: the
- * workspace's module list, and one module's items. It opens on the module the
- * page belongs to; the chevron before the module's title goes back up to the
- * module list, and picking a module there opens its items. A module read whole
- * because its groups would not fit as marks (the CRM beside other modules)
- * keeps those groups as folders among its items: picking one goes down a
- * level, and the chevron comes back up one level at a time. A workspace small
- * enough to fit is drawn flat: every module's items under its title, and the
- * rail carries pins alone. Collapsing the panel is its own control.
+ * The panel drills down, level by level, when the workspace is too big to show
+ * at once: the workspace's module list, one module's items, and in a module
+ * read whole (the CRM beside other modules) each of its groups. A row with
+ * children opens its level, with the chevron before the level's title going
+ * back up one level at a time; children never unfold in place. Headed bands
+ * with no level of their own (Books' Ledger, Saved views, Reports from Books)
+ * stay as the boards draw them. The panel stands at the page's level and
+ * follows the page. A workspace small enough to fit is drawn flat: every
+ * module's items under its title, and the rail carries pins alone. A module
+ * with its own panel (`areaPanels`) draws it at its level. Collapsing the
+ * panel is its own control.
  */
 export function WorkspaceRail({
   model,
@@ -56,7 +73,8 @@ export function WorkspaceRail({
   person,
   management,
   vane,
-  ownPanel = null,
+  areaPanels,
+  holdAtModule = false,
   supportItems = [],
   panelShown,
   panelOverlay,
@@ -83,11 +101,14 @@ export function WorkspaceRail({
   management: NavItem | null;
   /** Vane, above the gear: opens and closes the Vane panel. */
   vane?: { open: boolean; count: number; working: boolean; onToggle: () => void } | null;
+  /** Modules that draw their own panel at their level, by area id (`explore`, `vane`). */
+  areaPanels?: Record<string, AreaPanel>;
   /**
-   * A module in no workspace's sections (Vane): while one of its pages is
-   * open, the panel shows its title and its rows instead of the workspace's.
+   * The page is one of the module's own shelves (a CRM saved view or group),
+   * listed at the module's level: the panel stands there, not in the group
+   * the page's list sits in.
    */
-  ownPanel?: { title: string; body: React.ReactNode; bare?: boolean } | null;
+  holdAtModule?: boolean;
   /** Help, on the shelf at the panel's foot. */
   supportItems?: NavItem[];
   panelShown: boolean;
@@ -98,9 +119,10 @@ export function WorkspaceRail({
   extra?: React.ReactNode;
   /**
    * The groups the page's own module adds under its rows: its Saved views and
-   * its Reports. Drawn only while the panel shows the module the page is in.
+   * its Reports. Drawn only at the level that holds the page: its Reports at
+   * the module's level, Saved views of the page wherever the page's row is.
    */
-  moduleGroups?: (area: RailArea) => React.ReactNode;
+  moduleGroups?: (area: RailArea, at: ModuleGroupsAt) => React.ReactNode;
 }) {
   const { shape, areas, pinCapacity } = model;
   const activeArea = React.useMemo(
@@ -112,8 +134,9 @@ export function WorkspaceRail({
   // Where the panel is standing. The module list (`areaId` null) is a
   // legitimate place to stand: you are looking at the workspace, not inside
   // one of its modules. It follows the page whenever the page's module, or
-  // the folder it sits in, changes.
-  const pageView: RailView = { areaId: activeArea?.id ?? null, folderId: null };
+  // the folder it sits in, changes: a deep page opens its own level.
+  const pageFolderId = holdAtModule ? null : activeFolderId;
+  const pageView: RailView = { areaId: activeArea?.id ?? null, folderId: pageFolderId };
   const pageViewKey = `${pageView.areaId ?? ""}/${pageView.folderId ?? ""}`;
   const [view, setView] = React.useState<RailView>(pageView);
   const [followedViewKey, setFollowedViewKey] = React.useState(pageViewKey);
@@ -139,8 +162,15 @@ export function WorkspaceRail({
     { label: (item) => item.label },
   );
 
-  const shownArea = shape === "areas" ? (areas.find((area) => area.id === view.areaId) ?? null) : null;
-  const shownFolder = shownArea?.folders?.find((folder) => folder.id === view.folderId) ?? null;
+  // A flat workspace stands at a module only to show a folder of it or a
+  // module's own panel; otherwise it is every module at once.
+  const viewArea = areas.find((area) => area.id === view.areaId) ?? null;
+  const viewFolder = viewArea?.folders?.find((folder) => folder.id === view.folderId) ?? null;
+  const shownArea =
+    viewArea && (shape === "areas" || viewFolder || areaPanels?.[viewArea.id]) ? viewArea : null;
+  const shownFolder = shownArea ? viewFolder : null;
+  const shownPanel = shownArea && !shownFolder ? (areaPanels?.[shownArea.id] ?? null) : null;
+  const resize = shownPanel?.resize;
 
   const groups: RailMark[][] = [
     shape === "areas"
@@ -194,9 +224,10 @@ export function WorkspaceRail({
       alphabetical: area.ranked === true,
     }).map(rowFor);
 
-  // A module's own rows, then its headed bands, then (for the page's module)
-  // its Saved views and Reports, then the bands that sit last ("More").
-  const areaBody = (area: RailArea, folderRows?: React.ReactNode) => {
+  // A module's own rows, the rows that open its groups' levels, then its
+  // headed bands, then (for the page's module) its Saved views and Reports,
+  // then the bands that sit last ("More").
+  const areaBody = (area: RailArea) => {
     const band = (id: string, label: string, trailing: boolean) => {
       const items = bandRows(area, id);
       return (
@@ -211,16 +242,35 @@ export function WorkspaceRail({
       );
     };
     const bands = area.bands ?? [];
+    const isPageArea = area.id === activeArea?.id;
     return (
       <>
         {rowsFor(areaRows(area), area)}
+        {(area.folders ?? []).map((folder) => (
+          <LevelRow
+            key={`folder:${folder.id}`}
+            label={folder.label}
+            icon={folder.icon}
+            holdsPage={isPageArea && folder.id === activeFolderId}
+            onOpen={() => setView({ areaId: area.id, folderId: folder.id })}
+          />
+        ))}
         {bands.filter((b) => !b.trailing).map((b) => band(b.id, b.label, false))}
-        {folderRows}
-        {area.id === activeArea?.id ? moduleGroups?.(area) : null}
+        {isPageArea ? moduleGroups?.(area, { savedViews: !pageFolderId, reports: true }) : null}
         {bands.filter((b) => b.trailing).map((b) => band(b.id, b.label, true))}
       </>
     );
   };
+
+  // A group's level: its rows, and the page's Saved views where the page is one of them.
+  const folderBody = (area: RailArea, folder: RailFolder) => (
+    <>
+      {rowsFor(folder.items, area)}
+      {area.id === activeArea?.id && folder.id === pageFolderId
+        ? moduleGroups?.(area, { savedViews: true, reports: false })
+        : null}
+    </>
+  );
 
   // A row that opens a level: a module in the module list, or a folder in a
   // module. Following it lands on the level's first page and opens the level;
@@ -243,11 +293,13 @@ export function WorkspaceRail({
   // The chevron goes up one level: from a folder to its module, from a module
   // to the module list.
   const back =
-    shownArea && shownFolder
+    shownArea && shownFolder && shape === "areas"
       ? { label: shownArea.label, go: () => setView({ areaId: shownArea.id, folderId: null }) }
       : shownArea
         ? { label: workspaceLabel, go: () => setView({ areaId: null, folderId: null }) }
         : null;
+  // The module's own shelves (the CRM's saved views and groups) sit at its level only.
+  const extraHere = shape === "flat" ? !shownArea : shownArea !== null && shownArea.id === activeArea?.id && !shownFolder;
 
   const shelf =
     supportItems.length > 0 ? (
@@ -266,24 +318,35 @@ export function WorkspaceRail({
     ) : null;
 
   let panel: React.ReactNode = null;
-  if (panelShown && ownPanel?.bare) {
+  if (panelShown && shownArea && shownPanel?.bare) {
     // A panel with its own search and rows (Explore's tables), drawn as it is.
     panel = (
-      <RailPanel title={ownPanel.title} overlay={panelOverlay} onCollapse={onCollapse} shelf={shelf}>
-        {ownPanel.body}
+      <RailPanel
+        title={shownArea.label}
+        backLabel={back?.label}
+        onBack={back?.go}
+        overlay={panelOverlay}
+        onCollapse={onCollapse}
+        shelf={shelf}
+        resize={resize}
+      >
+        {shownPanel.body}
       </RailPanel>
     );
-  } else if (panelShown && ownPanel && !needle) {
+  } else if (panelShown && shownArea && shownPanel && !needle) {
     panel = (
       <RailPanel
-        title={ownPanel.title}
+        title={shownArea.label}
+        backLabel={back?.label}
+        onBack={back?.go}
         overlay={panelOverlay}
         onCollapse={onCollapse}
         query={query}
         onQuery={setQuery}
         shelf={shelf}
+        resize={resize}
       >
-        <ul className={styles.items}>{ownPanel.body}</ul>
+        <ul className={styles.items}>{shownPanel.body}</ul>
       </RailPanel>
     );
   } else if (panelShown && areas.length === 0) {
@@ -336,10 +399,12 @@ export function WorkspaceRail({
         onCollapse={onCollapse}
         query={query}
         onQuery={setQuery}
-        extra={extra}
+        extra={extraHere ? extra : undefined}
         shelf={shelf}
       >
-        {shape === "flat" ? (
+        {shownArea && shownFolder ? (
+          <ul className={styles.items}>{folderBody(shownArea, shownFolder)}</ul>
+        ) : shape === "flat" ? (
           <ul className={styles.items}>
             {areas.map((area) => (
               <React.Fragment key={area.id}>
@@ -348,25 +413,8 @@ export function WorkspaceRail({
               </React.Fragment>
             ))}
           </ul>
-        ) : shownArea && shownFolder ? (
-          <ul className={styles.items}>{rowsFor(shownFolder.items, shownArea)}</ul>
         ) : shownArea ? (
-          <ul className={styles.items}>
-            {areaBody(
-              shownArea,
-              // A module read whole keeps its groups as headed bands in its own
-              // panel, folded but for the one holding the page: a row in one
-              // opens its page without leaving the module's panel.
-              (shownArea.folders ?? []).map((folder) => {
-                const holds = shownArea.id === activeArea?.id && folder.id === activeFolderId;
-                return (
-                  <PanelGroup key={`folder:${folder.id}`} label={folder.label} defaultOpen={holds} holdsCurrent={holds}>
-                    {rowsFor(folder.items, shownArea)}
-                  </PanelGroup>
-                );
-              }),
-            )}
-          </ul>
+          <ul className={styles.items}>{areaBody(shownArea)}</ul>
         ) : (
           <ul className={styles.items}>
             {areas.map((area) =>
