@@ -77,6 +77,8 @@ export type InvoicesView = {
   currency: string;
   customers: Array<{ id: string; name: string }>;
   query: InvoiceQuery;
+  /** What this person may do from a row's menu: delete drafts; reverse and delete the rest (the owner). The route adds it. */
+  can?: { deleteDrafts: boolean; owner: boolean };
 };
 
 type Db = Pick<PrismaClient, "salesInvoice">;
@@ -123,7 +125,7 @@ const rowSelect = {
   writeOffTotal: true,
   madeByVane: true,
   customer: { select: { id: true, name: true } },
-  receipts: { select: { receivedAt: true, method: true }, orderBy: { receivedAt: "desc" as const }, take: 1 },
+  receipts: { where: { voidedAt: null }, select: { receivedAt: true, method: true }, orderBy: { receivedAt: "desc" as const }, take: 1 },
 } satisfies Prisma.SalesInvoiceSelect;
 
 type RowRecord = Prisma.SalesInvoiceGetPayload<{ select: typeof rowSelect }>;

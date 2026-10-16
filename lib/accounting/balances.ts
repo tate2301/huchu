@@ -1,23 +1,33 @@
+import type { Prisma, PrismaClient } from "@prisma/client";
+
 import { prisma } from "@/lib/prisma";
 import { toMoney } from "@/lib/accounting/ledger";
 
-export async function recalcSalesInvoiceBalance(invoiceId: string) {
-  const invoice = await prisma.salesInvoice.findUnique({
+type Db = Prisma.TransactionClient | PrismaClient;
+
+/**
+ * What is paid, credited and written off on an invoice, from its receipts,
+ * credit notes and write-offs, and whether that makes it PAID or ISSUED again.
+ * A void receipt (`lib/books/void-receipt.ts`) pays nothing. `db` is a
+ * transaction's client when the caller changes the receipts inside one.
+ */
+export async function recalcSalesInvoiceBalance(invoiceId: string, db: Db = prisma) {
+  const invoice = await db.salesInvoice.findUnique({
     where: { id: invoiceId },
     select: { id: true, total: true, status: true },
   });
   if (!invoice) return null;
 
   const [receipts, credits, writeOffs] = await Promise.all([
-    prisma.salesReceipt.aggregate({
-      where: { invoiceId },
+    db.salesReceipt.aggregate({
+      where: { invoiceId, voidedAt: null },
       _sum: { amount: true },
     }),
-    prisma.creditNote.aggregate({
+    db.creditNote.aggregate({
       where: { invoiceId, status: "ISSUED" },
       _sum: { total: true },
     }),
-    prisma.salesWriteOff.aggregate({
+    db.salesWriteOff.aggregate({
       where: { invoiceId, status: "POSTED" },
       _sum: { amount: true },
     }),
@@ -37,7 +47,7 @@ export async function recalcSalesInvoiceBalance(invoiceId: string) {
     }
   }
 
-  await prisma.salesInvoice.update({
+  await db.salesInvoice.update({
     where: { id: invoiceId },
     data: {
       amountPaid,

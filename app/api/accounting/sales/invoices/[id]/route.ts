@@ -2,14 +2,17 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { validateSession, successResponse, errorResponse } from "@/lib/api-utils";
 import { prisma } from "@/lib/prisma";
-import { createJournalEntryFromSource } from "@/lib/accounting/posting";
 import { postIssuedInvoice } from "@/lib/books/issue-invoice";
+import { InvoiceChangeRefused, isWorkspaceOwner } from "@/lib/books/owner";
+import { voidInvoice } from "@/lib/books/reverse-invoice";
 import { onAccountingInvoiceCreated } from "@/lib/crm/accounting-hooks";
 import { asMineSchema, datesOnIssue, takeOn, VaneDraftNotTakenOn, waitsForAPerson } from "@/lib/vane/drafts";
 
 const updateSchema = z.object({
   status: z.enum(["DRAFT", "ISSUED", "PAID", "VOIDED"]).optional(),
   notes: z.string().max(1000).optional(),
+  /** Why it is voided: kept on the audit event. */
+  reason: z.string().trim().min(3).max(300).optional(),
   /** Confirms Vane's draft as the person's own as it is issued: they become its maker in the same write. */
   asMine: asMineSchema,
 });
@@ -26,8 +29,16 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     const body = await request.json();
     const validated = updateSchema.parse(body);
 
-    if (validated.status === "VOIDED" && session.user.role !== "SUPERADMIN") {
-      return errorResponse("Only superadmin can cancel an invoice", 403);
+    // Voiding is the workspace owner's (`lib/books/owner.ts`), and goes the one way Books' Reverse goes.
+    if (validated.status === "VOIDED") {
+      if (!isWorkspaceOwner(session.user.role)) return errorResponse("Only the workspace's owner can void an invoice", 403);
+      await voidInvoice(
+        { companyId: session.user.companyId, userId: session.user.id, role: session.user.role },
+        id,
+        { reason: validated.reason ?? "Cancelled in Accounting, Sales", source: "accounting.sales" },
+      );
+      const voided = await prisma.salesInvoice.findUnique({ where: { id }, include: { customer: true, lines: true } });
+      return successResponse(voided);
     }
 
     const existing = await prisma.salesInvoice.findUnique({
@@ -72,44 +83,10 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
       await postIssuedInvoice(session.user.companyId, updated, session.user.id);
     }
 
-    if (
-      validated.status === "VOIDED" &&
-      existing.status !== "VOIDED" &&
-      (existing.status === "ISSUED" || existing.status === "PAID")
-    ) {
-      try {
-        const postedEntry = await prisma.journalEntry.findFirst({
-          where: {
-            companyId: session.user.companyId,
-            sourceType: "SALES_INVOICE",
-            sourceId: updated.id,
-            status: "POSTED",
-          },
-          select: { id: true },
-        });
-        if (postedEntry) {
-          await createJournalEntryFromSource({
-            companyId: session.user.companyId,
-            sourceType: "SALES_INVOICE",
-            sourceId: `void:${updated.id}`,
-            entryDate: new Date(),
-            description: `Void sales invoice ${updated.invoiceNumber}`,
-            createdById: session.user.id,
-            amount: updated.total,
-            netAmount: updated.subTotal,
-            taxAmount: updated.taxTotal,
-            grossAmount: updated.total,
-            invertDirection: true,
-          });
-        }
-      } catch (error) {
-        console.error("[Accounting] Sales invoice void reversal failed:", error);
-      }
-    }
-
     return successResponse(updated);
   } catch (error) {
     if (error instanceof VaneDraftNotTakenOn) return errorResponse(error.message, error.status);
+    if (error instanceof InvoiceChangeRefused) return errorResponse(error.message, error.status);
     if (error instanceof z.ZodError) {
       return errorResponse("Validation failed", 400, error.issues);
     }

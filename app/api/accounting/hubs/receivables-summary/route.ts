@@ -64,6 +64,7 @@ export async function GET(request: NextRequest) {
       prisma.salesReceipt.findMany({
         where: {
           companyId: session.user.companyId,
+          voidedAt: null,
           ...(receiptDateFilter ? { receivedAt: receiptDateFilter } : {}),
         },
         select: {

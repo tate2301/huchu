@@ -113,7 +113,7 @@ export async function cameIn(db: Db, companyId: string, today: string, currency:
       where: { companyId, status: "POSTED", saleType: "SALE", createdAt: { gte: from } },
     }),
     db.salesReceipt.aggregate({
-      where: { companyId, invoiceId: { not: null }, invoice: { currency }, receivedAt: { gte: midnight(monthStart(today)) } },
+      where: { companyId, invoiceId: { not: null }, voidedAt: null, invoice: { currency }, receivedAt: { gte: midnight(monthStart(today)) } },
       _sum: { amount: true },
       _count: true,
     }),

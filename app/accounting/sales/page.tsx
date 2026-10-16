@@ -472,6 +472,7 @@ export default function AccountingSalesPage() {
           <div>
             <div className="font-mono">{row.original.receiptNumber}</div>
             <div className="acct-caption">
+              {row.original.voidedAt ? "Void, " : ""}
               {row.original.invoice?.invoiceNumber ?? "Unlinked"}
             </div>
           </div>

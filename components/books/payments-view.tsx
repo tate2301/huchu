@@ -2,8 +2,8 @@
 
 import * as React from "react";
 
-import { Button, ButtonGroup, Icon, TableFoot, TableShell } from "@/components/core";
-import { MenuButton } from "@/components/core/menu";
+import { Button, ButtonGroup, Icon, Status, TableFoot, TableShell } from "@/components/core";
+import { MenuButton, type MenuEntry } from "@/components/core/menu";
 import { money } from "@/lib/books/format";
 import {
   PAYMENT_PERIOD_LABEL,
@@ -11,6 +11,7 @@ import {
   PAYMENT_VIEW_LABEL,
   PAYMENT_VIEWS,
   type PaymentQuery,
+  type PaymentRow,
   type PaymentsView,
 } from "@/lib/books/payments";
 
@@ -19,13 +20,17 @@ import { BooksFinding } from "./figures";
 /**
  * Books → Payments: the receipts Receivables records, on the kit's page as
  * Books → Invoices is (the tools row, the finding at the list's head, the
- * table and the footer's sum). Pure: the page feeds it.
+ * table and the footer's sum). A void payment stays in the list, marked Void
+ * with who, when and why, and is in no sum. Pure: the page feeds it.
  */
 export function PaymentsPageView({
   data,
   onQuery,
   exportHref,
+  rowMenu,
 }: {
+  /** A row's menu (Void), when this person may use it; none draws no menu. */
+  rowMenu?: (row: PaymentRow) => MenuEntry[] | null;
   data: PaymentsView;
   onQuery: (next: Partial<PaymentQuery>) => void;
   exportHref: string;
@@ -42,6 +47,8 @@ export function PaymentsPageView({
   const { from, to, of } = data.range;
   const query = data.query;
   const filtered = Boolean(query.q) || query.view !== "all" || query.period !== "any";
+  const menus = new Map(data.rows.map((row) => [row.id, rowMenu?.(row) ?? null]));
+  const anyMenu = [...menus.values()].some((items) => items && items.length > 0);
 
   return (
     <>
@@ -117,6 +124,7 @@ export function PaymentsPageView({
                 <th>Received</th>
                 <th>Method</th>
                 <th className="num">Amount</th>
+                {anyMenu ? <th aria-label="Actions" style={{ width: 44 }} /> : null}
               </tr>
             </thead>
             <tbody>
@@ -124,14 +132,39 @@ export function PaymentsPageView({
                 <tr key={row.id}>
                   <td>
                     <span className="code">{row.number}</span>
+                    {row.voided ? (
+                      <span
+                        className="truncate"
+                        style={{ display: "block", maxWidth: 320 }}
+                        title={[`Voided ${row.voided.on}`, row.voided.by ? `by ${row.voided.by}` : null, row.voided.reason].filter(Boolean).join(", ")}
+                      >
+                        <Status tone="danger">Void</Status>{" "}
+                        <span className="muted">
+                          {row.voided.on}
+                          {row.voided.by ? `, ${row.voided.by}` : ""}
+                          {row.voided.reason ? `: ${row.voided.reason}` : ""}
+                        </span>
+                      </span>
+                    ) : null}
                   </td>
                   <td>{row.customer ? <span className="cell-lead">{row.customer}</span> : <span className="muted">Not on an invoice</span>}</td>
                   <td>{row.invoice ? <span className="code">{row.invoice}</span> : <span className="muted">—</span>}</td>
                   <td className="muted">{row.received}</td>
                   <td>{row.method}</td>
-                  <td className="num" style={{ color: "var(--color-ink)", fontWeight: 500 }}>
+                  <td
+                    className="num"
+                    style={row.voided ? { color: "var(--color-muted)", textDecoration: "line-through" } : { color: "var(--color-ink)", fontWeight: 500 }}
+                    aria-label={row.voided ? `${money(row.amount, row.currency)}, void` : undefined}
+                  >
                     {money(row.amount, row.currency)}
                   </td>
+                  {anyMenu ? (
+                    <td style={{ width: 44, paddingBlock: 0 }}>
+                      {menus.get(row.id)?.length ? (
+                        <MenuButton variant="quiet" iconOnly icon="more" iconEnd={undefined} align="end" aria-label={`More for ${row.number}`} label={`More for ${row.number}`} items={menus.get(row.id)!} />
+                      ) : null}
+                    </td>
+                  ) : null}
                 </tr>
               ))}
             </tbody>

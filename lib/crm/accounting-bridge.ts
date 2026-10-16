@@ -678,7 +678,7 @@ const INVOICE_EDIT_STATE_SELECT = {
   fiscalReceipt: { select: { id: true } },
   _count: {
     select: {
-      receipts: true,
+      receipts: { where: { voidedAt: null } },
       creditNotes: { where: { status: { not: "VOIDED" } } },
       writeOffs: { where: { status: { not: "VOIDED" } } },
     },
@@ -1203,7 +1203,7 @@ export async function recordReceiptForLead(input: RecordReceiptInput) {
     // outstanding balance — which would post bogus journals and inflate
     // PAID-basis commissions.
     const receiptAgg = await tx.salesReceipt.aggregate({
-      where: { invoiceId: invoice.id },
+      where: { invoiceId: invoice.id, voidedAt: null },
       _sum: { amount: true },
     });
     const alreadyReceived = Number(receiptAgg._sum.amount ?? 0);

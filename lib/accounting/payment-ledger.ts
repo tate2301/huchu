@@ -17,6 +17,8 @@ type LedgerSeed = {
   currency?: string | null;
   description?: string | null;
   journalEntryId?: string | null;
+  /** VOIDED for a receipt voided in Books: aged debt and the customer's balance leave its line out. */
+  status?: "POSTED" | "VOIDED";
 };
 
 function isVoidReference(sourceId: string) {
@@ -74,6 +76,13 @@ async function buildLedgerSeed(
       });
       if (!receipt || receipt.companyId !== companyId) return null;
       const amount = toMoney(receipt.amount);
+      // A receipt taken off a voided or deleted invoice is the customer's money on account: its line keeps the customer.
+      const kept = receipt.invoice
+        ? null
+        : await prisma.paymentLedgerEntry.findUnique({
+            where: { companyId_sourceType_sourceId: { companyId, sourceType, sourceId } },
+            select: { partyId: true },
+          });
       return {
         companyId,
         sourceType,
@@ -81,13 +90,14 @@ async function buildLedgerSeed(
         entryDate: receipt.receivedAt,
         accountType: "RECEIVABLE",
         partyType: "CUSTOMER",
-        partyId: receipt.invoice?.customerId ?? null,
+        partyId: receipt.invoice?.customerId ?? kept?.partyId ?? null,
         invoiceId: receipt.invoiceId,
         debit: 0,
         credit: amount,
         currency: receipt.invoice?.currency ?? "USD",
         description: `Sales receipt ${receipt.receiptNumber}`,
         journalEntryId,
+        status: receipt.voidedAt ? "VOIDED" : "POSTED",
       };
     }
     case "SALES_CREDIT_NOTE": {
@@ -304,7 +314,7 @@ export async function syncPaymentLedgerEntryForSource(input: {
       currency: seed.currency ?? "USD",
       description: seed.description ?? null,
       journalEntryId: seed.journalEntryId ?? null,
-      status: "POSTED",
+      status: seed.status ?? "POSTED",
     },
     create: {
       companyId: seed.companyId,
@@ -322,7 +332,7 @@ export async function syncPaymentLedgerEntryForSource(input: {
       currency: seed.currency ?? "USD",
       description: seed.description ?? null,
       journalEntryId: seed.journalEntryId ?? null,
-      status: "POSTED",
+      status: seed.status ?? "POSTED",
     },
   });
 }

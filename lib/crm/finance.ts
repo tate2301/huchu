@@ -348,7 +348,7 @@ export async function financeOverview(tx: Tx, scope: FinanceScope): Promise<Fina
           amountPaid: true,
           creditTotal: true,
           writeOffTotal: true,
-          receipts: { where: { receivedAt: { gte: from, lt: periodEnd } }, select: { amount: true } },
+          receipts: { where: { voidedAt: null, receivedAt: { gte: from, lt: periodEnd } }, select: { amount: true } },
         },
       },
     },

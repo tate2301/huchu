@@ -75,6 +75,7 @@ export async function GET(request: NextRequest) {
         prisma.salesReceipt.aggregate({
           where: {
             invoice: { customerId, companyId: session.user.companyId },
+            voidedAt: null,
             receivedAt: { lt: startDate },
           },
           _sum: { amount: true },
@@ -119,6 +120,7 @@ export async function GET(request: NextRequest) {
       prisma.salesReceipt.findMany({
         where: {
           invoice: { customerId, companyId: session.user.companyId },
+          voidedAt: null,
           ...(dateFilter ? { receivedAt: dateFilter } : {}),
         },
         select: { receivedAt: true, receiptNumber: true, amount: true, method: true },

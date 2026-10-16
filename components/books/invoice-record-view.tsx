@@ -22,9 +22,11 @@ const TONE: Record<InvoiceState, "warn" | "ok" | "bad" | "plain"> = {
 /**
  * One invoice (PageVaneDraft): Vane's note when the draft is Vane's, the
  * finding, its lines and totals, and beside them what it is and what changed
- * since the quote. Pure: the page feeds it, and owns Issue and Delete.
+ * since the quote; once void or credited, who did it and why, and the payments
+ * a void left on account, which the owner may void too (in Payments). Pure:
+ * the page feeds it, and owns Issue, Reverse and Delete.
  */
-export function InvoiceRecordView({ invoice }: { invoice: InvoiceRecord }) {
+export function InvoiceRecordView({ invoice, canVoidPayments = false }: { invoice: InvoiceRecord; canVoidPayments?: boolean }) {
   const vaneDraft = invoice.madeByVane && invoice.status === "DRAFT";
   const quote = invoice.quote;
   return (
@@ -113,11 +115,48 @@ export function InvoiceRecordView({ invoice }: { invoice: InvoiceRecord }) {
           </Attr>
           <Attr term="Made by">{invoice.madeBy}</Attr>
           {invoice.issuedBy ? <Attr term="Issued by">{invoice.issuedBy}</Attr> : null}
-          {invoice.status !== "DRAFT" ? (
+          {invoice.status !== "DRAFT" && invoice.status !== "VOIDED" ? (
             <Attr term="Owed">
               <span className="mono">{money(invoice.balance, invoice.currency)}</span>
             </Attr>
           ) : null}
+          {invoice.voided ? (
+            <Attr term="Voided">
+              {[invoice.voided.by, invoice.voided.on].filter(Boolean).join(", ")}
+              {invoice.voided.reason ? <span className="muted" style={{ display: "block" }}>{invoice.voided.reason}</span> : null}
+            </Attr>
+          ) : null}
+          {invoice.onAccount.length ? (
+            <Attr term="On account">
+              {invoice.onAccount.map((payment) => (
+                <span key={payment.id} style={{ display: "block" }}>
+                  <span className="mono">{payment.number}</span>, <span className="mono">{money(payment.amount, invoice.currency)}</span>
+                  {payment.voided ? (
+                    <span className="muted">, void</span>
+                  ) : canVoidPayments ? (
+                    <>
+                      {" "}
+                      <Link
+                        href={`/books/payments?void=${encodeURIComponent(payment.id)}&number=${encodeURIComponent(payment.number)}`}
+                        style={{ color: "var(--color-danger)" }}
+                        aria-label={`Void ${payment.number}`}
+                      >
+                        Void
+                      </Link>
+                    </>
+                  ) : null}
+                </span>
+              ))}
+            </Attr>
+          ) : null}
+          {invoice.credits.map((note) => (
+            <Attr key={note.number} term={note.voided ? "Credit, void" : "Credited"}>
+              <span className="mono">{money(note.total, invoice.currency)}</span>, {note.date}
+              <span className="muted truncate" style={{ display: "block" }} title={note.number}>
+                {note.reason ?? note.number}
+              </span>
+            </Attr>
+          ))}
         </dl>
         {quote ? (
           <>

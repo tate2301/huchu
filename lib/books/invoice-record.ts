@@ -2,6 +2,8 @@ import type { InvoiceStatus, PrismaClient } from "@prisma/client";
 
 import { daysBetween, dayOf, money, shortDay, storedDay } from "./format";
 import { INVOICE_STATE_LABEL, invoiceState, type InvoiceState } from "./invoice-state";
+import type { InvoiceRemoval } from "./reversal";
+import { wasFiscalised } from "./reversal";
 import { usualTerms } from "@/lib/vane/drafts";
 
 /**
@@ -52,10 +54,28 @@ export type InvoiceRecord = {
   deal: string | null;
   /** Each way the lines differ from the quote's: "Coved skirting: 64 m, not 60". Empty when they are as accepted. */
   changes: string[];
+  /** Its lines as Reverse credits them: price, VAT rate and how many. */
+  creditable: Array<{ id: string; description: string; quantity: number; unitPrice: number; taxRate: number; taxCodeId: string | null }>;
+  /** What was paid on it. */
+  paid: number;
+  /** What is left to credit: its total less what was credited or written off. */
+  creditLeft: number;
+  /** Its credit notes: "CN-20261016-0912-431", $120.00, why. */
+  credits: Array<{ number: string; total: number; reason: string | null; date: string; voided: boolean }>;
+  /** Why and by whom it was voided, from the audit log, once it is void. */
+  voided: { reason: string | null; by: string | null; on: string } | null;
+  /** It reached the fiscal device, which still holds it whatever is reversed here. */
+  fiscalised: boolean;
+  /** Once void: the payments it left as the customer's money on account, each of which the owner may void too. */
+  onAccount: Array<{ id: string; number: string; amount: number; voided: boolean }>;
 };
 
 /** What the person may do with it on its page (the route adds it). */
-export type InvoiceRecordPage = InvoiceRecord & { can: { issue: boolean; delete: boolean } };
+export type InvoiceRecordPage = InvoiceRecord & {
+  can: { issue: boolean; delete: boolean; reverse: boolean; voidPayments: boolean };
+  /** What Delete takes with it, when this person may delete it. */
+  removal: InvoiceRemoval | null;
+};
 
 /** The aside's Due on a draft: its terms, and whether they are the customer's usual. */
 export function dueTerms(days: number, usual: number | null): string {
@@ -94,7 +114,7 @@ export function changesFromQuote(invoice: Line[], quote: Line[], currency: strin
   return changes;
 }
 
-export async function readInvoiceRecord(db: Pick<PrismaClient, "salesInvoice" | "crmLeadDocument" | "vaneItem">, companyId: string, id: string, now = new Date()): Promise<InvoiceRecord | null> {
+export async function readInvoiceRecord(db: Pick<PrismaClient, "salesInvoice" | "salesReceipt" | "crmLeadDocument" | "vaneItem" | "platformAuditEvent" | "user">, companyId: string, id: string, now = new Date()): Promise<InvoiceRecord | null> {
   const invoice = await db.salesInvoice.findFirst({
     where: { id, companyId },
     select: {
@@ -118,8 +138,10 @@ export async function readInvoiceRecord(db: Pick<PrismaClient, "salesInvoice" | 
       customer: { select: { id: true, name: true } },
       createdBy: { select: { name: true } },
       issuedBy: { select: { name: true } },
-      lines: { orderBy: { createdAt: "asc" }, select: { id: true, description: true, quantity: true, unitPrice: true, lineTotal: true, taxRate: true } },
-      receipts: { select: { receivedAt: true, method: true }, orderBy: { receivedAt: "desc" }, take: 1 },
+      lines: { orderBy: { createdAt: "asc" }, select: { id: true, description: true, quantity: true, unitPrice: true, lineTotal: true, taxRate: true, taxCodeId: true } },
+      creditNotes: { orderBy: { noteDate: "asc" }, select: { noteNumber: true, total: true, reason: true, noteDate: true, status: true } },
+      fiscalReceipt: { select: { status: true, receiptGlobalNo: true } },
+      receipts: { where: { voidedAt: null }, select: { receivedAt: true, method: true }, orderBy: { receivedAt: "desc" }, take: 1 },
       fromQuotation: {
         select: {
           id: true,
@@ -134,7 +156,7 @@ export async function readInvoiceRecord(db: Pick<PrismaClient, "salesInvoice" | 
   });
   if (!invoice) return null;
 
-  const [doc, past, card] = await Promise.all([
+  const [doc, past, card, voidEvent] = await Promise.all([
     invoice.quotationId
       ? db.crmLeadDocument.findFirst({
           where: { companyId, quotationId: invoice.quotationId, type: "QUOTATION" },
@@ -150,7 +172,16 @@ export async function readInvoiceRecord(db: Pick<PrismaClient, "salesInvoice" | 
     invoice.madeByVane
       ? db.vaneItem.findFirst({ where: { companyId, subjectType: "SalesInvoice", subjectId: invoice.id }, orderBy: { createdAt: "desc" }, select: { id: true } })
       : null,
+    invoice.status === "VOIDED"
+      ? db.platformAuditEvent.findFirst({
+          where: { companyId, eventType: "books.invoice.voided", entityType: "SalesInvoice", entityId: invoice.id },
+          orderBy: { createdAt: "desc" },
+          select: { reason: true, actor: true, createdAt: true, payloadJson: true },
+        })
+      : null,
   ]);
+  const voider = voidEvent?.actor ? await db.user.findFirst({ where: { id: voidEvent.actor, companyId }, select: { name: true } }) : null;
+  const onAccount = await paymentsOnAccount(db, companyId, voidEvent?.payloadJson ?? null);
 
   const today = dayOf(now);
   const state = invoiceState(
@@ -214,5 +245,31 @@ export async function readInvoiceRecord(db: Pick<PrismaClient, "salesInvoice" | 
     quote: quote ? { id: quote.id, number: quote.quotationNumber, accepted: acceptedOn ? shortDay(dayOf(acceptedOn)) : null } : null,
     deal: doc?.deal ? (doc.deal.wonAt ? `${doc.deal.dealNo}, won ${shortDay(dayOf(doc.deal.wonAt))}` : doc.deal.dealNo) : null,
     changes,
+    creditable: invoice.lines.map((line) => ({ id: line.id, description: line.description, quantity: line.quantity, unitPrice: line.unitPrice, taxRate: line.taxRate, taxCodeId: line.taxCodeId })),
+    paid: round(invoice.amountPaid),
+    creditLeft: round(invoice.total - invoice.creditTotal - invoice.writeOffTotal),
+    credits: invoice.creditNotes.map((note) => ({ number: note.noteNumber, total: note.total, reason: note.reason, date: shortDay(dayOf(note.noteDate)), voided: note.status === "VOIDED" })),
+    voided: invoice.status === "VOIDED" ? { reason: voidEvent?.reason ?? null, by: voider?.name ?? null, on: voidEvent ? shortDay(dayOf(voidEvent.createdAt)) : "" } : null,
+    fiscalised: wasFiscalised(invoice.fiscalReceipt),
+    onAccount,
   };
+}
+
+/** The payments a void invoice left as the customer's money on account, as they stand now (its void's audit event names them). */
+async function paymentsOnAccount(db: Pick<PrismaClient, "salesReceipt">, companyId: string, payloadJson: string | null): Promise<InvoiceRecord["onAccount"]> {
+  if (!payloadJson) return [];
+  let ids: string[] = [];
+  try {
+    const payload = JSON.parse(payloadJson) as { receiptsOnAccount?: Array<{ id?: string }> };
+    ids = (payload.receiptsOnAccount ?? []).map((receipt) => receipt.id).filter((id): id is string => Boolean(id));
+  } catch {
+    return [];
+  }
+  if (ids.length === 0) return [];
+  const receipts = await db.salesReceipt.findMany({
+    where: { companyId, id: { in: ids }, invoiceId: null },
+    orderBy: { receivedAt: "asc" },
+    select: { id: true, receiptNumber: true, amount: true, voidedAt: true },
+  });
+  return receipts.map((receipt) => ({ id: receipt.id, number: receipt.receiptNumber, amount: round(receipt.amount), voided: receipt.voidedAt !== null }));
 }

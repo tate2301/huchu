@@ -392,7 +392,8 @@ async function resolveReceipt(companyId: string, recordId: string): Promise<Sour
     payload: {
       title: "Payment receipt",
       subtitle: receipt.receiptNumber,
-      badge: { label: "Payment received", tone: "positive" },
+      // A void receipt (Books → Payments) prints as void, never as money received.
+      badge: receipt.voidedAt ? { label: "Void", tone: "negative" as const } : { label: "Payment received", tone: "positive" as const },
       meta: [
         { label: "Receipt No.", value: receipt.receiptNumber },
         { label: "Date", value: isoDate(receipt.receivedAt) },
