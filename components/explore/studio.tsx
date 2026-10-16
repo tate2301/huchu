@@ -54,7 +54,11 @@ export function Studio({ slug }: { slug?: string }) {
   const catalog = useExploreCatalog();
 
   const target = slug ? readSlug(slug) : null;
-  const template = target?.kind === "template" ? templateBySlug(target.slug) : null;
+  // One in code opens at once; one from Corelith's library is in the catalog, so it waits for it (undefined).
+  const template =
+    target?.kind === "template"
+      ? (templateBySlug(target.slug) ?? (catalog.data ? ((catalog.data.canUse && catalog.data.templates.find((entry) => entry.slug === target.slug)) || null) : undefined))
+      : null;
   const report = useQuery({
     queryKey: ["reports", "custom", target?.kind === "saved" ? target.id : null],
     queryFn: () => fetchJson<{ report: CustomReport }>(`/api/v2/reports/custom/${target!.kind === "saved" ? target!.id : ""}`),
@@ -67,7 +71,10 @@ export function Studio({ slug }: { slug?: string }) {
       const loaded = report.data?.report;
       return loaded ? { sql: questionSql(loaded) ?? "", title: loaded.title } : null;
     }
-    if (target?.kind === "template") return template ? { sql: template.sql, title: templateTitle(template) } : { sql: "", title: "Untitled question" };
+    if (target?.kind === "template") {
+      if (template === undefined) return null;
+      return template ? { sql: template.sql, title: templateTitle(template) } : { sql: "", title: "Untitled question" };
+    }
     return { sql: params.get("sql") ?? "", title: params.get("title") || "Untitled question" };
     // The address is read once, as the question opens.
     // eslint-disable-next-line react-hooks/exhaustive-deps

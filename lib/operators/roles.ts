@@ -23,6 +23,8 @@ export const OPERATOR_ACTIONS = [
   "billing.manage",
   "payment.review",
   "operator.manage",
+  /** Make, change and publish Corelith's library: reports, questions, forms, templates, layouts. */
+  "library.manage",
 ] as const;
 
 export type OperatorAction = (typeof OPERATOR_ACTIONS)[number];
@@ -36,6 +38,7 @@ const SUPPORT: readonly OperatorAction[] = [
   "member.manage",
   "member.signInAs",
   "member.signInAsChange",
+  "library.manage",
 ];
 
 /** Billing reads a workspace as a member to answer a question about a bill; it changes nothing there. */

@@ -73,10 +73,11 @@ type InspectorTab = "item" | "data" | "vane" | "settings";
 export type FormBuilderViewProps = {
   /** The bar's two lines: the form's name, and what it is ("Form, used on site visits"). */
   name: string;
-  onName: (name: string) => void;
+  /** Left out, the name is printed rather than typed: the page around the builder holds it. */
+  onName?: (name: string) => void;
   role: string;
   /** Where Back goes, and what the button says. */
-  back: { label: string; onBack: () => void };
+  back?: { label: string; onBack: () => void };
   fields: FieldDefinition[];
   onFields: (fields: FieldDefinition[]) => void;
   types: readonly FieldType[];
@@ -94,13 +95,18 @@ export type FormBuilderViewProps = {
   after?: React.ReactNode;
   /** The foot of the paper when the form drafts no quote: where its answers go. */
   foot?: React.ReactNode;
-  saved: SavedState;
+  saved?: SavedState;
   /** The bar's own buttons (Insights, Open the form). */
   actions?: React.ReactNode;
   /** What stands in the way of publishing, beyond the questions' own problems. */
   problems?: readonly string[];
-  onPublish: () => void;
-  publishing: boolean;
+  /** Left out, with no `primary`, the bar has no primary: the page around the builder publishes it. */
+  onPublish?: () => void;
+  publishing?: boolean;
+  /** What stands for Publish where the form cannot be published here (Use this template). */
+  primary?: { label: string; icon: IconName; onClick: () => void; busy: boolean; disabled?: boolean };
+  /** Fills the frame it is put in rather than the window (the admin portal's library). */
+  framed?: boolean;
   /** Who may change it is the API's to say: a person who cannot sees it and may preview it. */
   canEdit: boolean;
   /**
@@ -140,7 +146,9 @@ export function FormBuilderView(props: FormBuilderViewProps) {
     saved,
     actions,
     onPublish,
-    publishing,
+    publishing = false,
+    primary,
+    framed = false,
     canEdit,
     vane,
   } = props;
@@ -250,7 +258,7 @@ export function FormBuilderView(props: FormBuilderViewProps) {
     <BuilderBar
       lead={
         <>
-          <Button variant="quiet" iconOnly icon="back" label={back.label} onClick={back.onBack} />
+          {back ? <Button variant="quiet" iconOnly icon="back" label={back.label} onClick={back.onBack} /> : null}
           <span className="rb-mark" aria-hidden>
             <Icon name="visits" />
           </span>
@@ -274,7 +282,13 @@ export function FormBuilderView(props: FormBuilderViewProps) {
           {actions}
         </>
       }
-      publish={{ onPublish, disabled: !canEdit || problems.length > 0, busy: publishing }}
+      publish={
+        primary
+          ? { label: primary.label, icon: primary.icon, onPublish: primary.onClick, busy: primary.busy, disabled: primary.disabled }
+          : onPublish
+            ? { onPublish, disabled: !canEdit || problems.length > 0, busy: publishing }
+            : undefined
+      }
     />
   );
 
@@ -382,7 +396,7 @@ export function FormBuilderView(props: FormBuilderViewProps) {
   const canvas = (
     <div className="rb-sheet">
       <div className={phone ? "fpaper is-phone" : "fpaper"}>
-        {building ? (
+        {building && onName ? (
           <input className="rb-title text-title" aria-label="Form name" value={name} placeholder="Untitled form" onChange={(event) => onName(event.target.value)} />
         ) : (
           <h1 className="text-title">{name || "Untitled form"}</h1>
@@ -533,6 +547,7 @@ export function FormBuilderView(props: FormBuilderViewProps) {
       canvasLabel={name || "The form"}
       inspector={inspector}
       inspectorLabel="Selected"
+      framed={framed}
     />
   );
 }

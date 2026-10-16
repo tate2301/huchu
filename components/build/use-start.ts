@@ -81,6 +81,24 @@ export function useStartBuild(takenNames: readonly string[]) {
           });
           return buildHref("layout", made.template.id);
         }
+        case "library": {
+          // The type's own API copies it, names it and starts it as a draft.
+          const body = JSON.stringify({ library: request.key });
+          if (request.kind === "VISIT_FORM") {
+            const { set } = await fetchJson<{ set: { id: string } }>("/api/v2/crm/question-sets", { method: "POST", body });
+            return buildHref("visit", set.id);
+          }
+          if (request.kind === "ENQUIRY_FORM") {
+            const made = await fetchJson<{ id: string }>("/api/v2/crm/intake-forms", { method: "POST", body });
+            return buildHref("enquiry", made.id);
+          }
+          if (request.kind === "BLOCK_TEMPLATE") {
+            const made = await fetchJson<{ id: string; kind: string }>("/api/v2/crm/templates", { method: "POST", body });
+            return buildHref("block", made.id, made.kind);
+          }
+          const made = await fetchJson<{ template: { id: string } }>("/api/document-templates", { method: "POST", body });
+          return buildHref("layout", made.template.id);
+        }
         case "blank-report": {
           const made = await fetchJson<{ report: { id: string } }>("/api/v2/reports/custom", { method: "POST", body: JSON.stringify({}) });
           return buildHref("report", made.report.id);

@@ -4,6 +4,7 @@ import { errorResponse, successResponse, validateSession } from "@/lib/api-utils
 import { canUseExplore, EXPLORE_ROLES, lockedTables, whoReads, workspaceRoles } from "@/lib/explore/access";
 import { savedQuestions } from "@/lib/explore/questions";
 import { templatesFor } from "@/lib/explore/templates";
+import { libraryExploreTemplates } from "@/lib/library/explore";
 import { prisma } from "@/lib/prisma";
 import { readableSources, readerOf, toSource } from "@/lib/reports/custom/sources";
 import { listCustomReports } from "@/lib/reports/custom/store";
@@ -29,7 +30,9 @@ export async function GET(request: NextRequest) {
     const sources = (await readableSources(session)).map(toSource);
     const own = new Set(sources.map((source) => source.key));
     const locked = lockedTables(own, session.user.enabledFeatures, workspaceRoles(session.user.workspaceProfile));
-    const templates = templatesFor(new Set(sources.map((source) => sqlName(source.key))));
+    const readable = new Set(sources.map((source) => sqlName(source.key)));
+    // Corelith's in code, then those published to this workspace from the library, read live.
+    const templates = [...templatesFor(readable), ...(await libraryExploreTemplates(session.user.companyId, readable))];
     const saved = savedQuestions(await listCustomReports(readerOf(session)));
     return successResponse({ canUse: true, workspaceName, sources, locked, templates, saved });
   } catch (error) {

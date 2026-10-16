@@ -1,6 +1,7 @@
 import type { ListActionRun } from "@/lib/retail/asks/runs";
 
 import { FEATURE_RUNS } from "./feature-words";
+import { LIBRARY_RUNS } from "./library-words";
 import { MEMBER_RUNS } from "./member-words";
 import { OPERATOR_RUNS } from "./operator-words";
 import { PAYMENT_RUNS } from "./payment-words";
@@ -15,4 +16,5 @@ export const ADMIN_LIST_RUNS: Readonly<Record<string, ListActionRun>> = {
   ...SITE_RUNS,
   ...PAYMENT_RUNS,
   ...OPERATOR_RUNS,
+  ...LIBRARY_RUNS,
 };

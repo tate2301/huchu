@@ -63,6 +63,9 @@ type TemplateRecord = {
 
 type Draft = { name: string; description: string; emoji: string | null; custom: Record<string, string>; blocks: Block[]; isShared: boolean; isActive: boolean };
 
+/** What the page edits: the template's name and blocks, and its settings' own. */
+export type DocumentDraft = Draft;
+
 const BLOCK_ICONS: Record<BlockType, IconName> = {
   heading: "sentence",
   text: "docs",
@@ -211,60 +214,80 @@ export function DocumentBuilder({ id, backLabel = "Back to Build" }: { id: strin
 
   return (
     <DocumentBuilderView
-      record={loaded}
+      kind={loaded.kind}
+      savedBlocks={loaded.blocks ?? []}
       draft={draft}
       onDraft={setDraft}
-      backLabel={backLabel}
-      onBack={back}
+      back={{ label: backLabel, onBack: back }}
       saved={save.isPending ? { state: "saving" } : dirty ? { state: "dirty" } : { state: "saved", at: formatTime(new Date(loaded.updatedAt)) }}
       publishing={save.isPending}
       onPublish={() => save.mutate({ next: { ...draft, isShared: true, isActive: true }, published: true })}
-      onDelete={async () => {
-        const sure = await dsConfirm({
-          title: `Delete ${draft.name}`,
-          description: "It is gone for everyone. Documents already sent keep what they said.",
-          confirmLabel: "Delete",
-          variant: "danger",
-        });
-        if (sure) remove.mutate();
-      }}
-      deleting={remove.isPending}
+      settings={
+        <SettingsPanel
+          record={loaded}
+          draft={draft}
+          onDraft={setDraft}
+          onDelete={async () => {
+            const sure = await dsConfirm({
+              title: `Delete ${draft.name}`,
+              description: "It is gone for everyone. Documents already sent keep what they said.",
+              confirmLabel: "Delete",
+              variant: "danger",
+            });
+            if (sure) remove.mutate();
+          }}
+          deleting={remove.isPending}
+        />
+      }
     />
   );
 }
 
 type InspectorTab = "element" | "data" | "settings";
 
-function DocumentBuilderView({
-  record,
+/**
+ * A document laid out as blocks, on the builder's grid. Pure: the page loads
+ * and saves it — a workspace's template through its API, or a library item in
+ * the admin portal — and gives it its settings. Read-only, it shows the page
+ * as it is sent, with `primary` (Use this template) in the bar.
+ */
+export function DocumentBuilderView({
+  kind,
+  savedBlocks,
   draft,
   onDraft,
-  backLabel,
-  onBack,
+  back,
   saved,
-  publishing,
+  publishing = false,
   onPublish,
-  onDelete,
-  deleting,
+  primary,
+  readOnly = false,
+  settings,
+  framed = false,
 }: {
-  record: TemplateRecord;
+  kind: TemplateKind;
+  /** The blocks as last saved: their questions keep their keys, since answers are stored against them. */
+  savedBlocks: readonly Block[];
   draft: Draft;
   onDraft: (next: Draft) => void;
-  backLabel: string;
-  onBack: () => void;
-  saved: React.ComponentProps<typeof BuilderBar>["saved"];
-  publishing: boolean;
-  onPublish: () => void;
-  onDelete: () => void;
-  deleting: boolean;
+  back?: { label: string; onBack: () => void };
+  saved?: React.ComponentProps<typeof BuilderBar>["saved"];
+  publishing?: boolean;
+  /** Left out, with no `primary`, the bar has no primary: the page around the builder publishes it. */
+  onPublish?: () => void;
+  primary?: { label: string; icon: IconName; onClick: () => void; busy: boolean };
+  readOnly?: boolean;
+  /** The inspector's Settings tab. */
+  settings: React.ReactNode;
+  /** Fills the frame it is put in rather than the window (the admin portal's library). */
+  framed?: boolean;
 }) {
   const { toast } = useToast();
-  const kind = record.kind;
-  const [mode, setMode] = React.useState<BuilderMode>("build");
+  const [mode, setMode] = React.useState<BuilderMode>(readOnly ? "preview" : "build");
   const [tab, setTab] = React.useState<InspectorTab>("element");
   const blocks = draft.blocks;
   const setBlocks = (next: Block[]) => onDraft({ ...draft, blocks: next });
-  const lockedKeys = React.useMemo(() => new Set(blockFields(record.blocks ?? []).map((field) => field.key)), [record.blocks]);
+  const lockedKeys = React.useMemo(() => new Set(blockFields([...savedBlocks]).map((field) => field.key)), [savedBlocks]);
 
   const list = useBlockList<Block>({
     blocks,
@@ -324,7 +347,7 @@ function DocumentBuilderView({
     <BuilderBar
       lead={
         <>
-          <Button variant="quiet" iconOnly icon="back" label={backLabel} onClick={onBack} />
+          {back ? <Button variant="quiet" iconOnly icon="back" label={back.label} onClick={back.onBack} /> : null}
           <span className="rb-mark" aria-hidden>
             <Icon name={kind === "EMAIL" ? "send" : kind === "FORM" ? "visits" : "invoice"} />
           </span>
@@ -336,10 +359,16 @@ function DocumentBuilderView({
       }
       name={draft.name}
       mode={mode}
-      onMode={setMode}
+      onMode={(next) => setMode(readOnly ? "preview" : next)}
       saved={saved}
       actions={<span className="muted rb-sample">Showing sample values</span>}
-      publish={{ onPublish, disabled: problems.length > 0, busy: publishing }}
+      publish={
+        primary
+          ? { label: primary.label, icon: primary.icon, onPublish: primary.onClick, busy: primary.busy }
+          : onPublish
+            ? { onPublish, disabled: problems.length > 0, busy: publishing }
+            : undefined
+      }
     />
   );
 
@@ -383,7 +412,7 @@ function DocumentBuilderView({
   );
   const starters = startersForKind(kind);
   const empty =
-    blocks.length === 0 ? (
+    blocks.length === 0 && !readOnly ? (
       <div className="pl">
         <p className="muted">Nothing on it yet. Add a block (/), or start from one of these.</p>
         <div className="rb-acts" style={{ marginTop: 0, flexWrap: "wrap" }}>
@@ -467,7 +496,7 @@ function DocumentBuilderView({
           ))}
         </>
       ) : (
-        <SettingsPanel record={record} draft={draft} onDraft={onDraft} onDelete={onDelete} deleting={deleting} />
+        settings
       )}
     </BuilderInspector>
   );
@@ -483,6 +512,7 @@ function DocumentBuilderView({
       canvasLabel={draft.name || "The document"}
       inspector={inspector}
       inspectorLabel="Selected"
+      framed={framed}
     />
   );
 }

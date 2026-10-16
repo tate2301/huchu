@@ -963,6 +963,7 @@ export const Paperclip = createPhosphorIcon("Paperclip", "Paperclip");
 export const At = createPhosphorIcon("At", "At");
 export const FlowArrow = createPhosphorIcon("FlowArrow", "FlowArrow");
 export const Archive = createPhosphorIcon("Archive", "Archive");
+export const BookOpen = createPhosphorIcon("BookOpen", "BookOpen");
 
 /**
  * Marks for the school verbs.
