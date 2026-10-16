@@ -9,7 +9,8 @@ import {
   setManagedUserFeatureOverride,
 } from "@/lib/platform/user-entitlements";
 
-import { appendUserManagementEvent, canMutateUserManagement } from "../_helpers";
+import { canMutateUserManagement } from "../_helpers";
+import { appendUserManagementEvent } from "@/lib/platform/user-management-events";
 
 const setFeatureAccessSchema = z.object({
   userId: z.string().uuid(),

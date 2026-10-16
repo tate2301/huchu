@@ -15,21 +15,22 @@ import { destroyProvisionedTenant } from "@/lib/platform/tenant-teardown";
 import { createSupplier } from "@/lib/retail/buying/suppliers";
 import { addTestProduct, makeTestShop, type TestShop } from "@/lib/retail/products/test-fixtures";
 
-import { VANE_ACTIONS } from "./actions/registry";
-import type { VaneActionContext } from "./actions/types";
+import { OPERATIONS } from "@/lib/operations/registry";
+import type { OperationActor } from "@/lib/operations/types";
 import { callTool } from "./tools";
 
 let shop: TestShop;
 const ids = { quote: "", supplier: "", castle: "" };
 
-const context = (): VaneActionContext => ({
+const context = (): OperationActor => ({
   companyId: shop.companyId,
   userId: shop.managerId,
   role: "MANAGER",
   session: { user: { id: shop.managerId, companyId: shop.companyId, role: "MANAGER", name: "Tafara" } } as unknown as AuthenticatedSession,
   requestUrl: "http://vane.test/api/vane/actions/x",
+  via: { kind: "integration", integration: "vane" },
 });
-const action = (kind: string) => VANE_ACTIONS.find((row) => row.kind === kind)!;
+const action = (kind: string) => OPERATIONS.find((row) => row.key === kind)!;
 
 beforeAll(async () => {
   process.env.NEXTAUTH_SECRET ??= "test-secret";
@@ -73,7 +74,7 @@ describe("Vane's own drafts", () => {
     const { invoiceId, invoiceNumber } = JSON.parse(drafted.content);
     expect(await prisma.salesInvoice.findUniqueOrThrow({ where: { id: invoiceId } })).toMatchObject({ status: "DRAFT", madeByVane: true, createdById: null, quotationId: ids.quote });
 
-    const issued = await action("books.invoice.issue").run(context(), action("books.invoice.issue").params.parse({ invoiceId, invoiceNumber, customer: "Borrowdale Brooke Clinic", total: "USD 620.00" }) as never);
+    const issued = await action("books.invoice.issue").run(context(), action("books.invoice.issue").input.parse({ invoiceId, invoiceNumber, customer: "Borrowdale Brooke Clinic", total: "USD 620.00" }) as never);
     expect(issued).toBe(`${invoiceNumber} is issued to Borrowdale Brooke Clinic. Send it from Books.`);
     expect(await prisma.salesInvoice.findUniqueOrThrow({ where: { id: invoiceId } })).toMatchObject({ status: "ISSUED", issuedById: shop.managerId });
     // Issued, it is not Vane's to delete.

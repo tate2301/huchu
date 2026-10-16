@@ -14,38 +14,41 @@ import { z } from "zod";
 import type { AuthenticatedSession } from "@/lib/auth-core/types";
 import { prisma } from "@/lib/prisma";
 
-import { decideAction, proposeActions } from "./engine";
-import { VaneActionError, type VaneActionContext, type VaneActionKind } from "./types";
+import { OperationRefused, type Operation } from "@/lib/operations/types";
+
+import { decideAction, proposeActions, type ApproverContext } from "./engine";
 
 const suffix = randomUUID().slice(0, 8);
 const ids = { company: "", user: "", item: "" };
-const ran: Array<{ by: string; params: unknown }> = [];
+const ran: Array<{ by: string; via: unknown; params: unknown }> = [];
 let failNext = false;
 
 const stamp = {
-  kind: "test.stamp",
-  module: "test",
+  key: "test.stamp",
+  product: "test",
+  name: "Stamp a record",
+  risk: "change",
   description: "Stamps a record.",
-  params: z.object({ recordId: z.string(), label: z.string(), on: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), note: z.string().optional() }),
+  input: z.object({ recordId: z.string(), label: z.string(), on: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), note: z.string().optional() }),
   fields: [{ name: "on", label: "On", type: "date" }],
   pageFields: ["note"],
   verb: () => "Stamp it",
   title: (p) => `Stamp ${p.label} on ${p.on}`,
   target: (p) => `/records?q=${p.label}`,
-  refuse: (context) => (context.role === "CASHIER" ? "Your role cannot stamp." : null),
+  authorize: async (actor) => (actor.role === "CASHIER" ? "Your role cannot stamp." : null),
   async run(context, p) {
     if (failNext) {
       failNext = false;
-      throw new VaneActionError("The record is locked.");
+      throw new OperationRefused("The record is locked.");
     }
-    ran.push({ by: context.userId, params: p });
+    ran.push({ by: context.userId, via: context.via, params: p });
     return `Stamped ${p.label}.`;
   },
-} satisfies VaneActionKind<{ recordId: string; label: string; on: string; note?: string }>;
+} satisfies Operation<{ recordId: string; label: string; on: string; note?: string }>;
 
-const registry = [stamp] as unknown as readonly VaneActionKind<never>[];
+const registry = [stamp] as unknown as readonly Operation<never>[];
 
-const context = (role = "MANAGER"): VaneActionContext => ({
+const context = (role = "MANAGER"): ApproverContext => ({
   companyId: ids.company,
   userId: ids.user,
   role,
@@ -100,7 +103,7 @@ describe("Vane's actions", () => {
     const [first] = await prisma.vaneAction.findMany({ where: { itemId: ids.item }, orderBy: { createdAt: "asc" } });
     const outcome = await decideAction(prisma, context(), first.id, { approve: true, changes: { on: "2026-11-15", recordId: "someone-else", note: "From its page" } }, registry);
     expect(outcome.ok && outcome.action).toMatchObject({ status: "done", result: "Stamped INV-0142.", title: "Stamp INV-0142 on 2026-11-15", decidedBy: "Rudo" });
-    expect(ran).toEqual([{ by: ids.user, params: { recordId: "r1", label: "INV-0142", on: "2026-11-15", note: "From its page" } }]);
+    expect(ran).toEqual([{ by: ids.user, via: { kind: "integration", integration: "vane" }, params: { recordId: "r1", label: "INV-0142", on: "2026-11-15", note: "From its page" } }]);
     expect(await decideAction(prisma, context(), first.id, { approve: true }, registry)).toMatchObject({ ok: false, status: 409 });
   });
 
