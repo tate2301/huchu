@@ -22,7 +22,8 @@ const TONE: Record<InvoiceState, "warn" | "ok" | "bad" | "plain"> = {
 /**
  * One invoice (PageVaneDraft): Vane's note when the draft is Vane's, the
  * finding, its lines and totals, and beside them what it is and what changed
- * since the quote. Pure: the page feeds it, and owns Issue and Delete.
+ * since the quote; once void or credited, who did it and why. Pure: the page
+ * feeds it, and owns Issue, Reverse and Delete.
  */
 export function InvoiceRecordView({ invoice }: { invoice: InvoiceRecord }) {
   const vaneDraft = invoice.madeByVane && invoice.status === "DRAFT";
@@ -113,11 +114,25 @@ export function InvoiceRecordView({ invoice }: { invoice: InvoiceRecord }) {
           </Attr>
           <Attr term="Made by">{invoice.madeBy}</Attr>
           {invoice.issuedBy ? <Attr term="Issued by">{invoice.issuedBy}</Attr> : null}
-          {invoice.status !== "DRAFT" ? (
+          {invoice.status !== "DRAFT" && invoice.status !== "VOIDED" ? (
             <Attr term="Owed">
               <span className="mono">{money(invoice.balance, invoice.currency)}</span>
             </Attr>
           ) : null}
+          {invoice.voided ? (
+            <Attr term="Voided">
+              {[invoice.voided.by, invoice.voided.on].filter(Boolean).join(", ")}
+              {invoice.voided.reason ? <span className="muted" style={{ display: "block" }}>{invoice.voided.reason}</span> : null}
+            </Attr>
+          ) : null}
+          {invoice.credits.map((note) => (
+            <Attr key={note.number} term={note.voided ? "Credit, void" : "Credited"}>
+              <span className="mono">{money(note.total, invoice.currency)}</span>, {note.date}
+              <span className="muted truncate" style={{ display: "block" }} title={note.number}>
+                {note.reason ?? note.number}
+              </span>
+            </Attr>
+          ))}
         </dl>
         {quote ? (
           <>

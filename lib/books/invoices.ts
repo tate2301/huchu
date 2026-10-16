@@ -77,6 +77,8 @@ export type InvoicesView = {
   currency: string;
   customers: Array<{ id: string; name: string }>;
   query: InvoiceQuery;
+  /** What this person may do from a row's menu: delete drafts; reverse and delete the rest (the owner). The route adds it. */
+  can?: { deleteDrafts: boolean; owner: boolean };
 };
 
 type Db = Pick<PrismaClient, "salesInvoice">;

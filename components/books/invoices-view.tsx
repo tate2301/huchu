@@ -4,7 +4,7 @@ import * as React from "react";
 import Link from "next/link";
 
 import { Button, ButtonGroup, Icon, SelectCell, TableFoot, TableShell, useSelection } from "@/components/core";
-import { MenuButton } from "@/components/core/menu";
+import { MenuButton, type MenuEntry } from "@/components/core/menu";
 import { money } from "@/lib/books/format";
 import type { InvoiceRow, InvoicesView } from "@/lib/books/invoices";
 import { INVOICE_PERIOD_LABEL, INVOICE_PERIODS, INVOICE_VIEW_LABEL, INVOICE_VIEWS, type InvoiceQuery } from "@/lib/books/invoices";
@@ -43,7 +43,10 @@ export function InvoicesPageView({
   initialColumns = { when: true, total: true },
   explore = null,
   vane = null,
+  rowMenu,
 }: {
+  /** A row's menu (Reverse, Delete), when this person may do anything from it; none draws no menu. */
+  rowMenu?: (row: InvoiceRow) => MenuEntry[] | null;
   /** After Export, in its group: Explore this list (ExploreSuggest). */
   explore?: React.ReactNode;
   /** Last in the row: Vane's suggestions for this list (ExploreSuggest). */
@@ -81,6 +84,8 @@ export function InvoicesPageView({
   const customer = data.customers.find((option) => option.id === data.query.customer);
   const { from, to, of } = data.range;
   const query = data.query;
+  const menus = new Map(data.rows.map((row) => [row.id, rowMenu?.(row) ?? null]));
+  const anyMenu = [...menus.values()].some((items) => items && items.length > 0);
 
   return (
     <>
@@ -210,6 +215,7 @@ export function InvoicesPageView({
                 {columns.when ? <th>When</th> : null}
                 {columns.total ? <th className="num">Total</th> : null}
                 <th className="num">Balance</th>
+                {anyMenu ? <th aria-label="Actions" style={{ width: 44 }} /> : null}
               </tr>
             </thead>
             <tbody>
@@ -236,6 +242,13 @@ export function InvoicesPageView({
                   ) : (
                     <td className="num">—</td>
                   )}
+                  {anyMenu ? (
+                    <td style={{ width: 44, paddingBlock: 0 }}>
+                      {menus.get(row.id)?.length ? (
+                        <MenuButton variant="quiet" iconOnly icon="more" iconEnd={undefined} align="end" aria-label={`More for ${row.number}`} label={`More for ${row.number}`} items={menus.get(row.id)!} />
+                      ) : null}
+                    </td>
+                  ) : null}
                 </tr>
               ))}
             </tbody>

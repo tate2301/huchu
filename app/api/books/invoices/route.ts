@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { errorResponse, successResponse, validateSession } from "@/lib/api-utils";
+import { isRouteAllowedForRole } from "@/lib/auth-core/role-routes";
 import { invoicesCsv, readInvoiceQuery, readInvoices } from "@/lib/books/invoices";
+import { isWorkspaceOwner } from "@/lib/books/owner";
 import { prisma } from "@/lib/prisma";
 
 /** Books → Invoices, filtered and paged; `format=csv` is Export, every page. */
@@ -20,7 +22,9 @@ export async function GET(request: NextRequest) {
         },
       });
     }
-    return successResponse(await readInvoices(prisma, companyId, query));
+    const role = sessionResult.session.user.role;
+    const can = { deleteDrafts: isRouteAllowedForRole(role, "/api/accounting/sales/invoices", "PATCH"), owner: isWorkspaceOwner(role) };
+    return successResponse({ ...(await readInvoices(prisma, companyId, query)), can });
   } catch (error) {
     console.error("[API] GET /api/books/invoices error:", error);
     return errorResponse("Could not read the invoices");

@@ -1,11 +1,12 @@
 "use client";
 
 import * as React from "react";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 import { BooksError, BooksLoading } from "@/components/books/books-state";
 import { BooksPage } from "@/components/books/figures";
+import { InvoiceDeleteDialog, type InvoiceDeleted } from "@/components/books/invoice-actions";
 import { ExploreThisList, ListVane } from "@/components/explore/list-vane";
 import { canUseExplore } from "@/lib/explore/roles";
 import { useSession } from "next-auth/react";
@@ -13,7 +14,7 @@ import { InvoicesPageView } from "@/components/books/invoices-view";
 import { PageChrome } from "@/components/layout/page-chrome";
 import { useToast } from "@/components/ui/use-toast";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
-import type { InvoiceQuery, InvoicesView } from "@/lib/books/invoices";
+import type { InvoiceQuery, InvoiceRow, InvoicesView } from "@/lib/books/invoices";
 import type { ReminderOutcome } from "@/lib/books/reminders";
 
 const NEW_INVOICE = { label: "New invoice", icon: "plus" as const, href: "/accounting/sales?action=new-invoice" };
@@ -40,7 +41,9 @@ function BooksInvoices() {
   const params = useSearchParams();
   const { toast } = useToast();
   const { data: session } = useSession();
+  const queryClient = useQueryClient();
   const search = params.toString();
+  const [deleting, setDeleting] = React.useState<{ id: string; number: string } | null>(null);
 
   const invoices = useQuery({
     queryKey: ["books", "invoices", search],
@@ -82,6 +85,29 @@ function BooksInvoices() {
     onError: (error) => toast({ title: "The reminders did not go", description: getApiErrorMessage(error, "Check the connection and try again."), variant: "destructive" }),
   });
 
+  // A row's menu: Delete for a draft (whoever may change drafts); Reverse and Delete for the rest (the owner only).
+  const can = invoices.data?.can;
+  const rowMenu = React.useCallback(
+    (row: InvoiceRow) => {
+      const remove = { key: "delete", icon: "x" as const, danger: true, label: row.state === "draft" ? "Delete the draft" : "Delete", onSelect: () => setDeleting({ id: row.id, number: row.number }) };
+      if (row.state === "draft") return can?.deleteDrafts ? [remove] : null;
+      if (!can?.owner) return null;
+      if (row.state === "void") return [remove];
+      return [{ key: "reverse", icon: "back" as const, label: "Reverse", onSelect: () => router.push(`/books/invoices/${row.id}?reverse=1`) }, remove];
+    },
+    [can?.deleteDrafts, can?.owner, router],
+  );
+
+  const deleted = async (done: InvoiceDeleted) => {
+    const kept = done.onAccount.map((receipt) => receipt.number);
+    toast({
+      title: `${done.deleted} is deleted`,
+      description: kept.length ? `${kept.join(", ")} ${kept.length === 1 ? "stays" : "stay"} as the customer's money on account.` : undefined,
+      variant: "success",
+    });
+    await queryClient.invalidateQueries({ queryKey: ["books", "invoices"] });
+  };
+
   return (
     <>
       <PageChrome title="Invoices" primary={NEW_INVOICE} />
@@ -99,6 +125,7 @@ function BooksInvoices() {
             exportHref={`/api/books/invoices?${new URLSearchParams([...params.entries(), ["format", "csv"]]).toString()}`}
             explore={canUseExplore(session?.user?.role) ? <ExploreThisList sql={INVOICES_QUESTION} tablesSql={INVOICES_TABLES_QUESTION} title="Invoices still owed" /> : null}
             vane={<ListVane path="/books/invoices" />}
+            rowMenu={rowMenu}
           />
         ) : invoices.isError ? (
           <BooksError what="Invoices" onRetry={() => invoices.refetch()} />
@@ -106,6 +133,15 @@ function BooksInvoices() {
           <BooksLoading />
         )}
       </BooksPage>
+      {deleting ? (
+        <InvoiceDeleteDialog
+          invoiceId={deleting.id}
+          number={deleting.number}
+          open
+          onOpenChange={(open) => (open ? undefined : setDeleting(null))}
+          onDeleted={deleted}
+        />
+      ) : null}
     </>
   );
 }

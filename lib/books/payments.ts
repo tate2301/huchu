@@ -64,7 +64,46 @@ export type PaymentsView = {
   query: PaymentQuery;
 };
 
-type Db = Pick<PrismaClient, "salesReceipt">;
+type Db = Pick<PrismaClient, "salesReceipt" | "paymentLedgerEntry" | "customer" | "platformAuditEvent">;
+
+/**
+ * Whose a payment on no invoice is: the customer its receivables line names.
+ * A payment taken off an invoice that was voided or deleted keeps its customer
+ * there (`lib/books/reverse-invoice.ts`), as their money on account; where the
+ * workspace keeps no such line, the void's or deletion's audit event names
+ * the customer (`receiptsOnAccount`).
+ */
+async function onAccountCustomers(db: Db, companyId: string, records: Array<{ id: string; invoice: unknown }>): Promise<Map<string, string>> {
+  const loose = records.filter((record) => !record.invoice).map((record) => record.id);
+  if (loose.length === 0) return new Map();
+  const lines = await db.paymentLedgerEntry.findMany({
+    where: { companyId, sourceType: "SALES_RECEIPT", sourceId: { in: loose }, partyId: { not: null } },
+    select: { sourceId: true, partyId: true },
+  });
+  const owner = new Map(lines.map((line) => [line.sourceId, line.partyId!]));
+  const unnamed = loose.filter((id) => !owner.has(id));
+  if (unnamed.length) {
+    const events = await db.platformAuditEvent.findMany({
+      where: { companyId, eventType: { in: ["books.invoice.voided", "books.invoice.deleted"] }, OR: unnamed.map((id) => ({ payloadJson: { contains: id } })) },
+      orderBy: { createdAt: "asc" },
+      select: { payloadJson: true },
+    });
+    for (const event of events) {
+      try {
+        const payload = JSON.parse(event.payloadJson ?? "{}") as { receiptsOnAccount?: Array<{ id?: string; customerId?: string }>; invoice?: { customerId?: string } };
+        for (const receipt of payload.receiptsOnAccount ?? []) {
+          const customerId = receipt.customerId ?? payload.invoice?.customerId;
+          if (receipt.id && customerId && unnamed.includes(receipt.id)) owner.set(receipt.id, customerId);
+        }
+      } catch {
+        // A payload that does not parse names nobody.
+      }
+    }
+  }
+  const customers = await db.customer.findMany({ where: { companyId, id: { in: [...new Set(owner.values())] } }, select: { id: true, name: true } });
+  const names = new Map(customers.map((customer) => [customer.id, customer.name]));
+  return new Map([...owner.entries()].flatMap(([receiptId, customerId]) => (names.has(customerId) ? [[receiptId, names.get(customerId)!] as const] : [])));
+}
 
 const midnight = (day: string) => new Date(`${day}T00:00:00.000Z`);
 
@@ -110,11 +149,11 @@ function methodLabel(method: string): string {
   return word.charAt(0).toUpperCase() + word.slice(1);
 }
 
-export function toPaymentRow(record: RowRecord): PaymentRow {
+export function toPaymentRow(record: RowRecord, onAccount: string | null = null): PaymentRow {
   return {
     id: record.id,
     number: record.receiptNumber,
-    customer: record.invoice?.customer.name ?? null,
+    customer: record.invoice?.customer.name ?? onAccount,
     invoice: record.invoice?.invoiceNumber ?? null,
     received: shortDay(storedDay(record.receivedAt)),
     method: methodLabel(record.method),
@@ -162,7 +201,8 @@ export async function readPayments(db: Db, companyId: string, query: PaymentQuer
       take: 10_000,
     }),
   ]);
-  const rows = records.map(toPaymentRow);
+  const owners = await onAccountCustomers(db, companyId, records);
+  const rows = records.map((record) => toPaymentRow(record, owners.get(record.id) ?? null));
   const from = matching === 0 ? 0 : (query.page - 1) * PAYMENTS_PAGE_SIZE + 1;
   const total = sumInMainCurrency(sums);
   const thisMonth = sumInMainCurrency(month);
@@ -189,8 +229,9 @@ export async function paymentsCsv(db: Db, companyId: string, query: PaymentQuery
     return /[",\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
   };
   const lines = [["Receipt", "Customer", "Invoice", "Received", "Method", "Currency", "Amount"].join(",")];
+  const owners = await onAccountCustomers(db, companyId, records);
   for (const record of records) {
-    const row = toPaymentRow(record);
+    const row = toPaymentRow(record, owners.get(record.id) ?? null);
     lines.push([row.number, row.customer ?? "", row.invoice ?? "", row.received, row.method, row.currency, row.amount.toFixed(2)].map(cell).join(","));
   }
   return `${lines.join("\n")}\n`;
