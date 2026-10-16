@@ -56,6 +56,22 @@ export const uploadPolicies = {
     maxBytes: 10 * MB,
     folder: "crm-intake-answers",
   },
+  // A document for the CRM's knowledge base (CRM → Knowledge): a price list,
+  // rate card, product sheet or terms, read so Vane answers and quotes from it.
+  // Internal, never sent to a client; the route names its type from its
+  // extension, since browsers disagree about spreadsheets.
+  "crm-knowledge": {
+    allowedTypes: [
+      "application/pdf",
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      "text/csv",
+      "text/plain",
+      "text/markdown",
+    ],
+    maxBytes: 20 * MB,
+    folder: "crm-knowledge",
+  },
   "crm-attachment": {
     allowedTypes: ["image/jpeg", "image/png", "image/webp", "application/pdf"],
     maxBytes: 10 * MB,

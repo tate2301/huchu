@@ -44,34 +44,50 @@ const ANYWHERE: Array<{ text: string; icon: IconName }> = [
   { text: "Get the month's close ready", icon: "calendar" },
 ];
 
-/** On one CRM record's page, the first thing to ask is about it. */
-const RECORD_PAGES: Array<[RegExp, string]> = [
-  [/^\/crm\/deals\/[^/]+$/, "What should I do next on this deal?"],
-  [/^\/crm\/leads\/[^/]+$/, "What should I do next with this lead?"],
-  [/^\/crm\/companies\/[^/]+$/, "What is open with this company?"],
-  [/^\/crm\/people\/[^/]+$/, "When did we last hear from this person?"],
-  [/^\/crm\/quotes\/[^/]+$/, "Check this quote before it goes"],
-  [/^\/reports\/(built\/|custom\/)?[^/]+$/, "What stands out in this report?"],
+/** On one record's page, the first things to ask are about it. */
+const RECORD_PAGES: Array<[RegExp, Array<{ text: string; icon: IconName }>]> = [
+  [
+    /^\/crm\/deals\/[^/]+$/,
+    [
+      { text: "What should I do next on this deal?", icon: "foryou" },
+      { text: "Draft a quote for this deal from our price list", icon: "docs" },
+    ],
+  ],
+  [
+    /^\/crm\/leads\/[^/]+$/,
+    [
+      { text: "What should I do next with this lead?", icon: "foryou" },
+      { text: "Draft a quote for this lead from our price list", icon: "docs" },
+    ],
+  ],
+  [/^\/crm\/companies\/[^/]+$/, [{ text: "What is open with this company?", icon: "foryou" }]],
+  [/^\/crm\/people\/[^/]+$/, [{ text: "When did we last hear from this person?", icon: "foryou" }]],
+  [/^\/crm\/quotes\/[^/]+$/, [{ text: "Check this quote before it goes", icon: "foryou" }]],
+  [/^\/crm\/knowledge\/[^/]+$/, [{ text: "What does this document say we charge?", icon: "docs" }]],
+  [/^\/crm\/knowledge$/, [{ text: "What do we charge for our most common jobs?", icon: "docs" }]],
+  [/^\/reports\/(built\/|custom\/)?[^/]+$/, [{ text: "What stands out in this report?", icon: "reports" }]],
 ];
 
-function recordSuggestion(path: string): VaneSuggestion | null {
+function recordSuggestions(path: string): VaneSuggestion[] {
   const found = RECORD_PAGES.find(([pattern]) => pattern.test(path));
-  return found ? { text: found[1], icon: path.startsWith("/reports") ? "reports" : "foryou", module: path.startsWith("/reports") ? "reports" : "crm" } : null;
+  const area = path.startsWith("/reports") ? "reports" : "crm";
+  return found ? found[1].map((row) => ({ ...row, module: area })) : [];
 }
 
 /**
- * What to ask next, always three: about the record on screen, then the first card,
+ * What to ask next, always three: about the record on screen (a deal's next step, then a quote
+ * from the price list), then the first card,
  * then from the module the person is in, then what any page can ask.
  */
 export function vaneSuggestions(cards: VaneCard[], pageModule: string | null, path: string | null = null): VaneSuggestion[] {
-  const record = path ? recordSuggestion(path) : null;
+  const record = path ? recordSuggestions(path) : [];
   const fromCards = cards.slice(0, 1).map<VaneSuggestion>((card) => ({
     text: `Help me with: ${card.headline.replace(/\.$/, "")}`,
     icon: card.kind === "issue" ? "issue" : "suggestion",
     module: card.module,
   }));
   const fromModule = (pageModule ? (MODULE_SUGGESTIONS[pageModule] ?? []) : []).map((row) => ({ ...row, module: pageModule }));
-  const all = [...(record ? [record] : []), ...fromCards, ...fromModule, ...ANYWHERE.map((row) => ({ ...row, module: null }))];
+  const all = [...record, ...fromCards, ...fromModule, ...ANYWHERE.map((row) => ({ ...row, module: null }))];
   return all.filter((row, index) => all.findIndex((other) => other.text === row.text) === index).slice(0, 3);
 }
 

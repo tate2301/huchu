@@ -75,8 +75,11 @@ describe("what Vane may read", () => {
     for (const line of missingFromMigration) expect(line).toMatch(/^(ALTER TABLE|CREATE POLICY|GRANT SELECT)/);
   });
 
-  it("is the sales rep's role the finishing migration ships: the CRM tables a visit and its quote need, each narrowed", () => {
-    const shipped = readFileSync(path.join(process.cwd(), "prisma/migrations/20261015100000_vane_finish/migration.sql"), "utf8");
+  it("is the sales rep's role the migrations ship: the CRM tables a visit and its quote need, each narrowed", () => {
+    // The rep's role as shipped: made in vane_finish, the knowledge base added in crm_knowledge.
+    const shipped = ["20261015100000_vane_finish", "20261016150000_crm_knowledge", "20261016160000_crm_knowledge_entries"]
+      .map((name) => readFileSync(path.join(process.cwd(), `prisma/migrations/${name}/migration.sql`), "utf8"))
+      .join("\n");
     const sql = repReaderSql(access);
     for (const line of sql.split("\n").filter((row) => row.trim())) expect(shipped).toContain(line);
     expect(sql.match(/CREATE POLICY "vane_rep" ON/g)).toHaveLength(Object.keys(REP_TABLES).length);

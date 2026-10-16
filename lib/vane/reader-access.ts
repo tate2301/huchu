@@ -321,6 +321,11 @@ export const REP_TABLES: Record<string, RepRule> = {
   CrmQuestionSet: "workspace",
   CrmQuestion: "workspace",
   Product: "workspace",
+  // The knowledge base: what a rep quotes from (CRM → Knowledge).
+  CrmKnowledgeDoc: "workspace",
+  CrmKnowledgeChunk: "workspace",
+  CrmKnowledgePrice: "workspace",
+  CrmKnowledgeEntry: "workspace",
 };
 
 /** The rep bound to a reader connection; null when it reads for the whole workspace. */

@@ -910,6 +910,8 @@ export const navSections: NavSection[] = [
       // own line in it: `/crm/reps/me` redirects to whoever is signed in.
       { href: "/crm/reps", icon: UserRound, label: "Team", group: "learn" },
       { href: "/crm/reps/me", icon: UserCheck, label: "My performance", group: "learn", rank: "own" },
+      // The price lists and documents Vane answers and quotes from. Everyone reads it; Settings people add to it.
+      { href: "/crm/knowledge", icon: MedusaBookOpenIcon, label: "Knowledge", group: "learn" },
 
       // Settings is the index for everything configured once — pipelines,
       // fields, sources, the site-visit questions — and Workflows for the
