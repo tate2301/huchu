@@ -1,5 +1,5 @@
 /**
- * Migration witness for `20261016090000_crm_knowledge`.
+ * Migration witness for `20261016150000_crm_knowledge`.
  *
  * A knowledge document, its passages and its prices go with the workspace and
  * with the document; passages and prices carry a full-text search column the

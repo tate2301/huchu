@@ -39,7 +39,7 @@ const readerColumns = async (table: string, role: string) => {
 describe("Vane's chat and its actions, as stored", () => {
   it("keeps each turn of a person's chat, with the job that answered it", async () => {
     const facts = await columns("VaneMessage");
-    // `readFrom` came with 20261014160000_vane_message_read, `blocks` with 20261016090000_crm_knowledge.
+    // `readFrom` came with 20261014160000_vane_message_read, `blocks` with 20261016150000_crm_knowledge.
     expect(Object.keys(facts).sort()).toEqual(["author", "blocks", "companyId", "createdAt", "id", "jobId", "readFrom", "text", "userId"]);
     expect(facts.jobId.is_nullable).toBe("YES");
     expect(await foreignKeys("VaneMessage")).toEqual([

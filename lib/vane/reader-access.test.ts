@@ -77,7 +77,7 @@ describe("what Vane may read", () => {
 
   it("is the sales rep's role the migrations ship: the CRM tables a visit and its quote need, each narrowed", () => {
     // The rep's role as shipped: made in vane_finish, the knowledge base added in crm_knowledge.
-    const shipped = ["20261015100000_vane_finish", "20261016090000_crm_knowledge"]
+    const shipped = ["20261015100000_vane_finish", "20261016150000_crm_knowledge", "20261016160000_crm_knowledge_entries"]
       .map((name) => readFileSync(path.join(process.cwd(), `prisma/migrations/${name}/migration.sql`), "utf8"))
       .join("\n");
     const sql = repReaderSql(access);

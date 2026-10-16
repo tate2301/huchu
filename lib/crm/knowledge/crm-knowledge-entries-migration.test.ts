@@ -1,5 +1,5 @@
 /**
- * Migration witness for `20261016100000_crm_knowledge_entries`.
+ * Migration witness for `20261016160000_crm_knowledge_entries`.
  *
  * An FAQ, fact or tip goes with the workspace, outlives the document it came
  * from and the person who wrote it, carries a full-text search column the
