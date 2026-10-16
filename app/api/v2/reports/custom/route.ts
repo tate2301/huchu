@@ -2,11 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
 import { errorResponse, successResponse, validateSession } from "@/lib/api-utils";
+import { offeredTemplate } from "@/lib/library/reports";
 import { reportCatalog, reportMeta } from "@/lib/reports/catalog";
 import { customReportInputSchema, documentFromReport, starterDocument } from "@/lib/reports/custom/document";
 import { readableSources, readerOf } from "@/lib/reports/custom/sources";
 import { createCustomReport, FolderRefused, listCustomReports, readCustomReport, ShareRefused } from "@/lib/reports/custom/store";
-import { customTemplate, templatesFor } from "@/lib/reports/custom/templates";
 import { readReportSetting } from "@/lib/reports/settings";
 
 /**
@@ -19,7 +19,8 @@ const createSchema = z.union([
   z.object({
     title: z.string().trim().min(1).max(120).optional(),
     fromReport: z.string().min(1).max(64).optional(),
-    fromTemplate: z.string().min(1).max(64).optional(),
+    /** A built-in custom report's key: one in code, or one from Corelith's library (`library:<key>` to say so). */
+    fromTemplate: z.string().min(1).max(80).optional(),
     copyOf: z.string().uuid().optional(),
   }),
 ]);
@@ -65,9 +66,9 @@ export async function POST(request: NextRequest) {
     const sources = await readableSources(session);
     if (fromTemplate) {
       // Only a built-in this person is offered: its audience includes them and they read every source it reads.
-      const template = customTemplate(fromTemplate);
-      const offered = templatesFor(sources, { id: session.user.id, role: session.user.role }, null);
-      if (!template || !offered.some((entry) => entry.key === template.key)) return errorResponse("Template not found", 404);
+      // The copy is theirs: a library report changed or retired later leaves it as it was copied.
+      const template = await offeredTemplate(session, sources, fromTemplate);
+      if (!template) return errorResponse("Template not found", 404);
       const report = await createCustomReport(reader, {
         title: title ?? template.title,
         description: template.description,

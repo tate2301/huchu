@@ -1,26 +1,24 @@
 import { notFound } from "next/navigation";
+import { Suspense } from "react";
 
-import { AuditView } from "@/components/admin/audit/audit-view";
+import { AdminList } from "@/components/admin/lists/admin-list";
+import { AdminPage, AdminPageHeader } from "@/components/admin/page-header";
 import { findWorkspace } from "@/lib/admin/workspaces";
 
-export default async function WorkspaceAuditPage({
-  params,
-  searchParams,
-}: {
-  params: Promise<{ slug: string }>;
-  searchParams: Promise<{ tab?: string; before?: string }>;
-}) {
-  const [{ slug }, { tab, before }] = await Promise.all([params, searchParams]);
+export default async function WorkspaceAuditPage({ params }: { params: Promise<{ slug: string }> }) {
+  const { slug } = await params;
   const workspace = await findWorkspace(slug);
   if (!workspace) notFound();
   return (
-    <AuditView
-      basePath={`/admin/w/${slug}/audit`}
-      companyId={workspace.id}
-      tab={tab}
-      before={before}
-      description={`What happened in ${workspace.name}, by its members and by Corelith staff, newest first.`}
-    />
+    <AdminPage>
+      <AdminPageHeader title="Audit log" />
+      <p className="-mt-2 mb-3 t-body-sm text-[var(--text-muted)]">
+        What happened in {workspace.name}, by its members and by Corelith staff, newest first.
+      </p>
+      <Suspense>
+        <AdminList source="admin-workspace-audit" title="Audit log" parent={{ key: "w", value: slug }} keepTitle />
+      </Suspense>
+    </AdminPage>
   );
 }
 

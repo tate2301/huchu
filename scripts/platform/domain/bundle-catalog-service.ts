@@ -1,6 +1,6 @@
 import { prisma } from "../prisma";
 import { appendAuditEvent } from "./audit-ledger";
-import { FEATURE_BUNDLES, FEATURE_CATALOG, getBundleDefinition } from "../../../lib/platform/feature-catalog";
+import { FEATURE_BUNDLES, FEATURE_CATALOG } from "../../../lib/platform/feature-catalog";
 import type {
   BundleCatalogSummary,
   SetBundleFeaturesInput,
@@ -22,32 +22,10 @@ function normalizeFeatureKey(value: string): string {
   return String(value || "").trim().toLowerCase();
 }
 
-function money(value: unknown): number {
-  const parsed = Number(value ?? 0);
-  if (!Number.isFinite(parsed)) return 0;
-  return Math.max(0, parsed);
-}
-
-function resolveMonthlyPrice(bundleCode: string, value: unknown): number {
-  const normalized = money(value);
-  if (normalized > 0) return normalized;
-  const fallback = getBundleDefinition(bundleCode);
-  return money(fallback?.monthlyPrice ?? 0);
-}
-
-function resolveAdditionalSiteMonthlyPrice(bundleCode: string, value: unknown): number {
-  const normalized = money(value);
-  if (normalized > 0) return normalized;
-  const fallback = getBundleDefinition(bundleCode);
-  return money(fallback?.additionalSiteMonthlyPrice ?? 0);
-}
-
 function mapBundleSummary(row: {
   code: string;
   name: string;
   description: string | null;
-  monthlyPrice: number;
-  additionalSiteMonthlyPrice: number;
   isActive: boolean;
   items: Array<{ feature: { key: string } }>;
 }): BundleCatalogSummary {
@@ -58,8 +36,6 @@ function mapBundleSummary(row: {
     code: row.code,
     name: systemBundle?.name ?? row.name,
     description: systemBundle?.description ?? row.description ?? null,
-    monthlyPrice: systemBundle?.monthlyPrice ?? resolveMonthlyPrice(row.code, row.monthlyPrice),
-    additionalSiteMonthlyPrice: systemBundle?.additionalSiteMonthlyPrice ?? resolveAdditionalSiteMonthlyPrice(row.code, row.additionalSiteMonthlyPrice),
     isActive: systemBundle ? true : row.isActive,
     featureKeys,
     source,
@@ -71,8 +47,6 @@ function mapSystemBundleSummary(bundle: (typeof FEATURE_BUNDLES)[number]): Bundl
     code: bundle.code,
     name: bundle.name,
     description: bundle.description,
-    monthlyPrice: bundle.monthlyPrice,
-    additionalSiteMonthlyPrice: bundle.additionalSiteMonthlyPrice,
     isActive: true,
     featureKeys: bundle.features.slice().sort(),
     source: "SYSTEM",
@@ -137,26 +111,17 @@ export async function upsertBundleCatalog(input: UpsertBundleCatalogInput): Prom
   const name = String(input.name || "").trim();
   if (!name) throw new Error("Bundle name is required.");
 
-  const monthlyPrice = money(input.monthlyPrice ?? 0);
-  const additionalSiteMonthlyPrice = input.additionalSiteMonthlyPrice === undefined
-    ? undefined
-    : money(input.additionalSiteMonthlyPrice);
-  const fallbackAdditionalSiteMonthlyPrice = money(getBundleDefinition(code)?.additionalSiteMonthlyPrice ?? 0);
   const saved = await prisma.featureBundle.upsert({
     where: { code },
     update: {
       name,
       description: input.description ? String(input.description).trim() : null,
-      monthlyPrice,
-      ...(additionalSiteMonthlyPrice === undefined ? {} : { additionalSiteMonthlyPrice }),
       isActive: input.isActive ?? true,
     },
     create: {
       code,
       name,
       description: input.description ? String(input.description).trim() : null,
-      monthlyPrice,
-      additionalSiteMonthlyPrice: additionalSiteMonthlyPrice ?? fallbackAdditionalSiteMonthlyPrice,
       isActive: input.isActive ?? true,
     },
     include: {
@@ -202,8 +167,6 @@ export async function setBundleFeatures(input: SetBundleFeaturesInput): Promise<
           description: catalog?.description ?? `Feature flag for ${featureKey}`,
           domain: catalog?.domain ?? null,
           defaultEnabled: catalog?.defaultEnabled ?? false,
-          isBillable: catalog?.isBillable ?? false,
-          monthlyPrice: catalog?.monthlyPrice ?? null,
           isActive: true,
         },
         create: {
@@ -212,8 +175,6 @@ export async function setBundleFeatures(input: SetBundleFeaturesInput): Promise<
           description: catalog?.description ?? `Feature flag for ${featureKey}`,
           domain: catalog?.domain ?? null,
           defaultEnabled: catalog?.defaultEnabled ?? false,
-          isBillable: catalog?.isBillable ?? false,
-          monthlyPrice: catalog?.monthlyPrice ?? null,
           isActive: true,
         },
         select: { id: true },

@@ -143,7 +143,8 @@ export async function changeOperatorRole(owner: SignedInOperator, operatorId: st
   return operator;
 }
 
-export async function removeOperator(owner: SignedInOperator, operatorId: string, now = new Date()) {
+/** `reason`, when given, is kept on the audit line beside who removed them. */
+export async function removeOperator(owner: SignedInOperator, operatorId: string, now = new Date(), reason?: string) {
   const operator = await others(operatorId, owner);
   if (operator.role === "OWNER" && (await ownersLeft(operator.id)) === 0) throw new AdminRefusal("The portal needs at least one owner.");
   await prisma.operator.update({ where: { id: operator.id }, data: { deactivatedAt: now, inviteTokenHash: null, inviteExpiresAt: null } });
@@ -152,7 +153,14 @@ export async function removeOperator(owner: SignedInOperator, operatorId: string
     where: { operatorId: operator.id, endedAt: null, expiresAt: { gt: now } },
     data: { endedAt: now, endedBy: "OPERATOR" },
   });
-  await recordOperatorEvent({ operatorId: owner.id, eventType: "operator.removed", entityType: "operator", entityId: operator.id, payload: { name: operator.name } });
+  await recordOperatorEvent({
+    operatorId: owner.id,
+    eventType: "operator.removed",
+    entityType: "operator",
+    entityId: operator.id,
+    ...(reason?.trim() ? { reason: reason.trim() } : {}),
+    payload: { name: operator.name },
+  });
   return operator;
 }
 

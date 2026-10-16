@@ -33,7 +33,6 @@ export type PaymentRow = {
   createdAt: Date;
   paidAt: Date | null;
   company: { slug: string; name: string };
-  subscription: { plan: { name: string } } | null;
 };
 
 export type SettlePayment = (paymentId: string, verdict: "PAID" | "FAILED", reason: string) => Promise<ActionResult>;
@@ -41,8 +40,7 @@ export type SettlePayment = (paymentId: string, verdict: "PAID" | "FAILED", reas
 const open = (row: PaymentRow) => row.status === "PENDING" || row.status === "INITIATED";
 
 function forWhat(row: PaymentRow) {
-  const months = `${row.periodMonths} ${row.periodMonths === 1 ? "month" : "months"}`;
-  return row.subscription ? `${row.subscription.plan.name}, ${months}` : months;
+  return `${row.periodMonths} ${row.periodMonths === 1 ? "month" : "months"}`;
 }
 
 /**

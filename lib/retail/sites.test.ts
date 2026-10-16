@@ -17,13 +17,12 @@ import {
   type SiteActor,
 } from "./sites";
 
-/** W-03 and W-66 against the test database: add a site, its places, the default, the plan's room, close it. */
+/** W-03 and W-66 against the test database: add a site, its places, the default, close it. */
 
 const stamp = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 let companyId: string;
 let otherCompanyId: string;
 let ownerId: string;
-let planId: string;
 let retailListId: string;
 let wholesaleListId: string;
 let mainId: string;
@@ -92,13 +91,6 @@ beforeAll(async () => {
       select: { id: true },
     })
   ).id;
-  planId = (
-    await prisma.subscriptionPlan.create({
-      data: { code: `TEST-GROW-${stamp}`, name: "Grow", monthlyPrice: 49, maxSites: 3 },
-      select: { id: true },
-    })
-  ).id;
-  await prisma.companySubscription.create({ data: { companyId, planId, status: "ACTIVE" } });
   retailListId = (
     await prisma.priceList.create({ data: { companyId, name: "Retail", kind: "RETAIL", taxInclusive: true }, select: { id: true } })
   ).id;
@@ -127,19 +119,16 @@ afterAll(async () => {
   await prisma.site.deleteMany({ where: { companyId: { in: ids } } });
   await prisma.productPrice.deleteMany({ where: { companyId: { in: ids } } });
   await prisma.priceList.deleteMany({ where: { companyId: { in: ids } } });
-  await prisma.companySubscription.deleteMany({ where: { companyId: { in: ids } } });
-  if (planId) await prisma.subscriptionPlan.delete({ where: { id: planId } });
   await prisma.user.deleteMany({ where: { companyId: { in: ids } } });
   await prisma.company.deleteMany({ where: { id: { in: ids } } });
 });
 
 describe("what Add a site is given", () => {
-  it("offers the price lists with the till's list first as the default, the plan's room and a code", async () => {
+  it("offers the price lists with the till's list first as the default, and a code", async () => {
     const context = await siteNewContext(companyId, "Avondale");
     expect(context.priceLists[0]).toMatchObject({ id: retailListId, name: "Retail", sub: "Default, 0 products" });
     expect(context.priceLists.map((option) => option.name)).toEqual(["Retail", "Wholesale"]);
     expect(context.defaultPriceListId).toBe(retailListId);
-    expect(context.plan).toEqual({ name: "Grow", maxSites: 3, openSites: 1 });
     expect(context.suggestedCode).toBe("AVO");
     expect(context.otherSites).toEqual([{ id: mainId, name: "Harare Main Branch" }]);
     expect((await priceListOptions(otherCompanyId)).options).toEqual([]);
@@ -200,12 +189,9 @@ describe("adding a site (W-03)", () => {
     expect(list).toMatchObject({ status: 400, opts: { field: "priceListId" } });
   });
 
-  it("stops at the plan's limit with the plan's sentence", async () => {
+  it("adds as many open sites as the shop needs", async () => {
     await createSite(actor(), input("Borrowdale", "BDL"));
-    expect((await siteNewContext(companyId)).plan).toEqual({ name: "Grow", maxSites: 3, openSites: 3 });
-    const full = await refusal(createSite(actor(), input("Mount Pleasant", "MTP")));
-    expect(full).toMatchObject({ status: 409, message: "Your Grow plan has no room for another site.", opts: { code: "PLAN_LIMIT" } });
-    expect(await prisma.site.count({ where: { companyId, name: "Mount Pleasant" } })).toBe(0);
+    expect(await prisma.site.count({ where: { companyId, isActive: true } })).toBe(3);
   });
 
   it("lists every open site with totals, and hides the value from someone who may not see cost", async () => {
@@ -377,7 +363,7 @@ describe("closing a site", () => {
     expect(await refusal(updateSite(actor(), borrowdale.id, { name: "Borrowdale Village" }))).toMatchObject({ status: 409 });
     expect((await events(borrowdale.id)).map((event) => event.eventType)).toContain("RETAIL_SITE.CLOSED");
 
-    // Its name is free for an open site again; the plan counts open sites only.
-    expect((await siteNewContext(companyId)).plan?.openSites).toBe(2);
+    // Stock no longer comes from it.
+    expect((await siteNewContext(companyId)).otherSites.map((site) => site.name)).not.toContain("Borrowdale");
   });
 });

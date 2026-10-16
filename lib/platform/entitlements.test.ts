@@ -7,8 +7,8 @@
  * — reported "135 features, 24 bundles" over empty tables and carried on. The
  * consequence surfaced a long way from the cause: `CompanySubscriptionAddon`
  * needs a `FeatureBundle` row to point at, so with none written a tenant could
- * not be granted a paid bundle, and `getCompanyFeatureMap` keeps every billable
- * feature off unless the tenant is entitled to it. A freshly provisioned school
+ * not be granted a bundle, and a feature that starts off stays off until a
+ * bundle or a flag turns it on. A freshly provisioned school
  * answered `403 FEATURE_DISABLED` on its own pages.
  *
  * So the assertions here are deliberately about rows, not return values. A sync
@@ -151,25 +151,20 @@ describe("grantBundleToCompany", () => {
     ).rejects.toThrow(/Unknown feature bundle/);
   });
 
-  it("turns a billable module on, which a feature flag alone cannot do", async () => {
-    // The distinction this test exists for: entitlement and enablement are
-    // separate records, and a flag without the addon is silently overridden
-    // because `schools.*` is billable.
+  it("lets a flag switched on by hand stand, and a bundle turn a whole module on", async () => {
+    // Features carry no charge of their own, so an explicit flag is obeyed
+    // whatever the feature is.
     const schoolsFeature = await prisma.platformFeature.findUnique({
       where: { key: "schools.students" },
-      select: { id: true, isBillable: true },
+      select: { id: true, defaultEnabled: true },
     });
-    expect(schoolsFeature?.isBillable, "schools.students must be billable for this test to mean anything").toBe(true);
+    expect(schoolsFeature?.defaultEnabled, "schools.students must start off for this test to mean anything").toBe(false);
+    expect((await getCompanyFeatureMap(companyId))["schools.students"], "it starts off").toBe(false);
 
     await prisma.companyFeatureFlag.create({
       data: { companyId, featureId: schoolsFeature!.id, isEnabled: true },
     });
-
-    const withFlagOnly = await getCompanyFeatureMap(companyId);
-    expect(
-      withFlagOnly["schools.students"],
-      "a flag on an unentitled billable feature must not enable it",
-    ).toBe(false);
+    expect((await getCompanyFeatureMap(companyId))["schools.students"], "an explicit flag switches it on").toBe(true);
 
     await grantBundleToCompany({ companyId, bundleCode: SCHOOLS_BUNDLE, reason: "test" });
 

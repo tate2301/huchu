@@ -1,22 +1,24 @@
 import { randomUUID } from "node:crypto";
 
+import type { SubscriptionStatus } from "@prisma/client";
+
+import { SUBSCRIPTION_STATUS_LABEL, SUBSCRIPTION_STATUSES } from "@/lib/admin/billing-words";
 import { MANUAL_METHODS } from "@/lib/admin/payment-words";
 import { AdminRefusal } from "@/lib/admin/refusal";
 import { recordOperatorEvent, operatorActor } from "@/lib/operators/audit";
 import type { SignedInOperator } from "@/lib/operators/guards";
 import { applyPaymentResult, recordPayment } from "@/lib/payments/service";
 import { PAYMENT_STATUS } from "@/lib/payments/types";
-import { computeCompanyPricing, recomputeAndPersistCompanyPricing } from "@/lib/platform/entitlements";
-import { BUNDLE_DEPENDENCIES, FEATURE_BUNDLES, getTierDefinition, TIERS } from "@/lib/platform/feature-catalog";
-import { ensureTierPlan } from "@/lib/platform/provision";
+import { computeCompanyPricing } from "@/lib/platform/entitlements";
 import { prisma } from "@/lib/prisma";
 
 /**
- * A workspace's plan and money, for operators with the billing role.
+ * A workspace's price and money, for operators with the billing role.
  *
- * The catalogue (`feature-catalog.ts`) is the source of truth for tiers, add-ons
- * and prices; money moves only through `lib/payments/service`, so a payment an
- * operator records extends a subscription exactly as a gateway's would, once.
+ * The price is its verticals at the rate its member count sets
+ * (`lib/platform/verticals.ts`, priced by `computeCompanyPricing`); money moves
+ * only through `lib/payments/service`, so a payment an operator records extends
+ * a subscription exactly as a gateway's would, once.
  */
 
 type Workspace = { id: string; name: string };
@@ -27,33 +29,66 @@ async function latestSubscription(companyId: string) {
   return prisma.companySubscription.findFirst({
     where: { companyId },
     orderBy: { updatedAt: "desc" },
-    include: { plan: { select: { code: true, name: true, monthlyPrice: true } } },
+    select: {
+      id: true,
+      status: true,
+      startedAt: true,
+      trialEndsAt: true,
+      currentPeriodStart: true,
+      currentPeriodEnd: true,
+      canceledAt: true,
+      effectiveMonthlyAmount: true,
+    },
   });
 }
 
+/** What the workspace pays and why, and the subscription it pays through. */
 export async function billingFacts(companyId: string) {
-  const [subscription, addons, pricing] = await Promise.all([
-    latestSubscription(companyId),
-    prisma.companySubscriptionAddon.findMany({
-      where: { companyId },
-      select: { isEnabled: true, bundle: { select: { code: true } } },
-    }),
-    computeCompanyPricing(companyId),
-  ]);
-  const tier = getTierDefinition(subscription?.plan.code);
-  const enabled = new Set(addons.filter((addon) => addon.isEnabled).map((addon) => addon.bundle.code));
-  return {
-    subscription,
-    tiers: TIERS.map((candidate) => ({ code: candidate.code, name: candidate.name, monthlyPrice: candidate.monthlyPrice })),
-    addOns: FEATURE_BUNDLES.map((bundle) => ({
-      code: bundle.code,
-      name: bundle.name,
-      description: bundle.description,
-      monthlyPrice: bundle.monthlyPrice,
-      state: tier?.includedBundles.includes(bundle.code) ? ("Included" as const) : enabled.has(bundle.code) ? ("On" as const) : ("Off" as const),
-    })),
-    monthlyTotal: pricing.totalAmount,
-  };
+  const [subscription, pricing] = await Promise.all([latestSubscription(companyId), computeCompanyPricing(companyId)]);
+  return { subscription, pricing };
+}
+
+/**
+ * Put a subscription in a status by hand: a customer who cancelled on the
+ * phone, a trial agreed as paid, an arrangement that ran out. Cancelled and
+ * expired make the workspace read-only (`readStanding`). A reason is required
+ * and lands in the workspace's audit log.
+ */
+export async function setSubscriptionStatus(
+  operator: SignedInOperator,
+  workspace: Workspace,
+  status: SubscriptionStatus,
+  reason: string,
+  now = new Date(),
+) {
+  if (!(SUBSCRIPTION_STATUSES as readonly string[]).includes(status)) throw new AdminRefusal("Choose a status.");
+  const why = reason.trim();
+  if (why.length < 3) throw new AdminRefusal("Say why, for the workspace's record.");
+  const subscription = await latestSubscription(workspace.id);
+  if (!subscription) throw new AdminRefusal(`${workspace.name} has no subscription.`);
+  if (subscription.status === status) throw new AdminRefusal(`${workspace.name} is ${SUBSCRIPTION_STATUS_LABEL[status].toLowerCase()} already.`);
+  const ending = status === "CANCELED" || status === "EXPIRED";
+  await prisma.$transaction(async (tx) => {
+    await tx.companySubscription.update({
+      where: { id: subscription.id },
+      data: {
+        status,
+        canceledAt: status === "CANCELED" ? now : ending ? subscription.canceledAt : null,
+        endedAt: ending ? now : null,
+      },
+    });
+    await recordOperatorEvent(
+      {
+        operatorId: operator.id,
+        companyId: workspace.id,
+        eventType: "operator.billing.status_set",
+        entityType: "subscription",
+        entityId: subscription.id,
+        payload: { from: subscription.status, to: status, reason: why },
+      },
+      tx,
+    );
+  });
 }
 
 export async function extendTrial(operator: SignedInOperator, workspace: Workspace, days: number, now = new Date()) {
@@ -79,65 +114,6 @@ export async function extendTrial(operator: SignedInOperator, workspace: Workspa
   return until;
 }
 
-export async function changePlan(operator: SignedInOperator, workspace: Workspace, tierCode: string) {
-  const tier = getTierDefinition(tierCode);
-  if (!tier) throw new AdminRefusal("That plan is not in the catalogue.");
-  const subscription = await latestSubscription(workspace.id);
-  if (!subscription) throw new AdminRefusal(`${workspace.name} has no subscription to change.`);
-  if (subscription.plan.code === tier.code) return tier;
-  const plan = await ensureTierPlan(tier.code);
-  await prisma.$transaction(async (tx) => {
-    await tx.companySubscription.update({ where: { id: subscription.id }, data: { planId: plan.id } });
-    await recordOperatorEvent(
-      {
-        operatorId: operator.id,
-        companyId: workspace.id,
-        eventType: "operator.billing.plan_changed",
-        entityType: "subscription",
-        entityId: subscription.id,
-        payload: { from: subscription.plan.name, to: tier.name },
-      },
-      tx,
-    );
-  });
-  await recomputeAndPersistCompanyPricing(workspace.id);
-  return tier;
-}
-
-export async function setAddOn(operator: SignedInOperator, workspace: Workspace, bundleCode: string, on: boolean) {
-  const bundle = FEATURE_BUNDLES.find((candidate) => candidate.code === bundleCode);
-  if (!bundle) throw new AdminRefusal("That add-on is not in the catalogue.");
-  // An add-on brings the add-ons it needs; turning one off leaves them, since
-  // something else may need them too.
-  const codes = on ? [bundle.code, ...(BUNDLE_DEPENDENCIES[bundle.code] ?? [])] : [bundle.code];
-  const rows = await prisma.featureBundle.findMany({ where: { code: { in: codes } }, select: { id: true, code: true } });
-  if (!rows.some((row) => row.code === bundle.code)) {
-    throw new AdminRefusal(`${bundle.name} is not set up in this database yet. Run the catalogue sync.`);
-  }
-  await prisma.$transaction(async (tx) => {
-    for (const row of rows) {
-      const reason = row.code === bundle.code ? `Turned ${on ? "on" : "off"} by ${operator.name}` : `Needed by ${bundle.name}`;
-      await tx.companySubscriptionAddon.upsert({
-        where: { companyId_bundleId: { companyId: workspace.id, bundleId: row.id } },
-        update: { isEnabled: on, reason },
-        create: { companyId: workspace.id, bundleId: row.id, isEnabled: on, reason },
-      });
-    }
-    await recordOperatorEvent(
-      {
-        operatorId: operator.id,
-        companyId: workspace.id,
-        eventType: on ? "operator.billing.addon_on" : "operator.billing.addon_off",
-        entityType: "addon",
-        entityId: bundle.code,
-        payload: { addOn: bundle.name },
-      },
-      tx,
-    );
-  });
-  await recomputeAndPersistCompanyPricing(workspace.id);
-}
-
 /**
  * Money a customer sent outside a gateway — a mobile-money transfer they sent
  * proof of, a bank transfer, cash. Recorded and applied through the payments
@@ -158,7 +134,7 @@ export async function recordManualPayment(
   // Money is typed by hand. A figure far beyond what the workspace pays for
   // the months chosen is far more often a slip than a payment.
   const pricing = await computeCompanyPricing(workspace.id);
-  const expected = pricing.totalAmount * input.periodMonths;
+  const expected = pricing.total * input.periodMonths;
   if (expected > 0 && input.amount > expected * 3) {
     throw new AdminRefusal(
       `${workspace.name} pays $${expected.toFixed(2)} for ${input.periodMonths} ${input.periodMonths === 1 ? "month" : "months"}. Check the amount.`,
@@ -239,7 +215,6 @@ export async function listPayments(where: { companyId?: string; statuses?: strin
       failureReason: true,
       createdAt: true,
       company: { select: { slug: true, name: true } },
-      subscription: { select: { plan: { select: { name: true } } } },
     },
   });
 }

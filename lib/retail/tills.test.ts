@@ -21,13 +21,12 @@ import {
 } from "./tills";
 import type { RetailAuditActor } from "./audit";
 
-/** W-04 and W-76 from the back office, against the test database, on a shop with the Grow plan (8 paired tills). */
+/** W-04 and W-76 from the back office, against the test database. */
 
 const stamp = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 let companyId: string;
 let otherCompanyId: string;
 let ownerId: string;
-let planId: string;
 let mainId: string;
 let borrowdaleId: string;
 
@@ -108,13 +107,6 @@ beforeAll(async () => {
       select: { id: true },
     })
   ).id;
-  planId = (
-    await prisma.subscriptionPlan.create({
-      data: { code: `TEST-GROW-${stamp}`, name: "Grow", monthlyPrice: 49, maxSites: 3, maxTills: 8 },
-      select: { id: true },
-    })
-  ).id;
-  await prisma.companySubscription.create({ data: { companyId, planId, status: "ACTIVE" } });
   const retail = await prisma.priceList.create({ data: { companyId, name: "Retail", isDefault: true }, select: { id: true } });
   await prisma.priceList.create({ data: { companyId, name: "Wholesale" } });
   mainId = (
@@ -135,8 +127,6 @@ afterAll(async () => {
   await prisma.platformAuditEvent.deleteMany({ where: { companyId: { in: ids } } });
   await prisma.site.deleteMany({ where: { companyId: { in: ids } } });
   await prisma.priceList.deleteMany({ where: { companyId: { in: ids } } });
-  await prisma.companySubscription.deleteMany({ where: { companyId: { in: ids } } });
-  if (planId) await prisma.subscriptionPlan.delete({ where: { id: planId } });
   await prisma.user.deleteMany({ where: { companyId: { in: ids } } });
   await prisma.company.deleteMany({ where: { id: { in: ids } } });
 });
@@ -225,24 +215,15 @@ describe("Pair a till (W-04)", () => {
   });
 });
 
-describe("the plan's till limit (C-07), on Grow", () => {
-  it("refuses a ninth paired till, before it is made or a code issued, and still lets a paired till swap its device", async () => {
+describe("how many tills", () => {
+  it("pairs as many tills as the shop needs", async () => {
     const paired = await prisma.retailDevice.count({ where: { companyId, unpairedAt: null } });
-    const extra: Array<{ id: string }> = [];
-    for (let n = paired; n < 8; n += 1) extra.push(await pairedTill(`Paired ${n}`));
+    for (let n = paired; n < 8; n += 1) await pairedTill(`Paired ${n}`);
     expect(await prisma.retailDevice.count({ where: { companyId, unpairedAt: null } })).toBe(8);
 
-    const tills = await prisma.retailRegister.count({ where: { companyId } });
-    const ninth = await refusal(createTill(actor(), { name: "Ninth", deviceKind: "COUNTER_MINI" }));
-    expect(ninth).toMatchObject({ status: 409, message: "Your Grow plan has 8 tills, all paired.", opts: { code: "PLAN_LIMIT" } });
-    expect(await prisma.retailRegister.count({ where: { companyId } })).toBe(tills);
-
+    const ninth = await createTill(actor(), { name: "Ninth", deviceKind: "COUNTER_MINI" });
+    expect(ninth.code).toMatch(/^\d{6}$/);
     const unpaired = await prisma.retailRegister.create({ data: { companyId, siteId: mainId, code: `T-none-${stamp}`, name: "No device" } });
-    expect(await refusal(issueTillCode(actor(), unpaired.id, "PAIR"))).toMatchObject({ opts: { code: "PLAN_LIMIT" } });
-    expect((await issueTillCode(actor(), extra[0]!.id, "REPLACE")).code).toMatch(/^\d{6}$/);
-
-    // One unpaired makes room again.
-    await unpairTill(actor(), extra[0]!.id);
     expect((await issueTillCode(actor(), unpaired.id, "PAIR")).code).toMatch(/^\d{6}$/);
   });
 });

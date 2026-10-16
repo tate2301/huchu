@@ -30,9 +30,9 @@ export async function GET(request: NextRequest) {
 
 /**
  * Pair a till (W-04 step 1): makes the till (name suggested unless given, the
- * default site unless given) and its first pairing code. 409 PLAN_LIMIT when
- * every till the plan allows is paired. `retail.tills:create` (Owner,
- * Manager). 201 `{ data: TillDetail, code, expiresAt }`.
+ * default site unless given) and its first pairing code.
+ * `retail.tills:create` (Owner, Manager). 201 `{ data: TillDetail, code,
+ * expiresAt }`.
  */
 export async function POST(request: NextRequest) {
   const { response, session } = await requireRetailSession(request);

@@ -121,6 +121,7 @@ export function StudioView({
   onRerun,
   noun,
   sort,
+  templatesHref = "/explore/templates",
 }: {
   title: string;
   sql: string;
@@ -129,7 +130,8 @@ export function StudioView({
   checked: CheckedQuestion | null;
   steps: Step[];
   periodStart: string;
-  ask: { text: string; mode: AskMode; asking: boolean; canChange: boolean; onText: (text: string) => void; onMode: (mode: AskMode) => void; onAsk: () => void };
+  /** Ask in plain words; left out where there is no Vane to ask (the portal's library). */
+  ask: { text: string; mode: AskMode; asking: boolean; canChange: boolean; onText: (text: string) => void; onMode: (mode: AskMode) => void; onAsk: () => void } | null;
   note: StudioNote | null;
   result: QuestionResult | null;
   running: boolean;
@@ -137,41 +139,45 @@ export function StudioView({
   onRerun: () => void;
   noun?: string;
   sort?: { key: string; dir: "asc" | "desc" } | null;
+  /** Where "Start from a template" goes from an empty question; null offers none. */
+  templatesHref?: string | null;
 }) {
   const refusal = checked && !checked.ok && checked.refusal.kind !== "problem" ? checked.refusal : null;
   const problem = checked && !checked.ok ? checked.problem : null;
   return (
     <>
-      <form
-        className="ex-ask"
-        onSubmit={(event) => {
-          event.preventDefault();
-          ask.onAsk();
-        }}
-      >
-        <VaneMark size={20} />
-        <label className="input-wrap">
-          <Icon name="search" />
-          <input
-            aria-label="Ask in plain words"
-            placeholder="Ask in plain words: site visits since 1 September whose quote isn't accepted"
-            value={ask.text}
-            onChange={(event) => ask.onText(event.target.value)}
+      {ask ? (
+        <form
+          className="ex-ask"
+          onSubmit={(event) => {
+            event.preventDefault();
+            ask.onAsk();
+          }}
+        >
+          <VaneMark size={20} />
+          <label className="input-wrap">
+            <Icon name="search" />
+            <input
+              aria-label="Ask in plain words"
+              placeholder="Ask in plain words: site visits since 1 September whose quote isn't accepted"
+              value={ask.text}
+              onChange={(event) => ask.onText(event.target.value)}
+            />
+          </label>
+          <Segmented
+            label="This asks"
+            value={ask.mode}
+            onChange={(mode) => ask.onMode(mode)}
+            items={[
+              { value: "new", label: "New question" },
+              { value: "change", label: "Change this" },
+            ]}
           />
-        </label>
-        <Segmented
-          label="This asks"
-          value={ask.mode}
-          onChange={(mode) => ask.onMode(mode)}
-          items={[
-            { value: "new", label: "New question" },
-            { value: "change", label: "Change this" },
-          ]}
-        />
-        <Button type="submit" icon="sendq" busy={ask.asking} disabled={ask.asking || ask.text.trim().length < 3}>
-          Ask
-        </Button>
-      </form>
+          <Button type="submit" icon="sendq" busy={ask.asking} disabled={ask.asking || ask.text.trim().length < 3}>
+            Ask
+          </Button>
+        </form>
+      ) : null}
       <div className="ex-edit">
         <div className="ex-steps">
           <div className="ex-h">
@@ -228,9 +234,11 @@ export function StudioView({
           <Icon name="explore" className="glyph" />
           <h2>Ask a question, or start from a table</h2>
           <p>Questions read the tables your role reads, in this workspace, and change nothing.</p>
-          <ButtonLink href="/explore/templates" icon="list">
-            Start from a template
-          </ButtonLink>
+          {templatesHref ? (
+            <ButtonLink href={templatesHref} icon="list">
+              Start from a template
+            </ButtonLink>
+          ) : null}
         </div>
       ) : error ? (
         <div className="empty" style={{ padding: "var(--space-48) var(--space-24)" }}>

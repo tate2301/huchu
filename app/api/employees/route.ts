@@ -10,6 +10,7 @@ import {
 import { hrPermissionDenial } from "@/lib/hr/permissions"
 import { toNumberOrZero } from "@/lib/money"
 import { prisma } from "@/lib/prisma"
+import { repriceCompany } from "@/lib/platform/entitlements"
 import { z } from "zod"
 import { ensureApproverRole } from "@/lib/workflow/approvals"
 import {
@@ -639,6 +640,7 @@ export async function POST(request: NextRequest) {
         },
       }
     })
+    if (result.linkedUserId) await repriceCompany(session.user.companyId)
 
     return successResponse(result, 201)
   } catch (error) {

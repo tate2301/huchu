@@ -44,4 +44,6 @@ jobs:
           path: node_modules/.pnpm/@prisma+client@*/node_modules/.prisma
           key: prisma-client-${{ hashFiles('prisma/schema.prisma', 'prisma.config.ts', 'pnpm-lock.yaml') }}
       - run: node scripts/prisma-generate-if-changed.mjs
+      # tsc needs about 6.5 GB on this tree (measured 15 Oct 2026); the script
+      # gives it 10 GB of the runner's 16.
       - run: pnpm run typecheck

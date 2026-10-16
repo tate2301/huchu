@@ -115,7 +115,7 @@ export function listContext(session: AuthenticatedSession, now = new Date()): Li
     userId: session.user.id,
     now,
     timeZone: DEFAULT_TIME_ZONE,
-    can: ([resource, action]) => canRetailSessionDo(session, resource, action),
+    can: (grant) => grant[0] !== "admin" && canRetailSessionDo(session, grant[0], grant[1]),
     seeCost: canSeeRetailCostPrice(retailRoleKey(session)),
   };
 }

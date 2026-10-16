@@ -62,7 +62,9 @@ describe("keeping operators", () => {
     await changeOperatorRole(owner, operator.id, "OWNER");
     expect((await prisma.operator.findUniqueOrThrow({ where: { id: operator.id } })).role).toBe("OWNER");
     await expect(removeOperator(owner, owner.id)).rejects.toThrow(/another owner/);
-    await removeOperator(owner, operator.id);
+    await removeOperator(owner, operator.id, new Date(), "Left Corelith");
     expect((await listOperators()).find((row) => row.id === operator.id)?.state).toBe("Removed");
+    const line = await prisma.platformAuditEvent.findFirstOrThrow({ where: { eventType: "operator.removed", entityId: operator.id } });
+    expect(line.reason).toBe("Left Corelith");
   });
 });

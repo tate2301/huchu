@@ -83,6 +83,8 @@ model Company {
   contractEnforcementEvents     ContractEnforcementEvent[]
   auditLedgerEvents             PlatformAuditEvent[]
   subscriptionAddons            CompanySubscriptionAddon[]
+  verticals                     CompanyVertical[]
+  libraryItems                  LibraryItemWorkspace[]
   subscriptionPayments          SubscriptionPayment[]
   accountingSettings            AccountingSettings?
   chartOfAccounts               ChartOfAccount[]
@@ -426,6 +428,31 @@ enum WorkspaceProduct {
   FLARE
 }
 
+/// A line of business a workspace pays for, one monthly charge each
+/// (`lib/platform/verticals.ts`): the rate is the same for every vertical and
+/// steps up once the workspace has more members than the rate includes.
+enum Vertical {
+  GOLD
+  SCHOOLS
+  RETAIL
+  CRM
+  WORKSHOP
+  PAYROLL
+  GENERAL
+}
+
+/// One vertical a workspace has. Adding one turns its features on and adds a
+/// charge; removing one takes the charge away and leaves the data.
+model CompanyVertical {
+  id        String   @id @default(uuid())
+  companyId String
+  vertical  Vertical
+  addedAt   DateTime @default(now())
+  company   Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, vertical])
+}
+
 enum EmailCodePurpose {
   SIGNUP
   SIGN_IN
@@ -539,13 +566,7 @@ model SubscriptionPlan {
   code         String   @unique
   name         String
   description  String?
-  monthlyPrice Float
-  annualPrice  Float?
   currency     String   @default("USD")
-  maxSites     Int?
-  maxUsers     Int?
-  /// Paired tills the plan allows (SET-03). Null = any number.
-  maxTills     Int?
   warningDays  Int      @default(14)
   graceDays    Int      @default(7)
   isActive     Boolean  @default(true)
@@ -591,8 +612,6 @@ model PlatformFeature {
   description    String?
   domain         String?
   defaultEnabled Boolean  @default(false)
-  isBillable     Boolean  @default(false)
-  monthlyPrice   Float?
   isActive       Boolean  @default(true)
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
@@ -666,8 +685,6 @@ model FeatureBundle {
   code                       String   @unique
   name                       String
   description                String?
-  monthlyPrice               Float    @default(0)
-  additionalSiteMonthlyPrice Float    @default(0)
   isActive                   Boolean  @default(true)
   createdAt                  DateTime @default(now())
   updatedAt                  DateTime @updatedAt
@@ -1101,6 +1118,77 @@ model Operator {
 
   sessions         OperatorSession[]
   signInAsSessions SignInAsSession[]
+  libraryItems     LibraryItem[]
+}
+
+/// What a library item is, and so which builder makes it and where a
+/// workspace finds it (`lib/library/kinds.ts`).
+enum LibraryKind {
+  /// A report or board: a custom report document, found under Reports.
+  REPORT
+  /// A saved Explore question: one SQL block, found in Explore's templates.
+  EXPLORE
+  /// An insight: a question whose answer becomes a headline, on Insights.
+  INSIGHT
+  /// A site-visit form, copied into a workspace from Build.
+  VISIT_FORM
+  /// A public enquiry form, copied into a workspace from Build.
+  ENQUIRY_FORM
+  /// A block template: a form, quote, invoice, receipt, email or export.
+  BLOCK_TEMPLATE
+  /// A printed layout for a list or a record.
+  LAYOUT
+}
+
+enum LibraryStatus {
+  DRAFT
+  PUBLISHED
+  RETIRED
+}
+
+/// Which workspaces a published item reaches.
+enum LibraryAudience {
+  EVERYONE
+  VERTICALS
+  WORKSPACES
+}
+
+/// Something Corelith makes once and publishes to workspaces: a report, a
+/// question, a form, a template, a layout. Workspaces read published items
+/// beside the ones in code ("From Corelith") and copy one to make it theirs.
+model LibraryItem {
+  id          String          @id @default(uuid())
+  kind        LibraryKind
+  /// The address a workspace opens it by, unique across kinds.
+  key         String          @unique
+  title       String
+  summary     String?
+  /// The item itself, in the shape its kind's builder reads and writes.
+  payload     Json
+  status      LibraryStatus   @default(DRAFT)
+  audience    LibraryAudience @default(EVERYONE)
+  /// With `VERTICALS`: the verticals whose workspaces get it.
+  verticals   Vertical[]
+  createdById String
+  createdBy   Operator        @relation(fields: [createdById], references: [id])
+  publishedAt DateTime?
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  workspaces LibraryItemWorkspace[]
+
+  @@index([kind, status])
+}
+
+/// With `WORKSPACES`: one workspace a published item reaches.
+model LibraryItemWorkspace {
+  itemId    String
+  companyId String
+  item      LibraryItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  company   Company     @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@id([itemId, companyId])
+  @@index([companyId])
 }
 
 /// One signed-in browser of one operator. The cookie holds a random token;

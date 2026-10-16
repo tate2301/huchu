@@ -134,9 +134,7 @@ async function main() {
   // A tenant with no subscription is refused at sign-in: getSubscriptionHealth
   // returns MISSING_SUBSCRIPTION with shouldBlock, which turns an ACTIVE tenant
   // status inactive in the credentials callback. So the demo needs a real
-  // subscription row, not just the ACTIVE flag above. It is also what entitles
-  // the billable feature keys — a CompanyFeatureFlag on a billable feature that
-  // no tier or bundle entitles is ignored by getCompanyFeatureMap.
+  // subscription row, not just the ACTIVE flag above.
   const tier = TIERS.find((candidate) => candidate.code === TIER_CODE) ?? TIERS[0];
   const plan = await prisma.subscriptionPlan.upsert({
     where: { code: tier.code },
@@ -145,7 +143,6 @@ async function main() {
       code: tier.code,
       name: tier.name,
       description: tier.description,
-      monthlyPrice: tier.monthlyPrice,
       currency: "USD",
       warningDays: tier.warningDays,
       graceDays: tier.graceDays,
@@ -168,8 +165,6 @@ async function main() {
         code: definition.code,
         name: definition.name,
         description: definition.description,
-        monthlyPrice: definition.monthlyPrice,
-        additionalSiteMonthlyPrice: definition.additionalSiteMonthlyPrice,
         isActive: true,
       },
       select: { id: true },
@@ -195,8 +190,8 @@ async function main() {
   }
 
   // Writing only the enabled keys is not enough. A key the bureau never asked
-  // for can still be on, because a non-billable catalog feature defaults to
-  // enabled and a billable one rides in on the tier. The disabled keys need an
+  // for can still be on, because a catalog feature may default to enabled and
+  // the tier carries others in. The disabled keys need an
   // explicit `false` row, which is what provisioning writes too — otherwise the
   // sidebar carries Stores and Maintenance into a payroll workspace.
   const flagStates = new Map<string, boolean>();
@@ -214,7 +209,6 @@ async function main() {
         description: catalog?.description,
         domain: catalog?.domain,
         defaultEnabled: false,
-        isBillable: catalog?.isBillable ?? false,
       },
       select: { id: true },
     });

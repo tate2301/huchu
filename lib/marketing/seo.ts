@@ -5,10 +5,12 @@ import {
   PLATFORM_MARKETING_DESCRIPTION,
 } from "@/lib/platform/brand";
 import {
+  INCLUDED_MEMBERS,
+  LARGE_PRICE,
   LAUNCH_SPRINT_COPY,
   LAUNCH_SPRINT_DAYS,
-  MARKETING_TIERS,
-  STARTING_MONTHLY_PRICE,
+  MARKETING_VERTICALS,
+  SMALL_PRICE,
 } from "@/lib/marketing/pricing";
 
 export type JsonLd = Record<string, unknown>;
@@ -106,21 +108,41 @@ export function softwareApplicationJsonLd(): JsonLd {
   };
 }
 
+/**
+ * One offer per vertical, each carrying both monthly rates: the small one up to
+ * `INCLUDED_MEMBERS` people and the large one above that.
+ */
 export function offerCatalogJsonLd(path = "/home/pricing"): JsonLd {
   return {
     "@type": "OfferCatalog",
     name: `${PLATFORM_BRAND_NAME} pricing`,
     url: absoluteUrl(path),
-    itemListElement: MARKETING_TIERS.map((tier) => ({
+    itemListElement: MARKETING_VERTICALS.map((vertical) => ({
       "@type": "Offer",
-      name: tier.name,
-      description: tier.description,
-      price: tier.monthlyPrice,
+      name: vertical.label,
+      description: vertical.copy,
+      price: SMALL_PRICE,
       priceCurrency: "USD",
+      priceSpecification: [
+        {
+          "@type": "UnitPriceSpecification",
+          price: SMALL_PRICE,
+          priceCurrency: "USD",
+          unitText: "MONTH",
+          description: `Up to ${INCLUDED_MEMBERS} people`,
+        },
+        {
+          "@type": "UnitPriceSpecification",
+          price: LARGE_PRICE,
+          priceCurrency: "USD",
+          unitText: "MONTH",
+          description: `More than ${INCLUDED_MEMBERS} people`,
+        },
+      ],
       availability: "https://schema.org/InStock",
-      url: absoluteUrl(tier.ctaHref),
+      url: absoluteUrl(path),
     })),
-    lowPrice: STARTING_MONTHLY_PRICE,
+    lowPrice: SMALL_PRICE,
     priceCurrency: "USD",
   };
 }

@@ -3,33 +3,24 @@
 import { useDeferredValue, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 
-import { fetchJson } from "@/lib/api-client";
 import { narrowRows, type CustomBlock } from "@/lib/reports/custom/document";
 import { checkBlocks, runBlocks, tablesRead, type BlockCheck, type BlockResult } from "@/lib/reports/custom/run";
 import { reportSql } from "@/lib/reports/sql/client";
 import { sourceTable, sqlName, type SqlTable } from "@/lib/reports/sql/schema";
-import type { ReportColumn, ReportParams, ReportRow } from "@/lib/reports/types";
+import type { ReportParams, ReportRow } from "@/lib/reports/types";
 
-/** A source as `/api/v2/reports/sources` describes it. */
-export type ReportSource = {
-  key: string;
-  title: string;
-  area: string;
-  columns: ReportColumn[];
-};
+import { scopedKey, useReportData, type ReportSource } from "./report-data";
 
-type RowsResponse = {
-  sources: Record<string, { rows: ReportRow[]; truncated: boolean; params: ReportParams }>;
-  missing: string[];
-};
+export type { ReportSource } from "./report-data";
 
 const NO_FILTERS: Readonly<Record<string, string>> = {};
 
 /** The sources this person can build on. Asked once, kept for the session. */
 export function useReportSources() {
+  const data = useReportData();
   return useQuery({
-    queryKey: ["reports", "sources"],
-    queryFn: () => fetchJson<{ sources: ReportSource[] }>("/api/v2/reports/sources"),
+    queryKey: scopedKey(data, ["reports", "sources"]),
+    queryFn: data.sources,
     staleTime: 5 * 60_000,
   });
 }
@@ -50,6 +41,7 @@ export function useCustomData(
   /** The report's own filters, set: a value by the SQL name of the column it narrows. */
   filters: Readonly<Record<string, string>> = NO_FILTERS,
 ) {
+  const data = useReportData();
   // Typing stays quick on a long page: the blocks re-run a beat behind it.
   const deferred = useDeferredValue(blocks);
 
@@ -63,12 +55,8 @@ export function useCustomData(
   const keys = useMemo(() => tablesRead(checks, tables).map((table) => keyOf.get(table)!), [checks, keyOf, tables]);
 
   const rows = useQuery({
-    queryKey: ["reports", "custom-rows", keys, params],
-    queryFn: () =>
-      fetchJson<RowsResponse>("/api/v2/reports/sources/rows", {
-        method: "POST",
-        body: JSON.stringify({ keys, params }),
-      }),
+    queryKey: scopedKey(data, ["reports", "custom-rows", keys, params]),
+    queryFn: () => data.rows(keys, params),
     enabled: keys.length > 0,
     // The page keeps what it has on screen while a new source loads.
     placeholderData: (previous) => previous,
@@ -118,7 +106,7 @@ export function useCustomData(
   const ready = Boolean(sources) && (keys.length === 0 || keys.every((key) => loadedRows?.[key] || refused.has(sqlName(key))));
 
   const run = useQuery({
-    queryKey: ["reports", "custom-run", signature, rows.dataUpdatedAt, params, filterKey],
+    queryKey: scopedKey(data, ["reports", "custom-run", signature, rows.dataUpdatedAt, params, filterKey]),
     queryFn: async () => {
       const started = performance.now();
       const results = await runBlocks(deferred, checks, {

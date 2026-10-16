@@ -18,7 +18,7 @@ const OWNER: ListContext = {
   userId: "owner",
   now: NOW,
   timeZone: "Africa/Harare",
-  can: ([resource, action]) => canRetailRoleDo("SUPERADMIN", resource, action),
+  can: (grant) => grant[0] !== "admin" && canRetailRoleDo("SUPERADMIN", grant[0], grant[1]),
   seeCost: true,
 };
 

@@ -15,10 +15,10 @@ interface SubscriptionBundleUpsertWizardProps {
 }
 
 type Mode = "CREATE" | "EDIT";
-type Field = "code" | "name" | "monthlyPrice" | "additionalSiteMonthlyPrice" | "description" | "isActive" | "reason";
+type Field = "code" | "name" | "description" | "isActive" | "reason";
 
-const CREATE_FIELDS: Field[] = ["code", "name", "monthlyPrice", "additionalSiteMonthlyPrice", "description", "isActive", "reason"];
-const EDIT_FIELDS: Field[] = ["name", "monthlyPrice", "additionalSiteMonthlyPrice", "description", "isActive", "reason"];
+const CREATE_FIELDS: Field[] = ["code", "name", "description", "isActive", "reason"];
+const EDIT_FIELDS: Field[] = ["name", "description", "isActive", "reason"];
 
 export function SubscriptionBundleUpsertWizard({
   actor,
@@ -39,8 +39,6 @@ export function SubscriptionBundleUpsertWizard({
   const [draft, setDraft] = useState({
     code: "ADDON_CUSTOM",
     name: "",
-    monthlyPrice: "0",
-    additionalSiteMonthlyPrice: "0",
     description: "",
     isActive: true,
     reason: "",
@@ -89,8 +87,6 @@ export function SubscriptionBundleUpsertWizard({
     setDraft({
       code: bundle.code,
       name: bundle.name,
-      monthlyPrice: String(bundle.monthlyPrice),
-      additionalSiteMonthlyPrice: String(bundle.additionalSiteMonthlyPrice),
       description: bundle.description ?? "",
       isActive: bundle.isActive,
       reason: "",
@@ -103,18 +99,8 @@ export function SubscriptionBundleUpsertWizard({
       return;
     }
     const code = mode === "CREATE" ? draft.code : selectedBundle?.code || draft.code;
-    const monthlyPrice = Number(draft.monthlyPrice);
-    const additionalSiteMonthlyPrice = Number(draft.additionalSiteMonthlyPrice);
     if (!draft.name.trim()) {
       setErrorMessage("Bundle name is required.");
-      return;
-    }
-    if (!Number.isFinite(monthlyPrice) || monthlyPrice < 0) {
-      setErrorMessage("Monthly price must be a valid non-negative number.");
-      return;
-    }
-    if (!Number.isFinite(additionalSiteMonthlyPrice) || additionalSiteMonthlyPrice < 0) {
-      setErrorMessage("Additional site monthly price must be a valid non-negative number.");
       return;
     }
 
@@ -125,8 +111,6 @@ export function SubscriptionBundleUpsertWizard({
       const result = await services.subscription.upsertBundleCatalog({
         code,
         name: draft.name,
-        monthlyPrice,
-        additionalSiteMonthlyPrice,
         description: draft.description || undefined,
         isActive: draft.isActive,
         actor,
@@ -248,7 +232,7 @@ export function SubscriptionBundleUpsertWizard({
               selectedIndex={bundleIndex}
               emptyMessage="No bundles available."
               render={(item) =>
-                `${item.code} | ${item.name} | ${item.monthlyPrice.toFixed(2)} + ${item.additionalSiteMonthlyPrice.toFixed(2)}/site | ${item.featureKeys.length} features | ${item.source}`
+                `${item.code} | ${item.name} | ${item.featureKeys.length} features | ${item.source}`
               }
             />
           ) : null}
@@ -256,10 +240,6 @@ export function SubscriptionBundleUpsertWizard({
             <>
               <Text color={activeField === "code" ? "cyan" : undefined}>code: {mode === "CREATE" ? draft.code || "<required>" : selectedBundle?.code || draft.code}</Text>
               <Text color={activeField === "name" ? "cyan" : undefined}>name: {draft.name || "<required>"}</Text>
-              <Text color={activeField === "monthlyPrice" ? "cyan" : undefined}>monthlyPrice: {draft.monthlyPrice || "0"}</Text>
-              <Text color={activeField === "additionalSiteMonthlyPrice" ? "cyan" : undefined}>
-                additionalSiteMonthlyPrice: {draft.additionalSiteMonthlyPrice || "0"}
-              </Text>
               <Text color={activeField === "description" ? "cyan" : undefined}>description: {draft.description || "<none>"}</Text>
               <Text color={activeField === "isActive" ? "cyan" : undefined}>isActive: {String(draft.isActive)}</Text>
               <Text color={activeField === "reason" ? "cyan" : undefined}>reason: {draft.reason || "<optional>"}</Text>

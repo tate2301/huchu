@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { changePlan, extendTrial, recordManualPayment, settlePayment } from "@/lib/admin/billing";
+import { billingFacts, extendTrial, recordManualPayment, setSubscriptionStatus, settlePayment } from "@/lib/admin/billing";
 import type { SignedInOperator } from "@/lib/operators/guards";
 import { provisionTenant } from "@/lib/platform/provision";
 import { prisma } from "@/lib/prisma";
@@ -40,11 +40,11 @@ describe("billing a workspace", () => {
     await expect(extendTrial(operator, workspace, 5)).rejects.toThrow(/7, 14 or 30/);
   });
 
-  it("moves the workspace to another plan from the catalogue", async () => {
-    await changePlan(operator, workspace, "GROW");
-    const subscription = await prisma.companySubscription.findFirstOrThrow({ where: { companyId: workspace.id }, include: { plan: true } });
-    expect(subscription.plan.code).toBe("GROW");
-    await expect(changePlan(operator, workspace, "NOT_A_TIER")).rejects.toThrow(/catalogue/);
+  it("prices the workspace by its verticals and members", async () => {
+    // Set up as general business with its owner: one vertical, one member.
+    const { pricing } = await billingFacts(workspace.id);
+    expect(pricing).toMatchObject({ verticals: 1, members: 1, each: 39, total: 39, withOneMore: 78 });
+    expect(pricing.lines).toEqual([{ vertical: "GENERAL", label: "General business", detail: "General business, 1 member", amount: 39 }]);
   });
 
   it("records money paid by hand once, and it extends the subscription", async () => {
@@ -58,9 +58,28 @@ describe("billing a workspace", () => {
   });
 
   it("refuses a hand-typed amount far beyond what the workspace pays", async () => {
+    // $39 a month; three times that for one month is the most it takes.
     await expect(
-      recordManualPayment(operator, workspace, { method: "Cash", reference: `CASH-${run}`, amount: 99_999, periodMonths: 1 }),
-    ).rejects.toThrow(/Check the amount/);
+      recordManualPayment(operator, workspace, { method: "Cash", reference: `CASH-${run}`, amount: 118, periodMonths: 1 }),
+    ).rejects.toThrow("pays $39.00 for 1 month. Check the amount.");
+  });
+
+  it("sets the subscription's status by hand, with a reason, once", async () => {
+    await expect(setSubscriptionStatus(operator, workspace, "CANCELED", " ")).rejects.toThrow(/Say why/);
+    await setSubscriptionStatus(operator, workspace, "CANCELED", "Closed the shop, rang to cancel");
+    const subscription = await prisma.companySubscription.findFirstOrThrow({ where: { companyId: workspace.id } });
+    expect(subscription.status).toBe("CANCELED");
+    expect(subscription.canceledAt).not.toBeNull();
+    expect(subscription.endedAt).not.toBeNull();
+    await expect(setSubscriptionStatus(operator, workspace, "CANCELED", "Again")).rejects.toThrow(/already/);
+    const event = await prisma.platformAuditEvent.findFirstOrThrow({
+      where: { companyId: workspace.id, eventType: "operator.billing.status_set" },
+    });
+    expect(event.payloadJson ?? "").toContain("Closed the shop");
+
+    await setSubscriptionStatus(operator, workspace, "ACTIVE", "Changed their mind");
+    const back = await prisma.companySubscription.findFirstOrThrow({ where: { companyId: workspace.id } });
+    expect(back).toMatchObject({ status: "ACTIVE", canceledAt: null, endedAt: null });
   });
 
   it("settles a gateway payment nobody heard back about, once", async () => {

@@ -3,7 +3,7 @@ import { z } from "zod";
 import { closeSiteAsk } from "@/lib/retail/asks/sites";
 import { LICENCE_WEEK, parseWindow, windowText, type LicenceWindow } from "@/lib/retail/licence-hours";
 import type { SiteLicence } from "@/lib/retail/site-licence-hours";
-import { moveFromWords, siteNewNote, sitesLeft, suggestSiteCode, zimbabwePhone, type PlanRoom } from "@/lib/retail/site-words";
+import { moveFromWords, suggestSiteCode, zimbabwePhone } from "@/lib/retail/site-words";
 import type { SiteDetail, SiteNewContext } from "@/lib/retail/sites";
 import type { FieldSpec, PickedOption, SheetCtx, SheetKind, SheetValues } from "@/lib/workspace/sheet-kind";
 
@@ -108,11 +108,6 @@ function siteBody(values: SheetValues) {
 
 const START_EMPTY = "Start empty";
 
-const plan = (values: SheetValues) => (values._plan ?? null) as PlanRoom | null;
-const noRoom = (values: SheetValues) => {
-  const room = plan(values);
-  return room !== null && sitesLeft(room) === 0;
-};
 /** The default site, or the first other open site, that stock could come from. */
 const fromSite = (values: SheetValues) => (values._from ?? null) as { id: string; name: string } | null;
 
@@ -165,10 +160,8 @@ const siteNew: SheetKind = {
       ],
     },
   ],
-  note: (values) => siteNewNote(plan(values)),
-  noteLink: (values) => (noRoom(values) ? { label: "Plan and billing", href: "/preferences/organization/billing" } : null),
+  note: "Then pair its tills.",
   primary: "Add site",
-  primaryDisabled: noRoom,
   done: (result) => `${(result as SiteDetail).name} added. Pair its tills next.`,
   open: (result) => `/retail/manage/tills?sheet=till-new&site=${encodeURIComponent((result as SiteDetail).id)}`,
   openLabel: "Pair a till",
@@ -184,7 +177,6 @@ const siteNew: SheetKind = {
     const list = context.priceLists.find((option) => option.id === context.defaultPriceListId) ?? null;
     return {
       priceListId: list ? { id: list.id, label: list.name, sub: list.sub } : null,
-      _plan: context.plan,
       _takenCodes: context.takenCodes,
       _from: context.otherSites[0] ?? null,
     };

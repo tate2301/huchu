@@ -11,7 +11,7 @@ import { tillFieldErrors } from "@/lib/retail/tills";
  * What every `/api/v2/retail/tills/**` route shares: the actor off the
  * session, the body checked into `{ error, fieldErrors }`, and refusals
  * answered with their status — under a field, or as `{ error, code }` for a
- * rule (PLAN_LIMIT, SHIFT_OPEN, TILL_USED, PAIRED, NOT_PAIRED).
+ * rule (SHIFT_OPEN, TILL_USED, PAIRED, NOT_PAIRED).
  */
 
 type RouteSession = { user: { companyId: string; id: string; name?: string | null; role?: string | null } };

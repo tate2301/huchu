@@ -5,7 +5,6 @@ import { prisma } from "@/lib/prisma";
 import { RETAIL_AUDIT_EVENTS, writeRetailAuditEvent, type RetailAuditActor } from "@/lib/retail/audit";
 import {
   PairingRefusal,
-  checkTillRoom,
   expirePairingCodes,
   issuePairingCode,
   pairingState,
@@ -373,8 +372,7 @@ const openShiftOn = (client: Client, companyId: string, registerId: string) =>
 /**
  * Opening Pair a till makes the till and its first code: the name suggested
  * ("Till 6") unless given, the default site unless given, printer and drawer
- * on, scale off. 409 PLAN_LIMIT when every till the plan allows is paired.
- * Nothing is audited until Done saves it.
+ * on, scale off. Nothing is audited until Done saves it.
  */
 export async function createTill(
   actor: RetailAuditActor,
@@ -384,7 +382,6 @@ export async function createTill(
   const { companyId } = actor;
   const attempt = () =>
     prisma.$transaction(async (tx) => {
-      await checkTillRoom(tx, companyId);
       const site = await openSite(tx, companyId, input.siteId);
       const names = await tx.retailRegister.findMany({ where: { companyId, isActive: true }, select: { name: true } });
       const name = input.name ?? suggestTillName(names.map((row) => row.name));
@@ -545,8 +542,7 @@ export async function deleteTill(actor: RetailAuditActor, id: string): Promise<v
 
 /**
  * A fresh code: `PAIR` for a till with no device, `REPLACE` for one that has
- * a device to swap. A `PAIR` code is a till more on the plan, so it is
- * refused when every till the plan allows is paired.
+ * a device to swap.
  */
 export async function issueTillCode(
   actor: RetailAuditActor,
@@ -564,7 +560,6 @@ export async function issueTillCode(
     if (purpose === "REPLACE" && !device) {
       throw new PairingRefusal(409, `${till.name} has no device to swap. Pair a device to it instead.`, { code: "NOT_PAIRED" });
     }
-    if (purpose === "PAIR") await checkTillRoom(tx, companyId);
     return issuePairingCode(tx, { companyId, registerId: till.id, purpose, createdById: actor.userId }, now);
   });
   return { code: issued.code, expiresAt: issued.expiresAt.toISOString() };

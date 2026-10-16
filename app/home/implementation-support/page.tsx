@@ -35,7 +35,7 @@ export default function ImplementationSupportPage() {
       <PageHero
         eyebrow="Getting it live"
         title="Software nobody finished setting up saves you nothing."
-        copy={`Most systems that fail here did not fail technically. They were bought, half-configured, half-trained and quietly abandoned, and the money kept leaking the whole time. The Launch Sprint is ${LAUNCH_SPRINT_DAYS} days of scoped work that ends with your team using it on a normal Tuesday. It is quoted separately so you can see exactly what you are paying for.`}
+        copy={`Most systems that fail here did not fail technically. They were bought, half-configured, half-trained and quietly abandoned, and the money kept leaking the whole time. The Launch Sprint is ${LAUNCH_SPRINT_DAYS} days of scoped work that ends with your team using it on a normal Tuesday. There is no onboarding fee for it.`}
       />
 
       <LaunchSprintSection />

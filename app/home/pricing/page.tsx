@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 import {
-  AddOnTable,
   CtaBand,
   FaqSection,
   JsonLd,
@@ -14,45 +13,40 @@ import {
 import {
   FDMS_STATUS_COPY,
   FDMS_STATUS_HEADLINE,
+  memberRules,
   onboardingCovers,
   paymentMethods,
+  pricingFaqs,
   pricingPrinciples,
   seoPages,
-  whatsappHref,
 } from "@/app/home/site-data";
 import styles from "@/app/home/marketing.module.css";
 import {
-  ANNUAL_DISCOUNT_RATE,
-  ENTRY_TIER,
+  INCLUDED_MEMBERS,
+  LARGE_PRICE,
   LAUNCH_SPRINT_DAYS,
-  MARKETING_TIERS,
+  MARKETING_VERTICALS,
   MONEY_BACK_DAYS,
-  SCHOOL_STARTING_TERM_PRICE,
-  TIER_COMPARISON_ROWS,
-  USER_PACK_SIZE,
+  PRICE_EXAMPLES,
+  SMALL_PRICE,
+  TRIAL_DAYS,
   formatUsd,
-  getMarketingTier,
 } from "@/lib/marketing/pricing";
-import { PENALTY_CAP_DAYS, PENALTY_USD_PER_TILL_PER_DAY } from "@/lib/marketing/penalty";
 import {
   breadcrumbJsonLd,
   buildMarketingMetadata,
   offerCatalogJsonLd,
 } from "@/lib/marketing/seo";
-import { ArrowRight, Check, ExternalLink, Info } from "@/lib/icons";
+import { ArrowRight, Check, ChevronRight, Info } from "@/lib/icons";
 
 export const metadata: Metadata = buildMarketingMetadata(seoPages.pricing);
 
 /**
- * The fiscal SKU is the wedge, so it leads the page (MK-1.2). Every figure on
- * this page is read from the billing catalog through `lib/marketing/pricing.ts`
- * — a hand-typed price here is a price that will one day disagree with the
- * invoice, and a buyer who catches that stops believing the rest of the page.
+ * One rule, from `lib/platform/verticals.ts` through `lib/marketing/pricing.ts`:
+ * each vertical at the small rate up to the included members, the large rate
+ * above, every vertical the same. Nothing on this page types a figure — a
+ * hand-typed price is a price that will one day disagree with the invoice.
  */
-const fiscalTier = getMarketingTier("FISCAL") ?? ENTRY_TIER;
-
-const ANNUAL_DISCOUNT_PERCENT = Math.round(ANNUAL_DISCOUNT_RATE * 100);
-
 export default function PricingPage() {
   return (
     <SiteChrome>
@@ -67,73 +61,23 @@ export default function PricingPage() {
       />
       <PageHero
         eyebrow="Pricing"
-        title={`Fiscalise from ${formatUsd(fiscalTier.annualMonthlyPrice)} a month.`}
-        copy={`ZIMRA fiscalisation is an obligation with a daily price attached, so it is the cheapest thing we sell and the first thing you should buy. Everything above it — POS, stock, books, payroll — is depth you add when it pays for itself. Priced per site, never per user, and quoted in US dollars.`}
+        title={`${formatUsd(SMALL_PRICE)} a month per vertical.`}
+        copy={`A vertical is one line of business you run on Corelith: a shop, a school, a mine, a workshop. Each one is ${formatUsd(SMALL_PRICE)} a month while your workspace has up to ${INCLUDED_MEMBERS} people, and ${formatUsd(LARGE_PRICE)} a month once it has more. Everything inside a vertical is included.`}
       >
         <div className={styles.assuranceGrid}>
-          <span>Pay annually, save {ANNUAL_DISCOUNT_PERCENT}%</span>
+          <span>{TRIAL_DAYS}-day trial</span>
           <span>{MONEY_BACK_DAYS}-day money-back guarantee</span>
-          <span>Schools from {formatUsd(SCHOOL_STARTING_TERM_PRICE)}/term</span>
+          <span>Parents and students are not counted</span>
         </div>
       </PageHero>
 
       <section className={styles.section}>
         <SectionIntro
-          eyebrow="Start here"
-          title="The fiscal plan, priced against what a default costs."
-          copy={`An unfiscalised point of sale carries a civil penalty of ${formatUsd(PENALTY_USD_PER_TILL_PER_DAY)} a day, for up to ${PENALTY_CAP_DAYS} days, before the liability stops being a fine and becomes a criminal matter. That is the number this plan is priced against.`}
+          eyebrow="The rate"
+          title="Two rates, set by how many people you have."
+          copy="Every vertical is charged at the same rate, so a second vertical adds the same again. Features, add-ons and bundles inside a vertical carry no charge of their own."
         />
-        <div className={styles.commercialPanel}>
-          <div className={styles.stack}>
-            <p className={styles.eyebrow}>
-              {fiscalTier.name} &middot; {fiscalTier.tagline}
-            </p>
-            <h2 className={styles.sectionTitle}>{fiscalTier.bestFor}</h2>
-            <ul className={styles.checkList}>
-              {fiscalTier.highlights.map((highlight) => (
-                <li key={highlight}>
-                  <Check className={styles.icon} weight="regular" />
-                  <span>{highlight}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
-          <div className={styles.stack}>
-            <p className={styles.price}>{formatUsd(fiscalTier.annualMonthlyPrice)}/mo</p>
-            <p className={styles.priceMeta}>
-              billed annually &middot; {formatUsd(fiscalTier.monthlyPrice)}/mo month to month
-            </p>
-            <p className={styles.priceMeta}>
-              {fiscalTier.onboardingLabel} &middot; {fiscalTier.includedSites}{" "}
-              {fiscalTier.includedSites === 1 ? "site" : "sites"} &middot;{" "}
-              {fiscalTier.includedUsers === null
-                ? "unlimited users"
-                : `${fiscalTier.includedUsers} users`}
-            </p>
-            <Link
-              href={fiscalTier.ctaHref}
-              className={`${styles.button} ${styles.buttonPrimary}`}
-            >
-              {fiscalTier.ctaLabel}
-              <ArrowRight className={styles.icon} weight="regular" />
-            </Link>
-            <Link
-              href={whatsappHref(
-                `Hi Corelith, I want to fiscalise. I run tills and want to know what ${fiscalTier.name} would cost me.`,
-              )}
-              className={`${styles.button} ${styles.buttonQuiet}`}
-              target="_blank"
-              rel="noreferrer"
-            >
-              Ask on WhatsApp
-              <ExternalLink className={styles.icon} weight="regular" />
-            </Link>
-            <Link href="/home/tools/fiscalisation-penalty" className={styles.inlineAction}>
-              Work out what a default is costing you
-              <ArrowRight className={styles.icon} weight="regular" />
-            </Link>
-          </div>
-        </div>
+        <PricingCards />
 
         <div className={`${styles.notePanel} ${styles.sectionFooter}`}>
           <p className={styles.eyebrow}>
@@ -144,48 +88,43 @@ export default function PricingPage() {
         </div>
       </section>
 
-      <section className={styles.section}>
-        <SectionIntro
-          eyebrow="Plans"
-          title="Then choose by sites and capacity, not by headcount."
-          copy="The plan decides how many locations you run, how many seats are included and how much finance and governance ships switched on. Your trade decides what the middle of the workflow looks like, and that costs nothing extra to choose."
-        />
-        <PricingCards />
-        <p className={`${styles.small} ${styles.sectionFooter}`}>
-          Every price shown is per month. Annual prepay is {ANNUAL_DISCOUNT_PERCENT}% cheaper and is
-          the default ask. Onboarding is a published one-off per plan, shown in the comparison
-          below. Extra seats are sold in packs of {USER_PACK_SIZE}. Extra sites are charged at each
-          plan&rsquo;s per-site rate.
-        </p>
-      </section>
-
       <section className={styles.band}>
         <div className={styles.section}>
           <SectionIntro
-            eyebrow="Compare"
-            title="Everything each plan includes, in one table."
-            copy="Anything showing a price is available as an add-on on the lower plans at that monthly rate. Nothing here changes once you are a customer."
+            eyebrow="Worked examples"
+            title="Count your verticals and your people. That is the whole sum."
+            copy={`Up to ${INCLUDED_MEMBERS} people, each vertical is ${formatUsd(SMALL_PRICE)}. From ${INCLUDED_MEMBERS + 1} people, each vertical is ${formatUsd(LARGE_PRICE)}. Multiply by the verticals you run.`}
           />
           <div className={styles.tableFrame}>
             <table className={styles.table}>
-              <caption className="sr-only">Corelith plan comparison</caption>
+              <caption className="sr-only">What a month costs for some example workspaces</caption>
               <thead>
                 <tr>
-                  <th scope="col">&nbsp;</th>
-                  {MARKETING_TIERS.map((tier) => (
-                    <th key={tier.code} scope="col">
-                      {tier.name}
-                    </th>
-                  ))}
+                  <th scope="col" className={styles.tableNumeric}>
+                    Verticals
+                  </th>
+                  <th scope="col" className={styles.tableNumeric}>
+                    People
+                  </th>
+                  <th scope="col" className={styles.tableNumeric}>
+                    Each vertical
+                  </th>
+                  <th scope="col" className={styles.tableNumeric}>
+                    A month
+                  </th>
                 </tr>
               </thead>
               <tbody>
-                {TIER_COMPARISON_ROWS.map((row) => (
-                  <tr key={row.label}>
-                    <th scope="row">{row.label}</th>
-                    {row.values.map((value, index) => (
-                      <td key={`${row.label}-${MARKETING_TIERS[index]?.code ?? index}`}>{value}</td>
-                    ))}
+                {PRICE_EXAMPLES.map((example) => (
+                  <tr key={`${example.verticals}-${example.members}`}>
+                    <th scope="row" className={styles.tableNumeric}>
+                      {example.verticals}
+                    </th>
+                    <td className={styles.tableNumeric}>{example.members}</td>
+                    <td className={styles.tableNumeric}>{formatUsd(example.each)}</td>
+                    <td className={`${styles.tableNumeric} ${styles.tableOwn}`}>
+                      {formatUsd(example.total)}
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -196,38 +135,47 @@ export default function PricingPage() {
 
       <section className={styles.section}>
         <SectionIntro
-          eyebrow="Add-ons"
-          title="Buy depth when it pays for itself, not before."
-          copy="Nothing is hidden behind a sales call. If your plan already bundles an add-on, it costs you nothing, and the table above shows which."
+          eyebrow="Verticals"
+          title="Pick the lines of business you run."
+          copy="Each one is charged at the same rate. Run two and you pay for two."
         />
-        <AddOnTable />
+        <div className={styles.cardGrid3}>
+          {MARKETING_VERTICALS.map((vertical) => (
+            <Link key={vertical.code} href={vertical.href} className={styles.segmentCard}>
+              <h3 className={styles.cardTitle}>{vertical.label}</h3>
+              <p className={styles.body}>{vertical.copy}</p>
+              <span className={styles.inlineAction}>
+                {vertical.href.startsWith("/home/book-demo")
+                  ? `Ask about ${vertical.label.toLowerCase()}`
+                  : `See ${vertical.label.toLowerCase()}`}
+                <ChevronRight className={styles.icon} weight="regular" />
+              </span>
+            </Link>
+          ))}
+        </div>
       </section>
 
       <section className={styles.bandSunken}>
         <div className={styles.section}>
           <SectionIntro
-            eyebrow="Onboarding"
-            title="Setup is charged, and this is exactly what it buys."
-            copy={`${LAUNCH_SPRINT_DAYS} days of scoped work: mapping how you run today, configuring it, importing your data, training your people and standing with you through the first live day. Quoted against your business before you sign anything.`}
+            eyebrow="The detail"
+            title="Who counts, and what you are paying for."
+            copy="Written down here so nothing on the invoice comes as a surprise."
           />
           <div className={styles.cardGrid2}>
             <article className={styles.card}>
-              <h2 className={styles.cardTitle}>What onboarding covers</h2>
+              <h3 className={styles.cardTitle}>Who counts as one of your people</h3>
               <ul className={styles.checkList}>
-                {onboardingCovers.map((item) => (
-                  <li key={item}>
+                {memberRules.map((rule) => (
+                  <li key={rule}>
                     <Check className={styles.icon} weight="regular" />
-                    <span>{item}</span>
+                    <span>{rule}</span>
                   </li>
                 ))}
               </ul>
-              <Link href="/home/implementation-support" className={styles.inlineAction}>
-                How the Launch Sprint runs
-                <ArrowRight className={styles.icon} weight="regular" />
-              </Link>
             </article>
             <article className={styles.card}>
-              <h2 className={styles.cardTitle}>How the commercials work</h2>
+              <h3 className={styles.cardTitle}>How the commercials work</h3>
               <ul className={styles.checkList}>
                 {pricingPrinciples.map((principle) => (
                   <li key={principle}>
@@ -239,6 +187,28 @@ export default function PricingPage() {
             </article>
           </div>
         </div>
+      </section>
+
+      <section className={styles.section}>
+        <SectionIntro
+          eyebrow="Getting live"
+          title="There is no onboarding fee. This is what getting live involves."
+          copy={`${LAUNCH_SPRINT_DAYS} days of scoped work: mapping how you run today, configuring it, importing your data, training your people and standing with you through the first live day.`}
+        />
+        <article className={styles.card}>
+          <ul className={styles.checkList}>
+            {onboardingCovers.map((item) => (
+              <li key={item}>
+                <Check className={styles.icon} weight="regular" />
+                <span>{item}</span>
+              </li>
+            ))}
+          </ul>
+          <Link href="/home/implementation-support" className={styles.inlineAction}>
+            How the Launch Sprint runs
+            <ArrowRight className={styles.icon} weight="regular" />
+          </Link>
+        </article>
       </section>
 
       <section className={styles.section}>
@@ -257,36 +227,16 @@ export default function PricingPage() {
         </div>
       </section>
 
-      <section className={styles.section}>
-        <div className={styles.commercialPanel}>
-          <div className={styles.stack}>
-            <p className={styles.eyebrow}>Schools</p>
-            <h2 className={styles.sectionTitle}>Schools are priced per term, not per month.</h2>
-            <p className={styles.body}>
-              Fees arrive three times a year, so the software sits in the same cycle. Bands are set
-              by enrolment, every band includes unlimited staff accounts, and growing inside your
-              band never costs more.
-            </p>
-          </div>
-          <div className={styles.stack}>
-            <p className={styles.price}>From {formatUsd(SCHOOL_STARTING_TERM_PRICE)}/term</p>
-            <Link href="/home/schools" className={styles.button}>
-              See schools pricing
-              <ArrowRight className={styles.icon} weight="regular" />
-            </Link>
-          </div>
-        </div>
-      </section>
-
       <FaqSection
+        items={pricingFaqs}
         eyebrow="Pricing questions"
         title="What people ask before they sign."
-        copy="Nothing here changes once you are a customer. If it is not on this page, it is not in your bill."
+        copy="If it is not on this page, it is not in your bill."
       />
 
       <CtaBand
-        title="Get a real number, not a range."
-        copy="Tills, sites, seats, the pack you need and how much of your data we move. Answer the setup questions and we come back with a figure you can actually decide on."
+        title="You can work out the price here. The demo shows what it buys."
+        copy="Tell us your trade and how many people would use it. We open the demo on your own workflow, not an empty account."
       />
     </SiteChrome>
   );

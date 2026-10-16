@@ -292,10 +292,10 @@ export async function provisionSchool(
       })
     : false;
 
-  // Data alone does not open a school. Every `schools.*` feature is billable,
-  // and `getCompanyFeatureMap` keeps a billable feature off unless the tenant is
-  // entitled to it, so without the addon the registrar's own pages answer
-  // `403 FEATURE_DISABLED` over a perfectly good calendar.
+  // Data alone does not open a school. Every `schools.*` feature starts off,
+  // and only the schools bundle or a flag turns it on, so without the addon the
+  // registrar's own pages answer `403 FEATURE_DISABLED` over a perfectly good
+  // calendar.
   const entitlement = await grantBundleToCompany({
     companyId,
     bundleCode: SCHOOLS_BUNDLE_CODE,

@@ -1,5 +1,6 @@
-import type { Prisma } from "@prisma/client";
+import type { Prisma, SubscriptionStatus } from "@prisma/client";
 
+import { SUBSCRIPTION_STATUS_LABEL } from "@/lib/admin/billing-words";
 import { LOGIN_SUCCESS_EVENT } from "@/lib/auth-core/last-sign-in";
 import { operatorIdFromActor } from "@/lib/operators/audit";
 import { prisma } from "@/lib/prisma";
@@ -12,6 +13,8 @@ import { prisma } from "@/lib/prisma";
  * The portal's own events get written sentences; everything else gets its
  * event type read aloud, which is always understandable and never wrong.
  */
+
+const statusWord = (value: unknown) => (SUBSCRIPTION_STATUS_LABEL[value as SubscriptionStatus] ?? String(value)).toLowerCase();
 
 export type ActivityActor = { kind: "operator" | "member" | "system"; name: string };
 
@@ -61,6 +64,7 @@ const WORDS: Record<string, (payload: Payload) => string> = {
   "operator.billing.plan_changed": (p) => `changed the plan from ${String(p.from)} to ${String(p.to)}`,
   "operator.billing.addon_on": (p) => `turned on ${String(p.addOn)}`,
   "operator.billing.addon_off": (p) => `turned off ${String(p.addOn)}`,
+  "operator.billing.status_set": (p) => `set the subscription from ${statusWord(p.from)} to ${statusWord(p.to)}: “${String(p.reason)}”`,
   "billing.payment.paid": (p) =>
     `recorded ${p.amount ? `$${String(p.amount)}` : "a payment"} as paid${p.periodMonths ? `, for ${String(p.periodMonths)} ${Number(p.periodMonths) === 1 ? "month" : "months"}` : ""}`,
   "billing.payment.failed": () => "marked a payment as failed",
@@ -75,6 +79,16 @@ const WORDS: Record<string, (payload: Payload) => string> = {
   "operator.workspace.reinstated": () => "reinstated the workspace",
   "operator.workspace.closed": () => "closed the workspace",
   "operator.workspace.access_record_exported": () => "exported the access record",
+  "operator.workspace.address_changed": (p) => `changed the address from ${String(p.from)} to ${String(p.to)}`,
+  ORG_RESET_WORKSPACE: (p) => {
+    const after = (p.after ?? {}) as { selectedGroupLabels?: string[]; totalRowsDeleted?: number };
+    const rows = Number(after.totalRowsDeleted ?? 0);
+    return `deleted the workspace's data${after.selectedGroupLabels?.length ? ` (${after.selectedGroupLabels.join(", ")})` : ""}: ${rows.toLocaleString("en-GB")} ${rows === 1 ? "row" : "rows"}`;
+  },
+  "operator.site.created": (p) => `added the site ${String(p.name)} (${String(p.code)})`,
+  "operator.site.changed": (p) => `changed the site ${String(p.name)}`,
+  "operator.site.closed": (p) => `closed the site ${String(p.name)}`,
+  "operator.site.reopened": (p) => `reopened the site ${String(p.name)}`,
   PLATFORM_TENANT_PROVISIONED: () => "set up the workspace",
   "signup.workspace-created": () => "signed up and the workspace was set up",
   [LOGIN_SUCCESS_EVENT]: () => "signed in",

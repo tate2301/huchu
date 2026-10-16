@@ -7,6 +7,10 @@ import { errorResponse, successResponse, validateSession } from "@/lib/api-utils
 import { prisma } from "@/lib/prisma";
 import { canUser, denialMessage } from "@/lib/crm/permissions";
 import { TEMPLATE_KINDS, templateProblems, templateSchema } from "@/lib/crm/blocks";
+import { copyLibraryBlockTemplate } from "@/lib/library/copy";
+
+/** A copy of one of Corelith's library, by its address: a draft, named so nothing of its kind clashes. */
+const librarySchema = z.object({ library: z.string().min(1).max(120) }).strict();
 
 export async function GET(request: NextRequest) {
   try {
@@ -66,7 +70,14 @@ export async function POST(request: NextRequest) {
       return errorResponse(denialMessage("settings.manage"), 403);
     }
 
-    const data = templateSchema.parse(await request.json());
+    const body = await request.json();
+    const fromLibrary = librarySchema.safeParse(body);
+    if (fromLibrary.success) {
+      const copy = await copyLibraryBlockTemplate(session.user.companyId, session.user.id, fromLibrary.data.library);
+      if (!copy) return errorResponse("That template is not in Corelith's library for this workspace", 404);
+      return successResponse(copy, 201);
+    }
+    const data = templateSchema.parse(body);
 
     const problems = templateProblems(data.kind, data.blocks);
     if (problems.length > 0) {

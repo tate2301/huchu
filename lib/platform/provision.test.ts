@@ -16,7 +16,7 @@ import { describe, it, expect, afterAll, beforeAll } from "vitest";
 import { prisma } from "@/lib/prisma";
 import { getCompanyFeatureMap } from "@/lib/platform/entitlements";
 import { destroyProvisionedTenant } from "@/lib/platform/tenant-teardown";
-import { SlugTakenError, bundlesToGrant, provisionTenant } from "./provision";
+import { SlugTakenError, bundlesToGrant, defaultVerticals, provisionTenant } from "./provision";
 
 const STAMP = `${Date.now()}${Math.floor(process.hrtime()[1] / 1000)}`;
 const RETRY_SLUG = `provision-retry-${STAMP}`;
@@ -43,8 +43,7 @@ afterAll(async () => {
 describe("bundlesToGrant", () => {
   it("grants nothing a tier already includes", () => {
     // TEMPLATE_CORE_STARTER's three bundles are exactly the base bundles START
-    // carries. Granting them as add-ons would entitle the tenant to nothing new
-    // and add three list prices to its monthly bill.
+    // carries. Granting them as add-ons would entitle the tenant to nothing new.
     expect(bundlesToGrant("TEMPLATE_CORE_STARTER", "START")).toEqual([]);
   });
 
@@ -61,6 +60,15 @@ describe("bundlesToGrant", () => {
     expect(bundlesToGrant("TEMPLATE_CORE_STARTER", "BASIC")).toEqual(
       bundlesToGrant("TEMPLATE_CORE_STARTER", "START"),
     );
+  });
+});
+
+describe("defaultVerticals", () => {
+  it("makes a Flare workspace a CRM, and a Corelith one its template's line of business", () => {
+    expect(defaultVerticals("FLARE", null)).toEqual(["CRM"]);
+    expect(defaultVerticals("CORELITH", "TEMPLATE_GOLD_MINE")).toEqual(["GOLD"]);
+    expect(defaultVerticals("CORELITH", "TEMPLATE_SCHOOLS")).toEqual(["SCHOOLS"]);
+    expect(defaultVerticals(undefined, null)).toEqual(["GENERAL"]);
   });
 });
 
@@ -115,6 +123,9 @@ describe("provisionTenant", () => {
       expect(await prisma.user.count({ where: { companyId } })).toBe(1);
       expect(await prisma.companySubscription.count({ where: { companyId } })).toBe(1);
       expect(await prisma.subdomainReservation.count({ where: { companyId } })).toBe(1);
+      // The starter template is general business, once, however often it runs.
+      expect(second.verticals).toEqual(["GENERAL"]);
+      expect(await prisma.companyVertical.count({ where: { companyId } })).toBe(1);
     },
     120_000,
   );
@@ -167,10 +178,11 @@ describe("provisionTenant", () => {
 
       const subscription = await prisma.companySubscription.findFirstOrThrow({
         where: { companyId: result.company.id },
-        select: { status: true, plan: { select: { code: true, monthlyPrice: true } } },
+        select: { status: true, effectiveMonthlyAmount: true, plan: { select: { code: true } } },
       });
       expect(subscription.plan.code).toBe("START");
-      expect(subscription.plan.monthlyPrice).toBe(39);
+      // The tier sets no price: one vertical with one member is $39.
+      expect(subscription.effectiveMonthlyAmount).toBe(39);
       expect(subscription.status).toBe("ACTIVE");
 
       // No password was supplied, so the admin exists but cannot sign in yet —
@@ -208,6 +220,7 @@ describe("provisionTenant", () => {
       expect(features["crm.core"]).toBe(true);
       expect(features["retail.pos"]).toBe(false);
       expect(features["gold.home"]).toBe(false);
+      expect(result.verticals).toEqual(["CRM"]);
     },
     120_000,
   );

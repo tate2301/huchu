@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 
 import { Menu, MenuCaption, MenuContent, MenuItem, MenuSeparator, MenuTrigger } from "@/components/workspace/menu";
 import { ChevronDown, Download } from "@/lib/icons";
+
+import { useListHost } from "./host";
 import { formatCount } from "@/lib/workspace/format";
 
 /**
@@ -22,10 +24,11 @@ const FORMATS: Array<{ format: ExportFormat; label: string }> = [
 ];
 
 export function ExportItems({ caption, onExport }: { caption: string; onExport: (format: ExportFormat) => void }) {
+  const { formats } = useListHost();
   return (
     <>
       <MenuCaption>{caption}</MenuCaption>
-      {FORMATS.map((entry) => (
+      {FORMATS.filter((entry) => formats.includes(entry.format)).map((entry) => (
         <MenuItem key={entry.format} hint={`.${entry.format}`} onSelect={() => onExport(entry.format)}>
           {entry.label}
         </MenuItem>

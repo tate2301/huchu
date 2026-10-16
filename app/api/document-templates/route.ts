@@ -4,6 +4,7 @@ import { errorResponse, successResponse, validateSession } from "@/lib/api-utils
 import { prisma } from "@/lib/prisma";
 import { defaultTemplateSchema } from "@/lib/documents/template-schema";
 import { resolveCatalogTemplateEntry } from "@/lib/documents/default-template-catalog";
+import { copyLibraryLayout } from "@/lib/library/copy";
 
 const createTemplateSchema = z.object({
   name: z.string().min(1).max(120),
@@ -22,6 +23,9 @@ const createTemplateSchema = z.object({
   cloneFromSystemDefault: z.boolean().optional(),
   setDefault: z.boolean().optional(),
 });
+
+/** A copy of one of Corelith's library, by its address: the workspace's own, not made the default. */
+const librarySchema = z.object({ library: z.string().min(1).max(120) }).strict();
 
 function canManageTemplates(role: string) {
   return role === "SUPERADMIN" || role === "MANAGER";
@@ -78,6 +82,12 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
+    const fromLibrary = librarySchema.safeParse(body);
+    if (fromLibrary.success) {
+      const copy = await copyLibraryLayout(session.user.companyId, session.user.id, fromLibrary.data.library);
+      if (!copy) return errorResponse("That layout is not in Corelith's library for this workspace", 404);
+      return successResponse(copy, 201);
+    }
     const input = createTemplateSchema.parse(body);
 
     const cloneSource = input.cloneFromTemplateId

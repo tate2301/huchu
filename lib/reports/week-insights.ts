@@ -11,6 +11,7 @@
  *
  * Pure: the server loads the rows and the items, this words and ranks.
  */
+import type { LibraryInsights } from "@/lib/library/insights";
 import type { ReportRow, ReportValue } from "@/lib/reports/types";
 
 export type InsightBar = { label: string; share: number; text: string; key: boolean };
@@ -38,6 +39,8 @@ export type WeekInsights = {
   /** The board Pin adds to, when the workspace chose one and this person can change it. */
   board: { id: string; title: string } | null;
   insights: WeekInsight[];
+  /** Corelith's insights from the library this person may run; the page runs them in their tab (`lib/library/insights.ts`). */
+  library: LibraryInsights;
 };
 
 export type RecipeInput = {

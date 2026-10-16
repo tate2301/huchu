@@ -57,10 +57,6 @@ describe("tills and their devices, as stored", () => {
     expect(await column("RetailPairingCode", "code")).toBeUndefined();
   });
 
-  it("says how many tills a plan may pair, any number when empty", async () => {
-    expect(await column("SubscriptionPlan", "maxTills")).toEqual({ data_type: "integer", is_nullable: "YES", column_default: null });
-  });
-
   it("has the one-active-device index on the till, for devices not unpaired", async () => {
     const [index] = await prisma.$queryRaw<Array<{ indexdef: string }>>`
       SELECT indexdef FROM pg_indexes WHERE indexname = 'RetailDevice_one_active_per_register'`;

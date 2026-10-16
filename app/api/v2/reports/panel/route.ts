@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { errorResponse, successResponse, validateSession } from "@/lib/api-utils";
+import { offeredTemplates } from "@/lib/library/reports";
 import { reportCatalog } from "@/lib/reports/catalog";
 import { readableSources } from "@/lib/reports/custom/sources";
-import { templateReads, templatesFor } from "@/lib/reports/custom/templates";
 import { getReportDefinition, REPORT_DEFINITIONS } from "@/lib/reports/registry";
 import { disabledReportKeys } from "@/lib/reports/settings";
 import type { PanelReport } from "@/lib/rail/reports";
@@ -36,16 +36,11 @@ export async function GET(request: NextRequest) {
       })),
     );
 
-    const reads = templateReads();
-    const built: PanelReport[] = templatesFor(
-      await readableSources(session),
-      { id: user.id, role: user.role },
-      user.workspaceProfile,
-    ).map((template) => ({
+    const built: PanelReport[] = (await offeredTemplates(session, await readableSources(session))).map((template) => ({
       key: `built-${template.key}`,
       title: template.title,
       href: `/reports/built/${template.key}`,
-      about: (reads.get(template.key) ?? [])
+      about: template.reads
         .map((key) => getReportDefinition(key)?.href)
         .filter((href): href is string => Boolean(href)),
     }));
