@@ -124,11 +124,11 @@ describe("Vane's tables, as stored", () => {
     expect(indexes[0]?.indexdef).toContain('UNIQUE INDEX "VaneJob_companyId_key_key" ON public."VaneJob" USING btree ("companyId", key)');
   });
 
-  it("marks drafts Vane wrote, and nothing else, on invoices, quotations, purchase orders and (since vane_finish) work orders", async () => {
+  it("marks what Vane wrote, and nothing else: invoices, quotations, purchase orders, (since vane_finish) work orders and (since crm_knowledge_entries) knowledge entries", async () => {
     const rows = await prisma.$queryRaw<Array<{ table_name: string; column_default: string; is_nullable: string }>>`
       SELECT table_name, column_default, is_nullable FROM information_schema.columns WHERE column_name = 'madeByVane' ORDER BY 1`;
     expect(rows).toEqual(
-      ["RetailPurchaseOrder", "SalesInvoice", "SalesQuotation", "WorkOrder"].map((table_name) => ({ table_name, column_default: "false", is_nullable: "NO" })),
+      ["CrmKnowledgeEntry", "RetailPurchaseOrder", "SalesInvoice", "SalesQuotation", "WorkOrder"].map((table_name) => ({ table_name, column_default: "false", is_nullable: "NO" })),
     );
   });
 
