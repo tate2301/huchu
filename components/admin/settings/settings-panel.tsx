@@ -4,23 +4,41 @@ import { useState, useTransition, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { Button, Input, SettingRow } from "@corelithzw/react";
 
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useToast } from "@/components/ui/use-toast";
 import { ConfirmDialog } from "@/components/workspace/confirm-dialog";
 import { formatTime } from "@/lib/admin/format";
 import type { ActionResult } from "@/lib/admin/workspace-context";
-import { Download, LogOut, Prohibit, Save, X } from "@/lib/icons";
+import { Download, LogOut, Prohibit, Save, Trash, X } from "@/lib/icons";
+import type { Ask } from "@/lib/workspace/ask";
+
+import { ResetDataDialog, type ResetActions } from "./reset-data-dialog";
 
 export type SettingsActions = {
   rename: (name: string) => Promise<ActionResult>;
+  changeAddress: (address: string) => Promise<ActionResult>;
   signOutEveryone: (reason: string) => Promise<ActionResult>;
   endSession: (sessionId: string) => Promise<ActionResult>;
   suspend: (reason: string) => Promise<ActionResult>;
   reinstate: (reason: string) => Promise<ActionResult>;
-  close: (typedAddress: string, reason: string) => Promise<ActionResult>;
+  close: (reason: string) => Promise<ActionResult>;
+  reopen: (reason: string) => Promise<ActionResult>;
+  deleteForGood: (typedAddress: string, reason: string) => Promise<ActionResult>;
+  previewReset: ResetActions["preview"];
+  resetData: ResetActions["reset"];
 };
 
 type OpenSession = { id: string; code: string; operator: string; member: string; mode: "LOOK" | "CHANGE"; until: Date };
+
+type Asking = "address" | "sign-out" | "suspend" | "reinstate" | "close" | "reopen" | "delete" | "reset";
+
+const why = (placeholder: string): NonNullable<Ask["field"]> => ({
+  key: "reason",
+  label: "Why",
+  placeholder,
+  min: 3,
+  max: 300,
+  needed: "Say why, so the owner can see it in their audit log.",
+});
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
@@ -32,14 +50,14 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
 }
 
 /**
- * A workspace's settings, from outside it: what it is called, who is in it
- * now, its records, and whether it is open. Everything inside the product —
- * its sites, templates, the customer's own preferences — is done by signing
- * in as one of its members.
+ * A workspace's settings, from outside it: what it is called and where it is,
+ * who is in it now, its records, whether it is open, and its data. Everything
+ * inside the product — its templates, the customer's own preferences — is
+ * done by signing in as one of its members.
  */
 export function SettingsPanel({
   workspace,
-  address,
+  root,
   status,
   sessions,
   can,
@@ -47,7 +65,8 @@ export function SettingsPanel({
   actions,
 }: {
   workspace: { name: string; slug: string };
-  address: string;
+  /** The domain addresses sit under ("corelith.co.zw"), when there is one. */
+  root: string | null;
   status: string;
   sessions: OpenSession[];
   can: { edit: boolean; signOut: boolean; endSessions: boolean; export: boolean; suspend: boolean; close: boolean };
@@ -57,11 +76,12 @@ export function SettingsPanel({
   const router = useRouter();
   const { toast } = useToast();
   const [name, setName] = useState(workspace.name);
-  const [asking, setAsking] = useState<"sign-out" | "suspend" | "reinstate" | "close" | null>(null);
+  const [address, setAddress] = useState(workspace.slug);
+  const [asking, setAsking] = useState<Asking | null>(null);
   const [busy, startBusy] = useTransition();
-  const [typed, setTyped] = useState("");
-  const [why, setWhy] = useState("");
-  const [closeError, setCloseError] = useState<string | null>(null);
+  const closed = status === "DISABLED";
+  const nextAddress = address.trim().toLowerCase();
+  const where = (slug: string) => (root ? `${slug}.${root}` : slug);
 
   const settle = async (result: Promise<ActionResult>) => {
     const outcome = await result;
@@ -77,6 +97,7 @@ export function SettingsPanel({
         toast({ title: error instanceof Error ? error.message : "That did not work.", variant: "destructive" });
       }
     });
+  const ask = (key: Asking) => ({ open: asking === key, onOpenChange: (open: boolean) => !open && setAsking(null) });
 
   return (
     <div className="space-y-8 pb-10">
@@ -99,13 +120,39 @@ export function SettingsPanel({
             <span className="text-sm">{workspace.name}</span>
           )}
         </SettingRow>
-        <SettingRow label="Address" description="Where members sign in. It cannot change once members use it.">
-          <span className="font-mono text-sm text-[var(--ink)]">{address}</span>
+        <SettingRow
+          label="Address"
+          description="Where members sign in. Changed, the old address stops working at once: tell the owner first."
+        >
+          {can.edit ? (
+            <form
+              className="flex items-center gap-2"
+              onSubmit={(event) => {
+                event.preventDefault();
+                if (nextAddress && nextAddress !== workspace.slug) setAsking("address");
+              }}
+            >
+              <Input
+                aria-label="Workspace address"
+                value={address}
+                onChange={(event) => setAddress(event.target.value)}
+                className="w-48 font-mono"
+                autoComplete="off"
+                spellCheck={false}
+                suffix={root ? `.${root}` : undefined}
+              />
+              <Button type="submit" startIcon={<Save />} disabled={!nextAddress || nextAddress === workspace.slug}>
+                Change
+              </Button>
+            </form>
+          ) : (
+            <span className="font-mono text-sm text-[var(--ink)]">{where(workspace.slug)}</span>
+          )}
         </SettingRow>
       </Section>
 
       <Section title="Who is in">
-        {can.signOut ? (
+        {can.signOut && !closed ? (
           <SettingRow
             label="Sign everyone out"
             description="Every member's sessions end on their next click, and any sign-in-as with them. They sign in again as usual."
@@ -155,7 +202,7 @@ export function SettingsPanel({
         </Section>
       ) : null}
 
-      {(can.suspend && (status === "ACTIVE" || status === "SUSPENDED")) || (can.close && status !== "DISABLED") ? (
+      {(can.suspend && (status === "ACTIVE" || status === "SUSPENDED")) || can.close ? (
         <Section title="Standing">
           {can.suspend && status === "SUSPENDED" ? (
             <SettingRow label="Reinstate" description="Members can sign in again. Their data is as it was.">
@@ -169,119 +216,147 @@ export function SettingsPanel({
               </Button>
             </SettingRow>
           ) : null}
-          {can.close && status !== "DISABLED" ? (
-            <SettingRow label="Close" description="For good. Members lose access at once and the portal cannot reopen it.">
+          {can.close && !closed ? (
+            <SettingRow label="Close" description="Members lose access at once. The data is kept, and an owner can reopen it here.">
               <Button variant="danger" onClick={() => setAsking("close")}>
-                Close {workspace.name}…
+                Close…
+              </Button>
+            </SettingRow>
+          ) : null}
+          {can.close && closed ? (
+            <SettingRow label="Reopen" description="Members can sign in again, and its standing goes back to what the subscription says.">
+              <Button onClick={() => setAsking("reopen")}>Reopen</Button>
+            </SettingRow>
+          ) : null}
+          {can.close && closed ? (
+            <SettingRow
+              label="Delete for good"
+              description="Every record it holds is deleted and the address is freed. The audit log keeps a line saying who did it and why."
+            >
+              <Button variant="danger" startIcon={<Trash />} onClick={() => setAsking("delete")}>
+                Delete for good…
               </Button>
             </SettingRow>
           ) : null}
         </Section>
       ) : null}
 
+      {can.close && !closed ? (
+        <Section title="Data">
+          <SettingRow
+            label="Delete the workspace's data"
+            description="To start again: the modules and records chosen are deleted. The workspace, its owners, its billing and its audit log stay."
+          >
+            <Button variant="danger" startIcon={<Trash />} onClick={() => setAsking("reset")}>
+              Delete data…
+            </Button>
+          </SettingRow>
+        </Section>
+      ) : null}
+
       <ConfirmDialog
-        open={asking === "sign-out"}
-        onOpenChange={(open) => !open && setAsking(null)}
+        {...ask("address")}
+        ask={{
+          title: `Change the address to ${where(nextAddress)}?`,
+          body: `Members sign in at ${where(nextAddress)} from now on. ${where(workspace.slug)} stops working at once, so bookmarks, links in emails and tills set up on it need the new one.`,
+          keep: "Keep the old one",
+          go: "Change the address",
+          fill: "action",
+        }}
+        onConfirm={async () => {
+          const outcome = await actions.changeAddress(nextAddress);
+          if (!outcome.ok) throw new Error(outcome.error);
+          toast({ title: outcome.message, variant: "success" });
+          router.replace(`/admin/w/${nextAddress}/settings`);
+        }}
+      />
+      <ConfirmDialog
+        {...ask("sign-out")}
         ask={{
           title: `Sign everyone in ${workspace.name} out?`,
           body: "Every member's sessions end on their next click, on every browser and till.",
           keep: "Not now",
           go: "Sign everyone out",
           fill: "action",
-          field: { key: "reason", label: "Why", placeholder: "The owner reads this in their audit log", min: 3, max: 300, needed: "Say why." },
+          field: why("The owner's phone was stolen, 11 Oct"),
         }}
         onConfirm={(reason) => settle(actions.signOutEveryone(reason ?? ""))}
       />
       <ConfirmDialog
-        open={asking === "suspend"}
-        onOpenChange={(open) => !open && setAsking(null)}
+        {...ask("suspend")}
         ask={{
           title: `Suspend ${workspace.name}?`,
           body: "Everyone is signed out and nobody can sign in until it is reinstated. Nothing is deleted.",
           keep: "Keep it open",
           go: "Suspend",
           fill: "bad",
-          field: { key: "reason", label: "Why", placeholder: "The owner's phone was stolen, 11 Oct", min: 3, max: 300, needed: "Say why." },
+          field: why("The owner's phone was stolen, 11 Oct"),
         }}
         onConfirm={(reason) => settle(actions.suspend(reason ?? ""))}
       />
       <ConfirmDialog
-        open={asking === "reinstate"}
-        onOpenChange={(open) => !open && setAsking(null)}
+        {...ask("reinstate")}
         ask={{
           title: `Reinstate ${workspace.name}?`,
           body: "Members can sign in again.",
           keep: "Not now",
           go: "Reinstate",
           fill: "action",
-          field: { key: "reason", label: "Why", placeholder: "The owner confirmed by phone", min: 3, max: 300, needed: "Say why." },
+          field: why("The owner confirmed by phone"),
         }}
         onConfirm={(reason) => settle(actions.reinstate(reason ?? ""))}
       />
-
-      <Dialog
-        open={asking === "close"}
-        onOpenChange={(open) => {
-          if (!open && !busy) {
-            setAsking(null);
-            setTyped("");
-            setWhy("");
-            setCloseError(null);
-          }
+      <ConfirmDialog
+        {...ask("close")}
+        ask={{
+          title: `Close ${workspace.name}?`,
+          body: "Nobody gets in again until an owner reopens it, and everyone is signed out now. The data is kept; deleting it for good is a separate step.",
+          keep: "Keep it open",
+          go: "Close",
+          fill: "bad",
+          field: why("The business closed down"),
         }}
-      >
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Close {workspace.name} for good?</DialogTitle>
-            <DialogDescription className="not-sr-only t-body-sm text-[var(--text-muted)]">
-              Every member loses access at once, and nobody can reopen it from here. The data is kept. This is the one thing
-              in the portal that cannot be undone.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-3">
-            <Input
-              label={`Type ${workspace.slug} to confirm`}
-              value={typed}
-              onChange={(event) => setTyped(event.target.value)}
-              className="font-mono"
-              autoComplete="off"
-            />
-            <label className="block space-y-1.5">
-              <span className="t-label text-[var(--ink)]">Why</span>
-              <textarea
-                value={why}
-                onChange={(event) => setWhy(event.target.value)}
-                rows={3}
-                className="w-full rounded-[var(--radius-sm)] border border-[var(--line-strong)] bg-[var(--surface)] px-3 py-2 text-sm focus:border-[var(--action)] focus:outline-none"
-              />
-            </label>
-            {closeError ? <p role="alert" className="text-sm text-[var(--bad)]">{closeError}</p> : null}
-          </div>
-          <DialogFooter>
-            <Button disabled={busy} onClick={() => setAsking(null)}>
-              Keep it
-            </Button>
-            <Button
-              variant="danger"
-              loading={busy}
-              disabled={typed.trim().toLowerCase() !== workspace.slug}
-              onClick={() =>
-                startBusy(async () => {
-                  setCloseError(null);
-                  try {
-                    await settle(actions.close(typed, why));
-                    setAsking(null);
-                  } catch (error) {
-                    setCloseError(error instanceof Error ? error.message : "That did not work.");
-                  }
-                })
-              }
-            >
-              Close {workspace.name}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        onConfirm={(reason) => settle(actions.close(reason ?? ""))}
+      />
+      <ConfirmDialog
+        {...ask("reopen")}
+        ask={{
+          title: `Reopen ${workspace.name}?`,
+          body: "Its members can sign in again, and its standing goes back to what the subscription says.",
+          keep: "Keep it closed",
+          go: "Reopen",
+          fill: "action",
+          field: why("Closed by mistake"),
+        }}
+        onConfirm={(reason) => settle(actions.reopen(reason ?? ""))}
+      />
+      <ConfirmDialog
+        {...ask("delete")}
+        ask={{
+          title: `Delete ${workspace.name} for good?`,
+          body: "Every record it holds — members, sales, stock, payroll, documents — is deleted now, and the address is freed. This cannot be undone. The audit log keeps a line saying who deleted it and why.",
+          keep: "Keep it",
+          go: "Delete for good",
+          fill: "bad",
+          field: why("The owner asked for their data to be deleted"),
+          typed: { label: `Type ${workspace.slug} to go ahead`, text: workspace.slug },
+        }}
+        onConfirm={async (reason) => {
+          const outcome = await actions.deleteForGood(workspace.slug, reason ?? "");
+          if (!outcome.ok) throw new Error(outcome.error);
+          toast({ title: outcome.message, variant: "success" });
+          router.replace("/admin/workspaces?tab=closed");
+        }}
+      />
+      <ResetDataDialog
+        {...ask("reset")}
+        workspaceName={workspace.name}
+        actions={{ preview: actions.previewReset, reset: actions.resetData }}
+        onDone={(message) => {
+          toast({ title: message, variant: "success" });
+          router.refresh();
+        }}
+      />
     </div>
   );
 }

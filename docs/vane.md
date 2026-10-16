@@ -176,7 +176,7 @@ New tables and columns are unreadable to Vane until granted. Run `pnpm vane:read
 
    Vane reads through its own connection as one of these roles, never by `SET ROLE` on the app's connection: from the app's connection a statement could switch the role back. The worker binds the connection inside the reading transaction (the app writes the `VaneReaderScope` row for that connection's `pg_backend_pid()`), runs the question read-only with a 5 s statement timeout and a 500-row cap, and deletes the binding.
 
-5. Explore has a login of its own, `explore_reader`, made by `20261015120000_explore_reader` (approved 15 Oct; the same `CREATEROLE` applies). It is created `NOLOGIN`. Give it a password by hand on the server and set `EXPLORE_READER_DATABASE_URL` in the deployment's environment settings, beside Vane's two:
+5. Explore has a login of its own, `explore_reader`, made by `20261016100000_explore_reader` (approved 15 Oct; the same `CREATEROLE` applies). It is created `NOLOGIN`. Give it a password by hand on the server and set `EXPLORE_READER_DATABASE_URL` in the deployment's environment settings, beside Vane's two:
 
    ```sql
    ALTER ROLE explore_reader LOGIN PASSWORD '…';

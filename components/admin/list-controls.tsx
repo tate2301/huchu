@@ -1,33 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 
-import { TableSearch } from "@/components/records/table-controls";
-import { FILTER_ANY, ViewToolbar, ViewToolbarFilter } from "@/components/records/view-toolbar";
 import { SectionTab, SectionTabs } from "@/components/ui/section-tabs";
 
-/**
- * A list page's two rows of questions, kept in the URL so a filtered list can
- * be linked to and survives a reload: the tabs ("which ones"), then search and
- * filters ("narrowed how").
- */
-
-function useParamWriter() {
-  const router = useRouter();
-  const pathname = usePathname();
-  const params = useSearchParams();
-  return (changes: Record<string, string | null>) => {
-    const next = new URLSearchParams(params.toString());
-    for (const [key, value] of Object.entries(changes)) {
-      if (value === null || value === "" || value === FILTER_ANY) next.delete(key);
-      else next.set(key, value);
-    }
-    const query = next.toString();
-    router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
-  };
-}
-
+/** Tabs kept in the URL, so a tab can be linked to and survives a reload. */
 export function UrlTabs({
   label,
   tabs,
@@ -54,48 +31,5 @@ export function UrlTabs({
         );
       })}
     </SectionTabs>
-  );
-}
-
-export type UrlFilter = { param: string; label: string; anyLabel: string; options: Array<[string, string]> };
-
-export function UrlToolbar({
-  searchPlaceholder,
-  filters = [],
-  count,
-}: {
-  searchPlaceholder: string;
-  filters?: UrlFilter[];
-  count?: string;
-}) {
-  const params = useSearchParams();
-  const write = useParamWriter();
-  const [q, setQ] = useState(params.get("q") ?? "");
-
-  // Typing writes the URL a beat after the last key, not on every key.
-  useEffect(() => {
-    if (q === (params.get("q") ?? "")) return;
-    const timer = setTimeout(() => write({ q }), 250);
-    return () => clearTimeout(timer);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [q]);
-
-  return (
-    <ViewToolbar
-      search={<TableSearch value={q} onChange={setQ} placeholder={searchPlaceholder} />}
-      start={filters.map((filter) => (
-        <ViewToolbarFilter
-          key={filter.param}
-          label={filter.label}
-          anyLabel={filter.anyLabel}
-          value={params.get(filter.param) ?? FILTER_ANY}
-          options={new Map(filter.options)}
-          onChange={(value) => write({ [filter.param]: value })}
-        />
-      ))}
-      count={count ? <span className="font-mono text-xs tabular-nums text-[var(--text-subtle)]">{count}</span> : undefined}
-      filterCount={filters.filter((filter) => params.get(filter.param)).length}
-      className="bg-[var(--surface)] before:bg-[var(--surface)]"
-    />
   );
 }

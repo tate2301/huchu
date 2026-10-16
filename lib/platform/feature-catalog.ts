@@ -23,16 +23,14 @@ export interface FeatureCatalogEntry {
   description: string;
   domain: FeatureDomain;
   defaultEnabled: boolean;
-  isBillable: boolean;
-  monthlyPrice: number;
 }
 
 export interface FeatureBundleDefinition {
   code: string;
   name: string;
   description: string;
-  monthlyPrice: number;
-  additionalSiteMonthlyPrice: number;
+  /** Comes with every workspace of its kind and is never offered on its own. */
+  base?: boolean;
   features: string[];
 }
 
@@ -40,66 +38,21 @@ export interface TierDefinition {
   code: string;
   name: string;
   description: string;
-  /** List price when billed month-to-month, in USD. */
-  monthlyPrice: number;
-  /**
-   * Effective per-month price when billed annually. Always
-   * `Math.round(monthlyPrice * (1 - ANNUAL_DISCOUNT_RATE))`.
-   */
-  annualMonthlyPrice: number;
-  /**
-   * One-off setup fee charged at the start of the engagement, in USD. `0` means
-   * the tier is self-serve and onboarding costs the buyer nothing. Enterprise
-   * carries `0` because its onboarding is scoped per engagement rather than
-   * listed — the catalog states no price it cannot honour.
-   */
-  onboardingFee: number;
-  includedSites: number;
-  /** Tills that may be paired at once (SET-03, `SubscriptionPlan.maxTills`). `null` means any number. */
-  includedTills: number | null;
-  additionalSiteMonthlyPrice: number;
-  /**
-   * Seats included in the base price. Corelith does not price per seat — this is a
-   * fair-use ceiling, and `additionalUserPackMonthlyPrice` covers packs of
-   * `USER_PACK_SIZE` beyond it. `null` means uncapped.
-   */
-  includedUsers: number | null;
-  additionalUserPackMonthlyPrice: number;
   warningDays: number;
   graceDays: number;
   includedFeatures: string[];
   includedBundles: string[];
   /**
-   * A vertical edition is sold for what a business *is*, not for how big it is.
+   * A vertical edition is cut for what a business *is*, not for how big it is.
    *
-   * FISCAL → START → GROW → SCALE → ENTERPRISE is a size ladder: each rung adds
-   * sites, seats and add-ons, and moving up never takes anything away. Gold
-   * Edition is not a rung on it. It is priced above SCALE because a mine is
-   * worth more, not because it is bigger — a single mine has a handful of sites
-   * and no use for the retail till suite, so forcing it to be a superset of
-   * SCALE would mean selling a gold operation a point-of-sale system to keep an
-   * arithmetic invariant tidy.
-   *
-   * The ladder invariants (ascending sites, never dropping a bundle) therefore
-   * apply across `LADDER_TIERS`; a vertical edition is only held to including
-   * the wedge — accounting plus fiscalisation — and its own vertical bundles.
+   * FISCAL → START → GROW → SCALE → ENTERPRISE is a ladder: each rung adds
+   * bundles, and moving up never takes anything away. Gold Edition is not a
+   * rung on it — a mine has no use for the retail till suite, so it is not held
+   * to being a superset of SCALE. The ladder invariant (never dropping a
+   * bundle) applies across `LADDER_TIERS`; a vertical edition is only held to
+   * including the wedge — accounting plus fiscalisation — and its own bundles.
    */
   isVerticalEdition?: boolean;
-}
-
-/** Seats per add-on user pack. */
-export const USER_PACK_SIZE = 5;
-
-/**
- * Discount applied when a subscription is prepaid annually. This is the single
- * source of the annual saving: every `annualMonthlyPrice` below is
- * `Math.round(monthlyPrice * (1 - ANNUAL_DISCOUNT_RATE))`.
- */
-export const ANNUAL_DISCOUNT_RATE = 0.2;
-
-/** The per-month price when a tier's monthly list price is prepaid annually. */
-function annualMonthly(monthlyPrice: number): number {
-  return Math.round(monthlyPrice * (1 - ANNUAL_DISCOUNT_RATE));
 }
 
 function f(entry: FeatureCatalogEntry): FeatureCatalogEntry {
@@ -107,177 +60,171 @@ function f(entry: FeatureCatalogEntry): FeatureCatalogEntry {
 }
 
 export const FEATURE_CATALOG: FeatureCatalogEntry[] = [
-  f({ key: "core.auth.login", name: "Login", description: "Authentication and session access.", domain: "core", defaultEnabled: true, isBillable: false, monthlyPrice: 0 }),
-  f({ key: "core.help.quick-tips", name: "Quick Tips", description: "In-app quick tips and onboarding help.", domain: "core", defaultEnabled: true, isBillable: false, monthlyPrice: 0 }),
-  f({ key: "core.notifications.center", name: "Notification Center", description: "In-app notification center.", domain: "core", defaultEnabled: true, isBillable: false, monthlyPrice: 0 }),
-  f({ key: "core.notifications.push", name: "Push Notifications", description: "Web push notifications and subscriptions.", domain: "core", defaultEnabled: true, isBillable: true, monthlyPrice: 2 }),
-  f({ key: "core.multitenancy.tenant-host-enforcement", name: "Tenant Host Enforcement", description: "Tenant host-based access enforcement.", domain: "core", defaultEnabled: true, isBillable: false, monthlyPrice: 0 }),
-  f({ key: "core.branding.manage", name: "Branding Management", description: "Brand identity controls for tenant workspace.", domain: "core", defaultEnabled: false, isBillable: true, monthlyPrice: 5 }),
+  f({ key: "core.auth.login", name: "Login", description: "Authentication and session access.", domain: "core", defaultEnabled: true }),
+  f({ key: "core.help.quick-tips", name: "Quick Tips", description: "In-app quick tips and onboarding help.", domain: "core", defaultEnabled: true }),
+  f({ key: "core.notifications.center", name: "Notification Center", description: "In-app notification center.", domain: "core", defaultEnabled: true }),
+  f({ key: "core.notifications.push", name: "Push Notifications", description: "Web push notifications and subscriptions.", domain: "core", defaultEnabled: false }),
+  f({ key: "core.multitenancy.tenant-host-enforcement", name: "Tenant Host Enforcement", description: "Tenant host-based access enforcement.", domain: "core", defaultEnabled: true }),
+  f({ key: "core.branding.manage", name: "Branding Management", description: "Brand identity controls for tenant workspace.", domain: "core", defaultEnabled: false }),
   // Not sold on its own: the template library rides with whichever addon gives
   // you templates to keep in it — the CRM suite (forms, quotes, invoices) or
   // custom branding (document layouts).
-  f({ key: "core.templates", name: "Template Library", description: "The shared library of forms, intake forms, and document layouts.", domain: "core", defaultEnabled: false, isBillable: false, monthlyPrice: 0 }),
-  f({ key: "core.branding.custom-domain", name: "Custom Domain", description: "Custom domain configuration and verification.", domain: "core", defaultEnabled: false, isBillable: true, monthlyPrice: 3 }),
+  f({ key: "core.templates", name: "Template Library", description: "The shared library of forms, intake forms, and document layouts.", domain: "core", defaultEnabled: false }),
+  f({ key: "core.branding.custom-domain", name: "Custom Domain", description: "Custom domain configuration and verification.", domain: "core", defaultEnabled: false }),
 
-  f({ key: "ops.shift-report.submit", name: "Shift Reports", description: "Submit and manage shift reports.", domain: "operations", defaultEnabled: false, isBillable: false, monthlyPrice: 0 }),
-  f({ key: "ops.attendance.mark", name: "Attendance", description: "Attendance capture and attendance APIs.", domain: "operations", defaultEnabled: false, isBillable: false, monthlyPrice: 0 }),
-  f({ key: "ops.plant-report.submit", name: "Plant Reports", description: "Plant report submission and tracking.", domain: "operations", defaultEnabled: false, isBillable: false, monthlyPrice: 0 }),
+  f({ key: "ops.shift-report.submit", name: "Shift Reports", description: "Submit and manage shift reports.", domain: "operations", defaultEnabled: false }),
+  f({ key: "ops.attendance.mark", name: "Attendance", description: "Attendance capture and attendance APIs.", domain: "operations", defaultEnabled: false }),
+  f({ key: "ops.plant-report.submit", name: "Plant Reports", description: "Plant report submission and tracking.", domain: "operations", defaultEnabled: false }),
 
-  f({ key: "stores.dashboard", name: "Stores Dashboard", description: "Stores dashboard and summaries.", domain: "stores", defaultEnabled: false, isBillable: false, monthlyPrice: 0 }),
-  f({ key: "stores.inventory", name: "Inventory", description: "Inventory item and stock control.", domain: "stores", defaultEnabled: false, isBillable: false, monthlyPrice: 0 }),
-  f({ key: "stores.movements", name: "Stock Movements", description: "Stock movement logs and actions.", domain: "stores", defaultEnabled: false, isBillable: false, monthlyPrice: 0 }),
-  f({ key: "stores.issue", name: "Issue Stock", description: "Issue stock workflows.", domain: "stores", defaultEnabled: false, isBillable: false, monthlyPrice: 0 }),
-  f({ key: "stores.receive", name: "Receive Stock", description: "Receive stock workflows.", domain: "stores", defaultEnabled: false, isBillable: false, monthlyPrice: 0 }),
+  f({ key: "stores.dashboard", name: "Stores Dashboard", description: "Stores dashboard and summaries.", domain: "stores", defaultEnabled: false }),
+  f({ key: "stores.inventory", name: "Inventory", description: "Inventory item and stock control.", domain: "stores", defaultEnabled: false }),
+  f({ key: "stores.movements", name: "Stock Movements", description: "Stock movement logs and actions.", domain: "stores", defaultEnabled: false }),
+  f({ key: "stores.issue", name: "Issue Stock", description: "Issue stock workflows.", domain: "stores", defaultEnabled: false }),
+  f({ key: "stores.receive", name: "Receive Stock", description: "Receive stock workflows.", domain: "stores", defaultEnabled: false }),
   // What the business sells, as opposed to what it holds. Both screens used to
   // ride on `stores.inventory`, so a tenant could not be given a price book
   // without being given the whole stock module — and a retail workspace, which
   // must hold `stores.inventory` for its own stock, could not be kept away from
   // a second item master it does not read.
-  f({ key: "stores.catalogue", name: "Product Catalogue", description: "The shared product catalogue — what the business sells.", domain: "stores", defaultEnabled: false, isBillable: false, monthlyPrice: 0 }),
-  f({ key: "stores.price-lists", name: "Price Lists", description: "Price lists and the prices resolved from them.", domain: "stores", defaultEnabled: false, isBillable: false, monthlyPrice: 0 }),
-  f({ key: "stores.fuel-ledger", name: "Fuel Ledger", description: "Fuel-related stock and reporting.", domain: "stores", defaultEnabled: false, isBillable: true, monthlyPrice: 3 }),
+  f({ key: "stores.catalogue", name: "Product Catalogue", description: "The shared product catalogue — what the business sells.", domain: "stores", defaultEnabled: false }),
+  f({ key: "stores.price-lists", name: "Price Lists", description: "Price lists and the prices resolved from them.", domain: "stores", defaultEnabled: false }),
+  f({ key: "stores.fuel-ledger", name: "Fuel Ledger", description: "Fuel-related stock and reporting.", domain: "stores", defaultEnabled: false }),
 
-  f({ key: "gold.home", name: "Gold Home", description: "Gold module landing and navigation.", domain: "gold", defaultEnabled: false, isBillable: false, monthlyPrice: 0 }),
-  f({ key: "gold.intake.pours", name: "Gold Pours", description: "Gold pour intake workflows.", domain: "gold", defaultEnabled: false, isBillable: false, monthlyPrice: 0 }),
-  f({ key: "gold.dispatches", name: "Gold Dispatches", description: "Gold dispatch registration and tracking.", domain: "gold", defaultEnabled: false, isBillable: false, monthlyPrice: 0 }),
-  f({ key: "gold.receipts", name: "Gold Receipts", description: "Buyer receipts and settlement records.", domain: "gold", defaultEnabled: false, isBillable: false, monthlyPrice: 0 }),
-  f({ key: "gold.reconciliation", name: "Gold Reconciliation", description: "Gold reconciliation workflows.", domain: "gold", defaultEnabled: false, isBillable: true, monthlyPrice: 5 }),
-  f({ key: "gold.exceptions", name: "Gold Exceptions", description: "Exception and anomaly tracking in gold flows.", domain: "gold", defaultEnabled: false, isBillable: true, monthlyPrice: 2 }),
-  f({ key: "gold.audit-trail", name: "Gold Audit Trail", description: "Gold audit and traceability pages.", domain: "gold", defaultEnabled: false, isBillable: true, monthlyPrice: 3 }),
-  f({ key: "gold.payouts", name: "Gold Settlements", description: "Gold settlement workflows.", domain: "gold", defaultEnabled: false, isBillable: true, monthlyPrice: 5 }),
+  f({ key: "gold.home", name: "Gold Home", description: "Gold module landing and navigation.", domain: "gold", defaultEnabled: false }),
+  f({ key: "gold.intake.pours", name: "Gold Pours", description: "Gold pour intake workflows.", domain: "gold", defaultEnabled: false }),
+  f({ key: "gold.dispatches", name: "Gold Dispatches", description: "Gold dispatch registration and tracking.", domain: "gold", defaultEnabled: false }),
+  f({ key: "gold.receipts", name: "Gold Receipts", description: "Buyer receipts and settlement records.", domain: "gold", defaultEnabled: false }),
+  f({ key: "gold.reconciliation", name: "Gold Reconciliation", description: "Gold reconciliation workflows.", domain: "gold", defaultEnabled: false }),
+  f({ key: "gold.exceptions", name: "Gold Exceptions", description: "Exception and anomaly tracking in gold flows.", domain: "gold", defaultEnabled: false }),
+  f({ key: "gold.audit-trail", name: "Gold Audit Trail", description: "Gold audit and traceability pages.", domain: "gold", defaultEnabled: false }),
+  f({ key: "gold.payouts", name: "Gold Settlements", description: "Gold settlement workflows.", domain: "gold", defaultEnabled: false }),
 
-  f({ key: "hr.employees", name: "Employees", description: "Employee records and directory.", domain: "hr", defaultEnabled: false, isBillable: false, monthlyPrice: 0 }),
-  // Non-billable at zero, exactly like `hr.employees` and exactly like the
-  // `ops.attendance.mark` it takes over from. Marking a register moved from Mine
-  // Daily Operations to People because every vertical with a workforce keeps one —
-  // and an information-architecture change must not reprice anybody, so this
-  // deliberately does not become a billable line.
-  f({ key: "hr.attendance", name: "Attendance", description: "Crew attendance capture and the attendance register.", domain: "hr", defaultEnabled: false, isBillable: false, monthlyPrice: 0 }),
-  f({ key: "hr.leave", name: "Leave", description: "Leave types, entitlements, requests and the public holiday calendar.", domain: "hr", defaultEnabled: false, isBillable: true, monthlyPrice: 3 }),
-  f({ key: "hr.incidents", name: "HR Incidents", description: "HR incident management.", domain: "hr", defaultEnabled: true, isBillable: true, monthlyPrice: 2 }),
-  f({ key: "hr.disciplinary-actions", name: "Disciplinary Actions", description: "Disciplinary action lifecycle.", domain: "hr", defaultEnabled: true, isBillable: true, monthlyPrice: 2 }),
-  f({ key: "hr.compensation-rules", name: "Compensation Rules", description: "Compensation profiles/rules/templates.", domain: "hr", defaultEnabled: true, isBillable: true, monthlyPrice: 3 }),
-  f({ key: "hr.salaries", name: "Salaries", description: "Salary records and salary operations.", domain: "hr", defaultEnabled: true, isBillable: true, monthlyPrice: 3 }),
-  f({ key: "hr.payroll", name: "Payroll", description: "Payroll periods and runs.", domain: "hr", defaultEnabled: true, isBillable: true, monthlyPrice: 5 }),
-  f({ key: "hr.disbursements", name: "Disbursements", description: "Cash disbursement batch operations.", domain: "hr", defaultEnabled: true, isBillable: true, monthlyPrice: 3 }),
-  f({ key: "hr.approvals-history", name: "Approvals History", description: "Approval history and audit approvals.", domain: "hr", defaultEnabled: true, isBillable: true, monthlyPrice: 2 }),
+  f({ key: "hr.employees", name: "Employees", description: "Employee records and directory.", domain: "hr", defaultEnabled: false }),
+  // Takes over from `ops.attendance.mark`: marking a register moved from Mine
+  // Daily Operations to People because every vertical with a workforce keeps one.
+  f({ key: "hr.attendance", name: "Attendance", description: "Crew attendance capture and the attendance register.", domain: "hr", defaultEnabled: false }),
+  f({ key: "hr.leave", name: "Leave", description: "Leave types, entitlements, requests and the public holiday calendar.", domain: "hr", defaultEnabled: false }),
+  f({ key: "hr.incidents", name: "HR Incidents", description: "HR incident management.", domain: "hr", defaultEnabled: false }),
+  f({ key: "hr.disciplinary-actions", name: "Disciplinary Actions", description: "Disciplinary action lifecycle.", domain: "hr", defaultEnabled: false }),
+  f({ key: "hr.compensation-rules", name: "Compensation Rules", description: "Compensation profiles/rules/templates.", domain: "hr", defaultEnabled: false }),
+  f({ key: "hr.salaries", name: "Salaries", description: "Salary records and salary operations.", domain: "hr", defaultEnabled: false }),
+  f({ key: "hr.payroll", name: "Payroll", description: "Payroll periods and runs.", domain: "hr", defaultEnabled: false }),
+  f({ key: "hr.disbursements", name: "Disbursements", description: "Cash disbursement batch operations.", domain: "hr", defaultEnabled: false }),
+  f({ key: "hr.approvals-history", name: "Approvals History", description: "Approval history and audit approvals.", domain: "hr", defaultEnabled: false }),
   // Zimbabwe statutory payroll. Separate keys because they are separately
   // sellable: a company outside Zimbabwe wants the payroll engine without the
   // ZIMRA returns, and a company that keeps its own books wants the payslips
   // without giving every employee a login.
-  f({ key: "hr.statutory-tables", name: "Statutory Tables", description: "Effective-dated PAYE bands, NSSA rates, levies, tax credits and NEC agreements.", domain: "hr", defaultEnabled: false, isBillable: true, monthlyPrice: 3 }),
-  f({ key: "hr.statutory-returns", name: "Statutory Returns", description: "Monthly PAYE (P2) and NSSA contribution schedules, reconciled against the ledger.", domain: "hr", defaultEnabled: false, isBillable: true, monthlyPrice: 4 }),
-  f({ key: "hr.payslips", name: "Payslips", description: "Per-employee payslips showing every stage of the calculation.", domain: "hr", defaultEnabled: false, isBillable: true, monthlyPrice: 2 }),
-  f({ key: "hr.employee-self-service", name: "Employee Self-Service", description: "Lets an employee view their own payslips and nobody else's.", domain: "hr", defaultEnabled: false, isBillable: true, monthlyPrice: 1 }),
+  f({ key: "hr.statutory-tables", name: "Statutory Tables", description: "Effective-dated PAYE bands, NSSA rates, levies, tax credits and NEC agreements.", domain: "hr", defaultEnabled: false }),
+  f({ key: "hr.statutory-returns", name: "Statutory Returns", description: "Monthly PAYE (P2) and NSSA contribution schedules, reconciled against the ledger.", domain: "hr", defaultEnabled: false }),
+  f({ key: "hr.payslips", name: "Payslips", description: "Per-employee payslips showing every stage of the calculation.", domain: "hr", defaultEnabled: false }),
+  f({ key: "hr.employee-self-service", name: "Employee Self-Service", description: "Lets an employee view their own payslips and nobody else's.", domain: "hr", defaultEnabled: false }),
 
-  f({ key: "accounting.core", name: "Accounting Core", description: "Accounting module dashboard and shared setup.", domain: "accounting", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
-  f({ key: "accounting.chart-of-accounts", name: "Chart of Accounts", description: "Chart of accounts and account setup.", domain: "accounting", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
-  f({ key: "accounting.journals", name: "Journals", description: "Journal entries and posting workflows.", domain: "accounting", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
-  f({ key: "accounting.periods", name: "Accounting Periods", description: "Accounting periods and period locks.", domain: "accounting", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
-  f({ key: "accounting.posting-rules", name: "Posting Rules", description: "Automated posting rules and mappings.", domain: "accounting", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
-  f({ key: "accounting.trial-balance", name: "Trial Balance", description: "Trial balance reporting.", domain: "accounting", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
-  f({ key: "accounting.financial-statements", name: "Financial Statements", description: "Profit & Loss, Balance Sheet, and Cash Flow.", domain: "accounting", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
-  f({ key: "accounting.ar", name: "Accounts Receivable", description: "Sales customers, invoices, and receipts.", domain: "accounting", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
-  f({ key: "accounting.ap", name: "Accounts Payable", description: "Vendors, bills, and payments.", domain: "accounting", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
-  f({ key: "accounting.banking", name: "Banking", description: "Bank accounts and transactions.", domain: "accounting", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
-  f({ key: "accounting.cost-centers", name: "Cost Centers", description: "Cost center setup and allocation.", domain: "accounting", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
-  f({ key: "accounting.multi-currency", name: "Multi-currency", description: "Currency rates and multi-currency support.", domain: "accounting", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
-  f({ key: "accounting.tax", name: "Tax", description: "Tax codes and VAT configuration.", domain: "accounting", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
-  f({ key: "accounting.zimra.fiscalisation", name: "ZIMRA Fiscalisation", description: "ZIMRA FDMS fiscalisation integration.", domain: "accounting", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
+  f({ key: "accounting.core", name: "Accounting Core", description: "Accounting module dashboard and shared setup.", domain: "accounting", defaultEnabled: false }),
+  f({ key: "accounting.chart-of-accounts", name: "Chart of Accounts", description: "Chart of accounts and account setup.", domain: "accounting", defaultEnabled: false }),
+  f({ key: "accounting.journals", name: "Journals", description: "Journal entries and posting workflows.", domain: "accounting", defaultEnabled: false }),
+  f({ key: "accounting.periods", name: "Accounting Periods", description: "Accounting periods and period locks.", domain: "accounting", defaultEnabled: false }),
+  f({ key: "accounting.posting-rules", name: "Posting Rules", description: "Automated posting rules and mappings.", domain: "accounting", defaultEnabled: false }),
+  f({ key: "accounting.trial-balance", name: "Trial Balance", description: "Trial balance reporting.", domain: "accounting", defaultEnabled: false }),
+  f({ key: "accounting.financial-statements", name: "Financial Statements", description: "Profit & Loss, Balance Sheet, and Cash Flow.", domain: "accounting", defaultEnabled: false }),
+  f({ key: "accounting.ar", name: "Accounts Receivable", description: "Sales customers, invoices, and receipts.", domain: "accounting", defaultEnabled: false }),
+  f({ key: "accounting.ap", name: "Accounts Payable", description: "Vendors, bills, and payments.", domain: "accounting", defaultEnabled: false }),
+  f({ key: "accounting.banking", name: "Banking", description: "Bank accounts and transactions.", domain: "accounting", defaultEnabled: false }),
+  f({ key: "accounting.cost-centers", name: "Cost Centers", description: "Cost center setup and allocation.", domain: "accounting", defaultEnabled: false }),
+  f({ key: "accounting.multi-currency", name: "Multi-currency", description: "Currency rates and multi-currency support.", domain: "accounting", defaultEnabled: false }),
+  f({ key: "accounting.tax", name: "Tax", description: "Tax codes and VAT configuration.", domain: "accounting", defaultEnabled: false }),
+  f({ key: "accounting.zimra.fiscalisation", name: "ZIMRA Fiscalisation", description: "ZIMRA FDMS fiscalisation integration.", domain: "accounting", defaultEnabled: false }),
 
-  f({ key: "maintenance.dashboard", name: "Maintenance Dashboard", description: "Maintenance dashboard.", domain: "maintenance", defaultEnabled: false, isBillable: false, monthlyPrice: 0 }),
-  f({ key: "maintenance.equipment", name: "Equipment Register", description: "Equipment lifecycle and maintenance meta.", domain: "maintenance", defaultEnabled: false, isBillable: true, monthlyPrice: 3 }),
-  f({ key: "maintenance.work-orders", name: "Work Orders", description: "Work order operations and workflows.", domain: "maintenance", defaultEnabled: false, isBillable: true, monthlyPrice: 3 }),
-  f({ key: "maintenance.breakdowns", name: "Breakdown Tracking", description: "Breakdown logging and remediation.", domain: "maintenance", defaultEnabled: false, isBillable: true, monthlyPrice: 2 }),
-  f({ key: "maintenance.schedule", name: "Maintenance Schedule", description: "Planned maintenance schedule.", domain: "maintenance", defaultEnabled: false, isBillable: true, monthlyPrice: 2 }),
+  f({ key: "maintenance.dashboard", name: "Maintenance Dashboard", description: "Maintenance dashboard.", domain: "maintenance", defaultEnabled: false }),
+  f({ key: "maintenance.equipment", name: "Equipment Register", description: "Equipment lifecycle and maintenance meta.", domain: "maintenance", defaultEnabled: false }),
+  f({ key: "maintenance.work-orders", name: "Work Orders", description: "Work order operations and workflows.", domain: "maintenance", defaultEnabled: false }),
+  f({ key: "maintenance.breakdowns", name: "Breakdown Tracking", description: "Breakdown logging and remediation.", domain: "maintenance", defaultEnabled: false }),
+  f({ key: "maintenance.schedule", name: "Maintenance Schedule", description: "Planned maintenance schedule.", domain: "maintenance", defaultEnabled: false }),
 
-  f({ key: "compliance.overview", name: "Compliance Overview", description: "Compliance dashboard/overview.", domain: "compliance", defaultEnabled: true, isBillable: false, monthlyPrice: 0 }),
-  f({ key: "compliance.permits", name: "Permits", description: "Permit lifecycle management.", domain: "compliance", defaultEnabled: true, isBillable: true, monthlyPrice: 2 }),
-  f({ key: "compliance.inspections", name: "Inspections", description: "Inspection records and actions.", domain: "compliance", defaultEnabled: true, isBillable: true, monthlyPrice: 2 }),
-  f({ key: "compliance.incidents", name: "Compliance Incidents", description: "Compliance incident tracking.", domain: "compliance", defaultEnabled: true, isBillable: true, monthlyPrice: 3 }),
-  f({ key: "compliance.training-records", name: "Training Records", description: "Training records and expiries.", domain: "compliance", defaultEnabled: true, isBillable: true, monthlyPrice: 2 }),
+  f({ key: "compliance.overview", name: "Compliance Overview", description: "Compliance dashboard/overview.", domain: "compliance", defaultEnabled: true }),
+  f({ key: "compliance.permits", name: "Permits", description: "Permit lifecycle management.", domain: "compliance", defaultEnabled: false }),
+  f({ key: "compliance.inspections", name: "Inspections", description: "Inspection records and actions.", domain: "compliance", defaultEnabled: false }),
+  f({ key: "compliance.incidents", name: "Compliance Incidents", description: "Compliance incident tracking.", domain: "compliance", defaultEnabled: false }),
+  f({ key: "compliance.training-records", name: "Training Records", description: "Training records and expiries.", domain: "compliance", defaultEnabled: false }),
 
-  f({ key: "schools.core", name: "Schools Core", description: "Schools module landing and shared setup.", domain: "schools", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
-  f({ key: "schools.admissions", name: "School Admissions", description: "Admissions workflows and enrollment intake.", domain: "schools", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
-  f({ key: "schools.students", name: "Student Directory", description: "Student profile management and directory browsing.", domain: "schools", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
-  f({ key: "schools.attendance", name: "School Attendance", description: "Attendance capture and attendance tracking for students.", domain: "schools", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
-  f({ key: "schools.fees", name: "School Fees", description: "Fees setup, invoicing, and fee collection tracking.", domain: "schools", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
-  f({ key: "schools.boarding", name: "School Boarding", description: "Boarding operations including hostels, beds, and leave/outing workflows.", domain: "schools", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
-  f({ key: "schools.teachers", name: "Teacher Management", description: "Teacher profiles, subjects, and class assignment governance.", domain: "schools", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
-  f({ key: "schools.results", name: "School Results", description: "Continuous assessments, exams, moderation, and report card publishing.", domain: "schools", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
-  // S-13.1. Billable and priced on its own: public exams are the one thing
-  // every Zimbabwean secondary school does that the pack could not, sold as an
-  // add-on at $99 a term. The monthly figure here is that list price spread
-  // over a term; the term price is the one a school is quoted.
-  f({ key: "schools.exams", name: "Public Exams", description: "Public exam series, candidates, entries, seating and results — ZIMSEC and Cambridge. Sold as an add-on at $99 a term; this monthly figure is the list-price equivalent.", domain: "schools", defaultEnabled: false, isBillable: true, monthlyPrice: 33 }),
-  f({ key: "schools.portal.parent", name: "Parent Portal", description: "Parent portal access for student progress and finance visibility.", domain: "schools", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
-  f({ key: "schools.portal.student", name: "Student Portal", description: "Student portal access for own timetable, attendance, and results.", domain: "schools", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
-  f({ key: "schools.portal.teacher", name: "Teacher Portal", description: "Teacher portal access for registers, marks, and moderation tasks.", domain: "schools", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
+  f({ key: "schools.core", name: "Schools Core", description: "Schools module landing and shared setup.", domain: "schools", defaultEnabled: false }),
+  f({ key: "schools.admissions", name: "School Admissions", description: "Admissions workflows and enrollment intake.", domain: "schools", defaultEnabled: false }),
+  f({ key: "schools.students", name: "Student Directory", description: "Student profile management and directory browsing.", domain: "schools", defaultEnabled: false }),
+  f({ key: "schools.attendance", name: "School Attendance", description: "Attendance capture and attendance tracking for students.", domain: "schools", defaultEnabled: false }),
+  f({ key: "schools.fees", name: "School Fees", description: "Fees setup, invoicing, and fee collection tracking.", domain: "schools", defaultEnabled: false }),
+  f({ key: "schools.boarding", name: "School Boarding", description: "Boarding operations including hostels, beds, and leave/outing workflows.", domain: "schools", defaultEnabled: false }),
+  f({ key: "schools.teachers", name: "Teacher Management", description: "Teacher profiles, subjects, and class assignment governance.", domain: "schools", defaultEnabled: false }),
+  f({ key: "schools.results", name: "School Results", description: "Continuous assessments, exams, moderation, and report card publishing.", domain: "schools", defaultEnabled: false }),
+  // S-13.1. Off until switched on: public exams are the one thing every
+  // Zimbabwean secondary school does that the pack could not.
+  f({ key: "schools.exams", name: "Public Exams", description: "Public exam series, candidates, entries, seating and results — ZIMSEC and Cambridge.", domain: "schools", defaultEnabled: false }),
+  f({ key: "schools.portal.parent", name: "Parent Portal", description: "Parent portal access for student progress and finance visibility.", domain: "schools", defaultEnabled: false }),
+  f({ key: "schools.portal.student", name: "Student Portal", description: "Student portal access for own timetable, attendance, and results.", domain: "schools", defaultEnabled: false }),
+  f({ key: "schools.portal.teacher", name: "Teacher Portal", description: "Teacher portal access for registers, marks, and moderation tasks.", domain: "schools", defaultEnabled: false }),
 
   // Commodity and variable settlements: paying somebody for a quantity of
   // something rather than for a period of employment. Its own domain, not HR's,
   // because a payroll module has to be sellable without it and a mine's site
   // manager who approves a settlement has no business in the salary bill.
-  f({ key: "settlements.core", name: "Settlements", description: "Settlement intakes, runs and payouts for quantity-based pay.", domain: "settlements", defaultEnabled: false, isBillable: true, monthlyPrice: 3 }),
-  f({ key: "settlements.gold", name: "Gold Settlements", description: "Settling gold shift allocations by weight, valued at the price agreed upstream.", domain: "settlements", defaultEnabled: false, isBillable: true, monthlyPrice: 2 }),
+  f({ key: "settlements.core", name: "Settlements", description: "Settlement intakes, runs and payouts for quantity-based pay.", domain: "settlements", defaultEnabled: false }),
+  f({ key: "settlements.gold", name: "Gold Settlements", description: "Settling gold shift allocations by weight, valued at the price agreed upstream.", domain: "settlements", defaultEnabled: false }),
 
-  f({ key: "retail.core", name: "Retail Core", description: "Retail module landing and shared setup.", domain: "retail", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
-  f({ key: "retail.pos", name: "Retail POS", description: "Point-of-sale and cashier workflows.", domain: "retail", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
-  f({ key: "retail.catalog", name: "Retail Catalog", description: "Cataloging, pricing, barcodes, and sellable item management.", domain: "retail", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
-  f({ key: "retail.purchasing", name: "Retail Purchasing", description: "Purchase orders, receipts, and receiving workflows.", domain: "retail", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
-  f({ key: "retail.promotions", name: "Retail Promotions", description: "Price lists, markdowns, and promotion rules.", domain: "retail", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
-  f({ key: "retail.shifts", name: "Retail Shifts", description: "Shift control, cash-up, and register reconciliation.", domain: "retail", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
-  f({ key: "retail.reports", name: "Retail Reports", description: "Retail dashboards and reporting surfaces.", domain: "retail", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
+  f({ key: "retail.core", name: "Retail Core", description: "Retail module landing and shared setup.", domain: "retail", defaultEnabled: false }),
+  f({ key: "retail.pos", name: "Retail POS", description: "Point-of-sale and cashier workflows.", domain: "retail", defaultEnabled: false }),
+  f({ key: "retail.catalog", name: "Retail Catalog", description: "Cataloging, pricing, barcodes, and sellable item management.", domain: "retail", defaultEnabled: false }),
+  f({ key: "retail.purchasing", name: "Retail Purchasing", description: "Purchase orders, receipts, and receiving workflows.", domain: "retail", defaultEnabled: false }),
+  f({ key: "retail.promotions", name: "Retail Promotions", description: "Price lists, markdowns, and promotion rules.", domain: "retail", defaultEnabled: false }),
+  f({ key: "retail.shifts", name: "Retail Shifts", description: "Shift control, cash-up, and register reconciliation.", domain: "retail", defaultEnabled: false }),
+  f({ key: "retail.reports", name: "Retail Reports", description: "Retail dashboards and reporting surfaces.", domain: "retail", defaultEnabled: false }),
 
-  f({ key: "crm.customers", name: "CRM Customers", description: "Shared customer directory access for CRM and customer-aware modules.", domain: "crm", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
-  f({ key: "crm.core", name: "CRM Core", description: "CRM module landing, dashboard, and shared setup.", domain: "crm", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
-  f({ key: "crm.leads", name: "CRM Leads & Pipeline", description: "Lead pipeline, stages, and activity timeline.", domain: "crm", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
-  f({ key: "crm.clients", name: "CRM Clients", description: "Client profiles, contacts, and dedupe.", domain: "crm", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
-  f({ key: "crm.appointments", name: "CRM Site Visits", description: "Appointment and site-visit scheduling with follow-ups.", domain: "crm", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
-  f({ key: "crm.intake", name: "CRM Intake Forms", description: "Public intake-form builder, shareable links, and webhook lead capture.", domain: "crm", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
-  f({ key: "crm.documents", name: "CRM Quoting & Invoicing", description: "Create quotations, invoices, and receipts from the CRM (records live in accounting).", domain: "crm", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
-  f({ key: "crm.insights", name: "CRM Insights", description: "Pipeline funnel, per-rep performance, and source/UTM attribution.", domain: "crm", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
-  f({ key: "crm.commissions", name: "CRM Commissions", description: "Tiered commission rules and per-rep commission tracking.", domain: "crm", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
-  f({ key: "crm.settings", name: "CRM Settings", description: "API keys, commission rules, and pipeline configuration.", domain: "crm", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
+  f({ key: "crm.customers", name: "CRM Customers", description: "Shared customer directory access for CRM and customer-aware modules.", domain: "crm", defaultEnabled: false }),
+  f({ key: "crm.core", name: "CRM Core", description: "CRM module landing, dashboard, and shared setup.", domain: "crm", defaultEnabled: false }),
+  f({ key: "crm.leads", name: "CRM Leads & Pipeline", description: "Lead pipeline, stages, and activity timeline.", domain: "crm", defaultEnabled: false }),
+  f({ key: "crm.clients", name: "CRM Clients", description: "Client profiles, contacts, and dedupe.", domain: "crm", defaultEnabled: false }),
+  f({ key: "crm.appointments", name: "CRM Site Visits", description: "Appointment and site-visit scheduling with follow-ups.", domain: "crm", defaultEnabled: false }),
+  f({ key: "crm.intake", name: "CRM Intake Forms", description: "Public intake-form builder, shareable links, and webhook lead capture.", domain: "crm", defaultEnabled: false }),
+  f({ key: "crm.documents", name: "CRM Quoting & Invoicing", description: "Create quotations, invoices, and receipts from the CRM (records live in accounting).", domain: "crm", defaultEnabled: false }),
+  f({ key: "crm.insights", name: "CRM Insights", description: "Pipeline funnel, per-rep performance, and source/UTM attribution.", domain: "crm", defaultEnabled: false }),
+  f({ key: "crm.commissions", name: "CRM Commissions", description: "Tiered commission rules and per-rep commission tracking.", domain: "crm", defaultEnabled: false }),
+  f({ key: "crm.settings", name: "CRM Settings", description: "API keys, commission rules, and pipeline configuration.", domain: "crm", defaultEnabled: false }),
 
-  f({ key: "portal.core", name: "Portal Core", description: "External/customer portal shell and shared navigation.", domain: "portal", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
-  f({ key: "portal.schools", name: "School Portal", description: "School-facing portal experiences and APIs.", domain: "portal", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
-  f({ key: "portal.pos", name: "POS Portal", description: "Point-of-sale portal access for cashier surfaces.", domain: "portal", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
+  f({ key: "portal.core", name: "Portal Core", description: "External/customer portal shell and shared navigation.", domain: "portal", defaultEnabled: false }),
+  f({ key: "portal.schools", name: "School Portal", description: "School-facing portal experiences and APIs.", domain: "portal", defaultEnabled: false }),
+  f({ key: "portal.pos", name: "POS Portal", description: "Point-of-sale portal access for cashier surfaces.", domain: "portal", defaultEnabled: false }),
 
-  f({ key: "reports.dashboard", name: "Reports Dashboard", description: "Top-level reports dashboard.", domain: "reports", defaultEnabled: false, isBillable: false, monthlyPrice: 0 }),
-  f({ key: "reports.shift", name: "Shift Reports", description: "Shift reports analytics pages.", domain: "reports", defaultEnabled: false, isBillable: false, monthlyPrice: 0 }),
-  f({ key: "reports.attendance", name: "Attendance Reports", description: "Attendance analytics pages.", domain: "reports", defaultEnabled: false, isBillable: false, monthlyPrice: 0 }),
-  f({ key: "reports.plant", name: "Plant Reports", description: "Plant analytics pages.", domain: "reports", defaultEnabled: false, isBillable: false, monthlyPrice: 0 }),
-  f({ key: "reports.stores-movements", name: "Stores Movements Reports", description: "Stores movement reports.", domain: "reports", defaultEnabled: false, isBillable: false, monthlyPrice: 0 }),
-  f({ key: "reports.fuel-ledger", name: "Fuel Ledger Reports", description: "Fuel ledger reports.", domain: "reports", defaultEnabled: false, isBillable: true, monthlyPrice: 2 }),
-  f({ key: "reports.maintenance-work-orders", name: "Maintenance Work Order Reports", description: "Work order reporting.", domain: "reports", defaultEnabled: false, isBillable: true, monthlyPrice: 2 }),
-  f({ key: "reports.maintenance-equipment", name: "Maintenance Equipment Reports", description: "Equipment performance reporting.", domain: "reports", defaultEnabled: false, isBillable: true, monthlyPrice: 2 }),
-  f({ key: "reports.gold-chain", name: "Gold Chain Reports", description: "Gold chain reporting.", domain: "reports", defaultEnabled: false, isBillable: true, monthlyPrice: 2 }),
-  f({ key: "reports.gold-receipts", name: "Gold Receipt Reports", description: "Gold receipt reporting.", domain: "reports", defaultEnabled: false, isBillable: true, monthlyPrice: 2 }),
-  f({ key: "reports.audit-trails", name: "Audit Trail Reports", description: "Audit trail reporting pages.", domain: "reports", defaultEnabled: false, isBillable: true, monthlyPrice: 2 }),
-  f({ key: "reports.downtime-analytics", name: "Downtime Analytics", description: "Downtime analysis reports.", domain: "reports", defaultEnabled: false, isBillable: true, monthlyPrice: 2 }),
-  f({ key: "reports.compliance-incidents", name: "Compliance Incidents Reports", description: "Compliance incident reports.", domain: "reports", defaultEnabled: false, isBillable: true, monthlyPrice: 2 }),
+  f({ key: "reports.dashboard", name: "Reports Dashboard", description: "Top-level reports dashboard.", domain: "reports", defaultEnabled: false }),
+  f({ key: "reports.shift", name: "Shift Reports", description: "Shift reports analytics pages.", domain: "reports", defaultEnabled: false }),
+  f({ key: "reports.attendance", name: "Attendance Reports", description: "Attendance analytics pages.", domain: "reports", defaultEnabled: false }),
+  f({ key: "reports.plant", name: "Plant Reports", description: "Plant analytics pages.", domain: "reports", defaultEnabled: false }),
+  f({ key: "reports.stores-movements", name: "Stores Movements Reports", description: "Stores movement reports.", domain: "reports", defaultEnabled: false }),
+  f({ key: "reports.fuel-ledger", name: "Fuel Ledger Reports", description: "Fuel ledger reports.", domain: "reports", defaultEnabled: false }),
+  f({ key: "reports.maintenance-work-orders", name: "Maintenance Work Order Reports", description: "Work order reporting.", domain: "reports", defaultEnabled: false }),
+  f({ key: "reports.maintenance-equipment", name: "Maintenance Equipment Reports", description: "Equipment performance reporting.", domain: "reports", defaultEnabled: false }),
+  f({ key: "reports.gold-chain", name: "Gold Chain Reports", description: "Gold chain reporting.", domain: "reports", defaultEnabled: false }),
+  f({ key: "reports.gold-receipts", name: "Gold Receipt Reports", description: "Gold receipt reporting.", domain: "reports", defaultEnabled: false }),
+  f({ key: "reports.audit-trails", name: "Audit Trail Reports", description: "Audit trail reporting pages.", domain: "reports", defaultEnabled: false }),
+  f({ key: "reports.downtime-analytics", name: "Downtime Analytics", description: "Downtime analysis reports.", domain: "reports", defaultEnabled: false }),
+  f({ key: "reports.compliance-incidents", name: "Compliance Incidents Reports", description: "Compliance incident reports.", domain: "reports", defaultEnabled: false }),
 
-  f({ key: "admin.user-management.core", name: "User Management Core", description: "User management module access.", domain: "admin", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
-  f({ key: "admin.user-management.create", name: "User Creation", description: "Manager/clerk user creation lifecycle actions.", domain: "admin", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
-  f({ key: "admin.user-management.status", name: "User Status", description: "Activate/deactivate manager and clerk accounts.", domain: "admin", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
-  f({ key: "admin.user-management.password-reset", name: "User Password Reset", description: "Manager/clerk password reset actions.", domain: "admin", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
-  f({ key: "admin.user-management.role-change", name: "User Role Change", description: "Manager/clerk role change actions.", domain: "admin", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
-  f({ key: "admin.user-management.feature-access", name: "User Feature Access", description: "Per-user feature access templates and overrides.", domain: "admin", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
-  f({ key: "admin.user-management.directory", name: "User Directory", description: "User and role directory listing and search.", domain: "admin", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
-  f({ key: "admin.sites-sections", name: "Sites and Sections", description: "Site/section administration.", domain: "admin", defaultEnabled: false, isBillable: false, monthlyPrice: 0 }),
-  f({ key: "admin.payroll-config", name: "Payroll Configuration", description: "Payroll configuration endpoints.", domain: "admin", defaultEnabled: false, isBillable: true, monthlyPrice: 2 }),
-  f({ key: "admin.feature-flags-console", name: "Feature Flags Console", description: "Platform feature flag operations.", domain: "admin", defaultEnabled: true, isBillable: false, monthlyPrice: 0 }),
-  f({ key: "admin.subscription-console", name: "Subscription Console", description: "Subscription/tier controls in platform.", domain: "admin", defaultEnabled: true, isBillable: false, monthlyPrice: 0 }),
+  f({ key: "admin.user-management.core", name: "User Management Core", description: "User management module access.", domain: "admin", defaultEnabled: false }),
+  f({ key: "admin.user-management.create", name: "User Creation", description: "Manager/clerk user creation lifecycle actions.", domain: "admin", defaultEnabled: false }),
+  f({ key: "admin.user-management.status", name: "User Status", description: "Activate/deactivate manager and clerk accounts.", domain: "admin", defaultEnabled: false }),
+  f({ key: "admin.user-management.password-reset", name: "User Password Reset", description: "Manager/clerk password reset actions.", domain: "admin", defaultEnabled: false }),
+  f({ key: "admin.user-management.role-change", name: "User Role Change", description: "Manager/clerk role change actions.", domain: "admin", defaultEnabled: false }),
+  f({ key: "admin.user-management.feature-access", name: "User Feature Access", description: "Per-user feature access templates and overrides.", domain: "admin", defaultEnabled: false }),
+  f({ key: "admin.user-management.directory", name: "User Directory", description: "User and role directory listing and search.", domain: "admin", defaultEnabled: false }),
+  f({ key: "admin.sites-sections", name: "Sites and Sections", description: "Site/section administration.", domain: "admin", defaultEnabled: false }),
+  f({ key: "admin.payroll-config", name: "Payroll Configuration", description: "Payroll configuration endpoints.", domain: "admin", defaultEnabled: false }),
+  f({ key: "admin.feature-flags-console", name: "Feature Flags Console", description: "Platform feature flag operations.", domain: "admin", defaultEnabled: true }),
+  f({ key: "admin.subscription-console", name: "Subscription Console", description: "Subscription/tier controls in platform.", domain: "admin", defaultEnabled: true }),
 ];
 
 export const FEATURE_BUNDLES: FeatureBundleDefinition[] = [
   {
     code: "ADDON_OPERATIONS_CORE",
+    base: true,
     name: "Operations Core",
     description: "Operational reporting home and site/section administration.",
-    monthlyPrice: 0,
-    additionalSiteMonthlyPrice: 0,
     features: [
       "reports.dashboard",
       "admin.sites-sections",
@@ -285,10 +232,9 @@ export const FEATURE_BUNDLES: FeatureBundleDefinition[] = [
   },
   {
     code: "ADDON_MINE_DAILY_OPS",
+    base: true,
     name: "Mine Daily Operations",
     description: "Mining shift, crew attendance, and plant capture with matching reports.",
-    monthlyPrice: 0,
-    additionalSiteMonthlyPrice: 0,
     features: [
       "ops.shift-report.submit",
       "ops.attendance.mark",
@@ -300,10 +246,9 @@ export const FEATURE_BUNDLES: FeatureBundleDefinition[] = [
   },
   {
     code: "ADDON_STORES_CORE",
+    base: true,
     name: "Stores Core",
     description: "Inventory, stock movement, receiving, and issue workflows.",
-    monthlyPrice: 0,
-    additionalSiteMonthlyPrice: 0,
     features: [
       "stores.dashboard",
       "stores.inventory",
@@ -317,18 +262,15 @@ export const FEATURE_BUNDLES: FeatureBundleDefinition[] = [
   },
   {
     code: "ADDON_WORKFORCE_CORE",
+    base: true,
     name: "Workforce Core",
     description: "Employee directory and workforce base records.",
-    monthlyPrice: 0,
-    additionalSiteMonthlyPrice: 0,
     features: ["hr.employees", "hr.attendance", "hr.leave"],
   },
   {
     code: "ADDON_GOLD_CORE",
     name: "Gold Operations",
     description: "Core gold intake, dispatch, receipt, and operational navigation.",
-    monthlyPrice: 69,
-    additionalSiteMonthlyPrice: 15,
     features: [
       "gold.home",
       "gold.intake.pours",
@@ -340,8 +282,6 @@ export const FEATURE_BUNDLES: FeatureBundleDefinition[] = [
     code: "ADDON_CUSTOM_BRANDING",
     name: "Custom Branding",
     description: "Tenant brand identity, fonts, and custom domain support.",
-    monthlyPrice: 29,
-    additionalSiteMonthlyPrice: 0,
     features: [
       "core.branding.manage",
       "core.templates",
@@ -352,8 +292,6 @@ export const FEATURE_BUNDLES: FeatureBundleDefinition[] = [
     code: "ADDON_ADVANCED_PAYROLL",
     name: "Advanced Payroll",
     description: "Payroll and disbursement heavy workflows.",
-    monthlyPrice: 49,
-    additionalSiteMonthlyPrice: 10,
     features: [
       "hr.payroll",
       "hr.disbursements",
@@ -378,8 +316,6 @@ export const FEATURE_BUNDLES: FeatureBundleDefinition[] = [
     name: "Zimbabwe Statutory Payroll",
     description:
       "PAYE, NSSA, AIDS levy, ZIMDEF and NEC handling with the monthly P2 and NSSA returns.",
-    monthlyPrice: 39,
-    additionalSiteMonthlyPrice: 5,
     features: [
       "hr.statutory-tables",
       "hr.statutory-returns",
@@ -396,32 +332,24 @@ export const FEATURE_BUNDLES: FeatureBundleDefinition[] = [
     name: "Commodity Settlements",
     description:
       "Settling gold, scrap, commission and other quantity-based pay, with its own approval chain and payouts.",
-    monthlyPrice: 9.99,
-    additionalSiteMonthlyPrice: 5,
     features: ["settlements.core", "settlements.gold"],
   },
   {
     code: "ADDON_GOLD_ADVANCED",
     name: "Gold Advanced Controls",
     description: "Advanced gold controls and audit/reconciliation.",
-    monthlyPrice: 79,
-    additionalSiteMonthlyPrice: 10,
     features: ["gold.reconciliation", "gold.exceptions", "gold.audit-trail", "gold.payouts", "reports.gold-chain", "reports.gold-receipts"],
   },
   {
     code: "ADDON_COMPLIANCE_PRO",
     name: "Compliance Pro",
     description: "Compliance deep controls and reporting.",
-    monthlyPrice: 9.99,
-    additionalSiteMonthlyPrice: 10,
     features: ["compliance.overview", "compliance.permits", "compliance.inspections", "compliance.incidents", "compliance.training-records", "reports.compliance-incidents"],
   },
   {
     code: "ADDON_MAINTENANCE_PRO",
     name: "Maintenance Pro",
     description: "Maintenance operations and analytics.",
-    monthlyPrice: 9.99,
-    additionalSiteMonthlyPrice: 10,
     features: [
       "maintenance.dashboard",
       "maintenance.equipment",
@@ -436,8 +364,6 @@ export const FEATURE_BUNDLES: FeatureBundleDefinition[] = [
     code: "ADDON_USER_MANAGEMENT_PRO",
     name: "User Management Pro",
     description: "Advanced manager/clerk lifecycle management controls.",
-    monthlyPrice: 2.99,
-    additionalSiteMonthlyPrice: 5,
     features: [
       "admin.user-management.core",
       "admin.user-management.create",
@@ -452,16 +378,12 @@ export const FEATURE_BUNDLES: FeatureBundleDefinition[] = [
     code: "ADDON_ANALYTICS_PRO",
     name: "Analytics Pro",
     description: "Advanced reports and analytical surfaces.",
-    monthlyPrice: 29,
-    additionalSiteMonthlyPrice: 5,
     features: ["reports.downtime-analytics", "reports.audit-trails", "core.notifications.push"],
   },
   {
     code: "ADDON_ACCOUNTING_CORE",
     name: "Accounting Core",
     description: "Core accounting setup, journals, and financial statements.",
-    monthlyPrice: 39,
-    additionalSiteMonthlyPrice: 10,
     features: [
       "accounting.core",
       "accounting.chart-of-accounts",
@@ -476,8 +398,6 @@ export const FEATURE_BUNDLES: FeatureBundleDefinition[] = [
     code: "ADDON_ACCOUNTING_ADVANCED",
     name: "Accounting Advanced",
     description: "AR/AP, banking, cost centers, and multi-currency.",
-    monthlyPrice: 49,
-    additionalSiteMonthlyPrice: 10,
     features: [
       "accounting.ar",
       "accounting.ap",
@@ -490,17 +410,13 @@ export const FEATURE_BUNDLES: FeatureBundleDefinition[] = [
     code: "ADDON_ZIMRA_FISCAL",
     name: "ZIMRA Tax & Fiscalisation",
     description: "VAT setup and ZIMRA FDMS fiscalisation connector.",
-    monthlyPrice: 19,
-    additionalSiteMonthlyPrice: 5,
     features: ["accounting.tax", "accounting.zimra.fiscalisation"],
   },
   {
     code: "ADDON_SCHOOLS_SUITE",
     name: "Schools Suite",
     description:
-      "Student lifecycle, academics, boarding, fees, and school role portals. Schools are normally quoted on per-term enrolment bands — see SCHOOL_PRICING_BANDS in lib/marketing/pricing.ts. This monthly figure is the list-price equivalent of the mid band.",
-    monthlyPrice: 129,
-    additionalSiteMonthlyPrice: 29,
+      "Student lifecycle, academics, boarding, fees, and school role portals.",
     features: [
       "schools.core",
       "schools.admissions",
@@ -526,8 +442,6 @@ export const FEATURE_BUNDLES: FeatureBundleDefinition[] = [
     code: "ADDON_RETAIL_SUITE",
     name: "Retail Suite",
     description: "Retail operations, merchandising, shifts, and POS for shop businesses.",
-    monthlyPrice: 39,
-    additionalSiteMonthlyPrice: 10,
     features: [
       "retail.core",
       "retail.pos",
@@ -550,8 +464,6 @@ export const FEATURE_BUNDLES: FeatureBundleDefinition[] = [
     code: "ADDON_CRM_SUITE",
     name: "CRM Suite",
     description: "Lead-to-cash CRM: pipeline, clients, site visits, intake forms, quoting/invoicing, commissions, and insights.",
-    monthlyPrice: 49,
-    additionalSiteMonthlyPrice: 10,
     features: [
       "crm.customers",
       "crm.core",
@@ -570,8 +482,6 @@ export const FEATURE_BUNDLES: FeatureBundleDefinition[] = [
     code: "ADDON_PORTAL_SUITE",
     name: "Client Portal Suite",
     description: "Shared external portal shell and cross-vertical portal delivery surfaces.",
-    monthlyPrice: 19,
-    additionalSiteMonthlyPrice: 5,
     features: [
       "portal.core",
       "portal.schools",
@@ -619,10 +529,9 @@ const PLATFORM_CONSOLE_FEATURES = [
 ];
 
 /**
- * The adopted structure (see docs/rollout/pricing-packaging-roadmap.md, PR-1.2).
- * Ordered cheapest-first: `TIERS[0]` is the entry SKU everywhere it is used as a
- * default. Every `annualMonthlyPrice` is `annualMonthly(monthlyPrice)` so the
- * 20% annual discount has exactly one source.
+ * Which features and bundles each tier switches on, and its grace days. Tiers
+ * set no price: a workspace pays per vertical (`lib/platform/verticals.ts`).
+ * `TIERS[0]` is the entry tier everywhere one is used as a default.
  */
 export const TIERS: TierDefinition[] = [
   {
@@ -634,17 +543,6 @@ export const TIERS: TierDefinition[] = [
     code: "FISCAL",
     name: "Fiscal",
     description: "ZIMRA fiscalisation for businesses running tills across one or more sites.",
-    monthlyPrice: 19,
-    annualMonthlyPrice: annualMonthly(19),
-    onboardingFee: 0,
-    includedSites: 1,
-    includedTills: 1,
-    // Deliberately the cheapest site overage in the catalog: multi-site is the
-    // reason this SKU exists, so adding a site must never be the thing that
-    // stops somebody buying it.
-    additionalSiteMonthlyPrice: 9,
-    includedUsers: 3,
-    additionalUserPackMonthlyPrice: 12,
     warningDays: 14,
     graceDays: 7,
     includedFeatures: [
@@ -669,24 +567,15 @@ export const TIERS: TierDefinition[] = [
     code: "START",
     name: "Start",
     description: "One shop, self-serve: till, catalog, stock, and people in one place.",
-    monthlyPrice: 39,
-    annualMonthlyPrice: annualMonthly(39),
-    onboardingFee: 0,
-    includedSites: 1,
-    includedTills: 2,
-    additionalSiteMonthlyPrice: 19,
-    includedUsers: 5,
-    additionalUserPackMonthlyPrice: 12,
     warningDays: 14,
     graceDays: 7,
     includedFeatures: PLATFORM_BASE_FEATURES,
     includedBundles: [
       ...PLATFORM_BASE_BUNDLES,
       "ADDON_RETAIL_SUITE",
-      // Fiscalisation carries up from FISCAL. The whole wedge strategy is
-      // "land on the fiscal SKU, expand into the suite", so a shop that starts
-      // at $19 and upgrades to $39 must not lose the one capability it is
-      // legally compelled to have. Every tier above FISCAL bundles these two.
+      // Fiscalisation carries up from FISCAL: a shop must not lose the one
+      // capability it is legally compelled to have. Every tier above FISCAL
+      // bundles these two.
       "ADDON_ACCOUNTING_CORE",
       "ADDON_ZIMRA_FISCAL",
     ],
@@ -698,14 +587,6 @@ export const TIERS: TierDefinition[] = [
     code: "GROW",
     name: "Grow",
     description: "Several branches, several tills, with books and fiscalisation connected.",
-    monthlyPrice: 99,
-    annualMonthlyPrice: annualMonthly(99),
-    onboardingFee: 250,
-    includedSites: 3,
-    includedTills: 8,
-    additionalSiteMonthlyPrice: 29,
-    includedUsers: 20,
-    additionalUserPackMonthlyPrice: 12,
     warningDays: 14,
     graceDays: 7,
     includedFeatures: [...PLATFORM_BASE_FEATURES, ...PLATFORM_CONSOLE_FEATURES],
@@ -725,17 +606,6 @@ export const TIERS: TierDefinition[] = [
     code: "SCALE",
     name: "Scale",
     description: "Chains running many branches, with finance, CRM, portals, and assets connected.",
-    monthlyPrice: 199,
-    annualMonthlyPrice: annualMonthly(199),
-    onboardingFee: 250,
-    // "Unlimited sites" in the sales conversation. The schema carries a number,
-    // so the ceiling is set where no chain on this SKU reaches it and the
-    // overage is kept low rather than modelling infinity.
-    includedSites: 25,
-    includedTills: null,
-    additionalSiteMonthlyPrice: 19,
-    includedUsers: 60,
-    additionalUserPackMonthlyPrice: 12,
     warningDays: 14,
     graceDays: 7,
     includedFeatures: [...PLATFORM_BASE_FEATURES, ...PLATFORM_CONSOLE_FEATURES],
@@ -761,14 +631,6 @@ export const TIERS: TierDefinition[] = [
     code: "GOLD_EDITION",
     name: "Gold Edition",
     description: "Small and medium gold operations: production, settlement, controls, books, and payroll.",
-    monthlyPrice: 299,
-    annualMonthlyPrice: annualMonthly(299),
-    onboardingFee: 500,
-    includedSites: 3,
-    includedTills: null,
-    additionalSiteMonthlyPrice: 39,
-    includedUsers: 25,
-    additionalUserPackMonthlyPrice: 12,
     warningDays: 14,
     graceDays: 7,
     includedFeatures: [...PLATFORM_BASE_FEATURES, ...PLATFORM_CONSOLE_FEATURES],
@@ -788,11 +650,6 @@ export const TIERS: TierDefinition[] = [
     ],
   },
   {
-    // Quoted, not listed: `monthlyPrice` is the floor a scoped quote starts from
-    // and the figure existing ENTERPRISE tenants are already on, so nobody is
-    // repriced by this restructure. `onboardingFee` is 0 because onboarding is
-    // scoped per engagement — the catalog states no setup price it cannot honour.
-    //
     // Contents are the old ENTERPRISE bundle list (all of which survive the
     // drop) plus everything SCALE gained, so ENTERPRISE stays a superset of the
     // tier below it. The vertical editions — gold, schools, mining capture —
@@ -800,15 +657,6 @@ export const TIERS: TierDefinition[] = [
     code: "ENTERPRISE",
     name: "Enterprise",
     description: "Groups with bespoke configuration, governance, finance, and compliance depth.",
-    monthlyPrice: 449,
-    annualMonthlyPrice: annualMonthly(449),
-    onboardingFee: 0,
-    // Uncapped in practice: nothing is charged beyond the ceiling.
-    includedSites: 999,
-    includedTills: null,
-    additionalSiteMonthlyPrice: 0,
-    includedUsers: null,
-    additionalUserPackMonthlyPrice: 0,
     warningDays: 21,
     graceDays: 14,
     includedFeatures: [...PLATFORM_BASE_FEATURES, ...PLATFORM_CONSOLE_FEATURES],
@@ -831,7 +679,7 @@ export const TIERS: TierDefinition[] = [
 ];
 
 /**
- * The size ladder, cheapest first: the tiers a business moves up as it grows.
+ * The ladder, smallest first: the tiers a business moves up as it grows.
  *
  * Vertical editions are excluded — see `TierDefinition.isVerticalEdition`. The
  * ladder is what the "more sites, never fewer bundles at each step" invariants

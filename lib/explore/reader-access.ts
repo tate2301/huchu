@@ -1,7 +1,7 @@
 import type { ReaderAccess } from "@/lib/vane/reader-access";
 
 /**
- * What `explore_reader` may read (`prisma/migrations/20261015120000_explore_reader`,
+ * What `explore_reader` may read (`prisma/migrations/20261016100000_explore_reader`,
  * approved 15 Oct).
  *
  * Built on Vane's rules (`lib/vane/reader-access.ts`) so the two can never

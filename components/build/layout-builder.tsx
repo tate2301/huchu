@@ -272,7 +272,12 @@ export function LayoutBuilder({ id }: { id: string }) {
   );
 }
 
-function LayoutBuilderView({
+/**
+ * A printed layout on the builder's grid. Pure: the page loads and saves it —
+ * a workspace's template through its API, or a library item in the admin
+ * portal, whose preview is drawn by the portal's own route (`previewUrl`).
+ */
+export function LayoutBuilderView({
   name,
   role,
   sourceKey,
@@ -282,10 +287,13 @@ function LayoutBuilderView({
   onBack,
   saved,
   onPublish,
-  publishing,
+  publishing = false,
   onUse,
-  using,
+  using = false,
   settings,
+  previewUrl = "/api/document-templates/preview",
+  readOnlyNote = "This is Corelith's. Use this template to make your own copy and change it.",
+  framed = false,
 }: {
   name: string;
   role: string;
@@ -293,13 +301,19 @@ function LayoutBuilderView({
   schema: DocumentTemplateSchema;
   onSchema: (schema: DocumentTemplateSchema) => void;
   readOnly: boolean;
-  onBack: () => void;
-  saved: React.ComponentProps<typeof BuilderBar>["saved"];
-  onPublish: () => void;
-  publishing: boolean;
+  onBack?: () => void;
+  saved?: React.ComponentProps<typeof BuilderBar>["saved"];
+  /** Left out, with no `onUse`, the bar has no primary: the page around the builder publishes it. */
+  onPublish?: () => void;
+  publishing?: boolean;
   onUse?: () => void;
-  using: boolean;
+  using?: boolean;
   settings: React.ReactNode;
+  /** Where the page is drawn: POST `{ sourceKey, schema }`, answered with HTML. */
+  previewUrl?: string;
+  readOnlyNote?: string;
+  /** Fills the frame it is put in rather than the window (the admin portal's library). */
+  framed?: boolean;
 }) {
   const parts = React.useMemo(() => layoutParts(sourceKey), [sourceKey]);
   const [mode, setMode] = React.useState<BuilderMode>("build");
@@ -314,7 +328,7 @@ function LayoutBuilderView({
   React.useEffect(() => {
     let cancelled = false;
     const timer = window.setTimeout(() => {
-      fetch("/api/document-templates/preview", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sourceKey, schema: JSON.parse(schemaJson) }) })
+      fetch(previewUrl, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sourceKey, schema: JSON.parse(schemaJson) }) })
         .then(async (response) => {
           if (!response.ok) throw new Error("preview");
           const html = await response.text();
@@ -327,7 +341,7 @@ function LayoutBuilderView({
       cancelled = true;
       window.clearTimeout(timer);
     };
-  }, [schemaJson, sourceKey]);
+  }, [schemaJson, sourceKey, previewUrl]);
 
   const set = <K extends keyof DocumentTemplateSchema>(section: K, patch: Partial<DocumentTemplateSchema[K]>) =>
     onSchema({ ...schema, [section]: { ...(schema[section] as object), ...patch } } as DocumentTemplateSchema);
@@ -349,7 +363,7 @@ function LayoutBuilderView({
     <BuilderBar
       lead={
         <>
-          <Button variant="quiet" iconOnly icon="back" label="Back" onClick={onBack} />
+          {onBack ? <Button variant="quiet" iconOnly icon="back" label="Back" onClick={onBack} /> : null}
           <span className="rb-mark" aria-hidden>
             <Icon name="docs" />
           </span>
@@ -369,7 +383,7 @@ function LayoutBuilderView({
         </>
       }
       // Corelith's own cannot be published: making it yours is the page's one action.
-      publish={onUse ? { label: "Use this template", icon: "file", onPublish: onUse, busy: using } : { onPublish, disabled: readOnly, busy: publishing }}
+      publish={onUse ? { label: "Use this template", icon: "file", onPublish: onUse, busy: using } : onPublish ? { onPublish, disabled: readOnly, busy: publishing } : undefined}
     />
   );
 
@@ -566,7 +580,7 @@ function LayoutBuilderView({
           <Toggle id="stamp" title="Stamp" note="The company stamp" on={schema.footer.showStamp} disabled={disabled} onChange={(showStamp) => set("footer", { showStamp })} />
         </>
       ) : null}
-      {readOnly ? <p className="rb-note">This is Corelith&apos;s. Use this template to make your own copy and change it.</p> : null}
+      {readOnly ? <p className="rb-note">{readOnlyNote}</p> : null}
     </>
   );
 
@@ -624,7 +638,7 @@ function LayoutBuilderView({
   );
 
   return (
-    <BuilderGrid scope="layout" mode={mode} wideBar bar={bar} outline={outline} canvas={canvas} canvasLabel={name} inspector={inspector} inspectorLabel="Inspector" />
+    <BuilderGrid scope="layout" mode={mode} wideBar bar={bar} outline={outline} canvas={canvas} canvasLabel={name} inspector={inspector} inspectorLabel="Inspector" framed={framed} />
   );
 }
 

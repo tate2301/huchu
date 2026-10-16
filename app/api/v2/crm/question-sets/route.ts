@@ -15,9 +15,12 @@ import { builderTemplate, createQuestionSetFrom } from "@/lib/crm/site-visits/bu
 import { quoteLinesOf } from "@/lib/crm/site-visits/fields";
 import { createQuestionSetSchema } from "@/lib/crm/site-visits/question-editing";
 import { ensureSiteVisitQuestionSets } from "@/lib/crm/site-visits/question-sets";
+import { copyLibraryVisitForm } from "@/lib/library/copy";
 import { requireCrmCapability } from "../_helpers";
 
 const startSchema = z.union([z.object({ template: z.string().min(1).max(80) }).strict(), z.object({ blank: z.literal(true) }).strict()]);
+/** A copy of one of Corelith's library, by its address. */
+const librarySchema = z.object({ library: z.string().min(1).max(120) }).strict();
 
 export async function GET(request: NextRequest) {
   try {
@@ -75,6 +78,13 @@ export async function POST(request: NextRequest) {
     }
 
     const body = (await request.json()) as Record<string, unknown>;
+
+    const fromLibrary = librarySchema.safeParse(body);
+    if (fromLibrary.success) {
+      const set = await copyLibraryVisitForm(companyId, session.user.id, fromLibrary.data.library);
+      if (!set) return errorResponse("That form is not in Corelith's library for this workspace", 404);
+      return successResponse({ set }, 201);
+    }
 
     // From the builder: a form made from a template, or a blank one, named
     // and keyed for the person rather than by them.

@@ -6,15 +6,21 @@ import { Banner, Button, Icon, Status, VaneMark, type IconName } from "@/compone
 import { KitPage } from "@/components/management/ui";
 import type { BillingPreferences } from "@/lib/preferences/api";
 
-/** A product's own mark, by the bundle that brings it; a core icon for the rest. */
+/** A vertical's product mark where it has one; a core icon for the rest. */
 const PRODUCT_MARKS: Record<string, string> = {
-  ADDON_CRM_SUITE: "/brand/flare-mark.svg",
-  ADDON_RETAIL_SUITE: "/brand/tender-mark.svg",
-  ADDON_ADVANCED_PAYROLL: "/brand/shift-mark.svg",
-  ADDON_STORES_CORE: "/brand/silo-mark.svg",
-  START: "/brand/tender-mark.svg",
-  GROW: "/brand/tender-mark.svg",
-  SCALE: "/brand/tender-mark.svg",
+  CRM: "/brand/flare-mark.svg",
+  RETAIL: "/brand/tender-mark.svg",
+  PAYROLL: "/brand/shift-mark.svg",
+};
+
+const VERTICAL_ICONS: Record<string, IconName> = {
+  GOLD: "measure",
+  SCHOOLS: "training",
+  RETAIL: "store",
+  CRM: "pipeline",
+  WORKSHOP: "inspections",
+  PAYROLL: "payments",
+  GENERAL: "ws",
 };
 
 const money = (value: number, currency = "USD") =>
@@ -65,25 +71,25 @@ const CORE_MODULES: Array<{ icon: IconName; name: string; detail: string }> = [
   { icon: "docs", name: "Forms and documents", detail: "What your people fill in and what you send out" },
 ];
 
+const plural = (count: number, one: string, many: string) => `${count} ${count === 1 ? one : many}`;
+
 /**
  * Management → Billing (design/core-modules/html/management-billing.html), on
- * the workspace's subscription: what it pays each month and for what, the
- * core modules every workspace has, the add-ons it could take, and how it
- * pays. Pure: the page and the fixture route feed it.
+ * the workspace's subscription: what it pays each month and why — its
+ * verticals at the rate its member count sets — the core modules every
+ * workspace has, the verticals it could add, and how it pays. Pure: the page
+ * and the fixture route feed it.
  */
 export function BillingPageView({
   data,
-  onAddOn,
+  onAskPrice,
 }: {
   data: BillingPreferences;
-  /** Taking an add-on is arranged with Corelith; this opens how. */
-  onAddOn: () => void;
+  /** Adding a vertical is arranged with Corelith; this opens how, and how the price works. */
+  onAskPrice: () => void;
 }) {
   const { company, charges, health, available, vane, payments } = data;
   const currency = charges.currency;
-  const products = charges.lineItems.filter((line) => line.type === "tier" || line.type === "addon" || line.type === "feature");
-  const extras = charges.lineItems.filter((line) => line.type === "site-overage" || line.type === "addon-site");
-  const productCount = products.filter((line) => line.code !== "NO_PLAN").length;
   const nextDate = data.subscription?.currentPeriodEnd ?? health.currentPeriodEnd;
   const method = payments.methods.map(methodWord).join(" or ");
 
@@ -100,54 +106,51 @@ export function BillingPageView({
       ) : null}
 
       <div className="finding" style={{ padding: 0 }}>
-        {productCount > 0 ? (
+        {charges.lines.length > 0 ? (
           <p className="lede-figure">
-            {company.name} pays <span className="num">{money(charges.total, currency)}</span> a month for {productCount}{" "}
-            {productCount === 1 ? "product" : "products"}.{" "}
+            {company.name} pays <span className="num">{money(charges.total, currency)}</span> a month for{" "}
+            {plural(charges.lines.length, "vertical", "verticals")}.{" "}
             <span className="q">
               {nextDate ? `The next payment is on ${dayMonth(nextDate)}, by ${method}.` : `It pays by ${method}.`}
             </span>
           </p>
         ) : (
           <p className="lede-figure">
-            {company.name} has no plan yet. <span className="q">Corelith sets one up when the workspace is agreed.</span>
+            {company.name} has nothing to pay for yet. <span className="q">Corelith sets up what it runs when the workspace is agreed.</span>
           </p>
         )}
       </div>
 
       <div className="form-sec">
         <header>
-          <h2>Products</h2>
-          <p>What you pay for.</p>
+          <h2>Verticals</h2>
+          <p>What you pay for. {charges.why}</p>
         </header>
         <div className="body" style={{ gap: 0 }}>
-          {products.length === 0 ? (
+          {charges.lines.length === 0 ? (
             <p className="muted">Nothing yet.</p>
           ) : (
-            products.map((line) => (
-              <div className="setting ar" key={line.code}>
-                <Mark code={line.code} icon={line.type === "tier" ? "ws" : "store"} />
+            charges.lines.map((line) => (
+              <div className="setting ar" key={line.vertical}>
+                <Mark code={line.vertical} icon={VERTICAL_ICONS[line.vertical] ?? "ws"} />
                 <span className="t">
-                  <b>{line.code === "NO_PLAN" ? "No plan" : line.label}</b>
-                  <span>
-                    {data.details[line.code] ??
-                      (line.type === "tier" ? (data.plan?.description ?? "Your plan") : line.type === "feature" ? "Turned on outside the plan" : "An add-on")}
-                  </span>
+                  <b>{line.label}</b>
+                  <span>Everything in it included, for {plural(charges.members, "member", "members")}</span>
                 </span>
                 <Price amount={line.amount} currency={currency} />
               </div>
             ))
           )}
-          {extras.map((line) => (
-            <div className="setting ar" key={line.code}>
-              <Mark code={line.code} icon="sites" />
-              <span className="t">
-                <b>{line.label}</b>
-                <span>Charged for each site over what the plan includes</span>
+          <div className="setting ar">
+            <Mark code="" icon="help" />
+            <span className="t">
+              <b>How the price works</b>
+              <span>
+                Each vertical is the same price, set by how many people have access. Parents and students do not count.
               </span>
-              <Price amount={line.amount} currency={currency} />
-            </div>
-          ))}
+            </span>
+            <Button onClick={onAskPrice}>See prices</Button>
+          </div>
         </div>
       </div>
 
@@ -186,19 +189,19 @@ export function BillingPageView({
       {available.length > 0 ? (
         <div className="form-sec">
           <header>
-            <h2>Add-ons</h2>
-            <p>Added to the monthly payment.</p>
+            <h2>More verticals</h2>
+            <p>Each adds {money(charges.each, currency)} a month at your size. Corelith adds it for you.</p>
           </header>
           <div className="body" style={{ gap: 0 }}>
-            {available.map((addon) => (
-              <div className="setting ar" key={addon.code}>
-                <Mark code={addon.code} icon="store" />
+            {available.map((option) => (
+              <div className="setting ar" key={option.vertical}>
+                <Mark code={option.vertical} icon={VERTICAL_ICONS[option.vertical] ?? "ws"} />
                 <span className="t">
-                  <b>{addon.name}</b>
-                  <span>{addon.description.replace(/\.$/, "")}</span>
+                  <b>{option.label}</b>
+                  <span>Everything in it included</span>
                 </span>
-                <Price amount={addon.monthlyPrice} currency={currency} />
-                <Button icon="plus" onClick={onAddOn}>
+                <Price amount={charges.each} currency={currency} />
+                <Button icon="plus" onClick={onAskPrice}>
                   Add
                 </Button>
               </div>

@@ -6,6 +6,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button, ButtonLink, Empty, Kit, KitScreen } from "@/components/core";
 import { PageChrome } from "@/components/layout/page-chrome";
 import { fetchReportsHome, REPORTS_HOME_KEY } from "@/components/layout/workspace-rail/reports-groups";
+import { useLibraryInsights } from "@/components/reports/use-library-insights";
 import { WeekInsightsView, type PinTarget } from "@/components/reports/week-insights-view";
 import { useToast } from "@/components/ui/use-toast";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
@@ -90,6 +91,8 @@ export default function ReportsInsightsPage() {
   const queryClient = useQueryClient();
   const query = useQuery({ queryKey: KEY, queryFn: () => fetchJson<WeekInsights>("/api/v2/reports/insights") });
   const data = query.data;
+  // Corelith's from the library run in this tab, and follow the week's.
+  const library = useLibraryInsights(data?.library);
 
   // Without a board chosen for the workspace, Pin offers the boards this person can change.
   const home = useQuery({ queryKey: REPORTS_HOME_KEY, queryFn: fetchReportsHome, enabled: Boolean(data && !data.board), staleTime: 60_000 });
@@ -157,7 +160,7 @@ export default function ReportsInsightsPage() {
         {data ? (
           <WeekInsightsView
             data={data}
-            insights={data.insights.filter((insight) => !hidden.has(insight.id))}
+            insights={[...data.insights, ...library].filter((insight) => !hidden.has(insight.id))}
             boards={boards}
             pinning={pin.isPending ? (pin.variables?.insight.id ?? null) : null}
             onPin={(insight, board) => pin.mutate({ insight, board })}

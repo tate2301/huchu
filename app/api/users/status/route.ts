@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
 import { errorResponse, successResponse, validateSession } from "@/lib/api-utils";
+import { repriceCompany } from "@/lib/platform/entitlements";
 import { prisma } from "@/lib/prisma";
 
 import {
@@ -53,6 +54,7 @@ async function applyStatusChange(request: NextRequest) {
       updatedAt: true,
     },
   });
+  await repriceCompany(session.user.companyId);
 
   await appendUserManagementEvent({
     companyId: session.user.companyId,

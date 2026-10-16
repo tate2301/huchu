@@ -167,7 +167,7 @@ describe("explore_reader's access", () => {
 
   it("is the SQL in the migrations: its own, and the tables and columns added since", () => {
     const migrations = readdirSync(path.join(process.cwd(), "prisma/migrations"))
-      .filter((name) => name >= "20261015120000_explore_reader" && !name.endsWith(".toml"))
+      .filter((name) => name >= "20261016100000_explore_reader" && !name.endsWith(".toml"))
       .map((name) => readFileSync(path.join(process.cwd(), "prisma/migrations", name, "migration.sql"), "utf8"))
       .join("\n");
     const granted = (sql: string) => {

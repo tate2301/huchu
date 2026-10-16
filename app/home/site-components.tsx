@@ -47,16 +47,16 @@ import {
 } from "@/app/home/site-data";
 import {
   COMPETITIVE_EDGE,
+  INCLUDED_MEMBERS,
+  LARGE_PRICE,
   LAUNCH_SPRINT_DAYS,
-  MARKETING_ADD_ONS,
-  MARKETING_TIERS,
   MONEY_BACK_DAYS,
-  SCHOOL_PRICING_BANDS,
-  SCHOOL_STARTING_TERM_PRICE,
-  STARTING_MONTHLY_PRICE,
+  PRICE_RULE_COPY,
+  SMALL_PRICE,
+  STARTING_PRICE_LABEL,
   TCO_ROWS,
-  TCO_SITE_COUNT,
   TCO_TEAM_SIZE,
+  TRIAL_DAYS,
   formatUsd,
   productPriceLabel,
 } from "@/lib/marketing/pricing";
@@ -145,8 +145,8 @@ export function StickyCta() {
     <div className={styles.stickyCta}>
       <div className={styles.stickyInner}>
         <div className={styles.stickyMeta}>
-          <strong>From {formatUsd(STARTING_MONTHLY_PRICE)}/month</strong>
-          <span>Per site, never per user</span>
+          <strong>{STARTING_PRICE_LABEL}</strong>
+          <span>Per vertical, everything inside included</span>
         </div>
         <Link href="/home/book-demo" className={`${styles.button} ${styles.buttonPrimary}`}>
           Find your setup
@@ -211,8 +211,8 @@ export function Announcement() {
     <div className={styles.announce}>
       <div className={styles.announceInner}>
         <span>
-          Founding Partner Programme: discounted onboarding, your rate held for 12 months, limited
-          places.
+          Founding Partner Programme: your rate held for 12 months, setup done with the people who
+          build it, limited places.
         </span>
         <Link href="/home/founding-partner">See if you qualify</Link>
       </div>
@@ -302,8 +302,8 @@ export function HomeHero() {
               </Link>
             </div>
             <div className={styles.assuranceGrid}>
-              <span>From {formatUsd(STARTING_MONTHLY_PRICE)}/month</span>
-              <span>Priced per site, not per user</span>
+              <span>{STARTING_PRICE_LABEL} per vertical</span>
+              <span>Everything inside a vertical included</span>
               <span>{MONEY_BACK_DAYS}-day money-back guarantee</span>
             </div>
           </div>
@@ -552,12 +552,11 @@ export function SegmentCards() {
       <Link href="/home/schools" className={styles.segmentCard}>
         <div className={styles.cardTopline}>
           <SchoolsIcon className={styles.cardIcon} weight="regular" />
-          <span>From {formatUsd(SCHOOL_STARTING_TERM_PRICE)}/term</span>
+          <span>{productPriceLabel("schools")}</span>
         </div>
         <h3 className={styles.cardTitle}>Schools</h3>
         <p className={styles.body}>
-          Private, mission, boarding and group schools. Priced per campus, per term, against
-          enrolment.
+          Private, mission, boarding and group schools. Parents and students are not counted.
         </p>
         <p className={styles.body}>Fees collected on time, and one student record instead of four.</p>
         <span className={styles.inlineAction}>
@@ -639,7 +638,7 @@ export function DifferentiatorSection() {
         <SectionIntro
           eyebrow="Do the maths"
           title="The cheapest option in the room is usually the one costing you the most."
-          copy={`Costed at a shape you will probably recognise: ${TCO_TEAM_SIZE} staff across ${TCO_SITE_COUNT} sites. Competitor figures are published list prices and are indicative rather than quotes.`}
+          copy={`Costed at a shape you will probably recognise: ${TCO_TEAM_SIZE} staff on one vertical. Competitor figures are published list prices and are indicative rather than quotes.`}
         />
 
         <div className={styles.tableFrame}>
@@ -707,7 +706,7 @@ export function LaunchSprintSection() {
       <SectionIntro
         eyebrow={`The ${LAUNCH_SPRINT_DAYS}-day Launch Sprint`}
         title="Software nobody finished setting up saves you nothing."
-        copy={`Most software failures are not bad software. They are a rollout that stopped halfway, so the team went back to the notebook and the money kept leaking. The Sprint is scoped, quoted and owned like the work it is: ${LAUNCH_SPRINT_DAYS} days from mapping your workflow to reviewing your first month of real numbers.`}
+        copy={`Most software failures are not bad software. They are a rollout that stopped halfway, so the team went back to the notebook and the money kept leaking. The Sprint is scoped and owned like the work it is: ${LAUNCH_SPRINT_DAYS} days from mapping your workflow to reviewing your first month of real numbers.`}
       />
 
       <div className={styles.stepGrid}>
@@ -743,41 +742,46 @@ export function LaunchTargetStrip() {
   );
 }
 
-export function PricingCards({ limit }: { limit?: number }) {
-  const tiers = typeof limit === "number" ? MARKETING_TIERS.slice(0, limit) : MARKETING_TIERS;
+/** The two rates a vertical is charged at. Every vertical is the same. */
+const RATE_CARDS = [
+  {
+    members: `Up to ${INCLUDED_MEMBERS} people`,
+    price: SMALL_PRICE,
+    body: "A shop, a workshop or a school office with a handful of people on it.",
+  },
+  {
+    members: `${INCLUDED_MEMBERS + 1} people or more`,
+    price: LARGE_PRICE,
+    body: "One price however many more you add. Sixty people cost the same as six.",
+  },
+];
 
+const RATE_INCLUDES = [
+  "Every feature in the vertical",
+  "Add-ons and bundles at no extra charge",
+  "Parents and students never counted",
+  `${TRIAL_DAYS}-day trial to start`,
+];
+
+export function PricingCards() {
   return (
-    <div className={`${styles.pricingGrid} ${tiers.length === 3 ? styles.pricingGrid3 : ""}`}>
-      {tiers.map((tier) => (
-        <article
-          key={tier.code}
-          className={`${styles.priceCard} ${tier.isMostPopular ? styles.priceCardFeatured : ""}`}
-        >
-          <div className={styles.priceHeader}>
-            <p className={styles.eyebrow}>{tier.tagline}</p>
-            {tier.isMostPopular ? <span className={styles.statusPill}>Most chosen</span> : null}
-          </div>
-          <h3 className={styles.priceTitle}>{tier.name}</h3>
-          <p className={styles.price}>{formatUsd(tier.monthlyPrice)}/mo</p>
-          <p className={styles.priceMeta}>
-            {formatUsd(tier.annualMonthlyPrice)}/mo billed annually &middot;{" "}
-            {tier.includedSites} {tier.includedSites === 1 ? "site" : "sites"} &middot;{" "}
-            {tier.includedUsers === null ? "unlimited users" : `${tier.includedUsers} users`}
-          </p>
-          <p className={styles.body}>{tier.bestFor}</p>
+    <div className={styles.cardGrid2}>
+      {RATE_CARDS.map((card) => (
+        <article key={card.members} className={styles.priceCard}>
+          <h3 className={styles.priceTitle}>{card.members}</h3>
+          <p className={styles.price}>{formatUsd(card.price)}</p>
+          <p className={styles.priceMeta}>A month per vertical, billed in US dollars</p>
+          <p className={styles.body}>{card.body}</p>
           <ul className={styles.checkList}>
-            {tier.highlights.slice(0, 4).map((highlight) => (
-              <li key={highlight}>
+            {RATE_INCLUDES.map((item) => (
+              <li key={item}>
                 <Check className={styles.icon} weight="regular" />
-                <span>{highlight}</span>
+                <span>{item}</span>
               </li>
             ))}
           </ul>
-          <Link
-            href={tier.ctaHref}
-            className={`${styles.button} ${tier.isMostPopular ? styles.buttonPrimary : ""}`}
-          >
-            {tier.ctaLabel}
+          <Link href="/home/book-demo" className={styles.button}>
+            Find your setup
           </Link>
         </article>
       ))}
@@ -790,10 +794,10 @@ export function PricingPreviewSection() {
     <section className={`${styles.section} ${styles.reveal}`}>
       <SectionIntro
         eyebrow="What it costs"
-        title="Pay for sites and capacity. Never for how many people use it."
-        copy="Plans run from $29 a month for one site to $449 for twenty-five. Every cashier, clerk, technician and rep is included up to your seat ceiling, so putting the whole team on it costs you nothing extra."
+        title="Pay for each line of business you run. Not for every person in it."
+        copy={`${PRICE_RULE_COPY} A second vertical adds the same again, and everything inside a vertical is included.`}
       />
-      <PricingCards limit={3} />
+      <PricingCards />
       <div className={`${styles.principlePanel} ${styles.sectionFooter}`}>
         <p className={styles.eyebrow}>How the commercials work</p>
         <ul className={styles.checkList}>
@@ -809,78 +813,11 @@ export function PricingPreviewSection() {
           month, and it has already paid for itself.
         </p>
         <Link href="/home/pricing" className={styles.inlineAction}>
-          See full pricing, add-ons and the plan comparison
+          See full pricing and worked examples
           <ArrowRight className={styles.icon} weight="regular" />
         </Link>
       </div>
     </section>
-  );
-}
-
-export function AddOnTable() {
-  return (
-    <div className={styles.tableFrame}>
-      <table className={styles.table}>
-        <caption className="sr-only">Corelith add-on pricing</caption>
-        <thead>
-          <tr>
-            <th scope="col">Add-on</th>
-            <th scope="col">Category</th>
-            <th scope="col">Monthly</th>
-            <th scope="col">What it adds</th>
-          </tr>
-        </thead>
-        <tbody>
-          {MARKETING_ADD_ONS.map((addOn) => (
-            <tr key={addOn.code}>
-              <th scope="row">{addOn.name}</th>
-              <td>{addOn.category}</td>
-              <td>{formatUsd(addOn.monthlyPrice)}</td>
-              <td>{addOn.description}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
-}
-
-export function SchoolBands() {
-  return (
-    <div className={styles.pricingGrid}>
-      {SCHOOL_PRICING_BANDS.map((band) => (
-        <article
-          key={band.code}
-          className={`${styles.priceCard} ${band.isMostPopular ? styles.priceCardFeatured : ""}`}
-        >
-          <div className={styles.priceHeader}>
-            <p className={styles.eyebrow}>
-              {band.maxStudents === null
-                ? "Over 1,500 students"
-                : `Up to ${band.maxStudents.toLocaleString("en-US")} students`}
-            </p>
-            {band.isMostPopular ? <span className={styles.statusPill}>Most chosen</span> : null}
-          </div>
-          <h3 className={styles.priceTitle}>{band.name}</h3>
-          <p className={styles.price}>
-            {band.termPrice === null ? "Tailored" : `${formatUsd(band.termPrice)}/term`}
-          </p>
-          <p className={styles.priceMeta}>Per campus, per term</p>
-          <p className={styles.body}>{band.summary}</p>
-          <ul className={styles.checkList}>
-            {band.includes.map((item) => (
-              <li key={item}>
-                <Check className={styles.icon} weight="regular" />
-                <span>{item}</span>
-              </li>
-            ))}
-          </ul>
-          <Link href="/home/book-demo?interest=schools" className={styles.button}>
-            {band.termPrice === null ? "Request a group quote" : "Arrange a consultation"}
-          </Link>
-        </article>
-      ))}
-    </div>
   );
 }
 
@@ -986,8 +923,8 @@ export function CtaBand({
           ) : null}
         </div>
         <p className={styles.small}>
-          {MONEY_BACK_DAYS}-day money-back guarantee &middot; no per-user fees &middot; your data
-          exports at any time
+          {TRIAL_DAYS}-day trial &middot; {MONEY_BACK_DAYS}-day money-back guarantee &middot; your
+          data exports at any time
         </p>
       </div>
     </section>
@@ -1097,7 +1034,7 @@ export function SegmentDetail({ segment }: { segment: MarketingSegment }) {
             </div>
             <div className={styles.assuranceGrid}>
               {priceLabel ? <span>{priceLabel}</span> : null}
-              <span>Per site, not per user</span>
+              <span>Everything in the vertical included</span>
               <span>{LAUNCH_SPRINT_DAYS}-day Launch Sprint</span>
             </div>
           </div>
@@ -1214,8 +1151,8 @@ export function SegmentDetail({ segment }: { segment: MarketingSegment }) {
             <p className={styles.eyebrow}>Starting point</p>
             <p className={styles.price}>{priceLabel ?? "Tailored"}</p>
             <p className={styles.body}>
-              Priced per site with seats included up to your ceiling. Onboarding is scoped and
-              quoted separately, before you commit to anything.
+              {PRICE_RULE_COPY} Features and add-ons inside the vertical are included, and there
+              is no onboarding fee.
             </p>
             <Link href="/home/pricing" className={styles.inlineAction}>
               See full pricing

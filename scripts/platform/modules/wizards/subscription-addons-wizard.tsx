@@ -229,7 +229,7 @@ export function SubscriptionAddonsWizard({
                 selectedIndex={addonIndex}
                 emptyMessage="No add-on bundles available."
                 render={(item) =>
-                  `${item.code} | ${item.name} | ${item.monthlyPrice.toFixed(2)} base + ${item.additionalSiteMonthlyPrice.toFixed(2)}/site | ${item.enabled ? "enabled" : "disabled"}`
+                  `${item.code} | ${item.name} | ${item.enabled ? "enabled" : "disabled"}`
                 }
               />
             </>
@@ -251,10 +251,6 @@ export function SubscriptionAddonsWizard({
             <>
               <Text>company: {companyLabel(selectedSubscription)}</Text>
               <Text>bundle: {selectedAddon?.code || "<none>"}</Text>
-              <Text>
-                bundle pricing: {selectedAddon?.monthlyPrice.toFixed(2) || "0.00"} base +{" "}
-                {selectedAddon?.additionalSiteMonthlyPrice.toFixed(2) || "0.00"}/site
-              </Text>
               <Text>target: {targetEnabled ? "enabled" : "disabled"}</Text>
               <Text>reason: {reason || "<optional>"}</Text>
             </>

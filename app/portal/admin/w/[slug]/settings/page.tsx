@@ -9,7 +9,19 @@ import { operatorCan } from "@/lib/operators/roles";
 import { prisma } from "@/lib/prisma";
 import { signInAsCode } from "@/lib/sign-in-as/sessions";
 
-import { close, endSession, reinstate, rename, signOutEveryone, suspend } from "./actions";
+import {
+  changeAddress,
+  close,
+  deleteForGood,
+  endSession,
+  previewReset,
+  reinstate,
+  rename,
+  reopen,
+  resetData,
+  signOutEveryone,
+  suspend,
+} from "./actions";
 
 export default async function WorkspaceSettingsPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
@@ -31,7 +43,7 @@ export default async function WorkspaceSettingsPage({ params }: { params: Promis
       <AdminPageHeader title="Settings" />
       <SettingsPanel
         workspace={{ name: workspace.name, slug: workspace.slug }}
-        address={root ? `${workspace.slug}.${root}` : workspace.slug}
+        root={root}
         status={company.tenantStatus}
         sessions={open.map((session) => ({
           id: session.id,
@@ -52,11 +64,16 @@ export default async function WorkspaceSettingsPage({ params }: { params: Promis
         accessRecordHref={`/api/platform-admin/w/${workspace.slug}/access-record`}
         actions={{
           rename: rename.bind(null, slug),
+          changeAddress: changeAddress.bind(null, slug),
           signOutEveryone: signOutEveryone.bind(null, slug),
           endSession: endSession.bind(null, slug),
           suspend: suspend.bind(null, slug),
           reinstate: reinstate.bind(null, slug),
           close: close.bind(null, slug),
+          reopen: reopen.bind(null, slug),
+          deleteForGood: deleteForGood.bind(null, slug),
+          previewReset: previewReset.bind(null, slug),
+          resetData: resetData.bind(null, slug),
         }}
       />
     </AdminPage>

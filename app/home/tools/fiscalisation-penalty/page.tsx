@@ -18,7 +18,7 @@ import {
   PENALTY_MAX_PER_TILL_USD,
   PENALTY_USD_PER_TILL_PER_DAY,
 } from "@/lib/marketing/penalty";
-import { ENTRY_TIER, formatUsd, getMarketingTier } from "@/lib/marketing/pricing";
+import { SMALL_PRICE, formatUsd } from "@/lib/marketing/pricing";
 import {
   breadcrumbJsonLd,
   buildMarketingMetadata,
@@ -28,8 +28,6 @@ import {
 import { ArrowRight, ExternalLink, Info } from "@/lib/icons";
 
 export const metadata: Metadata = buildMarketingMetadata(seoPages.penaltyCalculator);
-
-const fiscalTier = getMarketingTier("FISCAL") ?? ENTRY_TIER;
 
 /**
  * Questions an accountant asks of the tool itself. They are here rather than in
@@ -143,7 +141,7 @@ export default function FiscalisationPenaltyPage() {
           <h3 className={styles.cardTitle}>{FDMS_STATUS_HEADLINE}</h3>
           <p className={styles.body}>{FDMS_STATUS_COPY}</p>
           <Link href="/home/pricing" className={styles.inlineAction}>
-            {fiscalTier.name} from {formatUsd(fiscalTier.annualMonthlyPrice)} a month
+            Fiscalisation from {formatUsd(SMALL_PRICE)} a month
             <ArrowRight className={styles.icon} weight="regular" />
           </Link>
         </div>
@@ -180,7 +178,7 @@ export default function FiscalisationPenaltyPage() {
       <CtaBand
         eyebrow="Next step"
         title="Fiscalise the tills, then see the rest of the business."
-        copy={`${fiscalTier.name} covers the obligation from ${formatUsd(fiscalTier.annualMonthlyPrice)} a month billed annually. Stock, books and payroll sit on the same record when you want them.`}
+        copy={`Fiscalisation comes inside your vertical, from ${formatUsd(SMALL_PRICE)} a month. Stock, books and payroll sit on the same record when you want them.`}
       />
     </SiteChrome>
   );

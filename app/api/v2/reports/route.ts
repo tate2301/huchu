@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { errorResponse, successResponse, validateSession } from "@/lib/api-utils";
+import { offeredTemplates } from "@/lib/library/reports";
 import { canReadReport } from "@/lib/reports/access";
 import { reportCatalog } from "@/lib/reports/catalog";
 import { readableSources, readerOf } from "@/lib/reports/custom/sources";
 import { listCustomReports } from "@/lib/reports/custom/store";
 import { listReportFolders } from "@/lib/reports/folders";
-import { templateReads, templatesFor } from "@/lib/reports/custom/templates";
 import { REPORT_DEFINITIONS } from "@/lib/reports/registry";
 import { disabledReportKeys } from "@/lib/reports/settings";
 import { sqlName } from "@/lib/reports/sql/schema";
@@ -28,18 +28,18 @@ export async function GET(request: NextRequest) {
     const sources = await readableSources(session);
     const areaOfTable = new Map(sources.map((source) => [sqlName(source.key), source.area]));
     const areaOfKey = new Map(sources.map((source) => [source.key, source.area]));
-    const reads = templateReads();
 
     const custom = (await listCustomReports(readerOf(session))).map((report) => ({
       ...report,
       area: report.areaSources.map((table) => areaOfTable.get(table)).find(Boolean) ?? null,
     }));
-    const builtCustom = templatesFor(sources, { id: session.user.id, role: session.user.role }, session.user.workspaceProfile).map((template) => ({
+    // Corelith's: the ones in code, then the library's published ones that reach this workspace.
+    const builtCustom = (await offeredTemplates(session, sources)).map((template) => ({
       key: template.key,
       title: template.title,
       description: template.description,
       audience: template.audience,
-      area: (reads.get(template.key) ?? []).map((key) => areaOfKey.get(key)).find(Boolean) ?? null,
+      area: template.reads.map((key) => areaOfKey.get(key)).find(Boolean) ?? null,
     }));
 
     return successResponse({

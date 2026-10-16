@@ -247,6 +247,7 @@ export function ReportBuilderView({
   ask = null,
   filters = NO_FILTERS,
   onFilter,
+  held = null,
 }: {
   report: Pick<CustomReport, "id" | "canShare">;
   draft: CustomReportInput;
@@ -254,10 +255,11 @@ export function ReportBuilderView({
   sources: readonly ReportSource[];
   data: BuilderData;
   params: ReportParams;
-  saved: SavedState;
+  /** Left out where the page around the builder saves it. */
+  saved?: SavedState;
   /** What stands between this draft and a save. */
   problems: readonly string[];
-  onPublish: () => void;
+  onPublish?: () => void;
   publishing?: boolean;
   /** Offered while there is something to throw away. */
   onDiscard?: () => void;
@@ -279,6 +281,12 @@ export function ReportBuilderView({
   /** The report's filters as set on this board, by column; they narrow its preview. */
   filters?: Readonly<Record<string, string>>;
   onFilter?: (column: string, value: string | null) => void;
+  /**
+   * The page around the builder holds the report (the portal's library): it
+   * names it, says who gets it and saves it, so the builder has no Share, no
+   * name or audience of its own, and Done in place of Publish.
+   */
+  held?: { onDone: () => void } | null;
 }) {
   const [mode, setMode] = React.useState<BuilderMode>("build");
   const [tab, setTab] = React.useState<InspectorTab>("block");
@@ -378,12 +386,20 @@ export function ReportBuilderView({
               Discard
             </Button>
           ) : null}
-          <MenuButton icon="share" iconEnd={undefined} label="Share" items={shareItems}>
-            Share
-          </MenuButton>
+          {held ? null : (
+            <MenuButton icon="share" iconEnd={undefined} label="Share" items={shareItems}>
+              Share
+            </MenuButton>
+          )}
         </>
       }
-      publish={{ onPublish, disabled: problems.length > 0, busy: publishing }}
+      publish={
+        held
+          ? { label: "Done", icon: "check", onPublish: held.onDone }
+          : onPublish
+            ? { onPublish, disabled: problems.length > 0, busy: publishing }
+            : undefined
+      }
     />
   );
 
@@ -528,14 +544,18 @@ export function ReportBuilderView({
 
   const reportSettings = (
     <>
-      <TextField label="Name" value={draft.title} placeholder="Name this report" onChange={(title) => change({ title })} />
-      <TextField
-        label="Description"
-        long
-        value={draft.description ?? ""}
-        placeholder="What it answers, for whoever opens it"
-        onChange={(description) => change({ description: description || null })}
-      />
+      {held ? null : (
+        <>
+          <TextField label="Name" value={draft.title} placeholder="Name this report" onChange={(title) => change({ title })} />
+          <TextField
+            label="Description"
+            long
+            value={draft.description ?? ""}
+            placeholder="What it answers, for whoever opens it"
+            onChange={(description) => change({ description: description || null })}
+          />
+        </>
+      )}
       <Choice
         label="Opens on"
         value={periodId(draft.document.period)}
@@ -549,12 +569,14 @@ export function ReportBuilderView({
         }}
         help={`${params.from && params.to ? `${params.from} to ${params.to}` : params.from ? `${params.from} onwards` : params.to ? `Up to ${params.to}` : "Any time"}. A question reads them as period_start() and period_end().`}
       />
-      <Choice
-        label="Seen by"
-        value={draft.audience}
-        options={TEMPLATE_AUDIENCES.filter((audience) => audience === "JUST_ME" || report.canShare || audience === draft.audience).map((audience): [string, string] => [audience, SEEN_BY_WORDS[audience]])}
-        onChange={(audience) => change({ audience: audience as CustomReportInput["audience"] })}
-      />
+      {held ? null : (
+        <Choice
+          label="Seen by"
+          value={draft.audience}
+          options={TEMPLATE_AUDIENCES.filter((audience) => audience === "JUST_ME" || report.canShare || audience === draft.audience).map((audience): [string, string] => [audience, SEEN_BY_WORDS[audience]])}
+          onChange={(audience) => change({ audience: audience as CustomReportInput["audience"] })}
+        />
+      )}
     </>
   );
 

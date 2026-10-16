@@ -32,8 +32,8 @@ export async function GET(request: NextRequest) {
 /**
  * Add a site (W-03). `retail.sites:create` (Owner). Name unique among open
  * sites, short code 2–6 of A–Z 0–9 unique to the shop, a Zimbabwe phone, at
- * least one place, a price list of the shop's; 409 PLAN_LIMIT when the plan
- * has no room. Writes `RETAIL_SITE.CREATED`. 201 `{ data: SiteDetail }`.
+ * least one place, a price list of the shop's. Writes `RETAIL_SITE.CREATED`.
+ * 201 `{ data: SiteDetail }`.
  */
 export async function POST(request: NextRequest) {
   const { response, session } = await requireRetailSession(request);

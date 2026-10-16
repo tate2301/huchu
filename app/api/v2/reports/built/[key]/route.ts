@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { errorResponse, successResponse, validateSession } from "@/lib/api-utils";
+import { offeredTemplate } from "@/lib/library/reports";
 import type { CustomReport } from "@/lib/reports/custom/document";
 import { readableSources } from "@/lib/reports/custom/sources";
-import { customTemplate, templatesFor } from "@/lib/reports/custom/templates";
 
 /**
  * A built-in custom report, to read: the same shape as one built in the
@@ -16,9 +16,9 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     if (sessionResult instanceof NextResponse) return sessionResult;
     const { session } = sessionResult;
     const { key } = await params;
-    const template = customTemplate(key);
-    const offered = templatesFor(await readableSources(session), { id: session.user.id, role: session.user.role }, null);
-    if (!template || !offered.some((entry) => entry.key === key)) return errorResponse("Template not found", 404);
+    // One in code, or one published to this workspace from Corelith's library, read live.
+    const template = await offeredTemplate(session, await readableSources(session), key);
+    if (!template) return errorResponse("Template not found", 404);
     const report: CustomReport = {
       id: `built-${template.key}`,
       title: template.title,

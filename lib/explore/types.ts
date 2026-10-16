@@ -22,7 +22,8 @@ export type ExploreCatalog =
       /** The real tables the person's role reads, with their rows, when the engine is "tables". */
       tables: Array<ExploreTable & { rows?: number }> | null;
       locked: LockedTable[];
-      templates: Array<ExploreTemplate & { reads: string[] }>;
+      /** Those in code over this engine, and Corelith's library ones that apply, each with the engine it runs over when that is not this one. */
+      templates: Array<ExploreTemplate & { reads: string[]; engine?: ExploreEngine }>;
       saved: SavedQuestion[];
     };
 

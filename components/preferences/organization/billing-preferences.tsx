@@ -10,22 +10,21 @@ import { getApiErrorMessage } from "@/lib/api-client";
 import { fetchBillingPreferences } from "@/lib/preferences/api";
 
 import { BillingPageView } from "./billing-view";
-import { ChangePlanDialog } from "./change-plan-dialog";
+import { PriceDialog } from "./price-dialog";
 
 /**
- * Management → Billing on the workspace's subscription. Taking an add-on is
- * arranged with Corelith: Add opens the plan and its prices, as changing the
- * plan did.
+ * Management → Billing on the workspace's subscription. Adding a vertical is
+ * arranged with Corelith: Add and See prices open how the price works.
  */
 export function BillingPreferences() {
-  const [planOpen, setPlanOpen] = React.useState(false);
+  const [priceOpen, setPriceOpen] = React.useState(false);
   const query = useQuery({ queryKey: ["preferences", "billing"], queryFn: fetchBillingPreferences });
 
   return (
     <PreferencesShell>
       <OwnsChrome>
         {query.data ? (
-          <BillingPageView data={query.data} onAddOn={() => setPlanOpen(true)} />
+          <BillingPageView data={query.data} onAskPrice={() => setPriceOpen(true)} />
         ) : (
           <Kit className="kit-col">
             {query.isError ? (
@@ -41,7 +40,7 @@ export function BillingPreferences() {
           </Kit>
         )}
       </OwnsChrome>
-      <ChangePlanDialog open={planOpen} onOpenChange={setPlanOpen} />
+      {query.data ? <PriceDialog open={priceOpen} onOpenChange={setPriceOpen} charges={query.data.charges} /> : null}
     </PreferencesShell>
   );
 }

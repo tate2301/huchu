@@ -9,13 +9,11 @@ import { unpairDevicesOf } from "@/lib/retail/tills";
 import {
   SITE_CODE_PATTERN,
   cleanSiteCode,
-  noRoomSentence,
   placeCode,
   placesWords,
   siteSub,
   suggestSiteCode,
   zimbabwePhone,
-  type PlanRoom,
   type SiteState,
 } from "@/lib/retail/site-words";
 
@@ -34,8 +32,6 @@ import {
  * Closing keeps the site's history: it leaves every list and filter, its tills
  * stop, and it shows under State: Closed. The default site cannot close, nor
  * can a site with stock left or a shift still open.
- *
- * The plan sets how many open sites a shop may have (`SubscriptionPlan.maxSites`).
  */
 
 export type SiteRow = {
@@ -71,8 +67,6 @@ export type SiteNewContext = {
   priceLists: PriceListOption[];
   /** The open sites stock could come from, the default first. */
   otherSites: Array<{ id: string; name: string }>;
-  /** Null when the shop's plan sets no limit. */
-  plan: { name: string; maxSites: number | null; openSites: number } | null;
   suggestedCode: string;
   /** Every short code in use, so the sheet suggests one that is free as the name is typed. */
   takenCodes: string[];
@@ -291,20 +285,6 @@ export async function getSite(companyId: string, id: string, canSeeCost: boolean
   };
 }
 
-/** The shop's plan and how many open sites it has; null when its plan sets no limit or it has none. */
-export async function planRoom(client: Client, companyId: string): Promise<PlanRoom | null> {
-  const [subscription, openSites] = await Promise.all([
-    client.companySubscription.findFirst({
-      where: { companyId, status: { in: ["ACTIVE", "TRIALING", "PAST_DUE"] } },
-      orderBy: { createdAt: "desc" },
-      select: { plan: { select: { name: true, maxSites: true } } },
-    }),
-    client.site.count({ where: { companyId, isActive: true } }),
-  ]);
-  if (!subscription) return null;
-  return { name: subscription.plan.name, maxSites: subscription.plan.maxSites, openSites };
-}
-
 /** The price lists a site may sell from: "Default, 214 products", "96 products". */
 export async function priceListOptions(companyId: string, client: Client = prisma): Promise<{
   options: PriceListOption[];
@@ -338,11 +318,10 @@ export async function priceListOptions(companyId: string, client: Client = prism
 
 /** What Add a site needs before it opens. */
 export async function siteNewContext(companyId: string, name?: string | null): Promise<SiteNewContext> {
-  const [lists, sites, defaultSiteId, plan] = await Promise.all([
+  const [lists, sites, defaultSiteId] = await Promise.all([
     priceListOptions(companyId),
     prisma.site.findMany({ where: { companyId }, orderBy: [{ name: "asc" }], select: { id: true, name: true, code: true, isActive: true } }),
     defaultSiteIdOf(prisma, companyId),
-    planRoom(prisma, companyId),
   ]);
   const takenCodes = sites.map((site) => site.code);
   const open = sites.filter((site) => site.isActive);
@@ -351,7 +330,6 @@ export async function siteNewContext(companyId: string, name?: string | null): P
     otherSites: [...open]
       .sort((a, b) => Number(b.id === defaultSiteId) - Number(a.id === defaultSiteId))
       .map((site) => ({ id: site.id, name: site.name })),
-    plan: plan && plan.maxSites !== null ? { name: plan.name, maxSites: plan.maxSites, openSites: plan.openSites } : null,
     suggestedCode: suggestSiteCode(name ?? "", takenCodes),
     takenCodes,
     defaultPriceListId: lists.defaultId,
@@ -400,10 +378,6 @@ export async function createSite(actor: SiteActor, input: SiteInput): Promise<Si
   const { companyId } = actor;
   try {
     const id = await prisma.$transaction(async (tx) => {
-      const plan = await planRoom(tx, companyId);
-      if (plan && plan.maxSites !== null && plan.openSites >= plan.maxSites) {
-        throw new SiteRefusal(409, noRoomSentence(plan.name), { code: "PLAN_LIMIT" });
-      }
       await checkName(tx, companyId, input.name, null);
       await checkCode(tx, companyId, input.code, null);
       const priceList = await checkPriceList(tx, companyId, input.priceListId);

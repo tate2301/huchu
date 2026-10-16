@@ -17,13 +17,6 @@ export function placesWords(names: readonly string[]): string {
     .join(", ");
 }
 
-const NUMBER_WORDS = ["no", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten"];
-
-/** "one", "two" … "ten", then figures. */
-export function countWord(n: number): string {
-  return NUMBER_WORDS[n] ?? formatCount(n);
-}
-
 /** A short code is 2 to 6 of A–Z and 0–9. */
 export const SITE_CODE_PATTERN = /^[A-Z0-9]{2,6}$/;
 
@@ -93,31 +86,6 @@ export function siteSub(input: { isDefault: boolean; tills: number; stockValue: 
   ]
     .filter(Boolean)
     .join(" · ");
-}
-
-/** The plan as the note reads it: "Grow". */
-export type PlanRoom = { name: string; maxSites: number | null; openSites: number };
-
-/** How many more open sites the plan allows; null without a limit. */
-export function sitesLeft(plan: PlanRoom): number | null {
-  return plan.maxSites === null ? null : Math.max(0, plan.maxSites - plan.openSites);
-}
-
-/** "Your Grow plan has no room for another site." — the refusal and the full note. */
-export function noRoomSentence(planName: string): string {
-  return `Your ${planName} plan has no room for another site.`;
-}
-
-/**
- * Add a site's footer note: "Then pair its tills. Your Grow plan has room for
- * one more site."; with no room, the refusal; with no limit, the first part.
- */
-export function siteNewNote(plan: PlanRoom | null): string {
-  if (!plan) return "Then pair its tills.";
-  const left = sitesLeft(plan);
-  if (left === null) return "Then pair its tills.";
-  if (left === 0) return noRoomSentence(plan.name);
-  return `Then pair its tills. Your ${plan.name} plan has room for ${countWord(left)} more ${left === 1 ? "site" : "sites"}.`;
 }
 
 /** "Move some from Harare Main Branch". */

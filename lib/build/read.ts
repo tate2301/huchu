@@ -1,8 +1,9 @@
 import { prisma } from "@/lib/prisma";
 import { ensureSiteVisitQuestionSets } from "@/lib/crm/site-visits/question-sets";
+import { workspaceLibraryItem, type BuildLibraryKind } from "@/lib/library/workspace";
 import { listCustomReports } from "@/lib/reports/custom/store";
 
-import { blockItem, enquiryItem, layoutItem, reportItem, sortBuildItems, visitItem, type BuildItem } from "./items";
+import { buildHref, blockItem, enquiryItem, layoutItem, reportItem, sortBuildItems, visitItem, type BuildItem } from "./items";
 import { buildProvisions, layoutProvisioned, layoutUser, type BuildProvisions } from "./provision";
 
 /**
@@ -74,7 +75,9 @@ export type BuildRecord =
   | { source: "block"; id: string; kind: string }
   | { source: "layout"; id: string; sourceKey: string }
   | { source: "catalog"; id: string; sourceKey: string }
-  | { source: "report"; id: string };
+  | { source: "report"; id: string }
+  /** One of Corelith's library that reaches the workspace, by its address: opened read-only. */
+  | { source: "library"; id: string; kind: BuildLibraryKind; blockKind?: string; sourceKey?: string };
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -83,7 +86,7 @@ export async function findBuildRecord(companyId: string, id: string): Promise<Bu
   if (!UUID.test(id)) {
     const { DEFAULT_TEMPLATE_CATALOG } = await import("@/lib/documents/default-template-catalog");
     const entry = DEFAULT_TEMPLATE_CATALOG.find((candidate) => candidate.key === id);
-    return entry ? { source: "catalog", id: entry.key, sourceKey: entry.sourceKey } : null;
+    return entry ? { source: "catalog", id: entry.key, sourceKey: entry.sourceKey } : findLibraryRecord(companyId, id);
   }
   const [visit, enquiry, block, layout, report] = await Promise.all([
     prisma.crmQuestionSet.findFirst({ where: { id, companyId, archivedAt: null }, select: { id: true } }),
@@ -100,7 +103,35 @@ export async function findBuildRecord(companyId: string, id: string): Promise<Bu
   if (block) return { source: "block", id, kind: block.kind };
   if (layout) return { source: "layout", id, sourceKey: layout.sourceKey };
   if (report) return { source: "report", id };
-  return null;
+  return findLibraryRecord(companyId, id);
+}
+
+async function findLibraryRecord(companyId: string, key: string): Promise<BuildRecord | null> {
+  const found = await workspaceLibraryItem(companyId, key);
+  if (!found) return null;
+  if (found.kind === "BLOCK_TEMPLATE") return { source: "library", id: key, kind: found.kind, blockKind: found.entry.payload.kind };
+  if (found.kind === "LAYOUT") return { source: "library", id: key, kind: found.kind, sourceKey: found.entry.payload.sourceKey };
+  return { source: "library", id: key, kind: found.kind };
+}
+
+/** Where a record opens: its own builder, or the templates' page for a layout. */
+export function recordHref(record: BuildRecord): string {
+  switch (record.source) {
+    case "catalog":
+      return `/build/templates/${encodeURIComponent(record.id)}`;
+    case "library":
+      return record.kind === "VISIT_FORM"
+        ? buildHref("visit", record.id)
+        : record.kind === "ENQUIRY_FORM"
+          ? buildHref("enquiry", record.id)
+          : record.kind === "LAYOUT"
+            ? buildHref("layout", record.id)
+            : buildHref("block", record.id, record.blockKind);
+    case "block":
+      return buildHref("block", record.id, record.kind);
+    default:
+      return buildHref(record.source, record.id);
+  }
 }
 
 /** Whether the workspace is provisioned for what the record is. */
@@ -118,5 +149,10 @@ export function recordProvisioned(record: BuildRecord, enabledFeatures: string[]
       return layoutProvisioned(record.sourceKey, enabledFeatures);
     case "report":
       return provisions.reports;
+    case "library":
+      if (record.kind === "VISIT_FORM") return provisions.visitForms;
+      if (record.kind === "ENQUIRY_FORM") return provisions.enquiryForms;
+      if (record.kind === "BLOCK_TEMPLATE") return provisions.blocks;
+      return layoutProvisioned(record.sourceKey ?? "", enabledFeatures);
   }
 }

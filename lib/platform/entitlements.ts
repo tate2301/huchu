@@ -1,36 +1,18 @@
 import { normalizeFeatureKey } from "@/lib/platform/gating/catalog-utils";
 import { prisma } from "@/lib/prisma";
 import { FEATURE_BUNDLES, FEATURE_CATALOG, TIERS, getBundleDefinition, getTierDefinition } from "@/lib/platform/feature-catalog";
-import { getSubscriptionHealth } from "@/lib/platform/subscription";
+import { billedMemberWhere, priceVerticals, type VerticalPrice } from "@/lib/platform/verticals";
 
 export type FeatureMap = Record<string, boolean>;
 
-export interface PricingLineItem {
-  code: string;
-  label: string;
-  amount: number;
-  type: "tier" | "site-overage" | "addon" | "addon-site" | "feature";
-}
-
-export interface CompanyPricingResult {
+/**
+ * What a workspace pays a month, and why: its verticals at the rate its member
+ * count sets (`lib/platform/verticals.ts`). One line per vertical.
+ */
+export type CompanyPricingResult = VerticalPrice & {
   companyId: string;
-  planCode: string | null;
-  planName: string | null;
-  currency: string;
-  siteCount: number;
-  tierIncludedSites: number;
-  tierSiteOverageRate: number;
-  tierSiteOverageCount: number;
-  tierSiteOverageAmount: number;
-  baseAmount: number;
-  addonBaseAmount: number;
-  addonSiteAmount: number;
-  addonAmount: number;
-  featureAmount: number;
-  totalAmount: number;
-  lineItems: PricingLineItem[];
   computedAt: string;
-}
+};
 
 function normalizeLegacyFeatureKey(value: string): string {
   return value
@@ -52,28 +34,6 @@ function resolveLegacyFeatureAlias(featureKey: string): string | null {
   const alias = LEGACY_FEATURE_ALIAS_MAP.get(featureKey);
   if (!alias || alias === featureKey) return null;
   return alias;
-}
-
-function money(value: unknown): number {
-  const parsed = Number(value ?? 0);
-  if (!Number.isFinite(parsed)) return 0;
-  return Math.max(0, parsed);
-}
-
-function resolveBundleMonthlyPrice(bundleCode: string, value: unknown): number {
-  const normalized = money(value);
-  if (normalized > 0) return normalized;
-  return money(getBundleDefinition(bundleCode)?.monthlyPrice ?? 0);
-}
-
-function resolveBundleAdditionalSiteMonthlyPrice(bundleCode: string, value: unknown): number {
-  const normalized = money(value);
-  if (normalized > 0) return normalized;
-  return money(getBundleDefinition(bundleCode)?.additionalSiteMonthlyPrice ?? 0);
-}
-
-function nowIso() {
-  return new Date().toISOString();
 }
 
 async function getBundleFeatureSet(bundleCodes: string[]): Promise<Set<string>> {
@@ -111,14 +71,13 @@ async function getBundleFeatureSet(bundleCodes: string[]): Promise<Set<string>> 
  *
  * They are still load-bearing, because two things hang foreign keys off them:
  * `CompanyFeatureFlag.featureId` and `CompanySubscriptionAddon.bundleId`. With
- * the tables empty a tenant cannot be granted a paid bundle — there is no row
- * to reference — and every billable feature stays off no matter what else is
- * configured. `getCompanyFeatureMap` gates billable features on subscription
- * entitlement, so an un-grantable bundle means an unusable module.
+ * the tables empty a tenant cannot be granted a bundle or switched a feature
+ * on — there is no row to reference — so a module that starts off can never be
+ * turned on.
  *
  * This function previously returned the *sizes of the in-memory catalogue* and
  * wrote nothing, so `pnpm platform` reported "135 features, 24 bundles" over an
- * empty database and provisioning silently produced tenants whose paid modules
+ * empty database and provisioning silently produced tenants whose modules
  * could never be switched on. That is what made a freshly provisioned school
  * answer `403 FEATURE_DISABLED` on every one of its own pages.
  *
@@ -145,8 +104,6 @@ export async function syncEntitlementCatalog(): Promise<{
         description: feature.description ?? null,
         domain: feature.domain ?? null,
         defaultEnabled: Boolean(feature.defaultEnabled),
-        isBillable: Boolean(feature.isBillable),
-        monthlyPrice: feature.monthlyPrice ?? null,
         isActive: true,
       },
       create: {
@@ -155,8 +112,6 @@ export async function syncEntitlementCatalog(): Promise<{
         description: feature.description ?? null,
         domain: feature.domain ?? null,
         defaultEnabled: Boolean(feature.defaultEnabled),
-        isBillable: Boolean(feature.isBillable),
-        monthlyPrice: feature.monthlyPrice ?? null,
         isActive: true,
       },
       select: { id: true },
@@ -172,16 +127,12 @@ export async function syncEntitlementCatalog(): Promise<{
       update: {
         name: bundle.name,
         description: bundle.description ?? null,
-        monthlyPrice: bundle.monthlyPrice ?? 0,
-        additionalSiteMonthlyPrice: bundle.additionalSiteMonthlyPrice ?? 0,
         isActive: true,
       },
       create: {
         code: bundle.code,
         name: bundle.name,
         description: bundle.description ?? null,
-        monthlyPrice: bundle.monthlyPrice ?? 0,
-        additionalSiteMonthlyPrice: bundle.additionalSiteMonthlyPrice ?? 0,
         isActive: true,
       },
       select: { id: true },
@@ -218,13 +169,11 @@ export async function syncEntitlementCatalog(): Promise<{
 }
 
 /**
- * Switch a paid bundle on for one company.
+ * Switch a bundle on for one company.
  *
- * Two records are needed and neither implies the other. The addon row is what
- * `getCompanyFeatureMap` consults to decide a billable feature is *entitled*;
- * the per-feature flags are what say it is *on*. A tenant with the addon and no
- * flags gets nothing, because a billable feature defaults to off — see the
- * `map[key] = feature.isBillable ? false : …` line below.
+ * The addon row is what `getCompanyFeatureMap` reads to turn the bundle's
+ * features on; the per-feature flags make each one explicit, so the Features
+ * page reads the same answer. A bundle carries no charge of its own.
  *
  * The bundle definition is code-side, so the `FeatureBundle` row may not exist
  * yet on a database that has never been synced. Sync rather than fail: the
@@ -326,7 +275,7 @@ export async function getCompanyFeatureMap(companyId: string): Promise<FeatureMa
   const [dbFeatures, flags, latestSubscription, addons] = await Promise.all([
     prisma.platformFeature.findMany({
       where: { isActive: true },
-      select: { key: true, defaultEnabled: true, isBillable: true },
+      select: { key: true, defaultEnabled: true },
     }),
     prisma.companyFeatureFlag.findMany({
       where: {
@@ -335,7 +284,7 @@ export async function getCompanyFeatureMap(companyId: string): Promise<FeatureMa
       },
       select: {
         isEnabled: true,
-        feature: { select: { key: true, isBillable: true } },
+        feature: { select: { key: true } },
       },
     }),
     prisma.companySubscription.findFirst({
@@ -349,45 +298,30 @@ export async function getCompanyFeatureMap(companyId: string): Promise<FeatureMa
     }),
   ]);
 
+  // A feature is on by its catalogue default, then by what the plan and the
+  // workspace's bundles carry, then by its own flag: an explicit flag wins
+  // either way. Features carry no charge (a workspace pays for its verticals),
+  // so a flag switched on by hand is on.
   const map: FeatureMap = {};
-  const featureMeta = new Map<string, { isBillable: boolean }>();
   const catalogByKey = new Map(FEATURE_CATALOG.map((feature) => [normalizeFeatureKey(feature.key), feature]));
   const features = [
     ...FEATURE_CATALOG.map((catalog) => ({
       key: catalog.key,
       defaultEnabled: catalog.defaultEnabled,
-      isBillable: catalog.isBillable,
     })),
     ...dbFeatures.filter((feature) => !catalogByKey.has(normalizeFeatureKey(feature.key))),
   ];
 
   for (const feature of features) {
-    const key = normalizeFeatureKey(feature.key);
-    featureMeta.set(key, { isBillable: Boolean(feature.isBillable) });
-    map[key] = feature.isBillable ? false : Boolean(feature.defaultEnabled);
+    map[normalizeFeatureKey(feature.key)] = Boolean(feature.defaultEnabled);
   }
 
   const tier = getTierDefinition(latestSubscription?.plan?.code);
-  const subscriptionEntitled = new Set<string>();
-  if (tier) {
-    for (const key of tier.includedFeatures) {
-      const normalized = normalizeFeatureKey(key);
-      subscriptionEntitled.add(normalized);
-      map[normalized] = true;
-    }
-    const includedByTierBundles = await getBundleFeatureSet(tier.includedBundles);
-    for (const key of includedByTierBundles) {
-      subscriptionEntitled.add(key);
-      map[normalizeFeatureKey(key)] = true;
-    }
-  }
-
-  const addonCodes = addons.map((row) => row.bundle.code);
-  const addonFeatures = await getBundleFeatureSet(addonCodes);
-  for (const key of addonFeatures) {
-    subscriptionEntitled.add(key);
-    map[normalizeFeatureKey(key)] = true;
-  }
+  const carried = new Set<string>([
+    ...(tier?.includedFeatures ?? []).map(normalizeFeatureKey),
+    ...(await getBundleFeatureSet([...(tier?.includedBundles ?? []), ...addons.map((row) => row.bundle.code)])),
+  ]);
+  for (const key of carried) map[normalizeFeatureKey(key)] = true;
 
   // Two flag rows can land on the same key, because `normalizeFeatureKey` folds a
   // renamed namespace onto its canonical one — `hr.payouts` onto
@@ -415,9 +349,7 @@ export async function getCompanyFeatureMap(companyId: string): Promise<FeatureMa
     const rawKey = flag.feature.key.trim().toLowerCase();
     const normalizedFlagKey = normalizeFeatureKey(rawKey);
     if (normalizedFlagKey !== rawKey) continue;
-    const requested = Boolean(flag.isEnabled);
-    const isBillable = featureMeta.get(normalizedFlagKey)?.isBillable ?? Boolean(flag.feature.isBillable);
-    map[normalizedFlagKey] = requested && (!isBillable || subscriptionEntitled.has(normalizedFlagKey));
+    map[normalizedFlagKey] = Boolean(flag.isEnabled);
     explicitFlagKeys.add(normalizedFlagKey);
   }
 
@@ -426,9 +358,7 @@ export async function getCompanyFeatureMap(companyId: string): Promise<FeatureMa
     const normalizedFlagKey = normalizeFeatureKey(rawKey);
     if (normalizedFlagKey === rawKey) continue;
     if (explicitFlagKeys.has(normalizedFlagKey)) continue;
-    const requested = Boolean(flag.isEnabled);
-    const isBillable = featureMeta.get(normalizedFlagKey)?.isBillable ?? Boolean(flag.feature.isBillable);
-    map[normalizedFlagKey] = requested && (!isBillable || subscriptionEntitled.has(normalizedFlagKey));
+    map[normalizedFlagKey] = Boolean(flag.isEnabled);
     explicitFlagKeys.add(normalizedFlagKey);
   }
 
@@ -437,11 +367,7 @@ export async function getCompanyFeatureMap(companyId: string): Promise<FeatureMa
   for (const flag of flags) {
     const normalizedFlagKey = normalizeFeatureKey(flag.feature.key);
     const aliasKey = resolveLegacyFeatureAlias(normalizedFlagKey);
-    if (aliasKey && !explicitFlagKeys.has(aliasKey)) {
-      const requested = Boolean(flag.isEnabled);
-      const isBillable = featureMeta.get(aliasKey)?.isBillable ?? Boolean(flag.feature.isBillable);
-      map[aliasKey] = requested && (!isBillable || subscriptionEntitled.has(aliasKey));
-    }
+    if (aliasKey && !explicitFlagKeys.has(aliasKey)) map[aliasKey] = Boolean(flag.isEnabled);
   }
 
   return map;
@@ -456,163 +382,47 @@ export async function getEnabledFeatureKeys(companyId: string): Promise<string[]
 
 export async function computeCompanyPricing(companyId: string): Promise<CompanyPricingResult> {
   const normalizedCompanyId = companyId.trim();
-  if (!normalizedCompanyId) {
-    throw new Error("companyId is required.");
-  }
+  if (!normalizedCompanyId) throw new Error("companyId is required.");
 
-  const subscription = await prisma.companySubscription.findFirst({
-    where: { companyId: normalizedCompanyId },
-    include: { plan: true },
-    orderBy: [{ updatedAt: "desc" }],
-  });
-
-  const planCode = subscription?.plan?.code ?? null;
-  const planName = subscription?.plan?.name ?? null;
-  const currency = subscription?.plan?.currency ?? "USD";
-  const tier = getTierDefinition(planCode);
-  const siteCount = await prisma.site.count({
-    where: { companyId: normalizedCompanyId, isActive: true },
-  });
-  const tierIncludedSites = Math.max(0, tier?.includedSites ?? 0);
-  const tierSiteOverageRate = money(tier?.additionalSiteMonthlyPrice ?? 0);
-  const tierSiteOverageCount = Math.max(0, siteCount - tierIncludedSites);
-  const tierSiteOverageAmount = tierSiteOverageCount * tierSiteOverageRate;
-
-  const baseAmount = money(subscription?.plan?.monthlyPrice ?? 0);
-  const lineItems: PricingLineItem[] = [
-    {
-      code: planCode ?? "NO_PLAN",
-      label: planName ?? "No Assigned Tier",
-      amount: baseAmount,
-      type: "tier",
-    },
-  ];
-  if (tierSiteOverageAmount > 0) {
-    lineItems.push({
-      code: `${planCode ?? "NO_PLAN"}:SITE_OVERAGE`,
-      label: `Tier site overage (${tierSiteOverageCount} x ${tierSiteOverageRate.toFixed(2)})`,
-      amount: tierSiteOverageAmount,
-      type: "site-overage",
-    });
-  }
-
-  const enabledAddons = await prisma.companySubscriptionAddon.findMany({
-    where: { companyId: normalizedCompanyId, isEnabled: true },
-    include: { bundle: true },
-    orderBy: [{ bundle: { code: "asc" } }],
-  });
-
-  let addonBaseAmount = 0;
-  let addonSiteAmount = 0;
-  for (const addon of enabledAddons) {
-    const base = resolveBundleMonthlyPrice(addon.bundle.code, addon.bundle.monthlyPrice);
-    const perSite = resolveBundleAdditionalSiteMonthlyPrice(
-      addon.bundle.code,
-      addon.bundle.additionalSiteMonthlyPrice,
-    );
-    const siteCharge = perSite * siteCount;
-    addonBaseAmount += base;
-    addonSiteAmount += siteCharge;
-    lineItems.push({
-      code: addon.bundle.code,
-      label: addon.bundle.name,
-      amount: base,
-      type: "addon",
-    });
-    if (siteCharge > 0) {
-      lineItems.push({
-        code: `${addon.bundle.code}:SITE`,
-        label: `${addon.bundle.name} site charge (${siteCount} x ${perSite.toFixed(2)})`,
-        amount: siteCharge,
-        type: "addon-site",
-      });
-    }
-  }
-  const addonAmount = addonBaseAmount + addonSiteAmount;
-
-  const includedByTier = new Set<string>((tier?.includedFeatures ?? []).map(normalizeFeatureKey));
-  const includedByTierBundle = await getBundleFeatureSet(tier?.includedBundles ?? []);
-  for (const key of includedByTierBundle) includedByTier.add(key);
-
-  const enabledAddonFeatureSet = await getBundleFeatureSet(enabledAddons.map((addon) => addon.bundle.code));
-  for (const key of enabledAddonFeatureSet) {
-    includedByTier.add(key);
-  }
-
-  const manualBillableFlags = await prisma.companyFeatureFlag.findMany({
-    where: {
-      companyId: normalizedCompanyId,
-      isEnabled: true,
-      OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
-    },
-    select: {
-      feature: {
-        select: { key: true, name: true, isBillable: true, monthlyPrice: true, isActive: true },
-      },
-    },
-  });
-
-  let featureAmount = 0;
-  for (const row of manualBillableFlags) {
-    const feature = row.feature;
-    const key = normalizeFeatureKey(feature.key);
-    if (!feature.isActive || !feature.isBillable || includedByTier.has(key)) continue;
-    const amount = money(feature.monthlyPrice);
-    if (amount <= 0) continue;
-    featureAmount += amount;
-    lineItems.push({
-      code: feature.key,
-      label: feature.name,
-      amount,
-      type: "feature",
-    });
-  }
-
-  const totalAmount = baseAmount + tierSiteOverageAmount + addonAmount + featureAmount;
+  const [members, verticals] = await Promise.all([
+    prisma.user.count({ where: billedMemberWhere(normalizedCompanyId) }),
+    prisma.companyVertical.findMany({ where: { companyId: normalizedCompanyId }, select: { vertical: true } }),
+  ]);
   return {
+    ...priceVerticals(
+      verticals.map((row) => row.vertical),
+      members,
+    ),
     companyId: normalizedCompanyId,
-    planCode,
-    planName,
-    currency,
-    siteCount,
-    tierIncludedSites,
-    tierSiteOverageRate,
-    tierSiteOverageCount,
-    tierSiteOverageAmount,
-    baseAmount,
-    addonBaseAmount,
-    addonSiteAmount,
-    addonAmount,
-    featureAmount,
-    totalAmount,
-    lineItems,
-    computedAt: nowIso(),
+    computedAt: new Date().toISOString(),
   };
 }
 
-export async function recomputeAndPersistCompanyPricing(companyId: string): Promise<{
-  pricing: CompanyPricingResult;
-  subscriptionHealth: Awaited<ReturnType<typeof getSubscriptionHealth>>;
-}> {
+/** Price a workspace and store the figure on its subscription, for lists and projections that read it. */
+export async function recomputeAndPersistCompanyPricing(companyId: string): Promise<CompanyPricingResult> {
   const pricing = await computeCompanyPricing(companyId);
-  const subscriptionHealth = await getSubscriptionHealth(companyId);
-
-  const subscription = await prisma.companySubscription.findFirst({
-    where: { companyId: companyId.trim() },
-    orderBy: [{ updatedAt: "desc" }],
-    select: { id: true },
+  await prisma.companySubscription.updateMany({
+    where: { companyId: pricing.companyId },
+    data: {
+      effectiveMonthlyAmount: pricing.total,
+      priceSnapshotJson: JSON.stringify(pricing),
+      lastPriceComputedAt: new Date(),
+    },
   });
+  return pricing;
+}
 
-  if (subscription) {
-    await prisma.companySubscription.update({
-      where: { id: subscription.id },
-      data: {
-        effectiveMonthlyAmount: pricing.totalAmount,
-        priceSnapshotJson: JSON.stringify(pricing),
-        lastPriceComputedAt: new Date(),
-      },
-    });
+/**
+ * Keep the stored price true after members or verticals change. Called after
+ * the write it follows has committed; a pricing failure is logged and never
+ * undoes or fails that write — the next change, or anyone opening the
+ * workspace's billing, prices it again.
+ */
+export async function repriceCompany(companyId: string | null | undefined): Promise<void> {
+  if (!companyId) return;
+  try {
+    await recomputeAndPersistCompanyPricing(companyId);
+  } catch (error) {
+    console.error(`[pricing] could not reprice ${companyId}:`, error);
   }
-
-  return { pricing, subscriptionHealth };
 }

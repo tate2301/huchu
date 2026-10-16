@@ -1,10 +1,11 @@
 "use client";
 
 import type { WorkspaceProduct } from "@prisma/client";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@corelithzw/react";
 
+import { SignInAsPicker } from "@/components/admin/members/sign-in-as-picker";
 import { StandingBadge } from "@/components/admin/standing-badge";
 import { WorkspaceMark } from "@/components/admin/workspace-mark";
 import type { StandingReading } from "@/lib/admin/standing";
@@ -37,6 +38,7 @@ export function ScopeBar({
   } | null;
 }) {
   const router = useRouter();
+  const [picking, setPicking] = useState(false);
 
   useEffect(() => {
     if (!workspace) return;
@@ -46,7 +48,8 @@ export function ScopeBar({
       if (document.querySelector('[role="dialog"], [role="menu"], [data-radix-popper-content-wrapper]')) return;
       if (event.key === "Escape") router.push("/admin/workspaces");
       if (event.key.toLowerCase() === "s" && !event.metaKey && !event.ctrlKey && !event.altKey) {
-        router.push(`/admin/w/${workspace.slug}/members`);
+        event.preventDefault();
+        setPicking(true);
       }
     };
     window.addEventListener("keydown", onKey);
@@ -88,7 +91,7 @@ export function ScopeBar({
           size="sm"
           startIcon={<UserSwitch />}
           aria-label={`Sign in as a member of ${workspace.name}`}
-          onClick={() => router.push(`/admin/w/${workspace.slug}/members`)}
+          onClick={() => setPicking(true)}
         >
           <span className={styles.hideOnPhone}>Sign in as</span>
           <span className={cn(styles.kbd, styles.hideOnPhone)}>S</span>
@@ -103,6 +106,7 @@ export function ScopeBar({
           <span className={cn(styles.kbd, styles.hideOnPhone)}>Esc</span>
         </Button>
       </div>
+      <SignInAsPicker slug={workspace.slug} open={picking} onOpenChange={setPicking} />
     </div>
   );
 }

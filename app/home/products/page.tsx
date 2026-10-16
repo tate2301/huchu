@@ -23,11 +23,7 @@ import {
   seoPages,
 } from "@/app/home/site-data";
 import styles from "@/app/home/marketing.module.css";
-import {
-  MARKETING_TIERS,
-  addOnsByCategory,
-  formatUsd,
-} from "@/lib/marketing/pricing";
+import { STARTING_PRICE_LABEL } from "@/lib/marketing/pricing";
 import {
   breadcrumbJsonLd,
   buildMarketingMetadata,
@@ -37,15 +33,7 @@ import { ArrowRight, Check } from "@/lib/icons";
 
 export const metadata: Metadata = buildMarketingMetadata(seoPages.platform);
 
-/** The cheapest plan that already bundles an add-on, for the "included from" note. */
-function lowestTierIncluding(tierCodes: string[]): string | null {
-  const tier = MARKETING_TIERS.find((candidate) => tierCodes.includes(candidate.code));
-  return tier?.name ?? null;
-}
-
 export default function PlatformPage() {
-  const groups = addOnsByCategory();
-
   return (
     <SiteChrome>
       <JsonLd
@@ -122,7 +110,7 @@ export default function PlatformPage() {
       <section className={styles.bandSunken}>
         <div className={styles.section}>
           <SectionIntro
-            eyebrow="True on every plan"
+            eyebrow="True in every vertical"
             title="The things that decide whether it survives a normal week here."
             copy="Load-shedding, a dead link, two currencies and a ZIMRA obligation are not edge cases. Software that ignores them costs you more than software that costs more."
           />
@@ -143,37 +131,13 @@ export default function PlatformPage() {
         <div className={styles.section}>
           <SectionIntro
             eyebrow="Add-ons"
-            title="Depth you switch on when it starts paying for itself."
-            copy="Every add-on is priced monthly and listed here in full. Several are already bundled into the higher plans, so check the plan comparison before you buy anything twice."
+            title="Switched on inside your vertical, not sold on top of it."
+            copy="Accounting, fiscalisation, payroll, portals, maintenance and the rest carry no charge of their own. You pay for the vertical, and what you switch on inside it is included."
           />
-
-          {groups.map((group) => {
-            return (
-              <div key={group.category} className={styles.sectionFooter}>
-                <p className={styles.eyebrow}>{group.category}</p>
-                <div className={`${styles.cardGrid3} ${styles.sectionFooter}`}>
-                  {group.addOns.map((addOn) => {
-                    const bundledFrom = lowestTierIncluding(addOn.includedInTiers);
-
-                    return (
-                      <article key={addOn.code} className={styles.compactCard}>
-                        <div className={styles.cardTopline}>
-                          <h3 className={styles.cardTitle}>{addOn.name}</h3>
-                          <span>{formatUsd(addOn.monthlyPrice)}/mo</span>
-                        </div>
-                        <p className={styles.body}>{addOn.description}</p>
-                        <p className={styles.small}>
-                          {bundledFrom
-                            ? `Already included from ${bundledFrom} upwards`
-                            : `${addOn.featureCount} features`}
-                        </p>
-                      </article>
-                    );
-                  })}
-                </div>
-              </div>
-            );
-          })}
+          <Link href="/home/pricing" className={`${styles.inlineAction} ${styles.sectionFooter}`}>
+            {STARTING_PRICE_LABEL} per vertical. See how it is worked out
+            <ArrowRight className={styles.icon} weight="regular" />
+          </Link>
         </div>
       </section>
 

@@ -69,7 +69,7 @@ beforeAll(async () => {
   companyId = company.id;
 
   const plan = await prisma.subscriptionPlan.create({
-    data: { code: `ss4-svc-${suite}`, name: "SS-4 Service Test Plan", monthlyPrice: 39 },
+    data: { code: `ss4-svc-${suite}`, name: "SS-4 Service Test Plan" },
   });
   planId = plan.id;
 });

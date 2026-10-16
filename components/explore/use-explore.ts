@@ -3,6 +3,7 @@
 import * as React from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 
+import { scopedKey, useReportData } from "@/components/reports/custom/report-data";
 import { fetchJson } from "@/lib/api-client";
 import { checkQuestion, EXPLORE_ROW_LIMIT, type CheckedQuestion } from "@/lib/explore/guard";
 import { exploreTable, type ExploreTable } from "@/lib/explore/products";
@@ -11,7 +12,7 @@ import type { ExploreEngine } from "@/lib/explore/templates";
 import type { ExploreCatalog, ExploreHistory } from "@/lib/explore/types";
 import { resultColumns } from "@/lib/reports/sql/columns";
 import { reportSql } from "@/lib/reports/sql/client";
-import type { ReportColumn, ReportParams, ReportRow, ReportValue } from "@/lib/reports/types";
+import type { ReportColumn, ReportValue } from "@/lib/reports/types";
 
 /** Explore's panel and tabs: the person's tables, the locked ones, templates and saved questions. */
 export function useExploreCatalog() {
@@ -46,11 +47,6 @@ export function questionPeriod(now = new Date()): { from: string; to: string } {
   return { from, to };
 }
 
-type RowsResponse = {
-  sources: Record<string, { rows: ReportRow[]; truncated: boolean; params: ReportParams }>;
-  missing: string[];
-};
-
 export type QuestionResult = {
   columns: ReportColumn[];
   rows: Array<Record<string, ReportValue>>;
@@ -83,6 +79,7 @@ function useSettled<T>(value: T, ms: number): T {
  */
 export function useQuestion(sql: string, catalog: ExploreCatalog | undefined, engine: ExploreEngine, title?: string) {
   const queries = useQueryClient();
+  const data = useReportData();
   const tables = React.useMemo<ExploreTable[]>(() => engineTables(catalog, engine), [catalog, engine]);
   const readable = React.useMemo(() => new Set(tables.map((table) => table.name)), [tables]);
   const locked = React.useMemo(
@@ -117,16 +114,15 @@ export function useQuestion(sql: string, catalog: ExploreCatalog | undefined, en
   });
 
   const rows = useQuery({
-    queryKey: ["explore", "rows", keys, period],
-    queryFn: () =>
-      fetchJson<RowsResponse>("/api/v2/reports/sources/rows", { method: "POST", body: JSON.stringify({ keys, params: period }) }),
+    queryKey: scopedKey(data, ["explore", "rows", keys, period]),
+    queryFn: () => data.rows(keys, period),
     enabled: !onServer && keys.length > 0,
     placeholderData: (previous) => previous,
     staleTime: 60_000,
   });
 
   const run = useQuery({
-    queryKey: ["explore", "run", body, rows.dataUpdatedAt],
+    queryKey: scopedKey(data, ["explore", "run", body, rows.dataUpdatedAt]),
     enabled: !onServer && Boolean(body) && Boolean(rows.data) && keys.every((key) => rows.data?.sources[key] || rows.data?.missing.includes(key)),
     retry: false,
     staleTime: Infinity,

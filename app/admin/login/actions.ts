@@ -7,6 +7,7 @@ import { AdminRefusal } from "@/lib/admin/refusal";
 import { recordOperatorEvent } from "@/lib/operators/audit";
 import { acceptInvite } from "@/lib/operators/manage";
 import { requestMeta, safeAdminPath } from "@/lib/operators/guards";
+import { OperatorSecretError } from "@/lib/operators/secret-box";
 import {
   endSession,
   findSession,
@@ -74,7 +75,13 @@ async function finishCode(
 ): Promise<SignInState> {
   const jar = await cookies();
   const token = jar.get(OPERATOR_COOKIE)?.value;
-  const result = await check(token, String(form.get("code") ?? ""));
+  let result: CodeResult;
+  try {
+    result = await check(token, String(form.get("code") ?? ""));
+  } catch (error) {
+    if (error instanceof OperatorSecretError) return { error: error.message };
+    throw error;
+  }
   if (!result.ok) {
     if (result.reason !== "wrong") jar.delete(OPERATOR_COOKIE);
     return { error: codeMessage(result) };

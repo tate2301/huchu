@@ -1,9 +1,10 @@
-import { WorkspaceProfile, type Prisma, type WorkspaceProduct } from "@prisma/client";
+import { WorkspaceProfile, type Prisma, type Vertical, type WorkspaceProduct } from "@prisma/client";
 import { cache } from "react";
 
 import { readStanding, STANDINGS, type Standing, type StandingReading } from "@/lib/admin/standing";
 import { LOGIN_SUCCESS_EVENT } from "@/lib/auth-core/last-sign-in";
 import { getProduct } from "@/lib/platform/products";
+import { UNBILLED_ROLES, VERTICAL_ORDER, VERTICALS, verticalCharge } from "@/lib/platform/verticals";
 import { prisma } from "@/lib/prisma";
 
 /**
@@ -38,7 +39,7 @@ const WORKSPACE_FIELDS = {
       status: true,
       trialEndsAt: true,
       currentPeriodEnd: true,
-      plan: { select: { name: true, graceDays: true, monthlyPrice: true, maxUsers: true } },
+      plan: { select: { graceDays: true } },
     },
   },
   // The owner is the first person given the workspace's top role: the one who
@@ -49,7 +50,8 @@ const WORKSPACE_FIELDS = {
     take: 1,
     select: { id: true, name: true, email: true, phone: true },
   },
-  _count: { select: { users: { where: { isActive: true } } } },
+  verticals: { select: { vertical: true } },
+  _count: { select: { users: { where: { isActive: true, role: { notIn: [...UNBILLED_ROLES] } } } } },
 } satisfies Prisma.CompanySelect;
 
 type CompanyRow = Prisma.CompanyGetPayload<{ select: typeof WORKSPACE_FIELDS }>;
@@ -61,7 +63,12 @@ export type WorkspaceSummary = {
   product: WorkspaceProduct;
   productName: string;
   profile: string | null;
-  plan: { name: string; monthlyPrice: number; maxUsers: number | null } | null;
+  /** The verticals it pays for, in the catalogue's order. */
+  verticals: Array<{ id: Vertical; label: string }>;
+  /** What it pays a month: its verticals at the rate its member count sets. */
+  monthly: number;
+  /** `Company.tenantStatus`, for what can be done to it. */
+  status: string;
   standing: StandingReading;
   members: number;
   owner: { id: string; name: string; email: string | null; phone: string | null } | null;
@@ -80,9 +87,12 @@ function toSummary(row: CompanyRow, lastSignInAt: Date | null, now: Date): Works
     // A Flare workspace is a CRM whatever its profile says; only Corelith
     // workspaces were set up as one kind of business.
     profile: row.product === "CORELITH" ? PROFILE_LABEL[row.workspaceProfile] : null,
-    plan: subscription
-      ? { name: subscription.plan.name, monthlyPrice: subscription.plan.monthlyPrice, maxUsers: subscription.plan.maxUsers }
-      : null,
+    verticals: VERTICAL_ORDER.filter((id) => row.verticals.some((held) => held.vertical === id)).map((id) => ({
+      id,
+      label: VERTICALS[id].label,
+    })),
+    monthly: verticalCharge(row.verticals.length, row._count.users).total,
+    status: row.tenantStatus,
     standing: readStanding(
       {
         tenantStatus: row.tenantStatus,

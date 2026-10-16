@@ -1,7 +1,7 @@
 /**
  * Prints the SQL that gives Explore's own login, `explore_reader`, its access
  * (lib/explore/reader-access.ts), and Vane's reader lines for the tables the
- * migration adds (prisma/migrations/20261015120000_explore_reader, approved
+ * migration adds (prisma/migrations/20261016100000_explore_reader, approved
  * 15 Oct). A migration that adds tables Explore should read pastes the lines
  * for them from here, as it does Vane's from `pnpm vane:reader-sql`.
  *

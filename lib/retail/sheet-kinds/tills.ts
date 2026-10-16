@@ -69,26 +69,21 @@ function oncePer<T>(make: (ctx: SheetCtx) => Promise<T>): (ctx: SheetCtx) => Pro
   };
 }
 
-/** A code answer, or the plan's refusal in its place (409 PLAN_LIMIT). */
-type Coded = { code: string } | { refused: string };
-
-async function issueCode(id: string, purpose: "PAIR" | "REPLACE"): Promise<Coded> {
+async function issueCode(id: string, purpose: "PAIR" | "REPLACE"): Promise<string> {
   const answer = await call(tillUrl(id, "/pairing-code"), "POST", { purpose });
-  if (answer.ok) return { code: String(answer.payload!.code) };
-  if (answer.status === 409 && answer.payload?.code === "PLAN_LIMIT") return { refused: String(answer.payload.error) };
-  throw failure(answer);
+  if (!answer.ok) throw failure(answer);
+  return String(answer.payload!.code);
 }
 
-function codeValues(coded: Coded): SheetValues {
-  if ("refused" in coded) return { refused: coded.refused, _refused: true, _code: null };
-  return { code: codeShown(coded.code), _code: coded.code, _state: "waiting", pairing: "Not paired yet", _refused: false };
+function codeValues(code: string): SheetValues {
+  return { code: codeShown(code), _code: code, _state: "waiting", pairing: "Not paired yet" };
 }
 
 const tillIdOf = (ctx: SheetCtx, values: SheetValues) => (values._id as string | undefined) ?? ctx.id;
 
 /**
  * One poll: paired → the device it made; a code that ran out while the sheet
- * is still open → a fresh one (or the plan's refusal); waiting → nothing new.
+ * is still open → a fresh one; waiting → nothing new.
  * Once the sheet is left (`left`), a code reads "expired" because Cancel
  * expired it, and it stays that way.
  */
@@ -128,7 +123,7 @@ function codeFields(input: { hint: string; waiting: string; show?: (values: Shee
       h: input.hint,
       qr: (values) => (typeof values._code === "string" ? pairingPayload(values._code) : null),
       // A used code is gone: once paired only "Paired" stays.
-      show: (values) => show(values) && values._refused !== true && !pairedNow(values),
+      show: (values) => show(values) && !pairedNow(values),
     },
     {
       id: "pairing",
@@ -136,21 +131,10 @@ function codeFields(input: { hint: string; waiting: string; show?: (values: Shee
       l: input.waiting,
       lw: (values) => (pairedNow(values) ? "Paired" : input.waiting),
       tone: (values) => (pairedNow(values) ? "ok" : "warn"),
-      show: (values) => show(values) && values._refused !== true,
-    },
-    // The plan's refusal in the code's place (W-04 step 1).
-    {
-      id: "refused",
-      t: "read",
-      l: "Pairing code",
-      tone: "warn",
-      show: (values) => show(values) && values._refused === true,
+      show,
     },
   ];
 }
-
-const planLink = (values: SheetValues) =>
-  values._refused === true ? { label: "Plan and billing", href: "/preferences/organization/billing" } : null;
 
 const text = (value: unknown) => String(value ?? "").trim();
 const pickedId = (value: unknown) => (value as PickedOption | null)?.id ?? null;
@@ -166,9 +150,6 @@ const createTill = oncePer(async (ctx: SheetCtx): Promise<SheetValues> => {
     ...(siteId ? { siteId } : {}),
     deviceKind: "COUNTER_MINI",
   });
-  if (answer.status === 409 && answer.payload?.code === "PLAN_LIMIT") {
-    return { ...codeValues({ refused: String(answer.payload.error) }), _siteCount: 1 };
-  }
   if (!answer.ok) throw failure(answer);
   const till = answer.payload!.data as TillDetail;
   return {
@@ -180,7 +161,7 @@ const createTill = oncePer(async (ctx: SheetCtx): Promise<SheetValues> => {
     scale: till.hasScale,
     _id: till.id,
     _siteCount: till.siteCount,
-    ...codeValues({ code: String(answer.payload!.code) }),
+    ...codeValues(String(answer.payload!.code)),
   };
 });
 
@@ -226,10 +207,9 @@ const tillNew: SheetKind = {
       ],
     },
   ],
-  note: (values) => (values._refused === true ? "" : "Then ring up a test sale and void it."),
-  noteLink: planLink,
+  note: "Then ring up a test sale and void it.",
   primary: "Done",
-  primaryDisabled: (values) => values._refused === true || !values._id,
+  primaryDisabled: (values) => !values._id,
   done: (_result, values) =>
     pairedNow(values)
       ? `${text(values.name)} paired. Ring up a test sale to check the printer.`
@@ -347,7 +327,6 @@ const tillEdit: SheetKind = {
     },
   ],
   note: "",
-  noteLink: planLink,
   primary: "Save",
   done: (result) => `${(result as TillDetail).name} saved.`,
   danger: {

@@ -6,6 +6,7 @@ import { savedQuestions } from "@/lib/explore/questions";
 import { countRows, exploreReaderReady, exploreScope } from "@/lib/explore/reader";
 import { exploreRoles } from "@/lib/explore/runs";
 import { templatesFor } from "@/lib/explore/templates";
+import { libraryExploreTemplates } from "@/lib/library/explore";
 import { prisma } from "@/lib/prisma";
 import { readableSources, readerOf, toSource } from "@/lib/reports/custom/sources";
 import { listCustomReports } from "@/lib/reports/custom/store";
@@ -16,7 +17,9 @@ import { sqlName } from "@/lib/reports/sql/schema";
  * set up, the tables are the workspace's real ones the person's role reads,
  * with their row counts, and the templates are written over them; until
  * then they are the report sources the person can open, run in their tab.
- * Either way: the ones their role does not read and who does, and the
+ * Either way the templates include Corelith's library questions published
+ * to the workspace, which are over the report sources and say so (`engine`).
+ * And either way: the ones their role does not read and who does, and the
  * questions saved as reports. A person who may not use Explore is told who can.
  */
 export async function GET(request: NextRequest) {
@@ -35,18 +38,22 @@ export async function GET(request: NextRequest) {
 
     const sources = (await readableSources(session)).map(toSource);
     const saved = savedQuestions(await listCustomReports(readerOf(session)));
+    // Corelith's library questions published to this workspace, read live. They are
+    // written over the report sources, so they run there over either engine.
+    const sourceNames = new Set(sources.map((source) => sqlName(source.key)));
+    const library = await libraryExploreTemplates(session.user.companyId, sourceNames);
 
     if (exploreReaderReady()) {
       const scope = await exploreScope({ role: session.user.role, enabledFeatures: session.user.enabledFeatures, workspaceProfile: session.user.workspaceProfile });
       const counts = await countRows({ companyId: session.user.companyId, userId: session.user.id }, scope.tables);
       const tables = scope.tables.map((table) => (counts.has(table.name) ? { ...table, rows: counts.get(table.name) } : table));
-      const templates = templatesFor(new Set(tables.map((table) => table.name)), "tables");
+      const templates = [...templatesFor(new Set(tables.map((table) => table.name)), "tables"), ...library];
       return successResponse({ canUse: true, engine: "tables", workspaceName, sources, tables, locked: scope.locked, templates, saved });
     }
 
     const own = new Set(sources.map((source) => source.key));
     const locked = lockedTables(own, session.user.enabledFeatures, workspaceRoles(session.user.workspaceProfile));
-    const templates = templatesFor(new Set(sources.map((source) => sqlName(source.key))));
+    const templates = [...templatesFor(sourceNames), ...library];
     return successResponse({ canUse: true, engine: "sources", workspaceName, sources, tables: null, locked, templates, saved });
   } catch (error) {
     console.error("[API] GET /api/explore/catalog error:", error);

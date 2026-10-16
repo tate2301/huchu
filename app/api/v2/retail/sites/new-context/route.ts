@@ -8,8 +8,7 @@ import { requireRetailSession } from "../../_helpers";
 /**
  * What Add a site needs (10-setup W-03 step 1): the price lists with their
  * product counts, the open sites stock could come from (the default first),
- * the plan's room `{ name, maxSites, openSites }` (null without a limit), and
- * a suggested short code (`?name=`), with the codes already in use.
+ * and a suggested short code (`?name=`), with the codes already in use.
  * `retail.sites:create`.
  */
 export async function GET(request: NextRequest) {

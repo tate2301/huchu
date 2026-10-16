@@ -76,9 +76,18 @@ export function Studio({ slug }: { slug?: string }) {
   // the workspace's tables answer it, else over the reports; anything new as
   // the workspace runs Explore (`ExploreCatalog.engine`).
   const catalogEngine: ExploreEngine = catalog.data?.canUse ? catalog.data.engine : "sources";
+  // One in code opens over the engine that has it; one from Corelith's
+  // library is in the catalog, with the engine it is written over.
+  const library = target?.kind === "template" && catalog.data?.canUse ? (catalog.data.templates.find((entry) => entry.slug === target.slug) ?? null) : null;
   const templateEngine: ExploreEngine =
-    target?.kind === "template" && !templateBySlug(target.slug, catalogEngine) && templateBySlug(target.slug, "sources") ? "sources" : catalogEngine;
-  const template = target?.kind === "template" ? templateBySlug(target.slug, templateEngine) : null;
+    target?.kind !== "template"
+      ? catalogEngine
+      : templateBySlug(target.slug, catalogEngine)
+        ? catalogEngine
+        : templateBySlug(target.slug, "sources")
+          ? "sources"
+          : (library?.engine ?? catalogEngine);
+  const template = target?.kind === "template" ? (templateBySlug(target.slug, templateEngine) ?? library) : null;
   const engine: ExploreEngine = target?.kind === "saved" ? (report.data ? questionReads(report.data.report) : catalogEngine) : templateEngine;
 
   // The question as it opens: a saved one's SQL, a template's, or the address's.

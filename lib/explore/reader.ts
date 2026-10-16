@@ -12,7 +12,7 @@ import { overTables, questionDates, tablesInScope, type GrantedTable } from "./t
 
 /**
  * Explore reading Postgres as its own login, `explore_reader`
- * (`prisma/migrations/20261015120000_explore_reader`, approved 15 Oct).
+ * (`prisma/migrations/20261016100000_explore_reader`, approved 15 Oct).
  *
  * Everything in Explore that reads the database goes through here: a
  * question asked in the studio, a scheduled question sent at 06:00 with

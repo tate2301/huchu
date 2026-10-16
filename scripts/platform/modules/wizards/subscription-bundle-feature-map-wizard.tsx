@@ -286,7 +286,7 @@ export function SubscriptionBundleFeatureMapWizard({
               selectedIndex={bundleIndex}
               emptyMessage="No bundles available. Use Create/Edit Bundle first."
               render={(item) =>
-                `${item.code} | ${item.name} | ${item.featureKeys.length} features | ${item.source} | $${item.monthlyPrice.toFixed(2)}`
+                `${item.code} | ${item.name} | ${item.featureKeys.length} features | ${item.source}`
               }
             />
           ) : null}

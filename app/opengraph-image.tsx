@@ -1,11 +1,7 @@
 import { ImageResponse } from "next/og";
 
 import { PLATFORM_BRAND_NAME, PLATFORM_MARKETING_DOMAIN } from "@/lib/platform/brand";
-import {
-  LAUNCH_SPRINT_DAYS,
-  STARTING_MONTHLY_PRICE,
-  formatUsd,
-} from "@/lib/marketing/pricing";
+import { LAUNCH_SPRINT_DAYS, STARTING_PRICE_LABEL } from "@/lib/marketing/pricing";
 
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
@@ -76,7 +72,7 @@ export default function OpengraphImage() {
 
         <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
           {[
-            `From ${formatUsd(STARTING_MONTHLY_PRICE)}/month`,
+            STARTING_PRICE_LABEL,
             `${LAUNCH_SPRINT_DAYS}-day Launch Sprint`,
             PLATFORM_MARKETING_DOMAIN,
           ].map((chip, index) => (

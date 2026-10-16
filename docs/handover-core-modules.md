@@ -30,8 +30,8 @@ The merge of `origin/main` (15 Oct) kept main's Vane engine and one page per job
 ## Next steps, in order
 
 1. **Two approvals, given 15 Oct and built.** Both are in `prisma/migrations/` and deploy with the build.
-   - **Explore's login** (`20261015120000_explore_reader`: `explore_reader`, `ExploreReaderScope`, `ExploreSettings`, `ExploreQuestionRun`, witnessed by `lib/explore/explore-reader-migration.test.ts`). One step is by hand on production: the role's password and `EXPLORE_READER_DATABASE_URL` (section 2, step 4). Until then Explore runs questions in the browser as before. A later migration that adds tables Explore should read pastes their lines from `pnpm explore:reader-sql` (`lib/explore/explore.test.ts` fails until it does).
-   - **Notification routing** (`20261015130000_notification_routing`, witnessed by `lib/inbox/notification-routing-migration.test.ts`): Management → Notifications and My account → Notifications set who hears about what by kind and channel, the senders honour it, Books, leave, reports and Vane raise their own types, and the actor is kept and shown. The morning message and grouping repeats are not built (NOTES.md, Notifications).
+   - **Explore's login** (`20261016100000_explore_reader`: `explore_reader`, `ExploreReaderScope`, `ExploreSettings`, `ExploreQuestionRun`, witnessed by `lib/explore/explore-reader-migration.test.ts`). One step is by hand on production: the role's password and `EXPLORE_READER_DATABASE_URL` (section 2, step 4). Until then Explore runs questions in the browser as before. A later migration that adds tables Explore should read pastes their lines from `pnpm explore:reader-sql` (`lib/explore/explore.test.ts` fails until it does).
+   - **Notification routing** (`20261016110000_notification_routing`, witnessed by `lib/inbox/notification-routing-migration.test.ts`): Management → Notifications and My account → Notifications set who hears about what by kind and channel, the senders honour it, Books, leave, reports and Vane raise their own types, and the actor is kept and shown. The morning message and grouping repeats are not built (NOTES.md, Notifications).
 2. **People and payroll** (section 2 of `design/core-modules/spec/routes.md`): Everyone, a person (`/people/[id]`, linked from the schools staff list and missing), Time off (approve and reject need the leave API, **approval**), Incidents, the pay run and its approve-and-pay drawer, disbursements, returns, the phone payslip (a PDF only today), Management → Pay and statutory. Add its keys to `spec/shortcuts.md` and the shortcut test as each screen is built.
 3. **Smaller waits**, each noted in NOTES.md: Vane's templates (Done's template names, Muted's kinds), counting every report's opens (a write on every open), `ReportSchedule` for built and custom reports (they run in the browser today), and a fitter's phone scoped to their own visits (an open decision).
 
@@ -70,14 +70,14 @@ A Vercel production build runs `prisma migrate deploy` (`scripts/migrate-deploy-
 
 2. Keep the two connection strings with the worker's secrets, `VANE_READER_DATABASE_URL` and `VANE_READER_PRIVATE_DATABASE_URL`. `lib/vane/reader.ts` reads them.
 3. Set `ANTHROPIC_API_KEY` and `VANE_MODEL` where the worker runs, never with a `NEXT_PUBLIC_` prefix.
-4. Explore's login (`20261015120000_explore_reader`, approved 15 Oct), the same way. The migration deploys with the build and creates `explore_reader` without a login; the database user it runs as needs `CREATEROLE`, as for Vane's. Then, by hand on the server:
+4. Explore's login (`20261016100000_explore_reader`, approved 15 Oct), the same way. The migration deploys with the build and creates `explore_reader` without a login; the database user it runs as needs `CREATEROLE`, as for Vane's. Then, by hand on the server:
 
    ```sql
    ALTER ROLE explore_reader LOGIN PASSWORD '…';
    ```
 
    and add `EXPLORE_READER_DATABASE_URL` (`postgresql://explore_reader:…@<host>/<database>`, the host, database and `sslmode` of `DATABASE_URL`) in the deployment's environment settings, then redeploy. Until it is set Explore runs questions in the person's browser and Schedule it cannot send; once set, Explore reads the real tables, logs each question and sends scheduled ones (docs/vane.md, Setting it up, step 5).
-5. Notification routing (`20261015130000_notification_routing`, approved 15 Oct) needs nothing by hand: it deploys with the build.
+5. Notification routing (`20261016110000_notification_routing`, approved 15 Oct) needs nothing by hand: it deploys with the build.
 
 ## 3. Decisions still open
 

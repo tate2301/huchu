@@ -3,8 +3,7 @@ import { notFound, redirect } from "next/navigation";
 
 import { ReportBuilder } from "@/components/reports/custom/report-builder";
 import { authOptions } from "@/lib/auth";
-import { buildHref } from "@/lib/build/items";
-import { findBuildRecord } from "@/lib/build/read";
+import { findBuildRecord, recordHref } from "@/lib/build/read";
 
 /**
  * A report in Build (BuildReport): the custom report's own builder — the
@@ -19,6 +18,6 @@ export default async function BuildReportPage({ params }: { params: Promise<{ sl
   const user = session.user as { companyId: string };
   const record = await findBuildRecord(user.companyId, slug);
   if (!record) notFound();
-  if (record.source !== "report") redirect(record.source === "catalog" || record.source === "layout" ? `/build/templates/${encodeURIComponent(slug)}` : buildHref(record.source, slug, "kind" in record ? record.kind : undefined));
+  if (record.source !== "report") redirect(recordHref(record));
   return <ReportBuilder id={slug} back={{ href: "/build?kind=reports", label: "Reports", button: "Back to Reports" }} arrangement="build" />;
 }

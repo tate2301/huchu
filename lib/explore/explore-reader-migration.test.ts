@@ -1,5 +1,5 @@
 /**
- * Migration witness for `20261015120000_explore_reader` (approved 15 Oct).
+ * Migration witness for `20261016100000_explore_reader` (approved 15 Oct).
  *
  * It checks, as the role itself: a connection bound to
  * one workspace and a list of tables reads that workspace's rows of those
@@ -50,7 +50,7 @@ async function asReader<T = Record<string, unknown>>(
 const suffix = randomUUID().slice(0, 8);
 const made = { a: "", b: "" };
 
-describe("explore_reader, as stored (20261015120000_explore_reader)", () => {
+describe("explore_reader, as stored (20261016100000_explore_reader)", () => {
   beforeAll(async () => {
     const [a, b] = await Promise.all(
       ["a", "b"].map((which) => prisma.company.create({ data: { name: `Explore witness ${which} ${suffix}`, slug: `explore-witness-${which}-${suffix}` } })),
@@ -94,6 +94,14 @@ describe("explore_reader, as stored (20261015120000_explore_reader)", () => {
     const employee = granted.filter((row) => row.table_name === "Employee").map((row) => row.column_name);
     expect(employee.some((column) => /phone|nationalId|bank/i.test(column))).toBe(false);
     expect(granted.some((row) => /password|token|secret/i.test(row.column_name))).toBe(false);
+  });
+
+  it("has row security on every table it reads, so the workspace binding holds", async () => {
+    const open = await prisma.$queryRaw<Array<{ table_name: string }>>`
+      SELECT DISTINCT cp.table_name FROM information_schema.column_privileges cp
+      JOIN pg_class c ON c.relname = cp.table_name AND c.relnamespace = 'public'::regnamespace
+      WHERE cp.grantee = 'explore_reader' AND NOT c.relrowsecurity`;
+    expect(open.map((row) => row.table_name)).toEqual([]);
   });
 
   it("sees only its own binding", async () => {

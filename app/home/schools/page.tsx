@@ -5,7 +5,6 @@ import {
   CtaBand,
   FAQList,
   JsonLd,
-  SchoolBands,
   SectionIntro,
   SiteChrome,
   Workflow,
@@ -13,9 +12,9 @@ import {
 import { schoolsTrack, seoPages, whatsappHref } from "@/app/home/site-data";
 import styles from "@/app/home/marketing.module.css";
 import {
-  SCHOOL_ADD_ONS,
-  SCHOOL_GROUP_INDICATIVE_PER_STUDENT_PER_TERM,
-  TERMS_PER_YEAR,
+  INCLUDED_MEMBERS,
+  LARGE_PRICE,
+  SMALL_PRICE,
   formatUsd,
 } from "@/lib/marketing/pricing";
 import {
@@ -36,8 +35,8 @@ export const metadata: Metadata = buildMarketingMetadata(seoPages.schools);
 /**
  * Schools get their own page rather than a slot under `/home/solutions`.
  *
- * They do not run order-to-cash, they budget per term rather than per month,
- * and the decision goes through a board. Folding them into the main funnel
+ * They do not run order-to-cash, their money arrives by the term, and the
+ * decision goes through a board. Folding them into the main funnel
  * would blunt both stories, so the whole track — pitch, capabilities, pricing
  * and FAQ — lives here on one page a bursar can send to a committee.
  */
@@ -148,7 +147,7 @@ export default function SchoolsPage() {
         </div>
       </section>
 
-      {/* ── Pricing lives on this page, not on /home/pricing ── */}
+      {/* ── A school pays the vertical rate; this section says what that means for a school ── */}
       <section className={styles.bandSunken} id="pricing">
         <div className={styles.section}>
           <SectionIntro
@@ -156,14 +155,13 @@ export default function SchoolsPage() {
             title={schoolsTrack.sectionIntros.pricing.title}
             copy={schoolsTrack.sectionIntros.pricing.copy}
           />
-          <SchoolBands />
-
-          <div className={`${styles.cardGrid2} ${styles.sectionFooter}`}>
-            <article className={styles.card}>
-              <h2 className={styles.cardTitle}>What every band includes</h2>
+          <div className={styles.commercialPanel}>
+            <div className={styles.stack}>
+              <h2 className={styles.cardTitle}>What the Schools vertical includes</h2>
               <ul className={styles.checkList}>
                 {[
-                  "Unlimited staff and teacher accounts",
+                  "Admissions, fees, academics, boarding and the portals",
+                  "Parent and student portal accounts, never counted",
                   "Every campus keeps its own registers and fee structure",
                   "Term and year-end reporting in the shape a board asks for",
                   "Attendance and fee capture that works with no connection",
@@ -175,54 +173,22 @@ export default function SchoolsPage() {
                   </li>
                 ))}
               </ul>
-            </article>
-
-            <article className={styles.card}>
-              <h2 className={styles.cardTitle}>Over 1,500 students</h2>
-              <p className={styles.body}>
-                Group quotes work from an indicative{" "}
-                {formatUsd(SCHOOL_GROUP_INDICATIVE_PER_STUDENT_PER_TERM * 100)} per 100 students per
-                term, which keeps the per-student rate below the Premier band. Growing past a band
-                should never cost a school more per head than staying inside it.
+            </div>
+            <div className={styles.stack}>
+              <p className={styles.price}>{formatUsd(SMALL_PRICE)}</p>
+              <p className={styles.priceMeta}>
+                A month for up to {INCLUDED_MEMBERS} staff and teachers
               </p>
-              <p className={styles.body}>
-                Billed {TERMS_PER_YEAR} times a year, in line with how fees actually arrive.
+              <p className={styles.price}>{formatUsd(LARGE_PRICE)}</p>
+              <p className={styles.priceMeta}>
+                A month for {INCLUDED_MEMBERS + 1} staff and teachers or more
               </p>
-              <Link href="/home/book-demo?interest=schools" className={styles.inlineAction}>
-                Request a group quote
+              <Link href="/home/pricing" className={styles.inlineAction}>
+                How pricing works
                 <ArrowRight className={styles.icon} weight="regular" />
               </Link>
-            </article>
+            </div>
           </div>
-        </div>
-      </section>
-
-      <section className={styles.section}>
-        <SectionIntro
-          eyebrow={schoolsTrack.sectionIntros.addOns.eyebrow}
-          title={schoolsTrack.sectionIntros.addOns.title}
-          copy={schoolsTrack.sectionIntros.addOns.copy}
-        />
-        <div className={styles.tableFrame}>
-          <table className={styles.table}>
-            <caption className="sr-only">Corelith school add-ons</caption>
-            <thead>
-              <tr>
-                <th scope="col">Add-on</th>
-                <th scope="col">Price</th>
-                <th scope="col">What it adds</th>
-              </tr>
-            </thead>
-            <tbody>
-              {SCHOOL_ADD_ONS.map((addOn) => (
-                <tr key={addOn.name}>
-                  <th scope="row">{addOn.name}</th>
-                  <td>{formatUsd(addOn.termPrice)}/term</td>
-                  <td>{addOn.description}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
         </div>
       </section>
 
@@ -256,7 +222,7 @@ export default function SchoolsPage() {
       <CtaBand
         eyebrow="Next step"
         title="Start with a conversation, not a checkout page."
-        copy="Tell us your enrolment, your campuses, your fee structure, what you use now and when in the year you would want to switch. You get back a scoped rollout plan and a price your board can read."
+        copy="Tell us your campuses, your fee structure, what you use now and when in the year you would want to switch. You get back a scoped rollout plan your board can read."
         href="/home/book-demo?interest=schools"
         label={schoolsTrack.cta}
       />

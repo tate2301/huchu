@@ -1,0 +1,21 @@
+/* A page's own tabs: the list tabs' look, as links, their rule edge to edge. */
+.cx-section-tabs {
+  width: calc(100% + (var(--content-gutter-x) * 2));
+  margin-inline: calc(var(--content-gutter-x) * -1);
+  padding-inline: calc(var(--content-gutter-x) - 12px);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.cx-section-tabs::-webkit-scrollbar { display: none; }
+.cx-section-tabs .cx-tab { text-decoration: none; }
+.cx-section-tabs .cx-tab[aria-current="page"] { border-bottom-color: var(--ink); color: var(--ink); font-weight: 600; }
+
+/* The list under section tabs is one tab row shorter. */
+.cx-admin-sectioned .cx-admin-list {
+  --content-viewport: calc(100dvh - var(--h-control-lg) - 56px - 44px);
+}
+@media (max-width: 759px) {
+  .cx-admin-sectioned .cx-admin-list {
+    --content-viewport: calc(100dvh - var(--h-control-lg) - 112px - 44px - env(safe-area-inset-bottom));
+  }
+}

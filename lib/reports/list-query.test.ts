@@ -28,7 +28,7 @@ function contextFor(role: string, userId = "user-owner"): ListContext {
     userId,
     now: NOW,
     timeZone: HARARE,
-    can: ([resource, action]) => canRetailRoleDo(role, resource, action),
+    can: (grant) => grant[0] !== "admin" && canRetailRoleDo(role, grant[0], grant[1]),
     seeCost: canSeeRetailCostPrice(role),
   };
 }
