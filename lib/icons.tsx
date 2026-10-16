@@ -117,6 +117,7 @@ import {
   Key as PhosphorKey,
   Keyboard as PhosphorKeyboard,
   Lifebuoy as PhosphorLifebuoy,
+  Lightbulb as PhosphorLightbulb,
   Lightning as PhosphorLightning,
   Link as PhosphorLink,
   LinkBreak as PhosphorLinkBreak,
@@ -375,6 +376,7 @@ const iconRegistry = {
   Key: PhosphorKey,
   Keyboard: PhosphorKeyboard,
   Lifebuoy: PhosphorLifebuoy,
+  Lightbulb: PhosphorLightbulb,
   Lightning: PhosphorLightning,
   Link: PhosphorLink,
   LinkBreak: PhosphorLinkBreak,
@@ -916,6 +918,7 @@ export const Wrench = createPhosphorIcon("Wrench", "Wrench");
 export const X = createPhosphorIcon("X", "X");
 export const XCircle = createPhosphorIcon("XCircle", "XCircle");
 export const XIcon = createPhosphorIcon("X", "XIcon");
+export const Lightbulb = createPhosphorIcon("Lightbulb", "Lightbulb");
 export const Zap = createPhosphorIcon("Lightning", "Zap");
 
 export const Badge = createPhosphorIcon("IdentificationBadge", "Badge");

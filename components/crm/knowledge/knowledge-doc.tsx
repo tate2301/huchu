@@ -12,10 +12,12 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/components/ui/use-toast";
 import { ConfirmDialog } from "@/components/workspace/confirm-dialog";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import type { KnowledgeEntryView } from "@/lib/crm/knowledge/entries";
+import type { ReadResult } from "@/lib/crm/knowledge/read-with-vane";
 import type { KnowledgeDocView, KnowledgePriceView } from "@/lib/crm/knowledge/store";
-import { Calendar, Check, Coins, FileText, Sparkles, Tag, Trash, User, X } from "@/lib/icons";
+import { Calendar, Check, Coins, FileText, Lightbulb, Sparkles, Tag, Trash, User, X } from "@/lib/icons";
 
-import { KNOWLEDGE_QUERY_KEY } from "./knowledge-list";
+import { EntryDialog, EntryList, KNOWLEDGE_QUERY_KEY, type EntryDraft } from "./entry-list";
 
 const money = (n: number, currency: string) =>
   `${currency === "USD" ? "$" : `${currency} `}${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -30,24 +32,36 @@ export function KnowledgeDoc({ id }: { id: string }) {
   const router = useRouter();
   const queryClient = useQueryClient();
   const { toast } = useToast();
-  const [tab, setTab] = useState("prices");
+  const [chosenTab, setTab] = useState<string | null>(null);
   const [removing, setRemoving] = useState(false);
   const key = [...KNOWLEDGE_QUERY_KEY, id];
 
   const query = useQuery({ queryKey: key, queryFn: () => fetchJson<{ data: KnowledgeDocView; canEdit: boolean }>(`/api/v2/crm/knowledge/${id}`) });
+  const entries = useQuery({
+    queryKey: [...key, "entries"],
+    queryFn: () => fetchJson<{ data: KnowledgeEntryView[] }>(`/api/v2/crm/knowledge/entries?docId=${id}`),
+  });
+  const [editing, setEditing] = useState<EntryDraft | null>(null);
   const refresh = () => Promise.all([queryClient.invalidateQueries({ queryKey: key }), queryClient.invalidateQueries({ queryKey: KNOWLEDGE_QUERY_KEY })]);
 
   const find = useMutation({
-    mutationFn: () => fetchJson<{ found: number; read: number; of: number }>(`/api/v2/crm/knowledge/${id}/find-prices`, { method: "POST" }),
+    mutationFn: () => fetchJson<ReadResult>(`/api/v2/crm/knowledge/${id}/vane-read`, { method: "POST" }),
     onSuccess: async (result) => {
       await refresh();
-      setTab("prices");
+      const entriesFound = result.faqs + result.facts + result.tips;
+      setTab(entriesFound ? "knowledge" : "prices");
+      const parts = [
+        result.faqs ? `${result.faqs} ${result.faqs === 1 ? "FAQ" : "FAQs"}` : null,
+        result.facts ? `${result.facts} ${result.facts === 1 ? "fact" : "facts"}` : null,
+        result.tips ? `${result.tips} ${result.tips === 1 ? "tip" : "tips"}` : null,
+        result.prices ? `${result.prices} ${result.prices === 1 ? "price" : "prices"}` : null,
+      ].filter(Boolean);
       toast({
-        title: result.found === 0 ? "Vane found no prices in it" : `Vane found ${result.found} ${result.found === 1 ? "price" : "prices"}`,
-        description: result.found ? "Keep the ones that are right; Vane quotes only from kept prices." : undefined,
+        title: parts.length ? `Vane found ${parts.join(", ")}` : "Vane found nothing new in it",
+        description: parts.length ? "Keep the ones that are right; Vane answers and quotes only from what is kept." : undefined,
       });
     },
-    onError: (error) => toast({ title: "Vane could not read it for prices", description: getApiErrorMessage(error), variant: "destructive" }),
+    onError: (error) => toast({ title: "Vane could not read it", description: getApiErrorMessage(error), variant: "destructive" }),
   });
 
   const decide = useMutation({
@@ -119,18 +133,6 @@ export function KnowledgeDoc({ id }: { id: string }) {
 
   const prices = (
     <div className="space-y-4">
-      {doc.kind === "DOCUMENT" && canEdit ? (
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-[var(--radius-lg)] border border-[var(--border)] px-4 py-3">
-          <p className="text-sm text-[var(--text-muted)]">
-            {doc.pricesFoundAt
-              ? "Vane read it for prices. Keep the ones that are right; Vane quotes only from kept prices."
-              : "Vane can read it for its prices. You keep the ones that are right before Vane quotes from them."}
-          </p>
-          <Button size="sm" variant="secondary" loading={find.isPending} onClick={() => find.mutate()} startIcon={<Sparkles aria-hidden="true" className="size-4" />}>
-            {doc.pricesFoundAt ? "Read it for prices again" : "Find the prices in it"}
-          </Button>
-        </div>
-      ) : null}
       {waiting.length > 0 ? (
         <section className="space-y-2" aria-label="Prices Vane found">
           <div className="flex flex-wrap items-center justify-between gap-2">
@@ -167,11 +169,46 @@ export function KnowledgeDoc({ id }: { id: string }) {
     </div>
   );
 
+  const readWithVane = canEdit ? (
+    <div className="flex flex-wrap items-center justify-between gap-3 rounded-[var(--radius-lg)] border border-[var(--border)] px-4 py-3">
+      <p className="text-sm text-[var(--text-muted)]">
+        {doc.vaneReadAt
+          ? "Vane read it. Keep what is right; Vane answers and quotes only from what is kept."
+          : "Vane can read it for its FAQs, facts, tips and prices. You keep what is right before Vane uses it."}
+      </p>
+      <Button size="sm" variant="secondary" loading={find.isPending} onClick={() => find.mutate()} startIcon={<Sparkles aria-hidden="true" className="size-4" />}>
+        {doc.vaneReadAt ? "Read it again" : "Read it with Vane"}
+      </Button>
+    </div>
+  ) : null;
+
+  const docEntries = entries.data?.data ?? [];
+  const knowledge = (
+    <div className="space-y-4">
+      {readWithVane}
+      <EntryList
+        entries={docEntries}
+        canEdit={canEdit}
+        onEdit={(entry) => setEditing({ id: entry.id, kind: entry.kind, title: entry.title, body: entry.body })}
+        empty={doc.vaneReadAt ? "Vane found no FAQs, facts or tips in it." : "Nothing taken from it yet."}
+      />
+    </div>
+  );
+
   const words = (
     <div className="max-w-3xl whitespace-pre-wrap break-words text-sm leading-relaxed text-[var(--text)]">{doc.text}</div>
   );
 
   const tabs: RecordTab[] = [
+    {
+      value: "knowledge",
+      label: "FAQs, facts and tips",
+      icon: Lightbulb,
+      count: docEntries.filter((entry) => entry.kept).length,
+      attention: docEntries.some((entry) => !entry.kept),
+      titled: true,
+      content: knowledge,
+    },
     { value: "prices", label: "Prices", icon: Coins, count: kept.length, attention: waiting.length > 0, titled: true, content: prices },
     { value: "words", label: "Words", icon: FileText, titled: true, content: words },
   ];
@@ -203,16 +240,17 @@ export function KnowledgeDoc({ id }: { id: string }) {
           ]}
         />
       }
-      activeTab={tab}
+      activeTab={chosenTab ?? (doc.kind === "PRICE_LIST" ? "prices" : "knowledge")}
       onTabChange={setTab}
       tabs={tabs}
     >
+      <EntryDialog draft={editing} onClose={() => setEditing(null)} />
       <ConfirmDialog
         open={removing}
         onOpenChange={setRemoving}
         ask={{
           title: `Remove ${doc.title}?`,
-          body: `Its ${kept.length ? `${kept.length} prices and its ` : ""}words go from the knowledge base, so Vane stops answering and quoting from them. Quotes already priced from it keep their lines.`,
+          body: `Its ${kept.length ? `${kept.length} prices and its ` : ""}words go from the knowledge base, so Vane stops answering and quoting from them. FAQs, facts and tips kept from it stay. Quotes already priced from it keep their lines.`,
           keep: "Keep it",
           go: "Remove it",
           fill: "bad",

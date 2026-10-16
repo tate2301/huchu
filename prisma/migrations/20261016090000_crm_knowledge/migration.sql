@@ -24,7 +24,7 @@ CREATE TABLE "CrmKnowledgeDoc" (
     "size" INTEGER NOT NULL,
     "text" TEXT NOT NULL,
     "pages" INTEGER,
-    "pricesFoundAt" TIMESTAMP(3),
+    "vaneReadAt" TIMESTAMP(3),
     "uploadedById" TEXT,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
@@ -114,7 +114,7 @@ CREATE INDEX "CrmKnowledgePrice_search_idx" ON "CrmKnowledgePrice" USING GIN ("s
 ALTER TABLE "CrmKnowledgeDoc" ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "app_all" ON "CrmKnowledgeDoc" AS PERMISSIVE FOR ALL TO PUBLIC USING (true) WITH CHECK (true);
 CREATE POLICY "vane_workspace" ON "CrmKnowledgeDoc" AS RESTRICTIVE FOR SELECT TO vane_reader USING ("companyId" = (SELECT s."companyId" FROM "VaneReaderScope" s WHERE s."pid" = pg_backend_pid()));
-GRANT SELECT ("id", "companyId", "title", "kind", "fileName", "url", "pathname", "contentType", "size", "text", "pages", "pricesFoundAt", "uploadedById", "createdAt", "updatedAt") ON "CrmKnowledgeDoc" TO vane_reader;
+GRANT SELECT ("id", "companyId", "title", "kind", "fileName", "url", "pathname", "contentType", "size", "text", "pages", "vaneReadAt", "uploadedById", "createdAt", "updatedAt") ON "CrmKnowledgeDoc" TO vane_reader;
 ALTER TABLE "CrmKnowledgeChunk" ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "app_all" ON "CrmKnowledgeChunk" AS PERMISSIVE FOR ALL TO PUBLIC USING (true) WITH CHECK (true);
 CREATE POLICY "vane_workspace" ON "CrmKnowledgeChunk" AS RESTRICTIVE FOR SELECT TO vane_reader USING ("companyId" = (SELECT s."companyId" FROM "VaneReaderScope" s WHERE s."pid" = pg_backend_pid()));
@@ -133,7 +133,7 @@ DROP POLICY IF EXISTS "vane_rep" ON "SalesQuotationLine";
 CREATE POLICY "vane_rep" ON "SalesQuotationLine" AS RESTRICTIVE FOR SELECT TO vane_reader_rep USING ((EXISTS (SELECT 1 FROM "SalesQuotation" p WHERE p."id" = "SalesQuotationLine"."quotationId") OR EXISTS (SELECT 1 FROM "TaxCode" p WHERE p."id" = "SalesQuotationLine"."taxCodeId") OR EXISTS (SELECT 1 FROM "Product" p WHERE p."id" = "SalesQuotationLine"."productId") OR EXISTS (SELECT 1 FROM "CrmKnowledgePrice" p WHERE p."id" = "SalesQuotationLine"."knowledgePriceId")) AND ((SELECT s."userId" FROM "VaneReaderScope" s WHERE s."pid" = pg_backend_pid()) IS NULL OR EXISTS (SELECT 1 FROM "SalesQuotation" p WHERE p."id" = "SalesQuotationLine"."quotationId")));
 GRANT SELECT ("id", "quotationId", "description", "quantity", "unitPrice", "productId", "knowledgePriceId", "taxCodeId", "taxRate", "taxAmount", "lineTotal", "createdAt") ON "SalesQuotationLine" TO vane_reader_rep;
 CREATE POLICY "vane_rep" ON "CrmKnowledgeDoc" AS RESTRICTIVE FOR SELECT TO vane_reader_rep USING ("companyId" = (SELECT s."companyId" FROM "VaneReaderScope" s WHERE s."pid" = pg_backend_pid()));
-GRANT SELECT ("id", "companyId", "title", "kind", "fileName", "url", "pathname", "contentType", "size", "text", "pages", "pricesFoundAt", "uploadedById", "createdAt", "updatedAt") ON "CrmKnowledgeDoc" TO vane_reader_rep;
+GRANT SELECT ("id", "companyId", "title", "kind", "fileName", "url", "pathname", "contentType", "size", "text", "pages", "vaneReadAt", "uploadedById", "createdAt", "updatedAt") ON "CrmKnowledgeDoc" TO vane_reader_rep;
 CREATE POLICY "vane_rep" ON "CrmKnowledgeChunk" AS RESTRICTIVE FOR SELECT TO vane_reader_rep USING ("companyId" = (SELECT s."companyId" FROM "VaneReaderScope" s WHERE s."pid" = pg_backend_pid()));
 GRANT SELECT ("id", "companyId", "docId", "position", "text") ON "CrmKnowledgeChunk" TO vane_reader_rep;
 CREATE POLICY "vane_rep" ON "CrmKnowledgePrice" AS RESTRICTIVE FOR SELECT TO vane_reader_rep USING ("companyId" = (SELECT s."companyId" FROM "VaneReaderScope" s WHERE s."pid" = pg_backend_pid()));

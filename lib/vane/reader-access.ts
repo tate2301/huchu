@@ -325,6 +325,7 @@ export const REP_TABLES: Record<string, RepRule> = {
   CrmKnowledgeDoc: "workspace",
   CrmKnowledgeChunk: "workspace",
   CrmKnowledgePrice: "workspace",
+  CrmKnowledgeEntry: "workspace",
 };
 
 /** The rep bound to a reader connection; null when it reads for the whole workspace. */

@@ -1,17 +1,20 @@
 import { getServerSession } from "next-auth";
 import { redirect } from "next/navigation";
+import { Suspense } from "react";
 
 import { CrmPage } from "@/components/crm/crm-page";
-import { KnowledgeList } from "@/components/crm/knowledge/knowledge-list";
+import { KnowledgeHome } from "@/components/crm/knowledge/knowledge-home";
 import { authOptions } from "@/lib/auth";
 
-/** CRM → Knowledge: the price lists and documents Vane answers and quotes from. */
+/** CRM → Knowledge: everything the business knows (FAQs, facts, tips, prices, documents), and Vane answering from it. */
 export default async function CrmKnowledgePage() {
   const session = await getServerSession(authOptions);
   if (!session?.user) redirect("/login");
   return (
     <CrmPage>
-      <KnowledgeList />
+      <Suspense>
+        <KnowledgeHome />
+      </Suspense>
     </CrmPage>
   );
 }

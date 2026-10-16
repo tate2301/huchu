@@ -13,7 +13,9 @@ import { prisma } from "@/lib/prisma";
 import type { MessagesClient } from "@/lib/vane/claude";
 import { callTool } from "@/lib/vane/tools";
 
-import { findPricesInDocument } from "./find-prices";
+import { askKnowledge } from "./ask";
+import { addEntry, decideEntries } from "./entries";
+import { readDocumentWithVane } from "./read-with-vane";
 import { readKnowledgeFile } from "./read";
 import { addKnowledgeDoc, decidePrices, readKnowledgeDoc, searchKnowledge } from "./store";
 import { deleteVaneQuote, issueVaneQuote, vaneQuoteView } from "./vane-quote";
@@ -98,8 +100,15 @@ describe("the knowledge base", () => {
     expect(deposit.passages[0]!.text).toContain("50% deposit");
   });
 
-  it("keeps only the prices Vane found that the document says, waiting for a person to keep them", async () => {
+  it("keeps only what Vane found that the document says, each waiting for a person to keep it", async () => {
     const answer = JSON.stringify({
+      faqs: [
+        { question: "Do you need a deposit?", answer: "Yes: half, before work starts.", quote: "A 50% deposit is due before work starts." },
+        // Made up: the document never says it.
+        { question: "Do you work weekends?", answer: "Yes.", quote: "We work Saturdays and Sundays." },
+      ],
+      facts: [{ fact: "Quotes hold for 30 days", detail: "", quote: "Quotes hold for 30 days." }],
+      tips: [],
       prices: [
         { name: "Furniture moving", unit: "room", unitPrice: 45, currency: "USD", quote: "Furniture moving is charged at $45.00 per room." },
         // Made up: the document never says it.
@@ -108,14 +117,38 @@ describe("the knowledge base", () => {
         { name: "Deposit", unitPrice: 30, quote: "Quotes hold for 30 days." },
       ],
     });
-    const found = await findPricesInDocument(prisma, { companyId: ids.company, userId: ids.manager, name: "Farai" }, ids.terms, claude(answer));
-    expect(found.found).toBe(1);
+    const found = await readDocumentWithVane(prisma, { companyId: ids.company, userId: ids.manager, name: "Farai" }, ids.terms, claude(answer));
+    expect(found).toMatchObject({ faqs: 1, facts: 1, tips: 0, prices: 1 });
+    expect(await prisma.crmKnowledgeEntry.findMany({ where: { docId: ids.terms }, orderBy: { kind: "asc" } })).toMatchObject([
+      { kind: "FAQ", title: "Do you need a deposit?", kept: false, madeByVane: true, source: "A 50% deposit is due before work starts." },
+      { kind: "FACT", title: "Quotes hold for 30 days", kept: false },
+    ]);
     const waiting = await prisma.crmKnowledgePrice.findMany({ where: { docId: ids.terms } });
     expect(waiting).toMatchObject([{ name: "Furniture moving", kept: false, source: "Furniture moving is charged at $45.00 per room." }]);
     // Not kept, so Vane does not quote from it.
     expect((await searchKnowledge(prisma, ids.company, "furniture moving")).prices).toEqual([]);
     expect(await decidePrices(prisma, ids.company, ids.terms, [waiting[0]!.id], true)).toBe(1);
     expect((await searchKnowledge(prisma, ids.company, "furniture moving")).prices[0]).toMatchObject({ unitPrice: 45 });
+  });
+});
+
+describe("FAQs, facts and tips, and asking Vane", () => {
+  it("searches kept entries first, and only kept ones", async () => {
+    // The FAQ Vane found is not kept yet, so a search does not find it.
+    expect((await searchKnowledge(prisma, ids.company, "deposit")).entries).toEqual([]);
+    const faq = await prisma.crmKnowledgeEntry.findFirstOrThrow({ where: { companyId: ids.company, kind: "FAQ" } });
+    expect(await decideEntries(prisma, ids.company, [faq.id], true)).toBe(1);
+    await addEntry(prisma, { companyId: ids.company, userId: ids.manager }, { kind: "TIP", title: "Take a moisture reading before quoting vinyl", body: "Concrete under 75% relative humidity, or the vinyl lifts." });
+    expect((await searchKnowledge(prisma, ids.company, "deposit")).entries).toMatchObject([{ kind: "FAQ", title: "Do you need a deposit?" }]);
+    expect((await searchKnowledge(prisma, ids.company, "moisture vinyl")).entries).toMatchObject([{ kind: "TIP" }]);
+  });
+
+  it("answers from the knowledge base with what it went by, and says so when nothing in it matches", async () => {
+    const who = { companyId: ids.company, userId: ids.manager, name: "Farai" };
+    const answered = await askKnowledge(prisma, who, "Do we take a deposit?", claude(JSON.stringify({ answer: "Yes: **half**, before work starts.", used: [1], answered: true })));
+    expect(answered).toMatchObject({ answered: true, answer: "Yes: **half**, before work starts.", sources: [{ title: "Do you need a deposit?", note: "FAQ", href: "/crm/knowledge?tab=faq" }] });
+    const none = await askKnowledge(prisma, who, "zzqx flibbertigibbet");
+    expect(none).toMatchObject({ answered: false, sources: [] });
   });
 });
 

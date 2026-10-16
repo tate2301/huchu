@@ -51,20 +51,21 @@ export type KnowledgeRow = {
   fileName: string;
   pages: number | null;
   prices: number;
-  /** Prices Vane found that nobody has kept yet. */
+  /** Prices, FAQs, facts and tips Vane found in it that nobody has kept yet. */
   waiting: number;
   uploadedBy: string | null;
   createdAt: string;
 };
 
-export async function listKnowledge(db: Pick<PrismaClient, "crmKnowledgeDoc" | "crmKnowledgePrice">, companyId: string): Promise<KnowledgeRow[]> {
-  const [docs, counts] = await Promise.all([
+export async function listKnowledge(db: Pick<PrismaClient, "crmKnowledgeDoc" | "crmKnowledgePrice" | "crmKnowledgeEntry">, companyId: string): Promise<KnowledgeRow[]> {
+  const [docs, counts, waitingEntries] = await Promise.all([
     db.crmKnowledgeDoc.findMany({
       where: { companyId },
       orderBy: { createdAt: "desc" },
       select: { id: true, title: true, kind: true, fileName: true, pages: true, createdAt: true, uploadedBy: { select: { name: true } } },
     }),
     db.crmKnowledgePrice.groupBy({ by: ["docId", "kept"], where: { companyId }, _count: { _all: true } }),
+    db.crmKnowledgeEntry.groupBy({ by: ["docId"], where: { companyId, kept: false, docId: { not: null } }, _count: { _all: true } }),
   ]);
   const count = (docId: string, kept: boolean) => counts.find((row) => row.docId === docId && row.kept === kept)?._count._all ?? 0;
   return docs.map((doc) => ({
@@ -74,7 +75,7 @@ export async function listKnowledge(db: Pick<PrismaClient, "crmKnowledgeDoc" | "
     fileName: doc.fileName,
     pages: doc.pages,
     prices: count(doc.id, true),
-    waiting: count(doc.id, false),
+    waiting: count(doc.id, false) + (waitingEntries.find((row) => row.docId === doc.id)?._count._all ?? 0),
     uploadedBy: doc.uploadedBy?.name ?? null,
     createdAt: doc.createdAt.toISOString(),
   }));
@@ -101,7 +102,7 @@ export type KnowledgeDocView = {
   pages: number | null;
   uploadedBy: string | null;
   createdAt: string;
-  pricesFoundAt: string | null;
+  vaneReadAt: string | null;
   text: string;
   prices: KnowledgePriceView[];
   /** Quotes priced from this document, newest first. */
@@ -124,7 +125,7 @@ export async function readKnowledgeDoc(db: Pick<PrismaClient, "crmKnowledgeDoc" 
       url: true,
       pages: true,
       createdAt: true,
-      pricesFoundAt: true,
+      vaneReadAt: true,
       text: true,
       uploadedBy: { select: { name: true } },
       prices: {
@@ -148,7 +149,7 @@ export async function readKnowledgeDoc(db: Pick<PrismaClient, "crmKnowledgeDoc" 
     pages: doc.pages,
     uploadedBy: doc.uploadedBy?.name ?? null,
     createdAt: doc.createdAt.toISOString(),
-    pricesFoundAt: doc.pricesFoundAt?.toISOString() ?? null,
+    vaneReadAt: doc.vaneReadAt?.toISOString() ?? null,
     text: doc.text,
     prices: doc.prices.map(toPrice),
     quotedIn: quotedIn.length,
@@ -168,28 +169,43 @@ export async function removePrice(db: Pick<PrismaClient, "crmKnowledgePrice">, c
   return count;
 }
 
+/** Words that make a sentence a question, not what it is about. */
+const ASKING = new Set(
+  "what whats how much many do does did we our us you your take takes need needs have has get is are was there any can could should would will tell me about please the for of to in on with when where who which why it this that".split(" "),
+);
+
 export type KnowledgeHit = {
+  /** Kept FAQs, facts and tips: the business's own words, read first. */
+  entries: Array<{ id: string; kind: "FAQ" | "FACT" | "TIP"; title: string; body: string; docId: string | null }>;
   passages: Array<{ docId: string; title: string; position: number; text: string }>;
   prices: Array<{ id: string; docId: string; title: string; name: string; description: string | null; code: string | null; unit: string | null; unitPrice: number; currency: string; source: string }>;
 };
 
 /**
- * Finds what the knowledge base says about a question: the passages and the
- * kept prices that match it best, by Postgres full-text search (any of the
+ * Finds what the knowledge base says about a question: the kept FAQs, facts
+ * and tips, the passages and the kept prices that match it best, by Postgres full-text search (any of the
  * words, best first). A price whose name holds the whole question comes first
  * however it ranks.
  */
 export async function searchKnowledge(db: Pick<PrismaClient, "$queryRaw">, companyId: string, query: string, limit = 8): Promise<KnowledgeHit> {
-  const words = query
+  const all = query
     .toLowerCase()
     .replace(/[^\p{L}\p{N}\s]/gu, " ")
     .split(/\s+/)
-    .filter((word) => word.length > 1)
-    .slice(0, 12);
-  if (words.length === 0) return { passages: [], prices: [] };
+    .filter((word) => word.length > 1);
+  // The words of the question itself ("do we take…", "how much is…") say nothing about what is asked.
+  const asked = all.filter((word) => !ASKING.has(word));
+  const words = (asked.length ? asked : all).slice(0, 12);
+  if (words.length === 0) return { entries: [], passages: [], prices: [] };
   const any = words.join(" OR ");
   const like = `%${query.trim().replace(/[%_\\]/g, (c) => `\\${c}`)}%`;
-  const [passageRows, priceRows] = await Promise.all([
+  const [entryRows, passageRows, priceRows] = await Promise.all([
+    db.$queryRaw<KnowledgeHit["entries"]>`
+      SELECT e."id", e."kind"::text AS "kind", e."title", e."body", e."docId"
+      FROM "CrmKnowledgeEntry" e
+      WHERE e."companyId" = ${companyId} AND e."kept" AND e."search" @@ websearch_to_tsquery('english', ${any})
+      ORDER BY ts_rank(e."search", websearch_to_tsquery('english', ${any})) DESC, e."updatedAt" DESC
+      LIMIT ${limit}`,
     db.$queryRaw<Array<{ docId: string; title: string; position: number; text: string }>>`
       SELECT c."docId", d."title", c."position", c."text"
       FROM "CrmKnowledgeChunk" c JOIN "CrmKnowledgeDoc" d ON d."id" = c."docId"
@@ -205,7 +221,21 @@ export async function searchKnowledge(db: Pick<PrismaClient, "$queryRaw">, compa
       LIMIT ${limit * 3}`,
   ]);
   return {
+    entries: entryRows,
     passages: passageRows.map((row) => ({ ...row, position: Number(row.position) })),
     prices: priceRows.map((row) => ({ ...row, unitPrice: Number(row.unitPrice) })),
   };
+}
+
+export type KeptPriceRow = KnowledgePriceView & { doc: { id: string; title: string } };
+
+/** Every kept price in the knowledge base, by name, with the document it is in: what Vane quotes from. */
+export async function listKeptPrices(db: Pick<PrismaClient, "crmKnowledgePrice">, companyId: string): Promise<KeptPriceRow[]> {
+  const rows = await db.crmKnowledgePrice.findMany({
+    where: { companyId, kept: true },
+    orderBy: [{ name: "asc" }],
+    take: 1000,
+    select: { id: true, name: true, description: true, code: true, unit: true, unitPrice: true, currency: true, source: true, kept: true, doc: { select: { id: true, title: true } } },
+  });
+  return rows.map((row) => ({ ...toPrice(row), doc: row.doc }));
 }

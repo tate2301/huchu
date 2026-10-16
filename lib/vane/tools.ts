@@ -564,9 +564,9 @@ const proposeActionsTool = tool({
 const searchKnowledgeTool = tool({
   name: "search_knowledge",
   description:
-    "Search the workspace's knowledge base (CRM → Knowledge): the price lists, rate cards, product sheets and terms its people uploaded. " +
-    "Returns the passages that match best, with their document, and the kept prices that match (id, name, unit, price, where in the document it is). " +
-    "Search it before you answer what the business charges, offers or promises, and before you price a quote: the knowledge base is the business's own word, so go by it over anything else you know. " +
+    "Search the workspace's knowledge base (CRM → Knowledge): everything its people wrote down or uploaded about the business: FAQs, facts, tips, price lists, rate cards, product sheets, terms, how they work. " +
+    "Returns the kept FAQs, facts and tips that match (the business's own words: go by these first), the passages of documents that match, with their document, and the kept prices that match (id, name, unit, price, where in the document it is). " +
+    "Search it before you answer anything about the business (what it charges, offers, promises, how it does things, its policies), and before you price a quote: the knowledge base is the business's own word, so go by it over anything else you know. " +
     "Search with the words a price list would use (\"vinyl sheet\", \"screed\", \"call-out fee\"), one thing at a time. Name the document you went by, as a link: [Rate card 2026](/crm/knowledge/<docId>).",
   input: z.object({
     query: z.string().trim().min(1).max(200),
@@ -575,6 +575,7 @@ const searchKnowledgeTool = tool({
   async run({ companyId }, { query, limit }) {
     const hit = await searchKnowledge(prisma, companyId, query, limit ?? 8);
     return {
+      entries: hit.entries.map((entry) => ({ kind: entry.kind, title: entry.title, body: entry.body, link: "/crm/knowledge?tab=" + entry.kind.toLowerCase() })),
       passages: hit.passages.map((passage) => ({ docId: passage.docId, document: passage.title, link: `/crm/knowledge/${passage.docId}`, text: passage.text })),
       prices: hit.prices.map((price) => ({
         knowledgePriceId: price.id,
@@ -588,7 +589,7 @@ const searchKnowledgeTool = tool({
         link: `/crm/knowledge/${price.docId}`,
         where: price.source,
       })),
-      ...(hit.passages.length === 0 && hit.prices.length === 0 ? { note: "Nothing in the knowledge base matches. Try other words, or say it is not there." } : {}),
+      ...(hit.entries.length === 0 && hit.passages.length === 0 && hit.prices.length === 0 ? { note: "Nothing in the knowledge base matches. Try other words, or say it is not there." } : {}),
     };
   },
 });

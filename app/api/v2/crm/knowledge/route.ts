@@ -6,7 +6,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { errorResponse, successResponse, validateSession } from "@/lib/api-utils";
 import { KNOWLEDGE_TYPES, knowledgeExtension, KnowledgeRefused, readKnowledgeFile } from "@/lib/crm/knowledge/read";
-import { addKnowledgeDoc, listKnowledge } from "@/lib/crm/knowledge/store";
+import { addKnowledgeDoc, listKeptPrices, listKnowledge } from "@/lib/crm/knowledge/store";
 import { prisma } from "@/lib/prisma";
 import { UploadStorageMissing, UploadValidationError, uploadFileToBlob } from "@/lib/uploads/upload-file";
 
@@ -19,8 +19,10 @@ export async function GET(request: NextRequest) {
     const sessionResult = await validateSession(request);
     if (sessionResult instanceof NextResponse) return sessionResult;
     const { session } = sessionResult;
+    const [data, prices] = await Promise.all([listKnowledge(prisma, session.user.companyId), listKeptPrices(prisma, session.user.companyId)]);
     return successResponse({
-      data: await listKnowledge(prisma, session.user.companyId),
+      data,
+      prices,
       canEdit: await requireCrmCapability(session, "settings.manage"),
     });
   } catch (error) {
