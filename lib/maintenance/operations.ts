@@ -2,8 +2,8 @@ import { z } from "zod";
 
 import { deleteVaneDraftWorkOrder, raiseWorkOrder, WorkOrderRefused } from "@/lib/maintenance/work-orders";
 
-import { refuseUnlessRoute } from "./gate";
-import { VaneActionError, type VaneActionKind } from "./types";
+import { routeGate } from "@/lib/operations/gate";
+import { OperationRefused, type Operation } from "@/lib/operations/types";
 
 type Params = { workOrderId: string; equipment: string; issue: string };
 
@@ -14,45 +14,49 @@ const params = z.object({
 });
 
 const raise = {
-  kind: "assets.work_order.raise",
-  module: "assets",
+  key: "assets.work_order.raise",
+  name: "Raise a work order",
+  risk: "change",
+  product: "assets",
   description: "Raise a work order Vane drafted (the draft tool, work_order), once the person has checked it: it opens, and the workshop is told.",
-  params,
+  input: params,
   fields: [],
   verb: () => "Raise the work order",
   title: (p) => `Raise the work order for ${p.equipment}: ${p.issue}`,
   target: (p) => `/maintenance/work-orders/${p.workOrderId}`,
-  refuse: (context) => refuseUnlessRoute(context, "/api/work-orders"),
+  authorize: (context) => routeGate(context, "/api/work-orders"),
   async run(context, p) {
     try {
       const order = await raiseWorkOrder({ companyId: context.companyId, userId: context.userId, role: context.role }, p.workOrderId);
       return `The work order for ${order.equipment.name} is raised. The workshop has been told.`;
     } catch (error) {
-      if (error instanceof WorkOrderRefused) throw new VaneActionError(error.message);
+      if (error instanceof WorkOrderRefused) throw new OperationRefused(error.message);
       throw error;
     }
   },
-} satisfies VaneActionKind<Params>;
+} satisfies Operation<Params>;
 
 const discard = {
-  kind: "assets.work_order.discard",
-  module: "assets",
+  key: "assets.work_order.discard",
+  name: "Delete a draft work order",
+  risk: "change",
+  product: "assets",
   description: "Delete a work order Vane drafted that nobody raised, when it is not wanted.",
-  params,
+  input: params,
   fields: [],
   verb: () => "Delete the draft",
   title: (p) => `Delete Vane's draft work order for ${p.equipment}`,
   target: (p) => `/maintenance/work-orders/${p.workOrderId}`,
-  refuse: (context) => refuseUnlessRoute(context, "/api/work-orders"),
+  authorize: (context) => routeGate(context, "/api/work-orders"),
   async run(context, p) {
     try {
       await deleteVaneDraftWorkOrder(context.companyId, p.workOrderId);
       return `The draft for ${p.equipment} is deleted.`;
     } catch (error) {
-      if (error instanceof WorkOrderRefused) throw new VaneActionError(error.message);
+      if (error instanceof WorkOrderRefused) throw new OperationRefused(error.message);
       throw error;
     }
   },
-} satisfies VaneActionKind<Params>;
+} satisfies Operation<Params>;
 
-export const ASSETS_ACTIONS = [raise, discard] as const;
+export const ASSETS_OPERATIONS = [raise, discard] as const;

@@ -4,8 +4,8 @@ import { formatSchoolMoney } from "@/lib/schools/format";
 import { NoticeError, sendSchoolNotice } from "@/lib/schools/notices";
 import { schoolPermissionDenial } from "@/lib/schools/permissions";
 
-import { refuseUnlessRoute } from "./gate";
-import { VaneActionError, type VaneActionKind } from "./types";
+import { routeGate } from "@/lib/operations/gate";
+import { OperationRefused, type Operation } from "@/lib/operations/types";
 
 export type ReminderFamily = { studentId: string; family: string; pupil: string; owed: number; why?: string };
 export type ReminderParams = { term: string; currency: string; subject: string; body: string; families: ReminderFamily[]; skip: string[] };
@@ -49,13 +49,15 @@ export const remindParams = z
   .refine((p) => remindedFamilies(p).length > 0, { message: "Tick at least one family.", path: ["skip"] });
 
 const remind = {
-  kind: "schools.fees.remind",
-  module: "schools",
+  key: "schools.fees.remind",
+  name: "Remind families of fees",
+  risk: "send",
+  product: "schools",
   description:
     "Send this term's fee reminder to the families who owe (the PageVaneSchool board): one notice per family, each with its own name, pupil and amount, written once with [family], [pupil] and [amount] in it. " +
     "List every family who owes. One that has agreed a payment plan or paid since stays listed with why, and its studentId goes in skip, so it is unticked. " +
     "The person ticks and unticks families and changes the words on the reminder's own page before it goes; the words change for every family.",
-  params: remindParams,
+  input: remindParams,
   fields: [
     { name: "subject", label: "Subject", type: "text" },
     { name: "body", label: "The reminder ([family], [pupil] and [amount] are each family's own)", type: "text", multiline: true },
@@ -67,7 +69,7 @@ const remind = {
     return `Remind ${plural(remindedFamilies(p).length, "family", "families")} of ${p.term} fees${p.skip.length ? `; ${p.skip.length} left out${why ? ` (${why})` : ""}` : ""}`;
   },
   target: (_p, id) => `/schools/finance/reminders/${id}`,
-  refuse: (context) => refuseUnlessRoute(context, "/api/v2/schools/notices") ?? schoolPermissionDenial(context.session, "schools.reports", "notify-families"),
+  authorize: (context) => routeGate(context, "/api/v2/schools/notices") ?? schoolPermissionDenial(context.session, "schools.reports", "notify-families"),
   async run(context, p) {
     let sent = 0;
     let unreached = 0;
@@ -90,7 +92,7 @@ const remind = {
         failed.push(family.family);
       }
     }
-    if (sent === 0) throw new VaneActionError(`No reminder went: ${failed.length ? `${failed.slice(0, 3).join(", ")}${failed.length > 3 ? " and others" : ""} have nobody on the portal` : "nobody to write to"}.`);
+    if (sent === 0) throw new OperationRefused(`No reminder went: ${failed.length ? `${failed.slice(0, 3).join(", ")}${failed.length > 3 ? " and others" : ""} have nobody on the portal` : "nobody to write to"}.`);
     return [
       `Sent ${sent} ${sent === 1 ? "reminder" : "reminders"}.`,
       failed.length ? `${failed.length} could not be: nobody in the family is on the portal.` : null,
@@ -99,6 +101,6 @@ const remind = {
       .filter(Boolean)
       .join(" ");
   },
-} satisfies VaneActionKind<Params>;
+} satisfies Operation<Params>;
 
-export const SCHOOLS_ACTIONS = [remind] as const;
+export const SCHOOLS_OPERATIONS = [remind] as const;

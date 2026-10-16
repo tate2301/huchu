@@ -5,17 +5,19 @@ import { buyingActor } from "@/lib/retail/buying/routes";
 import { sentWords } from "@/lib/retail/buying/words";
 import { signOffShift, SignOffRefused } from "@/lib/retail/floor/sign-off";
 import { canRetailSessionDo } from "@/lib/retail/permission-matrix";
+import { promotionActor } from "@/lib/retail/promotions/routes";
+import { createPromotion, PromotionRefusal, promotionInput, type PromotionInput } from "@/lib/retail/promotions/service";
 
-import { listOf, longDay, refuseUnlessRoute } from "./gate";
-import { VaneActionError, type VaneActionContext, type VaneActionKind } from "./types";
+import { listOf, longDay, routeGate } from "@/lib/operations/gate";
+import { OperationRefused, type OperationActor, type Operation } from "@/lib/operations/types";
 
 const day = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Write it as a day, like 2026-10-30.");
 
 /** The order routes' checks: the route, then what the person's retail role may do with orders. */
-function refuseOrders(context: VaneActionContext, path: string, action: "create" | "update"): string | null {
-  const route = refuseUnlessRoute(context, path);
+function refuseOrders(context: OperationActor, path: string, action: "create" | "update"): string | null {
+  const route = routeGate(context, path);
   if (route) return route;
-  return canRetailSessionDo(context.session, "retail.purchasing", action) ? null : "Your role cannot order stock, so Vane cannot do it for you.";
+  return canRetailSessionDo(context.session, "retail.purchasing", action) ? null : "Your role cannot order stock.";
 }
 
 /** An order refused by Retail, as the sentence (and the field's own words) a person can act on. */
@@ -25,18 +27,20 @@ async function asRetail<T>(act: () => Promise<T>): Promise<T> {
   } catch (error) {
     if (error instanceof OrderRefusal) {
       const field = error.fieldErrors ? Object.values(error.fieldErrors)[0] : null;
-      throw new VaneActionError(field ?? error.message);
+      throw new OperationRefused(field ?? error.message);
     }
     throw error;
   }
 }
 
 const lookInto = {
-  kind: "retail.shift.look_into",
-  module: "retail",
+  key: "retail.shift.look_into",
+  name: "Flag a shift to look into",
+  risk: "change",
+  product: "retail",
   description:
     "Sign off a till shift whose cash-up did not balance as Look into it, with a note saying what to check. The shift's own sign-off: it needs a person who may approve cash control, and nobody signs off their own drawer.",
-  params: z.object({
+  input: z.object({
     shiftId: z.string().min(1),
     shiftNo: z.string().min(1).describe('As the shift shows it: "SH-0412".'),
     note: z.string().trim().min(1).max(500),
@@ -45,7 +49,7 @@ const lookInto = {
   verb: () => "Look into it",
   title: (p) => `Sign off ${p.shiftNo} as Look into it: ${p.note}`,
   target: () => "/retail/shifts?state=needs-sign-off",
-  refuse: (context) => refuseUnlessRoute(context, "/api/v2/retail/shifts"),
+  authorize: (context) => routeGate(context, "/api/v2/retail/shifts"),
   async run(context, p) {
     try {
       const done = await signOffShift(
@@ -55,20 +59,22 @@ const lookInto = {
       );
       return `${done.shiftNo} is signed off to be looked into${done.amount ? `, ${done.amount}` : ""}.`;
     } catch (error) {
-      if (error instanceof SignOffRefused) throw new VaneActionError(error.message);
+      if (error instanceof SignOffRefused) throw new OperationRefused(error.message);
       throw error;
     }
   },
-} satisfies VaneActionKind<{ shiftId: string; shiftNo: string; note: string }>;
+} satisfies Operation<{ shiftId: string; shiftNo: string; note: string }>;
 
 type OrderLine = { productId: string; name: string; quantity: number; unitCost: number };
 
 const draftOrder = {
-  kind: "retail.order.draft",
-  module: "retail",
+  key: "retail.order.draft",
+  name: "Draft a purchase order",
+  risk: "change",
+  product: "retail",
   description:
     "Draft a reorder from one supplier for one branch: the products running low there, each with a quantity (whole units, enough for the supplier's lead time and the recent rate of sale) and the cost last paid. It stays a draft; a person checks and sends it.",
-  params: z.object({
+  input: z.object({
     supplierId: z.string().min(1),
     supplier: z.string().min(1),
     siteId: z.string().min(1),
@@ -92,7 +98,7 @@ const draftOrder = {
   title: (p) =>
     `Draft an order from ${p.supplier} for ${p.site}: ${listOf(p.lines.slice(0, 3).map((line) => `${line.quantity} ${line.name}`).concat(p.lines.length > 3 ? [`${p.lines.length - 3} more`] : []))}`,
   target: (p) => `/retail/buying/orders?tab=drafts&supplier=${encodeURIComponent(p.supplierId)}`,
-  refuse: (context) => refuseOrders(context, "/api/v2/retail/buying/orders", "create"),
+  authorize: (context) => refuseOrders(context, "/api/v2/retail/buying/orders", "create"),
   async run(context, p) {
     const raised = await asRetail(() =>
       raiseOrder(
@@ -110,7 +116,7 @@ const draftOrder = {
     );
     return `${raised.poNo} is a draft for ${raised.supplier}. Check it and send it from the order.`;
   },
-} satisfies VaneActionKind<{
+} satisfies Operation<{
   supplierId: string;
   supplier: string;
   siteId: string;
@@ -121,11 +127,13 @@ const draftOrder = {
 }>;
 
 const sendDraft = {
-  kind: "retail.order.send",
-  module: "retail",
+  key: "retail.order.send",
+  name: "Send a purchase order",
+  risk: "send",
+  product: "retail",
   description:
     "Send a draft order to its supplier, the way the supplier takes orders (WhatsApp or email, with the PDF). A draft you wrote goes as the approving person's: approving it confirms it as theirs.",
-  params: z.object({
+  input: z.object({
     orderId: z.string().min(1),
     poNo: z.string().min(1),
     supplier: z.string().min(1),
@@ -134,7 +142,7 @@ const sendDraft = {
   verb: (p) => `Send ${p.poNo}`,
   title: (p) => `Send ${p.poNo} to ${p.supplier}`,
   target: (p) => `/retail/buying/orders/${p.orderId}`,
-  refuse: (context) => refuseOrders(context, "/api/v2/retail/buying/orders", "create"),
+  authorize: (context) => refuseOrders(context, "/api/v2/retail/buying/orders", "create"),
   async run(context, p) {
     // The person approving the send is the one confirming Vane's draft as theirs.
     const sent = await asRetail(() =>
@@ -142,14 +150,16 @@ const sendDraft = {
     );
     return sentWords(sent.poNo, sent.supplier, sent.sentVia);
   },
-} satisfies VaneActionKind<{ orderId: string; poNo: string; supplier: string }>;
+} satisfies Operation<{ orderId: string; poNo: string; supplier: string }>;
 
 const chase = {
-  kind: "retail.order.chase",
-  module: "retail",
+  key: "retail.order.chase",
+  name: "Chase a supplier",
+  risk: "send",
+  product: "retail",
   description:
     "Chase a late order: a message to the supplier asking when it comes, and the day they are expected to promise becomes its expected date. Write the message as the shop would, short, naming the order and what is still owed.",
-  params: z.object({
+  input: z.object({
     orderId: z.string().min(1),
     poNo: z.string().min(1),
     supplier: z.string().min(1),
@@ -163,13 +173,65 @@ const chase = {
   verb: () => "Send the reminder",
   title: (p) => `Chase ${p.poNo} with ${p.supplier}, expected ${longDay(p.promisedFor)}`,
   target: (p) => `/retail/buying/orders/${p.orderId}`,
-  refuse: (context) => refuseOrders(context, "/api/v2/retail/buying/orders", "update"),
+  authorize: (context) => refuseOrders(context, "/api/v2/retail/buying/orders", "update"),
   async run(context, p) {
     const chased = await asRetail(() =>
       chaseOrder(buyingActor(context.session), p.orderId, { contactId: null, message: p.message, promisedFor: p.promisedFor, then: "REMIND" }),
     );
     return chased.toast;
   },
-} satisfies VaneActionKind<{ orderId: string; poNo: string; supplier: string; message: string; promisedFor: string }>;
+} satisfies Operation<{ orderId: string; poNo: string; supplier: string; message: string; promisedFor: string }>;
 
-export const RETAIL_ACTIONS = [lookInto, draftOrder, sendDraft, chase] as const;
+/** "15% off", "$2.00 off", "buy 3, pay for 2", "for $5.00". */
+function dealWords(p: Pick<PromotionInput, "kind" | "value" | "buyQuantity">): string {
+  if (p.kind === "PERCENT") return `${p.value}% off`;
+  if (p.kind === "AMOUNT") return `$${p.value} off`;
+  if (p.kind === "BUY_X_PAY") return `buy ${p.buyQuantity ?? "?"}, pay for ${p.value}`;
+  return `for $${p.value}`;
+}
+
+const promotion = {
+  key: "retail.promotion.create",
+  name: "Create a promotion",
+  risk: "change",
+  product: "retail",
+  description:
+    "Set up a promotion at the till, as the person who approves it: a percent or an amount off, buy X pay for Y, or a fixed price, on everything, some categories or some products, from a start to an end, for everyone, loyalty members or staff. It is checked as the Promotions page checks it (a percent is at most 90, products and categories are this shop's, it ends after it starts). Use it for stock that is not moving or a date the owner names; say why in the name.",
+  input: promotionInput.extend({
+    value: z.string().min(1).max(40).describe('The number: "15" for 15% off, "2.00" for $2.00 off, "2" for buy 3 pay for 2, "5.00" for a fixed price.'),
+    starts: z.string().min(1).max(60).describe('"2026-10-25" or "2026-10-25 08:00".'),
+    ends: z.string().max(60).optional().nullable().describe("When it stops; open-ended when left out."),
+    what: z.string().min(1).max(160).describe('What it is on, in words: "Castle Lager 340ml", "all ciders".'),
+  }),
+  fields: [
+    { name: "name", label: "Name", type: "text" },
+    { name: "value", label: "Value", type: "text" },
+    { name: "starts", label: "Starts", type: "text" },
+    { name: "ends", label: "Ends", type: "text" },
+  ],
+  verb: () => "Start the promotion",
+  title: (p) => `${p.name}: ${dealWords(p)} ${p.what}, from ${p.starts}${p.ends ? ` to ${p.ends}` : ""}`,
+  target: () => "/retail/products/promotions",
+  authorize: (actor) => {
+    const route = routeGate(actor, "/api/v2/retail/promotions");
+    if (route) return route;
+    return canRetailSessionDo(actor.session, "retail.promotions", "create") ? null : "Your role cannot set up promotions.";
+  },
+  async run(actor, p) {
+    try {
+      // `what` is the line a person reads; the promotion is the rest.
+      const input: PromotionInput & { what?: string } = { ...p };
+      delete input.what;
+      const made = await createPromotion(promotionActor(actor.session), input);
+      return { said: made.message, record: { id: made.id, href: `/retail/products/promotions/${made.id}` } };
+    } catch (error) {
+      if (error instanceof PromotionRefusal) {
+        const field = Object.values(error.fieldErrors)[0];
+        throw new OperationRefused(field ?? error.message);
+      }
+      throw error;
+    }
+  },
+} satisfies Operation<PromotionInput & { what: string }>;
+
+export const RETAIL_OPERATIONS = [lookInto, draftOrder, sendDraft, chase, promotion] as const;

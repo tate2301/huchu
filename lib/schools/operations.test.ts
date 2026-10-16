@@ -3,10 +3,10 @@ import { describe, expect, it } from "vitest";
 
 import { formatSchoolMoney } from "@/lib/schools/format";
 
-import { VANE_ACTIONS } from "./registry";
-import { reminderFor, remindedFamilies, remindParams } from "./schools";
+import { OPERATIONS } from "@/lib/operations/registry";
+import { reminderFor, remindedFamilies, remindParams } from "./operations";
 
-const remind = VANE_ACTIONS.find((action) => action.kind === "schools.fees.remind")!;
+const remind = OPERATIONS.find((action) => action.key === "schools.fees.remind")!;
 const draft = {
   term: "Third term",
   currency: "USD",
@@ -19,7 +19,7 @@ const draft = {
   ],
   skip: ["s3"],
 };
-const params = remind.params.parse(draft) as never;
+const params = remind.input.parse(draft) as never;
 
 describe("Vane's fee reminders", () => {
   it("fills in each family's own name, pupil and amount", () => {

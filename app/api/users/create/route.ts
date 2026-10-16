@@ -7,13 +7,8 @@ import { repriceCompany } from "@/lib/platform/entitlements";
 import { clearUserFeatureOverrides } from "@/lib/platform/user-entitlements";
 import { prisma } from "@/lib/prisma";
 
-import {
-  appendUserManagementEvent,
-  canMutateUserManagement,
-  getManagedRolesForSession,
-  managedRoleSchema,
-  normalizeEmail,
-} from "../_helpers";
+import { canMutateUserManagement, getManagedRolesForSession, managedRoleSchema, normalizeEmail } from "../_helpers";
+import { appendUserManagementEvent } from "@/lib/platform/user-management-events";
 
 const createUserSchema = z.object({
   name: z.string().trim().min(1).max(120),

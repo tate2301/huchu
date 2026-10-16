@@ -11,7 +11,7 @@ import { getReportDefinition, REPORT_DEFINITIONS } from "@/lib/reports/registry"
 import { draftOrderForVane, OrderRefusal } from "@/lib/retail/buying/orders";
 
 import { proposeActions, type ActionProposal } from "./actions/engine";
-import { VANE_ACTIONS } from "./actions/registry";
+import { vaneOperations } from "./actions/engine";
 import { blockSchema, type VaneBlock } from "./blocks";
 import { usualTerms } from "./drafts";
 import { moveVaneStep } from "./lists";
@@ -518,9 +518,10 @@ const reportProblem = tool({
 });
 
 /** The actions a person can approve, as Claude is shown them. */
+/** The operations Vane may propose (its integration's), each with what it does and its inputs. */
 function actionCatalogue(): string {
-  return VANE_ACTIONS.map(
-    (action) => `- ${action.kind}: ${action.description} Inputs: ${JSON.stringify(z.toJSONSchema(action.params as z.ZodType))}`,
+  return vaneOperations().map(
+    (operation) => `- ${operation.key} (${operation.name}): ${operation.description} Inputs: ${JSON.stringify(z.toJSONSchema(operation.input as z.ZodType))}`,
   ).join("\n");
 }
 
@@ -551,9 +552,9 @@ const proposeActionsTool = tool({
     // Checked now, written with the answer.
     const refused: Array<{ kind: string; why: string }> = [];
     for (const proposal of actions) {
-      const action = VANE_ACTIONS.find((candidate) => candidate.kind === proposal.kind);
-      const parsed = action?.params.safeParse(proposal.params);
-      if (!action) refused.push({ kind: proposal.kind, why: `There is no action ${proposal.kind}.` });
+      const action = vaneOperations().find((candidate) => candidate.key === proposal.kind);
+      const parsed = action?.input.safeParse(proposal.params);
+      if (!action) refused.push({ kind: proposal.kind, why: `There is no operation ${proposal.kind} that Vane may use.` });
       else if (!parsed?.success) refused.push({ kind: proposal.kind, why: z.prettifyError(parsed!.error) });
       else answerActions.push(proposal);
     }

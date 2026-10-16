@@ -5,7 +5,8 @@ import { errorResponse, successResponse, validateSession } from "@/lib/api-utils
 import { prisma } from "@/lib/prisma";
 import { clearUserFeatureOverrides } from "@/lib/platform/user-entitlements";
 
-import { appendUserManagementEvent, canMutateUserManagement } from "../../_helpers";
+import { canMutateUserManagement } from "../../_helpers";
+import { appendUserManagementEvent } from "@/lib/platform/user-management-events";
 
 const resetFeatureAccessSchema = z.object({
   userId: z.string().uuid(),

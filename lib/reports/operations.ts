@@ -7,8 +7,8 @@ import { createTemplate } from "@/lib/reports/templates";
 import { CONDITION_OPS } from "@/lib/reports/types";
 import { defaultView } from "@/lib/reports/view";
 
-import { refuseUnlessRoute } from "./gate";
-import { VaneActionError, type VaneActionKind } from "./types";
+import { routeGate } from "@/lib/operations/gate";
+import { OperationRefused, type Operation } from "@/lib/operations/types";
 
 type Params = {
   reportKey: string;
@@ -21,11 +21,13 @@ type Params = {
 };
 
 const keepView = {
-  kind: "reports.template.save",
-  module: "reports",
+  key: "reports.template.save",
+  name: "Keep a view of a report",
+  risk: "change",
+  product: "reports",
   description:
     "Keep a view of a report as a template under the person's own reports, just for them: the report as it opens, grouped, filtered or searched the way you answered with. Use the report's own column keys (describe_report). Name it for what it shows: \"Deals gone quiet\".",
-  params: z.object({
+  input: z.object({
     reportKey: z.string().min(1).max(64),
     report: z.string().min(1).max(120).describe("The report's title, as the catalogue shows it."),
     name: z.string().trim().min(1).max(120),
@@ -44,10 +46,10 @@ const keepView = {
   verb: () => "Save as a template",
   title: (p) => `Keep ${p.report}${p.groupBy || p.conditions?.length ? ", as you asked about it," : ""} as “${p.name}”`,
   target: (p) => `/reports/${p.reportKey}`,
-  refuse: (context) => refuseUnlessRoute(context, "/api/v2/reports/templates"),
+  authorize: (context) => routeGate(context, "/api/v2/reports/templates"),
   async run(context, p) {
     const definition = getReportDefinition(p.reportKey);
-    if (!definition) throw new VaneActionError(`There is no report ${p.report} any more.`);
+    if (!definition) throw new OperationRefused(`There is no report ${p.report} any more.`);
     // The report as it opens for this person, with Vane's grouping, filters and search over it.
     const base = defaultView(reportMeta(definition, context.role, definition.params, await readReportSetting(context.companyId, p.reportKey)));
     const view = {
@@ -65,9 +67,9 @@ const keepView = {
       params: {},
       keepDates: false,
     });
-    if (!outcome.ok) throw new VaneActionError(outcome.status === 403 ? "You cannot keep templates of this report." : `You cannot open ${p.report}.`);
+    if (!outcome.ok) throw new OperationRefused(outcome.status === 403 ? "You cannot keep templates of this report." : `You cannot open ${p.report}.`);
     return `“${outcome.template.name}” is under your reports.`;
   },
-} satisfies VaneActionKind<Params>;
+} satisfies Operation<Params>;
 
-export const REPORTS_ACTIONS = [keepView] as const;
+export const REPORTS_OPERATIONS = [keepView] as const;

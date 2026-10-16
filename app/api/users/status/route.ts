@@ -5,11 +5,8 @@ import { errorResponse, successResponse, validateSession } from "@/lib/api-utils
 import { repriceCompany } from "@/lib/platform/entitlements";
 import { prisma } from "@/lib/prisma";
 
-import {
-  appendUserManagementEvent,
-  canMutateUserManagement,
-  isManagedRole,
-} from "../_helpers";
+import { canMutateUserManagement, isManagedRole } from "../_helpers";
+import { appendUserManagementEvent } from "@/lib/platform/user-management-events";
 
 const userStatusSchema = z.object({
   userId: z.string().uuid(),

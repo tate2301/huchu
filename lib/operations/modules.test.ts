@@ -16,24 +16,25 @@ import { prisma } from "@/lib/prisma";
 import { addTestProduct, makeTestShop, type TestShop } from "@/lib/retail/products/test-fixtures";
 import { createSupplier } from "@/lib/retail/buying/suppliers";
 
-import { VANE_ACTIONS } from "./registry";
-import { VaneActionError, type VaneActionContext } from "./types";
+import { OPERATIONS } from "@/lib/operations/registry";
+import { OperationRefused, type OperationActor } from "@/lib/operations/types";
 
 let shop: TestShop;
 const ids = { pipeline: "", open: "", won: "", gated: "", deal: "", dealB: "", client: "", customer: "", quote: "", supplier: "", castle: "" };
 
-const context = (): VaneActionContext => ({
+const context = (): OperationActor => ({
   companyId: shop.companyId,
   userId: shop.managerId,
   role: "MANAGER",
   session: { user: { id: shop.managerId, companyId: shop.companyId, role: "MANAGER", name: "Tafara Nyathi" } } as unknown as AuthenticatedSession,
   requestUrl: "http://vane.test/api/vane/actions/x",
+  via: { kind: "integration", integration: "vane" },
 });
 
 /** Runs one kind, as a person approving it would: its inputs checked first. */
 async function run(kind: string, params: Record<string, unknown>) {
-  const action = VANE_ACTIONS.find((row) => row.kind === kind)!;
-  const parsed = action.params.parse(params) as never;
+  const action = OPERATIONS.find((row) => row.key === kind)!;
+  const parsed = action.input.parse(params) as never;
   return action.run(context(), parsed);
 }
 
@@ -41,7 +42,7 @@ async function refused(work: Promise<unknown>) {
   try {
     await work;
   } catch (error) {
-    if (error instanceof VaneActionError) return error.message;
+    if (error instanceof OperationRefused) return error.message;
     throw error;
   }
   throw new Error("Expected the action to be refused");
