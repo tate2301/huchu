@@ -83,7 +83,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
                 fiscalReceipt: { select: { id: true } },
                 _count: {
                   select: {
-                    receipts: true,
+                    receipts: { where: { voidedAt: null } },
                     creditNotes: { where: { status: { not: "VOIDED" } } },
                     writeOffs: { where: { status: { not: "VOIDED" } } },
                   },

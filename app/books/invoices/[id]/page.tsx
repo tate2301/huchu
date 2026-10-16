@@ -146,7 +146,7 @@ export default function BooksInvoicePage() {
       </PageChrome>
       <BooksPage screen="books-invoice">
         {record ? (
-          <InvoiceRecordView invoice={record} />
+          <InvoiceRecordView invoice={record} canVoidPayments={record.can.voidPayments} />
         ) : notFound ? (
           <Empty icon="invoice" title="There is no such invoice here">
             It may have been deleted, or it belongs to another workspace. Invoices lists every one this workspace has.

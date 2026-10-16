@@ -134,6 +134,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
             customer: { select: { id: true, name: true, email: true } },
             lines: LINE,
             receipts: {
+              where: { voidedAt: null },
               orderBy: { receivedAt: "asc" },
               select: {
                 id: true,
@@ -153,7 +154,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
             fromQuotation: { select: { id: true, crmLeadDocuments: SIBLING } },
             _count: {
               select: {
-                receipts: true,
+                receipts: { where: { voidedAt: null } },
                 creditNotes: { where: { status: { not: "VOIDED" } } },
                 writeOffs: { where: { status: { not: "VOIDED" } } },
               },

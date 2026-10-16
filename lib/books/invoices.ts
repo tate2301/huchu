@@ -125,7 +125,7 @@ const rowSelect = {
   writeOffTotal: true,
   madeByVane: true,
   customer: { select: { id: true, name: true } },
-  receipts: { select: { receivedAt: true, method: true }, orderBy: { receivedAt: "desc" as const }, take: 1 },
+  receipts: { where: { voidedAt: null }, select: { receivedAt: true, method: true }, orderBy: { receivedAt: "desc" as const }, take: 1 },
 } satisfies Prisma.SalesInvoiceSelect;
 
 type RowRecord = Prisma.SalesInvoiceGetPayload<{ select: typeof rowSelect }>;

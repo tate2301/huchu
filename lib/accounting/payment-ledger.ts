@@ -17,6 +17,8 @@ type LedgerSeed = {
   currency?: string | null;
   description?: string | null;
   journalEntryId?: string | null;
+  /** VOIDED for a receipt voided in Books: aged debt and the customer's balance leave its line out. */
+  status?: "POSTED" | "VOIDED";
 };
 
 function isVoidReference(sourceId: string) {
@@ -95,6 +97,7 @@ async function buildLedgerSeed(
         currency: receipt.invoice?.currency ?? "USD",
         description: `Sales receipt ${receipt.receiptNumber}`,
         journalEntryId,
+        status: receipt.voidedAt ? "VOIDED" : "POSTED",
       };
     }
     case "SALES_CREDIT_NOTE": {
@@ -311,7 +314,7 @@ export async function syncPaymentLedgerEntryForSource(input: {
       currency: seed.currency ?? "USD",
       description: seed.description ?? null,
       journalEntryId: seed.journalEntryId ?? null,
-      status: "POSTED",
+      status: seed.status ?? "POSTED",
     },
     create: {
       companyId: seed.companyId,
@@ -329,7 +332,7 @@ export async function syncPaymentLedgerEntryForSource(input: {
       currency: seed.currency ?? "USD",
       description: seed.description ?? null,
       journalEntryId: seed.journalEntryId ?? null,
-      status: "POSTED",
+      status: seed.status ?? "POSTED",
     },
   });
 }

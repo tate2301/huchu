@@ -22,6 +22,15 @@ export function fiscalNote(number: string): string {
   return `The fiscal device still holds ${number} as issued: credit notes and voids are not sent to it yet.`;
 }
 
+/**
+ * What the Void drawer says about the fiscal side of a payment: a receipt is
+ * never sent to the fiscal device itself, the invoice it paid is, and voids
+ * are not sent to it yet.
+ */
+export function receiptFiscalNote(invoice: string): string {
+  return `The fiscal device still holds ${invoice}: payments and voids are not sent to it, so nothing changes there.`;
+}
+
 /** What to credit: chosen lines, each up to its quantity, or an amount including VAT. */
 export type CreditChoice = { lines: Array<{ lineId: string; quantity: number }> } | { amount: number };
 

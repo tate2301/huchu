@@ -66,11 +66,13 @@ export type InvoiceRecord = {
   voided: { reason: string | null; by: string | null; on: string } | null;
   /** It reached the fiscal device, which still holds it whatever is reversed here. */
   fiscalised: boolean;
+  /** Once void: the payments it left as the customer's money on account, each of which the owner may void too. */
+  onAccount: Array<{ id: string; number: string; amount: number; voided: boolean }>;
 };
 
 /** What the person may do with it on its page (the route adds it). */
 export type InvoiceRecordPage = InvoiceRecord & {
-  can: { issue: boolean; delete: boolean; reverse: boolean };
+  can: { issue: boolean; delete: boolean; reverse: boolean; voidPayments: boolean };
   /** What Delete takes with it, when this person may delete it. */
   removal: InvoiceRemoval | null;
 };
@@ -112,7 +114,7 @@ export function changesFromQuote(invoice: Line[], quote: Line[], currency: strin
   return changes;
 }
 
-export async function readInvoiceRecord(db: Pick<PrismaClient, "salesInvoice" | "crmLeadDocument" | "vaneItem" | "platformAuditEvent" | "user">, companyId: string, id: string, now = new Date()): Promise<InvoiceRecord | null> {
+export async function readInvoiceRecord(db: Pick<PrismaClient, "salesInvoice" | "salesReceipt" | "crmLeadDocument" | "vaneItem" | "platformAuditEvent" | "user">, companyId: string, id: string, now = new Date()): Promise<InvoiceRecord | null> {
   const invoice = await db.salesInvoice.findFirst({
     where: { id, companyId },
     select: {
@@ -139,7 +141,7 @@ export async function readInvoiceRecord(db: Pick<PrismaClient, "salesInvoice" | 
       lines: { orderBy: { createdAt: "asc" }, select: { id: true, description: true, quantity: true, unitPrice: true, lineTotal: true, taxRate: true, taxCodeId: true } },
       creditNotes: { orderBy: { noteDate: "asc" }, select: { noteNumber: true, total: true, reason: true, noteDate: true, status: true } },
       fiscalReceipt: { select: { status: true, receiptGlobalNo: true } },
-      receipts: { select: { receivedAt: true, method: true }, orderBy: { receivedAt: "desc" }, take: 1 },
+      receipts: { where: { voidedAt: null }, select: { receivedAt: true, method: true }, orderBy: { receivedAt: "desc" }, take: 1 },
       fromQuotation: {
         select: {
           id: true,
@@ -174,11 +176,12 @@ export async function readInvoiceRecord(db: Pick<PrismaClient, "salesInvoice" | 
       ? db.platformAuditEvent.findFirst({
           where: { companyId, eventType: "books.invoice.voided", entityType: "SalesInvoice", entityId: invoice.id },
           orderBy: { createdAt: "desc" },
-          select: { reason: true, actor: true, createdAt: true },
+          select: { reason: true, actor: true, createdAt: true, payloadJson: true },
         })
       : null,
   ]);
   const voider = voidEvent?.actor ? await db.user.findFirst({ where: { id: voidEvent.actor, companyId }, select: { name: true } }) : null;
+  const onAccount = await paymentsOnAccount(db, companyId, voidEvent?.payloadJson ?? null);
 
   const today = dayOf(now);
   const state = invoiceState(
@@ -248,5 +251,25 @@ export async function readInvoiceRecord(db: Pick<PrismaClient, "salesInvoice" | 
     credits: invoice.creditNotes.map((note) => ({ number: note.noteNumber, total: note.total, reason: note.reason, date: shortDay(dayOf(note.noteDate)), voided: note.status === "VOIDED" })),
     voided: invoice.status === "VOIDED" ? { reason: voidEvent?.reason ?? null, by: voider?.name ?? null, on: voidEvent ? shortDay(dayOf(voidEvent.createdAt)) : "" } : null,
     fiscalised: wasFiscalised(invoice.fiscalReceipt),
+    onAccount,
   };
+}
+
+/** The payments a void invoice left as the customer's money on account, as they stand now (its void's audit event names them). */
+async function paymentsOnAccount(db: Pick<PrismaClient, "salesReceipt">, companyId: string, payloadJson: string | null): Promise<InvoiceRecord["onAccount"]> {
+  if (!payloadJson) return [];
+  let ids: string[] = [];
+  try {
+    const payload = JSON.parse(payloadJson) as { receiptsOnAccount?: Array<{ id?: string }> };
+    ids = (payload.receiptsOnAccount ?? []).map((receipt) => receipt.id).filter((id): id is string => Boolean(id));
+  } catch {
+    return [];
+  }
+  if (ids.length === 0) return [];
+  const receipts = await db.salesReceipt.findMany({
+    where: { companyId, id: { in: ids }, invoiceId: null },
+    orderBy: { receivedAt: "asc" },
+    select: { id: true, receiptNumber: true, amount: true, voidedAt: true },
+  });
+  return receipts.map((receipt) => ({ id: receipt.id, number: receipt.receiptNumber, amount: round(receipt.amount), voided: receipt.voidedAt !== null }));
 }

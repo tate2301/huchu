@@ -1500,6 +1500,7 @@ model User {
   createdSalesQuotations            SalesQuotation[]               @relation("SalesQuotationCreatedBy")
   issuedSalesQuotations             SalesQuotation[]               @relation("SalesQuotationIssuedBy")
   createdSalesReceipts              SalesReceipt[]                 @relation("SalesReceiptCreatedBy")
+  voidedSalesReceipts               SalesReceipt[]                 @relation("SalesReceiptVoidedBy")
   createdCreditNotes                CreditNote[]                   @relation("CreditNoteCreatedBy")
   issuedCreditNotes                 CreditNote[]                   @relation("CreditNoteIssuedBy")
   createdSalesWriteOffs             SalesWriteOff[]                @relation("SalesWriteOffCreatedBy")
@@ -8110,11 +8111,18 @@ model SalesReceipt {
   bankAccountId String?
   createdById   String?
   createdAt     DateTime @default(now())
+  /// Voided in Books by the workspace's owner (`lib/books/void-receipt.ts`): the
+  /// receipt stays, marked void, its posting reversed under `void:<id>`, and no
+  /// longer counts as money in. Its number is not used again.
+  voidedAt      DateTime?
+  voidedById    String?
+  voidReason    String?
 
   company          Company           @relation(fields: [companyId], references: [id], onDelete: Cascade)
   invoice          SalesInvoice?     @relation(fields: [invoiceId], references: [id])
   bankAccount      BankAccount?      @relation(fields: [bankAccountId], references: [id])
   createdBy        User?             @relation("SalesReceiptCreatedBy", fields: [createdById], references: [id])
+  voidedBy         User?             @relation("SalesReceiptVoidedBy", fields: [voidedById], references: [id])
   crmLeadDocuments CrmLeadDocument[] @relation("CrmLeadDocReceipt")
 
   @@unique([companyId, receiptNumber])

@@ -7,6 +7,8 @@ import { INVOICE_PERIOD_LABEL, INVOICE_PERIODS, type InvoicePeriod } from "./inv
 /**
  * Books → Payments: every payment a customer made, on an invoice or not (the
  * receipts Receivables records), ported onto the kit as Books → Invoices is.
+ * A void payment (`void-receipt.ts`) stays in the list, marked Void with who,
+ * when and why, and is left out of every sum.
  */
 
 export const PAYMENT_VIEWS = ["all", "invoiced", "unlinked"] as const;
@@ -52,6 +54,8 @@ export type PaymentRow = {
   method: string;
   amount: number;
   currency: string;
+  /** Voided by the owner: who, when and why. It counts in no sum. */
+  voided: { by: string | null; on: string; reason: string | null } | null;
 };
 
 export type PaymentsView = {
@@ -64,6 +68,9 @@ export type PaymentsView = {
   query: PaymentQuery;
 };
 
+/** What the person may do from a row (the route adds it): Void is the owner's. */
+export type PaymentsPage = PaymentsView & { can: { void: boolean } };
+
 type Db = Pick<PrismaClient, "salesReceipt" | "paymentLedgerEntry" | "customer" | "platformAuditEvent">;
 
 /**
@@ -73,7 +80,7 @@ type Db = Pick<PrismaClient, "salesReceipt" | "paymentLedgerEntry" | "customer" 
  * workspace keeps no such line, the void's or deletion's audit event names
  * the customer (`receiptsOnAccount`).
  */
-async function onAccountCustomers(db: Db, companyId: string, records: Array<{ id: string; invoice: unknown }>): Promise<Map<string, string>> {
+export async function onAccountCustomers(db: Db, companyId: string, records: Array<{ id: string; invoice: unknown }>): Promise<Map<string, string>> {
   const loose = records.filter((record) => !record.invoice).map((record) => record.id);
   if (loose.length === 0) return new Map();
   const lines = await db.paymentLedgerEntry.findMany({
@@ -138,6 +145,9 @@ const rowSelect = {
   receivedAt: true,
   amount: true,
   method: true,
+  voidedAt: true,
+  voidReason: true,
+  voidedBy: { select: { name: true } },
   invoice: { select: { invoiceNumber: true, currency: true, customer: { select: { name: true } } } },
 } satisfies Prisma.SalesReceiptSelect;
 
@@ -159,6 +169,7 @@ export function toPaymentRow(record: RowRecord, onAccount: string | null = null)
     method: methodLabel(record.method),
     amount: Math.round(record.amount * 100) / 100,
     currency: record.invoice?.currency ?? "USD",
+    voided: record.voidedAt ? { by: record.voidedBy?.name ?? null, on: shortDay(dayOf(record.voidedAt)), reason: record.voidReason } : null,
   };
 }
 
@@ -194,9 +205,10 @@ export async function readPayments(db: Db, companyId: string, query: PaymentQuer
       take: PAYMENTS_PAGE_SIZE,
     }),
     db.salesReceipt.count({ where }),
-    db.salesReceipt.findMany({ where, select: { amount: true, invoice: { select: { currency: true } } }, take: 10_000 }),
+    // The sums leave void payments out: they are listed, not counted.
+    db.salesReceipt.findMany({ where: { ...where, voidedAt: null }, select: { amount: true, invoice: { select: { currency: true } } }, take: 10_000 }),
     db.salesReceipt.findMany({
-      where: { companyId, receivedAt: { gte: midnight(monthStart(today)) } },
+      where: { companyId, voidedAt: null, receivedAt: { gte: midnight(monthStart(today)) } },
       select: { amount: true, invoice: { select: { currency: true } } },
       take: 10_000,
     }),
@@ -228,11 +240,12 @@ export async function paymentsCsv(db: Db, companyId: string, query: PaymentQuery
     const text = String(value);
     return /[",\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
   };
-  const lines = [["Receipt", "Customer", "Invoice", "Received", "Method", "Currency", "Amount"].join(",")];
+  const lines = [["Receipt", "Customer", "Invoice", "Received", "Method", "Currency", "Amount", "Void"].join(",")];
   const owners = await onAccountCustomers(db, companyId, records);
   for (const record of records) {
     const row = toPaymentRow(record, owners.get(record.id) ?? null);
-    lines.push([row.number, row.customer ?? "", row.invoice ?? "", row.received, row.method, row.currency, row.amount.toFixed(2)].map(cell).join(","));
+    const voided = row.voided ? [row.voided.on, row.voided.by, row.voided.reason].filter(Boolean).join(", ") : "";
+    lines.push([row.number, row.customer ?? "", row.invoice ?? "", row.received, row.method, row.currency, row.amount.toFixed(2), voided].map(cell).join(","));
   }
   return `${lines.join("\n")}\n`;
 }

@@ -2947,6 +2947,8 @@ export type SalesReceiptRecord = {
   method: string;
   reference?: string | null;
   bankAccountId?: string | null;
+  /** Voided in Books → Payments: listed, never counted. */
+  voidedAt?: string | null;
   invoice?: {
     invoiceNumber: string;
     customer?: { name: string } | null;

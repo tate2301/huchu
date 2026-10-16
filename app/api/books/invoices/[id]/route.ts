@@ -26,7 +26,7 @@ export async function GET(request: NextRequest, { params }: Params) {
     const mayDelete = draft ? mayChange : owner;
     const page: InvoiceRecordPage = {
       ...record,
-      can: { issue: mayChange && draft, delete: mayDelete, reverse: owner && (record.status === "ISSUED" || record.status === "PAID") },
+      can: { issue: mayChange && draft, delete: mayDelete, reverse: owner && (record.status === "ISSUED" || record.status === "PAID"), voidPayments: owner },
       removal: mayDelete ? await readInvoiceRemoval(session.user.companyId, record.id) : null,
     };
     return successResponse(page);

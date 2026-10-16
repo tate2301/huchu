@@ -52,7 +52,8 @@ async function gather(db: Db, companyId: string, invoiceId: string) {
     include: {
       lines: true,
       customer: { select: { id: true, name: true } },
-      receipts: { select: { id: true, receiptNumber: true, amount: true, receivedAt: true, method: true } },
+      // Its live payments, which go on account. A void one is only unlinked (below), as every receipt on it is.
+      receipts: { where: { voidedAt: null }, select: { id: true, receiptNumber: true, amount: true, receivedAt: true, method: true } },
       creditNotes: { include: { lines: true, fiscalReceipt: { select: { id: true, status: true, receiptGlobalNo: true, fiscalDay: { select: { status: true, fiscalDayNo: true } } } } } },
       writeOffs: true,
       fiscalReceipt: { include: { fiscalDay: { select: { status: true, fiscalDayNo: true } } } },
@@ -177,9 +178,9 @@ export async function deleteInvoice(actor: InvoiceActor, invoiceId: string, inpu
       if (integrationEvents.length) await tx.accountingIntegrationEvent.deleteMany({ where: { id: { in: integrationEvents.map((row) => row.id) } } });
       if (fiscal.length) await tx.fiscalReceipt.deleteMany({ where: { id: { in: fiscal.map((row) => row.id) } } });
 
-      // Payments stay, as the customer's money on account.
+      // Payments stay, as the customer's money on account; a void one stays void, on no invoice.
+      await tx.salesReceipt.updateMany({ where: { companyId: actor.companyId, invoiceId: invoice.id }, data: { invoiceId: null } });
       if (onAccount.length) {
-        await tx.salesReceipt.updateMany({ where: { companyId: actor.companyId, invoiceId: invoice.id }, data: { invoiceId: null } });
         await tx.paymentLedgerEntry.updateMany({
           where: { companyId: actor.companyId, sourceType: "SALES_RECEIPT", sourceId: { in: onAccount.map((row) => row.id) } },
           data: { invoiceId: null, partyId: invoice.customerId },

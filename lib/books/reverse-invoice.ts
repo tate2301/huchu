@@ -61,7 +61,8 @@ export async function voidInvoice(actor: InvoiceActor, invoiceId: string, input:
       subTotal: true,
       taxTotal: true,
       customer: { select: { name: true } },
-      receipts: { select: { id: true, receiptNumber: true, amount: true } },
+      // A void payment stays with the invoice it was on; only the rest go on account.
+      receipts: { where: { voidedAt: null }, select: { id: true, receiptNumber: true, amount: true } },
       creditNotes: { where: { status: "ISSUED" }, select: { noteNumber: true } },
       writeOffs: { where: { status: "POSTED" }, select: { id: true } },
       fiscalReceipt: { select: { status: true, receiptGlobalNo: true } },
@@ -107,7 +108,7 @@ export async function voidInvoice(actor: InvoiceActor, invoiceId: string, input:
   await prisma.$transaction(async (tx) => {
     await tx.salesInvoice.update({ where: { id: invoice.id }, data: { status: "VOIDED", amountPaid: 0 } });
     if (unlinked.length > 0) {
-      await tx.salesReceipt.updateMany({ where: { companyId: actor.companyId, invoiceId: invoice.id }, data: { invoiceId: null } });
+      await tx.salesReceipt.updateMany({ where: { companyId: actor.companyId, invoiceId: invoice.id, voidedAt: null }, data: { invoiceId: null } });
       // The customer's money on account: the receipt's line keeps the customer and loses the invoice.
       await tx.paymentLedgerEntry.updateMany({
         where: { companyId: actor.companyId, sourceType: "SALES_RECEIPT", sourceId: { in: unlinked.map((receipt) => receipt.id) } },

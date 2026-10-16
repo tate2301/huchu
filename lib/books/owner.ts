@@ -5,7 +5,8 @@
  * staff sign in to the operator portal as operators, a separate table with
  * roles of its own, so no platform role shares this one.
  *
- * Only an owner reverses or deletes an invoice that has been issued.
+ * Only an owner reverses or deletes an invoice that has been issued, or voids
+ * a payment (`void-receipt.ts`).
  */
 export const WORKSPACE_OWNER_ROLE = "SUPERADMIN";
 
@@ -28,3 +29,5 @@ export class InvoiceChangeRefused extends Error {
 }
 
 export const OWNER_ONLY = "Only the workspace's owner can reverse or delete an issued invoice.";
+
+export const RECEIPT_OWNER_ONLY = "Only the workspace's owner can void a payment.";
