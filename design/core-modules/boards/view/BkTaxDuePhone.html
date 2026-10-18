@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<title>Books · What’s due, on James’s phone</title>
+<style>x-dc{display:block}helmet{display:contents}</style>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&amp;display=swap">
+<link rel="stylesheet" href="../assets/core.css">
+</head>
+<body>
+<x-dc>
+<helmet><style>
+body{margin:0;background:var(--color-surface);font-family:var(--font-sans);color:var(--color-ink)}
+.sh,.rb2,.st,.ex{height:844px}
+
+.sh{position:relative}
+.mn{position:relative}
+.bk-tabs{padding:0 24px;flex:none}
+.bk-tabs .tab .n{font-weight:400;color:var(--color-muted);font-variant-numeric:tabular-nums}
+.bk-body{display:flex;flex:1 1 auto;min-height:0}
+.bk-col{flex:1 1 0;min-width:0;display:flex;flex-direction:column;overflow:auto}
+.bk-pad{padding:0 24px}
+.bk-sum{width:100%;border-collapse:collapse;font-size:14px}
+.bk-sum td{height:40px;padding:0 24px;box-shadow:inset 0 -1px 0 var(--color-line);color:var(--color-ink-2)}
+.bk-sum td.num{text-align:right;font-variant-numeric:tabular-nums;color:var(--color-ink)}
+.bk-sum tr.t td{font-weight:600;color:var(--color-ink);background:var(--color-ground)}
+.bk-sum tr.d td{font-weight:600;color:var(--color-ink);box-shadow:inset 0 1px 0 var(--color-rule),inset 0 -1px 0 var(--color-line)}
+.bk-step{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--color-muted);white-space:nowrap}
+.bk-step i{width:22px;height:22px;border-radius:999px;display:grid;place-items:center;font-style:normal;font-size:12px;box-shadow:inset 0 0 0 1px var(--color-rule)}
+.bk-step.is-done i{background:var(--color-success);color:var(--color-surface);box-shadow:none}
+.bk-step.is-now{color:var(--color-ink);font-weight:500}
+.bk-step.is-now i{background:var(--color-ink);color:var(--color-surface);box-shadow:none}
+.bk-steps{display:flex;align-items:center;gap:12px}
+.bk-steps .sep{width:32px;height:1px;background:var(--color-rule)}
+.bk-chk{display:grid;grid-template-columns:24px minmax(0,1.1fr) minmax(0,1.3fr) 150px;align-items:center;gap:16px;min-height:52px;padding:8px 24px;box-shadow:inset 0 -1px 0 var(--color-line);font-size:14px;color:var(--color-ink-2)}
+.bk-chk .lead{color:var(--color-ink);font-weight:500}
+.bk-chk .end{display:flex;justify-content:flex-end;gap:8px}
+.bk-ok{color:var(--color-success)}
+.bk-no{color:var(--color-danger)}
+.bk-wait{color:var(--color-warning)}
+.bk-cal{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:2px}
+.bk-cal span{height:26px;display:grid;place-items:center;border-radius:6px;font-size:12px;font-variant-numeric:tabular-nums;color:var(--color-muted)}
+.bk-cal span.h{color:var(--color-faint);font-size:11px;height:20px}
+.bk-cal span.d{background:var(--color-ink);color:var(--color-surface);font-weight:600}
+.bk-cal span.p{background:var(--color-fill);color:var(--color-ink-2);text-decoration:line-through}
+.bk-cal span.t{box-shadow:inset 0 0 0 1.5px var(--color-accent);color:var(--color-ink);font-weight:600}
+.bk-months{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:32px;padding:16px 24px 24px;box-shadow:inset 0 -1px 0 var(--color-line)}
+.bk-months b{display:block;font-size:13px;font-weight:600;color:var(--color-ink);margin-bottom:8px}
+.bk-kv{display:grid;grid-template-columns:150px minmax(0,1fr);row-gap:10px;column-gap:12px;font-size:13px}
+.bk-kv dt{color:var(--color-muted)}
+.bk-kv dd{margin:0;color:var(--color-ink);min-width:0}
+.bk-h3{font-size:14px;font-weight:600;color:var(--color-ink)}
+.bk-note{font-size:13px;color:var(--color-muted);line-height:1.5}
+.bk-dlg{width:520px;max-width:none;display:flex;flex-direction:column}
+.bk-dlg .dialog-foot{flex-direction:row;align-items:center}
+.bk-dlg .dialog-body{gap:16px}
+.bk-dlg .dialog-body p{font-size:14px;line-height:1.5}
+.bk-what{display:flex;flex-direction:column;gap:0;border-radius:8px;box-shadow:var(--shadow-ring);overflow:hidden}
+.bk-what div{display:grid;grid-template-columns:20px minmax(0,1fr);gap:10px;align-items:start;padding:10px 12px;font-size:13px;line-height:1.5;color:var(--color-ink-2);box-shadow:inset 0 -1px 0 var(--color-line)}
+.bk-what div:last-child{box-shadow:none}
+.bk-what .ic{width:16px;height:16px;margin-top:2px;color:var(--color-muted)}
+.bk-chips{display:flex;flex-wrap:wrap;gap:6px}
+.bk-chips span{display:inline-flex;align-items:center;height:28px;padding:0 10px;border-radius:6px;box-shadow:var(--shadow-ring);font-size:13px;color:var(--color-ink-2)}
+.bk-chips span.on{background:var(--color-ink);color:var(--color-surface);box-shadow:none}
+.bk-ta{min-height:64px;padding:8px 12px;border-radius:var(--radius-control);box-shadow:var(--shadow-ring),var(--shadow-raised);font-size:14px;color:var(--color-ink);line-height:1.5}
+.bk-in{display:flex;align-items:center;height:36px;padding:0 12px;border-radius:var(--radius-control);box-shadow:var(--shadow-ring),var(--shadow-raised);font-size:14px;color:var(--color-ink);background:var(--color-surface)}
+.bk-in.ph{color:var(--color-faint)}
+.bk-in.ro{background:var(--color-ground);color:var(--color-muted);box-shadow:var(--shadow-ring)}
+.bk-lab{font-size:13px;font-weight:500;color:var(--color-ink)}
+.bk-fld{display:flex;flex-direction:column;gap:6px;min-width:0}
+.bk-dim{position:absolute;inset:0;background:var(--color-scrim);z-index:30;display:flex;align-items:center;justify-content:center;gap:32px;padding:24px}
+.bk-menu{position:absolute;z-index:5}
+.bk-tree td:nth-child(2){white-space:nowrap}
+.bk-tree .lv1{padding-left:0;font-weight:600;color:var(--color-ink)}
+.bk-tree .lv2{padding-left:20px;font-weight:500;color:var(--color-ink)}
+.bk-tree .lv3{padding-left:44px}
+.bk-tree .caret{display:inline-block;width:16px;color:var(--color-muted)}
+.bk-tree .caret .ic{width:12px;height:12px;vertical-align:-1px}
+.bk-ex{padding:16px 24px 20px;background:var(--color-ground);box-shadow:inset 0 -1px 0 var(--color-line);display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:32px}
+.bk-sel td{background:var(--color-accent-tint)}
+.bk-ph{width:390px;height:844px;display:flex;flex-direction:column;background:var(--color-surface);position:relative;overflow:hidden}
+.bk-ph header{display:flex;align-items:center;gap:8px;height:56px;padding:0 8px;box-shadow:inset 0 -1px 0 var(--color-line);flex:none}
+.bk-ph header b{font-size:17px;flex:1}
+.bk-card{padding:16px;border-radius:12px;box-shadow:var(--shadow-ring);display:flex;flex-direction:column;gap:10px}
+.bk-upsell li{display:grid;grid-template-columns:20px minmax(0,1fr);gap:12px;padding:12px 0;box-shadow:inset 0 -1px 0 var(--color-line);font-size:14px;color:var(--color-ink-2);line-height:1.5}
+.bk-upsell li b{color:var(--color-ink);font-weight:600}
+.bk-upsell .ic{color:var(--color-muted);margin-top:2px}
+.table td.bk-fw{max-width:none;white-space:normal}
+.table td.bk-fw .cell-lead{overflow:visible}
+.bk-cmp td,.bk-cmp th{padding-left:8px;padding-right:8px}
+.bk-ghost td{color:transparent!important}
+.bk-ghost td i{display:block;height:10px;border-radius:4px;background:var(--color-fill)}
+
+</style></helmet>
+<div class="bk-ph"><header><button class="btn btn-quiet btn-icon" aria-label="Back to Books"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M14.657 17.657L9 12l5.657-5.657"/></svg></button><b>What’s due</b><button class="btn btn-quiet btn-icon" aria-label="Add to my calendar"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M21 19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-7h18zM16 3a1 1 0 0 1 1 1v1h2a2 2 0 0 1 2 2v3H3V7a2 2 0 0 1 2-2h2V4a1 1 0 0 1 2 0v1h6V4a1 1 0 0 1 1-1"/></svg></button></header><div style="padding:16px;display:flex;flex-direction:column;gap:4px;overflow:hidden;flex:1"><div class="muted" style="font-size:13px">Next 2 months</div><div style="font-size:22px;font-weight:600;color:var(--color-ink);line-height:1.25">US$4,916.91 to pay in November</div><div style="margin-top:8px"><div style="display:grid;grid-template-columns:52px minmax(0,1fr) auto;gap:12px;align-items:start;padding:14px 0;box-shadow:inset 0 -1px 0 var(--color-line)"><div style="text-align:center;border-radius:8px;box-shadow:var(--shadow-ring);padding:6px 0"><div class="muted" style="font-size:11px">Nov</div><div style="font-size:18px;font-weight:600;color:var(--color-ink)">5</div></div><div><b style="font-size:15px;font-weight:600;color:var(--color-ink)">PAYE and withholding returns</b><div class="muted" style="font-size:13px;margin-top:2px">October · Rudo files them</div></div><b class="mono" style="font-size:14px;color:var(--color-ink)">US$1,799.62</b></div><div style="display:grid;grid-template-columns:52px minmax(0,1fr) auto;gap:12px;align-items:start;padding:14px 0;box-shadow:inset 0 -1px 0 var(--color-line)"><div style="text-align:center;border-radius:8px;box-shadow:var(--shadow-ring);padding:6px 0"><div class="muted" style="font-size:11px">Nov</div><div style="font-size:18px;font-weight:600;color:var(--color-ink)">10</div></div><div><b style="font-size:15px;font-weight:600;color:var(--color-ink)">Pay PAYE, NSSA, ZIMDEF</b><div class="muted" style="font-size:13px;margin-top:2px">October’s pay run</div></div><b class="mono" style="font-size:14px;color:var(--color-ink)">US$2,390.58</b></div><div style="display:grid;grid-template-columns:52px minmax(0,1fr) auto;gap:12px;align-items:start;padding:14px 0;box-shadow:inset 0 -1px 0 var(--color-line)"><div style="text-align:center;border-radius:8px;box-shadow:var(--shadow-ring);padding:6px 0"><div class="muted" style="font-size:11px">Nov</div><div style="font-size:18px;font-weight:600;color:var(--color-ink)">10</div></div><div><b style="font-size:15px;font-weight:600;color:var(--color-ink)">Pay the 30% withheld</b><div class="muted" style="font-size:13px;margin-top:2px">If Mutare Timber Works is paid</div></div><b class="mono" style="font-size:14px;color:var(--color-ink)">US$557.87</b></div><div style="display:grid;grid-template-columns:52px minmax(0,1fr) auto;gap:12px;align-items:start;padding:14px 0;box-shadow:inset 0 -1px 0 var(--color-line)"><div style="text-align:center;border-radius:8px;box-shadow:var(--shadow-ring);padding:6px 0"><div class="muted" style="font-size:11px">Nov</div><div style="font-size:18px;font-weight:600;color:var(--color-ink)">10</div></div><div><b style="font-size:15px;font-weight:600;color:var(--color-ink)">File the VAT 7 return</b><div class="muted" style="font-size:13px;margin-top:2px">October · draft, so far</div></div><b class="mono" style="font-size:14px;color:var(--color-ink)">US$1,968.46</b></div><div style="display:grid;grid-template-columns:52px minmax(0,1fr) auto;gap:12px;align-items:start;padding:14px 0;box-shadow:inset 0 -1px 0 var(--color-line)"><div style="text-align:center;border-radius:8px;box-shadow:var(--shadow-ring);padding:6px 0"><div class="muted" style="font-size:11px">Nov</div><div style="font-size:18px;font-weight:600;color:var(--color-ink)">15</div></div><div><b style="font-size:15px;font-weight:600;color:var(--color-ink)">Pay VAT</b><div class="muted" style="font-size:13px;margin-top:2px">A Sunday: pay by Friday 13th?</div><div style="margin-top:6px"><span class="pill pill-warn">To confirm</span></div></div><b class="mono" style="font-size:14px;color:var(--color-ink)">US$1,968.46</b></div><div style="display:grid;grid-template-columns:52px minmax(0,1fr) auto;gap:12px;align-items:start;padding:14px 0;box-shadow:inset 0 -1px 0 var(--color-line)"><div style="text-align:center;border-radius:8px;box-shadow:var(--shadow-ring);padding:6px 0"><div class="muted" style="font-size:11px">Dec</div><div style="font-size:18px;font-weight:600;color:var(--color-ink)">20</div></div><div><b style="font-size:15px;font-weight:600;color:var(--color-ink)">Provisional tax, 35%</b><div class="muted" style="font-size:13px;margin-top:2px">4th instalment for 2026</div><div style="margin-top:6px"><span class="pill pill-warn">To confirm</span></div></div><b class="mono" style="font-size:14px;color:var(--color-ink)">US$3,150.00</b></div></div></div></div>
+</x-dc>
+</body>
+</html>
