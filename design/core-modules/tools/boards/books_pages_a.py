@@ -430,9 +430,9 @@ CSS = '''
 .bk-ph-row{display:flex;justify-content:space-between;align-items:center;gap:12px;min-height:44px;font-size:15px;box-shadow:inset 0 -1px 0 var(--color-line)}
 .bk-ph-row span:first-child{color:var(--color-muted)}
 .bk-ph-row span:last-child{color:var(--color-ink);text-align:right}
-.bk-ph-need{display:grid;grid-template-columns:20px minmax(0,1fr) 16px;gap:12px;align-items:center;min-height:56px;padding:8px 0;box-shadow:inset 0 -1px 0 var(--color-line);font-size:14px;line-height:1.4}
+.bk-ph-need{display:grid;grid-template-columns:20px minmax(0,1fr) 16px;gap:12px;align-items:start;min-height:56px;padding:12px 0;box-shadow:inset 0 -1px 0 var(--color-line);font-size:14px;line-height:1.4}
 .bk-ph-need b{display:block;font-weight:500;color:var(--color-ink);font-size:15px}
-.bk-ph-need .ic{color:var(--color-muted)}
+.bk-ph-need .ic{color:var(--color-muted)}.bk-ph-need>.ic:first-child{margin-top:1px}.bk-ph-need>.ic:last-child{align-self:center}
 .bk-ph-need span span{color:var(--color-muted)}
 '''
 
@@ -511,8 +511,9 @@ def board(name, title, body, w=1440, h=900):
 CSS += '''
 .mny{display:grid;grid-template-columns:minmax(0,1fr) 344px;flex:1;min-height:0}.mny-main{padding-bottom:var(--space-48);min-width:0}.mny-side{box-shadow:inset 1px 0 0 var(--color-line)}
 .share{grid-template-columns:24px minmax(0,1fr) 48px 112px;gap:var(--space-12)}
-.nt{display:grid;place-items:center;width:24px;height:24px;flex:none;color:var(--color-muted)}.nt .ic{width:20px;height:20px}
-.need{display:flex;align-items:center;gap:var(--space-12);min-height:64px}.need .t{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}.need .lead{color:var(--color-ink);font-weight:500}.need .d{font-size:var(--text-13);color:var(--color-ink-2)}.need .a{flex:none}
+.bk-ic{display:grid;place-items:center;width:24px;height:24px;flex:none;color:var(--color-muted)}.bk-ic .ic{width:20px;height:20px}
+.need{display:flex;align-items:flex-start;gap:var(--space-12);padding-top:14px;padding-bottom:14px}.need .bk-ic{height:20px}.need .t{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}.need .lead{color:var(--color-ink);font-weight:500;line-height:20px}.need .d{font-size:var(--text-13);color:var(--color-muted);line-height:18px}.need .a{flex:none;align-self:center}
+.share .bk-ic{align-self:center;height:20px}.share .sh-n{width:220px;flex:none;color:var(--color-ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .bk-strip{padding:16px 24px 0}
 .bk-strip .kt-n{color:var(--color-muted);white-space:normal;line-height:1.4}
 '''
@@ -524,38 +525,40 @@ def share_rows(items):
     out = ''
     for icon, name, sub, v in items:
         pct = int((v / sum(x[3] for x in items) * 100).quantize(Decimal('1'), ROUND_HALF_UP))
-        out += ('<div class="share"><span class="nt">%s</span><span style="display:flex;align-items:center;gap:var(--space-12);min-width:0">'
-                '<span style="width:320px;flex:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"><span style="color:var(--color-ink)">%s</span> <span class="muted" style="font-size:var(--text-13)">%s</span></span>'
+        out += ('<div class="share"><span class="bk-ic">%s</span><span style="display:flex;align-items:center;gap:var(--space-12);min-width:0">'
+                '<span class="sh-n">%s</span>'
                 '<span class="grow"><span class="bar" style="display:block;width:%.1f%%"></span></span></span><span class="num pct">%d%%</span><span class="num">%s</span></div>') % (
-            ic(icon), name, sub, float(v / top * 100), pct, usd(v))
+            ic(icon), name, float(v / top * 100), pct, usd(v))
     return '<div style="padding:0 var(--space-24)">%s</div>' % out
 
 def need(icon, lead, d, act):
-    return '<div class="row need"><span class="nt">%s</span><div class="t"><span class="lead">%s</span><span class="d">%s</span></div><div class="a">%s</div></div>' % (ic(icon), lead, d, act)
+    return '<div class="row need"><span class="bk-ic">%s</span><div class="t"><span class="lead">%s</span><span class="d">%s</span></div><div class="a">%s</div></div>' % (ic(icon), lead, d, act)
 
 def tax_strip():
-    tiles = (('VAT, October so far', usd(VAT_OCT), 'Return by 10 Nov, pay by 15 Nov'),
-             ('PAYE, October', 'After 25 Oct', 'From the pay run. Pay by 10 Nov'),
-             ('30% withholding', usd(WHT), 'If Mutare Timber Works is paid. By 10 Nov'),
-             ('Provisional tax, 4th', usd(3150), '35% of the year, 20 Dec · to confirm'))
+    # One line under each figure: when it is due. The detail is on Tax → What's due.
+    tiles = (('VAT, October so far', usd(VAT_OCT), 'Due 15 Nov'),
+             ('PAYE, October', 'After 25 Oct', 'Due 10 Nov'),
+             ('30% withholding', usd(WHT), 'Due 10 Nov'),
+             ('Provisional tax, 4th', usd(3150), 'Due 20 Dec'))
     t = ''.join('<div class="kt"><span class="kt-l">%s</span><span class="kt-v">%s</span><span class="kt-n">%s</span></div>' % x for x in tiles)
     return '<div class="bk-strip" aria-label="Tax due"><div class="kstrip" style="grid-template-columns:repeat(4,minmax(0,1fr))">%s</div></div>' % t
 
 def money():
-    acts = ('<div class="btn-group" role="group" aria-label="Record">%s%s<button class="btn">%sRecord spending%s</button></div>' % (
-        btn('Payment received', 'payments'), btn('Pay a bill', 'bank'), ic('expenses'), ic('down'))) + primary('New invoice', 'plus', 'N')
-    find = finding('<span class="num">%s</span> has come in this month and <span class="num">%s</span> has gone out.' % (usd(MONEY_IN), usd(MONEY_OUT)),
-                   '<span class="num">%s</span> is owed to you, <span class="num">%s</span> of it overdue. You owe suppliers <span class="num">%s</span>, and VAT of <span class="num">%s</span> is due by 15 Nov.' % (
-                       usd(OWED), usd(OVERDUE), usd(TO_PAY), usd(VAT_OCT)))
+    # One menu for the record actions (payment received, pay a bill, spending, transfer); New invoice stays the one primary.
+    acts = '<button class="btn" aria-haspopup="menu">Record%s</button>' % ic('down') + primary('New invoice', 'plus', 'N')
+    find = finding('<span class="num">%s</span> came in this month and <span class="num">%s</span> went out.' % (usd(MONEY_IN), usd(MONEY_OUT)),
+                   '<span class="num">%s</span> is overdue.' % usd(OVERDUE))
     approvals = REQ_FOR_ME_SUM + M(23) + NET_PAY
+    # Buttons by urgency: strong (ink) when money or a fine is held up today, plain when it is routine, quiet when it is only a look.
+    urgent, plain, quiet = 'btn btn-ink', 'btn', 'btn btn-quiet'
     needs = ''.join((
-        need('hand', '4 things to approve', '2 requisitions, 1 claim and a payment to Mutare Timber Works: %s in all.' % usd(approvals), btn('Review', 'eye')),
-        need('fiscal', 'INV-0144 is not signed by FDMS', 'Westgate Interiors, %s. The device was offline on Friday at 16:02.' % zig(13500), btn('Retry', 'undo')),
-        need('warn', 'A goods receipt did not post', 'GRN-0045 from Tile Trader Zimbabwe, %s: no stock account for skirting and trims.' % usd(BN_NET), btn('Fix it', 'posting')),
-        need('bank', '4 bank lines to match', 'CBZ, USD, since Wednesday. Vane has matched 3 of them.', btn('Match', 'check')),
-        need('store', '2 suppliers have no valid ITF263', 'Mutare Timber Works (expired 30 Jun) and Rapid Freight Harare. Paying them over US$1,000 a year withholds 30%.', btn('Ask for it', 'send')),
-        need('invoice', '3 invoices are overdue', '%s in all. Chisipite Dental is 12 days late.' % usd(OVERDUE), btn('Remind', 'whatsapp')),
-        need('calendar', 'Next tax date: 5 Nov', 'The PAYE return and the 30% withholding return for October.', btn("What's due", 'chev')),
+        need('hand', '4 things to approve', '%s in all' % usd(approvals), btn('Review', 'eye', urgent)),
+        need('fiscal', 'INV-0144 is not signed by FDMS', 'Westgate Interiors, %s' % zig(13500), btn('Retry', 'undo', urgent)),
+        need('warn', 'A goods receipt did not post', 'GRN-0045, %s · no stock account' % usd(BN_NET), btn('Fix it', 'posting', plain)),
+        need('bank', '4 bank lines to match', 'CBZ USD · Vane matched 3', btn('Match', 'check', plain)),
+        need('store', '2 suppliers have no valid ITF263', 'Payments to them withhold 30%', btn('Ask for it', 'send', quiet)),
+        need('invoice', '3 invoices are overdue', '%s in all' % usd(OVERDUE), btn('Remind', 'whatsapp', plain)),
+        need('calendar', 'Next tax date: 5 Nov', 'PAYE and withholding returns', btn("What's due", 'chev', quiet)),
     ))
     came = share_rows((('showroom', 'Showroom tills', '641 sales', TILLS), ('invoice', 'Payments on invoices', '%d payments' % sum(1 for r in OCT_RCT if r[5] == 'On an invoice'), IN_INVOICES),
                        ('payments', 'Deposits, on account', '2 payments', ON_ACCOUNT)))
@@ -576,57 +579,61 @@ def money():
         group_head('Where it went', '1 to 18 October · %s' % usd(MONEY_OUT), 'm3'), went,
         group_head('Bank and cash', '6 accounts', 'm4'), bank, bank_note)
     side = ('<aside class="rail mny-side" aria-label="Position">'
-            '<section><div class="sec-title">Owed to you</div><div class="figure">%s</div><dl class="attrs"><dt>Not yet due</dt><dd class="num">%s</dd><dt>1 to 30 days late</dt><dd class="num">%s</dd><dt>Over 30 days</dt><dd class="num">US$0.00</dd><dt>On account</dt><dd class="num">%s</dd></dl></section>'
-            '<section><div class="sec-title">You owe</div><div class="figure">%s</div><dl class="attrs"><dt>Suppliers</dt><dd class="num">%s, 5 bills</dd><dt>Due by Sunday</dt><dd class="num">%s</dd><dt>Staff claims</dt><dd class="num">US$36.00</dd><dt>VAT, October</dt><dd class="num">%s</dd></dl></section>'
-            '<section><div class="sec-title">With staff</div><dl class="attrs"><dt>Simba Gondo</dt><dd class="num">US$95.00, since 14 Oct</dd><dt>To pay out</dt><dd class="num">US$45.00, Farai Ncube</dd></dl><span class="bk-hint">Paid out on requisitions and not yet accounted for with slips.</span></section>'
-            '<section><div class="sec-title">Rate today</div><dl class="attrs"><dt>ZiG to US$1</dt><dd class="num">27.00</dd><dt>From</dt><dd>RBZ interbank, 06:00</dd></dl></section>'
-            '</aside>') % (usd(OWED), usd(OWED - OVERDUE), usd(OVERDUE), usd(ON_ACCOUNT), usd(TO_PAY + M(36) + VAT_OCT), usd(TO_PAY), usd(DUE_WEEK_SUM), usd(VAT_OCT))
+            '<section><div class="sec-title">Owed to you</div><div class="figure">%s</div><dl class="attrs"><dt>Not yet due</dt><dd class="num">%s</dd><dt>Overdue</dt><dd class="num">%s</dd><dt>On account</dt><dd class="num">%s</dd></dl></section>'
+            '<section><div class="sec-title">You owe</div><div class="figure">%s</div><dl class="attrs"><dt>Suppliers</dt><dd class="num">%s</dd><dt>Staff claims</dt><dd class="num">US$36.00</dd><dt>VAT, October</dt><dd class="num">%s</dd></dl></section>'
+            '</aside>') % (usd(OWED), usd(OWED - OVERDUE), usd(OVERDUE), usd(ON_ACCOUNT), usd(TO_PAY + M(36) + VAT_OCT), usd(TO_PAY), usd(VAT_OCT))
     body = page('Money', 'Money', 'money', acts, '<div class="mny">%s%s</div>' % (main, side))
-    return board('BkMoney', 'Money', body, h=1880)
+    return board('BkMoney', 'Money', body, h=1808)
 
 
 # ---------- Sales: invoices ----------
 def inv_rows(rows, money_col=True):
+    # Six columns. FDMS is Valid on every issued invoice, so it shows only where it failed, in place of the date.
     out = []
     for no, cus, state, when, base, bal, fis, cur in rows:
-        out.append((draft_no() if no == 'Draft' else ref(no), '<span class="cell-lead">%s</span>' % cus, st(state), '<span class="muted">%s</span>' % when,
-                    st(fis) if fis != '—' else '<span class="muted">—</span>',
-                    zig(cur[1]) if cur else usd(base),
+        when_html = '<span style="color:var(--color-danger)">Not signed by FDMS</span>' if fis == 'Failed' else '<span class="muted">%s</span>' % when
+        out.append((draft_no() if no == 'Draft' else ref(no), '<span class="cell-lead">%s</span>' % cus, st(state), when_html,
+                    '<span class="muted">%s</span>' % (zig(cur[1]) if cur else usd(base)),
                     '<span style="color:var(--color-ink);font-weight:500">%s</span>' % usd(bal) if bal else '<span class="muted">—</span>'))
     return out
 
 INV_SHOWN = [r for r in INV if r[0] not in ('INV-0136', 'INV-0138')]
-INV_HEAD = ('Invoice', 'Customer', 'State', 'When', 'FDMS', 'Total', 'Balance')
-INV_W = ('120px', None, '120px', '220px', '110px', '150px', '130px')
+INV_HEAD = ('Invoice', 'Customer', 'State', 'When', 'Total', 'Balance')
+INV_W = ('120px', None, '130px', '240px', '160px', '150px')
+
+def inv_find():
+    return finding('<span class="num">%s</span> is owed to you on %d invoices.' % (usd(OWED), OWED_N), '%d are overdue, <span class="num">%s</span> in all.' % (len(OVERDUE_ROWS), usd(OVERDUE)))
 
 def invoices():
     acts = btn('Statements', 'print') + primary('New invoice', 'plus', 'N')
-    find = finding('<span class="num">%s</span> is owed to you on %d invoices.' % (usd(OWED), OWED_N), '%d are overdue, <span class="num">%s</span> in all.' % (len(OVERDUE_ROWS), usd(OVERDUE)))
-    t = tools('Search invoices', (('Customer', 'Any', False), ('Currency', 'Any', False)), '12 of %d' % INV_ALL)
-    table = grid(INV_HEAD, inv_rows(INV_SHOWN), num=(5, 6), sel=set(), label='Invoices', widths=INV_W)
-    f = foot('1 to 12 of %d' % INV_ALL, (('Owed', usd(OWED)), ('Overdue', usd(OVERDUE)), ('Drafts', usd(DRAFTS))))
-    body = page('Invoices', 'Invoices', 'invoice', acts, list_body(find, tabs(INV_TABS, 'All', 'Invoice views'), t, table, f, 'Invoices'))
+    t = tools('Search invoices', (('Customer', 'Any', False), ('Currency', 'Any', False)), '12 of %d' % INV_ALL, QUIET_TOOLS)
+    table = grid(INV_HEAD, inv_rows(INV_SHOWN), num=(4, 5), sel=set(), label='Invoices', widths=INV_W)
+    f = foot('1 to 12 of %d' % INV_ALL, (('Owed', usd(OWED)), ('Overdue', usd(OVERDUE))))
+    body = page('Invoices', 'Invoices', 'invoice', acts, list_body(inv_find(), tabs(INV_TABS, 'All', 'Invoice views'), t, table, f, 'Invoices'))
     return board('BkInvoices', 'Invoices', body)
 
 def invoices_bulk():
     acts = btn('Statements', 'print') + primary('New invoice', 'plus', 'N')
-    find = finding('<span class="num">%s</span> is owed to you on %d invoices.' % (usd(OWED), OWED_N), '%d are overdue, <span class="num">%s</span> in all.' % (len(OVERDUE_ROWS), usd(OVERDUE)))
-    t = tools('Search invoices', (('Customer', 'Any', False), ('Currency', 'Any', False)), '12 of %d' % INV_ALL)
+    t = tools('Search invoices', (('Customer', 'Any', False), ('Currency', 'Any', False)), '12 of %d' % INV_ALL, QUIET_TOOLS)
     picked = {i for i, r in enumerate(INV_SHOWN) if r[2] in ('Draft', 'Overdue')}
-    table = grid(INV_HEAD, inv_rows(INV_SHOWN), num=(5, 6), sel=picked, label='Invoices', widths=INV_W)
+    table = grid(INV_HEAD, inv_rows(INV_SHOWN), num=(4, 5), sel=picked, label='Invoices', widths=INV_W)
     total_sel = sum((INV_SHOWN[i][4] for i in picked), Decimal('0'))
-    more = menu((('label', 'Rights are checked row by row'),
+    # One action on the bar (reminders: money held up); the rest in More, each with a hint of a few words.
+    more = menu((('print', 'Print statements', 'One per customer', False, False),
+                 ('send', 'Issue 2 drafts', 'FDMS signs each one', False, False),
                  ('export', 'Export 5 rows', 'CSV or XLSX', False, False),
                  'sep',
-                 ('undo', 'Void 3 invoices…', 'Each through a full credit note, signed by FDMS. One reason for all. Drafts are skipped.', True, False),
-                 ('trash', 'Delete 2 drafts', 'Drafts have no number, so nothing is lost', True, False),
-                 ('trash', 'Delete permanently…', 'All 3 issued rows would be skipped: signed by FDMS. Void them instead.', True, True)),
-                'position:absolute;right:228px;bottom:100px;width:340px;z-index:30')
-    acts_sel = btn('Send reminders', 'whatsapp') + btn('Print statements', 'print') + btn('Issue 2 drafts', 'send') + '<button class="btn" aria-expanded="true" style="background:var(--color-pressed)">%sMore%s</button>' % (ic('more'), ic('down'))
-    f = foot('1 to 12 of %d' % INV_ALL, (('Owed', usd(OWED)), ('Overdue', usd(OVERDUE)), ('Drafts', usd(DRAFTS))),
-             sel=(len(picked), (('Total', usd(total_sel)), ('Owing', usd(OVERDUE))), acts_sel, ''))
-    body = page('Invoices', 'Invoices', 'invoice', acts, list_body(find, tabs(INV_TABS, 'All', 'Invoice views'), t, table, f, 'Invoices', overlay=more))
-    return board('BkInvoicesBulk', 'Invoices, with a selection', body, h=960)
+                 ('undo', 'Void 3 invoices…', 'A credit note for each', True, False),
+                 ('trash', 'Delete 2 drafts', 'Drafts have no number yet', True, False),
+                 ('trash', 'Delete permanently…', 'Not for invoices FDMS signed', True, True)),
+                'position:absolute;left:%dpx;bottom:100px;width:280px;z-index:30' % BULK_MENU_LEFT)
+    acts_sel = btn('Send reminders', 'whatsapp') + '<button class="btn" aria-haspopup="menu" aria-expanded="true" style="background:var(--color-pressed)">More%s</button>' % ic('down')
+    f = foot('1 to 12 of %d' % INV_ALL, (('Owed', usd(OWED)), ('Overdue', usd(OVERDUE))),
+             sel=(len(picked), (('Total', usd(total_sel)),), acts_sel, ''))
+    body = page('Invoices', 'Invoices', 'invoice', acts, list_body(inv_find(), tabs(INV_TABS, 'All', 'Invoice views'), t, table, f, 'Invoices', overlay=more))
+    return board('BkInvoicesBulk', 'Invoices, with a selection', body, h=900)
+
+BULK_MENU_LEFT = 382          # the More button's left edge in the table shell (measured)
 
 
 # ---------- Sales: quotes, payments received, credit notes, customers ----------
@@ -634,15 +641,15 @@ def quotes():
     acts = primary('New quote', 'plus', 'N')
     exp = [q for q in QT if q[0] == 'QT-0402'][0]
     find = finding('%d quotes worth <span class="num">%s</span> are with customers.' % (len(QT), usd(SENT)),
-                   "Ridgeview Apartments' <span class=\"num\">%s</span> runs out on Saturday 24 Oct. 3 accepted quotes have no invoice yet." % usd(exp[6]))
-    t = tools('Search quotes', (('Customer', 'Any', False), ('Rep', 'Any', False)), '%d quotes' % len(QT))
-    rows = [(ref(no), '<span class="cell-lead">%s</span>' % cus, '<span class="cell-lead">%s</span>' % what, '<span class="muted">%s</span>' % sent,
-             ('<span style="color:var(--color-ink);font-weight:500">%s</span>' % valid) if no == 'QT-0402' else valid, '<span class="muted">%s</span>' % read,
-             zig(cur[1]) if cur else usd(base), btn('Mark accepted', None, 'btn btn-sm'))
+                   "Ridgeview Apartments' <span class=\"num\">%s</span> runs out on 24 Oct." % usd(exp[6]))
+    t = tools('Search quotes', (('Customer', 'Any', False), ('Rep', 'Any', False)), '%d quotes' % len(QT), QUIET_TOOLS)
+    rows = [(ref(no), '<span class="cell-lead">%s</span>' % cus, '<span class="cell-lead">%s</span>' % what,
+             ('<span style="color:var(--color-ink);font-weight:500">%s</span>' % valid) if no == 'QT-0402' else '<span class="muted">%s</span>' % valid, '<span class="muted">%s</span>' % read,
+             zig(cur[1]) if cur else usd(base))
             for no, cus, what, state, sent, valid, base, cur, read in QT]
-    table = grid(('Quote', 'Customer', 'For', 'Sent', 'Valid until', 'On WhatsApp', 'Amount', ''), rows, num=(6,), sel=set(), label='Quotes',
-                 widths=('96px', '190px', None, '104px', '96px', '110px', '130px', '140px'), fill=2)
-    f = foot('1 to %d of %d' % (len(QT), len(QT)), (('With customers', usd(SENT)), ('In ZiG', zig(44820))))
+    table = grid(('Quote', 'Customer', 'For', 'Valid until', 'On WhatsApp', 'Amount'), rows, num=(5,), sel=set(), label='Quotes',
+                 widths=('110px', '220px', None, '120px', '140px', '160px'), fill=2)
+    f = foot('1 to %d of %d' % (len(QT), len(QT)), (('With customers', usd(SENT)),))
     tab = tabs((('Draft', 1), ('Sent', len(QT)), ('Accepted', 3), ('Expired', 1), ('Void', 1)), 'Sent', 'Quote views')
     body = page('Quotes', 'Quotes', 'docs', acts, list_body(find, tab, t, table, f, 'Quotes'))
     return board('BkQuotes', 'Quotes', body)
@@ -652,16 +659,15 @@ def payments_in():
     acts = btn('Match bank lines', 'match') + primary('Record a payment', 'plus', 'N')
     n_oct = len(OCT_RCT)
     find = finding('<span class="num">%s</span> has come in on %d payments this month.' % (usd(IN_INVOICES + ON_ACCOUNT), n_oct),
-                   "<span class=\"num\">%s</span> is on account and on no invoice yet: Mandara Medical Centre's deposit and Mrs R. Chuma's." % usd(ON_ACCOUNT))
-    t = tools('Search payments', (('Customer', 'Any', False), ('Into', 'Any account', False)), '412 payments')
+                   '<span class="num">%s</span> of it is on account, on no invoice yet.' % usd(ON_ACCOUNT))
+    t = tools('Search payments', (('Customer', 'Any', False), ('Into', 'Any account', False)), '412 payments', QUIET_TOOLS)
     rows = []
     for no, date, cus, on, into, state, bank, base, cur in RCT:
         on_html = ref(on) if on.startswith('INV') else '<span class="muted">%s</span>' % on
-        rows.append((ref(no), '<span class="muted">%s</span>' % date, '<span class="cell-lead">%s</span>' % cus, on_html, into, st(state),
-                     st(bank) if bank != '—' else '<span class="muted">—</span>',
+        rows.append((ref(no), '<span class="muted">%s</span>' % date, '<span class="cell-lead">%s</span>' % cus, on_html, '<span class="muted">%s</span>' % into,
                      ('<span class="muted" style="text-decoration:line-through">%s</span>' % usd(base)) if state == 'Void' else amount(base, cur)))
-    table = grid(('Payment', 'Date', 'Customer', 'Paid', 'Into', 'State', 'Bank line', 'Amount'), rows, num=(7,), sel=set(), label='Payments received',
-                 widths=('104px', '72px', '190px', None, '140px', '120px', '100px', '170px'), fill=3)
+    table = grid(('Payment', 'Date', 'Customer', 'For', 'Into', 'Amount'), rows, num=(5,), sel=set(), label='Payments received',
+                 widths=('110px', '80px', '230px', None, '170px', '190px'), fill=3)
     f = foot('1 to %d of 412' % len(RCT), (('October', usd(IN_INVOICES + ON_ACCOUNT)), ('On account', usd(ON_ACCOUNT))))
     tab = tabs((('All', 412), ('On an invoice', 398), ('On account', 2), ('Void', 12)), 'All', 'Payment views')
     body = page('Payments received', 'Payments received', 'payments', acts, list_body(find, tab, t, table, f, 'Payments received'))
@@ -672,14 +678,14 @@ def credit_notes():
     acts = btn('Write off a debt', 'block') + primary('New credit note', 'plus', 'N')
     n = sum(1 for c in CN if c[1].endswith('Oct') and c[6] != 'Draft')
     find = finding('<span class="num">%s</span> was credited this month on %d credit notes.' % (usd(CN_OCT), n),
-                   "All are signed by FDMS, so each is corrected only by a new invoice. Greystone Park Primary's credit is still a draft.")
-    t = tools('Search credit notes', (('Customer', 'Any', False), ('Reason', 'Any', False)), '%d credit notes' % len(CN))
+                   "Greystone Park Primary's is still a draft.")
+    t = tools('Search credit notes', (('Customer', 'Any', False), ('Reason', 'Any', False)), '%d credit notes' % len(CN), QUIET_TOOLS)
     rows = []
     for no, date, cus, inv, why, fis, state, amt in CN:
-        rows.append((draft_no() if no == 'Draft' else ref(no), '<span class="muted">%s</span>' % date, '<span class="cell-lead">%s</span>' % cus, ref(inv),
-                     '<span class="cell-lead">%s</span>' % why, st(fis) if fis != '—' else '<span class="muted">—</span>', st(state), usd(amt)))
-    table = grid(('Credit note', 'Date', 'Customer', 'Invoice', 'Reason', 'FDMS', 'State', 'Amount'), rows, num=(7,), sel=set(), label='Credit notes',
-                 widths=('120px', '80px', '200px', '104px', None, '100px', '110px', '130px'), fill=4)
+        rows.append((draft_no() if no == 'Draft' else ref(no), '<span class="cell-lead">%s</span>' % cus, ref(inv),
+                     '<span class="cell-lead muted">%s</span>' % why, st(state), usd(amt)))
+    table = grid(('Credit note', 'Customer', 'Invoice', 'Reason', 'State', 'Amount'), rows, num=(5,), sel=set(), label='Credit notes',
+                 widths=('130px', '230px', '120px', None, '130px', '140px'), fill=3)
     f = foot('1 to %d of 9' % len(CN), (('October', usd(CN_OCT)), ('Draft', usd(180))))
     tab = tabs((('Credit notes', 9), ('Write-offs', 3)), 'Credit notes', 'Credit note views')
     body = page('Credit notes', 'Credit notes', 'docs', acts, list_body(find, tab, t, table, f, 'Credit notes'))
@@ -691,16 +697,16 @@ def customers():
     owing = [c for c in CUS if c[4]]
     late = [c for c in CUS if c[5]]
     find = finding('%d customers owe you <span class="num">%s</span>.' % (len(owing), usd(OWED)),
-                   '%d are late, <span class="num">%s</span> in all. 2 have <span class="num">%s</span> on account.' % (len(late), usd(OVERDUE), usd(ON_ACCOUNT)))
-    t = tools('Search customers', (('Rep', 'Any', False), ('Currency', 'Any', False)), '%d of 58' % len(CUS))
+                   '%d are late, <span class="num">%s</span> in all.' % (len(late), usd(OVERDUE)))
+    t = tools('Search customers', (('Rep', 'Any', False), ('Currency', 'Any', False)), '%d of 58' % len(CUS), QUIET_TOOLS)
     def cell(v, strong=False):
         if not v:
             return '<span class="muted">—</span>'
         return '<span style="color:var(--color-ink);font-weight:500">%s</span>' % usd(v) if strong else usd(v)
-    rows = [('<span class="cell-lead">%s</span>' % n, '<span class="muted">%s</span>' % c, '<span class="muted">%s</span>' % v, str(o) if o else '<span class="muted">—</span>',
+    rows = [('<span class="cell-lead">%s</span>' % n, '<span class="muted">%s</span>' % c,
              cell(ow), cell(od, True), cell(oa), '<span class="muted">%s</span>' % lp) for n, c, v, o, ow, od, oa, lp in CUS]
-    table = grid(('Customer', 'Accounts contact', 'VAT number', 'Open', 'Owes', 'Overdue', 'On account', 'Last paid'), rows, num=(3, 4, 5, 6), sel=set(),
-                 label='Customers', widths=(None, '180px', '120px', '72px', '130px', '130px', '130px', '104px'))
+    table = grid(('Customer', 'Accounts contact', 'Owes', 'Overdue', 'On account', 'Last paid'), rows, num=(2, 3, 4), sel=set(),
+                 label='Customers', widths=(None, '200px', '150px', '150px', '150px', '120px'))
     f = foot('1 to %d of 58' % len(CUS), (('Owed', usd(OWED)), ('Overdue', usd(OVERDUE)), ('On account', usd(ON_ACCOUNT))))
     tab = tabs((('All', 58), ('Owing', len(owing)), ('By age', None), ('On account', 2)), 'All', 'Customer views')
     body = page('Customers', 'Customers', 'users', acts, list_body(find, tab, t, table, f, 'Customers'))
@@ -730,7 +736,7 @@ def spending_rows():
     ]
     return rows
 
-SP_HEAD = ('Date', 'What', 'From', 'Kind', 'Paid from', 'Document', 'Amount')
+SP_HEAD = ('Date', 'What', 'From', 'Paid from', 'Document', 'Amount')
 
 def spending():
     rows = spending_rows()
@@ -738,15 +744,16 @@ def spending():
     assert total == MONEY_OUT, (total, MONEY_OUT)
     rec = ('<div style="position:relative"><button class="btn btn-primary" aria-expanded="true">%sRecord spending%s%s</button>%s</div>') % (
         ic('plus'), kbd('N', True), ic('down'),
-        menu((('docs', 'Bill', 'A supplier’s invoice', False, False), ('takings', 'Claim', 'Money someone spent from their own pocket', False, False),
-              ('expenses', 'Petty cash voucher', 'Spent from a float', False, False), ('hand', 'Requisition', 'Ask for money before spending it', False, False)),
-             'position:absolute;right:0;top:40px;width:300px;z-index:30'))
+        menu((('docs', 'Bill', 'A supplier’s invoice', False, False), ('takings', 'Claim', 'Spent from their own pocket', False, False),
+              ('expenses', 'Petty cash voucher', 'Spent from a float', False, False), ('hand', 'Requisition', 'Money asked for first', False, False)),
+             'position:absolute;right:0;top:40px;width:260px;z-index:30'))
     find = finding('<span class="num">%s</span> has gone out this month, from 5 modules.' % usd(MONEY_OUT),
-                   'Bills are the most, <span class="num">%s</span>. <span class="num">%s</span> given out on requisitions is with staff until slips come back.' % (usd(OUT_BILLS), usd(M(95))))
-    t = tools('Search spending', (('From', 'Any module', False), ('Paid from', 'Any', False)), '%d this month' % len(rows))
-    body_rows = [('<span class="muted">%s</span>' % d, '<span class="cell-lead">%s</span>' % w, '<span class="muted">%s</span>' % src, k, acc,
+                   'Bills are the most, <span class="num">%s</span>.' % usd(OUT_BILLS))
+    t = tools('Search spending', (('From', 'Any module', False), ('Paid from', 'Any', False)), '%d this month' % len(rows), QUIET_TOOLS)
+    # The kind is the tab, so it is not a column too.
+    body_rows = [('<span class="muted">%s</span>' % d, '<span class="cell-lead">%s</span>' % w, '<span class="muted">%s</span>' % src, '<span class="muted">%s</span>' % acc,
                   ref(doc) if not doc.startswith('Bank') else '<span class="muted">%s</span>' % doc, amount(v, cur)) for d, w, src, k, acc, doc, v, cur in rows]
-    table = grid(SP_HEAD, body_rows, num=(6,), label='All spending', widths=('72px', None, '72px', '150px', '150px', '150px', '170px'), fill=1)
+    table = grid(SP_HEAD, body_rows, num=(5,), label='All spending', widths=('80px', None, '90px', '180px', '170px', '190px'), fill=1)
     by = {}
     for r in rows:
         by[r[3]] = by.get(r[3], 0) + 1
@@ -754,23 +761,23 @@ def spending():
                 ('Till payouts', by['Till payouts']), ('Payroll', by['Payroll']), ('Other', by['Other'])), 'All', 'Spending views')
     f = foot('%d in October' % len(rows), (('Gone out', usd(MONEY_OUT)), ('Bills', usd(OUT_BILLS)), ('Payroll', usd(OUT_PAYROLL))), pages=False)
     body = page('All spending', 'All spending', 'expenses', rec, list_body(find, tab, t, table, f, 'All spending'))
-    return board('BkSpending', 'All spending', body, h=1040)
+    return board('BkSpending', 'All spending', body, h=968)
 
 
 def bills():
     acts = btn('From a goods receipt', 'list') + primary('New bill', 'plus', 'N')
     late = [b for b in BILLS if b[7] == 'Overdue']
-    unchecked = [b for b in BILLS if b[4] == 'Not checked']
-    find = finding('You owe <span class="num">%s</span> on %d bills; <span class="num">%s</span> of it is due by Sunday.' % (usd(TO_PAY), len(BILLS), usd(DUE_WEEK_SUM)),
-                   "Mutare Timber Works' bill is 2 days late. %d supplier invoices are not checked on FDMS yet, so their VAT is not claimed." % len(unchecked))
-    t = tools('Search bills', (('Supplier', 'Any', False), ('FDMS', 'Any', False)), '%d to pay' % len(BILLS))
-    rows = [(ref(no), '<span style="color:var(--color-ink)">%s</span> <span class="muted" style="font-size:13px">· %s</span>' % (sup, what), '<span class="mono" style="font-size:13px">%s</span>' % fti, st(fd),
+    find = finding('You owe <span class="num">%s</span> on %d bills, <span class="num">%s</span> by Sunday.' % (usd(TO_PAY), len(BILLS), usd(DUE_WEEK_SUM)),
+                   "Mutare Timber Works' bill is 2 days late.")
+    t = tools('Search bills', (('Supplier', 'Any', False), ('FDMS', 'Any', False)), '%d to pay' % len(BILLS), QUIET_TOOLS)
+    rows = [(ref(no), '<span style="color:var(--color-ink)">%s</span> <span class="muted" style="font-size:13px">· %s</span>' % (sup, what), st(fd),
              '<span class="muted">%s</span>' % m if m == '—' else m.replace('PO', '<span class="ref">PO').replace(' · ', '</span> · <span class="ref">') + '</span>',
              st('Overdue', due) if state == 'Overdue' else '<span class="muted">%s</span>' % due,
              '<span style="color:var(--color-ink);font-weight:500">%s</span>' % usd(tot)) for no, sup, what, fti, fd, m, due, state, tot in BILLS]
-    table = grid(('Bill', 'Supplier', 'Their invoice', 'FDMS', 'Matches', 'Due', 'Balance'), rows, num=(6,), sel={4}, label='Bills')
-    sel = (1, (('Owing', usd(B220_TOT)),), btn('Pay', 'payments') + btn('Approve', 'check') + btn('Export', 'export') + '<button class="btn">%sMore%s</button>' % (ic('more'), ic('down')), '')
-    f = foot('1 to %d of %d' % (len(BILLS), len(BILLS)), (('To pay', usd(TO_PAY)), ('Overdue', usd(BILL_OVERDUE)), ('Due by Sunday', usd(DUE_WEEK_SUM))), sel=sel)
+    table = grid(('Bill', 'Supplier', 'FDMS', 'Matches', 'Due', 'Balance'), rows, num=(5,), sel={4}, label='Bills',
+                 widths=('120px', None, '140px', '220px', '160px', '140px'))
+    sel = (1, (('Owing', usd(B220_TOT)),), btn('Pay', 'payments') + '<button class="btn" aria-haspopup="menu">More%s</button>' % ic('down'), '')
+    f = foot('1 to %d of %d' % (len(BILLS), len(BILLS)), (('To pay', usd(TO_PAY)), ('Due by Sunday', usd(DUE_WEEK_SUM))), sel=sel)
     tab = tabs((('To pay', len(BILLS)), ('Overdue', len(late)), ('Paid', 214), ('Drafts', 1), ('Debit notes', 4), ('Void', 2)), 'To pay', 'Bill views')
     body = page('Bills', 'Bills', 'docs', acts, list_body(find, tab, t, table, f, 'Bills'))
     return board('BkBills', 'Bills', body)
@@ -778,19 +785,17 @@ def bills():
 
 def payments_out():
     acts = primary('Pay suppliers', 'plus', 'N')
-    find = finding('<span class="num">%s</span> was paid to suppliers, ZIMRA and NSSA this month.' % usd(PAID_OUT),
-                   'One payment waits for your approval: <span class="num">%s</span> to Mutare Timber Works, with <span class="num">%s</span> withheld.' % (usd(NET_PAY), usd(WHT)))
-    t = tools('Search payments', (('Paid to', 'Anyone', False), ('From', 'Any account', False)), '%d payments' % len(PAY))
+    find = finding('<span class="num">%s</span> was paid out this month.' % usd(PAID_OUT),
+                   '<span class="num">%s</span> to Mutare Timber Works waits for you.' % usd(NET_PAY))
+    t = tools('Search payments', (('Paid to', 'Anyone', False), ('From', 'Any account', False)), '%d payments' % len(PAY), QUIET_TOOLS)
     rows = []
     for no, date, to, for_, frm, wht, state, base, cur in PAY:
         f_ = ref(for_) if for_.startswith('BILL') and ',' not in for_ else '<span class="cell-lead">%s</span>' % for_
-        rows.append((ref(no), '<span class="muted">%s</span>' % date, '<span class="cell-lead">%s</span>' % to, f_, frm,
-                     usd(wht) if wht else '<span class="muted">—</span>',
-                     '<span class="muted">%s</span>' % (zig(imtt(base, cur)) if cur else usd(imtt(base))) if state == 'Paid' else ('<span class="muted">%s</span>' % usd(IMTT_NEW) if state == 'To approve' else '<span class="muted">—</span>'),
+        rows.append((ref(no), '<span class="muted">%s</span>' % date, '<span class="cell-lead">%s</span>' % to, f_,
                      st(state),
                      ('<span class="muted" style="text-decoration:line-through">%s</span>' % usd(base)) if state == 'Void' else amount(base, cur)))
-    table = grid(('Payment', 'Date', 'Paid to', 'For', 'From', 'Withheld', 'IMTT', 'State', 'Amount'), rows, num=(5, 6, 8), sel=set(), label='Payments made',
-                 widths=('104px', '72px', '172px', None, '96px', '96px', '96px', '110px', '210px'), fill=3, fixed=True)
+    table = grid(('Payment', 'Date', 'Paid to', 'For', 'State', 'Amount'), rows, num=(5,), sel=set(), label='Payments made',
+                 widths=('110px', '80px', '220px', None, '130px', '220px'), fill=3, fixed=True)
     f = foot('1 to %d of 318' % len(PAY), (('Paid in October', usd(PAID_OUT)), ('IMTT', usd(IMTT_OCT_USD + to_usd(IMTT_OCT_ZIG))), ('To approve', usd(NET_PAY))))
     tab = tabs((('All', 318), ('To approve', 1), ('Paid', 311), ('Void', 6)), 'All', 'Payment views')
     body = page('Payments made', 'Payments made', 'payments', acts, list_body(find, tab, t, table, f, 'Payments made'))
@@ -807,13 +812,13 @@ def orders():
     on_order = sum((p[7] for p in PO), Decimal('0'))
     acts = primary('New order', 'plus', 'N')
     find = finding('<span class="num">%s</span> is on order and not yet received.' % usd(on_order),
-                   'Halsted Builders is due on Tuesday. PO-0035, <span class="num">%s</span> of vinyl for Borrowdale Brooke Clinic, waits for your approval.' % usd(2960))
-    t = tools('Search orders', (('Supplier', 'Any', False), ('For', 'Any job', False)), '%d sent' % len(PO))
-    rows = [(ref(no), '<span class="cell-lead">%s</span>' % sup, '<span class="cell-lead">%s</span>' % for_, ref(req) if req != '—' else '<span class="muted">—</span>',
-             '<span class="muted">%s</span>' % sent, exp, '<span style="display:flex;align-items:center;gap:8px"><span class="meter" style="width:56px"><i style="width:%d%%"></i></span><span class="muted">%d%%</span></span>' % (rc, rc),
+                   'PO-0035, <span class="num">%s</span> of vinyl, waits for your approval.' % usd(2960))
+    t = tools('Search orders', (('Supplier', 'Any', False), ('For', 'Any job', False)), '%d sent' % len(PO), QUIET_TOOLS)
+    rows = [(ref(no), '<span class="cell-lead">%s</span>' % sup, '<span class="cell-lead">%s</span>' % for_,
+             '<span class="muted">%s</span>' % exp, '<span style="display:flex;align-items:center;gap:8px"><span class="meter" style="width:56px"><i style="width:%d%%"></i></span><span class="muted">%d%%</span></span>' % (rc, rc),
              usd(amt)) for no, sup, for_, req, sent, exp, rc, amt in PO]
-    table = grid(('Order', 'Supplier', 'For', 'Requisition', 'Sent', 'Expected', 'Received', 'Amount'), rows, num=(7,), sel=set(), label='Purchase orders',
-                 widths=('104px', '200px', None, '120px', '90px', '100px', '120px', '140px'), fill=2)
+    table = grid(('Order', 'Supplier', 'For', 'Expected', 'Received', 'Amount'), rows, num=(5,), sel=set(), label='Purchase orders',
+                 widths=('110px', '240px', None, '120px', '140px', '160px'), fill=2)
     f = foot('1 to %d of %d' % (len(PO), len(PO)), (('On order', usd(on_order)),))
     tab = tabs((('Draft', 1), ('To approve', 1), ('Sent', len(PO)), ('Part received', 1), ('Received', 3), ('Closed', 26), ('Cancelled', 2)), 'Sent', 'Order views')
     body = page('Purchase orders', 'Purchase orders', 'list', acts, list_body(find, tab, t, table, f, 'Purchase orders'))
@@ -824,20 +829,19 @@ def requisitions():
     acts = primary('New requisition', 'plus', 'N')
     mine = [r for r in REQ if r[5] == 'To approve']
     find = finding('%d requisitions wait for you, <span class="num">%s</span>.' % (len(REQ_FOR_ME), usd(REQ_FOR_ME_SUM)),
-                   "Your own, US$120.00 for the sander repair, waits for Rudo Mapfumo. Simba Gondo's US$95.00 from 14 Oct is not accounted for yet.")
-    t = tools('Search requisitions', (('From', 'CRM and retail', False), ('Asked by', 'Anyone', False)), '%d to approve' % len(mine))
+                   "Simba Gondo's <span class=\"num\">US$95.00</span> is not accounted for yet.")
+    t = tools('Search requisitions', (('From', 'CRM and retail', False), ('Asked by', 'Anyone', False)), '%d to approve' % len(mine), QUIET_TOOLS)
     rows = []
     for no, by, src, for_, asked, state, amt, note in mine:
-        own = by == 'James Nyabadza'
-        act = '<span class="muted">Not yours to approve</span>' if own else '<span style="display:inline-flex;gap:6px">%s%s</span>' % (btn('Approve', 'check', 'btn btn-sm'), btn('Reject', 'x', 'btn btn-sm btn-quiet'))
         rows.append((ref(no), '<span class="cell-lead">%s</span>' % by, '<span class="pill pill-n">%s</span>' % src, '<span class="cell-lead">%s</span>' % for_,
-                     '<span class="muted">%s</span>' % note, usd(amt), act))
-    table = grid(('Requisition', 'Asked by', 'From', 'For', 'Approval', 'Amount', ''), rows, num=(5,), sel={0, 1, 2}, label='Requisitions',
-                 widths=('120px', '150px', '84px', None, '236px', '104px', '210px'), fill=3, fixed=True)
+                     '<span class="muted">%s</span>' % asked, usd(amt)))
+    # Approving is done on the selection; the row of buttons on every line is gone.
+    table = grid(('Requisition', 'Asked by', 'From', 'For', 'Asked', 'Amount'), rows, num=(5,), sel={0, 1, 2}, label='Requisitions',
+                 widths=('130px', '200px', '100px', None, '110px', '140px'), fill=3, fixed=True)
     sel = (3, (('Total', usd(sum((r[6] for r in mine), Decimal('0')))),),
-           btn('Approve 2', 'check') + btn('Reject', 'x') + btn('Export', 'export'),
-           '<span class="muted" style="white-space:nowrap">REQ-0093 is yours and will be skipped</span>')
-    f = foot('1 to %d of %d' % (len(mine), len(mine)), (('To approve', usd(sum((r[6] for r in mine), Decimal('0')))), ('With staff, not accounted for', usd(95))), sel=sel)
+           btn('Approve 2', 'check') + btn('Reject', 'x'),
+           '<span class="muted" style="white-space:nowrap">REQ-0093 is yours, so it is skipped</span>')
+    f = foot('1 to %d of %d' % (len(mine), len(mine)), (('To approve', usd(sum((r[6] for r in mine), Decimal('0')))),), sel=sel)
     tab = tabs((('To approve', len(mine)), ('To pay', 1), ('To account for', 1), ('Done', 64), ('All', 70)), 'To approve', 'Requisition views')
     body = page('Requisitions', 'Requisitions', 'hand', acts, list_body(find, tab, t, table, f, 'Requisitions'))
     return board('BkRequisitions', 'Requisitions', body)
@@ -845,21 +849,19 @@ def requisitions():
 
 def claims():
     acts = btn('New voucher', 'expenses') + primary('New claim', 'plus', 'N')
+    # The floats live on their own tab; this page is about claims.
     find = finding('1 claim waits for you: Simba Gondo, <span class="num">US$23.00</span>.',
-                   "Tinashe Moyo's <span class=\"num\">US$36.00</span> is approved and waits to be paid back. The showroom float has <span class=\"num\">%s</span> of <span class=\"num\">%s</span> left." % (usd(FLOATS[0][3]), usd(FLOATS[0][2])))
-    t = tools('Search claims', (('Person', 'Anyone', False), ('State', 'Any', False)), '%d claims' % len(CLM))
-    rows = [(ref(no), '<span class="cell-lead">%s</span>' % who, '<span class="cell-lead">%s</span>' % what, '<span class="muted">%s</span>' % d, '<span class="muted">%s</span>' % how,
+                   "Tinashe Moyo's <span class=\"num\">US$36.00</span> waits to be paid back.")
+    t = tools('Search claims', (('Person', 'Anyone', False), ('State', 'Any', False)), '%d claims' % len(CLM), QUIET_TOOLS)
+    rows = [(ref(no), '<span class="cell-lead">%s</span>' % who, '<span class="cell-lead">%s</span>' % what,
              st(state, {'Submitted': 'To approve', 'Approved': 'To pay back'}.get(state, state)), usd(a),
              btn('Approve', 'check', 'btn btn-sm') if state == 'Submitted' else (btn('Pay back', 'payments', 'btn btn-sm') if state == 'Approved' else ''))
             for no, who, what, d, state, a, how in CLM]
-    table = grid(('Claim', 'Person', 'For', 'Spent', 'Paid with', 'State', 'Amount', ''), rows, num=(6,), sel=set(), label='Claims',
-                 widths=('104px', '160px', None, '80px', '110px', '130px', '110px', '130px'), fill=2)
-    fl = ''.join('<div><span class="l">%s, %s</span><span class="v">%s <span style="font-weight:400;font-size:14px;color:var(--color-muted)">of %s</span></span><span class="s">%d vouchers since the last top-up</span></div>' % (
-        n, h, usd(bal), usd(imp), nv) for n, h, imp, bal, nv in FLOATS)
-    floats = '<div class="bk-figs" style="grid-template-columns:repeat(2,minmax(0,1fr));margin:16px 24px">%s</div>' % fl
+    table = grid(('Claim', 'Person', 'For', 'State', 'Amount', ''), rows, num=(4,), sel=set(), label='Claims',
+                 widths=('110px', '190px', None, '150px', '130px', '140px'), fill=2)
     f = foot('1 to %d of 38' % len(CLM), (('To approve', usd(23)), ('To pay back', usd(36)), ('Paid in October', usd('14.50'))))
     tab = tabs((('Claims', 38), ('Floats', 2), ('Vouchers', 41)), 'Claims', 'Claim views')
-    body = page('Claims & petty cash', 'Claims &amp; petty cash', 'takings', acts, list_body(find, tab, t, table, f, 'Claims', above=floats))
+    body = page('Claims & petty cash', 'Claims &amp; petty cash', 'takings', acts, list_body(find, tab, t, table, f, 'Claims'))
     return board('BkClaims', 'Claims and petty cash', body)
 
 
@@ -867,8 +869,8 @@ def suppliers():
     acts = primary('New supplier', 'plus', 'N')
     owed = [s_ for s_ in SUP if s_[4]]
     find = finding('You owe %d suppliers <span class="num">%s</span>.' % (len(owed), usd(SUP_OWED)),
-                   '2 have no valid ITF263. Paying Mutare Timber Works withholds 30%%, <span class="num">%s</span> on the bill now due.' % usd(WHT))
-    t = tools('Search suppliers', (('ITF263', 'Any', False),), '%d of 41' % len(SUP))
+                   '2 have no valid ITF263, so paying them withholds 30%.')
+    t = tools('Search suppliers', (('ITF263', 'Any', False),), '%d of 41' % len(SUP), QUIET_TOOLS)
     def cell(v, strong=False):
         if not v:
             return '<span class="muted">—</span>'
@@ -877,9 +879,9 @@ def suppliers():
     for name, (itf, until), vat, o, ow, od, ytd, wh in SUP:
         tone = {'Valid': 'Valid', 'Expired': 'Expired ITF263', 'None': 'None', 'Not needed': 'Not needed'}[itf]
         rows.append(('<span class="cell-lead">%s</span>' % name, st(tone, '%s <span class="muted" style="font-weight:400">%s</span>' % (itf, until)),
-                     '<span class="muted">%s</span>' % vat, str(o) if o else '<span class="muted">—</span>', cell(ow), cell(od, True), usd(ytd), cell(wh)))
-    table = grid(('Supplier', 'ITF263', 'VAT number', 'Bills', 'We owe', 'Overdue', 'Paid this year', 'Withheld'), rows, num=(3, 4, 5, 6, 7), sel=set(),
-                 label='Suppliers', widths=(None, '230px', '110px', '64px', '120px', '120px', '130px', '110px'))
+                     cell(ow), cell(od, True), '<span class="muted">%s</span>' % usd(ytd), cell(wh)))
+    table = grid(('Supplier', 'ITF263', 'We owe', 'Overdue', 'Paid this year', 'Withheld'), rows, num=(2, 3, 4, 5), sel=set(),
+                 label='Suppliers', widths=(None, '250px', '140px', '140px', '150px', '130px'))
     f = foot('1 to %d of 41' % len(SUP), (('We owe', usd(SUP_OWED)), ('Overdue', usd(B220_TOT)), ('Withheld this year', usd(SUP_WHT))))
     tab = tabs((('All', 41), ('Owed', len(owed)), ('By age', None), ('Missing ITF263', 2), ('Write-offs', 1)), 'All', 'Supplier views')
     body = page('Suppliers', 'Suppliers', 'store', acts, list_body(find, tab, t, table, f, 'Suppliers'))
@@ -928,44 +930,78 @@ def undo_box(items):
 def invoice():
     paid = M(500)
     bal = I142_TOT - paid
-    top = btn('Print', 'print') + primary('Record a payment', 'payments', 'R')
-    head = ('<div class="bk-head"><div class="bk-k">%s<b>Pomona Offices</b><span>Issued 6 Oct</span><span>Due 20 Oct, in 2 days</span><span>From %s</span></div>'
-            '<div class="bk-title">%s <small>· %s</small></div><div class="bk-k" style="font-size:14px;color:var(--color-ink-2)">%s left to pay after %s on 8 Oct.</div></div>') % (
-        pill('Part paid'), ref('QT-0386'), usd(I142_TOT), zig(I142_TOT * RATE), usd(bal), usd(paid))
-    acts = '<div class="bk-acts">%s%s%s<span class="sepv"></span>%s%s%s</div>' % (
-        btn('Send a reminder', 'whatsapp'), btn('Credit', 'docs'), btn('Write off', 'block'), btn('Revise', 'edit'), btn('Void', 'undo'), iconbtn('more', 'More actions', 'btn btn-icon'))
-    lines = boxed(grid(('Item', 'Quantity', 'Price', 'Tax', 'Amount'), line_rows(INV142_LINES), num=(2, 4), label='Lines', widths=(None, '110px', '110px', '120px', '130px')))
+    # Top bar: the primary, the one routine action, and a menu (print, credit, write off, revise, void, delete).
+    top = more_btn() + btn('Send a reminder', 'whatsapp') + primary('Record a payment', 'payments', 'R')
+    head = rec_head(usd(I142_TOT), pill('Part paid'), ('Pomona Offices', 'Due 20 Oct, in 2 days'))
+    # Every line is VAT 15.5%, so the tax column goes; the sums say it once.
+    lines = boxed(grid(('Item', 'Quantity', 'Price', 'Amount'), [r[:3] + r[4:] for r in line_rows(INV142_LINES)], num=(2, 3), label='Lines', widths=(None, '120px', '120px', '140px')))
     tot = sums((('Before VAT', usd(I142_NET), ''), ('VAT at 15.5%', usd(I142_VAT), ''), ('Total', usd(I142_TOT), 't'),
-                ('Paid', '−' + usd(paid), ''), ('Credit notes', usd(0), ''), ('Left to pay', usd(bal), 't'),
-                ('In ZiG at 27.00, for reference', zig(I142_TOT * RATE), 'm')))
+                ('Paid', '−' + usd(paid), ''), ('Left to pay', usd(bal), 't')))
     pays = boxed(grid(('Payment', 'Date', 'How', 'Bank line', 'Amount'), (
-        (ref('RCT-0091'), '<span class="muted">8 Oct</span>', 'Transfer into CBZ, USD', st('Matched', 'Matched, CBZ line of 8 Oct'), usd(paid)),), num=(4,), label='Payments', widths=('120px', '80px', '220px', None, '130px')))
-    credits = ('<div class="row" style="margin:0 24px;border-radius:10px;box-shadow:var(--shadow-ring);gap:16px"><span class="bk-hint" style="flex:1">No credit notes. A credit note lowers what Pomona Offices owes. It names this invoice and its reason, and FDMS signs it.</span>%s</div>' % btn('Credit', 'docs'))
+        (ref('RCT-0091'), '<span class="muted">8 Oct</span>', 'Transfer into CBZ, USD', st('Matched'), usd(paid)),), num=(4,), label='Payments', widths=('120px', '80px', None, '140px', '130px')))
     post = posting((('JE-0438', '6 Oct', '1100 Customers · Pomona Offices', I142_TOT, None), ('', '', '4000 Flooring jobs', None, I142_NET),
                     ('', '', '2200 Output VAT', None, I142_VAT),
                     ('JE-0446', '8 Oct', '1010 CBZ current, USD', paid, None), ('', '', '1100 Customers · Pomona Offices', None, paid)))
-    hist = timeline((('', 'A reminder goes by WhatsApp on 20 Oct if it is still unpaid', '20 Oct'),
-                     ('ok', '<b>Rudo Mapfumo</b> recorded %s from the CBZ statement line as %s' % (usd(paid), ref('RCT-0091')), '8 Oct 10:14'),
-                     ('in', 'Sent by WhatsApp to Mr K. Dube. Read at 10:40', '6 Oct 10:15'),
-                     ('ok', 'Signed by FDMS on fiscal day 214', '6 Oct 10:14'),
-                     ('in', '<b>Rudo Mapfumo</b> issued it: number INV-0142, rate fixed at 27.00, posted as %s' % ref('JE-0438'), '6 Oct 10:14'),
-                     ('', '<b>Chipo Mhlanga</b> made the draft from %s' % ref('QT-0386'), '5 Oct 16:40')))
-    main = head + acts + sec('Lines', '4 lines', lines + tot, 'l1') + sec('Payments', '1', pays, 'l2') + sec('Credit notes', 'None', credits, 'l3') + sec('Posting', '2 entries', post, 'l4') + sec('History', None, timeline_wrap(hist), 'l5')
+    hist = timeline((('', 'Reminder by WhatsApp if still unpaid', '20 Oct'),
+                     ('ok', '<b>Rudo Mapfumo</b> recorded %s' % ref('RCT-0091'), '8 Oct 10:14'),
+                     ('in', 'Sent by WhatsApp, read at 10:40', '6 Oct 10:15'),
+                     ('ok', 'Signed by FDMS, fiscal day 214', '6 Oct 10:14'),
+                     ('in', '<b>Rudo Mapfumo</b> issued it', '6 Oct 10:14'),
+                     ('', '<b>Chipo Mhlanga</b> drafted it from %s' % ref('QT-0386'), '5 Oct 16:40')))
+    main = head + sec('Lines', '4 lines', lines + tot, 'l1') + sec('Payments', '1', pays, 'l2') + sec('Posting', '2 entries', post, 'l4') + sec('History', None, timeline_wrap(hist), 'l5')
     fiscal = ('<section><div class="sec-title">%s Fiscal <span class="end">%s</span></div>'
-              '<div style="display:flex;gap:16px;align-items:flex-start">%s<dl class="attrs" style="grid-template-columns:minmax(0,1fr);row-gap:2px"><dt>Verification code</dt><dd class="mono">K7QX-22M4</dd><dt style="margin-top:6px">Fiscal day</dt><dd>214</dd><dt style="margin-top:6px">Signed</dt><dd>6 Oct 10:14</dd></dl></div>'
-              '<dl class="attrs"><dt>Device</dt><dd>Showroom, FDMS 21874</dd><dt>Currency</dt><dd>USD</dd><dt>Buyer VAT no.</dt><dd>220087431</dd><dt>Buyer TIN</dt><dd>2000371154</dd></dl>'
-              '<span class="bk-hint">Anyone can check the code at fdms.zimra.co.zw.</span></section>') % (ic('fiscal'), pill('Valid'), qr('INV-0142', 112))
-    details = ('<section><div class="sec-title">Details</div><dl class="attrs"><dt>Customer</dt><dd>%s</dd><dt>Currency</dt><dd>USD, your base</dd><dt>Rate</dt><dd>27.00, fixed 6 Oct</dd>'
-               '<dt>Terms</dt><dd>14 days</dd><dt>Cost centre</dt><dd>Project · Pomona Offices</dd><dt>Deal</dt><dd>Pomona Offices, 2nd floor</dd><dt>Rep</dt><dd>Chipo Mhlanga</dd></dl></section>') % ref('Pomona Offices')
-    undo = ('<section><div class="sec-title">If something is wrong</div>%s</section>') % undo_box((
-        ('edit', 'Revise', 'Voids this with a full credit note and issues a new invoice with a new number. The %s payment moves to it.' % usd(paid), False),
-        ('undo', 'Void', 'A full credit note, signed by FDMS. The %s stays on Pomona Offices’ account.' % usd(paid), False),
-        ('trash', 'Delete', 'Not allowed: FDMS has signed it. Void it instead.', True)))
-    body = rec('Invoices', 'Invoices', 'INV-0142', 'invoice', top, main, fiscal + details + undo)
-    return board('BkInvoice', 'INV-0142', body, h=1600)
+              '<div style="display:flex;gap:16px;align-items:flex-start">%s<dl class="attrs" style="grid-template-columns:minmax(0,1fr);row-gap:2px"><dt>Verification code</dt><dd class="mono">K7QX-22M4</dd><dt style="margin-top:8px">Fiscal day</dt><dd>214</dd><dt style="margin-top:8px">Signed</dt><dd>6 Oct 10:14</dd></dl></div></section>') % (
+        ic('fiscal'), pill('Valid'), qr('INV-0142', 112))
+    details = rail_sec('Details', (('Issued', '6 Oct, from %s' % ref('QT-0386')), ('Terms', '14 days'), ('Rate', '27.00, fixed 6 Oct'), ('Rep', 'Chipo Mhlanga')))
+    body = rec('Invoices', 'Invoices', 'INV-0142', 'invoice', top, main, fiscal + details)
+    return board('BkInvoice', 'INV-0142', body, h=1384)
 
 def timeline_wrap(t):
     return '<div style="margin:0 24px;border-radius:10px;box-shadow:var(--shadow-ring)">%s</div>' % t.replace('class="bk-tl"', 'class="bk-tl" style="padding:4px 16px"')
+
+
+# ---------- the calm parts (owner, 18 Oct: "too hard on the eyes") ----------
+# A record page: a title, one pill, one muted line of two items; one strip of at most four tiles;
+# sections 40px apart on one 24px edge; a rail of at most two short sections.
+CSS += '''
+.bk-hd{padding:32px 24px 0;display:flex;flex-direction:column;gap:6px}
+.bk-hd .tr{display:flex;align-items:center;gap:12px;min-width:0}
+.bk-hd .ml{display:flex;align-items:center;gap:8px;font-size:14px;color:var(--color-muted)}
+.bk-hd .ml i{font-style:normal;color:var(--color-faint)}
+.bk-rec .group-head{padding-top:40px}
+.bk-rec .bk-strip{padding:24px 24px 0}
+.bk-rec .bk-rtabs{margin-top:32px}
+.bk-rec .bk-sums{padding-top:16px}
+.bk-callout{margin:24px 24px 0}
+.bk-callout .grow{flex:1;min-width:0}
+.bk-callout .btn{flex:none;align-self:center}
+.bk-tl li{grid-template-columns:16px minmax(0,1fr) 96px}
+.bk .rail .attrs{row-gap:10px;grid-template-columns:88px minmax(0,1fr)}
+'''
+
+def more_btn(label='More actions'):
+    return '<button class="btn btn-icon" aria-haspopup="menu" aria-label="%s">%s</button>' % (label, ic('more'))
+
+def rec_head(title, pill_html='', line=(), small=''):
+    """Title and one pill on a row, then one muted line of at most two items."""
+    ml = '<div class="ml">%s</div>' % '<i>·</i>'.join('<span>%s</span>' % x for x in line) if line else ''
+    return '<div class="bk-hd"><div class="tr"><div class="bk-title">%s%s</div>%s</div>%s</div>' % (
+        title, ' <small>· %s</small>' % small if small else '', pill_html, ml)
+
+def strip(tiles):
+    """One strip, at most four tiles: label, figure, a note of at most three words."""
+    assert len(tiles) <= 4
+    t = ''.join('<div class="kt"><span class="kt-l">%s</span><span class="kt-v">%s</span><span class="kt-n">%s</span></div>' % x for x in tiles)
+    return '<div class="bk-strip"><div class="kstrip" style="grid-template-columns:repeat(%d,minmax(0,1fr))">%s</div></div>' % (len(tiles), t)
+
+def callout(icon, text, act='', tone='warn'):
+    return '<div class="bk-box %s bk-callout">%s<span class="grow">%s</span>%s</div>' % (tone, ic(icon), text, act)
+
+def rail_sec(title, rows, extra=''):
+    assert len(rows) <= 4
+    return '<section><div class="sec-title">%s</div>%s<dl class="attrs">%s</dl></section>' % (title, extra, ''.join('<dt>%s</dt><dd>%s</dd>' % r for r in rows))
+
+QUIET_TOOLS = btn('Sort', 'sort', 'btn btn-quiet') + btn('Export', 'export', 'btn btn-quiet')
 
 
 # ---------- forms ----------
@@ -1006,32 +1042,29 @@ def line_editor(lines, cur_label, acct=None):
     return '<table class="table bk-le" aria-label="Lines"><thead>%s</thead><tbody>%s</tbody></table>%s' % (head, rows, '<div>%s</div>' % btn('Add a line', 'plus', 'btn btn-quiet'))
 
 def invoice_new():
-    top = btn('Cancel', None, 'btn btn-quiet') + btn('Save draft', 'docs') + primary('Issue', 'send', 'I')
-    cus = fsec('Customer', 'Who the invoice is to. FDMS needs their VAT number and TIN when they are registered.',
+    # A form: the primary and Save draft. Cancel is the crumb and Esc.
+    top = btn('Save draft', 'docs') + primary('Issue', 'send', 'I')
+    cus = fsec('Customer', 'Who the invoice is to.',
                field('Customer', sel_('Msasa Motors')) +
-               '<div class="bk-box ok">%s<span><b>VAT number 220114593, TIN 2000390871.</b> Both are on file, so FDMS will accept the invoice. Made from %s, accepted on 17 Oct.</span></div>' % (ic('check'), ref('QT-0403')))
-    money = fsec('Currency', 'The invoice keeps its own currency and rate. Reports show it in US$.',
+               '<div class="bk-box ok">%s<span><b>VAT number and TIN on file.</b> Made from %s.</span></div>' % (ic('check'), ref('QT-0403')))
+    money = fsec('Currency', 'Reports show it in US$.',
                  field('Currency', seg(('USD', 'ZiG'), 'ZiG')) +
-                 '<div class="field-row">%s%s</div>' % (field('Rate, ZiG to US$1', '<label class="input-wrap">%s<input aria-label="Rate" value="27.00" readonly></label>' % ic('lock')),
-                                                         field('Rate from', inp('RBZ interbank, today 06:00', 'Rate from', ro=True))) +
-                 '<span class="bk-hint">The rate is fixed when you press Issue. A payment at another rate later makes a gain or loss line, never a new total.</span>')
-    lines = wsec('Lines', 'Each line has a tax code. Flooring and fitting are standard-rated.', line_editor(NEW_LINES, 'ZiG'))
-    terms = fsec('Terms', 'When it is due and where the money is counted.',
+                 '<div class="field-row">%s%s</div>' % (field('Rate, ZiG to US$1', '<label class="input-wrap">%s<input aria-label="Rate" value="27.00" readonly></label>' % ic('lock'), 'Fixed when you press Issue'),
+                                                         field('Rate from', inp('RBZ interbank, today 06:00', 'Rate from', ro=True))))
+    lines = wsec('Lines', '', line_editor(NEW_LINES, 'ZiG'))
+    terms = fsec('Terms', 'When it is due.',
                  '<div class="field-row">%s%s</div>' % (field('Invoice date', inp('18 Oct 2026, today', 'Invoice date', ro=True)), field('Due', sel_('In 14 days, 1 Nov', 'Due')))
-                 + '<div class="field-row">%s%s</div>' % (field('Cost centre', sel_('Msasa Motors showroom', 'Cost centre'), 'The CRM project’s own'), field('Rep', sel_('Chipo Mhlanga', 'Rep'), opt=True))
-                 + chk('This is a deposit', False, 'A full fiscal tax invoice for the deposit. The final invoice names it and charges the rest.')
-                 + chk('Paid now', False, 'Issues the invoice and records the payment in one go. Choose the account it went into.')
+                 + '<div class="field-row">%s%s</div>' % (field('Cost centre', sel_('Msasa Motors showroom', 'Cost centre')), field('Rep', sel_('Chipo Mhlanga', 'Rep'), opt=True))
+                 + chk('This is a deposit') + chk('Paid now')
                  + field('Note to the customer', '<textarea class="input" aria-label="Note to the customer">Showroom floor, 82 m², as quoted on QT-0403. Fitting from 26 Oct.</textarea>', opt=True))
-    rail = ('<section><div class="sec-title">Total</div><div class="figure">%s</div><span class="muted" style="font-size:13px">%s at 27.00</span>'
-            '<dl class="attrs" style="margin-top:4px"><dt>Before VAT</dt><dd class="num">%s</dd><dt>VAT at 15.5%%</dt><dd class="num">%s</dd><dt>Due</dt><dd class="num">1 Nov</dd></dl></section>'
-            '<section><div class="sec-title">When you press Issue</div><ol class="steps" style="gap:10px">%s</ol></section>'
-            '<section><div class="sec-title">Posts, in US$</div><dl class="attrs" style="grid-template-columns:150px minmax(0,1fr)"><dt>1100 Customers</dt><dd class="num">Dr %s</dd><dt>4000 Flooring jobs</dt><dd class="num">Cr %s</dd><dt>2200 Output VAT</dt><dd class="num">Cr %s</dd></dl></section>') % (
-        zig(NEW_TOT), usd(to_usd(NEW_TOT)), zig(NEW_NET), zig(NEW_VAT),
+    rail = ('<section><div class="sec-title">Total</div><div class="figure">%s</div>'
+            '<dl class="attrs"><dt>Before VAT</dt><dd class="num">%s</dd><dt>VAT at 15.5%%</dt><dd class="num">%s</dd><dt>In US$</dt><dd class="num">%s</dd><dt>Due</dt><dd class="num">1 Nov</dd></dl></section>'
+            '<section><div class="sec-title">When you press Issue</div><ol class="steps" style="gap:12px">%s</ol></section>') % (
+        zig(NEW_TOT), zig(NEW_NET), zig(NEW_VAT), usd(to_usd(NEW_TOT)),
         ''.join('<li class="step"><span class="n">%d</span><b>%s</b><span>%s</span></li>' % (i + 1, a, b) for i, (a, b) in enumerate((
-            ('It gets the next number', 'INV-0145'), ('The rate is fixed', '27.00, RBZ interbank'), ('FDMS signs it', 'in ZWG, with the QR code'), ('It posts', 'and Msasa Motors owes it'), ('You can send it', 'by WhatsApp or email')))),
-        usd(to_usd(NEW_TOT)), usd(to_usd(NEW_NET)), usd(to_usd(NEW_TOT) - to_usd(NEW_NET)))
+            ('It gets the next number', 'INV-0145'), ('The rate is fixed', '27.00, RBZ interbank'), ('FDMS signs it', 'in ZWG, with the QR code'), ('It posts', 'and Msasa Motors owes it')))))
     body = form_page('Invoices', 'Invoices', 'New invoice', 'invoice', top, (cus, money, lines, terms), rail)
-    return board('BkInvoiceNew', 'New invoice', body, h=1330)
+    return board('BkInvoiceNew', 'New invoice', body, h=1168)
 
 
 def payment_new():
@@ -1039,189 +1072,150 @@ def payment_new():
     inv = M(860)
     left = amt - inv
     top = btn('Cancel', None, 'btn btn-quiet') + primary('Record the payment', 'check', 'Ctrl ↵')
-    who = fsec('From', 'A payment always names its customer, even when it pays no invoice yet.',
+    who = fsec('From', 'Who paid.',
                field('Customer', sel_('Highlands Guest Lodge')) +
-               '<div class="bk-box">%s<span><b>They owe %s on 1 invoice</b>, all of it 5 days late. QT-0401 for phase 2 is with them too.</span></div>' % (ic('users'), usd(inv)))
-    money = fsec('Money', 'Where it went in, and how much. The bank line it matches is found for you.',
+               '<div class="bk-box">%s<span><b>They owe %s on 1 invoice</b>, 5 days late.</span></div>' % (ic('users'), usd(inv)))
+    money = fsec('Money', 'Where it went in, and how much.',
                  '<div class="field-row">%s%s</div>' % (field('Into', sel_('CBZ current, USD', 'Into')), field('Date', inp('18 Oct 2026', 'Date')))
                  + '<div class="field-row">%s%s</div>' % (field('Currency', seg(('USD', 'ZiG'), 'USD')), field('Amount', '<label class="input-wrap"><span class="muted">US$</span><input aria-label="Amount" value="1,000.00" style="text-align:right"></label>'))
-                 + field('Their reference', inp('HGL EFT 1810', 'Their reference'), opt=True)
-                 + '<div class="bk-box">%s<span><b>No CBZ line for it yet:</b> the statement runs to Fri 16 Oct. When Monday’s statement comes in, Books matches this payment to its line.</span></div>' % ic('match')
-                 + chk('VAT was withheld by the customer', False, 'For customers who are VAT withholding agents. They pay a third of the VAT to ZIMRA and give you a certificate.'))
+                 + field('Their reference', inp('HGL EFT 1810', 'Their reference'), 'Matched to the CBZ line when it comes in', opt=True)
+                 + chk('VAT was withheld by the customer'))
     rows = ''.join((
         '<tr aria-selected="true"><td class="sel"><label class="check"><input type="checkbox" checked aria-label="Pay INV-0135"></label></td><td>%s</td><td class="muted">5 days overdue</td><td class="num">%s</td><td class="num" style="width:150px">%s</td></tr>' % (
             ref('INV-0135'), usd(inv), inp(fmt(inv), 'Amount for INV-0135', True)),
     ))
-    alloc = wsec('Put it on invoices', 'Oldest first. What is left stays on their account for the next invoice.',
+    alloc = wsec('Put it on invoices', 'Oldest first; the rest stays on account.',
                  '<table class="table bk-le"><thead><tr><th class="sel" style="width:36px"></th><th>Invoice</th><th>Due</th><th class="num">Owing</th><th class="num">This payment</th></tr></thead><tbody>%s</tbody>'
                  '<tfoot><tr class="tot"><td></td><td>On their account</td><td></td><td></td><td class="num">%s</td></tr></tfoot></table>' % (rows, usd(left)))
     rail = ('<section><div class="sec-title">This payment</div><div class="figure">%s</div><dl class="attrs"><dt>On INV-0135</dt><dd class="num">%s</dd><dt>On account</dt><dd class="num">%s</dd><dt>Number</dt><dd class="num">RCT-0095</dd></dl></section>'
-            '<section><div class="sec-title">After you record it</div><dl class="attrs"><dt>INV-0135</dt><dd>%s</dd><dt>Highlands owes</dt><dd class="num">US$0.00</dd><dt>Overdue, all</dt><dd class="num">%s</dd><dt>Bank line</dt><dd>Matched when it arrives</dd></dl></section>'
-            '<section><div class="sec-title">Posts</div><dl class="attrs" style="grid-template-columns:150px minmax(0,1fr)"><dt>1010 CBZ current, USD</dt><dd class="num">Dr %s</dd><dt>1100 Customers</dt><dd class="num">Cr %s</dd></dl>'
-            '<span class="bk-hint">The %s on account is still theirs: Books shows it on their statement and offers it on their next invoice.</span></section>') % (
-        usd(amt), usd(inv), usd(left), st('Paid'), usd(OVERDUE - inv), usd(amt), usd(amt), usd(left))
+            '<section><div class="sec-title">After you record it</div><dl class="attrs"><dt>INV-0135</dt><dd>%s</dd><dt>They owe</dt><dd class="num">US$0.00</dd><dt>Overdue, all</dt><dd class="num">%s</dd><dt>Bank line</dt><dd>Matched when it arrives</dd></dl></section>') % (
+        usd(amt), usd(inv), usd(left), st('Paid'), usd(OVERDUE - inv))
     body = form_page('Payments received', 'Payments received', 'Record a payment', 'payments', top, (who, money, alloc), rail)
-    return board('BkPaymentNew', 'Record a payment received', body, h=900)
+    return board('BkPaymentNew', 'Record a payment received', body, h=776)
 
 
 def customer():
-    top = btn('Send statement', 'whatsapp') + btn('Print', 'print') + primary('New invoice', 'plus', 'N')
-    head = ('<div class="bk-head"><div class="bk-k"><span class="pill pill-n">Customer since Mar 2025</span><span>Mr K. Dube, accounts</span><span>+263 77 412 0981</span><span>accounts@pomonaoffices.co.zw</span></div>'
-            '<div class="bk-title">Pomona Offices</div></div>')
-    figs = '<div class="bk-figs" style="grid-template-columns:repeat(4,minmax(0,1fr))">%s</div>' % ''.join(
-        '<div><span class="l">%s</span><span class="v">%s</span><span class="s">%s</span></div>' % x for x in (
-            ('Owes', usd('1494.22'), 'INV-0142, due 20 Oct'), ('Overdue', usd(0), 'Usually pays in 12 days'), ('On account', usd(0), 'No credit held'), ('Paid this year', usd(4160), '3 payments')))
-    t = tabs((('Activity', None), ('Invoices', 3), ('Payments', 3), ('Statement', None), ('Details', None)), 'Statement', 'Customer views').replace('bk-tabs', 'bk-tabs bk-rtabs')
+    # Top bar: the one primary and a menu (send statement, print, edit, merge). The statement is sent from its own tab.
+    top = more_btn() + primary('New invoice', 'plus', 'N')
+    head = rec_head('Pomona Offices', '', ('Accounts: Mr K. Dube', 'Customer since Mar 2025'))
+    figs = strip((('Owes', usd('1494.22'), 'Due 20 Oct'), ('Overdue', usd(0), 'Pays in 12 days'), ('Paid this year', usd(4160), '3 payments')))
+    t = tabs((('Activity', None), ('Invoices', 3), ('Payments', 3), ('Statement', None)), 'Statement', 'Customer views').replace('bk-tabs', 'bk-tabs bk-rtabs')
     stmt = [
-        ('1 Aug', 'Opening balance', '', None, None, M(0)),
-        ('14 Aug', 'Invoice', ref('INV-0119') + ' <span class="muted">Reception, vinyl</span>', M(3420), None, M(3420)),
-        ('28 Aug', 'Payment', ref('RCT-0079') + ' <span class="muted">Transfer</span>', None, M(3420), M(0)),
-        ('9 Sep', 'Invoice', ref('INV-0124') + ' <span class="muted">Boardroom skirting</span>', M(240), None, M(240)),
-        ('21 Sep', 'Payment', ref('RCT-0083') + ' <span class="muted">EcoCash</span>', None, M(240), M(0)),
-        ('6 Oct', 'Invoice', ref('INV-0142') + ' <span class="muted">2nd floor, carpet tiles</span>', I142_TOT, None, I142_TOT),
-        ('8 Oct', 'Payment', ref('RCT-0091') + ' <span class="muted">Transfer</span>', None, M(500), I142_TOT - M(500)),
+        ('1 Aug', 'Opening balance', None, None, M(0)),
+        ('14 Aug', ref('INV-0119') + ' <span class="muted">Reception, vinyl</span>', M(3420), None, M(3420)),
+        ('28 Aug', ref('RCT-0079') + ' <span class="muted">Transfer</span>', None, M(3420), M(0)),
+        ('9 Sep', ref('INV-0124') + ' <span class="muted">Boardroom skirting</span>', M(240), None, M(240)),
+        ('21 Sep', ref('RCT-0083') + ' <span class="muted">EcoCash</span>', None, M(240), M(0)),
+        ('6 Oct', ref('INV-0142') + ' <span class="muted">2nd floor, carpet tiles</span>', I142_TOT, None, I142_TOT),
+        ('8 Oct', ref('RCT-0091') + ' <span class="muted">Transfer</span>', None, M(500), I142_TOT - M(500)),
     ]
-    rows = [('<span class="muted">%s</span>' % d, k, '<span class="cell-lead">%s</span>' % w, fmt(a) if a else '', fmt(b) if b else '', fmt(c)) for d, k, w, a, b, c in stmt]
-    table = boxed(grid(('Date', 'What', 'Document', 'Invoiced', 'Paid', 'Balance'), rows, num=(3, 4, 5), label='Statement',
-                       total=('18 Oct', 'Closing balance', '', fmt(M(3420) + M(240) + I142_TOT), fmt(M(3420) + M(240) + M(500)), fmt(I142_TOT - M(500))),
-                       widths=('76px', '90px', None, '100px', '100px', '100px')))
-    tools_ = ('<div style="display:flex;align-items:center;gap:8px;padding:16px 24px 12px"><span class="chipsel is-set">From <b>1 Aug 2026</b>%s</span><span class="chipsel">To <b>18 Oct 2026</b>%s</span>'
-              '<span class="chipsel">Currency <b>USD</b>%s</span><span style="margin-left:auto;display:flex;gap:8px">%s%s</span></div>') % (ic('down'), ic('down'), ic('down'), btn('Download PDF', 'export'), btn('Send by WhatsApp', 'whatsapp'))
-    age = '<div class="bk-figs" style="grid-template-columns:repeat(5,minmax(0,1fr));margin-top:16px">%s</div>' % ''.join(
-        '<div><span class="l">%s</span><span class="v" style="font-size:16px">%s</span></div>' % x for x in (
-            ('Not yet due', usd('1494.22')), ('1 to 30 days', usd(0)), ('31 to 60', usd(0)), ('61 to 90', usd(0)), ('Over 90', usd(0))))
-    note = '<p class="bk-note">%s<span>One statement for everything: invoices, payments, credit notes and write-offs. The CRM and reports print the same one.</span></p>' % ic('docs')
-    main = head + figs + t + tools_ + table + age + note
-    rail = ('<section><div class="sec-title">Details</div><dl class="attrs"><dt>VAT number</dt><dd>220087431</dd><dt>TIN</dt><dd>2000371154</dd><dt>Address</dt><dd>Pomona Office Park, Block C, Borrowdale Road, Harare</dd>'
-            '<dt>Currency</dt><dd>USD</dd><dt>Terms</dt><dd>14 days</dd><dt>Rep</dt><dd>Chipo Mhlanga</dd><dt>VAT agent</dt><dd>No, pays VAT in full</dd></dl></section>'
-            '<section><div class="sec-title">Latest</div>%s</section>'
-            '<section><div class="sec-title">Open quotes</div><dl class="attrs"><dt>%s</dt><dd class="num">%s, sent 13 Oct</dd></dl></section>') % (
-        timeline((('in', 'QT-0399 sent, 212 m² of offices', '13 Oct'), ('ok', 'Paid %s on INV-0142' % usd(500), '8 Oct'), ('in', 'INV-0142 issued and sent', '6 Oct'))).replace('class="bk-tl"', 'class="bk-tl" style="padding:0"').replace('grid-template-columns:16px minmax(0,1fr) 110px', ''),
-        ref('QT-0399'), usd(8930))
+    rows = [('<span class="muted">%s</span>' % d, '<span class="cell-lead">%s</span>' % w, fmt(a) if a else '', fmt(b) if b else '', fmt(c)) for d, w, a, b, c in stmt]
+    table = boxed(grid(('Date', 'Document', 'Invoiced', 'Paid', 'Balance'), rows, num=(2, 3, 4), label='Statement',
+                       total=('18 Oct', 'Closing balance', fmt(M(3420) + M(240) + I142_TOT), fmt(M(3420) + M(240) + M(500)), fmt(I142_TOT - M(500))),
+                       widths=('88px', None, '120px', '120px', '120px')))
+    tools_ = ('<div style="display:flex;align-items:center;gap:8px;padding:20px 24px 16px"><span class="chipsel is-set">Period <b>1 Aug to 18 Oct 2026</b>%s</span>'
+              '<span style="margin-left:auto;display:flex;gap:8px">%s%s</span></div>') % (ic('down'), btn('Download PDF', 'export', 'btn btn-quiet'), btn('Send by WhatsApp', 'whatsapp'))
+    main = head + figs + t + tools_ + table
+    rail = (rail_sec('Contact', (('Phone', '+263 77 412 0981'), ('Email', 'accounts@pomonaoffices.co.zw'), ('Address', 'Pomona Office Park, Harare')))
+            + rail_sec('Terms', (('Terms', '14 days'), ('Currency', 'USD'), ('VAT number', '220087431'), ('Rep', 'Chipo Mhlanga'))))
     body = rec('Customers', 'Customers', 'Pomona Offices', 'users', top, main, rail)
-    return board('BkCustomer', 'Pomona Offices', body, h=920)
+    return board('BkCustomer', 'Pomona Offices', body, h=816)
 
 
 # ---------- Bills & spending: records and forms ----------
 def bill():
-    top = btn('Print', 'print') + primary('Approve the payment', 'check', 'A')
-    head = ('<div class="bk-head"><div class="bk-k">%s<b>Mutare Timber Works</b><span>Their invoice %s, 9 Oct</span><span>Recorded 13 Oct</span><span>Due 16 Oct, 2 days ago</span></div>'
-            '<div class="bk-title">%s</div><div class="bk-k" style="font-size:14px;color:var(--color-ink-2)">Nothing paid yet. %s is drafted and waits for your approval.</div></div>') % (
-        pill('Overdue'), '<span class="mono">MTW-2291</span>', usd(B220_TOT), ref('PAY-0062'))
-    acts = '<div class="bk-acts">%s%s<span class="sepv"></span>%s%s%s</div>' % (
-        btn('Check on FDMS', 'fiscal'), btn('Debit note', 'docs'), btn('Revise', 'edit'), btn('Void', 'undo'), iconbtn('more', 'More actions', 'btn btn-icon'))
-    fdms = ('<div style="margin:16px 24px 0" class="bk-box warn">%s<span><b>Not checked on FDMS yet.</b> The %s of VAT on it is held back from your VAT return until the invoice shows Valid on fdms.zimra.co.zw. Enter its verification code or scan its QR code.</span>%s</div>') % (
-        ic('fiscal'), usd(B220_VAT), btn('Check now', None, 'btn btn-sm'))
-    lines = boxed(grid(('Item', 'Quantity', 'Price', 'Tax', 'Account', 'Amount'), [r[:4] + ('<span class="muted">1200 Stock</span>',) + r[4:] for r in line_rows(B220_LINES)], num=(2, 5), label='Lines',
-                       widths=(None, '96px', '96px', '100px', '110px', '120px')))
+    # Top bar: the primary, the check that releases its VAT, and a menu (print, debit note, revise, void, delete).
+    top = more_btn() + btn('Check on FDMS', 'fiscal') + primary('Approve the payment', 'check', 'A')
+    head = rec_head(usd(B220_TOT), pill('Overdue'), ('Mutare Timber Works', 'Due 16 Oct, 2 days ago'))
+    fdms = callout('fiscal', '<b>Not checked on FDMS yet.</b> Its %s of VAT waits until it shows Valid.' % usd(B220_VAT))
+    # Every line is VAT 15.5% to 1200 Stock: the sums and the posting say so once.
+    lines = boxed(grid(('Item', 'Quantity', 'Price', 'Amount'), [r[:3] + r[4:] for r in line_rows(B220_LINES)], num=(2, 3), label='Lines',
+                       widths=(None, '120px', '120px', '140px')))
     tot = sums((('Before VAT', usd(B220_NET), ''), ('VAT at 15.5%', usd(B220_VAT), ''), ('Total', usd(B220_TOT), 't'), ('Paid', usd(0), ''), ('Left to pay', usd(B220_TOT), 't')))
-    match = boxed(grid(('Item', 'Ordered, PO-0030', 'Received, GRN-0043', 'On this bill', ''), (
-        ('<span class="cell-lead">Oak strip flooring, 14 mm</span>', '40 m²', '40 m², 12 Oct', '40 m²', st('Valid', 'Matches')),
-        ('<span class="cell-lead">Oak skirting</span>', '30 m', '30 m, 12 Oct', '30 m', st('Valid', 'Matches')),
-        ('<span class="cell-lead">Underlay</span>', '40 m²', '40 m², 12 Oct', '40 m²', st('Valid', 'Matches'))), label='Matches', widths=(None, '150px', '160px', '120px', '110px')))
-    wht = ('<div style="margin:0 24px" class="bk-box warn">%s<span><b>30%% will be withheld when you pay.</b> Mutare Timber Works’ ITF263 expired on 30 Jun 2026 and they have been paid %s this year, over US$1,000. '
-           'Paying this bill sends them %s and keeps %s for ZIMRA, with a certificate for them. <span class="pill pill-warn" style="height:18px;font-size:12px">To confirm</span> the US$1,000 line for 2026.</span></div>') % (
-        ic('warn'), usd(MTW_PAID_YTD), usd(NET_PAY), usd(WHT))
-    pays = boxed(grid(('Payment', 'Date', 'From', 'Withheld', 'State', 'Amount'), (
-        (ref('PAY-0062'), '<span class="muted">18 Oct</span>', 'CBZ, USD', usd(WHT), st('To approve'), usd(NET_PAY)),), num=(3, 5), label='Payments', widths=('120px', '80px', None, '110px', '130px', '120px')))
+    match = boxed(grid(('Item', 'Ordered, PO-0030', 'Received, GRN-0043', 'On this bill'), (
+        ('<span class="cell-lead">Oak strip flooring, 14 mm</span>', '40 m²', '40 m², 12 Oct', '40 m²'),
+        ('<span class="cell-lead">Oak skirting</span>', '30 m', '30 m, 12 Oct', '30 m'),
+        ('<span class="cell-lead">Underlay</span>', '40 m²', '40 m², 12 Oct', '40 m²')), label='Matches', widths=(None, '160px', '170px', '130px')))
+    pays = boxed(grid(('Payment', 'Date', 'From', 'Withheld, 30%', 'State', 'Amount'), (
+        (ref('PAY-0062'), '<span class="muted">18 Oct</span>', 'CBZ, USD', usd(WHT), st('To approve'), usd(NET_PAY)),), num=(3, 5), label='Payments', widths=('120px', '80px', None, '130px', '130px', '120px')))
     post = posting((('JE-0467', '12 Oct', '1200 Stock · goods receipt GRN-0043', B220_NET, None), ('', '', '2010 Goods received, not billed', None, B220_NET),
                     ('JE-0472', '13 Oct', '2010 Goods received, not billed', B220_NET, None), ('', '', '2215 Input VAT, waiting for FDMS', B220_VAT, None),
                     ('', '', '2000 You owe suppliers · Mutare Timber Works', None, B220_TOT)))
-    hist = timeline((('wa', '<b>Rudo Mapfumo</b> drafted %s for %s and sent it to you to approve' % (ref('PAY-0062'), usd(NET_PAY)), '18 Oct 09:12'),
-                     ('wa', 'Overdue: due on 16 Oct', '17 Oct'),
-                     ('in', '<b>Rudo Mapfumo</b> recorded it from the draft, with their invoice MTW-2291', '13 Oct 11:40'),
-                     ('ok', '<b>Chipo Mhlanga</b> posted goods receipt %s: 40 m² of oak counted in' % ref('GRN-0043'), '12 Oct 14:05'),
+    hist = timeline((('wa', '<b>Rudo Mapfumo</b> drafted %s for you' % ref('PAY-0062'), '18 Oct 09:12'),
+                     ('wa', 'Overdue: it was due on 16 Oct', '17 Oct'),
+                     ('in', '<b>Rudo Mapfumo</b> recorded it', '13 Oct 11:40'),
+                     ('ok', '<b>Chipo Mhlanga</b> counted in %s' % ref('GRN-0043'), '12 Oct 14:05'),
                      ('', 'Draft bill made from GRN-0043', '12 Oct 14:05')))
-    main = (head + acts + fdms + sec('Lines', '3 lines', lines + tot, 'b1') + sec('Order and goods received', 'All match', match, 'b2') + sec('Withholding', None, wht, 'b3')
+    main = (head + fdms + sec('Lines', '3 lines', lines + tot, 'b1') + sec('Order and goods received', 'All match', match, 'b2')
             + sec('Payments', '1 to approve', pays, 'b4') + sec('Posting', '2 entries', post, 'b5') + sec('History', None, timeline_wrap(hist), 'b6'))
-    rail = ('<section><div class="sec-title">Their fiscal invoice</div><dl class="attrs"><dt>Number</dt><dd class="mono">MTW-2291</dd><dt>Dated</dt><dd>9 Oct 2026</dd><dt>FDMS</dt><dd>%s</dd><dt>Their VAT no.</dt><dd>220145873</dd><dt>Their TIN</dt><dd>2000418236</dd></dl>'
-            '<span class="bk-hint">Required: Mutare Timber Works is VAT-registered.</span></section>'
-            '<section><div class="sec-title">Details</div><dl class="attrs"><dt>Supplier</dt><dd>%s</dd><dt>Currency</dt><dd>USD</dd><dt>Terms</dt><dd>On delivery, 7 days</dd><dt>For</dt><dd>Ridgeview Apartments</dd><dt>Cost centre</dt><dd>Project · Ridgeview Apartments</dd><dt>Order</dt><dd>%s</dd><dt>Attachment</dt><dd>MTW-2291.jpg</dd></dl></section>'
-            '<section><div class="sec-title">If something is wrong</div>%s</section>') % (
-        st('Not checked'), ref('Mutare Timber Works'), ref('PO-0030'),
-        undo_box((('edit', 'Revise', 'Voids this bill and records a new one with a new number. Use it for a wrong amount or supplier.', False),
-                  ('undo', 'Void', 'Posts the mirror. What we owe Mutare Timber Works drops by %s.' % usd(B220_TOT), False),
-                  ('trash', 'Delete', 'Owner only, with a reason. October is open and nothing is paid, so it is allowed; the audit trail keeps a copy.', False))))
+    rail = (rail_sec('Their fiscal invoice', (('Number', '<span class="mono">MTW-2291</span>'), ('Dated', '9 Oct 2026'), ('FDMS', st('Not checked')), ('Their VAT no.', '220145873')))
+            + rail_sec('Details', (('Supplier', ref('Mutare Timber Works')), ('Terms', 'On delivery, 7 days'), ('For', 'Ridgeview Apartments'), ('Order', ref('PO-0030')))))
     body = rec('Bills', 'Bills', 'BILL-0220', 'docs', top, main, rail)
-    return board('BkBill', 'BILL-0220', body, h=1830)
+    return board('BkBill', 'BILL-0220', body, h=1608)
 
 
 def bill_new():
-    top = btn('Cancel', None, 'btn btn-quiet') + btn('Save draft', 'docs') + primary('Record the bill', 'check', 'Ctrl ↵')
-    who = fsec('Supplier', 'Who sent it, and their own fiscal invoice. Input VAT is claimed only once it shows Valid.',
+    top = btn('Save draft', 'docs') + primary('Record the bill', 'check', 'Ctrl ↵')
+    who = fsec('Supplier', 'Who sent it, and their fiscal invoice.',
                field('Supplier', sel_('Tile Trader Zimbabwe')) +
                '<div class="field-row">%s%s</div>' % (field('Their invoice number', inp('00184977', 'Their invoice number')), field('Their invoice date', inp('17 Oct 2026', 'Their invoice date')))
                + field('FDMS check', '<div style="display:flex;gap:8px"><label class="input-wrap" style="flex:1">%s<input aria-label="Verification code" value="91B4-0C7E-55A2-D013"></label>%s</div>' % (ic('fiscal'), btn('Check', None)))
-               + '<div class="bk-box ok">%s<span><b>Valid on FDMS</b>, checked just now: Tile Trader Zimbabwe, 17 Oct, %s, VAT %s. The VAT counts on your October return.</span></div>' % (ic('check'), usd(BN_TOT), usd(BN_VAT)))
-    src = fsec('From', 'Made from the goods receipt, so the lines are already counted in.',
-               '<div class="bk-box">%s<span><b>%s, counted in on 16 Oct</b> by Tendai Sibanda: half of %s. Its own posting waits in Needs posting until skirting and trims has a stock account.</span></div>' % (ic('list'), ref('GRN-0045'), ref('PO-0033')))
+               + '<div class="bk-box ok">%s<span><b>Valid on FDMS</b>, checked just now. Its VAT counts in October.</span></div>' % ic('check'))
+    src = fsec('From', 'Made from the goods receipt.',
+               '<div class="bk-box">%s<span><b>%s</b>, counted in on 16 Oct by Tendai Sibanda.</span></div>' % (ic('list'), ref('GRN-0045')))
     acct = {B_NEW_LINES[0][0]: '1200 Stock', B_NEW_LINES[1][0]: '1200 Stock'}
-    lines = wsec('Lines', 'From GRN-0045. Change a price if their invoice differs; the difference shows on the match.', line_editor(B_NEW_LINES, 'US$', acct))
-    terms = fsec('Terms', 'When you have to pay, and where it is counted.',
+    lines = wsec('Lines', 'From GRN-0045.', line_editor(B_NEW_LINES, 'US$', acct))
+    terms = fsec('Terms', 'When you have to pay.',
                  '<div class="field-row">%s%s</div>' % (field('Currency', seg(('USD', 'ZiG'), 'USD')), field('Due', sel_('In 30 days, 16 Nov', 'Due')))
                  + '<div class="field-row">%s%s</div>' % (field('Cost centre', sel_('Showroom stock', 'Cost centre')), field('Their invoice, a photo', '<button class="btn" style="justify-content:flex-start">%s00184977.jpg</button>' % ic('photo'))))
-    rail = ('<section><div class="sec-title">Total</div><div class="figure">%s</div><dl class="attrs"><dt>Before VAT</dt><dd class="num">%s</dd><dt>VAT at 15.5%%</dt><dd class="num">%s</dd><dt>Due</dt><dd class="num">16 Nov</dd></dl></section>'
-            '<section><div class="sec-title">Checks</div><dl class="attrs" style="grid-template-columns:120px minmax(0,1fr)"><dt>ITF263</dt><dd>%s</dd><dt>FDMS</dt><dd>%s</dd><dt>Match</dt><dd>%s</dd><dt>Approval</dt><dd>Not needed, under US$500.00</dd></dl></section>'
-            '<section><div class="sec-title">Posts</div><dl class="attrs" style="grid-template-columns:150px minmax(0,1fr)"><dt>2010 Goods received, not billed</dt><dd class="num">Dr %s</dd><dt>2210 Input VAT</dt><dd class="num">Dr %s</dd><dt>2000 You owe suppliers</dt><dd class="num">Cr %s</dd></dl>'
-            '<span class="bk-hint">It gets the next number, BILL-0225, when you record it.</span></section>') % (
-        usd(BN_TOT), usd(BN_NET), usd(BN_VAT), st('Valid', 'Valid to 31 Dec 2026'), st('Valid'), st('Valid', 'GRN-0045 matches'), usd(BN_NET), usd(BN_VAT), usd(BN_TOT))
+    rail = ('<section><div class="sec-title">Total</div><div class="figure">%s</div><dl class="attrs"><dt>Before VAT</dt><dd class="num">%s</dd><dt>VAT at 15.5%%</dt><dd class="num">%s</dd><dt>Due</dt><dd class="num">16 Nov</dd><dt>Number</dt><dd class="num">BILL-0225</dd></dl></section>'
+            '<section><div class="sec-title">Checks</div><dl class="attrs"><dt>ITF263</dt><dd>%s</dd><dt>FDMS</dt><dd>%s</dd><dt>Match</dt><dd>%s</dd><dt>Approval</dt><dd>Not needed</dd></dl></section>') % (
+        usd(BN_TOT), usd(BN_NET), usd(BN_VAT), st('Valid', 'Valid to 31 Dec'), st('Valid'), st('Valid', 'GRN-0045 matches'))
     body = form_page('Bills', 'Bills', 'New bill', 'docs', top, (who, src, lines, terms), rail)
-    return board('BkBillNew', 'New bill', body, h=980)
+    return board('BkBillNew', 'New bill', body, h=936)
 
 
 def payment_out_new():
-    top = btn('Cancel', None, 'btn btn-quiet') + btn('Save draft', 'docs') + primary('Send for approval', 'send', 'Ctrl ↵')
-    who = fsec('Pay', 'Choose the supplier, then the bills. One payment can clear several bills.',
+    top = btn('Save draft', 'docs') + primary('Send for approval', 'send', 'Ctrl ↵')
+    who = fsec('Pay', 'One payment can clear several bills.',
                field('Supplier', sel_('Mutare Timber Works')) +
                '<table class="table bk-le"><thead><tr><th class="sel" style="width:36px"></th><th>Bill</th><th>Their invoice</th><th>Due</th><th class="num">Owing</th></tr></thead><tbody>'
                '<tr aria-selected="true"><td class="sel"><label class="check"><input type="checkbox" checked aria-label="Pay BILL-0220"></label></td><td>%s</td><td class="mono" style="font-size:13px">MTW-2291</td><td>%s</td><td class="num">%s</td></tr></tbody></table>' % (
                    ref('BILL-0220'), st('Overdue', '2 days overdue'), usd(B220_TOT)))
-    itf = fsec('ITF263', 'Books checks the supplier’s tax clearance before every payment.',
-               '<div class="bk-box warn">%s<span><b>No valid ITF263.</b> Mutare Timber Works’ clearance expired on 30 Jun 2026. You have paid them %s this year, over US$1,000, so 30%% of this payment is withheld for ZIMRA. '
-               '<span class="pill pill-warn" style="height:18px;font-size:12px">To confirm</span> the US$1,000 line for 2026.</span></div>' % (ic('warn'), usd(MTW_PAID_YTD))
-               + '<div style="display:flex;gap:8px">%s%s</div>' % (btn('They sent a new one', 'upload'), btn('Ask them by WhatsApp', 'whatsapp')))
-    frm = fsec('From', 'The account the money leaves. The bank takes IMTT on top.',
+    itf = fsec('ITF263', 'Checked before every payment.',
+               '<div class="bk-box warn">%s<span class="grow"><b>No valid ITF263 since 30 Jun.</b> 30%% of this payment is withheld for ZIMRA.</span>%s</div>' % (ic('warn'), btn('Ask for it', 'whatsapp', 'btn btn-sm')))
+    frm = fsec('From', 'The bank takes IMTT on top.',
                '<div class="field-row">%s%s</div>' % (field('Pay from', sel_('CBZ current, USD', 'Pay from')), field('Date', inp('18 Oct 2026', 'Date')))
                + field('Reference on their statement', inp('FLOORCODE BILL-0220', 'Reference')))
     rows = (('Bill BILL-0220', usd(B220_TOT), ''), ('Withheld, 30%', '−' + usd(WHT), 'to ZIMRA by 10 Nov'), ('Paid to Mutare Timber Works', usd(NET_PAY), ''), ('IMTT, 2% (CBZ takes it)', usd(IMTT_NEW), 'a bank charge'))
-    brk = wsec('What moves', 'The bill is cleared in full: part paid to them, part held for ZIMRA.',
+    brk = wsec('What moves', '',
                boxed0(grid(('', 'Amount', ''), [('<span class="cell-lead">%s</span>' % a, b, '<span class="muted">%s</span>' % c) for a, b, c in rows], num=(1,), label='What moves',
                           total=('Leaves CBZ, USD', usd(NET_PAY + IMTT_NEW), ''), widths=(None, '140px', '200px'))))
-    rail = ('<section><div class="sec-title">Approval</div><div class="figure">%s</div><span class="muted" style="font-size:13px">to Mutare Timber Works, after %s withheld</span>'
-            '<dl class="attrs"><dt>Approves</dt><dd>James Nyabadza, owner</dd><dt>Why</dt><dd>Over US$500.00</dd><dt>Then pays</dt><dd>Rudo Mapfumo</dd></dl>'
-            '<span class="bk-hint">Nobody approves their own payment, and the person who approves does not also pay.</span></section>'
-            '<section><div class="sec-title">When it is paid</div><ol class="steps" style="gap:10px">%s</ol></section>'
-            '<section><div class="sec-title">Posts</div><dl class="attrs" style="grid-template-columns:150px minmax(0,1fr)"><dt>2000 You owe suppliers</dt><dd class="num">Dr %s</dd><dt>1010 CBZ current, USD</dt><dd class="num">Cr %s</dd><dt>2180 Withholding owed</dt><dd class="num">Cr %s</dd><dt>6420 Bank charges and IMTT</dt><dd class="num">Dr %s</dd><dt>1010 CBZ current, USD</dt><dd class="num">Cr %s</dd></dl></section>') % (
+    rail = ('<section><div class="sec-title">Approval</div><div class="figure">%s</div>'
+            '<dl class="attrs"><dt>Withheld</dt><dd class="num">%s</dd><dt>Approves</dt><dd>James Nyabadza</dd><dt>Why</dt><dd>Over US$500.00</dd><dt>Then pays</dt><dd>Rudo Mapfumo</dd></dl></section>'
+            '<section><div class="sec-title">When it is paid</div><ol class="steps" style="gap:12px">%s</ol></section>') % (
         usd(NET_PAY), usd(WHT),
         ''.join('<li class="step"><span class="n">%d</span><b>%s</b><span>%s</span></li>' % (i + 1, a, b) for i, (a, b) in enumerate((
-            ('It gets a number', 'PAY-0062'), ('The money leaves CBZ', usd(NET_PAY + IMTT_NEW) + ' with IMTT'), ('A certificate is drafted', 'for Mutare Timber Works'), ('The withholding return', 'lists it, due 5 Nov')))),
-        usd(B220_TOT), usd(NET_PAY), usd(WHT), usd(IMTT_NEW), usd(IMTT_NEW))
+            ('It gets a number', 'PAY-0062'), ('The money leaves CBZ', usd(NET_PAY + IMTT_NEW) + ' with IMTT'), ('A certificate is drafted', 'for Mutare Timber Works'), ('The withholding return', 'lists it, due 5 Nov')))))
     body = form_page('Payments made', 'Payments made', 'New payment', 'payments', top, (who, itf, frm, brk), rail)
-    return board('BkPaymentOutNew', 'Pay a supplier', body, h=980)
+    return board('BkPaymentOutNew', 'Pay a supplier', body, h=896)
 
 
 def requisition():
-    top = btn('Print', 'print') + btn('Reopen', 'undo')
-    head = ('<div class="bk-head"><div class="bk-k">%s<span class="pill pill-n">CRM</span><b>Farai Ncube</b><span>Fitter</span><span>For %s</span></div>'
-            '<div class="bk-title">Fuel and materials, Pomona Offices <small>· %s</small></div></div>') % (pill('Accounted for'), ref('Pomona Offices, 2nd floor'), usd(REQ88_GIVEN))
-    steps = '<div class="bk-steps">%s</div>' % ''.join('<div><b>%s%s</b><span>%s</span><span>%s</span></div>' % (ic('check'), a, b, c) for a, b, c in (
-        ('Asked', '6 Oct 08:10', 'Farai Ncube, %s' % usd(REQ88_GIVEN)), ('Approved', '6 Oct 09:02', 'Rudo Mapfumo, within her limit'),
-        ('Disbursed', '7 Oct 07:45', 'Chipo Mhlanga, showroom cash box'), ('Accounted for', '9 Oct 16:30', '3 slips, change back')))
-    figs = '<div class="bk-figs" style="grid-template-columns:repeat(4,minmax(0,1fr))">%s</div>' % ''.join(
-        '<div><span class="l">%s</span><span class="v">%s</span><span class="s">%s</span></div>' % x for x in (
-            ('Given', usd(REQ88_GIVEN), 'cash, 7 Oct'), ('Spent', usd(REQ88_SPENT), '3 slips'), ('Change returned', usd(REQ88_BACK), 'into the cash box, 9 Oct'), ('With Farai now', usd(0), 'nothing to account for')))
+    # Done, so no primary: print, and a menu (reopen, reverse).
+    top = more_btn() + btn('Print', 'print', 'btn btn-quiet')
+    head = rec_head('Fuel and materials, Pomona Offices', pill('Accounted for'), ('Farai Ncube, fitter', 'From the CRM'))
+    figs = strip((('Given', usd(REQ88_GIVEN), 'Cash, 7 Oct'), ('Spent', usd(REQ88_SPENT), '3 slips'), ('Change returned', usd(REQ88_BACK), 'Counted 9 Oct'), ('With Farai now', usd(0), 'Nothing owed')))
     slips = []
     vat_total = Decimal('0')
     for where, what, cat, acct, amt, fti in REQ88_SLIPS:
         v = vat_in(amt) if fti else None
         if v:
             vat_total += v
-        slips.append(('<span class="cell-lead">%s %s</span>' % (ic('photo'), where), '<span class="cell-lead">%s</span>' % what, '<span class="muted">%s</span>' % cat,
-                      st('Valid') if fti else '<span class="muted">None</span>', usd(v) if v else '<span class="muted">—</span>', usd(amt)))
+        slips.append(('<span class="cell-lead">%s</span>' % where, '<span class="cell-lead">%s</span>' % what, '<span class="muted">%s</span>' % cat,
+                      st('Valid') if fti else '<span class="muted">None</span>', '<span class="muted">%s</span>' % usd(v) if v else '<span class="muted">—</span>', usd(amt)))
     table = boxed(grid(('Slip', 'What', 'Expense', 'FDMS', 'VAT', 'Amount'), slips, num=(4, 5), label='Slips', total=('3 slips', '', '', '', usd(vat_total), usd(REQ88_SPENT)),
-                       widths=('160px', None, '150px', '96px', '80px', '104px')))
-    change = ('<div style="margin:12px 24px 0" class="bk-box">%s<span><b>Change returned: %s</b> counted into the showroom cash box by Chipo Mhlanga on 9 Oct. '
-              'Had Farai spent more than he was given, the difference would be paid to him as a top-up and shown here instead.</span></div>') % (ic('takings'), usd(REQ88_BACK))
+                       widths=('160px', None, '140px', '96px', '88px', '104px')))
     fuel = [s_ for s_ in REQ88_SLIPS if s_[3] == '6300']
     mats = [s_ for s_ in REQ88_SLIPS if s_[3] == '5000']
     fuel_net = sum((s_[4] - (vat_in(s_[4]) if s_[5] else 0) for s_ in fuel), Decimal('0'))
@@ -1230,53 +1224,41 @@ def requisition():
     post = posting((('JE-0441', '7 Oct', '1150 Cash advances to staff · Farai Ncube', REQ88_GIVEN, None), ('', '', '1030 Showroom cash box', None, REQ88_GIVEN),
                     ('JE-0451', '9 Oct', '6300 Van fuel', fuel_net, None), ('', '', '5000 Materials used · Pomona Offices', mats_net, None), ('', '', '2210 Input VAT', vat_total, None),
                     ('', '', '1030 Showroom cash box, change', REQ88_BACK, None), ('', '', '1150 Cash advances to staff · Farai Ncube', None, REQ88_GIVEN)))
-    hist = timeline((('ok', '<b>Rudo Mapfumo</b> closed it: slips match, change counted', '9 Oct 16:30'),
-                     ('in', '<b>Farai Ncube</b> added 3 slips from the cost tracker', '9 Oct 15:52'),
-                     ('in', '<b>Chipo Mhlanga</b> paid out %s cash from the showroom cash box' % usd(REQ88_GIVEN), '7 Oct 07:45'),
-                     ('ok', '<b>Rudo Mapfumo</b> approved it. Her limit was US$500.00 at the time', '6 Oct 09:02'),
-                     ('', '<b>Farai Ncube</b> asked for %s from the CRM job' % usd(REQ88_GIVEN), '6 Oct 08:10')))
-    main = head + steps + figs + sec('Slips', '3', table + change, 'r1') + sec('Posting', '2 entries', post, 'r2') + sec('History', None, timeline_wrap(hist), 'r3')
-    rail = ('<section><div class="sec-title">Request</div><dl class="attrs"><dt>Asked by</dt><dd>Farai Ncube</dd><dt>From</dt><dd>CRM, the Pomona Offices job</dd><dt>Why</dt><dd>Fuel for the van and adhesive and screed for the 2nd floor</dd>'
-            '<dt>Needed</dt><dd>7 Oct</dd><dt>Cost centre</dt><dd>Project · Pomona Offices</dd></dl></section>'
-            '<section><div class="sec-title">Who did what</div><dl class="attrs"><dt>Approved</dt><dd>Rudo Mapfumo</dd><dt>Paid out</dt><dd>Chipo Mhlanga</dd><dt>Closed</dt><dd>Rudo Mapfumo</dd></dl>'
-            '<span class="bk-hint">Nobody approved or paid out their own request, and the person who approved it did not pay it out.</span></section>'
-            '<section><div class="sec-title">If something is wrong</div>%s</section>') % undo_box((
-        ('undo', 'Reopen', 'Posts the mirror of the accounting for. It goes back to Disbursed, and the %s is with Farai again until slips are fixed.' % usd(REQ88_GIVEN), False),
-        ('undo', 'Reverse', 'Paying out can only be reversed while nothing is accounted for. Reopen first.', True)))
+    hist = timeline((('ok', '<b>Rudo Mapfumo</b> closed it', '9 Oct 16:30'),
+                     ('in', '<b>Farai Ncube</b> added 3 slips', '9 Oct 15:52'),
+                     ('in', '<b>Chipo Mhlanga</b> paid out %s cash' % usd(REQ88_GIVEN), '7 Oct 07:45'),
+                     ('ok', '<b>Rudo Mapfumo</b> approved it', '6 Oct 09:02'),
+                     ('', '<b>Farai Ncube</b> asked for %s' % usd(REQ88_GIVEN), '6 Oct 08:10')))
+    main = head + figs + sec('Slips', '3', table, 'r1') + sec('Posting', '2 entries', post, 'r2') + sec('History', None, timeline_wrap(hist), 'r3')
+    rail = (rail_sec('Request', (('For', ref('Pomona Offices, 2nd floor')), ('Needed', '7 Oct'), ('Paid from', 'Showroom cash box'), ('Cost centre', 'Project · Pomona Offices')))
+            + rail_sec('Who did what', (('Approved', 'Rudo Mapfumo'), ('Paid out', 'Chipo Mhlanga'), ('Closed', 'Rudo Mapfumo'))))
     body = rec('Requisitions', 'Requisitions', 'REQ-0088', 'hand', top, main, rail)
-    return board('BkRequisition', 'REQ-0088', body, h=1400)
+    return board('BkRequisition', 'REQ-0088', body, h=1232)
 
 
 def supplier():
-    top = btn('Statement', 'docs') + primary('Pay', 'payments', 'P')
-    head = ('<div class="bk-head"><div class="bk-k"><span class="pill pill-warn">ITF263 expired</span><span>Timber and oak flooring, Mutare</span><span>Mr G. Sithole</span><span>+263 20 206 4471</span></div>'
-            '<div class="bk-title">Mutare Timber Works</div></div>')
-    figs = '<div class="bk-figs" style="grid-template-columns:repeat(4,minmax(0,1fr))">%s</div>' % ''.join(
-        '<div><span class="l">%s</span><span class="v">%s</span><span class="s">%s</span></div>' % x for x in (
-            ('We owe', usd(B220_TOT), 'BILL-0220, 2 days late'), ('Paid this year', usd(MTW_PAID_YTD), 'before withholding'),
-            ('Withheld this year', usd(MTW_WHT_YTD), '1 certificate'), ('On order', usd(2400), 'PO-0038')))
+    top = more_btn() + btn('Statement', 'docs', 'btn btn-quiet') + primary('Pay', 'payments', 'P')
+    head = rec_head('Mutare Timber Works', pill('Expired', 'ITF263 expired'), ('Mr G. Sithole', 'Timber and oak flooring'))
+    figs = strip((('We owe', usd(B220_TOT), '2 days late'), ('Paid this year', usd(MTW_PAID_YTD), 'Before withholding'),
+                  ('Withheld this year', usd(MTW_WHT_YTD), '1 certificate'), ('On order', usd(2400), ref('PO-0038'))))
     t = tabs((('Activity', None), ('Bills', 4), ('Payments', 2), ('Statement', None), ('Tax', None)), 'Tax', 'Supplier views').replace('bk-tabs', 'bk-tabs bk-rtabs')
-    itf = ('<div style="margin:16px 24px 0" class="bk-box warn">%s<span><b>No valid ITF263 since 30 Jun 2026.</b> Every payment to them now withholds 30%% for ZIMRA, because they have been paid more than US$1,000 this year. '
-           'Their next payment, %s, withholds %s. <span class="pill pill-warn" style="height:18px;font-size:12px">To confirm</span> the US$1,000 line for 2026.</span></div>') % (ic('warn'), ref('PAY-0062'), usd(WHT))
+    itf = callout('warn', '<b>No valid ITF263 since 30 Jun.</b> Every payment to them withholds 30%.', btn('Ask for it', 'whatsapp', 'btn btn-sm'))
     cert = boxed(grid(('', ''), (
-        ('Number', '<span class="mono">ITF263 0041-77213</span>'), ('Valid', '1 Jul 2025 to 30 Jun 2026'), ('State', st('Expired ITF263', 'Expired, 110 days ago')),
-        ('Last checked', '18 Oct 08:00 on the ZIMRA portal, by Books'), ('Copy', '<span class="cell-lead">%s ITF263-2025.pdf</span>' % ic('docs'))), label='ITF263', widths=('180px', None)).replace('<thead><tr><th></th><th></th></tr></thead>', ''))
-    acts = '<div class="bk-acts" style="padding:12px 24px 0">%s%s</div>' % (btn('Upload the new ITF263', 'upload'), btn('Ask them by WhatsApp', 'whatsapp'))
+        ('Number', '<span class="mono">ITF263 0041-77213</span>'), ('Valid', '1 Jul 2025 to 30 Jun 2026'),
+        ('Last checked', '<span class="muted">18 Oct, ZIMRA portal</span>'), ('Copy', '<span class="cell-lead">ITF263-2025.pdf</span>')), label='ITF263', widths=('180px', None)).replace('<thead><tr><th></th><th></th></tr></thead>', ''))
     wrows = (
-        (ref('PAY-0041'), '<span class="muted">14 Aug</span>', ref('BILL-0198'), usd(MTW_PAID_YTD), usd(MTW_WHT_YTD), ref('WHT-0006'), st('Paid', 'Paid 10 Sep')),
-        (ref('PAY-0062'), '<span class="muted">18 Oct</span>', ref('BILL-0220'), usd(B220_TOT), usd(WHT), '<span class="muted">Drafted</span>', st('To approve')),
+        (ref('PAY-0041'), ref('BILL-0198'), usd(MTW_PAID_YTD), usd(MTW_WHT_YTD), ref('WHT-0006'), st('Paid', 'Paid 10 Sep')),
+        (ref('PAY-0062'), ref('BILL-0220'), usd(B220_TOT), usd(WHT), '<span class="muted">Drafted</span>', st('To approve')),
     )
-    wtab = boxed(grid(('Payment', 'Date', 'Bill', 'Gross', 'Withheld, 30%', 'Certificate', 'To ZIMRA'), wrows, num=(3, 4), label='Withholding',
-                      total=('2026', '', '', usd(MTW_PAID_YTD + B220_TOT), usd(MTW_WHT_YTD + WHT), '', ''), widths=('110px', '80px', '110px', '120px', '130px', '120px', None)))
-    vat = boxed(grid(('', ''), (('VAT number', '220145873, registered'), ('TIN', '2000418236'), ('Their invoices', 'Fiscal tax invoices, so we check each one on FDMS'),
-                              ('VAT withholding', 'Not an agent: we pay their VAT in full')), label='VAT', widths=('180px', None)).replace('<thead><tr><th></th><th></th></tr></thead>', ''))
-    main = head + figs + t + itf + sec('Tax clearance, ITF263', None, cert + acts, 's1') + sec('Withholding this year', '%s held' % usd(MTW_WHT_YTD), wtab, 's2') + sec('VAT', None, vat, 's3')
-    rail = ('<section><div class="sec-title">Details</div><dl class="attrs"><dt>Address</dt><dd>14 Herbert Chitepo St, Mutare</dd><dt>Currency</dt><dd>USD</dd><dt>Terms</dt><dd>On delivery, 7 days</dd>'
-            '<dt>Pay to</dt><dd>CBZ Mutare, 0112 4478 2210</dd><dt>Supplies</dt><dd>Oak strip, skirting, underlay</dd></dl></section>'
-            '<section><div class="sec-title">Latest</div>%s</section>') % timeline((
-        ('wa', 'PAY-0062 sent for approval', '18 Oct'), ('wa', 'BILL-0220 overdue', '17 Oct'), ('in', 'PO-0038 sent, oak for Ridgeview', '17 Oct'), ('ok', 'GRN-0043 counted in', '12 Oct'))).replace('class="bk-tl"', 'class="bk-tl" style="padding:0"')
+    wtab = boxed(grid(('Payment', 'Bill', 'Gross', 'Withheld, 30%', 'Certificate', 'To ZIMRA'), wrows, num=(2, 3), label='Withholding',
+                      total=('2026', '', usd(MTW_PAID_YTD + B220_TOT), usd(MTW_WHT_YTD + WHT), '', ''), widths=('120px', '120px', '130px', '140px', '130px', None)))
+    vat = boxed(grid(('', ''), (('VAT number', '220145873, registered'), ('TIN', '2000418236'), ('Their invoices', 'Checked on FDMS'),
+                              ('VAT withholding', 'Not an agent')), label='VAT', widths=('180px', None)).replace('<thead><tr><th></th><th></th></tr></thead>', ''))
+    main = head + figs + t + itf + sec('Tax clearance, ITF263', None, cert, 's1') + sec('Withholding this year', '%s held' % usd(MTW_WHT_YTD), wtab, 's2') + sec('VAT', None, vat, 's3')
+    rail = (rail_sec('Contact', (('Phone', '+263 20 206 4471'), ('Address', '14 Herbert Chitepo St, Mutare')))
+            + rail_sec('Terms', (('Terms', 'On delivery, 7 days'), ('Currency', 'USD'), ('Pay to', 'CBZ Mutare, 0112 4478 2210'), ('Supplies', 'Oak strip, skirting, underlay'))))
     body = rec('Suppliers', 'Suppliers', 'Mutare Timber Works', 'store', top, main, rail)
-    return board('BkSupplier', 'Mutare Timber Works', body, h=1220)
+    return board('BkSupplier', 'Mutare Timber Works', body, h=1164)
 
 
 # ---------- phone boards (390 wide) ----------
@@ -1295,16 +1277,15 @@ def phone(name, title, inner):
 
 def money_phone():
     head = ph_head(iconbtn('panel', 'Books menu'), 'Money', iconbtn('bell', 'Notifications'))
-    lede = ('<p style="font:600 22px/1.3 var(--font-sans);letter-spacing:var(--tracking-display);color:var(--color-ink)">%s has come in this month. '
-            '<span style="display:block;font-weight:400;color:var(--color-muted)">%s is owed to you, %s of it overdue.</span></p>') % (usd(MONEY_IN), usd(OWED), usd(OVERDUE))
+    lede = ('<p style="font:600 22px/1.3 var(--font-sans);letter-spacing:var(--tracking-display);color:var(--color-ink)">%s came in this month. '
+            '<span style="display:block;font-weight:400;color:var(--color-muted)">%s is overdue.</span></p>') % (usd(MONEY_IN), usd(OVERDUE))
     rows = ph_rows((('Gone out', usd(MONEY_OUT)), ('Bank and cash', usd(CASH_BASE)), ('You owe suppliers', usd(TO_PAY)), ('VAT due by 15 Nov', usd(VAT_OCT))))
     needs = ('<div><div style="display:flex;justify-content:space-between;align-items:baseline"><b style="font-size:17px;color:var(--color-ink)">Needs you</b><span class="muted">7</span></div>%s</div>') % ''.join((
         ph_need('hand', '4 things to approve', '%s in all' % usd(REQ_FOR_ME_SUM + M(23) + NET_PAY)),
-        ph_need('fiscal', 'INV-0144 is not signed by FDMS', 'The device was offline on Friday'),
-        ph_need('invoice', '3 invoices are overdue', '%s, Chisipite Dental 12 days' % usd(OVERDUE)),
-        ph_need('bank', '4 bank lines to match', 'CBZ, USD, since Wednesday')))
-    foot = '<div class="bk-ph-f">%s%s</div>' % (primary('New invoice', 'plus', 'N'), btn('Record a payment', 'payments', 'btn btn-lg'))
-    return phone('BkMoneyPhone', 'Money, phone', head + '<div class="bk-ph-b">%s%s%s</div>' % (lede, rows, needs) + foot)
+        ph_need('fiscal', 'INV-0144 is not signed by FDMS', 'Westgate Interiors, %s' % zig(13500)),
+        ph_need('invoice', '3 invoices are overdue', '%s in all' % usd(OVERDUE))))
+    foot = '<div class="bk-ph-f">%s%s</div>' % (primary('New invoice', 'plus', 'N'), btn('Record', None, 'btn btn-lg', attrs=' aria-haspopup="menu"')[:-9] + ic('down') + '</button>')
+    return phone('BkMoneyPhone', 'Money, phone', head + '<div class="bk-ph-b" style="gap:24px">%s%s%s</div>' % (lede, rows, needs) + foot)
 
 INV131_LINES = (('Vinyl, 2 surgeries', 36, 'm²', '22.40'), ('Fitting', 36, 'm²', '5.60'), ('Coved skirting', 7, 'm', '9.37'))
 
@@ -1314,7 +1295,7 @@ def invoice_phone():
     head = ph_head(iconbtn('back', 'Back to invoices'), 'INV-0131', iconbtn('more', 'More actions'))
     top = ('<div style="display:flex;flex-direction:column;gap:6px">%s<div class="num" style="font-size:34px;font-weight:600;color:var(--color-ink);letter-spacing:var(--tracking-display);text-align:left">%s</div>'
            '<span style="font-size:15px;color:var(--color-ink-2)">Chisipite Dental · Mrs L. Banda</span></div>') % ('<span style="align-self:flex-start">%s</span>' % pill('Overdue', 'Overdue, 12 days'), usd(tot))
-    rows = ph_rows((('Issued', '22 Sep'), ('Due', '6 Oct'), ('Paid', usd(0)), ('FDMS', st('Valid')), ('Last reminder', '9 Oct, read')))
+    rows = ph_rows((('Issued', '22 Sep'), ('Due', '6 Oct'), ('FDMS', st('Valid')), ('Last reminder', '9 Oct, read')))
     lines = '<div><b style="font-size:15px;color:var(--color-ink)">3 lines</b>%s</div>' % ''.join(
         '<div class="bk-ph-row" style="font-size:14px"><span>%s, %s %s</span><span>%s</span></div>' % (i, q, u, usd(M(q) * M(p))) for i, q, u, p in INV131_LINES) + \
         '<div class="bk-ph-row" style="font-size:14px;box-shadow:none"><span>VAT at 15.5%%</span><span>%s</span></div>' % usd(v)
@@ -1327,10 +1308,9 @@ def requisition_phone():
     head = ph_head(iconbtn('back', 'Back to requisitions'), 'REQ-0091', '<span class="pill pill-n" style="margin-right:8px">CRM</span>')
     top = ('<div style="display:flex;flex-direction:column;gap:6px"><span style="font-size:15px;color:var(--color-ink-2)">Tinashe Moyo asks for</span>'
            '<div class="num" style="font-size:34px;font-weight:600;color:var(--color-ink);letter-spacing:var(--tracking-display);text-align:left">%s</div>'
-           '<span style="font-size:15px;line-height:1.45;color:var(--color-ink)">Transport for 3 trips to Borrowdale Brooke Clinic, for the vinyl in 3 rooms.</span></div>') % usd(r[6])
-    rows = ph_rows((('Job', 'Borrowdale Brooke Clinic'), ('Needed', 'Mon 19 Oct'), ('Paid from', 'Showroom cash box'), ('Asked', '17 Oct 17:20'),
-                    ('Tinashe holds', '%s not accounted for' % usd(0)), ('His last 3', 'All accounted for')))
-    who = '<div class="bk-box" style="font-size:14px">%s<span>You or Rudo Mapfumo can approve this. Chipo Mhlanga pays it out, so nobody both approves and pays.</span></div>' % ic('person')
+           '<span style="font-size:15px;line-height:1.45;color:var(--color-ink)">Transport, 3 trips to the clinic job</span></div>') % usd(r[6])
+    rows = ph_rows((('Job', 'Borrowdale Brooke Clinic'), ('Needed', 'Mon 19 Oct'), ('Paid from', 'Showroom cash box'), ('His last 3', 'All accounted for')))
+    who = '<span style="font-size:14px;color:var(--color-muted)">Chipo Mhlanga pays it out once approved.</span>'
     foot = '<div class="bk-ph-f">%s%s</div>' % (btn('Approve', 'check', 'btn btn-primary', 'A'), btn('Reject', 'x', 'btn btn-lg'))
     return phone('BkRequisitionPhone', 'Approve REQ-0091, phone', head + '<div class="bk-ph-b">%s%s%s</div>' % (top, rows, who) + foot)
 
@@ -1343,8 +1323,7 @@ def claim_phone():
             '<div class="l"><span>VAT 15.5%%, included</span><span>4.35</span></div><hr><div class="l t"><span>Total US$</span><span>32.40</span></div></div>'
             '<button class="btn btn-sm" style="position:absolute;right:10px;top:10px">%sRetake</button></div>') % ic('camera')
     flag = vflag('Vane read the slip. Check it, then send it.')
-    rows = ph_rows((('Where', 'Puma Service Station, Msasa'), ('Date', 'Sat 18 Oct'), ('Amount', usd('32.40')), ('VAT', '%s, fiscal invoice' % usd('4.35')),
-                    ('What', 'Fuel'), ('For', 'Ridgeview Apartments, site visit')))
+    rows = ph_rows((('Where', 'Puma, Msasa'), ('Amount', usd('32.40')), ('VAT', usd('4.35')), ('For', 'Ridgeview Apartments')))
     paid = '<div style="display:flex;flex-direction:column;gap:8px"><span style="font-size:14px;font-weight:500;color:var(--color-ink)">Paid with</span>%s</div>' % \
         '<div class="seg" role="tablist" style="display:flex"><button role="tab" aria-selected="true" style="flex:1;justify-content:center;height:36px">My own money</button><button role="tab" aria-selected="false" style="flex:1;justify-content:center;height:36px">Site float</button></div>'
     foot = '<div class="bk-ph-f">%s</div>' % btn('Send the claim', 'send', 'btn btn-primary', 'Ctrl ↵')
