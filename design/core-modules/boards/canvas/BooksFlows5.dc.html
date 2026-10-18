@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<title>Books · Flows: bank, cash and two currencies</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&amp;display=swap">
+<link rel="stylesheet" href="/_blob/99852cf059ec2fd037ee27b1340107ec">
+</head>
+<body>
+<x-dc>
+<helmet><style>
+body{margin:0;background:var(--color-surface);font-family:var(--font-sans);color:var(--color-ink)}
+.sh,.rb2,.st,.ex{height:1650px}
+
+.bf-sec{padding:40px 0;box-shadow:inset 0 1px 0 var(--color-line);margin-top:40px}
+.xp-sec+.bf-sec,.bf-sec+.bf-sec,.bf-sec+.xp-sec{margin-top:0}
+.bf-sh{display:grid;grid-template-columns:320px minmax(0,1fr);gap:48px;margin-bottom:24px;align-items:start}
+.bf-sh h2{font-size:18px;font-weight:600;margin:0}
+.bf-sh .aside{color:var(--color-ink-2);line-height:1.6;max-width:840px;margin:0}
+.bf-sh .mono{font-size:13px;color:var(--color-muted)}
+.bf-st{height:28px;padding:0 10px;justify-content:center;box-sizing:border-box}
+.bf-st.pill-plain{padding:0 10px;background:var(--color-surface);box-shadow:var(--shadow-ring)}
+.bf-st.is-gone{padding:0 10px;background:var(--color-surface);box-shadow:none;outline:1.5px dashed var(--color-rule);outline-offset:-1.5px;color:var(--color-muted);font-weight:400}
+.bf-st.is-gone::before{display:none}
+.bf-m{position:relative;margin:8px 0 24px}
+.bf-m>svg{position:absolute;left:0;top:0;overflow:visible}
+.bf-n{position:absolute;transform:translate(-50%,-50%);display:flex}
+.bf-n .bf-st{width:100%}
+.bf-l{position:absolute;font-size:12px;line-height:16px;color:var(--color-ink);font-weight:500}
+.bf-l i{display:block;font-style:normal;font-weight:400;color:var(--color-muted)}
+.bf-l.up{transform:translateY(calc(-100% - 5px));text-align:center}
+.bf-l.dn{transform:translateY(5px);text-align:center}
+.bf-l.rt{transform:translateY(-50%);text-align:left}
+.bf-l.lt{transform:translateY(-50%);text-align:right}
+.bf-g{position:absolute;border-radius:12px;outline:1px dashed var(--color-rule);outline-offset:0}
+.bf-g>span{position:absolute;left:12px;top:-9px;padding:0 6px;background:var(--color-surface);font-size:12px;color:var(--color-muted)}
+.bf-fx .table{font-size:13px}
+.bf-fx .table th{font-size:12px}
+.bf-fx .table.is-prose td{line-height:18px;padding-top:8px;padding-bottom:8px}
+.bf-steps{display:grid;gap:20px}
+.bf-step{position:relative;padding:16px 16px 18px;border-radius:10px;box-shadow:var(--shadow-ring);display:flex;flex-direction:column;gap:10px;min-width:0}
+.bf-step+.bf-step::before{content:"";position:absolute;left:-17px;top:27px;width:12px;height:2px;background:var(--color-rule)}
+.bf-step+.bf-step::after{content:"";position:absolute;left:-9px;top:24px;border:4px solid transparent;border-left:5px solid var(--color-rule)}
+.bf-steps.is-wrap .bf-step::before,.bf-steps.is-wrap .bf-step::after{display:none}
+.bf-step-h{display:flex;align-items:center;gap:10px}
+.bf-step-h b{font-weight:600;color:var(--color-ink);font-size:14px;line-height:1.35}
+.bf-num{display:grid;place-items:center;flex:none;width:22px;height:22px;border-radius:999px;background:var(--color-ink);color:var(--color-surface);font-size:12px;font-weight:600;font-variant-numeric:tabular-nums}
+.bf-f{display:grid;grid-template-columns:52px minmax(0,1fr);gap:8px;font-size:13px;line-height:1.5;color:var(--color-ink-2)}
+.bf-f>span:first-child{color:var(--color-muted);font-size:12px;line-height:19px}
+.bf-f .bf-st{height:22px;padding:0 8px}
+.bf-where{font-size:12px;color:var(--color-ink-2)}
+.bf-dr{display:block;font-family:var(--font-mono);font-size:12px;line-height:1.6;color:var(--color-ink)}
+.bf-dr .muted{font-family:var(--font-sans)}
+.bf-dr.is-amt{display:flex;justify-content:space-between;gap:8px}
+.bf-dr.is-amt b{font-weight:500;white-space:nowrap}
+.bf-mark{display:inline-flex;align-items:center;justify-content:center;min-width:22px;height:22px;padding:0 6px;border-radius:6px;font-size:12px;font-weight:600;white-space:nowrap}
+.bf-mark.y{background:var(--color-success-tint);color:var(--color-success)}
+.bf-mark.l{background:var(--color-accent-tint);color:var(--color-accent)}
+.bf-mark.g{background:var(--color-warning-tint);color:var(--color-ink)}
+.bf-mark.o{background:var(--color-fill);color:var(--color-ink-2)}
+.bf-mark.t{background:var(--color-fill);color:var(--color-ink-2);font-weight:500;white-space:normal;height:auto;min-height:22px;padding:2px 6px;line-height:18px;box-sizing:border-box}
+.bf-mark.n{color:var(--color-faint);font-weight:400}
+.bf-box{padding:16px 18px;border-radius:10px;box-shadow:var(--shadow-ring);background:var(--color-surface)}
+.bf-box h3{font-size:14px;font-weight:600;margin:0 0 6px;color:var(--color-ink)}
+.bf-box p{font-size:13px;line-height:1.6;color:var(--color-ink-2);margin:0}
+.bf-chip{display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 8px;border-radius:6px;background:var(--color-fill);font-size:12px;color:var(--color-ink-2);white-space:nowrap}
+.bf-code{font-family:var(--font-mono);font-size:12px;color:var(--color-ink-2)}
+.bf-k{font-size:12px;color:var(--color-muted)}
+.bf-start{width:12px;height:12px;margin:auto;border-radius:999px;background:var(--color-ink-2)}
+
+</style></helmet>
+<div class="xp"><div class="xp-k"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M15.814 2.585A2.5 2.5 0 0 1 19 4.988V6a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8c0-.374.104-.723.283-1.022a2.5 2.5 0 0 1 1.53-1.25zM15.5 11.5a1.5 1.5 0 1 0 0 3a1.5 1.5 0 0 0 0-3m.862-6.992L11.14 6H17V4.988a.5.5 0 0 0-.638-.48"/></svg><span>Books</span></div><h1>Flows: bank, cash and two currencies</h1><p class="lede">How statements come in and are matched, what IMTT does, how a reconciliation closes, and a day with US dollars and ZiG side by side.</p><section class="bf-sec"><div class="bf-sh"><div><h2>Bank and cash</h2></div><p class="aside">CBZ current, USD, one statement a week. Vane proposes matches; a person accepts them.</p></div><div style="margin-top:0px"><div class="bf-steps" style="grid-template-columns:repeat(5,minmax(0,1fr))"><div class="bf-step"><div class="bf-step-h"><span class="bf-num">1</span><b>Statements in</b></div><div class="bf-f"><span>Screen</span><span><span class="bf-where">Bank & cash › Accounts › CBZ current, USD › Upload a statement</span> · <span class="kbd">U</span></span></div><div class="bf-f"><span>Who</span><span>bank rights</span></div><div class="bf-f"><span>What</span><span>CSV per account; CBZ weekly; no feeds yet</span></div><div class="bf-f"><span>Then</span><span>Lines land in To match</span></div><div class="bf-f"><span>Undo</span><span>Delete the upload before any line is matched</span></div></div><div class="bf-step"><div class="bf-step-h"><span class="bf-num">2</span><b>Match</b></div><div class="bf-f"><span>Screen</span><span><span class="bf-where">Bank & cash › To match</span></span></div><div class="bf-f"><span>Who</span><span>bank rights</span></div><div class="bf-f"><span>State</span><span><span style="display:inline-flex;align-items:center;gap:6px;flex-wrap:wrap"><span class="pill bf-st pill-warn">To match</span><span class="muted">→</span><span class="pill bf-st pill-ok">Matched</span></span></span></div><div class="bf-f"><span>Then</span><span>Accept one, many, or Accept Vane’s 3; or Choose. Create a receipt, payment, bank charge or transfer from the line, which posts. Or Exclude with a reason.</span></div><div class="bf-f"><span>Undo</span><span>Unmatch; Include again</span></div></div><div class="bf-step"><div class="bf-step-h"><span class="bf-num">3</span><b>IMTT and charges</b></div><div class="bf-f"><span>Screen</span><span>Lines the matcher recognises are proposed as a Bank entry</span></div><div class="bf-f"><span>Who</span><span>bank rights</span></div><div class="bf-f"><span>What</span><span>Bank entry, charge</span></div><div class="bf-f"><span>Posts</span><span><span class="bf-dr is-amt"><span>Dr IMTT expense</span><b>16.17</b></span><span class="bf-dr is-amt"><span>Cr CBZ current, USD</span><b>16.17</b></span></span></div><div class="bf-f"><span>Undo</span><span>Void the bank entry</span></div></div><div class="bf-step"><div class="bf-step-h"><span class="bf-num">4</span><b>Reconcile</b></div><div class="bf-f"><span>Screen</span><span><span class="bf-where">Reconciliations › Start</span>: statement end date and balance</span></div><div class="bf-f"><span>Who</span><span>manager or accountant</span></div><div class="bf-f"><span>State</span><span><span style="display:inline-flex;align-items:center;gap:6px;flex-wrap:wrap"><span class="pill bf-st pill-info">Open</span><span class="muted">→</span><span class="pill bf-st pill-ok">Closed</span></span></span></div><div class="bf-f"><span>Then</span><span>Book balance, matched, unmatched, difference. Close at 0.00; locks its lines.</span></div><div class="bf-f"><span>Undo</span><span>Reopen (owner)</span></div></div><div class="bf-step"><div class="bf-step-h"><span class="bf-num">5</span><b>Book equals bank equals ledger</b></div><div class="bf-f"><span>Screen</span><span>Every receipt and payment that names an account makes its bank transaction (fix 6)</span></div><div class="bf-f"><span>What</span><span>Opening plus transactions</span></div><div class="bf-f"><span>Posts</span><span><span class="muted">Nothing posts</span></span></div><div class="bf-f"><span>Undo</span><span>—</span></div></div></div></div><div style="margin-top:24px"><div class="kstrip" style="grid-template-columns:repeat(4,minmax(0,1fr))"><div class="kt"><span class="kt-l">IMTT on USD</span><span class="kt-v">2%</span><span style="font-size:12px;color:var(--color-muted);line-height:1.4">what the bank charged is recorded</span></div><div class="kt"><span class="kt-l">IMTT on ZWG</span><span class="kt-v">1.5%</span><span style="font-size:12px;color:var(--color-muted);line-height:1.4">from 1 Jan 2026</span></div><div class="kt"><span class="kt-l">Flat, over US$500,000</span><span class="kt-v">US$10,150</span><span style="font-size:12px;color:var(--color-muted);line-height:1.4">per transaction</span></div><div class="kt"><span class="kt-l">Our side</span><span class="kt-v">None</span><span style="font-size:12px;color:var(--color-muted);line-height:1.4">except the proposed line on a payment</span></div></div></div></section><section class="bf-sec"><div class="bf-sh"><div><h2>A multi-currency day</h2></div><p class="aside">The document keeps its own currency and rate; the books are in base currency. ZWG is the code in exports and on fiscal invoices.</p></div><div style="margin-top:0px"><div class="bf-steps" style="grid-template-columns:repeat(4,minmax(0,1fr))"><div class="bf-step"><div class="bf-step-h"><span class="bf-num">1</span><b>Morning: today’s rate</b></div><div class="bf-f"><span>Screen</span><span><span class="bf-where">Close the month › Rates & revaluation</span></span></div><div class="bf-f"><span>Who</span><span>automatic, or the accountant</span></div><div class="bf-f"><span>What</span><span>27.00 ZiG to US$1, RBZ interbank, 07:05</span></div><div class="bf-f"><span>Then</span><span>With no rate today, the latest earlier one applies and Money says so</span></div><div class="bf-f"><span>Undo</span><span>Enter a manual rate</span></div></div><div class="bf-step"><div class="bf-step-h"><span class="bf-num">2</span><b>A ZiG invoice</b></div><div class="bf-f"><span>Screen</span><span>INV-0144, Westgate Interiors, ZiG 13,500.00</span></div><div class="bf-f"><span>Who</span><span>Sales rights</span></div><div class="bf-f"><span>State</span><span><span style="display:inline-flex;align-items:center;gap:6px;flex-wrap:wrap"><span class="pill bf-st pill-n">Draft</span><span class="muted">→</span><span class="pill bf-st pill-info">Issued</span></span></span></div><div class="bf-f"><span>Posts</span><span><span class="bf-dr is-amt"><span>Dr Receivable</span><b>500.00</b></span><span class="bf-dr is-amt"><span>Cr Sales and VAT</span><b>500.00</b></span><span class="muted">Posted in USD at 27.00; the invoice shows both.</span></span></div><div class="bf-f"><span>Undo</span><span>Void with a credit note</span></div></div><div class="bf-step"><div class="bf-step-h"><span class="bf-num">3</span><b>Paid in US dollars</b></div><div class="bf-f"><span>Screen</span><span>A USD receipt allocated to the ZiG invoice</span></div><div class="bf-f"><span>Who</span><span>Sales rights</span></div><div class="bf-f"><span>What</span><span>Receipt keeps USD and its rate, 27.40</span></div><div class="bf-f"><span>Posts</span><span><span class="bf-dr is-amt"><span>Dr CBZ current, USD</span><b>492.70</b></span><span class="bf-dr is-amt"><span>Dr Exchange loss</span><b>7.30</b></span><span class="bf-dr is-amt"><span>Cr Receivable</span><b>500.00</b></span><span class="muted">Realised gain or loss.</span></span></div><div class="bf-f"><span>Undo</span><span>Void the receipt</span></div></div><div class="bf-step"><div class="bf-step-h"><span class="bf-num">4</span><b>Reports</b></div><div class="bf-f"><span>Screen</span><span>Trial balance, statements, aging</span></div><div class="bf-f"><span>What</span><span>Base currency, USD</span></div><div class="bf-f"><span>Then</span><span>Aging and statements also show each currency on its own</span></div><div class="bf-f"><span>Undo</span><span>—</span></div></div></div></div><div style="margin-top:20px"><div class="bf-steps" style="grid-template-columns:repeat(4,minmax(0,1fr))"><div class="bf-step"><div class="bf-step-h"><span class="bf-num">5</span><b>Month end revaluation</b></div><div class="bf-f"><span>Screen</span><span><span class="bf-where">Rates & revaluation › Revaluation</span></span></div><div class="bf-f"><span>Who</span><span>accountant</span></div><div class="bf-f"><span>What</span><span>Open ZiG receivables, payables and accounts at the month-end rate</span></div><div class="bf-f"><span>Posts</span><span><span class="bf-dr">Dr or Cr Unrealised gain or loss</span><span class="muted">Reversed on the 1st of next month.</span></span></div><div class="bf-f"><span>Undo</span><span>Void the revaluation</span></div></div><div class="bf-step"><div class="bf-step-h"><span class="bf-num">6</span><b>Tax in its currency</b></div><div class="bf-f"><span>Screen</span><span>Tax › What’s due</span></div><div class="bf-f"><span>What</span><span>Paid in the currency of trade, except income tax (PN 34/2026)</span></div><div class="bf-f"><span>Then</span><span>The VAT return shows output and input by currency</span></div><div class="bf-f"><span>Undo</span><span>—</span></div></div><div class="bf-step"><div class="bf-step-h"><span class="bf-num">7</span><b>Base currency</b></div><div class="bf-f"><span>Screen</span><span>Management › Money and tax</span></div><div class="bf-f"><span>Who</span><span>owner</span></div><div class="bf-f"><span>What</span><span>USD by default; ZWG-functional workspaces choose at setup</span></div><div class="bf-f"><span>Then</span><span>Changing it after the first posting is refused <span class="pill pill-warn">To confirm</span></span></div><div class="bf-f"><span>Undo</span><span>—</span></div></div></div></div></section></div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1650}}'>
+class Component extends DCLogic { renderVals() { return {}; } }
+</script>
+</body>
+</html>

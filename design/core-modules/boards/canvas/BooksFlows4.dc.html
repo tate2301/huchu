@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<title>Books · Flows: petty cash, retail, stock and payroll</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&amp;display=swap">
+<link rel="stylesheet" href="/_blob/99852cf059ec2fd037ee27b1340107ec">
+</head>
+<body>
+<x-dc>
+<helmet><style>
+body{margin:0;background:var(--color-surface);font-family:var(--font-sans);color:var(--color-ink)}
+.sh,.rb2,.st,.ex{height:1940px}
+
+.bf-sec{padding:40px 0;box-shadow:inset 0 1px 0 var(--color-line);margin-top:40px}
+.xp-sec+.bf-sec,.bf-sec+.bf-sec,.bf-sec+.xp-sec{margin-top:0}
+.bf-sh{display:grid;grid-template-columns:320px minmax(0,1fr);gap:48px;margin-bottom:24px;align-items:start}
+.bf-sh h2{font-size:18px;font-weight:600;margin:0}
+.bf-sh .aside{color:var(--color-ink-2);line-height:1.6;max-width:840px;margin:0}
+.bf-sh .mono{font-size:13px;color:var(--color-muted)}
+.bf-st{height:28px;padding:0 10px;justify-content:center;box-sizing:border-box}
+.bf-st.pill-plain{padding:0 10px;background:var(--color-surface);box-shadow:var(--shadow-ring)}
+.bf-st.is-gone{padding:0 10px;background:var(--color-surface);box-shadow:none;outline:1.5px dashed var(--color-rule);outline-offset:-1.5px;color:var(--color-muted);font-weight:400}
+.bf-st.is-gone::before{display:none}
+.bf-m{position:relative;margin:8px 0 24px}
+.bf-m>svg{position:absolute;left:0;top:0;overflow:visible}
+.bf-n{position:absolute;transform:translate(-50%,-50%);display:flex}
+.bf-n .bf-st{width:100%}
+.bf-l{position:absolute;font-size:12px;line-height:16px;color:var(--color-ink);font-weight:500}
+.bf-l i{display:block;font-style:normal;font-weight:400;color:var(--color-muted)}
+.bf-l.up{transform:translateY(calc(-100% - 5px));text-align:center}
+.bf-l.dn{transform:translateY(5px);text-align:center}
+.bf-l.rt{transform:translateY(-50%);text-align:left}
+.bf-l.lt{transform:translateY(-50%);text-align:right}
+.bf-g{position:absolute;border-radius:12px;outline:1px dashed var(--color-rule);outline-offset:0}
+.bf-g>span{position:absolute;left:12px;top:-9px;padding:0 6px;background:var(--color-surface);font-size:12px;color:var(--color-muted)}
+.bf-fx .table{font-size:13px}
+.bf-fx .table th{font-size:12px}
+.bf-fx .table.is-prose td{line-height:18px;padding-top:8px;padding-bottom:8px}
+.bf-steps{display:grid;gap:20px}
+.bf-step{position:relative;padding:16px 16px 18px;border-radius:10px;box-shadow:var(--shadow-ring);display:flex;flex-direction:column;gap:10px;min-width:0}
+.bf-step+.bf-step::before{content:"";position:absolute;left:-17px;top:27px;width:12px;height:2px;background:var(--color-rule)}
+.bf-step+.bf-step::after{content:"";position:absolute;left:-9px;top:24px;border:4px solid transparent;border-left:5px solid var(--color-rule)}
+.bf-steps.is-wrap .bf-step::before,.bf-steps.is-wrap .bf-step::after{display:none}
+.bf-step-h{display:flex;align-items:center;gap:10px}
+.bf-step-h b{font-weight:600;color:var(--color-ink);font-size:14px;line-height:1.35}
+.bf-num{display:grid;place-items:center;flex:none;width:22px;height:22px;border-radius:999px;background:var(--color-ink);color:var(--color-surface);font-size:12px;font-weight:600;font-variant-numeric:tabular-nums}
+.bf-f{display:grid;grid-template-columns:52px minmax(0,1fr);gap:8px;font-size:13px;line-height:1.5;color:var(--color-ink-2)}
+.bf-f>span:first-child{color:var(--color-muted);font-size:12px;line-height:19px}
+.bf-f .bf-st{height:22px;padding:0 8px}
+.bf-where{font-size:12px;color:var(--color-ink-2)}
+.bf-dr{display:block;font-family:var(--font-mono);font-size:12px;line-height:1.6;color:var(--color-ink)}
+.bf-dr .muted{font-family:var(--font-sans)}
+.bf-dr.is-amt{display:flex;justify-content:space-between;gap:8px}
+.bf-dr.is-amt b{font-weight:500;white-space:nowrap}
+.bf-mark{display:inline-flex;align-items:center;justify-content:center;min-width:22px;height:22px;padding:0 6px;border-radius:6px;font-size:12px;font-weight:600;white-space:nowrap}
+.bf-mark.y{background:var(--color-success-tint);color:var(--color-success)}
+.bf-mark.l{background:var(--color-accent-tint);color:var(--color-accent)}
+.bf-mark.g{background:var(--color-warning-tint);color:var(--color-ink)}
+.bf-mark.o{background:var(--color-fill);color:var(--color-ink-2)}
+.bf-mark.t{background:var(--color-fill);color:var(--color-ink-2);font-weight:500;white-space:normal;height:auto;min-height:22px;padding:2px 6px;line-height:18px;box-sizing:border-box}
+.bf-mark.n{color:var(--color-faint);font-weight:400}
+.bf-box{padding:16px 18px;border-radius:10px;box-shadow:var(--shadow-ring);background:var(--color-surface)}
+.bf-box h3{font-size:14px;font-weight:600;margin:0 0 6px;color:var(--color-ink)}
+.bf-box p{font-size:13px;line-height:1.6;color:var(--color-ink-2);margin:0}
+.bf-chip{display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 8px;border-radius:6px;background:var(--color-fill);font-size:12px;color:var(--color-ink-2);white-space:nowrap}
+.bf-code{font-family:var(--font-mono);font-size:12px;color:var(--color-ink-2)}
+.bf-k{font-size:12px;color:var(--color-muted)}
+.bf-start{width:12px;height:12px;margin:auto;border-radius:999px;background:var(--color-ink-2)}
+
+</style></helmet>
+<div class="xp"><div class="xp-k"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M15.814 2.585A2.5 2.5 0 0 1 19 4.988V6a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8c0-.374.104-.723.283-1.022a2.5 2.5 0 0 1 1.53-1.25zM15.5 11.5a1.5 1.5 0 1 0 0 3a1.5 1.5 0 0 0 0-3m.862-6.992L11.14 6H17V4.988a.5.5 0 0 0-.638-.48"/></svg><span>Books</span></div><h1>Flows: petty cash, retail, stock and payroll</h1><p class="lede">The modules that own their screens and post through the core, and the float that pays for the small things.</p><section class="bf-sec"><div class="bf-sh"><div><h2>Petty cash and expenses</h2></div><p class="aside">Chipo’s showroom float, US$200.00 imprest.</p></div><div style="margin-top:0px"><div class="bf-steps" style="grid-template-columns:repeat(4,minmax(0,1fr))"><div class="bf-step"><div class="bf-step-h"><span class="bf-num">1</span><b>Set up the float</b></div><div class="bf-f"><span>Screen</span><span>Management › Money accounts › New float</span></div><div class="bf-f"><span>Who</span><span>owner</span></div><div class="bf-f"><span>What</span><span>Showroom float, held by Chipo, US$200.00</span></div><div class="bf-f"><span>Posts</span><span><span class="muted">Nothing posts</span></span></div><div class="bf-f"><span>Undo</span><span>Deactivate the float</span></div></div><div class="bf-step"><div class="bf-step-h"><span class="bf-num">2</span><b>Spend with a voucher</b></div><div class="bf-f"><span>Screen</span><span>The voucher, with a photo of the slip</span></div><div class="bf-f"><span>Who</span><span>Chipo, the holder</span></div><div class="bf-f"><span>State</span><span><span style="display:inline-flex;align-items:center;gap:6px;flex-wrap:wrap"><span class="pill bf-st pill-n">Draft</span><span class="muted">→</span><span class="pill bf-st pill-info">Posted</span></span></span></div><div class="bf-f"><span>Posts</span><span><span class="bf-dr is-amt"><span>Dr Cleaning</span><b>14.00</b></span><span class="bf-dr is-amt"><span>Cr Showroom float</span><b>14.00</b></span><span class="muted">Under US$20, posts at once; over, the manager approves.</span></span></div><div class="bf-f"><span>Undo</span><span>Void the voucher</span></div></div><div class="bf-step"><div class="bf-step-h"><span class="bf-num">3</span><b>Top up</b></div><div class="bf-f"><span>Screen</span><span>The app proposes what was spent since the last top-up</span></div><div class="bf-f"><span>Who</span><span>approved, then posted</span></div><div class="bf-f"><span>What</span><span>US$162.40 back to US$200.00</span></div><div class="bf-f"><span>Posts</span><span><span class="bf-dr is-amt"><span>Dr Showroom float</span><b>162.40</b></span><span class="bf-dr is-amt"><span>Cr CBZ current, USD</span><b>162.40</b></span></span></div><div class="bf-f"><span>Undo</span><span>Void the transfer</span></div></div><div class="bf-step"><div class="bf-step-h"><span class="bf-num">4</span><b>Count at month end</b></div><div class="bf-f"><span>Screen</span><span>Close the month › Checklist › Floats counted</span></div><div class="bf-f"><span>Who</span><span>manager</span></div><div class="bf-f"><span>What</span><span>A difference needs a reason</span></div><div class="bf-f"><span>Posts</span><span><span class="bf-dr">Dr or Cr variance</span><span class="bf-dr">Cr or Dr the float</span><span class="muted">Manager approves.</span></span></div><div class="bf-f"><span>Undo</span><span>Void the variance</span></div></div></div></div><p style="margin-top:14px;font-size:13px;line-height:1.6;color:var(--color-ink-2)">Claims, own pocket: send, approve, reimburse (BooksStates2). Undo: void the voucher or the claim; a reimbursement is voided like a payment.</p></section><section class="bf-sec"><div class="bf-sh"><div><h2>Retail into Books</h2></div><p class="aside">What the till already does, and where Books shows it.</p></div><div class="card" style="padding:0;overflow:hidden"><table class="table is-prose"><colgroup><col style="width:32%"><col style="width:36%"><col style="width:32%"></colgroup><thead><tr><th>Retail does</th><th>Books shows</th><th>Gap closed</th></tr></thead><tbody><tr><td>Sales, refunds, shifts (post today)</td><td>Money, All spending (payouts), Takings</td><td>none</td></tr><tr><td>Day close banked, with a bank transaction</td><td>Bank & cash › To match pairs it with the statement</td><td>none</td></tr><tr><td>Supplier payments</td><td>Payments made, with a payables line</td><td>today they post with no sub-ledger line (fix 1)</td></tr><tr><td>Goods receipts</td><td>A draft bill per receipt, under Bills</td><td>today no bill (fix 1)</td></tr><tr><td>Requisition payouts</td><td>Requisitions, Source: Retail</td><td>today only a bank transaction in Books</td></tr><tr><td>On-account sales, laybys, vouchers</td><td>Customer balances in the sub-ledger</td><td>today their own balances only (P4)</td></tr></tbody></table></div></section><section class="bf-sec"><div class="bf-sh"><div><h2>Stock, maintenance, gold and schools</h2></div><p class="aside">Posting through the drain and the core’s Issue.</p></div><div class="xp-cards" style="grid-template-columns:repeat(4,minmax(0,1fr))"><div class="xp-card"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" fill-rule="evenodd" d="M2 6a3 3 0 0 1 3-3h13a3 3 0 0 1 3 3v12a3 3 0 0 1-3 3h-3v-5a3 3 0 0 0-3-3h-1a3 3 0 0 0-3 3v5H5a3 3 0 0 1-3-3zm16-1a1 1 0 0 1 1 1v2a2 2 0 0 1-3.972.335a1 1 0 0 0-1.01-.835H14a1 1 0 0 0-1 1a1.5 1.5 0 0 1-3 0a1 1 0 0 0-1-1h-.018a1 1 0 0 0-1.01.835A2 2 0 0 1 4 8V6a1 1 0 0 1 1-1z" clip-rule="evenodd"/><path fill="currentColor" d="M10 21h3v-5a1 1 0 0 0-1-1h-1a1 1 0 0 0-1 1z"/></svg><b>Stock valuation</b><p>Movements already post. Adjustments captured Pending today post through the drain. Over adjustmentPinOver, or a count difference over countOwnerOver, needs approval first.</p></div><div class="xp-card"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="m17.827 13.241l-7.173 7.174A2 2 0 0 1 9.239 21H4.006a1.01 1.01 0 0 1-1.01-1.011v-5.232a2 2 0 0 1 .586-1.414l7.174-7.174zm-3.931-10.21a2 2 0 0 1 2.828 0l4.243 4.241a2 2 0 0 1 0 2.83l-1.726 1.725l-7.07-7.071z"/></svg><b>Work order completed</b><p>Posts parts and labour: Dr maintenance expense by the asset’s cost centre, Cr stock and accrued labour or the supplier bill. Status changes use recordEvent. Reopening voids the completion posting.</p></div><div class="xp-card"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M13.2 2.65a2 2 0 0 0-2.4 0l-7 5.25A2 2 0 0 0 3 9.5V19a2 2 0 0 0 2 2h3.9a1.1 1.1 0 0 0 1.1-1.1V15a2 2 0 1 1 4 0v4.9a1.1 1.1 0 0 0 1.1 1.1H19a2 2 0 0 0 2-2V9.5a2 2 0 0 0-.8-1.6z"/></svg><b>Gold</b><p>Purchases and buyer receipts post now. Dispatches, allocations and corrections post through the drain. Settlements post as a payroll disbursement. Billing goes through the core’s Issue.</p></div><div class="xp-card"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" fill-rule="evenodd" d="M2 6a3 3 0 0 1 3-3h11a3 3 0 0 1 3 3v10h.75c.69 0 1.25.56 1.25 1.25V19a3 3 0 0 1-3 3h-8v.01H8a3 3 0 0 1-3-3V9H3.25C2.56 9 2 8.44 2 7.75zm3 1V5a1 1 0 0 0-1 1v1zm4.826 13c.113-.316.174-.656.174-1.01V18h9v1a1 1 0 0 1-1 1zM9 9a1 1 0 0 1 1-1h4a1 1 0 1 1 0 2h-4a1 1 0 0 1-1-1m0 4a1 1 0 0 1 1-1h2a1 1 0 1 1 0 2h-2a1 1 0 0 1-1-1" clip-rule="evenodd"/></svg><b>Schools</b><p>Fee documents keep posting and gain sub-ledger lines, so a guardian’s balance and Books’ aging agree. Fees are VAT exempt.</p></div></div></section><section class="bf-sec"><div class="bf-sh"><div><h2>Payroll into Books</h2></div><p class="aside">A consumer: payroll posts, Books shows, tax lands on the calendar.</p></div><div style="margin-top:0px"><div class="bf-steps" style="grid-template-columns:repeat(4,minmax(0,1fr))"><div class="bf-step"><div class="bf-step-h"><span class="bf-num">1</span><b>Payroll approves the run</b></div><div class="bf-f"><span>Screen</span><span>People and payroll</span></div><div class="bf-f"><span>Who</span><span>payroll approver</span></div><div class="bf-f"><span>What</span><span>Run Posted, in Payroll</span></div><div class="bf-f"><span>Posts</span><span><span class="bf-dr">Dr 5200, 5210</span><span class="bf-dr">Cr 2100 Net pay, 2110 PAYE, 2120 NSSA, …</span></span></div><div class="bf-f"><span>Undo</span><span>Reversed in Payroll: the mirror</span></div></div><div class="bf-step"><div class="bf-step-h"><span class="bf-num">2</span><b>Books shows it</b></div><div class="bf-f"><span>Screen</span><span>Money › Where it went; Tax › What’s due</span></div><div class="bf-f"><span>What</span><span>PAYE and withholding by the 5th and 10th; NSSA, ZIMDEF, SDF</span></div><div class="bf-f"><span>Posts</span><span><span class="muted">Nothing posts</span></span></div><div class="bf-f"><span>Undo</span><span>—</span></div></div><div class="bf-step"><div class="bf-step-h"><span class="bf-num">3</span><b>Pay the people</b></div><div class="bf-f"><span>Screen</span><span>Payroll’s disbursement batch</span></div><div class="bf-f"><span>What</span><span>Batch paid</span></div><div class="bf-f"><span>Posts</span><span><span class="bf-dr">Dr 2100</span><span class="bf-dr">Cr CBZ current, USD</span><span class="muted">Each bank or wallet leg carries IMTT, as a bank charge.</span></span></div><div class="bf-f"><span>Undo</span><span>Reversed in Payroll</span></div></div><div class="bf-step"><div class="bf-step-h"><span class="bf-num">4</span><b>Pay ZIMRA, NSSA, ZIMDEF</b></div><div class="bf-f"><span>Screen</span><span><span class="bf-where">Payments made › New</span>; suppliers seeded at setup</span></div><div class="bf-f"><span>Who</span><span>limit</span></div><div class="bf-f"><span>State</span><span><span style="display:inline-flex;align-items:center;gap:6px;flex-wrap:wrap"><span class="pill bf-st pill-ok">Approved</span><span class="muted">→</span><span class="pill bf-st pill-ok">Paid</span></span></span></div><div class="bf-f"><span>Posts</span><span><span class="bf-dr">Dr 2110, 2120, 2140, 2160</span><span class="bf-dr">Cr money account</span></span></div><div class="bf-f"><span>Undo</span><span>Void the payment</span></div></div></div></div><p style="margin-top:14px;font-size:13px;line-height:1.6;color:var(--color-ink-2)">Books has no edit on pay runs. <span class="pill pill-warn">To confirm</span> The PAYE table in the statutory pack is 2025’s.</p></section></div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1940}}'>
+class Component extends DCLogic { renderVals() { return {}; } }
+</script>
+</body>
+</html>
