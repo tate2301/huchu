@@ -6,33 +6,36 @@ from ck import ic, pn, pg, panel, iconbtn
 
 LEVELS = [
     ('Sales', 'invoice', [('Invoices', 'invoice', 3, '/books/invoices'), ('Quotes', 'docs', None, '/books/quotes'),
-                          ('Payments received', 'payments', 2, '/books/payments'), ('Credit notes', 'file', None, '/books/credit-notes'),
+                          ('Payments received', 'payments', 2, '/books/payments'), ('Credit notes', 'retire', None, '/books/credit-notes'),
                           ('Customers', 'users', None, '/books/customers')]),
-    ('Bills & spending', 'expenses', [('All spending', 'expenses', None, '/books/expenses'), ('Bills', 'file', 4, '/books/bills'),
+    ('Bills & spending', 'expenses', [('All spending', 'expenses', None, '/books/expenses'), ('Bills', 'docs', 4, '/books/bills'),
                                       ('Payments made', 'payments', None, '/books/payments-made'), ('Purchase orders', 'list', None, '/books/orders'),
-                                      ('Requisitions', 'hand', 2, '/books/requisitions'), ('Claims & petty cash', 'takings', 1, '/books/claims'),
+                                      ('Requisitions', 'edit', 2, '/books/requisitions'), ('Claims & petty cash', 'takings', 1, '/books/claims'),
                                       ('Suppliers', 'store', None, '/books/suppliers')]),
+    # Takings shows only in workspaces with tills (spec §3.2); Floorcode has a showroom till.
     ('Bank & cash', 'bank', [('Accounts', 'bank', None, '/books/accounts'), ('To match', 'match', 4, '/books/bank'),
                              ('Reconciliations', 'check', None, '/books/reconciliations'), ('Takings', 'takings', 1, '/books/takings')]),
     ('Tax', 'vat', [("What's due", 'calendar', None, '/books/tax'), ('VAT returns', 'vat', None, '/books/vat'),
-                    ('Withholding', 'hand', None, '/books/withholding'), ('Provisional tax', 'calendar', None, '/books/provisional-tax'),
+                    ('Withholding', 'pause', None, '/books/withholding'), ('Provisional tax', 'calendar', None, '/books/provisional-tax'),
                     ('Fiscal register', 'fiscal', 1, '/books/fiscal')]),
     ('Close the month', 'done', [('Checklist', 'list', None, '/books/periods'), ('Needs posting', 'warn', 1, '/books/needs-posting'),
-                                 ('Rates & revaluation', 'money', None, '/books/rates'), ('Year end', 'calendar', None, '/books/year-end')]),
+                                 ('Rates & revaluation', 'payments', None, '/books/rates'), ('Year end', 'calendar', None, '/books/year-end')]),
     ('Ledger', 'books', [('Journals', 'books', None, '/books/journals'), ('Trial balance', 'table', None, '/books/trial-balance'),
                          ('Financial statements', 'reports', None, '/books/financials'), ('General ledger', 'list', None, '/books/ledger'),
                          ('Chart of accounts', 'columns', None, '/books/chart'), ('Cost centres', 'target', None, '/books/cost-centres'),
                          ('Posting rules', 'posting', None, '/books/posting-rules'), ('Audit trail', 'activity', None, '/books/audit')]),
     ('Settings', 'gear', [('Tax codes & rules', 'vat', None, '/books/settings/tax'), ('Numbering', 'sort', None, '/books/settings/numbering'),
-                          ('Locks & periods', 'block', None, '/books/settings/locks'), ('Opening balances', 'money', None, '/books/settings/opening-balances'),
-                          ('Set up the books', 'step', None, '/books/settings/setup')]),
+                          ('Locks & periods', 'lock', None, '/books/settings/locks'), ('Opening balances', 'figure', None, '/books/settings/opening-balances'),
+                          ('Set up the books', 'general', None, '/books/settings/setup')]),
 ]
+# Settings rows that open in Management (spec §3.2)
+MANAGEMENT = ['Business & tax details', 'Money accounts', 'Approvals & limits', 'Fiscal device']
 LEVEL = {name: (icon, rows) for name, icon, rows in LEVELS}
 
 
 def level_row(label, icon, holds=False):
     return ('<a class="pn%s" href="#%s"%s>%s<span class="truncate">%s</span><span class="pn-m" aria-hidden="true">%s</span></a>'
-            % (' is-on' if holds else '', label, ' aria-current="true"' if holds else '', ic(icon), label, ic('caret')))
+            % (' is-on' if holds else '', label, ' aria-current="true"' if holds else '', ic(icon), label, ic('chev')))
 
 
 def where(page):
@@ -55,6 +58,8 @@ def books_level(level=None, on=None):
     back = '<a class="pn" href="#Books" aria-label="Back to Books">%s<span class="truncate" style="color:var(--color-muted)">Books</span></a>' % ic('back')
     body = back + '<div class="pg-h" style="margin-top:4px;font-size:var(--text-14);color:var(--color-ink);font-weight:600">%s</div>' % level
     body += ''.join(pn(label, ic_, n, label == on) for label, ic_, n, _ in rows)
+    if level == 'Settings':
+        body += pg('In Management', [pn(label, 'arrow') for label in MANAGEMENT])
     body += views
     return panel('Books', body)
 
