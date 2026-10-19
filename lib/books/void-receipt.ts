@@ -6,7 +6,9 @@ import { writePlatformAuditEvent } from "@/lib/audit/platform";
 import { prisma } from "@/lib/prisma";
 
 import { dayOf, shortDay, storedDay } from "./format";
-import { InvoiceChangeRefused, isWorkspaceOwner, RECEIPT_OWNER_ONLY, type InvoiceActor } from "./owner";
+import { canDo } from "./core/can-do";
+import { markVoided } from "./core/void-money";
+import { InvoiceChangeRefused, RECEIPT_OWNER_ONLY, type InvoiceActor } from "./owner";
 import { onAccountCustomers } from "./payments";
 import { REASON_MAX, REASON_MIN, wasFiscalised } from "./reversal";
 
@@ -180,7 +182,7 @@ export type ReceiptVoidResult = {
  * `void:<id>` and goes on. Everything else changes in one transaction.
  */
 export async function voidReceipt(actor: InvoiceActor, receiptId: string, input: { reason: string; source?: string }): Promise<ReceiptVoidResult> {
-  if (!isWorkspaceOwner(actor.role)) throw new InvoiceChangeRefused(RECEIPT_OWNER_ONLY, 403);
+  if (!canDo(actor, "void", { kind: "receipt" }).allowed) throw new InvoiceChangeRefused(RECEIPT_OWNER_ONLY, 403);
   const reason = reasonOf(input.reason);
   const found = await gather(prisma, actor.companyId, receiptId);
   if (!found) throw new InvoiceChangeRefused("That payment is not here any more.", 404);
@@ -215,6 +217,7 @@ export async function voidReceipt(actor: InvoiceActor, receiptId: string, input:
     });
     if (!result.entryId) throw new InvoiceChangeRefused(`${receipt.receiptNumber} was not voided: its reversal could not be posted (${result.error ?? "no journal was written"}).`);
     reversalEntryId = result.entryId;
+    await markVoided(posted.id, result.entryId, actor.userId);
   }
 
   return prisma.$transaction(

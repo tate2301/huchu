@@ -3,6 +3,7 @@ import { z } from "zod";
 import { validateSession, successResponse, errorResponse, getPaginationParams, paginationResponse } from "@/lib/api-utils";
 import { prisma } from "@/lib/prisma";
 import { recordSalesReceipt } from "@/lib/accounting/payments";
+import { guardBooks } from "@/lib/books/core";
 
 const receiptSchema = z.object({
   invoiceId: z.string().uuid().optional(),
@@ -52,6 +53,8 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json();
     const validated = receiptSchema.parse(body);
+    const { refused } = await guardBooks(session, "issue", { kind: "receipt" });
+    if (refused) return refused;
 
     if (validated.invoiceId) {
       const invoice = await prisma.salesInvoice.findUnique({

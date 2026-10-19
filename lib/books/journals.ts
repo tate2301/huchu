@@ -11,12 +11,30 @@ import { monthName, shortDay, storedDay } from "./format";
 
 export const JOURNAL_TABS = ["all", "draft", "posted", "reversed", "voided"] as const;
 export type JournalTab = (typeof JOURNAL_TABS)[number];
-const STATUS: Record<Exclude<JournalTab, "all">, "DRAFT" | "POSTED" | "REVERSED" | "VOIDED"> = {
-  draft: "DRAFT",
-  posted: "POSTED",
-  reversed: "REVERSED",
-  voided: "VOIDED",
+
+/**
+ * Each tab's filter. Reversed and Voided read the markers the ledger writes,
+ * not a status: a reversed or voided entry stays POSTED (its mirror cancels
+ * it), so the REVERSED and VOIDED statuses are never written (books-final
+ * §6.1 fix 10). Reversed: stamped `reversedAt` (a manual reverse, a period
+ * reopen). Voided: stamped `voidedAt`, or a void's own mirror (`void:<id>`).
+ * Posted leaves both out.
+ */
+const VOID_MIRROR: Prisma.JournalEntryWhereInput = { sourceId: { startsWith: "void:" } };
+export const TAB_WHERE: Record<Exclude<JournalTab, "all">, Prisma.JournalEntryWhereInput> = {
+  draft: { status: "DRAFT" },
+  posted: { status: "POSTED", reversedAt: null, voidedAt: null, NOT: VOID_MIRROR },
+  reversed: { reversedAt: { not: null } },
+  voided: { OR: [{ voidedAt: { not: null } }, VOID_MIRROR] },
 };
+
+/** A row's state, from the same markers. */
+export function journalState(entry: { status: string; reversedAt: Date | null; voidedAt: Date | null; sourceId: string | null }): JournalState {
+  if (entry.status === "DRAFT") return "draft";
+  if (entry.reversedAt) return "reversed";
+  if (entry.voidedAt || entry.sourceId?.startsWith("void:")) return "voided";
+  return "posted";
+}
 
 export const JOURNAL_PAGE_SIZE = 50;
 
@@ -91,16 +109,18 @@ export function journalsFinding(drafts: Array<{ month: string }>): { fact: strin
 type Db = Pick<PrismaClient, "journalEntry">;
 
 function where(companyId: string, query: JournalQuery): Prisma.JournalEntryWhereInput {
-  const filter: Prisma.JournalEntryWhereInput = { companyId };
-  if (query.tab !== "all") filter.status = STATUS[query.tab];
+  const parts: Prisma.JournalEntryWhereInput[] = [{ companyId }];
+  if (query.tab !== "all") parts.push(TAB_WHERE[query.tab]);
   if (query.q) {
     const number = Number(query.q.replace(/^je-?/i, ""));
-    filter.OR = [
-      { description: { contains: query.q, mode: "insensitive" } },
-      ...(Number.isInteger(number) && number > 0 ? [{ entryNumber: number }] : []),
-    ];
+    parts.push({
+      OR: [
+        { description: { contains: query.q, mode: "insensitive" } },
+        ...(Number.isInteger(number) && number > 0 ? [{ entryNumber: number }] : []),
+      ],
+    });
   }
-  return filter;
+  return { AND: parts };
 }
 
 const amountOf = (lines: Array<{ debit: number; credit: number }>) => {
@@ -111,30 +131,28 @@ const amountOf = (lines: Array<{ debit: number; credit: number }>) => {
 
 export async function readJournals(db: Db, companyId: string, query: JournalQuery): Promise<JournalsView> {
   const filter = where(companyId, query);
-  const [records, matching, grouped, drafts] = await Promise.all([
+  const counted = (tab: Exclude<JournalTab, "all">) => db.journalEntry.count({ where: { AND: [{ companyId }, TAB_WHERE[tab]] } });
+  const [records, matching, all, draft, posted, reversed, voided, drafts] = await Promise.all([
     db.journalEntry.findMany({
       where: filter,
-      select: { id: true, entryNumber: true, entryDate: true, description: true, sourceType: true, status: true, lines: { select: { debit: true, credit: true } } },
+      select: { id: true, entryNumber: true, entryDate: true, description: true, sourceType: true, sourceId: true, status: true, reversedAt: true, voidedAt: true, lines: { select: { debit: true, credit: true } } },
       orderBy: [{ entryDate: "desc" }, { entryNumber: "desc" }],
       skip: (query.page - 1) * JOURNAL_PAGE_SIZE,
       take: JOURNAL_PAGE_SIZE,
     }),
     db.journalEntry.count({ where: filter }),
-    db.journalEntry.groupBy({ by: ["status"], where: { companyId }, _count: true }),
+    db.journalEntry.count({ where: { companyId } }),
+    counted("draft"),
+    counted("posted"),
+    counted("reversed"),
+    counted("voided"),
     db.journalEntry.findMany({
       where: { companyId, status: "DRAFT" },
       select: { entryDate: true, lines: { select: { debit: true, credit: true } } },
       orderBy: { entryDate: "asc" },
     }),
   ]);
-  const by = (status: string) => grouped.find((group) => group.status === status)?._count ?? 0;
-  const counts: Record<JournalTab, number> = {
-    all: grouped.reduce((sum, group) => sum + group._count, 0),
-    draft: by("DRAFT"),
-    posted: by("POSTED"),
-    reversed: by("REVERSED"),
-    voided: by("VOIDED"),
-  };
+  const counts: Record<JournalTab, number> = { all, draft, posted, reversed, voided };
   const from = matching === 0 ? 0 : (query.page - 1) * JOURNAL_PAGE_SIZE + 1;
   return {
     finding: journalsFinding(drafts.map((draft) => ({ month: monthName(storedDay(draft.entryDate)) }))),
@@ -146,7 +164,7 @@ export async function readJournals(db: Db, companyId: string, query: JournalQuer
       memo: record.description,
       source: sourceLabel(record.sourceType),
       amount: amountOf(record.lines),
-      state: record.status.toLowerCase() as JournalState,
+      state: journalState(record),
     })),
     range: { from, to: from === 0 ? 0 : from + records.length - 1, of: matching },
     draftTotal: Math.round(drafts.reduce((sum, draft) => sum + amountOf(draft.lines), 0) * 100) / 100,
@@ -164,6 +182,9 @@ export async function readJournal(db: Db, companyId: string, id: string): Promis
       description: true,
       status: true,
       sourceType: true,
+      sourceId: true,
+      reversedAt: true,
+      voidedAt: true,
       period: { select: { startDate: true, status: true } },
       lines: {
         select: { debit: true, credit: true, memo: true, account: { select: { code: true, name: true } } },
@@ -181,7 +202,7 @@ export async function readJournal(db: Db, companyId: string, id: string): Promis
   return {
     id: entry.id,
     ref: journalRef(entry.entryNumber),
-    state: entry.status.toLowerCase() as JournalState,
+    state: journalState(entry),
     memo: entry.description,
     meta: [`${date.getUTCDate()} ${shortDay(day).split(" ")[1]} ${date.getUTCFullYear()}`, period, sourceLabel(entry.sourceType)].filter(Boolean).join(" · "),
     lines: entry.lines.map((line) => ({ code: line.account.code, account: line.account.name, debit: line.debit, credit: line.credit, memo: line.memo })),
@@ -203,7 +224,7 @@ export async function readJournal(db: Db, companyId: string, id: string): Promis
 export async function journalsCsv(db: Db, companyId: string, query: JournalQuery): Promise<string> {
   const records = await db.journalEntry.findMany({
     where: where(companyId, query),
-    select: { entryNumber: true, entryDate: true, description: true, sourceType: true, status: true, lines: { select: { debit: true, credit: true } } },
+    select: { entryNumber: true, entryDate: true, description: true, sourceType: true, sourceId: true, status: true, reversedAt: true, voidedAt: true, lines: { select: { debit: true, credit: true } } },
     orderBy: [{ entryDate: "desc" }, { entryNumber: "desc" }],
     take: 10_000,
   });
@@ -211,7 +232,7 @@ export async function journalsCsv(db: Db, companyId: string, query: JournalQuery
   const lines = ["Ref,Date,Memo,Source,Amount,Status"];
   for (const record of records) {
     lines.push(
-      [journalRef(record.entryNumber), storedDay(record.entryDate), record.description, sourceLabel(record.sourceType), amountOf(record.lines).toFixed(2), record.status.charAt(0) + record.status.slice(1).toLowerCase()]
+      [journalRef(record.entryNumber), storedDay(record.entryDate), record.description, sourceLabel(record.sourceType), amountOf(record.lines).toFixed(2), (({ draft: "Draft", posted: "Posted", reversed: "Reversed", voided: "Voided" }) as const)[journalState(record)]]
         .map(cell)
         .join(","),
     );

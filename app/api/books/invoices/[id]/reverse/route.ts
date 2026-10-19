@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
 import { errorResponse, successResponse, validateSession } from "@/lib/api-utils";
-import { InvoiceChangeRefused, isWorkspaceOwner, OWNER_ONLY } from "@/lib/books/owner";
+import { guardBooks } from "@/lib/books/core";
+import { InvoiceChangeRefused, OWNER_ONLY } from "@/lib/books/owner";
 import { REASON_MAX } from "@/lib/books/reversal";
 import { creditInvoice, voidInvoice } from "@/lib/books/reverse-invoice";
 
@@ -25,9 +26,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const sessionResult = await validateSession(request);
     if (sessionResult instanceof NextResponse) return sessionResult;
     const { session } = sessionResult;
-    if (!isWorkspaceOwner(session.user.role)) return errorResponse(OWNER_ONLY, 403);
+    const { actor, refused } = await guardBooks(session, "void", { kind: "invoice" });
+    if (refused) return errorResponse(OWNER_ONLY, 403);
     const body = reverseSchema.parse(await request.json().catch(() => null));
-    const actor = { companyId: session.user.companyId, userId: session.user.id, role: session.user.role };
     const id = (await params).id;
     if (body.how === "void") {
       const done = await voidInvoice(actor, id, { reason: body.reason });

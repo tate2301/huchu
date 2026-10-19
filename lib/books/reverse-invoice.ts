@@ -5,7 +5,9 @@ import { writePlatformAuditEvent } from "@/lib/audit/platform";
 import { prisma } from "@/lib/prisma";
 
 import { money } from "./format";
-import { InvoiceChangeRefused, isWorkspaceOwner, OWNER_ONLY, type InvoiceActor } from "./owner";
+import { canDo, type BooksActor } from "./core/can-do";
+import { markVoided } from "./core/void-money";
+import { InvoiceChangeRefused, OWNER_ONLY, type InvoiceActor } from "./owner";
 import { creditLines, REASON_MAX, REASON_MIN, wasFiscalised, type CreditChoice } from "./reversal";
 
 /**
@@ -45,8 +47,8 @@ export type VoidResult = { number: string; customer: string; unlinked: Array<{ i
  * Refused while a credit note or a write-off stands against it: voiding
  * would reverse their part twice.
  */
-export async function voidInvoice(actor: InvoiceActor, invoiceId: string, input: { reason: string; source?: string }): Promise<VoidResult> {
-  if (!isWorkspaceOwner(actor.role)) throw new InvoiceChangeRefused(OWNER_ONLY, 403);
+export async function voidInvoice(actor: InvoiceActor | BooksActor, invoiceId: string, input: { reason: string; source?: string }): Promise<VoidResult> {
+  if (!canDo(actor, "void", { kind: "invoice" }).allowed) throw new InvoiceChangeRefused(OWNER_ONLY, 403);
   const reason = reasonOf(input.reason);
   const invoice = await prisma.salesInvoice.findFirst({
     where: { id: invoiceId, companyId: actor.companyId },
@@ -101,6 +103,7 @@ export async function voidInvoice(actor: InvoiceActor, invoiceId: string, input:
       });
       if (!result.entryId) throw new InvoiceChangeRefused(`${invoice.invoiceNumber} was not voided: its reversal could not be posted (${result.error ?? "no journal was written"}).`);
       reversalEntryId = result.entryId;
+      await markVoided(posted.id, result.entryId, actor.userId);
     }
   }
 
@@ -149,8 +152,8 @@ export async function voidInvoice(actor: InvoiceActor, invoiceId: string, input:
 export type CreditResult = { number: string; note: string; total: number; currency: string; fiscalised: boolean };
 
 /** Credits part of an issued or paid invoice with a credit note, issued and posted now. */
-export async function creditInvoice(actor: InvoiceActor, invoiceId: string, input: { reason: string; choice: CreditChoice }): Promise<CreditResult> {
-  if (!isWorkspaceOwner(actor.role)) throw new InvoiceChangeRefused(OWNER_ONLY, 403);
+export async function creditInvoice(actor: InvoiceActor | BooksActor, invoiceId: string, input: { reason: string; choice: CreditChoice }): Promise<CreditResult> {
+  if (!canDo(actor, "void", { kind: "invoice" }).allowed) throw new InvoiceChangeRefused(OWNER_ONLY, 403);
   const reason = reasonOf(input.reason);
   const invoice = await prisma.salesInvoice.findFirst({
     where: { id: invoiceId, companyId: actor.companyId },

@@ -9,6 +9,7 @@ import {
 } from "@/lib/api-utils";
 import { prisma } from "@/lib/prisma";
 import { creditNoteSchema, CreditNoteRefused, createSalesCreditNote } from "@/lib/accounting/credit-notes";
+import { guardBooks } from "@/lib/books/core";
 
 export async function GET(request: NextRequest) {
   try {
@@ -53,6 +54,8 @@ export async function POST(request: NextRequest) {
     const { session } = sessionResult;
 
     const validated = creditNoteSchema.parse(await request.json());
+    const { refused } = await guardBooks(session, "note.issue", { kind: "credit-note" });
+    if (refused) return refused;
     const creditNote = await createSalesCreditNote({ companyId: session.user.companyId, userId: session.user.id }, validated);
     return successResponse(creditNote, 201);
   } catch (error) {

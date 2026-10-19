@@ -30,7 +30,7 @@ describe("what a credit note credits", () => {
 });
 
 describe("what Delete takes with it", () => {
-  const removal: InvoiceRemoval = { number: "INV-0143", draft: false, ledgerEntries: 3, paymentLinks: 1, creditNotes: 0, fiscalRecord: true, fiscalDayOpen: false, periodClosed: false, crm: false };
+  const removal: InvoiceRemoval = { number: "INV-0143", draft: false, ledgerEntries: 3, paymentLinks: 1, creditNotes: 0, fiscalRecord: true, fiscalDayOpen: false, fiscalised: false, periodClosed: false, crm: false };
 
   it("names each thing that goes", () => {
     expect(removalSentence(removal)).toBe("INV-0143 and its 3 ledger entries, 1 payment link and the fiscal record");
@@ -56,5 +56,11 @@ describe("what Delete takes with it", () => {
     expect(draft.typed).toBeUndefined();
     expect(draft.field).toBeUndefined();
     expect(deleteAsk({ ...removal, fiscalDayOpen: true }, "Borrowdale Brooke Clinic")).toMatchObject({ go: "" });
+  });
+
+  it("never offers to delete a fiscalised invoice, and points to the credit note instead", () => {
+    const ask = deleteAsk({ ...removal, fiscalised: true }, "Borrowdale Brooke Clinic");
+    expect(ask).toMatchObject({ title: "INV-0143 can't be deleted", go: "" });
+    expect(ask.body).toContain("Reverse it instead: a credit note");
   });
 });

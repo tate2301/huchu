@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { errorResponse, successResponse, validateSession } from "@/lib/api-utils";
-import { isRouteAllowedForRole } from "@/lib/auth-core/role-routes";
+import { guardBooks } from "@/lib/books/core";
 import { DraftInvoiceRefused, issueDraftInvoice } from "@/lib/books/issue-invoice";
 import { asMineSchema, VaneDraftNotTakenOn } from "@/lib/vane/drafts";
 
@@ -16,7 +16,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const sessionResult = await validateSession(request);
     if (sessionResult instanceof NextResponse) return sessionResult;
     const { session } = sessionResult;
-    if (!isRouteAllowedForRole(session.user.role, "/api/accounting/sales/invoices", "PATCH")) return errorResponse("Your role cannot issue invoices", 403);
+    const { refused } = await guardBooks(session, "issue", { kind: "invoice" });
+    if (refused) return refused;
     const body = (await request.json().catch(() => ({}))) as { asMine?: unknown } | null;
     const asMine = asMineSchema.safeParse(body?.asMine);
     if (!asMine.success) return errorResponse("asMine is true or false", 400);

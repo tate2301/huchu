@@ -80,7 +80,8 @@ describe("deleting an issued invoice", () => {
     const before = await trialBalance(fixture.companyId);
     const invoice = await issueTestInvoice(fixture);
     const receipt = await payTestInvoice(fixture, invoice.id, 690);
-    await prisma.fiscalReceipt.create({ data: { companyId: fixture.companyId, invoiceId: invoice.id, status: "SUCCESS", fiscalNumber: "FD-1" } });
+    // Queued for the device and never accepted: not fiscalised, so it goes with the invoice.
+    await prisma.fiscalReceipt.create({ data: { companyId: fixture.companyId, invoiceId: invoice.id, status: "PENDING", fiscalNumber: "FD-1" } });
     const removal = await readInvoiceRemoval(fixture.companyId, invoice.id);
     expect(removalSentence(removal!)).toBe(`${invoice.invoiceNumber} and its 1 ledger entry, 1 payment link and the fiscal record`);
 
@@ -173,18 +174,31 @@ describe("who may delete an invoice", () => {
     expect(audit.actor).toBe(fixture.managerId);
   });
 
-  it("refuses an invoice on a fiscal day that is still open: the day's Z report counts it", async () => {
+  it("never deletes a fiscalised invoice, whatever its fiscal day: it offers the credit note instead", async () => {
     const invoice = await issueTestInvoice(fixture);
     const provider = await prisma.fiscalisationProviderConfig.create({ data: { companyId: fixture.companyId, providerKey: `test-${fixture.stamp}` } });
     const day = await prisma.fiscalDay.create({ data: { companyId: fixture.companyId, providerConfigId: provider.id, deviceId: "1", fiscalDayNo: 7, status: "OPENED" } });
     await prisma.fiscalReceipt.create({ data: { companyId: fixture.companyId, invoiceId: invoice.id, status: "SUCCESS", fiscalDayId: day.id, receiptCounter: 1, receiptGlobalNo: 41 } });
-    expect(await readInvoiceRemoval(fixture.companyId, invoice.id)).toMatchObject({ fiscalRecord: true, fiscalDayOpen: true });
+    expect(await readInvoiceRemoval(fixture.companyId, invoice.id)).toMatchObject({ fiscalRecord: true, fiscalDayOpen: true, fiscalised: true });
     await expect(deleteInvoice(owner(), invoice.id, { reason: "Mistake", confirm: invoice.invoiceNumber })).rejects.toMatchObject({ status: 409 });
 
+    // Its day closed, it is still ZIMRA's: refused, with the credit note named.
     await prisma.fiscalDay.update({ where: { id: day.id }, data: { status: "CLOSED" } });
-    await deleteInvoice(owner(), invoice.id, { reason: "Mistake", confirm: invoice.invoiceNumber });
-    expect(await prisma.fiscalReceipt.count({ where: { fiscalDayId: day.id } })).toBe(0);
-    await prisma.fiscalDay.delete({ where: { id: day.id } });
-    await prisma.fiscalisationProviderConfig.delete({ where: { id: provider.id } });
+    await expect(deleteInvoice(owner(), invoice.id, { reason: "Mistake", confirm: invoice.invoiceNumber })).rejects.toMatchObject({
+      status: 409,
+      message: `${invoice.invoiceNumber} was fiscalised, so ZIMRA holds it as issued and it can't be deleted. Reverse it with a credit note instead.`,
+    });
+    expect(await prisma.salesInvoice.count({ where: { id: invoice.id } })).toBe(1);
+    // And the credit note is the way: Reverse still works on it.
+    const credited = await creditInvoice(owner(), invoice.id, { reason: "Wrong job", choice: { amount: 115 } });
+    expect(credited.fiscalised).toBe(true);
+  });
+
+  it("lets a manager the owner granted void and revise reverse, but never delete posted", async () => {
+    const invoice = await issueTestInvoice(fixture);
+    const granted = { ...manager(), grants: new Set(["books.void"]) };
+    await expect(deleteInvoice(granted, invoice.id, { reason: "Not mine", confirm: invoice.invoiceNumber })).rejects.toMatchObject({ status: 403 });
+    const voided = await voidInvoice(granted, invoice.id, { reason: "Raised twice" });
+    expect(voided.number).toBe(invoice.invoiceNumber);
   });
 });

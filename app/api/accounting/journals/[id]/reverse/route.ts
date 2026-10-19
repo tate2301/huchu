@@ -3,6 +3,7 @@ import { z } from "zod";
 import { validateSession, successResponse, errorResponse } from "@/lib/api-utils";
 import { prisma } from "@/lib/prisma";
 import { JournalReversalError, reverseJournalEntry } from "@/lib/accounting/journals";
+import { guardBooks } from "@/lib/books/core";
 
 const reverseSchema = z.object({
   reversalDate: z.string().datetime().or(z.string().regex(/^\d{4}-\d{2}-\d{2}$/)).optional(),
@@ -27,6 +28,8 @@ export async function POST(
 
     const body = await request.json().catch(() => ({}));
     const validated = reverseSchema.parse(body);
+    const { refused } = await guardBooks(session, "void", { kind: "journal" });
+    if (refused) return refused;
 
     const reversal = await prisma.$transaction((tx) =>
       reverseJournalEntry(tx, {

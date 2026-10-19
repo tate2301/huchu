@@ -169,3 +169,14 @@ export async function voidMoney(input: VoidMoneyInput): Promise<VoidMoneyResult>
     return { mirrorEntryId: mirror.id, originalEntryId: original.id, date, already: false };
   });
 }
+
+/**
+ * The void markers on a pair posted another way (a rule re-posted inverted
+ * under `void:<id>`, as Books' invoice and payment voids do): the original is
+ * stamped void, and the mirror points at it, so Journals' Voided tab and the
+ * reports read one convention.
+ */
+export async function markVoided(originalEntryId: string, mirrorEntryId: string, userId: string, at = new Date()) {
+  await prisma.journalEntry.updateMany({ where: { id: originalEntryId, voidedAt: null }, data: { voidedAt: at, voidedById: userId } });
+  await prisma.journalEntry.updateMany({ where: { id: mirrorEntryId, reversalOfEntryId: null }, data: { reversalOfEntryId: originalEntryId } });
+}

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { errorResponse, successResponse, validateSession } from "@/lib/api-utils";
-import { isWorkspaceOwner } from "@/lib/books/owner";
+import { booksActor, canDo } from "@/lib/books/core";
 import { paymentsCsv, readPaymentQuery, readPayments } from "@/lib/books/payments";
 import { prisma } from "@/lib/prisma";
 
@@ -21,7 +21,7 @@ export async function GET(request: NextRequest) {
         },
       });
     }
-    const can = { void: isWorkspaceOwner(sessionResult.session.user.role) };
+    const can = { void: canDo(await booksActor(sessionResult.session), "void", { kind: "receipt" }).allowed };
     return successResponse({ ...(await readPayments(prisma, companyId, query)), can });
   } catch (error) {
     console.error("[API] GET /api/books/payments error:", error);

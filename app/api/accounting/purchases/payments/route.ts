@@ -3,6 +3,7 @@ import { z } from "zod";
 import { validateSession, successResponse, errorResponse, getPaginationParams, paginationResponse } from "@/lib/api-utils";
 import { prisma } from "@/lib/prisma";
 import { recordPurchasePayment } from "@/lib/accounting/payments";
+import { guardBooks } from "@/lib/books/core";
 
 const paymentSchema = z.object({
   billId: z.string().uuid().optional(),
@@ -52,6 +53,8 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json();
     const validated = paymentSchema.parse(body);
+    const { refused } = await guardBooks(session, "pay", { kind: "payment" });
+    if (refused) return refused;
 
     if (validated.billId) {
       const bill = await prisma.purchaseBill.findUnique({

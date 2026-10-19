@@ -3,6 +3,7 @@ import { z } from "zod";
 import { errorResponse, successResponse, validateSession } from "@/lib/api-utils";
 import { closePeriodWithVoucher } from "@/lib/accounting/closing";
 import { prisma } from "@/lib/prisma";
+import { guardBooks } from "@/lib/books/core";
 
 const schema = z.object({
   periodId: z.string().uuid(),
@@ -16,6 +17,8 @@ export async function POST(request: NextRequest) {
     const sessionResult = await validateSession(request);
     if (sessionResult instanceof NextResponse) return sessionResult;
     const { session } = sessionResult;
+    const { refused } = await guardBooks(session, "period.close", { kind: "period" });
+    if (refused) return refused;
 
     const body = await request.json();
     const validated = schema.parse(body);

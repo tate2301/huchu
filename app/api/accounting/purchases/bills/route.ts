@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { createJournalEntryFromSource } from "@/lib/accounting/posting";
 import { findTaxCodesOutsideEffectiveWindow } from "@/lib/accounting/tax-selection";
 import { resolveDefaultTaxTemplate } from "@/lib/accounting/tax-rules";
+import { guardBooks } from "@/lib/books/core";
 
 const billSchema = z.object({
   vendorId: z.string().uuid(),
@@ -107,6 +108,8 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json();
     const validated = billSchema.parse(body);
+    const { refused } = await guardBooks(session, validated.receiveNow ? "issue" : "draft.create", { kind: "bill" });
+    if (refused) return refused;
 
     const vendor = await prisma.vendor.findUnique({
       where: { id: validated.vendorId },

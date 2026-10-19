@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { validateSession, successResponse, errorResponse } from "@/lib/api-utils";
+import { guardBooks } from "@/lib/books/core";
 import { prisma } from "@/lib/prisma";
 import { createJournalEntryFromSource } from "@/lib/accounting/posting";
 import { recalcPurchaseBillBalance } from "@/lib/accounting/balances";
@@ -30,6 +31,17 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     if (!existing || existing.companyId !== session.user.companyId) {
       return errorResponse("Debit note not found", 404);
     }
+
+    // No going back to draft once issued; issuing and voiding are for whoever may (books-final §2.2).
+    if (validated.status === "DRAFT" && existing.status !== "DRAFT") {
+      return errorResponse("An issued note cannot go back to draft. Void it instead.", 409);
+    }
+    const { refused } = await guardBooks(
+      session,
+      validated.status === "VOIDED" && existing.status === "ISSUED" ? "void" : validated.status === "ISSUED" ? "note.issue" : "draft.edit",
+      { kind: "debit-note" },
+    );
+    if (refused) return refused;
 
     if (validated.status === "ISSUED" && existing.bill?.status === "DRAFT") {
       return errorResponse("Bill must be received before issuing a debit note", 400);

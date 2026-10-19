@@ -620,15 +620,15 @@ export default function AccountingSalesPage() {
             className="text-destructive hover:text-destructive"
             onClick={() => {
               const confirmed = window.confirm(
-                `Delete write-off record for invoice ${row.original.invoice?.invoiceNumber ?? "-"}? This also removes linked journal and ledger postings.`,
+                `Void the write-off on invoice ${row.original.invoice?.invoiceNumber ?? "-"}? Its posting is reversed and the invoice is owed again. The write-off stays, marked void.`,
               );
               if (!confirmed) return;
               deleteWriteOffMutation.mutate(row.original.id);
             }}
-            disabled={deleteWriteOffMutation.isPending}
+            disabled={deleteWriteOffMutation.isPending || row.original.status === "VOIDED"}
           >
             <Trash2 className="mr-1 size-4" />
-            Delete
+            Void
           </Button>
         </div>
       ),
@@ -955,8 +955,8 @@ export default function AccountingSalesPage() {
       }),
     onSuccess: () => {
       toast({
-        title: "Write-off deleted",
-        description: "Bad debt write-off record and linked postings were deleted.",
+        title: "Write-off voided",
+        description: "Its posting was reversed and the invoice is owed again.",
         variant: "success",
       });
       queryClient.invalidateQueries({ queryKey: ["accounting", "sales", "write-offs"] });
@@ -964,7 +964,7 @@ export default function AccountingSalesPage() {
     },
     onError: (err) => {
       toast({
-        title: "Unable to delete write-off",
+        title: "Unable to void the write-off",
         description: getApiErrorMessage(err),
         variant: "destructive",
       });

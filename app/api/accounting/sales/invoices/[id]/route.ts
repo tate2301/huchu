@@ -3,7 +3,8 @@ import { z } from "zod";
 import { validateSession, successResponse, errorResponse } from "@/lib/api-utils";
 import { prisma } from "@/lib/prisma";
 import { postIssuedInvoice } from "@/lib/books/issue-invoice";
-import { InvoiceChangeRefused, isWorkspaceOwner } from "@/lib/books/owner";
+import { guardBooks } from "@/lib/books/core";
+import { InvoiceChangeRefused } from "@/lib/books/owner";
 import { voidInvoice } from "@/lib/books/reverse-invoice";
 import { onAccountingInvoiceCreated } from "@/lib/crm/accounting-hooks";
 import { asMineSchema, datesOnIssue, takeOn, VaneDraftNotTakenOn, waitsForAPerson } from "@/lib/vane/drafts";
@@ -29,14 +30,11 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     const body = await request.json();
     const validated = updateSchema.parse(body);
 
-    // Voiding is the workspace owner's (`lib/books/owner.ts`), and goes the one way Books' Reverse goes.
+    // Voiding goes the one way Books' Reverse goes, for whoever may void (books-final §2.2).
     if (validated.status === "VOIDED") {
-      if (!isWorkspaceOwner(session.user.role)) return errorResponse("Only the workspace's owner can void an invoice", 403);
-      await voidInvoice(
-        { companyId: session.user.companyId, userId: session.user.id, role: session.user.role },
-        id,
-        { reason: validated.reason ?? "Cancelled in Accounting, Sales", source: "accounting.sales" },
-      );
+      const { actor, refused } = await guardBooks(session, "void", { kind: "invoice" });
+      if (refused) return refused;
+      await voidInvoice(actor, id, { reason: validated.reason ?? "Cancelled in Accounting, Sales", source: "accounting.sales" });
       const voided = await prisma.salesInvoice.findUnique({ where: { id }, include: { customer: true, lines: true } });
       return successResponse(voided);
     }
@@ -50,11 +48,27 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
       return errorResponse("Invoice not found", 404);
     }
 
+    // No arbitrary status jumps (books-final §4.1): a draft is issued, an issued one is voided.
+    // Paid and part-paid are worked out from the payments, and nothing goes back to draft.
+    if (validated.status === "PAID") {
+      return errorResponse("Paid is worked out from the payments on it. Record a payment instead.", 409);
+    }
+    if (validated.status === "DRAFT" && existing.status !== "DRAFT") {
+      return errorResponse(`${existing.invoiceNumber} was issued, so it cannot go back to draft. Void it, or credit it.`, 409);
+    }
+    if (validated.status === "ISSUED" && existing.status !== "DRAFT") {
+      return errorResponse(`${existing.invoiceNumber} is not a draft: it was issued already.`, 409);
+    }
+    const { refused } = await guardBooks(session, validated.status === "ISSUED" ? "issue" : "draft.edit", {
+      kind: "invoice",
+      ownerId: existing.createdById,
+    });
+    if (refused) return refused;
+
     // Issued or paid is the invoice leaving the drafts and being posted. Vane's
     // draft goes only once a person confirms it as theirs; then it is theirs,
     // dated the day they issue it, in this same write.
-    const leaving =
-      existing.status === "DRAFT" && (validated.status === "ISSUED" || validated.status === "PAID");
+    const leaving = existing.status === "DRAFT" && validated.status === "ISSUED";
     const takingOn = leaving && waitsForAPerson(existing);
     const maker = leaving
       ? takeOn(existing, { asMine: validated.asMine, userId: session.user.id, what: existing.invoiceNumber, verb: "issue" })
@@ -64,7 +78,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     const updated = await prisma.salesInvoice.update({
       where: { id },
       data: {
-        status: validated.status,
+        status: validated.status === "ISSUED" ? "ISSUED" : undefined,
         notes: validated.notes,
         issuedById: validated.status === "ISSUED" ? session.user.id : existing.issuedById,
         issuedAt: validated.status === "ISSUED" ? now : existing.issuedAt,

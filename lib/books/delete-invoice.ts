@@ -1,24 +1,25 @@
 import type { Prisma, PrismaClient } from "@prisma/client";
 
 import { writePlatformAuditEvent } from "@/lib/audit/platform";
-import { isRouteAllowedForRole } from "@/lib/auth-core/role-routes";
 import { prisma } from "@/lib/prisma";
 
-import { InvoiceChangeRefused, isWorkspaceOwner, OWNER_ONLY, type InvoiceActor } from "./owner";
-import { REASON_MAX, REASON_MIN, type InvoiceRemoval } from "./reversal";
+import { auditActor, canDo, type BooksActor } from "./core/can-do";
+import { InvoiceChangeRefused, OWNER_ONLY, type InvoiceActor } from "./owner";
+import { REASON_MAX, REASON_MIN, wasFiscalised, type InvoiceRemoval } from "./reversal";
 
 /**
  * Deleting an invoice outright (Delete, on its page and on its row in
  * Invoices). A draft is anybody's who may change drafts. Anything issued,
- * paid, void or fiscalised is the owner's alone, with a reason and its number
- * typed to confirm. One transaction takes, as if it had never been written:
+ * paid or void is the owner's alone, with a reason and its number typed to
+ * confirm. A fiscalised invoice is never deleted: ZIMRA holds it as issued,
+ * so it is reversed with a credit note instead (books-final §2.5). One
+ * transaction takes, as if it had never been written:
  *
  * - the invoice and its lines;
  * - every journal it posted (its posting, each edit's, their reversals and its
  *   void), its credit notes and write-offs with theirs, their receivables
  *   sub-ledger lines and their posting events;
- * - its fiscal record. A receipt signed into a fiscal day that is still open
- *   is refused until the day closes: the day's Z report counts it.
+ * - its fiscal record, one that never reached ZIMRA (queued or failed).
  *
  * Payments are never deleted. Each is taken off the invoice and stays as the
  * customer's money on account: the receipt and its posting stay, and its
@@ -94,10 +95,19 @@ export async function readInvoiceRemoval(companyId: string, invoiceId: string, d
     creditNotes: invoice.creditNotes.length,
     fiscalRecord: found.fiscal.length > 0,
     fiscalDayOpen: found.fiscal.some((row) => row.fiscalDay !== null && row.fiscalDay.status !== "CLOSED"),
+    fiscalised: fiscalisedOf(found.fiscal),
     periodClosed: invoice.status !== "DRAFT" && period?.status === "CLOSED",
     crm: invoice.crmLeadDocuments.length > 0,
   };
 }
+
+/** Any of its fiscal records ZIMRA holds: accepted, or signed into a fiscal day. */
+function fiscalisedOf(fiscal: Array<{ status: string; receiptGlobalNo: number | null; fiscalDay?: unknown }>): boolean {
+  return fiscal.some((row) => wasFiscalised(row) || Boolean(row.fiscalDay));
+}
+
+export const FISCALISED_REFUSAL = (number: string) =>
+  `${number} was fiscalised, so ZIMRA holds it as issued and it can't be deleted. Reverse it with a credit note instead.`;
 
 export type DeleteResult = { number: string; draft: boolean; onAccount: Array<{ id: string; number: string; amount: number }>; auditEventType: string };
 
@@ -105,15 +115,16 @@ export type DeleteResult = { number: string; draft: boolean; onAccount: Array<{ 
  * Deletes an invoice and everything it wrote to the books (see the header).
  * `confirm` is the number typed in the dialog, which a non-draft needs.
  */
-export async function deleteInvoice(actor: InvoiceActor, invoiceId: string, input: { reason?: string | null; confirm?: string | null } = {}): Promise<DeleteResult> {
-  const head = await prisma.salesInvoice.findFirst({ where: { id: invoiceId, companyId: actor.companyId }, select: { invoiceNumber: true, status: true } });
+export async function deleteInvoice(actor: InvoiceActor | BooksActor, invoiceId: string, input: { reason?: string | null; confirm?: string | null } = {}): Promise<DeleteResult> {
+  const head = await prisma.salesInvoice.findFirst({ where: { id: invoiceId, companyId: actor.companyId }, select: { invoiceNumber: true, status: true, createdById: true } });
   if (!head) throw new InvoiceChangeRefused("That invoice is not here any more.", 404);
   const draft = head.status === "DRAFT";
   const reason = (input.reason ?? "").trim().slice(0, REASON_MAX);
   if (draft) {
-    if (!isRouteAllowedForRole(actor.role, "/api/accounting/sales/invoices", "PATCH")) throw new InvoiceChangeRefused("Your role cannot change invoices.", 403);
+    const may = canDo(actor, "draft.delete", { kind: "invoice", ownerId: head.createdById });
+    if (!may.allowed) throw new InvoiceChangeRefused(may.reason, 403);
   } else {
-    if (!isWorkspaceOwner(actor.role)) throw new InvoiceChangeRefused(OWNER_ONLY, 403);
+    if (!canDo(actor, "delete.posted", { kind: "invoice" }).allowed) throw new InvoiceChangeRefused(OWNER_ONLY, 403);
     if ((input.confirm ?? "").trim().toUpperCase() !== head.invoiceNumber.toUpperCase()) throw new InvoiceChangeRefused(`Type ${head.invoiceNumber} to delete it.`, 400);
     if (reason.length < REASON_MIN) throw new InvoiceChangeRefused("Say why, in a few words. The reason is kept in the audit log.", 400);
   }
@@ -125,6 +136,8 @@ export async function deleteInvoice(actor: InvoiceActor, invoiceId: string, inpu
       if (!found) throw new InvoiceChangeRefused("That invoice is not here any more.", 404);
       const { invoice, noteIds, writeOffIds, journals, mirrorIds, ledger, fiscal } = found;
       if (invoice.status !== head.status) throw new InvoiceChangeRefused(`${invoice.invoiceNumber} changed while you were deleting it. Look again, then delete it.`);
+      // Never a fiscalised one, whatever its fiscal day: the credit note is the way (books-final §2.5).
+      if (fiscalisedOf(fiscal)) throw new InvoiceChangeRefused(FISCALISED_REFUSAL(invoice.invoiceNumber));
       const openDay = fiscal.find((row) => row.fiscalDay !== null && row.fiscalDay.status !== "CLOSED");
       if (openDay) {
         throw new InvoiceChangeRefused(
@@ -153,7 +166,7 @@ export async function deleteInvoice(actor: InvoiceActor, invoiceId: string, inpu
           reason: reason || undefined,
           payload: {
             number: invoice.invoiceNumber,
-            by: { userId: actor.userId, role: actor.role ?? null },
+            by: auditActor(actor),
             invoice: { ...invoice, lines: undefined, receipts: undefined, creditNotes: undefined, writeOffs: undefined, fiscalReceipt: undefined, crmLeadDocuments: undefined },
             lines: invoice.lines,
             creditNotes: invoice.creditNotes,

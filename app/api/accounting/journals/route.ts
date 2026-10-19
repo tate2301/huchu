@@ -6,6 +6,7 @@ import { getNextEntryNumber, ensurePeriodForDate, toMoney } from "@/lib/accounti
 import { resolvePostingPeriod } from "@/lib/accounting/period-lock";
 import { findForeignAccountIds, findForeignCostCenterIds } from "@/lib/accounting/ownership";
 import { ensureLedgerAccountIds } from "@/lib/accounting/chart-of-accounts";
+import { guardBooks } from "@/lib/books/core";
 
 const journalSchema = z.object({
   entryDate: z.string().datetime().or(z.string().regex(/^\d{4}-\d{2}-\d{2}$/)),
@@ -111,6 +112,12 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json();
     const validated = journalSchema.parse(body);
+    const { refused } = await guardBooks(
+      session,
+      (validated.status ?? "DRAFT") === "POSTED" ? "journal.post" : "draft.create",
+      { kind: "journal", amount: validated.lines.reduce((sum, line) => sum + (line.debit ?? 0), 0) },
+    );
+    if (refused) return refused;
 
     if (!totalsMatch(validated.lines)) {
       return errorResponse("Debit and credit totals must balance", 400);

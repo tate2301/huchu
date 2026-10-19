@@ -10,6 +10,7 @@ import {
 import { prisma } from "@/lib/prisma";
 import { createJournalEntryFromSource } from "@/lib/accounting/posting";
 import { recalcPurchaseBillBalance } from "@/lib/accounting/balances";
+import { guardBooks } from "@/lib/books/core";
 
 const writeOffSchema = z.object({
   billId: z.string().uuid(),
@@ -58,6 +59,8 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json();
     const validated = writeOffSchema.parse(body);
+    const { refused } = await guardBooks(session, "write-off", { kind: "write-off", amount: validated.amount });
+    if (refused) return refused;
 
     const bill = await prisma.purchaseBill.findUnique({
       where: { id: validated.billId },

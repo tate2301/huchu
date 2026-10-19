@@ -72,6 +72,8 @@ export type InvoiceRemoval = {
   fiscalRecord: boolean;
   /** Its fiscal receipt sits in a fiscal day that has not closed: Delete is refused until it does. */
   fiscalDayOpen: boolean;
+  /** ZIMRA holds it (or one of its credit notes) as issued: never deleted; reversed with a credit note (books-final §2.5). */
+  fiscalised: boolean;
   /** The month it is dated in is closed: allowed, with a warning. */
   periodClosed: boolean;
   /** The CRM deal or lead it was raised for, when it was. */
@@ -102,6 +104,15 @@ export function deleteAsk(removal: InvoiceRemoval, customer: string): Ask {
   const { number } = removal;
   if (removal.draft) {
     return { title: `Delete ${number}?`, body: `The draft to ${customer} goes. Nothing was sent or posted.`, keep: "Keep it", go: "Delete the draft", fill: "bad" };
+  }
+  if (removal.fiscalised) {
+    return {
+      title: `${number} can't be deleted`,
+      body: `It was fiscalised, so ZIMRA holds it as issued and it is never deleted here. Reverse it instead: a credit note for all or part of it, from its page.`,
+      keep: "Keep it",
+      go: "",
+      fill: "bad",
+    };
   }
   if (removal.fiscalDayOpen) {
     return {

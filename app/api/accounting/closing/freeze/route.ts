@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { errorResponse, successResponse, validateSession } from "@/lib/api-utils";
 import { setClosingControls } from "@/lib/accounting/closing";
+import { guardBooks } from "@/lib/books/core";
 
 /** The closing controls on Periods: the freeze date, who may post before it, and retained earnings. */
 const schema = z.object({
@@ -15,6 +16,8 @@ export async function POST(request: NextRequest) {
     const sessionResult = await validateSession(request);
     if (sessionResult instanceof NextResponse) return sessionResult;
     const { session } = sessionResult;
+    const { refused } = await guardBooks(session, "period.freeze", { kind: "period" });
+    if (refused) return refused;
 
     const body = await request.json();
     const validated = schema.parse(body);
