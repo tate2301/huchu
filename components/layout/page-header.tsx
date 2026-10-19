@@ -101,27 +101,27 @@ export function PageHeader() {
     <header className="box-border h-[calc(56px+env(safe-area-inset-top))] flex-none bg-[var(--surface)] pt-[env(safe-area-inset-top)] shadow-[inset_0_-1px_0_var(--line)]">
       {/* ≥720px */}
       <div className="flex h-full items-center gap-3 px-6 max-[719px]:hidden">
-        {back ? (
-          <>
-            <Link
-              href={back.href}
-              aria-label={`Back to ${back.label}`}
-              className="flex h-8 shrink-0 items-center gap-1 rounded-[8px] pl-1 pr-2 text-[var(--ink-3)] no-underline hover:bg-[var(--hover)]"
-            >
-              <CaretLeft className="size-4" aria-hidden="true" />
-              {back.label}
-            </Link>
-            {title ? (
-              <span aria-hidden="true" className="text-[var(--line-strong)]">
-                /
-              </span>
-            ) : null}
-          </>
-        ) : null}
-        {pageIcon && !back
-          ? createElement(pageIcon, { className: "size-4 shrink-0 text-[var(--ink-3)]", "aria-hidden": true })
-          : null}
-        <h1 className="m-0 -ml-1 min-w-0 truncate text-[16px] font-semibold text-[var(--ink)]">{title}</h1>
+        {/* The boards' crumb (`.tb-m h1`): the page's icon, the parent in grey as the way back, a faint slash, the record. */}
+        <h1 className="m-0 flex min-w-0 items-center gap-2 text-[16px] font-semibold text-[var(--ink)]">
+          {pageIcon ? createElement(pageIcon, { className: "size-4 shrink-0 text-[var(--ink-3)]", "aria-hidden": true }) : null}
+          {back ? (
+            <>
+              <Link
+                href={back.href}
+                title={`Back to ${back.label}`}
+                className="shrink-0 font-medium text-[var(--ink-3)] no-underline hover:text-[var(--ink)] hover:underline hover:underline-offset-[3px]"
+              >
+                {back.label}
+              </Link>
+              {title ? (
+                <span aria-hidden="true" className="shrink-0 font-normal text-[var(--faint)]">
+                  /
+                </span>
+              ) : null}
+            </>
+          ) : null}
+          <span className="min-w-0 truncate">{title}</span>
+        </h1>
         {identity?.reference ? (
           <span className="shrink-0 font-mono text-[var(--ink-3)]" style={{ fontSize: 12 }}>
             {identity.reference}
@@ -225,18 +225,33 @@ export function PageHeader() {
 
       {/* <720px (Mobile board) */}
       <div className="flex h-full items-center gap-1 pl-1 pr-1 min-[720px]:hidden">
-        <button
-          type="button"
-          aria-label="Open the menu"
-          onClick={() => shell.setDrawerOpen(true)}
-          className="flex size-11 shrink-0 items-center justify-center rounded-[8px] text-[var(--ink-2)]"
-        >
-          <List weight="bold" className="size-5" aria-hidden="true" />
-        </button>
-        <h1 className="m-0 min-w-0 flex-1 truncate text-[16px] font-semibold text-[var(--ink)]">{title}</h1>
-        <SearchTrigger compact />
-        <DeviceStatus compact />
-        <NotificationsBell compact />
+        {/* A record goes back to its list (BkInvoicePhone: ‹ INV-0131 ⋯); a page opens the menu. */}
+        {back ? (
+          <Link
+            href={back.href}
+            aria-label={`Back to ${back.label}`}
+            className="flex size-11 shrink-0 items-center justify-center rounded-[8px] text-[var(--ink-2)]"
+          >
+            <CaretLeft weight="bold" className="size-5" aria-hidden="true" />
+          </Link>
+        ) : (
+          <button
+            type="button"
+            aria-label="Open the menu"
+            onClick={() => shell.setDrawerOpen(true)}
+            className="flex size-11 shrink-0 items-center justify-center rounded-[8px] text-[var(--ink-2)]"
+          >
+            <List weight="bold" className="size-5" aria-hidden="true" />
+          </button>
+        )}
+        <h1 className="m-0 min-w-0 flex-1 truncate text-[17px] font-semibold text-[var(--ink)]">{title}</h1>
+        {back ? null : (
+          <>
+            <SearchTrigger compact />
+            <DeviceStatus compact />
+            <NotificationsBell compact />
+          </>
+        )}
         {menuCount > 0 ? (
           <Menu>
             <MenuTrigger asChild>

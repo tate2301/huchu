@@ -35,8 +35,8 @@ describe("a bill in Books → Expenses", () => {
 
   it("opens with what is to pay and how much of it is late", () => {
     expect(expensesFinding({ amount: 1980, bills: 4 }, { amount: 420, bills: 1 })).toEqual({
-      fact: "$1,980.00 is to pay on 4 bills.",
-      rest: "1 is overdue, $420.00 in all.",
+      fact: "US$1,980.00 is to pay on 4 bills.",
+      rest: "1 is overdue, US$420.00 in all.",
     });
     expect(expensesFinding({ amount: 0, bills: 0 }, { amount: 0, bills: 0 }).fact).toBe("Nothing is owed to suppliers.");
   });
@@ -44,7 +44,7 @@ describe("a bill in Books → Expenses", () => {
 
 describe("Books → Payments' finding", () => {
   it("says what came in this month", () => {
-    expect(paymentsFinding({ amount: 1240, payments: 4 })).toEqual({ fact: "$1,240.00 came in this month.", rest: "4 payments so far." });
+    expect(paymentsFinding({ amount: 1240, payments: 4 })).toEqual({ fact: "US$1,240.00 came in this month.", rest: "4 payments so far." });
     expect(paymentsFinding({ amount: 0, payments: 0 }).fact).toBe("Nothing has come in this month yet.");
   });
 });

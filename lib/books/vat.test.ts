@@ -6,9 +6,9 @@ describe("vatFinding", () => {
   it("says where the open return stands and what is due", () => {
     expect(vatFinding({ month: "September", state: "reviewed", net: 1227.2, due: "25 October" }, null)).toEqual({
       fact: "September's return is reviewed, not finalised.",
-      rest: "$1,227.20 is due to ZIMRA by 25 October.",
+      rest: "US$1,227.20 is due to ZIMRA by 25 October.",
     });
-    expect(vatFinding({ month: "September", state: "draft", net: -40, due: null }, null).rest).toBe("ZIMRA owes you $40.00.");
+    expect(vatFinding({ month: "September", state: "draft", net: -40, due: null }, null).rest).toBe("ZIMRA owes you US$40.00.");
   });
 
   it("says when everything is filed, or nothing is prepared", () => {

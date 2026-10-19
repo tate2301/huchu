@@ -71,7 +71,8 @@ async function accounts(db: Db, companyId: string, base: string, now: Date): Pro
     const end = closed.find((entry) => entry.bankAccountId === row.id)?._max.endDate;
     return {
       id: row.id,
-      name: row.bankName ? `${row.bankName} ${row.name === row.bankName ? "" : row.name}`.trim() : row.name,
+      // "CBZ current", not "CBZ CBZ current": the bank's name only where the account's own leaves it out.
+      name: row.bankName && !row.name.toLowerCase().startsWith(row.bankName.toLowerCase()) ? `${row.bankName} ${row.name}` : row.name,
       kind: KIND_LABEL[row.kind] ?? row.kind,
       currency: row.currency.toUpperCase(),
       amount: round(amount),

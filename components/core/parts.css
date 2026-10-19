@@ -56,6 +56,10 @@
 .ck.ck.ck .btn-group > .menu-wrap:first-child > .btn { border-radius: var(--radius-button) 0 0 var(--radius-button); }
 .ck.ck.ck .btn-group > .menu-wrap:last-child > .btn { border-radius: 0 var(--radius-button) var(--radius-button) 0; }
 .ck.ck.ck .btn-group > .menu-wrap:only-child > .btn { border-radius: var(--radius-button); }
+/* The primary and its caret (the owner, 19 Oct): one blue group, the caret parted by a light line. */
+.ck.ck.ck .btn-group > .menu-wrap > .btn-primary { background: var(--color-primary); color: var(--color-primary-ink); }
+.ck.ck.ck .btn-group > .btn-primary + .menu-wrap > .btn-primary { box-shadow: inset 1px 0 0 rgba(255, 255, 255, 0.24); }
+.ck.ck.ck .btn-group:has(> .btn-primary) { box-shadow: none; }
 
 /* Table cells sit in the middle of their row, as the browser draws them: the app's own `.table`
    rules are reset inside `.ck`. The kit tops only prose tables and `.wrap` cells, so those are left to it. */

@@ -41,7 +41,7 @@ describe("proposeMatch", () => {
     expect(result).toMatchObject({
       match: { kind: "invoice", invoiceId: "inv-142", amount: 500 },
       title: "INV-0142, Pomona Offices, part payment",
-      reason: "The reference names the invoice. It leaves $1,494.22 owing.",
+      reason: "The reference names the invoice. It leaves US$1,494.22 owing.",
     });
   });
 
