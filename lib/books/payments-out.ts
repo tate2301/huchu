@@ -67,7 +67,7 @@ export type PaymentsOutView = {
   rows: PaymentOutRow[];
   range: { from: number; to: number; of: number };
   counts: Record<PaymentOutView, number>;
-  month: { name: string; paid: number };
+  month: { name: string; paid: number; imtt: number };
   waiting: number;
   currency: string;
   suppliers: Array<{ id: string; name: string }>;
@@ -75,7 +75,7 @@ export type PaymentsOutView = {
   query: PaymentOutQuery;
 };
 
-type Db = Pick<PrismaClient, "purchasePayment" | "bankAccount" | "vendor">;
+type Db = Pick<PrismaClient, "purchasePayment" | "bankAccount" | "vendor" | "journalLine">;
 
 const round = (n: number) => Math.round(n * 100) / 100;
 /** A Harare calendar day's first instant: Harare is UTC+2 all year. */
@@ -151,7 +151,7 @@ export async function readPaymentsOut(db: Db, companyId: string, query: PaymentO
   const today = dayOf(now);
   const where = paymentOutWhere(companyId, query, today);
   const live = { companyId, requisitionId: null };
-  const [records, matching, all, toApprove, paid, voided, month, waiting, vendors, accounts] = await Promise.all([
+  const [records, matching, all, toApprove, paid, voided, month, waiting, vendors, accounts, imtt] = await Promise.all([
     db.purchasePayment.findMany({
       where,
       select: rowSelect,
@@ -168,6 +168,8 @@ export async function readPaymentsOut(db: Db, companyId: string, query: PaymentO
     db.purchasePayment.findMany({ where: { ...live, status: "TO_APPROVE" }, select: { amount: true, vendor: { select: { name: true } }, bill: { select: { vendor: { select: { name: true } } } } } }),
     db.vendor.findMany({ where: { companyId, isActive: true }, select: { id: true, name: true }, orderBy: { name: "asc" }, take: 500 }),
     db.bankAccount.findMany({ where: { companyId, isActive: true }, select: { id: true, name: true, bankName: true, currency: true }, orderBy: { name: "asc" } }),
+    // §5.8.3: the IMTT the banks took this month, as bank entries to 5465.
+    db.journalLine.aggregate({ where: { account: { code: "5465" }, entry: { companyId, status: "POSTED", voidedAt: null, entryDate: { gte: harareStart(monthStart(today)) } } }, _sum: { debit: true, credit: true } }),
   ]);
   const rows = records.map((record) => toPaymentOutRow(record, base));
   const from = matching === 0 ? 0 : (query.page - 1) * PAYMENTS_OUT_PAGE_SIZE + 1;
@@ -178,7 +180,7 @@ export async function readPaymentsOut(db: Db, companyId: string, query: PaymentO
     rows,
     range: { from, to: from === 0 ? 0 : from + rows.length - 1, of: matching },
     counts: { all, "to-approve": toApprove, paid, void: voided },
-    month: { name: `Paid in ${monthName(today)}`, paid: paidThisMonth },
+    month: { name: `Paid in ${monthName(today)}`, paid: paidThisMonth, imtt: round(Number(imtt._sum.debit ?? 0) - Number(imtt._sum.credit ?? 0)) },
     waiting: round(waitingRows.reduce((sum, row) => sum + row.amount, 0)),
     currency: base,
     suppliers: vendors,

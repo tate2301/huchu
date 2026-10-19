@@ -52,6 +52,23 @@ function PayForm({ options, initialSupplier, initialBills }: { options: Options;
   const over = options.approval ? total > options.approval.limit + 0.004 : false;
   const asked = React.useRef(initialBills);
 
+  // D17 and §5.8.3: what this payment withholds, and the IMTT the bank takes on it, from the core.
+  const billKey = picked.map((row) => row.invoiceId).join(",");
+  const quote = useQuery({
+    queryKey: ["books", "withholding-quote", vendorId, total, currency, billKey],
+    queryFn: () =>
+      fetchJson<{ itf263: { state: "Valid" | "Expired" | "None"; label: string; expires: string | null }; phone: string | null; withheld: number; net: number; rate: number; imtt: number; imttRate: number; dueBy: string }>(
+        `/api/books/withholding/quote?${new URLSearchParams({ supplier: vendorId, amount: String(total), currency, bills: billKey }).toString()}`,
+      ),
+    enabled: Boolean(vendorId),
+    placeholderData: (previous) => previous,
+  });
+  const q = quote.data;
+  const withheld = q && total > 0 ? q.withheld : 0;
+  const net = total - withheld;
+  const imtt = q && total > 0 ? q.imtt : 0;
+  const askHref = q ? `https://wa.me/${(q.phone ?? "").replace(/\D/g, "")}?text=${encodeURIComponent(`Good day. Please send us your current ITF263 tax clearance. Without it we must withhold ${Math.round(q.rate * 100)}% of each payment for ZIMRA.`)}` : "#";
+
   React.useEffect(() => setPicked([]), [vendorId]);
   // Pay from Bills: the bills ticked there are ticked here, once they load.
   React.useEffect(() => {
@@ -123,10 +140,10 @@ function PayForm({ options, initialSupplier, initialBills }: { options: Options;
           <>
             <section>
               <div className="sec-title">Approval</div>
-              <div className="figure">{money(total, currency)}</div>
+              <div className="figure">{money(net, currency)}</div>
               <dl className="attrs">
                 <dt>Withheld</dt>
-                <dd>Not recorded yet</dd>
+                <dd className="num">{money(withheld, currency)}</dd>
                 <dt>Approves</dt>
                 <dd>{over ? (options.approval?.owner ?? "The owner") : "Not needed"}</dd>
                 <dt>Why</dt>
@@ -139,8 +156,13 @@ function PayForm({ options, initialSupplier, initialBills }: { options: Options;
               title="When it is paid"
               steps={[
                 ["It gets a number", options.nextNumber],
-                ["The money leaves", account ? `${account.bank} ${money(total, currency)}` : "the account you choose"],
-                ["The bills", picked.length === 1 ? "show it as paid" : "each show their payment"],
+                ["The money leaves", account ? `${account.bank}, ${money(net + imtt, currency)} with IMTT` : "the account you choose"],
+                ...(withheld > 0
+                  ? ([
+                      ["A certificate is drafted", `for ${supplier?.name ?? "the supplier"}`],
+                      ["The withholding return", `lists it, due ${q ? shortDay(q.dueBy) : "the 5th"}`],
+                    ] as Array<[string, string]>)
+                  : ([["The bills", picked.length === 1 ? "show it as paid" : "each show their payment"]] as Array<[string, string]>)),
               ]}
             />
           </>
@@ -237,9 +259,28 @@ function PayForm({ options, initialSupplier, initialBills }: { options: Options;
         </WideSec>
 
         <FormSec title="ITF263" text="Checked before every payment.">
-          <BkBox tone="warn" icon="warn">
-            <b>Not recorded yet.</b> Check theirs by hand, and withhold 30% where it has run out.
-          </BkBox>
+          {!vendorId || !q ? (
+            <BkBox icon="file">
+              Choose the supplier: their tax clearance is checked here.
+            </BkBox>
+          ) : q.itf263.state === "Valid" ? (
+            <BkBox tone="ok" icon="check">
+              <b>{q.itf263.label}.</b> Nothing is withheld.
+            </BkBox>
+          ) : (
+            <BkBox
+              tone="warn"
+              icon="warn"
+              action={
+                <a className="btn btn-sm" href={askHref} target="_blank" rel="noreferrer">
+                  Ask for it
+                </a>
+              }
+            >
+              <b>{q.itf263.state === "Expired" ? `No valid ITF263 since ${q.itf263.expires?.replace(/ \d{4}$/, "")}.` : "No ITF263 on file."}</b>{" "}
+              {withheld > 0 ? `${Math.round(q.rate * 100)}% of this payment is withheld for ZIMRA.` : `${Math.round(q.rate * 100)}% is withheld once this year’s payments to them reach the threshold.`}
+            </BkBox>
+          )}
         </FormSec>
 
         <FormSec title="From" text="The bank takes IMTT on top.">
@@ -286,16 +327,28 @@ function PayForm({ options, initialSupplier, initialBills }: { options: Options;
                     <td />
                   </tr>
                 ))}
+                {withheld > 0 ? (
+                  <tr>
+                    <td>Withheld, {Math.round((q?.rate ?? 0.3) * 100)}%</td>
+                    <td className="num">−{money(withheld, currency)}</td>
+                    <td className="muted">to ZIMRA by {q ? shortDay(q.dueBy) : "the 10th"}</td>
+                  </tr>
+                ) : null}
                 <tr>
                   <td>Paid to {supplier?.name ?? "the supplier"}</td>
-                  <td className="num">{money(total, currency)}</td>
-                  <td className="muted">The bank adds IMTT</td>
+                  <td className="num">{money(net, currency)}</td>
+                  <td />
+                </tr>
+                <tr>
+                  <td>IMTT, {Math.round((q?.imttRate ?? 0.02) * 1000) / 10}% ({account?.bank ?? "the bank"} takes it)</td>
+                  <td className="num">{money(imtt, currency)}</td>
+                  <td className="muted">a bank charge</td>
                 </tr>
               </tbody>
               <tfoot>
                 <tr className="tot">
                   <td>Leaves {account ? `${account.bank}, ${account.currency}` : "the account"}</td>
-                  <td className="num">{money(total, currency)}</td>
+                  <td className="num">{money(net + imtt, currency)}</td>
                   <td />
                 </tr>
               </tfoot>

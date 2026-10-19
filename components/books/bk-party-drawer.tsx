@@ -2,7 +2,7 @@
 
 import * as React from "react";
 
-import { Button, Drawer, DrawerSection, Field, Input, TextArea } from "@/components/core";
+import { Button, Check, Drawer, DrawerSection, Field, Input, TextArea } from "@/components/core";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { EMPTY_PARTY, partyErrors, type PartyForm } from "@/lib/books/party-form";
 
@@ -100,6 +100,7 @@ export function PartyDrawer({
         <Field label="Address" htmlFor={id("address")} optional>
           <TextArea id={id("address")} rows={2} value={form.address} onChange={set("address")} />
         </Field>
+        <Check checked={form.vatAgent} onCheckedChange={(vatAgent) => setForm({ ...form, vatAgent })} label="They withhold VAT as an appointed agent" />
         {error ? (
           <p role="alert" className="error" style={{ marginTop: "var(--space-8)" }}>
             {error}

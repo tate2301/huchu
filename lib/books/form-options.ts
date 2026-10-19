@@ -5,6 +5,7 @@ import { resolveBaseCurrency } from "@/lib/money";
 
 import { SERIES, type NumberedDocument } from "./core/numbering";
 import type { BooksFormOptions } from "./form-options-view";
+import { itf263State } from "./itf263";
 
 /**
  * What Books' forms choose from (BkInvoiceNew, BkPaymentNew, BkBillNew,
@@ -30,10 +31,10 @@ export async function readFormOptions(db: Db, companyId: string, parties: "custo
   const base = (await resolveBaseCurrency(companyId)).toUpperCase();
   const [customers, suppliers, taxCodes, centres, accounts, rates, next] = await Promise.all([
     parties === "customers"
-      ? db.customer.findMany({ where: { companyId, isActive: true }, select: { id: true, name: true, vatNumber: true, taxNumber: true }, orderBy: { name: "asc" }, take: 2000 })
+      ? db.customer.findMany({ where: { companyId, isActive: true }, select: { id: true, name: true, vatNumber: true, taxNumber: true, isVatWithholdingAgent: true }, orderBy: { name: "asc" }, take: 2000 })
       : Promise.resolve([]),
     parties === "suppliers"
-      ? db.vendor.findMany({ where: { companyId, isActive: true }, select: { id: true, name: true, vatNumber: true, taxNumber: true }, orderBy: { name: "asc" }, take: 2000 })
+      ? db.vendor.findMany({ where: { companyId, isActive: true }, select: { id: true, name: true, vatNumber: true, taxNumber: true, isVatWithholdingAgent: true, itf263Number: true, itf263ExpiresAt: true }, orderBy: { name: "asc" }, take: 2000 })
       : Promise.resolve([]),
     db.taxCode.findMany({
       where: { companyId, isActive: true, appliesTo: { in: [parties === "customers" ? "SALES" : "PURCHASE", "BOTH"] } },
@@ -55,7 +56,13 @@ export async function readFormOptions(db: Db, companyId: string, parties: "custo
     base,
     currencies,
     rates: Object.fromEntries(latest),
-    parties: (parties === "customers" ? customers : suppliers).map((party) => ({ id: party.id, name: party.name, vatNumber: party.vatNumber, tin: party.taxNumber })),
+    parties: [
+      ...customers.map((party) => ({ id: party.id, name: party.name, vatNumber: party.vatNumber, tin: party.taxNumber, vatAgent: party.isVatWithholdingAgent })),
+      ...suppliers.map((party) => {
+        const itf = itf263State(party, new Date());
+        return { id: party.id, name: party.name, vatNumber: party.vatNumber, tin: party.taxNumber, vatAgent: party.isVatWithholdingAgent, itf263: { state: itf.state, label: itf.label } };
+      }),
+    ],
     taxCodes: taxCodes
       .filter((code) => code.type !== "WITHHOLDING")
       .map((code) => ({ id: code.id, label: code.rate > 0 ? `${code.type === "VAT" ? "VAT" : code.code} ${code.rate}%` : code.name, rate: code.rate })),

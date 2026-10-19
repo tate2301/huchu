@@ -205,7 +205,7 @@ function BillFormPage({ options, draft }: { options: Options; draft: BillRecordP
               <div className="sec-title">Checks</div>
               <dl className="attrs">
                 <dt>ITF263</dt>
-                <dd>Not recorded yet</dd>
+                <dd>{supplier?.itf263 ? <BkState tone={supplier.itf263.state === "Valid" ? "success" : "warning"}>{supplier.itf263.label.replace(/ \d{4}$/, "")}</BkState> : "Choose the supplier"}</dd>
                 <dt>FDMS</dt>
                 <dd>{form.fdmsStatus === "NOT_CHECKED" ? "Not checked" : <BkState tone={form.fdmsStatus === "VALID" ? "success" : "danger"}>{FDMS_WORD[form.fdmsStatus]}</BkState>}</dd>
                 <dt>Match</dt>

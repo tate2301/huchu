@@ -141,6 +141,7 @@ export function BkBillView({ bill }: { bill: BillRecord }) {
                   <col style={{ width: 120 }} />
                   <col style={{ width: 80 }} />
                   <col />
+                  <col style={{ width: 140 }} />
                   <col style={{ width: 130 }} />
                   <col style={{ width: 130 }} />
                 </colgroup>
@@ -149,6 +150,7 @@ export function BkBillView({ bill }: { bill: BillRecord }) {
                     <th>Payment</th>
                     <th>Date</th>
                     <th>From</th>
+                    <th className="num">Withheld, 30%</th>
                     <th>State</th>
                     <th className="num">Amount</th>
                   </tr>
@@ -165,6 +167,7 @@ export function BkBillView({ bill }: { bill: BillRecord }) {
                       <td>
                         <span className="cell-lead">{payment.from ?? "—"}</span>
                       </td>
+                      <td className="num">{payment.withheld > 0 ? money(payment.withheld, bill.currency) : <span className="muted">—</span>}</td>
                       <td>
                         <BkState tone={STATE_TONE[payment.state] ?? "plain"}>{payment.state}</BkState>
                       </td>

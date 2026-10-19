@@ -96,6 +96,7 @@ export function BkPaymentsOutView({
             range={of === 0 ? "None" : `${from} to ${to} of ${of}`}
             sums={[
               { label: data.month.name, value: money(data.month.paid, data.currency) },
+              { label: "IMTT", value: money(data.month.imtt, data.currency) },
               { label: "To approve", value: money(data.waiting, data.currency) },
             ]}
             page={{

@@ -6,6 +6,7 @@ import { moneyInOut } from "./core/money-in-out";
 import { customerFace, customerImage } from "./faces";
 import { asOf, count, dayOf, money, monthName, monthSoFar, monthStart, shortDay, storedDay } from "./format";
 import { owedAndOverdue } from "./invoices";
+import { itf263State } from "./itf263";
 import { blockingWhere } from "./needs-posting";
 import { cameIn, isMoneyIn } from "./money";
 import {
@@ -143,7 +144,7 @@ async function needs(db: Db, companyId: string, today: string, now: Date, curren
       detail: `${first.customer.name}, ${money(first.total, first.currency)}`,
       people: [{ name: first.customer.name, image: customerImage(first.customer) }],
       urgency: "urgent",
-      action: { label: "Retry", icon: "history", href: "/accounting/fiscalisation" },
+      action: { label: "Retry", icon: "history", href: "/books/fiscal?tab=failed" },
     });
   }
   if (unposted > 0) {
@@ -167,6 +168,22 @@ async function needs(db: Db, companyId: string, today: string, now: Date, curren
       action: { label: "Match", icon: "check", href: "/books/bank" },
     });
   }
+  // D17: suppliers paid this year or owed, with no valid ITF263: paying them withholds 30%.
+  const vendors = await db.vendor.findMany({
+    where: { companyId, isActive: true, OR: [{ payments: { some: { status: "PAID", paidAt: { gte: new Date(`${today.slice(0, 4)}-01-01T00:00:00.000Z`) } } } }, { bills: { some: { status: "RECEIVED" } } }] },
+    select: { itf263Number: true, itf263ExpiresAt: true },
+  });
+  const missing = vendors.filter((vendor) => itf263State(vendor, now).state !== "Valid").length;
+  if (missing > 0) {
+    list.push({
+      key: "itf263",
+      icon: "store",
+      lead: missing === 1 ? "1 supplier has no valid ITF263" : `${missing} suppliers have no valid ITF263`,
+      detail: "Payments to them withhold 30%",
+      urgency: "routine",
+      action: { label: "Ask for it", icon: "send", href: "/books/suppliers?view=missing-itf263" },
+    });
+  }
   if (overdue.invoices > 0) {
     list.push({
       key: "overdue",
@@ -184,7 +201,7 @@ async function needs(db: Db, companyId: string, today: string, now: Date, curren
     lead: `Next tax date: ${shortDay(tax.day)}`,
     detail: tax.what,
     urgency: "look",
-    action: { label: "What's due", icon: "chev", href: "/books/vat" },
+    action: { label: "What's due", icon: "chev", href: "/books/tax" },
   });
   return list;
 }

@@ -24,7 +24,7 @@ function BooksSuppliers() {
   const router = useRouter();
   const client = useQueryClient();
   const { toast } = useToast();
-  const { search, params, onQuery, exportHref } = useListQuery<SupplierQuery>({ view: "all", sort: "owed" });
+  const { search, params, onQuery, exportHref } = useListQuery<SupplierQuery>({ view: "all", sort: "owed", itf: "any" });
   const [adding, setAdding] = React.useState(false);
 
   const list = useQuery({

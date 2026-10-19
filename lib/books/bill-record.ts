@@ -1,5 +1,6 @@
 import type { FdmsCheckStatus, PrismaClient } from "@prisma/client";
 
+import { quoteWithholding } from "./core/withholding";
 import { docLabel } from "./doc-number";
 import { billState, EXPENSE_STATE_LABEL, type ExpenseState } from "./expenses";
 import { count, dayOf, shortDay, storedDay } from "./format";
@@ -46,7 +47,8 @@ export type BillRecord = {
     rows: BillMatchRow[];
     differs: number;
   } | null;
-  payments: Array<{ id: string; number: string; date: string; from: string | null; state: string; status: string; amount: number }>;
+  /** `withheld`: what it withholds for ZIMRA (D17): what it did, once paid; what it will, while it waits. */
+  payments: Array<{ id: string; number: string; date: string; from: string | null; state: string; status: string; amount: number; withheld: number }>;
   posting: PostingRow[];
   entries: number;
   history: HistoryItem[];
@@ -238,15 +240,21 @@ export async function readBillRecord(db: Db, companyId: string, id: string, now 
             differs: rows.filter((row) => row.differs).length,
           }
         : null,
-    payments: bill.payments.map((payment) => ({
-      id: payment.id,
-      number: payment.paymentNumber ?? "Draft",
-      date: shortDay(storedDay(payment.paidAt)),
-      from: payment.bankAccount ? `${payment.bankAccount.bankName || payment.bankAccount.name}, ${payment.bankAccount.currency}` : null,
-      state: PAYMENT_STATE_LABEL[payment.status] ?? payment.status,
-      status: payment.status,
-      amount: round(payment.amount),
-    })),
+    payments: await Promise.all(
+      bill.payments.map(async (payment) => ({
+        id: payment.id,
+        number: payment.paymentNumber ?? "Draft",
+        date: shortDay(storedDay(payment.paidAt)),
+        from: payment.bankAccount ? `${payment.bankAccount.bankName || payment.bankAccount.name}, ${payment.bankAccount.currency}` : null,
+        state: PAYMENT_STATE_LABEL[payment.status] ?? payment.status,
+        status: payment.status,
+        amount: round(payment.amount),
+        withheld:
+          payment.status === "PAID" || payment.status === "VOIDED"
+            ? round(payment.withholdingAmount)
+            : (await quoteWithholding(companyId, { vendorId: bill.vendor.id, billId: bill.id, amount: payment.amount, currency: bill.currency, date: now, exceptPaymentId: payment.id })).total,
+      })),
+    ),
     posting: postingRows(entries, { code: "2000", name: bill.vendor.name }),
     entries: entries.length,
     history: historyOf(history),

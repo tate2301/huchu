@@ -673,7 +673,6 @@
     "panel: Overdueshared",
     "panel: Pomona Officesyou",
     "panel: Paid this monthshared",
-    "P3: Valid to 31 Dec",
     "status: Valid",
     "filter: Showroom"
   ],
@@ -686,8 +685,8 @@
     "panel: Overdueshared",
     "panel: Pomona Officesyou",
     "panel: Paid this monthshared",
-    "P3: Ask for it",
-    "filter: Mutare"
+    "filter: Mutare",
+    "filter: CBZ"
   ],
   "BkNeedsPosting": [
     "heading: Close the month",
@@ -734,7 +733,6 @@
     "panel: Overdueshared",
     "panel: Pomona Officesyou",
     "panel: Paid this monthshared",
-    "P3: Withheld, 30%",
     "primary: Approve the payment [A]",
     "status: To approve",
     "status: Overdue"
@@ -747,8 +745,7 @@
     "button: Notifications",
     "panel: Overdueshared",
     "panel: Pomona Officesyou",
-    "panel: Paid this monthshared",
-    "P3: # to # of #Paid in October US#IMTT US#To"
+    "panel: Paid this monthshared"
   ],
   "BkOrders": [
     "heading: Bills & spending",
@@ -808,18 +805,11 @@
     "panel: Overdueshared",
     "panel: Pomona Officesyou",
     "panel: Paid this monthshared",
-    "P3: Missing ITF263",
-    "P3: ITF263",
-    "P3: Withheld",
-    "P3: Valid to 30 Jun 2027",
-    "P3: Valid to 31 Dec 2026",
-    "P3: Expired 30 Jun 2026",
-    "P3: Not needed public body",
-    "P3: None never sent",
-    "P3: Valid to 31 Mar 2027",
-    "P3: Not needed tax",
-    "P3: Not needed statutory",
-    "P3: # to # of #We owe US#Overdue US#Withheld"
+    "status: Not needed public body",
+    "status: None never sent",
+    "status: Valid to 31 Mar 2027",
+    "status: Not needed tax",
+    "status: Not needed statutory"
   ],
   "BkSupplier": [
     "heading: Bills & spending",
@@ -830,18 +820,160 @@
     "panel: Overdueshared",
     "panel: Pomona Officesyou",
     "panel: Paid this monthshared",
-    "P3: Tax clearance, ITF263",
-    "P3: Withholding this year",
-    "P3: Ask for it",
-    "P3: Payment",
-    "P3: Bill",
-    "P3: Gross",
-    "P3: Withheld, 30%",
-    "P3: Certificate",
-    "P3: To ZIMRA",
-    "P3: ITF263 expired",
-    "P3: Paid 10 Sep",
-    "P3: To approve",
-    "P3: #US#US#"
+    "status: Paid 10 Sep"
+  ],
+  "BkAccounts": [
+    "heading: Bank & cash",
+    "button: Books",
+    "panel: Books",
+    "button: Vane",
+    "button: Notifications",
+    "panel: Overdueshared",
+    "panel: Pomona Officesyou",
+    "panel: Paid this monthshared",
+    "footer: # accountsIn USD US#USD US#ZiG ZiG #ZiG"
+  ],
+  "BkAccount": [
+    "heading: Bank & cash",
+    "button: Books",
+    "panel: Books",
+    "button: Vane",
+    "button: Notifications",
+    "panel: Overdueshared",
+    "panel: Pomona Officesyou",
+    "panel: Paid this monthshared",
+    "heading: Accounts/CBZ current, USD",
+    "heading: CBZ current, USD",
+    "footer: # entries since # SepIn US#Out US#Previo"
+  ],
+  "BkToMatch": [
+    "heading: Bank & cash",
+    "button: Books",
+    "panel: Books",
+    "button: Vane",
+    "button: Notifications",
+    "panel: Overdueshared",
+    "panel: Pomona Officesyou",
+    "panel: Paid this monthshared",
+    "button: Payment received",
+    "button: Payment made",
+    "button: Bank charge5460",
+    "button: Transfer",
+    "footer: # selectedNet −US#Accept #ExcludeClear#"
+  ],
+  "BkToMatchPhone": [
+    "button: Back to Books",
+    "button: Upload a statement"
+  ],
+  "BkReconciliation": [
+    "heading: Bank & cash",
+    "button: Books",
+    "panel: Books",
+    "button: Vane",
+    "button: Notifications",
+    "panel: Overdueshared",
+    "panel: Pomona Officesyou",
+    "panel: Paid this monthshared",
+    "label: Transfer, EcoCash",
+    "label: IMTT",
+    "label: CBZ fee"
+  ],
+  "BkTaxDue": [
+    "heading: Tax",
+    "button: Books",
+    "panel: Books",
+    "button: Vane",
+    "button: Notifications",
+    "panel: Overdueshared",
+    "panel: Pomona Officesyou",
+    "panel: Paid this monthshared",
+    "status: Paid",
+    "status: Filed",
+    "status: Draft",
+    "footer: # due by # DecTo pay in November US#Dece"
+  ],
+  "BkTaxDuePhone": [
+    "button: Back to Books",
+    "button: Add to my calendar"
+  ],
+  "BkVatReturn": [
+    "heading: Tax",
+    "button: Books",
+    "panel: Books",
+    "button: Vane",
+    "button: Notifications",
+    "panel: Overdueshared",
+    "panel: Pomona Officesyou",
+    "panel: Paid this monthshared",
+    "button: Send for review",
+    "status: Ties to the ledger, difference 0.00",
+    "footer: # documentsOutput US#Input US#Net US#Tie"
+  ],
+  "BkWithholding": [
+    "heading: Tax",
+    "button: Books",
+    "panel: Books",
+    "button: Vane",
+    "button: Notifications",
+    "panel: Overdueshared",
+    "panel: Pomona Officesyou",
+    "panel: Paid this monthshared",
+    "status: Paid"
+  ],
+  "BkProvisionalTax": [
+    "heading: Tax",
+    "button: Books",
+    "panel: Books",
+    "button: Vane",
+    "button: Notifications",
+    "panel: Overdueshared",
+    "panel: Pomona Officesyou",
+    "panel: Paid this monthshared",
+    "status: Paid"
+  ],
+  "BkFiscal": [
+    "heading: Tax",
+    "button: Books",
+    "panel: Books",
+    "button: Vane",
+    "button: Notifications",
+    "panel: Overdueshared",
+    "panel: Pomona Officesyou",
+    "panel: Paid this monthshared"
+  ],
+  "BkRates": [
+    "heading: Close the month",
+    "button: Books",
+    "panel: Books",
+    "button: Vane",
+    "button: Notifications",
+    "panel: Overdueshared",
+    "panel: Pomona Officesyou",
+    "panel: Paid this monthshared",
+    "panel: Year end",
+    "label: CBZ current, ZWG",
+    "label: NSSA owed"
+  ],
+  "BkSettingsTax": [
+    "heading: Settings",
+    "button: Books",
+    "panel: Books",
+    "button: Vane",
+    "button: Notifications",
+    "panel: Overdueshared",
+    "panel: Pomona Officesyou",
+    "panel: Paid this monthshared",
+    "panel: Numbering",
+    "panel: Locks & periods",
+    "panel: Opening balances",
+    "panel: Money accounts",
+    "status: Inactive",
+    "status: To confirm"
+  ],
+  "BkMoneyPhone": [
+    "button: Books menu",
+    "button: Record",
+    "primary: New invoice [N]",
+    "button: Notifications"
   ]
 }

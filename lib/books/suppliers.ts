@@ -5,6 +5,7 @@ import { ageLedgerLines, type LedgerLine } from "./core/aging-lines";
 import { docLabel } from "./doc-number";
 import { billState } from "./expenses";
 import { addDays, count, dayOf, money, monthStart, shortDay, storedDay } from "./format";
+import { itf263State, type Itf263State } from "./itf263";
 
 /**
  * Books → Bills & spending → Suppliers (BkSuppliers) and one supplier
@@ -15,9 +16,9 @@ import { addDays, count, dayOf, money, monthStart, shortDay, storedDay } from ".
  * withholding and VAT-agent facts come with P3 (D17).
  */
 
-export const SUPPLIER_VIEWS = ["all", "owed", "by-age", "write-offs"] as const;
+export const SUPPLIER_VIEWS = ["all", "owed", "by-age", "missing-itf263", "write-offs"] as const;
 export type SupplierView = (typeof SUPPLIER_VIEWS)[number];
-export const SUPPLIER_TAB_LABEL: Record<SupplierView, string> = { all: "All", owed: "Owed", "by-age": "By age", "write-offs": "Write-offs" };
+export const SUPPLIER_TAB_LABEL: Record<SupplierView, string> = { all: "All", owed: "Owed", "by-age": "By age", "missing-itf263": "Missing ITF263", "write-offs": "Write-offs" };
 
 export const SUPPLIERS_PAGE_SIZE = 50;
 
@@ -26,6 +27,7 @@ export const supplierQuerySchema = z.object({
   q: z.string().trim().max(100).catch(""),
   currency: z.string().trim().max(3).nullable().catch(null),
   sort: z.enum(["owed", "name"]).catch("owed"),
+  itf: z.enum(["any", "valid", "missing"]).catch("any"),
   page: z.coerce.number().int().min(1).catch(1),
 });
 export type SupplierQuery = z.infer<typeof supplierQuerySchema>;
@@ -36,11 +38,24 @@ export function readSupplierQuery(params: URLSearchParams): SupplierQuery {
     q: params.get("q") ?? undefined,
     currency: params.get("currency") || null,
     sort: params.get("sort") ?? undefined,
+    itf: params.get("itf") ?? undefined,
     page: params.get("page") ?? undefined,
   });
 }
 
-export type SupplierRow = { id: string; name: string; contact: string | null; owed: number; overdue: number; paidYear: number; openBills: number; currency: string };
+export type SupplierRow = {
+  id: string;
+  name: string;
+  contact: string | null;
+  owed: number;
+  overdue: number;
+  paidYear: number;
+  openBills: number;
+  currency: string;
+  /** D17: their tax clearance, and what was withheld from them this year. */
+  itf263: { state: Itf263State; label: string };
+  withheld: number;
+};
 export type AgeRow = { id: string; name: string; current: number; days30: number; days60: number; days90: number; over90: number; total: number };
 export type WriteOffRow = { id: string; number: string; supplier: { id: string; name: string }; bill: { id: string; number: string }; reason: string | null; date: string; amount: number; voided: boolean };
 
@@ -51,7 +66,7 @@ export type SuppliersView = {
   writeOffs: WriteOffRow[];
   range: { from: number; to: number; of: number };
   counts: Record<SupplierView, number>;
-  sums: { owed: number; overdue: number; paidYear: number };
+  sums: { owed: number; overdue: number; paidYear: number; withheld: number };
   currency: string;
   query: SupplierQuery;
 };
@@ -62,9 +77,12 @@ const round = (n: number) => Math.round(n * 100) / 100;
 const DAY = 86_400_000;
 
 /** "You owe 5 suppliers US$8,077.15." / "2 are overdue, US$2,044.55 in all." */
-export function suppliersFinding(owed: { suppliers: number; amount: number }, overdue: Array<{ name: string; amount: number }>, currency = "USD"): { fact: string; rest: string | null } {
-  if (owed.suppliers === 0) return { fact: "You owe no supplier anything.", rest: null };
+export function suppliersFinding(owed: { suppliers: number; amount: number }, overdue: Array<{ name: string; amount: number }>, currency = "USD", missingItf263 = 0): { fact: string; rest: string | null } {
+  // D17: a supplier without a valid ITF263 has 30% withheld once paid past the threshold; the owner hears it first.
+  const itf = missingItf263 > 0 ? `${missingItf263 === 1 ? "1 has" : `${missingItf263} have`} no valid ITF263, so paying ${missingItf263 === 1 ? "it" : "them"} withholds 30%.` : null;
+  if (owed.suppliers === 0) return { fact: "You owe no supplier anything.", rest: itf };
   const fact = `You owe ${count(owed.suppliers, "supplier")} ${money(owed.amount, currency)}.`;
+  if (itf) return { fact, rest: itf };
   if (overdue.length === 0) return { fact, rest: "Nothing is overdue." };
   if (overdue.length === 1) return { fact, rest: `${overdue[0].name} is owed ${money(overdue[0].amount, currency)} that is overdue.` };
   return { fact, rest: `${overdue.length} are overdue, ${money(overdue.reduce((sum, row) => sum + row.amount, 0), currency)} in all.` };
@@ -127,14 +145,16 @@ async function owedBySupplier(db: Db, companyId: string, today: string, currency
 async function paidThisYear(db: Db, companyId: string, today: string, vendorIds?: string[]) {
   const payments = await db.purchasePayment.findMany({
     where: { companyId, status: "PAID", requisitionId: null, paidAt: { gte: yearStart(today) }, ...(vendorIds ? { OR: [{ vendorId: { in: vendorIds } }, { bill: { vendorId: { in: vendorIds } } }] } : {}) },
-    select: { amount: true, vendorId: true, bill: { select: { vendorId: true } } },
+    select: { amount: true, withholdingAmount: true, vendorId: true, bill: { select: { vendorId: true } } },
   });
   const paid = new Map<string, number>();
+  const withheld = new Map<string, number>();
   for (const payment of payments) {
     const id = payment.vendorId ?? payment.bill?.vendorId;
     if (id) paid.set(id, round((paid.get(id) ?? 0) + payment.amount));
+    if (id && payment.withholdingAmount > 0) withheld.set(id, round((withheld.get(id) ?? 0) + payment.withholdingAmount));
   }
-  return paid;
+  return Object.assign(paid, { withheld });
 }
 
 export async function readSuppliers(db: Db, companyId: string, query: SupplierQuery, base = "USD", now = new Date(), pageSize = SUPPLIERS_PAGE_SIZE): Promise<SuppliersView> {
@@ -142,7 +162,7 @@ export async function readSuppliers(db: Db, companyId: string, query: SupplierQu
   const currency = (query.currency ?? base).toUpperCase();
   const nameWhere: Prisma.VendorWhereInput = { companyId, ...(query.q ? { OR: [{ name: { contains: query.q, mode: "insensitive" } }, { contactName: { contains: query.q, mode: "insensitive" } }] } : {}) };
   const [vendors, owed, paid, lines, writeOffs, writeOffCount] = await Promise.all([
-    db.vendor.findMany({ where: nameWhere, select: { id: true, name: true, contactName: true }, orderBy: { name: "asc" }, take: 2000 }),
+    db.vendor.findMany({ where: nameWhere, select: { id: true, name: true, contactName: true, itf263Number: true, itf263ExpiresAt: true }, orderBy: { name: "asc" }, take: 2000 }),
     owedBySupplier(db, companyId, today, currency),
     paidThisYear(db, companyId, today),
     query.view === "by-age"
@@ -164,10 +184,13 @@ export async function readSuppliers(db: Db, companyId: string, query: SupplierQu
   ]);
   const all: SupplierRow[] = vendors.map((vendor) => {
     const row = owed.get(vendor.id);
-    return { id: vendor.id, name: vendor.name, contact: vendor.contactName, owed: row?.owed ?? 0, overdue: row?.overdue ?? 0, paidYear: paid.get(vendor.id) ?? 0, openBills: row?.open ?? 0, currency };
+    const itf = itf263State(vendor, now);
+    return { id: vendor.id, name: vendor.name, contact: vendor.contactName, owed: row?.owed ?? 0, overdue: row?.overdue ?? 0, paidYear: paid.get(vendor.id) ?? 0, openBills: row?.open ?? 0, currency, itf263: { state: itf.state, label: itf.label }, withheld: paid.withheld.get(vendor.id) ?? 0 };
   });
   const owing = all.filter((row) => row.owed > 0.005);
-  const listed = (query.view === "owed" ? owing : all).sort((a, b) => (query.sort === "name" ? a.name.localeCompare(b.name) : b.owed - a.owed || a.name.localeCompare(b.name)));
+  const missing = all.filter((row) => row.itf263.state !== "Valid");
+  const byItf = (rows: SupplierRow[]) => (query.itf === "valid" ? rows.filter((row) => row.itf263.state === "Valid") : query.itf === "missing" ? rows.filter((row) => row.itf263.state !== "Valid") : rows);
+  const listed = byItf(query.view === "owed" ? owing : query.view === "missing-itf263" ? missing : all).sort((a, b) => (query.sort === "name" ? a.name.localeCompare(b.name) : b.owed - a.owed || a.name.localeCompare(b.name)));
   const names = new Map(vendors.map((vendor) => [vendor.id, vendor.name]));
   const ages = query.view === "by-age" ? (await supplierAges(db, companyId, lines, names, now, base)).filter((row) => names.has(row.id)) : [];
   const skip = (query.page - 1) * pageSize;
@@ -177,7 +200,7 @@ export async function readSuppliers(db: Db, companyId: string, query: SupplierQu
   const from = of === 0 ? 0 : query.view === "by-age" ? 1 : skip + 1;
   const late = owing.filter((row) => row.overdue > 0.005).sort((a, b) => b.overdue - a.overdue);
   return {
-    finding: suppliersFinding({ suppliers: owing.length, amount: round(owing.reduce((sum, row) => sum + row.owed, 0)) }, late.map((row) => ({ name: row.name, amount: row.overdue })), currency),
+    finding: suppliersFinding({ suppliers: owing.length, amount: round(owing.reduce((sum, row) => sum + row.owed, 0)) }, late.map((row) => ({ name: row.name, amount: row.overdue })), currency, missing.filter((row) => row.paidYear > 0 || row.owed > 0.005).length),
     rows: query.view === "by-age" || query.view === "write-offs" ? [] : page,
     ages,
     writeOffs: writeOffs.map((row) => ({
@@ -191,8 +214,8 @@ export async function readSuppliers(db: Db, companyId: string, query: SupplierQu
       voided: row.status === "VOIDED",
     })),
     range: { from, to: from === 0 ? 0 : from + shown - 1, of },
-    counts: { all: all.length, owed: owing.length, "by-age": owing.length, "write-offs": writeOffCount },
-    sums: { owed: round(owing.reduce((sum, row) => sum + row.owed, 0)), overdue: round(owing.reduce((sum, row) => sum + row.overdue, 0)), paidYear: round(all.reduce((sum, row) => sum + row.paidYear, 0)) },
+    counts: { all: all.length, owed: owing.length, "by-age": owing.length, "missing-itf263": missing.length, "write-offs": writeOffCount },
+    sums: { owed: round(owing.reduce((sum, row) => sum + row.owed, 0)), overdue: round(owing.reduce((sum, row) => sum + row.overdue, 0)), paidYear: round(all.reduce((sum, row) => sum + row.paidYear, 0)), withheld: round(all.reduce((sum, row) => sum + row.withheld, 0)) },
     currency,
     query,
   };
@@ -219,8 +242,12 @@ export type SupplierRecord = {
   /** What their bills were for, most often first: "Oak strip, skirting, underlay". */
   supplies: string | null;
   tax: { vatNumber: string | null; tin: string | null; checked: number; valid: number; billsWithTax: number };
-  tiles: { owed: number; late: number; paidYear: number; payments: number; onOrder: number; firstOrder: string | null };
+  tiles: { owed: number; late: number; paidYear: number; payments: number; onOrder: number; firstOrder: string | null; withheld: number; certificates: number };
   state: "owed" | "overdue" | "paid-up";
+  /** D17: their tax clearance, whether they withhold VAT as an agent, and this year's withholding. */
+  itf263: { number: string | null; expires: string | null; expiresIso: string | null; state: Itf263State; label: string };
+  vatAgent: boolean;
+  withholding: Array<{ id: string; number: string; bill: { id: string; number: string } | null; gross: number; withheld: number; certificate: string | null; state: string; date: string }>;
   bills: Array<{ id: string; number: string; date: string; fti: string | null; fdms: string; state: string; total: number; balance: number }>;
   payments: Array<{ id: string; number: string; date: string; bill: { id: string; number: string } | null; from: string | null; state: string; amount: number; voided: boolean }>;
   statement: { from: string; to: string; opening: number; lines: SupplierStatementLine[]; closing: number };
@@ -292,7 +319,7 @@ export async function readSupplierRecord(db: RecordDb, companyId: string, id: st
     db.purchasePayment.findMany({
       where: { companyId, requisitionId: null, OR: [{ vendorId: id }, { bill: { vendorId: id } }] },
       orderBy: { paidAt: "desc" },
-      select: { id: true, paymentNumber: true, groupNo: true, status: true, paidAt: true, amount: true, bill: { select: { id: true, billNumber: true } }, bankAccount: { select: { name: true, bankName: true, currency: true } } },
+      select: { id: true, paymentNumber: true, groupNo: true, status: true, paidAt: true, amount: true, withholdingAmount: true, certificateNo: true, bill: { select: { id: true, billNumber: true } }, bankAccount: { select: { name: true, bankName: true, currency: true } } },
     }),
     db.retailPurchaseOrder.findMany({ where: { companyId, vendorId: id, status: { in: ["SENT", "PARTIAL", "TO_APPROVE"] }, archivedAt: null }, orderBy: { createdAt: "asc" }, select: { poNo: true, lines: { select: { quantity: true, receivedQuantity: true, unitCost: true, vatRate: true } } } }),
   ]);
@@ -351,7 +378,34 @@ export async function readSupplierRecord(db: RecordDb, companyId: string, id: st
     delivers: vendor.deliversOn,
     supplies: suppliesOf(bills.filter((bill) => bill.status !== "VOIDED").flatMap((bill) => bill.lines.map((line) => line.description))),
     tax: { vatNumber: vendor.vatNumber, tin: vendor.taxNumber, checked, valid, billsWithTax: bills.filter((bill) => bill.taxTotal > 0).length },
-    tiles: { owed: round(owed), late, paidYear: round(paidYear.reduce((sum, payment) => sum + payment.amount, 0)), payments: paidYear.length, onOrder, firstOrder: orders[0]?.poNo ?? null },
+    tiles: {
+      owed: round(owed),
+      late,
+      paidYear: round(paidYear.reduce((sum, payment) => sum + payment.amount, 0)),
+      payments: paidYear.length,
+      onOrder,
+      firstOrder: orders[0]?.poNo ?? null,
+      withheld: round(paidYear.reduce((sum, payment) => sum + payment.withholdingAmount, 0)),
+      certificates: paidYear.filter((payment) => payment.certificateNo).length,
+    },
+    itf263: (() => {
+      const itf = itf263State(vendor, now);
+      return { number: vendor.itf263Number, expires: itf.expires, expiresIso: vendor.itf263ExpiresAt ? storedDay(vendor.itf263ExpiresAt) : null, state: itf.state, label: itf.label };
+    })(),
+    vatAgent: vendor.isVatWithholdingAgent,
+    withholding: payments
+      .filter((payment) => payment.status !== "VOIDED" && payment.paidAt >= year && (payment.withholdingAmount > 0 || payment.status !== "PAID"))
+      .filter((payment) => payment.withholdingAmount > 0 || itf263State(vendor, now).state !== "Valid")
+      .map((payment) => ({
+        id: payment.id,
+        number: payment.paymentNumber ?? payment.groupNo ?? "Draft",
+        bill: payment.bill ? { id: payment.bill.id, number: docLabel(payment.bill.billNumber, "bill") } : null,
+        gross: payment.amount,
+        withheld: payment.withholdingAmount,
+        certificate: payment.certificateNo,
+        state: PAYMENT_STATE[payment.status] ?? payment.status,
+        date: shortDay(storedDay(payment.paidAt)),
+      })),
     state: overdue > 0.005 ? "overdue" : owed > 0.005 ? "owed" : "paid-up",
     bills: bills.map((bill) => {
       const read = billState(bill, today);

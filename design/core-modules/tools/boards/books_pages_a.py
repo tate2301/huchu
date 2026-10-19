@@ -528,7 +528,7 @@ def tools(find, chips, count, right=None):
     return ws_tools(find, chips, count, right)
 
 # Board heights fit the content: the last element's bottom plus 48px (measured after the full-bleed pass, 19 Oct).
-HEIGHTS = {'BkMoney': 1748, 'BkInvoice': 1416, 'BkInvoiceNew': 1196, 'BkPaymentNew': 756, 'BkCustomer': 824, 'BkBill': 1640,
+HEIGHTS = {'BkMoney': 1816, 'BkInvoice': 1416, 'BkInvoiceNew': 1196, 'BkPaymentNew': 792, 'BkCustomer': 824, 'BkBill': 1640,
            'BkBillNew': 1000, 'BkPaymentOutNew': 1040, 'BkRequisition': 1240, 'BkSupplier': 1144}
 
 def board(name, title, body, w=1440, h=900):
@@ -584,7 +584,7 @@ def money():
         need('fiscal', 'INV-0144 is not signed by FDMS', '%s, %s' % (named('Westgate Interiors', False), zig(13500)), btn('Retry', 'undo', urgent)),
         need('warn', 'A goods receipt did not post', 'GRN-0045, %s · no stock account' % usd(BN_NET), btn('Fix it', 'posting', plain)),
         need('bank', '4 bank lines to match', 'CBZ USD · Vane matched 3', btn('Match', 'check', plain)),
-        # ITF263 needs (Ask for it) come with withholding (D17, P3).
+        need('store', '2 suppliers have no valid ITF263', 'Payments to them withhold 30%', btn('Ask for it', 'send', plain)),
         need('invoice', '3 invoices are overdue', '%s in all' % usd(OVERDUE), btn('Remind', 'whatsapp', plain)),
         need('calendar', 'Next tax date: 5 Nov', 'PAYE and withholding returns', btn("What's due", 'chev', quiet)),
     ))
@@ -602,7 +602,7 @@ def money():
     main = ('<div class="mny-main">%s%s<section aria-labelledby="m1">%s<div class="list">%s</div></section>'
             '<section aria-labelledby="m2">%s%s</section><section aria-labelledby="m3">%s%s</section>'
             '<section aria-labelledby="m4">%s%s%s</section></div>') % (
-        find, tax_strip(), group_head('Needs you', 6, 'm1'), needs,
+        find, tax_strip(), group_head('Needs you', 7, 'm1'), needs,
         group_head('Where it came from', '1 to 18 October · %s' % usd(MONEY_IN), 'm2'), came,
         group_head('Where it went', '1 to 18 October · %s' % usd(MONEY_OUT), 'm3'), went,
         group_head('Bank and cash', '6 accounts', 'm4'), bank, bank_note)
@@ -1156,7 +1156,8 @@ def payment_new():
     money = fsec('Money', 'Where it went in, and how much.',
                  '<div class="field-row">%s%s</div>' % (field('Into', sel_('CBZ current, USD', 'Into')), field('Date', inp('18 Oct 2026', 'Date')))
                  + '<div class="field-row">%s%s</div>' % (field('Currency', seg(('USD', 'ZiG'), 'USD')), field('Amount', '<label class="input-wrap"><span class="muted">US$</span><input aria-label="Amount" value="1,000.00" style="text-align:right"></label>'))
-                 + field('Their reference', inp('HGL EFT 1810', 'Their reference'), 'Matched to the CBZ line when it comes in', opt=True))
+                 + field('Their reference', inp('HGL EFT 1810', 'Their reference'), 'Matched to the CBZ line when it comes in', opt=True)
+                 + chk('VAT was withheld by the customer'))
     rows = ''.join((
         '<tr aria-selected="true"><td class="sel"><label class="check"><input type="checkbox" checked aria-label="Pay INV-0135"></label></td><td>%s</td><td class="muted">5 days overdue</td><td class="num">%s</td><td class="num" style="width:150px">%s</td></tr>' % (
             ref('INV-0135'), usd(inv), inp(fmt(inv), 'Amount for INV-0135', True)),
@@ -1356,7 +1357,7 @@ def money_phone():
     lede = ('<p style="font:600 22px/1.3 var(--font-sans);letter-spacing:var(--tracking-display);color:var(--color-ink)">%s came in this month. '
             '<span style="display:block;font-weight:400;color:var(--color-muted)">%s is overdue.</span></p>') % (usd(MONEY_IN), usd(OVERDUE))
     rows = ph_rows((('Gone out', usd(MONEY_OUT)), ('Bank and cash', usd(CASH_BASE)), ('You owe suppliers', usd(TO_PAY)), ('VAT due by 15 Nov', usd(VAT_OCT))))
-    needs = ('<div class="bk-ph-list"><div class="bk-ph-lh" style="justify-content:space-between;align-items:baseline"><b style="font-size:17px;color:var(--color-ink)">Needs you</b><span class="muted">6</span></div>%s</div>') % ''.join((
+    needs = ('<div class="bk-ph-list"><div class="bk-ph-lh" style="justify-content:space-between;align-items:baseline"><b style="font-size:17px;color:var(--color-ink)">Needs you</b><span class="muted">7</span></div>%s</div>') % ''.join((
         ph_need('hand', '4 things to approve', '%s in all' % usd(REQ_FOR_ME_SUM + M(23) + NET_PAY)),
         ph_need('fiscal', 'INV-0144 is not signed by FDMS', '%s, %s' % (named('Westgate Interiors', False), zig(13500))),
         ph_need('invoice', '3 invoices are overdue', '%s in all' % usd(OVERDUE))))

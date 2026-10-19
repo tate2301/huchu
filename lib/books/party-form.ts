@@ -13,13 +13,15 @@ export const partySchema = z.object({
   address: z.string().trim().max(300).optional(),
   vatNumber: z.string().trim().max(100).optional(),
   taxNumber: z.string().trim().max(100).optional(),
+  /** D17: an appointed VAT withholding agent keeps a third of the VAT on what it pays. */
+  vatAgent: z.boolean().optional(),
 });
 
 export type PartyInput = z.infer<typeof partySchema>;
 
-export type PartyForm = { name: string; contactName: string; phone: string; email: string; address: string; vatNumber: string; taxNumber: string };
+export type PartyForm = { name: string; contactName: string; phone: string; email: string; address: string; vatNumber: string; taxNumber: string; vatAgent: boolean };
 
-export const EMPTY_PARTY: PartyForm = { name: "", contactName: "", phone: "", email: "", address: "", vatNumber: "", taxNumber: "" };
+export const EMPTY_PARTY: PartyForm = { name: "", contactName: "", phone: "", email: "", address: "", vatNumber: "", taxNumber: "", vatAgent: false };
 
 /** What is wrong, by field. Empty when it can go. */
 export function partyErrors(form: PartyForm): Record<string, string> {
@@ -44,5 +46,6 @@ export function partyData(input: PartyInput) {
     address: keep(input.address),
     vatNumber: keep(input.vatNumber),
     taxNumber: keep(input.taxNumber),
+    isVatWithholdingAgent: input.vatAgent ?? false,
   };
 }

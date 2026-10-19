@@ -17,7 +17,7 @@ const cell = (n: number, currency: string) => (Math.abs(n) >= 0.005 ? money(n, c
  * Books → Bills & spending → Suppliers (design/core-modules/boards/view/BkSuppliers.html):
  * whom the business owes and how late, what each was paid this year; By age
  * from the payables sub-ledger; the write-offs. A selection pays one supplier
- * or exports. ITF263 and withholding come with P3.
+ * or exports. Each supplier's ITF263 (D17) and what was withheld from them.
  */
 export function BkSuppliersView({
   data,
@@ -50,6 +50,17 @@ export function BkSuppliersView({
         onFind={(q) => onQuery({ q, page: 1 })}
         count={query.view === "write-offs" ? `${of} ${of === 1 ? "write-off" : "write-offs"}` : `${of} of ${data.counts.all}`}
         chips={
+          <>
+          <BkChip
+            label="ITF263"
+            value={query.itf === "valid" ? "Valid" : query.itf === "missing" ? "Missing" : "Any"}
+            set={query.itf !== "any"}
+            items={[
+              { key: "any", label: "Any", checked: query.itf === "any", onSelect: () => onQuery({ itf: "any", page: 1 }) },
+              { key: "valid", label: "Valid", checked: query.itf === "valid", onSelect: () => onQuery({ itf: "valid", page: 1 }) },
+              { key: "missing", label: "Missing or expired", checked: query.itf === "missing", onSelect: () => onQuery({ itf: "missing", page: 1 }) },
+            ]}
+          />
           <BkChip
             label="Currency"
             value={query.currency ? (query.currency === "ZWG" ? "ZiG" : query.currency) : "Any"}
@@ -60,6 +71,7 @@ export function BkSuppliersView({
               ...currencies.map((code) => ({ key: code, label: code === "ZWG" ? "ZiG" : code, checked: query.currency === code, onSelect: () => onQuery({ currency: code, page: 1 }) })),
             ]}
           />
+          </>
         }
         filters={[
           { key: "owed", label: "Most owed first", checked: query.sort === "owed", onSelect: () => onQuery({ sort: "owed", page: 1 }) },
@@ -75,7 +87,7 @@ export function BkSuppliersView({
             sums={[
               { label: "We owe", value: money(data.sums.owed, c) },
               { label: "Overdue", value: money(data.sums.overdue, c) },
-              { label: "Paid this year", value: money(data.sums.paidYear, c) },
+              { label: "Withheld this year", value: money(data.sums.withheld, c) },
             ]}
             page={
               query.view === "by-age"
@@ -86,7 +98,7 @@ export function BkSuppliersView({
                   }
             }
             selection={
-              query.view === "all" || query.view === "owed"
+              query.view === "all" || query.view === "owed" || query.view === "missing-itf263"
                 ? {
                     count: selected.length,
                     sum: { label: "We owe", value: money(selected.reduce((sum, row) => sum + row.owed, 0), c) },
@@ -211,17 +223,21 @@ export function BkSuppliersView({
             <colgroup>
               <col style={{ width: 44 }} />
               <col />
+              <col style={{ width: 230 }} />
+              <col style={{ width: 140 }} />
+              <col style={{ width: 140 }} />
               <col style={{ width: 150 }} />
-              <col style={{ width: 150 }} />
-              <col style={{ width: 160 }} />
+              <col style={{ width: 130 }} />
             </colgroup>
             <thead>
               <tr>
                 <SelectCell head checked={selection.all} indeterminate={selection.some} onChange={selection.toggleAll} label="Select every row on this page" />
                 <th>Supplier</th>
+                <th>ITF263</th>
                 <th className="num">We owe</th>
                 <th className="num">Overdue</th>
                 <th className="num">Paid this year</th>
+                <th className="num">Withheld</th>
               </tr>
             </thead>
             <tbody>
@@ -233,9 +249,19 @@ export function BkSuppliersView({
                       {row.name}
                     </Link>
                   </td>
+                  <td className="truncate">
+                    {row.itf263.state === "Valid" ? (
+                      <span className="status status-success">{row.itf263.label}</span>
+                    ) : (
+                      <span className="status status-warning" style={{ color: "var(--color-ink)", fontWeight: 500 }}>
+                        {row.itf263.label}
+                      </span>
+                    )}
+                  </td>
                   <td className="num">{cell(row.owed, c)}</td>
                   <td className="num">{row.overdue > 0.005 ? <b>{cell(row.overdue, c)}</b> : cell(row.overdue, c)}</td>
                   <td className="num muted">{cell(row.paidYear, c)}</td>
+                  <td className="num">{cell(row.withheld, c)}</td>
                 </tr>
               ))}
             </tbody>

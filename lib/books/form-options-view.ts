@@ -5,7 +5,16 @@ export type BooksFormOptions = {
   currencies: string[];
   /** The latest rate for each other currency: quote units to one base unit. */
   rates: Record<string, { rate: number; source: string; day: string }>;
-  parties: Array<{ id: string; name: string; vatNumber: string | null; tin: string | null }>;
+  parties: Array<{
+    id: string;
+    name: string;
+    vatNumber: string | null;
+    tin: string | null;
+    /** D17: a customer or supplier who withholds VAT as an appointed agent. */
+    vatAgent?: boolean;
+    /** D17: a supplier's tax clearance, today. */
+    itf263?: { state: "Valid" | "Expired" | "None"; label: string } | null;
+  }>;
   taxCodes: Array<{ id: string; label: string; rate: number }>;
   costCentres: Array<{ id: string; label: string }>;
   accounts: Array<{ id: string; label: string; currency: string; bank: string; kind: string }>;

@@ -2,17 +2,18 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 
 import { BkState, BkTabs } from "@/components/books/bk-list";
-import { Bleed, FactTable, History, RailSection, RecordHead, Strip } from "@/components/books/bk-record";
+import { Bleed, Callout, FactTable, History, RailSection, RecordHead, Section, Strip } from "@/components/books/bk-record";
 import { BooksError, BooksLoading } from "@/components/books/books-state";
 import { BooksPage } from "@/components/books/figures";
-import { Button, ButtonGroup, ButtonLink, Empty, Input, Kit } from "@/components/core";
+import { Button, ButtonGroup, ButtonLink, Check, Drawer, Empty, Field, Input, Kit } from "@/components/core";
 import { MenuButton, type MenuEntry } from "@/components/core/menu";
 import { PageChrome } from "@/components/layout/page-chrome";
-import { ApiError, fetchJson } from "@/lib/api-client";
+import { useToast } from "@/components/ui/use-toast";
+import { ApiError, fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { money, shortDay } from "@/lib/books/format";
 import { SUPPLIER_TABS, type SupplierRecordPage, type SupplierTab } from "@/lib/books/suppliers";
 
@@ -25,8 +26,9 @@ const plain = (n: number) => new Intl.NumberFormat("en-GB", { minimumFractionDig
  * One supplier in Books (design/core-modules/boards/view/BkSupplier.html):
  * what is owed them and how late, paid this year and on order; then Activity,
  * Bills, Payments, the Statement with its running balance, and Tax (their VAT
- * number, TIN and the FDMS checks on their invoices; ITF263 and withholding
- * come with P3). Pay (P) pays their open bills; the caret holds the rest.
+ * number, TIN and the FDMS checks on their invoices; their ITF263, recorded
+ * from the copy they send, and this year's withholding, D17). Pay (P) pays
+ * their open bills; the caret holds the rest.
  */
 function SupplierRecord() {
   const params = useParams<{ id: string }>();
@@ -38,6 +40,21 @@ function SupplierRecord() {
   const [period, setPeriod] = React.useState<{ from: string; to: string } | null>(null);
   const [from, setFrom] = React.useState("");
   const [to, setTo] = React.useState("");
+  const client = useQueryClient();
+  const { toast } = useToast();
+  const [recording, setRecording] = React.useState(false);
+  const [itf, setItf] = React.useState({ number: "", expires: "", agent: false });
+  const [itfError, setItfError] = React.useState<string | null>(null);
+  const saveItf = async () => {
+    try {
+      await fetchJson(`/api/books/suppliers/${id}`, { method: "PATCH", body: JSON.stringify({ itf263Number: itf.number.trim() || null, itf263ExpiresAt: itf.expires || null, isVatWithholdingAgent: itf.agent }) });
+      setRecording(false);
+      toast({ title: "Their tax clearance is recorded", variant: "success" });
+      await client.invalidateQueries({ queryKey: ["books"] });
+    } catch (error) {
+      setItfError(getApiErrorMessage(error, "Check the connection and try again."));
+    }
+  };
 
   const supplier = useQuery({
     queryKey: ["books", "supplier", id, period],
@@ -50,12 +67,22 @@ function SupplierRecord() {
   const notFound = supplier.error instanceof ApiError && supplier.error.status === 404;
   const c = data?.currency ?? "USD";
 
+  const openItf = () => {
+    setItf({ number: data?.itf263.number ?? "", expires: data?.itf263.expiresIso ?? "", agent: data?.vatAgent ?? false });
+    setItfError(null);
+    setRecording(true);
+  };
+  const askHref = data
+    ? `https://wa.me/${(data.phone ?? "").replace(/\D/g, "")}?text=${encodeURIComponent(`Good day. Please send us your current ITF263 tax clearance${data.itf263.state === "Expired" ? `: the one we have expired on ${data.itf263.expires}` : ""}. Without it we must withhold 30% of each payment for ZIMRA.`)}`
+    : "#";
+
   const menu: MenuEntry[] = data
     ? [
         { key: "statement", icon: "print", label: "Print the statement", onSelect: () => (setTab("statement"), window.setTimeout(() => window.print(), 50)) },
         ...(data.can.bill ? [{ key: "bill", icon: "docs" as const, label: "New bill", onSelect: () => router.push("/books/bills/new") }] : []),
         ...(data.can.order ? [{ key: "order", icon: "list" as const, label: "New order", onSelect: () => router.push("/books/orders/new") }] : []),
         { key: "bills", icon: "docs", label: "Their bills", onSelect: () => router.push(`/books/bills?supplier=${id}`) },
+        { key: "itf263", icon: "file", label: "Record their ITF263", onSelect: () => openItf() },
       ]
     : [];
 
@@ -80,11 +107,12 @@ function SupplierRecord() {
       {data ? (
         <div className="bk bk-rec">
           <div className="bk-main">
-            <RecordHead title={data.name} pill={<span className={`pill ${PILL[data.state][0]}`}>{PILL[data.state][1]}</span>} line={[data.contact, data.delivers ? `Delivers ${data.delivers}` : `Pays ${data.terms.toLowerCase()}`]} />
+            <RecordHead title={data.name} pill={data.itf263.state !== "Valid" ? <span className="pill pill-warn">{data.itf263.state === "Expired" ? "ITF263 expired" : "No ITF263"}</span> : <span className={`pill ${PILL[data.state][0]}`}>{PILL[data.state][1]}</span>} line={[data.contact, data.delivers ? `Delivers ${data.delivers}` : `Pays ${data.terms.toLowerCase()}`]} />
             <Strip
               tiles={[
                 { label: "We owe", value: money(data.tiles.owed, c), note: data.tiles.late ? `${data.tiles.late} ${data.tiles.late === 1 ? "day" : "days"} late` : "Nothing late" },
-                { label: "Paid this year", value: money(data.tiles.paidYear, c), note: data.tiles.payments === 1 ? "1 payment" : `${data.tiles.payments} payments` },
+                { label: "Paid this year", value: money(data.tiles.paidYear, c), note: data.tiles.withheld > 0 ? "Before withholding" : data.tiles.payments === 1 ? "1 payment" : `${data.tiles.payments} payments` },
+                { label: "Withheld this year", value: money(data.tiles.withheld, c), note: data.tiles.certificates === 1 ? "1 certificate" : `${data.tiles.certificates} certificates` },
                 { label: "On order", value: money(data.tiles.onOrder, c), note: data.tiles.firstOrder ?? "Nothing open" },
               ]}
             />
@@ -260,6 +288,83 @@ function SupplierRecord() {
               </>
             ) : null}
             {tab === "tax" ? (
+              <>
+              {data.itf263.state !== "Valid" ? (
+                <Callout
+                  icon="warn"
+                  action={
+                    <a className="btn btn-sm" href={askHref} target="_blank" rel="noreferrer">
+                      Ask for it
+                    </a>
+                  }
+                >
+                  <b>{data.itf263.state === "Expired" ? `No valid ITF263 since ${data.itf263.expires?.replace(/ \d{4}$/, "")}.` : "No ITF263 on file."}</b> Every payment to them withholds 30%.
+                </Callout>
+              ) : null}
+              <Section id="s1" title="Tax clearance, ITF263">
+                <FactTable
+                  label="ITF263"
+                  rows={[
+                    ["Number", data.itf263.number ? <span className="mono">ITF263 {data.itf263.number}</span> : "None on file"],
+                    ["Valid", data.itf263.state === "None" ? "—" : data.itf263.expires ? `${data.itf263.state === "Expired" ? "Expired" : "To"} ${data.itf263.expires}` : "No expiry recorded"],
+                    ["Record", <Button key="r" size="sm" icon="edit" onClick={openItf}>Record their ITF263</Button>],
+                  ]}
+                />
+              </Section>
+              <Section id="s2" title="Withholding this year" sum={data.tiles.withheld > 0 ? `${money(data.tiles.withheld, c)} held` : undefined}>
+                {data.withholding.length === 0 ? (
+                  <p className="muted" style={{ padding: "0 24px 24px" }}>Nothing withheld from them this year.</p>
+                ) : (
+                  <Bleed>
+                    <table className="table" aria-label="Withholding">
+                      <colgroup>
+                        <col style={{ width: 120 }} />
+                        <col style={{ width: 120 }} />
+                        <col style={{ width: 130 }} />
+                        <col style={{ width: 140 }} />
+                        <col style={{ width: 130 }} />
+                        <col />
+                      </colgroup>
+                      <thead>
+                        <tr>
+                          <th>Payment</th>
+                          <th>Bill</th>
+                          <th className="num">Gross</th>
+                          <th className="num">Withheld, 30%</th>
+                          <th>Certificate</th>
+                          <th>To ZIMRA</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {data.withholding.map((row) => (
+                          <tr key={row.id}>
+                            <td>
+                              <span className="ref">{row.number}</span>
+                            </td>
+                            <td>{row.bill ? <Link className="ref" href={`/books/bills/${row.bill.id}`}>{row.bill.number}</Link> : <span className="muted">—</span>}</td>
+                            <td className="num">{money(row.gross, c)}</td>
+                            <td className="num">{row.withheld > 0 ? money(row.withheld, c) : <span className="muted">When paid</span>}</td>
+                            <td>{row.certificate ? <span className="ref">{row.certificate}</span> : <span className="muted">{row.state === "Paid" ? "Not issued" : "Drafted"}</span>}</td>
+                            <td>
+                              <BkState tone={STATE_TONE[row.state] ?? "plain"}>{row.state === "Paid" ? `Paid ${row.date}` : row.state}</BkState>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                      <tfoot>
+                        <tr className="tot">
+                          <td>{new Date().getFullYear()}</td>
+                          <td />
+                          <td className="num">{money(data.withholding.reduce((sum, row) => sum + row.gross, 0), c)}</td>
+                          <td className="num">{money(data.withholding.reduce((sum, row) => sum + row.withheld, 0), c)}</td>
+                          <td />
+                          <td />
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </Bleed>
+                )}
+              </Section>
               <section aria-labelledby="s3">
                 <div className="group-head">
                   <h2 id="s3">VAT</h2>
@@ -270,9 +375,11 @@ function SupplierRecord() {
                     ["VAT number", data.tax.vatNumber ? `${data.tax.vatNumber}, registered` : "Not registered"],
                     ["TIN", data.tax.tin ?? "Not on file"],
                     ["Their invoices", data.tax.billsWithTax ? `${data.tax.valid} of ${data.tax.billsWithTax} valid on FDMS${data.tax.checked > data.tax.valid ? `, ${data.tax.checked - data.tax.valid} not valid` : ""}` : "None with VAT yet"],
+                    ["VAT withholding", data.vatAgent ? "A withholding agent" : "Not an agent"],
                   ]}
                 />
               </section>
+              </>
             ) : null}
           </div>
           <aside className="rail" aria-label={`About ${data.name}`}>
@@ -289,6 +396,31 @@ function SupplierRecord() {
       ) : (
         <BooksLoading />
       )}
+      <Drawer
+        open={recording}
+        onOpenChange={setRecording}
+        title="Their ITF263"
+        footer={
+          <>
+            <Button variant="quiet" onClick={() => setRecording(false)}>
+              Cancel
+            </Button>
+            <Button variant="primary" icon="check" shortcut="Ctrl ↵" onClick={saveItf}>
+              Save
+            </Button>
+          </>
+        }
+      >
+        <div style={{ display: "flex", flexDirection: "column", gap: 16, padding: "16px 24px" }}>
+          <Field label="Number" htmlFor="itf-number" help="As on the copy they sent.">
+            <Input id="itf-number" value={itf.number} onChange={(event) => setItf({ ...itf, number: event.target.value })} />
+          </Field>
+          <Field label="Valid to" htmlFor="itf-expires" error={itfError}>
+            <Input id="itf-expires" type="date" value={itf.expires} onChange={(event) => setItf({ ...itf, expires: event.target.value })} />
+          </Field>
+          <Check checked={itf.agent} onCheckedChange={(agent) => setItf({ ...itf, agent })} label="They withhold VAT as an appointed agent" />
+        </div>
+      </Drawer>
     </>
   );
 }

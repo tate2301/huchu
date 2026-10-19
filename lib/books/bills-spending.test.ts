@@ -148,6 +148,8 @@ describe("Suppliers (BkSuppliers) and one supplier (BkSupplier)", () => {
   it("says how many are owed and how late", () => {
     expect(suppliersFinding({ suppliers: 5, amount: 8077.15 }, [{ name: "Mutare Timber Works", amount: 1859.55 }])).toEqual({ fact: "You owe 5 suppliers US$8,077.15.", rest: "Mutare Timber Works is owed US$1,859.55 that is overdue." });
     expect(suppliersFinding({ suppliers: 0, amount: 0 }, []).fact).toBe("You owe no supplier anything.");
+    // D17: who has no valid ITF263 comes first, since paying them withholds 30%.
+    expect(suppliersFinding({ suppliers: 5, amount: 8077.15 }, [{ name: "Mutare Timber Works", amount: 1859.55 }], "USD", 2).rest).toBe("2 have no valid ITF263, so paying them withholds 30%.");
   });
 
   it("ages each supplier's payables lines from their dates", () => {

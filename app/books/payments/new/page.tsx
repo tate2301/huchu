@@ -7,7 +7,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { BkBox, BkField, BkFormPage, BkSeg, FormSec, RailFigure, todayHarare, WideSec } from "@/components/books/bk-form";
 import { BooksError, BooksLoading } from "@/components/books/books-state";
 import { BooksPage } from "@/components/books/figures";
-import { Button, Icon, Input, Kit, Select } from "@/components/core";
+import { Button, Check, Icon, Input, Kit, Select } from "@/components/core";
 import { PageChrome } from "@/components/layout/page-chrome";
 import { useToast } from "@/components/ui/use-toast";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
@@ -77,6 +77,8 @@ function PaymentFormPage({ options, initialCustomer, initialInvoice }: { options
     });
   };
 
+  // D17: a customer who is an appointed agent keeps a third of the VAT; it settles that much of the invoice against their certificate.
+  const [withheld, setWithheld] = React.useState({ on: false, amount: "", certificate: "" });
   const record = useMutation({
     mutationFn: () =>
       fetchJson<Recorded>("/api/books/payments", {
@@ -92,6 +94,16 @@ function PaymentFormPage({ options, initialCustomer, initialInvoice }: { options
         }),
       }),
     onSuccess: async (done) => {
+      if (withheld.on && Number(withheld.amount) > 0 && form.allocations[0]) {
+        try {
+          await fetchJson("/api/books/payments/vat-withheld", {
+            method: "POST",
+            body: JSON.stringify({ invoiceId: form.allocations[0].invoiceId, amount: Number(withheld.amount), certificateNo: withheld.certificate.trim(), date: form.receivedAt }),
+          });
+        } catch (error) {
+          toast({ title: "The VAT they kept was not recorded", description: getApiErrorMessage(error, "Record it from the invoice."), variant: "destructive" });
+        }
+      }
       const numbers = done.receipts.map((receipt) => receipt.number);
       toast({
         title: `${money(amount, form.currency)} from ${done.customer} is recorded`,
@@ -237,6 +249,23 @@ function PaymentFormPage({ options, initialCustomer, initialInvoice }: { options
           <BkField label="Their reference" htmlFor="pay-ref" optional hint="Matched to the bank line when it comes in">
             <Input id="pay-ref" aria-label="Their reference" value={form.reference} onChange={(event) => setForm((current) => ({ ...current, reference: event.target.value }))} />
           </BkField>
+          <Check
+            checked={withheld.on}
+            disabled={!customer?.vatAgent}
+            title={customer && !customer.vatAgent ? `${customer.name} is not marked as a VAT withholding agent.` : undefined}
+            onCheckedChange={(on) => setWithheld((current) => ({ ...current, on }))}
+            label="VAT was withheld by the customer"
+          />
+          {withheld.on ? (
+            <div className="field-row">
+              <BkField label="VAT they kept" htmlFor="pay-vat-kept" hint="At most a third of the invoice’s VAT">
+                <Input id="pay-vat-kept" inputMode="decimal" value={withheld.amount} onChange={(event) => setWithheld((current) => ({ ...current, amount: event.target.value.replace(/[^\d.]/g, "") }))} />
+              </BkField>
+              <BkField label="Their certificate" htmlFor="pay-vat-cert">
+                <Input id="pay-vat-cert" value={withheld.certificate} onChange={(event) => setWithheld((current) => ({ ...current, certificate: event.target.value }))} />
+              </BkField>
+            </div>
+          ) : null}
         </FormSec>
 
         <WideSec title="Put it on invoices" text="Oldest first; the rest stays on account.">

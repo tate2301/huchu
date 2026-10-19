@@ -86,11 +86,12 @@ export function BkField({
 }
 
 /** A box under a field: what the app knows about the choice (green when it is in order, amber when it is not). */
-export function BkBox({ tone, icon, children }: { tone?: "ok" | "warn"; icon: IconName; children: React.ReactNode }) {
+export function BkBox({ tone, icon, children, action }: { tone?: "ok" | "warn"; icon: IconName; children: React.ReactNode; action?: React.ReactNode }) {
   return (
     <div className={tone ? `bk-box ${tone}` : "bk-box"}>
       <Icon name={icon} />
-      <span>{children}</span>
+      <span className={action ? "grow" : undefined}>{children}</span>
+      {action}
     </div>
   );
 }
