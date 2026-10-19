@@ -2,8 +2,10 @@
  * What the CRM's money-out flows send to the ledger.
  *
  * The UIs live in the CRM; the effect belongs in accounting. This module is
- * the seam — it decides *what* posts and *when*, and `captureAccountingEvent`
- * does the rest through the tenant's own posting rules.
+ * the seam — it decides *what* posts and *when*, and the Books core
+ * (`postMoney`) posts it now through the tenant's own posting rules. Nothing
+ * here is captured IGNORED any more: what cannot post waits, PENDING or
+ * FAILED with its reason, for the drain and Needs posting (books-final §1.1).
  *
  * ## The model
  *
@@ -34,7 +36,8 @@
 
 import { Prisma } from "@prisma/client";
 
-import { captureAccountingEvent } from "@/lib/accounting/integration";
+import { postMoney, type PostMoneyResult } from "@/lib/books/core";
+import { prisma as db } from "@/lib/prisma";
 import { payableAmount, type RequisitionCategory } from "@/lib/crm/requisitions";
 
 type PostableRequisition = {
@@ -49,6 +52,8 @@ type PostableRequisition = {
   projectId: string | null;
   disbursedAt: Date | null;
   acquittedAt: Date | null;
+  /** The money account it was paid from; its ledger account takes the money side. */
+  bankAccountId?: string | null;
 };
 
 /** The cost centre a project's spend belongs to, when it has one. */
@@ -57,8 +62,7 @@ async function costCentreForProject(
   projectId: string | null,
 ): Promise<string | null> {
   if (!projectId) return null;
-  const { prisma } = await import("@/lib/prisma");
-  const project = await prisma.crmProject.findFirst({
+  const project = await db.crmProject.findFirst({
     where: { id: projectId, companyId },
     select: { costCenterId: true },
   });
@@ -77,28 +81,30 @@ export async function postRequisitionDisbursement(
   companyId: string,
   requisition: PostableRequisition,
   createdById: string,
-): Promise<void> {
+  role?: string | null,
+): Promise<PostMoneyResult | null> {
   const amount = payableAmount(requisition);
-  if (!amount.greaterThan(0)) return;
+  if (!amount.greaterThan(0)) return null;
 
-  await captureAccountingEvent({
+  const costCenterId = await costCentreForProject(companyId, requisition.projectId);
+  return postMoney(db, {
     companyId,
-    sourceDomain: "crm-requisitions",
-    sourceAction: "disbursed",
     sourceType: "CRM_REQUISITION_DISBURSEMENT",
     sourceId: requisition.id,
     // What the money was for. The seeded rules condition on this.
     sourceSubtype: requisition.category,
-    entryDate: requisition.disbursedAt ?? new Date(),
+    date: requisition.disbursedAt ?? new Date(),
     description: `${requisition.requisitionNo}: ${requisition.purpose}`,
     amount,
     currency: requisition.currency,
-    createdById,
+    costCenterId,
+    money: { bankAccountId: requisition.bankAccountId ?? null, direction: "OUT", reference: requisition.requisitionNo },
+    actor: { userId: createdById, role },
     payload: {
       requisitionNo: requisition.requisitionNo,
       category: requisition.category,
       projectId: requisition.projectId,
-      costCenterId: await costCentreForProject(companyId, requisition.projectId),
+      costCenterId,
     },
   });
 }
@@ -113,6 +119,7 @@ export async function postRequisitionAcquittalVariance(
   companyId: string,
   requisition: PostableRequisition,
   createdById: string,
+  role?: string | null,
 ): Promise<{ posted: "REFUND" | "TOPUP" | null; amount: Prisma.Decimal }> {
   const paid = payableAmount(requisition);
   const spent = new Prisma.Decimal(requisition.acquittedAmount ?? 0);
@@ -124,28 +131,30 @@ export async function postRequisitionAcquittalVariance(
   // expense must come down. Negative: they spent their own money.
   const posted = variance.greaterThan(0) ? "REFUND" : "TOPUP";
 
-  await captureAccountingEvent({
+  const costCenterId = await costCentreForProject(companyId, requisition.projectId);
+  await postMoney(db, {
     companyId,
-    sourceDomain: "crm-requisitions",
-    sourceAction: posted === "REFUND" ? "acquitted-change-returned" : "acquitted-overspend",
     sourceType: posted === "REFUND" ? "CRM_REQUISITION_REFUND" : "CRM_REQUISITION_TOPUP",
     sourceId: requisition.id,
     sourceSubtype: requisition.category,
-    entryDate: requisition.acquittedAt ?? new Date(),
+    date: requisition.acquittedAt ?? new Date(),
     description:
       posted === "REFUND"
         ? `${requisition.requisitionNo}: change returned`
         : `${requisition.requisitionNo}: spent over the requisition`,
     amount: variance.abs(),
     currency: requisition.currency,
-    createdById,
+    costCenterId,
+    // Change comes back into the account it was paid from; an overspend is paid from it.
+    money: { bankAccountId: requisition.bankAccountId ?? null, direction: posted === "REFUND" ? "IN" : "OUT", reference: requisition.requisitionNo },
+    actor: { userId: createdById, role },
     payload: {
       requisitionNo: requisition.requisitionNo,
       category: requisition.category,
       paid: paid.toFixed(2),
       spent: spent.toFixed(2),
       projectId: requisition.projectId,
-      costCenterId: await costCentreForProject(companyId, requisition.projectId),
+      costCenterId,
     },
   });
 
@@ -168,35 +177,36 @@ type PostableCostEntry = {
  * A line from somebody's daily log.
  *
  * An entry that names a requisition posts nothing — see the note at the top.
- * A receipt is captured and deliberately unmapped: there is no credit side to
- * infer, so it waits on the integration log for a person.
+ * A receipt is deliberately unmapped: there is no credit side to infer, so it
+ * fails with that reason and waits in Needs posting for a person.
  */
 export async function postCostEntry(
   companyId: string,
   entry: PostableCostEntry,
   createdById: string,
+  role?: string | null,
 ): Promise<{ posted: boolean; reason?: string }> {
   if (entry.requisitionId) {
     return { posted: false, reason: "already expensed when the requisition was paid out" };
   }
   if (!entry.amount.greaterThan(0)) return { posted: false, reason: "zero" };
 
-  await captureAccountingEvent({
+  const costCenterId = await costCentreForProject(companyId, entry.projectId);
+  await postMoney(db, {
     companyId,
-    sourceDomain: "crm-daily-costs",
-    sourceAction: entry.direction === "SPENT" ? "spent" : "received",
     sourceType: entry.direction === "SPENT" ? "CRM_COST_ENTRY_SPEND" : "CRM_COST_ENTRY_RECEIPT",
     sourceId: entry.id,
     sourceSubtype: entry.category,
-    entryDate: entry.createdAt,
+    date: entry.createdAt,
     description: entry.description,
     amount: entry.amount,
     currency: entry.currency,
-    createdById,
+    costCenterId,
+    actor: { userId: createdById, role },
     payload: {
       category: entry.category,
       projectId: entry.projectId,
-      costCenterId: await costCentreForProject(companyId, entry.projectId),
+      costCenterId,
     },
   });
 

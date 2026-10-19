@@ -1,12 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { validateSession, successResponse, errorResponse } from "@/lib/api-utils";
-import { captureAccountingEvent } from "@/lib/accounting/integration";
+import { postMoney, recordEvent } from "@/lib/books/core";
 import { readWorkOrderRecord } from "@/lib/maintenance/work-order-record";
 import { partSchema } from "@/lib/maintenance/work-orders";
 import { emitWorkOrderStatusNotification } from "@/lib/notifications";
 import { prisma } from "@/lib/prisma";
-import { createJournalEntryFromSource } from "@/lib/accounting/posting";
 
 const updateWorkOrderSchema = z.object({
   issue: z.string().min(1).max(1000).optional(),
@@ -150,13 +149,14 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
       const totalCost = (updated.partsCost ?? 0) + (updated.laborCost ?? 0);
       if (totalCost > 0) {
         try {
-          await createJournalEntryFromSource({
+          // The cost of the work reaches the ledger through the Books core, which keeps it if it cannot post yet.
+          await postMoney(prisma, {
             companyId: session.user.companyId,
             sourceType: "MAINTENANCE_COMPLETION",
             sourceId: updated.id,
-            entryDate: updated.downtimeEnd ?? new Date(),
+            date: updated.downtimeEnd ?? new Date(),
             description: `Maintenance completed: ${updated.issue}`,
-            createdById: session.user.id,
+            actor: { userId: session.user.id, role: session.user.role },
             amount: totalCost,
             netAmount: totalCost,
             taxAmount: 0,
@@ -170,21 +170,20 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
 
     if (validated.status && validated.status !== existing.status) {
       try {
-        await captureAccountingEvent({
+        // A status change moves no money (completion posts above): a record only, with no amount.
+        await recordEvent(prisma, {
           companyId: session.user.companyId,
           sourceDomain: "maintenance",
           sourceAction: "work-order-status-changed",
           sourceId: updated.id,
           entryDate: updated.updatedAt,
           description: `Work order ${updated.id} status changed to ${updated.status}`,
-          amount: (updated.partsCost ?? 0) + (updated.laborCost ?? 0),
           payload: {
             fromStatus: existing.status,
             toStatus: updated.status,
             equipmentId: updated.equipmentId,
           },
           createdById: session.user.id,
-          status: "IGNORED",
         });
       } catch (error) {
         console.error("[Accounting] Work order status capture failed:", error);

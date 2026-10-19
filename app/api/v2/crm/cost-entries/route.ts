@@ -208,7 +208,7 @@ export async function POST(request: NextRequest) {
     // cost. Best-effort, like every other posting call — the line is the thing
     // the person needs saved.
     try {
-      await postCostEntry(companyId, entry, session.user.id);
+      await postCostEntry(companyId, entry, session.user.id, session.user.role);
     } catch (error) {
       console.error("[API] cost entry posting failed:", error);
     }

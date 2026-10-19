@@ -527,12 +527,26 @@ const CRM_CATEGORY_LABELS: Record<string, string> = {
  * that resolves the account from the event — would have been four rows nobody
  * could steer.
  *
- * The bank is credited on a disbursement because that is where requisition
- * money comes from. A cost entry with no requisition behind it credits
+ * The money account it was paid from is credited on a disbursement (debited
+ * when change comes back). A cost entry with no requisition behind it credits
  * Accounts Payable instead: the business has incurred the cost and owes
  * whoever laid the money out, which is true whether it was petty cash or a
  * rep's own pocket.
  */
+/**
+ * The money account a requisition was paid from, as the event names it
+ * (`lib/books/core` fills it from `CrmRequisition.bankAccountId`, else the
+ * workspace's default money account, else 1010). It was a fixed 1010, so a
+ * payout from the cash box or EcoCash landed in the bank.
+ */
+const MONEY_ACCOUNT_LINE = (direction: "DEBIT" | "CREDIT"): DefaultPostingRuleLine => ({
+  direction,
+  basis: "AMOUNT",
+  allocationValue: 100,
+  accountSource: "EVENT_ACCOUNT",
+  eventAccountKey: "moneyAccount",
+});
+
 function buildCrmMoneyRules(): DefaultPostingRule[] {
   const rules: DefaultPostingRule[] = [];
 
@@ -549,7 +563,7 @@ function buildCrmMoneyRules(): DefaultPostingRule[] {
       conditions: onCategory,
       lines: [
         { accountCode, direction: "DEBIT", basis: "AMOUNT", allocationValue: 100 },
-        { accountCode: "1010", direction: "CREDIT", basis: "AMOUNT", allocationValue: 100 },
+        MONEY_ACCOUNT_LINE("CREDIT"),
       ],
     });
 
@@ -560,7 +574,7 @@ function buildCrmMoneyRules(): DefaultPostingRule[] {
         "The employee spent less than they were given. Carries the difference only — the whole amount was expensed when it was paid out.",
       conditions: onCategory,
       lines: [
-        { accountCode: "1010", direction: "DEBIT", basis: "AMOUNT", allocationValue: 100 },
+        MONEY_ACCOUNT_LINE("DEBIT"),
         { accountCode, direction: "CREDIT", basis: "AMOUNT", allocationValue: 100 },
       ],
     });
@@ -573,7 +587,7 @@ function buildCrmMoneyRules(): DefaultPostingRule[] {
       conditions: onCategory,
       lines: [
         { accountCode, direction: "DEBIT", basis: "AMOUNT", allocationValue: 100 },
-        { accountCode: "1010", direction: "CREDIT", basis: "AMOUNT", allocationValue: 100 },
+        MONEY_ACCOUNT_LINE("CREDIT"),
       ],
     });
 

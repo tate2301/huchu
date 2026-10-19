@@ -222,7 +222,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         // Best-effort: a disbursement that refuses to record itself because
         // posting failed leaves the cash gone and the CRM saying it never went.
         try {
-          await postRequisitionDisbursement(companyId, requisition, session.user.id);
+          await postRequisitionDisbursement(companyId, requisition, session.user.id, session.user.role);
         } catch (error) {
           console.error("[API] requisition disbursement posting failed:", error);
         }
@@ -292,6 +292,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
             companyId,
             requisition,
             session.user.id,
+            session.user.role,
           );
         } catch (error) {
           console.error("[API] requisition acquittal posting failed:", error);

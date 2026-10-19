@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { z } from "zod"
 import { errorResponse, successResponse, validateSession } from "@/lib/api-utils"
 import { hrPermissionDenial } from "@/lib/hr/permissions"
-import { captureAccountingEvent } from "@/lib/accounting/integration"
+import { recordEvent } from "@/lib/books/core"
 import { prisma } from "@/lib/prisma"
 import { ensureApproverRole } from "@/lib/workflow/approvals"
 const lineItemPatchSchema = z.object({
@@ -178,22 +178,18 @@ export async function PATCH(
     })
 
     try {
-      await captureAccountingEvent({
+      // A draft run moves no money (it posts through the core when approved): a record only.
+      await recordEvent(prisma, {
         companyId: session.user.companyId,
         sourceDomain: "payroll",
         sourceAction: "run-updated",
+        sourceId: updated.id,
         entryDate: updated.updatedAt,
         description: `Payroll run ${updated.runNumber} updated (draft)`,
-        amount: updated.netTotal,
-        grossAmount: updated.grossTotal,
-        netAmount: updated.netTotal,
-        deductionsAmount: updated.deductionsTotal,
-        allowancesAmount: updated.allowancesTotal,
         payload: {
           lineItems: validated.lineItems?.map((line) => line.id) ?? [],
         },
         createdById: session.user.id,
-        status: "IGNORED",
       })
     } catch (error) {
       console.error("[Accounting] Payroll run update capture failed:", error)

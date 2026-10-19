@@ -15,7 +15,8 @@ const { captureMock, projectFindFirstMock } = vi.hoisted(() => ({
   projectFindFirstMock: vi.fn(),
 }));
 
-vi.mock("@/lib/accounting/integration", () => ({ captureAccountingEvent: captureMock }));
+// The Books core posts it; here only what the CRM asks of it is under test.
+vi.mock("@/lib/books/core", () => ({ postMoney: (_db: unknown, event: unknown) => captureMock(event) }));
 vi.mock("@/lib/prisma", () => ({
   prisma: { crmProject: { findFirst: projectFindFirstMock } },
 }));
@@ -76,6 +77,13 @@ describe("disbursement", () => {
     expect(event.amount.toString()).toBe("400");
     // The seeded rules condition on this to pick the expense account.
     expect(event.sourceSubtype).toBe("FUEL");
+    // Out of the account it was paid from: the core turns that into its ledger account.
+    expect(event.money).toEqual({ bankAccountId: null, direction: "OUT", reference: "REQ-0001" });
+  });
+
+  it("names the money account it was paid from", async () => {
+    await postRequisitionDisbursement(COMPANY, requisition({ bankAccountId: "bank-ecocash" }), ACTOR);
+    expect(captureMock.mock.calls[0][0].money.bankAccountId).toBe("bank-ecocash");
   });
 
   it("posts the approved figure when an approver cut it", async () => {
@@ -130,6 +138,7 @@ describe("acquittal", () => {
     expect(result.posted).toBe("REFUND");
     const event = captureMock.mock.calls[0][0];
     expect(event.sourceType).toBe("CRM_REQUISITION_REFUND");
+    expect(event.money.direction).toBe("IN");
     // The difference only — 400 was already expensed.
     expect(event.amount.toString()).toBe("89.5");
   });
@@ -193,8 +202,8 @@ describe("cost entries", () => {
     const result = await postCostEntry(COMPANY, entry({ direction: "RECEIVED" }), ACTOR);
 
     expect(result.posted).toBe(true);
-    // Captured under a source type with no seeded rule, so it sits PENDING on
-    // the integration log for a person rather than posting to a guess.
+    // Sent under a source type with no seeded rule, so it fails with that
+    // reason and waits in Needs posting for a person rather than posting to a guess.
     expect(captureMock.mock.calls[0][0].sourceType).toBe("CRM_COST_ENTRY_RECEIPT");
   });
 
