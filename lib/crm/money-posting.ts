@@ -1,60 +1,24 @@
 /**
- * What the CRM's money-out flows send to the ledger.
+ * What the CRM's cost tracker sends to the ledger on its own.
  *
- * The UIs live in the CRM; the effect belongs in accounting. This module is
- * the seam — it decides *what* posts and *when*, and the Books core
- * (`postMoney`) posts it now through the tenant's own posting rules. Nothing
- * here is captured IGNORED any more: what cannot post waits, PENDING or
- * FAILED with its reason, for the drain and Needs posting (books-final §1.1).
+ * A requisition's money posts through the Books core
+ * (`lib/books/core/requisitions.ts`): paid out onto 1150 Cash advances,
+ * accounted for by category out of the advance, the change back or the
+ * overspend paid. A spend from somebody's own pocket becomes a line of the
+ * claim their day turns into when it is submitted (`claimFromDailyLog`), and
+ * posts when the claim is approved. What is left here is a cost-tracker line
+ * posted on its own: cash received (deliberately unmapped, so it waits in
+ * Needs posting for a person) and, for a caller that still asks, a spend.
  *
- * ## The model
- *
- * Money is expensed as it leaves the business, on disbursement. That is a
- * deliberate choice over the alternative (hold it as a staff advance and
- * expense it on acquittal): it keeps the ledger simple and needs no advances
- * account, at the cost of the balance sheet never showing what staff are
- * holding.
- *
- * It has one consequence that has to be handled rather than accepted. If the
- * acquittal disagrees with what was handed over, the expense already posted is
- * wrong — 400 expensed against 310.50 actually spent overstates the cost by
- * 89.50 and hides 89.50 of cash somebody is still carrying. So an acquittal
- * posts the **variance only**:
- *
- *   spent less   → change came back   → CRM_REQUISITION_REFUND
- *   spent more   → they are owed it   → CRM_REQUISITION_TOPUP
- *   spent exactly → nothing to say    → no event
- *
- * ## What does not post
- *
- * A cost entry that names a requisition posts nothing. The money was expensed
- * when it was disbursed, and posting the spend again would double the cost —
- * the same double-count the project rollup refuses to make by keeping
- * committed and spent apart. Only an entry with no requisition behind it is a
- * cost the ledger has not already seen.
+ * A cost entry that names a requisition posts nothing: it posts with the
+ * requisition's acquittal, and posting it again would double the cost.
  */
 
 import { Prisma } from "@prisma/client";
 
-import { postMoney, type PostMoneyResult } from "@/lib/books/core";
+import { postMoney } from "@/lib/books/core";
 import { prisma as db } from "@/lib/prisma";
-import { payableAmount, type RequisitionCategory } from "@/lib/crm/requisitions";
-
-type PostableRequisition = {
-  id: string;
-  requisitionNo: string;
-  category: RequisitionCategory;
-  currency: string;
-  purpose: string;
-  amount: Prisma.Decimal;
-  approvedAmount: Prisma.Decimal | null;
-  acquittedAmount: Prisma.Decimal | null;
-  projectId: string | null;
-  disbursedAt: Date | null;
-  acquittedAt: Date | null;
-  /** The money account it was paid from; its ledger account takes the money side. */
-  bankAccountId?: string | null;
-};
+import type { RequisitionCategory } from "@/lib/crm/requisitions";
 
 /** The cost centre a project's spend belongs to, when it has one. */
 async function costCentreForProject(
@@ -67,98 +31,6 @@ async function costCentreForProject(
     select: { costCenterId: true },
   });
   return project?.costCenterId ?? null;
-}
-
-/**
- * The money left the business. Expense it.
- *
- * Best-effort by design: a ledger that is briefly behind is recoverable — the
- * integration log keeps the event and it can be replayed — whereas a
- * disbursement that refuses to record itself because posting failed leaves the
- * cash gone and the CRM saying it never went.
- */
-export async function postRequisitionDisbursement(
-  companyId: string,
-  requisition: PostableRequisition,
-  createdById: string,
-  role?: string | null,
-): Promise<PostMoneyResult | null> {
-  const amount = payableAmount(requisition);
-  if (!amount.greaterThan(0)) return null;
-
-  const costCenterId = await costCentreForProject(companyId, requisition.projectId);
-  return postMoney(db, {
-    companyId,
-    sourceType: "CRM_REQUISITION_DISBURSEMENT",
-    sourceId: requisition.id,
-    // What the money was for. The seeded rules condition on this.
-    sourceSubtype: requisition.category,
-    date: requisition.disbursedAt ?? new Date(),
-    description: `${requisition.requisitionNo}: ${requisition.purpose}`,
-    amount,
-    currency: requisition.currency,
-    costCenterId,
-    money: { bankAccountId: requisition.bankAccountId ?? null, direction: "OUT", reference: requisition.requisitionNo },
-    actor: { userId: createdById, role },
-    payload: {
-      requisitionNo: requisition.requisitionNo,
-      category: requisition.category,
-      projectId: requisition.projectId,
-      costCenterId,
-    },
-  });
-}
-
-/**
- * The acquittal disagreed with the disbursement. Post the difference.
- *
- * Returns what it posted, so a caller and a test can see the decision rather
- * than infer it from the ledger.
- */
-export async function postRequisitionAcquittalVariance(
-  companyId: string,
-  requisition: PostableRequisition,
-  createdById: string,
-  role?: string | null,
-): Promise<{ posted: "REFUND" | "TOPUP" | null; amount: Prisma.Decimal }> {
-  const paid = payableAmount(requisition);
-  const spent = new Prisma.Decimal(requisition.acquittedAmount ?? 0);
-  const variance = paid.minus(spent);
-
-  if (variance.isZero()) return { posted: null, amount: variance };
-
-  // Positive variance: they spent less and the change came back, so the
-  // expense must come down. Negative: they spent their own money.
-  const posted = variance.greaterThan(0) ? "REFUND" : "TOPUP";
-
-  const costCenterId = await costCentreForProject(companyId, requisition.projectId);
-  await postMoney(db, {
-    companyId,
-    sourceType: posted === "REFUND" ? "CRM_REQUISITION_REFUND" : "CRM_REQUISITION_TOPUP",
-    sourceId: requisition.id,
-    sourceSubtype: requisition.category,
-    date: requisition.acquittedAt ?? new Date(),
-    description:
-      posted === "REFUND"
-        ? `${requisition.requisitionNo}: change returned`
-        : `${requisition.requisitionNo}: spent over the requisition`,
-    amount: variance.abs(),
-    currency: requisition.currency,
-    costCenterId,
-    // Change comes back into the account it was paid from; an overspend is paid from it.
-    money: { bankAccountId: requisition.bankAccountId ?? null, direction: posted === "REFUND" ? "IN" : "OUT", reference: requisition.requisitionNo },
-    actor: { userId: createdById, role },
-    payload: {
-      requisitionNo: requisition.requisitionNo,
-      category: requisition.category,
-      paid: paid.toFixed(2),
-      spent: spent.toFixed(2),
-      projectId: requisition.projectId,
-      costCenterId,
-    },
-  });
-
-  return { posted, amount: variance.abs() };
 }
 
 type PostableCostEntry = {
@@ -187,7 +59,7 @@ export async function postCostEntry(
   role?: string | null,
 ): Promise<{ posted: boolean; reason?: string }> {
   if (entry.requisitionId) {
-    return { posted: false, reason: "already expensed when the requisition was paid out" };
+    return { posted: false, reason: "posts with the requisition's acquittal" };
   }
   if (!entry.amount.greaterThan(0)) return { posted: false, reason: "zero" };
 

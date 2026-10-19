@@ -1,4 +1,5 @@
 import type { Prisma, PrismaClient } from "@prisma/client";
+import { approvedCommissionOn, mirrorVoidedCommission } from "./core/commission";
 import { docLabel } from "@/lib/books/doc-number";
 
 import { writePlatformAuditEvent } from "@/lib/audit/platform";
@@ -131,7 +132,9 @@ export async function deleteInvoice(actor: InvoiceActor | BooksActor, invoiceId:
   }
 
   const now = new Date();
-  return prisma.$transaction(
+  // Approved commission on it posted its expense (D19): mirrored once the invoice is gone.
+  const commission = await approvedCommissionOn(actor.companyId, { invoiceId });
+  const result = await prisma.$transaction(
     async (tx) => {
       const found = await gather(tx, actor.companyId, invoiceId);
       if (!found) throw new InvoiceChangeRefused("That invoice is not here any more.", 404);
@@ -239,4 +242,6 @@ export async function deleteInvoice(actor: InvoiceActor | BooksActor, invoiceId:
     },
     { timeout: 30_000 },
   );
+  if (commission.length) await mirrorVoidedCommission(actor as BooksActor, commission, `Invoice ${result.number} deleted`).catch((error: unknown) => console.error("[Books] commission mirror failed:", error));
+  return result;
 }

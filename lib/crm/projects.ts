@@ -258,33 +258,47 @@ export async function projectOfDeal(tx: Tx, companyId: string, dealId: string): 
 }
 
 /**
- * Projects whose spend has gone past their budget.
- *
- * Asked of the database in one grouped sum rather than by running the full
- * rollup per project: this is a filter over the whole register, and the
- * register filters before it pages. Spend is plain cost entries — no cut
- * approvals to resolve — so the SQL sum and `projectCostSummary` are the
- * same arithmetic, and a project with no budget is never over it.
+ * What each project has spent, from the ledger (books-final §5.3): the
+ * expense lines posted on its cost centre (debits less credits), whatever
+ * posted them — a requisition accounted for, a claim, a petty cash voucher,
+ * a bill, commission. A project with no cost centre has spent what its daily
+ * logs say, as before the ledger carried it.
+ */
+async function ledgerSpend(tx: Tx, companyId: string, projects: Array<{ id: string; costCenterId: string | null }>): Promise<Map<string, Prisma.Decimal>> {
+  const spent = new Map<string, Prisma.Decimal>();
+  const centres = projects.filter((project) => project.costCenterId);
+  if (centres.length > 0) {
+    const rows = await tx.$queryRaw<Array<{ costCenterId: string; spent: number }>>`
+      SELECT l."costCenterId", COALESCE(SUM(l."debit" - l."credit"), 0)::float8 AS spent
+      FROM "JournalLine" l
+      JOIN "JournalEntry" j ON j."id" = l."entryId" AND j."companyId" = ${companyId} AND j."status" = 'POSTED'
+      JOIN "ChartOfAccount" a ON a."id" = l."accountId" AND a."type" = 'EXPENSE'
+      WHERE l."costCenterId" IN (${Prisma.join(centres.map((project) => project.costCenterId!))})
+      GROUP BY l."costCenterId"`;
+    const byCentre = new Map(rows.map((row) => [row.costCenterId, new Prisma.Decimal(row.spent.toFixed(2))]));
+    for (const project of centres) spent.set(project.id, byCentre.get(project.costCenterId!) ?? ZERO);
+  }
+  const without = projects.filter((project) => !project.costCenterId).map((project) => project.id);
+  if (without.length > 0) {
+    const logged = await tx.crmDailyCostEntry.groupBy({ by: ["projectId"], where: { companyId, direction: "SPENT", projectId: { in: without } }, _sum: { amount: true } });
+    for (const row of logged) spent.set(row.projectId as string, row._sum.amount ?? ZERO);
+  }
+  return spent;
+}
+
+/**
+ * Projects whose spend has gone past their budget: the ledger's spend on each
+ * budgeted project's cost centre against its budget. A project with no
+ * budget is never over it.
  */
 export async function overBudgetProjectIds(tx: Tx, companyId: string): Promise<string[]> {
-  const spend = await tx.crmDailyCostEntry.groupBy({
-    by: ["projectId"],
-    where: { companyId, direction: "SPENT", projectId: { not: null } },
-    _sum: { amount: true },
-  });
-  const spentByProject = new Map(
-    spend.map((row) => [row.projectId as string, row._sum.amount ?? ZERO]),
-  );
-  if (spentByProject.size === 0) return [];
-
   const budgeted = await tx.crmProject.findMany({
-    where: { companyId, id: { in: [...spentByProject.keys()] }, budget: { not: null } },
-    select: { id: true, budget: true },
+    where: { companyId, budget: { not: null } },
+    select: { id: true, budget: true, costCenterId: true },
   });
-
-  return budgeted
-    .filter((project) => spentByProject.get(project.id)!.greaterThan(project.budget!))
-    .map((project) => project.id);
+  if (budgeted.length === 0) return [];
+  const spent = await ledgerSpend(tx, companyId, budgeted);
+  return budgeted.filter((project) => (spent.get(project.id) ?? ZERO).greaterThan(project.budget!)).map((project) => project.id);
 }
 
 /** The money side of one project, in the shape the header strip reads. */
@@ -295,7 +309,7 @@ export type ProjectCostSummary = {
   outstanding: Prisma.Decimal;
   /** Everything approved or paid, whether or not it has been acquitted. */
   committed: Prisma.Decimal;
-  /** Accounted for against the work, from the daily logs. */
+  /** What the ledger says the work has cost: expense lines on the project's cost centre. */
   spent: Prisma.Decimal;
   /** Money that came in against the project — a deposit paid on site. */
   received: Prisma.Decimal;
@@ -329,7 +343,7 @@ export async function projectCostSummary(
 ): Promise<ProjectCostSummary> {
   const project = await tx.crmProject.findFirst({
     where: { id: projectId, companyId },
-    select: { budget: true, currency: true },
+    select: { id: true, budget: true, currency: true, costCenterId: true },
   });
   if (!project) throw new Error("Project not found");
 
@@ -358,7 +372,8 @@ export async function projectCostSummary(
     select: { direction: true, amount: true },
   });
 
-  const spent = sum(entries.filter((e) => e.direction === "SPENT").map((e) => e.amount));
+  // Spent is the ledger's (books-final §5.3): approved and paid-out requisitions above are what is committed.
+  const spent = (await ledgerSpend(tx, companyId, [project])).get(project.id) ?? ZERO;
   const received = sum(entries.filter((e) => e.direction === "RECEIVED").map((e) => e.amount));
 
   return {

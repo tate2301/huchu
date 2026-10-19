@@ -15,6 +15,7 @@ import { budgetOverrun, createProject, projectCostSummary } from "@/lib/crm/proj
 import { PROJECT_STATUSES, canTransition } from "@/lib/crm/project-status";
 import { addCostEntry, dayTotals, openDailyLog, submitDailyLog, toLogDate } from "@/lib/crm/daily-log";
 import { buildDailyReport, dayWindow, reportHeadline, saveDailyReport } from "@/lib/crm/daily-report";
+import { clearProjectLedger, spendOnProject } from "@/lib/crm/project-ledger-test-helper";
 
 const SLUG = "project-accounting-test";
 const EMAIL = "project-accounting-test@example.invalid";
@@ -44,6 +45,7 @@ async function deal(title: string): Promise<string> {
 const DAY = new Date("2026-05-14T09:30:00.000Z");
 
 async function clear() {
+  await clearProjectLedger(companyId);
   await prisma.crmDailyCostEntry.deleteMany({ where: { companyId } });
   await prisma.crmDailyLog.deleteMany({ where: { companyId } });
   await prisma.crmDailyReport.deleteMany({ where: { companyId } });
@@ -227,9 +229,10 @@ describe("what a project has cost", () => {
 
   it("does not add a drawn requisition to the spend it paid for", async () => {
     // The double-count this separation exists to prevent: 200 drawn, 200
-    // spent, and the project has cost 200 — not 400.
+    // spent, and the project has cost 200 — not 400. Spent is the ledger's
+    // (books-final §5.3): the expense lines on the project's cost centre.
     await requisition("DISBURSED", "200.00");
-    await entry("SPENT", "200.00");
+    await spendOnProject(companyId, projectId, "200.00", userId);
 
     const summary = await prisma.$transaction((tx) =>
       projectCostSummary(tx, companyId, projectId),
@@ -247,19 +250,19 @@ describe("what a project has cost", () => {
     const other = await prisma.$transaction((tx) =>
       createProject(tx, companyId, userId, { name: "Somebody else's floor", currency: "USD", dealId }),
     );
-    await entry("SPENT", "500.00", { projectId: other.id });
+    await spendOnProject(companyId, other.id, "500.00", userId);
 
     const summary = await prisma.$transaction((tx) =>
       projectCostSummary(tx, companyId, projectId),
     );
     expect(summary.spent.toString()).toBe("0");
 
-    await prisma.crmDailyCostEntry.deleteMany({ where: { projectId: other.id } });
+    await clearProjectLedger(companyId);
     await prisma.crmProject.delete({ where: { id: other.id } });
   });
 
   it("reports an overrun only when there is a budget to overrun", async () => {
-    await entry("SPENT", "6000.00");
+    await spendOnProject(companyId, projectId, "6000.00", userId);
     const summary = await prisma.$transaction((tx) =>
       projectCostSummary(tx, companyId, projectId),
     );

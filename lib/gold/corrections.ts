@@ -130,18 +130,27 @@ export async function captureGoldCorrectionAccountingEvent(
   db: Db = prisma,
 ) {
   if (!input.deltaUsd) return null;
+  // A correction that changes the gold's value moves it on the ledger (books-final §5.6): a loss is
+  // Dr 5320 Gold inventory adjustments, Cr 1250 Gold inventory; a gain the mirror. It waits
+  // PENDING under its own source type for the drain, which posts it.
   return captureAccountingEvent(
     {
       companyId: input.companyId,
       sourceDomain: "gold",
       sourceAction: "correction-created",
+      sourceType: "GOLD_INVENTORY_ADJUSTMENT",
       sourceId: input.correctionId,
+      entryDate: new Date(),
       description: `Gold correction on ${input.entityType} ${input.entityId}: ${input.label}`,
-      amount: input.deltaUsd,
+      amount: Math.abs(input.deltaUsd),
+      netAmount: Math.abs(input.deltaUsd),
+      grossAmount: Math.abs(input.deltaUsd),
       payload: {
         correctionId: input.correctionId,
         entityType: input.entityType,
         entityId: input.entityId,
+        deltaUsd: input.deltaUsd,
+        invertDirection: input.deltaUsd > 0,
       },
       createdById: input.createdById,
       status: "PENDING",

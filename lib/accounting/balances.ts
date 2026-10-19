@@ -69,7 +69,8 @@ export async function recalcPurchaseBillBalance(billId: string) {
 
   const [payments, debitNotes, writeOffs] = await Promise.all([
     prisma.purchasePayment.aggregate({
-      where: { billId },
+      // Only money that left (D5): a draft, one waiting for approval or a voided one pays nothing.
+      where: { billId, status: "PAID" },
       _sum: { amount: true },
     }),
     prisma.debitNote.aggregate({

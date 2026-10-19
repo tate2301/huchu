@@ -75,6 +75,7 @@ export async function GET(request: NextRequest) {
         }),
         prisma.purchasePayment.aggregate({
           where: {
+            status: "PAID",
             bill: { vendorId, companyId: session.user.companyId },
             paidAt: { lt: startDate },
           },
@@ -119,6 +120,7 @@ export async function GET(request: NextRequest) {
       }),
       prisma.purchasePayment.findMany({
         where: {
+          status: "PAID",
           bill: { vendorId, companyId: session.user.companyId },
           ...(dateFilter ? { paidAt: dateFilter } : {}),
         },

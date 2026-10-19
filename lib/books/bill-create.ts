@@ -4,15 +4,18 @@ import { findTaxCodesOutsideEffectiveWindow } from "@/lib/accounting/tax-selecti
 import { resolveDefaultTaxTemplate } from "@/lib/accounting/tax-rules";
 import { prisma } from "@/lib/prisma";
 
+import { postBill } from "./core/bills";
+import { moneyLimits } from "./core/approvals";
 import { nextNumber } from "./core/numbering";
-import { postMoney } from "./core/post-money";
 
 /**
  * A supplier's bill, a draft or received: `POST /api/accounting/purchases/bills`
  * and Books' Record a bill (BkBillNew) both come here. Received, it takes the
  * next number in the series in the same write (D8) and posts through the core
- * (`postMoney`, `PURCHASE_BILL`: Dr expense or stock, Dr VAT input, Cr
- * suppliers), with its sub-ledger line. Approval comes with P2.
+ * (`postBill`, `PURCHASE_BILL`: Dr expense or stock, Dr VAT input once the
+ * FTI is valid on FDMS, else waiting, Cr suppliers), with its sub-ledger
+ * line. Over the payments limit only the owner records it at once; anyone
+ * else saves a draft for the owner to approve (books-final §2.4).
  */
 export const billSchema = z.object({
   vendorId: z.string().uuid(),
@@ -21,6 +24,9 @@ export const billSchema = z.object({
   currency: z.string().min(1).max(10).optional(),
   notes: z.string().max(1000).optional(),
   receiveNow: z.boolean().optional(),
+  /** D16: the supplier's fiscal tax invoice number, and what FDMS said about it. */
+  supplierFtiNumber: z.string().trim().max(60).optional(),
+  fdmsStatus: z.enum(["NOT_CHECKED", "VALID", "NOT_VALID"]).optional(),
   lines: z
     .array(
       z.object({
@@ -53,7 +59,7 @@ export async function createPurchaseBill(
   validated: BillInput,
   options: { costCenterId?: string | null } = {},
 ) {
-  const vendor = await prisma.vendor.findUnique({ where: { id: validated.vendorId }, select: { companyId: true } });
+  const vendor = await prisma.vendor.findUnique({ where: { id: validated.vendorId }, select: { companyId: true, vatNumber: true, name: true } });
   if (!vendor || vendor.companyId !== actor.companyId) throw new BillRefused("Invalid vendor");
 
   const resolvedTemplate = await resolveDefaultTaxTemplate({
@@ -83,6 +89,14 @@ export async function createPurchaseBill(
   const taxTotal = computed.reduce((sum, line) => sum + line.taxAmount, 0);
   const total = computed.reduce((sum, line) => sum + line.lineTotal, 0);
 
+  if (validated.receiveNow) {
+    // A VAT-registered supplier's bill is recorded with its FTI (D16); over the payments limit the owner records it (§2.4).
+    if (vendor.vatNumber && taxTotal > 0 && !validated.supplierFtiNumber) throw new BillRefused(`${vendor.name} is registered for VAT: add the number on their fiscal tax invoice.`);
+    const limits = await moneyLimits(actor.companyId);
+    if (total > limits.paymentOwnerOver + 0.004 && (actor.role ?? "").toUpperCase() !== "SUPERADMIN") {
+      throw new BillRefused(`Over ${limits.paymentOwnerOver.toFixed(2)} the owner approves a bill before it is recorded. Save it as a draft and send it to ${limits.ownerApprover?.name ?? "the owner"}.`);
+    }
+  }
   // A draft carries no number; one received now takes the next in the series, in the same write (D8).
   const bill = await prisma.$transaction(async (tx) =>
     tx.purchaseBill.create({
@@ -98,6 +112,10 @@ export async function createPurchaseBill(
         taxTotal,
         total,
         notes: validated.notes,
+        supplierFtiNumber: validated.supplierFtiNumber || null,
+        fdmsStatus: validated.fdmsStatus ?? "NOT_CHECKED",
+        fdmsCheckedAt: validated.fdmsStatus && validated.fdmsStatus !== "NOT_CHECKED" ? new Date() : undefined,
+        fdmsCheckedById: validated.fdmsStatus && validated.fdmsStatus !== "NOT_CHECKED" ? actor.userId : undefined,
         createdById: actor.userId,
         issuedById: validated.receiveNow ? actor.userId : undefined,
         issuedAt: validated.receiveNow ? new Date() : undefined,
@@ -109,20 +127,7 @@ export async function createPurchaseBill(
   // Posting never undoes the bill: what cannot post now waits for the drain and Needs posting.
   if (bill.status === "RECEIVED") {
     try {
-      const posting = await postMoney(prisma, {
-        companyId: actor.companyId,
-        sourceType: "PURCHASE_BILL",
-        sourceId: bill.id,
-        date: bill.billDate,
-        description: `Purchase bill ${bill.billNumber}`,
-        amount: bill.total,
-        netAmount: bill.subTotal,
-        taxAmount: bill.taxTotal,
-        grossAmount: bill.total,
-        currency: bill.currency,
-        costCenterId: options.costCenterId ?? null,
-        actor: { userId: actor.userId, role: actor.role ?? null },
-      });
+      const posting = await postBill(prisma, bill, { userId: actor.userId, role: actor.role ?? null }, { costCenterId: options.costCenterId ?? null });
       if (posting.error) console.error(`[Books] Bill ${bill.billNumber} waits to post: ${posting.error}`);
     } catch (error) {
       console.error("[Books] Purchase bill posting failed:", error);

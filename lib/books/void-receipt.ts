@@ -1,4 +1,5 @@
 import type { Prisma, PrismaClient } from "@prisma/client";
+import { approvedCommissionOn, mirrorVoidedCommission } from "./core/commission";
 import { docLabel } from "@/lib/books/doc-number";
 
 import { recalcSalesInvoiceBalance } from "@/lib/accounting/balances";
@@ -10,6 +11,7 @@ import { dayOf, shortDay, storedDay } from "./format";
 import { canDo } from "./core/can-do";
 import { markVoided } from "./core/void-money";
 import { InvoiceChangeRefused, RECEIPT_OWNER_ONLY, type InvoiceActor } from "./owner";
+import type { BooksActor } from "./core/can-do";
 import { onAccountCustomers } from "./payments";
 import { REASON_MAX, REASON_MIN, wasFiscalised } from "./reversal";
 
@@ -221,7 +223,9 @@ export async function voidReceipt(actor: InvoiceActor, receiptId: string, input:
     await markVoided(posted.id, result.entryId, actor.userId);
   }
 
-  return prisma.$transaction(
+  // Approved commission on it posted its expense (D19): mirrored once the payment is void.
+  const commission = await approvedCommissionOn(actor.companyId, { receiptId: receipt.id });
+  const voided = await prisma.$transaction(
     async (tx) => {
       // Looked at again inside the transaction: someone else may have voided it meanwhile.
       const still = await tx.salesReceipt.findFirst({ where: { id: receipt.id, companyId: actor.companyId }, select: { voidedAt: true } });
@@ -305,5 +309,7 @@ export async function voidReceipt(actor: InvoiceActor, receiptId: string, input:
     },
     { timeout: 30_000 },
   );
+  if (commission.length) await mirrorVoidedCommission(actor as BooksActor, commission, `Payment ${receipt.receiptNumber} voided`).catch((error: unknown) => console.error("[Books] commission mirror failed:", error));
+  return voided;
 }
 

@@ -40,6 +40,9 @@ export function ledgerSourceId(sourceType: AccountingSourceType, sourceId: strin
   return sourceId;
 }
 
+/** A requisition's money posted again after a void takes the next round's key (`<id>:r2`); its line is the requisition's. */
+const requisitionOf = (sourceId: string) => sourceId.replace(/:r\d+$/, "");
+
 const VOIDED_SOURCE_TYPES: ReadonlySet<AccountingSourceType> = new Set([
   "SALES_INVOICE",
   "SALES_RECEIPT",
@@ -49,6 +52,9 @@ const VOIDED_SOURCE_TYPES: ReadonlySet<AccountingSourceType> = new Set([
   "PURCHASE_PAYMENT",
   "PURCHASE_DEBIT_NOTE",
   "PURCHASE_WRITE_OFF",
+  "RETAIL_REQUISITION_PAYOUT",
+  "RETAIL_REQUISITION_CHANGE",
+  "RETAIL_SUPPLIER_PAYMENT",
 ]);
 
 async function buildLedgerSeed(
@@ -243,7 +249,58 @@ async function buildLedgerSeed(
         debit: amount,
         credit: 0,
         currency: payment.bill?.currency ?? "USD",
-        description: `Purchase payment ${payment.paymentNumber}`,
+        description: `Purchase payment ${payment.paymentNumber ?? ""}`.trim(),
+        journalEntryId,
+        status: payment.status === "VOIDED" ? "VOIDED" : "POSTED",
+      };
+    }
+    // Retail's supplier money (books-final §5.5, fix 1): an order's cash paid out is an advance on
+    // the supplier's account, the change back takes it down, and a payment group pays it.
+    case "RETAIL_REQUISITION_PAYOUT":
+    case "RETAIL_REQUISITION_CHANGE": {
+      const requisition = await db.crmRequisition.findUnique({
+        where: { id: requisitionOf(sourceId) },
+        select: { companyId: true, requisitionNo: true, purchaseOrderId: true, payeeVendorId: true, paidAmount: true, changeAmount: true, disbursedAt: true, acquittedAt: true, currency: true },
+      });
+      if (!requisition || requisition.companyId !== companyId || !requisition.purchaseOrderId || !requisition.payeeVendorId) return null;
+      const payout = sourceType === "RETAIL_REQUISITION_PAYOUT";
+      const amount = toMoney(payout ? requisition.paidAmount : requisition.changeAmount);
+      if (amount <= 0) return null;
+      return {
+        companyId,
+        sourceType,
+        sourceId,
+        entryDate: (payout ? requisition.disbursedAt : requisition.acquittedAt) ?? new Date(),
+        accountType: "PAYABLE",
+        partyType: "VENDOR",
+        partyId: requisition.payeeVendorId,
+        debit: payout ? amount : 0,
+        credit: payout ? 0 : amount,
+        currency: requisition.currency,
+        description: `${requisition.requisitionNo ?? "Requisition"} ${payout ? "paid out to the supplier" : "change back"}`,
+        journalEntryId,
+      };
+    }
+    case "RETAIL_SUPPLIER_PAYMENT": {
+      const rows = await db.purchasePayment.findMany({
+        where: { companyId, groupNo: sourceId, requisitionId: null, status: "PAID" },
+        select: { amount: true, paidAt: true, vendorId: true, billId: true },
+      });
+      const first = rows[0];
+      if (!first?.vendorId) return null;
+      const bills = new Set(rows.map((row) => row.billId));
+      return {
+        companyId,
+        sourceType,
+        sourceId,
+        entryDate: first.paidAt,
+        accountType: "PAYABLE",
+        partyType: "VENDOR",
+        partyId: first.vendorId,
+        billId: bills.size === 1 ? first.billId : null,
+        debit: toMoney(rows.reduce((sum, row) => sum + row.amount, 0)),
+        credit: 0,
+        description: `Supplier payment ${sourceId}`,
         journalEntryId,
       };
     }

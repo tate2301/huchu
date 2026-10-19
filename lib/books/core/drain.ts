@@ -5,6 +5,8 @@ import { postIntegrationEvent } from "@/lib/accounting/integration";
 import { prisma } from "@/lib/prisma";
 import { RETAIL_SOURCE_TYPES } from "@/lib/retail/posting-settings";
 
+import { settleAdvances } from "./requisitions";
+
 /**
  * The one drain (books-final §1.1 rule 4): every 15 minutes, every money event
  * still PENDING or FAILED whose "not before" has come, for every source type
@@ -57,6 +59,8 @@ export async function drainCompany(companyId: string, now = new Date(), limit = 
     });
     summary[outcome] += 1;
   }
+  // A requisition accounted for before cash advances whose events have just posted: square its advance.
+  if (summary.posted > 0) await settleAdvances(companyId).catch((error: unknown) => console.error("[Books] settling cash advances failed:", error));
   return summary;
 }
 

@@ -108,6 +108,7 @@ afterAll(async () => {
   await prisma.notification.deleteMany({ where: { companyId } });
   await prisma.retailPurchaseOrder.deleteMany({ where: { companyId } });
   await prisma.product.updateMany({ where: { companyId }, data: { supplierId: null } });
+  await prisma.purchaseBill.deleteMany({ where: { companyId } });
   await prisma.vendor.deleteMany({ where: { companyId } });
   await destroyProvisionedTenant(companyId);
 });

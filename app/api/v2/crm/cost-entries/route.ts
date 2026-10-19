@@ -203,14 +203,17 @@ export async function POST(request: NextRequest) {
       addCostEntry(tx, { ...data, projectId, companyId, userId: session.user.id }),
     );
 
-    // An entry that names a requisition posts nothing: that money was
-    // expensed when it was disbursed, and posting it again would double the
-    // cost. Best-effort, like every other posting call — the line is the thing
-    // the person needs saved.
-    try {
-      await postCostEntry(companyId, entry, session.user.id, session.user.role);
-    } catch (error) {
-      console.error("[API] cost entry posting failed:", error);
+    // A spend posts with what it belongs to (books-final §5.3): against a
+    // requisition, with its acquittal; from their own pocket, with the claim
+    // the day becomes when it is submitted. Cash received still records its
+    // event, waiting for a person in Needs posting. Best-effort, like every
+    // other posting call — the line is the thing the person needs saved.
+    if (entry.direction === "RECEIVED") {
+      try {
+        await postCostEntry(companyId, entry, session.user.id, session.user.role);
+      } catch (error) {
+        console.error("[API] cost entry posting failed:", error);
+      }
     }
 
     const entries = await prisma.crmDailyCostEntry.findMany({

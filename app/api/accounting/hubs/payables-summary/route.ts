@@ -64,6 +64,7 @@ export async function GET(request: NextRequest) {
       prisma.purchasePayment.findMany({
         where: {
           companyId: session.user.companyId,
+          status: "PAID",
           ...(paymentDateFilter ? { paidAt: paymentDateFilter } : {}),
         },
         select: {

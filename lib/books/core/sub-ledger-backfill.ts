@@ -24,6 +24,10 @@ export const SUB_LEDGER_TYPES: AccountingSourceType[] = [
   "PURCHASE_PAYMENT",
   "PURCHASE_DEBIT_NOTE",
   "PURCHASE_WRITE_OFF",
+  // P2 (fix 1): retail's supplier money, an order's cash and its change.
+  "RETAIL_REQUISITION_PAYOUT",
+  "RETAIL_REQUISITION_CHANGE",
+  "RETAIL_SUPPLIER_PAYMENT",
 ];
 
 export async function writeMissingSubLedgerLines(companyId: string, db: Db = prisma): Promise<{ checked: number; written: number }> {
