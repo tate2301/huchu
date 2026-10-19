@@ -103,3 +103,52 @@ export function payablesMovedTo(searchParams: Query): string {
   delete rest.view;
   return mapped("/books/suppliers?view=by-age", rest);
 }
+
+// ── P3: Bank & cash, Tax, Close the month, Settings (books-final §3.4) ──────────
+
+/**
+ * `/accounting/banking` → Bank & cash: its accounts tab to Accounts, its
+ * transactions to Accounts too (each account lists them), its reconciliations
+ * to Reconciliations. New accounts are set up in Management's Money accounts.
+ */
+export function bankingMovedTo(searchParams: Query): string {
+  const { view, tab, ...rest } = searchParams;
+  const which = first(view) ?? first(tab);
+  if (which === "reconciliations") return mapped("/books/reconciliations", rest);
+  const account = first(rest.accountId) ?? first(rest.account);
+  if (account && /^[0-9a-f-]{36}$/i.test(account)) {
+    const others = { ...rest };
+    delete others.accountId;
+    delete others.account;
+    return mapped(`/books/accounts/${account}`, others);
+  }
+  return mapped("/books/accounts", rest);
+}
+
+/** `/accounting/currency` → Rates & revaluation. */
+export function currencyMovedTo(searchParams: Query): string {
+  const { view, ...rest } = searchParams;
+  return mapped(first(view) === "revaluation" ? "/books/rates?tab=revaluation" : "/books/rates", rest);
+}
+
+/** `/accounting/fiscalisation` → the Fiscal register; the device itself is set up in Management (Shop › Fiscal device). */
+export function fiscalisationMovedTo(searchParams: Query): string {
+  const { view, tab, ...rest } = searchParams;
+  const which = first(view) ?? first(tab);
+  if (which === "config" || which === "setup" || which === "device") return "/retail/manage/fiscal";
+  return mapped(which === "days" || which === "fiscal-days" ? "/books/fiscal?tab=days" : which === "failed" ? "/books/fiscal?tab=failed" : "/books/fiscal", rest);
+}
+
+const TAX_VIEWS: Record<string, string> = {
+  codes: "/books/settings/tax",
+  categories: "/books/settings/tax?tab=categories",
+  templates: "/books/settings/tax?tab=templates",
+  rules: "/books/settings/tax?tab=rules",
+  "vat-summary": "/books/vat",
+};
+
+/** `/accounting/tax/setup` → Settings › Tax codes & rules, on the view it named; the VAT summary is the VAT return. */
+export function taxSetupMovedTo(searchParams: Query): string {
+  const { view, ...rest } = searchParams;
+  return mapped(TAX_VIEWS[first(view) ?? ""] ?? "/books/settings/tax", rest);
+}

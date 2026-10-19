@@ -79,6 +79,24 @@ describe("proposeMatch", () => {
 });
 
 describe("invoiceReferences", () => {
+  it("proposes a transfer from another of the workspace's own accounts, by its name or last four digits", () => {
+    const own = { ...candidates, ownAccounts: [{ id: "eco", name: "EcoCash merchant", last4: "0412" }, { id: "zig", name: "CBZ current, ZWG", last4: "4472" }] };
+    expect(proposeMatch(line({ description: "Transfer from EcoCash 0412", amount: 800 }), own)).toMatchObject({
+      match: { kind: "transfer", otherAccountId: "eco", amount: 800 },
+      title: "Transfer from EcoCash merchant",
+    });
+    expect(proposeMatch(line({ description: "TRF to acc 4472", amount: 50, direction: "DEBIT" }), own)).toMatchObject({ match: { kind: "transfer", otherAccountId: "zig" }, title: "Transfer to CBZ current, ZWG" });
+  });
+
+  it("proposes IMTT as a bank entry to its own account, and says what payment it was on", () => {
+    const withPayment = { ...candidates, transactions: [{ id: "t1", date: "2026-10-14", description: "PAY-0061, ZIMRA", amount: 1184.6, direction: "DEBIT" as const }], imttRate: 0.02 };
+    expect(proposeMatch(line({ date: "2026-10-14", description: "IMTT 2% tax", amount: 23.69, direction: "DEBIT" }), withPayment)).toMatchObject({
+      match: { kind: "bank-charges", amount: 23.69, imtt: true },
+      title: "Bank entry: IMTT, to 5465",
+      reason: "2% of the US$1,184.60 paid on 14 Oct",
+    });
+  });
+
   it("reads the ways a customer writes an invoice number", () => {
     expect(invoiceReferences("Transfer Pomona Offices inv142")).toEqual([142]);
     expect(invoiceReferences("PAYMENT INV-0142")).toEqual([142]);

@@ -104,11 +104,13 @@ export const FIXTURE_INVOICES: InvoicesView = {
 };
 
 export const FIXTURE_BANK: BankView = {
-  accounts: [{ id: "cbz-usd", label: "CBZ, USD", bank: "CBZ", currency: "USD" }],
-  account: { id: "cbz-usd", label: "CBZ, USD", bank: "CBZ", currency: "USD" },
+  accounts: [{ id: "cbz-usd", label: "CBZ, USD", bank: "CBZ", currency: "USD", last4: "4471" }],
+  account: { id: "cbz-usd", label: "CBZ, USD", bank: "CBZ", currency: "USD", last4: "4471" },
   tab: "to-match",
-  counts: { toMatch: 4, matched: 57, everything: 61 },
+  counts: { toMatch: 4, matched: 57, excluded: 0, everything: 61 },
   proposed: 3,
+  statementTo: "Fri 16 Oct",
+  sums: { in: 1412.5, out: 330.4 },
   finding: {
     fact: "4 lines from CBZ since Friday are not matched.",
     rest: "Vane matched 3 of them overnight. Nothing is matched until you accept it.",
@@ -120,6 +122,8 @@ export const FIXTURE_BANK: BankView = {
       description: "EcoCash merchant settlement 0412",
       amount: "+$1,412.50",
       moneyIn: true,
+      value: 1412.50,
+      locked: false,
       state: "proposed",
       proposal: {
         kind: "ecocash",
@@ -138,6 +142,8 @@ export const FIXTURE_BANK: BankView = {
       description: "Transfer Pomona Offices inv142",
       amount: "+$500.00",
       moneyIn: true,
+      value: 500.00,
+      locked: false,
       state: "proposed",
       proposal: {
         kind: "invoice",
@@ -156,6 +162,8 @@ export const FIXTURE_BANK: BankView = {
       description: "Halsted Builders supplies",
       amount: "−$312.40",
       moneyIn: false,
+      value: -312.40,
+      locked: false,
       state: "proposed",
       proposal: {
         kind: "bill",
@@ -174,6 +182,8 @@ export const FIXTURE_BANK: BankView = {
       description: "Service fee October",
       amount: "−$18.00",
       moneyIn: false,
+      value: -18.00,
+      locked: false,
       state: "unmatched",
       proposal: null,
       reason: "No invoice or bill matches. It looks like CBZ's monthly charge, which you filed under bank charges in September.",

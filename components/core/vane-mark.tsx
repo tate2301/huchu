@@ -2,7 +2,7 @@
  * Vane's mark: an ink tile with the surface-coloured vane arrow. It follows
  * the theme, so it reads as ink on white in light and light on dark in dark.
  */
-export function VaneMark({ size = 16 }: { size?: 16 | 20 | 24 | 32 }) {
+export function VaneMark({ size = 16 }: { size?: 14 | 16 | 20 | 24 | 32 }) {
   return (
     <svg className="vn" width={size} height={size} viewBox="0 0 24 24" aria-hidden="true" style={{ flex: "none" }}>
       <rect width="24" height="24" rx="6" fill="var(--color-ink, var(--ink))" />

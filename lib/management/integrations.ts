@@ -109,7 +109,7 @@ export async function readIntegrations(
           : `Invoices are fiscalised through device ${fiscal.serialNumber ?? ""}`.trim()
         : "Fiscalise invoices and till receipts with ZIMRA",
       state: fiscal?.registeredAt ? (failing ? "failing" : "connected") : "available",
-      href: has("retail.") ? "/retail/manage/fiscal" : "/accounting/fiscalisation",
+      href: has("retail.") ? "/retail/manage/fiscal" : "/books/fiscal",
       action: fiscal?.registeredAt ? (failing ? "Fix" : undefined) : "Connect",
       mark: { kind: "icon", icon: "fiscal" },
     });
@@ -127,7 +127,7 @@ export async function readIntegrations(
           ? "Upload a statement and Books matches each line"
           : `Uploaded by hand. The last line is from ${lastLine!.txnDate.toLocaleDateString("en-GB", { day: "numeric", month: "long", timeZone: "UTC" })}`,
       state: due ? "due" : "connected",
-      href: "/accounting/banking",
+      href: "/books/accounts",
       action: due ? "Upload" : undefined,
       mark: { kind: "icon", icon: "bank" },
     });

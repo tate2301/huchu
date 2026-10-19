@@ -30,10 +30,6 @@ const NOT_YET_IN_BOOKS: Record<string, string> = {
   "/accounting/trial-balance": "P5, Ledger › Trial balance",
   "/accounting/financial-statements": "P5, Ledger › Financial statements",
   "/accounting/cost-centers": "P5, Ledger › Cost centres",
-  "/accounting/tax/setup": "P5, Settings › Tax codes & rules",
-  "/accounting/fiscalisation": "P3, Tax › Fiscal register",
-  "/accounting/currency": "P3, Close the month › Rates & revaluation",
-  "/accounting/banking": "P3, Bank & cash › Accounts",
   "/accounting": "P5, Settings › Set up the books",
 };
 
@@ -68,6 +64,10 @@ describe("no Books button opens /accounting (books-final §8, P1 exit)", () => {
     expect(accountingLinkProblem("/accounting/receivables")).toMatch(/Books page/);
     expect(accountingLinkProblem("/accounting/purchases")).toMatch(/Books page/);
     expect(accountingLinkProblem("/accounting/payables")).toMatch(/Books page/);
+    expect(accountingLinkProblem("/accounting/banking")).toMatch(/Books page/);
+    expect(accountingLinkProblem("/accounting/currency")).toMatch(/Books page/);
+    expect(accountingLinkProblem("/accounting/fiscalisation")).toMatch(/Books page/);
+    expect(accountingLinkProblem("/accounting/tax/setup")).toMatch(/Books page/);
     expect(accountingLinkProblem("/accounting/posting-rules")).toBeNull();
   });
 

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { movedTo, payablesMovedTo, purchasesMovedTo, receivablesMovedTo, salesMovedTo } from "./moved";
+import { bankingMovedTo, currencyMovedTo, fiscalisationMovedTo, movedTo, payablesMovedTo, purchasesMovedTo, receivablesMovedTo, salesMovedTo, taxSetupMovedTo } from "./moved";
 
 describe("an old Books address", () => {
   it("forwards to the new one with its query", () => {
@@ -80,5 +80,29 @@ describe("/accounting/payables", () => {
   it("lands on Suppliers by age, keeping the query", () => {
     expect(payablesMovedTo({})).toBe("/books/suppliers?view=by-age");
     expect(payablesMovedTo({ q: "Mutare", view: "x" })).toBe("/books/suppliers?view=by-age&q=Mutare");
+  });
+});
+
+describe("P3's old addresses: banking, currency, fiscalisation, tax setup (books-final §3.4)", () => {
+  it("sends Banking to Accounts, one account to its page, reconciliations to theirs", () => {
+    expect(bankingMovedTo({})).toBe("/books/accounts");
+    expect(bankingMovedTo({ view: "transactions" })).toBe("/books/accounts");
+    expect(bankingMovedTo({ view: "reconciliations" })).toBe("/books/reconciliations");
+    expect(bankingMovedTo({ accountId: "c4d9da9c-4fc9-4e45-8714-36a3edeb9940", q: "fee" })).toBe("/books/accounts/c4d9da9c-4fc9-4e45-8714-36a3edeb9940?q=fee");
+  });
+
+  it("sends Currency to Rates & revaluation and Fiscalisation to the Fiscal register, its setup to Management", () => {
+    expect(currencyMovedTo({})).toBe("/books/rates");
+    expect(currencyMovedTo({ view: "revaluation" })).toBe("/books/rates?tab=revaluation");
+    expect(fiscalisationMovedTo({})).toBe("/books/fiscal");
+    expect(fiscalisationMovedTo({ view: "failed" })).toBe("/books/fiscal?tab=failed");
+    expect(fiscalisationMovedTo({ tab: "config" })).toBe("/retail/manage/fiscal");
+  });
+
+  it("sends Tax setup to Tax codes & rules, on the view it named", () => {
+    expect(taxSetupMovedTo({})).toBe("/books/settings/tax");
+    expect(taxSetupMovedTo({ view: "rules" })).toBe("/books/settings/tax?tab=rules");
+    expect(taxSetupMovedTo({ view: "vat-summary" })).toBe("/books/vat");
+    for (const out of [bankingMovedTo({}), currencyMovedTo({}), fiscalisationMovedTo({}), taxSetupMovedTo({})]) expect(out).not.toMatch(/accounting/);
   });
 });

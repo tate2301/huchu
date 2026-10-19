@@ -68,7 +68,7 @@ export function PayAccountsDrawer({
       sub={sorted.length ? `${shown} of ${sorted.length} accounts print on quotes and invoices, in this order.` : undefined}
       width={480}
       footer={
-        <ButtonLink icon="plus" href="/accounting/banking">
+        <ButtonLink icon="plus" href="/books/accounts?action=new-account">
           Add an account
         </ButtonLink>
       }

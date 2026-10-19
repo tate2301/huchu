@@ -15,7 +15,11 @@ import { daysBetween, money, monthName, shortDay, weekday } from "./format";
  *    before (EcoCash pays the tills out the next day).
  * 4. A bank transaction already recorded in the books for the same amount,
  *    the same way, within three days.
- * 5. Money out that reads like the bank's own charge is proposed as bank
+ * 5. A transfer that names another of the workspace's own accounts (by a
+ *    distinctive word of its name or its last four digits) is proposed as a
+ *    transfer between them.
+ * 6. Money out that reads like IMTT is proposed as a bank entry to the IMTT
+ *    account (books-final §5.8.3); like the bank's own charge, as bank
  *    charges, as it was filed before when it was.
  */
 
@@ -44,6 +48,10 @@ export type MatchCandidates = {
   bankName: string;
   /** The month a line like this one was last filed under bank charges, `YYYY-MM-DD`. */
   chargesFiledBefore?: (line: StatementLineInput) => string | null;
+  /** The workspace's other money accounts in the line's currency: a transfer names one of them. */
+  ownAccounts?: Array<{ id: string; name: string; last4: string | null }>;
+  /** The IMTT rate on the line's currency, for the reason ("2% of the US$1,184.60 paid to ZIMRA"). */
+  imttRate?: number;
 };
 
 export type Match =
@@ -51,7 +59,9 @@ export type Match =
   | { kind: "bill"; billId: string; amount: number }
   | { kind: "ecocash"; day: string; amount: number }
   | { kind: "transaction"; transactionId: string }
-  | { kind: "bank-charges"; amount: number; imtt?: boolean };
+  | { kind: "bank-charges"; amount: number; imtt?: boolean }
+  /** Money moved between two of the workspace's own accounts: a bank entry (transfer) through the core. */
+  | { kind: "transfer"; otherAccountId: string; amount: number };
 
 export type Proposal = {
   match: Match;
@@ -178,12 +188,34 @@ export function proposeMatch(line: StatementLineInput, candidates: MatchCandidat
     return { match: null, reason: `${recorded.length} recorded transactions are for this amount. Choose the one it is.`, suggestion: null };
   }
 
-  // 5. The bank's own charge; IMTT goes to its own account (books-final §5.8.3).
+  // 5. A transfer between the workspace's own accounts.
+  if (/\btransfer|\btrf\b|\bsweep\b/i.test(text) && candidates.ownAccounts?.length) {
+    const lineWords = new Set(words(text));
+    const digits = text.replace(/\D+/g, " ");
+    const named = candidates.ownAccounts.filter((account) => {
+      const own = words(account.name).filter((word) => !STOP.has(word) && !["current", "account", "merchant", "cash"].includes(word));
+      return (own.length > 0 && own.some((word) => lineWords.has(word))) || (account.last4 !== null && new RegExp(`\\b${account.last4}\\b`).test(digits));
+    });
+    if (named.length === 1) {
+      const other = named[0];
+      return {
+        match: { kind: "transfer", otherAccountId: other.id, amount: line.amount },
+        title: line.direction === "CREDIT" ? `Transfer from ${other.name}` : `Transfer to ${other.name}`,
+        source: "Books",
+        reason: `The line names ${other.name}, one of your own accounts.`,
+      };
+    }
+  }
+
+  // 6. IMTT goes to its own account (books-final §5.8.3), proposed as a bank entry; the bank's own charge.
   if (line.direction === "DEBIT" && IMTT_LINE.test(text)) {
+    const rate = candidates.imttRate ?? 0.02;
+    const on = candidates.transactions.find((txn) => txn.direction === "DEBIT" && Math.abs(daysBetween(txn.date, line.date)) <= 2 && near(Math.round(txn.amount * rate * 100) / 100, line.amount));
     return {
-      match: null,
-      reason: `No invoice or bill matches. It reads like the IMTT ${candidates.bankName} took on a transfer.`,
-      suggestion: { match: { kind: "bank-charges", amount: line.amount, imtt: true }, title: "IMTT", source: "Books", reason: "Filed under IMTT." },
+      match: { kind: "bank-charges", amount: line.amount, imtt: true },
+      title: "Bank entry: IMTT, to 5465",
+      source: "Books",
+      reason: on ? `${Math.round(rate * 1000) / 10}% of the ${money(on.amount)} paid on ${shortDay(on.date)}` : `It reads like the IMTT ${candidates.bankName} took on a transfer.`,
     };
   }
   if (line.direction === "DEBIT" && BANK_CHARGE.test(text)) {

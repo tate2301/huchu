@@ -32,8 +32,8 @@ describe("Books' panel (design/core-modules/tools/boards/books_nav.py)", () => {
   it("draws each level's rows in the board's order, leaving out the ones with no page yet", () => {
     expect(level("books-sales")).toEqual(["Invoices", "Quotes", "Payments received", "Credit notes", "Customers"]);
     expect(level("books-spending")).toEqual(["All spending", "Bills", "Payments made", "Purchase orders", "Requisitions", "Claims & petty cash", "Suppliers"]);
-    expect(level("books-bank")).toEqual(["Accounts", "To match", "Takings"]);
-    expect(level("books-tax")).toEqual(["VAT returns", "Fiscal register"]);
+    expect(level("books-bank")).toEqual(["Accounts", "To match", "Reconciliations", "Takings"]);
+    expect(level("books-tax")).toEqual(["What's due", "VAT returns", "Withholding", "Provisional tax", "Fiscal register"]);
     expect(level("books-close")).toEqual(["Checklist", "Needs posting", "Rates & revaluation"]);
     expect(level("books-ledger")).toEqual([
       "Journals",

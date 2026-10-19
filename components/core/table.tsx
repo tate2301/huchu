@@ -90,11 +90,14 @@ export function TableFoot({
   range,
   sums = [],
   page,
+  end,
   selection,
 }: {
   /** "1 to 9 of 142". */
   range?: React.ReactNode;
   sums?: FootSum[];
+  /** A muted note or a tool at the row's end ("ZiG at 27.00 today"), before the pages. */
+  end?: React.ReactNode;
   page?: { onPrevious?: () => void; onNext?: () => void };
   selection?: {
     count: number;
@@ -136,8 +139,10 @@ export function TableFoot({
             {sum.label} <b>{sum.value}</b>
           </span>
         ))}
+        {end && !page ? <div className="end">{end}</div> : null}
         {page ? (
           <div className="end">
+            {end}
             <ButtonGroup aria-label="Pages">
               <Button icon="back" disabled={!page.onPrevious} onClick={page.onPrevious}>
                 Previous

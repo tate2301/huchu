@@ -74,6 +74,7 @@ import {
   Storefront,
   Columns,
   ListChecks,
+  PauseCircle,
   type LucideIcon,
 } from "@/lib/icons";
 import { PEOPLE_TABS } from "@/lib/people/tab-config";
@@ -347,18 +348,22 @@ export const BOOKS_NAV_ITEMS: NavItem[] = [
   { href: "/books/claims", icon: Receipt, label: "Claims & petty cash", group: "books-spending", roles: BOOKS_KEEPERS },
   { href: "/books/suppliers", icon: Storefront, label: "Suppliers", group: "books-spending", roles: BOOKS_KEEPERS },
 
-  { href: "/accounting/banking", icon: Vault, label: "Accounts", group: "books-bank" },
+  { href: "/books/accounts", icon: Vault, label: "Accounts", group: "books-bank" },
   { href: "/books/bank", icon: CreditCard, label: "To match", group: "books-bank" },
+  { href: "/books/reconciliations", icon: ListChecks, label: "Reconciliations", group: "books-bank" },
   // The tills' takings, counted and banked at the end of the day (retail only).
   { href: "/books/takings", icon: ShoppingBag, label: "Takings", group: "books-bank", requires: [["retail.end-of-day", "view"]] },
 
+  { href: "/books/tax", icon: Calendar, label: "What's due", group: "books-tax", roles: BOOKS_KEEPERS },
   { href: "/books/vat", icon: Percent, label: "VAT returns", group: "books-tax", roles: BOOKS_KEEPERS },
-  { href: "/accounting/fiscalisation", icon: QrCode, label: "Fiscal register", group: "books-tax", roles: BOOKS_KEEPERS },
+  { href: "/books/withholding", icon: PauseCircle, label: "Withholding", group: "books-tax", roles: BOOKS_KEEPERS },
+  { href: "/books/provisional-tax", icon: Calendar, label: "Provisional tax", group: "books-tax", roles: BOOKS_KEEPERS },
+  { href: "/books/fiscal", icon: QrCode, label: "Fiscal register", group: "books-tax", roles: BOOKS_KEEPERS },
 
   { href: "/books/periods", icon: ListBullets, label: "Checklist", group: "books-close", roles: BOOKS_KEEPERS },
   // Money that has not reached the ledger (BkNeedsPosting).
   { href: "/books/needs-posting", icon: Warning, label: "Needs posting", group: "books-close", roles: BOOKS_KEEPERS },
-  { href: "/accounting/currency", icon: Coins, label: "Rates & revaluation", group: "books-close", roles: BOOKS_KEEPERS },
+  { href: "/books/rates", icon: Coins, label: "Rates & revaluation", group: "books-close", roles: BOOKS_KEEPERS },
 
   { href: "/books/journals", icon: BookOpen, label: "Journals", group: "books-ledger", roles: BOOKS_KEEPERS },
   { href: "/accounting/trial-balance", icon: TableRows, label: "Trial balance", group: "books-ledger", roles: BOOKS_KEEPERS },
@@ -367,7 +372,7 @@ export const BOOKS_NAV_ITEMS: NavItem[] = [
   { href: "/accounting/cost-centers", icon: Layers, label: "Cost centres", group: "books-ledger", roles: BOOKS_KEEPERS },
   { href: "/accounting/posting-rules", icon: Checklist, label: "Posting rules", group: "books-ledger", roles: BOOKS_KEEPERS },
 
-  { href: "/accounting/tax/setup", icon: Percent, label: "Tax codes & rules", group: "books-settings", roles: BOOKS_KEEPERS },
+  { href: "/books/settings/tax", icon: Percent, label: "Tax codes & rules", group: "books-settings", roles: BOOKS_KEEPERS },
   { href: "/accounting", icon: MedusaCogSixToothIcon, label: "Set up the books", group: "books-settings", roles: BOOKS_KEEPERS, exact: true },
 ];
 

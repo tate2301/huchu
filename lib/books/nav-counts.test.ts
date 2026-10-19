@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { booksBadges, endOfWeek } from "./nav-counts";
 
-const none = { invoices: 0, onAccount: 0, bank: 0, takings: 0, needs: 0, bills: 0, requisitions: 0, claims: 0 };
+const none = { invoices: 0, onAccount: 0, bank: 0, takings: 0, needs: 0, bills: 0, requisitions: 0, claims: 0, fiscal: 0 };
 
 describe("Books' panel counts", () => {
   it("draws a figure beside each row that has one, and none for a zero", () => {
@@ -12,6 +12,7 @@ describe("Books' panel counts", () => {
 
   it("counts Bills & spending's rows: bills due this week, requisitions and claims to approve", () => {
     expect(booksBadges({ ...none, bills: 4, requisitions: 2, claims: 1 })).toEqual({ "/books/bills": "4", "/books/requisitions": "2", "/books/claims": "1" });
+    expect(booksBadges({ ...none, fiscal: 1 })).toEqual({ "/books/fiscal": "1" });
   });
 
   it("ends the week on Sunday night, today included when it is Sunday", () => {
