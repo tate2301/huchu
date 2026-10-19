@@ -204,3 +204,15 @@ export async function deleteUnpaidSupplierPayment(actor: BooksActor, id: string)
   await prisma.purchasePayment.delete({ where: { id } });
   return { deleted: id };
 }
+
+/**
+ * Paying at once, without a draft (Books' "Pay a supplier", Accounting's
+ * payments): only at or under the payments limit, or by the owner. Over it a
+ * payment is a draft sent for approval (books-final §2.4). Null when it may.
+ */
+export async function payNowRefusal(actor: BooksActor, amount: number): Promise<string | null> {
+  if (tierOf(actor) === "owner") return null;
+  const limits = await moneyLimits(actor.companyId);
+  if (amount <= limits.paymentOwnerOver + 0.004) return null;
+  return `Over ${limits.paymentOwnerOver.toFixed(2)} a payment waits for ${limits.ownerApprover?.name ?? "the owner"}: save it as a draft and send it for approval.`;
+}

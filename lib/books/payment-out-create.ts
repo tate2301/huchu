@@ -1,5 +1,6 @@
 import { z } from "zod";
 
+import { payNowRefusal } from "./core/supplier-payments";
 import { recordPurchasePayment, ReceiptRefused } from "@/lib/accounting/payments";
 import { prisma } from "@/lib/prisma";
 
@@ -63,6 +64,8 @@ export async function paySupplier(actor: BooksActor, input: SupplierPaymentInput
   if (!account) throw new ReceiptRefused("That money account is not here any more.", 404);
   const problem = supplierPaymentProblem(input, await openBillsFor(actor.companyId, vendor.id), account.currency);
   if (problem) throw new ReceiptRefused(problem);
+  const overLimit = await payNowRefusal(actor, input.bills.reduce((sum, row) => sum + row.amount, 0));
+  if (overLimit) throw new ReceiptRefused(overLimit, 409);
   const paid: Array<{ number: string; billId: string; amount: number }> = [];
   for (const row of input.bills) {
     const payment = await recordPurchasePayment({

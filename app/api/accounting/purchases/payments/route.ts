@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { payNowRefusal } from "@/lib/books/core/supplier-payments";
 import { z } from "zod";
 import { validateSession, successResponse, errorResponse, getPaginationParams, paginationResponse } from "@/lib/api-utils";
 import { prisma } from "@/lib/prisma";
@@ -53,8 +54,10 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json();
     const validated = paymentSchema.parse(body);
-    const { refused } = await guardBooks(session, "pay", { kind: "payment" });
+    const { actor, refused } = await guardBooks(session, "pay", { kind: "payment" });
     if (refused) return refused;
+    const overLimit = await payNowRefusal(actor, validated.amount);
+    if (overLimit) return errorResponse(overLimit, 403);
 
     if (validated.billId) {
       const bill = await prisma.purchaseBill.findUnique({
