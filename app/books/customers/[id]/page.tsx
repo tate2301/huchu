@@ -27,7 +27,7 @@ const STATUS: Record<string, { tone: "info" | "success" | "void" | "plain"; labe
 };
 
 function Boxed({ children }: { children: React.ReactNode }) {
-  return <div style={{ margin: "16px 24px 0", borderRadius: 10, boxShadow: "var(--shadow-ring)", overflowX: "auto" }}>{children}</div>;
+  return <div className="bk-bleed" style={{ marginTop: 16 }}>{children}</div>;
 }
 
 function Statement({ data, onPeriod }: { data: Page; onPeriod: (from: string, to: string) => void }) {
@@ -215,7 +215,7 @@ function CustomerRecord() {
             {tab === "statement" ? <Statement data={data} onPeriod={(from, to) => setPeriod({ from, to })} /> : null}
             {tab === "activity" ? (
               <Boxed>
-                <ol className="bk-tl" style={{ padding: "4px 16px" }}>
+                <ol className="bk-tl">
                   {[...data.statement.lines].reverse().map((line, index) => (
                     <li key={index}>
                       <span className={line.paid ? "d ok" : "d in"} />

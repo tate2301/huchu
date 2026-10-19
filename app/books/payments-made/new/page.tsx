@@ -230,7 +230,7 @@ function PayForm({ options, initialSupplier }: { options: BooksFormOptions; init
         </FormSec>
 
         <WideSec title="What moves">
-          <div style={{ borderRadius: 10, boxShadow: "var(--shadow-ring)", overflow: "hidden" }}>
+          <div className="bk-bleed bk-bleed-form">
             <table className="table" aria-label="What moves">
               <thead>
                 <tr>

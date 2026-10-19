@@ -53,7 +53,7 @@ function BooksCreditNotes() {
     (next: Partial<CreditQuery>) => {
       const merged = new URLSearchParams(params.toString());
       for (const [key, value] of Object.entries(next)) {
-        if (value === null || value === "" || (key === "view" && value === "notes") || (key === "page" && value === 1)) merged.delete(key);
+        if (value === null || value === "" || (key === "view" && value === "notes") || (key === "state" && value === "any") || (key === "sort" && value === "newest") || (key === "page" && value === 1)) merged.delete(key);
         else merged.set(key, String(value));
       }
       const query = merged.toString();
@@ -117,7 +117,17 @@ function BooksCreditNotes() {
                   ]}
                 />
               }
+              filters={[
+                { key: "any", label: "Any state", checked: data.query.state === "any", onSelect: () => onQuery({ state: "any", page: 1 }) },
+                ...(writeOffs ? [] : [{ key: "draft", label: "Drafts", checked: data.query.state === "draft", onSelect: () => onQuery({ state: "draft", page: 1 }) }]),
+                { key: "issued", label: writeOffs ? "Posted" : "Issued", checked: data.query.state === "issued", onSelect: () => onQuery({ state: "issued", page: 1 }) },
+                { key: "void", label: "Void", checked: data.query.state === "void", onSelect: () => onQuery({ state: "void", page: 1 }) },
+              ]}
               end={
+                <>
+                <Button variant="quiet" icon="sort" onClick={() => onQuery({ sort: data.query.sort === "newest" ? "oldest" : "newest", page: 1 })}>
+                  {data.query.sort === "newest" ? "Sort" : "Oldest first"}
+                </Button>
                 <Button
                   variant="quiet"
                   icon="export"
@@ -131,6 +141,7 @@ function BooksCreditNotes() {
                 >
                   Export
                 </Button>
+                </>
               }
             />
             <TableShell

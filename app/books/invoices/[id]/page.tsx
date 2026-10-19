@@ -9,7 +9,7 @@ import { BooksPage } from "@/components/books/figures";
 import { InvoiceDeleteDialog, ReverseDrawer, type InvoiceDeleted, type InvoiceReversed } from "@/components/books/invoice-actions";
 import { BkInvoiceView } from "@/components/books/bk-invoice-view";
 import { CreditDrawer, type CreditTarget } from "@/components/books/bk-credit-drawer";
-import { Button, ButtonLink, Empty, Kit } from "@/components/core";
+import { Button, ButtonGroup, ButtonLink, Empty, Kit } from "@/components/core";
 import { MenuButton, type MenuEntry } from "@/components/core/menu";
 import { PageChrome, type PageMenuItem } from "@/components/layout/page-chrome";
 import { useToast } from "@/components/ui/use-toast";
@@ -119,20 +119,19 @@ export default function BooksInvoicePage() {
     ? record.can.issue
       ? { label: "Issue", icon: "send" as const, shortcut: "I", onClick: () => (issue.isPending ? undefined : issue.mutate()), disabled: issue.isPending ? "Issuing it" : undefined }
       : { label: "Issue", disabled: "Your role cannot issue invoices. A manager or the accountant can." }
-    : record && record.status === "ISSUED" && record.balance > 0.005
-      ? can?.pay
-        ? { label: "Record a payment", icon: "payments" as const, shortcut: "R", href: `/books/payments/new?invoice=${record.id}&customer=${record.customer.id}` }
-        : { label: "Record a payment", icon: "payments" as const, disabled: "Your role cannot record payments." }
-      : null;
+    : null;
+  // An owing invoice has three actions: one group, Record a payment and a caret holding the rest (the owner, 19 Oct).
+  const owing = Boolean(record && record.status === "ISSUED" && record.balance > 0.005);
 
   // ⋯: everything else this invoice allows, each as the one matrix says (books-final §2.2). Revise comes with P4.
   const menu: MenuEntry[] = [];
+  if (record && owing) menu.push({ key: "remind", icon: "whatsapp", label: "Send a reminder", onSelect: () => remind.mutate() });
   if (record && !draft) {
     menu.push({ key: "statement", icon: "print", label: "Print a statement", onSelect: () => window.open(`/books/statements?customers=${record.customer.id}`, "_blank", "noopener") });
     if (can?.credit) menu.push({ key: "credit", icon: "invoice", label: "Credit note", onSelect: () => setCrediting("credit") });
     if (can?.writeOff) menu.push({ key: "write-off", icon: "retire", label: "Write off", onSelect: () => setCrediting("write-off") });
     if (record.status !== "VOIDED") {
-      menu.push({ key: "revise", icon: "edit", label: "Revise (comes later: void it and write a new one)", onSelect: () => toast({ title: "Revise comes later", description: "For now, void it and write a new one." }) });
+      menu.push({ key: "revise", icon: "edit", label: "Revise", disabled: true, title: "Revise comes later. For now, void it and write a new one.", onSelect: () => undefined });
     }
     if (can?.reverse) {
       menu.push({ separator: true });
@@ -147,7 +146,7 @@ export default function BooksInvoicePage() {
   // Below 720px the actions fold into ⋯ as menu items, so the menu closes as the drawer or dialog opens.
   const phoneMenu = React.useMemo<PageMenuItem[] | null>(() => {
     if (!record) return null;
-    return menu.flatMap((entry) => ("key" in entry ? [{ key: entry.key, label: typeof entry.label === "string" ? entry.label : entry.key, danger: entry.danger, onSelect: entry.onSelect }] : []));
+    return menu.flatMap((entry) => ("key" in entry && !entry.disabled ? [{ key: entry.key, label: typeof entry.label === "string" ? entry.label : entry.key, danger: entry.danger, onSelect: entry.onSelect }] : []));
     // The menu is rebuilt from the record on every render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [record, can?.credit, can?.writeOff, can?.reverse, can?.delete]);
@@ -170,11 +169,21 @@ export default function BooksInvoicePage() {
       <PageChrome title={record?.number ?? "Invoice"} backHref="/books/invoices" backLabel="Invoices" primary={primary} phoneMenu={phoneMenu}>
         {record ? (
           <Kit contents>
-            {menu.length > 0 ? <MenuButton iconOnly icon="more" iconEnd={undefined} align="end" label="More actions" aria-label="More actions" items={menu} /> : null}
-            {record.status === "ISSUED" && record.balance > 0.005 ? (
-              <Button icon="whatsapp" shortcut="S" busy={remind.isPending} disabled={remind.isPending} onClick={() => remind.mutate()}>
-                Send a reminder
-              </Button>
+            {owing ? (
+              <ButtonGroup aria-label="Record a payment, and more">
+                {can?.pay ? (
+                  <ButtonLink variant="primary" icon="payments" shortcut="R" href={`/books/payments/new?invoice=${record.id}&customer=${record.customer.id}`}>
+                    Record a payment
+                  </ButtonLink>
+                ) : (
+                  <Button variant="primary" icon="payments" disabled title="Your role cannot record payments.">
+                    Record a payment
+                  </Button>
+                )}
+                <MenuButton variant="primary" iconOnly icon="down" iconEnd={undefined} align="end" label="More actions" aria-label="More actions" items={menu} />
+              </ButtonGroup>
+            ) : menu.length > 0 ? (
+              <MenuButton iconOnly icon="more" iconEnd={undefined} align="end" label="More actions" aria-label="More actions" items={menu} />
             ) : null}
           </Kit>
         ) : null}

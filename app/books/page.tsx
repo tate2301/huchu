@@ -16,9 +16,9 @@ const NEW_INVOICE = { label: "New invoice", icon: "plus" as const, href: "/books
 
 /** What Record ▾ records: money in, money out, and spending, each on its Books form. */
 const RECORD = [
-  { key: "payment", label: "A payment received", href: "/books/payments/new" },
-  { key: "bill", label: "A bill", href: "/books/bills/new" },
-  { key: "pay", label: "A payment to a supplier", href: "/books/payments-made/new" },
+  { key: "payment", icon: "payments", label: "A payment received", href: "/books/payments/new" },
+  { key: "bill", icon: "docs", label: "A bill", href: "/books/bills/new" },
+  { key: "pay", icon: "expenses", label: "A payment to a supplier", href: "/books/payments-made/new" },
 ] as const;
 
 /** Books → Money (design/core-modules/boards/view/BkMoney.html). */
@@ -29,7 +29,7 @@ export default function BooksMoneyPage() {
     <>
       <PageChrome title="Money" primary={NEW_INVOICE}>
         <Kit contents>
-          <MenuButton label="Record" align="end" items={RECORD.map((item) => ({ key: item.key, label: item.label, onSelect: () => router.push(item.href) }))}>
+          <MenuButton label="Record" align="end" items={RECORD.map((item) => ({ key: item.key, icon: item.icon, label: item.label, onSelect: () => router.push(item.href) }))}>
             Record
           </MenuButton>
         </Kit>

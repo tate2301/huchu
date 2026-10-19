@@ -25,7 +25,7 @@ function Section({ id, title, sum, children }: { id: string; title: string; sum?
 }
 
 function Boxed({ children }: { children: React.ReactNode }) {
-  return <div style={{ margin: "0 24px", borderRadius: 10, boxShadow: "var(--shadow-ring)", overflowX: "auto" }}>{children}</div>;
+  return <div className="bk-bleed">{children}</div>;
 }
 
 /**
@@ -195,6 +195,16 @@ export function BkInvoiceView({ invoice }: { invoice: InvoiceRecordPage }) {
           </Section>
         ) : null}
 
+        {board && board.posting.length === 0 && !draft && invoice.status !== "VOIDED" ? (
+          <Section id="l4" title="Posting" sum="Not posted">
+            <p className="bk-note">
+              <Icon name="warn" />
+              <span>
+                Nothing has reached the ledger for {invoice.number} yet. <Link href="/books/needs-posting">Needs posting</Link> shows why, and posts it.
+              </span>
+            </p>
+          </Section>
+        ) : null}
         {board && board.posting.length > 0 ? (
           <Section id="l4" title="Posting" sum={board.entries === 1 ? "1 entry" : `${board.entries} entries`}>
             <Boxed>
@@ -235,8 +245,8 @@ export function BkInvoiceView({ invoice }: { invoice: InvoiceRecordPage }) {
 
         {board && board.history.length > 0 ? (
           <Section id="l5" title="History">
-            <div style={{ margin: "0 24px", borderRadius: 10, boxShadow: "var(--shadow-ring)" }}>
-              <ol className="bk-tl" style={{ padding: "4px 16px" }}>
+            <div className="bk-bleed">
+              <ol className="bk-tl">
                 {board.history.map((item, index) => (
                   <li key={index}>
                     <span className={item.tone ? `d ${item.tone}` : "d"} />
@@ -251,19 +261,25 @@ export function BkInvoiceView({ invoice }: { invoice: InvoiceRecordPage }) {
       </div>
 
       <aside className="rail" aria-label={`About ${invoice.number}`}>
-        {board?.fiscal ? (
+        {!draft ? (
           <section>
             <div className="sec-title">
               <Icon name="fiscal" /> Fiscal{" "}
               <span className="end">
-                <span className={`pill ${board.fiscal.status === "Valid" ? "pill-ok" : board.fiscal.status === "Failed" ? "pill-bad" : "pill-warn"}`}>{board.fiscal.status}</span>
+                {board?.fiscal ? (
+                  <span className={`pill ${board.fiscal.status === "Valid" ? "pill-ok" : board.fiscal.status === "Failed" ? "pill-bad" : "pill-warn"}`}>{board.fiscal.status}</span>
+                ) : (
+                  <span className="pill pill-n">Not sent</span>
+                )}
               </span>
             </div>
             <dl className="attrs" style={{ gridTemplateColumns: "minmax(0,1fr)", rowGap: 2 }}>
               <dt>Verification code</dt>
-              <dd className="mono">{board.fiscal.code ?? "Not yet"}</dd>
+              <dd className="mono">{board?.fiscal?.code ?? "—"}</dd>
+              <dt style={{ marginTop: 8 }}>Fiscal day</dt>
+              <dd>{board?.fiscal?.day ?? "—"}</dd>
               <dt style={{ marginTop: 8 }}>Signed</dt>
-              <dd>{board.fiscal.signed ?? (board.fiscal.error ? `Not signed: ${board.fiscal.error}` : "Not yet")}</dd>
+              <dd>{board?.fiscal?.signed ?? (board?.fiscal?.error ? `Not signed: ${board.fiscal.error}` : board?.fiscal ? "Not yet" : "No fiscal device signs it")}</dd>
             </dl>
           </section>
         ) : null}
@@ -281,8 +297,8 @@ export function BkInvoiceView({ invoice }: { invoice: InvoiceRecordPage }) {
             </dd>
             <dt>Terms</dt>
             <dd>{invoice.dueTerms}</dd>
-            <dt>Currency</dt>
-            <dd>{invoice.currency}</dd>
+            <dt>Rate</dt>
+            <dd>{board?.rate ?? "—"}</dd>
             <dt>Made by</dt>
             <dd>{invoice.madeBy}</dd>
           </dl>

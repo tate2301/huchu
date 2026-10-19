@@ -74,6 +74,8 @@ export async function readCustomers(db: Db, companyId: string, query: CustomerQu
   const map = await positions(db, companyId, currency, today);
   const base: Prisma.CustomerWhereInput = { companyId, isActive: true, mergedIntoId: null };
   if (query.q) base.OR = [{ name: { contains: query.q, mode: "insensitive" } }, { contactName: { contains: query.q, mode: "insensitive" } }, { phone: { contains: query.q } }];
+  if (query.vat === "yes") base.vatNumber = { not: null };
+  if (query.vat === "no") base.vatNumber = null;
   const owingIds = [...map.entries()].filter(([, entry]) => entry.owes > 0.005).map(([id]) => id);
   const accountIds = [...map.entries()].filter(([, entry]) => entry.onAccount > 0.005).map(([id]) => id);
   const where: Prisma.CustomerWhereInput =
@@ -88,7 +90,7 @@ export async function readCustomers(db: Db, companyId: string, query: CustomerQu
   ]);
   // Who owes most first on the money tabs; A to Z on All.
   const sorted =
-    query.view === "all"
+    query.view === "all" && query.sort === "name"
       ? records
       : [...records].sort((a, b) => (map.get(b.id)?.overdue ?? 0) - (map.get(a.id)?.overdue ?? 0) || (map.get(b.id)?.owes ?? 0) - (map.get(a.id)?.owes ?? 0));
   const page = sorted.slice((query.page - 1) * CUSTOMERS_PAGE_SIZE, query.page * CUSTOMERS_PAGE_SIZE);

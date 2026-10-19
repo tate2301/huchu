@@ -10,13 +10,22 @@ export const creditQuerySchema = z.object({
   view: z.enum(CREDIT_VIEWS).catch("notes"),
   q: z.string().trim().max(100).catch(""),
   customer: z.string().uuid().nullable().catch(null),
+  state: z.enum(["any", "draft", "issued", "void"]).catch("any"),
+  sort: z.enum(["newest", "oldest"]).catch("newest"),
   page: z.coerce.number().int().min(1).catch(1),
 });
 export type CreditQuery = z.infer<typeof creditQuerySchema>;
 
 export function readCreditQuery(params: URLSearchParams): CreditQuery {
   // `?view=write-offs` from the old Receivables address; anything else is the credit notes.
-  return creditQuerySchema.parse({ view: params.get("view") ?? undefined, q: params.get("q") ?? undefined, customer: params.get("customer") || null, page: params.get("page") ?? undefined });
+  return creditQuerySchema.parse({
+    view: params.get("view") ?? undefined,
+    q: params.get("q") ?? undefined,
+    customer: params.get("customer") || null,
+    state: params.get("state") ?? undefined,
+    sort: params.get("sort") ?? undefined,
+    page: params.get("page") ?? undefined,
+  });
 }
 
 export type CreditRow = {

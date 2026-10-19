@@ -44,6 +44,13 @@ const RESPONSIVE = `
    summary go under the page, and on a phone forms take one column. */
 .ck.ck.ck .sc-bk-a .mny, .ck.ck.ck .sc-bk-a .bk-rec, .ck.ck.ck .sc-bk-a .bk-fm { min-height: 0; overflow: auto; }
 .ck.ck.ck .sc-bk-a .bk-acts .btn, .ck.ck.ck .sc-bk-a .bk-undo .btn { flex: none; }
+/* Full bleed (the owner, 19 Oct): a table or list with dividers runs edge to edge of its pane, its top line
+   meeting the pane's edges; the cells keep 24px inside. In a form's padded column it reaches out over the padding. */
+.ck.ck.ck .sc-bk-a .bk-bleed { overflow-x: auto; box-shadow: inset 0 1px 0 var(--color-line); }
+.ck.ck.ck .sc-bk-a .bk-bleed .table th:first-child, .ck.ck.ck .sc-bk-a .bk-bleed .table td:first-child { padding-left: 24px; }
+.ck.ck.ck .sc-bk-a .bk-bleed .table th:last-child, .ck.ck.ck .sc-bk-a .bk-bleed .table td:last-child { padding-right: 24px; }
+.ck.ck.ck .sc-bk-a .bk-bleed .bk-tl { padding: 0 24px; }
+.ck.ck.ck .sc-bk-a .bk-bleed-form { margin-inline: -24px; }
 /* An owing invoice's two actions at the foot of a phone (BkInvoicePhone); at desktop width they are in the top bar. */
 .ck.ck.ck .sc-bk-a .bk-ph-acts { display: none; }
 @media (max-width: 1099px) {
@@ -75,6 +82,10 @@ const RESPONSIVE = `
   .ck.ck.ck .sc-bk-a .ws-tools .ws-find { flex: 1 1 100%; width: auto; }
   .ck.ck.ck .sc-bk-a .ws-tools .end { margin-left: 0; }
   .ck.ck.ck .sc-bk-a .ws-tools .sepv { display: none; }
+  .ck.ck.ck .sc-bk-a .bk-bleed .table th:first-child, .ck.ck.ck .sc-bk-a .bk-bleed .table td:first-child { padding-left: 16px; }
+  .ck.ck.ck .sc-bk-a .bk-bleed .table th:last-child, .ck.ck.ck .sc-bk-a .bk-bleed .table td:last-child { padding-right: 16px; }
+  .ck.ck.ck .sc-bk-a .bk-bleed .bk-tl { padding: 0 16px; }
+  .ck.ck.ck .sc-bk-a .bk-bleed-form { margin-inline: -16px; }
   .ck.ck.ck .sc-bk-a .bk-ph-acts { display: flex; flex-direction: column; gap: 8px; position: sticky; bottom: 0; padding: 12px 16px 28px; background: var(--color-surface); box-shadow: 0 -1px 0 var(--color-line); z-index: 2; }
   .ck.ck.ck .sc-bk-a .bk-ph-acts .btn { height: 48px; width: 100%; justify-content: center; font-size: 16px; }
 }

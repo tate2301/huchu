@@ -39,7 +39,7 @@ function BooksQuotes() {
     (next: Partial<QuoteQuery>) => {
       const merged = new URLSearchParams(params.toString());
       for (const [key, value] of Object.entries(next)) {
-        if (value === null || value === "" || (key === "view" && value === "sent") || (key === "page" && value === 1)) merged.delete(key);
+        if (value === null || value === "" || (key === "view" && value === "sent") || (key === "invoiced" && value === "any") || (key === "sort" && value === "newest") || (key === "page" && value === 1)) merged.delete(key);
         else merged.set(key, String(value));
       }
       const query = merged.toString();
@@ -89,7 +89,16 @@ function BooksQuotes() {
                   ]}
                 />
               }
+              filters={[
+                { key: "any", label: "Invoiced or not", checked: data.query.invoiced === "any", onSelect: () => onQuery({ invoiced: "any", page: 1 }) },
+                { key: "no", label: "Not invoiced yet", checked: data.query.invoiced === "no", onSelect: () => onQuery({ invoiced: "no", page: 1 }) },
+                { key: "yes", label: "Made into an invoice", checked: data.query.invoiced === "yes", onSelect: () => onQuery({ invoiced: "yes", page: 1 }) },
+              ]}
               end={
+                <>
+                <Button variant="quiet" icon="sort" onClick={() => onQuery({ sort: data.query.sort === "newest" ? "oldest" : "newest", page: 1 })}>
+                  {data.query.sort === "newest" ? "Sort" : "Oldest first"}
+                </Button>
                 <Button
                   variant="quiet"
                   icon="export"
@@ -103,6 +112,7 @@ function BooksQuotes() {
                 >
                   Export
                 </Button>
+                </>
               }
             />
             <TableShell

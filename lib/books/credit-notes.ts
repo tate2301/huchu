@@ -22,14 +22,17 @@ export async function readCreditNotes(db: Db, companyId: string, query: CreditQu
   const search = query.q
     ? [{ reason: { contains: query.q, mode: "insensitive" as const } }, { invoice: { invoiceNumber: { contains: query.q, mode: "insensitive" as const } } }, { invoice: { customer: { name: { contains: query.q, mode: "insensitive" as const } } } }]
     : undefined;
-  const noteWhere: Prisma.CreditNoteWhereInput = { companyId, invoice: invoiceFilter, ...(search ? { OR: [...search, { noteNumber: { contains: query.q, mode: "insensitive" } }] } : {}) };
-  const writeOffWhere: Prisma.SalesWriteOffWhereInput = { companyId, invoice: invoiceFilter, ...(search ? { OR: [...search, { writeOffNumber: { contains: query.q, mode: "insensitive" } }] } : {}) };
+  const noteState = { any: undefined, draft: "DRAFT" as const, issued: "ISSUED" as const, void: "VOIDED" as const }[query.state];
+  const writeOffState = { any: undefined, draft: undefined, issued: "POSTED" as const, void: "VOIDED" as const }[query.state];
+  const noteWhere: Prisma.CreditNoteWhereInput = { companyId, invoice: invoiceFilter, ...(noteState ? { status: noteState } : {}), ...(search ? { OR: [...search, { noteNumber: { contains: query.q, mode: "insensitive" } }] } : {}) };
+  const writeOffWhere: Prisma.SalesWriteOffWhereInput = { companyId, invoice: invoiceFilter, ...(writeOffState ? { status: writeOffState } : {}), ...(search ? { OR: [...search, { writeOffNumber: { contains: query.q, mode: "insensitive" } }] } : {}) };
+  const order = query.sort === "newest" ? "desc" : "asc";
   const skip = (query.page - 1) * CREDITS_PAGE_SIZE;
   const [notes, writeOffs, noteCount, writeOffCount, monthNotes, monthWriteOffs, drafts, customers] = await Promise.all([
     query.view === "notes"
       ? db.creditNote.findMany({
           where: noteWhere,
-          orderBy: [{ noteDate: "desc" }, { createdAt: "desc" }],
+          orderBy: [{ noteDate: order }, { createdAt: order }],
           skip,
           take: CREDITS_PAGE_SIZE,
           select: { id: true, noteNumber: true, noteDate: true, status: true, total: true, currency: true, reason: true, invoice: { select: { id: true, invoiceNumber: true, customer: { select: { name: true } } } } },
@@ -38,7 +41,7 @@ export async function readCreditNotes(db: Db, companyId: string, query: CreditQu
     query.view === "write-offs"
       ? db.salesWriteOff.findMany({
           where: writeOffWhere,
-          orderBy: { createdAt: "desc" },
+          orderBy: { createdAt: order },
           skip,
           take: CREDITS_PAGE_SIZE,
           select: { id: true, writeOffNumber: true, createdAt: true, status: true, amount: true, reason: true, invoice: { select: { id: true, invoiceNumber: true, currency: true, customer: { select: { name: true } } } } },

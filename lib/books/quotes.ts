@@ -16,6 +16,8 @@ export const QUOTES_PAGE_SIZE = 50;
 function quoteWhere(companyId: string, query: QuoteQuery): Prisma.SalesQuotationWhereInput {
   const where: Prisma.SalesQuotationWhereInput = { companyId, status: QUOTE_STATUS[query.view] };
   if (query.customer) where.customerId = query.customer;
+  if (query.invoiced === "yes") where.invoicesRaised = { some: {} };
+  if (query.invoiced === "no") where.invoicesRaised = { none: {} };
   if (query.q) {
     where.OR = [
       { quotationNumber: { contains: query.q, mode: "insensitive" } },
@@ -32,7 +34,7 @@ export async function readQuotes(db: Db, companyId: string, query: QuoteQuery, n
   const [records, matching, sent, customers, ...counts] = await Promise.all([
     db.salesQuotation.findMany({
       where,
-      orderBy: [{ quotationDate: "desc" }, { quotationNumber: "desc" }],
+      orderBy: [{ quotationDate: query.sort === "newest" ? "desc" : "asc" }, { quotationNumber: query.sort === "newest" ? "desc" : "asc" }],
       skip: (query.page - 1) * QUOTES_PAGE_SIZE,
       take: QUOTES_PAGE_SIZE,
       select: {

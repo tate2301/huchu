@@ -6,7 +6,9 @@ export type InvoiceBoardExtras = {
   entries: number;
   /** Newest first. tone: "" planned or drafted, "in" issued or sent, "ok" signed or paid, "wa" credited or voided. */
   history: Array<{ tone: "" | "in" | "ok" | "wa"; text: string; when: string }>;
-  fiscal: { status: "Valid" | "Failed" | "Pending" | "Void"; code: string | null; signed: string | null; qr: string | null; error: string | null } | null;
+  fiscal: { status: "Valid" | "Failed" | "Pending" | "Void"; code: string | null; day: number | null; signed: string | null; qr: string | null; error: string | null } | null;
+  /** "27.00, RBZ interbank", or none for the books' own currency. */
+  rate: string;
   /** "6 Oct, from QT-0386". */
   issued: string | null;
 };

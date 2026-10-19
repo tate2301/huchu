@@ -1,5 +1,6 @@
 import type { PrismaClient } from "@prisma/client";
 
+import { rateFor } from "./core/rate";
 import { asOf, dayOf, methodWord, shortDay, storedDay } from "./format";
 import type { InvoiceBoardExtras } from "./invoice-board-view";
 
@@ -21,13 +22,14 @@ export async function readInvoiceExtras(db: Db, companyId: string, invoiceId: st
       invoiceNumber: true,
       invoiceDate: true,
       dueDate: true,
+      currency: true,
       createdAt: true,
       issuedAt: true,
       madeByVane: true,
       createdBy: { select: { name: true } },
       issuedBy: { select: { name: true } },
       fromQuotation: { select: { quotationNumber: true } },
-      fiscalReceipt: { select: { status: true, fiscalNumber: true, receiptNumber: true, issuedAt: true, qrCodeData: true, lastError: true } },
+      fiscalReceipt: { select: { status: true, fiscalNumber: true, receiptNumber: true, issuedAt: true, qrCodeData: true, lastError: true, fiscalDay: { select: { fiscalDayNo: true } } } },
       receipts: {
         orderBy: { receivedAt: "asc" },
         select: {
@@ -93,6 +95,10 @@ export async function readInvoiceExtras(db: Db, companyId: string, invoiceId: st
   history.sort((a, b) => b.sort - a.sort);
 
   const fiscal = invoice.fiscalReceipt;
+  // The rate on its day; the ledger keeps it with the posting until the invoice has a column of its own (D3).
+  const rate = await rateFor(companyId, invoice.currency, invoice.invoiceDate)
+    .then((frozen) => (frozen.source === "BASE" ? `None, it is in ${frozen.currency}` : `${frozen.rate.toFixed(2)}, ${frozen.source === "RBZ" ? "RBZ interbank" : "typed in"}`))
+    .catch(() => "No rate on its day");
   return {
     payments: invoice.receipts.map((receipt) => ({
       id: receipt.id,
@@ -123,11 +129,13 @@ export async function readInvoiceExtras(db: Db, companyId: string, invoiceId: st
       ? {
           status: fiscal.status === "SUCCESS" ? "Valid" : fiscal.status === "FAILED" ? "Failed" : fiscal.status === "VOIDED" ? "Void" : "Pending",
           code: fiscal.fiscalNumber ?? fiscal.receiptNumber ?? null,
+          day: fiscal.fiscalDay?.fiscalDayNo ?? null,
           signed: fiscal.issuedAt ? at(fiscal.issuedAt) : null,
           qr: fiscal.qrCodeData ?? null,
           error: fiscal.lastError ?? null,
         }
       : null,
+    rate,
     issued: invoice.issuedAt ? `${shortDay(dayOf(invoice.issuedAt))}${invoice.fromQuotation ? `, from ${invoice.fromQuotation.quotationNumber}` : ""}` : null,
   };
 }

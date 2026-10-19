@@ -11,12 +11,21 @@ export const quoteQuerySchema = z.object({
   view: z.enum(QUOTE_VIEWS).catch("sent"),
   q: z.string().trim().max(100).catch(""),
   customer: z.string().uuid().nullable().catch(null),
+  invoiced: z.enum(["any", "yes", "no"]).catch("any"),
+  sort: z.enum(["newest", "oldest"]).catch("newest"),
   page: z.coerce.number().int().min(1).catch(1),
 });
 export type QuoteQuery = z.infer<typeof quoteQuerySchema>;
 
 export function readQuoteQuery(params: URLSearchParams): QuoteQuery {
-  return quoteQuerySchema.parse({ view: params.get("view") ?? undefined, q: params.get("q") ?? undefined, customer: params.get("customer") || null, page: params.get("page") ?? undefined });
+  return quoteQuerySchema.parse({
+    view: params.get("view") ?? undefined,
+    q: params.get("q") ?? undefined,
+    customer: params.get("customer") || null,
+    invoiced: params.get("invoiced") ?? undefined,
+    sort: params.get("sort") ?? undefined,
+    page: params.get("page") ?? undefined,
+  });
 }
 
 export type QuoteRow = {

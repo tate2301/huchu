@@ -13,6 +13,8 @@ export const customerQuerySchema = z.object({
   view: z.enum(CUSTOMER_VIEWS).catch("all"),
   q: z.string().trim().max(100).catch(""),
   currency: z.string().trim().regex(/^[A-Za-z]{3}$/).nullable().catch(null),
+  vat: z.enum(["any", "yes", "no"]).catch("any"),
+  sort: z.enum(["name", "owes"]).catch("name"),
   page: z.coerce.number().int().min(1).catch(1),
 });
 export type CustomerQuery = z.infer<typeof customerQuerySchema>;
@@ -22,6 +24,8 @@ export function readCustomerQuery(params: URLSearchParams): CustomerQuery {
     view: params.get("view") ?? undefined,
     q: params.get("q") ?? undefined,
     currency: params.get("currency") || null,
+    vat: params.get("vat") ?? undefined,
+    sort: params.get("sort") ?? undefined,
     page: params.get("page") ?? undefined,
   });
 }

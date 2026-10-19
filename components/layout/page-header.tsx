@@ -166,6 +166,54 @@ export function PageHeader() {
             {identity.subLink.label}
           </Link>
         ) : null}
+        {/* The owner, 19 Oct: the page's actions sit on the left, after the title; Search and the bell on the far right. */}
+        <div className="ml-4 flex min-w-0 shrink-0 items-center gap-2">
+          {actions ? <div className="flex shrink-0 items-center gap-2">{actions}</div> : null}
+          {primary?.menu?.length ? (
+            <Menu>
+              <MenuTrigger asChild>
+                <Button variant="primary" icon={primary.icon === "plus" ? <Plus className="size-3.5" aria-hidden="true" /> : undefined}>
+                  {primary.label}
+                </Button>
+              </MenuTrigger>
+              <MenuContent align="start">
+                {primary.menu.map((item) => (
+                  <MenuItem key={item.href} onSelect={() => router.push(item.href)}>
+                    {item.label}
+                  </MenuItem>
+                ))}
+              </MenuContent>
+            </Menu>
+          ) : primary?.disabled ? (
+            <span title={primary.disabled} className="inline-flex">
+              <Button variant="primary" disabled aria-description={primary.disabled}>
+                {primary.label}
+              </Button>
+            </span>
+          ) : primary ? (
+            <Kit contents>
+              {primaryHref && !primary.onClick ? (
+                <KitButtonLink
+                  href={primaryHref}
+                  variant="primary"
+                  icon={primary.icon}
+                  shortcut={primaryShortcut(primary)}
+                >
+                  {primary.label}
+                </KitButtonLink>
+              ) : (
+                <KitButton
+                  variant="primary"
+                  icon={primary.icon}
+                  shortcut={primaryShortcut(primary)}
+                  onClick={() => runPrimary(primary)}
+                >
+                  {primary.label}
+                </KitButton>
+              )}
+            </Kit>
+          ) : null}
+        </div>
         <div className="flex-1" />
         <div className="flex shrink-0 items-center gap-2">
           {showMembers ? <CrmMembers className="mr-1" /> : null}
@@ -173,51 +221,6 @@ export function PageHeader() {
           <DeviceStatus />
           <NotificationsBell />
         </div>
-        {actions ? <div className="flex shrink-0 items-center gap-2">{actions}</div> : null}
-        {primary?.menu?.length ? (
-          <Menu>
-            <MenuTrigger asChild>
-              <Button variant="primary" icon={primary.icon === "plus" ? <Plus className="size-3.5" aria-hidden="true" /> : undefined}>
-                {primary.label}
-              </Button>
-            </MenuTrigger>
-            <MenuContent align="end">
-              {primary.menu.map((item) => (
-                <MenuItem key={item.href} onSelect={() => router.push(item.href)}>
-                  {item.label}
-                </MenuItem>
-              ))}
-            </MenuContent>
-          </Menu>
-        ) : primary?.disabled ? (
-          <span title={primary.disabled} className="inline-flex">
-            <Button variant="primary" disabled aria-description={primary.disabled}>
-              {primary.label}
-            </Button>
-          </span>
-        ) : primary ? (
-          <Kit contents>
-            {primaryHref && !primary.onClick ? (
-              <KitButtonLink
-                href={primaryHref}
-                variant="primary"
-                icon={primary.icon}
-                shortcut={primaryShortcut(primary)}
-              >
-                {primary.label}
-              </KitButtonLink>
-            ) : (
-              <KitButton
-                variant="primary"
-                icon={primary.icon}
-                shortcut={primaryShortcut(primary)}
-                onClick={() => runPrimary(primary)}
-              >
-                {primary.label}
-              </KitButton>
-            )}
-          </Kit>
-        ) : null}
       </div>
 
       {/* <720px (Mobile board) */}

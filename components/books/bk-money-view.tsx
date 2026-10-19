@@ -116,7 +116,7 @@ export function BkMoneyView({ data }: { data: MoneyBoard }) {
             </p>
           ) : (
             <>
-              <div style={{ margin: "0 24px", borderRadius: 10, boxShadow: "var(--shadow-ring)", overflowX: "auto" }}>
+              <div className="bk-bleed">
                 <table className="table" aria-label="Bank and cash">
                   <thead>
                     <tr>

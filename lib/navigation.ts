@@ -341,8 +341,8 @@ export const BOOKS_NAV_ITEMS: NavItem[] = [
 
   { href: "/books/expenses", icon: Wallet, label: "All spending", group: "books-spending", roles: BOOKS_KEEPERS },
   // Today's bills, supplier payments and suppliers until P2 builds their Books pages.
-  { href: "/accounting/purchases?view=bills", icon: FileText, label: "Bills", group: "books-spending", roles: BOOKS_KEEPERS },
-  { href: "/accounting/purchases?view=payments", icon: Payments, label: "Payments made", group: "books-spending", roles: BOOKS_KEEPERS },
+  { href: "/accounting/purchases?view=bills", icon: FileText, label: "Bills", group: "books-spending", roles: BOOKS_KEEPERS, also: /^\/books\/bills(\/|$)/ },
+  { href: "/accounting/purchases?view=payments", icon: Payments, label: "Payments made", group: "books-spending", roles: BOOKS_KEEPERS, also: /^\/books\/payments-made(\/|$)/ },
   { href: "/accounting/purchases", icon: Storefront, label: "Suppliers", group: "books-spending", roles: BOOKS_KEEPERS },
 
   { href: "/accounting/banking", icon: Vault, label: "Accounts", group: "books-bank" },

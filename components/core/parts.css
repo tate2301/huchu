@@ -485,3 +485,7 @@
   .ck.ck.ck .bk-map { grid-template-columns: minmax(0, 1fr); gap: 24px; padding: 20px 16px 24px; }
   .ck.ck.ck .bk-tabs { padding: 0 16px; }
 }
+
+/* A menu item that cannot be pressed now: faint, its icon too (the owner, 19 Oct: menus are one line, colour carries the state). */
+.ck.ck.ck .menu-item[aria-disabled="true"], .ck.ck.ck .menu-item[aria-disabled="true"] .ic { color: var(--color-faint); cursor: default; }
+.ck.ck.ck .menu-item[aria-disabled="true"]:hover { background: transparent; }

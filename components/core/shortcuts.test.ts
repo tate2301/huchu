@@ -66,9 +66,9 @@ type Binding = { file: string; pattern?: RegExp };
 /** Each row of the spec, by "key | action", and where it is bound. */
 const BINDINGS: Record<string, Binding[]> = {
   "Ctrl K | Search everything": [
-    // The existing global handler, and the top bar's search showing the key.
+    // The existing global handler, and the top bar's search button naming the key (an icon button since 19 Oct).
     { file: "components/layout/command-bar/global-command-bar.tsx", pattern: /event\.key === "k" && \(event\.metaKey \|\| event\.ctrlKey\)/ },
-    { file: "components/layout/app-bar-tools.tsx", pattern: /<Kbd>Ctrl K<\/Kbd>/ },
+    { file: "components/layout/app-bar-tools.tsx", pattern: /aria-label="Search everything, Ctrl K"/ },
   ],
   "Ctrl J | Give Vane a job (opens the Vane panel on its box)": [{ file: "components/vane/vane-panel.tsx" }],
   "/ | Search this panel, or add a block in the builder": [

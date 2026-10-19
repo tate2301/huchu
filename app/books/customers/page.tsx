@@ -51,7 +51,7 @@ function BooksCustomers() {
     (next: Partial<CustomerQuery>) => {
       const merged = new URLSearchParams(params.toString());
       for (const [key, value] of Object.entries(next)) {
-        if (value === null || value === "" || (key === "view" && value === "all") || (key === "page" && value === 1)) merged.delete(key);
+        if (value === null || value === "" || (key === "view" && value === "all") || (key === "vat" && value === "any") || (key === "sort" && value === "name") || (key === "page" && value === 1)) merged.delete(key);
         else merged.set(key, String(value));
       }
       const query = merged.toString();
@@ -100,7 +100,18 @@ function BooksCustomers() {
                   ]}
                 />
               }
-              end={<BkQuietTools exportHref={`/api/books/customers?${new URLSearchParams([...params.entries(), ["format", "csv"]]).toString()}`} />}
+              filters={[
+                { key: "any", label: "With or without a VAT number", checked: data.query.vat === "any", onSelect: () => onQuery({ vat: "any", page: 1 }) },
+                { key: "yes", label: "With a VAT number", checked: data.query.vat === "yes", onSelect: () => onQuery({ vat: "yes", page: 1 }) },
+                { key: "no", label: "No VAT number on file", checked: data.query.vat === "no", onSelect: () => onQuery({ vat: "no", page: 1 }) },
+              ]}
+              end={
+                <BkQuietTools
+                  onSort={() => onQuery({ sort: data.query.sort === "name" ? "owes" : "name", page: 1 })}
+                  sortLabel={data.query.sort === "name" ? "Sort" : "Owes most first"}
+                  exportHref={`/api/books/customers?${new URLSearchParams([...params.entries(), ["format", "csv"]]).toString()}`}
+                />
+              }
             />
             <TableShell
               label="Customers"
