@@ -194,7 +194,7 @@ export const ACCOUNTING_TABS: AccountingTabItem[] = [
   {
     id: "payables",
     label: "Payables",
-    href: "/accounting/purchases",
+    href: "/books/bills",
     icon: PackageCheck,
     featureKey: "accounting.ap",
     categoryId: "payables",
@@ -246,7 +246,7 @@ export const ACCOUNTING_TABS: AccountingTabItem[] = [
   {
     id: "ap-report",
     label: "AP Report",
-    href: "/accounting/payables",
+    href: "/books/suppliers?view=by-age",
     icon: BarChart3,
     featureKey: "accounting.ap",
     categoryId: "reports",

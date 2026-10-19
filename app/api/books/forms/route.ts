@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { errorResponse, successResponse, validateSession } from "@/lib/api-utils";
+import { booksActor, canDo } from "@/lib/books/core";
 import { moneyLimits } from "@/lib/books/core/approvals";
 import { readFormOptions } from "@/lib/books/form-options";
 import { openBillsFor } from "@/lib/books/payment-out-create";
@@ -44,7 +45,9 @@ export async function GET(request: NextRequest) {
     const openBills = vendorId && /^[0-9a-f-]{36}$/i.test(vendorId) ? await openBillsFor(companyId, vendorId) : [];
     // Bills and supplier payments over this wait for the owner (books-final §2.4): the forms say so before it is pressed.
     const limits = form.parties === "suppliers" ? await moneyLimits(companyId) : null;
-    const approval = limits ? { limit: limits.paymentOwnerOver, orderLimit: limits.requisitionOwnerOver, owner: limits.ownerApprover?.name ?? null } : null;
+    // Who pays it once approved: this person, if they may pay supplier payments.
+    const youPay = limits && form.series === "payment" ? canDo(await booksActor(sessionResult.session), "pay", { kind: "payment" }).allowed : false;
+    const approval = limits ? { limit: limits.paymentOwnerOver, orderLimit: limits.requisitionOwnerOver, owner: limits.ownerApprover?.name ?? null, youPay } : null;
     // Snap a slip: the floats it can be spent from, and the jobs it can be for.
     const claim =
       params.get("for") === "claim"
@@ -53,7 +56,12 @@ export async function GET(request: NextRequest) {
             projects: await prisma.crmProject.findMany({ where: { companyId, status: { in: ["ACTIVE", "PLANNING"] } }, orderBy: { name: "asc" }, take: 200, select: { id: true, name: true } }).catch(() => []),
           }
         : null;
-    return successResponse({ ...options, quote, openInvoices, openBills, approval, ...(claim ?? {}) });
+    // Pay a supplier: from the account the last supplier payment left from, unless the person picks another.
+    const lastPaid =
+      form.series === "payment"
+        ? await prisma.purchasePayment.findFirst({ where: { companyId, status: "PAID", requisitionId: null, bankAccountId: { not: null }, bankAccount: { isActive: true } }, orderBy: { paidAt: "desc" }, select: { bankAccountId: true } })
+        : null;
+    return successResponse({ ...options, quote, openInvoices, openBills, approval, payFrom: lastPaid?.bankAccountId ?? null, ...(claim ?? {}) });
   } catch (error) {
     console.error("[API] GET /api/books/forms error:", error);
     return errorResponse("Could not read what the form needs");

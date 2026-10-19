@@ -64,6 +64,8 @@ export async function readFormOptions(db: Db, companyId: string, parties: "custo
       id: account.id,
       label: `${account.bankName && !account.name.toLowerCase().includes(account.bankName.toLowerCase()) ? `${account.bankName} ${account.name}` : account.name}, ${account.currency.toUpperCase()}`,
       currency: account.currency.toUpperCase(),
+      /** The bank alone, as a payment's lines name it: "CBZ". */
+      bank: account.bankName || account.name,
       kind: account.kind,
     })),
     nextNumber: next,

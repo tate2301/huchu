@@ -34,7 +34,6 @@ const NOT_YET_IN_BOOKS: Record<string, string> = {
   "/accounting/fiscalisation": "P3, Tax › Fiscal register",
   "/accounting/currency": "P3, Close the month › Rates & revaluation",
   "/accounting/banking": "P3, Bank & cash › Accounts",
-  "/accounting/purchases": "P2, Bills & spending › Bills, Payments made, Suppliers",
   "/accounting": "P5, Settings › Set up the books",
 };
 
@@ -67,6 +66,8 @@ describe("no Books button opens /accounting (books-final §8, P1 exit)", () => {
     expect(accountingLinkProblem("/accounting/purchases?action=new-bill")).toMatch(/form/);
     expect(accountingLinkProblem("/accounting/sales")).toMatch(/Books page/);
     expect(accountingLinkProblem("/accounting/receivables")).toMatch(/Books page/);
+    expect(accountingLinkProblem("/accounting/purchases")).toMatch(/Books page/);
+    expect(accountingLinkProblem("/accounting/payables")).toMatch(/Books page/);
     expect(accountingLinkProblem("/accounting/posting-rules")).toBeNull();
   });
 
@@ -83,8 +84,8 @@ describe("no Books button opens /accounting (books-final §8, P1 exit)", () => {
     expect(problems).toEqual([]);
   });
 
-  it("gives every Sales row a Books address", () => {
-    for (const item of BOOKS_NAV_ITEMS.filter((row) => row.group === "books-sales")) expect(item.href.startsWith("/books/")).toBe(true);
+  it("gives every Sales and Bills & spending row a Books address", () => {
+    for (const item of BOOKS_NAV_ITEMS.filter((row) => row.group === "books-sales" || row.group === "books-spending")) expect(item.href.startsWith("/books/")).toBe(true);
   });
 
   const origin = process.env.BOOKS_CRAWL_ORIGIN;

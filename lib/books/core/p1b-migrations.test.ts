@@ -32,7 +32,10 @@ async function backfill(name: string) {
   const statements = sql
     .split(/;\s*\n/)
     .map((part) => part.replace(/^\s*--.*$/gm, "").trim())
-    .filter((part) => /^(UPDATE|WITH|INSERT)\b/i.test(part));
+    .filter((part) => /^(UPDATE|WITH|INSERT)\b/i.test(part))
+    // As it ran in the deploy order: before D5 (P2) every supplier payment was paid. A database
+    // holding D5's drafts and payments waiting for approval (no number, no bank side yet) is later.
+    .map((part) => part.replace(/FROM "PurchasePayment" p\b([\s\S]*?)WHERE /, `FROM "PurchasePayment" p$1WHERE p."status" IN ('PAID', 'VOIDED') AND `));
   for (const statement of statements) await prisma.$executeRawUnsafe(statement);
 }
 

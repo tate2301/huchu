@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { movedTo, receivablesMovedTo, salesMovedTo } from "./moved";
+import { movedTo, payablesMovedTo, purchasesMovedTo, receivablesMovedTo, salesMovedTo } from "./moved";
 
 describe("an old Books address", () => {
   it("forwards to the new one with its query", () => {
@@ -44,5 +44,41 @@ describe("/accounting/receivables", () => {
   it("lands on Customers by age, keeping the query", () => {
     expect(receivablesMovedTo({})).toBe("/books/customers?view=by-age");
     expect(receivablesMovedTo({ q: "Pomona", view: "x" })).toBe("/books/customers?view=by-age&q=Pomona");
+  });
+});
+
+describe("/accounting/purchases (books-final §3.4)", () => {
+  it("lands on Bills, keeping the rest of the query", () => {
+    expect(purchasesMovedTo({})).toBe("/books/bills");
+    expect(purchasesMovedTo({ supplier: "s1" })).toBe("/books/bills?supplier=s1");
+    expect(purchasesMovedTo({ view: "bills", q: "BILL-0220" })).toBe("/books/bills?q=BILL-0220");
+  });
+
+  it("maps each ?view= to its page or tab", () => {
+    expect(purchasesMovedTo({ view: "vendors" })).toBe("/books/suppliers");
+    expect(purchasesMovedTo({ view: "payments" })).toBe("/books/payments-made");
+    expect(purchasesMovedTo({ view: "debit-notes" })).toBe("/books/bills?view=debit-notes");
+    expect(purchasesMovedTo({ view: "write-offs" })).toBe("/books/suppliers?view=write-offs");
+    expect(purchasesMovedTo({ view: "ap-aging" })).toBe("/books/suppliers?view=by-age");
+    expect(purchasesMovedTo({ view: "aging" })).toBe("/books/suppliers?view=by-age");
+    expect(purchasesMovedTo({ view: "statements" })).toBe("/books/suppliers");
+    expect(purchasesMovedTo({ view: "statements", vendorId: "8a0f2c1e-2b3c-4d5e-8f90-1a2b3c4d5e6f" })).toBe("/books/suppliers/8a0f2c1e-2b3c-4d5e-8f90-1a2b3c4d5e6f?tab=statement");
+    expect(purchasesMovedTo({ view: "something-else" })).toBe("/books/bills");
+  });
+
+  it("maps each ?action=new-* to its Books form or drawer, never back to /accounting", () => {
+    expect(purchasesMovedTo({ action: "new-bill" })).toBe("/books/bills/new");
+    expect(purchasesMovedTo({ action: "new-payment", view: "payments" })).toBe("/books/payments-made/new");
+    expect(purchasesMovedTo({ action: "new-vendor" })).toBe("/books/suppliers?action=new-vendor");
+    expect(purchasesMovedTo({ action: "new-debit-note" })).toBe("/books/bills?action=new-debit-note");
+    expect(purchasesMovedTo({ action: "new-write-off" })).toBe("/books/bills?action=new-write-off");
+    for (const action of ["new-bill", "new-payment", "new-vendor", "new-debit-note", "new-write-off"]) expect(purchasesMovedTo({ action })).not.toMatch(/accounting/);
+  });
+});
+
+describe("/accounting/payables", () => {
+  it("lands on Suppliers by age, keeping the query", () => {
+    expect(payablesMovedTo({})).toBe("/books/suppliers?view=by-age");
+    expect(payablesMovedTo({ q: "Mutare", view: "x" })).toBe("/books/suppliers?view=by-age&q=Mutare");
   });
 });

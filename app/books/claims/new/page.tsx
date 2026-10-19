@@ -133,7 +133,7 @@ function ClaimFormPage({ options, asVoucher }: { options: Options; asVoucher: bo
         onChange={(value) => set("paidWith", value)}
         options={[
           { value: "own", label: "My own money" },
-          { value: "float", label: options.floats.length === 1 ? options.floats[0].name : "A float", disabled: options.floats.length === 0 },
+          { value: "float", label: "Site float", disabled: options.floats.length === 0 },
         ]}
       />
     </BkField>

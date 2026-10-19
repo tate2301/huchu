@@ -340,10 +340,12 @@ export const BOOKS_NAV_ITEMS: NavItem[] = [
   { href: "/books/customers", icon: Users, label: "Customers", group: "books-sales" },
 
   { href: "/books/expenses", icon: Wallet, label: "All spending", group: "books-spending", roles: BOOKS_KEEPERS },
-  // Today's bills, supplier payments and suppliers until P2 builds their Books pages.
-  { href: "/accounting/purchases?view=bills", icon: FileText, label: "Bills", group: "books-spending", roles: BOOKS_KEEPERS, also: /^\/books\/bills(\/|$)/ },
-  { href: "/accounting/purchases?view=payments", icon: Payments, label: "Payments made", group: "books-spending", roles: BOOKS_KEEPERS, also: /^\/books\/payments-made(\/|$)/ },
-  { href: "/accounting/purchases", icon: Storefront, label: "Suppliers", group: "books-spending", roles: BOOKS_KEEPERS },
+  { href: "/books/bills", icon: FileText, label: "Bills", group: "books-spending", roles: BOOKS_KEEPERS },
+  { href: "/books/payments-made", icon: Payments, label: "Payments made", group: "books-spending", roles: BOOKS_KEEPERS },
+  { href: "/books/orders", icon: ListBullets, label: "Purchase orders", group: "books-spending", roles: BOOKS_KEEPERS },
+  { href: "/books/requisitions", icon: ClipboardList, label: "Requisitions", group: "books-spending", roles: BOOKS_KEEPERS },
+  { href: "/books/claims", icon: Receipt, label: "Claims & petty cash", group: "books-spending", roles: BOOKS_KEEPERS },
+  { href: "/books/suppliers", icon: Storefront, label: "Suppliers", group: "books-spending", roles: BOOKS_KEEPERS },
 
   { href: "/accounting/banking", icon: Vault, label: "Accounts", group: "books-bank" },
   { href: "/books/bank", icon: CreditCard, label: "To match", group: "books-bank" },

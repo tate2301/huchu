@@ -17,8 +17,8 @@ import type { BooksFormOptions } from "@/lib/books/form-options-view";
 import { readAmount, type Allocation, type OpenInvoice } from "@/lib/books/payment-form";
 
 type OpenBill = OpenInvoice & { note: string | null; fti: string | null };
-type Approval = { limit: number; owner: string | null } | null;
-type Options = BooksFormOptions & { openBills: OpenBill[]; approval: Approval };
+type Approval = { limit: number; owner: string | null; youPay: boolean } | null;
+type Options = BooksFormOptions & { openBills: OpenBill[]; approval: Approval; payFrom: string | null };
 type Drafted = { supplier: string; payments: Array<{ id: string; status: string }>; total: number; waiting: boolean };
 
 /** Their fiscal invoice number (D16); a bill from before it kept it in its note. */
@@ -32,7 +32,8 @@ function PayForm({ options, initialSupplier, initialBills }: { options: Options;
   const [parties, setParties] = React.useState(options.parties);
   const [adding, setAdding] = React.useState(false);
   const [vendorId, setVendorId] = React.useState(initialSupplier);
-  const [bankAccountId, setBankAccountId] = React.useState("");
+  // The account the last supplier payment left from, chosen to start with.
+  const [bankAccountId, setBankAccountId] = React.useState(() => (options.payFrom && options.accounts.some((candidate) => candidate.id === options.payFrom) ? options.payFrom : ""));
   const [paidAt, setPaidAt] = React.useState(todayHarare());
   const [reference, setReference] = React.useState("");
   const [picked, setPicked] = React.useState<Allocation[]>([]);
@@ -131,14 +132,14 @@ function PayForm({ options, initialSupplier, initialBills }: { options: Options;
                 <dt>Why</dt>
                 <dd>{options.approval ? `${over ? "Over" : "Under"} ${money(options.approval.limit, currency)}` : "No limit set"}</dd>
                 <dt>Then pays</dt>
-                <dd>Payments made</dd>
+                <dd>{options.approval?.youPay ? "You, from Payments made" : "Whoever pays, from Payments made"}</dd>
               </dl>
             </section>
             <RailSteps
               title="When it is paid"
               steps={[
                 ["It gets a number", options.nextNumber],
-                ["The money leaves", account ? `${account.label}, ${money(total, currency)}` : "the account you choose"],
+                ["The money leaves", account ? `${account.bank} ${money(total, currency)}` : "the account you choose"],
                 ["The bills", picked.length === 1 ? "show it as paid" : "each show their payment"],
               ]}
             />
@@ -245,7 +246,7 @@ function PayForm({ options, initialSupplier, initialBills }: { options: Options;
           <div className="field-row">
             <BkField label="Pay from" htmlFor="pay-from" error={errors.bankAccountId}>
               <Select id="pay-from" aria-label="Pay from" value={bankAccountId} onChange={(event) => setBankAccountId(event.target.value)}>
-                <option value="">Choose an account</option>
+                {bankAccountId ? null : <option value="">Choose an account</option>}
                 {options.accounts.map((candidate) => (
                   <option key={candidate.id} value={candidate.id}>
                     {candidate.label}
@@ -293,7 +294,7 @@ function PayForm({ options, initialSupplier, initialBills }: { options: Options;
               </tbody>
               <tfoot>
                 <tr className="tot">
-                  <td>Leaves {account?.label ?? "the account"}</td>
+                  <td>Leaves {account ? `${account.bank}, ${account.currency}` : "the account"}</td>
                   <td className="num">{money(total, currency)}</td>
                   <td />
                 </tr>

@@ -418,7 +418,7 @@ export default function AccountingOverviewPage() {
     push({
       label: "Bills open",
       where: "Payables",
-      href: "/accounting/purchases",
+      href: "/books/bills",
       count: accountingSummary?.openBills ?? 0,
       value: formatHeadline(payablesSummary?.kpis.overdueBalance ?? 0),
       urgent: (payablesSummary?.kpis.overdueBalance ?? 0) > 0,
@@ -656,7 +656,7 @@ export default function AccountingOverviewPage() {
                 </Link>
               </DropdownMenuItem>
               <DropdownMenuItem asChild>
-                <Link href="/accounting/purchases?action=new-bill">
+                <Link href="/books/bills/new">
                   <Payments className="mr-2 size-4" />
                   Record a bill
                 </Link>
@@ -742,7 +742,7 @@ export default function AccountingOverviewPage() {
             (payablesSummary?.kpis.overdueBalance ?? 0) > 0 ? "past its terms" : "all within terms"
           }
           tone={(payablesSummary?.kpis.overdueBalance ?? 0) > 0 ? "warn" : "good"}
-          href="/accounting/payables"
+          href="/books/suppliers?view=by-age"
         />
         <MetricTile
           title="Income"

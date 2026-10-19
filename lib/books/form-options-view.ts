@@ -8,7 +8,7 @@ export type BooksFormOptions = {
   parties: Array<{ id: string; name: string; vatNumber: string | null; tin: string | null }>;
   taxCodes: Array<{ id: string; label: string; rate: number }>;
   costCentres: Array<{ id: string; label: string }>;
-  accounts: Array<{ id: string; label: string; currency: string; kind: string }>;
+  accounts: Array<{ id: string; label: string; currency: string; bank: string; kind: string }>;
   /** The number the document will take when it is issued: shown, not reserved. */
   nextNumber: string;
 };

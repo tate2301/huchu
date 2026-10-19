@@ -56,3 +56,50 @@ export function receivablesMovedTo(searchParams: Query): string {
   delete rest.view;
   return mapped("/books/customers?view=by-age", rest);
 }
+
+const PURCHASE_VIEWS: Record<string, string> = {
+  bills: "/books/bills",
+  vendors: "/books/suppliers",
+  suppliers: "/books/suppliers",
+  payments: "/books/payments-made",
+  "debit-notes": "/books/bills?view=debit-notes",
+  "write-offs": "/books/suppliers?view=write-offs",
+  aging: "/books/suppliers?view=by-age",
+  "ap-aging": "/books/suppliers?view=by-age",
+  statements: "/books/suppliers",
+};
+
+const PURCHASE_ACTIONS: Record<string, string> = {
+  "new-bill": "/books/bills/new",
+  "new-payment": "/books/payments-made/new",
+  "new-vendor": "/books/suppliers?action=new-vendor",
+  // A debit note and a write-off are made from their bill's page: Bills opens on the bills to choose from.
+  "new-debit-note": "/books/bills?action=new-debit-note",
+  "new-write-off": "/books/bills?action=new-write-off",
+};
+
+/**
+ * `/accounting/purchases` → the Books Bills & spending page its view or action
+ * names; Bills when it names none (books-final §3.4). A statement for one
+ * supplier (`vendorId`) opens their Statement tab.
+ */
+export function purchasesMovedTo(searchParams: Query): string {
+  const { view, action, ...rest } = searchParams;
+  const byAction = PURCHASE_ACTIONS[first(action) ?? ""];
+  if (byAction) return mapped(byAction, rest);
+  const vendor = first(rest.vendorId) ?? first(rest.vendor);
+  if (first(view) === "statements" && vendor && /^[0-9a-f-]{36}$/i.test(vendor)) {
+    const others = { ...rest };
+    delete others.vendorId;
+    delete others.vendor;
+    return mapped(`/books/suppliers/${vendor}?tab=statement`, others);
+  }
+  return mapped(PURCHASE_VIEWS[first(view) ?? ""] ?? "/books/bills", rest);
+}
+
+/** `/accounting/payables` → Suppliers by age: the hub's tiles are Money's. */
+export function payablesMovedTo(searchParams: Query): string {
+  const rest = { ...searchParams };
+  delete rest.view;
+  return mapped("/books/suppliers?view=by-age", rest);
+}

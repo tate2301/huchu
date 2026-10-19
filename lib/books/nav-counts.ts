@@ -11,11 +11,13 @@ import { blockingWhere } from "./needs-posting";
  * - Bank: statement lines in an open reconciliation that match nothing yet.
  * - Takings: tills closed on a day that has not been closed and banked.
  * - Needs posting: money that has not reached the ledger (FAILED, or waiting over an hour).
+ * - Bills: bills recorded and owing that fall due by Sunday (books_nav.py: [due this week]).
+ * - Requisitions and Claims & petty cash: those waiting for approval ([to approve]).
  *
  * Keyed by the row's address, as the shell's badges are. A zero is left out.
  */
 
-type Db = Pick<PrismaClient, "salesInvoice" | "salesReceipt" | "bankStatementLine" | "accountingIntegrationEvent" | "$queryRaw">;
+type Db = Pick<PrismaClient, "salesInvoice" | "salesReceipt" | "bankStatementLine" | "accountingIntegrationEvent" | "purchaseBill" | "crmRequisition" | "expenseClaim" | "pettyCashVoucher" | "$queryRaw">;
 
 export const BOOKS_COUNT_HREFS = {
   invoices: "/books/invoices",
@@ -23,9 +25,19 @@ export const BOOKS_COUNT_HREFS = {
   bank: "/books/bank",
   takings: "/books/takings",
   needs: "/books/needs-posting",
+  bills: "/books/bills",
+  requisitions: "/books/requisitions",
+  claims: "/books/claims",
 } as const;
 
-export type BooksCounts = { invoices: number; onAccount: number; bank: number; takings: number; needs: number };
+export type BooksCounts = { invoices: number; onAccount: number; bank: number; takings: number; needs: number; bills: number; requisitions: number; claims: number };
+
+/** The Sunday that ends this week, as a date to compare due dates with (today, when today is Sunday). */
+export function endOfWeek(today: Date): Date {
+  const day = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate()));
+  day.setUTCDate(day.getUTCDate() + ((7 - day.getUTCDay()) % 7) + 1);
+  return day;
+}
 
 /** The badges the panel draws: a figure per row, none for a zero. */
 export function booksBadges(counts: BooksCounts): Record<string, string> {
@@ -43,7 +55,7 @@ export async function readBooksCounts(
 ): Promise<BooksCounts> {
   const now = new Date();
   const today = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
-  const [invoices, onAccount, bank, unbanked, needs] = await Promise.all([
+  const [invoices, onAccount, bank, unbanked, needs, bills, requisitions, claims, vouchers] = await Promise.all([
     db.salesInvoice.count({ where: { companyId, status: "ISSUED", dueDate: { lt: today } } }),
     db.salesReceipt.count({ where: { companyId, invoiceId: null, voidedAt: null } }),
     db.bankStatementLine.count({ where: { matchedTransactionId: null, reconciliation: { companyId, status: "OPEN" } } }),
@@ -61,6 +73,10 @@ export async function readBooksCounts(
             )`)
       : Promise.resolve([{ count: 0 }]),
     db.accountingIntegrationEvent.count({ where: blockingWhere(companyId, now) }),
+    db.purchaseBill.count({ where: { companyId, status: "RECEIVED", dueDate: { lt: endOfWeek(now) } } }),
+    db.crmRequisition.count({ where: { companyId, status: "SUBMITTED" } }),
+    db.expenseClaim.count({ where: { companyId, status: "SUBMITTED" } }),
+    db.pettyCashVoucher.count({ where: { companyId, status: "TO_APPROVE" } }),
   ]);
-  return { invoices, onAccount, bank, takings: unbanked[0]?.count ?? 0, needs };
+  return { invoices, onAccount, bank, takings: unbanked[0]?.count ?? 0, needs, bills, requisitions, claims: claims + vouchers };
 }

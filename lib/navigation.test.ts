@@ -31,7 +31,7 @@ describe("Books' panel (design/core-modules/tools/boards/books_nav.py)", () => {
 
   it("draws each level's rows in the board's order, leaving out the ones with no page yet", () => {
     expect(level("books-sales")).toEqual(["Invoices", "Quotes", "Payments received", "Credit notes", "Customers"]);
-    expect(level("books-spending")).toEqual(["All spending", "Bills", "Payments made", "Suppliers"]);
+    expect(level("books-spending")).toEqual(["All spending", "Bills", "Payments made", "Purchase orders", "Requisitions", "Claims & petty cash", "Suppliers"]);
     expect(level("books-bank")).toEqual(["Accounts", "To match", "Takings"]);
     expect(level("books-tax")).toEqual(["VAT returns", "Fiscal register"]);
     expect(level("books-close")).toEqual(["Checklist", "Needs posting", "Rates & revaluation"]);
@@ -49,12 +49,12 @@ describe("Books' panel (design/core-modules/tools/boards/books_nav.py)", () => {
     expect(settings?.links?.items.map((item) => item.label)).toEqual(["Business & tax details", "Approvals & limits", "Fiscal device"]);
   });
 
-  it("puts every Sales row at its Books address, and Needs posting under Close the month", () => {
-    for (const item of books.items.filter((row) => row.group === "books-sales")) expect(item.href).toMatch(/^\/books\//);
+  it("puts every Sales and Bills & spending row at its Books address, and Needs posting under Close the month", () => {
+    for (const item of books.items.filter((row) => row.group === "books-sales" || row.group === "books-spending")) expect(item.href).toMatch(/^\/books\//);
     expect(books.items.find((item) => item.label === "Needs posting")?.group).toBe("books-close");
     const hrefs = books.items.map((item) => item.href);
     expect(hrefs).toEqual(expect.arrayContaining(["/books/journals", "/books/vat", "/books/periods"]));
-    expect(hrefs.some((href) => /^\/accounting\/(journals|tax|periods|sales|receivables)$/.test(href))).toBe(false);
+    expect(hrefs.some((href) => /^\/accounting\/(journals|tax|periods|sales|receivables|purchases|payables)(\?|$)/.test(href))).toBe(false);
   });
 
   it("points every row at a page that exists: no dead links", async () => {

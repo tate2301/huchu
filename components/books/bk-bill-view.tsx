@@ -6,7 +6,7 @@ import Link from "next/link";
 import type { BillRecord } from "@/lib/books/bill-record";
 import { FDMS_LABEL } from "@/lib/books/bills";
 import type { ExpenseState } from "@/lib/books/expenses";
-import { longDay, money } from "@/lib/books/format";
+import { money, shortDay } from "@/lib/books/format";
 
 import { BkState } from "./bk-list";
 import { Bleed, Callout, History, PostingTable, RailSection, RecordHead, Section } from "./bk-record";
@@ -205,7 +205,7 @@ export function BkBillView({ bill }: { bill: BillRecord }) {
           title="Their fiscal invoice"
           rows={[
             ["Number", bill.fti.number ? <span className="mono">{bill.fti.number}</span> : "Not entered yet"],
-            ["Dated", `${longDay(bill.fti.dated)} ${bill.fti.dated.slice(0, 4)}`],
+            ["Dated", `${shortDay(bill.fti.dated)} ${bill.fti.dated.slice(0, 4)}`],
             ["FDMS", <BkState key="fdms" tone={FDMS_TONE[bill.fti.fdms]}>{FDMS_LABEL[bill.fti.fdms]}</BkState>],
             ["Their VAT no.", bill.supplier.vatNumber ?? "Not registered"],
           ]}
