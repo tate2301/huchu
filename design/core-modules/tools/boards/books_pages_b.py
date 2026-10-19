@@ -167,6 +167,15 @@ def lead(x, sub=None):
 def mut(x):
     return '<span class="muted">%s</span>' % x
 
+def plead(name, sub=None, label=None):
+    """A person in a table cell (owner, 19 Oct: avatars): the avatar and the name; a sub-line sits under the name."""
+    return '<span class="cell-lead">%s</span>' % person(name, label=label) + (
+        '<span class="sub" style="display:block;padding-left:28px;font-size:12px;color:var(--color-muted)">%s</span>' % sub if sub else '')
+
+def named(name):
+    """A person named in a sentence: the avatar, 8px, the name."""
+    return '<span style="display:inline-flex;align-items:center;gap:8px;vertical-align:top">%s%s</span>' % (avatar(name), name)
+
 def flag(text='To confirm'):
     return '<span class="pill pill-warn">%s</span>' % text
 
@@ -650,7 +659,7 @@ def fiscal():
         if code == '—':
             return st(state) + '<span class="sub" style="display:block;font-size:12px;color:var(--color-muted)">Tried 7 times</span>'
         return st(state) + '<span class="sub mono" style="display:block;font-size:12px;color:var(--color-muted)">%s</span>' % code
-    rows = [[lead(ref(n), k), lead(c), lead(mut(s), 'Fiscal day %d' % d), a, fd(f_, code),
+    rows = [[lead(ref(n), k), plead(c), lead(mut(s), 'Fiscal day %d' % d), a, fd(f_, code),
              btn('Retry', 'arrow', 'btn btn-sm') if f_ == 'Failed' else iconbtn('more', 'More for %s' % n)] for n, k, c, d, s, a, f_, code in D]
     cols = [('Number', ''), ('Customer', 'fill'), ('Sent', ''), ('Amount', 'num'), ('FDMS', ''), ('', '')]
     tb = tbl(cols, rows, rowcls={0: 'bk-sel'}).replace('<td class="fill">', '<td class="fill" style="height:52px">')
@@ -687,7 +696,7 @@ def close():
     left = (finding('September can’t close yet: 2 of 11 checks are open.', 'October is open and taking postings.')
             + tabs([('This month', None), ('All months', 8)], 0)
             + '<div style="flex:1;min-height:0;overflow:auto">%s%s%s%s</div>' % (gh('Open', 2), rows(open_), gh('Passed', 9), rows(passed)) + foot_)
-    side = rail_(rsec('Locks', (('Freeze before', '<b style="color:var(--color-ink)">1 Sep 2026</b>'), ('Set by', 'James Nyabadza, 2 Oct'), ('After closing', 'Managers post, with a reason')),
+    side = rail_(rsec('Locks', (('Freeze before', '<b style="color:var(--color-ink)">1 Sep 2026</b>'), ('Set by', person('James Nyabadza', label='James Nyabadza, 2 Oct')), ('After closing', 'Managers post, with a reason')),
                       after='<div class="bk-racts">%s</div>' % btn('Freeze before…', 'lock'))
                  + rsec('Closed months', (('August 2026', 'Closed 2 Oct'), ('July 2026', 'Closed 6 Aug'), ('June 2026', 'Closed 3 Jul')),
                         after='<div class="bk-racts">%s</div>' % btn('Reopen August', 'back')), 340)
@@ -722,7 +731,8 @@ RATES = [('Sat 18 Oct', '27.00', 'RBZ interbank', '06:00', 'Automatic'), ('Fri 1
 REVAL = [('CBZ current, ZWG', M('52140.00'), M('1953.56')), ('NSSA owed, September', M('-7654.50'), M('-287.55'))]
 
 def rates():
-    rows = [[mut(d), '<span class="mono" style="color:var(--color-ink)">%s</span>' % r, '<span class="pill pill-n">Manual, %s</span>' % t if s == 'Manual' else mut('%s, %s' % (s, t)), mut(b), iconbtn('more', 'More')] for d, r, s, t, b in RATES]
+    rows = [[mut(d), '<span class="mono" style="color:var(--color-ink)">%s</span>' % r, '<span class="pill pill-n">Manual, %s</span>' % t if s == 'Manual' else mut('%s, %s' % (s, t)),
+             mut(person(b.split(',')[0], label=b)) if b.startswith('Rudo Mapfumo') else mut(b), iconbtn('more', 'More')] for d, r, s, t, b in RATES]
     tb = tbl([('Date', ''), ('USD to ZiG', 'num'), ('Source', ''), ('By', 'fillw'), ('', '')], rows)
     f = foot('9 of 232 days', (('Today uses', '27.00'),), pages_btns())
     gls = [to_usd(z, RATE_SEP) - b for a, z, b in REVAL]
@@ -938,12 +948,12 @@ def audit():
          ('Fri 2 Oct 10:05', 'James Nyabadza', 'Owner', 'Closed', 'August 2026', 'Closed again after the fix'),
          ('Fri 2 Oct 08:30', 'James Nyabadza', 'Owner', 'Reopened', 'August 2026', 'Missing fuel slip, Pomona van'),
          ('Thu 1 Oct 11:40', 'Rudo Mapfumo', 'May void and revise', 'Voided', ref('PAY-0055') + ', Kingsway Property', 'Rent paid twice')]
-    rows = [[mut(w), lead(p, r), lead(a, d), mut(why)] for w, p, r, a, d, why in E]
+    rows = [[mut(w), lead(p, r) if p.startswith('Corelith') else plead(p, r), lead(a, d), mut(why)] for w, p, r, a, d, why in E]
     tb = tbl([('When', ''), ('Who', ''), ('What', ''), ('Reason', 'fillw')], rows, rowcls={1: 'bk-sel'}).replace('<td><span class="cell-lead">', '<td style="height:56px"><span class="cell-lead">')
     f = foot('8 of 296 events', (('Voids', '12'), ('Revisions', '5'), ('Deletes', '2')), pages_btns())
     snap = ('<pre class="mono" style="margin:0;padding:12px;border-radius:8px;background:var(--color-ground);font-size:12px;line-height:1.6;color:var(--color-ink-2);white-space:pre-wrap">'
             'rule: retail sale, EcoCash tender\ndebit: 1010 → 1020\nemail to the owner: sent 15:12</pre>')
-    side = rail_(rsec('Changed a posting rule', (('Operator', 'Farai, Corelith support'), ('Signed in as', 'James Nyabadza, owner'), ('Mode', 'Change'), ('Reason', 'Ticket 4471')),
+    side = rail_(rsec('Changed a posting rule', (('Operator', 'Farai, Corelith support'), ('Signed in as', person('James Nyabadza', label='James Nyabadza, owner')), ('Mode', 'Change'), ('Reason', 'Ticket 4471')),
                       after='')
                  .replace('</div><dl', '</div><div class="bk-mut">Mon 12 Oct 15:12 · session SA-214</div><dl', 1)
                  + rsec('What was kept', end=status('Chain unbroken', 'success'), after=snap), 360)
@@ -1016,7 +1026,7 @@ def setup():
             + '<div style="box-shadow:inset 0 1px 0 var(--color-line)">%s</div>' % ''.join(srow(*s) for s in steps)
             + '<div class="group-head bk-gh"><h2 id="ob">Opening balances, 28 Feb 2026</h2><span class="sum">8 accounts</span></div>'
             + '<div style="font-size:14px">%s</div>' % ob
-            + '<div class="foot-row" style="box-shadow:inset 0 1px 0 var(--color-line)"><span>Posted 1 Mar by Rudo Mapfumo</span><div class="end">%s%s</div></div>' % (
+            + '<div class="foot-row" style="box-shadow:inset 0 1px 0 var(--color-line)"><span>Posted 1 Mar by %s</span><div class="end">%s%s</div></div>' % (named('Rudo Mapfumo'),
                 btn('Revise the opening balances', 'edit'), more_btn('Bring in a trial balance, CSV')))
     return page('BkSetup', 'Set up the books', '/books/settings/setup', 'Set up the books', '<div class="bk-body"><div class="bk-col">%s</div></div>' % left, '')
 
@@ -1106,11 +1116,11 @@ def bulk_result():
     behind += tabs([('To approve', 3), ('To pay', 1), ('To account for', 1), ('Done', 2), ('All', 7)], 0)
     behind += tools('Search requisitions', (('Source', 'Any', False),), '3 requisitions', btn('Export', 'export'))
     behind += tbl([('', 'sel'), ('Number', ''), ('Asked by', ''), ('For', 'fill'), ('Amount', 'num'), ('State', '')],
-                  [[cbx(True), ref(n), lead(b, s), lead(f), usd(a), st('To approve')] for n, b, s, f, a in REQ], sel_rows=(0, 1, 2))
+                  [[cbx(True), ref(n), plead(b, s), lead(f), usd(a), st('To approve')] for n, b, s, f, a in REQ], sel_rows=(0, 1, 2))
     R = [('REQ-0092', 'Tendai Sibanda', usd(38), 'Approved', 'Within your limit'),
          ('REQ-0091', 'Tinashe Moyo', usd(60), 'Approved', 'Within your limit'),
          ('REQ-0093', 'James Nyabadza', usd(120), 'Skipped', 'Your own; Rudo is asked')]
-    rows = [[ref(n), lead(c), a, st(s), mut(w)] for n, c, a, s, w in R]
+    rows = [[ref(n), plead(c), a, st(s), mut(w)] for n, c, a, s, w in R]
     t = tbl([('Requisition', ''), ('Asked by', ''), ('Amount', 'num'), ('Result', ''), ('Why', 'fillw')], rows)
     body = ('<div style="display:flex;gap:16px;align-items:baseline"><span style="font-size:28px;font-weight:600;color:var(--color-ink);letter-spacing:var(--tracking-display)">2 approved</span><span class="muted" style="font-size:14px">1 skipped</span></div>'
             '<p>%s is now ready to pay.</p>'

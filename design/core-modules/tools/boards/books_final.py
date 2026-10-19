@@ -866,14 +866,19 @@ def books_tree():
 
 # ---------- BooksWho ----------
 def who_roles():
-    return boxed(ptable(('Who', 'Role in the app', 'At Floorcode', 'What they are in Books'), (
+    # Avatars (owner, 19 Oct): the people at Floorcode show their faces.
+    def at(names):
+        if names.startswith(('—', 'Session')):
+            return names
+        return '<span style="display:inline-flex;flex-wrap:wrap;gap:4px 16px">%s</span>' % ''.join(person(n) for n in names.split(', '))
+    return boxed(ptable(('Who', 'Role in the app', 'At Floorcode', 'What they are in Books'), tuple((a, b, at(c), d) for a, b, c, d in (
         ('<b>Owner</b>', '<span class="mono">SUPERADMIN</span>; a workspace may have more than one', 'James Nyabadza', 'Everything, including permanent delete and revising posted documents'),
         ('<b>Superuser</b>', 'Not a role: a Corelith operator in Sign in as, Change mode, as an owner', 'Session SA-214', 'The owner’s powers, for support. Every destructive act records the operator and the session. Look mode stays read-only'),
         ('<b>Manager</b>', '<span class="mono">MANAGER</span>', 'Farai Ncube', 'Runs the money day to day: approves, pays, closes the month. Can’t delete posted documents or reopen a month'),
         ('<b>Accountant</b>', '<span class="mono">FINANCE_OFFICER</span>', 'Rudo Mapfumo', 'Does the books: creates, issues, posts journals, reconciles, prepares VAT. Approves within a limit, never their own. Void and revise only if granted'),
         ('<b>Bursar</b>', '<span class="mono">BURSAR</span>', '— (schools)', 'School fees: fee invoices, receipts, refunds. Sees Sales and Bank & cash'),
         ('<b>Shop manager</b>', '<span class="mono">SHOP_MANAGER</span>', 'Chipo Mhlanga', 'Retail: day close, banking, retail requisitions within the limit'),
-        ('<b>Clerk or rep</b>', 'Clerk, sales rep, sales exec, cashier, stock clerk', 'Blessing Zhou, Tendai Sibanda', 'Drafts, receipts at the counter or in the CRM, requisitions and claims for themselves. No approvals, no voids')),
+        ('<b>Clerk or rep</b>', 'Clerk, sales rep, sales exec, cashier, stock clerk', 'Blessing Zhou, Tendai Sibanda', 'Drafts, receipts at the counter or in the CRM, requisitions and claims for themselves. No approvals, no voids'))),
         ('14%', '26%', '18%', '42%')))
 
 def who_matrix():
@@ -911,7 +916,7 @@ def who_matrix():
 
 def who_grant():
     tick = ('<div class="bf-box" style="padding:0;overflow:hidden"><div style="display:flex;align-items:center;gap:10px;height:48px;padding:0 20px;box-shadow:inset 0 -1px 0 var(--color-line);font-size:13px;color:var(--color-muted)">'
-            'Management › Users › <b style="color:var(--color-ink);font-weight:600">Rudo Mapfumo</b><span class="pill pill-n" style="margin-left:auto">Accountant</span></div>'
+            'Management › Users › ' + person('Rudo Mapfumo', label='<b style="color:var(--color-ink);font-weight:600">Rudo Mapfumo</b>') + '<span class="pill pill-n" style="margin-left:auto">Accountant</span></div>'
             '<div style="padding:18px 20px;display:flex;flex-direction:column;gap:14px">'
             '<label style="display:flex;gap:12px;align-items:flex-start"><span class="cb on" style="width:16px;height:16px;flex:none;margin-top:2px"></span><span><b style="font-weight:500;color:var(--color-ink)">May void and revise posted documents</b>'
             '<span style="display:block;font-size:13px;line-height:1.5;color:var(--color-ink-2);margin-top:2px">Granted by James Nyabadza on 2 Oct. Stored as the capability <span class="mono">books.void</span>.</span></span></label>'

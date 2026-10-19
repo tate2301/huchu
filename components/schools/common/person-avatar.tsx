@@ -1,6 +1,8 @@
 "use client";
 
-import { Avatar } from "@corelithzw/react";
+import { Avatar, type AvatarSize } from "@/components/core";
+
+const SIZES: Record<"xs" | "sm" | "md" | "lg", AvatarSize> = { xs: 20, sm: 20, md: 24, lg: 32 };
 
 /**
  * A person, with a face.
@@ -10,9 +12,10 @@ import { Avatar } from "@corelithzw/react";
  * every list of pupils and staff picks up the same initials, the same size
  * scale and the same name-derived colour, rather than each screen choosing.
  *
- * `accent="auto"` is the DS default and is what makes a class list scannable:
- * the same child is the same colour on the register, the mark sheet and the
- * homework board, so a teacher recognises a row before reading it.
+ * It draws the kit's `Avatar` (components/core/avatar.tsx), so a pupil looks
+ * the same here as a person does in Books or the CRM. Its tint comes from the
+ * name, which is what makes a class list scannable: the same child is the same
+ * colour on the register, the mark sheet and the homework board.
  *
  * This is the mark alone. A list's first column wants the mark, the name and
  * the line that tells two rows apart as one composed cell — `PersonCell` in
@@ -38,5 +41,5 @@ export function PersonAvatar({
   size?: "xs" | "sm" | "md" | "lg";
 }) {
   const full = name ?? [firstName, lastName].filter(Boolean).join(" ");
-  return <Avatar name={full} size={size} {...(src ? { src } : {})} />;
+  return <Avatar name={full} size={SIZES[size]} src={src} />;
 }

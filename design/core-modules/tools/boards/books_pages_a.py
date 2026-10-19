@@ -12,6 +12,27 @@ from ck import *
 from books_nav import *
 from decimal import Decimal, ROUND_HALF_UP
 
+# Avatars (owner, 19 Oct): every person (staff, customers) shows a face beside the name; suppliers,
+# banks and ZIMRA are businesses with no profile and get none.
+STAFF = ('James Nyabadza', 'Rudo Mapfumo', 'Chipo Mhlanga', 'Tendai Sibanda', 'Tinashe Moyo', 'Kuda Chigumba', 'Farai Ncube', 'Blessing Zhou', 'Simba Gondo')
+
+def named(name, bold=True):
+    """A person named in a sentence (history, "by", "counted in by"): the avatar, 8px, the name."""
+    return '<span style="display:inline-flex;align-items:center;gap:8px;vertical-align:top">%s%s</span>' % (avatar(name), '<b>%s</b>' % name if bold else name)
+
+def people_in(html):
+    """Every staff name in bold in a sentence gets its avatar."""
+    return re.sub(r'<b>(%s)</b>' % '|'.join(STAFF), lambda m: named(m.group(1)), html)
+
+def pcell(name):
+    """A person in a table cell: the lead cell's ink, with the avatar."""
+    return '<span class="cell-lead">%s</span>' % person(name)
+
+def faces(names):
+    """A few people at once (a row of approvals): their avatars, overlapping by 4px."""
+    return '<span style="display:inline-flex;vertical-align:top;margin-right:8px">%s</span>' % ''.join(
+        avatar(n).replace('style="', 'style="%sbox-shadow:0 0 0 2px var(--color-surface);' % ('' if i == 0 else 'margin-left:-4px;'), 1) for i, n in enumerate(names))
+
 ROOT = sys.argv[1] if len(sys.argv) > 1 else os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'boards', 'canvas')
 IC['trash'] = '<path fill="currentColor" d="M9 3h6a1 1 0 0 1 1 1v1h4a1 1 0 1 1 0 2h-1l-.9 12.6A2.5 2.5 0 0 1 15.6 22H8.4a2.5 2.5 0 0 1-2.5-2.4L5 7H4a1 1 0 0 1 0-2h4V4a1 1 0 0 1 1-1m1 6a1 1 0 0 0-1 1v7a1 1 0 1 0 2 0v-7a1 1 0 0 0-1-1m4 0a1 1 0 0 0-1 1v7a1 1 0 1 0 2 0v-7a1 1 0 0 0-1-1"/>'
 IC['undo'] = '<path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 14L4 9l5-5M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/>'
@@ -559,8 +580,8 @@ def money():
     # Buttons by urgency: strong (ink) when money or a fine is held up today, plain when it is routine, quiet when it is only a look.
     urgent, plain, quiet = 'btn btn-ink', 'btn', 'btn btn-quiet'
     needs = ''.join((
-        need('hand', '4 things to approve', '%s in all' % usd(approvals), btn('Review', 'eye', urgent)),
-        need('fiscal', 'INV-0144 is not signed by FDMS', 'Westgate Interiors, %s' % zig(13500), btn('Retry', 'undo', urgent)),
+        need('hand', '4 things to approve', '%s%s in all' % (faces([r[1] for r in REQ_FOR_ME] + ['Simba Gondo']), usd(approvals)), btn('Review', 'eye', urgent)),
+        need('fiscal', 'INV-0144 is not signed by FDMS', '%s, %s' % (named('Westgate Interiors', False), zig(13500)), btn('Retry', 'undo', urgent)),
         need('warn', 'A goods receipt did not post', 'GRN-0045, %s · no stock account' % usd(BN_NET), btn('Fix it', 'posting', plain)),
         need('bank', '4 bank lines to match', 'CBZ USD · Vane matched 3', btn('Match', 'check', plain)),
         # ITF263 needs (Ask for it) come with withholding (D17, P3).
@@ -599,7 +620,7 @@ def inv_rows(rows, money_col=True):
     out = []
     for no, cus, state, when, base, bal, fis, cur in rows:
         when_html = '<span style="color:var(--color-danger)">Not signed by FDMS</span>' if fis == 'Failed' else '<span class="muted">%s</span>' % when
-        out.append((draft_no() if no == 'Draft' else ref(no), '<span class="cell-lead">%s</span>' % cus, st(state), when_html,
+        out.append((draft_no() if no == 'Draft' else ref(no), pcell(cus), st(state), when_html,
                     '<span class="muted">%s</span>' % (zig(cur[1]) if cur else usd(base)),
                     '<span style="color:var(--color-ink);font-weight:500">%s</span>' % usd(bal) if bal else '<span class="muted">—</span>'))
     return out
@@ -649,7 +670,7 @@ def quotes():
     find = finding('%d quotes worth <span class="num">%s</span> are with customers.' % (len(QT), usd(SENT)),
                    "Ridgeview Apartments' <span class=\"num\">%s</span> runs out on 24 Oct." % usd(exp[6]))
     t = tools('Search quotes', (('Customer', 'Any', False), ('Rep', 'Any', False)), '%d quotes' % len(QT), QUIET_TOOLS)
-    rows = [(ref(no), '<span class="cell-lead">%s</span>' % cus, '<span class="cell-lead">%s</span>' % what,
+    rows = [(ref(no), pcell(cus), '<span class="cell-lead">%s</span>' % what,
              ('<span style="color:var(--color-ink);font-weight:500">%s</span>' % valid) if no == 'QT-0402' else '<span class="muted">%s</span>' % valid, '<span class="muted">%s</span>' % read,
              zig(cur[1]) if cur else usd(base))
             for no, cus, what, state, sent, valid, base, cur, read in QT]
@@ -670,7 +691,7 @@ def payments_in():
     rows = []
     for no, date, cus, on, into, state, bank, base, cur in RCT:
         on_html = ref(on) if on.startswith('INV') else '<span class="muted">%s</span>' % on
-        rows.append((ref(no), '<span class="muted">%s</span>' % date, '<span class="cell-lead">%s</span>' % cus, on_html, '<span class="muted">%s</span>' % into,
+        rows.append((ref(no), '<span class="muted">%s</span>' % date, pcell(cus), on_html, '<span class="muted">%s</span>' % into,
                      ('<span class="muted" style="text-decoration:line-through">%s</span>' % usd(base)) if state == 'Void' else amount(base, cur)))
     table = grid(('Payment', 'Date', 'Customer', 'For', 'Into', 'Amount'), rows, num=(5,), sel=set(), label='Payments received',
                  widths=('110px', '80px', '230px', None, '170px', '190px'), fill=3)
@@ -688,7 +709,7 @@ def credit_notes():
     t = tools('Search credit notes', (('Customer', 'Any', False), ('Reason', 'Any', False)), '%d credit notes' % len(CN), QUIET_TOOLS)
     rows = []
     for no, date, cus, inv, why, fis, state, amt in CN:
-        rows.append((draft_no() if no == 'Draft' else ref(no), '<span class="cell-lead">%s</span>' % cus, ref(inv),
+        rows.append((draft_no() if no == 'Draft' else ref(no), pcell(cus), ref(inv),
                      '<span class="cell-lead muted">%s</span>' % why, st(state), usd(amt)))
     table = grid(('Credit note', 'Customer', 'Invoice', 'Reason', 'State', 'Amount'), rows, num=(5,), sel=set(), label='Credit notes',
                  widths=('130px', '230px', '120px', None, '130px', '140px'), fill=3)
@@ -709,7 +730,7 @@ def customers():
         if not v:
             return '<span class="muted">—</span>'
         return '<span style="color:var(--color-ink);font-weight:500">%s</span>' % usd(v) if strong else usd(v)
-    rows = [('<span class="cell-lead">%s</span>' % n, '<span class="muted">%s</span>' % c,
+    rows = [(pcell(n), '<span class="muted">%s</span>' % c,
              cell(ow), cell(od, True), cell(oa), '<span class="muted">%s</span>' % lp) for n, c, v, o, ow, od, oa, lp in CUS]
     table = grid(('Customer', 'Accounts contact', 'Owes', 'Overdue', 'On account', 'Last paid'), rows, num=(2, 3, 4), sel=set(),
                  label='Customers', widths=(None, '200px', '150px', '150px', '150px', '120px'))
@@ -839,7 +860,7 @@ def requisitions():
     t = tools('Search requisitions', (('From', 'CRM and retail', False), ('Asked by', 'Anyone', False)), '%d to approve' % len(mine), QUIET_TOOLS)
     rows = []
     for no, by, src, for_, asked, state, amt, note in mine:
-        rows.append((ref(no), '<span class="cell-lead">%s</span>' % by, '<span class="pill pill-n">%s</span>' % src, '<span class="cell-lead">%s</span>' % for_,
+        rows.append((ref(no), pcell(by), '<span class="pill pill-n">%s</span>' % src, '<span class="cell-lead">%s</span>' % for_,
                      '<span class="muted">%s</span>' % asked, usd(amt)))
     # Approving is done on the selection; the row of buttons on every line is gone.
     table = grid(('Requisition', 'Asked by', 'From', 'For', 'Asked', 'Amount'), rows, num=(5,), sel={0, 1, 2}, label='Requisitions',
@@ -859,10 +880,10 @@ def claims():
     find = finding('1 claim waits for you: Simba Gondo, <span class="num">US$23.00</span>.',
                    "Tinashe Moyo's <span class=\"num\">US$36.00</span> waits to be paid back.")
     t = tools('Search claims', (('Person', 'Anyone', False), ('State', 'Any', False)), '%d claims' % len(CLM), QUIET_TOOLS)
-    rows = [(ref(no), '<span class="cell-lead">%s</span>' % who, '<span class="cell-lead">%s</span>' % what,
+    rows = [(ref(no), pcell(who_), '<span class="cell-lead">%s</span>' % what,
              st(state, {'Submitted': 'To approve', 'Approved': 'To pay back'}.get(state, state)), usd(a),
              btn('Approve', 'check', 'btn btn-sm') if state == 'Submitted' else (btn('Pay back', 'payments', 'btn btn-sm') if state == 'Approved' else ''))
-            for no, who, what, d, state, a, how in CLM]
+            for no, who_, what, d, state, a, how in CLM]
     table = grid(('Claim', 'Person', 'For', 'State', 'Amount', ''), rows, num=(4,), sel=set(), label='Claims',
                  widths=('110px', '190px', None, '150px', '130px', '140px'), fill=2)
     f = foot('1 to %d of 38' % len(CLM), (('To approve', usd(23)), ('To pay back', usd(36)), ('Paid in October', usd('14.50'))))
@@ -908,7 +929,7 @@ def boxed(inner):
 boxed0 = boxed
 
 def timeline(items):
-    return '<ol class="bk-tl">%s</ol>' % ''.join('<li><span class="d %s"></span><span>%s</span><time>%s</time></li>' % (tone, text, when) for tone, text, when in items)
+    return '<ol class="bk-tl">%s</ol>' % ''.join('<li><span class="d %s"></span><span>%s</span><time>%s</time></li>' % (tone, people_in(text), when) for tone, text, when in items)
 
 def sums(items, ncols=4):
     """The sums as the lines table's foot: full-bleed rows, the label beside its amount."""
@@ -940,7 +961,7 @@ def invoice():
     bal = I142_TOT - paid
     # Top bar: the primary, the one routine action, and a menu (print, credit, write off, revise, void, delete).
     top = more_btn() + btn('Send a reminder', 'whatsapp') + primary('Record a payment', 'payments', 'R')
-    head = rec_head(usd(I142_TOT), pill('Part paid'), ('Pomona Offices', 'Due 20 Oct, in 2 days'))
+    head = rec_head(usd(I142_TOT), pill('Part paid'), (person('Pomona Offices'), 'Due 20 Oct, in 2 days'))
     # Every line is VAT 15.5%, so the tax column goes; the sums say it once.
     lines = boxed(grid(('Item', 'Quantity', 'Price', 'Amount'), [r[:3] + r[4:] for r in line_rows(INV142_LINES)], num=(2, 3), label='Lines', widths=(None, '120px', '120px', '140px')))
     tot = sums((('Before VAT', usd(I142_NET), ''), ('VAT at 15.5%', usd(I142_VAT), ''), ('Total', usd(I142_TOT), 't'),
@@ -990,11 +1011,14 @@ CSS += '''
 def more_btn(label='More actions'):
     return '<button class="btn btn-icon" aria-haspopup="menu" aria-label="%s">%s</button>' % (label, ic('more'))
 
-def rec_head(title, pill_html='', line=(), small=''):
-    """Title and one pill on a row, then one muted line of at most two items."""
+def rec_head(title, pill_html='', line=(), small='', face=None):
+    """Title and one pill on a row, then one muted line of at most two items. `face` puts a person's
+    avatar (32px) before the title, for a record that is a person or a customer."""
     ml = '<div class="ml">%s</div>' % '<i>·</i>'.join('<span>%s</span>' % x for x in line) if line else ''
-    return '<div class="bk-hd"><div class="tr"><div class="bk-title">%s%s</div>%s</div>%s</div>' % (
-        title, ' <small>· %s</small>' % small if small else '', pill_html, ml)
+    t = '<div class="bk-title">%s%s</div>' % (title, ' <small>· %s</small>' % small if small else '')
+    if face:
+        t = '<span style="display:flex;align-items:center;gap:8px;min-width:0">%s%s</span>' % (avatar(face, 32), t)
+    return '<div class="bk-hd"><div class="tr">%s%s</div>%s</div>' % (t, pill_html, ml)
 
 def strip(tiles):
     """One strip, at most four tiles: label, figure, a note of at most three words."""
@@ -1007,7 +1031,7 @@ def callout(icon, text, act='', tone='warn'):
 
 def rail_sec(title, rows, extra=''):
     assert len(rows) <= 4
-    return '<section><div class="sec-title">%s</div>%s<dl class="attrs">%s</dl></section>' % (title, extra, ''.join('<dt>%s</dt><dd>%s</dd>' % r for r in rows))
+    return '<section><div class="sec-title">%s</div>%s<dl class="attrs">%s</dl></section>' % (title, extra, ''.join('<dt>%s</dt><dd>%s</dd>' % (k, person(v) if v in STAFF else v) for k, v in rows))
 
 QUIET_TOOLS = btn('Sort', 'sort', 'btn btn-quiet') + btn('Export', 'export', 'btn btn-quiet')
 
@@ -1150,7 +1174,7 @@ def payment_new():
 def customer():
     # Top bar: the one primary and a menu (send statement, print, edit, merge). The statement is sent from its own tab.
     top = more_btn() + primary('New invoice', 'plus', 'N')
-    head = rec_head('Pomona Offices', '', ('Accounts: Mr K. Dube', 'Customer since Mar 2025'))
+    head = rec_head('Pomona Offices', '', ('Accounts: Mr K. Dube', 'Customer since Mar 2025'), face='Pomona Offices')
     figs = strip((('Owes', usd('1494.22'), 'Due 20 Oct'), ('Overdue', usd(0), 'Pays in 12 days'), ('Paid this year', usd(4160), '3 payments')))
     t = tabs((('Activity', None), ('Invoices', 3), ('Payments', 3), ('Statement', None)), 'Statement', 'Customer views').replace('bk-tabs', 'bk-tabs bk-rtabs')
     stmt = [
@@ -1215,7 +1239,7 @@ def bill_new():
                + field('FDMS check', '<div style="display:flex;gap:8px"><label class="input-wrap" style="flex:1">%s<input aria-label="Verification code" value="91B4-0C7E-55A2-D013"></label>%s</div>' % (ic('fiscal'), btn('Check', None)))
                + '<div class="bk-box ok">%s<span><b>Valid on FDMS</b>, checked just now. Its VAT counts in October.</span></div>' % ic('check'))
     src = fsec('From', 'Made from the goods receipt.',
-               '<div class="bk-box">%s<span><b>%s</b>, counted in on 16 Oct by Tendai Sibanda.</span></div>' % (ic('list'), ref('GRN-0045')))
+               '<div class="bk-box">%s<span><b>%s</b>, counted in on 16 Oct by %s.</span></div>' % (ic('list'), ref('GRN-0045'), named('Tendai Sibanda', False)))
     acct = {B_NEW_LINES[0][0]: '1200 Stock', B_NEW_LINES[1][0]: '1200 Stock'}
     lines = wsec('Lines', 'From GRN-0045.', line_editor(B_NEW_LINES, 'US$', acct))
     terms = fsec('Terms', 'When you have to pay.',
@@ -1245,9 +1269,9 @@ def payment_out_new():
                boxed0(grid(('', 'Amount', ''), [('<span class="cell-lead">%s</span>' % a, b, '<span class="muted">%s</span>' % c) for a, b, c in rows], num=(1,), label='What moves',
                           total=('Leaves CBZ, USD', usd(NET_PAY + IMTT_NEW), ''), widths=(None, '140px', '200px'))))
     rail = ('<section><div class="sec-title">Approval</div><div class="figure">%s</div>'
-            '<dl class="attrs"><dt>Withheld</dt><dd class="num">%s</dd><dt>Approves</dt><dd>James Nyabadza</dd><dt>Why</dt><dd>Over US$500.00</dd><dt>Then pays</dt><dd>Rudo Mapfumo</dd></dl></section>'
+            '<dl class="attrs"><dt>Withheld</dt><dd class="num">%s</dd><dt>Approves</dt><dd>%s</dd><dt>Why</dt><dd>Over US$500.00</dd><dt>Then pays</dt><dd>%s</dd></dl></section>'
             '<section><div class="sec-title">When it is paid</div>%s</section>') % (
-        usd(NET_PAY), usd(WHT),
+        usd(NET_PAY), usd(WHT), person('James Nyabadza'), person('Rudo Mapfumo'),
         steps_list((('It gets a number', 'PAY-0062'), ('The money leaves CBZ', usd(NET_PAY + IMTT_NEW) + ' with IMTT'), ('A certificate is drafted', 'for Mutare Timber Works'), ('The withholding return', 'lists it, due 5 Nov'))))
     body = form_page('Payments made', 'Payments made', 'New payment', 'payments', top, (who, bills_, itf, frm, brk), rail)
     return board('BkPaymentOutNew', 'Pay a supplier', body, h=896)
@@ -1256,7 +1280,7 @@ def payment_out_new():
 def requisition():
     # Done, so no primary: print, and a menu (reopen, reverse).
     top = more_btn() + btn('Print', 'print', 'btn btn-quiet')
-    head = rec_head('Fuel and materials, Pomona Offices', pill('Accounted for'), ('Farai Ncube, fitter', 'From the CRM'))
+    head = rec_head('Fuel and materials, Pomona Offices', pill('Accounted for'), (person('Farai Ncube', label='Farai Ncube, fitter'), 'From the CRM'))
     figs = strip((('Given', usd(REQ88_GIVEN), 'Cash, 7 Oct'), ('Spent', usd(REQ88_SPENT), '3 slips'), ('Change returned', usd(REQ88_BACK), 'Counted 9 Oct'), ('With Farai now', usd(0), 'Nothing owed')))
     slips = []
     vat_total = Decimal('0')
@@ -1334,7 +1358,7 @@ def money_phone():
     rows = ph_rows((('Gone out', usd(MONEY_OUT)), ('Bank and cash', usd(CASH_BASE)), ('You owe suppliers', usd(TO_PAY)), ('VAT due by 15 Nov', usd(VAT_OCT))))
     needs = ('<div class="bk-ph-list"><div class="bk-ph-lh" style="justify-content:space-between;align-items:baseline"><b style="font-size:17px;color:var(--color-ink)">Needs you</b><span class="muted">6</span></div>%s</div>') % ''.join((
         ph_need('hand', '4 things to approve', '%s in all' % usd(REQ_FOR_ME_SUM + M(23) + NET_PAY)),
-        ph_need('fiscal', 'INV-0144 is not signed by FDMS', 'Westgate Interiors, %s' % zig(13500)),
+        ph_need('fiscal', 'INV-0144 is not signed by FDMS', '%s, %s' % (named('Westgate Interiors', False), zig(13500))),
         ph_need('invoice', '3 invoices are overdue', '%s in all' % usd(OVERDUE))))
     foot = '<div class="bk-ph-f">%s%s</div>' % (primary('New invoice', 'plus', 'N'), btn('Record', None, 'btn btn-lg', attrs=' aria-haspopup="menu"')[:-9] + ic('down') + '</button>')
     return phone('BkMoneyPhone', 'Money, phone', head + '<div class="bk-ph-b" style="gap:24px">%s%s%s</div>' % (lede, rows, needs) + foot)
@@ -1346,7 +1370,7 @@ def invoice_phone():
     assert tot == M(1240)
     head = ph_head(iconbtn('back', 'Back to invoices'), 'INV-0131', iconbtn('more', 'More actions'))
     top = ('<div style="display:flex;flex-direction:column;gap:6px">%s<div class="num" style="font-size:34px;font-weight:600;color:var(--color-ink);letter-spacing:var(--tracking-display);text-align:left">%s</div>'
-           '<span style="font-size:15px;color:var(--color-ink-2)">Chisipite Dental · Mrs L. Banda</span></div>') % ('<span style="align-self:flex-start">%s</span>' % pill('Overdue', 'Overdue, 12 days'), usd(tot))
+           '<span style="font-size:15px;color:var(--color-ink-2)">%s · Mrs L. Banda</span></div>') % ('<span style="align-self:flex-start">%s</span>' % pill('Overdue', 'Overdue, 12 days'), usd(tot), named('Chisipite Dental', False))
     rows = ph_rows((('Issued', '22 Sep'), ('Due', '6 Oct'), ('FDMS', st('Valid')), ('Last reminder', '9 Oct, read')))
     lines = '<div class="bk-ph-list"><b style="font-size:15px;color:var(--color-ink)">3 lines</b>%s%s</div>' % (''.join(
         '<div class="bk-ph-row" style="font-size:14px"><span>%s, %s %s</span><span>%s</span></div>' % (i, q, u, usd(M(q) * M(p))) for i, q, u, p in INV131_LINES),
@@ -1358,13 +1382,13 @@ def invoice_phone():
 def requisition_phone():
     r = [x for x in REQ if x[0] == 'REQ-0091'][0]
     head = ph_head(iconbtn('back', 'Back to requisitions'), 'REQ-0091', '<span class="pill pill-n" style="margin-right:8px">CRM</span>')
-    top = ('<div style="display:flex;flex-direction:column;gap:6px"><span style="font-size:15px;color:var(--color-ink-2)">Tinashe Moyo asks for</span>'
+    top = ('<div style="display:flex;flex-direction:column;gap:6px"><span style="font-size:15px;color:var(--color-ink-2)">%s asks for</span>'
            '<div class="num" style="font-size:34px;font-weight:600;color:var(--color-ink);letter-spacing:var(--tracking-display);text-align:left">%s</div>'
-           '<span style="font-size:15px;line-height:1.45;color:var(--color-ink)">Transport, 3 trips to the clinic job</span></div>') % usd(r[6])
+           '<span style="font-size:15px;line-height:1.45;color:var(--color-ink)">Transport, 3 trips to the clinic job</span></div>') % (named('Tinashe Moyo', False), usd(r[6]))
     rows = ph_rows((('Job', 'Borrowdale Brooke Clinic'), ('Needed', 'Mon 19 Oct'), ('Paid from', 'Showroom cash box'), ('His last 3', 'All accounted for')))
-    who = '<span style="font-size:14px;color:var(--color-muted)">Chipo Mhlanga pays it out once approved.</span>'
+    who_ = '<span style="font-size:14px;color:var(--color-muted)">%s pays it out once approved.</span>' % named('Chipo Mhlanga', False)
     foot = '<div class="bk-ph-f">%s%s</div>' % (btn('Approve', 'check', 'btn btn-primary', 'A'), btn('Reject', 'x', 'btn btn-lg'))
-    return phone('BkRequisitionPhone', 'Approve REQ-0091, phone', head + '<div class="bk-ph-b">%s%s%s</div>' % (top, rows, who) + foot)
+    return phone('BkRequisitionPhone', 'Approve REQ-0091, phone', head + '<div class="bk-ph-b">%s%s%s</div>' % (top, rows, who_) + foot)
 
 def claim_phone():
     head = ph_head(iconbtn('x', 'Close'), 'New claim', '<span class="muted" style="font-size:13px;padding-right:8px">Draft</span>')
