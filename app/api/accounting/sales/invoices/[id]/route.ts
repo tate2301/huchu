@@ -4,6 +4,7 @@ import { z } from "zod";
 import { validateSession, successResponse, errorResponse } from "@/lib/api-utils";
 import { prisma } from "@/lib/prisma";
 import { postIssuedInvoice } from "@/lib/books/issue-invoice";
+import { numberAtIssue } from "@/lib/books/core/numbering";
 import { guardBooks } from "@/lib/books/core";
 import { InvoiceChangeRefused } from "@/lib/books/owner";
 import { voidInvoice } from "@/lib/books/reverse-invoice";
@@ -55,10 +56,10 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
       return errorResponse("Paid is worked out from the payments on it. Record a payment instead.", 409);
     }
     if (validated.status === "DRAFT" && existing.status !== "DRAFT") {
-      return errorResponse(`${existing.invoiceNumber} was issued, so it cannot go back to draft. Void it, or credit it.`, 409);
+      return errorResponse(`${docLabel(existing.invoiceNumber)} was issued, so it cannot go back to draft. Void it, or credit it.`, 409);
     }
     if (validated.status === "ISSUED" && existing.status !== "DRAFT") {
-      return errorResponse(`${existing.invoiceNumber} is not a draft: it was issued already.`, 409);
+      return errorResponse(`${docLabel(existing.invoiceNumber)} is not a draft: it was issued already.`, 409);
     }
     const { refused } = await guardBooks(session, validated.status === "ISSUED" ? "issue" : "draft.edit", {
       kind: "invoice",
@@ -76,10 +77,12 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
       : {};
     const now = new Date();
 
-    const updated = await prisma.salesInvoice.update({
+    // Numbered at issue from the series (D8), in the same write as the status.
+    const updated = await prisma.$transaction(async (tx) => tx.salesInvoice.update({
       where: { id },
       data: {
         status: validated.status === "ISSUED" ? "ISSUED" : undefined,
+        invoiceNumber: leaving ? await numberAtIssue(tx, session.user.companyId, "invoice", existing.invoiceNumber) : undefined,
         notes: validated.notes,
         issuedById: validated.status === "ISSUED" ? session.user.id : existing.issuedById,
         issuedAt: validated.status === "ISSUED" ? now : existing.issuedAt,
@@ -87,7 +90,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
         ...(takingOn ? datesOnIssue(existing, now) : {}),
       },
       include: { customer: true, lines: true },
-    });
+    }));
 
     // The CRM hears of an invoice raised off its quote when it is made; Vane's draft, when a person takes it on.
     if (takingOn) {
