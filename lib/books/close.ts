@@ -1,6 +1,7 @@
 import type { AccountingPeriodLockPolicy, PrismaClient } from "@prisma/client";
 
 import { count, dayOf, money, monthName, shortDay, storedDay } from "./format";
+import { blockingWhere } from "./needs-posting";
 
 /**
  * Books → Periods and the close (design/core-modules/boards/view/PageBooksClose.html):
@@ -112,12 +113,14 @@ export async function readClose(db: Db, companyId: string, now = new Date()): Pr
         where: { entry: { companyId, status: "POSTED", entryDate: { lte: range.lte } } },
         _sum: { debit: true, credit: true },
       }),
-      db.accountingIntegrationEvent.groupBy({ by: ["sourceType"], where: { companyId, status: "FAILED", createdAt: range }, _count: true }),
+      // What blocks the close: every FAILED event, and PENDING for over an hour (books-final §1.1 rule 5).
+      db.accountingIntegrationEvent.groupBy({ by: ["sourceType", "status"], where: blockingWhere(companyId, now, range), _count: true }),
     ]);
     const draftTotal = drafts.reduce((sum, draft) => sum + Math.max(draft.lines.reduce((s, l) => s + l.debit, 0), draft.lines.reduce((s, l) => s + l.credit, 0)), 0);
     const debit = Math.round((balance._sum.debit ?? 0) * 100) / 100;
     const credit = Math.round((balance._sum.credit ?? 0) * 100) / 100;
     const failedCount = failed.reduce((sum, group) => sum + group._count, 0);
+    const waitingCount = failed.filter((group) => group.status === "PENDING").reduce((sum, group) => sum + group._count, 0);
     const vatReady = vat && vat.status !== "DRAFT";
     const vatDay = vat?.filedAt ?? vat?.finalizedAt ?? vat?.reviewedAt;
     const vatWord = vat?.status === "FILED" ? "Filed" : vat?.status === "FINALIZED" ? "Finalised" : "Reviewed";
@@ -157,10 +160,12 @@ export async function readClose(db: Db, companyId: string, now = new Date()): Pr
         note:
           failedCount === 0
             ? "Nothing failed to post"
-            : failed.length === 1 && failed[0].sourceType?.startsWith("RETAIL_")
-              ? `${failedCount} Tender ${failedCount === 1 ? "sale" : "sales"} failed to post`
-              : `${count(failedCount, "posting")} failed`,
-        action: failedCount === 0 ? null : { label: "Replay", href: "replay" },
+            : waitingCount === failedCount
+              ? `${count(failedCount, "posting")} waiting over an hour`
+              : failed.length === 1 && failed[0].sourceType?.startsWith("RETAIL_")
+                ? `${failedCount} Tender ${failedCount === 1 ? "sale" : "sales"} failed to post`
+                : `${count(failedCount, "posting")} not on the ledger`,
+        action: failedCount === 0 ? null : { label: "Needs posting", href: "/books/needs-posting" },
       },
     ];
     closing = { id: due.id, month, checks, ready: checks.every((check) => check.state === "done") };

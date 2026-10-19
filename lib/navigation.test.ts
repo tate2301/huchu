@@ -16,7 +16,7 @@ describe("Books' panel (design/core-modules, BooksInvoices and PageBooksJournals
   it("lists the board's rows, then the ledger, then every other accounting page under More", () => {
     const rows = (group?: string) => books.items.filter((item) => item.group === group).map((item) => item.label);
     expect(rows(undefined)).toEqual(["Money", "Invoices", "Payments", "Takings", "Expenses", "Bank", "VAT"]);
-    expect(rows("ledger")).toEqual(["Journals", "Periods", "Chart of accounts"]);
+    expect(rows("ledger")).toEqual(["Journals", "Periods", "Needs posting", "Chart of accounts"]);
     expect(rows("more")).toEqual([
       "Receivables",
       "Payables",

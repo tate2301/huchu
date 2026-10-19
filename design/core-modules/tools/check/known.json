@@ -524,5 +524,19 @@
     "panel: Posting",
     "panel: Fiscal device",
     "status: refused, a change"
+  ],
+  "BkNeedsPosting": [
+    "heading: Close the month",
+    "button: Books",
+    "panel: Books",
+    "panel: Checklist",
+    "panel: Rates & revaluation",
+    "panel: Year end",
+    "panel: Overdueshared",
+    "panel: Pomona Officesyou",
+    "panel: Paid this monthshared",
+    "button: Notifications",
+    "button: Vane",
+    "footer: # failedAmount US#Month held up October"
   ]
 }

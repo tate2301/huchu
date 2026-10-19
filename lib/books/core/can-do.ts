@@ -60,7 +60,9 @@ export type BooksAction =
   | "vat.file"
   | "setup"
   | "posting.retry"
-  | "posting.map";
+  | "posting.map"
+  /** Post money held for a closed month in the current month instead (D14). */
+  | "posting.redate";
 
 export type BooksDocKind =
   | "invoice"
@@ -128,6 +130,7 @@ const OWNER_ONLY: Partial<Record<BooksAction, string>> = {
   "delete.posted": "Only the owner can delete something that has been posted. Void it instead.",
   "period.reopen": "Only the owner can reopen a month.",
   "period.freeze": "Only the owner can set the freeze date.",
+  "posting.redate": "Only the owner can move money from a closed month into this one.",
 };
 
 export function canDo(actor: BooksActor, action: BooksAction, doc: BooksDoc = {}): Decision {

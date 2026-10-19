@@ -1,5 +1,7 @@
 import { Prisma, type PrismaClient } from "@prisma/client";
 
+import { blockingWhere } from "./needs-posting";
+
 /**
  * The figures beside Books' panel rows (design/core-modules, BooksInvoices):
  * only where the board draws one and a count is one indexed query.
@@ -7,19 +9,21 @@ import { Prisma, type PrismaClient } from "@prisma/client";
  * - Invoices: invoices sent and not yet paid.
  * - Bank: statement lines in an open reconciliation that match nothing yet.
  * - Takings: tills closed on a day that has not been closed and banked.
+ * - Needs posting: money that has not reached the ledger (FAILED, or waiting over an hour).
  *
  * Keyed by the row's address, as the shell's badges are. A zero is left out.
  */
 
-type Db = Pick<PrismaClient, "salesInvoice" | "bankStatementLine" | "$queryRaw">;
+type Db = Pick<PrismaClient, "salesInvoice" | "bankStatementLine" | "accountingIntegrationEvent" | "$queryRaw">;
 
 export const BOOKS_COUNT_HREFS = {
   invoices: "/books/invoices",
   bank: "/books/bank",
   takings: "/books/takings",
+  needs: "/books/needs-posting",
 } as const;
 
-export type BooksCounts = { invoices: number; bank: number; takings: number };
+export type BooksCounts = { invoices: number; bank: number; takings: number; needs: number };
 
 /** The badges the panel draws: a figure per row, none for a zero. */
 export function booksBadges(counts: BooksCounts): Record<string, string> {
@@ -35,7 +39,8 @@ export async function readBooksCounts(
   companyId: string,
   { takings = true }: { takings?: boolean } = {},
 ): Promise<BooksCounts> {
-  const [invoices, bank, unbanked] = await Promise.all([
+  const now = new Date();
+  const [invoices, bank, unbanked, needs] = await Promise.all([
     db.salesInvoice.count({ where: { companyId, status: "ISSUED" } }),
     db.bankStatementLine.count({ where: { matchedTransactionId: null, reconciliation: { companyId, status: "OPEN" } } }),
     takings
@@ -51,6 +56,7 @@ export async function readBooksCounts(
                 AND d."businessDate" = ((s."openedAt" AT TIME ZONE 'UTC') AT TIME ZONE 'Africa/Harare')::date
             )`)
       : Promise.resolve([{ count: 0 }]),
+    db.accountingIntegrationEvent.count({ where: blockingWhere(companyId, now) }),
   ]);
-  return { invoices, bank, takings: unbanked[0]?.count ?? 0 };
+  return { invoices, bank, takings: unbanked[0]?.count ?? 0, needs };
 }

@@ -480,7 +480,7 @@ async function resolveEventAccounts(companyId: string, envelope: Record<string, 
   return byKey;
 }
 
-const ROLE_WORDS: Record<RetailAccountRole, string> = {
+export const ROLE_WORDS: Record<RetailAccountRole, string> = {
   SALES: "sales",
   VAT_OUTPUT: "VAT",
   COST_OF_SALES: "cost of sales",

@@ -99,6 +99,8 @@ const BINDINGS: Record<string, Binding[]> = {
   "K | Keep (a change Vane proposes)": [{ file: "components/build/vane-form-changes.tsx" }],
   "U | Upload a statement": [{ file: "app/books/bank/page.tsx" }],
   "Ctrl ↵ | Upload (the statement chosen)": [{ file: "app/books/bank/page.tsx" }],
+  "R | Retry all": [{ file: "app/books/needs-posting/page.tsx" }],
+  "Ctrl ↵ | Map and retry, or Post in this month (the chosen posting's fix)": [{ file: "components/books/needs-posting-view.tsx" }],
   "Ctrl ↵ | Publish": [{ file: "components/builder/grid/builder-bar.tsx" }],
   "Ctrl ↵ | The drawer's primary (Post, Prepare, Send, Save)": [
     { file: "components/books/new-journal-drawer.tsx" },

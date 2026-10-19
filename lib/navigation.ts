@@ -66,6 +66,7 @@ import {
   ListBullets,
   QrCode,
   ShoppingBag,
+  Warning,
   type LucideIcon,
 } from "@/lib/icons";
 import { PEOPLE_TABS } from "@/lib/people/tab-config";
@@ -968,6 +969,8 @@ export const navSections: NavSection[] = [
 
       { href: "/books/journals", icon: Scale, label: "Journals", group: "ledger" },
       { href: "/books/periods", icon: Calendar, label: "Periods", group: "ledger" },
+      // Money that has not reached the ledger (BkNeedsPosting). Under "Close the month" once the panel has its levels (P1c).
+      { href: "/books/needs-posting", icon: Warning, label: "Needs posting", group: "ledger" },
       { href: "/accounting/chart-of-accounts", icon: ListBullets, label: "Chart of accounts", group: "ledger" },
 
       { href: "/accounting/sales", icon: ReceiptLong, label: "Receivables", group: "more" },

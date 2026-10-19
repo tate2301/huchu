@@ -153,6 +153,8 @@ describe("the matrix", () => {
     expect(ok(owner, "posting.map")).toBe(true);
     expect(ok(accountant, "posting.map")).toBe(true);
     expect(ok(manager, "posting.map")).toBe(false);
+    expect(ok(owner, "posting.redate")).toBe(true);
+    expect(ok(accountant, "posting.redate")).toBe(false);
   });
 
   it("look only changes nothing, even as the owner", () => {
