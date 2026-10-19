@@ -83,11 +83,14 @@ type Db = Pick<PrismaClient, "salesReceipt" | "paymentLedgerEntry" | "customer" 
 export async function onAccountCustomers(db: Db, companyId: string, records: Array<{ id: string; invoice: unknown }>): Promise<Map<string, string>> {
   const loose = records.filter((record) => !record.invoice).map((record) => record.id);
   if (loose.length === 0) return new Map();
+  // The receipt names its customer itself (D2); the sub-ledger and audit trail answer for older rows.
+  const named = await db.salesReceipt.findMany({ where: { companyId, id: { in: loose }, customerId: { not: null } }, select: { id: true, customerId: true } });
+  const owner = new Map(named.map((row) => [row.id, row.customerId!]));
   const lines = await db.paymentLedgerEntry.findMany({
-    where: { companyId, sourceType: "SALES_RECEIPT", sourceId: { in: loose }, partyId: { not: null } },
+    where: { companyId, sourceType: "SALES_RECEIPT", sourceId: { in: loose.filter((id) => !owner.has(id)) }, partyId: { not: null } },
     select: { sourceId: true, partyId: true },
   });
-  const owner = new Map(lines.map((line) => [line.sourceId, line.partyId!]));
+  for (const line of lines) owner.set(line.sourceId, line.partyId!);
   const unnamed = loose.filter((id) => !owner.has(id));
   if (unnamed.length) {
     const events = await db.platformAuditEvent.findMany({
@@ -180,10 +183,11 @@ export function paymentsFinding(month: { amount: number; payments: number }, cur
 }
 
 /** The sum of payments in one currency: the one most of them are in. Others are left out, not converted. */
-function sumInMainCurrency(rows: Array<{ amount: number; invoice: { currency: string } | null }>) {
+function sumInMainCurrency(rows: Array<{ amount: number; currency?: string | null; invoice: { currency: string } | null }>) {
   const byCurrency = new Map<string, { amount: number; payments: number }>();
   for (const row of rows) {
-    const currency = row.invoice?.currency ?? "USD";
+    // The currency the money came in (D2), as the core's money in/out reads it.
+    const currency = row.currency ?? row.invoice?.currency ?? "USD";
     const entry = byCurrency.get(currency) ?? { amount: 0, payments: 0 };
     entry.amount += row.amount;
     entry.payments += 1;
@@ -206,10 +210,10 @@ export async function readPayments(db: Db, companyId: string, query: PaymentQuer
     }),
     db.salesReceipt.count({ where }),
     // The sums leave void payments out: they are listed, not counted.
-    db.salesReceipt.findMany({ where: { ...where, voidedAt: null }, select: { amount: true, invoice: { select: { currency: true } } }, take: 10_000 }),
+    db.salesReceipt.findMany({ where: { ...where, voidedAt: null }, select: { amount: true, currency: true, invoice: { select: { currency: true } } }, take: 10_000 }),
     db.salesReceipt.findMany({
       where: { companyId, voidedAt: null, receivedAt: { gte: midnight(monthStart(today)) } },
-      select: { amount: true, invoice: { select: { currency: true } } },
+      select: { amount: true, currency: true, invoice: { select: { currency: true } } },
       take: 10_000,
     }),
   ]);

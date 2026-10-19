@@ -2,6 +2,8 @@ import type { PrismaClient } from "@prisma/client";
 
 import { addDays, asOf, count, dayOf, longDay, money, monthName, monthSoFar, monthStart, sinceWhen, storedDay, weekday } from "./format";
 import { owedAndOverdue } from "./invoices";
+import { moneyInOut, type MoneyInOut } from "./core/money-in-out";
+import { resolveBaseCurrency } from "@/lib/money";
 
 /**
  * Books → Money (design/core-modules/html/books-money.html): what has come in
@@ -11,7 +13,7 @@ import { owedAndOverdue } from "./invoices";
  */
 
 export type MoneySource = {
-  key: "tills" | "invoices";
+  key: "tills" | "invoices" | "fees";
   label: string;
   detail: string;
   amount: number;
@@ -66,6 +68,9 @@ type Db = Pick<
   | "vatReturn"
   | "currencyRate"
   | "site"
+  | "schoolFeeReceipt"
+  | "purchasePayment"
+  | "crmRequisition"
 >;
 
 const round = (n: number) => Math.round(n * 100) / 100;
@@ -75,11 +80,14 @@ const harareStart = (day: string) => new Date(`${day}T00:00:00.000+02:00`);
 
 /**
  * Which way a recorded bank transaction moved the money. Money in is CREDIT,
- * as on the bank's statement, except the till's banked takings, which the day
- * close writes as DEBIT (the ledger's side of the same deposit).
+ * as on the bank's statement, except what the shop writes from the ledger's
+ * side: banked takings and change back (DEBIT, money in) and a requisition
+ * paid out (CREDIT, money out).
  */
+const LEDGER_SIDE_SOURCES: ReadonlySet<string> = new Set(["RETAIL_DAY_BANKED", "RETAIL_REQUISITION_PAYOUT", "RETAIL_REQUISITION_CHANGE"]);
+
 export function isMoneyIn(txn: { direction: "DEBIT" | "CREDIT"; sourceType: string | null }): boolean {
-  if (txn.sourceType === "RETAIL_DAY_BANKED") return txn.direction === "DEBIT";
+  if (txn.sourceType && LEDGER_SIDE_SOURCES.has(txn.sourceType)) return txn.direction === "DEBIT";
   return txn.direction === "CREDIT";
 }
 
@@ -95,62 +103,31 @@ export function moneyFinding(cameIn: number, owed: number, overdue: number, curr
   };
 }
 
-/** What has come in this month, by where it came from: the tills and payments on invoices. */
+const IN_LABEL: Record<"invoices" | "fees", string> = { invoices: "Invoices", fees: "School fees" };
+
+/**
+ * What has come in this month, by where it came from: the tills, every
+ * payment received (on an invoice or on account) and school fees. Read from
+ * the core's one money in/out (`moneyInOut`), as Payments received is.
+ */
 export async function cameIn(db: Db, companyId: string, today: string, currency: string): Promise<MoneySource[]> {
-  const from = harareStart(monthStart(today));
-  const [sales, refunds, sites, receipts] = await Promise.all([
-    db.retailSale.aggregate({
-      where: { companyId, status: "POSTED", saleType: "SALE", currency, createdAt: { gte: from } },
-      _sum: { totalAmount: true },
-      _count: true,
-    }),
-    db.retailSale.aggregate({
-      where: { companyId, status: "POSTED", saleType: "REFUND", currency, createdAt: { gte: from } },
-      _sum: { totalAmount: true },
-    }),
-    db.retailSale.groupBy({
-      by: ["siteId"],
-      where: { companyId, status: "POSTED", saleType: "SALE", createdAt: { gte: from } },
-    }),
-    db.salesReceipt.aggregate({
-      where: { companyId, invoiceId: { not: null }, voidedAt: null, invoice: { currency }, receivedAt: { gte: midnight(monthStart(today)) } },
-      _sum: { amount: true },
-      _count: true,
-    }),
-  ]);
-
-  const tills = round(Number(sales._sum.totalAmount ?? 0) - Math.abs(Number(refunds._sum.totalAmount ?? 0)));
-  const invoices = round(receipts._sum.amount ?? 0);
-  let tillsLabel = "Till sales";
-  if (sites.length === 1) {
-    const site = await db.site.findUnique({ where: { id: sites[0].siteId }, select: { name: true } });
-    if (site) tillsLabel = `${site.name} sales`;
-  }
-
-  const total = tills + invoices;
-  const largest = Math.max(tills, invoices);
+  const flows = await moneyInOut(db, companyId, { from: harareStart(monthStart(today)) }, currency);
+  const total = flows.totalIn;
+  const largest = Math.max(0, ...flows.in.map((flow) => flow.amount));
   const sources: MoneySource[] = [];
-  if (sales._count > 0) {
-    sources.push({
-      key: "tills",
-      label: tillsLabel,
-      detail: `${count(sales._count, "sale")} on the tills`,
-      amount: tills,
-      count: sales._count,
-      share: 0,
-      bar: 0,
-    });
-  }
-  if (receipts._count > 0) {
-    sources.push({
-      key: "invoices",
-      label: "Invoices",
-      detail: `${count(receipts._count, "payment")} on invoices`,
-      amount: invoices,
-      count: receipts._count,
-      share: 0,
-      bar: 0,
-    });
+  for (const flow of flows.in) {
+    if (flow.key === "tills") {
+      const sites = await db.retailSale.groupBy({ by: ["siteId"], where: { companyId, status: "POSTED", saleType: "SALE", createdAt: { gte: flows.from } } });
+      let label = "Till sales";
+      if (sites.length === 1) {
+        const site = await db.site.findUnique({ where: { id: sites[0].siteId }, select: { name: true } });
+        if (site) label = `${site.name} sales`;
+      }
+      sources.push({ key: "tills", label, detail: `${count(flow.count, "sale")} on the tills`, amount: flow.amount, count: flow.count, share: 0, bar: 0 });
+    } else if (flow.key === "invoices" || flow.key === "fees") {
+      const detail = flow.key === "invoices" ? `${count(flow.count, "payment")} received` : `${count(flow.count, "fee receipt")}`;
+      sources.push({ key: flow.key, label: IN_LABEL[flow.key], detail, amount: flow.amount, count: flow.count, share: 0, bar: 0 });
+    }
   }
   for (const source of sources) {
     source.share = total > 0 ? Math.round((source.amount / total) * 100) : 0;
@@ -160,20 +137,17 @@ export async function cameIn(db: Db, companyId: string, today: string, currency:
 }
 
 /**
- * What has gone out this month: the bills paid, as Payables records them.
- * Books keeps no copy.
+ * What has gone out this month: every supplier payment (retail's included)
+ * and every requisition paid out, from the core's one money in/out.
  */
 export async function wentOut(
-  db: Pick<PrismaClient, "purchasePayment">,
+  db: Parameters<typeof moneyInOut>[0],
   companyId: string,
   today: string,
-): Promise<{ amount: number; payments: number }> {
-  const paid = await db.purchasePayment.aggregate({
-    where: { companyId, paidAt: { gte: midnight(monthStart(today)) } },
-    _sum: { amount: true },
-    _count: true,
-  });
-  return { amount: round(paid._sum.amount ?? 0), payments: paid._count };
+  currency?: string,
+): Promise<{ amount: number; payments: number; flows: MoneyInOut["out"] }> {
+  const flows = await moneyInOut(db, companyId, { from: harareStart(monthStart(today)) }, currency ?? (await resolveBaseCurrency(companyId)));
+  return { amount: flows.totalOut, payments: flows.out.reduce((sum, flow) => sum + flow.count, 0), flows: flows.out };
 }
 
 async function cashUpShort(db: Db, companyId: string, today: string): Promise<NeedsYou | null> {
