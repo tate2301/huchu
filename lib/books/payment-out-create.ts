@@ -76,7 +76,7 @@ export async function paySupplier(actor: BooksActor, input: SupplierPaymentInput
       reference: input.reference || undefined,
       bankAccountId: account.id,
     });
-    paid.push({ number: payment.paymentNumber, billId: row.billId, amount: row.amount });
+    paid.push({ number: payment.paymentNumber ?? "", billId: row.billId, amount: row.amount });
   }
   return { supplier: vendor.name, payments: paid, total: Math.round(input.bills.reduce((sum, row) => sum + row.amount, 0) * 100) / 100 };
 }

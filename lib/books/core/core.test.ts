@@ -62,7 +62,7 @@ describe("postMoney", () => {
     expect(first.bankTransactionId).toBeTruthy();
 
     const after = await trialBalance(fixture.companyId);
-    expect(after["5500"]).toBe((before["5500"] ?? 0) + 120);
+    expect(after["1150"]).toBe((before["1150"] ?? 0) + 120);
     expect(after["1016"]).toBe((before["1016"] ?? 0) - 120);
 
     const again = await disbursement("req-core-1", ecocash.id);

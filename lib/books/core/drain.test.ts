@@ -85,7 +85,7 @@ describe("the drain", () => {
     // One row for the source, not a second one beside it.
     expect(await prisma.accountingIntegrationEvent.count({ where: { companyId: fixture.companyId, sourceId: req.id } })).toBe(1);
     const after = await trialBalance(fixture.companyId);
-    expect(after["5520"]).toBe((before["5520"] ?? 0) + 80);
+    expect(after["1150"]).toBe((before["1150"] ?? 0) + 80);
     expect(after["1005"]).toBe((before["1005"] ?? 0) - 80);
 
     // Nothing left for the next tick.

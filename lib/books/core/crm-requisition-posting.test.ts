@@ -78,7 +78,7 @@ describe("a CRM requisition paid out", () => {
     expect(entry.status).toBe("POSTED");
     expect(entry.lines.map((line) => [line.account.code, line.debit, line.credit]).sort()).toEqual([
       ["1016", 0, 400],
-      ["5500", 400, 0],
+      ["1150", 400, 0],
     ]);
     const after = await trialBalance(fixture.companyId);
     expect(after["1010"] ?? 0).toBe(before["1010"] ?? 0);

@@ -81,7 +81,7 @@ type Person = { id: string; name: string | null } | null;
 type Detail = {
   requisition: {
     id: string;
-    requisitionNo: string;
+    requisitionNo: string | null;
     status: RequisitionStatus;
     category: Category;
     purpose: string;
@@ -351,7 +351,7 @@ export function RequisitionDetailContent({ requisitionId }: { requisitionId: str
         backHref="/crm/requisitions"
         backLabel="Requisitions"
         title={requisition.purpose}
-        reference={requisition.requisitionNo}
+        reference={requisition.requisitionNo ?? "Draft"}
         // The steps say where it has got to; the toolbar only carries the two
         // states that leave the path (rule 5).
         status={

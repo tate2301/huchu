@@ -264,7 +264,7 @@ export async function loadRequisitionView(actor: RetailAuditActor, id: string, n
 
   return {
     id: row.id,
-    requisitionNo: row.requisitionNo,
+    requisitionNo: row.requisitionNo ?? "Requisition",
     status,
     badge: requisitionStateBadge(status, receiptsOverdue),
     steps: requisitionSteps(status),

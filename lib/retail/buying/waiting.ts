@@ -42,7 +42,7 @@ export const requisitionsWaiting: WaitingProvider = {
     const rows = await decidableRequisitions({ companyId: ctx.companyId, userId: ctx.userId, role: ctx.session.user.role ?? null });
     return rows.map((row) => ({
       key: `req-${row.id}`,
-      ref: row.requisitionNo,
+      ref: row.requisitionNo ?? "Requisition",
       text: `, ${formatMoney(toNumberOrZero(row.amount), row.currency)}, for ${row.purchaseOrderId && row.payee ? firstName(row.payee.name) : row.purpose.replace(/[.]$/, "")}.`,
       href: `/retail/buying/requisitions/${row.id}`,
       since: row.submittedAt ?? row.createdAt,

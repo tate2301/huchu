@@ -452,7 +452,7 @@ async function findEntityMaxExistingCode(
         select: { groupNo: true, paymentNumber: true },
       });
       return extractMaxFromCodes(
-        records.flatMap((record) => [record.groupNo, record.paymentNumber.replace(/\/\d+$/, "")]),
+        records.flatMap((record) => [record.groupNo, (record.paymentNumber ?? "").replace(/\/\d+$/, "")]),
         prefix,
       );
     }

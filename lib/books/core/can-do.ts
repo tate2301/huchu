@@ -76,7 +76,10 @@ export type BooksDocKind =
   | "journal"
   | "period"
   | "requisition"
+  | "purchase-order"
   | "claim"
+  | "voucher"
+  | "commission"
   | "vat-return"
   | "bank"
   | "event";

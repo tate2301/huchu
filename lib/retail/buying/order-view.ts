@@ -191,7 +191,7 @@ export async function loadOrderView(companyId: string, id: string, now = new Dat
     status: state,
     binned,
     supplier: { id: order.vendor.id, name: order.vendor.name, payTermsDays: order.vendor.payTermsDays, stopped: order.vendor.stoppedAt !== null },
-    site: order.site,
+    site: order.site ?? { id: "", name: "No shop" },
     siteOpen: open && !anythingCame,
     raisedAt: order.createdAt.toISOString(),
     raisedBy: order.createdBy?.name ?? null,
@@ -249,7 +249,7 @@ export async function loadOrderView(companyId: string, id: string, now = new Dat
     requisition: requisition
       ? {
           id: requisition.id,
-          requisitionNo: requisition.requisitionNo,
+          requisitionNo: requisition.requisitionNo ?? "Requisition",
           status: requisition.status as "SUBMITTED" | "APPROVED" | "DISBURSED" | "ACQUITTED",
           amount: toNumberOrZero(requisition.acquittedAmount ?? requisition.paidAmount ?? requisition.approvedAmount ?? requisition.amount),
         }

@@ -18,7 +18,7 @@ import {
   validateSession,
 } from "@/lib/api-utils";
 import { prisma } from "@/lib/prisma";
-import { reserveIdentifier } from "@/lib/id-generator";
+import { sendRequisitionForApproval } from "@/lib/books/core/requisitions";
 import { REPORTABLE_STATUSES, createRequisitionSchema } from "@/lib/crm/requisitions";
 import { requireCrmCapability } from "../_helpers";
 import { notifyApprovers } from "./_shared";
@@ -26,7 +26,12 @@ import { notifyApprovers } from "./_shared";
 const QUEUES = ["MINE", "AWAITING_DECISION", "APPROVED", "OUTSTANDING", "ALL"] as const;
 type Queue = (typeof QUEUES)[number];
 
+/** The CRM's own requisitions: a shop's (`siteId` set) are retail's, and never listed or moved here. */
 function queueWhere(queue: Queue, companyId: string, userId: string): Prisma.CrmRequisitionWhereInput {
+  return { ...queueOnly(queue, companyId, userId), siteId: null };
+}
+
+function queueOnly(queue: Queue, companyId: string, userId: string): Prisma.CrmRequisitionWhereInput {
   switch (queue) {
     case "MINE":
       return { companyId, requestedById: userId };
@@ -145,15 +150,13 @@ export async function POST(request: NextRequest) {
       if (!project) return errorResponse("Project not found", 404);
     }
 
+    // A draft carries no number (D8): it is given at Send for approval, with the
+    // owner limit and who it waits for as they are then (books-final §4.11).
     const requisition = await prisma.$transaction(async (tx) => {
-      const requisitionNo = await reserveIdentifier(tx, {
-        companyId,
-        entity: "CRM_REQUISITION",
-      });
-      return tx.crmRequisition.create({
+      const draft = await tx.crmRequisition.create({
         data: {
           companyId,
-          requisitionNo,
+          requisitionNo: null,
           category: data.category,
           purpose: data.purpose,
           notes: data.notes ?? null,
@@ -162,13 +165,19 @@ export async function POST(request: NextRequest) {
           currency: data.currency,
           requestedById: session.user.id,
           neededBy: data.neededBy ?? null,
-          ...(data.submit ? { status: "SUBMITTED" as const, submittedAt: new Date() } : {}),
         },
+      });
+      if (!data.submit) return draft;
+      const now = new Date();
+      const sent = await sendRequisitionForApproval(tx, { companyId, id: draft.id, requisitionNo: null, amount: draft.amount, actorId: session.user.id, at: now });
+      return tx.crmRequisition.update({
+        where: { id: draft.id },
+        data: { status: "SUBMITTED", submittedAt: now, requisitionNo: sent.requisitionNo, approvalLimit: sent.approvalLimit, approverId: sent.approverId },
       });
     });
 
     if (requisition.status === "SUBMITTED") {
-      await notifyApprovers(companyId, session.user.id, requisition);
+      await notifyApprovers(companyId, session.user.id, { ...requisition, requisitionNo: requisition.requisitionNo ?? "Requisition" });
     }
 
     return successResponse({ requisition }, 201);

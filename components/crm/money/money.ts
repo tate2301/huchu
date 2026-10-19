@@ -62,7 +62,7 @@ export const UNPROJECTED: readonly Category[] = ["FUEL", "AIRTIME"];
  */
 export type RequisitionRow = {
   id: string;
-  requisitionNo: string;
+  requisitionNo: string | null;
   status: RequisitionStatus;
   category: Category;
   purpose: string;

@@ -56,7 +56,7 @@ async function indexDef(table: string, name: string) {
 
 describe("orders, as stored", () => {
   it("has an order's states in order, how it is paid and sent, and what a chase does next", async () => {
-    expect(await enumLabels("RetailPurchaseOrderStatus")).toEqual(["DRAFT", "SENT", "PARTIAL", "RECEIVED", "CLOSED", "CANCELLED"]);
+    expect(await enumLabels("RetailPurchaseOrderStatus")).toEqual(["DRAFT", "TO_APPROVE", "SENT", "PARTIAL", "RECEIVED", "CLOSED", "CANCELLED"]);
     expect(await enumLabels("RetailOrderPayment")).toEqual(["ON_ACCOUNT", "CASH_ON_DELIVERY"]);
     expect(await enumLabels("RetailOrderSentVia")).toEqual(["WHATSAPP", "EMAIL", "BY_HAND"]);
     expect(await enumLabels("RetailOrderChaseAction")).toEqual(["REMIND", "CANCEL_REST"]);

@@ -20,7 +20,7 @@ import { prisma } from "@/lib/prisma";
 
 type Db = PrismaClient | Prisma.TransactionClient;
 
-export type EventAccountKey = "moneyAccount" | "expenseAccount" | "changeAccount";
+export type EventAccountKey = "moneyAccount" | "expenseAccount" | "changeAccount" | "floatAccount";
 
 export type MoneyEvent = {
   companyId: string;

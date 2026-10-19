@@ -99,7 +99,7 @@ export type DefaultPostingRuleLine = {
   /** With `accountSource: "ROLE_MAPPING"`: the company's account for this role (SET-09). */
   accountRole?: RetailAccountRole;
   /** With `accountSource: "EVENT_ACCOUNT"`: the key of the account in the event's `accounts` (BUY-05). */
-  eventAccountKey?: "moneyAccount" | "expenseAccount" | "changeAccount";
+  eventAccountKey?: "moneyAccount" | "expenseAccount" | "changeAccount" | "floatAccount";
   valuePath?: string;
   memoTemplate?: string;
   costCenterCode?: string;
@@ -191,10 +191,23 @@ const BASE_CHART_OF_ACCOUNTS: DefaultAccount[] = [
   { code: "1017", name: "Transfer Clearing", type: "ASSET", category: "Cash", systemManaged: true },
   { code: "1020", name: "Bank Clearing", type: "ASSET", category: "Cash", systemManaged: true },
   { code: "1100", name: "Accounts Receivable", type: "ASSET", category: "Receivables", systemManaged: true },
-  // FLR-05: a short drawer recovered from its cashier is owed to the shop.
-  { code: "1150", name: "Staff owe the shop", type: "ASSET", category: "Receivables", systemManaged: true },
+  // FLR-05: a short drawer recovered from its cashier is owed to the shop. Books P2 (§4.11):
+  // a requisition's money sits here too, "with staff, not yet accounted for", until its receipts come in.
+  {
+    code: "1150",
+    name: "Cash advances to staff",
+    type: "ASSET",
+    category: "Receivables",
+    description: "Money staff hold for the business: requisitions paid out and not yet accounted for, and a short drawer owed back.",
+    systemManaged: true,
+  },
   { code: "1200", name: "Inventory", type: "ASSET", category: "Inventory", systemManaged: true },
   { code: "2000", name: "Accounts Payable", type: "LIABILITY", category: "Payables", systemManaged: true },
+  // Books P2 (D12): goods in from a supplier whose bill has not been recorded yet. The bill clears it.
+  { code: "2010", name: "Goods received, not billed", type: "LIABILITY", category: "Payables", systemManaged: true },
+  // Books P2 (D13, D19): what the business owes its own people for claims and commission.
+  { code: "2190", name: "Staff claims payable", type: "LIABILITY", category: "Payables", systemManaged: true },
+  { code: "2195", name: "Commission payable", type: "LIABILITY", category: "Payables", systemManaged: true },
   { code: "2200", name: "VAT Output", type: "LIABILITY", category: "Tax", systemManaged: true },
   { code: "2240", name: "Bottle Deposits Held", type: "LIABILITY", category: "Payables", systemManaged: true },
   // SET-09: a voucher taken at the till settles what the shop owes its holder.
@@ -202,6 +215,15 @@ const BASE_CHART_OF_ACCOUNTS: DefaultAccount[] = [
   // FLR-06: what customers have paid towards their lay-bys, owed back until the goods are handed over.
   { code: "2260", name: "Lay-by deposits held", type: "LIABILITY", category: "Payables", systemManaged: true },
   { code: "2210", name: "VAT Input", type: "ASSET", category: "Tax", systemManaged: true },
+  // Books P2 (D16): input VAT on a supplier's invoice FDMS has not confirmed. Moved to 2210 once it is Valid.
+  {
+    code: "2215",
+    name: "Input VAT, waiting for FDMS",
+    type: "ASSET",
+    category: "Tax",
+    description: "VAT on bills whose fiscal tax invoice has not been checked on FDMS, or was not valid. Not claimed until it is.",
+    systemManaged: true,
+  },
   { code: "2300", name: "Goods Received Not Invoiced", type: "LIABILITY", category: "Inventory", systemManaged: true },
   ...PAYROLL_CHART_OF_ACCOUNTS,
   { code: "3000", name: "Retained Earnings", type: "EQUITY", category: "Equity", systemManaged: true },
@@ -222,6 +244,8 @@ const BASE_CHART_OF_ACCOUNTS: DefaultAccount[] = [
   // PRD-10: gift vouchers and discounts the shop gives away; what is left on one is written back here when it lapses.
   { code: "5450", name: "Promotions and Gifts", type: "EXPENSE", category: "Operations", systemManaged: true },
   { code: "5600", name: "Bad Debt Expense", type: "EXPENSE", category: "Receivables", systemManaged: true },
+  // Books P2 (D19): commission earned by reps, posted when it is approved.
+  { code: "5650", name: "Commission expense", type: "EXPENSE", category: "Sales", systemManaged: true },
   // The CRM's money-out categories. A rep asks for "fuel", not for account
   // 5500, so the requisition form offers a category and one seeded rule per
   // category resolves it here. Nine categories, nine accounts, and an
@@ -539,6 +563,9 @@ const CRM_CATEGORY_LABELS: Record<string, string> = {
  * workspace's default money account, else 1010). It was a fixed 1010, so a
  * payout from the cash box or EcoCash landed in the bank.
  */
+/** 1150 Cash advances to staff: a requisition's money, with staff until it is accounted for (§4.11). */
+export const ADVANCE_ACCOUNT = "1150";
+
 const MONEY_ACCOUNT_LINE = (direction: "DEBIT" | "CREDIT"): DefaultPostingRuleLine => ({
   direction,
   basis: "AMOUNT",
@@ -559,10 +586,46 @@ function buildCrmMoneyRules(): DefaultPostingRule[] {
     rules.push({
       name: `${label} — requisition paid out`,
       sourceType: "CRM_REQUISITION_DISBURSEMENT",
-      description: `Money handed over on a ${label.toLowerCase()} requisition, expensed as it leaves.`,
+      description: `Money handed over on a ${label.toLowerCase()} requisition: with staff, not yet accounted for, until its receipts come in (books-final §4.11).`,
       conditions: onCategory,
       lines: [
-        { accountCode, direction: "DEBIT", basis: "AMOUNT", allocationValue: 100 },
+        { accountCode: ADVANCE_ACCOUNT, direction: "DEBIT", basis: "AMOUNT", allocationValue: 100 },
+        MONEY_ACCOUNT_LINE("CREDIT"),
+      ],
+    });
+
+    rules.push({
+      name: `${label} — requisition accounted for`,
+      sourceType: "REQUISITION_ACQUITTAL",
+      description: `What a requisition's money went on, from its receipts: the ${label.toLowerCase()} expense, input VAT where the slip's FTI is valid, out of cash advances.`,
+      conditions: onCategory,
+      lines: [
+        { accountCode, direction: "DEBIT", basis: "NET", allocationValue: 100 },
+        { accountCode: "2210", direction: "DEBIT", basis: "TAX", allocationValue: 100 },
+        { accountCode: ADVANCE_ACCOUNT, direction: "CREDIT", basis: "AMOUNT", allocationValue: 100 },
+      ],
+    });
+
+    rules.push({
+      name: `${label} — claim approved`,
+      sourceType: "EXPENSE_CLAIM",
+      description: `A ${label.toLowerCase()} line of a claim, owed back to whoever spent it (2190 Staff claims payable).`,
+      conditions: onCategory,
+      lines: [
+        { accountCode, direction: "DEBIT", basis: "NET", allocationValue: 100 },
+        { accountCode: "2210", direction: "DEBIT", basis: "TAX", allocationValue: 100 },
+        { accountCode: "2190", direction: "CREDIT", basis: "AMOUNT", allocationValue: 100 },
+      ],
+    });
+
+    rules.push({
+      name: `${label} — petty cash voucher`,
+      sourceType: "PETTY_CASH_VOUCHER",
+      description: `${label} paid out of a petty cash float.`,
+      conditions: onCategory,
+      lines: [
+        { accountCode, direction: "DEBIT", basis: "NET", allocationValue: 100 },
+        { accountCode: "2210", direction: "DEBIT", basis: "TAX", allocationValue: 100 },
         MONEY_ACCOUNT_LINE("CREDIT"),
       ],
     });
@@ -570,23 +633,21 @@ function buildCrmMoneyRules(): DefaultPostingRule[] {
     rules.push({
       name: `${label} — requisition change returned`,
       sourceType: "CRM_REQUISITION_REFUND",
-      description:
-        "The employee spent less than they were given. Carries the difference only — the whole amount was expensed when it was paid out.",
+      description: "The employee spent less than they were given and handed the change back: it comes off their cash advance.",
       conditions: onCategory,
       lines: [
         MONEY_ACCOUNT_LINE("DEBIT"),
-        { accountCode, direction: "CREDIT", basis: "AMOUNT", allocationValue: 100 },
+        { accountCode: ADVANCE_ACCOUNT, direction: "CREDIT", basis: "AMOUNT", allocationValue: 100 },
       ],
     });
 
     rules.push({
       name: `${label} — requisition overspend`,
       sourceType: "CRM_REQUISITION_TOPUP",
-      description:
-        "The employee spent more than they were given and is owed the difference. Carries the difference only.",
+      description: "The employee spent more than they were given and is paid the difference: it goes on their cash advance, which the receipts then clear.",
       conditions: onCategory,
       lines: [
-        { accountCode, direction: "DEBIT", basis: "AMOUNT", allocationValue: 100 },
+        { accountCode: ADVANCE_ACCOUNT, direction: "DEBIT", basis: "AMOUNT", allocationValue: 100 },
         MONEY_ACCOUNT_LINE("CREDIT"),
       ],
     });
@@ -603,6 +664,75 @@ function buildCrmMoneyRules(): DefaultPostingRule[] {
       ],
     });
   }
+
+  // A line that names its own expense account (a retail expense type, a claim line moved to
+  // another account) rather than a category: subtype ACCOUNT, the account in the event.
+  const onAccount: DefaultPostingRuleCondition[] = [{ field: "MOVEMENT_TYPE", operator: "EQ", valueString: "ACCOUNT" }];
+  const namedExpense: DefaultPostingRuleLine = { direction: "DEBIT", basis: "NET", allocationValue: 100, accountSource: "EVENT_ACCOUNT", eventAccountKey: "expenseAccount" };
+  const inputVat: DefaultPostingRuleLine = { accountCode: "2210", direction: "DEBIT", basis: "TAX", allocationValue: 100 };
+  rules.push(
+    {
+      name: "Requisition accounted for — named account",
+      sourceType: "REQUISITION_ACQUITTAL",
+      description: "What a requisition's money went on, to the expense account it names, out of cash advances.",
+      conditions: onAccount,
+      lines: [namedExpense, inputVat, { accountCode: ADVANCE_ACCOUNT, direction: "CREDIT", basis: "AMOUNT", allocationValue: 100 }],
+    },
+    {
+      name: "Claim approved — named account",
+      sourceType: "EXPENSE_CLAIM",
+      description: "A claim line to the expense account it names, owed to whoever spent it.",
+      conditions: onAccount,
+      lines: [namedExpense, inputVat, { accountCode: "2190", direction: "CREDIT", basis: "AMOUNT", allocationValue: 100 }],
+    },
+    {
+      name: "Claim approved — spend posted before claims",
+      sourceType: "EXPENSE_CLAIM",
+      description: "A cost-tracker spend already expensed against Accounts Payable before claims began: approving its claim moves what is owed to Staff claims payable, and expenses nothing twice.",
+      conditions: [{ field: "MOVEMENT_TYPE", operator: "EQ", valueString: "RECLASS" }],
+      lines: [
+        { accountCode: "2000", direction: "DEBIT", basis: "AMOUNT", allocationValue: 100 },
+        { accountCode: "2190", direction: "CREDIT", basis: "AMOUNT", allocationValue: 100 },
+      ],
+    },
+    {
+      name: "Petty cash voucher — named account",
+      sourceType: "PETTY_CASH_VOUCHER",
+      description: "Paid out of a petty cash float to the expense account it names.",
+      conditions: onAccount,
+      lines: [namedExpense, inputVat, MONEY_ACCOUNT_LINE("CREDIT")],
+    },
+    {
+      name: "Claim reimbursed",
+      sourceType: "EXPENSE_CLAIM_PAYMENT",
+      description: "Paying back what a claim owes: Staff claims payable, out of the money account it was paid from.",
+      lines: [{ accountCode: "2190", direction: "DEBIT", basis: "AMOUNT", allocationValue: 100 }, MONEY_ACCOUNT_LINE("CREDIT")],
+    },
+    {
+      name: "Petty cash float topped up",
+      sourceType: "PETTY_CASH_TOPUP",
+      description: "A float brought back to its imprest: into the float, out of the account it came from.",
+      lines: [
+        { direction: "DEBIT", basis: "AMOUNT", allocationValue: 100, accountSource: "EVENT_ACCOUNT", eventAccountKey: "floatAccount" },
+        MONEY_ACCOUNT_LINE("CREDIT"),
+      ],
+    },
+    {
+      name: "Commission approved",
+      sourceType: "CRM_COMMISSION",
+      description: "Commission a rep has earned, approved: an expense, owed to the rep until it is paid (D19).",
+      lines: [
+        { accountCode: "5650", direction: "DEBIT", basis: "AMOUNT", allocationValue: 100 },
+        { accountCode: "2195", direction: "CREDIT", basis: "AMOUNT", allocationValue: 100 },
+      ],
+    },
+    {
+      name: "Commission paid",
+      sourceType: "CRM_COMMISSION_PAYMENT",
+      description: "Commission paid to the rep out of a money account.",
+      lines: [{ accountCode: "2195", direction: "DEBIT", basis: "AMOUNT", allocationValue: 100 }, MONEY_ACCOUNT_LINE("CREDIT")],
+    },
+  );
 
   return rules;
 }
@@ -713,12 +843,57 @@ const BASE_POSTING_RULES: DefaultPostingRule[] = [
     ],
   },
   {
+    // D16: input VAT is claimed only once the supplier's FTI is Valid on FDMS. Until then it
+    // waits in 2215; the rule below moves it when someone marks the FTI valid.
     name: "Purchase Bill",
     sourceType: "PURCHASE_BILL",
+    isFallback: true,
+    lines: [
+      { accountCode: "5000", direction: "DEBIT", basis: "NET", allocationValue: 100 },
+      { accountCode: "2215", direction: "DEBIT", basis: "TAX", allocationValue: 100 },
+      { accountCode: "2000", direction: "CREDIT", basis: "AMOUNT", allocationValue: 100 },
+    ],
+  },
+  {
+    name: "Purchase bill, FTI valid",
+    sourceType: "PURCHASE_BILL",
+    conditions: [{ field: "MOVEMENT_TYPE", operator: "EQ", valueString: "VALID" }],
     lines: [
       { accountCode: "5000", direction: "DEBIT", basis: "NET", allocationValue: 100 },
       { accountCode: "2210", direction: "DEBIT", basis: "TAX", allocationValue: 100 },
       { accountCode: "2000", direction: "CREDIT", basis: "AMOUNT", allocationValue: 100 },
+    ],
+  },
+  {
+    // D12: a bill for goods already received clears what the goods receipt credited
+    // (2010 Goods received, not billed; 2300 for receipts posted before it), named in the event.
+    name: "Purchase bill for goods received",
+    sourceType: "PURCHASE_BILL",
+    conditions: [{ field: "MOVEMENT_TYPE", operator: "EQ", valueString: "GOODS_RECEIVED" }],
+    lines: [
+      { direction: "DEBIT", basis: "NET", allocationValue: 100, accountSource: "EVENT_ACCOUNT", eventAccountKey: "expenseAccount" },
+      { accountCode: "2215", direction: "DEBIT", basis: "TAX", allocationValue: 100 },
+      { accountCode: "2000", direction: "CREDIT", basis: "AMOUNT", allocationValue: 100 },
+    ],
+  },
+  {
+    name: "Purchase bill for goods received, FTI valid",
+    sourceType: "PURCHASE_BILL",
+    conditions: [{ field: "MOVEMENT_TYPE", operator: "EQ", valueString: "GOODS_RECEIVED_VALID" }],
+    lines: [
+      { direction: "DEBIT", basis: "NET", allocationValue: 100, accountSource: "EVENT_ACCOUNT", eventAccountKey: "expenseAccount" },
+      { accountCode: "2210", direction: "DEBIT", basis: "TAX", allocationValue: 100 },
+      { accountCode: "2000", direction: "CREDIT", basis: "AMOUNT", allocationValue: 100 },
+    ],
+  },
+  {
+    name: "Purchase bill, FTI found valid",
+    sourceType: "PURCHASE_BILL",
+    description: "The supplier's FTI was checked on FDMS after the bill was recorded: its VAT moves from waiting to claimable.",
+    conditions: [{ field: "MOVEMENT_TYPE", operator: "EQ", valueString: "FDMS_VALID" }],
+    lines: [
+      { accountCode: "2210", direction: "DEBIT", basis: "TAX", allocationValue: 100 },
+      { accountCode: "2215", direction: "CREDIT", basis: "TAX", allocationValue: 100 },
     ],
   },
   {
@@ -1069,7 +1244,8 @@ export const RETAIL_POSTING_RULES: DefaultPostingRule[] = [
     isFallback: true,
     lines: [
       { accountSource: "ROLE_MAPPING", accountRole: "STOCK", direction: "DEBIT", basis: "AMOUNT", memoTemplate: "{description} / inventory", sortOrder: 10 },
-      { accountCode: "2300", direction: "CREDIT", basis: "AMOUNT", memoTemplate: "{description} / GRNI", sortOrder: 20 },
+      // D12: what the supplier's bill (a draft made from this receipt) clears.
+      { accountCode: "2010", direction: "CREDIT", basis: "AMOUNT", memoTemplate: "{description} / goods received, not billed", sortOrder: 20 },
     ],
   },
   // BUY-05: money out of a shop's money accounts. A requisition's cash for an
@@ -1093,14 +1269,14 @@ export const RETAIL_POSTING_RULES: DefaultPostingRule[] = [
   {
     name: "Retail requisition paid out for an expense",
     sourceType: "RETAIL_REQUISITION_PAYOUT",
-    description: "Cash handed out for an expense, expensed to the expense type's account as it leaves.",
+    description: "Cash handed out for an expense: a cash advance until it is accounted for, when the receipts expense it (books-final §4.11).",
     priority: 10,
     scopeType: "COMPANY",
     ruleMode: "GUIDED",
     isFallback: true,
     conditions: [{ field: "MOVEMENT_TYPE", operator: "EQ", valueString: "EXPENSE" }],
     lines: [
-      { accountSource: "EVENT_ACCOUNT", eventAccountKey: "expenseAccount", direction: "DEBIT", basis: "AMOUNT", memoTemplate: "{description} / expense", sortOrder: 10 },
+      { accountCode: "1150", direction: "DEBIT", basis: "AMOUNT", memoTemplate: "{description} / cash advance", sortOrder: 10 },
       { accountSource: "EVENT_ACCOUNT", eventAccountKey: "moneyAccount", direction: "CREDIT", basis: "AMOUNT", memoTemplate: "{description} / paid out", sortOrder: 20 },
     ],
   },
@@ -1121,7 +1297,7 @@ export const RETAIL_POSTING_RULES: DefaultPostingRule[] = [
   {
     name: "Retail requisition change for an expense",
     sourceType: "RETAIL_REQUISITION_CHANGE",
-    description: "Change brought back from an expense's cash: only the difference comes off the expense.",
+    description: "Change brought back from an expense's cash: it comes off the cash advance.",
     priority: 10,
     scopeType: "COMPANY",
     ruleMode: "GUIDED",
@@ -1129,7 +1305,7 @@ export const RETAIL_POSTING_RULES: DefaultPostingRule[] = [
     conditions: [{ field: "MOVEMENT_TYPE", operator: "EQ", valueString: "EXPENSE" }],
     lines: [
       { accountSource: "EVENT_ACCOUNT", eventAccountKey: "changeAccount", direction: "DEBIT", basis: "AMOUNT", memoTemplate: "{description} / change back", sortOrder: 10 },
-      { accountSource: "EVENT_ACCOUNT", eventAccountKey: "expenseAccount", direction: "CREDIT", basis: "AMOUNT", memoTemplate: "{description} / expense", sortOrder: 20 },
+      { accountCode: "1150", direction: "CREDIT", basis: "AMOUNT", memoTemplate: "{description} / cash advance", sortOrder: 20 },
     ],
   },
   {

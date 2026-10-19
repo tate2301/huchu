@@ -57,6 +57,13 @@ export const ACCOUNTING_SOURCE_TYPE_OPTIONS: Array<{ value: AccountingSourceType
   { value: "CRM_REQUISITION_TOPUP", label: "Requisition Overspend" },
   { value: "CRM_COST_ENTRY_SPEND", label: "Daily Log Spend" },
   { value: "CRM_COST_ENTRY_RECEIPT", label: "Daily Log Cash Received" },
+  { value: "REQUISITION_ACQUITTAL", label: "Requisition Accounted For" },
+  { value: "EXPENSE_CLAIM", label: "Expense Claim" },
+  { value: "EXPENSE_CLAIM_PAYMENT", label: "Expense Claim Reimbursed" },
+  { value: "PETTY_CASH_VOUCHER", label: "Petty Cash Voucher" },
+  { value: "PETTY_CASH_TOPUP", label: "Petty Cash Top-up" },
+  { value: "CRM_COMMISSION", label: "Commission Approved" },
+  { value: "CRM_COMMISSION_PAYMENT", label: "Commission Paid" },
 ];
 
 /**

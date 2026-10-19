@@ -46,6 +46,7 @@ type OrderFacts = {
 
 const STATE: Record<RetailPurchaseOrderStatus, { state: VaneOrderRow["state"]; label: string }> = {
   DRAFT: { state: "draft", label: "Draft" },
+  TO_APPROVE: { state: "draft", label: "To approve" },
   SENT: { state: "sent", label: "Sent" },
   PARTIAL: { state: "part", label: "Part delivered" },
   RECEIVED: { state: "received", label: "Received" },

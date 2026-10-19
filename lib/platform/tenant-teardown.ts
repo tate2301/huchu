@@ -19,6 +19,10 @@ export async function destroyProvisionedTenant(companyId: string): Promise<void>
       // still has to take with it.
       await tx.platformAuditEvent.deleteMany({ where: { companyId } });
       await tx.signupRequest.deleteMany({ where: { companyId } });
+      // Books P2: approvals point at their people, and claims and vouchers at theirs and their floats.
+      await tx.approvalAction.deleteMany({ where: { companyId } });
+      await tx.expenseClaim.deleteMany({ where: { companyId } });
+      await tx.pettyCashVoucher.deleteMany({ where: { companyId } });
       await tx.user.deleteMany({ where: { companyId } });
 
       await tx.productPrice.deleteMany({ where: { companyId } });

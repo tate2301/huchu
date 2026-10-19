@@ -77,7 +77,7 @@ export function RequisitionTable({
           cells: {
             requisition: (
               <ColumnName
-                code={row.requisitionNo}
+                code={row.requisitionNo ?? "Draft"}
                 name={row.purpose}
                 meta={[
                   showRequester ? row.requestedBy?.name : null,

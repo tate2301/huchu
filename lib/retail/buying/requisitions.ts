@@ -2,6 +2,8 @@ import { Prisma, type CrmRequisitionRejectReason, type NotificationType } from "
 
 import { assertTransition } from "@/lib/crm/requisitions";
 import { reserveIdentifier } from "@/lib/id-generator";
+import { decideApproval, decidePayment, approvedByOwner, othersWhoCan, otherOwners, approvalNote, recordApproval, type ApprovalDecision } from "@/lib/books/core/approvals";
+import { recordRequisitionDecision, sendRequisitionForApproval } from "@/lib/books/core/requisitions";
 import { money, toNumberOrZero } from "@/lib/money";
 import { emitRetailNotification } from "@/lib/notifications";
 import { prisma } from "@/lib/prisma";
@@ -17,7 +19,7 @@ import { dayKey, DEFAULT_TIME_ZONE, formatDay, formatMoney } from "@/lib/workspa
 import { AttachmentRefusal, recordAttachment, type UploadedFile } from "./attachments";
 import { orderTotals } from "./figures";
 import { currencyWords, findMoneyAccount, listMoneyAccounts, moneyAccountBalance, moneyAccountSub } from "./money-accounts";
-import { postChange, postPayout, type AccountingResult } from "./posting";
+import { postAcquittal, postPayout, type AccountingResult } from "./posting";
 import {
   approvedWords,
   firstName,
@@ -81,16 +83,33 @@ export const overLimitWords = (limit: Prisma.Decimal | number, owner: string | n
 export const OWN_REQUEST = "Somebody else has to approve your own request.";
 
 /**
- * Why this person may not approve or reject it, or null when they may: an
- * owner decides anything, their own too; a manager only at or under the
- * limit it was asked under, and never their own.
+ * The Books core's decision (books-final §2.4, `decideApproval`): nobody
+ * approves their own request (an owner only when nobody else in the
+ * workspace may); a manager only at or under the limit it was asked under;
+ * an owner anything else.
  */
-export function decideRefusal(actor: RetailAuditActor, requisition: Decidable, ownerName: string | null): string | null {
-  if (!can(actor, "approve")) return "Your role cannot approve requisitions";
-  if (isOwner(actor)) return null;
-  if (requisition.requestedById === actor.userId) return OWN_REQUEST;
-  if (requisition.approvalLimit && requisition.amount.greaterThan(requisition.approvalLimit)) return overLimitWords(requisition.approvalLimit, ownerName);
-  return null;
+export function approvalDecision(actor: RetailAuditActor, requisition: Decidable, ownerName: string | null, othersWhoCanApprove = 1, otherOwnerCount = othersWhoCanApprove): ApprovalDecision {
+  if (!can(actor, "approve")) return { allowed: false, reason: "Your role cannot approve requisitions" };
+  const decision = decideApproval(
+    { companyId: actor.companyId, userId: actor.userId, role: actor.userRole },
+    { kind: "requisition", module: "retail", requestedById: requisition.requestedById, amount: toNumberOrZero(requisition.amount), limit: requisition.approvalLimit ? toNumberOrZero(requisition.approvalLimit) : null },
+    { othersWhoCanApprove, otherOwners: otherOwnerCount, ownerName, roleAllowed: true },
+  );
+  if (!decision.allowed && requisition.approvalLimit && decision.reason.startsWith("Over ")) return { allowed: false, reason: overLimitWords(requisition.approvalLimit, ownerName) };
+  return decision;
+}
+
+/** Why this person may not approve or reject it, or null when they may (lists assume somebody else could). */
+export function decideRefusal(actor: RetailAuditActor, requisition: Decidable, ownerName: string | null, othersWhoCanApprove = 1): string | null {
+  const decision = approvalDecision(actor, requisition, ownerName, othersWhoCanApprove);
+  return decision.allowed ? null : decision.reason;
+}
+
+/** The decision with the workspace counted: a sole owner may approve their own. */
+async function decisionNow(actor: RetailAuditActor, requisition: One): Promise<ApprovalDecision> {
+  const others = await othersWhoCan(prisma, actor.companyId, { module: "retail", except: [requisition.requestedById] });
+  const owners = await otherOwners(prisma, actor.companyId, [requisition.requestedById]);
+  return approvalDecision(actor, requisition, await ownerName(actor.companyId, requisition), others, owners);
 }
 
 /** The asker cancels their own; owners and managers any. */
@@ -107,14 +126,15 @@ const ONE_INCLUDE = {
   purchaseOrder: { select: { id: true, poNo: true, status: true, archivedAt: true, siteId: true, vendor: { select: { id: true, name: true } } } },
 } satisfies Prisma.CrmRequisitionInclude;
 
-type One = Prisma.CrmRequisitionGetPayload<{ include: typeof ONE_INCLUDE }>;
+/** A shop's requisition is numbered when it is asked (it is sent for approval at once), so it always has one. */
+type One = Omit<Prisma.CrmRequisitionGetPayload<{ include: typeof ONE_INCLUDE }>, "requisitionNo"> & { requisitionNo: string };
 
 /** One requisition this person may read, or 404 (another's, for a view-own role, is not found). */
 async function readOne(client: Tx | typeof prisma, actor: RetailAuditActor, id: string, anyone = false): Promise<One> {
   const where = anyone ? { id, companyId: actor.companyId, siteId: { not: null } } : { id, ...requisitionScope(actor) };
   const row = await client.crmRequisition.findFirst({ where, include: ONE_INCLUDE });
   if (!row) throw new RequisitionRefusal(404, NOT_FOUND);
-  return row;
+  return { ...row, requisitionNo: row.requisitionNo ?? "Requisition" };
 }
 
 /** Why a requisition in this state cannot be decided: "REQ-0014 has already been approved." */
@@ -300,7 +320,8 @@ export async function askForMoneyIn(tx: Tx, actor: RetailAuditActor, input: AskI
       notes: why,
       purchaseOrderId: order.id,
       payeeVendorId: order.vendorId,
-      siteId: order.siteId,
+      // A Books order has no shop (D11): the money is asked for at the asker's.
+      siteId: order.siteId ?? (await defaultSiteFor(companyId, actor.userId)),
       neededBy: neededBy ?? order.expectedDate,
     };
   } else {
@@ -323,23 +344,16 @@ export async function askForMoneyIn(tx: Tx, actor: RetailAuditActor, input: AskI
   }
 
   const limits = await getApprovalLimits(companyId, tx);
-  const over = amount.greaterThan(limits.requisitionOwnerOver);
-  const requisitionNo = await reserveIdentifier(tx, { companyId, entity: "CRM_REQUISITION" });
-  const created = await tx.crmRequisition.create({
-    data: {
-      ...data,
-      companyId,
-      requisitionNo,
-      amount,
-      currency,
-      bankAccountId: from.id,
-      requestedById: actor.userId,
-      status: "SUBMITTED",
-      submittedAt: now,
-      approvalLimit: limits.requisitionOwnerOver,
-      approverId: over ? (limits.ownerApprover?.id ?? null) : null,
-      createdAt: now,
-    },
+  const drafted = await tx.crmRequisition.create({
+    data: { ...data, companyId, requisitionNo: null, amount, currency, bankAccountId: from.id, requestedById: actor.userId, createdAt: now },
+    select: { id: true },
+  });
+  // Sent for approval as it is asked: numbered, with the limit and who it waits for, through the Books core.
+  const sent = await sendRequisitionForApproval(tx, { companyId, id: drafted.id, requisitionNo: null, amount, actorId: actor.userId, at: now });
+  const { over, requisitionNo } = sent;
+  const created = await tx.crmRequisition.update({
+    where: { id: drafted.id },
+    data: { requisitionNo, status: "SUBMITTED", submittedAt: now, approvalLimit: sent.approvalLimit, approverId: sent.approverId },
     select: { id: true, siteId: true, purpose: true },
   });
   if (input.for === "expense" && input.quote) {
@@ -419,8 +433,8 @@ export async function approveRequisition(
 ): Promise<Decided> {
   const now = deps.now ?? new Date();
   const requisition = await readOne(prisma, actor, id);
-  const refusal = decideRefusal(actor, requisition, await ownerName(actor.companyId, requisition));
-  if (refusal) throw new RequisitionRefusal(403, refusal);
+  const decision = await decisionNow(actor, requisition);
+  if (!decision.allowed) throw new RequisitionRefusal(403, decision.reason);
   if (requisition.status !== "SUBMITTED") throw new RequisitionRefusal(409, notWaiting(requisition.requisitionNo, requisition.status));
   assertTransition(requisition.status, "APPROVED");
 
@@ -442,6 +456,7 @@ export async function approveRequisition(
       data: { status: "APPROVED", approvedById: actor.userId, approvedAt: now, approvedAmount: cut ? approved : null, decisionNote: note },
     });
     if (moved.count === 0) throw new RequisitionRefusal(409, notWaiting(requisition.requisitionNo, "APPROVED"));
+    await recordRequisitionDecision(tx, { companyId: actor.companyId, id, approve: true, actorId: actor.userId, decision, note });
     await writeRetailAuditEvent(tx, {
       actor,
       eventType: RETAIL_AUDIT_EVENTS.requisitionApproved,
@@ -497,8 +512,8 @@ function rejectReason(word: string): CrmRequisitionRejectReason {
 
 async function rejectOne(actor: RetailAuditActor, id: string, reason: CrmRequisitionRejectReason, message: string | null, now: Date): Promise<One> {
   const requisition = await readOne(prisma, actor, id);
-  const refusal = decideRefusal(actor, requisition, await ownerName(actor.companyId, requisition));
-  if (refusal) throw new RequisitionRefusal(403, refusal);
+  const decision = await decisionNow(actor, requisition);
+  if (!decision.allowed) throw new RequisitionRefusal(403, decision.reason);
   if (requisition.status !== "SUBMITTED") throw new RequisitionRefusal(409, notWaiting(requisition.requisitionNo, requisition.status));
   assertTransition(requisition.status, "REJECTED");
   await prisma.$transaction(async (tx) => {
@@ -507,6 +522,7 @@ async function rejectOne(actor: RetailAuditActor, id: string, reason: CrmRequisi
       data: { status: "REJECTED", rejectReason: reason, decisionNote: message, approvedById: actor.userId, approvedAt: now },
     });
     if (moved.count === 0) throw new RequisitionRefusal(409, notWaiting(requisition.requisitionNo, "APPROVED"));
+    await recordRequisitionDecision(tx, { companyId: actor.companyId, id, approve: false, actorId: actor.userId, decision, note: message });
     await writeRetailAuditEvent(tx, {
       actor,
       eventType: RETAIL_AUDIT_EVENTS.requisitionRejected,
@@ -949,6 +965,25 @@ export async function payOut(actor: RetailAuditActor, id: string, input: PayInpu
     : null;
   if (!to) throw invalid({ to: "Choose who the money goes to." });
 
+  // Maker-checker (books-final §2.4): nobody pays out their own request, and the approver
+  // does not pay where somebody else may; over the limit, only once the owner approved it.
+  const payDecision = decidePayment(
+    { companyId, userId: actor.userId, role: actor.userRole },
+    {
+      kind: "requisition",
+      module: "retail",
+      requestedById: requisition.requestedById,
+      approvedById: requisition.approvedById,
+      ownerApproved: await approvedByOwner(prisma, companyId, requisition.approvedById),
+      amount: toNumberOrZero(paid),
+      limit: requisition.approvalLimit ? toNumberOrZero(requisition.approvalLimit) : null,
+      currency: requisition.currency,
+    },
+    { othersWhoCanPay: await othersWhoCan(prisma, companyId, { module: "retail", except: [actor.userId, requisition.requestedById] }), roleAllowed: true },
+  );
+  if (!payDecision.allowed) throw new RequisitionRefusal(403, payDecision.reason);
+  const bentNote = approvalNote(payDecision);
+
   const due = new Date(now.getTime() + RECEIPTS_DUE_DAYS * 86_400_000);
   const figure = formatMoney(toNumberOrZero(paid), requisition.currency);
 
@@ -1011,6 +1046,7 @@ export async function payOut(actor: RetailAuditActor, id: string, input: PayInpu
             },
           });
         }
+        if (bentNote) await recordApproval(tx, { companyId, kind: "requisition", entityId: id, action: "ADJUST", from: "APPROVED", to: "DISBURSED", actedById: actor.userId, note: bentNote });
         await writeRetailAuditEvent(tx, {
           actor,
           eventType: RETAIL_AUDIT_EVENTS.requisitionPaid,
@@ -1143,7 +1179,7 @@ export async function accountFor(actor: RetailAuditActor, id: string, input: Acq
     });
   });
 
-  const accounting = change.greaterThan(0) ? await postChange(companyId, id, { userId: actor.userId, userRole: actor.userRole }) : null;
+  const accounting = await postAcquittal(companyId, id, { userId: actor.userId, userRole: actor.userRole });
   const message = into
     ? `${requisition.requisitionNo} accounted for. ${formatMoney(toNumberOrZero(change), requisition.currency)} back in ${accountInSentence(into.name)}.`
     : `${requisition.requisitionNo} accounted for.`;

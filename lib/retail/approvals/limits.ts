@@ -8,7 +8,9 @@ import type { ApprovalChannel, CountApprovalRule, PriceChangeRule } from "./word
  * Approvals and limits (80-admin 4.2, ADM-04): one row per company in
  * `RetailApprovalSettings`, read by every area through `getApprovalLimits`.
  * A shop that has never saved the page has the model's defaults. BUY-04,
- * STK-04, STK-06, CUS-07, ADM-05 and the Roles sheet read it.
+ * STK-04, STK-06, CUS-07, ADM-05 and the Roles sheet read it, and since
+ * Books P2 it is the company's money limits too (D10): Books' approvals
+ * (`lib/books/core/approvals.ts`) read the same row.
  */
 
 type Client = Prisma.TransactionClient | typeof prisma;
@@ -24,6 +26,12 @@ export type ApprovalLimits = {
   countDifferences: CountApprovalRule;
   countOwnerOver: Prisma.Decimal;
   accountOwnerOver: Prisma.Decimal;
+  /** D10: bills and supplier payments over this wait for the owner. */
+  paymentOwnerOver: Prisma.Decimal;
+  /** D10: an accountant's manual journal over this needs a second person. */
+  journalSecondOver: Prisma.Decimal;
+  /** D10: a petty cash voucher under this posts on the float holder's word alone. */
+  voucherHolderUnder: Prisma.Decimal;
   askBy: ApprovalChannel;
 };
 
@@ -36,6 +44,9 @@ export const APPROVAL_DEFAULTS = {
   countDifferences: "OWNER_OVER_LIMIT",
   countOwnerOver: "100.00",
   accountOwnerOver: "250.00",
+  paymentOwnerOver: "500.00",
+  journalSecondOver: "1000.00",
+  voucherHolderUnder: "20.00",
   askBy: "WHATSAPP_AND_APP",
 } as const;
 
@@ -66,6 +77,9 @@ export async function getApprovalLimits(companyId: string, client: Client = pris
     countDifferences: row?.countDifferences ?? APPROVAL_DEFAULTS.countDifferences,
     countOwnerOver: row?.countOwnerOver ?? new Prisma.Decimal(APPROVAL_DEFAULTS.countOwnerOver),
     accountOwnerOver: row?.accountOwnerOver ?? new Prisma.Decimal(APPROVAL_DEFAULTS.accountOwnerOver),
+    paymentOwnerOver: row?.paymentOwnerOver ?? new Prisma.Decimal(APPROVAL_DEFAULTS.paymentOwnerOver),
+    journalSecondOver: row?.journalSecondOver ?? new Prisma.Decimal(APPROVAL_DEFAULTS.journalSecondOver),
+    voucherHolderUnder: row?.voucherHolderUnder ?? new Prisma.Decimal(APPROVAL_DEFAULTS.voucherHolderUnder),
     askBy: row?.askBy ?? APPROVAL_DEFAULTS.askBy,
   };
 }

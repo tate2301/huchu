@@ -148,7 +148,7 @@ export async function receivingView(actor: RetailAuditActor, orderId: string, no
   let empties: ReceivingView["empties"] = null;
   try {
     const deposits = await emptiesShop(prisma, companyId);
-    const last = await prisma.retailEmptiesEntry.findFirst({ where: { siteId: order.siteId }, orderBy: [{ createdAt: "desc" }, { id: "desc" }], select: { cratesAfter: true } });
+    const last = await prisma.retailEmptiesEntry.findFirst({ where: { siteId: order.siteId ?? undefined }, orderBy: [{ createdAt: "desc" }, { id: "desc" }], select: { cratesAfter: true } });
     empties = { on: true, perCrate: deposits.crateDeposit.toFixed(2), crateWord: "Crates", inStore: last?.cratesAfter ?? 0 };
   } catch (error) {
     if (!(error instanceof EmptiesRefusal)) throw error;
@@ -170,7 +170,7 @@ export async function receivingView(actor: RetailAuditActor, orderId: string, no
       status: state,
       draft: state === "DRAFT",
       supplier: { id: order.vendor.id, name: order.vendor.name, short },
-      site: order.site,
+      site: order.site ?? { id: "", name: "No shop" },
       late: late.late ? { days: late.days } : null,
       dueToday,
       deliveriesSoFar: so,
@@ -182,7 +182,7 @@ export async function receivingView(actor: RetailAuditActor, orderId: string, no
     empties,
     requisitions: requisitions.map((row) => ({
       id: row.id,
-      requisitionNo: row.requisitionNo,
+      requisitionNo: row.requisitionNo ?? "Requisition",
       amount: toNumberOrZero(row.paidAmount ?? row.amount),
       status: row.status,
     })),

@@ -273,7 +273,7 @@ export async function buildDailyReport(
         .filter((requisition) => requisition.createdAt >= start && requisition.createdAt < end)
         .map((requisition) => ({
           id: requisition.id,
-          requisitionNo: requisition.requisitionNo,
+          requisitionNo: requisition.requisitionNo ?? "Draft",
           category: requisition.category,
           amount: money(payableAmount(requisition)),
           status: requisition.status,
