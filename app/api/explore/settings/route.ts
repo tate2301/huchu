@@ -18,7 +18,7 @@ async function view(session: AuthenticatedSession) {
   const ready = exploreReaderReady();
   const [company, users, allowed, runs, grants] = await Promise.all([
     prisma.company.findUnique({ where: { id: companyId }, select: { name: true } }),
-    prisma.user.findMany({ where: { companyId, isActive: true }, select: { name: true, role: true }, orderBy: { name: "asc" } }),
+    prisma.user.findMany({ where: { companyId, isActive: true }, select: { name: true, role: true, image: true }, orderBy: { name: "asc" } }),
     exploreRoles(prisma, companyId),
     readRuns(prisma, companyId),
     ready ? exploreGrants() : Promise.resolve([]),

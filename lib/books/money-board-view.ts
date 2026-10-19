@@ -13,6 +13,8 @@ export type MoneyNeed = {
   icon: string;
   lead: string;
   detail: string;
+  /** Who it is about (the people asking, the customer), their avatars before the detail. */
+  people?: Array<{ name: string; image: string | null }>;
   urgency: Urgency;
   action: { label: string; icon: string; href: string };
 };

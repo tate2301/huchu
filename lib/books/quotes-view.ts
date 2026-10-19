@@ -35,6 +35,7 @@ export type QuoteRow = {
   id: string;
   number: string;
   customer: string;
+  customerImage?: string | null;
   /** What it is for: its first line. */
   forWhat: string;
   validUntil: string | null;
@@ -56,8 +57,8 @@ export type QuotesView = {
   /** What the quotes with customers (Sent) come to, in `currency`. */
   out: number;
   currency: string;
-  customers: Array<{ id: string; name: string }>;
+  customers: Array<{ id: string; name: string; image?: string | null }>;
   /** The people who wrote quotes here, for the Rep filter. */
-  reps: Array<{ id: string; name: string }>;
+  reps: Array<{ id: string; name: string; image?: string | null }>;
   query: QuoteQuery;
 };

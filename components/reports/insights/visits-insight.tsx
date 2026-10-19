@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { ButtonLink, Empty, Kit } from "@/components/core";
+import { ButtonLink, Empty, Kit, Person } from "@/components/core";
 import { MenuButton } from "@/components/core/menu";
 import { PageChrome } from "@/components/layout/page-chrome";
 import { useToast } from "@/components/ui/use-toast";
@@ -28,7 +28,7 @@ import { periodDays, useInsightAddress } from "./use-period";
 
 type Response = {
   forms: Array<{ id: string; name: string; visits: number }>;
-  reps: Array<{ id: string; name: string }>;
+  reps: Array<{ id: string; name: string; image?: string | null }>;
   form: { id: string; name: string } | null;
   insights: FormInsights | null;
   canEdit: boolean;
@@ -152,7 +152,7 @@ export function VisitsInsight({ formId }: { formId?: string }) {
             { key: "every", label: "Every rep", checked: !rep, onSelect: () => address.set({ rep: null }) },
             ...data.reps.map((candidate) => ({
               key: candidate.id,
-              label: candidate.name,
+              label: <Person name={candidate.name} src={candidate.image} />,
               checked: candidate.id === rep,
               onSelect: () => address.set({ rep: candidate.id }),
             })),

@@ -7,7 +7,8 @@ import { money } from "@/lib/books/format";
 import type { RequisitionRecordPage } from "@/lib/books/requisition-record";
 
 import { BkState } from "./bk-list";
-import { Bleed, Callout, History, PostingTable, RailSection, RecordHead, Section, Strip } from "./bk-record";
+import { Bleed, Callout, History, Named, PostingTable, RailSection, RecordHead, Section, Strip } from "./bk-record";
+import { Person } from "@/components/core";
 
 const PILL: Record<string, string> = { DRAFT: "pill-n", SUBMITTED: "pill-warn", APPROVED: "pill-info", REJECTED: "pill-plain", DISBURSED: "pill-info", ACQUITTED: "pill-ok", CANCELLED: "pill-plain" };
 const first = (name: string) => name.split(" ")[0] ?? name;
@@ -40,7 +41,12 @@ export function BkRequisitionView({ record }: { record: RequisitionRecordPage })
           <RecordHead
             title={record.purpose}
             pill={<span className={`pill ${PILL[record.status] ?? "pill-n"}`}>{record.state}</span>}
-            line={[record.askedBy.role ? `${record.askedBy.name}, ${record.askedBy.role}` : record.askedBy.name, record.source === "CRM" ? "From the CRM" : "From the shop"]}
+            line={[
+              <Person key="by" name={record.askedBy.name} src={record.faces[record.askedBy.name]}>
+                {record.askedBy.role ? `${record.askedBy.name}, ${record.askedBy.role}` : record.askedBy.name}
+              </Person>,
+              record.source === "CRM" ? "From the CRM" : "From the shop",
+            ]}
           />
           <Strip tiles={tiles} />
           {record.status === "REJECTED" && record.decisionNote ? (
@@ -124,7 +130,7 @@ export function BkRequisitionView({ record }: { record: RequisitionRecordPage })
           ) : null}
 
           <Section id="r3" title="History">
-            <History items={record.history} />
+            <History items={record.history} faces={record.faces} />
           </Section>
         </div>
         <aside className="rail" aria-label={`About ${record.number}`}>
@@ -140,9 +146,9 @@ export function BkRequisitionView({ record }: { record: RequisitionRecordPage })
           <RailSection
             title="Who did what"
             rows={[
-              ["Approved", record.people.approved ?? "Not yet"],
-              ["Paid out", record.people.paidOut ?? "Not yet"],
-              ["Closed", record.people.closed ?? "Not yet"],
+              ["Approved", <Named key="a" name={record.people.approved} faces={record.faces} fallback="Not yet" />],
+              ["Paid out", <Named key="p" name={record.people.paidOut} faces={record.faces} fallback="Not yet" />],
+              ["Closed", <Named key="c" name={record.people.closed} faces={record.faces} fallback="Not yet" />],
             ]}
           />
         </aside>
@@ -153,7 +159,12 @@ export function BkRequisitionView({ record }: { record: RequisitionRecordPage })
         <div className="bk-ph-b">
           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
             <span style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
-              <span style={{ fontSize: 15, color: "var(--color-ink-2)" }}>{record.askedBy.name} asks for</span>
+              <span style={{ fontSize: 15, color: "var(--color-ink-2)" }}>
+                <Person name={record.askedBy.name} src={record.faces[record.askedBy.name]}>
+                  {record.askedBy.name}
+                </Person>{" "}
+                asks for
+              </span>
               <span className="pill pill-n">{record.source}</span>
             </span>
             <div className="num" style={{ fontSize: 34, fontWeight: 600, color: "var(--color-ink)", letterSpacing: "var(--tracking-display)", textAlign: "left" }}>
@@ -187,7 +198,11 @@ export function BkRequisitionView({ record }: { record: RequisitionRecordPage })
           </div>
           <span style={{ fontSize: 14, color: "var(--color-muted)" }}>
             {record.status === "SUBMITTED"
-              ? `${record.paysOut ?? "Whoever pays out"} pays it out once approved.`
+              ? record.paysOut ? (
+                  <>
+                    <Person name={record.paysOut} src={record.faces[record.paysOut]} /> pays it out once approved.
+                  </>
+                ) : "Whoever pays out pays it out once approved."
               : record.can.why ?? `${record.state}.`}
           </span>
         </div>

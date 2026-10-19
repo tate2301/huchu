@@ -3,6 +3,7 @@ import type { PrismaClient } from "@prisma/client";
 import { resolveBaseCurrency } from "@/lib/money";
 
 import { moneyInOut } from "./core/money-in-out";
+import { customerFace, customerImage } from "./faces";
 import { asOf, count, dayOf, money, monthName, monthSoFar, monthStart, shortDay, storedDay } from "./format";
 import { owedAndOverdue } from "./invoices";
 import { blockingWhere } from "./needs-posting";
@@ -104,12 +105,13 @@ async function accounts(db: Db, companyId: string, base: string, now: Date): Pro
 }
 
 async function needs(db: Db, companyId: string, today: string, now: Date, currency: string, overdue: { amount: number; invoices: number }): Promise<MoneyNeed[]> {
-  const [approvals, unsigned, unposted, lines, firstLine] = await Promise.all([
+  const [approvals, askers, unsigned, unposted, lines, firstLine] = await Promise.all([
     db.crmRequisition.aggregate({ where: { companyId, status: "SUBMITTED" }, _count: true, _sum: { amount: true } }),
+    db.crmRequisition.findMany({ where: { companyId, status: "SUBMITTED" }, select: { requestedBy: { select: { name: true, image: true } } }, distinct: ["requestedById"], take: 4 }),
     db.salesInvoice.findMany({
       where: { companyId, status: "ISSUED", fiscalStatus: "FAILED" },
       orderBy: { invoiceDate: "asc" },
-      select: { invoiceNumber: true, total: true, currency: true, customer: { select: { name: true } } },
+      select: { invoiceNumber: true, total: true, currency: true, customer: { select: { name: true, ...customerFace } } },
       take: 20,
     }),
     db.accountingIntegrationEvent.count({ where: blockingWhere(companyId, now) }),
@@ -127,6 +129,7 @@ async function needs(db: Db, companyId: string, today: string, now: Date, curren
       icon: "hand",
       lead: approvals._count === 1 ? "1 requisition to approve" : `${approvals._count} requisitions to approve`,
       detail: `${money(Number(approvals._sum.amount ?? 0), currency)} in all`,
+      people: askers.map((row) => ({ name: row.requestedBy.name, image: row.requestedBy.image })),
       urgency: "urgent",
       action: { label: "Review", icon: "eye", href: "/crm/requisitions" },
     });
@@ -138,6 +141,7 @@ async function needs(db: Db, companyId: string, today: string, now: Date, curren
       icon: "fiscal",
       lead: unsigned.length === 1 ? `${first.invoiceNumber ?? "An invoice"} is not signed by FDMS` : `${unsigned.length} invoices are not signed by FDMS`,
       detail: `${first.customer.name}, ${money(first.total, first.currency)}`,
+      people: [{ name: first.customer.name, image: customerImage(first.customer) }],
       urgency: "urgent",
       action: { label: "Retry", icon: "history", href: "/accounting/fiscalisation" },
     });

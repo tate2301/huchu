@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 
-import { Button, SelectCell, TableFoot, TableShell, useSelection } from "@/components/core";
+import { Button, SelectCell, TableFoot, TableShell, useSelection, Person } from "@/components/core";
 import { money } from "@/lib/books/format";
 import { PAYMENT_PERIOD_LABEL, PAYMENT_PERIODS, PAYMENT_TAB_LABEL, PAYMENT_VIEWS, type PaymentQuery, type PaymentRow, type PaymentsView } from "@/lib/books/payments";
 
@@ -65,7 +65,7 @@ export function BkPaymentsView({
               items={[
                 { key: "any", label: "Any customer", checked: !query.customer, onSelect: () => onQuery({ customer: null, page: 1 }) },
                 { separator: true },
-                ...data.customers.map((option) => ({ key: option.id, label: option.name, checked: query.customer === option.id, onSelect: () => onQuery({ customer: option.id, page: 1 }) })),
+                ...data.customers.map((option) => ({ key: option.id, label: <Person name={option.name} src={option.image} />, checked: query.customer === option.id, onSelect: () => onQuery({ customer: option.id, page: 1 }) })),
               ]}
             />
             <BkChip
@@ -152,12 +152,18 @@ export function BkPaymentsView({
                   </td>
                   <td className="muted">{row.received}</td>
                   <td>
-                    <span className="cell-lead">{row.customer ?? "Not named"}</span>
+                    <span className="cell-lead">{row.customer ? <Person name={row.customer} src={row.customerImage} /> : "Not named"}</span>
                   </td>
                   <td className="fill">
                     {row.voided ? (
                       <span className="muted" title={row.voided.reason ?? undefined}>
-                        Void{row.voided.by ? `, ${row.voided.by}` : ""} {row.voided.on}
+                        Void
+                        {row.voided.by ? (
+                          <>
+                            , <Person name={row.voided.by} src={row.voided.byImage} />
+                          </>
+                        ) : null}{" "}
+                        {row.voided.on}
                       </span>
                     ) : row.invoiceId ? (
                       <Link className="ref" href={`/books/invoices/${row.invoiceId}`}>

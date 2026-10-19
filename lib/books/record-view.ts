@@ -12,6 +12,19 @@ export type PostingRow = { entry: string; date: string; account: string; debit: 
 /** Newest first. tone: "" drafted, "in" recorded or sent, "ok" approved or paid, "wa" late, sent back or voided. */
 export type HistoryItem = { tone: "" | "in" | "ok" | "wa"; text: string; when: string };
 
+/**
+ * The people a record names, by name, with their photo or null (owner, 19 Oct:
+ * every person shows an avatar beside their name). History lines that start
+ * with one of these names lead with that person's avatar.
+ */
+export type Faces = Record<string, string | null>;
+
+export function facesOf(...people: Array<{ name: string | null; image?: string | null } | null | undefined>): Faces {
+  const faces: Faces = {};
+  for (const person of people) if (person?.name && !(person.name in faces && faces[person.name])) faces[person.name] = person.image ?? null;
+  return faces;
+}
+
 const round = (n: number) => Math.round(n * 100) / 100;
 
 type Entry = { entryNumber: number; entryDate: Date; lines: Array<{ debit: number; credit: number; account: { code: string; name: string } }> };

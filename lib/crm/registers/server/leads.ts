@@ -30,7 +30,7 @@ import {
 
 const include = {
   client: { select: { id: true, name: true } },
-  assignedTo: { select: { id: true, name: true } },
+  assignedTo: { select: { id: true, name: true, image: true } },
   // Past Contacted an enquiry has become a deal; the board opens the deal and
   // shows its figure rather than the lead it grew out of.
   convertedDeal: { select: { id: true, dealNo: true, value: true } },

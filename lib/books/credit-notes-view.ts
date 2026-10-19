@@ -39,6 +39,7 @@ export type CreditRow = {
   id: string;
   number: string;
   customer: string;
+  customerImage?: string | null;
   invoice: { id: string; number: string };
   reason: string;
   state: "Draft" | "Issued" | "Posted" | "Void";
@@ -55,6 +56,6 @@ export type CreditNotesView = {
   /** This month's credits (or write-offs) and the drafts waiting, in `currency`. */
   month: { name: string; amount: number; drafts: number };
   currency: string;
-  customers: Array<{ id: string; name: string }>;
+  customers: Array<{ id: string; name: string; image?: string | null }>;
   query: CreditQuery;
 };

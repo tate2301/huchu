@@ -3,7 +3,7 @@ import type { FdmsCheckStatus, PrismaClient } from "@prisma/client";
 import { docLabel } from "./doc-number";
 import { billState, EXPENSE_STATE_LABEL, type ExpenseState } from "./expenses";
 import { count, dayOf, shortDay, storedDay } from "./format";
-import { historyOf, historyWhen, postingRows, type HistoryItem, type PostingRow } from "./record-view";
+import { facesOf, historyOf, historyWhen, postingRows, type Faces, type HistoryItem, type PostingRow } from "./record-view";
 
 /**
  * One supplier's bill (BkBill): its total and state, the FDMS check on the
@@ -50,6 +50,8 @@ export type BillRecord = {
   posting: PostingRow[];
   entries: number;
   history: HistoryItem[];
+  /** The people its history names, with their photos. */
+  faces?: Faces;
   details: { for: string | null; madeBy: string | null; approvedBy: string | null };
   photo: { url: string; name: string } | null;
   needsReview: boolean;
@@ -116,7 +118,7 @@ export async function readBillRecord(db: Db, companyId: string, id: string, now 
     include: {
       vendor: { select: { id: true, name: true, vatNumber: true, payTermsDays: true } },
       lines: { orderBy: { createdAt: "asc" } },
-      payments: { orderBy: { createdAt: "asc" }, include: { bankAccount: { select: { name: true, bankName: true, currency: true } }, createdBy: { select: { name: true } } } },
+      payments: { orderBy: { createdAt: "asc" }, include: { bankAccount: { select: { name: true, bankName: true, currency: true } }, createdBy: { select: { name: true, image: true } } } },
       debitNotes: { select: { noteNumber: true, status: true, total: true, issuedAt: true, createdAt: true } },
       writeOffs: { select: { writeOffNumber: true, amount: true, createdAt: true, status: true } },
       purchaseOrder: { select: { id: true, poNo: true, site: { select: { name: true } }, lines: { select: { itemName: true, quantity: true } } } },
@@ -126,14 +128,14 @@ export async function readBillRecord(db: Db, companyId: string, id: string, now 
           receiptNo: true,
           postedAt: true,
           createdAt: true,
-          countedBy: { select: { name: true } },
-          receivedBy: { select: { name: true } },
+          countedBy: { select: { name: true, image: true } },
+          receivedBy: { select: { name: true, image: true } },
           purchaseOrder: { select: { id: true, poNo: true, site: { select: { name: true } }, lines: { select: { itemName: true, quantity: true } } } },
           lines: { select: { itemName: true, quantity: true } },
         },
       },
-      createdBy: { select: { name: true } },
-      issuedBy: { select: { name: true } },
+      createdBy: { select: { name: true, image: true } },
+      issuedBy: { select: { name: true, image: true } },
     },
   });
   if (!bill) return null;
@@ -156,7 +158,7 @@ export async function readBillRecord(db: Db, companyId: string, id: string, now 
       select: { entryNumber: true, entryDate: true, sourceType: true, lines: { select: { debit: true, credit: true, account: { select: { code: true, name: true } } } } },
     }),
     db.retailAttachment.findFirst({ where: { companyId, entityType: "PurchaseBill", entityId: bill.id }, orderBy: { createdAt: "desc" }, select: { url: true, name: true } }),
-    db.user.findMany({ where: { id: { in: [bill.approvedById, bill.fdmsCheckedById].filter((value): value is string => Boolean(value)) } }, select: { id: true, name: true } }),
+    db.user.findMany({ where: { id: { in: [bill.approvedById, bill.fdmsCheckedById].filter((value): value is string => Boolean(value)) } }, select: { id: true, name: true, image: true } }),
   ]);
   const name = new Map(people.map((person) => [person.id, person.name]));
   const stocked = entries.find((entry) => entry.sourceType === "RETAIL_GOODS_RECEIPT")?.lines.find((line) => line.debit > 0)?.account;
@@ -248,6 +250,7 @@ export async function readBillRecord(db: Db, companyId: string, id: string, now 
     posting: postingRows(entries, { code: "2000", name: bill.vendor.name }),
     entries: entries.length,
     history: historyOf(history),
+    faces: facesOf(bill.createdBy, bill.issuedBy, receipt?.countedBy, receipt?.receivedBy, ...people, ...bill.payments.map((payment) => payment.createdBy)),
     details: { for: centre, madeBy: bill.createdBy?.name ?? null, approvedBy: name.get(bill.approvedById ?? "") ?? null },
     photo,
     needsReview: bill.needsReview,

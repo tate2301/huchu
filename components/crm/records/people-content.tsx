@@ -31,6 +31,7 @@ import {
   tableSort,
   type ColumnRenderer,
 } from "@/components/crm/registers/table-helpers";
+import { Person } from "@/components/core";
 
 type Person = CrmPersonRecord;
 
@@ -119,7 +120,7 @@ export function PeopleContent({ openCreate = false }: { openCreate?: boolean }) 
       owner: {
         icon: Users,
         width: "10rem",
-        cell: (person) => <DirectoryCell value={person.assignedTo?.name} missing="Unassigned" />,
+        cell: (person) => (person.assignedTo?.name ? <Person name={person.assignedTo.name} src={person.assignedTo.image} /> : <DirectoryCell value={null} missing="Unassigned" />),
       },
       city: { icon: MapPin, width: "8rem", cell: (person) => <RecordCell value={person.city} /> },
       country: { width: "8rem", cell: (person) => <RecordCell value={person.country} /> },

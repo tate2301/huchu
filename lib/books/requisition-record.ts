@@ -1,7 +1,7 @@
 import type { CrmRequisitionStatus, PrismaClient } from "@prisma/client";
 
 import { dayOf, shortDay, weekdayDay } from "./format";
-import { historyOf, historyWhen, postingRows, type HistoryItem, type PostingRow } from "./record-view";
+import { facesOf, historyOf, historyWhen, postingRows, type Faces, type HistoryItem, type PostingRow } from "./record-view";
 import { REQUISITION_STATE } from "./requisitions-list";
 
 /**
@@ -42,6 +42,8 @@ export type RequisitionRecord = {
   posting: PostingRow[];
   entries: number;
   history: HistoryItem[];
+  /** Every person it names, with their photo: the asker, the approver, who paid out, who closed. */
+  faces: Faces;
   request: { for: string | null; needed: string | null; paidFrom: string | null; costCentre: string | null };
   people: { approved: string | null; paidOut: string | null; closed: string | null };
   /** The requester's three before this one: how many are accounted for. */
@@ -65,16 +67,16 @@ export async function readRequisitionRecord(db: Db, companyId: string, id: strin
   const row = await db.crmRequisition.findFirst({
     where: { id, companyId },
     include: {
-      requestedBy: { select: { id: true, name: true, role: true } },
-      approvedBy: { select: { name: true } },
-      disbursedBy: { select: { name: true } },
-      acquittedBy: { select: { name: true } },
-      cancelledBy: { select: { name: true } },
+      requestedBy: { select: { id: true, name: true, role: true, image: true } },
+      approvedBy: { select: { name: true, image: true } },
+      disbursedBy: { select: { name: true, image: true } },
+      acquittedBy: { select: { name: true, image: true } },
+      cancelledBy: { select: { name: true, image: true } },
       bankAccount: { select: { name: true } },
       changeAccount: { select: { name: true } },
       project: { select: { name: true, costCenter: { select: { name: true } } } },
       site: { select: { name: true } },
-      costEntries: { where: { direction: "SPENT" }, orderBy: { createdAt: "asc" }, select: { id: true, description: true, category: true, amount: true, receiptUrl: true, createdAt: true, log: { select: { user: { select: { name: true } } } } } },
+      costEntries: { where: { direction: "SPENT" }, orderBy: { createdAt: "asc" }, select: { id: true, description: true, category: true, amount: true, receiptUrl: true, createdAt: true, log: { select: { user: { select: { name: true, image: true } } } } } },
     },
   });
   if (!row) return null;
@@ -90,7 +92,7 @@ export async function readRequisitionRecord(db: Db, companyId: string, id: strin
     }),
     row.siteId ? db.retailAttachment.findMany({ where: { companyId, entityType: "CrmRequisition", entityId: id, kind: "RECEIPT" }, orderBy: { createdAt: "asc" }, select: { id: true, url: true, name: true } }) : Promise.resolve([]),
     db.crmRequisition.findMany({ where: { companyId, requestedById: row.requestedById, id: { not: id }, status: { in: ["DISBURSED", "ACQUITTED"] }, createdAt: { lt: row.createdAt } }, orderBy: { createdAt: "desc" }, take: 3, select: { status: true } }),
-    db.crmRequisition.findFirst({ where: { companyId, requestedById: row.requestedById, disbursedById: { not: null }, id: { not: id } }, orderBy: { disbursedAt: "desc" }, select: { disbursedBy: { select: { name: true } } } }),
+    db.crmRequisition.findFirst({ where: { companyId, requestedById: row.requestedById, disbursedById: { not: null }, id: { not: id } }, orderBy: { disbursedAt: "desc" }, select: { disbursedBy: { select: { name: true, image: true } } } }),
   ]);
   const asked = round(Number(row.approvedAmount ?? row.amount));
   const given = num(row.paidAmount ?? (row.disbursedAt ? (row.approvedAmount ?? row.amount) : null));
@@ -148,6 +150,7 @@ export async function readRequisitionRecord(db: Db, companyId: string, id: strin
     posting: postingRows(entries),
     entries: entries.length,
     history: historyOf(history),
+    faces: facesOf(row.requestedBy, row.approvedBy, row.disbursedBy, row.acquittedBy, row.cancelledBy, row.costEntries[0]?.log.user, payer?.disbursedBy),
     request: {
       for: row.project?.name ?? row.site?.name ?? null,
       needed: row.neededBy ? weekdayDay(dayOf(row.neededBy)) : null,

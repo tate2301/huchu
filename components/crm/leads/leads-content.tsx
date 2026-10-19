@@ -42,7 +42,7 @@ function OwnerCell({ owner }: { owner: Lead["assignedTo"] }) {
   if (!owner) return <DirectoryCell value={null} missing="Unassigned" />;
   return (
     <span className="flex items-center gap-2">
-      <RecordMark kind="rep" name={owner.name} size="sm" />
+      <RecordMark kind="rep" name={owner.name} avatarUrl={owner.image} size="sm" />
       <span className="min-w-0 truncate">{owner.name ?? "Unnamed"}</span>
     </span>
   );

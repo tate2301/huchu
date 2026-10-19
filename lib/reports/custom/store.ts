@@ -103,13 +103,14 @@ export async function listCustomReports(reader: Reader): Promise<CustomReportSum
     (
       await prisma.user.findMany({
         where: { id: { in: [...new Set(visible.map((row) => row.createdById))] }, companyId: reader.companyId },
-        select: { id: true, name: true },
+        select: { id: true, name: true, image: true },
       })
-    ).map((user) => [user.id, user.name]),
+    ).map((user) => [user.id, user]),
   );
   return visible
     .map((row) => ({
-      madeBy: makers.get(row.createdById) ?? null,
+      madeBy: makers.get(row.createdById)?.name ?? null,
+      madeByImage: makers.get(row.createdById)?.image ?? null,
       id: row.id,
       title: row.title,
       description: row.description,

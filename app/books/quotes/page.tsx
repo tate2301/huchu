@@ -8,7 +8,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { BkChip, BkTabs, BkTools, downloadCsv } from "@/components/books/bk-list";
 import { BooksError, BooksLoading } from "@/components/books/books-state";
 import { BooksFinding, BooksPage } from "@/components/books/figures";
-import { Button, SelectCell, TableFoot, TableShell, useSelection } from "@/components/core";
+import { Button, SelectCell, TableFoot, TableShell, useSelection, Person } from "@/components/core";
 import { PageChrome } from "@/components/layout/page-chrome";
 import { fetchJson } from "@/lib/api-client";
 import { money } from "@/lib/books/format";
@@ -87,7 +87,7 @@ function BooksQuotes() {
                   items={[
                     { key: "any", label: "Any customer", checked: !data.query.customer, onSelect: () => onQuery({ customer: null, page: 1 }) },
                     { separator: true },
-                    ...data.customers.map((option) => ({ key: option.id, label: option.name, checked: data.query.customer === option.id, onSelect: () => onQuery({ customer: option.id, page: 1 }) })),
+                    ...data.customers.map((option) => ({ key: option.id, label: <Person name={option.name} src={option.image} />, checked: data.query.customer === option.id, onSelect: () => onQuery({ customer: option.id, page: 1 }) })),
                   ]}
                 />
                 <BkChip
@@ -97,7 +97,7 @@ function BooksQuotes() {
                   items={[
                     { key: "any", label: "Anyone", checked: !data.query.rep, onSelect: () => onQuery({ rep: null, page: 1 }) },
                     { separator: true },
-                    ...data.reps.map((option) => ({ key: option.id, label: option.name, checked: data.query.rep === option.id, onSelect: () => onQuery({ rep: option.id, page: 1 }) })),
+                    ...data.reps.map((option) => ({ key: option.id, label: <Person name={option.name} src={option.image} />, checked: data.query.rep === option.id, onSelect: () => onQuery({ rep: option.id, page: 1 }) })),
                   ]}
                 />
                 </>
@@ -200,7 +200,9 @@ function BooksQuotes() {
                         <SelectCell checked={selection.isSelected(row.id)} onChange={() => selection.toggle(row.id)} label={`Select ${row.number}`} />
                         <td>{row.crmId && data.crm ? <Link className="ref" href={`/crm/quotes/${row.crmId}`}>{row.number}</Link> : <span className="ref">{row.number}</span>}</td>
                         <td>
-                          <span className="cell-lead">{row.customer}</span>
+                          <span className="cell-lead">
+                            <Person name={row.customer} src={row.customerImage} />
+                          </span>
                         </td>
                         <td className="fill">
                           <span className="cell-lead muted">{row.invoiced ? `Invoiced. ${row.forWhat}` : row.forWhat}</span>

@@ -40,6 +40,7 @@ export type ReportTemplateRecord = {
   params: ReportParams;
   audience: TemplateAudience;
   madeBy: string;
+  madeByImage?: string | null;
   madeById: string;
   mine: boolean;
   canChange: boolean;

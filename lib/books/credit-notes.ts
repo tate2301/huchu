@@ -1,5 +1,6 @@
 import type { Prisma, PrismaClient } from "@prisma/client";
 
+import { customerFace, customerImage } from "./faces";
 import { count, dayOf, money, monthName, monthStart, shortDay, storedDay } from "./format";
 import { CREDIT_REASON_LABEL, type CreditNotesView, type CreditQuery, type CreditRow } from "./credit-notes-view";
 
@@ -37,7 +38,7 @@ export async function readCreditNotes(db: Db, companyId: string, query: CreditQu
           orderBy: [{ noteDate: order }, { createdAt: order }],
           skip,
           take: CREDITS_PAGE_SIZE,
-          select: { id: true, noteNumber: true, noteDate: true, status: true, total: true, currency: true, reason: true, invoice: { select: { id: true, invoiceNumber: true, customer: { select: { name: true } } } } },
+          select: { id: true, noteNumber: true, noteDate: true, status: true, total: true, currency: true, reason: true, invoice: { select: { id: true, invoiceNumber: true, customer: { select: { name: true, ...customerFace } } } } },
         })
       : Promise.resolve([]),
     query.view === "write-offs"
@@ -46,7 +47,7 @@ export async function readCreditNotes(db: Db, companyId: string, query: CreditQu
           orderBy: { createdAt: order },
           skip,
           take: CREDITS_PAGE_SIZE,
-          select: { id: true, writeOffNumber: true, createdAt: true, status: true, amount: true, reason: true, invoice: { select: { id: true, invoiceNumber: true, currency: true, customer: { select: { name: true } } } } },
+          select: { id: true, writeOffNumber: true, createdAt: true, status: true, amount: true, reason: true, invoice: { select: { id: true, invoiceNumber: true, currency: true, customer: { select: { name: true, ...customerFace } } } } },
         })
       : Promise.resolve([]),
     db.creditNote.count({ where: noteWhere }),
@@ -54,7 +55,7 @@ export async function readCreditNotes(db: Db, companyId: string, query: CreditQu
     db.creditNote.findMany({ where: { companyId, status: "ISSUED", noteDate: { gte: from } }, select: { total: true, currency: true } }),
     db.salesWriteOff.findMany({ where: { companyId, status: "POSTED", createdAt: { gte: from } }, select: { amount: true, invoice: { select: { currency: true } } } }),
     db.creditNote.findMany({ where: { companyId, status: "DRAFT" }, select: { total: true, invoice: { select: { customer: { select: { name: true } } } } } }),
-    db.customer.findMany({ where: { companyId, invoices: { some: { OR: [{ creditNotes: { some: {} } }, { writeOffs: { some: {} } }] } } }, select: { id: true, name: true }, orderBy: { name: "asc" }, take: 500 }),
+    db.customer.findMany({ where: { companyId, invoices: { some: { OR: [{ creditNotes: { some: {} } }, { writeOffs: { some: {} } }] } } }, select: { id: true, name: true, ...customerFace }, orderBy: { name: "asc" }, take: 500 }),
   ]);
   const currency = monthNotes[0]?.currency ?? monthWriteOffs[0]?.invoice.currency ?? "USD";
   const credited = monthNotes.filter((note) => note.currency === currency).reduce((sum, note) => sum + note.total, 0);
@@ -65,6 +66,7 @@ export async function readCreditNotes(db: Db, companyId: string, query: CreditQu
           id: note.id,
           number: note.noteNumber ?? "Draft",
           customer: note.invoice.customer.name,
+          customerImage: customerImage(note.invoice.customer),
           invoice: { id: note.invoice.id, number: note.invoice.invoiceNumber ?? "Draft" },
           reason: note.reason ?? "",
           state: STATE[note.status],
@@ -76,6 +78,7 @@ export async function readCreditNotes(db: Db, companyId: string, query: CreditQu
           id: row.id,
           number: row.writeOffNumber ?? "Write-off",
           customer: row.invoice.customer.name,
+          customerImage: customerImage(row.invoice.customer),
           invoice: { id: row.invoice.id, number: row.invoice.invoiceNumber ?? "Draft" },
           reason: row.reason ?? "",
           state: STATE[row.status],
@@ -99,7 +102,7 @@ export async function readCreditNotes(db: Db, companyId: string, query: CreditQu
     counts: { notes: noteCount, "write-offs": writeOffCount },
     month: { name: monthName(today), amount: Math.round((query.view === "notes" ? credited : writtenOff) * 100) / 100, drafts: Math.round(draftSum * 100) / 100 },
     currency,
-    customers,
+    customers: customers.map((customer) => ({ id: customer.id, name: customer.name, image: customerImage(customer) })),
     query,
   };
 }

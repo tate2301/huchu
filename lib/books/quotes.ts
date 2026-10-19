@@ -1,5 +1,6 @@
 import type { Prisma, PrismaClient } from "@prisma/client";
 
+import { customerFace, customerImage } from "./faces";
 import { count, dayOf, money, shortDay, storedDay } from "./format";
 import { QUOTE_STATUS, QUOTE_VIEWS, type QuoteQuery, type QuoteRow, type QuotesView } from "./quotes-view";
 
@@ -45,7 +46,7 @@ export async function readQuotes(db: Db, companyId: string, query: QuoteQuery, n
         total: true,
         currency: true,
         issuedAt: true,
-        customer: { select: { name: true } },
+        customer: { select: { name: true, ...customerFace } },
         lines: { orderBy: { createdAt: "asc" }, take: 1, select: { description: true } },
         crmLeadDocuments: { take: 1, select: { id: true, approval: { select: { firstViewedAt: true } } } },
         invoicesRaised: { take: 1, select: { id: true } },
@@ -53,8 +54,8 @@ export async function readQuotes(db: Db, companyId: string, query: QuoteQuery, n
     }),
     db.salesQuotation.count({ where }),
     db.salesQuotation.findMany({ where: { companyId, status: "SENT" }, select: { total: true, currency: true, validUntil: true, customer: { select: { name: true } } } }),
-    db.customer.findMany({ where: { companyId, quotations: { some: {} } }, select: { id: true, name: true }, orderBy: { name: "asc" }, take: 500 }),
-    db.user.findMany({ where: { companyId, createdSalesQuotations: { some: { companyId } } }, select: { id: true, name: true }, orderBy: { name: "asc" }, take: 200 }),
+    db.customer.findMany({ where: { companyId, quotations: { some: {} } }, select: { id: true, name: true, ...customerFace }, orderBy: { name: "asc" }, take: 500 }),
+    db.user.findMany({ where: { companyId, createdSalesQuotations: { some: { companyId } } }, select: { id: true, name: true, image: true }, orderBy: { name: "asc" }, take: 200 }),
     ...QUOTE_VIEWS.map((view) => db.salesQuotation.count({ where: quoteWhere(companyId, { ...query, view }) })),
   ]);
   const byCurrency = new Map<string, number>();
@@ -71,6 +72,7 @@ export async function readQuotes(db: Db, companyId: string, query: QuoteQuery, n
       id: record.id,
       number: record.quotationNumber,
       customer: record.customer.name,
+      customerImage: customerImage(record.customer),
       forWhat: record.lines[0]?.description ?? "",
       validUntil: record.validUntil ? shortDay(storedDay(record.validUntil)) : null,
       whatsapp: doc?.approval?.firstViewedAt ? `Read ${shortDay(dayOf(doc.approval.firstViewedAt))}` : doc ? "Sent" : null,
@@ -94,7 +96,7 @@ export async function readQuotes(db: Db, companyId: string, query: QuoteQuery, n
     counts: Object.fromEntries(QUOTE_VIEWS.map((view, index) => [view, counts[index] ?? 0])) as QuotesView["counts"],
     out,
     currency,
-    customers,
+    customers: customers.map((customer) => ({ id: customer.id, name: customer.name, image: customerImage(customer) })),
     reps,
     query,
   };

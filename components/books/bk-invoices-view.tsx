@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 
-import { Button, SelectCell, TableFoot, TableShell, useSelection } from "@/components/core";
+import { Button, SelectCell, TableFoot, TableShell, useSelection, Person } from "@/components/core";
 import { MenuButton, type MenuEntry } from "@/components/core/menu";
 import { money } from "@/lib/books/format";
 import {
@@ -114,7 +114,7 @@ export function BkInvoicesView({
               items={[
                 { key: "any", label: "Any customer", checked: !query.customer, onSelect: () => onQuery({ customer: null, page: 1 }) },
                 { separator: true },
-                ...data.customers.map((option) => ({ key: option.id, label: option.name, checked: query.customer === option.id, onSelect: () => onQuery({ customer: option.id, page: 1 }) })),
+                ...data.customers.map((option) => ({ key: option.id, label: <Person name={option.name} src={option.image} />, checked: query.customer === option.id, onSelect: () => onQuery({ customer: option.id, page: 1 }) })),
               ]}
             />
             <BkChip
@@ -200,7 +200,9 @@ export function BkInvoicesView({
                     </Link>
                   </td>
                   <td>
-                    <span className="cell-lead">{row.customer.name}</span>
+                    <span className="cell-lead">
+                      <Person name={row.customer.name} src={row.customer.image} />
+                    </span>
                   </td>
                   <td>
                     <BkState tone={TONE[row.state]}>{row.stateLabel}</BkState>

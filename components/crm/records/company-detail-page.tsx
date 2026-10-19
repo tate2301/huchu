@@ -60,6 +60,7 @@ import { useJobsTab } from "@/components/crm/work-orders/jobs-tab";
 import { RecordGroupsControl } from "@/components/crm/registers/record-groups-control";
 import { useListHref } from "@/components/crm/registers/list-href";
 import { VaneRecordSection } from "@/components/vane/vane-record-section";
+import { Person } from "@/components/core";
 
 const ACCOUNT_STATUS_PRESENTATION: Record<string, { label: string; status: CanonicalUiStatus }> = {
   ACTIVE: { label: "Active", status: "passing" },
@@ -97,7 +98,7 @@ type CompanyDetail = {
   notes: string | null;
   parentRelation: string | null;
   customFields: Record<string, unknown> | null;
-  assignedTo: { id: string; name: string | null } | null;
+  assignedTo: { id: string; name: string | null; image?: string | null } | null;
   parent: { id: string; name: string } | null;
   children: Array<{ id: string; name: string; parentRelation: string | null }>;
   people: Array<{
@@ -211,7 +212,7 @@ export function CompanyDetailPage({ companyId }: { companyId: string }) {
         href={company.assignedTo ? `/crm/reps/${company.assignedTo.id}` : null}
         muted
       >
-        {company.assignedTo?.name ?? "Unassigned"}
+        {company.assignedTo ? <Person name={company.assignedTo.name ?? "Unnamed"} src={company.assignedTo.image} /> : "Unassigned"}
       </EntityLink>
     </>
   );

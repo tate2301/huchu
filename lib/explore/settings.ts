@@ -15,6 +15,8 @@ export type ExploreRoleRow = {
   label: string;
   /** "James Nyabadza", "Rudo Mapfumo and Chipo Mhlanga", or "6 people". */
   people: string;
+  /** The people in the role, for their avatars: up to four. */
+  faces?: Array<{ name: string; image: string | null }>;
   reads: string;
   canUse: boolean;
   /** Owners always use Explore; their row cannot be changed. */
@@ -55,7 +57,7 @@ export function exploreSettingsView(input: {
   workspaceName: string;
   profile: string | null | undefined;
   enabledFeatures: string[] | undefined;
-  users: Array<{ name: string; role: string }>;
+  users: Array<{ name: string; role: string; image?: string | null }>;
   /** The roles that may use Explore here (`exploreRoles`). */
   allowed: readonly string[];
   /** With Explore's own login: each product's real tables, by Explore's names. */
@@ -70,6 +72,7 @@ export function exploreSettingsView(input: {
     role,
     label: role === "SUPERADMIN" ? "Owners and directors" : roleName(role),
     people: peopleLabel(input.users.filter((user) => user.role === role).map((user) => user.name)),
+    faces: input.users.filter((user) => user.role === role).slice(0, 4).map((user) => ({ name: user.name, image: user.image ?? null })),
     reads: readsSummary(role, roles, input.enabledFeatures),
     canUse: canUseExplore(role, input.allowed),
     fixed: role === "SUPERADMIN",

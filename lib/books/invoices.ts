@@ -2,6 +2,7 @@ import type { Prisma, PrismaClient } from "@prisma/client";
 import { docLabel } from "@/lib/books/doc-number";
 import { z } from "zod";
 
+import { customerFace, customerImage } from "./faces";
 import { addDays, dayOf, monthStart, storedDay } from "./format";
 import { INVOICE_STATE_LABEL, invoiceState, invoicesFinding, type InvoiceState } from "./invoice-state";
 
@@ -71,7 +72,7 @@ export function readInvoiceQuery(params: URLSearchParams): InvoiceQuery {
 export type InvoiceRow = {
   id: string;
   number: string;
-  customer: { id: string; name: string };
+  customer: { id: string; name: string; image?: string | null };
   state: InvoiceState;
   stateLabel: string;
   when: string;
@@ -91,7 +92,7 @@ export type InvoicesView = {
   owed: number;
   overdue: number;
   currency: string;
-  customers: Array<{ id: string; name: string }>;
+  customers: Array<{ id: string; name: string; image?: string | null }>;
   /** The currencies the workspace has invoiced in, for the Currency filter. */
   currencies: string[];
   /** How many invoices each tab holds, with the search and filters applied. */
@@ -147,7 +148,7 @@ const rowSelect = {
   writeOffTotal: true,
   madeByVane: true,
   fiscalStatus: true,
-  customer: { select: { id: true, name: true } },
+  customer: { select: { id: true, name: true, ...customerFace } },
   receipts: { where: { voidedAt: null }, select: { receivedAt: true, method: true }, orderBy: { receivedAt: "desc" as const }, take: 1 },
 } satisfies Prisma.SalesInvoiceSelect;
 
@@ -170,7 +171,7 @@ export function toInvoiceRow(record: RowRecord, today: string): InvoiceRow {
   return {
     id: record.id,
     number: docLabel(record.invoiceNumber),
-    customer: record.customer,
+    customer: { id: record.customer.id, name: record.customer.name, image: customerImage(record.customer) },
     state: read.state,
     // Vane's own draft says so until a person issues or deletes it.
     stateLabel: record.madeByVane && read.state === "draft" ? "Vane's draft" : INVOICE_STATE_LABEL[read.state],
@@ -235,7 +236,7 @@ export async function readInvoices(db: Db, companyId: string, query: InvoiceQuer
     owedAndOverdue(db, companyId, today),
     db.salesInvoice.findMany({
       where: { companyId, status: { not: "VOIDED" } },
-      select: { customer: { select: { id: true, name: true } } },
+      select: { customer: { select: { id: true, name: true, ...customerFace } } },
       distinct: ["customerId"],
     }),
     db.salesInvoice.findMany({ where: { companyId }, select: { currency: true }, distinct: ["currency"] }),
@@ -250,7 +251,7 @@ export async function readInvoices(db: Db, companyId: string, query: InvoiceQuer
     owed: totals.owed.amount,
     overdue: totals.overdue.amount,
     currency: totals.currency,
-    customers: customerRows.map((row) => row.customer).sort((a, b) => a.name.localeCompare(b.name)),
+    customers: customerRows.map(({ customer }) => ({ id: customer.id, name: customer.name, image: customerImage(customer) })).sort((a, b) => a.name.localeCompare(b.name)),
     currencies: currencyRows.map((row) => row.currency).sort(),
     counts: Object.fromEntries(INVOICE_VIEWS.map((view, index) => [view, tabCounts[index] ?? 0])) as Record<InvoiceView, number>,
     query,

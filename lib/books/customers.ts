@@ -2,6 +2,7 @@ import type { Prisma, PrismaClient } from "@prisma/client";
 
 import { ageBucket, AGE_BUCKETS, type AgeBucket } from "./invoices";
 import { invoiceBalance } from "./invoice-state";
+import { customerFace, customerImage } from "./faces";
 import { count, dayOf, money, shortDay, storedDay } from "./format";
 import type { CustomerPage, CustomerQuery, CustomerRow, CustomersView, CustomerView, StatementLine } from "./customers-view";
 
@@ -85,7 +86,7 @@ export async function readCustomers(db: Db, companyId: string, query: CustomerQu
     db.customer.count({ where: { ...base, id: { in: owingIds } } }),
     db.customer.count({ where: { ...base, id: { in: accountIds } } }),
     db.customer.count({ where }),
-    db.customer.findMany({ where, select: { id: true, name: true, contactName: true, phone: true }, orderBy: { name: "asc" }, take: 5000 }),
+    db.customer.findMany({ where, select: { id: true, name: true, contactName: true, phone: true, ...customerFace }, orderBy: { name: "asc" }, take: 5000 }),
     db.salesInvoice.findMany({ where: { companyId }, select: { currency: true }, distinct: ["currency"] }),
   ]);
   // Who owes most first on the money tabs; A to Z on All.
@@ -99,6 +100,7 @@ export async function readCustomers(db: Db, companyId: string, query: CustomerQu
     return {
       id: record.id,
       name: record.name,
+      image: customerImage(record),
       contact: record.contactName ?? record.phone ?? null,
       owes: entry?.owes ?? 0,
       overdue: entry?.overdue ?? 0,
@@ -190,7 +192,7 @@ export async function readStatement(db: Db, companyId: string, customerId: strin
 export async function readCustomer(db: Db, companyId: string, id: string, period: { from?: string | null; to?: string | null } = {}, now = new Date()): Promise<CustomerView | null> {
   const customer = await db.customer.findFirst({
     where: { id, companyId },
-    select: { id: true, name: true, contactName: true, phone: true, email: true, address: true, vatNumber: true, taxNumber: true, createdAt: true },
+    select: { id: true, name: true, contactName: true, phone: true, email: true, address: true, vatNumber: true, taxNumber: true, createdAt: true, ...customerFace },
   });
   if (!customer) return null;
   const today = dayOf(now);
@@ -225,6 +227,7 @@ export async function readCustomer(db: Db, companyId: string, id: string, period
   const page: CustomerPage = {
     id: customer.id,
     name: customer.name,
+    image: customerImage(customer),
     line: [customer.contactName ? `Accounts: ${customer.contactName}` : null, `Customer since ${new Intl.DateTimeFormat("en-GB", { month: "short", year: "numeric", timeZone: "Africa/Harare" }).format(customer.createdAt)}`].filter(Boolean) as string[],
     contact: { phone: customer.phone, email: customer.email, address: customer.address },
     tax: { vatNumber: customer.vatNumber, tin: customer.taxNumber },

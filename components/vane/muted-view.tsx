@@ -1,6 +1,6 @@
 "use client";
 
-import { Button, Empty, Icon, TableShell } from "@/components/core";
+import { Button, Empty, Icon, TableShell, Person } from "@/components/core";
 import type { VaneMutedRow } from "@/lib/vane/lists";
 import type { StopOffer } from "@/lib/vane/topics";
 
@@ -89,7 +89,15 @@ export function MutedView({
                     </td>
                     <td className="muted">{row.source}</td>
                     <td className="fill">{row.reason ?? "—"}</td>
-                    <td className="muted">{[row.by, row.at ? day(row.at) : null].filter(Boolean).join(", ") || "—"}</td>
+                    <td className="muted">
+                      {row.by ? (
+                        <Person name={row.by} src={row.byImage}>
+                          {[row.by, row.at ? day(row.at) : null].filter(Boolean).join(", ")}
+                        </Person>
+                      ) : (
+                        [row.at ? day(row.at) : null].filter(Boolean).join(", ") || "—"
+                      )}
+                    </td>
                     <td>
                       <button
                         type="button"

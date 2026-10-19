@@ -67,7 +67,7 @@ export function readRequisitionQuery(params: URLSearchParams): RequisitionQuery 
 export type RequisitionRow = {
   id: string;
   number: string;
-  askedBy: { id: string; name: string };
+  askedBy: { id: string; name: string; image: string | null };
   source: "CRM" | "Retail";
   purpose: string;
   asked: string;
@@ -86,7 +86,7 @@ export type RequisitionsView = {
   counts: Record<RequisitionView, number>;
   toApprove: number;
   currency: string;
-  people: Array<{ id: string; name: string }>;
+  people: Array<{ id: string; name: string; image: string | null }>;
   query: RequisitionQuery;
 };
 
@@ -138,7 +138,7 @@ const rowSelect = {
   currency: true,
   submittedAt: true,
   createdAt: true,
-  requestedBy: { select: { id: true, name: true } },
+  requestedBy: { select: { id: true, name: true, image: true } },
 } satisfies Prisma.CrmRequisitionSelect;
 
 type RowRecord = Prisma.CrmRequisitionGetPayload<{ select: typeof rowSelect }>;
@@ -168,7 +168,7 @@ export async function readRequisitions(db: Db, companyId: string, query: Requisi
     db.crmRequisition.groupBy({ by: ["status"], where: { companyId }, _count: true }),
     db.crmRequisition.findMany({ where: { companyId, status: "SUBMITTED", currency: base }, select: { amount: true, approvedAmount: true, approvalLimit: true, requestedById: true } }),
     db.crmRequisition.findMany({ where: { companyId, status: "DISBURSED", currency: base }, orderBy: { disbursedAt: "asc" }, select: { amount: true, approvedAmount: true, paidAmount: true, requestedBy: { select: { name: true } } } }),
-    db.crmRequisition.findMany({ where: { companyId, status: { not: "DRAFT" } }, select: { requestedBy: { select: { id: true, name: true } } }, distinct: ["requestedById"] }),
+    db.crmRequisition.findMany({ where: { companyId, status: { not: "DRAFT" } }, select: { requestedBy: { select: { id: true, name: true, image: true } } }, distinct: ["requestedById"] }),
   ]);
   const byStatus = new Map(grouped.map((row) => [row.status, row._count]));
   const counts: Record<RequisitionView, number> = {

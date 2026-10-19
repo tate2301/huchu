@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 
-import { Button, SelectCell, TableFoot, TableShell, useSelection } from "@/components/core";
+import { Button, SelectCell, TableFoot, TableShell, useSelection, Person } from "@/components/core";
 import { money } from "@/lib/books/format";
 import { PERIOD_LABEL, PERIODS } from "@/lib/books/period";
 import { REQUISITION_TAB_LABEL, REQUISITION_VIEWS, type RequisitionQuery, type RequisitionRow, type RequisitionsPage } from "@/lib/books/requisitions-list";
@@ -83,7 +83,7 @@ export function BkRequisitionsView({
               items={[
                 { key: "any", label: "Anyone", checked: !query.person, onSelect: () => onQuery({ person: null, page: 1 }) },
                 { separator: true },
-                ...data.people.map((option) => ({ key: option.id, label: option.name, checked: query.person === option.id, onSelect: () => onQuery({ person: option.id, page: 1 }) })),
+                ...data.people.map((option) => ({ key: option.id, label: <Person name={option.name} src={option.image} />, checked: query.person === option.id, onSelect: () => onQuery({ person: option.id, page: 1 }) })),
               ]}
             />
           </>
@@ -157,7 +157,9 @@ export function BkRequisitionsView({
                     </Link>
                   </td>
                   <td className="truncate">
-                    <span className="cell-lead">{row.askedBy.name}</span>
+                    <span className="cell-lead">
+                      <Person name={row.askedBy.name} src={row.askedBy.image} />
+                    </span>
                   </td>
                   <td>
                     <span className="pill pill-n">{row.source}</span>

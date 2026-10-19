@@ -2,8 +2,8 @@
 
 import * as React from "react";
 
-import { Icon, type IconName } from "@/components/core";
-import type { HistoryItem, PostingRow } from "@/lib/books/record-view";
+import { Icon, Person, type IconName } from "@/components/core";
+import type { Faces, HistoryItem, PostingRow } from "@/lib/books/record-view";
 
 /**
  * A Books record page's parts, as the boards draw them (books_pages_a.py
@@ -117,14 +117,46 @@ export function PostingTable({ rows }: { rows: PostingRow[] }) {
   );
 }
 
-export function History({ items }: { items: HistoryItem[] }) {
+/** The person a line starts with, if the record named them: "Rudo Mapfumo closed it". */
+function leadingName(text: string, faces?: Faces): string | null {
+  if (!faces) return null;
+  let found: string | null = null;
+  for (const name of Object.keys(faces)) {
+    if ((text === name || text.startsWith(`${name} `) || text.startsWith(`${name},`)) && (!found || name.length > found.length)) found = name;
+  }
+  return found;
+}
+
+/** A history line: who did it (avatar and name in bold) and what they did. */
+export function Said({ text, faces }: { text: string; faces?: Faces }) {
+  const name = leadingName(text, faces);
+  if (!name || !faces) return <>{text}</>;
+  return (
+    <>
+      <Person name={name} src={faces[name]}>
+        <b>{name}</b>
+      </Person>
+      {text.slice(name.length)}
+    </>
+  );
+}
+
+/** A person named in a record's rail or header, with their avatar; `fallback` when there is nobody. */
+export function Named({ name, faces, fallback = "—", sub }: { name: string | null | undefined; faces?: Faces; fallback?: React.ReactNode; sub?: React.ReactNode }) {
+  if (!name) return <>{fallback}</>;
+  return <Person name={name} src={faces?.[name] ?? null} sub={sub} />;
+}
+
+export function History({ items, faces }: { items: HistoryItem[]; faces?: Faces }) {
   return (
     <Bleed>
       <ol className="bk-tl">
         {items.map((item, index) => (
           <li key={index}>
             <span className={item.tone ? `d ${item.tone}` : "d"} />
-            <span>{item.text}</span>
+            <span>
+              <Said text={item.text} faces={faces} />
+            </span>
             <time>{item.when}</time>
           </li>
         ))}

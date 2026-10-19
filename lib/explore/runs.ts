@@ -87,6 +87,7 @@ export type RunRow = {
   id: string;
   at: string;
   who: string;
+  whoImage?: string | null;
   line: string;
   readFrom: string[];
   rows: number | null;
@@ -105,7 +106,7 @@ export async function readRuns(db: Db, companyId: string, now = new Date()): Pro
       where: { companyId, createdAt: { gte: day } },
       orderBy: { createdAt: "desc" },
       take: 50,
-      select: { id: true, createdAt: true, title: true, sql: true, readFrom: true, rows: true, ms: true, result: true, reason: true, user: { select: { name: true } } },
+      select: { id: true, createdAt: true, title: true, sql: true, readFrom: true, rows: true, ms: true, result: true, reason: true, user: { select: { name: true, image: true } } },
     }),
     db.exploreQuestionRun.count({ where: { companyId, createdAt: { gte: month } } }),
     db.exploreQuestionRun.count({ where: { companyId, createdAt: { gte: month }, result: "REFUSED", reason: { startsWith: "Explore only reads" } } }),
@@ -115,6 +116,7 @@ export async function readRuns(db: Db, companyId: string, now = new Date()): Pro
       id: run.id,
       at: run.createdAt.toISOString(),
       who: run.user?.name ?? "Someone who has left",
+      whoImage: run.user?.image ?? null,
       line: questionLine(run.title, run.sql),
       readFrom: run.readFrom,
       rows: run.rows,

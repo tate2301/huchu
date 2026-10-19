@@ -60,7 +60,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       where: { id, companyId: session.user.companyId },
       include: {
         client: { select: { id: true, name: true, clientNo: true } },
-        assignedTo: { select: { id: true, name: true } },
+        assignedTo: { select: { id: true, name: true, image: true } },
         companyLinks: {
           include: { client: { select: { id: true, name: true, clientNo: true } } },
         },
@@ -197,7 +197,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         },
         include: {
           client: { select: { id: true, name: true } },
-          assignedTo: { select: { id: true, name: true } },
+          assignedTo: { select: { id: true, name: true, image: true } },
         },
       });
 

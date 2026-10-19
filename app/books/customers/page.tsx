@@ -9,7 +9,7 @@ import { BkChip, BkQuietTools, BkTabs, BkTools } from "@/components/books/bk-lis
 import { PartyDrawer } from "@/components/books/bk-party-drawer";
 import { BooksError, BooksLoading } from "@/components/books/books-state";
 import { BooksFinding, BooksPage } from "@/components/books/figures";
-import { Button, Kit, SelectCell, TableFoot, TableShell, useSelection } from "@/components/core";
+import { Button, Kit, SelectCell, TableFoot, TableShell, useSelection, Person } from "@/components/core";
 import { PageChrome } from "@/components/layout/page-chrome";
 import { useToast } from "@/components/ui/use-toast";
 import { fetchJson } from "@/lib/api-client";
@@ -174,7 +174,7 @@ function BooksCustomers() {
                         <SelectCell checked={selection.isSelected(row.id)} onChange={() => selection.toggle(row.id)} label={`Select ${row.name}`} />
                         <td>
                           <Link className="cell-lead" href={`/books/customers/${row.id}`}>
-                            {row.name}
+                            <Person name={row.name} src={row.image} />
                           </Link>
                         </td>
                         {byAge ? (

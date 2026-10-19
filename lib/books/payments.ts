@@ -1,6 +1,7 @@
 import type { Prisma, PrismaClient } from "@prisma/client";
 import { z } from "zod";
 
+import { customerFace, customerImage } from "./faces";
 import { addDays, count, dayOf, methodWord, money, monthStart, shortDay, storedDay } from "./format";
 import { INVOICE_PERIOD_LABEL, INVOICE_PERIODS, type InvoicePeriod } from "./invoices";
 
@@ -57,6 +58,8 @@ export type PaymentRow = {
   number: string;
   /** Who paid: the invoice's customer, or null for a payment on no invoice. */
   customer: string | null;
+  /** The customer's photo, from their CRM client, when there is one. */
+  customerImage?: string | null;
   invoice: string | null;
   /** The invoice's id, for its link. */
   invoiceId: string | null;
@@ -67,7 +70,7 @@ export type PaymentRow = {
   amount: number;
   currency: string;
   /** Voided by the owner: who, when and why. It counts in no sum. */
-  voided: { by: string | null; on: string; reason: string | null } | null;
+  voided: { by: string | null; byImage?: string | null; on: string; reason: string | null } | null;
 };
 
 export type PaymentsView = {
@@ -80,7 +83,7 @@ export type PaymentsView = {
   /** This month's money in, and what of it is on account, in `currency`. */
   month: { amount: number; payments: number; onAccount: number; name: string };
   counts: Record<PaymentView, number>;
-  customers: Array<{ id: string; name: string }>;
+  customers: Array<{ id: string; name: string; image?: string | null }>;
   accounts: Array<{ id: string; name: string }>;
   query: PaymentQuery;
 };
@@ -171,10 +174,11 @@ const rowSelect = {
   method: true,
   voidedAt: true,
   voidReason: true,
-  voidedBy: { select: { name: true } },
+  voidedBy: { select: { name: true, image: true } },
+  customer: { select: customerFace },
   currency: true,
   bankAccount: { select: { name: true, bankName: true, currency: true } },
-  invoice: { select: { id: true, invoiceNumber: true, currency: true, customer: { select: { name: true } } } },
+  invoice: { select: { id: true, invoiceNumber: true, currency: true, customer: { select: { name: true, ...customerFace } } } },
 } satisfies Prisma.SalesReceiptSelect;
 
 type RowRecord = Prisma.SalesReceiptGetPayload<{ select: typeof rowSelect }>;
@@ -190,6 +194,7 @@ export function toPaymentRow(record: RowRecord, onAccount: string | null = null)
     id: record.id,
     number: record.receiptNumber,
     customer: record.invoice?.customer.name ?? onAccount,
+    customerImage: customerImage(record.invoice?.customer ?? record.customer),
     invoice: record.invoice?.invoiceNumber ?? null,
     invoiceId: record.invoice?.id ?? null,
     into: record.bankAccount ? `${record.bankAccount.bankName || record.bankAccount.name}, ${record.bankAccount.currency}` : methodLabel(record.method),
@@ -197,7 +202,7 @@ export function toPaymentRow(record: RowRecord, onAccount: string | null = null)
     method: methodLabel(record.method),
     amount: Math.round(record.amount * 100) / 100,
     currency: record.currency ?? record.invoice?.currency ?? "USD",
-    voided: record.voidedAt ? { by: record.voidedBy?.name ?? null, on: shortDay(dayOf(record.voidedAt)), reason: record.voidReason } : null,
+    voided: record.voidedAt ? { by: record.voidedBy?.name ?? null, byImage: record.voidedBy?.image ?? null, on: shortDay(dayOf(record.voidedAt)), reason: record.voidReason } : null,
   };
 }
 
@@ -251,7 +256,7 @@ export async function readPayments(db: Db, companyId: string, query: PaymentQuer
       select: { amount: true, currency: true, invoiceId: true, invoice: { select: { currency: true } } },
       take: 10_000,
     }),
-    db.customer.findMany({ where: { companyId, receipts: { some: {} } }, select: { id: true, name: true }, orderBy: { name: "asc" }, take: 500 }),
+    db.customer.findMany({ where: { companyId, receipts: { some: {} } }, select: { id: true, name: true, ...customerFace }, orderBy: { name: "asc" }, take: 500 }),
     db.bankAccount.findMany({ where: { companyId, isActive: true }, select: { id: true, name: true, bankName: true, currency: true }, orderBy: { name: "asc" } }),
     ...PAYMENT_VIEWS.map(tabCount),
   ]);
@@ -269,7 +274,7 @@ export async function readPayments(db: Db, companyId: string, query: PaymentQuer
     currency: total.currency,
     month: { amount: thisMonth.amount, payments: thisMonth.payments, onAccount: onAccount.amount, name: new Intl.DateTimeFormat("en-GB", { month: "long", timeZone: "UTC" }).format(midnight(today)) },
     counts: Object.fromEntries(PAYMENT_VIEWS.map((view, index) => [view, tabCounts[index] ?? 0])) as Record<PaymentView, number>,
-    customers: customerRows,
+    customers: customerRows.map((customer) => ({ id: customer.id, name: customer.name, image: customerImage(customer) })),
     accounts: accountRows.map((account) => ({ id: account.id, name: `${account.bankName || account.name}, ${account.currency}` })),
     query,
   };

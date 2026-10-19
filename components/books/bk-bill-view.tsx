@@ -195,7 +195,7 @@ export function BkBillView({ bill }: { bill: BillRecord }) {
 
         {bill.history.length ? (
           <Section id="b6" title="History">
-            <History items={bill.history} />
+            <History items={bill.history} faces={bill.faces} />
           </Section>
         ) : null}
       </div>

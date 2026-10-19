@@ -111,7 +111,7 @@ type DealDetail = {
   client: { id: string; name: string } | null;
   primaryContact: { id: string; fullName: string } | null;
   site: { id: string; name: string; addressLine: string | null; city: string | null } | null;
-  assignedTo: { id: string; name: string | null } | null;
+  assignedTo: { id: string; name: string | null; image?: string | null } | null;
   stage: {
     id: string;
     name: string;

@@ -1,7 +1,9 @@
 import type { InvoiceStatus, PrismaClient } from "@prisma/client";
 import { docLabel } from "@/lib/books/doc-number";
 
+import { customerFace, customerImage } from "./faces";
 import { daysBetween, dayOf, money, shortDay, storedDay } from "./format";
+import { facesOf, type Faces } from "./record-view";
 import { INVOICE_STATE_LABEL, invoiceState, type InvoiceState } from "./invoice-state";
 import type { InvoiceBoardExtras } from "./invoice-board-view";
 import type { InvoiceRemoval } from "./reversal";
@@ -30,7 +32,9 @@ export type InvoiceRecord = {
   /** Vane's card about it, for What I read. */
   cardId: string | null;
   /** contact: the person there, for the phone's header line ("Chisipite Dental · Mrs L. Banda"). */
-  customer: { id: string; name: string; contact?: string | null };
+  customer: { id: string; name: string; contact?: string | null; image?: string | null };
+  /** The people it names (who made, issued or voided it), with their photos. */
+  faces?: Faces;
   /** Days past its due day while it is owed; 0 otherwise. */
   daysOverdue: number;
   currency: string;
@@ -152,9 +156,9 @@ export async function readInvoiceRecord(db: Pick<PrismaClient, "salesInvoice" | 
       createdAt: true,
       issuedAt: true,
       quotationId: true,
-      customer: { select: { id: true, name: true, contactName: true } },
-      createdBy: { select: { name: true } },
-      issuedBy: { select: { name: true } },
+      customer: { select: { id: true, name: true, contactName: true, ...customerFace } },
+      createdBy: { select: { name: true, image: true } },
+      issuedBy: { select: { name: true, image: true } },
       lines: { orderBy: { createdAt: "asc" }, select: { id: true, description: true, quantity: true, unitPrice: true, lineTotal: true, taxRate: true, taxCodeId: true } },
       creditNotes: { orderBy: { noteDate: "asc" }, select: { noteNumber: true, total: true, reason: true, noteDate: true, status: true } },
       fiscalReceipt: { select: { status: true, receiptGlobalNo: true } },
@@ -197,7 +201,7 @@ export async function readInvoiceRecord(db: Pick<PrismaClient, "salesInvoice" | 
         })
       : null,
   ]);
-  const voider = voidEvent?.actor ? await db.user.findFirst({ where: { id: voidEvent.actor, companyId }, select: { name: true } }) : null;
+  const voider = voidEvent?.actor ? await db.user.findFirst({ where: { id: voidEvent.actor, companyId }, select: { name: true, image: true } }) : null;
   const onAccount = await paymentsOnAccount(db, companyId, voidEvent?.payloadJson ?? null);
 
   const today = dayOf(now);
@@ -242,7 +246,8 @@ export async function readInvoiceRecord(db: Pick<PrismaClient, "salesInvoice" | 
     madeByVane: invoice.madeByVane,
     waiting: draft && invoice.madeByVane && !invoice.createdById,
     cardId: card?.id ?? null,
-    customer: { id: invoice.customer.id, name: invoice.customer.name, contact: invoice.customer.contactName ?? null },
+    customer: { id: invoice.customer.id, name: invoice.customer.name, contact: invoice.customer.contactName ?? null, image: customerImage(invoice.customer) },
+    faces: facesOf(invoice.createdBy, invoice.issuedBy, voider),
     daysOverdue: state.daysOverdue,
     currency: invoice.currency,
     date: draft ? "On issue" : shortDay(dated),

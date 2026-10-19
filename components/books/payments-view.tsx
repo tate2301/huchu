@@ -2,7 +2,7 @@
 
 import * as React from "react";
 
-import { Button, ButtonGroup, Icon, Status, TableFoot, TableShell } from "@/components/core";
+import { Button, ButtonGroup, Icon, Status, TableFoot, TableShell, Person } from "@/components/core";
 import { MenuButton, type MenuEntry } from "@/components/core/menu";
 import { money } from "@/lib/books/format";
 import {
@@ -141,13 +141,17 @@ export function PaymentsPageView({
                         <Status tone="danger">Void</Status>{" "}
                         <span className="muted">
                           {row.voided.on}
-                          {row.voided.by ? `, ${row.voided.by}` : ""}
+                          {row.voided.by ? (
+                            <>
+                              , <Person name={row.voided.by} src={row.voided.byImage} />
+                            </>
+                          ) : null}
                           {row.voided.reason ? `: ${row.voided.reason}` : ""}
                         </span>
                       </span>
                     ) : null}
                   </td>
-                  <td>{row.customer ? <span className="cell-lead">{row.customer}</span> : <span className="muted">Not on an invoice</span>}</td>
+                  <td>{row.customer ? <span className="cell-lead"><Person name={row.customer} src={row.customerImage} /></span> : <span className="muted">Not on an invoice</span>}</td>
                   <td>{row.invoice ? <span className="code">{row.invoice}</span> : <span className="muted">—</span>}</td>
                   <td className="muted">{row.received}</td>
                   <td>{row.method}</td>

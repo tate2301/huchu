@@ -31,9 +31,9 @@ import {
   NoRecord,
 } from "@/app/management/master-data/operations/_components/register-fields";
 
-import { initialsOf } from "./initials";
 import { UserRecord } from "./user-record";
 import styles from "./users.module.css";
+import { Avatar } from "@/components/core";
 
 type RoleFilter = "ALL" | ManagedUserRole;
 type StatusFilter = "ALL" | "ACTIVE" | "INACTIVE";
@@ -211,7 +211,7 @@ export function UsersRegister({ selectedId }: { selectedId?: string }) {
                 <ListRow
                   key={user.id}
                   name={user.name || user.email}
-                  mark={initialsOf(user.name || user.email)}
+                  mark={<Avatar name={user.name || user.email} src={user.image} size={28} className="is-fill" />}
                   href={`/preferences/organization/users/${user.id}`}
                   selected={user.id === selectedId}
                   /* The board's amber dot, labelled "Never signed in".

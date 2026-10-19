@@ -61,6 +61,8 @@ export type ReportEntry = {
   area: string | null;
   folder: { id: string; name: string } | null;
   madeBy: string | null;
+  /** Their photo, for the avatar beside "Made by". */
+  madeByImage?: string | null;
   /** ISO time it last changed; none for what Corelith ships. */
   updatedAt: string | null;
   /** "Shared" or "Only you". */
@@ -100,6 +102,7 @@ export function reportEntries(data: ReportsHomeData): ReportEntry[] {
     area: report.area,
     folder: report.folder,
     madeBy: report.madeBy,
+    madeByImage: report.madeByImage ?? null,
     updatedAt: report.updatedAt,
     seenBy: report.audience === "JUST_ME" ? "Only you" : "Shared",
     copy: null,
@@ -116,6 +119,7 @@ export function reportEntries(data: ReportsHomeData): ReportEntry[] {
     area: template.area,
     folder: null,
     madeBy: template.madeBy,
+    madeByImage: template.madeByImage ?? null,
     updatedAt: template.updatedAt,
     seenBy: template.audience === "JUST_ME" ? "Only you" : "Shared",
     copy: null,

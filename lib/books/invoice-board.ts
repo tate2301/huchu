@@ -3,6 +3,7 @@ import type { PrismaClient } from "@prisma/client";
 import { rateFor } from "./core/rate";
 import { asOf, dayOf, methodWord, shortDay, storedDay } from "./format";
 import type { InvoiceBoardExtras } from "./invoice-board-view";
+import { facesOf } from "./record-view";
 
 /**
  * What BkInvoice draws beyond the invoice itself: the payments on it with the
@@ -26,8 +27,8 @@ export async function readInvoiceExtras(db: Db, companyId: string, invoiceId: st
       createdAt: true,
       issuedAt: true,
       madeByVane: true,
-      createdBy: { select: { name: true } },
-      issuedBy: { select: { name: true } },
+      createdBy: { select: { name: true, image: true } },
+      issuedBy: { select: { name: true, image: true } },
       fromQuotation: { select: { quotationNumber: true } },
       fiscalReceipt: { select: { status: true, fiscalNumber: true, receiptNumber: true, issuedAt: true, qrCodeData: true, lastError: true, fiscalDay: { select: { fiscalDayNo: true } } } },
       receipts: {
@@ -41,7 +42,7 @@ export async function readInvoiceExtras(db: Db, companyId: string, invoiceId: st
           voidedAt: true,
           createdAt: true,
           bankAccount: { select: { name: true, bankName: true, currency: true } },
-          createdBy: { select: { name: true } },
+          createdBy: { select: { name: true, image: true } },
         },
       },
       creditNotes: { orderBy: { noteDate: "asc" }, select: { id: true, noteNumber: true, total: true, issuedAt: true, createdAt: true, status: true } },
@@ -125,6 +126,7 @@ export async function readInvoiceExtras(db: Db, companyId: string, invoiceId: st
     ),
     entries: entries.length,
     history: history.map(({ tone, text, when }) => ({ tone, text, when })),
+    faces: facesOf(invoice.createdBy, invoice.issuedBy, ...invoice.receipts.map((receipt) => receipt.createdBy)),
     fiscal: fiscal
       ? {
           status: fiscal.status === "SUCCESS" ? "Valid" : fiscal.status === "FAILED" ? "Failed" : fiscal.status === "VOIDED" ? "Void" : "Pending",

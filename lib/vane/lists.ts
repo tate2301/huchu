@@ -137,6 +137,8 @@ export type VaneDoneRow = {
   template: string;
   /** What happened next: "Open", "Send 3 reminders, by James, 10:14", "Not now: Already done". */
   next: string;
+  /** The person `next` names (who pressed the button, who it was for), for their avatar. */
+  who?: { name: string; image: string | null } | null;
   /** Someone took it further. */
   taken: boolean;
   /** A card's id, to open it; a finished job that raised no card has none. */
@@ -211,7 +213,7 @@ export async function listVaneDone(
         resolvedAt: true,
         action: true,
         createdAt: true,
-        resolvedBy: { select: { name: true } },
+        resolvedBy: { select: { name: true, image: true } },
         job: { select: { kind: true } },
       },
     }),
@@ -219,7 +221,7 @@ export async function listVaneDone(
       where: { ...jobWhere, items: { none: {} }, ...(template ? { kind: template } : {}) },
       orderBy: { finishedAt: "desc" },
       take: 300,
-      select: { id: true, kind: true, label: true, result: true, finishedAt: true, requestedBy: { select: { name: true } } },
+      select: { id: true, kind: true, label: true, result: true, finishedAt: true, requestedBy: { select: { name: true, image: true } } },
     }),
     db.vaneJob.count({ where: jobWhere }),
     db.vaneJob.count({ where: { companyId: who.companyId, status: "DONE", finishedAt: { gte: monthStart } } }),
@@ -241,6 +243,7 @@ export async function listVaneDone(
           resolvedBy: card.resolvedBy,
           actionLabel: typeof action?.label === "string" ? action.label : null,
         }),
+        who: card.status !== "OPEN" && card.resolvedBy ? { name: card.resolvedBy.name, image: card.resolvedBy.image ?? null } : null,
         taken: card.status === "DONE",
         cardId: card.id,
       };
@@ -253,6 +256,7 @@ export async function listVaneDone(
         what: job.result?.trim() || jobLine(job.label),
         template: job.kind,
         next: job.requestedBy ? `Done for ${job.requestedBy.name}` : "Nothing to raise",
+        who: job.requestedBy ? { name: job.requestedBy.name, image: job.requestedBy.image ?? null } : null,
         taken: false,
         cardId: null,
       };
@@ -284,6 +288,7 @@ export type VaneMutedRow = {
   source: string;
   reason: string | null;
   by: string | null;
+  byImage?: string | null;
   at: string | null;
 };
 
@@ -293,7 +298,7 @@ export async function listVaneMuted(db: Pick<PrismaClient, "vaneItem">, who: Who
     where: { companyId: who.companyId, status: "MUTED", kind: { in: FOR_YOU }, ...audienceFilter(who.userId, who.role) },
     orderBy: { resolvedAt: "desc" },
     take: 200,
-    select: { id: true, headline: true, topic: true, sourceModule: true, mutedReason: true, resolvedAt: true, resolvedBy: { select: { name: true } } },
+    select: { id: true, headline: true, topic: true, sourceModule: true, mutedReason: true, resolvedAt: true, resolvedBy: { select: { name: true, image: true } } },
   });
   return rows.map((row) => ({
     id: row.id,
@@ -302,6 +307,7 @@ export async function listVaneMuted(db: Pick<PrismaClient, "vaneItem">, who: Who
     source: moduleName(row.sourceModule),
     reason: row.mutedReason,
     by: row.resolvedBy?.name ?? null,
+    byImage: row.resolvedBy?.image ?? null,
     at: row.resolvedAt?.toISOString() ?? null,
   }));
 }

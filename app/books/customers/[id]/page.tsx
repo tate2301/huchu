@@ -8,7 +8,7 @@ import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { BkState, BkTabs } from "@/components/books/bk-list";
 import { BooksError, BooksLoading } from "@/components/books/books-state";
 import { BooksPage } from "@/components/books/figures";
-import { Button, ButtonLink, Empty, Input, Kit } from "@/components/core";
+import { Button, ButtonLink, Empty, Input, Kit, Avatar } from "@/components/core";
 import { MenuButton } from "@/components/core/menu";
 import { PageChrome } from "@/components/layout/page-chrome";
 import { ApiError, fetchJson } from "@/lib/api-client";
@@ -189,7 +189,10 @@ function CustomerRecord() {
           <div className="bk-main">
             <div className="bk-hd">
               <div className="tr">
-                <div className="bk-title">{data.name}</div>
+                <span style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
+                  <Avatar name={data.name} src={data.image} size={32} />
+                  <div className="bk-title">{data.name}</div>
+                </span>
               </div>
               <div className="ml">
                 {data.line.map((item, index) => (

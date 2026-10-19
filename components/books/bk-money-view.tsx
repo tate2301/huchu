@@ -2,7 +2,7 @@
 
 import * as React from "react";
 
-import { ButtonLink, Icon, type IconName } from "@/components/core";
+import { Avatars, ButtonLink, Icon, type IconName } from "@/components/core";
 import { money } from "@/lib/books/format";
 import type { MoneyBoard, MoneyShare, Urgency } from "@/lib/books/money-board-view";
 
@@ -73,7 +73,14 @@ export function BkMoneyView({ data }: { data: MoneyBoard }) {
                 </span>
                 <div className="t">
                   <span className="lead">{need.lead}</span>
-                  <span className="d">{need.detail}</span>
+                  <span className="d">
+                    {need.people?.length ? (
+                      <span style={{ marginRight: 8 }}>
+                        <Avatars people={need.people} />
+                      </span>
+                    ) : null}
+                    {need.detail}
+                  </span>
                 </div>
                 <div className="a">
                   <ButtonLink href={need.action.href} icon={need.action.icon as IconName} variant={WEIGHT[need.urgency]}>

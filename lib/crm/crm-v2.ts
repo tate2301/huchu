@@ -85,7 +85,7 @@ export type CrmAppointmentRecord = {
   status: "SCHEDULED" | "COMPLETED" | "CANCELLED" | "NO_SHOW";
 };
 
-export type CrmLeadOwner = { id: string; name: string | null };
+export type CrmLeadOwner = { id: string; name: string | null; image?: string | null };
 
 export type CrmNextFollowUp = { id: string; title: string; dueAt: string };
 
@@ -553,7 +553,7 @@ export type CrmTaskRecord = {
   outcomeNotes: string | null;
   completedAt: string | null;
   assignedToId: string | null;
-  assignedTo?: { id: string; name: string | null } | null;
+  assignedTo?: { id: string; name: string | null; image?: string | null } | null;
   leadId: string | null;
   dealId: string | null;
   clientId: string | null;

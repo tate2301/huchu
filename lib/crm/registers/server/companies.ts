@@ -29,7 +29,7 @@ import {
 } from "./where";
 
 const include = {
-  assignedTo: { select: { id: true, name: true } },
+  assignedTo: { select: { id: true, name: true, image: true } },
   parent: { select: { id: true, name: true } },
   _count: { select: { people: true, deals: true, sites: true } },
 } satisfies Prisma.CrmClientInclude;

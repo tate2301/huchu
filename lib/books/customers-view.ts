@@ -33,6 +33,8 @@ export function readCustomerQuery(params: URLSearchParams): CustomerQuery {
 export type CustomerRow = {
   id: string;
   name: string;
+  /** The photo of the CRM client it is linked to, when there is one. */
+  image?: string | null;
   contact: string | null;
   owes: number;
   overdue: number;
@@ -57,6 +59,7 @@ export type StatementLine = { date: string; document: string; detail: string; hr
 export type CustomerPage = {
   id: string;
   name: string;
+  image?: string | null;
   /** At most two items: the accounts contact and how long they have been a customer. */
   line: string[];
   contact: { phone: string | null; email: string | null; address: string | null };

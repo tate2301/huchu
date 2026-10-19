@@ -49,8 +49,8 @@ export function readClaimQuery(params: URLSearchParams): ClaimQuery {
   });
 }
 
-export type ClaimRow = { id: string; number: string; person: { id: string; name: string }; forWhat: string; status: ExpenseClaimStatus; state: string; amount: number; currency: string };
-export type FloatRow = { id: string; name: string; holder: string | null; currency: string; imprest: number; spent: number; vouchers: number; left: number };
+export type ClaimRow = { id: string; number: string; person: { id: string; name: string; image: string | null }; forWhat: string; status: ExpenseClaimStatus; state: string; amount: number; currency: string };
+export type FloatRow = { id: string; name: string; holder: string | null; holderImage: string | null; currency: string; imprest: number; spent: number; vouchers: number; left: number };
 export type VoucherRow = { id: string; number: string; float: string; forWhat: string; status: PettyCashVoucherStatus; state: string; amount: number; currency: string; createdById: string; kind: "SPEND" | "TOP_UP" };
 
 export type ClaimsView = {
@@ -62,7 +62,7 @@ export type ClaimsView = {
   range: { from: number; to: number; of: number };
   sums: { toApprove: number; toPay: number; paidMonth: number; monthName: string };
   currency: string;
-  people: Array<{ id: string; name: string }>;
+  people: Array<{ id: string; name: string; image: string | null }>;
   query: ClaimQuery;
 };
 
@@ -111,7 +111,7 @@ export async function readClaims(db: Db, companyId: string, query: ClaimQuery, s
   const skip = (query.page - 1) * CLAIMS_PAGE_SIZE;
   const [claims, claimCount, voucherRows, voucherCount, floats, waiting, toPay, paidMonth, people] = await Promise.all([
     query.view === "claims"
-      ? db.expenseClaim.findMany({ where, orderBy: { createdAt: order }, skip, take: CLAIMS_PAGE_SIZE, include: { claimant: { select: { id: true, name: true } }, lines: { orderBy: { sortOrder: "asc" }, take: 1, select: { description: true } } } })
+      ? db.expenseClaim.findMany({ where, orderBy: { createdAt: order }, skip, take: CLAIMS_PAGE_SIZE, include: { claimant: { select: { id: true, name: true, image: true } }, lines: { orderBy: { sortOrder: "asc" }, take: 1, select: { description: true } } } })
       : Promise.resolve([]),
     db.expenseClaim.count({ where: query.view === "claims" ? where : { companyId, ...(scope.everyone ? {} : { claimantId: scope.userId }) } }),
     query.view === "vouchers"
@@ -124,11 +124,11 @@ export async function readClaims(db: Db, companyId: string, query: ClaimQuery, s
         })
       : Promise.resolve([]),
     db.pettyCashVoucher.count({ where: voucherWhere }),
-    db.bankAccount.findMany({ where: { companyId, isFloat: true, isActive: true }, orderBy: { name: "asc" }, select: { id: true, name: true, currency: true, imprestAmount: true, holder: { select: { name: true } } } }),
+    db.bankAccount.findMany({ where: { companyId, isFloat: true, isActive: true }, orderBy: { name: "asc" }, select: { id: true, name: true, currency: true, imprestAmount: true, holder: { select: { name: true, image: true } } } }),
     db.expenseClaim.findMany({ where: { companyId, status: "SUBMITTED", currency: base, claimantId: { not: scope.userId } }, select: { total: true, claimant: { select: { name: true } } } }),
     db.expenseClaim.findMany({ where: { companyId, status: "APPROVED", currency: base }, orderBy: { approvedAt: "asc" }, select: { total: true, claimant: { select: { name: true } } } }),
     db.expenseClaim.aggregate({ where: { companyId, status: "PAID", currency: base, paidAt: { gte: harareStart(monthStart(today)) } }, _sum: { total: true } }),
-    db.expenseClaim.findMany({ where: { companyId, ...(scope.everyone ? {} : { claimantId: scope.userId }) }, select: { claimant: { select: { id: true, name: true } } }, distinct: ["claimantId"] }),
+    db.expenseClaim.findMany({ where: { companyId, ...(scope.everyone ? {} : { claimantId: scope.userId }) }, select: { claimant: { select: { id: true, name: true, image: true } } }, distinct: ["claimantId"] }),
   ]);
   // Each float: what it has spent since its last top-up (what a top-up brings back), and what is left of its imprest.
   const floatRows: FloatRow[] = [];
@@ -137,7 +137,7 @@ export async function readClaims(db: Db, companyId: string, query: ClaimQuery, s
     const spent = await db.pettyCashVoucher.aggregate({ where: { companyId, bankAccountId: float.id, kind: "SPEND", status: "POSTED", ...(last?.postedAt ? { postedAt: { gt: last.postedAt } } : {}) }, _sum: { amount: true }, _count: true });
     const imprest = round(Number(float.imprestAmount ?? 0));
     const used = round(Number(spent._sum.amount ?? 0));
-    floatRows.push({ id: float.id, name: float.name, holder: float.holder?.name ?? null, currency: float.currency, imprest, spent: used, vouchers: spent._count, left: round(imprest - used) });
+    floatRows.push({ id: float.id, name: float.name, holder: float.holder?.name ?? null, holderImage: float.holder?.image ?? null, currency: float.currency, imprest, spent: used, vouchers: spent._count, left: round(imprest - used) });
   }
   const of = query.view === "claims" ? claimCount : query.view === "vouchers" ? voucherCount : floatRows.length;
   const shown = query.view === "claims" ? claims.length : query.view === "vouchers" ? voucherRows.length : floatRows.length;

@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 
-import { Button, ButtonGroup, ButtonLink, Empty, Finding, GroupHead, Icon } from "@/components/core";
+import { Button, ButtonGroup, ButtonLink, Empty, Finding, GroupHead, Icon, Person } from "@/components/core";
 import { MenuButton } from "@/components/core/menu";
 import {
   REPORT_VIEW_LABEL,
@@ -48,7 +48,15 @@ function OurRow({
         <span className="lead truncate">{entry.title}</span>
         <span className="muted">{columns.kind ? entry.kind : null}</span>
         <span className="truncate">{columns.folder ? entry.folder?.name : null}</span>
-        <span className="muted truncate">{columns.made ? made : null}</span>
+        <span className="muted truncate">
+          {columns.made && entry.madeBy ? (
+            <Person name={entry.madeBy} src={entry.madeByImage}>
+              {made}
+            </Person>
+          ) : columns.made ? (
+            made
+          ) : null}
+        </span>
         <span className="muted">{columns.seen ? entry.seenBy : null}</span>
         <Icon name="chev" className="chev" />
       </Link>
@@ -150,6 +158,8 @@ export function ReportsAllView({
     return () => window.clearTimeout(timer);
   }, [q, filter.q, onFilter]);
 
+  // The makers' photos, from the entries they made (the menu lists them by name).
+  const faces = React.useMemo(() => new Map(entries.filter((entry) => entry.madeBy).map((entry) => [entry.madeBy!, entry.madeByImage ?? null])), [entries]);
   const ours = entries.filter((entry) => entry.group === "ours");
   const corelith = entries.filter((entry) => entry.group === "corelith");
   const narrowed = Boolean(filter.q.trim() || filter.area || filter.maker);
@@ -201,7 +211,7 @@ export function ReportsAllView({
             { key: "anyone", label: "Anyone", checked: !filter.maker, onSelect: () => onFilter({ maker: null }) },
             { key: "you", label: "You", checked: filter.maker === "you", onSelect: () => onFilter({ maker: "you" }) },
             ...(makers.length ? [{ separator: true as const }] : []),
-            ...makers.map((maker) => ({ key: maker, label: maker, checked: filter.maker === maker, onSelect: () => onFilter({ maker }) })),
+            ...makers.map((maker) => ({ key: maker, label: <Person name={maker} src={faces.get(maker)} />, checked: filter.maker === maker, onSelect: () => onFilter({ maker }) })),
           ]}
         >
           {filter.maker === "you" ? "You" : (filter.maker ?? "Anyone")}

@@ -2,7 +2,7 @@
 
 import * as React from "react";
 
-import { Button, SelectCell, TableFoot, TableShell, useSelection } from "@/components/core";
+import { Button, SelectCell, TableFoot, TableShell, useSelection, Person } from "@/components/core";
 import { MenuButton } from "@/components/core/menu";
 import { CLAIM_STATE_FILTER_LABEL, CLAIM_STATE_FILTERS, CLAIM_TAB_LABEL, CLAIM_VIEWS, type ClaimQuery, type ClaimRow, type ClaimsPage, type FloatRow, type VoucherRow } from "@/lib/books/claims-list";
 import { money } from "@/lib/books/format";
@@ -56,7 +56,7 @@ export function BkClaimsView({ data, onQuery, exportHref, moves }: { data: Claim
             items={[
               { key: "any", label: "Anyone", checked: !query.person, onSelect: () => onQuery({ person: null, page: 1 }) },
               { separator: true },
-              ...data.people.map((option) => ({ key: option.id, label: option.name, checked: query.person === option.id, onSelect: () => onQuery({ person: option.id, page: 1 }) })),
+              ...data.people.map((option) => ({ key: option.id, label: <Person name={option.name} src={option.image} />, checked: query.person === option.id, onSelect: () => onQuery({ person: option.id, page: 1 }) })),
             ]}
           />
           <BkChip
@@ -158,7 +158,9 @@ export function BkClaimsView({ data, onQuery, exportHref, moves }: { data: Claim
                       <span className={row.number === "Draft" ? "muted" : "ref"}>{row.number}</span>
                     </td>
                     <td className="truncate">
-                      <span className="cell-lead">{row.person.name}</span>
+                      <span className="cell-lead">
+                        <Person name={row.person.name} src={row.person.image} />
+                      </span>
                     </td>
                     <td className="fill truncate">
                       <span className="cell-lead">{row.forWhat}</span>
@@ -221,7 +223,7 @@ export function BkClaimsView({ data, onQuery, exportHref, moves }: { data: Claim
                     <td className="truncate">
                       <span className="cell-lead">{row.name}</span>
                     </td>
-                    <td className="truncate muted">{row.holder ?? "Nobody yet"}</td>
+                    <td className="truncate muted">{row.holder ? <Person name={row.holder} src={row.holderImage} /> : "Nobody yet"}</td>
                     <td className="num muted">{money(row.imprest, row.currency)}</td>
                     <td className="num">{money(row.spent, row.currency)}</td>
                     <td className="num">{money(row.left, row.currency)}</td>

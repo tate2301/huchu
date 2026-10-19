@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 
-import { Button, ButtonGroup, Icon, SelectCell, TableFoot, TableShell, useSelection } from "@/components/core";
+import { Button, ButtonGroup, Icon, SelectCell, TableFoot, TableShell, useSelection, Person } from "@/components/core";
 import { MenuButton, type MenuEntry } from "@/components/core/menu";
 import { money } from "@/lib/books/format";
 import type { InvoiceRow, InvoicesView } from "@/lib/books/invoices";
@@ -129,7 +129,7 @@ export function InvoicesPageView({
             { separator: true },
             ...data.customers.map((option) => ({
               key: option.id,
-              label: option.name,
+              label: <Person name={option.name} src={option.image} />,
               checked: query.customer === option.id,
               onSelect: () => onQuery({ customer: option.id, page: 1 }),
             })),
@@ -228,7 +228,9 @@ export function InvoicesPageView({
                     </Link>
                   </td>
                   <td>
-                    <span className="cell-lead">{row.customer.name}</span>
+                    <span className="cell-lead">
+                      <Person name={row.customer.name} src={row.customer.image} />
+                    </span>
                   </td>
                   <td>
                     <StateCell row={row} />

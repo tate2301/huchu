@@ -3,10 +3,12 @@
 import * as React from "react";
 import Link from "next/link";
 
-import { Icon } from "@/components/core";
+import { Icon, Person } from "@/components/core";
 import { money } from "@/lib/books/format";
 import type { InvoiceRecordPage } from "@/lib/books/invoice-record";
 import type { InvoiceState } from "@/lib/books/invoice-state";
+
+import { Said } from "./bk-record";
 
 const PILL: Record<InvoiceState, string> = { draft: "pill-n", sent: "pill-info", "part-paid": "pill-info", paid: "pill-ok", overdue: "pill-warn", void: "pill-plain" };
 const plain = (n: number) => new Intl.NumberFormat("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n);
@@ -62,7 +64,9 @@ export function BkInvoiceView({ invoice }: { invoice: InvoiceRecordPage }) {
             <span className={`pill ${PILL[invoice.state.key]}`}>{invoice.stateLabel}</span>
           </div>
           <div className="ml">
-            <span>{invoice.customer.name}</span>
+            <span>
+              <Person name={invoice.customer.name} src={invoice.customer.image} />
+            </span>
             <i>·</i>
             <span>{due}</span>
           </div>
@@ -80,7 +84,17 @@ export function BkInvoiceView({ invoice }: { invoice: InvoiceRecordPage }) {
           <div className="bk-box warn bk-callout">
             <Icon name="warn" />
             <span className="grow">
-              <b>Voided{invoice.voided.on ? ` ${invoice.voided.on}` : ""}{invoice.voided.by ? ` by ${invoice.voided.by}` : ""}.</b> {invoice.voided.reason ?? ""}
+              <b>
+                Voided{invoice.voided.on ? ` ${invoice.voided.on}` : ""}
+                {invoice.voided.by ? (
+                  <>
+                    {" by "}
+                    <Person name={invoice.voided.by} src={invoice.faces?.[invoice.voided.by]} />
+                  </>
+                ) : null}
+                .
+              </b>{" "}
+              {invoice.voided.reason ?? ""}
             </span>
           </div>
         ) : null}
@@ -235,7 +249,9 @@ export function BkInvoiceView({ invoice }: { invoice: InvoiceRecordPage }) {
                 {board.history.map((item, index) => (
                   <li key={index}>
                     <span className={item.tone ? `d ${item.tone}` : "d"} />
-                    <span>{item.text}</span>
+                    <span>
+                      <Said text={item.text} faces={board.faces} />
+                    </span>
                     <time>{item.when}</time>
                   </li>
                 ))}
@@ -285,7 +301,9 @@ export function BkInvoiceView({ invoice }: { invoice: InvoiceRecordPage }) {
             <dt>Rate</dt>
             <dd>{board?.rate ?? "—"}</dd>
             <dt>Made by</dt>
-            <dd>{invoice.madeBy}</dd>
+            <dd>
+              <Said text={invoice.madeBy} faces={invoice.faces} />
+            </dd>
           </dl>
         </section>
       </aside>
@@ -302,7 +320,7 @@ export function BkInvoiceView({ invoice }: { invoice: InvoiceRecordPage }) {
             {money(invoice.total, invoice.currency)}
           </div>
           <span style={{ fontSize: 15, color: "var(--color-ink-2)" }}>
-            {invoice.customer.name}
+            <Person name={invoice.customer.name} src={invoice.customer.image} />
             {invoice.customer.contact ? ` · ${invoice.customer.contact}` : ""}
           </span>
         </div>

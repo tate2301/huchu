@@ -17,7 +17,7 @@ export type ActivityLogEntry = {
   recordLabel: string | null;
   entityType: string | null;
   entityId: string | null;
-  actor: { id: string | null; name: string; email: string | null } | null;
+  actor: { id: string | null; name: string; email: string | null; image?: string | null } | null;
   /** Every record the request changed, the first being the one it is named for. */
   changes: ActivityChange[];
   /** Changes past the ones listed. */

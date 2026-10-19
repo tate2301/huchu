@@ -161,7 +161,7 @@ describe("Muted", () => {
     });
     const rows = await listVaneMuted(prisma, who());
     expect(rows).toEqual([
-      { id: muted.id, headline: "Monday's cash-up was short, $12.00", topic: null, source: "Tender", reason: "Already done", by: "James", at: "2026-10-05T08:00:00.000Z" },
+      { id: muted.id, headline: "Monday's cash-up was short, $12.00", topic: null, source: "Tender", reason: "Already done", by: "James", byImage: null, at: "2026-10-05T08:00:00.000Z" },
     ]);
     expect(await unmuteVaneItem(prisma, { ...who(), companyId: ids.other, id: muted.id })).toBe(false);
     expect(await unmuteVaneItem(prisma, { ...who(), id: muted.id })).toBe(true);

@@ -54,7 +54,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     const company = await prisma.crmClient.findFirst({
       where: { id, companyId: session.user.companyId },
       include: {
-        assignedTo: { select: { id: true, name: true } },
+        assignedTo: { select: { id: true, name: true, image: true } },
         parent: { select: { id: true, name: true, clientNo: true } },
         children: { select: { id: true, name: true, parentRelation: true } },
         people: {
@@ -192,7 +192,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
             : {}),
         },
         include: {
-          assignedTo: { select: { id: true, name: true } },
+          assignedTo: { select: { id: true, name: true, image: true } },
           parent: { select: { id: true, name: true } },
         },
       });
