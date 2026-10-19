@@ -1,12 +1,14 @@
 // Compare a board with the built page: what the board shows that the page lacks, and how the page lays out.
 //
-//   node design/core-modules/tools/check/designcheck.mjs <Board> <url> [--state state.json] [--shot out.png] [--390]
+//   node design/core-modules/tools/check/designcheck.mjs <Board> <url> [--state state.json] [--shot out.png] [--390] [--at 390]
 //   <url> is on the workspace's host, e.g. http://floorcode.apps.pagka.local:3100/books/invoices
 //
 // <Board> is a name in boards/view (or a path). <url> is the running app's page.
 // It lists the board's headings, buttons (with their shortcut), tabs, filters, column headers,
 // panel items, field labels and status words, finds each on the page, and prints the score.
 // Data (figures, dates, names in table cells) is left out: the page shows real data.
+// --at <width> reads the page at that width instead of 1440: a phone board (BkInvoicePhone) is
+// compared with the page at phone width, where the page draws what the board draws.
 // Then it checks the page at 1440 (and 390 with --390) for tables that overflow, headers that wrap,
 // cells that spill, a page that scrolls sideways and a body that shows nothing (collapsed to 0px). --shot writes board | page side by side.
 import { createRequire } from "node:module";
@@ -23,6 +25,7 @@ const flag = (k) => { const i = argv.indexOf(k); return i >= 0 ? argv.splice(i, 
 const state = flag("--state") || process.env.DC_STATE;
 const shot = flag("--shot");
 const narrow = argv.includes("--390") && argv.splice(argv.indexOf("--390"), 1);
+const at = Number(flag("--at")) || 1440;
 const verbose = argv.includes("-v") && argv.splice(argv.indexOf("-v"), 1);
 const [board, url] = argv;
 if (!board || !url) { console.error("usage: designcheck.mjs <Board> <url> [--state s.json] [--shot out.png] [--390]"); process.exit(2); }
@@ -124,7 +127,7 @@ const open = async (target, width, opts = {}) => {
 
 const bp = await open(pathToFileURL(path.resolve(boardFile)).href, 1440);
 const want = await bp.evaluate(collect);
-const ap = await open(url, 1440, { state });
+const ap = await open(url, at, { state });
 if (/\/login|\/signup/.test(ap.url())) { console.log(`not signed in: landed on ${ap.url()}`); await browser.close(); process.exit(3); }
 const have = new Set(await ap.evaluate(collect));
 // Compare on letters only: counts, spacing and punctuation are data or rendering, not design.
@@ -152,7 +155,7 @@ if (missing.length) console.log("missing:\n  " + missing.join("\n  "));
 if (moved.length) console.log("differ:\n  " + moved.join("\n  "));
 if (verbose) console.log("extra on the page:\n  " + [...have].filter((h) => !want.includes(h)).slice(0, 30).join("\n  "));
 const g = await ap.evaluate(geometry);
-console.log(g.length ? "1440:\n  " + g.join("\n  ") : "1440: clean");
+console.log(g.length ? `${at}:\n  ` + g.join("\n  ") : `${at}: clean`);
 if (narrow) {
   const np = await open(url, 390, { state });
   const g2 = await np.evaluate(geometry);
