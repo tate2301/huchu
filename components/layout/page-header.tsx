@@ -13,7 +13,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 import { getCurrentPageTitle } from "@/components/layout/breadcrumbs";
 import {
-  DeviceStatus,
+  VaneBarButton,
   NotificationsBell,
   SearchTrigger,
 } from "@/components/layout/app-bar-tools";
@@ -61,12 +61,13 @@ function primaryShortcut(primary: PagePrimary | null): string | undefined {
 /**
  * The 56px top bar (design/core-modules/spec/shell.md, `.tb-m`): the back
  * link, the page's icon and title, reference or sub and sub link; then, on the
- * right, the CRM's members, search everything (Ctrl K), the device's sync
- * state, the notifications bell with its unread count, the Vane button, the
- * page's own actions and its one primary, last, with its shortcut. The panel's
- * own Hide button and the rail hide and show the panel.
+ * right, the CRM's members, then exactly Vane (its button), search everything
+ * (Ctrl K) and the notifications bell with its unread count (the owner, 19
+ * Oct). The page's own actions and its one primary sit on the left, after the
+ * title. The device's sync state is in the account menu. The panel's own Hide
+ * button and the rail hide and show the panel.
  *
- * Below 720px it is "≡ <title> search, device, bell, ⋯ +": the menu button
+ * Below 720px it is "≡ <title> Vane, search, bell, ⋯ +": the menu button
  * opens the drawer and a create primary becomes a 44px plus; a verb primary
  * leads ⋯, and the page's other actions fold into ⋯ (as the page's
  * `phoneMenu` items when it gives them).
@@ -217,8 +218,8 @@ export function PageHeader() {
         <div className="flex-1" />
         <div className="flex shrink-0 items-center gap-2">
           {showMembers ? <CrmMembers className="mr-1" /> : null}
+          <VaneBarButton />
           <SearchTrigger />
-          <DeviceStatus />
           <NotificationsBell />
         </div>
       </div>
@@ -247,8 +248,8 @@ export function PageHeader() {
         <h1 className="m-0 min-w-0 flex-1 truncate text-[17px] font-semibold text-[var(--ink)]">{title}</h1>
         {back ? null : (
           <>
+            <VaneBarButton />
             <SearchTrigger compact />
-            <DeviceStatus compact />
             <NotificationsBell compact />
           </>
         )}

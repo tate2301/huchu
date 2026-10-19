@@ -2,8 +2,10 @@
 
 import * as React from "react";
 
+import { Kit } from "@/components/core";
 import { useShell } from "@/components/layout/shell-state";
-import { OfflineStatusButton } from "@/components/layout/offline-status-button";
+import { useVaneStatus } from "@/components/vane/use-vane";
+import { VaneButtonView } from "@/components/vane/vane-button-view";
 import {
   NotificationCenter,
   useNotificationsEnabled,
@@ -91,7 +93,26 @@ export function NotificationsBell({ compact = false }: { compact?: boolean }) {
 
 const noopSubscribe = () => () => {};
 
-/** The device's sync state, opening the offline panel. */
-export function DeviceStatus({ compact = false }: { compact?: boolean }) {
-  return <OfflineStatusButton className={cn("rounded-[8px] text-[var(--ink-3)]", compact && "size-11")} />;
+/**
+ * Vane in the app bar, beside Search (the owner, 19 Oct): its mark, "Vane",
+ * the count of what waits and a dot while it works; it opens and closes the
+ * panel, as the rail's mark and Ctrl J do. The device's sync state lives in
+ * the account menu now, not here.
+ */
+export function VaneBarButton() {
+  const shell = useShell();
+  const status = useVaneStatus();
+  return (
+    <Kit contents>
+      <VaneButtonView
+        open={shell.vaneOpen}
+        count={status.data?.open ?? 0}
+        working={Boolean(status.data?.working)}
+        onClick={() => {
+          if (shell.drawerOpen) shell.setDrawerOpen(false);
+          shell.setVaneOpen(!shell.vaneOpen);
+        }}
+      />
+    </Kit>
+  );
 }
