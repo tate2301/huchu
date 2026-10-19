@@ -312,7 +312,9 @@ def btn_sm(label, icon=None, cls='btn btn-sm'):
     return btn(label, icon, cls)
 
 def menu(items, style=''):
-    """items: (icon, label, hint, danger, disabled) or 'sep' or ('label', text)"""
+    """items: (icon, label, hint, danger, disabled) or 'sep' or ('label', text).
+    One line per item, no explanations (owner, 19 Oct): the hint is ignored. Danger items are red,
+    icon included; disabled items are faint, icon included."""
     out = ''
     for it in items:
         if it == 'sep':
@@ -321,12 +323,12 @@ def menu(items, style=''):
         if it[0] == 'label':
             out += '<div class="menu-label" style="padding:6px 8px 4px;font-size:12px;color:var(--color-muted)">%s</div>' % it[1]
             continue
-        icon, label, hint, danger, disabled = it
-        col = 'color:var(--color-danger)' if danger and not disabled else ('color:var(--color-faint)' if disabled else '')
-        out += ('<button class="menu-item" role="menuitem"%s style="height:auto;min-height:32px;padding:6px 8px;align-items:flex-start;%s">%s'
-                '<span style="display:flex;flex-direction:column;gap:2px;text-align:left;min-width:0"><span>%s</span>%s</span></button>') % (
-            ' aria-disabled="true"' if disabled else '', col, ic(icon), label,
-            '<span style="font-size:12px;color:var(--color-muted);white-space:normal;line-height:1.4">%s</span>' % hint if hint else '')
+        icon, label, _hint, danger, disabled = it
+        tone = 'var(--color-faint)' if disabled else ('var(--color-danger)' if danger else '')
+        col = 'color:%s' % tone if tone else ''
+        glyph = ic(icon).replace('<svg class="ic"', '<svg class="ic" style="color:%s"' % tone, 1) if tone else ic(icon)
+        out += '<button class="menu-item" role="menuitem"%s style="%s">%s<span class="truncate">%s</span></button>' % (
+            ' aria-disabled="true"' if disabled else '', col, glyph, label)
     return '<div class="menu" role="menu" style="%s">%s</div>' % (style, out)
 
 def qr(seed, size=132):
@@ -626,7 +628,7 @@ def invoices_bulk():
                  ('undo', 'Void 3 invoices…', 'A credit note for each', True, False),
                  ('trash', 'Delete 2 drafts', 'Drafts have no number yet', True, False),
                  ('trash', 'Delete permanently…', 'Not for invoices FDMS signed', True, True)),
-                'position:absolute;left:%dpx;bottom:100px;width:280px;z-index:30' % BULK_MENU_LEFT)
+                'position:absolute;left:%dpx;bottom:100px;width:220px;z-index:30' % BULK_MENU_LEFT)
     acts_sel = btn('Send reminders', 'whatsapp') + '<button class="btn" aria-haspopup="menu" aria-expanded="true" style="background:var(--color-pressed)">More%s</button>' % ic('down')
     f = foot('1 to 12 of %d' % INV_ALL, (('Owed', usd(OWED)), ('Overdue', usd(OVERDUE))),
              sel=(len(picked), (('Total', usd(total_sel)),), acts_sel, ''))
