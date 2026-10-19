@@ -233,7 +233,7 @@ function PaymentFormPage({ options, initialCustomer, initialInvoice }: { options
 
         <WideSec title="Put it on invoices" text="Oldest first; the rest stays on account.">
           {invoices.length === 0 ? (
-            <p className="bk-hint">{form.customerId ? "No open invoice in this currency. It all goes on their account." : "Choose the customer to see what they owe."}</p>
+            <p className="bk-hint bk-add">{form.customerId ? "No open invoice in this currency. It all goes on their account." : "Choose the customer to see what they owe."}</p>
           ) : (
             <table className="table bk-le" aria-label="Put it on invoices">
               <thead>
@@ -294,7 +294,7 @@ function PaymentFormPage({ options, initialCustomer, initialInvoice }: { options
             </table>
           )}
           {errors.allocations ? (
-            <p className="error" role="alert">
+            <p className="error bk-add" role="alert">
               <Icon name="warn" />
               {errors.allocations}
             </p>

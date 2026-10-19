@@ -125,17 +125,19 @@ export function RailFigure({ title, figure, rows }: { title: string; figure?: Re
   );
 }
 
-/** What pressing the primary does, step by step (the board's `ol.steps`). */
+/** What pressing the primary does, step by step (the board's `ol.bk-stp`): each marker on its first line. */
 export function RailSteps({ title, steps }: { title: string; steps: Array<[string, string]> }) {
   return (
     <section>
       <div className="sec-title">{title}</div>
-      <ol className="steps" style={{ gap: 12 }}>
+      <ol className="bk-stp">
         {steps.map(([lead, rest], index) => (
-          <li className="step" key={lead}>
+          <li key={lead}>
             <span className="n">{index + 1}</span>
-            <b>{lead}</b>
-            <span>{rest}</span>
+            <span className="t">
+              <b>{lead}</b>
+              <span>{rest}</span>
+            </span>
           </li>
         ))}
       </ol>

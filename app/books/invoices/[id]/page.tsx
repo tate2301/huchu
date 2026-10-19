@@ -176,7 +176,7 @@ export default function BooksInvoicePage() {
                     Record a payment
                   </ButtonLink>
                 ) : (
-                  <Button variant="primary" icon="payments" disabled title="Your role cannot record payments.">
+                  <Button variant="primary" icon="payments" shortcut="R" disabled title="Your role cannot record payments.">
                     Record a payment
                   </Button>
                 )}

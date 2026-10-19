@@ -16,7 +16,7 @@ const plain = (n: number) => new Intl.NumberFormat("en-GB", { minimumFractionDig
 function Shares({ rows, currency, empty }: { rows: MoneyShare[]; currency: string; empty: string }) {
   if (rows.length === 0) return <p className="muted" style={{ padding: "0 var(--space-24)", fontSize: "var(--text-14)" }}>{empty}</p>;
   return (
-    <div style={{ padding: "0 var(--space-24)" }}>
+    <div className="bk-shares">
       {rows.map((row) => (
         <div className="share" key={row.key}>
           <span className="bk-ic">

@@ -102,8 +102,11 @@ describe("no Books button opens /accounting (books-final §8, P1 exit)", () => {
       pages.push("/books/invoices/new", "/books/payments/new", "/books/bills/new", "/books/payments-made/new");
       const problems: string[] = [];
       const visit = async (href: string) => {
-        await page.goto(origin + href, { waitUntil: "networkidle", timeout: 180_000 }).catch(() => undefined);
+        // The app keeps a live channel open, so the network never goes quiet: wait for the page's own data instead.
+        await page.goto(origin + href, { waitUntil: "domcontentloaded", timeout: 180_000 }).catch(() => undefined);
+        await page.waitForSelector("main h1, header h1", { timeout: 120_000 }).catch(() => undefined);
         await page.waitForFunction(() => !document.querySelector("[aria-busy=true]"), null, { timeout: 60_000 }).catch(() => undefined);
+        await page.waitForTimeout(1_000);
         // The page and its top bar, not the panel: a panel row may still point at a page Books has no home for.
         const links = await page.evaluate(() =>
           [...document.querySelectorAll("main a[href], header a[href]")].map((a) => a.getAttribute("href") ?? "").filter((h) => h.startsWith("/accounting")),

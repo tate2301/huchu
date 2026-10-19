@@ -231,12 +231,12 @@ function NewInvoiceForm({ options }: { options: Options }) {
             </tbody>
           </table>
           {errors.lines ? (
-            <p className="error" role="alert">
+            <p className="error bk-add" role="alert">
               <Icon name="warn" />
               {errors.lines}
             </p>
           ) : null}
-          <div>
+          <div className="bk-add">
             <Button variant="quiet" icon="plus" onClick={() => setForm((current) => ({ ...current, lines: [...current.lines, blank(vat)] }))}>
               Add a line
             </Button>

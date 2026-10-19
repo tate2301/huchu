@@ -46,11 +46,9 @@ const RESPONSIVE = `
 .ck.ck.ck .sc-bk-a .bk-acts .btn, .ck.ck.ck .sc-bk-a .bk-undo .btn { flex: none; }
 /* Full bleed (the owner, 19 Oct): a table or list with dividers runs edge to edge of its pane, its top line
    meeting the pane's edges; the cells keep 24px inside. In a form's padded column it reaches out over the padding. */
-.ck.ck.ck .sc-bk-a .bk-bleed { overflow-x: auto; box-shadow: inset 0 1px 0 var(--color-line); }
+.ck.ck.ck .sc-bk-a .bk-bleed { overflow-x: auto; }
 .ck.ck.ck .sc-bk-a .bk-bleed .table th:first-child, .ck.ck.ck .sc-bk-a .bk-bleed .table td:first-child { padding-left: 24px; }
 .ck.ck.ck .sc-bk-a .bk-bleed .table th:last-child, .ck.ck.ck .sc-bk-a .bk-bleed .table td:last-child { padding-right: 24px; }
-.ck.ck.ck .sc-bk-a .bk-bleed .bk-tl { padding: 0 24px; }
-.ck.ck.ck .sc-bk-a .bk-bleed-form { margin-inline: -24px; }
 /* An owing invoice's two actions at the foot of a phone (BkInvoicePhone); at desktop width they are in the top bar. */
 .ck.ck.ck .sc-bk-a .bk-ph-acts { display: none; }
 @media (max-width: 1099px) {
@@ -59,13 +57,21 @@ const RESPONSIVE = `
 }
 @media (max-width: 759px) {
   .ck.ck.ck .sc-bk-a .bk-strip .kstrip { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
-  .ck.ck.ck .sc-bk-a .bk-strip { padding: 16px 16px 0; }
   .ck.ck.ck .sc-bk-a .share { grid-template-columns: 24px minmax(0, 1fr) 40px 96px; gap: 8px; }
   .ck.ck.ck .sc-bk-a .share .sh-n { width: auto; flex: 1 1 auto; }
   .ck.ck.ck .sc-bk-a .share .grow { display: none; }
   .ck.ck.ck .sc-bk-a .need { flex-wrap: wrap; }
   .ck.ck.ck .sc-bk-a .need .a { margin-left: 36px; }
-  .ck.ck.ck .sc-bk-a .bk-fl { padding: 20px 16px 40px; gap: 32px; }
+  .ck.ck.ck .sc-bk-a .bk-fl { padding: 0 0 40px; }
+  .ck.ck.ck .sc-bk-a .bk-fl > section { padding: 24px 16px; }
+  .ck.ck.ck .sc-bk-a .bk-fl > .bk-wide { padding: 24px 0 16px; }
+  .ck.ck.ck .sc-bk-a .bk-wide > header, .ck.ck.ck .sc-bk-a .bk-add { padding: 0 16px; }
+  .ck.ck.ck .sc-bk-a .bk-le th:first-child, .ck.ck.ck .sc-bk-a .bk-le td:first-child { padding-left: 16px !important; }
+  .ck.ck.ck .sc-bk-a .bk-le th:last-child, .ck.ck.ck .sc-bk-a .bk-le td:last-child { padding-right: 16px !important; }
+  .ck.ck.ck .sc-bk-a .bk-shares .share { padding: 0 16px; }
+  .ck.ck.ck .sc-bk-a .bk-strip .kt { padding: 12px 16px; }
+  .ck.ck.ck .sc-bk-a .bk-tl li, .ck.ck.ck .sc-bk-a .bk-tl li:last-child { padding: 10px 16px; }
+  .ck.ck.ck .sc-bk-a .bk-callout { padding: 12px 16px; }
   .ck.ck.ck .sc-bk-a .bk-fl .form-sec { grid-template-columns: minmax(0, 1fr); row-gap: 12px; }
   .ck.ck.ck .sc-bk-a .field-row { grid-template-columns: minmax(0, 1fr); }
   .ck.ck.ck .sc-bk-a .bk-le { min-width: 560px; }
@@ -84,8 +90,6 @@ const RESPONSIVE = `
   .ck.ck.ck .sc-bk-a .ws-tools .sepv { display: none; }
   .ck.ck.ck .sc-bk-a .bk-bleed .table th:first-child, .ck.ck.ck .sc-bk-a .bk-bleed .table td:first-child { padding-left: 16px; }
   .ck.ck.ck .sc-bk-a .bk-bleed .table th:last-child, .ck.ck.ck .sc-bk-a .bk-bleed .table td:last-child { padding-right: 16px; }
-  .ck.ck.ck .sc-bk-a .bk-bleed .bk-tl { padding: 0 16px; }
-  .ck.ck.ck .sc-bk-a .bk-bleed-form { margin-inline: -16px; }
   .ck.ck.ck .sc-bk-a .bk-ph-acts { display: flex; flex-direction: column; gap: 8px; position: sticky; bottom: 0; padding: 12px 16px 28px; background: var(--color-surface); box-shadow: 0 -1px 0 var(--color-line); z-index: 2; }
   .ck.ck.ck .sc-bk-a .bk-ph-acts .btn { height: 48px; width: 100%; justify-content: center; font-size: 16px; }
 }
