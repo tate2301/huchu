@@ -100,8 +100,8 @@ export function approvalDecision(actor: RetailAuditActor, requisition: Decidable
 }
 
 /** Why this person may not approve or reject it, or null when they may (lists assume somebody else could). */
-export function decideRefusal(actor: RetailAuditActor, requisition: Decidable, ownerName: string | null, othersWhoCanApprove = 1): string | null {
-  const decision = approvalDecision(actor, requisition, ownerName, othersWhoCanApprove);
+export function decideRefusal(actor: RetailAuditActor, requisition: Decidable, ownerName: string | null, othersWhoCanApprove = 1, otherOwnerCount = othersWhoCanApprove): string | null {
+  const decision = approvalDecision(actor, requisition, ownerName, othersWhoCanApprove, otherOwnerCount);
   return decision.allowed ? null : decision.reason;
 }
 

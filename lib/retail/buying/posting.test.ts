@@ -69,6 +69,7 @@ afterAll(async () => {
   if (!shop) return;
   const companyId = shop.companyId;
   await prisma.purchasePayment.deleteMany({ where: { companyId } });
+  await prisma.paymentLedgerEntry.deleteMany({ where: { companyId } });
   await prisma.bankTransaction.deleteMany({ where: { companyId } });
   await prisma.retailAttachment.deleteMany({ where: { companyId } });
   await prisma.journalLine.deleteMany({ where: { entry: { companyId } } });
@@ -102,6 +103,13 @@ describe("an order's cash", () => {
 
     const ap = await prisma.journalLine.findMany({ where: { entry: { companyId: shop.companyId, sourceId: asked.id }, account: { code: "2000" } }, select: { debit: true, credit: true } });
     expect(ap.reduce((sum, line) => sum + line.debit - line.credit, 0).toFixed(2)).toBe("193.40");
+
+    // The supplier's account in the payables sub-ledger says the same (books-final §5.5, fix 1).
+    const lines = await prisma.paymentLedgerEntry.findMany({ where: { companyId: shop.companyId, sourceId: asked.id }, select: { sourceType: true, accountType: true, partyId: true, debit: true, credit: true } });
+    expect(lines.sort((x, y) => x.sourceType.localeCompare(y.sourceType))).toEqual([
+      { sourceType: "RETAIL_REQUISITION_PAYOUT", accountType: "PAYABLE", partyId: afdis, debit: 231, credit: 0 },
+      { sourceType: "RETAIL_REQUISITION_CHANGE", accountType: "PAYABLE", partyId: afdis, debit: 0, credit: 37.6 },
+    ].sort((x, y) => x.sourceType.localeCompare(y.sourceType)));
   });
 });
 
