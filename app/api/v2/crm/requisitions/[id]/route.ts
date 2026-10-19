@@ -47,15 +47,15 @@ import {
 } from "@/lib/crm/requisitions";
 import { emitCrmNotification } from "@/lib/notifications";
 import { booksActor, canDo, VoidRefused } from "@/lib/books/core";
-import { approvalNote, approvedByOwner, decideApproval, decidePayment, moneyLimits, otherOwners, othersWhoCan, recordApproval } from "@/lib/books/core/approvals";
+import { approvalNote, approvedByOwner, decidePayment, moneyLimits, othersWhoCan, recordApproval } from "@/lib/books/core/approvals";
 import {
   postRequisitionAcquittal,
   postRequisitionDisbursement,
-  recordRequisitionDecision,
   sendRequisitionForApproval,
   voidRequisitionAcquittal,
   voidRequisitionDisbursement,
 } from "@/lib/books/core/requisitions";
+import { decideCrmRequisition, RequisitionDecisionRefused } from "@/lib/crm/requisition-decide";
 import { requireCrmCapability } from "../../_helpers";
 import { notifyApprovers } from "../_shared";
 
@@ -185,60 +185,13 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       }
 
       case "decide": {
-        const to = body.approve ? "APPROVED" : "REJECTED";
-        assertTransition(from, to);
-        const limits = await moneyLimits(companyId);
-        // Approving your own request is the oldest hole in an expenses
-        // system, and it is closed here rather than in the UI. Over the limit
-        // asked under, only the owner says yes (books-final §2.4).
-        const decision = decideApproval(
-          actor,
-          {
-            kind: "requisition",
-            module: "crm",
-            requestedById: existing.requestedById,
-            amount: Number(payableAmount(existing)),
-            limit: existing.approvalLimit != null ? Number(existing.approvalLimit) : limits.requisitionOwnerOver,
-            currency: existing.currency,
-          },
-          {
-            othersWhoCanApprove: await othersWhoCan(prisma, companyId, { module: "crm", except: [existing.requestedById] }),
-            otherOwners: await otherOwners(prisma, companyId, [existing.requestedById]),
-            ownerName: limits.ownerApprover?.name ?? null,
-            roleAllowed: await requireCrmCapability(session, "money.approve"),
-          },
-        );
-        if (!decision.allowed) return errorResponse(decision.reason, 403);
-        const requisition = await prisma.$transaction(async (tx) => {
-          const moved = await tx.crmRequisition.updateMany({
-            where: { id, status: "SUBMITTED" },
-            data: {
-              status: to,
-              approvedById: session.user.id,
-              approvedAt: now,
-              approvedAmount: body.approve ? (body.approvedAmount ?? null) : null,
-              decisionNote: body.decisionNote ?? null,
-            },
-          });
-          if (moved.count === 0) throw new RequisitionTransitionError(from, to);
-          await recordRequisitionDecision(tx, { companyId, id, approve: body.approve, actorId: session.user.id, decision, note: body.decisionNote });
-          return tx.crmRequisition.findUniqueOrThrow({ where: { id } });
-        });
-        await emitCrmNotification({
-          actorId: session.user.id,
-          companyId,
-          recipientIds: [existing.requestedById],
-          type: "CRM_REQUISITION_DECIDED",
-          title: `${existing.requisitionNo ?? "Requisition"} ${body.approve ? "approved" : "declined"}`,
-          summary: body.approve
-            ? `${requisition.currency} ${payableAmount(requisition).toFixed(2)} approved.`
-            : body.decisionNote ?? existing.purpose,
-          entityType: "CRM_REQUISITION",
-          entityId: id,
-          viewPath: `/crm/requisitions/${id}`,
-          severity: body.approve ? "INFO" : "WARNING",
-        });
-        return successResponse({ requisition });
+        try {
+          const requisition = await decideCrmRequisition(session, id, { approve: body.approve, approvedAmount: body.approvedAmount, decisionNote: body.decisionNote }, now);
+          return successResponse({ requisition });
+        } catch (error) {
+          if (error instanceof RequisitionDecisionRefused) return errorResponse(error.message, error.status);
+          throw error;
+        }
       }
 
       case "disburse": {
