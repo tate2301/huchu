@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { billFormErrors, billNote, billPayload } from "./bill-form";
+import { billFormErrors, billNote, billPayload, fdmsSentence } from "./bill-form";
 import { creditNoteBody, creditNoteErrors } from "./credit-form";
 import { dueDate, formTotals, invoiceFormErrors, invoicePayload, readNumber, type InvoiceForm } from "./invoice-form";
 import { allocateOldestFirst, onAccount, paymentFormErrors, type OpenInvoice } from "./payment-form";
@@ -105,12 +105,26 @@ describe("Credit note and write-off from an invoice", () => {
 });
 
 describe("Record a bill (BkBillNew) and the customer or supplier drawer", () => {
-  it("checks the supplier, the date and the lines, and keeps their invoice number in the note", () => {
-    const form = { vendorId: "", theirNumber: "00184977", billDate: "2026-10-17", fdmsCode: "91B4-0C7E", currency: "USD", dueInDays: "30", costCenterId: "", lines: [{ description: "Ceramic skirting", quantity: "60 m", unitPrice: "4.40", taxCodeId: "vat" }] };
+  it("checks the supplier, the date and the lines, and sends their FTI and what FDMS said (D16)", () => {
+    const form = { vendorId: "", theirNumber: "00184977", billDate: "2026-10-17", fdmsCode: "91B4-0C7E", fdmsStatus: "VALID" as const, currency: "USD", dueInDays: "30", costCenterId: "", lines: [{ description: "Ceramic skirting", quantity: "60 m", unitPrice: "4.40", taxCodeId: "vat" }] };
     expect(billFormErrors(form).vendorId).toBeTruthy();
     expect(billFormErrors({ ...form, vendorId: "v" })).toEqual({});
-    expect(billNote(form)).toBe("Their invoice 00184977. FDMS code 91B4-0C7E");
-    expect(billPayload({ ...form, vendorId: "v" }, true)).toMatchObject({ vendorId: "v", receiveNow: true, dueDate: "2026-11-16", lines: [{ description: "Ceramic skirting", quantity: 60, unitPrice: 4.4, taxCodeId: "vat" }] });
+    expect(billNote(form)).toBe("FDMS code 91B4-0C7E");
+    expect(billPayload({ ...form, vendorId: "v" }, true)).toMatchObject({
+      vendorId: "v",
+      receiveNow: true,
+      supplierFtiNumber: "00184977",
+      fdmsStatus: "VALID",
+      dueDate: "2026-11-16",
+      lines: [{ description: "Ceramic skirting", quantity: 60, unitPrice: 4.4, taxCodeId: "vat" }],
+    });
+    expect(billPayload({ ...form, vendorId: "v", theirNumber: " ", fdmsStatus: "NOT_CHECKED" }, false)).not.toHaveProperty("supplierFtiNumber");
+  });
+
+  it("says what FDMS found, and nothing before a check", () => {
+    expect(fdmsSentence("VALID", "October")).toEqual({ tone: "ok", lead: "Valid on FDMS", rest: ", checked just now. Its VAT counts in October." });
+    expect(fdmsSentence("NOT_VALID", "October")?.tone).toBe("warn");
+    expect(fdmsSentence("NOT_CHECKED", "October")).toBeNull();
   });
 
   it("needs a name, and an email only when one is given", () => {

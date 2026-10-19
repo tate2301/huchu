@@ -62,7 +62,7 @@ export async function readFormOptions(db: Db, companyId: string, parties: "custo
     costCentres: centres.map((centre) => ({ id: centre.id, label: centre.name })),
     accounts: accounts.map((account) => ({
       id: account.id,
-      label: `${account.bankName && account.bankName !== account.name ? `${account.bankName} ${account.name}` : account.name}, ${account.currency.toUpperCase()}`,
+      label: `${account.bankName && !account.name.toLowerCase().includes(account.bankName.toLowerCase()) ? `${account.bankName} ${account.name}` : account.name}, ${account.currency.toUpperCase()}`,
       currency: account.currency.toUpperCase(),
       kind: account.kind,
     })),

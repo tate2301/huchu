@@ -74,6 +74,8 @@ type Db = Pick<
   | "expenseClaim"
   | "pettyCashVoucher"
   | "crmCommissionEntry"
+  | "retailCashMovement"
+  | "disbursementBatch"
 >;
 
 const round = (n: number) => Math.round(n * 100) / 100;

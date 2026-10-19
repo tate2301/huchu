@@ -55,6 +55,8 @@ const RESPONSIVE = `
 .ck.ck.ck .sc-bk-a .bk-ph-acts { display: none; }
 /* A record's phone body (BkInvoicePhone): drawn instead of the desktop columns under 760px. */
 .ck.ck.ck .sc-bk-a .bk-ph-only { display: none; }
+/* A form drawn its own way on a phone (BkClaimPhone): the desktop form steps aside under 760px. */
+.ck.ck.ck .sc-bk-a .bk-desk-only { display: contents; }
 /* A line's tax code reads in proportional figures, as the board's does, so "VAT 15.5%" fits its 118px. */
 .ck.ck.ck .sc-bk-a .bk-le .select { font-variant-numeric: normal; }
 /* A line of text in a full-bleed section, where the table would be: on the section's 24px edge. */
@@ -100,7 +102,7 @@ const RESPONSIVE = `
   .ck.ck.ck .sc-bk-a .bk-bleed .table th:last-child, .ck.ck.ck .sc-bk-a .bk-bleed .table td:last-child { padding-right: 16px; }
   .ck.ck.ck .sc-bk-a .bk-ph-acts { display: flex; flex-direction: column; gap: 8px; position: sticky; bottom: 0; padding: 12px 16px 28px; background: var(--color-surface); box-shadow: 0 -1px 0 var(--color-line); z-index: 2; }
   .ck.ck.ck .sc-bk-a .bk-ph-acts .btn { height: 48px; width: 100%; justify-content: center; font-size: 16px; }
-  .ck.ck.ck .sc-bk-a .bk-rec.bk-has-ph { display: none; }
+  .ck.ck.ck .sc-bk-a .bk-rec.bk-has-ph, .ck.ck.ck .sc-bk-a .bk-desk-only { display: none; }
   .ck.ck.ck .sc-bk-a .bk-ph-only { display: block; min-height: calc(100dvh - 56px - env(safe-area-inset-top) - 144px); }
   .ck.ck.ck .sc-bk-a .bk-ph-only .bk-ph-b { overflow: visible; flex: none; }
 }

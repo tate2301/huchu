@@ -24,7 +24,7 @@ import { receiveDelivery } from "@/lib/retail/buying/deliveries";
 import { raiseOrder } from "@/lib/retail/buying/orders";
 import { createSupplier } from "@/lib/retail/buying/suppliers";
 
-import { readExpenses, readExpenseQuery } from "../expenses";
+import { readBillQuery, readBills } from "../bills";
 import { trialBalance } from "../invoice-test-fixtures";
 import { approveBill, BillRefusedError, recordBill } from "./bills";
 import type { BooksActor } from "./can-do";
@@ -204,7 +204,7 @@ describe("P2 exit: a retail goods receipt to a bill, its payment and supplier ag
   });
 
   it("shows the bill and payment in Bills, money out and supplier aging, and aging equals the payables control", async () => {
-    const bills = await readExpenses(prisma as never, shop.companyId, readExpenseQuery(new URLSearchParams("view=to-pay")));
+    const bills = await readBills(prisma, shop.companyId, readBillQuery(new URLSearchParams("view=to-pay")));
     const row = bills.rows.find((candidate) => candidate.id === billId);
     expect(row).toBeTruthy();
     expect(row?.balance ?? (row as unknown as { owed?: number })?.owed).toBe(287.04);

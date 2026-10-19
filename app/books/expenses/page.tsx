@@ -2,65 +2,52 @@
 
 import * as React from "react";
 import { useQuery } from "@tanstack/react-query";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 
+import { useListQuery } from "@/components/books/bk-list";
+import { BkSpendingView } from "@/components/books/bk-spending-view";
 import { BooksError, BooksLoading } from "@/components/books/books-state";
 import { BooksPage } from "@/components/books/figures";
-import { ExpensesPageView } from "@/components/books/expenses-view";
-import { ButtonLink, Kit } from "@/components/core";
+import { Kit } from "@/components/core";
+import { MenuButton, type MenuEntry } from "@/components/core/menu";
 import { PageChrome } from "@/components/layout/page-chrome";
 import { fetchJson } from "@/lib/api-client";
-import type { ExpenseQuery, ExpensesView } from "@/lib/books/expenses";
+import type { SpendingPage, SpendingQuery } from "@/lib/books/spending";
 
-/** New bill opens Payables' own form, as Record a payment does from Money. */
-/** Books' own form (BkBillNew); Pay a supplier sits beside it in Record. */
-const NEW_BILL = { label: "New bill", icon: "plus" as const, href: "/books/bills/new", shortcut: "N" };
-
-/** Books → Expenses: the bills suppliers sent, from Payables. The list's filters live in the address. */
-function BooksExpenses() {
+/**
+ * Books → Bills & spending → All spending (BkSpending): read only, every
+ * money-out document this month. Record spending (N) is the one menu that
+ * starts each kind: a bill, a claim, a petty cash voucher or a requisition.
+ */
+function BooksSpending() {
   const router = useRouter();
-  const pathname = usePathname();
-  const params = useSearchParams();
-  const search = params.toString();
-
-  const expenses = useQuery({
-    queryKey: ["books", "expenses", search],
-    queryFn: () => fetchJson<ExpensesView>(`/api/books/expenses${search ? `?${search}` : ""}`),
+  const { search, onQuery, exportHref } = useListQuery<SpendingQuery>({ view: "all", month: "this", sort: "newest" });
+  const spending = useQuery({
+    queryKey: ["books", "spending", search],
+    queryFn: () => fetchJson<SpendingPage>(`/api/books/expenses${search ? `?${search}` : ""}`),
     placeholderData: (previous) => previous,
   });
-
-  const onQuery = React.useCallback(
-    (next: Partial<ExpenseQuery>) => {
-      const merged = new URLSearchParams(params.toString());
-      for (const [key, value] of Object.entries(next)) {
-        const empty = value === null || value === "" || (key === "view" && value === "all") || (key === "period" && value === "any") || (key === "sort" && value === "newest") || (key === "page" && value === 1);
-        if (empty) merged.delete(key);
-        else merged.set(key, String(value));
-      }
-      const query = merged.toString();
-      router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
-    },
-    [params, pathname, router],
-  );
-
+  const can = spending.data?.can;
+  const record: MenuEntry[] = [
+    { key: "bill", icon: "docs", label: "Bill", disabled: can ? !can.bill : false, onSelect: () => router.push("/books/bills/new") },
+    { key: "claim", icon: "takings", label: "Claim", onSelect: () => router.push("/books/claims/new") },
+    { key: "voucher", icon: "expenses", label: "Petty cash voucher", onSelect: () => router.push("/books/claims/new?paid=float") },
+    { key: "requisition", icon: "hand", label: "Requisition", disabled: can ? !can.requisition : false, onSelect: () => router.push("/books/requisitions?new=1") },
+  ];
   return (
     <>
-      <PageChrome title="All spending" primary={NEW_BILL}>
+      <PageChrome title="All spending">
         <Kit contents>
-          <ButtonLink href="/books/payments-made/new" icon="payments">
-            Pay a supplier
-          </ButtonLink>
+          <MenuButton variant="primary" icon="plus" shortcut="N" label="Record spending" items={record}>
+            Record spending
+          </MenuButton>
         </Kit>
       </PageChrome>
-      <BooksPage screen="books-invoices">
-        {expenses.data ? (
-          <ExpensesPageView
-            data={expenses.data}
-            onQuery={onQuery}
-            exportHref={`/api/books/expenses?${new URLSearchParams([...params.entries(), ["format", "csv"]]).toString()}`}
-          />
-        ) : expenses.isError ? (
-          <BooksError what="Expenses" onRetry={() => expenses.refetch()} />
+      <BooksPage screen="bk-a">
+        {spending.data ? (
+          <BkSpendingView data={spending.data} onQuery={onQuery} exportHref={exportHref("/api/books/expenses")} />
+        ) : spending.isError ? (
+          <BooksError what="All spending" onRetry={() => spending.refetch()} />
         ) : (
           <BooksLoading />
         )}
@@ -69,11 +56,11 @@ function BooksExpenses() {
   );
 }
 
-export default function BooksExpensesPage() {
-  // The filters are read from the address, which is only known in the browser.
+/** Books → Bills & spending → All spending (design/core-modules/boards/view/BkSpending.html). */
+export default function BooksSpendingPage() {
   return (
-    <React.Suspense fallback={<BooksPage screen="books-invoices"><BooksLoading /></BooksPage>}>
-      <BooksExpenses />
+    <React.Suspense fallback={<BooksPage screen="bk-a"><BooksLoading /></BooksPage>}>
+      <BooksSpending />
     </React.Suspense>
   );
 }

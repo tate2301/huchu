@@ -4,7 +4,7 @@ import * as React from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter, useSearchParams } from "next/navigation";
 
-import { BkBox, BkField, BkFormPage, FormSec, RailFigure, RailSteps, todayHarare, WideSec } from "@/components/books/bk-form";
+import { BkBox, BkField, BkFormPage, FormSec, RailSteps, todayHarare, WideSec } from "@/components/books/bk-form";
 import { PartyDrawer } from "@/components/books/bk-party-drawer";
 import { BooksError, BooksLoading } from "@/components/books/books-state";
 import { BooksPage } from "@/components/books/figures";
@@ -16,14 +16,16 @@ import { money, shortDay } from "@/lib/books/format";
 import type { BooksFormOptions } from "@/lib/books/form-options-view";
 import { readAmount, type Allocation, type OpenInvoice } from "@/lib/books/payment-form";
 
-type OpenBill = OpenInvoice & { note: string | null };
-type Options = BooksFormOptions & { openBills: OpenBill[] };
-type Paid = { supplier: string; payments: Array<{ number: string }>; total: number };
+type OpenBill = OpenInvoice & { note: string | null; fti: string | null };
+type Approval = { limit: number; owner: string | null } | null;
+type Options = BooksFormOptions & { openBills: OpenBill[]; approval: Approval };
+type Drafted = { supplier: string; payments: Array<{ id: string; status: string }>; total: number; waiting: boolean };
 
-const theirInvoice = (note: string | null) => note?.match(/Their invoice ([^.]+)/)?.[1] ?? "—";
+/** Their fiscal invoice number (D16); a bill from before it kept it in its note. */
+const theirInvoice = (bill: OpenBill) => bill.fti ?? bill.note?.match(/Their invoice ([^.]+)/)?.[1] ?? "—";
 const lateWords = (bill: OpenInvoice) => (bill.daysLate > 0 ? `${bill.daysLate} ${bill.daysLate === 1 ? "day" : "days"} overdue` : bill.due ? `Due ${shortDay(bill.due)}` : "No due date");
 
-function PayForm({ options, initialSupplier }: { options: BooksFormOptions; initialSupplier: string }) {
+function PayForm({ options, initialSupplier, initialBills }: { options: Options; initialSupplier: string; initialBills: string[] }) {
   const router = useRouter();
   const client = useQueryClient();
   const { toast } = useToast();
@@ -46,8 +48,16 @@ function PayForm({ options, initialSupplier }: { options: BooksFormOptions; init
   const account = options.accounts.find((candidate) => candidate.id === bankAccountId);
   const currency = account?.currency ?? bills[0]?.currency ?? options.base;
   const total = picked.reduce((sum, row) => sum + row.amount, 0);
+  const over = options.approval ? total > options.approval.limit + 0.004 : false;
+  const asked = React.useRef(initialBills);
 
   React.useEffect(() => setPicked([]), [vendorId]);
+  // Pay from Bills: the bills ticked there are ticked here, once they load.
+  React.useEffect(() => {
+    if (!asked.current.length || !bills.length) return;
+    setPicked(bills.filter((bill) => asked.current.includes(bill.id)).map((bill) => ({ invoiceId: bill.id, amount: bill.balance })));
+    asked.current = [];
+  }, [bills]);
   React.useEffect(() => {
     if (!reference && picked.length === 1) setReference(bills.find((bill) => bill.id === picked[0].invoiceId)?.number ?? "");
   }, [picked, bills, reference]);
@@ -64,27 +74,32 @@ function PayForm({ options, initialSupplier }: { options: BooksFormOptions; init
     }
   }
 
+  // Save draft, or Send for approval (D5): a draft per bill; nothing moves until it is approved and paid.
   const pay = useMutation({
-    mutationFn: () =>
-      fetchJson<Paid>("/api/books/payments-made", {
+    mutationFn: (send: boolean) =>
+      fetchJson<Drafted>("/api/books/payments-made/drafts", {
         method: "POST",
-        body: JSON.stringify({ vendorId, bankAccountId, paidAt, ...(reference.trim() ? { reference: reference.trim() } : {}), bills: picked.map((row) => ({ billId: row.invoiceId, amount: row.amount })) }),
+        body: JSON.stringify({ vendorId, bankAccountId, paidAt, send, ...(reference.trim() ? { reference: reference.trim() } : {}), bills: picked.map((row) => ({ billId: row.invoiceId, amount: row.amount })) }),
       }),
-    onSuccess: async (done) => {
-      toast({ title: `${money(done.total, currency)} to ${done.supplier} is recorded`, description: `${done.payments.map((payment) => payment.number).join(", ")}.`, variant: "success" });
+    onSuccess: async (done, send) => {
+      toast({
+        title: send ? `${money(done.total, currency)} to ${done.supplier} is sent for approval` : `The draft to ${done.supplier} is saved`,
+        description: send ? (done.waiting ? `It waits for ${options.approval?.owner ?? "the owner"}, then it is paid from Payments made.` : "It is under the limit, so it is approved: pay it from Payments made.") : "Send it for approval from Payments made.",
+        variant: "success",
+      });
       await client.invalidateQueries({ queryKey: ["books"] });
-      router.push("/books/expenses");
+      router.push(send ? "/books/payments-made?view=to-approve" : "/books/payments-made");
     },
-    onError: (error) => toast({ title: "The payment was not recorded", description: getApiErrorMessage(error, "Check the connection and try again."), variant: "destructive" }),
+    onError: (error) => toast({ title: "The payment was not saved", description: getApiErrorMessage(error, "Check the connection and try again."), variant: "destructive" }),
   });
 
-  const submit = () => {
+  const submit = (send: boolean) => {
     setShown(true);
     const problems = !vendorId || !picked.length || !bankAccountId || picked.some((row) => {
       const bill = bills.find((candidate) => candidate.id === row.invoiceId);
       return !bill || row.amount > bill.balance + 0.005 || (account && bill.currency !== account.currency);
     });
-    if (!problems) pay.mutate();
+    if (!problems) pay.mutate(send);
   };
   const toggle = (bill: OpenBill, on: boolean) => setPicked((current) => (on ? [...current.filter((row) => row.invoiceId !== bill.id), { invoiceId: bill.id, amount: bill.balance }] : current.filter((row) => row.invoiceId !== bill.id)));
 
@@ -92,28 +107,33 @@ function PayForm({ options, initialSupplier }: { options: BooksFormOptions; init
     <>
       <PageChrome
         title="New payment"
-        backHref="/accounting/purchases?view=payments"
+        backHref="/books/payments-made"
         backLabel="Payments made"
-        primary={{ label: "Record the payment", icon: "check", shortcut: "Ctrl ↵", onClick: submit, disabled: pay.isPending ? "Recording it" : undefined }}
+        primary={{ label: "Send for approval", icon: "send", shortcut: "Ctrl ↵", onClick: () => submit(true), disabled: pay.isPending ? "Saving it" : undefined }}
       >
         <Kit contents>
-          <Button variant="quiet" onClick={() => router.back()}>
-            Cancel
+          <Button icon="docs" disabled={pay.isPending} onClick={() => submit(false)}>
+            Save draft
           </Button>
         </Kit>
       </PageChrome>
       <BkFormPage
         rail={
           <>
-            <RailFigure
-              title="This payment"
-              figure={money(total, currency)}
-              rows={[
-                ["Bills", String(picked.length)],
-                ["Withheld", "Not recorded yet"],
-                ["Approval", "Not needed yet"],
-              ]}
-            />
+            <section>
+              <div className="sec-title">Approval</div>
+              <div className="figure">{money(total, currency)}</div>
+              <dl className="attrs">
+                <dt>Withheld</dt>
+                <dd>Not recorded yet</dd>
+                <dt>Approves</dt>
+                <dd>{over ? (options.approval?.owner ?? "The owner") : "Not needed"}</dd>
+                <dt>Why</dt>
+                <dd>{options.approval ? `${over ? "Over" : "Under"} ${money(options.approval.limit, currency)}` : "No limit set"}</dd>
+                <dt>Then pays</dt>
+                <dd>Payments made</dd>
+              </dl>
+            </section>
             <RailSteps
               title="When it is paid"
               steps={[
@@ -169,7 +189,7 @@ function PayForm({ options, initialSupplier }: { options: BooksFormOptions; init
                         <td>
                           <span className="ref">{bill.number}</span>
                         </td>
-                        <td className="mono">{theirInvoice(bill.note)}</td>
+                        <td className="mono">{theirInvoice(bill)}</td>
                         <td className={bill.daysLate > 0 ? undefined : "muted"}>
                           {bill.daysLate > 0 ? (
                             <span className="status status-warning" style={{ color: "var(--color-ink)", fontWeight: 500 }}>
@@ -298,17 +318,17 @@ function PayForm({ options, initialSupplier }: { options: BooksFormOptions; init
 
 function PaySupplier() {
   const params = useSearchParams();
-  const options = useQuery({ queryKey: ["books", "forms", "payment-out"], queryFn: () => fetchJson<BooksFormOptions>("/api/books/forms?for=payment-out") });
-  if (options.data) return <PayForm options={options.data} initialSupplier={params.get("supplier") ?? ""} />;
+  const options = useQuery({ queryKey: ["books", "forms", "payment-out"], queryFn: () => fetchJson<Options>("/api/books/forms?for=payment-out") });
+  if (options.data) return <PayForm options={options.data} initialSupplier={params.get("supplier") ?? ""} initialBills={(params.get("bills") ?? "").split(",").filter(Boolean)} />;
   return (
     <>
-      <PageChrome title="New payment" backHref="/accounting/purchases?view=payments" backLabel="Payments made" />
+      <PageChrome title="New payment" backHref="/books/payments-made" backLabel="Payments made" />
       {options.isError ? <BooksError what="The payment form" onRetry={() => options.refetch()} /> : <BooksLoading />}
     </>
   );
 }
 
-/** Books → Bills & spending → Pay a supplier (design/core-modules/boards/view/BkPaymentOutNew.html), over today's logic. */
+/** Books → Bills & spending → Pay a supplier (design/core-modules/boards/view/BkPaymentOutNew.html): drafts sent for approval (D5). */
 export default function PaySupplierPage() {
   return (
     <BooksPage screen="bk-a">

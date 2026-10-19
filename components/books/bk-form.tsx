@@ -96,11 +96,11 @@ export function BkBox({ tone, icon, children }: { tone?: "ok" | "warn"; icon: Ic
 }
 
 /** Two choices side by side, as the board's currency switch draws them. */
-export function BkSeg<V extends string>({ label, value, options, onChange }: { label: string; value: V; options: Array<{ value: V; label: string }>; onChange: (value: V) => void }) {
+export function BkSeg<V extends string>({ label, value, options, onChange }: { label: string; value: V; options: Array<{ value: V; label: string; disabled?: boolean }>; onChange: (value: V) => void }) {
   return (
     <div className="seg" role="tablist" aria-label={label} style={{ alignSelf: "flex-start" }}>
       {options.map((option) => (
-        <button key={option.value} type="button" role="tab" aria-selected={option.value === value} onClick={() => onChange(option.value)}>
+        <button key={option.value} type="button" role="tab" aria-selected={option.value === value} disabled={option.disabled} onClick={() => onChange(option.value)}>
           {option.label}
         </button>
       ))}

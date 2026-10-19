@@ -3,8 +3,30 @@ import { z } from "zod";
 
 import { errorResponse, successResponse, validateSession } from "@/lib/api-utils";
 import { BillRefused, billSchema, createPurchaseBill } from "@/lib/books/bill-create";
+import { billsCsv, readBillQuery, readBills } from "@/lib/books/bills";
 import { guardBooks } from "@/lib/books/core";
 import { prisma } from "@/lib/prisma";
+
+/** Books → Bills (BkBills), filtered and paged; `format=csv` is Export, every page. */
+export async function GET(request: NextRequest) {
+  try {
+    const sessionResult = await validateSession(request);
+    if (sessionResult instanceof NextResponse) return sessionResult;
+    const { actor, refused } = await guardBooks(sessionResult.session, "view", { area: "bills" });
+    if (refused) return refused;
+    const params = new URL(request.url).searchParams;
+    const query = readBillQuery(params);
+    if (params.get("format") === "csv") {
+      return new NextResponse(await billsCsv(prisma, actor.companyId, query), {
+        headers: { "Content-Type": "text/csv; charset=utf-8", "Content-Disposition": 'attachment; filename="bills.csv"' },
+      });
+    }
+    return successResponse(await readBills(prisma, actor.companyId, query));
+  } catch (error) {
+    console.error("[API] GET /api/books/bills error:", error);
+    return errorResponse("Could not read the bills");
+  }
+}
 
 const booksBillSchema = billSchema.extend({ costCenterId: z.string().uuid().optional() });
 

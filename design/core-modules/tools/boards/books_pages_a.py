@@ -508,7 +508,7 @@ def tools(find, chips, count, right=None):
 
 # Board heights fit the content: the last element's bottom plus 48px (measured after the full-bleed pass, 19 Oct).
 HEIGHTS = {'BkMoney': 1748, 'BkInvoice': 1416, 'BkInvoiceNew': 1196, 'BkPaymentNew': 756, 'BkCustomer': 824, 'BkBill': 1640,
-           'BkBillNew': 808, 'BkPaymentOutNew': 960, 'BkRequisition': 1240, 'BkSupplier': 1144}
+           'BkBillNew': 1000, 'BkPaymentOutNew': 1040, 'BkRequisition': 1240, 'BkSupplier': 1144}
 
 def board(name, title, body, w=1440, h=900):
     h = HEIGHTS.get(name, h)
@@ -1212,39 +1212,43 @@ def bill_new():
     who = fsec('Supplier', 'Who sent it, and their fiscal invoice.',
                field('Supplier', sel_('Tile Trader Zimbabwe')) +
                '<div class="field-row">%s%s</div>' % (field('Their invoice number', inp('00184977', 'Their invoice number')), field('Their invoice date', inp('17 Oct 2026', 'Their invoice date')))
-               + field('FDMS check', '<div style="display:flex;gap:8px"><label class="input-wrap" style="flex:1">%s<input aria-label="Verification code" value="91B4-0C7E-55A2-D013"></label>%s</div>' % (ic('fiscal'), btn('Check', None))))
-    lines = wsec('Lines', 'What it was for.', line_editor(B_NEW_LINES, 'US$'))
+               + field('FDMS check', '<div style="display:flex;gap:8px"><label class="input-wrap" style="flex:1">%s<input aria-label="Verification code" value="91B4-0C7E-55A2-D013"></label>%s</div>' % (ic('fiscal'), btn('Check', None)))
+               + '<div class="bk-box ok">%s<span><b>Valid on FDMS</b>, checked just now. Its VAT counts in October.</span></div>' % ic('check'))
+    src = fsec('From', 'Made from the goods receipt.',
+               '<div class="bk-box">%s<span><b>%s</b>, counted in on 16 Oct by Tendai Sibanda.</span></div>' % (ic('list'), ref('GRN-0045')))
+    acct = {B_NEW_LINES[0][0]: '1200 Stock', B_NEW_LINES[1][0]: '1200 Stock'}
+    lines = wsec('Lines', 'From GRN-0045.', line_editor(B_NEW_LINES, 'US$', acct))
     terms = fsec('Terms', 'When you have to pay.',
                  '<div class="field-row">%s%s</div>' % (field('Currency', seg(('USD', 'ZiG'), 'USD')), field('Due', sel_('In 30 days, 16 Nov', 'Due')))
-                 + '<div class="field-row">%s<div></div></div>' % field('Cost centre', sel_('Showroom stock', 'Cost centre')))
+                 + '<div class="field-row">%s%s</div>' % (field('Cost centre', sel_('Showroom stock', 'Cost centre')), field('Their invoice, a photo', '<button class="btn" style="justify-content:flex-start">%s00184977.jpg</button>' % ic('photo'))))
     rail = ('<section><div class="sec-title">Total</div><div class="figure">%s</div><dl class="attrs"><dt>Before VAT</dt><dd class="num">%s</dd><dt>VAT at 15.5%%</dt><dd class="num">%s</dd><dt>Due</dt><dd class="num">16 Nov</dd><dt>Number</dt><dd class="num">BILL-0225</dd></dl></section>'
-            '<section><div class="sec-title">Checks</div><dl class="attrs"><dt>ITF263</dt><dd>Not recorded yet</dd><dt>FDMS</dt><dd>Not checked</dd><dt>Approval</dt><dd>Not needed yet</dd></dl></section>') % (
-        usd(BN_TOT), usd(BN_NET), usd(BN_VAT))
-    body = form_page('Bills', 'Bills', 'New bill', 'docs', top, (who, lines, terms), rail)
+            '<section><div class="sec-title">Checks</div><dl class="attrs"><dt>ITF263</dt><dd>%s</dd><dt>FDMS</dt><dd>%s</dd><dt>Match</dt><dd>%s</dd><dt>Approval</dt><dd>Not needed</dd></dl></section>') % (
+        usd(BN_TOT), usd(BN_NET), usd(BN_VAT), st('Valid', 'Valid to 31 Dec'), st('Valid'), st('Valid', 'GRN-0045 matches'))
+    body = form_page('Bills', 'Bills', 'New bill', 'docs', top, (who, src, lines, terms), rail)
     return board('BkBillNew', 'New bill', body, h=936)
 
 
 def payment_out_new():
-    top = btn('Cancel', None, 'btn btn-quiet') + primary('Record the payment', 'check', 'Ctrl ↵')
+    top = btn('Save draft', 'docs') + primary('Send for approval', 'send', 'Ctrl ↵')
     who = fsec('Pay', 'Who you are paying.', field('Supplier', sel_('Mutare Timber Works')))
     bills_ = wsec('Bills', 'One payment can clear several.',
                   '<table class="table bk-le"><thead><tr><th class="sel" style="width:60px"></th><th>Bill</th><th>Their invoice</th><th>Due</th><th class="num">Owing</th></tr></thead><tbody>'
                   '<tr aria-selected="true"><td class="sel"><label class="check"><input type="checkbox" checked aria-label="Pay BILL-0220"></label></td><td>%s</td><td class="mono" style="font-size:13px">MTW-2291</td><td>%s</td><td class="num">%s</td></tr></tbody></table>' % (
                       ref('BILL-0220'), st('Overdue', '2 days overdue'), usd(B220_TOT)))
     itf = fsec('ITF263', 'Checked before every payment.',
-               '<div class="bk-box warn">%s<span class="grow"><b>Not recorded yet.</b> Check theirs by hand, and withhold 30%% where it has run out.</span></div>' % ic('warn'))
+               '<div class="bk-box warn">%s<span class="grow"><b>No valid ITF263 since 30 Jun.</b> 30%% of this payment is withheld for ZIMRA.</span>%s</div>' % (ic('warn'), btn('Ask for it', 'whatsapp', 'btn btn-sm')))
     frm = fsec('From', 'The bank takes IMTT on top.',
                '<div class="field-row">%s%s</div>' % (field('Pay from', sel_('CBZ current, USD', 'Pay from')), field('Date', inp('18 Oct 2026', 'Date')))
                + field('Reference on their statement', inp('FLOORCODE BILL-0220', 'Reference')))
-    rows = (('Bill BILL-0220', usd(B220_TOT), ''), ('Paid to Mutare Timber Works', usd(B220_TOT), 'The bank adds IMTT'))
+    rows = (('Bill BILL-0220', usd(B220_TOT), ''), ('Withheld, 30%', '−' + usd(WHT), 'to ZIMRA by 10 Nov'), ('Paid to Mutare Timber Works', usd(NET_PAY), ''), ('IMTT, 2% (CBZ takes it)', usd(IMTT_NEW), 'a bank charge'))
     brk = wsec('What moves', '',
                boxed0(grid(('', 'Amount', ''), [('<span class="cell-lead">%s</span>' % a, b, '<span class="muted">%s</span>' % c) for a, b, c in rows], num=(1,), label='What moves',
-                          total=('Leaves CBZ, USD', usd(B220_TOT), ''), widths=(None, '140px', '200px'))))
-    rail = ('<section><div class="sec-title">This payment</div><div class="figure">%s</div>'
-            '<dl class="attrs"><dt>Bills</dt><dd class="num">1</dd><dt>Withheld</dt><dd>Not recorded yet</dd><dt>Approval</dt><dd>Not needed yet</dd></dl></section>'
+                          total=('Leaves CBZ, USD', usd(NET_PAY + IMTT_NEW), ''), widths=(None, '140px', '200px'))))
+    rail = ('<section><div class="sec-title">Approval</div><div class="figure">%s</div>'
+            '<dl class="attrs"><dt>Withheld</dt><dd class="num">%s</dd><dt>Approves</dt><dd>James Nyabadza</dd><dt>Why</dt><dd>Over US$500.00</dd><dt>Then pays</dt><dd>Rudo Mapfumo</dd></dl></section>'
             '<section><div class="sec-title">When it is paid</div>%s</section>') % (
-        usd(B220_TOT),
-        steps_list((('It gets a number', 'PAY-0062'), ('The money leaves', 'CBZ current, USD, %s' % usd(B220_TOT)), ('The bill', 'shows it as paid'))))
+        usd(NET_PAY), usd(WHT),
+        steps_list((('It gets a number', 'PAY-0062'), ('The money leaves CBZ', usd(NET_PAY + IMTT_NEW) + ' with IMTT'), ('A certificate is drafted', 'for Mutare Timber Works'), ('The withholding return', 'lists it, due 5 Nov'))))
     body = form_page('Payments made', 'Payments made', 'New payment', 'payments', top, (who, bills_, itf, frm, brk), rail)
     return board('BkPaymentOutNew', 'Pay a supplier', body, h=896)
 

@@ -1,16 +1,20 @@
 /**
  * Books → Bills & spending → Record a bill (BkBillNew): the form's checks and
- * the body it sends. The supplier's fiscal invoice number and its FDMS code
- * have no columns of their own until D16 (P2), so they are kept in the bill's
- * note. Pure.
+ * the body it sends. The supplier's fiscal invoice number and what FDMS said
+ * about it are the bill's own (D16); the verification code typed for the check
+ * is kept in its note. Pure.
  */
 import { dueDate, readNumber, type InvoiceFormLine } from "./invoice-form";
+
+export type FdmsResult = "NOT_CHECKED" | "VALID" | "NOT_VALID";
 
 export type BillForm = {
   vendorId: string;
   theirNumber: string;
   billDate: string;
   fdmsCode: string;
+  /** What the person found when they checked the code on FDMS. */
+  fdmsStatus: FdmsResult;
   currency: string;
   dueInDays: string;
   costCenterId: string;
@@ -34,10 +38,16 @@ export function billFormErrors(form: BillForm): Record<string, string> {
   return errors;
 }
 
-/** Their invoice number and FDMS code, as the note keeps them until the bill has fields for them. */
-export function billNote(form: Pick<BillForm, "theirNumber" | "fdmsCode">): string | undefined {
-  const parts = [form.theirNumber.trim() ? `Their invoice ${form.theirNumber.trim()}` : null, form.fdmsCode.trim() ? `FDMS code ${form.fdmsCode.trim()}` : null].filter(Boolean);
-  return parts.length ? parts.join(". ") : undefined;
+/** The FDMS verification code, as the note keeps it: the bill keeps the result, not the code. */
+export function billNote(form: Pick<BillForm, "fdmsCode">): string | undefined {
+  return form.fdmsCode.trim() ? `FDMS code ${form.fdmsCode.trim()}` : undefined;
+}
+
+/** What the FDMS box under the check says, or null before a check. */
+export function fdmsSentence(status: FdmsResult, month: string): { tone: "ok" | "warn"; lead: string; rest: string } | null {
+  if (status === "VALID") return { tone: "ok", lead: "Valid on FDMS", rest: `, checked just now. Its VAT counts in ${month}.` };
+  if (status === "NOT_VALID") return { tone: "warn", lead: "Not valid on FDMS.", rest: " Its VAT is not claimed until they send a valid fiscal invoice." };
+  return null;
 }
 
 export function billPayload(form: BillForm, receiveNow: boolean) {
@@ -49,6 +59,8 @@ export function billPayload(form: BillForm, receiveNow: boolean) {
     ...(due ? { dueDate: due } : {}),
     currency: form.currency,
     ...(note ? { notes: note } : {}),
+    ...(form.theirNumber.trim() ? { supplierFtiNumber: form.theirNumber.trim() } : {}),
+    fdmsStatus: form.fdmsStatus,
     ...(form.costCenterId ? { costCenterId: form.costCenterId } : {}),
     receiveNow,
     lines: form.lines

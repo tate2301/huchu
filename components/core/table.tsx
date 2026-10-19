@@ -100,6 +100,8 @@ export function TableFoot({
     count: number;
     sum?: FootSum;
     actions?: React.ReactNode;
+    /** What the actions will leave out, and why ("REQ-0093 is yours, so it is skipped"). */
+    note?: React.ReactNode;
     onClear: () => void;
   };
 }) {
@@ -119,6 +121,7 @@ export function TableFoot({
           ) : null}
           {selection.actions ? <ButtonGroup aria-label="Do with the selection">{selection.actions}</ButtonGroup> : null}
           <div className="end">
+            {selection.note ? <span className="muted">{selection.note}</span> : null}
             <Kbd>Esc</Kbd>
             <Button variant="quiet" icon="x" onClick={selection.onClear} tabIndex={selectedCount ? 0 : -1}>
               Clear

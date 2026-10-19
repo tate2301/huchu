@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 import { Button, Icon } from "@/components/core";
 import { MenuButton, type MenuEntry } from "@/components/core/menu";
@@ -138,4 +139,33 @@ export function downloadCsv(name: string, head: string[], rows: Array<Array<stri
   link.download = name;
   link.click();
   window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+/**
+ * A list's filters in the address: the query string to fetch with, and the
+ * setter its tabs, chips and pages call. A value equal to its default (and
+ * page 1) is left out, so the plain address is the default view.
+ */
+export function useListQuery<Q extends object>(defaults: Partial<Record<keyof Q, unknown>>) {
+  const router = useRouter();
+  const pathname = usePathname();
+  const params = useSearchParams();
+  const search = params.toString();
+  const latest = React.useRef(defaults);
+  const onQuery = React.useCallback(
+    (next: Partial<Q>) => {
+      const merged = new URLSearchParams(search);
+      for (const [key, value] of Object.entries(next)) {
+        const fallback = (latest.current as Record<string, unknown>)[key];
+        const empty = value === null || value === undefined || value === "" || value === fallback || (key === "page" && value === 1);
+        if (empty) merged.delete(key);
+        else merged.set(key, String(value));
+      }
+      const query = merged.toString();
+      router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
+    },
+    [search, pathname, router],
+  );
+  const exportHref = (api: string) => `${api}?${new URLSearchParams([...params.entries(), ["format", "csv"]]).toString()}`;
+  return { search, params, onQuery, exportHref };
 }

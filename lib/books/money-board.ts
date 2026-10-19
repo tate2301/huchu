@@ -41,6 +41,8 @@ const IN_ROWS: Record<string, { icon: string; label: string }> = {
 const OUT_ROWS: Record<string, { icon: string; label: string }> = {
   "supplier-payments": { icon: "docs", label: "Bills" },
   payouts: { icon: "hand", label: "Requisitions" },
+  "till-payouts": { icon: "takings", label: "Till payouts" },
+  payroll: { icon: "person", label: "Payroll" },
 };
 
 async function accounts(db: Db, companyId: string, base: string, now: Date): Promise<MoneyBoard["bank"]> {
