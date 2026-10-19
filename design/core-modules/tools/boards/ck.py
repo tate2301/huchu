@@ -94,8 +94,8 @@ def find_all():
     return '<label class="input-wrap tb-find">%s<input type="search" aria-label="Search everything" placeholder="Search everything">%s</label>' % (ic('search'), kbd('Ctrl K'))
 
 def topbar(title, icon, right='', bell=True, vane=5, find=True):
-    """The standard app bar (owner, 19 Oct): title, the actions on the left, and on the far right
-    Vane, Search (an icon button for Ctrl K) and Notifications. More than two actions become one
+    """The standard app bar (owner, 19 Oct): the title on the left; in the right section the page's
+    actions, then Vane, Search (an icon button for Ctrl K) and Notifications, which never move. More than two actions become one
     button group: the primary and a dropdown. `right` is the page's actions; appbar.standard lays them out."""
     from appbar import standard
     r = (find_all() if find else '') + (iconbtn('bell', 'Notifications') if bell else '') + (vane_btn(vane) if vane else '') + right

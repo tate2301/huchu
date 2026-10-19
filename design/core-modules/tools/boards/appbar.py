@@ -1,6 +1,8 @@
 """The standard app bar (owner, 19 Oct), applied to every board's top bar in place.
 
-  title · actions on the left · … · Vane, Search (icon button, Ctrl K), Notifications on the far right.
+  title · … · [the page's actions] Vane, Search (icon button, Ctrl K), Notifications.
+  Everything sits in the right section. Vane, Search and Notifications are on every page and
+  never move; the page's actions and contextual things appear to their left.
   More than two actions become one button group: the primary action and a dropdown.
 
 Run: python3 design/core-modules/tools/boards/appbar.py design/core-modules/boards/canvas
@@ -48,12 +50,17 @@ def standard(header):
     if not m:
         return header
     open_, title, _, right, _ = m.groups()
-    if 'class="tb-acts"' in title:
-        return header                       # already standard
-    vane = find = bell = None
     acts = []
+    # An earlier pass put the actions on the left, after the title; bring them back.
+    a = re.search(r'<div class="tb-acts"[^>]*>', title)
+    if a:
+        inner = title[a.end():]
+        block = top_level(title[a.start():])[0]
+        acts = top_level(block[block.index('>') + 1:-len('</div>')])
+        title = title[:a.start()]
+    vane = find = bell = None
     for el in top_level(right):
-        if 'tb-find' in el[:80]:
+        if 'tb-find' in el[:80] or 'aria-label="Search everything' in el[:120]:
             find = el
         elif 'aria-label="Notifications"' in el[:120]:
             bell = el
@@ -65,9 +72,8 @@ def standard(header):
         prim = next((a for a in acts if 'btn-primary' in a[:60]), None)
         main = prim or next((a for a in acts if 'btn-icon' not in a[:60]), acts[-1])
         acts = [group(main, prim is not None)]
-    left = '<div class="tb-acts" style="display:flex;align-items:center;gap:8px;margin-left:16px;min-width:0">%s</div>' % ''.join(acts)
-    tail = (vane or '') + (search_btn() if find else '') + (bell or '')
-    return '%s%s%s<div class="tb-r">%s</div></header>' % (open_, title, left, tail)
+    fixed = (vane or '') + (search_btn() if find else '') + (bell or '')
+    return '%s%s<div class="tb-r">%s%s</div></header>' % (open_, title, ''.join(acts), fixed)
 
 
 def run(root):

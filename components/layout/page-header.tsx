@@ -60,11 +60,12 @@ function primaryShortcut(primary: PagePrimary | null): string | undefined {
 
 /**
  * The 56px top bar (design/core-modules/spec/shell.md, `.tb-m`): the back
- * link, the page's icon and title, reference or sub and sub link; then, on the
- * right, the CRM's members, then exactly Vane (its button), search everything
- * (Ctrl K) and the notifications bell with its unread count (the owner, 19
- * Oct). The page's own actions and its one primary sit on the left, after the
- * title. The device's sync state is in the account menu. The panel's own Hide
+ * link, the page's icon and title, reference or sub and sub link; then
+ * everything else in the right section (the owner, 19 Oct). Vane (its
+ * button), search everything (Ctrl K) and the notifications bell with its
+ * unread count are on every page and never move, at the far right; the CRM's
+ * members, the page's own actions and its one primary appear to their left.
+ * The device's sync state is in the account menu. The panel's own Hide
  * button and the rail hide and show the panel.
  *
  * Below 720px it is "≡ <title> Vane, search, bell, ⋯ +": the menu button
@@ -167,57 +168,57 @@ export function PageHeader() {
             {identity.subLink.label}
           </Link>
         ) : null}
-        {/* The owner, 19 Oct: the page's actions sit on the left, after the title; Search and the bell on the far right. */}
-        <div className="ml-4 flex min-w-0 shrink-0 items-center gap-2">
-          {actions ? <div className="flex shrink-0 items-center gap-2">{actions}</div> : null}
-          {primary?.menu?.length ? (
-            <Menu>
-              <MenuTrigger asChild>
-                <Button variant="primary" icon={primary.icon === "plus" ? <Plus className="size-3.5" aria-hidden="true" /> : undefined}>
-                  {primary.label}
-                </Button>
-              </MenuTrigger>
-              <MenuContent align="start">
-                {primary.menu.map((item) => (
-                  <MenuItem key={item.href} onSelect={() => router.push(item.href)}>
-                    {item.label}
-                  </MenuItem>
-                ))}
-              </MenuContent>
-            </Menu>
-          ) : primary?.disabled ? (
-            <span title={primary.disabled} className="inline-flex">
-              <Button variant="primary" disabled aria-description={primary.disabled}>
-                {primary.label}
-              </Button>
-            </span>
-          ) : primary ? (
-            <Kit contents>
-              {primaryHref && !primary.onClick ? (
-                <KitButtonLink
-                  href={primaryHref}
-                  variant="primary"
-                  icon={primary.icon}
-                  shortcut={primaryShortcut(primary)}
-                >
-                  {primary.label}
-                </KitButtonLink>
-              ) : (
-                <KitButton
-                  variant="primary"
-                  icon={primary.icon}
-                  shortcut={primaryShortcut(primary)}
-                  onClick={() => runPrimary(primary)}
-                >
-                  {primary.label}
-                </KitButton>
-              )}
-            </Kit>
-          ) : null}
-        </div>
         <div className="flex-1" />
         <div className="flex shrink-0 items-center gap-2">
           {showMembers ? <CrmMembers className="mr-1" /> : null}
+          {/* The page's actions and primary, left of the tools that never move. */}
+          <div className="flex min-w-0 shrink-0 items-center gap-2">
+            {actions ? <div className="flex shrink-0 items-center gap-2">{actions}</div> : null}
+            {primary?.menu?.length ? (
+              <Menu>
+                <MenuTrigger asChild>
+                  <Button variant="primary" icon={primary.icon === "plus" ? <Plus className="size-3.5" aria-hidden="true" /> : undefined}>
+                    {primary.label}
+                  </Button>
+                </MenuTrigger>
+                <MenuContent align="end">
+                  {primary.menu.map((item) => (
+                    <MenuItem key={item.href} onSelect={() => router.push(item.href)}>
+                      {item.label}
+                    </MenuItem>
+                  ))}
+                </MenuContent>
+              </Menu>
+            ) : primary?.disabled ? (
+              <span title={primary.disabled} className="inline-flex">
+                <Button variant="primary" disabled aria-description={primary.disabled}>
+                  {primary.label}
+                </Button>
+              </span>
+            ) : primary ? (
+              <Kit contents>
+                {primaryHref && !primary.onClick ? (
+                  <KitButtonLink
+                    href={primaryHref}
+                    variant="primary"
+                    icon={primary.icon}
+                    shortcut={primaryShortcut(primary)}
+                  >
+                    {primary.label}
+                  </KitButtonLink>
+                ) : (
+                  <KitButton
+                    variant="primary"
+                    icon={primary.icon}
+                    shortcut={primaryShortcut(primary)}
+                    onClick={() => runPrimary(primary)}
+                  >
+                    {primary.label}
+                  </KitButton>
+                )}
+              </Kit>
+            ) : null}
+          </div>
           <VaneBarButton />
           <SearchTrigger />
           <NotificationsBell />
