@@ -119,8 +119,43 @@ body{margin:0;background:var(--color-surface);font-family:var(--font-sans);color
 .bk-tl li{grid-template-columns:16px minmax(0,1fr) 96px}
 .bk .rail .attrs{row-gap:10px;grid-template-columns:88px minmax(0,1fr)}
 
+.bk-shares .share{padding:0 24px}
+.bk-strip,.bk-rec .bk-strip{padding:0;margin-top:24px}
+.bk-strip .kstrip{border-radius:0;background:none;box-shadow:inset 0 1px 0 var(--color-line),inset 0 -1px 0 var(--color-line)}
+.bk-strip .kt{padding:16px 24px}
+.bk-tl{padding:0;box-shadow:inset 0 1px 0 var(--color-line)}
+.bk-tl li,.bk-tl li:last-child{padding:10px 24px;box-shadow:inset 0 -1px 0 var(--color-line)}
+.bk-kvt tbody tr:first-child td{box-shadow:inset 0 1px 0 var(--color-line),inset 0 -1px 0 var(--color-line)}
+.table tfoot tr.bk-sr td{height:36px;background:none;font-weight:400;color:var(--color-ink-2);box-shadow:none}
+.table tfoot tr.bk-sr:first-child td{padding-top:8px}
+.table tfoot tr.bk-sr.t td{height:44px;font-weight:600;color:var(--color-ink);box-shadow:inset 0 1px 0 var(--color-line)}
+.table tfoot tr.bk-sr:last-child td{box-shadow:inset 0 1px 0 var(--color-line),inset 0 -1px 0 var(--color-line)}
+.bk-fl>.bk-wt{padding-bottom:0}.bk-fl>.bk-wt+section{box-shadow:none}
+.bk-rtabs+.bk-callout{margin-top:0}
+.bk-callout{margin:24px 0 0;border-radius:0;padding:14px 24px}
+.bk-box:not(.warn):not(.ok){box-shadow:none;padding:0;border-radius:0}
+.bk-fl{padding:0 0 48px;gap:0}.bk-fl>section:last-child{padding-bottom:0}
+.bk-fl>section{padding:32px 24px}
+.bk-fl>section+section{box-shadow:inset 0 1px 0 var(--color-line)}
+.bk-fl>.bk-wide{padding:32px 0 20px;gap:16px}
+.bk-wide>header{padding:0 24px}
+.bk-le th:first-child,.bk-le td:first-child{padding-left:24px!important}
+.bk-le th:last-child,.bk-le td:last-child{padding-right:24px!important}
+.bk-le th{box-shadow:inset 0 1px 0 var(--color-line),inset 0 -1px 0 var(--color-line)}
+.bk-add{padding:0 24px}.bk-add .btn{margin-left:-12px}
+.bk-stp{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:14px}
+.bk-stp li{display:grid;grid-template-columns:20px minmax(0,1fr);column-gap:12px;align-items:start;font-size:13px;line-height:20px;color:var(--color-muted)}
+.bk-stp .n{width:20px;height:20px;border-radius:999px;display:grid;place-items:center;font-size:11px;font-weight:500;line-height:1;color:var(--color-ink-2);box-shadow:inset 0 0 0 1px var(--color-rule);font-variant-numeric:tabular-nums}
+.bk-stp .t{display:flex;flex-direction:column;min-width:0}
+.bk-stp b{font-weight:500;font-size:14px;color:var(--color-ink)}
+.bk-ph-b{padding-left:0;padding-right:0}
+.bk-ph-b>*{margin-left:16px;margin-right:16px}
+.bk-ph-b>.bk-ph-list{margin-left:0;margin-right:0}
+.bk-ph-list .bk-ph-row,.bk-ph-list .bk-ph-need{padding-left:16px;padding-right:16px}
+.bk-ph-list>b,.bk-ph-list>.bk-ph-lh{display:flex;padding:0 16px 4px}
+
 </style></helmet>
-<div class="bk-ph"><header class="bk-ph-h"><button class="btn btn-quiet btn-icon" aria-label="Back to requisitions"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M14.657 17.657L9 12l5.657-5.657"/></svg></button><b>REQ-0091</b><span class="pill pill-n" style="margin-right:8px">CRM</span></header><div class="bk-ph-b"><div style="display:flex;flex-direction:column;gap:6px"><span style="font-size:15px;color:var(--color-ink-2)">Tinashe Moyo asks for</span><div class="num" style="font-size:34px;font-weight:600;color:var(--color-ink);letter-spacing:var(--tracking-display);text-align:left">US$60.00</div><span style="font-size:15px;line-height:1.45;color:var(--color-ink)">Transport, 3 trips to the clinic job</span></div><div><div class="bk-ph-row"><span>Job</span><span>Borrowdale Brooke Clinic</span></div><div class="bk-ph-row"><span>Needed</span><span>Mon 19 Oct</span></div><div class="bk-ph-row"><span>Paid from</span><span>Showroom cash box</span></div><div class="bk-ph-row"><span>His last 3</span><span>All accounted for</span></div></div><span style="font-size:14px;color:var(--color-muted)">Chipo Mhlanga pays it out once approved.</span></div><div class="bk-ph-f"><button class="btn btn-primary"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" fill-rule="evenodd" d="M21.546 5.112a1.5 1.5 0 0 1 0 2.121L10.232 18.547a1.5 1.5 0 0 1-2.121 0L2.454 12.89a1.5 1.5 0 1 1 2.121-2.121l4.596 4.596L19.424 5.112a1.5 1.5 0 0 1 2.122 0" clip-rule="evenodd"/></svg>Approve<span class="kbd" style="background:transparent;color:inherit;box-shadow:inset 0 0 0 1px rgba(255,255,255,.32)">A</span></button><button class="btn btn-lg"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" fill-rule="evenodd" d="M4.575 4.576a1.5 1.5 0 0 1 2.122 0L12 9.88l5.303-5.303a1.5 1.5 0 0 1 2.122 2.121l-5.304 5.304l5.304 5.303a1.5 1.5 0 1 1-2.122 2.121L12 14.122l-5.303 5.303a1.5 1.5 0 1 1-2.122-2.12L9.88 12L4.575 6.697a1.5 1.5 0 0 1 0-2.12" clip-rule="evenodd"/></svg>Reject</button></div></div>
+<div class="bk-ph"><header class="bk-ph-h"><button class="btn btn-quiet btn-icon" aria-label="Back to requisitions"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M14.657 17.657L9 12l5.657-5.657"/></svg></button><b>REQ-0091</b><span class="pill pill-n" style="margin-right:8px">CRM</span></header><div class="bk-ph-b"><div style="display:flex;flex-direction:column;gap:6px"><span style="font-size:15px;color:var(--color-ink-2)">Tinashe Moyo asks for</span><div class="num" style="font-size:34px;font-weight:600;color:var(--color-ink);letter-spacing:var(--tracking-display);text-align:left">US$60.00</div><span style="font-size:15px;line-height:1.45;color:var(--color-ink)">Transport, 3 trips to the clinic job</span></div><div class="bk-ph-list"><div class="bk-ph-row"><span>Job</span><span>Borrowdale Brooke Clinic</span></div><div class="bk-ph-row"><span>Needed</span><span>Mon 19 Oct</span></div><div class="bk-ph-row"><span>Paid from</span><span>Showroom cash box</span></div><div class="bk-ph-row"><span>His last 3</span><span>All accounted for</span></div></div><span style="font-size:14px;color:var(--color-muted)">Chipo Mhlanga pays it out once approved.</span></div><div class="bk-ph-f"><button class="btn btn-primary"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" fill-rule="evenodd" d="M21.546 5.112a1.5 1.5 0 0 1 0 2.121L10.232 18.547a1.5 1.5 0 0 1-2.121 0L2.454 12.89a1.5 1.5 0 1 1 2.121-2.121l4.596 4.596L19.424 5.112a1.5 1.5 0 0 1 2.122 0" clip-rule="evenodd"/></svg>Approve<span class="kbd" style="background:transparent;color:inherit;box-shadow:inset 0 0 0 1px rgba(255,255,255,.32)">A</span></button><button class="btn btn-lg"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" fill-rule="evenodd" d="M4.575 4.576a1.5 1.5 0 0 1 2.122 0L12 9.88l5.303-5.303a1.5 1.5 0 0 1 2.122 2.121l-5.304 5.304l5.304 5.303a1.5 1.5 0 1 1-2.122 2.121L12 14.122l-5.303 5.303a1.5 1.5 0 1 1-2.122-2.12L9.88 12L4.575 6.697a1.5 1.5 0 0 1 0-2.12" clip-rule="evenodd"/></svg>Reject</button></div></div>
 </x-dc>
 </body>
 </html>

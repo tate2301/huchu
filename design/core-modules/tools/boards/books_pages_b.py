@@ -108,6 +108,22 @@ CSS = '''
 .bk-map{display:grid;grid-template-columns:minmax(0,420px) minmax(0,280px);gap:48px;padding:24px 24px 28px;background:var(--color-ground);box-shadow:inset 0 -1px 0 var(--color-line)}
 .bk-map>div{display:flex;flex-direction:column;gap:12px}
 .bk-map .attrs dd{color:var(--color-ink)}
+/* full bleed (owner, 19 Oct): bordered parts run edge to edge of their pane; cells keep the gutter */
+.bk-what{margin:0 -24px;border-radius:0;box-shadow:inset 0 1px 0 var(--color-line),inset 0 -1px 0 var(--color-line)}
+.bk-what div{padding:10px 24px}
+.bk-what div:last-child{box-shadow:none}
+.bk-dlg .dialog-body>.bk-what:last-child{margin-bottom:-24px;box-shadow:inset 0 1px 0 var(--color-line)}
+/* a row with a second line gets room for it: nothing within 8px of the row's dividers */
+.table tbody tr:has(.sub)>td{height:52px}
+/* a quiet button at a row's end lines its label up with the gutter */
+.bk-chk .end>.btn-quiet:last-child{margin-right:-12px}
+.bk-tw{margin:0 -24px}
+.bk-dlg .dialog-body>.bk-tw:last-child{margin-bottom:-24px}
+.bk-dlg .dialog-body>.bk-tw:last-child tbody tr:last-child td{box-shadow:none}
+.bk-upsell li{box-shadow:none;padding:10px 0}
+.bk-ph-list{margin:0 -16px;box-shadow:inset 0 1px 0 var(--color-line)}
+.bk-ph-list>div{padding-left:16px;padding-right:16px}
+.bk-ph-list .bk-card{border-radius:0;box-shadow:inset 0 -1px 0 var(--color-line);padding:16px}
 '''
 
 # ---------- money ----------
@@ -263,8 +279,8 @@ for _lvl, _ic, _rows in LEVELS:
     for _r in _rows:
         ICON[_r[0]] = _r[1]
 
-# Board heights fit the content: the last element's bottom plus 48px, never under a 900px screen (measured after the calm pass).
-H = {'BkAccount': 930, 'BkTaxDue': 910, 'BkVatReturn': 1000, 'BkClose': 960, 'BkJournals': 920, 'BkJournalNew': 920,
+# Board heights fit the content: the last element's bottom plus 48px, never under a 900px screen (measured again after the full-bleed pass, 19 Oct).
+H = {'BkAccount': 1044, 'BkTaxDue': 1024, 'BkVatReturn': 1000, 'BkClose': 960, 'BkJournals': 920, 'BkJournalNew': 920,
      'BkTrialBalance': 1450, 'BkFinancials': 1010, 'BkLedger': 1510, 'BkChart': 1120, 'BkSetup': 1040}
 
 def page(name, title, route, on, main, right='', h=900, extra='', icon=None, heading=None):
@@ -481,7 +497,7 @@ def to_match_phone():
         pv = '<div class="bk-prop" style="font-size:14px">%s<span class="cell-lead" style="color:var(--color-ink)"><span>%s</span></span><span class="sub">%s</span></div>' % (vmark(14), prop, why)
         return ('<div class="bk-card" style="gap:12px"><div style="display:flex;justify-content:space-between;gap:12px;align-items:baseline"><b style="font-size:15px;font-weight:600;color:var(--color-ink)">%s</b><b class="mono" style="font-size:15px">%s</b></div>'
                 '<span class="muted" style="font-size:13px;margin-top:-8px">%s</span>%s%s</div>') % (line, usd(amt, True), d, pv, acts)
-    cards = ''.join(card(d, l, a, p, w) for d, l, a, p, k, w in MATCH_LINES[:2]) + '<div class="muted" style="font-size:14px;text-align:center;padding:4px 0">2 more lines</div>'
+    cards = '<div class="bk-ph-list">%s</div>' % ''.join(card(d, l, a, p, w) for d, l, a, p, k, w in MATCH_LINES[:2]) + '<div class="muted" style="font-size:14px;text-align:center;padding:4px 0">2 more lines</div>'
     body = ('<div class="bk-ph"><header>%s<b>To match</b>%s</header>'
             '<div style="padding:20px 16px;display:flex;flex-direction:column;gap:16px;overflow:hidden;flex:1">'
             '<div><div style="font-size:22px;font-weight:600;color:var(--color-ink)">4 lines to match</div><div class="muted" style="font-size:13px;margin-top:4px">CBZ current, USD · to 16 Oct</div></div>'
@@ -544,7 +560,7 @@ def tax_due():
 
 def tax_due_phone():
     def item(date, what, amt, note, fl=False):
-        return ('<div style="display:grid;grid-template-columns:52px minmax(0,1fr) auto;gap:12px;align-items:start;padding:14px 0;box-shadow:inset 0 -1px 0 var(--color-line)">'
+        return ('<div style="display:grid;grid-template-columns:52px minmax(0,1fr) auto;gap:12px;align-items:start;padding:14px 16px;box-shadow:inset 0 -1px 0 var(--color-line)">'
                 '<div style="text-align:center;border-radius:8px;box-shadow:var(--shadow-ring);padding:6px 0"><div class="muted" style="font-size:11px">%s</div><div style="font-size:18px;font-weight:600;color:var(--color-ink)">%s</div></div>'
                 '<div><b style="font-size:15px;font-weight:600;color:var(--color-ink);line-height:20px">%s</b><div class="muted" style="font-size:13px;margin-top:2px">%s</div>%s</div>'
                 '<b class="mono" style="font-size:14px;color:var(--color-ink);line-height:20px">%s</b></div>') % (date[0], date[1], what, note, '<div style="margin-top:6px">%s</div>' % flag() if fl else '', amt)
@@ -557,7 +573,7 @@ def tax_due_phone():
     body = ('<div class="bk-ph"><header>%s<b>What’s due</b>%s</header>'
             '<div style="padding:20px 16px;display:flex;flex-direction:column;gap:4px;overflow:hidden;flex:1">'
             '<div style="font-size:22px;font-weight:600;color:var(--color-ink);line-height:1.25">%s to pay in November</div><div class="muted" style="font-size:13px">Next 2 months</div>'
-            '<div style="margin-top:12px">%s</div></div></div>') % (iconbtn('back', 'Back to Books'), iconbtn('calendar', 'Add to my calendar'), usd(NOV_PAY), items)
+            '<div class="bk-ph-list" style="margin-top:12px">%s</div></div></div>') % (iconbtn('back', 'Back to Books'), iconbtn('calendar', 'Add to my calendar'), usd(NOV_PAY), items)
     return write(ROOT, 'BkTaxDuePhone', 'Books · What’s due, on James’s phone', body, w=390, h=844, css=CSS)
 
 
@@ -772,7 +788,7 @@ def journal_new():
         c, a, ic('down'), cc, ic('down'), d or '<span class="faint">0.00</span>', cr or '<span class="faint">0.00</span>') for c, a, cc, d, cr in lines)
     lt = ('<table class="table" style="font-size:14px"><thead><tr><th>Account</th><th>Cost centre</th><th class="num">Debit</th><th class="num">Credit</th></tr></thead><tbody>%s'
           '<tr><td colspan="4">%s</td></tr></tbody><tfoot><tr class="tot"><td>Totals</td><td><span class="status status-success" style="font-weight:400">Balanced</span></td><td class="num">240.00</td><td class="num">240.00</td></tr></tfoot></table>') % (
-        le.replace('<td>', '<td style="height:52px">').replace('<td class="num">', '<td class="num" style="height:52px">'), btn('Add a line', 'plus', 'btn btn-quiet btn-sm'))
+        le.replace('<td>', '<td style="height:52px">').replace('<td class="num">', '<td class="num" style="height:52px">'), btn('Add a line', 'plus', 'btn btn-quiet btn-sm', attrs=' style="margin-left:-12px"'))
     fields = ('<div style="display:grid;grid-template-columns:150px minmax(0,1fr);gap:16px">'
               '<div class="bk-fld"><span class="bk-lab">Date</span><span class="bk-in">18 Oct 2026</span></div>'
               '<div class="bk-fld"><span class="bk-lab">Memo</span><span class="bk-in">Adhesive for the Pomona job, moved to its cost centre</span></div></div>'
@@ -1079,7 +1095,7 @@ def delete_dialog():
     body2 = ('<p>ZIMRA keeps every signed invoice, so Books keeps it too. Void it instead: a signed credit note takes it back.</p>'
              '<div class="bk-what">%s</div>') % refused
     d2 = dialog('INV-0139 can’t be deleted', body2, btn('Close', None, 'btn btn-quiet') + btn('Void with a credit note', 'x', 'btn', 'Ctrl ↵'), w=460)
-    return page('BkDeleteDialog', 'Delete permanently', '/books/payments/rct-0090', 'Payments received', receipt_behind(), btn('Record a payment', 'plus', 'btn', 'N'),
+    return page('BkDeleteDialog', 'Delete permanently', '/books/payments/rec-0090', 'Payments received', receipt_behind(), btn('Record a payment', 'plus', 'btn', 'N'),
                 extra='<div class="bk-dim" style="align-items:flex-start;padding-top:72px">%s%s</div>' % (d1, d2), heading=crumb('Payments received', 'REC-0090'), icon='payments')
 
 
@@ -1098,7 +1114,7 @@ def bulk_result():
     t = tbl([('Requisition', ''), ('Asked by', ''), ('Amount', 'num'), ('Result', ''), ('Why', 'fillw')], rows)
     body = ('<div style="display:flex;gap:16px;align-items:baseline"><span style="font-size:28px;font-weight:600;color:var(--color-ink);letter-spacing:var(--tracking-display)">2 approved</span><span class="muted" style="font-size:14px">1 skipped</span></div>'
             '<p>%s is now ready to pay.</p>'
-            '<div style="margin:0 -24px;box-shadow:inset 0 1px 0 var(--color-line)">%s</div>') % (usd(98), t)
+            '<div class="bk-tw">%s</div>') % (usd(98), t)
     d = dialog('Approve 3 requisitions', body, btn('Open the 2 to pay', 'payments') + btn('Done', 'check', 'btn btn-primary', '↵'), w=680)
     return page('BkBulkResult', 'Bulk result', '/books/requisitions', 'Requisitions', behind, btn('New requisition', 'plus', 'btn', 'N'), extra='<div class="bk-dim">%s</div>' % d, heading='Requisitions')
 

@@ -506,7 +506,12 @@ def list_body(find, tab_html, tools, table_html, foot_html, label, above='', ove
 def tools(find, chips, count, right=None):
     return ws_tools(find, chips, count, right)
 
+# Board heights fit the content: the last element's bottom plus 48px (measured after the full-bleed pass, 19 Oct).
+HEIGHTS = {'BkMoney': 1816, 'BkInvoice': 1416, 'BkInvoiceNew': 1232, 'BkPaymentNew': 792, 'BkCustomer': 824, 'BkBill': 1640,
+           'BkBillNew': 1000, 'BkPaymentOutNew': 1040, 'BkRequisition': 1240, 'BkSupplier': 1144}
+
 def board(name, title, body, w=1440, h=900):
+    h = HEIGHTS.get(name, h)
     write(ROOT, name, 'Books · ' + title, body, w, h, CSS)
     return name
 
@@ -531,7 +536,7 @@ def share_rows(items):
                 '<span class="sh-n">%s</span>'
                 '<span class="grow"><span class="bar" style="display:block;width:%.1f%%"></span></span></span><span class="num pct">%d%%</span><span class="num">%s</span></div>') % (
             ic(icon), name, float(v / top * 100), pct, usd(v))
-    return '<div style="padding:0 var(--space-24)">%s</div>' % out
+    return '<div class="bk-shares">%s</div>' % out
 
 def need(icon, lead, d, act):
     return '<div class="row need"><span class="bk-ic">%s</span><div class="t"><span class="lead">%s</span><span class="d">%s</span></div><div class="a">%s</div></div>' % (ic(icon), lead, d, act)
@@ -570,7 +575,7 @@ def money():
     rows = []
     for name, kind, cur, bal, rec in ACCOUNTS:
         rows.append(('<span class="cell-lead">%s</span>' % name, '<span class="muted">%s</span>' % kind, fmt(bal) if cur == 'USD' else '', fmt(bal) if cur == 'ZWG' else '', '<span class="muted">%s</span>' % rec))
-    bank = '<div style="margin:0 24px;border-radius:10px;box-shadow:var(--shadow-ring);overflow:hidden">%s</div>' % grid(
+    bank = grid(
         ('Account', 'Kind', 'US$', 'ZiG', 'Reconciled'), rows, num=(2, 3), total=('In all', '', fmt(CASH_USD), fmt(CASH_ZIG), ''), label='Bank and cash')
     bank_note = '<p class="bk-note">%s<span><b style="font-weight:600;color:var(--color-ink)">%s</b> in all, with ZiG at <span class="mono">27.00</span> to US$1 (RBZ interbank, today 06:00).</span></p>' % (ic('bank'), usd(CASH_BASE))
     main = ('<div class="mny-main">%s%s<section aria-labelledby="m1">%s<div class="list">%s</div></section>'
@@ -748,7 +753,7 @@ def spending():
         ic('plus'), kbd('N', True), ic('down'),
         menu((('docs', 'Bill', 'A supplier’s invoice', False, False), ('takings', 'Claim', 'Spent from their own pocket', False, False),
               ('expenses', 'Petty cash voucher', 'Spent from a float', False, False), ('hand', 'Requisition', 'Money asked for first', False, False)),
-             'position:absolute;right:0;top:40px;width:260px;z-index:30'))
+             'position:absolute;left:0;top:40px;width:260px;z-index:30'))
     find = finding('<span class="num">%s</span> has gone out this month, from 5 modules.' % usd(MONEY_OUT),
                    'Bills are the most, <span class="num">%s</span>.' % usd(OUT_BILLS))
     t = tools('Search spending', (('From', 'Any module', False), ('Paid from', 'Any', False)), '%d this month' % len(rows), QUIET_TOOLS)
@@ -898,19 +903,21 @@ def sec(title, n, inner, gid):
     return '<section aria-labelledby="%s">%s%s</section>' % (gid, group_head(title, n, gid), inner)
 
 def boxed(inner):
-    return '<div style="margin:0 24px;border-radius:10px;box-shadow:var(--shadow-ring);overflow:hidden">%s</div>' % inner
+    # Full bleed (owner, 19 Oct): a table runs edge to edge of its pane; its cells keep the 24px gutter.
+    return inner
 
-def boxed0(inner):
-    return '<div style="border-radius:10px;box-shadow:var(--shadow-ring);overflow:hidden">%s</div>' % inner
+boxed0 = boxed
 
 def timeline(items):
     return '<ol class="bk-tl">%s</ol>' % ''.join('<li><span class="d %s"></span><span>%s</span><time>%s</time></li>' % (tone, text, when) for tone, text, when in items)
 
-def sums(items):
-    out = ''
-    for k, v, cls in items:
-        out += '<div class="%s"><span>%s</span><span>%s</span></div>' % (cls, k, v)
-    return '<div class="bk-sums">%s</div>' % out
+def sums(items, ncols=4):
+    """The sums as the lines table's foot: full-bleed rows, the label beside its amount."""
+    return '<tfoot>%s</tfoot>' % ''.join('<tr class="bk-sr%s"><td colspan="%d" class="num">%s</td><td class="num">%s</td></tr>' % (
+        ' t' if cls == 't' else '', ncols - 1, k, v) for k, v, cls in items)
+
+def with_sums(table, foot):
+    return table.replace('</table>', foot + '</table>', 1)
 
 def line_rows(lines, money=usd, tax='VAT 15.5%'):
     return [('<span class="cell-lead">%s</span>' % item, '%s %s' % (q, u), money(p), '<span class="muted">%s</span>' % tax, money(M(q) * M(p))) for item, q, u, p in lines]
@@ -950,7 +957,7 @@ def invoice():
                      ('ok', 'Signed by FDMS, fiscal day 214', '6 Oct 10:14'),
                      ('in', '<b>Rudo Mapfumo</b> issued it', '6 Oct 10:14'),
                      ('', '<b>Chipo Mhlanga</b> drafted it from %s' % ref('QT-0386'), '5 Oct 16:40')))
-    main = head + sec('Lines', '4 lines', lines + tot, 'l1') + sec('Payments', '1', pays, 'l2') + sec('Posting', '2 entries', post, 'l4') + sec('History', None, timeline_wrap(hist), 'l5')
+    main = head + sec('Lines', '4 lines', with_sums(lines, tot), 'l1') + sec('Payments', '1', pays, 'l2') + sec('Posting', '2 entries', post, 'l4') + sec('History', None, timeline_wrap(hist), 'l5')
     fiscal = ('<section><div class="sec-title">%s Fiscal <span class="end">%s</span></div>'
               '<div style="display:flex;gap:16px;align-items:flex-start">%s<dl class="attrs" style="grid-template-columns:minmax(0,1fr);row-gap:2px"><dt>Verification code</dt><dd class="mono">K7QX-22M4</dd><dt style="margin-top:8px">Fiscal day</dt><dd>214</dd><dt style="margin-top:8px">Signed</dt><dd>6 Oct 10:14</dd></dl></div></section>') % (
         ic('fiscal'), pill('Valid'), qr('INV-0142', 112))
@@ -959,7 +966,7 @@ def invoice():
     return board('BkInvoice', 'INV-0142', body, h=1384)
 
 def timeline_wrap(t):
-    return '<div style="margin:0 24px;border-radius:10px;box-shadow:var(--shadow-ring)">%s</div>' % t.replace('class="bk-tl"', 'class="bk-tl" style="padding:4px 16px"')
+    return t      # full bleed: its rows' dividers meet the pane's edges
 
 
 # ---------- the calm parts (owner, 18 Oct: "too hard on the eyes") ----------
@@ -1006,6 +1013,47 @@ def rail_sec(title, rows, extra=''):
 QUIET_TOOLS = btn('Sort', 'sort', 'btn btn-quiet') + btn('Export', 'export', 'btn btn-quiet')
 
 
+# ---------- full bleed and one left edge (owner, 19 Oct) ----------
+# Anything with borders or dividers runs edge to edge of its pane, and its dividers meet the pane's edges
+# and each other; cells keep the 24px gutter. Numbered steps sit on the pane's edge, on their first line.
+CSS += '''
+.bk-shares .share{padding:0 24px}
+.bk-strip,.bk-rec .bk-strip{padding:0;margin-top:24px}
+.bk-strip .kstrip{border-radius:0;background:none;box-shadow:inset 0 1px 0 var(--color-line),inset 0 -1px 0 var(--color-line)}
+.bk-strip .kt{padding:16px 24px}
+.bk-tl{padding:0;box-shadow:inset 0 1px 0 var(--color-line)}
+.bk-tl li,.bk-tl li:last-child{padding:10px 24px;box-shadow:inset 0 -1px 0 var(--color-line)}
+.bk-kvt tbody tr:first-child td{box-shadow:inset 0 1px 0 var(--color-line),inset 0 -1px 0 var(--color-line)}
+.table tfoot tr.bk-sr td{height:36px;background:none;font-weight:400;color:var(--color-ink-2);box-shadow:none}
+.table tfoot tr.bk-sr:first-child td{padding-top:8px}
+.table tfoot tr.bk-sr.t td{height:44px;font-weight:600;color:var(--color-ink);box-shadow:inset 0 1px 0 var(--color-line)}
+.table tfoot tr.bk-sr:last-child td{box-shadow:inset 0 1px 0 var(--color-line),inset 0 -1px 0 var(--color-line)}
+.bk-fl>.bk-wt{padding-bottom:0}.bk-fl>.bk-wt+section{box-shadow:none}
+.bk-rtabs+.bk-callout{margin-top:0}
+.bk-callout{margin:24px 0 0;border-radius:0;padding:14px 24px}
+.bk-box:not(.warn):not(.ok){box-shadow:none;padding:0;border-radius:0}
+.bk-fl{padding:0 0 48px;gap:0}.bk-fl>section:last-child{padding-bottom:0}
+.bk-fl>section{padding:32px 24px}
+.bk-fl>section+section{box-shadow:inset 0 1px 0 var(--color-line)}
+.bk-fl>.bk-wide{padding:32px 0 20px;gap:16px}
+.bk-wide>header{padding:0 24px}
+.bk-le th:first-child,.bk-le td:first-child{padding-left:24px!important}
+.bk-le th:last-child,.bk-le td:last-child{padding-right:24px!important}
+.bk-le th{box-shadow:inset 0 1px 0 var(--color-line),inset 0 -1px 0 var(--color-line)}
+.bk-add{padding:0 24px}.bk-add .btn{margin-left:-12px}
+.bk-stp{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:14px}
+.bk-stp li{display:grid;grid-template-columns:20px minmax(0,1fr);column-gap:12px;align-items:start;font-size:13px;line-height:20px;color:var(--color-muted)}
+.bk-stp .n{width:20px;height:20px;border-radius:999px;display:grid;place-items:center;font-size:11px;font-weight:500;line-height:1;color:var(--color-ink-2);box-shadow:inset 0 0 0 1px var(--color-rule);font-variant-numeric:tabular-nums}
+.bk-stp .t{display:flex;flex-direction:column;min-width:0}
+.bk-stp b{font-weight:500;font-size:14px;color:var(--color-ink)}
+.bk-ph-b{padding-left:0;padding-right:0}
+.bk-ph-b>*{margin-left:16px;margin-right:16px}
+.bk-ph-b>.bk-ph-list{margin-left:0;margin-right:0}
+.bk-ph-list .bk-ph-row,.bk-ph-list .bk-ph-need{padding-left:16px;padding-right:16px}
+.bk-ph-list>b,.bk-ph-list>.bk-ph-lh{display:flex;padding:0 16px 4px}
+'''
+
+
 # ---------- forms ----------
 def fsec(title, text, body):
     return '<section class="form-sec"><header><h2>%s</h2><p>%s</p></header><div class="body">%s</div></section>' % (title, text, body)
@@ -1026,11 +1074,17 @@ def chk(label, on=False, hint=''):
 def seg(opts, on):
     return '<div class="seg" role="tablist" style="align-self:flex-start">%s</div>' % ''.join('<button role="tab" aria-selected="%s">%s</button>' % ('true' if o == on else 'false', o) for o in opts)
 
+def steps_list(items):
+    """Numbered steps on the pane's left edge; each marker sits on its first text line (owner, 19 Oct)."""
+    return '<ol class="bk-stp">%s</ol>' % ''.join('<li><span class="n">%d</span><span class="t"><b>%s</b><span>%s</span></span></li>' % (i + 1, a, b) for i, (a, b) in enumerate(items))
+
 def form_page(on, parent, here, icon, top_right, sections, rail):
     return page(on, crumb(parent, here), icon, top_right, '<div class="bk bk-fm"><div class="bk-fl">%s</div><aside class="rail" aria-label="Summary">%s</aside></div>' % (''.join(sections), rail))
 
 def wsec(title, text, body):
-    return '<section class="bk-wide"><header><h2>%s</h2><p>%s</p></header>%s</section>' % (title, text, body)
+    # A section that ends on a table ends on the table's own bottom line: no gap, no second divider.
+    ends = ' bk-wt' if body.rstrip().endswith('</table>') else ''
+    return '<section class="bk-wide%s"><header><h2>%s</h2>%s</header>%s</section>' % (ends, title, '<p>%s</p>' % text if text else '', body)
 
 def line_editor(lines, cur_label, acct=None):
     rows = ''
@@ -1041,7 +1095,7 @@ def line_editor(lines, cur_label, acct=None):
             '<td>%s</td>' % sel_(acct[item], 'Account') if acct else '', sel_('VAT 15.5%', 'Tax code'), fmt(amt), iconbtn('x', 'Remove the line'))
     head = '<tr><th>Item</th><th class="num" style="width:84px">Quantity</th><th class="num" style="width:100px">Price, %s</th>%s<th style="width:118px">Tax code</th><th class="num" style="width:104px">Amount</th><th style="width:36px"></th></tr>' % (
         cur_label, '<th style="width:136px">Account</th>' if acct else '')
-    return '<table class="table bk-le" aria-label="Lines"><thead>%s</thead><tbody>%s</tbody></table>%s' % (head, rows, '<div>%s</div>' % btn('Add a line', 'plus', 'btn btn-quiet'))
+    return '<table class="table bk-le" aria-label="Lines"><thead>%s</thead><tbody>%s</tbody></table>%s' % (head, rows, '<div class="bk-add">%s</div>' % btn('Add a line', 'plus', 'btn btn-quiet'))
 
 def invoice_new():
     # A form: the primary and Save draft. Cancel is the crumb and Esc.
@@ -1061,10 +1115,9 @@ def invoice_new():
                  + field('Note to the customer', '<textarea class="input" aria-label="Note to the customer">Showroom floor, 82 m², as quoted on QT-0403. Fitting from 26 Oct.</textarea>', opt=True))
     rail = ('<section><div class="sec-title">Total</div><div class="figure">%s</div>'
             '<dl class="attrs"><dt>Before VAT</dt><dd class="num">%s</dd><dt>VAT at 15.5%%</dt><dd class="num">%s</dd><dt>In US$</dt><dd class="num">%s</dd><dt>Due</dt><dd class="num">1 Nov</dd></dl></section>'
-            '<section><div class="sec-title">When you press Issue</div><ol class="steps" style="gap:12px">%s</ol></section>') % (
+            '<section><div class="sec-title">When you press Issue</div>%s</section>') % (
         zig(NEW_TOT), zig(NEW_NET), zig(NEW_VAT), usd(to_usd(NEW_TOT)),
-        ''.join('<li class="step"><span class="n">%d</span><b>%s</b><span>%s</span></li>' % (i + 1, a, b) for i, (a, b) in enumerate((
-            ('It gets the next number', 'INV-0145'), ('The rate is fixed', '27.00, RBZ interbank'), ('FDMS signs it', 'in ZWG, with the QR code'), ('It posts', 'and Msasa Motors owes it')))))
+        steps_list((('It gets the next number', 'INV-0145'), ('The rate is fixed', '27.00, RBZ interbank'), ('FDMS signs it', 'in ZWG, with the QR code'), ('It posts', 'and Msasa Motors owes it'))))
     body = form_page('Invoices', 'Invoices', 'New invoice', 'invoice', top, (cus, money, lines, terms), rail)
     return board('BkInvoiceNew', 'New invoice', body, h=1168)
 
@@ -1087,7 +1140,7 @@ def payment_new():
             ref('INV-0135'), usd(inv), inp(fmt(inv), 'Amount for INV-0135', True)),
     ))
     alloc = wsec('Put it on invoices', 'Oldest first; the rest stays on account.',
-                 '<table class="table bk-le"><thead><tr><th class="sel" style="width:36px"></th><th>Invoice</th><th>Due</th><th class="num">Owing</th><th class="num">This payment</th></tr></thead><tbody>%s</tbody>'
+                 '<table class="table bk-le"><thead><tr><th class="sel" style="width:60px"></th><th>Invoice</th><th>Due</th><th class="num">Owing</th><th class="num">This payment</th></tr></thead><tbody>%s</tbody>'
                  '<tfoot><tr class="tot"><td></td><td>On their account</td><td></td><td></td><td class="num">%s</td></tr></tfoot></table>' % (rows, usd(left)))
     rail = ('<section><div class="sec-title">This payment</div><div class="figure">%s</div><dl class="attrs"><dt>On INV-0135</dt><dd class="num">%s</dd><dt>On account</dt><dd class="num">%s</dd><dt>Number</dt><dd class="num">REC-0095</dd></dl></section>'
             '<section><div class="sec-title">After you record it</div><dl class="attrs"><dt>INV-0135</dt><dd>%s</dd><dt>They owe</dt><dd class="num">US$0.00</dd><dt>Overdue, all</dt><dd class="num">%s</dd><dt>Bank line</dt><dd>Matched when it arrives</dd></dl></section>') % (
@@ -1148,7 +1201,7 @@ def bill():
                      ('in', '<b>Rudo Mapfumo</b> recorded it', '13 Oct 11:40'),
                      ('ok', '<b>Chipo Mhlanga</b> counted in %s' % ref('GRN-0043'), '12 Oct 14:05'),
                      ('', 'Draft bill made from GRN-0043', '12 Oct 14:05')))
-    main = (head + fdms + sec('Lines', '3 lines', lines + tot, 'b1') + sec('Order and goods received', 'All match', match, 'b2')
+    main = (head + fdms + sec('Lines', '3 lines', with_sums(lines, tot), 'b1') + sec('Order and goods received', 'All match', match, 'b2')
             + sec('Payments', '1 to approve', pays, 'b4') + sec('Posting', '2 entries', post, 'b5') + sec('History', None, timeline_wrap(hist), 'b6'))
     rail = (rail_sec('Their fiscal invoice', (('Number', '<span class="mono">MTW-2291</span>'), ('Dated', '9 Oct 2026'), ('FDMS', st('Not checked')), ('Their VAT no.', '220145873')))
             + rail_sec('Details', (('Supplier', ref('Mutare Timber Works')), ('Terms', 'On delivery, 7 days'), ('For', 'Ridgeview Apartments'), ('Order', ref('PO-0030')))))
@@ -1179,11 +1232,11 @@ def bill_new():
 
 def payment_out_new():
     top = btn('Save draft', 'docs') + primary('Send for approval', 'send', 'Ctrl ↵')
-    who = fsec('Pay', 'One payment can clear several bills.',
-               field('Supplier', sel_('Mutare Timber Works')) +
-               '<table class="table bk-le"><thead><tr><th class="sel" style="width:36px"></th><th>Bill</th><th>Their invoice</th><th>Due</th><th class="num">Owing</th></tr></thead><tbody>'
-               '<tr aria-selected="true"><td class="sel"><label class="check"><input type="checkbox" checked aria-label="Pay BILL-0220"></label></td><td>%s</td><td class="mono" style="font-size:13px">MTW-2291</td><td>%s</td><td class="num">%s</td></tr></tbody></table>' % (
-                   ref('BILL-0220'), st('Overdue', '2 days overdue'), usd(B220_TOT)))
+    who = fsec('Pay', 'Who you are paying.', field('Supplier', sel_('Mutare Timber Works')))
+    bills_ = wsec('Bills', 'One payment can clear several.',
+                  '<table class="table bk-le"><thead><tr><th class="sel" style="width:60px"></th><th>Bill</th><th>Their invoice</th><th>Due</th><th class="num">Owing</th></tr></thead><tbody>'
+                  '<tr aria-selected="true"><td class="sel"><label class="check"><input type="checkbox" checked aria-label="Pay BILL-0220"></label></td><td>%s</td><td class="mono" style="font-size:13px">MTW-2291</td><td>%s</td><td class="num">%s</td></tr></tbody></table>' % (
+                      ref('BILL-0220'), st('Overdue', '2 days overdue'), usd(B220_TOT)))
     itf = fsec('ITF263', 'Checked before every payment.',
                '<div class="bk-box warn">%s<span class="grow"><b>No valid ITF263 since 30 Jun.</b> 30%% of this payment is withheld for ZIMRA.</span>%s</div>' % (ic('warn'), btn('Ask for it', 'whatsapp', 'btn btn-sm')))
     frm = fsec('From', 'The bank takes IMTT on top.',
@@ -1195,11 +1248,10 @@ def payment_out_new():
                           total=('Leaves CBZ, USD', usd(NET_PAY + IMTT_NEW), ''), widths=(None, '140px', '200px'))))
     rail = ('<section><div class="sec-title">Approval</div><div class="figure">%s</div>'
             '<dl class="attrs"><dt>Withheld</dt><dd class="num">%s</dd><dt>Approves</dt><dd>James Nyabadza</dd><dt>Why</dt><dd>Over US$500.00</dd><dt>Then pays</dt><dd>Rudo Mapfumo</dd></dl></section>'
-            '<section><div class="sec-title">When it is paid</div><ol class="steps" style="gap:12px">%s</ol></section>') % (
+            '<section><div class="sec-title">When it is paid</div>%s</section>') % (
         usd(NET_PAY), usd(WHT),
-        ''.join('<li class="step"><span class="n">%d</span><b>%s</b><span>%s</span></li>' % (i + 1, a, b) for i, (a, b) in enumerate((
-            ('It gets a number', 'PAY-0062'), ('The money leaves CBZ', usd(NET_PAY + IMTT_NEW) + ' with IMTT'), ('A certificate is drafted', 'for Mutare Timber Works'), ('The withholding return', 'lists it, due 5 Nov')))))
-    body = form_page('Payments made', 'Payments made', 'New payment', 'payments', top, (who, itf, frm, brk), rail)
+        steps_list((('It gets a number', 'PAY-0062'), ('The money leaves CBZ', usd(NET_PAY + IMTT_NEW) + ' with IMTT'), ('A certificate is drafted', 'for Mutare Timber Works'), ('The withholding return', 'lists it, due 5 Nov'))))
+    body = form_page('Payments made', 'Payments made', 'New payment', 'payments', top, (who, bills_, itf, frm, brk), rail)
     return board('BkPaymentOutNew', 'Pay a supplier', body, h=896)
 
 
@@ -1247,7 +1299,7 @@ def supplier():
     itf = callout('warn', '<b>No valid ITF263 since 30 Jun.</b> Every payment to them withholds 30%.', btn('Ask for it', 'whatsapp', 'btn btn-sm'))
     cert = boxed(grid(('', ''), (
         ('Number', '<span class="mono">ITF263 0041-77213</span>'), ('Valid', '1 Jul 2025 to 30 Jun 2026'),
-        ('Last checked', '<span class="muted">18 Oct, ZIMRA portal</span>'), ('Copy', '<span class="cell-lead">ITF263-2025.pdf</span>')), label='ITF263', widths=('180px', None)).replace('<thead><tr><th></th><th></th></tr></thead>', ''))
+        ('Last checked', '<span class="muted">18 Oct, ZIMRA portal</span>'), ('Copy', '<span class="cell-lead">ITF263-2025.pdf</span>')), label='ITF263', widths=('180px', None)).replace('<thead><tr><th></th><th></th></tr></thead>', '').replace('class="table"', 'class="table bk-kvt"', 1))
     wrows = (
         (ref('PAY-0041'), ref('BILL-0198'), usd(MTW_PAID_YTD), usd(MTW_WHT_YTD), ref('WHT-0006'), st('Paid', 'Paid 10 Sep')),
         (ref('PAY-0062'), ref('BILL-0220'), usd(B220_TOT), usd(WHT), '<span class="muted">Drafted</span>', st('To approve')),
@@ -1255,7 +1307,7 @@ def supplier():
     wtab = boxed(grid(('Payment', 'Bill', 'Gross', 'Withheld, 30%', 'Certificate', 'To ZIMRA'), wrows, num=(2, 3), label='Withholding',
                       total=('2026', '', usd(MTW_PAID_YTD + B220_TOT), usd(MTW_WHT_YTD + WHT), '', ''), widths=('120px', '120px', '130px', '140px', '130px', None)))
     vat = boxed(grid(('', ''), (('VAT number', '220145873, registered'), ('TIN', '2000418236'), ('Their invoices', 'Checked on FDMS'),
-                              ('VAT withholding', 'Not an agent')), label='VAT', widths=('180px', None)).replace('<thead><tr><th></th><th></th></tr></thead>', ''))
+                              ('VAT withholding', 'Not an agent')), label='VAT', widths=('180px', None)).replace('<thead><tr><th></th><th></th></tr></thead>', '').replace('class="table"', 'class="table bk-kvt"', 1))
     main = head + figs + t + itf + sec('Tax clearance, ITF263', None, cert, 's1') + sec('Withholding this year', '%s held' % usd(MTW_WHT_YTD), wtab, 's2') + sec('VAT', None, vat, 's3')
     rail = (rail_sec('Contact', (('Phone', '+263 20 206 4471'), ('Address', '14 Herbert Chitepo St, Mutare')))
             + rail_sec('Terms', (('Terms', 'On delivery, 7 days'), ('Currency', 'USD'), ('Pay to', 'CBZ Mutare, 0112 4478 2210'), ('Supplies', 'Oak strip, skirting, underlay'))))
@@ -1268,7 +1320,7 @@ def ph_head(left, title, right=''):
     return '<header class="bk-ph-h">%s<b>%s</b>%s</header>' % (left, title, right)
 
 def ph_rows(items):
-    return '<div>%s</div>' % ''.join('<div class="bk-ph-row"><span>%s</span><span>%s</span></div>' % x for x in items)
+    return '<div class="bk-ph-list">%s</div>' % ''.join('<div class="bk-ph-row"><span>%s</span><span>%s</span></div>' % x for x in items)
 
 def ph_need(icon, lead, d):
     return '<div class="bk-ph-need">%s<span><b>%s</b><span>%s</span></span>%s</div>' % (ic(icon), lead, d, ic('chev'))
@@ -1282,7 +1334,7 @@ def money_phone():
     lede = ('<p style="font:600 22px/1.3 var(--font-sans);letter-spacing:var(--tracking-display);color:var(--color-ink)">%s came in this month. '
             '<span style="display:block;font-weight:400;color:var(--color-muted)">%s is overdue.</span></p>') % (usd(MONEY_IN), usd(OVERDUE))
     rows = ph_rows((('Gone out', usd(MONEY_OUT)), ('Bank and cash', usd(CASH_BASE)), ('You owe suppliers', usd(TO_PAY)), ('VAT due by 15 Nov', usd(VAT_OCT))))
-    needs = ('<div><div style="display:flex;justify-content:space-between;align-items:baseline"><b style="font-size:17px;color:var(--color-ink)">Needs you</b><span class="muted">7</span></div>%s</div>') % ''.join((
+    needs = ('<div class="bk-ph-list"><div class="bk-ph-lh" style="justify-content:space-between;align-items:baseline"><b style="font-size:17px;color:var(--color-ink)">Needs you</b><span class="muted">7</span></div>%s</div>') % ''.join((
         ph_need('hand', '4 things to approve', '%s in all' % usd(REQ_FOR_ME_SUM + M(23) + NET_PAY)),
         ph_need('fiscal', 'INV-0144 is not signed by FDMS', 'Westgate Interiors, %s' % zig(13500)),
         ph_need('invoice', '3 invoices are overdue', '%s in all' % usd(OVERDUE))))
@@ -1298,9 +1350,9 @@ def invoice_phone():
     top = ('<div style="display:flex;flex-direction:column;gap:6px">%s<div class="num" style="font-size:34px;font-weight:600;color:var(--color-ink);letter-spacing:var(--tracking-display);text-align:left">%s</div>'
            '<span style="font-size:15px;color:var(--color-ink-2)">Chisipite Dental · Mrs L. Banda</span></div>') % ('<span style="align-self:flex-start">%s</span>' % pill('Overdue', 'Overdue, 12 days'), usd(tot))
     rows = ph_rows((('Issued', '22 Sep'), ('Due', '6 Oct'), ('FDMS', st('Valid')), ('Last reminder', '9 Oct, read')))
-    lines = '<div><b style="font-size:15px;color:var(--color-ink)">3 lines</b>%s</div>' % ''.join(
-        '<div class="bk-ph-row" style="font-size:14px"><span>%s, %s %s</span><span>%s</span></div>' % (i, q, u, usd(M(q) * M(p))) for i, q, u, p in INV131_LINES) + \
-        '<div class="bk-ph-row" style="font-size:14px;box-shadow:none"><span>VAT at 15.5%%</span><span>%s</span></div>' % usd(v)
+    lines = '<div class="bk-ph-list"><b style="font-size:15px;color:var(--color-ink)">3 lines</b>%s%s</div>' % (''.join(
+        '<div class="bk-ph-row" style="font-size:14px"><span>%s, %s %s</span><span>%s</span></div>' % (i, q, u, usd(M(q) * M(p))) for i, q, u, p in INV131_LINES),
+        '<div class="bk-ph-row" style="font-size:14px"><span>VAT at 15.5%%</span><span>%s</span></div>' % usd(v))
     note = vflag('Vane drafted the reminder. You send it.')
     foot = '<div class="bk-ph-f">%s%s</div>' % (btn('Send a reminder', 'whatsapp', 'btn btn-primary', 'S'), btn('Record a payment', 'payments', 'btn btn-lg'))
     return phone('BkInvoicePhone', 'INV-0131, phone', head + '<div class="bk-ph-b" style="gap:16px">%s%s%s%s</div>' % (top, rows, lines, note) + foot)
@@ -1323,7 +1375,7 @@ def claim_phone():
             '<div class="c t" style="font-size:13px">Puma Service Station, Msasa</div><div class="c">Fiscal tax invoice 0091-4471</div><hr>'
             '<div class="l"><span>18 Oct 2026</span><span>07:52</span></div><div class="l"><span>Diesel, 20.00 l × 1.62</span><span>32.40</span></div>'
             '<div class="l"><span>VAT 15.5%%, included</span><span>4.35</span></div><hr><div class="l t"><span>Total US$</span><span>32.40</span></div></div>'
-            '<button class="btn btn-sm" style="position:absolute;right:10px;top:10px">%sRetake</button></div>') % ic('camera')
+            '<button class="btn btn-sm" style="position:absolute;right:10px;bottom:10px">%sRetake</button></div>') % ic('camera')
     flag = vflag('Vane read the slip. Check it, then send it.')
     rows = ph_rows((('Where', 'Puma, Msasa'), ('Amount', usd('32.40')), ('VAT', usd('4.35')), ('For', 'Ridgeview Apartments')))
     paid = '<div style="display:flex;flex-direction:column;gap:8px"><span style="font-size:14px;font-weight:500;color:var(--color-ink)">Paid with</span>%s</div>' % \
