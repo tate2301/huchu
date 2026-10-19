@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { toMoney } from "@/lib/accounting/ledger";
+import { vatFigures, type VatFigures } from "@/lib/books/core/vat-figures";
 
 type VatComputationRow = {
   taxCodeId: string | null;
@@ -108,10 +109,6 @@ function classifyScheduleType(
   if (["RTGS", "ZIG"].includes(normalizedCurrency)) return "RTGS";
   if (normalizedCurrency !== String(baseCurrency).toUpperCase()) return "FX";
   return "NONE";
-}
-
-function getDueDate(baseDate: Date, dayOfMonth: number) {
-  return new Date(baseDate.getFullYear(), baseDate.getMonth() + 1, dayOfMonth);
 }
 
 function ensureVatTransition(current: string, next: string) {
@@ -359,12 +356,16 @@ export async function createOrRefreshVatReturnDraft(input: {
   adjustmentsTax?: number;
   filingCategory?: string | null;
 }) {
-  const computed = await computeVatReturnSnapshot({
+  const snapshot = await computeVatReturnSnapshot({
     companyId: input.companyId,
     periodStart: input.periodStart,
     periodEnd: input.periodEnd,
     adjustmentsTax: input.adjustmentsTax,
   });
+  // Books P3 (fix 8): the totals come from every source, credit and debit notes, the tills,
+  // fees and VAT withheld included, with the tie-out to 2200 and 2210; the per-code rows stay.
+  const books = await vatFigures(input.companyId, input.periodStart, input.periodEnd);
+  const computed = withBooksFigures(snapshot, books, toMoney(input.adjustmentsTax ?? 0));
 
   const existing = await prisma.vatReturn.findUnique({
     where: {
@@ -381,8 +382,9 @@ export async function createOrRefreshVatReturnDraft(input: {
     throw new Error("VAT return is already finalized or filed for this period.");
   }
 
-  const returnDueDate = getDueDate(input.periodEnd, 10);
-  const paymentDueDate = getDueDate(input.periodEnd, 15);
+  // The due dates from the workspace's tax settings (10th and 15th by default, SI 81 of 2025).
+  const returnDueDate = new Date(`${books.returnDue}T00:00:00.000Z`);
+  const paymentDueDate = new Date(`${books.paymentDue}T00:00:00.000Z`);
 
   if (existing) {
     return prisma.$transaction(async (tx) => {
@@ -456,6 +458,44 @@ export async function createOrRefreshVatReturnDraft(input: {
   });
 }
 
+type Snapshot = Awaited<ReturnType<typeof computeVatReturnSnapshot>>;
+
+/** The return's totals and VAT 7 boxes from Books' figures, its schedules carrying them and the tie-out. */
+function withBooksFigures(snapshot: Snapshot, books: VatFigures, adjustmentsTax: number) {
+  const outputTax = toMoney(books.totals.output);
+  const inputTax = toMoney(books.totals.input);
+  const netTax = toMoney(outputTax - inputTax - books.totals.withheldByCustomers + adjustmentsTax);
+  const vat7Boxes = {
+    ...snapshot.vat7Boxes,
+    outputExemptValue: toMoney((snapshot.vat7Boxes.outputExemptValue ?? 0) + books.totals.exemptValue),
+    vatWithheldTax: toMoney(books.totals.withheldByCustomers),
+    totalOutputTax: toMoney(outputTax + adjustmentsTax),
+    totalInputTax: toMoney(inputTax + books.totals.withheldByCustomers),
+    vatPayable: netTax > 0 ? netTax : 0,
+    vatRefundable: netTax < 0 ? Math.abs(netTax) : 0,
+  };
+  return {
+    rows: snapshot.rows,
+    totals: { outputTax, inputTax, adjustmentsTax, netTax },
+    vat7Boxes,
+    schedules: { ...snapshot.schedules, books },
+  };
+}
+
+/** A return that does not tie out to 2200 and 2210 cannot be finalised until the difference is explained (§5.10.3). */
+function tieOutRefusal(current: { schedulesJson: string | null; notes: string | null }, notes: string | null | undefined): string | null {
+  let books: VatFigures | null = null;
+  try {
+    books = current.schedulesJson ? ((JSON.parse(current.schedulesJson) as { books?: VatFigures }).books ?? null) : null;
+  } catch {
+    books = null;
+  }
+  if (!books || books.tieOut.ties) return null;
+  if ((notes ?? current.notes ?? "").trim().length >= 3) return null;
+  const parts = [books.tieOut.output, books.tieOut.input, books.tieOut.withheld].filter((row) => Math.abs(row.difference) >= 0.005);
+  return `The return differs from the ledger by ${parts.map((row) => row.difference.toFixed(2)).join(" and ")}. Explain the difference in the notes before finalising.`;
+}
+
 export async function transitionVatReturnStatus(input: {
   companyId: string;
   vatReturnId: string;
@@ -472,6 +512,10 @@ export async function transitionVatReturnStatus(input: {
   }
   if (!ensureVatTransition(current.status, input.nextStatus)) {
     throw new Error(`Invalid VAT return status transition from ${current.status} to ${input.nextStatus}`);
+  }
+  if (input.nextStatus === "FINALIZED") {
+    const refused = tieOutRefusal(current, input.notes);
+    if (refused) throw new Error(refused);
   }
 
   return prisma.vatReturn.update({

@@ -17,9 +17,11 @@ export function wasFiscalised(receipt: { status: string; receiptGlobalNo: number
   return Boolean(receipt && (receipt.status === "SUCCESS" || receipt.receiptGlobalNo !== null));
 }
 
-/** What the page says about the fiscal side of a reversal, when the invoice was fiscalised. */
-export function fiscalNote(number: string): string {
-  return `The fiscal device still holds ${number} as issued: credit notes and voids are not sent to it yet.`;
+/** What the page says about the fiscal side of a reversal, when the invoice was fiscalised: its credit note went to the device, or waits to. */
+export function fiscalNote(number: string, sent = false): string {
+  return sent
+    ? `The credit note went to the fiscal device, citing ${number}.`
+    : `The credit note has not reached the fiscal device yet: retry it from the fiscal register.`;
 }
 
 /**

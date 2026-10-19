@@ -8,8 +8,8 @@ import { rateFor } from "./rate";
  * What a receipt freezes when it is recorded (D2, books-final §4.5): whose
  * money it is, the currency it came in, the rate on its day and its amount in
  * the base currency. The customer is the invoice's when it pays one, else the
- * one named; the currency is the invoice's, else the money account's, else
- * the base currency. With no rate on the day the rate and base amount stay
+ * one named; the currency is the one it came in when given, else the
+ * invoice's, else the money account's, else the base currency. With no rate on the day the rate and base amount stay
  * empty: a receipt is never refused for want of a rate, and a rate is never
  * invented.
  */
@@ -52,10 +52,12 @@ export async function receiptFacts(
     if (!customer) throw new ReceiptRefused("That customer is not here any more.", 404);
     customerId = customer.id;
   }
-  const bank = !invoice?.currency && !input.currency && input.bankAccountId
+  const bank = !input.currency && !invoice?.currency && input.bankAccountId
     ? await db.bankAccount.findFirst({ where: { id: input.bankAccountId, companyId: input.companyId }, select: { currency: true } })
     : null;
-  const currency = (invoice?.currency ?? input.currency ?? bank?.currency ?? (await resolveBaseCurrency(input.companyId))).trim().toUpperCase();
+  // The currency the money came in: as given (a US dollar payment on a ZiG invoice stays US dollars,
+  // books-final §5.9.3), else the invoice's, else the money account's, else the base currency.
+  const currency = (input.currency ?? invoice?.currency ?? bank?.currency ?? (await resolveBaseCurrency(input.companyId))).trim().toUpperCase();
   try {
     const frozen = await rateFor(input.companyId, currency, input.date);
     return { customerId, currency, exchangeRate: frozen.rate, baseAmount: round2(input.amount / frozen.rate) };

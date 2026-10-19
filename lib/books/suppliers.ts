@@ -1,6 +1,7 @@
 import type { Prisma, PrismaClient } from "@prisma/client";
 import { z } from "zod";
 
+import { ageLedgerLines, type LedgerLine } from "./core/aging-lines";
 import { docLabel } from "./doc-number";
 import { billState } from "./expenses";
 import { addDays, count, dayOf, money, monthStart, shortDay, storedDay } from "./format";
@@ -69,6 +70,23 @@ export function suppliersFinding(owed: { suppliers: number; amount: number }, ov
   return { fact, rest: `${overdue.length} are overdue, ${money(overdue.reduce((sum, row) => sum + row.amount, 0), currency)} in all.` };
 }
 
+/**
+ * The one aging (fix 14, `lib/books/core/aging-lines.ts`): the payables
+ * sub-ledger aged from each line's date, in the base currency at each bill's
+ * (or payment's) frozen rate, as `supplierAging` and Books' reports read it.
+ */
+async function supplierAges(db: Db, companyId: string, lines: LedgerLine[], names: Map<string, string>, asOf: Date, base: string): Promise<AgeRow[]> {
+  const billIds = [...new Set(lines.map((line) => line.billId).filter((id): id is string => Boolean(id)))];
+  const paymentIds = lines.filter((line) => !line.billId && line.sourceType === "PURCHASE_PAYMENT").map((line) => line.sourceId);
+  const [bills, payments] = await Promise.all([
+    billIds.length ? db.purchaseBill.findMany({ where: { companyId, id: { in: billIds } }, select: { id: true, exchangeRate: true } }) : [],
+    paymentIds.length ? db.purchasePayment.findMany({ where: { companyId, id: { in: paymentIds } }, select: { id: true, exchangeRate: true } }) : [],
+  ]);
+  const rates = new Map<string, number | null>([...bills, ...payments].map((row) => [row.id, row.exchangeRate]));
+  const aged = ageLedgerLines("supplier", lines, names, asOf, base, (line) => rates.get(line.billId ?? line.sourceId) ?? null);
+  return aged.rows.map((row) => ({ id: row.partyId, name: row.name, current: row.current, days30: row.days30, days60: row.days60, days90: row.days90, over90: row.over90, total: row.total }));
+}
+
 /** Aging buckets from a supplier's payables lines, aged from each line's date (as `supplierAging` does). */
 export function ageLines(lines: Array<{ partyId: string | null; entryDate: Date; debit: number; credit: number }>, names: Map<string, string>, asOf: Date): AgeRow[] {
   const rows = new Map<string, AgeRow>();
@@ -128,7 +146,10 @@ export async function readSuppliers(db: Db, companyId: string, query: SupplierQu
     owedBySupplier(db, companyId, today, currency),
     paidThisYear(db, companyId, today),
     query.view === "by-age"
-      ? db.paymentLedgerEntry.findMany({ where: { companyId, accountType: "PAYABLE", status: "POSTED", entryDate: { lte: now }, partyId: { not: null } }, select: { partyId: true, entryDate: true, debit: true, credit: true } })
+      ? db.paymentLedgerEntry.findMany({
+          where: { companyId, accountType: "PAYABLE", status: "POSTED", entryDate: { lte: now }, partyId: { not: null } },
+          select: { partyId: true, entryDate: true, debit: true, credit: true, currency: true, sourceType: true, sourceId: true, invoiceId: true, billId: true },
+        })
       : Promise.resolve([]),
     query.view === "write-offs"
       ? db.purchaseWriteOff.findMany({
@@ -148,7 +169,7 @@ export async function readSuppliers(db: Db, companyId: string, query: SupplierQu
   const owing = all.filter((row) => row.owed > 0.005);
   const listed = (query.view === "owed" ? owing : all).sort((a, b) => (query.sort === "name" ? a.name.localeCompare(b.name) : b.owed - a.owed || a.name.localeCompare(b.name)));
   const names = new Map(vendors.map((vendor) => [vendor.id, vendor.name]));
-  const ages = query.view === "by-age" ? ageLines(lines, names, now).filter((row) => names.has(row.id)) : [];
+  const ages = query.view === "by-age" ? (await supplierAges(db, companyId, lines, names, now, base)).filter((row) => names.has(row.id)) : [];
   const skip = (query.page - 1) * pageSize;
   const page = listed.slice(skip, skip + pageSize);
   const of = query.view === "by-age" ? ages.length : query.view === "write-offs" ? writeOffCount : listed.length;

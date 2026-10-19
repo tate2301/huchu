@@ -4,6 +4,8 @@ import { createJournalEntryFromSource, type PostingContext, type PostingResult }
 import { toNumberOrZero, type MoneyLike } from "@/lib/money";
 import { prisma } from "@/lib/prisma";
 
+import { postingFx } from "./currency";
+
 /**
  * `postMoney`: the one way a module puts money on the ledger (books-final
  * §1.1). It writes the integration event as PENDING and posts it now through
@@ -43,8 +45,10 @@ export type MoneyEvent = {
   registerCode?: string | null;
   /** Ledger accounts the rule's EVENT_ACCOUNT lines post to, by key. */
   accounts?: Partial<Record<EventAccountKey, string | null>>;
-  /** The money account it went through, and which way. */
-  money?: { bankAccountId?: string | null; direction: "IN" | "OUT"; reference?: string | null };
+  /** The money account it went through, and which way; `amount` when the cash is not the whole amount (tax withheld from a payment). */
+  money?: { bankAccountId?: string | null; direction: "IN" | "OUT"; reference?: string | null; amount?: MoneyLike };
+  /** Base-only lines by account code: a realised exchange difference (books-final §5.9.3). */
+  adjustments?: Array<{ accountCode: string; debit: number; credit: number; memo: string }>;
   invertDirection?: boolean;
   payload?: Record<string, unknown>;
   payments?: PostingContext["payments"];
@@ -84,8 +88,20 @@ export async function postMoney(db: Db, event: MoneyEvent): Promise<PostMoneyRes
     if (ledger) accounts.moneyAccount = ledger;
   }
 
+  // D3, D4: a document in another currency posts in the base currency at its frozen rate.
+  const fx = await postingFx(db, {
+    companyId: event.companyId,
+    sourceType: event.sourceType,
+    sourceId: event.sourceId,
+    currency: event.currency ?? null,
+    rate: event.rate !== undefined && event.rate !== null ? toNumberOrZero(event.rate) : null,
+    date: event.date,
+  });
+
   const payload: Record<string, unknown> = {
     ...(event.payload ?? {}),
+    ...(fx ? { fx: { currency: fx.currency, rate: fx.rate } } : {}),
+    ...(event.adjustments?.length ? { adjustments: event.adjustments } : {}),
     ...(Object.keys(accounts).length ? { accounts } : {}),
     ...(event.money?.bankAccountId ? { bankAccountId: event.money.bankAccountId, moneyDirection: event.money.direction } : {}),
     ...(event.rate !== undefined && event.rate !== null ? { exchangeRate: toNumberOrZero(event.rate) } : {}),
@@ -111,7 +127,7 @@ export async function postMoney(db: Db, event: MoneyEvent): Promise<PostMoneyRes
       deductionsAmount: event.deductionsAmount,
       allowancesAmount: event.allowancesAmount,
       statutory: event.statutory,
-      currency: event.currency ?? undefined,
+      currency: event.currency ?? fx?.currency ?? undefined,
       costCenterId: event.costCenterId ?? undefined,
       invertDirection: event.invertDirection,
       payload,
@@ -150,7 +166,7 @@ async function recordBankMove(db: Db, event: MoneyEvent): Promise<string | undef
       txnDate: event.date,
       description: event.description,
       reference: event.money.reference ?? undefined,
-      amount: toNumberOrZero(event.amount),
+      amount: toNumberOrZero(event.money.amount ?? event.amount),
       direction: event.money.direction === "IN" ? "CREDIT" : "DEBIT",
       sourceType: event.sourceType,
       sourceId: event.sourceId,

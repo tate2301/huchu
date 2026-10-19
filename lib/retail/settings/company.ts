@@ -1,5 +1,6 @@
 import type { RetailBusinessType } from "@prisma/client";
 
+import { baseCurrencyChangeRefusal } from "@/lib/books/core/currency";
 import { prisma } from "@/lib/prisma";
 import {
   GENERAL_RETAIL,
@@ -130,6 +131,8 @@ export const companySettings: SettingsStore = {
           code: "PRICES_LOCKED",
         });
       }
+      const refusal = await baseCurrencyChangeRefusal(tx, companyId, currencyCode(changes.currency));
+      if (refusal) throw new SettingsRefused(refusal, { status: 409, code: "BASE_CURRENCY_LOCKED" });
       money.baseCurrency = currencyCode(changes.currency);
       await tx.priceList.updateMany({ where: { companyId, isDefault: true }, data: { currency: money.baseCurrency } });
     }

@@ -1,9 +1,9 @@
 import { z } from "zod";
 
 import { recalcSalesInvoiceBalance } from "@/lib/accounting/balances";
-import { createJournalEntryFromSource } from "@/lib/accounting/posting";
 import { findTaxCodesOutsideEffectiveWindow } from "@/lib/accounting/tax-selection";
 import { nextNumber } from "@/lib/books/core/numbering";
+import { postMoney } from "@/lib/books/core/post-money";
 import { prisma } from "@/lib/prisma";
 
 /**
@@ -49,7 +49,7 @@ export class CreditNoteRefused extends Error {
 export async function createSalesCreditNote(actor: { companyId: string; userId: string }, input: CreditNoteInput) {
   const invoice = await prisma.salesInvoice.findUnique({
     where: { id: input.invoiceId },
-    select: { companyId: true, status: true, currency: true },
+    select: { companyId: true, status: true, currency: true, exchangeRate: true, rateSource: true },
   });
   if (!invoice || invoice.companyId !== actor.companyId) throw new CreditNoteRefused("Invalid invoice");
   if (invoice.status === "DRAFT" || invoice.status === "VOIDED") {
@@ -102,6 +102,10 @@ export async function createSalesCreditNote(actor: { companyId: string; userId: 
       taxTotal,
       total,
       reason: input.reason,
+      // D3: a credit note takes its invoice's rate, so the receivable comes off at what it went on at.
+      exchangeRate: invoice.exchangeRate ?? undefined,
+      rateSource: invoice.rateSource ?? undefined,
+      baseTotal: invoice.exchangeRate ? Math.round((total / invoice.exchangeRate) * 100) / 100 : undefined,
       createdById: actor.userId,
       issuedById: input.issueNow ? actor.userId : undefined,
       issuedAt: input.issueNow ? new Date() : undefined,
@@ -116,17 +120,19 @@ export async function createSalesCreditNote(actor: { companyId: string; userId: 
   if (creditNote.status === "ISSUED") {
     await recalcSalesInvoiceBalance(creditNote.invoiceId);
     try {
-      await createJournalEntryFromSource({
+      // Through the core: in the base currency at the invoice's rate (D3, D4).
+      await postMoney(prisma, {
         companyId: actor.companyId,
         sourceType: "SALES_CREDIT_NOTE",
         sourceId: creditNote.id,
-        entryDate: creditNote.noteDate,
+        date: creditNote.noteDate,
         description: `Credit note ${creditNote.noteNumber}`,
-        createdById: actor.userId,
         amount: creditNote.total,
         netAmount: creditNote.subTotal,
         taxAmount: creditNote.taxTotal,
         grossAmount: creditNote.total,
+        currency: creditNote.currency,
+        actor: { userId: actor.userId },
       });
     } catch (error) {
       console.error("[Accounting] Sales credit note auto-post failed:", error);

@@ -1,6 +1,7 @@
 import type { AccountingSourceType, Prisma, PrismaClient } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { toMoney } from "@/lib/accounting/ledger";
+import { receiptAllocation } from "@/lib/books/core/currency";
 
 type LedgerSeed = {
   companyId: string;
@@ -105,12 +106,14 @@ async function buildLedgerSeed(
         where: { id: sourceId },
         include: {
           invoice: {
-            select: { id: true, companyId: true, customerId: true, currency: true, invoiceNumber: true },
+            select: { id: true, companyId: true, customerId: true, currency: true, exchangeRate: true, invoiceNumber: true },
           },
         },
       });
       if (!receipt || receipt.companyId !== companyId) return null;
-      const amount = toMoney(receipt.amount);
+      // On an invoice in another currency, the line is what it takes off the invoice, in the invoice's currency (§5.9.3).
+      const crossCurrency = Boolean(receipt.invoice && receipt.currency && receipt.currency.toUpperCase() !== receipt.invoice.currency.toUpperCase());
+      const amount = crossCurrency ? toMoney(await receiptAllocation(companyId, receipt.invoice!, receipt)) : toMoney(receipt.amount);
       // A receipt taken off a voided or deleted invoice is the customer's money on account: its line keeps the customer.
       const kept = receipt.invoice
         ? null
@@ -129,7 +132,7 @@ async function buildLedgerSeed(
         invoiceId: receipt.invoiceId,
         debit: 0,
         credit: amount,
-        currency: receipt.currency ?? receipt.invoice?.currency ?? "USD",
+        currency: crossCurrency ? receipt.invoice!.currency : (receipt.currency ?? receipt.invoice?.currency ?? "USD"),
         description: `Sales receipt ${receipt.receiptNumber}`,
         journalEntryId,
         status: receipt.voidedAt ? "VOIDED" : "POSTED",

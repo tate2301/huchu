@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { approvalNote, approvedByOwner, decideApproval, decidePayment, moneyLimits, otherOwners, othersWhoCan, recordApproval } from "./approvals";
 import { canDo, tierOf, type BooksActor } from "./can-do";
 import { nextNumber } from "./numbering";
+import { supplierPaymentFacts } from "./payment-posting";
 import { postMoney } from "./post-money";
 import { voidMoney } from "./void-money";
 
@@ -157,9 +158,11 @@ export async function paySupplierPayment(actor: BooksActor, id: string, at = new
     { othersWhoCanPay: await othersWhoCan(prisma, actor.companyId, { except: [actor.userId] }) },
   );
   if (!decision.allowed) throw new SupplierPaymentRefused(decision.reason, 403);
+  // Tax withheld and the rate frozen as it is paid (D3, D17).
+  const facts = await supplierPaymentFacts(actor.companyId, { id, vendorId: payment.vendorId, billId: payment.billId, bankAccountId: payment.bankAccountId, amount: payment.amount, paidAt: at });
   const paid = await prisma.$transaction(async (tx) => {
     const paymentNumber = await nextNumber(tx, actor.companyId, "payment");
-    const moved = await tx.purchasePayment.updateMany({ where: { id, status: "APPROVED" }, data: { status: "PAID", paymentNumber, paidById: actor.userId, paidAt: at } });
+    const moved = await tx.purchasePayment.updateMany({ where: { id, status: "APPROVED" }, data: { status: "PAID", paymentNumber, paidById: actor.userId, paidAt: at, ...facts.data } });
     if (moved.count === 0) throw new SupplierPaymentRefused(`${name(payment)} has changed. Open it again.`);
     const note = approvalNote(decision);
     if (note) await recordApproval(tx, { companyId: actor.companyId, kind: "payment", entityId: id, action: "ADJUST", from: "APPROVED", to: "PAID", actedById: actor.userId, note });
@@ -171,8 +174,8 @@ export async function paySupplierPayment(actor: BooksActor, id: string, at = new
       date: row.paidAt,
       description: `Purchase payment ${paymentNumber}`,
       amount: row.amount,
-      currency: payment.bill?.currency ?? null,
-      money: row.bankAccountId ? { bankAccountId: row.bankAccountId, direction: "OUT", reference: row.reference ?? paymentNumber } : undefined,
+      ...facts.posting,
+      money: row.bankAccountId ? { bankAccountId: row.bankAccountId, direction: "OUT", reference: row.reference ?? paymentNumber, amount: facts.cash } : undefined,
       actor: { userId: actor.userId, role: actor.role ?? null },
     });
     if (posting.error) console.error(`[Books] Supplier payment ${paymentNumber} waits to post: ${posting.error}`);

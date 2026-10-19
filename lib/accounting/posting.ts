@@ -19,6 +19,7 @@ import { syncPaymentLedgerEntryForSource } from "@/lib/accounting/payment-ledger
 import { buildRetailPostingPayload } from "@/lib/accounting/retail-posting";
 import { isRetailSource, retailPostingDeferredUntil } from "@/lib/retail/posting-schedule";
 import { toNumber, toNumberOrZero, type MoneyLike } from "@/lib/money";
+import { adjustmentLines, convertLines, readFx, type Adjustment } from "@/lib/accounting/fx-lines";
 
 const BALANCE_TOLERANCE = 0.01;
 const BASE_RETRY_DELAY_MINUTES = 5;
@@ -508,6 +509,40 @@ async function resolveMoneyLineOverride(context: PostingContext, envelope: Recor
   return { account, moneyLedgers };
 }
 
+/**
+ * A document whose rate was missing when it was captured: the rate on its day
+ * as the drain finds it, once somebody has entered one.
+ */
+async function rateOnTheDay(companyId: string, raw: unknown, day: Date): Promise<{ currency: string; rate: number } | null> {
+  const currency = raw && typeof raw === "object" ? (raw as { currency?: unknown }).currency : null;
+  if (typeof currency !== "string" || !currency) return null;
+  const settings = await prisma.accountingSettings.findUnique({ where: { companyId }, select: { baseCurrency: true } });
+  const row = await prisma.currencyRate.findFirst({
+    where: { companyId, baseCurrency: settings?.baseCurrency ?? "USD", quoteCurrency: currency.toUpperCase(), effectiveDate: { lte: day }, rate: { gt: 0 } },
+    orderBy: [{ effectiveDate: "desc" }, { createdAt: "desc" }],
+    select: { rate: true },
+  });
+  return row ? { currency: currency.toUpperCase(), rate: row.rate } : null;
+}
+
+/**
+ * Base-only lines an event carries (`payload.adjustments`, by account code):
+ * a realised exchange difference on a receipt or payment. A code the chart
+ * does not have fails the event with its reason.
+ */
+async function resolveAdjustments(companyId: string, raw: unknown): Promise<{ lines: Adjustment[] } | { error: string }> {
+  if (!Array.isArray(raw) || raw.length === 0) return { lines: [] };
+  const wanted = raw.filter((item): item is { accountCode: string; debit?: number; credit?: number; memo?: string } => Boolean(item) && typeof item === "object" && typeof (item as { accountCode?: unknown }).accountCode === "string");
+  const codes = [...new Set(wanted.map((item) => item.accountCode))];
+  const accounts = await prisma.chartOfAccount.findMany({ where: { companyId, code: { in: codes }, nodeType: "LEDGER", isActive: true }, select: { id: true, code: true } });
+  const byCode = new Map(accounts.map((account) => [account.code, account.id]));
+  const missing = codes.filter((code) => !byCode.has(code));
+  if (missing.length) return { error: `No ledger account ${missing.join(", ")} to post the exchange difference to` };
+  return {
+    lines: wanted.map((item) => ({ accountId: byCode.get(item.accountCode)!, debit: Number(item.debit ?? 0), credit: Number(item.credit ?? 0), memo: item.memo ?? "Exchange difference" })),
+  };
+}
+
 export const ROLE_WORDS: Record<RetailAccountRole, string> = {
   SALES: "sales",
   VAT_OUTPUT: "VAT",
@@ -832,6 +867,26 @@ export async function createJournalEntryFromSource(
       return { error, code: "UNBALANCED_POSTING" };
     }
 
+    // D3, D4: a document in another currency posts in the base currency at its
+    // frozen rate (`payload.fx`, set by the core), each line keeping its own;
+    // base-only adjustments (a realised exchange difference) are added after.
+    const carried = (context.payload ?? {}) as Record<string, unknown>;
+    const fx = readFx(carried) ?? (carried.fx ? await rateOnTheDay(context.companyId, carried.fx, context.entryDate) : null);
+    if (carried.fx && !fx) {
+      const error = `No exchange rate for ${String((carried.fx as Record<string, unknown>).currency ?? "this currency")} on ${context.entryDate.toISOString().slice(0, 10)}: add one in Rates`;
+      await markIntegrationEventFailure(integrationEvent.id, integrationEvent.attemptCount, error);
+      return { error, code: "EXCHANGE_RATE_MISSING" };
+    }
+    const adjustments = await resolveAdjustments(context.companyId, carried.adjustments);
+    if ("error" in adjustments) {
+      await markIntegrationEventFailure(integrationEvent.id, integrationEvent.attemptCount, adjustments.error);
+      return { error: adjustments.error, code: "POSTING_RULE_INVALID_ACCOUNTS" };
+    }
+    const entryLines = [
+      ...convertLines(simulation.lines.map((line) => ({ accountId: line.accountId, debit: line.debit, credit: line.credit, memo: line.memo, costCenterId: line.costCenterId })), fx),
+      ...adjustmentLines(adjustments.lines, context.invertDirection === true),
+    ];
+
     const postingPeriod = await resolvePostingPeriod({
       companyId: context.companyId,
       entryDate: context.entryDate,
@@ -872,12 +927,15 @@ export async function createJournalEntryFromSource(
           periodOverrideById: postingPeriod.requiresOverride ? context.createdById : undefined,
           periodOverrideAt: postingPeriod.requiresOverride ? new Date() : undefined,
           lines: {
-            create: simulation.lines.map((line) => ({
+            create: entryLines.map((line) => ({
               accountId: line.accountId,
               debit: line.debit,
               credit: line.credit,
               memo: line.memo,
               costCenterId: line.costCenterId ?? undefined,
+              currency: line.currency ?? undefined,
+              amountInCurrency: line.amountInCurrency ?? undefined,
+              exchangeRate: line.exchangeRate ?? undefined,
             })),
           },
         },

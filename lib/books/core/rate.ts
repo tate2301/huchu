@@ -17,12 +17,18 @@ export type FrozenRate = {
   effectiveDate: Date | null;
 };
 
-export async function rateFor(companyId: string, currency: string | null | undefined, date: Date = new Date()): Promise<FrozenRate> {
+export async function rateFor(
+  companyId: string,
+  currency: string | null | undefined,
+  date: Date = new Date(),
+  /** As the rates stood then: a rate typed in later for the same day does not move a frozen allocation. */
+  knownAt?: Date,
+): Promise<FrozenRate> {
   const baseCurrency = await resolveBaseCurrency(companyId);
   const code = (currency ?? "").trim().toUpperCase() || baseCurrency;
   if (code === baseCurrency) return { baseCurrency, currency: code, rate: 1, source: "BASE", effectiveDate: null };
   const row = await prisma.currencyRate.findFirst({
-    where: { companyId, baseCurrency, quoteCurrency: code, effectiveDate: { lte: date } },
+    where: { companyId, baseCurrency, quoteCurrency: code, effectiveDate: { lte: date }, ...(knownAt ? { createdAt: { lte: knownAt } } : {}) },
     orderBy: [{ effectiveDate: "desc" }, { createdAt: "desc" }],
     select: { rate: true, source: true, effectiveDate: true },
   });

@@ -27,3 +27,34 @@ export {
 } from "./can-do";
 export { HELD_UNTIL, holdFor, isHeld } from "./holds";
 export { guardBooks } from "./guard";
+// P3: bank, currency and tax.
+export {
+  BankRefused,
+  closeReconciliation,
+  excludeLine,
+  imttOn,
+  includeLine,
+  isImttLine,
+  matchLine,
+  reconciledTo,
+  reconciliationSummary,
+  recordBankEntry,
+  reopenReconciliation,
+  startReconciliation,
+  unmatchLine,
+  voidBankEntry,
+  voidReconciliation,
+  type BankEntryInput,
+  type BankEntryKind,
+  type ReconciliationSummary,
+} from "./bank";
+export { baseCurrencyChangeRefusal, documentRate, freezeRate, frozenFields, realisedAdjustments, receiptAllocation, settle, type Frozen, type Settlement } from "./currency";
+export { revalueMonth, revaluationPlan, RevaluationRefused, type RevaluationPlan } from "./revaluation";
+export { DEFAULT_TAX_SETTINGS, resolveTaxSettings, saveTaxSettings, taxSettings, TO_CONFIRM, type ResolvedTaxSettings, type TaxSettings } from "./tax-settings";
+export { provisionalInstalments, provisionalTax, whatsDue, type DueItem, type DueKind } from "./tax-calendar";
+export { vatDueDates, vatFigures, vatPeriodFor, type VatFigures, type VatSourceRow } from "./vat-figures";
+export { issueWithholdingCertificate, itf263Valid, quoteWithholding, suppliersWithoutItf263, withholdingFor, WithholdingRefused, withholdingReturn, type WithholdingQuote, type WithholdingReturn } from "./withholding";
+export { recordVatWithheldByCustomer } from "./vat-withheld";
+export { supplierPaymentFacts } from "./payment-posting";
+export { partyAging, partyStatement, type PartyAging, type PartyStatement } from "./statement-aging";
+export { fiscalRegister, type FiscalRegister } from "./fiscal-register";

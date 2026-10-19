@@ -66,8 +66,8 @@ export function InvoiceDeleteDialog({
 }
 
 export type InvoiceReversed =
-  | { how: "void"; number: string; customer: string; unlinked: Array<{ id: string; number: string; amount: number }>; fiscalised: boolean }
-  | { how: "credit"; number: string; note: string; total: number; currency: string; fiscalised: boolean };
+  | { how: "void"; number: string; customer: string; unlinked: Array<{ id: string; number: string; amount: number }>; fiscalised: boolean; fiscalSent?: boolean }
+  | { how: "credit"; number: string; note: string; total: number; currency: string; fiscalised: boolean; fiscalSent?: boolean };
 
 type How = "void" | "credit";
 type CreditBy = "lines" | "amount";

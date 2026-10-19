@@ -7194,6 +7194,8 @@ enum AccountingSourceType {
   /// D19: commission approved (Dr commission expense, Cr 2195) and paid.
   CRM_COMMISSION
   CRM_COMMISSION_PAYMENT
+  /// P3 (books-final §5.9): foreign-currency balances revalued at the month-end rate, posted on the last day and reversed on the 1st.
+  FX_REVALUATION
 }
 
 enum PostingRuleScopeType {
@@ -7374,6 +7376,8 @@ model AccountingSettings {
   defaultBankAccountId      String?
   freezeBeforeDate          DateTime?
   retainedEarningsAccountId String?
+  /// P3: ZIMRA's dates, rates and thresholds as settings, each FLAGged one marked to confirm until somebody does (lib/books/core/tax-settings.ts).
+  taxSettings               Json?
   createdAt                 DateTime                   @default(now())
   updatedAt                 DateTime                   @updatedAt
 
@@ -7532,6 +7536,10 @@ model JournalLine {
   credit       Float    @default(0)
   memo         String?
   costCenterId String?
+  /// D4: the line in its document's currency, beside the base debit or credit; null for a line in the base currency.
+  currency         String?
+  amountInCurrency Float?
+  exchangeRate     Float?
   createdAt    DateTime @default(now())
 
   entry      JournalEntry   @relation(fields: [entryId], references: [id], onDelete: Cascade)
@@ -7762,6 +7770,8 @@ model Customer {
   address       String?
   taxNumber     String?
   vatNumber     String?
+  /// D17: an appointed VAT withholding agent pays us less a third of the VAT, with a certificate.
+  isVatWithholdingAgent Boolean  @default(false)
   isActive      Boolean  @default(true)
   /// CUS-01: "CUS-00141", company-wide (`RETAIL_CUSTOMER`); the card number follows it.
   code             String?
@@ -7943,6 +7953,10 @@ model Vendor {
   address       String?
   taxNumber     String?
   vatNumber     String?
+  /// D17: the supplier's tax clearance (ITF263) and whether they are an appointed VAT withholding agent.
+  itf263Number          String?
+  itf263ExpiresAt       DateTime?
+  isVatWithholdingAgent Boolean  @default(false)
   isActive      Boolean  @default(true)
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
@@ -8025,6 +8039,10 @@ model SalesInvoice {
   dueDate       DateTime?
   status        InvoiceStatus        @default(DRAFT)
   currency      String               @default("USD")
+  /// D3 (books-final §7): the rate frozen when it was written, its source (BASE, MANUAL or RBZ), and its total in the base currency.
+  exchangeRate  Float?
+  rateSource    String?
+  baseTotal     Float?
   subTotal      Float                @default(0)
   taxTotal      Float                @default(0)
   total         Float                @default(0)
@@ -8097,6 +8115,10 @@ model SalesQuotation {
   validUntil      DateTime?
   status          QuotationStatus @default(DRAFT)
   currency        String          @default("USD")
+  /// D3 (books-final §7): the rate frozen when it was written, its source (BASE, MANUAL or RBZ), and its total in the base currency.
+  exchangeRate  Float?
+  rateSource    String?
+  baseTotal     Float?
   subTotal        Float           @default(0)
   taxTotal        Float           @default(0)
   total           Float           @default(0)
@@ -8196,6 +8218,10 @@ model CreditNote {
   noteDate    DateTime
   status      NoteStatus @default(DRAFT)
   currency    String     @default("USD")
+  /// D3 (books-final §7): the rate frozen when it was written, its source (BASE, MANUAL or RBZ), and its total in the base currency.
+  exchangeRate  Float?
+  rateSource    String?
+  baseTotal     Float?
   subTotal    Float      @default(0)
   taxTotal    Float      @default(0)
   total       Float      @default(0)
@@ -8265,6 +8291,10 @@ model PurchaseBill {
   dueDate        DateTime?
   status         BillStatus @default(DRAFT)
   currency       String     @default("USD")
+  /// D3 (books-final §7): the rate frozen when it was written, its source (BASE, MANUAL or RBZ), and its total in the base currency.
+  exchangeRate  Float?
+  rateSource    String?
+  baseTotal     Float?
   subTotal       Float      @default(0)
   taxTotal       Float      @default(0)
   total          Float      @default(0)
@@ -8347,6 +8377,15 @@ model PurchasePayment {
   /// When it is to be paid (a draft), or was paid.
   paidAt        DateTime
   amount        Float
+  /// D3 (books-final §7): the rate frozen when it was written, its source (BASE, MANUAL or RBZ), and its total in the base currency.
+  exchangeRate  Float?
+  rateSource    String?
+  baseTotal     Float?
+  /// D17: tax withheld from the supplier out of `amount` (30% without a valid ITF263, or a third of the VAT where we are a withholding agent). Cash paid is amount less this.
+  withholdingAmount Float   @default(0)
+  /// INCOME_30 (no valid ITF263), VAT_THIRD, or BOTH.
+  withholdingType   String?
+  certificateNo     String?
   method        String
   reference     String?
   bankAccountId String?
@@ -8380,6 +8419,10 @@ model DebitNote {
   noteDate    DateTime
   status      NoteStatus @default(DRAFT)
   currency    String     @default("USD")
+  /// D3 (books-final §7): the rate frozen when it was written, its source (BASE, MANUAL or RBZ), and its total in the base currency.
+  exchangeRate  Float?
+  rateSource    String?
+  baseTotal     Float?
   subTotal    Float      @default(0)
   taxTotal    Float      @default(0)
   total       Float      @default(0)
@@ -8580,6 +8623,8 @@ model BankReconciliation {
   startDate        DateTime
   endDate          DateTime
   statementBalance Float                @default(0)
+  /// D15: the statement's closing date; statementBalance is its closing balance.
+  statementEndDate DateTime?
   status           ReconciliationStatus @default(OPEN)
   createdById      String?
   closedById       String?
@@ -8606,6 +8651,10 @@ model BankStatementLine {
   amount               Float
   direction            PostingDirection
   matchedTransactionId String?
+  /// D15: a line left out of matching on purpose, by whom and why.
+  excludedAt           DateTime?
+  excludedById         String?
+  excludeReason        String?
   createdAt            DateTime         @default(now())
 
   reconciliation     BankReconciliation @relation(fields: [reconciliationId], references: [id], onDelete: Cascade)
@@ -16196,6 +16245,10 @@ model CrmRequisition {
 
   amount   Decimal @db.Decimal(14, 2)
   currency String  @default("USD")
+  /// D3 (books-final §7): the rate frozen when it was written, its source (BASE, MANUAL or RBZ), and its total in the base currency.
+  exchangeRate  Float?
+  rateSource    String?
+  baseTotal     Decimal? @db.Decimal(14, 2)
 
   requestedById String
   neededBy      DateTime?
@@ -16315,6 +16368,10 @@ model CrmDailyCostEntry {
   category  CrmRequisitionCategory
   amount    Decimal          @db.Decimal(14, 2)
   currency  String           @default("USD")
+  /// D3 (books-final §7): the rate frozen when it was written, its source (BASE, MANUAL or RBZ), and its total in the base currency.
+  exchangeRate  Float?
+  rateSource    String?
+  baseTotal     Decimal? @db.Decimal(14, 2)
   description String
 
   /// Same nullability, same reason, as on a requisition: airtime belongs to
@@ -17183,6 +17240,10 @@ model ExpenseClaim {
   status         ExpenseClaimStatus @default(DRAFT)
   claimantId     String
   currency       String             @default("USD")
+  /// D3 (books-final §7): the rate frozen when it was written, its source (BASE, MANUAL or RBZ), and its total in the base currency.
+  exchangeRate  Float?
+  rateSource    String?
+  baseTotal     Decimal? @db.Decimal(14, 2)
   total          Decimal            @default(0) @db.Decimal(14, 2)
   notes          String?
   /// The cost-tracker day it came from, when it came from one.

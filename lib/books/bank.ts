@@ -2,6 +2,7 @@ import type { PrismaClient } from "@prisma/client";
 import { docLabel } from "@/lib/books/doc-number";
 
 import { recordBankTransaction, recordPurchasePayment, recordSalesReceipt } from "@/lib/accounting/payments";
+import { BankRefused, isImttLine, recordBankEntry } from "@/lib/books/core/bank";
 
 import { addDays, dayOf, money, shortDay, sinceWhen, storedDay, weekdayDay } from "./format";
 import { invoiceBalance } from "./invoice-state";
@@ -212,7 +213,12 @@ export async function readBank(db: Db, companyId: string, { accountId, tab }: { 
   const where = { reconciliation: { companyId, bankAccountId: account.id } };
   const [all, matchedCount] = await Promise.all([
     db.bankStatementLine.findMany({
-      where: tab === "matched" ? { ...where, matchedTransactionId: { not: null } } : tab === "to-match" ? { ...where, matchedTransactionId: null } : where,
+      where:
+        tab === "matched"
+          ? { ...where, OR: [{ matchedTransactionId: { not: null } }, { excludedAt: { not: null } }] }
+          : tab === "to-match"
+            ? { ...where, matchedTransactionId: null, excludedAt: null }
+            : where,
       select: {
         id: true,
         txnDate: true,
@@ -220,14 +226,17 @@ export async function readBank(db: Db, companyId: string, { accountId, tab }: { 
         reference: true,
         amount: true,
         direction: true,
+        excludeReason: true,
+        excludedAt: true,
         matchedTransaction: { select: { description: true } },
       },
       orderBy: [{ txnDate: tab === "to-match" ? "asc" : "desc" }, { createdAt: "asc" }],
       take: 500,
     }),
-    db.bankStatementLine.count({ where: { ...where, matchedTransactionId: { not: null } } }),
+    // An excluded line (D15) is done with, as a matched one is.
+    db.bankStatementLine.count({ where: { ...where, OR: [{ matchedTransactionId: { not: null } }, { excludedAt: { not: null } }] } }),
   ]);
-  const unmatchedLines = tab === "matched" ? [] : all.filter((line) => !line.matchedTransaction);
+  const unmatchedLines = tab === "matched" ? [] : all.filter((line) => !line.matchedTransaction && !line.excludedAt);
   const inputs: StatementLineInput[] = unmatchedLines.map((line) => ({
     id: line.id,
     date: storedDay(line.txnDate),
@@ -239,7 +248,7 @@ export async function readBank(db: Db, companyId: string, { accountId, tab }: { 
   const candidates = await candidatesFor(db, companyId, account, inputs);
   const results = new Map(inputs.map((input) => [input.id, proposeMatch(input, candidates)]));
 
-  const toMatchCount = tab === "matched" ? await db.bankStatementLine.count({ where: { ...where, matchedTransactionId: null } }) : unmatchedLines.length;
+  const toMatchCount = tab === "matched" ? await db.bankStatementLine.count({ where: { ...where, matchedTransactionId: null, excludedAt: null } }) : unmatchedLines.length;
   const lines: BankLineView[] = all.map((line) => {
     const moneyIn = line.direction === "CREDIT";
     const base = {
@@ -251,6 +260,9 @@ export async function readBank(db: Db, companyId: string, { accountId, tab }: { 
     };
     if (line.matchedTransaction) {
       return { ...base, state: "matched", proposal: null, reason: null, suggestion: null, matchedTo: line.matchedTransaction.description };
+    }
+    if (line.excludedAt) {
+      return { ...base, state: "matched", proposal: null, reason: null, suggestion: null, matchedTo: `Excluded: ${line.excludeReason ?? "no reason given"}` };
     }
     const result = results.get(line.id)!;
     if (isProposal(result)) {
@@ -443,6 +455,7 @@ export async function choicesFor(db: Db, companyId: string, lineId: string): Pro
   }
   if (line.direction === "DEBIT") {
     choices.push({ match: { kind: "bank-charges", amount: line.amount }, title: "Bank charges", detail: `${account.bank}'s own charge` });
+    choices.push({ match: { kind: "bank-charges", amount: line.amount, imtt: true }, title: "IMTT", detail: "The transfer tax the bank took" });
   }
   return choices;
 }
@@ -548,19 +561,17 @@ export async function acceptMatch(
     transactionId = txn.id;
   } else {
     if (moneyIn) throw new BankError("Bank charges are money out.");
-    const txn = await recordBankTransaction({
-      companyId,
-      userId,
-      role,
-      bankAccountId,
-      txnDate,
-      description: `Bank charges, ${line.description}`,
-      reference,
-      amount: line.amount,
-      direction: "DEBIT",
-      reconciliationId: line.reconciliationId,
+    // A bank entry through the core (§4.13): IMTT to its own account (§5.8.3), any other charge to bank charges.
+    const imtt = match.imtt === true || isImttLine(`${line.description} ${line.reference ?? ""}`);
+    const entry = await recordBankEntry(
+      { companyId, userId, role },
+      { kind: imtt ? "IMTT" : "CHARGE", bankAccountId, date: txnDate, amount: line.amount, description: `${imtt ? "IMTT" : "Bank charges"}, ${line.description}`, reference, statementLineId: line.id },
+    ).catch((error: unknown) => {
+      if (error instanceof BankRefused) throw new BankError(error.message, error.status);
+      throw error;
     });
-    transactionId = txn.id;
+    if (!entry.bankTransactionId) throw new BankError("The charge could not be recorded.");
+    transactionId = entry.bankTransactionId;
   }
 
   await db.bankStatementLine.update({ where: { id: line.id }, data: { matchedTransactionId: transactionId } });

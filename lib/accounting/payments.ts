@@ -2,7 +2,9 @@ import type { AccountingSourceType } from "@prisma/client";
 
 import { recalcPurchaseBillBalance, recalcSalesInvoiceBalance } from "@/lib/accounting/balances";
 import { createJournalEntryFromSource } from "@/lib/accounting/posting";
+import { freezeRate, realisedAdjustments, settle } from "@/lib/books/core/currency";
 import { nextNumber } from "@/lib/books/core/numbering";
+import { supplierPaymentFacts } from "@/lib/books/core/payment-posting";
 import { postMoney } from "@/lib/books/core/post-money";
 import { ReceiptRefused, receiptFacts } from "@/lib/books/core/receipt-facts";
 import { onAccountingReceiptCreated } from "@/lib/crm/accounting-hooks";
@@ -31,7 +33,21 @@ export type SalesReceiptInput = {
   method: string;
   reference?: string | null;
   bankAccountId?: string | null;
+  /** Not money at all but a ledger account it lands on: VAT a withholding-agent customer kept back lands on 1170 (D17). */
+  ledgerAccountId?: string | null;
 };
+
+/** The realised exchange difference of a receipt on its invoice (books-final §5.9.3), as base-only lines. */
+async function receiptDifference(input: SalesReceiptInput, facts: { currency: string; exchangeRate: number | null }) {
+  if (!input.invoiceId || !facts.exchangeRate) return undefined;
+  const invoice = await prisma.salesInvoice.findFirst({ where: { id: input.invoiceId, companyId: input.companyId }, select: { currency: true, exchangeRate: true } });
+  if (!invoice?.exchangeRate) return undefined;
+  const cross = invoice.currency.toUpperCase() === facts.currency ? null : (await freezeRate(input.companyId, invoice.currency, input.receivedAt, 1)).exchangeRate;
+  if (invoice.currency.toUpperCase() !== facts.currency && !cross) return undefined;
+  const settled = settle({ direction: "IN", docCurrency: invoice.currency, docRate: invoice.exchangeRate, payCurrency: facts.currency, payAmount: input.amount, payRate: facts.exchangeRate, crossRate: cross });
+  const lines = realisedAdjustments("IN", settled.gain);
+  return lines.length ? lines : undefined;
+}
 
 /**
  * Records money received: numbered from the receipt series, its customer,
@@ -53,6 +69,9 @@ export async function recordSalesReceipt(input: SalesReceiptInput) {
     const bank = await prisma.bankAccount.findFirst({ where: { id: input.bankAccountId, companyId: input.companyId }, select: { id: true } });
     if (!bank) throw new ReceiptRefused("That money account is not here any more.", 404);
   }
+
+  // Settling an invoice at another rate than it was issued at (or in another currency): the realised difference.
+  const adjustments = await receiptDifference(input, facts);
 
   const { receipt, bankTransactionId } = await prisma.$transaction(async (tx) => {
     const receiptNumber = await nextNumber(tx, input.companyId, "receipt");
@@ -83,6 +102,8 @@ export async function recordSalesReceipt(input: SalesReceiptInput) {
       amount: receipt.amount,
       currency: facts.currency,
       rate: facts.exchangeRate ?? undefined,
+      adjustments,
+      accounts: input.ledgerAccountId ? { moneyAccount: input.ledgerAccountId } : undefined,
       money: input.bankAccountId ? { bankAccountId: input.bankAccountId, direction: "IN", reference: input.reference ?? receipt.receiptNumber } : undefined,
       actor: { userId: input.userId, role: input.role ?? null },
     });
@@ -126,6 +147,8 @@ export async function recordPurchasePayment(input: PurchasePaymentInput) {
   const bill = input.billId
     ? await prisma.purchaseBill.findFirst({ where: { id: input.billId, companyId: input.companyId }, select: { vendorId: true, currency: true } })
     : null;
+  // Tax withheld and the rate frozen as it is paid (D3, D17).
+  const facts = await supplierPaymentFacts(input.companyId, { vendorId: bill?.vendorId ?? null, billId: input.billId ?? null, bankAccountId: input.bankAccountId ?? null, amount: input.amount, paidAt: input.paidAt });
 
   const { payment, bankTransactionId } = await prisma.$transaction(async (tx) => {
     const paymentNumber = await nextNumber(tx, input.companyId, "payment");
@@ -141,6 +164,7 @@ export async function recordPurchasePayment(input: PurchasePaymentInput) {
         reference: input.reference ?? undefined,
         bankAccountId: input.bankAccountId ?? undefined,
         createdById: input.userId,
+        ...facts.data,
       },
       include: { bill: true },
     });
@@ -151,8 +175,8 @@ export async function recordPurchasePayment(input: PurchasePaymentInput) {
       date: payment.paidAt,
       description: `Purchase payment ${payment.paymentNumber}`,
       amount: payment.amount,
-      currency: bill?.currency ?? null,
-      money: input.bankAccountId ? { bankAccountId: input.bankAccountId, direction: "OUT", reference: input.reference ?? payment.paymentNumber } : undefined,
+      ...facts.posting,
+      money: input.bankAccountId ? { bankAccountId: input.bankAccountId, direction: "OUT", reference: input.reference ?? payment.paymentNumber, amount: facts.cash } : undefined,
       actor: { userId: input.userId, role: input.role ?? null },
     });
     if (posting.error) console.error(`[Accounting] Purchase payment ${payment.paymentNumber} waits to post: ${posting.error}`);

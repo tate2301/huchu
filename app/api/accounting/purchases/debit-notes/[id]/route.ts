@@ -4,7 +4,7 @@ import { validateSession, successResponse, errorResponse } from "@/lib/api-utils
 import { guardBooks } from "@/lib/books/core";
 import { prisma } from "@/lib/prisma";
 import { numberAtIssue } from "@/lib/books/core/numbering";
-import { createJournalEntryFromSource } from "@/lib/accounting/posting";
+import { postMoney } from "@/lib/books/core/post-money";
 import { recalcPurchaseBillBalance } from "@/lib/accounting/balances";
 
 const updateSchema = z.object({
@@ -70,17 +70,19 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     if (validated.status && validated.status !== existing.status) {
       if (validated.status === "ISSUED") {
         try {
-          await createJournalEntryFromSource({
+          // Through the core: in the base currency at its bill's rate (D3, D4).
+          await postMoney(prisma, {
             companyId: session.user.companyId,
             sourceType: "PURCHASE_DEBIT_NOTE",
             sourceId: updated.id,
-            entryDate: updated.noteDate,
+            date: updated.noteDate,
             description: `Debit note ${updated.noteNumber}`,
-            createdById: session.user.id,
             amount: updated.total,
             netAmount: updated.subTotal,
             taxAmount: updated.taxTotal,
             grossAmount: updated.total,
+            currency: updated.currency,
+            actor: { userId: session.user.id, role: session.user.role },
           });
         } catch (error) {
           console.error("[Accounting] Purchase debit note auto-post failed:", error);
@@ -98,18 +100,20 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
             select: { id: true },
           });
           if (postedEntry) {
-            await createJournalEntryFromSource({
+            // Reversed at its bill's rate, through the core (D3, D4).
+            await postMoney(prisma, {
               companyId: session.user.companyId,
               sourceType: "PURCHASE_DEBIT_NOTE",
               sourceId: `void:${updated.id}`,
-              entryDate: new Date(),
+              date: new Date(),
               description: `Void debit note ${updated.noteNumber}`,
-              createdById: session.user.id,
               amount: updated.total,
               netAmount: updated.subTotal,
               taxAmount: updated.taxTotal,
               grossAmount: updated.total,
+              currency: updated.currency,
               invertDirection: true,
+              actor: { userId: session.user.id, role: session.user.role },
             });
           }
         } catch (error) {

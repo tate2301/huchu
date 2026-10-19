@@ -9,7 +9,7 @@ import {
 } from "@/lib/api-utils";
 import { prisma } from "@/lib/prisma";
 import { nextNumber } from "@/lib/books/core/numbering";
-import { createJournalEntryFromSource } from "@/lib/accounting/posting";
+import { postMoney } from "@/lib/books/core/post-money";
 import { recalcPurchaseBillBalance } from "@/lib/accounting/balances";
 import { findTaxCodesOutsideEffectiveWindow } from "@/lib/accounting/tax-selection";
 import { guardBooks } from "@/lib/books/core";
@@ -82,7 +82,7 @@ export async function POST(request: NextRequest) {
 
     const bill = await prisma.purchaseBill.findUnique({
       where: { id: validated.billId },
-      select: { companyId: true, status: true, currency: true },
+      select: { companyId: true, status: true, currency: true, exchangeRate: true, rateSource: true },
     });
     if (!bill || bill.companyId !== session.user.companyId) {
       return errorResponse("Invalid purchase bill", 400);
@@ -145,6 +145,10 @@ export async function POST(request: NextRequest) {
         taxTotal,
         total,
         reason: validated.reason,
+        // D3: a debit note takes its bill's rate.
+        exchangeRate: bill.exchangeRate ?? undefined,
+        rateSource: bill.rateSource ?? undefined,
+        baseTotal: bill.exchangeRate ? Math.round((total / bill.exchangeRate) * 100) / 100 : undefined,
         createdById: session.user.id,
         issuedById: validated.issueNow ? session.user.id : undefined,
         issuedAt: validated.issueNow ? new Date() : undefined,
@@ -159,17 +163,19 @@ export async function POST(request: NextRequest) {
     if (debitNote.status === "ISSUED") {
       await recalcPurchaseBillBalance(debitNote.billId);
       try {
-        await createJournalEntryFromSource({
+        // Through the core: in the base currency at its bill's rate (D3, D4).
+        await postMoney(prisma, {
           companyId: session.user.companyId,
           sourceType: "PURCHASE_DEBIT_NOTE",
           sourceId: debitNote.id,
-          entryDate: debitNote.noteDate,
+          date: debitNote.noteDate,
           description: `Debit note ${debitNote.noteNumber}`,
-          createdById: session.user.id,
           amount: debitNote.total,
           netAmount: debitNote.subTotal,
           taxAmount: debitNote.taxTotal,
           grossAmount: debitNote.total,
+          currency: debitNote.currency,
+          actor: { userId: session.user.id, role: session.user.role },
         });
       } catch (error) {
         console.error("[Accounting] Purchase debit note auto-post failed:", error);

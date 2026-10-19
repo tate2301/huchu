@@ -77,7 +77,7 @@ export default function BooksInvoicePage() {
   const refresh = () => Promise.all([queryClient.invalidateQueries({ queryKey: ["books", "invoice", id] }), queryClient.invalidateQueries({ queryKey: ["books", "invoices"] })]);
 
   const reversed = async (done: InvoiceReversed) => {
-    const fiscal = done.fiscalised ? ` ${fiscalNote(done.number)}` : "";
+    const fiscal = done.fiscalised ? ` ${fiscalNote(done.number, done.fiscalSent === true)}` : "";
     if (done.how === "void") {
       const paid = done.unlinked.reduce((sum, receipt) => sum + receipt.amount, 0);
       toast({

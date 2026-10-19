@@ -16,6 +16,7 @@
 
 import { Prisma } from "@prisma/client";
 import { z } from "zod";
+import { frozenFields } from "@/lib/books/core/currency";
 
 type Tx = Prisma.TransactionClient;
 
@@ -185,6 +186,8 @@ export async function addCostEntry(tx: Tx, input: AddCostEntryInput) {
     receiptUrl: input.receiptUrl ?? null,
     receiptPathname: input.receiptPathname ?? null,
     clientEntryId: input.clientEntryId ?? null,
+    // D3: the rate on the day the money moved, frozen on the entry.
+    ...(await frozenFields(companyId, input.currency, logDate, Number(input.amount))),
   };
 
   if (!input.clientEntryId) return tx.crmDailyCostEntry.create({ data });

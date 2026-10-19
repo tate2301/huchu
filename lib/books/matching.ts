@@ -51,7 +51,7 @@ export type Match =
   | { kind: "bill"; billId: string; amount: number }
   | { kind: "ecocash"; day: string; amount: number }
   | { kind: "transaction"; transactionId: string }
-  | { kind: "bank-charges"; amount: number };
+  | { kind: "bank-charges"; amount: number; imtt?: boolean };
 
 export type Proposal = {
   match: Match;
@@ -97,6 +97,7 @@ function namesVendor(text: string, vendor: string): boolean {
   return vendorWords.length > 0 && lineWords.has(vendorWords[0]);
 }
 
+const IMTT_LINE = /\bimtt\b|intermediated money transfer|transfer tax/i;
 const BANK_CHARGE = /\b(service fee|bank charges?|ledger fee|monthly fee|account fee|commission|levy|imtt|sms fee|cash withdrawal fee)\b/i;
 
 export function proposeMatch(line: StatementLineInput, candidates: MatchCandidates): Proposal | NoMatch {
@@ -177,7 +178,14 @@ export function proposeMatch(line: StatementLineInput, candidates: MatchCandidat
     return { match: null, reason: `${recorded.length} recorded transactions are for this amount. Choose the one it is.`, suggestion: null };
   }
 
-  // 5. The bank's own charge.
+  // 5. The bank's own charge; IMTT goes to its own account (books-final §5.8.3).
+  if (line.direction === "DEBIT" && IMTT_LINE.test(text)) {
+    return {
+      match: null,
+      reason: `No invoice or bill matches. It reads like the IMTT ${candidates.bankName} took on a transfer.`,
+      suggestion: { match: { kind: "bank-charges", amount: line.amount, imtt: true }, title: "IMTT", source: "Books", reason: "Filed under IMTT." },
+    };
+  }
   if (line.direction === "DEBIT" && BANK_CHARGE.test(text)) {
     const before = candidates.chargesFiledBefore?.(line) ?? null;
     return {

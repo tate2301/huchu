@@ -79,6 +79,15 @@ export async function voidMoney(input: VoidMoneyInput): Promise<VoidMoneyResult>
   }
   if (!original) throw new VoidRefused("Nothing was posted for this, so there is nothing to void.", 404);
   if (original.reversedAt) throw new VoidRefused("This posting was reversed already.");
+  // A closed reconciliation locks its transactions (§4.13): reopen it first.
+  const locked = await prisma.bankTransaction.findFirst({
+    where: { companyId: input.companyId, sourceType: input.sourceType, sourceId: input.sourceId, reconciliation: { status: "CLOSED" } },
+    select: { reconciliation: { select: { statementEndDate: true, endDate: true } } },
+  });
+  if (locked) {
+    const end = locked.reconciliation?.statementEndDate ?? locked.reconciliation?.endDate;
+    throw new VoidRefused(`Its bank transaction is in a closed reconciliation${end ? ` to ${end.toISOString().slice(0, 10)}` : ""}. The owner reopens it first.`);
+  }
 
   const date = await voidDate(input.companyId, input.date ?? new Date());
   const period = await resolvePostingPeriod({
@@ -116,6 +125,9 @@ export async function voidMoney(input: VoidMoneyInput): Promise<VoidMoneyResult>
             credit: line.debit,
             memo: line.memo ? `Void: ${line.memo}` : "Void",
             costCenterId: line.costCenterId ?? undefined,
+            currency: line.currency ?? undefined,
+            amountInCurrency: line.amountInCurrency ?? undefined,
+            exchangeRate: line.exchangeRate ?? undefined,
           })),
         },
       },

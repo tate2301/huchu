@@ -7,6 +7,7 @@ import {
   successResponse,
   validateSession,
 } from "@/lib/api-utils";
+import { frozenFields } from "@/lib/books/core/currency";
 import { prisma } from "@/lib/prisma";
 import { findTaxCodesOutsideEffectiveWindow } from "@/lib/accounting/tax-selection";
 import { resolveDefaultTaxTemplate } from "@/lib/accounting/tax-rules";
@@ -172,6 +173,8 @@ export async function POST(request: NextRequest) {
 
     const quotation = await prisma.salesQuotation.create({
       data: {
+        // D3: the rate on its day, frozen on the quote.
+        ...(await frozenFields(session.user.companyId, validated.currency ?? "USD", quotationDate, total)),
         companyId: session.user.companyId,
         customerId: validated.customerId,
         quotationNumber,

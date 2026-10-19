@@ -62,7 +62,14 @@ export type BooksAction =
   | "posting.retry"
   | "posting.map"
   /** Post money held for a closed month in the current month instead (D14). */
-  | "posting.redate";
+  | "posting.redate"
+  /** Bank rights (§4.13): match, unmatch, exclude statement lines; start a reconciliation. */
+  | "bank.match"
+  /** A bank entry: a charge, IMTT, interest, a transfer or a tax payment. */
+  | "bank.entry"
+  | "reconciliation.close"
+  | "reconciliation.reopen"
+  | "reconciliation.void";
 
 export type BooksDocKind =
   | "invoice"
@@ -134,6 +141,8 @@ const OWNER_ONLY: Partial<Record<BooksAction, string>> = {
   "period.reopen": "Only the owner can reopen a month.",
   "period.freeze": "Only the owner can set the freeze date.",
   "posting.redate": "Only the owner can move money from a closed month into this one.",
+  "reconciliation.reopen": "Only the owner can reopen a closed reconciliation.",
+  "reconciliation.void": "Only the owner can void a reconciliation.",
 };
 
 export function canDo(actor: BooksActor, action: BooksAction, doc: BooksDoc = {}): Decision {
@@ -223,6 +232,16 @@ export function canDo(actor: BooksActor, action: BooksAction, doc: BooksDoc = {}
       return tier === "accountant" ? ALLOW : refuse("Only the owner or the accountant can change the chart, rules, tax codes and rates.");
     case "posting.retry":
       return tier === "manager" || tier === "accountant" ? ALLOW : refuse("Only the owner, a manager or the accountant can retry a posting.");
+    case "bank.match": {
+      if (tier === "manager" || tier === "accountant") return ALLOW;
+      if (tier === "bursar") return docModule === "fees" ? ALLOW : refuse("A bursar matches the school's bank lines only.");
+      if (tier === "shop") return docModule === "retail" ? ALLOW : refuse("A shop manager matches the shop's bank lines only.");
+      return refuse("Only the owner, a manager or the accountant can match bank lines.");
+    }
+    case "bank.entry":
+      return tier === "manager" || tier === "accountant" ? ALLOW : refuse("Only the owner, a manager or the accountant can record a bank entry.");
+    case "reconciliation.close":
+      return tier === "manager" || tier === "accountant" ? ALLOW : refuse("Only the owner, a manager or the accountant can close a reconciliation.");
     case "posting.map":
       return tier === "accountant" ? ALLOW : refuse("Only the owner or the accountant can map an account.");
     default:

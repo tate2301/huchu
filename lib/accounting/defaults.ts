@@ -201,11 +201,39 @@ const BASE_CHART_OF_ACCOUNTS: DefaultAccount[] = [
     description: "Money staff hold for the business: requisitions paid out and not yet accounted for, and a short drawer owed back.",
     systemManaged: true,
   },
+  // Books P3 (D17): VAT a customer who is a withholding agent kept back, against their certificate. Claimed on our VAT return.
+  {
+    code: "1170",
+    name: "VAT withheld by customers",
+    type: "ASSET",
+    category: "Tax",
+    description: "A third of the VAT a withholding-agent customer kept back from a payment, held against their certificate until it is claimed on the VAT return.",
+    systemManaged: true,
+  },
   { code: "1200", name: "Inventory", type: "ASSET", category: "Inventory", systemManaged: true },
   { code: "2000", name: "Accounts Payable", type: "LIABILITY", category: "Payables", systemManaged: true },
   // Books P2 (D12): goods in from a supplier whose bill has not been recorded yet. The bill clears it.
   { code: "2010", name: "Goods received, not billed", type: "LIABILITY", category: "Payables", systemManaged: true },
   // Books P2 (D13, D19): what the business owes its own people for claims and commission.
+  // Books P3 (D17): tax withheld from suppliers, owed to ZIMRA by the 10th of the next month.
+  {
+    code: "2180",
+    name: "Withholding tax payable",
+    type: "LIABILITY",
+    category: "Tax",
+    description: "30% withheld from payments to suppliers without a valid tax clearance (ITF263), owed to ZIMRA.",
+    systemManaged: true,
+  },
+  {
+    code: "2185",
+    name: "VAT withheld payable",
+    type: "LIABILITY",
+    category: "Tax",
+    description: "A third of the VAT withheld from suppliers as an appointed VAT withholding agent, owed to ZIMRA.",
+    systemManaged: true,
+  },
+  // Books P3 (§5.11): income tax for the year; provisional (QPD) payments are debited here.
+  { code: "2280", name: "Income tax payable", type: "LIABILITY", category: "Tax", systemManaged: true },
   { code: "2190", name: "Staff claims payable", type: "LIABILITY", category: "Payables", systemManaged: true },
   { code: "2195", name: "Commission payable", type: "LIABILITY", category: "Payables", systemManaged: true },
   { code: "2200", name: "VAT Output", type: "LIABILITY", category: "Tax", systemManaged: true },
@@ -233,6 +261,23 @@ const BASE_CHART_OF_ACCOUNTS: DefaultAccount[] = [
   { code: "4010", name: "Sales Discounts", type: "INCOME", category: "Revenue", systemManaged: true },
   { code: "4020", name: "Sales Returns", type: "INCOME", category: "Revenue", systemManaged: true },
   { code: "4200", name: "Other Income", type: "INCOME", category: "Other Income", systemManaged: true },
+  // Books P3 (§5.9): exchange differences. A loss is a debit on the same account.
+  {
+    code: "4210",
+    name: "Exchange gains and losses, realised",
+    type: "INCOME",
+    category: "Other Income",
+    description: "The difference when a receipt or payment settles a document at another rate than it was recorded at.",
+    systemManaged: true,
+  },
+  {
+    code: "4220",
+    name: "Exchange gains and losses, unrealised",
+    type: "INCOME",
+    category: "Other Income",
+    description: "Month-end revaluation of balances in other currencies, posted on the last day and reversed on the 1st.",
+    systemManaged: true,
+  },
   { code: "5000", name: "Cost of Goods Sold", type: "EXPENSE", category: "COGS", systemManaged: true },
   { code: "5100", name: "Consumables Expense", type: "EXPENSE", category: "Operations", systemManaged: true },
   { code: "5110", name: "Petty cash", type: "EXPENSE", category: "Operations", systemManaged: true },
@@ -241,6 +286,16 @@ const BASE_CHART_OF_ACCOUNTS: DefaultAccount[] = [
   { code: "5400", name: "Inventory Adjustments", type: "EXPENSE", category: "Inventory", systemManaged: true },
   { code: "5410", name: "Inventory Shrinkage", type: "EXPENSE", category: "Inventory", systemManaged: true },
   { code: "5420", name: "Cash Over Short", type: "EXPENSE", category: "Cash", systemManaged: true },
+  // Books P3 (§5.8): what the bank charges, and the IMTT it takes on each transfer (deductible from 2026).
+  { code: "5460", name: "Bank charges", type: "EXPENSE", category: "Operations", systemManaged: true },
+  {
+    code: "5465",
+    name: "IMTT",
+    type: "EXPENSE",
+    category: "Operations",
+    description: "Intermediated money transfer tax the bank took: 2% on US dollars, 1.5% on ZiG.",
+    systemManaged: true,
+  },
   // PRD-10: gift vouchers and discounts the shop gives away; what is left on one is written back here when it lapses.
   { code: "5450", name: "Promotions and Gifts", type: "EXPENSE", category: "Operations", systemManaged: true },
   { code: "5600", name: "Bad Debt Expense", type: "EXPENSE", category: "Receivables", systemManaged: true },
@@ -905,6 +960,20 @@ const BASE_POSTING_RULES: DefaultPostingRule[] = [
     ],
   },
   {
+    // Books P3 (D17): a payment with tax withheld clears the whole amount owed; the
+    // supplier gets the rest, and what was kept back is owed to ZIMRA.
+    name: "Purchase payment, tax withheld",
+    sourceType: "PURCHASE_PAYMENT",
+    priority: 50,
+    conditions: [{ field: "MOVEMENT_TYPE", operator: "EQ", valueString: "WITHHELD" }],
+    lines: [
+      { accountCode: "2000", direction: "DEBIT", basis: "AMOUNT", allocationValue: 100 },
+      { accountCode: "1010", direction: "CREDIT", basis: "NET", allocationValue: 100 },
+      { accountCode: "2180", direction: "CREDIT", basis: "DEDUCTIONS", allocationValue: 100 },
+      { accountCode: "2185", direction: "CREDIT", basis: "TAX", allocationValue: 100 },
+    ],
+  },
+  {
     name: "Purchase Debit Note",
     sourceType: "PURCHASE_DEBIT_NOTE",
     lines: [
@@ -935,6 +1004,19 @@ const BASE_POSTING_RULES: DefaultPostingRule[] = [
     lines: [
       { accountCode: "1020", direction: "DEBIT", basis: "AMOUNT", allocationValue: 100 },
       { accountCode: "1010", direction: "CREDIT", basis: "AMOUNT", allocationValue: 100 },
+    ],
+  },
+  {
+    // Books P3 (§4.13): a bank entry (a charge, IMTT, interest, a transfer, a tax payment)
+    // posts to the account it names out of the money account it went through. Money in
+    // (interest) posts the other way round.
+    name: "Bank entry",
+    sourceType: "BANK_TRANSACTION",
+    priority: 50,
+    conditions: [{ field: "MOVEMENT_TYPE", operator: "IN", valueList: ["CHARGE", "IMTT", "INTEREST", "TRANSFER", "TAX", "OTHER"] }],
+    lines: [
+      { direction: "DEBIT", basis: "AMOUNT", allocationValue: 100, accountSource: "EVENT_ACCOUNT", eventAccountKey: "expenseAccount" },
+      { direction: "CREDIT", basis: "AMOUNT", allocationValue: 100, accountSource: "EVENT_ACCOUNT", eventAccountKey: "moneyAccount" },
     ],
   },
   ...buildCrmMoneyRules(),

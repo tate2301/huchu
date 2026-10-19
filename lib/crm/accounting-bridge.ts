@@ -15,6 +15,7 @@ import type { Prisma } from "@prisma/client";
 import { settleCrmRecordIfPaid } from "./accounting-hooks";
 import { invoiceEditLock, quoteEditLock, quoteReviseLock } from "./document-edit";
 import { setDocumentResources } from "./resources";
+import { frozenFields } from "@/lib/books/core/currency";
 import { prisma } from "@/lib/prisma";
 import { reverseJournalEntry, salesInvoicePostingKey } from "@/lib/accounting/journals";
 import { fiscaliseIssuedInvoice, postInvoice } from "@/lib/books/core/issue-invoice";
@@ -402,8 +403,11 @@ export async function createQuotationForLead(input: CreateQuotationInput) {
       entity: "SALES_QUOTATION",
     });
 
+    // D3: the rate on its day, frozen on the quote.
+    const frozen = await frozenFields(input.companyId, currency, new Date(), totals.total);
     const quotation = await tx.salesQuotation.create({
       data: {
+        ...frozen,
         companyId: input.companyId,
         customerId,
         quotationNumber,
