@@ -93,7 +93,7 @@ export type PostingContext = {
   } | null;
 };
 
-type PostingResult = {
+export type PostingResult = {
   entryId?: string;
   skipped?: boolean;
   /** A shop posting at the end of each day: the event waits, PENDING, for the day's run (SET-09). */
@@ -312,7 +312,20 @@ export function conditionMatches(input: {
   }
 }
 
-async function createOrRefreshIntegrationEvent(context: PostingContext, envelope: ReturnType<typeof buildEnvelope>) {
+async function createOrRefreshIntegrationEvent(context: PostingContext, envelope: ReturnType<typeof buildEnvelope>, eventId?: string) {
+  // A captured event being drained (`lib/books/core`): it is the one row for
+  // its source, so it is refreshed in place rather than shadowed by a second,
+  // `accounting:auto-post` row that would leave it PENDING for ever.
+  if (eventId) {
+    const existing = await prisma.accountingIntegrationEvent.findUnique({ where: { id: eventId }, select: { id: true, attemptCount: true } });
+    if (existing) {
+      await prisma.accountingIntegrationEvent.update({
+        where: { id: eventId },
+        data: { status: "PENDING", lastError: null, nextRetryAt: null, payloadJson: JSON.stringify(envelope) },
+      });
+      return existing;
+    }
+  }
   const eventKey = buildAccountingEventKey({
     companyId: context.companyId,
     sourceDomain: "accounting",
@@ -717,10 +730,10 @@ export async function previewPostingFromSource(context: PostingContext) {
 export async function createJournalEntryFromSource(
   context: PostingContext,
   db: Db = prisma,
-  options: { postNow?: boolean; defaultsReady?: boolean } = {},
+  options: { postNow?: boolean; defaultsReady?: boolean; eventId?: string } = {},
 ): Promise<PostingResult> {
   const envelope = buildEnvelope(context);
-  const integrationEvent = await createOrRefreshIntegrationEvent(context, envelope);
+  const integrationEvent = await createOrRefreshIntegrationEvent(context, envelope, options.eventId);
 
   try {
     // A posting run checks the company's defaults once, not once per event.
