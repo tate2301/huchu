@@ -33,11 +33,7 @@ export type CloseView = {
   };
 };
 
-export const POLICY_LABEL: Record<AccountingPeriodLockPolicy, string> = {
-  STRICT: "Nobody may post",
-  MANAGER_OVERRIDE: "Managers may post, with a reason",
-  SOFT_WARN: "Anyone may post, with a reason",
-};
+export { POLICY_LABEL } from "./close-labels";
 
 const fullDay = (date: Date) => {
   const day = storedDay(date);

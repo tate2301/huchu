@@ -4,7 +4,8 @@ import * as React from "react";
 import Link from "next/link";
 
 import { Button, Field, Icon, Input, Select } from "@/components/core";
-import { POLICY_LABEL, type CloseView } from "@/lib/books/close";
+import type { CloseView } from "@/lib/books/close";
+import { POLICY_LABEL } from "@/lib/books/close-labels";
 
 const STATE_COLOUR = { done: "var(--color-success)", open: "var(--color-warning)", failed: "var(--color-danger)" } as const;
 const STATE_ICON = { done: "check", open: "warn", failed: "warn" } as const;
