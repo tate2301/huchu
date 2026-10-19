@@ -77,9 +77,9 @@ function BillFormPage({ options }: { options: BooksFormOptions }) {
   return (
     <>
       <PageChrome
-        title="Record a bill"
-        backHref="/books/expenses"
-        backLabel="All spending"
+        title="New bill"
+        backHref="/accounting/purchases?view=bills"
+        backLabel="Bills"
         primary={{ label: "Record the bill", icon: "check", shortcut: "Ctrl ↵", onClick: () => submit(true), disabled: save.isPending ? "Saving" : undefined }}
       >
         <Kit contents>
@@ -139,9 +139,10 @@ function BillFormPage({ options }: { options: BooksFormOptions }) {
               <Input id="bill-date" type="date" aria-label="Their invoice date" value={form.billDate} onChange={(event) => set("billDate", event.target.value)} />
             </BkField>
           </div>
-          <BkField label="FDMS check" htmlFor="bill-fdms" hint="The code is kept with the bill. Checking it with FDMS comes with the bill's fiscal fields.">
+          <BkField label="FDMS check" htmlFor="bill-fdms">
             <div style={{ display: "flex", gap: 8 }}>
               <label className="input-wrap" style={{ flex: 1 }}>
+                <Icon name="fiscal" />
                 <input id="bill-fdms" aria-label="Verification code" placeholder="Verification code" value={form.fdmsCode} onChange={(event) => set("fdmsCode", event.target.value)} />
               </label>
               <Button disabled title="Checking with FDMS comes later">
@@ -271,7 +272,7 @@ function RecordBill() {
   if (options.data) return <BillFormPage options={options.data} />;
   return (
     <>
-      <PageChrome title="Record a bill" backHref="/books/expenses" backLabel="All spending" />
+      <PageChrome title="New bill" backHref="/accounting/purchases?view=bills" backLabel="Bills" />
       {options.isError ? <BooksError what="The bill form" onRetry={() => options.refetch()} /> : <BooksLoading />}
     </>
   );

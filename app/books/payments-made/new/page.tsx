@@ -91,9 +91,9 @@ function PayForm({ options, initialSupplier }: { options: BooksFormOptions; init
   return (
     <>
       <PageChrome
-        title="Pay a supplier"
-        backHref="/books/expenses"
-        backLabel="All spending"
+        title="New payment"
+        backHref="/accounting/purchases?view=payments"
+        backLabel="Payments made"
         primary={{ label: "Record the payment", icon: "check", shortcut: "Ctrl ↵", onClick: submit, disabled: pay.isPending ? "Recording it" : undefined }}
       >
         <Kit contents>
@@ -125,7 +125,7 @@ function PayForm({ options, initialSupplier }: { options: BooksFormOptions; init
           </>
         }
       >
-        <FormSec title="Pay" text="One payment can clear several bills.">
+        <FormSec title="Pay" text="Who you are paying.">
           <BkField label="Supplier" htmlFor="pay-supplier" error={errors.vendorId}>
             <div style={{ display: "flex", gap: 8 }}>
               <Select id="pay-supplier" value={vendorId} onChange={(event) => setVendorId(event.target.value)} style={{ flex: 1, minWidth: 0 }}>
@@ -141,12 +141,15 @@ function PayForm({ options, initialSupplier }: { options: BooksFormOptions; init
               </Button>
             </div>
           </BkField>
+        </FormSec>
+
+        <WideSec title="Bills" text="One payment can clear several." className={vendorId && bills.length && !errors.bills ? "bk-wt" : undefined}>
           {vendorId ? (
             bills.length ? (
               <table className="table bk-le">
                 <thead>
                   <tr>
-                    <th className="sel" style={{ width: 36 }} />
+                    <th className="sel" style={{ width: 60 }} />
                     <th>Bill</th>
                     <th>Their invoice</th>
                     <th>Due</th>
@@ -167,7 +170,15 @@ function PayForm({ options, initialSupplier }: { options: BooksFormOptions; init
                           <span className="ref">{bill.number}</span>
                         </td>
                         <td className="mono">{theirInvoice(bill.note)}</td>
-                        <td className="muted">{lateWords(bill)}</td>
+                        <td className={bill.daysLate > 0 ? undefined : "muted"}>
+                          {bill.daysLate > 0 ? (
+                            <span className="status status-warning" style={{ color: "var(--color-ink)", fontWeight: 500 }}>
+                              {lateWords(bill)}
+                            </span>
+                          ) : (
+                            lateWords(bill)
+                          )}
+                        </td>
                         <td className="num">
                           {row ? (
                             <Input
@@ -191,20 +202,22 @@ function PayForm({ options, initialSupplier }: { options: BooksFormOptions; init
                 </tbody>
               </table>
             ) : open.isLoading ? null : (
-              <p className="bk-hint">Nothing is owed to {supplier?.name ?? "them"}: every bill of theirs is paid.</p>
+              <p className="bk-hint bk-pad">Nothing is owed to {supplier?.name ?? "them"}: every bill of theirs is paid.</p>
             )
-          ) : null}
+          ) : (
+            <p className="bk-hint bk-pad">Choose a supplier to see what you owe them.</p>
+          )}
           {errors.bills ? (
-            <p className="error" role="alert">
+            <p className="error bk-pad" role="alert">
               <Icon name="warn" />
               {errors.bills}
             </p>
           ) : null}
-        </FormSec>
+        </WideSec>
 
         <FormSec title="ITF263" text="Checked before every payment.">
           <BkBox tone="warn" icon="warn">
-            <b>Not recorded yet.</b> Books keeps no ITF263 for {supplier?.name ?? "suppliers"} yet: check theirs by hand, and withhold 30% where it has run out.
+            <b>Not recorded yet.</b> Check theirs by hand, and withhold 30% where it has run out.
           </BkBox>
         </FormSec>
 
@@ -232,6 +245,11 @@ function PayForm({ options, initialSupplier }: { options: BooksFormOptions; init
         <WideSec title="What moves">
           <div className="bk-bleed">
             <table className="table" aria-label="What moves">
+              <colgroup>
+                <col />
+                <col style={{ width: 140 }} />
+                <col style={{ width: 200 }} />
+              </colgroup>
               <thead>
                 <tr>
                   <th />
@@ -250,7 +268,7 @@ function PayForm({ options, initialSupplier }: { options: BooksFormOptions; init
                 <tr>
                   <td>Paid to {supplier?.name ?? "the supplier"}</td>
                   <td className="num">{money(total, currency)}</td>
-                  <td className="muted">Withholding and IMTT are not worked out yet</td>
+                  <td className="muted">The bank adds IMTT</td>
                 </tr>
               </tbody>
               <tfoot>
@@ -284,7 +302,7 @@ function PaySupplier() {
   if (options.data) return <PayForm options={options.data} initialSupplier={params.get("supplier") ?? ""} />;
   return (
     <>
-      <PageChrome title="Pay a supplier" backHref="/books/expenses" backLabel="All spending" />
+      <PageChrome title="New payment" backHref="/accounting/purchases?view=payments" backLabel="Payments made" />
       {options.isError ? <BooksError what="The payment form" onRetry={() => options.refetch()} /> : <BooksLoading />}
     </>
   );

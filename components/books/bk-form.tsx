@@ -33,9 +33,9 @@ export function FormSec({ title, text, children }: { title: string; text: string
   );
 }
 
-export function WideSec({ title, text, children }: { title: string; text?: string; children: React.ReactNode }) {
+export function WideSec({ title, text, className, children }: { title: string; text?: string; className?: string; children: React.ReactNode }) {
   return (
-    <section className="bk-wide">
+    <section className={className ? `bk-wide ${className}` : "bk-wide"}>
       <header>
         <h2>{title}</h2>
         {text ? <p>{text}</p> : null}
@@ -117,7 +117,8 @@ export function RailFigure({ title, figure, rows }: { title: string; figure?: Re
         {rows.map(([term, value], index) => (
           <React.Fragment key={index}>
             <dt>{term}</dt>
-            <dd className="num">{value}</dd>
+            {/* Figures right-aligned in tabular figures; words ("Not recorded yet") read from the left, as the boards set them. */}
+            <dd className={typeof value === "string" && !/\d/.test(value) ? undefined : "num"}>{value}</dd>
           </React.Fragment>
         ))}
       </dl>
