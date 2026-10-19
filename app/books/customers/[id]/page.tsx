@@ -14,6 +14,7 @@ import { PageChrome } from "@/components/layout/page-chrome";
 import { ApiError, fetchJson } from "@/lib/api-client";
 import type { CustomerView } from "@/lib/books/customers-view";
 import { money, shortDay } from "@/lib/books/format";
+import { statementMessage, whatsappLink, whatsappNumber } from "@/lib/books/statement-message";
 
 type Page = CustomerView & { can: { invoice: boolean; pay: boolean } };
 type Tab = "activity" | "invoices" | "payments" | "statement" | "details";
@@ -31,12 +32,14 @@ function Boxed({ children }: { children: React.ReactNode }) {
 }
 
 function Statement({ data, onPeriod }: { data: Page; onPeriod: (from: string, to: string) => void }) {
-  const { statement, currency } = data;
+  const { statement } = data;
   const [from, setFrom] = React.useState(statement.from);
   const [to, setTo] = React.useState(statement.to);
+  const phone = whatsappNumber(data.contact.phone);
+  const [custom, setCustom] = React.useState(false);
   return (
     <>
-      <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", padding: "16px 24px 0" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", padding: "20px 24px 0" }}>
         <MenuButton
           className="chipsel is-set"
           label="Period"
@@ -44,10 +47,13 @@ function Statement({ data, onPeriod }: { data: Page; onPeriod: (from: string, to
             { key: "this", label: "This month so far", onSelect: () => onPeriod(`${statement.to.slice(0, 7)}-01`, statement.to) },
             { key: "three", label: "The last three months", onSelect: () => onPeriod(statement.from, statement.to) },
             { key: "year", label: "This year", onSelect: () => onPeriod(`${statement.to.slice(0, 4)}-01-01`, statement.to) },
+            { separator: true },
+            { key: "custom", label: "Choose the dates", checked: custom, onSelect: () => setCustom(true) },
           ]}
         >
           Period <b>{`${shortDay(statement.from)} to ${shortDay(statement.to)} ${statement.to.slice(0, 4)}`}</b>
         </MenuButton>
+        {custom ? (
         <span style={{ display: "inline-flex", gap: 8, alignItems: "center" }}>
           <Input type="date" aria-label="From" value={from} onChange={(event) => setFrom(event.target.value)} style={{ width: 150 }} />
           <Input type="date" aria-label="To" value={to} onChange={(event) => setTo(event.target.value)} style={{ width: 150 }} />
@@ -55,10 +61,21 @@ function Statement({ data, onPeriod }: { data: Page; onPeriod: (from: string, to
             Show
           </Button>
         </span>
+        ) : null}
         <span style={{ marginLeft: "auto", display: "inline-flex", gap: 8 }}>
-          <ButtonLink variant="quiet" icon="print" href={`/books/statements?customers=${data.id}`} target="_blank">
+          <ButtonLink variant="quiet" icon="export" href={`/books/statements?customers=${data.id}`} target="_blank">
             Download PDF
           </ButtonLink>
+          {/* WhatsApp opens with the statement written; the person sends it there. */}
+          {phone ? (
+            <ButtonLink icon="whatsapp" href={whatsappLink(phone, statementMessage(data))} target="_blank" rel="noopener">
+              Send by WhatsApp
+            </ButtonLink>
+          ) : (
+            <Button icon="whatsapp" disabled title={`No phone number on file for ${data.name}`}>
+              Send by WhatsApp
+            </Button>
+          )}
         </span>
       </div>
       <Boxed>
@@ -82,7 +99,7 @@ function Statement({ data, onPeriod }: { data: Page; onPeriod: (from: string, to
           <tbody>
             <tr>
               <td className="muted">{shortDay(statement.from)}</td>
-              <td className="muted">Opening balance</td>
+              <td>Opening balance</td>
               <td className="num" />
               <td className="num" />
               <td className="num">{plain(statement.opening)}</td>
@@ -92,7 +109,14 @@ function Statement({ data, onPeriod }: { data: Page; onPeriod: (from: string, to
                 <td className="muted">{line.date}</td>
                 <td>
                   <span className="cell-lead">
-                    {line.href ? <Link href={line.href}>{line.document}</Link> : line.document} <span className="sub2">{line.detail}</span>
+                    {line.href ? (
+                      <Link className="ref" href={line.href}>
+                        {line.document}
+                      </Link>
+                    ) : (
+                      <span className="ref">{line.document}</span>
+                    )}{" "}
+                    <span className="muted">{line.detail}</span>
                   </span>
                 </td>
                 <td className="num">{line.invoiced !== null ? plain(line.invoiced) : ""}</td>
@@ -112,9 +136,6 @@ function Statement({ data, onPeriod }: { data: Page; onPeriod: (from: string, to
           </tfoot>
         </table>
       </Boxed>
-      <p className="bk-note" style={{ paddingTop: 12 }}>
-        In {currency}. Invoices, payments, credit notes and write-offs, as the customer is sent it.
-      </p>
     </>
   );
 }
@@ -198,8 +219,8 @@ function CustomerRecord() {
                 </div>
               </div>
             </div>
-            <div className="bk-rtabs">
-              <BkTabs<Tab>
+            <BkTabs<Tab>
+                className="bk-rtabs"
                 label="Customer views"
                 value={tab}
                 onChange={setTab}
@@ -211,7 +232,6 @@ function CustomerRecord() {
                   { value: "details", label: "Details" },
                 ]}
               />
-            </div>
             {tab === "statement" ? <Statement data={data} onPeriod={(from, to) => setPeriod({ from, to })} /> : null}
             {tab === "activity" ? (
               <Boxed>

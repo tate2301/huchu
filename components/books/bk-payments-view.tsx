@@ -125,12 +125,12 @@ export function BkPaymentsView({
           <table className="table" aria-label="Payments received">
             <colgroup>
               <col style={{ width: 44 }} />
-              <col style={{ width: 130 }} />
-              <col style={{ width: 90 }} />
+              <col style={{ width: 120 }} />
+              <col style={{ width: 80 }} />
+              <col style={{ width: 230 }} />
               <col />
-              <col />
-              <col style={{ width: 150 }} />
               <col style={{ width: 170 }} />
+              <col style={{ width: 190 }} />
             </colgroup>
             <thead>
               <tr>
@@ -164,7 +164,7 @@ export function BkPaymentsView({
                         {row.invoice}
                       </Link>
                     ) : (
-                      <span className="status status-info">On account</span>
+                      <span className="muted">On account</span>
                     )}
                   </td>
                   <td className="muted">{row.into}</td>

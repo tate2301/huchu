@@ -16,14 +16,17 @@ export function BkTabs<V extends string>({
   items,
   value,
   onChange,
+  className,
 }: {
   label: string;
   items: Array<{ value: V; label: string; count?: number | null }>;
   value: V;
   onChange: (value: V) => void;
+  /** `bk-rtabs` on a record page: the tabs under its figures, their line edge to edge. */
+  className?: string;
 }) {
   return (
-    <div className="tabs bk-tabs" role="tablist" aria-label={label}>
+    <div className={className ? `tabs bk-tabs ${className}` : "tabs bk-tabs"} role="tablist" aria-label={label}>
       {items.map((item) => (
         <button key={item.value} type="button" className="tab" role="tab" aria-selected={item.value === value} tabIndex={item.value === value ? 0 : -1} onClick={() => onChange(item.value)}>
           {item.label}

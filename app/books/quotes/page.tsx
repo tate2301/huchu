@@ -51,6 +51,7 @@ function BooksQuotes() {
   const selected = data?.rows.filter((row) => selection.isSelected(row.id)) ?? [];
   const one = selected.length === 1 && !selected[0].invoiced ? selected[0] : null;
   const customer = data?.customers.find((option) => option.id === data.query.customer);
+  const rep = data?.reps.find((option) => option.id === data.query.rep);
 
   return (
     <>
@@ -78,6 +79,7 @@ function BooksQuotes() {
               onFind={(q) => onQuery({ q, page: 1 })}
               count={data.range.of === 1 ? "1 quote" : `${data.range.of} quotes`}
               chips={
+                <>
                 <BkChip
                   label="Customer"
                   value={customer?.name ?? "Any"}
@@ -88,6 +90,17 @@ function BooksQuotes() {
                     ...data.customers.map((option) => ({ key: option.id, label: option.name, checked: data.query.customer === option.id, onSelect: () => onQuery({ customer: option.id, page: 1 }) })),
                   ]}
                 />
+                <BkChip
+                  label="Rep"
+                  value={rep?.name ?? "Any"}
+                  set={Boolean(rep)}
+                  items={[
+                    { key: "any", label: "Anyone", checked: !data.query.rep, onSelect: () => onQuery({ rep: null, page: 1 }) },
+                    { separator: true },
+                    ...data.reps.map((option) => ({ key: option.id, label: option.name, checked: data.query.rep === option.id, onSelect: () => onQuery({ rep: option.id, page: 1 }) })),
+                  ]}
+                />
+                </>
               }
               filters={[
                 { key: "any", label: "Invoiced or not", checked: data.query.invoiced === "any", onSelect: () => onQuery({ invoiced: "any", page: 1 }) },
@@ -156,8 +169,8 @@ function BooksQuotes() {
             >
               {data.rows.length === 0 ? (
                 <div className="empty" style={{ padding: "var(--space-48) var(--space-24)" }}>
-                  <b>{data.query.q || data.query.customer ? "No quote matches" : `No ${QUOTE_TAB_LABEL[data.query.view].toLowerCase()} quotes`}</b>
-                  <p className="muted">{data.query.q || data.query.customer ? "Clear the search or the filter." : "Quotes are written from a deal; they show here as they move."}</p>
+                  <b>{data.query.q || data.query.customer || data.query.rep ? "No quote matches" : `No ${QUOTE_TAB_LABEL[data.query.view].toLowerCase()} quotes`}</b>
+                  <p className="muted">{data.query.q || data.query.customer || data.query.rep ? "Clear the search or the filter." : "Quotes are written from a deal; they show here as they move."}</p>
                 </div>
               ) : (
                 <table className="table" aria-label="Quotes">

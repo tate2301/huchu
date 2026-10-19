@@ -13,7 +13,7 @@ import { Button, Kit, SelectCell, TableFoot, TableShell, useSelection } from "@/
 import { PageChrome } from "@/components/layout/page-chrome";
 import { useToast } from "@/components/ui/use-toast";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
-import { CREDIT_TAB_LABEL, CREDIT_VIEWS, type CreditNotesView, type CreditQuery } from "@/lib/books/credit-notes-view";
+import { CREDIT_REASON_LABEL, CREDIT_REASONS, CREDIT_TAB_LABEL, CREDIT_VIEWS, type CreditNotesView, type CreditQuery } from "@/lib/books/credit-notes-view";
 import { money } from "@/lib/books/format";
 
 type Listed = CreditNotesView & { targets: CreditTarget[]; can: { credit: boolean; writeOff: boolean; voidWriteOff: boolean } };
@@ -106,6 +106,7 @@ function BooksCreditNotes() {
               onFind={(q) => onQuery({ q, page: 1 })}
               count={`${data.range.of} ${writeOffs ? (data.range.of === 1 ? "write-off" : "write-offs") : data.range.of === 1 ? "credit note" : "credit notes"}`}
               chips={
+                <>
                 <BkChip
                   label="Customer"
                   value={customer?.name ?? "Any"}
@@ -116,6 +117,17 @@ function BooksCreditNotes() {
                     ...data.customers.map((option) => ({ key: option.id, label: option.name, checked: data.query.customer === option.id, onSelect: () => onQuery({ customer: option.id, page: 1 }) })),
                   ]}
                 />
+                <BkChip
+                  label="Reason"
+                  value={data.query.reason ? CREDIT_REASON_LABEL[data.query.reason] : "Any"}
+                  set={Boolean(data.query.reason)}
+                  items={[
+                    { key: "any", label: "Any reason", checked: !data.query.reason, onSelect: () => onQuery({ reason: null, page: 1 }) },
+                    { separator: true },
+                    ...CREDIT_REASONS.map((reason) => ({ key: reason, label: CREDIT_REASON_LABEL[reason], checked: data.query.reason === reason, onSelect: () => onQuery({ reason, page: 1 }) })),
+                  ]}
+                />
+                </>
               }
               filters={[
                 { key: "any", label: "Any state", checked: data.query.state === "any", onSelect: () => onQuery({ state: "any", page: 1 }) },

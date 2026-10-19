@@ -29,7 +29,10 @@ export type InvoiceRecord = {
   waiting: boolean;
   /** Vane's card about it, for What I read. */
   cardId: string | null;
-  customer: { id: string; name: string };
+  /** contact: the person there, for the phone's header line ("Chisipite Dental · Mrs L. Banda"). */
+  customer: { id: string; name: string; contact?: string | null };
+  /** Days past its due day while it is owed; 0 otherwise. */
+  daysOverdue: number;
   currency: string;
   /** "On issue" for a draft, else the day it is dated. */
   date: string;
@@ -149,7 +152,7 @@ export async function readInvoiceRecord(db: Pick<PrismaClient, "salesInvoice" | 
       createdAt: true,
       issuedAt: true,
       quotationId: true,
-      customer: { select: { id: true, name: true } },
+      customer: { select: { id: true, name: true, contactName: true } },
       createdBy: { select: { name: true } },
       issuedBy: { select: { name: true } },
       lines: { orderBy: { createdAt: "asc" }, select: { id: true, description: true, quantity: true, unitPrice: true, lineTotal: true, taxRate: true, taxCodeId: true } },
@@ -239,11 +242,13 @@ export async function readInvoiceRecord(db: Pick<PrismaClient, "salesInvoice" | 
     madeByVane: invoice.madeByVane,
     waiting: draft && invoice.madeByVane && !invoice.createdById,
     cardId: card?.id ?? null,
-    customer: invoice.customer,
+    customer: { id: invoice.customer.id, name: invoice.customer.name, contact: invoice.customer.contactName ?? null },
+    daysOverdue: state.daysOverdue,
     currency: invoice.currency,
     date: draft ? "On issue" : shortDay(dated),
     due,
-    dueTerms: draft && terms !== null ? dueTerms(terms, usualTerms(past)) : due,
+    // The aside's Terms: "14 days" (their usual marked on a draft), from its date to its due day.
+    dueTerms: terms === null ? due : draft ? dueTerms(terms, usualTerms(past)) : `${terms} ${terms === 1 ? "day" : "days"}`,
     lines: invoice.lines.map((line) => ({ id: line.id, description: line.description, quantity: line.quantity, unitPrice: line.unitPrice, amount: line.lineTotal })),
     subTotal: invoice.subTotal,
     taxTotal: invoice.taxTotal,

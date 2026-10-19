@@ -109,7 +109,7 @@ export function InvoiceRecordView({ invoice, canVoidPayments = false }: { invoic
           <Attr term="Customer">{invoice.customer.name}</Attr>
           {invoice.deal ? <Attr term="For">{invoice.deal}</Attr> : quote ? <Attr term="For">{quote.number}</Attr> : null}
           <Attr term="Date">{invoice.date}</Attr>
-          <Attr term="Due">{invoice.dueTerms}</Attr>
+          <Attr term="Due">{invoice.status === "DRAFT" ? invoice.dueTerms : invoice.due}</Attr>
           <Attr term="Status">
             <Pill tone={TONE[invoice.state.key]}>{invoice.state.label}</Pill>
           </Attr>

@@ -25,7 +25,9 @@ const source = execFileSync("python3", ["-c", "import sys; sys.argv=['x', '/none
 
 const SCOPE = ".ck.ck.ck .sc-bk-a";
 // The board's own frame (its shell, its top bar and the phone's case) is the app's shell in the app.
-const BOARD_ONLY = /^\.(sh|tb-m|mn)\b|^\.bk-ph(\b|-h|-f)/;
+// Only the phone's case, its header and its foot: the phone's body, rows and lists (`.bk-ph-b`, `.bk-ph-row`,
+// `.bk-ph-list`) are the page's own at phone width.
+const BOARD_ONLY = /^\.(sh|tb-m|mn)\b|^\.bk-ph(-h|-f)?(?![\w-])/;
 
 const css = postcss.parse(source);
 css.walkRules((rule) => {
@@ -51,6 +53,12 @@ const RESPONSIVE = `
 .ck.ck.ck .sc-bk-a .bk-bleed .table th:last-child, .ck.ck.ck .sc-bk-a .bk-bleed .table td:last-child { padding-right: 24px; }
 /* An owing invoice's two actions at the foot of a phone (BkInvoicePhone); at desktop width they are in the top bar. */
 .ck.ck.ck .sc-bk-a .bk-ph-acts { display: none; }
+/* A record's phone body (BkInvoicePhone): drawn instead of the desktop columns under 760px. */
+.ck.ck.ck .sc-bk-a .bk-ph-only { display: none; }
+/* A line's tax code reads in proportional figures, as the board's does, so "VAT 15.5%" fits its 118px. */
+.ck.ck.ck .sc-bk-a .bk-le .select { font-variant-numeric: normal; }
+/* A line of text in a full-bleed section, where the table would be: on the section's 24px edge. */
+.ck.ck.ck .sc-bk-a .bk-wide > .bk-pad { margin: 0; padding: 0 24px 24px; }
 @media (max-width: 1099px) {
   .ck.ck.ck .sc-bk-a .mny, .ck.ck.ck .sc-bk-a .bk-rec, .ck.ck.ck .sc-bk-a .bk-fm { grid-template-columns: minmax(0, 1fr); overflow: visible; }
   .ck.ck.ck .sc-bk-a .mny-side, .ck.ck.ck .sc-bk-a .bk-rec > .rail, .ck.ck.ck .sc-bk-a .bk-fm > .rail { box-shadow: inset 0 1px 0 var(--color-line); }
@@ -92,6 +100,9 @@ const RESPONSIVE = `
   .ck.ck.ck .sc-bk-a .bk-bleed .table th:last-child, .ck.ck.ck .sc-bk-a .bk-bleed .table td:last-child { padding-right: 16px; }
   .ck.ck.ck .sc-bk-a .bk-ph-acts { display: flex; flex-direction: column; gap: 8px; position: sticky; bottom: 0; padding: 12px 16px 28px; background: var(--color-surface); box-shadow: 0 -1px 0 var(--color-line); z-index: 2; }
   .ck.ck.ck .sc-bk-a .bk-ph-acts .btn { height: 48px; width: 100%; justify-content: center; font-size: 16px; }
+  .ck.ck.ck .sc-bk-a .bk-rec.bk-has-ph { display: none; }
+  .ck.ck.ck .sc-bk-a .bk-ph-only { display: block; min-height: calc(100dvh - 56px - env(safe-area-inset-top) - 144px); }
+  .ck.ck.ck .sc-bk-a .bk-ph-only .bk-ph-b { overflow: visible; flex: none; }
 }
 `;
 

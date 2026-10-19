@@ -110,6 +110,8 @@ function PaymentFormPage({ options, initialCustomer, initialInvoice }: { options
     record.mutate();
   };
 
+  // What stays overdue across their invoices once this payment is on them.
+  const overdueAfter = late.reduce((sum, invoice) => sum + Math.max(0, invoice.balance - (allocated(invoice.id)?.amount ?? 0)), 0);
   const afterInvoices = form.allocations.map((row) => {
     const invoice = invoices.find((candidate) => candidate.id === row.invoiceId);
     return invoice ? ([invoice.number, row.amount >= invoice.balance - 0.005 ? "Paid" : "Part paid"] as [string, string]) : null;
@@ -148,12 +150,16 @@ function PaymentFormPage({ options, initialCustomer, initialInvoice }: { options
                   row ? (
                     <React.Fragment key={row[0]}>
                       <dt>{row[0]}</dt>
-                      <dd>{row[1]}</dd>
+                      <dd>
+                        <span className={`status ${row[1] === "Paid" ? "status-success" : "status-info"}`}>{row[1]}</span>
+                      </dd>
                     </React.Fragment>
                   ) : null,
                 )}
                 <dt>They owe</dt>
                 <dd className="num">{money(Math.max(0, owed - form.allocations.reduce((sum, row) => sum + row.amount, 0)), form.currency)}</dd>
+                <dt>Overdue, all</dt>
+                <dd className="num">{money(overdueAfter, form.currency)}</dd>
                 <dt>Bank line</dt>
                 <dd>Matched when it arrives</dd>
               </dl>
@@ -181,8 +187,10 @@ function PaymentFormPage({ options, initialCustomer, initialInvoice }: { options
           </BkField>
           {customer && open.data ? (
             invoices.length ? (
-              <BkBox icon="invoice">
-                They owe <b>{money(owed, form.currency)}</b> on {invoices.length === 1 ? "1 invoice" : `${invoices.length} invoices`}
+              <BkBox icon="users">
+                <b>
+                  They owe {money(owed, form.currency)} on {invoices.length === 1 ? "1 invoice" : `${invoices.length} invoices`}
+                </b>
                 {late.length ? `, ${late.length === invoices.length && late.length === 1 ? `${late[0].daysLate} days late` : `${late.length} late`}` : ""}.
               </BkBox>
             ) : (

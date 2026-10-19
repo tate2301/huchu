@@ -16,6 +16,7 @@ export const QUOTES_PAGE_SIZE = 50;
 function quoteWhere(companyId: string, query: QuoteQuery): Prisma.SalesQuotationWhereInput {
   const where: Prisma.SalesQuotationWhereInput = { companyId, status: QUOTE_STATUS[query.view] };
   if (query.customer) where.customerId = query.customer;
+  if (query.rep) where.createdById = query.rep;
   if (query.invoiced === "yes") where.invoicesRaised = { some: {} };
   if (query.invoiced === "no") where.invoicesRaised = { none: {} };
   if (query.q) {
@@ -31,7 +32,7 @@ function quoteWhere(companyId: string, query: QuoteQuery): Prisma.SalesQuotation
 export async function readQuotes(db: Db, companyId: string, query: QuoteQuery, now = new Date()): Promise<QuotesView> {
   const today = dayOf(now);
   const where = quoteWhere(companyId, query);
-  const [records, matching, sent, customers, ...counts] = await Promise.all([
+  const [records, matching, sent, customers, reps, ...counts] = await Promise.all([
     db.salesQuotation.findMany({
       where,
       orderBy: [{ quotationDate: query.sort === "newest" ? "desc" : "asc" }, { quotationNumber: query.sort === "newest" ? "desc" : "asc" }],
@@ -53,6 +54,7 @@ export async function readQuotes(db: Db, companyId: string, query: QuoteQuery, n
     db.salesQuotation.count({ where }),
     db.salesQuotation.findMany({ where: { companyId, status: "SENT" }, select: { total: true, currency: true, validUntil: true, customer: { select: { name: true } } } }),
     db.customer.findMany({ where: { companyId, quotations: { some: {} } }, select: { id: true, name: true }, orderBy: { name: "asc" }, take: 500 }),
+    db.user.findMany({ where: { companyId, createdSalesQuotations: { some: { companyId } } }, select: { id: true, name: true }, orderBy: { name: "asc" }, take: 200 }),
     ...QUOTE_VIEWS.map((view) => db.salesQuotation.count({ where: quoteWhere(companyId, { ...query, view }) })),
   ]);
   const byCurrency = new Map<string, number>();
@@ -93,6 +95,7 @@ export async function readQuotes(db: Db, companyId: string, query: QuoteQuery, n
     out,
     currency,
     customers,
+    reps,
     query,
   };
 }

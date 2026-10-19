@@ -1,7 +1,7 @@
 import type { Prisma, PrismaClient } from "@prisma/client";
 
 import { count, dayOf, money, monthName, monthStart, shortDay, storedDay } from "./format";
-import type { CreditNotesView, CreditQuery, CreditRow } from "./credit-notes-view";
+import { CREDIT_REASON_LABEL, type CreditNotesView, type CreditQuery, type CreditRow } from "./credit-notes-view";
 
 /**
  * Books → Sales → Credit notes (BkCreditNotes): every credit note and
@@ -22,10 +22,12 @@ export async function readCreditNotes(db: Db, companyId: string, query: CreditQu
   const search = query.q
     ? [{ reason: { contains: query.q, mode: "insensitive" as const } }, { invoice: { invoiceNumber: { contains: query.q, mode: "insensitive" as const } } }, { invoice: { customer: { name: { contains: query.q, mode: "insensitive" as const } } } }]
     : undefined;
+  // A reason is free text that starts with what it is for ("Return, skirting"): the filter reads that first word.
+  const reasonFilter = query.reason ? { reason: { startsWith: CREDIT_REASON_LABEL[query.reason], mode: "insensitive" as const } } : {};
   const noteState = { any: undefined, draft: "DRAFT" as const, issued: "ISSUED" as const, void: "VOIDED" as const }[query.state];
   const writeOffState = { any: undefined, draft: undefined, issued: "POSTED" as const, void: "VOIDED" as const }[query.state];
-  const noteWhere: Prisma.CreditNoteWhereInput = { companyId, invoice: invoiceFilter, ...(noteState ? { status: noteState } : {}), ...(search ? { OR: [...search, { noteNumber: { contains: query.q, mode: "insensitive" } }] } : {}) };
-  const writeOffWhere: Prisma.SalesWriteOffWhereInput = { companyId, invoice: invoiceFilter, ...(writeOffState ? { status: writeOffState } : {}), ...(search ? { OR: [...search, { writeOffNumber: { contains: query.q, mode: "insensitive" } }] } : {}) };
+  const noteWhere: Prisma.CreditNoteWhereInput = { companyId, invoice: invoiceFilter, ...reasonFilter, ...(noteState ? { status: noteState } : {}), ...(search ? { OR: [...search, { noteNumber: { contains: query.q, mode: "insensitive" } }] } : {}) };
+  const writeOffWhere: Prisma.SalesWriteOffWhereInput = { companyId, invoice: invoiceFilter, ...reasonFilter, ...(writeOffState ? { status: writeOffState } : {}), ...(search ? { OR: [...search, { writeOffNumber: { contains: query.q, mode: "insensitive" } }] } : {}) };
   const order = query.sort === "newest" ? "desc" : "asc";
   const skip = (query.page - 1) * CREDITS_PAGE_SIZE;
   const [notes, writeOffs, noteCount, writeOffCount, monthNotes, monthWriteOffs, drafts, customers] = await Promise.all([

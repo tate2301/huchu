@@ -88,7 +88,11 @@ function NewInvoiceForm({ options }: { options: Options }) {
 
   const steps: Array<[string, string]> = [
     ["It gets the next number", options.nextNumber],
-    foreign && rate ? ["The rate is fixed", `${rate.rate.toFixed(2)}, ${rate.source}`] : ["It is in", `${currencyWord(form.currency)}, the books' own currency`],
+    foreign
+      ? rate
+        ? ["The rate is fixed", `${rate.rate.toFixed(2)}, ${rate.source}`]
+        : ["It needs a rate", `${currencyWord(form.currency)} to ${currencyWord(options.base)}1, in Rates`]
+      : ["It is in", `${currencyWord(form.currency)}, the books' own currency`],
     ["FDMS signs it", `in ${form.currency}, where this workspace fiscalises`],
     ["It posts", customer ? `and ${customer.name} owes it` : "and the customer owes it"],
   ];

@@ -39,9 +39,22 @@ export function BkInvoiceView({ invoice }: { invoice: InvoiceRecordPage }) {
   const draft = invoice.status === "DRAFT";
   const credited = invoice.credits.filter((note) => !note.voided).reduce((sum, note) => sum + note.total, 0);
   const writtenOff = Math.max(0, Math.round((invoice.total - invoice.paid - credited - invoice.balance) * 100) / 100);
+  // The sums as the lines table's foot (the board's `sums()`): the label beside its amount, under Amount.
+  const sums: Array<{ label: string; amount: number; total?: boolean }> = [
+    { label: "Before VAT", amount: invoice.subTotal },
+    { label: invoice.taxLabel === "VAT" ? "VAT" : `VAT at ${invoice.taxLabel.replace(/^VAT /, "")}`, amount: invoice.taxTotal },
+    { label: "Total", amount: invoice.total, total: true },
+    ...(invoice.paid > 0.005 ? [{ label: "Paid", amount: -invoice.paid }] : []),
+    ...(credited > 0.005 ? [{ label: "Credited", amount: -credited }] : []),
+    ...(writtenOff > 0.005 ? [{ label: "Written off", amount: -writtenOff }] : []),
+    ...(!draft && invoice.status !== "VOIDED" ? [{ label: "Left to pay", amount: invoice.balance, total: true }] : []),
+  ];
   const due = draft ? `Due ${invoice.due}` : invoice.state.key === "overdue" ? `Was due ${invoice.due}` : invoice.due === "No due date" ? invoice.due : `Due ${invoice.due}`;
+  const phoneState = invoice.state.key === "overdue" && invoice.daysOverdue > 0 ? `Overdue, ${invoice.daysOverdue} ${invoice.daysOverdue === 1 ? "day" : "days"}` : invoice.stateLabel;
+  const fiscal = board?.fiscal;
   return (
-    <div className="bk bk-rec">
+    <>
+    <div className="bk bk-rec bk-has-ph">
       <div className="bk-main">
         <div className="bk-hd">
           <div className="tr">
@@ -101,46 +114,18 @@ export function BkInvoiceView({ invoice }: { invoice: InvoiceRecordPage }) {
                   </tr>
                 ))}
               </tbody>
+              <tfoot>
+                {sums.map((row) => (
+                  <tr className={row.total ? "bk-sr t" : "bk-sr"} key={row.label}>
+                    <td colSpan={3} className="num">
+                      {row.label}
+                    </td>
+                    <td className="num">{money(row.amount, invoice.currency)}</td>
+                  </tr>
+                ))}
+              </tfoot>
             </table>
           </Boxed>
-          <div className="bk-sums">
-            <div>
-              <span>Before VAT</span>
-              <span>{money(invoice.subTotal, invoice.currency)}</span>
-            </div>
-            <div>
-              <span>{invoice.taxLabel === "VAT" ? "VAT" : `VAT at ${invoice.taxLabel.replace(/^VAT /, "")}`}</span>
-              <span>{money(invoice.taxTotal, invoice.currency)}</span>
-            </div>
-            <div className="t">
-              <span>Total</span>
-              <span>{money(invoice.total, invoice.currency)}</span>
-            </div>
-            {invoice.paid > 0.005 ? (
-              <div>
-                <span>Paid</span>
-                <span>{money(-invoice.paid, invoice.currency)}</span>
-              </div>
-            ) : null}
-            {credited > 0.005 ? (
-              <div>
-                <span>Credited</span>
-                <span>{money(-credited, invoice.currency)}</span>
-              </div>
-            ) : null}
-            {writtenOff > 0.005 ? (
-              <div>
-                <span>Written off</span>
-                <span>{money(-writtenOff, invoice.currency)}</span>
-              </div>
-            ) : null}
-            {!draft && invoice.status !== "VOIDED" ? (
-              <div className="t">
-                <span>Left to pay</span>
-                <span>{money(invoice.balance, invoice.currency)}</span>
-              </div>
-            ) : null}
-          </div>
         </Section>
 
         {board && board.payments.length > 0 ? (
@@ -305,5 +290,65 @@ export function BkInvoiceView({ invoice }: { invoice: InvoiceRecordPage }) {
         </section>
       </aside>
     </div>
+
+    {/* At phone width (BkInvoicePhone): the state, the total and who; the dates and the fiscal state; the lines. */}
+    <div className="bk-ph-only">
+      <div className="bk-ph-b" style={{ gap: 16 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          <span style={{ alignSelf: "flex-start" }}>
+            <span className={`pill ${PILL[invoice.state.key]}`}>{phoneState}</span>
+          </span>
+          <div className="num" style={{ fontSize: 34, fontWeight: 600, color: "var(--color-ink)", letterSpacing: "var(--tracking-display)", textAlign: "left" }}>
+            {money(invoice.total, invoice.currency)}
+          </div>
+          <span style={{ fontSize: 15, color: "var(--color-ink-2)" }}>
+            {invoice.customer.name}
+            {invoice.customer.contact ? ` · ${invoice.customer.contact}` : ""}
+          </span>
+        </div>
+        <div className="bk-ph-list">
+          <div className="bk-ph-row">
+            <span>Issued</span>
+            <span>{draft ? "Not yet" : invoice.date}</span>
+          </div>
+          <div className="bk-ph-row">
+            <span>Due</span>
+            <span>{invoice.due}</span>
+          </div>
+          {!draft ? (
+            <div className="bk-ph-row">
+              <span>FDMS</span>
+              <span>
+                {fiscal ? (
+                  <span className={`status ${fiscal.status === "Valid" ? "status-success" : fiscal.status === "Failed" ? "status-danger" : "status-warning"}`}>{fiscal.status}</span>
+                ) : (
+                  <span className="muted">Not sent</span>
+                )}
+              </span>
+            </div>
+          ) : null}
+          {invoice.paid > 0.005 && invoice.balance > 0.005 ? (
+            <div className="bk-ph-row">
+              <span>Left to pay</span>
+              <span className="num">{money(invoice.balance, invoice.currency)}</span>
+            </div>
+          ) : null}
+        </div>
+        <div className="bk-ph-list">
+          <b style={{ fontSize: 15, color: "var(--color-ink)" }}>{invoice.lines.length === 1 ? "1 line" : `${invoice.lines.length} lines`}</b>
+          {invoice.lines.map((line) => (
+            <div className="bk-ph-row" style={{ fontSize: 14 }} key={line.id}>
+              <span className="truncate">{line.quantity === 1 ? line.description : `${line.description}, ${qty(line.quantity)}`}</span>
+              <span className="num">{money(line.quantity * line.unitPrice, invoice.currency)}</span>
+            </div>
+          ))}
+          <div className="bk-ph-row" style={{ fontSize: 14 }}>
+            <span>{sums[1]!.label}</span>
+            <span className="num">{money(invoice.taxTotal, invoice.currency)}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    </>
   );
 }
