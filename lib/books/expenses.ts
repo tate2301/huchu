@@ -1,4 +1,5 @@
 import type { Prisma, PrismaClient } from "@prisma/client";
+import { docLabel } from "@/lib/books/doc-number";
 import { z } from "zod";
 
 import { addDays, count, daysBetween, dayOf, money, monthStart, shortDay, storedDay } from "./format";
@@ -167,7 +168,7 @@ export function toExpenseRow(record: RowRecord, today: string): ExpenseRow {
   const read = billState(record, today);
   return {
     id: record.id,
-    number: record.billNumber,
+    number: docLabel(record.billNumber, "bill"),
     supplier: record.vendor,
     state: read.state,
     stateLabel: EXPENSE_STATE_LABEL[read.state],

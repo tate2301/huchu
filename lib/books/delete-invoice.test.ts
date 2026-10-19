@@ -64,7 +64,7 @@ describe("deleting an issued invoice", () => {
     expect(removal).toMatchObject({ draft: false, ledgerEntries: 2, paymentLinks: 0, creditNotes: 1, fiscalRecord: false });
     expect(removalSentence(removal!)).toBe(`${invoice.invoiceNumber} and its 2 ledger entries and 1 credit note`);
 
-    await deleteInvoice(owner(), invoice.id, { reason: "Raised by mistake", confirm: invoice.invoiceNumber.toLowerCase() });
+    await deleteInvoice(owner(), invoice.id, { reason: "Raised by mistake", confirm: invoice.invoiceNumber!.toLowerCase() });
     await deleteInvoice(owner(), voidedToo.id, { reason: "Clearing the duplicate", confirm: voidedToo.invoiceNumber });
     expect(await trialBalance(fixture.companyId)).toEqual(before);
 

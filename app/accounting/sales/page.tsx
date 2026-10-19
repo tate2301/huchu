@@ -129,6 +129,7 @@ export default function AccountingSalesPage() {
 
   const [receiptForm, setReceiptForm] = useState({
     invoiceId: "",
+    customerId: "",
     receivedAt: today,
     amount: "",
     method: "Cash",
@@ -871,6 +872,7 @@ export default function AccountingSalesPage() {
       setReceiptFormOpen(false);
       setReceiptForm({
         invoiceId: "",
+        customerId: "",
         receivedAt: today,
         amount: "",
         method: "Cash",
@@ -1101,6 +1103,15 @@ export default function AccountingSalesPage() {
   const submitReceipt = (event: React.FormEvent) => {
     event.preventDefault();
 
+    if (!receiptForm.invoiceId && !receiptForm.customerId) {
+      toast({
+        title: "Missing details",
+        description: "Pick the customer this money is from, or the invoice it pays.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     if (!receiptForm.receivedAt || !receiptForm.amount) {
       toast({
         title: "Missing details",
@@ -1112,6 +1123,7 @@ export default function AccountingSalesPage() {
 
     createReceiptMutation.mutate({
       invoiceId: receiptForm.invoiceId || undefined,
+      customerId: receiptForm.invoiceId ? undefined : receiptForm.customerId || undefined,
       receivedAt: receiptForm.receivedAt,
       amount: Number(receiptForm.amount),
       method: receiptForm.method,
@@ -1668,6 +1680,26 @@ export default function AccountingSalesPage() {
                 </SelectContent>
               </Select>
             </div>
+            {!receiptForm.invoiceId ? (
+              <div>
+                <label className="block text-sm font-semibold mb-2">Customer *</label>
+                <Select
+                  value={receiptForm.customerId}
+                  onValueChange={(value) => setReceiptForm((prev) => ({ ...prev, customerId: value }))}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Whose money is this?" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {customers.map((customer: { id: string; name: string }) => (
+                      <SelectItem key={customer.id} value={customer.id}>
+                        {customer.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            ) : null}
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div>
                 <label className="block text-sm font-semibold mb-2">Received Date *</label>

@@ -1,4 +1,5 @@
 import type { Prisma, PrismaClient } from "@prisma/client";
+import { docLabel } from "@/lib/books/doc-number";
 import { z } from "zod";
 
 import { addDays, dayOf, monthStart, storedDay } from "./format";
@@ -146,7 +147,7 @@ export function toInvoiceRow(record: RowRecord, today: string): InvoiceRow {
   );
   return {
     id: record.id,
-    number: record.invoiceNumber,
+    number: docLabel(record.invoiceNumber),
     customer: record.customer,
     state: read.state,
     // Vane's own draft says so until a person issues or deletes it.

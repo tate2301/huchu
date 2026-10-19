@@ -1,4 +1,5 @@
 import type { PrismaClient } from "@prisma/client";
+import { docLabel } from "@/lib/books/doc-number";
 
 import { recordBankTransaction, recordPurchasePayment, recordSalesReceipt } from "@/lib/accounting/payments";
 
@@ -133,7 +134,7 @@ async function candidatesFor(db: Db, companyId: string, account: BankAccountOpti
   const openInvoices: OpenInvoice[] = invoices
     .map((invoice) => ({
       id: invoice.id,
-      number: invoice.invoiceNumber,
+      number: docLabel(invoice.invoiceNumber),
       customer: invoice.customer.name,
       balance: invoiceBalance(invoice),
       currency: invoice.currency,
@@ -143,7 +144,7 @@ async function candidatesFor(db: Db, companyId: string, account: BankAccountOpti
   const openBills: OpenBill[] = bills
     .map((bill) => ({
       id: bill.id,
-      number: bill.billNumber,
+      number: docLabel(bill.billNumber, "bill"),
       vendor: bill.vendor.name,
       balance: round(bill.total - bill.amountPaid - bill.debitNoteTotal - bill.writeOffTotal),
       currency: bill.currency,
@@ -446,6 +447,15 @@ export async function choicesFor(db: Db, companyId: string, lineId: string): Pro
   return choices;
 }
 
+/** The bank transaction a receipt or payment already wrote, reconciled to the line; else one recorded now. */
+async function reconcileOrRecord(db: Db, existingId: string | null, reconciliationId: string, record: () => Promise<{ id: string }>): Promise<string> {
+  if (existingId) {
+    await db.bankTransaction.update({ where: { id: existingId }, data: { reconciliationId, reconciledAt: new Date() } });
+    return existingId;
+  }
+  return (await record()).id;
+}
+
 /**
  * A person accepts a line's match: the receipt, payment or bank transaction is
  * recorded the way it is everywhere else, and the line is linked to it.
@@ -470,21 +480,23 @@ export async function acceptMatch(
     });
     if (!invoice) throw new BankError("That invoice is not open any more.", 409);
     if (line.amount > invoiceBalance(invoice) + 0.005) throw new BankError(`Only ${money(invoiceBalance(invoice))} is owed on ${invoice.invoiceNumber}.`, 409);
-    const receipt = await recordSalesReceipt({ companyId, userId, invoiceId: invoice.id, receivedAt: txnDate, amount: line.amount, method: "Bank transfer", reference, bankAccountId });
-    const txn = await recordBankTransaction({
-      companyId,
-      userId,
-      role,
-      bankAccountId,
-      txnDate,
-      description: `${invoice.invoiceNumber}, ${line.description}`,
-      reference,
-      amount: line.amount,
-      direction: "CREDIT",
-      source: { type: "SALES_RECEIPT", id: receipt.id },
-      reconciliationId: line.reconciliationId,
-    });
-    transactionId = txn.id;
+    const receipt = await recordSalesReceipt({ companyId, userId, role, invoiceId: invoice.id, receivedAt: txnDate, amount: line.amount, method: "Bank transfer", reference, bankAccountId });
+    // The receipt wrote its own bank side (fix 6): the line reconciles it rather than writing a second.
+    transactionId = await reconcileOrRecord(db, receipt.bankTransactionId, line.reconciliationId, () =>
+      recordBankTransaction({
+        companyId,
+        userId,
+        role,
+        bankAccountId,
+        txnDate,
+        description: `${invoice.invoiceNumber}, ${line.description}`,
+        reference,
+        amount: line.amount,
+        direction: "CREDIT",
+        source: { type: "SALES_RECEIPT", id: receipt.id },
+        reconciliationId: line.reconciliationId,
+      }),
+    );
   } else if (match.kind === "bill") {
     if (moneyIn) throw new BankError("Money in cannot pay a bill.");
     const bill = await db.purchaseBill.findFirst({
@@ -494,21 +506,22 @@ export async function acceptMatch(
     if (!bill) throw new BankError("That bill is not open any more.", 409);
     const balance = bill.total - bill.amountPaid - bill.debitNoteTotal - bill.writeOffTotal;
     if (line.amount > balance + 0.005) throw new BankError(`Only ${money(balance)} is owed on bill ${bill.billNumber}.`, 409);
-    const payment = await recordPurchasePayment({ companyId, userId, billId: bill.id, paidAt: txnDate, amount: line.amount, method: "Bank transfer", reference, bankAccountId });
-    const txn = await recordBankTransaction({
-      companyId,
-      userId,
-      role,
-      bankAccountId,
-      txnDate,
-      description: `Bill ${bill.billNumber}, ${bill.vendor.name}`,
-      reference,
-      amount: line.amount,
-      direction: "DEBIT",
-      source: { type: "PURCHASE_PAYMENT", id: payment.id },
-      reconciliationId: line.reconciliationId,
-    });
-    transactionId = txn.id;
+    const payment = await recordPurchasePayment({ companyId, userId, role, billId: bill.id, paidAt: txnDate, amount: line.amount, method: "Bank transfer", reference, bankAccountId });
+    transactionId = await reconcileOrRecord(db, payment.bankTransactionId, line.reconciliationId, () =>
+      recordBankTransaction({
+        companyId,
+        userId,
+        role,
+        bankAccountId,
+        txnDate,
+        description: `Bill ${bill.billNumber}, ${bill.vendor.name}`,
+        reference,
+        amount: line.amount,
+        direction: "DEBIT",
+        source: { type: "PURCHASE_PAYMENT", id: payment.id },
+        reconciliationId: line.reconciliationId,
+      }),
+    );
   } else if (match.kind === "transaction") {
     const txn = await db.bankTransaction.findFirst({
       where: { id: match.transactionId, companyId, bankAccountId, reconciledAt: null, matchedStatementLines: { none: {} } },

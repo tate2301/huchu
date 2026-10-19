@@ -100,17 +100,14 @@ export async function importOpeningBalances(input: {
     }
   }
 
-  const [period, entryNumber] = await Promise.all([
-    prisma.accountingPeriod.findFirst({
-      where: {
-        companyId: input.companyId,
-        startDate: { lte: input.effectiveDate },
-        endDate: { gte: input.effectiveDate },
-      },
-      orderBy: { startDate: "asc" },
-    }),
-    getNextEntryNumber(input.companyId),
-  ]);
+  const period = await prisma.accountingPeriod.findFirst({
+    where: {
+      companyId: input.companyId,
+      startDate: { lte: input.effectiveDate },
+      endDate: { gte: input.effectiveDate },
+    },
+    orderBy: { startDate: "asc" },
+  });
 
   const targetPeriod =
     period ??
@@ -124,6 +121,7 @@ export async function importOpeningBalances(input: {
     }));
 
   return prisma.$transaction(async (tx) => {
+    const entryNumber = await getNextEntryNumber(input.companyId, tx);
     const entry = await tx.journalEntry.create({
       data: {
         companyId: input.companyId,
@@ -332,9 +330,8 @@ export async function closePeriodWithVoucher(input: {
   }
 
   const closingDate = input.closingDate ?? period.endDate;
-  const entryNumber = await getNextEntryNumber(input.companyId);
-
   return prisma.$transaction(async (tx) => {
+    const entryNumber = await getNextEntryNumber(input.companyId, tx);
     const entry = await tx.journalEntry.create({
       data: {
         companyId: input.companyId,
@@ -435,7 +432,7 @@ export async function reopenPeriodWithVoucher(input: {
         throw new Error("Period close voucher journal entry not found.");
       }
 
-      const reversalEntryNumber = await getNextEntryNumber(input.companyId);
+      const reversalEntryNumber = await getNextEntryNumber(input.companyId, tx);
       const reversalDate = input.reopenedAt ?? new Date();
       const reversalEntry = await tx.journalEntry.create({
         data: {

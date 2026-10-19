@@ -3,6 +3,7 @@ import { z } from "zod";
 import { validateSession, successResponse, errorResponse } from "@/lib/api-utils";
 import { guardBooks } from "@/lib/books/core";
 import { prisma } from "@/lib/prisma";
+import { numberAtIssue } from "@/lib/books/core/numbering";
 import { createJournalEntryFromSource } from "@/lib/accounting/posting";
 import { recalcPurchaseBillBalance } from "@/lib/accounting/balances";
 
@@ -47,10 +48,15 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
       return errorResponse("Bill must be received before issuing a debit note", 400);
     }
 
-    const updated = await prisma.debitNote.update({
+    // Numbered at issue (D8), in the same write: a draft that is never issued takes no number.
+    const updated = await prisma.$transaction(async (tx) => tx.debitNote.update({
       where: { id },
       data: {
         status: validated.status,
+        noteNumber:
+          validated.status === "ISSUED" && existing.status === "DRAFT"
+            ? await numberAtIssue(tx, session.user.companyId, "debit-note", existing.noteNumber)
+            : undefined,
         reason: validated.reason,
         issuedById: validated.status === "ISSUED" ? session.user.id : existing.issuedById,
         issuedAt: validated.status === "ISSUED" ? new Date() : existing.issuedAt,
@@ -59,7 +65,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
         bill: { select: { billNumber: true, vendor: { select: { name: true } } } },
         lines: true,
       },
-    });
+    }));
 
     if (validated.status && validated.status !== existing.status) {
       if (validated.status === "ISSUED") {

@@ -1,4 +1,5 @@
 import { createSalesCreditNote, CreditNoteRefused } from "@/lib/accounting/credit-notes";
+import { docLabel } from "@/lib/books/doc-number";
 import { salesInvoicePostingKey } from "@/lib/accounting/journals";
 import { createJournalEntryFromSource } from "@/lib/accounting/posting";
 import { writePlatformAuditEvent } from "@/lib/audit/platform";
@@ -146,7 +147,7 @@ export async function voidInvoice(actor: InvoiceActor | BooksActor, invoiceId: s
     );
   });
 
-  return { number: invoice.invoiceNumber, customer: invoice.customer.name, unlinked, fiscalised: wasFiscalised(invoice.fiscalReceipt) };
+  return { number: docLabel(invoice.invoiceNumber), customer: invoice.customer.name, unlinked, fiscalised: wasFiscalised(invoice.fiscalReceipt) };
 }
 
 export type CreditResult = { number: string; note: string; total: number; currency: string; fiscalised: boolean };
@@ -173,7 +174,7 @@ export async function creditInvoice(actor: InvoiceActor | BooksActor, invoiceId:
   if (invoice.status !== "ISSUED" && invoice.status !== "PAID") {
     throw new InvoiceChangeRefused(invoice.status === "DRAFT" ? `${invoice.invoiceNumber} is a draft: change it or delete it instead.` : `${invoice.invoiceNumber} is void.`);
   }
-  const built = creditLines(invoice.invoiceNumber, invoice.lines, input.choice);
+  const built = creditLines(docLabel(invoice.invoiceNumber), invoice.lines, input.choice);
   if ("error" in built) throw new InvoiceChangeRefused(built.error, 400);
   const left = round(invoice.total - invoice.creditTotal - invoice.writeOffTotal);
   if (built.total > left + 0.005) {
@@ -199,5 +200,5 @@ export async function creditInvoice(actor: InvoiceActor | BooksActor, invoiceId:
     reason,
     payload: { number: invoice.invoiceNumber, creditNoteId: note.id, creditNote: note.noteNumber, total: note.total, currency: note.currency, lines: built.lines },
   });
-  return { number: invoice.invoiceNumber, note: note.noteNumber, total: round(note.total), currency: note.currency, fiscalised: wasFiscalised(invoice.fiscalReceipt) };
+  return { number: docLabel(invoice.invoiceNumber), note: docLabel(note.noteNumber, "credit note"), total: round(note.total), currency: note.currency, fiscalised: wasFiscalised(invoice.fiscalReceipt) };
 }

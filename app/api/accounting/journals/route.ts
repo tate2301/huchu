@@ -157,7 +157,6 @@ export async function POST(request: NextRequest) {
     }
 
     const entryDate = new Date(validated.entryDate);
-    const entryNumber = await getNextEntryNumber(session.user.companyId);
     let period = await ensurePeriodForDate(session.user.companyId, entryDate);
     let periodOverrideReason: string | undefined;
     let periodOverrideById: string | undefined;
@@ -183,10 +182,11 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    const entry = await prisma.journalEntry.create({
+    // Numbered inside the write, so two people saving at once get consecutive numbers (D8).
+    const entry = await prisma.$transaction(async (tx) => tx.journalEntry.create({
       data: {
         companyId: session.user.companyId,
-        entryNumber,
+        entryNumber: await getNextEntryNumber(session.user.companyId, tx),
         entryDate,
         description: validated.description,
         status: validated.status ?? "DRAFT",
@@ -209,7 +209,7 @@ export async function POST(request: NextRequest) {
         },
       },
       include: { lines: true },
-    });
+    }));
 
     return successResponse(entry, 201);
   } catch (error) {

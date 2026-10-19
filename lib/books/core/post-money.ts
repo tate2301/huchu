@@ -15,7 +15,7 @@ import { prisma } from "@/lib/prisma";
  * When the money moved through one of the workspace's money accounts
  * (`money.bankAccountId`), that account's ledger account is what the rule's
  * "money account" line posts to, rather than a fixed 1010, and a bank
- * transaction is written for it once the entry has posted.
+ * transaction is written for it, whether or not the entry could post yet.
  */
 
 type Db = PrismaClient | Prisma.TransactionClient;
@@ -122,14 +122,20 @@ export async function postMoney(db: Db, event: MoneyEvent): Promise<PostMoneyRes
     { postNow: event.postNow },
   );
 
-  if (result.entryId && event.money?.bankAccountId) {
+  // The money moved whether or not its journal could post yet (a missing rule
+  // waits for the drain): the bank side is written either way (fix 6).
+  if (event.money?.bankAccountId) {
     const bankTransactionId = await recordBankMove(db, event);
     return { ...result, bankTransactionId };
   }
   return result;
 }
 
-/** The bank side of money that moved through a money account: once per source. */
+/**
+ * The bank side of money that moved through a money account: once per source.
+ * Its direction reads as the bank's statement does, the way Books → Bank
+ * matches lines and `isMoneyIn` reads it: money in is CREDIT, money out DEBIT.
+ */
 async function recordBankMove(db: Db, event: MoneyEvent): Promise<string | undefined> {
   if (!event.money?.bankAccountId) return undefined;
   const existing = await db.bankTransaction.findFirst({
@@ -145,7 +151,7 @@ async function recordBankMove(db: Db, event: MoneyEvent): Promise<string | undef
       description: event.description,
       reference: event.money.reference ?? undefined,
       amount: toNumberOrZero(event.amount),
-      direction: event.money.direction === "IN" ? "DEBIT" : "CREDIT",
+      direction: event.money.direction === "IN" ? "CREDIT" : "DEBIT",
       sourceType: event.sourceType,
       sourceId: event.sourceId,
     },

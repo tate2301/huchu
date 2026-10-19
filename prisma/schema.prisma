@@ -7740,6 +7740,7 @@ model Customer {
   company         Company          @relation(fields: [companyId], references: [id], onDelete: Cascade)
   taxCategory     TaxCategory?     @relation(fields: [taxCategoryId], references: [id])
   invoices        SalesInvoice[]
+  receipts        SalesReceipt[]
   quotations      SalesQuotation[]
   crmClients      CrmClient[]
   retailSales     RetailSale[]     @relation("RetailSaleCustomer")
@@ -7972,7 +7973,8 @@ model SalesInvoice {
   id            String               @id @default(uuid())
   companyId     String
   customerId    String
-  invoiceNumber String
+  /// Given at issue from the gapless series (D8); a draft has none.
+  invoiceNumber String?
   invoiceDate   DateTime
   dueDate       DateTime?
   status        InvoiceStatus        @default(DRAFT)
@@ -8109,6 +8111,15 @@ model SalesReceipt {
   method        String
   reference     String?
   bankAccountId String?
+  /// Whose money it is (D2): the invoice's customer, or the customer it is on account for.
+  /// Nullable for history; every writer sets it.
+  customerId    String?
+  /// The currency the money came in, the rate on its day (quote units per one base unit,
+  /// `CurrencyRate`) and the amount in the base currency, frozen when it is recorded (D2).
+  /// Rate and base amount are empty only where no rate was known for the day.
+  currency      String?
+  exchangeRate  Float?
+  baseAmount    Float?
   createdById   String?
   createdAt     DateTime @default(now())
   /// Voided in Books by the workspace's owner (`lib/books/void-receipt.ts`): the
@@ -8121,18 +8132,21 @@ model SalesReceipt {
   company          Company           @relation(fields: [companyId], references: [id], onDelete: Cascade)
   invoice          SalesInvoice?     @relation(fields: [invoiceId], references: [id])
   bankAccount      BankAccount?      @relation(fields: [bankAccountId], references: [id])
+  customer         Customer?         @relation(fields: [customerId], references: [id])
   createdBy        User?             @relation("SalesReceiptCreatedBy", fields: [createdById], references: [id])
   voidedBy         User?             @relation("SalesReceiptVoidedBy", fields: [voidedById], references: [id])
   crmLeadDocuments CrmLeadDocument[] @relation("CrmLeadDocReceipt")
 
   @@unique([companyId, receiptNumber])
+  @@index([companyId, customerId])
 }
 
 model CreditNote {
   id          String     @id @default(uuid())
   companyId   String
   invoiceId   String
-  noteNumber  String
+  /// Given at issue from the gapless series (D8); a draft has none.
+  noteNumber  String?
   noteDate    DateTime
   status      NoteStatus @default(DRAFT)
   currency    String     @default("USD")
@@ -8180,6 +8194,8 @@ model SalesWriteOff {
   companyId   String
   invoiceId   String
   amount      Float
+  /// "WO-0001", from the gapless series (D8).
+  writeOffNumber String?
   reason      String?
   status      WriteOffStatus @default(POSTED)
   createdById String?
@@ -8189,6 +8205,7 @@ model SalesWriteOff {
   invoice   SalesInvoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
   createdBy User?        @relation("SalesWriteOffCreatedBy", fields: [createdById], references: [id])
 
+  @@unique([companyId, writeOffNumber])
   @@index([companyId, invoiceId])
 }
 
@@ -8196,7 +8213,8 @@ model PurchaseBill {
   id             String     @id @default(uuid())
   companyId      String
   vendorId       String
-  billNumber     String
+  /// Given when received from the gapless series (D8); a draft has none.
+  billNumber     String?
   billDate       DateTime
   dueDate        DateTime?
   status         BillStatus @default(DRAFT)
@@ -8282,7 +8300,8 @@ model DebitNote {
   id          String     @id @default(uuid())
   companyId   String
   billId      String
-  noteNumber  String
+  /// Given at issue from the gapless series (D8); a draft has none.
+  noteNumber  String?
   noteDate    DateTime
   status      NoteStatus @default(DRAFT)
   currency    String     @default("USD")
@@ -8329,6 +8348,8 @@ model PurchaseWriteOff {
   companyId   String
   billId      String
   amount      Float
+  /// "PWO-0001", from the gapless series (D8).
+  writeOffNumber String?
   reason      String?
   status      WriteOffStatus @default(POSTED)
   createdById String?
@@ -8338,6 +8359,7 @@ model PurchaseWriteOff {
   bill      PurchaseBill @relation(fields: [billId], references: [id], onDelete: Cascade)
   createdBy User?        @relation("PurchaseWriteOffCreatedBy", fields: [createdById], references: [id])
 
+  @@unique([companyId, writeOffNumber])
   @@index([companyId, billId])
 }
 

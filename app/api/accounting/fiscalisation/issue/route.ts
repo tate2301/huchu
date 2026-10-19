@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { docLabel } from "@/lib/books/doc-number";
 import { z } from "zod";
 import { validateSession, successResponse, errorResponse } from "@/lib/api-utils";
 import { issueFiscalReceipt } from "@/lib/accounting/fiscalisation";
@@ -24,7 +25,7 @@ export async function POST(request: NextRequest) {
       select: { invoiceNumber: true, madeByVane: true, createdById: true },
     });
     if (invoice && waitsForAPerson(invoice)) {
-      const refused = new VaneDraftNotTakenOn(invoice.invoiceNumber, "issue");
+      const refused = new VaneDraftNotTakenOn(docLabel(invoice.invoiceNumber), "issue");
       return errorResponse(refused.message, refused.status);
     }
 

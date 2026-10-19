@@ -1,4 +1,5 @@
 import type { Prisma, PrismaClient } from "@prisma/client";
+import { docLabel } from "@/lib/books/doc-number";
 
 import { recalcSalesInvoiceBalance } from "@/lib/accounting/balances";
 import { createJournalEntryFromSource } from "@/lib/accounting/posting";
@@ -136,7 +137,7 @@ function factsOf(found: Gathered, voider: string | null): ReceiptVoidFacts {
     invoice: invoice
       ? {
           id: invoice.id,
-          number: invoice.invoiceNumber,
+          number: docLabel(invoice.invoiceNumber),
           paid: invoice.status === "PAID",
           owedAfter: invoice.status === "VOIDED" ? 0 : Math.min(round(invoice.total - invoice.creditTotal - invoice.writeOffTotal), round(owedNow + receipt.amount)),
         }
@@ -296,7 +297,7 @@ export async function voidReceipt(actor: InvoiceActor, receiptId: string, input:
         amount: round(receipt.amount),
         currency: facts.currency,
         customer: facts.customer,
-        invoice: receipt.invoice && balance ? { number: receipt.invoice.invoiceNumber, status: balance.status, owed: receipt.invoice.status === "VOIDED" ? 0 : round(balance.balance) } : null,
+        invoice: receipt.invoice && balance ? { number: docLabel(receipt.invoice.invoiceNumber), status: balance.status, owed: receipt.invoice.status === "VOIDED" ? 0 : round(balance.balance) } : null,
         bankLine: facts.bankLine,
         fiscalised: facts.fiscalised,
         reversalEntryId,

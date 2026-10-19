@@ -2,8 +2,13 @@ import type { AccountingSourceType } from "@prisma/client";
 
 import { recalcPurchaseBillBalance, recalcSalesInvoiceBalance } from "@/lib/accounting/balances";
 import { createJournalEntryFromSource } from "@/lib/accounting/posting";
+import { nextNumber } from "@/lib/books/core/numbering";
+import { postMoney } from "@/lib/books/core/post-money";
+import { ReceiptRefused, receiptFacts } from "@/lib/books/core/receipt-facts";
 import { onAccountingReceiptCreated } from "@/lib/crm/accounting-hooks";
 import { prisma } from "@/lib/prisma";
+
+export { ReceiptRefused };
 
 /**
  * Recording money in, money out and bank transactions: one way each, whether a
@@ -12,27 +17,15 @@ import { prisma } from "@/lib/prisma";
  * posts its journal and tells the CRM.
  */
 
-const two = (value: number) => String(value).padStart(2, "0");
-
-function numberCandidate(prefix: string) {
-  const now = new Date();
-  const datePart = `${now.getFullYear()}${two(now.getMonth() + 1)}${two(now.getDate())}`;
-  const timePart = `${two(now.getHours())}${two(now.getMinutes())}`;
-  return `${prefix}-${datePart}-${timePart}-${Math.floor(100 + Math.random() * 900)}`;
-}
-
-async function uniqueNumber(prefix: string, taken: (candidate: string) => Promise<boolean>) {
-  for (let attempt = 0; attempt < 10; attempt += 1) {
-    const candidate = numberCandidate(prefix);
-    if (!(await taken(candidate))) return candidate;
-  }
-  return `${prefix}-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`;
-}
-
 export type SalesReceiptInput = {
   companyId: string;
   userId: string;
+  role?: string | null;
   invoiceId?: string | null;
+  /** Whose money it is: the invoice's customer when it pays one, else this (D2). One of the two is required. */
+  customerId?: string | null;
+  /** The currency it came in, when it pays no invoice; else the invoice's. */
+  currency?: string | null;
   receivedAt: Date;
   amount: number;
   method: string;
@@ -40,43 +33,64 @@ export type SalesReceiptInput = {
   bankAccountId?: string | null;
 };
 
+/**
+ * Records money received: numbered from the receipt series, its customer,
+ * currency and rate frozen (D2), posted through the core to the money account
+ * it came into, with that account's bank transaction, in one transaction.
+ */
 export async function recordSalesReceipt(input: SalesReceiptInput) {
-  const receiptNumber = await uniqueNumber("REC", async (candidate) =>
-    Boolean(await prisma.salesReceipt.findFirst({ where: { receiptNumber: candidate }, select: { id: true } })),
-  );
-  const receipt = await prisma.salesReceipt.create({
-    data: {
-      companyId: input.companyId,
-      invoiceId: input.invoiceId ?? undefined,
-      receiptNumber,
-      receivedAt: input.receivedAt,
-      amount: input.amount,
-      method: input.method,
-      reference: input.reference ?? undefined,
-      bankAccountId: input.bankAccountId ?? undefined,
-      createdById: input.userId,
-    },
-    include: { invoice: true },
+  const facts = await receiptFacts(prisma, {
+    companyId: input.companyId,
+    invoiceId: input.invoiceId,
+    customerId: input.customerId,
+    bankAccountId: input.bankAccountId,
+    currency: input.currency,
+    date: input.receivedAt,
+    amount: input.amount,
   });
+  if (!facts.customerId) throw new ReceiptRefused("Say whose money this is: pick the customer, or the invoice it pays.");
+  if (input.bankAccountId) {
+    const bank = await prisma.bankAccount.findFirst({ where: { id: input.bankAccountId, companyId: input.companyId }, select: { id: true } });
+    if (!bank) throw new ReceiptRefused("That money account is not here any more.", 404);
+  }
 
-  if (receipt.invoiceId) await recalcSalesInvoiceBalance(receipt.invoiceId);
-
-  try {
-    await createJournalEntryFromSource({
+  const { receipt, bankTransactionId } = await prisma.$transaction(async (tx) => {
+    const receiptNumber = await nextNumber(tx, input.companyId, "receipt");
+    const receipt = await tx.salesReceipt.create({
+      data: {
+        companyId: input.companyId,
+        invoiceId: input.invoiceId ?? undefined,
+        customerId: facts.customerId,
+        receiptNumber,
+        receivedAt: input.receivedAt,
+        amount: input.amount,
+        currency: facts.currency,
+        exchangeRate: facts.exchangeRate,
+        baseAmount: facts.baseAmount,
+        method: input.method,
+        reference: input.reference ?? undefined,
+        bankAccountId: input.bankAccountId ?? undefined,
+        createdById: input.userId,
+      },
+      include: { invoice: true },
+    });
+    const posting = await postMoney(tx, {
       companyId: input.companyId,
       sourceType: "SALES_RECEIPT",
       sourceId: receipt.id,
-      entryDate: receipt.receivedAt,
+      date: receipt.receivedAt,
       description: `Sales receipt ${receipt.receiptNumber}`,
-      createdById: input.userId,
       amount: receipt.amount,
-      netAmount: receipt.amount,
-      taxAmount: 0,
-      grossAmount: receipt.amount,
+      currency: facts.currency,
+      rate: facts.exchangeRate ?? undefined,
+      money: input.bankAccountId ? { bankAccountId: input.bankAccountId, direction: "IN", reference: input.reference ?? receipt.receiptNumber } : undefined,
+      actor: { userId: input.userId, role: input.role ?? null },
     });
-  } catch (error) {
-    console.error("[Accounting] Sales receipt auto-post failed:", error);
-  }
+    if (posting.error) console.error(`[Accounting] Sales receipt ${receipt.receiptNumber} waits to post: ${posting.error}`);
+    return { receipt, bankTransactionId: posting.bankTransactionId ?? null };
+  });
+
+  if (receipt.invoiceId) await recalcSalesInvoiceBalance(receipt.invoiceId);
 
   await onAccountingReceiptCreated({
     companyId: input.companyId,
@@ -85,12 +99,13 @@ export async function recordSalesReceipt(input: SalesReceiptInput) {
     userId: input.userId,
   });
 
-  return receipt;
+  return { ...receipt, bankTransactionId };
 }
 
 export type PurchasePaymentInput = {
   companyId: string;
   userId: string;
+  role?: string | null;
   billId?: string | null;
   paidAt: Date;
   amount: number;
@@ -99,45 +114,54 @@ export type PurchasePaymentInput = {
   bankAccountId?: string | null;
 };
 
+/**
+ * Records money paid to a supplier: posted through the core out of the money
+ * account it left, with that account's bank transaction, in one transaction.
+ */
 export async function recordPurchasePayment(input: PurchasePaymentInput) {
-  const paymentNumber = await uniqueNumber("PAY", async (candidate) =>
-    Boolean(await prisma.purchasePayment.findFirst({ where: { paymentNumber: candidate }, select: { id: true } })),
-  );
-  const payment = await prisma.purchasePayment.create({
-    data: {
+  if (input.bankAccountId) {
+    const bank = await prisma.bankAccount.findFirst({ where: { id: input.bankAccountId, companyId: input.companyId }, select: { id: true } });
+    if (!bank) throw new ReceiptRefused("That money account is not here any more.", 404);
+  }
+  const bill = input.billId
+    ? await prisma.purchaseBill.findFirst({ where: { id: input.billId, companyId: input.companyId }, select: { vendorId: true, currency: true } })
+    : null;
+
+  const { payment, bankTransactionId } = await prisma.$transaction(async (tx) => {
+    const paymentNumber = await nextNumber(tx, input.companyId, "payment");
+    const payment = await tx.purchasePayment.create({
+      data: {
+        companyId: input.companyId,
+        billId: input.billId ?? undefined,
+        vendorId: bill?.vendorId ?? undefined,
+        paymentNumber,
+        paidAt: input.paidAt,
+        amount: input.amount,
+        method: input.method,
+        reference: input.reference ?? undefined,
+        bankAccountId: input.bankAccountId ?? undefined,
+        createdById: input.userId,
+      },
+      include: { bill: true },
+    });
+    const posting = await postMoney(tx, {
       companyId: input.companyId,
-      billId: input.billId ?? undefined,
-      paymentNumber,
-      paidAt: input.paidAt,
-      amount: input.amount,
-      method: input.method,
-      reference: input.reference ?? undefined,
-      bankAccountId: input.bankAccountId ?? undefined,
-      createdById: input.userId,
-    },
-    include: { bill: true },
+      sourceType: "PURCHASE_PAYMENT",
+      sourceId: payment.id,
+      date: payment.paidAt,
+      description: `Purchase payment ${payment.paymentNumber}`,
+      amount: payment.amount,
+      currency: bill?.currency ?? null,
+      money: input.bankAccountId ? { bankAccountId: input.bankAccountId, direction: "OUT", reference: input.reference ?? payment.paymentNumber } : undefined,
+      actor: { userId: input.userId, role: input.role ?? null },
+    });
+    if (posting.error) console.error(`[Accounting] Purchase payment ${payment.paymentNumber} waits to post: ${posting.error}`);
+    return { payment, bankTransactionId: posting.bankTransactionId ?? null };
   });
 
   if (payment.billId) await recalcPurchaseBillBalance(payment.billId);
 
-  try {
-    await createJournalEntryFromSource({
-      companyId: input.companyId,
-      sourceType: "PURCHASE_PAYMENT",
-      sourceId: payment.id,
-      entryDate: payment.paidAt,
-      description: `Purchase payment ${payment.paymentNumber}`,
-      createdById: input.userId,
-      amount: payment.amount,
-      netAmount: payment.amount,
-      taxAmount: 0,
-      grossAmount: payment.amount,
-    });
-  } catch (error) {
-    console.error("[Accounting] Purchase payment auto-post failed:", error);
-  }
-
-  return payment;
+  return { ...payment, bankTransactionId };
 }
 
 export type BankTransactionInput = {

@@ -3,6 +3,8 @@ import { z } from "zod";
 import { validateSession, successResponse, errorResponse } from "@/lib/api-utils";
 import { prisma } from "@/lib/prisma";
 import { guardBooks, postMoney, voidMoney, VoidRefused } from "@/lib/books/core";
+import { numberAtIssue } from "@/lib/books/core/numbering";
+import { docLabel } from "@/lib/books/doc-number";
 
 const updateSchema = z.object({
   status: z.enum(["DRAFT", "RECEIVED", "PAID", "VOIDED"]).optional(),
@@ -37,13 +39,13 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
       return errorResponse("Paid is worked out from the payments on it. Record a payment instead.", 409);
     }
     if (validated.status === "DRAFT" && existing.status !== "DRAFT") {
-      return errorResponse(`${existing.billNumber} was received, so it cannot go back to draft. Void it instead.`, 409);
+      return errorResponse(`${docLabel(existing.billNumber, "bill")} was received, so it cannot go back to draft. Void it instead.`, 409);
     }
     if (validated.status === "RECEIVED" && existing.status !== "DRAFT") {
-      return errorResponse(`${existing.billNumber} is not a draft: it was received already.`, 409);
+      return errorResponse(`${docLabel(existing.billNumber, "bill")} is not a draft: it was received already.`, 409);
     }
     if (validated.status === "VOIDED" && existing.status === "VOIDED") {
-      return errorResponse(`${existing.billNumber} is void already.`, 409);
+      return errorResponse(`${docLabel(existing.billNumber, "bill")} is void already.`, 409);
     }
     const action = validated.status === "RECEIVED" ? "issue" : validated.status === "VOIDED" && existing.status !== "DRAFT" ? "void" : "draft.edit";
     const { actor, refused } = await guardBooks(session, action, { kind: "bill", ownerId: existing.issuedById });
@@ -67,20 +69,25 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
             eventType: "books.bill.voided",
           });
         } catch (error) {
-          if (error instanceof VoidRefused) return errorResponse(`${existing.billNumber} was not voided: ${error.message}`, error.status);
+          if (error instanceof VoidRefused) return errorResponse(`${docLabel(existing.billNumber, "bill")} was not voided: ${error.message}`, error.status);
           throw error;
         }
       }
     }
 
-    const updated = await prisma.purchaseBill.update({
-      where: { id },
-      data: {
-        status: validated.status === "RECEIVED" || validated.status === "VOIDED" ? validated.status : undefined,
-        notes: validated.notes,
-        issuedById: validated.status === "RECEIVED" ? session.user.id : existing.issuedById,
-        issuedAt: validated.status === "RECEIVED" ? new Date() : existing.issuedAt,
-      },
+    // Numbered when received (D8), in the same write: a draft that is never received takes no number.
+    const updated = await prisma.$transaction(async (tx) => {
+      const billNumber = validated.status === "RECEIVED" ? await numberAtIssue(tx, session.user.companyId, "bill", existing.billNumber) : undefined;
+      return tx.purchaseBill.update({
+        where: { id },
+        data: {
+          status: validated.status === "RECEIVED" || validated.status === "VOIDED" ? validated.status : undefined,
+          notes: validated.notes,
+          billNumber,
+          issuedById: validated.status === "RECEIVED" ? session.user.id : existing.issuedById,
+          issuedAt: validated.status === "RECEIVED" ? new Date() : existing.issuedAt,
+        },
+      });
     });
 
     if (validated.status === "RECEIVED") {

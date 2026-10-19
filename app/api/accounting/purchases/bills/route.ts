@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { validateSession, successResponse, errorResponse, getPaginationParams, paginationResponse } from "@/lib/api-utils";
 import { prisma } from "@/lib/prisma";
+import { nextNumber } from "@/lib/books/core/numbering";
 import { createJournalEntryFromSource } from "@/lib/accounting/posting";
 import { findTaxCodesOutsideEffectiveWindow } from "@/lib/accounting/tax-selection";
 import { resolveDefaultTaxTemplate } from "@/lib/accounting/tax-rules";
@@ -28,30 +29,6 @@ const billSchema = z.object({
     )
     .min(1),
 });
-
-function formatTwoDigits(value: number) {
-  return String(value).padStart(2, "0");
-}
-
-function buildBillNumberCandidate() {
-  const now = new Date();
-  const datePart = `${now.getFullYear()}${formatTwoDigits(now.getMonth() + 1)}${formatTwoDigits(now.getDate())}`;
-  const timePart = `${formatTwoDigits(now.getHours())}${formatTwoDigits(now.getMinutes())}`;
-  const randomPart = Math.floor(100 + Math.random() * 900);
-  return `BILL-${datePart}-${timePart}-${randomPart}`;
-}
-
-async function generateUniqueBillNumber() {
-  for (let attempt = 0; attempt < 10; attempt += 1) {
-    const candidate = buildBillNumberCandidate();
-    const existing = await prisma.purchaseBill.findFirst({
-      where: { billNumber: candidate },
-      select: { id: true },
-    });
-    if (!existing) return candidate;
-  }
-  return `BILL-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`;
-}
 
 export async function GET(request: NextRequest) {
   try {
@@ -119,8 +96,6 @@ export async function POST(request: NextRequest) {
       return errorResponse("Invalid vendor", 400);
     }
 
-    const billNumber = await generateUniqueBillNumber();
-
     const resolvedTemplate = await resolveDefaultTaxTemplate({
       companyId: session.user.companyId,
       appliesTo: "PURCHASE",
@@ -178,11 +153,12 @@ export async function POST(request: NextRequest) {
     const taxTotal = computedLines.reduce((sum, line) => sum + line.taxAmount, 0);
     const total = computedLines.reduce((sum, line) => sum + line.lineTotal, 0);
 
-    const bill = await prisma.purchaseBill.create({
+    // A draft carries no number; one received or issued now takes the next in the series, in the same write (D8).
+    const bill = await prisma.$transaction(async (tx) => tx.purchaseBill.create({
       data: {
         companyId: session.user.companyId,
         vendorId: validated.vendorId,
-        billNumber,
+        billNumber: validated.receiveNow ? await nextNumber(tx, session.user.companyId, "bill") : null,
         billDate,
         dueDate: validated.dueDate ? new Date(validated.dueDate) : undefined,
         status: validated.receiveNow ? "RECEIVED" : "DRAFT",
@@ -200,7 +176,7 @@ export async function POST(request: NextRequest) {
         vendor: true,
         lines: true,
       },
-    });
+    }));
 
     if (bill.status === "RECEIVED") {
       try {

@@ -84,7 +84,7 @@ describe("a CRM requisition paid out", () => {
     expect(after["1010"] ?? 0).toBe(before["1010"] ?? 0);
 
     const bank = await prisma.bankTransaction.findFirstOrThrow({ where: { companyId: fixture.companyId, sourceId: requisition.id } });
-    expect(bank).toMatchObject({ bankAccountId: ecocash, amount: 400, direction: "CREDIT", sourceType: "CRM_REQUISITION_DISBURSEMENT" });
+    expect(bank).toMatchObject({ bankAccountId: ecocash, amount: 400, direction: "DEBIT", sourceType: "CRM_REQUISITION_DISBURSEMENT" });
 
     const events = await prisma.accountingIntegrationEvent.findMany({ where: { companyId: fixture.companyId, sourceId: requisition.id } });
     expect(events.map((event) => event.status)).toEqual(["POSTED"]);

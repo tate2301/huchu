@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { docLabel } from "@/lib/books/doc-number";
 import { z } from "zod";
 import { validateSession, successResponse, errorResponse } from "@/lib/api-utils";
 import { prisma } from "@/lib/prisma";
@@ -71,7 +72,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     const leaving = existing.status === "DRAFT" && validated.status === "ISSUED";
     const takingOn = leaving && waitsForAPerson(existing);
     const maker = leaving
-      ? takeOn(existing, { asMine: validated.asMine, userId: session.user.id, what: existing.invoiceNumber, verb: "issue" })
+      ? takeOn(existing, { asMine: validated.asMine, userId: session.user.id, what: docLabel(existing.invoiceNumber), verb: "issue" })
       : {};
     const now = new Date();
 

@@ -1,4 +1,5 @@
 import type { Prisma, PrismaClient } from "@prisma/client";
+import { docLabel } from "@/lib/books/doc-number";
 
 import { writePlatformAuditEvent } from "@/lib/audit/platform";
 import { prisma } from "@/lib/prisma";
@@ -88,7 +89,7 @@ export async function readInvoiceRemoval(companyId: string, invoiceId: string, d
     select: { status: true },
   });
   return {
-    number: invoice.invoiceNumber,
+    number: docLabel(invoice.invoiceNumber),
     draft: invoice.status === "DRAFT",
     ledgerEntries: found.journals.length,
     paymentLinks: invoice.receipts.length,
@@ -125,7 +126,7 @@ export async function deleteInvoice(actor: InvoiceActor | BooksActor, invoiceId:
     if (!may.allowed) throw new InvoiceChangeRefused(may.reason, 403);
   } else {
     if (!canDo(actor, "delete.posted", { kind: "invoice" }).allowed) throw new InvoiceChangeRefused(OWNER_ONLY, 403);
-    if ((input.confirm ?? "").trim().toUpperCase() !== head.invoiceNumber.toUpperCase()) throw new InvoiceChangeRefused(`Type ${head.invoiceNumber} to delete it.`, 400);
+    if ((input.confirm ?? "").trim().toUpperCase() !== docLabel(head.invoiceNumber).toUpperCase()) throw new InvoiceChangeRefused(`Type ${docLabel(head.invoiceNumber)} to delete it.`, 400);
     if (reason.length < REASON_MIN) throw new InvoiceChangeRefused("Say why, in a few words. The reason is kept in the audit log.", 400);
   }
 
@@ -135,13 +136,13 @@ export async function deleteInvoice(actor: InvoiceActor | BooksActor, invoiceId:
       const found = await gather(tx, actor.companyId, invoiceId);
       if (!found) throw new InvoiceChangeRefused("That invoice is not here any more.", 404);
       const { invoice, noteIds, writeOffIds, journals, mirrorIds, ledger, fiscal } = found;
-      if (invoice.status !== head.status) throw new InvoiceChangeRefused(`${invoice.invoiceNumber} changed while you were deleting it. Look again, then delete it.`);
+      if (invoice.status !== head.status) throw new InvoiceChangeRefused(`${docLabel(invoice.invoiceNumber)} changed while you were deleting it. Look again, then delete it.`);
       // Never a fiscalised one, whatever its fiscal day: the credit note is the way (books-final §2.5).
-      if (fiscalisedOf(fiscal)) throw new InvoiceChangeRefused(FISCALISED_REFUSAL(invoice.invoiceNumber));
+      if (fiscalisedOf(fiscal)) throw new InvoiceChangeRefused(FISCALISED_REFUSAL(docLabel(invoice.invoiceNumber)));
       const openDay = fiscal.find((row) => row.fiscalDay !== null && row.fiscalDay.status !== "CLOSED");
       if (openDay) {
         throw new InvoiceChangeRefused(
-          `${invoice.invoiceNumber} is on fiscal day ${openDay.fiscalDay!.fiscalDayNo}, which is still open, and the day's Z report counts it. Close the fiscal day, then delete it.`,
+          `${docLabel(invoice.invoiceNumber)} is on fiscal day ${openDay.fiscalDay!.fiscalDayNo}, which is still open, and the day's Z report counts it. Close the fiscal day, then delete it.`,
         );
       }
 
@@ -210,7 +211,7 @@ export async function deleteInvoice(actor: InvoiceActor | BooksActor, invoiceId:
               type: "SYSTEM",
               leadId: doc.leadId ?? undefined,
               dealId: doc.dealId ?? undefined,
-              subject: `Invoice ${invoice.invoiceNumber} deleted in Books`,
+              subject: `Invoice ${docLabel(invoice.invoiceNumber)} deleted in Books`,
               metadata: { kind: "DOCUMENT_DELETED", invoiceId: invoice.id, origin: "BOOKS", reason: reason || null },
               createdById: actor.userId,
               occurredAt: now,
@@ -229,12 +230,12 @@ export async function deleteInvoice(actor: InvoiceActor | BooksActor, invoiceId:
           status: "PROPOSED",
           OR: [...(vaneItems.length ? [{ itemId: { in: vaneItems.map((item) => item.id) } }] : []), { params: { path: ["invoiceId"], equals: invoice.id } }],
         },
-        data: { status: "DENIED", result: `${invoice.invoiceNumber} was deleted.`, decidedById: actor.userId, decidedAt: now },
+        data: { status: "DENIED", result: `${docLabel(invoice.invoiceNumber)} was deleted.`, decidedById: actor.userId, decidedAt: now },
       });
 
       // Lines, credit notes and write-offs go with it (cascade).
       await tx.salesInvoice.delete({ where: { id: invoice.id } });
-      return { number: invoice.invoiceNumber, draft, onAccount, auditEventType: "books.invoice.deleted" };
+      return { number: docLabel(invoice.invoiceNumber), draft, onAccount, auditEventType: "books.invoice.deleted" };
     },
     { timeout: 30_000 },
   );

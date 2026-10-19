@@ -293,6 +293,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         notes: invoiceNoteFor(job.workOrderNo, data.notes ?? job.title),
         dueDate: data.dueDate ? new Date(data.dueDate) : null,
         renderTemplateId: data.renderTemplateId ?? null,
+        // The job's project, so the invoice posts on its cost centre.
+        projectId: job.projectId,
       });
     } catch (error) {
       // Nothing was billed, so the claim has to come off — a job stuck behind

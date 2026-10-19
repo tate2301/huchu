@@ -1,4 +1,5 @@
 import type { InvoiceStatus, PrismaClient } from "@prisma/client";
+import { docLabel } from "@/lib/books/doc-number";
 
 import { daysBetween, dayOf, money, shortDay, storedDay } from "./format";
 import { INVOICE_STATE_LABEL, invoiceState, type InvoiceState } from "./invoice-state";
@@ -218,7 +219,7 @@ export async function readInvoiceRecord(db: Pick<PrismaClient, "salesInvoice" | 
 
   return {
     id: invoice.id,
-    number: invoice.invoiceNumber,
+    number: docLabel(invoice.invoiceNumber),
     status: invoice.status,
     stateLabel: invoice.madeByVane && draft ? "Vane's draft" : INVOICE_STATE_LABEL[state.state],
     state: { key: state.state, label: INVOICE_STATE_LABEL[state.state] },
@@ -248,7 +249,7 @@ export async function readInvoiceRecord(db: Pick<PrismaClient, "salesInvoice" | 
     creditable: invoice.lines.map((line) => ({ id: line.id, description: line.description, quantity: line.quantity, unitPrice: line.unitPrice, taxRate: line.taxRate, taxCodeId: line.taxCodeId })),
     paid: round(invoice.amountPaid),
     creditLeft: round(invoice.total - invoice.creditTotal - invoice.writeOffTotal),
-    credits: invoice.creditNotes.map((note) => ({ number: note.noteNumber, total: note.total, reason: note.reason, date: shortDay(dayOf(note.noteDate)), voided: note.status === "VOIDED" })),
+    credits: invoice.creditNotes.map((note) => ({ number: docLabel(note.noteNumber, "credit note"), total: note.total, reason: note.reason, date: shortDay(dayOf(note.noteDate)), voided: note.status === "VOIDED" })),
     voided: invoice.status === "VOIDED" ? { reason: voidEvent?.reason ?? null, by: voider?.name ?? null, on: voidEvent ? shortDay(dayOf(voidEvent.createdAt)) : "" } : null,
     fiscalised: wasFiscalised(invoice.fiscalReceipt),
     onAccount,

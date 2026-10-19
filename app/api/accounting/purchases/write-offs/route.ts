@@ -8,6 +8,7 @@ import {
   paginationResponse,
 } from "@/lib/api-utils";
 import { prisma } from "@/lib/prisma";
+import { nextNumber } from "@/lib/books/core/numbering";
 import { createJournalEntryFromSource } from "@/lib/accounting/posting";
 import { recalcPurchaseBillBalance } from "@/lib/accounting/balances";
 import { guardBooks } from "@/lib/books/core";
@@ -83,9 +84,11 @@ export async function POST(request: NextRequest) {
       return errorResponse("Write-off amount exceeds outstanding balance", 400);
     }
 
-    const writeOff = await prisma.purchaseWriteOff.create({
+    // Numbered from the write-off series in the same write (D8).
+    const writeOff = await prisma.$transaction(async (tx) => tx.purchaseWriteOff.create({
       data: {
         companyId: session.user.companyId,
+        writeOffNumber: await nextNumber(tx, session.user.companyId, "supplier-write-off"),
         billId: validated.billId,
         amount: validated.amount,
         reason: validated.reason,
@@ -95,7 +98,7 @@ export async function POST(request: NextRequest) {
       include: {
         bill: { select: { billNumber: true, vendor: { select: { name: true } } } },
       },
-    });
+    }));
 
     await recalcPurchaseBillBalance(writeOff.billId);
 

@@ -8,6 +8,7 @@ import {
   paginationResponse,
 } from "@/lib/api-utils";
 import { prisma } from "@/lib/prisma";
+import { nextNumber } from "@/lib/books/core/numbering";
 import { createJournalEntryFromSource } from "@/lib/accounting/posting";
 import { recalcPurchaseBillBalance } from "@/lib/accounting/balances";
 import { findTaxCodesOutsideEffectiveWindow } from "@/lib/accounting/tax-selection";
@@ -31,30 +32,6 @@ const debitNoteSchema = z.object({
     )
     .min(1),
 });
-
-function formatTwoDigits(value: number) {
-  return String(value).padStart(2, "0");
-}
-
-function buildDebitNoteNumberCandidate() {
-  const now = new Date();
-  const datePart = `${now.getFullYear()}${formatTwoDigits(now.getMonth() + 1)}${formatTwoDigits(now.getDate())}`;
-  const timePart = `${formatTwoDigits(now.getHours())}${formatTwoDigits(now.getMinutes())}`;
-  const randomPart = Math.floor(100 + Math.random() * 900);
-  return `DN-${datePart}-${timePart}-${randomPart}`;
-}
-
-async function generateUniqueDebitNoteNumber() {
-  for (let attempt = 0; attempt < 10; attempt += 1) {
-    const candidate = buildDebitNoteNumberCandidate();
-    const existing = await prisma.debitNote.findFirst({
-      where: { noteNumber: candidate },
-      select: { id: true },
-    });
-    if (!existing) return candidate;
-  }
-  return `DN-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`;
-}
 
 export async function GET(request: NextRequest) {
   try {
@@ -114,8 +91,6 @@ export async function POST(request: NextRequest) {
       return errorResponse("Bill must be received before creating a debit note", 400);
     }
 
-    const noteNumber = await generateUniqueDebitNoteNumber();
-
     const taxCodeIds = validated.lines
       .map((line) => line.taxCodeId)
       .filter((value): value is string => Boolean(value));
@@ -157,11 +132,12 @@ export async function POST(request: NextRequest) {
     const taxTotal = computedLines.reduce((sum, line) => sum + line.taxAmount, 0);
     const total = computedLines.reduce((sum, line) => sum + line.lineTotal, 0);
 
-    const debitNote = await prisma.debitNote.create({
+    // A draft carries no number; one received or issued now takes the next in the series, in the same write (D8).
+    const debitNote = await prisma.$transaction(async (tx) => tx.debitNote.create({
       data: {
         companyId: session.user.companyId,
         billId: validated.billId,
-        noteNumber,
+        noteNumber: validated.issueNow ? await nextNumber(tx, session.user.companyId, "debit-note") : null,
         noteDate,
         status: validated.issueNow ? "ISSUED" : "DRAFT",
         currency: validated.currency ?? bill.currency ?? "USD",
@@ -178,7 +154,7 @@ export async function POST(request: NextRequest) {
         bill: { select: { billNumber: true, vendor: { select: { name: true } } } },
         lines: true,
       },
-    });
+    }));
 
     if (debitNote.status === "ISSUED") {
       await recalcPurchaseBillBalance(debitNote.billId);

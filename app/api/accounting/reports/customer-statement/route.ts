@@ -6,7 +6,8 @@ import { toMoney } from "@/lib/accounting/ledger";
 type StatementLine = {
   date: string;
   type: string;
-  reference: string;
+  /** A document's number; null for one that has none. */
+  reference: string | null;
   description?: string | null;
   debit: number;
   credit: number;

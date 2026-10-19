@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -21,6 +21,10 @@ import { formatMoney, invoiceOutstanding, type LeadDocument } from "./document-t
 import { refreshAfterDocumentChange } from "@/lib/crm/refresh";
 
 const PAYMENT_METHODS = ["Cash", "Bank transfer", "Mobile money", "Card", "Cheque", "Other"];
+
+type MoneyAccountOption = { id: string; name: string };
+/** Radix refuses `value=""` on an item; "not said" leaves Books to use the default money account. */
+const NOT_SAID = "not-said";
 
 export function RecordPaymentSheet({
   open,
@@ -42,6 +46,7 @@ export function RecordPaymentSheet({
   const [method, setMethod] = useState(PAYMENT_METHODS[0]);
   const [receivedAt, setReceivedAt] = useState("");
   const [reference, setReference] = useState("");
+  const [accountId, setAccountId] = useState(NOT_SAID);
   const [errors, setErrors] = useState<string[]>([]);
 
   useEffect(() => {
@@ -52,6 +57,7 @@ export function RecordPaymentSheet({
     setMethod(PAYMENT_METHODS[0]);
     setReceivedAt(new Date().toISOString().slice(0, 10));
     setReference("");
+    setAccountId(NOT_SAID);
     setErrors([]);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, document?.id]);
@@ -66,6 +72,7 @@ export function RecordPaymentSheet({
           method,
           receivedAt: receivedAt ? new Date(receivedAt).toISOString() : undefined,
           reference: reference.trim() || undefined,
+          bankAccountId: accountId === NOT_SAID ? undefined : accountId,
         }),
       }),
     onSuccess: () => {
@@ -81,6 +88,17 @@ export function RecordPaymentSheet({
     },
     onError: (error) => setErrors([getApiErrorMessage(error)]),
   });
+
+  // Accounting's own list. A workspace without the accounting module cannot
+  // read it, and then the field is not shown: the money goes to the default account.
+  const accounts = useQuery({
+    queryKey: ["accounting", "bank-accounts", "active"],
+    queryFn: () => fetchJson<{ data: MoneyAccountOption[] }>("/api/accounting/banking/accounts?active=true&limit=50"),
+    enabled: open,
+    retry: false,
+    staleTime: 5 * 60_000,
+  });
+  const accountOptions = accounts.data?.data ?? [];
 
   const validate = (): string[] => {
     const found: string[] = [];
@@ -171,6 +189,25 @@ export function RecordPaymentSheet({
           />
         </div>
       </div>
+
+      {accountOptions.length > 0 ? (
+        <div className="space-y-1.5">
+          <Label htmlFor="payment-account">Paid into</Label>
+          <Select value={accountId} onValueChange={setAccountId}>
+            <SelectTrigger id="payment-account">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={NOT_SAID}>The usual account</SelectItem>
+              {accountOptions.map((account) => (
+                <SelectItem key={account.id} value={account.id}>
+                  {account.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      ) : null}
 
       <div className="space-y-1.5">
         <Label htmlFor="payment-reference">Reference</Label>

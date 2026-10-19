@@ -70,7 +70,7 @@ describe("postMoney", () => {
     expect(await trialBalance(fixture.companyId)).toEqual(after);
     const bank = await prisma.bankTransaction.findMany({ where: { companyId: fixture.companyId, sourceId: "req-core-1" } });
     expect(bank).toHaveLength(1);
-    expect(bank[0]).toMatchObject({ bankAccountId: ecocash.id, amount: 120, direction: "CREDIT" });
+    expect(bank[0]).toMatchObject({ bankAccountId: ecocash.id, amount: 120, direction: "DEBIT" });
 
     const event = await prisma.accountingIntegrationEvent.findFirstOrThrow({ where: { companyId: fixture.companyId, sourceId: "req-core-1" } });
     expect(event).toMatchObject({ status: "POSTED", journalEntryId: first.entryId });
@@ -174,6 +174,6 @@ describe("rateFor and nextNumber", () => {
     const first = await nextNumber(prisma, fixture.companyId, "invoice");
     const second = await nextNumber(prisma, fixture.companyId, "invoice");
     expect(first).not.toBe(second);
-    await expect(nextNumber(prisma, fixture.companyId, "bill")).rejects.toBeInstanceOf(NoSeriesYet);
+    await expect(nextNumber(prisma, fixture.companyId, "remittance")).rejects.toBeInstanceOf(NoSeriesYet);
   });
 });

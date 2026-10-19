@@ -480,6 +480,34 @@ async function resolveEventAccounts(companyId: string, envelope: Record<string, 
   return byKey;
 }
 
+/**
+ * Receipts and payments whose rule names a fixed money line (seeded as 1010
+ * Operating bank) post that line to the money account the money went through
+ * (books-final §4.5, fix 6), when the event names one (`accounts.moneyAccount`,
+ * which `postMoney` fills from the bank account). A money line is a fixed line
+ * on 1010 or on any money account's ledger; every other line is the rule's.
+ */
+const MONEY_LINE_SOURCES: ReadonlySet<AccountingSourceType> = new Set(["SALES_RECEIPT", "PURCHASE_PAYMENT"]);
+
+async function resolveMoneyLineOverride(context: PostingContext, envelope: Record<string, unknown>) {
+  if (!MONEY_LINE_SOURCES.has(context.sourceType)) return null;
+  const named = envelope.accounts && typeof envelope.accounts === "object" ? (envelope.accounts as Record<string, unknown>) : {};
+  const moneyAccount = typeof named.moneyAccount === "string" ? named.moneyAccount : null;
+  if (!moneyAccount) return null;
+  const [account, banks, operating] = await Promise.all([
+    prisma.chartOfAccount.findFirst({
+      where: { companyId: context.companyId, id: moneyAccount, isActive: true, nodeType: "LEDGER" },
+      select: { id: true, code: true, name: true },
+    }),
+    prisma.bankAccount.findMany({ where: { companyId: context.companyId, ledgerAccountId: { not: null } }, select: { ledgerAccountId: true } }),
+    prisma.chartOfAccount.findFirst({ where: { companyId: context.companyId, code: "1010" }, select: { id: true } }),
+  ]);
+  if (!account) return null;
+  const moneyLedgers = new Set<string>(banks.map((bank) => bank.ledgerAccountId!).filter(Boolean));
+  if (operating) moneyLedgers.add(operating.id);
+  return { account, moneyLedgers };
+}
+
 export const ROLE_WORDS: Record<RetailAccountRole, string> = {
   SALES: "sales",
   VAT_OUTPUT: "VAT",
@@ -563,6 +591,7 @@ async function simulatePosting(context: PostingContext): Promise<PostingSimulati
   const eventAccounts = matchedRule.lines.some((line) => line.accountSource === "EVENT_ACCOUNT")
     ? await resolveEventAccounts(context.companyId, envelope)
     : new Map<string, never>();
+  const moneyLine = await resolveMoneyLineOverride(context, envelope);
   const lineRows: PostingSimulationResult["lines"] = [];
   const warnings: string[] = [];
 
@@ -649,6 +678,11 @@ async function simulatePosting(context: PostingContext): Promise<PostingSimulati
         accountId = account.id;
         accountCode = account.code;
         accountName = account.name;
+      } else if (moneyLine && line.accountId && moneyLine.moneyLedgers.has(line.accountId)) {
+        // The money went through a money account the event names: its ledger, not the rule's fixed bank.
+        accountId = moneyLine.account.id;
+        accountCode = moneyLine.account.code;
+        accountName = moneyLine.account.name;
       } else if (!line.account || !line.account.isActive || line.account.nodeType !== "LEDGER") {
         return {
           lines: [],
@@ -740,7 +774,7 @@ export async function createJournalEntryFromSource(
     if (!options.defaultsReady) await ensureAccountingDefaults(context.companyId);
 
     if (context.sourceId) {
-      const existing = await prisma.journalEntry.findFirst({
+      const existing = await db.journalEntry.findFirst({
         where: {
           companyId: context.companyId,
           sourceType: context.sourceType,
@@ -755,6 +789,7 @@ export async function createJournalEntryFromSource(
           sourceType: context.sourceType,
           sourceId: context.sourceId,
           journalEntryId: existing.id,
+          db,
         });
         return { entryId: existing.id, skipped: true };
       }
@@ -812,46 +847,54 @@ export async function createJournalEntryFromSource(
       };
     }
 
-    // Numbered through the same client the entry is written with, so a caller
+    // The entry, its number and its sub-ledger line are one write (books-final
+    // §6.1 fix 2): inside the caller's transaction when it passes one, else in
+    // a transaction of their own, so a line never exists without its entry or
+    // an entry without its line. Numbered through the same client, so a caller
     // that has already posted inside its transaction — an invoice edit posts a
     // reversal first — does not get that entry's number handed out twice.
-    const entryNumber = await getNextEntryNumber(context.companyId, db);
-    const entry = await db.journalEntry.create({
-      data: {
-        companyId: context.companyId,
-        entryNumber,
-        entryDate: context.entryDate,
-        description: context.description,
-        status: "POSTED",
-        periodId: postingPeriod.period.id,
-        sourceType: context.sourceType,
-        sourceId: context.sourceId ?? undefined,
-        createdById: context.createdById,
-        postedById: context.createdById,
-        postedAt: new Date(),
-        periodOverrideReason: postingPeriod.requiresOverride ? postingPeriod.overrideReason : undefined,
-        periodOverrideById: postingPeriod.requiresOverride ? context.createdById : undefined,
-        periodOverrideAt: postingPeriod.requiresOverride ? new Date() : undefined,
-        lines: {
-          create: simulation.lines.map((line) => ({
-            accountId: line.accountId,
-            debit: line.debit,
-            credit: line.credit,
-            memo: line.memo,
-            costCenterId: line.costCenterId ?? undefined,
-          })),
+    const write = async (tx: Db) => {
+      const entryNumber = await getNextEntryNumber(context.companyId, tx);
+      const entry = await tx.journalEntry.create({
+        data: {
+          companyId: context.companyId,
+          entryNumber,
+          entryDate: context.entryDate,
+          description: context.description,
+          status: "POSTED",
+          periodId: postingPeriod.period.id,
+          sourceType: context.sourceType,
+          sourceId: context.sourceId ?? undefined,
+          createdById: context.createdById,
+          postedById: context.createdById,
+          postedAt: new Date(),
+          periodOverrideReason: postingPeriod.requiresOverride ? postingPeriod.overrideReason : undefined,
+          periodOverrideById: postingPeriod.requiresOverride ? context.createdById : undefined,
+          periodOverrideAt: postingPeriod.requiresOverride ? new Date() : undefined,
+          lines: {
+            create: simulation.lines.map((line) => ({
+              accountId: line.accountId,
+              debit: line.debit,
+              credit: line.credit,
+              memo: line.memo,
+              costCenterId: line.costCenterId ?? undefined,
+            })),
+          },
         },
-      },
-      select: { id: true },
-    });
+        select: { id: true },
+      });
+      await syncPaymentLedgerEntryForSource({
+        companyId: context.companyId,
+        sourceType: context.sourceType,
+        sourceId: context.sourceId,
+        journalEntryId: entry.id,
+        db: tx,
+      });
+      return entry;
+    };
+    const entry = "$transaction" in db ? await (db as PrismaClient).$transaction((tx) => write(tx)) : await write(db);
 
     await markIntegrationEventPosted(integrationEvent.id, entry.id);
-    await syncPaymentLedgerEntryForSource({
-      companyId: context.companyId,
-      sourceType: context.sourceType,
-      sourceId: context.sourceId,
-      journalEntryId: entry.id,
-    });
     return { entryId: entry.id };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : "Unknown posting failure";

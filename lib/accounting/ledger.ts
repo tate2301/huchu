@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import type { AccountingPeriod, Prisma, PrismaClient } from "@prisma/client";
+import { nextJournalNumber } from "@/lib/books/core/numbering";
 
 export function toMoney(value: unknown) {
   const parsed = Number(value ?? 0);
@@ -27,12 +28,16 @@ export async function getLatestEntryNumber(
   return latest?.entryNumber ?? 0;
 }
 
+/**
+ * The next journal entry number, from Books' journal series (D8,
+ * `nextJournalNumber`): pass the transaction that writes the entry, and the
+ * number is gapless and never handed out twice, however many post at once.
+ */
 export async function getNextEntryNumber(
   companyId: string,
   db: PrismaClient | Prisma.TransactionClient = prisma,
 ) {
-  const latest = await getLatestEntryNumber(companyId, db);
-  return latest + 1;
+  return nextJournalNumber(db, companyId);
 }
 
 export async function findOpenPeriodForDate(companyId: string, date: Date): Promise<AccountingPeriod | null> {
