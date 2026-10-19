@@ -49,7 +49,7 @@ export {
   type ReconciliationSummary,
 } from "./bank";
 export { baseCurrencyChangeRefusal, documentRate, freezeRate, frozenFields, realisedAdjustments, receiptAllocation, settle, type Frozen, type Settlement } from "./currency";
-export { revalueMonth, revaluationPlan, RevaluationRefused, type RevaluationPlan } from "./revaluation";
+export { revalueMonth, revaluationPlan, reverseRevaluation, RevaluationRefused, type RevaluationPlan } from "./revaluation";
 export { DEFAULT_TAX_SETTINGS, resolveTaxSettings, saveTaxSettings, taxSettings, TO_CONFIRM, type ResolvedTaxSettings, type TaxSettings } from "./tax-settings";
 export { provisionalInstalments, provisionalTax, whatsDue, type DueItem, type DueKind } from "./tax-calendar";
 export { vatDueDates, vatFigures, vatPeriodFor, type VatFigures, type VatSourceRow } from "./vat-figures";

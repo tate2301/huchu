@@ -256,3 +256,51 @@ export async function revalueMonth(actor: BooksActor, month: string) {
     return { already: false, entryId: entry.id, reversalId: reversal.id, plan };
   });
 }
+
+/**
+ * Reverse a month's revaluation (owner, manager or accountant, with a reason):
+ * for a revaluation run at the wrong rate. Both its entries (the month's last
+ * day and the 1st after) are mirrored on their own dates and marked void, so
+ * the month can be revalued again. Refused into a closed month.
+ */
+export async function reverseRevaluation(actor: BooksActor, month: string, reason: string) {
+  const allowed = canDo(actor, "period.close");
+  if (!allowed.allowed) throw new RevaluationRefused(allowed.reason, 403);
+  const why = (reason ?? "").trim();
+  if (why.length < 3) throw new RevaluationRefused("Say why, in a few words. The reason is kept.", 400);
+  if (!/^\d{4}-\d{2}$/.test(month)) throw new RevaluationRefused("Say which month, as YYYY-MM.", 400);
+  const sourceId = `reval:${month}`;
+  const entries = await prisma.journalEntry.findMany({
+    where: { companyId: actor.companyId, sourceType: "FX_REVALUATION", sourceId: { in: [sourceId, `${sourceId}:reverse`] }, voidedAt: null },
+    include: { lines: true },
+    orderBy: { entryDate: "asc" },
+  });
+  if (entries.length === 0) throw new RevaluationRefused(`${month} has no revaluation to reverse.`, 404);
+  const periods = await Promise.all(entries.map((entry) => resolvePostingPeriod({ companyId: actor.companyId, entryDate: entry.entryDate, actorRole: actor.role })));
+  const closed = periods.find((period) => !period.allowed || period.requiresOverride || period.period.status === "CLOSED");
+  if (closed) throw new RevaluationRefused(closed.message ?? "A month it posted into is closed. Reopen it first.");
+  const now = new Date();
+  const stamp = now.getTime().toString(36);
+  return prisma.$transaction(async (tx) => {
+    const mirrors: string[] = [];
+    for (const [index, entry] of entries.entries()) {
+      const mirror = await postEntry(tx, {
+        companyId: actor.companyId,
+        sourceId: `${entry.sourceId}:void:${stamp}`,
+        date: entry.entryDate,
+        description: `Void: ${entry.description} (${why})`,
+        lines: entry.lines.map((line) => ({ accountId: line.accountId, debit: line.credit, credit: line.debit, memo: line.memo ? `Void: ${line.memo}` : "Void", currency: line.currency, amountInCurrency: line.amountInCurrency, exchangeRate: line.exchangeRate })),
+        actor,
+        periodId: periods[index].period.id,
+      });
+      mirrors.push(mirror.id);
+      // Out of the way of a new run: the month's revaluation is posted under its own name again.
+      await tx.journalEntry.update({ where: { id: entry.id }, data: { voidedAt: now, voidedById: actor.userId, sourceId: `${entry.sourceId}:voided:${stamp}` } });
+    }
+    await writePlatformAuditEvent(
+      { companyId: actor.companyId, actorId: actor.userId, eventType: "books.revaluation.reversed", entityType: "JournalEntry", entityId: entries[0].id, reason: why, payload: { by: auditActor(actor), month, mirrors } },
+      tx,
+    );
+    return { month, voided: entries.map((entry) => entry.id), mirrors };
+  });
+}

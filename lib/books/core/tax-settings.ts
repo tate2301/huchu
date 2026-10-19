@@ -56,7 +56,7 @@ export type TaxSettings = {
     /** "MM-DD": payments. */
     paymentDates: [string, string, string, string];
     /** The year's estimate, by year: tax due, and the US dollar share when the 50/50 basis applies. */
-    estimates: Record<string, { taxUsd: number; foreignShare?: number | null; split5050?: boolean }>;
+    estimates: Record<string, { taxUsd: number; foreignShare?: number | null; split5050?: boolean; incomeUsd?: number | null; revisedAt?: string | null; revisedBy?: string | null }>;
   };
 };
 

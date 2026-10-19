@@ -213,7 +213,7 @@ export const ACCOUNTING_TABS: AccountingTabItem[] = [
   {
     id: "fiscalisation",
     label: "Fiscalisation",
-    href: "/accounting/fiscalisation",
+    href: "/books/fiscal",
     icon: QrCode,
     featureKey: "accounting.zimra.fiscalisation",
     categoryId: "tax-compliance",

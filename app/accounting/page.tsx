@@ -426,7 +426,7 @@ export default function AccountingOverviewPage() {
     push({
       label: "Receipts not fiscalised",
       where: "Fiscalisation",
-      href: "/accounting/fiscalisation",
+      href: "/books/fiscal?tab=failed",
       count: accountingSummary?.pendingFiscalReceipts ?? 0,
       urgent: true,
     });

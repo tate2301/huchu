@@ -65,7 +65,7 @@ const TAX_VIEWS = [
   "vat-summary",
 ] as const;
 
-type TaxView = (typeof TAX_VIEWS)[number];
+export type TaxView = (typeof TAX_VIEWS)[number];
 type AppliesTo = "SALES" | "PURCHASE" | "BOTH";
 type CategoryScope = "CUSTOMER" | "VENDOR" | "BOTH";
 type ScheduleType = "NONE" | "FX" | "RTGS" | "WITHHOLDING";
@@ -499,14 +499,20 @@ function ListNote({ children }: { children: ReactNode }) {
   return <p className="acct-caption">{children}</p>;
 }
 
-export function TaxSetupWorkspace() {
+/**
+ * `embedded`: Books › Settings › Tax codes & rules shows one view of it
+ * (categories, templates, rules, the VAT summary) under its own tabs, without
+ * the old Accounting shell and its rail.
+ */
+export function TaxSetupWorkspace({ embedded }: { embedded?: TaxView } = {}) {
   const { toast } = useToast();
   const searchParams = useSearchParams();
   const queryClient = useQueryClient();
 
-  const [activeView, setActiveView] = useState<TaxView>(
+  const [chosenView, setActiveView] = useState<TaxView>(
     parseTaxView(searchParams.get("view")),
   );
+  const activeView = embedded ?? chosenView;
   const [editor, setEditor] = useState<EditorState>(null);
   const [taxCodeForm, setTaxCodeForm] = useState<TaxCodeFormState>(emptyTaxCodeForm);
   const [categoryForm, setCategoryForm] = useState<TaxCategoryFormState>(emptyTaxCategoryForm);
@@ -1478,32 +1484,8 @@ export function TaxSetupWorkspace() {
     </SelectContent>
   );
 
-  return (
-    <AccountingShell
-      activeTab="tax"
-      title="Tax"
-      actions={
-        activeCreateLabel ? (
-          <Button size="sm" onClick={openCreateForActiveView} disabled={createDisabled}>
-            <Plus className="mr-2 size-4" />
-            {activeCreateLabel}
-          </Button>
-        ) : undefined
-      }
-    >
-      {dataError ? (
-        <Alert variant="destructive">
-          <AlertTitle>Unable to load tax setup</AlertTitle>
-          <AlertDescription>{getApiErrorMessage(dataError)}</AlertDescription>
-        </Alert>
-      ) : null}
-
-      <VerticalDataViews
-        items={viewItems}
-        value={activeView}
-        onValueChange={(value) => setActiveView(value as TaxView)}
-        railLabel="Tax views"
-      >
+  const views = (
+    <>
         <div
           className={cn("grid items-start gap-2.5", !isRecordView && "hidden")}
           style={splitColumns(editor !== null)}
@@ -2170,6 +2152,58 @@ export function TaxSetupWorkspace() {
             </div>
           </div>
         </div>
+    </>
+  );
+
+  if (embedded) {
+    return (
+      <div style={{ display: "flex", flexDirection: "column", gap: 12, padding: "16px 24px 40px" }}>
+        {dataError ? (
+          <Alert variant="destructive">
+            <AlertTitle>Unable to load tax setup</AlertTitle>
+            <AlertDescription>{getApiErrorMessage(dataError)}</AlertDescription>
+          </Alert>
+        ) : null}
+        {activeCreateLabel ? (
+          <div>
+            <Button size="sm" onClick={openCreateForActiveView} disabled={createDisabled}>
+              <Plus className="mr-2 size-4" />
+              {activeCreateLabel}
+            </Button>
+          </div>
+        ) : null}
+        {views}
+      </div>
+    );
+  }
+
+  return (
+    <AccountingShell
+      activeTab="tax"
+      title="Tax"
+      actions={
+        activeCreateLabel ? (
+          <Button size="sm" onClick={openCreateForActiveView} disabled={createDisabled}>
+            <Plus className="mr-2 size-4" />
+            {activeCreateLabel}
+          </Button>
+        ) : undefined
+      }
+    >
+      {dataError ? (
+        <Alert variant="destructive">
+          <AlertTitle>Unable to load tax setup</AlertTitle>
+          <AlertDescription>{getApiErrorMessage(dataError)}</AlertDescription>
+        </Alert>
+      ) : null}
+
+      <VerticalDataViews
+        items={viewItems}
+        value={activeView}
+        onValueChange={(value) => setActiveView(value as TaxView)}
+        railLabel="Tax views"
+      >
+        {views}
       </VerticalDataViews>
     </AccountingShell>
   );

@@ -42,7 +42,8 @@ import { postBill } from "./bills";
 import { postInvoice } from "./issue-invoice";
 import { nextNumber } from "./numbering";
 import { payablesControl, supplierAging } from "./payables";
-import { revalueMonth } from "./revaluation";
+import { bankAndRevaluationChecks } from "../close";
+import { revalueMonth, reverseRevaluation } from "./revaluation";
 import { partyAging, partyStatement } from "./statement-aging";
 import { whatsDue } from "./tax-calendar";
 import { vatFigures } from "./vat-figures";
@@ -287,6 +288,21 @@ describe("P3 exit: a USD and ZiG month closes with every account reconciled", ()
     expect(reversal.entryDate.toISOString().slice(0, 10)).toBe("2026-10-01");
     expect(reversal.lines.find((line) => line.account.code === "4220")).toMatchObject({ credit: 12.96 });
     expect((await revalueMonth(manager(), "2026-09")).already).toBe(true);
+  });
+
+  it("reverses a revaluation run at the wrong rate, with a reason, and runs it again (P3b, Rates & revaluation)", async () => {
+    // Close the month's checklist reads it as run (P3b's two checks).
+    const runChecks = async () => (await bankAndRevaluationChecks(prisma, shop.companyId, "2026-09-30")).find((check) => check.key === "revaluation");
+    expect((await runChecks())?.state).toBe("done");
+    await expect(reverseRevaluation(manager(), "2026-09", "")).rejects.toThrow(/Say why/);
+    const undone = await reverseRevaluation(manager(), "2026-09", "Run before RBZ's month-end rate came in");
+    expect(undone.voided).toHaveLength(2);
+    expect(undone.mirrors).toHaveLength(2);
+    expect((await runChecks())?.state).toBe("open");
+    const again = await revalueMonth(manager(), "2026-09");
+    expect(again.already).toBe(false);
+    expect(again.plan?.gain).toBe(-12.96);
+    expect((await runChecks())?.state).toBe("done");
   });
 
   it("ties every control account to its one aging, and balances", async () => {

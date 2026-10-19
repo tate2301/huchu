@@ -374,7 +374,7 @@ CBZ_SEP = CBZ_BOOK - sum((t[5] for t in CBZ_TX), Decimal('0'))           # book 
 MATCH_LINES = [
     ('Wed 14 Oct', 'ZIMRA VAT Sep 2026 ref 2210448', M('-1184.60'), ref('PAY-0061') + ', ZIMRA, VAT for September', 'Match',
      'Same amount and TaRMS reference'),
-    ('Wed 14 Oct', 'IMTT 2% tax', M('-23.69'), 'Bank entry: IMTT, to 6420', 'Create',
+    ('Wed 14 Oct', 'IMTT 2% tax', M('-23.69'), 'Bank entry: IMTT, to 5465', 'Create',
      '2%% of the %s paid to ZIMRA' % usd(1184.60)),
     ('Fri 16 Oct', 'Transfer from EcoCash 0412', M('800.00'), 'Transfer from EcoCash merchant', 'Create',
      'EcoCash shows %s sent on 16 Oct' % usd(800)),
@@ -486,7 +486,7 @@ def to_match():
     tb = tbl(cols, rows, sel_rows=(0, 1, 2)).replace('<td class="fill bk-fw">', '<td class="fill bk-fw" style="padding-top:14px;padding-bottom:14px">')
     menu = ('<div class="menu bk-menu" style="right:60px;top:296px;width:236px;z-index:40"><div class="menu-label">Create from this line</div>'
             '<button class="menu-item">%sPayment received</button><button class="menu-item">%sPayment made</button>'
-            '<button class="menu-item" data-active="true">%sBank charge<span class="end muted" style="font-size:12px">6420</span></button><button class="menu-item">%sTransfer</button></div>') % (
+            '<button class="menu-item" data-active="true">%sBank charge<span class="end muted" style="font-size:12px">5460</span></button><button class="menu-item">%sTransfer</button></div>') % (
         ic('payments'), ic('expenses'), ic('bank2'), ic('move'))
     sel3 = sum((l[2] for l in MATCH_LINES[:3]), Decimal('0'))
     sel = selbar(3, (('Net', usd(sel3, True)),), btn('Accept 3', 'check', 'btn', 'A') + btn('Exclude', 'x'))
@@ -981,7 +981,7 @@ def settings_tax():
     tb = tbl([('Code', ''), ('Name', 'fillw'), ('Rate', 'num'), ('From', ''), ('Used for', ''), ('State', '')], rows)
     f = foot('9 tax codes', (('Active', '8'),))
     main = (finding('Documents keep the rate of their date.', '15.5% from 1 January, 15% before.')
-            + tabs([('Tax codes', 9), ('Categories', 4), ('Templates', 3), ('Rules', 12)], 0)
+            + tabs([('Tax codes', 9), ('Categories', 4), ('Templates', 3), ('Rules', 12), ('Dates and rates', 5)], 0)
             + tools('Search tax codes', (('Kind', 'All', False),), '9 codes', btn('Export', 'export'))
             + sheet(tb, f))
     return page('BkSettingsTax', 'Tax codes & rules', '/books/settings/tax', 'Tax codes & rules', main, primary('New tax code', 'plus', 'N'))
