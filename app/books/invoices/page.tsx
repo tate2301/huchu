@@ -4,50 +4,41 @@ import * as React from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
+import { downloadCsv } from "@/components/books/bk-list";
+import { BkInvoicesView, type InvoiceBulk } from "@/components/books/bk-invoices-view";
 import { BooksError, BooksLoading } from "@/components/books/books-state";
 import { BooksPage } from "@/components/books/figures";
-import { InvoiceDeleteDialog, type InvoiceDeleted } from "@/components/books/invoice-actions";
-import { ExploreThisList, ListVane } from "@/components/explore/list-vane";
-import { canUseExplore } from "@/lib/explore/roles";
-import { useSession } from "next-auth/react";
-import { InvoicesPageView } from "@/components/books/invoices-view";
+import { ButtonLink, Kit } from "@/components/core";
 import { PageChrome } from "@/components/layout/page-chrome";
 import { useToast } from "@/components/ui/use-toast";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
-import type { InvoiceQuery, InvoiceRow, InvoicesView } from "@/lib/books/invoices";
+import type { InvoiceQuery, InvoicesView } from "@/lib/books/invoices";
 import type { ReminderOutcome } from "@/lib/books/reminders";
 
-const NEW_INVOICE = { label: "New invoice", icon: "plus" as const, href: "/accounting/sales?action=new-invoice" };
+const NEW_INVOICE = { label: "New invoice", icon: "plus" as const, href: "/books/invoices/new", shortcut: "N" };
 
-/** The list as a question (Explore this list): what is still owed, from the report Books → Invoices feeds. */
-const INVOICES_QUESTION = `select invoice, customer, due, days_late, currency, balance
-from books_owed_by_age
-order by days_late desc;`;
+type Listed = InvoicesView & { can: { deleteDrafts: boolean; issue: boolean; owner: boolean } };
 
-/** The same question over Books' own tables, when Explore reads them through its own login. */
-const INVOICES_TABLES_QUESTION = `select i.invoice_number as invoice, c.name as customer, i.due_date as due,
-  current_date - i.due_date::date as days_late, i.currency,
-  i.total - i.amount_paid - i.credit_total - i.write_off_total as balance
-from sales_invoice i
-left join customer c on c.id = i.customer_id
-where i.status = 'ISSUED'
-  and i.total - i.amount_paid - i.credit_total - i.write_off_total > 0
-order by days_late desc;`;
+/** One sentence per outcome of a run over the selection: "2 issued. INV-0150 was not: it was issued already." */
+function outcome(done: string[], verb: string, failed: Array<{ number: string; why: string }>): string {
+  const parts = [done.length === 1 ? `1 ${verb}.` : `${done.length} ${verb}.`];
+  for (const row of failed.slice(0, 3)) parts.push(`${row.number}: ${row.why}`);
+  if (failed.length > 3) parts.push(`${failed.length - 3} more were not.`);
+  return parts.join(" ");
+}
 
-/** Books → Invoices (design/core-modules/html/books-invoices.html). The list's filters live in the address. */
+/** Books → Sales → Invoices (design/core-modules/boards/view/BkInvoices.html, BkInvoicesBulk). The list's filters live in the address. */
 function BooksInvoices() {
   const router = useRouter();
   const pathname = usePathname();
   const params = useSearchParams();
   const { toast } = useToast();
-  const { data: session } = useSession();
-  const queryClient = useQueryClient();
+  const client = useQueryClient();
   const search = params.toString();
-  const [deleting, setDeleting] = React.useState<{ id: string; number: string } | null>(null);
 
   const invoices = useQuery({
     queryKey: ["books", "invoices", search],
-    queryFn: () => fetchJson<InvoicesView>(`/api/books/invoices${search ? `?${search}` : ""}`),
+    queryFn: () => fetchJson<Listed>(`/api/books/invoices${search ? `?${search}` : ""}`),
     placeholderData: (previous) => previous,
   });
 
@@ -66,13 +57,11 @@ function BooksInvoices() {
   );
 
   const remind = useMutation({
-    mutationFn: (invoiceIds: string[]) =>
-      fetchJson<ReminderOutcome>("/api/books/invoices/reminders", { method: "POST", body: JSON.stringify({ invoiceIds }) }),
-    onSuccess: (outcome) => {
-      const sent = outcome.sent.length;
-      // One line per reason: "WhatsApp is not connected (10 invoices)", "Mrs Gumbo has no phone number (INV-0150)".
+    mutationFn: (invoiceIds: string[]) => fetchJson<ReminderOutcome>("/api/books/invoices/reminders", { method: "POST", body: JSON.stringify({ invoiceIds }) }),
+    onSuccess: (result) => {
+      const sent = result.sent.length;
       const byWhy = new Map<string, string[]>();
-      for (const row of outcome.skipped) byWhy.set(row.why, [...(byWhy.get(row.why) ?? []), row.invoice]);
+      for (const row of result.skipped) byWhy.set(row.why, [...(byWhy.get(row.why) ?? []), row.invoice]);
       const skipped = [...byWhy.entries()]
         .map(([why, numbers]) => `${why.charAt(0).toUpperCase()}${why.slice(1)} (${numbers.length > 2 ? `${numbers.length} invoices` : numbers.join(", ")})`)
         .join(". ");
@@ -85,47 +74,72 @@ function BooksInvoices() {
     onError: (error) => toast({ title: "The reminders did not go", description: getApiErrorMessage(error, "Check the connection and try again."), variant: "destructive" }),
   });
 
-  // A row's menu: Delete for a draft (whoever may change drafts); Reverse and Delete for the rest (the owner only).
-  const can = invoices.data?.can;
-  const rowMenu = React.useCallback(
-    (row: InvoiceRow) => {
-      const remove = { key: "delete", icon: "x" as const, danger: true, label: row.state === "draft" ? "Delete the draft" : "Delete", onSelect: () => setDeleting({ id: row.id, number: row.number }) };
-      if (row.state === "draft") return can?.deleteDrafts ? [remove] : null;
-      if (!can?.owner) return null;
-      if (row.state === "void") return [remove];
-      return [{ key: "reverse", icon: "back" as const, label: "Reverse", onSelect: () => router.push(`/books/invoices/${row.id}?reverse=1`) }, remove];
+  // Issue and Delete over the selection, one row at a time through the routes that exist (the bulk endpoints are P4).
+  const run = useMutation({
+    mutationFn: async ({ rows, action }: { rows: Listed["rows"]; action: "issue" | "delete" }) => {
+      const done: string[] = [];
+      const failed: Array<{ number: string; why: string }> = [];
+      for (const row of rows) {
+        try {
+          if (action === "issue") {
+            const issued = await fetchJson<{ number: string }>(`/api/books/invoices/${row.id}/issue`, { method: "POST", body: JSON.stringify({ asMine: false }) });
+            done.push(issued.number);
+          } else {
+            await fetchJson(`/api/books/invoices/${row.id}`, { method: "DELETE", body: JSON.stringify({}) });
+            done.push(row.number);
+          }
+        } catch (error) {
+          failed.push({ number: row.number, why: getApiErrorMessage(error, "it did not go through.") });
+        }
+      }
+      return { done, failed, action };
     },
-    [can?.deleteDrafts, can?.owner, router],
-  );
+    onSuccess: async ({ done, failed, action }) => {
+      toast({
+        title: action === "issue" ? (done.length === 1 ? `${done[0]} is issued` : `${done.length} drafts issued`) : done.length === 1 ? "1 draft deleted" : `${done.length} drafts deleted`,
+        description: outcome(done, action === "issue" ? "issued" : "deleted", failed),
+        variant: failed.length && !done.length ? "destructive" : "success",
+      });
+      await client.invalidateQueries({ queryKey: ["books"] });
+    },
+  });
 
-  const deleted = async (done: InvoiceDeleted) => {
-    const kept = done.onAccount.map((receipt) => receipt.number);
-    toast({
-      title: `${done.deleted} is deleted`,
-      description: kept.length ? `${kept.join(", ")} ${kept.length === 1 ? "stays" : "stay"} as the customer's money on account.` : undefined,
-      variant: "success",
-    });
-    await queryClient.invalidateQueries({ queryKey: ["books", "invoices"] });
+  const bulk: InvoiceBulk = {
+    remind: (rows) => remind.mutate(rows.map((row) => row.id)),
+    statements: (rows) => {
+      const customers = [...new Set(rows.map((row) => row.customer.id))];
+      window.open(`/books/statements?customers=${customers.join(",")}`, "_blank", "noopener");
+    },
+    issue: (rows) => run.mutate({ rows, action: "issue" }),
+    exportRows: (rows) =>
+      downloadCsv(
+        "invoices.csv",
+        ["Invoice", "Customer", "State", "When", "Currency", "Total", "Balance"],
+        rows.map((row) => [row.number, row.customer.name, row.stateLabel, row.when, row.currency, row.total.toFixed(2), row.balance.toFixed(2)]),
+      ),
+    deleteDrafts: (rows) => run.mutate({ rows, action: "delete" }),
   };
 
+  const data = invoices.data;
   return (
     <>
-      <PageChrome title="Invoices" primary={NEW_INVOICE} />
-      <BooksPage screen="books-invoices">
-        {invoices.data ? (
-          <InvoicesPageView
-            data={invoices.data}
+      <PageChrome title="Invoices" primary={NEW_INVOICE}>
+        <Kit contents>
+          <ButtonLink href={`/books/statements${data?.query.customer ? `?customers=${data.query.customer}` : ""}`} icon="print">
+            Statements
+          </ButtonLink>
+        </Kit>
+      </PageChrome>
+      <BooksPage screen="bk-a">
+        {data ? (
+          <BkInvoicesView
+            data={data}
             onQuery={onQuery}
-            sending={remind.isPending}
-            onSendReminders={(rows) => remind.mutate(rows.map((row) => row.id))}
-            onPrintStatements={(rows) => {
-              const customers = [...new Set(rows.map((row) => row.customer.id))];
-              window.open(`/books/statements?customers=${customers.join(",")}`, "_blank", "noopener");
-            }}
             exportHref={`/api/books/invoices?${new URLSearchParams([...params.entries(), ["format", "csv"]]).toString()}`}
-            explore={canUseExplore(session?.user?.role) ? <ExploreThisList sql={INVOICES_QUESTION} tablesSql={INVOICES_TABLES_QUESTION} title="Invoices still owed" /> : null}
-            vane={<ListVane path="/books/invoices" />}
-            rowMenu={rowMenu}
+            bulk={bulk}
+            busy={remind.isPending || run.isPending}
+            canIssue={data.can.issue}
+            canDeleteDrafts={data.can.deleteDrafts}
           />
         ) : invoices.isError ? (
           <BooksError what="Invoices" onRetry={() => invoices.refetch()} />
@@ -133,15 +147,6 @@ function BooksInvoices() {
           <BooksLoading />
         )}
       </BooksPage>
-      {deleting ? (
-        <InvoiceDeleteDialog
-          invoiceId={deleting.id}
-          number={deleting.number}
-          open
-          onOpenChange={(open) => (open ? undefined : setDeleting(null))}
-          onDeleted={deleted}
-        />
-      ) : null}
     </>
   );
 }
@@ -149,7 +154,7 @@ function BooksInvoices() {
 export default function BooksInvoicesPage() {
   // The filters are read from the address, which is only known in the browser.
   return (
-    <React.Suspense fallback={<BooksPage screen="books-invoices"><BooksLoading /></BooksPage>}>
+    <React.Suspense fallback={<BooksPage screen="bk-a"><BooksLoading /></BooksPage>}>
       <BooksInvoices />
     </React.Suspense>
   );

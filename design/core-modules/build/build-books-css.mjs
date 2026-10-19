@@ -1,0 +1,85 @@
+// The Books page boards' own rules (design/core-modules/tools/boards/books_pages_a.py `CSS`: Money,
+// Sales, Bills & spending), for the pages built from them. Scoped under `.ck.ck.ck .sc-bk-a` (the page
+// wraps itself in `KitScreen slug="bk-a"`), so a rule of these boards reaches only their pages and
+// never a page built from books_pages_b.py, whose boards reuse a few of the same names.
+//
+//   node design/core-modules/build/build-books-css.mjs
+//
+// writes components/core/books.css. Change the generator, never the output.
+
+import fs from "node:fs";
+import path from "node:path";
+import { execFileSync } from "node:child_process";
+import { createRequire } from "node:module";
+import { fileURLToPath } from "node:url";
+
+const here = path.dirname(fileURLToPath(import.meta.url));
+const root = path.resolve(here, "../../..");
+const postcss = createRequire(path.join(root, "node_modules/.pnpm/node_modules/"))("postcss");
+
+const boards = path.join(here, "../tools/boards");
+const source = execFileSync("python3", ["-c", "import sys; sys.argv=['x', '/nonexistent']; import books_pages_a; print(books_pages_a.CSS)"], {
+  cwd: boards,
+  encoding: "utf8",
+});
+
+const SCOPE = ".ck.ck.ck .sc-bk-a";
+// The board's own frame (its shell, its top bar and the phone's case) is the app's shell in the app.
+const BOARD_ONLY = /^\.(sh|tb-m|mn)\b|^\.bk-ph(\b|-h|-f)/;
+
+const css = postcss.parse(source);
+css.walkRules((rule) => {
+  if (rule.parent?.type === "atrule" && /keyframes/.test(rule.parent.name)) return;
+  const selectors = rule.selectors.filter((s) => !BOARD_ONLY.test(s.trim()));
+  if (selectors.length === 0) {
+    rule.remove();
+    return;
+  }
+  rule.selectors = selectors.map((s) => `${SCOPE} ${s.trim()}`);
+});
+
+// The boards draw 1440 and a phone frame of their own; in the app the same pages take every width.
+const RESPONSIVE = `
+/* In the app's shell: each page column scrolls on its own at desktop width; under 1100px the rail and the
+   summary go under the page, and on a phone forms take one column. */
+.ck.ck.ck .sc-bk-a .mny, .ck.ck.ck .sc-bk-a .bk-rec, .ck.ck.ck .sc-bk-a .bk-fm { min-height: 0; overflow: auto; }
+.ck.ck.ck .sc-bk-a .bk-acts .btn, .ck.ck.ck .sc-bk-a .bk-undo .btn { flex: none; }
+/* An owing invoice's two actions at the foot of a phone (BkInvoicePhone); at desktop width they are in the top bar. */
+.ck.ck.ck .sc-bk-a .bk-ph-acts { display: none; }
+@media (max-width: 1099px) {
+  .ck.ck.ck .sc-bk-a .mny, .ck.ck.ck .sc-bk-a .bk-rec, .ck.ck.ck .sc-bk-a .bk-fm { grid-template-columns: minmax(0, 1fr); overflow: visible; }
+  .ck.ck.ck .sc-bk-a .mny-side, .ck.ck.ck .sc-bk-a .bk-rec > .rail, .ck.ck.ck .sc-bk-a .bk-fm > .rail { box-shadow: inset 0 1px 0 var(--color-line); }
+}
+@media (max-width: 759px) {
+  .ck.ck.ck .sc-bk-a .bk-strip .kstrip { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+  .ck.ck.ck .sc-bk-a .bk-strip { padding: 16px 16px 0; }
+  .ck.ck.ck .sc-bk-a .share { grid-template-columns: 24px minmax(0, 1fr) 40px 96px; gap: 8px; }
+  .ck.ck.ck .sc-bk-a .share .sh-n { width: auto; flex: 1 1 auto; }
+  .ck.ck.ck .sc-bk-a .share .grow { display: none; }
+  .ck.ck.ck .sc-bk-a .need { flex-wrap: wrap; }
+  .ck.ck.ck .sc-bk-a .need .a { margin-left: 36px; }
+  .ck.ck.ck .sc-bk-a .bk-fl { padding: 20px 16px 40px; gap: 32px; }
+  .ck.ck.ck .sc-bk-a .bk-fl .form-sec { grid-template-columns: minmax(0, 1fr); row-gap: 12px; }
+  .ck.ck.ck .sc-bk-a .field-row { grid-template-columns: minmax(0, 1fr); }
+  .ck.ck.ck .sc-bk-a .bk-le { min-width: 560px; }
+  .ck.ck.ck .sc-bk-a .bk-wide { overflow-x: auto; }
+  .ck.ck.ck .sc-bk-a .bk-hd, .ck.ck.ck .sc-bk-a .bk-head, .ck.ck.ck .sc-bk-a .bk-acts, .ck.ck.ck .sc-bk-a .bk-note { padding-left: 16px; padding-right: 16px; }
+  .ck.ck.ck .sc-bk-a .bk-callout { margin: 16px 16px 0; }
+  .ck.ck.ck .sc-bk-a .bk-sums { width: auto; margin-left: 0; padding-inline: 16px; }
+  .ck.ck.ck .sc-bk-a .bk-figs { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; margin-inline: 16px; }
+  .ck.ck.ck .sc-bk-a .bk-tabs { padding: 0 16px; overflow-x: auto; }
+  .ck.ck.ck .sc-bk-a .bk-rtabs { padding: 0; }
+  .ck.ck.ck .sc-bk-a .bk-title { font-size: 24px; }
+  .ck.ck.ck .sc-bk-a .bk-tl li { grid-template-columns: 16px minmax(0, 1fr) 72px; }
+  .ck.ck.ck .sc-bk-a .ws-tools { flex-wrap: wrap; height: auto; row-gap: 8px; padding-top: 8px; padding-bottom: 8px; padding-inline: 16px; }
+  .ck.ck.ck .sc-bk-a .ws-tools .ws-find { flex: 1 1 100%; width: auto; }
+  .ck.ck.ck .sc-bk-a .ws-tools .end { margin-left: 0; }
+  .ck.ck.ck .sc-bk-a .ws-tools .sepv { display: none; }
+  .ck.ck.ck .sc-bk-a .bk-ph-acts { display: flex; flex-direction: column; gap: 8px; position: sticky; bottom: 0; padding: 12px 16px 28px; background: var(--color-surface); box-shadow: 0 -1px 0 var(--color-line); z-index: 2; }
+  .ck.ck.ck .sc-bk-a .bk-ph-acts .btn { height: 48px; width: 100%; justify-content: center; font-size: 16px; }
+}
+`;
+
+const out = `/* Generated by design/core-modules/build/build-books-css.mjs from tools/boards/books_pages_a.py. Do not edit. */\n${css.toString().trim()}\n${RESPONSIVE}`;
+fs.writeFileSync(path.join(root, "components/core/books.css"), out);
+console.log(`components/core/books.css: ${out.length} bytes`);

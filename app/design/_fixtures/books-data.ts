@@ -77,6 +77,7 @@ const invoice = (
   balance,
   currency: "USD",
   daysOverdue,
+  fiscalFailed: false,
 });
 
 export const FIXTURE_INVOICES: InvoicesView = {
@@ -97,7 +98,9 @@ export const FIXTURE_INVOICES: InvoicesView = {
   overdue: 2480,
   currency: "USD",
   customers: [],
-  query: { view: "all", q: "", customer: null, period: "any", sort: "newest", page: 1 },
+  currencies: ["USD"],
+  counts: { all: 142, owed: 5, overdue: 3, paid: 137, drafts: 0, void: 0 },
+  query: { view: "all", q: "", customer: null, currency: null, period: "any", sort: "newest", page: 1 },
 };
 
 export const FIXTURE_BANK: BankView = {

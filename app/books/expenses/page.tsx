@@ -7,12 +7,14 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { BooksError, BooksLoading } from "@/components/books/books-state";
 import { BooksPage } from "@/components/books/figures";
 import { ExpensesPageView } from "@/components/books/expenses-view";
+import { ButtonLink, Kit } from "@/components/core";
 import { PageChrome } from "@/components/layout/page-chrome";
 import { fetchJson } from "@/lib/api-client";
 import type { ExpenseQuery, ExpensesView } from "@/lib/books/expenses";
 
 /** New bill opens Payables' own form, as Record a payment does from Money. */
-const NEW_BILL = { label: "New bill", icon: "plus" as const, href: "/accounting/purchases?action=new-bill" };
+/** Books' own form (BkBillNew); Pay a supplier sits beside it in Record. */
+const NEW_BILL = { label: "New bill", icon: "plus" as const, href: "/books/bills/new", shortcut: "N" };
 
 /** Books → Expenses: the bills suppliers sent, from Payables. The list's filters live in the address. */
 function BooksExpenses() {
@@ -43,7 +45,13 @@ function BooksExpenses() {
 
   return (
     <>
-      <PageChrome title="Expenses" primary={NEW_BILL} />
+      <PageChrome title="All spending" primary={NEW_BILL}>
+        <Kit contents>
+          <ButtonLink href="/books/payments-made/new" icon="payments">
+            Pay a supplier
+          </ButtonLink>
+        </Kit>
+      </PageChrome>
       <BooksPage screen="books-invoices">
         {expenses.data ? (
           <ExpensesPageView

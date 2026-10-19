@@ -332,15 +332,15 @@ CASH_BASE = CASH_USD + to_usd(CASH_ZIG)
 CBZ_TX = [
     ('1 Oct', 'PAY-0056', 'JE-0417', 'Kingsway Property, rent October', 'Payment made', M(-1450), True),
     ('1 Oct', 'BE-0041', 'JE-0418', 'IMTT on PAY-0056', 'Bank entry', M('-29.00'), True),
-    ('2 Oct', 'RCT-0088', 'JE-0423', 'Greystone Park Primary, INV-0139', 'Payment received', M(2980), True),
+    ('2 Oct', 'REC-0088', 'JE-0423', 'Greystone Park Primary, INV-0139', 'Payment received', M(2980), True),
     ('5 Oct', 'PAY-0057', 'JE-0431', 'Halsted Builders, BILL-0219', 'Payment made', M('-312.40'), True),
     ('5 Oct', 'BE-0042', 'JE-0432', 'IMTT on PAY-0057', 'Bank entry', M('-6.25'), True),
-    ('8 Oct', 'RCT-0091', 'JE-0446', 'Pomona Offices, INV-0142', 'Payment received', M(500), True),
+    ('8 Oct', 'REC-0091', 'JE-0446', 'Pomona Offices, INV-0142', 'Payment received', M(500), True),
     ('9 Oct', 'PAY-0058', 'JE-0449', 'Tile Trader Zimbabwe, BILL-0216', 'Payment made', M(-2210), True),
     ('9 Oct', 'BE-0043', 'JE-0450', 'IMTT on PAY-0058', 'Bank entry', M('-44.20'), True),
     ('10 Oct', 'PAY-0059', 'JE-0455', 'ZIMRA, PAYE and AIDS levy, September', 'Payment made', M('-648.40'), True),
     ('10 Oct', 'BE-0044', 'JE-0456', 'IMTT on PAY-0059', 'Bank entry', M('-12.97'), True),
-    ('12 Oct', 'RCT-0092', 'JE-0466', 'Mandara Medical Centre, deposit', 'Payment received', M(1000), True),
+    ('12 Oct', 'REC-0092', 'JE-0466', 'Mandara Medical Centre, deposit', 'Payment received', M(1000), True),
     ('14 Oct', 'PAY-0061', 'JE-0481', 'ZIMRA, VAT September', 'Payment made', M('-1184.60'), False),
 ]
 CBZ_BOOK = M('18412.75')
@@ -746,10 +746,10 @@ JOURNALS = [('', '17 Oct', 'Accrual, Pomona Offices fitting labour', 'Manual', 1
             ('', '30 Sep', 'Month-end payroll accrual', 'Manual', 980.00, 'Draft', 'Rudo Mapfumo'),
             ('', '30 Sep', 'Van fuel, September', 'Manual', 160.00, 'Draft', 'Rudo Mapfumo'),
             ('JE-0486', '18 Oct', 'Tender sales, 17 Oct', 'Retail sale', 1286.40, 'Posted', 'Books'),
-            ('JE-0485', '16 Oct', 'RCT-0094, Westgate Interiors', 'Payment received', 500.00, 'Posted', 'Books'),
+            ('JE-0485', '16 Oct', 'REC-0094, Westgate Interiors', 'Payment received', 500.00, 'Posted', 'Books'),
             ('JE-0484', '16 Oct', 'INV-0144, Westgate Interiors', 'Sales invoice', 500.00, 'Posted', 'Books'),
             ('JE-0483', '16 Oct', 'Tender sales, 15 Oct', 'Retail sale', 1102.80, 'Posted', 'Books'),
-            ('JE-0482', '15 Oct', 'RCT-0093, Mrs R. Chuma', 'Payment received', 250.00, 'Posted', 'Books'),
+            ('JE-0482', '15 Oct', 'REC-0093, Mrs R. Chuma', 'Payment received', 250.00, 'Posted', 'Books'),
             ('JE-0481', '14 Oct', 'PAY-0061, ZIMRA, VAT September', 'Payment made', 1184.60, 'Posted', 'Books'),
             ('JE-0480', '14 Oct', 'Tender sales, 13 Oct', 'Retail sale', 968.20, 'Posted', 'Books')]
 
@@ -917,7 +917,7 @@ def audit():
     E = [('Mon 12 Oct 16:21', 'James Nyabadza', 'Owner', 'Voided', ref('INV-0143') + ' → ' + ref('CN-0009'), 'Cancellation, wrong customer'),
          ('Mon 12 Oct 15:12', 'Corelith support, as James', 'Sign in as · SA-214', 'Changed a posting rule', 'Retail sale, EcoCash tender', 'Ticket 4471: EcoCash tender to 1020'),
          ('Fri 9 Oct 10:18', 'Tendai Sibanda', 'Manager', 'Posted into a closed month', 'Fuel slip, August', 'Slip found after the close'),
-         ('Mon 5 Oct 15:52', 'James Nyabadza', 'Owner', 'Voided', ref('RCT-0090') + ', Mrs T. Gumbo', 'Duplicate, entered twice'),
+         ('Mon 5 Oct 15:52', 'James Nyabadza', 'Owner', 'Voided', ref('REC-0090') + ', Mrs T. Gumbo', 'Duplicate, entered twice'),
          ('Fri 2 Oct 14:18', 'James Nyabadza', 'Owner', 'Revised', ref('INV-0133') + ' → ' + ref('INV-0137'), 'Wrong quantity'),
          ('Fri 2 Oct 10:05', 'James Nyabadza', 'Owner', 'Closed', 'August 2026', 'Closed again after the fix'),
          ('Fri 2 Oct 08:30', 'James Nyabadza', 'Owner', 'Reopened', 'August 2026', 'Missing fuel slip, Pomona van'),
@@ -962,7 +962,7 @@ def settings_tax():
 
 
 def settings_numbering():
-    S = [('Invoice', 'INV-', '0145', 'INV-0144, 16 Oct'), ('Credit note', 'CN-', '0010', 'CN-0009, 12 Oct'), ('Payment received', 'RCT-', '0095', 'RCT-0094, 16 Oct'),
+    S = [('Invoice', 'INV-', '0145', 'INV-0144, 16 Oct'), ('Credit note', 'CN-', '0010', 'CN-0009, 12 Oct'), ('Payment received', 'REC-', '0095', 'REC-0094, 16 Oct'),
          ('Quote', 'QT-', '0404', 'QT-0403, 17 Oct'), ('Bill', 'BILL-', '0225', 'BILL-0224, 16 Oct'), ('Debit note', 'DN-', '0005', 'DN-0004, 8 Oct'),
          ('Payment made', 'PAY-', '0063', 'PAY-0062, 18 Oct'), ('Purchase order', 'PO-', '0039', 'PO-0038, 17 Oct'), ('Requisition', 'REQ-', '0094', 'REQ-0093, 18 Oct'),
          ('Claim', 'CLM-', '0015', 'CLM-0014, 17 Oct'), ('Goods received', 'GRN-', '0047', 'GRN-0046, 17 Oct'), ('Journal', 'JE-', '0487', 'JE-0486, 18 Oct')]
@@ -1025,9 +1025,9 @@ def bill_behind():
     return head + tabs(['Lines', 'Payments', 'FDMS check', 'Posting', 'History'], 0) + lines
 
 def receipt_behind():
-    head = rec_head('RCT-0090 · Mrs T. Gumbo', '<span class="pill pill-plain">Void</span>', 'Recorded 5 Oct · voided 5 Oct')
+    head = rec_head('REC-0090 · Mrs T. Gumbo', '<span class="pill pill-plain">Void</span>', 'Recorded 5 Oct · voided 5 Oct')
     t = tbl([('Entry', ''), ('Date', ''), ('What', 'fill'), ('Amount', 'num')],
-            [[ref('JE-0429'), mut('5 Oct'), lead('Receipt into the showroom cash box'), n2(430)], [ref('JE-0430'), mut('5 Oct'), lead('Void of RCT-0090, the mirror'), n2(-430)]])
+            [[ref('JE-0429'), mut('5 Oct'), lead('Receipt into the showroom cash box'), n2(430)], [ref('JE-0430'), mut('5 Oct'), lead('Void of REC-0090, the mirror'), n2(-430)]])
     return head + tabs(['Posting', 'History'], 0) + t
 
 def dialog(title, body, foot_html, w=520, start=''):
@@ -1044,7 +1044,7 @@ def danger_btn(label, icon, k):
 def void_dialog():
     body = ('<p>INV-0142 is signed on FDMS, so it is voided with a full credit note.</p>'
             + what((('file', '<b>CN-0010</b> for %s is issued and signed' % usd(1994.22)),
-                    ('payments', '%s, %s, stays on account' % (ref('RCT-0091'), usd(500))),
+                    ('payments', '%s, %s, stays on account' % (ref('REC-0091'), usd(500))),
                     ('vat', 'October’s VAT return counts the credit note')))
             + '<div class="bk-fld"><span class="bk-lab">Reason on the credit note</span><div class="bk-chips"><span>Return</span><span>Price correction</span><span class="on">Cancellation</span><span>Discount</span><span>Bad debt</span></div></div>'
             + '<div class="bk-fld"><span class="bk-lab">Why are you voiding it?</span><div class="bk-ta">Their landlord is paying for the job and wants the invoice in the landlord’s name.</div>'
@@ -1066,11 +1066,11 @@ def revise_dialog():
 
 def delete_dialog():
     body1 = ('<p>This removes the receipt as if it was never recorded. Delete is for duplicates and test data.</p>'
-             + what((('payments', 'RCT-0090 and its line on Mrs T. Gumbo’s account'), ('books', ref('JE-0429') + ', its mirror ' + ref('JE-0430') + ' and 1 event'),
-                     ('lock', 'RCT-0090 is never given out again')))
-             + '<div class="bk-fld"><span class="bk-lab">Reason</span><div class="bk-ta">Duplicate entered at the counter; RCT-0089 is the real one.</div></div>'
-             + '<div class="bk-fld"><span class="bk-lab">Type RCT-0090 to confirm</span><span class="bk-in">RCT-0090</span></div>')
-    d1 = dialog('Delete RCT-0090 permanently', body1, btn('Cancel', None, 'btn btn-quiet') + danger_btn('Delete permanently', 'x', 'Ctrl ↵'), w=500)
+             + what((('payments', 'REC-0090 and its line on Mrs T. Gumbo’s account'), ('books', ref('JE-0429') + ', its mirror ' + ref('JE-0430') + ' and 1 event'),
+                     ('lock', 'REC-0090 is never given out again')))
+             + '<div class="bk-fld"><span class="bk-lab">Reason</span><div class="bk-ta">Duplicate entered at the counter; REC-0089 is the real one.</div></div>'
+             + '<div class="bk-fld"><span class="bk-lab">Type REC-0090 to confirm</span><span class="bk-in">REC-0090</span></div>')
+    d1 = dialog('Delete REC-0090 permanently', body1, btn('Cancel', None, 'btn btn-quiet') + danger_btn('Delete permanently', 'x', 'Ctrl ↵'), w=500)
     refused = ''.join('<div>%s<span>%s</span></div>' % ('<span class="bk-no">%s</span>' % ic('x') if on else '<span class="bk-ok">%s</span>' % ic('check'), t) for on, t in (
         (True, '<b>Signed on FDMS</b>, fiscal day 108, 2 Oct'),
         (False, 'Its month, October, is open'),
@@ -1080,7 +1080,7 @@ def delete_dialog():
              '<div class="bk-what">%s</div>') % refused
     d2 = dialog('INV-0139 can’t be deleted', body2, btn('Close', None, 'btn btn-quiet') + btn('Void with a credit note', 'x', 'btn', 'Ctrl ↵'), w=460)
     return page('BkDeleteDialog', 'Delete permanently', '/books/payments/rct-0090', 'Payments received', receipt_behind(), btn('Record a payment', 'plus', 'btn', 'N'),
-                extra='<div class="bk-dim" style="align-items:flex-start;padding-top:72px">%s%s</div>' % (d1, d2), heading=crumb('Payments received', 'RCT-0090'), icon='payments')
+                extra='<div class="bk-dim" style="align-items:flex-start;padding-top:72px">%s%s</div>' % (d1, d2), heading=crumb('Payments received', 'REC-0090'), icon='payments')
 
 
 def bulk_result():

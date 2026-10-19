@@ -1547,9 +1547,9 @@ def books_flows7():
          btn('Revise', 'edit') + '<span class="muted" style="font-size:12px">choose the customer</span>', 'Owner or granted',
          [doc_('INV-0143', 'Void', 'p', '', 'Voided 12 Oct'), doc_('CN-0009', 'Issued', 'i', 'US$640.00', 'Cancellation, wrong customer'), doc_('New invoice', 'Issued', 'i', 'US$640.00', 'For the right customer')],
          'Payments stay with the customer who paid, on account. The app asks whether to move them.'),
-        ('Duplicate receipt', [doc_('RCT-0304', 'Recorded', 'o', 'US$600.00'), doc_('RCT-0305', 'Recorded', 'o', 'US$600.00', 'Chisipite Dental: the same money twice')],
+        ('Duplicate receipt', [doc_('REC-0304', 'Recorded', 'o', 'US$600.00'), doc_('REC-0305', 'Recorded', 'o', 'US$600.00', 'Chisipite Dental: the same money twice')],
          btn('Void', 'x') + '<span class="muted" style="font-size:12px">reason “duplicate”</span>', 'Owner or granted',
-         [doc_('RCT-0305', 'Void', 'p', '', 'Mirror posted; bank transaction removed; statement line reopened; invoice balance back')]),
+         [doc_('REC-0305', 'Void', 'p', '', 'Mirror posted; bank transaction removed; statement line reopened; invoice balance back')]),
         ('Payment to the wrong supplier', [doc_('PAY-0098', 'Paid', 'o', 'US$420.00', 'Halsted Builders, meant for Kopje Timber')],
          btn('Void', 'x') + btn('New payment', 'plus', 'btn btn-quiet'), 'Owner or granted to void; limit to pay',
          [doc_('PAY-0098', 'Void', 'p', '', 'Mirror; bill balance back; bank line reopened'), doc_('PAY-0099', 'Paid', 'o', 'US$420.00', 'Kopje Timber')],
@@ -1570,7 +1570,7 @@ def books_flows7():
          'Or post a correcting entry in the current month with a note.'),
         ('A whole batch wrong', [doc_('14 receipts', 'Recorded', 'o', '', 'Duplicate import of 13 Oct')],
          btn('Void 14', 'x'), 'Select the batch; one reason for all; owner or granted',
-         [doc_('11', 'Void', 'p', '', 'Each voided on its own'), doc_('2', 'Skipped', 'w', '', 'RCT-0306 matched in a closed reconciliation; RCT-0310 in an open fiscal day'), doc_('1', 'Unchanged', 'n', '', 'RCT-0299 already void')]),
+         [doc_('11', 'Void', 'p', '', 'Each voided on its own'), doc_('2', 'Skipped', 'w', '', 'REC-0306 matched in a closed reconciliation; REC-0310 in an open fiscal day'), doc_('1', 'Unchanged', 'n', '', 'REC-0299 already void')]),
         ('Test data to purge', [doc_('9 invoices', 'Issued', 'i', '', 'Made while setting up')],
          btn('Delete permanently', 'x') + '<span class="muted" style="font-size:12px">type “delete” and 9</span>', 'Owner only',
          [doc_('7', 'Gone', 'g', '', 'Each deleted under the delete rules; snapshot kept in the audit trail'), doc_('2', 'Skipped', 'w', '', 'Fiscalised on a live device')],
@@ -1612,18 +1612,18 @@ def books_flows8():
            '<div style="display:flex;align-items:center;gap:12px;height:48px;padding:0 16px;background:var(--color-ink);color:var(--color-surface);font-size:13px">'
            '<b style="font-weight:600;color:var(--color-surface)">14 selected</b><span style="opacity:.4">|</span><span>Allocate to oldest %s</span><span>Export %s</span><span>Void %s</span><span style="margin-left:auto">Clear %s</span></div></div>') % (
         table(('', 'Receipt', 'Customer', 'Amount'), [
-            ['<span class="cb on" style="width:14px;height:14px"></span>', '<span class="ref">RCT-0312</span>', 'Avondale Fresh Mart', '1,865.00'],
-            ['<span class="cb on" style="width:14px;height:14px"></span>', '<span class="ref">RCT-0311</span>', 'Greystone Park Primary', '2,980.00'],
-            ['<span class="cb on" style="width:14px;height:14px"></span>', '<span class="ref">RCT-0310</span>', 'Mrs T. Gumbo', '430.00']], numcols=(3,)),
+            ['<span class="cb on" style="width:14px;height:14px"></span>', '<span class="ref">REC-0312</span>', 'Avondale Fresh Mart', '1,865.00'],
+            ['<span class="cb on" style="width:14px;height:14px"></span>', '<span class="ref">REC-0311</span>', 'Greystone Park Primary', '2,980.00'],
+            ['<span class="cb on" style="width:14px;height:14px"></span>', '<span class="ref">REC-0310</span>', 'Mrs T. Gumbo', '430.00']], numcols=(3,)),
         kbd('A', True), kbd('E', True), kbd('V', True), kbd('Esc', True))
     res = ('<div class="bf-box" style="padding:0;overflow:hidden;box-shadow:var(--shadow-ring),var(--shadow-raised)"><div style="padding:18px 20px 12px"><b style="font-size:15px;font-weight:600">Void 14 receipts</b>'
            '<p style="margin-top:8px;font-size:14px;color:var(--color-ink)"><b>11 voided</b> · 2 skipped · 1 unchanged · 0 not found</p>'
            '<p style="margin-top:6px;font-size:13px;line-height:1.55;color:var(--color-ink-2)">Each receipt was voided on its own with your reason, “Duplicate import of 13 Oct”. The 11 mirrors are posted today and their bank lines reopened.</p></div>%s'
            '<div style="display:flex;gap:8px;justify-content:flex-end;padding:14px 20px;box-shadow:inset 0 1px 0 var(--color-line)">%s%s</div></div>') % (
         table(('Receipt', 'Result', 'Why'), [
-            ['<span class="ref">RCT-0306</span>', st('Skipped', 'w'), '<span style="white-space:normal">Matched in September’s closed reconciliation</span>'],
-            ['<span class="ref">RCT-0310</span>', st('Skipped', 'w'), '<span style="white-space:normal">Its invoice sits in an open fiscal day</span>'],
-            ['<span class="ref">RCT-0299</span>', st('Unchanged', 'n'), 'Already void']]),
+            ['<span class="ref">REC-0306</span>', st('Skipped', 'w'), '<span style="white-space:normal">Matched in September’s closed reconciliation</span>'],
+            ['<span class="ref">REC-0310</span>', st('Skipped', 'w'), '<span style="white-space:normal">Its invoice sits in an open fiscal day</span>'],
+            ['<span class="ref">REC-0299</span>', st('Unchanged', 'n'), 'Already void']]),
         btn('Retry the 2 skipped', 'run', 'btn btn-quiet'), btn('Done', None, 'btn btn-primary', '↵'))
     pattern = ('<div style="display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:24px;align-items:start">%s%s</div>') % (sel, res)
     rules_ = cards((

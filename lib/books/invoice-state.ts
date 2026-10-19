@@ -11,7 +11,7 @@ export type InvoiceState = "overdue" | "part-paid" | "sent" | "paid" | "draft" |
 export const INVOICE_STATE_LABEL: Record<InvoiceState, string> = {
   overdue: "Overdue",
   "part-paid": "Part paid",
-  sent: "Sent",
+  sent: "Issued",
   paid: "Paid",
   draft: "Draft",
   void: "Void",

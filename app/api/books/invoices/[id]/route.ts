@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { errorResponse, successResponse, validateSession } from "@/lib/api-utils";
 import { booksActor, canDo } from "@/lib/books/core";
 import { deleteInvoice, readInvoiceRemoval } from "@/lib/books/delete-invoice";
+import { readInvoiceExtras } from "@/lib/books/invoice-board";
 import { readInvoiceRecord, type InvoiceRecordPage } from "@/lib/books/invoice-record";
 import { InvoiceChangeRefused } from "@/lib/books/owner";
 import { prisma } from "@/lib/prisma";
@@ -26,15 +27,21 @@ export async function GET(request: NextRequest, { params }: Params) {
     const maker = draft ? (await prisma.salesInvoice.findUnique({ where: { id: record.id }, select: { createdById: true } }))?.createdById : null;
     const mayDelete = draft ? canDo(actor, "draft.delete", { kind: "invoice", ownerId: maker }).allowed : canDo(actor, "delete.posted", { kind: "invoice" }).allowed;
     const mayVoid = canDo(actor, "void", { kind: "invoice" }).allowed;
+    const posted = record.status === "ISSUED" || record.status === "PAID";
+    const owing = record.status === "ISSUED" && record.balance > 0.005;
     const page: InvoiceRecordPage = {
       ...record,
       can: {
         issue: draft && canDo(actor, "issue", { kind: "invoice" }).allowed,
         delete: mayDelete,
-        reverse: mayVoid && (record.status === "ISSUED" || record.status === "PAID"),
+        reverse: mayVoid && posted,
         voidPayments: canDo(actor, "void", { kind: "receipt" }).allowed,
+        credit: posted && record.creditLeft > 0.005 && canDo(actor, "note.issue", { kind: "credit-note" }).allowed,
+        writeOff: owing && canDo(actor, "write-off", { kind: "write-off", amount: record.balance }).allowed,
+        pay: owing && canDo(actor, "issue", { kind: "receipt" }).allowed,
       },
       removal: mayDelete ? await readInvoiceRemoval(session.user.companyId, record.id) : null,
+      board: await readInvoiceExtras(prisma, session.user.companyId, record.id),
     };
     return successResponse(page);
   } catch (error) {

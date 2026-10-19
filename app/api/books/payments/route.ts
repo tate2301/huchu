@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { errorResponse, successResponse, validateSession } from "@/lib/api-utils";
-import { booksActor, canDo } from "@/lib/books/core";
+import { z } from "zod";
+
+import { booksActor, canDo, guardBooks } from "@/lib/books/core";
+import { ReceiptRefused } from "@/lib/books/core/receipt-facts";
+import { booksPaymentSchema, recordBooksPayment } from "@/lib/books/payment-create";
 import { paymentsCsv, readPaymentQuery, readPayments } from "@/lib/books/payments";
 import { prisma } from "@/lib/prisma";
 
@@ -26,5 +30,22 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     console.error("[API] GET /api/books/payments error:", error);
     return errorResponse("Could not read the payments");
+  }
+}
+
+/** Books' Record a payment: one customer's money, put on their invoices oldest first, the rest on account. */
+export async function POST(request: NextRequest) {
+  try {
+    const sessionResult = await validateSession(request);
+    if (sessionResult instanceof NextResponse) return sessionResult;
+    const input = booksPaymentSchema.parse(await request.json());
+    const { actor, refused } = await guardBooks(sessionResult.session, "issue", { kind: "receipt" });
+    if (refused) return refused;
+    return successResponse(await recordBooksPayment(actor, input), 201);
+  } catch (error) {
+    if (error instanceof z.ZodError) return errorResponse("Check the payment: something in it is not filled in right.", 400, error.issues);
+    if (error instanceof ReceiptRefused) return errorResponse(error.message, error.status);
+    console.error("[API] POST /api/books/payments error:", error);
+    return errorResponse("Could not record the payment");
   }
 }

@@ -418,8 +418,24 @@ const WORKSPACE_MODULES: Record<WorkspaceModuleId, WorkspaceModuleDefinition> = 
         canViewAccountingHref(item.href, context.enabledFeatures),
       );
     },
+    // A level's links out (Settings › In Management) are filtered as its rows are.
     getGroups(context) {
-      return context.navSectionById.get("accounting")?.groups;
+      return context.navSectionById.get("accounting")?.groups?.map((group) =>
+        group.links
+          ? {
+              ...group,
+              links: {
+                ...group.links,
+                items: group.links.items.filter(
+                  (item) =>
+                    (!item.roles || hasRole(context.role, item.roles)) &&
+                    isRouteAllowedForRole(context.role, item.href) &&
+                    canViewAccountingHref(item.href, context.enabledFeatures),
+                ),
+              },
+            }
+          : group,
+      );
     },
   },
   management: {

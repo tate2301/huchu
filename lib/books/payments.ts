@@ -11,14 +11,18 @@ import { INVOICE_PERIOD_LABEL, INVOICE_PERIODS, type InvoicePeriod } from "./inv
  * when and why, and is left out of every sum.
  */
 
-export const PAYMENT_VIEWS = ["all", "invoiced", "unlinked"] as const;
+export const PAYMENT_VIEWS = ["all", "invoiced", "unlinked", "void"] as const;
 export type PaymentView = (typeof PAYMENT_VIEWS)[number];
 
 export const PAYMENT_VIEW_LABEL: Record<PaymentView, string> = {
   all: "All payments",
   invoiced: "On an invoice",
   unlinked: "Not on an invoice",
+  void: "Void",
 };
+
+/** The tabs BkPaymentsIn draws over the list. */
+export const PAYMENT_TAB_LABEL: Record<PaymentView, string> = { all: "All", invoiced: "On an invoice", unlinked: "On account", void: "Void" };
 
 export const PAYMENT_PERIODS = INVOICE_PERIODS;
 export const PAYMENT_PERIOD_LABEL = INVOICE_PERIOD_LABEL;
@@ -28,6 +32,8 @@ export const PAYMENTS_PAGE_SIZE = 50;
 export const paymentQuerySchema = z.object({
   view: z.enum(PAYMENT_VIEWS).catch("all"),
   q: z.string().trim().max(100).catch(""),
+  customer: z.string().uuid().nullable().catch(null),
+  account: z.string().uuid().nullable().catch(null),
   period: z.enum(INVOICE_PERIODS).catch("any"),
   sort: z.enum(["newest", "oldest"]).catch("newest"),
   page: z.coerce.number().int().min(1).catch(1),
@@ -38,6 +44,8 @@ export function readPaymentQuery(params: URLSearchParams): PaymentQuery {
   return paymentQuerySchema.parse({
     view: params.get("view") ?? undefined,
     q: params.get("q") ?? undefined,
+    customer: params.get("customer") || null,
+    account: params.get("account") || null,
     period: params.get("period") ?? undefined,
     sort: params.get("sort") ?? undefined,
     page: params.get("page") ?? undefined,
@@ -50,6 +58,10 @@ export type PaymentRow = {
   /** Who paid: the invoice's customer, or null for a payment on no invoice. */
   customer: string | null;
   invoice: string | null;
+  /** The invoice's id, for its link. */
+  invoiceId: string | null;
+  /** The money account it went into: "CBZ, USD", "EcoCash". */
+  into: string | null;
   received: string;
   method: string;
   amount: number;
@@ -65,13 +77,18 @@ export type PaymentsView = {
   /** What the matching payments add up to, in `currency`. */
   received: number;
   currency: string;
+  /** This month's money in, and what of it is on account, in `currency`. */
+  month: { amount: number; payments: number; onAccount: number; name: string };
+  counts: Record<PaymentView, number>;
+  customers: Array<{ id: string; name: string }>;
+  accounts: Array<{ id: string; name: string }>;
   query: PaymentQuery;
 };
 
 /** What the person may do from a row (the route adds it): Void is the owner's. */
 export type PaymentsPage = PaymentsView & { can: { void: boolean } };
 
-type Db = Pick<PrismaClient, "salesReceipt" | "paymentLedgerEntry" | "customer" | "platformAuditEvent">;
+type Db = Pick<PrismaClient, "salesReceipt" | "paymentLedgerEntry" | "customer" | "platformAuditEvent" | "bankAccount">;
 
 /**
  * Whose a payment on no invoice is: the customer its receivables line names.
@@ -129,6 +146,10 @@ export function paymentWhere(companyId: string, query: PaymentQuery, today: stri
   const where: Prisma.SalesReceiptWhereInput = { companyId };
   if (query.view === "invoiced") where.invoiceId = { not: null };
   if (query.view === "unlinked") where.invoiceId = null;
+  if (query.view === "void") where.voidedAt = { not: null };
+  else if (query.view !== "all") where.voidedAt = null;
+  if (query.customer) where.AND = [{ OR: [{ customerId: query.customer }, { invoice: { customerId: query.customer } }] }];
+  if (query.account) where.bankAccountId = query.account;
   const range = periodRange(query.period, today);
   if (range) where.receivedAt = range;
   if (query.q) {
@@ -151,7 +172,9 @@ const rowSelect = {
   voidedAt: true,
   voidReason: true,
   voidedBy: { select: { name: true } },
-  invoice: { select: { invoiceNumber: true, currency: true, customer: { select: { name: true } } } },
+  currency: true,
+  bankAccount: { select: { name: true, bankName: true, currency: true } },
+  invoice: { select: { id: true, invoiceNumber: true, currency: true, customer: { select: { name: true } } } },
 } satisfies Prisma.SalesReceiptSelect;
 
 type RowRecord = Prisma.SalesReceiptGetPayload<{ select: typeof rowSelect }>;
@@ -168,10 +191,12 @@ export function toPaymentRow(record: RowRecord, onAccount: string | null = null)
     number: record.receiptNumber,
     customer: record.invoice?.customer.name ?? onAccount,
     invoice: record.invoice?.invoiceNumber ?? null,
+    invoiceId: record.invoice?.id ?? null,
+    into: record.bankAccount ? `${record.bankAccount.bankName || record.bankAccount.name}, ${record.bankAccount.currency}` : methodLabel(record.method),
     received: shortDay(storedDay(record.receivedAt)),
     method: methodLabel(record.method),
     amount: Math.round(record.amount * 100) / 100,
-    currency: record.invoice?.currency ?? "USD",
+    currency: record.currency ?? record.invoice?.currency ?? "USD",
     voided: record.voidedAt ? { by: record.voidedBy?.name ?? null, on: shortDay(dayOf(record.voidedAt)), reason: record.voidReason } : null,
   };
 }
@@ -180,6 +205,15 @@ export function toPaymentRow(record: RowRecord, onAccount: string | null = null)
 export function paymentsFinding(month: { amount: number; payments: number }, currency = "USD"): { fact: string; rest: string | null } {
   if (month.payments === 0) return { fact: "Nothing has come in this month yet.", rest: null };
   return { fact: `${money(month.amount, currency)} came in this month.`, rest: `${count(month.payments, "payment")} so far.` };
+}
+
+/** "US$5,660.00 has come in on 6 payments this month." / "US$1,250.00 of it is on account, on no invoice yet." (BkPaymentsIn) */
+export function paymentsInFinding(month: { amount: number; payments: number }, onAccount: number, currency = "USD"): { fact: string; rest: string | null } {
+  if (month.payments === 0) return { fact: "Nothing has come in this month yet.", rest: null };
+  return {
+    fact: `${money(month.amount, currency)} has come in on ${count(month.payments, "payment")} this month.`,
+    rest: onAccount > 0.005 ? `${money(onAccount, currency)} of it is on account, on no invoice yet.` : "All of it is on invoices.",
+  };
 }
 
 /** The sum of payments in one currency: the one most of them are in. Others are left out, not converted. */
@@ -200,7 +234,8 @@ function sumInMainCurrency(rows: Array<{ amount: number; currency?: string | nul
 export async function readPayments(db: Db, companyId: string, query: PaymentQuery, now = new Date()): Promise<PaymentsView> {
   const today = dayOf(now);
   const where = paymentWhere(companyId, query, today);
-  const [records, matching, sums, month] = await Promise.all([
+  const tabCount = (view: PaymentView) => db.salesReceipt.count({ where: paymentWhere(companyId, { ...query, view }, today) });
+  const [records, matching, sums, month, customerRows, accountRows, ...tabCounts] = await Promise.all([
     db.salesReceipt.findMany({
       where,
       select: rowSelect,
@@ -213,21 +248,29 @@ export async function readPayments(db: Db, companyId: string, query: PaymentQuer
     db.salesReceipt.findMany({ where: { ...where, voidedAt: null }, select: { amount: true, currency: true, invoice: { select: { currency: true } } }, take: 10_000 }),
     db.salesReceipt.findMany({
       where: { companyId, voidedAt: null, receivedAt: { gte: midnight(monthStart(today)) } },
-      select: { amount: true, currency: true, invoice: { select: { currency: true } } },
+      select: { amount: true, currency: true, invoiceId: true, invoice: { select: { currency: true } } },
       take: 10_000,
     }),
+    db.customer.findMany({ where: { companyId, receipts: { some: {} } }, select: { id: true, name: true }, orderBy: { name: "asc" }, take: 500 }),
+    db.bankAccount.findMany({ where: { companyId, isActive: true }, select: { id: true, name: true, bankName: true, currency: true }, orderBy: { name: "asc" } }),
+    ...PAYMENT_VIEWS.map(tabCount),
   ]);
   const owners = await onAccountCustomers(db, companyId, records);
   const rows = records.map((record) => toPaymentRow(record, owners.get(record.id) ?? null));
   const from = matching === 0 ? 0 : (query.page - 1) * PAYMENTS_PAGE_SIZE + 1;
   const total = sumInMainCurrency(sums);
   const thisMonth = sumInMainCurrency(month);
+  const onAccount = sumInMainCurrency(month.filter((row) => !row.invoiceId && (row.currency ?? "USD") === thisMonth.currency));
   return {
-    finding: paymentsFinding(thisMonth, thisMonth.currency),
+    finding: paymentsInFinding(thisMonth, onAccount.amount, thisMonth.currency),
     rows,
     range: { from, to: from === 0 ? 0 : from + rows.length - 1, of: matching },
     received: total.amount,
     currency: total.currency,
+    month: { amount: thisMonth.amount, payments: thisMonth.payments, onAccount: onAccount.amount, name: new Intl.DateTimeFormat("en-GB", { month: "long", timeZone: "UTC" }).format(midnight(today)) },
+    counts: Object.fromEntries(PAYMENT_VIEWS.map((view, index) => [view, tabCounts[index] ?? 0])) as Record<PaymentView, number>,
+    customers: customerRows,
+    accounts: accountRows.map((account) => ({ id: account.id, name: `${account.bankName || account.name}, ${account.currency}` })),
     query,
   };
 }

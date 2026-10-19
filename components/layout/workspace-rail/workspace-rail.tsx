@@ -266,6 +266,13 @@ export function WorkspaceRail({
   const folderBody = (area: RailArea, folder: RailFolder) => (
     <>
       {rowsFor(folder.items, area)}
+      {folder.links ? (
+        <PanelGroup label={folder.links.label} defaultOpen holdsCurrent={false}>
+          {folder.links.items.map((item) => (
+            <RailRow key={item.href} href={item.href} label={item.label} icon={item.icon} current={false} onNavigate={onNavigate} />
+          ))}
+        </PanelGroup>
+      ) : null}
       {area.id === activeArea?.id && folder.id === pageFolderId
         ? moduleGroups?.(area, { savedViews: true, reports: false })
         : null}

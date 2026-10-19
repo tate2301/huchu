@@ -3,6 +3,7 @@ import { docLabel } from "@/lib/books/doc-number";
 
 import { daysBetween, dayOf, money, shortDay, storedDay } from "./format";
 import { INVOICE_STATE_LABEL, invoiceState, type InvoiceState } from "./invoice-state";
+import type { InvoiceBoardExtras } from "./invoice-board-view";
 import type { InvoiceRemoval } from "./reversal";
 import { wasFiscalised } from "./reversal";
 import { usualTerms } from "@/lib/vane/drafts";
@@ -73,9 +74,21 @@ export type InvoiceRecord = {
 
 /** What the person may do with it on its page (the route adds it). */
 export type InvoiceRecordPage = InvoiceRecord & {
-  can: { issue: boolean; delete: boolean; reverse: boolean; voidPayments: boolean };
+  can: {
+    issue: boolean;
+    delete: boolean;
+    reverse: boolean;
+    voidPayments: boolean;
+    /** Issue a credit note against it, and write off what is left (books-final §5.1). */
+    credit?: boolean;
+    writeOff?: boolean;
+    /** Record a payment on it. */
+    pay?: boolean;
+  };
   /** What Delete takes with it, when this person may delete it. */
   removal: InvoiceRemoval | null;
+  /** What BkInvoice draws beyond the invoice: payments, posting, history, fiscal. */
+  board?: InvoiceBoardExtras | null;
 };
 
 /** The aside's Due on a draft: its terms, and whether they are the customer's usual. */

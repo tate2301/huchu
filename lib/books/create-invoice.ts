@@ -60,6 +60,8 @@ export async function createSalesInvoice(
   /** No person, with `madeByVane`: Vane's own draft, which a person issues. */
   actor: { companyId: string; userId: string | null; madeByVane?: boolean },
   validated: InvoiceInput,
+  /** The cost centre the invoice posts to (Books' form: Terms → Cost centre). */
+  options: { costCenterId?: string | null } = {},
 ) {
   if (!actor.userId && validated.issueNow) throw new InvoiceRefused("Only a person issues an invoice.");
   const customer = await prisma.customer.findUnique({
@@ -154,7 +156,7 @@ export async function createSalesInvoice(
     },
   }));
 
-  if (invoice.status === "ISSUED" && actor.userId) await postIssuedInvoice(actor.companyId, invoice, actor.userId);
+  if (invoice.status === "ISSUED" && actor.userId) await postIssuedInvoice(actor.companyId, invoice, actor.userId, { costCenterId: options.costCenterId });
 
   // If this came off a CRM quote, let the CRM know its work has been
   // invoiced. Never throws — the invoice is already real either way.

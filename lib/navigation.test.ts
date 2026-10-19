@@ -6,46 +6,92 @@ import {
   getClientTemplateDisabledFeatureKeys,
   getClientTemplateFeatureKeys,
 } from "@/lib/platform/client-templates";
-import { areasFromSections } from "@/lib/rail/areas";
+import { areaRows, areasFromSections } from "@/lib/rail/areas";
 import { getRailModel } from "@/lib/rail/model";
 import { getWorkspaceOptions, getWorkspaceProfileForTemplate, getWorkspaceSidebarModel } from "@/lib/workspaces";
 
 const books = navSections.find((section) => section.id === "accounting")!;
 
-describe("Books' panel (design/core-modules, BooksInvoices and PageBooksJournals)", () => {
-  it("lists the board's rows, then the ledger, then every other accounting page under More", () => {
-    const rows = (group?: string) => books.items.filter((item) => item.group === group).map((item) => item.label);
-    expect(rows(undefined)).toEqual(["Money", "Invoices", "Payments", "Takings", "Expenses", "Bank", "VAT"]);
-    expect(rows("ledger")).toEqual(["Journals", "Periods", "Needs posting", "Chart of accounts"]);
-    expect(rows("more")).toEqual([
-      "Receivables",
-      "Payables",
-      "Financial reports",
-      "Trial balance",
-      "Receivables report",
-      "Payables report",
-      "Posting rules",
-      "Fiscalisation",
+describe("Books' panel (design/core-modules/tools/boards/books_nav.py)", () => {
+  const level = (id: string) => books.items.filter((item) => item.group === id).map((item) => item.label);
+
+  it("opens on Money, then a row per level in the board's order", () => {
+    expect(books.items.filter((item) => !item.group).map((item) => item.label)).toEqual(["Money"]);
+    expect(books.groups?.map((group) => group.label)).toEqual([
+      "Sales",
+      "Bills & spending",
+      "Bank & cash",
+      "Tax",
+      "Close the month",
+      "Ledger",
+      "Settings",
     ]);
-    expect(books.groups?.find((group) => group.id === "more")?.trailing).toBe(true);
+    expect(books.groups?.every((group) => group.level)).toBe(true);
   });
 
-  it("puts Journals, VAT returns and Periods at the addresses the boards name", () => {
+  it("draws each level's rows in the board's order, leaving out the ones with no page yet", () => {
+    expect(level("books-sales")).toEqual(["Invoices", "Quotes", "Payments received", "Credit notes", "Customers"]);
+    expect(level("books-spending")).toEqual(["All spending", "Bills", "Payments made", "Suppliers"]);
+    expect(level("books-bank")).toEqual(["Accounts", "To match", "Takings"]);
+    expect(level("books-tax")).toEqual(["VAT returns", "Fiscal register"]);
+    expect(level("books-close")).toEqual(["Checklist", "Needs posting", "Rates & revaluation"]);
+    expect(level("books-ledger")).toEqual([
+      "Journals",
+      "Trial balance",
+      "Financial statements",
+      "Chart of accounts",
+      "Cost centres",
+      "Posting rules",
+    ]);
+    expect(level("books-settings")).toEqual(["Tax codes & rules", "Set up the books"]);
+    const settings = books.groups?.find((group) => group.id === "books-settings");
+    expect(settings?.links?.label).toBe("In Management");
+    expect(settings?.links?.items.map((item) => item.label)).toEqual(["Business & tax details", "Approvals & limits", "Fiscal device"]);
+  });
+
+  it("puts every Sales row at its Books address, and Needs posting under Close the month", () => {
+    for (const item of books.items.filter((row) => row.group === "books-sales")) expect(item.href).toMatch(/^\/books\//);
+    expect(books.items.find((item) => item.label === "Needs posting")?.group).toBe("books-close");
     const hrefs = books.items.map((item) => item.href);
     expect(hrefs).toEqual(expect.arrayContaining(["/books/journals", "/books/vat", "/books/periods"]));
-    expect(hrefs.some((href) => /^\/accounting\/(journals|tax|periods)$/.test(href))).toBe(false);
+    expect(hrefs.some((href) => /^\/accounting\/(journals|tax|periods|sales|receivables)$/.test(href))).toBe(false);
   });
 
-  it("reaches the rail as one module with its bands, each page behind its own feature", () => {
+  it("points every row at a page that exists: no dead links", async () => {
+    const fs = await import("node:fs");
+    const path = await import("node:path");
+    const pages = [...books.items, ...(books.groups ?? []).flatMap((group) => group.links?.items ?? [])];
+    for (const item of pages) {
+      const route = (item.href.split("?")[0] ?? item.href).replace(/^\//, "");
+      expect(fs.existsSync(path.join(process.cwd(), "app", route, "page.tsx")), `${item.label} → ${item.href}`).toBe(true);
+    }
+  });
+
+  it("reaches the rail as one module whose groups are levels, each page behind its own feature", () => {
     const features = ["accounting.core", "accounting.ar", "accounting.banking", "accounting.journals", "accounting.periods", "accounting.tax"];
     const model = getWorkspaceSidebarModel({ role: "SUPERADMIN", enabledFeatures: features, workspaceProfile: "GENERAL" });
     const area = getRailModel(model.sections).areas.find((candidate) => candidate.label === "Books");
-    expect(area?.bands?.map((band) => band.label)).toEqual(["Ledger", "More"]);
+    expect(area?.bands ?? []).toEqual([]);
+    expect(area?.folders?.map((folder) => folder.label)).toEqual(["Sales", "Bank & cash", "Tax", "Close the month", "Ledger", "Settings"]);
+    expect(areaRows(area!).map((item) => item.label)).toEqual(["Money"]);
     const labels = area?.items.map((item) => item.label) ?? [];
-    expect(labels).toEqual(expect.arrayContaining(["Money", "Invoices", "Payments", "Bank", "VAT", "Journals", "Periods"]));
-    // Takings needs the tills; Expenses needs Payables.
+    expect(labels).toEqual(expect.arrayContaining(["Money", "Invoices", "Payments received", "To match", "VAT returns", "Journals", "Checklist"]));
+    // Takings needs the tills; All spending needs Payables.
     expect(labels).not.toContain("Takings");
-    expect(labels).not.toContain("Expenses");
+    expect(labels).not.toContain("All spending");
+  });
+
+  it("keeps Ledger and Settings for the owner, a manager and the accountant (§3.2)", () => {
+    const features = getClientTemplateFeatureKeys("TEMPLATE_CRM");
+    const levels = (role: string) => {
+      const sections = getWorkspaceSidebarModel({ role, enabledFeatures: features, workspaceProfile: "GENERAL" }).sections;
+      return areasFromSections(sections, { flatten: false }).find((area) => area.label === "Books")?.folders?.map((folder) => folder.label) ?? [];
+    };
+    for (const role of ["SUPERADMIN", "MANAGER", "FINANCE_OFFICER"]) expect(levels(role)).toEqual(expect.arrayContaining(["Ledger", "Settings"]));
+    for (const role of ["BURSAR", "CLERK"]) {
+      expect(levels(role)).not.toContain("Ledger");
+      expect(levels(role)).not.toContain("Settings");
+    }
   });
 });
 

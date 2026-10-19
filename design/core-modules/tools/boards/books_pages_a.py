@@ -93,15 +93,15 @@ NEW_NET, NEW_VAT, NEW_TOT = lines_total(NEW_LINES)
 # Payments received
 RCT = [
     # no, date, customer, on, into, state, bank, base, cur
-    ('RCT-0094', '16 Oct', 'Westgate Interiors', 'INV-0144', 'CBZ, ZiG', 'On an invoice', 'Matched', to_usd(13500), ('ZiG', M(13500))),
-    ('RCT-0093', '15 Oct', 'Mrs R. Chuma', 'On account', 'EcoCash', 'On account', 'Matched', M(250), None),
-    ('RCT-0092', '12 Oct', 'Mandara Medical Centre', 'Deposit, QT-0397', 'CBZ, USD', 'On account', 'Matched', M(1000), None),
-    ('RCT-0091', '8 Oct', 'Pomona Offices', 'INV-0142', 'CBZ, USD', 'On an invoice', 'Matched', M(500), None),
-    ('RCT-0090', '5 Oct', 'Mrs T. Gumbo', 'Duplicate, voided', 'Showroom cash box', 'Void', '—', M(430), None),
-    ('RCT-0089', '5 Oct', 'Mrs T. Gumbo', 'INV-0141', 'Showroom cash box', 'On an invoice', 'Counted', M(430), None),
-    ('RCT-0088', '2 Oct', 'Greystone Park Primary', 'INV-0139', 'CBZ, USD', 'On an invoice', 'Matched', M(2980), None),
-    ('RCT-0087', '30 Sep', 'Avondale Fresh Mart', 'INV-0138', 'EcoCash', 'On an invoice', 'Matched', M(1865), None),
-    ('RCT-0086', '29 Sep', 'Dr N. Sibanda', 'INV-0136', 'CBZ, USD', 'On an invoice', 'Matched', M(1130), None),
+    ('REC-0094', '16 Oct', 'Westgate Interiors', 'INV-0144', 'CBZ, ZiG', 'On an invoice', 'Matched', to_usd(13500), ('ZiG', M(13500))),
+    ('REC-0093', '15 Oct', 'Mrs R. Chuma', 'On account', 'EcoCash', 'On account', 'Matched', M(250), None),
+    ('REC-0092', '12 Oct', 'Mandara Medical Centre', 'Deposit, QT-0397', 'CBZ, USD', 'On account', 'Matched', M(1000), None),
+    ('REC-0091', '8 Oct', 'Pomona Offices', 'INV-0142', 'CBZ, USD', 'On an invoice', 'Matched', M(500), None),
+    ('REC-0090', '5 Oct', 'Mrs T. Gumbo', 'Duplicate, voided', 'Showroom cash box', 'Void', '—', M(430), None),
+    ('REC-0089', '5 Oct', 'Mrs T. Gumbo', 'INV-0141', 'Showroom cash box', 'On an invoice', 'Counted', M(430), None),
+    ('REC-0088', '2 Oct', 'Greystone Park Primary', 'INV-0139', 'CBZ, USD', 'On an invoice', 'Matched', M(2980), None),
+    ('REC-0087', '30 Sep', 'Avondale Fresh Mart', 'INV-0138', 'EcoCash', 'On an invoice', 'Matched', M(1865), None),
+    ('REC-0086', '29 Sep', 'Dr N. Sibanda', 'INV-0136', 'CBZ, USD', 'On an invoice', 'Matched', M(1130), None),
 ]
 OCT_RCT = [r for r in RCT if r[1].endswith('Oct') and r[5] != 'Void']
 IN_INVOICES = sum((r[7] for r in OCT_RCT if r[5] == 'On an invoice'), Decimal('0'))
@@ -938,12 +938,12 @@ def invoice():
     tot = sums((('Before VAT', usd(I142_NET), ''), ('VAT at 15.5%', usd(I142_VAT), ''), ('Total', usd(I142_TOT), 't'),
                 ('Paid', '−' + usd(paid), ''), ('Left to pay', usd(bal), 't')))
     pays = boxed(grid(('Payment', 'Date', 'How', 'Bank line', 'Amount'), (
-        (ref('RCT-0091'), '<span class="muted">8 Oct</span>', 'Transfer into CBZ, USD', st('Matched'), usd(paid)),), num=(4,), label='Payments', widths=('120px', '80px', None, '140px', '130px')))
+        (ref('REC-0091'), '<span class="muted">8 Oct</span>', 'Transfer into CBZ, USD', st('Matched'), usd(paid)),), num=(4,), label='Payments', widths=('120px', '80px', None, '140px', '130px')))
     post = posting((('JE-0438', '6 Oct', '1100 Customers · Pomona Offices', I142_TOT, None), ('', '', '4000 Flooring jobs', None, I142_NET),
                     ('', '', '2200 Output VAT', None, I142_VAT),
                     ('JE-0446', '8 Oct', '1010 CBZ current, USD', paid, None), ('', '', '1100 Customers · Pomona Offices', None, paid)))
     hist = timeline((('', 'Reminder by WhatsApp if still unpaid', '20 Oct'),
-                     ('ok', '<b>Rudo Mapfumo</b> recorded %s' % ref('RCT-0091'), '8 Oct 10:14'),
+                     ('ok', '<b>Rudo Mapfumo</b> recorded %s' % ref('REC-0091'), '8 Oct 10:14'),
                      ('in', 'Sent by WhatsApp, read at 10:40', '6 Oct 10:15'),
                      ('ok', 'Signed by FDMS, fiscal day 214', '6 Oct 10:14'),
                      ('in', '<b>Rudo Mapfumo</b> issued it', '6 Oct 10:14'),
@@ -1087,7 +1087,7 @@ def payment_new():
     alloc = wsec('Put it on invoices', 'Oldest first; the rest stays on account.',
                  '<table class="table bk-le"><thead><tr><th class="sel" style="width:36px"></th><th>Invoice</th><th>Due</th><th class="num">Owing</th><th class="num">This payment</th></tr></thead><tbody>%s</tbody>'
                  '<tfoot><tr class="tot"><td></td><td>On their account</td><td></td><td></td><td class="num">%s</td></tr></tfoot></table>' % (rows, usd(left)))
-    rail = ('<section><div class="sec-title">This payment</div><div class="figure">%s</div><dl class="attrs"><dt>On INV-0135</dt><dd class="num">%s</dd><dt>On account</dt><dd class="num">%s</dd><dt>Number</dt><dd class="num">RCT-0095</dd></dl></section>'
+    rail = ('<section><div class="sec-title">This payment</div><div class="figure">%s</div><dl class="attrs"><dt>On INV-0135</dt><dd class="num">%s</dd><dt>On account</dt><dd class="num">%s</dd><dt>Number</dt><dd class="num">REC-0095</dd></dl></section>'
             '<section><div class="sec-title">After you record it</div><dl class="attrs"><dt>INV-0135</dt><dd>%s</dd><dt>They owe</dt><dd class="num">US$0.00</dd><dt>Overdue, all</dt><dd class="num">%s</dd><dt>Bank line</dt><dd>Matched when it arrives</dd></dl></section>') % (
         usd(amt), usd(inv), usd(left), st('Paid'), usd(OVERDUE - inv))
     body = form_page('Payments received', 'Payments received', 'Record a payment', 'payments', top, (who, money, alloc), rail)
@@ -1103,11 +1103,11 @@ def customer():
     stmt = [
         ('1 Aug', 'Opening balance', None, None, M(0)),
         ('14 Aug', ref('INV-0119') + ' <span class="muted">Reception, vinyl</span>', M(3420), None, M(3420)),
-        ('28 Aug', ref('RCT-0079') + ' <span class="muted">Transfer</span>', None, M(3420), M(0)),
+        ('28 Aug', ref('REC-0079') + ' <span class="muted">Transfer</span>', None, M(3420), M(0)),
         ('9 Sep', ref('INV-0124') + ' <span class="muted">Boardroom skirting</span>', M(240), None, M(240)),
-        ('21 Sep', ref('RCT-0083') + ' <span class="muted">EcoCash</span>', None, M(240), M(0)),
+        ('21 Sep', ref('REC-0083') + ' <span class="muted">EcoCash</span>', None, M(240), M(0)),
         ('6 Oct', ref('INV-0142') + ' <span class="muted">2nd floor, carpet tiles</span>', I142_TOT, None, I142_TOT),
-        ('8 Oct', ref('RCT-0091') + ' <span class="muted">Transfer</span>', None, M(500), I142_TOT - M(500)),
+        ('8 Oct', ref('REC-0091') + ' <span class="muted">Transfer</span>', None, M(500), I142_TOT - M(500)),
     ]
     rows = [('<span class="muted">%s</span>' % d, '<span class="cell-lead">%s</span>' % w, fmt(a) if a else '', fmt(b) if b else '', fmt(c)) for d, w, a, b, c in stmt]
     table = boxed(grid(('Date', 'Document', 'Invoiced', 'Paid', 'Balance'), rows, num=(2, 3, 4), label='Statement',
