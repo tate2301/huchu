@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { BOOKS_JOBS } from "@/lib/books/core/jobs";
 import { REPORT_JOBS } from "@/lib/reports/jobs";
 import { RETAIL_JOBS } from "@/lib/retail/jobs";
 import { isCronRequest } from "@/lib/scheduled-jobs/cron-request";
@@ -21,6 +22,6 @@ export async function GET(request: Request) {
   if (!isCronRequest(request.headers.get("authorization"))) {
     return NextResponse.json({ error: "Not allowed." }, { status: 401 });
   }
-  const outcomes = await runDueJobs([...RETAIL_JOBS, ...REPORT_JOBS, ...VANE_JOBS], { budgetMs: BUDGET_MS });
+  const outcomes = await runDueJobs([...RETAIL_JOBS, ...REPORT_JOBS, ...VANE_JOBS, ...BOOKS_JOBS], { budgetMs: BUDGET_MS });
   return NextResponse.json({ outcomes });
 }
