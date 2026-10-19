@@ -126,7 +126,7 @@ SENT = sum((q[6] for q in QT), Decimal('0'))
 CN = [
     ('CN-0009', '12 Oct', 'Avondale Fresh Mart', 'INV-0143', 'Cancellation, wrong customer', 'Valid', 'Issued', M(640)),
     ('CN-0008', '2 Oct', 'Msasa Motors', 'INV-0133', 'Cancellation, revised as INV-0137', 'Valid', 'Issued', M(420)),
-    ('CN-0007', '2 Oct', 'Dr N. Sibanda', 'INV-0136', 'Return, skirting', 'Valid', 'Refunded', M(85)),
+    ('CN-0007', '2 Oct', 'Dr N. Sibanda', 'INV-0136', 'Return, skirting', 'Valid', 'Issued', M(85)),
     ('Draft', '17 Oct', 'Greystone Park Primary', 'INV-0139', 'Price correction', '—', 'Draft', M(180)),
     ('CN-0006', '24 Sep', 'Chisipite Dental', 'INV-0128', 'Price correction', 'Valid', 'Issued', M(120)),
     ('CN-0005', '9 Sep', 'Kopje Lodge', 'INV-0118', 'Discount', 'Valid', 'Issued', M(60)),
@@ -507,8 +507,8 @@ def tools(find, chips, count, right=None):
     return ws_tools(find, chips, count, right)
 
 # Board heights fit the content: the last element's bottom plus 48px (measured after the full-bleed pass, 19 Oct).
-HEIGHTS = {'BkMoney': 1816, 'BkInvoice': 1416, 'BkInvoiceNew': 1232, 'BkPaymentNew': 792, 'BkCustomer': 824, 'BkBill': 1640,
-           'BkBillNew': 1000, 'BkPaymentOutNew': 1040, 'BkRequisition': 1240, 'BkSupplier': 1144}
+HEIGHTS = {'BkMoney': 1748, 'BkInvoice': 1416, 'BkInvoiceNew': 1196, 'BkPaymentNew': 756, 'BkCustomer': 824, 'BkBill': 1640,
+           'BkBillNew': 808, 'BkPaymentOutNew': 960, 'BkRequisition': 1240, 'BkSupplier': 1144}
 
 def board(name, title, body, w=1440, h=900):
     h = HEIGHTS.get(name, h)
@@ -563,7 +563,7 @@ def money():
         need('fiscal', 'INV-0144 is not signed by FDMS', 'Westgate Interiors, %s' % zig(13500), btn('Retry', 'undo', urgent)),
         need('warn', 'A goods receipt did not post', 'GRN-0045, %s · no stock account' % usd(BN_NET), btn('Fix it', 'posting', plain)),
         need('bank', '4 bank lines to match', 'CBZ USD · Vane matched 3', btn('Match', 'check', plain)),
-        need('store', '2 suppliers have no valid ITF263', 'Payments to them withhold 30%', btn('Ask for it', 'send', quiet)),
+        # ITF263 needs (Ask for it) come with withholding (D17, P3).
         need('invoice', '3 invoices are overdue', '%s in all' % usd(OVERDUE), btn('Remind', 'whatsapp', plain)),
         need('calendar', 'Next tax date: 5 Nov', 'PAYE and withholding returns', btn("What's due", 'chev', quiet)),
     ))
@@ -581,7 +581,7 @@ def money():
     main = ('<div class="mny-main">%s%s<section aria-labelledby="m1">%s<div class="list">%s</div></section>'
             '<section aria-labelledby="m2">%s%s</section><section aria-labelledby="m3">%s%s</section>'
             '<section aria-labelledby="m4">%s%s%s</section></div>') % (
-        find, tax_strip(), group_head('Needs you', 7, 'm1'), needs,
+        find, tax_strip(), group_head('Needs you', 6, 'm1'), needs,
         group_head('Where it came from', '1 to 18 October · %s' % usd(MONEY_IN), 'm2'), came,
         group_head('Where it went', '1 to 18 October · %s' % usd(MONEY_OUT), 'm3'), went,
         group_head('Bank and cash', '6 accounts', 'm4'), bank, bank_note)
@@ -630,9 +630,8 @@ def invoices_bulk():
                  ('send', 'Issue 2 drafts', 'FDMS signs each one', False, False),
                  ('export', 'Export 5 rows', 'CSV or XLSX', False, False),
                  'sep',
-                 ('undo', 'Void 3 invoices…', 'A credit note for each', True, False),
-                 ('trash', 'Delete 2 drafts', 'Drafts have no number yet', True, False),
-                 ('trash', 'Delete permanently…', 'Not for invoices FDMS signed', True, True)),
+                 # Void and Delete permanently over a selection come with mass actions (P4).
+                 ('trash', 'Delete 2 drafts', 'Drafts have no number yet', True, False)),
                 'position:absolute;left:%dpx;bottom:100px;width:220px;z-index:30' % BULK_MENU_LEFT)
     acts_sel = btn('Send reminders', 'whatsapp') + '<button class="btn" aria-haspopup="menu" aria-expanded="true" style="background:var(--color-pressed)">More%s</button>' % ic('down')
     f = foot('1 to 12 of %d' % INV_ALL, (('Owed', usd(OWED)), ('Overdue', usd(OVERDUE))),
@@ -705,7 +704,7 @@ def customers():
     late = [c for c in CUS if c[5]]
     find = finding('%d customers owe you <span class="num">%s</span>.' % (len(owing), usd(OWED)),
                    '%d are late, <span class="num">%s</span> in all.' % (len(late), usd(OVERDUE)))
-    t = tools('Search customers', (('Rep', 'Any', False), ('Currency', 'Any', False)), '%d of 58' % len(CUS), QUIET_TOOLS)
+    t = tools('Search customers', (('Currency', 'Any', False),), '%d of 58' % len(CUS), QUIET_TOOLS)
     def cell(v, strong=False):
         if not v:
             return '<span class="muted">—</span>'
@@ -961,7 +960,7 @@ def invoice():
     fiscal = ('<section><div class="sec-title">%s Fiscal <span class="end">%s</span></div>'
               '<div style="display:flex;gap:16px;align-items:flex-start">%s<dl class="attrs" style="grid-template-columns:minmax(0,1fr);row-gap:2px"><dt>Verification code</dt><dd class="mono">K7QX-22M4</dd><dt style="margin-top:8px">Fiscal day</dt><dd>214</dd><dt style="margin-top:8px">Signed</dt><dd>6 Oct 10:14</dd></dl></div></section>') % (
         ic('fiscal'), pill('Valid'), qr('INV-0142', 112))
-    details = rail_sec('Details', (('Issued', '6 Oct, from %s' % ref('QT-0386')), ('Terms', '14 days'), ('Rate', '27.00, fixed 6 Oct'), ('Rep', 'Chipo Mhlanga')))
+    details = rail_sec('Details', (('Issued', '6 Oct, from %s' % ref('QT-0386')), ('Terms', '14 days'), ('Rate', '27.00, fixed 6 Oct'), ('Made by', 'Chipo Mhlanga')))
     body = rec('Invoices', 'Invoices', 'INV-0142', 'invoice', top, main, fiscal + details)
     return board('BkInvoice', 'INV-0142', body, h=1384)
 
@@ -1110,8 +1109,8 @@ def invoice_new():
     lines = wsec('Lines', '', line_editor(NEW_LINES, 'ZiG'))
     terms = fsec('Terms', 'When it is due.',
                  '<div class="field-row">%s%s</div>' % (field('Invoice date', inp('18 Oct 2026, today', 'Invoice date', ro=True)), field('Due', sel_('In 14 days, 1 Nov', 'Due')))
-                 + '<div class="field-row">%s%s</div>' % (field('Cost centre', sel_('Msasa Motors showroom', 'Cost centre')), field('Rep', sel_('Chipo Mhlanga', 'Rep'), opt=True))
-                 + chk('This is a deposit') + chk('Paid now')
+                 + '<div class="field-row">%s<div></div></div>' % field('Cost centre', sel_('Msasa Motors showroom', 'Cost centre'))
+                 + chk('Paid now')
                  + field('Note to the customer', '<textarea class="input" aria-label="Note to the customer">Showroom floor, 82 m², as quoted on QT-0403. Fitting from 26 Oct.</textarea>', opt=True))
     rail = ('<section><div class="sec-title">Total</div><div class="figure">%s</div>'
             '<dl class="attrs"><dt>Before VAT</dt><dd class="num">%s</dd><dt>VAT at 15.5%%</dt><dd class="num">%s</dd><dt>In US$</dt><dd class="num">%s</dd><dt>Due</dt><dd class="num">1 Nov</dd></dl></section>'
@@ -1133,8 +1132,7 @@ def payment_new():
     money = fsec('Money', 'Where it went in, and how much.',
                  '<div class="field-row">%s%s</div>' % (field('Into', sel_('CBZ current, USD', 'Into')), field('Date', inp('18 Oct 2026', 'Date')))
                  + '<div class="field-row">%s%s</div>' % (field('Currency', seg(('USD', 'ZiG'), 'USD')), field('Amount', '<label class="input-wrap"><span class="muted">US$</span><input aria-label="Amount" value="1,000.00" style="text-align:right"></label>'))
-                 + field('Their reference', inp('HGL EFT 1810', 'Their reference'), 'Matched to the CBZ line when it comes in', opt=True)
-                 + chk('VAT was withheld by the customer'))
+                 + field('Their reference', inp('HGL EFT 1810', 'Their reference'), 'Matched to the CBZ line when it comes in', opt=True))
     rows = ''.join((
         '<tr aria-selected="true"><td class="sel"><label class="check"><input type="checkbox" checked aria-label="Pay INV-0135"></label></td><td>%s</td><td class="muted">5 days overdue</td><td class="num">%s</td><td class="num" style="width:150px">%s</td></tr>' % (
             ref('INV-0135'), usd(inv), inp(fmt(inv), 'Amount for INV-0135', True)),
@@ -1172,7 +1170,7 @@ def customer():
               '<span style="margin-left:auto;display:flex;gap:8px">%s%s</span></div>') % (ic('down'), btn('Download PDF', 'export', 'btn btn-quiet'), btn('Send by WhatsApp', 'whatsapp'))
     main = head + figs + t + tools_ + table
     rail = (rail_sec('Contact', (('Phone', '+263 77 412 0981'), ('Email', 'accounts@pomonaoffices.co.zw'), ('Address', 'Pomona Office Park, Harare')))
-            + rail_sec('Terms', (('Terms', '14 days'), ('Currency', 'USD'), ('VAT number', '220087431'), ('Rep', 'Chipo Mhlanga'))))
+            + rail_sec('Terms', (('Terms', '14 days'), ('Currency', 'USD'), ('VAT number', '220087431'))))
     body = rec('Customers', 'Customers', 'Pomona Offices', 'users', top, main, rail)
     return board('BkCustomer', 'Pomona Offices', body, h=816)
 
@@ -1214,43 +1212,39 @@ def bill_new():
     who = fsec('Supplier', 'Who sent it, and their fiscal invoice.',
                field('Supplier', sel_('Tile Trader Zimbabwe')) +
                '<div class="field-row">%s%s</div>' % (field('Their invoice number', inp('00184977', 'Their invoice number')), field('Their invoice date', inp('17 Oct 2026', 'Their invoice date')))
-               + field('FDMS check', '<div style="display:flex;gap:8px"><label class="input-wrap" style="flex:1">%s<input aria-label="Verification code" value="91B4-0C7E-55A2-D013"></label>%s</div>' % (ic('fiscal'), btn('Check', None)))
-               + '<div class="bk-box ok">%s<span><b>Valid on FDMS</b>, checked just now. Its VAT counts in October.</span></div>' % ic('check'))
-    src = fsec('From', 'Made from the goods receipt.',
-               '<div class="bk-box">%s<span><b>%s</b>, counted in on 16 Oct by Tendai Sibanda.</span></div>' % (ic('list'), ref('GRN-0045')))
-    acct = {B_NEW_LINES[0][0]: '1200 Stock', B_NEW_LINES[1][0]: '1200 Stock'}
-    lines = wsec('Lines', 'From GRN-0045.', line_editor(B_NEW_LINES, 'US$', acct))
+               + field('FDMS check', '<div style="display:flex;gap:8px"><label class="input-wrap" style="flex:1">%s<input aria-label="Verification code" value="91B4-0C7E-55A2-D013"></label>%s</div>' % (ic('fiscal'), btn('Check', None))))
+    lines = wsec('Lines', 'What it was for.', line_editor(B_NEW_LINES, 'US$'))
     terms = fsec('Terms', 'When you have to pay.',
                  '<div class="field-row">%s%s</div>' % (field('Currency', seg(('USD', 'ZiG'), 'USD')), field('Due', sel_('In 30 days, 16 Nov', 'Due')))
-                 + '<div class="field-row">%s%s</div>' % (field('Cost centre', sel_('Showroom stock', 'Cost centre')), field('Their invoice, a photo', '<button class="btn" style="justify-content:flex-start">%s00184977.jpg</button>' % ic('photo'))))
+                 + '<div class="field-row">%s<div></div></div>' % field('Cost centre', sel_('Showroom stock', 'Cost centre')))
     rail = ('<section><div class="sec-title">Total</div><div class="figure">%s</div><dl class="attrs"><dt>Before VAT</dt><dd class="num">%s</dd><dt>VAT at 15.5%%</dt><dd class="num">%s</dd><dt>Due</dt><dd class="num">16 Nov</dd><dt>Number</dt><dd class="num">BILL-0225</dd></dl></section>'
-            '<section><div class="sec-title">Checks</div><dl class="attrs"><dt>ITF263</dt><dd>%s</dd><dt>FDMS</dt><dd>%s</dd><dt>Match</dt><dd>%s</dd><dt>Approval</dt><dd>Not needed</dd></dl></section>') % (
-        usd(BN_TOT), usd(BN_NET), usd(BN_VAT), st('Valid', 'Valid to 31 Dec'), st('Valid'), st('Valid', 'GRN-0045 matches'))
-    body = form_page('Bills', 'Bills', 'New bill', 'docs', top, (who, src, lines, terms), rail)
+            '<section><div class="sec-title">Checks</div><dl class="attrs"><dt>ITF263</dt><dd>Not recorded yet</dd><dt>FDMS</dt><dd>Not checked</dd><dt>Approval</dt><dd>Not needed yet</dd></dl></section>') % (
+        usd(BN_TOT), usd(BN_NET), usd(BN_VAT))
+    body = form_page('Bills', 'Bills', 'New bill', 'docs', top, (who, lines, terms), rail)
     return board('BkBillNew', 'New bill', body, h=936)
 
 
 def payment_out_new():
-    top = btn('Save draft', 'docs') + primary('Send for approval', 'send', 'Ctrl ↵')
+    top = btn('Cancel', None, 'btn btn-quiet') + primary('Record the payment', 'check', 'Ctrl ↵')
     who = fsec('Pay', 'Who you are paying.', field('Supplier', sel_('Mutare Timber Works')))
     bills_ = wsec('Bills', 'One payment can clear several.',
                   '<table class="table bk-le"><thead><tr><th class="sel" style="width:60px"></th><th>Bill</th><th>Their invoice</th><th>Due</th><th class="num">Owing</th></tr></thead><tbody>'
                   '<tr aria-selected="true"><td class="sel"><label class="check"><input type="checkbox" checked aria-label="Pay BILL-0220"></label></td><td>%s</td><td class="mono" style="font-size:13px">MTW-2291</td><td>%s</td><td class="num">%s</td></tr></tbody></table>' % (
                       ref('BILL-0220'), st('Overdue', '2 days overdue'), usd(B220_TOT)))
     itf = fsec('ITF263', 'Checked before every payment.',
-               '<div class="bk-box warn">%s<span class="grow"><b>No valid ITF263 since 30 Jun.</b> 30%% of this payment is withheld for ZIMRA.</span>%s</div>' % (ic('warn'), btn('Ask for it', 'whatsapp', 'btn btn-sm')))
+               '<div class="bk-box warn">%s<span class="grow"><b>Not recorded yet.</b> Check theirs by hand, and withhold 30%% where it has run out.</span></div>' % ic('warn'))
     frm = fsec('From', 'The bank takes IMTT on top.',
                '<div class="field-row">%s%s</div>' % (field('Pay from', sel_('CBZ current, USD', 'Pay from')), field('Date', inp('18 Oct 2026', 'Date')))
                + field('Reference on their statement', inp('FLOORCODE BILL-0220', 'Reference')))
-    rows = (('Bill BILL-0220', usd(B220_TOT), ''), ('Withheld, 30%', '−' + usd(WHT), 'to ZIMRA by 10 Nov'), ('Paid to Mutare Timber Works', usd(NET_PAY), ''), ('IMTT, 2% (CBZ takes it)', usd(IMTT_NEW), 'a bank charge'))
+    rows = (('Bill BILL-0220', usd(B220_TOT), ''), ('Paid to Mutare Timber Works', usd(B220_TOT), 'The bank adds IMTT'))
     brk = wsec('What moves', '',
                boxed0(grid(('', 'Amount', ''), [('<span class="cell-lead">%s</span>' % a, b, '<span class="muted">%s</span>' % c) for a, b, c in rows], num=(1,), label='What moves',
-                          total=('Leaves CBZ, USD', usd(NET_PAY + IMTT_NEW), ''), widths=(None, '140px', '200px'))))
-    rail = ('<section><div class="sec-title">Approval</div><div class="figure">%s</div>'
-            '<dl class="attrs"><dt>Withheld</dt><dd class="num">%s</dd><dt>Approves</dt><dd>James Nyabadza</dd><dt>Why</dt><dd>Over US$500.00</dd><dt>Then pays</dt><dd>Rudo Mapfumo</dd></dl></section>'
+                          total=('Leaves CBZ, USD', usd(B220_TOT), ''), widths=(None, '140px', '200px'))))
+    rail = ('<section><div class="sec-title">This payment</div><div class="figure">%s</div>'
+            '<dl class="attrs"><dt>Bills</dt><dd class="num">1</dd><dt>Withheld</dt><dd>Not recorded yet</dd><dt>Approval</dt><dd>Not needed yet</dd></dl></section>'
             '<section><div class="sec-title">When it is paid</div>%s</section>') % (
-        usd(NET_PAY), usd(WHT),
-        steps_list((('It gets a number', 'PAY-0062'), ('The money leaves CBZ', usd(NET_PAY + IMTT_NEW) + ' with IMTT'), ('A certificate is drafted', 'for Mutare Timber Works'), ('The withholding return', 'lists it, due 5 Nov'))))
+        usd(B220_TOT),
+        steps_list((('It gets a number', 'PAY-0062'), ('The money leaves', 'CBZ current, USD, %s' % usd(B220_TOT)), ('The bill', 'shows it as paid'))))
     body = form_page('Payments made', 'Payments made', 'New payment', 'payments', top, (who, bills_, itf, frm, brk), rail)
     return board('BkPaymentOutNew', 'Pay a supplier', body, h=896)
 
@@ -1334,7 +1328,7 @@ def money_phone():
     lede = ('<p style="font:600 22px/1.3 var(--font-sans);letter-spacing:var(--tracking-display);color:var(--color-ink)">%s came in this month. '
             '<span style="display:block;font-weight:400;color:var(--color-muted)">%s is overdue.</span></p>') % (usd(MONEY_IN), usd(OVERDUE))
     rows = ph_rows((('Gone out', usd(MONEY_OUT)), ('Bank and cash', usd(CASH_BASE)), ('You owe suppliers', usd(TO_PAY)), ('VAT due by 15 Nov', usd(VAT_OCT))))
-    needs = ('<div class="bk-ph-list"><div class="bk-ph-lh" style="justify-content:space-between;align-items:baseline"><b style="font-size:17px;color:var(--color-ink)">Needs you</b><span class="muted">7</span></div>%s</div>') % ''.join((
+    needs = ('<div class="bk-ph-list"><div class="bk-ph-lh" style="justify-content:space-between;align-items:baseline"><b style="font-size:17px;color:var(--color-ink)">Needs you</b><span class="muted">6</span></div>%s</div>') % ''.join((
         ph_need('hand', '4 things to approve', '%s in all' % usd(REQ_FOR_ME_SUM + M(23) + NET_PAY)),
         ph_need('fiscal', 'INV-0144 is not signed by FDMS', 'Westgate Interiors, %s' % zig(13500)),
         ph_need('invoice', '3 invoices are overdue', '%s in all' % usd(OVERDUE))))
