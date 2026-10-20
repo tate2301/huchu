@@ -12,10 +12,12 @@ import { K3b } from "./k3b";
 import { K4 } from "./k4";
 import { K4b } from "./k4b";
 import { K5 } from "./k5";
+import { K6 } from "./k6";
+import { K7 } from "./k7";
 
 import "./teams-sheet.css";
 
-const BOARDS = ["K1", "K2", "K3", "K3b", "K4", "K4b", "K5"] as const;
+const BOARDS = ["K1", "K2", "K3", "K3b", "K4", "K4b", "K5", "K6", "K7"] as const;
 
 type ThemeChoice = "corelith" | "tender" | "corelith-dark";
 
@@ -61,6 +63,8 @@ export function TeamsSheet() {
         <K4 />
         <K4b />
         <K5 />
+        <K6 />
+        <K7 />
       </div>
     </Teams>
   );

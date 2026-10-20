@@ -35,22 +35,38 @@ export function Position({
   muted?: boolean;
   note?: React.ReactNode;
   /** A bar of how much is done, with its legend. */
-  progress?: { percent: number; label: string; legend: Array<{ label: string; open?: boolean }> };
+  progress?: {
+    percent: number;
+    label: string;
+    legend: Array<{ label: string; open?: boolean }>;
+  };
   children?: React.ReactNode;
 }) {
   return (
     <div className="pos">
       <span className="pn__label">{label}</span>
       <div className="pos__row">
-        <span className="figure" style={muted ? { color: "var(--faint)" } : undefined}>
+        <span
+          className="figure"
+          style={muted ? { color: "var(--faint)" } : undefined}
+        >
           {figure}
         </span>
         {of ? <span className="pos__of">{of}</span> : null}
       </div>
-      {note ? <div className="figure-note" style={{ marginTop: 0 }}>{note}</div> : null}
+      {note ? (
+        <div className="figure-note" style={{ marginTop: 0 }}>
+          {note}
+        </div>
+      ) : null}
       {progress ? (
         <>
-          <div className="track" style={{ marginTop: 6 }} role="img" aria-label={progress.label}>
+          <div
+            className="track"
+            style={{ marginTop: 6 }}
+            role="img"
+            aria-label={progress.label}
+          >
             <i style={{ width: `${progress.percent}%` }} />
           </div>
           <div className="legend">
@@ -69,12 +85,29 @@ export function Position({
 }
 
 /** Where a record is on its way: bars for the steps done, the one now, and the rest. */
-export function StagePath({ steps, now, label, sub }: { steps: number; now: number; label: string; sub: string }) {
+export function StagePath({
+  steps,
+  now,
+  label,
+  sub,
+}: {
+  steps: number;
+  now: number;
+  label: string;
+  sub: string;
+}) {
   return (
     <div className="stagepath">
-      <div className="steps" role="img" aria-label={`${label}, ${now + 1} of ${steps}`}>
+      <div
+        className="steps"
+        role="img"
+        aria-label={`${label}, ${now + 1} of ${steps}`}
+      >
         {Array.from({ length: steps }, (_, i) => (
-          <i key={i} className={i < now ? "on" : i === now ? "now" : undefined} />
+          <i
+            key={i}
+            className={i < now ? "on" : i === now ? "now" : undefined}
+          />
         ))}
       </div>
       <div className="stagepath__l">
@@ -93,20 +126,31 @@ export function NextUp({
 }: {
   when: string;
   title: string;
-  actions: Array<{ label: string; icon: GlyphName; shortcut?: string; onClick?: () => void }>;
+  actions: Array<{
+    label: string;
+    icon: GlyphName;
+    shortcut?: string;
+    onClick?: () => void;
+  }>;
 }) {
   return (
     <div className="next">
       <div className="next__m">{when}</div>
       <div className="next__t">{title}</div>
-      <div className="cx-group next__acts">
-        {actions.map((a) => (
-          <Button key={a.label} icon={<Glyph name={a.icon} />} onClick={a.onClick}>
-            {a.label}
-            {a.shortcut ? <span className="kbd">{a.shortcut}</span> : null}
-          </Button>
-        ))}
-      </div>
+      {actions.length ? (
+        <div className="cx-group next__acts">
+          {actions.map((a) => (
+            <Button
+              key={a.label}
+              icon={<Glyph name={a.icon} />}
+              onClick={a.onClick}
+            >
+              {a.label}
+              {a.shortcut ? <span className="kbd">{a.shortcut}</span> : null}
+            </Button>
+          ))}
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -123,7 +167,12 @@ export function VaneCard({
   from: string;
   title: string;
   body?: string;
-  actions?: Array<{ label: string; icon?: GlyphName; quiet?: boolean; onClick?: () => void }>;
+  actions?: Array<{
+    label: string;
+    icon?: GlyphName;
+    quiet?: boolean;
+    onClick?: () => void;
+  }>;
 }) {
   return (
     <article className={cn("vc", kind === "issue" && "vc--issue")}>
@@ -136,7 +185,12 @@ export function VaneCard({
       {actions?.length ? (
         <div className="vc__acts">
           {actions.map((a) => (
-            <Button key={a.label} variant={a.quiet ? "ghost" : "secondary"} icon={a.icon ? <Glyph name={a.icon} /> : undefined} onClick={a.onClick}>
+            <Button
+              key={a.label}
+              variant={a.quiet ? "ghost" : "secondary"}
+              icon={a.icon ? <Glyph name={a.icon} /> : undefined}
+              onClick={a.onClick}
+            >
               {a.label}
             </Button>
           ))}
@@ -187,7 +241,9 @@ export function KVRow({
       >
         {state === "empty" ? "Add" : children}
         {lock ? <Glyph name="lock" size="sm" className="kv__lock" /> : null}
-        {state !== "locked" && state !== "empty" && !editing && !lock ? <Glyph name="pencil" size="sm" className="kv__edit" /> : null}
+        {state !== "locked" && state !== "empty" && !editing && !lock ? (
+          <Glyph name="pencil" size="sm" className="kv__edit" />
+        ) : null}
       </dd>
     </>
   );
@@ -225,7 +281,11 @@ export function KVSelect({
           <MenuTrigger asChild>
             <button type="button" className="kv__pick">
               {value}
-              <Glyph name="caret-down" size="sm" style={{ marginLeft: "auto", color: "var(--ink-3)" }} />
+              <Glyph
+                name="caret-down"
+                size="sm"
+                style={{ marginLeft: "auto", color: "var(--ink-3)" }}
+              />
             </button>
           </MenuTrigger>
           <MenuContent align="start" style={{ minWidth: 232 }}>
@@ -270,7 +330,14 @@ export function LinkRow({
 }) {
   const body = (
     <>
-      <span className="lk__mark" style={tone === "ok" ? { background: "var(--ok-soft)", color: "var(--ok)" } : undefined}>
+      <span
+        className="lk__mark"
+        style={
+          tone === "ok"
+            ? { background: "var(--ok-soft)", color: "var(--ok)" }
+            : undefined
+        }
+      >
         <Glyph name={icon} />
       </span>
       <span style={{ minWidth: 0 }}>
@@ -310,12 +377,22 @@ export function ContactRow({
       </div>
       <div className="person__end">
         {call ? (
-          <button type="button" className="ibtn" style={{ width: 28, height: 28 }} aria-label={`Call ${person.name}`}>
+          <button
+            type="button"
+            className="ibtn"
+            style={{ width: 28, height: 28 }}
+            aria-label={`Call ${person.name}`}
+          >
             <Glyph name="phone" />
           </button>
         ) : null}
         {whatsapp ? (
-          <button type="button" className="ibtn" style={{ width: 28, height: 28 }} aria-label={`WhatsApp ${person.name}`}>
+          <button
+            type="button"
+            className="ibtn"
+            style={{ width: 28, height: 28 }}
+            aria-label={`WhatsApp ${person.name}`}
+          >
             <WhatsAppMark />
           </button>
         ) : null}
@@ -339,7 +416,9 @@ export function FileRow({
   const label = { pdf: "PDF", xls: "XLS", img: "JPG", file: "" }[kind];
   return (
     <div className="fl">
-      <span className={cn("fl__mark", kind !== "file" && `fl__mark--${kind}`)}>{label}</span>
+      <span className={cn("fl__mark", kind !== "file" && `fl__mark--${kind}`)}>
+        {label}
+      </span>
       <div style={{ minWidth: 0 }}>
         <div className="lk__t">{name}</div>
         <div className="lk__s">{sub}</div>
@@ -350,7 +429,15 @@ export function FileRow({
 }
 
 /** A tick list: what has happened, and what has not yet. */
-export function Tick({ done, children, when }: { done?: boolean; children: React.ReactNode; when?: string }) {
+export function Tick({
+  done,
+  children,
+  when,
+}: {
+  done?: boolean;
+  children: React.ReactNode;
+  when?: string;
+}) {
   return (
     <div className={cn("tick", !done && "off")}>
       <Glyph name={done ? "check" : "wait"} size="sm" />
@@ -359,4 +446,63 @@ export function Tick({ done, children, when }: { done?: boolean; children: React
       {when ? <span className="muted">{when}</span> : null}
     </div>
   );
+}
+
+/** A setting of the selected field: its label above, its value in a box. */
+export function PanelField({
+  label,
+  children,
+  quiet,
+}: {
+  label: string;
+  children: React.ReactNode;
+  quiet?: boolean;
+}) {
+  return (
+    <div className="fld">
+      <span className="fld__l">{label}</span>
+      <span
+        className="inp"
+        style={quiet ? { color: "var(--ink-2)" } : undefined}
+      >
+        {children}
+      </span>
+    </div>
+  );
+}
+
+/** Two settings side by side. */
+export function PanelPair({ children }: { children: React.ReactNode }) {
+  return <div className="row2">{children}</div>;
+}
+
+/** A choice made by a switch, named by what it does. */
+export function PanelSwitch({
+  on,
+  onChange,
+  children,
+}: {
+  on: boolean;
+  onChange?: (on: boolean) => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="tick" style={{ color: "var(--ink)" }}>
+      <button
+        type="button"
+        role="switch"
+        aria-checked={on}
+        aria-label={typeof children === "string" ? children : undefined}
+        className={cn("sw", on && "on")}
+        onClick={() => onChange?.(!on)}
+        style={{ border: 0, padding: 0, cursor: "pointer" }}
+      />
+      {children}
+    </div>
+  );
+}
+
+/** A rule in words: the parts that matter in bold. */
+export function PanelCondition({ children }: { children: React.ReactNode }) {
+  return <div className="cond">{children}</div>;
 }

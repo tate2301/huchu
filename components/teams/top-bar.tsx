@@ -69,10 +69,13 @@ function Kbd({ children }: { children: React.ReactNode }) {
 }
 
 function Tip({ name, shortcut, open, children }: { name: string; shortcut?: string; open?: boolean; children: React.ReactElement }) {
+  // A tooltip held open is drawn by the client only: the server's HTML has none to match.
+  const [mounted, setMounted] = React.useState(false);
+  React.useEffect(() => setMounted(true), []);
   return (
     <Tooltip
       side="bottom"
-      open={open}
+      open={mounted ? open : undefined}
       content={
         <span className="tip-body">
           {name}
@@ -102,6 +105,50 @@ function Badge({ count }: { count?: number }) {
   );
 }
 
+/** The bell: how many things need you, on a neutral badge. */
+export function BellButton({ count, onOpen }: { count?: number; onOpen?: () => void }) {
+  const label = count ? `Notifications, ${count} need you` : "Notifications";
+  return (
+    <Tip name="Notifications" shortcut="G N">
+      <button type="button" className="ibtn" aria-label={label} onClick={onOpen}>
+        <Glyph name="bell" />
+        <Badge count={count} />
+      </button>
+    </Tip>
+  );
+}
+
+/** Vane: its mark, a count of what waits for you, a pulse while it works, dimmed while paused. */
+export function VaneButton({
+  count = 0,
+  status = "idle",
+  open,
+  onToggle,
+}: {
+  count?: number;
+  status?: VaneStatus;
+  open?: boolean;
+  onToggle?: () => void;
+}) {
+  const label = status === "working" ? "Vane, working" : count ? `Vane, ${count} waiting for you` : "Vane";
+  return (
+    <Tip name="Vane" shortcut="V">
+      <button
+        type="button"
+        className={cn("ibtn", "ibtn--vane", status === "working" && "ibtn--working")}
+        aria-pressed={!!open}
+        aria-label={label}
+        onClick={onToggle}
+      >
+        <span style={status === "paused" ? { opacity: 0.45, display: "flex" } : { display: "flex" }}>
+          <VaneMark size={20} />
+        </span>
+        <Badge count={count} />
+      </button>
+    </Tip>
+  );
+}
+
 export function TopBar({
   back,
   icon,
@@ -124,8 +171,6 @@ export function TopBar({
   const phoneGroups = narrow && primary ? [[primary], ...groups] : groups;
   const hasMore = phoneGroups.length > 0;
   const vaneCount = vane?.count ?? 0;
-  const bellLabel = bell?.count ? `Notifications, ${bell.count} need you` : "Notifications";
-  const vaneLabel = vane?.status === "working" ? "Vane, working" : vaneCount ? `Vane, ${vaneCount} waiting for you` : "Vane";
 
   return (
     <Teams>
@@ -209,26 +254,8 @@ export function TopBar({
               <Glyph name="search" />
             </button>
           </Tip>
-          <Tip name="Notifications" shortcut="G N">
-            <button type="button" className="ibtn" aria-label={bellLabel} onClick={bell?.onOpen}>
-              <Glyph name="bell" />
-              <Badge count={bell?.count} />
-            </button>
-          </Tip>
-          <Tip name="Vane" shortcut="V">
-            <button
-              type="button"
-              className={cn("ibtn", "ibtn--vane", vane?.status === "working" && "ibtn--working")}
-              aria-pressed={!!vane?.open}
-              aria-label={vaneLabel}
-              onClick={vane?.onToggle}
-            >
-              <span style={vane?.status === "paused" ? { opacity: 0.45, display: "flex" } : { display: "flex" }}>
-                <VaneMark size={20} />
-              </span>
-              <Badge count={vaneCount} />
-            </button>
-          </Tip>
+          <BellButton count={bell?.count} onOpen={bell?.onOpen} />
+          <VaneButton count={vaneCount} status={vane?.status} open={vane?.open} onToggle={vane?.onToggle} />
         </div>
       </header>
     </Teams>
