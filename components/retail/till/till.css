@@ -2378,6 +2378,26 @@
 .tl.tl.tl .shell-cm .tray .row.is-tender .select, .tl.tl.tl .shell-cm .tray .row.is-tender .input { height: 48px; border-radius: 12px; font-size: var(--text-16); }
 .tl.tl.tl .shell-cm .tray .row.is-tender .input.num { font-family: var(--font-mono); }
 
+/* The Kora, and any till under 760 wide: one column, the tab bar, the tray over the whole screen. */
+@media (max-width: 760px) {
+  .tl.tl.tl .shell-cm > .shell-b { grid-template-columns: minmax(0, 1fr); }
+  .tl.tl.tl .shell-cm .bench { grid-template-columns: minmax(0, 1fr); }
+  .tl.tl.tl .strip { gap: var(--space-8); padding: 0 var(--space-12) 0 var(--space-16); }
+  .tl.tl.tl .strip-shop { overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+  .tl.tl.tl .shell-cm .bench > .main > .tools { padding: var(--space-12) var(--space-16) 0; }
+  .tl.tl.tl .shell-cm .bench > .main > .tools .input-wrap.input-lg { height: 52px; border-radius: 14px; }
+  .tl.tl.tl .shell-cm .bench > .main > .quick { padding: var(--space-12) var(--space-16) 0; }
+  .tl.tl.tl .shell-cm .bench > .main > .tile-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; padding: var(--space-12) var(--space-16) var(--space-16); }
+  .tl.tl.tl .shell-cm .bench-side .over { justify-content: flex-end; }
+  .tl.tl.tl .shell-cm .bench-side .over .scrim { position: absolute; }
+  .tl.tl.tl .shell-cm .bench-side .tray { height: auto; max-height: calc(100dvh - var(--space-24)); border-radius: 24px 24px 0 0; }
+  .tl.tl.tl .shell-cm .sale-head { height: 64px; padding: 0 var(--space-12) 0 var(--space-8); }
+  .tl.tl.tl .shell-cm .phone-sale .btn-primary { height: 64px; border-radius: 18px; background: var(--color-accent); color: var(--color-accent-ink); font-size: 18px; font-weight: 600; box-shadow: none; }
+  .tl.tl.tl .shell-cm .phone-sale .btn-primary:disabled { background: var(--color-fill); color: var(--color-faint); }
+  .tl.tl.tl .tabbar .nav[aria-current="page"] { background: var(--color-ink); color: var(--color-surface); box-shadow: none; }
+  .tl.tl.tl .tabbar .nav[aria-current="page"] .ic { color: var(--color-surface); }
+}
+
 /* Sheets on the Counter Mini (the board's .pos-sheet): every till dialog and popover, touch-sized.
    A small dialog is 520 wide, 24 round, a 24px title, 60px buttons; the one that goes is orange. */
 .tl.tl.tl .dialog:not(.dialog-lg) { width: min(520px, calc(100vw - var(--space-32))); border-radius: 24px; box-shadow: 0 30px 70px -20px rgba(36, 20, 14, 0.5); }
