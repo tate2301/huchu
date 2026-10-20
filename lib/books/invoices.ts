@@ -3,7 +3,7 @@ import { docLabel } from "@/lib/books/doc-number";
 import { z } from "zod";
 
 import { customerFace, customerImage } from "./faces";
-import { addDays, dayOf, monthStart, storedDay } from "./format";
+import { addDays, count, dayOf, daysBetween, monthStart, shortDay, storedDay } from "./format";
 import { INVOICE_STATE_LABEL, invoiceState, invoicesFinding, type InvoiceState } from "./invoice-state";
 
 /**
@@ -44,14 +44,24 @@ export const INVOICE_PERIOD_LABEL: Record<InvoicePeriod, string> = {
   "this-year": "This year",
 };
 
+/** The Due filter (bk-invoices): when the money falls due. */
+export const INVOICE_DUES = ["any", "this-week", "this-month", "next-month"] as const;
+export type InvoiceDue = (typeof INVOICE_DUES)[number];
+export const INVOICE_DUE_LABEL: Record<InvoiceDue, string> = { any: "Any", "this-week": "This week", "this-month": "This month", "next-month": "Next month" };
+
+/** The Source filter: written in Books, or from a deal in the CRM. */
+export const INVOICE_SOURCES = ["books", "crm"] as const;
+export type InvoiceSource = (typeof INVOICE_SOURCES)[number];
+export const INVOICE_SOURCE_LABEL: Record<InvoiceSource, string> = { books: "Books", crm: "CRM" };
+
 export const PAGE_SIZE = 50;
 
 export const invoiceQuerySchema = z.object({
   view: z.enum(INVOICE_VIEWS).catch("all"),
   q: z.string().trim().max(100).catch(""),
   customer: z.string().uuid().nullable().catch(null),
-  currency: z.string().trim().regex(/^[A-Za-z]{3}$/).nullable().catch(null),
-  period: z.enum(INVOICE_PERIODS).catch("any"),
+  due: z.enum(INVOICE_DUES).catch("any"),
+  source: z.enum(INVOICE_SOURCES).nullable().catch(null),
   sort: z.enum(["newest", "oldest"]).catch("newest"),
   page: z.coerce.number().int().min(1).catch(1),
 });
@@ -62,8 +72,8 @@ export function readInvoiceQuery(params: URLSearchParams): InvoiceQuery {
     view: params.get("view") ?? undefined,
     q: params.get("q") ?? undefined,
     customer: params.get("customer") || null,
-    currency: params.get("currency") || null,
-    period: params.get("period") ?? undefined,
+    due: params.get("due") ?? undefined,
+    source: params.get("source") || null,
     sort: params.get("sort") ?? undefined,
     page: params.get("page") ?? undefined,
   });
@@ -76,6 +86,14 @@ export type InvoiceRow = {
   state: InvoiceState;
   stateLabel: string;
   when: string;
+  /** "10 Sep"; null on a draft. */
+  issued: string | null;
+  /** "24 Sep"; null without a due date or on a draft. */
+  due: string | null;
+  /** What FDMS says: Valid, Pending or Failed; null on a draft or a void. */
+  fdms: "Valid" | "Pending" | "Failed" | null;
+  /** The row's one muted fact: "12 days late", "Due in 14 days", "Paid 5 Oct, cash", "Written by Vane from Q-0218". */
+  note: string;
   total: number;
   balance: number;
   currency: string;
@@ -93,8 +111,8 @@ export type InvoicesView = {
   overdue: number;
   currency: string;
   customers: Array<{ id: string; name: string; image?: string | null }>;
-  /** The currencies the workspace has invoiced in, for the Currency filter. */
-  currencies: string[];
+  /** The page's sums in the list's currency: what the rows total and what is still owed on them. */
+  sums: { total: number; balance: number };
   /** How many invoices each tab holds, with the search and filters applied. */
   counts: Record<InvoiceView, number>;
   query: InvoiceQuery;
@@ -105,13 +123,19 @@ export type InvoicesView = {
 type Db = Pick<PrismaClient, "salesInvoice">;
 
 const midnight = (day: string) => new Date(`${day}T00:00:00.000Z`);
+const round2 = (n: number) => Math.round(n * 100) / 100;
 
-function periodRange(period: InvoicePeriod, today: string): { gte: Date; lt: Date } | null {
-  if (period === "any") return null;
-  if (period === "this-month") return { gte: midnight(monthStart(today)), lt: midnight(addDays(today, 1)) };
-  if (period === "this-year") return { gte: midnight(`${today.slice(0, 4)}-01-01`), lt: midnight(addDays(today, 1)) };
+/** The days a Due choice covers, end exclusive. "This week" runs to Sunday. */
+function dueRange(due: InvoiceDue, today: string): { gte: Date; lt: Date } | null {
+  if (due === "any") return null;
+  if (due === "this-week") {
+    const weekday = midnight(today).getUTCDay();
+    return { gte: midnight(today), lt: midnight(addDays(today, ((7 - weekday) % 7) + 1)) };
+  }
   const start = monthStart(today);
-  return { gte: midnight(monthStart(addDays(start, -1))), lt: midnight(start) };
+  const next = monthStart(addDays(start, 32));
+  if (due === "this-month") return { gte: midnight(start), lt: midnight(next) };
+  return { gte: midnight(next), lt: midnight(monthStart(addDays(next, 32))) };
 }
 
 export function invoiceWhere(companyId: string, query: InvoiceQuery, today: string): Prisma.SalesInvoiceWhereInput {
@@ -123,9 +147,10 @@ export function invoiceWhere(companyId: string, query: InvoiceQuery, today: stri
   if (query.view === "drafts") where.status = "DRAFT";
   if (query.view === "void") where.status = "VOIDED";
   if (query.customer) where.customerId = query.customer;
-  if (query.currency) where.currency = query.currency.toUpperCase();
-  const range = periodRange(query.period, today);
-  if (range) where.invoiceDate = range;
+  const range = dueRange(query.due, today);
+  if (range) where.dueDate = range;
+  if (query.source === "crm") where.crmLeadDocuments = { some: {} };
+  if (query.source === "books") where.crmLeadDocuments = { none: {} };
   if (query.q) {
     where.OR = [
       { invoiceNumber: { contains: query.q, mode: "insensitive" } },
@@ -148,11 +173,25 @@ const rowSelect = {
   writeOffTotal: true,
   madeByVane: true,
   fiscalStatus: true,
+  fromQuotation: { select: { quotationNumber: true } },
+  supersededBy: { select: { invoiceNumber: true }, take: 1 },
   customer: { select: { id: true, name: true, ...customerFace } },
   receipts: { where: { voidedAt: null }, select: { receivedAt: true, method: true }, orderBy: { receivedAt: "desc" as const }, take: 1 },
 } satisfies Prisma.SalesInvoiceSelect;
 
 type RowRecord = Prisma.SalesInvoiceGetPayload<{ select: typeof rowSelect }>;
+
+const FDMS_WORD: Record<NonNullable<RowRecord["fiscalStatus"]>, InvoiceRow["fdms"]> = { SUCCESS: "Valid", PENDING: "Pending", FAILED: "Failed", VOIDED: null };
+
+/** The Note column: how late, when it falls due, how it was paid, or where a draft came from. */
+function invoiceNote(record: RowRecord, read: { state: InvoiceState; when: string; daysOverdue: number }, today: string): string {
+  if (read.state === "draft") return record.madeByVane && record.fromQuotation ? `Written by Vane from ${record.fromQuotation.quotationNumber}` : read.when;
+  if (read.state === "void") return record.supersededBy[0]?.invoiceNumber ? `Replaced by ${record.supersededBy[0].invoiceNumber}` : "Voided";
+  if (read.state === "overdue") return `${count(read.daysOverdue, "day")} late`;
+  if (read.state === "paid" || !record.dueDate) return read.when;
+  const days = daysBetween(today, storedDay(record.dueDate));
+  return days === 0 ? "Due today" : `Due in ${count(days, "day")}`;
+}
 
 export function toInvoiceRow(record: RowRecord, today: string): InvoiceRow {
   const read = invoiceState(
@@ -170,12 +209,16 @@ export function toInvoiceRow(record: RowRecord, today: string): InvoiceRow {
   );
   return {
     id: record.id,
-    number: docLabel(record.invoiceNumber),
+    number: record.status === "DRAFT" ? "No number" : docLabel(record.invoiceNumber),
     customer: { id: record.customer.id, name: record.customer.name, image: customerImage(record.customer) },
     state: read.state,
     // Vane's own draft says so until a person issues or deletes it.
     stateLabel: record.madeByVane && read.state === "draft" ? "Vane's draft" : INVOICE_STATE_LABEL[read.state],
     when: read.when,
+    issued: record.status === "DRAFT" ? null : shortDay(storedDay(record.invoiceDate)),
+    due: record.status === "DRAFT" || !record.dueDate ? null : shortDay(storedDay(record.dueDate)),
+    fdms: record.status === "DRAFT" || record.status === "VOIDED" ? null : FDMS_WORD[record.fiscalStatus ?? "PENDING"],
+    note: invoiceNote(record, read, today),
     total: record.total,
     balance: read.balance,
     currency: record.currency,
@@ -224,7 +267,7 @@ export async function readInvoices(db: Db, companyId: string, query: InvoiceQuer
   const today = dayOf(now);
   const where = invoiceWhere(companyId, query, today);
   const tabCount = (view: InvoiceView) => db.salesInvoice.count({ where: invoiceWhere(companyId, { ...query, view }, today) });
-  const [records, matching, totals, customerRows, currencyRows, ...tabCounts] = await Promise.all([
+  const [records, matching, totals, customerRows, ...tabCounts] = await Promise.all([
     db.salesInvoice.findMany({
       where,
       select: rowSelect,
@@ -239,7 +282,6 @@ export async function readInvoices(db: Db, companyId: string, query: InvoiceQuer
       select: { customer: { select: { id: true, name: true, ...customerFace } } },
       distinct: ["customerId"],
     }),
-    db.salesInvoice.findMany({ where: { companyId }, select: { currency: true }, distinct: ["currency"] }),
     ...INVOICE_VIEWS.map(tabCount),
   ]);
   const rows = records.map((record) => toInvoiceRow(record, today));
@@ -252,7 +294,10 @@ export async function readInvoices(db: Db, companyId: string, query: InvoiceQuer
     overdue: totals.overdue.amount,
     currency: totals.currency,
     customers: customerRows.map(({ customer }) => ({ id: customer.id, name: customer.name, image: customerImage(customer) })).sort((a, b) => a.name.localeCompare(b.name)),
-    currencies: currencyRows.map((row) => row.currency).sort(),
+    sums: {
+      total: round2(rows.filter((row) => row.currency === totals.currency && row.state !== "void").reduce((sum, row) => sum + row.total, 0)),
+      balance: round2(rows.filter((row) => row.currency === totals.currency).reduce((sum, row) => sum + row.balance, 0)),
+    },
     counts: Object.fromEntries(INVOICE_VIEWS.map((view, index) => [view, tabCounts[index] ?? 0])) as Record<InvoiceView, number>,
     query,
   };

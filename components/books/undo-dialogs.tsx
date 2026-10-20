@@ -409,7 +409,7 @@ export function useUndoMenu(kind: UndoKind, id: string | null | undefined, handl
   const entries: MenuEntry[] = [];
   if (data) {
     const item = (move: Move, label: string, icon: IconName, danger: boolean, may: { allowed: boolean; why: string | null }): MenuEntry =>
-      may.allowed ? { key: move, icon, label, danger, onSelect: () => setOpen(move) } : { key: move, icon, label, danger, disabled: true, title: may.why ?? undefined, onSelect: () => undefined };
+      may.allowed ? { key: move, action: move, icon, label, danger, onSelect: () => setOpen(move) } : { key: move, action: move, icon, label, danger, disabled: true, title: may.why ?? undefined, onSelect: () => undefined };
     if (data.status === "posted") {
       if (REVISABLE.has(kind)) entries.push(item("revise", "Revise", "edit", false, data.revise));
       entries.push({ separator: true });
@@ -649,11 +649,11 @@ export function useBulkUndo(kind: UndoKind, onChanged?: () => void | Promise<voi
     if (may.void) {
       out.push(
         posted
-          ? { key: "void", icon: "x", danger: true, label: `Void ${many}`, onSelect: () => setAsking({ mode: "void", rows }) }
-          : { key: "void", icon: "x", danger: true, label: `Void ${many}`, disabled: true, title: "None of these is posted: a draft is deleted, not voided.", onSelect: () => undefined },
+          ? { key: "void", action: "void", icon: "x", danger: true, label: `Void ${many}`, onSelect: () => setAsking({ mode: "void", rows }) }
+          : { key: "void", action: "void", icon: "x", danger: true, label: `Void ${many}`, disabled: true, title: "None of these is posted: a draft is deleted, not voided.", onSelect: () => undefined },
       );
     }
-    if (may.deletePosted) out.push({ key: "delete-permanently", icon: "x", danger: true, label: `Delete ${many} permanently`, onSelect: () => setAsking({ mode: "delete", rows }) });
+    if (may.deletePosted) out.push({ key: "delete-permanently", action: "delete", icon: "x", danger: true, label: `Delete ${many} permanently`, onSelect: () => setAsking({ mode: "delete", rows }) });
     return out;
   };
 
