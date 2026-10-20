@@ -76,7 +76,7 @@ export type ReportEntry = {
 const FINANCIAL_REPORTS: ReportEntry = {
   id: "accounting-financial-reports",
   title: "Financial reports",
-  href: "/accounting/financial-reports",
+  href: "/books/financials",
   group: "corelith",
   whose: null,
   kind: null,

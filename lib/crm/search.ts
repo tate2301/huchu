@@ -438,9 +438,8 @@ export async function searchCrm(
         ["Contact", customer.contactName],
         ["Email", customer.email],
       ]),
-      // The accounting account has no page of its own; its sales history is
-      // the useful destination.
-      href: `/accounting/sales?customerId=${customer.id}`,
+      // The customer's page in Books: its invoices, payments and statement.
+      href: `/books/customers/${customer.id}`,
     });
   }
 

@@ -149,7 +149,7 @@ export async function readClose(db: Db, companyId: string, now = new Date()): Pr
         label: "Trial balance agrees",
         state: Math.abs(debit - credit) < 0.005 ? "done" : "failed",
         note: Math.abs(debit - credit) < 0.005 ? `${money(debit)} each side` : `Out by ${money(Math.abs(debit - credit))}`,
-        action: Math.abs(debit - credit) < 0.005 ? null : { label: "Trial balance", href: "/accounting/trial-balance" },
+        action: Math.abs(debit - credit) < 0.005 ? null : { label: "Trial balance", href: "/books/trial-balance" },
       },
       {
         key: "postings",

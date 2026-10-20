@@ -15,7 +15,7 @@ const area = (id: string, hrefs: string[]): RailArea => ({
 const areas = [
   area("pipeline", ["/crm/leads", "/crm/deals"]),
   area("work", ["/crm/appointments"]),
-  area("accounting", ["/books", "/books/invoices", "/accounting/financial-reports"]),
+  area("accounting", ["/books", "/books/invoices", "/books/financials"]),
   area("reporting", ["/reports"]),
 ];
 
@@ -25,7 +25,7 @@ describe("Reports from <module>", () => {
   it("files a report under the module whose row holds the page it is about", () => {
     expect(areaForPage(areas, "/crm/deals/{id}")?.id).toBe("pipeline");
     expect(areaForPage(areas, "/books/invoices?view=overdue")?.id).toBe("accounting");
-    expect(areaForPage(areas, "/accounting/financial-reports")?.id).toBe("accounting");
+    expect(areaForPage(areas, "/books/financials")?.id).toBe("accounting");
     expect(areaForPage(areas, "/retail/sales")).toBeNull();
   });
 

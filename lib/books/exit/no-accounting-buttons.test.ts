@@ -23,15 +23,8 @@ import { BOOKS_NAV_ITEMS } from "@/lib/navigation";
 
 const root = process.cwd();
 
-/** Pages Books links to until its own page is built, and the phase that builds it (books-final §8). */
-const NOT_YET_IN_BOOKS: Record<string, string> = {
-  "/accounting/chart-of-accounts": "P5, Ledger › Chart of accounts",
-  "/accounting/posting-rules": "P5, Ledger › Posting rules",
-  "/accounting/trial-balance": "P5, Ledger › Trial balance",
-  "/accounting/financial-statements": "P5, Ledger › Financial statements",
-  "/accounting/cost-centers": "P5, Ledger › Cost centres",
-  "/accounting": "P5, Settings › Set up the books",
-};
+/** Pages Books links to until its own page is built, and the phase that builds it (books-final §8). P5 built the last of them. */
+const NOT_YET_IN_BOOKS: Record<string, string> = {};
 
 /** An address under /accounting a Books screen may show, or why not. */
 export function accountingLinkProblem(href: string): string | null {
@@ -68,7 +61,8 @@ describe("no Books button opens /accounting (books-final §8, P1 exit)", () => {
     expect(accountingLinkProblem("/accounting/currency")).toMatch(/Books page/);
     expect(accountingLinkProblem("/accounting/fiscalisation")).toMatch(/Books page/);
     expect(accountingLinkProblem("/accounting/tax/setup")).toMatch(/Books page/);
-    expect(accountingLinkProblem("/accounting/posting-rules")).toBeNull();
+    expect(accountingLinkProblem("/accounting/posting-rules")).toMatch(/Books page/);
+    expect(accountingLinkProblem("/accounting")).toMatch(/Books page/);
   });
 
   it("finds none in the sources of Books' screens", () => {

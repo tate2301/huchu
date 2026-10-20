@@ -55,7 +55,7 @@ export async function GET(request: NextRequest) {
       folders: await listReportFolders(readerOf(session)),
       // Books' statements, listed under From Corelith for whoever can open them.
       financialReports: canReadReport(
-        { href: "/accounting/financial-reports" },
+        { href: "/books/financials" },
         { role: session.user.role, enabledFeatures: session.user.enabledFeatures },
       ),
     });

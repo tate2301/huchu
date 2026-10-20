@@ -34,9 +34,9 @@ export const EXECUTIVE_QUICK_LINK_BASE_PRIORITY: Record<string, number> = {
   "/reports/plant": 70,
   "/reports/attendance": 69,
   "/reports/shift": 68,
-  "/accounting": 86,
-  "/accounting/banking": 84,
-  "/accounting/financial-statements": 83,
+  "/books": 86,
+  "/books/accounts": 84,
+  "/books/financials": 83,
   "/reports": 64,
   "/dashboard": 60,
 };
@@ -57,9 +57,9 @@ export const EXECUTIVE_QUICK_LINK_BADGE_LABELS: Record<string, string> = {
   "/reports/plant": "Pending plant",
   "/reports/attendance": "Attendance gaps",
   "/reports/shift": "Pending shifts",
-  "/accounting": "Open ledgers",
-  "/accounting/banking": "Open cash issues",
-  "/accounting/financial-statements": "Open finance items",
+  "/books": "Open ledgers",
+  "/books/accounts": "Open cash issues",
+  "/books/financials": "Open finance items",
 };
 
 export function parseExecutiveDashboardRange(
@@ -87,7 +87,7 @@ export function getExecutiveDashboardRangeDays(range: ExecutiveDashboardRange): 
 export function getQuickLinkModule(href: string): ExecutiveQuickLinkModule {
   if (href.startsWith("/gold")) return "gold";
   if (href.startsWith("/stores")) return "stores";
-  if (href.startsWith("/accounting")) return "finance";
+  if (href.startsWith("/books")) return "finance";
   if (href.startsWith("/people")) return "workforce";
   if (href.startsWith("/maintenance")) return "maintenance";
   if (href.startsWith("/compliance")) return "compliance";

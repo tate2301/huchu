@@ -7,12 +7,10 @@ import {
   type FormEvent,
   type ReactNode,
 } from "react";
-import { useSearchParams } from "next/navigation";
 import type { ColumnDef } from "@tanstack/react-table";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { Switch } from "@corelithzw/react";
-import { AccountingShell } from "@/components/accounting/accounting-shell";
 import { AccountingListView as DataTable } from "@/components/accounting/listview/accounting-list-view";
 import { MetricTile } from "@/components/accounting/hubs/metric-tile";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -35,7 +33,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { VerticalDataViews } from "@/components/ui/vertical-data-views";
 import { useToast } from "@/components/ui/use-toast";
 import { useReservedId } from "@/hooks/use-reserved-id";
 import { formatAmount, formatHeadline } from "@/lib/accounting/format";
@@ -57,15 +54,7 @@ import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { Plus, X } from "@/lib/icons";
 import { cn } from "@/lib/utils";
 
-const TAX_VIEWS = [
-  "codes",
-  "categories",
-  "templates",
-  "rules",
-  "vat-summary",
-] as const;
-
-export type TaxView = (typeof TAX_VIEWS)[number];
+export type TaxView = "codes" | "categories" | "templates" | "rules" | "vat-summary";
 type AppliesTo = "SALES" | "PURCHASE" | "BOTH";
 type CategoryScope = "CUSTOMER" | "VENDOR" | "BOTH";
 type ScheduleType = "NONE" | "FX" | "RTGS" | "WITHHOLDING";
@@ -118,10 +107,6 @@ type TaxRuleFormState = {
   effectiveTo: string;
   isActive: boolean;
 };
-
-function parseTaxView(value: string | null): TaxView {
-  return TAX_VIEWS.includes(value as TaxView) ? (value as TaxView) : "codes";
-}
 
 function emptyTaxCodeForm(): TaxCodeFormState {
   return {
@@ -501,18 +486,14 @@ function ListNote({ children }: { children: ReactNode }) {
 
 /**
  * `embedded`: Books › Settings › Tax codes & rules shows one view of it
- * (categories, templates, rules, the VAT summary) under its own tabs, without
- * the old Accounting shell and its rail.
+ * (categories, templates, rules, the VAT summary) under its own tabs. The old
+ * Accounting shell it once sat in is retired (books-final §8 P5).
  */
-export function TaxSetupWorkspace({ embedded }: { embedded?: TaxView } = {}) {
+export function TaxSetupWorkspace({ embedded }: { embedded: TaxView }) {
   const { toast } = useToast();
-  const searchParams = useSearchParams();
   const queryClient = useQueryClient();
 
-  const [chosenView, setActiveView] = useState<TaxView>(
-    parseTaxView(searchParams.get("view")),
-  );
-  const activeView = embedded ?? chosenView;
+  const activeView = embedded;
   const [editor, setEditor] = useState<EditorState>(null);
   const [taxCodeForm, setTaxCodeForm] = useState<TaxCodeFormState>(emptyTaxCodeForm);
   const [categoryForm, setCategoryForm] = useState<TaxCategoryFormState>(emptyTaxCategoryForm);
@@ -1098,21 +1079,6 @@ export function TaxSetupWorkspace({ embedded }: { embedded?: TaxView } = {}) {
     setSummaryEndDate(value);
     if (value) setSummaryPeriodId("");
   }
-
-  /*
-    The pills say what the cut is, not what the module is. "Tax codes" under a
-    app bar already titled Tax says Tax twice; "Codes" says it once.
-  */
-  const viewItems = useMemo(
-    () => [
-      { id: "codes", label: "Codes", count: taxCodes.length },
-      { id: "categories", label: "Categories", count: taxCategories.length },
-      { id: "templates", label: "Templates", count: taxTemplates.length },
-      { id: "rules", label: "Rules", count: taxRules.length },
-      { id: "vat-summary", label: "VAT summary", count: vatRows.length },
-    ],
-    [taxCodes.length, taxCategories.length, taxTemplates.length, taxRules.length, vatRows.length],
-  );
 
   const codeColumns: ColumnDef<TaxCodeRecord>[] = [
     {
@@ -2155,56 +2121,23 @@ export function TaxSetupWorkspace({ embedded }: { embedded?: TaxView } = {}) {
     </>
   );
 
-  if (embedded) {
-    return (
-      <div style={{ display: "flex", flexDirection: "column", gap: 12, padding: "16px 24px 40px" }}>
-        {dataError ? (
-          <Alert variant="destructive">
-            <AlertTitle>Unable to load tax setup</AlertTitle>
-            <AlertDescription>{getApiErrorMessage(dataError)}</AlertDescription>
-          </Alert>
-        ) : null}
-        {activeCreateLabel ? (
-          <div>
-            <Button size="sm" onClick={openCreateForActiveView} disabled={createDisabled}>
-              <Plus className="mr-2 size-4" />
-              {activeCreateLabel}
-            </Button>
-          </div>
-        ) : null}
-        {views}
-      </div>
-    );
-  }
-
   return (
-    <AccountingShell
-      activeTab="tax"
-      title="Tax"
-      actions={
-        activeCreateLabel ? (
-          <Button size="sm" onClick={openCreateForActiveView} disabled={createDisabled}>
-            <Plus className="mr-2 size-4" />
-            {activeCreateLabel}
-          </Button>
-        ) : undefined
-      }
-    >
+    <div style={{ display: "flex", flexDirection: "column", gap: 12, padding: "16px 24px 40px" }}>
       {dataError ? (
         <Alert variant="destructive">
           <AlertTitle>Unable to load tax setup</AlertTitle>
           <AlertDescription>{getApiErrorMessage(dataError)}</AlertDescription>
         </Alert>
       ) : null}
-
-      <VerticalDataViews
-        items={viewItems}
-        value={activeView}
-        onValueChange={(value) => setActiveView(value as TaxView)}
-        railLabel="Tax views"
-      >
-        {views}
-      </VerticalDataViews>
-    </AccountingShell>
+      {activeCreateLabel ? (
+        <div>
+          <Button size="sm" onClick={openCreateForActiveView} disabled={createDisabled}>
+            <Plus className="mr-2 size-4" />
+            {activeCreateLabel}
+          </Button>
+        </div>
+      ) : null}
+      {views}
+    </div>
   );
 }

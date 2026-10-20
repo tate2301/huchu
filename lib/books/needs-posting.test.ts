@@ -35,7 +35,7 @@ describe("why it didn't post, in plain words", () => {
   it("sends a missing or broken rule to Posting rules", () => {
     expect(failedWith("Posting rule missing for source type CRM_COST_ENTRY_RECEIPT", { sourceType: "CRM_COST_ENTRY_RECEIPT" })).toEqual({
       why: "No rule says where cash received in the cost tracker posts",
-      fix: { kind: "rule", label: "Add a rule", href: "/accounting/posting-rules" },
+      fix: { kind: "rule", label: "Add a rule", href: "/books/posting-rules" },
     });
     expect(failedWith("Unbalanced entry (debit 10.00 vs credit 9.00)").why).toBe("Its rule doesn’t balance: 10.00 against 9.00");
     expect(failedWith("Posting rule contains inactive or non-ledger accounts").why).toBe("Its rule posts to an account that is closed or is a heading");

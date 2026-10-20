@@ -119,13 +119,13 @@ export function explain(event: { status: string; lastError: string | null; nextR
     return { why: `No account for ${tender} payments`, fix: { kind: "map", target: "tender", key: match[1], label: `Account for ${tender} payments` } };
   }
   if (/^Posting rule missing/.test(error)) {
-    return { why: `No rule says where ${lower(sourceWords(event.sourceType))} posts`, fix: { kind: "rule", label: "Add a rule", href: "/accounting/posting-rules" } };
+    return { why: `No rule says where ${lower(sourceWords(event.sourceType))} posts`, fix: { kind: "rule", label: "Add a rule", href: "/books/posting-rules" } };
   }
   if (/inactive or non-ledger accounts/.test(error)) {
-    return { why: "Its rule posts to an account that is closed or is a heading", fix: { kind: "rule", label: "Fix the rule", href: "/accounting/posting-rules" } };
+    return { why: "Its rule posts to an account that is closed or is a heading", fix: { kind: "rule", label: "Fix the rule", href: "/books/posting-rules" } };
   }
   match = /^Unbalanced entry \(debit ([\d.]+) vs credit ([\d.]+)\)/.exec(error);
-  if (match) return { why: `Its rule doesn’t balance: ${match[1]} against ${match[2]}`, fix: { kind: "rule", label: "Fix the rule", href: "/accounting/posting-rules" } };
+  if (match) return { why: `Its rule doesn’t balance: ${match[1]} against ${match[2]}`, fix: { kind: "rule", label: "Fix the rule", href: "/books/posting-rules" } };
   if (/period is closed|strict lock|Only managers can override|Override reason is required|frozen through/i.test(error)) {
     return { why: "Its month is closed", fix: null };
   }
