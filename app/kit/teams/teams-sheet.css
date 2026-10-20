@@ -1,0 +1,61 @@
+/* The teams kit sheet: the layout the boards use (K1 to K9), scoped to `.tk`. Parts come from components/teams. */
+.tk { padding: var(--tm-s6) var(--tm-s7); display: flex; flex-direction: column; gap: var(--tm-s7); max-width: 1440px; background: var(--surface); color: var(--ink-2); }
+.tk-board { display: flex; flex-direction: column; gap: var(--tm-s7); scroll-margin-top: var(--tm-s5); }
+.tk-sec { display: grid; grid-template-columns: 260px minmax(0, 1fr); gap: var(--tm-s5); }
+.tk-sec--narrow { grid-template-columns: 240px minmax(0, 1fr); }
+.tk-sec > div:first-child h2, .tk-top h2 { margin: 0; color: var(--ink); font-size: var(--tm-t-h3); font-weight: 600; }
+.tk-top { display: flex; flex-direction: column; gap: var(--tm-s4); }
+.tk-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--tm-s5) var(--tm-s5); align-items: start; }
+.tk-grid--3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.tk-grid--4 { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--tm-s5) var(--tm-s4); }
+.tk-cell { display: flex; flex-direction: column; gap: var(--tm-s2); min-width: 0; }
+.tk-span { grid-column: 1 / -1; }
+.tk-span2 { grid-column: span 2; }
+.tk-name { color: var(--ink-3); font-size: var(--tm-t-cap); font-weight: 500; }
+.tk-frame { padding: var(--tm-s3) var(--tm-s4); border-radius: 12px; box-shadow: inset 0 0 0 1px var(--line); background: var(--surface); min-width: 0; }
+.tk-frame--col { display: flex; flex-direction: column; gap: var(--tm-s3); align-items: flex-start; color: var(--ink-2); font-size: var(--tm-t-sm); }
+.tk-frame--col > * { max-width: 100%; }
+.tk-frame--stack { display: flex; flex-direction: column; gap: var(--tm-s3); }
+.tk-frame--row { display: flex; align-items: center; gap: var(--tm-s3); }
+.tk-frame--float { box-shadow: var(--shadow-float); }
+.tk-frame--pad { padding: var(--tm-s4); }
+.tk-label { color: var(--ink); font-weight: 600; font-size: 15px; }
+.tk-nav { display: flex; gap: var(--tm-s4); flex-wrap: wrap; align-items: center; color: var(--ink-3); }
+.tk-nav a { color: var(--ink); text-decoration: underline; text-decoration-color: var(--line-strong); text-underline-offset: 3px; }
+.tk-frame--bar { padding: 0; overflow: visible; position: relative; box-shadow: none; border: 1px solid var(--line); }
+.tk-frame--bar .tb { border-radius: 12px 12px 0 0; }
+
+/* The panel boards (K6, K7) */
+.tk-panels { display: grid; grid-template-columns: repeat(4, minmax(0, 368px)); gap: var(--tm-s6); justify-content: space-between; }
+.tk-panel { display: flex; flex-direction: column; gap: var(--tm-s3); min-width: 0; }
+.tk-panel .pn { border: 1px solid var(--line); border-radius: 12px; height: 1340px; }
+.tk-panel .pn__body { overflow: hidden; }
+.tk-states { display: grid; grid-template-columns: repeat(3, minmax(0, 368px)); gap: var(--tm-s6); }
+.tk-states .pn { border: 1px solid var(--line); border-radius: 12px; height: 560px; }
+
+/* K8 frames */
+.tk-motion { display: grid; grid-template-columns: 200px repeat(4, minmax(0, 1fr)) 150px; gap: var(--tm-s3) var(--tm-s3); align-items: start; }
+.tk-motion__name { color: var(--ink); font-weight: 600; padding-top: 6px; }
+.tk-motion__token { color: var(--ink-3); font-family: var(--font-mono); font-size: var(--tm-t-cap); margin-top: 4px; display: block; font-weight: 400; }
+.tk-frame-ms { position: relative; height: 112px; border-radius: 10px; box-shadow: inset 0 0 0 1px var(--line); background: var(--surface); overflow: hidden; display: flex; align-items: center; padding: 0 var(--tm-s3); }
+.tk-frame-ms--reduced { background: var(--ground); }
+.tk-frame-ms__t { position: absolute; left: 8px; top: 6px; color: var(--ink-3); font-family: var(--font-mono); font-size: var(--tm-t-cap); }
+.tk-table { width: 100%; border-collapse: collapse; }
+.tk-table th { text-align: left; color: var(--ink-3); font-weight: 500; font-size: var(--tm-t-cap); padding: 10px 12px; background: var(--ground); }
+.tk-table td { padding: 10px 12px; border-top: 1px solid var(--line); color: var(--ink-2); }
+.tk-table td:first-child { font-family: var(--font-mono); color: var(--ink); }
+.tk-table-wrap { border-radius: 12px; box-shadow: inset 0 0 0 1px var(--line); overflow: hidden; }
+
+@media (max-width: 900px) {
+  .tk { padding: var(--tm-s5) var(--tm-s4); gap: var(--tm-s6); }
+  .tk-sec, .tk-sec--narrow { grid-template-columns: minmax(0, 1fr); gap: var(--tm-s3); }
+  .tk-grid, .tk-grid--3, .tk-grid--4 { grid-template-columns: minmax(0, 1fr); }
+  .tk-span2 { grid-column: auto; }
+  .tk-panels, .tk-states { grid-template-columns: minmax(0, 1fr); }
+  .tk-panel .pn { height: auto; }
+  .tk-motion { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .tk-motion__name { grid-column: 1 / -1; }
+}
+
+.tk-pop { position: absolute; left: 180px; top: 40px; width: 260px; z-index: 2; }
+@media (max-width: 900px) { .tk-pop { left: 12px; right: 12px; width: auto; top: 52px; } }

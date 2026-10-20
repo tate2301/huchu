@@ -232,6 +232,16 @@ import {
   Scroll as PhosphorScroll,
   SignIn as PhosphorSignIn,
   ClockCountdown as PhosphorClockCountdown,
+  Crown as PhosphorCrown,
+  Hourglass as PhosphorHourglass,
+  Image as PhosphorImage,
+  Handshake as PhosphorHandshake,
+  MicrophoneSlash as PhosphorMicrophoneSlash,
+  PhoneDisconnect as PhosphorPhoneDisconnect,
+  HardHat as PhosphorHardHat,
+  Flask as PhosphorFlask,
+  Bank as PhosphorBank,
+  Table as PhosphorTable,
 } from "@phosphor-icons/react/ssr";
 
 import { cn } from "@/lib/utils";
@@ -256,6 +266,16 @@ export type LucideIcon = React.ComponentType<MaterialIconProps>;
  * client bundle, because nothing could tell at build time which were used.
  */
 const iconRegistry = {
+  Crown: PhosphorCrown,
+  Hourglass: PhosphorHourglass,
+  Image: PhosphorImage,
+  Handshake: PhosphorHandshake,
+  MicrophoneSlash: PhosphorMicrophoneSlash,
+  PhoneDisconnect: PhosphorPhoneDisconnect,
+  HardHat: PhosphorHardHat,
+  Flask: PhosphorFlask,
+  Bank: PhosphorBank,
+  Table: PhosphorTable,
   ClockCountdown: PhosphorClockCountdown,
   SignIn: PhosphorSignIn,
   Scroll: PhosphorScroll,
@@ -1114,6 +1134,17 @@ export const Wine = createPhosphorIcon("Wine", "Wine");
  * Vane's mark (components/core/vane-mark.tsx) as a nav icon: an ink tile with
  * the vane arrow, sized by the caller's class like any other icon here.
  */
+export const Crown = createPhosphorIcon("Crown", "Crown");
+export const Hourglass = createPhosphorIcon("Hourglass", "Hourglass");
+export const ImageSquare = createPhosphorIcon("Image", "ImageSquare");
+export const Handshake = createPhosphorIcon("Handshake", "Handshake");
+export const MicOff = createPhosphorIcon("MicrophoneSlash", "MicOff");
+export const PhoneHangup = createPhosphorIcon("PhoneDisconnect", "PhoneHangup");
+export const HardHat = createPhosphorIcon("HardHat", "HardHat");
+export const Flask = createPhosphorIcon("Flask", "Flask");
+export const Bank = createPhosphorIcon("Bank", "Bank");
+export const Table = createPhosphorIcon("Table", "Table");
+
 export const VaneIcon: LucideIcon = function VaneIcon({ className, style }: MaterialIconProps) {
   return (
     <svg className={className} style={style} viewBox="0 0 24 24" aria-hidden="true">
