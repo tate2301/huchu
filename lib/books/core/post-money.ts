@@ -29,6 +29,8 @@ export type MoneyEvent = {
   sourceType: AccountingSourceType;
   sourceId: string;
   sourceSubtype?: string | null;
+  /** What caused it, kept on the integration event (`payroll-run:<id>`). */
+  causationKey?: string | null;
   date: Date;
   description: string;
   amount: MoneyLike;
@@ -113,6 +115,7 @@ export async function postMoney(db: Db, event: MoneyEvent): Promise<PostMoneyRes
       sourceType: event.sourceType,
       sourceId: event.sourceId,
       sourceSubtype: event.sourceSubtype ?? null,
+      causationKey: event.causationKey ?? null,
       siteId: event.siteId ?? null,
       registerCode: event.registerCode ?? null,
       entryDate: event.date,

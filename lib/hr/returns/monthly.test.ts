@@ -189,7 +189,6 @@ beforeAll(async () => {
     runNumber: run.runNumber,
     entryDate: new Date("2026-08-31T00:00:00.000Z"),
     createdById: actorId,
-    enabledFeatures: ["accounting.core"],
   });
 });
 

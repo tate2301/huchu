@@ -1156,5 +1156,14 @@
     "panel: Pomona Officesyou",
     "panel: Paid this monthshared",
     "status: Due"
+  ],
+  "BkUpsell": [
+    "button: Notifications",
+    "panel: Overdueshared",
+    "panel: Pomona Officesyou",
+    "panel: Paid this monthshared",
+    "heading: Reports from Books",
+    "panel: Money this month",
+    "panel: Owed to you, by age"
   ]
 }

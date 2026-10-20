@@ -659,6 +659,41 @@ export function resolveFeatureKeyForPath(pathname: string): string | null {
   return match?.featureKey ?? null;
 }
 
+/**
+ * The Books screens' gate (books-final §1.2, D1), checked on top of the key
+ * the route itself names.
+ *
+ * Every page under `/books` and every API only Books' pages call needs
+ * `books.screens`. Left open: Takings (the floor's End of day, on its retail
+ * gate), the core's undo routes (`/api/books/core/*`, gated on the role, not
+ * the plan), the accountant export and Management's setup reads, and the
+ * panel's counts (which answer empty without the screens).
+ *
+ * A page refused here is not sent to /access-blocked: the proxy lets it
+ * through and the Books layout shows what the screens add (BkUpsell).
+ */
+export const BOOKS_SCREENS_KEY = "books.screens";
+
+const BOOKS_SCREENS_GATED = ["/books", "/api/books"];
+
+const BOOKS_SCREENS_OPEN = [
+  "/books/takings",
+  "/api/books/core",
+  "/api/books/accountant-export",
+  "/api/books/money-and-tax",
+  "/api/books/money-accounts",
+  "/api/books/nav",
+];
+
+const underPrefix = (path: string, prefix: string) => path === prefix || path.startsWith(`${prefix}/`);
+
+export function booksScreensKeyForPath(pathname: string): string | null {
+  const path = normalizePath(pathname).toLowerCase().split("?")[0]!;
+  if (!BOOKS_SCREENS_GATED.some((prefix) => underPrefix(path, prefix))) return null;
+  if (BOOKS_SCREENS_OPEN.some((prefix) => underPrefix(path, prefix))) return null;
+  return BOOKS_SCREENS_KEY;
+}
+
 export function getAllRouteFeatureKeys(): string[] {
-  return Array.from(new Set([...PAGE_FEATURE_ROUTES, ...API_FEATURE_ROUTES].map((row) => row.featureKey))).sort();
+  return Array.from(new Set([...PAGE_FEATURE_ROUTES, ...API_FEATURE_ROUTES].map((row) => row.featureKey).concat(BOOKS_SCREENS_KEY))).sort();
 }

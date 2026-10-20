@@ -6,9 +6,9 @@
  * the ledger goes short *and* the P2 over-reports, and the two would still agree
  * with each other, which is the worst kind of wrong.
  *
- * The seam tests are the ones the payroll-only product depends on. A run in a
- * workspace with no accounting module has to complete, post nothing, and say so.
- * Saying so is the whole point: silently pretending to post is what loses money,
+ * The posting tests run a run through the books core, which is on in every
+ * workspace now (D1), a payroll-only one included. A run that cannot post has
+ * to complete and say why: silently pretending to post is what loses money,
  * because the first person to notice is whoever tries to reconcile a payable
  * balance that was never written.
  */
@@ -262,8 +262,7 @@ describe("the accounting seam", () => {
       runNumber: run.runNumber,
       entryDate: new Date("2026-08-31T00:00:00.000Z"),
       createdById: actorId,
-      enabledFeatures: ["accounting.core"],
-    });
+      });
     expect(outcome.posted).toBe(true);
 
     const entry = await prisma.journalEntry.findFirstOrThrow({
@@ -322,9 +321,9 @@ describe("the accounting seam", () => {
     expect(entries).toBe(1);
   });
 
-  it("COMPLETES without posting when there is no accounting module", async () => {
-    // The payroll-only product. This must not throw, and must not claim to have
-    // posted.
+  it("posts a payroll-only workspace's run too: the books engine is always on (D1)", async () => {
+    // The payroll-only product used to complete without posting. The ledger is
+    // on in every workspace now, so its run posts through the core like any other.
     const { run } = await makeRun(2);
 
     const outcome = await postPayrollRun({
@@ -333,20 +332,13 @@ describe("the accounting seam", () => {
       runNumber: run.runNumber,
       entryDate: new Date("2026-08-31T00:00:00.000Z"),
       createdById: actorId,
-      // No `accounting.core`.
-      enabledFeatures: ["hr.payroll"],
     });
 
-    expect(outcome.posted).toBe(false);
-    if (!outcome.posted) {
-      expect(outcome.reason).toContain("No accounting module");
-    }
-
-    // Nothing written for this run.
+    expect(outcome.posted).toBe(true);
     const entries = await prisma.journalEntry.count({
       where: { companyId, sourceId: run.id },
     });
-    expect(entries).toBe(0);
+    expect(entries).toBe(1);
   });
 
   it("says so rather than throwing when a run has no lines", async () => {
@@ -367,8 +359,7 @@ describe("the accounting seam", () => {
       runNumber: 99,
       entryDate: new Date("2026-08-31T00:00:00.000Z"),
       createdById: actorId,
-      enabledFeatures: ["accounting.core"],
-    });
+      });
 
     expect(outcome.posted).toBe(false);
     if (!outcome.posted) expect(outcome.reason).toContain("no line items");

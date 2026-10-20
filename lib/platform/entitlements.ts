@@ -252,8 +252,10 @@ export async function denyFeaturesToCompany(input: {
   if (featureKeys.length === 0) return { featuresDisabled: 0 };
 
   const reason = input.reason ?? "Disabled for this company";
+  // The books engine is never switched off (D1): a template's "not here" leaves it on.
+  const alwaysOn = new Set(FEATURE_CATALOG.filter((feature) => feature.alwaysOn).map((feature) => normalizeFeatureKey(feature.key)));
   const features = await prisma.platformFeature.findMany({
-    where: { key: { in: featureKeys } },
+    where: { key: { in: featureKeys.filter((key) => !alwaysOn.has(key)) } },
     select: { id: true },
   });
 
@@ -369,6 +371,9 @@ export async function getCompanyFeatureMap(companyId: string): Promise<FeatureMa
     const aliasKey = resolveLegacyFeatureAlias(normalizedFlagKey);
     if (aliasKey && !explicitFlagKeys.has(aliasKey)) map[aliasKey] = Boolean(flag.isEnabled);
   }
+
+  // The books engine is on in every workspace, whatever a flag says (D1).
+  for (const feature of FEATURE_CATALOG) if (feature.alwaysOn) map[normalizeFeatureKey(feature.key)] = true;
 
   return map;
 }

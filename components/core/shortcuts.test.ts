@@ -104,6 +104,7 @@ const BINDINGS: Record<string, Binding[]> = {
   "R | Retry all": [{ file: "app/books/needs-posting/page.tsx" }],
   "E | Add or revise the opening balances": [{ file: "app/books/settings/opening-balances/page.tsx" }],
   "D | Download the accountant export": [{ file: "components/management/money/money-views.tsx" }],
+  "A | Add Books (opens Billing)": [{ file: "components/books/bk-upsell-view.tsx" }],
   "Ctrl ↵ | Map and retry, or Post in this month (the chosen posting's fix)": [{ file: "components/books/needs-posting-view.tsx" }],
   "Ctrl ↵ | Publish": [{ file: "components/builder/grid/builder-bar.tsx" }],
   "Ctrl ↵ | The drawer's primary (Post, Prepare, Send, Save)": [

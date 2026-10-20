@@ -24,6 +24,7 @@ import {
   getPortalHostPrefixes,
 } from "@/lib/platform/portal-hosts";
 import { canAccessCapabilityWithToken, canAccessRouteWithToken } from "@/lib/platform/gating/enforcer";
+import { BOOKS_SCREENS_KEY } from "@/lib/platform/gating/route-registry";
 import {
   SUBSCRIPTION_READ_ONLY_CODE,
   isReadOnlyHttpMethod,
@@ -155,6 +156,11 @@ async function denyPageFeature(
   decision: { message?: string; featureKey?: string; path?: string },
 ) {
   const { pathname, searchParams } = request.nextUrl;
+  // A Books address without the screens shows what they add, not a refusal:
+  // the Books layout draws BkUpsell in place of the page (books-final §1.2).
+  if (decision.featureKey === BOOKS_SCREENS_KEY && (pathname === "/books" || pathname.startsWith("/books/"))) {
+    return NextResponse.next();
+  }
   if (pathname === "/retail" || pathname.startsWith("/retail/")) {
     // Loaded only here: the nav registry carries the icon set.
     const { canRoleOpenRetailPath } = await import("@/lib/retail/nav");

@@ -25,9 +25,17 @@ const FEATURE_DEPENDENCIES: Record<string, string[]> = {
   "hr.statutory-returns": ["hr.payroll", "hr.statutory-tables"],
   "hr.payslips": ["hr.payroll"],
   "hr.employee-self-service": ["hr.payslips"],
-  // Deliberately NOT declared: payroll does not depend on `accounting.core`.
-  // That is the seam the payroll-only product stands on — a run in a workspace
-  // with no ledger completes, posts nothing, and says so.
+  // Payroll declares no dependency on `accounting.core` because it needs none:
+  // the books engine is on in every workspace (D1), so a payroll-only
+  // workspace's runs post to its ledger like everyone else's.
+  //
+  // The Books screens sit on the engine. The finer `accounting.*` keys below
+  // do not depend on `books.screens`: Management's setup pages, the till's
+  // fiscal routes and the module screens call `/api/accounting/*` through
+  // them, and those stay open without the screens (books-final §1.2). The
+  // screens' own addresses are gated by `books.screens` in the route
+  // registry (`booksScreensKeyForPath`).
+  "books.screens": ["accounting.core"],
   "accounting.chart-of-accounts": ["accounting.core"],
   "accounting.journals": ["accounting.core"],
   "accounting.periods": ["accounting.core"],

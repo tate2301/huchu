@@ -766,7 +766,6 @@ async function main() {
     runNumber: run.runNumber,
     entryDate: new Date("2026-08-31T00:00:00.000Z"),
     createdById: admin.id,
-    enabledFeatures: ["accounting.core"],
   });
 
   console.log(JSON.stringify({

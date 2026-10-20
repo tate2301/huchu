@@ -1,7 +1,7 @@
 import { isKnownFeatureKey, normalizeFeatureKey } from "@/lib/platform/gating/catalog-utils";
 import { resolveFeatureKeyForCapability } from "@/lib/platform/gating/capability-registry";
 import { isFeatureBypassed } from "@/lib/platform/gating/break-glass";
-import { resolveFeatureKeyForPath } from "@/lib/platform/gating/route-registry";
+import { booksScreensKeyForPath, resolveFeatureKeyForPath } from "@/lib/platform/gating/route-registry";
 import { isAllowByDefaultFeaturePolicy } from "@/lib/platform/gating/policy";
 import { getFeatureDependencies } from "@/lib/platform/gating/feature-dependencies";
 import type { FeatureGateDecision } from "@/lib/platform/gating/types";
@@ -75,6 +75,12 @@ export function hasEnabledFeature(enabledFeatures: string[] | undefined, feature
 }
 
 export function canAccessRouteWithToken(pathname: string, enabledFeatures: string[] | undefined): FeatureGateDecision {
+  // A Books screen needs the screens before anything finer (books-final §1.2).
+  const screensKey = booksScreensKeyForPath(pathname);
+  if (screensKey) {
+    const screens = evaluateFeature(screensKey, enabledFeatures);
+    if (!screens.allowed) return { ...screens, path: pathname };
+  }
   const featureKey = resolveFeatureKeyForPath(pathname);
   if (!featureKey) return { allowed: true, path: pathname };
   const decision = evaluateFeature(featureKey, enabledFeatures);

@@ -13,6 +13,8 @@ import {
 } from "@/lib/navigation";
 import { normalizeFeatureKey } from "@/lib/platform/gating/catalog-utils";
 import { filterNavSectionsByEnabledFeatures } from "@/lib/platform/gating/nav-filter";
+import { BOOKS_SCREENS_KEY } from "@/lib/platform/gating/route-registry";
+import { hasTokenFeature } from "@/lib/platform/gating/token-check";
 import type { PersonaCode } from "@/lib/platform/personas";
 import { getPrimaryQuickActions } from "@/lib/primary-actions";
 import { RETAIL_NAV_MODULES, roleMeetsRetailRequires } from "@/lib/retail/nav";
@@ -414,9 +416,14 @@ const WORKSPACE_MODULES: Record<WorkspaceModuleId, WorkspaceModuleDefinition> = 
     homeHref: "/books",
     // The panel the boards draw (`lib/navigation.ts`), each page behind its own feature.
     getItems(context) {
-      return (context.navSectionById.get("accounting")?.items ?? []).filter((item) =>
+      const items = (context.navSectionById.get("accounting")?.items ?? []).filter((item) =>
         canViewAccountingHref(item.href, context.enabledFeatures),
       );
+      // Without the screens Books stays in the owner's rail, its pages showing
+      // what the screens add; others keep only Takings, on its retail gate
+      // (books-final §1.2).
+      if (hasTokenFeature(context.enabledFeatures, BOOKS_SCREENS_KEY) || context.role === "SUPERADMIN") return items;
+      return items.filter((item) => item.href.startsWith("/books/takings"));
     },
     // A level's links out (Settings › In Management) are filtered as its rows are.
     getGroups(context) {
