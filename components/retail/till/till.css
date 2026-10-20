@@ -2421,3 +2421,341 @@
 .tl.tl.tl .pop.is-till .menu-item .ic { width: 20px; height: 20px; }
 .tl.tl.tl .pop.is-till .pop-foot .btn { height: 52px; border-radius: 14px; font-size: 16px; }
 .tl.tl.tl .pop.is-till .pop-foot .btn-ink, .tl.tl.tl .pop.is-till .pop-foot .btn-primary { background: var(--color-accent); color: var(--color-accent-ink); box-shadow: none; }
+
+/* Held (T1-6b): big rows on the left, the chosen sale's lines on the right, read-only, ending in Recall.
+   Hold (T1-6a): the hold key's popover at the board's sheet sizes. Recall over a sale (T1-6c) is a small
+   dialog and takes its sizes from 00-sheets.css. */
+
+.tl.tl.tl .held-bench { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) 448px; background: var(--color-surface); }
+.tl.tl.tl .held-shelf { min-height: 0; overflow: auto; gap: var(--space-16); padding: 20px var(--space-24) var(--space-24); }
+.tl.tl.tl .held-h1 { margin: 0; padding-top: var(--space-8); font-size: 28px; font-weight: 600; letter-spacing: -0.02em; color: var(--color-ink); }
+
+/* A held sale: the glyph, the note over its lines and time, the amount, the bin. The chosen one is ringed. */
+.tl.tl.tl .held-list { display: flex; flex-direction: column; gap: 10px; margin: 0; padding: 0; list-style: none; }
+.tl.tl.tl .held-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: var(--space-8); padding-right: var(--space-12); border-radius: 18px; background: var(--color-surface); box-shadow: inset 0 0 0 1px var(--color-line); transition: box-shadow var(--motion-fast) var(--motion-ease); }
+.tl.tl.tl .held-row.is-on { box-shadow: inset 0 0 0 2px var(--color-ink); }
+.tl.tl.tl .held-pick { display: grid; grid-template-columns: 52px minmax(0, 1fr) auto; align-items: center; gap: var(--space-16); min-height: 84px; padding: var(--space-16) 0 var(--space-16) 18px; border-radius: 18px 0 0 18px; text-align: left; color: var(--color-ink); }
+.tl.tl.tl .held-pick:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var(--color-accent); }
+.tl.tl.tl .held-glyph { width: 52px; height: 52px; border-radius: 14px; background: var(--color-fill); display: grid; place-items: center; color: var(--color-ink-2); }
+.tl.tl.tl .held-glyph .ic { width: 24px; height: 24px; }
+.tl.tl.tl .held-text { display: flex; flex-direction: column; min-width: 0; }
+.tl.tl.tl .held-note { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 17px; font-weight: 600; color: var(--color-ink); }
+.tl.tl.tl .held-sub { margin-top: 3px; font-size: var(--text-14); color: var(--color-muted); }
+.tl.tl.tl .held-amount { font-family: var(--font-mono); font-size: 19px; color: var(--color-ink); white-space: nowrap; }
+.tl.tl.tl .held-row > .btn.btn-icon.is-touch .ic { color: var(--color-ink-2); }
+.tl.tl.tl .skeleton.held-skeleton { display: block; height: 84px; border-radius: 18px; }
+
+/* The chosen sale, read-only. */
+.tl.tl.tl .held-head { flex: none; display: flex; align-items: center; gap: 10px; height: 76px; padding: 0 20px 0 var(--space-24); box-shadow: inset 0 -1px 0 var(--color-line); }
+.tl.tl.tl .held-head h2 { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 22px; font-weight: 600; letter-spacing: -0.01em; color: var(--color-ink); }
+.tl.tl.tl .held-head time { flex: none; font-size: var(--text-14); color: var(--color-muted); }
+.tl.tl.tl .held-side .list.held-lines { padding: var(--space-8) var(--space-12); gap: var(--space-4); }
+.tl.tl.tl .held-line { display: grid; grid-template-columns: 56px minmax(0, 1fr) auto; align-items: center; gap: var(--space-12); min-height: 76px; padding: var(--space-8) var(--space-12); border-radius: 16px; }
+.tl.tl.tl .held-line-q { padding-left: var(--space-4); font-family: var(--font-mono); font-size: 17px; color: var(--color-ink-2); white-space: nowrap; }
+.tl.tl.tl .held-line-n { display: flex; flex-direction: column; min-width: 0; }
+.tl.tl.tl .held-line-t { font-size: var(--text-16); font-weight: 500; line-height: 1.3; color: var(--color-ink); }
+.tl.tl.tl .held-line-s { margin-top: 3px; font-family: var(--font-mono); font-size: var(--text-13); color: var(--color-muted); }
+.tl.tl.tl .held-line-v { font-family: var(--font-mono); font-size: 17px; color: var(--color-ink); white-space: nowrap; }
+.tl.tl.tl .held-side .totals { box-shadow: inset 0 1px 0 var(--color-line); }
+.tl.tl.tl .take-key.held-recall { margin-top: var(--space-8); }
+.tl.tl.tl .take-key.held-recall .ic { width: 22px; height: 22px; }
+
+/* The hold key's popover: the board's sheet, a title with the amount, the note, Cancel and Hold. */
+.tl.tl.tl .pop.is-till:has(> .hold-sheet) { width: min(520px, calc(100vw - var(--space-24))); border-radius: 24px; box-shadow: 0 30px 70px -20px rgba(36, 20, 14, 0.5); }
+.tl.tl.tl .hold-sheet { display: flex; flex-direction: column; gap: 18px; padding: 28px; }
+.tl.tl.tl .hold-sheet-head { display: flex; align-items: baseline; gap: var(--space-12); }
+.tl.tl.tl .hold-sheet-t { font-size: 24px; font-weight: 600; letter-spacing: -0.01em; color: var(--color-ink); }
+.tl.tl.tl .hold-sheet-amount { margin-left: auto; font-family: var(--font-mono); font-size: 20px; color: var(--color-ink); }
+.tl.tl.tl .input.hold-sheet-note { height: 60px; padding: 0 18px; border-radius: 14px; font-size: 19px; color: var(--color-ink); box-shadow: inset 0 0 0 1px var(--color-rule); }
+.tl.tl.tl .input.hold-sheet-note:focus { box-shadow: inset 0 0 0 2px var(--color-accent); }
+.tl.tl.tl .hold-sheet-btns { display: flex; justify-content: flex-end; gap: 10px; }
+.tl.tl.tl .hold-sheet-btns .btn { height: 60px; padding: 0 24px; border-radius: 16px; font-size: 17px; font-weight: 600; }
+.tl.tl.tl .hold-sheet-btns .btn .ic { width: 20px; height: 20px; }
+.tl.tl.tl .hold-sheet-btns .btn-primary { background: var(--color-accent); color: var(--color-accent-ink); box-shadow: none; }
+.tl.tl.tl .hold-sheet-btns .btn-primary .kbd { background: rgba(255, 255, 255, 0.2); color: var(--color-accent-ink); box-shadow: none; }
+.tl.tl.tl .hold-sheet-btns .btn-primary:disabled { background: var(--color-fill); color: var(--color-faint); }
+
+@media (max-width: 760px) {
+  .tl.tl.tl .held-bench { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto auto; overflow: auto; }
+  .tl.tl.tl .held-shelf { overflow: visible; padding: var(--space-16); }
+  .tl.tl.tl .held-side::before { display: none; }
+  .tl.tl.tl .held-side { box-shadow: inset 0 1px 0 var(--color-line); }
+}
+@media (prefers-reduced-motion: reduce) { .tl.tl.tl .held-row { transition: none; } }
+
+/* History, a sale's record, refund and the manager's approval (boards T5-1–T5-3, T3-1–T3-6).
+   The list on the left, in the shelf's place; the record in the sale column's place. */
+
+/* The left column: the title, the pills, then the rows, which scroll. */
+.tl.tl.tl .bench.hx > .main.hx-main { min-height: 0; overflow: hidden; padding: 20px var(--space-24) 0; gap: var(--space-16); }
+.tl.tl.tl .hx-head { flex: none; display: flex; align-items: baseline; gap: 14px; min-height: 48px; padding-top: var(--space-8); }
+.tl.tl.tl .hx-head h1 { font-size: 28px; font-weight: 600; letter-spacing: -0.02em; line-height: 1.2; color: var(--color-ink); white-space: nowrap; }
+.tl.tl.tl .hx-head > .btn { align-self: center; }
+.tl.tl.tl .hx-head.is-back { align-items: center; gap: 10px; padding-top: var(--space-4); }
+.tl.tl.tl .hx-head.is-back > .btn { margin-left: -12px; }
+.tl.tl.tl .hx-h1-code { font-size: 24px; font-weight: 400; color: var(--color-muted); }
+.tl.tl.tl .hx-sub { font-size: 15px; color: var(--color-muted); white-space: nowrap; }
+.tl.tl.tl .hx-search { align-self: center; width: 300px; max-width: 50%; height: 48px; border-radius: 14px; background: var(--color-fill); box-shadow: none; font-size: 16px; }
+.tl.tl.tl .hx-search:focus-within { box-shadow: inset 0 0 0 2px var(--color-rule); }
+
+/* Pills: how it was paid, 44px; the period and what happened, quieter, under them. */
+.tl.tl.tl .hx-pills { flex: none; display: flex; align-items: center; gap: var(--space-8); overflow-x: auto; scrollbar-width: none; }
+.tl.tl.tl .hx-pills.is-wrap { flex-wrap: wrap; overflow: visible; }
+.tl.tl.tl .hx-pill { flex: none; height: 44px; padding: 0 18px; border-radius: var(--radius-pill); display: inline-flex; align-items: center; font-size: 15px; font-weight: 500; color: var(--color-ink-2); box-shadow: inset 0 0 0 1px var(--color-rule); white-space: nowrap; transition: background-color var(--motion-fast) var(--motion-ease); }
+.tl.tl.tl .hx-pill[aria-checked="true"], .tl.tl.tl .hx-pill[aria-pressed="true"] { background: var(--color-ink); color: var(--color-surface); box-shadow: none; }
+.tl.tl.tl .hx-pill:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--color-surface), 0 0 0 4px var(--color-accent); }
+.tl.tl.tl .hx-pills.is-quiet { gap: var(--space-4); margin-top: -6px; }
+.tl.tl.tl .hx-pills.is-quiet .hx-pills { gap: 2px; }
+.tl.tl.tl .hx-pill.is-quiet { height: 36px; padding: 0 14px; font-size: var(--text-14); color: var(--color-muted); box-shadow: none; }
+.tl.tl.tl .hx-pill.is-quiet[aria-checked="true"], .tl.tl.tl .hx-pill.is-quiet[aria-pressed="true"] { background: var(--color-fill); color: var(--color-ink); }
+@media (hover: hover) { .tl.tl.tl .hx-pill.is-quiet:hover { color: var(--color-ink); } }
+.tl.tl.tl .hx-sep { flex: none; width: 1px; height: 20px; margin: 0 var(--space-8); background: var(--color-line); }
+
+/* The rows: a glyph for how it was paid, what was sold, the code, time and tender, the amount. */
+.tl.tl.tl .hx-list { flex: 1; min-height: 0; overflow: auto; margin: 0 -4px; padding: 2px 4px var(--space-24); }
+.tl.tl.tl .hx-item { padding-bottom: 6px; }
+.tl.tl.tl .hx-row { display: grid; grid-template-columns: 44px minmax(0, 1fr) auto; gap: 14px; align-items: center; min-height: 62px; padding: var(--space-8) 18px var(--space-8) 10px; border-radius: 16px; background: var(--color-surface); box-shadow: inset 0 0 0 1px var(--color-line); color: inherit; text-decoration: none; transition: background-color var(--motion-fast) var(--motion-ease); }
+@media (hover: hover) { .tl.tl.tl .hx-row:hover { background: var(--color-hover); } }
+.tl.tl.tl .hx-row[aria-current="true"] { box-shadow: inset 0 0 0 2px var(--color-ink); }
+.tl.tl.tl .hx-row:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var(--color-ink), 0 0 0 2px var(--color-surface), 0 0 0 4px var(--color-accent); }
+.tl.tl.tl .hx-glyph { width: 44px; height: 44px; border-radius: 12px; background: var(--color-fill); display: grid; place-items: center; color: var(--color-ink-2); }
+.tl.tl.tl .hx-glyph .ic { width: 22px; height: 22px; }
+.tl.tl.tl .hx-text { display: flex; flex-direction: column; min-width: 0; }
+.tl.tl.tl .hx-t { display: flex; align-items: center; gap: 10px; min-width: 0; font-size: var(--text-16); font-weight: 600; color: var(--color-ink); }
+.tl.tl.tl .hx-s { margin-top: 2px; font-size: var(--text-13); color: var(--color-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tl.tl.tl .hx-v { font-size: 17px; color: var(--color-ink); white-space: nowrap; }
+.tl.tl.tl .hx-tag { flex: none; height: 24px; padding: 0 9px; border-radius: var(--radius-pill); background: var(--color-fill); color: var(--color-ink-2); font-size: var(--text-12); font-weight: 500; display: inline-flex; align-items: center; }
+.tl.tl.tl .hx-day { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-12); padding: var(--space-16) var(--space-4) var(--space-8); }
+.tl.tl.tl .hx-day h2 { font-size: var(--text-14); font-weight: 600; color: var(--color-ink); }
+.tl.tl.tl .hx-day .num { font-size: var(--text-13); color: var(--color-muted); }
+.tl.tl.tl .skeleton.hx-skeleton { display: block; height: 62px; margin-bottom: 6px; border-radius: 16px; }
+.tl.tl.tl .bench.hx .empty { margin: auto; }
+
+/* The record, in the sale column's place: the head, the lines read-only, the facts, the sum and two keys. */
+.tl.tl.tl .bench.hx > .bench-side { min-height: 0; }
+.tl.tl.tl .hx-side .sale-head { border: 0; }
+.tl.tl.tl .hx-code { font-size: var(--text-13); color: var(--color-muted); white-space: nowrap; }
+.tl.tl.tl .hx-customer { max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: inline-block; line-height: 44px; padding: 0 14px; }
+.tl.tl.tl .hx-scroll { flex: 1; min-height: 0; overflow: auto; display: flex; flex-direction: column; }
+.tl.tl.tl .hx-lines { display: flex; flex-direction: column; gap: var(--space-4); padding: var(--space-8) var(--space-12); }
+.tl.tl.tl .hx-line { display: grid; grid-template-columns: 56px minmax(0, 1fr) auto; gap: var(--space-12); align-items: center; min-height: 76px; padding: var(--space-8) var(--space-12); border-radius: 16px; }
+.tl.tl.tl .hx-q { padding-left: var(--space-4); font-size: 17px; color: var(--color-ink-2); white-space: nowrap; }
+.tl.tl.tl .hx-n { font-size: var(--text-16); font-weight: 500; line-height: 1.3; color: var(--color-ink); }
+.tl.tl.tl .hx-each { margin-top: 3px; font-size: var(--text-13); color: var(--color-muted); }
+.tl.tl.tl .facts.hx-facts { flex: none; margin: 0 var(--space-12) var(--space-12); background: var(--color-surface); }
+.tl.tl.tl .fact.is-link { color: inherit; text-decoration: none; }
+@media (hover: hover) { .tl.tl.tl .fact.is-link:hover { background: var(--color-hover); } }
+.tl.tl.tl .fact.is-link:first-child { border-radius: 16px 16px 0 0; }
+.tl.tl.tl .fact.is-link:last-child { border-radius: 0 0 16px 16px; }
+.tl.tl.tl .fact.is-link:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var(--color-accent); }
+.tl.tl.tl .hx-facts .fact dt { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tl.tl.tl .hx-sum { flex: none; display: flex; justify-content: space-between; gap: var(--space-12); padding: var(--space-16) var(--space-24) 0; box-shadow: inset 0 1px 0 var(--color-line); font-size: var(--text-14); color: var(--color-muted); }
+.tl.tl.tl .hx-keys { flex: none; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.5fr); gap: 10px; padding: var(--space-16) 20px 20px; }
+.tl.tl.tl .hx-keys.is-one { grid-template-columns: minmax(0, 1fr); }
+.tl.tl.tl .hx-keys .take-key .ic { width: 24px; height: 24px; }
+.tl.tl.tl .hx-keys .error { text-align: center; }
+.tl.tl.tl .hx-key { height: 72px; border-radius: 18px; background: var(--color-surface); box-shadow: inset 0 0 0 1px var(--color-rule); display: flex; align-items: center; justify-content: center; gap: 10px; font-size: 18px; font-weight: 600; color: var(--color-ink); transition: transform var(--motion-fast) var(--motion-ease), background-color var(--motion-fast) var(--motion-ease); }
+.tl.tl.tl .hx-key .ic { width: 22px; height: 22px; color: var(--color-ink-2); }
+@media (hover: hover) { .tl.tl.tl .hx-key:hover { background: var(--color-hover); } }
+.tl.tl.tl .hx-key:active { transform: scale(var(--motion-press)); background: var(--color-pressed); }
+.tl.tl.tl .hx-key:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--color-surface), 0 0 0 4px var(--color-ink); }
+
+/* Refund: the lines with how many come back, the reason, how it goes back, the shelf. */
+.tl.tl.tl .hx-form { flex: 1; min-height: 0; overflow: auto; display: flex; flex-direction: column; gap: var(--space-12); margin: 0 -4px; padding: 2px 4px var(--space-24); }
+.tl.tl.tl .hx-rlines { display: flex; flex-direction: column; gap: 6px; }
+.tl.tl.tl .hx-rline { display: grid; grid-template-columns: 108px minmax(0, 1fr) auto; gap: var(--space-12); align-items: center; min-height: 76px; padding: var(--space-8) var(--space-12); border-radius: 16px; background: var(--color-surface); box-shadow: inset 0 0 0 1px var(--color-line); }
+.tl.tl.tl .hx-rline.is-on { box-shadow: inset 0 0 0 2px var(--color-ink); }
+.tl.tl.tl .hx-rline:not(.is-on) .hx-n, .tl.tl.tl .hx-rline:not(.is-on) .hx-v { color: var(--color-muted); }
+.tl.tl.tl .hx-step { display: flex; align-items: center; gap: 2px; }
+.tl.tl.tl .hx-step button { width: 36px; height: 44px; border-radius: 10px; background: var(--color-fill); display: grid; place-items: center; color: var(--color-ink-2); }
+.tl.tl.tl .hx-step button .ic { width: 18px; height: 18px; }
+.tl.tl.tl .hx-step button:disabled { opacity: 0.35; cursor: default; }
+.tl.tl.tl .hx-step button:active:not(:disabled) { transform: scale(var(--motion-press)); }
+.tl.tl.tl .hx-step button:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--color-accent); }
+.tl.tl.tl .hx-step .num { width: 32px; text-align: center; font-size: 17px; color: var(--color-ink); }
+.tl.tl.tl .hx-label { margin-top: 6px; font-size: var(--text-14); font-weight: 500; color: var(--color-muted); }
+.tl.tl.tl .hx-shelf { margin-top: var(--space-8); min-height: 44px; font-size: 15px; color: var(--color-ink); }
+
+/* Refunded: like Paid. */
+.tl.tl.tl .hx-side.is-done { background: var(--color-surface); }
+.tl.tl.tl .hx-done { display: flex; flex-direction: column; padding: var(--space-8) 20px 0; }
+.tl.tl.tl .hx-done .paid { padding-top: 36px; }
+.tl.tl.tl .hx-done .paid-mark .ic { width: 40px; height: 40px; }
+.tl.tl.tl .hx-done .facts.hx-facts { margin: 26px 0 0; }
+.tl.tl.tl .sale-keys.hx-done-keys { margin: 0; padding: var(--space-16) 20px 20px; }
+
+/* The manager's approval (T3-3): the reason as the title and the amount beside it, who approves with
+   their photos, their PIN's dots, a 3 × 4 keypad of 56px keys, and Cancel. */
+.tl.tl.tl .dialog:has(.approve-pin) { width: min(560px, calc(100vw - var(--space-32))); }
+.tl.tl.tl .dialog:has(.approve-pin) .dialog-body { position: relative; gap: var(--space-16); }
+.tl.tl.tl .dialog:has(.approve-amount) .dialog-body h2 { padding-right: 120px; }
+.tl.tl.tl .approve-amount { position: absolute; top: 31px; right: 28px; font-size: 20px; color: var(--color-ink); }
+.tl.tl.tl .approvers { display: flex; flex-wrap: wrap; gap: var(--space-8); }
+.tl.tl.tl .approver { flex: 1 1 0; min-width: 160px; height: 60px; padding: 0 14px; border-radius: 16px; display: flex; align-items: center; gap: var(--space-12); box-shadow: inset 0 0 0 1px var(--color-rule); font-size: var(--text-16); font-weight: 600; color: var(--color-ink); text-align: left; }
+.tl.tl.tl .approver .avatar { width: 36px; height: 36px; flex: none; }
+.tl.tl.tl .approver[aria-checked="true"] { box-shadow: inset 0 0 0 2px var(--color-ink); }
+.tl.tl.tl .approver:disabled { opacity: 0.5; cursor: default; }
+.tl.tl.tl .approver:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var(--color-ink), 0 0 0 2px var(--color-surface), 0 0 0 4px var(--color-accent); }
+.tl.tl.tl .approve-pin { align-items: stretch; gap: var(--space-12); padding-top: var(--space-4); }
+.tl.tl.tl .approve-pin-head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-16); padding: 0 2px; }
+.tl.tl.tl .approve-pin-head .label { font-size: var(--text-14); font-weight: 500; color: var(--color-ink-2); }
+.tl.tl.tl .approve-pin .pin { gap: 14px; }
+.tl.tl.tl .approve-pin .pin i { box-shadow: inset 0 0 0 2px var(--color-rule); }
+.tl.tl.tl .approve-pin .pin i.on { box-shadow: none; }
+.tl.tl.tl .approve-pin .keypad { max-width: none; }
+.tl.tl.tl .approve-pin[aria-busy="true"] .keypad, .tl.tl.tl .approve-pin[aria-busy="true"] .approve-pin-head { opacity: 0.4; }
+
+/* A phone: the list, or the record as its own screen; a refund stacks its two columns. */
+@media (max-width: 760px) {
+  .tl.tl.tl .bench.hx > .main.hx-main { padding: var(--space-12) var(--space-16) 0; }
+  .tl.tl.tl .bench.hx.is-refund { grid-template-rows: auto auto; overflow: auto; }
+  .tl.tl.tl .bench.hx.is-refund > .main.hx-main { overflow: visible; }
+  .tl.tl.tl .bench.hx.is-refund > .bench-side > .sale-head { display: flex; }
+  .tl.tl.tl .bench.hx.is-refund > .bench-side > .hx-scroll, .tl.tl.tl .bench.hx.is-refund > .bench-side > .hx-sum { display: flex; }
+  .tl.tl.tl .bench.hx.is-refund > .bench-side > .hx-keys { display: grid; }
+  .tl.tl.tl .bench.hx.is-refund > .bench-side::before { display: none; }
+  .tl.tl.tl .hx-search { width: auto; flex: 1; max-width: none; }
+}
+.tl.tl.tl .hx-text .num, .tl.tl.tl .hx-s, .tl.tl.tl .hx-each { text-align: left; }
+
+/* The shift (T6): Open the shift, Shift with Cash in or out beside it, Count the drawer, Close the shift, closed.
+   The screen on the left, a 400 wide ground side with the keypad and the one orange key on the right. */
+
+.tl.tl.tl .shift-bench { display: grid; grid-template-columns: minmax(0, 1fr) 400px; height: 100%; min-height: 0; background: var(--color-surface); }
+.tl.tl.tl .shift-main { display: flex; flex-direction: column; gap: 18px; min-width: 0; min-height: 0; padding: 24px 28px; overflow: auto; }
+
+/* The head: the title, then facts in a quieter line; a back key before it on a step. */
+.tl.tl.tl .shift-h { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 14px; }
+.tl.tl.tl .shift-h h1 { margin: 0; font-size: 28px; font-weight: 600; letter-spacing: -0.02em; line-height: 1.2; color: var(--color-ink); }
+.tl.tl.tl .shift-h .sub { font-size: 15px; color: var(--color-muted); }
+.tl.tl.tl .shift-h .sub .num { font-family: var(--font-mono); font-size: var(--text-14); }
+.tl.tl.tl .shift-h .end { margin-left: auto; }
+.tl.tl.tl .shift-h.is-nav { align-items: center; }
+.tl.tl.tl .shift-back { height: 48px; padding: 0 14px 0 10px; border-radius: 12px; display: inline-flex; align-items: center; gap: 6px; background: var(--color-surface); box-shadow: inset 0 0 0 1px var(--color-rule); color: var(--color-ink-2); font-size: 15px; font-weight: 500; white-space: nowrap; }
+.tl.tl.tl .shift-back .ic { width: 18px; height: 18px; }
+@media (hover: hover) { .tl.tl.tl .shift-back:hover { background: var(--color-hover); } }
+.tl.tl.tl .shift-back:focus-visible { outline: none; box-shadow: inset 0 0 0 1px var(--color-rule), 0 0 0 2px var(--color-surface), 0 0 0 4px var(--color-ink); }
+
+/* Figures, as tiles. */
+.tl.tl.tl .shift-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.tl.tl.tl .shift-stat { padding: 14px 18px; border-radius: 16px; background: var(--color-ground); min-width: 0; }
+.tl.tl.tl .shift-stat .k { font-size: var(--text-14); color: var(--color-muted); }
+.tl.tl.tl .shift-stat .v { margin-top: 2px; font-family: var(--font-mono); font-size: 26px; letter-spacing: -0.02em; color: var(--color-ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* The shift's log. */
+.tl.tl.tl .shift-log { display: flex; flex-direction: column; border-radius: 18px; background: var(--color-surface); box-shadow: inset 0 0 0 1px var(--color-line); }
+.tl.tl.tl .shift-log-r { display: grid; grid-template-columns: 40px minmax(0, 1fr) auto; gap: 12px; align-items: center; min-height: 60px; padding: 10px 18px; box-shadow: inset 0 -1px 0 var(--color-line); font-size: 15px; line-height: 1.4; color: var(--color-ink-2); }
+.tl.tl.tl .shift-log-r:last-child { box-shadow: none; }
+.tl.tl.tl .shift-log-r b { font-weight: 600; color: var(--color-ink); }
+.tl.tl.tl .shift-log-r .num, .tl.tl.tl .shift-log-r time { font-family: var(--font-mono); font-size: var(--text-14); color: var(--color-muted); }
+.tl.tl.tl .shift-log-r .g { width: 40px; height: 40px; border-radius: 12px; background: var(--color-fill); display: grid; place-items: center; color: var(--color-ink-2); }
+.tl.tl.tl .shift-log-r .g .ic { width: 20px; height: 20px; }
+
+/* The side: a title, what is chosen, the figure, the keypad, and the one key at the foot. */
+.tl.tl.tl .shift-side { display: flex; flex-direction: column; min-width: 0; min-height: 0; padding-top: 20px; overflow: auto; background: var(--color-ground); box-shadow: inset 1px 0 0 var(--color-line); }
+.tl.tl.tl .shift-side-head { display: flex; align-items: center; gap: var(--space-12); padding-right: 20px; }
+.tl.tl.tl .shift-side-head .seg { margin-left: auto; }
+.tl.tl.tl .shift-side-head .seg button { height: 36px; padding: 0 14px; font-size: 15px; }
+.tl.tl.tl .shift-side-head .seg button[aria-checked="true"] { color: var(--color-ink); background: var(--color-surface); box-shadow: var(--shadow-ring), var(--shadow-raised); }
+.tl.tl.tl .shift-side-t { margin: 0; padding: 0 24px; font-size: 22px; font-weight: 600; letter-spacing: -0.01em; line-height: 1.3; color: var(--color-ink); }
+.tl.tl.tl .shift-fig { display: flex; align-items: baseline; gap: 12px; padding: 10px 24px 0; }
+.tl.tl.tl .shift-fig .k { font-size: 15px; color: var(--color-muted); }
+.tl.tl.tl .shift-fig .v { margin-left: auto; font-family: var(--font-mono); font-size: 46px; line-height: 1.1; letter-spacing: -0.03em; color: var(--color-ink); }
+.tl.tl.tl .shift-side .keypad { max-width: none; gap: 6px; padding: 14px 20px 0; }
+.tl.tl.tl .shift-side .keypad button { height: 56px; border-radius: 14px; background: var(--color-surface); box-shadow: inset 0 0 0 1px var(--color-line); font-family: var(--font-sans); font-size: 24px; font-weight: 600; }
+.tl.tl.tl .shift-side .keypad button .ic { width: 24px; height: 24px; }
+.tl.tl.tl .shift-side .keypad button:active:not(:disabled) { background: var(--color-pressed); box-shadow: none; }
+.tl.tl.tl .shift-side .keypad button:focus-visible { box-shadow: 0 0 0 2px var(--color-surface), 0 0 0 4px var(--color-accent); }
+.tl.tl.tl .shift-foot { margin-top: auto; display: flex; flex-direction: column; gap: 10px; padding: 16px 20px 20px; }
+.tl.tl.tl .shift-foot .take-key { width: 100%; }
+
+/* Cash in or out: the three ways, then the notes counted and the amount. */
+.tl.tl.tl .shift-ways { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; padding: 14px 20px 0; }
+.tl.tl.tl .shift-ways button { height: 64px; padding: 0 var(--space-4); border-radius: 14px; background: var(--color-surface); box-shadow: inset 0 0 0 1px var(--color-line); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--space-4); font-size: var(--text-13); font-weight: 500; line-height: 1.15; color: var(--color-ink-2); text-align: center; }
+.tl.tl.tl .shift-ways button .ic { width: 22px; height: 22px; }
+.tl.tl.tl .shift-ways button[aria-checked="true"] { background: var(--color-ink); color: var(--color-surface); box-shadow: none; }
+.tl.tl.tl .shift-notes { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; padding: 14px 20px 0; }
+.tl.tl.tl .shift-notes button { height: 54px; min-width: 0; border-radius: 12px; background: var(--color-surface); box-shadow: inset 0 0 0 1px var(--color-line); display: flex; flex-direction: column; align-items: center; justify-content: center; font-family: var(--font-mono); font-size: 15px; line-height: 1.2; color: var(--color-ink); }
+.tl.tl.tl .shift-notes button small { font-size: var(--text-12); color: var(--color-muted); white-space: nowrap; }
+.tl.tl.tl .shift-notes button.is-amount small { font-family: var(--font-sans); }
+.tl.tl.tl .shift-notes button[aria-current="true"] { box-shadow: inset 0 0 0 2px var(--color-ink); }
+.tl.tl.tl .shift-ways button:focus-visible, .tl.tl.tl .shift-notes button:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--color-surface), 0 0 0 4px var(--color-accent); }
+.tl.tl.tl .shift-note { height: 52px; margin: 12px 20px 0; padding: 0 16px; border-radius: 14px; border: 0; background: var(--color-surface); box-shadow: inset 0 0 0 1px var(--color-rule); font-size: var(--text-16); color: var(--color-ink); }
+.tl.tl.tl .shift-note::placeholder { color: var(--color-muted); }
+.tl.tl.tl .shift-note:focus { outline: none; box-shadow: inset 0 0 0 2px var(--color-accent); }
+
+/* A count: one row per note, the chosen row marked, the total at the foot. */
+.tl.tl.tl .tally { border-radius: 18px; background: var(--color-surface); box-shadow: inset 0 0 0 1px var(--color-line); overflow: hidden; }
+.tl.tl.tl .tally-h, .tl.tl.tl .tally-r { display: grid; grid-template-columns: minmax(0, 1fr) 110px 150px; align-items: center; padding: 0 20px; }
+.tl.tl.tl .tally-h { height: 40px; background: var(--color-ground); box-shadow: inset 0 -1px 0 var(--color-line); font-size: var(--text-13); font-weight: 500; color: var(--color-muted); }
+.tl.tl.tl .tally-h span:not(:first-child), .tl.tl.tl .tally-r span:not(:first-child) { text-align: right; }
+.tl.tl.tl .tally-r { width: 100%; height: 50px; background: transparent; box-shadow: inset 0 -1px 0 var(--color-line); font-family: var(--font-mono); font-size: 17px; color: var(--color-ink); text-align: left; }
+.tl.tl.tl .tally-r span:last-child { color: var(--color-ink-2); }
+.tl.tl.tl .tally-r.is-zero span:nth-child(2), .tl.tl.tl .tally-r.is-zero span:last-child { color: var(--color-faint); }
+.tl.tl.tl .tally-r[aria-current="true"] { background: var(--color-fill); box-shadow: inset 3px 0 0 var(--color-ink), inset 0 -1px 0 var(--color-line); }
+.tl.tl.tl .tally-r:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var(--color-accent); }
+.tl.tl.tl .tally-f { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; height: 58px; padding: 0 20px; font-size: var(--text-16); font-weight: 600; color: var(--color-ink); }
+.tl.tl.tl .tally-f .num { font-family: var(--font-mono); font-size: 20px; font-weight: 500; }
+.tl.tl.tl .tally.is-slim .tally-h, .tl.tl.tl .tally.is-slim .tally-r { grid-template-columns: minmax(0, 1fr) 80px 120px; }
+.tl.tl.tl .tally.is-slim .tally-r { height: 44px; font-size: var(--text-16); }
+.tl.tl.tl .tally-two { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; align-items: start; }
+
+/* Close the shift: Out by, the count, the float left, what happened, then Count again and Close. */
+.tl.tl.tl .shift-page { display: flex; flex-direction: column; gap: 22px; height: 100%; min-height: 0; padding: 28px 48px; overflow: auto; background: var(--color-surface); }
+.tl.tl.tl .shift-lede { margin: 0; font-size: 30px; font-weight: 600; letter-spacing: -0.02em; line-height: 1.25; color: var(--color-ink); }
+.tl.tl.tl .shift-lede .num { font-family: var(--font-mono); font-weight: 500; }
+.tl.tl.tl .shift-lede .is-bad { color: var(--color-danger); }
+.tl.tl.tl .shift-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; max-width: 900px; }
+.tl.tl.tl .shift-field { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.tl.tl.tl .shift-field.is-wide { max-width: 900px; }
+.tl.tl.tl .shift-field label, .tl.tl.tl .shift-field .label { font-size: 15px; font-weight: 600; color: var(--color-ink-2); }
+.tl.tl.tl .shift-box, .tl.tl.tl .shift-input { height: 60px; border-radius: 14px; display: flex; align-items: center; gap: 6px; padding: 0 18px; font-size: 19px; color: var(--color-ink); }
+.tl.tl.tl .shift-box { background: var(--color-ground); }
+.tl.tl.tl .shift-box .num { font-family: var(--font-mono); }
+.tl.tl.tl .shift-box small { margin-left: auto; font-size: 15px; color: var(--color-muted); }
+.tl.tl.tl .shift-box small .num { font-size: var(--text-16); color: var(--color-ink-2); }
+.tl.tl.tl .shift-input { background: var(--color-surface); box-shadow: inset 0 0 0 1px var(--color-rule); }
+.tl.tl.tl .shift-input small { margin-right: 6px; font-size: 15px; color: var(--color-muted); }
+.tl.tl.tl .shift-input input { flex: 1; min-width: 0; height: 100%; border: 0; padding: 0; background: transparent; font: inherit; color: inherit; }
+.tl.tl.tl .shift-input input, .tl.tl.tl .shift-input input:focus, .tl.tl.tl .shift-input input:focus-visible { outline: none; box-shadow: none; }
+.tl.tl.tl .shift-input.is-money input { font-family: var(--font-mono); }
+.tl.tl.tl .shift-input:focus-within { box-shadow: inset 0 0 0 2px var(--color-accent); }
+.tl.tl.tl .shift-input:has(input[aria-invalid="true"]) { box-shadow: inset 0 0 0 2px var(--color-danger); }
+.tl.tl.tl .shift-fact { display: flex; align-items: center; gap: var(--space-8); margin: 0; font-size: 15px; color: var(--color-ink-2); }
+.tl.tl.tl .shift-fact .ic { width: 18px; height: 18px; color: var(--color-muted); }
+.tl.tl.tl .shift-fact .num { font-family: var(--font-mono); }
+.tl.tl.tl .shift-acts { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 8px; }
+.tl.tl.tl .shift-btn { height: 64px; padding: 0 24px; border-radius: 16px; display: inline-flex; align-items: center; gap: 10px; background: var(--color-surface); box-shadow: inset 0 0 0 1px var(--color-rule); font-size: 17px; font-weight: 600; color: var(--color-ink); }
+.tl.tl.tl .shift-btn .ic { width: 20px; height: 20px; }
+.tl.tl.tl .shift-btn .kbd { margin: 0; }
+.tl.tl.tl .shift-btn.is-go { background: var(--color-accent); color: var(--color-accent-ink); box-shadow: 0 1px 2px rgba(36, 20, 14, 0.18); }
+.tl.tl.tl .shift-btn.is-go:disabled { background: var(--color-fill); color: var(--color-faint); box-shadow: none; }
+.tl.tl.tl .shift-btn:active:not(:disabled) { transform: scale(var(--motion-press)); }
+.tl.tl.tl .shift-btn:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--color-surface), 0 0 0 4px var(--color-ink); }
+
+/* Closed: the mark, the shift, its facts; who closed it beside, and Who's selling next. */
+.tl.tl.tl .shift-done { display: grid; grid-template-columns: minmax(0, 1fr) 420px; height: 100%; min-height: 0; background: var(--color-surface); }
+.tl.tl.tl .shift-done-main { display: flex; flex-direction: column; gap: 26px; min-width: 0; padding: 72px 64px; overflow: auto; }
+.tl.tl.tl .shift-done-mark { width: 72px; height: 72px; border-radius: var(--radius-pill); background: var(--color-fill); color: var(--color-ink-2); display: grid; place-items: center; }
+.tl.tl.tl .shift-done-mark .ic { width: 36px; height: 36px; }
+.tl.tl.tl .shift-done-main h1 { margin: 0; font-size: 34px; font-weight: 600; letter-spacing: -0.02em; line-height: 1.2; color: var(--color-ink); }
+.tl.tl.tl .shift-done-main h1 .num { font-family: var(--font-mono); font-weight: 500; }
+.tl.tl.tl .shift-done-main .facts { max-width: 560px; margin: 0; }
+.tl.tl.tl .shift-done-main .fact.is-bad, .tl.tl.tl .shift-done-main .fact.is-bad > .ic, .tl.tl.tl .shift-done-main .fact.is-bad dd { color: var(--color-danger); }
+.tl.tl.tl .shift-done-main .fact dd.is-name { font-family: var(--font-sans); font-size: 15px; color: var(--color-ink-2); }
+.tl.tl.tl .shift-done-side { display: flex; flex-direction: column; gap: 16px; padding: 72px 40px 40px; background: var(--color-ground); box-shadow: inset 1px 0 0 var(--color-line); }
+.tl.tl.tl .shift-done-side .avatar { width: 72px; height: 72px; }
+.tl.tl.tl .shift-done-side .avatar .ic { width: 32px; height: 32px; }
+.tl.tl.tl .shift-done-side .who { font-size: 20px; font-weight: 600; color: var(--color-ink); }
+.tl.tl.tl .shift-done-side .sub { font-size: 15px; color: var(--color-muted); }
+.tl.tl.tl .shift-done-side .take-key { margin-top: auto; }
+
+@media (max-width: 760px) {
+  .tl.tl.tl .shift-bench, .tl.tl.tl .shift-done { grid-template-columns: minmax(0, 1fr); height: auto; }
+  .tl.tl.tl .shift-main, .tl.tl.tl .shift-done-main { padding: 20px 16px; overflow: visible; }
+  .tl.tl.tl .shift-side, .tl.tl.tl .shift-done-side { box-shadow: inset 0 1px 0 var(--color-line); overflow: visible; }
+  .tl.tl.tl .shift-stats, .tl.tl.tl .tally-two, .tl.tl.tl .shift-fields { grid-template-columns: minmax(0, 1fr); }
+  .tl.tl.tl .shift-page { height: auto; padding: 20px 16px; }
+  .tl.tl.tl .shift-done-side { padding: 24px 16px; }
+}
+@media (prefers-reduced-motion: reduce) { .tl.tl.tl .shift-btn:active:not(:disabled) { transform: none; } }

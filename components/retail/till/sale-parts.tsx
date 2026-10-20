@@ -564,7 +564,7 @@ export function HoldPopover({
   const { toast } = useToast();
   const router = useRouter();
   const queryClient = useQueryClient();
-  const { cart, shiftHere, customerName, orderDiscountAmount, clearCart, isPosHost } = useTill();
+  const { cart, amountDue, shiftHere, customerName, orderDiscountAmount, clearCart, isPosHost } = useTill();
   const [label, setLabel] = React.useState("");
   // However it opens, it opens on the customer's name.
   const [wasOpen, setWasOpen] = React.useState(open);
@@ -572,7 +572,6 @@ export function HoldPopover({
     setWasOpen(open);
     if (open) setLabel(customerName);
   }
-  const id = React.useId();
 
   const hold = useMutation({
     mutationFn: () =>
@@ -609,28 +608,32 @@ export function HoldPopover({
       }
     >
       <form
+        className="hold-sheet"
         onSubmit={(event) => {
           event.preventDefault();
           hold.mutate();
         }}
       >
-        <div className="pop-body">
-          <div className="field">
-            <label htmlFor={id}>
-              Name it <span className="opt">optional</span>
-            </label>
-            <input id={id} className="input input-lg" value={label} autoFocus onChange={(event) => setLabel(event.target.value)} />
-            <span className="help">It waits under Held until this shift closes.</span>
-          </div>
+        <div className="hold-sheet-head">
+          <span className="hold-sheet-t">Hold this sale</span>
+          <span className="hold-sheet-amount">{usd(amountDue)}</span>
         </div>
-        <div className="pop-foot">
-          <span className="kbd push-left">
-            Esc
-          </span>
-          <button type="submit" className="btn btn-ink" disabled={hold.isPending} aria-busy={hold.isPending || undefined}>
+        <input
+          className="input hold-sheet-note"
+          aria-label="Note"
+          placeholder="Note"
+          value={label}
+          autoFocus
+          onChange={(event) => setLabel(event.target.value)}
+        />
+        <div className="hold-sheet-btns">
+          <button type="button" className="btn" onClick={() => setOpen(false)}>
+            Cancel
+          </button>
+          <button type="submit" className="btn btn-primary" disabled={hold.isPending} aria-busy={hold.isPending || undefined}>
             <PauseCircle className="ic" />
-            Hold the sale
-            <span className="kbd on-primary">Enter</span>
+            Hold
+            <span className="kbd on-primary">↵</span>
           </button>
         </div>
       </form>

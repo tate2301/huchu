@@ -9,7 +9,7 @@
 
 import * as React from "react";
 import { useSession } from "next-auth/react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 import { AnimatePresence } from "framer-motion";
 
 import { useToast } from "@/components/ui/use-toast";
@@ -17,7 +17,6 @@ import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import {
   Barcode,
   CaretLeft,
-  CaretRight,
   DotsThree,
   HandCoins,
   IdentificationCard,
@@ -27,17 +26,17 @@ import {
   ShoppingCart,
   Trash,
   Tray,
-  UserSwitch,
   WifiSlash,
   X,
 } from "@/lib/icons";
 import { enumLabel } from "@/lib/retail/words";
 import { percentWords, PRICE_UP_SENTENCE } from "@/lib/retail/till-rule-words";
-import { count, firstName, pairedWhen, usd } from "./format";
+import { count, firstName, usd } from "./format";
 import { KeySheet } from "./keys";
 import { RollingFigure } from "./motion";
-import { Empty, ErrorLine, GateSide, Keypad, type KeypadKey, LoadFailed, Segmented, TillPopover, typeAmount, useKeypadKeys, useWindowKeys } from "./parts";
+import { Empty, ErrorLine, LoadFailed, Segmented, TillPopover, useWindowKeys } from "./parts";
 import { PayTray, payWays } from "./pay-tray";
+import { OpenShiftScreen } from "./shift";
 import { useApproval } from "./approval";
 import { LaybyStartDialog } from "./layby";
 import { bottlesBackCredit } from "./cart-pricing";
@@ -56,7 +55,6 @@ import { asksForId, caseMoment, licenceEyebrow, licenceSentence } from "./moment
 import { CustomerPopover, DiscountPopover, HoldPopover, ReasonDialog, SaleLine, useDropSale } from "./sale-parts";
 import { saleChangeWords } from "./sale-words";
 import { parseScan } from "./scan-match";
-import { useSignOut } from "./sign-out";
 import { cue } from "./sound";
 import { useTill } from "./state";
 import { ProductTile, QuickRow } from "./tile";
@@ -83,7 +81,7 @@ export function SellScreen() {
     );
   }
   if (!context) return <ContextMissing />;
-  if (!shiftHere) return <OpenShiftGate />;
+  if (!shiftHere) return <OpenShiftScreen />;
   return <Workbench />;
 }
 
@@ -99,95 +97,6 @@ function ContextMissing() {
 
 /* ─── 3. Open the shift ───────────────────────────────────────────────── */
 
-function OpenShiftGate() {
-  const { data: session } = useSession();
-  const { context } = useTill();
-  const { requestSignOut } = useSignOut();
-  const queryClient = useQueryClient();
-  // The float the till's last close left, and whether the shop counts a ZiG float (W-37).
-  const defaults = useQuery({
-    queryKey: ["retail-pos-shift-defaults"],
-    queryFn: async () => (await fetchJson<{ data: { float: string; hint: string; takesZig: boolean; zigFloat: string } }>("/api/v2/retail/pos/shifts/new")).data,
-    staleTime: 0,
-  });
-  const [typedUsd, setFloat] = React.useState<string | null>(null);
-  const [zigFloat, setZigFloat] = React.useState("");
-  const [field, setField] = React.useState<"usd" | "zig">("usd");
-  const float = typedUsd ?? (defaults.data?.float ? String(Number(defaults.data.float)) : "");
-  const takesZig = Boolean(defaults.data?.takesZig);
-  const value = Number(float || "0");
-  const zigValue = Number(zigFloat || "0");
-  const open = useMutation({
-    mutationFn: () =>
-      fetchJson("/api/v2/retail/pos/shifts", {
-        method: "POST",
-        body: JSON.stringify({ openingFloat: value, ...(takesZig ? { openingFloatZig: zigValue } : {}) }),
-      }),
-    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ["retail-current-shift"] }),
-  });
-  const onKey = (key: KeypadKey) => {
-    if (field === "zig") setZigFloat((current) => typeAmount(current, key));
-    else setFloat(typeAmount(float, key));
-  };
-  useKeypadKeys(onKey);
-  useWindowKeys((event) => {
-    if (event.key === "Enter" && !open.isPending) {
-      event.preventDefault();
-      open.mutate();
-    }
-  });
-
-  return (
-    <div className="gate is-over">
-      <div className="gate-form">
-        <div>
-          <h1 className="text-display">Open the shift</h1>
-          <p className="under">
-            {session?.user?.name ?? "You"} on {context?.till.name}
-            {context?.nextShiftNo ? (
-              <>
-                , shift <span className="num">{context.nextShiftNo}</span>
-              </>
-            ) : null}
-            . Count the float into the drawer.
-          </p>
-        </div>
-        <button type="button" className={field === "usd" ? "tender" : "tender is-quiet"} aria-pressed={field === "usd"} onClick={() => setField("usd")}>
-          <span className="l">US$ float</span>
-          <span className="tender-figure">{usd(value)}</span>
-        </button>
-        <span className="help">{defaults.data?.hint ?? "Counted in."}</span>
-        {takesZig ? (
-          <button type="button" className={field === "zig" ? "tender" : "tender is-quiet"} aria-pressed={field === "zig"} onClick={() => setField("zig")}>
-            <span className="l">ZiG float</span>
-            <span className="tender-figure">ZiG {zigValue.toFixed(2)}</span>
-          </button>
-        ) : null}
-        <Keypad onKey={onKey} left="dot" disabled={open.isPending} />
-        {open.isError ? <ErrorLine large>{getApiErrorMessage(open.error)}</ErrorLine> : null}
-        <button type="button" className="btn btn-primary btn-touch btn-block" aria-busy={open.isPending || undefined} onClick={() => open.mutate()}>
-          <CaretRight className="ic" />
-          Open shift with {usd(value)}
-          {takesZig && zigValue > 0 ? ` and ZiG ${zigValue.toFixed(2)}` : ""}
-        </button>
-        <button
-          type="button"
-          className="btn btn-quiet self-start"
-          onClick={() => requestSignOut()}
-        >
-          <UserSwitch className="ic" />
-          Someone else
-        </button>
-      </div>
-      <GateSide
-        lede={context ? `${context.till.name} at ${context.site.name}.` : ""}
-        quiet={context ? `Paired ${pairedWhen(context.device.pairedAt)} by ${context.device.pairedBy}.` : ""}
-        step={3}
-        till={context?.till.name}
-      />
-    </div>
-  );
-}
 
 /* ─── The workbench ───────────────────────────────────────────────────── */
 

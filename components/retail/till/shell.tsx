@@ -45,7 +45,7 @@ import {
 import { useHydrated } from "@/hooks/use-hydrated";
 import { getPosPortalHref, type PosPortalNavKey } from "@/lib/retail/pos-host";
 import { useConnection } from "./connection";
-import { dayMonth, hhmm, ROLE_WORD } from "./format";
+import { dayMonth, hhmm, ROLE_WORD, usd } from "./format";
 import { useTillLock } from "./lock";
 import { Avatar, TillDialog, TillPopover } from "./parts";
 import { useSignOut } from "./sign-out";
@@ -312,7 +312,7 @@ function PersonMessages() {
 
 function CashDropPrompt() {
   const router = useRouter();
-  const { cashDropPrompt, answerCashDrop, isPosHost } = useTill();
+  const { cashDropPrompt, answerCashDrop, isPosHost, shiftHere, rules } = useTill();
   const { isLocked } = useTillLock();
   return (
     <TillDialog
@@ -321,7 +321,6 @@ function CashDropPrompt() {
         if (!open) answerCashDrop();
       }}
       title="Move cash to the safe"
-      description={cashDropPrompt ?? undefined}
       foot={
         <>
           <button type="button" className="btn" onClick={answerCashDrop}>
@@ -330,6 +329,7 @@ function CashDropPrompt() {
           <button
             type="button"
             className="btn btn-primary"
+            autoFocus
             onClick={() => {
               answerCashDrop();
               router.push(`${getPosPortalHref("shift", isPosHost)}?move=drop`);
@@ -337,10 +337,28 @@ function CashDropPrompt() {
           >
             <Vault className="ic" />
             Move cash now
+            <span className="kbd on-primary" aria-hidden="true">
+              ↵
+            </span>
           </button>
         </>
       }
-    />
+    >
+      {shiftHere && rules ? (
+        <dl className="facts">
+          <div className="fact">
+            <Vault className="ic" />
+            <dt>In the drawer</dt>
+            <dd>about {usd(shiftHere.expectedCash)}</dd>
+          </div>
+          <div className="fact">
+            <GearSix className="ic" />
+            <dt>Till rules</dt>
+            <dd>{usd(Number(rules.cashDropPromptOver))}</dd>
+          </div>
+        </dl>
+      ) : null}
+    </TillDialog>
   );
 }
 
