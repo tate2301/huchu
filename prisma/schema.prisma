@@ -8066,6 +8066,9 @@ model SalesInvoice {
   madeByVane  Boolean @default(false)
   issuedById    String?
   issuedAt      DateTime?
+  /// D7 (books-final §4.1 rule 2): the document this one replaces. Revise voids the old one and
+  /// makes this one, a draft that takes its number at issue; both stay visible and linked.
+  supersedesId  String?
   createdAt     DateTime             @default(now())
   updatedAt     DateTime             @updatedAt
 
@@ -8082,8 +8085,12 @@ model SalesInvoice {
 
   fromQuotation SalesQuotation? @relation("SalesInvoiceFromQuotation", fields: [quotationId], references: [id], onDelete: SetNull)
 
+  supersedes   SalesInvoice?  @relation("SalesInvoiceRevision", fields: [supersedesId], references: [id], onDelete: SetNull)
+  supersededBy SalesInvoice[] @relation("SalesInvoiceRevision")
+
   @@unique([companyId, invoiceNumber])
   @@index([companyId, status])
+  @@index([companyId, supersedesId])
 }
 
 model SalesInvoiceLine {
@@ -8128,6 +8135,9 @@ model SalesQuotation {
   madeByVane    Boolean @default(false)
   issuedById      String?
   issuedAt        DateTime?
+  /// D7 (books-final §4.1 rule 2): the document this one replaces. Revise voids the old one and
+  /// makes this one, a draft that takes its number at issue; both stay visible and linked.
+  supersedesId  String?
   createdAt       DateTime        @default(now())
   updatedAt       DateTime        @updatedAt
 
@@ -8139,8 +8149,12 @@ model SalesQuotation {
   crmLeadDocuments CrmLeadDocument[]    @relation("CrmLeadDocQuotation")
   invoicesRaised   SalesInvoice[]       @relation("SalesInvoiceFromQuotation")
 
+  supersedes   SalesQuotation?  @relation("SalesQuotationRevision", fields: [supersedesId], references: [id], onDelete: SetNull)
+  supersededBy SalesQuotation[] @relation("SalesQuotationRevision")
+
   @@unique([companyId, quotationNumber])
   @@index([companyId, status])
+  @@index([companyId, supersedesId])
 }
 
 model SalesQuotationLine {
@@ -8229,6 +8243,9 @@ model CreditNote {
   createdById String?
   issuedById  String?
   issuedAt    DateTime?
+  /// D7 (books-final §4.1 rule 2): the document this one replaces. Revise voids the old one and
+  /// makes this one, a draft that takes its number at issue; both stay visible and linked.
+  supersedesId  String?
   createdAt   DateTime   @default(now())
   updatedAt   DateTime   @updatedAt
 
@@ -8239,8 +8256,12 @@ model CreditNote {
   issuedBy      User?            @relation("CreditNoteIssuedBy", fields: [issuedById], references: [id])
   fiscalReceipt FiscalReceipt?   @relation("CreditNoteFiscalReceipt")
 
+  supersedes   CreditNote?  @relation("CreditNoteRevision", fields: [supersedesId], references: [id], onDelete: SetNull)
+  supersededBy CreditNote[] @relation("CreditNoteRevision")
+
   @@unique([companyId, noteNumber])
   @@index([companyId, status])
+  @@index([companyId, supersedesId])
 }
 
 model CreditNoteLine {
@@ -8305,6 +8326,9 @@ model PurchaseBill {
   createdById    String?
   issuedById     String?
   issuedAt       DateTime?
+  /// D7 (books-final §4.1 rule 2): the document this one replaces. Revise voids the old one and
+  /// makes this one, a draft that takes its number at issue; both stay visible and linked.
+  supersedesId  String?
   /// D12: the goods receipt it bills (the three-way match), and the order behind it.
   goodsReceiptId  String?    @unique
   purchaseOrderId String?
@@ -8333,8 +8357,12 @@ model PurchaseBill {
   createdBy           User?                @relation("PurchaseBillCreatedBy", fields: [createdById], references: [id])
   issuedBy            User?                @relation("PurchaseBillIssuedBy", fields: [issuedById], references: [id])
 
+  supersedes   PurchaseBill?  @relation("PurchaseBillRevision", fields: [supersedesId], references: [id], onDelete: SetNull)
+  supersededBy PurchaseBill[] @relation("PurchaseBillRevision")
+
   @@unique([companyId, billNumber])
   @@index([companyId, status])
+  @@index([companyId, supersedesId])
 }
 
 model PurchaseBillLine {
@@ -8857,6 +8885,9 @@ model FiscalisationProviderConfig {
   /// Last FDMS call that succeeded / failed. "Stop selling" reads `lastFailedAt`.
   lastOkAt         DateTime?
   lastFailedAt     DateTime?
+  /// D18: a device registered against ZIMRA's test environment. Only then may the owner purge
+  /// what it signed (books-final §2.5, §5.12). Never on for a live device; off by default.
+  isTestDevice     Boolean  @default(false)
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
