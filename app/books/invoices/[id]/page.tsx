@@ -4,28 +4,30 @@ import * as React from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { BooksError, BooksLoading } from "@/components/books/books-state";
-import { BooksPage } from "@/components/books/figures";
 import { BkInvoiceView } from "@/components/books/bk-invoice-view";
 import { CreditDrawer, type CreditTarget } from "@/components/books/bk-credit-drawer";
+import { CiIcon } from "@/components/books/icons/ci-icon";
+import { BkError, BkLoading, BkNote, BkPage } from "@/components/books/ui";
 import { useUndoMenu } from "@/components/books/undo-dialogs";
-import { Button, ButtonGroup, ButtonLink, Empty, Kit } from "@/components/core";
+import { Button, ButtonLink, Kit } from "@/components/core";
 import { MenuButton, type MenuEntry } from "@/components/core/menu";
+import { ChaseDialog, type ChaseTarget } from "@/components/crm/collections/chase-dialog";
+import { useDocumentActions } from "@/components/crm/documents/document-actions";
+import type { LeadDocument } from "@/components/crm/documents/document-types";
 import { PageChrome, type PageMenuItem } from "@/components/layout/page-chrome";
 import { useToast } from "@/components/ui/use-toast";
 import { ApiError, fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import type { InvoiceRecordPage } from "@/lib/books/invoice-record";
 
+type CrmDocument = { document: LeadDocument; basePath: string | null };
+
 /**
- * One invoice in Books (design/core-modules/boards/view/BkInvoice.html). A
- * draft is issued from here (I), or deleted by anyone who may change drafts.
- * Nothing is sent or posted until a person presses Issue. On Vane's draft
- * nobody has taken on, Issue is the person confirming it as theirs
- * (`asMine`): the server refuses it without that (409). Once issued: Record
- * a payment (R), Send a reminder, and ⋯ with Credit note and Write off as
- * `canDo` allows, then Revise, Void and Delete permanently as the core's
- * `undoChoices` says (BkVoidDialog, BkReviseDialog, BkDeleteDialog): faint,
- * with the reason on hover, when not allowed. The server refuses on its own.
+ * One invoice in Books (bk-invoice), its one address. A draft is issued from
+ * here (I). Once issued: Record a payment (R), Credit, PDF and ⋯ beside Send
+ * a reminder (S). ⋯ holds Write off, a statement, and for an invoice raised
+ * from a deal Email it and Log a chase (through the deal, as the CRM did), then
+ * Revise, Void and Delete as the core's `undoChoices` says: faint, with the
+ * reason, when not allowed. The server refuses on its own.
  */
 export default function BooksInvoicePage() {
   const params = useParams<{ id: string }>();
@@ -34,6 +36,7 @@ export default function BooksInvoicePage() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const [crediting, setCrediting] = React.useState<"credit" | "write-off" | null>(null);
+  const [chasing, setChasing] = React.useState<ChaseTarget | null>(null);
 
   const invoice = useQuery({
     queryKey: ["books", "invoice", id],
@@ -43,33 +46,33 @@ export default function BooksInvoicePage() {
   });
   const record = invoice.data;
 
+  // An invoice raised from a deal keeps the CRM's verbs for it: email it to the client, log a chase.
+  const crm = useQuery({
+    queryKey: ["crm", "documents", "record", record?.crm?.documentId],
+    queryFn: () => fetchJson<CrmDocument>(`/api/v2/crm/documents/${record!.crm!.documentId}`),
+    enabled: Boolean(record?.crm),
+  });
+  const crmActions = useDocumentActions({ basePath: crm.data?.basePath ?? "", currency: record?.currency ?? "USD" });
+  const crmVerbs = crm.data?.basePath ? crmActions.verbsFor(crm.data.document) : [];
+  const email = crmVerbs.find((verb) => verb.id === "email" && !verb.refusal);
+
+  const refresh = () => Promise.all([queryClient.invalidateQueries({ queryKey: ["books", "invoice", id] }), queryClient.invalidateQueries({ queryKey: ["books", "invoices"] })]);
+
   const issue = useMutation({
-    mutationFn: () =>
-      fetchJson<{ number: string; customer: string }>(`/api/books/invoices/${id}/issue`, {
-        method: "POST",
-        body: JSON.stringify({ asMine: record?.waiting === true }),
-      }),
+    mutationFn: () => fetchJson<{ number: string; customer: string }>(`/api/books/invoices/${id}/issue`, { method: "POST", body: JSON.stringify({ asMine: record?.waiting === true }) }),
     onSuccess: async (issued) => {
-      toast({
-        title: `${issued.number} is issued to ${issued.customer}`,
-        description: record?.waiting ? "It is yours now, and posted to the books. Send it from Invoices." : "Send it from Invoices.",
-        variant: "success",
-      });
-      await Promise.all([queryClient.invalidateQueries({ queryKey: ["books", "invoice", id] }), queryClient.invalidateQueries({ queryKey: ["books", "invoices"] })]);
+      toast({ title: `${issued.number} is issued to ${issued.customer}`, variant: "success" });
+      await refresh();
     },
     onError: (error) => toast({ title: "It was not issued", description: getApiErrorMessage(error, "Check the connection and try again."), variant: "destructive" }),
   });
 
-  // `?do=void|revise|delete` opens that dialog (a list's row menu, the bulk result); the old `?reverse=1` opens Void.
+  // `?do=void|revise|delete` opens that dialog (a list's row menu, the bulk result).
   const [initial, setInitial] = React.useState<string | null>(null);
   React.useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    setInitial(params.get("do") ?? (params.get("reverse") === "1" ? "void" : null));
+    setInitial(new URLSearchParams(window.location.search).get("do"));
   }, []);
 
-  const refresh = () => Promise.all([queryClient.invalidateQueries({ queryKey: ["books", "invoice", id] }), queryClient.invalidateQueries({ queryKey: ["books", "invoices"] })]);
-
-  // Void, Revise and Delete permanently, as the core's undoChoices says (P4): faint with the reason when not allowed.
   const undo = useUndoMenu("invoice", record?.id, {
     initial,
     onVoided: async (done) => {
@@ -77,13 +80,13 @@ export default function BooksInvoicePage() {
       await refresh();
     },
     onRevised: async (done) => {
-      toast({ title: `${done.label} is void`, description: "The new draft is open: put it right, then issue it. Payments left on account move to it then.", variant: "success" });
+      toast({ title: `${done.label} is void`, description: `${done.draft.label} is open: put it right, then issue it.`, variant: "success" });
       await queryClient.invalidateQueries({ queryKey: ["books", "invoices"] });
       router.push(`/books/invoices/${done.draft.id}`);
     },
     onDeleted: async (done) => {
       const wasDraft = record?.status === "DRAFT";
-      toast({ title: `${done.label} is deleted`, description: wasDraft ? undefined : "Payments on it stay on account; its snapshot is in the audit trail.", variant: "success" });
+      toast({ title: `${done.label} is deleted`, variant: "success" });
       await queryClient.invalidateQueries({ queryKey: ["books", "invoices"] });
       queryClient.removeQueries({ queryKey: ["books", "invoice", id] });
       router.push(wasDraft ? "/books/invoices?view=drafts" : "/books/invoices");
@@ -102,44 +105,41 @@ export default function BooksInvoicePage() {
   const notFound = invoice.error instanceof ApiError && invoice.error.status === 404;
   const draft = record?.status === "DRAFT";
   const can = record?.can;
-  const primary = draft
-    ? record.can.issue
-      ? { label: "Issue", icon: "send" as const, shortcut: "I", onClick: () => (issue.isPending ? undefined : issue.mutate()), disabled: issue.isPending ? "Issuing it" : undefined }
-      : { label: "Issue", disabled: "Your role cannot issue invoices. A manager or the accountant can." }
-    : null;
-  // An owing invoice has three actions: one group, Record a payment and a caret holding the rest (the owner, 19 Oct).
   const owing = Boolean(record && record.status === "ISSUED" && record.balance > 0.005);
+  const primary = !record
+    ? null
+    : draft
+      ? can?.issue
+        ? { label: "Issue", icon: "send" as const, shortcut: "I", onClick: () => (issue.isPending ? undefined : issue.mutate()), disabled: issue.isPending ? "Issuing it" : undefined }
+        : { label: "Issue", icon: "send" as const, disabled: "Your role cannot issue invoices. A manager or the accountant can." }
+      : owing
+        ? { label: "Send a reminder", icon: "whatsapp" as const, shortcut: "S", onClick: () => (remind.isPending ? undefined : remind.mutate()), disabled: remind.isPending ? "Sending it" : undefined }
+        : null;
 
-  // ⋯: everything else this invoice allows, each as the one matrix says (books-final §2.2).
+  // ⋯: everything else this invoice allows, each as the one matrix says.
   const menu: MenuEntry[] = [];
-  if (record && owing) menu.push({ key: "remind", icon: "whatsapp", label: "Send a reminder", onSelect: () => remind.mutate() });
   if (record && !draft) {
-    menu.push({ key: "statement", icon: "print", label: "Print a statement", onSelect: () => window.open(`/books/statements?customers=${record.customer.id}`, "_blank", "noopener") });
-    if (can?.credit) menu.push({ key: "credit", icon: "invoice", label: "Credit note", onSelect: () => setCrediting("credit") });
     if (can?.writeOff) menu.push({ key: "write-off", icon: "retire", label: "Write off", onSelect: () => setCrediting("write-off") });
+    menu.push({ key: "statement", icon: "print", label: "Print a statement", onSelect: () => window.open(`/books/statements?customers=${record.customer.id}`, "_blank", "noopener") });
+    if (email?.onSelect) menu.push({ key: "email", icon: "send", label: "Email it to the client", onSelect: email.onSelect });
+    if (record.crm && owing) menu.push({ key: "chase", icon: "history", label: "Log a chase", onSelect: () => setChasing({ documentId: record.crm!.documentId, invoiceNumber: record.number, owedBy: record.customer.name }) });
   }
-  // Revise, Void and Delete: the core says which this person may press, and why not (rule 12).
   menu.push(...undo.entries);
 
-  // Below 720px the actions fold into ⋯ as menu items, so the menu closes as the drawer or dialog opens.
   const phoneMenu = React.useMemo<PageMenuItem[] | null>(() => {
     if (!record) return null;
-    return menu.flatMap((entry) => ("key" in entry && !entry.disabled ? [{ key: entry.key, label: typeof entry.label === "string" ? entry.label : entry.key, danger: entry.danger, onSelect: entry.onSelect }] : []));
+    const items: PageMenuItem[] = [];
+    if (owing && can?.pay) items.push({ key: "pay", label: "Record a payment", onSelect: () => router.push(`/books/payments/new?invoice=${record.id}&customer=${record.customer.id}`) });
+    if (!draft && can?.credit) items.push({ key: "credit", label: "Credit", onSelect: () => setCrediting("credit") });
+    if (!draft) items.push({ key: "pdf", label: "PDF", onSelect: () => window.open(`/api/accounting/sales/invoices/${record.id}/pdf`, "_blank", "noopener") });
+    for (const entry of menu) if ("key" in entry && !entry.disabled) items.push({ key: entry.key, label: typeof entry.label === "string" ? entry.label : entry.key, danger: entry.danger, onSelect: entry.onSelect });
+    return items;
     // The menu is rebuilt from the record on every render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [record, can?.credit, can?.writeOff, undo.choices]);
+  }, [record, can?.credit, can?.writeOff, undo.choices, email]);
 
   const target: CreditTarget | null = record
-    ? {
-        id: record.id,
-        number: record.number,
-        customer: record.customer.name,
-        currency: record.currency,
-        creditLeft: record.creditLeft,
-        balance: record.balance,
-        taxRate: record.creditable[0]?.taxRate ?? 0,
-        fiscalised: record.fiscalised,
-      }
+    ? { id: record.id, number: record.number, customer: record.customer.name, currency: record.currency, creditLeft: record.creditLeft, balance: record.balance, taxRate: record.creditable[0]?.taxRate ?? 0, fiscalised: record.fiscalised }
     : null;
 
   return (
@@ -147,56 +147,55 @@ export default function BooksInvoicePage() {
       <PageChrome title={record?.number ?? "Invoice"} backHref="/books/invoices" backLabel="Invoices" primary={primary} phoneMenu={phoneMenu}>
         {record ? (
           <Kit contents>
-            {owing ? (
-              <ButtonGroup aria-label="Record a payment, and more">
-                {can?.pay ? (
-                  <ButtonLink variant="primary" icon="payments" shortcut="R" href={`/books/payments/new?invoice=${record.id}&customer=${record.customer.id}`}>
+            <div className="btn-group" role="group" aria-label="This invoice">
+              {owing ? (
+                can?.pay ? (
+                  <ButtonLink shortcut="R" href={`/books/payments/new?invoice=${record.id}&customer=${record.customer.id}`}>
+                    <CiIcon name="banknote" className="ic" />
                     Record a payment
                   </ButtonLink>
                 ) : (
-                  <Button variant="primary" icon="payments" shortcut="R" disabled title="Your role cannot record payments.">
+                  <Button shortcut="R" disabled title="Your role cannot record payments.">
+                    <CiIcon name="banknote" className="ic" />
                     Record a payment
                   </Button>
-                )}
-                <MenuButton variant="primary" iconOnly icon="down" iconEnd={undefined} align="end" label="More actions" aria-label="More actions" items={menu} />
-              </ButtonGroup>
-            ) : menu.length > 0 ? (
-              <MenuButton iconOnly icon="more" iconEnd={undefined} align="end" label="More actions" aria-label="More actions" items={menu} />
-            ) : null}
+                )
+              ) : null}
+              {!draft ? (
+                <Button disabled={!can?.credit} title={can?.credit ? undefined : "Nothing is left to credit, or your role cannot."} onClick={() => setCrediting("credit")}>
+                  <CiIcon name="doc-plus" className="ic" />
+                  Credit
+                </Button>
+              ) : null}
+              {!draft ? (
+                <a className="btn" href={`/api/accounting/sales/invoices/${record.id}/pdf`} target="_blank" rel="noopener noreferrer">
+                  <CiIcon name="printer" className="ic" />
+                  PDF
+                </a>
+              ) : null}
+              {menu.length ? <MenuButton iconOnly icon="more" iconEnd={undefined} align="end" label="More: write off, revise, void" aria-label="More: write off, revise, void" items={menu} /> : null}
+            </div>
           </Kit>
         ) : null}
       </PageChrome>
-      <BooksPage screen="bk-a">
+      <BkPage screen="invoice">
         {record ? (
-          <>
-            <BkInvoiceView invoice={record} />
-            {record.status === "ISSUED" && record.balance > 0.005 ? (
-              // On a phone the two things an owing invoice asks for sit at the foot (BkInvoicePhone).
-              <div className="bk-ph-acts">
-                <Button variant="primary" icon="whatsapp" shortcut="S" busy={remind.isPending} disabled={remind.isPending} onClick={() => remind.mutate()}>
-                  Send a reminder
-                </Button>
-                {can?.pay ? (
-                  <ButtonLink icon="payments" href={`/books/payments/new?invoice=${record.id}&customer=${record.customer.id}`}>
-                    Record a payment
-                  </ButtonLink>
-                ) : null}
-              </div>
-            ) : null}
-          </>
+          <BkInvoiceView invoice={record} />
         ) : notFound ? (
-          <Empty icon="invoice" title="There is no such invoice here">
-            It may have been deleted, or it belongs to another workspace. Invoices lists every one this workspace has.
-          </Empty>
+          <BkNote tone="bad" action={<ButtonLink href="/books/invoices">Invoices</ButtonLink>}>
+            <b>There is no such invoice here.</b> It was deleted, or it belongs to another workspace.
+          </BkNote>
         ) : invoice.isError ? (
-          <BooksError what="This invoice" onRetry={() => invoice.refetch()} />
+          <BkError what="This invoice" onRetry={() => invoice.refetch()} />
         ) : (
-          <BooksLoading />
+          <BkLoading />
         )}
-      </BooksPage>
+      </BkPage>
       {record ? (
         <>
           {undo.node}
+          {crmActions.surfaces}
+          <ChaseDialog target={chasing} onOpenChange={(open) => (!open ? setChasing(null) : undefined)} />
           <CreditDrawer
             kind={crediting ?? "credit"}
             target={target}

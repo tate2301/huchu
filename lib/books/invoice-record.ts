@@ -2,7 +2,7 @@ import type { InvoiceStatus, PrismaClient } from "@prisma/client";
 import { docLabel } from "@/lib/books/doc-number";
 
 import { customerFace, customerImage } from "./faces";
-import { daysBetween, dayOf, money, shortDay, storedDay } from "./format";
+import { daysBetween, dayOf, money, shortDay, storedDay, weekdayDay } from "./format";
 import { facesOf, type Faces } from "./record-view";
 import { INVOICE_STATE_LABEL, invoiceState, type InvoiceState } from "./invoice-state";
 import type { InvoiceBoardExtras } from "./invoice-board-view";
@@ -17,7 +17,7 @@ import { usualTerms } from "@/lib/vane/drafts";
  * person's own (`asMine`, `lib/vane/drafts.ts`) while nobody has taken it on.
  */
 
-export type InvoiceLineView = { id: string; description: string; quantity: number; unitPrice: number; amount: number };
+export type InvoiceLineView = { id: string; description: string; quantity: number; unitPrice: number; amount: number; /** "V15.5". */ tax: string | null };
 
 export type InvoiceRecord = {
   id: string;
@@ -32,7 +32,7 @@ export type InvoiceRecord = {
   /** Vane's card about it, for What I read. */
   cardId: string | null;
   /** contact: the person there, for the phone's header line ("Chisipite Dental · Mrs L. Banda"). */
-  customer: { id: string; name: string; contact?: string | null; image?: string | null };
+  customer: { id: string; name: string; contact?: string | null; image?: string | null; code?: string | null; vat?: string | null; tin?: string | null };
   /** The people it names (who made, issued or voided it), with their photos. */
   faces?: Faces;
   /** Days past its due day while it is owed; 0 otherwise. */
@@ -42,6 +42,10 @@ export type InvoiceRecord = {
   date: string;
   /** "21 days after you issue it", "4 November", or "No due date". */
   due: string;
+  /** The facts' Issued: "Thu 10 Sep 2026", null on a draft. */
+  issuedOn: string | null;
+  /** The facts' Due: "Thu 24 Sep, 14 days", null without one. */
+  dueOn: string | null;
   /** The aside's Due: "21 days, their usual" on a draft, else as `due`. */
   dueTerms: string;
   lines: InvoiceLineView[];
@@ -73,6 +77,10 @@ export type InvoiceRecord = {
   credits: Array<{ number: string; total: number; reason: string | null; date: string; voided: boolean }>;
   /** Why and by whom it was voided, from the audit log, once it is void. */
   voided: { reason: string | null; by: string | null; on: string } | null;
+  /** The CRM's document for it, when it was raised from a deal: emailing it and logging a chase go through the deal. */
+  crm: { documentId: string; dealId: string | null } | null;
+  /** The invoice that replaced it, once it was revised ("Replaced by INV-0143"). */
+  replacedBy: { id: string; number: string } | null;
   /** It reached the fiscal device, which still holds it whatever is reversed here. */
   fiscalised: boolean;
   /** Once void: the payments it left as the customer's money on account, each of which the owner may void too. */
@@ -112,6 +120,8 @@ export function madeByLine(row: { madeByVane: boolean; createdBy: string | null;
 }
 
 const round = (n: number) => Math.round(n * 100) / 100;
+/** "Thu 10 Sep 2026". */
+const longDate = (day: string) => `${weekdayDay(day)} ${day.slice(0, 4)}`;
 const qty = (n: number) => (Number.isInteger(n) ? String(n) : n.toFixed(2).replace(/0+$/, ""));
 
 type Line = { description: string; quantity: number; unitPrice: number };
@@ -156,10 +166,12 @@ export async function readInvoiceRecord(db: Pick<PrismaClient, "salesInvoice" | 
       createdAt: true,
       issuedAt: true,
       quotationId: true,
-      customer: { select: { id: true, name: true, contactName: true, ...customerFace } },
+      supersededBy: { select: { id: true, invoiceNumber: true }, orderBy: { createdAt: "asc" }, take: 1 },
+      crmLeadDocuments: { select: { id: true, dealId: true }, orderBy: { createdAt: "desc" }, take: 1 },
+      customer: { select: { id: true, name: true, contactName: true, code: true, vatNumber: true, taxNumber: true, ...customerFace } },
       createdBy: { select: { name: true, image: true } },
       issuedBy: { select: { name: true, image: true } },
-      lines: { orderBy: { createdAt: "asc" }, select: { id: true, description: true, quantity: true, unitPrice: true, lineTotal: true, taxRate: true, taxCodeId: true } },
+      lines: { orderBy: { createdAt: "asc" }, select: { id: true, description: true, quantity: true, unitPrice: true, lineTotal: true, taxRate: true, taxCodeId: true, taxCode: { select: { code: true } } } },
       creditNotes: { orderBy: { noteDate: "asc" }, select: { noteNumber: true, total: true, reason: true, noteDate: true, status: true } },
       fiscalReceipt: { select: { status: true, receiptGlobalNo: true } },
       receipts: { where: { voidedAt: null }, select: { receivedAt: true, method: true }, orderBy: { receivedAt: "desc" }, take: 1 },
@@ -246,15 +258,32 @@ export async function readInvoiceRecord(db: Pick<PrismaClient, "salesInvoice" | 
     madeByVane: invoice.madeByVane,
     waiting: draft && invoice.madeByVane && !invoice.createdById,
     cardId: card?.id ?? null,
-    customer: { id: invoice.customer.id, name: invoice.customer.name, contact: invoice.customer.contactName ?? null, image: customerImage(invoice.customer) },
+    customer: {
+      id: invoice.customer.id,
+      name: invoice.customer.name,
+      contact: invoice.customer.contactName ?? null,
+      image: customerImage(invoice.customer),
+      code: invoice.customer.code ?? null,
+      vat: invoice.customer.vatNumber ?? null,
+      tin: invoice.customer.taxNumber ?? null,
+    },
     faces: facesOf(invoice.createdBy, invoice.issuedBy, voider),
     daysOverdue: state.daysOverdue,
     currency: invoice.currency,
     date: draft ? "On issue" : shortDay(dated),
     due,
+    issuedOn: draft ? null : longDate(dated),
+    dueOn: dueDay ? `${weekdayDay(dueDay)}${terms !== null ? `, ${terms} ${terms === 1 ? "day" : "days"}` : ""}` : null,
     // The aside's Terms: "14 days" (their usual marked on a draft), from its date to its due day.
     dueTerms: terms === null ? due : draft ? dueTerms(terms, usualTerms(past)) : `${terms} ${terms === 1 ? "day" : "days"}`,
-    lines: invoice.lines.map((line) => ({ id: line.id, description: line.description, quantity: line.quantity, unitPrice: line.unitPrice, amount: line.lineTotal })),
+    lines: invoice.lines.map((line) => ({
+      id: line.id,
+      description: line.description,
+      quantity: line.quantity,
+      unitPrice: line.unitPrice,
+      amount: line.lineTotal,
+      tax: line.taxCode?.code ?? (line.taxRate > 0 ? `${line.taxRate}%` : null),
+    })),
     subTotal: invoice.subTotal,
     taxTotal: invoice.taxTotal,
     total: invoice.total,
@@ -274,6 +303,8 @@ export async function readInvoiceRecord(db: Pick<PrismaClient, "salesInvoice" | 
     creditLeft: round(invoice.total - invoice.creditTotal - invoice.writeOffTotal),
     credits: invoice.creditNotes.map((note) => ({ number: docLabel(note.noteNumber, "credit note"), total: note.total, reason: note.reason, date: shortDay(dayOf(note.noteDate)), voided: note.status === "VOIDED" })),
     voided: invoice.status === "VOIDED" ? { reason: voidEvent?.reason ?? null, by: voider?.name ?? null, on: voidEvent ? shortDay(dayOf(voidEvent.createdAt)) : "" } : null,
+    crm: invoice.crmLeadDocuments[0] ? { documentId: invoice.crmLeadDocuments[0].id, dealId: invoice.crmLeadDocuments[0].dealId } : null,
+    replacedBy: invoice.supersededBy[0] ? { id: invoice.supersededBy[0].id, number: docLabel(invoice.supersededBy[0].invoiceNumber) } : null,
     fiscalised: wasFiscalised(invoice.fiscalReceipt),
     onAccount,
   };

@@ -62,7 +62,7 @@ export async function readInvoiceExtras(db: Db, companyId: string, invoiceId: st
         ],
       },
       orderBy: [{ entryDate: "asc" }, { entryNumber: "asc" }],
-      select: { entryNumber: true, entryDate: true, lines: { select: { debit: true, credit: true, account: { select: { code: true, name: true } } } } },
+      select: { entryNumber: true, entryDate: true, lines: { select: { debit: true, credit: true, account: { select: { code: true, name: true } }, costCenter: { select: { name: true } } } } },
     }),
     receiptIds.length
       ? db.bankTransaction.findMany({
@@ -139,5 +139,6 @@ export async function readInvoiceExtras(db: Db, companyId: string, invoiceId: st
       : null,
     rate,
     issued: invoice.issuedAt ? `${shortDay(dayOf(invoice.issuedAt))}${invoice.fromQuotation ? `, from ${invoice.fromQuotation.quotationNumber}` : ""}` : null,
+    costCentre: entries.flatMap((entry) => entry.lines).find((line) => line.costCenter)?.costCenter?.name ?? null,
   };
 }

@@ -13,4 +13,6 @@ export type InvoiceBoardExtras = {
   rate: string;
   /** "6 Oct, from QT-0386". */
   issued: string | null;
+  /** The cost centre its sales lines posted to, when one was chosen. */
+  costCentre: string | null;
 };
