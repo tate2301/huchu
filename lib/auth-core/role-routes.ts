@@ -31,8 +31,30 @@ const SHARED_ALLOWED_PREFIXES = [
   "/settings/profile",
 ];
 
+/**
+ * A rep's money records live in Books, at one address each (design/books/NOTES.md §2):
+ * their own requisitions and claims, and the quotes, invoices and receipts of the
+ * CRM. The Books readers show them only their own; `canDo` refuses the rest.
+ */
+const REP_BOOKS_PREFIXES = [
+  "/books/requisitions",
+  "/books/claims",
+  "/books/quotes",
+  "/books/invoices",
+  "/books/payments",
+  "/api/books/requisitions",
+  "/api/books/claims",
+  "/api/books/petty-cash",
+  "/api/books/quotes",
+  "/api/books/invoices",
+  "/api/books/payments",
+  "/api/books/nav",
+  "/api/books/forms",
+  "/api/books/attachments",
+];
+
 export const ROLE_ROUTE_ALLOWLIST: Record<string, string[]> = {
-  SALES_REP: ["/crm", "/api/v2/crm", ...SHARED_ALLOWED_PREFIXES],
+  SALES_REP: ["/crm", "/api/v2/crm", ...REP_BOOKS_PREFIXES, ...SHARED_ALLOWED_PREFIXES],
 };
 
 /**

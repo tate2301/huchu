@@ -33,7 +33,8 @@ const targets = process.argv.slice(2).map((arg) => {
 if (targets.length === 0) throw new Error("Name at least one <slug>=<path>.");
 
 fs.mkdirSync(out, { recursive: true });
-const browser = await chromium.launch();
+// The installed Google Chrome: no browser download needed (PW_CHANNEL=chromium for Playwright's own).
+const browser = await chromium.launch({ channel: process.env.PW_CHANNEL ?? "chrome" });
 
 async function signedIn(viewport, colorScheme) {
   const context = await browser.newContext({ viewport, colorScheme, deviceScaleFactor: 1 });

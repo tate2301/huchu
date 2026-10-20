@@ -166,6 +166,11 @@ export function canDo(actor: BooksActor, action: BooksAction, doc: BooksDoc = {}
       if (tier === "manager" || tier === "accountant") return ALLOW;
       if (tier === "bursar") return doc.area === "sales" || doc.area === "bank" ? ALLOW : refuse("A bursar sees Sales and Bank & cash in Books.");
       if (tier === "shop") return doc.area === "bank" || doc.area === "takings" ? ALLOW : refuse("A shop manager sees Bank & cash and Takings in Books.");
+      // A rep or fitter sees their own requests in Bills & spending, and the
+      // CRM's quotes, invoices and receipts at their one address in Books
+      // (design/books/spec/permissions.json; NOTES §2). The readers show them
+      // only their own: what they asked for, made or own the deal of.
+      if (tier === "clerk" && (doc.area === "bills" || (doc.area === "sales" && docModule === "crm"))) return ALLOW;
       return refuse("Ask the owner for access to Books.");
     }
     case "draft.create":

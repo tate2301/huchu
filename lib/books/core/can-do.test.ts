@@ -48,6 +48,10 @@ describe("the matrix", () => {
     expect(ok(shop, "view", { area: "takings" })).toBe(true);
     expect(ok(shop, "view", { area: "sales" })).toBe(false);
     expect(ok(clerk, "view", { area: "sales" })).toBe(false);
+    // A rep's own requests, and the CRM's documents at their Books address (permissions.json: own requests).
+    expect(ok(clerk, "view", { area: "bills" })).toBe(true);
+    expect(ok(clerk, "view", { area: "sales", module: "crm" })).toBe(true);
+    expect(ok(clerk, "view", { area: "ledger" })).toBe(false);
   });
 
   it("drafts: everyone in their module, a clerk only their own", () => {
