@@ -16,6 +16,7 @@ Every primary action has a shortcut, shown inside its button. Single keys work w
 | K | Keep (a change Vane proposes) | Build, a form's Vane tab |
 | U | Upload a statement | Books, Bank |
 | Ctrl ↵ | Upload (the statement chosen) | Books, Bank, Upload a statement |
+| A | Accept (the chosen lines, or Vane's proposals) | Books, Bank, To match |
 | R | Retry all | Books, Needs posting |
 | E | Add or revise the opening balances | Books, Settings, Opening balances |
 | D | Download the accountant export | Management, Accountant export |

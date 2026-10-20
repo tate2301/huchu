@@ -98,7 +98,9 @@ const BINDINGS: Record<string, Binding[]> = {
   ],
   "K | Keep (a change Vane proposes)": [{ file: "components/build/vane-form-changes.tsx" }],
   "U | Upload a statement": [{ file: "app/books/bank/page.tsx" }],
-  "Ctrl ↵ | Upload (the statement chosen)": [{ file: "app/books/bank/page.tsx" }],
+  // The page opens the drawer; the drawer's Upload holds the key (P3b moved it into its own component).
+  "Ctrl ↵ | Upload (the statement chosen)": [{ file: "components/books/bk-upload-drawer.tsx" }],
+  "A | Accept (the chosen lines, or Vane's proposals)": [{ file: "components/books/bk-to-match-view.tsx" }],
   "R | Retry all": [{ file: "app/books/needs-posting/page.tsx" }],
   "E | Add or revise the opening balances": [{ file: "app/books/settings/opening-balances/page.tsx" }],
   "D | Download the accountant export": [{ file: "components/management/money/money-views.tsx" }],

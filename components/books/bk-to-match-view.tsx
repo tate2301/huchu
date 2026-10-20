@@ -312,7 +312,7 @@ export function BkToMatchView({
           {proposedLines.length ? `Vane proposed ${proposedLines.length}` : "Vane has no proposal"}
         </span>
         {proposedLines.length ? (
-          <Button variant="primary" size="lg" icon="check" busy={acceptingAll} disabled={acceptingAll} onClick={() => onAcceptMany(proposedLines)}>
+          <Button variant="primary" size="lg" icon="check" shortcut="A" busy={acceptingAll} disabled={acceptingAll} onClick={() => onAcceptMany(proposedLines)}>
             {`Accept Vane’s ${proposedLines.length}`}
           </Button>
         ) : (
