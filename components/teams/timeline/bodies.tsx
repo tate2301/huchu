@@ -55,15 +55,18 @@ export function RecordCard({
   sub,
   amount,
   state,
+  tight,
 }: {
   icon?: GlyphName;
   title: React.ReactNode;
   sub?: React.ReactNode;
   amount?: React.ReactNode;
   state?: React.ReactNode;
+  /** A narrower mark, for lines of a bank statement. */
+  tight?: boolean;
 }) {
   return (
-    <div className="tl-card">
+    <div className="tl-card" style={tight ? { gridTemplateColumns: "32px minmax(0, 1fr) auto" } : undefined}>
       <span className="tl-card__mark">
         <Glyph name={icon} />
       </span>
@@ -249,7 +252,7 @@ export function StagePath({ from, to }: { from: React.ReactNode; to: React.React
 /** A value from one thing to another. */
 export function Diff({ from, to }: { from: React.ReactNode; to: React.ReactNode }) {
   return (
-    <div className="diff">
+    <div className="tm-diff">
       <s>{from}</s>
       <Glyph name="caret-right" size="sm" style={{ color: "var(--faint)" }} />
       <ins>{to}</ins>
@@ -435,4 +438,40 @@ export function Seen({ people }: { people: Person[] }) {
 
 export function Sending() {
   return <span className="tl-spin" role="img" aria-label="Sending" />;
+}
+
+/** A short table of rows under an event: a count by channel, smelts in a shift, lines short on a delivery. */
+export function RollRows({ rows, cols, foot }: { rows: string[][]; cols: string; foot?: React.ReactNode }) {
+  return (
+    <div className="tl-roll">
+      {rows.map((r) => (
+        <div key={r.join("|")} className="tl-roll__r" style={{ gridTemplateColumns: cols }}>
+          {r.map((cell, i) => (
+            <span key={i}>{cell}</span>
+          ))}
+        </div>
+      ))}
+      {foot ? <div className="tl-roll__foot">{foot}</div> : null}
+    </div>
+  );
+}
+
+/** One thing that changed, by name, without the stack around it. */
+export function ChangeLine({ field, from, to }: { field: React.ReactNode; from: React.ReactNode; to: React.ReactNode }) {
+  return (
+    <div className="tl-stack__item" style={{ padding: 0, border: 0, marginTop: 6, gridTemplateColumns: "150px minmax(0, 1fr)" }}>
+      <span className="tl-stack__k">{field}</span>
+      <Diff from={from} to={to} />
+    </div>
+  );
+}
+
+/** Who approved it, and from where. */
+export function Approval({ person, children }: { person: Person; children: React.ReactNode }) {
+  return (
+    <span className="ev__tag">
+      <Face person={person} size={20} />
+      {children}
+    </span>
+  );
 }

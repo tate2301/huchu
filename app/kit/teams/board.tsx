@@ -73,3 +73,13 @@ export function WsMark({ size = 40 }: { size?: 40 | 28 | 24 }) {
     </span>
   );
 }
+
+/** The frame the timeline boards draw their rows in. */
+export function TlFrame({ children }: { children: React.ReactNode }) {
+  return <div className="tl-frame">{children}</div>;
+}
+
+/** A hairline between two rows in one frame. */
+export function Rule() {
+  return <div style={{ height: 1, background: "var(--line-soft)", margin: "4px 0" }} />;
+}

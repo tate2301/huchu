@@ -152,9 +152,9 @@
 .tm .file { height: 32px; display: inline-flex; align-items: center; gap: 8px; padding: 0 10px 0 8px; border-radius: 8px; box-shadow: inset 0 0 0 1px var(--line); color: var(--ink); font-weight: 500; white-space: nowrap; }
 .tm .thumb { width: 48px; height: 48px; border-radius: 8px; background: var(--tray); box-shadow: inset 0 0 0 1px var(--line); }
 .tm .rollup { margin-top: 6px; display: inline-flex; align-items: center; gap: 6px; color: var(--ink-2); font-weight: 500; border: 0; background: transparent; padding: 0; font: inherit; cursor: pointer; }
-.tm .diff { margin-top: 6px; display: flex; align-items: center; gap: 8px; font-variant-numeric: tabular-nums; }
-.tm .diff s { color: var(--ink-3); text-decoration-color: var(--faint); }
-.tm .diff ins { text-decoration: none; color: var(--ink); font-weight: 600; }
+.tm .tm-diff { margin-top: 6px; display: flex; align-items: center; gap: 8px; font-variant-numeric: tabular-nums; }
+.tm .tm-diff s { color: var(--ink-3); text-decoration-color: var(--faint); }
+.tm .tm-diff ins { text-decoration: none; color: var(--ink); font-weight: 600; }
 .tm .ev--new { animation: tm-arrive var(--tm-arrive) both; }
 @keyframes tm-arrive { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
 .tm .ev--new .bubble { box-shadow: inset 0 0 0 1px var(--sel-line); background: var(--sel-bg); }
@@ -501,7 +501,7 @@
 .tm .tl-stack__list { position: relative; z-index: 2; border-radius: 0 0 10px 10px; box-shadow: inset 0 0 0 1px var(--line); margin-top: -1px; }
 .tm .tl-stack__item { display: grid; grid-template-columns: 112px minmax(0, 1fr); gap: var(--tm-s2); padding: 8px var(--tm-s3); border-top: 1px solid var(--line-soft); align-items: center; }
 .tm .tl-stack__item:first-child { border-top: 0; }
-.tm .tl-stack__item .diff { margin: 0; }
+.tm .tl-stack__item .tm-diff { margin: 0; }
 .tm .tl-stack__k { color: var(--ink-3); }
 .tm .tl-roll { margin-top: var(--tm-s2); max-width: 520px; border-radius: 10px; box-shadow: inset 0 0 0 1px var(--line); overflow: hidden; }
 .tm .tl-roll__r { display: grid; grid-template-columns: 72px minmax(0, 1fr) 84px 64px; gap: var(--tm-s2); padding: 6px var(--tm-s3); border-top: 1px solid var(--line-soft); color: var(--ink-2); font-variant-numeric: tabular-nums; }
@@ -674,3 +674,4 @@
 
 .tm .notice--plain { background: var(--surface); box-shadow: none; }
 .tm .join-card { width: 100%; box-sizing: border-box; }
+.tm .bubble--ok { background: var(--ok-soft); box-shadow: none; color: var(--ok); }
