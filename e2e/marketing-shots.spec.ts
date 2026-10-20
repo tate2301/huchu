@@ -213,19 +213,19 @@ test.describe("finance", () => {
   test.use({ tenant: PAYROLL, as: "admin" });
 
   journey("accounting — the books", "accounting", "the-books", [
-    { path: "/accounting", name: "overview" },
-    { path: "/accounting/chart-of-accounts", name: "chart-of-accounts" },
+    { path: "/books", name: "overview" },
+    { path: "/books/chart", name: "chart-of-accounts" },
     { path: "/books/journals", name: "journals" },
-    { path: "/accounting/trial-balance", name: "trial-balance" },
-    { path: "/accounting/financial-statements", name: "financial-statements" },
+    { path: "/books/trial-balance", name: "trial-balance" },
+    { path: "/books/financials", name: "financial-statements" },
   ]);
 
   journey("accounting — who owes whom", "accounting", "receivables-payables", [
-    { path: "/accounting/receivables", name: "receivables" },
-    { path: "/accounting/payables", name: "payables" },
-    { path: "/accounting/banking", name: "banking" },
+    { path: "/books/customers?view=by-age", name: "receivables" },
+    { path: "/books/suppliers?view=by-age", name: "payables" },
+    { path: "/books/accounts", name: "banking" },
     // Zimbabwe-specific and worth showing: nobody else's demo has this screen.
-    { path: "/accounting/fiscalisation", name: "fiscalisation" },
+    { path: "/books/fiscal", name: "fiscalisation" },
   ]);
 
   journey("payroll — a month end", "payroll", "month-end", [
