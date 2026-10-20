@@ -36,14 +36,24 @@ fs.mkdirSync(out, { recursive: true });
 // The installed Google Chrome: no browser download needed (PW_CHANNEL=chromium for Playwright's own).
 const browser = await chromium.launch({ channel: process.env.PW_CHANNEL ?? "chrome" });
 
-async function signedIn(viewport, colorScheme) {
-  const context = await browser.newContext({ viewport, colorScheme, deviceScaleFactor: 1 });
+// One sign-in per run, its session reused for every width and theme: sign-in is
+// limited to ten tries in fifteen minutes per person on a server (lib/auth.ts).
+const session = await (async () => {
+  const context = await browser.newContext();
   const page = await context.newPage();
-  await page.goto(`${base}/login?__tenant=${tenant}`, { waitUntil: "domcontentloaded" });
+  await page.goto(`${base}/login?__tenant=${tenant}`, { waitUntil: "domcontentloaded", timeout: 180_000 });
   await page.locator('input[type="email"]').fill(email);
   await page.locator('input[type="password"]').fill(password);
   await page.keyboard.press("Enter");
-  await page.waitForURL((url) => !url.pathname.startsWith("/login"), { timeout: 60_000 });
+  await page.waitForURL((url) => !url.pathname.startsWith("/login"), { timeout: 120_000 });
+  const state = await context.storageState();
+  await context.close();
+  return state;
+})();
+
+async function signedIn(viewport, colorScheme) {
+  const context = await browser.newContext({ viewport, colorScheme, deviceScaleFactor: 1, storageState: session });
+  const page = await context.newPage();
   return { context, page };
 }
 
@@ -56,7 +66,7 @@ const shots = [
 for (const shot of shots) {
   const { context, page } = await signedIn({ width: shot.width, height: shot.height }, shot.dark ? "dark" : "light");
   // The app reads its theme from this key before the first paint (lib/theme/products.ts).
-  if (shot.dark) await page.evaluate(() => localStorage.setItem("huchu.appearance", "dark")).catch(() => undefined);
+  if (shot.dark) await context.addInitScript(() => localStorage.setItem("huchu.appearance", "dark"));
   for (const target of targets) {
     // localhost is the admin portal's host in development: every address names the workspace.
     const url = `${base}${target.path}${target.path.includes("?") ? "&" : "?"}__tenant=${tenant}`;
