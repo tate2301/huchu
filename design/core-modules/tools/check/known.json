@@ -1108,5 +1108,18 @@
     "panel: Pomona Officesyou",
     "panel: Paid this monthshared",
     "status: Needs an account"
+  ],
+  "BkAudit": [
+    "heading: Ledger",
+    "button: Books",
+    "panel: Books",
+    "button: Vane",
+    "button: Notifications",
+    "panel: Overdueshared",
+    "panel: Pomona Officesyou",
+    "panel: Paid this monthshared",
+    "label: Operator",
+    "label: Signed in as",
+    "label: Mode"
   ]
 }
