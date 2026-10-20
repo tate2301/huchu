@@ -126,8 +126,9 @@ export async function nextJournalNumber(db: Db, companyId: string): Promise<numb
     await tx.idSequence.createMany({ data: [{ companyId, entityKey: JOURNAL_SERIES, scopeKey: "GLOBAL", lastNumber: 0 }], skipDuplicates: true });
     // Taking the row's lock first: whoever comes second waits here, then reads the first one's entry.
     await tx.idSequence.update({ where, data: { lastNumber: { increment: 0 } } });
-    const highest = await tx.journalEntry.aggregate({ where: { companyId }, _max: { entryNumber: true } });
-    const next = (highest._max.entryNumber ?? 0) + 1;
+    // A draft holds a placeholder below zero (P5a): only real numbers count.
+    const highest = await tx.journalEntry.aggregate({ where: { companyId, entryNumber: { gt: 0 } }, _max: { entryNumber: true } });
+    const next = Math.max(highest._max.entryNumber ?? 0, 0) + 1;
     await tx.idSequence.update({ where, data: { lastNumber: next } });
     return next;
   };

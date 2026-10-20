@@ -5,6 +5,8 @@ import { resolvePostingPeriod } from "@/lib/accounting/period-lock";
 import { writePlatformAuditEvent } from "@/lib/audit/platform";
 import { prisma } from "@/lib/prisma";
 
+import { dayOf } from "../format";
+
 import { moneyLimits } from "./approvals";
 import { auditActor, canDo, tierOf, type BooksActor } from "./can-do";
 import { nextJournalNumber } from "./numbering";
@@ -293,7 +295,7 @@ export async function reverseManualJournal(actor: BooksActor, id: string, input:
   const reason = input.reason?.trim() || null;
   try {
     const reversal = await prisma.$transaction(async (tx) => {
-      const mirror = await reverseJournalEntry(tx, { companyId: actor.companyId, entryId: id, actorId: actor.userId, actorRole: actor.role, reversalDate: input.date ?? undefined, reason, periodOverrideReason: input.periodOverrideReason });
+      const mirror = await reverseJournalEntry(tx, { companyId: actor.companyId, entryId: id, actorId: actor.userId, actorRole: actor.role, reversalDate: input.date ?? new Date(`${dayOf(new Date())}T00:00:00.000Z`), reason, periodOverrideReason: input.periodOverrideReason });
       await audit(tx, actor, id, "reversed", reason, { number: journalNumber(entry.entryNumber), memo: entry.description, mirror: journalNumber(mirror.entryNumber), amount: journalAmount(entry.lines) });
       return mirror;
     });

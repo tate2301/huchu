@@ -33,6 +33,11 @@ export type AccountantExport = {
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
 const day = (iso: string) => new Date(`${iso}T00:00:00.000Z`);
+const dayAfter = (iso: string) => {
+  const date = day(iso);
+  date.setUTCDate(date.getUTCDate() + 1);
+  return date.toISOString().slice(0, 10);
+};
 const dayBefore = (iso: string) => {
   const date = day(iso);
   date.setUTCDate(date.getUTCDate() - 1);
@@ -56,7 +61,7 @@ export async function accountantExport(companyId: string, period: AccountantExpo
     movements(db, companyId, { to: dayBefore(period.from) }),
   ]);
   const lines = await db.journalLine.findMany({
-    where: { entry: { companyId, status: "POSTED", entryDate: { gte: day(period.from), lte: day(period.to) } } },
+    where: { entry: { companyId, status: "POSTED", entryDate: { gte: day(period.from), lt: day(dayAfter(period.to)) } } },
     select: { accountId: true, debit: true, credit: true, entry: { select: { entryNumber: true, entryDate: true, description: true, sourceType: true } } },
     orderBy: [{ entry: { entryDate: "asc" } }, { entry: { entryNumber: "asc" } }, { createdAt: "asc" }],
   });

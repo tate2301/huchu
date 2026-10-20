@@ -32,7 +32,7 @@ export async function movements(db: Db, companyId: string, range: LedgerRange): 
     by: ["accountId"],
     where: {
       ...(range.costCentreId ? { costCenterId: range.costCentreId } : {}),
-      entry: { companyId, status: "POSTED", entryDate: { ...(range.from ? { gte: day(range.from) } : {}), lte: day(range.to) } },
+      entry: { companyId, status: "POSTED", entryDate: { ...(range.from ? { gte: day(range.from) } : {}), lt: day(addDay(range.to, 1)) } },
     },
     _sum: { debit: true, credit: true },
   });
@@ -177,7 +177,7 @@ export async function cashFlow(companyId: string, range: LedgerRange & { from: s
   const [before, entries] = await Promise.all([
     movements(db, companyId, { to: addDay(range.from, -1), costCentreId: range.costCentreId }),
     db.journalEntry.findMany({
-      where: { companyId, status: "POSTED", entryDate: { gte: day(range.from), lte: day(range.to) }, lines: { some: { accountId: { in: [...cash] } } } },
+      where: { companyId, status: "POSTED", entryDate: { gte: day(range.from), lt: day(addDay(range.to, 1)) }, lines: { some: { accountId: { in: [...cash] } } } },
       select: { lines: { select: { accountId: true, debit: true, credit: true, costCenterId: true } } },
     }),
   ]);
@@ -221,7 +221,7 @@ export async function accountLedger(companyId: string, accountId: string, range:
   const before = await movements(db, companyId, { to: addDay(range.from, -1), costCentreId: range.costCentreId });
   const opening = round2((before.get(accountId)?.debit ?? 0) - (before.get(accountId)?.credit ?? 0));
   const rows = await db.journalLine.findMany({
-    where: { accountId, ...(range.costCentreId ? { costCenterId: range.costCentreId } : {}), entry: { companyId, status: "POSTED", entryDate: { gte: day(range.from), lte: day(range.to) } } },
+    where: { accountId, ...(range.costCentreId ? { costCenterId: range.costCentreId } : {}), entry: { companyId, status: "POSTED", entryDate: { gte: day(range.from), lt: day(addDay(range.to, 1)) } } },
     select: { debit: true, credit: true, memo: true, costCenter: { select: { name: true } }, entry: { select: { id: true, entryNumber: true, entryDate: true, description: true, sourceType: true, sourceId: true } } },
     orderBy: [{ entry: { entryDate: "asc" } }, { entry: { entryNumber: "asc" } }, { createdAt: "asc" }],
     take: 5000,
