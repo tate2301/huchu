@@ -13,7 +13,7 @@
 import * as React from "react";
 
 import { ApiError, fetchJson } from "@/lib/api-client";
-import { Keyboard, Link, QrCode, Tag } from "@/lib/icons";
+import { Keyboard, Link, Plug, QrCode, Tag } from "@/lib/icons";
 import type { NoLongerFacts } from "@/lib/retail/devices";
 import { firstName, hhmm, pairedWhen } from "./format";
 import {
@@ -26,7 +26,8 @@ import {
   type QrDetector,
   type ScanFailure,
 } from "./pair-scan";
-import { CodeBoxes, ErrorLine, GateSide, Keypad, useKeypadKeys, type KeypadKey } from "./parts";
+import { GateButton, GateError, GateFrame, GateStrip, PinPad, useEnterKey } from "./gate";
+import { useKeypadKeys, type KeypadKey } from "./parts";
 
 export type { NoLongerFacts };
 
@@ -139,50 +140,63 @@ export function PairDoor({
   useKeypadKeys(onKey, !locked);
 
   return (
-    <div className="gate">
-      <div className="gate-form">
-        <div>
-          <h1 className="text-display balance">Pair this device</h1>
-          <p className="under">
-            {camera
-              ? "Hold the QR on the manager’s screen up to the camera."
-              : `Type the code a manager made under Tills and devices in Management.${wrong ? "" : " It works once, for 10 minutes."}`}
-          </p>
-        </div>
-        {camera ? (
-          <QrCamera detector={camera} onCode={read} onFail={failed} />
-        ) : (
-          <>
-            <CodeBoxes value={code} wrong={wrong} />
-            {error ? (
-              <ErrorLine large>{lockedUntil ? `Too many tries. Try again at ${hhmm(new Date(lockedUntil))}.` : error}</ErrorLine>
-            ) : scanFailed ? (
-              <ErrorLine large>{SCAN_FAILURE[scanFailed]}</ErrorLine>
-            ) : scanning ? (
-              <span className="help">Hold the code on the manager’s screen up to the scanner.</span>
-            ) : null}
-            <Keypad onKey={onKey} left="clear" disabled={busy || locked} />
-          </>
-        )}
-        <div className="btn-group" role="group" aria-label="Other ways in">
+    <GateFrame strip={<GateStrip place={host} />}>
+      <section className="gate-l is-door">
+        <div className="gate-door">
+          <Plug className="glyph" />
+          <h1 className="gate-h">Pair this till</h1>
           {camera ? (
-            <button type="button" className="btn btn-lg grow" onClick={() => setCamera(null)}>
-              <Keyboard className="ic" />
-              Type the code instead
-            </button>
+            <QrCamera detector={camera} onCode={read} onFail={failed} />
           ) : (
-            <button type="button" className="btn btn-lg grow" disabled={busy || locked} onClick={() => void scan()}>
-              <QrCode className="ic" />
-              {scanFailed === "nothing-seen" || scanFailed === "wrong-qr" ? "Scan again" : "Scan the QR instead"}
-            </button>
+            <BigCode value={code} wrong={wrong} />
           )}
-          <a className="btn btn-lg grow" href={`${base}/price-check`}>
+          {error ? (
+            <GateError>{lockedUntil ? `Too many tries. Try again at ${hhmm(new Date(lockedUntil))}.` : error}</GateError>
+          ) : scanFailed ? (
+            <GateError>{SCAN_FAILURE[scanFailed]}</GateError>
+          ) : null}
+        </div>
+        <div className="gate-foot" role="group" aria-label="Other ways in">
+          {camera ? (
+            <GateButton icon={Keyboard} onClick={() => setCamera(null)}>
+              Type the code instead
+            </GateButton>
+          ) : (
+            <GateButton icon={QrCode} disabled={busy || locked} aria-pressed={scanning} onClick={() => void scan()}>
+              {scanFailed === "nothing-seen" || scanFailed === "wrong-qr" ? "Scan again" : "Scan the QR instead"}
+            </GateButton>
+          )}
+          <a className="gate-btn" href={`${base}/price-check`}>
             <Tag className="ic" />
             Check a price
           </a>
         </div>
-      </div>
-      <GateSide lede={host} quiet="Not a till yet. Price check works; selling does not." step={1} />
+      </section>
+      <section className="gate-r">
+        <PinPad
+          onKey={onKey}
+          onGo={() => code.length === 6 && !wrong && void submit(code)}
+          goLabel="Pair"
+          disabled={busy || locked}
+          busy={busy}
+        />
+      </section>
+    </GateFrame>
+  );
+}
+
+/** The six digits of a pairing code, big, in two threes; the next one ringed while typing. */
+function BigCode({ value, wrong }: { value: string; wrong?: boolean }) {
+  const boxes = [0, 1, 2, 3, 4, 5].map((index) => (
+    <span key={index} className={wrong ? "is-bad" : index === value.length ? "is-at" : undefined}>
+      {value[index] ?? ""}
+    </span>
+  ));
+  return (
+    <div className="gate-code" role="img" aria-label={`Pairing code, ${value.length} of 6 digits typed`}>
+      {boxes.slice(0, 3)}
+      <i />
+      {boxes.slice(3)}
     </div>
   );
 }
@@ -269,13 +283,7 @@ function QrCamera({
         <video ref={video} muted playsInline aria-hidden="true" />
         <span className="frame" aria-hidden="true" />
       </div>
-      {stray ? (
-        <ErrorLine large>{NOT_A_PAIRING_QR}</ErrorLine>
-      ) : (
-        <span className="help" role="status">
-          Looking for the QR.
-        </span>
-      )}
+      {stray ? <GateError>{NOT_A_PAIRING_QR}</GateError> : null}
     </>
   );
 }
@@ -302,43 +310,50 @@ export function NoLongerDoor({ base, host, facts }: { base: string; host: string
         ? ` The ${facts.sent} sales saved here were sent first.`
         : "";
 
+  const pairAgain = async () => {
+    // Forget the old key so the device is plainly not a till; the server already ignores it.
+    setBusy(true);
+    await fetch("/api/v2/retail/devices/forget", { method: "POST", credentials: "include" }).catch(() => null);
+    window.location.assign(`${base}/pair`);
+  };
+
   return (
-    <div className="gate">
-      <div className="gate-form">
-        <div>
-          <h1 className="text-display balance">This device is no longer a till</h1>
-          <p className="under">
+    <GateFrame strip={<GateStrip place={host} />}>
+      <section className="gate-l is-door">
+        <div className="gate-door">
+          <Plug className="glyph" />
+          <h1 className="gate-h">This device is no longer a till</h1>
+          <p className="gate-s">
             {what}
             {sent}
           </p>
-        </div>
-        <dl className="attrs">
           {facts.shift ? (
-            <>
+            <dl className="gate-facts">
               <dt>{firstName(facts.shift.cashier)}’s shift</dt>
               <dd>Carries on on the new device</dd>
-            </>
+            </dl>
           ) : null}
-          <dt>This device</dt>
-          <dd>Checks prices until it is paired again</dd>
-        </dl>
-        <button
-          type="button"
-          className="btn btn-primary btn-lg"
-          aria-busy={busy || undefined}
-          disabled={busy}
-          onClick={async () => {
-            // Forget the old key so the device is plainly not a till; the server already ignores it.
-            setBusy(true);
-            await fetch("/api/v2/retail/devices/forget", { method: "POST", credentials: "include" }).catch(() => null);
-            window.location.assign(`${base}/pair`);
-          }}
-        >
-          <Link className="ic" />
-          Pair it to a till
-        </button>
-      </div>
-      <GateSide lede={host} quiet="Not a till yet. Price check works; selling does not." step={1} />
-    </div>
+        </div>
+      </section>
+      <section className="gate-r">
+        <div className="gate-ways">
+          <button type="button" className="take-key" aria-busy={busy || undefined} disabled={busy} onClick={() => void pairAgain()}>
+            <Link className="ic" />
+            Pair it to a till
+            <span className="kbd">↵</span>
+          </button>
+          <a className="gate-btn" href={`${base}/price-check`}>
+            <Tag className="ic" />
+            Check a price
+          </a>
+        </div>
+        <PairAgainOnEnter onEnter={() => void pairAgain()} enabled={!busy} />
+      </section>
+    </GateFrame>
   );
+}
+
+function PairAgainOnEnter({ onEnter, enabled }: { onEnter: () => void; enabled: boolean }) {
+  useEnterKey(onEnter, enabled);
+  return null;
 }

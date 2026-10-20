@@ -1,0 +1,166 @@
+/* The gate (W6-9, W6-3b, T7): Who's selling? and the PIN, the lock, PIN locked, the password, choosing a PIN,
+   pairing and no longer a till. The strip, then two halves: who on the left, the keys on a 460 wide ground
+   on the right with the one orange key. */
+
+.gate-cm { height: 100vh; height: 100dvh; display: flex; flex-direction: column; background: var(--color-surface); color: var(--color-ink-2); }
+.gate-cm.is-over { position: fixed; inset: 0; z-index: 90; }
+.gate-cm:focus { outline: none; }
+.gate-cm .strip-brand { flex: none; fill: var(--color-accent); stroke: var(--color-accent-ink); stroke-width: 2.4; stroke-linecap: round; }
+.gate-cm .strip-brand path { fill: none; }
+.strip-place { font-size: 15px; color: var(--color-ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+
+.gate-body { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) 460px; }
+.gate-l { min-width: 0; min-height: 0; overflow: auto; display: flex; flex-direction: column; gap: 28px; padding: 48px 56px 40px; box-shadow: inset -1px 0 0 var(--color-line); }
+.gate-r { min-width: 0; min-height: 0; overflow: auto; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 22px; padding: 32px 40px; background: var(--color-ground); }
+.gate-r.is-form { align-items: stretch; }
+
+/* Titles: the screen's question, or the person's state beside their face. */
+.gate-head { display: flex; flex-direction: column; gap: 8px; }
+.gate-h { margin: 0; font-size: 30px; font-weight: 600; letter-spacing: -0.02em; line-height: 1.2; color: var(--color-ink); }
+.gate-t { margin: 0; font-size: 34px; font-weight: 600; letter-spacing: -0.02em; line-height: 1.2; color: var(--color-ink); }
+.gate-s { margin: 6px 0 0; font-size: 17px; line-height: 1.4; color: var(--color-muted); }
+.gate-head .gate-s { margin: 0; }
+.gate-s .num { font-family: var(--font-mono); font-size: 16px; }
+.gate-s.is-bad { color: var(--color-danger); font-weight: 500; }
+
+/* The person on the left: a 120 face ringed off the page, the title under it, in the middle of the half. */
+.gate-who { margin: auto 0; display: flex; flex-direction: column; align-items: flex-start; gap: 26px; }
+.gate-who .avatar { width: 120px; height: 120px; box-shadow: 0 0 0 3px var(--color-surface), 0 0 0 4.5px var(--color-rule); outline: 0; }
+.gate-who .avatar-none .ic { width: 56px; height: 56px; }
+.gate-foot { display: flex; flex-wrap: wrap; gap: 12px; }
+
+/* The people: faces as cards, the chosen one ringed. */
+.gate-people { display: grid; grid-template-columns: repeat(auto-fill, minmax(168px, 1fr)); gap: 16px; align-content: start; }
+.gate-face { display: flex; flex-direction: column; align-items: center; gap: 10px; min-width: 0; padding: 18px 8px; border-radius: 16px; background: transparent; color: var(--color-ink); font-size: 17px; font-weight: 600; text-align: center; transition: background-color var(--motion-fast) var(--motion-ease), transform var(--motion-fast) var(--motion-ease); }
+.gate-face .face { position: relative; display: block; }
+.gate-face .avatar { width: 80px; height: 80px; outline: 0; }
+.gate-face .avatar-none .ic { width: 36px; height: 36px; }
+.gate-face .count { position: absolute; top: -2px; right: -4px; min-width: 24px; height: 24px; padding: 0 7px; border-radius: var(--radius-pill); background: var(--color-ink); color: var(--color-surface); box-shadow: 0 0 0 2px var(--color-surface); font-family: var(--font-mono); font-size: 13px; font-weight: 500; display: grid; place-items: center; }
+.gate-face .name { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gate-face small { margin-top: -6px; font-size: 14px; font-weight: 500; color: var(--color-muted); }
+.gate-face small.is-warn { color: var(--color-warning); }
+.gate-face small.is-bad { color: var(--color-danger); }
+@media (hover: hover) { .gate-face:hover { background: var(--color-hover); } }
+.gate-face:active { transform: scale(var(--motion-press)); }
+.gate-face[aria-pressed="true"] { background: var(--color-fill); box-shadow: inset 0 0 0 2px var(--color-ink); }
+.gate-face:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var(--color-ink), 0 0 0 2px var(--color-surface), 0 0 0 4px var(--color-accent); }
+.gate-people .skeleton.is-face { height: 156px; border-radius: 16px; }
+
+/* The PIN: whose, the four dots, what went wrong. */
+.gate-pinl { text-align: center; font-size: 18px; font-weight: 600; color: var(--color-ink); }
+.gate-pinl.is-quiet { color: var(--color-muted); font-weight: 500; }
+.gate-cm .pin { justify-content: center; gap: 16px; }
+.gate-cm .pin i { box-shadow: inset 0 0 0 2px var(--color-rule); }
+.gate-cm .pin i.on { background: var(--color-ink); box-shadow: none; }
+.gate-cm .pin.is-wrong i { background: var(--color-danger); box-shadow: none; }
+.gate-err { margin: -8px 0 0; text-align: center; font-size: 16px; font-weight: 500; color: var(--color-danger); }
+.gate-err.is-left { margin: 0; text-align: left; }
+.gate-twin { display: flex; flex-direction: column; align-items: center; gap: 10px; }
+.gate-twin .gate-pinl { font-size: 15px; font-weight: 500; color: var(--color-muted); }
+.gate-twin.is-now .gate-pinl { font-weight: 600; color: var(--color-ink); }
+.gate-twin.is-later .pin i { box-shadow: inset 0 0 0 2px var(--color-line); }
+
+/* The PIN pad: 104 × 66 keys, Delete bottom left, the orange key bottom right. */
+.gate-cm .keypad.pinpad { width: auto; max-width: none; grid-template-columns: repeat(3, 104px); gap: 10px; justify-content: center; }
+.gate-cm .pinpad button { height: 66px; border-radius: 14px; background: var(--color-surface); box-shadow: inset 0 0 0 1px var(--color-line); font-family: var(--font-sans); font-size: 26px; font-weight: 600; color: var(--color-ink); }
+.gate-cm .pinpad button .ic { width: 24px; height: 24px; }
+.gate-cm .pinpad button:active:not(:disabled) { background: var(--color-pressed); box-shadow: none; }
+.gate-cm .pinpad button:focus-visible { box-shadow: 0 0 0 2px var(--color-ground), 0 0 0 4px var(--color-accent); }
+.gate-cm .pinpad button.go { background: var(--color-accent); color: var(--color-accent-ink); box-shadow: none; }
+.gate-cm .pinpad button.go .ic { width: 26px; height: 26px; }
+.gate-cm .pinpad button:nth-child(10):not(:disabled) { color: var(--color-ink-2); }
+.gate-cm .pinpad button.go:focus-visible { box-shadow: 0 0 0 2px var(--color-ground), 0 0 0 4px var(--color-ink); }
+.gate-cm .pinpad button:disabled { color: var(--color-faint); cursor: default; }
+.gate-cm .pinpad button.go:disabled { background: var(--color-fill); color: var(--color-faint); }
+
+/* The ways on, stacked full width: Use my password, Someone else. */
+.gate-ways { width: 100%; display: flex; flex-direction: column; gap: 12px; margin-top: 18px; }
+.gate-ways .take-key, .gate-r.is-form .take-key { height: 68px; }
+.gate-ways .gate-btn { height: 68px; justify-content: center; }
+.gate-cm .take-key .ic { width: 22px; height: 22px; }
+
+/* The quiet key: Someone else, Scan the QR, Check a price. */
+.gate-btn { height: 64px; padding: 0 24px; border-radius: 16px; display: inline-flex; align-items: center; gap: 10px; background: var(--color-surface); box-shadow: inset 0 0 0 1px var(--color-rule); color: var(--color-ink); font-size: 17px; font-weight: 600; text-decoration: none; white-space: nowrap; transition: background-color var(--motion-fast) var(--motion-ease), transform var(--motion-fast) var(--motion-ease); }
+.gate-btn .ic { width: 20px; height: 20px; flex: none; }
+@media (hover: hover) { .gate-btn:hover:not(:disabled) { background: var(--color-hover); } }
+.gate-btn:active:not(:disabled) { transform: scale(var(--motion-press)); background: var(--color-pressed); }
+.gate-btn:focus-visible { outline: none; box-shadow: inset 0 0 0 1px var(--color-rule), 0 0 0 2px var(--color-surface), 0 0 0 4px var(--color-ink); }
+.gate-btn:disabled { color: var(--color-faint); cursor: default; }
+.gate-btn[aria-pressed="true"] { background: var(--color-fill); box-shadow: inset 0 0 0 2px var(--color-ink); }
+
+/* The password: one 64 tall field ringed in orange, the eye inside it. */
+.gate-field { display: flex; flex-direction: column; gap: 10px; }
+.gate-field label { font-size: 15px; font-weight: 500; color: var(--color-muted); }
+.gate-pw { height: 64px; display: flex; align-items: center; gap: 10px; padding: 0 8px 0 20px; border-radius: 16px; background: var(--color-surface); box-shadow: inset 0 0 0 1px var(--color-rule); }
+.gate-pw:focus-within { box-shadow: inset 0 0 0 2px var(--color-accent); }
+.gate-pw.is-bad { box-shadow: inset 0 0 0 2px var(--color-danger); }
+.gate-pw input { flex: 1; min-width: 0; height: 100%; padding: 0; border: 0; border-radius: 0; background: transparent; box-shadow: none; outline: none; font: inherit; font-size: 22px; color: var(--color-ink); caret-color: var(--color-accent); }
+.gate-pw input:focus, .gate-pw input:focus-visible { outline: none; box-shadow: none; }
+.gate-pw input[type="password"] { letter-spacing: 0.18em; font-size: 26px; }
+.gate-pw .eye { flex: none; width: 48px; height: 48px; border-radius: 12px; display: grid; place-items: center; color: var(--color-muted); }
+.gate-pw .eye .ic { width: 22px; height: 22px; }
+@media (hover: hover) { .gate-pw .eye:hover { background: var(--color-fill); } }
+.gate-pw .eye:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--color-ink); }
+
+/* The door: a device that is not a till. The glyph, the title and the code, in the middle of the half. */
+.gate-l.is-door { align-items: center; }
+.gate-door { margin: auto 0; display: flex; flex-direction: column; align-items: center; gap: 28px; text-align: center; max-width: 560px; }
+.gate-door .glyph { width: 40px; height: 40px; color: var(--color-muted); }
+.gate-door .gate-h { font-size: 34px; }
+.gate-door .gate-s { margin: -12px 0 0; }
+.gate-door .gate-err { margin: -8px 0 0; }
+.gate-code { display: flex; gap: 14px; }
+.gate-code span { width: 76px; height: 96px; border-radius: 16px; background: var(--color-fill); display: grid; place-items: center; color: var(--color-ink); font-size: 52px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.gate-code span.is-at { background: var(--color-surface); box-shadow: inset 0 0 0 2px var(--color-accent); }
+.gate-code span.is-bad { background: var(--color-danger-tint); color: var(--color-danger); }
+.gate-code i { width: 18px; }
+.gate-door .qr-cam { width: 320px; }
+.gate-facts { display: grid; grid-template-columns: auto auto; gap: 6px 16px; margin: 0; font-size: 16px; text-align: left; }
+.gate-facts dt { color: var(--color-muted); }
+.gate-facts dd { margin: 0; color: var(--color-ink); font-weight: 500; }
+.gate-l.is-door .gate-foot { justify-content: center; }
+.gate-ways .gate-btn[href] { display: flex; }
+
+@media (prefers-reduced-motion: reduce) { .gate-face, .gate-btn { transition: none; } }
+
+/* A PC window narrower than the Counter Mini: a narrower key side. */
+@media (max-width: 1100px) {
+  .gate-body { grid-template-columns: minmax(0, 1fr) 400px; }
+  .gate-l { padding: 40px 40px 32px; }
+}
+
+/* The Kora and phones: one column, the people in a row that scrolls, the keys under them. */
+@media (max-width: 760px) {
+  .gate-cm { height: auto; min-height: 100dvh; }
+  .gate-cm.is-over { height: 100dvh; overflow: auto; }
+  .gate-body { display: flex; flex-direction: column; }
+  .gate-l { overflow: visible; gap: 20px; padding: 24px 16px; box-shadow: none; }
+  .gate-r { flex: 1; overflow: visible; justify-content: flex-start; gap: 16px; padding: 20px 16px 24px; box-shadow: inset 0 1px 0 var(--color-line); }
+  .gate-cm.is-idle .gate-r { display: none; }
+  .gate-h { font-size: 26px; }
+  .gate-t, .gate-door .gate-h { font-size: 26px; }
+  .gate-who { margin: 0; flex-direction: row; align-items: center; gap: 16px; }
+  .gate-who .avatar { width: 64px; height: 64px; }
+  .gate-who .avatar-none .ic { width: 30px; height: 30px; }
+  .gate-s { font-size: 15px; }
+  .gate-people { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+  .gate-cm:not(.is-idle) .gate-people { display: flex; overflow-x: auto; margin: -6px -16px; padding: 6px 16px; scroll-snap-type: x proximity; }
+  .gate-face { padding: 12px 6px; font-size: 15px; scroll-snap-align: start; }
+  .gate-cm:not(.is-idle) .gate-face { flex: none; width: 112px; }
+  .gate-face .avatar { width: 56px; height: 56px; }
+  .gate-face .avatar-none .ic { width: 26px; height: 26px; }
+  .gate-face small { font-size: 13px; }
+  .gate-people .skeleton.is-face { flex: none; width: 112px; height: 120px; }
+  .gate-cm .keypad.pinpad { width: 100%; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+  .gate-cm .pinpad button { height: 60px; }
+  .gate-foot { width: 100%; flex-wrap: nowrap; }
+  .gate-foot .gate-btn { flex: 1 1 0; min-width: 0; justify-content: center; padding: 0 12px; font-size: 16px; white-space: normal; line-height: 1.2; }
+  .gate-door { gap: 18px; margin: 0; }
+  .gate-door .gate-s { margin: -6px 0 0; }
+  .gate-code { gap: 8px; }
+  .gate-code span { width: 48px; height: 64px; border-radius: 12px; font-size: 34px; }
+  .gate-code i { width: 8px; }
+  .gate-door .qr-cam { width: 100%; max-width: 320px; }
+  .gate-ways { margin-top: 0; }
+  .strip-place { display: none; }
+}
