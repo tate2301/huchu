@@ -55,9 +55,15 @@ const shots = [
 
 for (const shot of shots) {
   const { context, page } = await signedIn({ width: shot.width, height: shot.height }, shot.dark ? "dark" : "light");
-  if (shot.dark) await page.evaluate(() => localStorage.setItem("appearance", "dark")).catch(() => undefined);
+  // The app reads its theme from this key before the first paint (lib/theme/products.ts).
+  if (shot.dark) await page.evaluate(() => localStorage.setItem("huchu.appearance", "dark")).catch(() => undefined);
   for (const target of targets) {
-    await page.goto(`${base}${target.path}`, { waitUntil: "networkidle", timeout: 120_000 }).catch(() => undefined);
+    // localhost is the admin portal's host in development: every address names the workspace.
+    const url = `${base}${target.path}${target.path.includes("?") ? "&" : "?"}__tenant=${tenant}`;
+    // A Books page never goes network-idle (the live channel and the notification poll stay open):
+    // wait for the load, then for its loading bands to go.
+    await page.goto(url, { waitUntil: "load", timeout: 180_000 }).catch(() => undefined);
+    await page.waitForFunction(() => !document.querySelector(".k-load"), null, { timeout: 120_000 }).catch(() => undefined);
     await page.evaluate(() => document.fonts.ready);
     await page.waitForTimeout(800);
     const sideways = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
@@ -67,6 +73,8 @@ for (const shot of shots) {
         .map((e) => (e.textContent ?? "").trim().slice(0, 40)),
     );
     const name = `${target.slug}-${shot.width}${shot.dark ? "-dark" : ""}.png`;
+    // The shell scrolls inside a 100dvh frame; let the page run its full height for the shot.
+    await page.addStyleTag({ content: ".shell-frame{height:auto!important;overflow:visible!important}main.content-shell{overflow:visible!important;flex:none!important}.ck.kit-main{height:auto!important;overflow:visible!important}" });
     const app = await page.screenshot({ fullPage: true });
     const reference = path.join(refs, `bk-${name}`);
     if (fs.existsSync(reference)) {
