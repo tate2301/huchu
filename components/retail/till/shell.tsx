@@ -21,6 +21,7 @@ import { fetchJson } from "@/lib/api-client";
 import {
   CashRegister,
   ChartBar,
+  CloudSync,
   DotsThree,
   GearSix,
   Key,
@@ -37,9 +38,12 @@ import {
   Users,
   Vault,
   WarningCircle,
+  Wifi,
+  WifiSlash,
   X,
 } from "@/lib/icons";
 import { getPosPortalHref, type PosPortalNavKey } from "@/lib/retail/pos-host";
+import { useConnection } from "./connection";
 import { dayMonth, hhmm, ROLE_WORD } from "./format";
 import { useTillLock } from "./lock";
 import { Avatar, TillDialog, TillPopover } from "./parts";
@@ -205,9 +209,16 @@ export function PersonMenu({ trigger, doors = [] }: { trigger: React.ReactNode; 
  */
 function TillNotes() {
   const { messages, dismissMessage, offlineStop, fiscalStop } = useTill();
+  const { online, since } = useConnection();
   const stop = offlineStop ?? fiscalStop;
   return (
     <>
+      {!online && !stop ? (
+        <div className="banner banner-warning" role="status">
+          <WifiSlash className="ic" />
+          <b className="weight-500">No connection{since ? ` since ${hhmm(since)}` : ""}</b>
+        </div>
+      ) : null}
       {stop ? (
         <div className="banner banner-danger" role="alert">
           <WarningCircle className="ic" />
@@ -332,6 +343,62 @@ function CashDropPrompt() {
   );
 }
 
+/** The time on the strip, to the minute. */
+function useClock() {
+  const [now, setNow] = React.useState(() => new Date());
+  React.useEffect(() => {
+    const tick = window.setInterval(() => setNow(new Date()), 15_000);
+    return () => window.clearInterval(tick);
+  }, []);
+  return now;
+}
+
+/** The strip across the top of the till: the shop, this till, the line and the time. */
+function TillStrip() {
+  const { data: session } = useSession();
+  const { context, pendingOfflineSales, isPosHost } = useTill();
+  const { online } = useConnection();
+  const now = useClock();
+  const shop = context?.site.name ?? "";
+  const logo = context?.receipt.logoUrl ?? null;
+  const name = session?.user?.name ?? "You";
+  return (
+    <header className="strip">
+      <span className="strip-mark" aria-hidden="true">
+        {/* eslint-disable-next-line @next/next/no-img-element -- the shop's own logo, cached offline */}
+        {logo ? <img src={logo} alt="" /> : shop.charAt(0)}
+      </span>
+      <span className="strip-shop">{shop}</span>
+      {context ? <span className="strip-till">· {context.till.name}</span> : null}
+      <span className="grow" />
+      {pendingOfflineSales ? (
+        <Link className="strip-wait" href={getPosPortalHref("offline", isPosHost)}>
+          <CloudSync className="ic" />
+          {pendingOfflineSales} waiting
+        </Link>
+      ) : null}
+      {online ? (
+        <Wifi className="ic" role="img" aria-label="Connected" />
+      ) : (
+        <WifiSlash className="ic is-off" role="img" aria-label="No connection" />
+      )}
+      <time className="strip-time" dateTime={now.toISOString()}>
+        {hhmm(now)}
+      </time>
+      <span className="when-phone">
+        <PersonMenu
+          doors={DOORS.filter((entry) => !entry.phone)}
+          trigger={
+            <button type="button" className="strip-who" aria-label={`${name}, open the menu`}>
+              <Avatar name={name} image={session?.user?.image} />
+            </button>
+          }
+        />
+      </span>
+    </header>
+  );
+}
+
 export function TillShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname() ?? "";
   const { data: session } = useSession();
@@ -379,42 +446,45 @@ export function TillShell({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <div className="shell-b">
-      <nav className="rail-b" aria-label="Till">
-        <PersonMenu
-          trigger={
-            <button type="button" className="who" aria-label={`${name}, open the menu`}>
-              <Avatar name={name} image={session?.user?.image} />
+    <div className="shell-cm">
+      <TillStrip />
+      <div className="shell-b">
+        <nav className="rail-b" aria-label="Till">
+          <PersonMenu
+            trigger={
+              <button type="button" className="who" aria-label={`${name}, open the menu`}>
+                <Avatar name={name} image={session?.user?.image} />
+              </button>
+            }
+          />
+          {DOORS.map((entry) => door(entry, "rail"))}
+          <span className="gap" />
+          {pinConfigured ? (
+            <button type="button" className="nav" onClick={lock}>
+              <Lock className="ic" />
+              <span>Lock</span>
             </button>
-          }
-        />
-        {DOORS.map((entry) => door(entry, "rail"))}
-        <span className="gap" />
-        {pinConfigured ? (
-          <button type="button" className="nav" onClick={lock}>
-            <Lock className="ic" />
-            <span>Lock</span>
-          </button>
-        ) : null}
-      </nav>
-      <div className="shell-screen">
-        <TillNotes />
-        {children}
+          ) : null}
+        </nav>
+        <div className="shell-screen">
+          <TillNotes />
+          {children}
+        </div>
+        <CashDropPrompt />
+        <PersonMessages />
+        <nav className="tabbar" aria-label="Till">
+          {DOORS.filter((entry) => entry.phone).map((entry) => door(entry, "tab"))}
+          <PersonMenu
+            doors={DOORS.filter((entry) => !entry.phone)}
+            trigger={
+              <button type="button" className="nav">
+                <DotsThree className="ic" />
+                <span>More</span>
+              </button>
+            }
+          />
+        </nav>
       </div>
-      <CashDropPrompt />
-      <PersonMessages />
-      <nav className="tabbar" aria-label="Till">
-        {DOORS.filter((entry) => entry.phone).map((entry) => door(entry, "tab"))}
-        <PersonMenu
-          doors={DOORS.filter((entry) => !entry.phone)}
-          trigger={
-            <button type="button" className="nav">
-              <DotsThree className="ic" />
-              <span>More</span>
-            </button>
-          }
-        />
-      </nav>
     </div>
   );
 }

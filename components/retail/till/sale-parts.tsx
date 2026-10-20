@@ -342,16 +342,15 @@ export function CustomerPopover() {
   });
 
   const trigger = selectedCustomer ? (
-    <button type="button" className="btn btn-quiet">
+    <button type="button" className="customer-pill">
       <Avatar name={selectedCustomer.name} size={24} />
       <span className="truncate max-140">
         {selectedCustomer.name}
       </span>
     </button>
   ) : (
-    <button type="button" className="btn btn-quiet">
+    <button type="button" className="btn btn-icon is-touch" aria-label="Add a customer" title="Add a customer">
       <UserPlus className="ic" />
-      Add customer
     </button>
   );
 
@@ -553,7 +552,15 @@ export function useDropSale() {
 }
 
 /** Opened by its button, or by H on the keyboard (the sell screen holds `open`). */
-export function HoldPopover({ open, onOpenChange: setOpen }: { open: boolean; onOpenChange: (open: boolean) => void }) {
+export function HoldPopover({
+  open,
+  onOpenChange: setOpen,
+  disabled = false,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  disabled?: boolean;
+}) {
   const { toast } = useToast();
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -593,11 +600,11 @@ export function HoldPopover({ open, onOpenChange: setOpen }: { open: boolean; on
       open={open}
       onOpenChange={setOpen}
       label="Hold this sale"
-      align="end"
+      align="start"
+      side="top"
       trigger={
-        <button type="button" className="btn btn-quiet is-icon-on-phone" aria-label="Hold">
+        <button type="button" className="hold-key" aria-label="Hold" title="Hold  H" disabled={disabled}>
           <PauseCircle className="ic" />
-          <span className="when-wide">Hold</span>
         </button>
       }
     >

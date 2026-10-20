@@ -21,7 +21,7 @@ import { NEEDS_A_MANAGER, queuedReversalLabel, queuedSaleLabel, reversalNeedsMan
 import { useApproval } from "./approval";
 import { count, hhmm, usd } from "./format";
 import { Empty, TillDialog } from "./parts";
-import { useConnection } from "./sell";
+import { useConnection } from "./connection";
 import { useTill } from "./state";
 import type { PosCatalogItem } from "./types";
 

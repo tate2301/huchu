@@ -18,6 +18,7 @@ import {
   ArrowsDownUp as PhosphorArrowsDownUp,
   ArrowsLeftRight as PhosphorArrowsLeftRight,
   ArrowsOut as PhosphorArrowsOut,
+  ArrowsSplit as PhosphorArrowsSplit,
   At as PhosphorAt,
   Backspace as PhosphorBackspace,
   BagSimple as PhosphorBagSimple,
@@ -277,6 +278,7 @@ const iconRegistry = {
   ArrowsDownUp: PhosphorArrowsDownUp,
   ArrowsLeftRight: PhosphorArrowsLeftRight,
   ArrowsOut: PhosphorArrowsOut,
+  ArrowsSplit: PhosphorArrowsSplit,
   At: PhosphorAt,
   Backspace: PhosphorBackspace,
   BagSimple: PhosphorBagSimple,
@@ -804,6 +806,7 @@ export const MailCheck = createPhosphorIcon(
 );
 export const ManageAccounts = createPhosphorIcon("UserGear", "ManageAccounts");
 export const Maximize2 = createPhosphorIcon("ArrowsOut", "Maximize2");
+export const ArrowsSplit = createPhosphorIcon("ArrowsSplit", "ArrowsSplit");
 export const MapPin = createPhosphorIcon("MapPin", "MapPin");
 export const Menu = createPhosphorIcon("List", "Menu");
 export const Mic = createPhosphorIcon("Microphone", "Mic");

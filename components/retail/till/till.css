@@ -1760,10 +1760,6 @@
   .tl.tl.tl .side { display: none; }
   .tl.tl.tl .bar, .tl.tl.tl .tools, .tl.tl.tl .row, .tl.tl.tl .group-head { padding-left: var(--space-16); padding-right: var(--space-16); }
   .tl.tl.tl .tools { overflow-x: auto; }
-  /* A bar with a search box: the box takes its own line, so the title, tabs and search never push the page wider than the screen. */
-  .tl.tl.tl .bar:has(.input-wrap.is-search) { height: auto; min-height: var(--layout-navbar); flex-wrap: wrap; padding-block: var(--space-8); }
-  .tl.tl.tl .bar:has(.input-wrap.is-search) .end { flex: 1 1 100%; margin-left: 0; }
-  .tl.tl.tl .bar:has(.input-wrap.is-search) .input-wrap.is-search { width: 100%; max-width: none; }
   .tl.tl.tl .form-sec { grid-template-columns: minmax(0, 1fr); }
   .tl.tl.tl .field-row { grid-template-columns: minmax(0, 1fr); }
   .tl.tl.tl .page { padding: var(--space-24) var(--space-16) var(--space-48); gap: var(--space-32); }
@@ -1816,30 +1812,6 @@
 .tl.tl.tl .pin i { width: 16px; height: 16px; border-radius: var(--radius-pill); box-shadow: inset 0 0 0 2px var(--color-ink-2); }
 .tl.tl.tl .pin i.on { background: var(--color-ink); box-shadow: none; }
 .tl.tl.tl .pin.is-wrong i { background: var(--color-danger); box-shadow: none; }
-.tl.tl.tl .pin.is-wrong { animation: till-shake 320ms var(--motion-ease); }
-@keyframes till-shake { 20%, 60% { transform: translateX(-6px); } 40%, 80% { transform: translateX(6px); } }
-@media (prefers-reduced-motion: reduce) { .tl.tl.tl .pin.is-wrong { animation: none; } }
-/* The approval dialog (FLR-09): who approves as chips, then four dots over the keypad. */
-.tl.tl.tl .approvers { display: flex; flex-wrap: wrap; gap: var(--space-8); }
-.tl.tl.tl .approvers .btn[aria-checked="true"] { color: var(--color-surface); background: var(--color-ink); box-shadow: none; }
-.tl.tl.tl .approve-pin { display: flex; flex-direction: column; align-items: center; gap: var(--space-12); padding-top: var(--space-8); }
-.tl.tl.tl .approve-pin .keypad { width: 100%; max-width: 320px; }
-/* Messages for the person at the till, after their PIN. */
-/* The "N messages for you" dialog after the PIN: one block per message, title and time on a row, the summary below. */
-.tl.tl.tl .note-list { display: flex; flex-direction: column; gap: var(--space-12); margin: 0; padding: 0; list-style: none; }
-.tl.tl.tl .note-item { display: block; padding-bottom: var(--space-12); box-shadow: 0 1px 0 var(--color-line); }
-.tl.tl.tl .note-item:last-child { box-shadow: none; padding-bottom: 0; }
-.tl.tl.tl .note-head { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-12); }
-.tl.tl.tl .note-title { min-width: 0; font-weight: 500; color: var(--color-ink); }
-.tl.tl.tl .note-time { flex: none; white-space: nowrap; font-family: var(--font-mono); font-size: var(--text-13); color: var(--color-muted); }
-.tl.tl.tl .note-text { margin: var(--space-4) 0 0; color: var(--color-ink-2); line-height: var(--leading-reading); text-wrap: pretty; }
-/* Why chips and the way money goes back, on the refund and the cash dialogs. */
-.tl.tl.tl .choice-chips { display: flex; flex-wrap: wrap; gap: var(--space-8); }
-.tl.tl.tl .choice-chips .btn[aria-checked="true"] { box-shadow: 0 0 0 2px var(--color-ink); color: var(--color-ink); }
-.tl.tl.tl .why-cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-8); }
-.tl.tl.tl .why-cards .pay { flex-direction: column; align-items: flex-start; gap: var(--space-4); min-height: 72px; text-align: left; }
-.tl.tl.tl .why-cards .pay[aria-checked="true"] { box-shadow: 0 0 0 2px var(--color-ink); }
-@media (max-width: 640px) { .tl.tl.tl .why-cards { grid-template-columns: 1fr; } }
 /* Choosing a PIN: a row for the new one and a row for typing it again; the row still to come is quiet. */
 .tl.tl.tl .pin-rows { display: flex; flex-direction: column; gap: var(--space-16); }
 .tl.tl.tl .pin-row { display: flex; flex-direction: column; gap: var(--space-8); }
@@ -2003,7 +1975,6 @@
 .tl.tl.tl .weight-500 { font-weight: 500; }
 .tl.tl.tl .status.is-strong { color: var(--color-ink); font-weight: 500; }
 .tl.tl.tl .tender.is-quiet { box-shadow: var(--shadow-ring); }
-.tl.tl.tl button.tender { width: 100%; text-align: left; }
 .tl.tl.tl .list.is-framed { border-radius: var(--radius-card); box-shadow: var(--shadow-ring); }
 .tl.tl.tl .kbd.on-primary { margin-left: var(--space-4); background: transparent; color: inherit; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .32); }
 .tl.tl.tl .due-figure { font-size: var(--text-20); font-weight: 600; color: var(--color-ink); }
@@ -2047,15 +2018,6 @@
 .tl.tl.tl .row.is-sale { grid-template-columns: 96px minmax(0, 1.4fr) 112px minmax(0, 1.2fr) 96px 16px; color: inherit; text-decoration: none; }
 .tl.tl.tl .row.is-shift-line { grid-template-columns: 96px minmax(0, 1fr) 112px 96px; }
 .tl.tl.tl .row.is-person { grid-template-columns: 32px minmax(0, 1fr) 88px 80px; width: 100%; text-align: left; }
-/* On a phone the five columns do not fit: code and amount on the first line, who and what below, then state and the last cell. */
-@media (max-width: 760px) {
-  .tl.tl.tl .row.is-queued { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "code amount" "who who" "state last"; gap: var(--space-4) var(--space-16); }
-  .tl.tl.tl .row.is-queued > :nth-child(1) { grid-area: code; }
-  .tl.tl.tl .row.is-queued > :nth-child(2) { grid-area: who; text-align: left; }
-  .tl.tl.tl .row.is-queued > :nth-child(3) { grid-area: state; }
-  .tl.tl.tl .row.is-queued > :nth-child(4) { grid-area: amount; justify-self: end; }
-  .tl.tl.tl .row.is-queued > :nth-child(5) { grid-area: last; justify-self: end; }
-}
 .tl.tl.tl .row.is-split { justify-content: space-between; }
 .tl.tl.tl .row.is-flush { padding-left: 0; padding-right: 0; }
 .tl.tl.tl .row.is-inset { padding-left: var(--space-12); padding-right: var(--space-12); }
@@ -2159,20 +2121,6 @@
 /* A shop's logo at the head of a receipt or an offline slip. */
 .tl.tl.tl .receipt-logo { display: block; margin: 0 auto var(--space-8); max-width: 160px; max-height: 72px; }
 
-/* FLR-10: the liquor till moments (Liquor board) and what rides on the lines. */
-.tl.tl.tl .eyebrow { font-size: 12.5px; color: var(--color-muted); }
-.tl.tl.tl .footnote { font-size: 11.5px; line-height: 1.4; color: var(--color-muted); }
-.tl.tl.tl .banner-licence { flex-direction: column; align-items: flex-start; gap: 2px; background: var(--color-warning-tint); color: var(--color-ink); }
-.tl.tl.tl .tile .p.is-not-sold { font-size: var(--text-13); font-weight: 400; color: var(--color-muted); }
-.tl.tl.tl .tile .p .list { margin-left: var(--space-4); font-size: var(--text-12); font-weight: 400; color: var(--color-warning); }
-.tl.tl.tl .tile.is-bundle .s { color: var(--color-success); }
-.tl.tl.tl .ok-figure { color: var(--color-success); }
-.tl.tl.tl .totals .l.is-ok { color: var(--color-success); }
-.tl.tl.tl .totals .rule { height: 1px; background: var(--color-line); margin: var(--space-4) 0; }
-.tl.tl.tl .side-by-side { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-8); }
-.tl.tl.tl .side-by-side.is-one { grid-template-columns: 1fr 2fr; }
-.tl.tl.tl .voucher-check { display: grid; grid-template-columns: 1fr 1fr auto; gap: var(--space-8); align-items: end; }
-
 /* Motion: one set of movements, from the motion tokens. Each says where a thing came from or went.
    A count that changes pops; a code the till does not know shakes the box once; the tray slides in from
    the side it sits on; a product's picture flies from its tile to its line (motion.ts). */
@@ -2232,3 +2180,190 @@
 /* A key pressed with another, or after it ("Shift Delete", "3 *"): the caps sit side by side. */
 .tl.tl.tl .attrs dt.keys { display: flex; gap: var(--space-4); }
 .tl.tl.tl .paid-tick path { stroke-dasharray: 1; animation: tl-draw var(--motion-slow) var(--motion-ease-out) both; }
+
+/* ─── Rules that were only in the generated sheet ─────────────────────────────
+   Written into components/retail/till/till.css by hand before Oct 2026; kept here so the build makes them. */
+@media (max-width: 760px) {
+  /* A bar with a search box: the box takes its own line, so the title, tabs and search never push the page wider than the screen. */
+  .tl.tl.tl .bar:has(.input-wrap.is-search) { height: auto; min-height: var(--layout-navbar); flex-wrap: wrap; padding-block: var(--space-8); }
+  .tl.tl.tl .bar:has(.input-wrap.is-search) .end { flex: 1 1 100%; margin-left: 0; }
+  .tl.tl.tl .bar:has(.input-wrap.is-search) .input-wrap.is-search { width: 100%; max-width: none; }
+}
+.tl.tl.tl .pin.is-wrong { animation: till-shake 320ms var(--motion-ease); }
+@keyframes till-shake { 20%, 60% { transform: translateX(-6px); } 40%, 80% { transform: translateX(6px); } }
+@media (prefers-reduced-motion: reduce) { .tl.tl.tl .pin.is-wrong { animation: none; } }
+/* The approval dialog (FLR-09): who approves as chips, then four dots over the keypad. */
+.tl.tl.tl .approvers { display: flex; flex-wrap: wrap; gap: var(--space-8); }
+.tl.tl.tl .approvers .btn[aria-checked="true"] { color: var(--color-surface); background: var(--color-ink); box-shadow: none; }
+.tl.tl.tl .approve-pin { display: flex; flex-direction: column; align-items: center; gap: var(--space-12); padding-top: var(--space-8); }
+.tl.tl.tl .approve-pin .keypad { width: 100%; max-width: 320px; }
+/* Messages for the person at the till, after their PIN. */
+/* The "N messages for you" dialog after the PIN: one block per message, title and time on a row, the summary below. */
+.tl.tl.tl .note-list { display: flex; flex-direction: column; gap: var(--space-12); margin: 0; padding: 0; list-style: none; }
+.tl.tl.tl .note-item { display: block; padding-bottom: var(--space-12); box-shadow: 0 1px 0 var(--color-line); }
+.tl.tl.tl .note-item:last-child { box-shadow: none; padding-bottom: 0; }
+.tl.tl.tl .note-head { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-12); }
+.tl.tl.tl .note-title { min-width: 0; font-weight: 500; color: var(--color-ink); }
+.tl.tl.tl .note-time { flex: none; white-space: nowrap; font-family: var(--font-mono); font-size: var(--text-13); color: var(--color-muted); }
+.tl.tl.tl .note-text { margin: var(--space-4) 0 0; color: var(--color-ink-2); line-height: var(--leading-reading); text-wrap: pretty; }
+/* Why chips and the way money goes back, on the refund and the cash dialogs. */
+.tl.tl.tl .choice-chips { display: flex; flex-wrap: wrap; gap: var(--space-8); }
+.tl.tl.tl .choice-chips .btn[aria-checked="true"] { box-shadow: 0 0 0 2px var(--color-ink); color: var(--color-ink); }
+.tl.tl.tl .why-cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-8); }
+.tl.tl.tl .why-cards .pay { flex-direction: column; align-items: flex-start; gap: var(--space-4); min-height: 72px; text-align: left; }
+.tl.tl.tl .why-cards .pay[aria-checked="true"] { box-shadow: 0 0 0 2px var(--color-ink); }
+@media (max-width: 640px) { .tl.tl.tl .why-cards { grid-template-columns: 1fr; } }
+.tl.tl.tl button.tender { width: 100%; text-align: left; }
+/* On a phone the five columns do not fit: code and amount on the first line, who and what below, then state and the last cell. */
+@media (max-width: 760px) {
+  .tl.tl.tl .row.is-queued { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "code amount" "who who" "state last"; gap: var(--space-4) var(--space-16); }
+  .tl.tl.tl .row.is-queued > :nth-child(1) { grid-area: code; }
+  .tl.tl.tl .row.is-queued > :nth-child(2) { grid-area: who; text-align: left; }
+  .tl.tl.tl .row.is-queued > :nth-child(3) { grid-area: state; }
+  .tl.tl.tl .row.is-queued > :nth-child(4) { grid-area: amount; justify-self: end; }
+  .tl.tl.tl .row.is-queued > :nth-child(5) { grid-area: last; justify-self: end; }
+}
+/* FLR-10: the liquor till moments (Liquor board) and what rides on the lines. */
+.tl.tl.tl .eyebrow { font-size: 12.5px; color: var(--color-muted); }
+.tl.tl.tl .footnote { font-size: 11.5px; line-height: 1.4; color: var(--color-muted); }
+.tl.tl.tl .banner-licence { flex-direction: column; align-items: flex-start; gap: 2px; background: var(--color-warning-tint); color: var(--color-ink); }
+.tl.tl.tl .tile .p.is-not-sold { font-size: var(--text-13); font-weight: 400; color: var(--color-muted); }
+.tl.tl.tl .tile .p .list { margin-left: var(--space-4); font-size: var(--text-12); font-weight: 400; color: var(--color-warning); }
+.tl.tl.tl .tile.is-bundle .s { color: var(--color-success); }
+.tl.tl.tl .ok-figure { color: var(--color-success); }
+.tl.tl.tl .totals .l.is-ok { color: var(--color-success); }
+.tl.tl.tl .totals .rule { height: 1px; background: var(--color-line); margin: var(--space-4) 0; }
+.tl.tl.tl .side-by-side { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-8); }
+.tl.tl.tl .side-by-side.is-one { grid-template-columns: 1fr 2fr; }
+.tl.tl.tl .voucher-check { display: grid; grid-template-columns: 1fr 1fr auto; gap: var(--space-8); align-items: end; }
+
+/* ─── Counter Mini (Oct 2026) ─────────────────────────────────────────────────
+   The direction of the Counter Mini boards (design/teams/boards, the T ids): a strip across the top,
+   a white rail with dark doors, a tray-filled search, pill groups, tiles with the name over the price,
+   a sale column ending in the hold key and one orange key that carries the amount. */
+
+.tl.tl.tl .shell-cm { display: flex; flex-direction: column; height: 100dvh; background: var(--color-surface); }
+.tl.tl.tl .shell-cm > .shell-b { flex: 1; min-height: 0; height: auto; grid-template-columns: 84px minmax(0, 1fr); }
+
+/* The strip: the shop, this till, the line, the time. */
+.tl.tl.tl .strip { flex: none; height: 52px; display: flex; align-items: center; gap: var(--space-12); padding: 0 var(--space-24) 0 var(--space-16); background: var(--color-surface); box-shadow: inset 0 -1px 0 var(--color-line); color: var(--color-ink-2); }
+.tl.tl.tl .strip .ic { width: 18px; height: 18px; flex: none; }
+.tl.tl.tl .strip .ic.is-off { color: var(--color-danger); }
+.tl.tl.tl .strip-mark { width: 28px; height: 28px; flex: none; border-radius: 8px; background: var(--color-accent); color: var(--color-accent-ink); display: grid; place-items: center; overflow: hidden; font-size: var(--text-14); font-weight: 600; }
+.tl.tl.tl .strip-mark img { width: 100%; height: 100%; object-fit: cover; }
+.tl.tl.tl .strip-shop { font-size: 15px; font-weight: 600; color: var(--color-ink); white-space: nowrap; }
+.tl.tl.tl .strip-till { font-size: 15px; color: var(--color-muted); white-space: nowrap; }
+.tl.tl.tl .strip-time { font-family: var(--font-mono); font-size: var(--text-14); color: var(--color-ink-2); }
+.tl.tl.tl .strip-wait { display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 var(--space-12); border-radius: var(--radius-pill); background: var(--color-fill); color: var(--color-ink); font-size: var(--text-13); font-weight: 500; text-decoration: none; }
+.tl.tl.tl .strip-wait .ic { width: 16px; height: 16px; }
+.tl.tl.tl .strip-who { display: grid; place-items: center; border-radius: var(--radius-pill); }
+.tl.tl.tl .shell-cm > .shell-b > .shell-screen > .banner { flex: none; border-radius: 0; }
+
+/* The rail: the person, seven doors, Lock at the foot. */
+.tl.tl.tl .shell-cm .rail-b { align-items: center; gap: var(--space-4); padding: 14px 0 12px; background: var(--color-surface); box-shadow: inset -1px 0 0 var(--color-line); }
+.tl.tl.tl .shell-cm .rail-b .who { width: 52px; height: 52px; margin-bottom: 10px; border-radius: var(--radius-pill); }
+.tl.tl.tl .shell-cm .rail-b .who .avatar { width: 44px; height: 44px; box-shadow: 0 0 0 2px var(--color-surface), 0 0 0 3.5px var(--color-rule); }
+.tl.tl.tl .shell-cm .rail-b .nav { width: 68px; min-height: 64px; height: 64px; padding: 0; gap: var(--space-4); border-radius: 14px; font-size: var(--text-12); font-weight: 500; color: var(--color-muted); box-shadow: none; }
+.tl.tl.tl .shell-cm .rail-b .nav .ic { width: 24px; height: 24px; color: currentColor; }
+.tl.tl.tl .shell-cm .rail-b .nav[aria-current="page"] { background: var(--color-ink); color: var(--color-surface); box-shadow: none; }
+.tl.tl.tl .shell-cm .rail-b .nav .count { top: 6px; right: 10px; min-width: 18px; height: 18px; padding: 0 5px; background: var(--color-accent); color: var(--color-accent-ink); font-weight: 600; box-shadow: 0 0 0 2px var(--color-surface); }
+.tl.tl.tl .shell-cm .rail-b .nav[aria-current="page"] .count { box-shadow: 0 0 0 2px var(--color-ink); }
+
+/* The shelf. */
+.tl.tl.tl .shell-cm .bench { grid-template-columns: minmax(0, 1fr) 448px; }
+.tl.tl.tl .shell-cm .bench > .main > .tools { padding: 20px var(--space-24) 0; box-shadow: none; }
+.tl.tl.tl .shell-cm .bench > .main > .tools .input-wrap.input-lg { height: 60px; border-radius: 16px; background: var(--color-fill); box-shadow: none; padding: 0 var(--space-12) 0 20px; gap: var(--space-12); font-size: 18px; }
+.tl.tl.tl .shell-cm .bench > .main > .tools .input-wrap.input-lg:focus-within { box-shadow: inset 0 0 0 2px var(--color-rule); }
+.tl.tl.tl .shell-cm .bench > .main > .tools .input-wrap.input-lg .ic { width: 22px; height: 22px; color: var(--color-muted); }
+.tl.tl.tl .shell-cm .bench > .main > .tools .input-wrap.input-lg input { font-size: 18px; }
+.tl.tl.tl .shell-cm .bench > .main > .tools.is-seg-row { padding-top: var(--space-16); }
+.tl.tl.tl .shell-cm .bench > .main > .tools.is-seg-row .seg { gap: var(--space-8); padding: 0; background: transparent; }
+.tl.tl.tl .shell-cm .bench > .main > .tools.is-seg-row .seg button { height: 44px; padding: 0 18px; border-radius: var(--radius-pill); font-size: 15px; font-weight: 500; color: var(--color-ink-2); background: transparent; box-shadow: inset 0 0 0 1px var(--color-rule); white-space: nowrap; }
+.tl.tl.tl .shell-cm .bench > .main > .tools.is-seg-row .seg button[aria-checked="true"], .tl.tl.tl .shell-cm .bench > .main > .tools.is-seg-row .seg button[aria-pressed="true"], .tl.tl.tl .shell-cm .bench > .main > .tools.is-seg-row .seg button[aria-selected="true"] { background: var(--color-ink); color: var(--color-surface); box-shadow: none; }
+.tl.tl.tl .shell-cm .bench > .main > .quick { padding: var(--space-16) var(--space-24) 0; }
+.tl.tl.tl .shell-cm .bench > .main > .tile-grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 14px; padding: var(--space-16) var(--space-24) var(--space-24); }
+
+/* A tile: the picture, the name, the price, what is left. */
+.tl.tl.tl .shell-cm .tile { gap: 10px; padding: 10px 10px 14px; border-radius: 18px; box-shadow: inset 0 0 0 1px var(--color-line); }
+.tl.tl.tl .shell-cm .tile .pic { height: 80px; margin: 0; border-radius: 12px; }
+.tl.tl.tl .shell-cm .tile .pic .ic { width: 38px; height: 38px; color: var(--color-muted); }
+.tl.tl.tl .shell-cm .tile .n { order: 1; min-height: 39px; padding: 0 var(--space-4); font-size: 15px; font-weight: 500; line-height: 1.3; color: var(--color-ink); text-wrap: balance; }
+.tl.tl.tl .shell-cm .tile .p { order: 2; margin-top: -4px; padding: 0 var(--space-4); font-size: 15px; font-weight: 500; color: var(--color-ink); }
+.tl.tl.tl .shell-cm .tile .s { order: 3; padding: 0 var(--space-4); font-size: var(--text-13); }
+.tl.tl.tl .shell-cm .tile .in { top: 18px; right: 18px; min-width: 30px; height: 30px; padding: 0 var(--space-8); background: var(--color-accent); color: var(--color-accent-ink); font-family: var(--font-mono); font-size: 15px; font-weight: 600; }
+.tl.tl.tl .shell-cm .tile .age { top: 18px; left: 18px; }
+
+/* The sale. */
+.tl.tl.tl .shell-cm .bench-side { background: var(--color-ground); }
+.tl.tl.tl .shell-cm .sale-head { height: 76px; gap: 10px; padding: 0 20px 0 var(--space-24); }
+.tl.tl.tl .shell-cm .sale-head h1 { font-size: 22px; font-weight: 600; letter-spacing: -0.01em; color: var(--color-ink); }
+.tl.tl.tl .shell-cm .sale-head .end { gap: var(--space-4); }
+.tl.tl.tl .shell-cm .btn.btn-icon.is-touch { width: 48px; height: 48px; border-radius: 12px; background: transparent; box-shadow: none; }
+.tl.tl.tl .shell-cm .btn.btn-icon.is-touch .ic { color: var(--color-ink-2); }
+@media (hover: hover) { .tl.tl.tl .shell-cm .btn.btn-icon.is-touch:hover { background: var(--color-fill); } }
+.tl.tl.tl .shell-cm .btn.btn-icon.is-touch .ic { width: 22px; height: 22px; }
+.tl.tl.tl .customer-pill { display: inline-flex; align-items: center; gap: var(--space-8); height: 44px; padding: 0 14px 0 var(--space-8); border-radius: 12px; background: var(--color-surface); box-shadow: inset 0 0 0 1px var(--color-rule); font-size: 15px; font-weight: 500; color: var(--color-ink); }
+.tl.tl.tl .shell-cm .bench-side .list:not(.is-empty) { padding: var(--space-8) var(--space-12); gap: var(--space-4); }
+.tl.tl.tl .shell-cm .bench-side .list > .line { min-height: 76px; padding: var(--space-8) var(--space-12); border-radius: 16px; box-shadow: none; font-size: var(--text-16); }
+.tl.tl.tl .shell-cm .bench-side .list > .line[aria-current="true"] { background: var(--color-surface); box-shadow: inset 0 0 0 1px var(--color-rule), 0 1px 2px rgba(36, 20, 14, 0.06); }
+.tl.tl.tl .shell-cm .bench-side .line .qty { gap: 2px; background: transparent; box-shadow: none; }
+.tl.tl.tl .shell-cm .bench-side .line .qty button { width: 36px; height: 44px; border-radius: 10px; background: var(--color-fill); }
+.tl.tl.tl .shell-cm .bench-side .line .qty span { width: 32px; font-family: var(--font-mono); font-size: 17px; font-weight: 400; color: var(--color-ink); }
+.tl.tl.tl .shell-cm .bench-side .line .meta { font-family: var(--font-mono); font-size: var(--text-13); }
+.tl.tl.tl .shell-cm .bench-side .totals { gap: 6px; padding: var(--space-16) 20px 20px; background: var(--color-ground); }
+.tl.tl.tl .shell-cm .bench-side .totals .l { padding: 0 var(--space-4); font-size: var(--text-14); }
+.tl.tl.tl .shell-cm .bench-side .totals .l.sum span:last-child { font-family: var(--font-mono); }
+
+.tl.tl.tl .shell-cm .bottles-key { width: 100%; height: 48px; border-radius: 12px; font-size: 15px; }
+
+/* The keys under the sale: hold, and the one orange key with the amount on it. */
+.tl.tl.tl .sale-keys { display: grid; grid-template-columns: 64px minmax(0, 1fr); gap: 10px; margin-top: var(--space-8); }
+.tl.tl.tl .hold-key { height: 72px; border-radius: 18px; background: var(--color-surface); box-shadow: inset 0 0 0 1px var(--color-rule); display: grid; place-items: center; color: var(--color-ink-2); }
+.tl.tl.tl .hold-key .ic { width: 26px; height: 26px; }
+.tl.tl.tl .hold-key:disabled { color: var(--color-faint); cursor: default; }
+.tl.tl.tl .take-key { height: 72px; border-radius: 18px; background: var(--color-accent); color: var(--color-accent-ink); display: flex; align-items: center; justify-content: center; gap: var(--space-12); font-size: 22px; font-weight: 600; letter-spacing: -0.01em; box-shadow: 0 1px 2px rgba(36, 20, 14, 0.18); transition: transform var(--motion-fast) var(--motion-ease), background-color var(--motion-fast) var(--motion-ease); }
+.tl.tl.tl .take-key .num { font-family: var(--font-mono); font-weight: 500; }
+.tl.tl.tl .take-key .kbd { height: 24px; margin-left: var(--space-4); background: rgba(255, 255, 255, 0.2); color: var(--color-accent-ink); font-size: var(--text-13); }
+.tl.tl.tl .take-key:active:not(:disabled) { transform: scale(var(--motion-press)); }
+.tl.tl.tl .take-key:disabled { background: var(--color-fill); color: var(--color-faint); box-shadow: none; cursor: default; }
+.tl.tl.tl .hold-key:focus-visible, .tl.tl.tl .take-key:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--color-surface), 0 0 0 4px var(--color-ink); }
+
+/* The tray rises over the whole sale column; the rest of the till dims behind it. */
+.tl.tl.tl .shell-cm .bench-side .over { justify-content: stretch; }
+.tl.tl.tl .shell-cm .bench-side .over .scrim { position: fixed; inset: 0; background: rgba(36, 20, 14, 0.32); }
+.tl.tl.tl .shell-cm .bench-side .tray { height: 100%; min-height: 0; max-height: none; overflow: auto; border-radius: 0; padding: var(--space-16) 20px 20px; gap: 14px; box-shadow: -18px 0 40px -24px rgba(36, 20, 14, 0.45); }
+.tl.tl.tl .shell-cm .tray-top { align-items: flex-start; padding: 0 var(--space-4); }
+.tl.tl.tl .tray-amount { display: flex; flex-direction: column; }
+.tl.tl.tl .tray-k { font-size: var(--text-14); color: var(--color-muted); }
+.tl.tl.tl .shell-cm .tray-top .figure { font-family: var(--font-mono); font-size: 36px; font-weight: 400; letter-spacing: -0.02em; line-height: 1.1; color: var(--color-ink); }
+.tl.tl.tl .tender-chips { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 6px; }
+.tl.tl.tl .tender-chip { height: 64px; padding: 0 var(--space-4); border-radius: 14px; background: var(--color-fill); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--space-4); color: var(--color-ink-2); font-size: var(--text-12); font-weight: 500; line-height: 1.15; text-align: center; overflow: hidden; }
+.tl.tl.tl .tender-chips:has(> :nth-child(6)) .tender-chip { font-size: 11.5px; }
+.tl.tl.tl .tender-chip .ic, .tl.tl.tl .tender-chip .mark { width: 22px; height: 22px; }
+.tl.tl.tl .tender-chip[aria-checked="true"] { background: var(--color-ink); color: var(--color-surface); }
+.tl.tl.tl .tender-chip:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--color-surface), 0 0 0 4px var(--color-accent); }
+.tl.tl.tl .shell-cm .tray .keypad { max-width: none; gap: 6px; }
+.tl.tl.tl .shell-cm .tray .keypad button { height: 50px; border-radius: 14px; background: var(--color-fill); box-shadow: none; font-family: var(--font-sans); font-size: 24px; font-weight: 600; }
+.tl.tl.tl .shell-cm .tray .quick { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+.tl.tl.tl .shell-cm .tray .quick .btn { height: 48px; border-radius: 12px; font-size: var(--text-16); }
+.tl.tl.tl .shell-cm .tray .btn.btn-primary.btn-touch { height: 72px; border-radius: 18px; font-size: 22px; font-weight: 600; background: var(--color-accent); color: var(--color-accent-ink); box-shadow: 0 1px 2px rgba(36, 20, 14, 0.18); }
+.tl.tl.tl .shell-cm .tray .btn.btn-primary.btn-touch:disabled { background: var(--color-fill); color: var(--color-faint); box-shadow: none; }
+.tl.tl.tl .shell-cm .tray:focus-visible { box-shadow: -18px 0 40px -24px rgba(36, 20, 14, 0.45); }
+
+@media (prefers-reduced-motion: reduce) { .tl.tl.tl .take-key { transition: none; } }
+
+/* Paid: the tick, the change as the largest figure, what happened as facts, then print and Next sale. */
+.tl.tl.tl .paid { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 28px var(--space-8) 0; text-align: center; }
+.tl.tl.tl .paid-mark { width: 72px; height: 72px; border-radius: var(--radius-pill); background: var(--color-success-tint); color: var(--color-success); display: grid; place-items: center; animation: tl-pop var(--motion-slow) var(--motion-ease-out) both; }
+.tl.tl.tl .paid-mark .paid-tick { width: 40px; height: 40px; }
+.tl.tl.tl .paid-k { margin-top: 14px; font-size: 18px; font-weight: 600; color: var(--color-ink-2); }
+.tl.tl.tl .paid-v { font-family: var(--font-mono); font-size: 56px; line-height: 1; letter-spacing: -0.03em; color: var(--color-ink); text-wrap: balance; }
+.tl.tl.tl .paid-z { margin-top: var(--space-4); font-family: var(--font-mono); font-size: 15px; color: var(--color-muted); }
+.tl.tl.tl .facts { margin: 22px 0 0; border-radius: 16px; box-shadow: inset 0 0 0 1px var(--color-line); }
+.tl.tl.tl .fact { display: grid; grid-template-columns: 28px minmax(0, 1fr) auto; gap: 10px; align-items: center; min-height: 52px; padding: 0 var(--space-16); box-shadow: inset 0 -1px 0 var(--color-line); font-size: 15px; color: var(--color-ink); }
+.tl.tl.tl .fact:last-child { box-shadow: none; }
+.tl.tl.tl .fact > .ic, .tl.tl.tl .fact > .mark { width: 18px; height: 18px; color: var(--color-muted); }
+.tl.tl.tl .fact dt { min-width: 0; }
+.tl.tl.tl .fact dd { margin: 0; font-family: var(--font-mono); font-size: var(--text-14); color: var(--color-muted); text-align: right; }
+.tl.tl.tl .tray > .sale-keys { margin-top: 0; }
+@media (prefers-reduced-motion: reduce) { .tl.tl.tl .paid-mark { animation: none; } }

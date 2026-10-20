@@ -17,7 +17,7 @@ import { changeNoteWords } from "@/lib/retail/change-notes";
 import { formatZigRate, splitChange, type ChangeSplit } from "@/lib/retail/payment-words";
 import { getPosPortalHref } from "@/lib/retail/pos-host";
 import { fiscalStatusLabel } from "@/lib/retail/words";
-import { AddressBook, CaretRight, Check, Money, Plus, Printer, Receipt, Ticket, Trash, Wallet, WifiSlash, X } from "@/lib/icons";
+import { AddressBook, ArrowsCounterClockwise, ArrowsSplit, CaretRight, Check, Money, PauseCircle, Plus, Printer, Receipt, Stamp, Star, Ticket, Trash, Wallet, WifiSlash, X } from "@/lib/icons";
 import { count, firstName, hhmm, paymentLabel, usd, whole, zig } from "./format";
 import { printSlip, slipLines, type SlipSale } from "./offline-slip";
 import { ErrorLine, Keypad, Segmented, typeAmount, useKeypadKeys, useReturnFocus, useWindowKeys, type KeypadKey } from "./parts";
@@ -243,6 +243,7 @@ export function printReceipt(href: string) {
 export function PayTray({
   way,
   ways,
+  onWay,
   onClose,
   onTake,
   onNext,
@@ -250,6 +251,8 @@ export function PayTray({
   way: PayWay;
   /** Every way the shop takes, for a split. */
   ways: PayWay[];
+  /** Choose another way: the tray starts again on it. */
+  onWay: (key: string) => void;
   onClose: () => void;
   /** Called with the payments; the caller asks for a reason or a manager first if one is needed. */
   onTake: (rows: PaymentRow[]) => void;
@@ -392,12 +395,42 @@ export function PayTray({
 
   const top = (
     <div className="tray-top">
-      <span className="text-heading strong">
-        Total
-      </span>
-      <span className="figure">{usd(done ? done.totalAmount + done.depositAmount + (done.vouchersSoldAmount ?? 0) : saved ? saved.total : amountDue)}</span>
+      <div className="tray-amount">
+        <span className="tray-k">{done || saved ? "Total" : "Take"}</span>
+        <span className="figure">{usd(done ? done.totalAmount + done.depositAmount + (done.vouchersSoldAmount ?? 0) : saved ? saved.total : amountDue)}</span>
+      </div>
+      {!done && !saved && !postSalePending ? (
+        <button type="button" className="btn btn-icon is-touch" aria-label="Back to the sale" title="Back to the sale  Esc" onClick={onClose}>
+          <X className="ic" />
+        </button>
+      ) : null}
     </div>
   );
+  // How they are paying: one chip a way, and Split. A chip starts the tray again on its way.
+  const tenders =
+    done || saved ? null : (
+      <div className="tender-chips" role="radiogroup" aria-label="How they are paying">
+        {ways.map((entry) => (
+          <button
+            key={entry.key}
+            type="button"
+            role="radio"
+            className="tender-chip"
+            aria-checked={mode === "single" && entry.key === way.key}
+            onClick={() => (entry.key === way.key ? setMode("single") : onWay(entry.key))}
+          >
+            <TenderMark single tender={entry.choices.length === 1 ? entry.choices[0].tender : entry.key} />
+            {entry.label}
+          </button>
+        ))}
+        {splitAllowed && allChoices.length > 1 ? (
+          <button type="button" role="radio" className="tender-chip" aria-checked={mode === "split"} onClick={() => (mode === "split" ? null : startSplit())}>
+            <ArrowsSplit className="ic" />
+            Split
+          </button>
+        ) : null}
+      </div>
+    );
 
   let body: React.ReactNode;
   let label = "Take payment";
@@ -411,90 +444,95 @@ export function PayTray({
     // Change only comes from cash, so a sale with no cash in it has nothing to give back.
     const tookCash = done.payments.some((payment) => payment.tenderType === "CASH");
     const refs = done.payments.filter((payment) => payment.tenderType !== "CASH" && payment.reference);
+    const change = { usd: done.changeUsd, zig: done.changeZig };
+    const changeNotes = tookCash ? changeNoteWords(change) : null;
+    const cash = done.payments.filter((payment) => payment.tenderType === "CASH");
     body = (
       <>
-        <div className="wait" role="status" aria-live="polite">
-          <span className="status status-success is-strong has-tick">
+        <div className="paid" role="status" aria-live="polite">
+          <span className="paid-mark">
             <PaidTick />
-            Paid {allCash ? "in cash" : `by ${methods.map(inSentence).join(" and ")}`}, {done.saleNo}
           </span>
-          <span className="note num">
-            {hhmm(done.postedAt)}
-          </span>
+          <span className="paid-k">{tookCash ? (done.changeAmount > 0.004 ? "Change" : "No change") : `Paid by ${methods.map(inSentence).join(" and ")}`}</span>
+          <span className="paid-v">{tookCash ? changeText(change) : usd(done.totalAmount + done.depositAmount + (done.vouchersSoldAmount ?? 0))}</span>
+          {changeNotes ? <span className="paid-z">{changeNotes}</span> : null}
         </div>
-        {tookCash ? (
-          <ChangeBack label={done.changeAmount > 0.004 ? "Give back" : "Change"} change={{ usd: done.changeUsd, zig: done.changeZig }} />
-        ) : null}
-        <dl className="attrs">
+        <dl className="facts">
+          <div className="fact">
+            <Receipt className="ic" />
+            <dt>Sale</dt>
+            <dd>
+              {done.saleNo} · {hhmm(done.postedAt)}
+            </dd>
+          </div>
           {refs.map((payment, index) => (
-            <React.Fragment key={index}>
-              <dt>{refs.length > 1 ? `${paymentLabel(payment.tenderType, payment.currency)} reference` : "Reference"}</dt>
-              <dd className="num text-left">{payment.reference}</dd>
-            </React.Fragment>
+            <div key={`ref-${index}`} className="fact">
+              <TenderMark single tender={payment.tenderType} />
+              <dt>{paymentLabel(payment.tenderType, payment.currency)}</dt>
+              <dd>{payment.reference}</dd>
+            </div>
+          ))}
+          {cash.map((payment, index) => (
+            <div key={`cash-${index}`} className="fact">
+              <Money className="ic" />
+              <dt>{allCash && cash.length === 1 ? "Cash" : paymentLabel(payment.tenderType, payment.currency)}</dt>
+              <dd>{payment.currency === "ZWG" ? zig(payment.amount) : usd(payment.amount)}</dd>
+            </div>
           ))}
           {(done.vouchersSold ?? []).map((voucher) => (
-            <React.Fragment key={voucher.id}>
+            <div key={voucher.id} className="fact">
+              <Ticket className="ic" />
               <dt>Gift voucher {usd(Number(voucher.value))}</dt>
-              <dd className="num text-left">
+              <dd>
                 {voucher.code} · secret {voucher.secret}
               </dd>
-            </React.Fragment>
+            </div>
           ))}
           {emptiesTaken ? (
-            <>
+            <div className="fact">
+              <ArrowsCounterClockwise className="ic" />
               <dt>Empties</dt>
               <dd>{count(emptiesTaken, "bottle")}</dd>
-            </>
+            </div>
           ) : null}
           {fiscal ? (
-            <>
-              <dt>Receipt</dt>
-              <dd>
-                {fiscal.status === "SUCCESS"
-                  ? "Fiscalised by ZIMRA"
-                  : fiscal.status === "PENDING"
-                    ? "Waiting for ZIMRA; the fiscal number prints when it answers"
-                    : fiscalStatusLabel(fiscal.status)}
-                {fiscal.fiscalNumber ? (
-                  <>
-                    , <span className="num text-left">{fiscal.fiscalNumber}</span>
-                  </>
-                ) : null}
-              </dd>
-            </>
+            <div className="fact">
+              <Stamp className="ic" />
+              <dt>
+                {fiscal.status === "SUCCESS" ? "Fiscalised by ZIMRA" : fiscal.status === "PENDING" ? "Fiscal code" : fiscalStatusLabel(fiscal.status)}
+              </dt>
+              <dd>{fiscal.fiscalNumber ?? (fiscal.status === "PENDING" ? "to follow" : "")}</dd>
+            </div>
           ) : null}
           {done.loyalty && done.customerName ? (
-            <>
+            <div className="fact">
+              <Star className="ic" />
               <dt>{firstName(done.customerName)}</dt>
               <dd>
                 +{done.loyalty.pointsEarned} points, {whole(done.loyalty.pointsBalance)} now
               </dd>
-            </>
+            </div>
           ) : null}
           {done.heldAs ? (
-            <>
+            <div className="fact">
+              <PauseCircle className="ic" />
               <dt>Was held as</dt>
               <dd>{done.heldAs}</dd>
-            </>
+            </div>
           ) : null}
         </dl>
-        <div className="btn-group is-full" role="group" aria-label="Receipt">
-          <button type="button" className="btn btn-touch grow" onClick={() => printReceipt(receiptHref)}>
+        <div className="grow" />
+        <div className="sale-keys">
+          <button type="button" className="hold-key" aria-label="Print the receipt" title="Print the receipt" onClick={() => printReceipt(receiptHref)}>
             <Printer className="ic" />
-            Print receipt
           </button>
-          <button type="button" className="btn btn-touch grow" onClick={onNext}>
-            <X className="ic" />
-            No receipt
+          <button type="button" className="take-key" onClick={onNext}>
+            Next sale
+            <span className="kbd on-primary" aria-hidden="true">
+              ↵
+            </span>
           </button>
         </div>
-        <div className="grow" />
-        <button type="button" className="btn btn-primary btn-touch btn-block" onClick={onNext}>
-          <CaretRight className="ic" />
-          Next sale
-          <EnterKey />
-        </button>
-        <p className="help is-centred">Or tap anywhere else. The shelf works while this shows.</p>
       </>
     );
   } else if (saved) {
@@ -693,12 +731,6 @@ export function PayTray({
             {zig(dueHere)} at ZiG {formatZigRate(rate)} to US$1. Change comes in whole US dollars, then ZiG.
           </p>
         ) : null}
-        {splitAllowed ? (
-          <button type="button" className="btn btn-quiet self-start" onClick={() => startSplit()}>
-            <Plus className="ic" />
-            Split between two ways
-          </button>
-        ) : null}
         <div className="grow" />
         <TakeButton label={`Take ${money(handedValue)}`} busy={postSalePending} disabled={!covered} onClick={take} />
         {refused}
@@ -780,12 +812,6 @@ export function PayTray({
             Ask {who} to show the message that says {usd(amountDue)} was sent to {context?.site.name ?? "this shop"}.
           </p>
         ) : null}
-        {splitAllowed ? (
-          <button type="button" className="btn btn-quiet self-start" onClick={() => startSplit()}>
-            <Plus className="ic" />
-            Split between two ways
-          </button>
-        ) : null}
         <div className="grow" />
         <TakeButton label={`Take ${usd(amountDue)}`} busy={postSalePending} disabled={!refOk} onClick={take} />
         {!refOk ? (
@@ -816,6 +842,12 @@ export function PayTray({
         <DialogPrimitive.Content
           className="tray"
           aria-describedby={undefined}
+          onOpenAutoFocus={(event) => {
+            // A field that asks to be typed in takes the keys; else the tray does, so Enter takes the money.
+            event.preventDefault();
+            const tray = event.currentTarget as HTMLElement;
+            (tray.querySelector<HTMLElement>("[autofocus]") ?? tray).focus();
+          }}
           onCloseAutoFocus={finished ? (event) => event.preventDefault() : returnFocus}
           onEscapeKeyDown={(event) => {
             if (!closable && !finished) event.preventDefault();
@@ -829,7 +861,8 @@ export function PayTray({
           }}
         >
           <DialogPrimitive.Title className="visually-hidden">{label}</DialogPrimitive.Title>
-          {top}
+          {done ? null : top}
+          {tenders}
           {body}
         </DialogPrimitive.Content>
       </div>
