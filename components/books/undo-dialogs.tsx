@@ -4,7 +4,7 @@ import * as React from "react";
 import * as Dialog from "@radix-ui/react-dialog";
 import { useQuery } from "@tanstack/react-query";
 
-import { Button, Icon, Input, Kit, TextArea, type IconName } from "@/components/core";
+import { Button, Icon, Input, Kit, Person, TextArea, type IconName } from "@/components/core";
 import type { MenuEntry } from "@/components/core/menu";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { bulkDeleteWord, REASON_MAX, REASON_MIN, REVISABLE, UNDO_NOUN, type BulkResult, type UndoChoices, type UndoKind, type UndoRights } from "@/lib/books/core/undo-rules";
@@ -574,13 +574,19 @@ export function BulkResultDialog({ answer, rows, open, onOpenChange, onRetry }: 
         </span>
       </div>
       <div className="bk-tw">
-        <table className="table" aria-label="What happened to each">
+        <table className="table" aria-label="What happened to each" style={{ tableLayout: "fixed", width: "100%" }}>
+          <colgroup>
+            <col style={{ width: 150 }} />
+            {party ? <col style={{ width: 190 }} /> : null}
+            <col style={{ width: 110 }} />
+            <col />
+          </colgroup>
           <thead>
             <tr>
               <th>{head}</th>
               {party ? <th>{answer.kind === "bill" || answer.kind === "payment" ? "Supplier" : "Customer"}</th> : null}
               <th>Result</th>
-              <th className="fill">Why</th>
+              <th>Why</th>
             </tr>
           </thead>
           <tbody>
@@ -589,22 +595,29 @@ export function BulkResultDialog({ answer, rows, open, onOpenChange, onRetry }: 
               return (
                 <tr key={line.id}>
                   <td>
-                    <span className="mono">{line.label}</span>
+                    <span className="ref truncate" style={{ display: "block" }} title={line.label}>
+                      {line.label}
+                    </span>
                   </td>
                   {party ? (
                     <td>
-                      <span className="truncate" style={{ maxWidth: 160, display: "inline-block" }}>
-                        {row?.party ?? ""}
-                      </span>
+                      {/* People and customers show their face (rule 16); a supplier is a business without one. */}
+                      {row?.party ? (
+                        answer.kind === "bill" || answer.kind === "payment" ? (
+                          <span className="truncate" style={{ display: "block" }}>
+                            {row.party}
+                          </span>
+                        ) : (
+                          <Person name={row.party} className="truncate" />
+                        )
+                      ) : null}
                     </td>
                   ) : null}
                   <td>
                     <span className={`status ${tone[line.result]}`}>{line.result === "Done" ? past.charAt(0).toUpperCase() + past.slice(1) : line.result}</span>
                   </td>
-                  <td className="fill">
-                    <span className="muted" style={{ whiteSpace: "normal" }}>
-                      {line.why}
-                    </span>
+                  <td style={{ whiteSpace: "normal", lineHeight: 1.45, paddingTop: 10, paddingBottom: 10 }}>
+                    <span className="muted">{line.why}</span>
                   </td>
                 </tr>
               );
