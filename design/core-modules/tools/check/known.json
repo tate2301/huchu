@@ -1051,5 +1051,41 @@
     "panel: Pomona Officesyou",
     "panel: Paid this monthshared",
     "status: Draft"
+  ],
+  "BkTrialBalance": [
+    "heading: Ledger",
+    "button: Books",
+    "panel: Books",
+    "button: Vane",
+    "button: Notifications",
+    "panel: Overdueshared",
+    "panel: Pomona Officesyou",
+    "panel: Paid this monthshared",
+    "filter: Site"
+  ],
+  "BkFinancials": [
+    "heading: Ledger",
+    "button: Books",
+    "panel: Books",
+    "button: Vane",
+    "button: Notifications",
+    "panel: Overdueshared",
+    "panel: Pomona Officesyou",
+    "panel: Paid this monthshared",
+    "filter: Site",
+    "column: September 2026",
+    "column: 1 Mar to 30 Sep",
+    "column: Of September’s income",
+    "footer: Profit and loss# USDSeptember US#Since #"
+  ],
+  "BkLedger": [
+    "heading: Ledger",
+    "button: Books",
+    "panel: Books",
+    "button: Vane",
+    "button: Notifications",
+    "panel: Overdueshared",
+    "panel: Pomona Officesyou",
+    "panel: Paid this monthshared"
   ]
 }
