@@ -132,7 +132,7 @@ export function FollowUpRecordContent({ followUpId }: { followUpId: string }) {
   return (
     <RecordPageShell
       icon={CalendarCheck}
-      backHref="/crm/follow-ups"
+      backHref="/crm/tasks/follow-ups"
       backLabel="Follow-ups"
       title={followUp.title}
       subtitle="Lead reminder"

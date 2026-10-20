@@ -214,7 +214,7 @@ export function renderHomeWidget(type: string, data: HomeData): React.ReactNode 
               ? `${delivery.upcomingVisits} visit${delivery.upcomingVisits === 1 ? "" : "s"} this week`
               : "nothing booked this week"
           }
-          href="/crm/work-orders"
+          href="/crm/projects/jobs"
         />
       );
     }
@@ -291,7 +291,7 @@ export function renderHomeWidget(type: string, data: HomeData): React.ReactNode 
         <Card
           title="Tasks"
           actions={
-            <Link href="/crm/follow-ups" className="text-sm hover:underline">
+            <Link href="/crm/tasks/follow-ups" className="text-sm hover:underline">
               Open
             </Link>
           }

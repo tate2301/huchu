@@ -27,7 +27,7 @@ import { getServerSession } from "next-auth";
 import { AppProviders } from "@/components/providers/app-providers";
 import { AppShell } from "@/components/layout/app-shell";
 import { inter } from "@/components/core/fonts";
-import { PANEL_COOKIE } from "@/lib/rail/panel-cookie";
+import { PANEL_COOKIE } from "@/lib/nav/panel-cookie";
 import { navConditions } from "@/lib/retail/nav/conditions";
 import { isAdminPortalHost } from "@/lib/admin-portal";
 import {

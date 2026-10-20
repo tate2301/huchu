@@ -27,9 +27,6 @@
 .cx-rf-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 
 /* ── Header actions (in the shell's header) ─────────────── */
-.cx-rf-actions .cx-btn { height: 32px; border-color: var(--line-strong); padding: 0 12px; }
-.cx-rf-more { width: 34px; padding: 0 !important; justify-content: center; }
-.cx-rf-more svg { width: 16px; height: 16px; }
 .cx-rf-menu { width: 240px; }
 .cx-rf-menu__bin-sub { display: block; padding: 2px 8px 6px 30px; font-size: 12px; color: var(--ink-3); }
 

@@ -602,7 +602,7 @@ export function GuardiansContent() {
                     .filter(Boolean)
                     .join(" · ")}
                   onClick={() => {
-                    window.location.href = `/schools/guardians/${row.id}`;
+                    window.location.href = `/schools/students/guardians/${row.id}`;
                   }}
                 />
               ))}

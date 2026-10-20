@@ -22,7 +22,7 @@ import { expectHealthyPage } from "./_support/assert";
  *
  * ## The one school screen deliberately absent
  *
- * `/schools/exams`. It is gated on `schools.exams`, which is off by default and
+ * `/schools/results/exams`. It is gated on `schools.exams`, which is off by default and
  * which **no tier and no addon bundle in `feature-catalog.ts` carries** — so the
  * route redirects to `/access-blocked` on every tenant without its own flag, and a test of it would assert
  * a catalogue gap rather than a page. `scripts/seed-school-demo.ts` seeds the
@@ -122,8 +122,8 @@ journey("schools — the boarding week", "boarding", [
 ]);
 
 journey("schools — leaving, and afterwards", "leavers", [
-  { path: "/schools/leavers", name: "leavers" },
-  { path: "/schools/leavers/documents", name: "leaving-documents" },
+  { path: "/schools/students/leavers", name: "leavers" },
+  { path: "/schools/students/leavers/documents", name: "leaving-documents" },
   { path: "/schools/alumni", name: "alumni" },
 ]);
 
@@ -144,10 +144,10 @@ journey("schools — marking, moderation, publication", "results-publishing", [
   photographed nowhere.
 */
 journey("schools — the office week", "office", [
-  { path: "/schools/calendar", name: "calendar" },
-  { path: "/schools/notices", name: "notices" },
-  { path: "/schools/messages", name: "messages" },
-  { path: "/schools/meetings", name: "parents-evenings" },
+  { path: "/schools/attendance/calendar", name: "calendar" },
+  { path: "/schools/families/notices", name: "notices" },
+  { path: "/schools/families/messages", name: "messages" },
+  { path: "/schools/families/meetings", name: "parents-evenings" },
   { path: "/schools/documents", name: "documents" },
   { path: "/schools/reports", name: "reports" },
   { path: "/schools/transport", name: "transport" },

@@ -518,7 +518,7 @@ export function SchoolsNoticesContent() {
           actions={
             sent.withoutAccount > 0 ? (
               <Button asChild variant="secondary" size="sm">
-                <Link href="/schools/guardians">Invite the {sent.withoutAccount}</Link>
+                <Link href="/schools/students/guardians">Invite the {sent.withoutAccount}</Link>
               </Button>
             ) : undefined
           }
@@ -631,7 +631,7 @@ export function SchoolsNoticesContent() {
               */
               unreachable && unreachable.guardians + unreachable.students > 0 ? (
                 <Button asChild variant="quiet" size="sm">
-                  <Link href="/schools/guardians">
+                  <Link href="/schools/students/guardians">
                     Invite the {unreachable.guardians + unreachable.students}
                   </Link>
                 </Button>
@@ -642,7 +642,7 @@ export function SchoolsNoticesContent() {
               <ReachRow
                 label="Guardians with no portal account"
                 value={unreachable?.guardians ?? null}
-                href="/schools/guardians"
+                href="/schools/students/guardians"
               />
               <ReachRow
                 label="Pupils with no portal account"

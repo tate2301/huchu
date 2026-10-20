@@ -38,6 +38,9 @@ import {
   useSelection,
 } from "@/components/core";
 import { ICONS, type IconName } from "@/components/core/icons";
+import { Button as WorkspaceButton } from "@/components/workspace/button";
+import { ActionsWithMore, Pager, RecordStepper } from "@/components/workspace/button-group-parts";
+import { MenuItem } from "@/components/workspace/menu";
 
 const COLOURS: Array<[string, string]> = [
   ["Ink", "ink"],
@@ -195,6 +198,15 @@ export function KitSheet() {
               </Button>
               <Button iconEnd="chev">Next</Button>
             </ButtonGroup>
+          </Row>
+          <Row>
+            <RecordStepper noun="customers" onPrevious={null} onNext={() => {}} position={1} total={38} />
+            <RecordStepper noun="customers" onPrevious={() => {}} onNext={() => {}} direction="down" size="panel" />
+            <Pager onPrevious={null} onNext={() => {}} />
+            <ActionsWithMore label="Actions" visible={<WorkspaceButton>Statement</WorkspaceButton>}>
+              <MenuItem onSelect={() => {}}>Call</MenuItem>
+              <MenuItem onSelect={() => {}}>WhatsApp</MenuItem>
+            </ActionsWithMore>
           </Row>
         </Section>
 

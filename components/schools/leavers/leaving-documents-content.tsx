@@ -80,7 +80,7 @@ export function LeavingDocumentsContent({ leaverId }: { leaverId?: string }) {
 
   return (
     <SchoolsPage>
-      <PageChrome title="Leaving documents" backHref="/schools/leavers" backLabel="Leavers">
+      <PageChrome title="Leaving documents" backHref="/schools/students/leavers" backLabel="Leavers">
         {page ? (
           <PrintDocumentButton
             sourceKey="schools.transfer-letter"
@@ -130,7 +130,7 @@ export function LeavingDocumentsContent({ leaverId }: { leaverId?: string }) {
           body="Record a leaver and their five documents appear here, each with what is blocking it."
           action={
             <Button asChild>
-              <Link href="/schools/leavers">Open the leaving queue</Link>
+              <Link href="/schools/students/leavers">Open the leaving queue</Link>
             </Button>
           }
         />

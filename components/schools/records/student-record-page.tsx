@@ -531,7 +531,7 @@ export function StudentRecordPage({ studentId }: { studentId: string }) {
             body="There is no one to ring about a register, a mark or a bill. A guardian is attached from their own record, where the consent for each child is held."
             action={
               <Button asChild variant="secondary">
-                <Link href="/schools/guardians">Open guardians</Link>
+                <Link href="/schools/students/guardians">Open guardians</Link>
               </Button>
             }
           />

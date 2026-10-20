@@ -1019,7 +1019,7 @@ export const Warning = createPhosphorIcon("Warning", "Warning");
  * Results when it already means Insights, and a warning triangle cannot mean
  * Conduct when it also means an overdue invoice two rows below. These are the
  * specific ones. Where a mark is claimed by an area, nothing else in the same
- * column may use it — see `AREA_ICONS` in `lib/rail/areas.ts`.
+ * column may use it.
  */
 export const Sun = createPhosphorIcon("Sun", "Sun");
 export const UsersThree = createPhosphorIcon("UsersThree", "UsersThree");

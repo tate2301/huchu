@@ -2007,7 +2007,7 @@ async function main() {
     No tier and no bundle in `feature-catalog.ts` carries `schools.exams`
     (`ADDON_SCHOOLS_SUITE` lists the other eleven `schools.*` keys and not this
     one), and it is off by default. `getCompanyFeatureMap` lets an explicit
-    flag win either way, so this flag is what turns `/schools/exams` on for
+    flag win either way, so this flag is what turns `/schools/results/exams` on for
     St Mary's — the same flag `provisionSchool` writes for the eleven.
   */
   const examsFeature = await prisma.platformFeature.findUnique({

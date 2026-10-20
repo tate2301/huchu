@@ -7,8 +7,8 @@ import { useSession } from "next-auth/react";
 
 import { Button, Empty, Kit, KitScreen } from "@/components/core";
 import { PageChrome } from "@/components/layout/page-chrome";
-import { useMounted } from "@/components/layout/workspace-rail/module-groups";
-import { fetchReportsHome, REPORTS_HOME_KEY } from "@/components/layout/workspace-rail/reports-groups";
+import { useMounted } from "@/hooks/use-mounted";
+import { fetchReportsHome, REPORTS_HOME_KEY } from "@/lib/reports/home-client";
 import { ReportsAllView } from "@/components/reports/reports-all-view";
 import { ReportsOverviewScreen } from "@/components/reports/reports-overview";
 import { useToast } from "@/components/ui/use-toast";

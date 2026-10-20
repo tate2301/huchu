@@ -220,7 +220,7 @@ export function ExamCandidatesContent({ seriesId }: { seriesId: string }) {
 
   return (
     <SchoolsPage>
-      <PageChrome title="Candidates" backHref="/schools/exams" backLabel="Exam series">
+      <PageChrome title="Candidates" backHref="/schools/results/exams" backLabel="Exam series">
         <RecordActions
           layout="inline"
           resource="schools.exams"

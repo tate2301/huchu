@@ -1,0 +1,134 @@
+/* The closed sidebar: 56px of marks on the ground colour. */
+
+.rail {
+  width: 56px;
+  height: 100%;
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 12px 0;
+  background: var(--ground);
+  box-shadow: inset -1px 0 0 var(--line);
+  box-sizing: border-box;
+}
+
+.tile {
+  margin: 4px 0 4px;
+}
+
+.open,
+.mark {
+  width: 32px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--ink-3);
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.open {
+  margin-bottom: 8px;
+}
+
+.open:hover,
+.mark:hover {
+  background: var(--hover);
+  color: var(--ink);
+}
+
+.current,
+.current:hover {
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: 0 0 0 1px color-mix(in oklab, var(--ink) 7%, transparent), 0 1px 2px color-mix(in oklab, var(--ink) 5%, transparent);
+}
+
+.marks {
+  flex: 1 1 auto;
+  min-height: 0;
+  width: 100%;
+  margin: 0;
+  padding: 4px 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+
+.marks::-webkit-scrollbar {
+  display: none;
+}
+
+.cell {
+  position: relative;
+}
+
+/* A page's children, beside its mark, from hover or focus inside the cell. */
+.flyout {
+  display: none;
+  position: fixed;
+  left: 52px;
+  z-index: 40;
+  min-width: 192px;
+  padding: 6px;
+  border-radius: 10px;
+  background: var(--surface);
+  box-shadow: var(--shadow-float);
+}
+
+.cell:hover .flyout,
+.cell:focus-within .flyout {
+  display: block;
+}
+
+.flyTitle,
+.flyKid {
+  display: block;
+  height: 28px;
+  padding: 0 8px;
+  border-radius: 6px;
+  color: var(--ink);
+  font-size: 13px;
+  line-height: 28px;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.flyTitle {
+  font-weight: 600;
+}
+
+.flyKid {
+  color: var(--ink-2, var(--ink));
+}
+
+.flyTitle:hover,
+.flyKid:hover {
+  background: var(--hover);
+}
+
+.flyCurrent {
+  background: var(--hover);
+}
+
+.person {
+  flex: none;
+  margin-top: 8px;
+}
+
+.open:focus-visible,
+.mark:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--action-fill);
+}

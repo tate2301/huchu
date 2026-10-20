@@ -166,7 +166,7 @@ export function jobsRefParam(ref: JobsRef): string {
 
 /** Where a job's record page lives. */
 export function jobHref(id: string): string {
-  return `/crm/work-orders/${id}`;
+  return `/crm/projects/jobs/${id}`;
 }
 
 /**

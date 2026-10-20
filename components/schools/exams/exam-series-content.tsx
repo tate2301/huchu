@@ -275,8 +275,8 @@ export function ExamSeriesContent() {
                 <Link
                   href={
                     open
-                      ? `/schools/exams/${row.original.id}/candidates`
-                      : `/schools/exams/${row.original.id}/results`
+                      ? `/schools/results/exams/${row.original.id}/candidates`
+                      : `/schools/results/exams/${row.original.id}/results`
                   }
                 >
                   {open ? "Open" : "Results"}
@@ -322,7 +322,7 @@ export function ExamSeriesContent() {
           title={`${nearest.days} ${nearest.days === 1 ? "day" : "days"} to the ${nearest.boardName} ${lead.series.name} deadline — ${lead.tallies.cannotBeRegistered} of ${lead.tallies.candidates} ${EXAM_LEVEL_LABELS[lead.series.level]} candidates cannot be registered`}
           actions={
             <Button asChild size="sm">
-              <Link href={`/schools/exams/${nearest.seriesId}/candidates`}>
+              <Link href={`/schools/results/exams/${nearest.seriesId}/candidates`}>
                 Open the candidate roll
               </Link>
             </Button>
@@ -454,7 +454,7 @@ export function ExamSeriesContent() {
                         `${row.candidates} candidates`,
                         SERIES_STATUS_LABELS[row.status] ?? row.status,
                       ].join(" · ")}
-                      onClick={() => router.push(`/schools/exams/${row.id}/candidates`)}
+                      onClick={() => router.push(`/schools/results/exams/${row.id}/candidates`)}
                     />
                   ))}
                 </MobileList>

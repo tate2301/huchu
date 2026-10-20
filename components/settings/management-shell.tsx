@@ -15,7 +15,6 @@ import {
   type SettingsRailGroup,
 } from "@/components/management/ui";
 import { useWorkspaceName } from "@/components/layout/shell-nav";
-import { useActiveWorkspace } from "@/components/layout/workspace-rail/use-active-workspace";
 import {
   findActiveSettingsNavEntry,
   getSettingsRailGroups,
@@ -107,13 +106,11 @@ export function SettingsFrame({
 
   /*
     Where closing the surface goes: the landing screen of the workspace the
-    reader was in — the same front door the sidebar's workspace switch lands
-    on. A fixed destination rather than `router.back()`: the surface is
+    reader was in — the same front door the sidebar opens on. A fixed destination rather than `router.back()`: the surface is
     reachable from a sidebar entry and a handful of in-page links, and half of
     those arrive with a history entry that is another settings page. Going
     "back" from Billing to Job grades is not leaving the surface.
   */
-  const { activeWorkspaceId } = useActiveWorkspace(user?.companySlug ?? "default");
   // The back link names where it goes: "Back to Floorcode".
   const workspaceName = useWorkspaceName();
   const landingHref = React.useMemo(
@@ -122,9 +119,8 @@ export function SettingsFrame({
         role,
         enabledFeatures,
         workspaceProfile: user?.workspaceProfile,
-        activeWorkspaceId,
       }),
-    [activeWorkspaceId, enabledFeatures, role, user?.workspaceProfile],
+    [enabledFeatures, role, user?.workspaceProfile],
   );
 
   // Open on mount and closed by leaving: the surface is a route, so its

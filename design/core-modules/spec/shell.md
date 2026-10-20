@@ -1,6 +1,6 @@
 # The shell
 
-Corelith's two-level sidebar (a rail of modules, then the module's own panel), drawn with the clean sidebar. Books and Reports are core modules in every vertical, so they behave alike: same panel, same toolbar, same footer. Values below are from `source/shell.mjs`; the HTML files are the final word.
+Corelith's single sidebar (one list composed per person from workspace entitlements and rights; the collapsed rail is the same list as marks), drawn with the clean sidebar. Books and Reports are core modules in every vertical, so they behave alike: same panel, same toolbar, same footer. Values below are from `source/shell.mjs`; the HTML files are the final word.
 
 ## Module pages
 

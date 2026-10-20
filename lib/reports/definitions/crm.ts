@@ -171,7 +171,7 @@ const jobs: ReportDefinition = {
   key: "crm-jobs",
   title: "Jobs",
   area: AREA,
-  href: "/crm/work-orders",
+  href: "/crm/projects/jobs",
   profiles: PROFILES,
   params: periodParams(60, "Scheduled"),
   columns: [
@@ -187,7 +187,7 @@ const jobs: ReportDefinition = {
     { key: "rating", label: "Customer rating", kind: "number", hidden: true, total: "avg" },
   ],
   defaults: { sort: [{ column: "scheduled", dir: "desc" }] },
-  rowActions: [{ id: "open", kind: "open", label: "Open job", href: "/crm/work-orders/{id}" }],
+  rowActions: [{ id: "open", kind: "open", label: "Open job", href: "/crm/projects/jobs/{id}" }],
 };
 
 const openRecord: ReportRowAction = {

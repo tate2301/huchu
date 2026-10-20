@@ -9,6 +9,8 @@ import { DataTableFloatingActions } from "@/components/ui/data-table-floating-ac
 import { ArrowDownward, ArrowUpward, ChevronDown, ChevronRight, type LucideIcon } from "@/lib/icons";
 import { cn } from "@/lib/utils";
 
+import { useListSequence } from "@/components/records/use-list-sequence";
+
 /**
  * The register view every module's record list is drawn with.
  *
@@ -308,6 +310,8 @@ export function RecordTable<T extends { id: string }>({
   const anchor = useRef<number | null>(null);
   const shift = useRef(false);
   const [folded, setFolded] = useState<ReadonlySet<string>>(() => new Set());
+  // A record opened from here can step to its neighbours.
+  useListSequence(rows.map((row) => rowHref?.(row) ?? null));
 
   // Before the loading and empty branches, so a phone gets the row list's own
   // skeleton and empty state rather than the table's.
