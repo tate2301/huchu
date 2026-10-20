@@ -26,3 +26,43 @@ export const MOTION: readonly MotionToken[] = [
   { name: "talk", ms: 1600, loop: true, easing: EASE, usedFor: "Who is talking", reduced: "a still ring" },
   { name: "sk", ms: 1400, loop: true, easing: "linear", usedFor: "Loading", reduced: "a still block" },
 ];
+
+/** The CSS timing function of a token as a function of time: x is 0 to 1 along the duration, the result is progress. */
+function cubicBezier(x1: number, y1: number, x2: number, y2: number): (t: number) => number {
+  const cx = 3 * x1;
+  const bx = 3 * (x2 - x1) - cx;
+  const ax = 1 - cx - bx;
+  const cy = 3 * y1;
+  const by = 3 * (y2 - y1) - cy;
+  const ay = 1 - cy - by;
+  const sampleX = (s: number) => ((ax * s + bx) * s + cx) * s;
+  const sampleY = (s: number) => ((ay * s + by) * s + cy) * s;
+  return (x) => {
+    if (x <= 0) return 0;
+    if (x >= 1) return 1;
+    let lo = 0;
+    let hi = 1;
+    let s = x;
+    for (let i = 0; i < 24; i++) {
+      const v = sampleX(s);
+      if (Math.abs(v - x) < 1e-5) break;
+      if (v < x) lo = s;
+      else hi = s;
+      s = (lo + hi) / 2;
+    }
+    return sampleY(s);
+  };
+}
+
+const CURVES: Record<string, (t: number) => number> = {
+  [EASE]: cubicBezier(0.2, 0, 0, 1),
+  [EASE_OUT]: cubicBezier(0.16, 1, 0.3, 1),
+  linear: (t) => t,
+};
+
+/** How far along a token's motion is at `ms`, 0 to 1, by the token's own duration and easing. */
+export function progressAt(name: string, ms: number): number {
+  const token = MOTION.find((m) => m.name === name);
+  if (!token) throw new Error(`No motion token named ${name}`);
+  return CURVES[token.easing](ms / token.ms);
+}

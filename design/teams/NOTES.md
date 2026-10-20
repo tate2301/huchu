@@ -30,3 +30,16 @@ Branch `claude/till-counter-mini`. The shell, sell, the tray, Paid and the Kora 
 
 - `RetailTillRules` already has `refundPinOver`, `cashDropPromptOver` and `offlineHours`. Mufaro's US$2.00, US$400 and 4 hours are settings; no migration. `spec/open.md` listed them as new.
 - `components/retail/till/till.css` on `main` held 49 lines written into the generated file by hand. They are now in `docs/design/till/till.css`, so the build makes them again. Each till screen has its own sheet in `docs/design/till/screens/`.
+
+## Kit port: deviations from the boards (components/teams, /kit)
+
+- Badges, primary buttons and "now" accents use the app's roles (neutral ink, action orange), not the boards' blue.
+- Tender-framed boards (K2, K9, parts of K4b) are shown through the theme toggle in the kit, not per-frame: Tender is `:root`-scoped.
+- Last-seat warning colour is added to the seat meter; the board does not draw it. Held seats are grey, not amber.
+- K2 "Already a member" shows the whole invite form, not only the input.
+- Module tiles use ink, with green (Pabasa) and orange (Tender), not per-module raw colours.
+- K3b post box has no inner ring.
+- K9 workspace marks use the action colour and the crown mark for both Pabasa and Tender; the Pabasa "K" mark is not drawn.
+- The app shell caps content at 1344 px, so K6 wraps 3+1 and K7 is narrower than the board.
+- Global classes `.select`, `.mention`, `.diff`, `.check` collide with docs/components.css: renamed `tm-sel`, `tm-mention`, `tm-diff`, `tm-check`.
+- Raw hexes in boards replaced with role tokens.

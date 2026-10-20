@@ -359,6 +359,7 @@
 .tm .kv dd.is-empty { color: var(--faint); }
 .tm .kv dd.is-editing { background: var(--surface); box-shadow: 0 0 0 1px var(--action), 0 0 0 4px var(--sel-bg); }
 .tm .kv dd.is-locked { color: var(--ink-3); }
+.tm .kv dd.is-locked .kv__edit { opacity: 1; color: var(--faint); }
 .tm .kv dd.is-changed { animation: tm-flash var(--tm-flash) both; }
 @keyframes tm-flash { 0% { background: var(--sel-bg); } 100% { background: transparent; } }
 .tm .kv .dot { width: 8px; height: 8px; border-radius: 99px; flex: none; background: var(--ink-3); }
@@ -582,7 +583,9 @@
 .tm .k9-chip { display:inline-flex;align-items:center;gap:6px;color:var(--ink-3);font-size:var(--tm-t-cap);white-space:nowrap }
 .tm .k9-chip .ci__mark { width:16px;height:16px;background:var(--tm-ok-dot);box-shadow:none;border-radius:99px;display:inline-flex;align-items:center;justify-content:center;color:var(--on-sel) }
 .tm .k9-chip .ci__mark .i { width:10px;height:10px }
-.tm .k-frame.k9-split { flex-direction:row;align-items:stretch;padding:0;overflow:hidden;gap:0 }
+.tm .tk-frame--col.k9-split { padding:0; flex-direction:row;align-items:stretch;overflow:hidden;gap:0;width:100% }
+.tm .k9-bare .ci { padding:0;border:0;min-height:40px }
+.tm .k9-bare { width:100% }
 .tm .k9-side { width:220px;flex:none;padding:var(--tm-s3) var(--tm-s2);gap:2px;border-right:1px solid var(--line);border-radius:12px 0 0 12px }
 .tm .k9-home { flex:1;justify-content:center;min-width:0;padding:var(--tm-s5);display:flex;flex-direction:column;gap:var(--tm-s2) }
 .tm .k9-new { box-shadow:inset 0 0 0 1px var(--line-strong);background:var(--surface) }
@@ -688,3 +691,9 @@
 .tm .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .tm .cond { padding: 10px 12px; border-radius: 10px; background: var(--ground); box-shadow: inset 0 0 0 1px var(--line); color: var(--ink-2); line-height: 1.6; }
 .tm .cond b { color: var(--ink); font-weight: 600; }
+
+@media (max-width: 600px) {
+  .tm .tk-frame--col.k9-split { flex-direction: column; }
+  .tm .k9-side { width: auto; border-right: 0; border-bottom: 1px solid var(--line); border-radius: 12px 12px 0 0; }
+  .tm .k9-row:has(> .btn) { flex-wrap: wrap; }
+}
