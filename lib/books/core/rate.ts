@@ -33,5 +33,16 @@ export async function rateFor(
     select: { rate: true, source: true, effectiveDate: true },
   });
   if (!row || !(row.rate > 0)) throw new UnknownExchangeRateError(code, baseCurrency);
+  // A day with both an RBZ rate and one typed in: the source Money and tax prefers.
+  const settings = await prisma.accountingSettings.findUnique({ where: { companyId }, select: { taxSettings: true } });
+  const preferred = (settings?.taxSettings as { rates?: { source?: string } } | null)?.rates?.source;
+  if (preferred && preferred !== row.source) {
+    const same = await prisma.currencyRate.findFirst({
+      where: { companyId, baseCurrency, quoteCurrency: code, effectiveDate: row.effectiveDate, source: preferred as never, ...(knownAt ? { createdAt: { lte: knownAt } } : {}) },
+      orderBy: { createdAt: "desc" },
+      select: { rate: true, source: true, effectiveDate: true },
+    });
+    if (same && same.rate > 0) return { baseCurrency, currency: code, rate: same.rate, source: same.source === "RBZ" ? "RBZ" : "MANUAL", effectiveDate: same.effectiveDate };
+  }
   return { baseCurrency, currency: code, rate: row.rate, source: row.source === "RBZ" ? "RBZ" : "MANUAL", effectiveDate: row.effectiveDate };
 }

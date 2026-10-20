@@ -18,6 +18,7 @@ Every primary action has a shortcut, shown inside its button. Single keys work w
 | Ctrl ↵ | Upload (the statement chosen) | Books, Bank, Upload a statement |
 | R | Retry all | Books, Needs posting |
 | E | Add or revise the opening balances | Books, Settings, Opening balances |
+| D | Download the accountant export | Management, Accountant export |
 | Ctrl ↵ | Map and retry, or Post in this month (the chosen posting's fix) | Books, Needs posting |
 | Ctrl ↵ | Publish | Builders |
 | Ctrl ↵ | The drawer's primary (Post, Prepare, Send, Save) | Drawers and sheets |

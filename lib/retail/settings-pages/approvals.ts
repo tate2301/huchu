@@ -6,7 +6,8 @@ import type { SettingsPage } from "./types";
 
 /**
  * Management › Approvals (`/retail/manage/approvals`, board ApprovalSettings,
- * W-58): when the owner must say yes — requisitions, prices, stock, accounts —
+ * W-58): when the owner must say yes — requisitions, bills, payments, journals,
+ * petty cash, prices, stock, accounts —
  * who is asked and how (80-admin 5.7). Owners change it; managers and the
  * bookkeeper read it. Every area reads the saved values through
  * `getApprovalLimits` (`lib/retail/approvals/limits.ts`).
@@ -64,6 +65,15 @@ export const approvalsPage: SettingsPage = {
       ],
     },
     {
+      // Books P2a (D10, books-final §2.4): the limits for the rest of the money.
+      title: "Bills, payments and journals",
+      fields: [
+        { id: "paymentOwnerOver", t: "money", l: "Bills and supplier payments need the owner over", half: true, h: "Under it, a manager or the accountant approves." },
+        { id: "journalSecondOver", t: "money", l: "A journal needs a second person over", half: true, h: "Its maker never approves it." },
+        { id: "voucherHolderUnder", t: "money", l: "Petty cash vouchers post on the holder's word under", half: true, h: "Over it, a manager approves the voucher." },
+      ],
+    },
+    {
       title: "Prices",
       fields: [
         { id: "priceChanges", t: "seg", l: "Price changes", o: [PRICE_CHANGE_WORDS.MANAGERS, PRICE_CHANGE_WORDS.OWNER] },
@@ -118,6 +128,9 @@ export const approvalsPage: SettingsPage = {
     // One of the two labels built from the stored amount; the store checks which.
     countDifferences: z.string({ message: CHOOSE_COUNT_RULE }),
     accountOwnerOver: moneyRule,
+    paymentOwnerOver: moneyRule,
+    journalSecondOver: moneyRule,
+    voucherHolderUnder: moneyRule,
     askBy: z.enum([ASK_BY_WORDS.APP, ASK_BY_WORDS.WHATSAPP_AND_APP], { message: "Choose how to ask." }),
   }),
 };

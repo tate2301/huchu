@@ -58,6 +58,8 @@ export type TaxSettings = {
     /** The year's estimate, by year: tax due, and the US dollar share when the 50/50 basis applies. */
     estimates: Record<string, { taxUsd: number; foreignShare?: number | null; split5050?: boolean; incomeUsd?: number | null; revisedAt?: string | null; revisedBy?: string | null }>;
   };
+  /** Management › Money and tax: whose rate a document freezes when a day has both (RBZ interbank or one typed in). */
+  rates: { source: "RBZ" | "MANUAL" };
 };
 
 export const DEFAULT_TAX_SETTINGS: TaxSettings = {
@@ -71,6 +73,7 @@ export const DEFAULT_TAX_SETTINGS: TaxSettings = {
     paymentDates: ["03-25", "06-25", "09-25", "12-20"],
     estimates: {},
   },
+  rates: { source: "RBZ" },
 };
 
 /** The values the research could not confirm (FLAG), and why: shown "to confirm" until somebody saves them. */

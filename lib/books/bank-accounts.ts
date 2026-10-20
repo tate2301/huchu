@@ -92,7 +92,8 @@ export async function latestRates(db: Db, companyId: string, baseCurrency: strin
   return rates;
 }
 
-async function balances(db: Db, companyId: string, ids: string[]) {
+/** Each money account's movements in its own currency, from its bank transactions. */
+export async function balances(db: Db, companyId: string, ids: string[]) {
   const txns = await db.bankTransaction.findMany({ where: { companyId, bankAccountId: { in: ids } }, select: { bankAccountId: true, amount: true, direction: true, sourceType: true } });
   const sums = new Map<string, number>();
   for (const txn of txns) sums.set(txn.bankAccountId, (sums.get(txn.bankAccountId) ?? 0) + (isMoneyIn(txn) ? txn.amount : -txn.amount));
