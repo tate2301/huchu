@@ -76,3 +76,22 @@
     overflow: visible;
   }
 }
+
+/* `.who` is the design's party name in a cell; the kit's `.who` is a people
+   row (a 60px grid with a hairline). Inside Books the kit's row gives way, so
+   a name stays one line in its band. */
+.ck.ck.ck .bkd .who {
+  display: inline;
+  grid-template-columns: none;
+  gap: 0;
+  min-height: 0;
+  box-shadow: none;
+}
+.ck.ck.ck .bkd .k-acc .who {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-8);
+}
+.ck.ck.ck .bkd .who b {
+  display: inline;
+}
