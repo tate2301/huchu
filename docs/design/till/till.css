@@ -1,7 +1,7 @@
 /* Tender till: the parts the reference kit lacks, from tokens only. Loaded after tokens.css and kit.css.
    Recorded in docs/design/till/ledger.md under "Kit additions". */
 
-/* Figures: IBM Plex Mono with one fixed job (money, references, times), as the Corelith Workspace system sets it. */
+/* Figures: Atkinson Hyperlegible Mono with one fixed job (money, references, times), as the Corelith Workspace system sets it. */
 .num, .figure, .code, .tender-figure, .totals .l > span:last-child, .tile .p, .lede-figure .num, .kbd, time { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
 .lede-figure .num { letter-spacing: -0.03em; }
 

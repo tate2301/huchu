@@ -1,6 +1,6 @@
-import { Atkinson_Hyperlegible_Next, IBM_Plex_Mono } from "next/font/google";
+import { Atkinson_Hyperlegible_Next, Atkinson_Hyperlegible_Mono } from "next/font/google";
 
-/** The till's two faces, self-hosted by Next: words in Atkinson, figures in Plex Mono. */
+/** The till's two faces, self-hosted by Next: words in Atkinson, figures in Atkinson Hyperlegible Mono. */
 export const tillSans = Atkinson_Hyperlegible_Next({
   subsets: ["latin"],
   weight: ["400", "500", "600"],
@@ -10,7 +10,7 @@ export const tillSans = Atkinson_Hyperlegible_Next({
   adjustFontFallback: false,
 });
 
-export const tillMono = IBM_Plex_Mono({
+export const tillMono = Atkinson_Hyperlegible_Mono({
   subsets: ["latin"],
   weight: ["400", "500", "600"],
   variable: "--font-till-mono",

@@ -25,7 +25,7 @@
   --color-pressed: var(--active);
   --color-scrim: rgba(36,20,14,0.36);
   --font-sans: "Atkinson Hyperlegible Next", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
-  --font-mono: "IBM Plex Mono", ui-monospace, monospace;
+  --font-mono: var(--font-till-mono), ui-monospace, monospace;
   --text-12: 0.75rem;
   --text-13: 0.8125rem;
   --text-14: 0.875rem;
@@ -1781,7 +1781,7 @@
 /* Tender till: the parts the reference kit lacks, from tokens only. Loaded after tokens.css and kit.css.
    Recorded in docs/design/till/ledger.md under "Kit additions". */
 
-/* Figures: IBM Plex Mono with one fixed job (money, references, times), as the Corelith Workspace system sets it. */
+/* Figures: Atkinson Hyperlegible Mono with one fixed job (money, references, times), as the Corelith Workspace system sets it. */
 .tl.tl.tl .num, .tl.tl.tl .figure, .tl.tl.tl .code, .tl.tl.tl .tender-figure, .tl.tl.tl .totals .l > span:last-child, .tl.tl.tl .tile .p, .tl.tl.tl .lede-figure .num, .tl.tl.tl .kbd, .tl.tl.tl time { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
 .tl.tl.tl .lede-figure .num { letter-spacing: -0.03em; }
 
@@ -3178,4 +3178,13 @@
   .tl.tl.tl .cu-due, .tl.tl.tl .cu-add { grid-template-columns: minmax(0, 1fr); }
   .tl.tl.tl .cu-product .paid-v { font-size: 40px; }
   .tl.tl.tl .cu .hx-customer { max-width: 128px; }
+  .tl.tl.tl .cu .hx-t { flex-wrap: wrap; row-gap: var(--space-4); }
+  .tl.tl.tl .cu .hx-t > .truncate { flex-basis: 100%; }
+  .tl.tl.tl .cu-chart .cols-x span:nth-child(even):not(.is-now) { visibility: hidden; }
+  /* Reports have no row to open: the figures stack under the chart. */
+  .tl.tl.tl .bench.cu-rep { grid-template-rows: auto auto; overflow: auto; }
+  .tl.tl.tl .bench.cu-rep > .main.hx-main { overflow: visible; }
+  .tl.tl.tl .bench.cu-rep > .main.hx-main .hx-list { flex: none; overflow: visible; }
+  .tl.tl.tl .bench.cu-rep:not(.is-sale) > .bench-side > .sale-head, .tl.tl.tl .bench.cu-rep:not(.is-sale) > .bench-side > .hx-scroll { display: flex; }
+  .tl.tl.tl .bench.cu-rep:not(.is-sale) > .bench-side > .hx-keys { display: grid; }
 }
