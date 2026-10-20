@@ -596,3 +596,13 @@ button.tender { width: 100%; text-align: left; }
 .fact dd { margin: 0; font-family: var(--font-mono); font-size: var(--text-14); color: var(--color-muted); text-align: right; }
 .tray > .sale-keys { margin-top: 0; }
 @media (prefers-reduced-motion: reduce) { .paid-mark { animation: none; } }
+
+/* The tray's reference: a big mono field ringed in orange while it waits for the slip. */
+.shell-cm .tray .field .input.input-lg { height: 56px; border-radius: 14px; font-family: var(--font-mono); font-size: 19px; box-shadow: inset 0 0 0 2px var(--color-accent); }
+.shell-cm .tray .field .input.input-lg[aria-invalid="true"] { box-shadow: inset 0 0 0 2px var(--color-danger); }
+.shell-cm .tray .field label { font-size: var(--text-14); color: var(--color-muted); }
+.shell-cm .tray .pay-how { border-radius: 16px; }
+.shell-cm .tray .list.is-framed { border-radius: 16px; }
+.shell-cm .tray .row.is-tender { gap: var(--space-8); padding: var(--space-12) 14px; }
+.shell-cm .tray .row.is-tender .select, .shell-cm .tray .row.is-tender .input { height: 48px; border-radius: 12px; font-size: var(--text-16); }
+.shell-cm .tray .row.is-tender .input.num { font-family: var(--font-mono); }

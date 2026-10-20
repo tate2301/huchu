@@ -42,12 +42,11 @@ const REFERENCE_FROM: Partial<Record<string, string>> = {
  * counter. Null while the shop has not said, and the tray keeps its general
  * sentence.
  */
-function ecocashHow(ecocash: TillContext["ecocash"], amount: string, who: string) {
+function ecocashHow(ecocash: TillContext["ecocash"], amount: string) {
   if (ecocash?.method === "MERCHANT_CODE" && ecocash.merchantCode) {
     return {
       say: `Pay merchant ${ecocash.merchantCode}`,
       as: ecocash.name ? `Shows as ${ecocash.name}, for ${amount}` : `For ${amount}`,
-      after: "The reference is on the message they get once it goes through.",
       terminal: false,
     };
   }
@@ -55,7 +54,6 @@ function ecocashHow(ecocash: TillContext["ecocash"], amount: string, who: string
     return {
       say: `Send ${amount} to ${ecocash.phone}`,
       as: ecocash.name ? `Shows as ${ecocash.name}` : null,
-      after: `Ask ${who} to show the message that says ${amount} was sent.`,
       terminal: false,
     };
   }
@@ -63,7 +61,6 @@ function ecocashHow(ecocash: TillContext["ecocash"], amount: string, who: string
     return {
       say: `Key ${amount} on the terminal`,
       as: "They pay on it with EcoCash",
-      after: "The reference is on the slip the terminal prints.",
       terminal: true,
     };
   }
@@ -579,7 +576,6 @@ export function PayTray({
           Next sale
           <EnterKey />
         </button>
-        <p className="help is-centred">Or tap anywhere else. The shelf works while this shows.</p>
       </>
     );
   } else if (mode === "split") {
@@ -675,11 +671,7 @@ export function PayTray({
                 ? splitRefProblem
                 : "The ways together have to cover the total."}
           </ErrorLine>
-        ) : (
-          <p className="note">
-            Change only comes from cash, so only cash can come to more than the total.
-          </p>
-        )}
+        ) : null}
         <button
           type="button"
           className="btn self-start"
@@ -765,7 +757,7 @@ export function PayTray({
     const who = selectedCustomer ? firstName(selectedCustomer.name) : "the customer";
     const wallet = tenderType === "ECOCASH" || tenderType === "INNBUCKS";
     // How this shop takes EcoCash, when it has said so: what the cashier tells the customer.
-    const how = tenderType === "ECOCASH" ? ecocashHow(context?.ecocash ?? null, usd(amountDue), who) : null;
+    const how = tenderType === "ECOCASH" ? ecocashHow(context?.ecocash ?? null, usd(amountDue)) : null;
     const refOk = !refProblem;
     body = (
       <>
@@ -791,34 +783,13 @@ export function PayTray({
             value={reference}
             placeholder={how?.terminal ? "From the terminal slip" : wallet ? "From their confirmation message" : tenderType === "CARD" ? "From the card slip" : ""}
             aria-invalid={(triedTake && !refOk) || undefined}
-            aria-describedby={refOk ? undefined : `${refId}e`}
+            aria-describedby={refOk || !triedTake ? undefined : `${refId}e`}
             onChange={(event) => setReference(event.target.value)}
           />
-          {/* The rule shows before Take is tried, so the greyed Take is never a guess. */}
-          {refProblem ? (
-            triedTake ? (
-              <ErrorLine id={`${refId}e`}>{refProblem}</ErrorLine>
-            ) : (
-              <span id={`${refId}e`} className="help">
-                {refProblem}
-              </span>
-            )
-          ) : null}
+          {refProblem && triedTake ? <ErrorLine id={`${refId}e`}>{refProblem}</ErrorLine> : null}
         </div>
-        {how ? (
-          how.after ? <p className="note">{how.after}</p> : null
-        ) : wallet ? (
-          <p className="note">
-            Ask {who} to show the message that says {usd(amountDue)} was sent to {context?.site.name ?? "this shop"}.
-          </p>
-        ) : null}
         <div className="grow" />
         <TakeButton label={`Take ${usd(amountDue)}`} busy={postSalePending} disabled={!refOk} onClick={take} />
-        {!refOk ? (
-          <p className="help is-centred">
-            Take is off until the reference is in.
-          </p>
-        ) : null}
         {refused}
       </>
     );
