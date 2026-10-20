@@ -11,6 +11,7 @@ import { PettyCashRefused } from "./petty-cash";
 import { PurchaseOrderRefused } from "./purchase-orders";
 import { RevaluationRefused } from "./revaluation";
 import { SupplierPaymentRefused } from "./supplier-payments";
+import { UndoRefused } from "./undo";
 import { VoidRefused } from "./void-money";
 import { WithholdingRefused } from "./withholding";
 
@@ -23,6 +24,7 @@ const REFUSALS = [
   PurchaseOrderRefused,
   RevaluationRefused,
   SupplierPaymentRefused,
+  UndoRefused,
   VoidRefused,
   WithholdingRefused,
 ] as const;

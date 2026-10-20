@@ -9,6 +9,7 @@ import { BooksPage } from "@/components/books/figures";
 import { InvoiceDeleteDialog, ReverseDrawer, type InvoiceDeleted, type InvoiceReversed } from "@/components/books/invoice-actions";
 import { BkInvoiceView } from "@/components/books/bk-invoice-view";
 import { CreditDrawer, type CreditTarget } from "@/components/books/bk-credit-drawer";
+import { ReviseDialog } from "@/components/books/revise-dialog";
 import { Button, ButtonGroup, ButtonLink, Empty, Kit } from "@/components/core";
 import { MenuButton, type MenuEntry } from "@/components/core/menu";
 import { PageChrome, type PageMenuItem } from "@/components/layout/page-chrome";
@@ -36,6 +37,7 @@ export default function BooksInvoicePage() {
   const { toast } = useToast();
   const [deleting, setDeleting] = React.useState(false);
   const [reversing, setReversing] = React.useState(false);
+  const [revising, setRevising] = React.useState(false);
   const [crediting, setCrediting] = React.useState<"credit" | "write-off" | null>(null);
 
   const invoice = useQuery({
@@ -123,7 +125,7 @@ export default function BooksInvoicePage() {
   // An owing invoice has three actions: one group, Record a payment and a caret holding the rest (the owner, 19 Oct).
   const owing = Boolean(record && record.status === "ISSUED" && record.balance > 0.005);
 
-  // ⋯: everything else this invoice allows, each as the one matrix says (books-final §2.2). Revise comes with P4.
+  // ⋯: everything else this invoice allows, each as the one matrix says (books-final §2.2).
   const menu: MenuEntry[] = [];
   if (record && owing) menu.push({ key: "remind", icon: "whatsapp", label: "Send a reminder", onSelect: () => remind.mutate() });
   if (record && !draft) {
@@ -131,7 +133,12 @@ export default function BooksInvoicePage() {
     if (can?.credit) menu.push({ key: "credit", icon: "invoice", label: "Credit note", onSelect: () => setCrediting("credit") });
     if (can?.writeOff) menu.push({ key: "write-off", icon: "retire", label: "Write off", onSelect: () => setCrediting("write-off") });
     if (record.status !== "VOIDED") {
-      menu.push({ key: "revise", icon: "edit", label: "Revise", disabled: true, title: "Revise comes later. For now, void it and write a new one.", onSelect: () => undefined });
+      // Void and revise go together (§2.2): the owner, or someone the owner let.
+      menu.push(
+        can?.reverse
+          ? { key: "revise", icon: "edit", label: "Revise", onSelect: () => setRevising(true) }
+          : { key: "revise", icon: "edit", label: "Revise", disabled: true, title: "Only the owner can revise an issued invoice, unless they let you.", onSelect: () => undefined },
+      );
     }
     if (can?.reverse) {
       menu.push({ separator: true });
@@ -219,6 +226,19 @@ export default function BooksInvoicePage() {
       {record ? (
         <>
           <InvoiceDeleteDialog invoiceId={record.id} number={record.number} open={deleting} onOpenChange={setDeleting} onDeleted={deleted} />
+          <ReviseDialog
+            kind="invoice"
+            id={record.id}
+            number={record.number}
+            noun="invoice"
+            open={revising}
+            onOpenChange={setRevising}
+            onRevised={async (done) => {
+              toast({ title: `${done.label} is void`, description: "The new draft is open: put it right, then issue it.", variant: "success" });
+              await queryClient.invalidateQueries({ queryKey: ["books", "invoices"] });
+              router.push(`/books/invoices/${done.draft.id}`);
+            }}
+          />
           {record.can.reverse ? <ReverseDrawer record={record} open={reversing} onOpenChange={setReversing} onDone={reversed} /> : null}
           <CreditDrawer
             kind={crediting ?? "credit"}

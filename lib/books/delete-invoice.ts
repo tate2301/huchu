@@ -57,9 +57,9 @@ async function gather(db: Db, companyId: string, invoiceId: string) {
       customer: { select: { id: true, name: true } },
       // Its live payments, which go on account. A void one is only unlinked (below), as every receipt on it is.
       receipts: { where: { voidedAt: null }, select: { id: true, receiptNumber: true, amount: true, receivedAt: true, method: true } },
-      creditNotes: { include: { lines: true, fiscalReceipt: { select: { id: true, status: true, receiptGlobalNo: true, fiscalDay: { select: { status: true, fiscalDayNo: true } } } } } },
+      creditNotes: { include: { lines: true, fiscalReceipt: { select: { id: true, status: true, receiptGlobalNo: true, fiscalDay: { select: { status: true, fiscalDayNo: true, providerConfig: { select: { isTestDevice: true } } } } } } } },
       writeOffs: true,
-      fiscalReceipt: { include: { fiscalDay: { select: { status: true, fiscalDayNo: true } } } },
+      fiscalReceipt: { include: { fiscalDay: { select: { status: true, fiscalDayNo: true, providerConfig: { select: { isTestDevice: true } } } } } },
       crmLeadDocuments: { select: { id: true, type: true, dealId: true, leadId: true, amount: true } },
     },
   });
@@ -103,10 +103,16 @@ export async function readInvoiceRemoval(companyId: string, invoiceId: string, d
   };
 }
 
-/** Any of its fiscal records ZIMRA holds: accepted, or signed into a fiscal day. */
-function fiscalisedOf(fiscal: Array<{ status: string; receiptGlobalNo: number | null; fiscalDay?: unknown }>): boolean {
-  return fiscal.some((row) => wasFiscalised(row) || Boolean(row.fiscalDay));
+/**
+ * Any of its fiscal records ZIMRA holds: accepted, or signed into a fiscal day.
+ * A record signed on a device registered against ZIMRA's test environment
+ * (D18) is test data, not a supply ZIMRA holds: the owner may delete it.
+ */
+function fiscalisedOf(fiscal: Array<{ status: string; receiptGlobalNo: number | null; fiscalDay?: { providerConfig?: { isTestDevice: boolean } | null } | null }>): boolean {
+  return fiscal.some((row) => (wasFiscalised(row) || Boolean(row.fiscalDay)) && !onTestDevice(row));
 }
+
+const onTestDevice = (row: { fiscalDay?: { providerConfig?: { isTestDevice: boolean } | null } | null }) => row.fiscalDay?.providerConfig?.isTestDevice === true;
 
 export const FISCALISED_REFUSAL = (number: string) =>
   `${number} was fiscalised, so ZIMRA holds it as issued and it can't be deleted. Reverse it with a credit note instead.`;
@@ -142,7 +148,7 @@ export async function deleteInvoice(actor: InvoiceActor | BooksActor, invoiceId:
       if (invoice.status !== head.status) throw new InvoiceChangeRefused(`${docLabel(invoice.invoiceNumber)} changed while you were deleting it. Look again, then delete it.`);
       // Never a fiscalised one, whatever its fiscal day: the credit note is the way (books-final §2.5).
       if (fiscalisedOf(fiscal)) throw new InvoiceChangeRefused(FISCALISED_REFUSAL(docLabel(invoice.invoiceNumber)));
-      const openDay = fiscal.find((row) => row.fiscalDay !== null && row.fiscalDay.status !== "CLOSED");
+      const openDay = fiscal.find((row) => row.fiscalDay !== null && row.fiscalDay.status !== "CLOSED" && !onTestDevice(row));
       if (openDay) {
         throw new InvoiceChangeRefused(
           `${docLabel(invoice.invoiceNumber)} is on fiscal day ${openDay.fiscalDay!.fiscalDayNo}, which is still open, and the day's Z report counts it. Close the fiscal day, then delete it.`,

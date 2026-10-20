@@ -2,14 +2,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
 import { errorResponse, successResponse, validateSession } from "@/lib/api-utils";
-import { booksActor } from "@/lib/books/core";
+import { booksActor, voidDocument } from "@/lib/books/core";
 import { refusedResponse } from "@/lib/books/core/refused";
 import {
   decideSupplierPayment,
   deleteUnpaidSupplierPayment,
   paySupplierPayment,
   submitSupplierPayment,
-  voidSupplierPayment,
 } from "@/lib/books/core/supplier-payments";
 
 /** A supplier payment's moves (D5, books-final §4.10): send for approval, approve or send back, pay, void. */
@@ -36,7 +35,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         return successResponse(await paySupplierPayment(actor, id));
       case "void":
         if (!body.reason) return errorResponse("Say why, in a few words. The reason is kept in the audit trail.", 400);
-        return successResponse(await voidSupplierPayment(actor, id, body.reason));
+        return successResponse(await voidDocument(actor, "payment", id, { reason: body.reason }));
     }
   } catch (error) {
     const refused = refusedResponse(error);

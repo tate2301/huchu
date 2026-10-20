@@ -2,9 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
 import { errorResponse, successResponse, validateSession } from "@/lib/api-utils";
-import { deleteDraftBill, keepBillPhoto, replaceDraftLines, voidBill } from "@/lib/books/bill-actions";
+import { deleteDraftBill, keepBillPhoto, replaceDraftLines } from "@/lib/books/bill-actions";
 import { readBillRecord } from "@/lib/books/bill-record";
-import { booksActor, canDo, guardBooks } from "@/lib/books/core";
+import { booksActor, canDo, guardBooks, voidDocument } from "@/lib/books/core";
 import { approveBill, checkBillFti, recordBill } from "@/lib/books/core/bills";
 import { refusedResponse } from "@/lib/books/core/refused";
 import { moneyLimits } from "@/lib/books/core/approvals";
@@ -97,7 +97,8 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       case "check":
         return successResponse(await checkBillFti(actor, id, { status: body.status, supplierFtiNumber: body.supplierFtiNumber }));
       case "void":
-        return successResponse(await voidBill(actor, id, body.reason));
+        // Through the core (P4): refused while a payment or debit note stands on it, its month is closed or its bank line reconciled.
+        return successResponse(await voidDocument(actor, "bill", id, { reason: body.reason }));
       case "photo":
         return successResponse(await keepBillPhoto(actor, id, body.file), 201);
       case "lines":

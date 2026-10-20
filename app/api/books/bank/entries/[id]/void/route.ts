@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
 import { errorResponse, successResponse, validateSession } from "@/lib/api-utils";
-import { booksActor, voidBankEntry } from "@/lib/books/core";
+import { booksActor, voidDocument } from "@/lib/books/core";
 import { refusedResponse } from "@/lib/books/core/refused";
 
 const schema = z.object({ reason: z.string().trim().min(3).max(500) });
@@ -14,7 +14,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     if (sessionResult instanceof NextResponse) return sessionResult;
     const { id } = await params;
     const { reason } = schema.parse(await request.json());
-    return successResponse(await voidBankEntry(await booksActor(sessionResult.session), id, reason));
+    // Through the core (P4): refused while its month is closed or its bank line is in a closed reconciliation.
+    return successResponse(await voidDocument(await booksActor(sessionResult.session), "bank-entry", id, { reason }));
   } catch (error) {
     const refusal = refusedResponse(error, "Say why, in a few words");
     if (refusal) return refusal;

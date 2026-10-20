@@ -3,6 +3,8 @@ import type { AccountingSourceType, Prisma, PrismaClient } from "@prisma/client"
 import { ledgerSourceId, syncPaymentLedgerEntryForSource } from "@/lib/accounting/payment-ledger";
 import { prisma } from "@/lib/prisma";
 
+import { MODULE_SUB_LEDGER_TYPES } from "./module-sub-ledger";
+
 /**
  * The sub-ledger lines a posting should have written and did not (books-final
  * §6.1 fix 2): before the line was written in the post's own transaction, a
@@ -28,6 +30,8 @@ export const SUB_LEDGER_TYPES: AccountingSourceType[] = [
   "RETAIL_REQUISITION_PAYOUT",
   "RETAIL_REQUISITION_CHANGE",
   "RETAIL_SUPPLIER_PAYMENT",
+  // P4: till sales on account, lay-bys and school fees.
+  ...MODULE_SUB_LEDGER_TYPES,
 ];
 
 export async function writeMissingSubLedgerLines(companyId: string, db: Db = prisma): Promise<{ checked: number; written: number }> {

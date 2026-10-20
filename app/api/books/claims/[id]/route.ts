@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
 import { errorResponse, successResponse, validateSession } from "@/lib/api-utils";
-import { booksActor } from "@/lib/books/core";
-import { decideClaim, reimburseClaim, submitClaim, voidClaim, voidClaimReimbursement } from "@/lib/books/core/claims";
+import { booksActor, voidDocument } from "@/lib/books/core";
+import { decideClaim, reimburseClaim, submitClaim, voidClaimReimbursement } from "@/lib/books/core/claims";
 import { refusedResponse } from "@/lib/books/core/refused";
 
 /** A claim's moves (D13, books-final §4.12): submit, approve or reject, reimburse, void either. */
@@ -33,7 +33,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       case "void":
       case "void-reimbursement":
         if (!body.reason) return errorResponse("Say why, in a few words. The reason is kept in the audit trail.", 400);
-        return successResponse(body.action === "void" ? await voidClaim(actor, id, body.reason) : await voidClaimReimbursement(actor, id, body.reason));
+        return successResponse(body.action === "void" ? await voidDocument(actor, "claim", id, { reason: body.reason }) : await voidClaimReimbursement(actor, id, body.reason));
     }
   } catch (error) {
     const refused = refusedResponse(error);

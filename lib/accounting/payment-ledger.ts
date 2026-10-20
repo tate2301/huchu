@@ -2,6 +2,7 @@ import type { AccountingSourceType, Prisma, PrismaClient } from "@prisma/client"
 import { prisma } from "@/lib/prisma";
 import { toMoney } from "@/lib/accounting/ledger";
 import { receiptAllocation } from "@/lib/books/core/currency";
+import { MODULE_SUB_LEDGER_TYPES, moduleLedgerSeed } from "@/lib/books/core/module-sub-ledger";
 
 type LedgerSeed = {
   companyId: string;
@@ -9,7 +10,8 @@ type LedgerSeed = {
   sourceId: string;
   entryDate: Date;
   accountType: "RECEIVABLE" | "PAYABLE";
-  partyType: "CUSTOMER" | "VENDOR";
+  /** STUDENT: a school family's account, under the student (P4). */
+  partyType: "CUSTOMER" | "VENDOR" | "STUDENT";
   partyId?: string | null;
   invoiceId?: string | null;
   billId?: string | null;
@@ -56,6 +58,8 @@ const VOIDED_SOURCE_TYPES: ReadonlySet<AccountingSourceType> = new Set([
   "RETAIL_REQUISITION_PAYOUT",
   "RETAIL_REQUISITION_CHANGE",
   "RETAIL_SUPPLIER_PAYMENT",
+  // P4: till sales on account, lay-bys and school fees (`module-sub-ledger.ts`).
+  ...MODULE_SUB_LEDGER_TYPES,
 ]);
 
 async function buildLedgerSeed(
@@ -366,7 +370,8 @@ async function buildLedgerSeed(
       };
     }
     default:
-      return null;
+      // P4: what other modules sell on credit, in the same one statement and aging.
+      return moduleLedgerSeed(db, companyId, sourceType, sourceId, journalEntryId);
   }
 }
 

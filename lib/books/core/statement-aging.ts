@@ -55,6 +55,12 @@ export async function partyAging(companyId: string, kind: PartyKind, asOf = new 
       ? await db.customer.findMany({ where: { id: { in: ids } }, select: { id: true, name: true } })
       : await db.vendor.findMany({ where: { id: { in: ids } }, select: { id: true, name: true } })
     : [];
+  // A school family's account is kept under the student (P4).
+  const unnamed = kind === "customer" ? ids.filter((id) => !parties.some((party) => party.id === id)) : [];
+  if (unnamed.length) {
+    const students = await db.schoolStudent.findMany({ where: { id: { in: unnamed } }, select: { id: true, firstName: true, lastName: true } });
+    for (const student of students) parties.push({ id: student.id, name: `${student.firstName} ${student.lastName}`.trim() });
+  }
   const base = await resolveBaseCurrency(companyId);
   const rateOf = await ratesFor(db, companyId, lines);
   const aged = ageLedgerLines(kind, lines, new Map(parties.map((party) => [party.id, party.name])), asOf, base, rateOf);

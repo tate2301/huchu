@@ -7,6 +7,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { BkBillView } from "@/components/books/bk-bill-view";
 import { DebitDrawer } from "@/components/books/bk-debit-drawer";
 import { ReasonDrawer } from "@/components/books/bk-reason-drawer";
+import { ReviseDialog } from "@/components/books/revise-dialog";
 import { BooksError, BooksLoading } from "@/components/books/books-state";
 import { BooksPage } from "@/components/books/figures";
 import { Button, ButtonGroup, ButtonLink, Empty, Kit } from "@/components/core";
@@ -25,7 +26,7 @@ type Page = BillRecordPage;
  * over the limit is approved by the owner (A); a payment drafted for it is
  * approved (A) or paid (P); one owing is paid (P). The caret holds the rest,
  * each as `canDo` allows: the FDMS check, their invoice as a photo, a debit
- * note, a write-off, Print, Revise (P4), Void and Delete. The server refuses
+ * note, a write-off, Print, Revise (void, then a new draft linked to it; D7), Void and Delete. The server refuses
  * on its own.
  */
 export default function BooksBillPage() {
@@ -35,6 +36,7 @@ export default function BooksBillPage() {
   const client = useQueryClient();
   const { toast } = useToast();
   const [voiding, setVoiding] = React.useState(false);
+  const [revising, setRevising] = React.useState(false);
   const [noting, setNoting] = React.useState<"debit-note" | "write-off" | null>(null);
   const photoInput = React.useRef<HTMLInputElement>(null);
 
@@ -142,7 +144,14 @@ export default function BooksBillPage() {
     if (can.note) menu.push({ key: "debit", icon: "invoice", label: "Debit note", onSelect: () => setNoting("debit-note") });
     if (can.writeOff) menu.push({ key: "write-off", icon: "retire", label: "Write off", onSelect: () => setNoting("write-off") });
     menu.push({ key: "print", icon: "print", label: "Print", onSelect: () => window.print() });
-    if (!draft && bill.status !== "VOIDED") menu.push({ key: "revise", icon: "edit", label: "Revise", disabled: true, title: "Revise comes later. For now, void it and record a new one.", onSelect: () => undefined });
+    if (!draft && bill.status !== "VOIDED") {
+      // Void and revise go together (§2.2): the owner, or someone the owner let.
+      menu.push(
+        can.void
+          ? { key: "revise", icon: "edit", label: "Revise", onSelect: () => setRevising(true) }
+          : { key: "revise", icon: "edit", label: "Revise", disabled: true, title: "Only the owner can revise a recorded bill, unless they let you.", onSelect: () => undefined },
+      );
+    }
     if (can.void || can.delete) menu.push({ separator: true });
     if (can.void) menu.push({ key: "void", icon: "x", danger: true, label: "Void", onSelect: () => setVoiding(true) });
     if (can.delete) {
@@ -226,6 +235,19 @@ export default function BooksBillPage() {
               await fetchJson(`/api/books/bills/${id}`, { method: "PATCH", body: JSON.stringify({ action: "void", reason }) });
               toast({ title: `${bill.number} is void`, description: "Its posting is reversed.", variant: "success" });
               await refresh();
+            }}
+          />
+          <ReviseDialog
+            kind="bill"
+            id={bill.id}
+            number={bill.number}
+            noun="bill"
+            open={revising}
+            onOpenChange={setRevising}
+            onRevised={async (done) => {
+              toast({ title: `${done.label} is void`, description: "The new draft is open: put it right, then record it.", variant: "success" });
+              await refresh();
+              router.push(`/books/bills/${done.draft.id}`);
             }}
           />
           <DebitDrawer
