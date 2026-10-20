@@ -41,7 +41,17 @@ const browser = await chromium.launch({ channel: process.env.PW_CHANNEL ?? "chro
 const session = await (async () => {
   const context = await browser.newContext();
   const page = await context.newPage();
-  await page.goto(`${base}/login?__tenant=${tenant}`, { waitUntil: "domcontentloaded", timeout: 180_000 });
+  await page.goto(`${base}/login?__tenant=${tenant}`, { waitUntil: "load", timeout: 180_000 });
+  // On a cold server the form is drawn before React takes it: wait until React owns the
+  // password box, or Enter submits the bare form as a GET and lands back on /login.
+  await page.waitForFunction(
+    () => {
+      const box = document.querySelector('input[type="password"]');
+      return Boolean(box && Object.keys(box).some((key) => key.startsWith("__reactProps")));
+    },
+    null,
+    { timeout: 180_000 },
+  );
   await page.locator('input[type="email"]').fill(email);
   await page.locator('input[type="password"]').fill(password);
   await page.keyboard.press("Enter");
