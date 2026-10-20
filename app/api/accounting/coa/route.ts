@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { validateSession, successResponse, errorResponse, getPaginationParams, paginationResponse } from "@/lib/api-utils";
 import { prisma } from "@/lib/prisma";
+import { guardBooks } from "@/lib/books/core";
 import { normalizeProvidedId, reserveIdentifier } from "@/lib/id-generator";
 import { validateParentAccount } from "@/lib/accounting/chart-of-accounts";
 
@@ -66,6 +67,9 @@ export async function POST(request: NextRequest) {
   try {
     const sessionResult = await validateSession(request);
     if (sessionResult instanceof NextResponse) return sessionResult;
+    // The chart, cost centres and posting rules: the owner or the accountant (books-final §2.2).
+    const { refused: notAllowed } = await guardBooks(sessionResult.session, "setup");
+    if (notAllowed) return notAllowed;
     const { session } = sessionResult;
 
     const body = await request.json();

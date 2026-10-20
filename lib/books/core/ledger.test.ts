@@ -90,3 +90,20 @@ describe("manual journals (books-final §4.14)", () => {
     expect(needsSecondPerson({ role: "MANAGER" }, 50_000, 0)).toBe(false);
   });
 });
+
+describe("chart and posting rules, in words", async () => {
+  const { accountWord, sideWords, ruleNeedsAccount } = await import("../ledger-setup");
+  it("names an account by what it is to a person", () => {
+    expect(accountWord({ type: "ASSET", category: "Cash", bankKind: "BANK" })).toBe("Bank");
+    expect(accountWord({ type: "ASSET", category: "Receivables" })).toBe("Receivable");
+    expect(accountWord({ type: "EXPENSE", category: "Operations" })).toBe("Expense");
+  });
+  it("says where a side posts, and when a rule needs an account", () => {
+    const line = (code: string | null, extra: Partial<{ accountSource: string; eventAccountKey: string }> = {}) => ({ direction: "DEBIT", accountSource: "FIXED_ACCOUNT", accountRole: null, eventAccountKey: null, basis: "AMOUNT", account: code ? { code, name: `Account ${code}` } : null, ...extra });
+    expect(sideWords([line("1100")])).toBe("1100 Account 1100");
+    expect(sideWords([line("2100"), line("2110"), line("2120")])).toBe("2100 · 2110 · 2120");
+    expect(sideWords([line(null, { accountSource: "TENDER_MAPPING" })])).toBe("The tender’s account");
+    expect(ruleNeedsAccount([line(null)])).toBe(true);
+    expect(ruleNeedsAccount([line(null, { eventAccountKey: "bankAccount" })])).toBe(false);
+  });
+});

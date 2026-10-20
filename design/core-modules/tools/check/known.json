@@ -1087,5 +1087,26 @@
     "panel: Overdueshared",
     "panel: Pomona Officesyou",
     "panel: Paid this monthshared"
+  ],
+  "BkChart": [
+    "heading: Ledger",
+    "button: Books",
+    "panel: Books",
+    "button: Vane",
+    "button: Notifications",
+    "panel: Overdueshared",
+    "panel: Pomona Officesyou",
+    "panel: Paid this monthshared"
+  ],
+  "BkPostingRules": [
+    "heading: Ledger",
+    "button: Books",
+    "panel: Books",
+    "button: Vane",
+    "button: Notifications",
+    "panel: Overdueshared",
+    "panel: Pomona Officesyou",
+    "panel: Paid this monthshared",
+    "status: Needs an account"
   ]
 }

@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { AccountingSourceType } from "@prisma/client";
+import { AccountingSourceType, RetailAccountRole } from "@prisma/client";
 import {
   validateSession,
   successResponse,
   errorResponse,
 } from "@/lib/api-utils";
 import { prisma } from "@/lib/prisma";
+import { guardBooks } from "@/lib/books/core";
 import {
   findForeignAccountIds,
   findForeignCostCenterIds,
@@ -45,6 +46,9 @@ const lineSchema = z.object({
   memoTemplate: z.string().optional().nullable(),
   costCenterId: z.string().uuid().optional().nullable(),
   sortOrder: z.number().int().optional().default(0),
+  // Kept when a rule is edited: the account a retail role or the event names.
+  accountRole: z.nativeEnum(RetailAccountRole).optional().nullable(),
+  eventAccountKey: z.string().max(80).optional().nullable(),
 });
 
 const updateSchema = z.object({
@@ -92,6 +96,9 @@ export async function PATCH(
   try {
     const sessionResult = await validateSession(request);
     if (sessionResult instanceof NextResponse) return sessionResult;
+    // The chart, cost centres and posting rules: the owner or the accountant (books-final §2.2).
+    const { refused: notAllowed } = await guardBooks(sessionResult.session, "setup");
+    if (notAllowed) return notAllowed;
     const { session } = sessionResult;
     const companyId = session.user.companyId;
     const { id } = await params;
@@ -238,6 +245,8 @@ export async function PATCH(
                 valuePath: line.valuePath,
                 memoTemplate: line.memoTemplate,
                 costCenterId: line.costCenterId,
+                accountRole: line.accountRole ?? undefined,
+                eventAccountKey: line.eventAccountKey ?? undefined,
                 sortOrder: line.sortOrder ?? idx,
               })),
             },
@@ -281,6 +290,9 @@ export async function DELETE(
   try {
     const sessionResult = await validateSession(request);
     if (sessionResult instanceof NextResponse) return sessionResult;
+    // The chart, cost centres and posting rules: the owner or the accountant (books-final §2.2).
+    const { refused: notAllowed } = await guardBooks(sessionResult.session, "setup");
+    if (notAllowed) return notAllowed;
     const { session } = sessionResult;
     const companyId = session.user.companyId;
     const { id } = await params;
