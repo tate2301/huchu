@@ -321,7 +321,7 @@ function NeedsAction({ data, listScope }: { data: FinanceResponse; listScope: UR
           return {
             id: item.kind,
             name: "Waiting for approval",
-            href: "/crm/requisitions?queue=AWAITING_DECISION",
+            href: "/books/requisitions?source=crm&view=to-approve",
             count: plural(item.count, "requisition", "requisitions"),
             amount,
             tone: "warn" as const,
@@ -463,7 +463,7 @@ function Standing({ data }: { data: FinanceResponse }) {
           {
             id: "owed",
             cells: {
-              what: <ColumnName name="Owed to us" href="/crm/invoices" />,
+              what: <ColumnName name="Owed to us" href="/books/invoices?view=owed" />,
               count: <ColumnText>{plural(data.owedToUs.invoices, "invoice", "invoices")}</ColumnText>,
               amount: <ColumnFigure>{formatMoney(data.owedToUs.total, currency)}</ColumnFigure>,
             },
@@ -471,7 +471,7 @@ function Standing({ data }: { data: FinanceResponse }) {
           {
             id: "floats",
             cells: {
-              what: <ColumnName name="Floats not accounted for" href="/crm/requisitions?queue=OUTSTANDING" />,
+              what: <ColumnName name="Floats not accounted for" href="/books/requisitions?source=crm&view=to-account" />,
               count: <ColumnText>{plural(data.floatsOut.requisitions, "requisition", "requisitions")}</ColumnText>,
               amount: (
                 <ColumnFigure tone={data.floatsOut.requisitions > 0 ? "warn" : "default"}>
@@ -483,7 +483,7 @@ function Standing({ data }: { data: FinanceResponse }) {
           {
             id: "committed",
             cells: {
-              what: <ColumnName name="Approved, not yet paid" href="/crm/requisitions?queue=APPROVED" />,
+              what: <ColumnName name="Approved, not yet paid" href="/books/requisitions?source=crm&view=to-pay" />,
               count: (
                 <ColumnText>{plural(data.committedUnpaid.requisitions, "requisition", "requisitions")}</ColumnText>
               ),
@@ -690,7 +690,7 @@ function RequisitionLines({
                     ? (requisition.requestedBy?.name ?? "Unknown")
                     : (requisition.project?.name ?? "Not for a project")
                 }
-                href={`/crm/requisitions/${requisition.id}`}
+                href={`/books/requisitions/${requisition.id}`}
               />
             ),
             status: (

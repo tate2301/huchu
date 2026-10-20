@@ -453,7 +453,7 @@ export function ProjectDetailContent({ projectId }: { projectId: string }) {
                           code={requisition.requisitionNo}
                           name={requisition.purpose}
                           meta={requisition.requestedBy?.name ?? "Unknown"}
-                          href={`/crm/requisitions/${requisition.id}`}
+                          href={`/books/requisitions/${requisition.id}`}
                         />
                       ),
                       status: (

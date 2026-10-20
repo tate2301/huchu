@@ -995,11 +995,9 @@ export const navSections: NavSection[] = [
         group: "money",
         rank: "flow",
       },
-      { href: "/crm/quotes", icon: FileText, label: "Quotes", group: "money", rank: "flow" },
-      { href: "/crm/invoices", icon: ReceiptLong, label: "Invoices", group: "money", rank: "flow" },
-      { href: "/crm/receipts", icon: Payments, label: "Receipts", group: "money", rank: "flow" },
-      { href: "/crm/collections", icon: Scale, label: "Collections", group: "money", rank: "flow" },
-      { href: "/crm/requisitions", icon: Wallet, label: "Requisitions", group: "money", rank: "flow" },
+      // Quotes, invoices, receipts, collections and requisitions are Books' records,
+      // each at one address there (design/books/NOTES.md §2); a deal shows its own
+      // money and opens them. The CRM keeps the field's own money tools.
       { href: "/crm/cost-tracker", icon: Receipt, label: "Cost tracker", group: "money", rank: "flow" },
       {
         href: "/crm/daily-reports",

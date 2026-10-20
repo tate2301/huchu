@@ -128,8 +128,10 @@ describe("documentNumber", () => {
 
 describe("documentHref", () => {
   it("opens each kind under its own list", () => {
-    expect(documentHref(doc({ type: "QUOTATION" }))).toBe("/crm/quotes/doc-1");
-    expect(documentHref(doc({ type: "INVOICE" }))).toBe("/crm/invoices/doc-1");
-    expect(documentHref(doc({ type: "RECEIPT" }))).toBe("/crm/receipts/doc-1");
+    expect(documentHref(doc({ type: "QUOTATION" }))).toBe("/books/quotes/doc-1");
+    expect(documentHref({ id: "doc-1", type: "INVOICE", invoiceId: "inv-1" })).toBe("/books/invoices/inv-1");
+    expect(documentHref({ id: "doc-1", type: "RECEIPT", receiptId: "rec-1" })).toBe("/books/payments?payment=rec-1");
+    // Without the Books id, the CRM's old address forwards to it.
+    expect(documentHref({ id: "doc-1", type: "INVOICE" })).toBe("/crm/invoices/doc-1");
   });
 });

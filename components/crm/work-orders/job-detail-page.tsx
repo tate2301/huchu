@@ -116,7 +116,7 @@ function paperworkRows(job: JobRecord): PaperworkRow[] {
       icon: Payments,
       title: job.invoice.invoiceNumber || "Invoice raised",
       body: "Raised from the quantities this job actually completed.",
-      href: "/crm/invoices",
+      href: "/books/invoices",
       linkLabel: "Open invoices",
     });
   }
@@ -325,7 +325,7 @@ export function JobDetailPage({ jobId }: { jobId: string }) {
               customer gets billed twice for one visit. */}
           <div className="space-y-1">
             <Link
-              href="/crm/invoices"
+              href="/books/invoices"
               className="block font-mono text-sm font-medium text-[var(--brand-strong)] hover:underline"
             >
               {job.invoice.invoiceNumber || "Invoice raised"}

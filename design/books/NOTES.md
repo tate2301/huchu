@@ -82,6 +82,18 @@ Books also sends people into the CRM:
 - **Retail's Buying rows for suppliers and requisitions** (`lib/retail/nav/buying.ts`) duplicate Books' too. Left for the retail pass (§8), because the floor's requisitions are a shop manager's working list and the shop manager does not see Bills & spending (`permissions.json`: `–`).
 - **Who sees what is unchanged.** A rep reaches their own requisitions through Bills & spending ("own requests" in `permissions.json`) and their quotes through the deal.
 
+### Done on this branch (lead), 20 Oct
+
+- The CRM panel's Money group no longer carries Quotes, Invoices, Receipts, Collections or Requisitions (`lib/navigation.ts`).
+- The old addresses forward:
+  - `/crm/quotes[/id]` → `/books/quotes[/id]`; a quote's Books address takes the CRM document id.
+  - `/crm/invoices[/id]` → `/books/invoices[/invoice id]`.
+  - `/crm/receipts[/id]` → `/books/payments[?payment=receipt id]` (`lib/crm/moved-documents.ts`).
+  - `/crm/collections` → `/books/invoices?view=overdue`.
+  - `/crm/requisitions` → `/books/requisitions?source=crm`, its queue read as Books' tab; `/crm/requisitions/[id]` → `/books/requisitions/[id]`.
+- `documentHref` builds the Books address. The CRM's dashboard, overview, finance, project and job pages, the requisition table and the requisition notifications link to Books. The CRM's document list and collections pages are deleted.
+- A rep or fitter reaches their own requests and the CRM's documents at their Books address: `canDo` allows view of Bills & spending, and of Sales for CRM documents; SALES_REP's route allow-list carries those Books addresses. The readers show a rep only their own (Bills & spending and Sales levels).
+
 The design draws `bk-x-crm-reqs` as "Books' requisitions list, filtered to the CRM" sitting in the CRM. Under the owner's 20 Oct consolidation it is that same list at its one address, `/books/requisitions?source=crm`. The CRM panel does not carry a second row for it.
 
 ## 3. Type, colour and icons in Books (Doing)

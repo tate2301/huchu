@@ -37,7 +37,7 @@ export function RequisitionTable({
   isLoading,
   showProject = true,
   showRequester = true,
-  rowHref = (row) => `/crm/requisitions/${row.id}`,
+  rowHref = (row) => `/books/requisitions/${row.id}`,
   empty,
   emptyAction,
 }: {
