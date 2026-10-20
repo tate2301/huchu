@@ -2512,7 +2512,7 @@
 .tl.tl.tl .hx-sep { flex: none; width: 1px; height: 20px; margin: 0 var(--space-8); background: var(--color-line); }
 
 /* The rows: a glyph for how it was paid, what was sold, the code, time and tender, the amount. */
-.tl.tl.tl .hx-list { flex: 1; min-height: 0; overflow: auto; margin: 0 -4px; padding: 2px 4px var(--space-24); }
+.tl.tl.tl .hx-list { flex: 1; min-height: 0; overflow: auto; margin: -4px -6px 0; padding: 4px 6px var(--space-24); }
 .tl.tl.tl .hx-item { padding-bottom: 6px; }
 .tl.tl.tl .hx-row { display: grid; grid-template-columns: 44px minmax(0, 1fr) auto; gap: 14px; align-items: center; min-height: 62px; padding: var(--space-8) 18px var(--space-8) 10px; border-radius: 16px; background: var(--color-surface); box-shadow: inset 0 0 0 1px var(--color-line); color: inherit; text-decoration: none; transition: background-color var(--motion-fast) var(--motion-ease); }
 @media (hover: hover) { .tl.tl.tl .hx-row:hover { background: var(--color-hover); } }
@@ -2548,7 +2548,8 @@
 .tl.tl.tl .fact.is-link:first-child { border-radius: 16px 16px 0 0; }
 .tl.tl.tl .fact.is-link:last-child { border-radius: 0 0 16px 16px; }
 .tl.tl.tl .fact.is-link:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var(--color-accent); }
-.tl.tl.tl .hx-facts .fact dt { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tl.tl.tl .hx-facts .fact dt { padding: 14px 0; line-height: 1.35; text-wrap: pretty; }
+.tl.tl.tl .hx-facts .fact dd { white-space: nowrap; }
 .tl.tl.tl .hx-sum { flex: none; display: flex; justify-content: space-between; gap: var(--space-12); padding: var(--space-16) var(--space-24) 0; box-shadow: inset 0 1px 0 var(--color-line); font-size: var(--text-14); color: var(--color-muted); }
 .tl.tl.tl .hx-keys { flex: none; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.5fr); gap: 10px; padding: var(--space-16) 20px 20px; }
 .tl.tl.tl .hx-keys.is-one { grid-template-columns: minmax(0, 1fr); }
@@ -2590,9 +2591,10 @@
 .tl.tl.tl .dialog:has(.approve-pin) .dialog-body { position: relative; gap: var(--space-16); }
 .tl.tl.tl .dialog:has(.approve-amount) .dialog-body h2 { padding-right: 120px; }
 .tl.tl.tl .approve-amount { position: absolute; top: 31px; right: 28px; font-size: 20px; color: var(--color-ink); }
-.tl.tl.tl .approvers { display: flex; flex-wrap: wrap; gap: var(--space-8); }
-.tl.tl.tl .approver { flex: 1 1 0; min-width: 160px; height: 60px; padding: 0 14px; border-radius: 16px; display: flex; align-items: center; gap: var(--space-12); box-shadow: inset 0 0 0 1px var(--color-rule); font-size: var(--text-16); font-weight: 600; color: var(--color-ink); text-align: left; }
+.tl.tl.tl .approvers { display: grid; grid-template-columns: repeat(auto-fit, minmax(156px, 1fr)); gap: var(--space-8); }
+.tl.tl.tl .approver { min-width: 0; height: 60px; padding: 0 14px; border-radius: 16px; display: flex; align-items: center; gap: var(--space-12); box-shadow: inset 0 0 0 1px var(--color-rule); font-size: var(--text-16); font-weight: 600; color: var(--color-ink); text-align: left; }
 .tl.tl.tl .approver .avatar { width: 36px; height: 36px; flex: none; }
+.tl.tl.tl .approver > :last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tl.tl.tl .approver[aria-checked="true"] { box-shadow: inset 0 0 0 2px var(--color-ink); }
 .tl.tl.tl .approver:disabled { opacity: 0.5; cursor: default; }
 .tl.tl.tl .approver:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var(--color-ink), 0 0 0 2px var(--color-surface), 0 0 0 4px var(--color-accent); }
@@ -2759,3 +2761,275 @@
   .tl.tl.tl .shift-done-side { padding: 24px 16px; }
 }
 @media (prefers-reduced-motion: reduce) { .tl.tl.tl .shift-btn:active:not(:disabled) { transform: none; } }
+
+/* The gate (W6-9, W6-3b, T7): Who's selling? and the PIN, the lock, PIN locked, the password, choosing a PIN,
+   pairing and no longer a till. The strip, then two halves: who on the left, the keys on a 460 wide ground
+   on the right with the one orange key. */
+
+.tl.tl.tl .gate-cm { height: 100vh; height: 100dvh; display: flex; flex-direction: column; background: var(--color-surface); color: var(--color-ink-2); }
+.tl.tl.tl .gate-cm.is-over { position: fixed; inset: 0; z-index: 90; }
+.tl.tl.tl .gate-cm:focus { outline: none; }
+.tl.tl.tl .gate-cm .strip-brand { flex: none; fill: var(--color-accent); stroke: var(--color-accent-ink); stroke-width: 2.4; stroke-linecap: round; }
+.tl.tl.tl .gate-cm .strip-brand path { fill: none; }
+.tl.tl.tl .strip-place { font-size: 15px; color: var(--color-ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+
+.tl.tl.tl .gate-body { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) 460px; }
+.tl.tl.tl .gate-l { min-width: 0; min-height: 0; overflow: auto; display: flex; flex-direction: column; gap: 28px; padding: 48px 56px 40px; box-shadow: inset -1px 0 0 var(--color-line); }
+.tl.tl.tl .gate-r { min-width: 0; min-height: 0; overflow: auto; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 22px; padding: 32px 40px; background: var(--color-ground); }
+.tl.tl.tl .gate-r.is-form { align-items: stretch; }
+
+/* Titles: the screen's question, or the person's state beside their face. */
+.tl.tl.tl .gate-head { display: flex; flex-direction: column; gap: 8px; }
+.tl.tl.tl .gate-h { margin: 0; font-size: 30px; font-weight: 600; letter-spacing: -0.02em; line-height: 1.2; color: var(--color-ink); }
+.tl.tl.tl .gate-t { margin: 0; font-size: 34px; font-weight: 600; letter-spacing: -0.02em; line-height: 1.2; color: var(--color-ink); }
+.tl.tl.tl .gate-s { margin: 6px 0 0; font-size: 17px; line-height: 1.4; color: var(--color-muted); }
+.tl.tl.tl .gate-head .gate-s { margin: 0; }
+.tl.tl.tl .gate-s .num { font-family: var(--font-mono); font-size: 16px; }
+.tl.tl.tl .gate-s.is-bad { color: var(--color-danger); font-weight: 500; }
+
+/* The person on the left: a 120 face ringed off the page, the title under it, in the middle of the half. */
+.tl.tl.tl .gate-who { margin: auto 0; display: flex; flex-direction: column; align-items: flex-start; gap: 26px; }
+.tl.tl.tl .gate-who .avatar { width: 120px; height: 120px; box-shadow: 0 0 0 3px var(--color-surface), 0 0 0 4.5px var(--color-rule); outline: 0; }
+.tl.tl.tl .gate-who .avatar-none .ic { width: 56px; height: 56px; }
+.tl.tl.tl .gate-foot { display: flex; flex-wrap: wrap; gap: 12px; }
+
+/* The people: faces as cards, the chosen one ringed. */
+.tl.tl.tl .gate-people { display: grid; grid-template-columns: repeat(auto-fill, minmax(168px, 1fr)); gap: 16px; align-content: start; }
+.tl.tl.tl .gate-face { display: flex; flex-direction: column; align-items: center; gap: 10px; min-width: 0; padding: 18px 8px; border-radius: 16px; background: transparent; color: var(--color-ink); font-size: 17px; font-weight: 600; text-align: center; transition: background-color var(--motion-fast) var(--motion-ease), transform var(--motion-fast) var(--motion-ease); }
+.tl.tl.tl .gate-face .face { position: relative; display: block; }
+.tl.tl.tl .gate-face .avatar { width: 80px; height: 80px; outline: 0; }
+.tl.tl.tl .gate-face .avatar-none .ic { width: 36px; height: 36px; }
+.tl.tl.tl .gate-face .count { position: absolute; top: -2px; right: -4px; min-width: 24px; height: 24px; padding: 0 7px; border-radius: var(--radius-pill); background: var(--color-ink); color: var(--color-surface); box-shadow: 0 0 0 2px var(--color-surface); font-family: var(--font-mono); font-size: 13px; font-weight: 500; display: grid; place-items: center; }
+.tl.tl.tl .gate-face .name { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tl.tl.tl .gate-face small { margin-top: -6px; font-size: 14px; font-weight: 500; color: var(--color-muted); }
+.tl.tl.tl .gate-face small.is-warn { color: var(--color-warning); }
+.tl.tl.tl .gate-face small.is-bad { color: var(--color-danger); }
+@media (hover: hover) { .tl.tl.tl .gate-face:hover { background: var(--color-hover); } }
+.tl.tl.tl .gate-face:active { transform: scale(var(--motion-press)); }
+.tl.tl.tl .gate-face[aria-pressed="true"] { background: var(--color-fill); box-shadow: inset 0 0 0 2px var(--color-ink); }
+.tl.tl.tl .gate-face:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var(--color-ink), 0 0 0 2px var(--color-surface), 0 0 0 4px var(--color-accent); }
+.tl.tl.tl .gate-people .skeleton.is-face { height: 156px; border-radius: 16px; }
+
+/* The PIN: whose, the four dots, what went wrong. */
+.tl.tl.tl .gate-pinl { text-align: center; font-size: 18px; font-weight: 600; color: var(--color-ink); }
+.tl.tl.tl .gate-pinl.is-quiet { color: var(--color-muted); font-weight: 500; }
+.tl.tl.tl .gate-cm .pin { justify-content: center; gap: 16px; }
+.tl.tl.tl .gate-cm .pin i { box-shadow: inset 0 0 0 2px var(--color-rule); }
+.tl.tl.tl .gate-cm .pin i.on { background: var(--color-ink); box-shadow: none; }
+.tl.tl.tl .gate-cm .pin.is-wrong i { background: var(--color-danger); box-shadow: none; }
+.tl.tl.tl .gate-err { margin: -8px 0 0; text-align: center; font-size: 16px; font-weight: 500; color: var(--color-danger); }
+.tl.tl.tl .gate-err.is-left { margin: 0; text-align: left; }
+.tl.tl.tl .gate-twin { display: flex; flex-direction: column; align-items: center; gap: 10px; }
+.tl.tl.tl .gate-twin .gate-pinl { font-size: 15px; font-weight: 500; color: var(--color-muted); }
+.tl.tl.tl .gate-twin.is-now .gate-pinl { font-weight: 600; color: var(--color-ink); }
+.tl.tl.tl .gate-twin.is-later .pin i { box-shadow: inset 0 0 0 2px var(--color-line); }
+
+/* The PIN pad: 104 × 66 keys, Delete bottom left, the orange key bottom right. */
+.tl.tl.tl .gate-cm .keypad.pinpad { width: auto; max-width: none; grid-template-columns: repeat(3, 104px); gap: 10px; justify-content: center; }
+.tl.tl.tl .gate-cm .pinpad button { height: 66px; border-radius: 14px; background: var(--color-surface); box-shadow: inset 0 0 0 1px var(--color-line); font-family: var(--font-sans); font-size: 26px; font-weight: 600; color: var(--color-ink); }
+.tl.tl.tl .gate-cm .pinpad button .ic { width: 24px; height: 24px; }
+.tl.tl.tl .gate-cm .pinpad button:active:not(:disabled) { background: var(--color-pressed); box-shadow: none; }
+.tl.tl.tl .gate-cm .pinpad button:focus-visible { box-shadow: 0 0 0 2px var(--color-ground), 0 0 0 4px var(--color-accent); }
+.tl.tl.tl .gate-cm .pinpad button.go { background: var(--color-accent); color: var(--color-accent-ink); box-shadow: none; }
+.tl.tl.tl .gate-cm .pinpad button.go .ic { width: 26px; height: 26px; }
+.tl.tl.tl .gate-cm .pinpad button:nth-child(10):not(:disabled) { color: var(--color-ink-2); }
+.tl.tl.tl .gate-cm .pinpad button.go:focus-visible { box-shadow: 0 0 0 2px var(--color-ground), 0 0 0 4px var(--color-ink); }
+.tl.tl.tl .gate-cm .pinpad button:disabled { color: var(--color-faint); cursor: default; }
+.tl.tl.tl .gate-cm .pinpad button.go:disabled { background: var(--color-fill); color: var(--color-faint); }
+
+/* The ways on, stacked full width: Use my password, Someone else. */
+.tl.tl.tl .gate-ways { width: 100%; display: flex; flex-direction: column; gap: 12px; margin-top: 18px; }
+.tl.tl.tl .gate-ways .take-key, .tl.tl.tl .gate-r.is-form .take-key { height: 68px; }
+.tl.tl.tl .gate-ways .gate-btn { height: 68px; justify-content: center; }
+.tl.tl.tl .gate-cm .take-key .ic { width: 22px; height: 22px; }
+
+/* The quiet key: Someone else, Scan the QR, Check a price. */
+.tl.tl.tl .gate-btn { height: 64px; padding: 0 24px; border-radius: 16px; display: inline-flex; align-items: center; gap: 10px; background: var(--color-surface); box-shadow: inset 0 0 0 1px var(--color-rule); color: var(--color-ink); font-size: 17px; font-weight: 600; text-decoration: none; white-space: nowrap; transition: background-color var(--motion-fast) var(--motion-ease), transform var(--motion-fast) var(--motion-ease); }
+.tl.tl.tl .gate-btn .ic { width: 20px; height: 20px; flex: none; }
+@media (hover: hover) { .tl.tl.tl .gate-btn:hover:not(:disabled) { background: var(--color-hover); } }
+.tl.tl.tl .gate-btn:active:not(:disabled) { transform: scale(var(--motion-press)); background: var(--color-pressed); }
+.tl.tl.tl .gate-btn:focus-visible { outline: none; box-shadow: inset 0 0 0 1px var(--color-rule), 0 0 0 2px var(--color-surface), 0 0 0 4px var(--color-ink); }
+.tl.tl.tl .gate-btn:disabled { color: var(--color-faint); cursor: default; }
+.tl.tl.tl .gate-btn[aria-pressed="true"] { background: var(--color-fill); box-shadow: inset 0 0 0 2px var(--color-ink); }
+
+/* The password: one 64 tall field ringed in orange, the eye inside it. */
+.tl.tl.tl .gate-field { display: flex; flex-direction: column; gap: 10px; }
+.tl.tl.tl .gate-field label { font-size: 15px; font-weight: 500; color: var(--color-muted); }
+.tl.tl.tl .gate-pw { height: 64px; display: flex; align-items: center; gap: 10px; padding: 0 8px 0 20px; border-radius: 16px; background: var(--color-surface); box-shadow: inset 0 0 0 1px var(--color-rule); }
+.tl.tl.tl .gate-pw:focus-within { box-shadow: inset 0 0 0 2px var(--color-accent); }
+.tl.tl.tl .gate-pw.is-bad { box-shadow: inset 0 0 0 2px var(--color-danger); }
+.tl.tl.tl .gate-pw input { flex: 1; min-width: 0; height: 100%; padding: 0; border: 0; border-radius: 0; background: transparent; box-shadow: none; outline: none; font: inherit; font-size: 22px; color: var(--color-ink); caret-color: var(--color-accent); }
+.tl.tl.tl .gate-pw input:focus, .tl.tl.tl .gate-pw input:focus-visible { outline: none; box-shadow: none; }
+.tl.tl.tl .gate-pw input[type="password"] { letter-spacing: 0.18em; font-size: 26px; }
+.tl.tl.tl .gate-pw .eye { flex: none; width: 48px; height: 48px; border-radius: 12px; display: grid; place-items: center; color: var(--color-muted); }
+.tl.tl.tl .gate-pw .eye .ic { width: 22px; height: 22px; }
+@media (hover: hover) { .tl.tl.tl .gate-pw .eye:hover { background: var(--color-fill); } }
+.tl.tl.tl .gate-pw .eye:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--color-ink); }
+
+/* The door: a device that is not a till. The glyph, the title and the code, in the middle of the half. */
+.tl.tl.tl .gate-l.is-door { align-items: center; }
+.tl.tl.tl .gate-door { margin: auto 0; display: flex; flex-direction: column; align-items: center; gap: 28px; text-align: center; max-width: 560px; }
+.tl.tl.tl .gate-door .glyph { width: 40px; height: 40px; color: var(--color-muted); }
+.tl.tl.tl .gate-door .gate-h { font-size: 34px; }
+.tl.tl.tl .gate-door .gate-s { margin: -12px 0 0; }
+.tl.tl.tl .gate-door .gate-err { margin: -8px 0 0; }
+.tl.tl.tl .gate-code { display: flex; gap: 14px; }
+.tl.tl.tl .gate-code span { width: 76px; height: 96px; border-radius: 16px; background: var(--color-fill); display: grid; place-items: center; color: var(--color-ink); font-size: 52px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.tl.tl.tl .gate-code span.is-at { background: var(--color-surface); box-shadow: inset 0 0 0 2px var(--color-accent); }
+.tl.tl.tl .gate-code span.is-bad { background: var(--color-danger-tint); color: var(--color-danger); }
+.tl.tl.tl .gate-code i { width: 18px; }
+.tl.tl.tl .gate-door .qr-cam { width: 320px; }
+.tl.tl.tl .gate-facts { display: grid; grid-template-columns: auto auto; gap: 6px 16px; margin: 0; font-size: 16px; text-align: left; }
+.tl.tl.tl .gate-facts dt { color: var(--color-muted); }
+.tl.tl.tl .gate-facts dd { margin: 0; color: var(--color-ink); font-weight: 500; }
+.tl.tl.tl .gate-l.is-door .gate-foot { justify-content: center; }
+.tl.tl.tl .gate-ways .gate-btn[href] { display: flex; }
+
+@media (prefers-reduced-motion: reduce) { .tl.tl.tl .gate-face, .tl.tl.tl .gate-btn { transition: none; } }
+
+/* A PC window narrower than the Counter Mini: a narrower key side. */
+@media (max-width: 1100px) {
+  .tl.tl.tl .gate-body { grid-template-columns: minmax(0, 1fr) 400px; }
+  .tl.tl.tl .gate-l { padding: 40px 40px 32px; }
+}
+
+/* The Kora and phones: one column, the people in a row that scrolls, the keys under them. */
+@media (max-width: 760px) {
+  .tl.tl.tl .gate-cm { height: auto; min-height: 100dvh; }
+  .tl.tl.tl .gate-cm.is-over { height: 100dvh; overflow: auto; }
+  .tl.tl.tl .gate-body { display: flex; flex-direction: column; }
+  .tl.tl.tl .gate-l { overflow: visible; gap: 20px; padding: 24px 16px; box-shadow: none; }
+  .tl.tl.tl .gate-r { flex: 1; overflow: visible; justify-content: flex-start; gap: 16px; padding: 20px 16px 24px; box-shadow: inset 0 1px 0 var(--color-line); }
+  .tl.tl.tl .gate-cm.is-idle .gate-r { display: none; }
+  .tl.tl.tl .gate-h { font-size: 26px; }
+  .tl.tl.tl .gate-t, .tl.tl.tl .gate-door .gate-h { font-size: 26px; }
+  .tl.tl.tl .gate-who { margin: 0; flex-direction: row; align-items: center; gap: 16px; }
+  .tl.tl.tl .gate-who .avatar { width: 64px; height: 64px; }
+  .tl.tl.tl .gate-who .avatar-none .ic { width: 30px; height: 30px; }
+  .tl.tl.tl .gate-s { font-size: 15px; }
+  .tl.tl.tl .gate-people { display: flex; overflow-x: auto; gap: 8px; margin: 0 -16px; padding: 2px 16px 4px; scroll-snap-type: x proximity; }
+  .tl.tl.tl .gate-face { flex: none; width: 112px; padding: 12px 6px; font-size: 15px; scroll-snap-align: start; }
+  .tl.tl.tl .gate-face .avatar { width: 56px; height: 56px; }
+  .tl.tl.tl .gate-face .avatar-none .ic { width: 26px; height: 26px; }
+  .tl.tl.tl .gate-face small { font-size: 13px; }
+  .tl.tl.tl .gate-people .skeleton.is-face { flex: none; width: 112px; height: 120px; }
+  .tl.tl.tl .gate-cm .keypad.pinpad { width: 100%; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+  .tl.tl.tl .gate-cm .pinpad button { height: 60px; }
+  .tl.tl.tl .gate-foot { width: 100%; }
+  .tl.tl.tl .gate-foot .gate-btn { flex: 1; justify-content: center; padding: 0 16px; font-size: 16px; }
+  .tl.tl.tl .gate-door { gap: 18px; margin: 0; }
+  .tl.tl.tl .gate-door .gate-s { margin: -6px 0 0; }
+  .tl.tl.tl .gate-code { gap: 8px; }
+  .tl.tl.tl .gate-code span { width: 48px; height: 64px; border-radius: 12px; font-size: 34px; }
+  .tl.tl.tl .gate-code i { width: 8px; }
+  .tl.tl.tl .gate-door .qr-cam { width: 100%; max-width: 320px; }
+  .tl.tl.tl .gate-ways { margin-top: 0; }
+  .tl.tl.tl .strip-place { display: none; }
+}
+
+/* Selling with no connection (T8). Saved on this till (T8-2): Paid's layout in the sale column, and the slip
+   it prints on the shelf's side. Waiting to send (T8-3, T8-5): the title with its count, then big rows. */
+
+/* Saved on this till: Paid shows the change, not the total over it. */
+.tl.tl.tl .tray:has(> .paid.is-saved) > .tray-top { display: none; }
+
+/* The slip on the shelf's side, over the shelf until Next sale. */
+.tl.tl.tl .bench > .main:has(> .shelf-slip) { position: relative; }
+.tl.tl.tl .shelf-slip { position: absolute; inset: 0; z-index: 2; overflow: auto; display: flex; justify-content: center; align-items: flex-start; padding: 34px var(--space-24) var(--space-24); background: var(--color-ground); }
+.tl.tl.tl .shelf-slip .receipt-page { padding: 0; }
+.tl.tl.tl .shelf-slip .receipt { width: 340px; padding: 22px 22px 26px; border-radius: 4px; background: var(--color-surface); box-shadow: 0 18px 40px -20px rgba(36, 20, 14, 0.5), 0 0 0 1px rgba(36, 20, 14, 0.06); font-family: var(--font-mono); font-size: 13px; line-height: 1.55; color: var(--color-ink); animation: offline-print 600ms var(--motion-ease-out) both; }
+.tl.tl.tl .shelf-slip .receipt hr { margin: 10px 0; }
+.tl.tl.tl .shelf-slip .receipt .t, .tl.tl.tl .shelf-slip .receipt .l.t { padding: 0; font-size: 13px; font-weight: 500; color: var(--color-ink); }
+.tl.tl.tl .shelf-slip .receipt .l.is-change { font-weight: 400; }
+.tl.tl.tl .shelf-slip .receipt .c.muted { font-family: var(--font-sans); font-size: 12px; line-height: 1.45; color: var(--color-muted); }
+@keyframes offline-print { from { opacity: 0; transform: translateY(-16px); } to { opacity: 1; transform: none; } }
+@media (max-width: 760px) { .tl.tl.tl .shelf-slip { display: none; } }
+
+/* Waiting to send. */
+.tl.tl.tl .wait-page { flex: 1; min-height: 0; overflow: auto; display: flex; flex-direction: column; gap: 22px; padding: 26px 28px 28px; background: var(--color-surface); }
+.tl.tl.tl .wait-h { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 14px; min-height: 48px; }
+.tl.tl.tl .wait-h h1 { margin: 0; font-size: 28px; font-weight: 600; letter-spacing: -0.02em; line-height: 1.2; color: var(--color-ink); }
+.tl.tl.tl .wait-h .sub { font-size: 15px; color: var(--color-muted); }
+.tl.tl.tl .wait-h .sub .num { font-family: var(--font-mono); font-size: var(--text-14); }
+.tl.tl.tl .wait-h .end { margin-left: auto; align-self: center; }
+.tl.tl.tl .wait-group { display: flex; flex-direction: column; gap: 12px; }
+.tl.tl.tl .wait-sub { margin: 0; font-size: 15px; font-weight: 500; color: var(--color-muted); }
+.tl.tl.tl .wait-sub .num { font-family: var(--font-mono); color: var(--color-ink-2); }
+
+/* A sale: its glyph, its tag (or its number once sent), who and when, the amount, and where it stands. */
+.tl.tl.tl .wait-box { display: flex; flex-direction: column; border-radius: 18px; background: var(--color-surface); box-shadow: inset 0 0 0 1px var(--color-line); }
+.tl.tl.tl .wait-row { display: grid; grid-template-columns: 44px 110px minmax(0, 1fr) 150px minmax(140px, auto); gap: 16px; align-items: center; min-height: 64px; padding: 0 20px; box-shadow: inset 0 -1px 0 var(--color-line); font-size: 16px; color: var(--color-ink); }
+.tl.tl.tl .wait-row:last-child { box-shadow: none; }
+.tl.tl.tl .wait-row:has(> .wait-acts) { grid-template-columns: 44px 110px minmax(0, 1fr) 150px minmax(140px, auto) auto; }
+.tl.tl.tl .wait-g { width: 44px; height: 44px; border-radius: 12px; background: var(--color-fill); display: grid; place-items: center; color: var(--color-ink-2); }
+.tl.tl.tl .wait-g .ic, .tl.tl.tl .wait-g .mark { width: 20px; height: 20px; }
+.tl.tl.tl .wait-g.is-ok { background: var(--color-success-tint); color: var(--color-success); }
+.tl.tl.tl .wait-n { font-family: var(--font-mono); font-size: 16px; color: var(--color-ink); white-space: nowrap; }
+.tl.tl.tl .wait-t { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--color-ink-2); }
+.tl.tl.tl .wait-t time { margin-left: var(--space-8); font-family: var(--font-mono); font-size: var(--text-14); color: var(--color-muted); }
+.tl.tl.tl .wait-v { font-family: var(--font-mono); font-size: 17px; text-align: right; white-space: nowrap; }
+.tl.tl.tl .wait-s { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: right; font-size: var(--text-14); color: var(--color-muted); }
+.tl.tl.tl .wait-s.num { font-family: var(--font-mono); font-size: var(--text-13); }
+.tl.tl.tl .wait-s.is-warn { color: var(--color-warning); font-weight: 500; }
+.tl.tl.tl .wait-s.is-bad { color: var(--color-danger); font-weight: 500; }
+.tl.tl.tl .wait-acts { display: flex; gap: var(--space-8); }
+.tl.tl.tl a.wait-row { text-decoration: none; }
+@media (hover: hover) { .tl.tl.tl a.wait-row:hover { background: var(--color-hover); } }
+.tl.tl.tl a.wait-row:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var(--color-ink); border-radius: 18px; }
+
+@media (max-width: 760px) {
+  .tl.tl.tl .wait-page { padding: var(--space-16); }
+  .tl.tl.tl .wait-row, .tl.tl.tl .wait-row:has(> .wait-acts) { grid-template-columns: 44px minmax(0, 1fr) auto; grid-template-rows: auto auto; row-gap: 2px; padding: 10px var(--space-16); }
+  .tl.tl.tl .wait-g { grid-row: span 2; }
+  .tl.tl.tl .wait-n { grid-column: 2; }
+  .tl.tl.tl .wait-v { grid-column: 3; grid-row: 1; }
+  .tl.tl.tl .wait-t { grid-column: 2; grid-row: 2; }
+  .tl.tl.tl .wait-s { grid-column: 3; grid-row: 2; }
+  .tl.tl.tl .wait-acts { grid-column: 1 / -1; justify-content: flex-end; }
+}
+@media (prefers-reduced-motion: reduce) { .tl.tl.tl .shelf-slip .receipt { animation: none; } }
+
+/* The customer screen (T1-5): its own window facing the customer. Drawn at the board's phone (360 wide)
+   and scaled to the window with one unit, --u, so a second screen of 800 × 1280 shows the same screen
+   larger: the smaller of the window's width over 390 and its height over 844, never under 1. */
+
+.tl.tl.tl .cscr { --u: max(1px, min(100vw / 390, 100dvh / 844)); height: 100dvh; display: flex; flex-direction: column; overflow: hidden; background: var(--color-surface); color: var(--color-ink); }
+
+/* The shop: its mark and its name. */
+.tl.tl.tl .cscr-top { flex: none; display: flex; align-items: center; gap: calc(12 * var(--u)); padding: calc(40 * var(--u)) calc(28 * var(--u)) calc(18 * var(--u)); }
+.tl.tl.tl .cscr-mark { flex: none; width: calc(28 * var(--u)); height: calc(28 * var(--u)); border-radius: calc(8 * var(--u)); overflow: hidden; background: var(--color-accent); color: var(--color-accent-ink); display: grid; place-items: center; font-size: calc(15 * var(--u)); font-weight: 600; }
+.tl.tl.tl .cscr-mark img { width: 100%; height: 100%; object-fit: cover; }
+.tl.tl.tl .cscr-shop { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: calc(18 * var(--u)); font-weight: 600; color: var(--color-ink); }
+
+/* Selling: the lines (qty · name · amount), then Total. */
+.tl.tl.tl .cscr-lines { flex: 1; min-height: 0; overflow: auto; display: flex; flex-direction: column; gap: calc(14 * var(--u)); margin: 0; padding: calc(6 * var(--u)) calc(28 * var(--u)); list-style: none; }
+.tl.tl.tl .cscr-lines li { display: grid; grid-template-columns: calc(30 * var(--u)) minmax(0, 1fr) auto; gap: calc(8 * var(--u)); align-items: baseline; font-size: calc(16 * var(--u)); line-height: 1.35; color: var(--color-ink); animation: tl-fade-in var(--motion-base) var(--motion-ease); }
+.tl.tl.tl .cscr-lines li > :first-child, .tl.tl.tl .cscr-lines li > :last-child { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+.tl.tl.tl .cscr-lines li > :first-child { color: var(--color-muted); }
+.tl.tl.tl .cscr-lines li > :last-child { text-align: right; }
+
+.tl.tl.tl .cscr-total { flex: none; display: flex; flex-direction: column; margin: 0 calc(20 * var(--u)) calc(20 * var(--u)); padding: calc(22 * var(--u)) calc(24 * var(--u)); border-radius: calc(24 * var(--u)); background: var(--color-ground); }
+.tl.tl.tl .cscr-total-k { font-size: calc(16 * var(--u)); font-weight: 500; color: var(--color-ink-2); }
+.tl.tl.tl .cscr-total-v { font-family: var(--font-mono); font-variant-numeric: tabular-nums; font-size: calc(44 * var(--u)); line-height: 1.15; letter-spacing: -0.03em; color: var(--color-ink); }
+.tl.tl.tl .cscr-total-z { margin-top: calc(2 * var(--u)); font-family: var(--font-mono); font-size: calc(15 * var(--u)); color: var(--color-muted); }
+
+/* Paying by EcoCash: Total steps down to one row, and the code and the amount sit in the dark block. */
+.tl.tl.tl .cscr.is-paying .cscr-total { flex-direction: row; align-items: baseline; padding: calc(16 * var(--u)) calc(24 * var(--u)); }
+.tl.tl.tl .cscr.is-paying .cscr-total-v { margin-left: auto; font-size: calc(20 * var(--u)); letter-spacing: 0; }
+.tl.tl.tl .cscr-pay { flex: none; display: flex; flex-direction: column; gap: calc(4 * var(--u)); margin: 0 calc(20 * var(--u)) calc(20 * var(--u)); padding: calc(22 * var(--u)) calc(24 * var(--u)); border-radius: calc(24 * var(--u)); background: var(--color-ink); color: var(--color-surface); animation: tl-fade-in var(--motion-base) var(--motion-ease); }
+.tl.tl.tl .cscr-pay-k { font-size: calc(15 * var(--u)); opacity: 0.75; }
+.tl.tl.tl .cscr-pay-code { font-family: var(--font-mono); font-size: calc(40 * var(--u)); line-height: 1.25; letter-spacing: 0.04em; }
+.tl.tl.tl .cscr-pay-v { font-family: var(--font-mono); font-size: calc(20 * var(--u)); }
+
+/* Paid: the tick, thank you, the change, the sale and its time. */
+.tl.tl.tl .cscr-paid { flex: 1; min-height: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: calc(6 * var(--u)); padding: 0 calc(28 * var(--u)) calc(60 * var(--u)); text-align: center; }
+.tl.tl.tl .cscr-tick { width: calc(72 * var(--u)); height: calc(72 * var(--u)); margin-bottom: calc(18 * var(--u)); border-radius: var(--radius-pill); background: var(--color-success-tint); display: grid; place-items: center; animation: tl-pop var(--motion-slow) var(--motion-ease-out) both; }
+.tl.tl.tl .cscr-tick > span { width: calc(36 * var(--u)); height: calc(36 * var(--u)); border-radius: var(--radius-pill); background: var(--color-success); color: var(--color-surface); display: grid; place-items: center; }
+.tl.tl.tl .cscr-tick .ic { width: calc(20 * var(--u)); height: calc(20 * var(--u)); color: inherit; }
+.tl.tl.tl .cscr-thanks { margin: 0; font-size: calc(30 * var(--u)); font-weight: 600; line-height: 1.2; letter-spacing: -0.02em; color: var(--color-ink); text-wrap: balance; }
+.tl.tl.tl .cscr-k { margin-top: calc(28 * var(--u)); font-size: calc(16 * var(--u)); font-weight: 600; color: var(--color-ink-2); }
+.tl.tl.tl .cscr-v { font-family: var(--font-mono); font-variant-numeric: tabular-nums; font-size: calc(52 * var(--u)); line-height: 1.15; letter-spacing: -0.03em; color: var(--color-ink); text-wrap: balance; }
+.tl.tl.tl .cscr-z { margin-top: calc(4 * var(--u)); font-family: var(--font-mono); font-size: calc(16 * var(--u)); color: var(--color-muted); }
+.tl.tl.tl .cscr-ref { margin-top: calc(36 * var(--u)); font-family: var(--font-mono); font-size: calc(14 * var(--u)); color: var(--color-muted); }
+
+@media (prefers-reduced-motion: reduce) { .tl.tl.tl .cscr-lines li, .tl.tl.tl .cscr-pay, .tl.tl.tl .cscr-tick { animation: none; } }
