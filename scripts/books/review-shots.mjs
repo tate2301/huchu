@@ -74,7 +74,7 @@ for (const shot of shots) {
     );
     const name = `${target.slug}-${shot.width}${shot.dark ? "-dark" : ""}.png`;
     // The shell scrolls inside a 100dvh frame; let the page run its full height for the shot.
-    await page.addStyleTag({ content: ".shell-frame{height:auto!important;overflow:visible!important}main.content-shell{overflow:visible!important;flex:none!important}.ck.kit-main{height:auto!important;overflow:visible!important}" });
+    await page.addStyleTag({ content: ".shell-frame{height:auto!important;overflow:visible!important}main.content-shell{overflow:visible!important;flex:1 1 auto!important;min-width:0!important;width:100%!important;max-width:100%!important;height:auto!important}.ck.kit-main{height:auto!important;overflow:visible!important}" });
     const app = await page.screenshot({ fullPage: true });
     const reference = path.join(refs, `bk-${name}`);
     if (fs.existsSync(reference)) {
