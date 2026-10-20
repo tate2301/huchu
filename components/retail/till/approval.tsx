@@ -8,7 +8,8 @@
  * `useApproval` wraps the act's request. The request goes as it is first;
  * when the server answers 409 `needsApprover`, the dialog opens with the act's
  * reason ("Refund over US$20.00"), the people who may approve it as chips and
- * four PIN dots over the till's keypad. The fourth digit sends the same
+ * four PIN dots over the till's keypad (the board's T3-3 sheet: the reason as
+ * its title, the amount beside it). The fourth digit sends the same
  * request again with `approver: { userId, pin }`. A wrong PIN shakes the dots
  * and clears them, a person who may not approve is unpicked, a locked PIN
  * (423) says ADM-03's sentence; anything else the server refuses closes the
@@ -23,8 +24,8 @@ import * as React from "react";
 import { ApiError } from "@/lib/api-client";
 import type { TillApprover } from "@/lib/retail/devices";
 import { TILL_PIN_LOCKED } from "@/lib/retail/till-pin";
-import { X } from "@/lib/icons";
-import { ErrorLine, Keypad, PinDots, TillDialog, useKeypadKeys, type KeypadKey } from "./parts";
+import { firstName } from "./format";
+import { Avatar, ErrorLine, Keypad, PinDots, TillDialog, useKeypadKeys, type KeypadKey } from "./parts";
 import type { Approver } from "./types";
 
 export type { TillApprover };
@@ -52,6 +53,8 @@ export type ApprovalOptions = {
   approvers: readonly TillApprover[];
   /** The act's own line ("Void SALE-31866"); else the server's reason. A function reads the server's. */
   reason?: string | ((serverReason: string) => string);
+  /** What the act is worth ("US$4.80"), beside the reason. */
+  amount?: string;
 };
 
 export function useApproval(options: ApprovalOptions) {
@@ -160,6 +163,7 @@ export function useApproval(options: ApprovalOptions) {
     <ApprovalDialog
       open={reason !== null}
       reason={reason ?? ""}
+      amount={options.amount}
       approvers={options.approvers}
       chosen={userId}
       onChoose={(id) => {
@@ -180,10 +184,11 @@ export function useApproval(options: ApprovalOptions) {
   return { run, dialog, asking: reason !== null };
 }
 
-/** The dialog itself: the reason, who approves, four dots and the keypad. */
+/** The dialog itself: the reason and the amount, who approves, their PIN's four dots and the keypad. */
 export function ApprovalDialog({
   open,
   reason,
+  amount,
   approvers,
   chosen,
   onChoose,
@@ -196,6 +201,7 @@ export function ApprovalDialog({
 }: {
   open: boolean;
   reason: string;
+  amount?: string;
   approvers: readonly TillApprover[];
   chosen: string | null;
   onChoose: (userId: string) => void;
@@ -212,15 +218,15 @@ export function ApprovalDialog({
     <TillDialog
       open={open}
       onOpenChange={(next) => !next && onCancel()}
-      title="A manager has to approve this"
-      description={reason}
+      title={reason}
       foot={
         <button type="button" className="btn" onClick={onCancel}>
-          <X className="ic" />
           Cancel
         </button>
       }
     >
+      <span className="visually-hidden">A manager has to approve this.</span>
+      {amount ? <span className="approve-amount num">{amount}</span> : null}
       {approvers.length ? (
         <div className="approvers" role="radiogroup" aria-label="Who approves">
           {approvers.map((entry) => (
@@ -229,24 +235,28 @@ export function ApprovalDialog({
               type="button"
               role="radio"
               aria-checked={entry.userId === chosen}
-              className="btn btn-lg"
+              className="approver"
               disabled={busy}
               onClick={() => onChoose(entry.userId)}
             >
+              <Avatar name={entry.name} size={40} />
               {entry.short}
             </button>
           ))}
         </div>
       ) : (
-        <p className="help is-flush">Nobody here can approve it with a PIN yet. A manager sets their till PIN first.</p>
+        <p className="help is-flush">No manager here has a till PIN yet.</p>
       )}
       <div className="approve-pin" aria-busy={busy || undefined}>
-        <PinDots
-          length={pin.length}
-          wrong={wrong}
-          label={person ? `${person.short}: ${pin.length} of 4 digits typed` : `${pin.length} of 4 digits typed`}
-        />
-        {problem ? <ErrorLine>{problem}</ErrorLine> : <span className="help">{person ? `${person.short} types their PIN.` : "Pick who approves, then their PIN."}</span>}
+        <div className="approve-pin-head">
+          <span className="label">{person ? `${firstName(person.name)}’s PIN` : "PIN"}</span>
+          <PinDots
+            length={pin.length}
+            wrong={wrong}
+            label={person ? `${person.short}: ${pin.length} of 4 digits typed` : `${pin.length} of 4 digits typed`}
+          />
+        </div>
+        {problem ? <ErrorLine>{problem}</ErrorLine> : null}
         <Keypad onKey={onKey} disabled={busy || !approvers.length} />
       </div>
     </TillDialog>

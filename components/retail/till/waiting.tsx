@@ -1,11 +1,12 @@
 "use client";
 
 /**
- * Waiting to send: the sales this till took while the line was down, each with
- * what it needs. They go up on their own when the line is back; one the server
- * refused waits for someone, with Send again and Discard. Under them, the
- * sales that went up at a price the shop has since changed, so nobody finds
- * out from the margins weeks later.
+ * Waiting to send (T8-3, T8-5): the sales this till took while the line was
+ * down. They go up on their own when the line is back, and each is then ticked
+ * with the number the server gave it. One the server refused waits for
+ * someone, with Send again and Discard. A sale that went up at a price the
+ * shop has since changed stays listed with what happened to its price, so
+ * nobody finds out from the margins weeks later.
  */
 
 import * as React from "react";
@@ -14,14 +15,21 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { useOfflineRuntime } from "@/components/offline/offline-runtime";
 import { fetchJson } from "@/lib/api-client";
-import { ArrowsClockwise, CaretRight, Trash, WifiSlash } from "@/lib/icons";
+import { ArrowsClockwise, ArrowsCounterClockwise, Check, Money, Prohibit, Trash } from "@/lib/icons";
 import { classifyQueuedSale, classifyReplayedSale } from "@/lib/retail/offline-queue-verdict";
 import { getPosPortalHref } from "@/lib/retail/pos-host";
-import { NEEDS_A_MANAGER, queuedReversalLabel, queuedSaleLabel, reversalNeedsManager, reversalRequest } from "@/lib/retail/pos-offline-queue";
+import {
+  NEEDS_A_MANAGER,
+  queuedReversalLabel,
+  reversalNeedsManager,
+  reversalRequest,
+  type PosSaleQueuePayload,
+} from "@/lib/retail/pos-offline-queue";
 import { useApproval } from "./approval";
 import { count, hhmm, usd } from "./format";
-import { Empty, TillDialog } from "./parts";
-import { useConnection } from "./sell";
+import { TillDialog } from "./parts";
+import { TenderMark } from "./pay-tray";
+import { useConnection } from "./connection";
 import { useTill } from "./state";
 import type { PosCatalogItem } from "./types";
 
@@ -30,13 +38,45 @@ type ReplayedSale = {
   saleNo: string;
   saleType: string;
   postedAt: string;
+  customerName: string | null;
   totalAmount: number;
   depositAmount: number;
   notes: string | null;
   overrideReason: string | null;
 };
 
-const TONE = { danger: "status-danger", warning: "status-warning", brand: "status-live", neutral: "" } as const;
+/** The sale's tag until it is sent and numbered, as Paid showed it: the last six of its key. */
+function tagOf(payload: PosSaleQueuePayload) {
+  return (payload.clientRef ?? "").replace(/[^a-zA-Z0-9]/g, "").slice(-6).toUpperCase();
+}
+
+/*
+  The queue forgets a sale once it is sent, and the server's sale does not
+  carry the till's tag. Every queued sale this page has seen is kept by when
+  it was rung, which is what the server stamps on the sale it replays, so a
+  sent sale is ticked against the tag it went by. `sentAt` is when this page
+  saw the queue empty. Kept for the browser tab, so a reload keeps them.
+*/
+const MEMORY_KEY = "till-waiting-sent";
+type Memory = { seen: Record<string, string>; sentAt: string | null };
+
+function readMemory(): Memory {
+  try {
+    const kept = JSON.parse(window.sessionStorage.getItem(MEMORY_KEY) ?? "null") as Memory | null;
+    if (kept && typeof kept.seen === "object") return kept;
+  } catch {
+    // No storage, or something else in it: start empty.
+  }
+  return { seen: {}, sentAt: null };
+}
+
+function writeMemory(memory: Memory) {
+  try {
+    window.sessionStorage.setItem(MEMORY_KEY, JSON.stringify(memory));
+  } catch {
+    // Not kept past this page: the rows still show, without their tags after a reload.
+  }
+}
 
 /** Product names off the shelf this till holds offline: a queued sale carries only product ids. */
 function useShelfNames() {
@@ -54,143 +94,125 @@ export function WaitingScreen() {
   const approval = useApproval({ approvers: approvers.sell });
   const [approving, setApproving] = React.useState<string | null>(null);
   const { operations } = useOfflineRuntime();
-  const { online, since } = useConnection();
+  const { online } = useConnection();
   const names = useShelfNames();
   const zigRate = zig ? Number(zig.rate) : 0;
-  const [discarding, setDiscarding] = React.useState<{ id: string; label: string } | null>(null);
+  const [discarding, setDiscarding] = React.useState<{ id: string; tag: string } | null>(null);
+  const [memory, setMemory] = React.useState<Memory>({ seen: {}, sentAt: null });
   const base = getPosPortalHref("history", isPosHost);
 
   // The outbox knows what a sale is stuck behind (its shift, a new customer); the queue holds the sale.
   const blockedBy = new Map(operations.filter((entry) => entry.blockedByOperationId).map((entry) => [entry.operationId, entry.blockedByOperationId ?? null]));
   const rows = queuedOfflineSales.map((operation) => {
-    // What was handed over, in US dollars: ZiG cash at today's rate.
-    const total = operation.payload.payments.reduce(
-      (sum, payment) => sum + (payment.currency === "ZWG" && zigRate > 0 ? payment.amount / zigRate : payment.amount),
-      0,
-    );
+    // What the sale came to, as the till charged it; a sale queued without it, what was handed over (ZiG at today's rate).
+    const total =
+      operation.payload.total ??
+      operation.payload.payments.reduce((sum, payment) => sum + (payment.currency === "ZWG" && zigRate > 0 ? payment.amount / zigRate : payment.amount), 0);
     const verdict = classifyQueuedSale({
       status: operation.status,
       lastError: operation.lastError,
       retryCount: operation.retryCount,
       blockedByOperationId: blockedBy.get(operation.operationId) ?? null,
     });
-    return { operation, total, verdict, label: queuedSaleLabel(operation.payload) };
+    return { operation, total, verdict, tag: tagOf(operation.payload) };
   });
-  const blocked = rows.filter((row) => row.operation.status === "FAILED_BLOCKING");
-  const waiting = rows.filter((row) => row.operation.status !== "FAILED_BLOCKING");
   const total = rows.reduce((sum, row) => sum + row.total, 0);
-  const sum = (list: typeof rows) => usd(list.reduce((value, row) => value + row.total, 0));
 
-  // Replays that already landed, off my own sales: one that went up at a changed price is shown, not buried.
+  // Each queued sale is remembered by when it was rung; the moment the queue empties is when they went.
+  const queued = rows.length;
+  const tags = rows.map((entry) => `${entry.operation.createdAt}|${entry.tag}`).join(",");
+  const wasQueued = React.useRef(queued);
+  React.useEffect(() => {
+    const kept = readMemory();
+    for (const entry of tags.split(",").filter(Boolean)) {
+      const [at, tag] = entry.split("|");
+      kept.seen[at] = tag;
+    }
+    if (wasQueued.current > 0 && queued === 0 && online) kept.sentAt = new Date().toISOString();
+    wasQueued.current = queued;
+    writeMemory(kept);
+    setMemory(kept);
+  }, [tags, queued, online]);
+
+  // Replays that already landed, off my own sales.
   const replayed = useQuery({
     queryKey: ["retail-pos-sales", "offline-replays"],
     queryFn: () => fetchJson<{ data: ReplayedSale[] }>("/api/v2/retail/pos/sales?scope=mine&limit=60"),
     enabled: online,
     staleTime: 30_000,
   });
-  const priceNotes = (replayed.data?.data ?? [])
+  const { refetch } = replayed;
+  React.useEffect(() => {
+    if (online) void refetch();
+  }, [queued, online, refetch]);
+  // Sent: those this page saw waiting, ticked with their number, and any whose price changed on the way.
+  const sent = (replayed.data?.data ?? [])
     .filter((sale) => sale.saleType === "SALE")
     .map((sale) => ({ sale, verdict: classifyReplayedSale(sale) }))
-    .filter((entry) => entry.verdict.kind === "SUPERSEDED" || entry.verdict.kind === "OVERRIDDEN")
-    .slice(0, 12);
+    .filter(({ verdict }) => verdict.kind !== "NOT_A_REPLAY")
+    .map((entry) => ({ ...entry, tag: entry.verdict.soldAt ? (memory.seen[entry.verdict.soldAt] ?? null) : null }))
+    .filter(({ verdict, tag }) => tag || verdict.kind === "SUPERSEDED" || verdict.kind === "OVERRIDDEN")
+    .slice(0, 30)
+    .reverse();
+  const sentTotal = sent.reduce((sum, { sale }) => sum + sale.totalAmount + sale.depositAmount, 0);
 
-  const row = (entry: (typeof rows)[number], needsSomeone: boolean) => {
+  const row = (entry: (typeof rows)[number]) => {
+    const { items, customerId, payments } = entry.operation.payload;
+    const refused = entry.operation.status === "FAILED_BLOCKING";
+    // A refused sale reads by the product it is about; the rest by who.
+    const first = refused && items[0] ? names.get(items[0].productId) : undefined;
     // The queue carries the customer by id only (CUS-02), so the row says whether there was one.
-    const { items, customerId } = entry.operation.payload;
-    // A refused sale reads by the product it is about; the rest by who and how many.
-    const first = needsSomeone && items[0] ? names.get(items[0].productId) : undefined;
-    const what = first
-      ? items.length > 1
-        ? `${first} + ${items.length - 1} more`
-        : first
-      : `${customerId ? "A customer" : "Walk-in"}, ${count(items.length, "item")}`;
+    const who = first ? (items.length > 1 ? `${first} + ${items.length - 1} more` : first) : customerId ? "A customer" : "Walk-in";
     const { verdict } = entry;
-    const status =
-      needsSomeone || verdict.kind === "BLOCKED_BY_ANOTHER"
-        ? { label: verdict.label, tone: TONE[verdict.tone], title: entry.operation.lastError ?? verdict.detail }
+    const state =
+      refused || verdict.kind === "BLOCKED_BY_ANOTHER"
+        ? { label: verdict.label, tone: refused ? "is-bad" : "is-warn", title: entry.operation.lastError ?? verdict.detail }
         : entry.operation.status === "SYNCING"
-          ? { label: "Sending", tone: "status-live" }
-          : entry.operation.status === "FAILED_RETRYABLE" || !online
-            ? { label: "No connection", tone: "status-warning" }
-            : { label: "Saved on this till", tone: "" };
+          ? { label: "Sending", tone: "", title: undefined }
+          : entry.operation.status === "FAILED_RETRYABLE" && online
+            ? { label: verdict.label, tone: "is-warn", title: verdict.detail }
+            : { label: "Saved on this till", tone: "", title: undefined };
+    const tender = payments[0]?.tenderType ?? "CASH";
     return (
-      <div
-        key={entry.operation.operationId}
-        className="row is-queued"
-      >
-        <span className="code num text-left">
-          {entry.label}
+      <div key={entry.operation.operationId} className={`wait-row${refused ? " is-refused" : ""}`}>
+        <span className="wait-g" aria-hidden="true">
+          {tender === "CASH" ? <Money className="ic" /> : <TenderMark single tender={tender} />}
         </span>
-        <span className="truncate">
-          <span className="ink">{what}</span>{" "}
-          <span className="muted">{hhmm(entry.operation.createdAt)}</span>
+        <span className="wait-n">{entry.tag}</span>
+        <span className="wait-t">
+          {who}
+          <time dateTime={entry.operation.createdAt}>{hhmm(entry.operation.createdAt)}</time>
         </span>
-        <span className={`status ${status.tone} truncate`} title={status.title ?? status.label}>
-          {status.label}
+        <span className="wait-v">{usd(entry.total)}</span>
+        <span className={`wait-s ${state.tone}`} title={state.title}>
+          {state.label}
         </span>
-        <span className="num ink">
-          {usd(entry.total)}
-        </span>
-        <span>
-          {needsSomeone ? (
-            <div className="btn-group" role="group" aria-label={entry.label}>
-              <button
-                type="button"
-                className="btn"
-                aria-label={`Send again, ${entry.label}`}
-                title={verdict.retryable ? undefined : (verdict.action ?? undefined)}
-                disabled={!online || syncOfflineSalesPending || !verdict.retryable}
-                onClick={() => retryOfflineSale(entry.operation.operationId)}
-              >
-                <ArrowsClockwise className="ic" />
-                Send again
-              </button>
-              <button
-                type="button"
-                className="btn btn-danger"
-                aria-label={`Discard ${entry.label}`}
-                onClick={() => setDiscarding({ id: entry.operation.operationId, label: entry.label })}
-              >
-                <Trash className="ic" />
-                Discard
-              </button>
-            </div>
-          ) : null}
-        </span>
+        {refused ? (
+          <span className="wait-acts" role="group" aria-label={entry.tag}>
+            <button
+              type="button"
+              className="btn btn-icon is-touch"
+              aria-label={`Send ${entry.tag} again`}
+              title={verdict.retryable ? "Send again" : (verdict.action ?? undefined)}
+              disabled={!online || syncOfflineSalesPending || !verdict.retryable}
+              onClick={() => retryOfflineSale(entry.operation.operationId)}
+            >
+              <ArrowsClockwise className="ic" />
+            </button>
+            <button
+              type="button"
+              className="btn btn-icon is-touch"
+              aria-label={`Discard ${entry.tag}`}
+              title="Discard"
+              onClick={() => setDiscarding({ id: entry.operation.operationId, tag: entry.tag })}
+            >
+              <Trash className="ic" />
+            </button>
+          </span>
+        ) : null}
       </div>
     );
   };
-
-  const sent = priceNotes.length ? (
-    <section aria-labelledby="w-sent">
-      <div className="group-head">
-        <h2 id="w-sent">Sent after the line came back</h2>
-        <span className="sum">
-          {count(priceNotes.length, "sale")}
-        </span>
-      </div>
-      <div className="list">
-        {priceNotes.map(({ sale, verdict }) => (
-          <Link key={sale.id} className="row is-queued" href={`${base}/${sale.id}`}>
-            <span className="code num text-left">
-              {sale.saleNo}
-            </span>
-            <span className="truncate">
-              <span className="ink">Rung {hhmm(verdict.soldAt ?? sale.postedAt)}</span>{" "}
-              <span className="muted">{verdict.detail}</span>
-            </span>
-            <span className="status status-warning truncate" title={sale.overrideReason ?? verdict.label}>
-              {verdict.label}
-            </span>
-            <span className="num ink">
-              {usd(sale.totalAmount + sale.depositAmount)}
-            </span>
-            <CaretRight className="ic" />
-          </Link>
-        ))}
-      </div>
-    </section>
-  ) : null;
 
   /*
     FLR-09, SET-06's replay rule: a refund or void done offline goes in when
@@ -215,142 +237,135 @@ export function WaitingScreen() {
       })
       .finally(() => setApproving(null));
   };
-  const reversals = queuedReversals.length ? (
-    <section aria-labelledby="w-reversals">
-      <div className="group-head">
-        <h2 id="w-reversals">Refunds and voids</h2>
-        <span className="sum">{count(queuedReversals.length, "saved")}</span>
-      </div>
-      <div className="list">
-        {queuedReversals.map((entry) => {
-          const label = queuedReversalLabel(entry.payload);
-          const manager = rules ? reversalNeedsManager(entry.payload, rules, canApprove) : false;
-          const status =
-            entry.status === "FAILED_BLOCKING"
-              ? { label: "Refused", tone: "status-danger", title: entry.lastError ?? undefined }
-              : manager
-                ? { label: NEEDS_A_MANAGER, tone: "status-warning", title: "Sent without one, it goes in for a manager to look at." }
-                : entry.status === "SYNCING"
-                  ? { label: "Sending", tone: "status-live" }
-                  : { label: online ? "Saved on this till" : "No connection", tone: online ? "" : "status-warning" };
-          return (
-            <div key={entry.operationId} className="row is-queued">
-              <span className="code num text-left">{entry.payload.saleNo}</span>
-              <span className="truncate">
-                <span className="ink">{label}</span>{" "}
-                <span className="muted">
-                  {String(entry.payload.body.reason ?? "")} {hhmm(entry.payload.at)}
-                </span>
-              </span>
-              <span className={`status ${status.tone} truncate`} title={status.title ?? status.label}>
-                {status.label}
-              </span>
-              <span className="num ink">{usd(entry.payload.amount)}</span>
-              <span>
-                {manager && entry.status !== "SYNCING" ? (
-                  <button
-                    type="button"
-                    className="btn"
-                    disabled={!online || approving === entry.operationId}
-                    aria-busy={approving === entry.operationId || undefined}
-                    title={online ? undefined : "Once the line is back."}
-                    onClick={() => getApproved(entry.operationId)}
-                  >
-                    Get it approved
-                  </button>
-                ) : null}
-              </span>
-            </div>
-          );
-        })}
-      </div>
-      {approval.dialog}
-    </section>
-  ) : null;
 
   return (
-    <div className="main is-fixed">
-      <div className="bar">
+    <div className="wait-page">
+      <div className="wait-h">
         <h1>Waiting to send</h1>
-        <div className="end">
+        <span className="sub">
+          {rows.length ? (
+            <>
+              {count(rows.length, "sale")} · <span className="num">{usd(total)}</span>
+            </>
+          ) : (
+            "Nothing waiting"
+          )}
+        </span>
+        {online && rows.length ? (
           <button
             type="button"
-            className="btn"
-            disabled={!online || !rows.length || syncOfflineSalesPending}
+            className="btn btn-icon is-touch end"
+            aria-label="Try now"
+            title="Try now"
+            disabled={syncOfflineSalesPending}
             aria-busy={syncOfflineSalesPending || undefined}
             onClick={syncOfflineSales}
           >
             <ArrowsClockwise className="ic" />
-            Try now
           </button>
-        </div>
+        ) : null}
       </div>
-      {!online ? (
-        <div className="banner banner-warning">
-          <WifiSlash className="ic" />
-          <span>
-            <b className="weight-500">No connection{since ? ` since ${hhmm(since)}` : ""}.</b> Moving cash needs the line: write it on
-            the safe log and enter it on Shift before you cash up.
-          </span>
-        </div>
+
+      {rows.length ? <div className="wait-box">{rows.map(row)}</div> : null}
+
+      {queuedReversals.length ? (
+        <section className="wait-group" aria-labelledby="w-reversals">
+          <h2 id="w-reversals" className="wait-sub">
+            Refunds and voids · {queuedReversals.length}
+          </h2>
+          <div className="wait-box">
+            {queuedReversals.map((entry) => {
+              const manager = rules ? reversalNeedsManager(entry.payload, rules, canApprove) : false;
+              const state =
+                entry.status === "FAILED_BLOCKING"
+                  ? { label: "Refused", tone: "is-bad", title: entry.lastError ?? undefined }
+                  : manager
+                    ? { label: NEEDS_A_MANAGER, tone: "is-warn", title: undefined }
+                    : entry.status === "SYNCING"
+                      ? { label: "Sending", tone: "", title: undefined }
+                      : { label: "Saved on this till", tone: "", title: undefined };
+              return (
+                <div key={entry.operationId} className="wait-row">
+                  <span className="wait-g" aria-hidden="true">
+                    {entry.payload.kind === "void" ? <Prohibit className="ic" /> : <ArrowsCounterClockwise className="ic" />}
+                  </span>
+                  <span className="wait-n">{entry.payload.saleNo}</span>
+                  <span className="wait-t">
+                    {queuedReversalLabel(entry.payload)}
+                    {entry.payload.body.reason ? `, ${String(entry.payload.body.reason)}` : ""}
+                    <time dateTime={entry.payload.at}>{hhmm(entry.payload.at)}</time>
+                  </span>
+                  <span className="wait-v">{usd(entry.payload.amount)}</span>
+                  <span className={`wait-s ${state.tone}`} title={state.title ?? undefined}>
+                    {state.label}
+                  </span>
+                  {manager && entry.status !== "SYNCING" ? (
+                    <span className="wait-acts">
+                      <button
+                        type="button"
+                        className="btn btn-touch"
+                        disabled={!online || approving === entry.operationId}
+                        aria-busy={approving === entry.operationId || undefined}
+                        onClick={() => getApproved(entry.operationId)}
+                      >
+                        Get it approved
+                      </button>
+                    </span>
+                  ) : null}
+                </div>
+              );
+            })}
+          </div>
+          {approval.dialog}
+        </section>
       ) : null}
-      {!rows.length && !priceNotes.length && !queuedReversals.length ? (
-        <Empty icon={WifiSlash} title="Nothing is waiting">
-          Sales taken while the line is down are saved here and sent when it is back.
-        </Empty>
-      ) : (
-        <div className="table-shell">
-          <div className="table-scroll">
-            {rows.length ? (
-              <div className="finding">
-                <p className="lede-figure">
-                  {count(rows.length, "sale")} saved on this till, <span className="num">{usd(total)}</span>.{" "}
-                  <span className="q">They go up on their own when the line is back.</span>
-                </p>
-              </div>
-            ) : null}
-            {blocked.length ? (
-              <section aria-labelledby="w-blocked">
-                <div className="group-head">
-                  <h2 id="w-blocked">Needs someone</h2>
-                  <span className="sum">
-                    {count(blocked.length, "sale")}
+
+      {sent.length ? (
+        <section className="wait-group" aria-labelledby="w-sent">
+          <h2 id="w-sent" className="wait-sub">
+            {memory.sentAt ? (
+              <>
+                Sent at <span className="num">{hhmm(memory.sentAt)}</span>
+              </>
+            ) : (
+              "Sent"
+            )}{" "}
+            · {count(sent.length, "sale")} · <span className="num">{usd(sentTotal)}</span>
+          </h2>
+          <div className="wait-box">
+            {sent.map(({ sale, verdict, tag }) => {
+              const flagged = verdict.kind === "SUPERSEDED" || verdict.kind === "OVERRIDDEN";
+              const at = verdict.soldAt ?? sale.postedAt;
+              return (
+                <Link key={sale.id} className="wait-row is-sent" href={`${base}/${sale.id}`}>
+                  <span className="wait-g is-ok" aria-hidden="true">
+                    <Check className="ic" />
                   </span>
-                </div>
-                <div className="list">{blocked.map((entry) => row(entry, true))}</div>
-              </section>
-            ) : null}
-            {waiting.length ? (
-              <section aria-labelledby="w-waiting">
-                <div className="group-head">
-                  <h2 id="w-waiting">Waiting</h2>
-                  <span className="sum">
-                    {count(waiting.length, "sale")} · {sum(waiting)}
+                  <span className="wait-n">{sale.saleNo}</span>
+                  <span className="wait-t">
+                    {sale.customerName ?? "Walk-in"}
+                    <time dateTime={at}>{hhmm(at)}</time>
                   </span>
-                </div>
-                <div className="list">{waiting.map((entry) => row(entry, false))}</div>
-              </section>
-            ) : null}
-            {reversals}
-            {sent}
+                  <span className="wait-v">{usd(sale.totalAmount + sale.depositAmount)}</span>
+                  {flagged ? (
+                    <span className="wait-s is-warn" title={sale.overrideReason ?? verdict.detail}>
+                      {verdict.label}
+                    </span>
+                  ) : (
+                    <span className="wait-s num">{tag}</span>
+                  )}
+                </Link>
+              );
+            })}
           </div>
-          <div className="table-foot">
-            <div className="foot-row">
-              <span className="num text-left">
-                1 to {rows.length} of {rows.length}
-              </span>
-              <span className="foot-sum">
-                Waiting <b>{usd(total)}</b>
-              </span>
-            </div>
-          </div>
-        </div>
-      )}
+        </section>
+      ) : null}
+
       <TillDialog
         open={Boolean(discarding)}
         onOpenChange={(open) => !open && setDiscarding(null)}
-        title={discarding ? `Discard ${discarding.label}?` : "Discard"}
-        description="It never reached the books: the money taken for it has to be put right by hand, and the stock it sold is still counted on the shelf. It cannot be brought back."
+        title={discarding ? `Discard ${discarding.tag}?` : "Discard"}
+        description="It never reached the books. The money taken for it is put right by hand, and its stock stays counted on the shelf."
         foot={
           <>
             <button type="button" className="btn" onClick={() => setDiscarding(null)}>
@@ -365,7 +380,7 @@ export function WaitingScreen() {
               }}
             >
               <Trash className="ic" />
-              Discard {discarding?.label}
+              Discard {discarding?.tag}
             </button>
           </>
         }

@@ -1,0 +1,155 @@
+/* Customers, a customer and lay-bys (boards T4-1–T4-3), the customer sheet (T2-1), Price check and Reports.
+   They stand on History's two columns (20-history.css): the rows on the left, the record in the sale column's place. */
+
+/* The left column: the search as large as the till's, the section labels, rows that are buttons. */
+.cu .hx-row { width: 100%; text-align: left; }
+.hx-row.is-static { cursor: default; }
+@media (hover: hover) { .hx-row.is-static:hover { background: var(--color-surface); } }
+.input-wrap.cu-find { flex: none; height: 60px; padding: 0 var(--space-12) 0 20px; gap: var(--space-12); border-radius: 16px; background: var(--color-fill); box-shadow: none; font-size: 18px; }
+.input-wrap.cu-find:focus-within { box-shadow: inset 0 0 0 2px var(--color-rule); }
+.input-wrap.cu-find .ic { width: 22px; height: 22px; color: var(--color-muted); }
+.input-wrap.cu-find input { font-size: 18px; }
+.cu .hx-pills.is-quiet { margin-top: -6px; }
+.cu-list { display: flex; flex-direction: column; gap: var(--space-8); }
+.cu-label { padding: var(--space-8) var(--space-4) 10px; font-size: var(--text-14); font-weight: 500; color: var(--color-muted); }
+.cu-k { margin-right: var(--space-8); font-family: var(--font-sans); font-size: var(--text-14); color: var(--color-muted); }
+.hx-v.is-muted { color: var(--color-muted); }
+.hx-tag.is-bad { background: var(--color-danger-tint); color: var(--color-danger); }
+.cu-pc .hx-glyph { overflow: hidden; }
+.cu-pc .hx-glyph .pic { width: 100%; height: 100%; display: grid; place-items: center; }
+.cu-pc .hx-glyph .pic img { width: 100%; height: 100%; object-fit: cover; }
+.cu-pc .hx-glyph .pic .ic { width: 22px; height: 22px; color: var(--color-ink-2); }
+
+/* The record: a lay-by's payments by date, then Paid and Left; a customer's name, facts and lay-bys. */
+.hx-side:has(> .hx-done) { background: var(--color-surface); }
+.cu-pays { flex: none; margin: var(--space-4) var(--space-12) 0; border-radius: 16px; background: var(--color-surface); box-shadow: inset 0 0 0 1px var(--color-line); }
+.cu-pay { display: grid; grid-template-columns: 72px minmax(0, 1fr) auto; gap: 10px; align-items: center; min-height: 52px; padding: 0 var(--space-16); box-shadow: inset 0 -1px 0 var(--color-line); font-size: 15px; color: var(--color-ink); }
+.cu-pay:last-child { box-shadow: none; }
+.cu-pay > :first-child { font-size: var(--text-14); color: var(--color-muted); }
+.cu-pay > :last-child { font-size: 15px; }
+.cu-pay .muted { color: var(--color-muted); }
+.cu-left { flex: none; display: flex; justify-content: space-between; gap: var(--space-16); margin: var(--space-12) var(--space-12) 0; padding: 14px var(--space-16); border-radius: 16px; background: var(--color-surface); box-shadow: inset 0 0 0 1px var(--color-line); }
+.cu-left > div:last-child { text-align: right; }
+.cu-left-k { font-size: var(--text-13); color: var(--color-muted); }
+.cu-left-v { margin-top: 2px; font-family: var(--font-mono); font-size: 19px; color: var(--color-ink-2); }
+.cu-left-v.is-to { font-size: 22px; color: var(--color-ink); }
+.cu-pays.is-flush, .cu-left.is-flush { margin: 0; }
+.hx-side .hx-scroll > .cu-left:last-of-type { margin-bottom: var(--space-12); }
+.cu .hx-customer { display: inline-flex; align-items: center; gap: var(--space-8); }
+.cu .hx-customer .ic { flex: none; width: 18px; height: 18px; color: var(--color-muted); }
+.cu-sum { padding-bottom: 20px; }
+.cu-who { display: flex; align-items: center; gap: 14px; padding: var(--space-8) var(--space-24) var(--space-16); }
+.cu-who > div { display: flex; flex-direction: column; min-width: 0; }
+.cu-who b { font-size: 22px; font-weight: 600; letter-spacing: -0.01em; color: var(--color-ink); }
+.cu-who .num { margin-top: 2px; font-size: 15px; color: var(--color-muted); }
+.hx-side .hx-facts + .hx-facts { margin-top: 0; }
+.hx-facts button.fact { width: 100%; text-align: left; }
+.hx-facts .fact dt.truncate { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+
+/* Lay-by payment (T4-2): the tray's amount is typed in place; the tender's part holds the reference. */
+.cu-figure { display: flex; align-items: baseline; font-family: var(--font-mono); font-size: 36px; line-height: 1.1; letter-spacing: -0.02em; color: var(--color-ink); cursor: text; }
+.cu-figure input { flex: 1; width: 100%; min-width: 0; padding: 0; border: 0; outline: 0; background: transparent; font: inherit; letter-spacing: inherit; color: inherit; caret-color: var(--color-accent); }
+.cu-figure input::placeholder { color: var(--color-faint); }
+.cu-figure input:focus, .cu-figure input:focus-visible { outline: none; box-shadow: none; }
+.cu-figure:has(input[aria-invalid="true"]) { color: var(--color-danger); }
+.shell-cm .tray.cu-tray .quick { display: grid; padding: 0; overflow: visible; }
+.shell-cm .tray.cu-tray .quick .btn[aria-pressed="true"] { background: var(--color-ink); color: var(--color-surface); box-shadow: none; }
+.cu-part { display: grid; grid-template-columns: 40px minmax(0, 1fr) auto; gap: var(--space-12); align-items: center; padding: 14px; border-radius: 16px; box-shadow: inset 0 0 0 2px var(--color-ink); }
+.cu-part-g { width: 40px; height: 40px; border-radius: 10px; background: var(--color-fill); display: grid; place-items: center; color: var(--color-ink-2); }
+.cu-part-g .ic, .cu-part-g .mark { width: 22px; height: 22px; }
+.cu-part-t { font-size: var(--text-16); font-weight: 600; color: var(--color-ink); }
+.cu-part-v { font-size: 17px; color: var(--color-ink); }
+.cu-part-row { grid-column: 1 / -1; display: flex; justify-content: space-between; gap: var(--space-12); font-size: var(--text-14); color: var(--color-muted); }
+.cu-part-row .num { color: var(--color-ink); }
+.cu-part > .field { grid-column: 1 / -1; }
+.tray.cu-tray .cu-left { margin: 0; }
+.tray.cu-tray .error { text-align: center; }
+
+/* Lay-by paid (T4-3): like Paid, with how much of it is paid as a bar. */
+.paid-z.cu-z { font-family: var(--font-sans); }
+.cu-bar { align-self: stretch; height: 10px; margin-top: 22px; border-radius: var(--radius-pill); background: var(--color-fill); overflow: hidden; }
+.cu-bar > i { display: block; height: 100%; border-radius: inherit; background: var(--color-ink); }
+
+/* The customer sheet (T2-1): the search, the people as rows, Cancel and Add. */
+.input-wrap.cu-search { height: 60px; padding: 0 18px; gap: var(--space-12); border-radius: 16px; font-size: 18px; }
+.dialog .input-wrap.cu-search { height: 60px; border-radius: 16px; }
+.input-wrap.cu-search input { font-size: 18px; }
+.input-wrap.cu-search .ic { width: 22px; height: 22px; color: var(--color-ink-2); }
+.cu-clist { display: flex; flex-direction: column; gap: var(--space-8); }
+.cu-crow { display: grid; grid-template-columns: 52px minmax(0, 1fr) auto; gap: 14px; align-items: center; width: 100%; min-height: 76px; padding: var(--space-12) var(--space-16); border-radius: 18px; background: var(--color-surface); box-shadow: inset 0 0 0 1px var(--color-line); text-align: left; color: inherit; }
+.cu-crow[aria-selected="true"] { box-shadow: inset 0 0 0 2px var(--color-ink); }
+@media (hover: hover) { button.cu-crow:hover { background: var(--color-hover); } }
+button.cu-crow:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var(--color-ink), 0 0 0 2px var(--color-surface), 0 0 0 4px var(--color-accent); }
+.cu-crow .hx-glyph { width: 52px; height: 52px; border-radius: 14px; }
+.cu-crow .hx-glyph .ic { width: 24px; height: 24px; }
+.cu-crow .hx-t { font-size: 17px; }
+.cu-crow .hx-s { margin-top: 3px; font-size: var(--text-14); }
+.cu-crow .hx-v { font-size: var(--text-16); }
+.cu-crow.is-new { box-shadow: inset 0 0 0 1px var(--color-line); }
+.cu-crow.is-new .hx-glyph { background: transparent; box-shadow: inset 0 0 0 1px var(--color-rule); }
+.cu-crow.is-new .hx-t { font-weight: 500; color: var(--color-ink-2); }
+.skeleton.cu-crow-skeleton { display: block; height: 76px; border-radius: 18px; }
+.cu-new { display: flex; flex-direction: column; gap: 10px; }
+.dialog .cu-clist > [role="listbox"] { max-height: min(328px, calc(100dvh - 400px)); overflow: auto; margin: -4px; padding: 4px; }
+.dialog .dialog-foot .btn-primary .truncate { max-width: 280px; }
+
+/* Starting a lay-by: the customer, what is put aside, the deposit and how, the day, and what is left. */
+.cu-start { display: flex; flex-direction: column; gap: var(--space-16); }
+.cu-start .field > label, .cu-start .field > .label { font-size: var(--text-14); font-weight: 500; color: var(--color-muted); }
+.cu-pay.is-line { grid-template-columns: 48px minmax(0, 1fr) auto; }
+.cu-pay.is-line > :first-child { color: var(--color-ink-2); }
+.cu-deposit { display: flex; flex-wrap: wrap; gap: var(--space-8); }
+.cu-deposit .input-wrap { flex: 1 1 180px; }
+.cu-note { flex: none; height: 60px; min-width: 84px; padding: 0 var(--space-16); border-radius: 14px; box-shadow: inset 0 0 0 1px var(--color-rule); font-size: var(--text-16); color: var(--color-ink); }
+.cu-note[aria-pressed="true"] { background: var(--color-ink); color: var(--color-surface); box-shadow: none; }
+.cu-note:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--color-surface), 0 0 0 4px var(--color-accent); }
+.cu-due { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--space-16); align-items: end; }
+.cu-due .check { min-height: 52px; font-size: 15px; }
+.cu-add { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px; }
+.cu-add-keys { display: flex; justify-content: flex-end; gap: var(--space-8); }
+.cu-add-keys .btn { height: 52px; border-radius: 14px; }
+
+/* Price check: the product as large as Paid's figure, then its facts. */
+.cu-product { display: flex; flex-direction: column; align-items: center; gap: var(--space-8); padding: var(--space-8) var(--space-24) var(--space-16); text-align: center; }
+.cu-pic { width: 120px; height: 120px; border-radius: 20px; background: var(--color-fill); overflow: hidden; display: grid; place-items: center; }
+.cu-pic .pic { width: 100%; height: 100%; display: grid; place-items: center; }
+.cu-pic .pic img { width: 100%; height: 100%; object-fit: cover; }
+.cu-pic .pic .ic { width: 48px; height: 48px; color: var(--color-muted); }
+.cu-product-n { margin-top: var(--space-8); font-size: 20px; font-weight: 600; line-height: 1.3; color: var(--color-ink); text-wrap: balance; }
+.cu-product .paid-v { font-size: 48px; }
+
+/* Reports: the chart in a card, the rows under it; the figures beside. */
+.cu-chart { flex: none; padding: var(--space-8) 20px 18px; border-radius: 18px; box-shadow: inset 0 0 0 1px var(--color-line); }
+.cu-chart .cu-label { padding-left: 0; }
+.cu-chart .col.is-now i { background: var(--color-ink); }
+.cu-chart .col .v { font-family: var(--font-mono); }
+.cu-chart .cols-x { font-family: var(--font-mono); }
+.skeleton.cu-chart-skeleton { display: block; height: 240px; border-radius: 18px; }
+.cu-chart .share { min-height: 52px; font-size: 15px; color: var(--color-ink); }
+.cu-chart .share > .ic { width: 20px; height: 20px; color: var(--color-muted); }
+.cu-share { display: grid; grid-template-columns: 112px minmax(0, 1fr); gap: var(--space-12); align-items: center; }
+.cu-share-bar { height: 8px; border-radius: var(--radius-pill); background: var(--color-fill); overflow: hidden; }
+.cu-share-bar > i { display: block; height: 100%; border-radius: inherit; background: var(--color-ink-2); }
+.cu-finding { flex: none; font-size: 20px; font-weight: 600; line-height: 1.35; color: var(--color-ink); text-wrap: balance; }
+.cu-total { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: var(--space-16) var(--space-24) var(--space-24); text-align: center; }
+.cu-total .paid-k { margin-top: 0; }
+.hx-keys a.hx-key { text-decoration: none; }
+
+/* A phone: the record as its own screen, as History's. */
+@media (max-width: 760px) {
+  .cu-due, .cu-add { grid-template-columns: minmax(0, 1fr); }
+  .cu-product .paid-v { font-size: 40px; }
+  .cu .hx-customer { max-width: 128px; }
+  .cu .hx-t { flex-wrap: wrap; row-gap: var(--space-4); }
+  .cu .hx-t > .truncate { flex-basis: 100%; }
+  .cu-chart .cols-x span:nth-child(even):not(.is-now) { visibility: hidden; }
+  /* Reports have no row to open: the figures stack under the chart. */
+  .bench.cu-rep { grid-template-rows: auto auto; overflow: auto; }
+  .bench.cu-rep > .main.hx-main, .bench.cu-rep > .bench-side { height: auto; min-height: auto; overflow: visible; }
+  .cu-chart .cols, .cu-chart .cols-x { padding-left: 0; }
+  .cu-chart .cols::before { left: 0; }
+  .cu-chart .cols-x { font-size: 10px; }
+  .bench.cu-rep > .main.hx-main .hx-list { flex: none; overflow: visible; }
+  .bench.cu-rep:not(.is-sale) > .bench-side > .sale-head, .bench.cu-rep:not(.is-sale) > .bench-side > .hx-scroll { display: flex; }
+  .bench.cu-rep:not(.is-sale) > .bench-side > .hx-keys { display: grid; }
+}

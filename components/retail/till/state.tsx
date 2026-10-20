@@ -62,7 +62,7 @@ import { cashDropDue, cashDropSentence, offlineStopSentence, offlineWindowClosed
 import { markPairedTill } from "@/lib/retail/till-presence";
 import { referenceSentence } from "@/lib/retail/till-rule-words";
 import { bundleLineId, bundleOffers, makeBundle, newBundleRef, priceCart, repriceLines, shelfPriceNow } from "./cart-pricing";
-import { displayChannel, onDisplayHello, postDisplay, type DisplayFeed } from "./display-feed";
+import { displayChannel, onDisplayHello, postDisplay, type DisplayFeed, type DisplayPaying } from "./display-feed";
 import { count, paymentLabel, usd } from "./format";
 import { breakOneCase, caseOpenedToast } from "./moments";
 import { keepOpenSale, loadOpenSale, openSaleKey } from "./open-sale";
@@ -297,6 +297,7 @@ function useTillStateValue({ isPosHost, paired }: { isPosHost: boolean; paired: 
   const [heldAs, setHeldAs] = useState<string | null>(null);
   const [lastCompletedSale, setLastCompletedSale] = useState<CompletedSale | null>(null);
   const [lastSavedSale, setLastSavedSale] = useState<SavedSale | null>(null);
+  const [displayPaying, setDisplayPaying] = useState<DisplayPaying | null>(null);
   const [saleRefusal, setSaleRefusal] = useState<SaleRefusal | null>(null);
   const [queuedOfflineSales, setQueuedOfflineSales] = useState<PosQueuedSale[]>([]);
   const [queuedReversals, setQueuedReversals] = useState<Array<OfflineOutboxOperation<PosReversalQueuePayload>>>([]);
@@ -967,12 +968,16 @@ function useTillStateValue({ isPosHost, paired }: { isPosHost: boolean; paired: 
 
   const tillId = context?.till.id ?? null;
   const shopName = context?.ecocash?.name || context?.site.name || "";
+  const shopLogo = context?.receipt.logoUrl ?? null;
   const displayFeed: DisplayFeed | null = !context
     ? null
     : lastCompletedSale
       ? {
           phase: "paid",
           shop: shopName,
+          logo: shopLogo,
+          saleNo: lastCompletedSale.saleNo,
+          at: lastCompletedSale.postedAt,
           total: round(lastCompletedSale.totalAmount + lastCompletedSale.depositAmount),
           change: lastCompletedSale.changeAmount > 0.004 ? { usd: lastCompletedSale.changeUsd, zig: lastCompletedSale.changeZig } : null,
           points: lastCompletedSale.loyalty
@@ -984,6 +989,9 @@ function useTillStateValue({ isPosHost, paired }: { isPosHost: boolean; paired: 
         ? {
             phase: "paid",
             shop: shopName,
+            logo: shopLogo,
+            saleNo: lastSavedSale.tag,
+            at: lastSavedSale.at,
             total: lastSavedSale.total,
             change: lastSavedSale.change.value > 0.004 ? lastSavedSale.change : null,
             points: null,
@@ -993,6 +1001,8 @@ function useTillStateValue({ isPosHost, paired }: { isPosHost: boolean; paired: 
           ? {
               phase: "selling",
               shop: shopName,
+              logo: shopLogo,
+              paying: displayPaying,
               lines: sellingLines.map((item) => ({
                 name: item.name,
                 quantity: item.quantity,
@@ -1002,7 +1012,7 @@ function useTillStateValue({ isPosHost, paired }: { isPosHost: boolean; paired: 
               zig: zigRate ? { total: round(amountDue * zigRate), rate: zigRate } : null,
               ecocash: context.ecocash,
             }
-          : { phase: "idle", shop: shopName };
+          : { phase: "idle", shop: shopName, logo: shopLogo };
   const displayNow = useRef(displayFeed);
   const displayOut = useRef<BroadcastChannel | null>(null);
   useEffect(() => {
@@ -1255,6 +1265,7 @@ function useTillStateValue({ isPosHost, paired }: { isPosHost: boolean; paired: 
     resetSaleRefusal: () => setSaleRefusal(null),
     lastCompletedSale,
     lastSavedSale,
+    setDisplayPaying,
     dismissCompletedSale: () => {
       setLastCompletedSale(null);
       setLastSavedSale(null);

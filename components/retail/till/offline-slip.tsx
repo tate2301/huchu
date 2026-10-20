@@ -1,22 +1,24 @@
 "use client";
 
 /**
- * The slip a till prints for a sale it saved while offline (SavedHere: "Print
- * a slip"). The sale is not on the server yet, so there is no receipt page to
- * load: the slip is drawn here, from what the till queued, into a hidden frame
- * with the till's own styles copied in as text, and printed from there, as the
- * receipt is. Nothing is fetched, so it prints with the line down. It says
- * plainly that it is not yet a fiscal receipt.
+ * The slip a till prints for a sale it saved while offline. The sale is not on
+ * the server yet, so there is no receipt page to load: the slip is drawn here,
+ * from what the till queued, into a hidden frame with the till's own styles
+ * copied in as text, and printed from there, as the receipt is. Nothing is
+ * fetched, so it prints with the line down. It says plainly that it is not yet
+ * a fiscal receipt. While Paid shows the sale, the same slip stands on the
+ * shelf's side (T8-2).
  */
 
 import * as React from "react";
-import { flushSync } from "react-dom";
+import { createPortal, flushSync } from "react-dom";
 import { createRoot } from "react-dom/client";
 
+import { Printer } from "@/lib/icons";
 import { lineDeposit } from "@/lib/retail/deposits";
 import type { ChangeSplit } from "@/lib/retail/payment-words";
 import { receiptTenderLabel, type ReceiptWire } from "@/lib/retail/receipt-words";
-import { qty, usd } from "./format";
+import { hhmm, qty, usd } from "./format";
 import { depositRowLabel, ReceiptFoot, ReceiptHead, receiptFigure as figure, receiptStamp } from "./receipt-parts";
 import type { CartItem, PaymentRow } from "./types";
 
@@ -184,4 +186,55 @@ export function printSlip(sale: SlipSale, wire: ReceiptWire | null, rootClass: s
   };
   // The till's faces are on the device already; wait for them so the slip prints in them.
   void doc.fonts.ready.then(print, print);
+}
+
+/* The last slip printed, by tag and time: Paid says "Slip printed" once it has gone to the printer. */
+let printed: { tag: string; at: string } | null = null;
+const printedListeners = new Set<() => void>();
+function subscribePrinted(listener: () => void) {
+  printedListeners.add(listener);
+  return () => printedListeners.delete(listener);
+}
+
+/** Prints the slip and notes the time against its tag. */
+export function printSavedSlip(sale: SlipSale, wire: ReceiptWire | null, rootClass: string) {
+  printSlip(sale, wire, rootClass);
+  printed = { tag: sale.tag, at: new Date().toISOString() };
+  for (const listener of printedListeners) listener();
+}
+
+/** The "Slip printed" fact on Paid, once this sale's slip has been printed. */
+export function SlipPrintedFact({ tag }: { tag: string }) {
+  const last = React.useSyncExternalStore(subscribePrinted, () => printed, () => null);
+  if (last?.tag !== tag) return null;
+  return (
+    <div className="fact">
+      <Printer className="ic" />
+      <dt>Slip printed</dt>
+      <dd>{hhmm(last.at)}</dd>
+    </div>
+  );
+}
+
+/**
+ * The slip on the shelf's side of the bench while Paid shows a sale saved on
+ * the till. Paid sits in the sale column, so the slip is portalled into the
+ * shelf beside it.
+ */
+export function ShelfSlip({ sale, wire }: { sale: SlipSale; wire: ReceiptWire | null }) {
+  const [anchor, setAnchor] = React.useState<HTMLSpanElement | null>(null);
+  const shelf = anchor?.closest(".bench")?.querySelector<HTMLElement>(":scope > .main") ?? null;
+  return (
+    <>
+      <span ref={setAnchor} hidden />
+      {shelf
+        ? createPortal(
+            <section className="shelf-slip" aria-label="Slip">
+              <Slip sale={sale} wire={wire} />
+            </section>,
+            shelf,
+          )
+        : null}
+    </>
+  );
 }

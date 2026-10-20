@@ -1,7 +1,7 @@
 /* Tender till: the parts the reference kit lacks, from tokens only. Loaded after tokens.css and kit.css.
    Recorded in docs/design/till/ledger.md under "Kit additions". */
 
-/* Figures: IBM Plex Mono with one fixed job (money, references, times), as the Corelith Workspace system sets it. */
+/* Figures: Atkinson Hyperlegible Mono with one fixed job (money, references, times), as the Corelith Workspace system sets it. */
 .num, .figure, .code, .tender-figure, .totals .l > span:last-child, .tile .p, .lede-figure .num, .kbd, time { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
 .lede-figure .num { letter-spacing: -0.03em; }
 
@@ -409,3 +409,220 @@ tr.is-pickable[aria-current="true"] { background: var(--color-accent-tint); }
 /* A key pressed with another, or after it ("Shift Delete", "3 *"): the caps sit side by side. */
 .attrs dt.keys { display: flex; gap: var(--space-4); }
 .paid-tick path { stroke-dasharray: 1; animation: tl-draw var(--motion-slow) var(--motion-ease-out) both; }
+
+/* ─── Rules that were only in the generated sheet ─────────────────────────────
+   Written into components/retail/till/till.css by hand before Oct 2026; kept here so the build makes them. */
+@media (max-width: 760px) {
+  /* A bar with a search box: the box takes its own line, so the title, tabs and search never push the page wider than the screen. */
+  .bar:has(.input-wrap.is-search) { height: auto; min-height: var(--layout-navbar); flex-wrap: wrap; padding-block: var(--space-8); }
+  .bar:has(.input-wrap.is-search) .end { flex: 1 1 100%; margin-left: 0; }
+  .bar:has(.input-wrap.is-search) .input-wrap.is-search { width: 100%; max-width: none; }
+}
+.pin.is-wrong { animation: till-shake 320ms var(--motion-ease); }
+@keyframes till-shake { 20%, 60% { transform: translateX(-6px); } 40%, 80% { transform: translateX(6px); } }
+@media (prefers-reduced-motion: reduce) { .pin.is-wrong { animation: none; } }
+/* The approval dialog (FLR-09): who approves as chips, then four dots over the keypad. */
+.approvers { display: flex; flex-wrap: wrap; gap: var(--space-8); }
+.approvers .btn[aria-checked="true"] { color: var(--color-surface); background: var(--color-ink); box-shadow: none; }
+.approve-pin { display: flex; flex-direction: column; align-items: center; gap: var(--space-12); padding-top: var(--space-8); }
+.approve-pin .keypad { width: 100%; max-width: 320px; }
+/* Messages for the person at the till, after their PIN. */
+/* The "N messages for you" dialog after the PIN: one block per message, title and time on a row, the summary below. */
+.note-list { display: flex; flex-direction: column; gap: var(--space-12); margin: 0; padding: 0; list-style: none; }
+.note-item { display: block; padding-bottom: var(--space-12); box-shadow: 0 1px 0 var(--color-line); }
+.note-item:last-child { box-shadow: none; padding-bottom: 0; }
+.note-head { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-12); }
+.note-title { min-width: 0; font-weight: 500; color: var(--color-ink); }
+.note-time { flex: none; white-space: nowrap; font-family: var(--font-mono); font-size: var(--text-13); color: var(--color-muted); }
+.note-text { margin: var(--space-4) 0 0; color: var(--color-ink-2); line-height: var(--leading-reading); text-wrap: pretty; }
+/* Why chips and the way money goes back, on the refund and the cash dialogs. */
+.choice-chips { display: flex; flex-wrap: wrap; gap: var(--space-8); }
+.choice-chips .btn[aria-checked="true"] { box-shadow: 0 0 0 2px var(--color-ink); color: var(--color-ink); }
+.why-cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-8); }
+.why-cards .pay { flex-direction: column; align-items: flex-start; gap: var(--space-4); min-height: 72px; text-align: left; }
+.why-cards .pay[aria-checked="true"] { box-shadow: 0 0 0 2px var(--color-ink); }
+@media (max-width: 640px) { .why-cards { grid-template-columns: 1fr; } }
+button.tender { width: 100%; text-align: left; }
+/* On a phone the five columns do not fit: code and amount on the first line, who and what below, then state and the last cell. */
+@media (max-width: 760px) {
+  .row.is-queued { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "code amount" "who who" "state last"; gap: var(--space-4) var(--space-16); }
+  .row.is-queued > :nth-child(1) { grid-area: code; }
+  .row.is-queued > :nth-child(2) { grid-area: who; text-align: left; }
+  .row.is-queued > :nth-child(3) { grid-area: state; }
+  .row.is-queued > :nth-child(4) { grid-area: amount; justify-self: end; }
+  .row.is-queued > :nth-child(5) { grid-area: last; justify-self: end; }
+}
+/* FLR-10: the liquor till moments (Liquor board) and what rides on the lines. */
+.eyebrow { font-size: 12.5px; color: var(--color-muted); }
+.footnote { font-size: 11.5px; line-height: 1.4; color: var(--color-muted); }
+.banner-licence { flex-direction: column; align-items: flex-start; gap: 2px; background: var(--color-warning-tint); color: var(--color-ink); }
+.tile .p.is-not-sold { font-size: var(--text-13); font-weight: 400; color: var(--color-muted); }
+.tile .p .list { margin-left: var(--space-4); font-size: var(--text-12); font-weight: 400; color: var(--color-warning); }
+.tile.is-bundle .s { color: var(--color-success); }
+.ok-figure { color: var(--color-success); }
+.totals .l.is-ok { color: var(--color-success); }
+.totals .rule { height: 1px; background: var(--color-line); margin: var(--space-4) 0; }
+.side-by-side { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-8); }
+.side-by-side.is-one { grid-template-columns: 1fr 2fr; }
+.voucher-check { display: grid; grid-template-columns: 1fr 1fr auto; gap: var(--space-8); align-items: end; }
+
+/* ─── Counter Mini (Oct 2026) ─────────────────────────────────────────────────
+   The direction of the Counter Mini boards (design/teams/boards, the T ids): a strip across the top,
+   a white rail with dark doors, a tray-filled search, pill groups, tiles with the name over the price,
+   a sale column ending in the hold key and one orange key that carries the amount. */
+
+.shell-cm { display: flex; flex-direction: column; height: 100dvh; background: var(--color-surface); }
+.shell-cm > .shell-b { flex: 1; min-height: 0; height: auto; grid-template-columns: 84px minmax(0, 1fr); }
+
+/* The strip: the shop, this till, the line, the time. */
+.strip { flex: none; height: 52px; display: flex; align-items: center; gap: var(--space-12); padding: 0 var(--space-24) 0 var(--space-16); background: var(--color-surface); box-shadow: inset 0 -1px 0 var(--color-line); color: var(--color-ink-2); }
+.strip .ic { width: 18px; height: 18px; flex: none; }
+.strip .ic.is-off { color: var(--color-danger); }
+.strip-mark { width: 28px; height: 28px; flex: none; border-radius: 8px; background: var(--color-accent); color: var(--color-accent-ink); display: grid; place-items: center; overflow: hidden; font-size: var(--text-14); font-weight: 600; }
+.strip-mark img { width: 100%; height: 100%; object-fit: cover; }
+.strip-shop { font-size: 15px; font-weight: 600; color: var(--color-ink); white-space: nowrap; }
+.strip-till { font-size: 15px; color: var(--color-muted); white-space: nowrap; }
+.strip-time { font-family: var(--font-mono); font-size: var(--text-14); color: var(--color-ink-2); }
+.strip-wait { display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 var(--space-12); border-radius: var(--radius-pill); background: var(--color-fill); color: var(--color-ink); font-size: var(--text-13); font-weight: 500; text-decoration: none; }
+.strip-wait .ic { width: 16px; height: 16px; }
+.strip-who { display: grid; place-items: center; border-radius: var(--radius-pill); }
+.shell-cm > .shell-b > .shell-screen > .banner { flex: none; border-radius: 0; }
+
+/* The rail: the person, seven doors, Lock at the foot. */
+.shell-cm .rail-b { align-items: center; gap: var(--space-4); padding: 14px 0 12px; background: var(--color-surface); box-shadow: inset -1px 0 0 var(--color-line); }
+.shell-cm .rail-b .who { width: 52px; height: 52px; margin-bottom: 10px; border-radius: var(--radius-pill); }
+.shell-cm .rail-b .who .avatar { width: 44px; height: 44px; box-shadow: 0 0 0 2px var(--color-surface), 0 0 0 3.5px var(--color-rule); }
+.shell-cm .rail-b .nav { width: 68px; min-height: 64px; height: 64px; padding: 0; gap: var(--space-4); border-radius: 14px; font-size: var(--text-12); font-weight: 500; color: var(--color-muted); box-shadow: none; }
+.shell-cm .rail-b .nav .ic { width: 24px; height: 24px; color: currentColor; }
+.shell-cm .rail-b .nav[aria-current="page"] { background: var(--color-ink); color: var(--color-surface); box-shadow: none; }
+.shell-cm .rail-b .nav .count { top: 6px; right: 10px; min-width: 18px; height: 18px; padding: 0 5px; background: var(--color-accent); color: var(--color-accent-ink); font-weight: 600; box-shadow: 0 0 0 2px var(--color-surface); }
+.shell-cm .rail-b .nav[aria-current="page"] .count { box-shadow: 0 0 0 2px var(--color-ink); }
+
+/* The shelf. */
+.shell-cm .bench { grid-template-columns: minmax(0, 1fr) 448px; }
+.shell-cm .bench > .main > .tools { padding: 20px var(--space-24) 0; box-shadow: none; }
+.shell-cm .bench > .main > .tools .input-wrap.input-lg { height: 60px; border-radius: 16px; background: var(--color-fill); box-shadow: none; padding: 0 var(--space-12) 0 20px; gap: var(--space-12); font-size: 18px; }
+.shell-cm .bench > .main > .tools .input-wrap.input-lg:focus-within { box-shadow: inset 0 0 0 2px var(--color-rule); }
+.shell-cm .bench > .main > .tools .input-wrap.input-lg .ic { width: 22px; height: 22px; color: var(--color-muted); }
+.shell-cm .bench > .main > .tools .input-wrap.input-lg input { font-size: 18px; }
+.shell-cm .bench > .main > .tools.is-seg-row { padding-top: var(--space-16); }
+.shell-cm .bench > .main > .tools.is-seg-row .seg { gap: var(--space-8); padding: 0; background: transparent; }
+.shell-cm .bench > .main > .tools.is-seg-row .seg button { height: 44px; padding: 0 18px; border-radius: var(--radius-pill); font-size: 15px; font-weight: 500; color: var(--color-ink-2); background: transparent; box-shadow: inset 0 0 0 1px var(--color-rule); white-space: nowrap; }
+.shell-cm .bench > .main > .tools.is-seg-row .seg button[aria-checked="true"], .shell-cm .bench > .main > .tools.is-seg-row .seg button[aria-pressed="true"], .shell-cm .bench > .main > .tools.is-seg-row .seg button[aria-selected="true"] { background: var(--color-ink); color: var(--color-surface); box-shadow: none; }
+.shell-cm .bench > .main > .quick { padding: var(--space-16) var(--space-24) 0; }
+.shell-cm .bench > .main > .tile-grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 14px; padding: var(--space-16) var(--space-24) var(--space-24); }
+
+/* A tile: the picture, the name, the price, what is left. */
+.shell-cm .tile { gap: 10px; padding: 10px 10px 14px; border-radius: 18px; box-shadow: inset 0 0 0 1px var(--color-line); }
+.shell-cm .tile .pic { height: 80px; margin: 0; border-radius: 12px; }
+.shell-cm .tile .pic .ic { width: 38px; height: 38px; color: var(--color-muted); }
+.shell-cm .tile .n { order: 1; min-height: 39px; padding: 0 var(--space-4); font-size: 15px; font-weight: 500; line-height: 1.3; color: var(--color-ink); text-wrap: balance; }
+.shell-cm .tile .p { order: 2; margin-top: -4px; padding: 0 var(--space-4); font-size: 15px; font-weight: 500; color: var(--color-ink); }
+.shell-cm .tile .s { order: 3; padding: 0 var(--space-4); font-size: var(--text-13); }
+.shell-cm .tile .in { top: 18px; right: 18px; min-width: 30px; height: 30px; padding: 0 var(--space-8); background: var(--color-accent); color: var(--color-accent-ink); font-family: var(--font-mono); font-size: 15px; font-weight: 600; }
+.shell-cm .tile .age { top: 18px; left: 18px; }
+
+/* The sale. */
+.shell-cm .bench-side { background: var(--color-ground); }
+.shell-cm .sale-head { height: 76px; gap: 10px; padding: 0 20px 0 var(--space-24); }
+.shell-cm .sale-head h1 { font-size: 22px; font-weight: 600; letter-spacing: -0.01em; color: var(--color-ink); }
+.shell-cm .sale-head .end { gap: var(--space-4); }
+.shell-cm .btn.btn-icon.is-touch { width: 48px; height: 48px; border-radius: 12px; background: transparent; box-shadow: none; }
+.shell-cm .btn.btn-icon.is-touch .ic { color: var(--color-ink-2); }
+@media (hover: hover) { .shell-cm .btn.btn-icon.is-touch:hover { background: var(--color-fill); } }
+.shell-cm .btn.btn-icon.is-touch .ic { width: 22px; height: 22px; }
+.customer-pill { display: inline-flex; align-items: center; gap: var(--space-8); height: 44px; padding: 0 14px 0 var(--space-8); border-radius: 12px; background: var(--color-surface); box-shadow: inset 0 0 0 1px var(--color-rule); font-size: 15px; font-weight: 500; color: var(--color-ink); }
+.shell-cm .bench-side .list:not(.is-empty) { padding: var(--space-8) var(--space-12); gap: var(--space-4); }
+.shell-cm .bench-side .list > .line { min-height: 76px; padding: var(--space-8) var(--space-12); border-radius: 16px; box-shadow: none; font-size: var(--text-16); }
+.shell-cm .bench-side .list > .line[aria-current="true"] { background: var(--color-surface); box-shadow: inset 0 0 0 1px var(--color-rule), 0 1px 2px rgba(36, 20, 14, 0.06); }
+.shell-cm .bench-side .line .qty { gap: 2px; background: transparent; box-shadow: none; }
+.shell-cm .bench-side .line .qty button { width: 36px; height: 44px; border-radius: 10px; background: var(--color-fill); }
+.shell-cm .bench-side .line .qty span { width: 32px; font-family: var(--font-mono); font-size: 17px; font-weight: 400; color: var(--color-ink); }
+.shell-cm .bench-side .line .meta { font-family: var(--font-mono); font-size: var(--text-13); }
+.shell-cm .bench-side .totals { gap: 6px; padding: var(--space-16) 20px 20px; background: var(--color-ground); }
+.shell-cm .bench-side .totals .l { padding: 0 var(--space-4); font-size: var(--text-14); }
+.shell-cm .bench-side .totals .l.sum span:last-child { font-family: var(--font-mono); }
+
+.shell-cm .bottles-key { width: 100%; height: 48px; border-radius: 12px; font-size: 15px; }
+
+/* The keys under the sale: hold, and the one orange key with the amount on it. */
+.sale-keys { display: grid; grid-template-columns: 64px minmax(0, 1fr); gap: 10px; margin-top: var(--space-8); }
+.hold-key { height: 72px; border-radius: 18px; background: var(--color-surface); box-shadow: inset 0 0 0 1px var(--color-rule); display: grid; place-items: center; color: var(--color-ink-2); }
+.hold-key .ic { width: 26px; height: 26px; }
+.hold-key:disabled { color: var(--color-faint); cursor: default; }
+.take-key { height: 72px; border-radius: 18px; background: var(--color-accent); color: var(--color-accent-ink); display: flex; align-items: center; justify-content: center; gap: var(--space-12); font-size: 22px; font-weight: 600; letter-spacing: -0.01em; box-shadow: 0 1px 2px rgba(36, 20, 14, 0.18); transition: transform var(--motion-fast) var(--motion-ease), background-color var(--motion-fast) var(--motion-ease); }
+.take-key .num { font-family: var(--font-mono); font-weight: 500; }
+.take-key .kbd { height: 24px; margin-left: var(--space-4); background: rgba(255, 255, 255, 0.2); color: var(--color-accent-ink); font-size: var(--text-13); }
+.take-key:active:not(:disabled) { transform: scale(var(--motion-press)); }
+.take-key:disabled { background: var(--color-fill); color: var(--color-faint); box-shadow: none; cursor: default; }
+.hold-key:focus-visible, .take-key:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--color-surface), 0 0 0 4px var(--color-ink); }
+
+/* The tray rises over the whole sale column; the rest of the till dims behind it. */
+.shell-cm .bench-side .over { justify-content: stretch; }
+.shell-cm .bench-side .over .scrim { position: fixed; inset: 0; background: rgba(36, 20, 14, 0.32); }
+.shell-cm .bench-side .tray { height: 100%; min-height: 0; max-height: none; overflow: auto; border-radius: 0; padding: var(--space-16) 20px 20px; gap: 14px; box-shadow: -18px 0 40px -24px rgba(36, 20, 14, 0.45); }
+.shell-cm .tray-top { align-items: flex-start; padding: 0 var(--space-4); }
+.tray-amount { display: flex; flex-direction: column; }
+.tray-k { font-size: var(--text-14); color: var(--color-muted); }
+.shell-cm .tray-top .figure { font-family: var(--font-mono); font-size: 36px; font-weight: 400; letter-spacing: -0.02em; line-height: 1.1; color: var(--color-ink); }
+.tender-chips { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 6px; }
+.tender-chip { height: 64px; padding: 0 var(--space-4); border-radius: 14px; background: var(--color-fill); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--space-4); color: var(--color-ink-2); font-size: var(--text-12); font-weight: 500; line-height: 1.15; text-align: center; overflow: hidden; }
+.tender-chips:has(> :nth-child(6)) .tender-chip { font-size: 11.5px; }
+.tender-chip .ic, .tender-chip .mark { width: 22px; height: 22px; }
+.tender-chip[aria-checked="true"] { background: var(--color-ink); color: var(--color-surface); }
+.tender-chip:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--color-surface), 0 0 0 4px var(--color-accent); }
+.shell-cm .tray .keypad { max-width: none; gap: 6px; }
+.shell-cm .tray .keypad button { height: 50px; border-radius: 14px; background: var(--color-fill); box-shadow: none; font-family: var(--font-sans); font-size: 24px; font-weight: 600; }
+.shell-cm .tray .quick { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+.shell-cm .tray .quick .btn { height: 48px; border-radius: 12px; font-size: var(--text-16); }
+.shell-cm .tray .btn.btn-primary.btn-touch { height: 72px; border-radius: 18px; font-size: 22px; font-weight: 600; background: var(--color-accent); color: var(--color-accent-ink); box-shadow: 0 1px 2px rgba(36, 20, 14, 0.18); }
+.shell-cm .tray .btn.btn-primary.btn-touch:disabled { background: var(--color-fill); color: var(--color-faint); box-shadow: none; }
+.shell-cm .tray:focus-visible { box-shadow: -18px 0 40px -24px rgba(36, 20, 14, 0.45); }
+
+@media (prefers-reduced-motion: reduce) { .take-key { transition: none; } }
+
+/* Paid: the tick, the change as the largest figure, what happened as facts, then print and Next sale. */
+.paid { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 28px var(--space-8) 0; text-align: center; }
+.paid-mark { width: 72px; height: 72px; border-radius: var(--radius-pill); background: var(--color-success-tint); color: var(--color-success); display: grid; place-items: center; animation: tl-pop var(--motion-slow) var(--motion-ease-out) both; }
+.paid-mark .paid-tick { width: 40px; height: 40px; }
+.paid-k { margin-top: 14px; font-size: 18px; font-weight: 600; color: var(--color-ink-2); }
+.paid-v { font-family: var(--font-mono); font-size: 56px; line-height: 1; letter-spacing: -0.03em; color: var(--color-ink); text-wrap: balance; }
+.paid-z { margin-top: var(--space-4); font-family: var(--font-mono); font-size: 15px; color: var(--color-muted); }
+.facts { margin: 22px 0 0; border-radius: 16px; box-shadow: inset 0 0 0 1px var(--color-line); }
+.fact { display: grid; grid-template-columns: 28px minmax(0, 1fr) auto; gap: 10px; align-items: center; min-height: 52px; padding: 0 var(--space-16); box-shadow: inset 0 -1px 0 var(--color-line); font-size: 15px; color: var(--color-ink); }
+.fact:last-child { box-shadow: none; }
+.fact > .ic, .fact > .mark { width: 18px; height: 18px; color: var(--color-muted); }
+.fact dt { min-width: 0; }
+.fact dd { margin: 0; font-family: var(--font-mono); font-size: var(--text-14); color: var(--color-muted); text-align: right; }
+.tray > .sale-keys { margin-top: 0; }
+@media (prefers-reduced-motion: reduce) { .paid-mark { animation: none; } }
+
+/* The tray's reference: a big mono field ringed in orange while it waits for the slip. */
+.shell-cm .tray .field .input.input-lg { height: 56px; border-radius: 14px; font-family: var(--font-mono); font-size: 19px; box-shadow: inset 0 0 0 2px var(--color-accent); }
+.shell-cm .tray .field .input.input-lg[aria-invalid="true"] { box-shadow: inset 0 0 0 2px var(--color-danger); }
+.shell-cm .tray .field label { font-size: var(--text-14); color: var(--color-muted); }
+.shell-cm .tray .pay-how { border-radius: 16px; }
+.shell-cm .tray .list.is-framed { border-radius: 16px; }
+.shell-cm .tray .row.is-tender { gap: var(--space-8); padding: var(--space-12) 14px; }
+.shell-cm .tray .row.is-tender .select, .shell-cm .tray .row.is-tender .input { height: 48px; border-radius: 12px; font-size: var(--text-16); }
+.shell-cm .tray .row.is-tender .input.num { font-family: var(--font-mono); }
+
+/* The Kora, and any till under 760 wide: one column, the tab bar, the tray over the whole screen. */
+@media (max-width: 760px) {
+  .shell-cm > .shell-b { grid-template-columns: minmax(0, 1fr); }
+  .shell-cm .bench { grid-template-columns: minmax(0, 1fr); }
+  .strip { gap: var(--space-8); padding: 0 var(--space-12) 0 var(--space-16); }
+  .strip-shop { overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+  .shell-cm .bench > .main > .tools { padding: var(--space-12) var(--space-16) 0; }
+  .shell-cm .bench > .main > .tools .input-wrap.input-lg { height: 52px; border-radius: 14px; }
+  .shell-cm .bench > .main > .quick { padding: var(--space-12) var(--space-16) 0; }
+  .shell-cm .bench > .main > .tile-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; padding: var(--space-12) var(--space-16) var(--space-16); }
+  .shell-cm .bench-side .over { justify-content: flex-end; }
+  .shell-cm .bench-side .over .scrim { position: absolute; }
+  .shell-cm .bench-side .tray { height: auto; max-height: calc(100dvh - var(--space-24)); border-radius: 24px 24px 0 0; }
+  .shell-cm .sale-head { height: 64px; padding: 0 var(--space-12) 0 var(--space-8); }
+  .shell-cm .phone-sale .btn-primary { height: 64px; border-radius: 18px; background: var(--color-accent); color: var(--color-accent-ink); font-size: 18px; font-weight: 600; box-shadow: none; }
+  .shell-cm .phone-sale .btn-primary:disabled { background: var(--color-fill); color: var(--color-faint); }
+  .tabbar .nav[aria-current="page"] { background: var(--color-ink); color: var(--color-surface); box-shadow: none; }
+  .tabbar .nav[aria-current="page"] .ic { color: var(--color-surface); }
+}

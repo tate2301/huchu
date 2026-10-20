@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<title>Setting up the shop on a phone</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="ds/corelith-workspace/components/bundle.css">
+<link rel="stylesheet" href="icons.css">
+<link rel="stylesheet" href="teams.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=IBM+Plex+Mono:wght@400;500&amp;display=swap">
+<style>body{margin:0;background:#ffffff}</style>
+</helmet>
+<div class="cx phone" data-theme="tender">
+  <div class="pbar" style="padding-left: var(--s4)">
+    <span class="wsmark" style="background: #b84a0c"><svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><path fill="#fff" d="M3 20V5l5 6 4-6 4 6 5-6v15h-4v-7l-5 6-5-6v7z"/></svg></span>
+    <span class="pbar__t">Mufaro Hardware</span>
+    <span class="i i-caret-down i-sm" style="color: var(--faint)"></span>
+    <span class="spacer"></span>
+    <img class="face face-32" src="/_blob/0964fc98daf159e133baa301d8314c40" alt="Nyasha Mlambo">
+  </div>
+  <div class="pbody" style="padding: var(--s5) var(--s4) var(--s4); display: flex; flex-direction: column; gap: var(--s4)">
+    <h1 class="headline" style="font-size: 26px">The shop is selling. <span>Two setup items are still open.</span></h1>
+    <div class="check" role="list" aria-label="Setting up the shop">
+      <div class="check__head"><span class="strong">5 of 7 done</span><span class="prog" aria-hidden="true"><i style="width: 71%"></i></span></div>
+      <div class="ci ci--wait" role="listitem" style="grid-template-columns: 24px minmax(0, 1fr)"><span class="ci__mark"></span><div><div class="ci__t">Fiscal receipts</div><div class="ci__s">Device 21457 · checking since 14 Oct</div><button class="btn" type="button" style="margin-top: var(--s2); height: 40px"><span class="i i-undo"></span>Check again</button></div></div>
+      <div class="ci" role="listitem" style="grid-template-columns: 24px minmax(0, 1fr)"><span class="ci__mark"></span><div><div class="ci__t">A practice sale</div><button class="btn" type="button" style="margin-top: var(--s2); height: 40px"><span class="i i-till"></span>Try a practice sale</button></div></div>
+      <button class="ci" type="button" style="grid-template-columns: 24px minmax(0, 1fr) auto; border: 0; background: transparent; font: inherit; text-align: left; width: 100%"><span class="ci__mark" style="background: var(--ok-dot); box-shadow: none"><span class="i i-check i-sm"></span></span><span class="ci__s" style="font-size: var(--t-sm)">5 done</span><span class="i i-caret-down i-sm" style="color: var(--faint)"></span></button>
+    </div>
+    <div class="notice"><span class="i i-lock" style="color: var(--bad); margin-top: 2px"></span><div style="flex: 1"><div class="notice__t">Rumbidzai's PIN is locked</div><div class="notice__b">Till 1, 10:20</div></div><button class="btn" type="button" style="height: 40px">Unlock</button></div>
+    <div style="display: flex; align-items: baseline; gap: var(--s2); padding: 0 var(--s1)"><span class="rp__h">Today so far</span><span class="spacer"></span><span class="strong" style="font-size: var(--t-h3); font-variant-numeric: tabular-nums">US$933.30</span><span class="muted">16 sales</span></div>
+  </div>
+  <div class="pin"><button class="btn btn--primary btn--block" type="button"><span class="i i-till"></span>Open the till</button></div>
+  <nav class="tabbar" aria-label="Tender">
+    <a href="#" aria-current="page"><span class="i i-house"></span>Home</a>
+    <a href="#"><span class="i i-till"></span>Sales</a>
+    <a href="#"><span class="i i-box"></span>Products</a>
+    <a href="#"><span class="i i-bell"></span>Notifications<span class="tabbar__n">1</span></a>
+    <a href="#"><span class="i i-more"></span>More</a>
+  </nav>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<title>J-0142 on a phone</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="ds/corelith-workspace/components/bundle.css">
+<link rel="stylesheet" href="icons.css">
+<link rel="stylesheet" href="teams.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=IBM+Plex+Mono:wght@400;500&amp;display=swap">
+<style>body{margin:0;background:#ffffff}</style>
+</helmet>
+<div class="cx phone" data-theme="corelith">
+  <div class="pbar">
+    <a class="btn btn--quiet btn--icon" href="#" aria-label="Back to jobs" style="width: 44px"><span class="i i-caret-left"></span></a>
+    <span class="pbar__t">J-0142</span>
+    <span class="spacer"></span>
+    <button class="btn btn--quiet btn--icon" type="button" aria-label="Start a call on this job" style="width: 44px"><span class="i i-phone"></span></button>
+    <button class="btn btn--quiet btn--icon" type="button" aria-label="More" style="width: 44px"><span class="i i-more"></span></button>
+  </div>
+  <div style="display: flex; align-items: center; gap: 8px; padding: 8px var(--s4); background: var(--warn-soft); color: var(--warn); font-size: var(--t-cap); font-weight: 500"><span class="i i-offline i-sm"></span>Offline. 1 comment waits on this phone.</div>
+  <div class="pbody">
+    <header style="padding: var(--s4) var(--s4) var(--s3)">
+      <h1 class="rh__name" style="font-size: 18px">Reception counter and cabinets</h1>
+      <div class="rh__sub">Msasa Dental Studio · Quote out</div>
+      <div class="here" style="margin-top: var(--s2)"><span class="faces"><span class="pres"><img class="face face-24" src="/_blob/a61b8dfcc034758dfb81f13a105f61e9" alt="Rudo Mapfumo, last seen"></span><span class="pres"><img class="face face-24" src="/_blob/e7e012736e184b768be5e95bbda848fc" alt="Kudakwashe Sibanda, last seen"></span></span><span class="here__text">Last seen here: <b>Rudo and Kudakwashe</b>, 10:42</span></div>
+    </header>
+    <div class="tabs" role="tablist" style="padding: 0 var(--s2)"><button class="tab" role="tab" aria-selected="true" style="flex: 1; justify-content: center">Timeline</button><button class="tab" role="tab" aria-selected="false" style="flex: 1; justify-content: center">Details</button><button class="tab" role="tab" aria-selected="false" style="flex: 1; justify-content: center">Documents<span class="tab__count">3</span></button></div>
+    <div class="feed" style="padding: 0 var(--s4)">
+      <div class="day">Today</div>
+      <div class="ev">
+        <img class="face" src="/_blob/722541ad1bbcd1094ec76f6b5a2209df" alt="" style="position: relative; z-index: 1">
+        <div class="ev__line"><b>You</b> commented
+          <div class="bubble" style="border-style: dashed; box-shadow: inset 0 0 0 1px var(--warn-line)">Measured again: the counter is 2.4 m, not 2.2 m.</div>
+          <div style="margin-top: 6px; display: flex; align-items: center; gap: 6px; color: var(--warn); font-size: var(--t-cap); font-weight: 500"><span class="i i-wait i-sm"></span>Waiting to send<span class="spacer"></span><button class="btn btn--quiet" type="button" style="height: 32px">Delete</button></div>
+        </div>
+        <span class="ev__time">10:44</span>
+      </div>
+      <div class="ev">
+        <span class="ev__g"><span class="i i-pencil"></span></span>
+        <div class="ev__line"><b>Rudo</b> changed the value to <b>US$5,450.00</b></div>
+        <span class="ev__time">10:40</span>
+      </div>
+      <div class="ev">
+        <span class="ev__g ev__g--ok"><span class="i i-phone"></span></span>
+        <div class="ev__line"><b>Rudo</b> called you · 9 min</div>
+        <span class="ev__time">10:31</span>
+      </div>
+      <div class="ev">
+        <img class="face" src="/_blob/722541ad1bbcd1094ec76f6b5a2209df" alt="" style="position: relative; z-index: 1">
+        <div class="ev__line"><b>You</b> commented<div class="bubble"><span class="mention">@Rudo Mapfumo</span> the client wants oak instead of white gloss. Adds about US$600 in board and edging.</div></div>
+        <span class="ev__time">10:12</span>
+      </div>
+    </div>
+  </div>
+  <div class="pin" style="padding: var(--s2) var(--s3)">
+    <div style="display: flex; align-items: center; gap: 6px; height: 48px; padding: 0 6px 0 12px; border-radius: 12px; box-shadow: var(--shadow-ring)"><span class="muted" style="flex: 1; font-size: 15px">Comment</span><button class="btn btn--quiet btn--icon" type="button" aria-label="Add photos" style="width: 40px; height: 40px"><span class="i i-image"></span></button><button class="btn btn--quiet btn--icon" type="button" aria-label="Log a site visit" style="width: 40px; height: 40px"><span class="i i-pin"></span></button></div>
+  </div>
+  <nav class="tabbar" aria-label="Pabasa">
+    <a href="#"><span class="i i-house"></span>For you</a>
+    <a href="#" aria-current="page"><span class="i i-jobs"></span>Jobs</a>
+    <a href="#"><span class="i i-pin"></span>Visits</a>
+    <a href="#"><span class="i i-bell"></span>Notifications<span class="tabbar__n">1</span></a>
+    <a href="#"><span class="i i-more"></span>More</a>
+  </nav>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

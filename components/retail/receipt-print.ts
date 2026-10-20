@@ -15,7 +15,7 @@ const PAPER_CSS = `
 @page { size: 80mm auto; margin: 0; }
 * { box-sizing: border-box; }
 html, body { margin: 0; padding: 0; background: #fff; color: #000; }
-body { font-family: 'IBM Plex Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace; font-size: 12px; line-height: 1.45; }
+body { font-family: 'Atkinson Hyperlegible Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace; font-size: 12px; line-height: 1.45; }
 .copy { width: 80mm; padding: 4mm 5mm 6mm; page-break-after: always; break-after: page; }
 .copy:last-child { page-break-after: auto; break-after: auto; }
 .c { text-align: center; }

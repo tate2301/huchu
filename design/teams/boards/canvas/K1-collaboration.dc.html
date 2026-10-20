@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<title>Kit, collaboration</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="ds/corelith-workspace/components/bundle.css">
+<link rel="stylesheet" href="icons.css">
+<link rel="stylesheet" href="teams.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=IBM+Plex+Mono:wght@400;500&amp;display=swap">
+<style>body{margin:0;background:#ffffff}
+.k{padding:var(--s6) var(--s7);display:flex;flex-direction:column;gap:var(--s7)}
+.k-sec{display:grid;grid-template-columns:260px minmax(0,1fr);gap:var(--s6)}
+.k-sec h2{margin:0;color:var(--ink);font-size:var(--t-h3);font-weight:600}
+.k-sec>div:first-child p{margin:6px 0 0;color:var(--ink-3)}
+.k-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--s5) var(--s6)}
+.k-cell{display:flex;flex-direction:column;gap:var(--s2);min-width:0}
+.k-name{color:var(--ink-3);font-size:var(--t-cap);font-weight:500}
+.k-frame{padding:var(--s3) var(--s4);border-radius:12px;box-shadow:inset 0 0 0 1px var(--line);background:var(--surface)}
+</style>
+</helmet>
+<div class="cx k" data-theme="corelith" style="width: 1440px; min-height: 1760px; box-sizing: border-box">
+
+  <section class="k-sec">
+    <div><h2>Who's here</h2></div>
+    <div class="k-grid">
+      <div class="k-cell"><span class="k-name">Here</span><div class="k-frame here"><span class="faces"><span class="pres"><img class="face" src="/_blob/a61b8dfcc034758dfb81f13a105f61e9" alt=""></span><span class="pres"><img class="face" src="/_blob/e7e012736e184b768be5e95bbda848fc" alt=""></span></span><span class="here__text"><b>You and Kudakwashe</b> are here</span></div></div>
+      <div class="k-cell"><span class="k-name">Away</span><div class="k-frame here"><span class="faces"><span class="pres pres--away"><img class="face" src="/_blob/722541ad1bbcd1094ec76f6b5a2209df" alt=""></span></span><span class="here__text"><b>Tinashe</b> left 8 minutes ago</span></div></div>
+      <div class="k-cell"><span class="k-name">Typing</span><div class="k-frame"><span class="typing"><span class="dots"><i></i><i></i><i></i></span>Kudakwashe is typing</span></div></div>
+      <div class="k-cell"><span class="k-name">Editing a field</span><div class="k-frame"><dl class="attrs" style="margin: 0"><dt>Value</dt><dd style="box-shadow: 0 0 0 2px var(--ok-dot); border-radius: 6px; padding: 2px 6px; overflow: visible">US$5,450.00<img class="face face-20" src="/_blob/a61b8dfcc034758dfb81f13a105f61e9" alt="Rudo is editing" style="margin-left: auto"></dd></dl></div></div>
+      <div class="k-cell"><span class="k-name">Reconnecting</span><div class="k-frame here"><span class="faces" style="opacity: 0.4"><img class="face" src="/_blob/a61b8dfcc034758dfb81f13a105f61e9" alt=""><img class="face" src="/_blob/e7e012736e184b768be5e95bbda848fc" alt=""></span><span class="here__text">Reconnecting</span></div></div>
+      <div class="k-cell"><span class="k-name">Unavailable</span><div class="k-frame here"><span class="face" role="img" aria-label="Can't show who's here" title="Can't show who's here"><span class="i i-offline i-sm"></span></span><button class="btn" type="button"><span class="i i-undo"></span>Try again</button></div></div>
+    </div>
+  </section>
+
+  <section class="k-sec">
+    <div><h2>Calls on a record</h2></div>
+    <div class="k-grid">
+      <div class="k-cell"><span class="k-name">Incoming call</span><div class="k-frame" style="display: flex; align-items: center; gap: var(--s3); box-shadow: var(--shadow-float)"><span class="pres pres--talk"><img class="face face-32" src="/_blob/a61b8dfcc034758dfb81f13a105f61e9" alt=""></span><div style="flex: 1"><div class="strong">Rudo is calling about J-0142</div><div class="muted">Reception counter and cabinets</div></div><div class="group"><button class="btn" type="button"><span class="i i-x i-sm"></span>Not now</button><button class="btn" type="button"><span class="i i-phone"></span>Join</button></div></div></div>
+      <div class="k-cell"><span class="k-name">In a call</span><div class="callbar" style="margin: 0"><span class="faces"><span class="pres pres--talk"><img class="face" src="/_blob/722541ad1bbcd1094ec76f6b5a2209df" alt=""></span><span class="pres"><img class="face" src="/_blob/a61b8dfcc034758dfb81f13a105f61e9" alt=""></span></span><div><div class="callbar__t">Call on this job</div><div class="callbar__m">Tinashe is talking · 04:12</div></div><span class="spacer"></span><button class="cbtn" type="button"><span class="i i-mic"></span>Mute</button><button class="cbtn cbtn--leave" type="button"><span class="i i-hangup"></span>Leave</button></div></div>
+      <div class="k-cell"><span class="k-name">Muted, sharing a screen</span><div class="callbar" style="margin: 0"><span class="faces"><span class="pres"><img class="face" src="/_blob/722541ad1bbcd1094ec76f6b5a2209df" alt=""></span><span class="pres"><img class="face" src="/_blob/a61b8dfcc034758dfb81f13a105f61e9" alt=""></span></span><div><div class="callbar__t">You're sharing your screen</div><div class="callbar__m">Muted · 06:40</div></div><span class="spacer"></span><button class="cbtn cbtn--on" type="button"><span class="i i-mic-off"></span>Unmute</button><button class="cbtn cbtn--on" type="button"><span class="i i-screen"></span>Stop sharing</button></div></div>
+      <div class="k-cell"><span class="k-name">Poor connection</span><div class="callbar" style="margin: 0"><span class="faces" style="opacity: 0.6"><img class="face" src="/_blob/722541ad1bbcd1094ec76f6b5a2209df" alt=""></span><div><div class="callbar__t">Audio only for now</div><div class="callbar__m">Screen share paused</div></div><span class="spacer"></span><button class="cbtn cbtn--leave" type="button"><span class="i i-hangup"></span>Leave</button></div></div>
+      <div class="k-cell"><span class="k-name">Dropped</span><div class="k-frame" style="display: flex; align-items: center; gap: var(--s3); background: var(--warn-soft); box-shadow: none"><span class="i i-offline" style="color: var(--warn)"></span><div style="flex: 1"><div class="strong">You dropped out of the call</div><div class="muted">Tinashe and Rudo are still on it</div></div><button class="btn" type="button"><span class="i i-phone"></span>Rejoin</button></div></div>
+      <div class="k-cell"><span class="k-name">Calls can't connect</span><div class="k-frame" style="display: flex; align-items: center; gap: var(--s3)"><span class="i i-alert" style="color: var(--ink-3)"></span><div style="flex: 1"><div class="strong">Calls can't connect</div></div><button class="btn" type="button"><span class="mark-wa"></span>Call Tinashe on WhatsApp</button></div></div>
+      <div class="k-cell"><span class="k-name">Microphone blocked</span><div class="k-frame" style="display: flex; align-items: center; gap: var(--s3)"><span class="i i-mic-off" style="color: var(--bad)"></span><div style="flex: 1"><div class="strong">Microphone blocked</div></div><button class="btn" type="button"><span class="i i-mic"></span>Allow the microphone</button></div></div>
+      <div class="k-cell"><span class="k-name">Ended, on the timeline</span><div class="k-frame"><div class="ev"><span class="ev__g ev__g--ok"><span class="i i-phone"></span></span><div class="ev__line"><b>Rudo Mapfumo</b> called <b>Tinashe Gumbo</b> about this job · 9 min</div><span class="ev__time">10:31</span></div></div></div>
+    </div>
+  </section>
+
+  <section class="k-sec">
+    <div><h2>Composer</h2></div>
+    <div class="k-grid">
+      <div class="k-cell"><span class="k-name">Mentioning someone</span>
+        <div style="position: relative">
+          <div class="composer" style="margin: 0"><div class="composer__text has">Can you approve the new price <span class="mention">@Ku</span></div><div class="composer__foot"><span class="spacer"></span><button class="btn" type="button"><span class="i i-chat"></span>Comment</button></div></div>
+          <div class="cx-menu" role="listbox" style="position: absolute; left: 180px; top: 40px; width: 260px; z-index: 2">
+            <button class="cx-menu__item" role="option" aria-selected="true"><img class="face face-24" src="/_blob/e7e012736e184b768be5e95bbda848fc" alt="">Kudakwashe Sibanda<span class="muted" style="margin-left: auto">Owner</span></button>
+            <button class="cx-menu__item" role="option"><span class="face face-24"><span class="i i-person i-sm"></span></span>Kudzai, not a member<span class="muted" style="margin-left: auto">Invite</span></button>
+          </div>
+        </div>
+      </div>
+      <div class="k-cell"><span class="k-name">A record of contact</span><div class="composer" style="margin: 0"><div class="composer__kind"><div class="seg"><button class="seg__item" aria-pressed="false"><span class="i i-chat"></span>For the team</button><button class="seg__item" aria-pressed="true"><span class="i i-phone"></span>Contact with the client</button></div><span class="select" style="margin-left: auto">Call<span class="i i-caret-down"></span></span></div><div class="composer__text has">Spoke to Dr Mutasa. Oak is fine, she wants it by the 30th.</div><div class="composer__foot"><span class="spacer"></span><button class="btn" type="button"><span class="i i-phone"></span>Log the call</button></div></div></div>
+      <div class="k-cell"><span class="k-name">Waiting to send</span><div class="k-frame"><div class="bubble" style="margin: 0; box-shadow: inset 0 0 0 1px var(--warn-line)">Measured again: the counter is 2.4 m, not 2.2 m.</div><div style="margin-top: 6px; display: flex; align-items: center; gap: 6px; color: var(--warn); font-size: var(--t-cap); font-weight: 500"><span class="i i-wait i-sm"></span>Waiting to send</div></div></div>
+      <div class="k-cell"><span class="k-name">Didn't post</span><div class="k-frame"><div class="bubble" style="margin: 0; box-shadow: inset 0 0 0 1px var(--bad)">Agreed on the call: oak veneer, same layout.</div><div style="margin-top: 6px; display: flex; align-items: center; gap: 6px; color: var(--bad); font-size: var(--t-cap); font-weight: 500"><span class="i i-alert i-sm"></span>Didn't post<span class="spacer"></span><button class="btn" type="button"><span class="i i-undo"></span>Try again</button></div></div></div>
+    </div>
+  </section>
+
+  <section class="k-sec">
+    <div><h2>Timeline events</h2></div>
+    <div class="k-grid">
+      <div class="k-cell"><span class="k-name">Resolved thread</span><div class="k-frame"><div class="ev"><span class="ev__g ev__g--ok"><span class="i i-check i-sm"></span></span><div class="ev__line"><b>Rudo</b> resolved Tinashe's comment about the oak finish · <button class="rollup" type="button">Show 2 replies<span class="i i-caret-down i-sm"></span></button></div><span class="ev__time">11:05</span></div></div></div>
+      <div class="k-cell"><span class="k-name">Deleted, with undo</span><div class="k-frame" style="display: flex; align-items: center; gap: var(--s3)"><span class="muted" style="flex: 1">Your comment was deleted</span><button class="btn" type="button"><span class="i i-undo"></span>Undo<span class="muted num">8</span></button></div></div>
+      <div class="k-cell"><span class="k-name">Grouped</span><div class="k-frame"><div class="ev"><span class="ev__g"><span class="i i-pencil"></span></span><div class="ev__line"><b>Rudo</b> changed the value and the close date · <button class="rollup" type="button">See changes<span class="i i-caret-down i-sm"></span></button></div><span class="ev__time">10:40</span></div></div></div>
+      <div class="k-cell"><span class="k-name">Rolled up</span><div class="k-frame"><div class="ev"><span class="ev__g ev__g--info"><span class="i i-receipt"></span></span><div class="ev__line"><b>12 receipts</b> from Till 1 stamped by ZIMRA · <b class="num">US$1,284.00</b></div><span class="ev__time">Sat</span></div></div></div>
+      <div class="k-cell"><span class="k-name">Handed over</span><div class="k-frame"><div class="ev"><img class="face" src="/_blob/e7e012736e184b768be5e95bbda848fc" alt="" style="position: relative; z-index: 1"><div class="ev__line"><b>Kudakwashe</b> handed this job to <b>Rudo</b><div class="bubble" style="font-size: var(--t-sm)">Client wants it done before the 30th.</div></div><span class="ev__time">09:02</span></div></div></div>
+      <div class="k-cell"><span class="k-name">From Vane</span><div class="k-frame"><div class="ev"><span class="ev__g" style="background: var(--ink); color: #fff"><svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6v12M4 12h14m-5-5 5 5-5 5" stroke="#fff" stroke-width="2.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></span><div class="ev__line"><b>Vane</b> noticed the value changed after Q-0088 went out<div style="margin-top: 6px"><button class="btn" type="button"><span class="i i-pencil"></span>Draft a revised quote</button></div></div><span class="ev__time">10:41</span></div></div></div>
+    </div>
+  </section>
+
+  <section class="k-sec">
+    <div><h2>Two people, one field</h2></div>
+    <div class="k-grid">
+      <div class="k-cell"><span class="k-name">Conflict</span><div class="k-frame" style="display: flex; flex-direction: column; gap: var(--s3)"><div style="display: flex; align-items: center; gap: var(--s2)"><img class="face face-24" src="/_blob/a61b8dfcc034758dfb81f13a105f61e9" alt=""><span><b class="strong">Rudo</b> changed the value at 10:40</span></div><dl class="attrs" style="margin: 0"><dt>Rudo's</dt><dd class="num">US$5,450.00</dd><dt>Yours</dt><dd class="num">US$5,250.00</dd></dl><div class="group" style="align-self: flex-start"><button class="btn" type="button">Keep mine</button><button class="btn" type="button">Keep Rudo's</button></div></div></div>
+    </div>
+  </section>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1860}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>
