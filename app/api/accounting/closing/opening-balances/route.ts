@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { errorResponse, successResponse, validateSession } from "@/lib/api-utils";
 import { importOpeningBalances } from "@/lib/accounting/closing";
+import { guardBooks } from "@/lib/books/core";
 
 const schema = z.object({
   effectiveDate: z.string().datetime().or(z.string().regex(/^\d{4}-\d{2}-\d{2}$/)),
@@ -24,6 +25,9 @@ export async function POST(request: NextRequest) {
   try {
     const sessionResult = await validateSession(request);
     if (sessionResult instanceof NextResponse) return sessionResult;
+    // The chart, rules and opening balances: the owner or the accountant (books-final §2.2).
+    const { refused: notAllowed } = await guardBooks(sessionResult.session, "setup");
+    if (notAllowed) return notAllowed;
     const { session } = sessionResult;
 
     const body = await request.json();

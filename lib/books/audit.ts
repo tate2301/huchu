@@ -79,8 +79,9 @@ const VERB: Record<string, [Exclude<AuditKind, "all">, string]> = {
   "test-mode": ["other", "Marked a test device"],
   mapped: ["other", "Mapped an account"],
   posted: ["other", "Posted"],
+  downloaded: ["other", "Downloaded"],
 };
-const NOUN: Record<string, string> = { invoice: "Invoice", bill: "Bill", receipt: "Payment received", "payment-made": "Payment made", "credit-note": "Credit note", "debit-note": "Debit note", journal: "Journal", reconciliation: "Reconciliation", "bank-entry": "Bank entry", claim: "Claim", voucher: "Voucher", requisition: "Requisition", commission: "Commission", "fiscal-device": "Fiscal device", posting: "Posting", revaluation: "Revaluation", quote: "Quote", "write-off": "Write-off" };
+const NOUN: Record<string, string> = { "accountant-export": "Accountant export", invoice: "Invoice", bill: "Bill", receipt: "Payment received", "payment-made": "Payment made", "credit-note": "Credit note", "debit-note": "Debit note", journal: "Journal", reconciliation: "Reconciliation", "bank-entry": "Bank entry", claim: "Claim", voucher: "Voucher", requisition: "Requisition", commission: "Commission", "fiscal-device": "Fiscal device", posting: "Posting", revaluation: "Revaluation", quote: "Quote", "write-off": "Write-off" };
 const PAGE: Record<string, string> = { SalesInvoice: "/books/invoices/", PurchaseBill: "/books/bills/", JournalEntry: "/books/journals?journal=", BankReconciliation: "/books/reconciliations/", CrmRequisition: "/books/requisitions/" };
 
 /** "books.invoice.voided" → the kind and the words. Pure. */
@@ -155,7 +156,7 @@ export async function readAudit(db: Db, companyId: string, query: AuditQuery, no
   const window = { ...(from ? { gte: from } : {}), ...(to ? { lt: to } : {}) };
   const [events, reopened, overrides, sessions, hashes] = await Promise.all([
     db.platformAuditEvent.findMany({
-      where: { companyId, eventType: { startsWith: "books." }, NOT: { eventType: "books.journal.posted-into-closed-month" }, ...(from || to ? { createdAt: window } : {}) },
+      where: { companyId, eventType: { startsWith: "books." }, NOT: { eventType: { in: ["books.journal.posted-into-closed-month", "books.accountant-export.downloaded"] } }, ...(from || to ? { createdAt: window } : {}) },
       select: { id: true, actor: true, eventType: true, entityType: true, entityId: true, reason: true, payloadJson: true, prevEventHash: true, createdAt: true },
       orderBy: { createdAt: "desc" },
       take: 2000,

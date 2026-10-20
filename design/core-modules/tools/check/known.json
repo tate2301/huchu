@@ -1121,5 +1121,40 @@
     "label: Operator",
     "label: Signed in as",
     "label: Mode"
+  ],
+  "BkSettingsNumbering": [
+    "heading: Settings",
+    "button: Books",
+    "panel: Books",
+    "button: Vane",
+    "button: Notifications",
+    "panel: Overdueshared",
+    "panel: Pomona Officesyou",
+    "panel: Paid this monthshared"
+  ],
+  "BkSetup": [
+    "heading: Settings",
+    "button: Books",
+    "panel: Books",
+    "button: Vane",
+    "button: Notifications",
+    "panel: Overdueshared",
+    "panel: Pomona Officesyou",
+    "panel: Paid this monthshared",
+    "heading: Opening balances, 28 Feb 2026",
+    "primary: Map the account [Ctrl ↵]",
+    "button: Revise the opening balances",
+    "footer: Balanced#"
+  ],
+  "BkYearEnd": [
+    "heading: Close the month",
+    "button: Books",
+    "panel: Books",
+    "button: Vane",
+    "button: Notifications",
+    "panel: Overdueshared",
+    "panel: Pomona Officesyou",
+    "panel: Paid this monthshared",
+    "status: Due"
   ]
 }

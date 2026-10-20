@@ -100,6 +100,7 @@ const BINDINGS: Record<string, Binding[]> = {
   "U | Upload a statement": [{ file: "app/books/bank/page.tsx" }],
   "Ctrl ↵ | Upload (the statement chosen)": [{ file: "app/books/bank/page.tsx" }],
   "R | Retry all": [{ file: "app/books/needs-posting/page.tsx" }],
+  "E | Add or revise the opening balances": [{ file: "app/books/settings/opening-balances/page.tsx" }],
   "Ctrl ↵ | Map and retry, or Post in this month (the chosen posting's fix)": [{ file: "components/books/needs-posting-view.tsx" }],
   "Ctrl ↵ | Publish": [{ file: "components/builder/grid/builder-bar.tsx" }],
   "Ctrl ↵ | The drawer's primary (Post, Prepare, Send, Save)": [

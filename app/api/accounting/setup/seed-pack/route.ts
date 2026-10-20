@@ -3,6 +3,7 @@ import { z } from "zod";
 import { errorResponse, successResponse, validateSession } from "@/lib/api-utils";
 import { previewAccountingSeedPack, runAccountingSeedPack } from "@/lib/accounting/bootstrap";
 import { requireOnSharedRoute } from "@/lib/retail/permissions";
+import { guardBooks } from "@/lib/books/core";
 
 const schema = z.object({
   mode: z.enum(["DRY_RUN", "APPLY"]).optional(),
@@ -13,6 +14,9 @@ export async function POST(request: NextRequest) {
   try {
     const sessionResult = await validateSession(request);
     if (sessionResult instanceof NextResponse) return sessionResult;
+    // The chart, rules and opening balances: the owner or the accountant (books-final §2.2).
+    const { refused: notAllowed } = await guardBooks(sessionResult.session, "setup");
+    if (notAllowed) return notAllowed;
     const { session } = sessionResult;
 
     // A shop's Posting to the books row: the owner and the bookkeeper set the
