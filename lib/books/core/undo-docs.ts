@@ -56,8 +56,6 @@ export async function loadDoc(companyId: string, kind: UndoKind, id: string, db:
           createdById: true,
           customerId: true,
           receipts: { where: { voidedAt: null }, select: { id: true, receiptNumber: true } },
-          creditNotes: { where: { status: "ISSUED" }, select: { id: true, noteNumber: true } },
-          writeOffs: { where: { status: "POSTED" }, select: { id: true, writeOffNumber: true } },
           fiscalReceipt: { select: FISCAL_SELECT },
         },
       });
@@ -73,11 +71,9 @@ export async function loadDoc(companyId: string, kind: UndoKind, id: string, db:
         date: row.invoiceDate,
         ownerId: row.createdById,
         partyId: row.customerId,
-        dependents: [
-          ...row.receipts.map((receipt) => ({ kind: "receipt" as const, id: receipt.id, label: receipt.receiptNumber })),
-          ...row.creditNotes.map((note) => ({ kind: "credit-note" as const, id: note.id, label: docLabel(note.noteNumber, "credit note") })),
-          ...row.writeOffs.map((writeOff) => ({ kind: "write-off" as const, id: writeOff.id, label: writeOff.writeOffNumber ?? "a write-off" })),
-        ],
+        // Nothing stands in a void's way (§4.3): the full credit note takes off what earlier notes and write-offs left, and payments go on account.
+        dependents: [],
+        onAccount: row.receipts.map((receipt) => ({ kind: "receipt" as const, id: receipt.id, label: receipt.receiptNumber })),
         postings: [{ sourceType: "SALES_INVOICE", ids: [id] }],
       };
     }
@@ -155,8 +151,9 @@ export async function loadDoc(companyId: string, kind: UndoKind, id: string, db:
         date: row.billDate,
         ownerId: row.createdById,
         partyId: row.vendorId,
+        // A bill voids by its mirror (§4.8): a debit note or write-off on it would be reversed twice, so they go first; payments go on account.
+        onAccount: row.payments.map((payment) => ({ kind: "payment" as const, id: payment.id, label: payment.paymentNumber ?? "a payment" })),
         dependents: [
-          ...row.payments.map((payment) => ({ kind: "payment" as const, id: payment.id, label: payment.paymentNumber ?? "a payment" })),
           ...row.debitNotes.map((note) => ({ kind: "debit-note" as const, id: note.id, label: docLabel(note.noteNumber, "debit note") })),
           ...row.writeOffs.map((writeOff) => ({ kind: "write-off" as const, id: writeOff.id, label: "a write-off" })),
         ],

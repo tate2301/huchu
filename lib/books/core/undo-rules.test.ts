@@ -5,7 +5,7 @@
 import { describe, expect, it } from "vitest";
 
 import { canDo, VOID_GRANT, type BooksActor } from "./can-do";
-import { bulkSummary, deleteRefusal, dependentsSentence, isBulkAction, isUndoKind, reasonOf, reviseRefusal, voidRefusal, type UndoFacts } from "./undo-rules";
+import { bulkDeleteWord, bulkSummary, deleteKeeps, deleteRefusal, dependentsSentence, isBulkAction, isUndoKind, reasonOf, reviseRefusal, voidEffects, voidFiscalNote, voidRefusal, type UndoFacts } from "./undo-rules";
 
 const invoice = (over: Partial<UndoFacts> = {}): UndoFacts => ({
   kind: "invoice",
@@ -29,11 +29,31 @@ describe("void", () => {
     expect(voidRefusal(invoice({ draft: true, posted: false }))).toMatch(/is a draft and nothing was posted: delete it instead/);
   });
 
-  it("names the later documents standing on it", () => {
-    const one = voidRefusal(invoice({ dependents: [{ kind: "receipt", id: "r1", label: "RCT-0007" }] }));
-    expect(one).toBe("RCT-0007 stands on INV-0143. Void it first.");
-    const two = voidRefusal(invoice({ dependents: [{ kind: "receipt", id: "r1", label: "RCT-0007" }, { kind: "credit-note", id: "c1", label: "CN-0002" }] }));
-    expect(two).toBe("RCT-0007 and CN-0002 stand on INV-0143. Void them first.");
+  it("voids a paid invoice: its payments go on account, never in the way (§4.1 rule 4)", () => {
+    const paid = invoice({ onAccount: [{ kind: "receipt", id: "r1", label: "RCT-0007" }] });
+    expect(voidRefusal(paid)).toBeNull();
+    expect(voidEffects(paid)).toEqual(["A credit note for the rest is issued and posted", "RCT-0007 stays on the customer’s account", "Commission not yet paid on it is voided"]);
+    expect(voidFiscalNote(paid)).toBeNull();
+  });
+
+  it("voids a fiscalised invoice with a fiscal credit note that cites it", () => {
+    const signed = invoice({ fiscalised: true });
+    expect(voidRefusal(signed)).toBeNull();
+    expect(voidEffects(signed)[0]).toBe("A credit note for the rest is issued and signed, citing INV-0143");
+    expect(voidFiscalNote(signed)).toBe("INV-0143 is signed on FDMS, so it is voided with a fiscal credit note that cites it.");
+  });
+
+  it("voids a paid bill, its payments left as credit with the supplier", () => {
+    const bill = invoice({ kind: "bill", label: "BILL-0219", onAccount: [{ kind: "payment", id: "p", label: "PAY-0057" }] });
+    expect(voidRefusal(bill)).toBeNull();
+    expect(voidEffects(bill)).toEqual(["Its posting is reversed, dated today", "PAY-0057 stays as credit with the supplier"]);
+  });
+
+  it("names the later documents the spec says go first", () => {
+    const one = voidRefusal(invoice({ kind: "bill", label: "BILL-0219", dependents: [{ kind: "debit-note", id: "d1", label: "DN-0002" }] }));
+    expect(one).toBe("DN-0002 stands on BILL-0219. Void it first.");
+    const two = voidRefusal(invoice({ kind: "bill", label: "BILL-0219", dependents: [{ kind: "debit-note", id: "d1", label: "DN-0002" }, { kind: "write-off", id: "w1", label: "WO-0001" }] }));
+    expect(two).toBe("DN-0002 and WO-0001 stand on BILL-0219. Void them first.");
   });
 
   it("is refused while today's month is closed, or its bank line sits in a closed reconciliation", () => {
@@ -56,7 +76,8 @@ describe("revise", () => {
   });
 
   it("follows the void's rules", () => {
-    expect(reviseRefusal(invoice({ dependents: [{ kind: "receipt", id: "r", label: "RCT-9" }] }))).toMatch(/RCT-9 stands on INV-0143/);
+    expect(reviseRefusal(invoice({ kind: "quote", label: "QT-0398", dependents: [{ kind: "invoice", id: "i", label: "INV-0150" }] }))).toMatch(/INV-0150 stands on QT-0398/);
+    expect(reviseRefusal(invoice({ onAccount: [{ kind: "receipt", id: "r", label: "RCT-9" }] }))).toBeNull();
   });
 });
 
@@ -74,6 +95,16 @@ describe("delete permanently", () => {
     expect(deleteRefusal(invoice(), { monthHeld: "September 2026 is closed" })).toBe("September 2026 is closed, so its figures have been reported. Void it instead.");
     expect(deleteRefusal(invoice(), { vatReturn: "the VAT return for 2026-09-01 to 2026-09-30" })).toMatch(/is counted in the VAT return/);
     expect(deleteRefusal(invoice(), { closedReconciliation: "Stanbic USD" })).toMatch(/Void it instead, or the owner reopens/);
+  });
+
+  it("says what stays: payments on account, the snapshot, the number", () => {
+    expect(deleteKeeps(invoice({ kind: "bill", onAccount: [{ kind: "payment", id: "p", label: "PAY-0057" }] }))).toEqual([
+      "PAY-0057 stays on the supplier’s account",
+      "A snapshot of it is kept in the audit trail",
+      "Its number is never given out again",
+    ]);
+    expect(deleteKeeps(invoice())[0]).toBe("Payments on it stay on account");
+    expect(bulkDeleteWord(5)).toBe("delete 5");
   });
 
   it("never deletes school fees or till sales from Books", () => {

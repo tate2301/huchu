@@ -1,3 +1,4 @@
+import { writePlatformAuditEvent } from "@/lib/audit/platform";
 import { prisma } from "@/lib/prisma";
 import { recordAttachment, type UploadedFile } from "@/lib/retail/buying/attachments";
 
@@ -21,7 +22,25 @@ export async function voidBill(actor: BooksActor, id: string, reason: string) {
   const allowed = canDo(actor, "void", { kind: "bill", ownerId: bill.issuedById });
   if (!allowed.allowed) throw new BillRefusedError(allowed.reason, 403);
   await voidBillPostings(actor, bill, reason);
-  return prisma.purchaseBill.update({ where: { id }, data: { status: "VOIDED", notes: bill.notes ? `${bill.notes}\nVoided: ${reason}` : `Voided: ${reason}` } });
+  // Payments made on it are taken off it and stay as credit with the supplier (books-final §4.8): kept, posted, on no bill.
+  return prisma.$transaction(async (tx) => {
+    const paid = await tx.purchasePayment.findMany({ where: { companyId: actor.companyId, billId: id, status: "PAID" }, select: { id: true } });
+    if (paid.length) {
+      // The supplier stays named on each, so the credit is theirs.
+      await tx.purchasePayment.updateMany({ where: { id: { in: paid.map((row) => row.id) }, vendorId: null }, data: { vendorId: bill.vendorId } });
+      await tx.purchasePayment.updateMany({ where: { id: { in: paid.map((row) => row.id) } }, data: { billId: null } });
+      await tx.paymentLedgerEntry.updateMany({
+        where: { companyId: actor.companyId, sourceType: "PURCHASE_PAYMENT", sourceId: { in: paid.map((row) => row.id) } },
+        data: { billId: null, partyId: bill.vendorId },
+      });
+      // Which payments it left on account: a revision recorded for the same supplier takes them back (§4.8).
+      await writePlatformAuditEvent(
+        { companyId: actor.companyId, actorId: actor.userId, eventType: "books.bill.payments-on-account", entityType: "PurchaseBill", entityId: id, reason, payload: { number: bill.billNumber, payments: paid.map((row) => row.id) } },
+        tx,
+      );
+    }
+    return tx.purchaseBill.update({ where: { id }, data: { status: "VOIDED", amountPaid: 0, notes: bill.notes ? `${bill.notes}\nVoided: ${reason}` : `Voided: ${reason}` } });
+  });
 }
 
 export async function deleteDraftBill(actor: BooksActor, id: string) {

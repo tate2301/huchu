@@ -2,9 +2,11 @@
  * P4's exit test (books-final §8, and the brief's list), against the test
  * database, with the FDMS transport mocked:
  *
- *   - A paid invoice is not voided while its payment stands on it; once the
- *     payment is voided, both void, the ledger nets to nothing and the aging
- *     is clean.
+ *   - A paid invoice is voided through a full credit note, posted (§4.1
+ *     rule 4); its payment is taken off it and stays on the customer's
+ *     account; the invoice and the note net to nothing and the aging holds
+ *     only the money on account. A paid bill voids the same way, its payment
+ *     left as credit with the supplier.
  *   - Revise voids an invoice and opens a new draft linked to it.
  *   - The owner deletes a recorded, unfiscalised bill in an open month: its
  *     snapshot is in the audit trail and the ledger is clean.
@@ -36,13 +38,14 @@ import { runAccountingSeedPack } from "@/lib/accounting/bootstrap";
 import { openFiscalDay } from "@/lib/accounting/fiscal-day";
 import { issueFiscalReceipt } from "@/lib/accounting/fiscalisation";
 import { syncPaymentLedgerEntryForSource } from "@/lib/accounting/payment-ledger";
-import { recordSalesReceipt } from "@/lib/accounting/payments";
+import { recordPurchasePayment, recordSalesReceipt } from "@/lib/accounting/payments";
 import { destroyProvisionedTenant } from "@/lib/platform/tenant-teardown";
 import { prisma } from "@/lib/prisma";
 import { makeTestShop, type TestShop } from "@/lib/retail/products/test-fixtures";
 
 import { trialBalance } from "../invoice-test-fixtures";
-import { postBill } from "./bills";
+import { issueDraftInvoice } from "../issue-invoice";
+import { postBill, recordBill } from "./bills";
 import { bulkAction } from "./bulk-actions";
 import { booksActor, type BooksActor } from "./can-do";
 import { postInvoice } from "./issue-invoice";
@@ -75,7 +78,7 @@ async function balanced() {
 }
 
 /** Every line a set of sources posted, voids included, netted per account. */
-async function net(sources: Array<{ sourceType: "SALES_INVOICE" | "SALES_RECEIPT" | "PURCHASE_BILL"; id: string }>) {
+async function net(sources: Array<{ sourceType: "SALES_INVOICE" | "SALES_RECEIPT" | "SALES_CREDIT_NOTE" | "PURCHASE_BILL" | "PURCHASE_PAYMENT"; id: string }>) {
   const lines = await prisma.journalLine.findMany({
     where: { entry: { companyId: shop.companyId, OR: sources.flatMap((source) => [{ sourceType: source.sourceType, sourceId: source.id }, { sourceType: source.sourceType, sourceId: `void:${source.id}` }]) } },
     select: { debit: true, credit: true, account: { select: { code: true } } },
@@ -185,37 +188,73 @@ afterAll(async () => {
 }, 60_000);
 
 describe("P4 exit: undo everywhere", () => {
-  it("refuses to void a paid invoice until its payment is voided, then voids both, netting to nothing", async () => {
+  it("voids a paid invoice through a full credit note: the receipt goes on account, the ledger and aging are clean", async () => {
     const invoice = await issue(100);
     const receipt = await pay(invoice.id, 115.5);
     expect(await prisma.salesInvoice.findUniqueOrThrow({ where: { id: invoice.id } })).toMatchObject({ status: "PAID" });
+    // The payment does not stand in the way (§4.3): it is what the dialog says stays on account.
+    expect(await undoChoices(owner(), "invoice", invoice.id)).toMatchObject({ void: { allowed: true }, dependents: [], fiscalNote: null });
 
-    const refused = await refusal(voidDocument(owner(), "invoice", invoice.id, { reason: "Raised twice" }));
-    expect(refused.message).toBe(`${receipt.receiptNumber} stands on ${invoice.invoiceNumber}. Void it first.`);
-    expect(await prisma.salesInvoice.findUniqueOrThrow({ where: { id: invoice.id } })).toMatchObject({ status: "PAID" });
-
-    const paymentVoid = await voidDocument(owner(), "receipt", receipt.id, { reason: "Raised twice" });
     const invoiceVoid = await voidDocument(owner(), "invoice", invoice.id, { reason: "Raised twice" });
-    expect(await prisma.salesInvoice.findUniqueOrThrow({ where: { id: invoice.id } })).toMatchObject({ status: "VOIDED" });
-    expect(await prisma.salesReceipt.findUniqueOrThrow({ where: { id: receipt.id } })).toMatchObject({ voidReason: "Raised twice", voidedById: shop.ownerId });
+    expect(await prisma.salesInvoice.findUniqueOrThrow({ where: { id: invoice.id } })).toMatchObject({ status: "VOIDED", amountPaid: 0 });
 
-    // Both stay, marked void, with who and why in the audit trail.
+    // A full credit note, issued and posted; never a bare mirror for a new void.
+    const note = await prisma.creditNote.findFirstOrThrow({ where: { invoiceId: invoice.id } });
+    expect(note).toMatchObject({ status: "ISSUED", total: 115.5, reason: "Raised twice" });
+    expect(invoiceVoid.detail).toBe(`Voided through ${note.noteNumber}. ${receipt.receiptNumber} stays on account.`);
+    expect(await prisma.journalEntry.count({ where: { companyId: shop.companyId, sourceType: "SALES_CREDIT_NOTE", sourceId: note.id, status: "POSTED" } })).toBe(1);
+    expect(await prisma.journalEntry.count({ where: { companyId: shop.companyId, sourceType: "SALES_INVOICE", sourceId: `void:${invoice.id}` } })).toBe(0);
+
+    // The receipt is kept, on account, with its bank line.
+    expect(await prisma.salesReceipt.findUniqueOrThrow({ where: { id: receipt.id } })).toMatchObject({ invoiceId: null, voidedAt: null, amount: 115.5 });
+    expect(await prisma.paymentLedgerEntry.findFirstOrThrow({ where: { companyId: shop.companyId, sourceType: "SALES_RECEIPT", sourceId: receipt.id } })).toMatchObject({ invoiceId: null, partyId: customerId, status: "POSTED" });
+    expect(await prisma.bankTransaction.count({ where: { companyId: shop.companyId, sourceType: "SALES_RECEIPT", sourceId: receipt.id } })).toBe(1);
+
+    // Who and why in the audit trail.
     const [event] = await events("books.invoice.voided", invoice.id);
     expect(event).toMatchObject({ id: invoiceVoid.auditEventId, actor: shop.ownerId, reason: "Raised twice", entityType: "SalesInvoice" });
-    expect(paymentVoid.auditEventId).toBeTruthy();
-    const choices = await undoChoices(owner(), "invoice", invoice.id);
-    expect(choices).toMatchObject({ status: "void", voided: { reason: "Raised twice" }, void: { allowed: false } });
+    expect(await undoChoices(owner(), "invoice", invoice.id)).toMatchObject({ status: "void", voided: { reason: "Raised twice" }, void: { allowed: false } });
 
-    // The ledger nets to nothing, the bank line is gone and the aging is clean.
+    // The invoice and its credit note net to nothing; the aging holds only the money on account.
     const ledger = await net([
       { sourceType: "SALES_INVOICE", id: invoice.id },
-      { sourceType: "SALES_RECEIPT", id: receipt.id },
+      { sourceType: "SALES_CREDIT_NOTE", id: note.id },
     ]);
     expect(ledger.count).toBeGreaterThan(0);
-    expect(ledger.nonzero).toEqual([]);
-    expect(await prisma.bankTransaction.count({ where: { companyId: shop.companyId, sourceType: "SALES_RECEIPT", sourceId: receipt.id } })).toBe(0);
+    expect(ledger.nonzero.filter(([code]) => code === "1100" || code.startsWith("22"))).toEqual([]);
     const aging = await partyAging(shop.companyId, "customer");
-    expect(aging.rows.find((row) => row.partyId === customerId)).toBeUndefined();
+    expect(aging.rows.find((row) => row.partyId === customerId)).toMatchObject({ total: -115.5 });
+    await balanced();
+  });
+
+  it("voids a paid bill by its mirror: the payment stays as credit with the supplier", async () => {
+    const bill = await prisma.$transaction(async (tx) =>
+      tx.purchaseBill.create({
+        data: {
+          companyId: shop.companyId,
+          vendorId,
+          billNumber: await nextNumber(tx, shop.companyId, "bill"),
+          billDate: today(),
+          status: "RECEIVED",
+          currency: "USD",
+          subTotal: 100,
+          taxTotal: 15.5,
+          total: 115.5,
+          fdmsStatus: "VALID",
+          supplierFtiNumber: "FTI-90",
+          lines: { create: [{ description: "Grout, 10 bags", quantity: 1, unitPrice: 100, taxRate: 15.5, taxAmount: 15.5, lineTotal: 115.5 }] },
+        },
+      }),
+    );
+    await postBill(prisma, bill, { userId: shop.ownerId, role: "SUPERADMIN" });
+    const payment = await recordPurchasePayment({ companyId: shop.companyId, userId: shop.ownerId, role: "SUPERADMIN", billId: bill.id, paidAt: today(), amount: 115.5, method: "Bank transfer", bankAccountId: bankId });
+    expect(await undoChoices(owner(), "bill", bill.id)).toMatchObject({ void: { allowed: true }, dependents: [] });
+
+    await voidDocument(owner(), "bill", bill.id, { reason: "Recorded twice" });
+    expect(await prisma.purchaseBill.findUniqueOrThrow({ where: { id: bill.id } })).toMatchObject({ status: "VOIDED" });
+    expect(await prisma.purchasePayment.findUniqueOrThrow({ where: { id: payment.id } })).toMatchObject({ billId: null, vendorId, status: "PAID" });
+    expect((await net([{ sourceType: "PURCHASE_BILL", id: bill.id }])).nonzero).toEqual([]);
+    expect(await prisma.paymentLedgerEntry.findFirstOrThrow({ where: { companyId: shop.companyId, sourceType: "PURCHASE_PAYMENT", sourceId: payment.id } })).toMatchObject({ billId: null, partyId: vendorId });
     await balanced();
   });
 
@@ -230,7 +269,50 @@ describe("P4 exit: undo everywhere", () => {
     expect(await undoChoices(owner(), "invoice", invoice.id)).toMatchObject({ supersededBy: draft.id, status: "void" });
     expect(await undoChoices(owner(), "invoice", draft.id)).toMatchObject({ supersedes: invoice.id, status: "draft" });
     expect(await events("books.invoice.revised", invoice.id)).toHaveLength(1);
-    expect((await net([{ sourceType: "SALES_INVOICE", id: invoice.id }])).nonzero).toEqual([]);
+    const note = await prisma.creditNote.findFirstOrThrow({ where: { invoiceId: invoice.id } });
+    const ledger = await net([
+      { sourceType: "SALES_INVOICE", id: invoice.id },
+      { sourceType: "SALES_CREDIT_NOTE", id: note.id },
+    ]);
+    expect(ledger.nonzero.filter(([code]) => code === "1100" || code.startsWith("22"))).toEqual([]);
+    await balanced();
+  });
+
+  it("revises a paid invoice and a paid bill: the payments move to the new one when it is issued or recorded", async () => {
+    const invoice = await issue(300);
+    const receipt = await pay(invoice.id, 346.5);
+    const revised = await reviseDocument(owner(), "invoice", invoice.id, { reason: "Wrong date on it" });
+    expect(await prisma.salesReceipt.findUniqueOrThrow({ where: { id: receipt.id } })).toMatchObject({ invoiceId: null });
+    await issueDraftInvoice(owner(), revised.draft.id);
+    expect(await prisma.salesReceipt.findUniqueOrThrow({ where: { id: receipt.id } })).toMatchObject({ invoiceId: revised.draft.id });
+    expect(await prisma.salesInvoice.findUniqueOrThrow({ where: { id: revised.draft.id } })).toMatchObject({ status: "PAID", amountPaid: 346.5 });
+    expect(await events("books.invoice.payments-moved", revised.draft.id)).toHaveLength(1);
+
+    const bill = await prisma.$transaction(async (tx) =>
+      tx.purchaseBill.create({
+        data: {
+          companyId: shop.companyId,
+          vendorId,
+          billNumber: await nextNumber(tx, shop.companyId, "bill"),
+          billDate: today(),
+          status: "RECEIVED",
+          currency: "USD",
+          subTotal: 200,
+          taxTotal: 31,
+          total: 231,
+          fdmsStatus: "VALID",
+          supplierFtiNumber: "FTI-91",
+          lines: { create: [{ description: "Screed, 8 bags", quantity: 1, unitPrice: 200, taxRate: 15.5, taxAmount: 31, lineTotal: 231 }] },
+        },
+      }),
+    );
+    await postBill(prisma, bill, { userId: shop.ownerId, role: "SUPERADMIN" });
+    const payment = await recordPurchasePayment({ companyId: shop.companyId, userId: shop.ownerId, role: "SUPERADMIN", billId: bill.id, paidAt: today(), amount: 231, method: "Bank transfer", bankAccountId: bankId });
+    const newBill = await reviseDocument(owner(), "bill", bill.id, { reason: "Ten bags, not eight" });
+    expect(await prisma.purchasePayment.findUniqueOrThrow({ where: { id: payment.id } })).toMatchObject({ billId: null });
+    await recordBill(owner(), newBill.draft.id, { supplierFtiNumber: "FTI-91" });
+    expect(await prisma.purchasePayment.findUniqueOrThrow({ where: { id: payment.id } })).toMatchObject({ billId: newBill.draft.id });
+    expect(await prisma.purchaseBill.findUniqueOrThrow({ where: { id: newBill.draft.id } })).toMatchObject({ status: "PAID" });
     await balanced();
   });
 
@@ -292,7 +374,7 @@ describe("P4 exit: undo everywhere", () => {
     await prisma.fiscalisationProviderConfig.update({ where: { id: provider.id }, data: { isActive: false } });
   });
 
-  it("bulk voids five invoices, two refused: three done, two skipped with why, one audit event per voided row", async () => {
+  it("bulk voids five invoices, one a draft: four done (the part-paid one too), one skipped with why, one audit event per voided row", async () => {
     const plain = [await issue(10), await issue(20), await issue(30)];
     const draft = await issue(40, "DRAFT");
     const paid = await issue(50);
@@ -300,15 +382,13 @@ describe("P4 exit: undo everywhere", () => {
     const ids = [plain[0]!.id, draft.id, plain[1]!.id, paid.id, plain[2]!.id];
 
     const result = await bulkAction(owner(), "invoice", "void", ids, { reason: "Imported twice" });
-    expect(result.done.map((row) => row.id)).toEqual(plain.map((invoice) => invoice.id));
+    expect(result.done.map((row) => row.id)).toEqual([plain[0]!.id, plain[1]!.id, paid.id, plain[2]!.id]);
     expect(result.failed).toEqual([]);
-    expect(result.skipped).toEqual([
-      { id: draft.id, label: "Draft invoice", why: "Draft invoice is a draft and nothing was posted: delete it instead." },
-      { id: paid.id, label: paid.invoiceNumber, why: `${receipt.receiptNumber} stands on ${paid.invoiceNumber}. Void it first.` },
-    ]);
-    for (const invoice of plain) expect(await events("books.invoice.voided", invoice.id)).toHaveLength(1);
-    expect(await events("books.invoice.voided", paid.id)).toHaveLength(0);
-    expect(await prisma.salesInvoice.count({ where: { id: { in: plain.map((invoice) => invoice.id) }, status: "VOIDED" } })).toBe(3);
+    expect(result.skipped).toEqual([{ id: draft.id, label: "Draft invoice", why: "Draft invoice is a draft and nothing was posted: delete it instead." }]);
+    expect(result.done.find((row) => row.id === paid.id)?.detail).toMatch(new RegExp(`${receipt.receiptNumber} stays on account\\.$`));
+    for (const invoice of [...plain, paid]) expect(await events("books.invoice.voided", invoice.id)).toHaveLength(1);
+    expect(await prisma.salesInvoice.count({ where: { id: { in: [...plain, paid].map((invoice) => invoice.id) }, status: "VOIDED" } })).toBe(4);
+    expect(await prisma.salesReceipt.findUniqueOrThrow({ where: { id: receipt.id } })).toMatchObject({ invoiceId: null, voidedAt: null });
     await balanced();
 
     // Delete permanently in bulk, as the owner, "delete 2" typed: the draft and a void one go.

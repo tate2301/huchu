@@ -3,10 +3,14 @@
  * a test walks them one by one. `undo.ts` reads the facts and does the work.
  *
  * - **Void** a posted document: its mirror posts and it stays, marked void
- *   with who and why. Refused, with the rule named, while today's month is
- *   closed (the void has nowhere to post), while one of its bank lines sits in
- *   a closed reconciliation, or while later documents stand on it (a payment
- *   on an invoice, a debit note on a bill): those are voided first.
+ *   with who and why. An issued sales invoice is voided through a full credit
+ *   note instead, fiscalised when it was (§4.1 rule 4). Payments on an
+ *   invoice or a bill never stop a void: they are taken off it and stay on
+ *   the party's account. Refused, with the rule named, while today's month is
+ *   closed (the void has nowhere to post), while one of its bank lines sits
+ *   in a closed reconciliation, or while later documents the spec names
+ *   stand on it (a debit note or write-off on a bill, an invoice raised from
+ *   a quote, goods received on an order): those are undone first.
  * - **Revise** is Void, then a new draft linked to it (D7), which takes its
  *   number at issue. Only invoices, quotes, bills and credit notes have it.
  * - **Delete** a draft: whoever may edit it. **Delete permanently** anything
@@ -97,8 +101,10 @@ export type UndoFacts = {
   testDevice: boolean;
   /** Whose draft it is ("own drafts only" for a clerk). */
   ownerId: string | null;
-  /** Later documents that stand on it and are still live. */
+  /** Later documents that stand on it and are still live: the void is refused until they are undone. */
   dependents: Dependent[];
+  /** Payments on it that a void or delete takes off it and leaves on the party's account. */
+  onAccount?: Dependent[];
   /** Cannot be undone this way at all, and why (a retail requisition, a cash payout from a requisition). */
   blocked?: string | null;
 };
@@ -192,3 +198,80 @@ export function bulkSummary(result: BulkResult): string {
   const tail = [result.skipped.length ? `${result.skipped.length} skipped.` : null, result.failed.length ? `${result.failed.length} failed.` : null].filter(Boolean).join(" ");
   return tail ? `${head} ${tail}` : head;
 }
+
+/**
+ * What a void does, line by line, for the dialog (books-final §4.1, §4.3,
+ * §4.8): the credit note or the mirror, the fiscal device, the payments left
+ * on account. One line each, no explanations.
+ */
+export function voidEffects(facts: Pick<UndoFacts, "kind" | "label" | "fiscalised" | "onAccount">, now?: Date): string[] {
+  const onAccount = facts.onAccount ?? [];
+  const lines: string[] = [];
+  if (facts.kind === "invoice") {
+    lines.push(facts.fiscalised ? `A credit note for the rest is issued and signed, citing ${facts.label}` : "A credit note for the rest is issued and posted");
+    if (onAccount.length) lines.push(`${dependentsSentence(onAccount)} ${onAccount.length === 1 ? "stays" : "stay"} on the customer’s account`);
+    lines.push("Commission not yet paid on it is voided");
+    // The month the note is dated in: its VAT return takes the output VAT off.
+    if (now) lines.push(`${now.toLocaleString("en-GB", { month: "long", timeZone: "UTC" })}’s VAT return counts the credit note`);
+    return lines;
+  }
+  if (facts.kind === "credit-note") return [`Its posting is reversed, dated today`, "The invoice is owed again"];
+  lines.push(facts.kind === "journal" ? "A reversing journal posts, dated today" : "Its posting is reversed, dated today");
+  if (facts.kind === "bill" && onAccount.length) lines.push(`${dependentsSentence(onAccount)} ${onAccount.length === 1 ? "stays" : "stay"} as credit with the supplier`);
+  if (facts.kind === "receipt" || facts.kind === "payment" || facts.kind === "bank-entry") lines.push("Its bank line goes and the statement line is matched again");
+  if (facts.kind === "receipt") lines.push("Commission not yet paid on it is voided");
+  return lines;
+}
+
+/** What the fiscal device makes of a void, or null when it has no part (§4.17). */
+export function voidFiscalNote(facts: Pick<UndoFacts, "kind" | "label" | "fiscalised" | "testDevice">): string | null {
+  if (!facts.fiscalised) return null;
+  if (facts.kind === "invoice") return `${facts.label} is signed on FDMS, so it is voided with a fiscal credit note that cites it.${facts.testDevice ? " The device is ZIMRA’s test environment." : ""}`;
+  if (facts.kind === "credit-note") return `${facts.label} is signed on FDMS: it is never voided. Issue a new invoice for the amount instead.`;
+  return null;
+}
+
+/** What a permanent delete keeps (§2.5): payments on account and the snapshot. */
+export function deleteKeeps(facts: Pick<UndoFacts, "kind" | "onAccount">): string[] {
+  const onAccount = facts.onAccount ?? [];
+  const party = facts.kind === "bill" || facts.kind === "debit-note" || facts.kind === "payment" ? "the supplier’s" : "the customer’s";
+  return [
+    ...(onAccount.length ? [`${dependentsSentence(onAccount)} ${onAccount.length === 1 ? "stays" : "stay"} on ${party} account`] : ["Payments on it stay on account"]),
+    "A snapshot of it is kept in the audit trail",
+    "Its number is never given out again",
+  ];
+}
+
+/** "delete 5": what a bulk delete wants typed. */
+export const bulkDeleteWord = (count: number) => `delete ${count}`;
+
+/** What a person may do with one document (the core's `undoChoices`), for the ▾ menu and the dialogs. */
+export type UndoChoices = {
+  kind: UndoKind;
+  id: string;
+  label: string;
+  status: "draft" | "posted" | "void";
+  void: { allowed: boolean; why: string | null };
+  revise: { allowed: boolean; why: string | null };
+  delete: { allowed: boolean; why: string | null; permanent: boolean };
+  /** When it was voided, revised or deleted: who, when and why, from the audit trail. */
+  voided: { by: string | null; at: string; reason: string | null } | null;
+  supersededBy: string | null;
+  supersedes: string | null;
+  fiscalised: boolean;
+  /** What a void does, one line each (`voidEffects`). */
+  effects: string[];
+  /** What the fiscal device makes of it (`voidFiscalNote`). */
+  fiscalNote: string | null;
+  /** The later documents that stand on it, by number. */
+  dependents: string[];
+  /** The payments on it a void leaves on account, by number. */
+  onAccount: string[];
+  /** An invoice's void: the number its credit note will take. */
+  nextNote: string | null;
+  /** What a permanent delete keeps (`deleteKeeps`). */
+  keeps: string[];
+};
+
+/** Which bulk undo a list offers this person (`undoRights`). */
+export type UndoRights = { kind: UndoKind; void: boolean; revise: boolean; deletePosted: boolean; deleteDrafts: boolean };

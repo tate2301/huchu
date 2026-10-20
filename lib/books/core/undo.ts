@@ -6,6 +6,7 @@ import { writePlatformAuditEvent } from "@/lib/audit/platform";
 import { prisma } from "@/lib/prisma";
 
 import { deleteDraftBill, voidBill } from "../bill-actions";
+import { peekNumber } from "../form-options";
 import { deleteInvoice } from "../delete-invoice";
 import { InvoiceChangeRefused } from "../owner";
 import { voidInvoice } from "../reverse-invoice";
@@ -21,7 +22,7 @@ import { cancelPurchaseOrder, PurchaseOrderRefused } from "./purchase-orders";
 import { voidRequisitionDisbursement } from "./requisitions";
 import { deleteUnpaidSupplierPayment, SupplierPaymentRefused, voidSupplierPayment } from "./supplier-payments";
 import { contextFor, loadDoc, snapshotOf, type LoadedDoc, type Postings } from "./undo-docs";
-import { deleteRefusal, MODULE_OWNED, reasonOf, REVISABLE, reviseRefusal, UNDO_NOUN, voidRefusal, type UndoKind } from "./undo-rules";
+import { deleteKeeps, deleteRefusal, MODULE_OWNED, reasonOf, REVISABLE, reviseRefusal, UNDO_NOUN, voidEffects, voidFiscalNote, voidRefusal, type UndoChoices, type UndoKind, type UndoRights } from "./undo-rules";
 import { VoidRefused, voidMoney } from "./void-money";
 
 /**
@@ -172,8 +173,9 @@ async function performVoid(actor: BooksActor, doc: LoadedDoc, reason: string): P
     case "invoice": {
       const done = await voidInvoice(actor, doc.id, { reason, source: "books-core" });
       const note = done.creditNote;
-      const fiscal = note ? (note.fiscalSent ? ", sent to the fiscal device" : `; it waits in the fiscal register to be sent (${note.fiscalReason ?? "not sent"})`) : "";
-      return { ownAudit: "books.invoice.voided", detail: note ? `Voided through ${note.number}${fiscal}.` : undefined };
+      const fiscal = note?.fiscalised ? (note.fiscalSent ? ", signed by the fiscal device" : `; it waits in the fiscal register to be sent (${note.fiscalReason ?? "not sent"})`) : "";
+      const onAccount = done.unlinked.length ? ` ${done.unlinked.map((row) => row.number).join(", ")} ${done.unlinked.length === 1 ? "stays" : "stay"} on account.` : "";
+      return { ownAudit: "books.invoice.voided", detail: `${note ? `Voided through ${note.number}${fiscal}.` : "Voided; earlier credit notes had taken it all off."}${onAccount}` };
     }
     case "receipt":
       await voidReceipt(actor, doc.id, { reason, source: "books-core" });
@@ -557,21 +559,24 @@ export async function deleteDocument(actor: BooksActor, kind: UndoKind, id: stri
   return { ...(await deletePosted(actor, doc, reason, now)), draft: false };
 }
 
+/* ── What a person may do with a list's selection ─────────────────────── */
+
+/** Which bulk undo a list offers this person, by their role alone ("if the user role allows"); each row is checked again on the server. */
+export function undoRights(actor: BooksActor, kind: UndoKind): UndoRights {
+  const doc = { kind: BOOKS_KIND[kind] };
+  const owned = Boolean(MODULE_OWNED[kind]);
+  return {
+    kind,
+    void: !owned && canDo(actor, rightFor(kind, "void"), doc).allowed,
+    revise: !owned && REVISABLE.has(kind) && canDo(actor, rightFor(kind, "revise"), doc).allowed,
+    deletePosted: !owned && canDo(actor, "delete.posted", doc).allowed,
+    deleteDrafts: !owned && canDo(actor, "draft.delete", doc).allowed,
+  };
+}
+
 /* ── What a person may do with one document ──────────────────────────── */
 
-export type UndoChoices = {
-  kind: UndoKind;
-  id: string;
-  label: string;
-  status: "draft" | "posted" | "void";
-  void: { allowed: boolean; why: string | null };
-  revise: { allowed: boolean; why: string | null };
-  delete: { allowed: boolean; why: string | null; permanent: boolean };
-  /** When it was voided, revised or deleted: who, when and why, from the audit trail. */
-  voided: { by: string | null; at: string; reason: string | null } | null;
-  supersededBy: string | null;
-  supersedes: string | null;
-};
+export type { UndoChoices, UndoRights };
 
 /** Which of Void, Revise and Delete this person may press on it, and why not; who voided it, and what replaced it. */
 export async function undoChoices(actor: BooksActor, kind: UndoKind, id: string, now = new Date()): Promise<UndoChoices | null> {
@@ -597,6 +602,14 @@ export async function undoChoices(actor: BooksActor, kind: UndoKind, id: string,
     delete: { ...del, permanent },
     voided: event ? { by: voider?.name ?? null, at: event.createdAt.toISOString(), reason: event.reason } : null,
     ...links,
+    fiscalised: doc.fiscalised,
+    effects: voidEffects(doc, now),
+    fiscalNote: voidFiscalNote(doc),
+    dependents: doc.dependents.map((dependent) => dependent.label),
+    onAccount: (doc.onAccount ?? []).map((row) => row.label),
+    // The number the void's credit note will take, read without taking it (§4.1 rule 4).
+    nextNote: kind === "invoice" && doc.posted && !doc.voided ? await peekNumber(prisma, actor.companyId, "credit-note") : null,
+    keeps: deleteKeeps(doc),
   };
 }
 

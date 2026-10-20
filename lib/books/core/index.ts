@@ -59,7 +59,7 @@ export { supplierPaymentFacts } from "./payment-posting";
 export { partyAging, partyStatement, type PartyAging, type PartyStatement } from "./statement-aging";
 export { fiscalRegister, type FiscalRegister } from "./fiscal-register";
 // P4: undo everywhere and mass actions.
-export { asUndoRefused, deleteDocument, reviseDocument, undoChoices, UndoRefused, voidDocument, type ReviseResult, type UndoChoices, type UndoResult } from "./undo";
+export { asUndoRefused, deleteDocument, reviseDocument, undoChoices, undoRights, UndoRefused, voidDocument, type ReviseResult, type UndoChoices, type UndoResult, type UndoRights } from "./undo";
 export { BULK_ACTIONS, BULK_LIMIT, bulkSummary, isBulkAction, isUndoKind, MODULE_OWNED, REVISABLE, UNDO_KINDS, UNDO_NOUN, type BulkAction, type BulkResult, type UndoKind } from "./undo-rules";
 export { bulkAction, type BulkOptions } from "./bulk-actions";
 export { markTestDevice, purgeTestDevice, type PurgeResult } from "./purge";

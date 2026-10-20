@@ -1,5 +1,6 @@
 import { fiscaliseIssuedInvoice, postInvoice } from "@/lib/books/core/issue-invoice";
 import { numberAtIssue } from "@/lib/books/core/numbering";
+import { moveReceiptsToRevision } from "@/lib/books/core/revision-payments";
 import { docLabel } from "@/lib/books/doc-number";
 import { onAccountingInvoiceCreated } from "@/lib/crm/accounting-hooks";
 import { prisma } from "@/lib/prisma";
@@ -74,6 +75,8 @@ export async function issueDraftInvoice(actor: { companyId: string; userId: stri
   // Vane's draft is the CRM's work invoiced only now a person has issued it (`createSalesInvoice` held it back).
   if (takingOn) await onAccountingInvoiceCreated({ companyId: actor.companyId, invoiceId: invoice.id, userId: actor.userId });
   await postIssuedInvoice(actor.companyId, invoice, actor.userId);
+  // A revision takes back the payments the invoice it replaces left on account, for the same customer (§4.3).
+  await moveReceiptsToRevision(actor.companyId, invoice.id, actor.userId).catch((error: unknown) => console.error("[Books] moving payments to the revision failed:", error));
   return invoice;
 }
 

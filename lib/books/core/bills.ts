@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { approvalNote, decideApproval, moneyLimits, otherOwners, othersWhoCan, recordApproval } from "./approvals";
 import { canDo, tierOf, type BooksActor } from "./can-do";
 import { numberAtIssue } from "./numbering";
+import { movePaymentsToRevision } from "./revision-payments";
 import { postMoney, type PostMoneyResult } from "./post-money";
 import { voidMoney } from "./void-money";
 
@@ -208,6 +209,8 @@ export async function recordBill(
     console.error("[Books] Purchase bill posting failed:", error);
     return null;
   });
+  // A revision takes back the payments the bill it replaces left on account (§4.8).
+  if (recorded.supersedesId) await movePaymentsToRevision(actor.companyId, recorded.id, actor.userId).catch((error: unknown) => console.error("[Books] moving payments to the revision failed:", error));
   return { bill: recorded, posting };
 }
 

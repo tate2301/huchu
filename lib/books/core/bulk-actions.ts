@@ -10,7 +10,7 @@ import { ReceiptRefused } from "./receipt-facts";
 import { payNowRefusal } from "./supplier-payments";
 import { asUndoRefused, deleteDocument, UndoRefused, voidDocument } from "./undo";
 import { exportRow, loadDoc, type ExportRow } from "./undo-docs";
-import { BULK_LIMIT, reasonOf, UNDO_NOUN, type BulkAction, type BulkResult, type UndoKind } from "./undo-rules";
+import { BULK_LIMIT, bulkDeleteWord, reasonOf, UNDO_NOUN, type BulkAction, type BulkResult, type UndoKind } from "./undo-rules";
 
 /**
  * Mass actions in the core (books-final §5.13): Send, Remind, Void, Delete
@@ -147,7 +147,7 @@ export async function bulkAction(actor: BooksActor, kind: UndoKind, action: Bulk
   if (action === "void" && !reasonOf(options.reason)) throw new UndoRefused("Say why, in a few words. One reason goes with every row.", 400);
   if (action === "delete") {
     const typed = (options.confirm ?? "").trim().toLowerCase();
-    if (typed !== `delete ${unique.length}`) throw new UndoRefused(`Type "delete ${unique.length}" to delete them.`, 400);
+    if (typed !== bulkDeleteWord(unique.length)) throw new UndoRefused(`Type "${bulkDeleteWord(unique.length)}" to delete them.`, 400);
   }
 
   const result: BulkResult = { action, kind, done: [], skipped: [], failed: [] };
