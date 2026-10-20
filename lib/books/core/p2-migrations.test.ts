@@ -68,8 +68,17 @@ describe("buying and CRM money, as stored", () => {
     const unique = await prisma.$queryRaw<Array<{ indexdef: string }>>`SELECT indexdef FROM pg_indexes WHERE tablename = 'PurchaseBill' AND indexname = 'PurchaseBill_goodsReceiptId_key'`;
     expect(unique[0]?.indexdef).toContain("UNIQUE INDEX");
     // Every posted goods receipt has its bill: a draft, flagged, never posted.
+    // The one exception is a bill the owner has since deleted permanently
+    // (§4.8: any bill may be deleted, a posted one by the owner, §2.5): the
+    // receipt is then received and not billed again, and the deletion's audit
+    // event keeps the bill's snapshot with its goods receipt.
     const [orphans] = await prisma.$queryRaw<Array<{ n: bigint }>>`
-      SELECT count(*) AS n FROM "RetailGoodsReceipt" g WHERE g."status" = 'POSTED' AND NOT EXISTS (SELECT 1 FROM "PurchaseBill" b WHERE b."goodsReceiptId" = g."id")`;
+      SELECT count(*) AS n FROM "RetailGoodsReceipt" g WHERE g."status" = 'POSTED'
+        AND NOT EXISTS (SELECT 1 FROM "PurchaseBill" b WHERE b."goodsReceiptId" = g."id")
+        AND NOT EXISTS (
+          SELECT 1 FROM "PlatformAuditEvent" e
+          WHERE e."companyId" = g."companyId" AND e."eventType" = 'books.bill.deleted'
+            AND e."payloadJson" LIKE '%"goodsReceiptId":"' || g."id" || '"%')`;
     expect(Number(orphans!.n)).toBe(0);
   });
 
