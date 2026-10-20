@@ -15,6 +15,8 @@ export type MenuItem = {
   /** Shown faint, icon included, and not pressable; `title` says why. */
   disabled?: boolean;
   title?: string;
+  /** What the item does, as `data-action` for tests that look for it (Books' void, revise, delete). */
+  action?: string;
   onSelect: () => void;
 };
 
@@ -115,6 +117,7 @@ export function MenuButton({
                 data-active={entry.checked ? "true" : undefined}
                 aria-disabled={entry.disabled || undefined}
                 title={entry.title}
+                data-action={entry.action}
                 onClick={() => {
                   if (entry.disabled) return;
                   entry.onSelect();
