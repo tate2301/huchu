@@ -2,8 +2,8 @@
  * The guards (books-final §2.2, §4.1, §6), through the real routes with only
  * the sign-in faked: no arbitrary status jumps on invoices, bills or periods;
  * reopening a month is the owner's; the write-off's undo is a void that keeps
- * it; a clerk cannot post a journal; and Journals' Reversed and Voided tabs
- * read the markers the ledger writes.
+ * it; a clerk cannot post a journal; and Journals' Reversed tab
+ * reads the markers the ledger writes.
  */
 import { NextRequest } from "next/server";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
@@ -161,21 +161,21 @@ describe("undo", () => {
   });
 });
 
-describe("Journals' Reversed and Voided tabs", () => {
+describe("Journals' Reversed tab", () => {
   it("read reversedAt and the void markers, not a status nobody writes", async () => {
     const result = await postMoney(prisma, { companyId: fixture.companyId, sourceType: "MAINTENANCE_COMPLETION", sourceId: `wo-${fixture.stamp}`, date: new Date(), description: "Pump repaired", amount: 50, actor: { userId: fixture.ownerId } });
     const reversed = await postMoney(prisma, { companyId: fixture.companyId, sourceType: "MAINTENANCE_COMPLETION", sourceId: `wo2-${fixture.stamp}`, date: new Date(), description: "Belt replaced", amount: 20, actor: { userId: fixture.ownerId } });
     await prisma.$transaction((tx) => reverseJournalEntry(tx, { companyId: fixture.companyId, entryId: reversed.entryId!, actorId: fixture.ownerId, actorRole: "SUPERADMIN", reason: "Wrong job" }));
     await voidMoney({ companyId: fixture.companyId, sourceType: "MAINTENANCE_COMPLETION", sourceId: `wo-${fixture.stamp}`, reason: "Never done", actor: { companyId: fixture.companyId, userId: fixture.ownerId, role: "SUPERADMIN" } });
 
-    const view = (tab: "reversed" | "voided" | "posted") => readJournals(prisma, fixture.companyId, { tab, q: "", page: 1 });
+    // P5a: the board's tabs are All, Drafts, To approve, Posted, Reversed; a void reads under Reversed.
+    const view = (tab: "reversed" | "posted") => readJournals(prisma, fixture.companyId, { tab, q: "", sort: "newest", source: "", page: 1 });
     const reversedTab = await view("reversed");
     expect(reversedTab.rows.map((row) => row.id)).toContain(reversed.entryId);
-    expect(reversedTab.rows.every((row) => row.state === "reversed")).toBe(true);
-    const voidedTab = await view("voided");
-    expect(voidedTab.rows.map((row) => row.id)).toContain(result.entryId);
-    expect(voidedTab.rows.some((row) => row.memo.startsWith("Void: "))).toBe(true);
-    expect(voidedTab.counts.voided).toBeGreaterThanOrEqual(2);
+    expect(reversedTab.rows.map((row) => row.id)).toContain(result.entryId);
+    expect(reversedTab.rows.every((row) => row.state === "reversed" || row.state === "voided")).toBe(true);
+    expect(reversedTab.rows.some((row) => row.memo.startsWith("Void: "))).toBe(true);
+    expect(reversedTab.counts.reversed).toBeGreaterThanOrEqual(2);
     const postedTab = await view("posted");
     expect(postedTab.rows.map((row) => row.id)).not.toContain(result.entryId);
     expect(postedTab.rows.map((row) => row.id)).not.toContain(reversed.entryId);
