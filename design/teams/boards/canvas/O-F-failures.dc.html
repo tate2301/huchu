@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<title>What goes wrong when Vane reads a document</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="ds/corelith-workspace/components/bundle.css">
+<link rel="stylesheet" href="icons.css">
+<link rel="stylesheet" href="icons-ob.css">
+<link rel="stylesheet" href="teams.css">
+<link rel="stylesheet" href="onboarding.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=IBM+Plex+Mono:wght@400;500&amp;display=swap">
+<style>body{margin:0;background:#ffffff}</style>
+</helmet>
+<div class="cx" data-theme="corelith" style="width: 1440px; min-height: 900px; background: var(--surface)">
+<div class="ob-fail">
+  <div class="ob-fail__c"><div class="ob-fail__n">Pages Vane couldn't read</div><div class="ob-fail__f"><div class="ob-docrow"><span class="ob-docmark"><span class="i i-doc i-sm"></span></span><div style="min-width: 0"><div class="ob-docrow__t">Kuda Interiors company profile 2026.pdf</div><div class="ob-docrow__s">Read 10 of 12 pages</div></div><span></span></div><div class="notice notice--warn"><span class="i i-alert"></span><div><div class="notice__t">Pages 7 and 8 are too blurred to read</div><div class="notice__b"></div></div></div><div><button class="btn" type="button"><span class="i i-camera"></span>Photograph them on your phone</button></div></div></div>
+  <div class="ob-fail__c"><div class="ob-fail__n">The PDF has a password</div><div class="ob-fail__f"><div class="ob-docrow"><span class="lk__mark"><span class="i i-lock"></span></span><div style="min-width: 0"><div class="ob-docrow__t">Kuda Interiors company profile 2026.pdf</div><div class="ob-docrow__s">Locked with a password</div></div><span></span></div><label class="cx-field" style="margin: 0"><span class="cx-label">Password for this PDF</span><span class="ob-input" style="flex: none">••••••••••</span><span class="cx-hint"></span></label><div><button class="btn" type="button"><span class="i i-lock"></span>Open and read it<span class="kbd">Enter</span></button></div></div></div>
+  <div class="ob-fail__c"><div class="ob-fail__n">Too large to read</div><div class="ob-fail__f"><div class="ob-docrow"><span class="ob-docmark"><span class="i i-doc i-sm"></span></span><div style="min-width: 0"><div class="ob-docrow__t">Kuda Interiors portfolio 2026.pdf</div><div class="ob-docrow__s">86 MB · limit 25 MB</div></div><span></span></div><div style="color: var(--ink-2); line-height: 1.5"></div><div><button class="btn" type="button"><span class="i i-upload"></span>Choose a smaller copy</button></div></div></div>
+  <div class="ob-fail__c"><div class="ob-fail__n">It names another business</div><div class="ob-fail__f"><div class="vc vc--issue" style="box-shadow: none; padding: 0"><div class="vc__k"><span class="i i-alert"></span>Vane stopped at page 1</div><div class="vc__h">This profile is for Kuda Designs (Private) Limited in Bulawayo</div></div><div><button class="btn" type="button"><span class="i i-check"></span>It's ours, keep reading</button></div></div></div>
+  <div class="ob-fail__c"><div class="ob-fail__n">The same document twice</div><div class="ob-fail__f"><div class="ob-docrow"><span class="ob-docmark"><span class="i i-doc i-sm"></span></span><div style="min-width: 0"><div class="ob-docrow__t">Kuda Interiors company profile 2026 (1).pdf</div><div class="ob-docrow__s">The same 12 pages you added at 08:14</div></div><span></span></div><div style="color: var(--ink-2); line-height: 1.5">Already read · 35 kept</div><div><button class="btn" type="button"><span class="i i-eye"></span>See what you kept</button></div></div></div>
+  <div class="ob-fail__c"><div class="ob-fail__n">Vane can't read right now</div><div class="ob-fail__f"><div class="ob-progress"><div class="ob-progress__row"><span class="strong">Stopped at page 4 of 12</span></div><div class="ob-bar"><i style="width: 33%; background: var(--faint)"></i></div></div><div style="color: var(--ink-2); line-height: 1.5">Paused at 08:16</div><div><button class="btn" type="button">Carry on to your clients<span class="kbd">Ctrl Enter</span></button></div></div></div>
+  <div class="ob-fail__c"><div class="ob-fail__n">Over Vane's allowance</div><div class="ob-fail__f"><div style="display: flex; align-items: center; gap: var(--s2)"><span class="i i-pause" style="color: var(--ink-3)"></span><span class="strong">Reading paused</span></div><div><button class="btn" type="button"><span class="i i-card"></span>Choose a plan</button></div></div></div>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

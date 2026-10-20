@@ -1,0 +1,128 @@
+/* Tender till, T2–T5: account sale, refund with a manager, layby on a PC, History. Every class starts posb-.
+   Loaded after pos.css; changes nothing in it. */
+
+/* Till 2: a Windows PC, the till in a browser window filling the screen */
+.posb-pc { width: 1440px; height: 900px; background: #e7e2dc; display: flex; flex-direction: column; overflow: hidden; }
+.posb-tabs { height: 40px; flex: none; display: flex; align-items: flex-end; gap: 6px; padding: 0 0 0 10px; }
+.posb-tab { height: 32px; width: 250px; box-sizing: border-box; border-radius: 10px 10px 0 0; background: var(--surface); display: flex; align-items: center; gap: 8px; padding: 0 10px; color: var(--ink); font-size: 13px; }
+.posb-tab .pos-mark { width: 18px; height: 18px; border-radius: 5px; }
+.posb-tab .pos-mark svg { width: 11px; height: 11px; }
+.posb-tab > span:nth-child(2) { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.posb-tab .i { width: 12px; height: 12px; color: var(--ink-3); }
+.posb-tabs__new { height: 32px; width: 32px; display: inline-flex; align-items: center; justify-content: center; color: var(--ink-3); }
+.posb-tabs__new .i { width: 14px; height: 14px; }
+.posb-win { align-self: stretch; display: flex; }
+.posb-win .i { width: 46px; height: 40px; -webkit-mask-size: 14px; mask-size: 14px; color: var(--ink-2); }
+.posb-addr { height: 44px; flex: none; background: var(--surface); display: flex; align-items: center; gap: 4px; padding: 0 12px; border-bottom: 1px solid var(--line); color: var(--ink-3); }
+.posb-addr > .i { width: 32px; height: 32px; -webkit-mask-size: 18px; mask-size: 18px; }
+.posb-url { flex: 1; height: 32px; margin: 0 8px; border-radius: 99px; background: var(--tray); display: flex; align-items: center; gap: 8px; padding: 0 14px; color: var(--ink-2); font-size: 14px; }
+.posb-url .i { width: 13px; height: 13px; color: var(--ink-3); }
+.pos-scr.posb-scr { width: 1440px; height: 816px; border-radius: 0; flex: none; }
+
+/* the customer's account on the sale */
+.posb-acct { flex: none; height: 52px; display: flex; align-items: center; gap: 10px; padding: 0 24px; border-bottom: 1px solid var(--line); background: var(--surface); color: var(--ink); font-size: 15px; font-weight: 500; }
+.posb-acct .i { width: 20px; height: 20px; color: var(--ink-3); }
+.posb-acct__m { color: var(--ink-3); font-weight: 400; }
+.posb-acct__k { color: var(--ink-3); font-weight: 400; }
+.posb-acct .pos-m { font-size: 16px; }
+
+/* customer picker */
+.posb-clist { display: flex; flex-direction: column; gap: 8px; }
+.posb-crow { border-radius: 18px; box-shadow: inset 0 0 0 1px var(--line); padding: 12px 16px; display: grid; grid-template-columns: 52px minmax(0, 1fr) auto; gap: 14px; align-items: center; }
+.posb-crow--on { box-shadow: inset 0 0 0 2px var(--ink); }
+.posb-crow__v { font-size: 16px; color: var(--ink); white-space: nowrap; }
+.posb-crow__k { color: var(--ink-3); font-size: 14px; }
+.pos-input .i { width: 22px; height: 22px; color: var(--ink-3); }
+
+/* six tenders when the shop sells on account */
+.posb-tenders6 { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+.posb-tenders6 .pos-tender { font-size: 12px; text-align: center; line-height: 1.15; }
+
+/* what the account owes, before and after */
+.posb-owes { grid-column: 1 / -1; border-radius: 12px; background: var(--ground); padding: 12px 14px; display: grid; grid-template-columns: 1fr auto 1fr; gap: 10px; align-items: center; }
+.posb-owes > .i { width: 18px; height: 18px; color: var(--ink-3); }
+.posb-owes > div:last-child { text-align: right; }
+.posb-owes__k { color: var(--ink-3); font-size: 13px; }
+.posb-owes__v { font-family: var(--font-mono); font-size: 19px; color: var(--ink-2); margin-top: 2px; }
+.posb-owes__v--to { color: var(--ink); font-size: 22px; }
+
+/* History */
+.posb-h1__m { color: var(--ink-3); font-size: 15px; }
+.posb-hlist { display: flex; flex-direction: column; gap: 6px; min-height: 0; overflow: hidden; }
+.posb-hrow { flex: none; min-height: 62px; box-sizing: border-box; border-radius: 16px; background: var(--surface); box-shadow: inset 0 0 0 1px var(--line); padding: 8px 18px 8px 10px; display: grid; grid-template-columns: 44px minmax(0, 1fr) auto; gap: 14px; align-items: center; }
+.posb-hrow--on { box-shadow: inset 0 0 0 2px var(--ink); }
+.posb-hrow__g { width: 44px; height: 44px; border-radius: 12px; background: var(--tray); display: inline-flex; align-items: center; justify-content: center; color: var(--ink-2); }
+.posb-hrow__g .i { width: 22px; height: 22px; }
+.posb-hrow__t { color: var(--ink); font-weight: 600; font-size: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: flex; align-items: center; gap: 10px; }
+.posb-hrow__s { color: var(--ink-3); font-size: 13px; margin-top: 2px; }
+.posb-hrow__s .m { font-family: var(--font-mono); }
+.posb-hrow__v { font-family: var(--font-mono); font-size: 17px; color: var(--ink); }
+.posb-tag { height: 24px; padding: 0 9px; border-radius: 99px; background: var(--tray); color: var(--ink-2); font-size: 12px; font-weight: 500; display: inline-flex; align-items: center; }
+
+/* a past sale's record in the sale column */
+.posb-recfacts { flex: none; margin: 0 12px 12px; border-radius: 16px; background: var(--surface); box-shadow: inset 0 0 0 1px var(--line); }
+.posb-act2 { grid-template-columns: minmax(0, 1fr) minmax(0, 1.5fr); }
+.posb-act2 .pos-btn { height: 72px; border-radius: 18px; justify-content: center; font-size: 18px; }
+.posb-act2 .pos-btn .i { width: 22px; height: 22px; color: var(--ink-2); }
+.posb-act2 .pos-take .i { width: 24px; height: 24px; }
+.pos-take .i { width: 24px; height: 24px; }
+.posb-btn--down { background: var(--active); transform: scale(0.97); }
+
+/* refund: which lines, and why */
+.posb-rlines { display: flex; flex-direction: column; gap: 6px; }
+.posb-rline { box-shadow: inset 0 0 0 1px var(--line); background: var(--surface); }
+.posb-rline.pos-line--on { box-shadow: inset 0 0 0 2px var(--ink); }
+.posb-rline--none .pos-line__t, .posb-rline--none .pos-line__v { color: var(--ink-3); }
+.posb-off { opacity: 0.35; }
+.posb-label { color: var(--ink-3); font-size: 14px; font-weight: 500; margin-top: 6px; }
+
+/* a manager approves: who, ask on the phone, or the PIN here */
+.pos-sheet.posb-appr { width: 560px; gap: 16px; }
+.posb-whos { display: flex; gap: 8px; }
+.posb-who { flex: 1; height: 60px; border-radius: 16px; box-shadow: inset 0 0 0 1px var(--line-strong); display: flex; align-items: center; gap: 12px; padding: 0 14px; }
+.posb-who img { width: 36px; height: 36px; border-radius: 99px; object-fit: cover; }
+.posb-who > span { display: flex; flex-direction: column; }
+.posb-who__n { color: var(--ink); font-weight: 600; font-size: 16px; }
+.posb-who__r { color: var(--ink-3); font-size: 13px; }
+.posb-who--on { box-shadow: inset 0 0 0 2px var(--ink); }
+.posb-ask { min-height: 68px; box-sizing: border-box; border-radius: 16px; background: var(--ground); padding: 10px 14px; display: grid; grid-template-columns: 40px minmax(0, 1fr) auto; gap: 12px; align-items: center; }
+.posb-ask__g { width: 40px; height: 40px; border-radius: 99px; background: var(--surface); color: var(--ink-2); display: inline-flex; align-items: center; justify-content: center; }
+.posb-ask__g .i { width: 20px; height: 20px; }
+.posb-ask:not(.posb-ask--ok) .posb-ask__g .i { animation: posbTurn 1.6s var(--ease-out) infinite; }
+.posb-ask__t { color: var(--ink); font-weight: 600; font-size: 16px; }
+.posb-ask__s { color: var(--ink-3); font-size: 13px; margin-top: 2px; }
+.posb-ask--ok { background: var(--ok-soft); }
+.posb-ask--ok .posb-ask__g { background: var(--surface); color: var(--ok); animation: posPop 320ms var(--ease-out) both; }
+.posb-pin { display: flex; align-items: center; gap: 16px; padding: 4px 2px 0; }
+.posb-dots { display: flex; gap: 14px; margin-left: auto; }
+.posb-dots i { width: 16px; height: 16px; border-radius: 99px; box-shadow: inset 0 0 0 2px var(--line-strong); }
+.posb-dots i.on { background: var(--ink); box-shadow: none; }
+.pos-sheet .pos-keys { padding: 0; }
+.posb-key--blank { visibility: hidden; }
+.posb-dim { opacity: 0.35; }
+@keyframes posbTurn { 0%, 40% { transform: none; } 60%, 100% { transform: rotate(180deg); } }
+
+/* the ask on Tendai's phone */
+.posb-pask { margin-top: var(--s2); padding: 14px; border-radius: 14px; box-shadow: inset 0 0 0 1px var(--line-strong); background: var(--surface); display: flex; flex-direction: column; gap: 10px; }
+.posb-pask__l { display: flex; gap: 8px; color: var(--ink); font-size: 15px; }
+.posb-pask__l .pos-m { color: var(--ink-3); }
+.posb-pask__kv { display: grid; grid-template-columns: 76px minmax(0, 1fr); row-gap: 4px; margin: 0; font-size: 14px; }
+.posb-pask__kv dt { color: var(--ink-3); }
+.posb-pask__kv dd { margin: 0; color: var(--ink); }
+
+/* layby */
+.posb-pays { flex: none; margin: 4px 12px 0; border-radius: 16px; box-shadow: inset 0 0 0 1px var(--line); background: var(--surface); }
+.posb-pay { display: grid; grid-template-columns: 72px minmax(0, 1fr) auto; gap: 10px; align-items: center; min-height: 48px; padding: 0 16px; border-bottom: 1px solid var(--line); font-size: 15px; color: var(--ink); }
+.posb-pay:last-child { border-bottom: 0; }
+.posb-pay .pos-m:first-child { color: var(--ink-3); font-size: 14px; }
+.posb-left { flex: none; margin: 12px 12px 0; border-radius: 16px; background: var(--surface); box-shadow: inset 0 0 0 1px var(--line); padding: 14px 16px; display: flex; justify-content: space-between; }
+.posb-row__k { color: var(--ink-3); font-family: var(--font-sans); font-size: 14px; }
+.posb-bar { align-self: stretch; height: 10px; border-radius: 99px; background: var(--tray); margin-top: 22px; overflow: hidden; }
+.posb-bar i { display: block; height: 100%; border-radius: 99px; background: var(--ink); }
+
+@media (prefers-reduced-motion: reduce) { .posb-ask__g .i, .posb-ask--ok .posb-ask__g { animation: none; } }
+
+/* History keeps to the screen: the list scrolls, the record column holds its keys */
+.posb-hist { min-height: 0; overflow: hidden; }
+.pos-body > .pos-sale { min-height: 0; }
+.pos-body { grid-template-rows: minmax(0, 1fr); }

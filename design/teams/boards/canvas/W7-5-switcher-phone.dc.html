@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<title>Workspace switcher on a phone</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="ds/corelith-workspace/components/bundle.css">
+<link rel="stylesheet" href="icons.css">
+<link rel="stylesheet" href="icons-tl.css">
+<link rel="stylesheet" href="icons-ob.css">
+<link rel="stylesheet" href="teams.css">
+<link rel="stylesheet" href="timeline.css">
+<link rel="stylesheet" href="onboarding.css">
+<link rel="stylesheet" href="w7.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=IBM+Plex+Mono:wght@400;500&amp;display=swap">
+<style>body{margin:0;background:#ffffff}</style>
+</helmet>
+<div class="cx phone" data-theme="corelith" style="position: relative">
+  <div class="pbar" style="padding-left: var(--s3)">
+    <button class="ws" type="button" style="margin: 0; padding: 4px 8px; flex-direction: row" aria-expanded="true"><span class="ws__row"><span class="wsmark" style="width: 28px; height: 28px; background: var(--surface); box-shadow: var(--shadow-ring)"><img src="/_blob/5cb94a92544c012adfc9f737955a54ca" alt="Corelith" width="17" height="19"></span><span class="ws__name">Corelith</span><span class="i i-caret-down i-sm" style="color: var(--faint)"></span></span></button>
+    <span class="spacer"></span>
+    <button class="ibtn" type="button" aria-label="Search" style="width: 44px; height: 44px"><span class="i i-search"></span></button>
+  </div>
+  <div class="pbody" style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--s3)">
+    <span class="rh__mark" style="width: 56px; height: 56px; border-radius: 16px"><span class="i i-jobs i-lg"></span></span>
+    <div class="strong" style="font-size: var(--t-h3)">None yours yet</div>
+  </div>
+  <nav class="tabbar" aria-label="Pabasa">
+    <a href="#"><span class="i i-house"></span>For you</a>
+    <a href="#" aria-current="page"><span class="i i-jobs"></span>Deals</a>
+    <a href="#"><span class="i i-pin"></span>Visits</a>
+    <a href="#"><span class="i i-bell"></span>Notifications</a>
+    <a href="#"><span class="i i-more"></span>More</a>
+  </nav>
+  <div class="w7-scrim"></div>
+  <div class="w7-sheet" role="dialog" aria-label="Workspaces">
+    <div class="w7-sheet__grip"></div>
+    <div class="w7-sw__ws is-on" style="min-height: 56px"><span class="wsmark" style="width: 40px; height: 40px; background: var(--surface); box-shadow: var(--shadow-ring)"><img src="/_blob/5cb94a92544c012adfc9f737955a54ca" alt="Corelith" width="23" height="26"></span><div style="min-width: 0"><div class="w7-sw__n">Corelith</div><div class="w7-sw__s"><svg class="w7-pmark" width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="2" width="20" height="20" rx="6" fill="#26251f"/><path d="M8 17V7h5a3.2 3.2 0 0 1 0 6.4H8" stroke="#fff" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>Pabasa · field worker</div></div><span class="i i-check" style="color: var(--ink)"></span></div>
+    <div class="w7-sw__ws" style="min-height: 56px"><span class="wsmark" style="width: 40px; height: 40px; background: #6b3fa0; border-radius: 8px"><svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path fill="#fff" d="M12 3l3.2 6.5L22 12l-6.8 2.5L12 21l-3.2-6.5L2 12l6.8-2.5z"/></svg></span><div style="min-width: 0"><div class="w7-sw__n">Mhlanga Events</div><div class="w7-sw__s"><svg class="w7-pmark" width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="2" width="20" height="20" rx="6" fill="#26251f"/><path d="M8 17V7h5a3.2 3.2 0 0 1 0 6.4H8" stroke="#fff" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>Pabasa · owner</div></div><span class="w7-count">5</span></div>
+    <div class="w7-sw__sep" style="margin: 6px -12px"></div>
+    <div class="w7-sw__i" style="height: 48px"><span class="i i-plus"></span>New workspace</div>
+    <div class="w7-sw__i" style="height: 48px"><span class="face face-24"><span class="i i-person i-sm"></span></span>Tariro Mhlanga<span class="i i-caret-right i-sm" style="margin-left: auto; color: var(--faint)"></span></div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<title>Kit, members and setup</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="ds/corelith-workspace/components/bundle.css">
+<link rel="stylesheet" href="icons.css">
+<link rel="stylesheet" href="teams.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=IBM+Plex+Mono:wght@400;500&amp;display=swap">
+<style>body{margin:0;background:#ffffff}
+.k{padding:var(--s6) var(--s7);display:flex;flex-direction:column;gap:var(--s7)}
+.k-sec{display:grid;grid-template-columns:260px minmax(0,1fr);gap:var(--s6)}
+.k-sec h2{margin:0;color:var(--ink);font-size:var(--t-h3);font-weight:600}
+.k-sec>div:first-child p{margin:6px 0 0;color:var(--ink-3)}
+.k-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--s5) var(--s6)}
+.k-cell{display:flex;flex-direction:column;gap:var(--s2);min-width:0}
+.k-name{color:var(--ink-3);font-size:var(--t-cap);font-weight:500}
+.k-frame{padding:var(--s3) var(--s4);border-radius:12px;box-shadow:inset 0 0 0 1px var(--line);background:var(--surface)}
+</style>
+</helmet>
+<div class="cx k" data-theme="tender" style="width: 1440px; min-height: 1760px; box-sizing: border-box">
+
+  <section class="k-sec">
+    <div><h2>Seats</h2></div>
+    <div class="k-grid">
+      <div class="k-cell"><span class="k-name">Seats free</span><div class="k-frame seats"><span class="meter"><i class="used"></i><i class="used"></i><i class="used"></i><i></i><i></i></span><span class="seats__t">3 of 5 seats used</span></div></div>
+      <div class="k-cell"><span class="k-name">Last seat</span><div class="k-frame seats"><span class="meter"><i class="used"></i><i class="used"></i><i class="used"></i><i class="used"></i><i></i></span><span class="seats__t">4 of 5 seats used</span></div></div>
+      <div class="k-cell"><span class="k-name">Full, seen by the owner</span><div class="k-frame" style="display: flex; align-items: center; gap: var(--s3)"><div style="flex: 1"><div class="strong">All 5 seats are taken</div></div><button class="btn btn--primary" type="button"><span class="i i-user-plus"></span>Add a sixth member</button></div></div>
+      <div class="k-cell"><span class="k-name">Full, seen by an admin</span><div class="k-frame" style="display: flex; align-items: center; gap: var(--s3)"><div style="flex: 1"><div class="strong">All 5 seats are taken</div><div class="muted">Only Nyasha can add more</div></div><button class="btn" type="button"><img class="face face-20" src="/_blob/0964fc98daf159e133baa301d8314c40" alt="">Ask Nyasha</button></div></div>
+    </div>
+  </section>
+
+  <section class="k-sec">
+    <div><h2>Inviting</h2></div>
+    <div class="k-grid">
+      <div class="k-cell"><span class="k-name">The invite, with a seat left</span>
+        <div class="k-frame" style="display: flex; flex-direction: column; gap: var(--s3); box-shadow: var(--shadow-float)">
+          <div class="strong" style="font-size: var(--t-lead)">Invite someone to Mufaro Hardware</div>
+          <label class="cx-field"><span class="cx-label">Email or phone number</span><input class="cx-input" value="+263 77 412 0938" aria-label="Email or phone number"></label>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--s3)"><label class="cx-field"><span class="cx-label">Role</span><span class="select" style="height: 36px">Cashier<span class="i i-caret-down"></span></span></label><label class="cx-field"><span class="cx-label">Shop</span><span class="select" style="height: 36px">Mufaro Hardware<span class="i i-caret-down"></span></span></label></div>
+          <div style="display: flex; align-items: center; gap: var(--s3)"><span class="seats"><span class="meter"><i class="used"></i><i class="used"></i><i class="used"></i><i class="used"></i><i></i></span></span><span class="spacer"></span><button class="btn btn--primary" type="button"><span class="mark-wa" style="filter: brightness(0) invert(1)"></span>Send on WhatsApp</button></div>
+        </div>
+      </div>
+      <div class="k-cell"><span class="k-name">Already a member</span>
+        <div class="k-frame" style="display: flex; flex-direction: column; gap: var(--s3)">
+          <label class="cx-field"><span class="cx-label">Email or phone number</span><input class="cx-input" value="+263 71 300 4471" aria-label="Email or phone number" style="border-color: var(--bad)"><span class="cx-hint" style="color: var(--bad)">That's Tendai Chari, already a shop manager here. <a class="u" href="#">Open Tendai</a></span></label>
+        </div>
+        <span class="k-name" style="margin-top: var(--s3)">Not delivered</span>
+        <div class="k-frame mrow" style="grid-template-columns: minmax(0, 1fr) auto; min-height: 56px; padding: 0 var(--s4)"><div class="mrow__who"><span class="face face-32"><span class="i i-person"></span></span><div><div class="mrow__name">Kudzai Ncube</div><div class="mrow__sub" style="color: var(--bad)">WhatsApp couldn't deliver to +263 77 412 0938</div></div></div><div class="group"><button class="btn" type="button"><span class="i i-mail"></span>Send by email</button></div></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="k-sec">
+    <div><h2>A member's state</h2></div>
+    <div class="k-grid">
+      <div class="k-cell"><span class="k-name">Never signed in</span><div class="k-frame mrow" style="grid-template-columns: minmax(0, 1fr) auto; min-height: 56px; padding: 0 var(--s4)"><div class="mrow__who"><span class="face face-32"><span class="i i-person"></span></span><div><div class="mrow__name">Farai Chikwanha</div><div class="mrow__sub">Field worker · joined 9 Oct</div></div></div><span class="state state--calm">Never signed in</span></div></div>
+      <div class="k-cell"><span class="k-name">Suspended</span><div class="k-frame mrow" style="grid-template-columns: minmax(0, 1fr) auto; min-height: 56px; padding: 0 var(--s4)"><div class="mrow__who"><img class="face face-32" src="/_blob/81c03dae91fdd18d1f0b59aa98e43ca4" alt="" style="opacity: 0.5"><div><div class="mrow__name">Blessing Dube</div><div class="mrow__sub">Stock clerk · on leave, seat freed today</div></div></div><button class="btn" type="button"><span class="i i-undo"></span>Restore</button></div></div>
+      <div class="k-cell"><span class="k-name">Read-only, over the limit</span><div class="k-frame mrow" style="grid-template-columns: minmax(0, 1fr) auto; min-height: 56px; padding: 0 var(--s4)"><div class="mrow__who"><img class="face face-32" src="/_blob/2a4a6d8df97c5df72897686f73d1d6c2" alt=""><div><div class="mrow__name">Rumbidzai Moyo</div><div class="mrow__sub">Joined last, after the trial ended</div></div></div><span class="state state--warn">Read-only</span></div></div>
+      <div class="k-cell"><span class="k-name">Removed, on a sale she rang up</span><div class="k-frame"><div class="ev"><span class="ev__g"><span class="i i-till"></span></span><div class="ev__line"><b>Rumbidzai Moyo</b> <span class="muted">(no longer a member)</span> sold S-10482 on Till 1</div><span class="ev__time">19 Oct</span></div></div></div>
+    </div>
+  </section>
+
+  <section class="k-sec">
+    <div><h2>Permissions</h2></div>
+    <div class="k-grid">
+      <div class="k-cell"><span class="k-name">Role default, allowed, denied</span><div class="k-frame">
+        <div class="prow" style="padding-top: 0"><div class="prow__t">Give a refund</div><div class="tri"><button class="is-default" aria-pressed="true">Role default: no</button><button aria-pressed="false">Allowed</button><button aria-pressed="false">Denied</button></div></div>
+        <div class="prow"><div class="prow__t">Change a price</div><div class="tri"><button class="is-default" aria-pressed="false">Role default: no</button><button aria-pressed="true">Allowed</button><button aria-pressed="false">Denied</button></div></div>
+        <div class="prow" style="border-bottom: 0; padding-bottom: 0"><div class="prow__t">Void a sale</div><div class="tri"><button class="is-default" aria-pressed="false">Role default: yes</button><button aria-pressed="false">Allowed</button><button aria-pressed="true">Denied</button></div></div>
+      </div></div>
+      <div class="k-cell"><span class="k-name">A limit, where the work is</span><div class="k-frame notice notice--warn" style="box-shadow: none"><span class="i i-lock"></span><div style="flex: 1"><div class="notice__t">Refunds over US$50 need a shop manager</div><div class="notice__b">This one is US$86.00</div></div><button class="btn" type="button" style="background: var(--surface)"><img class="face face-20" src="/_blob/345dc2679a89a59a8684aa172b4f45d3" alt="">Ask Tendai</button></div></div>
+    </div>
+  </section>
+
+  <section class="k-sec">
+    <div><h2>Joining</h2></div>
+    <div class="k-grid">
+      <div class="k-cell"><span class="k-name">The invite</span><div class="k-frame" style="display: flex; flex-direction: column; align-items: center; gap: var(--s3); padding: var(--s5); text-align: center"><span class="wsmark wsmark-40" style="background: #b84a0c"><svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><path fill="#fff" d="M3 20V5l5 6 4-6 4 6 5-6v15h-4v-7l-5 6-5-6v7z"/></svg></span><div class="strong" style="font-size: var(--t-h3)">Nyasha invited you to Mufaro Hardware</div><div class="muted">Cashier · till PIN</div><button class="btn btn--primary btn--lg" type="button"><span class="i i-check"></span>Join Mufaro Hardware</button></div></div>
+      <div class="k-cell"><span class="k-name">Expired, full, or for someone else</span><div class="k-frame" style="display: flex; flex-direction: column; gap: var(--s3)">
+        <div style="display: flex; align-items: center; gap: var(--s3)"><span class="i i-wait" style="color: var(--ink-3)"></span><div style="flex: 1"><div class="strong">This invite expired on 24 October</div></div><button class="btn" type="button">Ask Nyasha for a new one</button></div>
+        <div style="display: flex; align-items: center; gap: var(--s3)"><span class="i i-clients" style="color: var(--ink-3)"></span><div style="flex: 1"><div class="strong">Mufaro Hardware is full</div></div><button class="btn" type="button">Ask Nyasha</button></div>
+        <div style="display: flex; align-items: center; gap: var(--s3)"><span class="i i-person" style="color: var(--ink-3)"></span><div style="flex: 1"><div class="strong">This invite is for k.ncube@gmail.com</div><div class="muted">You're signed in as kudzai@mufarohardware.co.zw</div></div><button class="btn" type="button"><span class="i i-handover"></span>Sign out and continue</button></div>
+      </div></div>
+    </div>
+  </section>
+
+  <section class="k-sec">
+    <div><h2>Setup items</h2></div>
+    <div class="k-grid">
+      <div class="k-cell"><span class="k-name">Open, done, skipped</span><div class="check">
+        <div class="ci"><span class="ci__mark"></span><div><div class="ci__t">Staff</div></div><button class="btn" type="button"><span class="i i-user-plus"></span>Add staff</button></div>
+        <div class="ci ci--done"><span class="ci__mark"><span class="i i-check i-sm"></span></span><div><div class="ci__t">Tills</div><div class="ci__s">Till 1 on a Counter Mini · Till 2 on this computer</div></div><span></span></div>
+        <div class="ci"><span class="ci__mark" style="box-shadow: inset 0 0 0 1.5px var(--line-strong); background: var(--tray)"></span><div><div class="ci__t">A practice sale</div><div class="ci__s">Skipped</div></div><button class="btn btn--quiet" type="button">Try it</button></div>
+      </div></div>
+      <div class="k-cell"><span class="k-name">Waiting on ZIMRA, and needs fixing</span><div class="check">
+        <div class="ci ci--wait"><span class="ci__mark"></span><div><div class="ci__t">Fiscal receipts</div><div class="ci__s">Device 21457 · checking</div></div><button class="btn" type="button"><span class="i i-undo"></span>Check again</button></div>
+        <div class="ci"><span class="ci__mark" style="box-shadow: none; background: var(--bad)"><span class="i i-x i-sm"></span></span><div><div class="ci__t">Fiscal receipts</div><div class="ci__s" style="color: var(--bad)">ZIMRA says the activation key doesn't match device 21457</div></div><button class="btn" type="button"><span class="i i-pencil"></span>Fix the key</button></div>
+      </div></div>
+    </div>
+  </section>
+
+  <section class="k-sec">
+    <div><h2>Ownership</h2></div>
+    <div class="k-grid">
+      <div class="k-cell"><span class="k-name">The offer, in Needs you</span><div class="k-frame irow" style="padding: var(--s3) var(--s4); border: 0"><img class="face" src="/_blob/0964fc98daf159e133baa301d8314c40" alt=""><div><div class="irow__t"><b>Nyasha Mlambo</b> offered you ownership of <b>Mufaro Hardware</b></div><div class="irow__m">Billing moves to you · open until 26 Oct</div><div class="irow__acts"><button class="btn" type="button"><span class="i i-crown"></span>Become the owner</button><button class="btn btn--quiet" type="button">Decline</button></div></div></div></div>
+      <div class="k-cell"><span class="k-name">Asked twice</span><div class="k-frame" style="display: flex; flex-direction: column; gap: var(--s3); box-shadow: var(--shadow-float)"><div class="strong" style="font-size: var(--t-lead)">Become the owner of Mufaro Hardware?</div><div class="muted">On the bill from 28 Oct</div><div style="display: flex; justify-content: flex-end; gap: var(--s2)"><button class="btn" type="button">Not yet</button><button class="btn btn--primary" type="button"><span class="i i-crown"></span>Become the owner</button></div></div></div>
+    </div>
+  </section>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1760}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>
