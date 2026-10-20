@@ -6,18 +6,15 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { BooksError, BooksLoading } from "@/components/books/books-state";
 import { BooksPage } from "@/components/books/figures";
-import { InvoiceDeleteDialog, ReverseDrawer, type InvoiceDeleted, type InvoiceReversed } from "@/components/books/invoice-actions";
 import { BkInvoiceView } from "@/components/books/bk-invoice-view";
 import { CreditDrawer, type CreditTarget } from "@/components/books/bk-credit-drawer";
-import { ReviseDialog } from "@/components/books/revise-dialog";
+import { useUndoMenu } from "@/components/books/undo-dialogs";
 import { Button, ButtonGroup, ButtonLink, Empty, Kit } from "@/components/core";
 import { MenuButton, type MenuEntry } from "@/components/core/menu";
 import { PageChrome, type PageMenuItem } from "@/components/layout/page-chrome";
 import { useToast } from "@/components/ui/use-toast";
 import { ApiError, fetchJson, getApiErrorMessage } from "@/lib/api-client";
-import { money } from "@/lib/books/format";
 import type { InvoiceRecordPage } from "@/lib/books/invoice-record";
-import { fiscalNote } from "@/lib/books/reversal";
 
 /**
  * One invoice in Books (design/core-modules/boards/view/BkInvoice.html). A
@@ -25,9 +22,10 @@ import { fiscalNote } from "@/lib/books/reversal";
  * Nothing is sent or posted until a person presses Issue. On Vane's draft
  * nobody has taken on, Issue is the person confirming it as theirs
  * (`asMine`): the server refuses it without that (409). Once issued: Record
- * a payment (R), Send a reminder, and ⋯ with Credit note, Write off, Revise
- * (P4), Void and Delete, each offered as `canDo` allows; the server refuses
- * on its own.
+ * a payment (R), Send a reminder, and ⋯ with Credit note and Write off as
+ * `canDo` allows, then Revise, Void and Delete permanently as the core's
+ * `undoChoices` says (BkVoidDialog, BkReviseDialog, BkDeleteDialog): faint,
+ * with the reason on hover, when not allowed. The server refuses on its own.
  */
 export default function BooksInvoicePage() {
   const params = useParams<{ id: string }>();
@@ -35,9 +33,6 @@ export default function BooksInvoicePage() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const { toast } = useToast();
-  const [deleting, setDeleting] = React.useState(false);
-  const [reversing, setReversing] = React.useState(false);
-  const [revising, setRevising] = React.useState(false);
   const [crediting, setCrediting] = React.useState<"credit" | "write-off" | null>(null);
 
   const invoice = useQuery({
@@ -65,45 +60,35 @@ export default function BooksInvoicePage() {
     onError: (error) => toast({ title: "It was not issued", description: getApiErrorMessage(error, "Check the connection and try again."), variant: "destructive" }),
   });
 
-  // Reverse from a row's menu in Invoices opens here with the drawer open.
+  // `?do=void|revise|delete` opens that dialog (a list's row menu, the bulk result); the old `?reverse=1` opens Void.
+  const [initial, setInitial] = React.useState<string | null>(null);
   React.useEffect(() => {
-    if (!record?.can.reverse) return;
     const params = new URLSearchParams(window.location.search);
-    if (params.get("reverse") !== "1") return;
-    setReversing(true);
-    params.delete("reverse");
-    const rest = params.toString();
-    window.history.replaceState(null, "", `${window.location.pathname}${rest ? `?${rest}` : ""}`);
-  }, [record?.can.reverse]);
+    setInitial(params.get("do") ?? (params.get("reverse") === "1" ? "void" : null));
+  }, []);
 
   const refresh = () => Promise.all([queryClient.invalidateQueries({ queryKey: ["books", "invoice", id] }), queryClient.invalidateQueries({ queryKey: ["books", "invoices"] })]);
 
-  const reversed = async (done: InvoiceReversed) => {
-    const fiscal = done.fiscalised ? ` ${fiscalNote(done.number, done.fiscalSent === true)}` : "";
-    if (done.how === "void") {
-      const paid = done.unlinked.reduce((sum, receipt) => sum + receipt.amount, 0);
-      toast({
-        title: `${done.number} is void`,
-        description: `${paid > 0 ? `The ${money(paid, record?.currency)} paid stays as ${done.customer}'s money on account.` : "Its posting is reversed."}${fiscal}`,
-        variant: "success",
-      });
-    } else {
-      toast({ title: `${done.note} credits ${money(done.total, done.currency)} on ${done.number}`, description: `Posted today.${fiscal}`, variant: "success" });
-    }
-    await refresh();
-  };
-
-  const deleted = async (done: InvoiceDeleted) => {
-    const kept = done.onAccount.map((receipt) => receipt.number);
-    toast({
-      title: `${done.deleted} is deleted`,
-      description: kept.length ? `${kept.join(", ")} ${kept.length === 1 ? "stays" : "stay"} as ${record?.customer.name ?? "the customer"}'s money on account.` : undefined,
-      variant: "success",
-    });
-    await queryClient.invalidateQueries({ queryKey: ["books", "invoices"] });
-    queryClient.removeQueries({ queryKey: ["books", "invoice", id] });
-    router.push(done.draft ? "/books/invoices?view=drafts" : "/books/invoices");
-  };
+  // Void, Revise and Delete permanently, as the core's undoChoices says (P4): faint with the reason when not allowed.
+  const undo = useUndoMenu("invoice", record?.id, {
+    initial,
+    onVoided: async (done) => {
+      toast({ title: `${done.label} is void`, description: done.detail, variant: "success" });
+      await refresh();
+    },
+    onRevised: async (done) => {
+      toast({ title: `${done.label} is void`, description: "The new draft is open: put it right, then issue it. Payments left on account move to it then.", variant: "success" });
+      await queryClient.invalidateQueries({ queryKey: ["books", "invoices"] });
+      router.push(`/books/invoices/${done.draft.id}`);
+    },
+    onDeleted: async (done) => {
+      const wasDraft = record?.status === "DRAFT";
+      toast({ title: `${done.label} is deleted`, description: wasDraft ? undefined : "Payments on it stay on account; its snapshot is in the audit trail.", variant: "success" });
+      await queryClient.invalidateQueries({ queryKey: ["books", "invoices"] });
+      queryClient.removeQueries({ queryKey: ["books", "invoice", id] });
+      router.push(wasDraft ? "/books/invoices?view=drafts" : "/books/invoices");
+    },
+  });
 
   const remind = useMutation({
     mutationFn: () => fetchJson<{ sent: unknown[]; skipped: Array<{ why: string }> }>("/api/books/invoices/reminders", { method: "POST", body: JSON.stringify({ invoiceIds: [id] }) }),
@@ -132,23 +117,9 @@ export default function BooksInvoicePage() {
     menu.push({ key: "statement", icon: "print", label: "Print a statement", onSelect: () => window.open(`/books/statements?customers=${record.customer.id}`, "_blank", "noopener") });
     if (can?.credit) menu.push({ key: "credit", icon: "invoice", label: "Credit note", onSelect: () => setCrediting("credit") });
     if (can?.writeOff) menu.push({ key: "write-off", icon: "retire", label: "Write off", onSelect: () => setCrediting("write-off") });
-    if (record.status !== "VOIDED") {
-      // Void and revise go together (§2.2): the owner, or someone the owner let.
-      menu.push(
-        can?.reverse
-          ? { key: "revise", icon: "edit", label: "Revise", onSelect: () => setRevising(true) }
-          : { key: "revise", icon: "edit", label: "Revise", disabled: true, title: "Only the owner can revise an issued invoice, unless they let you.", onSelect: () => undefined },
-      );
-    }
-    if (can?.reverse) {
-      menu.push({ separator: true });
-      menu.push({ key: "void", icon: "x", danger: true, label: "Void", onSelect: () => setReversing(true) });
-    }
   }
-  if (can?.delete) {
-    if (!menu.some((entry) => "separator" in entry)) menu.push({ separator: true });
-    menu.push({ key: "delete", icon: "x", danger: true, label: draft ? "Delete the draft" : "Delete permanently", onSelect: () => setDeleting(true) });
-  }
+  // Revise, Void and Delete: the core says which this person may press, and why not (rule 12).
+  menu.push(...undo.entries);
 
   // Below 720px the actions fold into ⋯ as menu items, so the menu closes as the drawer or dialog opens.
   const phoneMenu = React.useMemo<PageMenuItem[] | null>(() => {
@@ -156,7 +127,7 @@ export default function BooksInvoicePage() {
     return menu.flatMap((entry) => ("key" in entry && !entry.disabled ? [{ key: entry.key, label: typeof entry.label === "string" ? entry.label : entry.key, danger: entry.danger, onSelect: entry.onSelect }] : []));
     // The menu is rebuilt from the record on every render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [record, can?.credit, can?.writeOff, can?.reverse, can?.delete]);
+  }, [record, can?.credit, can?.writeOff, undo.choices]);
 
   const target: CreditTarget | null = record
     ? {
@@ -225,21 +196,7 @@ export default function BooksInvoicePage() {
       </BooksPage>
       {record ? (
         <>
-          <InvoiceDeleteDialog invoiceId={record.id} number={record.number} open={deleting} onOpenChange={setDeleting} onDeleted={deleted} />
-          <ReviseDialog
-            kind="invoice"
-            id={record.id}
-            number={record.number}
-            noun="invoice"
-            open={revising}
-            onOpenChange={setRevising}
-            onRevised={async (done) => {
-              toast({ title: `${done.label} is void`, description: "The new draft is open: put it right, then issue it.", variant: "success" });
-              await queryClient.invalidateQueries({ queryKey: ["books", "invoices"] });
-              router.push(`/books/invoices/${done.draft.id}`);
-            }}
-          />
-          {record.can.reverse ? <ReverseDrawer record={record} open={reversing} onOpenChange={setReversing} onDone={reversed} /> : null}
+          {undo.node}
           <CreditDrawer
             kind={crediting ?? "credit"}
             target={target}

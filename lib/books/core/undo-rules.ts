@@ -208,7 +208,7 @@ export function voidEffects(facts: Pick<UndoFacts, "kind" | "label" | "fiscalise
   const onAccount = facts.onAccount ?? [];
   const lines: string[] = [];
   if (facts.kind === "invoice") {
-    lines.push(facts.fiscalised ? `A credit note for the rest is issued and signed, citing ${facts.label}` : "A credit note for the rest is issued and posted");
+    lines.push(facts.fiscalised ? `A full credit note is issued and signed, citing ${facts.label}` : "A full credit note is issued and posted");
     if (onAccount.length) lines.push(`${dependentsSentence(onAccount)} ${onAccount.length === 1 ? "stays" : "stay"} on the customer’s account`);
     lines.push("Commission not yet paid on it is voided");
     // The month the note is dated in: its VAT return takes the output VAT off.

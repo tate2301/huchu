@@ -1,13 +1,14 @@
 "use client";
 
 import * as React from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { ReasonDrawer } from "@/components/books/bk-reason-drawer";
 import { BkRequisitionView } from "@/components/books/bk-requisition-view";
 import { BooksError, BooksLoading } from "@/components/books/books-state";
 import { BooksPage } from "@/components/books/figures";
+import { useUndoMenu } from "@/components/books/undo-dialogs";
 import { Button, ButtonGroup, Empty, Kit } from "@/components/core";
 import { MenuButton, type MenuEntry } from "@/components/core/menu";
 import { PageChrome, type PageMenuItem } from "@/components/layout/page-chrome";
@@ -26,6 +27,7 @@ import type { RequisitionRecordPage } from "@/lib/books/requisition-record";
  */
 export default function BooksRequisitionPage() {
   const params = useParams<{ id: string }>();
+  const router = useRouter();
   const id = params?.id ?? "";
   const client = useQueryClient();
   const { toast } = useToast();
@@ -54,10 +56,27 @@ export default function BooksRequisitionPage() {
   const waiting = record?.status === "SUBMITTED";
   const can = record?.can;
 
+  // Void (its payout reversed) and Delete permanently, as the core's undoChoices says (P4); a shop's requisition is Retail's.
+  const [initial, setInitial] = React.useState<string | null>(null);
+  React.useEffect(() => setInitial(new URLSearchParams(window.location.search).get("do")), []);
+  const undo = useUndoMenu("requisition", record?.source === "CRM" ? record.id : null, {
+    initial,
+    onVoided: async (done) => {
+      toast({ title: `${done.label}'s payout is reversed`, description: done.detail, variant: "success" });
+      await client.invalidateQueries({ queryKey: ["books"] });
+    },
+    onDeleted: async (done) => {
+      toast({ title: `${done.label} is deleted`, description: "Its snapshot is in the audit trail.", variant: "success" });
+      await client.invalidateQueries({ queryKey: ["books"] });
+      router.push("/books/requisitions");
+    },
+  });
+
   const menu: MenuEntry[] = record
     ? [
         { key: "open", icon: "link", label: record.source === "CRM" ? "Open it in the CRM" : "Open it in the shop", onSelect: () => window.location.assign(record.sourceHref) },
         ...(waiting && can?.decide ? [{ key: "reject", icon: "x" as const, label: "Reject", onSelect: () => setRejecting(true) }] : []),
+        ...undo.entries,
       ]
     : [];
 
@@ -115,6 +134,7 @@ export default function BooksRequisitionPage() {
           <BooksLoading />
         )}
       </BooksPage>
+      {undo.node}
       {record ? (
         <ReasonDrawer
           open={rejecting}

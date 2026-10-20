@@ -8,10 +8,12 @@ import { downloadCsv } from "@/components/books/bk-list";
 import { BkInvoicesView, type InvoiceBulk } from "@/components/books/bk-invoices-view";
 import { BooksError, BooksLoading } from "@/components/books/books-state";
 import { BooksPage } from "@/components/books/figures";
+import { useBulkUndo } from "@/components/books/undo-dialogs";
 import { ButtonLink, Kit } from "@/components/core";
 import { PageChrome } from "@/components/layout/page-chrome";
 import { useToast } from "@/components/ui/use-toast";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { money } from "@/lib/books/format";
 import type { InvoiceQuery, InvoicesView } from "@/lib/books/invoices";
 import type { ReminderOutcome } from "@/lib/books/reminders";
 
@@ -74,7 +76,7 @@ function BooksInvoices() {
     onError: (error) => toast({ title: "The reminders did not go", description: getApiErrorMessage(error, "Check the connection and try again."), variant: "destructive" }),
   });
 
-  // Issue and Delete over the selection, one row at a time through the routes that exist (the bulk endpoints are P4).
+  // Issue and Delete drafts over the selection, one row at a time through the routes a draft has.
   const run = useMutation({
     mutationFn: async ({ rows, action }: { rows: Listed["rows"]; action: "issue" | "delete" }) => {
       const done: string[] = [];
@@ -120,6 +122,11 @@ function BooksInvoices() {
     deleteDrafts: (rows) => run.mutate({ rows, action: "delete" }),
   };
 
+  // Void and Delete permanently over the selection (P4): offered as this person's role allows; the result row by row.
+  const undo = useBulkUndo("invoice", () => client.invalidateQueries({ queryKey: ["books"] }));
+  const undoEntries = (rows: Listed["rows"]) =>
+    undo.entries(rows.map((row) => ({ id: row.id, label: row.number, posted: row.state !== "draft", party: row.customer.name, amount: money(row.total, row.currency) })));
+
   const data = invoices.data;
   return (
     <>
@@ -140,6 +147,7 @@ function BooksInvoices() {
             busy={remind.isPending || run.isPending}
             canIssue={data.can.issue}
             canDeleteDrafts={data.can.deleteDrafts}
+            undoEntries={undoEntries}
           />
         ) : invoices.isError ? (
           <BooksError what="Invoices" onRetry={() => invoices.refetch()} />
@@ -147,6 +155,7 @@ function BooksInvoices() {
           <BooksLoading />
         )}
       </BooksPage>
+      {undo.node}
     </>
   );
 }

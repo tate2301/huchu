@@ -6,8 +6,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { BkBillView } from "@/components/books/bk-bill-view";
 import { DebitDrawer } from "@/components/books/bk-debit-drawer";
-import { ReasonDrawer } from "@/components/books/bk-reason-drawer";
-import { ReviseDialog } from "@/components/books/revise-dialog";
+import { useUndoMenu } from "@/components/books/undo-dialogs";
 import { BooksError, BooksLoading } from "@/components/books/books-state";
 import { BooksPage } from "@/components/books/figures";
 import { Button, ButtonGroup, ButtonLink, Empty, Kit } from "@/components/core";
@@ -26,8 +25,9 @@ type Page = BillRecordPage;
  * over the limit is approved by the owner (A); a payment drafted for it is
  * approved (A) or paid (P); one owing is paid (P). The caret holds the rest,
  * each as `canDo` allows: the FDMS check, their invoice as a photo, a debit
- * note, a write-off, Print, Revise (void, then a new draft linked to it; D7), Void and Delete. The server refuses
- * on its own.
+ * note, a write-off, Print; then Revise (void, then a new draft linked to it;
+ * D7), Void and Delete permanently as the core's `undoChoices` says, faint
+ * with the reason on hover when not allowed. The server refuses on its own.
  */
 export default function BooksBillPage() {
   const params = useParams<{ id: string }>();
@@ -35,8 +35,6 @@ export default function BooksBillPage() {
   const router = useRouter();
   const client = useQueryClient();
   const { toast } = useToast();
-  const [voiding, setVoiding] = React.useState(false);
-  const [revising, setRevising] = React.useState(false);
   const [noting, setNoting] = React.useState<"debit-note" | "write-off" | null>(null);
   const photoInput = React.useRef<HTMLInputElement>(null);
 
@@ -133,6 +131,27 @@ export default function BooksBillPage() {
     }
   }
 
+  // Void, Revise and Delete permanently, as the core's undoChoices says (P4). `?do=void|revise|delete` opens that dialog.
+  const [initial, setInitial] = React.useState<string | null>(null);
+  React.useEffect(() => setInitial(new URLSearchParams(window.location.search).get("do")), []);
+  const undo = useUndoMenu("bill", bill?.id, {
+    initial,
+    onVoided: async (done) => {
+      toast({ title: `${done.label} is void`, description: done.detail ?? "Its posting is reversed; payments on it stay as credit with the supplier.", variant: "success" });
+      await refresh();
+    },
+    onRevised: async (done) => {
+      toast({ title: `${done.label} is void`, description: "The new draft is open: put it right, then record it. Payments left on account move to it then.", variant: "success" });
+      await refresh();
+      router.push(`/books/bills/${done.draft.id}`);
+    },
+    onDeleted: async (done) => {
+      toast({ title: `${done.label} is deleted`, description: draft ? undefined : "Payments on it stay on account; its snapshot is in the audit trail.", variant: "success" });
+      await client.invalidateQueries({ queryKey: ["books"] });
+      router.push(draft ? "/books/bills?view=drafts" : "/books/bills");
+    },
+  });
+
   const menu: MenuEntry[] = [];
   if (bill && can) {
     if (can.check && bill.taxTotal > 0.005) {
@@ -144,32 +163,8 @@ export default function BooksBillPage() {
     if (can.note) menu.push({ key: "debit", icon: "invoice", label: "Debit note", onSelect: () => setNoting("debit-note") });
     if (can.writeOff) menu.push({ key: "write-off", icon: "retire", label: "Write off", onSelect: () => setNoting("write-off") });
     menu.push({ key: "print", icon: "print", label: "Print", onSelect: () => window.print() });
-    if (!draft && bill.status !== "VOIDED") {
-      // Void and revise go together (§2.2): the owner, or someone the owner let.
-      menu.push(
-        can.void
-          ? { key: "revise", icon: "edit", label: "Revise", onSelect: () => setRevising(true) }
-          : { key: "revise", icon: "edit", label: "Revise", disabled: true, title: "Only the owner can revise a recorded bill, unless they let you.", onSelect: () => undefined },
-      );
-    }
-    if (can.void || can.delete) menu.push({ separator: true });
-    if (can.void) menu.push({ key: "void", icon: "x", danger: true, label: "Void", onSelect: () => setVoiding(true) });
-    if (can.delete) {
-      menu.push({
-        key: "delete",
-        icon: "x",
-        danger: true,
-        label: "Delete the draft",
-        onSelect: () =>
-          fetchJson(`/api/books/bills/${id}`, { method: "DELETE" })
-            .then(async () => {
-              toast({ title: "The draft is deleted", variant: "success" });
-              await refresh();
-              router.push("/books/bills?view=drafts");
-            })
-            .catch((error) => toast({ title: "It was not deleted", description: getApiErrorMessage(error, "Check the connection and try again."), variant: "destructive" })),
-      });
-    }
+    // Revise, Void and Delete: the core says which this person may press, and why not (rule 12).
+    menu.push(...undo.entries);
   }
 
   const phoneMenu = React.useMemo<PageMenuItem[] | null>(() => {
@@ -177,7 +172,7 @@ export default function BooksBillPage() {
     return menu.flatMap((entry) => ("key" in entry && !entry.disabled ? [{ key: entry.key, label: typeof entry.label === "string" ? entry.label : entry.key, danger: entry.danger, onSelect: entry.onSelect }] : []));
     // Rebuilt from the bill on every render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [bill]);
+  }, [bill, undo.choices]);
 
   return (
     <>
@@ -223,33 +218,7 @@ export default function BooksBillPage() {
       />
       {bill ? (
         <>
-          <ReasonDrawer
-            open={voiding}
-            onOpenChange={setVoiding}
-            title={`Void ${bill.number}`}
-            sub={`${bill.supplier.name}, ${bill.total.toFixed(2)} ${bill.currency}`}
-            what="Its posting is reversed by a mirror entry dated today, and it stops counting in what you owe. The bill stays, marked Void."
-            label="Void the bill"
-            placeholder="Entered twice"
-            onConfirm={async (reason) => {
-              await fetchJson(`/api/books/bills/${id}`, { method: "PATCH", body: JSON.stringify({ action: "void", reason }) });
-              toast({ title: `${bill.number} is void`, description: "Its posting is reversed.", variant: "success" });
-              await refresh();
-            }}
-          />
-          <ReviseDialog
-            kind="bill"
-            id={bill.id}
-            number={bill.number}
-            noun="bill"
-            open={revising}
-            onOpenChange={setRevising}
-            onRevised={async (done) => {
-              toast({ title: `${done.label} is void`, description: "The new draft is open: put it right, then record it.", variant: "success" });
-              await refresh();
-              router.push(`/books/bills/${done.draft.id}`);
-            }}
-          />
+          {undo.node}
           <DebitDrawer
             kind={noting ?? "debit-note"}
             target={{ id: bill.id, number: bill.number, supplier: bill.supplier.name, currency: bill.currency, balance: bill.balance, taxRate: bill.subTotal > 0 ? Math.round((bill.taxTotal / bill.subTotal) * 1000) / 10 : 0 }}

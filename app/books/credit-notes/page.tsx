@@ -9,7 +9,9 @@ import { CreditDrawer, type CreditTarget } from "@/components/books/bk-credit-dr
 import { BkChip, BkState, BkTabs, BkTools, downloadCsv } from "@/components/books/bk-list";
 import { BooksError, BooksLoading } from "@/components/books/books-state";
 import { BooksFinding, BooksPage } from "@/components/books/figures";
+import { useBulkUndo } from "@/components/books/undo-dialogs";
 import { Button, Kit, SelectCell, TableFoot, TableShell, useSelection, Person } from "@/components/core";
+import { MenuButton } from "@/components/core/menu";
 import { PageChrome } from "@/components/layout/page-chrome";
 import { useToast } from "@/components/ui/use-toast";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
@@ -74,6 +76,9 @@ function BooksCreditNotes() {
 
   const selected = data?.rows.filter((row) => selection.isSelected(row.id)) ?? [];
   const writeOffs = data?.query.view === "write-offs";
+  // Void and Delete permanently over the selected credit notes (P4): as this person's role allows; the result row by row.
+  const undo = useBulkUndo("credit-note", () => client.invalidateQueries({ queryKey: ["books"] }));
+  const undoEntries = writeOffs ? [] : undo.entries(selected.map((row) => ({ id: row.id, label: row.number, posted: row.state !== "Draft", party: row.customer, amount: money(row.amount, row.currency) })));
   const customer = data?.customers.find((option) => option.id === data.query.customer);
   const label = writeOffs ? "Write-off" : "Credit note";
 
@@ -187,6 +192,11 @@ function BooksCreditNotes() {
                         >
                           Export
                         </Button>
+                        {undoEntries.length ? (
+                          <MenuButton label="More" items={undoEntries}>
+                            More
+                          </MenuButton>
+                        ) : null}
                         {writeOffs && data.can.voidWriteOff && selected.length === 1 && selected[0].state === "Posted" ? (
                           <Button variant="danger" icon="x" busy={voidWriteOff.isPending} disabled={voidWriteOff.isPending} onClick={() => voidWriteOff.mutate(selected[0].id)}>
                             Void {selected[0].number}
@@ -264,6 +274,7 @@ function BooksCreditNotes() {
           <BooksLoading />
         )}
       </BooksPage>
+      {undo.node}
       {data ? (
         <CreditDrawer
           kind={drawer ?? "credit"}

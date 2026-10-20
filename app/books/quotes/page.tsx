@@ -2,13 +2,15 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 import { BkChip, BkTabs, BkTools, downloadCsv } from "@/components/books/bk-list";
 import { BooksError, BooksLoading } from "@/components/books/books-state";
 import { BooksFinding, BooksPage } from "@/components/books/figures";
+import { useBulkUndo } from "@/components/books/undo-dialogs";
 import { Button, SelectCell, TableFoot, TableShell, useSelection, Person } from "@/components/core";
+import { MenuButton } from "@/components/core/menu";
 import { PageChrome } from "@/components/layout/page-chrome";
 import { fetchJson } from "@/lib/api-client";
 import { money } from "@/lib/books/format";
@@ -50,6 +52,10 @@ function BooksQuotes() {
 
   const selected = data?.rows.filter((row) => selection.isSelected(row.id)) ?? [];
   const one = selected.length === 1 && !selected[0].invoiced ? selected[0] : null;
+  // Void and Delete permanently over the selection (P4): as this person's role allows; the server skips a draft or a quote already invoiced, with why.
+  const client = useQueryClient();
+  const undo = useBulkUndo("quote", () => client.invalidateQueries({ queryKey: ["books"] }));
+  const undoEntries = undo.entries(selected.map((row) => ({ id: row.id, label: row.number, posted: data?.query.view !== "draft", party: row.customer, amount: money(row.amount, row.currency) })));
   const customer = data?.customers.find((option) => option.id === data.query.customer);
   const rep = data?.reps.find((option) => option.id === data.query.rep);
 
@@ -161,6 +167,11 @@ function BooksQuotes() {
                         >
                           Export
                         </Button>
+                        {undoEntries.length ? (
+                          <MenuButton label="More" items={undoEntries}>
+                            More
+                          </MenuButton>
+                        ) : null}
                       </>
                     ),
                   }}
@@ -223,6 +234,7 @@ function BooksQuotes() {
           <BooksLoading />
         )}
       </BooksPage>
+      {undo.node}
     </>
   );
 }

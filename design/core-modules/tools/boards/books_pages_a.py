@@ -647,13 +647,16 @@ def invoices_bulk():
     table = grid(INV_HEAD, inv_rows(INV_SHOWN), num=(4, 5), sel=picked, label='Invoices', widths=INV_W)
     total_sel = sum((INV_SHOWN[i][4] for i in picked), Decimal('0'))
     # One action on the bar (reminders: money held up); the rest in More, each with a hint of a few words.
+    # Void and Delete permanently over a selection (P4, §5.13): offered as the person's role allows; each row is done
+    # on its own and the result says done, skipped with why, or failed (BkBulkResult). The owner sees both.
     more = menu((('print', 'Print statements', 'One per customer', False, False),
                  ('send', 'Issue 2 drafts', 'FDMS signs each one', False, False),
                  ('export', 'Export 5 rows', 'CSV or XLSX', False, False),
                  'sep',
-                 # Void and Delete permanently over a selection come with mass actions (P4).
-                 ('trash', 'Delete 2 drafts', 'Drafts have no number yet', True, False)),
-                'position:absolute;left:%dpx;bottom:100px;width:220px;z-index:30' % BULK_MENU_LEFT)
+                 ('trash', 'Delete 2 drafts', 'Drafts have no number yet', True, False),
+                 ('x', 'Void 5 invoices', '', True, False),
+                 ('trash', 'Delete 5 invoices permanently', '', True, False)),
+                'position:absolute;left:%dpx;bottom:100px;width:240px;z-index:30' % BULK_MENU_LEFT)
     acts_sel = btn('Send reminders', 'whatsapp') + '<button class="btn" aria-haspopup="menu" aria-expanded="true" style="background:var(--color-pressed)">More%s</button>' % ic('down')
     f = foot('1 to 12 of %d' % INV_ALL, (('Owed', usd(OWED)), ('Overdue', usd(OVERDUE))),
              sel=(len(picked), (('Total', usd(total_sel)),), acts_sel, ''))

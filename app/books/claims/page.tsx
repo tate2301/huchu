@@ -4,6 +4,7 @@ import * as React from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { BkClaimsView, type ClaimMoves } from "@/components/books/bk-claims-view";
+import { useBulkUndo } from "@/components/books/undo-dialogs";
 import { useListQuery } from "@/components/books/bk-list";
 import { BooksError, BooksLoading } from "@/components/books/books-state";
 import { BooksPage } from "@/components/books/figures";
@@ -27,6 +28,8 @@ const NEW_CLAIM = { label: "New claim", icon: "plus" as const, href: "/books/cla
 function BooksClaims() {
   const { toast } = useToast();
   const client = useQueryClient();
+  // Void and Delete permanently over the selected claims (P4): as this person's role allows; the result row by row.
+  const undo = useBulkUndo("claim", () => client.invalidateQueries({ queryKey: ["books"] }));
   const { search, onQuery, exportHref } = useListQuery<ClaimQuery>({ view: "claims", period: "any", sort: "newest" });
 
   const list = useQuery({
@@ -71,8 +74,21 @@ function BooksClaims() {
         </Kit>
       </PageChrome>
       <BooksPage screen="bk-a">
-        {list.data ? <BkClaimsView data={list.data} onQuery={onQuery} exportHref={exportHref("/api/books/claims")} moves={moves} /> : list.isError ? <BooksError what="Claims" onRetry={() => list.refetch()} /> : <BooksLoading />}
+        {list.data ? (
+          <BkClaimsView
+            data={list.data}
+            onQuery={onQuery}
+            exportHref={exportHref("/api/books/claims")}
+            moves={moves}
+            undoEntries={(rows) => undo.entries(rows.map((row) => ({ id: row.id, label: row.number, posted: ["APPROVED", "PAID", "VOIDED"].includes(row.status), party: row.person.name, amount: money(row.amount, row.currency) })))}
+          />
+        ) : list.isError ? (
+          <BooksError what="Claims" onRetry={() => list.refetch()} />
+        ) : (
+          <BooksLoading />
+        )}
       </BooksPage>
+      {undo.node}
     </>
   );
 }

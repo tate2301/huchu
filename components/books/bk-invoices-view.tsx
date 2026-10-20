@@ -52,6 +52,7 @@ export function BkInvoicesView({
   busy = false,
   canIssue,
   canDeleteDrafts,
+  undoEntries,
 }: {
   data: InvoicesView;
   onQuery: (next: Partial<InvoiceQuery>) => void;
@@ -60,6 +61,8 @@ export function BkInvoicesView({
   busy?: boolean;
   canIssue: boolean;
   canDeleteDrafts: boolean;
+  /** Void and Delete permanently over the selection, as the person's role allows (P4, §5.13). */
+  undoEntries?: (rows: InvoiceRow[]) => MenuEntry[];
 }) {
   const ids = React.useMemo(() => data.rows.map((row) => row.id), [data.rows]);
   const selection = useSelection(ids);
@@ -90,6 +93,11 @@ export function BkInvoicesView({
         ]
       : []),
   ];
+  const undo = undoEntries?.(selected) ?? [];
+  if (undo.length) {
+    if (!more.some((entry) => "separator" in entry)) more.push({ separator: true });
+    more.push(...undo);
+  }
 
   return (
     <div className="bk">

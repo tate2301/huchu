@@ -50,7 +50,7 @@ import { bulkAction } from "./bulk-actions";
 import { booksActor, type BooksActor } from "./can-do";
 import { postInvoice } from "./issue-invoice";
 import { nextNumber } from "./numbering";
-import { markTestDevice, purgeTestDevice } from "./purge";
+import { fiscalDevicesFor, markTestDevice, planPurge, purgeTestDevice } from "./purge";
 import { partyAging, partyStatement } from "./statement-aging";
 import { deleteDocument, reviseDocument, undoChoices, UndoRefused, voidDocument } from "./undo";
 import { setVoidGrant } from "./void-grant";
@@ -429,7 +429,14 @@ describe("P4 exit: undo everywhere", () => {
     // Not until the owner says it is ZIMRA's test environment.
     expect((await refusal(purgeTestDevice(owner(), device.id, { reason: "Test environment data" }))).message).toMatch(/is not marked as a test device/);
     expect((await refusal(markTestDevice(accountant(), device.id, { isTestDevice: true, reason: "Test environment" }))).status).toBe(403);
+    expect((await planPurge(owner(), device.id)).skipped.map((row) => row.why)).toEqual([expect.stringMatching(/is not marked as a test device/)]);
     await markTestDevice(owner(), device.id, { isTestDevice: true, reason: "Registered on fdmsapitest" });
+    // The confirm dialog's list, read without changing anything.
+    const plan = await planPurge(owner(), device.id);
+    expect(plan).toMatchObject({ isTestDevice: true, fiscalDays: 1, skipped: [] });
+    expect(plan.remove.map((row) => row.id)).toEqual([invoice.id]);
+    expect((await refusal(planPurge(accountant(), device.id))).status).toBe(403);
+    expect((await fiscalDevicesFor(owner())).find((row) => row.id === device.id)).toMatchObject({ isTestDevice: true });
 
     const purged = await purgeTestDevice(owner(), device.id, { reason: "Test environment data" });
     expect(purged.purged.map((row) => row.id)).toEqual([invoice.id]);

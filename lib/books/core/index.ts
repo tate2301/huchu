@@ -62,6 +62,6 @@ export { fiscalRegister, type FiscalRegister } from "./fiscal-register";
 export { asUndoRefused, deleteDocument, reviseDocument, undoChoices, undoRights, UndoRefused, voidDocument, type ReviseResult, type UndoChoices, type UndoResult, type UndoRights } from "./undo";
 export { BULK_ACTIONS, BULK_LIMIT, bulkSummary, isBulkAction, isUndoKind, MODULE_OWNED, REVISABLE, UNDO_KINDS, UNDO_NOUN, type BulkAction, type BulkResult, type UndoKind } from "./undo-rules";
 export { bulkAction, type BulkOptions } from "./bulk-actions";
-export { markTestDevice, purgeTestDevice, type PurgeResult } from "./purge";
-export { setVoidGrant, voidGrantHolders } from "./void-grant";
+export { fiscalDevicesFor, markTestDevice, planPurge, purgeTestDevice, type FiscalDeviceRow, type PurgePlan, type PurgeResult } from "./purge";
+export { setVoidGrant, voidGrantHolders, voidGrantOf, type VoidGrant } from "./void-grant";
 export { MODULE_SUB_LEDGER_TYPES } from "./module-sub-ledger";

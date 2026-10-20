@@ -8,6 +8,7 @@ import { BkBillsView } from "@/components/books/bk-bills-view";
 import { downloadCsv } from "@/components/books/bk-list";
 import { BooksError, BooksLoading } from "@/components/books/books-state";
 import { BooksPage } from "@/components/books/figures";
+import { useBulkUndo } from "@/components/books/undo-dialogs";
 import { Kit } from "@/components/core";
 import { MenuButton, type MenuEntry } from "@/components/core/menu";
 import { PageChrome } from "@/components/layout/page-chrome";
@@ -80,6 +81,7 @@ function BooksBills() {
     await client.invalidateQueries({ queryKey: ["books"] });
   };
 
+  const undo = useBulkUndo("bill", () => client.invalidateQueries({ queryKey: ["books"] }));
   const more = (rows: BillRow[]): MenuEntry[] => {
     const drafts = rows.filter((row) => row.state === "draft");
     return [
@@ -102,6 +104,12 @@ function BooksBills() {
         title: drafts.length === 0 ? "None of these is a draft." : undefined,
         onSelect: () => void recordDrafts(drafts),
       },
+      // Void and Delete permanently over the selected bills (P4): as this person's role allows; a debit note on the list is its bill's to undo.
+      ...undo.entries(
+        rows
+          .filter((row) => row.href === `/books/bills/${row.id}`)
+          .map((row) => ({ id: row.id, label: row.number, posted: row.state !== "draft", party: row.supplier.name, amount: money(row.total, row.currency) })),
+      ),
     ];
   };
 
@@ -140,6 +148,7 @@ function BooksBills() {
           <BooksLoading />
         )}
       </BooksPage>
+      {undo.node}
     </>
   );
 }

@@ -1036,25 +1036,20 @@ def setup():
 # =====================================================================
 # The record pages behind the dialogs: a header (title, one pill, one muted line), the tabs and the lines. No finding.
 def invoice_behind():
-    lines = tbl([('Line', 'fill'), ('Qty', 'num'), ('Price', 'num'), ('Amount', 'num')],
+    # The lines as BkInvoice draws them (Item, Quantity, Price, Amount); its sums sit beside them on the record page, not here.
+    lines = tbl([('Item', 'fill'), ('Quantity', 'num'), ('Price', 'num'), ('Amount', 'num')],
                 [[lead('Carpet tiles, Interface Heuga, grey'), '64 m²', n2(18.50), n2(1184.00)], [lead('Underlay and adhesive'), '64 m²', n2(3.60), n2(230.40)],
-                 [lead('Fitting'), '64 m²', n2(4.20), n2(268.80)], [lead('Aluminium edge trim'), '14 m', n2(3.10), n2(43.40)]],
-                total=['VAT 15.5% included in the total', '', '', n2(1994.22)])
+                 [lead('Fitting'), '64 m²', n2(4.20), n2(268.80)], [lead('Aluminium edge trim'), '14 m', n2(3.10), n2(43.40)]])
     head = rec_head('INV-0142 · Pomona Offices', '<span class="pill pill-info">Part paid</span>', 'Issued 6 Oct · due 20 Oct')
-    return head + tabs(['Lines', 'Payments', 'Credit notes', 'Fiscal', 'Posting', 'History'], 0) + lines
+    # The record page's sections, as BkInvoice draws them; the fiscal record sits in its rail.
+    return head + tabs(['Lines', 'Payments', 'Posting', 'History'], 0) + lines
 
 def bill_behind():
-    lines = tbl([('Line', 'fill'), ('Qty', 'num'), ('Price', 'num'), ('Amount', 'num')],
-                [[lead('Tile adhesive, 20 kg'), '12', n2(17.50), n2(210.00)], [lead('Self-levelling screed, 25 kg'), '4', n2(25.60), n2(102.40)]],
-                total=['VAT 15.5% included in the total', '', '', n2(312.40)])
+    lines = tbl([('Item', 'fill'), ('Quantity', 'num'), ('Price', 'num'), ('Amount', 'num')],
+                [[lead('Tile adhesive, 20 kg'), '12', n2(17.50), n2(210.00)], [lead('Self-levelling screed, 25 kg'), '4', n2(25.60), n2(102.40)]])
     head = rec_head('BILL-0219 · Halsted Builders', '<span class="pill pill-ok">Paid</span>', 'Recorded 5 Oct · Valid on FDMS')
-    return head + tabs(['Lines', 'Payments', 'FDMS check', 'Posting', 'History'], 0) + lines
-
-def receipt_behind():
-    head = rec_head('REC-0090 · Mrs T. Gumbo', '<span class="pill pill-plain">Void</span>', 'Recorded 5 Oct · voided 5 Oct')
-    t = tbl([('Entry', ''), ('Date', ''), ('What', 'fill'), ('Amount', 'num')],
-            [[ref('JE-0429'), mut('5 Oct'), lead('Receipt into the showroom cash box'), n2(430)], [ref('JE-0430'), mut('5 Oct'), lead('Void of REC-0090, the mirror'), n2(-430)]])
-    return head + tabs(['Posting', 'History'], 0) + t
+    # The record page's sections, as BkBill draws them; their fiscal invoice sits in its rail.
+    return head + tabs(['Lines', 'Payments', 'Posting', 'History'], 0) + lines
 
 def dialog(title, body, foot_html, w=520, start=''):
     return ('<div class="dialog bk-dlg" role="dialog" aria-label="%s" style="width:%dpx"><div class="dialog-head"><h2>%s</h2><div class="end">%s</div></div>'
@@ -1068,65 +1063,82 @@ def danger_btn(label, icon, k):
     return '<button class="btn btn-primary" style="background:var(--color-danger)">%s%s%s</button>' % (ic(icon), label, kbd(k, True))
 
 def void_dialog():
-    body = ('<p>INV-0142 is signed on FDMS, so it is voided with a full credit note.</p>'
-            + what((('file', '<b>CN-0010</b> for %s is issued and signed' % usd(1994.22)),
-                    ('payments', '%s, %s, stays on account' % (ref('REC-0091'), usd(500))),
+    # P4: what the core's undoChoices says, one line each; the credit note's number is the next in its series.
+    body = ('<p>INV-0142 is signed on FDMS, so it is voided with a fiscal credit note that cites it.</p>'
+            + what((('file', 'A full credit note is issued and signed, citing INV-0142'),
+                    ('payments', '%s stays on the customer’s account' % ref('REC-0091')),
+                    ('money', 'Commission not yet paid on it is voided'),
                     ('vat', 'October’s VAT return counts the credit note')))
             + '<div class="bk-fld"><span class="bk-lab">Reason on the credit note</span><div class="bk-chips"><span>Return</span><span>Price correction</span><span class="on">Cancellation</span><span>Discount</span><span>Bad debt</span></div></div>'
             + '<div class="bk-fld"><span class="bk-lab">Why are you voiding it?</span><div class="bk-ta">Their landlord is paying for the job and wants the invoice in the landlord’s name.</div>'
             + '<span class="muted" style="font-size:12px">Kept in the audit trail</span></div>')
     d = dialog('Void INV-0142', body, btn('Cancel', None, 'btn btn-quiet') + btn('Void and issue CN-0010', 'x', 'btn btn-primary', 'Ctrl ↵'))
-    return page('BkVoidDialog', 'Void an invoice', '/books/invoices/inv-0142', 'Invoices', invoice_behind(), btn('Record a payment', 'payments', 'btn', 'R'),
+    # The record page's bar, as on BkInvoice: the primary, then the rest in its caret (Void, Revise and Delete permanently among them).
+    top = more_btn() + btn('Send a reminder', 'whatsapp') + primary('Record a payment', 'payments', 'R')
+    return page('BkVoidDialog', 'Void an invoice', '/books/invoices/inv-0142', 'Invoices', invoice_behind(), top,
                 extra='<div class="bk-dim">%s</div>' % d, heading=crumb('Invoices', 'INV-0142'), icon='invoice')
 
 def revise_dialog():
-    body = ('<p>A posted bill isn’t edited in place. Revising voids BILL-0219 and records BILL-0225 with your changes.</p>'
-            + what((('x', '<b>BILL-0219</b> is voided and shows “Replaced by BILL-0225”'),
-                    ('payments', '%s, %s, moves to BILL-0225' % (ref('PAY-0057'), usd(312.40))),
+    # P4 (D7): Revise voids the bill and opens a new draft with its lines; the draft takes the next number when it is recorded,
+    # and the payments the old one left on account move to it then.
+    body = ('<p>A posted bill isn’t edited in place. Revising voids BILL-0219 and opens a new draft with its lines, for your changes. It takes the next number when it is recorded.</p>'
+            + what((('x', '<b>BILL-0219</b> is voided and shows “Replaced by” the new bill'),
+                    ('payments', '%s moves to the new bill when it is recorded' % ref('PAY-0057')),
                     ('vat', 'Input VAT is claimed once its FTI is Valid')))
             + '<div class="bk-fld"><span class="bk-lab">Why are you revising it?</span><div class="bk-ta">Halsted delivered 10 bags of adhesive, not 12; their credit note 00417-2231 is on file.</div>'
             + '<span class="muted" style="font-size:12px">Kept with both bills and in the audit trail</span></div>')
-    d = dialog('Revise BILL-0219', body, btn('Cancel', None, 'btn btn-quiet') + btn('Revise as BILL-0225', 'edit', 'btn btn-primary', 'Ctrl ↵'))
-    return page('BkReviseDialog', 'Revise a bill', '/books/bills/bill-0219', 'Bills', bill_behind(), btn('New bill', 'plus', 'btn', 'N'),
+    d = dialog('Revise BILL-0219', body, btn('Cancel', None, 'btn btn-quiet') + btn('Void and revise', 'edit', 'btn btn-primary', 'Ctrl ↵'))
+    return page('BkReviseDialog', 'Revise a bill', '/books/bills/bill-0219', 'Bills', bill_behind(), more_btn(),
                 extra='<div class="bk-dim">%s</div>' % d, heading=crumb('Bills', 'BILL-0219'), icon='docs')
 
 def delete_dialog():
-    body1 = ('<p>This removes the receipt as if it was never recorded. Delete is for duplicates and test data.</p>'
-             + what((('payments', 'REC-0090 and its line on Mrs T. Gumbo’s account'), ('books', ref('JE-0429') + ', its mirror ' + ref('JE-0430') + ' and 1 event'),
-                     ('lock', 'REC-0090 is never given out again')))
-             + '<div class="bk-fld"><span class="bk-lab">Reason</span><div class="bk-ta">Duplicate entered at the counter; REC-0089 is the real one.</div></div>'
-             + '<div class="bk-fld"><span class="bk-lab">Type REC-0090 to confirm</span><span class="bk-in">REC-0090</span></div>')
-    d1 = dialog('Delete REC-0090 permanently', body1, btn('Cancel', None, 'btn btn-quiet') + danger_btn('Delete permanently', 'x', 'Ctrl ↵'), w=500)
-    refused = ''.join('<div>%s<span>%s</span></div>' % ('<span class="bk-no">%s</span>' % ic('x') if on else '<span class="bk-ok">%s</span>' % ic('check'), t) for on, t in (
-        (True, '<b>Signed on FDMS</b>, fiscal day 108, 2 Oct'),
-        (False, 'Its month, October, is open'),
-        (False, 'No finalised VAT return counts it'),
-        (False, 'Its payment isn’t in a closed reconciliation')))
-    body2 = ('<p>ZIMRA keeps every signed invoice, so Books keeps it too. Void it instead: a signed credit note takes it back.</p>'
-             '<div class="bk-what">%s</div>') % refused
-    d2 = dialog('INV-0139 can’t be deleted', body2, btn('Close', None, 'btn btn-quiet') + btn('Void with a credit note', 'x', 'btn', 'Ctrl ↵'), w=460)
-    return page('BkDeleteDialog', 'Delete permanently', '/books/payments/rec-0090', 'Payments received', receipt_behind(), btn('Record a payment', 'plus', 'btn', 'N'),
-                extra='<div class="bk-dim" style="align-items:flex-start;padding-top:72px">%s%s</div>' % (d1, d2), heading=crumb('Payments received', 'REC-0090'), icon='payments')
+    # P4 (§2.5): the owner only. One document: its number typed. A selection: "delete 5" typed. Both say what stays.
+    body1 = ('<p>This removes BILL-0219 as if it was never recorded. Delete is for duplicates and test data.</p>'
+             + what((('x', 'BILL-0219, its lines and every entry it posted go'),
+                     ('payments', '%s stays on the supplier’s account' % ref('PAY-0057')),
+                     ('history', 'A snapshot of it is kept in the audit trail'),
+                     ('lock', 'Its number is never given out again')))
+             + '<div class="bk-fld"><span class="bk-lab">Reason</span><div class="bk-ta">Entered twice from the same delivery note; BILL-0218 is the real one.</div>'
+             + '<span class="muted" style="font-size:12px">Kept in the audit trail with the snapshot</span></div>'
+             + '<div class="bk-fld"><span class="bk-lab">Type BILL-0219 to confirm</span><span class="bk-in">BILL-0219</span></div>')
+    d1 = dialog('Delete BILL-0219 permanently', body1, btn('Cancel', None, 'btn btn-quiet') + danger_btn('Delete permanently', 'x', 'Ctrl ↵'), w=500)
+    body2 = ('<p>Each is deleted on its own, as if it was never written. Only the owner can.</p>'
+             + what((('x', 'Drafts, and posted ones in open months, go with their postings'),
+                     ('lock', 'Fiscalised ones are skipped: void them instead'),
+                     ('payments', 'Payments on them stay on account'),
+                     ('history', 'A snapshot of each is kept in the audit trail')))
+             + '<div class="bk-fld"><span class="bk-lab">Reason</span><div class="bk-ta">Test invoices from setting up the till.</div></div>'
+             + '<div class="bk-fld"><span class="bk-lab">Type “delete 5” to confirm</span><span class="bk-in">delete 5</span></div>')
+    d2 = dialog('Delete 5 invoices permanently', body2, btn('Cancel', None, 'btn btn-quiet') + danger_btn('Delete 5 permanently', 'x', 'Ctrl ↵'), w=460)
+    return page('BkDeleteDialog', 'Delete permanently', '/books/bills/bill-0219', 'Bills', bill_behind(), more_btn(),
+                extra='<div class="bk-dim" style="align-items:flex-start;padding-top:72px">%s%s</div>' % (d1, d2), heading=crumb('Bills', 'BILL-0219'), icon='docs')
 
 
 def bulk_result():
-    REQ = [('REQ-0093', 'James Nyabadza', 'CRM', 'Floor sander repair', M(120)), ('REQ-0092', 'Tendai Sibanda', 'Retail', 'Till rolls and toner, showroom', M(38)),
-           ('REQ-0091', 'Tinashe Moyo', 'CRM', 'Transport, 3 trips, Borrowdale Brooke Clinic', M(60))]
-    behind = finding('3 requisitions wait for approval, %s in all.' % usd(218))
-    behind += tabs([('To approve', 3), ('To pay', 1), ('To account for', 1), ('Done', 2), ('All', 7)], 0)
-    behind += tools('Search requisitions', (('Source', 'Any', False),), '3 requisitions', btn('Export', 'export'))
-    behind += tbl([('', 'sel'), ('Number', ''), ('Asked by', ''), ('For', 'fill'), ('Amount', 'num'), ('State', '')],
-                  [[cbx(True), ref(n), plead(b, s), lead(f), usd(a), st('To approve')] for n, b, s, f, a in REQ], sel_rows=(0, 1, 2))
-    R = [('REQ-0092', 'Tendai Sibanda', usd(38), 'Approved', 'Within your limit'),
-         ('REQ-0091', 'Tinashe Moyo', usd(60), 'Approved', 'Within your limit'),
-         ('REQ-0093', 'James Nyabadza', usd(120), 'Skipped', 'Your own; Rudo is asked')]
-    rows = [[ref(n), plead(c), a, st(s), mut(w)] for n, c, a, s, w in R]
-    t = tbl([('Requisition', ''), ('Asked by', ''), ('Amount', 'num'), ('Result', ''), ('Why', 'fillw')], rows)
-    body = ('<div style="display:flex;gap:16px;align-items:baseline"><span style="font-size:28px;font-weight:600;color:var(--color-ink);letter-spacing:var(--tracking-display)">2 approved</span><span class="muted" style="font-size:14px">1 skipped</span></div>'
-            '<p>%s is now ready to pay.</p>'
-            '<div class="bk-tw">%s</div>') % (usd(98), t)
-    d = dialog('Approve 3 requisitions', body, btn('Open the 2 to pay', 'payments') + btn('Done', 'check', 'btn btn-primary', '↵'), w=680)
-    return page('BkBulkResult', 'Bulk result', '/books/requisitions', 'Requisitions', behind, btn('New requisition', 'plus', 'btn', 'N'), extra='<div class="bk-dim">%s</div>' % d, heading='Requisitions')
+    # P4 (§5.13): the five invoices BkInvoicesBulk selects, voided in bulk with one reason. Each row on its own:
+    # done, skipped with why, or failed (tried again from here).
+    SEL = [('Draft', 'Mandara Medical Centre', M(1000)), ('Draft', 'Greendale Spar', M(740)),
+           ('INV-0137', 'Msasa Motors', M(380)), ('INV-0135', 'Highlands Guest Lodge', M(860)), ('INV-0131', 'Chisipite Dental', M(1240))]
+    # The same figures as BkInvoices (books_pages_a: OWED, OVERDUE, INV_TABS).
+    behind = finding('%s is owed to you on 5 invoices.' % usd('5724.22'), '3 are overdue, %s in all.' % usd(2480))
+    behind += tabs([('All', 146), ('Owed', 5), ('Overdue', 3), ('Paid', 137), ('Drafts', 2), ('Void', 2)], 0)
+    behind += tools('Search invoices', (('Customer', 'Any', False), ('Currency', 'Any', False)), '12 of 146',
+                    btn('Sort', 'sort', 'btn btn-quiet') + btn('Export', 'export', 'btn btn-quiet'))
+    behind += tbl([('', 'sel'), ('Invoice', ''), ('Customer', 'fill'), ('State', ''), ('Total', 'num')],
+                  [[cbx(True), ref(n) if n != 'Draft' else mut('Draft'), plead(c), st('Draft' if n == 'Draft' else 'Overdue'), usd(a)] for n, c, a in SEL], sel_rows=(0, 1, 2, 3, 4))
+    R = [('INV-0137', 'Msasa Motors', 'Voided', 'Voided through CN-0011, signed by the fiscal device.'),
+         ('INV-0135', 'Highlands Guest Lodge', 'Voided', 'Voided through CN-0012, signed by the fiscal device.'),
+         ('Draft invoice', 'Mandara Medical Centre', 'Skipped', 'Draft invoice is a draft and nothing was posted: delete it instead.'),
+         ('Draft invoice', 'Greendale Spar', 'Skipped', 'Draft invoice is a draft and nothing was posted: delete it instead.'),
+         ('INV-0131', 'Chisipite Dental', 'Failed', 'The connection dropped; nothing was changed.')]
+    tone = {'Voided': 'Done', 'Skipped': 'Pending', 'Failed': 'Failed'}
+    # Four columns: the amounts are on the list behind; the Why gets the room (rule 6).
+    rows = [[ref(n) if n.startswith('INV') else mut(n), plead(c), st(tone[s], s), mut(w)] for n, c, s, w in R]
+    t = tbl([('Invoice', ''), ('Customer', ''), ('Result', ''), ('Why', 'fillw')], rows)
+    body = ('<div style="display:flex;gap:16px;align-items:baseline"><span style="font-size:28px;font-weight:600;color:var(--color-ink);letter-spacing:var(--tracking-display)">2 voided</span><span class="muted" style="font-size:14px">2 skipped · 1 failed</span></div>'
+            '<div class="bk-tw">%s</div>') % t
+    d = dialog('Void 5 invoices', body, btn('Retry 1 failed', 'run') + btn('Done', 'check', 'btn btn-primary', '↵'), w=760)
+    return page('BkBulkResult', 'Bulk result', '/books/invoices', 'Invoices', behind, btn('Statements', 'print') + primary('New invoice', 'plus', 'N'), extra='<div class="bk-dim">%s</div>' % d, heading='Invoices')
 
 
 def upsell():

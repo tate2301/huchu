@@ -10,6 +10,7 @@ import { downloadCsv } from "@/components/books/bk-list";
 import { BkPaymentsView } from "@/components/books/bk-payments-view";
 import { ButtonLink, Kit } from "@/components/core";
 import { ReceiptVoidDrawer } from "@/components/books/receipt-actions";
+import { useBulkUndo } from "@/components/books/undo-dialogs";
 import { PageChrome } from "@/components/layout/page-chrome";
 import { useToast } from "@/components/ui/use-toast";
 import { fetchJson } from "@/lib/api-client";
@@ -89,6 +90,9 @@ function BooksPayments() {
     [params, pathname, router],
   );
 
+  // Void and Delete permanently over the selection (P4): as this person's role allows; the result row by row.
+  const undo = useBulkUndo("receipt", () => queryClient.invalidateQueries({ queryKey: ["books"] }));
+
   return (
     <>
       <PageChrome title="Payments received" primary={RECORD_PAYMENT}>
@@ -113,6 +117,7 @@ function BooksPayments() {
               )
             }
             exportHref={`/api/books/payments?${new URLSearchParams([...params.entries(), ["format", "csv"]]).toString()}`}
+            undoEntries={(rows) => undo.entries(rows.map((row) => ({ id: row.id, label: row.number, posted: !row.voided, party: row.customer ?? undefined, amount: money(row.amount, row.currency) })))}
           />
         ) : payments.isError ? (
           <BooksError what="Payments" onRetry={() => payments.refetch()} />
@@ -120,6 +125,7 @@ function BooksPayments() {
           <BooksLoading />
         )}
       </BooksPage>
+      {undo.node}
       {voiding ? (
         <ReceiptVoidDrawer receiptId={voiding.id} number={voiding.number} open onOpenChange={(open) => (open ? undefined : setVoiding(null))} onDone={voided} />
       ) : null}

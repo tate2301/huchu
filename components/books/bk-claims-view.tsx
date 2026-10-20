@@ -3,7 +3,7 @@
 import * as React from "react";
 
 import { Button, SelectCell, TableFoot, TableShell, useSelection, Person } from "@/components/core";
-import { MenuButton } from "@/components/core/menu";
+import { MenuButton, type MenuEntry } from "@/components/core/menu";
 import { CLAIM_STATE_FILTER_LABEL, CLAIM_STATE_FILTERS, CLAIM_TAB_LABEL, CLAIM_VIEWS, type ClaimQuery, type ClaimRow, type ClaimsPage, type FloatRow, type VoucherRow } from "@/lib/books/claims-list";
 import { money } from "@/lib/books/format";
 import { PERIOD_LABEL, PERIODS } from "@/lib/books/period";
@@ -29,7 +29,20 @@ export type ClaimMoves = {
  * account, Top up a float). Approving is never the claimant's own; the server
  * refuses on its own.
  */
-export function BkClaimsView({ data, onQuery, exportHref, moves }: { data: ClaimsPage; onQuery: (next: Partial<ClaimQuery>) => void; exportHref: string; moves: ClaimMoves }) {
+export function BkClaimsView({
+  data,
+  onQuery,
+  exportHref,
+  moves,
+  undoEntries,
+}: {
+  data: ClaimsPage;
+  onQuery: (next: Partial<ClaimQuery>) => void;
+  exportHref: string;
+  moves: ClaimMoves;
+  /** Void and Delete permanently over the selected claims, as the person's role allows (P4, §5.13). */
+  undoEntries?: (rows: ClaimRow[]) => MenuEntry[];
+}) {
   const query = data.query;
   const ids = React.useMemo(() => data.claims.map((row) => row.id), [data.claims]);
   const selection = useSelection(ids);
@@ -113,12 +126,20 @@ export function BkClaimsView({ data, onQuery, exportHref, moves }: { data: Claim
                     sum: { label: "Total", value: money(selected.reduce((sum, row) => sum + row.amount, 0), data.currency) },
                     onClear: selection.clear,
                     note: own.length ? `${own.map((row) => row.number).join(", ")} ${own.length === 1 ? "is" : "are"} yours, so skipped` : undefined,
-                    actions:
-                      data.can.approve && approvable.length ? (
-                        <Button icon="check" onClick={() => moves.approveClaims(approvable)}>
-                          Approve {approvable.length}
-                        </Button>
-                      ) : undefined,
+                    actions: (
+                      <>
+                        {data.can.approve && approvable.length ? (
+                          <Button icon="check" onClick={() => moves.approveClaims(approvable)}>
+                            Approve {approvable.length}
+                          </Button>
+                        ) : null}
+                        {undoEntries && undoEntries(selected).length ? (
+                          <MenuButton label="More" items={undoEntries(selected)}>
+                            More
+                          </MenuButton>
+                        ) : null}
+                      </>
+                    ),
                   }
                 : undefined
             }

@@ -42,3 +42,31 @@ export async function voidGrantHolders(companyId: string): Promise<string[]> {
   const rows = await prisma.userPermissionOverride.findMany({ where: { companyId, permissionKey: VOID_GRANT, isAllowed: true }, select: { userId: true } });
   return rows.map((row) => row.userId);
 }
+
+export type VoidGrant = {
+  userId: string;
+  /** Holds it now. */
+  holds: boolean;
+  /** Their role may be given it: a manager or the accountant (§2.3). */
+  grantable: boolean;
+  /** Who gave or took it last, and when. */
+  by: { id: string; name: string | null; image: string | null } | null;
+  at: string | null;
+};
+
+/** One person's grant, for their page in Management → Users (BooksWho, "Granting void and revise"). */
+export async function voidGrantOf(companyId: string, userId: string): Promise<VoidGrant | null> {
+  const person = await prisma.user.findFirst({ where: { id: userId, companyId }, select: { id: true, role: true } });
+  if (!person) return null;
+  const row = await prisma.userPermissionOverride.findUnique({
+    where: { userId_permissionKey: { userId, permissionKey: VOID_GRANT } },
+    select: { isAllowed: true, updatedAt: true, grantedBy: { select: { id: true, name: true, image: true } } },
+  });
+  return {
+    userId,
+    holds: Boolean(row?.isAllowed),
+    grantable: GRANTABLE.has(String(person.role)),
+    by: row?.grantedBy ? { id: row.grantedBy.id, name: row.grantedBy.name, image: row.grantedBy.image } : null,
+    at: row ? row.updatedAt.toISOString() : null,
+  };
+}

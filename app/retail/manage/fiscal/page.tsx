@@ -6,6 +6,7 @@ import * as React from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
 
+import { TestDevicePurge } from "@/components/books/test-device-purge";
 import { settingsQueryKey } from "@/components/settings-frame/model";
 import { SettingsFrame } from "@/components/settings-frame/settings-frame";
 import { useToast } from "@/components/ui/use-toast";
@@ -21,7 +22,8 @@ import type { SettingsResponse, SettingsSaved } from "@/lib/retail/settings-page
  * ZIMRA cannot be reached, on the SettingsFrame; the newest five fiscal days
  * in the aside. The owner connects the device with ZIMRA's activation key,
  * tests it with a receipt that is signed and never sent, and closes the open
- * day by hand. The manager and the bookkeeper read it.
+ * day by hand. The manager and the bookkeeper read it. The owner alone marks
+ * the device as ZIMRA's test environment and purges what it signed (D18).
  */
 export default function FiscalSettingsPage() {
   const { data: session } = useSession();
@@ -63,6 +65,8 @@ function FiscalActions({
     <>
       <TestReceipt />
       {openDay ? <CloseDay day={openDay} /> : null}
+      {/* D18: the owner marks the device as ZIMRA's test environment, and purges what it signed. */}
+      <TestDevicePurge />
     </>
   );
 }

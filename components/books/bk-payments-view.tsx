@@ -4,6 +4,7 @@ import * as React from "react";
 import Link from "next/link";
 
 import { Button, SelectCell, TableFoot, TableShell, useSelection, Person } from "@/components/core";
+import { MenuButton, type MenuEntry } from "@/components/core/menu";
 import { money } from "@/lib/books/format";
 import { PAYMENT_PERIOD_LABEL, PAYMENT_PERIODS, PAYMENT_TAB_LABEL, PAYMENT_VIEWS, type PaymentQuery, type PaymentRow, type PaymentsView } from "@/lib/books/payments";
 
@@ -24,6 +25,7 @@ export function BkPaymentsView({
   canVoid,
   onVoid,
   onExport,
+  undoEntries,
 }: {
   data: PaymentsView;
   onQuery: (next: Partial<PaymentQuery>) => void;
@@ -31,6 +33,8 @@ export function BkPaymentsView({
   canVoid: boolean;
   onVoid: (row: PaymentRow) => void;
   onExport: (rows: PaymentRow[]) => void;
+  /** Void and Delete permanently over the selection, as the person's role allows (P4, §5.13). */
+  undoEntries?: (rows: PaymentRow[]) => MenuEntry[];
 }) {
   const ids = React.useMemo(() => data.rows.map((row) => row.id), [data.rows]);
   const selection = useSelection(ids);
@@ -105,7 +109,11 @@ export function BkPaymentsView({
                   <Button icon="export" onClick={() => onExport(selected)}>
                     Export
                   </Button>
-                  {canVoid && live.length === 1 ? (
+                  {undoEntries && undoEntries(selected).length ? (
+                    <MenuButton label="More" items={undoEntries(selected)}>
+                      More
+                    </MenuButton>
+                  ) : canVoid && live.length === 1 ? (
                     <Button variant="danger" icon="x" onClick={() => onVoid(live[0])}>
                       Void {live[0].number}
                     </Button>

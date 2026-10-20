@@ -32,14 +32,14 @@ describe("void", () => {
   it("voids a paid invoice: its payments go on account, never in the way (§4.1 rule 4)", () => {
     const paid = invoice({ onAccount: [{ kind: "receipt", id: "r1", label: "RCT-0007" }] });
     expect(voidRefusal(paid)).toBeNull();
-    expect(voidEffects(paid)).toEqual(["A credit note for the rest is issued and posted", "RCT-0007 stays on the customer’s account", "Commission not yet paid on it is voided"]);
+    expect(voidEffects(paid)).toEqual(["A full credit note is issued and posted", "RCT-0007 stays on the customer’s account", "Commission not yet paid on it is voided"]);
     expect(voidFiscalNote(paid)).toBeNull();
   });
 
   it("voids a fiscalised invoice with a fiscal credit note that cites it", () => {
     const signed = invoice({ fiscalised: true });
     expect(voidRefusal(signed)).toBeNull();
-    expect(voidEffects(signed)[0]).toBe("A credit note for the rest is issued and signed, citing INV-0143");
+    expect(voidEffects(signed)[0]).toBe("A full credit note is issued and signed, citing INV-0143");
     expect(voidFiscalNote(signed)).toBe("INV-0143 is signed on FDMS, so it is voided with a fiscal credit note that cites it.");
   });
 

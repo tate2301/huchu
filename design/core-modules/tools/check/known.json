@@ -561,7 +561,9 @@
     "button: Issue 2 drafts",
     "button: Export 5 rows",
     "button: Delete 2 drafts",
-    "footer: # selectedTotal US#Send remindersMoreCle"
+    "footer: # selectedTotal US#Send remindersMoreCle",
+    "button: Void 5 invoices",
+    "button: Delete 5 invoices permanently"
   ],
   "BkInvoice": [
     "heading: Sales",
@@ -975,5 +977,57 @@
     "button: Record",
     "primary: New invoice [N]",
     "button: Notifications"
+  ],
+  "BkVoidDialog": [
+    "heading: Sales",
+    "button: Books",
+    "panel: Books",
+    "button: Vane",
+    "button: Notifications",
+    "panel: Overdueshared",
+    "panel: Pomona Officesyou",
+    "panel: Paid this monthshared"
+  ],
+  "BkReviseDialog": [
+    "heading: Bills & spending",
+    "button: Books",
+    "panel: Books",
+    "button: Vane",
+    "button: Notifications",
+    "panel: Overdueshared",
+    "panel: Pomona Officesyou",
+    "panel: Paid this monthshared"
+  ],
+  "BkDeleteDialog": [
+    "heading: Bills & spending",
+    "button: Books",
+    "panel: Books",
+    "button: Vane",
+    "button: Notifications",
+    "panel: Overdueshared",
+    "panel: Pomona Officesyou",
+    "panel: Paid this monthshared",
+    "heading: Delete 5 invoices permanently",
+    "primary: Delete 5 permanently [Ctrl ↵]",
+    "field: Type “delete 5” to confirm"
+  ],
+  "BkBulkResult": [
+    "heading: Sales",
+    "button: Books",
+    "panel: Books",
+    "button: Vane",
+    "button: Notifications",
+    "panel: Overdueshared",
+    "panel: Pomona Officesyou",
+    "panel: Paid this monthshared",
+    "heading: Void 5 invoices",
+    "button: Close",
+    "button: Retry 1 failed",
+    "primary: Done [↵]",
+    "column: Result",
+    "column: Why",
+    "status: Voided",
+    "status: Skipped",
+    "status: Failed"
   ]
 }

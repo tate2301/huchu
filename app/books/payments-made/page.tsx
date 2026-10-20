@@ -7,6 +7,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { downloadCsv } from "@/components/books/bk-list";
 import { BkPaymentsOutView } from "@/components/books/bk-payments-out-view";
 import { ReasonDrawer } from "@/components/books/bk-reason-drawer";
+import { useBulkUndo } from "@/components/books/undo-dialogs";
 import { BooksError, BooksLoading } from "@/components/books/books-state";
 import { BooksPage } from "@/components/books/figures";
 import type { MenuEntry } from "@/components/core/menu";
@@ -14,6 +15,7 @@ import { PageChrome } from "@/components/layout/page-chrome";
 import { useToast } from "@/components/ui/use-toast";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { bulkWords, eachOf } from "@/lib/books/bulk";
+import { money } from "@/lib/books/format";
 import type { PaymentOutQuery, PaymentOutRow, PaymentsOutPage } from "@/lib/books/payments-out";
 
 const PAY_SUPPLIERS = { label: "Pay suppliers", icon: "plus" as const, href: "/books/payments-made/new", shortcut: "N" };
@@ -77,6 +79,7 @@ function BooksPaymentsMade() {
     await client.invalidateQueries({ queryKey: ["books"] });
   };
 
+  const undo = useBulkUndo("payment", () => client.invalidateQueries({ queryKey: ["books"] }));
   const more = (rows: PaymentOutRow[]): MenuEntry[] => {
     const unpaid = rows.filter((row) => row.status === "DRAFT" || row.status === "TO_APPROVE" || row.status === "APPROVED");
     const paid = rows.filter((row) => row.status === "PAID");
@@ -94,7 +97,10 @@ function BooksPaymentsMade() {
       },
     ];
     if (unpaid.length) entries.push({ key: "delete", icon: "x", danger: true, label: `Delete ${unpaid.length === 1 ? "1 unpaid" : `${unpaid.length} unpaid`}`, onSelect: () => void remove(unpaid) });
-    if (payments.data?.can.void) {
+    // Void and Delete permanently over the selection (P4): as this person's role allows; the result row by row.
+    const bulk = undo.entries(rows.map((row) => ({ id: row.id, label: label(row), posted: row.status === "PAID" || row.status === "VOIDED", party: row.supplier?.name, amount: money(row.amount, row.currency) })));
+    if (bulk.length) entries.push(...bulk);
+    else if (payments.data?.can.void) {
       entries.push({
         key: "void",
         icon: "x",
@@ -126,6 +132,7 @@ function BooksPaymentsMade() {
           <BooksLoading />
         )}
       </BooksPage>
+      {undo.node}
       <ReasonDrawer
         open={voiding !== null}
         onOpenChange={(open) => (open ? undefined : setVoiding(null))}
