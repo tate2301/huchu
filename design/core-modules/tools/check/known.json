@@ -1029,5 +1029,27 @@
     "status: Voided",
     "status: Skipped",
     "status: Failed"
+  ],
+  "BkJournals": [
+    "heading: Ledger",
+    "button: Books",
+    "panel: Books",
+    "button: Vane",
+    "button: Notifications",
+    "panel: Overdueshared",
+    "panel: Pomona Officesyou",
+    "panel: Paid this monthshared",
+    "status: Draft"
+  ],
+  "BkJournalNew": [
+    "heading: Ledger",
+    "button: Books",
+    "panel: Books",
+    "button: Vane",
+    "button: Notifications",
+    "panel: Overdueshared",
+    "panel: Pomona Officesyou",
+    "panel: Paid this monthshared",
+    "status: Draft"
   ]
 }
