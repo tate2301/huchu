@@ -12,7 +12,7 @@ import { taxSettings, type TaxSettings } from "./tax-settings";
  *
  * - **30% on contracts.** A payment to a supplier without a valid tax
  *   clearance (ITF263) has 30% withheld once the supplier's payments in the
- *   calendar year, this one included, come to the threshold (US$1,000, a
+ *   calendar year, this one included, come to the threshold ($1,000, a
  *   setting to confirm). It is withheld from this payment on: payments made
  *   before the threshold was reached are not reopened.
  * - **VAT withholding.** Where this workspace is an appointed VAT withholding

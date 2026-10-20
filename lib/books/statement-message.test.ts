@@ -19,7 +19,7 @@ describe("a statement sent by WhatsApp (BkCustomer)", () => {
 
   it("lists each document and says what is owed", () => {
     expect(statementMessage(page)).toBe(
-      ["Statement for Pomona Offices, 1 August to 18 October 2026.", "6 Oct: INV-0142, US$1,994.22", "8 Oct: REC-0091, US$500.00 paid", "You owe US$1,494.22."].join("\n"),
+      ["Statement for Pomona Offices, 1 August to 18 October 2026.", "6 Oct: INV-0142, $1,994.22", "8 Oct: REC-0091, $500.00 paid", "You owe $1,494.22."].join("\n"),
     );
   });
 

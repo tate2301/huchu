@@ -46,8 +46,13 @@ async function main() {
   const cbz = await prisma.bankAccount.findFirst({ where: { companyId, name: "CBZ current", currency: "USD" }, select: { id: true, accountNumber: true } });
   if (!cbz) throw new Error("It needs the CBZ current account the Sales seed made.");
   if (!cbz.accountNumber) await prisma.bankAccount.update({ where: { id: cbz.id }, data: { accountNumber: "0112004471" } });
-  const zig = await prisma.bankAccount.create({ data: { companyId, name: "CBZ current, ZWG", bankName: "CBZ", accountNumber: "0112004472", currency: "ZWG", openingBalance: 61_280.4, kind: "BANK" } });
-  const ecocash = await prisma.bankAccount.create({ data: { companyId, name: "EcoCash merchant", bankName: "EcoCash", accountNumber: "0412", currency: "USD", openingBalance: 1_086.5, kind: "MOBILE" } });
+  // A ZiG bank account or EcoCash wallet the workspace already has (the world seed's) is used as it is.
+  const zig =
+    (await prisma.bankAccount.findFirst({ where: { companyId, kind: "BANK", currency: "ZWG", isActive: true }, orderBy: { createdAt: "asc" } })) ??
+    (await prisma.bankAccount.create({ data: { companyId, name: "CBZ current, ZWG", bankName: "CBZ", accountNumber: "0112004472", currency: "ZWG", openingBalance: 61_280.4, kind: "BANK" } }));
+  const ecocash =
+    (await prisma.bankAccount.findFirst({ where: { companyId, name: "EcoCash merchant" } })) ??
+    (await prisma.bankAccount.create({ data: { companyId, name: "EcoCash merchant", bankName: "EcoCash", accountNumber: "0412", currency: "USD", openingBalance: 1_086.5, kind: "MOBILE" } }));
 
   // RBZ's ZiG rates for the fortnight, one typed in on a day the feed was down, and the month end.
   const lastMonthEnd = new Date(Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth(), 0)).toISOString().slice(0, 10);
@@ -88,7 +93,9 @@ async function main() {
   const cbzOpening = (await prisma.bankAccount.findUniqueOrThrow({ where: { id: cbz.id }, select: { openingBalance: true } })).openingBalance;
   const book = cbzOpening + cbzBook.reduce((sum, row) => sum + (row.direction === "CREDIT" ? row.amount : -row.amount), 0);
   await startReconciliation(actor, { bankAccountId: cbz.id, statementEndDate: new Date(`${day(-2)}T00:00:00.000Z`), statementBalance: Math.round((book + 758.31) * 100) / 100 });
-  await startReconciliation(actor, { bankAccountId: zig.id, statementEndDate: new Date(`${day(-2)}T00:00:00.000Z`), statementBalance: 61_280.4 });
+  const zigMoved = await prisma.bankTransaction.findMany({ where: { companyId, bankAccountId: zig.id }, select: { amount: true, direction: true } });
+  const zigBook = zig.openingBalance + zigMoved.reduce((sum, row) => sum + (row.direction === "CREDIT" ? row.amount : -row.amount), 0);
+  await startReconciliation(actor, { bankAccountId: zig.id, statementEndDate: new Date(`${day(-2)}T00:00:00.000Z`), statementBalance: Math.round(zigBook * 100) / 100 });
 
   // Tax clearances: Mutare Timber Works' ran out on 30 June; Tile Trader's and Carpet Mills' are good.
   const itf = [

@@ -28,6 +28,7 @@ import { RecordTrailProvider } from "@/components/records/record-trail";
 import { SheetHost } from "@/components/sheet-form/sheet-host";
 import { LiveStream } from "@/components/layout/live-stream";
 import { VanePanel } from "@/components/vane/vane-panel";
+import { BooksScope, isBooksPath } from "@/components/books/books-scope";
 
 /**
  * The shell every signed-in page sits in (00-foundations 5.3.1):
@@ -98,7 +99,9 @@ export function AppShell({
     <ShellProvider defaultPanelOpen={defaultPanelOpen}>
       <ShellNavProvider brand={workspaceBrand} shopConditions={shopConditions}>
         <PageChromeProvider>
-          <ShellFrame builder={builder}>{children}</ShellFrame>
+          <BooksScope active={isBooksPath(pathname)}>
+            <ShellFrame builder={builder}>{children}</ShellFrame>
+          </BooksScope>
         </PageChromeProvider>
       </ShellNavProvider>
     </ShellProvider>
@@ -146,7 +149,7 @@ function ShellFrame({ children, builder }: { children: React.ReactNode; builder:
         <PageHeader />
         {/* Vane sits beside the page, under the top bar, as the boards draw it. */}
         <div className="flex min-h-0 min-w-0 flex-1">
-          <main className="content-shell min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain [touch-action:pan-y] pb-[env(safe-area-inset-bottom)]">
+          <main data-region="main" className="content-shell min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain [touch-action:pan-y] pb-[env(safe-area-inset-bottom)]">
             {/* Both live above the page: the trail has to survive the navigation
                 it is recording, and the peek renders over the page it was
                 opened from. */}

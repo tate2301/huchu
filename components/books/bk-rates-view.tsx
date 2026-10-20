@@ -12,7 +12,7 @@ import { Lead, n2, Rail, RailSec, Split, St, TableEmpty } from "./bk-b";
 import { BkChip, BkQuietTools, BkTabs, BkTools } from "./bk-list";
 import { BooksFinding } from "./figures";
 
-const code = (currency: string) => (currency === "ZWG" ? "ZiG" : currency);
+const code = (currency: string) => currency;
 
 /**
  * Books → Close the month → Rates & revaluation (design/core-modules/boards/view/BkRates.html):

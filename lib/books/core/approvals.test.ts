@@ -41,7 +41,7 @@ describe("approving", () => {
     expect(decideApproval(accountant, ask({ amount: 499.99 }), { othersWhoCanApprove: 1 })).toEqual({ allowed: true });
     expect(decideApproval(manager, ask({ amount: 500.01 }), { othersWhoCanApprove: 1, ownerName: "James Nyabadza" })).toEqual({
       allowed: false,
-      reason: "Over US$500.00 needs James Nyabadza.",
+      reason: "Over $500.00 needs James Nyabadza.",
     });
     expect(decideApproval(owner, ask({ amount: 50_000 }), { othersWhoCanApprove: 1 })).toEqual({ allowed: true });
   });

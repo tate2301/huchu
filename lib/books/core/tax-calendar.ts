@@ -53,7 +53,7 @@ export function provisionalInstalments(year: number, provisional: TaxSettings["p
       returnDue: `${year}-${provisional.returnDates[index]}`,
       paymentDue: `${year}-${provisional.paymentDates[index]}`,
       amount,
-      /** Under the 50/50 basis: the US dollar part and the ZiG part (in US dollars, paid in ZiG at the rate on the day). */
+      /** Under the 50/50 basis: the US dollar part and the ZWG part (in US dollars, paid in ZWG at the rate on the day). */
       split: amount !== null && foreign !== null ? { usd: round2(amount * foreign), zwgInUsd: round2(amount - round2(amount * foreign)) } : null,
     };
   });

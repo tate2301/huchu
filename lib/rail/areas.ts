@@ -80,6 +80,8 @@ export type RailFolder = {
   rank?: NavRank;
   /** Pages in another module the level points to, as a band after its rows (Books › Settings › In Management). */
   links?: { label: string; items: NavItem[] };
+  /** Its row carries the sum of its rows' counts (`NavGroup.sumsCounts`). */
+  sumsCounts?: boolean;
 };
 
 /**
@@ -287,6 +289,7 @@ export function areasFromSections(
             icon: group.icon ?? iconFor(group.id, items),
             items,
             ...(links ? { links } : {}),
+            ...(group.sumsCounts ? { sumsCounts: true } : {}),
           };
         }),
       });

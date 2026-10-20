@@ -144,7 +144,7 @@ describe("P2 exit: a CRM requisition, Draft to Accounted for", () => {
     as(repId, "SALES_REP");
     const id = await raise({ category: "EQUIPMENT", purpose: "Floor grinder, a week's hire", amount: 750, submit: true });
     as(shop.managerId, "MANAGER");
-    expect(await act(id, { action: "decide", approve: true })).toMatchObject({ status: 403, body: { error: "Over US$500.00 needs Tendai Mhlanga." } });
+    expect(await act(id, { action: "decide", approve: true })).toMatchObject({ status: 403, body: { error: "Over $500.00 needs Tendai Mhlanga." } });
     as(shop.ownerId, "SUPERADMIN");
     expect((await act(id, { action: "decide", approve: true })).status).toBe(200);
   });

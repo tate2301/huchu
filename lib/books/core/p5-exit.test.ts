@@ -197,9 +197,9 @@ describe("a workspace without the Books screens (books-final §1.1, §8 P5)", ()
     expect(canAccessRouteWithToken("/books", features)).toMatchObject({ allowed: false, featureKey: "books.screens" });
     expect(canAccessRouteWithToken("/books/journals", features)).toMatchObject({ allowed: false, featureKey: "books.screens" });
     expect(canAccessRouteWithToken("/api/books/trial-balance", features)).toMatchObject({ allowed: false, featureKey: "books.screens" });
-    const view = upsellView(await readUpsellFacts(prisma, fixture.companyId), "SUPERADMIN", new Date());
-    expect(view.finding.fact).toMatch(/^Your books hold 2 entries since \d{1,2} \w+\.$/);
-    expect(view.finding.rest).toBe("Every sale, payment and pay run has posted.");
+    const view = upsellView(await readUpsellFacts(prisma, fixture.companyId), "SUPERADMIN");
+    expect(view.finding.fact).toMatch(/^Your books hold 2 entries since \d{1,2} \w{3} \d{4}\.$/);
+    expect(view.finding.rest).toBe("Every sale, payment and pay run has posted from the first day.");
     expect(view.canAdd).toBe(true);
   });
 

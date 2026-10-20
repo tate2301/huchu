@@ -1,0 +1,12 @@
+{
+  "$comment": "Taste switches for this project. Craft rules and accessibility floors are never switched. Record why a switch was turned on in app/ledger.md.",
+  "uppercase": false,
+  "gradients": false,
+  "card_shadows": false,
+  "pill_buttons": false,
+  "emoji": false,
+  "dark_ground": false,
+  "weights_above_600": false,
+  "initials_avatars": false,
+  "stat_row": false
+}

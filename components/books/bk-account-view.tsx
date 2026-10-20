@@ -84,7 +84,7 @@ export function BkAccountView({
         <div className="sub">
           {data.kindLabel}
           {data.last4 ? ` · ending ${data.last4}` : ""}
-          {` · ${c === "ZWG" ? "ZiG" : c}`}
+          {` · ${c}`}
         </div>
       </div>
       <BkTabs

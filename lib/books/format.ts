@@ -1,8 +1,9 @@
 /**
- * How Books writes money and days (design/core-modules/spec/reports-and-books.md):
- * currency and both decimals everywhere, US dollars as "US$" and ZWG as "ZiG",
- * as the Books boards write them (books-final), any other currency by its code
- * ("ZAR 1,200.00"), and days in the workspace's own time zone.
+ * How Books writes money and days (design/books/html): currency and both
+ * decimals everywhere, US dollars as "$" and every other currency by its code
+ * ("ZWG 41,300.00", "ZAR 1,200.00"), a true minus, and days in the workspace's
+ * own time zone. Where a column names the currency once in its head, the cells
+ * use `amountOf` (components/books/ui/amt.tsx) without it.
  */
 
 export const BOOKS_TIME_ZONE = "Africa/Harare";
@@ -12,15 +13,15 @@ const twoPlaces = new Intl.NumberFormat("en-GB", { minimumFractionDigits: 2, max
 
 const cents = (n: number) => Math.round(n * 100) / 100;
 
-/** "US$1,240.00", "ZiG 12,393.66", "−US$18.00". */
+/** "$1,240.00", "ZWG 12,393.66", "−$18.00". */
 export function money(n: number, currency = "USD"): string {
   const value = cents(n);
   const code = currency.toUpperCase();
-  const body = `${code === "USD" ? "US$" : code === "ZWG" ? "ZiG " : `${code} `}${twoPlaces.format(Math.abs(value))}`;
+  const body = `${code === "USD" ? "$" : `${code} `}${twoPlaces.format(Math.abs(value))}`;
   return value < 0 ? `${MINUS}${body}` : body;
 }
 
-/** Money in or out of the bank: "+US$1,412.50", "−US$312.40". */
+/** Money in or out of the bank: "+$1,412.50", "−$312.40". */
 export function signedMoney(n: number, currency = "USD"): string {
   const value = cents(n);
   return value > 0 ? `+${money(value, currency)}` : money(value, currency);

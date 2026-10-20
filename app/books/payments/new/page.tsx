@@ -236,7 +236,7 @@ function PaymentFormPage({ options, initialCustomer, initialInvoice }: { options
                   setByHand(false);
                   setForm((current) => ({ ...current, currency: code, bankAccountId: "", allocations: [] }));
                 }}
-                options={options.currencies.map((code) => ({ value: code, label: code === "ZWG" ? "ZiG" : code }))}
+                options={options.currencies.map((code) => ({ value: code, label: code }))}
               />
             </BkField>
             <BkField label="Amount" htmlFor="pay-amount" error={errors.amount}>

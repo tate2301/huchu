@@ -1,0 +1,533 @@
+{
+ "_about": "One world for every Books screen and fixture. Floorcode Zimbabwe (flooring, Harare), Tue 6 Oct 2026 11:40, base USD, ZWG at the RBZ interbank rate of 26.80 (06:00). Every figure here appears on the screens and must add up the same way in fixtures.",
+ "clock": "2026-10-06T11:40:00+02:00",
+ "base": "USD",
+ "rates": {
+  "ZWG": 26.8,
+  "source": "RBZ interbank 06:00"
+ },
+ "vatRate": 0.155,
+ "people": [
+  {
+   "name": "James Nyabadza",
+   "role": "owner"
+  },
+  {
+   "name": "Chipo Marange",
+   "role": "outside accountant",
+   "note": "Marange & Associates, auditors; access has an end date"
+  },
+  {
+   "name": "Tonde Chuma",
+   "role": "manager",
+   "note": "approval limit $500"
+  },
+  {
+   "name": "Tsitsi Ndoro",
+   "role": "accountant (staff)",
+   "note": "never voids, revises or deletes posted documents"
+  },
+  {
+   "name": "Rudo Mapfumo",
+   "role": "shop manager"
+  },
+  {
+   "name": "Kuda Maposa",
+   "role": "fitter"
+  },
+  {
+   "name": "Farai Dube",
+   "role": "fitter"
+  },
+  {
+   "name": "Tinashe Moyo",
+   "role": "fitter"
+  },
+  {
+   "name": "Sekai Mutema",
+   "role": "superuser at Corelith",
+   "note": "change mode; session SA-214"
+  }
+ ],
+ "customers": [
+  {
+   "name": "Chisipite Dental",
+   "code": "C-0042",
+   "vat": "VAT 220419837",
+   "tin": "TIN 2001184522"
+  },
+  {
+   "name": "Highlands Guest Lodge",
+   "code": "C-0051",
+   "vat": "VAT 220733104",
+   "tin": "TIN 2000912377"
+  },
+  {
+   "name": "Msasa Motors",
+   "code": "C-0058",
+   "vat": "VAT 220156920",
+   "tin": "TIN 2001477203"
+  },
+  {
+   "name": "Pomona Offices",
+   "code": "C-0061",
+   "vat": "VAT 220881455",
+   "tin": "TIN 2001653018"
+  },
+  {
+   "name": "Borrowdale Brooke Clinic",
+   "code": "C-0063",
+   "vat": "VAT 220519006",
+   "tin": "TIN 2001720446"
+  },
+  {
+   "name": "Mrs T. Gumbo",
+   "code": "C-0064",
+   "vat": "",
+   "tin": ""
+  },
+  {
+   "name": "Greystone Park Primary",
+   "code": "C-0039",
+   "vat": "VAT exempt",
+   "tin": "TIN 2000338120"
+  },
+  {
+   "name": "Avondale Fresh Mart",
+   "code": "C-0047",
+   "vat": "VAT 220670118",
+   "tin": "TIN 2001093345"
+  },
+  {
+   "name": "Dr N. Sibanda",
+   "code": "C-0055",
+   "vat": "",
+   "tin": "TIN 2001288901"
+  }
+ ],
+ "invoices": [
+  {
+   "number": "INV-0131",
+   "customer": "Chisipite Dental",
+   "state": "Overdue",
+   "issued": "10 Sep",
+   "due": "24 Sep",
+   "total": 1240,
+   "balance": 1240,
+   "fiscal": "Valid",
+   "note": "12 days late"
+  },
+  {
+   "number": "INV-0135",
+   "customer": "Highlands Guest Lodge",
+   "state": "Overdue",
+   "issued": "17 Sep",
+   "due": "1 Oct",
+   "total": 860,
+   "balance": 860,
+   "fiscal": "Valid",
+   "note": "5 days late"
+  },
+  {
+   "number": "INV-0137",
+   "customer": "Msasa Motors",
+   "state": "Overdue",
+   "issued": "20 Sep",
+   "due": "4 Oct",
+   "total": 380,
+   "balance": 380,
+   "fiscal": "Valid",
+   "note": "2 days late"
+  },
+  {
+   "number": "INV-0142",
+   "customer": "Pomona Offices",
+   "state": "Part paid",
+   "issued": "28 Sep",
+   "due": "20 Oct",
+   "total": 1994.22,
+   "balance": 1494.22,
+   "fiscal": "Pending",
+   "note": "Due in 14 days"
+  },
+  {
+   "number": "INV-0140",
+   "customer": "Borrowdale Brooke Clinic",
+   "state": "Issued",
+   "issued": "24 Sep",
+   "due": "14 Oct",
+   "total": 1750,
+   "balance": 1750,
+   "fiscal": "Valid",
+   "note": "Due in 8 days"
+  },
+  {
+   "number": "INV-0141",
+   "customer": "Mrs T. Gumbo",
+   "state": "Paid",
+   "issued": "25 Sep",
+   "due": "5 Oct",
+   "total": 430,
+   "balance": 0,
+   "fiscal": "Valid",
+   "note": "Paid 5 Oct, cash"
+  },
+  {
+   "number": "INV-0139",
+   "customer": "Greystone Park Primary",
+   "state": "Paid",
+   "issued": "22 Sep",
+   "due": "6 Oct",
+   "total": 2980,
+   "balance": 0,
+   "fiscal": "Valid",
+   "note": "Paid 2 Oct, transfer"
+  },
+  {
+   "number": "INV-0138",
+   "customer": "Avondale Fresh Mart",
+   "state": "Paid",
+   "issued": "21 Sep",
+   "due": "30 Sep",
+   "total": 1865,
+   "balance": 0,
+   "fiscal": "Valid",
+   "note": "Paid 30 Sep, EcoCash"
+  },
+  {
+   "number": "INV-0136",
+   "customer": "Dr N. Sibanda",
+   "state": "Paid",
+   "issued": "18 Sep",
+   "due": "29 Sep",
+   "total": 1130,
+   "balance": 0,
+   "fiscal": "Valid",
+   "note": "Paid 29 Sep, card"
+  }
+ ],
+ "draftInvoice": {
+  "customer": "Borrowdale Brooke Clinic",
+  "total": 6400,
+  "note": "Written by Vane from Q-0218"
+ },
+ "moneyAccounts": [
+  {
+   "name": "CBZ current",
+   "kind": "Bank",
+   "currency": "USD",
+   "balance": 10832.8,
+   "reconciledTo": "30 Sep"
+  },
+  {
+   "name": "CBZ ZWG",
+   "kind": "Bank",
+   "currency": "ZWG",
+   "balance": 12393.66,
+   "reconciledTo": "30 Sep"
+  },
+  {
+   "name": "EcoCash merchant",
+   "kind": "Mobile money",
+   "currency": "USD",
+   "balance": 612.4,
+   "reconciledTo": "30 Sep"
+  },
+  {
+   "name": "Showroom till float",
+   "kind": "Cash",
+   "currency": "USD",
+   "balance": 180,
+   "reconciledTo": "5 Oct"
+  },
+  {
+   "name": "Showroom petty cash",
+   "kind": "Cash",
+   "currency": "USD",
+   "balance": 163.5,
+   "reconciledTo": "5 Oct"
+  },
+  {
+   "name": "Kuda's site cash",
+   "kind": "Cash",
+   "currency": "USD",
+   "balance": 120,
+   "reconciledTo": "Never"
+  }
+ ],
+ "bills": [
+  {
+   "number": "BILL-0088",
+   "supplier": "Belvedere Rentals",
+   "state": "To approve",
+   "date": "1 Oct",
+   "due": "7 Oct",
+   "total": 1200,
+   "balance": 1200,
+   "fdms": "Not checked",
+   "fti": "FTI 0001-00004417"
+  },
+  {
+   "number": "BILL-0086",
+   "supplier": "Halsted Builders",
+   "state": "Recorded",
+   "date": "25 Sep",
+   "due": "9 Oct",
+   "total": 312.4,
+   "balance": 312.4,
+   "fdms": "Valid",
+   "fti": "FTI 0003-00019220"
+  },
+  {
+   "number": "BILL-0087",
+   "supplier": "Tile & Trim Supplies",
+   "state": "Recorded",
+   "date": "29 Sep",
+   "due": "20 Oct",
+   "total": 2410,
+   "balance": 2410,
+   "fdms": "Valid",
+   "fti": "FTI 0002-00081154"
+  },
+  {
+   "number": "BILL-0084",
+   "supplier": "Tile & Trim Supplies",
+   "state": "Paid",
+   "date": "15 Sep",
+   "due": "30 Sep",
+   "total": 1860,
+   "balance": 0,
+   "fdms": "Valid",
+   "fti": "FTI 0002-00080391"
+  },
+  {
+   "number": "BILL-0085",
+   "supplier": "ZESA account 41187",
+   "state": "Paid",
+   "date": "18 Sep",
+   "due": "2 Oct",
+   "total": 214.6,
+   "balance": 0,
+   "fdms": "Valid",
+   "fti": "FTI 0009-00412008"
+  }
+ ],
+ "statutory": [
+  {
+   "name": "VAT for September",
+   "note": "Return 10 Oct, pay 15 Oct",
+   "amount": 1184.6,
+   "due": "15 Oct"
+  },
+  {
+   "name": "PAYE and AIDS levy for September",
+   "note": "Return filed 5 Oct",
+   "amount": 1077.69,
+   "due": "10 Oct"
+  },
+  {
+   "name": "NSSA for September",
+   "note": "Both shares",
+   "amount": 389.2,
+   "due": "10 Oct"
+  },
+  {
+   "name": "ZIMDEF for September",
+   "note": "1% of the wage bill",
+   "amount": 129.6,
+   "due": "10 Oct"
+  }
+ ],
+ "requisitions": [
+  {
+   "number": "REQ-0043",
+   "by": "Farai Dube",
+   "what": "Floor sander hire, 2 days",
+   "amount": 240,
+   "state": "Submitted",
+   "module": "CRM",
+   "for": "Msasa Motors"
+  },
+  {
+   "number": "REQ-0042",
+   "by": "Tinashe Moyo",
+   "what": "Skirting cut and delivery",
+   "amount": 85,
+   "state": "Submitted",
+   "module": "CRM",
+   "for": "Pomona Offices"
+  },
+  {
+   "number": "REQ-0041",
+   "by": "Kuda Maposa",
+   "what": "Site materials, Pomona",
+   "amount": 150,
+   "state": "Disbursed",
+   "module": "CRM",
+   "for": "Pomona Offices"
+  },
+  {
+   "number": "REQ-0040",
+   "by": "Rudo Mapfumo",
+   "what": "Cleaning supplies",
+   "amount": 35,
+   "state": "Acquitted",
+   "module": "Retail",
+   "for": "Showroom"
+  },
+  {
+   "number": "REQ-0038",
+   "by": "Farai Dube",
+   "what": "Diesel for the bakkie",
+   "amount": 60,
+   "state": "Acquitted",
+   "module": "CRM",
+   "for": "Highlands Guest Lodge"
+  }
+ ],
+ "wentOut": [
+  {
+   "line": "Supplier payments",
+   "note": "1 payment, Tile & Trim Supplies",
+   "amount": 1860,
+   "from": "Bills & spending"
+  },
+  {
+   "line": "Requisitions",
+   "note": "1 disbursed, Kuda for Pomona",
+   "amount": 150,
+   "from": "CRM"
+  },
+  {
+   "line": "Till payouts",
+   "note": "2 at the showroom",
+   "amount": 42,
+   "from": "Tender"
+  },
+  {
+   "line": "Petty cash",
+   "note": "4 vouchers",
+   "amount": 36.5,
+   "from": "Floats"
+  }
+ ],
+ "navigation": [
+  {
+   "level": "Money",
+   "rows": [],
+   "advanced": false
+  },
+  {
+   "level": "Sales",
+   "rows": [
+    "Invoices",
+    "Quotes",
+    "Payments received",
+    "Credit notes",
+    "Customers"
+   ],
+   "advanced": false
+  },
+  {
+   "level": "Bills & spending",
+   "rows": [
+    "All spending",
+    "Bills",
+    "Payments made",
+    "Purchase orders",
+    "Requisitions",
+    "Claims & petty cash",
+    "Suppliers"
+   ],
+   "advanced": false
+  },
+  {
+   "level": "Bank & cash",
+   "rows": [
+    "Accounts",
+    "To match",
+    "Reconciliations",
+    "Takings"
+   ],
+   "advanced": false
+  },
+  {
+   "level": "Tax",
+   "rows": [
+    "What's due",
+    "VAT returns",
+    "Withholding",
+    "Provisional tax",
+    "Fiscal register"
+   ],
+   "advanced": true
+  },
+  {
+   "level": "Close the month",
+   "rows": [
+    "Checklist",
+    "Needs posting",
+    "Rates & revaluation",
+    "Year end"
+   ],
+   "advanced": true
+  },
+  {
+   "level": "Ledger",
+   "rows": [
+    "Journals",
+    "Trial balance",
+    "Financial statements",
+    "General ledger",
+    "Chart of accounts",
+    "Cost centres",
+    "Posting rules",
+    "Audit trail"
+   ],
+   "advanced": true
+  },
+  {
+   "level": "Settings",
+   "rows": [
+    "Tax codes & rules",
+    "Numbering",
+    "Locks & periods",
+    "Opening balances",
+    "Set up the books",
+    "Business & tax details",
+    "Money accounts",
+    "Approvals & limits",
+    "Fiscal device"
+   ],
+   "advanced": false
+  }
+ ],
+ "totals": {
+  "owedToYou": 5724.22,
+  "overdue": 2480,
+  "cameInThisMonth": 10228.4,
+  "takings": 6318.4,
+  "wentOutThisMonth": 2088.5,
+  "cashTotalUSD": 12371.15,
+  "billsOwed": 3922.4,
+  "statutoryOwed": 2781.09,
+  "youOwe": 6703.49,
+  "trialBalance": 405861.51,
+  "cbz": {
+   "books": 10832.8,
+   "statement": 10777.6,
+   "difference": 55.2,
+   "explainedBy": [
+    "IMTT 37.20",
+    "bank fee 18.00"
+   ]
+  },
+  "vat": {
+   "output": 2670.21,
+   "input": 1485.61,
+   "due": 1184.6,
+   "usd": 1057.27,
+   "zwg": 3412.44
+  }
+ }
+}

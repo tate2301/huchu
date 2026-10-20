@@ -131,7 +131,7 @@ export function BkMoneyView({ data }: { data: MoneyBoard }) {
                       <th>Kind</th>
                       {bank.currencies.map((code) => (
                         <th className="num" key={code}>
-                          {code === "USD" ? "US$" : code === "ZWG" ? "ZiG" : code}
+                          {code === "USD" ? "$" : code}
                         </th>
                       ))}
                       <th>Reconciled</th>

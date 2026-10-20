@@ -88,7 +88,7 @@ function BooksProvisional() {
           <Field label="Tax for the year" htmlFor="qpd-tax" error={error} help="In US dollars. The four instalments are 10%, 25%, 30% and 35% of it.">
             <Input id="qpd-tax" inputMode="decimal" value={form.taxUsd} onChange={(event) => setForm({ ...form, taxUsd: event.target.value.replace(/[^\d.]/g, "") })} />
           </Field>
-          <Check checked={form.split5050} onCheckedChange={(split5050) => setForm({ ...form, split5050 })} label="Pay half in ZiG (the 50/50 basis)" />
+          <Check checked={form.split5050} onCheckedChange={(split5050) => setForm({ ...form, split5050 })} label="Pay half in ZWG (the 50/50 basis)" />
         </div>
       </Drawer>
       <BankEntryDrawer

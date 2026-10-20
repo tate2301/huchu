@@ -210,8 +210,9 @@ export function WorkspaceRail({
       icon={item.icon}
       current={item.href === activeHref}
       badge={badges[item.href]}
+      lock={item.lock}
       onNavigate={onNavigate}
-      onPin={pinCapacity > 0 ? () => toggle(item.href) : undefined}
+      onPin={pinCapacity > 0 && !item.lock ? () => toggle(item.href) : undefined}
       pinned={isPinned(item.href)}
     />
   );
@@ -246,15 +247,30 @@ export function WorkspaceRail({
     return (
       <>
         {rowsFor(areaRows(area), area)}
-        {(area.folders ?? []).map((folder) => (
-          <LevelRow
-            key={`folder:${folder.id}`}
-            label={folder.label}
-            icon={folder.icon}
-            holdsPage={isPageArea && folder.id === activeFolderId}
-            onOpen={() => setView({ areaId: area.id, folderId: folder.id })}
-          />
-        ))}
+        {(area.folders ?? []).map((folder) => {
+          // A level the plan holds back whole shows once with its price and opens what the plan adds.
+          const lock = levelLock(folder);
+          return lock ? (
+            <RailRow
+              key={`folder:${folder.id}`}
+              href={folder.items[0]!.href}
+              label={folder.label}
+              icon={folder.icon}
+              current={isPageArea && folder.id === activeFolderId}
+              lock={lock}
+              onNavigate={onNavigate}
+            />
+          ) : (
+            <LevelRow
+              key={`folder:${folder.id}`}
+              label={folder.label}
+              icon={folder.icon}
+              holdsPage={isPageArea && folder.id === activeFolderId}
+              badge={levelBadge(folder, badges)}
+              onOpen={() => setView({ areaId: area.id, folderId: folder.id })}
+            />
+          );
+        })}
         {bands.filter((b) => !b.trailing).map((b) => band(b.id, b.label, false))}
         {isPageArea ? moduleGroups?.(area, { savedViews: !pageFolderId, reports: true }) : null}
         {bands.filter((b) => b.trailing).map((b) => band(b.id, b.label, true))}
@@ -447,4 +463,18 @@ export function WorkspaceRail({
       {panel}
     </div>
   );
+}
+
+/** A level whose every row is locked, and which links nowhere free, is locked whole at its dearest price. */
+function levelLock(folder: RailFolder): string | null {
+  if (folder.items.length === 0 || folder.links?.items.length) return null;
+  if (!folder.items.every((item) => item.lock)) return null;
+  return [...folder.items].map((item) => item.lock!).sort().at(-1) ?? null;
+}
+
+/** The things waiting in a level: its open rows' counts, summed. */
+function levelBadge(folder: RailFolder, badges: Record<string, string>): string | null {
+  if (!folder.sumsCounts) return null;
+  const total = folder.items.reduce((sum, item) => sum + (item.lock ? 0 : Number(badges[item.href] ?? 0) || 0), 0);
+  return total > 0 ? String(total) : null;
 }

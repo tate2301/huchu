@@ -12,7 +12,7 @@ import { voidMoney } from "./void-money";
 
 /**
  * Petty cash (D13, books-final §4.12, §5.4). A float is a cash money account
- * with an imprest (say US$200) held by one person. A voucher spends from it:
+ * with an imprest (say $200) held by one person. A voucher spends from it:
  * under `voucherHolderUnder` the holder's word posts it, over it the holder's
  * manager approves first (never the one who wrote it). Posted: Dr the
  * category's expense (input VAT where the slip's FTI is valid), Cr the float.

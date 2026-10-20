@@ -85,7 +85,7 @@ const harareStart = (day: string) => new Date(`${day}T00:00:00.000+02:00`);
 const account = (row: { name: string; bankName?: string | null; currency?: string } | null | undefined) =>
   row ? `${row.bankName && !row.name.toLowerCase().includes(row.bankName.toLowerCase()) ? `${row.bankName} ${row.name}` : row.name}${row.currency ? `, ${row.currency}` : ""}` : null;
 
-/** "US$6,716.86 has gone out this month, from 5 modules." / "Bills are the most, US$3,972.40." */
+/** "$6,716.86 has gone out this month, from 5 modules." / "Bills are the most, $3,972.40." */
 export function spendingFinding(total: number, modules: number, byKind: Record<SpendingKind, number>, currency = "USD"): { fact: string; rest: string | null } {
   if (total <= 0.005) return { fact: "Nothing has gone out this month.", rest: null };
   const fact = `${money(total, currency)} has gone out this month, from ${count(modules, "module")}.`;

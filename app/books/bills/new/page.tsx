@@ -359,9 +359,9 @@ function BillFormPage({ options, draft }: { options: Options; draft: BillRecordP
             <BkField label="Currency">
               {draft ? (
                 // A goods receipt's bill is in the currency it was counted in.
-                <BkSeg label="Currency" value={draft.currency} onChange={() => undefined} options={options.currencies.map((code) => ({ value: code, label: code === "ZWG" ? "ZiG" : code, disabled: code !== draft.currency }))} />
+                <BkSeg label="Currency" value={draft.currency} onChange={() => undefined} options={options.currencies.map((code) => ({ value: code, label: code, disabled: code !== draft.currency }))} />
               ) : (
-                <BkSeg label="Currency" value={form.currency} onChange={(code) => set("currency", code)} options={options.currencies.map((code) => ({ value: code, label: code === "ZWG" ? "ZiG" : code }))} />
+                <BkSeg label="Currency" value={form.currency} onChange={(code) => set("currency", code)} options={options.currencies.map((code) => ({ value: code, label: code }))} />
               )}
             </BkField>
             <BkField label="Due" htmlFor="bill-due">

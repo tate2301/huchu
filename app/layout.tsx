@@ -18,6 +18,7 @@ import "./themes/workspace.css";
 import "@/components/core/kit.css";
 import "@/components/core/parts.css";
 import "@/components/core/books.css";
+import "@/components/books/books-type.css";
 import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import { cache, Suspense } from "react";
@@ -27,6 +28,8 @@ import { getServerSession } from "next-auth";
 import { AppProviders } from "@/components/providers/app-providers";
 import { AppShell } from "@/components/layout/app-shell";
 import { inter } from "@/components/core/fonts";
+
+const BOOKS_FACE_SCRIPT = `(function(){var p=location.pathname;if(p==="/books"||p.indexOf("/books/")===0)document.documentElement.dataset.module="books";})();`;
 import { PANEL_COOKIE } from "@/lib/rail/panel-cookie";
 import { navConditions } from "@/lib/retail/nav/conditions";
 import { isAdminPortalHost } from "@/lib/admin-portal";
@@ -198,6 +201,8 @@ export default async function RootLayout({
     >
       <head>
         <script dangerouslySetInnerHTML={{ __html: APPEARANCE_SCRIPT }} />
+        {/* Books draws in its own face (components/books/books-type.css): mark the root before the first paint. */}
+        <script dangerouslySetInnerHTML={{ __html: BOOKS_FACE_SCRIPT }} />
       </head>
       <body
         /* No `font-sans`: frappe's theme ships its own `.font-sans` utility

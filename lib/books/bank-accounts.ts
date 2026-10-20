@@ -43,7 +43,7 @@ export type AccountsPage = {
   rows: AccountRow[];
   counts: Record<"all" | AccountKindKey, number>;
   sums: { inBase: number; byCurrency: Array<{ currency: string; total: number }> };
-  /** "ZiG at 27.00 today". */
+  /** "ZWG at 27.00 today". */
   rateNote: string | null;
 };
 
@@ -173,7 +173,7 @@ export async function readAccounts(db: Db, companyId: string, { view = "all", q 
       inBase: round2(rows.reduce((sum, row) => sum + (row.currency === baseCurrency ? row.balance : (row.inBase ?? 0)), 0)),
       byCurrency: [...byCurrency.entries()].sort(([a], [b]) => (a === baseCurrency ? -1 : b === baseCurrency ? 1 : a.localeCompare(b))).map(([currency, total]) => ({ currency, total })),
     },
-    rateNote: other ? `${other[0] === "ZWG" ? "ZiG" : other[0]} at ${other[1].rate.toFixed(2)}${other[1].day === storedDay(now) ? " today" : `, ${shortDay(other[1].day)}`}` : null,
+    rateNote: other ? `${other[0]} at ${other[1].rate.toFixed(2)}${other[1].day === storedDay(now) ? " today" : `, ${shortDay(other[1].day)}`}` : null,
   };
 }
 

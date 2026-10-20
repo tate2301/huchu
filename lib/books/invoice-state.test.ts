@@ -48,8 +48,8 @@ describe("invoiceState", () => {
 describe("invoicesFinding", () => {
   it("says what is owed and how much is late", () => {
     expect(invoicesFinding({ amount: 5724.22, invoices: 5 }, { amount: 2480, invoices: 3 })).toEqual({
-      fact: "US$5,724.22 is owed to you on 5 invoices.",
-      rest: "3 are overdue, US$2,480.00 in all.",
+      fact: "$5,724.22 is owed to you on 5 invoices.",
+      rest: "3 are overdue, $2,480.00 in all.",
     });
     expect(invoicesFinding({ amount: 0, invoices: 0 }, { amount: 0, invoices: 0 }).fact).toBe("Nothing is owed to you.");
     expect(invoicesFinding({ amount: 860, invoices: 1 }, { amount: 860, invoices: 1 }).rest).toBe("It is overdue.");

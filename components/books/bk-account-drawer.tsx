@@ -65,7 +65,7 @@ export function AccountDrawer({ open, account, onOpenChange, onDone }: { open: b
             <Field label="Currency" htmlFor="acc-currency">
               <Select id="acc-currency" value={form.currency} onChange={(event) => setForm({ ...form, currency: event.target.value })}>
                 <option value="USD">USD</option>
-                <option value="ZWG">ZiG</option>
+                <option value="ZWG">ZWG</option>
                 <option value="ZAR">ZAR</option>
               </Select>
             </Field>

@@ -63,7 +63,7 @@ function StartDrawer({ open, onOpenChange, accounts, accountId, onDone }: { open
         <Field label="Statement ends on" htmlFor="rec-end" help="The last day the bank’s statement covers.">
           <Input id="rec-end" type="date" value={form.statementEndDate} onChange={(event) => setForm({ ...form, statementEndDate: event.target.value })} />
         </Field>
-        <Field label={`Closing balance${account ? `, ${account.currency === "ZWG" ? "ZiG" : account.currency}` : ""}`} htmlFor="rec-balance" error={error} help="As the statement shows it on that day.">
+        <Field label={`Closing balance${account ? `, ${account.currency}` : ""}`} htmlFor="rec-balance" error={error} help="As the statement shows it on that day.">
           <Input id="rec-balance" inputMode="decimal" value={form.statementBalance} onChange={(event) => setForm({ ...form, statementBalance: event.target.value.replace(/[^\d.-]/g, "") })} />
         </Field>
       </div>

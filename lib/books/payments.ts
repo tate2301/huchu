@@ -212,7 +212,7 @@ export function paymentsFinding(month: { amount: number; payments: number }, cur
   return { fact: `${money(month.amount, currency)} came in this month.`, rest: `${count(month.payments, "payment")} so far.` };
 }
 
-/** "US$5,660.00 has come in on 6 payments this month." / "US$1,250.00 of it is on account, on no invoice yet." (BkPaymentsIn) */
+/** "$5,660.00 has come in on 6 payments this month." / "$1,250.00 of it is on account, on no invoice yet." (BkPaymentsIn) */
 export function paymentsInFinding(month: { amount: number; payments: number }, onAccount: number, currency = "USD"): { fact: string; rest: string | null } {
   if (month.payments === 0) return { fact: "Nothing has come in this month yet.", rest: null };
   return {

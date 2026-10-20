@@ -116,7 +116,7 @@ export async function readRequisitionRecord(db: Db, companyId: string, id: strin
   const history: Array<HistoryItem & { at: Date }> = [];
   const when = (value: Date) => historyWhen(value, now);
   const asker = row.requestedBy.name;
-  history.push({ tone: "", text: `${asker} asked for ${row.currency === "USD" ? "US$" : `${row.currency} `}${asked.toFixed(2)}`, when: when(row.submittedAt ?? row.createdAt), at: row.submittedAt ?? row.createdAt });
+  history.push({ tone: "", text: `${asker} asked for ${row.currency === "USD" ? "$" : `${row.currency} `}${asked.toFixed(2)}`, when: when(row.submittedAt ?? row.createdAt), at: row.submittedAt ?? row.createdAt });
   if (row.approvedAt && row.status !== "REJECTED") history.push({ tone: "ok", text: `${row.approvedBy?.name ?? "Someone"} approved it`, when: when(row.approvedAt), at: row.approvedAt });
   if (row.status === "REJECTED" && row.approvedAt) history.push({ tone: "wa", text: `${row.approvedBy?.name ?? "Someone"} did not approve it${row.decisionNote ? `: ${row.decisionNote}` : ""}`, when: when(row.approvedAt), at: row.approvedAt });
   if (row.disbursedAt) history.push({ tone: "in", text: `${row.disbursedBy?.name ?? "Someone"} paid out ${given?.toFixed(2) ?? ""}${row.bankAccount ? ` from ${row.bankAccount.name}` : ""}`, when: when(row.disbursedAt), at: row.disbursedAt });

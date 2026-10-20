@@ -3,7 +3,7 @@ import { isKnownFeatureKey, normalizeFeatureKey } from "@/lib/platform/gating/ca
 import { resolveFeatureKeyForCapability } from "@/lib/platform/gating/capability-registry";
 import { isFeatureBypassed } from "@/lib/platform/gating/break-glass";
 import { getFeatureDependencies } from "@/lib/platform/gating/feature-dependencies";
-import { booksScreensKeyForPath, resolveFeatureKeyForPath } from "@/lib/platform/gating/route-registry";
+import { booksTierKeyForPath, resolveFeatureKeyForPath } from "@/lib/platform/gating/route-registry";
 import { isAllowByDefaultFeaturePolicy } from "@/lib/platform/gating/policy";
 import type { FeatureGateDecision } from "@/lib/platform/gating/types";
 
@@ -12,7 +12,7 @@ export async function canAccessRouteForCompany(
   pathname: string,
 ): Promise<FeatureGateDecision> {
   // A Books screen needs the screens before anything finer (books-final §1.2).
-  const screensKey = booksScreensKeyForPath(pathname);
+  const screensKey = booksTierKeyForPath(pathname);
   if (screensKey && !isFeatureBypassed(screensKey) && !isAllowByDefaultFeaturePolicy()) {
     if (!companyId || !(await hasFeature(companyId, screensKey))) {
       return { allowed: false, code: "FEATURE_DISABLED", message: `Feature disabled: ${screensKey}`, featureKey: screensKey, path: pathname };

@@ -4,7 +4,10 @@ import * as React from "react";
 import Link from "next/link";
 
 import { cn } from "@/lib/utils";
+import { BOOKS_ROW_ICON } from "@/components/books/icons/books-nav-icons";
 import { CaretRight, PushPin } from "@/lib/icons";
+
+const LockIcon = BOOKS_ROW_ICON.Lock;
 import type { LucideIcon } from "@/lib/icons";
 
 import styles from "./workspace-rail.module.css";
@@ -26,6 +29,7 @@ export function RailRow({
   onPin,
   pinned,
   after,
+  lock,
 }: {
   href: string;
   label: string;
@@ -40,6 +44,8 @@ export function RailRow({
   pinned?: boolean;
   /** Drawn over the row's right edge, outside the link: its own menu. */
   after?: React.ReactNode;
+  /** The plan's price where the workspace does not have it, with a lock (`NavItem.lock`). */
+  lock?: string;
 }) {
   return (
     <li className={after ? styles.rowWrap : undefined}>
@@ -49,7 +55,7 @@ export function RailRow({
         className={cn(styles.item, current && styles.itemCurrent)}
         onClick={onNavigate}
       >
-        {Icon ? <Icon className={styles.itemIcon} /> : <span className={styles.dot} aria-hidden="true" />}
+        {Icon ? <Icon className={styles.itemIcon} data-current={current || undefined} /> : <span className={styles.dot} aria-hidden="true" />}
         <span className={styles.itemLabel}>{label}</span>
         {onPin ? (
           <button
@@ -67,7 +73,14 @@ export function RailRow({
             <PushPin className={styles.pinIcon} weight={pinned ? "fill" : "regular"} />
           </button>
         ) : null}
-        {badge ? <span className={styles.badge}>{badge}</span> : null}
+        {lock ? (
+          <>
+            <span className={styles.meta}>{lock}</span>
+            <LockIcon className={styles.levelCaret} aria-label="Not on your plan" />
+          </>
+        ) : badge ? (
+          <span className={styles.badge}>{badge}</span>
+        ) : null}
         {meta ? <span className={styles.meta}>{meta}</span> : null}
       </Link>
       {after}
@@ -84,10 +97,13 @@ export function LevelRow({
   label,
   icon: Icon,
   holdsPage,
+  badge,
   onOpen,
 }: {
   label: string;
   icon: LucideIcon;
+  /** The things waiting in the level: its rows' counts, summed (Books' bk-nav). */
+  badge?: string | null;
   /** The page being looked at is somewhere in this level. */
   holdsPage?: boolean;
   onOpen: () => void;
@@ -100,8 +116,9 @@ export function LevelRow({
         aria-current={holdsPage ? "true" : undefined}
         onClick={onOpen}
       >
-        <Icon className={styles.itemIcon} />
+        <Icon className={styles.itemIcon} data-current={holdsPage || undefined} />
         <span className={styles.itemLabel}>{label}</span>
+        {badge ? <span className={styles.badge}>{badge}</span> : null}
         <CaretRight className={styles.levelCaret} aria-hidden="true" />
       </button>
     </li>

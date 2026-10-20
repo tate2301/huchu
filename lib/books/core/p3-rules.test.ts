@@ -58,7 +58,7 @@ describe("a document in another currency posts in the base currency (D3, D4)", (
 });
 
 describe("realised exchange differences (§5.9.3)", () => {
-  it("a US dollar receipt on a ZiG invoice takes its base value at the day's ZiG rate off the invoice", () => {
+  it("a US dollar receipt on a ZWG invoice takes its base value at the day's ZWG rate off the invoice", () => {
     const settled = settle({ direction: "IN", docCurrency: "ZWG", docRate: 26, payCurrency: "USD", payAmount: 1000, payRate: 1, crossRate: 26.5 });
     expect(settled).toEqual({ allocated: 26500, settledBase: 1000, carryingBase: 1019.23, gain: -19.23 });
     expect(realisedAdjustments("IN", settled.gain)).toEqual([
@@ -67,7 +67,7 @@ describe("realised exchange differences (§5.9.3)", () => {
     ]);
   });
 
-  it("paying a ZiG bill after the ZiG weakened is a gain", () => {
+  it("paying a ZWG bill after the ZWG weakened is a gain", () => {
     const settled = settle({ direction: "OUT", docCurrency: "ZWG", docRate: 26, payCurrency: "ZWG", payAmount: 2600, payRate: 27 });
     expect(settled.gain).toBeCloseTo(3.7, 2);
     expect(realisedAdjustments("OUT", settled.gain)[0]).toMatchObject({ accountCode: "2000", debit: 3.7 });
@@ -99,7 +99,7 @@ describe("withholding (D17)", () => {
 });
 
 describe("IMTT (§5.8.3)", () => {
-  it("proposes 2% on US dollars, 1.5% on ZiG and the flat amount over the threshold", () => {
+  it("proposes 2% on US dollars, 1.5% on ZWG and the flat amount over the threshold", () => {
     expect(imttOn(1212.75, "USD", DEFAULT_TAX_SETTINGS)).toBe(24.26);
     expect(imttOn(10000, "ZWG", DEFAULT_TAX_SETTINGS)).toBe(150);
     expect(imttOn(600_000, "USD", DEFAULT_TAX_SETTINGS)).toBe(10_150);
