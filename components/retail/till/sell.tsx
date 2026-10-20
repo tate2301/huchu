@@ -796,8 +796,6 @@ function SaleColumn({
         </div>
         {empty ? null : discountCeiling ? (
           <ErrorLine>{discountCeiling} Change the line, then take the money.</ErrorLine>
-        ) : offlineStop ? (
-          <p className="help is-centred">{offlineStop}</p>
         ) : approvalLine ? (
           <p className="help is-centred">{approvalLine}</p>
         ) : null}

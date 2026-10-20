@@ -2907,16 +2907,18 @@
   .tl.tl.tl .gate-who .avatar { width: 64px; height: 64px; }
   .tl.tl.tl .gate-who .avatar-none .ic { width: 30px; height: 30px; }
   .tl.tl.tl .gate-s { font-size: 15px; }
-  .tl.tl.tl .gate-people { display: flex; overflow-x: auto; gap: 8px; margin: 0 -16px; padding: 2px 16px 4px; scroll-snap-type: x proximity; }
-  .tl.tl.tl .gate-face { flex: none; width: 112px; padding: 12px 6px; font-size: 15px; scroll-snap-align: start; }
+  .tl.tl.tl .gate-people { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+  .tl.tl.tl .gate-cm:not(.is-idle) .gate-people { display: flex; overflow-x: auto; margin: -6px -16px; padding: 6px 16px; scroll-snap-type: x proximity; }
+  .tl.tl.tl .gate-face { padding: 12px 6px; font-size: 15px; scroll-snap-align: start; }
+  .tl.tl.tl .gate-cm:not(.is-idle) .gate-face { flex: none; width: 112px; }
   .tl.tl.tl .gate-face .avatar { width: 56px; height: 56px; }
   .tl.tl.tl .gate-face .avatar-none .ic { width: 26px; height: 26px; }
   .tl.tl.tl .gate-face small { font-size: 13px; }
   .tl.tl.tl .gate-people .skeleton.is-face { flex: none; width: 112px; height: 120px; }
   .tl.tl.tl .gate-cm .keypad.pinpad { width: 100%; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
   .tl.tl.tl .gate-cm .pinpad button { height: 60px; }
-  .tl.tl.tl .gate-foot { width: 100%; }
-  .tl.tl.tl .gate-foot .gate-btn { flex: 1; justify-content: center; padding: 0 16px; font-size: 16px; }
+  .tl.tl.tl .gate-foot { width: 100%; flex-wrap: nowrap; }
+  .tl.tl.tl .gate-foot .gate-btn { flex: 1 1 0; min-width: 0; justify-content: center; padding: 0 12px; font-size: 16px; white-space: normal; line-height: 1.2; }
   .tl.tl.tl .gate-door { gap: 18px; margin: 0; }
   .tl.tl.tl .gate-door .gate-s { margin: -6px 0 0; }
   .tl.tl.tl .gate-code { gap: 8px; }
@@ -3033,3 +3035,147 @@
 .tl.tl.tl .cscr-ref { margin-top: calc(36 * var(--u)); font-family: var(--font-mono); font-size: calc(14 * var(--u)); color: var(--color-muted); }
 
 @media (prefers-reduced-motion: reduce) { .tl.tl.tl .cscr-lines li, .tl.tl.tl .cscr-pay, .tl.tl.tl .cscr-tick { animation: none; } }
+
+/* Customers, a customer and lay-bys (boards T4-1–T4-3), the customer sheet (T2-1), Price check and Reports.
+   They stand on History's two columns (20-history.css): the rows on the left, the record in the sale column's place. */
+
+/* The left column: the search as large as the till's, the section labels, rows that are buttons. */
+.tl.tl.tl .cu .hx-row { width: 100%; text-align: left; }
+.tl.tl.tl .hx-row.is-static { cursor: default; }
+@media (hover: hover) { .tl.tl.tl .hx-row.is-static:hover { background: var(--color-surface); } }
+.tl.tl.tl .input-wrap.cu-find { flex: none; height: 60px; padding: 0 var(--space-12) 0 20px; gap: var(--space-12); border-radius: 16px; background: var(--color-fill); box-shadow: none; font-size: 18px; }
+.tl.tl.tl .input-wrap.cu-find:focus-within { box-shadow: inset 0 0 0 2px var(--color-rule); }
+.tl.tl.tl .input-wrap.cu-find .ic { width: 22px; height: 22px; color: var(--color-muted); }
+.tl.tl.tl .input-wrap.cu-find input { font-size: 18px; }
+.tl.tl.tl .cu .hx-pills.is-quiet { margin-top: -6px; }
+.tl.tl.tl .cu-list { display: flex; flex-direction: column; gap: var(--space-8); }
+.tl.tl.tl .cu-label { padding: var(--space-8) var(--space-4) 10px; font-size: var(--text-14); font-weight: 500; color: var(--color-muted); }
+.tl.tl.tl .cu-k { margin-right: var(--space-8); font-family: var(--font-sans); font-size: var(--text-14); color: var(--color-muted); }
+.tl.tl.tl .hx-v.is-muted { color: var(--color-muted); }
+.tl.tl.tl .hx-tag.is-bad { background: var(--color-danger-tint); color: var(--color-danger); }
+.tl.tl.tl .cu-pc .hx-glyph { overflow: hidden; }
+.tl.tl.tl .cu-pc .hx-glyph .pic { width: 100%; height: 100%; display: grid; place-items: center; }
+.tl.tl.tl .cu-pc .hx-glyph .pic img { width: 100%; height: 100%; object-fit: cover; }
+.tl.tl.tl .cu-pc .hx-glyph .pic .ic { width: 22px; height: 22px; color: var(--color-ink-2); }
+
+/* The record: a lay-by's payments by date, then Paid and Left; a customer's name, facts and lay-bys. */
+.tl.tl.tl .hx-side:has(> .hx-done) { background: var(--color-surface); }
+.tl.tl.tl .cu-pays { flex: none; margin: var(--space-4) var(--space-12) 0; border-radius: 16px; background: var(--color-surface); box-shadow: inset 0 0 0 1px var(--color-line); }
+.tl.tl.tl .cu-pay { display: grid; grid-template-columns: 72px minmax(0, 1fr) auto; gap: 10px; align-items: center; min-height: 52px; padding: 0 var(--space-16); box-shadow: inset 0 -1px 0 var(--color-line); font-size: 15px; color: var(--color-ink); }
+.tl.tl.tl .cu-pay:last-child { box-shadow: none; }
+.tl.tl.tl .cu-pay > :first-child { font-size: var(--text-14); color: var(--color-muted); }
+.tl.tl.tl .cu-pay > :last-child { font-size: 15px; }
+.tl.tl.tl .cu-pay .muted { color: var(--color-muted); }
+.tl.tl.tl .cu-left { flex: none; display: flex; justify-content: space-between; gap: var(--space-16); margin: var(--space-12) var(--space-12) 0; padding: 14px var(--space-16); border-radius: 16px; background: var(--color-surface); box-shadow: inset 0 0 0 1px var(--color-line); }
+.tl.tl.tl .cu-left > div:last-child { text-align: right; }
+.tl.tl.tl .cu-left-k { font-size: var(--text-13); color: var(--color-muted); }
+.tl.tl.tl .cu-left-v { margin-top: 2px; font-family: var(--font-mono); font-size: 19px; color: var(--color-ink-2); }
+.tl.tl.tl .cu-left-v.is-to { font-size: 22px; color: var(--color-ink); }
+.tl.tl.tl .cu-pays.is-flush, .tl.tl.tl .cu-left.is-flush { margin: 0; }
+.tl.tl.tl .hx-side .hx-scroll > .cu-left:last-of-type { margin-bottom: var(--space-12); }
+.tl.tl.tl .cu .hx-customer { display: inline-flex; align-items: center; gap: var(--space-8); }
+.tl.tl.tl .cu .hx-customer .ic { flex: none; width: 18px; height: 18px; color: var(--color-muted); }
+.tl.tl.tl .cu-sum { padding-bottom: 20px; }
+.tl.tl.tl .cu-who { display: flex; align-items: center; gap: 14px; padding: var(--space-8) var(--space-24) var(--space-16); }
+.tl.tl.tl .cu-who > div { display: flex; flex-direction: column; min-width: 0; }
+.tl.tl.tl .cu-who b { font-size: 22px; font-weight: 600; letter-spacing: -0.01em; color: var(--color-ink); }
+.tl.tl.tl .cu-who .num { margin-top: 2px; font-size: 15px; color: var(--color-muted); }
+.tl.tl.tl .hx-side .hx-facts + .hx-facts { margin-top: 0; }
+.tl.tl.tl .hx-facts button.fact { width: 100%; text-align: left; }
+.tl.tl.tl .hx-facts .fact dt.truncate { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+
+/* Lay-by payment (T4-2): the tray's amount is typed in place; the tender's part holds the reference. */
+.tl.tl.tl .cu-figure { display: flex; align-items: baseline; font-family: var(--font-mono); font-size: 36px; line-height: 1.1; letter-spacing: -0.02em; color: var(--color-ink); cursor: text; }
+.tl.tl.tl .cu-figure input { flex: 1; width: 100%; min-width: 0; padding: 0; border: 0; outline: 0; background: transparent; font: inherit; letter-spacing: inherit; color: inherit; caret-color: var(--color-accent); }
+.tl.tl.tl .cu-figure input::placeholder { color: var(--color-faint); }
+.tl.tl.tl .cu-figure input:focus, .tl.tl.tl .cu-figure input:focus-visible { outline: none; box-shadow: none; }
+.tl.tl.tl .cu-figure:has(input[aria-invalid="true"]) { color: var(--color-danger); }
+.tl.tl.tl .shell-cm .tray.cu-tray .quick { display: grid; padding: 0; overflow: visible; }
+.tl.tl.tl .shell-cm .tray.cu-tray .quick .btn[aria-pressed="true"] { background: var(--color-ink); color: var(--color-surface); box-shadow: none; }
+.tl.tl.tl .cu-part { display: grid; grid-template-columns: 40px minmax(0, 1fr) auto; gap: var(--space-12); align-items: center; padding: 14px; border-radius: 16px; box-shadow: inset 0 0 0 2px var(--color-ink); }
+.tl.tl.tl .cu-part-g { width: 40px; height: 40px; border-radius: 10px; background: var(--color-fill); display: grid; place-items: center; color: var(--color-ink-2); }
+.tl.tl.tl .cu-part-g .ic, .tl.tl.tl .cu-part-g .mark { width: 22px; height: 22px; }
+.tl.tl.tl .cu-part-t { font-size: var(--text-16); font-weight: 600; color: var(--color-ink); }
+.tl.tl.tl .cu-part-v { font-size: 17px; color: var(--color-ink); }
+.tl.tl.tl .cu-part-row { grid-column: 1 / -1; display: flex; justify-content: space-between; gap: var(--space-12); font-size: var(--text-14); color: var(--color-muted); }
+.tl.tl.tl .cu-part-row .num { color: var(--color-ink); }
+.tl.tl.tl .cu-part > .field { grid-column: 1 / -1; }
+.tl.tl.tl .tray.cu-tray .cu-left { margin: 0; }
+.tl.tl.tl .tray.cu-tray .error { text-align: center; }
+
+/* Lay-by paid (T4-3): like Paid, with how much of it is paid as a bar. */
+.tl.tl.tl .paid-z.cu-z { font-family: var(--font-sans); }
+.tl.tl.tl .cu-bar { align-self: stretch; height: 10px; margin-top: 22px; border-radius: var(--radius-pill); background: var(--color-fill); overflow: hidden; }
+.tl.tl.tl .cu-bar > i { display: block; height: 100%; border-radius: inherit; background: var(--color-ink); }
+
+/* The customer sheet (T2-1): the search, the people as rows, Cancel and Add. */
+.tl.tl.tl .input-wrap.cu-search { height: 60px; padding: 0 18px; gap: var(--space-12); border-radius: 16px; font-size: 18px; }
+.tl.tl.tl .dialog .input-wrap.cu-search { height: 60px; border-radius: 16px; }
+.tl.tl.tl .input-wrap.cu-search input { font-size: 18px; }
+.tl.tl.tl .input-wrap.cu-search .ic { width: 22px; height: 22px; color: var(--color-ink-2); }
+.tl.tl.tl .cu-clist { display: flex; flex-direction: column; gap: var(--space-8); }
+.tl.tl.tl .cu-crow { display: grid; grid-template-columns: 52px minmax(0, 1fr) auto; gap: 14px; align-items: center; width: 100%; min-height: 76px; padding: var(--space-12) var(--space-16); border-radius: 18px; background: var(--color-surface); box-shadow: inset 0 0 0 1px var(--color-line); text-align: left; color: inherit; }
+.tl.tl.tl .cu-crow[aria-selected="true"] { box-shadow: inset 0 0 0 2px var(--color-ink); }
+@media (hover: hover) { .tl.tl.tl button.cu-crow:hover { background: var(--color-hover); } }
+.tl.tl.tl button.cu-crow:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var(--color-ink), 0 0 0 2px var(--color-surface), 0 0 0 4px var(--color-accent); }
+.tl.tl.tl .cu-crow .hx-glyph { width: 52px; height: 52px; border-radius: 14px; }
+.tl.tl.tl .cu-crow .hx-glyph .ic { width: 24px; height: 24px; }
+.tl.tl.tl .cu-crow .hx-t { font-size: 17px; }
+.tl.tl.tl .cu-crow .hx-s { margin-top: 3px; font-size: var(--text-14); }
+.tl.tl.tl .cu-crow .hx-v { font-size: var(--text-16); }
+.tl.tl.tl .cu-crow.is-new { box-shadow: inset 0 0 0 1px var(--color-line); }
+.tl.tl.tl .cu-crow.is-new .hx-glyph { background: transparent; box-shadow: inset 0 0 0 1px var(--color-rule); }
+.tl.tl.tl .cu-crow.is-new .hx-t { font-weight: 500; color: var(--color-ink-2); }
+.tl.tl.tl .skeleton.cu-crow-skeleton { display: block; height: 76px; border-radius: 18px; }
+.tl.tl.tl .cu-new { display: flex; flex-direction: column; gap: 10px; }
+.tl.tl.tl .dialog .cu-clist > [role="listbox"] { max-height: min(328px, calc(100dvh - 400px)); overflow: auto; margin: -4px; padding: 4px; }
+.tl.tl.tl .dialog .dialog-foot .btn-primary .truncate { max-width: 280px; }
+
+/* Starting a lay-by: the customer, what is put aside, the deposit and how, the day, and what is left. */
+.tl.tl.tl .cu-start { display: flex; flex-direction: column; gap: var(--space-16); }
+.tl.tl.tl .cu-start .field > label, .tl.tl.tl .cu-start .field > .label { font-size: var(--text-14); font-weight: 500; color: var(--color-muted); }
+.tl.tl.tl .cu-pay.is-line { grid-template-columns: 48px minmax(0, 1fr) auto; }
+.tl.tl.tl .cu-pay.is-line > :first-child { color: var(--color-ink-2); }
+.tl.tl.tl .cu-deposit { display: flex; flex-wrap: wrap; gap: var(--space-8); }
+.tl.tl.tl .cu-deposit .input-wrap { flex: 1 1 180px; }
+.tl.tl.tl .cu-note { flex: none; height: 60px; min-width: 84px; padding: 0 var(--space-16); border-radius: 14px; box-shadow: inset 0 0 0 1px var(--color-rule); font-size: var(--text-16); color: var(--color-ink); }
+.tl.tl.tl .cu-note[aria-pressed="true"] { background: var(--color-ink); color: var(--color-surface); box-shadow: none; }
+.tl.tl.tl .cu-note:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--color-surface), 0 0 0 4px var(--color-accent); }
+.tl.tl.tl .cu-due { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--space-16); align-items: end; }
+.tl.tl.tl .cu-due .check { min-height: 52px; font-size: 15px; }
+.tl.tl.tl .cu-add { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px; }
+.tl.tl.tl .cu-add-keys { display: flex; justify-content: flex-end; gap: var(--space-8); }
+.tl.tl.tl .cu-add-keys .btn { height: 52px; border-radius: 14px; }
+
+/* Price check: the product as large as Paid's figure, then its facts. */
+.tl.tl.tl .cu-product { display: flex; flex-direction: column; align-items: center; gap: var(--space-8); padding: var(--space-8) var(--space-24) var(--space-16); text-align: center; }
+.tl.tl.tl .cu-pic { width: 120px; height: 120px; border-radius: 20px; background: var(--color-fill); overflow: hidden; display: grid; place-items: center; }
+.tl.tl.tl .cu-pic .pic { width: 100%; height: 100%; display: grid; place-items: center; }
+.tl.tl.tl .cu-pic .pic img { width: 100%; height: 100%; object-fit: cover; }
+.tl.tl.tl .cu-pic .pic .ic { width: 48px; height: 48px; color: var(--color-muted); }
+.tl.tl.tl .cu-product-n { margin-top: var(--space-8); font-size: 20px; font-weight: 600; line-height: 1.3; color: var(--color-ink); text-wrap: balance; }
+.tl.tl.tl .cu-product .paid-v { font-size: 48px; }
+
+/* Reports: the chart in a card, the rows under it; the figures beside. */
+.tl.tl.tl .cu-chart { flex: none; padding: var(--space-8) 20px 18px; border-radius: 18px; box-shadow: inset 0 0 0 1px var(--color-line); }
+.tl.tl.tl .cu-chart .cu-label { padding-left: 0; }
+.tl.tl.tl .cu-chart .col.is-now i { background: var(--color-ink); }
+.tl.tl.tl .cu-chart .col .v { font-family: var(--font-mono); }
+.tl.tl.tl .cu-chart .cols-x { font-family: var(--font-mono); }
+.tl.tl.tl .skeleton.cu-chart-skeleton { display: block; height: 240px; border-radius: 18px; }
+.tl.tl.tl .cu-chart .share { min-height: 52px; font-size: 15px; color: var(--color-ink); }
+.tl.tl.tl .cu-chart .share > .ic { width: 20px; height: 20px; color: var(--color-muted); }
+.tl.tl.tl .cu-share { display: grid; grid-template-columns: 112px minmax(0, 1fr); gap: var(--space-12); align-items: center; }
+.tl.tl.tl .cu-share-bar { height: 8px; border-radius: var(--radius-pill); background: var(--color-fill); overflow: hidden; }
+.tl.tl.tl .cu-share-bar > i { display: block; height: 100%; border-radius: inherit; background: var(--color-ink-2); }
+.tl.tl.tl .cu-finding { flex: none; font-size: 20px; font-weight: 600; line-height: 1.35; color: var(--color-ink); text-wrap: balance; }
+.tl.tl.tl .cu-total { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: var(--space-16) var(--space-24) var(--space-24); text-align: center; }
+.tl.tl.tl .cu-total .paid-k { margin-top: 0; }
+.tl.tl.tl .hx-keys a.hx-key { text-decoration: none; }
+
+/* A phone: the record as its own screen, as History's. */
+@media (max-width: 760px) {
+  .tl.tl.tl .cu-due, .tl.tl.tl .cu-add { grid-template-columns: minmax(0, 1fr); }
+  .tl.tl.tl .cu-product .paid-v { font-size: 40px; }
+  .tl.tl.tl .cu .hx-customer { max-width: 128px; }
+}

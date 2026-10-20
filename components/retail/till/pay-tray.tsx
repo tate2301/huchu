@@ -9,17 +9,15 @@
  */
 
 import * as React from "react";
-import Link from "next/link";
 import { useSession } from "next-auth/react";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 
 import { changeNoteWords } from "@/lib/retail/change-notes";
 import { formatZigRate, splitChange, type ChangeSplit } from "@/lib/retail/payment-words";
-import { getPosPortalHref } from "@/lib/retail/pos-host";
 import { fiscalStatusLabel } from "@/lib/retail/words";
-import { AddressBook, ArrowsCounterClockwise, ArrowsSplit, CaretRight, Check, Money, PauseCircle, Plus, Printer, Receipt, Stamp, Star, Ticket, Trash, Wallet, WifiSlash, X } from "@/lib/icons";
+import { AddressBook, ArrowsCounterClockwise, ArrowsSplit, Check, Money, PauseCircle, Plus, Printer, Receipt, Stamp, Star, Ticket, Trash, Wallet, WifiSlash, X } from "@/lib/icons";
 import { count, firstName, hhmm, paymentLabel, usd, whole, zig } from "./format";
-import { printSlip, slipLines, type SlipSale } from "./offline-slip";
+import { printSavedSlip, ShelfSlip, SlipPrintedFact, slipLines, type SlipSale } from "./offline-slip";
 import { ErrorLine, Keypad, Segmented, typeAmount, useKeypadKeys, useReturnFocus, useWindowKeys, type KeypadKey } from "./parts";
 import { useVoucherCheck } from "./floor-parts";
 import { paymentSummary } from "./sale-rules";
@@ -134,18 +132,6 @@ export function payWays(
   }
   if (other) other.label = orList(other.choices.map((choice) => choice.label));
   return ways;
-}
-
-/** What goes back to the customer, the largest figure on Paid, with the notes that make it up under it. */
-function ChangeBack({ label, change }: { label: string; change: Pick<ChangeSplit, "usd" | "zig"> }) {
-  const notes = changeNoteWords(change);
-  return (
-    <div className="tender is-quiet is-change" aria-live="polite">
-      <span className="l">{label}</span>
-      <span className="tender-figure">{changeText(change)}</span>
-      {notes ? <span className="notes">{notes}</span> : null}
-    </div>
-  );
 }
 
 /** Paid: a tick that draws itself once, where the status dot would be. */
@@ -272,6 +258,7 @@ export function PayTray({
     lineStopped,
     idChecked,
     isOffline,
+    setDisplayPaying,
   } = useTill();
   const { data: session } = useSession();
   const [mode, setMode] = React.useState<"single" | "split">("single");
@@ -316,6 +303,14 @@ export function PayTray({
 
   const split = paymentSummary(rows, amountDue, rate);
   const splitStill = Number(Math.max(amountDue - split.tenderedTotal, 0).toFixed(2));
+  // The customer screen shows the EcoCash code while an EcoCash part is being paid.
+  const ecoRow = rows.find((entry) => entry.tenderType === "ECOCASH");
+  const payingTender: TenderType | null = done || saved ? null : ecoRow ? "ECOCASH" : tenderType;
+  const payingAmount = ecoRow ? Number(ecoRow.amount || "0") : dueHere;
+  React.useEffect(() => {
+    setDisplayPaying(payingTender ? { tender: payingTender, amount: payingAmount } : null);
+  }, [payingTender, payingAmount, setDisplayPaying]);
+  React.useEffect(() => () => setDisplayPaying(null), [setDisplayPaying]);
   const splitRefProblem = rows.map((entry) => (entry.tenderType === "CASH" ? null : referenceProblem(entry))).find(Boolean) ?? null;
   const voucherShort = rows.some((entry) => entry.tenderType === "VOUCHER" && (isOffline || !entry.voucherCode?.trim() || !entry.voucherSecret?.trim()));
   const splitOk =
@@ -534,48 +529,72 @@ export function PayTray({
     );
   } else if (saved) {
     label = "Saved on this till";
+    // As Paid, for a sale the till holds until the line is back: its tag for a number, and its slip.
+    const slip: SlipSale | null = taken ? { ...taken, tag: saved.tag, at: saved.at, total: saved.total, change: saved.change } : null;
+    const payments = taken?.payments.filter((payment) => Number(payment.amount || "0") > 0) ?? [];
+    const cash = payments.filter((payment) => payment.tenderType === "CASH");
+    const refs = payments.filter((payment) => payment.tenderType !== "CASH" && payment.reference.trim());
+    const tookCash = !taken || cash.length > 0;
+    // What the cash paid of the sale, in US dollars: the total less every other way.
+    const byCash = Math.max(saved.total - payments.filter((payment) => payment.tenderType !== "CASH").reduce((sum, payment) => sum + Number(payment.amount), 0), 0);
+    const changeNotes = tookCash ? changeNoteWords(saved.change) : null;
+    const methods = [...new Set(payments.map((payment) => paymentLabel(payment.tenderType, payment.currency)))];
     body = (
       <>
-        <div className="wait" role="status" aria-live="polite">
-          <span className="status status-warning is-strong">
-            Saved on this till
+        <div className="paid is-saved" role="status" aria-live="polite">
+          <span className="paid-mark">
+            <PaidTick />
           </span>
-          <span className="note num">
-            {hhmm(saved.at)}
-          </span>
+          <span className="paid-k">{tookCash ? (saved.change.value > 0.004 ? "Change" : "No change") : `Paid by ${methods.map(inSentence).join(" and ")}`}</span>
+          <span className="paid-v">{tookCash ? changeText(saved.change) : usd(saved.total)}</span>
+          {changeNotes ? <span className="paid-z">{changeNotes}</span> : null}
         </div>
-        <ChangeBack label={saved.change.value > 0.004 ? `Give back from ${usd(saved.handed)}` : "Change"} change={saved.change} />
-        <p className="note">
-          Its sale number and fiscal receipt come when it is sent. Nothing else to do: it goes up on its own.
-        </p>
-        <div className="btn-group is-full" role="group" aria-label="Receipt">
-          {taken ? (
-            <button
-              type="button"
-              className="btn btn-touch grow"
-              onClick={(event) =>
-                printSlip(
-                  { ...taken, tag: saved.tag, at: saved.at, total: saved.total, change: saved.change },
-                  context?.receipt ?? null,
-                  event.currentTarget.closest(".tl")?.className ?? "tl",
-                )
-              }
-            >
-              <Printer className="ic" />
-              Print a slip
-            </button>
-          ) : null}
-          <Link className="btn btn-touch grow" href={getPosPortalHref("offline", isPosHost)} onClick={onNext}>
+        <dl className="facts">
+          <div className="fact">
             <WifiSlash className="ic" />
-            Waiting to send
-          </Link>
-        </div>
+            <dt>Saved on this till</dt>
+            <dd>{saved.tag}</dd>
+          </div>
+          {refs.map((payment, index) => (
+            <div key={`ref-${index}`} className="fact">
+              <TenderMark single tender={payment.tenderType} />
+              <dt>{paymentLabel(payment.tenderType, payment.currency)}</dt>
+              <dd>{payment.reference.trim()}</dd>
+            </div>
+          ))}
+          {cash.map((payment, index) => (
+            <div key={`cash-${index}`} className="fact">
+              <Money className="ic" />
+              <dt>
+                {paymentLabel(payment.tenderType, payment.currency)}, {payment.currency === "ZWG" ? zig(Number(payment.amount)) : usd(Number(payment.amount))} handed
+              </dt>
+              <dd>{cash.length === 1 ? usd(byCash) : null}</dd>
+            </div>
+          ))}
+          <SlipPrintedFact tag={saved.tag} />
+        </dl>
+        {slip ? <ShelfSlip sale={slip} wire={context?.receipt ?? null} /> : null}
         <div className="grow" />
-        <button type="button" className="btn btn-primary btn-touch btn-block" onClick={onNext}>
-          <CaretRight className="ic" />
-          Next sale
-          <EnterKey />
-        </button>
+        <div className="sale-keys">
+          <button
+            type="button"
+            className="hold-key"
+            aria-label="Print the slip"
+            title="Print the slip"
+            disabled={!slip}
+            onClick={(event) => {
+              if (slip) printSavedSlip(slip, context?.receipt ?? null, event.currentTarget.closest(".tl")?.className ?? "tl");
+            }}
+          >
+            <Printer className="ic" />
+          </button>
+          <button type="button" className="take-key" onClick={onNext}>
+            Next sale
+            <span className="kbd on-primary" aria-hidden="true">
+              ↵
+            </span>
+          </button>
+        </div>
       </>
     );
   } else if (mode === "split") {
@@ -832,7 +851,7 @@ export function PayTray({
           }}
         >
           <DialogPrimitive.Title className="visually-hidden">{label}</DialogPrimitive.Title>
-          {done ? null : top}
+          {done || saved ? null : top}
           {tenders}
           {body}
         </DialogPrimitive.Content>

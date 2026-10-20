@@ -209,7 +209,7 @@ export function PersonMenu({ trigger, doors = [] }: { trigger: React.ReactNode; 
  * ZIMRA is away: above every screen, until they no longer apply.
  */
 function TillNotes() {
-  const { messages, dismissMessage, offlineStop, fiscalStop } = useTill();
+  const { messages, dismissMessage, offlineStop, fiscalStop, pendingOfflineSales } = useTill();
   const { online, since } = useConnection();
   const stop = offlineStop ?? fiscalStop;
   return (
@@ -224,7 +224,8 @@ function TillNotes() {
         <div className="banner banner-danger" role="alert">
           <WarningCircle className="ic" />
           <span>
-            <b className="weight-500">Selling has stopped.</b> {stop}
+            <b className="weight-500">Selling has stopped</b> · {stop}
+            {offlineStop && pendingOfflineSales ? ` · ${pendingOfflineSales} waiting to send` : ""}
           </span>
         </div>
       ) : null}
