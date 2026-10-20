@@ -42,6 +42,7 @@ import {
   WifiSlash,
   X,
 } from "@/lib/icons";
+import { useHydrated } from "@/hooks/use-hydrated";
 import { getPosPortalHref, type PosPortalNavKey } from "@/lib/retail/pos-host";
 import { useConnection } from "./connection";
 import { dayMonth, hhmm, ROLE_WORD } from "./format";
@@ -343,11 +344,13 @@ function CashDropPrompt() {
   );
 }
 
-/** The time on the strip, to the minute. */
+/** The time on the strip, to the minute: the device's clock, so none until the page is on it. */
 function useClock() {
-  const [now, setNow] = React.useState(() => new Date());
+  const [now, setNow] = React.useState<Date | null>(null);
   React.useEffect(() => {
-    const tick = window.setInterval(() => setNow(new Date()), 15_000);
+    const tickNow = () => setNow(new Date());
+    tickNow();
+    const tick = window.setInterval(tickNow, 15_000);
     return () => window.clearInterval(tick);
   }, []);
   return now;
@@ -356,9 +359,11 @@ function useClock() {
 /** The strip across the top of the till: the shop, this till, the line and the time. */
 function TillStrip() {
   const { data: session } = useSession();
-  const { context, pendingOfflineSales, isPosHost } = useTill();
+  const { context: known, pendingOfflineSales, isPosHost } = useTill();
   const { online } = useConnection();
   const now = useClock();
+  // The till's details can come from the device's cache, which the server does not have.
+  const context = useHydrated() ? known : null;
   const shop = context?.site.name ?? "";
   const logo = context?.receipt.logoUrl ?? null;
   const name = session?.user?.name ?? "You";
@@ -382,9 +387,11 @@ function TillStrip() {
       ) : (
         <WifiSlash className="ic is-off" role="img" aria-label="No connection" />
       )}
-      <time className="strip-time" dateTime={now.toISOString()}>
-        {hhmm(now)}
-      </time>
+      {now ? (
+        <time className="strip-time" dateTime={now.toISOString()}>
+          {hhmm(now)}
+        </time>
+      ) : null}
       <span className="when-phone">
         <PersonMenu
           doors={DOORS.filter((entry) => !entry.phone)}
