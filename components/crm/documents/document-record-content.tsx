@@ -92,6 +92,8 @@ type Sibling = {
   id: string;
   type: CrmDocumentKind;
   version: number;
+  invoiceId?: string | null;
+  receiptId?: string | null;
   number: string | null;
   status: string | null;
 };
@@ -153,10 +155,11 @@ type Detail = {
 
 type DocumentResponse = { document: LeadDocument; detail: Detail; basePath: string | null };
 
+/** Each kind's list, at its one address in Books (design/books/NOTES.md §2). */
 const KIND: Record<CrmDocumentKind, { list: string; href: string; icon: typeof FileText }> = {
-  QUOTATION: { list: "Quotes", href: "/crm/quotes", icon: FileText },
-  INVOICE: { list: "Invoices", href: "/crm/invoices", icon: ReceiptLong },
-  RECEIPT: { list: "Receipts", href: "/crm/receipts", icon: Money },
+  QUOTATION: { list: "Quotes", href: "/books/quotes", icon: FileText },
+  INVOICE: { list: "Invoices", href: "/books/invoices", icon: ReceiptLong },
+  RECEIPT: { list: "Payments received", href: "/books/payments", icon: Money },
 };
 
 /** The section's measure, and the line its verb sits on. */
@@ -630,7 +633,7 @@ function DocumentRecord({ data }: { data: DocumentResponse }) {
                     code={payment.receiptNumber}
                     name={methodLabel(payment.method)}
                     meta={payment.reference ?? undefined}
-                    href={payment.documentId ? documentHref({ id: payment.documentId, type: "RECEIPT" }) : null}
+                    href={documentHref({ id: payment.documentId ?? payment.id, type: "RECEIPT", receiptId: payment.id })}
                   />
                 ),
                 received: <ColumnFigure tone="muted">{formatDate(payment.receivedAt)}</ColumnFigure>,

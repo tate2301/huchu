@@ -36,6 +36,8 @@ const SIBLING = {
     id: true,
     type: true,
     version: true,
+    invoiceId: true,
+    receiptId: true,
     quotation: { select: { quotationNumber: true, status: true } },
     invoice: { select: { invoiceNumber: true, status: true } },
     receipt: { select: { receiptNumber: true } },
@@ -46,6 +48,8 @@ type Sibling = {
   id: string;
   type: string;
   version: number;
+  invoiceId: string | null;
+  receiptId: string | null;
   quotation: { quotationNumber: string; status: string } | null;
   invoice: { invoiceNumber: string | null; status: string } | null;
   receipt: { receiptNumber: string } | null;
@@ -57,6 +61,9 @@ function named(sibling: Sibling | null | undefined) {
     id: sibling.id,
     type: sibling.type,
     version: sibling.version,
+    // The Books ids its one address is built from (documentHref).
+    invoiceId: sibling.invoiceId,
+    receiptId: sibling.receiptId,
     number:
       sibling.quotation?.quotationNumber ??
       sibling.invoice?.invoiceNumber ??
